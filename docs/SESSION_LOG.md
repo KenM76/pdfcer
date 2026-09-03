@@ -90082,5 +90082,112 @@ invocation of `pdfcer-librarian` was granted **no shell** — `Read`,
 files above were edited on disk; **committing them is the engineer's
 next act, not something this filing can report a hash for.** Stated
 here rather than fabricating one, per hard rule 8's own discipline
-extended to a git-write claim rather than only a git-read one: no
-commit was made by this role this invocation.
+
+## 2026-09-03 (405th filing) — roadmap update, pass shipped: **`Pass 248.2` (`a8fe04b`) SHIPS — copy a page to the OS clipboard as editable vector (SVG) plus alpha raster (PNG/`CF_DIBV5`) plus a one-page PDF, one placement transaction; measured landing in Word as an editable `svgBlip` graphic, not a picture; the `Pass 248` family (`.0`/`.1`/`.2`) is now COMPLETE and closes the operator's 2026-09-03 three-part request in full**
+
+**Sourcing (hard rule 8).** No shell available to this filing —
+`Read`/`Grep` on live source and docs only. `a8fe04b`'s own commit
+message and full gate-sweep results are **relayed** from the engineer's
+dispatch, not re-run. **Independently verified by direct read this
+filing:** `crates/pdfcer-cli/src/clipboard.rs` (module doc comment,
+`ClipboardPayload`, `place()`'s `#[cfg(windows)]`/`#[cfg(not(windows))]`
+twin, `dib_v5`, `svg_payload`) matches the dispatch closely;
+`crates/pdfcer-cli/Cargo.toml:130` — `clipboard-win = "5"` — present,
+and neither `pdfcer-core/Cargo.toml` nor `pdfcer-render/Cargo.toml`
+names `clipboard` anywhere (the GUI-core-separation claim);
+`crates/pdfcer-cli/tests/copy_page.rs` exists and was read in full — the
+refusal test, the non-Windows-refuses-by-name test, the
+`PDFCER_CLIPBOARD_TESTS=1`-gated round trip; `docs/core-api/
+03-capabilities.md` §7.9 and the channel note at
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\
+note_export_to_png_jpeg_svg_and_copy_out_ship_here_is_what_to_wire.md`
+both exist and match. **Not independently re-run**: the full gate sweep,
+the combridge Word measurement itself, and the Inkscape sourcing note.
+Ledger checked by `Grep` of `ROADMAP.md` directly (no shell for
+`tools/check-ledger-numbers.py`): Pass ceiling `248.1`, decision `132`,
+`R241`, filings `404` — matched the dispatch's stated "last known"
+exactly.
+
+**Shipped:**
+- **`Pass 248.2`** — `crates/pdfcer-cli/src/clipboard.rs`, a shell-only
+  module (`pdfcer-core`/`pdfcer-render` never touch a clipboard,
+  confirmed clipboard-free by `Grep` of both `Cargo.toml`s), places
+  `"image/svg+xml"` (UTF-8 + trailing NUL, Chromium's exact shape),
+  `"PNG"`, `CF_DIBV5` (`BITMAPV5HEADER`, premultiplied top-down BGRA)
+  and a one-page PDF on the OS clipboard in ONE transaction, built
+  before the clipboard is opened (Windows serialises clipboard access
+  across processes). CLI: `pdfcer copy-page <file> [--page] [--dpi]
+  [--no-svg] [--no-raster] [--no-pdf] [--background] …` — one
+  transparent render serves every payload; non-Windows builds refuse by
+  name and point at `export-image`.
+
+**Decisions made this session:**
+- **No new decision minted.** The design (engine makes bytes, a shell
+  places them, `pdfcer-core`/`pdfcer-render` never touch the OS
+  clipboard) is `ARCHITECTURE.md` §3's existing invariant applied, not a
+  new architectural choice — the same posture `pdfcer-print`'s own
+  `cfg(windows)` gating already established for a different OS
+  integration.
+
+**Findings + decisions:**
+- **★ MEASURED**: `pdfcer copy-page hello.pdf --dpi 96` pasted via
+  combridge into a new, unsaved Word document lands as one inline shape
+  at **200.2 × 120.0 pt** (the page's own physical size), type 17,
+  carrying `svgBlip` in its OOXML — **Word stores the paste as an
+  editable SVG graphic**, not a flattened picture. The same paste with
+  only raster formats placed: type 3, a plain picture, no `svgBlip`. A
+  PowerShell format enumeration confirmed all four placed formats plus
+  Windows-synthesised `Bitmap`/`DIB`.
+- **Inkscape's paste could not be driven headless** — its CLI has no
+  `paste` action — so its preference order (`image/svg+xml` above EMF
+  above PDF) is recorded as *sourced* from its own `clipboard.cpp`, not
+  *measured* the way Word's was. Worth a future session's attention if
+  an Inkscape-side regression is ever suspected.
+- **A background `cargo test --workspace` was killed by the harness
+  inside `pdfcer-core`'s doctests TWICE today** (once during `Pass
+  248.1`'s gate sweep, once during `248.2`'s) — the doctests were then
+  run in the foreground both times: 167+1+7+16 ok. One process fact
+  about this session's harness, not a two-occurrence pattern about
+  pdfcer itself; noted here rather than promoted to a rule candidate.
+
+**Still in flight:**
+- Nothing named by this filing. The `Pass 248` family is complete; the
+  operator's 2026-09-03 three-part request (PNG/JPEG export with real
+  transparency; SVG export; copy-paste vector graphics into other
+  software) is closed in full.
+
+**For next session:**
+- Engineer: commit this filing's doc edits (this role has no shell to
+  commit them itself this invocation).
+- Operator: nothing pending from this filing. If an EMF (`CF_ENHMETAFILE`)
+  writer for LibreOffice 24.x is wanted, it is a new, unscoped Backlog
+  item — ask, don't assume.
+
+**`docs/ROADMAP.md`:** *Shipped* gained the 405th banner and the
+`Pass 248.2` entry (10 numbered facts, the Word measurement, what was
+deliberately left undone); the `Pass 248.2` *Next up* entry was replaced
+with a "SHIPPED and has left this section" pointer (the established
+convention). Filings ceiling `404` → `405`; decision ceiling `132`,
+unchanged; Pass ceiling `248.1` → `248.2` (the `248` family complete).
+Standing rules ceiling `R241`, unchanged; next free `R242`. Open
+operator questions: none minted; next free `(ce)`.
+
+**`docs/FEATURES.md`:** *Export* section's copy-out row moved from
+*Planned* to *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui / `◐`
+Acrobat (unchanged from its *Planned* form).
+
+**`docs/ARCHITECTURE.md`:** no edit this filing — decision 132 and §4.1's
+forward pointer are entirely about `Pass 248.1`'s recorder-mode design
+and were already closed out SHIPPED at the 404th filing; `Pass 248.2`'s
+clipboard module is an ordinary application of the existing §3
+GUI-core-separation invariant, not a new architectural decision.
+
+**Commit note (hard rule 8, extended to this filing's own act — a
+git-write claim rather than only a git-read one).** This invocation of
+`pdfcer-librarian` was granted **no shell** — `Read`, `Write`, `Edit`,
+`Glob`, `Grep`, `WebSearch`, `WebFetch` only. The three files above
+(`ROADMAP.md`, `FEATURES.md`, `SESSION_LOG.md`) were edited on disk;
+**committing them, and running `tools/check-ledger-numbers.py`, is the
+engineer's next act** — no commit was made by this role this
+invocation. Stated here rather than fabricating a hash or an exit code,
+per hard rule 8's own discipline.

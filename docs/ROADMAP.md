@@ -112,6 +112,147 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★★ 405th filing, 2026-09-03 — `a8fe04b`: `Pass 248.2` SHIPS — COPY-OUT
+TO THE OS CLIPBOARD, EDITABLE VECTOR (SVG) INTO WORD/POWERPOINT/EXCEL/
+INKSCAPE AND ALPHA RASTER EVERYWHERE ELSE, ONE PLACEMENT TRANSACTION. THIS
+CLOSES THE OPERATOR'S 2026-09-03 THREE-PART REQUEST IN FULL — THE `Pass
+248` FAMILY (`248.0`/`248.1`/`248.2`) IS NOW COMPLETE.**
+
+**★ Sourcing (hard rule 8).** No shell available to this filing —
+Read/Grep on live source and docs only, no `git`. `a8fe04b`'s own commit
+message and `git show --stat` are **relayed** from the engineer's
+dispatch, not re-run. **Independently verified by direct `Read`/`Grep`
+this filing**: `crates/pdfcer-cli/src/clipboard.rs` exists and matches
+the dispatch's design description almost verbatim — `ClipboardPayload`,
+`place()` over `clipboard-win` 5 with a `#[cfg(windows)]` real
+implementation and a `#[cfg(not(windows))]` twin returning
+`ClipboardError::Unsupported`, `dib_v5()`, `svg_payload()`, and the
+module's own doc comment arguing the "produced before the clipboard is
+opened" ordering; `crates/pdfcer-cli/Cargo.toml:130` — `clipboard-win =
+"5"` — present, target-gated by doc comment, and **neither
+`pdfcer-core/Cargo.toml` nor `pdfcer-render/Cargo.toml` names `clipboard`
+anywhere** (Grep, zero hits both) — the GUI-core-separation claim;
+`about.toml` — `BSL-1.0` present in the accepted-licenses list;
+`crates/pdfcer-cli/tests/copy_page.rs` exists — read in full: the
+refusal test, the non-Windows-refuses-by-name test, and the
+`PDFCER_CLIPBOARD_TESTS=1`-gated Windows round trip (prints that it did
+not run otherwise, exactly as claimed), reading every format back
+through `clipboard-win` itself; `docs/core-api/03-capabilities.md` §7.9
+exists ("Copying a page to the OS clipboard…") with the 2026-09-03 Word
+measurement quoted; the channel note at `D:\Dev\FeatureRequests\
+pdfce_FeatureRequests\open\
+note_export_to_png_jpeg_svg_and_copy_out_ship_here_is_what_to_wire.md`
+exists and matches the summary given, including the FEATURES.md-rows
+paragraph at its foot. **Not independently re-run**: the full gate sweep
+(fmt/clippy/`cargo tree`/wasm32 check/fuzz check/19 `check-*.py`/183 test
+binaries/foreground doctests), the combridge Word measurement itself
+(200.2 × 120.0 pt inline shape, `svgBlip`), and the Inkscape
+`clipboard.cpp` sourcing note. Ledger checked by `Grep` of `ROADMAP.md`
+directly (no shell for `tools/check-ledger-numbers.py`): Pass ceiling
+`248.1`, decision `132`, `R241`, filings `404` — matches the dispatch's
+stated "last known" exactly.
+
+### `Pass 248.2` (`a8fe04b`, 2026-09-03) — copy a page to the OS clipboard as editable vector (SVG) + alpha raster (PNG/`CF_DIBV5`) + a one-page PDF, one placement transaction, so a paste lands as EDITABLE VECTORS in Word/PowerPoint/Excel/Inkscape and alpha raster everywhere else
+
+**Relayed from the engineer's dispatch/commit message (not independently
+re-run — no shell this filing); verified facts are marked above.**
+
+1. **New module `crates/pdfcer-cli/src/clipboard.rs`, a SHELL concern —
+   `pdfcer-core`/`pdfcer-render` never touch a clipboard** (`ARCHITECTURE.md`
+   §3); `cargo tree` for both carries no clipboard crate (checked this
+   filing, see Sourcing). `ClipboardPayload`, `place()` over
+   `clipboard-win` 5 (`BSL-1.0`, permissive, already accepted),
+   target-gated `#[cfg(windows)]` — the same shell-carries-the-OS-crate
+   posture as `pdfcer-print`'s own `cfg(windows)` gating (`ARCHITECTURE.md`
+   §12, 2026-08-10 filing) — so Linux/macOS compile clean and `copy-page`
+   **refuses by name**, pointing at `export-image`, rather than silently
+   doing nothing.
+2. **`dib_v5()`** — `BITMAPV5HEADER` (124 bytes) + 32 bpp `BI_BITFIELDS`
+   BGRA, premultiplied, top-down, sRGB colour space — the format Chromium
+   writes and Mozilla settled on reading; the `"PNG"` format, placed
+   first, carries straight alpha unambiguously, which is why premultiplied
+   BGRA in the DIB is not a contradiction.
+3. **`svg_payload()`** — UTF-8 SVG bytes plus one trailing NUL, byte-for-
+   byte Chromium's own shape (validated against 30 native Windows apps
+   per a Microsoft engineer's own PSA, per `docs/clipboard-interop-
+   survey.md`).
+4. **Placement order, ONE transaction**: `"image/svg+xml"`, `"PNG"`,
+   `CF_DIBV5`, `"application/pdf"` — the order IS the design, because a
+   reader takes the first format it recognises. Payloads are **built
+   before the clipboard is opened** — Windows serialises clipboard access
+   across processes, and a render can take seconds on a CAD sheet.
+5. **CLI**: `pdfcer copy-page <file> [--page] [--dpi] [--no-svg]
+   [--no-raster] [--no-pdf] [--background] [--no-annotations]
+   [--font-dir] [--show-layer] [--hide-layer]` — one transparent render
+   serves every payload. Stable line: `copied <input> page <N> ->
+   clipboard formats=<..> WxH dpi=<D> background=<..>; <render-page's own
+   counters>`, plus the `svg:` tally line and rule-4 notes (text as
+   outlines, the approximation tally when inexact, `mix-blend-mode`
+   showing as Normal in Word).
+6. **★ MEASURED, and this is the headline.** `pdfcer copy-page hello.pdf
+   --dpi 96`, then combridge `word run-script` pasting into a NEW,
+   unsaved Word document: one inline shape at **200.2 × 120.0 pt** — the
+   page's own physical size — type 17, carrying `svgBlip` in its OOXML:
+   **Word stored the paste as an SVG graphic.** The same paste with
+   `--no-svg --no-pdf`: type 3, a plain picture, no `svgBlip`. A
+   PowerShell clipboard-format enumeration after the copy showed
+   `image/svg+xml`, `PNG`, `Format17` (`CF_DIBV5`), `application/pdf`,
+   plus Windows-synthesised `Bitmap`/`DIB`; the SVG payload ends in a NUL
+   as designed. **Inkscape's paste could NOT be driven headless** (its
+   CLI has no `paste` action) — its own preference order is taken from
+   its `clipboard.cpp` source and recorded as *sourced*, not *measured*.
+7. **Tests**: `tests/copy_page.rs` — the refusals (nothing-to-copy,
+   `--dpi 0`, out-of-range `--page`, bad `--background`) fire before the
+   clipboard is ever touched; a non-Windows build refuses by name and
+   points at `export-image`; the Windows clipboard round trip runs only
+   under `PDFCER_CLIPBOARD_TESTS=1` (it overwrites the developer's own
+   clipboard; prints that it did not run otherwise), reading every format
+   back through `clipboard-win` itself — the registered names, the SVG's
+   trailing NUL, the PNG's transparent corner, the DIB header's
+   `bV5Size`, the PDF's `%PDF-` signature. Plus 2 unit tests for
+   `dib_v5`/`svg_payload`.
+8. **Deliberately not done**: `CF_ENHMETAFILE` (only LibreOffice 24.x
+   needs it on Windows — a follow-on EMF writer, **not queued** unless
+   asked); a `copy-selection` CLI verb (a selection is an edit-session
+   concept — the GUI route is `ObjectClip::to_pdf` → `export_svg`,
+   already documented at `docs/core-api/03-capabilities.md` §7.9).
+9. **Docs**: `docs/core-api/03-capabilities.md` §7.9 (the engine calls,
+   the exact format list and order, the Word measurement, the two traps
+   — `arboard` cannot register `image/svg+xml` or `application/pdf`, use
+   `clipboard-win` directly; a render must complete before the clipboard
+   opens); the appendix's capability→module index re-derived (2,989
+   lines, 73 clauses). Channel note filed at
+   `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\
+   note_export_to_png_jpeg_svg_and_copy_out_ship_here_is_what_to_wire.md`
+   — a pointer to §7.7–§7.9, not a duplicate of them.
+10. **Gates for `248.2`**: fmt, clippy `-D warnings`, `cargo tree` (both
+    core and render clipboard-free), wasm32 check, fuzz check, all 19
+    `tools/check-*.py`, the full workspace test run — **183 test binaries
+    green**; the harness killed a background `cargo test --workspace`
+    inside `pdfcer-core`'s doctests **twice** today, so the doctests were
+    run in the foreground separately: 167+1+7+16 ok.
+
+**This closes the operator's 2026-09-03 request in full** — three asks in
+one sentence (PNG/JPEG export with real transparency; SVG export; copy-
+paste vector graphics into Word/Inkscape) — all three now shipped:
+`Pass 248.0` (PNG/JPEG), `Pass 248.1` (SVG), `Pass 248.2` (copy-out).
+
+**`docs/FEATURES.md`**: the copy-out row moves from *Planned* to
+*Implemented*, `[x]` core / `[x]` cli / `[ ]` gui — **not rounded up**;
+no `pdfcer-gui` surface exists yet.
+
+**No decision minted, no standing rule minted.** The background-test-run
+kill (item 10) happened twice today, which is one process fact about
+this session's harness, not a two-occurrence pattern about pdfcer itself
+— noted, not promoted to a rule candidate, per the dispatch's own
+instruction.
+
+**Ledger.** Filings ceiling `404` → **`405`**; decision ceiling `132`
+unchanged, next free `133`; Pass ceiling `248.1` → **`248.2`** — **the
+248 family is now complete** (`248.0`/`248.1`/`248.2` all shipped);
+standing rules ceiling `R241` unchanged, next free `R242`; open operator
+questions: none minted, next free `(ce)`.
+
 **★★★★ 404th filing, 2026-09-03 — `80f1c3e`: `Pass 248.1` SHIPS — SVG PAGE
 EXPORT, FROM THE RENDERER'S OWN DISPLAY-LIST RECORDING, VIA A SECOND
 NEVER-REFUSING "EXPORT" RECORDING MODE. A PRE-EXISTING CACHE-MODE DEFECT
@@ -106265,76 +106406,18 @@ in the "still open" list. Full build record: this file's own
 > *Planned* to *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui. No remnant
 > of the entry stays here.
 
-### `Pass 248.2` — **COPY-OUT TO OTHER SOFTWARE: WORD/POWERPOINT/EXCEL, INKSCAPE, LIBREOFFICE** — filed 2026-09-03 (403rd filing), plan `docs/export-and-copy-out-plan.md` §3, sourced from `docs/clipboard-interop-survey.md` (2026-09-03); **IN PROGRESS as of the 404th filing** — `crates/pdfcer-cli/src/clipboard.rs` and the `copy-page` CLI verb exist (SVG/PNG/`CF_DIBV5`/one-page-PDF placement in one clipboard transaction); the `combridge word` end-to-end paste verification, the `CF_ENHMETAFILE` follow-on writer, and the empirical Ctrl+V-priority test matrix are not yet done
-
-**What the engine owes, and what it does not.** The GUI-core invariant
-(`ARCHITECTURE.md` §3) means `pdfcer-core`/`pdfcer-render` may not touch
-the OS clipboard — that is a shell concern. The engine's job is *bytes
-in every format a target application will accept*: `Pass 248.1`'s SVG,
-`Pass 248.0`'s PNG-with-alpha, and the already-shipped one-page PDF
-(`ObjectClip::to_pdf`, `Pass 120.2`). Placement is `pdfcer-gui`'s (a
-channel note naming the formats in order) and a `pdfcer copy-page` /
-`copy-selection` CLI verb — a **shell**, which may carry an OS-clipboard
-crate, and which lets this engineer verify an end-to-end paste into Word
-today (via `combridge word`) rather than waiting on the GUI project.
-
-**Format set and placement order — from `docs/
-clipboard-interop-survey.md` §7's actual Recommendation, FIVE formats,
-not the three the original scoping conversation named:**
-
-1. **`"image/svg+xml"`** (registered) — UTF-8 bytes of a standalone
-   `<svg>` with explicit `width`/`height` and `viewBox`, plus one
-   trailing NUL byte, in an `HGLOBAL` — byte-for-byte what Chromium ≥
-   M127 writes (validated against 30 native Windows apps by a Microsoft
-   engineer's own PSA). Reaches **Word/PowerPoint/Excel M365 as an
-   editable SVG graphic**, **Inkscape 1.3/1.4** (its own preferred
-   target #2), LibreOffice ≥ 25.2.
-2. **`CF_ENHMETAFILE`** — an `HENHMETAFILE` from `SetEnhMetaFileBits`.
-   Reaches **LibreOffice 24.x, whose ONLY vector route on Windows this
-   is** (its SVG clipboard fix landed only in ≥25.2), Office Paste
-   Special "Picture (Enhanced Metafile)" (ungroupable), Inkscape's
-   fallback target. A follow-on Pass with its own writer — **not
-   assumed here**; the survey names `emfsdk` 0.2.0 (MIT OR Apache-2.0)
-   as a parser-oracle dev-dependency candidate and hand-emitted
-   `[MS-EMF]` records (public spec) as the primary route, classic EMF
-   only for v1 (alpha/blend content flattened and disclosed, rule 4).
-3. **`"PNG"`** (registered) — straight-alpha RGBA PNG bytes, disclosed
-   DPI. Reaches "everything else, with alpha."
-4. **`CF_DIBV5`** — `BITMAPV5HEADER`, premultiplied BGRA. Reaches
-   readers that predate the `"PNG"` convention; Windows synthesises
-   `CF_DIB`/`CF_BITMAP` from it, so those are never placed explicitly.
-5. *(optional, cheap)* **`"application/pdf"`** — the one-page PDF.
-   Only Inkscape consumes it on Windows (target #7, after SVG); Office
-   and LibreOffice never, on Windows.
-
-**Crate**: `clipboard-win` 5.4.1 (`BSL-1.0`, permissive, already in
-`pdfcer-gui`'s dependency graph via `arboard` and already accepted in
-both `about.toml`s) for formats 1/3/4/5 via `register_format` +
-`raw::set_without_clear`; `windows-sys` (`Win32_Graphics_Gdi`,
-`Win32_System_DataExchange`, already present) for format 2 only —
-`clipboard-win` has no metafile setter (its generic path hands an
-`HGLOBAL` where an `HENHMETAFILE` is required). No copyleft anywhere in
-the candidate set; Inkscape (GPL-2.0-or-later) and LibreOffice
-(MPL-2.0) were read as **behavioural references only** (`R61` pattern),
-nothing ported.
-
-**Verification**: an end-to-end paste into Word through `combridge
-word`, plus the empirical test matrix the survey's §7 states is still
-owed (Office's default Ctrl+V priority among SVG/EMF/PNG when all are
-present; Inkscape's PDF-import dialog on paste) — recorded back into
-`docs/clipboard-interop-survey.md`, not re-derived from scratch.
-
-**Acrobat parity** (`Acrobat_Features/
-clipboard__copy_out_to_other_applications.md`, 2026-09-03): Snapshot is
-raster-only; Select-tool vector copy and Edit Object copy are reasoned
-but not confirmed to ride an Acrobat-internal/proprietary in-memory
-representation that only round-trips within Acrobat itself — so
-`FEATURES.md`'s Acrobat column for this row is `◐`, not `[x]`.
-
-**`FEATURES.md`**: two new *Planned* rows (SVG export; clipboard
-copy-out), all boxes unticked except the Acrobat column per the parity
-notes above — filed in the same edit as this entry (rule: a Pass filed
-with no features row is how the two documents start to diverge).
+> ★★★★★ **`Pass 248.2` SHIPPED and has left this section, 2026-09-03 (405th
+> filing, `a8fe04b`).** Filed here by the 403rd filing, IN PROGRESS as of
+> the 404th, shipped the filing after. Its full entry — the
+> `crates/pdfcer-cli/src/clipboard.rs` module, `dib_v5`/`svg_payload`, the
+> four-format one-transaction placement order, the combridge-measured
+> Word paste (`svgBlip`, 200.2 × 120.0 pt), and what was deliberately left
+> undone (`CF_ENHMETAFILE`, a `copy-selection` verb) — is at the **top of
+> *Shipped***. `docs/FEATURES.md`'s copy-out row moved from *Planned* to
+> *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui. No remnant of the
+> entry stays here. **This closes the operator's 2026-09-03 three-part
+> request (PNG/JPEG + SVG export + copy-out) in full — the `Pass 248`
+> family is complete.**
 
 ### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), **NOT STARTED**
 

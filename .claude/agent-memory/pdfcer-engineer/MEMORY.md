@@ -94,4 +94,5 @@
 - [A byte-level test cannot see a black block](feedback_a_byte_level_test_cannot_see_a_black_block.md) — 22 green redaction tests agreed with a black block inside a transparent mark; assert visual properties on a raster in pdfce-render/tests
 - [The fork: pdfce → pdfcer](project_fork_pdfcer.md) — 2026-09-03: work in D:\Dev\pdfcer (a clone); D:\Dev\pdfce is the untouched backup; 247.1 rename and 247.2 publish follow
 - [A mechanical rename fails at punctuation](feedback_a_mechanical_rename_fails_at_punctuation.md) — escape-glued, quoted-path and fixture-bytes spellings survive a word-boundary regex sweep; gates found all three, reading found none
+- [Export + copy-out arc (Pass 248.x)](project_export_and_copy_out_arc.md) — SVG comes from the export recorder (decision 132), never a second writer; Word paste measured via combridge; EMF/copy-selection/true gradients deliberately not done
 - [No back-compat for pre-release formats](feedback_no_backcompat_for_prerelease_formats.md) - Ken 2026-09-03: nothing is in production; re-key fixtures, never teach the reader two spellings; ask first
