@@ -22,25 +22,31 @@ In a *Planned* row only, `?` means **which of `[ ]` and `—` this is has
 not been decided yet** — never "probably built".
 
 **core** = `pdfce-core`/`pdfce-render` (headless) · **cli** =
-`pdfce-cli` · **gui** = `D:\dev\pdfceGUI`, **not** `crates/pdfce-gui`.
+`pdfce-cli` · **gui** = `D:\dev\pdfcer-gui`, **not** `crates/pdfce-gui`
+(removed — see ownership statement below).
 
-**★ Ownership statement, added 2026-08-19 (decision 073) precisely
-because its absence let two projects read this column two ways for six
-days.** `crates/pdfce-gui` is paused (`ROADMAP.md`'s GUI-pause block,
-2026-08-13) and not yet removed — the operator's own words are *"not
-yet, but eventually your project folder GUI will be removed."* The `gui`
-column tracks the **replacement**, `D:\dev\pdfceGUI`, a separate project
-whose own `FEATURES.md` states in its header that this column **is its
-acceptance criteria** — nothing ticked here may regress at fold-in.
-Ticking bar, adopted from that file directly: **a row is ticked only
-when an operator can reach it in a real `pdfceGUI` build — not when the
-code exists, not when a test passes.** Where `pdfceGUI`'s own file marks
-a row ⛔ blocked on something in `pdfce-core`, that is a finding about
-*our* boundary and belongs in this project's own records (`ROADMAP.md`,
-decision 058), not only in theirs.
+**★ Ownership statement, added 2026-08-19 (decision 073); UPDATED
+2026-09-03 (399th filing, `Pass 247.0`, `da3b2f8`) — the premise this
+statement was written to preserve has now happened.** `crates/pdfce-gui`
+is no longer paused-and-present; it was **deleted** by `Pass 247.0`
+(dropped from `[workspace] members`, its egui/eframe/wgpu dependency
+tree removed by `cargo tree` diff). The `gui` column has tracked the
+**replacement** since decision 073 and still does — only its name and
+path changed: **`D:\dev\pdfceGUI` → `D:\dev\pdfcer-gui`**, per the
+operator's ruling on open question (cd) (`ROADMAP.md`, `Pass 247.1`).
+That project's own `FEATURES.md` states in its header that this column
+**is its acceptance criteria** — nothing ticked here may regress at
+fold-in. Ticking bar, unchanged: **a row is ticked only when an operator
+can reach it in a real `pdfcer-gui` build — not when the code exists,
+not when a test passes.** Where `pdfcer-gui`'s own file marks a row ⛔
+blocked on something in `pdfce-core`, that is a finding about *our*
+boundary and belongs in this project's own records (`ROADMAP.md`,
+decision 058), not only in theirs. **Existing row prose still says
+`pdfceGUI`** (capability rows are out of this filing's scope per the
+dispatch — a bulk rename there is separate, owed work, not done here).
 
 **Maintenance note, added 2026-08-19.** No row states a bare verdict
-about `D:\dev\pdfceGUI` — the checkbox alone carries a claim of
+about `D:\dev\pdfcer-gui` — the checkbox alone carries a claim of
 absence; a confirmed reachability finding is cited to its surface and
 its date (*"Reachable — Forms panel, Flatten section, confirmed
 2026-08-19"*), never a narrative like *"No GUI surface."* A verdict

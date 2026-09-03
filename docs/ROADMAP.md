@@ -96,6 +96,162 @@ start of every session. Maintained by `pdfce-librarian`, dispatched by
 
 ## Shipped
 
+**★★★ 399th filing, 2026-09-03 — `da3b2f8` (repo: `D:\Dev\pdfcer`):
+`Pass 247.0` SHIPS. THE IN-REPO GUI IS GONE. `crates/pdfce-gui` DELETED,
+THREE GUI-ONLY GATES DELETED WITH IT, FIVE MORE DE-BRANCHED, ONE
+(`check-string-gaps.sh`) STAYS — THE PLAN SAID FOUR DELETED AND WAS
+WRONG, CORRECTED BELOW. 304 → 167 DISTINCT DEPENDENCIES, 0 NEW.
+`docs/core-api/`'S 26 GUI CITATIONS RE-POINTED TO A PINNED COMMIT IN THE
+NOW-BACKUP `D:\Dev\pdfce` REPO. `Pass 10.1`'S FOUR HARD-RULE-11 SURVIVORS
+FIXED IN THE SAME COMMIT. `247.1`/`247.2` STAY IN *NEXT UP*. NO SHELL
+THIS FILING — EVERY FIGURE BELOW IS RELAYED FROM THE ENGINEER'S DISPATCH.**
+
+**★ Sourcing (hard rule 8) — NO SHELL AVAILABLE THIS FILING.** Every
+figure in this entry is **relayed** from the engineer's dispatch, not
+independently re-run or re-checked against `git`/the filesystem by this
+filing. This is stated once here rather than repeated at each figure,
+per hard rule 8's instruction for the case where a shell genuinely is
+not available: report which, and do not infer disk state from
+documents. Nothing below should be read as shell-verified by the
+librarian.
+
+**Location note, because it is the operative fact for this whole
+filing.** This and every edit in this filing are made under
+`D:\Dev\pdfcer\docs\`, the fresh clone made at `Pass 247.0` step 1
+(decision 128) from `D:\Dev\pdfce` at `cce414e`. `D:\Dev\pdfce` itself is
+**not touched** by this filing — it is the untouched backup the operator
+asked for, and stays that way until the one README-pointer commit
+`Pass 247.2` makes there on archiving.
+
+### `Pass 247.0` (`da3b2f8`, 2026-09-03, `D:\Dev\pdfcer`) — fork by clone, strip the in-repo GUI, green
+
+**Filed *Next up* at the 397th filing (2026-09-03, `cce414e`), under the
+shared `Pass 247.0`/`247.1`/`247.2` heading (decision 128); shipped the
+same day.** Only `247.0`'s own five-step subsection is moved here whole
+— `247.1` and `247.2` are **not** shipped and stay in *Next up* under
+that heading, now carrying a short pointer to this entry rather than
+`247.0`'s own text (hard rule 1 does not apply to *Next up*, which is
+mutable working state, not the append-only *Shipped*/*SESSION_LOG*
+pair — but the group heading and its shared sizing/framing text stay,
+because `247.1`/`247.2` still need them).
+
+#### What shipped, relayed from the engineer's dispatch
+
+1. **The clone itself.** `git clone D:/Dev/pdfce D:/Dev/pdfcer`;
+   `git config core.hooksPath tools/hooks` set in the clone (without it
+   `run-gates.sh` goes red, `c0c8dee`); `origin` re-pointed to
+   `https://github.com/KenM76/pdfce.git` — the **same** remote as
+   before this Pass; `247.2` is what changes it to `KenM76/pdfcer`. 30
+   tags present in both repositories. `cce414e` is the fork point (this
+   file's own 398th-filing commit).
+2. **Removed:** `crates/pdfce-gui`, dropped from `[workspace] members`;
+   the launchers `pdfce.bat`/`pdfce.ps1`; the GUI diagnostic harness
+   scripts `gui-click.ps1`, `gui-drive.ps1`, `gui-shot.ps1`,
+   `observe-gui.ps1`; 40 GUI rows of
+   `public-fns-undocumented-baseline.txt`. `ui_specs/` **stays** — it is
+   history and `pdfcer-gui`'s own reference, per step 5 of the plan.
+3. **★ THE PLAN'S OWN PREMISE WAS WRONG, AND IS CORRECTED HERE RATHER
+   THAN SILENTLY FOLLOWED.** The plan (this Pass's own *Next up* step 3,
+   `docs/NEXT_SESSION.md` §0.1, and the request-channel note) said
+   **four** GUI-only gates would be deleted, naming
+   `check-string-gaps.sh` as the fourth. That gate scans
+   `for root in crates tools` — it is the same gate that caught a
+   `pdfce-cli` refusal with fourteen baked spaces on 2026-08-27 (a
+   finding this project's own records cite elsewhere) — and it is **not**
+   GUI-only. It **stays**, unchanged in scope; only its dead
+   `"pdfce-gui: "` prefix branch is dropped. What actually shipped:
+   **three** gates deleted with their CI steps and their
+   `check-ci-parity.py` rows (`check-ui-strings.sh`,
+   `check-theme-colors.sh`, `check-disclosure-channel.sh`); the
+   `audits` job renamed `(22 checks)` → `(19 checks)`. **A plan's list
+   is a snapshot, checked here against the diff that actually exists** —
+   this is the same discipline hard rule 10's corollary states for a
+   correction: it names its world-source (the commit's own diff,
+   relayed by the engineer) rather than asserting a bare "fixed."
+   `ARCHITECTURE.md` §12 decision 128 item 3 carries the matching dated
+   correction footer.
+4. **Five gates de-branched, not deleted** (they also read other
+   crates): `check-outcome-disclosed.py` (clean without the GUI branch —
+   139 fields / 19 structs all surfaced by the CLI), `check-settings-
+   consumed.py`, `check-ci-job-names.py`, `package-portable.py`,
+   `deploy-onedrive.py`. **`check-settings-consumed.py` went RED on
+   `theme` once the GUI branch was removed** — `theme` is read by
+   nothing left in this tree; its only reader is `D:\dev\pdfcer-gui`
+   (`crates/pdfcer-gui/src/app/frame.rs` `self.settings.theme`,
+   `settings_window.rs` `Preset::from_key(&self.settings.theme)`,
+   grepped in that tree by the engineer). Fixed with a new named table,
+   `CONSUMED_BY_OUT_OF_TREE_GUI`, citing the out-of-tree reader — the
+   gate **prints** the citation on a green run rather than silently
+   allow-listing the key; **decision 130** records the general pattern.
+   Gate green: **20 settings**.
+5. **`package-portable.py`: `BINARIES = ["pdfce-cli.exe"]`** — the
+   portable folder ships one binary now, not two. Build command and
+   BUILD-INFO text follow. **The `gui-core-separation` CI job is
+   UNCHANGED** — the invariant, not the crate, and it is now trivially
+   green. MSRV stays 1.92 (it was `eframe`'s floor originally; kept, not
+   re-derived — the `Cargo.toml` comment says so).
+6. **Dependencies, by `cargo tree --workspace -e normal,build`:** 304 →
+   167 distinct crates, **137 gone, 0 new**. `Cargo.lock`: 488 → 159
+   packages, **329 removed, 0 added, 0 version changes**. No egui,
+   eframe, winit, wgpu or accesskit survives anywhere in the workspace.
+   `THIRD_PARTY_LICENSES.md` regenerated by `cargo-about` (rule 13): the
+   licence SET lost four — Boost 1.0, SIL OFL 1.1, Ubuntu Font Licence
+   1.0, zlib — all GUI-only; none added.
+7. **`docs/core-api/` (engineer-owned, recorded here for cross-
+   reference):** 26 citations of `crates/pdfce-gui/src/...:line`
+   re-pointed to `pdfce@cce414e:crates/pdfce-gui/...`, with a head note
+   in each of the three affected files giving the exact command a
+   reader runs (`git -C D:\Dev\pdfce show cce414e:...`); `index.md`'s
+   line counts updated (2,799 / 4,491 / 2,781); `check-core-api-
+   verbs.py` PASS. Same pinned-commit citation convention decision 130
+   generalizes.
+8. **`Pass 10.1`'s four hard-rule-11 survivors, fixed in this same
+   commit** (found by this Pass's own sweep, not a separate filing):
+   the `list-signatures` summary no longer says *"pdfce performs no
+   cryptographic verification"* (it now points at `verify-signatures`);
+   `signature.rs`'s module doc says it *"verifies nothing itself,"*
+   naming `signature_verify`, and that trust is checked by nothing;
+   `signature.rs`'s stage label corrected `Pass 10.2` → `Pass 10.1`;
+   `docs/DEPENDENCIES.md` §4 gained the six in-crate verification
+   modules (`asn1`, `cms`, `bignum`, `rsa`, `ecdsa`, `sha1`) with
+   decision 129's reasoning, and lost the GUI crate row and its `eframe`
+   section (now *"The desktop app — not here"*).
+9. **README and agent files:** the README's crate table drops the GUI
+   row and says where the GUI now lives; its build commands are
+   CLI-only; its release sentence names `pdfcer-gui`. The engineer agent
+   file's geography row now points at `D:\dev\pdfcer-gui`; `R172`'s
+   harness paragraph is annotated in place (the scripts are gone, the
+   lesson stays — a harness lesson is not a claim about a still-present
+   harness).
+10. **Acceptance, relayed:** `cargo build --workspace`, `cargo fmt
+    --check`, `cargo clippy --workspace --all-targets -- -D warnings`
+    all green. **`cargo test --workspace`: 4,730 passed / 0 failed.
+    Pre-strip total 5,114 / 0. Difference 384**, matching **exactly**
+    `git grep -c "#[test]" cce414e -- crates/pdfce-gui` **= 384** — the
+    difference is the GUI's own tests and nothing else, which is the
+    entire claim this figure exists to support (per hard rule 10, the
+    total is filed beside the count it was divided/compared against,
+    not alone). `cargo tree -p pdfce-core` / `-p pdfce-render` remain
+    GUI-free. `tools/run-gates.sh`: first run had one `0xc0000142`
+    doctest failure (the known starvation false signal — the doctest
+    passes alone, 167/0) and one real failure (`check-core-api-
+    verbs.py`'s line counts, fixed in the same session); second full
+    run **PASS 29/29, including both filing gates**. Pre-push hook
+    active.
+11. **Agent memory** (tracked, travels with the clone):
+    `project_fork_pdfcer.md` added; `reference_gui_diag_harness.md`
+    marked gone.
+
+#### The entry as filed (397th filing) — for reference; see `Pass 247.0`'s own text, now under *Next up*'s `247.1`/`247.2` heading, for the full original framing (operator quotes, sizing figures, sequencing rationale). Not reproduced twice in full here.
+
+**Premises corrected: one, named above (item 3) — the "four gates"
+count.** Everything else in the dispatch checked out against what the
+engineer reported; nothing else is recorded as a correction because
+nothing else was checked against independent evidence this filing (no
+shell).
+
+---
+
 **★★ 398th filing, 2026-09-03 — `22421b6`: `Pass 10.1` SHIPS. A SIGNATURE
 CAN NOW BE VERIFIED — INTEGRITY (THE DIGEST OVER `/ByteRange` AND THE CMS
 SIGNATURE OVER THE SIGNED ATTRIBUTES, AGAINST THE SIGNER'S OWN EMBEDDED
@@ -104594,6 +104750,13 @@ in the "still open" list. Full build record: this file's own
 
 ### `Pass 247.0` / `247.1` / `247.2` — **THE PRODUCT IS `pdfcer` ("pdf-see-er": create, edit, read); `pdfce` BECOMES ITS PRE-RELEASE CODE NAME. FORK BY CLONE INTO `D:\Dev\pdfcer`, STRIP THE OBSOLETE IN-REPO GUI, RENAME EVERYTHING PRESENT-TENSE, PUBLISH AS `KenM76/pdfcer`; THIS FOLDER AND REPOSITORY STAY AS THE UNTOUCHED BACKUP** — operator request 2026-09-03, filed 397th filing, **decision 128**
 
+**★ `Pass 247.0` SHIPPED 2026-09-03 (`da3b2f8`, 399th filing) — see the
+Shipped entry at the head of *Shipped* for the full build record; its
+own `#### Pass 247.0` subsection below is annotated in place rather than
+deleted, since it also carries a correction (step 3's "four gates"
+premise) worth reading beside the text it corrects. `247.1` and `247.2`
+below remain *Next up*, unshipped.**
+
 **Operator, verbatim, two messages.** First, marked *plan only*:
 
 > *"Ideally, I'd like to rename this entire project and strip out the
@@ -104658,39 +104821,47 @@ framing (*"our code name for this pre-release might be pdfce"*). A
 sentence after `247.1` ships is a survivor for the hard-rule-11 sweep.
 **The suite-name gate is unaffected** (it guards a different name).
 
-#### `Pass 247.0` — fork by clone, strip the in-repo GUI, green
+#### `Pass 247.0` — **SHIPPED 2026-09-03, `da3b2f8`, in `D:\Dev\pdfcer`. See the Shipped entry at the head of *Shipped* (399th filing) for the full build record.** Original plan text retained below, struck where it was wrong, because the correction is only legible beside what it corrects
 
-1. `git clone D:\Dev\pdfce D:\Dev\pdfcer` (local clone; `origin` stays
+1. ~~`git clone D:\Dev\pdfce D:\Dev\pdfcer` (local clone; `origin` stays
    `KenM76/pdfce` until `247.2` re-points it). `git config
    core.hooksPath tools/hooks` in the clone — `run-gates.sh` goes red
-   without it (`c0c8dee`).
-2. Delete `crates/pdfce-gui`; drop it from `[workspace] members`; drop
+   without it (`c0c8dee`).~~ Done exactly as planned.
+2. ~~Delete `crates/pdfce-gui`; drop it from `[workspace] members`; drop
    every dependency only it pulled (egui/eframe/wgpu/accesskit and the
    rest — verify by `cargo tree` before/after, not by reading the
    manifest); regenerate `THIRD_PARTY_LICENSES.md` (`cargo-about`, rule
-   13) and diff the licence set.
-3. Retire or re-point the nine GUI-targeting gates. The four that only
-   ever read `crates/pdfce-gui` (`check-ui-strings.sh`,
-   `check-theme-colors.sh`, `check-string-gaps.sh`,
-   `check-disclosure-channel.sh`) are **deleted with their CI steps and
-   their `check-ci-parity.py` rows** — a gate over a directory that no
-   longer exists is `a_gate_that_fails_for_a_locator_reason…`; the five
-   that also read other crates (`check-outcome-disclosed.py`,
-   `check-settings-consumed.py`, `check-ci-job-names.py`,
-   `package-portable.py`, `deploy-onedrive.py`) lose their GUI branch.
-   The *zero GUI deps* CI job **stays** — it is the invariant, not the
-   crate; it becomes trivially green and that is the point.
-4. `docs/FEATURES.md`: the header's ownership statement (*"`crates/
-   pdfce-gui` is paused and not yet removed"*) becomes *removed in `Pass
-   247.0`*; the `gui` column is unchanged — it has tracked
-   `D:\dev\pdfceGUI` since decision 073. `ARCHITECTURE.md` §3 loses the
-   crate; §6's packaging loses `pdfce-gui.exe`.
-5. Acceptance: `cargo build --workspace`, `cargo test --workspace`,
-   `cargo fmt --check`, `cargo clippy -D warnings`, `tools/run-gates.sh`
-   all green in the clone; `cargo tree -p pdfce-core` / `-p pdfce-render`
-   GUI-free (rule 2); test total recorded beside the pre-strip total so
-   the difference is the GUI's own tests and nothing else. The
-   `ui_specs/` folder stays — it is history and pdfceGUI's reference.
+   13) and diff the licence set.~~ Done exactly as planned (304 → 167
+   distinct crates, 137 gone, 0 new).
+3. **★ WRONG AS WRITTEN — corrected at ship, 399th filing.** ~~Retire or
+   re-point the nine GUI-targeting gates. The four that only ever read
+   `crates/pdfce-gui` (`check-ui-strings.sh`, `check-theme-colors.sh`,
+   `check-string-gaps.sh`, `check-disclosure-channel.sh`) are **deleted
+   with their CI steps and their `check-ci-parity.py` rows**~~ —
+   `check-string-gaps.sh` is **not** GUI-only (it scans
+   `for root in crates tools`, and is the gate that caught a `pdfce-cli`
+   refusal with fourteen baked spaces on 2026-08-27); it **stays**,
+   losing only its dead `"pdfce-gui: "` prefix branch. **Three** gates
+   deleted, not four:  `check-ui-strings.sh`, `check-theme-colors.sh`,
+   `check-disclosure-channel.sh`. The five that also read other crates
+   (`check-outcome-disclosed.py`, `check-settings-consumed.py`,
+   `check-ci-job-names.py`, `package-portable.py`,
+   `deploy-onedrive.py`) lost their GUI branch as planned. The *zero GUI
+   deps* CI job **stayed**, as planned, trivially green.
+4. Done as planned — see the Shipped entry for the exact wording that
+   shipped in `docs/FEATURES.md` and `ARCHITECTURE.md` §3/§6/§7 (the
+   Shipped entry also records `ARCHITECTURE.md` §12 decision 130, minted
+   at ship for the settings-gate out-of-tree-citation pattern, which
+   this step did not anticipate).
+5. Done as planned, plus one item this step did not name and the Shipped
+   entry does: **`docs/core-api/`'s 26 GUI citations** re-pointed to a
+   pinned commit (`pdfce@cce414e`) in the now-backup repository.
+
+**★ For `Pass 247.1`: the rename must NOT restore any of the files this
+Pass deleted** (the launchers, the harness scripts, the three retired
+gates) — a mechanical rename pass that globs `pdfce*` and finds nothing
+to rename in a file that no longer exists is correct behaviour, not a
+gap to fill back in.
 
 #### `Pass 247.1` — the rename
 

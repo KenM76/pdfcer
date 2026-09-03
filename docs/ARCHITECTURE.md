@@ -220,6 +220,12 @@ its `pdfce-print` precedent: **decision 061 §2**.
   the Rust ecosystem convention for binaries is to commit the lockfile
   for reproducible builds, unlike libraries which typically don't.
   Don't `.gitignore` it.
+  **★ UPDATED 2026-09-03 (`Pass 247.0`, `da3b2f8`, 399th filing;
+  decision 128/130).** `pdfce-gui` is removed from this workspace — it
+  produces **`pdfce-cli` only** now. The GUI binary is built by the
+  separate `D:\dev\pdfcer-gui` project. `Cargo.lock` shrank 488 → 159
+  packages (329 removed, 0 added, 0 version changes) the same commit;
+  still committed, same reasoning.
 
 ### 2.1 — egui vs iced: still confirm at Pass 0
 
@@ -2047,12 +2053,43 @@ D:\Dev\pdfce\
                                    moves bytes to disk and stops, and says so in its
                                    module docs), plus mirror fallback and "latest
                                    version": a pinned artifact has one source.
-    pdfce-gui\                  <- The native desktop shell. egui/eframe application,
+    pdfce-gui\                  <- ★★ REMOVED 2026-09-03, `Pass 247.0` (`da3b2f8`,
+                                   399th filing; decision 128, extended by decision
+                                   130). Dropped from `[workspace] members`; its
+                                   egui/eframe/wgpu/winit/accesskit/rfd dependency
+                                   tree is GONE from this workspace (`cargo tree`
+                                   diff: 304 → 167 distinct crates, 137 removed, 0
+                                   new). The native desktop shell now lives OUTSIDE
+                                   this repository, as the separate project
+                                   `D:\dev\pdfcer-gui` (renamed from `pdfceGUI`,
+                                   operator ruling on open question (cd),
+                                   `ROADMAP.md` `Pass 247.1`), consuming
+                                   `pdfce-core`/`pdfce-render` as a dependency into
+                                   this tree rather than as a workspace member —
+                                   §3's own GUI-core separation invariant is what
+                                   makes that possible at all, and the *zero GUI
+                                   deps* CI job stays, trivially green, because the
+                                   invariant is a property of `pdfce-core`/
+                                   `pdfce-render`, not of having a shell in the
+                                   tree (decision 128 item 3).
+                                   **The design history this node carried —
+                                   `Pass 44.0`'s background-render threading split,
+                                   `Pass 58.0`'s `theme.rs` chrome/document-colour
+                                   boundary, `Pass 58.1`'s `main.rs` module split —
+                                   is PRESERVED, not deleted; it documents shipped
+                                   reasoning that outlived the crate it was written
+                                   about.** Full text as it stood immediately before
+                                   removal: `git -C D:\Dev\pdfce show
+                                   cce414e:docs/ARCHITECTURE.md` (the fork point) —
+                                   same pinned-commit citation convention as
+                                   `docs/core-api/`'s 26 re-pointed citations
+                                   (decision 130).
+                                   ~~The native desktop shell. egui/eframe application,
                                    window chrome, file dialogs (rfd crate), menus,
                                    docking layout (egui_dock or hand-rolled), the
                                    `fn main()` entry point and packaged executable.
-                                   Depends on pdfce-core + pdfce-render.
-                                   **★ THREADING LIVES HERE, AND ONLY HERE
+                                   Depends on pdfce-core + pdfce-render.~~
+                                   **★ THREADING LIVED HERE, AND ONLY HERE
                                    (Pass 44.0, 2026-08-07, `7926a78`).**
                                    `render_worker.rs` (582 lines, `wc -l`
                                    at `bea3cb1` 2026-08-18) owns the
@@ -6841,11 +6878,15 @@ debug afterthought. Design points:
   path (§5); a CLI OCR command's output is still a hint the caller
   chooses to apply, not silently baked into the saved file, unless an
   explicit `--apply` (or similarly unambiguous) flag says otherwise.
-- **Packaging**: `pdfce-cli.exe` ships in the same single output
-  folder as `pdfce-gui`'s executable — one portable folder, two
-  entry-point binaries, both zero-install. The packaging smoke test
-  (§6) covers both.
-- **`pdfce-gui`'s own command-line surface is exactly three answers,
+- **Packaging: `pdfce-cli.exe` is the ONLY binary in the portable
+  folder, as of 2026-09-03 (`Pass 247.0`, `da3b2f8`, 399th filing;
+  decision 128).** Before this Pass the folder shipped two entry-point
+  binaries (`pdfce-cli.exe` beside `pdfce-gui`'s executable); the GUI
+  binary is now built and packaged entirely by the separate
+  `D:\dev\pdfcer-gui` project. `tools/package-portable.py`'s
+  `BINARIES` list is `["pdfce-cli.exe"]`. The packaging smoke test
+  (§6) covers the one binary this repo now ships.
+- ~~**`pdfce-gui`'s own command-line surface is exactly three answers,
   and that boundary is deliberate** (2026-08-12, `9ea0c88`; §12
   decision 054). `pdfce-gui` accepts one positional argument — a
   document to open, which is what a double-click and a file
@@ -6859,7 +6900,11 @@ debug afterthought. Design points:
   terminal and does not grow into a second, competing CLI** — that is
   the boundary this bullet exists to state. Parsed by hand, not by
   `clap`: four string comparisons do not justify an argument-parser
-  dependency in the GUI crate (rule 13).
+  dependency in the GUI crate (rule 13).~~ **Moot as of `Pass 247.0` —
+  the crate this decision governed no longer exists in this repo.**
+  Kept struck-through, not deleted, because decision 054 is real
+  history; whether `pdfcer-gui` needs an equivalent boundary is that
+  project's own call, not inherited automatically.
 
 ## 8. Code style & public API design
 
@@ -30828,6 +30873,21 @@ housekeeping.**
    downstream shell relies on, not a property of having a shell in the
    tree. `docs/FEATURES.md`'s `gui` column is unchanged: it has tracked
    `D:\dev\pdfceGUI` since decision 073.
+   **★ CORRECTED 2026-09-03 (399th filing, `da3b2f8`) — "the four gates
+   that only ever read it" was the PLAN's premise, not what shipped.**
+   Read against `Pass 247.0`'s own diff: **three** gates were deleted
+   with their CI steps (`check-ui-strings.sh`, `check-theme-colors.sh`,
+   `check-disclosure-channel.sh`); a **fourth**, `check-string-gaps.sh`,
+   was assumed GUI-only by this decision and by `ROADMAP.md`'s own
+   `Pass 247.0` step 3 — it is not: it scans `for root in crates tools`
+   and is the gate that caught a `pdfce-cli` refusal with fourteen baked
+   spaces on 2026-08-27. It **stays**, losing only its dead
+   `"pdfce-gui: "` prefix branch. Net: three deleted, five de-branched
+   (unchanged from this entry's plan), one stays. **This decision's own
+   text is corrected in place per the append-only-decision-log footer
+   convention** — nothing struck, because nothing here was false at the
+   time it was written; it described a plan, and the plan's premise is
+   what needed correcting once the diff existed to check it against.
 4. **`D:\dev\pdfceGUI` is a downstream consumer with a path dependency
    into this tree**, and is re-pointed through its own channel, not
    silently. Whether it renames is open question **(cd)**; default no.
@@ -30964,3 +31024,93 @@ are not borrowed before it is read.
 **Decision ceiling moves `128` → `129`; next free `130`.** **Standing
 rules ceiling `R241` — unchanged**, next free `R242`. **Open operator
 questions: none minted**; `(cd)` answered at the 397th; next free `(ce)`.
+
+
+### 2026-09-03 (399th filing, `da3b2f8`) — decision 130: **A CLAIM ABOUT CODE THIS REPOSITORY NO LONGER CONTAINS IS FILED AS A PINNED-COMMIT CITATION OR A NAMED, PRINTED TABLE — NEVER A BARE ALLOWLIST — SO IT STAYS CHECKABLE AFTER THE THING IT DESCRIBES HAS LEFT THE TREE**
+
+**(librarian filing, 399th. No shell this session — every figure below
+is relayed from the engineer's `Pass 247.0` dispatch, not independently
+re-verified; nothing here is asserted as shell-checked. `Pass 247.0`
+ships decision 128's `247.0` step, and this decision covers the two
+pieces of that step decision 128 flagged as possibly needing their own
+entry — the settings-gate exemption and the core-api citation
+convention — judged here to be one architectural pattern, not two.)**
+
+**The problem, stated once because it now has two instances.** Deleting
+`crates/pdfce-gui` from this workspace does not delete the FACTS that
+were true about it — that `docs/core-api/` cited 26 specific lines in
+it, and that `Settings::theme` is read by code that lives there. Two
+mechanisms in this repo now have to keep making a claim about
+something the repo can no longer show a reader:
+
+1. **`docs/core-api/`'s 26 line-anchored citations into
+   `crates/pdfce-gui/src/...`.** Re-pointed, in the same commit, to
+   `pdfce@cce414e:crates/pdfce-gui/...` — a pinned commit in the
+   now-backup `D:\Dev\pdfce` repository, the fork point, with a head
+   note in each of the three affected `docs/core-api/` files giving the
+   exact command a reader runs to see the cited line
+   (`git -C D:\Dev\pdfce show cce414e:<path>`). `check-core-api-verbs.py`
+   verifies the citation format, not that the pinned commit still
+   exists on disk — that half is the same trust `D:\Dev\pdfce` already
+   carries as "the untouched backup" (decision 128 item 2).
+2. **`tools/check-settings-consumed.py`'s `theme` key.** With the GUI
+   branch removed from the gate (its only in-tree reader gone with the
+   crate), the gate went RED — correctly, because nothing in THIS tree
+   reads `theme` any more. Its one remaining reader is
+   `D:\dev\pdfcer-gui` (`crates/pdfcer-gui/src/app/frame.rs`
+   `self.settings.theme`; `settings_window.rs`
+   `Preset::from_key(&self.settings.theme)` — grepped in that tree by
+   the engineer, relayed here). Fix: a new named table,
+   `CONSUMED_BY_OUT_OF_TREE_GUI`, listing `theme` against that citation;
+   the gate **prints** the table's entries as part of its PASS output
+   rather than silently treating them as exempt.
+
+**Why these are one decision, not two.** Both are the same move under
+two different failure shapes. A citation into a repository this project
+does not build (`D:\Dev\pdfce` after the fork, `D:\dev\pdfcer-gui`
+always) cannot be verified by anything running IN this repository's CI
+— `check-cited-commits-exist.py` walks `main`'s own history, not a
+sibling folder's, and no test here can import `pdfcer-gui`'s source.
+**The failure mode this decision exists to prevent is `R203`'s, in code
+rather than in prose**: `D:/dev/rag/rust/a_blocker_naming_another_repository_cannot_fail_a_test_so_it_decays_silently.md`
+found that a bare claim about another repository has no falsifier here
+and rots silently regardless of diligence — two `FEATURES.md` rows
+stayed wrong for weeks under exactly that shape before `R203` adopted
+the practice of citing a **surface and a date**, not asserting a bare
+verdict. The settings gate and the core-api citation are `R203`'s
+practice **applied to machine-checked artifacts instead of a
+hand-maintained doc row**: neither can be verified, so both are filed as
+an explicit, named, PRINTED claim — a citation with a command that
+reproduces it, or a table entry the gate echoes on every green run —
+rather than as a silent pass that looks identical to "nothing to check
+here."
+
+**What this is NOT.** Not a relaxation of `check-settings-consumed.py`'s
+enforcement — an in-tree setting with no in-tree AND no cited
+out-of-tree reader still fails the gate exactly as before; only a
+**named, cited** out-of-tree reader is accepted, and the citation is
+itself a claim someone could go verify, not a blanket exemption clause.
+Not a new dependency or coupling between the two repositories — no code
+here imports from `pdfcer-gui` or vice versa; the table is documentation
+the gate happens to print, not a build-time check across the boundary.
+
+**Consequence for any future cross-repository claim this project files
+(`pdfcer-gui`, `pdfce` after the archive, any later fork).** Use one of
+these two shapes, not a bare assertion: (a) a **pinned-commit citation**
+(`repo@hash:path:line`) when the claim is about a specific piece of code
+at a specific point in time, or (b) a **named table the checking script
+itself prints**, when the claim is "X is still true of the current state
+of another repository" and needs to be re-asserted, not merely dated.
+
+**Body sections updated in this filing:** §3's `pdfce-gui\` workspace-
+layout node (now a removal notice plus the pinned-commit citation,
+history preserved beneath it, unchanged); §7's packaging bullet
+(`pdfce-cli.exe` is the only binary; decision 054's bullet struck as
+moot); §2's `Cargo.lock` bullet (now produces `pdfce-cli` only). `§12`
+decision 128 item 3 gained a dated correction footer (the "four gates"
+premise; see that entry) — filed under decision 128 rather than here,
+because it corrects THAT entry's own claim, not a new decision.
+
+**Decision ceiling moves `129` → `130`; next free `131`.** **Standing
+rules ceiling `R241` — unchanged**, next free `R242`. **Open operator
+questions: none minted**; next free `(ce)`.
