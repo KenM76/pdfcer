@@ -138,3 +138,12 @@ without consuming it. Two shapes in one act: the bundle, and a green-by-eye
 push past a red gate. **Stage a filing commit by naming only `docs/` paths;
 stage a code commit by naming only the code paths; never let one `git add`
 line cover both.**
+
+**Recurred 2026-09-03 with a LOCKFILE:** `fuzz/Cargo.lock`, refreshed
+mechanically by the fuzz check, rode along in the 407th filing commit.
+`check-commits-filed.py` classes any non-doc path as code, so the filing
+commit itself became an unfiled code commit and blocked the next push —
+after CI had already gone green on it (the CI copy of the gate evaluates
+differently; do not take CI green as the local gate's answer). Stage a
+filing commit by the three/four doc paths ONLY; a stray lockfile goes in
+the next code commit.

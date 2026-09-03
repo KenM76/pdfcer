@@ -112,6 +112,42 @@ wherever it appears.*
 
 ## Shipped
 
+**★ 410th filing, 2026-09-03 — `89ba29f`: docs + a lockfile — the 407th
+filing's own commit carried `fuzz/Cargo.lock` beside its three doc files;
+`check-commits-filed.py` classes any commit touching a non-doc path as
+CODE, and no filing named this hash. Filed now so the gate has a
+narrative for it.**
+
+**Sourcing (hard rule 8).** No shell available to this filing — nothing
+here is asserted from a `git show`/`git log` run. The commit's contents
+(three doc files + `fuzz/Cargo.lock`) and cause (a mechanical `cd fuzz &&
+cargo check --bins` refresh after `Pass 248.1`'s resvg/usvg
+dev-dependency change and `Pass 248.3`'s edits) are relayed from the
+dispatch, not independently verified.
+
+### `89ba29f` (2026-09-03) — docs + a lockfile: the 407th filing's own commit carried `fuzz/Cargo.lock` beside three doc files, so `check-commits-filed.py` classed it as code with no narrative
+
+**No behaviour change relayed.** `fuzz/Cargo.lock` was refreshed
+mechanically (`cd fuzz && cargo check --bins`) after `Pass 248.1`'s
+resvg/usvg dev-dependency change and `Pass 248.3`'s edits — no `.rs`
+source line changed, only the fuzz crate's lockfile riding along with the
+407th filing's three doc-file changes. Filed so
+`check-commits-filed.py` has a narrative for the hash — the same reason
+`a436432` (below) got its own entry after the 391st→392nd filing
+correction.
+
+**Standing lesson (already an engineer memory, not a rule): a filing
+commit must carry ONLY docs.** A lockfile — or any other non-doc byte —
+riding along turns a filing commit into an unfiled code commit, because
+the gate's docs-only exemption is keyed on path, not on intent.
+
+`docs/FEATURES.md`: no change.
+
+**Ledger.** Filings ceiling `409` → **`410`**; decision ceiling `132`
+unchanged, next free `133`; Pass ceiling `248.4` unchanged — no new Pass,
+a gate-narrative fix only; standing rules ceiling `R241` unchanged, next
+free `R242`; open operator questions: none minted, next free `(ce)`.
+
 **★★ 409th filing, 2026-09-03 — `1f9eb1d`: `chore: v0.30.0` — BUMPED AND
 TAGGED locally (carries `Pass 248.3` + `Pass 248.4`); push / package-folder
 verification / GitHub release / OneDrive deploy / `verify-release.py` all

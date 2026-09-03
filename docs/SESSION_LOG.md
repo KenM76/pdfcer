@@ -90470,3 +90470,35 @@ re-run.
   the dispatch is absent; complete the release steps above; dereference
   `v0.30.0`'s tag object to confirm it targets `1f9eb1d`.
 - Operator: nothing pending from this filing.
+
+## 2026-09-03 (410th filing) — gate-narrative fix: `89ba29f` docs so `check-commits-filed.py` stops blocking on it
+
+**Shipped:**
+- Nothing new — `89ba29f` was the 407th filing's own filing commit; it
+  carried `fuzz/Cargo.lock` beside its three doc files, so
+  `check-commits-filed.py` classed it as CODE (a lockfile is not a doc)
+  and no filing had ever named the hash. This entry, plus a matching
+  `ROADMAP.md` paragraph, gives it one.
+
+**Decisions made this session:**
+- None.
+
+**Findings + decisions:**
+- `fuzz/Cargo.lock` was refreshed mechanically (`cd fuzz && cargo check
+  --bins`) after `Pass 248.1`'s resvg/usvg dev-dependency change and
+  `Pass 248.3`'s edits — no source change, no behaviour change.
+- Standing lesson (already carried as an engineer memory, not promoted to
+  a numbered rule here): a librarian filing commit must carry ONLY
+  `docs/` — a lockfile riding along turns it into an unfiled code commit,
+  because the gate's docs-only exemption is keyed on path, not intent.
+
+**Still in flight:**
+- `v0.30.0` release: unchanged from the 409th filing's entry above.
+- `Pass 5.4` (encrypt on save) — next up, unchanged.
+
+**For next session:**
+- No shell was available to this filing — the commit's exact contents
+  and cause are relayed from the dispatch, not independently verified
+  with `git show --stat 89ba29f`. A future filing with a shell can
+  confirm.
+- Operator: nothing pending from this filing.
