@@ -233,7 +233,7 @@ pub struct ClipId(u32);
 
 impl ClipId {
     /// This id as a table index.
-    fn index(self) -> usize {
+    pub(crate) fn index(self) -> usize {
         self.0 as usize
     }
 }
@@ -316,6 +316,16 @@ pub(crate) enum Op {
         paint: LayerPaint,
         /// The sub-drawing.
         ops: Vec<Op>,
+        /// A §11.6.5 soft mask over the finished sub-drawing, kept ONLY
+        /// by the export recorder (`Pass 248.1`).
+        ///
+        /// Always `None` in cache mode, which refuses the page instead
+        /// (`PoisonReason::SoftMask`): a mask is a device-sized buffer
+        /// built for the recording viewport, and a replay at another
+        /// scale would apply it at the wrong resolution. An export is
+        /// consumed at exactly the recording scale, so there the mask is
+        /// valid and is carried — as an SVG `<mask>` — rather than dropped.
+        mask: Option<Arc<Mask>>,
     },
 }
 
@@ -747,6 +757,92 @@ pub fn record_page(
     epoch: u64,
     options: &RenderOptions,
 ) -> Result<DisplayList, RenderError> {
+    let recorded = record_impl(doc, page, scale, options, false)?;
+    if let Some(reason) = recorded.poison {
+        return Err(RenderError::PageNotRecordable { reason });
+    }
+    Ok(DisplayList {
+        // Carried, not derived: see the field docs. A recorded list
+        // outlives the `Page` it came from, and recovering the box from
+        // the `f32` `page_ctm` at deep zoom recovers it to the nearest
+        // ~128 device pixels.
+        page_box: page.crop_box,
+        page_rotate: page.rotate,
+        key: DisplayListKey {
+            page: page.id,
+            epoch,
+            scale,
+        },
+        page_ctm: recorded.page_ctm,
+        page_size: recorded.page_size,
+        ops: recorded.ops,
+        clips: recorded.clips,
+        bytes: recorded.bytes,
+        diagnostics: recorded.diagnostics,
+    })
+}
+
+/// One page interpreted once for a WRITER rather than a cache
+/// (`Pass 248.1`) — the export recorder, which never refuses.
+///
+/// The op stream, the clip table, the page geometry at `scale`, the
+/// render diagnostics, and the [`ExportTally`] of what had to be
+/// rasterised or approximated. Consumed by `crate::svg`.
+pub(crate) struct ExportRecording {
+    pub ops: Vec<Op>,
+    pub clips: Vec<ClipDef>,
+    pub page_size: (u32, u32),
+    pub diagnostics: Diagnostics,
+    pub tally: ExportTally,
+}
+
+/// Record a page in export mode (`Pass 248.1`).
+///
+/// # Errors
+///
+/// As [`record_page`] EXCEPT `PageNotRecordable`, which cannot occur:
+/// export mode has no byte ceiling and rasterises rather than refuses.
+/// `ScaleBeyondF32` remains a `BadRasterSize`-class refusal of the
+/// requested resolution, since an export scale past `f32` precision
+/// would misplace geometry by whole pixels.
+pub(crate) fn record_page_for_export(
+    doc: &DocumentView<'_>,
+    page: &Page,
+    scale: f32,
+    options: &RenderOptions,
+) -> Result<ExportRecording, RenderError> {
+    let recorded = record_impl(doc, page, scale, options, true)?;
+    Ok(ExportRecording {
+        ops: recorded.ops,
+        clips: recorded.clips,
+        page_size: recorded.page_size,
+        diagnostics: recorded.diagnostics,
+        tally: recorded.tally,
+    })
+}
+
+/// What one recording walk produced, before either caller shapes it.
+struct Recorded {
+    page_ctm: Transform,
+    page_size: (u32, u32),
+    ops: Vec<Op>,
+    clips: Vec<ClipDef>,
+    bytes: usize,
+    diagnostics: Diagnostics,
+    poison: Option<PoisonReason>,
+    tally: ExportTally,
+}
+
+/// The one walk both [`record_page`] and [`record_page_for_export`]
+/// share — same interpreter, same annotation survey, same order — so the
+/// cache and the export cannot disagree about what a page contains.
+fn record_impl(
+    doc: &DocumentView<'_>,
+    page: &Page,
+    scale: f32,
+    options: &RenderOptions,
+    export: bool,
+) -> Result<Recorded, RenderError> {
     let (page_w, page_h, page_ctm) = crate::page_device_geometry(page, scale);
     // A recording allocates no raster, so the MAX_PIXMAP_EDGE ceiling does
     // NOT apply here — that is the point of recording at a deep zoom. Zero
@@ -781,7 +877,16 @@ pub fn record_page(
         });
     }
 
-    let mut recorder = Recorder::new(page_w, page_h);
+    let mut recorder = if export {
+        // A page-sized scratch is the export mode's whole mechanism; an
+        // unallocatable one is the same refusal a render would make.
+        Recorder::new_for_export(page_w, page_h).ok_or(RenderError::BadRasterSize {
+            width: page_w,
+            height: page_h,
+        })?
+    } else {
+        Recorder::new(page_w, page_h)
+    };
     let scope = options.effective_annotation_scope();
     // Resolved ONCE, and used for two things that must not disagree: what
     // the interpreter is told the blending space is, and whether this page
@@ -870,30 +975,19 @@ pub fn record_page(
     // Checked AFTER the walk, deliberately: the walk is what discovers the
     // refusal, and a page whose LAST operator is a shading is exactly as
     // unrecordable as one whose first is.
-    if let Some(reason) = recorder.poison_reason() {
-        return Err(RenderError::PageNotRecordable { reason });
-    }
-
+    let poison = recorder.poison_reason();
+    let tally = recorder.export_tally();
     let bytes = recorder.approx_bytes;
     let (ops, clips) = recorder.finish();
-    Ok(DisplayList {
-        // Carried, not derived: see the field docs. A recorded list
-        // outlives the `Page` it came from, and recovering the box from
-        // the `f32` `page_ctm` at deep zoom recovers it to the nearest
-        // ~128 device pixels.
-        page_box: page.crop_box,
-        page_rotate: page.rotate,
-        key: DisplayListKey {
-            page: page.id,
-            epoch,
-            scale,
-        },
+    Ok(Recorded {
         page_ctm,
         page_size: (page_w, page_h),
         ops,
         clips,
         bytes,
         diagnostics,
+        poison,
+        tally,
     })
 }
 
@@ -941,7 +1035,7 @@ fn replay_ops(ops: &[Op], pixmap: &mut Pixmap, masks: &mut MaskBuilder<'_>, regi
                     mask.as_deref(),
                 );
             }
-            Op::Layer { paint, ops } => {
+            Op::Layer { paint, ops, mask } => {
                 // Same size as the destination and TRANSPARENT to start —
                 // §11.4.7's isolated backdrop, and the same buffer
                 // `Canvas::layer` allocates in paint mode.
@@ -949,6 +1043,12 @@ fn replay_ops(ops: &[Op], pixmap: &mut Pixmap, masks: &mut MaskBuilder<'_>, regi
                     continue;
                 };
                 replay_ops(ops, &mut buf, masks, region);
+                // A soft mask on the group's RESULT (§11.4.5), the way
+                // `Canvas::group` applies it in paint mode. Only an export
+                // recording ever carries one; see `Op::Layer::mask`.
+                if let Some(mask) = mask {
+                    crate::canvas::apply_mask(&mut buf, mask);
+                }
                 pixmap.draw_pixmap(
                     0,
                     0,
@@ -1164,6 +1264,87 @@ pub(crate) struct RecorderState {
     /// milliseconds. A guard whose only evidence is that it compiles is a
     /// guard nobody has seen work.
     pub max_bytes: usize,
+    /// `Some` in EXPORT mode (`Pass 248.1`): the recording is consumed
+    /// at exactly this scale by a writer (SVG), never replayed at
+    /// another, so nothing needs refusing — what cannot be recorded as
+    /// geometry is rasterised into the scratch and recorded as an image
+    /// fill, and what is approximated is COUNTED. See [`ExportState`].
+    pub export: Option<ExportState>,
+}
+
+/// What the export recorder keeps beside the op stack (`Pass 248.1`).
+///
+/// # The design in one paragraph
+///
+/// The cache recorder refuses by name every operator that reads the
+/// destination back, because a *cache* that replays a plausible wrong
+/// picture is worse than none (module docs §3, `R211`). An *export* is
+/// different in exactly one way: it is consumed once, at the recording
+/// scale, by a writer that can embed a raster. So the same sites that call
+/// `refuse` get a second answer here — a transparent page-sized scratch
+/// they paint into as if it were the page, which the recorder then
+/// **harvests** into an `Op::Fill` carrying the painted region as an
+/// image, clipped by the clip that was in force. Every such fallback and
+/// every approximation is tallied so the SVG's disclosure can say what
+/// is raster inside it and what was drawn `Normal` where the file asked
+/// for something the format cannot express.
+///
+/// # Why the scratch is harvested per operator, not per page
+///
+/// Because ordering is the whole point of a display list. A shading
+/// painted between two fills must land between them; harvesting lazily
+/// **before the next op is pushed** (and at every frame boundary) keeps
+/// the z-order exact, and harvesting eagerly when a SECOND fallback
+/// arrives keeps each one under its own clip.
+pub(crate) struct ExportState {
+    /// The page-sized transparent buffer fallback sites paint into.
+    pub scratch: Pixmap,
+    /// The clip in force when the scratch was last handed out; it becomes
+    /// the harvested op's clip.
+    pub pending_clip: Option<ClipId>,
+    /// Whether the scratch has been handed out since the last harvest.
+    pub dirty: bool,
+    /// What was rasterised or approximated, for the disclosure.
+    pub tally: ExportTally,
+    /// The last soft-mask coverage an elementary op was recorded under,
+    /// keyed by the address of the graphics state's own `Arc<Mask>`, so
+    /// a thousand glyphs under one mask share one `Arc` rather than
+    /// each copying a page-sized buffer.
+    pub mask_cache: Option<(*const Mask, Arc<Mask>)>,
+}
+
+/// What an export recording could not express as geometry, counted
+/// (`Pass 248.1`). Every field is a rule-4 disclosure, not decoration.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ExportTally {
+    /// Shadings (`sh` and shading-pattern fills) embedded as RASTER at
+    /// the export resolution rather than as gradients.
+    pub shadings_rasterised: u32,
+    /// Transparency groups whose §11.6.5 soft mask was KEPT (as a mask
+    /// image) rather than refused. A count of fidelity, not shortfall.
+    pub soft_masks_kept: u32,
+    /// Paints under overprint that were composited `Normal` instead —
+    /// a knocked-out backdrop where a press would show overprinted ink.
+    pub overprint_approximated: u32,
+    /// Per-paint §11.3.5.3 non-separable blends drawn `Normal`. (A
+    /// GROUP's non-separable mode is expressed as `mix-blend-mode` and is
+    /// not counted here.)
+    pub nonseparable_approximated: u32,
+    /// Non-isolated groups recorded with isolated semantics (§11.4.4).
+    pub non_isolated_groups_isolated: u32,
+    /// The page declared a subtractive blending space and was
+    /// composited on screen instead (§11.7.2).
+    pub colorant_buffer_on_screen: u32,
+    /// Tiling patterns, if any site ever refuses for one.
+    pub tiling_patterns: u32,
+}
+
+impl ExportTally {
+    /// Whether anything at all was rasterised or approximated.
+    #[must_use]
+    pub fn is_exact(&self) -> bool {
+        *self == Self::default()
+    }
 }
 
 impl RecorderState {
@@ -1177,7 +1358,27 @@ impl RecorderState {
             poison: None,
             approx_bytes: 0,
             max_bytes: MAX_DISPLAY_LIST_BYTES,
+            export: None,
         }
+    }
+
+    /// An EXPORT recorder (`Pass 248.1`): never refuses, rasterises what
+    /// it cannot record, and has no byte ceiling — the recording is
+    /// written out once, not held across frames. See [`ExportState`].
+    ///
+    /// Returns `None` if the page-sized scratch cannot be allocated.
+    pub(crate) fn new_for_export(width: u32, height: u32) -> Option<Self> {
+        let scratch = Pixmap::new(width, height)?;
+        let mut state = Self::new(width, height);
+        state.max_bytes = usize::MAX;
+        state.export = Some(ExportState {
+            scratch,
+            pending_clip: None,
+            dirty: false,
+            tally: ExportTally::default(),
+            mask_cache: None,
+        });
+        Some(state)
     }
 
     /// Append an op to the innermost open frame, charging its size against
@@ -1190,6 +1391,9 @@ impl RecorderState {
     /// what the page actually contains — the recording is what failed, not
     /// the interpretation.
     pub(crate) fn push(&mut self, op: Op) {
+        // Export mode: anything a fallback site painted into the scratch
+        // happened BEFORE this op, so it is recorded before it.
+        self.harvest();
         if self.poison == Some(PoisonReason::TooLarge) {
             return;
         }
@@ -1268,9 +1472,170 @@ impl RecorderState {
 
     /// Mark the recording unusable, keeping the FIRST reason.
     pub(crate) fn poison(&mut self, reason: PoisonReason) {
+        // Export mode never refuses: the reason becomes a COUNT in the
+        // disclosure, and the site that raised it either paints into the
+        // scratch (`export_scratch`) or falls through to its ordinary
+        // recordable approximation.
+        if let Some(export) = self.export.as_mut() {
+            let t = &mut export.tally;
+            match reason {
+                PoisonReason::Shading => t.shadings_rasterised += 1,
+                PoisonReason::SoftMask => t.soft_masks_kept += 1,
+                PoisonReason::Overprint => t.overprint_approximated += 1,
+                PoisonReason::NonSeparableBlend => t.nonseparable_approximated += 1,
+                PoisonReason::NonIsolatedGroup => t.non_isolated_groups_isolated += 1,
+                PoisonReason::ColorantBuffer => t.colorant_buffer_on_screen += 1,
+                PoisonReason::TilingPattern => t.tiling_patterns += 1,
+                // Neither can happen in export mode: the byte ceiling is
+                // unlimited and the scale is checked before recording. A
+                // future variant would land here too, and the honest
+                // answer for an unknown reason is still to keep going.
+                PoisonReason::TooLarge | PoisonReason::ScaleBeyondF32 => {}
+            }
+            return;
+        }
         if self.poison.is_none() {
             self.poison = Some(reason);
         }
+    }
+
+    /// Hand a fallback site the export scratch to paint into, remembering
+    /// the clip that will apply to what it paints (`Pass 248.1`).
+    ///
+    /// `None` in cache mode, which is the signal for the site to do what
+    /// it always did (nothing, under a poison). A previous unharvested
+    /// fallback is harvested FIRST so two consecutive shadings each get
+    /// their own image under their own clip.
+    pub(crate) fn export_scratch(&mut self, clip: Option<ClipId>) -> Option<&mut Pixmap> {
+        self.harvest();
+        let export = self.export.as_mut()?;
+        export.pending_clip = clip;
+        export.dirty = true;
+        Some(&mut export.scratch)
+    }
+
+    /// Turn whatever a fallback site painted into the scratch into ONE
+    /// `Op::Fill` carrying the painted bounding box as an image, then clear
+    /// the scratch. A no-op unless the scratch was handed out since the
+    /// last harvest, and a no-op if nothing was painted.
+    pub(crate) fn harvest(&mut self) {
+        let Some(export) = self.export.as_mut() else {
+            return;
+        };
+        if !export.dirty {
+            return;
+        }
+        export.dirty = false;
+        let clip = export.pending_clip;
+        let (w, h) = (export.scratch.width(), export.scratch.height());
+        // Bounding box of every pixel with coverage. A full scan of the
+        // page per harvest is the price of not threading a dirty rect
+        // through every fallback painter; an export pays it a handful of
+        // times per page.
+        let (mut x0, mut y0, mut x1, mut y1) = (u32::MAX, u32::MAX, 0u32, 0u32);
+        for (i, px) in export.scratch.pixels().iter().enumerate() {
+            if px.alpha() == 0 {
+                continue;
+            }
+            #[allow(clippy::cast_possible_truncation)]
+            let (x, y) = ((i as u32) % w, (i as u32) / w);
+            x0 = x0.min(x);
+            y0 = y0.min(y);
+            x1 = x1.max(x);
+            y1 = y1.max(y);
+        }
+        if x0 == u32::MAX {
+            return;
+        }
+        let (bw, bh) = (x1 - x0 + 1, y1 - y0 + 1);
+        let Some(mut texels) = Pixmap::new(bw, bh) else {
+            return;
+        };
+        {
+            let src = export.scratch.pixels();
+            let dst = texels.pixels_mut();
+            for row in 0..bh {
+                let s0 = ((y0 + row) * w + x0) as usize;
+                let d0 = (row * bw) as usize;
+                dst[d0..d0 + bw as usize].copy_from_slice(&src[s0..s0 + bw as usize]);
+            }
+        }
+        export.scratch.fill(tiny_skia::Color::TRANSPARENT);
+        let _ = h;
+        #[allow(clippy::cast_precision_loss)]
+        let (fx, fy, fw, fh) = (x0 as f32, y0 as f32, bw as f32, bh as f32);
+        let Some(rect) = tiny_skia::Rect::from_xywh(fx, fy, fw, fh) else {
+            return;
+        };
+        let path = tiny_skia::PathBuilder::from_rect(rect);
+        let op = Op::Fill {
+            bounds: Some(DeviceBounds {
+                left: fx,
+                top: fy,
+                right: fx + fw,
+                bottom: fy + fh,
+            }),
+            path: Arc::new(path),
+            brush: BrushSpec::raster(Arc::new(texels), Transform::from_translate(fx, fy)),
+            rule: FillRule::Winding,
+            // Already in device space: the scratch IS the page grid.
+            ctm: Transform::identity(),
+            clip,
+        };
+        // Direct push: `push` would call `harvest` again (harmless — the
+        // dirty flag is down — but the recursion reads badly).
+        self.approx_bytes += op_bytes(&op);
+        if let Some(frame) = self.frames.last_mut() {
+            frame.push(op);
+        }
+    }
+
+    /// Record an elementary op that the graphics state has folded a
+    /// §11.6.5 soft mask into (`Pass 248.1`).
+    ///
+    /// In paint mode the interpreter multiplies the soft mask into the
+    /// object's clip MASK (§11.6.4.1: the mask value is the object's
+    /// `q_m`). A recording carries clips as PATHS, so that coverage has
+    /// nowhere to go — and until `Pass 248.1` it went nowhere silently.
+    /// Export mode wraps the op in a one-op layer carrying the mask,
+    /// which an SVG writes as `<mask>`; per op rather than per run of
+    /// ops because that is the semantics (each object is masked
+    /// individually, not the group of them). Cache mode is refused at
+    /// the `gs` site by the interpreter.
+    pub(crate) fn push_masked(&mut self, op: Op, mask: Option<&Mask>) {
+        let Some(mask) = mask else {
+            self.push(op);
+            return;
+        };
+        let Some(export) = self.export.as_mut() else {
+            self.push(op);
+            return;
+        };
+        let ptr: *const Mask = mask;
+        let arc = match &export.mask_cache {
+            Some((p, arc)) if std::ptr::eq(*p, ptr) => Arc::clone(arc),
+            _ => {
+                let arc = Arc::new(mask.clone());
+                export.mask_cache = Some((ptr, Arc::clone(&arc)));
+                arc
+            }
+        };
+        self.push(Op::Layer {
+            paint: LayerPaint {
+                opacity: 1.0,
+                blend: tiny_skia::BlendMode::SourceOver,
+                nonseparable: None,
+            },
+            ops: vec![op],
+            mask: Some(arc),
+        });
+    }
+
+    /// The export tally so far (`ExportTally::default()` in cache mode).
+    pub(crate) fn export_tally(&self) -> ExportTally {
+        self.export
+            .as_ref()
+            .map_or_else(ExportTally::default, |e| e.tally)
     }
 }
 
@@ -1294,6 +1659,7 @@ impl Recorder {
     /// flattened into the root rather than dropped, which fails visibly
     /// (wrong compositing) instead of invisibly (missing content).
     pub(crate) fn finish(mut self) -> (Vec<Op>, Vec<ClipDef>) {
+        self.harvest();
         while self.frames.len() > 1 {
             let inner = self.frames.pop().unwrap_or_default();
             if let Some(outer) = self.frames.last_mut() {
@@ -1386,6 +1752,7 @@ mod tests {
                 nonseparable: None,
             },
             ops: Vec::new(),
+            mask: None,
         });
         let loaded = op_bytes(&Op::Layer {
             paint: LayerPaint {
@@ -1394,6 +1761,7 @@ mod tests {
                 nonseparable: None,
             },
             ops: vec![unit_fill(), unit_fill()],
+            mask: None,
         });
         assert!(
             loaded > bare,

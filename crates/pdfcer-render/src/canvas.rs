@@ -276,6 +276,26 @@ impl BrushSpec {
         }
     }
 
+    /// A device-space raster as a brush (`Pass 248.1`): the export
+    /// recorder's harvested scratch, placed by `transform` (a pure
+    /// translation to the harvested box's origin). `Nearest`, not
+    /// anti-aliased, and no colorant data -- it is already pixels on
+    /// the page grid, and resampling it would blur what was exact.
+    pub(crate) fn raster(texels: Arc<Pixmap>, transform: Transform) -> Self {
+        Self {
+            brush: Brush::Image {
+                texels,
+                quality: FilterQuality::Nearest,
+                transform,
+            },
+            blend: BlendMode::SourceOver,
+            anti_alias: false,
+            cmyk: None,
+            spots: Vec::new(),
+            process_tints: None,
+        }
+    }
+
     /// The same paint, carrying the spot colorants the file stated.
     ///
     /// Separate from [`Self::with_cmyk`] rather than folded into it
@@ -534,6 +554,19 @@ impl<'a> Canvas<'a> {
         }
     }
 
+    /// The EXPORT recorder's scratch, for a site that has just refused
+    /// (`Pass 248.1`): paint the operator into it exactly as into a page,
+    /// and the recorder harvests the result as an image fill under
+    /// `clip`. `None` on every other canvas, including a cache-mode
+    /// recorder, so a site can call it unconditionally right after
+    /// `refuse` and fall through to its old behaviour on `None`.
+    pub(crate) fn export_scratch(&mut self, clip: Option<ClipId>) -> Option<&mut Pixmap> {
+        match self {
+            Self::Record(r) => r.export_scratch(clip),
+            _ => None,
+        }
+    }
+
     /// Record a clipping path, when recording.
     ///
     /// Returns the new clip id, or `None` in paint mode — where the caller
@@ -591,14 +624,17 @@ impl<'a> Canvas<'a> {
             Self::Cmyk(b) => {
                 paint_solid_into_cmyk(b, path, brush, Some(rule), None, ctm, clip);
             }
-            Self::Record(r) => r.push(Op::Fill {
-                bounds: fill_bounds(path, ctm),
-                path: Arc::new(path.clone()),
-                brush: brush.clone(),
-                rule,
-                ctm,
-                clip: clip.id,
-            }),
+            Self::Record(r) => r.push_masked(
+                Op::Fill {
+                    bounds: fill_bounds(path, ctm),
+                    path: Arc::new(path.clone()),
+                    brush: brush.clone(),
+                    rule,
+                    ctm,
+                    clip: clip.id,
+                },
+                clip.mask,
+            ),
         }
     }
 
@@ -624,22 +660,25 @@ impl<'a> Canvas<'a> {
             Self::Cmyk(b) => {
                 paint_solid_into_cmyk(b, path, brush, None, Some(stroke), ctm, clip);
             }
-            Self::Record(r) => r.push(Op::Stroke {
-                bounds: stroke_bounds(path, stroke, ctm),
-                path: Arc::new(path.clone()),
-                brush: brush.clone(),
-                // One `Arc<Stroke>` per op rather than an interned table.
-                // A CAD sheet sets a line width once and strokes ten
-                // thousand segments with it, so interning is the obvious
-                // win — and is deliberately NOT taken here, because a key
-                // over a float-bearing struct with a dash `Vec` is a
-                // correctness question, and this Pass's budget is spent on
-                // byte-identity. Named as a follow-on rather than left as a
-                // silent inefficiency.
-                stroke: Arc::new(stroke.clone()),
-                ctm,
-                clip: clip.id,
-            }),
+            Self::Record(r) => r.push_masked(
+                Op::Stroke {
+                    bounds: stroke_bounds(path, stroke, ctm),
+                    path: Arc::new(path.clone()),
+                    brush: brush.clone(),
+                    // One `Arc<Stroke>` per op rather than an interned table.
+                    // A CAD sheet sets a line width once and strokes ten
+                    // thousand segments with it, so interning is the obvious
+                    // win — and is deliberately NOT taken here, because a key
+                    // over a float-bearing struct with a dash `Vec` is a
+                    // correctness question, and this Pass's budget is spent on
+                    // byte-identity. Named as a follow-on rather than left as a
+                    // silent inefficiency.
+                    stroke: Arc::new(stroke.clone()),
+                    ctm,
+                    clip: clip.id,
+                },
+                clip.mask,
+            ),
         }
     }
 
@@ -682,34 +721,37 @@ impl<'a> Canvas<'a> {
     ) {
         match self {
             Self::Record(r) => {
-                r.push(Op::Fill {
-                    bounds: fill_bounds(path, ctm),
-                    path: Arc::new(path.clone()),
-                    brush: BrushSpec {
-                        // HERE is the copy this method's borrow exists to
-                        // defer — paid once, in the only branch that will
-                        // ever read it.
-                        brush: Brush::Image {
-                            texels: Arc::new(texels.clone()),
-                            quality,
-                            transform: image_to_user,
+                r.push_masked(
+                    Op::Fill {
+                        bounds: fill_bounds(path, ctm),
+                        path: Arc::new(path.clone()),
+                        brush: BrushSpec {
+                            // HERE is the copy this method's borrow exists to
+                            // defer — paid once, in the only branch that will
+                            // ever read it.
+                            brush: Brush::Image {
+                                texels: Arc::new(texels.clone()),
+                                quality,
+                                transform: image_to_user,
+                            },
+                            blend,
+                            anti_alias,
+                            // A recorded image brush is replayed into a
+                            // `Pixmap`, never into a colorant buffer -- a
+                            // display list is refused outright on a subtractive
+                            // page. See `PoisonReason::ColorantBuffer`.
+                            cmyk: None,
+                            // Same reason, and doubly so: an image brush states
+                            // no colorants at all, spot or process.
+                            spots: Vec::new(),
+                            process_tints: None,
                         },
-                        blend,
-                        anti_alias,
-                        // A recorded image brush is replayed into a
-                        // `Pixmap`, never into a colorant buffer -- a
-                        // display list is refused outright on a subtractive
-                        // page. See `PoisonReason::ColorantBuffer`.
-                        cmyk: None,
-                        // Same reason, and doubly so: an image brush states
-                        // no colorants at all, spot or process.
-                        spots: Vec::new(),
-                        process_tints: None,
+                        rule: FillRule::Winding,
+                        ctm,
+                        clip: clip.id,
                     },
-                    rule: FillRule::Winding,
-                    ctm,
-                    clip: clip.id,
-                });
+                    clip.mask,
+                );
             }
             Self::Paint(p) => {
                 let paint = Paint {
@@ -1242,13 +1284,23 @@ impl<'a> Canvas<'a> {
                 // `Op::Layer` in the parent. No buffer is allocated,
                 // because no pixels exist yet — which is also why this
                 // branch cannot fail the way the paint branch can.
+                // Export mode: anything painted into the scratch before
+                // this layer belongs to the PARENT frame, and anything
+                // painted inside it belongs to the layer -- so the
+                // scratch is harvested at both boundaries.
+                r.harvest();
                 r.frames.push(Vec::new());
                 let result = {
                     let mut sub = Canvas::Record(r);
                     f(&mut sub)
                 };
+                r.harvest();
                 let ops = r.frames.pop().unwrap_or_default();
-                r.push(Op::Layer { paint, ops });
+                r.push(Op::Layer {
+                    paint,
+                    ops,
+                    mask: None,
+                });
                 Some(result)
             }
         }
@@ -1553,18 +1605,35 @@ impl<'a> Canvas<'a> {
                 })
             }
             Self::Record(r) => {
+                r.harvest();
                 r.frames.push(Vec::new());
                 let (result, backdrop_dependent) = {
                     let mut sub = Canvas::Record(r);
                     f(&mut sub)
                 };
+                r.harvest();
                 let ops = r.frames.pop().unwrap_or_default();
-                r.push(Op::Layer { paint, ops });
-                if mask.is_some() {
-                    // §11.4.5's mask is a device-sized buffer built for
-                    // THIS viewport; a replay at another scale would apply
-                    // it at the wrong resolution. Refuse by name rather
-                    // than replay a plausible wrong picture.
+                // §11.4.5's mask is a device-sized buffer built for
+                // THIS viewport. In CACHE mode a replay at another scale
+                // would apply it at the wrong resolution, so the page is
+                // refused by name rather than replayed as a plausible
+                // wrong picture. In EXPORT mode (`Pass 248.1`) the
+                // recording is consumed at exactly this scale, so the
+                // mask is valid and travels WITH the layer; `poison`
+                // there only counts it (`ExportTally::soft_masks_kept`).
+                let kept_mask = match mask {
+                    Some(m) if r.export.is_some() => Some(Arc::new(m.clone())),
+                    _ => None,
+                };
+                r.push(Op::Layer {
+                    paint,
+                    ops,
+                    mask: kept_mask,
+                });
+                // Cache mode only: export mode counted the mask at the `gs`
+                // site (`ExportTally::soft_masks_kept`), where every soft
+                // mask is seen once whether a group or an object wears it.
+                if mask.is_some() && r.export.is_none() {
                     r.poison(PoisonReason::SoftMask);
                 }
                 if !isolated && backdrop_dependent {
@@ -2086,7 +2155,7 @@ impl KnockoutTarget {
 /// the same factor and the un-premultiplied colour is unchanged — which is
 /// what "the mask changes how much of the group you see, not what colour
 /// it is" means arithmetically.
-fn apply_mask(buf: &mut Pixmap, mask: &Mask) {
+pub(crate) fn apply_mask(buf: &mut Pixmap, mask: &Mask) {
     let data = mask.data();
     for (px, &m8) in buf.pixels_mut().iter_mut().zip(data.iter()) {
         // A fully open mask and an untouched pixel are both no-ops, and

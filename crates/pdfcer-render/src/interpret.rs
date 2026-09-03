@@ -4646,6 +4646,13 @@ impl Interpreter<'_> {
                         // it as a value a group composite can apply once,
                         // not as a coverage multiplier already fused into
                         // the clip. See `GraphicsState::soft_mask`.
+                        // A soft mask has no PATH form, so a recording must
+                        // either refuse (cache mode -- `R211`: until
+                        // `Pass 248.1` this was missing, and a cached replay
+                        // painted every object under a `gs /SMask` UNMASKED)
+                        // or carry it (export mode, where `refuse` only
+                        // counts it and `push_masked` wraps each object).
+                        canvas.refuse(PoisonReason::SoftMask);
                         self.gs.current.soft_mask = Some(std::sync::Arc::new(mask.clone()));
                         let combined = match self.gs.current.clip.as_deref() {
                             Some(old) => {
@@ -5373,6 +5380,21 @@ impl Interpreter<'_> {
                     crate::compositor::Blend::Normal,
                 );
                 self.diag.shading.painted += 1;
+            }
+            return;
+        }
+        // EXPORT recording (`Pass 248.1`): the shading is painted into the
+        // recorder's scratch with the same evaluator and harvested as a
+        // raster under the clip in force. `refuse` above already counted
+        // it (`ExportTally::shadings_rasterised`).
+        if let Some(scratch) = canvas.export_scratch(self.gs.current.clip_ref().id) {
+            if shading
+                .paint(to_target, region, clip, alpha, scratch)
+                .is_some()
+            {
+                self.diag.shading.painted += 1;
+            } else {
+                self.diag.shading.refused += 1;
             }
             return;
         }
@@ -7122,6 +7144,22 @@ impl Interpreter<'_> {
                     1.0,
                     crate::compositor::Blend::Normal,
                 );
+                self.diag.shading.painted += 1;
+                true
+            } else {
+                self.diag.color.patterns_unpainted += 1;
+                false
+            };
+        }
+        // EXPORT recording (`Pass 248.1`) -- see the `sh` operator's
+        // twin. `mask` already carries the fill path's coverage, so the
+        // harvested raster has the shape baked in; the clip id handles
+        // the clip.
+        if let Some(scratch) = canvas.export_scratch(self.gs.current.clip_ref().id) {
+            return if shading
+                .paint(to_target, region, Some(&mask), alpha, scratch)
+                .is_some()
+            {
                 self.diag.shading.painted += 1;
                 true
             } else {

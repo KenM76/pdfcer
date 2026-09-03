@@ -394,6 +394,66 @@ fn refusals_fire_before_anything_is_written() {
 }
 
 #[test]
+fn svg_is_written_with_its_own_disclosure_line() {
+    let dir = TempDir::new("export-image-svg");
+    let input = dir.write("one.pdf", &multipage_pdf(&[HALF_RED_SQUARE]));
+    let out = dir.join("one.svg");
+    let o = run(&[
+        "export-image",
+        input.to_str().unwrap(),
+        "--format",
+        "svg",
+        "--dpi",
+        "72",
+        "-o",
+        out.to_str().unwrap(),
+    ]);
+    assert_eq!(o.status.code(), Some(0), "stderr: {}", stderr(&o));
+    let lines: Vec<String> = stdout(&o).lines().map(str::to_owned).collect();
+    assert_eq!(lines.len(), 2, "{lines:?}");
+    // Same prefix and counter half as a raster export; WxH is the
+    // recording grid at --dpi (60 pt at 72 dpi = 60 px).
+    assert!(
+        lines[0].contains(" 60x60 format=svg dpi=72 transparent=1 background=none; substituted=")
+    );
+    assert!(lines[0].contains(" overprint_process_images_unsupported=0"));
+    // The SVG-only second line, prefixed, and exact for a plain fill.
+    assert!(
+        lines[1].starts_with("svg: ops=1 images=0 dashed_pre_applied=0 blend_modes=0 "),
+        "{}",
+        lines[1]
+    );
+    assert!(lines[1].ends_with(" exact=1"), "{}", lines[1]);
+    assert!(stderr(&o).contains("glyph OUTLINES"));
+
+    let svg = std::fs::read_to_string(&out).unwrap();
+    assert!(svg.starts_with("<svg xmlns=\"http://www.w3.org/2000/svg\""));
+    assert!(svg.contains(r#"width="60pt" height="60pt" viewBox="0 0 60 60""#));
+    assert!(
+        svg.contains(r#"fill="rgb(255,0,0)" fill-opacity="0.502""#),
+        "{svg}"
+    );
+    assert!(svg.trim_end().ends_with("</svg>"));
+
+    // `--background` becomes the first element and flips the stable line.
+    let out2 = dir.join("two.svg");
+    let o = run(&[
+        "export-image",
+        input.to_str().unwrap(),
+        "--format",
+        "svg",
+        "--background",
+        "#00ff00",
+        "-o",
+        out2.to_str().unwrap(),
+    ]);
+    assert_eq!(o.status.code(), Some(0), "stderr: {}", stderr(&o));
+    assert!(stdout(&o).contains("transparent=0 background=#00ff00;"));
+    let svg = std::fs::read_to_string(&out2).unwrap();
+    assert!(svg.lines().nth(1).unwrap().starts_with("<rect "), "{svg}");
+}
+
+#[test]
 fn render_flags_reach_the_engine() {
     // `--no-annotations` must change the counters on the line, which is
     // the cheapest proof the flag is wired rather than merely parsed.

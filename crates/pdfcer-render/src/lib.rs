@@ -78,6 +78,7 @@ pub mod mesh;
 pub mod overprint;
 pub mod profile;
 pub mod shading;
+pub mod svg;
 pub mod text;
 pub mod type3;
 
@@ -106,7 +107,8 @@ pub use annot::{AnnotationClass, AnnotationScope};
 // name its type without knowing which module it lives in.
 pub use color::{ColorDiagnostics, ColorSpace, ColorState, Colorant, DeviceSpace};
 pub use display_list::{
-    ClipId, DisplayList, DisplayListKey, MAX_DISPLAY_LIST_BYTES, PoisonReason, record_page,
+    ClipId, DisplayList, DisplayListKey, ExportTally, MAX_DISPLAY_LIST_BYTES, PoisonReason,
+    record_page,
 };
 pub use font::{
     FallbackKey, FontData, FontEnvironment, GlyphSource, InkProbe, InkProbeSource, PageBackdrop,

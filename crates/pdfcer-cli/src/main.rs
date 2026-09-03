@@ -3273,8 +3273,8 @@ enum Command {
         print_state: bool,
     },
 
-    /// Export page(s) as PNG or JPEG image files — with REAL transparency
-    /// for PNG (`Pass 248.0`).
+    /// Export page(s) as PNG, JPEG or SVG files — with REAL transparency
+    /// for PNG and SVG (`Pass 248.0`, `Pass 248.1`).
     ///
     /// One file per page. `--dpi` sets the pixel density (150 by default,
     /// Acrobat's own export default) and is written INTO the file (PNG
@@ -3309,7 +3309,9 @@ enum Command {
         /// Selecting more than one page needs `--output-dir`.
         #[arg(long, default_value = "1")]
         pages: String,
-        /// Output format. `jpg` is accepted for `jpeg`.
+        /// Output format: `png`, `jpeg` (`jpg`), or `svg` (vector,
+        /// `Pass 248.1` -- transparent by default, `--dpi` governs only
+        /// what must be embedded as raster inside it).
         #[arg(long, value_enum, default_value_t = ImageFormatArg::Png)]
         format: ImageFormatArg,
         /// Pixel density. The render scale is `dpi / 72`; the value is also
@@ -8105,6 +8107,10 @@ enum ImageFormatArg {
     /// JPEG — lossy, always opaque. `jpg` is accepted as a spelling.
     #[value(alias = "jpg")]
     Jpeg,
+    /// SVG — vector, resolution-free, transparent unless `--background`
+    /// is given (`Pass 248.1`). `--dpi` governs only what has to be
+    /// embedded as raster inside it.
+    Svg,
 }
 
 impl ImageFormatArg {
@@ -8113,6 +8119,7 @@ impl ImageFormatArg {
         match self {
             Self::Png => "png",
             Self::Jpeg => "jpg",
+            Self::Svg => "svg",
         }
     }
 
@@ -8121,6 +8128,7 @@ impl ImageFormatArg {
         match self {
             Self::Png => "png",
             Self::Jpeg => "jpeg",
+            Self::Svg => "svg",
         }
     }
 }
@@ -12727,6 +12735,15 @@ overprint_process_images_unsupported={}",
     )
 }
 
+/// A device dimension recovered from points × scale, rounded up the way
+/// `page_device_geometry` rounds — for the stable line's `WxH` on the SVG
+/// route, where no pixmap exists to ask.
+fn num_px(v: f32) -> u32 {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let n = v.round().max(0.0) as u32;
+    n
+}
+
 /// Everything `export-image` was asked for (`Pass 248.0`).
 ///
 /// A struct for the reason `ExportDxfArgs` is one: the flag set is past
@@ -12947,6 +12964,113 @@ fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
             (None, None) => unreachable!("checked above"),
         };
 
+        if format == ImageFormatArg::Svg {
+            // The vector route (`Pass 248.1`): one recording of the page
+            // through the export recorder, written as SVG. `--dpi` is the
+            // recording scale, which only matters for what the writer
+            // had to embed as raster; `--transparent` is the SVG's natural
+            // state, so it is accepted and means "no --background".
+            let svg_options = pdfcer_render::svg::SvgOptions::default()
+                .with_raster_dpi(dpi)
+                .with_background(if transparent { None } else { background });
+            let export =
+                match pdfcer_render::svg::export_svg(&doc, page, &render_options, &svg_options) {
+                    Ok(e) => e,
+                    Err(err) => {
+                        eprintln!("pdfcer: {}: page {page_number}: {err}", input.display());
+                        return exit::RUNTIME_ERROR;
+                    }
+                };
+            if let Err(err) = std::fs::write(&path, export.svg.as_bytes()) {
+                eprintln!("pdfcer: {}: {err}", path.display());
+                return exit::IO_ERROR;
+            }
+            let o = &export.outcome;
+            let background_token = match (transparent, background) {
+                (true, _) | (false, None) => "none".to_owned(),
+                (false, Some(bg)) => bg.to_hex(),
+            };
+            // The same prefix and the same counter half as a raster
+            // export -- WxH is the recording grid at `--dpi` -- so one
+            // parser reads every format.
+            println!(
+                "exported {} page {page_number} -> {} {}x{} format=svg dpi={dpi} transparent={} background={}; {}",
+                input.display(),
+                path.display(),
+                num_px(o.width_pt * o.scale),
+                num_px(o.height_pt * o.scale),
+                u8::from(background_token == "none"),
+                background_token,
+                render_counters_line(&o.diagnostics, &doc, supplied_registered)
+            );
+            // ★ A SECOND LINE, NOT MORE KEYS ON THE FIRST -- the SVG-only
+            // disclosure, prefixed so a parser can take or leave it whole
+            // (the same shape as `render-page`'s ink-probe line). `exact=1`
+            // means the whole page went out as geometry.
+            let t = &o.tally;
+            println!(
+                "svg: ops={} images={} dashed_pre_applied={} blend_modes={} \
+shadings_rasterised={} soft_masks_kept={} overprint_approximated={} \
+nonseparable_approximated={} non_isolated_isolated={} colorant_buffer_on_screen={} exact={}",
+                o.ops,
+                o.images_embedded,
+                o.dashed_strokes_pre_applied,
+                o.blend_modes_used,
+                t.shadings_rasterised,
+                t.soft_masks_kept,
+                t.overprint_approximated,
+                t.nonseparable_approximated,
+                t.non_isolated_groups_isolated,
+                t.colorant_buffer_on_screen,
+                u8::from(t.is_exact())
+            );
+            // Rule 4 in prose, once per page: what is inferred or
+            // approximated in the file, by name.
+            eprintln!(
+                "pdfcer: note: page {page_number}: text is exported as glyph OUTLINES (not editable as text); every raster inside the SVG is sampled at {dpi} dpi"
+            );
+            if t.shadings_rasterised > 0 {
+                eprintln!(
+                    "pdfcer: note: page {page_number}: {} shading(s) are embedded as RASTER images, not gradients",
+                    t.shadings_rasterised
+                );
+            }
+            if t.soft_masks_kept > 0 {
+                eprintln!(
+                    "pdfcer: note: page {page_number}: {} soft mask(s) are carried as luminance mask images",
+                    t.soft_masks_kept
+                );
+            }
+            if t.overprint_approximated > 0 || t.nonseparable_approximated > 0 {
+                eprintln!(
+                    "pdfcer: note: page {page_number}: {} overprinted paint(s) and {} non-separable blend(s) are drawn Normal -- SVG cannot express either per paint",
+                    t.overprint_approximated, t.nonseparable_approximated
+                );
+            }
+            if t.non_isolated_groups_isolated > 0 {
+                eprintln!(
+                    "pdfcer: note: page {page_number}: {} non-isolated group(s) are composited as isolated",
+                    t.non_isolated_groups_isolated
+                );
+            }
+            if t.colorant_buffer_on_screen > 0 {
+                eprintln!(
+                    "pdfcer: note: page {page_number}: the page declares a subtractive blending space; the SVG composites on screen (sRGB) instead"
+                );
+            }
+            if o.blend_modes_used > 0 {
+                eprintln!(
+                    "pdfcer: note: page {page_number}: {} element(s) use mix-blend-mode, which Inkscape and browsers honour and Word's SVG importer shows as Normal",
+                    o.blend_modes_used
+                );
+            }
+            report_diagnostics(
+                &o.diagnostics,
+                render_options.max_cmyk_buffer_bytes,
+                u64::from(num_px(o.width_pt * o.scale)) * u64::from(num_px(o.height_pt * o.scale)),
+            );
+            continue;
+        }
         let rendered = match pdfcer_render::render_page_with(&doc, page, scale, &render_options) {
             Ok(r) => r,
             Err(err) => {
@@ -12973,6 +13097,8 @@ fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
                 opts.dpi = Some(dpi);
                 encode_jpeg(&rendered.pixmap, &opts)
             }
+            // Written and `continue`d above, before the raster render.
+            ImageFormatArg::Svg => continue,
         };
         let bytes = match bytes {
             Ok(b) => b,

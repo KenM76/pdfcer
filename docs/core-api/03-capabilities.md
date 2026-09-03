@@ -2832,6 +2832,76 @@ claims, and the file can only carry the second.
   renderer's own white path is used only when no colour was asked for, so an
   opaque default export is byte-identical to `render-page`'s.
 
+### 7.8 Exporting a page as SVG (`Pass 248.1`)
+
+`core [x] · cli [x] · gui [ ]`. The vector half of the operator's export
+request, and the format that pastes into Inkscape, Word/PowerPoint/Excel
+(M365) and browsers as **editable vectors** (`docs/clipboard-interop-survey.md`
+§7: `"image/svg+xml"` is the clipboard format every one of them reads).
+
+**I want to… → call this**
+
+| I want to… | call |
+|---|---|
+| a page as SVG | `pdfcer_render::svg::export_svg(&doc, &page, &RenderOptions, &SvgOptions) -> Result<SvgExport, RenderError>`; `export_svg_view` for an edit session's live `DocumentView` |
+| choose the resolution of anything that must be raster inside it | `SvgOptions::default().with_raster_dpi(300.0)` — also the scale every coordinate is written at (vectors are exact at any value) |
+| an opaque background | `.with_background(Some(Rgb {..}))`; the default is transparent, natively |
+| know what is raster or approximated inside the file | `SvgExport::outcome.tally: ExportTally` — `shadings_rasterised`, `soft_masks_kept`, `overprint_approximated`, `nonseparable_approximated`, `non_isolated_groups_isolated`, `colorant_buffer_on_screen`; `tally.is_exact()` when the whole page went out as geometry |
+| the rest of the disclosure | `outcome.ops`, `images_embedded`, `dashed_strokes_pre_applied`, `blend_modes_used`, `width_pt`/`height_pt`/`scale`, and the render's own `diagnostics` |
+
+**Where the geometry comes from, and why that is the whole design.** The SVG
+is written from the renderer's **display-list recording** (`display_list.rs`,
+`Pass 75.0`) — one interpreter, the same device space and scale as the
+raster, no second reading of the content stream. The cache recorder refuses
+by name every operator that reads the destination back (`PoisonReason`,
+`R211`); the export recorder (`ExportState`, decision 132) is the same walk
+with every refusal replaced by a **rasterise-into-a-scratch-and-harvest**
+fallback (shadings), a kept mask (soft masks — as `<mask>` with a grey PNG,
+`color-interpolation:sRGB`), or the counted approximation (overprint,
+per-paint non-separable blends, non-isolated groups, a subtractive page
+group). It never refuses, and every fallback is a number in the tally.
+
+**The oracle.** `crates/pdfcer-render/tests/export_svg.rs` rasterises each
+export with **resvg** and compares it pixel-by-pixel against
+`render_page_with(.., PageBackdrop::Transparent)` at the same scale; and,
+when Inkscape is installed, through Inkscape itself (the paste target).
+Measured 2026-09-03 on the synthetic fixtures: Inkscape's render of the
+export differs from pdfcer's own PNG by anti-aliasing only — exact on the
+soft-mask and mesh-shading fixtures.
+
+**★ What the UI must disclose** (rule 4):
+
+1. **Text is glyph outlines**, not `<text>`. Editable as shapes in
+   Inkscape, not as words. Say so once per export (the CLI does).
+2. **Every non-zero tally field, by name** — "2 shadings are embedded as
+   raster at 300 DPI", "1 soft mask carried as a mask image", "3 overprinted
+   paints drawn Normal". The picture is right; what the format cannot hold is
+   what changed.
+3. **`mix-blend-mode` does not survive Word's importer** (shown `Normal`);
+   Inkscape and browsers honour it. `outcome.blend_modes_used` says whether
+   the file relies on it.
+4. **A dashed stroke is pre-dashed geometry** — exact, but the pattern is no
+   longer an editable attribute (`dashed_strokes_pre_applied`).
+
+**Traps**
+
+- **`clip-path` on an element that also carries `transform` is evaluated
+  post-transform.** A device-space clip on a transformed `<image>` excludes
+  everything; the writer puts every clip on a wrapping `<g>`. Found by
+  rendering the first shading export in Inkscape: two rasters, both
+  invisible.
+- **Do not build the SVG from `vector::PageObjects`.** It carries no images,
+  clips, transparency, blend modes or Type 3 glyphs, and a writer over it is
+  a second interpreter.
+- **The cache recorder now REFUSES an elementary object under `gs /SMask`**
+  (`PoisonReason::SoftMask`). Before `Pass 248.1` it silently dropped the
+  mask and a cached replay painted the object unmasked. A shell that caches
+  display lists will see a few more `PageNotRecordable` fallbacks; they are
+  correct.
+- **Recording scale = raster DPI.** An SVG recorded at 72 DPI has 72 DPI
+  shadings inside it forever; the default is 300 for that reason, and the
+  CLI's `--dpi` is the same knob.
+
 ---
 
 ## Appendix — capability → primary module → `FEATURES.md` state

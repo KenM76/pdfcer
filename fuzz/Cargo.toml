@@ -496,3 +496,15 @@ path = "fuzz_targets/signature_verify.rs"
 test = false
 doc = false
 bench = false
+
+# Pass 248.1: SVG export over untrusted bytes. The export recorder is the
+# cache recorder with every refusal replaced by a rasterise-and-harvest
+# fallback, so it walks the interpreter on hostile input down paths the
+# cache mode never reaches (the scratch harvest, per-op soft-mask layers,
+# the SVG writer's encoders over recorder output).
+[[bin]]
+name = "export_svg"
+path = "fuzz_targets/export_svg.rs"
+test = false
+doc = false
+bench = false
