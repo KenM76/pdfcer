@@ -158,7 +158,7 @@ def main() -> int:
         if with_intent:
             objs[9] = (
                 b"<< /Type /OutputIntent /S /GTS_PDFX "
-                b"/OutputConditionIdentifier (pdfce synthetic CMYK) "
+                b"/OutputConditionIdentifier (pdfcer synthetic CMYK) "
                 b"/DestOutputProfile 10 0 R >>"
             )
             objs[10] = stream(b"<< /N 4 >>", dest)

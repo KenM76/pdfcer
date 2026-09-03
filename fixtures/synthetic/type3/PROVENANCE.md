@@ -2,12 +2,12 @@
 
 Single-page PDF fixtures for **Type 3 fonts** — ISO 32000-1 §9.6.5, the one
 font subtype whose glyphs are **content streams** rather than a font program.
-Rendered by `crates/pdfce-render/src/type3.rs` and
-`crates/pdfce-render/src/interpret.rs`'s `show_type3`; used by
-`crates/pdfce-render/tests/type3_fonts.rs`.
+Rendered by `crates/pdfcer-render/src/type3.rs` and
+`crates/pdfcer-render/src/interpret.rs`'s `show_type3`; used by
+`crates/pdfcer-render/tests/type3_fonts.rs`.
 
 `tounicode_gate.pdf` is the exception and is used by
-`crates/pdfce-core/tests/text_extract.rs` instead: it exists for the
+`crates/pdfcer-core/tests/text_extract.rs` instead: it exists for the
 **extraction** half (§9.10.2), not the rendering half, and it is in this
 directory rather than `fixtures/synthetic/text/` because what it provokes is a
 property of the Type 3 font subtype and of nothing else.
@@ -73,7 +73,7 @@ The same reasoning shapes the rest:
   note to emit, so it claimed the empty key and silenced both fonts behind it.
   A `> 0` assertion would have passed on neither code and proved nothing.
 - Its glyphs are named `/ga1`, `/gb1`, `/gc1` — deliberately **not** standard
-  glyph names. pdfce keeps a counted extension beyond Acrobat: a Type 3 glyph
+  glyph names. pdfcer keeps a counted extension beyond Acrobat: a Type 3 glyph
   that happens to be named `/A` still resolves through the Adobe Glyph List.
   Non-standard names shut that door, so the codes reach §9.10.2's failure
   clause and the dead end is measured rather than papered over by a lucky
@@ -102,7 +102,7 @@ criterion. Recorded in
 
 That measurement is deliberately **not** re-run as a test: it is a fact about
 another program on one machine on one day, and pinning it in `cargo test`
-would make this suite fail when Acrobat changes rather than when pdfce does.
+would make this suite fail when Acrobat changes rather than when pdfcer does.
 
 ## How to regenerate
 

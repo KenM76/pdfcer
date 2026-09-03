@@ -1,5 +1,5 @@
 //! Fuzz target: the mesh-shading stream decoder
-//! (`pdfce_render::mesh::parse`; `Pass 125.0`, ISO 32000-1 §8.7.4.5.5–.8).
+//! (`pdfcer_render::mesh::parse`; `Pass 125.0`, ISO 32000-1 §8.7.4.5.5–.8).
 //!
 //! # Why this decoder needs its own target rather than riding `load_document`
 //!
@@ -52,8 +52,8 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_render::color::{ColorDiagnostics, ColorSpace};
-use pdfce_render::mesh::{MeshData, ParseInput, parse};
+use pdfcer_render::color::{ColorDiagnostics, ColorSpace};
+use pdfcer_render::mesh::{MeshData, ParseInput, parse};
 
 /// Widths the standard allows, so that most of the fuzzer's budget goes on
 /// stream content rather than on the four-fifths of the byte space that is
@@ -89,9 +89,9 @@ fuzz_target!(|data: &[u8]| {
     };
     let parametric = head[4] & 4 != 0;
     let patch_padding = if head[4] & 8 == 0 {
-        pdfce_core::settings::MeshPatchPadding::PerRecord
+        pdfcer_core::settings::MeshPatchPadding::PerRecord
     } else {
-        pdfce_core::settings::MeshPatchPadding::None
+        pdfcer_core::settings::MeshPatchPadding::None
     };
 
     // `/Decode` is REQUIRED and its length is checked against the component
@@ -118,10 +118,10 @@ fuzz_target!(|data: &[u8]| {
         space: &space,
         // No page, no bridges: the fuzzer exercises the stream decoder, and
         // the colour route is the fixture tests' business.
-        bridges: &pdfce_render::icc::ColorBridges::none(),
+        bridges: &pdfcer_render::icc::ColorBridges::none(),
         parametric,
         patch_padding,
-        intent: pdfce_core::settings::CmykIntent::default(),
+        intent: pdfcer_core::settings::CmykIntent::default(),
     };
 
     let mut diag = ColorDiagnostics::default();

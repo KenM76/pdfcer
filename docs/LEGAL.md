@@ -1,6 +1,6 @@
-# pdfce — Legal posture
+# pdfcer — Legal posture
 
-This file exists because pdfce sits at the intersection of three legal
+This file exists because pdfcer sits at the intersection of three legal
 concerns most projects don't have all at once: (1) it aims to be
 open-source and eventually public, (2) its entire purpose is
 implementing a copyrighted, partially-paywalled ISO standard, and (3)
@@ -11,12 +11,12 @@ time pressure that creates exposure later.
 
 ## 1. Open-source license — DECIDED: MIT (2026-08-01)
 
-**pdfce is MIT-licensed.** The operator chose MIT explicitly on
+**pdfcer is MIT-licensed.** The operator chose MIT explicitly on
 2026-08-01. Implemented same-session: a standard-text `LICENSE` file
 at the repo root (`Copyright (c) 2026 Ken Mantle`), `license = "MIT"`
 in `Cargo.toml`'s `[workspace.package]`, and `license.workspace = true`
-on all four member crates (`pdfce-core`, `pdfce-render`, `pdfce-gui`,
-`pdfce-cli`) — `cargo metadata` confirms each resolves to MIT. Recorded
+on all four member crates (`pdfcer-core`, `pdfcer-render`, `pdfce-gui`,
+`pdfcer`) — `cargo metadata` confirms each resolves to MIT. Recorded
 in `ARCHITECTURE.md` §12 Decision log (2026-08-01 entry) per this
 section's former instruction.
 
@@ -29,7 +29,7 @@ dependency needs to change or be re-flagged as a result of this
 decision.
 
 **Consequence — copyleft prior art is now categorically, permanently
-off the table as a dependency.** Per §6.1 below: an MIT-licensed pdfce
+off the table as a dependency.** Per §6.1 below: an MIT-licensed pdfcer
 cannot link GPL/AGPL code into its own distributed binary. This
 forecloses **MuPDF, Poppler, and Ghostscript** (all AGPL-3.0 or
 GPL-family, see `docs/PRIOR_ART.md`) as real dependencies for good —
@@ -47,10 +47,10 @@ public-facing commit posture; publishing remained a separate act.
 
 **★ SUPERSEDED BY EVENTS, 2026-08-09.** This paragraph used to end *"the
 project's first implementation commit (`d8b3903`) remains local only"*.
-It is not local. The operator created `github.com/KenM76/pdfce`
+It is not local. The operator created `github.com/KenM76/pdfcer`
 (**public**) on 2026-08-09 04:56Z and pushed `main` at 10:18Z. Verify
 rather than trust this sentence too — `git remote -v` and
-`gh repo view KenM76/pdfce --json visibility`.
+`gh repo view KenM76/pdfcer --json visibility`.
 
 A push still requires the operator's own act; what changed is that the
 act happened. See §1.1 for what came with it.
@@ -75,13 +75,13 @@ dependencies). The operator chose MIT.
 >
 > Written 2026-08-09 as a *prospective* blocker — "publishing would
 > disclose this" — on the stated basis that no git remote existed. **That
-> basis was false when it was written.** `github.com/KenM76/pdfce` was
+> basis was false when it was written.** `github.com/KenM76/pdfcer` was
 > created 2026-08-09 04:56Z and pushed at 10:18Z; this section was written
 > that evening and asserted the opposite.
 >
 > Found 2026-08-10 by running `git remote -v` while verifying something
 > unrelated. Verified, not inferred: `gh api
-> repos/KenM76/pdfce/contents/tools/realdrawings-smoke?ref=817d518^`
+> repos/KenM76/pdfcer/contents/tools/realdrawings-smoke?ref=817d518^`
 > **returns the directory listing** — the harness whose own README said
 > *"Nothing in this directory is to be committed at all"* is fetchable by
 > anyone from the public repository.
@@ -166,7 +166,7 @@ behind a closed decision is the part that stays useful:
 | **Make it private while deciding** | Seconds, reversible, stops further exposure. Not chosen. |
 | **Accept** ← **CHOSEN** | The material stays reachable. Weighed against 0 forks and 0 stars at the time of the decision. |
 
-**Binding on `pdfce-engineer` going forward:**
+**Binding on `pdfcer-engineer` going forward:**
 
 - **Do not re-open this to be helpful.** It is decided. Raising it again
   as though it were open wastes the operator's attention on a question he
@@ -201,11 +201,11 @@ The PDF ecosystem's normative documents have genuinely mixed licensing:
 **The pattern:** wherever ISO paywalls a standard whose content
 originated with (or is mirrored by) a standards body with an open-
 publication norm (ITU-T, ETSI) or the original corporate author
-(Adobe, Microsoft, the ICC), prefer that free source. `pdfce-spec-
+(Adobe, Microsoft, the ICC), prefer that free source. `pdfcer-spec-
 librarian` owns applying this table — see its agent file for the
 full sourcing protocol.
 
-**Redistribution rule (binding on `pdfce-spec-librarian`):**
+**Redistribution rule (binding on `pdfcer-spec-librarian`):**
 
 - RAG files may **paraphrase and summarize** normative content, and
   may include **short verbatim quotations** (a sentence, a table row)
@@ -219,10 +219,10 @@ full sourcing protocol.
 - The raw source documents themselves (whether freely downloaded or,
   if the user owns a purchased ISO copy, provided locally) are staged
   under `D:\Dev\Rag-Specialized\PDF_Spec\_sources\` and are **never**
-  committed to the pdfce git repository and **never** referenced from
-  any pdfce release artifact.
+  committed to the pdfcer git repository and **never** referenced from
+  any pdfcer release artifact.
 - The RAG directory `D:\Dev\Rag-Specialized\PDF_Spec\` itself lives
-  **outside** the pdfce repository. If it is ever put under version
+  **outside** the pdfcer repository. If it is ever put under version
   control for the user's own backup purposes, that repository must be
   **private**, never public, never a release asset — same discipline
   as the existing "SolidWorks tools are PRIVATE" rule in the user's
@@ -251,31 +251,31 @@ full sourcing protocol.
 ## 4. Trademark posture
 
 - "Acrobat", "Adobe", the Adobe PDF logo, and Adobe's product UI/icon
-  trade dress are **not** to be used in pdfce's name, branding,
+  trade dress are **not** to be used in pdfcer's name, branding,
   marketing copy, icons, or about-box text. "Feature-for-feature
   replacement for Acrobat Pro" is fine as an internal engineering/
   roadmap framing (as used in `ARCHITECTURE.md` and `ROADMAP.md`); it
   needs softer, non-infringing phrasing in any public-facing copy
   ("a free, open-source alternative to commercial PDF editors" style) —
-  this is a `pdfce-librarian` / user judgment call when public-facing
+  this is a `pdfcer-librarian` / user judgment call when public-facing
   copy is actually drafted, not a concern for internal engineering docs.
 - The PDF format itself and the word "PDF" are not trademark-
   restricted for describing file-format compatibility; this is a
   different question from using Adobe's product branding.
 
-### 4.1 "pdfce" name-collision check (2026-07-23)
+### 4.1 "pdfcer" name-collision check (2026-07-23)
 
-Before treating "pdfce" as the final public-facing name (not just a
+Before treating "pdfcer" as the final public-facing name (not just a
 dev codename): a practical collision check was run, web-search-level
 (not a formal trademark-registry search).
 
-- **crates.io**: `pdfce` is unregistered — confirmed via a direct API
-  query returning 404 "crate `pdfce` does not exist." Clear.
-- **GitHub**: no `pdfce` user or organization exists — confirmed via
+- **crates.io**: `pdfcer` is unregistered — confirmed via a direct API
+  query returning 404 "crate `pdfcer` does not exist." Clear.
+- **GitHub**: no `pdfcer` user or organization exists — confirmed via
   direct query (404). A fuzzy name search turned up ~32 unrelated
   repos (`pdfcevir`, `PDFCertificateGenerator`, etc.), none with real
   prominence (single-digit stars). Clear.
-- **Trademark**: no confirmed registered "PDFCE" mark found via
+- **Trademark**: no confirmed registered "PDFCER" mark found via
   general web search. **This was not a formal USPTO TMsearch-database
   query** (blocked/not attempted at that depth) — good enough to keep
   using the name now, but run an actual USPTO search before any formal
@@ -287,14 +287,14 @@ dev codename): a practical collision check was run, web-search-level
   plausibly more defensible if trademark protection is ever pursued,
   though that depends on what "CE" is understood to stand for.
 
-**Bottom line: no blocking issue found.** Safe to keep "pdfce" as the
+**Bottom line: no blocking issue found.** Safe to keep "pdfcer" as the
 working and likely-final name; revisit only if a formal trademark
 filing is ever pursued (do the USPTO search then, not now).
 
-## 5. Test corpus sourcing (binding on pdfce-engineer)
+## 5. Test corpus sourcing (binding on pdfcer-engineer)
 
 - Fixture PDFs checked into `fixtures/` must be either: (a) synthetic,
-  generated by pdfce's own tooling or a documented script, or (b)
+  generated by pdfcer's own tooling or a documented script, or (b)
   drawn from a corpus with clear redistribution rights (e.g. the PDF
   Association's public test suites, veraPDF's open corpus, or files
   the user personally authored and has rights to redistribute).
@@ -312,16 +312,16 @@ filing is ever pursued (do the USPTO search then, not now).
 - **★ The veraPDF CORPUS named above is NOT the veraPDF VALIDATOR.** This
   section governs the **corpus** (a rights-cleared source of fixture
   PDFs, in use since 2026-07-30). The **validator application** — a
-  dual-licensed GPLv3+/MPLv2+ tool pdfce **runs** but never ships — is
-  governed by **§6.5**, which records pdfce's **MPL-2.0 election** and six
+  dual-licensed GPLv3+/MPLv2+ tool pdfcer **runs** but never ships — is
+  governed by **§6.5**, which records pdfcer's **MPL-2.0 election** and six
   binding usage rules. **Two artifacts, two licence questions; do not
   answer one with the other.**
 
 ## 6. Open-source dependency licensing & attribution
 
-pdfce leans on the existing Rust/OSS ecosystem rather than
+pdfcer leans on the existing Rust/OSS ecosystem rather than
 reinventing everything (see `docs/PRIOR_ART.md` for the actual
-survey). Every dependency brings its own license, and pdfce's own
+survey). Every dependency brings its own license, and pdfcer's own
 license — ~~(§1, still undecided)~~ **MIT, decided 2026-08-01 (§1)** —
 determines what's even usable; this section is the binding discipline
 for that intersection.
@@ -333,7 +333,7 @@ for that intersection.
 > **This is a single-location-amendment failure**, the same defect the
 > *Update protocol*'s same-filing propagation duty exists to prevent, and
 > the fourth time this project has hit it. The original wording is struck
-> rather than deleted so the failure stays visible. **What pdfce's own
+> rather than deleted so the failure stays visible. **What pdfcer's own
 > licence gates has NOT changed in substance** — §6.1 has stated the MIT
 > consequence (GPL/AGPL categorically out) since the decision was made.
 > Every other editable location carrying the stale claim was corrected in
@@ -346,28 +346,28 @@ for that intersection.
 > **⚠ HEADING IS HISTORICAL, corrected 2026-08-07 — read it in the past
 > tense.** It gated the §1 decision; **§1 was decided (MIT) on
 > 2026-08-01**, so this split now runs the other way — it says what a
-> *dependency* may be, given a licence pdfce has already chosen, not what
-> pdfce's licence may be. The heading is left unedited because it is a
+> *dependency* may be, given a licence pdfcer has already chosen, not what
+> pdfcer's licence may be. The heading is left unedited because it is a
 > section anchor other documents link to. **The bullets below were already
 > correct** and were amended in place on the decision date.
 
 - **Permissive** (MIT, Apache-2.0, BSD-2/3-Clause, Zlib): safe to
-  depend on regardless of what pdfce's own license ends up being.
+  depend on regardless of what pdfcer's own license ends up being.
   Most of the Rust crate ecosystem defaults to MIT/Apache-2.0 dual.
-  **This is also pdfce's own license as of 2026-08-01 (§1) — the
+  **This is also pdfcer's own license as of 2026-08-01 (§1) — the
   entire current dependency set is permissive, so nothing here
   changes in practice; this classification tier is simply the one
-  pdfce itself now belongs to.**
+  pdfcer itself now belongs to.**
 - **Weak copyleft** (LGPL, MPL-2.0): usable as a dynamically-linked
-  dependency in most cases without forcing pdfce's own license to
+  dependency in most cases without forcing pdfcer's own license to
   match, but static linking (the Rust ecosystem's norm — everything
   compiles into one binary) can blur that line. **Flag any LGPL/MPL
   dependency to the user before adding it** rather than assuming
   static-linking is fine.
-- **Strong copyleft** (GPL-2/3, AGPL-3): if pdfce **links** GPL/AGPL
+- **Strong copyleft** (GPL-2/3, AGPL-3): if pdfcer **links** GPL/AGPL
   code into its own binary (not just "reads it for inspiration" —
-  actual linking/embedding), pdfce's own distributed binary must also
-  be GPL/AGPL-compatible. **DECIDED 2026-08-01: pdfce is MIT-licensed
+  actual linking/embedding), pdfcer's own distributed binary must also
+  be GPL/AGPL-compatible. **DECIDED 2026-08-01: pdfcer is MIT-licensed
   (§1), so GPL/AGPL dependencies are now categorically, permanently
   off the table as real dependencies** — they can only ever be
   read-only architectural/algorithmic reference (independently
@@ -379,7 +379,7 @@ for that intersection.
 
 ### 6.2 Rule: no dependency added without a license check
 
-Before `pdfce-engineer` adds ANY new crate to a `Cargo.toml` (not just
+Before `pdfcer-engineer` adds ANY new crate to a `Cargo.toml` (not just
 at Pass 0 — every time, for the life of the project):
 
 1. Check the crate's license (its `Cargo.toml` `license` field, or its
@@ -388,7 +388,7 @@ at Pass 0 — every time, for the life of the project):
 3. If permissive: proceed, log it in `docs/PRIOR_ART.md`'s adopted-
    dependencies table.
 4. If weak or strong copyleft: **stop and ask the user** before adding
-   it, even if pdfce's current license would technically allow it —
+   it, even if pdfcer's current license would technically allow it —
    this is a case where getting it wrong is expensive to unwind later
    (ripping out a load-bearing dependency after other code depends on
    its API is real rework), so it warrants a check-in every time, not
@@ -402,7 +402,7 @@ at Pass 0 — every time, for the life of the project):
 ### 6.3 Attribution mechanism: generated, not hand-maintained
 
 Hand-maintaining a NOTICE/THIRD_PARTY_LICENSES file is error-prone and
-drifts from reality as dependencies change. pdfce uses **`cargo-about`**
+drifts from reality as dependencies change. pdfcer uses **`cargo-about`**
 (the standard Rust-ecosystem tool for this) to generate the attribution
 file from the actual `Cargo.lock` dependency graph:
 
@@ -414,14 +414,14 @@ file from the actual `Cargo.lock` dependency graph:
   a real (if usually low-stakes) compliance gap.
 - This file **is** meant to ship with releases (unlike the private
   RAGs) — it's the actual legal notice a downstream user/redistributor
-  needs. `pdfce-librarian` doesn't own it; `pdfce-engineer` regenerates
+  needs. `pdfcer-librarian` doesn't own it; `pdfcer-engineer` regenerates
   it mechanically as part of the release/packaging checklist.
 
 ### 6.4 `docs/PRIOR_ART.md`
 
 The living survey of candidate/adopted open-source dependencies and
-reference projects, maintained by `pdfce-engineer` (dispatch
-`pdfce-librarian` for the actual file edits, same discipline as
+reference projects, maintained by `pdfcer-engineer` (dispatch
+`pdfcer-librarian` for the actual file edits, same discipline as
 `ARCHITECTURE.md`'s decision log). Distinct from the generated
 `THIRD_PARTY_LICENSES.md`: `PRIOR_ART.md` is the research/decision
 record (why a crate was chosen or rejected, what the license
@@ -450,7 +450,7 @@ found by someone a year from now who has only the artifacts.
 | Fact | Value |
 |---|---|
 | Product | **veraPDF 1.30.2** (greenfield validator) |
-| Install path | **`D:\tools\verapdf`** — outside `D:\Dev\pdfce\`, deliberately |
+| Install path | **`D:\tools\verapdf`** — outside `D:\Dev\pdfcer\`, deliberately |
 | Installer SHA-256 | `6cc6341cb1af644044054b81f00a6590a7918abb18f762243de115258bcad838` |
 | GPG | **Good signature**, RSA key `13DD102B4DD69354D12DE5A83184863278B17FE7`, *"Carl Wilson `<techlead@verapdf.org>`"* (veraPDF's tech lead) |
 | Runtime | Java **17.0.7** present |
@@ -480,21 +480,21 @@ naming a licence is weaker evidence than the licence file being there.**
 2026-08-07 — see §6.5.5 for the exact output and for a correction to how
 this banner had been characterised.
 
-#### 6.5.2 THE ELECTION — pdfce receives veraPDF under **MPL-2.0**, not GPL-3.0
+#### 6.5.2 THE ELECTION — pdfcer receives veraPDF under **MPL-2.0**, not GPL-3.0
 
-**Under a dual licence the RECIPIENT chooses. pdfce chooses MPL-2.0.**
+**Under a dual licence the RECIPIENT chooses. pdfcer chooses MPL-2.0.**
 
 **An undocumented choice is an ambiguous one**, and ambiguity is the
 entire risk here: a future reader who finds only "veraPDF" and "GPL" in
-the same sentence will conclude pdfce has a licensing problem. **This
+the same sentence will conclude pdfcer has a licensing problem. **This
 subsection exists so that reader finds the election instead.**
 
 **Why MPL-2.0 is safe for an MIT project:** MPL-2.0 is **file-level** weak
 copyleft — its obligations attach to the *MPL-licensed files themselves*,
 not to everything they touch. **MPL-2.0 §3.3 expressly permits combining
 Covered Software into a "Larger Work" distributed under other terms.**
-**There is therefore no propagation path from veraPDF to pdfce's MIT
-licence** (§1), even in the counterfactual where pdfce did something
+**There is therefore no propagation path from veraPDF to pdfcer's MIT
+licence** (§1), even in the counterfactual where pdfcer did something
 closer than it does.
 
 #### 6.5.3 The SECOND, INDEPENDENT protection — the usage pattern triggers nothing even on the GPL branch
@@ -506,9 +506,9 @@ independent legs does not fall over if one is later disputed.**
   program.** Running a validator is not a licensed act requiring
   compliance.
 - **Copyleft attaches to DISTRIBUTING a combined or derivative work.**
-  pdfce distributes neither.
+  pdfcer distributes neither.
 - **The GPL reaches neither a program's OUTPUT nor a program that merely
-  CONSUMES that output.** A validation report is data about pdfce's file,
+  CONSUMES that output.** A validation report is data about pdfcer's file,
   not a derivative of veraPDF.
 
 So even if the election in §6.5.2 were set aside entirely, the pattern in
@@ -516,27 +516,27 @@ So even if the election in §6.5.2 were set aside entirely, the pattern in
 
 #### 6.5.4 THE ENFORCEABLE RULES — this is the operational answer
 
-**Binding on `pdfce-engineer` and every agent, for the life of the
+**Binding on `pdfcer-engineer` and every agent, for the life of the
 project.**
 
 1. **Never vendor, bundle, or redistribute veraPDF** — not in the repo,
    not in a release, not in the single-folder portable package.
-2. **Never link or embed** any veraPDF jar, class, or code into a pdfce
+2. **Never link or embed** any veraPDF jar, class, or code into a pdfcer
    binary.
 3. **Never copy its source, its validation profiles, or its model
    files.** **Reimplementing from the ISO spec is fine; lifting profile
    XML is not.** (This is the same read-vs-copy line §6.1 draws for
-   GPL/AGPL prior art, applied to an artifact pdfce actually executes.)
+   GPL/AGPL prior art, applied to an artifact pdfcer actually executes.)
 4. **Separate process only**, invoked over the **documented CLI**, with
-   pdfce consuming the **XML report**. No in-process embedding, no JNI,
+   pdfcer consuming the **XML report**. No in-process embedding, no JNI,
    no shading.
-5. **DEV-TIME ONLY.** veraPDF is never a runtime dependency of pdfce and
+5. **DEV-TIME ONLY.** veraPDF is never a runtime dependency of pdfcer and
    **never appears in any `Cargo.toml`.** **It will therefore correctly
    never appear in `THIRD_PARTY_LICENSES.md`** — `cargo-about` generates
    that file from the Cargo dependency graph and can only see Cargo
    dependencies. **This is stated explicitly so nobody "fixes" the
    apparent omission by adding it**; adding it would be adding a
-   dependency that does not exist, and would misdescribe pdfce's
+   dependency that does not exist, and would misdescribe pdfcer's
    distributed artifact to its downstream users.
 6. **★ THE GATE MUST *SKIP*, NOT *FAIL*, WHEN veraPDF IS ABSENT.** A
    required gate would make veraPDF a **de facto build dependency** —
@@ -574,7 +574,7 @@ line gets GPL-only.** That is exactly how the mischaracterisation above
 arose, and it is a **reproducible reading hazard**, not a one-off
 mistake. **The predictable failure mode stands, with a corrected cause:**
 someone finds a GPL-only fragment of this banner in a year and concludes
-pdfce has a licensing problem it never had. **§6.5.1 and §6.5.2 are the
+pdfcer has a licensing problem it never had. **§6.5.1 and §6.5.2 are the
 answer to give them.**
 
 **How the correction was established (R87):** the librarian ran the
@@ -646,7 +646,7 @@ truncation came from the invocation rather than from the data.
 
 ### 6.6 pdf.js — behavioural reference only (2026-08-10), the second instance of R61's pattern
 
-**Flagged for recording by `pdfce-engineer` while sourcing Pass 7.2's
+**Flagged for recording by `pdfcer-engineer` while sourcing Pass 7.2's
 posture-B AcroForm-JavaScript recompute (decision 009); written up here
 because it is the SAME shape of question `ARCHITECTURE.md` §12's
 2026-08-01 entry and standing rule **R61** already answered for Inkscape,
@@ -666,9 +666,9 @@ form-scripting behaviour, no code shared with Adobe's — was consulted for
 the *behaviour* those edge cases produce.
 
 **The R61 pattern, applied.** R61 (2026-08-01, decision 010) established:
-a copyleft project may be a **behavioural reference** for pdfce — never a
+a copyleft project may be a **behavioural reference** for pdfcer — never a
 dependency, never a code source, never (in Inkscape's case) a GUI-mimicry
-target — provided pdfce reimplements independently from the observed
+target — provided pdfcer reimplements independently from the observed
 behaviour and never links or copies. pdf.js sits on **weaker copyleft**
 than Inkscape's GPL-2.0-or-later (MPL-2.0 is file-level weak copyleft,
 §6.5.2 above), so the same posture is, if anything, on firmer ground here
@@ -680,8 +680,8 @@ than it was for R61's original case.
   primary evidence of Acrobat-compatible JS behaviour when Adobe's own
   reference could not be extracted this session).
 - **Never copied**: no pdf.js source, expression, or algorithm text
-  appears in `pdfce-core`. The Rust implementation
-  (`crates/pdfce-core/src/form_script/`) was written from the *observed
+  appears in `pdfcer-core`. The Rust implementation
+  (`crates/pdfcer-core/src/form_script/`) was written from the *observed
   behaviour*, independently.
 - **Never linked**: pdf.js is not a Cargo dependency, build-time or
   otherwise, and will not appear in `THIRD_PARTY_LICENSES.md` for this
@@ -718,7 +718,7 @@ rule (2026-08-07 R156/R87 amendments).
 length.** He was answering `ROADMAP.md` open operator question **`(bl)`**
 as this project had been carrying it:
 
-> **May a CC-BY-SA-4.0 model file ship inside pdfce's MIT single-folder
+> **May a CC-BY-SA-4.0 model file ship inside pdfcer's MIT single-folder
 > portable distribution?**
 
 **Answer: YES.**
@@ -726,16 +726,16 @@ as this project had been carrying it:
 #### 6.7.1 Why this needed §6.2 step 4 in the first place
 
 §6.2 step 4 says **stop and ask** for anything that is not permissive,
-*"even if pdfce's current license would technically allow it."*
+*"even if pdfcer's current license would technically allow it."*
 CC-BY-SA-4.0 is not permissive, so the rule fired on its own terms. Two
 further features made it a genuine question rather than an obvious no:
 
 - **§6.1's categorical GPL/AGPL bar is about LINKING.** CC-BY-SA-4.0
-  attaches to a **data file** pdfce would **redistribute**, not to code it
+  attaches to a **data file** pdfcer would **redistribute**, not to code it
   links. The bar does not reach it, and nothing else in this document did
   either.
 - **The alternative is not equivalent.** The pure-Rust route
-  (`ocrs`/`rten`) is **the only OCR candidate that passes pdfce's own
+  (`ocrs`/`rten`) is **the only OCR candidate that passes pdfcer's own
   wasm32 CI gate** — every alternative makes OCR the first feature that
   cannot cross into the web fork (`ARCHITECTURE.md` §3) — and its weights
   are the copyleft ones. PaddleOCR's weights are **Apache-2.0** and cover
@@ -764,7 +764,7 @@ The survey's reading, in its own terms:
   an **adaptation**, which modifies the underlying work and must itself
   be released under BY-SA. On that reading, **shipping the unmodified
   `.rten` files next to MIT code is distribution of a verbatim work in a
-  collection, and there is no propagation path to pdfce's own MIT
+  collection, and there is no propagation path to pdfcer's own MIT
   licence.**
 - **This is the same SHAPE of reasoning §6.5.2 already applied to
   MPL-2.0 for veraPDF** — a copyleft artifact whose own terms permit the
@@ -800,7 +800,7 @@ Recorded together because the gap between *"the licence is accepted"* and
    fine-tuning, quantizing, retraining, or **converting the weights to
    another runtime's format** plausibly creates **Adapted Material**,
    which must then be released under CC-BY-SA-4.0 or a compatible
-   licence. That binds **the derived model**, not pdfce's source — but
+   licence. That binds **the derived model**, not pdfcer's source — but
    *"we'll just fine-tune it later for CAD drawings"* **is a decision
    with a licence attached. A future Pass that touches the weights owes
    its own operator decision under §6.2 step 4; this acceptance does not
@@ -824,7 +824,7 @@ Recorded together because the gap between *"the licence is accepted"* and
    "fixed". For a bundled model the absence would be **incorrect** — and
    **it looks identical**.
 
-#### 6.7.4 Provenance is thinner than one would want, and pdfce must PIN AND HASH
+#### 6.7.4 Provenance is thinner than one would want, and pdfcer must PIN AND HASH
 
 Recorded because it is an obligation the acceptance creates, not a
 reservation about it:
@@ -836,10 +836,10 @@ reservation about it:
   non-permissive artifact in the build.
 - **The two distribution channels are not byte-identical**, measured in
   survey §3.4 — **and ★ SINCE 2026-08-25 THIS TABLE ALSO RECORDS WHICH
-  COLUMN pdfce ACTUALLY SHIPS, WHICH IT PREVIOUSLY DID NOT** (`Pass
+  COLUMN pdfcer ACTUALLY SHIPS, WHICH IT PREVIOUSLY DID NOT** (`Pass
   129.0`, `181d9bd`, two-hundred-and-sixty-second filing). The prior
   version tabulated both channels and totalled them, describing a choice
-  pdfce **had not yet made in fact** while the repository had already made
+  pdfcer **had not yet made in fact** while the repository had already made
   it silently:
 
 | File role | S3 bytes | Hugging Face bytes | Delta (S3 − HF) | **BUNDLED** |
@@ -857,7 +857,7 @@ reservation about it:
   output. Isolated by swapping **one file at a time** (4 runs over 2 files
   × 2 channels): S3 detection + **HF** recognition is **perfect**, so the
   recognition model was never at fault and **only the detection file was
-  replaced**. Between 2026-08-13 and 2026-08-25 **every OCR run pdfce made
+  replaced**. Between 2026-08-13 and 2026-08-25 **every OCR run pdfcer made
   produced garbage.**
 
   **The licence consequence, stated because it is the reason this belongs
@@ -866,13 +866,13 @@ reservation about it:
   card**, for the same author's same network. **The operator was told
   exactly that and authorised bundling the S3 artefact on 2026-08-25.**
   The licence conclusion below is therefore **unchanged** (unmodified
-  works in a **collection**, not an **adaptation**; pdfce's MIT licence
+  works in a **collection**, not an **adaptation**; pdfcer's MIT licence
   unaffected), but **the provenance chain for the detection file now runs
   through a different host than the licence declaration**, and
   `PROVENANCE.md` states that mixture rather than implying one channel.
 
   **The filenames differ between channels as well** — which is precisely
-  how two different models came to look like one. **So pdfce must pin
+  how two different models came to look like one. **So pdfcer must pin
   exactly which artifact it ships and hash it, rather than treating "the
   ocrs models" as one thing.** That pinning was an engineering obligation
   of `Pass 71.0` and **was honoured for provenance while the artefact
@@ -902,7 +902,7 @@ evidence: `docs/ocr-engine-survey.md` §3.3–§3.5.
   dependency licensing & attribution discipline, per user request to
   survey existing OSS projects for prior art and ensure proper
   crediting. Established: permissive-vs-copyleft classification gates
-  what's usable given pdfce's own (still undecided **[⚠ as of 2026-07-23
+  what's usable given pdfcer's own (still undecided **[⚠ as of 2026-07-23
   only — MIT since 2026-08-01; marker added 2026-08-07, entry not
   edited]**) license; no
   dependency added without a per-instance check, copyleft always
@@ -914,7 +914,7 @@ evidence: `docs/ocr-engine-survey.md` §3.3–§3.5.
   renumbered the dependency-licensing section to §6 (was mislabeled
   §7) and this decision log to §7 (was §8). Updated every cross-file
   reference to the old numbers. Also: **name-collision check on
-  "pdfce" completed, came back clean** — no existing crates.io crate
+  "pdfcer" completed, came back clean** — no existing crates.io crate
   (confirmed 404), no existing GitHub user/org (confirmed 404), no
   confirmed trademark or well-known-product conflict via web search,
   low phonetic/visual confusion risk with Acrobat or other PDF tools.
@@ -943,7 +943,7 @@ evidence: `docs/ocr-engine-survey.md` §3.3–§3.5.
   decision) for the architectural-decision-log mirror of this record.
 - **2026-08-07 — §6.5 added: the veraPDF LICENCE ELECTION and the
   arms-length usage rules.** Prompted by the operator's direct request to
-  run veraPDF's validator against pdfce's own output, with the explicit
+  run veraPDF's validator against pdfcer's own output, with the explicit
   constraint *"use verapdf in a way that wouldn't cause us to change our
   license in order to stay conforming with it's tos."* **veraPDF 1.30.2
   (greenfield) is installed at `D:\tools\verapdf`, deliberately OUTSIDE
@@ -951,7 +951,7 @@ evidence: `docs/ocr-engine-survey.md` §3.3–§3.5.
   `6cc6341cb1af644044054b81f00a6590a7918abb18f762243de115258bcad838`,
   GPG-verified good signature from veraPDF's tech lead (RSA key
   `13DD102B4DD69354D12DE5A83184863278B17FE7`).
-  **THE DECISION: pdfce receives veraPDF under MPL-2.0, NOT GPL-3.0.**
+  **THE DECISION: pdfcer receives veraPDF under MPL-2.0, NOT GPL-3.0.**
   Every veraPDF component is dual-licensed **GPLv3+ / MPLv2+** (verified
   per-repo across `veraPDF-apps`, `veraPDF-library`, `veraPDF-model`,
   `veraPDF-parser`, plus confirmation that `LICENSE.MPL` actually exists
@@ -960,7 +960,7 @@ evidence: `docs/ocr-engine-survey.md` §3.3–§3.5.
   an undocumented choice is an ambiguous one** — so the choice is made and
   written down. MPL-2.0 is file-level weak copyleft and **§3.3 expressly
   permits combination into a "Larger Work" under other terms**, so there
-  is **no propagation path to pdfce's MIT licence** (§1).
+  is **no propagation path to pdfcer's MIT licence** (§1).
   **A SECOND, INDEPENDENT protection is recorded because either alone
   suffices:** the usage pattern triggers nothing even on the GPL branch —
   GPL §0 affirms unlimited permission to **run** an unmodified program,
@@ -1001,7 +1001,7 @@ evidence: `docs/ocr-engine-survey.md` §3.3–§3.5.
   is unchanged; the publish gate is unchanged and still ungranted.** What
   changes is that the document stops contradicting itself.
 
-  **The defect.** §6's opening paragraph read *"pdfce's own license (§1,
+  **The defect.** §6's opening paragraph read *"pdfcer's own license (§1,
   still undecided) determines what's even usable"* — **wrong since
   2026-08-01**, and wrong in the paragraph that introduces the whole
   dependency-licensing discipline. **§6.1's bullets carried the MIT
@@ -1036,7 +1036,7 @@ evidence: `docs/ocr-engine-survey.md` §3.3–§3.5.
   nothing deleted):** §6's opening paragraph (struck + corrected, with the
   failure named); §6.1's heading (historical-tense note beneath it — the
   heading itself left intact because other documents anchor to it);
-  `docs/PRIOR_ART.md`'s egui font-licence note (*"pdfce's own
+  `docs/PRIOR_ART.md`'s egui font-licence note (*"pdfcer's own
   (still-undecided, §1/`LEGAL.md` §1) software license"*);
   `docs/ui_specs/gui-polish-current-featureset.md` **twice** — §1's
   empty-state-heading rationale and the `ui_text.rs` doc-comment it
@@ -1065,7 +1065,7 @@ evidence: `docs/ocr-engine-survey.md` §3.3–§3.5.
   > duty as *the reason not to publish*; MIT removed the reason but **not
   > the restriction**, so each was **RE-POINTED at the still-ungranted
   > operator authorization**. **Two got STRONGER** — `jbig2.rs` and
-  > `.claude/agents/pdfce-inkscape-librarian.md`: an MIT project cannot
+  > `.claude/agents/pdfcer-inkscape-librarian.md`: an MIT project cannot
   > link GPL **at all**, so a risk-pending-a-decision became a categorical
   > bar. **`ui_text.rs` keeps its no-release-claim behaviour verbatim**
   > and records why, so nobody "simplifies" the comment away and takes the
@@ -1076,14 +1076,14 @@ evidence: `docs/ocr-engine-survey.md` §3.3–§3.5.
   | File | What it still says | Why it matters |
   |---|---|---|
   | **`README.md`** line 46 | *"`docs/LEGAL.md` \| License status (currently undecided — do not publish)"* | **The worst one.** The repo's front door, and the one line a new reader (human or LLM) reads about licensing before opening anything else. |
-  | `about.toml` line 49 | *"…pdfce's own (…undecided) software license…"* | inside the `cargo-about` config that generates `THIRD_PARTY_LICENSES.md` |
+  | `about.toml` line 49 | *"…pdfcer's own (…undecided) software license…"* | inside the `cargo-about` config that generates `THIRD_PARTY_LICENSES.md` |
   | `crates/pdfce-gui/src/ui_text.rs` line 1142 | *"no tagline, no 'open source'/release claim (the project's licence is still undecided, CLAUDE.md rule 8)"* | **shipped code.** The *behaviour* is still right — no release claim in the empty state, because the **publish** gate is what forbids it — but the stated **reason** is obsolete. |
-  | `crates/pdfce-core/src/image_codec/jbig2.rs` line 14 | *"copyleft against an undecided `LEGAL.md` §1"* | the disqualification still holds and is now **stronger**, not weaker: MIT forecloses GPL FFI outright |
-  | `.claude/agents/pdfce-engineer.md` lines 145, 411 | *"License status (undecided — don't publish)"* | read at the start of every engineering session |
-  | `.claude/agents/pdfce-inkscape-librarian.md` line 43 | *"pdfce's still-undecided license"* | |
+  | `crates/pdfcer-core/src/image_codec/jbig2.rs` line 14 | *"copyleft against an undecided `LEGAL.md` §1"* | the disqualification still holds and is now **stronger**, not weaker: MIT forecloses GPL FFI outright |
+  | `.claude/agents/pdfcer-engineer.md` lines 145, 411 | *"License status (undecided — don't publish)"* | read at the start of every engineering session |
+  | `.claude/agents/pdfcer-inkscape-librarian.md` line 43 | *"pdfcer's still-undecided license"* | |
 
   **One is already self-corrected and needs nothing:**
-  `.claude/agent-memory/pdfce-librarian/project_uncommitted_repo_worktree_risk.md`
+  `.claude/agent-memory/pdfcer-librarian/project_uncommitted_repo_worktree_risk.md`
   states the stale claim at line 24 and **corrects it at line 36**.
 
   **The through-line worth keeping, and the reason this is filed as a
@@ -1108,20 +1108,20 @@ evidence: `docs/ocr-engine-survey.md` §3.3–§3.5.
   Operator, **verbatim and in full**: *"yes to the license. keep going."*
   **That is the entire answer and it is recorded at that length.** He was
   answering the question as this project had been carrying it — *may a
-  **CC-BY-SA-4.0** model file ship inside pdfce's **MIT** single-folder
+  **CC-BY-SA-4.0** model file ship inside pdfcer's **MIT** single-folder
   portable distribution?* Full subsection: **§6.7**.
   **§6.2 step 4 is thereby DISCHARGED for this artifact** — the
   stop-and-ask fired correctly (CC-BY-SA-4.0 is not permissive), the
   question was escalated rather than cleared by an agent, and the operator
   answered. **§6.1's categorical GPL/AGPL bar was never the governing
-  rule here**: it is about **linking**, and this is a **data file pdfce
+  rule here**: it is about **linking**, and this is a **data file pdfcer
   redistributes**.
   **The reasoning is recorded as the SURVEY'S READING THAT THE OPERATOR
   ACCEPTED, not as an agent's legal conclusion** (§6.7.2) —
   `docs/ocr-engine-survey.md` §3.3: CC-BY-SA has no linking concept, CC
   distinguishes a **collection** (own licence permitted) from an
   **adaptation** (must be BY-SA), and unmodified `.rten` files beside MIT
-  code are a collection with **no propagation path to pdfce's MIT
+  code are a collection with **no propagation path to pdfcer's MIT
   licence** — **the same shape of reasoning §6.5.2 already applied to
   MPL-2.0 for veraPDF**, which is the neighbouring precedent.
   **What it unblocks:** `Pass 71.0`'s **engine half** only. Slice 1
@@ -1160,7 +1160,7 @@ evidence: `docs/ocr-engine-survey.md` §3.3–§3.5.
   detection **2,510,284 B (S3)** vs **2,523,564 B (HF)** = **13,280 B
   smaller**, recognition **9,716,568 B** vs **9,716,444 B** = **124 B
   larger**, under **different filenames**, totals **12,226,852 vs
-  12,240,008 B over 2 files** (0.11% apart). **pdfce must pin exactly
+  12,240,008 B over 2 files** (0.11% apart). **pdfcer must pin exactly
   which artifact it ships and hash it** — an engineering obligation of
   `Pass 71.0`, not an open question.
   **★ AMENDED 2026-08-25 (`Pass 129.0`, `181d9bd`): what ships is MIXED —

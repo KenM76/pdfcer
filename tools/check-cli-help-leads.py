@@ -7,7 +7,7 @@ WHAT THIS GATE IS FOR
 
 In `clap`-derive, a `///` doc comment **is** the shipped `--help` text, and
 only its **first line** becomes the short summary shown in
-`pdfce-cli --help`. Everything after it is long help nobody sees unless they
+`pdfcer --help`. Everything after it is long help nobody sees unless they
 ask for it.
 
 So a doc block whose real summary sits in the middle ships a `--help` line
@@ -18,7 +18,7 @@ tests pass, `cargo doc` renders it, and the operator reads the wrong sentence.
 ==========================================================
 
 Found 2026-08-29 while smoke-testing an unrelated feature — by running
-`pdfce-cli --help` and reading it, which is not a thing any test did:
+`pdfcer --help` and reading it, which is not a thing any test did:
 
   * `fetch-ocr-models` began `/// Render a page to a PNG image.` — a stray
     first line belonging to `render-page`. Its shipped summary therefore
@@ -72,7 +72,7 @@ import pathlib
 import sys
 
 TARGETS = [
-    "crates/pdfce-cli/src/main.rs",
+    "crates/pdfcer-cli/src/main.rs",
 ]
 
 

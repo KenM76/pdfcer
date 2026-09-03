@@ -5,13 +5,13 @@ WHY THIS EXISTS
 ---------------
 `docs/decisions/011-first-beta-scaled-measurement-dimensioning-tool.md`
 Appendix A **Pass 9a** requires proving four things about the read-only
-vector object/selection model (`pdfce_core::vector`):
+vector object/selection model (`pdfcer_core::vector`):
 
   1. the decomposition is **byte-inert** (the content-identity gate stays
      green — nothing here changes any output bytes);
   2. the object node geometry **matches the renderer's own walk** (the Z2
-     "agree by construction" cross-check — `pdfce-render`'s `trace_paths`
-     vs `pdfce_core::vector::decompose`, compared on these fixtures);
+     "agree by construction" cross-check — `pdfcer-render`'s `trace_paths`
+     vs `pdfcer_core::vector::decompose`, compared on these fixtures);
   3. the **filled-rectangle centerline** derivation fires on thin bars,
      is flagged, and does NOT fire on genuine rectangles (the Z3
      false-positive guard);

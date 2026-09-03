@@ -7,7 +7,7 @@ decision that has to be made once and lived with.
 **Why this file exists.** The finding below is the single most expensive
 thing learned this session, it was learned twice (once by measurement, once
 by research), and it existed only in a conversation transcript until it was
-written here. `ARCHITECTURE.md` decision 069 records what pdfce *did*; this
+written here. `ARCHITECTURE.md` decision 069 records what pdfcer *did*; this
 records *what the field does and why the cheap route cannot work*, which is
 the part a future session will otherwise re-derive.
 
@@ -67,7 +67,7 @@ enabling property, and it is a property of *PDF specifically*:
 So: **pre-scan the page's resources and allocate exactly the planes needed.**
 Ghostscript's ceiling is 64 process+spot (`GS_CLIENT_COLOR_MAX_COMPONENTS`),
 default soft cap 10 spots; **beyond the cap, colorants fall back to the tint
-transform** — i.e. pdfce's current behaviour is what a correct engine does
+transform** — i.e. pdfcer's current behaviour is what a correct engine does
 *only when it has run out of planes*. Acrobat 9's Output Preview shows only
 the first 27 inks.
 
@@ -77,7 +77,7 @@ the first 27 inks.
 
 **Michael Vrhel (Artifex), *"Color processing and management in
 Ghostscript"*, IS&T Color and Imaging Conference 27** — peer-reviewed, and
-the clearest statement of pdfce's exact problem generalised:
+the clearest statement of pdfcer's exact problem generalised:
 
 > "A developer might be tempted to **pack the color transforms into one
 > operation eliminating the rendering to the intermediate** Fogra 39 color
@@ -104,7 +104,7 @@ Three more, saying the same thing:
   *"overprint is ignored."*
 - **Poppler** (mailing list): *"In the splash implementation, it fails if
   CMYK values should overprint spot colors, **because spot colors are
-  converted immediately in their CMYK alternates**."* — **pdfce's bug,
+  converted immediately in their CMYK alternates**."* — **pdfcer's bug,
   verbatim, in another renderer.**
 
 ### The sanctioned approximation, and its ceiling
@@ -123,10 +123,10 @@ orange ink"* (<https://creativepro.com/indesigns-onscreen-untruths-overprinting-
   <https://forum.pdf-xchange.com/viewtopic.php?t=28893>
 - **pdf.js closed it WONTFIX** (mozilla/pdf.js#7360, verified closed):
   *"To properly make it work output medium must support CMYK natively and
-  **web APIs do not**."* — **★ directly relevant to pdfce's web-fork goal:
+  **web APIs do not**."* — **★ directly relevant to pdfcer's web-fork goal:
   overprint is the first feature that does not cross.**
 
-### pdfce's own prior art agrees
+### pdfcer's own prior art agrees
 
 `PDF_Spec\iso32000\iso32000__ref__spot_colour_overprint.md` §H (written
 2026-08-08) already listed stage 10 as *"n-channel compositing buffer +
@@ -137,13 +137,13 @@ routes, one answer.**
 
 **Novelty note:** no published source describes anyone trying a
 spot-multiplier plate over a flattened RGB buffer — in either direction.
-pdfce's negative result (`ac15158`,
+pdfcer's negative result (`ac15158`,
 `C:\personal_rag\pdf\lesson_20260818_spot_ink_multiplier_plate_does_not_pay_negative_result.md`)
 appears to be genuinely novel.
 
 ---
 
-## §5 — Three places pdfce can EXCEED the references
+## §5 — Three places pdfcer can EXCEED the references
 
 Per Ken's standing "parity is a floor" directive, recorded so they are not
 lost:
@@ -190,7 +190,7 @@ ambiguity a setting" rule.
 
 ## §7 — Licensing hygiene (binding on any follow-up)
 
-Ghostscript, MuPDF, Poppler and Scribus are **AGPL/GPL**; pdfce is **MIT**
+Ghostscript, MuPDF, Poppler and Scribus are **AGPL/GPL**; pdfcer is **MIT**
 and **cannot link them** (`LEGAL.md` §6.1). Everything in this file is
 **documentation, vendor product docs, changelog prose, a peer-reviewed
 paper, spec text, or tracker/mailing-list prose**. The research pass

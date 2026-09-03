@@ -2,7 +2,7 @@
 """Generate the operator-supplied-fonts demo/test fixture (decision 012).
 
 Emits ONE synthetic, self-contained PDF that references a NON-embedded
-simple TrueType font named ``Calibri`` — a font pdfce does not bundle —
+simple TrueType font named ``Calibri`` — a font pdfcer does not bundle —
 so that:
 
   * without ``--font-dir`` it renders with a bundled Base-14 substitute

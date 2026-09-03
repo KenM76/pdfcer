@@ -1,8 +1,8 @@
 # links — provenance and attribution
 
 Five minimal PDFs for the `/Link`-annotation **destination reader** —
-`crates/pdfce-core/src/annot.rs`'s `page_link_destinations` and
-`crates/pdfce-core/src/outline.rs`'s `DestinationReader`. ISO 32000-1:2008
+`crates/pdfcer-core/src/annot.rs`'s `page_link_destinations` and
+`crates/pdfcer-core/src/outline.rs`'s `DestinationReader`. ISO 32000-1:2008
 §12.5.6.5 (link annotations, Table 173) resolving into §12.3.2
 (destinations) and §12.6.4 (go-to actions).
 
@@ -80,7 +80,7 @@ The annotation was overwritten and **silently disappeared from
 `/Annots`**; the file then exercised three cases while its docstring
 claimed four, and nothing failed.
 
-It was caught by running `pdfce-cli list-links` against the fixture and
+It was caught by running `pdfcer list-links` against the fixture and
 counting the output lines — not by any test, because the tests had been
 written against the same wrong assumption. The generator now derives that
 object number from the same counter the annotations use.

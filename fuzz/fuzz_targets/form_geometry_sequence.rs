@@ -49,10 +49,10 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::document::Document;
-use pdfce_core::edit::EditSession;
-use pdfce_core::vector::Point;
-use pdfce_core::writer::SaveOptions;
+use pdfcer_core::document::Document;
+use pdfcer_core::edit::EditSession;
+use pdfcer_core::vector::Point;
+use pdfcer_core::writer::SaveOptions;
 
 /// How many bytes at the front drive the operation sequence; the rest is the
 /// candidate PDF.
@@ -137,9 +137,9 @@ fuzz_target!(|data: &[u8]| {
                     leaf,
                     param % 8,
                     if param % 2 == 0 {
-                        pdfce_core::vector::Handle::Incoming
+                        pdfcer_core::vector::Handle::Incoming
                     } else {
-                        pdfce_core::vector::Handle::Outgoing
+                        pdfcer_core::vector::Handle::Outgoing
                     },
                     Point { x, y },
                 )

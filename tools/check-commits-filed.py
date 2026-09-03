@@ -399,7 +399,7 @@ def main() -> int:
         for h, subject in unfiled:
             print(f"  {h}  {subject[:100]}")
         print(
-            "\n  Dispatch `pdfce-librarian` with each commit's full message — they carry"
+            "\n  Dispatch `pdfcer-librarian` with each commit's full message — they carry"
         )
         print("  the defect, the measurement and the owed follow-up, which is what a")
         print("  filing needs and what a one-line subject cannot supply.")

@@ -5,13 +5,13 @@ WHY
 ===
 `render_parity.py` decides whether a page is "clean-by-construction" from
 `parse_diag_line`, which reads ONLY the machine-readable `k=v` tally that
-`pdfce-cli render-page` prints on its first stdout line, and then keeps only
+`pdfcer render-page` prints on its first stdout line, and then keeps only
 the keys listed in `GAP_KEYS`.
 
-`pdfce-cli` also prints a SECOND line, in prose, when the interpreter had to
+`pdfcer` also prints a SECOND line, in prose, when the interpreter had to
 tolerate something it could not act on:
 
-    pdfce-cli: note: 2 structural oddity(ies) tolerated while interpreting the page
+    pdfcer: note: 2 structural oddity(ies) tolerated while interpreting the page
 
 That counter (`Diagnostics::tolerated`) is not in the `k=v` line at all, so
 the harness never parses it, and it is not in `GAP_KEYS`, so it could not
@@ -28,7 +28,7 @@ baseline records it `clean=1`, bucket `benign`.
 This tool measures how large that blind spot is: for every page the baseline
 bucketed, it re-runs `render-page`, captures the tolerated count, and reports
 how many pages disclose a tolerated oddity while the harness recorded them as
-clean. It renders pdfce ONLY (no reference renderer, no image maths), so it
+clean. It renders pdfcer ONLY (no reference renderer, no image maths), so it
 costs a fraction of a parity sweep.
 
 OUTPUT
@@ -54,7 +54,7 @@ import render_parity as rp
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 
-# The prose note pdfce-cli prints when Diagnostics::tolerated > 0. Matching on
+# The prose note pdfcer prints when Diagnostics::tolerated > 0. Matching on
 # the leading integer keeps this robust to wording changes after "oddity".
 NOTE_RE = re.compile(r"note:\s*(\d+)\s+structural oddit", re.I)
 
@@ -76,7 +76,7 @@ def probe(rel: str, page: int, scale: float, corpus_root: Path, timeout: float) 
         # `render_parity.py` cannot see it: `render_pdfce` parses `r.stdout`
         # only, and reads `r.stderr` solely to build an error message on a
         # non-zero exit. Search both streams here so the measurement does not
-        # depend on which one pdfce-cli happens to use.
+        # depend on which one pdfcer happens to use.
         blob = r.stdout.decode(errors="replace") + "\n" + r.stderr.decode(errors="replace")
         m = NOTE_RE.search(blob)
         return int(m.group(1)) if m else 0
@@ -142,7 +142,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  ...AND bucketed 'benign-renderer-noise'      : {len(tol_clean_benign)}")
     print()
     print("A clean-by-construction page is one the band is DERIVED from. Every")
-    print("page in the third line above told pdfce-cli's operator that the")
+    print("page in the third line above told pdfcer's operator that the")
     print("interpreter could not act on something, and still helped set the")
     print("threshold that decides which divergences are called benign.")
     return 0

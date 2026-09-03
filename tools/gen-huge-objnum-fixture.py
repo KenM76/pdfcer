@@ -8,7 +8,7 @@ table "shall contain one entry for each object number from 0 to the
 maximum object number defined in the file, even if one or more of the
 object numbers in this range do not actually occur in the file". For a
 **full rewrite** — one section — that obligation lands entirely on that
-section, so pdfce must emit one entry per number from 0 to the highest.
+section, so pdfcer must emit one entry per number from 0 to the highest.
 
 That makes the writer's cost a function of the largest object NUMBER,
 not of how many objects the file contains. A tiny document naming one
@@ -55,7 +55,7 @@ numbering and nothing else:
 The xref is a **two-subsection** classic table (`0 5` then
 `2147483648 1`), which §7.5.4 explicitly permits: "one or more
 subsections, which may appear in any order". So the file is well-formed
-on the READ side, and pdfce opens it without recovery — the refusal
+on the READ side, and pdfcer opens it without recovery — the refusal
 under test is a *writer* refusal, not a parse failure, and the fixture
 would prove nothing if it could not be read cleanly.
 

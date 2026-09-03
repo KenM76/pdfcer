@@ -3,8 +3,8 @@
 # `tools/` crate is: it must never enter the shipping dependency graph
 # or `THIRD_PARTY_LICENSES.md`.
 #
-# It enables `pdfce-render/profile`, which is off in every shipping
-# build. See `crates/pdfce-render/src/profile.rs` for why the
+# It enables `pdfcer-render/profile`, which is off in every shipping
+# build. See `crates/pdfcer-render/src/profile.rs` for why the
 # instrumentation is permanent rather than throwaway.
 [package]
 name = "render-profile"
@@ -15,8 +15,8 @@ publish = false
 [workspace]
 
 [dependencies]
-pdfce-core = { path = "../../crates/pdfce-core" }
-pdfce-render = { path = "../../crates/pdfce-render", features = ["profile"] }
+pdfcer-core = { path = "../../crates/pdfcer-core" }
+pdfcer-render = { path = "../../crates/pdfcer-render", features = ["profile"] }
 
 [profile.release]
 # Profiling a debug build measures the allocator, not the renderer.

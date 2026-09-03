@@ -5,7 +5,7 @@ WHY THIS EXISTS
 ===============
 `benign_structure.py` writes full-page panels laid out as
 
-    [ pdfce | pdfium | 8x delta | classification ]
+    [ pdfcer | pdfium | 8x delta | classification ]
 
 At 125 DPI a Letter page is 1063x1375, so a full panel is ~4276 px wide. The
 finding that matters is often a few hundred pixels across, and at

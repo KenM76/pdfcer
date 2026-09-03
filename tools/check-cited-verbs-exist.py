@@ -23,7 +23,7 @@ reader who finds out.
 WHAT THIS CHECKS
 ================
 
-Every `use_instead: "..."` literal in `pdfce-core` names something that exists
+Every `use_instead: "..."` literal in `pdfcer-core` names something that exists
 as a `pub fn` / `pub(crate) fn` in the crate.
 
 A value may carry a call-shaped hint rather than a bare name --
@@ -59,7 +59,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-CORE = ROOT / "crates" / "pdfce-core" / "src"
+CORE = ROOT / "crates" / "pdfcer-core" / "src"
 
 CITATION = re.compile(r'use_instead:\s*"([^"]+)"')
 DEFINITION = re.compile(r"^\s*pub(?:\(crate\))?\s+(?:const\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)")

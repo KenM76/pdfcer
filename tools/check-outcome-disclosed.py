@@ -4,16 +4,16 @@
 WHAT THIS IS FOR
 ================
 
-`pdfce-core` returns outcome structs — `MergeOutcome`, `AdoptOutcome`,
+`pdfcer-core` returns outcome structs — `MergeOutcome`, `AdoptOutcome`,
 `VertexOutcome`, `FlattenOutcome` and their siblings — whose fields exist for
 exactly one reason: **project rule 4's disclosure obligation.** They carry the
-things pdfce decided, inferred, renamed, dropped or could not do, which the
+things pdfcer decided, inferred, renamed, dropped or could not do, which the
 operator has no other way to learn. A field on one of these is not data a
 caller may use; it is a statement a caller OWES the operator.
 
 **So a field no shell reads is a disclosure that does not happen.** It is
 computed, returned, and dropped on the floor, and the effect is identical to
-never having computed it. In `pdfce-cli` that is worse than in a GUI: the
+never having computed it. In `pdfcer` that is worse than in a GUI: the
 invocation IS the commit (rule 11), so there is no later screen to find the
 number on and no undo to reconsider with.
 
@@ -22,9 +22,9 @@ WHY IT IS A GATE, AND NOT VIGILANCE
 
 On 2026-08-20, `Pass 106.1` added three fields to `MergeOutcome` —
 `named_destinations_carried`, `named_destinations_renamed` and
-`outline_items_carried` — and `pdfce-cli`'s `merge-document` never grew the
+`outline_items_carried` — and `pdfcer`'s `merge-document` never grew the
 tokens. Three numbers computed, returned and discarded, one of them describing
-a **cross-file breakage**: pdfce rewrites the bookmarks it carried to the new
+a **cross-file breakage**: pdfcer rewrites the bookmarks it carried to the new
 keys but cannot rewrite a link it did not copy, so a `/GoToR` in a THIRD
 document now silently resolves to the wrong destination.
 
@@ -45,17 +45,17 @@ structs an API fills and hands to a CALLER.
 WHAT COUNTS AS A CONSUMER
 =========================
 
-A read, in a SHELL — `crates/pdfce-cli/src`. (Until Pass 247.0 the in-repo
+A read, in a SHELL — `crates/pdfcer-cli/src`. (Until Pass 247.0 the in-repo
 GUI crate was the second shell scanned; it is gone, and the separate
 pdfcer-gui project is not on this disk's tree, so the CLI is the ONLY shell
 this gate can see. A field the CLI does not surface is therefore a
 disclosure this repository cannot prove happens anywhere.)
-Deliberately not `crates/pdfce-core`: core's own tests read outcome fields
+Deliberately not `crates/pdfcer-core`: core's own tests read outcome fields
 constantly (`assert_eq!(out.pages_merged, 2)`), and a round trip through a test
 proves the field is computed, not that anybody is told. The obligation is to
 the operator, so it is discharged in the layer that talks to one.
 
-`D:\\dev\\pdfceGUI` is the live GUI and is OUT OF TREE, so this gate cannot see
+`D:\\dev\\pdfcer-gui` is the live GUI and is OUT OF TREE, so this gate cannot see
 it. That is a real limit and it is the reason the exemption table below exists
 rather than being a purity failure — see `InsertOutcome`.
 
@@ -77,10 +77,10 @@ Some fields legitimately have no reader:
   nothing. `image_id` happens to be read and `content_id` is not, and neither
   fact means anything.
 * **A struct whose only shell is out of tree.** `InsertOutcome` belongs to
-  `EditSession::insert_pages`, which `pdfce-cli` deliberately does not expose —
+  `EditSession::insert_pages`, which `pdfcer` deliberately does not expose —
   a one-shot invocation has no open session to insert into, and the CLI's
   `insert-pages` is the OTHER verb (`pageops::insert`). `docs/FEATURES.md`
-  records that `cli` box as `—`, not a gap. `pdfceGUI` surfaces all five
+  records that `cli` box as `—`, not a gap. `pdfcer-gui` surfaces all five
   fields; this gate cannot see that repository.
 
 Each exemption states its reason **in this file**, next to the name. That is
@@ -116,52 +116,52 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 # The structs whose fields are disclosures. Grown by hand — see the module
 # docstring on why this is not auto-discovered from the `*Outcome` suffix.
 OUTCOME_STRUCTS: list[tuple[str, str]] = [
-    ("crates/pdfce-core/src/edit.rs", "FieldAuthorOutcome"),
-    ("crates/pdfce-core/src/edit.rs", "InsertOutcome"),
-    ("crates/pdfce-core/src/edit.rs", "MergeOutcome"),
-    ("crates/pdfce-core/src/edit.rs", "VertexOutcome"),
-    ("crates/pdfce-core/src/edit.rs", "AdoptOutcome"),
-    ("crates/pdfce-core/src/edit.rs", "DeleteOutcome"),
-    ("crates/pdfce-core/src/edit.rs", "ResetOutcome"),
-    ("crates/pdfce-core/src/edit.rs", "FillOutcome"),
-    ("crates/pdfce-core/src/edit.rs", "RegenOutcome"),
-    ("crates/pdfce-core/src/edit.rs", "ImportOutcome"),
-    ("crates/pdfce-core/src/edit.rs", "FlattenOutcome"),
-    ("crates/pdfce-core/src/edit.rs", "ImageAuthorOutcome"),
+    ("crates/pdfcer-core/src/edit.rs", "FieldAuthorOutcome"),
+    ("crates/pdfcer-core/src/edit.rs", "InsertOutcome"),
+    ("crates/pdfcer-core/src/edit.rs", "MergeOutcome"),
+    ("crates/pdfcer-core/src/edit.rs", "VertexOutcome"),
+    ("crates/pdfcer-core/src/edit.rs", "AdoptOutcome"),
+    ("crates/pdfcer-core/src/edit.rs", "DeleteOutcome"),
+    ("crates/pdfcer-core/src/edit.rs", "ResetOutcome"),
+    ("crates/pdfcer-core/src/edit.rs", "FillOutcome"),
+    ("crates/pdfcer-core/src/edit.rs", "RegenOutcome"),
+    ("crates/pdfcer-core/src/edit.rs", "ImportOutcome"),
+    ("crates/pdfcer-core/src/edit.rs", "FlattenOutcome"),
+    ("crates/pdfcer-core/src/edit.rs", "ImageAuthorOutcome"),
     # `Pass 119.0`. Not in `edit.rs`, and that is the point: the gate's list was
     # written from ONE file, so every report type living in a submodule was
     # outside it while the summary line read "clean". `EditReport` gained three
     # fields that day -- including `form_invocations`, whose whole purpose is to
     # stop a shell changing six drawing sheets while showing one -- and the gate
     # would have stayed green if all three had been dropped on the floor.
-    ("crates/pdfce-core/src/text_edit/edit.rs", "EditReport"),
-    ("crates/pdfce-core/src/text_edit/format.rs", "FormatReport"),
+    ("crates/pdfcer-core/src/text_edit/edit.rs", "EditReport"),
+    ("crates/pdfcer-core/src/text_edit/format.rs", "FormatReport"),
     # `Pass 113.0` / `Pass 120.0`. Added when each landed rather than
     # afterwards -- the `EditReport` lesson was that a struct outside this list
     # is a struct whose fields can be dropped on the floor while the gate
     # reports clean.
-    ("crates/pdfce-core/src/edit.rs", "TransformOutcome"),
-    ("crates/pdfce-core/src/edit.rs", "PasteOutcome"),
+    ("crates/pdfcer-core/src/edit.rs", "TransformOutcome"),
+    ("crates/pdfcer-core/src/edit.rs", "PasteOutcome"),
     # `Pass 183.0`. Not named `*Outcome`, and it is the strongest case on the
     # list: every field of `SubmitDisclosure` describes something a
     # `/SubmitForm` button would send that the operator CANNOT SEE by any other
     # means -- hidden field values, a password field, a local file carried off
     # the machine, the document's own path. A field dropped on the floor here
     # is not an unstated number, it is an undisclosed exfiltration.
-    ("crates/pdfce-core/src/edit.rs", "SubmitDisclosure"),
+    ("crates/pdfcer-core/src/edit.rs", "SubmitDisclosure"),
     # `Pass 183.1`. Smaller than its sibling and on the list for the same
     # reason: every field is the gap between what the operator NAMED and what
     # will actually move -- widgets on pages they were not looking at, and
     # named fields that own no widget at all, for which the button they just
     # made does nothing.
-    ("crates/pdfce-core/src/edit.rs", "HideDisclosure"),
+    ("crates/pdfcer-core/src/edit.rs", "HideDisclosure"),
     # `Pass 184.0` criterion A. `FieldRename` has carried a rule-4 disclosure
     # since it was written -- `descendants_renamed`, the count that tells an
     # operator a one-field request renamed six -- and was never on this list,
     # which is the `EditReport` lesson again: a struct outside the list is a
     # struct whose fields can be dropped on the floor while the gate reports
     # clean. Added when the second disclosure landed rather than afterwards.
-    ("crates/pdfce-core/src/edit.rs", "FieldRename"),
+    ("crates/pdfcer-core/src/edit.rs", "FieldRename"),
 ]
 
 # `Struct::field` -> why no shell reads it. A reason is mandatory: see the
@@ -175,10 +175,10 @@ EXEMPT: dict[str, str] = {
     ),
     # All five of InsertOutcome's disclosure fields, one reason.
     "InsertOutcome::pages_inserted": (
-        "`EditSession::insert_pages` has no `pdfce-cli` verb BY DECISION — a "
+        "`EditSession::insert_pages` has no `pdfcer` verb BY DECISION — a "
         "one-shot invocation has no open session to insert into, and the "
         "CLI's `insert-pages` is the other verb (`pageops::insert`). "
-        "`docs/FEATURES.md` records that box as `—`, not a gap. `pdfceGUI` "
+        "`docs/FEATURES.md` records that box as `—`, not a gap. `pdfcer-gui` "
         "surfaces all five fields and is out of tree, so this gate cannot see "
         "it. ★ REMOVE THIS EXEMPTION the moment a session verb reaches the "
         "CLI: at that point the disclosure obligation lands here too."
@@ -194,7 +194,7 @@ EXEMPT: dict[str, str] = {
 }
 
 CONSUMER_ROOTS = [
-    ROOT / "crates" / "pdfce-cli" / "src",
+    ROOT / "crates" / "pdfcer-cli" / "src",
 ]
 
 
@@ -280,7 +280,7 @@ def check(roots: list[pathlib.Path], structs: list[tuple[str, str]]) -> list[str
                 continue
             if not is_read(field, text):
                 problems.append(
-                    f"`{key}` is computed by pdfce-core and READ BY NO SHELL. "
+                    f"`{key}` is computed by pdfcer-core and READ BY NO SHELL. "
                     f"Rule 4: a disclosure nobody emits is a disclosure that "
                     f"does not happen. Print it, surface it, or add it to "
                     f"EXEMPT with the reason it needs no reader."
@@ -392,7 +392,7 @@ def main() -> None:
     print(
         "\nAn outcome field exists to be TOLD to the operator. Computing one "
         "and not emitting it has the same effect as never computing it, and "
-        "in pdfce-cli the invocation is the commit — there is no later screen.",
+        "in pdfcer the invocation is the commit — there is no later screen.",
         file=sys.stderr,
     )
     sys.exit(1)

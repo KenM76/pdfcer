@@ -1,7 +1,7 @@
 # layers — provenance and attribution
 
 Thirteen minimal PDFs for the optional-content (layer / OCG) **reader** in
-`crates/pdfce-core/src/layers.rs` — ISO 32000-1:2008 §8.11 (optional
+`crates/pdfcer-core/src/layers.rs` — ISO 32000-1:2008 §8.11 (optional
 content), specifically Table 98 (the OCG dictionary), Table 99 (the
 optional content membership dictionary), Table 100 (`/OCProperties`) and
 Table 101 (the configuration dictionary: `/BaseState`, `/ON`, `/OFF`,
@@ -55,7 +55,7 @@ optional-content *structure* is the whole subject, and painted marks would
 only add bytes no test reads.
 
 `painted-layers.pdf` is the exception, and it exists because the reader
-stopped being the whole story on 2026-08-10: until then pdfce honoured
+stopped being the whole story on 2026-08-10: until then pdfcer honoured
 optional content only on an **annotation's** `/OC` entry, and
 content-stream `BDC`/`EMC` (§8.11.3.2) was deferred — so a layer a
 producer had turned OFF still painted. That fixture paints four marks
@@ -77,7 +77,7 @@ must come out half width.
 | `nested-order.pdf` | `/Order`'s tree structure and its **declared** sequence. |
 | `painted-layers.pdf` | The only fixture that **paints** through `BDC`/`EMC` `/OC` (§8.11.3.2). Three claims in one file: an OFF layer's mark is absent; an ON layer *nested inside* an OFF one is also absent (visibility is inherited, and the inner `EMC` restores "hidden"); and a hidden section's **clip** still bounds the unlayered content that follows. |
 | `on-off-contradiction.pdf` | A group listed in **both** `/D /ON` and `/D /OFF` — conforming (both Table 101 rows bind the *reader*, and §8.11 has no `shall not` about array membership) and self-contradictory. Pins decision 038's resolution: Table 101's `ON` row calls the array *redundant* under `/BaseState ON`, and an array carrying no information cannot override anything, so the **opposite** array decides — which is §8.11.4.5 b). A second group in neither array is the control, so a reader that simply hid everything fails too. |
-| `base-state-unchanged.pdf` | `/D /BaseState /Unchanged` — violates Table 101's *"shall be ON"* for the default configuration, and is semantically empty there besides (§8.11.2.1: states are initialised at open, so nothing exists to leave unchanged). Pins that pdfce **recovers** as `ON` rather than applying a clause, and discloses the recovery: the rival reading ("process no arrays") would make `/OFF` inert and paint every layer the author turned off. |
+| `base-state-unchanged.pdf` | `/D /BaseState /Unchanged` — violates Table 101's *"shall be ON"* for the default configuration, and is semantically empty there besides (§8.11.2.1: states are initialised at open, so nothing exists to leave unchanged). Pins that pdfcer **recovers** as `ON` rather than applying a clause, and discloses the recovery: the rival reading ("process no arrays") would make `/OFF` inert and paint every layer the author turned off. |
 | `base-state-off-unregistered.pdf` | The one file that separates the two readings of Table 101's *"all the optional content groups in a document"* under `/BaseState /OFF` — decision 037. Two `shall`s are broken at once (`/D`'s `/BaseState` shall be `ON`; every OCG shall be registered), which is why no earlier fixture cornered it: `unregistered-ocg.pdf` has no `/BaseState`, `basestate-off.pdf` registers everything. Three groups, all PAINTED, so the difference is visible rather than only counted; the third is reachable only from the page's `/Properties` and its square on the page is the whole experiment. |
 | `no-layers.pdf` | No `/OCProperties` at all. §8.11.4.2: a reader "shall ignore any optional content structures". Empty and faithful, not an error — and overwhelmingly the common real-world case. |
 
@@ -95,7 +95,7 @@ spelling out, because both are *silent* when read wrongly:
 The fourth group is registered in `/OCGs` and **absent from `/Order`**.
 Table 101 says groups not listed there "shall not be presented in any user
 interface that uses the configuration" — so a conforming panel hides it,
-but the document still has it, and pdfce reports it with `in_order: false`
+but the document still has it, and pdfcer reports it with `in_order: false`
 so the caller can be both conforming and useful.
 
 `nested-order.pdf` in detail. Its `/Order` is:
@@ -118,7 +118,7 @@ declared order are three different answers and only one of them passes.
 |---|---|
 | `unregistered-ocg.pdf` | §8.11.4.2's "every OCG **shall** be included" in `/OCGs` is violated: one group is registered and **six** more are reachable by every other route the format defines. All seven must be listed. |
 | `malformed-groups.pdf` | Registry entries that are not usable groups: a missing `/Name`, a `/Name` that is a number, a **direct** dictionary (no object identity, so nothing can toggle it), a dangling `99 0 R` (§7.3.10 — legal, resolves to null), and `/Intent /Design` only (§8.11.2.3 — a `View`-configured reader may ignore it). |
-| `basestate-off.pdf` | `/D /BaseState /OFF`, which Table 101 says shall be `ON` in the default configuration. pdfce follows the **file**, not the *shall*, and discloses the departure. |
+| `basestate-off.pdf` | `/D /BaseState /OFF`, which Table 101 says shall be `ON` in the default configuration. pdfcer follows the **file**, not the *shall*, and discloses the departure. |
 | `radio-locked.pdf` | `/RBGroups` with two inner arrays that **share a member**, plus `/Locked` naming a group that is itself in a radio group. |
 | `ocmd-membership.pdf` | Four Table 99 OCMD shapes behind annotation `/OC` entries. |
 | `order-cycle.pdf` | Three structural hazards in one `/Order`. A reader without a cycle guard and a depth cap does not report a wrong answer here — it **hangs**, or overflows its stack. |
@@ -158,7 +158,7 @@ still be listed, which is what stops a "fix" that abandons the whole
 ## Spec ambiguities these files sit on top of
 
 Three of the behaviours pinned here are **not** determined by the standard
-and are pdfce's reading, recorded as such in the spec RAG
+and are pdfcer's reading, recorded as such in the spec RAG
 (`iso32000__ref__optional_content_order.md`). A future session changing
 any of them should change the fixture's documentation with it, not just
 the assertion:
@@ -170,10 +170,10 @@ the assertion:
 - **An OCG in two `/RBGroups` arrays is unaddressed and permanently so**
   (`DA-N1`) — the standard states the multi-membership rule explicitly for
   `/AS` and for `SetOCGState`, and is silent for `/RBGroups`, in both the
-  2008 and 2020 editions. `radio-locked.pdf` pins pdfce reporting the
+  2008 and 2020 editions. `radio-locked.pdf` pins pdfcer reporting the
   first array plus a disclosed overlap count, not a resolution.
 - **No reader behaviour is stated for an unregistered OCG** (`DA-N4`).
-  `unregistered-ocg.pdf` pins pdfce listing it with a flag, which is a
+  `unregistered-ocg.pdf` pins pdfcer listing it with a flag, which is a
   *disclosure*, not a conformance verdict.
 
 ## Not covered here

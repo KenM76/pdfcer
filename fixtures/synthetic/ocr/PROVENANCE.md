@@ -25,8 +25,8 @@ broken and nobody could tell**.
 | `printed.pdf` | the vector original: known words, real Std-14 Helvetica metrics. **The answer key, not a test input** |
 | `scan.pdf` | `printed.pdf` rendered at 200 dpi, degraded, wrapped as one full-page image. **Zero text objects** |
 | `scan_clean.pdf` | the same wrap with no degradation — the control that separates "OCR is weak" from "the degradation is too harsh" |
-| `scan_rotated_90.pdf` | byte-for-byte `scan.pdf` plus `/Rotate 90`, applied with pdfce's own `rotate-page` |
-| `GROUND_TRUTH.json` | every word and its page-space rect, extracted from `printed.pdf` by pdfce itself |
+| `scan_rotated_90.pdf` | byte-for-byte `scan.pdf` plus `/Rotate 90`, applied with pdfcer's own `rotate-page` |
+| `GROUND_TRUTH.json` | every word and its page-space rect, extracted from `printed.pdf` by pdfcer itself |
 
 ## Why the ground truth is trustworthy without anyone typing it
 
@@ -51,7 +51,7 @@ failure an operator actually reports and the one a word count cannot see.
 **It cannot rank rasterisation resolutions, and it must not be cited as
 agreeing that any DPI is better than another.**
 
-Measured 2026-08-26, sweeping `scan.pdf` through `pdfce-cli ocr`:
+Measured 2026-08-26, sweeping `scan.pdf` through `pdfcer ocr`:
 
 | dpi | 72 | 100 | 150 | 200 | 300 | 400 |
 |---|---|---|---|---|---|---|
@@ -63,13 +63,13 @@ no power to discriminate between them.
 That is **by design, not a defect**: the generator's own docstring says the
 degradation is *"deliberately mild… It is not a stress test of the recogniser's
 tolerance for bad input. A fixture degraded until recognition fails proves
-nothing about pdfce and would turn every future run into an argument about the
+nothing about pdfcer and would turn every future run into an argument about the
 noise level."*
 
 ★ So this corpus proves the **pipeline** — that a page of ordinary printed text,
 scanned, comes back readable and in the right place. It does not measure
 **difficulty**, and a 100 % here is not evidence that a setting is well chosen.
-When `pdfce-cli ocr`'s default DPI moved from 300 to 150 on 2026-08-26, the
+When `pdfcer ocr`'s default DPI moved from 300 to 150 on 2026-08-26, the
 evidence was `pdfce-gui`'s scored CAD sheet, and this fixture is explicitly
 **not** cited as corroboration.
 
@@ -98,7 +98,7 @@ the one before it, and a regression would be indistinguishable from new noise.
 ## How to regenerate
 
 ```
-python tools/gen-ocr-fixtures.py     # needs a built pdfce-cli
+python tools/gen-ocr-fixtures.py     # needs a built pdfcer
 python tools/ocr-accuracy.py <an OCR'd copy of scan.pdf>
 ```
 

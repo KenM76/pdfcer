@@ -1,10 +1,10 @@
 # tiff — provenance and attribution
 
-TIFF fixtures for **image placement** — `pdfce-core`'s
+TIFF fixtures for **image placement** — `pdfcer-core`'s
 `image_import::tiff` module (TIFF 6.0 → PDF image XObject) and
 `EditSession::add_image`. Used by
-`crates/pdfce-core/tests/image_tiff.rs` and by the unit tests inside
-`crates/pdfce-core/src/image_import/tiff.rs`.
+`crates/pdfcer-core/tests/image_tiff.rs` and by the unit tests inside
+`crates/pdfcer-core/src/image_import/tiff.rs`.
 
 Sibling of `fixtures/synthetic/images/` (PNG/JPEG/BMP), kept in its own
 directory because TIFF's fixture set is dominated by *container* variation —
@@ -29,7 +29,7 @@ library. Two reasons, both load-bearing:
 1. Pillow drives **libtiff**, so a Pillow-produced fixture would pin
    libtiff's choices about strip size, predictor use, tag order and
    compression level rather than choices this project made.
-2. `rgb8-deflate.tif` pins pdfce's **passthrough** branch — the assertion is
+2. `rgb8-deflate.tif` pins pdfcer's **passthrough** branch — the assertion is
    that the embedded PDF stream is the TIFF strip's own bytes, byte for
    byte. Those bytes have to be bytes this project chose.
 
@@ -47,7 +47,7 @@ it never enters the dependency graph or `THIRD_PARTY_LICENSES.md`.
 session that authored it was scoped to `fixtures/synthetic/` and could not
 create files under `tools/`. Moving it to `tools/gen-tiff-fixtures.py` is
 the right follow-up; only this file and the header comment of
-`crates/pdfce-core/tests/image_tiff.rs` name the path.
+`crates/pdfcer-core/tests/image_tiff.rs` name the path.
 
 ## The shared pixel data
 
@@ -81,10 +81,10 @@ have a distinguishable top/bottom and a non-square 3:2 aspect ratio.
 | File | Pins |
 |---|---|
 | `rgb8-none.tif` | `Compression 1`, one strip. The control: every other compression below must decode to these same samples. |
-| `rgb8-lzw.tif` | `Compression 5` + **`Predictor 2`**, three strips — the shape a real tool writes. TIFF 6.0 §13 LZW is ISO 32000-1 §7.4.4.2's with `/EarlyChange 1`, so pdfce decodes it through the shared `filters::lzw` with no parameters; §14's horizontal differencing is Table 10's predictor value 2, so pdfce un-differences it through the shared `filters::predictor`. |
+| `rgb8-lzw.tif` | `Compression 5` + **`Predictor 2`**, three strips — the shape a real tool writes. TIFF 6.0 §13 LZW is ISO 32000-1 §7.4.4.2's with `/EarlyChange 1`, so pdfcer decodes it through the shared `filters::lzw` with no parameters; §14's horizontal differencing is Table 10's predictor value 2, so pdfcer un-differences it through the shared `filters::predictor`. |
 | `rgb8-deflate.tif` | `Compression 8`, **one** strip, `Predictor 1`, nothing to transform — the narrow case whose strip payload already *is* a conforming plain `/FlateDecode` stream. **The byte-identity assertion runs on this one**: the embedded PDF stream must be these exact bytes. |
 | `rgb8-deflate-strips.tif` | `Compression 32946`, the same picture in **three** independently-deflated strips. Two concatenated zlib streams are not one zlib stream, so the passthrough must **not** fire — paired with the file above so the gate is tested in both directions. |
-| `rgb8-packbits.tif` | `Compression 32773`, and the strip carries a deliberate **`0x80`** byte between two runs. TIFF 6.0 §9: *"the -128 value is not used; it is a no-op."* ISO 32000-1 §7.4.5: `128` is **end-of-data**. A TIFF reader that reuses pdfce's `RunLengthDecode` filter stops at that byte and silently loses the rest of the strip. This fixture is the reason `image_import::tiff` carries its own PackBits rather than calling the shared one. |
+| `rgb8-packbits.tif` | `Compression 32773`, and the strip carries a deliberate **`0x80`** byte between two runs. TIFF 6.0 §9: *"the -128 value is not used; it is a no-op."* ISO 32000-1 §7.4.5: `128` is **end-of-data**. A TIFF reader that reuses pdfcer's `RunLengthDecode` filter stops at that byte and silently loses the rest of the strip. This fixture is the reason `image_import::tiff` carries its own PackBits rather than calling the shared one. |
 
 ### Photometric interpretation
 
@@ -92,7 +92,7 @@ have a distinguishable top/bottom and a non-square 3:2 aspect ratio.
 |---|---|
 | `bilevel-whiteiszero.tif` | `PhotometricInterpretation 0` at **1 bit** — the fax-lineage default, and what monochrome CAD output uses. `0` is imaged as **white**, the reverse of `/DeviceGray` (§8.6.4.2). Read without the complement, the picture is a photographic negative. The pattern is a diagonal, so a vertical or horizontal flip would also be visible. |
 | `pal8.tif` | Palette with a spec-conformant **16-bit** `ColorMap`, stored as TIFF 6.0 §16's three consecutive **blocks** (all red, then all green, then all blue) rather than as §8.6.6.3's interleaved triples. A reader that copies the field straight through gets a palette whose every colour is wrong. |
-| `pal8-8bit-colormap.tif` | The same palette written **0–255** in those 16-bit fields — the real-world divergence libtiff's heuristic exists for. Trusting TIFF 6.0 §16 literally renders it almost entirely black. pdfce applies the heuristic **and discloses that it fired** (`tiff_palette_assumed_8bit`); paired with `pal8.tif` so the heuristic is tested in both directions. |
+| `pal8-8bit-colormap.tif` | The same palette written **0–255** in those 16-bit fields — the real-world divergence libtiff's heuristic exists for. Trusting TIFF 6.0 §16 literally renders it almost entirely black. pdfcer applies the heuristic **and discloses that it fired** (`tiff_palette_assumed_8bit`); paired with `pal8.tif` so the heuristic is tested in both directions. |
 
 ### Alpha — `ExtraSamples` (TIFF 6.0 §18)
 
@@ -106,7 +106,7 @@ have a distinguishable top/bottom and a non-square 3:2 aspect ratio.
 
 | File | Pins |
 |---|---|
-| `multipage.tif` | Three IFDs, each a visibly different flat shade (`0x11`, `0x22`, `0x33`), so *"the **first** page"* is a real assertion rather than a coincidence. pdfce places page 1 and **counts** the rest into `tiff_pages_ignored` — silently dropping them is what rule 4 forbids, and refusing outright would turn the commonest sheet-fed-scanner output into a dead end. |
+| `multipage.tif` | Three IFDs, each a visibly different flat shade (`0x11`, `0x22`, `0x33`), so *"the **first** page"* is a real assertion rather than a coincidence. pdfcer places page 1 and **counts** the rest into `tiff_pages_ignored` — silently dropping them is what rule 4 forbids, and refusing outright would turn the commonest sheet-fed-scanner output into a dead end. |
 
 ### Refusals — each by name, with a stable key (R27)
 
@@ -114,9 +114,9 @@ have a distinguishable top/bottom and a non-square 3:2 aspect ratio.
 |---|---|---|
 | `tiled.tif` | `TIFF/tiled` | `TileWidth`/`TileLength` replace strips with a 2-D grid of padded tiles. Reassembly is a different algorithm; a tiled file read as strips is noise. |
 | `planar.tif` | `TIFF/planar-separate` | `PlanarConfiguration 2` stores each channel in its own plane. PDF images are interleaved (§8.9.3); read as chunky, this produces three overlaid ghosts. |
-| `ccittg4.tif` | `TIFF/ccitt-g4` | `Compression 4`. The strip content is deliberately meaningless — pdfce must refuse at the **directory**, before any decoder sees a byte, which is exactly the property under test. This is the largest TIFF gap: fax-lineage scanners emit G4 constantly, and pdfce already carries a fuzzed CCITT decoder that is reachable only through a PDF image dictionary. |
+| `ccittg4.tif` | `TIFF/ccitt-g4` | `Compression 4`. The strip content is deliberately meaningless — pdfcer must refuse at the **directory**, before any decoder sees a byte, which is exactly the property under test. This is the largest TIFF gap: fax-lineage scanners emit G4 constantly, and pdfcer already carries a fuzzed CCITT decoder that is reachable only through a PDF image dictionary. |
 | `float32.tif` | `TIFF/sample-format-float` | `SampleFormat 3` at 32 bits — GIS elevation, HDR, CAD depth. These are *numbers*, not intensities; read as unsigned they render as noise with a plausible histogram, which is worse than a refusal because it looks like a decode that worked. |
-| `bigtiff.tif` | `BigTIFF` (format, not sub-feature) | Version magic **43**, 8-byte offsets, a 16-byte header. A different parser, not a superset — so it is refused at the **sniffer**, under its own format name, and the message reads *"pdfce does not place BigTIFF images — it places PNG, JPEG, BMP and TIFF"*, which is advice rather than a contradiction. |
+| `bigtiff.tif` | `BigTIFF` (format, not sub-feature) | Version magic **43**, 8-byte offsets, a 16-byte header. A different parser, not a superset — so it is refused at the **sniffer**, under its own format name, and the message reads *"pdfcer does not place BigTIFF images — it places PNG, JPEG, BMP and TIFF"*, which is advice rather than a contradiction. |
 
 ## Regeneration and stability
 

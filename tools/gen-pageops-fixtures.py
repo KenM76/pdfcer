@@ -70,7 +70,7 @@ def content_stream(title: str, subtitle: str) -> bytes:
     """The page's content stream: two lines of Helvetica text.
 
     Kept to `BT`/`Tf`/`Td`/`Tj`/`ET` plus a rectangle stroke — every
-    operator here is one `pdfce-render` implements, so a rendered
+    operator here is one `pdfcer-render` implements, so a rendered
     fixture is a real visual check rather than a blank page.
     """
     body = (

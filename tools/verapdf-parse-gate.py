@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Judge pdfce's OWN OUTPUT with an independent PDF parser (veraPDF).
+"""Judge pdfcer's OWN OUTPUT with an independent PDF parser (veraPDF).
 
 WHY THIS EXISTS
 ---------------
-Every test pdfce has reads pdfce's output with **pdfce's own parser**.
-``round-trip`` reloads through ``pdfce-core``; the forms tests assert
+Every test pdfcer has reads pdfcer's output with **pdfcer's own parser**.
+``round-trip`` reloads through ``pdfcer-core``; the forms tests assert
 through ``parse_acroform``; the redaction tests read back with the same
 lexer that wrote the bytes. That is a closed loop, and a closed loop
 cannot see a defect that both halves share.
@@ -17,7 +17,7 @@ model looked right while the file was wrong. No amount of in-house
 discipline closes that gap, because the discipline and the defect live
 in the same codebase.
 
-So this gate hands pdfce's bytes to a **completely independent
+So this gate hands pdfcer's bytes to a **completely independent
 implementation** — veraPDF, a Java PDF parser written by people who
 have never seen this repository — and asks one question: *can you read
 it at all?*
@@ -25,7 +25,7 @@ it at all?*
 WHAT IT DOES **NOT** DO, AND WHY
 --------------------------------
 It does **not** check PDF/A conformance, even though PDF/A conformance
-is veraPDF's entire reason for existing. pdfce does not write PDF/A yet
+is veraPDF's entire reason for existing. pdfcer does not write PDF/A yet
 (``to-pdfa`` is unimplemented), and running a PDF/A profile against
 ordinary PDF output reports a wall of failures that are **not defects**
 — no XMP metadata, no ``/OutputIntent``, unembedded fonts. Every one of
@@ -68,11 +68,11 @@ WHY ``--mode full`` IS THE DEFAULT (the second trap)
 ``round-trip --mode incremental`` with an empty dirty set promises
 **whole-file byte identity** — the output *is* the input, byte for
 byte. Validating that output tells you the INPUT parses. It says
-nothing whatsoever about pdfce.
+nothing whatsoever about pdfcer.
 
 ``full`` is a complete rewrite: every object definition, the xref
-table, the trailer, all emitted by pdfce. That is the only mode where
-a veraPDF verdict is a verdict on *pdfce's writer*. ``append-identity``
+table, the trailer, all emitted by pdfcer. That is the only mode where
+a veraPDF verdict is a verdict on *pdfcer's writer*. ``append-identity``
 is also meaningful (it exercises the real append writer), and is
 offered. ``incremental`` is offered too, but see ``MODE_NOTES`` — the
 tool says out loud when the mode it was given cannot prove anything.
@@ -81,7 +81,7 @@ LICENSING — WHY THIS IS A SEPARATE PROCESS AND WHY IT SKIPS
 ------------------------------------------------------------
 veraPDF is dual-licensed **GPLv3+ / MPLv2+** (verified against every
 component repo's ``README`` and the presence of ``LICENSE.MPL`` in
-``veraPDF-apps``). pdfce **elects MPL-2.0** — see ``docs/LEGAL.md``.
+``veraPDF-apps``). pdfcer **elects MPL-2.0** — see ``docs/LEGAL.md``.
 
 Its startup banner states **both** branches::
 
@@ -98,7 +98,7 @@ point does not — and wrapping puts clause boundaries on line boundaries
 by construction, so the safe-looking truncation is the likely one.
 **Do not "fix" the banner or report it upstream.**
 
-pdfce therefore:
+pdfcer therefore:
 
 * invokes veraPDF as a **separate process** over its documented CLI —
   never links, embeds, or vendors it;
@@ -110,7 +110,7 @@ pdfce therefore:
 
 **And this gate SKIPS — never fails — when veraPDF is absent.** That is
 a licensing requirement, not a convenience: a gate that *required*
-veraPDF would make it a de facto build dependency of pdfce, which
+veraPDF would make it a de facto build dependency of pdfcer, which
 muddies the arms-length position and breaks anyone who clones the repo
 without installing a GPL/MPL Java application. A skip is reported
 loudly on stderr so it cannot be mistaken for a pass.
@@ -125,20 +125,20 @@ USAGE
     --keep                 keep the produced PDFs for inspection
     --self-test            prove the gate can fail, then exit
     --verapdf PATH         override veraPDF discovery
-    --timeout SECONDS      per-file budget before pdfce counts as HUNG
+    --timeout SECONDS      per-file budget before pdfcer counts as HUNG
                            (default 120). A hang is the worst class the
                            gate reports: without a budget one
                            non-terminating input stalls the sweep and
                            everything after it is silently never tested.
 
-Discovery order for veraPDF: ``--verapdf``, then ``$PDFCE_VERAPDF``,
+Discovery order for veraPDF: ``--verapdf``, then ``$PDFCER_VERAPDF``,
 then ``D:\\tools\\verapdf\\verapdf.bat``, then ``verapdf`` on ``PATH``.
 
 EXIT CODES
 ----------
 0   no regressions and no hangs, **or** veraPDF is not installed (skip)
-1   pdfce made a file WORSE than its input, or never terminated on one
-2   the harness itself failed (pdfce-cli missing, bad arguments)
+1   pdfcer made a file WORSE than its input, or never terminated on one
+2   the harness itself failed (pdfcer missing, bad arguments)
 
 A parse failure is printed with the file, the mode that produced it,
 and veraPDF's own exception message — counted, never rounded away.
@@ -157,26 +157,26 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # Where veraPDF is expected when nothing overrides it. Deliberately
-# OUT of the repository tree: pdfce must never redistribute it.
+# OUT of the repository tree: pdfcer must never redistribute it.
 DEFAULT_VERAPDF = Path(r"D:\tools\verapdf\verapdf.bat")
 
-# What each round-trip mode proves about pdfce's WRITER, which is the
+# What each round-trip mode proves about pdfcer's WRITER, which is the
 # only thing this gate is trying to judge.
 MODE_NOTES = {
-    "full": None,  # the meaningful default; every byte is pdfce's
+    "full": None,  # the meaningful default; every byte is pdfcer's
     "append-identity": None,  # exercises the real append writer
     "incremental": (
         "MODE WARNING: 'incremental' with no edits promises whole-file "
         "byte identity, so the file handed to veraPDF IS the input. A "
-        "pass proves the INPUT parses and says nothing about pdfce's "
-        "writer. Use --mode full for a verdict on pdfce."
+        "pass proves the INPUT parses and says nothing about pdfcer's "
+        "writer. Use --mode full for a verdict on pdfcer."
     ),
 }
 
 
 @dataclass
 class ParseFailure:
-    """One file pdfce wrote that an independent parser could not read."""
+    """One file pdfcer wrote that an independent parser could not read."""
 
     source: Path
     mode: str
@@ -192,7 +192,7 @@ def find_verapdf(override: str | None) -> Path | None:
     """
     for candidate in (
         override,
-        os.environ.get("PDFCE_VERAPDF"),
+        os.environ.get("PDFCER_VERAPDF"),
         str(DEFAULT_VERAPDF),
     ):
         if candidate and Path(candidate).is_file():
@@ -216,16 +216,16 @@ def collect_inputs(paths: list[str], limit: int | None) -> list[Path]:
 
 
 def build_cli(workdir: Path) -> Path:
-    """Build `pdfce-cli` once and return a PRIVATE COPY of the binary.
+    """Build `pdfcer` once and return a PRIVATE COPY of the binary.
 
     # Why a copy, and why not `cargo run` per file
 
-    The obvious implementation calls ``cargo run -p pdfce-cli`` for each
+    The obvious implementation calls ``cargo run -p pdfcer-cli`` for each
     input. That is wrong in two compounding ways, both measured on
     2026-08-07 rather than predicted:
 
     1. **It holds the build artifact hostage.** A sweep of a few hundred
-       files keeps ``target/debug/pdfce-cli.exe`` in use for many
+       files keeps ``target/debug/pdfcer.exe`` in use for many
        minutes, and any concurrent ``cargo test`` in the same repository
        dies with ``failed to remove file ... Access is denied
        (os error 5)`` on Windows, because it cannot relink a running
@@ -241,7 +241,7 @@ def build_cli(workdir: Path) -> Path:
     flight.
     """
     proc = subprocess.run(
-        ["cargo", "build", "-q", "-p", "pdfce-cli"],
+        ["cargo", "build", "-q", "-p", "pdfcer-cli"],
         capture_output=True,
         text=True,
         # Decode as UTF-8 with replacement, NEVER the platform locale.
@@ -257,26 +257,26 @@ def build_cli(workdir: Path) -> Path:
     )
     if proc.returncode != 0:
         raise RuntimeError(
-            f"cargo build -p pdfce-cli failed:\n{proc.stderr or proc.stdout}"
+            f"cargo build -p pdfcer-cli failed:\n{proc.stderr or proc.stdout}"
         )
-    exe = "pdfce-cli.exe" if os.name == "nt" else "pdfce-cli"
+    exe = "pdfcer.exe" if os.name == "nt" else "pdfcer"
     built = Path("target") / "debug" / exe
     if not built.is_file():
-        raise RuntimeError(f"built pdfce-cli not found at {built}")
+        raise RuntimeError(f"built pdfcer not found at {built}")
     private = workdir / exe
     shutil.copy2(built, private)
     return private
 
 
 def produce(cli: Path, src: Path, mode: str, dest: Path, timeout: float) -> str | None:
-    """Have pdfce WRITE `src` to `dest` in `mode`.
+    """Have pdfcer WRITE `src` to `dest` in `mode`.
 
-    Returns None on success, or a reason string. A pdfce refusal is
+    Returns None on success, or a reason string. A pdfcer refusal is
     NOT a gate failure: refusing by name is correct behaviour (R27),
     and a sweep that counted refusals as failures would push the
     implementation toward guessing rather than refusing.
 
-    Raises [`Hang`] if pdfce does not terminate within `timeout`.
+    Raises [`Hang`] if pdfcer does not terminate within `timeout`.
 
     # Why a per-file timeout is not optional
 
@@ -290,7 +290,7 @@ def produce(cli: Path, src: Path, mode: str, dest: Path, timeout: float) -> str 
     This is not theoretical. On 2026-08-07 a sweep of pdfium's corpus sat
     on `bug_455199.pdf` for over thirty minutes; the remaining 244 files
     were never examined, and the only reason anyone noticed was that a
-    process listing showed one `pdfce-cli.exe` alive far longer than any
+    process listing showed one `pdfcer.exe` alive far longer than any
     file should take. A hang is now a **reported finding** with the file
     that caused it — the most severe class the gate can report, because
     a hang in the GUI is an unrecoverable freeze.
@@ -339,7 +339,7 @@ def produce(cli: Path, src: Path, mode: str, dest: Path, timeout: float) -> str 
 # purely from batching.
 #
 # Measured 2026-08-07 on qpdf's `c-empty.pdf`, a perfectly valid zero-page
-# document (`/Type /Pages /Count 0 /Kids []`) that this gate accused pdfce
+# document (`/Type /Pages /Count 0 /Kids []`) that this gate accused pdfcer
 # of breaking. veraPDF reports `failedToParse="1"` for its input AND its
 # output; nothing regressed.
 #
@@ -505,7 +505,7 @@ def self_test(verapdf: Path) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="Validate pdfce's own output with an independent PDF parser.",
+        description="Validate pdfcer's own output with an independent PDF parser.",
     )
     ap.add_argument("paths", nargs="*", help="PDF files or directories")
     ap.add_argument("--mode", default="full", choices=sorted(MODE_NOTES))
@@ -518,18 +518,18 @@ def main() -> int:
         "--timeout",
         type=float,
         default=120.0,
-        help="per-file seconds before pdfce is treated as HUNG (default 120)",
+        help="per-file seconds before pdfcer is treated as HUNG (default 120)",
     )
     args = ap.parse_args()
 
     verapdf = find_verapdf(args.verapdf)
     if verapdf is None:
         # SKIP, never fail. See the licensing note: a required gate
-        # would make veraPDF a build dependency of pdfce.
+        # would make veraPDF a build dependency of pdfcer.
         print(
             "SKIP  veraPDF not found — this gate is optional by design "
-            "(dev-time only, never a pdfce dependency). Install it and "
-            "set PDFCE_VERAPDF, or pass --verapdf PATH.",
+            "(dev-time only, never a pdfcer dependency). Install it and "
+            "set PDFCER_VERAPDF, or pass --verapdf PATH.",
             file=sys.stderr,
         )
         return 0
@@ -574,19 +574,19 @@ def main() -> int:
                 continue
             produced[dest.resolve()] = src
 
-        # Judge pdfce against the INPUT'S baseline, not against perfection.
+        # Judge pdfcer against the INPUT'S baseline, not against perfection.
         #
         # This corpus is full of DELIBERATELY broken files — that is what a
-        # conformance corpus is for. Asking "does pdfce's output parse?"
-        # blames pdfce for damage it faithfully preserved from a file that
+        # conformance corpus is for. Asking "does pdfcer's output parse?"
+        # blames pdfcer for damage it faithfully preserved from a file that
         # never parsed to begin with. The question worth asking is the
-        # comparative one: **did pdfce make it worse?**
+        # comparative one: **did pdfcer make it worse?**
         #
         # Measured 2026-08-07 on `PDFBOX-6040-nodeloop.pdf`, which is why
         # this is written this way: veraPDF cannot open the ORIGINAL at all
-        # ("can not locate xref table"), while pdfce's full rewrite of it
+        # ("can not locate xref table"), while pdfcer's full rewrite of it
         # opens fine and only reaches the page-tree loop the file genuinely
-        # contains. pdfce RECOVERED the xref. Under the absolute reading
+        # contains. pdfcer RECOVERED the xref. Under the absolute reading
         # that file is a failure; under the comparative reading it is an
         # improvement, and the comparative reading is the true one.
         def scan(files: list[Path]) -> dict[str, tuple[int, str]]:
@@ -624,20 +624,20 @@ def main() -> int:
         for src in hangs:
             print(
                 f"HANG        {src}  [--mode {args.mode}]\n"
-                f"            pdfce did not terminate within {args.timeout:g}s. "
+                f"            pdfcer did not terminate within {args.timeout:g}s. "
                 f"This outranks every other finding below."
             )
         for f in regressions:
             print(f"REGRESSION  {f.source}  [--mode {f.mode}]\n            {f.message}")
 
         print(
-            f"\nverapdf-parse-gate: {len(produced)} file(s) written by pdfce "
+            f"\nverapdf-parse-gate: {len(produced)} file(s) written by pdfcer "
             f"and read back by veraPDF {verapdf.name}.\n"
-            f"  {len(hangs)} hang(s)         <- pdfce never terminated; worst class\n"
-            f"  {len(regressions)} regression(s)   <- pdfce made a readable file worse\n"
-            f"  {improvements} improved (pdfce's output parses better than its input)\n"
+            f"  {len(hangs)} hang(s)         <- pdfcer never terminated; worst class\n"
+            f"  {len(regressions)} regression(s)   <- pdfcer made a readable file worse\n"
+            f"  {improvements} improved (pdfcer's output parses better than its input)\n"
             f"  {preserved} pre-existing defect(s) faithfully preserved (not a failure)\n"
-            f"  {refused} refused by pdfce (refusals are not failures)"
+            f"  {refused} refused by pdfcer (refusals are not failures)"
         )
         return 1 if (regressions or hangs) else 0
     finally:

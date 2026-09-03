@@ -1,6 +1,6 @@
 //! Fuzz target: the two CLIPBOARD payload readers —
-//! `pdfce_core::vector::ObjectClip::from_bytes` and
-//! `pdfce_core::formclip::FieldClip::from_bytes` (`Pass 120.1` / `Pass 167.0`).
+//! `pdfcer_core::vector::ObjectClip::from_bytes` and
+//! `pdfcer_core::formclip::FieldClip::from_bytes` (`Pass 120.1` / `Pass 167.0`).
 //!
 //! ## Why these belong in the fuzz corpus, and why one of them is overdue
 //!
@@ -61,8 +61,8 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::formclip::FieldClip;
-use pdfce_core::vector::ObjectClip;
+use pdfcer_core::formclip::FieldClip;
+use pdfcer_core::vector::ObjectClip;
 
 fuzz_target!(|data: &[u8]| {
     // -- the object clipboard (Pass 120.1) --------------------------------

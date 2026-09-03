@@ -1,4 +1,4 @@
-# XFA implementation survey — is there anything pdfce could build on?
+# XFA implementation survey — is there anything pdfcer could build on?
 
 **Written 2026-08-21**, in answer to an operator question: *"is there a
 dynamic XFA form rust library you can use to add support? gemini mentioned
@@ -13,7 +13,7 @@ session, or by another model — and because *why* the answer is no turns out
 to be a better argument than the answer.
 
 ★ **Scope note:** this survey is about **availability**, not about whether
-pdfce wants the feature. That was decided separately and earlier —
+pdfcer wants the feature. That was decided separately and earlier —
 `docs/decisions/020-form-field-authoring.md` §3.2.1 rules dynamic XFA
 `out_of_scope` on four independent grounds, and `ROADMAP.md` open question
 **(p)** is the operator's to answer. Nothing here overturns that; it only
@@ -90,7 +90,7 @@ pdf_enable_xfa = $ENABLE_V8
 
 ⇒ **"Adding XFA support" means shipping a JavaScript engine.** Not as an
 optional extra — as the execution substrate for the form's own scripting
-language. For pdfce that is a V8-sized dependency in a project whose
+language. For pdfcer that is a V8-sized dependency in a project whose
 engine crates must also compile to `wasm32`.
 
 Licence is BSD-3-Clause, so it is not a *licence* blocker. It is a C++

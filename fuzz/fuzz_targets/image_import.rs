@@ -1,5 +1,5 @@
 //! Fuzz target: **raster-image import**
-//! (`pdfce_core::image_import::import_with`, all four compression policies).
+//! (`pdfcer_core::image_import::import_with`, all four compression policies).
 //!
 //! ## Why this target exists now
 //!
@@ -7,9 +7,9 @@
 //! containers since it landed, and until 2026-08-08 every one of its
 //! branches either copied bytes verbatim or ran them through a decoder that
 //! is fuzzed elsewhere. That is no longer true:
-//! [`ImageCompression::Jpeg`](pdfce_core::image_import::ImageCompression::Jpeg)
+//! [`ImageCompression::Jpeg`](pdfcer_core::image_import::ImageCompression::Jpeg)
 //! added a path that **decodes attacker-controlled input, reshapes the
-//! samples in pdfce's own hand-written code, and feeds the result to an
+//! samples in pdfcer's own hand-written code, and feeds the result to an
 //! encoder**. The reshaping is the new attack surface, and it is exactly the
 //! kind of code — strides, sub-byte bit packing, palette indices, a `u16`
 //! dimension API — that the project's own §10 posture says must be fuzzed
@@ -21,7 +21,7 @@
 //! (`image_codec_dct`, `image_codec_ccitt`, `image_codec_jbig2`,
 //! `image_codec_jpx`), and `zune-jpeg`/`hayro-*` carry upstream campaigns.
 //! Per decision 005 §6.5's "fuzz the glue, not the vendor's core", the
-//! interesting failures here are pdfce's own:
+//! interesting failures here are pdfcer's own:
 //!
 //! 1. **The row-stride walk** in `jpeg_encode::unpack_to_bytes`. `stride`,
 //!    `width`, `height` and the component count come from four separately
@@ -34,7 +34,7 @@
 //! 3. **Palette expansion.** §8.6.6.3's `hival` and the lookup table's
 //!    length are independent parsed values; every index is a slice offset.
 //! 4. **The `u16` dimension boundary.** The encoder's API is 16-bit while
-//!    pdfce's ceilings are 32-bit. The conversion is checked rather than
+//!    pdfcer's ceilings are 32-bit. The conversion is checked rather than
 //!    cast, and this target is what proves the check is reachable and
 //!    correct rather than decorative.
 //! 5. **Geometry agreement.** The sample buffer's length is validated
@@ -45,7 +45,7 @@
 //! ## Invariant asserted
 //!
 //! For ANY input and ANY policy, `import_with` returns `Ok(_)` or a
-//! structured [`ImageImportError`](pdfce_core::image_import::ImageImportError)
+//! structured [`ImageImportError`](pdfcer_core::image_import::ImageImportError)
 //! — never a panic, never an abort, never an unbounded allocation. On
 //! success, the returned image's own fields must agree with each other:
 //! a `/DCTDecode` result is always 8 bits per component (Table 89), and a
@@ -74,7 +74,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::image_import::{self, ImageCompression, ImportFilter, ImportOptions};
+use pdfcer_core::image_import::{self, ImageCompression, ImportFilter, ImportOptions};
 
 /// Above this many pixels, the re-encoding policies are skipped for
 /// throughput. See the module docs — this is a speed gate, not a safety one.

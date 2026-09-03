@@ -3,7 +3,7 @@
 //! The targeted guard for the class of bug the render-parity gate can only
 //! catch *late* (as "text missing on a whole class of files"): a
 //! **misroute** in [`FontProgram::parse`]
-//! (`crates/pdfce-render/src/font/program.rs`) — a valid embedded program
+//! (`crates/pdfcer-render/src/font/program.rs`) — a valid embedded program
 //! whose binary framing is detected as the WRONG variant and handed to the
 //! wrong parser.
 //!
@@ -47,7 +47,7 @@
 //!
 //! ## Coherence with the `fonts_unsupported` diagnostic taxonomy
 //!
-//! `crates/pdfce-render/src/text.rs` maps ANY `FontProgram::parse` failure
+//! `crates/pdfcer-render/src/text.rs` maps ANY `FontProgram::parse` failure
 //! to the single `UnsupportedFont::UnusableProgram` reason key (which feeds
 //! `Diagnostics::fonts_unsupported`). This harness reports the FINER
 //! [`ProgramError`] reason (`UnknownFormat` vs `Parse`) — a refinement of
@@ -60,7 +60,7 @@
 //!
 //! This is a local corpus gate (no CI dependency), the font-layer analogue
 //! of R46 (content-identity) and R59 (render-parity): **re-run on any change
-//! to `program.rs` or the font layer** (`crates/pdfce-render/src/font/`).
+//! to `program.rs` or the font layer** (`crates/pdfcer-render/src/font/`).
 //! Documented as the intended standing rule R62 (librarian assigns the
 //! number) — "embedded font programs route to the correct parser or fail
 //! clean; a magic/variant disagreement is a gate failure."
@@ -84,9 +84,9 @@ use std::process::ExitCode;
 use std::sync::mpsc;
 use std::time::Duration;
 
-use pdfce_core::document::Document;
-use pdfce_core::object::{Dict, ObjId, Object};
-use pdfce_render::font::program::{FontProgram, ProgramError};
+use pdfcer_core::document::Document;
+use pdfcer_core::object::{Dict, ObjId, Object};
+use pdfcer_render::font::program::{FontProgram, ProgramError};
 
 /// Per-file wall-clock budget. Font parsing is fast and zero-copy, but a
 /// pathological `/Filter` chain on a font stream could be slow; a hung
@@ -456,7 +456,7 @@ fn decode_program(doc: &Document, id: ObjId) -> Option<Vec<u8>> {
         return None;
     };
     let raw = stream.data_span.slice(doc.bytes())?;
-    let bytes = pdfce_core::filters::decode_stream(&stream.dict, raw).ok()?;
+    let bytes = pdfcer_core::filters::decode_stream(&stream.dict, raw).ok()?;
     if bytes.is_empty() { None } else { Some(bytes) }
 }
 

@@ -23,7 +23,7 @@ colorants are swapped** — its `rXYZ` is sRGB's green primary and its `gXYZ`
 is sRGB's red primary, both as the ICC-published D50-adapted values. Its TRCs
 are a plain gamma 2.2. So through the profile the operands `(0.4, 0.2, 0.8)`
 mean a colour that is GREEN-dominant; reinterpreted as `DeviceRGB` (Table 66's
-fallback, what pdfce did before this Pass) they paint RED-dominant.
+fallback, what pdfcer did before this Pass) they paint RED-dominant.
 
 Two consequences, both load-bearing:
 
@@ -155,7 +155,7 @@ def swap_rg_profile() -> bytes:
     written after the payload offsets are known.
     """
     tags = [
-        (b"desc", desc_tag(b"pdfce synthetic: sRGB colorants with R and G swapped")),
+        (b"desc", desc_tag(b"pdfcer synthetic: sRGB colorants with R and G swapped")),
         (b"wtpt", xyz_tag(D50)),
         (b"rXYZ", xyz_tag(SRGB_G)),   # ★ swapped
         (b"gXYZ", xyz_tag(SRGB_R)),   # ★ swapped
@@ -362,7 +362,7 @@ def main() -> int:
         if with_intent:
             objs[11] = (
                 b"<< /Type /OutputIntent /S /GTS_PDFX "
-                b"/OutputConditionIdentifier (pdfce synthetic CMYK) "
+                b"/OutputConditionIdentifier (pdfcer synthetic CMYK) "
                 b"/DestOutputProfile 12 0 R >>"
             )
             objs[12] = stream(b"<< /N 4 >>", dest)

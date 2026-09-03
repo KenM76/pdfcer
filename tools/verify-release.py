@@ -11,7 +11,7 @@ main`` pushed the **local ``main`` branch** — 36 commits behind — while ``gi
 tag`` correctly pointed at ``HEAD``. The push **reported success**, because it
 did exactly what it was asked and not what was meant:
 
-    To https://github.com/KenM76/pdfce.git
+    To https://github.com/KenM76/pdfcer.git
        5007bef..826e351  main -> main        <- an OLD commit, not HEAD
 
 The release asset was built from the working tree and was therefore right; the
@@ -375,7 +375,7 @@ def main(tag: str) -> int:
     # --- the OneDrive copy the operator asked to always exist -----------
     #
     # Operator instruction, 2026-08-29: "can you always put a new version on
-    # onedrive? cycle between folders pdfce1 and pdfce2 ... so there is always
+    # onedrive? cycle between folders pdfcer1 and pdfcer2 ... so there is always
     # a previous version available."
     #
     # ★ Checked HERE rather than left to the release procedure's prose,
@@ -401,7 +401,7 @@ def main(tag: str) -> int:
     else:
         want = tag.lstrip("v")
         found = {}
-        for slot in ("pdfce1", "pdfce2"):
+        for slot in ("pdfcer1", "pdfcer2"):
             vf = od / slot / "VERSION.txt"
             ver = None
             if vf.is_file():
@@ -414,8 +414,8 @@ def main(tag: str) -> int:
         check(
             bool(here),
             f"the CLI for {tag} is on OneDrive ({', '.join(here) or 'nowhere'})",
-            f"neither pdfce1 nor pdfce2 holds {want} -- found "
-            f"{found['pdfce1']!r} and {found['pdfce2']!r}. "
+            f"neither pdfcer1 nor pdfcer2 holds {want} -- found "
+            f"{found['pdfcer1']!r} and {found['pdfcer2']!r}. "
             "Run `python tools/deploy-onedrive.py`.",
         )
         others = [v for s, v in found.items() if s not in here and v]

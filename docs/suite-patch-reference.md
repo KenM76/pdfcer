@@ -36,7 +36,7 @@ Subcommittee):**
 Evaluation is explicitly perceptual and explicitly tolerant — a human at
 0.5 m / 20 in, *"you will not need a loupe"*. ~~`tools/suite-check.py` may
 therefore be over-counting~~; its `CONTRAST_MIN` was calibrated against
-pdfce's own output, not against the suite's stated criterion. Patches the
+pdfcer's own output, not against the suite's stated criterion. Patches the
 suite pre-declares tolerant: **all ten cells of PCS020**, and **cell d of
 each DeviceN patch**.
 
@@ -55,12 +55,12 @@ A white X on green is not "slightly darker green". Every trap still firing is
 at or near **maximal** contrast, so **no recalibration consistent with the
 suite's own criterion moves a single verdict.** The failures are real. §10's
 caveat about strict pixel-diffs still stands in principle; it just does not
-apply to anything pdfce is currently failing.
+apply to anything pdfcer is currently failing.
 
 **Two tolerances that survive, because neither is about contrast:**
 - **`PCS191` cell c has TWO sanctioned correct outcomes** (§9) — a cross there
   is acceptable *"if the system performs colour conversion and sets the OPM
-  for this patch c to 0"*. pdfce converts but leaves `OPM 1`, so its cross is
+  for this patch c to 0"*. pdfcer converts but leaves `OPM 1`, so its cross is
   a genuine failure **today**; a future Pass that takes the other route must
   teach the harness that cell c is not binary.
 - **The transparency patches are STRICTER, not more tolerant** — see §11:
@@ -68,7 +68,7 @@ apply to anything pdfce is currently failing.
 
 **The suite ships a Reference file** — a whole-suite reference render, in the
 same ZIP as the patches. Its texts are in Registration (`/Separation /All`)
-so they appear in every separation. **pdfce is not currently using it as an
+so they appear in every separation. **pdfcer is not currently using it as an
 oracle and should** — but **checked 2026-08-18, the file is not on this
 machine**; the local corpus directories were kept from the download and it
 was not. Re-fetching is an operator call (large download, `LEGAL.md` §5), so
@@ -118,12 +118,12 @@ separations to be overprinted."*
 against *the device's* colorant list — on a subtractive device it paints K
 alone; on an **additive** device a Separation *"never applies a process
 colorant directly; it always reverts to the alternate colour space."* **For
-pdfce that only works inside a simulated subtractive device** — another
+pdfcer that only works inside a simulated subtractive device** — another
 route to the same n-channel conclusion.
 
 ---
 
-## §2 — ★ PCS040 White Overprint — the patch that diagnosed pdfce's bug
+## §2 — ★ PCS040 White Overprint — the patch that diagnosed pdfcer's bug
 
 **PRIMARY (ReadMe)**, 10 Nov 2006, Peter Claes. 4.0.1 replaced a withdrawn 4.0.
 
@@ -172,7 +172,7 @@ invisible); d, e, k knock out to white; j overprints; f = l partial.
 "DeviceGray ≠ DeviceCMYK" discriminator — same tint, same OPM 1, opposite
 result.
 
-### ★ Why this diagnosed pdfce
+### ★ Why this diagnosed pdfcer
 
 > Flattening spot through the tint transform to RGB before compositing
 > destroys R1 and R5: once Suite Green is RGB there is no unspecified
@@ -180,7 +180,7 @@ result.
 > predicts a white X in exactly a, b, c (and g, h, i), and correct output in
 > d, e, f where the right answer IS knockout.**
 
-That prediction was derived independently of pdfce's output and **matches
+That prediction was derived independently of pdfcer's output and **matches
 the observed render exactly** (2026-08-18, `ac15158`). **The fix is
 colorant-level compositing, not an overprint special case.**
 
@@ -254,7 +254,7 @@ setting moves the page's total effective-overprint count (24 / 29 / 29) and
 does not move this pixel at all.
 
 ★★ **AND THE ABLATION IS WEAKER THAN IT LOOKED, which is worth more than the
-conclusion it supported.** Audited by `pdfce-spec-librarian` the same day
+conclusion it supported.** Audited by `pdfcer-spec-librarian` the same day
 (register `OP-N3`): Tables 148/149 put *"any process colour space"* × **spot
 colorant** × `OP true` at `c_b` — *do not paint* — in **both** the `OPM 0`
 and `OPM 1` columns. So on a **spot** backdrop all three settings agree by
@@ -273,16 +273,16 @@ miss.** `.5 G` does occur in this patch — but under `/GS5`, on a *different*
 cell. The two traps at `(27,68)` and `(28,135)` are `0 0 0 .5 k` and `.5 g`
 **fills** under `/GS4`, and their whole 49×49 interior is wrong, not a
 0.283 pt outline. A stroke defect cannot produce a solid wrong X. ★ The lead
-was reasonable — every synthetic fixture pdfce owns does use fills, and `B`
+was reasonable — every synthetic fixture pdfcer owns does use fills, and `B`
 (fill **and** stroke) is genuinely unusual — but *"an untested route exists"*
 is not *"the untested route is the cause"*, and here it was not.
 
-**3. The actual cause: pdfce has no per-spot-colorant plane.** The backdrop
-is `/CS1 = [/DeviceN [/Black /Suite Green] /DeviceCMYK]`, and pdfce flattens
+**3. The actual cause: pdfcer has no per-spot-colorant plane.** The backdrop
+is `/CS1 = [/DeviceN [/Black /Suite Green] /DeviceCMYK]`, and pdfcer flattens
 Suite Green into C/M/Y — the measured `0.443 0 0.885` above **is** that
 flattening. A `DeviceCMYK` source specifies C, M, Y and K, so Table 149 has
 it knock those four out; but it does **not** name Suite Green, whose plane
-must therefore survive. In pdfce there is no such plane to survive, so
+must therefore survive. In pdfcer there is no such plane to survive, so
 knocking out C/M/Y destroys the spot with them. The suite's own DERIVED
 truth table above says cells a/b/c/g/h/i must all read *"Green + 50 % K"*,
 which is exactly what a surviving spot plane produces.
@@ -326,7 +326,7 @@ The shading cells e/j likewise.
    block. **MEASURED:** those draws use `/GS4 = {OP:false, OPM:1, op:true}`.
    **OPM 1 is correct; the prose is a copy-paste error.**
 
-**Consequence for pdfce:** `/Indexed` over `/DeviceCMYK` means colorants
+**Consequence for pdfcer:** `/Indexed` over `/DeviceCMYK` means colorants
 must be read from the **base** space (§8.6.6.3). Reading them off `/Indexed`
 yields none and gets **both PCS010 and PCS031** wrong.
 
@@ -354,7 +354,7 @@ underneath (OPM = 1) or does knock out (OPM = 0)."*
 
 Both rects and crosses carry a zero in the M or C channel — that is what
 makes the two modes composite differently. **Expect only ONE X on failure**
-(pdfce currently reports exactly 1 trap).
+(pdfcer currently reports exactly 1 trap).
 
 ---
 
@@ -369,7 +369,7 @@ to overprint, because the spot colorant is genuinely absent from the other
 object's space (R1). PCS010's image cells must knock out because OPM cannot
 reach images (R2). **Together they are a clean two-sided test of whether a
 renderer keys overprint off the COLOUR SPACE rather than the OBJECT TYPE.**
-This is the second patch pdfce's spot-flattening fails — in both directions.
+This is the second patch pdfcer's spot-flattening fails — in both directions.
 
 **Documented tolerance — PRIMARY:** *"A faint 'X' in slightly darker green
 may show in **all** of the tests; this is acceptable behavior in this patch."*
@@ -402,7 +402,7 @@ instance)"*. The whole cell tests a renderer's **rounding threshold**, so an
 implementer needs the real number. For calibration, Kodak Prinergy ships
 *"White is considered white when black (K) is less than 0.9%"*.
 
-**pdfce currently passes PCS041.**
+**pdfcer currently passes PCS041.**
 
 ---
 
@@ -424,7 +424,7 @@ passes the bottom half and fails the top; "white always overprints" does the
 reverse. **MEASURED:** three ExtGStates, clean overprint/knockout binary at
 fixed OPM 1.
 
-**pdfce currently passes PCS120.**
+**pdfcer currently passes PCS120.**
 
 ---
 
@@ -530,7 +530,7 @@ ColorDodge, Overlay, SoftLight, HardLight, Hue, Color, Luminosity, Saturation,
 {CA 0 ca 0}, Difference, Exclusion`), so a `/GSnn gs` immediately before a
 `/Xnn Do` names the cell's mode.
 
-### ★ MEASURED diagnosis of pdfce's failures
+### ★ MEASURED diagnosis of pdfcer's failures
 
 | Patch | traps | what the probe shows |
 |---|---|---|
@@ -542,7 +542,7 @@ ColorDodge, Overlay, SoftLight, HardLight, Hue, Color, Luminosity, Saturation,
 paragraph originally said those three were "exactly the nonseparable modes
 whose K component is taken from the backdrop" and called `Luminosity` passing
 "the one-bit confirmation". Measured: every transparency patch reports
-`blend_modes_applied=11, blend_modes_ignored=4`, and pdfce **declines all four
+`blend_modes_applied=11, blend_modes_ignored=4`, and pdfcer **declines all four
 nonseparable modes outright**, compositing them as `Normal`. They fail because
 they are **not implemented**, not because they are computed with the wrong K.
 `Luminosity` is declined identically and still comes out clean — so "declined"
@@ -556,7 +556,7 @@ against the governing `/ExtGState`) rather than by cell-pitch arithmetic.
 
 **`PCS1_161`/`PCS1_162` are §11.4.7, not knockout.** A `tiny_skia::Pixmap`
 starts transparent, and a transparent initial backdrop **is** isolated
-semantics. pdfce allocates a group buffer whenever the outer graphics state is
+semantics. pdfcer allocates a group buffer whenever the outer graphics state is
 non-neutral — and every cell in these patches sets `/BM` at the `Do`. So a
 **non-isolated group silently becomes an isolated one** and every interior
 blend composites against nothing, which returns `cs` unchanged. That is
@@ -590,7 +590,7 @@ and `97.1` divide between them.
 > failure."* … *"A **clearly visible** X indicates that this blend mode is not
 > supported properly which **is** a failure."*
 
-**MEASURED, 2026-08-18 — the tolerance does not rescue pdfce.** `PCS3_161`
+**MEASURED, 2026-08-18 — the tolerance does not rescue pdfcer.** `PCS3_161`
 shows X `[255,0,255]` against surround `[129,45,156]` (~126 levels) and
 `PCS3_164` shows X `[165,165,165]` against surround `[19,19,19]` (~146
 levels). Neither is a CMM difference; both are "clearly visible" by the
@@ -637,15 +637,15 @@ right" as passing.
 **MEASURED (2026-08-18).** Construction is correct — both the mask groups and
 the folded clips were dumped to PNG and inspected as properly-placed soft
 gradients. The defect is **application**: §11.4.5 applies the mask to a
-transparency group's **RESULT**, and pdfce folds it into the clip, which
+transparency group's **RESULT**, and pdfcer folds it into the clip, which
 applies it to each element *inside*. Correlations after the `cb20770` soft-mask
 work, against the reference engine's own score on the same strip:
 
-| Patch | pdfce | reference engine |
+| Patch | pdfcer | reference engine |
 |---|---|---|
 | `PCS1_1610` Text part 1 | 0.575 | 0.966 |
 | `PCS1_168` Vector part 1 | 0.725 | 0.981 |
 | `PCS1_169` Vector part 2 | 0.905 | 0.983 |
 
 Fix is `Pass 97.0`: there is nowhere to apply a mask to a group result until
-the group result is a value pdfce owns.
+the group result is a value pdfcer owns.

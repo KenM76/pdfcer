@@ -10,7 +10,7 @@ RGB display is therefore entirely implementation-defined. There is no spec text
 to be correct against — only other implementations to agree or disagree with.
 
 That makes this a *measurement* problem, not a spec-reading problem. To improve
-pdfce's conversion you first need ground truth: what sRGB does a production
+pdfcer's conversion you first need ground truth: what sRGB does a production
 renderer actually put on screen for a given (c,m,y,k)? This script produces
 that, by the only method that cannot be wrong about it — rendering known CMYK
 patches and reading the pixels back.
@@ -23,8 +23,8 @@ WHAT IT DOES
    i.e. the DeviceCMYK non-stroking operator — no images, no ICC, no shading,
    nothing that could route the colour through a different code path than a
    plain vector fill.
-2. Renders that PDF at scale 1.0 with pdfium (via `pypdfium2`) and/or pdfce
-   (via the built `pdfce-cli render-page`), which makes one PDF unit exactly one
+2. Renders that PDF at scale 1.0 with pdfium (via `pypdfium2`) and/or pdfcer
+   (via the built `pdfcer render-page`), which makes one PDF unit exactly one
    device pixel.
 3. Samples the CENTRE pixel of each patch — never an edge — so anti-aliasing on
    the patch boundary cannot contaminate the reading.
@@ -42,12 +42,12 @@ formatting, no clocks.
 USAGE
 -----
     python cmyk_probe.py --levels 9 --engine pdfium --out fit-pdfium.tsv
-    python cmyk_probe.py --levels 9 --engine pdfce  --out fit-pdfce.tsv
+    python cmyk_probe.py --levels 9 --engine pdfcer  --out fit-pdfce.tsv
     python cmyk_probe.py --levels 6 --engine pdfium --out val-pdfium.tsv
 
-`--engine pdfce` shells out to `target/release/pdfce-cli`, exactly like
-`tools/render-parity` does; this script imports nothing from pdfce and pdfce
-depends on nothing here (LEGAL §6 — pypdfium2 is tooling-only, never a pdfce
+`--engine pdfcer` shells out to `target/release/pdfcer`, exactly like
+`tools/render-parity` does; this script imports nothing from pdfcer and pdfcer
+depends on nothing here (LEGAL §6 — pypdfium2 is tooling-only, never a pdfcer
 runtime dependency).
 """
 
@@ -209,9 +209,9 @@ def render_pdfium(pdf: Path):
 def render_pdfce(pdf: Path):
     from PIL import Image
 
-    exe = REPO / "target" / "release" / ("pdfce-cli.exe" if sys.platform == "win32" else "pdfce-cli")
+    exe = REPO / "target" / "release" / ("pdfcer.exe" if sys.platform == "win32" else "pdfcer")
     if not exe.exists():
-        raise SystemExit(f"build it first: cargo build --release -p pdfce-cli  ({exe} missing)")
+        raise SystemExit(f"build it first: cargo build --release -p pdfcer-cli  ({exe} missing)")
     png = pdf.with_suffix(".png")
     subprocess.run(
         [str(exe), "render-page", "--page", "1", "--scale", "1", "-o", str(png), str(pdf)],
@@ -250,10 +250,10 @@ def main() -> int:
             "for cache locality and defeats any run-length or memoisation "
             "shortcut, so the render time it produces is an upper bound on the "
             "conversion's per-pixel cost rather than a friendly average. Time it "
-            "with `pdfce-cli render-page --scale 1`; see README section 6."
+            "with `pdfcer render-page --scale 1`; see README section 6."
         ),
     )
-    ap.add_argument("--engine", choices=("pdfium", "pdfce"), default="pdfium")
+    ap.add_argument("--engine", choices=("pdfium", "pdfcer"), default="pdfium")
     # Not `required=True`: `--emit-cost-fixture` writes a PDF and produces no
     # TSV, and argparse would otherwise demand an output path for a mode that
     # has no output to name.

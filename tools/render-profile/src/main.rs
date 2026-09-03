@@ -84,11 +84,11 @@
 
 use std::time::Instant;
 
-use pdfce_core::document::Document;
-use pdfce_core::page_tree;
-use pdfce_core::view::DocumentView;
-use pdfce_render::profile::Ablation;
-use pdfce_render::{RenderOptions, profile, render_page_with_view};
+use pdfcer_core::document::Document;
+use pdfcer_core::page_tree;
+use pdfcer_core::view::DocumentView;
+use pdfcer_render::profile::Ablation;
+use pdfcer_render::{RenderOptions, profile, render_page_with_view};
 
 /// The ablations a sweep runs, in the order the table prints them.
 ///
@@ -566,8 +566,8 @@ fn run_ablation_sweep(
 /// decide different things and either alone is misleading: a 95% hit
 /// rate over 20,000 distinct page-sized masks is 20 GB and infeasible,
 /// while a 40% hit rate over 200 masks is cheap and worth having.
-fn report_clip_reuse(c: &pdfce_render::profile::Counters) {
-    use pdfce_render::profile::CLIP_REUSE_EDGES;
+fn report_clip_reuse(c: &pdfcer_render::profile::Counters) {
+    use pdfcer_render::profile::CLIP_REUSE_EDGES;
     println!();
     println!("clip reuse (build key = path geometry + fill rule + CTM + mask size):");
     // Hard rule 10: the totals and their derived per-item form on one
@@ -663,8 +663,8 @@ fn report_clip_reuse(c: &pdfce_render::profile::Counters) {
     }
 }
 
-fn report_clip_phases(c: &pdfce_render::profile::Counters) {
-    use pdfce_render::profile::{CLIP_BUCKET_EDGES_US, CLIP_BUCKETS};
+fn report_clip_phases(c: &pdfcer_render::profile::Counters) {
+    use pdfcer_render::profile::{CLIP_BUCKET_EDGES_US, CLIP_BUCKETS};
 
     let ns = |v: u64| v as f64 / 1e9;
     let total = c.clip_phase_ns();

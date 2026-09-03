@@ -1,5 +1,5 @@
-//! Fuzz target: text extraction (`pdfce_core::text_extract`,
-//! `pdfce_core::textstring`).
+//! Fuzz target: text extraction (`pdfcer_core::text_extract`,
+//! `pdfcer_core::textstring`).
 //!
 //! Pass 4's untrusted-input surface, driven from three directions over
 //! the same bytes. `ARCHITECTURE.md` §10.2 requires a fuzz target for
@@ -66,16 +66,16 @@
 //!    panic in consumer code rather than here. Asserting it inside the
 //!    fuzz target moves that panic to where it can be found.
 //! 3. **`sourced_text()` is never longer than `plain_text()`** — the
-//!    two differ only by pdfce's insertions, so a violation would mean
+//!    two differ only by pdfcer's insertions, so a violation would mean
 //!    the "friendly" accessor is silently dropping file content.
 
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::document::Document;
-use pdfce_core::text_extract::cmap::ToUnicodeCMap;
-use pdfce_core::text_extract::{self, ExtractOptions};
-use pdfce_core::textstring::{decode_text_string, decode_utf16be_bytes, encode_text_string};
+use pdfcer_core::document::Document;
+use pdfcer_core::text_extract::cmap::ToUnicodeCMap;
+use pdfcer_core::text_extract::{self, ExtractOptions};
+use pdfcer_core::textstring::{decode_text_string, decode_utf16be_bytes, encode_text_string};
 
 fuzz_target!(|data: &[u8]| {
     // --- 1. The ToUnicode CMap parser -----------------------------------
@@ -139,7 +139,7 @@ fuzz_target!(|data: &[u8]| {
             let sourced = extracted.sourced_text();
             assert!(
                 sourced.chars().count() <= plain.chars().count(),
-                "sourced text cannot exceed plain text — the two differ only by pdfce's insertions"
+                "sourced text cannot exceed plain text — the two differ only by pdfcer's insertions"
             );
         }
     }

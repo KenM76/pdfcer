@@ -3,8 +3,8 @@
 
 WHY THIS EXISTS
 ---------------
-``crates/pdfce-core/src/annot.rs``'s ``page_link_destinations`` and
-``crates/pdfce-core/src/outline.rs``'s ``DestinationReader`` resolve
+``crates/pdfcer-core/src/annot.rs``'s ``page_link_destinations`` and
+``crates/pdfcer-core/src/outline.rs``'s ``DestinationReader`` resolve
 ISO 32000-1 §12.5.6.5 (Table 173) link annotations to §12.3.2
 destinations. That reader has to be right about a set of cases that no
 authoring tool will produce on request:

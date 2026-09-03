@@ -3,7 +3,7 @@
 
 WHY THIS SCRIPT EXISTS
 ----------------------
-``crates/pdfce-core/src/attachments.rs`` reads a document's attachments,
+``crates/pdfcer-core/src/attachments.rs`` reads a document's attachments,
 and a PDF has **two structurally unrelated** ways of carrying one:
 
 1. **document-level** — a §7.9.6 name tree hanging off the catalog at

@@ -1,12 +1,12 @@
 //! Fuzz target: a **sequence** of structural page operations
-//! (`pdfce_core::edit` + `pdfce_core::pageops`).
+//! (`pdfcer_core::edit` + `pdfcer_core::pageops`).
 //!
 //! `writer_roundtrip` proves that a save does not corrupt an untouched
 //! document, and that one edit does not perturb its neighbours. Neither
 //! is the claim Pass 3.2 introduces. This target's claim is:
 //!
 //! > no *sequence* of structural operations, on any input that loads at
-//! > all, produces a document pdfce cannot read back — and undoing all
+//! > all, produces a document pdfcer cannot read back — and undoing all
 //! > of them reproduces the input byte for byte.
 //!
 //! The distinction matters because structural operations **compose in
@@ -32,11 +32,11 @@
 //!
 //! Asserted:
 //!
-//! 1. **No panic, ever.** `pdfce-core` is panic-free by policy (decision
+//! 1. **No panic, ever.** `pdfcer-core` is panic-free by policy (decision
 //!    001 §6.1 item 5) and every operation here runs on attacker-shaped
 //!    input.
 //! 2. **Whatever is saved, reloads.** A structural edit that produces a
-//!    file pdfce itself cannot parse is the worst outcome available —
+//!    file pdfcer itself cannot parse is the worst outcome available —
 //!    strictly worse than refusing the edit.
 //! 3. **The page count the writer produced is the page count the reader
 //!    finds.** Catches a `/Count` left inconsistent with `/Kids`, a
@@ -61,10 +61,10 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::document::Document;
-use pdfce_core::edit::EditSession;
-use pdfce_core::pageops::{DocumentView, SplitCriterion};
-use pdfce_core::writer::SaveOptions;
+use pdfcer_core::document::Document;
+use pdfcer_core::edit::EditSession;
+use pdfcer_core::pageops::{DocumentView, SplitCriterion};
+use pdfcer_core::writer::SaveOptions;
 
 /// How many bytes at the front of the input drive the operation
 /// sequence. Everything after is the candidate PDF.
@@ -89,7 +89,7 @@ fuzz_target!(|data: &[u8]| {
     // A document with no readable page tree has no structural operation
     // to perform; refusing is the correct behaviour and is covered by
     // the unit tests.
-    if pdfce_core::page_tree::page_slots(&doc).is_err() {
+    if pdfcer_core::page_tree::page_slots(&doc).is_err() {
         return;
     }
 
@@ -150,7 +150,7 @@ fuzz_target!(|data: &[u8]| {
             Ok(reloaded) => {
                 if let (Ok(want), Ok(got)) = (
                     expected_pages.as_ref().map_err(|_| ()),
-                    pdfce_core::page_tree::pages(&reloaded).map(|p| p.len()),
+                    pdfcer_core::page_tree::pages(&reloaded).map(|p| p.len()),
                 ) {
                     assert_eq!(
                         *want, got,
@@ -188,7 +188,7 @@ fuzz_target!(|data: &[u8]| {
 /// from nothing, where a malformed output has no prior revision to fall
 /// back on.
 fn exercise_producers(doc: &Document) {
-    let Ok(pages) = pdfce_core::page_tree::pages(doc) else {
+    let Ok(pages) = pdfcer_core::page_tree::pages(doc) else {
         return;
     };
     if pages.is_empty() {
@@ -199,9 +199,9 @@ fn exercise_producers(doc: &Document) {
     // Extract the first page. Every produced file must reload — an
     // extraction that cannot be opened is the failure mode with no
     // recovery, since there is no earlier revision inside it.
-    if let Ok((bytes, report)) = pdfce_core::pageops::extract(&view, &[0]) {
+    if let Ok((bytes, report)) = pdfcer_core::pageops::extract(&view, &[0]) {
         let reloaded = Document::from_bytes(bytes).expect("extract produced an unloadable file");
-        let got = pdfce_core::page_tree::pages(&reloaded)
+        let got = pdfcer_core::page_tree::pages(&reloaded)
             .expect("extract produced an unwalkable page tree")
             .len();
         assert_eq!(
@@ -213,7 +213,7 @@ fn exercise_producers(doc: &Document) {
     // naming/collision path.
     if pages.len() > 1
         && let Ok(parts) =
-            pdfce_core::pageops::split(&view, &SplitCriterion::EveryN(1), "{stem}_{n}.pdf", "fuzz")
+            pdfcer_core::pageops::split(&view, &SplitCriterion::EveryN(1), "{stem}_{n}.pdf", "fuzz")
     {
         for (_, bytes, _) in parts {
             Document::from_bytes(bytes).expect("split produced an unloadable part");
@@ -223,7 +223,7 @@ fn exercise_producers(doc: &Document) {
     // cross-source name collision fires at once, which is what the
     // duplicate-field renaming exists for.
     let second = DocumentView::new(doc, doc.bytes(), doc.version());
-    if let Ok((bytes, _)) = pdfce_core::pageops::merge(&[view, second], &[]) {
+    if let Ok((bytes, _)) = pdfcer_core::pageops::merge(&[view, second], &[]) {
         Document::from_bytes(bytes).expect("merge produced an unloadable file");
     }
 }

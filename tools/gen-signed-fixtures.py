@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate CRYPTOGRAPHICALLY SIGNED PDFs (`fixtures/synthetic/signature-verify/`) as falsifiers for `pdfce_core::signature::verify`.
+"""Generate CRYPTOGRAPHICALLY SIGNED PDFs (`fixtures/synthetic/signature-verify/`) as falsifiers for `pdfcer_core::signature::verify`.
 
 Not to be confused with `gen-signature-fixtures.py`, which builds the
 no-cryptography `/ByteRange` COVERAGE fixtures in `fixtures/synthetic/signature/`.
@@ -9,7 +9,7 @@ CMS signature check.
 Source document is synthetic and self-authored (project rule 7): one page
 of text written by this script. The SIGNATURES are produced by pyHanko
 (MIT), an INDEPENDENT implementation of ISO 32000-1 §12.8.3 / ETSI EN 319
-142-1 — the same principle as `gen-encryption-fixtures.py`: pdfce's
+142-1 — the same principle as `gen-encryption-fixtures.py`: pdfcer's
 verifier is written from the standard and then checked against CMS objects
 it did not produce. The certificates are self-signed, generated fresh by
 `cryptography` on every run, so nothing here is anyone's real identity and
@@ -43,6 +43,13 @@ re-running; do not expect byte identity with the previous corpus.
 """
 
 from __future__ import annotations
+
+# ★ The certificate names and the /Reason string deliberately keep the
+# PRE-RELEASE name `pdfce`: the checked-in fixtures under
+# fixtures/synthetic/signature-verify/ were generated with it, and
+# crates/pdfcer-core/tests/signature_verify.rs asserts on those bytes.
+# Regenerating with `pdfcer` would silently change what the tests expect.
+# (Pass 247.1, 2026-09-03.)
 
 import datetime as dt
 import hashlib
@@ -184,7 +191,7 @@ def append_after(pdf: bytes) -> bytes:
 
 def main() -> int:
     os.makedirs(OUT, exist_ok=True)
-    tmp = tempfile.mkdtemp(prefix="pdfce-sig-")
+    tmp = tempfile.mkdtemp(prefix="pdfcer-sig-")
     rsa_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     ec_key = ec.generate_private_key(ec.SECP256R1())
     rsa_cert = self_signed(rsa_key, "pdfce fixture RSA signer")

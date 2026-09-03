@@ -1,8 +1,8 @@
-# pdfce UI Preferences — Design System (egui/eframe terms)
+# pdfcer UI Preferences — Design System (egui/eframe terms)
 
-**Author:** `pdfce-ui-specialist` · **Date:** 2026-08-05
+**Author:** `pdfcer-ui-specialist` · **Date:** 2026-08-05
 **Drives:** the operator's design-philosophy handoff,
-`C:\Users\Ken\AppData\Local\Temp\claude\D--Dev-KenAgent\ede777ff-2525-4b85-b93f-95b9674b0040\scratchpad\pdfce_gui_design_handoff.md`,
+`C:\Users\Ken\AppData\Local\Temp\claude\D--Dev-KenAgent\ede777ff-2525-4b85-b93f-95b9674b0040\scratchpad\pdfcer_gui_design_handoff.md`,
 which the operator instructed be followed while the Tool Options dock
 (Pass 34.1/34.2, `docs/ui_specs/tool-options-dock-and-ce-dimension-
 properties.md`) is implemented.
@@ -23,7 +23,7 @@ for, not a decision made here.
 are literally CSS/web concepts — token-level custom properties,
 `@media (prefers-color-scheme: dark)`, `data-theme` overrides,
 `@font-face` data URIs, gradient heroes, rounded cards with accent
-bars. pdfce is native Rust + egui/eframe; none of those mechanisms
+bars. pdfcer is native Rust + egui/eframe; none of those mechanisms
 exist here as written. §2 below translates each one honestly to its
 egui equivalent, and says explicitly where no clean translation exists
 yet rather than quietly dropping the principle or pretending to
@@ -32,8 +32,8 @@ implement CSS inside egui.
 **Terminology (CLAUDE.md rule 15, binding throughout).** Where this
 document discusses dimension objects (the canvas-overlay palette, §4),
 every one is a **ce dimension** — a `/Line`+`/IT /LineDimension`
-annotation pdfce itself authors — never a **pdf dimension** (a
-pre-existing CAD-exported callout pdfce did not create). This document
+annotation pdfcer itself authors — never a **pdf dimension** (a
+pre-existing CAD-exported callout pdfcer did not create). This document
 does not concern pdf dimensions anywhere.
 
 ---
@@ -67,7 +67,7 @@ display face" as a real, separately-scoped, license-gated decision
 **Layout sketch (the handoff's "1–2 sentences" ask):** property
 surfaces are two-column label/control grids (§9), panel hierarchy is
 carried by text weight and a plain separator rule rather than by a
-colored accent bar under headers, and nothing in pdfce's chrome is
+colored accent bar under headers, and nothing in pdfcer's chrome is
 centered by default — labels sit left, controls fill the remaining
 width, and an empty-state caption sits exactly where the populated
 content would have sat rather than being recentered, so arming a tool
@@ -80,11 +80,11 @@ checked one by one, not rubber-stamped:**
 |---|---|---|
 | Cream + serif + terracotta | **N/A** | No serif introduced; `ACCENT_PRIMARY` is violet, not terracotta; no cream — neutrals stay egui's own. |
 | Hairline rules with dense columns | **Addressed** | Property rows use `egui::Grid` spacing (§9), not a rule drawn under every row. |
-| Gradient heroes on white | **N/A** | pdfce ships no hero/marketing surface; explicit recommendation in §9 to keep all chrome fills flat regardless. |
+| Gradient heroes on white | **N/A** | pdfcer ships no hero/marketing surface; explicit recommendation in §9 to keep all chrome fills flat regardless. |
 | Accent bars on rounded cards everywhere | **Addressed** | Panel section headers (§9) carry hierarchy by weight + one plain separator, not a colored bar. |
 | Everything centered | **Addressed** | Property-row layout and the Tool Options empty state (§9) are both left/top-aligned, not centered — cited to the existing "shell should hold still" precedent so a tool arming doesn't relocate the caption. |
 | Generic sans-serif with no type scale | **Fixed by this document** | §6 names a 5-role scale with concrete point sizes. This was a real, confirmed gap — zero custom `TextStyle` configuration exists in `pdfce-gui` today (grepped, not assumed). |
-| Silent font fallbacks | **Honestly NOT fixed — flagged, not concealed** | §7: pdfce's only "font" today is whatever egui bundles. Naming this plainly, with a scoped P2 recommendation, is the intended output of this review step — not a clean pass. |
+| Silent font fallbacks | **Honestly NOT fixed — flagged, not concealed** | §7: pdfcer's only "font" today is whatever egui bundles. Naming this plainly, with a scoped P2 recommendation, is the intended output of this review step — not a clean pass. |
 
 The last row matters most: this section exists specifically so an
 open gap gets written down instead of glossed over. A "process before
@@ -95,7 +95,7 @@ sign.
 
 ## §1. The one distinction that governs every color decision here
 
-pdfce's colors fall into two domains that must never be reasoned about
+pdfcer's colors fall into two domains that must never be reasoned about
 with the same rule:
 
 1. **Chrome colors** — panel fills, tab backgrounds, button colors,
@@ -105,7 +105,7 @@ with the same rule:
 2. **Canvas-overlay colors** — node marks, ce-dimension selection/drag
    outlines, live-preview drafts, redaction ink, translucent masks.
    These draw **on top of the rendered PDF page**, and a PDF page's
-   background is near-white in essentially every real document pdfce
+   background is near-white in essentially every real document pdfcer
    opens, regardless of which theme the operator's app chrome is set
    to. These are correctly **theme-invariant** — a bare, named
    `Color32` constant is the RIGHT mechanism, not a bug to fix.
@@ -113,7 +113,7 @@ with the same rule:
 This distinction is not a new idea invented for this document — it is
 already implicit in the codebase's own comments. `NODE_MARK_FILL`'s
 doc comment (`main.rs:307-315`) states it outright: *"The page under a
-node is white in every document pdfce has drawn, and where it is not,
+node is white in every document pdfcer has drawn, and where it is not,
 the `NODE_MARK_COLOR` border is what carries the mark."* That is domain
 1 reasoning applied correctly to a domain-2 color; this document's job
 is to name the distinction so the NEXT engineer who adds an overlay
@@ -258,7 +258,7 @@ it.
 `main.rs:977`'s default annotation pen color
 (`egui::Color32::from_rgb(0xE0, 0x30, 0x30)`, a visible red) is
 **deliberately excluded** from §4's table. It is not a fixed semantic
-cue pdfce assigns meaning to — it is a **sensible starting value for a
+cue pdfcer assigns meaning to — it is a **sensible starting value for a
 property the operator owns and can repaint** (Pass 6.1's own comment:
 "a visible red pen and a 2-point stroke — sensible defaults an
 operator can change before authoring"). A token system exists to make
@@ -269,7 +269,7 @@ recommended here beyond documenting the category — the value itself
 doesn't collide with any `OVERLAY_*` hue, so it's a safe default as-is.
 
 This is the general rule for anything added later that resembles a
-color literal: **ask whether pdfce assigned the meaning, or the
+color literal: **ask whether pdfcer assigned the meaning, or the
 operator did.** Only the former belongs in the token module.
 
 ---
@@ -323,7 +323,7 @@ display face or by whatever egui ships is a separate, real decision.
 bundling a chosen font (e.g. Inter, IBM Plex Sans) means redistributing
 a third-party licensed asset. `cargo-about` (rule 13's attribution
 generator) scans **Cargo dependencies** — it will not see a font file
-dropped in as a bundled asset via `include_bytes!`. If pdfce ever ships
+dropped in as a bundled asset via `include_bytes!`. If pdfcer ever ships
 a custom font, `THIRD_PARTY_LICENSES.md` needs a manually-added line
 for it, or the attribution story has a silent hole. Flagging this now
 so it isn't discovered the hard way later. Not decided here — P2,
@@ -338,7 +338,7 @@ does (rule 13).
 its own theme-preference handling distinct from a CSS media query —
 verify the exact 0.35 API surface against docs.rs before wiring it,
 and confirm empirically (toggle the OS theme with the app running)
-whether pdfce already benefits from automatic OS-theme following today
+whether pdfcer already benefits from automatic OS-theme following today
 with zero app code, since nothing in `main.rs` currently calls any
 theme-setting API at all. The gap this document cares about is
 narrower than "add theme detection": it is that **`Color32` literals
@@ -365,7 +365,7 @@ themes**. This is correct given §1's reasoning, not a violation of
 "both themes equally" — a rendered PDF page is near-white regardless
 of the operator's chrome theme, so an overlay color calibrated against
 "draws visibly on white" would be WRONG to reroute through the app's
-dark-mode chrome palette. If pdfce ever renders a genuinely
+dark-mode chrome palette. If pdfcer ever renders a genuinely
 dark-background page, the existing two-tone construction (stroke +
 fill, e.g. `OVERLAY_NODE_STROKE` + `OVERLAY_NODE_FILL`) already
 degrades gracefully — `NODE_MARK_FILL`'s own doc comment names this
@@ -495,13 +495,13 @@ common cases worth removing.
    explicitly, not routed around.** The handoff's Part 2 §2 and Part 4
    Q4 recommend auditing "Acrobat Pro's current ribbon layout" / "GUI
    structure (ribbon, panels, tool organization)" via
-   `pdfce-acrobat-librarian`, "so you can intentionally differ."
+   `pdfcer-acrobat-librarian`, "so you can intentionally differ."
    `CLAUDE.md` rule 12 states, unambiguously, that the Acrobat
    feature-parity RAG "must never describe or inform copying Acrobat's
-   GUI structure (menu paths, panels, dialogs); pdfce's UI is designed
-   independently by `pdfce-ui-specialist`." These are the same request
+   GUI structure (menu paths, panels, dialogs); pdfcer's UI is designed
+   independently by `pdfcer-ui-specialist`." These are the same request
    read two different ways, and rule 12 is the one binding today.
-   **Recommendation: do not dispatch `pdfce-acrobat-librarian` for a
+   **Recommendation: do not dispatch `pdfcer-acrobat-librarian` for a
    GUI-structure audit.** If Ken wants a literal comparative audit of
    Acrobat's ribbon as reference material, that requires HIM to grant
    a new, explicit exception to rule 12 — it is not something the
@@ -512,8 +512,8 @@ common cases worth removing.
    capability-only RAG whose charter exists specifically to keep GUI
    mechanics out of it.
 2. **Ribbon specificity (handoff Part 4 Q2) — Ken's call, not made
-   here.** How close pdfce's eventual ribbon/toolbar restructuring
-   should read to Acrobat's own layout vs. developing pdfce's own
+   here.** How close pdfcer's eventual ribbon/toolbar restructuring
+   should read to Acrobat's own layout vs. developing pdfcer's own
    distinctive structure is explicitly flagged, not decided, per this
    agent's charter.
 3. **A candidate standing rule for the librarian.** "A canvas-overlay
@@ -522,7 +522,7 @@ common cases worth removing.
    the kind of pattern this project's standing-rule ledger exists to
    capture, once it's been battle-tested against the actual
    consolidation in §4. Recommend the engineer file it with
-   `pdfce-librarian` once the token module ships, librarian-numbered
+   `pdfcer-librarian` once the token module ships, librarian-numbered
    in the usual way — not asserting a number here.
 4. **The `SUBPATH_OUTLINE_COLOR` drift (§4)** needs a decision (merge
    into `OVERLAY_PREVIEW`, or keep distinct and correct its comment) —

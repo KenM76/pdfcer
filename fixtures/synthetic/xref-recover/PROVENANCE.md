@@ -51,12 +51,12 @@ synthesized by pointing `startxref` at a body object's dictionary.
 
 `missing-endobj-page-tree.pdf` models qpdf's `bad6.pdf`, reduced to the
 one thing that matters. It was added 2026-08-07 after
-`tools/verapdf-parse-gate.py` — the first independent judge of pdfce's
-own output — found pdfce writing a document whose catalog said
+`tools/verapdf-parse-gate.py` — the first independent judge of pdfcer's
+own output — found pdfcer writing a document whose catalog said
 `/Pages 2 0 R` while object 2 was ABSENT from the file. The missing
 `endobj` made `confirm_candidates` drop the object, and the writer
 emitted the dangling reference without complaint; veraPDF could recover
-the original and could not recover pdfce's rewrite of it.
+the original and could not recover pdfcer's rewrite of it.
 
 `huge-object-number.pdf` (added 2026-08-07, `tools/gen-huge-objnum-fixture.py`)
 is the **writer-side** counterpart, and unlike everything else in this
@@ -94,7 +94,7 @@ Every other file in this directory is broken on purpose. This one is a
 exactly as §7.5.4 and §7.5.5 require ("the byte offset … from the
 beginning of the file"), and nothing about it needs recovery. Its only
 unusual property is 12 bytes of comment ahead of `%PDF-`, which is
-inside pdfce's 1 KiB probe window — so unlike `offset-start.pdf` it
+inside pdfcer's 1 KiB probe window — so unlike `offset-start.pdf` it
 loads on the **strict** path, and the writer used to carry the preamble
 through into a full rewrite.
 
@@ -106,15 +106,15 @@ reader treats offsets as **header-relative** whenever a preamble exists.
 real ambiguity that ISO 32000-1 does not resolve; this fixture is the
 executable form of that note.
 
-pdfce's answer (2026-08-07): a **full rewrite drops the preamble**, which
+pdfcer's answer (2026-08-07): a **full rewrite drops the preamble**, which
 makes the two readings coincide — with the header at byte 0, absolute and
 header-relative are the same number — so the output is unambiguous to
-every reader instead of correct only under pdfce's preferred reading.
+every reader instead of correct only under pdfcer's preferred reading.
 Incremental and identity-append saves still preserve it, because they
 promise byte identity and a byte-prefix respectively.
 
 In a `verapdf-parse-gate` sweep this file therefore reports as
-**improved**: veraPDF cannot read the input and can read pdfce's output.
+**improved**: veraPDF cannot read the input and can read pdfcer's output.
 A regression that restored preamble preservation flips it to a
 regression, which is why the fixture lives on disk rather than only
 inside the test that builds one inline.

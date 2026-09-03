@@ -1,7 +1,7 @@
 # attachments — provenance and attribution
 
 Eleven minimal PDFs for the embedded-file (attachment) **reader** in
-`crates/pdfce-core/src/attachments.rs` (ISO 32000-1 §7.11 file
+`crates/pdfcer-core/src/attachments.rs` (ISO 32000-1 §7.11 file
 specifications and embedded file streams, §7.7.4/§7.9.6 name trees,
 §12.5.6.15 file attachment annotations).
 

@@ -8,7 +8,7 @@ CREATION, because creation chooses every value itself: it writes `/Helv 0 Tf
 those same defaults can verify it.
 
 A field COPY is the opposite problem. It is judged entirely on properties
-pdfce did NOT choose, and every one of them is invisible when the fixture's
+pdfcer did NOT choose, and every one of them is invisible when the fixture's
 value happens to equal the authoring default:
 
   * a `/DA` of `/Helv 0 Tf 0 g` cannot show that the font, size and colour
@@ -40,7 +40,7 @@ WHAT IT BUILDS
   | `/TU` | `(Revision letter)` | the accessibility name, and R105's "carry" answer |
   | `/Ff` | 4194304 | `DoNotSpellCheck` (bit 23) -- a flag NO `New*Field` spec can express, so it can only arrive by being carried |
   | `/MK /BC` | `[0 0 1]` blue | the reported "a blue-bordered field pastes black" |
-  | `/MK /BG` | `[1 1 0.8]` cream | the background colour, which nothing in pdfce authors |
+  | `/MK /BG` | `[1 1 0.8]` cream | the background colour, which nothing in pdfcer authors |
   | `/BS` | `/S /D /W 2` | a dashed 2pt border, neither of them the default |
   | `/AP /N` | a real stream | the baked appearance |
   | `/AA /C` + `/AA /F` | JavaScript streams | the calculate action, which obliges `/AcroForm /CO` (Table 218) |
@@ -130,7 +130,7 @@ rich[4] = stream_obj(
     b"/Tx BMC q BT /TB 14 Tf 0 0 1 rg 2 7 Td (C) Tj ET Q EMC",
 )
 
-# The JavaScript the /AA carries. pdfce recognises and round-trips these and
+# The JavaScript the /AA carries. pdfcer recognises and round-trips these and
 # NEVER executes them (decision 008 SS5.1, NF4) -- they are here so the
 # clipboard's carry/drop decision has something real to carry or drop.
 rich[5] = stream_obj(

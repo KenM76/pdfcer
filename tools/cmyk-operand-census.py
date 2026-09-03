@@ -4,7 +4,7 @@ for, and how often?
 
 WHY THIS EXISTS
 ===============
-pdfce's `DeviceCMYK -> sRGB` conversion is a fitted lattice, and every
+pdfcer's `DeviceCMYK -> sRGB` conversion is a fitted lattice, and every
 evaluation of it so far has been **one colour at a time** — a green on one
 conformance patch, a grey on another. That is enough to find a defect and not
 enough to say whether a table is good, because it says nothing about whether
@@ -20,7 +20,7 @@ profiles say for a **list** of operands rather than for one green at a time:
 This produces that list. It is a **characterisation set**, not a test: its
 output is an input to somebody else's measurement.
 
-★ It also answers a question pdfce could not previously ask itself — *is the
+★ It also answers a question pdfcer could not previously ask itself — *is the
 conversion's accuracy concentrated anywhere?* A table that is 20 counts out on
 a corner of the hypercube nobody paints is a different problem from one that is
 5 counts out on the twenty operands that cover most of the ink on real pages.
@@ -52,7 +52,7 @@ guesses is not. The omissions are named here so a consumer can weight the
 answer rather than discover the gap later.
 
 ★★ **AND ONE OMISSION IS DELIBERATELY LOAD-BEARING.** The `k` operator is
-exactly the population whose conversion pdfce controls end to end and whose
+exactly the population whose conversion pdfcer controls end to end and whose
 errors an operator SEES as flat wrong colour — a logo, a rule, a fill. It is
 the population the shipped default's justification was written about. Starting
 anywhere else would be starting somewhere easier to measure and harder to act

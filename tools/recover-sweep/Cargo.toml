@@ -27,7 +27,7 @@ publish = false
 [workspace]
 
 [dependencies]
-pdfce-core = { path = "../../crates/pdfce-core" }
+pdfcer-core = { path = "../../crates/pdfcer-core" }
 
 [profile.release]
 opt-level = 2

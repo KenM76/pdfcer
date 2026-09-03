@@ -3,7 +3,7 @@
 
 WHY THIS EXISTS
 ===============
-`pdfce-render`'s image decoder converts a sample tuple to sRGB through a
+`pdfcer-render`'s image decoder converts a sample tuple to sRGB through a
 different code path for every colour-space family, and a whole-page raster
 diff cannot attribute a divergence to a colour space when the page also
 carries text, vectors, or a second image. These fixtures make the
@@ -75,7 +75,7 @@ from the colour space's own `/Range` -- NOT `[0 1 0 1 0 1]`. With
 
 ISO 32000-1 7.3.8.1: a stream shall be an INDIRECT object. An earlier
 revision of this generator inlined the DeviceN tint-transform stream inside
-the colour-space array, which is invalid; pdfce correctly refused the file
+the colour-space array, which is invalid; pdfcer correctly refused the file
 and the fixture silently dropped out of every measurement as a "skip".
 Function streams are emitted as numbered objects here for that reason.
 """
@@ -92,7 +92,7 @@ D65 = "[0.9505 1.0 1.089]"
 def build(objects: list[tuple[int, bytes]]) -> bytes:
     """Assemble numbered objects into a minimal, classic-xref PDF 1.7 file.
 
-    Deliberately hand-rolled rather than written through `pdfce-cli`: a
+    Deliberately hand-rolled rather than written through `pdfcer`: a
     fixture whose bytes were produced by the program under test cannot
     falsify that program. The xref offsets are computed from the real
     buffer positions so the file loads under a strict parser.

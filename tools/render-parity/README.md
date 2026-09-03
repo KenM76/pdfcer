@@ -1,9 +1,9 @@
 # render-parity — full-page pdfium pixel-parity harness (Pass 11)
 
 The standing **render-fidelity verification gate** (decision 010, candidate
-C). It proves pdfce's render stack against an *independent* reference
+C). It proves pdfcer's render stack against an *independent* reference
 renderer — pdfium, via `pypdfium2` — at corpus scale, replacing the
-self-comparison round-trip oracle ("pdfce agrees with pdfce") with a
+self-comparison round-trip oracle ("pdfcer agrees with pdfcer") with a
 measured, bucketed, by-file/by-reason fidelity report.
 
 This file is the **logic**; `render_parity.py` is the syntax that enacts it.
@@ -13,15 +13,15 @@ A competent engineer should be able to rebuild the harness from this README.
 
 ## 1. Why this exists (the forcing consumer)
 
-The self-comparison oracles pdfce already ships — `tools/roundtrip` (object
+The self-comparison oracles pdfcer already ships — `tools/roundtrip` (object
 identity, R34) and `tools/content-identity` (content-stream identity, R46) —
-prove pdfce agrees with *itself*. That is sufficient for **additive**
+prove pdfcer agrees with *itself*. That is sufficient for **additive**
 authoring (annotations, form fill, flatten-by-append): the page content
 stays byte-verbatim, so a self-comparison holds. It is **not** sufficient
 for content-stream **surgery** that re-renders an edited page — the vector /
 Inkscape-parity editing arc (candidate A, Pass 9). A's acceptance test is
 "does the edited page still render *correctly*?", and *correctly* means
-"like an independent production renderer", which pdfce comparing to pdfce
+"like an independent production renderer", which pdfcer comparing to pdfcer
 structurally cannot answer.
 
 Decision 010 therefore sequences C (this harness) **before** A, so A's
@@ -37,7 +37,7 @@ see §11.)
 
 For each `*.pdf` under the corpus dir(s), for each sampled page:
 
-1. Render in **pdfce** via `pdfce-cli render-page --page N --scale S`
+1. Render in **pdfcer** via `pdfcer render-page --page N --scale S`
    (scale = DPI/72), capturing the stdout **diagnostics tally**.
 2. Render in **pdfium** via `pypdfium2` at the same scale.
 3. Composite both onto white (normalizing transparency), crop to the common
@@ -45,7 +45,7 @@ For each `*.pdf` under the corpus dir(s), for each sampled page:
    `d ∈ [0,255]`.
 4. Reduce to per-page metrics: `mean`, `p95`, `dmax`, and
    `frac_over_T` = fraction of pixels with `d > T` for T ∈ {16, **32**, 64}.
-5. Tag the page with pdfce's disclosed gaps (from the diagnostics tally) and
+5. Tag the page with pdfcer's disclosed gaps (from the diagnostics tally) and
    a file-level DeviceCMYK byte-scan.
 6. Classify into one of three buckets (§4).
 
@@ -59,7 +59,7 @@ Outputs (`out/`, deterministic + locale-invariant):
 | `summary.txt` | distribution + bucket counts + DeviceCMYK char. + unexplained tail + the aborted-file list |
 | `summary.json` | same, machine-readable (the gate/CI artifact); carries `run.complete` and `corpus_fingerprint` (§11) |
 | `summary.superseded-*.json` | a prior baseline archived by `--rebaseline` (never deleted) |
-| `diffs/*.png` | `[pdfce ǀ pdfium ǀ 8×-amplified delta]` panels for the worst pages |
+| `diffs/*.png` | `[pdfcer ǀ pdfium ǀ 8×-amplified delta]` panels for the worst pages |
 
 ### 2.1 The reference renderer runs in a CHILD PROCESS
 
@@ -96,12 +96,12 @@ See `docs/SESSION_LOG` Pass 11 and the diff panel.)
 
 **How the band is derived (not picked).**
 
-1. Every page is tagged **clean-by-construction** iff pdfce discloses **zero**
+1. Every page is tagged **clean-by-construction** iff pdfcer discloses **zero**
    gaps for it (no substituted/notdef glyphs, no deferred `sh`/BDC-EMC/Type3
    ops, no unsupported font, no image-codec shortfall, no DeviceCMYK JPEG)
    **and** the file contains no `/DeviceCMYK` **and** the page boxes agree.
    Whatever such a page diverges by *can only be renderer noise*, because
-   pdfce itself claims to render it in full.
+   pdfcer itself claims to render it in full.
 2. The band is the **p99.9 of `frac_over_32` over the clean-by-construction
    population**. Principle: that population is benign *in full*, so the band
    covers essentially all of it. The percentile is chosen to *cover the
@@ -109,7 +109,7 @@ See `docs/SESSION_LOG` Pass 11 and the diff panel.)
    the W14 line. Any page above a percentile of its own benign peers is,
    by construction, anomalous *relative to benign noise* and worth a look.
 3. The band is a property of the **known-benign** population, so it **cannot
-   be tuned to make a bug pass**: a bug lives either on a page pdfce
+   be tuned to make a bug pass**: a bug lives either on a page pdfcer
    discloses a gap for (bucket ii) or in the residual tail of clean pages
    above their own noise floor (bucket iii) — never below the band.
 
@@ -125,27 +125,27 @@ Each measured (file, page) is exactly one of:
 | Bucket | Definition |
 |---|---|
 | **(i) benign-renderer-noise** | `frac_over_32 ≤ band`. AA / hinting / sub-pixel / interpolation. Characterized, **not** chased to zero (a non-goal). |
-| **(ii) known-disclosed-gap** | `frac_over_32 > band` **and** pdfce disclosed a gap that explains it — cross-referenced against pdfce's **existing** `Diagnostics` tally so an already-counted gap is **subtracted, not re-reported**. Reasons: `font-unsupported` (Type3 / exotic CMap), `font-substituted` (substitute face ≠ embedded shapes), `glyph-notdef`, `deferred-op` (`sh` shading, `/OC` marked content, Type3 procs, clip modes 4–7), `image-*` (codec/feature/geometry), `devicecmyk-*` (colorimetry, §6). |
-| **(iii) unexplained-divergence** | `frac_over_32 > band` **and** no disclosed gap explains it. The genuine **bug candidates** — the residual after subtracting (i) + (ii). Every one is enumerated by file + reason and either **fixed** (if cheap and clearly a pdfce render bug) or **filed as a named, counted render-gap** (R20/R27). |
+| **(ii) known-disclosed-gap** | `frac_over_32 > band` **and** pdfcer disclosed a gap that explains it — cross-referenced against pdfcer's **existing** `Diagnostics` tally so an already-counted gap is **subtracted, not re-reported**. Reasons: `font-unsupported` (Type3 / exotic CMap), `font-substituted` (substitute face ≠ embedded shapes), `glyph-notdef`, `deferred-op` (`sh` shading, `/OC` marked content, Type3 procs, clip modes 4–7), `image-*` (codec/feature/geometry), `devicecmyk-*` (colorimetry, §6). |
+| **(iii) unexplained-divergence** | `frac_over_32 > band` **and** no disclosed gap explains it. The genuine **bug candidates** — the residual after subtracting (i) + (ii). Every one is enumerated by file + reason and either **fixed** (if cheap and clearly a pdfcer render bug) or **filed as a named, counted render-gap** (R20/R27). |
 
-Three side classifications that are **not** pdfce errors:
+Three side classifications that are **not** pdfcer errors:
 
 - **reference-divergence** *(only in `--annots` mode)* — the page carries a
   `/Widget` or a no-`/AP` annotation. pdfium needs `FPDF_FFLDraw` to draw
   widget appearances, and it **synthesizes** some no-`/AP` looks (e.g.
-  `/Circle /IC` interior fill) that **R43 makes pdfce correctly refuse**
+  `/Circle /IC` interior fill) that **R43 makes pdfcer correctly refuse**
   (Pass 6.0 finding). Bucketed reference-side so pdfium's own quirks are
-  never misattributed to pdfce (deliverable 5 / risk Y2). **The default run
+  never misattributed to pdfcer (deliverable 5 / risk Y2). **The default run
   is content-only** (annotations off on both engines), which structurally
   removes this confounder — the vector-editing oracle cares about page
   *content*, which is exactly what an edit re-renders.
 - **reference-aborted** — pdfium did not *fail*, it **died**: an internal
   `CHECK`, a segfault, a heap corruption, or a hang. A reference renderer
-  that ceases to exist has told us nothing about pdfce, so this can never be
-  a pdfce bucket. Reported alongside the three, with the fault **named**
+  that ceases to exist has told us nothing about pdfcer, so this can never be
+  a pdfcer bucket. Reported alongside the three, with the fault **named**
   (`exit 0x80000003 (STATUS_BREAKPOINT)`, `signal 6 (SIGABRT)`, …) and each
   file re-verified in isolation. See §9.
-- **skipped** — pdfce could not load/render (e.g. a conformance `fail-*`
+- **skipped** — pdfcer could not load/render (e.g. a conformance `fail-*`
   file with a broken header/trailer/stream — legitimately out of scope, as
   in the roundtrip gate), or pdfium reported a *catchable* failure. Counted
   with a reason histogram, never silently dropped.
@@ -159,25 +159,25 @@ reference-tool crash among 400 broken conformance fixtures.
 
 ## 5. Known reference-divergences encoded (deliverable 5 / Y2)
 
-pdfium quirks that must never be scored against pdfce:
+pdfium quirks that must never be scored against pdfcer:
 
 - **`FPDF_FFLDraw` widgets** — a bare `page.render(draw_annots=True)` does
   **not** draw `/Widget` form-field appearances; pdfium needs its form-fill
   environment. So in `--annots` mode a widget-bearing page whose `/AS`-
-  selected appearance pdfce *does* paint is a reference-side gap
-  (`pdfium-fflodraw-widget`), not a pdfce error.
+  selected appearance pdfcer *does* paint is a reference-side gap
+  (`pdfium-fflodraw-widget`), not a pdfcer error.
 - **Synthesized no-`/AP` appearances** — pdfium invents a look for some
   annotations that lack an appearance stream (the `/Circle /IC` fill);
-  R43 forbids pdfce from inventing one (`pdfium-synthesized-noap`).
+  R43 forbids pdfcer from inventing one (`pdfium-synthesized-noap`).
 
-Both are detected from pdfce's own annotation diagnostics
+Both are detected from pdfcer's own annotation diagnostics
 (`annots_widget`, `annots_no_ap`) and bucketed `reference-divergence`. The
 **default content-only run avoids them entirely**, which is why it is the
 primary mode.
 
 ## 6. DeviceCMYK colorimetry characterization (deliverable 7)
 
-Decision 006 §3.7 established that pdfce's `Rgb::from_cmyk` is the naive
+Decision 006 §3.7 established that pdfcer's `Rgb::from_cmyk` is the naive
 additive `1 − min(c+k, 1)`, whereas pdfium uses its calibrated
 `AdobeCMYK_to_sRGB1` table — a real, systematic, visible divergence
 affecting **all** DeviceCMYK fills/strokes (not just JPEGs; measured 37.4%
@@ -186,7 +186,7 @@ and quantifies it corpus-wide** but does **not** fix it here (that would
 confound the colour change with the harness build — Y5; and decision 006
 revisit-trigger 7 requires re-pinning the §3.4 polarity matrix *before* any
 colour change). It is filed as the harness's **first named residual** — a
-follow-up colour Pass, promotable via `pdfce-acrobat-librarian`'s already-
+follow-up colour Pass, promotable via `pdfcer-acrobat-librarian`'s already-
 filed "what does Acrobat do for uncalibrated DeviceCMYK→screen" question.
 
 The `summary` reports the `frac_over_32` distribution for **DeviceCMYK-only**
@@ -199,7 +199,7 @@ observing is not applying).
 ## 7. Usage
 
 ```sh
-cargo build --release -p pdfce-cli          # prerequisite
+cargo build --release -p pdfcer-cli          # prerequisite
 
 # default: content-only, 150 DPI, ≤4 sampled pages/file, full corpus
 python tools/render-parity/render_parity.py
@@ -217,7 +217,7 @@ python tools/render-parity/render_parity.py --diff "6-2-2-t01" --diff-page 1
 python tools/render-parity/render_parity.py --gate --max-unexplained <baseline>
 
 # full corpus, pinned binary, results kept out of the baseline dir
-cp target/release/pdfce-cli.exe /tmp/pinned.exe
+cp target/release/pdfcer.exe /tmp/pinned.exe
 python tools/render-parity/render_parity.py \
     --pages-per-file 1 --dpi 125 --cli /tmp/pinned.exe \
     --out tools/render-parity/out-<label>
@@ -233,11 +233,11 @@ Key options:
 | `--annots` | off | compare *with* annotations (turns the reference-divergence confounder on) |
 | `--band` / `--band-pct` | — / 99.9 | band override / clean-population percentile |
 | `--emit-diffs N` | 8 | diff panels for the worst pages |
-| `--timeout` | 120 s | per-page **pdfce** render timeout |
+| `--timeout` | 120 s | per-page **pdfcer** render timeout |
 | `--pdfium-timeout` | 120 s | per-request **reference** timeout — the only place a PDFium *hang* can be caught (§9.2) |
 | `--checkpoint-every` | 100 | files between `progress.json` checkpoints (`0` = never) |
 | `--verify-aborts` / `--no-verify-aborts` | on | re-run each aborted file alone to confirm the abort reproduces (§9.3) |
-| `--cli PATH` | `target/release/pdfce-cli` | **pin the measured binary.** A full sweep takes minutes-to-tens-of-minutes; in a repo under active development a concurrent `cargo build` can relink `target/release` *mid-sweep*, turning healthy pages into spurious `pdfce:` skips. Pass a **copy** of the binary. The path used is recorded in `summary.json`. |
+| `--cli PATH` | `target/release/pdfcer` | **pin the measured binary.** A full sweep takes minutes-to-tens-of-minutes; in a repo under active development a concurrent `cargo build` can relink `target/release` *mid-sweep*, turning healthy pages into spurious `pdfcer:` skips. Pass a **copy** of the binary. The path used is recorded in `summary.json`. |
 | `--rebaseline` | off | deliberately re-record a stale baseline, archiving the old one (§11) |
 | `--out DIR` | `tools/render-parity/out` | output dir — *and* the dir whose `summary.json` is the baseline |
 
@@ -250,8 +250,8 @@ the run did not complete (gate INDETERMINATE).
 This is the standing render-fidelity gate. Like `tools/roundtrip` (R34) and
 `tools/content-identity` (R46) it is an **out-of-tree local corpus gate** —
 it is **not** in `.github/workflows/ci.yml` because pypdfium2 is not a CI
-dependency (and pdfce ships no runtime dependency on it). It **MUST be
-re-run** on every Pass that touches `pdfce-render`, `pdfce-core`'s content-
+dependency (and pdfcer ships no runtime dependency on it). It **MUST be
+re-run** on every Pass that touches `pdfcer-render`, `pdfcer-core`'s content-
 stream interpretation, colour, fonts, or images — **especially the vector-
 editing Pass (Pass 9)**, whose content-stream edits re-render the very pages
 this harness measures.
@@ -300,16 +300,16 @@ is lost. The file sorts at **index 234 of 4,023**, so the harness died about
 6 % into a corpus sweep and produced *nothing* — which is why full-corpus
 render verification had been blocked rather than merely inconvenient.
 
-**pdfce handles the same file correctly**, which is what makes the
+**pdfcer handles the same file correctly**, which is what makes the
 attribution unambiguous:
 
 ```
-$ pdfce-cli render-page .../bug_457855936.pdf --page 1 --scale 1.7361 -o out.png
-pdfce-cli: ...: not a PDF: no %PDF- header in the first 759 bytes
+$ pdfcer render-page .../bug_457855936.pdf --page 1 --scale 1.7361 -o out.png
+pdfcer: ...: not a PDF: no %PDF- header in the first 759 bytes
 exit 4
 ```
 
-pdfce refuses it cleanly with a named reason. The fault is entirely
+pdfcer refuses it cleanly with a named reason. The fault is entirely
 reference-side, and the harness must be able to *say so* rather than die.
 
 ### 9.2 The fix
@@ -430,7 +430,7 @@ corpus, and the band moves:
 | 4,023-file run | 2,015 | `0.088205` |
 
 The band is the bucket boundary, so **pages can change bucket with no change
-whatsoever in pdfce**. Worked example — `veraPDF-corpus/TWG test files/TWG
+whatsoever in pdfcer**. Worked example — `veraPDF-corpus/TWG test files/TWG
 test suite A019-pdfa2-pass-a.pdf` p1, the baseline's *only* unexplained page:
 
 ```
@@ -439,7 +439,7 @@ new run   … 16.316  207.0  207  0.07961  0.07947  0.07919 …  bucket=benign
 ```
 
 Every measured value is **identical to the last decimal** — same mean, same
-p95, same dmax, same `frac_over_32`. pdfce renders that page in 2026-08-08
+p95, same dmax, same `frac_over_32`. pdfcer renders that page in 2026-08-08
 exactly as it did in 2026-07-31. Only the *band* changed, and the page fell
 below it.
 
@@ -473,7 +473,7 @@ the dangerous direction is the quiet one: a corpus addition can push the band
 a second, not an hour. On mismatch the harness prints a `!!!!` banner naming
 each difference, **refuses to overwrite the baseline**, and exits **3**
 (distinct from 1 = gate FAIL and 2 = setup error, so a script can tell "your
-baseline is stale" from "pdfce regressed"). Two ways forward, both explicit:
+baseline is stale" from "pdfcer regressed"). Two ways forward, both explicit:
 
 ```sh
 # keep the baseline intact, write elsewhere
@@ -494,7 +494,7 @@ harness's): one full sweep at `--pages-per-file 1 --dpi 125` over 4,023 files,
 no engineering work:
 
 ```sh
-cp target/release/pdfce-cli.exe /tmp/pinned.exe
+cp target/release/pdfcer.exe /tmp/pinned.exe
 python tools/render-parity/render_parity.py \
     --pages-per-file 1 --dpi 125 --cli /tmp/pinned.exe --rebaseline
 ```
@@ -505,16 +505,16 @@ re-partitions every page. That is a decision, not a chore.
 
 ## 12. Dependencies, licensing, invariants
 
-- **No new pdfce runtime dependency.** `pypdfium2` is dev/tooling only,
+- **No new pdfcer runtime dependency.** `pypdfium2` is dev/tooling only,
   invoked out-of-tree exactly like the other corpus harnesses. It does
-  **not** enter pdfce's shipped dependency set or `THIRD_PARTY_LICENSES.md`.
-  pdfce depends on it **at no point** — the harness shells out to the already-
-  built `pdfce-cli` binary and imports pypdfium2 only in this Python script.
+  **not** enter pdfcer's shipped dependency set or `THIRD_PARTY_LICENSES.md`.
+  pdfcer depends on it **at no point** — the harness shells out to the already-
+  built `pdfcer` binary and imports pypdfium2 only in this Python script.
   (`pypdfium2` is Apache-2.0/BSD-3-Clause-licensed and bundles the
   BSD-3-Clause PDFium binary; relevant only to whoever *runs the harness*,
-  never to a pdfce build or release — LEGAL §6.)
+  never to a pdfcer build or release — LEGAL §6.)
 - **GUI-core separation** is untouched — this is tooling, imports nothing
-  from the GUI shell, and drives `pdfce-cli` (itself GUI-free) as a subprocess.
+  from the GUI shell, and drives `pdfcer` (itself GUI-free) as a subprocess.
 - **Determinism / locale-invariance** — files are sorted; DPI is fixed; no
   timestamps or clocks enter the report; both renderers are deterministic.
 

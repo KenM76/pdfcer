@@ -1,4 +1,4 @@
-# pdfce-core Consumer API Map — Part 1: Reading and the Object Model
+# pdfcer-core Consumer API Map — Part 1: Reading and the Object Model
 
 > **Covers.** Everything you can learn from a PDF without mutating it:
 > loading (`document`, `xref`, `parser`, `lexer`, `objstm`, `recover`,
@@ -28,11 +28,11 @@
 > reference below is a *reference implementation* frozen at the last commit
 > that carried it — read it with
 > `git -C D:\Dev\pdfce show cce414e:crates/pdfce-gui/src/<file>` (the
-> untouched backup repository) or on GitHub at `KenM76/pdfce`. The shipping
+> untouched backup repository) or on GitHub at `KenM76/pdfce` (archived). The shipping
 > GUI is the separate `pdfcer-gui` project.
 >
 > **Audience.** An engineer or agent building a new GUI shell at
-> `D:\dev\pdfceGUI` against this crate, in a different session, with no
+> `D:\dev\pdfcer-gui` against this crate, in a different session, with no
 > ability to ask questions here. Rustdoc already exists and is good; this
 > document is the thing rustdoc cannot be — *"I want to do X, what do I
 > call, in what order, and what will bite me?"*
@@ -46,23 +46,23 @@
   compiler and treat this document as stale — do not assume you typoed.
 - **`UNVERIFIED — …`** marks a genuine gap. It is never filler; it names
   exactly what you would have to check.
-- Paths are relative to `D:\Dev\pdfce\crates\pdfce-core\`.
+- Paths are relative to `D:\Dev\pdfcer\crates\pdfcer-core\`.
 - Rust snippets are **compiling-shaped**, not copy-paste-complete: they
   assume `use` statements shown, elide error plumbing behind `?`, and
   assume a `doc`/`view`/`page` binding where obvious.
 
 ### The one architectural fact you must not break
 
-`pdfce-core` has **zero GUI/windowing dependencies** and must keep them
+`pdfcer-core` has **zero GUI/windowing dependencies** and must keep them
 (`CLAUDE.md` rule 2, `ARCHITECTURE.md` §3; enforced in CI by grepping
-`cargo tree -p pdfce-core`). Its entire dependency set is `thiserror`,
+`cargo tree -p pdfcer-core`). Its entire dependency set is `thiserror`,
 `flate2`, `zune-jpeg`, `weezl`, `hayro-ccitt`, `hayro-jbig2`,
 `hayro-jpeg2000` (optional, `jpx` feature), `jpeg-encoder`, `aes`, `cbc`,
-`sha2` (`crates/pdfce-core/Cargo.toml`). Your GUI depends on core; core
+`sha2` (`crates/pdfcer-core/Cargo.toml`). Your GUI depends on core; core
 never learns your GUI exists. This is what keeps a future WASM fork a
 shell swap rather than a rewrite.
 
-`pdfce-core` is also **panic-free by policy** on untrusted input
+`pdfcer-core` is also **panic-free by policy** on untrusted input
 (`lib.rs:66-72`): `clippy::unwrap_used`, `expect_used`, `panic`, and
 `indexing_slicing` are `deny` crate-wide, and `unsafe_code` is
 `forbid`ed. Fallible paths return `Result`; unresolvable lookups return
@@ -85,7 +85,7 @@ builds `--no-default-features`, so both configurations compile.
 
 | I want to… | Call this | Section |
 |---|---|---|
-| Check a file is a PDF without parsing it | `pdfce_core::probe_file(&Path)` / `probe_header(&[u8])` — `lib.rs:280`, `lib.rs:252` | §3.1 |
+| Check a file is a PDF without parsing it | `pdfcer_core::probe_file(&Path)` / `probe_header(&[u8])` — `lib.rs:280`, `lib.rs:252` | §3.1 |
 | Load a PDF from disk | `Document::load(&Path)` — `document.rs:360` | §3.2 |
 | Load a PDF from memory | `Document::from_bytes(Vec<u8>)` — `document.rs:392` | §3.2 |
 | Open a password-protected PDF | `Document::load_with_password(&Path, Option<&[u8]>)` — `document.rs:382` | §3.5 |
@@ -114,7 +114,7 @@ builds `--no-default-features`, so both configurations compile.
 | Get the byte-exact origin of a glyph (for editing) | `ExtractOptions::default().with_provenance(true)` then `ExtractedGlyph::provenance` — `mod.rs:948`, `mod.rs:325` | §8.4 |
 | Search for text across the document | `EditSession::find_text_with(&needle, &TextSearchOptions)` — `edit.rs:11853` **(read-only in effect, but needs a session)** | §8.5 |
 | Search for text **and learn what was unreadable** | `EditSession::search_text(&needle, &TextSearchOptions)` — `edit.rs:16450` → `TextSearch { matches, diagnostics }` | §8.5 |
-| Render-setting preset for a subset standard (PDF/X, PDF/A, PDF/UA) | `pdfce_core::settings::presets::RenderPreset::for_standard(RenderStandard)` | §8.5a |
+| Render-setting preset for a subset standard (PDF/X, PDF/A, PDF/UA) | `pdfcer_core::settings::presets::RenderPreset::for_standard(RenderStandard)` | §8.5a |
 | Decode a PDF text string (`/Title`, `/Author`, bookmark labels) | `textstring::decode_text_string(&[u8]) -> DecodedText` — `textstring.rs:363` | §8.6 |
 | Inventory every font the document uses | `fontinfo::inventory(&DocumentView) -> FontInventory` — `fontinfo.rs:1601` | §9.1 |
 | Know if a font is embedded / subsetted / removable | `FontRecord::program`, `::removability` — `fontinfo.rs:1209-1259`; `split_subset_tag` — `fontinfo.rs:1320` | §9.1 |
@@ -136,7 +136,7 @@ builds `--no-default-features`, so both configurations compile.
 | Know which image codec a stream ends in, without decoding | `image_codec::terminal_codec(&Dict)` — `image_codec/mod.rs:467` | §11.2 |
 | Decode an image XObject to samples | `image_codec::decode_image(&Document, &Dict, &[u8], inline)` — `image_codec/mod.rs:503` | §11.2 |
 | Convert a device colour to sRGB | `color::{gray_to_srgb, rgb_to_srgb, cmyk_to_srgb}` — `color/mod.rs:197, 215, 254` | §11.3 |
-| Resolve a full `/ColorSpace` object (Separation, ICCBased, Indexed…) | **Not in `pdfce-core`** — `pdfce_render::ColorSpace`, `pdfce-render/src/color.rs:215` | §11.3 |
+| Resolve a full `/ColorSpace` object (Separation, ICCBased, Indexed…) | **Not in `pdfcer-core`** — `pdfcer_render::ColorSpace`, `pdfcer-render/src/color.rs:215` | §11.3 |
 | Evaluate a PDF function (type 0/2/3/4) | `function::PdfFunction::load(&DocumentView, &Object)` then `::eval` / `::eval_into` — `function.rs:751, 979, 1025` | §11.4 |
 | Enumerate bookmarks as a tree, pages already resolved | `outline::read_outline(&graph)` — `outline.rs:1066`; flat list `Outline::flatten()` — `outline.rs:919` | §12.1 |
 | List embedded attachments | `attachments::list_attachments_with_notes(&graph)` — `attachments.rs:850` | §12.2 |
@@ -169,9 +169,9 @@ here, and then restated per function.
 | **Glyph space** | y-up | glyph origin | 1/1000 em, `i16`/`u16` | `fontdata::std14_width`, `Std14Descriptor` |
 | **Content-buffer byte offsets** | — | byte 0 of the *decoded* content stream | bytes, `usize` | `ContentToken::span`, `GlyphProvenance::operator_span` |
 | **File byte offsets** | — | byte 0 of the retained file buffer | bytes, `usize` | `ByteSpan` in `Provenance`, `Stream::data_span` |
-| **Screen / canvas space** | **y-DOWN** | top-left of your widget | pixels, your choice of type | **Does not exist anywhere in `pdfce-core`.** |
+| **Screen / canvas space** | **y-DOWN** | top-left of your widget | pixels, your choice of type | **Does not exist anywhere in `pdfcer-core`.** |
 
-**★ `pdfce-core` never takes or returns screen space.** Not a point, not a
+**★ `pdfcer-core` never takes or returns screen space.** Not a point, not a
 rectangle, and — critically — **not a tolerance**. Converting screen
 pixels to page units, including the hit-test/snap catch radius, is
 entirely your shell's job and nothing in core will check it for you. See
@@ -201,7 +201,7 @@ back into `hit_test_point` will miss.
 
 Core is **0-based** everywhere (`PageText::page_index`, `TextMatch::page_index`,
 the index into `page_tree::pages()`'s `Vec`). Humans are 1-based, and
-`pdfce-cli` converts at the print boundary (`crates/pdfce-cli/src/main.rs:9360-9361`:
+`pdfcer` converts at the print boundary (`crates/pdfcer-cli/src/main.rs:9360-9361`:
 *"1-based page, matching every other page-addressing surface in this CLI.
 The extraction is 0-based and the operator is not."*). Do the same, once, at
 your presentation layer.
@@ -229,7 +229,7 @@ structural failure I will report verbatim", not as dead code.
 
 **★ The headline: you touch almost none of it.** `lexer`, `parser`, `xref`,
 `objstm`, `recover`, and all of `crypto::{standard,r5,aes,rc4,md5,apply}`
-are `pub` for crate-internal reuse and for `pdfce-cli`/tests. They are
+are `pub` for crate-internal reuse and for `pdfcer`/tests. They are
 driven exclusively from inside `Document::from_bytes_with_password`
 (`document.rs:404`). A GUI calls `Document::load*`, matches on `DocError`,
 and then reads four accessors: `encryption()`, `recovery()`,
@@ -238,7 +238,7 @@ and then reads four accessors: `encryption()`, `recovery()`,
 ### 3.1 Cheap probe (no parse)
 
 ```rust
-use pdfce_core::{probe_file, probe_header, PdfVersion, HEADER_SCAN_WINDOW};
+use pdfcer_core::{probe_file, probe_header, PdfVersion, HEADER_SCAN_WINDOW};
 
 let v: PdfVersion = probe_file(std::path::Path::new("in.pdf"))?;  // lib.rs:280
 println!("declares {v}");                                          // Display -> "1.7"
@@ -255,7 +255,7 @@ only *"looks like a PDF, declares M.N"* — nothing about whether it opens.
 ### 3.2 The real load
 
 ```rust
-use pdfce_core::document::{Document, DocError};
+use pdfcer_core::document::{Document, DocError};
 
 let doc = Document::load(std::path::Path::new("in.pdf"))?;   // document.rs:360
 let version = doc.version();                                  // document.rs:932
@@ -305,9 +305,9 @@ your dominant open cost — put it on a worker thread (see §5.3, the
 | Variant | `file:line` | Meaning | Your action |
 |---|---|---|---|
 | `Io(io::Error)` | `:110` | file unreadable | report; not recoverable |
-| `Encryption(EncryptionUnsupported)` | `:119` | encrypted with a config pdfce refuses (e.g. `/R` 6) | **no password will help** — show the specific reason |
+| `Encryption(EncryptionUnsupported)` | `:119` | encrypted with a config pdfcer refuses (e.g. `/R` 6) | **no password will help** — show the specific reason |
 | `PasswordRequired` | `:133` | decryptable in principle; empty password already tried silently and failed | **prompt and retry** |
-| `PasswordRequiresNormalisation` | `:160` | `/R` 5 + non-ASCII password; pdfce does not implement SASLprep so a *correct* password can be rejected | **do NOT say "wrong password"** — say pdfce cannot verify this one |
+| `PasswordRequiresNormalisation` | `:160` | `/R` 5 + non-ASCII password; pdfcer does not implement SASLprep so a *correct* password can be rejected | **do NOT say "wrong password"** — say pdfcer cannot verify this one |
 | `Header(PdfError)` | `:163` | not a PDF, and recovery also found nothing | report "not a PDF" |
 | `Xref(XrefError)` | `:168` | unrecoverable xref failure, or the encrypted-and-damaged case | not recoverable |
 | `BadObject{id,offset,source}` | `:171` | an xref-declared object failed to parse | not recoverable |
@@ -329,8 +329,8 @@ operator — prefer printing them over re-wording them.
 ### 3.5 Encryption: driving a password prompt
 
 ```rust
-use pdfce_core::document::{Document, DocError};
-use pdfce_core::crypto::AuthKind;
+use pdfcer_core::document::{Document, DocError};
+use pdfcer_core::crypto::AuthKind;
 
 // ★ `None` is NOT the empty password. It means "no password known".
 //   §7.6.3.1 requires trying the empty user password first and silently
@@ -345,8 +345,8 @@ let doc = match Document::load_with_password(path, None) {          // document.
             Ok(doc) => doc,
             Err(DocError::PasswordRequired) => return Err("wrong password".into()),
             Err(DocError::PasswordRequiresNormalisation) => {
-                // ★ NOT "wrong password". pdfce cannot verify this one.
-                return Err("password contains non-ASCII characters pdfce cannot normalise".into());
+                // ★ NOT "wrong password". pdfcer cannot verify this one.
+                return Err("password contains non-ASCII characters pdfcer cannot normalise".into());
             }
             Err(e) => return Err(e.into()),
         }
@@ -364,7 +364,7 @@ if let Some(enc) = doc.encryption() {                    // document.rs:755
         AuthKind::Owner     => { /* owner password: full access, /P advisory */ }
     }
     let perms = enc.config.permissions();                 // crypto/standard.rs:795
-    let can_print = perms.granted(pdfce_core::crypto::PermissionBit::Print); // standard.rs:317
+    let can_print = perms.granted(pdfcer_core::crypto::PermissionBit::Print); // standard.rs:317
     // `granted` returns Option<bool>: None == "not applicable at this /R".
     let _ = enc.perms; // PermsCheck — Algorithm 3.13 verdict; see below.
 }
@@ -375,7 +375,7 @@ Three things a shell gets wrong here:
 - **Permissions are a disclosure, not a gate.** §7.6.3.1 states plainly
   that *"there is nothing inherent in PDF encryption that enforces the
   document permissions"* — quoted at `document.rs:315-318`. `permissions()`
-  returns the dictionary's declared `/P`, and pdfce never substitutes the
+  returns the dictionary's declared `/P`, and pdfcer never substitutes the
   decrypted copy. If you choose to grey out a button because of a
   permission bit, project rule 4 requires you to **say that you did**.
 - **`PermsCheck::NotApplicable` is the ordinary answer for every `/R` ≤ 4
@@ -414,7 +414,7 @@ was repaired".
 ### 3.7 Linearization
 
 ```rust
-use pdfce_core::linearization::Linearization;
+use pdfcer_core::linearization::Linearization;
 match doc.linearization() {                                    // document.rs:1076
     Linearization::None => {}
     l => if l.save_invalidates_fast_web_view() {               // linearization.rs:110
@@ -424,14 +424,14 @@ match doc.linearization() {                                    // document.rs:10
 ```
 
 `Linearization` (`linearization.rs:75`) is `None | Live{declared_length} |
-Stale{declared_length, actual_length}`. pdfce **never repairs it and never
+Stale{declared_length, actual_length}`. pdfcer **never repairs it and never
 strips a stale `/Linearized` dictionary** (`document.rs:1072-1074`).
 `linearization::detect(&[u8])` (`linearization.rs:140`) is infallible.
 
 ### 3.8 Encrypted-payload wrapper (§7.6.7)
 
 ```rust
-use pdfce_core::wrapper;
+use pdfcer_core::wrapper;
 let info = wrapper::detect(&doc);                    // wrapper.rs:90, takes any &G: ObjectGraph
 if let Some(msg) = info.message() {                   // wrapper.rs:141
     show_banner(&msg);   // "the visible page is a cover sheet"
@@ -445,7 +445,7 @@ it matters"*). `WrapperInfo{is_wrapper, payload_name, payload_count}` —
 
 ### 3.9 Resource limits (guards you must not remove)
 
-All are pdfce policy per `ARCHITECTURE.md` §10.1 unless noted.
+All are pdfcer policy per `ARCHITECTURE.md` §10.1 unless noted.
 
 | Constant | Value | `file:line` | Guards |
 |---|---|---|---|
@@ -576,8 +576,8 @@ degrades to a zero-length span rather than panicking (`span.rs:88-93`).
 ### 4.5 Worked sequence — read an arbitrary catalog key
 
 ```rust
-use pdfce_core::graph::ObjectGraph;
-use pdfce_core::object::Object;
+use pdfcer_core::graph::ObjectGraph;
+use pdfcer_core::object::Object;
 
 let catalog = doc.catalog_dict().ok_or("no catalog")?;      // graph.rs:187
 // /PageLayout is a name; /OpenAction may be an array or a dict.
@@ -681,7 +681,7 @@ doc comment quantifies why: inline rasterization of a real CAD sheet is
 `DocumentView<'a>` is what crosses the thread boundary.
 
 Build your shell assuming render and text extraction run on a worker from
-day one. `pdfce-render` also gained a `RenderCancel` / `RenderOptions.cancel`
+day one. `pdfcer-render` also gained a `RenderCancel` / `RenderOptions.cancel`
 mechanism in the same commit — see part 3.
 
 ### 5.4 Stability
@@ -701,7 +701,7 @@ base-vs-session distinction is a decided design, not a transitional state.
 ### 6.1 Entry points
 
 ```rust
-use pdfce_core::page_tree::{self, Page, Rect, PageTreeError};
+use pdfcer_core::page_tree::{self, Page, Rect, PageTreeError};
 
 let pages: Vec<Page> = page_tree::pages(&doc)?;        // page_tree.rs:228
 // Generic over any graph — use for an EditSession:
@@ -765,7 +765,7 @@ vec, not an error** (`page_tree.rs:226-227`).
 ### 6.5 Worked sequence — page list for a thumbnail rail
 
 ```rust
-use pdfce_core::page_tree;
+use pdfcer_core::page_tree;
 
 let pages = page_tree::pages(&doc)?;
 for (i, p) in pages.iter().enumerate() {
@@ -806,7 +806,7 @@ operators; for selection and text, prefer §8 and §10.
 ### 7.1 Entry points
 
 ```rust
-use pdfce_core::content::{ContentStream, ContentError, ContentTokenKind};
+use pdfcer_core::content::{ContentStream, ContentError, ContentTokenKind};
 
 // Decode + concatenate + tokenize a page's /Contents.
 let cs = ContentStream::from_page(&doc.view(), &page)?;   // content.rs:208
@@ -920,7 +920,7 @@ settings per the operator's standing directive (R169), not hard-coded.
 ### 8.3 Getting a string out
 
 ```rust
-use pdfce_core::text_extract::{self, ExtractOptions};
+use pdfcer_core::text_extract::{self, ExtractOptions};
 
 let opts = ExtractOptions::default();
 let all = text_extract::extract_document(&doc, &opts)?;   // mod.rs:1191
@@ -941,7 +941,7 @@ separator. Use `plain_text()` for anything a human reads;
 ### 8.4 Positioned runs and glyphs — what a highlight needs
 
 ```rust
-use pdfce_core::text_extract::{self, ExtractOptions, TextOrigin};
+use pdfcer_core::text_extract::{self, ExtractOptions, TextOrigin};
 
 let opts = ExtractOptions::default().with_provenance(true);   // mod.rs:948
 let all = text_extract::extract_document(&doc, &opts)?;
@@ -995,7 +995,7 @@ is one glyph and two `char`s. `ExtractedGlyph::text_start` / `text_len`
 already say this — they are a **range**, not an index — but a caller reading
 "what text is in this run" lands on `TextRun::text` and sees a `String`.
 
-Measured over pdfce's fixture corpus: **1 of 191 synthetic runs** has
+Measured over pdfcer's fixture corpus: **1 of 191 synthetic runs** has
 `len(text) != len(glyphs)` (`text/identity-h-tounicode.pdf` — 8 characters
 over 6 glyphs). That ratio is the trap, not a reassurance: **it is near-zero
 on synthetic test text and routine on real typeset copy**, so a locator built
@@ -1026,7 +1026,7 @@ felt like. The two agree often enough to look like a rule and **do not**:
 | distinct `operator_span` groups | 29,246 |
 | **runs carrying glyphs from MORE THAN ONE show operator** | **2,420 (13 %)** |
 
-`crates/pdfce-core/tests/operator_span_invariant.rs` is that measurement, and
+`crates/pdfcer-core/tests/operator_span_invariant.rs` is that measurement, and
 it re-runs on every `cargo test`.
 
 ##### ★ The invariant you may rely on, now that it is measured
@@ -1047,7 +1047,7 @@ above.
 
 ##### Getting a span from outside the library
 
-`pdfce-cli extract-text --json --spans` emits `op_start`, `op_len` and
+`pdfcer extract-text --json --spans` emits `op_start`, `op_len` and
 `stream` per glyph. Without `--spans` those three fields are **absent**, not
 zero, because provenance capture is off by default and "not captured" must
 not read as "offset 0". `stream` is `"page"` or `"form:N"`, and it is not
@@ -1121,7 +1121,7 @@ draw; use `tf_size` only to reason about the source operator.
 There is no read-only search entry point. Text search is:
 
 ```rust
-use pdfce_core::edit::{EditSession, TextSearchOptions};
+use pdfcer_core::edit::{EditSession, TextSearchOptions};
 
 let mut session = EditSession::new(doc);                    // edit.rs:3368 (takes ownership)
 let opts = TextSearchOptions::default()                     // edit.rs:6486
@@ -1151,8 +1151,8 @@ each glyph with a content stream named by an arbitrary `/CharProcs` key, so
 `/g13` carries no Unicode meaning and §9.10.2 method 2's precondition is
 false by construction: without a `/ToUnicode` CMap there is **no sourced route
 to Unicode at all**. `Identity-H` with no `/ToUnicode` is the composite twin.
-Acrobat is gated on the identical entry — this is parity, not a pdfce
-shortfall — and Acrobat's answer is to give up silently, which pdfce's rule 4
+Acrobat is gated on the identical entry — this is parity, not a pdfcer
+shortfall — and Acrobat's answer is to give up silently, which pdfcer's rule 4
 forbids.
 
 ```rust
@@ -1169,7 +1169,7 @@ d.codes_total;                      // denominator for the above
 **For a new GUI:** when a search returns nothing and any of those three is
 non-zero, say so beside the result — *“no matches; N font(s) in this
 document carry text that cannot be searched”* — rather than a bare
-“0 results”. `pdfce-cli`'s `find-text` does exactly this: the counters ride
+“0 results”. `pdfcer`'s `find-text` does exactly this: the counters ride
 its machine-readable summary line (`unreadable_codes=`,
 `type3_no_tounicode=`, `identity_no_tounicode=`) and the prose goes to
 stderr. The disclosure belongs **off-canvas** (rule 4 as narrowed by
@@ -1182,7 +1182,7 @@ semantics, and this has already caused a real defect.**
 `with_wildcards(true)`: **`#` matches any ASCII digit and `?` matches any
 single character.** `TextSearchOptions::default()` has `wildcards: false`.
 
-The doc comment records what happened (`edit.rs:6498-6521`): pdfce's own
+The doc comment records what happened (`edit.rs:6498-6521`): pdfcer's own
 Find bar ran through `find_text`, so *"typing `?` into it matched every
 character on the page and nothing said why."* It was fixed in the **front
 end**, not the function — `find_text`'s pattern behaviour is its documented
@@ -1196,7 +1196,7 @@ and expose wildcards as a visible toggle.** Never wire a search box to
 
 `TextSearchOptions` (`edit.rs:6486`) also carries `whole_word` and
 `word_boundary` — the latter because ISO 32000-1 §14.8.2.5 NOTE 1 declines
-to define "word" at all, so pdfce exposes NOTE 4's own menu of strategies
+to define "word" at all, so pdfcer exposes NOTE 4's own menu of strategies
 as a setting rather than picking one (R169).
 
 Case-insensitive matching is **ASCII-only and byte-offset preserving** by
@@ -1205,14 +1205,14 @@ non-ASCII text and the offsets are what map a match back to its glyphs.
 
 ### 8.5a Render presets for the subset standards (PDF/X, PDF/A, PDF/UA)
 
-`pdfce_core::settings::presets`, shipped `Pass 128.1` (`1f79cc1`).
+`pdfcer_core::settings::presets`, shipped `Pass 128.1` (`1f79cc1`).
 
 A preset is a **named bundle of values for settings that already exist**,
 applied in one act and individually editable afterwards. It adds no rendering
 mode, decides no conformance verdict, and validates nothing.
 
 ```rust
-use pdfce_core::settings::presets::{RenderPreset, RenderStandard};
+use pdfcer_core::settings::presets::{RenderPreset, RenderStandard};
 
 let preset = RenderPreset::for_standard(RenderStandard::PdfX4);
 let changed: Vec<_> = preset.apply(&mut settings);   // the keys it MOVED
@@ -1227,7 +1227,7 @@ value can bear. For PDF/X-4, **two of seven** entries are a claim about the
 standard at all, and both are `Implied` rather than `Sourced`.
 
 **★ Axis 7 — `PresetKey::SpotColorantDeviceModel` (`Pass 237.0`, asked by
-pdfceGUI 2026-09-02).** Every PDF/X level pins
+pdfcer-gui 2026-09-02).** Every PDF/X level pins
 `PresetAction::SpotModel(SimulateSeparations)` at tier `Implied`; every PDF/A
 level and PDF/UA leave it alone (`Sourced` — ISO 19005's Scope excludes
 rendering). This is the one axis pinned **without a clause that reaches it**:
@@ -1242,7 +1242,7 @@ colour data for one printing condition ⇒ the target device carries the
 separations ⇒ ISO 32000-1 §8.6.6.4 keeps the spot on that device). **Show
 the entry's `why` beside the control** — it names the device, not the
 setting, and ends *"No ISO 15930 clause requires this"*. Because the pinned
-value is pdfce's shipped default, `apply()` reports the key as changed only
+value is pdfcer's shipped default, `apply()` reports the key as changed only
 when it corrected a stale global override. Spec corpus:
 `pdfx__ref__conformance_and_rendering_axes.md` Axis 7.
 
@@ -1259,9 +1259,9 @@ entry carries a `why`.
 1. Applying a preset **does not make a file conformant and does not check
    whether it is.**
 2. PDF/X itself concedes more than one conforming rendering may exist, and its
-   stated remedy is embedded **job ticket** data pdfce does not read.
+   stated remedy is embedded **job ticket** data pdfcer does not read.
 3. Every PDF/X and PDF/A level guarantees a **colorimetric** device-colour
-   definition that pdfce does not apply — `CmykIntent` picks among fixed
+   definition that pdfcer does not apply — `CmykIntent` picks among fixed
    built-in tables and is not an ICC path. That is a capability gap, not a
    mis-set value, and it is invisible by construction: a colour transform that
    did not happen leaves nothing on screen.
@@ -1277,7 +1277,7 @@ and that wildcard silently prints a future variant as the fallback.
 ### 8.6 Text strings (`/Title`, `/Author`, bookmark labels)
 
 ```rust
-use pdfce_core::textstring::{decode_text_string, DecodedText, TextStringForm};
+use pdfcer_core::textstring::{decode_text_string, DecodedText, TextStringForm};
 
 let d: DecodedText = decode_text_string(bytes);   // textstring.rs:363, infallible
 // d.text: String, d.form: TextStringForm (PdfDocEncoding | Utf16Be), plus flags
@@ -1377,7 +1377,7 @@ this font's character codes into text?"* — per-resource decoding.
 ### 9.1 Document font inventory
 
 ```rust
-use pdfce_core::fontinfo::{self, Removability};
+use pdfcer_core::fontinfo::{self, Removability};
 
 let inv = fontinfo::inventory(&doc.view());     // fontinfo.rs:1601 — INFALLIBLE, no Result
 for f in &inv.fonts {                            // Vec<FontRecord>, first-discovery order
@@ -1413,7 +1413,7 @@ Guards: `MAX_RESOURCE_NODES` `:177`, `MAX_FONTS` `:184`,
 ### 9.2 Per-resource decoding font
 
 ```rust
-use pdfce_core::text_extract::ExtractFont;
+use pdfcer_core::text_extract::ExtractFont;
 
 let font = ExtractFont::resolve(&doc.view(), &font_dict);  // font.rs:381 — INFALLIBLE
 let composite = !font.is_simple();                          // font.rs:800
@@ -1429,7 +1429,7 @@ ladder: `ToUnicode` | `EncodingAgl` | `CidCollection` | `GlyphNameExtension`
 ### 9.3 `/ToUnicode` CMaps
 
 ```rust
-use pdfce_core::text_extract::cmap::ToUnicodeCMap;
+use pdfcer_core::text_extract::cmap::ToUnicodeCMap;
 
 let cmap = ToUnicodeCMap::parse(bytes);              // cmap.rs:272 — INFALLIBLE
 let s: Option<String> = cmap.lookup(code);            // cmap.rs:552
@@ -1442,8 +1442,8 @@ Guards: `MAX_BF_ENTRIES` 500_000 `:103`, `MAX_BF_RANGES` 100_000 `:110`,
 
 ### 9.4 Base-14 metrics without a font file
 
-`fontdata` is compiled-in metrics only — `pdfce-core` contains **no font
-program parser** (rule R21; that lives in `pdfce-render`).
+`fontdata` is compiled-in metrics only — `pdfcer-core` contains **no font
+program parser** (rule R21; that lives in `pdfcer-render`).
 
 `Std14` `:179` with `Std14::ALL` `:230` · `std14_by_base_font` `:271` ·
 `std14_base_font_name` `:317` · `std14_width` `:382` ·
@@ -1512,8 +1512,8 @@ CAD-style measurement.
 ### 10.1 Decomposing a page into selectable objects
 
 ```rust
-use pdfce_core::page_tree;
-use pdfce_core::vector::{decompose_page, Matrix, PageObjects, VectorObject};
+use pdfcer_core::page_tree;
+use pdfcer_core::vector::{decompose_page, Matrix, PageObjects, VectorObject};
 
 let page = &page_tree::pages(&doc)?[0];
 // ★ Matrix::IDENTITY gives geometry in genuine PDF default user space.
@@ -1573,7 +1573,7 @@ tokens, bytes}`. `ImageSource` `:395`: `Inline` | `XObject` | `Form`.
 ### 10.3 Hit-testing
 
 ```rust
-use pdfce_core::vector::{hit_test_point, hit_test_point_all, hit_test_rect,
+use pdfcer_core::vector::{hit_test_point, hit_test_point_all, hit_test_rect,
                          hit_test_subpaths, hit_test_text_runs,
                          subpath_bounds, MarqueeMode, Point, Bounds};
 
@@ -1599,7 +1599,7 @@ cycling; never reimplement either.
 #### ★★★ For a click, use `hit_test_point_deep`. The others cannot see inside a form.
 
 ```rust
-use pdfce_core::vector::{hit_test_point_deep, HitTarget};
+use pdfcer_core::vector::{hit_test_point_deep, HitTarget};
 
 match hit_test_point_deep(&model, at, tol).first() {              // hit.rs:255
     Some(HitTarget::Object(i)) => { /* model.objects[*i] -- editable */ }
@@ -1628,7 +1628,7 @@ which is a different thing from winning by default.
 #### ★★ For a MARQUEE, use `hit_test_rect_deep`. `hit_test_rect` is shallow.
 
 ```rust
-use pdfce_core::vector::{hit_test_rect_deep, FormMarquee, HitTarget, MarqueeMode};
+use pdfcer_core::vector::{hit_test_rect_deep, FormMarquee, HitTarget, MarqueeMode};
 
 // Paint order, front-most LAST -- see the ordering note below.
 let picked: Vec<HitTarget> =
@@ -1676,8 +1676,8 @@ that will surprise it.
 #### The line picker also reaches inside forms, and its result says which list
 
 ```rust
-use pdfce_core::vector::HitTarget;
-use pdfce_core::vector::linepick::pick_line_in_page;
+use pdfcer_core::vector::HitTarget;
+use pdfcer_core::vector::linepick::pick_line_in_page;
 
 if let Some(line) = pick_line_in_page(&model, at, tol) {
     match line.target {
@@ -1707,7 +1707,7 @@ leaf.
 
 ##### Headless equivalents
 
-`pdfce-cli object-list` mirrors all three, so a script can reproduce what a
+`pdfcer object-list` mirrors all three, so a script can reproduce what a
 click, a marquee or a measure pick would resolve to without a window:
 
 ```
@@ -1790,13 +1790,13 @@ would be wrong.
 `MarqueeMode` — `hit.rs:82`: `Enclosed` | `Touched`.
 `FLATTEN_STEPS` = 16 — `hit.rs:78` (Bézier flattening for hit-testing).
 
-All of the above are re-exported flat at `pdfce_core::vector::*`
+All of the above are re-exported flat at `pdfcer_core::vector::*`
 (`vector/mod.rs:81-84`) — verified directly.
 
 ### 10.4 Snapping
 
 ```rust
-use pdfce_core::vector::{snap_candidates, SnapConfig, SnapKind, SnapCandidate,
+use pdfcer_core::vector::{snap_candidates, SnapConfig, SnapKind, SnapCandidate,
                          AxisConstraint, constrained_second_point, measured_length};
 
 let cfg = SnapConfig::new(tol_in_page_units)      // snap.rs:291
@@ -1817,8 +1817,8 @@ Guards: `SNAP_FLATTEN_STEPS` 16 `:120`, `MAX_NEIGHBOURHOOD_SEGMENTS` 256
 `:130`, `MAX_CANDIDATES` 4096 `:136`.
 
 `SnapKind::is_derived()` is your rule-4 hook: a `DerivedCenterline`
-candidate is something pdfce **inferred** — there is no such line in the
-file, pdfce worked it out from two edges — so the operator has to be able to
+candidate is something pdfcer **inferred** — there is no such line in the
+file, pdfcer worked it out from two edges — so the operator has to be able to
 tell it apart from a real edge. The API hands you the flag; the disclosure is
 your shell's job.
 
@@ -1837,7 +1837,7 @@ Related: `centerline::page_candidates(&model)` (`centerline.rs:69`) and
 ### 10.5 Line picking (CAD measurement)
 
 ```rust
-use pdfce_core::vector::linepick::{pick_line_in_page, pick_line, classify_two_lines,
+use pdfcer_core::vector::linepick::{pick_line_in_page, pick_line, classify_two_lines,
                                    measured_angle_degrees, ParallelPolicy,
                                    PickedLine, TwoLineRelation};
 
@@ -1851,10 +1851,10 @@ match classify_two_lines(&a?, &b?, ParallelPolicy::default()) {    // linepick.r
 }
 ```
 
-**★ `linepick` is NOT re-exported at `pdfce_core::vector::*`.** Verified
+**★ `linepick` is NOT re-exported at `pdfcer_core::vector::*`.** Verified
 against `vector/mod.rs:65-88`: there is no `pub use linepick::{…}` block,
 unlike `centerline`, `decompose`, `edit`, `geometry`, `hit` and `snap`.
-Reach it as `pdfce_core::vector::linepick::…`. (`pub mod linepick;` is at
+Reach it as `pdfcer_core::vector::linepick::…`. (`pub mod linepick;` is at
 `vector/mod.rs:60`.) This is consistent with it being the newest module
 (2026-08-12) and is the kind of thing that may change — do not assume the
 flat path will keep failing, and do not assume it works.
@@ -1986,7 +1986,7 @@ render/GUI boundary."*
 ### 11.1 Stream decoding
 
 ```rust
-use pdfce_core::filters::{decode_stream, decode_stream_with_notes, FilterError, FilterNotes};
+use pdfcer_core::filters::{decode_stream, decode_stream_with_notes, FilterError, FilterNotes};
 
 let bytes: Vec<u8> = decode_stream(&stream.dict, raw)?;                 // filters/mod.rs:186
 let (bytes, notes) = decode_stream_with_notes(&stream.dict, raw)?;      // filters/mod.rs:200
@@ -2013,7 +2013,7 @@ meaning *"you called the wrong entry point"*. Route images through
 ### 11.2 Image decoding
 
 ```rust
-use pdfce_core::image_codec::{decode_image, decode_image_view, terminal_codec,
+use pdfcer_core::image_codec::{decode_image, decode_image_view, terminal_codec,
                               CodedImage, CodecColorModel, Codec};
 
 let which: Option<Codec> = terminal_codec(&image_dict)?;   // mod.rs:467 — no decode
@@ -2056,19 +2056,19 @@ Evidence: `mod.rs:338-391`, `bilevel.rs:26-59`.
 | `width`/`height` units | **pixels/samples**, as the codestream declares — may disagree with `/Width`/`/Height`; see `CodecNotes::geometry_mismatch` |
 | `samples` / `embedded_alpha` units | **bytes** (`Vec<u8>`), per the packed+padded layout — not a sample count |
 
-**★ `/Decode` arrays and any polarity flip are `pdfce-render`'s job, never
+**★ `/Decode` arrays and any polarity flip are `pdfcer-render`'s job, never
 this crate's** (rule R26, `mod.rs:65-79`). If your shell rasterizes itself
-rather than calling `pdfce-render`, you must apply `/Decode` and the
+rather than calling `pdfcer-render`, you must apply `/Decode` and the
 colour-space mapping yourself; `decode_image` hands you the codec's raw
 samples plus an honest statement of what they are.
 
 ### 11.3 Colour
 
-**★ There is no `/ColorSpace` object parser in `pdfce-core`.** `color/mod.rs`
+**★ There is no `/ColorSpace` object parser in `pdfcer-core`.** `color/mod.rs`
 has exactly three device converters plus an intent variant:
 
 ```rust
-use pdfce_core::color::{gray_to_srgb, rgb_to_srgb, cmyk_to_srgb, cmyk_to_srgb_with};
+use pdfcer_core::color::{gray_to_srgb, rgb_to_srgb, cmyk_to_srgb, cmyk_to_srgb_with};
 let rgb = cmyk_to_srgb(0.0, 0.0, 0.0, 1.0);   // color/mod.rs:254
 ```
 
@@ -2077,7 +2077,7 @@ let rgb = cmyk_to_srgb(0.0, 0.0, 0.0, 1.0);   // color/mod.rs:254
 in **0.0–1.0**, returning `[f32; 3]` sRGB.
 
 Full `/ColorSpace` resolution (`Separation`, `DeviceN`, `ICCBased`,
-`Indexed`, …) lives in **`pdfce-render`** (`pdfce-render/src/color.rs:215`,
+`Indexed`, …) lives in **`pdfcer-render`** (`pdfcer-render/src/color.rs:215`,
 `pub enum ColorSpace`). This split is deliberate per rule R26 — *"the codec
 layer never decides colour"* — not a gap. A `Separation`/`DeviceN` colour is
 a two-step composition: `PdfFunction::eval` (tint → alternate-space
@@ -2098,7 +2098,7 @@ describe it to users as exact, and do not swap in a naive
 ### 11.4 PDF functions
 
 ```rust
-use pdfce_core::function::{PdfFunction, FunctionType, FunctionError};
+use pdfcer_core::function::{PdfFunction, FunctionType, FunctionError};
 
 let f = PdfFunction::load(&doc.view(), &function_obj)?;   // function.rs:751 — validates structure
 let outs: Vec<f64> = f.eval(&inputs)?;                     // function.rs:979
@@ -2152,7 +2152,7 @@ R169, not a limit override).
   unconditionally**, and the fallback default is component-count dependent
   — *"a 4-component JPEG with neither defaults to `0`, i.e. no transform,
   not to `1`"* (`image_codec/dct.rs:52-56`).
-- **★ T-11.5 pdfce NEVER applies an "Adobe CMYK inversion" (rule R29).**
+- **★ T-11.5 pdfcer NEVER applies an "Adobe CMYK inversion" (rule R29).**
   `image_codec/dct.rs:113-129`: *"not on APP14 presence, not on transform-byte
   value, not on component count."* `CmykJpegPolarity::NeverInvert` is the
   default; only the explicit R169 setting changes it. If your shell
@@ -2193,7 +2193,7 @@ R169, not a limit override).
   bound — a fabricated value wearing the shape of a real one."*
 - **T-11.15 There is no `/FunctionType` 1.** `function.rs:39-42`:
   `UnknownFunctionType` reports `1` exactly as it reports `7`.
-- **T-11.16 `/Order 3` may be silently downgraded to linear.** pdfce always
+- **T-11.16 `/Order 3` may be silently downgraded to linear.** pdfcer always
   evaluates multilinearly and exposes whether a downgrade happened via
   `cubic_downgraded()` (`function.rs:918-947`) — surface it if you show
   gradients.
@@ -2221,7 +2221,7 @@ decision 006 / R29 / R30), but do not go looking for the document.
 ### 12.1 Outline (bookmarks)
 
 ```rust
-use pdfce_core::outline::{read_outline, parse_outline, Destination, DestView};
+use pdfcer_core::outline::{read_outline, parse_outline, Destination, DestView};
 
 let outline = read_outline(&doc);          // outline.rs:1066 — generic over ObjectGraph
 for item in outline.flatten() {             // outline.rs:919 — document order, flat
@@ -2262,14 +2262,14 @@ FitB | FitBH | FitBV | Unknown | Absent`, with `rect()` `:663` and
 `MAX_OUTLINE_DEPTH` = 32 — `:218`.
 
 **Coordinates:** `outline.rs:550-556` — *"Coordinates are in the target
-page's **user space**, unmodified. pdfce does not apply `/CropBox`,
+page's **user space**, unmodified. pdfcer does not apply `/CropBox`,
 `/Rotate` or any viewer-side clamping here."* Your scroll-to code applies
 those.
 
 ### 12.2 Attachments (read half)
 
 ```rust
-use pdfce_core::attachments::{list_attachments, list_attachments_with_notes,
+use pdfcer_core::attachments::{list_attachments, list_attachments_with_notes,
                               attachment_bytes, extract_attachment};
 
 let view = doc.view();                                  // required for extraction
@@ -2301,7 +2301,7 @@ it as a safety signal"*. The checksum is **reported, never verified**.
 ### 12.3 Optional-content layers
 
 ```rust
-use pdfce_core::layers::{read_layers, read_layers_with, list_layers, LayerScan};
+use pdfcer_core::layers::{read_layers, read_layers_with, list_layers, LayerScan};
 
 let layers = read_layers(&doc);                 // layers.rs:944 (full CatalogAndPages scan)
 for l in &layers.layers {                        // Layer — layers.rs:509
@@ -2328,8 +2328,8 @@ that for **on-screen View only**. `MAX_VE_DEPTH` — `annot.rs:809`.
 ### 12.4 Annotations
 
 ```rust
-use pdfce_core::annot::{page_annotations, page_annotations_with, Annotation, Appearance};
-use pdfce_core::page_tree::pages_in;
+use pdfcer_core::annot::{page_annotations, page_annotations_with, Annotation, Appearance};
+use pdfcer_core::page_tree::pages_in;
 
 for page in &pages_in(&doc)? {
     for a in page_annotations(&doc, page.id) {       // annot.rs:531
@@ -2366,8 +2366,8 @@ yourself. **That is obsolete. Do not do it.** The resolution is now
 public and is the same code the bookmarks panel uses.
 
 ```rust
-use pdfce_core::annot::page_link_destinations;
-use pdfce_core::outline::{Destination, DestinationReader, DestView};
+use pdfcer_core::annot::page_link_destinations;
+use pdfcer_core::outline::{Destination, DestinationReader, DestView};
 
 // Built ONCE per document. It flattens both named-destination
 // namespaces and the page map — O(document) — so building one per page
@@ -2436,12 +2436,12 @@ the way. Use `DestinationReader` for anything that navigates.
 ### 12.5 Signatures — census, coverage, and (`Pass 10.1`) integrity verification
 
 ```rust
-let census = pdfce_core::signature::census(&doc);              // signature.rs:370
-let cov = pdfce_core::signature::byte_range_coverage(&doc, /* … */);  // signature.rs:900
+let census = pdfcer_core::signature::census(&doc);              // signature.rs:370
+let cov = pdfcer_core::signature::byte_range_coverage(&doc, /* … */);  // signature.rs:900
 // Pass 10.1 — verification. `bytes` is the FILE the graph was loaded from
 // (`Document::bytes()`); the digest is over those bytes, not over objects.
-let verdicts = pdfce_core::signature::verify_all(&doc.view(), doc.bytes());
-let one = pdfce_core::signature::verify(&doc.view(), doc.bytes(), 0);   // Option<SignatureVerdict>
+let verdicts = pdfcer_core::signature::verify_all(&doc.view(), doc.bytes());
+let one = pdfcer_core::signature::verify(&doc.view(), doc.bytes(), 0);   // Option<SignatureVerdict>
 ```
 
 `SignatureCensus` `:265`, `SignatureImpact` `:174`, `ImpactBasis` `:228`,
@@ -2456,7 +2456,7 @@ shell must keep apart:
 
 | field | type | what it answers |
 |---|---|---|
-| `integrity` | `Integrity` — `Verified { digest_algorithm, signature_algorithm }` / `DigestMismatch` / `SignatureInvalid` / `Unverifiable { reason }` | are the signed bytes unaltered (digest over `/ByteRange` vs the signed `messageDigest`), and is the signature over the signed attributes genuine against the signer's OWN embedded certificate? `DigestMismatch` = the document was altered; `SignatureInvalid` = the digest matches but the signature/certificate does not; `Unverifiable` names why pdfce cannot say (a subfilter, algorithm or curve it lacks, a malformed CMS, a missing certificate) and is never either of the others |
+| `integrity` | `Integrity` — `Verified { digest_algorithm, signature_algorithm }` / `DigestMismatch` / `SignatureInvalid` / `Unverifiable { reason }` | are the signed bytes unaltered (digest over `/ByteRange` vs the signed `messageDigest`), and is the signature over the signed attributes genuine against the signer's OWN embedded certificate? `DigestMismatch` = the document was altered; `SignatureInvalid` = the digest matches but the signature/certificate does not; `Unverifiable` names why pdfcer cannot say (a subfilter, algorithm or curve it lacks, a malformed CMS, a missing certificate) and is never either of the others |
 | `coverage` | `ByteRangeCoverage` | was anything appended after signing (`covers_to_eof()`) |
 | `trust` | `Trust` — **only `NotChecked`** this build | nobody: no trust store, chain, revocation or clock |
 
@@ -2475,9 +2475,9 @@ verdicts were recorded from pyHanko's own validator first
 (`fixtures/synthetic/signature-verify/PROVENANCE.md`).
 
 ★ **Disclosure contract.** `Integrity::Verified` must never be rendered as
-"valid" or "signed by X". The sentence pdfceGUI and the CLI share: *"the
+"valid" or "signed by X". The sentence pdfcer-gui and the CLI share: *"the
 bytes under this signature have not been altered and nothing was appended
-after it; pdfce does not check who signed it or whether to trust them."*
+after it; pdfcer does not check who signed it or whether to trust them."*
 The CLI is `verify-signatures`: exit 0 all verified, **12** any failed,
 **13** none failed but some unverifiable.
 
@@ -2488,7 +2488,7 @@ The CLI is `verify-signatures`: exit 0 all verified, **12** any failed,
 The only public `/Info` reader is on `EditSession`:
 
 ```rust
-use pdfce_core::edit::{EditSession, InfoField};
+use pdfcer_core::edit::{EditSession, InfoField};
 let session = EditSession::new(doc);                       // edit.rs:3368 — takes ownership
 let title = session.info_text(InfoField::Title);            // edit.rs:3807 -> Option<InfoText>
 let raw   = session.info_bytes(InfoField::Title);           // edit.rs:3788
@@ -2513,9 +2513,9 @@ Three consequences a GUI must plan for:
 For a read-only properties dialog, the lowest-friction route is raw:
 
 ```rust
-use pdfce_core::graph::ObjectGraph;
-use pdfce_core::object::Object;
-use pdfce_core::textstring::decode_text_string;
+use pdfcer_core::graph::ObjectGraph;
+use pdfcer_core::object::Object;
+use pdfcer_core::textstring::decode_text_string;
 
 let producer = doc.trailer_entry(b"Info")
     .map(|o| doc.resolve(o))
@@ -2551,12 +2551,12 @@ you are writing that yourself.
   encrypted in an otherwise unencrypted document"*, and the intuitive guard
   is *"wrong silently: the `/Filter` chain runs, produces bytes, and those
   bytes are garbage that looks like a successful extraction."* Check
-  `AttachmentNotes::may_be_encrypted`. pdfce-core does not decrypt on this
+  `AttachmentNotes::may_be_encrypted`. pdfcer-core does not decrypt on this
   path.
 - **T-12.5 `extract_attachment`'s `view` must come from the same document
   the listing came from.** `attachments.rs:1442-1452`: a mismatch usually
   errors but *could* silently return another document's bytes at a colliding
-  id — *"pdfce cannot detect the confusion … the obligation is the
+  id — *"pdfcer cannot detect the confusion … the obligation is the
   caller's."*
 - **T-12.6 `Attachment::kind::PageAnnotation{page_index}` is a snapshot;
   `page_id` is the stable key.** `attachments.rs:294-299`. Use `page_id`
@@ -2570,7 +2570,7 @@ you are writing that yourself.
   answer for printing. Calling `apply_view_usage` there *"would violate the
   standard rather than merely differ from it."* It is view-only and must be
   re-run on magnification change.
-- **★ T-12.9 `pdfce_render::LayerVisibility` REPLACES the document's
+- **★ T-12.9 `pdfcer_render::LayerVisibility` REPLACES the document's
   default configuration, it does not merge with it.** (`ARCHITECTURE.md`
   §16229-16267.) You compute the **complete** hidden set — start from
   `optional_content_default_off`, apply operator toggles — and hand it in.
@@ -2617,7 +2617,7 @@ document settings. A GUI shell owns the store and should reuse this rather
 than inventing its own.
 
 ```rust
-use pdfce_core::settings::{self, Settings, StoreKind};
+use pdfcer_core::settings::{self, Settings, StoreKind};
 
 let store = settings::resolve_store();              // settings/mod.rs:1677
 let (cfg, report) = Settings::load(store.clone());   // settings/mod.rs:1125
@@ -2677,7 +2677,7 @@ Two of these (`UnmappableCode`, `ActualTextPrecedence`) are consumed
 directly by `ExtractOptions` (§8.2), and `CmykJpegPolarity` by
 `image_codec::decode_image_view_with` (§11.2). The four RENDER-radius ones
 (`PageBlendSpaceSource`, `MeshPatchPadding`, `MaskResample`, `MinifyFilter`)
-reach the pixels through `pdfce_render::RenderOptions`' `with_*` builders and
+reach the pixels through `pdfcer_render::RenderOptions`' `with_*` builders and
 its `policy()` projection, never through a global.
 
 **★ Do not confuse `settings::Settings` with document metadata.** This is
@@ -2699,7 +2699,7 @@ Ranked by how expensive they are to find from the outside.
    they just drift with zoom. Nothing in core catches it.
 2. **★ `find_text` treats `#` and `?` as wildcards; `find_text_with` +
    `TextSearchOptions::default()` does not (§8.5).** This already shipped a
-   real defect in pdfce's own Find bar. Use `find_text_with`.
+   real defect in pdfcer's own Find bar. Use `find_text_with`.
 3. **★ Base view vs session view (§5.2).** `&doc.view()` and
    `&session.view()` are both valid arguments to the same function and one
    of them silently shows the pre-edit document. *"Not a crash … the
@@ -2786,14 +2786,14 @@ semver guarantee exists. Pin a commit.
   `Document::save_full` (`document.rs:1135`), the round-trip and
   forced-full-rewrite rules (`ARCHITECTURE.md` §5). → **part 2**
 - **ce dimensions** (`dimension/`, `dimension::style`,
-  `dimension::tolerance`) — the dimension objects **pdfce authors**, as
+  `dimension::tolerance`) — the dimension objects **pdfcer authors**, as
   distinct from **pdf dimensions**, which are CAD-exported page content
-  pdfce reads and must not silently alter (`CLAUDE.md` rule 15).
+  pdfcer reads and must not silently alter (`CLAUDE.md` rule 15).
   → **part 2**
 - **Forms, OCR, printing, signing, export** (`forms`, `fdf`, `formcsv`,
-  `form_script`, `ocr`, `pdfce-print`, `signature` verification beyond the
+  `form_script`, `ocr`, `pdfcer-print`, `signature` verification beyond the
   census, `export::dxf`). → **`03-capabilities.md`**
-- **Rasterization** — `pdfce-render` is a separate crate.
-  `pdfce_core` emits a draw-op stream and *"never pixels"* (`lib.rs:7-9`).
+- **Rasterization** — `pdfcer-render` is a separate crate.
+  `pdfcer_core` emits a draw-op stream and *"never pixels"* (`lib.rs:7-9`).
   Its `RenderOptions`, `LayerVisibility`, `RenderCancel`, `Diagnostics` and
   the bundled Base-14 substitute faces are part 3.

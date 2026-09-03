@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""corpus_cmyk.py — aggregate pdfce-vs-pdfium divergence over every corpus page
+"""corpus_cmyk.py — aggregate pdfcer-vs-pdfium divergence over every corpus page
 that actually contains DeviceCMYK.
 
 WHY THIS EXISTS, AND WHY IT IS NOT `tools/render-parity`
@@ -27,7 +27,7 @@ with no render-side counter added, because observing is not applying.
 
 USAGE
 -----
-    cargo build --release -p pdfce-cli
+    cargo build --release -p pdfcer-cli
     python corpus_cmyk.py --label after
     python corpus_cmyk.py --label after --list out/cmyk-files.txt
 
@@ -49,7 +49,7 @@ import numpy as np
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 CORPUS = REPO / "fixtures" / "external"
-PDFCE = REPO / "target" / "release" / ("pdfce-cli.exe" if sys.platform == "win32" else "pdfce-cli")
+PDFCER = REPO / "target" / "release" / ("pdfcer.exe" if sys.platform == "win32" else "pdfcer")
 
 # Render pdfium in a CHILD process. `fixtures/external/pdfium/testing/resources/
 # bug_457855936.pdf` aborts pdfium outright (exit 0x80000003, STATUS_BREAKPOINT
@@ -93,12 +93,12 @@ def measure(pdf: pathlib.Path, scale: float, tmp: pathlib.Path):
         f.unlink(missing_ok=True)
 
     r = subprocess.run(
-        [str(PDFCE), "render-page", "--page", "1", "--scale", str(scale), "-o", str(a_png), str(pdf)],
+        [str(PDFCER), "render-page", "--page", "1", "--scale", str(scale), "-o", str(a_png), str(pdf)],
         capture_output=True,
         timeout=120,
     )
     if r.returncode != 0 or not a_png.exists():
-        return "pdfce"
+        return "pdfcer"
     r = subprocess.run(
         [sys.executable, "-c", PDFIUM_CHILD, str(pdf), str(b_png), str(scale)],
         capture_output=True,
@@ -134,8 +134,8 @@ def main() -> int:
     )
     args = ap.parse_args()
 
-    if not PDFCE.exists():
-        raise SystemExit(f"build it first: cargo build --release -p pdfce-cli ({PDFCE} missing)")
+    if not PDFCER.exists():
+        raise SystemExit(f"build it first: cargo build --release -p pdfcer-cli ({PDFCER} missing)")
 
     files = (
         [pathlib.Path(l) for l in args.list.read_text(encoding="utf-8").split("\n") if l.strip()]

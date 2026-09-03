@@ -1,9 +1,9 @@
 //! # content-identity — the R46 content-stream identity gate (Pass 6.1)
 //!
 //! Walks one or more corpus directories and, for every `*.pdf` that
-//! `pdfce-core` can load, decodes and tokenizes every page's content
+//! `pdfcer-core` can load, decodes and tokenizes every page's content
 //! stream, re-emits it through
-//! [`pdfce_core::writer::content::reemit_canonical`], and byte-compares
+//! [`pdfcer_core::writer::content::reemit_canonical`], and byte-compares
 //! the result against the decoded source. This is the executable form of
 //! R46 (docs/decisions/008 §3.4): the same inversion as Pass 3.0's writer
 //! identity gate, one level down.
@@ -43,11 +43,11 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use pdfce_core::content::{ContentStream, ContentTokenKind};
-use pdfce_core::document::Document;
-use pdfce_core::object::Object;
-use pdfce_core::page_tree;
-use pdfce_core::writer::content::{number_divergence_reason, reemit_canonical};
+use pdfcer_core::content::{ContentStream, ContentTokenKind};
+use pdfcer_core::document::Document;
+use pdfcer_core::object::Object;
+use pdfcer_core::page_tree;
+use pdfcer_core::writer::content::{number_divergence_reason, reemit_canonical};
 
 /// Aggregate counters over a corpus sweep.
 #[derive(Default)]

@@ -1,4 +1,4 @@
-//! Fuzz target: signature verification (`pdfce_core::signature::verify_all`,
+//! Fuzz target: signature verification (`pdfcer_core::signature::verify_all`,
 //! Pass 10.1) over arbitrary bytes.
 //!
 //! The document is loaded from the fuzz input and every signature field it
@@ -23,8 +23,8 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::document::Document;
-use pdfce_core::signature::{self, Integrity};
+use pdfcer_core::document::Document;
+use pdfcer_core::signature::{self, Integrity};
 
 fuzz_target!(|data: &[u8]| {
     let Ok(doc) = Document::from_bytes(data.to_vec()) else {

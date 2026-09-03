@@ -1,7 +1,7 @@
 # outline — provenance and attribution
 
 Ten minimal PDFs for the document-outline (bookmark) **reader** in
-`crates/pdfce-core/src/outline.rs` — ISO 32000-1:2008 §12.3.3 (the
+`crates/pdfcer-core/src/outline.rs` — ISO 32000-1:2008 §12.3.3 (the
 outline hierarchy) and §12.3.2 (destinations). Each file isolates **one**
 claim from that reader's contract, so a failing test names the clause it
 broke rather than reporting that "bookmarks are wrong".
@@ -79,7 +79,7 @@ way it is not:
 | Tree body | `(tree-body)` (a **string**) | PDF 1.2 `/Names → /Dests` **name tree**, reached through a `/Kids` interior node so the tree walk is genuinely exercised |
 | Tree wrapped | `(tree-wrapped)` | the value is `<< /D […] >>`, not a bare array |
 | Tree action | `(tree-action)` | the value wraps a **go-to action** instead of a `/D` — §12.3.2.3 NOTE 2's other permitted form |
-| Crossed namespace | `(LegacyIntro)` | the legacy dictionary's key spelled as a **string**. Resolves only because pdfce searches both namespaces regardless of the reference's type; pins the `DEST-A1` disclosure |
+| Crossed namespace | `(LegacyIntro)` | the legacy dictionary's key spelled as a **string**. Resolves only because pdfcer searches both namespaces regardless of the reference's type; pins the `DEST-A1` disclosure |
 | Nowhere | `(nowhere)` | defined by neither namespace — kept as an unresolved name, not dropped |
 
 ### Text strings (§7.9.2, Annex D.3)

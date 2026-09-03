@@ -3,11 +3,11 @@
 
 WHY THIS EXISTS
 ---------------
-`pdfce-core`'s image *import* path (`crates/pdfce-core/src/image_import/`)
+`pdfcer-core`'s image *import* path (`crates/pdfcer-core/src/image_import/`)
 turns an external raster file — PNG, JPEG, BMP — into a PDF image XObject.
 Proving it needs *real* container bytes: a hand-written unit test over a
 synthetic 12-byte "PNG" proves the chunk walker and nothing else. Only an
-actual zlib-compressed IDAT stream proves that pdfce reused the PNG's own
+actual zlib-compressed IDAT stream proves that pdfcer reused the PNG's own
 per-row filter bytes as an ISO 32000-1 §7.4.4.4 `/Predictor 15` FlateDecode
 stream, and only an actual Huffman-coded JPEG proves the `/DCTDecode`
 passthrough is byte-identical.
@@ -29,10 +29,10 @@ USAGE
     python tools/gen-image-fixtures.py
 
 Requires Pillow for the JPEG fixtures ONLY (a developer-machine
-dependency, never a pdfce dependency). Every PNG and BMP here is written
+dependency, never a pdfcer dependency). Every PNG and BMP here is written
 byte by byte with `struct` + `zlib` from the standard library, deliberately:
 a PNG produced by Pillow would carry Pillow's choices about chunk order,
-filter selection and compression level, and the fixtures that pin pdfce's
+filter selection and compression level, and the fixtures that pin pdfcer's
 *passthrough* branch must pin bytes this project chose. Verified with
 Pillow 12.1.0.
 
@@ -61,7 +61,7 @@ so the samples must be split into base + soft mask):
     rgba16.png          colour type 6, 16-bit → 16-bit base + 16-bit /SMask.
 
 PNG — refusals:
-    interlaced.png      Adam7. Refused BY NAME (pdfce has no de-interlacer;
+    interlaced.png      Adam7. Refused BY NAME (pdfcer has no de-interlacer;
                         re-save it non-interlaced).
 
 JPEG — the verbatim /DCTDecode branch:
@@ -73,7 +73,7 @@ JPEG — the verbatim /DCTDecode branch:
     cmyk.jpg            4 components, Adobe APP14 transform 0 → /DeviceCMYK
                         with NO /Decode (R29), and the R30 polarity
                         disclosure.
-    exif-rot90.jpg      EXIF Orientation 6 (rotate 90° CW). Pins that pdfce
+    exif-rot90.jpg      EXIF Orientation 6 (rotate 90° CW). Pins that pdfcer
                         applies the orientation in the placement matrix
                         rather than re-encoding the pixels.
     arithmetic.jpg      SOF9 (arithmetic entropy coding). Refused BY NAME —
@@ -83,7 +83,7 @@ JPEG — the verbatim /DCTDecode branch:
 BMP — the decode-and-recompress branch:
     rgb24.bmp           BI_RGB 24-bit bottom-up (the Windows default).
     rgb32.bmp           BI_RGB 32-bit (the 4th byte is padding, NOT alpha,
-                        in a BITMAPINFOHEADER file — pins that pdfce does
+                        in a BITMAPINFOHEADER file — pins that pdfcer does
                         not invent a soft mask from it).
     pal8.bmp            BI_RGB 8-bit with a 256-entry palette → /Indexed.
     topdown24.bmp       BI_RGB 24-bit with a NEGATIVE height (top-down row
@@ -137,7 +137,7 @@ def png(
     `rows` are the RAW (unfiltered) scanline payloads, WITHOUT the leading
     filter-type byte. `filter_types` picks the per-row filter tag; the
     default is 0 (None) for every row, because a fixture whose rows are all
-    filter 0 would not prove that pdfce preserves the per-row tags. Where
+    filter 0 would not prove that pdfcer preserves the per-row tags. Where
     that matters, callers pass a mixed list — and this function applies the
     real RFC 2083 §6 filters so the file is a legitimate PNG, not merely a
     file with interesting tag bytes.
@@ -432,7 +432,7 @@ def jpeg_fixtures() -> dict[str, bytes]:
     # with arithmetic coding disabled by default and Pillow exposes no
     # switch for it, so the ONLY way to get a fixture for the refusal is to
     # rewrite the frame marker. The entropy-coded data is then nonsense for
-    # an arithmetic decoder — which does not matter, because pdfce must
+    # an arithmetic decoder — which does not matter, because pdfcer must
     # refuse it at the marker walk, BEFORE any decoder sees it. That is
     # precisely the property under test.
     out["arithmetic.jpg"] = _patch_sof(out["rgb.jpg"], 0xC9)
@@ -472,12 +472,12 @@ def _patch_sof(data: bytes, marker: int) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# Transparency render fixtures — PDFs, for `pdfce-render`'s mask path
+# Transparency render fixtures — PDFs, for `pdfcer-render`'s mask path
 # ---------------------------------------------------------------------------
 #
 # Everything above this line feeds the image *import* path: raster files
-# that `pdfce-core::image_import` turns INTO a PDF. Everything below feeds
-# the *render* path: PDFs that `pdfce-render` turns into pixels. They live
+# that `pdfcer-core::image_import` turns INTO a PDF. Everything below feeds
+# the *render* path: PDFs that `pdfcer-render` turns into pixels. They live
 # in one script because they share one question — "did the alpha survive?"
 # — and splitting them would let the two halves drift.
 #
@@ -506,7 +506,7 @@ def _patch_sof(data: bytes, marker: int) -> bytes:
 # Binary alpha (0 or 255 only) cannot catch a premultiplication bug: at
 # both extremes `clamp(v x 255, a)` and `v x a` agree. The two intermediate
 # values are what make a mid-tone wrong if the multiply is wrong — see
-# `premultiplied()`'s doc comment in `crates/pdfce-render/src/image.rs`,
+# `premultiplied()`'s doc comment in `crates/pdfcer-render/src/image.rs`,
 # which describes exactly the bug these two samples exist to catch.
 #
 # GEOMETRY
@@ -603,7 +603,7 @@ BASE_RGB = "/Type /XObject /Subtype /Image /Width 4 /Height 1 /BitsPerComponent 
 def transparency_pdfs() -> dict[str, bytes]:
     """The render-path transparency fixtures. Keys are file names.
 
-    Each one isolates ONE decision in `pdfce-render`'s mask path, so a
+    Each one isolates ONE decision in `pdfcer-render`'s mask path, so a
     failure names its own cause:
 
     smask-ramp.pdf          The main event. `/SMask`, same dimensions,
@@ -639,7 +639,7 @@ def transparency_pdfs() -> dict[str, bytes]:
                             still applies.
     smask-16bit.pdf         A 16-bit `/SMask`. Table 145 puts no value
                             restriction on the mask's
-                            `/BitsPerComponent`, and pdfce's own importer
+                            `/BitsPerComponent`, and pdfcer's own importer
                             writes one for a 16-bit RGBA PNG.
     smask-indexed.pdf       `/SMask` over an `/Indexed` base — the
                             palette fast path is a separate arm of the
@@ -647,7 +647,7 @@ def transparency_pdfs() -> dict[str, bytes]:
                             reaches it.
     smask-rgb-refused.pdf   `/SMask` whose `/ColorSpace` is `DeviceRGB`.
                             Three components cannot be one alpha and
-                            pdfce will not pick a channel: refused by
+                            pdfcer will not pick a channel: refused by
                             name, base drawn opaque.
     stencil-mask.pdf        `/Mask` as a stream (§8.9.6.3), 1-bit,
                             samples 0,1,0,1. Default `/Decode [0 1]`
@@ -737,7 +737,7 @@ def transparency_pdfs() -> dict[str, bytes]:
     )
     # 16-bit soft mask. Table 145 says `BitsPerComponent` is "Required"
     # and imposes NO value restriction, so Table 89's 1/2/4/8/16 all
-    # apply — and pdfce's OWN importer writes a 16-bit /SMask for a
+    # apply — and pdfcer's OWN importer writes a 16-bit /SMask for a
     # colour-type-6 16-bit PNG (`rgba16.png`), which makes this the
     # operator's real path rather than a spec curiosity. Samples are
     # big-endian (§8.9.3) and are `v x 257` so they scale back to the
@@ -889,7 +889,7 @@ def main() -> None:
 def _adam7(width: int, height: int, rows: list[bytes]) -> bytes:
     """An interlaced (Adam7) PNG, assembled pass by pass (RFC 2083 §2.6).
 
-    pdfce REFUSES this by name, so the file only has to be a legitimate
+    pdfcer REFUSES this by name, so the file only has to be a legitimate
     interlaced PNG — but it is built properly rather than faked, so that if
     a future Pass adds a de-interlacer the fixture is already a real test
     of it rather than a file that merely says `interlace 1`.

@@ -3,7 +3,7 @@
 Six minimal single-page PDFs sharing ONE entropy-coded JPEG payload,
 varying only (a) the Adobe APP14 transform byte and (b) the presence of
 `/Decode [1 0 1 0 1 0 1 0]`. They pin decision 006's conclusions
-(`docs/decisions/006-cmyk-jpeg-inversion.md` §3.4/§6.4): pdfce never
+(`docs/decisions/006-cmyk-jpeg-inversion.md` §3.4/§6.4): pdfcer never
 applies an "Adobe CMYK inversion" (R29), the YCCK inverse is
 definitional not polarity (TN #5116 §13.1), and `/Decode` composes as
 the sole polarity control. They are the durable evidence replacing the
@@ -50,7 +50,7 @@ assertions need no resampling allowance. The `_dec` twin of each adds
 `/Decode [1 0 1 0 1 0 1 0]` to the image dictionary; nothing else
 differs.
 
-## What the tests assert (`crates/pdfce-render/tests/cmyk_variants.rs`)
+## What the tests assert (`crates/pdfcer-render/tests/cmyk_variants.rs`)
 
 - Decoded CMYK sample values at named pixels (v2 pixel(2,2) =
   `[0,3,6,0]`, centre = `[81,25,8,1]`; v0 pixel(2,2) =
@@ -60,4 +60,4 @@ differs.
 - Pixel-level render polarity for the `/Decode` variants: each `_dec`
   render is the §8.9.5.2 inversion of its plain twin's polarity
   (v2 light/correct vs v2_dec dark; likewise v0/vn pairs), pinning the
-  signed-slope `/Decode` ramp in `pdfce-render/src/image.rs`.
+  signed-slope `/Decode` ramp in `pdfcer-render/src/image.rs`.

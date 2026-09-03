@@ -15,7 +15,7 @@ over: that file pairs a fill against a *shading*, this one pairs it against an
 
 THE DEFECT IT WAS BUILT FOR
 ===========================
-On a page whose group colour space is `/DeviceCMYK`, pdfce composites in a
+On a page whose group colour space is `/DeviceCMYK`, pdfcer composites in a
 four-colorant buffer. A `Separation`/`DeviceN` image used to convert through
 its tint transform **to sRGB** and never to its `DeviceCMYK` alternate, so it
 entered that buffer through a `CMYK -> sRGB -> CMYK` round trip whose return

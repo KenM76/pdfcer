@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""compare.py — pdfce-vs-pdfium divergence on a CMYK page, decision 006 §3.7's method.
+"""compare.py — pdfcer-vs-pdfium divergence on a CMYK page, decision 006 §3.7's method.
 
 WHY THIS EXISTS
 ---------------
-Decision 006 §3.7 measured pdfce against pdfium on one 300x232 DeviceCMYK JPEG
+Decision 006 §3.7 measured pdfcer against pdfium on one 300x232 DeviceCMYK JPEG
 at 1:1 and reported the numbers that made the colorimetry gap a tracked item:
 
     max abs delta per channel   [11, 37, 30]
@@ -19,7 +19,7 @@ that turned decision 006's own survey scripts into committed fixtures).
 
 METHOD (identical to 006 §3.7, restated so it can be rebuilt from this note)
 ---------------------------------------------------------------------------
-1. Render the page in pdfce via the built `pdfce-cli render-page --scale 1`.
+1. Render the page in pdfcer via the built `pdfcer render-page --scale 1`.
    Scale 1 means one PDF unit per device pixel; the cmyk-variants fixtures
    place their image at 1:1, so one image sample lands on one pixel and no
    resampling allowance is needed.
@@ -70,10 +70,10 @@ def on_white(img):
 def render_pdfce(pdf: Path, page: int, scale: float):
     from PIL import Image
 
-    exe = REPO / "target" / "release" / ("pdfce-cli.exe" if sys.platform == "win32" else "pdfce-cli")
+    exe = REPO / "target" / "release" / ("pdfcer.exe" if sys.platform == "win32" else "pdfcer")
     if not exe.exists():
-        raise SystemExit(f"build it first: cargo build --release -p pdfce-cli ({exe} missing)")
-    out = Path(tempfile.mkdtemp(prefix="cmyk-cmp-")) / "pdfce.png"
+        raise SystemExit(f"build it first: cargo build --release -p pdfcer-cli ({exe} missing)")
+    out = Path(tempfile.mkdtemp(prefix="cmyk-cmp-")) / "pdfcer.png"
     subprocess.run(
         [str(exe), "render-page", "--page", str(page), "--scale", str(scale), "-o", str(out), str(pdf)],
         check=True,

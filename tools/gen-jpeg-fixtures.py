@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Regenerate crates/pdfce-core/src/image_codec/fixtures.rs.
+"""Regenerate crates/pdfcer-core/src/image_codec/fixtures.rs.
 
 WHY THIS EXISTS
 ---------------
-`pdfce-core`'s DCTDecode adapter needs end-to-end tests over *real* JPEG
+`pdfcer-core`'s DCTDecode adapter needs end-to-end tests over *real* JPEG
 codestreams: a marker-chain unit test proves the sniff logic, but only an
-actual Huffman-coded stream proves that pdfce asked `zune-jpeg` for the
+actual Huffman-coded stream proves that pdfcer asked `zune-jpeg` for the
 right output colourspace, sized the buffer correctly, and handed back the
-samples in the layout `pdfce-render` expects.
+samples in the layout `pdfcer-render` expects.
 
 Those codestreams cannot be downloaded: `docs/LEGAL.md` §5 permits only
 synthetic or rights-cleared test data, and a JPEG pulled off the web is
@@ -25,7 +25,7 @@ USAGE
 -----
     python tools/gen-jpeg-fixtures.py
 
-Requires Pillow (a developer-machine dependency only — never a pdfce
+Requires Pillow (a developer-machine dependency only — never a pdfcer
 dependency). Verified with Pillow 12.1.0.
 
 WHAT IT PRODUCES, AND WHY EACH ONE
@@ -45,20 +45,20 @@ WHAT IT PRODUCES, AND WHY EACH ONE
                           stored components are still YCbCr (the encoder
                           transformed them), so the decoded samples are
                           those YCbCr values delivered verbatim. That is
-                          the point: it proves pdfce took the passthrough
+                          the point: it proves pdfcer took the passthrough
                           route, and it is the only way to build a
                           transform-0 stream without a bespoke encoder.
     RGB_2X2_APP14_T3      Adobe marker saying 3 — outside Table 13's
                           0..2. zune-jpeg hard-errors on it deep inside
-                          header parsing; pdfce's pre-sniff must turn it
+                          header parsing; pdfcer's pre-sniff must turn it
                           into a NAMED diagnostic first (rule R27).
     CMYK_2X2              4 components with an Adobe APP14 marker
                           (transform 0, which is what libjpeg writes for
                           CMYK). Table 13's "0 otherwise" default case
                           and the dct_cmyk_images counter's trigger.
-                          NOTE: Pillow INVERTS Adobe CMYK on read; pdfce
+                          NOTE: Pillow INVERTS Adobe CMYK on read; pdfcer
                           deliberately does not (decision 005 §5.5), so
-                          pdfce's samples are the complement of Pillow's.
+                          pdfcer's samples are the complement of Pillow's.
     RGB_HUGE_DIMS         RGB_2X2 with its SOF width/height patched to
                           65535 × 65535 = 4.3 Gpx. Trips
                           MAX_IMAGE_PIXELS. Cannot be produced by an
@@ -74,7 +74,7 @@ from pathlib import Path
 from PIL import Image
 
 REPO = Path(__file__).resolve().parent.parent
-OUT = REPO / "crates" / "pdfce-core" / "src" / "image_codec" / "fixtures.rs"
+OUT = REPO / "crates" / "pdfcer-core" / "src" / "image_codec" / "fixtures.rs"
 
 
 def jpeg(img, **kw):
@@ -189,7 +189,7 @@ DOC = {
         "The stored components are still YCbCr — the encoder transformed them",
         "— so a transform-0 decode delivers those YCbCr values **verbatim**.",
         "That is exactly the point: the decoded samples differ visibly from",
-        "[`RGB_2X2`]'s, which is what proves pdfce took the passthrough route",
+        "[`RGB_2X2`]'s, which is what proves pdfcer took the passthrough route",
         "instead of applying the inverse anyway. Constructing the stream this",
         "way is also the only option without a bespoke encoder, since libjpeg",
         "will not emit untransformed RGB.",
@@ -199,7 +199,7 @@ DOC = {
         "",
         "Outside Table 13's 0..2. `zune-jpeg` treats it as a hard error deep",
         "inside header parsing (`headers.rs:485-514`), where the value never",
-        "reaches pdfce's Table 13 logic at all. pdfce's own APP14 pre-sniff",
+        "reaches pdfcer's Table 13 logic at all. pdfcer's own APP14 pre-sniff",
         "must catch it first and produce the named `DCT/adobe-transform-3`",
         "diagnostic (rule R27).",
     ],
@@ -213,9 +213,9 @@ DOC = {
         "Adobe-inversion question is left open (§5.5) and why this fixture is",
         "synthetic rather than measured.",
         "",
-        "NOTE: Pillow *inverts* Adobe CMYK JPEGs when reading them. pdfce",
+        "NOTE: Pillow *inverts* Adobe CMYK JPEGs when reading them. pdfcer",
         "deliberately does not — it passes raw samples through and lets",
-        "`/Decode` do its documented job — so pdfce's samples are the",
+        "`/Decode` do its documented job — so pdfcer's samples are the",
         "complement of Pillow's for this fixture. That is the behaviour under",
         "test, not a bug.",
     ],
@@ -268,8 +268,8 @@ HEADER = '''//! # Synthetic JPEG codestreams for the DCTDecode adapter's tests
 //! rule it exercises, and — where a fixture had to be *constructed*
 //! rather than *encoded* — why no encoder can produce it.
 
-// This module is shared by TWO test suites — `pdfce-core`'s codec tests
-// and `pdfce-render`'s rasterizer tests (which pull it in with
+// This module is shared by TWO test suites — `pdfcer-core`'s codec tests
+// and `pdfcer-render`'s rasterizer tests (which pull it in with
 // `#[path]`) — and neither uses the whole set. `dead_code` would
 // otherwise fire in whichever crate happens not to need a given fixture,
 // which is an argument for splitting the file rather than a real

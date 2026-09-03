@@ -1,12 +1,12 @@
 //! Fuzz target: the **DCTDecode adapter**
-//! (`pdfce_core::image_codec::decode_image` over a `/DCTDecode` dict).
+//! (`pdfcer_core::image_codec::decode_image` over a `/DCTDecode` dict).
 //!
 //! ## Fuzz the adapter, not the vendor's core
 //!
 //! `zune-jpeg` already carries its own cargo-fuzz targets and picks up
 //! transitive OSS-Fuzz coverage through the `image-rs` project, so
 //! throwing bytes at its Huffman decoder here would mostly re-run
-//! someone else's campaign. pdfce's bugs will be in **the glue**
+//! someone else's campaign. pdfcer's bugs will be in **the glue**
 //! (`docs/decisions/005-image-codecs.md` §6.5), and that is what this
 //! target aims at:
 //!
@@ -38,7 +38,7 @@
 //! For ANY input, `decode_image` returns `Ok(_)` or a structured
 //! `ImageCodecError` — never a panic, never an abort, never an
 //! unbounded allocation. The ceilings documented in
-//! `pdfce_core::image_codec` bound memory, so libFuzzer's default
+//! `pdfcer_core::image_codec` bound memory, so libFuzzer's default
 //! `-rss_limit_mb` and `-timeout` turn any regression into a reported
 //! crash rather than a hung machine.
 //!
@@ -57,9 +57,9 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::document::Document;
-use pdfce_core::image_codec::decode_image;
-use pdfce_core::object::{Dict, Name, Object};
+use pdfcer_core::document::Document;
+use pdfcer_core::image_codec::decode_image;
+use pdfcer_core::object::{Dict, Name, Object};
 
 /// The smallest well-formed document `decode_image` will take a
 /// `&Document` from.

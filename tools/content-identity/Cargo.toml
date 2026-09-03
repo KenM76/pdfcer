@@ -26,7 +26,7 @@ publish = false
 [dependencies]
 # The crate under measurement, path-referenced so an API drift breaks the
 # build rather than silently mismeasuring.
-pdfce-core = { path = "../../crates/pdfce-core" }
+pdfcer-core = { path = "../../crates/pdfcer-core" }
 
 [profile.release]
 opt-level = 3

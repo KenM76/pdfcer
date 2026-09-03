@@ -1,4 +1,4 @@
-//! Fuzz target: whole-document loading (`pdfce_core::document`).
+//! Fuzz target: whole-document loading (`pdfcer_core::document`).
 //!
 //! Feeds arbitrary bytes to `Document::from_bytes`, which exercises the
 //! full load pipeline end to end: the `%PDF-x.y` header probe
@@ -29,7 +29,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::document::Document;
+use pdfcer_core::document::Document;
 
 fuzz_target!(|data: &[u8]| {
     let _ = Document::from_bytes(data.to_vec());

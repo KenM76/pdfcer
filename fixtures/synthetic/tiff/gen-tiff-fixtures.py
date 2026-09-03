@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Generate the TIFF fixtures for `pdfce_core::image_import::tiff`.
+"""Generate the TIFF fixtures for `pdfcer_core::image_import::tiff`.
 
 WHY THIS EXISTS
 ---------------
-`pdfce-core`'s TIFF reader turns a baseline TIFF 6.0 file into a PDF image
+`pdfcer-core`'s TIFF reader turns a baseline TIFF 6.0 file into a PDF image
 XObject.  Proving it needs *real container bytes*: a hand-written unit test
 over a synthetic 20-byte "TIFF" proves the directory walker and nothing
 else.  Only an actual LZW-compressed, horizontally-differenced, multi-strip
-directory proves that pdfce reassembles strips in order, undoes TIFF 6.0
+directory proves that pdfcer reassembles strips in order, undoes TIFF 6.0
 §14's predictor per channel, and byte-swaps 16-bit samples out of the file's
 byte order into ISO 32000-1 §8.9.3's.
 
@@ -25,7 +25,7 @@ deliberately NOT used, for two reasons that both matter:
   1.  Pillow drives libtiff, so a Pillow-produced fixture would pin
       libtiff's choices about strip size, predictor use, tag order and
       compression level rather than choices this project made.
-  2.  `rgb8-deflate.tif` pins pdfce's *passthrough* branch — the assertion
+  2.  `rgb8-deflate.tif` pins pdfcer's *passthrough* branch — the assertion
       is that the embedded PDF stream is the TIFF strip's own bytes, byte
       for byte.  Those bytes have to be bytes this project chose.
 
@@ -47,7 +47,7 @@ Every other fixture generator in this project lives in `tools/` and is named
 session that authored it was scoped to `fixtures/synthetic/` and could not
 create files under `tools/`.  Moving it to `tools/gen-tiff-fixtures.py` (and
 updating the path in `PROVENANCE.md` and in
-`crates/pdfce-core/tests/image_tiff.rs`) is the right follow-up; nothing
+`crates/pdfcer-core/tests/image_tiff.rs`) is the right follow-up; nothing
 depends on where it lives.
 
 WHAT EACH FIXTURE PINS
@@ -61,7 +61,7 @@ Byte order — the single most common TIFF bug:
                                        but not the samples passes the 8-bit
                                        pair and fails this one.
 
-Compression (all five pdfce accepts decode to the same samples):
+Compression (all five pdfcer accepts decode to the same samples):
     rgb8-none.tif                      Compression 1, one strip.
     rgb8-lzw.tif                       Compression 5 + Predictor 2, three
                                        strips — the shape a real tool writes.
@@ -91,7 +91,7 @@ Photometric interpretation:
     pal8-8bit-colormap.tif             The same palette written 0..255 in
                                        those 16-bit fields — the real-world
                                        divergence libtiff's heuristic exists
-                                       for.  pdfce detects it and DISCLOSES.
+                                       for.  pdfcer detects it and DISCLOSES.
 
 Alpha (ExtraSamples, TIFF 6.0 §18):
     rgba8-unassociated.tif             ExtraSamples 2 — straight alpha, splits
@@ -107,7 +107,7 @@ Alpha (ExtraSamples, TIFF 6.0 §18):
                                        Dropped, never read as opacity.
 
 Multi-page:
-    multipage.tif                      Three IFDs.  pdfce places the first and
+    multipage.tif                      Three IFDs.  pdfcer places the first and
                                        COUNTS the rest.
 
 Refusals (each must fail BY NAME with a stable key — R27):
@@ -329,7 +329,7 @@ def lzw(data: bytes) -> bytes:
     grow ONE CODE EARLY.
 
     The same codec ISO 32000-1 §7.4.4.2 describes with `/EarlyChange 1`
-    (its default), which is why pdfce decodes it through the shared
+    (its default), which is why pdfcer decodes it through the shared
     `filters::lzw` with no parameters at all.
     """
     CLEAR, EOI = 256, 257
@@ -599,7 +599,7 @@ def main() -> None:
     planar.append((PLANAR_CONFIG, SHORT, [2]))
     write_tiff("planar.tif", "II", [(planar, [bytes(W * H * 3)])])
 
-    # Compression 4 = CCITT Group 4.  The strip content is irrelevant: pdfce
+    # Compression 4 = CCITT Group 4.  The strip content is irrelevant: pdfcer
     # must refuse at the DIRECTORY, before any decoder sees a byte — which is
     # exactly the property under test.
     write_tiff(
@@ -619,7 +619,7 @@ def main() -> None:
         ],
     )
 
-    # BigTIFF: only the version magic matters here — pdfce refuses it at the
+    # BigTIFF: only the version magic matters here — pdfcer refuses it at the
     # SNIFFER, under its own format name, because it is a different parser.
     big = bytearray(b"II")
     big += struct.pack("<H", 43)

@@ -39,7 +39,7 @@ does.
 ## 2. The scale chain
 
 Every tier is roughly ten times the zoom of the one above it. Measured
-with `pdfce-cli render-page --region`, each view a ~1600 × 1000 viewport:
+with `pdfcer render-page --region`, each view a ~1600 × 1000 viewport:
 
 | tier | true size | as points | readable from | render time |
 |---|---|---|---|---|
@@ -188,7 +188,7 @@ rasteriser.
 
 ## 7. What this cost the renderer, and what got fixed
 
-Building this page found a real defect in `pdfce-render`, which is most of
+Building this page found a real defect in `pdfcer-render`, which is most of
 the value of having built it.
 
 **Every `Do` executed its form in full, however far off-screen it was.**
@@ -209,10 +209,10 @@ it skips, and the counter looked identical either way, which is exactly
 why the wrong version was convincing.
 
 **What was deliberately NOT done.** At page-fit zoom all 342 forms *are*
-on the canvas, each about 1/70th of a pixel across, and pdfce still
+on the canvas, each about 1/70th of a pixel across, and pdfcer still
 rasterises every path inside them — about 1.5 s. Skipping sub-pixel
 geometry would fix that and would be **lossy**: those paths do contribute
-anti-aliased coverage, and pdfce does not silently trade fidelity for
+anti-aliased coverage, and pdfcer does not silently trade fidelity for
 speed. That is an operator decision, not an engineering one, and it is
 left open rather than quietly taken.
 
@@ -296,7 +296,7 @@ four orders of magnitude further down.
 ## 9. How the ceiling was found — history, not current behaviour
 
 ★ **This section is the INVESTIGATION: what the limits were, how each was
-measured, and how two of the three were confirmed by accident.** pdfce no
+measured, and how two of the three were confirmed by accident.** pdfcer no
 longer behaves this way — `Pass 74.7` (2026-08-23) took these limits, and
 §10 is what it does now. Nothing here is a live limitation.
 
@@ -425,7 +425,7 @@ came out.
 
 ## 10. Where the ceiling is now
 
-★ **This section is what pdfce does NOW.** `Pass 74.7` (2026-08-23) took
+★ **This section is what pdfcer does NOW.** `Pass 74.7` (2026-08-23) took
 the limits §9 measured; `Pass 74.10` closed the second rendering path
 behind it. Where a before-figure appears here it is labelled as one, since
 a current number alone says nothing about what changed.
@@ -435,7 +435,7 @@ hand-corrected twice against the drift; the box now lands within **one
 pixel** of where the arithmetic says, so the region can just be computed:
 
 ```
-pdfce-cli render-page banana-at-scale.pdf --page 1 --scale 13749133 \
+pdfcer render-page banana-at-scale.pdf --page 1 --scale 13749133 \
   --region "539.9999200,558.8519152,540.0000800,558.8520218" -o box.png
 ```
 

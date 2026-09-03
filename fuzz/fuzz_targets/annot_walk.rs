@@ -1,9 +1,9 @@
 //! Fuzz target 11: annotation walk + appearance selection
-//! (`pdfce_core::annot`, ISO 32000-1 §12.5; docs/decisions/008 Pass 6.0).
+//! (`pdfcer_core::annot`, ISO 32000-1 §12.5; docs/decisions/008 Pass 6.0).
 //!
 //! Feeds arbitrary bytes to `Document::from_bytes`, then — for every page
-//! the tree walk yields — drives [`pdfce_core::annot::page_annotations`]
-//! and [`pdfce_core::annot::need_appearances`]. This exercises the entire
+//! the tree walk yields — drives [`pdfcer_core::annot::page_annotations`]
+//! and [`pdfcer_core::annot::need_appearances`]. This exercises the entire
 //! read-side annotation model against untrusted input: the `/Annots`
 //! array walk (absent, null, non-array, shared-indirect, entries that are
 //! null/non-dictionary), `/Subtype`/`/Rect`/`/F` decoding, and the
@@ -18,7 +18,7 @@
 //! - **degenerate and inverted `/Rect`** — `Rect::from_corners`
 //!   normalises corners in any order, and a zero-area rect must model
 //!   without panicking (its degenerate-placement consequence is a
-//!   `pdfce-render` concern, but the model must not choke on it);
+//!   `pdfcer-render` concern, but the model must not choke on it);
 //! - **`/AS` naming a missing state** and **`/AP` `/N` that is neither
 //!   stream nor dictionary** — both are named negative results
 //!   (`StateUnresolved` / `None`) the selector must reach without
@@ -38,9 +38,9 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::annot::{need_appearances, page_annotations};
-use pdfce_core::document::Document;
-use pdfce_core::page_tree::pages;
+use pdfcer_core::annot::{need_appearances, page_annotations};
+use pdfcer_core::document::Document;
+use pdfcer_core::page_tree::pages;
 
 fuzz_target!(|data: &[u8]| {
     let Ok(doc) = Document::from_bytes(data.to_vec()) else {

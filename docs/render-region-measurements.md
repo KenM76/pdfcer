@@ -2,10 +2,10 @@
 
 **Measured 2026-08-13** on the operator's own benchmark drawing, in answer to
 `D:\Dev\FeatureRequests\pdfce_FeatureRequests\request_region_rasterisation.md`
-from the `pdfceGUI` session. Re-runnable:
+from the `pdfcer-gui` session. Re-runnable:
 
 ```text
-cargo run --release -p pdfce-render --example region_bench -- <file.pdf>
+cargo run --release -p pdfcer-render --example region_bench -- <file.pdf>
 ```
 
 **Subject:** `D:\Dev\temp\pdfce\ncored-benchmark-cad-drawing.pdf` — **A3
@@ -190,7 +190,7 @@ measures the load as much as the code.
 
 ## ★ A SECOND DOCUMENT, and the caveat below was right
 
-**Measured 2026-08-13 by the `pdfceGUI` session** on `iso32000-2-preview.pdf`
+**Measured 2026-08-13 by the `pdfcer-gui` session** on `iso32000-2-preview.pdf`
 — the PDF 2.0 spec preview, 689 KB, text-heavy A4 — in answer to the
 one-document caveat this section originally carried:
 
@@ -229,7 +229,7 @@ below rather than for any particular render granularity.
   what the second measurement found. Kept rather than deleted, because a caveat
   that turned out to be correct is evidence about how much to trust the next
   one.
-- **One machine, single-threaded.** `pdfce-render` uses no `rayon` and no
+- **One machine, single-threaded.** `pdfcer-render` uses no `rayon` and no
   threads. Region fills are embarrassingly parallel once a display list exists;
   without one, parallelism would duplicate the floor per worker rather than
   divide it.
@@ -252,7 +252,7 @@ upper bound on magnification before the output stops being meaningful"*), which
 the first version of this document recorded as owed.
 
 ```text
-cargo run --release -p pdfce-render --example zoom_ceiling
+cargo run --release -p pdfcer-render --example zoom_ceiling
 ```
 
 **Method.** A 1 pt black bar whose left edge sits at **x = 2999.7373 pt** on a
@@ -366,16 +366,16 @@ correctness ones, and neither is measured by this harness. Stated so the
 
 Everything above measures rendering a region **from the content stream**, and
 its conclusion was that interpretation dominates. `Pass 75.0` acts on that:
-[`pdfce_render::record_page`] interprets a page once into a
+[`pdfcer_render::record_page`] interprets a page once into a
 `DisplayList`, and `DisplayList::replay_region` rasterises any region of it
 without re-interpreting.
 
 This section is the acceptance measurement, taken **2026-08-18** on the same
-machine, same file, same harness — `crates/pdfce-render/examples/region_bench.rs`
+machine, same file, same harness — `crates/pdfcer-render/examples/region_bench.rs`
 in `--release`, extended with `RECORD` / `MEMORY` / `PFLOOR` / `PAN` cases:
 
 ```bash
-cargo run -q --release -p pdfce-render --example region_bench -- \
+cargo run -q --release -p pdfcer-render --example region_bench -- \
   D:/Dev/temp/pdfce/ncored-benchmark-cad-drawing.pdf
 ```
 
@@ -465,7 +465,7 @@ So a first render *through* a handle costs `record + replay` ≈ `interpretation
 handle makes the first frame materially slower, which was the criterion.
 
 *(`iso32000-2-preview.pdf`, the text-heavy document measured in the section
-above, is **not on this machine** — that measurement came from the `pdfceGUI`
+above, is **not on this machine** — that measurement came from the `pdfcer-gui`
 session. The two documents above stand in for it, and the substitution is
 stated rather than glossed.)*
 

@@ -1,8 +1,8 @@
-# pdfce CI
+# pdfcer CI
 #
 # NOTE (2026-07-23): this workflow is scaffolded ahead of the Cargo
-# workspace it gates — pdfce is pre-Pass-0 as of this commit, so
-# `pdfce-core`/`pdfce-render`/`pdfce-gui`/`pdfce-cli` don't exist yet.
+# workspace it gates — pdfcer is pre-Pass-0 as of this commit, so
+# `pdfcer-core`/`pdfcer-render`/`pdfce-gui`/`pdfcer` don't exist yet.
 # It targets the workspace layout documented in docs/ARCHITECTURE.md
 # §3 and will start actually running (rather than erroring on missing
 # packages) once Pass 0 creates the workspace. This is expected, not a
@@ -11,7 +11,7 @@
 # anywhere until that changes.
 #
 # Every job here corresponds to a binding rule in
-# .claude/agents/pdfce-engineer.md and docs/ROADMAP.md's Standing
+# .claude/agents/pdfcer-engineer.md and docs/ROADMAP.md's Standing
 # rules — this is the automated enforcement for what was previously
 # an honor-system, self-checked-each-session set of rules.
 
@@ -45,7 +45,7 @@ jobs:
       # crates, and one crate that was in neither `members` nor `exclude` and
       # so was invisible to every workspace-wide gate at once.
       - run: python3 tools/check-fmt-excluded.py
-      # Non-Cargo files pdfce REDISTRIBUTES (fonts, icons, and — once the
+      # Non-Cargo files pdfcer REDISTRIBUTES (fonts, icons, and — once the
       # engine choice lands — OCR model weights) carry licence obligations
       # that `cargo-about` is structurally incapable of seeing, because it
       # reads Cargo.lock and nothing else. This is the only thing that checks
@@ -80,19 +80,19 @@ jobs:
       - run: cargo test --workspace --all-features
       # THE STRIPPABLE-CAPABILITY GATE.
       #
-      # `pdfce-core` declares default-ON features for capabilities that can be
+      # `pdfcer-core` declares default-ON features for capabilities that can be
       # compiled out to make lighter builds (see its Cargo.toml). Nothing else
       # exercises the switched-OFF path, so without this step a `cfg` rots the
       # moment someone adds code inside a gated module that a lite build cannot
       # compile — and nobody finds out until they try to make one.
       #
-      # Measured 2026-08-12: dropping `jpx` takes ~310 KB off pdfce-cli. The
+      # Measured 2026-08-12: dropping `jpx` takes ~310 KB off pdfcer. The
       # gate has to keep working for that to stay true.
-      - run: cargo test -p pdfce-core --no-default-features
+      - run: cargo test -p pdfcer-core --no-default-features
       # THE FORWARDING GUARD — the other half of the gate above.
       #
       # Cargo will not let a member override an inherited `default-features`,
-      # so the workspace root sets `default-features = false` on pdfce-core
+      # so the workspace root sets `default-features = false` on pdfcer-core
       # and every consumer re-enables what it wants. A crate that forgets its
       # forwarding block does NOT fail to build — it silently loses the
       # capability. That happened to pdfce-gui for the length of one commit on
@@ -106,23 +106,23 @@ jobs:
         shell: bash
         run: |
           set -e
-          for p in pdfce-cli pdfce-render; do
+          for p in pdfcer pdfcer-render; do
             if ! cargo tree -p $p -i hayro-jpeg2000 2>/dev/null | grep -q hayro-jpeg2000; then
-              echo "::error::$p's DEFAULT build no longer contains hayro-jpeg2000 — it is missing a forwarding [features] block, so a capability was dropped silently (see pdfce-core/Cargo.toml)"
+              echo "::error::$p's DEFAULT build no longer contains hayro-jpeg2000 — it is missing a forwarding [features] block, so a capability was dropped silently (see pdfcer-core/Cargo.toml)"
               exit 1
             fi
           done
 
   gui-core-separation:
-    name: verify pdfce-core / pdfce-render have zero GUI deps
+    name: verify pdfcer-core / pdfcer-render have zero GUI deps
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.97.1"
-      # See docs/ARCHITECTURE.md §3 invariant: pdfce-core and
-      # pdfce-render must never depend on egui/eframe/winit/wgpu (a
+      # See docs/ARCHITECTURE.md §3 invariant: pdfcer-core and
+      # pdfcer-render must never depend on egui/eframe/winit/wgpu (a
       # headless CPU rasterizer like tiny-skia is fine — it's not a
       # windowing/GUI-toolkit crate). This is what keeps the future
       # WASM/web fork a shell-crate swap instead of a rewrite.
@@ -131,28 +131,28 @@ jobs:
       # found the native-only check evaluates a different dependency tree
       # (237 crates vs 147) and could miss a Windows-only violation.
       # `cargo tree --target` is metadata-only; no installed target needed.
-      - name: cargo tree -p pdfce-core (fail on GUI/windowing deps)
+      - name: cargo tree -p pdfcer-core (fail on GUI/windowing deps)
         run: |
           set -e
           for t in "" "--target x86_64-pc-windows-msvc"; do
-            if cargo tree -p pdfce-core $t 2>/dev/null | grep -Ei '(^|[[:space:]])(egui|eframe|winit|wgpu)([[:space:]]|$)'; then
-              echo "::error::pdfce-core has a GUI/windowing dependency — violates the GUI-core separation invariant (docs/ARCHITECTURE.md §3)"
+            if cargo tree -p pdfcer-core $t 2>/dev/null | grep -Ei '(^|[[:space:]])(egui|eframe|winit|wgpu)([[:space:]]|$)'; then
+              echo "::error::pdfcer-core has a GUI/windowing dependency — violates the GUI-core separation invariant (docs/ARCHITECTURE.md §3)"
               exit 1
             fi
           done
-      - name: cargo tree -p pdfce-render (fail on GUI/windowing deps)
+      - name: cargo tree -p pdfcer-render (fail on GUI/windowing deps)
         run: |
           set -e
           for t in "" "--target x86_64-pc-windows-msvc"; do
-            if cargo tree -p pdfce-render $t 2>/dev/null | grep -Ei '(^|[[:space:]])(egui|eframe|winit|wgpu)([[:space:]]|$)'; then
-              echo "::error::pdfce-render has a GUI/windowing dependency — violates the GUI-core separation invariant (docs/ARCHITECTURE.md §3)"
+            if cargo tree -p pdfcer-render $t 2>/dev/null | grep -Ei '(^|[[:space:]])(egui|eframe|winit|wgpu)([[:space:]]|$)'; then
+              echo "::error::pdfcer-render has a GUI/windowing dependency — violates the GUI-core separation invariant (docs/ARCHITECTURE.md §3)"
               exit 1
             fi
           done
-      # Decision 004 rule R21: pdfce-render pins skrifa to the version
+      # Decision 004 rule R21: pdfcer-render pins skrifa to the version
       # epaint already resolves, so exactly ONE copy of the fontations
       # stack exists in the binary. Two majors appearing here means the
-      # egui bump landed without bumping pdfce-render's pin in the same
+      # egui bump landed without bumping pdfcer-render's pin in the same
       # commit — fix the pin, don't silence the guard.
       - name: cargo tree --duplicates guard (fontations + image codecs)
         run: |
@@ -167,7 +167,7 @@ jobs:
       # carries
       #   #![cfg_attr(not(any(feature = "x86", feature = "neon")),
       #               forbid(unsafe_code))]
-      # so the feature set is what decides whether pdfce's JPEG decoder
+      # so the feature set is what decides whether pdfcer's JPEG decoder
       # is compiler-enforced zero-unsafe. All 96 of its unsafe
       # occurrences live in 14 SIMD files that do not compile with those
       # features off; the hayro-* codecs behave the same way with `simd`.
@@ -176,7 +176,7 @@ jobs:
       # That distinction is the whole point: Cargo feature unification is
       # transitive and silent, so if anything anywhere in the graph ever
       # enables the `image` crate's `jpeg` feature — which pulls
-      # zune-jpeg with its defaults — pdfce's decoder quietly stops being
+      # zune-jpeg with its defaults — pdfcer's decoder quietly stops being
       # forbid(unsafe_code) with NO reviewable diff. `cargo tree -e
       # features` is the only view that shows it.
       #
@@ -193,7 +193,7 @@ jobs:
           set -e
           codecs='zune-jpeg|zune-core|weezl|hayro-ccitt|hayro-jbig2|hayro-jpeg2000'
           fail=0
-          for p in pdfce-core pdfce-render; do
+          for p in pdfcer-core pdfcer-render; do
             for t in "" "--target x86_64-pc-windows-msvc" "--target aarch64-apple-darwin" "--target wasm32-unknown-unknown"; do
               if cargo tree -p "$p" -e features $t 2>/dev/null \
                    | grep -E "($codecs) feature \"(x86|neon|simd|portable_simd)\""; then
@@ -203,14 +203,14 @@ jobs:
             done
           done
           exit $fail
-      # Decision 039: `aes` is the ONE dependency in pdfce-core whose
+      # Decision 039: `aes` is the ONE dependency in pdfcer-core whose
       # unsafe cannot be turned off by a feature. Its intrinsic backends
       # are selected on a **cfg** (`aes_backend = "soft"`), and a cfg
       # cannot be set from a dependency line — only from RUSTFLAGS or
       # .cargo/config.toml, which is global and, crucially, is NOT
-      # inherited by anyone consuming pdfce-core as a library. So the
+      # inherited by anyone consuming pdfcer-core as a library. So the
       # hardware backend was accepted deliberately rather than forced
-      # off with a guarantee that would be true for pdfce's own builds
+      # off with a guarantee that would be true for pdfcer's own builds
       # and false for every downstream consumer.
       #
       # THE EXCEPTION IS BOUNDED TO EXACTLY THAT. This check asserts the
@@ -218,7 +218,7 @@ jobs:
       #
       #   - `hazmat` stays OFF. It exposes raw round functions with no
       #     key schedule, exists for building other ciphers, and nothing
-      #     in pdfce needs it. It is the only feature that widens the
+      #     in pdfcer needs it. It is the only feature that widens the
       #     unsafe surface beyond backend dispatch.
       #   - `zeroize` stays OFF, and that is a considered choice rather
       #     than an omission: `FileKey` holds the file encryption key in
@@ -234,7 +234,7 @@ jobs:
           set -e
           fail=0
           for t in "" "--target x86_64-pc-windows-msvc" "--target aarch64-apple-darwin" "--target wasm32-unknown-unknown"; do
-            if cargo tree -p pdfce-core -e features $t 2>/dev/null \
+            if cargo tree -p pdfcer-core -e features $t 2>/dev/null \
                  | grep -E 'aes feature "(hazmat|zeroize)"'; then
               # No backticks around 'aes' here: inside a double-quoted shell
               # string they are COMMAND SUBSTITUTION, so bash runs `aes`,
@@ -242,7 +242,7 @@ jobs:
               # message loses the one word it exists to say. It fires only on
               # failure, so it would have stayed broken until the day someone
               # needed it.
-              echo "::error::pdfce-core $t enables an extra feature on the aes crate. Decision 039 accepted ONLY the intrinsic backend (which is cfg-selected and cannot be disabled per-dependency); hazmat/zeroize are separate widenings and need a new decision record."
+              echo "::error::pdfcer-core $t enables an extra feature on the aes crate. Decision 039 accepted ONLY the intrinsic backend (which is cfg-selected and cannot be disabled per-dependency); hazmat/zeroize are separate widenings and need a new decision record."
               fail=1
             fi
           done
@@ -256,20 +256,20 @@ jobs:
       #     in its own `[lints.rust.unexpected_cfgs] check-cfg` -- so exactly
       #     as with `aes`, a dependency line cannot force the soft backend and
       #     a `.cargo/config.toml` that did would not be inherited by anyone
-      #     consuming pdfce-core as a library. Five `unsafe` sites, all in
+      #     consuming pdfcer-core as a library. Five `unsafe` sites, all in
       #     `sha256.rs`'s backend dispatch.
       #   - It does NOT enable `hazmat` or `zeroize` on `aes`, so 039's
       #     existing boundary is untouched by its arrival. (`digest`'s
       #     `block-api` feature IS enabled -- by sha2 itself, unconditionally,
-      #     as its own dependency. That is not a feature pdfce selects and not
+      #     as its own dependency. That is not a feature pdfcer selects and not
       #     one it can turn off.)
       #
       # THE EXCEPTION IS BOUNDED TO EXACTLY THAT, and this asserts the three
       # things still under our control. `sha2`'s default feature set is
-      # ["alloc", "oid"]; pdfce takes it with `default-features = false`, so
+      # ["alloc", "oid"]; pdfcer takes it with `default-features = false`, so
       # all three below are OFF and must stay off:
       #
-      #   - `alloc` / `oid` are not needed: pdfce calls `Sha256::new`,
+      #   - `alloc` / `oid` are not needed: pdfcer calls `Sha256::new`,
       #     `update` and `finalize` and nothing else. `oid` in particular
       #     drags in const-oid for an ASN.1 identifier no PDF path uses.
       #   - `zeroize` stays OFF for the SAME reason it does on `aes`, and the
@@ -283,14 +283,14 @@ jobs:
           set -e
           fail=0
           for t in "" "--target x86_64-pc-windows-msvc" "--target aarch64-apple-darwin" "--target wasm32-unknown-unknown"; do
-            if cargo tree -p pdfce-core -e features $t 2>/dev/null \
+            if cargo tree -p pdfcer-core -e features $t 2>/dev/null \
                  | grep -E 'sha2 feature "(alloc|oid|zeroize)"'; then
               # Same no-backticks rule as the step above, and for the same
               # reason: this string is double-quoted, so a backtick would run
               # the enclosed word as a command and silently delete it from the
               # message. The comment is repeated rather than cross-referenced
               # because the mistake is made while typing THIS line.
-              echo "::error::pdfce-core $t enables an extra feature on the sha2 crate. Decision 039 (extended to sha2) accepted ONLY the cfg-selected intrinsic backend; alloc/oid/zeroize are separate widenings and need a new decision record."
+              echo "::error::pdfcer-core $t enables an extra feature on the sha2 crate. Decision 039 (extended to sha2) accepted ONLY the cfg-selected intrinsic backend; alloc/oid/zeroize are separate widenings and need a new decision record."
               fail=1
             fi
           done
@@ -343,8 +343,8 @@ jobs:
       # can be SEEN to have been said — both GUI-only, both gone with the
       # crate.) This asks whether outcome fields are said AT ALL.
       #
-      # `pdfce-core` returns outcome structs whose fields exist solely to
-      # discharge rule 4 -- what pdfce decided, inferred, renamed or dropped.
+      # `pdfcer-core` returns outcome structs whose fields exist solely to
+      # discharge rule 4 -- what pdfcer decided, inferred, renamed or dropped.
       # A field no shell reads is a disclosure that does not happen, and the
       # effect is identical to never having computed it.
       #
@@ -426,7 +426,7 @@ jobs:
       - name: check the ledger numbers have no duplicates
         run: python tools/check-ledger-numbers.py
 
-      # Operator ruling 2026-08-25: the licensed print-conformance suite pdfce
+      # Operator ruling 2026-08-25: the licensed print-conformance suite pdfcer
       # measures itself against is not named anywhere in this PUBLIC repository
       # -- not in contents, not in file names. The gate has a bootstrapping
       # problem it solves by holding its needles base64-encoded: a check for
@@ -452,7 +452,7 @@ jobs:
       # operator reads the wrong sentence.
       #
       # Two pre-existing instances were found on 2026-08-29 by running
-      # `pdfce-cli --help` and reading it, which no test did: `fetch-ocr-models`
+      # `pdfcer --help` and reading it, which no test did: `fetch-ocr-models`
       # advertised itself as "Render a page to a PNG image", and `print`
       # advertised itself as the command that does NOT print. Both were a
       # paragraph spliced at a line offset that landed inside the PRECEDING
@@ -497,7 +497,7 @@ jobs:
         run: python tools/check-cited-commits-exist.py
 
       # A setting parsed, validated, defaulted and read by NOTHING is a
-      # preference the operator sets and pdfce ignores. The inbound twin of
+      # preference the operator sets and pdfcer ignores. The inbound twin of
       # the outcome gate above: that one catches values computed and never
       # told, this one catches values told and never honoured.
       - name: check every persisted setting is consumed
@@ -592,14 +592,14 @@ jobs:
       # keep the code portable, not to claim it runs there. See
       # docs/decisions/003-distribution-posture.md §3.1 and §5.3.
       #
-      # ★ `pdfce-fetch` IS EXCLUDED, and the reason corrects a premise this
+      # ★ `pdfcer-fetch` IS EXCLUDED, and the reason corrects a premise this
       # comment used to state as fact. It read:
       #
       #     "`cargo check` needs no linker and no platform SDK, which is
       #      why this runs at ubuntu rates instead of macOS rates"
       #
       # That is true of RUST code and false of BUILD SCRIPTS. `cargo check`
-      # still RUNS build scripts, and `pdfce-fetch` pulls `ureq` → `rustls`
+      # still RUNS build scripts, and `pdfcer-fetch` pulls `ureq` → `rustls`
       # → `ring`, whose build script compiles C. Cross-compiling that C from
       # a Linux runner to `aarch64-apple-darwin` needs an Apple-targeting
       # toolchain the runner does not have, and it fails with
@@ -607,24 +607,24 @@ jobs:
       # a Clang flag to the runner's GCC.
       #
       # This job had therefore been RED since before 2026-08-15, on a
-      # failure that has nothing to do with pdfce's portability, which is
+      # failure that has nothing to do with pdfcer's portability, which is
       # the worst state for a gate: it reports a problem that is not there
       # and so stops being read.
       #
       # WHAT IS CONSEQUENTLY NOT CHECKED, stated rather than gestured at
-      # (`a_gate_states_what_it_cannot_see`, D:/dev/rag/rust): `pdfce-fetch`
+      # (`a_gate_states_what_it_cannot_see`, D:/dev/rag/rust): `pdfcer-fetch`
       # is not type-checked for macOS by this job. It is excluded from the
       # wasm32 check below for the same reason it exists (it is a native
       # network shell, and R12 forbids the engine from having one), and it
       # is still fully type-checked on ubuntu and windows by `cargo test`.
       #
-      # ★★ THE PARAGRAPH ABOVE USED TO SAY `pdfce-fetch` HAD "NO DEPENDENTS
+      # ★★ THE PARAGRAPH ABOVE USED TO SAY `pdfcer-fetch` HAD "NO DEPENDENTS
       # IN THE WORKSPACE", AND ENDED WITH THIS WARNING:
       #
       #     "If it ever gains a dependent, this exclusion silently widens
       #      — that is the thing to watch."
       #
-      # It gained one. `Pass 129.0` (2026-08-25) made `pdfce-cli` depend on
+      # It gained one. `Pass 129.0` (2026-08-25) made `pdfcer` depend on
       # it with the `download` feature DEFAULT ON, this job went red at the
       # `v0.12.0` tag, and the prediction had been sitting two lines above
       # the failure the whole time.
@@ -636,8 +636,8 @@ jobs:
       # `grep`, and a reader who checks a false premise finds the trap. So
       # the standing claim is now written to stay checkable:
       #
-      #   `pdfce-cli` depends on `pdfce-fetch` behind its OPT-IN `download`
-      #   feature (NOT default, `crates/pdfce-cli/Cargo.toml`). A default
+      #   `pdfcer` depends on `pdfcer-fetch` behind its OPT-IN `download`
+      #   feature (NOT default, `crates/pdfcer-cli/Cargo.toml`). A default
       #   `cargo check --workspace` therefore does not build it, which is
       #   why this exclusion still means what it says.
       #
@@ -653,7 +653,7 @@ jobs:
       # Deliberately NOT fixed by widening the exclusion. That was the
       # convenient repair and it ends with a check that no longer checks
       # anything; the architectural fix (opt-in) restores
-      # `ARCHITECTURE.md` §1.1's claim that a default pdfce build carries
+      # `ARCHITECTURE.md` §1.1's claim that a default pdfcer build carries
       # no network stack, which default-on had made false for every build
       # anybody would actually make.
       #
@@ -665,12 +665,12 @@ jobs:
       # type-checked natively — `--all-features` runs on ubuntu and
       # windows — so it cannot silently rot; it is only its PORTABILITY
       # that is unmeasured.
-      - run: cargo check --workspace --exclude pdfce-fetch --target aarch64-apple-darwin
+      - run: cargo check --workspace --exclude pdfcer-fetch --target aarch64-apple-darwin
       # The web-fork invariant, checked positively rather than only by
-      # the absence of GUI crates: pdfce-core + pdfce-render must stay
-      # WASM-compilable (ARCHITECTURE.md §3, §1). pdfce-cli is
+      # the absence of GUI crates: pdfcer-core + pdfcer-render must stay
+      # WASM-compilable (ARCHITECTURE.md §3, §1). pdfcer is
       # deliberately excluded — it is a native shell.
-      - run: cargo check -p pdfce-core -p pdfce-render --target wasm32-unknown-unknown
+      - run: cargo check -p pdfcer-core -p pdfcer-render --target wasm32-unknown-unknown
 
   no-network:
     name: verify the ENGINE needs no network (core + render)
@@ -691,12 +691,12 @@ jobs:
       # this job now enforces is the operator's own: what the software
       # needs to RUN, versus what the operator can ASK it to fetch.
       #
-      #   ENFORCED  pdfce-core, pdfce-render -- the ENGINE. Parsing and
+      #   ENFORCED  pdfcer-core, pdfcer-render -- the ENGINE. Parsing and
       #             rendering a file must never require a network, and
       #             this has a SECOND independent justification: both
       #             crates must cross into the wasm32/web fork, where a
       #             native HTTP stack does not exist.
-      #   ALLOWED   pdfce-cli, tools/ -- the SHELLS. Operator-
+      #   ALLOWED   pdfcer, tools/ -- the SHELLS. Operator-
       #             initiated fetching (model downloads, updates,
       #             add-ins) is explicitly permitted.
       #
@@ -715,7 +715,7 @@ jobs:
       #   - It cannot see a network call in a BUILD SCRIPT or proc macro
       #     (`cargo tree` without `-e build,proc-macro`).
       #   - It says nothing about the shells, BY DESIGN as of 2026-08-13
-      #     -- so "CI is green" is no longer evidence that pdfce as a
+      #     -- so "CI is green" is no longer evidence that pdfcer as a
       #     whole makes no network calls. It is evidence about the engine
       #     only.
       #   - It cannot distinguish an operator-initiated fetch from a
@@ -733,7 +733,7 @@ jobs:
           set -e
           deny='reqwest|ureq|hyper|isahc|attohttpc|curl|surf|native-tls|openssl|rustls|webpki|tokio|socket2|hickory|trust-dns'
           fail=0
-          for p in pdfce-core pdfce-render; do
+          for p in pdfcer-core pdfcer-render; do
             if cargo tree -p "$p" --target x86_64-pc-windows-msvc 2>/dev/null \
                  | grep -Ei "(^|[[:space:]])($deny)[[:space:]]"; then
               echo "::error::$p is an ENGINE crate and has a network-client dependency. Parsing and rendering must never require a network (ARCHITECTURE.md §1.1, R12 as narrowed 2026-08-13), and both crates must compile for wasm32 where no native HTTP stack exists. The SHELLS may fetch on the operator's behalf; these two may not. Adding one here requires a NEW decision record."
@@ -803,7 +803,7 @@ jobs:
       # libFuzzer's `/include:main`, which a `.so` on Linux is never asked
       # for. This job was GREEN throughout. A `windows-latest` sibling is
       # owed and is filed to Backlog; until it exists, this job proves the
-      # targets compile, not that they LINK on the platform pdfce is
+      # targets compile, not that they LINK on the platform pdfcer is
       # developed on.
       #
       # writer_roundtrip (Pass 3.0, decision 007 R40) is the first
@@ -815,7 +815,7 @@ jobs:
       # fuzz/Cargo.toml, so no per-target wiring is needed here.
       #
       # BUILDING them is the CI check:
-      # it proves the harnesses stay in sync with pdfce-core's API so a
+      # it proves the harnesses stay in sync with pdfcer-core's API so a
       # local `cargo +nightly fuzz run <target>` always works. Actual
       # fuzz CAMPAIGNS stay manual/local — minutes-long runs in CI buy
       # little coverage and cost every push. The fuzz/ crate is

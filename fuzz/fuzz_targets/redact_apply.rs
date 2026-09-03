@@ -1,5 +1,5 @@
 //! Fuzz target 15: redaction apply / content-stream surgery
-//! (`pdfce_core::redact`, ISO 32000-1 §12.5.6.23; docs/decisions/008 Pass 8).
+//! (`pdfcer_core::redact`, ISO 32000-1 §12.5.6.23; docs/decisions/008 Pass 8).
 //!
 //! The security-critical path. The fuzz bytes are embedded **as a page
 //! content stream** in a minimal template document that carries both a
@@ -41,13 +41,13 @@
 
 use libfuzzer_sys::fuzz_target;
 
-use pdfce_core::annot_author::{Quad, RedactSpec};
-use pdfce_core::document::Document;
-use pdfce_core::edit::EditSession;
-use pdfce_core::page_tree::Rect;
-use pdfce_core::redact;
-use pdfce_core::vartext::Quadding;
-use pdfce_core::writer::SaveOptions;
+use pdfcer_core::annot_author::{Quad, RedactSpec};
+use pdfcer_core::document::Document;
+use pdfcer_core::edit::EditSession;
+use pdfcer_core::page_tree::Rect;
+use pdfcer_core::redact;
+use pdfcer_core::vartext::Quadding;
+use pdfcer_core::writer::SaveOptions;
 
 /// Assemble a one-page template whose `/Contents` is exactly `content`,
 /// with three image XObjects whose second one is built from `jpeg`.
@@ -173,8 +173,8 @@ fuzz_target!(|data: &[u8]| {
             // must not appear in the rewritten content. (ASCII form; the
             // interpreter also drove the byte slicing that removed them.)
             if let Ok(back) = Document::from_bytes(out) {
-                use pdfce_core::content::ContentStream;
-                use pdfce_core::page_tree;
+                use pdfcer_core::content::ContentStream;
+                use pdfcer_core::page_tree;
                 if let Ok(pages) = page_tree::pages(&back) {
                     let mut decoded = Vec::new();
                     for page in &pages {

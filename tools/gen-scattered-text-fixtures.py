@@ -14,7 +14,7 @@ repo and never will be — LEGAL.md §5):
     hit-candidate index=5871 kind=text bbox=23.1,14.1,1564.3,1216.5
 
 ONE text object carried every dimension label on the sheet, because the
-exporter emits them all inside a single `BT`...`ET` block. pdfce unions the
+exporter emits them all inside a single `BT`...`ET` block. pdfcer unions the
 per-run boxes into one `page_bbox`, so that object's bounds span the whole
 drawing. Text hit-tests by bounding box, and the object is painted late, so
 it sits on top of everything and swallows every click.

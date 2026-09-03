@@ -35,7 +35,7 @@ THE FILES
 rendered in Acrobat Reader on 2026-08-25 and answered a question the
 Acrobat-parity corpus had recorded as an open GAP: Acrobat honours the `d1`
 ignore (row A blue), treats `d0` as its opposite (row C red), and paints an
-image-mask glyph in the graphics-state colour (row D blue). So pdfce follows
+image-mask glyph in the graphics-state colour (row D blue). So pdfcer follows
 the clause here in the knowledge that the clause and Acrobat agree, rather
 than in hope. See
 `D:\\Dev\\Rag-Specialized\\Acrobat_Features\\type3fonts__rendering_and_color_semantics.md`.
@@ -355,7 +355,7 @@ def self_recursive() -> bytes:
 TO_UNICODE_HI = b"""/CIDInit /ProcSet findresource begin
 12 dict begin
 begincmap
-/CMapName /pdfce-type3-HI def
+/CMapName /pdfcer-type3-HI def
 /CMapType 2 def
 1 begincodespacerange
 <00> <FF>
@@ -384,14 +384,14 @@ def tounicode_gate() -> bytes:
       (Table 112), so no rung of §9.10.2 can reach Unicode for them.
 
     ★ THE REASON THERE ARE TWO DEAD ENDS AND NOT ONE. Table 112 has **no
-    `/BaseFont` entry**: a conformant Type 3 font has no name. pdfce's
+    `/BaseFont` entry**: a conformant Type 3 font has no name. pdfcer's
     per-font diagnostics de-duplicated on that name, so before `Pass 127.0`
     every unnamed font on a page collapsed into a single entry and the new
     `type3_fonts_without_to_unicode` counter would have said `1` here. The
     fixture asserts **2**, which is a claim about the de-duplication key and
     not merely about the counter's existence.
 
-    ★ AND THE GLYPH NAMES ARE NOT STANDARD ONES, deliberately. pdfce keeps a
+    ★ AND THE GLYPH NAMES ARE NOT STANDARD ONES, deliberately. pdfcer keeps a
     counted extension beyond Acrobat: a Type 3 glyph that happens to be named
     `/A` still resolves through the Adobe Glyph List and is counted as
     `via_glyph_name_extension`. Naming these `/gb1` shuts that door, so the

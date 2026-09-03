@@ -23,7 +23,7 @@ WHY NOT JUST DIFF AGAINST pdfium
 Because pdfium fails many of these tests too. It is a screen renderer with
 no overprint, and `tools/render-parity` measured 11 "unexplained" and 40
 "disclosed-gap" divergences across these same 51 patches — a number that
-mixes pdfce's failures with pdfium's and cannot separate them. The trap X is
+mixes pdfcer's failures with pdfium's and cannot separate them. The trap X is
 an ORACLE; pdfium is a peer. Where an oracle exists, it wins (the same
 argument `tools/check-image-colorspace-truth.py` makes for closed-form Lab).
 
@@ -39,7 +39,7 @@ edge energy in a sliding window:
     score     = sum(diag) / sum(axis)
 
 CALIBRATION, measured rather than chosen (2026-08-17, PCS 16.0 at scale 2.0,
-the patch whose expected result was known independently because pdfce had
+the patch whose expected result was known independently because pdfcer had
 just been changed to fix it):
 
     swatch        score     verdict
@@ -121,33 +121,33 @@ detector; it is the removal of a false green, and it is the more urgent half:
 every "N of 51 pass" sentence this project has ever filed included four
 patches the instrument had never examined.
 
-★★★ THE GROUND TRUTH BELOW WAS WRONG ABOUT pdfce ON THREE OF FOUR PATCHES,
+★★★ THE GROUND TRUTH BELOW WAS WRONG ABOUT pdfcer ON THREE OF FOUR PATCHES,
 AND IT IS CORRECTED HERE RATHER THAN REPLACED, BECAUSE THE ERROR IS THE
 INSTRUCTIVE PART (re-measured 2026-08-27).
 
 What this section said, recorded 2026-08-24:
 
-  * `PCS 8.2` (PCS082): "Acrobat draws two OLIVE check marks ... pdfce draws
+  * `PCS 8.2` (PCS082): "Acrobat draws two OLIVE check marks ... pdfcer draws
     only the caption glyph. FAIL."
   * `PCS 8.01` (PCS080): "Acrobat draws two DARK-GREEN check marks on the
-    images AND about fifteen more along the spot-colour gradient bar. pdfce
+    images AND about fifteen more along the spot-colour gradient bar. pdfcer
     draws none of them. FAIL."
   * `PCS 8.1` (PCS081): "same family, same result. FAIL."
   * `PCS 5.0` (PCS050): the mark is a BLACK glyph from an embedded modified
-    Symbol font. pdfce renders it correctly. PASS.
+    Symbol font. pdfcer renders it correctly. PASS.
 
 Re-measured against the reference renders, side by side, at this harness's own
-scale: **pdfce draws both image check marks on PCS082, and on PCS080 it draws
+scale: **pdfcer draws both image check marks on PCS082, and on PCS080 it draws
 both image marks AND all ~15 marks along the gradient bar**, in the right
 colour and the right places. By each patch's own printed criterion -- "if a
-check mark is visible then DeviceN is respected" -- pdfce SATISFIES it.
+check mark is visible then DeviceN is respected" -- pdfcer SATISFIES it.
 
-What pdfce actually misses on PCS080 is the **gradient bar behind the marks**,
+What pdfcer actually misses on PCS080 is the **gradient bar behind the marks**,
 which renders as bare white paper: 451 x 29 device pixels of missing
 background, with the marks floating correctly on top of nothing. That is a
 different defect, in a different subsystem (a `ShadingType 2` whose colour
 space names two SPOT colorants, so ISO 32000-1 Table 149 under `/OP true`
-preserves the whole backdrop and the bar paints nothing -- pdfce has no spot
+preserves the whole backdrop and the bar paints nothing -- pdfcer has no spot
 plane). The recorded sentence would have sent the next reader hunting for a
 missing-glyph bug that does not exist.
 
@@ -185,7 +185,7 @@ ADJUDICATED and land in the UNRESOLVED bucket -- the harness has no calibration
 for what "matching" scores on those layouts, so it honestly declines to
 guess. With a directory of a known-good engine's renders of the SAME patches
 (same file names, `.png`), that calibration exists: the reference engine sets
-the score, and pdfce is judged against it rather than against a number
+the score, and pdfcer is judged against it rather than against a number
 somebody chose.
 
 Measured 2026-08-27, same tree, same binary, only the flag differing:
@@ -198,15 +198,15 @@ else changes. The renders live beside the corpus -- the private map directory
 names the environment variable that points at them.
 
 ★ It is also the only way to run the CONTROL that says whether a trap is
-pdfce's or the instrument's: point `find_traps` at the reference engine's own
+pdfcer's or the instrument's: point `find_traps` at the reference engine's own
 render of a failing patch. Measured on the four failures of 2026-08-26, three
-tripped ZERO traps in the reference render (so those are pdfce's) and one
+tripped ZERO traps in the reference render (so those are pdfcer's) and one
 tripped two (so its count includes instrument noise and must not be read as
-that many pdfce defects).
+that many pdfcer defects).
 
 Out-of-tree tooling, exactly like `tools/render-parity`: never shipped,
 never in `cargo test`, never in the GUI-core `cargo tree` invariant.
-Requires `pillow` + `numpy`; uses the shipped `pdfce-cli render-page`.
+Requires `pillow` + `numpy`; uses the shipped `pdfcer render-page`.
 """
 
 import argparse
@@ -278,7 +278,7 @@ CONTRAST_MIN = 6.0    # 8-bit levels; below this the X is not "clear".
 #
 # ★★ THE CONTROL THAT SETTLES IT: ACROBAT'S OWN RENDERS SCORE THE SAME.
 # Run through this file's own `reference_similarity` at the same scale,
-# Acrobat gives 0.094 / 0.065 / 0.109 against pdfce's 0.089 / 0.057 / 0.098,
+# Acrobat gives 0.094 / 0.065 / 0.109 against pdfcer's 0.089 / 0.057 / 0.098,
 # and `None` for the same two patches. A metric that scores the oracle and the
 # subject identically is not measuring the subject. The five renders are
 # structurally identical to Acrobat's -- same size, position and orientation,
@@ -287,7 +287,7 @@ CONTRAST_MIN = 6.0    # 8-bit levels; below this the X is not "clear".
 #
 # ★ AND THE TELL WAS SEEN AND MIS-READ ONCE ALREADY. This file's own comment
 # further down records "four 16-bit-image patches 'passed' on scores of 0.05 vs
-# 0.06 -- pdfce agreeing with Acrobat that neither resembles the reference". A
+# 0.06 -- pdfcer agreeing with Acrobat that neither resembles the reference". A
 # prior session spotted the anomaly, correctly refused to call it green, and
 # added a guard DOWNSTREAM of the misclassification instead of asking why the
 # number was absurd. The number was absurd because the patch was in the wrong
@@ -334,11 +334,11 @@ CRITERION_UNKNOWN = (("correct", "wrong"),)
 
 def cli_path():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    for cand in ("pdfce-cli.exe", "pdfce-cli"):
+    for cand in ("pdfcer.exe", "pdfcer"):
         p = os.path.join(root, "target", "release", cand)
         if os.path.exists(p):
             return p
-    sys.exit("build the release CLI first: cargo build --release -p pdfce-cli")
+    sys.exit("build the release CLI first: cargo build --release -p pdfcer-cli")
 
 
 def find_traps(png):
@@ -398,7 +398,7 @@ def find_traps(png):
             # slash, a chart rule or an anti-aliased corner appears. That
             # false positive is not hypothetical: it put 8 phantom traps on
             # an Acrobat render of PCS 2.0 whose ten swatches are provably
-            # clean, and it inflated pdfce's own failure count too. An X has
+            # clean, and it inflated pdfcer's own failure count too. An X has
             # two arms; requiring each to hold at least a quarter of the
             # mark is what makes it an X rather than a line.
             if float(d1.mean()) < 0.25 or float(d2.mean()) < 0.25:
@@ -590,7 +590,7 @@ def engine_similarity(png, ref_png, grid=160):
     rendered correctly.
 
     ★★ MEASURED BY ABLATION, and the direction is the point: replacing every
-    shading in pdfce's own render with SOLID BLACK **RAISES**
+    shading in pdfcer's own render with SOLID BLACK **RAISES**
     `reference_similarity` from 0.823 -> 0.953 and 0.445 -> 0.794. Rotating
     every shading 180 degrees moves it by +0.000 / -0.003. The old metric is
     ANTI-CORRELATED with shading fidelity on this layout -- a renderer that
@@ -695,7 +695,7 @@ def main():
             # (2026-09-02, `Pass 239.0`). A check mark IS two diagonal strokes,
             # so on a patch whose pass condition is "green check marks appear"
             # the diagonal-energy detector fires on the very marks that mean
-            # success. Measured on PCS 8.1 after its spot planes landed: pdfce's
+            # success. Measured on PCS 8.1 after its spot planes landed: pdfcer's
             # render trips 4 "traps" -- all of them check marks and the
             # duotone's fin edge -- while the reference engine's render of the
             # same patch trips 0 at a slightly different contrast, and the two
@@ -724,7 +724,7 @@ def main():
             # ★ Measured, 2026-09-01, across all six patches this harness was
             # calling FAIL:
             #
-            #   patch      pdfce traps    reference traps
+            #   patch      pdfcer traps    reference traps
             #   PCS 2.0        7               0
             #   PCS 3.0        3               0
             #   PCS 4.0        3               0
@@ -732,8 +732,8 @@ def main():
             #   PCS 13.0       2               0
             #   PCS 16.1       1               2      <-- reference trips MORE
             #
-            # Five of the six are genuine: the reference is clean and pdfce is
-            # not. The sixth is this harness inventing a defect -- pdfce trips
+            # Five of the six are genuine: the reference is clean and pdfcer is
+            # not. The sixth is this harness inventing a defect -- pdfcer trips
             # FEWER marks there than the engine being used as ground truth,
             # and was still scored FAIL while the reference would have scored
             # worse.
@@ -753,7 +753,7 @@ def main():
             verdict = "REF"          # scored, not adjudicated -- see docstring
             # With a known-good engine's render of the SAME patch, the strip
             # comparison becomes adjudicable: the reference engine sets what
-            # "matching" scores on this layout, and pdfce is judged against
+            # "matching" scores on this layout, and pdfcer is judged against
             # that rather than against a number somebody chose.
             if args.reference_dir:
                 cand = os.path.join(args.reference_dir, f.replace(".pdf", "") + ".png")
@@ -766,7 +766,7 @@ def main():
                 # split is wrong for this layout and the comparison
                 # measures nothing. Say so instead of scoring it. Without
                 # this, four 16-bit-image patches "passed" on scores of
-                # 0.05 vs 0.06 -- pdfce agreeing with Acrobat that neither
+                # 0.05 vs 0.06 -- pdfcer agreeing with Acrobat that neither
                 # resembles the reference, read as success.
                 # ★★ THE ORACLE IS THE OTHER ENGINE'S RENDER, NOT THIS
                 # ONE'S OTHER HALF. `ref_sim` -- the reference engine's score

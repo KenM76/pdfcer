@@ -1,12 +1,12 @@
 //! Fuzz target: the **JPXDecode adapter**
-//! (`pdfce_core::image_codec::decode_image` over a `/JPXDecode` dict).
+//! (`pdfcer_core::image_codec::decode_image` over a `/JPXDecode` dict).
 //!
 //! ## Fuzz the adapter, not the vendor's core
 //!
 //! `hayro-jpeg2000` carries its own `fuzz_jpeg2000` target upstream and
 //! has been run against 20,000+ images scraped from real PDFs, so
 //! throwing bytes at its wavelet coder here would mostly re-run someone
-//! else's campaign. pdfce's bugs will be in **the glue**
+//! else's campaign. pdfcer's bugs will be in **the glue**
 //! (`docs/decisions/005-image-codecs.md` §6.5), and that is what this
 //! target aims at:
 //!
@@ -93,9 +93,9 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::document::Document;
-use pdfce_core::image_codec::decode_image;
-use pdfce_core::object::{Dict, Name, Object};
+use pdfcer_core::document::Document;
+use pdfcer_core::image_codec::decode_image;
+use pdfcer_core::object::{Dict, Name, Object};
 
 /// The smallest well-formed document `decode_image` will take a
 /// `&Document` from.

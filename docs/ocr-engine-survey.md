@@ -1,4 +1,4 @@
-# pdfce — OCR engine survey and binding decision material
+# pdfcer — OCR engine survey and binding decision material
 
 **Status:** research complete, **decision not made**. This document exists to
 close the `docs/PRIOR_ART.md` open item *"OCR engine binding — not yet
@@ -8,16 +8,16 @@ recommendation, and **one licensing question that is the operator's to answer,
 not the engineer's** (project rule 13, `LEGAL.md` §6.2 step 4).
 
 **Written:** 2026-08-12.
-**Scope:** which OCR engine `pdfce-core` binds to, what shipping it costs, and
+**Scope:** which OCR engine `pdfcer-core` binds to, what shipping it costs, and
 what the recognised text must become once it exists.
 **Not in scope:** the OCR Pass's own UI layout (that is a
-`pdfce-ui-specialist` dispatch when the Pass is scoped), and the
+`pdfcer-ui-specialist` dispatch when the Pass is scoped), and the
 `Editable Text and Images` reconstruction mode (a separate, later capability —
 see §7.3).
 
 **Files this document deliberately does not touch:** `docs/PRIOR_ART.md`,
 `docs/ROADMAP.md`, `docs/FEATURES.md`, `docs/SESSION_LOG.md`. Those are
-`pdfce-librarian`'s. When a decision is taken, the librarian files the
+`pdfcer-librarian`'s. When a decision is taken, the librarian files the
 `PRIOR_ART.md` row and the ROADMAP movement; this file is the research record
 that the row will point at, the same relationship `PRIOR_ART.md` has to
 `THIRD_PARTY_LICENSES.md`.
@@ -31,7 +31,7 @@ the licence is permissive, so proceed and log it. OCR is not that, for four
 reasons that compound.
 
 **It is the first dependency whose *data* is licensed separately from its
-code, and more restrictively.** Every prior pdfce dependency has been a crate
+code, and more restrictively.** Every prior pdfcer dependency has been a crate
 whose licence `cargo-about` can see. A neural OCR engine is a small program
 plus a large trained model, and the model is a copyrightable work in its own
 right that inherits the licence of the corpus it was trained on. §3.3 below
@@ -39,7 +39,7 @@ records the finding that decides most of this survey: the leading pure-Rust
 candidate's models are **CC-BY-SA-4.0**, not permissive, and
 `THIRD_PARTY_LICENSES.md` is structurally incapable of noticing.
 
-**It is the largest single thing pdfce would ship.** A portable-folder product
+**It is the largest single thing pdfcer would ship.** A portable-folder product
 measures its dependencies in megabytes on disk, not just in packages. The
 candidates in this survey range from ~0 MB (a Windows-supplied API) through
 ~12 MB (a pure-Rust model pair) to ~50–100 MB+ (Tesseract with a useful set of
@@ -47,13 +47,13 @@ language files). This is why the operator's 2026-08-12 strippability request
 matters here more than anywhere else in the codebase.
 
 **It is the first dependency that puts substantial `unsafe` into
-`pdfce-core`'s graph for performance reasons.** Decision 005's **R24** and
+`pdfcer-core`'s graph for performance reasons.** Decision 005's **R24** and
 CI's *"assert codec crates have SIMD/unsafe features OFF"* job encode a
-deliberate posture: pdfce buys `forbid(unsafe_code)` at the cost of decode
+deliberate posture: pdfcer buys `forbid(unsafe_code)` at the cost of decode
 speed, on a parser fed adversarial input. Every neural runtime inverts that
 trade. §3.6 measures how much.
 
-**Its output is an inference, and pdfce has a binding rule about
+**Its output is an inference, and pdfcer has a binding rule about
 inferences.** Project rule 4 (*fuzzy, never sneaky*) is not satisfiable by an
 engine that cannot say how sure it is. §7.2 shows that the two leading
 candidates differ on exactly this point, and that the difference cuts the
@@ -75,24 +75,24 @@ copyleft (LGPL, MPL-2.0) is **not** auto-disqualified but must be **flagged to
 the operator before adding**, never chosen by an agent — §6.2 step 4. The
 veraPDF precedent (§6.5) shows what "flagged" looks like in practice, and also
 shows the one shape that is *not* a dependency question at all: a
-separate-process tool pdfce runs but never ships.
+separate-process tool pdfcer runs but never ships.
 
-### 2.2 `pdfce-core` and `pdfce-render` must type-check for `wasm32-unknown-unknown`
+### 2.2 `pdfcer-core` and `pdfcer-render` must type-check for `wasm32-unknown-unknown`
 
 This is enforced, not aspirational. `.github/workflows/ci.yml`, job
 `cross-target compile check (macOS / wasm32)`:
 
 ```
-cargo check -p pdfce-core -p pdfce-render --target wasm32-unknown-unknown
+cargo check -p pdfcer-core -p pdfcer-render --target wasm32-unknown-unknown
 ```
 
-`pdfce-gui` and `pdfce-cli` are deliberately excluded — they are native
+`pdfce-gui` and `pdfcer` are deliberately excluded — they are native
 shells. The job's own comment states what it proves and what it does not:
 *"the workspace type-checks for these targets… NOT that it links, runs, or
-opens a window."* An OCR engine living in `pdfce-core` must survive that
+opens a window."* An OCR engine living in `pdfcer-core` must survive that
 command, or must be feature-gated off in the configuration the job builds.
 
-### 2.3 No network client may enter any pdfce crate
+### 2.3 No network client may enter any pdfcer crate
 
 `ARCHITECTURE.md` §1.1, decision 003 **R12**, enforced by the `no-network` CI
 job — a fail-closed `cargo tree` denylist of
@@ -103,7 +103,7 @@ NEW decision record."*
 This is worth reading carefully, because it forecloses more than the obvious
 case. It rules out cloud OCR (§6), yes — but it equally rules out the common
 convenience pattern of **downloading the model on first use**. Whatever model
-pdfce needs must be present as a file before pdfce runs, because pdfce cannot
+pdfcer needs must be present as a file before pdfcer runs, because pdfcer cannot
 contain the code to fetch it.
 
 ### 2.4 Single folder, no installer, no registry, no system runtime
@@ -117,7 +117,7 @@ against a candidate, and each candidate below answers it explicitly.
 
 The operator asked on 2026-08-12 whether modules could be stripped for lighter
 builds, and the answer became a written convention in
-`crates/pdfce-core/Cargo.toml`'s `[features]` header:
+`crates/pdfcer-core/Cargo.toml`'s `[features]` header:
 
 1. **Default ON.** *"A capability that silently disappears from a default
    build is a regression wearing a feature flag."*
@@ -131,14 +131,14 @@ builds, and the answer became a written convention in
 
 The sole existing instance is `default = ["jpx"]` / `jpx =
 ["dep:hayro-jpeg2000"]`. OCR is the second, and it is the case the convention
-was really written for: it is the heaviest capability pdfce will ever gate.
+was really written for: it is the heaviest capability pdfcer will ever gate.
 
 Note rule 1's tension with OCR specifically, and resolve it deliberately when
 the Pass is scoped: *default ON* is right for a codec that costs a megabyte,
 and is a genuine question for a capability that costs twelve. §8.2 proposes an
 answer.
 
-### 2.6 `pdfce-core`/`pdfce-render` may never gain a GUI/windowing dependency
+### 2.6 `pdfcer-core`/`pdfcer-render` may never gain a GUI/windowing dependency
 
 `ARCHITECTURE.md` §3, project rule 2. No OCR candidate in this survey
 threatens it directly, but one class does so indirectly — a platform OCR API
@@ -160,7 +160,7 @@ credible pure-Rust OCR stack in the ecosystem.
 | **Licence (code)** | **`MIT OR Apache-2.0`** — permissive. Verified from the crates.io API for `ocrs` 0.12.2 and `rten` 0.25.0, and from `ocrs/Cargo.toml`'s `license` field; both `LICENSE-APACHE.txt` and `LICENSE-MIT.txt` exist at the repo root. **Do not cite `api.github.com`'s `spdx_id: Apache-2.0`** — that is GitHub's single-file detector picking one arm of a dual licence. |
 | **Licence (models)** | **`CC-BY-SA-4.0` — NOT permissive.** See §3.3. This is the survey's decision-driving finding. |
 | **Purity** | Pure Rust, end to end. rten's README: *"End-to-end Rust. This project and all of its required dependencies are written in Rust."* Confirmed against the resolved graph — no `*-sys` crate, no `bindgen`, no ONNX Runtime linkage, **no C/C++ toolchain at build time**. |
-| **Single-folder** | Yes, trivially. Code compiles into pdfce's own binary; the only additional artifacts are two model files. |
+| **Single-folder** | Yes, trivially. Code compiles into pdfcer's own binary; the only additional artifacts are two model files. |
 | **Model files** | 2 files, **12,226,852 bytes ≈ 12.23 MB** total (§3.4). |
 | **WASM** | **Yes — measured, not claimed.** See §3.5. |
 | **Accuracy** | **No published benchmark exists.** Anecdotal, and the project says so itself. See §3.7. |
@@ -171,7 +171,7 @@ credible pure-Rust OCR stack in the ecosystem.
 
 ### 3.2 The dependency graph, measured
 
-Run on a scratch crate carrying only `ocrs = "0.12.2"`, with pdfce's own
+Run on a scratch crate carrying only `ocrs = "0.12.2"`, with pdfcer's own
 pinned toolchain, rather than read off crates.io pages:
 
 ```
@@ -200,7 +200,7 @@ tick:
 - **`unicode-ident`'s `AND Unicode-3.0`** is the same row `PRIOR_ART.md`
   already dispositioned for `subsetter`: `AND` means both terms apply, so it
   cannot be satisfied by picking the friendlier arm — but it is **already in
-  pdfce's graph today** via `syn`/`proc-macro2`, so it adds no new attribution
+  pdfcer's graph today** via `syn`/`proc-macro2`, so it adds no new attribution
   obligation.
 
 **The `no-network` denylist passes.** Run exactly as CI runs it, against the
@@ -237,7 +237,7 @@ material is treated differently from an **adaptation** that modifies the
 underlying work — the collection may carry its own licence; only adaptations
 must be released under BY-SA. On that reading, shipping the unmodified `.rten`
 files next to MIT code is distribution of a verbatim work in a collection, and
-**there is no propagation path to pdfce's own MIT licence**. That is the same
+**there is no propagation path to pdfcer's own MIT licence**. That is the same
 shape of reasoning `LEGAL.md` §6.5.2 already applied to MPL-2.0 for veraPDF.
 
 **Why it is nevertheless the operator's call, and not mine.** Three things
@@ -250,14 +250,14 @@ resist being cleared by an agent:
    agent asserting an unmeasured fact about its own environment (`LEGAL.md`
    §1.1); a legal conclusion asserted the same way would be worse.
 2. **`LEGAL.md` §6.2 step 4 says to stop and ask for anything that is not
-   permissive**, *"even if pdfce's current license would technically allow
+   permissive**, *"even if pdfcer's current license would technically allow
    it — this is a case where getting it wrong is expensive to unwind later."*
    CC-BY-SA-4.0 is not permissive. The rule fires on its own terms.
 3. **Any *adaptation* clearly does propagate.** Fine-tuning the weights,
-   quantizing them, retraining on pdfce's own corpus, or converting them to a
+   quantizing them, retraining on pdfcer's own corpus, or converting them to a
    different runtime's format plausibly creates Adapted Material, which must
    then be released under CC-BY-SA-4.0 or a compatible licence. That would
-   bind **the derived model**, not pdfce's source — but it means "we'll just
+   bind **the derived model**, not pdfcer's source — but it means "we'll just
    fine-tune it later for CAD drawings" is a decision with a licence
    attached, and it should be known now rather than discovered then.
 
@@ -283,7 +283,7 @@ Measured from the Hugging Face tree API (`robertknight/ocrs`, `main`):
 | `text-rec-checkpoint-s52qdbqt.rten` | 9,716,444 | 9.72 | text recognition (CRNN) |
 | **Total shipped** | **12,240,008** | **≈ 12.24 MB** | |
 
-The repository also holds `.pt` PyTorch checkpoints and `.onnx` exports; pdfce
+The repository also holds `.pt` PyTorch checkpoints and `.onnx` exports; pdfcer
 would ship only the two `.rten` files.
 
 A small discrepancy worth recording rather than smoothing over, because it
@@ -293,7 +293,7 @@ objects, measured by `Content-Length` in the same session, are
 **9,716,568 B** — 13,280 bytes less and 124 bytes more than their
 Hugging Face counterparts respectively, and under different filenames. The
 totals agree to within 0.1% (12.23 MB vs 12.24 MB), so nothing in this survey
-turns on it, but **pdfce must pin exactly which artifact it ships and hash
+turns on it, but **pdfcer must pin exactly which artifact it ships and hash
 it**, rather than treating "the ocrs models" as one thing.
 
 > ### ★★★ AMENDED 2026-08-25 — EVERYTHING TURNED ON IT (`Pass 129.0`, `181d9bd`, two-hundred-and-sixty-second filing)
@@ -303,8 +303,8 @@ it**, rather than treating "the ocrs models" as one thing.
 >
 > **"So nothing in this survey turns on it" was wrong.** The Hugging Face
 > detection build, `text-detection-ssfbcj81.rten` (2,523,564 B), **does not
-> work with `ocrs` 0.12.2.** pdfce shipped it on 2026-08-13 and **every OCR
-> run pdfce made until 2026-08-25 produced garbage on any page** — sixteen
+> work with `ocrs` 0.12.2.** pdfcer shipped it on 2026-08-13 and **every OCR
+> run pdfcer made until 2026-08-25 produced garbage on any page** — sixteen
 > fragments at the right page margin plus one "word" whose bounding box was
 > the whole page, on a clean 150 dpi render of 12 pt Helvetica. Not degraded
 > output. Noise.
@@ -327,12 +327,12 @@ it**, rather than treating "the ocrs models" as one thing.
 > so the recognition model was never at fault and only the detection file
 > was replaced. **The first hypothesis was wrong and is recorded beside the
 > right answer**: the recognition file is named `text-rec-checkpoint`, so
-> the obvious theory was that pdfce ran a *training checkpoint* as its
+> the obvious theory was that pdfcer ran a *training checkpoint* as its
 > recogniser. It did not. **A plausible filename is not evidence either.**
 >
 > **What ships now:** S3 detection (2,510,284 B) + HF recognition
 > (9,716,444 B) = **12,226,728 B over 2 files**. See
-> `crates/pdfce-core/assets/models/ocrs/PROVENANCE.md` (four-row table +
+> `crates/pdfcer-core/assets/models/ocrs/PROVENANCE.md` (four-row table +
 > the wrong hypothesis), `LEGAL.md` §6.7.4, `ARCHITECTURE.md`'s weights
 > section, and `ROADMAP.md`'s `181d9bd` entry.
 >
@@ -348,12 +348,12 @@ Tesseract `tessdata_best` language file is roughly a third of this on its own
 **Provisioning, and why it is a design constraint rather than a detail.** The
 `ocrs` **CLI** downloads these from an author-controlled S3 bucket
 (`https://ocrs-models.s3-accelerate.amazonaws.com/…`) via `ureq`, caching to
-`~/.cache/ocrs`. pdfce **cannot do that** — `ureq` is on the `no-network`
+`~/.cache/ocrs`. pdfcer **cannot do that** — `ureq` is on the `no-network`
 denylist by name (§2.3). The good news is that the split is already clean
 upstream: **the download code lives entirely in `ocrs-cli`, not in the `ocrs`
 library.** The library takes already-loaded `rten::Model` values through
-`OcrEngineParams`. pdfce depends on `ocrs` alone, ships the two files in its
-own folder, and loads them from disk. No network code enters any pdfce crate,
+`OcrEngineParams`. pdfcer depends on `ocrs` alone, ships the two files in its
+own folder, and loads them from disk. No network code enters any pdfcer crate,
 and no CI job needs an exception.
 
 **A staleness flag, recorded because it is easy to miss under all the activity
@@ -373,7 +373,7 @@ the build.
 The README claims portability *"including WebAssembly"*, and `rten` documents
 `make wasm` targets and WebAssembly SIMD. Claims are not measurements, and
 this project has a written lesson about the difference. So the CI gate was run
-directly, on a scratch crate carrying `ocrs = "0.12.2"`, using **pdfce's own
+directly, on a scratch crate carrying `ocrs = "0.12.2"`, using **pdfcer's own
 pinned toolchain**:
 
 ```
@@ -392,24 +392,24 @@ instantiated rather than merely parsed.
 Two things this does and does not prove, stated in the same terms the CI job
 uses about itself. It **does** prove the stack type-checks for the target that
 the web-fork invariant is defined against, which is precisely what job
-`cross-target compile check` asserts for `pdfce-core` and `pdfce-render`. It
+`cross-target compile check` asserts for `pdfcer-core` and `pdfcer-render`. It
 does **not** prove it runs usefully in a browser: `rayon` is a non-optional
 dependency of both `ocrs` and `rten`, threads on `wasm32-unknown-unknown`
-require a threaded build that pdfce does not have today, and rten's own README
+require a threaded build that pdfcer does not have today, and rten's own README
 warns the non-SIMD WASM builds are *"significantly slower."* For the web fork
 that is a performance question to solve later; for **today's invariant it is a
 pass**, and it is the only OCR candidate in this survey that passes at all.
 
 One incidental finding, recorded because it will bite the next person who
 tries this: the check fails with `can't find crate for 'core'` if run from a
-directory outside `D:\Dev\pdfce\`, because the `rust-toolchain.toml` override
+directory outside `D:\Dev\pdfcer\`, because the `rust-toolchain.toml` override
 does not apply there and the default `stable` toolchain has no `wasm32` target
 installed. The failure looks like an `ocrs` incompatibility and is not one.
 Use `cargo +1.97.1`, or run inside the repo.
 
 ### 3.6 The `unsafe` surface — the real engineering cost, quantified
 
-pdfce has a deliberate, written posture on this. Decision 005's **R24** keeps
+pdfcer has a deliberate, written posture on this. Decision 005's **R24** keeps
 SIMD features **off** on every image codec specifically to preserve
 `zune-jpeg`'s compiler-enforced `forbid(unsafe_code)`, and a dedicated CI job
 fails the build if any of them is switched on, because *"enabling any codec
@@ -436,7 +436,7 @@ Two observations, and they point in opposite directions.
 **It cannot be switched off.** `rten-simd` is a non-optional dependency of
 `rten`. There is no feature that yields a scalar-only build. So unlike every
 codec R24 governs, this is not a knob — taking `ocrs` means taking the whole
-of it. That is a genuine widening of `pdfce-core`'s unsafe surface and it
+of it. That is a genuine widening of `pdfcer-core`'s unsafe surface and it
 should be recorded as an accepted exception with reasons, in the shape
 decision 039 used for `aes` and `sha2` (where the unsafe was cfg-selected and
 therefore also un-removable), rather than passing unremarked.
@@ -444,9 +444,9 @@ therefore also un-removable), rather than passing unremarked.
 **But the threat model is materially different from a codec's.** R24's
 reasoning is about a parser *fed adversarial input from the public internet*
 — a malformed JPEG in an untrusted PDF reaches `zune-jpeg` directly. The OCR
-path is not that shape. Its input is a raster **pdfce itself produced** by
+path is not that shape. Its input is a raster **pdfcer itself produced** by
 rendering a page, or a decoded image that has already been through the
-hardened codec path; the model file is a **local asset pdfce ships**, not
+hardened codec path; the model file is a **local asset pdfcer ships**, not
 attacker-controlled content. An attacker who can choose `rten`'s input has
 already gotten through the codecs. That does not make 1,023 `unsafe` sites
 free, and it does not excuse skipping fuzz coverage of the raster→OCR
@@ -477,11 +477,11 @@ A general web search for a third-party `ocrs`-vs-Tesseract comparison returns
 VLM-based engines, and **do not mention `ocrs` at all** — it is below the
 threshold of the comparison literature.
 
-**What follows for pdfce.** Any accuracy claim about pdfce's OCR would have to
-be **self-measured** against pdfce's own fixture corpus (`LEGAL.md` §5 rules
+**What follows for pdfcer.** Any accuracy claim about pdfcer's OCR would have to
+be **self-measured** against pdfcer's own fixture corpus (`LEGAL.md` §5 rules
 apply to what goes in it), because there is no external number to cite. Under
 the global claim-bearing-copy rule that is a hard constraint on the README and
-on any release note: *"pdfce OCR is comparable to Tesseract"* would be an
+on any release note: *"pdfcer OCR is comparable to Tesseract"* would be an
 invented claim today, in either direction.
 
 It also argues for a specific sequencing choice: **measure before committing
@@ -501,7 +501,7 @@ depends on the **unfinished** layout model, and an openly-licensed dataset
 lacks the plumbing: *"Add the infrastructure to support multiple languages and
 model updates"* is an **unchecked** roadmap item.
 
-For pdfce's actual likely corpus — CAD drawings, Word and Chrome print-to-PDF
+For pdfcer's actual likely corpus — CAD drawings, Word and Chrome print-to-PDF
 output, English-language scans, the material `personal_rag/pdf` was built
 from — Latin-only may be entirely acceptable. It should be recorded as a
 **hard ceiling with a named consequence**, not a temporary gap: it is the one
@@ -524,27 +524,27 @@ written ~97% of `ocrs` and effectively all of `rten`. `PRIOR_ART.md` has
 already used bus factor 1 as a disqualifying consideration once — it is among
 the reasons `oxidize-pdf` was rejected as a foundation (decision 001). The
 distinction that matters here is **blast radius**: `oxidize-pdf` was proposed
-as the whole of `pdfce-core`, where abandonment would have been existential.
+as the whole of `pdfcer-core`, where abandonment would have been existential.
 `ocrs` sits behind a feature flag at the edge of the system, its models are
 static files, and the fallback if it is abandoned is that OCR stops improving
-— not that pdfce stops working. That is a survivable dependency risk, but it
-is a real one, and it is a reason to keep pdfce's OCR API defined in pdfce's
+— not that pdfcer stops working. That is a survivable dependency risk, but it
+is a real one, and it is a reason to keep pdfcer's OCR API defined in pdfcer's
 own vocabulary (§8.3) rather than re-exporting `ocrs` types.
 
 Two smaller notes. **MSRV is moving fast**: `rten` 0.25.0 declares
 `rust-version = "1.94.0"` and `edition = "2024"`, up from 1.89 less than a
-year ago. pdfce pins 1.97.1, so there is headroom today, but this dependency
+year ago. pdfcer pins 1.97.1, so there is headroom today, but this dependency
 will pull the pin forward more often than the rest of the graph, and
 `ARCHITECTURE.md` §2.1a requires a dated decision-log entry for every bump.
 And **release-mode is mandatory** — the `ocrs` README warns in bold that debug
 builds of `ocrs` and its `rten*` dependencies are *"extremely slow"*, so
-pdfce's dev profile needs a `[profile.dev.package]` `opt-level` override or
+pdfcer's dev profile needs a `[profile.dev.package]` `opt-level` override or
 debugging anything near OCR becomes impractical.
 
 ### 3.10 Feature-gating: clean, and it fits the existing convention exactly
 
 `ocrs` is an ordinary optional Cargo dependency. It slots into the
-`crates/pdfce-core/Cargo.toml` convention with no special handling:
+`crates/pdfcer-core/Cargo.toml` convention with no special handling:
 
 ```toml
 [features]
@@ -560,7 +560,7 @@ in this build"*, never a blank text layer.
 
 `rten-imageproc` is listed explicitly because `RotatedRect` — the type
 `ocrs`'s public API returns for word geometry — is defined there. It is a
-transitive public type, so pdfce takes a direct dependency to name it, or
+transitive public type, so pdfcer takes a direct dependency to name it, or
 converts at the boundary (§8.3 recommends converting).
 
 The pure-Rust nature is what makes this trivial. There is no build script to
@@ -571,8 +571,8 @@ make conditional, no native library to locate, no `cfg` fork between a
 
 `OcrEngine` returns **`anyhow::Result`** throughout its public surface. That is
 an application error type in a library API, contrary to the Rust API
-Guidelines' `thiserror` preference that project rule 10 binds pdfce to. It is
-not a blocker — it is a reason `pdfce-core` must wrap `ocrs` behind its own
+Guidelines' `thiserror` preference that project rule 10 binds pdfcer to. It is
+not a blocker — it is a reason `pdfcer-core` must wrap `ocrs` behind its own
 `thiserror` enum rather than letting `anyhow` into its public API. That
 wrapping is wanted anyway for the bus-factor reason in §3.9, so the cost is
 zero and the requirement should simply be written into the Pass.
@@ -633,9 +633,9 @@ bundles). The libcurl branch transitively pulls:
 - **`libunistring-5.dll`** — dual **LGPLv3+ / GPLv2+**
 - **`libiconv-2.dll`**, **`libintl-8.dll`** — GNU libiconv / gettext, **LGPL**
 
-Those are weak-copyleft binaries that would sit in pdfce's shipped folder.
+Those are weak-copyleft binaries that would sit in pdfcer's shipped folder.
 Under §6.1 that is a *"flag any LGPL/MPL dependency to the user before adding
-it"* situation — and it would be an absurd one to have, because **pdfce needs
+it"* situation — and it would be an absurd one to have, because **pdfcer needs
 neither library**. It cannot use libcurl (the no-network posture, §2.3), and
 it would ship traineddata as plain files rather than as archives.
 
@@ -721,7 +721,7 @@ Three observations that change the shape of the decision:
 **Verdict on the single-folder constraint: Tesseract passes**, by measurement
 rather than by hope. It is not disqualified here. It is simply expensive —
 call it **~28 MB (MSVC, projected) to ~54 MB (MinGW, measured)** added to
-pdfce's folder including `eng` + `osd`, against `ocrs`'s 12.24 MB — and it
+pdfcer's folder including `eng` + `osd`, against `ocrs`'s 12.24 MB — and it
 requires a from-source build to be licence-clean.
 
 ### 4.5 Language data: the decisive advantage
@@ -740,11 +740,11 @@ beyond Apache-2.0's ordinary NOTICE handling.
 
 **Do not overlook `osd.traineddata`** — orientation and script detection,
 which is what auto-rotates a sideways scan. It is **10,562,727 B = 10.07 MB in
-every variant**, roughly 2.5× the size of `eng` in the fast variant. If pdfce
+every variant**, roughly 2.5× the size of `eng` in the fast variant. If pdfcer
 auto-detects page rotation (and it should — a scan fed in upside down is the
 single most common OCR failure a user will hit), that 10 MB is mandatory.
 
-A sensible pdfce baseline is therefore `tessdata_fast/eng` + `osd` ≈ **14 MB**,
+A sensible pdfcer baseline is therefore `tessdata_fast/eng` + `osd` ≈ **14 MB**,
 with further languages as optional operator-supplied files.
 
 **Breadth:** 120 language/script models plus a `script/` directory with 37
@@ -796,7 +796,7 @@ downloads third-party sources and traineddata over the network using
 
 For a project whose CI carries a fail-closed denylist naming `reqwest` by name
 (§2.3), a build-time network fetch is at minimum a new decision record, and
-arguably worse than the thing the denylist forbids: it makes pdfce's build
+arguably worse than the thing the denylist forbids: it makes pdfcer's build
 non-hermetic and non-reproducible, which cuts against the same reasoning
 `rust-toolchain.toml` pins an exact patch version for. Its `embed-tessdata`
 feature (traineddata compiled into the binary, languages selected by
@@ -805,7 +805,7 @@ single-file deployment and does not rescue the rest.
 
 **`rusty-tesseract`: the cheapest build, the shallowest integration.** It
 spawns `tesseract.exe`. Build-time requirements on Windows are **none beyond
-stock Rust** — no MSVC C++, no vcpkg, no bindgen, no LLVM — which fits pdfce's
+stock Rust** — no MSVC C++, no vcpkg, no bindgen, no LLVM — which fits pdfcer's
 "anyone can clone this and build it" posture better than anything else in this
 survey. It sets `CREATE_NO_WINDOW` (0x08000000) on Windows so no console
 flashes, a real detail for a GUI app. `image_to_data()` yields per-word
@@ -845,13 +845,13 @@ compiling the C++ with `cc`/`cmake` fails (no compiler emits
 `src/arch_sse/` directory that hard-codes SSE because *"Tesseract feature
 detection does not work in WebAssembly"*, `EM_ASM_ARGS` progress hooks patched
 into `src/ccmain/control.cpp`, a rewritten `tprintf`. None of that is
-reachable from `cargo build --target wasm32-unknown-unknown`, and pdfce would
+reachable from `cargo build --target wasm32-unknown-unknown`, and pdfcer would
 be adopting a fork of a C++ project as a JavaScript dependency.
 
 **This is the consequential finding of §4, and it is bigger than OCR.**
 `ARCHITECTURE.md` §1/§3 hold that the web fork should be a shell-crate swap,
 and the wasm32 CI job (§2.2) exists to keep that true. **Choosing Tesseract
-makes OCR the first pdfce feature that cannot cross that boundary at all.**
+makes OCR the first pdfcer feature that cannot cross that boundary at all.**
 The available responses are: call `tesseract.js` from JavaScript on the web
 fork and treat the Rust side as an interface boundary; retarget the whole
 application at `wasm32-unknown-emscripten` or `wasm32-wasip1`; or run a
@@ -874,15 +874,15 @@ historical scans:
 | French | 1,821 | **5.16%** |
 | Spanish | 2,404 | **7.12%** |
 
-**The paper's more useful finding for pdfce is the second-order one:** its
+**The paper's more useful finding for pdfcer is the second-order one:** its
 restoration pipeline cuts that CER by 63.9–70.3%. **Preprocessing dominates
 engine choice.** Deskew, binarisation and denoise before the engine ever sees
 pixels are worth more than the difference between any two engines in this
-survey — which is an argument for putting effort into the raster path pdfce
-already owns in `pdfce-render`, and for not over-weighting the engine
+survey — which is an argument for putting effort into the raster path pdfcer
+already owns in `pdfcer-render`, and for not over-weighting the engine
 decision itself.
 
-Two things must **not** be repeated in pdfce's docs or user-facing copy:
+Two things must **not** be repeated in pdfcer's docs or user-facing copy:
 
 - **The ubiquitous "98–99% accuracy on clean 300 DPI printed documents" is
   UNVERIFIED.** It recurs across 2026 blog posts and could not be traced to a
@@ -905,12 +905,12 @@ LSTM engine with two more years of model updates, against a preview-stage
 model last retrained in early 2024 whose own author says to expect more errors
 than commercial engines. But **"very probably" is the honest strength of that
 claim**, because the two have never been measured against each other and
-neither has a benchmark pdfce could cite. §8.1 turns that into the first task
+neither has a benchmark pdfcer could cite. §8.1 turns that into the first task
 rather than an assumption.
 
 ### 4.9 Feature-gating a native library: possible, awkward
 
-`crates/pdfce-core/Cargo.toml`'s convention (§2.5) assumes its rule 3 — *"the
+`crates/pdfcer-core/Cargo.toml`'s convention (§2.5) assumes its rule 3 — *"the
 dependency is `optional = true` and named by the feature, so disabling it
 actually removes the code."* For a pure-Rust crate that is one line. For
 Tesseract it depends on the binding:
@@ -924,7 +924,7 @@ Tesseract it depends on the binding:
   but the build-script conditionals do not disappear: a build with OCR off
   must not invoke CMake, must not require an MSVC C++ toolchain, and must not
   attempt a network fetch. That is achievable, but it means the answer to
-  *"can someone build pdfce without a C++ toolchain?"* becomes **"yes, if they
+  *"can someone build pdfcer without a C++ toolchain?"* becomes **"yes, if they
   remember `--no-default-features`"**, and CI must then build both
   configurations to keep it true. With `ocrs` the question does not arise.
 
@@ -971,7 +971,7 @@ engineer confirmed it directly on Q&A: *"OCR API indeed requires package
 identity… it's better to package your win32 application into msix mode."*
 There is counter-evidence — `winocr` is a shipping unpackaged `.exe` that
 works — so this is a **documented-support risk rather than a known failure**.
-That is arguably worse for pdfce than a hard failure would be: it means the
+That is arguably worse for pdfcer than a hard failure would be: it means the
 capability works until a Windows update decides it should not, in a product
 whose entire distribution premise (§2.4) is *no installer, no MSIX, no
 package identity*.
@@ -987,7 +987,7 @@ the system language, not as a contract, and on a machine whose system language
 is something else `TryCreateFromLanguage` returns **null rather than an
 error**. `AvailableRecognizerLanguages` must be probed at runtime and the UI
 must degrade honestly. For a portable app handed to an arbitrary Windows
-machine that is a real failure mode, and it is one pdfce **cannot compensate
+machine that is a real failure mode, and it is one pdfcer **cannot compensate
 for**, because having no bundled models is the entire reason for choosing this
 path in the first place.
 
@@ -1000,7 +1000,7 @@ have to compensate for.
 as the engine.** Use it when a suitable recogniser happens to be installed and
 fall back to the bundled engine otherwise. That captures the genuine
 zero-install, zero-model benefit where it exists without betting the feature
-on a machine configuration pdfce does not control. It does **not** change the
+on a machine configuration pdfcer does not control. It does **not** change the
 primary decision, because the fallback has to be able to do the whole job
 anyway — and it would mean two engines producing different text for the same
 page, which is its own disclosure problem under rule 4. Recorded as a possible
@@ -1021,7 +1021,7 @@ on every axis that matters here: per-observation bounding boxes, **confidence
 scores**, and ranked alternative candidates via `topCandidates()`. Recorded
 only to make the point that the platform-OCR *idea* is not unsound — it is the
 Windows implementation specifically that cannot meet rule 4's bar, and macOS
-is not a supported pdfce platform anyway (**R9**).
+is not a supported pdfcer platform anyway (**R9**).
 
 ### 5.2 `ocr-rs` (rust-paddle-ocr) — the serious third option
 
@@ -1067,7 +1067,7 @@ fallback and being a second instance of the same trap. It is listed in §10.
 `cargo check --target wasm32-unknown-unknown` cannot succeed — this candidate
 hits exactly the wall §4.7 describes, and the same web-fork consequence
 follows. It also links a **prebuilt** MNN static library rather than building
-from source, which means pdfce would be shipping a binary artifact it did not
+from source, which means pdfcer would be shipping a binary artifact it did not
 compile and cannot easily audit — a different flavour of the supply-chain
 question `LEGAL.md` §6.2 step 5 raises, and one that deserves its own look
 (what exactly is in that `.lib`, who built it, is it reproducible) before
@@ -1087,7 +1087,7 @@ pure-Rust inference runtime, WASM-documented, with no `-sys` dependency. It is
 worth naming for two reasons: it can load PaddleOCR ONNX models directly,
 which means the *permissive* PaddleOCR weights could in principle be run on a
 *pure-Rust, WASM-clean* runtime — the combination that would satisfy every
-constraint in §2 at once; and it is a second home for pdfce's OCR should
+constraint in §2 at once; and it is a second home for pdfcer's OCR should
 `rten`'s bus factor of 1 (§3.9) ever become a live problem.
 
 **Nobody has built that combination.** There is no maintained crate wiring
@@ -1116,19 +1116,19 @@ default rather than a documented requirement.** Reading `ort`'s own
 "tls-native", "copy-dylibs", "api-27"]`. **`download-binaries` and
 `copy-dylibs` are both on by default**, so a default build fetches a prebuilt
 ONNX Runtime *at build time* and copies the dynamic library next to the
-binary. `onnxruntime.dll` ships beside `pdfce.exe`, tens of megabytes of it,
+binary. `onnxruntime.dll` ships beside `pdfcer.exe`, tens of megabytes of it,
 and the build is no longer hermetic. On Windows specifically there is **no
 DLL-free x86_64 row** in pyke's distribution table, so the resolver picks the
 DirectML build and `DirectML.dll` comes too. A genuinely zero-DLL build means
 compiling ONNX Runtime from C++ source (over an hour). `ort` is also still at
 `2.0.0-rc.13` with no 2.0 final after years, and its prebuilts require
-**x86-64-v3** (Haswell, 2013+) — a silent minimum-CPU requirement pdfce has
+**x86-64-v3** (Haswell, 2013+) — a silent minimum-CPU requirement pdfcer has
 not otherwise taken on.
 
 Recorded rather than dismissed, because `oar-ocr`'s 15 scripts and permissive
 weights are genuinely attractive, and because if the DLL ever becomes
 acceptable this is the candidate that argument favours. It is the same
-trade-off `ocr-rs` (§5.2) resolves in pdfce's favour by static-linking MNN
+trade-off `ocr-rs` (§5.2) resolves in pdfcer's favour by static-linking MNN
 instead.
 
 **`surya`** — and this is the trap worth writing down, because the licences
@@ -1137,7 +1137,7 @@ GPL as is sometimes assumed. **The weights are a modified AI-Pubs Open RAIL-M
 licence, "free for research, personal use, and startups under $5M
 funding/revenue."** Open RAIL-M carries field-of-use restrictions and a
 revenue trigger, so those weights **cannot be bundled in an MIT application**:
-pdfce would be redistributing restricted artifacts inside a package whose
+pdfcer would be redistributing restricted artifacts inside a package whose
 licence promises recipients unrestricted use. The Rust port `surya-rs` is
 abandoned (last release 2024-02-01) in any case. **docTR** is Apache-2.0
 throughout but has no Rust port.
@@ -1169,10 +1169,10 @@ Named here only so the rejection is on the record rather than implied by
 omission. Azure AI Vision (Read), Google Cloud Vision, AWS Textract, Mistral
 OCR and the VLM-based engines that dominate the 2026 accuracy round-ups are
 all substantially more accurate than anything in this survey. **None of them
-is available to pdfce.**
+is available to pdfcer.**
 
 **Reason one — the privacy posture, which is a promise, not a deployment
-detail.** `ARCHITECTURE.md` §1.1: *"pdfce makes no network calls of any kind
+detail.** `ARCHITECTURE.md` §1.1: *"pdfcer makes no network calls of any kind
 by default… Every document a user opens is processed entirely locally,
 in-process, with no data ever leaving the machine unless the user explicitly
 initiates it themselves."* An OCR feature that uploads the page is the exact
@@ -1186,7 +1186,7 @@ GUI-core-separation and round-trip invariants."*
 
 **Reason two — it is mechanically impossible without a new decision record,
 and that is deliberate.** The `no-network` CI job (decision 003 **R12**) is a
-fail-closed denylist over `pdfce-core`, `pdfce-render`, `pdfce-cli` and
+fail-closed denylist over `pdfcer-core`, `pdfcer-render`, `pdfcer` and
 `pdfce-gui`. Every HTTP client and TLS stack anyone would reach for —
 `reqwest`, `ureq`, `hyper`, `curl`, `rustls`, `native-tls`, `openssl` — is on
 it by name, and so is `tokio`. There is no way to write a cloud-OCR client
@@ -1208,9 +1208,9 @@ wanted, it is its own decision record with its own operator sign-off — never a
 line item inside an OCR Pass.
 
 **One adjacent pattern that is NOT rejected, because it is a different shape.**
-`LEGAL.md` §6.5 already establishes that pdfce may *run a separate process* it
+`LEGAL.md` §6.5 already establishes that pdfcer may *run a separate process* it
 neither ships nor links (veraPDF). By the same logic, a future *"OCR with an
-external tool the operator installed themselves"* escape hatch — pdfce shells
+external tool the operator installed themselves"* escape hatch — pdfcer shells
 out to a `tesseract.exe` already on the machine, consumes hOCR, ships nothing —
 raises no licensing question and no network question at all. It is a
 legitimate power-user feature and it is **not a substitute for a bundled
@@ -1223,22 +1223,22 @@ installed anything. Noted as an option for §8, not as a candidate.
 
 ### 7.1 (A) The sandwich: confirmed, and what it means in PDF operators
 
-**Confirmed. pdfce should produce OCRmyPDF-style "sandwich" output**: the
+**Confirmed. pdfcer should produce OCRmyPDF-style "sandwich" output**: the
 original page content is left completely untouched, and an invisible,
 position-aligned text layer is appended over it. The page looks
 byte-for-byte identical when rendered, and becomes searchable, selectable and
 copyable.
 
 This is not merely the popular choice — it is the only approach compatible
-with pdfce's own round-trip invariant. `ARCHITECTURE.md` §5 / project rule 3:
-objects pdfce did not logically touch are re-emitted byte-identical, or simply
+with pdfcer's own round-trip invariant. `ARCHITECTURE.md` §5 / project rule 3:
+objects pdfcer did not logically touch are re-emitted byte-identical, or simply
 omitted under incremental save. An OCR mode that *replaced* the scanned image
 with reconstructed text and vector art would rewrite the page's entire visual
 content on the strength of an inference — the exact thing rule 3 exists to
 prevent, and (per §7.3) a separate, later capability rather than the default.
 
 It is also the mode the spec corpus already anticipates. `PDF_Spec`'s
-`iso32000__s__9.3.md`, in its own "Why it matters for pdfce" section, states:
+`iso32000__s__9.3.md`, in its own "Why it matters for pdfcer" section, states:
 
 > **"Text rendering mode 3 is how OCR text layers are made invisible** — this
 > is the 'sandwich' approach `PRIOR_ART.md` cites for OCRmyPDF. A Pass 1
@@ -1272,13 +1272,13 @@ Two spec details that matter for correctness:
   must not leak it. Wrapping in `q … Q` handles this (below), because `Tr` is
   part of the graphics state that `Q` restores.
 - **§9.3.6: "Only a value of 3 for text rendering mode shall have any effect
-  on text displayed in a Type 3 font."** Irrelevant to authoring (pdfce writes
-  a Type 1 Standard-14 face) but relevant to pdfce's *renderer*, which must
+  on text displayed in a Type 3 font."** Irrelevant to authoring (pdfcer writes
+  a Type 1 Standard-14 face) but relevant to pdfcer's *renderer*, which must
   honour mode 3 for OCR layers other tools produced.
 
 #### 7.1.2 What it does to the existing content stream: nothing
 
-The sandwich is an **append**, and pdfce already has the machinery, built for
+The sandwich is an **append**, and pdfcer already has the machinery, built for
 Pass 16.0 / FF-D (add-text). `PDF_Spec`'s
 `iso32000__ref__page_content_append.md` is the recipe, and its guarantee is
 exactly what is wanted here:
@@ -1359,20 +1359,20 @@ format 12), and — the detail that earns its existence — **three advance widt
 against Tesseract's single 500. That is what makes CJK and combining marks
 select correctly.
 
-**pdfce's Standard-14 route is therefore closer to modern OCRmyPDF than to the
+**pdfcer's Standard-14 route is therefore closer to modern OCRmyPDF than to the
 folklore, and the divergence is narrower than it looks:** both use a real
-font with real metrics and rely on explicit operators for placement. pdfce's
+font with real metrics and rely on explicit operators for placement. pdfcer's
 version needs **no embedded font program at all** — smaller output, nothing to
 subset, nothing to attribute — because it can lean on the reader's built-in
 Standard-14 metrics and on `fontdata::std14_width` for its own arithmetic.
 **Record this as a deliberate divergence with its reason**, so a later reader
-does not "fix" pdfce toward an embedded glyphless font without knowing that
+does not "fix" pdfcer toward an embedded glyphless font without knowing that
 the choice was made and why.
 
 Two consequences of that choice to accept knowingly. Standard-14 + WinAnsi
-cannot represent CJK at all, so if pdfce ever gains a non-Latin engine the
+cannot represent CJK at all, so if pdfcer ever gains a non-Latin engine the
 sandwich emitter needs a second path (a `Type0`/`Identity-H` CID font with a
-`ToUnicode` CMap — the shape `ocrs-cjk-cli` uses, and the shape pdfce's own
+`ToUnicode` CMap — the shape `ocrs-cjk-cli` uses, and the shape pdfcer's own
 Pass 21.0 composite-authoring work already built machinery for). And
 `ZapfDingbats`/`Symbol` are irrelevant here; the OCR face is always one of the
 twelve Latin ones, `/Helvetica` being the obvious pick since its widths are
@@ -1386,7 +1386,7 @@ therefore **directly embeddable in an MIT project with attribution**. It is
 many-to-one mapping, and carries the three-class advance widths (0 for
 combining marks, 500 for Latin/Greek/Cyrillic/Arabic/Hebrew, 1000 for CJK and
 fullwidth). That is a solved, tested, permissively licensed answer to a
-problem pdfce would otherwise be building a CID font to solve — the most
+problem pdfcer would otherwise be building a CID font to solve — the most
 immediately actionable finding in this section, and worth knowing *now* even
 though the first Pass does not need it.
 
@@ -1444,7 +1444,7 @@ percentage, not a ratio** (`iso32000__s__9.3.md`: `100 Tz` → `Th = 1.0`) — t
 spec RAG flags storing the raw operand as `Th` as a known 100× bug. Emit
 `Th · 100`.
 
-**This formula is not pdfce's invention, and it is worth knowing that two
+**This formula is not pdfcer's invention, and it is worth knowing that two
 independent implementations converged on it.** OCRmyPDF v17's renderer
 computes, per word, `word_tz = (word_width_pt / natural_width) * 100` where
 `natural_width` is a real font measurement, not an estimate. Tesseract's own
@@ -1486,7 +1486,7 @@ ever shows it is needed.
 **Spaces.** OCRmyPDF appends the space to the *word's own string* rather than
 emitting a synthetic space word — a change made in v17, where v16 had emitted
 separate space words each with its own stretched `Tz`. That is the better
-answer and pdfce should copy it. What must **not** happen is emitting literal
+answer and pdfcer should copy it. What must **not** happen is emitting literal
 spaces *and* driving position from the boxes, which double-counts and yields
 doubled spaces on copy.
 
@@ -1529,9 +1529,9 @@ text object rather than once per content stream.
 an empirical divergence between what the standard permits and what real
 consumers do, discovered from another implementation's scar tissue rather than
 from the spec. It should be written there when the Pass ships, whichever
-engine is chosen, because it is a property of PDF readers and not of pdfce.
+engine is chosen, because it is a property of PDF readers and not of pdfcer.
 
-#### 7.1.6 What pdfce must build, versus what it already has
+#### 7.1.6 What pdfcer must build, versus what it already has
 
 Already present and reusable, verified in the tree:
 
@@ -1542,7 +1542,7 @@ Already present and reusable, verified in the tree:
 - The append plumbing behind `Document::add_text` /
   `CommandKind::AddText` — `/Contents` single→array, the `/Resources`
   inheritance-safe merge, incremental save, undo.
-- `pdfce-render::render_page*` — page → raster, the OCR input path.
+- `pdfcer-render::render_page*` — page → raster, the OCR input path.
 - `image_codec::*` — DCT/CCITT/JBIG2/JPX decode, for reading a scanned page's
   image XObject directly instead of re-rendering it.
 
@@ -1561,7 +1561,7 @@ Project rule 4 was **narrowed on 2026-08-05** (decision 024 §4.4), and the
 narrowing matters here, because a careless reading of the old wording would
 produce exactly the interface the operator complained about. The current text:
 
-> Anything pdfce **inferred** — a value, a boundary, a classification, a
+> Anything pdfcer **inferred** — a value, a boundary, a classification, a
 > correction the operator did not directly specify (OCR text, auto-detected
 > form fields, recognised text blocks, …) — is **visible before it becomes
 > document state**, and the operator can reject it without undoing anything
@@ -1621,7 +1621,7 @@ Concretely, the disclosure should carry:
 
 - **Which engine and which model produced this**, by name and version. This is
   the same three-part promise `form_script/disclose.rs` centralises — *what
-  computes the value, whether pdfce ran it, whether the shown value may be
+  computes the value, whether pdfcer ran it, whether the shown value may be
   stale* — and it is centralised there for a stated reason worth repeating:
   scattering it across CLI, GUI and report *"would let one of them drift, and
   the one that drifts is the one that stops saying 'may be stale'."*
@@ -1631,7 +1631,7 @@ Concretely, the disclosure should carry:
   scanning a page for three highlighted words is doing something possible; an
   operator proof-reading 1,204 words against the image is not.
 - **The suppressions.** Lines dropped by the aspect-ratio guard (§7.1.4), and
-  words the WinAnsi encoder refused (§7.1.3), are pdfce *deciding not to
+  words the WinAnsi encoder refused (§7.1.3), are pdfcer *deciding not to
   record something it recognised*. Silence there is the sneaky case.
 - **The honest ceiling.** If the engine is Latin-only and the page contains
   non-Latin script, say so. A blank result for a Japanese page must not look
@@ -1647,7 +1647,7 @@ loses to the rule the project cares most about.
 | **Tesseract** | **✅ Yes** — `ResultIterator::Confidence(level)`, a float 0–100, at **every** hierarchy level (block / paragraph / line / word / symbol) | `BoundingBox(level, …)`, axis-aligned | Also via TSV (`conf` column) and hOCR (`x_wconf`). Three independent delivery paths |
 | **`ocrs`** | **❌ None, anywhere** | `bounding_rect()` **and `rotated_rect()`**, per word *and per character* | Verified at source, not from docs |
 | **`Windows.Media.Ocr`** | **❌ None** — `OcrWord` has exactly `BoundingRect` and `Text` | axis-aligned words only; `OcrLine` has no box at all | §5.1 |
-| **Apple Vision** | ✅ Yes, plus ranked alternative candidates | per-observation boxes | not a pdfce platform (**R9**) |
+| **Apple Vision** | ✅ Yes, plus ranked alternative candidates | per-observation boxes | not a pdfcer platform (**R9**) |
 | **`oneocr-rs`** | ✅ Yes, plus angle and handwriting classification | — | disqualified: redistributes Microsoft binaries (§5.1) |
 
 **`ocrs` exposes no confidence at any public API level.** This was checked at
@@ -1693,12 +1693,12 @@ What would be sneaky is presenting `ocrs` output in an interface designed
 around confidence shading, with nothing shaded, so the absence of highlights
 reads as *"the engine is confident"* when it means *"the engine cannot say."*
 That distinction should be designed in from the start, which is a
-`pdfce-ui-specialist` dispatch when the Pass is scoped, not an engineering
+`pdfcer-ui-specialist` dispatch when the Pass is scoped, not an engineering
 afterthought.
 
 Three ways to close the gap properly, in increasing cost: **(a)** disclose the
 absence, as above, and use the detection probability map to shade
-*low-detection-confidence regions*, which is a weaker but real signal pdfce
+*low-detection-confidence regions*, which is a weaker but real signal pdfcer
 already has access to; **(b)** patch `ocrs`'s `recognition.rs` to plumb the
 decoder's existing log-probabilities into `TextChar` and offer it upstream —
 the values exist and are thrown away, so this is a small, well-motivated
@@ -1724,11 +1724,11 @@ top of an inference, rewriting content the round-trip invariant (rule 3)
 otherwise protects.
 
 Two things worth carrying forward rather than losing. The parity RAG already
-notes that pdfce is **not a tiered product**, so shipping both modes without a
+notes that pdfcer is **not a tiered product**, so shipping both modes without a
 tier gate is *"a straightforward parity-plus position once the OCR engine
 decision lands"* — a real differentiator, later. And Acrobat's own
 font-matching algorithm for reconstructed text is **undocumented** (a recorded
-GAP), which means there is no behaviour to match and pdfce would be designing
+GAP), which means there is no behaviour to match and pdfcer would be designing
 that part from first principles anyway.
 
 `ROADMAP.md` already carries the dependency in the other direction: **FF-G**,
@@ -1740,14 +1740,14 @@ meaning *the text layer*, not the pixels.
 
 **Three crates genuinely emit `3 Tr` invisible text over a preserved page
 raster. All three are 2026 arrivals, single-author, with ≤8 GitHub stars, and
-around 2,000 downloads between them.** None is a dependency pdfce could take
+around 2,000 downloads between them.** None is a dependency pdfcer could take
 under rule 13 with a straight face.
 
 | Crate | Licence | Version | Assessment |
 |---|---|---|---|
 | **`deepocr` / `deepocr-core`** | **MIT OR Apache-2.0** — *both* LICENSE files present, the cleanest of the three | 0.1.0, 2026-07-26 | `lopdf`-based, reproduces the glyphless-font trick (`add_glyphless_font`), emits `BT\n3 Tr\n`, test asserts `"3 Tr"`. OCR via `ocrs`. **0 stars, 17 downloads, and all 13 commits landed on the same day.** Architecturally right, operationally unproven |
 | **`harumi`** | claims `MIT OR Apache-2.0` — **⚠ no LICENSE file anywhere in the repo**; GitHub's detector returns `null` | 1.19.0, 2026-06-26, 8★ | `lopdf` + `ttf-parser`, pure Rust, no C deps, WASM-ready. Documents *"render_mode 3 — invisible (selectable/searchable, no paint)"*, exposes `invisible_text_stream()`. **⚠ Emits no `Tz` at all** — grepped and confirmed — so it places text at a point with a font size but never fits it to the recognised box width. Materially less than the mechanism requires |
-| **`ocrs-cjk-cli`** | MIT OR Apache-2.0, both files present | 0.1.0, 3★ | Independent `lopdf` implementation by `harumi`'s author. Builds a real `Type0`/`CIDFontType2` font with a `ToUnicode` CMap — the CJK-capable shape §7.1.3 notes pdfce would eventually need |
+| **`ocrs-cjk-cli`** | MIT OR Apache-2.0, both files present | 0.1.0, 3★ | Independent `lopdf` implementation by `harumi`'s author. Builds a real `Type0`/`CIDFontType2` font with a `ToUnicode` CMap — the CJK-capable shape §7.1.3 notes pdfcer would eventually need |
 
 **Two that look like candidates and are not.** `pdf-ocr` (PDFluent) is
 **proprietary** — its crates.io licence field is literally `"non-standard"`,
@@ -1765,7 +1765,7 @@ PDF" it produces discards the scan.** This is a fourth entry in decision 001's
 list of capability claims that did not survive inspection, in the same
 project, found the same way. Do not count it as existing capability.
 
-**So pdfce composes engine + text-layer authoring itself.** That is not a
+**So pdfcer composes engine + text-layer authoring itself.** That is not a
 hardship — §7.1.6 shows most of the pieces already exist — and it is what the
 project would do anyway under decision 001's from-scratch posture.
 
@@ -1773,7 +1773,7 @@ project would do anyway under decision 001's from-scratch posture.
 primitive is exposed by every Rust PDF writer (`lopdf` MIT; `pdf-writer` and
 `oxidize-pdf` MIT/Apache-2.0; `printpdf` MIT, the last three with a typed
 `TextRenderingMode::Invisible`), and — more useful — **there are permissively
-licensed implementations pdfce may legally read *and* copy from**:
+licensed implementations pdfcer may legally read *and* copy from**:
 
 - **Tesseract's `src/api/pdfrenderer.cpp` — Apache-2.0.** Readable and
   copyable with attribution. Per `PRIOR_ART.md`, Apache-2.0 sources are the
@@ -1840,7 +1840,7 @@ here — it is copying that raises the question.
 
 ### 8.1 Recommendation: `ocrs` + `rten`, **conditional on a measurement and an operator answer**
 
-**Adopt `ocrs` + `rten` as pdfce's OCR engine**, behind a Cargo feature, with
+**Adopt `ocrs` + `rten` as pdfcer's OCR engine**, behind a Cargo feature, with
 models shipped as two files in the portable folder — **subject to the operator
 resolving §9's licence question**, and **subject to a measurement that has to
 happen first**.
@@ -1851,7 +1851,7 @@ the others force are permanent while `ocrs`'s weaknesses are contingent.
 
 - **It is the only candidate that clears the wasm32 CI gate** (§2.2), measured
   rather than claimed (§3.5). Every other option — Tesseract by any of three
-  routes, `ocr-rs`, the Windows API — makes OCR the first pdfce feature that
+  routes, `ocr-rs`, the Windows API — makes OCR the first pdfcer feature that
   cannot cross into the web fork at all (§4.7). That is not an OCR decision;
   it is a decision about `ARCHITECTURE.md` §1/§3, taken sideways, inside a
   feature Pass.
@@ -1884,24 +1884,24 @@ the others force are permanent while `ocrs`'s weaknesses are contingent.
    comes back restricted, the fallback becomes Tesseract-subprocess after all,
    with §9.1's two licence items to clear.
 2. **Measure before building the UI.** Neither `ocrs` nor Tesseract has a
-   benchmark pdfce can cite (§3.7, §4.8), so pdfce must generate its own
+   benchmark pdfcer can cite (§3.7, §4.8), so pdfcer must generate its own
    number on its own corpus. That is the first slice, below.
 
 ### 8.2 Suggested Pass shape
 
-**Slice 0 — the bake-off, before any pdfce code is written.** Assemble a
-rights-cleared fixture set (`LEGAL.md` §5) that reflects what pdfce's users
+**Slice 0 — the bake-off, before any pdfcer code is written.** Assemble a
+rights-cleared fixture set (`LEGAL.md` §5) that reflects what pdfcer's users
 actually scan, and run `ocrs`, Tesseract 5.5.3 and `ocr-rs` over it
 out-of-tree, measuring character error rate. Two reasons this comes first: it
 is the only way any accuracy claim in `README.md` can be made honestly under
 the claim-bearing-copy rule, and the *PreP-OCR* finding (§4.8) says
 preprocessing cuts CER by ~65%, so the bake-off should also measure
 **deskew/binarise/denoise before the engine** — which may turn out to matter
-more than the engine choice and is work in `pdfce-render`, which pdfce owns.
+more than the engine choice and is work in `pdfcer-render`, which pdfcer owns.
 Out-of-tree, like `tools/difftest/`, so nothing is adopted by measuring it.
 
 **Slice 1 — the sandwich emitter, engine-independent.** Build
-`pdfce-core::ocr::sandwich` against a *plain data* input type — a list of
+`pdfcer-core::ocr::sandwich` against a *plain data* input type — a list of
 `(text, rect_or_rotated_rect, confidence: Option<f32>)` per line — with no
 `ocrs` type anywhere in its signature. This slice is testable with
 hand-written fixtures, needs no engine at all, and is the part §7.1.6 shows is
@@ -1909,18 +1909,18 @@ mostly assembled already. It also means slice 0's outcome cannot invalidate
 it.
 
 **Slice 2 — the engine binding**, behind `feature = "ocr"`, wrapped in a
-pdfce `thiserror` type (§3.11), converting `RotatedRect` at the boundary so no
-`ocrs` type is public. Plus the `pdfce-cli ocr` subcommand (project rule 11 —
+pdfcer `thiserror` type (§3.11), converting `RotatedRect` at the boundary so no
+`ocrs` type is public. Plus the `pdfcer ocr` subcommand (project rule 11 —
 same session, not later).
 
-**Slice 3 — the GUI review flow**, after a `pdfce-ui-specialist` dispatch that
+**Slice 3 — the GUI review flow**, after a `pdfcer-ui-specialist` dispatch that
 is given §7.2 as its brief, and given the confidence-absence problem (§7.2.3)
 explicitly rather than being left to discover it.
 
 **On the `default = [...]` question raised in §2.5:** the convention says
 default ON, and the reason given is sound — *"a capability that silently
 disappears from a default build is a regression wearing a feature flag."*
-Recommend **`ocr` default ON** so pdfce's ordinary build is the full-featured
+Recommend **`ocr` default ON** so pdfcer's ordinary build is the full-featured
 one, with `--no-default-features` the deliberate lighter build, exactly as
 `jpx` works. The 12 MB is in the *model files*, not the code, and those are
 folder contents the packaging step controls independently — so a "lite"
@@ -1930,10 +1930,10 @@ flag, and it is available only because `ocrs` is small.
 
 ### 8.3 Design constraints to write into the Pass
 
-- **No `ocrs` type in any public `pdfce-core` signature.** Bus factor 1
+- **No `ocrs` type in any public `pdfcer-core` signature.** Bus factor 1
   (§3.9) plus a live possibility of switching to `ocr-rs` (§8.1 condition 1)
   make the boundary load-bearing, not stylistic.
-- **No `anyhow` in `pdfce-core`'s public API** — project rule 10 (§3.11).
+- **No `anyhow` in `pdfcer-core`'s public API** — project rule 10 (§3.11).
 - **Emit `Tz` and `3 Tr` inside every text object**, never relying on
   persistence across `BT`/`ET` (§7.1.5).
 - **A page's OCR layer is one appended content stream, rejectable
@@ -1944,10 +1944,10 @@ flag, and it is available only because `ocrs` is small.
 - **Record the `unsafe` widening as an accepted exception with reasons**, in
   the shape decision 039 used for `aes`/`sha2` (§3.6).
 - **Consider a subprocess escape hatch as a *separate*, later feature** —
-  pdfce shells out to a `tesseract.exe` the operator installed themselves,
+  pdfcer shells out to a `tesseract.exe` the operator installed themselves,
   ships nothing, consumes hOCR. `LEGAL.md` §6.5's veraPDF precedent makes the
   pattern already-settled, it raises no licence and no network question, and
-  it gives power users 120 languages without pdfce carrying 54 MB. It is
+  it gives power users 120 languages without pdfcer carrying 54 MB. It is
   **not** a substitute for a bundled engine, because it fails the
   single-folder promise for everyone who has installed nothing.
 
@@ -1972,7 +1972,7 @@ apparent omission in either direction.
 
 ## 9. ★ The question that is the operator's, not the engineer's
 
-**May pdfce ship a `CC-BY-SA-4.0`-licensed model file inside its MIT-licensed
+**May pdfcer ship a `CC-BY-SA-4.0`-licensed model file inside its MIT-licensed
 portable folder?**
 
 The facts, so the question can be answered rather than researched again:
@@ -1984,14 +1984,14 @@ The facts, so the question can be answered rather than researched again:
   one would want for the single non-permissive artifact in the build.
 - **The code is unaffected either way.** `ocrs`, `rten` and all 42 transitive
   packages are permissive; CC-BY-SA has no linking concept and cannot reach
-  pdfce's source (§3.3).
+  pdfcer's source (§3.3).
 - **The supporting reading:** Creative Commons' own FAQ distinguishes a
   **collection** (which may carry its own licence; ShareAlike does not reach
   it) from an **adaptation** (which must be BY-SA). Shipping the unmodified
   `.rten` files beside MIT code is, on that reading, a collection. This is the
   same structure of argument `LEGAL.md` §6.5.2 already accepted for MPL-2.0.
 - **Why it is not cleared by an agent anyway.** `LEGAL.md` §6.2 step 4 fires on
-  anything not permissive, *"even if pdfce's current license would technically
+  anything not permissive, *"even if pdfcer's current license would technically
   allow it — this is a case where getting it wrong is expensive to unwind
   later."* And "mere aggregation is a collection" is a **reading**, not a
   measured fact. This project has an expensive written lesson (§1.1) about an
@@ -2014,7 +2014,7 @@ The facts, so the question can be answered rather than researched again:
 **Three things this question is not**, so it is not answered against the wrong
 worry:
 
-1. It is **not** a copyleft-contamination risk to pdfce's own MIT licence.
+1. It is **not** a copyleft-contamination risk to pdfcer's own MIT licence.
    Nothing here resembles the MuPDF/Ghostscript situation §6.1 forecloses.
 2. It is **not** blocking the research or the design. §7 stands whichever
    engine wins; slices 0 and 1 of §8.2 can both start today.

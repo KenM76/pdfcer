@@ -1,6 +1,6 @@
 # Security Policy
 
-pdfce parses PDF files by design from sources the user doesn't
+pdfcer parses PDF files by design from sources the user doesn't
 control — email attachments, downloads, scans. Every PDF is untrusted,
 potentially adversarial input. See `docs/ARCHITECTURE.md` §10 for the
 hardening this implies at the design level (resource-limit guards,
@@ -9,7 +9,7 @@ slips through anyway.
 
 ## Supported versions
 
-Not applicable yet — pdfce is pre-1.0 with **no tagged release**. Only
+Not applicable yet — pdfcer is pre-1.0 with **no tagged release**. Only
 the current `main` is supported, and there is nothing older to support.
 This section gets a real version-support table once there is a first
 release.
@@ -42,7 +42,7 @@ When reporting, please include:
   `docs/ARCHITECTURE.md` §5 corollary, this is treated as a
   **security-severity** bug, not a cosmetic one, given what redaction
   is used for).
-- Rust version, OS, and pdfce version/commit.
+- Rust version, OS, and pdfcer version/commit.
 
 ## Severity framing specific to this project
 

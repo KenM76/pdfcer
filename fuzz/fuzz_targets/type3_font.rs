@@ -1,4 +1,4 @@
-//! Fuzz target: the Type 3 font model (`pdfce_render::type3::Type3Font`;
+//! Fuzz target: the Type 3 font model (`pdfcer_render::type3::Type3Font`;
 //! `Pass 126.0`, ISO 32000-1 §9.6.5, Tables 112 and 113).
 //!
 //! # Why this loader needs a target of its own
@@ -55,9 +55,9 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::document::Document;
-use pdfce_core::graph::ObjectGraph;
-use pdfce_render::type3::Type3Font;
+use pdfcer_core::document::Document;
+use pdfcer_core::graph::ObjectGraph;
+use pdfcer_render::type3::Type3Font;
 
 /// Wrap the fuzz bytes as the body of a Type 3 font dictionary.
 ///
@@ -87,7 +87,7 @@ fuzz_target!(|data: &[u8]| {
         return;
     };
     let view = doc.view();
-    let Some(obj) = view.value(pdfce_core::object::ObjId::new(2, 0)) else {
+    let Some(obj) = view.value(pdfcer_core::object::ObjId::new(2, 0)) else {
         return;
     };
     let Some(dict) = view.resolve(obj).as_dict() else {

@@ -2,7 +2,7 @@
 
 Out-of-tree corpus gate (mirrors `tools/content-identity` and
 `tools/roundtrip`). Guards the **routing correctness** of
-`FontProgram::parse` (`crates/pdfce-render/src/font/program.rs`) across the
+`FontProgram::parse` (`crates/pdfcer-render/src/font/program.rs`) across the
 external corpus — the targeted guard that catches a font-program *misroute*
 at the source, before it reaches the render-parity gate (R59) as the vague
 symptom "text missing on a whole class of files."

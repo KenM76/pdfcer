@@ -10,7 +10,7 @@ single-revision one-page document (catalog → page tree → one page → conten
 stream) whose only variable is the cross-reference table's end-of-line
 handling. All must load: a 5-entry table (objects 0..=4, object 0 the
 free-list head) and a resolvable `/Root` catalog with 4 in-use objects.
-Exercised by `crates/pdfce-core/tests/xref_eol.rs`.
+Exercised by `crates/pdfcer-core/tests/xref_eol.rs`.
 
 - `entry-spcr.pdf` — every 20-byte entry ends `SP CR` (20 0D); structural
   lines end LF.

@@ -37,7 +37,7 @@ PROVENANCE / LICENSE
   twice produces a byte-identical file and a fixture cannot inherit a
   bug from the code it exists to test.
 
-Requires `fonttools` (dev-only; not a pdfce runtime dependency).
+Requires `fonttools` (dev-only; not a pdfcer runtime dependency).
 
 Usage:  python tools/gen-cidfont-nocmap-fixtures.py
 Output: fixtures/synthetic/text/cidfonttype2-nocmap-embedded.pdf
@@ -239,7 +239,7 @@ def cidfont_with_tounicode() -> bytes:
 
     The CMap is deliberately injective (one CID, one scalar), because that is
     the arm standing rule R110 makes interesting: this font's map CAN be
-    inverted, so the refusal must say pdfce is the limitation rather than the
+    inverted, so the refusal must say pdfcer is the limitation rather than the
     font. A non-injective variant would exercise a different arm and is left
     for when that message needs proving.
     """
@@ -249,7 +249,7 @@ def cidfont_with_tounicode() -> bytes:
     # CID 1 -> U+0041 'A'. One entry, trivially injective.
     tounicode = (
         b"/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n"
-        b"/CMapName /pdfce-Identity-UCS def\n/CMapType 2 def\n"
+        b"/CMapName /pdfcer-Identity-UCS def\n/CMapType 2 def\n"
         b"1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n"
         b"1 beginbfchar\n<0001> <0041>\nendbfchar\n"
         b"endcmap\nend\nend\n"
@@ -294,7 +294,7 @@ def cidfont_noninjective_tounicode() -> bytes:
     """The same composite font carrying a NON-INJECTIVE `/ToUnicode`.
 
     Two CIDs map to the SAME character (U+0041), so the inverse is not a
-    function: asked to write 'A' back, pdfce cannot know whether the file
+    function: asked to write 'A' back, pdfcer cannot know whether the file
     means CID 1 or CID 2, and either choice is a guess that renders as a
     real, wrong glyph.
 
@@ -312,7 +312,7 @@ def cidfont_noninjective_tounicode() -> bytes:
     # CID 1 -> U+0041 'A'. One entry, trivially injective.
     tounicode = (
         b"/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n"
-        b"/CMapName /pdfce-Identity-UCS def\n/CMapType 2 def\n"
+        b"/CMapName /pdfcer-Identity-UCS def\n/CMapType 2 def\n"
         b"1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n"
         b"2 beginbfchar\n<0001> <0041>\n<0002> <0041>\nendbfchar\n"
         b"endcmap\nend\nend\n"

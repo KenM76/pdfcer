@@ -31,7 +31,7 @@
 //! (§9.6.2.1 Table 111, decision 004 §3.6), which this operation either
 //! leaves untouched or writes from the Adobe Core-14 metrics a reader was
 //! already applying. And in `--bundled` mode the face embedded is **the same
-//! face pdfce's own renderer was already substituting**. So the raster
+//! face pdfcer's own renderer was already substituting**. So the raster
 //! before and the raster after must be **byte-identical**, and any
 //! difference is a real defect in one of three places:
 //!
@@ -48,7 +48,7 @@
 //! | Mode | Donors | What it measures |
 //! |---|---|---|
 //! | `--font-dir <DIR>` | the operator's own faces | **coverage** — how much of the real corpus a real machine's font folder can actually resolve |
-//! | `--bundled` | pdfce's own standard-14 substitutes | **correctness** — the pixel-identity oracle above |
+//! | `--bundled` | pdfcer's own standard-14 substitutes | **correctness** — the pixel-identity oracle above |
 //!
 //! Coverage without correctness is a number nobody should trust; correctness
 //! over fourteen faces is not coverage. Both flags may be combined, in which
@@ -92,20 +92,20 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use pdfce_core::document::Document;
-use pdfce_core::edit::EditSession;
-use pdfce_core::font_embed_missing::{EmbedRequest, FontMatch, SuppliedFont};
-use pdfce_core::fontinfo::{self, Program};
-use pdfce_core::page_tree::pages_in;
-use pdfce_core::writer::SaveOptions;
-use pdfce_render::font::EmbedMatch;
-use pdfce_render::font::program::FontProgram;
-use pdfce_render::{FontData, FontEnvironment, RenderOptions, render_page_with};
+use pdfcer_core::document::Document;
+use pdfcer_core::edit::EditSession;
+use pdfcer_core::font_embed_missing::{EmbedRequest, FontMatch, SuppliedFont};
+use pdfcer_core::fontinfo::{self, Program};
+use pdfcer_core::page_tree::pages_in;
+use pdfcer_core::writer::SaveOptions;
+use pdfcer_render::font::EmbedMatch;
+use pdfcer_render::font::program::FontProgram;
+use pdfcer_render::{FontData, FontEnvironment, RenderOptions, render_page_with};
 
 /// Font-file extensions the `--font-dir` walk attempts, matching the CLI's
 /// own list so the sweep and the shipped command see the same folder.
 const FONT_EXTENSIONS: [&str; 7] = ["ttf", "otf", "ttc", "cff", "pfb", "pfa", "otc"];
-/// The per-file ceiling, matching `pdfce-cli`'s.
+/// The per-file ceiling, matching `pdfcer`'s.
 const MAX_FONT_FILE_BYTES: u64 = 64 * 1024 * 1024;
 
 struct Row {
@@ -195,7 +195,7 @@ fn main() {
         usage("nothing to embed FROM: pass --font-dir <DIR> and/or --bundled");
     }
 
-    let out_dir = std::env::temp_dir().join("pdfce-embed-sweep");
+    let out_dir = std::env::temp_dir().join("pdfcer-embed-sweep");
     if write_output {
         let _ = fs::create_dir_all(&out_dir);
     }
@@ -255,7 +255,7 @@ fn usage(msg: &str) -> ! {
     std::process::exit(2);
 }
 
-/// Walk each font directory once, exactly as `pdfce-cli` does.
+/// Walk each font directory once, exactly as `pdfcer` does.
 fn build_font_environment(dirs: &[PathBuf]) -> (FontEnvironment, usize) {
     let mut env = FontEnvironment::bundled();
     let mut registered = 0usize;
@@ -409,7 +409,7 @@ fn measure(
     //
     // ★ WITH ONE FALLBACK, and it is a measurement decision rather than a
     // convenience — the mirror of the one `unembed-sweep` makes in the other
-    // direction. A document pdfce RECOVERED (its base cross-reference was
+    // direction. A document pdfcer RECOVERED (its base cross-reference was
     // invalid) refuses an incremental save by design: appending an update
     // section onto a table nobody could parse would produce a file whose
     // older revision is unreadable. That refusal is not a failure of THIS
@@ -487,7 +487,7 @@ fn measure(
 /// and does not need to be: it answers "are these two rasters the same",
 /// over two images this process produced seconds apart, and a collision
 /// would have to be engineered.
-fn hash_page(page: &pdfce_render::RenderedPage) -> (u32, u32, u64) {
+fn hash_page(page: &pdfcer_render::RenderedPage) -> (u32, u32, u64) {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     for b in page.pixmap.data() {
         h ^= u64::from(*b);
@@ -497,7 +497,7 @@ fn hash_page(page: &pdfce_render::RenderedPage) -> (u32, u32, u64) {
 }
 
 fn count_blockers(
-    plan: &pdfce_core::font_embed_missing::EmbedPlan,
+    plan: &pdfcer_core::font_embed_missing::EmbedPlan,
 ) -> BTreeMap<&'static str, usize> {
     plan.blocker_counts()
 }

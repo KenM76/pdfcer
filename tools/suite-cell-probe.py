@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Probe a suite trap cell: what pdfce painted, and what Acrobat painted there.
+"""Probe a suite trap cell: what pdfcer painted, and what Acrobat painted there.
 
 WHY THIS EXISTS
 ---------------
@@ -19,9 +19,9 @@ free oracle that costs no reference render at all:
 
 Add a known-good render at the same cell and the triple becomes decisive:
 
-  * pdfce surround ~= Acrobat, pdfce X far from both
+  * pdfcer surround ~= Acrobat, pdfcer X far from both
         -> the FEATURE object is wrong; the plain paint path is fine.
-  * pdfce X ~= a saturated primary
+  * pdfcer X ~= a saturated primary
         -> the blend produced `cs` unchanged, i.e. it was composited against
            NOTHING. That is the signature of a transparent-initialised group
            buffer standing in for a non-isolated group.
@@ -148,7 +148,7 @@ def probe(render_png, reference_png=None):
 
 
 def _default_render_dir():
-    """`$PDFCE_SUITE_DIR/_render`, or None when the corpus is not configured.
+    """`$PDFCER_SUITE_DIR/_render`, or None when the corpus is not configured.
 
     The licensed suite is not named in this repository and neither is its
     location on disk (operator ruling 2026-08-25), so there is no hard-coded
@@ -156,7 +156,7 @@ def _default_render_dir():
     explicitly rather than silently probing a directory that does not exist on
     a fresh clone.
     """
-    root = os.environ.get("PDFCE_SUITE_DIR")
+    root = os.environ.get("PDFCER_SUITE_DIR")
     return os.path.join(root, "_render") if root else None
 
 
@@ -168,7 +168,7 @@ def main():
         "--render-dir",
         default=_default_render_dir(),
         help="where suite-check.py left <id>.pdf.png; defaults to "
-        "$PDFCE_SUITE_DIR/_render, and must be given explicitly when that "
+        "$PDFCER_SUITE_DIR/_render, and must be given explicitly when that "
         "variable is unset, because no corpus path may be hard-coded in "
         "this repository (operator ruling 2026-08-25)",
     )

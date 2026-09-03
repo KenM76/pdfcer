@@ -14,7 +14,7 @@
 # NOTE: all top-level keys must appear BEFORE the [private] table header —
 # in TOML every key after a table header belongs to that table.
 
-# Only harvest licenses for the target(s) pdfce actually distributes today.
+# Only harvest licenses for the target(s) pdfcer actually distributes today.
 # Windows-first per docs/ARCHITECTURE.md §6; add macOS/Linux/wasm triples
 # here when those artifacts are actually shipped (avoids pulling in
 # platform-only deps' licenses for platforms we don't distribute yet).
@@ -37,7 +37,7 @@ accepted = [
     # IJG — the Independent JPEG Group's license, reached via `jpeg-encoder`
     # (SPDX `(MIT OR Apache-2.0) AND IJG`; the AND is CONJUNCTIVE, so this id
     # must be accepted or `cargo about generate` fails). It is PERMISSIVE:
-    # no source-disclosure obligation, nothing that touches pdfce's own MIT
+    # no source-disclosure obligation, nothing that touches pdfcer's own MIT
     # license (docs/LEGAL.md §6.1). What it does carry is an ATTRIBUTION
     # obligation on binary redistribution — the sentence "this software is
     # based in part on the work of the Independent JPEG Group" — which
@@ -46,7 +46,7 @@ accepted = [
     # re-emits it. Do not add this id without that section, and do not
     # remove that section while this id is here.
     # Accepted by operator decision 2026-08-08 ("accept the ijg attribution
-    # line"); pdfce's FIRST conjunctive-attribution dependency.
+    # line"); pdfcer's FIRST conjunctive-attribution dependency.
     "IJG",
     "ISC",
     # CDLA-Permissive-2.0 — the Linux Foundation's *Community Data License
@@ -64,9 +64,9 @@ accepted = [
     # **no share-alike clause at all** — 2.0 deliberately dropped the
     # "Results" reciprocity that CDLA-Sharing-1.0 has, which is precisely the
     # difference between the two and the reason the `-Permissive` suffix is
-    # load-bearing. Nothing touches pdfce's own MIT license (LEGAL.md §6.1).
+    # load-bearing. Nothing touches pdfcer's own MIT license (LEGAL.md §6.1).
     #
-    # WHY IT APPEARS AT ALL: pdfce needs an HTTPS client for operator-initiated
+    # WHY IT APPEARS AT ALL: pdfcer needs an HTTPS client for operator-initiated
     # downloads (`R12` as narrowed 2026-08-13 — the SHELLS may fetch, the
     # engine may not). Pure-Rust TLS means `rustls`, and verifying a server
     # certificate means having a root store. The alternative is `native-tls`,
@@ -86,19 +86,19 @@ accepted = [
     # --- Bundled-FONT licenses (a distinct category from the software
     # licenses above). egui's default font set (epaint_default_fonts) embeds
     # the Ubuntu font and OFL-licensed faces. These govern the FONT FILES,
-    # not pdfce's code: both permit embedding/redistribution and impose only
+    # not pdfcer's code: both permit embedding/redistribution and impose only
     # an attribution obligation (satisfied by reproducing their notices in
-    # THIRD_PARTY_LICENSES.md). Neither constrains pdfce's own (MIT, chosen
+    # THIRD_PARTY_LICENSES.md). Neither constrains pdfcer's own (MIT, chosen
     # 2026-08-01 — this comment said "still undecided" until 2026-08-07)
     # software license the way a copyleft *software* dependency
     # would — the OFL's "derivatives stay OFL" clause applies to modified
-    # fonts, which pdfce does not create; it only embeds them. Flagged to the
+    # fonts, which pdfcer does not create; it only embeds them. Flagged to the
     # user and to be recorded in docs/PRIOR_ART.md.
     "OFL-1.1",
     "Ubuntu-font-1.0",
 ]
 
-# Skip pdfce's own crates (all publish = false) — we attribute third-party
+# Skip pdfcer's own crates (all publish = false) — we attribute third-party
 # code, not our own.
 [private]
 ignore = true

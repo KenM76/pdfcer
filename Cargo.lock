@@ -598,19 +598,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
-name = "pdfce-cli"
-version = "0.27.0"
+name = "pdfcer-cli"
+version = "0.28.0"
 dependencies = [
  "clap",
- "pdfce-core",
- "pdfce-fetch",
- "pdfce-print",
- "pdfce-render",
+ "pdfcer-core",
+ "pdfcer-fetch",
+ "pdfcer-print",
+ "pdfcer-render",
 ]
 
 [[package]]
-name = "pdfce-core"
-version = "0.27.0"
+name = "pdfcer-core"
+version = "0.28.0"
 dependencies = [
  "aes",
  "brotli",
@@ -629,8 +629,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "pdfce-fetch"
-version = "0.27.0"
+name = "pdfcer-fetch"
+version = "0.28.0"
 dependencies = [
  "sha2 0.10.9",
  "thiserror",
@@ -638,22 +638,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "pdfce-print"
-version = "0.27.0"
+name = "pdfcer-print"
+version = "0.28.0"
 dependencies = [
  "thiserror",
  "windows",
 ]
 
 [[package]]
-name = "pdfce-render"
-version = "0.27.0"
+name = "pdfcer-render"
+version = "0.28.0"
 dependencies = [
  "flate2",
  "iccce-cmm",
  "iccce-color",
  "iccce-profile",
- "pdfce-core",
+ "pdfcer-core",
  "skrifa",
  "subsetter",
  "thiserror",

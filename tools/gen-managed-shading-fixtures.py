@@ -170,7 +170,7 @@ def build(family: Family, *, group: bool, intent: bool) -> bytes:
         dest_ref = b"%d 0 R" % len(objs)
         objs.append(
             b"<< /Type /OutputIntent /S /GTS_PDFX "
-            b"/OutputConditionIdentifier (pdfce synthetic CMYK) "
+            b"/OutputConditionIdentifier (pdfcer synthetic CMYK) "
             b"/DestOutputProfile " + dest_ref + b" >>"
         )
         intent_entry = b"/OutputIntents [%d 0 R] " % len(objs)

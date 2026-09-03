@@ -1,4 +1,4 @@
-# pdfce — Cargo workspace root (virtual manifest).
+# pdfcer — Cargo workspace root (virtual manifest).
 #
 # This began as the Pass 0 deliverable: the four-crate workspace documented in
 # docs/ARCHITECTURE.md §3 and §7. It is a *virtual* manifest (no [package]
@@ -6,26 +6,26 @@
 # crate itself.
 #
 # Crate roles (full detail in docs/ARCHITECTURE.md §3):
-#   pdfce-core   — GUI-agnostic PDF engine (object model, parser, writer,
+#   pdfcer-core   — GUI-agnostic PDF engine (object model, parser, writer,
 #                  filters, fonts, crypto). ZERO GUI/windowing deps. This is
 #                  the crate that forks to WASM later.
-#   pdfce-render — headless rasterizer (draw-ops -> pixels). Depends on
-#                  pdfce-core. Still ZERO GUI/windowing deps (a CPU
+#   pdfcer-render — headless rasterizer (draw-ops -> pixels). Depends on
+#                  pdfcer-core. Still ZERO GUI/windowing deps (a CPU
 #                  rasterizer like tiny-skia is fine; a windowing crate
 #                  is not).
 #   (the desktop GUI is NOT in this workspace. The original in-repo
 #   `pdfce-gui` crate was removed in Pass 247.0 (decision 128, 2026-09-03);
 #   the shipping GUI is the separate `pdfcer-gui` project at
-#   D:\dev\pdfcer-gui, which depends on pdfce-core + pdfce-render by a
+#   D:\dev\pdfcer-gui, which depends on pdfcer-core + pdfcer-render by a
 #   git dependency on this repository. The removed crate is readable at
 #   `git show cce414e:crates/pdfce-gui/...` in the untouched backup
 #   repository D:\Dev\pdfce.)
-#   pdfce-cli    — command-line batch shell (clap). The CLI binary. Depends
-#                  on pdfce-core + pdfce-render, same ZERO-GUI-deps
-#                  discipline as pdfce-core/pdfce-render (see §7).
+#   pdfcer    — command-line batch shell (clap). The CLI binary. Depends
+#                  on pdfcer-core + pdfcer-render, same ZERO-GUI-deps
+#                  discipline as pdfcer-core/pdfcer-render (see §7).
 #
-# The load-bearing invariant (docs/ARCHITECTURE.md §3): pdfce-core,
-# pdfce-render, and pdfce-cli must never gain a GUI/windowing dependency
+# The load-bearing invariant (docs/ARCHITECTURE.md §3): pdfcer-core,
+# pdfcer-render, and pdfcer must never gain a GUI/windowing dependency
 # (egui/eframe/winit/wgpu). CI enforces this with `cargo tree` greps
 # (.github/workflows/ci.yml) — it is verified, not hoped for.
 
@@ -34,15 +34,15 @@
 # the correct default for a modern edition-2024 workspace.
 resolver = "3"
 members = [
-    "crates/pdfce-core",
-    "crates/pdfce-render",
-    "crates/pdfce-cli",
-    "crates/pdfce-print",
-    "crates/pdfce-fetch",
+    "crates/pdfcer-core",
+    "crates/pdfcer-render",
+    "crates/pdfcer-cli",
+    "crates/pdfcer-print",
+    "crates/pdfcer-fetch",
 ]
 # tools/difftest is the OUT-OF-TREE differential test oracle mandated by
 # docs/decisions/001-oxidize-pdf-adopt-vs-build.md §7: it pins oxidize-pdf
-# (MIT) and diffs its parse of our fixtures against pdfce-core's. It is
+# (MIT) and diffs its parse of our fixtures against pdfcer-core's. It is
 # deliberately EXCLUDED from the workspace — three load-bearing reasons:
 # (1) keeps `cargo test` fast and dependency-light; (2) keeps the
 # GUI-core-separation `cargo tree` invariant checks unambiguous; (3) keeps
@@ -83,11 +83,11 @@ exclude = [
 # Fields inherited by every member via `<field>.workspace = true`, so the
 # version/edition/MSRV are set in exactly one place.
 [workspace.package]
-version = "0.27.0"
+version = "0.28.0"
 edition = "2024"
 # MSRV (minimum supported Rust version) — docs/ARCHITECTURE.md §2.1a asked
 # for this to be set at Pass 0, and to be re-checked against the candidate
-# dependencies "some of which could force pdfce's own MSRV higher than
+# dependencies "some of which could force pdfcer's own MSRV higher than
 # expected." That is exactly what happened: the edition-2024 floor is 1.85,
 # but eframe 0.35 (then our largest dependency, the egui application shell;
 # gone with the GUI crate in Pass 247.0 — the floor is kept, not re-derived)
@@ -97,20 +97,20 @@ edition = "2024"
 # low MSRV, so it is set from the real dependency floor. Bump deliberately
 # (dated decision-log entry) when a future dependency upgrade requires it.
 rust-version = "1.92"
-authors = ["The pdfce authors"]
+authors = ["The pdfcer authors"]
 publish = false
 # license: MIT — chosen by the operator 2026-08-01 (docs/LEGAL.md §1 decided;
 # ARCHITECTURE.md §12 decision log). All dependencies are permissive
 # (MIT/Apache-2.0/BSD/ISC/Zlib/Unicode — zero copyleft, verified against
 # THIRD_PARTY_LICENSES.md), so MIT is compatible (LEGAL.md §6.1, rule 13).
 # The MIT text lives in the repo-root LICENSE file. `publish = false` is
-# retained deliberately: pdfce ships as source + binaries, not a crates.io
+# retained deliberately: pdfcer ships as source + binaries, not a crates.io
 # registry package, so the workspace stays unpublished even under a license.
 license = "MIT"
 
 [workspace.dependencies]
 # Internal path dependencies, declared once here and referenced by members
-# with `pdfce-core.workspace = true` etc. External crates (thiserror, eframe,
+# with `pdfcer-core.workspace = true` etc. External crates (thiserror, eframe,
 # rfd, clap) are declared in the individual member manifests that use them.
 # `default-features = false` HERE, at the root, and not on the members.
 #
@@ -118,13 +118,13 @@ license = "MIT"
 # ("`default-features = false` cannot override workspace's
 # `default-features`"), so the only place this can be said is once, here.
 # Each member then re-enables what it wants through its own `[features]`
-# block — see `pdfce-core`'s for the strippable-capability convention and
+# block — see `pdfcer-core`'s for the strippable-capability convention and
 # why forwarding through every intermediate crate is mandatory rather than
 # tidy.
-pdfce-core = { path = "crates/pdfce-core", default-features = false }
-pdfce-render = { path = "crates/pdfce-render", default-features = false }
-pdfce-print = { path = "crates/pdfce-print" }
+pdfcer-core = { path = "crates/pdfcer-core", default-features = false }
+pdfcer-render = { path = "crates/pdfcer-render", default-features = false }
+pdfcer-print = { path = "crates/pdfcer-print" }
 # Network code for operator-initiated downloads. `default-features = false`
 # here like the others, so each shell re-enables `download` through its own
 # [features] block -- the forwarding the convention requires.
-pdfce-fetch = { path = "crates/pdfce-fetch", default-features = false }
+pdfcer-fetch = { path = "crates/pdfcer-fetch", default-features = false }

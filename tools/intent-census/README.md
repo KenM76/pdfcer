@@ -1,6 +1,6 @@
 # intent-census — how often does a real PDF name a rendering intent, and how many distinct colour sources does one document carry?
 
-Two throwaway-cheap corpus scanners that exist to answer **one question pdfce
+Two throwaway-cheap corpus scanners that exist to answer **one question pdfcer
 could not previously answer with a number**, asked by the sibling `iccce`
 project on 2026-08-25:
 
@@ -13,7 +13,7 @@ intents × black-point-compensation states, costed by iccce at roughly **13 s
 and 290 MiB per profile pair**, itself a linear extrapolation from four
 measured builds) or lazily on the combinations a document actually uses. It is
 not a question of taste; it is a population question, and until this tool ran
-pdfce had **no measurement of it at all** — `docs/NEXT_SESSION.md` §4 said so
+pdfcer had **no measurement of it at all** — `docs/NEXT_SESSION.md` §4 said so
 in as many words.
 
 This file is the **logic**. The two scripts are the syntax that enacts it.
@@ -23,7 +23,7 @@ This file is the **logic**. The two scripts are the syntax that enacts it.
 | `ri_census.py` | How many documents name a rendering intent (`/RI` in an `/ExtGState`, or the `ri` content-stream operator), and how many name **more than one**? |
 | `icc_census.py` | How many **distinct** `/ICCBased` source-profile object references, and how many `/DestOutputProfile` destination references, does one document carry? |
 
-Nothing here ships. pdfce depends on none of it. Same standing as
+Nothing here ships. pdfcer depends on none of it. Same standing as
 `tools/cmyk-calibration` and `tools/render-parity` (`docs/LEGAL.md` §6): a
 development instrument, not a runtime artefact.
 
@@ -85,7 +85,7 @@ state` — files whose entire purpose is to name all four intents in one
 document. One of them (`veraPDF test suite 6-2-8-t03-fail-a.pdf`) names an
 intent called **`/Custom`**, which is legal: §8.6.5.8 permits names outside the
 standard four and requires a reader to substitute a default. Any consumer of a
-pdfce-supplied intent must therefore accept a name it does not recognise.
+pdfcer-supplied intent must therefore accept a name it does not recognise.
 
 ★ This corpus is **dominated by conformance suites** (2 907 of 4 239 files are
 veraPDF). It is the wrong population to generalise print-production behaviour
@@ -146,4 +146,4 @@ both the raw-pass and deep-pass answers so the undercount is re-derivable
 rather than quoted. `icc_census.py` prints its table to stdout — it deep-scans
 every file and is meant for small directories.
 
-Neither script writes into the corpus, and neither needs a built pdfce.
+Neither script writes into the corpus, and neither needs a built pdfcer.

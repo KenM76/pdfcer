@@ -19,7 +19,7 @@
     document and asks its window to paint itself.
 
     A THIRD-OPINION tiebreaker for the render-parity audit. `render_parity.py`
-    compares pdfce against pdfium; when they disagree, nothing in that harness
+    compares pdfcer against pdfium; when they disagree, nothing in that harness
     says WHICH is wrong. Acrobat is the project's actual parity target, so a
     visual look at Acrobat adjudicates the disagreement.
 

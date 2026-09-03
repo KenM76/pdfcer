@@ -4,16 +4,16 @@ keys the code emits.
 
 WHY THIS GATE EXISTS
 ====================
-`pdfce-cli render-page` prints one machine-readable line whose second half
+`pdfcer render-page` prints one machine-readable line whose second half
 is `key=<integer>` pairs. That line is a PUBLISHED CONTRACT — the module
 docs call it "the fixed order shown" and tell a script how to parse it —
 and it is written down in **three** places:
 
-  1. `crates/pdfce-cli/src/main.rs`, the `println!` that emits it.
+  1. `crates/pdfcer-cli/src/main.rs`, the `println!` that emits it.
      THE AUTHORITY. What the program actually does.
-  2. `crates/pdfce-cli/src/main.rs`, the `//! render-page:` template in
+  2. `crates/pdfcer-cli/src/main.rs`, the `//! render-page:` template in
      the module doc block. What a consumer reads.
-  3. `crates/pdfce-cli/tests/render_page.rs`, an `assert_eq!` on the key
+  3. `crates/pdfcer-cli/tests/render_page.rs`, an `assert_eq!` on the key
      list. What CI enforces.
 
 Copy 3 is under test, so it cannot drift. Copy 2 is not, so it did — by
@@ -97,7 +97,7 @@ import re
 import sys
 from pathlib import Path
 
-MAIN_RS = Path(__file__).resolve().parent.parent / "crates" / "pdfce-cli" / "src" / "main.rs"
+MAIN_RS = Path(__file__).resolve().parent.parent / "crates" / "pdfcer-cli" / "src" / "main.rs"
 
 # The template lives inside a fenced block in the module docs; every one of
 # its lines starts with `//!` and the block opens on the line beginning
@@ -199,8 +199,8 @@ def main() -> int:
         for k in unrowed:
             print(f"    ? {k}")
         print(
-            "\n  Add a row to the table in crates/pdfce-cli/src/main.rs. The source is\n"
-            "  the field's own `///` doc in crates/pdfce-render/src/interpret.rs — say\n"
+            "\n  Add a row to the table in crates/pdfcer-cli/src/main.rs. The source is\n"
+            "  the field's own `///` doc in crates/pdfcer-render/src/interpret.rs — say\n"
             "  whether the number is a census, a divergence, or half of a pair."
         )
         return 1
@@ -236,7 +236,7 @@ def main() -> int:
             print(f"    ? {k}")
 
     print(
-        "\n  Fix the template in crates/pdfce-cli/src/main.rs, and add a row for any\n"
+        "\n  Fix the template in crates/pdfcer-cli/src/main.rs, and add a row for any\n"
         "  new key to the per-key table below it. Do NOT add a baseline file."
     )
     return 1

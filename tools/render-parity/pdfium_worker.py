@@ -23,7 +23,7 @@ behaviour, reproduced 2026-08-08:
     (no output)      # not even a Python-level error
     ExitCode: 0x80000003
 
-pdfce itself handles the same file **correctly and cleanly** — it refuses it
+pdfcer itself handles the same file **correctly and cleanly** — it refuses it
 with `not a PDF: no %PDF- header in the first 759 bytes`, exit code 4. So this
 is unambiguously a *reference-renderer* fault, and it must be bucketed as one.
 
@@ -145,7 +145,7 @@ def _render(pdfium, req: dict) -> dict:
     `page` is 0-based (PDFium's own convention; the parent converts from its
     1-based user-facing page numbers). `scale` is DPI/72 — passed through
     verbatim so the child never re-derives it and cannot drift from the
-    pdfce-side scale.
+    pdfcer-side scale.
     """
     doc = pdfium.PdfDocument(req["path"])
     try:

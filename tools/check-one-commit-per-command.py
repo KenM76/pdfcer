@@ -26,7 +26,7 @@ SAME structural reason:
 
 ``set_widget_as``, ``set_widget_ap``, ``rotation_write`` and
 ``retarget_annot`` all read like mutations from their names and are not —
-none of them calls ``self.commit``. That convention is what makes pdfce
+none of them calls ``self.commit``. That convention is what makes pdfcer
 resistant to R179's whole class of defect, and it was holding by habit,
 enforced by nothing.
 

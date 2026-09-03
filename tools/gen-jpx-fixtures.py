@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Regenerate crates/pdfce-core/src/image_codec/fixtures_jpx.rs.
+"""Regenerate crates/pdfcer-core/src/image_codec/fixtures_jpx.rs.
 
 WHY THIS EXISTS
 ---------------
-`pdfce-core`'s JPXDecode adapter (ISO 32000-1 §7.4.9, ITU-T T.800) needs
+`pdfcer-core`'s JPXDecode adapter (ISO 32000-1 §7.4.9, ITU-T T.800) needs
 end-to-end tests over *real* JPEG 2000 codestreams. Unit tests over the
 adapter's dictionary handling prove that Table 89's inverted rules are
 wired up, but only an actual T.800 codestream proves the three things
 that can only go wrong at the byte level:
 
   1. **Channel interleaving.** `hayro-jpeg2000` returns one planar
-     `f32` buffer per component; pdfce interleaves them. An off-by-one
+     `f32` buffer per component; pdfcer interleaves them. An off-by-one
      in that loop produces a colour-shifted image, not a crash.
   2. **Bit-depth normalization.** §7.4.9 allows 1..38 bits per component
-     and permits components to differ. pdfce delivers 8-bit samples,
+     and permits components to differ. pdfcer delivers 8-bit samples,
      range-scaled. Only a >8-bit fixture proves the scale is
      full-range (2^d-1 -> 255) rather than a high-byte truncation.
   3. **Alpha splitting.** `/SMaskInData` (Table 89) decides whether the
@@ -46,7 +46,7 @@ committed output is therefore the rustfmt-normalized form, exactly as
 `tools/gen-jpeg-fixtures.py`'s and `tools/gen-bilevel-fixtures.py`'s are.
 
 Requires Pillow built with OpenJPEG (a developer-machine dependency only
-— never a pdfce dependency; pdfce's own decoder is the pure-Rust
+— never a pdfcer dependency; pdfcer's own decoder is the pure-Rust
 `hayro-jpeg2000`, decision 005 §4.5). Verified with Pillow 12.1.0 /
 OpenJPEG 2.5.4.
 
@@ -75,7 +75,7 @@ bytes and accepts either (`JP2_MAGIC` = 00 00 00 0C 6A 50 20 20, or
 `CODESTREAM_MAGIC` = FF 4F FF 51). So the fixture set carries the *same
 picture* in both shapes, and the Rust tests assert they decode
 identically — which is the only way to prove the sniff is wired up and
-that pdfce is not accidentally depending on the container for geometry
+that pdfcer is not accidentally depending on the container for geometry
 or colour.
 
 Pillow chooses the shape from the output *filename extension*, not from
@@ -117,7 +117,7 @@ from pathlib import Path
 from PIL import Image
 
 REPO = Path(__file__).resolve().parent.parent
-OUT = REPO / "crates" / "pdfce-core" / "src" / "image_codec" / "fixtures_jpx.rs"
+OUT = REPO / "crates" / "pdfcer-core" / "src" / "image_codec" / "fixtures_jpx.rs"
 PDF_OUT = REPO / "fixtures" / "synthetic" / "jpx"
 
 # Lossless every time. `irreversible=False` selects the reversible 5/3
@@ -286,9 +286,9 @@ def _cmyk_image():
 
 
 def _scale_to_8(value, bit_depth):
-    """pdfce's documented JPX bit-depth normalization, in Python.
+    """pdfcer's documented JPX bit-depth normalization, in Python.
 
-    `crates/pdfce-core/src/image_codec/jpx.rs` delivers 8-bit samples
+    `crates/pdfcer-core/src/image_codec/jpx.rs` delivers 8-bit samples
     range-scaled from the codestream's declared depth:
 
         out = round(sample / (2^d - 1) * 255)
@@ -394,7 +394,7 @@ DOC = {
         "sample.",
         "",
         "A single-component 8-bit image has an identical layout in every",
-        "filter pdfce implements, so this constant is also the check that",
+        "filter pdfcer implements, so this constant is also the check that",
         "the JPX adapter did not accidentally introduce padding, a stride,",
         "or a row flip that the other codecs do not have.",
     ],
@@ -414,7 +414,7 @@ DOC = {
         "§7.4.9 describes the box-container shape, but real producers embed",
         "bare codestreams and `hayro-jpeg2000` accepts both by sniffing the",
         "first bytes. The two fixtures must decode to the identical",
-        "[`JPX_GRAY_8_SAMPLES`], which is what proves pdfce reads geometry",
+        "[`JPX_GRAY_8_SAMPLES`], which is what proves pdfcer reads geometry",
         "and colour from the codestream rather than from the container.",
         "",
         "Note that a raw codestream carries NO colour specification box, so",
@@ -425,7 +425,7 @@ DOC = {
         "The expected decoded samples for [`JPX_RGB_8_JP2`]: 4 x 2, three",
         "8-bit components, **interleaved** R,G,B per pixel (§8.9.3).",
         "",
-        "`hayro-jpeg2000` returns one planar buffer per component; pdfce",
+        "`hayro-jpeg2000` returns one planar buffer per component; pdfcer",
         "interleaves them. Primaries, secondaries, white and black are all",
         "present and no two pixels share a component triple, so a channel",
         "swap or an interleave off-by-one cannot produce these bytes by",
@@ -475,9 +475,9 @@ DOC = {
     ],
     "JPX_GRAY_16_SAMPLES": [
         "The expected decoded samples for [`JPX_GRAY_16_JP2`] **after",
-        "pdfce's 16 -> 8 bit normalization**.",
+        "pdfcer's 16 -> 8 bit normalization**.",
         "",
-        "pdfce delivers JPX samples at 8 bits per component, range-scaled",
+        "pdfcer delivers JPX samples at 8 bits per component, range-scaled",
         "`round(v / (2^d - 1) * 255)`. The fixture's 0x00FF pixel is the",
         "discriminator: full-range scaling gives **1**, a high-byte",
         "truncation would give **0**. Table 89 makes the bit depth",
@@ -491,7 +491,7 @@ DOC = {
         "",
         "Must decode to [`JPX_GRAY_16_SAMPLES`], i.e. to 8-bit samples, and",
         "`CodedImage::bits_per_component` must report **8** rather than 16:",
-        "the field describes the samples pdfce delivers, not the depth the",
+        "the field describes the samples pdfcer delivers, not the depth the",
         "codestream stored them at.",
     ],
     "JPX_CMYK_8_SAMPLES": [
@@ -554,8 +554,8 @@ HEADER = '''//! # Synthetic JPEG 2000 codestreams for the JPXDecode adapter's te
 //! identically from any working directory, under `cargo test`, under
 //! `cargo fuzz`, and in a `wasm32` check.
 
-// Shared by TWO test suites — `pdfce-core`'s codec tests and
-// `pdfce-render`'s rasterizer tests (which pull this file in with
+// Shared by TWO test suites — `pdfcer-core`'s codec tests and
+// `pdfcer-render`'s rasterizer tests (which pull this file in with
 // `#[path]`) — and neither uses the whole set.
 #![allow(dead_code)]
 '''
@@ -584,7 +584,7 @@ def emit(name, data):
 #   1. a **seed corpus** for the `image_codec_jpx` fuzz target, which
 #      decision 005 §6.5 requires to come from `fixtures/synthetic/` and
 #      never from a downloaded real-world PDF (`docs/LEGAL.md` §5);
-#   2. an **end-to-end demo** — `pdfce-cli render-page` on a real file,
+#   2. an **end-to-end demo** — `pdfcer render-page` on a real file,
 #      the only check that exercises the whole path from xref parsing
 #      through the content stream to the rasterizer.
 

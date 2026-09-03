@@ -8,16 +8,16 @@ DeviceCMYK inputs, read back from a rendered page. This script is the analysis
 half. It
 
   1. scores candidate conversions against that ground truth,
-  2. fits the node grid `pdfce-core/src/color.rs` ships, and
+  2. fits the node grid `pdfcer-core/src/color.rs` ships, and
   3. emits that grid as Rust source.
 
-It is a DEVELOPMENT tool. Nothing it produces is loaded at pdfce runtime — the
+It is a DEVELOPMENT tool. Nothing it produces is loaded at pdfcer runtime — the
 fitted nodes are pasted into `color.rs` as a `const`, so the shipped binary
 carries a table and no data file, no parser, and no I/O. Re-running this is how
 a future engineer re-derives, checks, or retargets those numbers instead of
 trusting them.
 
-WHAT IS BEING FITTED (full rationale in `pdfce-core/src/color.rs`)
+WHAT IS BEING FITTED (full rationale in `pdfcer-core/src/color.rs`)
 -----------------------------------------------------------------
 Quadrilinear interpolation over a uniform `L x L x L x L` grid of nodes in the
 CMYK unit hypercube. Each node holds an sRGB triple. Given (c,m,y,k) the
@@ -77,7 +77,7 @@ def load(path: Path):
 
 
 def naive_additive(cmyk):
-    """pdfce's pre-change conversion: `1 - min(1, x + k)` per channel."""
+    """pdfcer's pre-change conversion: `1 - min(1, x + k)` per channel."""
     return np.clip(1.0 - np.minimum(1.0, cmyk[:, :3] + cmyk[:, 3:4]), 0.0, 1.0)
 
 

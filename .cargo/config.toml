@@ -1,7 +1,7 @@
-# Cargo build configuration for the pdfce workspace.
+# Cargo build configuration for the pdfcer workspace.
 #
 # Statically link the MSVC C runtime on the Windows target so the shipped
-# pdfce-gui.exe / pdfce-cli.exe do NOT require the Visual C++ Redistributable
+# pdfce-gui.exe / pdfcer.exe do NOT require the Visual C++ Redistributable
 # (VCRUNTIME140.dll et al.) to be installed on the target machine. This is a
 # hard requirement of the single-folder-portable, "no installer, no
 # system-wide runtime dependency" goal in docs/ARCHITECTURE.md §6: without
@@ -13,7 +13,7 @@
 # and are not "system-wide runtime dependencies" in the forbidden sense.
 #
 # Trade-off (documented, deliberate): a static CRT means each binary carries
-# its own copy of the CRT (slightly larger exe) and, if pdfce ever loads a
+# its own copy of the CRT (slightly larger exe) and, if pdfcer ever loads a
 # dynamic library that assumes a shared CRT heap, allocator ownership needs
 # care. Neither applies to the current all-Rust, statically-linked build.
 [target.x86_64-pc-windows-msvc]

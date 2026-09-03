@@ -5,7 +5,7 @@ WHY THIS GATE EXISTS
 ====================
 
 `cargo fmt --all --check` — the command CI runs, and the one project rule 10
-names — formats every *workspace member*. pdfce deliberately keeps several
+names — formats every *workspace member*. pdfcer deliberately keeps several
 crates OUT of the workspace (`Cargo.toml`'s `exclude` list): the differential
 test oracle, the corpus sweep tools, and the `cargo-fuzz` harness. Those
 exclusions are correct and load-bearing, for the reasons the root manifest

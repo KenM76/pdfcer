@@ -3,13 +3,13 @@
 #
 # PURPOSE
 #   Disambiguate WHY real-world classic-`xref` PDFs whose failures correlate
-#   with CRLF line endings fail to load in pdfce-core. Given the corpus sweep's
+#   with CRLF line endings fail to load in pdfcer-core. Given the corpus sweep's
 #   per-file error message plus the raw bytes, it assigns each failure a ROOT
-#   CAUSE, so pdfce decision 013's split — Pass A (classic-table strict
+#   CAUSE, so pdfcer decision 013's split — Pass A (classic-table strict
 #   correctness) vs Pass B (rebuild-by-scan recovery) — is EVIDENCED, not
 #   asserted.
 #
-#   This script performs NO recovery and writes NO pdfce-core code. Its
+#   This script performs NO recovery and writes NO pdfcer-core code. Its
 #   whole-file `xref`-scan is used only to LOCATE the real marker for
 #   classification (is the stored `startxref` pointing at it or not?), never
 #   to load the document. Recovery lives in Pass B.
@@ -24,13 +24,13 @@
 #                     stale-offset family. => Pass B.
 #   GEN_65536         table reached via a CORRECT startxref, every entry a
 #                     well-formed 20-byte §7.5.4 record, but a generation field
-#                     holds 65536 (exceeds the spec max of 65535). pdfce's
+#                     holds 65536 (exceeds the spec max of 65535). pdfcer's
 #                     u16::try_from rejects it => whole load fails. SPEC-NON-
 #                     CONFORMANT data; strict rejection is correct. A distinct
 #                     tolerance finding, NOT the CRLF/EOL story and NOT a
 #                     class-(b) "reject a spec-valid table" bug.
 #   DEVIANT_19        BadEntry from a 19-byte entry (single-char EOL). The
-#                     documented 19-byte deviant pdfce refuses (module doc).
+#                     documented 19-byte deviant pdfcer refuses (module doc).
 #   DEVIANT_21_CRLF   BadEntry from a 21-byte `SP CR LF` entry — the LF->CRLF
 #                     mangling of an `SP LF` table. Genuinely malformed
 #                     (violates exactly-20-bytes); strict rejection correct.
@@ -39,11 +39,11 @@
 #   NOT_STREAM        startxref lands on `N G obj` that is not a stream.
 #   PARSER_BUG        table reached via a correct startxref, every entry a
 #                     SPEC-CONFORMANT 20-byte record (legal EOL, gen<=65535),
-#                     yet pdfce rejects it. THIS is the class-(b) bug Pass A
+#                     yet pdfcer rejects it. THIS is the class-(b) bug Pass A
 #                     exists to catch. (Expected count: 0.)
 #   OTHER             anything not matching the above (non-xref error kinds).
 #
-# INPUT : a sweep TSV mapping `path<TAB>pdfce-message` (see fixtures/external/
+# INPUT : a sweep TSV mapping `path<TAB>pdfcer-message` (see fixtures/external/
 #         realworld-*.tsv, pre-flattened). Reads each listed PDF from disk.
 # OUTPUT: TSV `path  crlf  klass  detail` + a stderr cross-tab of crlf x klass.
 #

@@ -1,0 +1,118 @@
+[package]
+name = "pdfcer-cli"
+description = "pdfcer command-line batch shell: scriptable merge/split/stamp/convert/sign/validate over pdfcer-core. Zero GUI dependencies (docs/ARCHITECTURE.md §7). Pass 0 scope: clap scaffold + `inspect`."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "pdfcer"
+path = "src/main.rs"
+
+[features]
+# Mirrors `pdfcer-core`'s strippable-capability features so a lighter CLI is
+# one flag rather than a manifest edit. Default ON: `--no-default-features`
+# is the deliberate act, never the accident.
+default = ["jpx", "ocrs"]
+jpx = ["pdfcer-core/jpx", "pdfcer-render/jpx"]
+# The `ocrs` text-recognition engine (`Pass 71.0` slice 3).
+ocrs = ["pdfcer-core/ocrs", "pdfcer-render/ocrs"]
+
+# `download` — operator-initiated fetching of pinned artefacts, currently the
+# OCR model weights (`fetch-ocr-models`).
+#
+# ★ THE ONE FEATURE THAT PUTS A NETWORK STACK IN A pdfcer BINARY, and it is
+# permitted by name. Decision 061 (2026-08-13) narrowed R12 on the operator's
+# own correction: the ENGINE (`pdfcer-core`, `pdfcer-render`) stays network-free
+# permanently and gate-enforced, because it must not need a network to parse
+# or render and must cross into wasm32 where no native HTTP stack exists. The
+# SHELLS may fetch what the operator asks for. CI's `no-network` job encodes
+# exactly that split and lists `pdfcer` as ALLOWED.
+#
+# Strippable per the operator's modularity instruction: build without it and
+# `fetch-ocr-models` refuses BY NAME rather than vanishing, and the binary
+# contains no HTTP or TLS code at all.
+#
+# ★ What this does NOT license: telemetry, analytics, crash reporting, a
+# licence callback, or a startup update check. Every fetch here is one an
+# operator typed. An operator narrowing one clause is not consent to widen its
+# neighbour.
+# ★★ OPT-IN, NOT DEFAULT, AND CI IS WHY — BUT THE ARCHITECTURE IS THE BETTER
+# REASON. Do not flip this back on for convenience.
+#
+# THE MECHANICAL REASON. `pdfcer-fetch` pulls `ureq` -> `rustls` -> `ring`, and
+# `ring` needs a C compiler and target assembly. CI's cross-target job runs
+# `cargo check --workspace --exclude pdfcer-fetch --target aarch64-apple-darwin`,
+# and `--exclude` drops a package from the BUILD LIST, not from being pulled in
+# as a DEPENDENCY. So the moment `pdfcer` depended on it by default, the
+# exclusion stopped meaning what it said and the job went red.
+#
+# ★ That job's own comment predicted this, in these words: "If it ever gains a
+# dependent, this exclusion silently widens - that is the thing to watch." It
+# gained one, it widened, and the prediction was sitting in the file the whole
+# time. Left default-on, the fix would have been to widen the exclusion until
+# the check no longer checked anything.
+#
+# THE BETTER REASON. `ARCHITECTURE.md` §1.1's claim is that pdfcer does not need
+# a network to work, and it is stated as something "verifiable by any reader of
+# the generated THIRD_PARTY_LICENSES.md". Default-on made that claim false for
+# every build anybody would actually make. Opt-in makes it true again: the
+# DEFAULT binary contains no HTTP client and no TLS stack at all, and an
+# operator who wants a downloader asks for one.
+#
+# ★ And nothing is lost, because the WEIGHTS SHIP. `tools/package-portable.py`
+# stages `models/ocrs` into the portable folder, so OCR works out of the box
+# with no network. The downloader exists for a build that does NOT carry them -
+# a `cargo install`, a stripped package - which is exactly the case an operator
+# opting in already knows they are in.
+#
+# Build it with:  cargo build -p pdfcer-cli --features download
+#
+# Without it, `fetch-ocr-models` REFUSES BY NAME rather than vanishing - the
+# operator's own modularity rule. A missing subcommand reads as a version
+# difference; a named refusal reads as a build choice.
+download = ["dep:pdfcer-fetch", "pdfcer-fetch/download"]
+
+[dependencies]
+# clap (derive API): the de facto standard argument parser
+# (docs/PRIOR_ART.md). License: MIT OR Apache-2.0 (permissive). Zero GUI
+# deps — this crate holds the CLI-front-end half of the "two front ends,
+# one shared core" proof (docs/ARCHITECTURE.md §7).
+clap = { version = "4", features = ["derive"] }
+pdfcer-core.workspace = true
+pdfcer-print.workspace = true
+# pdfcer-render: added at Pass 1, the Pass that first needs it — `render-page`
+# rasterizes through exactly the same headless code path `pdfce-gui` displays
+# from and the future WASM fork will reuse (docs/ARCHITECTURE.md §3/§7). This
+# is the second half of the "two front ends, one shared core" proof: the CLI
+# renders pages without linking a single windowing crate, which CI's
+# `cargo tree` denylist verifies.
+#
+# PNG encoding comes with it, at zero manifest cost: pdfcer-render depends on
+# tiny-skia with default features, which include `png-format`, which is what
+# provides `Pixmap::encode_png`. The `png` crate that backs it is already in
+# `Cargo.lock` via that path — MIT OR Apache-2.0, permissive per
+# docs/LEGAL.md §6.1, already covered by the generated
+# THIRD_PARTY_LICENSES.md. No new package enters the graph for this Pass.
+pdfcer-render.workspace = true
+
+# pdfcer-fetch: pinned, hash-verified, operator-initiated downloads.
+# OPTIONAL and gated by the `download` feature above - see its header for
+# why a network stack is permitted in a SHELL and forbidden in the engine.
+# Declared in the workspace and, until now, consumed by nothing: the crate
+# shipped complete and unwired (the R151 shape - a capability that exists
+# and no caller reaches).
+pdfcer-fetch = { workspace = true, optional = true }
+
+# Windows printing (Reader-parity sweep). TARGET-GATED so the Linux and
+# macOS CI jobs still compile this crate — printing is the one genuinely
+# platform-bound capability in the CLI, and v1 ships Windows-only
+# (decision 003 §4.1) while the codebase stays platform-clean (R10).
+#
+# NOT a new licensing question: the `windows` crate is ALREADY in the
+# workspace tree at 0.62 via eframe/winit, MIT-OR-Apache-2.0, and already
+# listed in THIRD_PARTY_LICENSES.md. Verified with `cargo tree` before
+# adding rather than assumed (rule 13).

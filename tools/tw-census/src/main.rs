@@ -52,7 +52,7 @@
 //! Four more categories are reported because they change how the headline
 //! should be read, and folding any of them into it would mislead:
 //!
-//! - **Load failures** — a file pdfce cannot open is not evidence about
+//! - **Load failures** — a file pdfcer cannot open is not evidence about
 //!   `Tw` in either direction. Excluded from every share.
 //! - **Text-free documents** — scans and blank files belong in neither
 //!   numerator nor denominator; silently scoring them as "no simple text"
@@ -116,9 +116,9 @@ use std::process::ExitCode;
 use std::sync::mpsc;
 use std::time::Duration;
 
-use pdfce_core::document::Document;
-use pdfce_core::page_tree;
-use pdfce_core::text_extract::{self, ExtractOptions};
+use pdfcer_core::document::Document;
+use pdfcer_core::page_tree;
+use pdfcer_core::text_extract::{self, ExtractOptions};
 
 use census::{DocCensus, FontMix, Outcome, PageCensus, Prevalence, Totals, share};
 
@@ -160,7 +160,7 @@ struct Agg {
     load_failed: u64,
     /// Files that loaded but whose page tree could not be walked.
     pagetree_failed: u64,
-    /// Files that panicked pdfce-core.
+    /// Files that panicked pdfcer-core.
     panicked: u64,
     /// Files that exceeded the wall-clock budget.
     timed_out: u64,
@@ -451,7 +451,7 @@ pub fn measure_bytes(bytes: Vec<u8>) -> Outcome {
     // `None` without this flag.
     // `ExtractOptions` is `#[non_exhaustive]`, so it is built by mutating
     // the default rather than by a struct expression — which is the point
-    // of the attribute: a future field arrives with pdfce's chosen default
+    // of the attribute: a future field arrives with pdfcer's chosen default
     // instead of breaking this harness or, worse, silently changing what it
     // measures.
     let mut options = ExtractOptions::default();
@@ -850,7 +850,7 @@ mod fixture_tests {
 
     #[test]
     fn one_show_operator_is_one_run_not_one_extraction_run() {
-        // Guards the RunKey grouping: pdfce's `TextRun` splits on geometry
+        // Guards the RunKey grouping: pdfcer's `TextRun` splits on geometry
         // and marked content, so a per-`TextRun` count would over-report
         // the number of show operators. The fixtures are small enough that
         // runs <= glyphs must hold with a wide margin.

@@ -10,16 +10,16 @@
 # repository to find out whether that generalises. Every profile iccce has
 # been tested against is synthetic, OS-shipped or standards-body issued.
 #
-# pdfce has ~4,000 rights-cleared real-world PDFs on disk. That is a
+# pdfcer has ~4,000 rights-cleared real-world PDFs on disk. That is a
 # population; twenty profiles from one publisher's test corpus is a sample.
 #
 # ★ WHY THIS IS NOT A BOUNDARY VIOLATION. Decision 064 gives iccce every
-# colour CONVERSION in this ecosystem, and pdfce must never grow a CMM. This
+# colour CONVERSION in this ecosystem, and pdfcer must never grow a CMM. This
 # tool converts nothing. It reads the 128-byte ICC header (ICC.1:2010 §7.2)
 # and the tag TABLE (§7.3) — an inventory of what tags exist and how big they
 # are — and never evaluates a curve, a matrix or a CLUT. It is a librarian,
-# not a colour engine, and it lives in tools/ rather than in pdfce-core so
-# that "pdfce-core has never decoded an ICC profile" stays true.
+# not a colour engine, and it lives in tools/ rather than in pdfcer-core so
+# that "pdfcer-core has never decoded an ICC profile" stays true.
 #
 # WHY OUT-OF-TREE (workspace-excluded via the root manifest's `exclude`, the
 # same pattern as tools/tw-census, tools/corpus-report and tools/difftest):
@@ -30,7 +30,7 @@
 #       picture of the SHIPPING dependency graph only (docs/LEGAL.md §6.3).
 # This tool is never shipped.
 #
-# ZERO NEW DEPENDENCIES: `pdfce-core` by path, and std for everything else.
+# ZERO NEW DEPENDENCIES: `pdfcer-core` by path, and std for everything else.
 # Deliberate — a measurement whose numbers are about to be written into
 # another project's NUMERIC_CLAIMS.md should not be able to blame a
 # third-party crate for them.
@@ -56,7 +56,7 @@ publish = false
 [workspace]
 
 [dependencies]
-pdfce-core = { path = "../../crates/pdfce-core" }
+pdfcer-core = { path = "../../crates/pdfcer-core" }
 
 [profile.release]
 # Every stream in every one of ~4,000 files is decoded to test for an ICC

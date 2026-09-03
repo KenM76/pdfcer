@@ -30,8 +30,8 @@ exactly and the object model is assertable from the tokens alone.
   donut (two `re` / `f*`), a stroked cubic (`c`/`S`), and the `v` and `y`
   implicit-control-point operators. The primary **geometry cross-check**
   fixture (pure paths — no fonts/images) for
-  `pdfce-render/tests/vector_cross_check.rs`, and the object-count /
-  selection / centerline fixture for `pdfce-core/tests/vector_model.rs`.
+  `pdfcer-render/tests/vector_cross_check.rs`, and the object-count /
+  selection / centerline fixture for `pdfcer-core/tests/vector_model.rs`.
 
 `curves.pdf` (300×300)
 : A circle drawn as four κ≈0.5523 cubic Béziers (`m`/`c`×4/`h`/`S`) — the
@@ -62,9 +62,9 @@ exactly and the object model is assertable from the tokens alone.
   anchors). The single, uncompressed content stream makes the "exactly one
   changed stream" content-identity gate (R46/§5.7) directly observable, and
   the obvious paint-order indices give the CLI (`object-move`/`object-delete`/
-  `node-move`) and the render-fidelity test (`pdfce-render/tests/
-  vector_edit_render.rs`) a stable target. Used by `pdfce-core/tests/
-  vector_edit.rs`, `pdfce-cli/tests/vector_edit.rs`, and the render-fidelity
+  `node-move`) and the render-fidelity test (`pdfcer-render/tests/
+  vector_edit_render.rs`) a stable target. Used by `pdfcer-core/tests/
+  vector_edit.rs`, `pdfcer-cli/tests/vector_edit.rs`, and the render-fidelity
   test.
 
 `overlap.pdf` (300×300)
@@ -74,14 +74,14 @@ exactly and the object model is assertable from the tokens alone.
   tree.md` §C.3): at the page centre all three are under the pointer, and a
   topmost-only `hit_test_point` can only ever return object 2 — objects 1
   and 0 are **unreachable by any click** without
-  `pdfce_core::vector::hit_test_point_all`, which is precisely the gap that
+  `pdfcer_core::vector::hit_test_point_all`, which is precisely the gap that
   query exists to close. The nesting also gives stacks of three (150,150),
   two (85,85) and one (35,35), so a hit list's LENGTH is a real answer about
   the geometry rather than a constant an implementation could fake by
   returning every object on the page. Distinct fill colours (blue / amber /
   green) so a rendered check, and a human, can see which square a cycle step
-  landed on. Used by `pdfce-cli/tests/object_list.rs` and
-  `pdfce-core/tests/vector_model.rs`.
+  landed on. Used by `pdfcer-cli/tests/object_list.rs` and
+  `pdfcer-core/tests/vector_model.rs`.
 
 ## Regenerating
 

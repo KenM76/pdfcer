@@ -3,8 +3,8 @@
 Single-page PDF fixtures for **mesh shadings** — `ShadingType` 4, 5, 6 and 7
 (ISO 32000-1 §8.7.4.5.5–.8), the four types whose geometry lives in a stream
 rather than in a dictionary. Rendered by
-`crates/pdfce-render/src/mesh.rs`; used by
-`crates/pdfce-render/tests/mesh_shadings.rs`.
+`crates/pdfcer-render/src/mesh.rs`; used by
+`crates/pdfcer-render/tests/mesh_shadings.rs`.
 
 Sibling of `fixtures/synthetic/transparency/`, and built for the same reason
 that directory gives: unit tests prove an evaluator's arithmetic, and only a

@@ -1,4 +1,4 @@
-//! Fuzz target: parse → write → parse → compare (`pdfce_core::writer`).
+//! Fuzz target: parse → write → parse → compare (`pdfcer_core::writer`).
 //!
 //! The write-direction counterpart to `load_document`, and the executable
 //! form of the `ARCHITECTURE.md` §5 round-trip invariant (decision 007
@@ -71,7 +71,7 @@
 //!
 //! A short script of edits, undos and redos is derived deterministically
 //! from the input bytes (see [`Script`]), applied through
-//! `pdfce_core::edit::EditSession`, and then three things are asserted:
+//! `pdfcer_core::edit::EditSession`, and then three things are asserted:
 //!
 //! 1. **prior bytes are intact** after saving the edited document
 //!    (§7.5.6) — the mutation form of contract 2;
@@ -93,11 +93,11 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::document::Document;
-use pdfce_core::edit::{EditSession, InfoField};
-use pdfce_core::object::{ObjId, Provenance, equivalent_across_buffers};
-use pdfce_core::writer::{DirtySet, SaveOptions, save_full, save_incremental};
-use pdfce_core::xref::SectionShape;
+use pdfcer_core::document::Document;
+use pdfcer_core::edit::{EditSession, InfoField};
+use pdfcer_core::object::{ObjId, Provenance, equivalent_across_buffers};
+use pdfcer_core::writer::{DirtySet, SaveOptions, save_full, save_incremental};
+use pdfcer_core::xref::SectionShape;
 
 /// Cap on the number of objects put through the identity-append path.
 ///
@@ -358,7 +358,7 @@ fn exercise_edit_history(data: &[u8]) {
                 "an edited save modified bytes below the original EOF"
             );
             if let Err(e) = Document::from_bytes(out) {
-                panic!("pdfce could not reload a file it produced from an edit: {e}");
+                panic!("pdfcer could not reload a file it produced from an edit: {e}");
             }
         } else {
             assert_eq!(out, data, "an unmodified session must save the input");
@@ -382,9 +382,9 @@ fn exercise_edit_history(data: &[u8]) {
 
 /// Load `out` and assert it carries the same object graph as `doc`.
 ///
-/// A reload failure is a hard error: pdfce must be able to parse what
-/// pdfce just wrote. That is a stronger claim than "some reader can",
-/// and deliberately so — pdfce's own loader is the strictest one
+/// A reload failure is a hard error: pdfcer must be able to parse what
+/// pdfcer just wrote. That is a stronger claim than "some reader can",
+/// and deliberately so — pdfcer's own loader is the strictest one
 /// available here, so it is the right oracle.
 ///
 /// Returns the reloaded document so the caller can compare byte spans
@@ -392,7 +392,7 @@ fn exercise_edit_history(data: &[u8]) {
 fn assert_reloads_to_the_same_graph(doc: &Document, out: &[u8], what: &str) -> Document {
     let back = match Document::from_bytes(out.to_vec()) {
         Ok(back) => back,
-        Err(e) => panic!("pdfce could not reload its own {what} output: {e}"),
+        Err(e) => panic!("pdfcer could not reload its own {what} output: {e}"),
     };
     for io in doc.objects() {
         if is_section_object(doc, io.id) {

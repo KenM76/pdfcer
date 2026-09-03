@@ -10,7 +10,7 @@ ISO 32000-1 Table 58, the `/SMask` row, verbatim:
   new one, rather than intersecting the two as is done with the current
   clipping path parameter."
 
-pdfce folds a soft mask into the clip by multiplication -- a sound way to apply
+pdfcer folds a soft mask into the clip by multiplication -- a sound way to apply
 ONE mask and a wrong way to apply two. Before `Pass 192.0` a second `gs /SMask`
 with no intervening `q`/`Q` never lifted the first mask out, so the clip became
 `mask1 x mask2`.

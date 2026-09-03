@@ -20,7 +20,7 @@ WHAT THE FIXTURE PROVES
     A two-column, four-paragraph, ten-line page in standard-14 Helvetica
     (`/WinAnsiEncoding`), NO embedded font program (extraction needs
     none — §9.10.2 rung 2). It exercises the whole Run -> Line -> Column
-    -> Block recognition pipeline of `pdfce_core::text_edit`:
+    -> Block recognition pipeline of `pdfcer_core::text_edit`:
 
       * ten lines, each a separate `BT ... Td (text) Tj ET` object, so the
         derived line breaks (§14.8 S5) come out at exact, known baselines;

@@ -1,7 +1,7 @@
-# difftest — pdfce's out-of-tree differential test oracle.
+# difftest — pdfcer's out-of-tree differential test oracle.
 #
 # WHY THIS EXISTS (docs/decisions/001-oxidize-pdf-adopt-vs-build.md §7):
-# pdfce-core is built from scratch; oxidize-pdf (MIT) was audited 2026-07-30
+# pdfcer-core is built from scratch; oxidize-pdf (MIT) was audited 2026-07-30
 # and its COS parser / hybrid-xref handling judged strong enough to be worth
 # *disagreeing with deliberately*. This tool runs the same fixture PDFs
 # through both parsers and diffs the resulting object graphs. Disagreements
@@ -11,13 +11,13 @@
 # resolved in the oracle's favor by default.
 #
 # WHY OUT-OF-TREE (workspace-excluded via the root manifest's `exclude`):
-# keeps `cargo test` fast; keeps `cargo tree -p pdfce-core` invariant checks
+# keeps `cargo test` fast; keeps `cargo tree -p pdfcer-core` invariant checks
 # clean; keeps THIRD_PARTY_LICENSES.md describing the SHIPPING graph only.
 # oxidize-pdf must NEVER become a dependency (even dev-) of any workspace
 # member.
 #
 # FIXTURE RULE (docs/LEGAL.md §5): fixtures fed to this tool are
-# pdfce-authored synthetic PDFs or rights-cleared corpus files (veraPDF /
+# pdfcer-authored synthetic PDFs or rights-cleared corpus files (veraPDF /
 # PDF Association) ONLY. Never a PDF from oxidize-pdf's own repository —
 # it commits unknown-provenance real-world files.
 
@@ -46,7 +46,7 @@ publish = false
 # it is not part of the shipping graph).
 oxidize-pdf = "=4.2.1"
 
-# pdfce-core, path-referenced: the crate under test. Wired in now so the
-# harness fails to compile (rather than silently drifting) if pdfce-core's
+# pdfcer-core, path-referenced: the crate under test. Wired in now so the
+# harness fails to compile (rather than silently drifting) if pdfcer-core's
 # API changes under it.
-pdfce-core = { path = "../../crates/pdfce-core" }
+pdfcer-core = { path = "../../crates/pdfcer-core" }

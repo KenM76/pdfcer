@@ -36,7 +36,7 @@ than a flag on the existing generator.
 
 WHAT MAKES IT A SUBSET, MECHANICALLY
 ====================================
-`pdfce-core`'s `is_subset_tag` (`text_edit/edit.rs`) decides subset-ness
+`pdfcer-core`'s `is_subset_tag` (`text_edit/edit.rs`) decides subset-ness
 purely from the `/BaseFont` name: exactly six ASCII **uppercase** letters
 followed by `+`. That is ISO 32000-1 §9.6.4's subset prefix. The font is
 *also* genuinely reduced — it carries outlines for only the characters shown
@@ -176,7 +176,7 @@ def build_cycle_truetype() -> bytes:
     `closure()` is an iterative worklist that enqueues a component only when
     the remapper has not already seen it, so the visited set grows
     monotonically and is bounded by `numGlyphs`. It terminates structurally,
-    upstream. A pdfce-side cap would sit behind a filter its guarded case
+    upstream. A pdfcer-side cap would sit behind a filter its guarded case
     cannot pass — a guard that reads as protection and executes never (R96).
 
     So the property is asserted rather than defended. This fixture is what
@@ -269,7 +269,7 @@ def build_cycle_truetype() -> bytes:
 def build_fstype_truetype(fs_type: int, os2_version: int = 4) -> bytes:
     """A donor whose `OS/2` `fsType` carries `fs_type` (R109 fixtures).
 
-    Each embedding-permission refusal pdfce can raise needs a font that
+    Each embedding-permission refusal pdfcer can raise needs a font that
     actually triggers it. Without these the refusals are unreachable, and an
     unreachable refusal is one nobody has ever seen fire — the exact
     situation that let two operator-facing hints ship wrong for several
@@ -278,7 +278,7 @@ def build_fstype_truetype(fs_type: int, os2_version: int = 4) -> bytes:
     `os2_version` is a parameter because bits 8 and 9 (`No subsetting`,
     `Bitmap embedding only`) **must be ignored** on `OS/2` versions 0 and 1,
     where they had no assigned meaning. A fixture pair at v1 and v4 with the
-    same bits set is what proves pdfce honours that gating rather than
+    same bits set is what proves pdfcer honours that gating rather than
     reading the bytes unconditionally.
 
     Fully synthetic (`docs/LEGAL.md` §5).
@@ -561,7 +561,7 @@ def main() -> int:
     out_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else OUT
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # The shipped /BaseFont must satisfy the SAME predicate pdfce-core
+    # The shipped /BaseFont must satisfy the SAME predicate pdfcer-core
     # applies (`is_subset_tag`), or the fixture is not testing the branch
     # it names. Reproduced here rather than assumed, because the fixture
     # and the code that classifies it live in different languages and

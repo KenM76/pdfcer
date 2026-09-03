@@ -1,4 +1,4 @@
-//! Fuzz target: the object parser (`pdfce_core::parser`).
+//! Fuzz target: the object parser (`pdfcer_core::parser`).
 //!
 //! Feeds arbitrary bytes to both top-level parser entry points:
 //!
@@ -22,7 +22,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::parser::Parser;
+use pdfcer_core::parser::Parser;
 
 fuzz_target!(|data: &[u8]| {
     // Direct-object entry point.

@@ -3,7 +3,7 @@
 
 WHY THESE FIXTURES EXIST
 ------------------------
-``EditSession::delete_annotation`` is the first verb in pdfce that removes
+``EditSession::delete_annotation`` is the first verb in pdfcer that removes
 an annotation it did not author, and almost none of its behaviour is
 about the annotation the operator named. Three cascades fire on OTHER
 objects — a ``/Popup`` companion, every ``/IRT`` referrer, and the
@@ -63,12 +63,12 @@ So each file below is built to make a specific cascade *falsifiable*.
     ``/P 3`` is the value that separates ``annotation_deletion_refusal``
     from ``deletion_refusal``. Per ISO 32000-1 §12.8.2.2 Table 254,
     ``/P 3`` permits *"the same as for 2, as well as **annotation
-    creation, deletion, and modification**"* — so on this document pdfce
+    creation, deletion, and modification**"* — so on this document pdfcer
     must REFUSE to delete a form field and ALLOW deleting a comment.
-    This is the first pdfce operation any ``P`` value permits: until
+    This is the first pdfcer operation any ``P`` value permits: until
     Pass 38.5 the strict gate was correct because, as
     ``SignatureCensus::forbids_structural_change``'s own doc comment put
-    it, no ``P`` value's permitted list contained anything pdfce could
+    it, no ``P`` value's permitted list contained anything pdfcer could
     do.
 
     Each carries one deletable ``/Square`` annotation AND one form field,
@@ -150,7 +150,7 @@ def build_thread() -> bytes:
         b"/T (Alice) /Contents (the primary comment) /M (D:20260808120000Z) "
         b"/Popup 5 0 R /AP << /N 11 0 R >> >>"
     )
-    # 5 — its window. Table 183 /Parent is the back reference; pdfce finds
+    # 5 — its window. Table 183 /Parent is the back reference; pdfcer finds
     # the pair from the PARENT's /Popup, not from this, so a fixture that
     # only carried /Parent would not exercise the path under test.
     objs[5] = (
@@ -200,7 +200,7 @@ def build_thread() -> bytes:
 def build_undeletable() -> bytes:
     """The two annotations ``delete_annotation`` must refuse.
 
-    Both refusals come from the STANDARD rather than from pdfce policy,
+    Both refusals come from the STANDARD rather than from pdfcer policy,
     and both are invisible: a locked annotation and a trap network look
     like any other annotation from a comments list, so an implementation
     that never read the flag or the subtype would behave identically on
@@ -282,7 +282,7 @@ def build_certified(permission: int) -> bytes:
     )
     # THE POINT OF THE FIXTURE. Structural placeholders only: the guards
     # under test read census-visible structure and verify no cryptography,
-    # and a fixture carrying a real signature would test a claim pdfce does
+    # and a fixture carrying a real signature would test a claim pdfcer does
     # not make while adding a key nobody can rotate.
     objs[7] = (
         b"<< /Type /Sig /Filter /Adobe.PPKLite /ByteRange [0 1 2 3] "

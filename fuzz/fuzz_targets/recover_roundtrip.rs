@@ -19,7 +19,7 @@
 //!    a regression and panics here.
 //! 3. **`save_full` on a recovered document terminates**, and whatever
 //!    bytes it produces re-load without panicking — the full-rewrite path
-//!    must never emit a document pdfce cannot at least attempt to read
+//!    must never emit a document pdfcer cannot at least attempt to read
 //!    back.
 //!
 //! A non-recovered load is out of scope here (covered by `load_document` /
@@ -28,8 +28,8 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::document::Document;
-use pdfce_core::writer::{DirtySet, SaveOptions, WriteError, save_full, save_incremental};
+use pdfcer_core::document::Document;
+use pdfcer_core::writer::{DirtySet, SaveOptions, WriteError, save_full, save_incremental};
 
 fuzz_target!(|data: &[u8]| {
     // Invariant 1: from_bytes is total — never panics, always terminates.

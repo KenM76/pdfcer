@@ -247,7 +247,7 @@ def identity_h(with_to_unicode: bool) -> bytes:
     `/ToUnicode`.
 
     No font program is embedded. §9.7.5.2 forbids `Identity-H` with a
-    non-embedded font and `pdfce-render` correctly refuses such a file —
+    non-embedded font and `pdfcer-render` correctly refuses such a file —
     but §9.10.2 rung 1 needs only the `/ToUnicode` entry, so extraction
     must succeed on exactly the file rendering rejects. Keeping the two
     apart is the reason extraction is a separate pipeline.

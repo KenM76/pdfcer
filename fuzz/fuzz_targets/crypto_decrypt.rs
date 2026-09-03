@@ -1,6 +1,6 @@
 //! Fuzz target: the `/AESV2` and `/AESV3` decryption paths
-//! (`pdfce_core::crypto::aes`), plus `/R` 5's password preparation
-//! (`pdfce_core::crypto::r5`).
+//! (`pdfcer_core::crypto::aes`), plus `/R` 5's password preparation
+//! (`pdfcer_core::crypto::r5`).
 //!
 //! # Why this target exists, and why it did not before
 //!
@@ -82,8 +82,8 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::crypto::PreparedPassword;
-use pdfce_core::crypto::aes::{
+use pdfcer_core::crypto::PreparedPassword;
+use pdfcer_core::crypto::aes::{
     BLOCK_LEN, IV_LEN, KEY_LEN_256, MIN_CIPHERTEXT_LEN, decrypt_cbc_128, decrypt_cbc_256,
     unwrap_key_cbc_256,
 };
@@ -159,7 +159,7 @@ fuzz_target!(|data: &[u8]| {
     assert!(
         rest.starts_with(prepared.as_bytes()),
         "preparation may only truncate -- it must never reorder or substitute, \
-         because pdfce does not implement the SASLprep step that would"
+         because pdfcer does not implement the SASLprep step that would"
     );
 
     // Boundary sweep. The corpus will drift toward whatever lengths happen to

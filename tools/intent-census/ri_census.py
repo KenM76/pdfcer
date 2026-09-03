@@ -2,7 +2,7 @@
 
 Answers iccce's question 2.3 (2026-08-25 request): what is the realistic worst
 case number of distinct (source, destination, intent, BPC) combinations one
-page can produce.  The half pdfce can measure is INTENT: how many distinct
+page can produce.  The half pdfcer can measure is INTENT: how many distinct
 rendering intents a document declares, and whether more than one appears.
 
 Two passes, deliberately separated because they are different evidence:

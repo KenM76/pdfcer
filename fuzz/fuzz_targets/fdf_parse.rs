@@ -1,8 +1,8 @@
 //! Fuzz target 14: FDF / XFDF form-data parsing
-//! (`pdfce_core::fdf`, ISO 32000-1 §12.7.7 + the XFDF XML subset; Pass 7.1).
+//! (`pdfcer_core::fdf`, ISO 32000-1 §12.7.7 + the XFDF XML subset; Pass 7.1).
 //!
 //! Feeds arbitrary bytes to BOTH form-data readers — [`FormData::parse_fdf`]
-//! (the COS-object FDF reader, which reuses pdfce's own `Parser`) and
+//! (the COS-object FDF reader, which reuses pdfcer's own `Parser`) and
 //! [`FormData::parse_xfdf`] (the scoped hand-rolled XML reader) — plus a
 //! round-trip through the serializers. This exercises the untrusted-input
 //! surface the Pass 7.1 brief calls out:
@@ -26,7 +26,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::fdf::FormData;
+use pdfcer_core::fdf::FormData;
 
 fuzz_target!(|data: &[u8]| {
     // FDF reader: never panics; a successful parse re-serializes + re-parses.

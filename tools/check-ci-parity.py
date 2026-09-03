@@ -98,8 +98,8 @@ LOCAL = {
     "tools/check-shipped-assets.py": "python tools/check-shipped-assets.py",
     "cargo clippy": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
     "cargo test --workspace": "cargo test --workspace --all-features",
-    "cargo test -p pdfce-core --no-default-features": (
-        "cargo test -p pdfce-core --no-default-features"
+    "cargo test -p pdfcer-core --no-default-features": (
+        "cargo test -p pdfcer-core --no-default-features"
     ),
     "tools/check-outcome-disclosed.py": "python tools/check-outcome-disclosed.py",
     "tools/check-commits-filed.py": "python tools/check-commits-filed.py",
@@ -138,7 +138,7 @@ LOCAL_VIA = {
     # runs locally if the target is installed. `rustup target add
     # wasm32-unknown-unknown` once, then this is a normal cargo check.
     "--target wasm32-unknown-unknown": (
-        "cargo check -p pdfce-core -p pdfce-render --target wasm32-unknown-unknown"
+        "cargo check -p pdfcer-core -p pdfcer-render --target wasm32-unknown-unknown"
     ),
     # `cargo about` is installed on this machine (0.9.1). Regenerating and
     # diffing is what the audit does.
@@ -167,7 +167,7 @@ LOCAL_VIA = {
     # local stand-in that covers half of a two-crate invariant is a stand-in
     # that can be green while CI is red.
     "cargo tree": (
-        "! cargo tree -p pdfce-core -p pdfce-render 2>/dev/null "
+        "! cargo tree -p pdfcer-core -p pdfcer-render 2>/dev/null "
         "| grep -Ei '(^|[[:space:]])(egui|eframe|winit|wgpu|reqwest|hyper)([[:space:]]|$)'"
     ),
 }

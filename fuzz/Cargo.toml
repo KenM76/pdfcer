@@ -1,4 +1,4 @@
-# pdfce fuzzing harness (docs/ARCHITECTURE.md §10.2 — required for Pass 1).
+# pdfcer fuzzing harness (docs/ARCHITECTURE.md §10.2 — required for Pass 1).
 #
 # This crate is NOT a member of the shipping workspace: the root
 # Cargo.toml lists "fuzz" in `exclude`, and the empty [workspace] table
@@ -27,7 +27,7 @@
 # D:\dev\rag\rust\cargo_fuzz_windows_msvc_asan_dll_path.md.
 
 [package]
-name = "pdfce-fuzz"
+name = "pdfcer-fuzz"
 version = "0.0.0"
 publish = false
 edition = "2024"
@@ -47,7 +47,7 @@ cargo-fuzz = true
 #
 # This is a fuzz-harness dependency only. The fuzz/ crate is outside the
 # shipping workspace (root Cargo.toml `exclude`), so `arbitrary` never
-# reaches any pdfce binary, never appears in `cargo tree -p pdfce-core`,
+# reaches any pdfcer binary, never appears in `cargo tree -p pdfcer-core`,
 # and never enters the cargo-about-generated THIRD_PARTY_LICENSES.md.
 # (It is MIT OR Apache-2.0 regardless — no docs/LEGAL.md §6.2 flag.)
 libfuzzer-sys = { version = "0.4", features = ["arbitrary-derive"] }
@@ -55,7 +55,7 @@ libfuzzer-sys = { version = "0.4", features = ["arbitrary-derive"] }
 # ** `default-features = false`, AND IT IS THE DIFFERENCE BETWEEN A FUZZ
 # HARNESS THAT BUILDS AND ONE THAT DOES NOT. **
 #
-# `pdfce-core`'s default features include `ocrs`, which pulls the `rten`
+# `pdfcer-core`'s default features include `ocrs`, which pulls the `rten`
 # inference runtime. `rten` builds a **cdylib**, and cargo-fuzz puts
 # libFuzzer's `/include:main` into the link arguments for the whole graph, so
 # the cdylib is asked to export a `main` it does not have:
@@ -91,24 +91,24 @@ libfuzzer-sys = { version = "0.4", features = ["arbitrary-derive"] }
 # No fuzz target needs OCR. `jpx` is kept because `image_codec_jpx` needs it,
 # and it is named explicitly rather than inherited, so a future default that
 # adds another heavyweight capability does not silently re-break this.
-[dependencies.pdfce-core]
-path = "../crates/pdfce-core"
+[dependencies.pdfcer-core]
+path = "../crates/pdfcer-core"
 default-features = false
 features = ["jpx"]
 
-# pdfce-render, for the FF-C donor-subsetting target (Pass 21.0). The
+# pdfcer-render, for the FF-C donor-subsetting target (Pass 21.0). The
 # subsetter lives there, not in core, because producing a subset requires
 # parsing the donor and core has no font parser (decision 021 §3.2, R21).
 #
 # This does NOT weaken the GUI-core-separation check: the fuzz crate is
 # outside the shipping workspace (root Cargo.toml `exclude`), so it never
-# appears in `cargo tree -p pdfce-core` / `-p pdfce-render` and cannot
+# appears in `cargo tree -p pdfcer-core` / `-p pdfcer-render` and cannot
 # pull anything into a shipped binary.
-[dependencies.pdfce-render]
-path = "../crates/pdfce-render"
-# Same reason as `pdfce-core` above, and it MUST be repeated here: cargo
+[dependencies.pdfcer-render]
+path = "../crates/pdfcer-render"
+# Same reason as `pdfcer-core` above, and it MUST be repeated here: cargo
 # unifies features across the graph, so one crate taking defaults re-enables
-# `ocrs` for everybody (the effect `pdfce-render/Cargo.toml`'s own feature
+# `ocrs` for everybody (the effect `pdfcer-render/Cargo.toml`'s own feature
 # block documents, measured on 2026-08-12).
 default-features = false
 features = ["jpx"]
@@ -141,7 +141,7 @@ bench = false
 
 # Pass 2.1 (decision 005 §6.5): fuzz the ADAPTER, not the vendor's
 # codec core — zune-jpeg already has its own targets and transitive
-# OSS-Fuzz coverage, so pdfce's bugs will be in the marker pre-sniff,
+# OSS-Fuzz coverage, so pdfcer's bugs will be in the marker pre-sniff,
 # the geometry reconciliation, the buffer sizing and the colour routing.
 [[bin]]
 name = "image_codec_dct"
@@ -213,7 +213,7 @@ bench = false
 # Pass 3.2: the composition target (decision 007 R40, extended). The
 # writer targets prove a save does not corrupt an untouched document and
 # that ONE edit does not perturb its neighbours; this one proves that no
-# SEQUENCE of structural operations produces a document pdfce cannot read
+# SEQUENCE of structural operations produces a document pdfcer cannot read
 # back, and that undoing all of them reproduces the input byte for byte.
 # Structural ops compose in ways single ops do not — a delete shifts the
 # indices a following reorder addresses, a reorder changes which ancestor
@@ -260,7 +260,7 @@ test = false
 doc = false
 bench = false
 
-# Target 13: the interactive-form field model (pdfce_core::forms, §12.7;
+# Target 13: the interactive-form field model (pdfcer_core::forms, §12.7;
 # Pass 7). Drives parse_acroform over untrusted input: the /AcroForm walk,
 # the /Kids field-tree DFS with inheritance, the field-vs-widget merge, FQN
 # construction, per-type /V decoding, and XFA/SigFlags detection. The
@@ -304,7 +304,7 @@ doc = false
 bench = false
 
 # Pass 9a (decision 011 Appendix A): the vector object-decomposition
-# target. Drives `pdfce_core::vector::decompose` + hit-test + centerline
+# target. Drives `pdfcer_core::vector::decompose` + hit-test + centerline
 # over attacker-controlled content streams — the malformed/degenerate
 # paths, huge node counts, and unbalanced q/Q the acceptance criterion
 # names — asserting the MAX_NODES/MAX_OBJECTS bounds hold and nothing
@@ -344,9 +344,9 @@ bench = false
 
 # Pass 46.x raster-image import: drives `image_import::import_with` over
 # adversarial PNG/JPEG/BMP containers at all four compression policies. Added
-# when `ImageCompression::Jpeg` landed pdfce's FIRST image encoder — the
+# when `ImageCompression::Jpeg` landed pdfcer's FIRST image encoder — the
 # passthrough branches copy bytes and the codecs are fuzzed by their own
-# targets, but the re-encode path reshapes decoded samples in pdfce's own
+# targets, but the re-encode path reshapes decoded samples in pdfcer's own
 # hand-written stride/bit-packing/palette code before handing them to
 # `jpeg-encoder`, and that reshaping is the new surface. See the target's
 # doc comment for the invariants and for why the expensive policies run
@@ -485,7 +485,7 @@ doc = false
 bench = false
 
 # Pass 10.1: signature VERIFICATION over untrusted bytes. The /Contents of a
-# signature is whatever the file says it is, and pdfce parses it with an
+# signature is whatever the file says it is, and pdfcer parses it with an
 # in-crate DER reader, CMS/X.509 walker, RSA/ECDSA verifier and big-integer
 # arithmetic -- every one of them new and on the hostile path. The seeds are
 # the seven pyHanko-signed fixtures, so libFuzzer's mutations start from

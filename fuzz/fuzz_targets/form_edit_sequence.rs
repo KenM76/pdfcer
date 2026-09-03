@@ -1,6 +1,6 @@
 //! Fuzz target: a **sequence** of form-field edits, and the object-wide
-//! action-target sweep underneath them (`pdfce_core::edit` +
-//! `pdfce_core::forms`).
+//! action-target sweep underneath them (`pdfcer_core::edit` +
+//! `pdfcer_core::forms`).
 //!
 //! `form_model` fuzzes the READ side — `parse_acroform` over untrusted
 //! bytes. Nothing fuzzed the WRITE side, and `Pass 184.0` added a
@@ -51,9 +51,9 @@
 //!
 //! Asserted:
 //!
-//! 1. **No panic, ever.** `pdfce-core` is panic-free by policy, and every
+//! 1. **No panic, ever.** `pdfcer-core` is panic-free by policy, and every
 //!    verb here runs on attacker-shaped input.
-//! 2. **Whatever is saved, reloads.** An edit that produces a file pdfce
+//! 2. **Whatever is saved, reloads.** An edit that produces a file pdfcer
 //!    itself cannot parse is strictly worse than refusing the edit.
 //! 3. **Undo-everything ⇒ byte-identical.** The sweep stages its writes
 //!    into the SAME command as the rename, so this also proves the
@@ -72,9 +72,9 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::document::Document;
-use pdfce_core::edit::{ButtonAction, EditSession, ResetScope, SubmitScope, SubmitSpec};
-use pdfce_core::writer::SaveOptions;
+use pdfcer_core::document::Document;
+use pdfcer_core::edit::{ButtonAction, EditSession, ResetScope, SubmitScope, SubmitSpec};
+use pdfcer_core::writer::SaveOptions;
 
 /// How many bytes at the front drive the operation sequence; the rest is
 /// the candidate PDF.
@@ -110,7 +110,7 @@ fuzz_target!(|data: &[u8]| {
         // iteration because a delete removes names and a rename changes
         // them, and driving the second verb with the first verb's stale
         // list would only ever exercise the not-found refusal.
-        let names: Vec<String> = pdfce_core::forms::parse_acroform(&session.graph())
+        let names: Vec<String> = pdfcer_core::forms::parse_acroform(&session.graph())
             .map(|form| {
                 form.fields
                     .iter()

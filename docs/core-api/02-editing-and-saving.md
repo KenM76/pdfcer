@@ -1,15 +1,15 @@
-# `pdfce-core` consumer API, part 2 — editing and saving
+# `pdfcer-core` consumer API, part 2 — editing and saving
 
 > **★ `crates/pdfce-gui/...` citations.** That crate was removed from this
 > workspace in `Pass 247.0`. Every `pdfce@cce414e:crates/pdfce-gui/...`
 > reference below is a *reference implementation* frozen at the last commit
 > that carried it — read it with
 > `git -C D:\Dev\pdfce show cce414e:crates/pdfce-gui/src/<file>` (the
-> untouched backup repository) or on GitHub at `KenM76/pdfce`. The shipping
+> untouched backup repository) or on GitHub at `KenM76/pdfce` (archived). The shipping
 > GUI is the separate `pdfcer-gui` project.
 
-**Audience:** an engineer or agent building a NEW GUI shell (`D:\dev\pdfceGUI`)
-against `pdfce-core`, in a session that cannot ask questions here.
+**Audience:** an engineer or agent building a NEW GUI shell (`D:\dev\pdfcer-gui`)
+against `pdfcer-core`, in a session that cannot ask questions here.
 **This is not rustdoc.** Rustdoc answers *"what does this function do."* This
 answers *"I want to do X — what do I call, in what order, and what will bite me."*
 
@@ -17,10 +17,10 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 |---|---|
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
-| **Primary subject** | `crates/pdfce-core/src/edit.rs` (35655) |
+| **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
 | **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 188 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
-| **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfce authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
+| **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
 Every `file:line` below was read at `5c37c7c`. Where a fact could not be
 established it is marked `UNVERIFIED — <what to check>` rather than guessed.
@@ -63,7 +63,7 @@ Five consequences a GUI author must internalise before writing any code:
 4. **Every mutating verb is one undo entry** — with named exceptions
    (`import_form_data` is N entries; see §3.4).
 5. **`EditSession` is the only mutation path in the whole project.** Module doc,
-   `edit.rs:3-7`: *"`pdfce-gui` and `pdfce-cli` both go through `EditSession`,
+   `edit.rs:3-7`: *"`pdfce-gui` and `pdfcer` both go through `EditSession`,
    and nothing anywhere constructs a `DirtySet` with real changes except
    `EditSession::dirty_set`."*
 
@@ -76,7 +76,7 @@ Five consequences a GUI author must internalise before writing any code:
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed.
 There are no `EditSession` methods in any other file
-(`grep -rn "impl EditSession" crates/pdfce-core/src/` returns those four lines only).
+(`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those four lines only).
 
 > ### ★ THIS COUNT SAID 108 AND HAD DRIFTED BY EXACTLY EIGHT
 >
@@ -86,7 +86,7 @@ There are no `EditSession` methods in any other file
 > `flatten_refusal`, `insert_pages`, `widget_rects`.
 >
 > **How it was found, and why that matters more than the correction.** The
-> `pdfceGUI` session wired `insert_pages` and shipped a **wrong operator
+> `pdfcer-gui` session wired `insert_pages` and shipped a **wrong operator
 > disclosure** derived from it. They did not misread this document — *this
 > document never mentioned the verb*, so a chat reply was the only
 > description of it in existence, and a chat reply is not reviewable, not
@@ -261,11 +261,11 @@ need their own policy).
 > A form XObject may legally be painted **from several pages and several times
 > on one page** — ISO 32000-1 §8.10.1 states that as the *purpose* of the
 > feature — and **no clause in either edition binds a form to a page.** That is
-> a confirmed permanent negative result in pdfce's spec corpus (`FX-N1`), argued
+> a confirmed permanent negative result in pdfcer's spec corpus (`FX-N1`), argued
 > three independent ways.
 >
 > **So editing text inside a shared form changes every place it appears, and
-> there is nothing pdfce can do about it: there is exactly one stream holding
+> there is nothing pdfcer can do about it: there is exactly one stream holding
 > those glyphs.** The default is therefore edit-in-place, disclosed — chosen
 > over copy-on-write because copy-on-write is *not always expressible* (a form
 > invoked from inside another form cannot be re-bound without editing the
@@ -273,7 +273,7 @@ need their own policy).
 > depend on document structure is worse than one that always means the same
 > thing. **Adobe's behaviour here is unsourceable** — an `Acrobat_Features`
 > sweep found no documentation of what Acrobat does to a shared form, from
-> Adobe or from its competitors — so this is pdfce's own reasoned choice, not
+> Adobe or from its competitors — so this is pdfcer's own reasoned choice, not
 > a parity claim.
 >
 > `EditReport` carries the fan-out:
@@ -289,11 +289,11 @@ need their own policy).
 > (`"SHARED CONTENT: ..."`) is in `report.disclosures` and is worded for direct
 > display.
 >
-> To enumerate targets *before* an edit: `pdfce_core::text_edit::forms` —
+> To enumerate targets *before* an edit: `pdfcer_core::text_edit::forms` —
 > `scan_page_forms(doc, view, page)` returns every form the page paints with its
 > object number, nesting depth, effective resources and dictionary;
 > `invocation_map(doc, view)` answers the fan-out for all of them in **one**
-> document walk. `pdfce-cli inspect --forms` prints the same thing.
+> document walk. `pdfcer inspect --forms` prints the same thing.
 >
 > ### Limits, so you do not find them by pressing
 >
@@ -303,13 +303,13 @@ need their own policy).
 >   printed.
 > - **A form whose `/Resources` is present but does not declare the font its own
 >   text selects is refused**, not guessed at. Filling the gap from the page
->   would resolve a font `pdfce-render`'s interpreter does not, and the advance
+>   would resolve a font `pdfcer-render`'s interpreter does not, and the advance
 >   arithmetic would then be computed from `/Widths` nothing else consults.
 > - **A form that omits `/Resources` entirely IS editable** — §7.8.3's fourth
 >   bullet makes inheritance from the page a `shall` on the reader, and PDF 2.0
 >   removed the sentence calling it obsolete. The inheritance is disclosed.
-> - **Nesting is guarded at 64 levels.** Deeper is *conforming* content pdfce
->   refuses; the refusal says so, because it is pdfce's limit and not the file's
+> - **Nesting is guarded at 64 levels.** Deeper is *conforming* content pdfcer
+>   refuses; the refusal says so, because it is pdfcer's limit and not the file's
 >   defect.
 > - **`format_text` was retargeted too (`Pass 119.2`)** — same `target`
 >   selector, same default, same `form_object` / `form_invocations` /
@@ -330,7 +330,7 @@ need their own policy).
 >
 >   A **standard-14** face (§9.6.2.2) needs no font program, so it is authored
 >   on demand: a `/Type1` dictionary with `/FirstChar`, `/LastChar` and
->   `/Widths` from pdfce's compiled Core-14 metrics, `/Encoding
+>   `/Widths` from pdfcer's compiled Core-14 metrics, `/Encoding
 >   /WinAnsiEncoding` for the twelve Latin faces and **no `/Encoding`** for
 >   `Symbol`/`ZapfDingbats` (built-in, Annex D.5/D.6). No `/FontDescriptor`, no
 >   embedded bytes. **Anything outside the standard 14 still refuses with
@@ -339,7 +339,7 @@ need their own policy).
 >   Four things a shell must know:
 >
 >   1. **It is disclosed, always.** The report names the face and the key it
->      was bound under (`pdfceF1`, `pdfceF2`, … — the `pdfce` prefix keeps it
+>      was bound under (`pdfceF1`, `pdfceF2`, … — the `pdfcer` prefix keeps it
 >      clear of the `/F{n}` producer convention, and the first unused name is
 >      taken so it can never shadow a font the original content depends on).
 >   2. **The coverage gate is unchanged.** A synthesized face that cannot show
@@ -355,7 +355,7 @@ need their own policy).
 >      §7.8.3: a page's own `/Resources` *replaces* the inherited one rather
 >      than merging, so giving an inheriting page a direct `/Resources`
 >      containing only the new font would orphan every font its existing
->      content already names. pdfce walks `/Parent` to the holder instead.
+>      content already names. pdfcer walks `/Parent` to the holder instead.
 >
 >   Undo removes the resource with the restyle — they are one command.
 > - **`reflow_block` and `add_text` still reach page-stream text only.**
@@ -423,17 +423,17 @@ refusal and there was **no bold by either route**.
 Passes to close because each fix enumerated routes from the *function being
 fixed*: `145.0` fixed the two commit paths, `147.0` fixed one query (reported
 by a consuming project), `148.0` fixed the other (found by an unrelated sweep).
-`crates/pdfce-core/tests/route_enumeration.rs` now asserts, as a **source
+`crates/pdfcer-core/tests/route_enumeration.rs` now asserts, as a **source
 scan**, that every function calling `find_anchor` also calls the resolver — the
 only assertion in this area that can fail on a **fifth** entry point added
-later. If pdfce grows one, that test goes red before you see it.
+later. If pdfcer grows one, that test goes red before you see it.
 
 #### `FormatRequest`'s `find` — and how to say "the whole operator" instead (`Pass 145.0`)
 
 `FormatRequest::new(page, find)` takes `find` as *"the text to locate within
 one show operator's decoded run"*. **It stayed required even when the
 operator was already located by `pinned_span`** — so a caller holding an
-operator had to hand back a string for pdfce to search for inside that very
+operator had to hand back a string for pdfcer to search for inside that very
 operator. That round trip is where three consecutive attempts failed:
 
 | attempt | outcome |
@@ -478,7 +478,7 @@ session.edit_text(&req, &EditOptions::default())?;
 > `pinned_span` with an empty `find`."* True, accurate, and at the end of a
 > section headed `FormatRequest`.
 >
-> On 2026-08-28 `pdfceGUI` filed a defect saying a pinned `edit_text` can only
+> On 2026-08-28 `pdfcer-gui` filed a defect saying a pinned `edit_text` can only
 > be addressed by `find`. **Their report cites `Pass 145.0` and
 > `FormatRequest::whole_operator` by name** — they had read this section — and
 > they went on to list three ways they had tried to *reconstruct* a `find` for
@@ -498,11 +498,11 @@ session.edit_text(&req, &EditOptions::default())?;
 
 1. **An empty `find` with NO pin is still refused**, by the same name it
    always was. A caller who forgot to pin gets a refusal, not silent
-   whole-operator behaviour on an operator pdfce chose for them.
-2. **It targets the pinned OPERATOR, not the run.** 13 % of runs over pdfce's
+   whole-operator behaviour on an operator pdfcer chose for them.
+2. **It targets the pinned OPERATOR, not the run.** 13 % of runs over pdfcer's
    corpus carry glyphs from more than one show operator. The report carries a
    `whole operator:` disclosure stating the extent taken and naming that case
-   — the extent was pdfce's choice, so rule 4 applies.
+   — the extent was pdfcer's choice, so rule 4 applies.
 3. **The font-coverage gate sees the resolved text.** A whole-operator request
    combined with `set_font` checks the target against the operator's actual
    characters, not against the empty string — which every face would have
@@ -523,7 +523,7 @@ somebody:
 1. **`selector` is the string to pass to `FontSelector::new`, and it is not
    always the `/BaseFont`.** A page routinely carries two `/Font` resources
    with the *same* `/BaseFont` — two independent subsets of one face, present
-   in 87 % of embedding files by `pdfceGUI`'s own survey — and `set_font`'s
+   in 87 % of embedding files by `pdfcer-gui`'s own survey — and `set_font`'s
    name match reaches exactly one of them. When that happens `selector` falls
    back to the **resource key** and `base_font_ambiguous` is `true`. Display
    the `/BaseFont`; *select* with `selector`.
@@ -554,7 +554,7 @@ somebody:
 and an `if let FontAcceptance::Refused { message, character }` when you want
 the reason. `message` is the sentence `set_font` itself would produce,
 verbatim — if it ever disagrees with the real attempt, that is a defect in
-pdfce, not something for a shell to paper over.
+pdfcer, not something for a shell to paper over.
 
 **Errors are location failures only.** A font that would refuse is an
 *answer*, never an `Err`.
@@ -581,7 +581,7 @@ These five return `text_edit`'s own error types, **not** `EditError`;
    so **OCR died for the rest of the session the first time anything was
    edited.** Planning against the session graph removes the divergence instead
    of policing it. Pinned by
-   `crates/pdfce-core/tests/ocr_session.rs::session_ocr_sees_an_edit_made_earlier_in_the_session`,
+   `crates/pdfcer-core/tests/ocr_session.rs::session_ocr_sees_an_edit_made_earlier_in_the_session`,
    which was **verified to fail** against a base-reading build.
 
 3. **★ A duplicated page index is REFUSED (`OcrLayerError::DuplicatePage`), and
@@ -602,7 +602,7 @@ were.
 A form XObject may legally be invoked from **more than one page and more than
 once from one page** (§8.10.1 names CAD output as its own illustration). So
 editing content inside one **necessarily changes every sheet that invokes it**
-— there is exactly one stream object to write, and pdfce cannot prevent that
+— there is exactly one stream object to write, and pdfcer cannot prevent that
 structurally.
 
 That is the **default**: edit in place, disclosed, with
@@ -694,13 +694,13 @@ The two exceptions are `transform_objects` / `transform_preview`
 > **silently wrong at every scale or slant the producer left in force** — an
 > object moved twice as far as the pointer went, with nothing erroring.
 >
-> pdfce emits `X = CTM × M × CTM⁻¹`, per object, from **that object's own**
+> pdfcer emits `X = CTM × M × CTM⁻¹`, per object, from **that object's own**
 > captured CTM. A selection spanning two local spaces gets two different `cm`
 > operands for one gesture and both land in the same place on the page. **You
 > pass page-space; that is the whole contract.**
 >
 > Use `Matrix::about(pivot)` (`Pass 112.0`) — the pivot is yours to choose, by
-> your own request, and pdfce does not invent one.
+> your own request, and pdfcer does not invent one.
 >
 > #### Two refusals, distinguished because you said they drive different UI
 >
@@ -747,7 +747,7 @@ The two exceptions are `transform_objects` / `transform_preview`
 > equal by a test, because "they agree on the happy path" is what a second
 > implementation would also manage.
 >
-> CLI equivalent: `pdfce-cli object-transform --objects 3,4,7 --scale 1.5
+> CLI equivalent: `pdfcer object-transform --objects 3,4,7 --scale 1.5
 > --rotate 15 --translate 10,0 [--pivot X,Y] [--preview]`.
 
 > ### ★★ The object clipboard — and the half of it that is NOT `import_object`
@@ -820,7 +820,7 @@ The two exceptions are `transform_objects` / `transform_preview`
 > would take the objects away with nothing on the clipboard — the one outcome
 > the operator cannot recover from by pasting.
 >
-> **pdfce holds no clipboard state.** `cut_objects` *returns* the clip. If you
+> **pdfcer holds no clipboard state.** `cut_objects` *returns* the clip. If you
 > want Ctrl+Z to restore the previous clip contents, you are holding the only
 > stack that could.
 >
@@ -854,7 +854,7 @@ The two exceptions are `transform_objects` / `transform_preview`
 > which numbering a given index came from; this signature makes that mistake
 > impossible.
 >
-> Annotations are copied **through pdfce's own models**, not as raw
+> Annotations are copied **through pdfcer's own models**, not as raw
 > dictionaries — a markup through `MarkupSpec`, a ce dimension through its
 > `DimensionKind` **plus its group's name and unit**. So the destination
 > re-bakes the appearance and re-registers the sidecar itself, and a pasted ce
@@ -875,8 +875,8 @@ The two exceptions are `transform_objects` / `transform_preview`
 > ★ **A rotated `Square` or `Circle` ENCLOSES rather than refusing, and says
 > so.** `/Rect` is axis-aligned by definition (§12.5.2), so a rotated rectangle
 > has no spelling — the `re` problem from `Pass 113.0` in a different carrier.
-> Enclosing is the only shape the format admits, so this is not pdfce choosing
-> between two renderings; it is pdfce doing the one available and disclosing
+> Enclosing is the only shape the format admits, so this is not pdfcer choosing
+> between two renderings; it is pdfcer doing the one available and disclosing
 > it. Point-based markup and every ce dimension rotate faithfully.
 >
 > ★★ **`to_bytes` CARRIES annotations as of `Pass 169.0`** (clip format
@@ -884,7 +884,7 @@ The two exceptions are `transform_objects` / `transform_preview`
 > stating plainly rather than editing away: until then the clip file dropped
 > every annotation, `clip.annotations_survive_serialisation()` answered `false`
 > whenever the clip held one, and the annotation half of the clipboard was
-> reachable **in-process only** — `pdfce-cli` could never paste an annotation
+> reachable **in-process only** — `pdfcer` could never paste an annotation
 > of any kind, because the CLI only ever has the file.
 >
 > `annotations_survive_serialisation()` now answers `true` for every clip. It
@@ -892,7 +892,7 @@ The two exceptions are `transform_objects` / `transform_preview`
 > caller that still checks simply always takes the survives branch. Deleting it
 > would be a breaking change made to announce good news.
 >
-> **What makes it exact.** Each annotation travels as the COS object pdfce
+> **What makes it exact.** Each annotation travels as the COS object pdfcer
 > already has a codec for — `annot_author::encode_spec`/`decode_spec` for a
 > markup spec, `dimension::sidecar`'s for a ce dimension's geometry — written
 > and read by the same `write_object`/`Parser` pair every resource object
@@ -929,7 +929,7 @@ The two exceptions are `transform_objects` / `transform_preview`
 > closure it reaches — appearance streams, action dictionaries, embedded file
 > specifications and all. No model, no reader, no per-subtype work.
 >
-> That is what makes **sticky notes, text boxes and stamps** copyable. pdfce
+> That is what makes **sticky notes, text boxes and stamps** copyable. pdfcer
 > could always *author* those (`TextAnnotSpec`) and had no reader that turned
 > one back into a spec, so each was refused. It is also what makes `/Link`,
 > `/FileAttachment`, `/Caret`, `/Screen` and every exotic subtype work, and it
@@ -967,8 +967,8 @@ The two exceptions are `transform_objects` / `transform_preview`
 >   not the paste. That is the earliest point the operator can be told, and
 >   their selection is still on screen.
 >
-> CLI equivalent: `pdfce-cli object-copy --objects 3,4,7 --clip sel.pdfceclip
-> [--cut out.pdf]` then `pdfce-cli object-paste --clip sel.pdfceclip
+> CLI equivalent: `pdfcer object-copy --objects 3,4,7 --clip sel.pdfceclip
+> [--cut out.pdf]` then `pdfcer object-paste --clip sel.pdfceclip
 > --translate 10,20 -o out.pdf [--preview]`.
 
 #### ★ 1.10.1 Object indices across an edit — which verbs RENUMBER
@@ -987,7 +987,7 @@ There are three possible outcomes and only one of them is dangerous:
 | resolves to nothing | correct — clear the selection |
 | **resolves to a DIFFERENT object** | **the outline redraws around the wrong thing and the next Delete removes it. Nothing errors.** |
 
-**The answer, measured** (`crates/pdfce-core/tests/object_identity_across_edits.rs`
+**The answer, measured** (`crates/pdfcer-core/tests/object_identity_across_edits.rs`
 decomposes, edits, and decomposes again — this is not read off the planners):
 
 | family | mechanism | renumbers? |
@@ -1003,7 +1003,7 @@ selection survives them unchanged.**
 **For the delete family, remap:**
 
 ```rust
-use pdfce_core::vector::remap_index_after_delete;
+use pdfcer_core::vector::remap_index_after_delete;
 
 remap_index_after_delete(0, &[1]) == Some(0)   // below the hole — unmoved
 remap_index_after_delete(1, &[1]) == None      // it WAS the hole
@@ -1027,7 +1027,7 @@ already give for the move family.
 test file and this table extended.** A new verb that renumbers without saying
 so re-opens exactly this hazard, silently.
 
-*Raised by the `pdfceGUI` session, 2026-08-13, which correctly declined to
+*Raised by the `pdfcer-gui` session, 2026-08-13, which correctly declined to
 build move/resize until it was answered. Part 1 covers picking and snapping and
 said nothing about identity across edits — this section is that gap closed.*
 
@@ -1058,7 +1058,7 @@ deliberate: leaves are kept out of that list so the page-surgery verbs cannot
 apply a form-relative token range to the page's stream and corrupt it silently.
 
 Until this Pass the consequence was that **nothing inside a form could be
-edited at all**. `pdfceGUI` measured what that costs on real drawings: a
+edited at all**. `pdfcer-gui` measured what that costs on real drawings: a
 print-conformance composite has 28 page objects and **242 leaves**; a CAD
 drawing has 129,758 and **10,256**; a 36-sheet SolidWorks set has 5,903 and
 **none**. On two of three fixtures almost nothing visible was node-editable,
@@ -1093,7 +1093,7 @@ leaf's position in `leaves` once nesting is involved).
 **`FormLeaf::is_editable()` changed meaning.** It was a hard `false` — *"editing
 through the recursion is not built"*. It is built, so it now answers about the
 **object**: `true` for a path, `false` for anything with no node, handle or
-subpath to drag. `pdfceGUI` asked to be able to *"ask YOUR predicate instead of
+subpath to drag. `pdfcer-gui` asked to be able to *"ask YOUR predicate instead of
 our proxy for it"*; this is it. A shell that greys out a node handle on `false`
 is still right; one that greys out the whole container is now wrong. (Text
 inside a form has been editable since `Pass 119.0` via `edit_text` with
@@ -1103,10 +1103,10 @@ inside a form has been editable since `Pass 119.0` via `edit_text` with
 
 A form XObject has **one set of bytes**, and §8.10.1 explicitly allows it to be
 drawn many times — naming CAD output as its own illustration. So an edit inside
-one **changes every place that form appears, on every page.** pdfce cannot
+one **changes every place that form appears, on every page.** pdfcer cannot
 prevent that structurally: there is one stream object to write.
 
-`pdfceGUI` asked which of two contracts we wanted — require `unshare_form`
+`pdfcer-gui` asked which of two contracts we wanted — require `unshare_form`
 first, or edit in place with a disclosure — and said *"what we cannot do is
 guess."* It does not need a new ruling: **decision 076 already decided exactly
 this for text editing inside a form**, and the argument does not change because
@@ -1118,7 +1118,7 @@ answer carries over rather than being re-opened:
   word in a title block would change all twelve sheets and dragging a line two
   pixels would refuse until the operator ran a structural command.
 - **Refusing is not neutral.** `unshare_form` rewrites the document's structure
-  as a precondition of a drag. Project rule 3 exists to stop pdfce
+  as a precondition of a drag. Project rule 3 exists to stop pdfcer
   restructuring a file as a side effect of an edit; making that restructure
   *mandatory* is the same thing with a confirmation step.
 
@@ -1133,7 +1133,7 @@ forty times over"*), which is not alarming.
 
 They are deliberately **not** pushed onto `disclosures` as a sentence. An
 earlier cut did both and the CLI printed the reach twice; more importantly, a
-sentence generated in the core could never have become `pdfceGUI`'s one-click
+sentence generated in the core could never have become `pdfcer-gui`'s one-click
 offer — *"this drawing is used on 12 pages; make this page's copy separate?"* —
 which is the good outcome and is available precisely **because** the unshare is
 not compulsory. `disclosures` carries the planner's own notes (a rectangle
@@ -1198,16 +1198,16 @@ only creation verb whose successful result is a control that does not work"*
 
 | I want to… | Call | Line | Returns |
 |---|---|---|---|
-| Delete a whole field | `delete_field(&mut self, fqn: &str) -> Result<FieldDeletion, EditError>` | 8464 | Every widget + dict + registration + emptied grouping nodes. ⚠️ **Refuses with `FieldObjectIsInPageTree` when the field (or a widget, or an emptied node) is ALSO a page-tree node** (`Pass 185.1`) — a malformed `/AcroForm` can name a `/Page` in its `/Fields`, and deleting it produced a file pdfce could not reopen. Same guard on `delete_field_group` and `delete_widget`. ⚠️ **That variant's MESSAGE changed at `Pass 191.1`** — it no longer says "a form field", because the guard now protects seven other carriers; `name` carries a phrase such as `the form field "Order.Qty"` or `the outline item`. **No API break; re-read the string if you display it.** §6.8. ★ **`action_targets_orphaned` (`Pass 184.0`) — button actions left naming a field that is gone.** Reset, submit and show/hide targets are fully-qualified **name strings**, so a deletion strands them. **Counted, never repaired**, and the asymmetry with `rename_field` is deliberate: a rename supplies the new name so the rewrite is a substitution, while *"what should this button reset instead?"* has no correct answer. **`census_dangling` cannot see it** — a name is not a reference. JavaScript is not counted, so this is a floor for scripted forms. |
+| Delete a whole field | `delete_field(&mut self, fqn: &str) -> Result<FieldDeletion, EditError>` | 8464 | Every widget + dict + registration + emptied grouping nodes. ⚠️ **Refuses with `FieldObjectIsInPageTree` when the field (or a widget, or an emptied node) is ALSO a page-tree node** (`Pass 185.1`) — a malformed `/AcroForm` can name a `/Page` in its `/Fields`, and deleting it produced a file pdfcer could not reopen. Same guard on `delete_field_group` and `delete_widget`. ⚠️ **That variant's MESSAGE changed at `Pass 191.1`** — it no longer says "a form field", because the guard now protects seven other carriers; `name` carries a phrase such as `the form field "Order.Qty"` or `the outline item`. **No API break; re-read the string if you display it.** §6.8. ★ **`action_targets_orphaned` (`Pass 184.0`) — button actions left naming a field that is gone.** Reset, submit and show/hide targets are fully-qualified **name strings**, so a deletion strands them. **Counted, never repaired**, and the asymmetry with `rename_field` is deliberate: a rename supplies the new name so the rewrite is a substitution, while *"what should this button reset instead?"* has no correct answer. **`census_dangling` cannot see it** — a name is not a reference. JavaScript is not counted, so this is a floor for scripted forms. |
 | Preview a grouping-node deletion | `field_group_deletion_preview(&mut self, fqn) -> Result<FieldGroupDeletion, EditError>` | 8535 | ⚠️ Takes `&mut self` although it writes nothing. |
 | Delete a grouping node and its subtree | `delete_field_group(&mut self, fqn) -> Result<FieldGroupDeletion, EditError>` | 8574 | Refuses a terminal with `NotAGroupingNode` — deliberately **not** redirected to `delete_field`. ★ **`action_targets_orphaned` (`Pass 184.0`) — button actions left naming a field that is gone.** Reset, submit and show/hide targets are fully-qualified **name strings**, so a deletion strands them. **Counted, never repaired**, and the asymmetry with `rename_field` is deliberate: a rename supplies the new name so the rewrite is a substitution, while *"what should this button reset instead?"* has no correct answer. **`census_dangling` cannot see it** — a name is not a reference. JavaScript is not counted, so this is a floor for scripted forms. Matched by **prefix** here, since the node takes its subtree. ⚠️ **`0` on the PREVIEW is *not measured***, not a count of zero. |
 | Delete ONE widget of a field | `delete_widget(&mut self, fqn, index: usize) -> Result<FieldDeletion, EditError>` | 8764 | Siblings survive. `action_targets_orphaned` is **always `0` and that is a fact, not a not-tracked**: the field, its name and every action naming it survive a deleted appearance. |
 | Rename a field | `rename_field(&mut self, fqn, new_partial: &str) -> Result<FieldRename, EditError>` | 8889 | `new_partial` is **one path segment**, never an FQN; a period is refused. ★ **`FieldRename::action_targets_retargeted` (`Pass 184.0`) — a rename REPAIRS the buttons that named the field**, in the **same undoable command**, and this is how many name strings it rewrote. Reset, submit and show/hide targets are fully-qualified **name strings**, so a rename would otherwise leave them pointing at nothing. Counts **name strings**, not buttons. **Descendants included** — renaming `Address` rewrites an action naming `Address.City` — and a same-prefix sibling like `Addressed` is **not** touched. **JavaScript is NOT rewritten** (`R55`), so a form whose logic lives in a script is not fixed by this. ⚠️ **This field replaced `actions_not_retargeted`**, which existed for six hours as a categorical upper bound; the old name will not compile. **`census_dangling` cannot see any of this** — a name string leaves no dangling object reference. |
 | Move one widget's `/Rect` | `move_widget(&mut self, fqn, index, dx, dy) -> Result<WidgetMove, EditError>` | 9032 | **No appearance regeneration** — §12.5.5 step b makes matrix **A** a pure translation. |
-| **Give a push button an action** | `set_button_action(&mut self, fqn, action: Option<ButtonAction>) -> Result<ButtonActionChange, EditError>` | 24148 | ✅ **`ResetForm`** (`Pass 182.0`) **+ `SubmitForm` / `GoToPage` / `Named` / `Uri`** (`Pass 183.0`, second operator ruling the same day). **`/JavaScript` and `/Launch` are refused permanently.** `None` removes any action, including one pdfce would never author — `ButtonActionChange::replaced` NAMES it, so a form editor knows it destroyed a script. A submit fills `ButtonActionChange::submit` with what the button *would* send — read §1.12b before wiring one. Refuses a non-push-button, a reset/submit target that does not exist, an undecidable destination, a Table 237 flag gate, and a page index past the end — all before writing. |
-| **Recolour page objects** | `set_object_paint(&mut self, page, objects, fill: Option<Rgb>, stroke: Option<Rgb>) -> Result<PaintOutcome, EditError>` | 10850 | **`Pass 219.0`, at pdfceGUI's request.** The first colour verb for PAGE CONTENT — every previous one coloured an annotation, a ce dimension, a redaction mark or a text run, so a line or a CAD stroke was movable and deletable but not recolourable. `fill` and `stroke` are INDEPENDENT; `None` leaves that channel alone, and passing neither is a no-op that still reports what it WOULD refuse, so a shell can drive the control's enabled state without making an edit. ★★ **REFUSES a spot ink by name rather than converting it.** An object whose paint is in a space pdfce does not decode (`/Separation`, `/DeviceN`, `/ICCBased`, `/Indexed`, `/Lab`) is left alone and listed in `PaintOutcome::refused` with its `cs` resource name — writing `DeviceRGB` over a named ink looks right on screen and destroys the printing plate, invisibly. Patterns refuse separately (§8.7.3 — a pattern has no colour at all). Refusal is per CHANNEL: recolouring the fill of an object whose stroke is a spot ink is legitimate and is not blocked. ★ The refusal is DATA, not an error — the call succeeds and reports 'nine of twelve changed'. Implemented by wrapping each object's own bytes in `q <colour> … Q` rather than rewriting the operand it inherits: one `0 0 1 RG` commonly governs every stroke on a sheet, so rewriting it would recolour a thousand objects when the operator selected one. Every other byte stays verbatim. One undoable command. **The READER is `page_objects`** — `PathObject::fill_paint`/`stroke_paint` carry the honest answer including `PathPaint::Other`, so no separate colour reader ships; open the swatch on `PathPaint::rgb()` and show the ink's name when that is `None`. |
-| **Read what a push button DOES** | `button_action(&self, fqn) -> Result<ButtonActionState, EditError>` | 26337 | **`Pass 212.0`, added at pdfceGUI's request.** The read half of `set_button_action`, which shipped write-only -- so the control that SETS an action could not show what it was SET TO. Returns four states, not three: `None` (no `/A`), `Known(ButtonAction)` (modelled, and writable back unchanged), `Unmodelled(String)` (a subtype pdfce AUTHORS but did not decode this instance of -- today `GoTo` and `SubmitForm`, or a malformed one), and `Foreign(String)` (a subtype pdfce recognises and will NOT author -- `JavaScript`, `Launch`, `GoToR`, `Movie`). ★★ **`Unmodelled` and `Foreign` differ in whether a control should OFFER TO REPLACE**, which is the decision the operator is actually being asked to make -- a three-state shape would have had to call an unread `SubmitForm` 'Foreign' and tell the shell pdfce will not touch an action it writes happily. Answers for the field's FIRST widget: §12.7.3.1 lets one field own widgets on several pages and nothing requires their `/A` entries to agree, so this picks rather than reconciles, and says so. Refused on the same footing as the writer -- a non-push-button is `ButtonActionWrongFieldType`, so a shell cannot learn through the reader about a field it would be refused permission to change. |
-| **Fold N commands into one undo entry** | `coalesce_last(&mut self, count, kind: CommandKind) -> bool` | 12892 | **`Pass 212.0`, made public at pdfceGUI's request.** Was private; `cut_field` already used it internally (`copy_field` + `delete_field` + `coalesce_last`). A shell gesture that needs TWO verbs -- place a button, then give it an action -- otherwise costs TWO undos, so `Ctrl+Z` leaves an inert button on the page. ★ **Check the return.** `false` means every change was applied and only the GROUPING failed (the stack was shorter than `count`); disclose that the gesture takes more than one undo rather than retrying. `count` counts commands YOU just pushed, most recent first -- overcounting folds an unrelated earlier edit in, and nothing guards that. Fold immediately, before anything else can push a command. `0` and `1` are no-ops returning `true`. |
+| **Give a push button an action** | `set_button_action(&mut self, fqn, action: Option<ButtonAction>) -> Result<ButtonActionChange, EditError>` | 24148 | ✅ **`ResetForm`** (`Pass 182.0`) **+ `SubmitForm` / `GoToPage` / `Named` / `Uri`** (`Pass 183.0`, second operator ruling the same day). **`/JavaScript` and `/Launch` are refused permanently.** `None` removes any action, including one pdfcer would never author — `ButtonActionChange::replaced` NAMES it, so a form editor knows it destroyed a script. A submit fills `ButtonActionChange::submit` with what the button *would* send — read §1.12b before wiring one. Refuses a non-push-button, a reset/submit target that does not exist, an undecidable destination, a Table 237 flag gate, and a page index past the end — all before writing. |
+| **Recolour page objects** | `set_object_paint(&mut self, page, objects, fill: Option<Rgb>, stroke: Option<Rgb>) -> Result<PaintOutcome, EditError>` | 10850 | **`Pass 219.0`, at pdfcer-gui's request.** The first colour verb for PAGE CONTENT — every previous one coloured an annotation, a ce dimension, a redaction mark or a text run, so a line or a CAD stroke was movable and deletable but not recolourable. `fill` and `stroke` are INDEPENDENT; `None` leaves that channel alone, and passing neither is a no-op that still reports what it WOULD refuse, so a shell can drive the control's enabled state without making an edit. ★★ **REFUSES a spot ink by name rather than converting it.** An object whose paint is in a space pdfcer does not decode (`/Separation`, `/DeviceN`, `/ICCBased`, `/Indexed`, `/Lab`) is left alone and listed in `PaintOutcome::refused` with its `cs` resource name — writing `DeviceRGB` over a named ink looks right on screen and destroys the printing plate, invisibly. Patterns refuse separately (§8.7.3 — a pattern has no colour at all). Refusal is per CHANNEL: recolouring the fill of an object whose stroke is a spot ink is legitimate and is not blocked. ★ The refusal is DATA, not an error — the call succeeds and reports 'nine of twelve changed'. Implemented by wrapping each object's own bytes in `q <colour> … Q` rather than rewriting the operand it inherits: one `0 0 1 RG` commonly governs every stroke on a sheet, so rewriting it would recolour a thousand objects when the operator selected one. Every other byte stays verbatim. One undoable command. **The READER is `page_objects`** — `PathObject::fill_paint`/`stroke_paint` carry the honest answer including `PathPaint::Other`, so no separate colour reader ships; open the swatch on `PathPaint::rgb()` and show the ink's name when that is `None`. |
+| **Read what a push button DOES** | `button_action(&self, fqn) -> Result<ButtonActionState, EditError>` | 26337 | **`Pass 212.0`, added at pdfcer-gui's request.** The read half of `set_button_action`, which shipped write-only -- so the control that SETS an action could not show what it was SET TO. Returns four states, not three: `None` (no `/A`), `Known(ButtonAction)` (modelled, and writable back unchanged), `Unmodelled(String)` (a subtype pdfcer AUTHORS but did not decode this instance of -- today `GoTo` and `SubmitForm`, or a malformed one), and `Foreign(String)` (a subtype pdfcer recognises and will NOT author -- `JavaScript`, `Launch`, `GoToR`, `Movie`). ★★ **`Unmodelled` and `Foreign` differ in whether a control should OFFER TO REPLACE**, which is the decision the operator is actually being asked to make -- a three-state shape would have had to call an unread `SubmitForm` 'Foreign' and tell the shell pdfcer will not touch an action it writes happily. Answers for the field's FIRST widget: §12.7.3.1 lets one field own widgets on several pages and nothing requires their `/A` entries to agree, so this picks rather than reconciles, and says so. Refused on the same footing as the writer -- a non-push-button is `ButtonActionWrongFieldType`, so a shell cannot learn through the reader about a field it would be refused permission to change. |
+| **Fold N commands into one undo entry** | `coalesce_last(&mut self, count, kind: CommandKind) -> bool` | 12892 | **`Pass 212.0`, made public at pdfcer-gui's request.** Was private; `cut_field` already used it internally (`copy_field` + `delete_field` + `coalesce_last`). A shell gesture that needs TWO verbs -- place a button, then give it an action -- otherwise costs TWO undos, so `Ctrl+Z` leaves an inert button on the page. ★ **Check the return.** `false` means every change was applied and only the GROUPING failed (the stack was shorter than `count`); disclose that the gesture takes more than one undo rather than retrying. `count` counts commands YOU just pushed, most recent first -- overcounting folds an unrelated earlier edit in, and nothing guards that. Fold immediately, before anything else can push a command. `0` and `1` are no-ops returning `true`. |
 | **Rotate one widget** | `rotate_widget(&mut self, fqn, index, degrees: i64) -> Result<WidgetRotation, EditError>` | 16588 | ✅ **`/MK /R` + a REDRAWN appearance** (`Pass 177.0`). ⚠️ **COUNTERCLOCKWISE** — the page's `/Rotate` is the clockwise one. Multiples of 90 only, reduced into `[0, 360)` and the reduction reported. **`/Rect` does not move**; the appearance is redrawn into a `w`/`h`-swapped `/BBox` and stood upright by `/Matrix`. Rotating to `0` **removes** the key. Refuses a non-multiple of 90 with `WidgetRotationNotQuarterTurn`. |
 | Read an existing field's copyable properties | `field_defaults(&self, source: &str) -> Result<FieldDefaults, EditError>` | 9211 | For `--defaults-from` / "copy style from". |
 | **Change a field's field-scope properties** | `edit_field(&mut self, fqn, edit: &FieldEdit) -> Result<FieldEditOutcome, EditError>` | — | `Pass 134.0`. Flags, `/MaxLen`, `/TU`, `/Opt`. **Shared by every widget the field owns.** |
@@ -1223,12 +1223,12 @@ only creation verb whose successful result is a control that does not work"*
 | `SubmitForm(SubmitSpec)` | `/S /SubmitForm` | See below. |
 | `GoToPage { page_index, view: PageView }` | `/S /GoTo` | The page is written as an **indirect reference**, so it survives a reorder. `PageView` is `WholePage` / `FullWidth` / `TopLeft`; coordinates are computed from the target page's crop box, so you supply none. |
 | `Named(NamedAction)` | `/S /Named` | The four of Table 211: `NextPage`, `PrevPage`, `FirstPage`, `LastPage`. |
-| `Uri { uri }` | `/S /URI` | **Authored as data. pdfce never follows one.** |
+| `Uri { uri }` | `/S /URI` | **Authored as data. pdfcer never follows one.** |
 | `SetHidden { targets, hidden }` | `/S /Hide` | See below. Reaches nothing. |
 
 **★ `SetHidden` has two traps and both are in Table 210's three rows.**
 
-- **`/H`'s default is `true`.** An action that omits the key **hides**. pdfce
+- **`/H`'s default is `true`.** An action that omits the key **hides**. pdfcer
   writes `/H` explicitly in both directions, so a Show button cannot become a
   Hide button by omission — but a shell reading somebody *else's* file must
   not read an absent `/H` as "show". `HideDisclosure::shows` states the
@@ -1284,12 +1284,12 @@ are the "one gesture away" half. Acrobat's own warning names **scheme and host
 only** — not the port, not the path — and says nothing whatever about the
 payload, so this is a deliberate parity-plus, not a copy.
 
-**Nothing is sent by authoring one.** `pdfce-core` has no network code and
+**Nothing is sent by authoring one.** `pdfcer-core` has no network code and
 fires no trigger; honouring a button press is a different feature under
 different rules. A submit destination must be **absolute and 7-bit ASCII**
 (`ButtonActionDestination` otherwise) — that is a *decidability* rule, not a
 whitelist. **No host, scheme or port is refused anywhere**: destination policy
-is open by operator ruling, and every safety control here is a pdfce product
+is open by operator ruling, and every safety control here is a pdfcer product
 decision with a named conformance cost, because the standard states no consent
 rule, no TLS rule and no redirect rule at all.
 
@@ -1299,7 +1299,7 @@ Until this Pass every property was settable **only at creation**, and the
 only way to change one was to delete the field and place a new one — losing
 its position, its name, its tab order and any value in it.
 
-**The verbs come in two, and the split is not pdfce's invention.** Acrobat's
+**The verbs come in two, and the split is not pdfcer's invention.** Acrobat's
 own scripting model states it: some properties *"apply to all widgets that
 are children of that field"*, others *"are specific to individual widgets"*.
 
@@ -1330,7 +1330,7 @@ your request.** This is the part that is easy to get wrong from outside:
   `with_max_len(Some(8))` is exactly the precondition met.
 
 **There is no type change and there never will be.** Acrobat has offered none
-since Acrobat 6; pdfce makes it *unrepresentable* rather than returning an
+since Acrobat 6; pdfcer makes it *unrepresentable* rather than returning an
 error for it. Delete and re-place.
 
 **★ What you must surface (rule 4).** Three property changes leave the stored
@@ -1342,7 +1342,7 @@ value inconsistent, and **Acrobat performs all three silently**:
 | a selected choice option removed | the selection points at nothing |
 | a check box's export value changed while checked | it renders **unchecked** |
 
-pdfce neither truncates the operator's data nor re-points their selection —
+pdfcer neither truncates the operator's data nor re-points their selection —
 both would be inventing document state — and does not refuse the edit, because
 shortening a limit is a legitimate authoring act. It reports
 `FieldEditOutcome::value_no_longer_fits`, a ready-made sentence. **Show it.**
@@ -1350,7 +1350,7 @@ shortening a limit is a legitimate authoring act. It reports
 Also surface `widgets_affected` when it is `> 1` ("one field, three things on
 screen changed"), `siblings_untouched` from `edit_widget` for the same reason
 in reverse, and `sort_claim_unmet` — setting `Sort` over an unsorted `/Opt`
-makes the file claim something untrue, and pdfce will not silently reorder a
+makes the file claim something untrue, and pdfcer will not silently reorder a
 list whose order Table 230 makes significant.
 
 **On geometry, `edit_widget` vs `move_widget`.** `move_widget` takes a delta
@@ -1375,7 +1375,7 @@ return `Ok` into an `Err`.
 answered `Ok(false)` for every field type except Text and Choice, so a check
 box, radio button or push button was **never redrawn** — the old stream was
 kept and §12.5.5 scaled it into the new `/Rect`. Drag a 12 pt check box to
-40 pt and its 1 pt border drew at ~3.3 pt. Reported by `pdfceGUI`:
+40 pt and its 1 pt border drew at ~3.3 pt. Reported by `pdfcer-gui`:
 *"Form shape outlines of checkboxes and such scale when I drag them larger."*
 
 **2. ★★ Text and Choice were rebuilt at the OLD size.** The regenerator read
@@ -1416,31 +1416,31 @@ not derive it.
   the option is accepted anyway so the two verbs take identical inputs.
 - **`allow_appearance_distortion` changes the default answer.** `edit_widget`
   used to *proceed and disclose* where `resize_annotation` *refuses*.
-  `pdfceGUI` flagged that asymmetry without asking us to resolve it; it is
+  `pdfcer-gui` flagged that asymmetry without asking us to resolve it; it is
   resolved, and **the two verbs now agree**. A resize that would stretch an
-  appearance pdfce cannot rebuild returns
+  appearance pdfcer cannot rebuild returns
   `EditError::ResizeAppearanceNotRebuildable { subtype: "Widget", .. }`. Set
   this flag to proceed.
 
 The refusal is **narrow by construction** and will not fire on the ordinary
-case. It requires all of: a real change of extent, artwork pdfce did not draw
+case. It requires all of: a real change of extent, artwork pdfcer did not draw
 (a foreign `/AP` on a button, or a signature field), *and* neither escape —
 because a uniform scale with `scale_stroke_width` on is satisfied exactly by
 §12.5.5's matrix and refusing it would refuse a resize that comes out right.
 A border or caption change on an unrebuildable field still proceeds with a
 disclosure: nothing is stretched when the geometry did not move.
 
-**Ownership is decided by bytes, not by parsing.** pdfce rebuilds a button's
-artwork only when the existing `/AP` is byte-identical to what pdfce would
+**Ownership is decided by bytes, not by parsing.** pdfcer rebuilds a button's
+artwork only when the existing `/AP` is byte-identical to what pdfcer would
 draw for those properties **at the size it is currently drawn at** — the same
-test `resize_annotation` and `set_markup_style` already use. "Could pdfce draw
+test `resize_annotation` and `set_markup_style` already use. "Could pdfcer draw
 a check box like this?" is true of every conforming check box in existence,
 which is precisely the set that must not be touched.
 
 **One thing deliberately not consulted:** `/BS` `/W` does not change a check
-box's or radio button's drawn border, which pdfce authors at a fixed 1.0. That
+box's or radio button's drawn border, which pdfcer authors at a fixed 1.0. That
 is the artwork's existing contract, not an oversight of this Pass; changing it
-would alter how every pdfce-authored check box already in the wild renders.
+would alter how every pdfcer-authored check box already in the wild renders.
 
 ### 1.13 Form-field values (10)
 
@@ -1485,14 +1485,14 @@ always errors.
 | Un-mark a redaction | `delete_redaction_mark(&mut self, annot_id) -> Result<(), EditError>` | 10617 | Refuses any non-`/Redact` annotation. ⚠️ **Also refuses with `FieldObjectIsInPageTree` since `Pass 191.1`** when `annot_id` is a page or page-tree node. `delete_annotation` guarded before *routing* here — but this is a public verb the GUI and the CLI call **directly**, and that route bypassed the guard entirely: **a guard installed on one route is not a guard on the verb**, so it now lives inside this one. ✅ **Its `/AP` `/N` is COLLATERAL and is FILTERED, not refused** — a malformed appearance must not make the mark permanently undeletable, so the call still returns `Ok` and simply does not free the wrong-kinded pointee. **Do not write an error path for that half.** §6.8. |
 | Delete any annotation | `delete_annotation(&mut self, annot_id) -> Result<AnnotationDeletion, EditError>` | 10847 | **Routes** to the two specialised verbs above for `/Redact` and ce dimensions. ⚠️ **Refuses with `AnnotationObjectIsStructural` when the `/Annots` entry is the document catalog, the `/AcroForm`, a page-tree node or a page** (`Pass 190.1`) — **an entry in a structural array is not necessarily the kind of object that array is for**, and a page whose `/Annots` named the catalog produced a file with no page-tree root. Same shape as `delete_field`'s `FieldObjectIsInPageTree` above, in a second carrier; the guard is `refuse_if_in_page_tree` plus an identity check plus a `/Type` test (`/Type` is optional on an annotation, so its **absence** proves nothing and its **presence** naming something else is decisive). ★ The refusal lives in `annotation_deletion_guards`, which `annotation_deletion_preview` also calls, **so the dry run and the real run agree.** ⚠️ **Widened at `Pass 191.1`: the guard now runs over the whole removal SET, after the cascades rather than before them.** It had run on the *target* only, and this command deletes a set — the `/Popup` cascade joined it afterwards, un-guarded, and could take a page with it. A guard written over "the target plus whatever the cascades added" cannot be out-flanked by a cascade added later. §6.8. |
 | **Move** any annotation | `move_annotation(&mut self, annot_id, dx, dy) -> Result<AnnotationMove, EditError>` | 16978 | `Pass 149.0`. Translates `/Rect` **and every geometry key**. **Refuses** a widget and a ce dimension by name — see below. |
-| **Resize** any annotation | `resize_annotation(&mut self, annot_id, anchor: (f64, f64), sx, sy, opts: &ResizeOptions) -> Result<AnnotationResize, EditError>` | 17442 | `Pass 151.0`. Scales `/Rect` **and every geometry key** about `anchor`. `/RD` scales by default; `/BS /W` does not — both are flags. **Re-authors the `/AP` only where pdfce drew it**, refusing rather than distorting a foreign one. Same two refusals as `move_annotation`. |
+| **Resize** any annotation | `resize_annotation(&mut self, annot_id, anchor: (f64, f64), sx, sy, opts: &ResizeOptions) -> Result<AnnotationResize, EditError>` | 17442 | `Pass 151.0`. Scales `/Rect` **and every geometry key** about `anchor`. `/RD` scales by default; `/BS /W` does not — both are flags. **Re-authors the `/AP` only where pdfcer drew it**, refusing rather than distorting a foreign one. Same two refusals as `move_annotation`. |
 | **Rotate** any annotation | `rotate_annotation(&mut self, annot_id, anchor: (f64, f64), degrees: f64) -> Result<AnnotationRotate, EditError>` | 17429 | `Pass 155.0`. Turns geometry keys AND composes the rotation into the appearance's own `/Matrix` (§12.5.5 step a), so a FOREIGN appearance rotates correctly and nothing is redrawn. No options type — a rotation is an isometry, so no stroke can distort. `/Rect` grows to the upright box that bounds the result, which §12.5.2 requires. **★ The angle is applied AS GIVEN and the result is never snapped** — see below. |
 | Preview an annotation deletion | `annotation_deletion_preview(&self, annot_id) -> Result<AnnotationDeletion, EditError>` | 11316 | Pure `&self` query. |
 | **Reorder** a page's annotations — the tab order | `reorder_annotations(&mut self, page_index: usize, new_order: &[ObjId]) -> Result<AnnotsReorder, EditError>` | — | `Pass 237.0`. Permutes the page's `/Annots` array, **moving references and nothing else** — no annotation dictionary is read or written, so every widget keeps its id, its field, its `/Parent` chain and its `/AA`. ONE undo entry. `new_order` is the page's indirect entries **by id**, each once; refuses `AnnotsNotAPermutation` (naming missing / unknown / repeated ids), `AnnotsDuplicateReference`, `TrapNetMustStayLast`, `AnnotStatesMismatch`. Honours the three `shall`s a permutation can break (TrapNet-last, `/AnnotStates`, `/GoToE` `/A`). **Reads `/Tabs`, never writes it** — see below. |
 
 > #### ★ `rotate_annotation` never snaps, and a caller comparing floats must expect that
 >
-> The angle is applied exactly as given. pdfce does **not** round a
+> The angle is applied exactly as given. pdfcer does **not** round a
 > near-integer result back to the integer, and does not snap to a grid.
 >
 > The consequence, measured (`Pass 164.0`): rotating `[20 20 90 90]` by
@@ -1520,7 +1520,7 @@ always errors.
 | Set the `/QuadPoints` corner order | `set_quad_point_order(&mut self, order: QuadPointOrder)` | 5476 | ⚠️ **Session state, not a per-call argument.** Governs what is AUTHORED from now on; does **not** sweep the document. ~~*"decision 062 fixes markup authoring at one entry point, so an `add_markup_with` would be a second"*~~ — **corrected 2026-08-27**: `add_markup_with` now exists and is **not** a second entry point (see §1.15.1). The ruling stands on its own ground: quad order is a **document-wide convention**, so a per-call argument would let two annotations in one file disagree about what UL/UR/LL/LR means, which is the divergence `Pass 62.x` exists to prevent. |
 | Read it back | `quad_point_order(&self) -> QuadPointOrder` | 5482 | Defaults to `ReadingOrder` — what Acrobat, PDFBox and pdf.js emit and expect. |
 
-#### ★★ `MarkupNote` — note text on markup, and pdfce does NOT read a clock (`Pass 150.0`)
+#### ★★ `MarkupNote` — note text on markup, and pdfcer does NOT read a clock (`Pass 150.0`)
 
 Geometric markup could be authored with a shape and a colour and **no words**.
 `MarkupOptions::note` closes that:
@@ -1538,23 +1538,23 @@ session.add_markup_with(0, &spec, &opts)?;
 Writes `/Contents`, `/T` and `/M` (§12.5.2 Table 164; §12.5.6.4 Table 170 for
 `/T`). **The three travel together** because a comment panel lists them
 together — an annotation with text and no author renders in every reviewer UI
-as a note from nobody, and pdfce's own `list-annotations` prints `author=none`
+as a note from nobody, and pdfcer's own `list-annotations` prints `author=none`
 beside it.
 
 **An author with no text is allowed.** *"Attribute this shape to me, I have
 nothing to say about it"* is a real request. An **empty** `text` is written,
 not omitted: a deliberate blank is distinct from never having had a note.
 
-##### ★ `/M` is YOUR string. pdfce will not invent one.
+##### ★ `/M` is YOUR string. pdfcer will not invent one.
 
 `MarkupNote::at()` takes a **PDF date string** (§7.9.4) and writes it verbatim.
-pdfce never reads a wall clock here, for two reasons:
+pdfcer never reads a wall clock here, for two reasons:
 
 - **Determinism.** Byte-identical output for identical input is an acceptance
   criterion across this project. A wall-clock `/M` makes every authored
   annotation unreproducible and every byte-comparison test unwritable. The
   `/PieceInfo` sidecar already took this position with a fixed date constant.
-- **Rule 4.** A timestamp pdfce chose is a value pdfce *inferred* and wrote
+- **Rule 4.** A timestamp pdfcer chose is a value pdfcer *inferred* and wrote
   silently into the operator's document. You know what "now" is; pass it. Same
   shape as `R61`'s shell-owns-font-discovery.
 
@@ -1564,7 +1564,7 @@ opaque string, so a garbage date there looks authoritative and nothing
 downstream would report it. The check is a **shape** test, not a calendar one:
 every trailing component is optional, so `D:2026` is conforming, and
 `D:20260231` (February 31st) is accepted because §7.9.4 has no clause against
-it and rejecting it would be pdfce inventing conformance.
+it and rejecting it would be pdfcer inventing conformance.
 
 ##### Two API changes you will feel
 
@@ -1579,7 +1579,7 @@ it and rejecting it would be pdfce inventing conformance.
 `new()`/`by()`/`at()`. That is the opposite choice on purpose: a field added
 to it later breaks nobody.
 
-CLI: `pdfce-cli annotate … --note TEXT --note-author NAME --note-date D:…`.
+CLI: `pdfcer annotate … --note TEXT --note-author NAME --note-date D:…`.
 Any one of the three is enough; `--note-author` alone writes a `/T`.
 
 
@@ -1594,14 +1594,14 @@ deleted but not moved**. This is that verb.
    placement matrix from the appearance `BBox` and the new `/Rect`, so a pure
    translation makes that matrix a pure translation: the artwork travels 1:1,
    nothing is stretched, and **the appearance stream is not rewritten** — so an
-   `/AP` pdfce did not author survives intact. A move is not a restyle.
+   `/AP` pdfcer did not author survives intact. A move is not a restyle.
 2. **The geometry keys** — `/L`, `/Vertices`, `/InkList`, `/QuadPoints`, `/CL`
    — hold *absolute page coordinates*, and they are what **any other tool**
    regenerates an appearance from.
 
 ★ Move only (1) and the annotation renders in the new place here and is
 reconstructed in the **old** one by the next viewer that rebuilds it. That
-failure is invisible in pdfce, invisible in a screenshot, and shows up in
+failure is invisible in pdfcer, invisible in a screenshot, and shows up in
 somebody else's product. `AnnotationMove::geometry_keys_moved` names which keys
 were found — and **empty is a correct answer**, not a failure: a `/Text` note,
 a `/Stamp` or a `/Link` has no geometry key, because its `/Rect` *is* its
@@ -1632,7 +1632,7 @@ The other half of the pair above, and **not** its mirror image. Read the
 `move_annotation` note first; this one is written against it.
 
 ```rust
-use pdfce_core::edit::{ResizeOptions, ResizedAppearance};
+use pdfcer_core::edit::{ResizeOptions, ResizedAppearance};
 
 // Anchor = the point that does NOT move — typically the corner opposite the
 // grip being dragged. The SHELL computes it and the factors; the crate has no
@@ -1665,7 +1665,7 @@ is. A line weight is a *drafting convention* — on a CAD drawing it means
 something to whoever reads the print. The same test explains why
 `move_annotation` scales neither: a translation changes no length at all.
 
-★ **Why these are options rather than answers.** `pdfceGUI` answered pdfce's
+★ **Why these are options rather than answers.** `pdfcer-gui` answered pdfcer's
 own design question with *"stroke width does not scale"* and backed it with
 three sound arguments — the drafting-standard one, the ill-defined-under-
 non-uniform-scale one, and *Acrobat and Illustrator both agree*. The operator
@@ -1693,18 +1693,18 @@ per axis. Inkscape hit the identical thing in SVG (Launchpad #1335376, closed
 **Invalid** — declared correct spec behaviour) and ships the distorted stroke
 silently (ux#339).
 
-pdfce's answer, in three branches, reported as `AnnotationResize::appearance`:
+pdfcer's answer, in three branches, reported as `AnnotationResize::appearance`:
 
 | condition | outcome | why |
 |---|---|---|
-| pdfce **drew** this `/AP` | `Rebuilt` | Re-authored from the scaled geometry. Both toggle states exact. |
+| pdfcer **drew** this `/AP` | `Rebuilt` | Re-authored from the scaled geometry. Both toggle states exact. |
 | foreign `/AP`, **uniform** scale, `scale_stroke_width` **on** | `CarriedUniform` | The matrix scales the stroke by exactly the requested factor. Carrying it **is** the requested result — no flag needed. |
 | foreign `/AP`, anything else | **refused** | `ResizeAppearanceNotRebuildable { subtype, uniform, why }`, unless `allow_appearance_distortion` → `CarriedUniform` / `CarriedDistorted`. |
 
-★ **"Did pdfce draw this?" is not `spec_from_dict(..).is_ok()`.** That question
-is *can pdfce parse a spec out of this dictionary*, which succeeds for an
+★ **"Did pdfcer draw this?" is not `spec_from_dict(..).is_ok()`.** That question
+is *can pdfcer parse a spec out of this dictionary*, which succeeds for an
 Acrobat-drawn `/Square` too — its `/Rect`, `/C`, `/IC` and `/BS` all read fine.
-Answering it that way would have made pdfce silently replace another producer's
+Answering it that way would have made pdfcer silently replace another producer's
 artwork with its own rendering, and made the refusal above **unreachable**. The
 implemented test is the one `set_markup_style` already ships: rebuild from the
 **unmodified** spec and compare **bytes**. The order matters — computed against
@@ -1727,7 +1727,7 @@ a foreign appearance.
 struct-expression form is refused outside the defining crate, `..` and all. Use
 `ResizeOptions::new().with_scale_stroke_width(true)` and its two siblings.
 
-★ That constraint is **invisible from inside `pdfce-core`**, where
+★ That constraint is **invisible from inside `pdfcer-core`**, where
 `#[non_exhaustive]` is inert. It was found by an out-of-crate integration test
 failing to compile — the flags would otherwise have been documented, tested,
 and **unreachable by the shells they exist for**.
@@ -1740,14 +1740,14 @@ result (`WF4`) and draws as **nothing**. *"My annotation vanished"* is a far
 worse diagnostic than a named refusal. Plus the same
 `AnnotationMoveWrongVerb` pair as `move_annotation`, for the same reason.
 
-**CLI:** `pdfce-cli resize-annotation --sx --sy --anchor-x --anchor-y
+**CLI:** `pdfcer resize-annotation --sx --sy --anchor-x --anchor-y
 [--scale-stroke-width] [--keep-rect-differences]
 [--allow-appearance-distortion]`.
 
 A zero delta is **accepted**, not refused: a shell that drags and returns to the
 start should not have to special-case its own arithmetic.
 
-CLI: `pdfce-cli move-annotation FILE --page N --index I --dx X --dy Y --output OUT`.
+CLI: `pdfcer move-annotation FILE --page N --index I --dx X --dy Y --output OUT`.
 
 #### 1.15.1 ★ `add_markup_with` is not a second entry point, and decision 062 is intact
 
@@ -1786,7 +1786,7 @@ copies of one field — and, worse, it puts a whole-annotation property
 alongside `rect`, `border_width` and `endings`, which describe what the
 appearance *draws*. `/CA` does not affect what the appearance draws:
 §12.5.2 Table 164 makes it the alpha with which the **annotation is
-composited onto the page**, and pdfce's generated appearances deliberately
+composited onto the page**, and pdfcer's generated appearances deliberately
 leave their own graphics-state alpha at 1.0 so the two cannot compound.
 `MarkupOptions` is shaped to carry `/T`, `/Contents`, `/NM` and `/M` as they
 land.
@@ -1795,13 +1795,13 @@ land.
 
 | | |
 |---|---|
-| `None` | **omits `/CA` entirely.** Table 164's default is 1.0, so writing it would add a key that changes nothing and make a pdfce-authored opaque annotation textually distinguishable from every other producer's. |
-| `Some(1.0)` | **written.** Renders identically to `None` and is *not* the same bytes — a caller round-tripping an explicit 1.0 gets its key back, because collapsing it would be pdfce deciding what the caller meant. |
+| `None` | **omits `/CA` entirely.** Table 164's default is 1.0, so writing it would add a key that changes nothing and make a pdfcer-authored opaque annotation textually distinguishable from every other producer's. |
+| `Some(1.0)` | **written.** Renders identically to `None` and is *not* the same bytes — a caller round-tripping an explicit 1.0 gets its key back, because collapsing it would be pdfcer deciding what the caller meant. |
 | out of range / `NaN` | **refused by name** (`EditError::MarkupOpacityOutOfRange`), **nothing authored**, session untouched. This is the *opposite* of `MarkupStyle::opacity`, which **clamps** — deliberately. A restyle corrects a value on an annotation the operator can see, so clamping keeps it renderable and visibly changes it; an author call with alpha 4.0 is a caller bug, and clamping would put a fully opaque annotation on the page while returning `Ok`. |
 
 **`MarkupOptions` is deliberately not `#[non_exhaustive]`**, for the same
 reason `MarkupStyle` is not: it is an INPUT struct a consumer *constructs*,
-and `#[non_exhaustive]` would make it unbuildable from outside `pdfce-core`.
+and `#[non_exhaustive]` would make it unbuildable from outside `pdfcer-core`.
 Adding a field is a breaking change; that is the honest price, paid here
 rather than pushed onto every consumer as an unconstructable type.
 
@@ -1823,7 +1823,7 @@ rather than pushed onto every consumer as an unconstructable type.
 > | `non_widgets_moved` | of `moved`, how many are not `/Widget`. `/Annots` order is also **paint order**, so a `/Link` or markup moved past another changes which draws on top where they overlap — a side effect of arranging a tab order that a list of fields cannot show. Zero is the common case |
 > | `pinned` | entries that are **direct dictionaries** (Table 164 allows them; producers rarely write them). They have no id to be named by, stay at the index they had, and the references are laid into the remaining slots in your order. **Non-zero is the "the list did not fully take" signal — say so** |
 > | `tabs: PageTabs` | the page's `/Tabs` entry **as found**: `Absent`, `Row`, `Column`, `Structure`, `ArrayOrder` (2.0 `/A`), `WidgetOrder` (2.0 `/W`), `Other(name)`. `PageTabs::array_order_governs()` → `ArrayOrderGoverns::{Nothing, Widgets, Everything}` — `Everything` only for `/A`; `Widgets` for `/W`, because ISO 32000-2 **contradicts itself** about what follows the widgets under `/W` (Table 31: array order; §12.5.1: row order — spec corpus `TAB-A1`, no erratum) and a `bool` cannot carry that |
-> | `array_copied` | the page shared an indirect `/Annots` array with another page and pdfce copied it first (X7 copy-on-write), so the other page keeps its order |
+> | `array_copied` | the page shared an indirect `/Annots` array with another page and pdfcer copied it first (X7 copy-on-write), so the other page keeps its order |
 > | `trap_net_pinned` | the page has a `/TrapNet` annotation. **§12.5.6.21: it shall be the last `/Annots` entry**, so it is held in its slot and is not part of the permutation. A caller may list its id **last** (accepted, ignored) or omit it; anywhere else → `TrapNetMustStayLast` |
 > | `annot_states_permuted` | the trap network carried `/AnnotStates` (Table 366 / 2.0 Table 403 — *"shall be listed in the same order as the annotations in the page's `Annots` array"*) and it was permuted alongside. **The one case in which this verb writes an annotation dictionary.** A present array of the wrong length → `AnnotStatesMismatch` |
 > | `goto_e_targets_reindexed` | how many `/GoToE` **target dictionaries** anywhere in the document had an integer `/A` — *"the index (zero-based) of the annotation in the `Annots` array of the page specified by `P`"* (Table 202 / 2.0 Table 205) — aimed at this page, and were re-indexed to the annotation's new slot. Only the **first-level** target is a page of *this* document; nested `/T`s describe the embedded file and are left alone. A string `/A` (an `/NM`) is permutation-immune and untouched. Zero is overwhelmingly the common case |
@@ -1873,7 +1873,7 @@ rather than pushed onto every consumer as an unconstructable type.
 > lists — `missing` (on the page, not in your order), `unknown` (in your
 > order, not on the page), `repeated` — so the shell can point at the row.
 >
-> **The CLI twin** is `pdfce-cli reorder-annotations --page N --order 2,0,1`,
+> **The CLI twin** is `pdfcer reorder-annotations --page N --order 2,0,1`,
 > taking `list-annotations` indices and mapping them to ids on the way in.
 
 ### 1.16 Search-driven redaction marking (5)
@@ -1914,8 +1914,8 @@ Both take `&mut self` despite changing nothing (they read `self.view()`).
 
 > #### ★ Added 2026-08-19 — `Pass 103.0`
 >
-> Requested by `pdfceGUI`, which needed to carry a source document's
-> bookmarks across `insert_pages` and found that pdfce **could read outlines
+> Requested by `pdfcer-gui`, which needed to carry a source document's
+> bookmarks across `insert_pages` and found that pdfcer **could read outlines
 > and not write them**: `read_outline`, `parse_outline` and the walk have
 > existed since the reader passes with zero authoring verbs opposite them.
 
@@ -1946,7 +1946,7 @@ On an item the **sign is the open/closed flag** — §12.3.3 defines no `/Open`
 key, so the sign is the only carrier. Negative means collapsed, and the
 magnitude is the count it *would* have if expanded.
 
-pdfce propagates all of this. What the shell must know is that **the total
+pdfcer propagates all of this. What the shell must know is that **the total
 does not always go up**: an item added under a collapsed ancestor is not
 visible, so the root count is unchanged. That is correct, and a UI that
 reported "1 bookmark added" by diffing the root count would report zero.
@@ -1977,7 +1977,7 @@ not by inspecting keys: every *page* also has `/Parent`, so a key-presence
 check accepts a page and splices the bookmark into the page tree, where no
 viewer looks for it. That save succeeds and the bookmark does not exist.
 
-CLI: `pdfce-cli add-bookmark --title … [--page N] [--top Y] [--under n]`,
+CLI: `pdfcer add-bookmark --title … [--page N] [--top Y] [--under n]`,
 where `--under` takes the `n=` number `list-outline` prints. **The indices
 shift after every add** — they are positions in the current tree, not stable
 handles — so a batch of adds must re-list between them.
@@ -2027,7 +2027,7 @@ different anchor.
 from here rather than recompute it, or it has a second implementation of the
 sign convention.
 
-##### The one place pdfce chose its own answer
+##### The one place pdfcer chose its own answer
 
 Moving a bookmark into a parent that is **already collapsed** leaves it
 hidden. Whether a tool should then expand that parent could not be sourced
@@ -2054,14 +2054,14 @@ somewhere invisible the instant the operator put it there.
 | the destination is inside the item's own subtree | `OutlineMoveIntoOwnSubtree { item, target }` |
 
 The cycle refusal is not a clamp. Splicing an item under its own descendant
-produces a file that still parses and whose `/Parent` chain loops — pdfce's
+produces a file that still parses and whose `/Parent` chain loops — pdfcer's
 walkers survive only because §10 makes them depth-guarded; a viewer without
 that guard hangs. Moving to the target's parent instead would put the
 bookmark somewhere nobody asked for, and detaching the subtree first would
 silently delete navigation the operator was reorganising.
 
-CLI: `pdfce-cli move-bookmark --n N (--before N|--after N|--under N|--to-top-level) [--first]`
-and `pdfce-cli set-bookmark-open --n N [--collapse]`. Both index by
+CLI: `pdfcer move-bookmark --n N (--before N|--after N|--under N|--to-top-level) [--first]`
+and `pdfcer set-bookmark-open --n N [--collapse]`. Both index by
 `list-outline`'s `n=`, and the cycle refusal is re-phrased into those numbers
 rather than passing the core's object ids through.
 
@@ -2069,7 +2069,7 @@ rather than passing the core's object ids through.
 
 > #### ★ Added 2026-08-19 — `Pass 103.1`
 >
-> Requested by `pdfceGUI`: *"`add_text_field` and friends **author a new**
+> Requested by `pdfcer-gui`: *"`add_text_field` and friends **author a new**
 > **widget**; we need to register an **existing** widget into `/AcroForm`."*
 > The orphans `insert_pages` reports had correct geometry, correct
 > appearance and correct values — everything except an owner.
@@ -2141,9 +2141,9 @@ surfacing.
 a fresh `/AcroForm` looks like an old one. This struct is the only
 disclosure.
 
-CLI: `pdfce-cli adopt-widget --page N --index I [--name X]`, addressed by the
+CLI: `pdfcer adopt-widget --page N --index I [--name X]`, addressed by the
 `page=`/`index=` pair `list-annotations` prints — an unregistered widget has
-no name for `list-fields` to show. Note that **`pdfce-cli insert-pages` does
+no name for `list-fields` to show. Note that **`pdfcer insert-pages` does
 not produce orphans**: it calls `pageops::assemble`, which merges `/AcroForm`
 (and reports `fields_renamed=` / `fields_dropped=`). Only
 `EditSession::insert_pages` orphans.
@@ -2156,8 +2156,8 @@ not produce orphans**: it calls `pageops::assemble`, which merges `/AcroForm`
 `MergeOutcome { pages_merged, fields_merged, fields_renamed, acroform_created }`.
 ONE undo entry, `CommandKind::MergeDocument`.
 
-**Why it exists.** `pdfceGUI` drew Merge and wired it to
-`command-unimplemented`, because the only merge pdfce offered
+**Why it exists.** `pdfcer-gui` drew Merge and wired it to
+`command-unimplemented`, because the only merge pdfcer offered
 (`pageops::insert`) **returns a whole new document's bytes** — wiring that
 into an open editor discards the undo log. They shipped an inert button and
 said so rather than silently eat the operator's history. That was right, and
@@ -2230,12 +2230,12 @@ keeps a key nothing defines — which renders as a bookmark that does nothing,
 the exact failure `add_outline_item` refuses a forward reference to avoid.
 
 **Outlines arrive as top-level siblings**, appended after this document's own.
-pdfce does **not** invent a "merged document" heading to nest them under:
-that heading would be a bookmark pdfce authored, appearing in the operator's
+pdfcer does **not** invent a "merged document" heading to nest them under:
+that heading would be a bookmark pdfcer authored, appearing in the operator's
 panel beside bookmarks the documents' authors wrote.
 
 `named_destinations_renamed` is worth surfacing for a reason beyond the
-`fields_renamed` one: pdfce rewrites the **carried** bookmarks onto the new
+`fields_renamed` one: pdfcer rewrites the **carried** bookmarks onto the new
 keys, but **cannot rewrite a link it did not copy**. A `/GoToR` in a third
 file naming the old key now resolves to *this* document's destination rather
 than the source's.
@@ -2253,7 +2253,7 @@ nothing, and **shares the verb's entire body** (`adopt_plan`) rather than
 re-implementing its guards — so "the preview said it would work and the call
 refused" is not a state this code can reach.
 
-Requested by `pdfceGUI` because the two widget shapes are **indistinguishable
+Requested by `pdfcer-gui` because the two widget shapes are **indistinguishable
 from the outside**: one adopts losslessly and *recovers the field exactly*,
 the other refuses and can only be turned into a **new, empty, typeless field
 that is not the control that was lost**. Without this, a UI finds out by
@@ -2274,7 +2274,7 @@ n).err()` *is* that predicate with more information in it, and two entry
 points for one question is a cost paid forever. The substitution is tested,
 not assumed.
 
-CLI: `pdfce-cli adopt-widget --dry-run` (mutually exclusive with `--output`,
+CLI: `pdfcer adopt-widget --dry-run` (mutually exclusive with `--output`,
 which becomes optional).
 
 #### `source_outline_dropped` — the fourth insert disclosure
@@ -2299,7 +2299,7 @@ through `add_outline_item`, which is what `Pass 103.0` exists for.
 | `source_page_labels_dropped` | the source had a `/PageLabels` tree; its labels did not come across |
 | `page_labels_stale` | the target has one, and its ranges now describe different physical pages |
 
-**pdfce writes nothing to `/PageLabels` on an insert.** That is deliberate,
+**pdfcer writes nothing to `/PageLabels` on an insert.** That is deliberate,
 and it is not what Acrobat does.
 
 `Acrobat_Features/core_ops__page_labels_and_bates_interaction.md`
@@ -2314,7 +2314,7 @@ inserted after a page labelled `9-45`, came out with all twelve showing
 
 That is a wrong label on every inserted page, written silently, and the
 threads it is sourced from are complaints about it. Matching it would be
-matching a defect. pdfce leaves the tree alone — so inserted pages continue
+matching a defect. pdfcer leaves the tree alone — so inserted pages continue
 whatever range already covered that position, which is what §12.4.2's
 per-page computation gives on its own — and reports the two facts instead.
 
@@ -2333,7 +2333,7 @@ with page labels" would name neither.
 
 > #### ★ Added 2026-08-19 — `Pass 103.3`
 >
-> Requested by `pdfceGUI` so a carried bookmark that points at a named
+> Requested by `pdfcer-gui` so a carried bookmark that points at a named
 > destination resolves. `add_outline_item` shipped one Pass earlier refusing
 > `Destination::Named` **by name**, which was the honest interim — CAD and
 > Word exports use named destinations often enough that any real outline
@@ -2358,7 +2358,7 @@ ASCII callers pass `b"chapter1"` or `s.as_bytes()`. A caller **carrying a key
 read out of another document** — which is the whole point of `Pass 103.3` —
 passes it through untouched.
 
-`pdfce-cli add-named-dest --name` takes text and hands over its UTF-8. That
+`pdfcer add-named-dest --name` takes text and hands over its UTF-8. That
 narrowing belongs in the shell, not the engine: a key typed at a prompt is
 text by construction; a key copied between documents is not.
 
@@ -2381,8 +2381,8 @@ keys) and the PDF 1.2 `/Names` → `/Dests` **name tree** (string keys). The
 type of the `/Dest` value *is* the namespace selector — the only discriminator
 the standard gives.
 
-pdfce **reads both** and **writes only the tree**. The two have no defined
-precedence, so a key present in both is an anomaly pdfce's own reader already
+pdfcer **reads both** and **writes only the tree**. The two have no defined
+precedence, so a key present in both is an anomaly pdfcer's own reader already
 reports (`cross_namespace_resolutions`); writing to the legacy dictionary
 would be manufacturing it. The collision check therefore spans **both**
 namespaces even though only one is ever written.
@@ -2404,13 +2404,13 @@ correct for its callers — so a writer reusing it would silently overwrite a
 a page nobody chose. `DestinationResolver::lookup` exists as the separate
 membership query, added in this Pass.
 
-`NameTreeUnsupported` is a multi-node tree. pdfce reads those; it will not
+`NameTreeUnsupported` is a multi-node tree. pdfcer reads those; it will not
 rebuild one. Inserting correctly means splitting a leaf and repairing every
 ancestor's `/Limits`, and getting it wrong yields a tree whose binary descent
 **silently misses keys that are present** — a failure that looks like a
 missing destination rather than a damaged tree.
 
-#### The tree pdfce writes
+#### The tree pdfcer writes
 
 A **single root node with `Names` only** — legal per Table 36, and the shape
 every reader handles. **No `/Limits`**: Table 36 scopes that key to
@@ -2421,13 +2421,13 @@ Keys are re-sorted on every insert using `[u8]`'s own `Ord`, which **is**
 §7.9.6's rule (unsigned byte comparison, shorter prefix first) — so the sort
 needs no comparator and cannot drift from the standard.
 
-CLI: `pdfce-cli add-named-dest --name X --page N [--top Y]`, then
+CLI: `pdfcer add-named-dest --name X --page N [--top Y]`, then
 `add-bookmark --dest-name X` (mutually exclusive with `--page`).
 ### 1.22 ce dimensions (22) — detail in part 3
 
 > #### ★ Group membership, renaming and deletion — added 2026-08-19
 >
-> Requested by `pdfceGUI` for the *Manage dimension groups* window and the
+> Requested by `pdfcer-gui` for the *Manage dimension groups* window and the
 > Format tab's **Group** control, both of which had no verb behind them: a
 > group could be created and never renamed or deleted, and a placed ce
 > dimension took its `GroupId` at creation with no way to change it.
@@ -2477,7 +2477,7 @@ CLI: `pdfce-cli add-named-dest --name X --page N [--top Y]`, then
 > touched, under **every** `GroupDeletion` policy including `Reassign`.
 >
 > This is worth a paragraph rather than a row because the failure it prevents
-> is invisible and total. The sidecar pdfce *wrote* for a default-group
+> is invisible and total. The sidecar pdfcer *wrote* for a default-group
 > deletion was well formed — the group removed, the survivors kept, the
 > members re-parented — and the **reader** rejected it: the sidecar decoder
 > requires group `0` as a coherence check and yields `None` without it, which
@@ -2499,7 +2499,7 @@ The value shall be a multiple of 90. Default value: 0"* — and **the direction
 word is the only difference between them.** The standard flags the clash
 exactly once, on the transition dictionary's `/Di` row, nowhere near either.
 `/MK /R` agrees with PDF's own positive-angle convention (§8.3.4) and with
-pdfce's internal angle, so **no sign flip belongs anywhere in this path**.
+pdfcer's internal angle, so **no sign flip belongs anywhere in this path**.
 
 **2. `was: None` means the file is SILENT, and it is not `Some(0)`.**
 Table 189 defaults `/R` to `0`, so a silent file renders upright — but writing
@@ -2510,7 +2510,7 @@ operator's first press. Same distinction, same reasoning, as
 the same Pass so this is not a write-without-read.
 
 **3. `appearance_regenerated: false` is the case to build UI for.**
-pdfce redraws text and choice appearances because it authored them; it will not
+pdfcer redraws text and choice appearances because it authored them; it will not
 redraw a push button's caption artwork, a signature, or a form built elsewhere.
 In that case `/MK /R` is written and **the pixels do not move** — and PDF
 Association erratum #56 (`ISO approved`; TWG 2021-07-08 *"OK to ignore MK for
@@ -2526,7 +2526,7 @@ differently. `siblings_untouched` reports how many were left alone.
 ### ⚡ `page_objects` — what it is worth, and the two things it does NOT fix
 
 Measured on a 5.6 MB / 129,758-object CAD drawing, release build
-(`crates/pdfce-core/tests/edit_latency.rs`, runnable in this repo):
+(`crates/pdfcer-core/tests/edit_latency.rs`, runnable in this repo):
 
 | | before | after |
 |---|---:|---:|
@@ -2591,7 +2591,7 @@ repo passed under both.
    your shell calls index 0 was planned and committed against the sheet that
    used to be index 0 — a different sheet — with no refusal and no disclosure.
    `delete_objects` there destroys real content. This is driven end to end in
-   `crates/pdfce-core/tests/session_overlay_skew.rs`:
+   `crates/pdfcer-core/tests/session_overlay_skew.rs`:
    `page_objects(3)` on a three-page document used to return the text of page
    four.
 
@@ -2734,7 +2734,7 @@ constructed, then committed, under one `&mut`.
 
 | **Move one vertex** of a ce dimension | `move_dimension_vertex(&mut self, dimension, index: usize, dx, dy) -> Result<VertexOutcome, EditError>` | 22304 | ⚠️ **The ONLY ce-dimension verb that deliberately RE-MEASURES.** Works on a perimeter at any index and on a linear at 0/1. Cannot refuse for a shape reason, so a drag preview may always be drawn. |
 | Insert a vertex into a perimeter | `insert_dimension_vertex(&mut self, dimension, after: usize, at: Point) -> Result<VertexOutcome, EditError>` | 22339 | `after == len-1` splits the **closing** segment of a closed shape, or extends an open path. Refused on a linear ce dimension (structurally two points). |
-| Remove a vertex from a perimeter | `remove_dimension_vertex(&mut self, dimension, index: usize) -> Result<VertexOutcome, EditError>` | 22367 | Refuses below **2** vertices (open) or **3** (closed) — pdfce policy, not a spec rule. |
+| Remove a vertex from a perimeter | `remove_dimension_vertex(&mut self, dimension, index: usize) -> Result<VertexOutcome, EditError>` | 22367 | Refuses below **2** vertices (open) or **3** (closed) — pdfcer policy, not a spec rule. |
 | Preflight a vertex edit | `vertex_edit_preview(&self, dimension, edit: VertexEdit) -> Result<VertexOutcome, EditError>` | 22399 | ✅ **Load-bearing** — shares one body with the three verbs above. `.err()` **is** the refusal predicate; there is deliberately no second one. |
 
 ### 1.23 Fonts (6)
@@ -2743,7 +2743,7 @@ constructed, then committed, under one `&mut`.
 |---|---|---|---|
 | Preview an unembed | `unembed_preview(&self, &UnembedRequest) -> UnembedPlan` | 16278 | Pure. `bytes_reclaimable` is **vacuous under incremental save**. |
 | Ask whether unembedding is refused | `unembed_refusal(&self) -> Option<EditError>` | 16303 | ✅ **Load-bearing** — the verb calls it. |
-| Remove embedded font programs | `unembed_fonts(&mut self, &UnembedRequest) -> Result<UnembedPlan, EditError>` | 16373 | ONE undo entry however many fonts. ⚠️ **Bytes are reclaimed by a FULL REWRITE, not by this call.** ✅ **`/FontDescriptor` `/CIDSet` is now FILTERED, not refused (`Pass 191.1`)** — §9.7.4.2 Table 117 defines it as a **stream**, and a descriptor pointing it at a page could take the page with the font program. Its `/FontFile*` sibling was always guarded; `/CIDSet` was never routed through the same test. **This adds no error case** — the call still returns `Ok` and `UnembedPlan`'s counts simply omit the object pdfce declined to free. §6.8. |
+| Remove embedded font programs | `unembed_fonts(&mut self, &UnembedRequest) -> Result<UnembedPlan, EditError>` | 16373 | ONE undo entry however many fonts. ⚠️ **Bytes are reclaimed by a FULL REWRITE, not by this call.** ✅ **`/FontDescriptor` `/CIDSet` is now FILTERED, not refused (`Pass 191.1`)** — §9.7.4.2 Table 117 defines it as a **stream**, and a descriptor pointing it at a page could take the page with the font program. Its `/FontFile*` sibling was always guarded; `/CIDSet` was never routed through the same test. **This adds no error case** — the call still returns `Ok` and `UnembedPlan`'s counts simply omit the object pdfcer declined to free. §6.8. |
 | Preview an embed | `embed_preview(&self, &EmbedRequest) -> EmbedPlan` | 16530 | Pure. |
 | Ask whether embedding is refused | `embed_refusal(&self) -> Option<EditError>` | 16553 | ✅ Load-bearing. |
 | Add missing font programs | `embed_fonts(&mut self, &EmbedRequest) -> Result<EmbedPlan, EditError>` | 16625 | ONE undo entry. **The file gets bigger, and the save mode does not change that.** |
@@ -2768,7 +2768,7 @@ a preview must show the number the edit will produce.**
 
 ★★ **`add_image` computes `ImageAuthorDisclosures::effective_dpi` and
 `below_screen_resolution` BY CALLING these**, and that — not the arithmetic —
-is the property that matters. The `pdfceGUI` session asked for the pair on
+is the property that matters. The `pdfcer-gui` session asked for the pair on
 2026-08-19 and was explicit: *"If that is awkward for how the outcome is
 assembled, I would rather have nothing than have two implementations."*
 
@@ -2825,7 +2825,7 @@ new independent field, **`Ctrl+Shift+V`** = another widget of the same field.
 | Copy a field onto the clipboard | `copy_field(&self, fqn: &str) -> Result<FieldClip, EditError>` | `&self` — allocates nothing, stages nothing, commits nothing. |
 | Plant a copied field | `paste_field(&mut self, clip: &FieldClip, page_index: usize, rect: Rect, policy: &FieldPastePolicy) -> Result<FieldPasteOutcome, EditError>` | **ONE undo entry**, however many objects arrive. |
 
-Types live in **`pdfce_core::formclip`**, not `edit`: `FieldClip`,
+Types live in **`pdfcer_core::formclip`**, not `edit`: `FieldClip`,
 `FieldClipWidget`, `FieldPastePolicy`, `PasteTooltip`, `FieldPasteOutcome`.
 
 #### What a clip carries
@@ -2849,7 +2849,7 @@ different font.
 supplies it), `/Parent` and `/Kids` (the source's tree), `/P` (a page in
 another document), `/StructParent` (an index into the *source's* parent tree),
 `/NM` (§12.5.2 requires per-page uniqueness), `/M` (a modification date on an
-object that did not exist then; pdfce never reads a clock).
+object that did not exist then; pdfcer never reads a clock).
 
 #### `FieldClip` — what a paste UI may ask, before the press
 
@@ -2932,11 +2932,11 @@ different sentences.
 
 ★ **`disclosures` is `Vec<String>`, not a struct of booleans like
 `FieldAuthorDisclosures`, and that is deliberate.** Creation's surprises are a
-closed set because pdfce chose every value. A paste's are not: what could be
+closed set because pdfcer chose every value. A paste's are not: what could be
 dropped, renamed, translated or degraded depends on the document the clip came
 from. **Surface all of them, off-canvas** (`CLAUDE.md` rule 4 as narrowed by
 decision 059 — the pasted field renders exactly as a saved-and-reopened one
-will, with nothing drawn on the page to mark it as pdfce's guess). They cover:
+will, with nothing drawn on the page to mark it as pdfcer's guess). They cover:
 a dropped value, dropped actions, a carried calculation and its `/CO` entry, a
 renamed font resource, an ignored rectangle size, the `/Annots` tab-order
 position (R104), a dropped structure-tree link on a tagged document, a reused
@@ -2964,7 +2964,7 @@ spending a placement gesture:
 ### 1.27 Cut (3) — `Pass 168.0`
 
 **Cut = copy, then remove, as ONE undo entry.** Before this Pass exactly one
-class of thing in pdfce had all three of cut/copy/paste — page content
+class of thing in pdfcer had all three of cut/copy/paste — page content
 objects. Copy had three entry points and cut had one, the objects-only one.
 
 | I want to… | Call | Returns |
@@ -2977,7 +2977,7 @@ objects. Copy had three entry points and cut had one, the objects-only one.
 
 #### ★ Cut refuses where copy does not, and a shell must not paper over it
 
-A **copy** of an annotation pdfce does not model costs nothing: the original
+A **copy** of an annotation pdfcer does not model costs nothing: the original
 stays on the page, the clip carries an `Unsupported` marker so the count is
 honest, and the paste declines it by name.
 
@@ -3068,7 +3068,7 @@ what leaving cost (a cleared selection value, pruned grouping nodes).
 | Cut whole pages | `cut_pages(&mut self, indices: &[usize]) -> Result<PageClip, EditError>` | **ONE undo entry.** |
 | Paste whole pages | `paste_pages(&mut self, clip: &PageClip, position: InsertPosition) -> Result<InsertOutcome, EditError>` | `insert_pages`' full outcome. |
 
-`PageClip` lives in **`pdfce_core::pageops`**: `bytes`, `pages`,
+`PageClip` lives in **`pdfcer_core::pageops`**: `bytes`, `pages`,
 `fields_dropped`, plus `to_bytes()`, `from_bytes(Vec<u8>)`, `len()` (pages),
 `byte_len()`, `is_empty()`.
 
@@ -3076,7 +3076,7 @@ what leaving cost (a cleared selection value, pruned grouping nodes).
 
 `PageClip::bytes` is a real, openable document holding exactly the copied
 pages — not a private payload. A shell can hand it to something that is not
-pdfce.
+pdfcer.
 
 That is the design, not a shortcut. A private page format would be a **second
 implementation of object copying, reference remapping, resource-closure
@@ -3127,7 +3127,7 @@ error but a file that opens to nothing.
 | Cut it | `cut_outline_item(&mut self, item_id: ObjId) -> Result<OutlineClip, EditError>` | **ONE undo entry.** |
 | Paste a subtree | `paste_outline_item(&mut self, clip: &OutlineClip, placement: OutlinePlacement) -> Result<OutlinePasteOutcome, EditError>` | **ONE undo entry**, however many bookmarks. |
 
-`OutlineClip` and `OutlineClipItem` live in **`pdfce_core::outline`**, with
+`OutlineClip` and `OutlineClipItem` live in **`pdfcer_core::outline`**, with
 `empty()`, `len()` (counting descendants), `is_empty()`, `deepest_page()`,
 `to_bytes()`, `from_bytes()`.
 
@@ -3184,7 +3184,7 @@ bookmarks.
 | Cut one | `cut_attachment(&mut self, key: &[u8]) -> Result<AttachmentClip, EditError>` | **ONE undo entry.** |
 | Paste one | `paste_attachment(&mut self, clip: &AttachmentClip) -> Result<ObjId, EditError>` | The new file-spec object. |
 
-`AttachmentClip` lives in **`pdfce_core::attachments`**: `name`, `bytes`,
+`AttachmentClip` lives in **`pdfcer_core::attachments`**: `name`, `bytes`,
 `description`, plus `new(..)`, `len()`, `is_empty()`.
 
 `key` is the name-tree key as `Attachment::name_bytes` gives it — the **raw
@@ -3228,8 +3228,8 @@ operator has to get the order of right.
 ## 2. Construction, and the session's three read views
 
 ```rust
-use pdfce_core::document::Document;
-use pdfce_core::edit::EditSession;
+use pdfcer_core::document::Document;
+use pdfcer_core::edit::EditSession;
 
 let doc = Document::from_bytes(bytes)?;          // part 1
 let mut session = EditSession::new(doc);         // edit.rs:3368 — BY VALUE
@@ -3277,7 +3277,7 @@ assert!(report.byte_identical);
 ```
 
 The integration harness every test file re-declares
-(`crates/pdfce-core/tests/edit_undo.rs:229-239`):
+(`crates/pdfcer-core/tests/edit_undo.rs:229-239`):
 
 ```rust
 fn session(bytes: &[u8]) -> EditSession {
@@ -3303,7 +3303,7 @@ assert_only_the_named_objects_changed(&base, &out, &[ObjId::new(4, 0)]);
 
 **Atomic write is the shell's job.** `pdfce-gui` writes to a temp file in the
 destination directory and renames (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:5082-5112`);
-nothing in `pdfce-core` does this for you.
+nothing in `pdfcer-core` does this for you.
 
 ### 2.2 There is no round trip back to `Document` — and you do not need one
 
@@ -3349,7 +3349,7 @@ step under incremental save would carry the prior revision forward into the
 | The file exactly as loaded (writer span lookups, "revert" comparisons) | `document()` `:3393` | The base revision. |
 | One object's current value | `value(id)` `:3409` | Overlay, then base, `None` if deleted. |
 | To walk the edited graph (page tree, forms, annotations) | `graph()` `:3429` | `SessionGraph` implements `ObjectGraph`. |
-| **To render, hit-test, or decompose vectors** | **`view()` `:3469`** | Graph **+ stream bytes**, zero-allocation span resolution. Used by the renderer at `crates/pdfce-render/tests/preview_equals_saved.rs:414`. |
+| **To render, hit-test, or decompose vectors** | **`view()` `:3469`** | Graph **+ stream bytes**, zero-allocation span resolution. Used by the renderer at `crates/pdfcer-render/tests/preview_equals_saved.rs:414`. |
 | A single flat buffer for a once-per-operation `pageops` call | `authored_source()` `:3561` | Returns `Cow`; owned ⇒ full memcpy. |
 
 **T-01 — the defect that shipped for 13 Passes.** From `edit.rs:3438-3444`:
@@ -3512,7 +3512,7 @@ objects to write, from the undo stack. `can_undo() == true` after an
 edit-then-undo, while `is_modified() == false` and the save is byte-identical.
 Both are correct; they answer different questions.
 
-`DirtySet` itself lives at `crates/pdfce-core/src/writer/mod.rs:215` with all
+`DirtySet` itself lives at `crates/pdfcer-core/src/writer/mod.rs:215` with all
 fields private. Relevant public methods: `empty()` `:271`, `is_empty()` `:392`
 (note: **staging is not consulted**), `len()` `:401`, `changes_content()` `:414`
 (the §14.4 `/ID[1]` regeneration trigger), `trailer_patch()` `:441`,
@@ -3523,7 +3523,7 @@ byte-identical across 2,897/2,897 corpus files (100%)**, plus fixture tests
 including a 12-command history and undo → redo → save. The corpus gate lives in
 `tools/roundtrip/src/main.rs:665-793` (`fn check_mutation`, *"Check 3: THE
 contract"*, `:765-772`); the fixture tests are
-`crates/pdfce-core/tests/edit_undo.rs:308` (single edit), `:350` (12-command
+`crates/pdfcer-core/tests/edit_undo.rs:308` (single edit), `:350` (12-command
 history), `:374` (undo → redo → save), `:923`
 (`a_save_does_not_consume_the_undo_history`).
 
@@ -3532,8 +3532,8 @@ saving, `can_undo()` is still true and `is_modified()` is still false. A shell
 that wires "Save" to "clear undo" is inventing a restriction the core does not
 impose.
 
-The same contract is exposed to operators as `pdfce-cli --verify-undo`
-(`crates/pdfce-cli/src/main.rs:11192-11202`): undo everything, save, byte-compare
+The same contract is exposed to operators as `pdfcer --verify-undo`
+(`crates/pdfcer-cli/src/main.rs:11192-11202`): undo everything, save, byte-compare
 against the source. A new shell can offer the same self-check cheaply.
 
 ---
@@ -3557,11 +3557,11 @@ Both take `&self`. **Saving does not clear the undo stack, does not reset
 "saved ⇒ unmodified" must track that itself, or re-open from the saved bytes.
 
 The mode is expressed by **which method you call** — there is no mode parameter.
-`SaveMode` (`crates/pdfce-core/src/signature.rs:249`, variants `Incremental` /
+`SaveMode` (`crates/pdfcer-core/src/signature.rs:249`, variants `Incremental` /
 `FullRewrite`) exists **only** for the signature-impact query.
 
 ★ **The two modes are given different `SaveOptions` in the shipped CLI, and the
-asymmetry is deliberate.** `crates/pdfce-cli/src/main.rs:11177-11180`:
+asymmetry is deliberate.** `crates/pdfcer-cli/src/main.rs:11177-11180`:
 
 ```rust
 let saved = match mode {
@@ -3572,7 +3572,7 @@ let saved = match mode {
 
 Incremental gets `SaveOptions::identity()` — **no producer stamp** (R41's
 no-fingerprint rule); full rewrite gets the options carrying `ProducerPolicy`.
-An append that quietly wrote pdfce's identity into a file the operator only
+An append that quietly wrote pdfcer's identity into a file the operator only
 annotated would be a fingerprint they did not ask for. A new shell should keep
 this split rather than pass one `SaveOptions` to both.
 
@@ -3595,7 +3595,7 @@ Both refuse an encrypted document (`WriteError::EncryptedSaveUnsupported`,
 ### 5.3 ★ Why an absence assertion over incrementally-saved bytes is vacuous
 
 Incremental save **structurally preserves** superseded content — this is
-required by §7.5.6, not a pdfce shortcoming. The old bytes of every replaced
+required by §7.5.6, not a pdfcer shortcoming. The old bytes of every replaced
 object stay in the file by construction (`edit.rs:4042-4047`).
 
 Therefore:
@@ -3639,10 +3639,10 @@ recoverable, and **only the shell can prevent it**:
 | `delete_annotation` `:10847` | *"**Deleting a comment is not redacting it** … A full rewrite drops the bytes; the default save mode does not."* (`edit.rs:10771-10778`) |
 | `unembed_fonts` `:16373` | *"Bytes are reclaimed by a FULL REWRITE, not by this call."* (`edit.rs:16337`) |
 
-**Reference behaviour in the shipped shells:** `pdfce-cli` exposes
+**Reference behaviour in the shipped shells:** `pdfcer` exposes
 `--full-rewrite` and, when it is absent after a flatten, prints to stderr
 *"flatten saved incrementally — the pre-flatten field values remain recoverable
-in the prior revision"* (`crates/pdfce-cli/src/main.rs:10344-10356`).
+in the prior revision"* (`crates/pdfcer-cli/src/main.rs:10344-10356`).
 `pdfce-gui`'s save dialog **always** calls `to_incremental_bytes`
 (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:5095-5097`); its only full-rewrite path is
 redaction-apply (`pdfce@cce414e:crates/pdfce-gui/src/redact_apply.rs:279-284`, module doc:
@@ -3687,7 +3687,7 @@ when the edit is made.
 
 ### 5.7 `SaveReport` — read it, do not synthesise it
 
-`crates/pdfce-core/src/writer/save.rs:208`, `#[non_exhaustive]`. Field notes
+`crates/pdfcer-core/src/writer/save.rs:208`, `#[non_exhaustive]`. Field notes
 worth carrying:
 
 - `byte_identical` — *"Only ever true for an empty-dirty-set `save_incremental`."*
@@ -3714,9 +3714,9 @@ private to `pdfce-gui` (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:1411`). `Wri
 
 | Guard | Error variant | Check | Meaning |
 |---|---|---|---|
-| **Encryption** | `EditError::DocumentEncrypted` `edit.rs:2765` | inlined `if self.base.trailer().contains_key(b"Encrypt")` — **no named helper** (`NOT FOUND — searched `refuse_if_encrypted`, `is_encrypted`, `encryption_refusal` across `crates/`); 38 occurrences in `edit.rs` | Today pdfce refuses to *load* an encrypted file at all, so this is a forward-compatible R37 seam (`edit.rs:19338`), not a path a loadable file currently reaches. |
+| **Encryption** | `EditError::DocumentEncrypted` `edit.rs:2765` | inlined `if self.base.trailer().contains_key(b"Encrypt")` — **no named helper** (`NOT FOUND — searched `refuse_if_encrypted`, `is_encrypted`, `encryption_refusal` across `crates/`); 38 occurrences in `edit.rs` | Today pdfcer refuses to *load* an encrypted file at all, so this is a forward-compatible R37 seam (`edit.rs:19338`), not a path a loadable file currently reaches. |
 | **Enforced certification** | `EditError::CertificationForbidsChange { permission: u8 }` `edit.rs:2722` | three functions, §6.2 | The catalog carries `/Perms → /DocMDP` **and** at least one signature exists (`signature.rs:332`). |
-| **Sidecar version** | `EditError::SidecarWrittenByNewerBuild { found, supported }` `edit.rs:2415` | `check_dimension_sidecar` `edit.rs:16917` | The ce-dimension `/PieceInfo` sidecar declares a version above `SIDECAR_VERSION` — **read the constant, do not quote a number here** (`grep 'pub const SIDECAR_VERSION' crates/pdfce-core/src/dimension/sidecar.rs`). Note it is emitted **per document**: a file using no post-`3` feature is still written at `3`. No sidecar ⇒ `Ok`. |
+| **Sidecar version** | `EditError::SidecarWrittenByNewerBuild { found, supported }` `edit.rs:2415` | `check_dimension_sidecar` `edit.rs:16917` | The ce-dimension `/PieceInfo` sidecar declares a version above `SIDECAR_VERSION` — **read the constant, do not quote a number here** (`grep 'pub const SIDECAR_VERSION' crates/pdfcer-core/src/dimension/sidecar.rs`). Note it is emitted **per document**: a file using no post-`3` feature is still written at `3`. No sidecar ⇒ `Ok`. |
 | **`/Size` suppression** | `EditError::ObjectCreationWouldExposeHiddenObjects { count }` `edit.rs:2355` | `self.base.suppressed_object_count() > 0` | §7.5.5: objects at or above `/Size` *"shall be ignored and defined to be missing"*. Creating an object raises `/Size` and would resurrect objects nobody touched. **Only creation is refused; editing an existing object is unaffected.** |
 
 Plus the allocator's `EditError::ObjectNumbersExhausted` (`edit.rs:2336`).
@@ -3898,7 +3898,7 @@ merely redundant. `pdfce-gui` keeps `find_matches` separate from the Find bar
 `session.graph()` (the edited view) rather than `session.document()` — the
 unsaved-mark trap, `redact_apply.rs:272-274`.
 
-**Works immediately — author then fill.** A field pdfce just authored is
+**Works immediately — author then fill.** A field pdfcer just authored is
 accepted by the ordinary fill path with no save/reopen
 (`tests/form_field_authoring.rs:202-213`).
 
@@ -3930,7 +3930,7 @@ No inherent `impl EditError` block and **no `is_*` classification helpers**
 > The count is **checkable by command**, which is the only durable form:
 >
 > ```
-> awk '/^pub enum EditError \{/,/^\}/' crates/pdfce-core/src/edit.rs \
+> awk '/^pub enum EditError \{/,/^\}/' crates/pdfcer-core/src/edit.rs \
 >   | grep -cE '^    [A-Z][A-Za-z0-9_]*( \{|\(|,|$)'
 > ```
 >
@@ -3994,14 +3994,14 @@ the pointee is the kind of object that key is **defined** to hold, and deletes i
 
 Found at `/AcroForm` `/Fields` (`Pass 185.1`), again at a page's `/Annots`
 (`Pass 190.1`), again at `/AP` `/N` (`Pass 191.0`), and then audited across **all
-eleven object-removal sites in `pdfce-core`**. **Eight more were confirmed by
+eleven object-removal sites in `pdfcer-core`**. **Eight more were confirmed by
 measurement — twelve hostile cases, every one of which returned `Ok` and wrote a
 file that reloads with no walkable page tree.** All twelve **panic in a debug
 build** (`debug_assert_page_tree_still_walks`) and **return `Ok` in release**,
 which is exactly why they survived: the assertion knew, and the build an operator
 runs did not. The measurement is
-`crates/pdfce-core/tests/deletion_collateral_structural.rs` (12 hostile cases +
-8 controls) and `crates/pdfce-core/examples/collateral_probe.rs`.
+`crates/pdfcer-core/tests/deletion_collateral_structural.rs` (12 hostile cases +
+8 controls) and `crates/pdfcer-core/examples/collateral_probe.rs`.
 
 #### ★★ Two guards — and only ONE of them produces an error
 
@@ -4009,7 +4009,7 @@ Which guard applies is decided by **what the object is to the command**, not by
 which key named it. ⚠️ **A shell that gets this backwards writes error handling
 for a case that can never fire.**
 
-| The pointee is… | pdfce… | What the caller sees | Guard |
+| The pointee is… | pdfcer… | What the caller sees | Guard |
 |---|---|---|---|
 | **Collateral** — an object removed *in addition to* what the caller named: an appearance stream, an `/EF` stream, a `/CIDSet` | **filters** it — declines to free a pointee of the wrong kind and carries on | ⚠️ **`Ok`. The command SUCCEEDS.** There is **no error to handle here**; the only visible effect is a count that does not include the skipped object. | `resolves_to_stream` |
 | **The target** the verb exists to act on, or an object it is about to **overwrite wholesale** | **refuses**, before any mutation (§6.3) | `Err(FieldObjectIsInPageTree)` — the object is also a page or a page-tree node — or `Err(CarrierIsNotAStream)` | `refuse_if_in_page_tree` · `refuse_if_occupied_by_non_stream` |
@@ -4068,7 +4068,7 @@ written for one carrier is a claim about a class, AND SO IS ITS ERROR MESSAGE.**
 
 `delete_annotation` **routes** to `delete_redaction_mark` and `delete_dimension`
 and guarded before routing. Both of those are also public verbs that the GUI and
-`pdfce-cli` call **directly**, and that route bypassed the guards entirely. Each
+`pdfcer` call **directly**, and that route bypassed the guards entirely. Each
 guard now lives **inside its own verb** and is simply re-run (idempotently, at
 the cost of one page walk) on the routed path.
 
@@ -4115,7 +4115,7 @@ ids nobody named.
 > `rotate_dimension` · `move_dimension_vertex` · `insert_dimension_vertex` ·
 > `remove_dimension_vertex`.
 >
-> On a well-formed document authored by pdfce this refusal is unreachable —
+> On a well-formed document authored by pdfcer this refusal is unreachable —
 > **treat it as a corrupt/hostile-file diagnostic, not as an ordinary outcome
 > the operator caused**, and say so in whatever the shell puts on screen.
 
@@ -4216,9 +4216,9 @@ where the two could disagree.
 **How to compute "actually moved".** For each wired member of the group, call
 
 ```rust
-pdfce_core::dimension::style_provenance(&group, &member_overrides) -> StyleProvenance
-//   crates/pdfce-core/src/dimension/style.rs:526
-//   re-exported at crates/pdfce-core/src/dimension/mod.rs:90
+pdfcer_core::dimension::style_provenance(&group, &member_overrides) -> StyleProvenance
+//   crates/pdfcer-core/src/dimension/style.rs:526
+//   re-exported at crates/pdfcer-core/src/dimension/mod.rs:90
 ```
 
 read the `StyleSource` field named after the property you changed
@@ -4265,7 +4265,7 @@ object**"* — and only then continues with `delete_node`'s actual contract.
 **Consequence:** a GUI author reading `delete_node`'s rustdoc will implement
 subpath semantics for a node delete, and will find `delete_subpath` documented
 nowhere. `missing_docs` is **not** enforced on this crate (it appears only as an
-aspirational comment at `crates/pdfce-core/Cargo.toml:108`), so nothing catches
+aspirational comment at `crates/pdfcer-core/Cargo.toml:108`), so nothing catches
 it. Trust the **bodies**: `delete_node` → `plan_delete_node` +
 `CommandKind::DeleteNode`; `delete_subpath` → `plan_delete_subpath` +
 `CommandKind::DeleteSubpath`.
@@ -4441,7 +4441,7 @@ mode-dependent and one is not.
 
 ## 9. Stability notes, per area
 
-Evidence: `git log -- crates/pdfce-core/src/edit.rs` shows **68 commits since
+Evidence: `git log -- crates/pdfcer-core/src/edit.rs` shows **68 commits since
 2026-07-25**. `EditError` and `CommandKind` are both `#[non_exhaustive]`, so a
 consumer must have a `_ =>` arm on every match; adding variants is not a
 breaking change and the project treats it as routine.
@@ -4451,8 +4451,8 @@ breaking change and the project treats it as routine.
 | Session construction, overlay model, `commit`/`undo`/`redo`, `dirty_set` | **Stable.** Shipped Pass 3.1 (2026-07-31) and unchanged in shape since; `ARCHITECTURE.md` §11.5 records it as the executable form of a design-locked section, pinned by a 2,897-file corpus assertion. | `edit.rs:3325-3660`, `ARCHITECTURE.md` §11.5 |
 | `to_incremental_bytes` / `to_full_bytes` / `SaveReport` | **Stable.** Two-method shape unchanged since Pass 3.x; `SaveReport` is `#[non_exhaustive]` and has gained fields additively (`objects_deleted`, `delinearized`). | `writer/save.rs:208` |
 | Guard model (encryption / certification / `/Size`) | **Stable in shape, still growing in coverage.** The three-gate certification split is argued as a permanent design (`edit.rs:12253-12266`). The encryption guard is explicitly a *forward-compatible seam* — `edit.rs:19338` records that no loadable file currently reaches it, so its behaviour when encrypted loading ships is **UNVERIFIED — re-check when `Pass 5` (Encryption) delivers a decrypting loader**. | `edit.rs:6970`, `:11449`, `:12289`, `:19338` |
-| Forms (authoring, structure, values) | **Recently active.** Four of the last fifteen `edit.rs` commits touch forms (`3fe8a19` border spec, `ce5642d` hybrid fail-open, `f83be5a` four authoring properties, `7d2b71b` reset-form). Expect additive changes to `New*Field` specs and to `FieldAuthorDisclosures`. | `git log -15 -- crates/pdfce-core/src/edit.rs` |
-| ce dimensions (see §1's ce-dimension block for the current set) | **★ Actively changing — the least stable area.** `set_group_style` / `set_dimension_style` and the whole `dimension::style` cascade shipped 2026-08-13 (`7ebee12`), `dimension::tolerance` in the next commit (`dbc4aa9`, same day), and `set_dimension_label` on 2026-08-30 (`c7ac578`). The project has an explicit, argued policy about when `SIDECAR_VERSION` bumps (`ARCHITECTURE.md` §12) and it is now emitted **per document** rather than per build. Treat every ce-dimension signature as provisional. | `git log -3 -- crates/pdfce-core/src/dimension/style.rs` |
+| Forms (authoring, structure, values) | **Recently active.** Four of the last fifteen `edit.rs` commits touch forms (`3fe8a19` border spec, `ce5642d` hybrid fail-open, `f83be5a` four authoring properties, `7d2b71b` reset-form). Expect additive changes to `New*Field` specs and to `FieldAuthorDisclosures`. | `git log -15 -- crates/pdfcer-core/src/edit.rs` |
+| ce dimensions (see §1's ce-dimension block for the current set) | **★ Actively changing — the least stable area.** `set_group_style` / `set_dimension_style` and the whole `dimension::style` cascade shipped 2026-08-13 (`7ebee12`), `dimension::tolerance` in the next commit (`dbc4aa9`, same day), and `set_dimension_label` on 2026-08-30 (`c7ac578`). The project has an explicit, argued policy about when `SIDECAR_VERSION` bumps (`ARCHITECTURE.md` §12) and it is now emitted **per document** rather than per build. Treat every ce-dimension signature as provisional. | `git log -3 -- crates/pdfcer-core/src/dimension/style.rs` |
 | Attachments (`attach_file` / `detach_file`) | **New.** Shipped 2026-08-12 (`74582ca`, `95c3416`). Only two verbs; the refused name-tree shape (`AttachmentTreeUnsupported`) is a known boundary. | `ARCHITECTURE.md` §12 (Q) |
 | Fonts (`embed_*` / `unembed_*`) | **New.** Shipped 2026-08-12–13 (`f3acd24`, `d87fb58`). These are the only two verbs whose `*_refusal` accessor is load-bearing, which may or may not be a pattern the project generalises. **UNVERIFIED — whether the other four refusal accessors will be made load-bearing; nothing in the source states an intent either way.** | `edit.rs:16375`, `:16627` |
 | Vector geometry (11 verbs) | **Stable in shape, `Vec<String>` return is a weak contract.** Every verb returns an untyped disclosure list. `ARCHITECTURE.md` §4.1 (C) records decision 027 already changed five `EditSession` signatures in this family once and removed two error variants. **UNVERIFIED — whether `Vec<String>` will become a typed disclosure struct; decision 027 moved in that direction for `PlannedEdit` but stopped at the session boundary.** | `edit.rs:4483-5057`, `ARCHITECTURE.md` §4.1 (C) |
@@ -4464,7 +4464,7 @@ breaking change and the project treats it as routine.
 
 - **UNVERIFIED — whether any consumer is expected to call `to_full_bytes` for
   non-redaction removals.** The doc comments say front ends "must say so"
-  (disclose), not "must choose full". `pdfce-gui` never offers it; `pdfce-cli`
+  (disclose), not "must choose full". `pdfce-gui` never offers it; `pdfcer`
   offers `--full-rewrite` opt-in. There is no stated project position on what a
   *new* shell should default to. Ask the operator, or follow the CLI.
 - **UNVERIFIED — the behaviour of the encryption guard on a loadable encrypted

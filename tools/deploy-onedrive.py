@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Publish the CLI to OneDrive, alternating `pdfce1` / `pdfce2`.
+"""Publish the CLI to OneDrive, alternating `pdfcer1` / `pdfcer2`.
 
 Operator instruction, 2026-08-29, verbatim:
 
     "can you always put a new version on onedrive? cycle between folders
-     pdfce1 and pdfce2 when you make new versions so there is always a
+     pdfcer1 and pdfcer2 when you make new versions so there is always a
      previous version available. Just need the CLI tool available."
 
 Three requirements, and the third is the one with teeth:
@@ -48,7 +48,7 @@ doing it by accident is not, which is why it is not the default.
 WHAT SHIPS
 ==========
 
-`pdfce-cli.exe`, the `models/ocrs` folder, `LICENSE`,
+`pdfcer.exe`, the `models/ocrs` folder, `LICENSE`,
 `THIRD_PARTY_LICENSES.md`, `README.md`, and a generated `VERSION.txt`.
 
 The models are ~12 MB and are included deliberately. Without them the CLI
@@ -82,11 +82,11 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 BUILD_ROOT = Path(r"D:\builds")
-SLOTS = ("pdfce1", "pdfce2")
+SLOTS = ("pdfcer1", "pdfcer2")
 
 # Relative to a portable build folder. Anything absent is skipped with a note
 # rather than aborting -- a build without OCR models is still a usable CLI.
-PAYLOAD = ("pdfce-cli.exe", "models", "LICENSE", "THIRD_PARTY_LICENSES.md", "README.md")
+PAYLOAD = ("pdfcer.exe", "models", "LICENSE", "THIRD_PARTY_LICENSES.md", "README.md")
 
 
 def onedrive_root() -> Path | None:
@@ -101,7 +101,7 @@ def onedrive_root() -> Path | None:
 def newest_build() -> Path | None:
     if not BUILD_ROOT.is_dir():
         return None
-    builds = [p for p in BUILD_ROOT.glob("pdfce-*") if (p / "pdfce-cli.exe").is_file()]
+    builds = [p for p in BUILD_ROOT.glob("pdfcer-*") if (p / "pdfcer.exe").is_file()]
     return max(builds, key=lambda p: p.stat().st_mtime) if builds else None
 
 
@@ -133,7 +133,7 @@ def cli_version(build: Path) -> tuple[str, str]:
     is the exe: a stale build directory would otherwise be labelled with the
     working tree's version and the label would be a lie.
     """
-    exe = build / "pdfce-cli.exe"
+    exe = build / "pdfcer.exe"
     try:
         out = subprocess.run([str(exe), "--version"], capture_output=True, text=True,
                              timeout=120).stdout
@@ -142,7 +142,7 @@ def cli_version(build: Path) -> tuple[str, str]:
     version, commit = "unknown", "unknown"
     for line in out.splitlines():
         s = line.strip()
-        if s.startswith("pdfce-cli ") and version == "unknown":
+        if s.startswith("pdfcer ") and version == "unknown":
             version = s.split()[1]
         if s.lower().startswith("revision:"):
             commit = s.split(":", 1)[1].strip()
@@ -175,7 +175,7 @@ def _empty_slot(target: Path, *, attempts: int = 8, delay: float = 0.5) -> None:
     ★ WHAT THE FAILED ATTEMPTS LEFT BEHIND, WHICH IS THE REAL HAZARD
 
     The first failure left the slot INCONSISTENT -- ``LICENSE`` gone,
-    ``models/ocrs`` emptied, but the previous ``pdfce-cli.exe`` and its
+    ``models/ocrs`` emptied, but the previous ``pdfcer.exe`` and its
     ``VERSION.txt`` still in place. That folder still looks populated and its
     ``VERSION.txt`` still names a version an operator would trust, while the
     payload beside it is no longer that version's payload.
@@ -207,7 +207,7 @@ def _empty_slot(target: Path, *, attempts: int = 8, delay: float = 0.5) -> None:
             f"could not delete {path} after {attempts} attempts. The slot "
             f"{target} is now PARTIALLY EMPTIED and must not be relied on as "
             f"the previous version until this script completes. Close anything "
-            f"using it (a running pdfce-cli.exe cannot be replaced on Windows) "
+            f"using it (a running pdfcer.exe cannot be replaced on Windows) "
             f"and re-run."
         )
 
@@ -251,7 +251,7 @@ def main() -> int:
         return 2
 
     build = Path(args.build) if args.build else newest_build()
-    if build is None or not (build / "pdfce-cli.exe").is_file():
+    if build is None or not (build / "pdfcer.exe").is_file():
         print(f"deploy-onedrive: no portable build with a CLI in {BUILD_ROOT}", file=sys.stderr)
         return 1
 
@@ -312,7 +312,7 @@ def main() -> int:
             # `copytree`, which refuses an existing destination outright.
             #
             # Measured cutting v0.19.0: the deploy died with
-            # `FileExistsError: ... \pdfce2\models`, AFTER `_empty_slot` had
+            # `FileExistsError: ... \pdfcer2\models`, AFTER `_empty_slot` had
             # already run. That is precisely the half-emptied slot the helper's
             # own docs call "untrustworthy" -- reached through the copy step
             # rather than the removal step, so its raise-rather-than-continue
@@ -336,7 +336,7 @@ def main() -> int:
             f"source:   {build}",
             f"slot:     {target.name}",
             "",
-            "The pdfce command-line tool. The GUI is deliberately not here --",
+            "The pdfcer command-line tool. The GUI is deliberately not here --",
             "see this folder's sibling for the previous version.",
             "",
             "OCR needs the models/ocrs folder beside the exe; it is included.",

@@ -9,13 +9,13 @@ every fixture here:
     corpus max = 63 fields/file ... 1x on depth but **no corpus file nests
     fields at all**
 
-pdfce's field-hierarchy handling has therefore, in effect, **never been
+pdfcer's field-hierarchy handling has therefore, in effect, **never been
 exercised against real data**. Every non-terminal code path in
 `forms::walk_field` — inheritance down `/Kids`, fully-qualified-name
 composition, widget-kid classification — has only ever run on flat files
 where it does nothing.
 
-That was survivable while pdfce only READ forms: a reader that mishandles a
+That was survivable while pdfcer only READ forms: a reader that mishandles a
 shape no input file contains mishandles nothing. Decision 020 (form-field
 authoring) ends that, because authoring's entire purpose is to start
 GENERATING precisely those shapes — a merge attaches a second widget to an
@@ -48,7 +48,7 @@ FIXTURE (e) IS NOT AN XFA IMPLEMENTATION
 The `/XFA` array here holds a minimal, well-formed XDP packet skeleton. It
 exists so `detect_xfa` reports `PacketArray`, so the authoring refusal is
 reachable, and so the AcroForm half can be read normally — which is the
-whole point of a HYBRID. pdfce parses none of the XML and must not start.
+whole point of a HYBRID. pdfcer parses none of the XML and must not start.
 
 BYTE-AUTHORED, NO PDF LIBRARY (LEGAL.md §5, project rule 7)
 ===========================================================
@@ -274,8 +274,8 @@ def fixture_radio_group() -> bytes:
 
     The on-state names are `/Red`, `/Green`, `/Blue` — not `/1`, `/2`, `/3`.
     Positional names are legal (Table 227) but decision 020 §8.3 records
-    that pdfce cannot resolve them to export values, so a fixture using them
-    would be testing a shape pdfce has explicitly not committed to.
+    that pdfcer cannot resolve them to export values, so a fixture using them
+    would be testing a shape pdfcer has explicitly not committed to.
     """
     objs: dict[int, bytes] = {}
     objs[1] = (
@@ -368,17 +368,17 @@ def fixture_xfa_hybrid() -> bytes:
     "Hybrid" means both halves describe the same form: the AcroForm half is
     complete and fillable by any viewer, and the XFA half is what an
     XFA-aware viewer prefers. That is precisely why decision 020 §3.2.2
-    refuses field CREATION here — pdfce can write the AcroForm half and not
+    refuses field CREATION here — pdfcer can write the AcroForm half and not
     the XFA half, so a one-sided add makes the two halves disagree about how
     many fields the document has, and which viewer you open it in decides
     what you see.
 
     Reading and filling stay allowed: the AcroForm half is a real form and
-    refusing to read it would be refusing a capability pdfce has.
+    refusing to read it would be refusing a capability pdfcer has.
 
     The XDP packets are a minimal well-formed skeleton. `detect_xfa` counts
     array PAIRS and parses no XML; a fuller packet would add bytes without
-    adding coverage, and pdfce must never start interpreting them.
+    adding coverage, and pdfcer must never start interpreting them.
     """
     objs: dict[int, bytes] = {}
     objs[1] = (
@@ -408,12 +408,12 @@ def fixture_xfa_hybrid() -> bytes:
 # (f) The decision-009 JavaScript carriers, for the byte-verbatim test.
 # ---------------------------------------------------------------------------
 def fixture_js_carriers() -> bytes:
-    """An AcroForm carrying every JavaScript hook pdfce promises not to touch.
+    """An AcroForm carrying every JavaScript hook pdfcer promises not to touch.
 
     Pass 7.0 guarantees that the three JS carriers — `/AcroForm /CO`, a field
     `/AA`, and the document `/Names /JavaScript` tree — are re-emitted BYTE
     VERBATIM. Decision 009 forbids executing embedded PDF JavaScript
-    permanently, so recognising and preserving them is the whole of pdfce's
+    permanently, so recognising and preserving them is the whole of pdfcer's
     contract with them.
 
     That guarantee held STRUCTURALLY, not by assertion: filling a field never
@@ -431,7 +431,7 @@ def fixture_js_carriers() -> bytes:
     * `/Names /JavaScript` sits in the CATALOG, which the `/AcroForm`-absent
       creation path writes.
 
-    The JavaScript itself is inert and deliberately trivial. pdfce must never
+    The JavaScript itself is inert and deliberately trivial. pdfcer must never
     parse it, so its content buys no coverage — its BYTES are the whole test.
     """
     objs: dict[int, bytes] = {}
@@ -473,8 +473,8 @@ def fixture_tagged_struct_tabs() -> bytes:
 
     Two disclosures need this fixture, and neither is reachable without it:
 
-    * **The document is tagged** (`/StructTreeRoot`) and a pdfce-authored
-      field is not in its structure tree. pdfce has no structure-tree writer,
+    * **The document is tagged** (`/StructTreeRoot`) and a pdfcer-authored
+      field is not in its structure tree. pdfcer has no structure-tree writer,
       and §3.5.3 deliberately ships the disclosure rather than a partial
       writer — a half-written tag tree claims a completeness the document
       does not have.
@@ -488,7 +488,7 @@ def fixture_tagged_struct_tabs() -> bytes:
     `/Tabs` sits on the PAGE here rather than on the page tree node, because
     that is the shape a real producer writes and it is the one the inheriting
     lookup must get right in its base case. The structure tree is a minimal
-    well-formed skeleton: pdfce reads no further than "is `/StructTreeRoot`
+    well-formed skeleton: pdfcer reads no further than "is `/StructTreeRoot`
     present", so a fuller tree would add bytes without adding coverage.
 
     Without this fixture both disclosures would be unreachable code — a rule

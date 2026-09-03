@@ -3,7 +3,7 @@
 
 WHY THIS EXISTS
 ---------------
-`crates/pdfce-core/src/outline.rs` reads ISO 32000-1 §12.3.3's outline
+`crates/pdfcer-core/src/outline.rs` reads ISO 32000-1 §12.3.3's outline
 hierarchy and §12.3.2's destinations. Almost every interesting case in
 that reader is a case a normal authoring tool will not produce on
 request: a ``/Next`` chain that loops, a ``/Count`` whose magnitude lies,
@@ -68,7 +68,7 @@ WHAT IT WRITES
         action** (``<< /A << /S /GoTo /D [...] >> >>``) rather than a
         ``/D``, which §12.3.2.3 NOTE 2 explicitly permits.
       * ``/Dest (LegacyIntro)`` — the legacy dictionary's key spelled as
-        a **string**, so it resolves only because pdfce searches both
+        a **string**, so it resolves only because pdfcer searches both
         namespaces regardless of the reference's type. Pins the
         ``DEST-A1`` disclosure.
       * ``/Dest (nowhere)`` — a name defined by neither namespace. Must

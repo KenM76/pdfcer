@@ -50,7 +50,7 @@ THE FIXTURES
     certification guard: because `/Perms → /DocMDP` is present, enforcement is
     a `shall`, so adding page content (point OR box) is REFUSED with the same
     `CertificationForbidsChange` refusal `EditSession::add_markup` raises —
-    pdfce declines rather than silently invalidating the signature. The
+    pdfcer declines rather than silently invalidating the signature. The
     `/ByteRange`/`/Reference` values are structural placeholders (no real
     signed bytes); only the census-visible structure matters to the guard.
 

@@ -6,7 +6,7 @@ WHY THIS EXISTS
 ISO 32000-1 §11.3.4 requires a SUBTRACTIVE blending colour space
 (`DeviceCMYK`, `Separation`, `DeviceN`) to have its components
 **complemented before the blend function and complemented back after it**.
-Until `Pass 97.1e` (2026-08-21) pdfce blended in device sRGB, so every
+Until `Pass 97.1e` (2026-08-21) pdfcer blended in device sRGB, so every
 non-`Normal` blend inside such a group was computed on the wrong side of
 that switch — and the marks landed in the right places, so the page looked
 plausible. A counter was the only way to see it, and this script is how
@@ -56,7 +56,7 @@ USAGE
 
     python tools/measure-blend-space.py <corpus-dir> [<corpus-dir> ...]
 
-Renders page 1 of every PDF at scale 1 through the release `pdfce-cli` and
+Renders page 1 of every PDF at scale 1 through the release `pdfcer` and
 parses its stable stdout line. Nothing is written into the repository; the
 corpus lives outside it (`docs/LEGAL.md` §5).
 """
@@ -67,7 +67,7 @@ import subprocess
 import sys
 import tempfile
 
-CLI = os.path.abspath(r"D:\Dev\pdfce\target\release\pdfce-cli.exe")
+CLI = os.path.abspath(r"D:\Dev\pdfcer\target\release\pdfcer.exe")
 assert os.path.isfile(CLI), CLI
 
 G = re.compile(r"blend_space_subtractive=(\d+)")

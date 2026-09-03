@@ -17,7 +17,7 @@ and large enough that it would never have been recovered by noticing.
 It is that **the missing doc comment is usually somewhere else, welded to
 the wrong item.**
 
-`crates/pdfce-render/src/cmyk_buffer.rs` had this shape:
+`crates/pdfcer-render/src/cmyk_buffer.rs` had this shape:
 
     /// Write one pixel, clamping into range.
     ///

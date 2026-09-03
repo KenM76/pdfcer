@@ -1,5 +1,5 @@
 //! Fuzz target: content-stream tokenization + filter decoding
-//! (`pdfce_core::content`, `pdfce_core::filters`).
+//! (`pdfcer_core::content`, `pdfcer_core::filters`).
 //!
 //! Several independent consumers of the same input bytes:
 //!
@@ -51,10 +51,10 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::content::ContentStream;
-use pdfce_core::filters::ascii::{decode_85, decode_hex};
-use pdfce_core::filters::decode_stream;
-use pdfce_core::object::{Dict, Name, Object};
+use pdfcer_core::content::ContentStream;
+use pdfcer_core::filters::ascii::{decode_85, decode_hex};
+use pdfcer_core::filters::decode_stream;
+use pdfcer_core::object::{Dict, Name, Object};
 
 fuzz_target!(|data: &[u8]| {
     // 1. Content-stream tokenizer.

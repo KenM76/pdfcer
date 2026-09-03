@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Generate a letter-size PDF: a banana at life size, and two of its cells
-at the SAME scale, as a deep-zoom exercise for pdfce.
+at the SAME scale, as a deep-zoom exercise for pdfcer.
 
 WHY THIS FILE EXISTS
 ====================

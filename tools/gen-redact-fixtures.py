@@ -52,7 +52,7 @@ def demo_secret():
         5: stream_obj(b"<<", c1),
         6: stream_obj(b"<<", c2),
         7: font,
-        8: b"<< /Title (SECRET dossier) /Author (pdfce test) >>",
+        8: b"<< /Title (SECRET dossier) /Author (pdfcer test) >>",
     }
     return assemble(objs, extra_trailer=b"/Info 8 0 R ")
 

@@ -1,8 +1,8 @@
 //! Fuzz target 13: interactive-form field model
-//! (`pdfce_core::forms`, ISO 32000-1 §12.7; docs/decisions/008 Pass 7).
+//! (`pdfcer_core::forms`, ISO 32000-1 §12.7; docs/decisions/008 Pass 7).
 //!
 //! Feeds arbitrary bytes to `Document::from_bytes`, then drives
-//! [`pdfce_core::forms::parse_acroform`] over the whole document. This
+//! [`pdfcer_core::forms::parse_acroform`] over the whole document. This
 //! exercises the entire read-side form model against untrusted input: the
 //! `/AcroForm` walk (absent, non-dictionary, malformed `/Fields`), the
 //! `/Kids` field-tree DFS with its inheritance context, the field-vs-widget
@@ -34,8 +34,8 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::document::Document;
-use pdfce_core::forms::parse_acroform;
+use pdfcer_core::document::Document;
+use pdfcer_core::forms::parse_acroform;
 
 fuzz_target!(|data: &[u8]| {
     let Ok(doc) = Document::from_bytes(data.to_vec()) else {

@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Generate crates/pdfce-core/src/fontdata/tables.rs from the PDF-spec RAG.
+"""Generate crates/pdfcer-core/src/fontdata/tables.rs from the PDF-spec RAG.
 
 WHAT THIS IS
 ------------
-The single source of the standard-14 font data compiled into pdfce-core:
+The single source of the standard-14 font data compiled into pdfcer-core:
 per-glyph advance widths, /FontDescriptor payloads, the Annex D.2
 predefined encodings, the Symbol/ZapfDingbats built-in encodings, and the
 glyph-name -> Unicode subset used for text extraction. The generated file
 is COMMITTED (the RAG is a private corpus outside the repo; CI and other
 machines must build without it), and this script is the only legitimate
-way to change it (pdfce decision 004 s10 item 6: "generate the std-14
+way to change it (pdfcer decision 004 s10 item 6: "generate the std-14
 width/descriptor tables and the Annex D encoding tables from the staged
 RAG sources").
 
@@ -67,7 +67,7 @@ LICENSING (why the header block below exists)
 The width/descriptor numbers derive from the Adobe Core 14 AFM files,
 licensed APAFML: the copyright notice must be retained and modifications
 prominently noted - both done in the generated header (see
-font__std14_afm_licensing.md for the verdict and obligations; pdfce ships
+font__std14_afm_licensing.md for the verdict and obligations; pdfcer ships
 extracted numbers, never the .afm files themselves). The Unicode mappings
 derive from the Adobe Glyph List, BSD-3-Clause: notice retention likewise
 satisfied in the header. Both also need manual THIRD_PARTY_LICENSES.md
@@ -90,7 +90,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 RAG = Path(r"D:/Dev/Rag-Specialized/PDF_Spec")
-OUT = REPO / "crates" / "pdfce-core" / "src" / "fontdata" / "tables.rs"
+OUT = REPO / "crates" / "pdfcer-core" / "src" / "fontdata" / "tables.rs"
 
 DASH = "\u2014"  # em dash: the RAG's "unencoded / absent" marker
 NAME_RE = re.compile(r"^`([^`]+)`$")

@@ -36,7 +36,7 @@ python tools/gen-bilevel-fixtures.py
 ```
 
 The script writes both these PDFs **and**
-`crates/pdfce-core/src/image_codec/fixtures_bilevel.rs`, from the same
+`crates/pdfcer-core/src/image_codec/fixtures_bilevel.rs`, from the same
 bytes, in the same run. That single-source property is deliberate: the
 unit tests assert the decoded samples byte-for-byte against
 `BILEVEL_16X4_SAMPLES`, and these files are the same payload in a PDF
@@ -44,7 +44,7 @@ wrapper, so the two can never drift into disagreeing about what the
 picture is.
 
 Requires Pillow with libtiff — a developer-machine dependency only,
-never a pdfce dependency.
+never a pdfcer dependency.
 
 ## The picture
 
@@ -85,7 +85,7 @@ obvious at a glance: row 0 must land at the **top**.
    and `image_codec_jbig2` consume an `arbitrary`-derived parameter
    struct whose *tail* is the raw codestream, so their most productive
    seeds are the bare `CCITT_G4_16X4` / `JBIG2_MMR_16X4` byte arrays
-   from `crates/pdfce-core/src/image_codec/fixtures_bilevel.rs`
+   from `crates/pdfcer-core/src/image_codec/fixtures_bilevel.rs`
    (identical bytes, same generator run) rather than these PDF
    wrappers.
 2. **End-to-end demo / smoke test** — the byte arrays in
@@ -94,7 +94,7 @@ obvious at a glance: row 0 must land at the **top**.
    the rasterizer:
 
    ```text
-   pdfce-cli render-page fixtures/synthetic/bilevel/ccitt-g4-gray.pdf \
+   pdfcer render-page fixtures/synthetic/bilevel/ccitt-g4-gray.pdf \
        --page 1 --scale 3 --output out.png
    ```
 

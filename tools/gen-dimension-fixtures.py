@@ -5,7 +5,7 @@ These are 100% synthetic, hand-authored one-page PDFs carrying only drawn
 geometry (a line, a short arc built from small line segments, two shapes in
 two regions). They are the INPUT geometry the dimensioning tools measure —
 NOT dimensioned files. The *dimensioned* fixtures are produced by running
-`pdfce-cli` on these bases; the exact commands are recorded in
+`pdfcer` on these bases; the exact commands are recorded in
 `fixtures/synthetic/dimension/PROVENANCE.md` and re-run by the CI fixture step.
 
 Fixture-sourcing rule (project rule 7 / LEGAL §5): fixtures are synthetic or

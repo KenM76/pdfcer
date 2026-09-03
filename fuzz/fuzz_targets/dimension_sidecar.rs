@@ -1,5 +1,5 @@
 //! Fuzz target: the ce-dimension `/PieceInfo` sidecar reader
-//! (`pdfce_core::dimension::sidecar`, ISO 32000-1 §14.5; `Pass 12.M2`,
+//! (`pdfcer_core::dimension::sidecar`, ISO 32000-1 §14.5; `Pass 12.M2`,
 //! extended by `Pass 69.0`'s style cascade).
 //!
 //! Feeds arbitrary bytes to `Document::from_bytes`, then reads the
@@ -55,11 +55,11 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::dimension::{
+use pdfcer_core::dimension::{
     author_dimension, author_dimension_with_label, resolve_style, style_provenance,
 };
-use pdfce_core::document::Document;
-use pdfce_core::edit::EditSession;
+use pdfcer_core::document::Document;
+use pdfcer_core::edit::EditSession;
 
 fuzz_target!(|data: &[u8]| {
     let Ok(doc) = Document::from_bytes(data.to_vec()) else {

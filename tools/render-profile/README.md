@@ -5,7 +5,7 @@ Out-of-tree profiling harness (mirrors `tools/roundtrip` and
 and reports the load/render split, the **scaling curve**, and what the
 page's content actually looks like to the renderer.
 
-Enables `pdfce-render/profile`, a feature that is off in every shipping
+Enables `pdfcer-render/profile`, a feature that is off in every shipping
 build and compiles to nothing without it.
 
 ## Why this is committed rather than a scratch file

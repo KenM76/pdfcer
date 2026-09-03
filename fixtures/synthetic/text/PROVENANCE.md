@@ -20,15 +20,15 @@ material — so no attribution is owed and none is claimed.
 The absence of embedded font programs is worth stating explicitly,
 because it is exactly what makes these fixtures cheap and legally
 clean: **§9.10.2's ladder needs no font program for any of the rungs
-pdfce implements.** Rung 1 reads a `/ToUnicode` CMap that lives inside
+pdfcer implements.** Rung 1 reads a `/ToUnicode` CMap that lives inside
 the PDF; rung 2 reads Annex D.2 tables and the Adobe Glyph List, both of
-which `pdfce-core` already carries. A text-extraction fixture therefore
+which `pdfcer-core` already carries. A text-extraction fixture therefore
 does not need a font, where a rendering fixture would.
 
 Two of these files are consequently **not renderable** by
-`pdfce-render` and are not meant to be: `identity-h-tounicode.pdf` and
+`pdfcer-render` and are not meant to be: `identity-h-tounicode.pdf` and
 `identity-h-no-tounicode.pdf` use `Identity-H` with a non-embedded
-descendant, which §9.7.5.2 forbids and which `pdfce-render` correctly
+descendant, which §9.7.5.2 forbids and which `pdfcer-render` correctly
 refuses (`UnsupportedFont::CompositeNotEmbedded`). That extraction
 succeeds on a file rendering rejects is the point, not an oversight: the
 two directions are separate pipelines with separate requirements.
@@ -56,7 +56,7 @@ than merely loaded. Requires nothing but a Python interpreter.
 
 ## Uses
 
-1. **Integration tests** — `crates/pdfce-core/tests/text_extract.rs`.
+1. **Integration tests** — `crates/pdfcer-core/tests/text_extract.rs`.
 2. **Fuzz seed corpus** — the whole-file targets (`load_document`,
    `parse_object`, `text_extract`). Per decision 005 §6.5 fuzz seeds
    come from `fixtures/synthetic/` and never from a downloaded
@@ -64,8 +64,8 @@ than merely loaded. Requires nothing but a Python interpreter.
 3. **CLI demonstration**:
 
    ```text
-   pdfce-cli extract-text fixtures/synthetic/text/identity-h-tounicode.pdf
-   pdfce-cli extract-text fixtures/synthetic/text/identity-h-no-tounicode.pdf --json
+   pdfcer extract-text fixtures/synthetic/text/identity-h-tounicode.pdf
+   pdfcer extract-text fixtures/synthetic/text/identity-h-no-tounicode.pdf --json
    ```
 
    The second must report `ladder_failures` equal to `codes_total` and
@@ -74,7 +74,7 @@ than merely loaded. Requires nothing but a Python interpreter.
 ## Render fixture — `cidfonttype2-nocmap-embedded.pdf`
 
 Unlike the six extraction files above, this one **embeds a font
-program** and exists to exercise the `pdfce-render` glyph-outline path,
+program** and exists to exercise the `pdfcer-render` glyph-outline path,
 not extraction. Generator: `tools/gen-cidfont-nocmap-fixtures.py`
 (separate from `gen-text-fixtures.py`).
 
@@ -84,12 +84,12 @@ glyph outlines defined in the script (a `.notdef` and one filled box) —
 it contains **no third-party font data**, in particular none of the
 Arial / Verdana / Century Gothic subsets from any real document. It is
 an original, trivial, CC0 / public-domain synthetic font. Requires
-`fonttools` (a dev-only tool dependency, not a pdfce runtime dependency)
+`fonttools` (a dev-only tool dependency, not a pdfcer runtime dependency)
 to regenerate.
 
 | File | The one thing it pins |
 |---|---|
-| `cidfonttype2-nocmap-embedded.pdf` | **The embedded-TrueType render class.** `/Type0` + `/Identity-H` + `/CIDFontType2` + embedded subset `FontFile2` + `/CIDToGIDMap`, and the embedded program has **no `cmap`** (legal per §9.7.4.2: selection is CID → GID via `/CIDToGIDMap`). The program uses sfnt version `0x00010000`, whose first byte is `0x00` (a PDF whitespace byte, Table 1). The page draws CID 1 → GID 1, a filled box. If the box paints, the glyf-by-GID path survived the format-detection whitespace-trim that once ate the sfnt magic's leading NUL and misrouted every embedded TrueType to the CFF parser. Pinned by `crates/pdfce-render/tests/cidfont_nocmap_render.rs`. |
+| `cidfonttype2-nocmap-embedded.pdf` | **The embedded-TrueType render class.** `/Type0` + `/Identity-H` + `/CIDFontType2` + embedded subset `FontFile2` + `/CIDToGIDMap`, and the embedded program has **no `cmap`** (legal per §9.7.4.2: selection is CID → GID via `/CIDToGIDMap`). The program uses sfnt version `0x00010000`, whose first byte is `0x00` (a PDF whitespace byte, Table 1). The page draws CID 1 → GID 1, a filled box. If the box paints, the glyf-by-GID path survived the format-detection whitespace-trim that once ate the sfnt magic's leading NUL and misrouted every embedded TrueType to the CFF parser. Pinned by `crates/pdfcer-render/tests/cidfont_nocmap_render.rs`. |
 
 Regenerate:
 

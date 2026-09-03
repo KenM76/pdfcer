@@ -1,16 +1,16 @@
-# pdfce — Project Instructions
+# pdfcer — Project Instructions
 
 An open-source, non-monetized, feature-for-feature replacement for
 Adobe Acrobat Pro. Native desktop GUI first (no web server/browser
 runtime), single-folder portable, Rust + egui/eframe, plus a
-first-class CLI (`pdfce-cli`) for scriptable batch operations. See
+first-class CLI (`pdfcer`) for scriptable batch operations. See
 `README.md` and `docs/ARCHITECTURE.md` for the full picture.
 
 These instructions are read **at the start of every Claude session**
 in this project. Everything below is binding. The global rules in
 `C:\Users\Ken\.claude\CLAUDE.md` also apply (documentation-first,
 claim-bearing-copy verification, personal_rag lesson-writing
-discipline, etc.) — this file adds pdfce-specific rules on top.
+discipline, etc.) — this file adds pdfcer-specific rules on top.
 
 ## Project agents
 
@@ -18,12 +18,12 @@ This project has six agents under `.claude/agents/`:
 
 | Agent | Role | When to dispatch |
 |---|---|---|
-| `pdfce-engineer.md` | Single-session lead engineer | The default role for any engineering work in this project. If you're the orchestrator, **be this agent** — read its file at session start, follow its discipline. |
-| `pdfce-librarian.md` | Institutional memory: `ROADMAP.md` / `FEATURES.md` / `SESSION_LOG.md` / `ARCHITECTURE.md` decision-log keeper | Dispatched by the engineer for every new request (→ roadmap entry), every Pass completion (→ Shipped row), pre-compaction captures, and generalizable findings that graduate to `D:\dev\rag\rust\` / `D:\dev\rag\egui\` (ecosystem-wide) or `C:\personal_rag\pdf\` (PDF-domain). |
-| `pdfce-spec-librarian.md` | Builds/maintains the PDF-standard reference RAG at `D:\Dev\Rag-Specialized\PDF_Spec\` | Dispatched whenever a spec question needs canonical sourcing (object model, filters, fonts, crypto, PAdES, PDF/A, PDF/UA), and self-directed for corpus-building sessions. |
-| `pdfce-acrobat-librarian.md` | Builds/maintains the Acrobat Pro feature-parity RAG at `D:\Dev\Rag-Specialized\Acrobat_Features\` | Dispatched when scoping a `ROADMAP.md` Backlog bucket into a real Pass, so acceptance criteria match actual Acrobat behavior. Catalogs capabilities only — never Acrobat's GUI mechanics. |
-| `pdfce-inkscape-librarian.md` | Builds/maintains the Inkscape feature-parity RAG at `D:\Dev\Rag-Specialized\Inkscape_Features\` | Dispatched when scoping the vector-editing Passes (Pass 9), so acceptance criteria match actual Inkscape behavior. Catalogs capability/behavior/limits only — never Inkscape's GUI mechanics; Inkscape is a behavioral reference only (GPL-2.0-or-later, never a dependency or code source — standing rule R61). |
-| `pdfce-ui-specialist.md` | egui/eframe UX design + review | Dispatched by the engineer for non-trivial UI changes (new panel, new tool, an accessibility/discoverability judgment call). Returns critique + a change list; does not write code. |
+| `pdfcer-engineer.md` | Single-session lead engineer | The default role for any engineering work in this project. If you're the orchestrator, **be this agent** — read its file at session start, follow its discipline. |
+| `pdfcer-librarian.md` | Institutional memory: `ROADMAP.md` / `FEATURES.md` / `SESSION_LOG.md` / `ARCHITECTURE.md` decision-log keeper | Dispatched by the engineer for every new request (→ roadmap entry), every Pass completion (→ Shipped row), pre-compaction captures, and generalizable findings that graduate to `D:\dev\rag\rust\` / `D:\dev\rag\egui\` (ecosystem-wide) or `C:\personal_rag\pdf\` (PDF-domain). |
+| `pdfcer-spec-librarian.md` | Builds/maintains the PDF-standard reference RAG at `D:\Dev\Rag-Specialized\PDF_Spec\` | Dispatched whenever a spec question needs canonical sourcing (object model, filters, fonts, crypto, PAdES, PDF/A, PDF/UA), and self-directed for corpus-building sessions. |
+| `pdfcer-acrobat-librarian.md` | Builds/maintains the Acrobat Pro feature-parity RAG at `D:\Dev\Rag-Specialized\Acrobat_Features\` | Dispatched when scoping a `ROADMAP.md` Backlog bucket into a real Pass, so acceptance criteria match actual Acrobat behavior. Catalogs capabilities only — never Acrobat's GUI mechanics. |
+| `pdfcer-inkscape-librarian.md` | Builds/maintains the Inkscape feature-parity RAG at `D:\Dev\Rag-Specialized\Inkscape_Features\` | Dispatched when scoping the vector-editing Passes (Pass 9), so acceptance criteria match actual Inkscape behavior. Catalogs capability/behavior/limits only — never Inkscape's GUI mechanics; Inkscape is a behavioral reference only (GPL-2.0-or-later, never a dependency or code source — standing rule R61). |
+| `pdfcer-ui-specialist.md` | egui/eframe UX design + review | Dispatched by the engineer for non-trivial UI changes (new panel, new tool, an accessibility/discoverability judgment call). Returns critique + a change list; does not write code. |
 
 The engineer agent file is the single source of truth for *how* work
 happens in this project day-to-day. Read it before doing anything
@@ -35,11 +35,11 @@ substantive.
   load-bearing invariants (GUI-core separation, round-trip/minimal-diff
   editing), packaging strategy. Read every session.
 - **`docs/ROADMAP.md`** — the contract. Read every session.
-- **`docs/FEATURES.md`** — the capability-shaped view: what pdfce can do
+- **`docs/FEATURES.md`** — the capability-shaped view: what pdfcer can do
   today and what is planned, in predicted order, with **core / cli / gui**
   checkboxes per row. Created 2026-08-05 at the operator's request because
   `ROADMAP.md` is organised by Pass and structurally cannot answer "what
-  can it do?". Maintained by `pdfce-librarian` **in the same filing as
+  can it do?". Maintained by `pdfcer-librarian` **in the same filing as
   every `ROADMAP.md` update** — it is not a separate chore and must not be
   allowed to drift. `ROADMAP.md` stays authoritative if the two disagree.
   Deliberately terse; do not expand it.
@@ -56,20 +56,20 @@ substantive.
 Never implement spec-governed behavior (object-model byte layout,
 filter algorithms, xref structure, font encoding, crypto handshakes)
 from training-data memory. Check `D:\Dev\Rag-Specialized\PDF_Spec\`
-first; dispatch `pdfce-spec-librarian` if the RAG doesn't yet cover
+first; dispatch `pdfcer-spec-librarian` if the RAG doesn't yet cover
 the question. Cite the ISO/ITU-T/ETSI clause in code doc comments.
 
 ### 2. GUI-core separation (load-bearing invariant)
 
-`pdfce-core` and `pdfce-render` must never gain a GUI/windowing
-dependency. Verify with `cargo tree -p pdfce-core` /
-`cargo tree -p pdfce-render` on any Pass touching their `Cargo.toml`.
+`pdfcer-core` and `pdfcer-render` must never gain a GUI/windowing
+dependency. Verify with `cargo tree -p pdfcer-core` /
+`cargo tree -p pdfcer-render` on any Pass touching their `Cargo.toml`.
 This is what keeps the eventual web/WASM fork a shell-crate swap
 instead of a rewrite. See `ARCHITECTURE.md` §3.
 
 ### 3. Round-trip / minimal-diff editing
 
-Objects pdfce didn't logically touch are re-emitted byte-identical
+Objects pdfcer didn't logically touch are re-emitted byte-identical
 (full rewrite) or simply omitted (incremental save — the default save
 mode). Redaction is the one deliberate, explicit exception: it must
 truly remove covered content, not just visually mask it. See
@@ -77,7 +77,7 @@ truly remove covered content, not just visually mask it. See
 
 ### 4. Fuzzy, never sneaky
 
-Anything pdfce **inferred** — a value, a boundary, a classification, a
+Anything pdfcer **inferred** — a value, a boundary, a classification, a
 correction the operator did not directly specify (OCR text,
 auto-detected form fields, recognised text blocks, snapped points,
 best-fit geometry, derived centrelines, reflow results, suggested Bates
@@ -89,13 +89,13 @@ Save commits, and **nothing in an open edit session is document state**.
 So the inference **renders exactly as saved content will render** —
 normally, live, reflowing normally, **with no badge, tint, red flag,
 dashed outline or "provisional" layer drawn into the page view** — and
-the disclosure of *what pdfce guessed* lives **off-canvas**: a status
+the disclosure of *what pdfcer guessed* lives **off-canvas**: a status
 line, a results panel, a post-command report, a properties field. It
 never blocks, never requires acknowledgement, and is never positioned
 relative to the document. **There is no accept/reject gate in front of
 anything.**
 
-In `pdfce-cli` the invocation **is** the commit — no session, no undo —
+In `pdfcer` the invocation **is** the commit — no session, no undo —
 so the CLI **prints** what it inferred on the way past instead. **What
 this rule forbids is SILENCE**, in both shells; only the vehicle
 differs.
@@ -127,12 +127,12 @@ every zoom, scroll and page change, which is what the operator actually
 reported: *"there is a separate accept / reject box somewhere on the
 screen to click — I've never seen any other software operate that way."*
 The complaint was placement, not the confirm step. The narrowing keeps
-the obligation exactly where it was meant to be — on things pdfce
+the obligation exactly where it was meant to be — on things pdfcer
 GUESSED — and takes it off things the operator did.
 
 **★★ NARROWED AGAIN 2026-08-13** (decision **059**, `ARCHITECTURE.md`
 §12). The first narrowing took the burden off things the operator *did*;
-this one takes it off the **rendering** of things pdfce *guessed*. The
+this one takes it off the **rendering** of things pdfcer *guessed*. The
 prior wording is kept legible rather than silently rewritten — **the head
 of this rule said**:
 
@@ -176,16 +176,16 @@ the marking machinery removes a BUG CLASS.** A shell that re-introduces a
 "helpful" highlight re-introduces the class.
 
 **Unchanged, so this is not over-read:** invisible inferences still owe
-their off-canvas disclosure (that is *why* the rule exists); `pdfce-cli`
+their off-canvas disclosure (that is *why* the rule exists); `pdfcer`
 still prints (rule 11 untouched); §11.2's **redaction confirmation
 survives** — it warns about a destructive *save*, not about an inference;
 and **R167's editor chrome survives** — a dashed outline for a widget
 with no paintable `/AP`, a selection highlight, a resize handle disclose
-**editability**, not pdfce's uncertainty about content.
+**editability**, not pdfcer's uncertainty about content.
 
 **The one-line test:** *would a screenshot of the editing canvas differ
 from a screenshot of the same document saved and reopened?* If yes, **and
-the difference is pdfce marking its own uncertainty**, that is the
+the difference is pdfcer marking its own uncertainty**, that is the
 defect. The second half of that sentence is load-bearing.
 
 **Note the shape, because it has now happened twice:** two narrowings
@@ -197,7 +197,7 @@ NON-SILENCE.**
 ### 5. Roadmap discipline
 
 Every new operator request → engineer parses into Pass entry/entries
-→ dispatches `pdfce-librarian` to file under *Backlog*/*Next up* →
+→ dispatches `pdfcer-librarian` to file under *Backlog*/*Next up* →
 reports assigned Pass IDs back. Every Pass completion → dispatch the
 librarian to move it to *Shipped* + append a `SESSION_LOG.md` entry.
 
@@ -283,7 +283,7 @@ What holds now, replacing the struck bullet:
   matters *more*, not less, now that pushing no longer stops to ask.
 - **★ THE PROJECT IS ALREADY PUBLIC. This bullet said "there is still no
   git remote configured" and that was FALSE** —
-  `github.com/KenM76/pdfce` is public, created 2026-08-09 04:56Z, `main`
+  `github.com/KenM76/pdfcer` is public, created 2026-08-09 04:56Z, `main`
   pushed 10:18Z. Corrected 2026-08-10. Two consequences worth carrying:
   a repository with a remote is one where a careless `git push` reaches
   the world, and **anything committed here is published by default**, so
@@ -306,17 +306,17 @@ What holds now, replacing the struck bullet:
 
 - `D:\Dev\Rag-Specialized\PDF_Spec\` — canonical PDF-standard reference
   (spec text/summaries with citations). Read-heavy; written by
-  `pdfce-spec-librarian`.
+  `pdfcer-spec-librarian`.
 - `C:\personal_rag\pdf\` — empirical, project-internal findings about
   how real-world PDFs (from Word, LibreOffice, Chrome's "print to PDF",
   scanners, etc.) diverge from the spec in practice. Distinct from the
   spec RAG the same way `personal_rag/solidworks` is distinct from
   `sw_api_docs` for the user's SolidWorks work. **Exists and is in
   active use** (created 2026-08-04; grep it before re-deriving anything
-  about producer behaviour). Written by `pdfce-librarian`, following
+  about producer behaviour). Written by `pdfcer-librarian`, following
   `C:\personal_rag\README.md`'s template.
 - `D:\dev\rag\rust\` — Rust toolchain/Cargo/packaging quirks that
-  generalize to **any** Rust project, not just pdfce. **Already
+  generalize to **any** Rust project, not just pdfcer. **Already
   exists** (part of the existing Cross-project Tool RAG, registered in
   `C:\Users\Ken\.claude\CLAUDE.md`) — also holds the canonical
   `rust-style-guide-and-api-guidelines.md` reference (rule 10 below).
@@ -327,31 +327,31 @@ What holds now, replacing the struck bullet:
 ### 10. Rust Style Guide + API Guidelines compliance
 
 `cargo fmt --check` and `cargo clippy -- -D warnings` clean before any
-Pass ships, workspace-wide. Any `pub` item added to `pdfce-core`
-(or `pdfce-cli`'s argument/output surface) is checked against
+Pass ships, workspace-wide. Any `pub` item added to `pdfcer-core`
+(or `pdfcer`'s argument/output surface) is checked against
 `D:\dev\rag\rust\rust-style-guide-and-api-guidelines.md` — naming
 conventions, trait derives, error-type design (`thiserror`, not
 stringly-typed errors), documentation with runnable examples. See
 `ARCHITECTURE.md` §8.
 
-### 11. CLI capabilities (`pdfce-cli`)
+### 11. CLI capabilities (`pdfcer`)
 
-pdfce ships a real, scriptable command-line interface alongside the
+pdfcer ships a real, scriptable command-line interface alongside the
 GUI — not a debug tool, a genuine parity-plus feature (Acrobat Pro has
 no equivalent first-class CLI). Same crate-separation, round-trip, and
 fuzzy-never-sneaky discipline as the GUI applies to every subcommand.
-Default: each feature Pass ships its `pdfce-cli` subcommand alongside
+Default: each feature Pass ships its `pdfcer` subcommand alongside
 the GUI flow, same session. See `ARCHITECTURE.md` §7 and
 `ROADMAP.md`'s "CLI batch operations" backlog entry.
 
 ### 12. Acrobat feature-parity RAG (`D:\Dev\Rag-Specialized\Acrobat_Features\`)
 
 Before scoping a Backlog bucket into a real Pass, dispatch
-`pdfce-acrobat-librarian` so acceptance criteria reflect what Acrobat
+`pdfcer-acrobat-librarian` so acceptance criteria reflect what Acrobat
 Pro actually does. This RAG catalogs capability/behavior/edge-cases/
 limits **only** — it must never describe or inform copying Acrobat's
-GUI structure (menu paths, panels, dialogs); pdfce's UI is designed
-independently by `pdfce-ui-specialist`. See `ROADMAP.md`'s "Feature RAG"
+GUI structure (menu paths, panels, dialogs); pdfcer's UI is designed
+independently by `pdfcer-ui-specialist`. See `ROADMAP.md`'s "Feature RAG"
 glossary entry and "Feature-fidelity discipline" standing rule.
 
 ### 13. Open-source dependency licensing & attribution
@@ -359,7 +359,7 @@ glossary entry and "Feature-fidelity discipline" standing rule.
 Before adding any Cargo dependency, classify its license (permissive /
 weak-copyleft / strong-copyleft — see `LEGAL.md` §6.1) and check
 `docs/PRIOR_ART.md`. Copyleft dependencies are always flagged to the
-user, never decided solo. pdfce is **MIT** (rule 8), so GPL/AGPL is not
+user, never decided solo. pdfcer is **MIT** (rule 8), so GPL/AGPL is not
 merely discouraged — it cannot be linked at all, and weak-copyleft
 (LGPL/MPL) needs the operator's call on the linking terms. Attribution is
 **generated** via `cargo-about` into `THIRD_PARTY_LICENSES.md`, never
@@ -384,14 +384,14 @@ and they have **opposite properties**. Always qualify which:
 
 - **pdf dimensions** — dimensions already present in the PDF, exported by
   CAD or another authoring tool. Existing page content (or foreign
-  annotations). pdfce reads them, measures against them, and must not
+  annotations). pdfcer reads them, measures against them, and must not
   silently alter them. The `55 5/8"` printed on a drawing is a *pdf
   dimension*.
-- **ce dimensions** — the dimension objects **pdfce authors**: `/Line` +
+- **ce dimensions** — the dimension objects **pdfcer authors**: `/Line` +
   `/IT /LineDimension` annotations with a baked `/AP`, their groups, scale,
   `/Measure` dict and `/PieceInfo` sidecar. Everything under
-  `crates/pdfce-core/src/dimension/`. Authored, editable, deletable,
-  re-measurable — pdfce's own.
+  `crates/pdfcer-core/src/dimension/`. Authored, editable, deletable,
+  re-measurable — pdfcer's own.
 
 **Binding on every agent**, and on every reply, commit message, doc comment,
 decision record, RAG entry and **subagent dispatch**. Dispatches especially:
@@ -410,32 +410,32 @@ rather than after it.
 
 The distinction is **provenance**, not representation: a ce dimension is
 still a ce dimension after save-and-reopen, and a pdf dimension does not
-become a ce dimension because pdfce can see it.
+become a ce dimension because pdfcer can see it.
 
 ## How a typical Claude session goes
 
 1. **Read `docs/ROADMAP.md`** for current state.
 2. **Read the most recent `docs/SESSION_LOG.md` entry** for prior context.
 3. **Receive the operator's request.** Parse into Pass entries;
-   dispatch `pdfce-acrobat-librarian` if scoping a new Backlog bucket
+   dispatch `pdfcer-acrobat-librarian` if scoping a new Backlog bucket
    (so acceptance criteria are grounded in real Acrobat behavior),
-   then dispatch `pdfce-librarian` to add the entries to `ROADMAP.md`.
+   then dispatch `pdfcer-librarian` to add the entries to `ROADMAP.md`.
 4. **Work the in-progress Pass**, consulting the spec RAG for any
-   spec-governed behavior and dispatching `pdfce-ui-specialist` for
+   spec-governed behavior and dispatching `pdfcer-ui-specialist` for
    non-trivial UI decisions.
 5. **Ship the Pass**: tests green, `cargo tree` invariant verified,
    packaging smoke test run if packaging changed.
-6. **Dispatch `pdfce-librarian`** to move the entry to Shipped and
+6. **Dispatch `pdfcer-librarian`** to move the entry to Shipped and
    append a `SESSION_LOG.md` entry.
 7. **Brief the operator** on what changed, what to try, what's next.
 
 ## Outstanding open items (surface these proactively when relevant)
 
 - **`oxidize-pdf` (MIT) foundation-vs-scratch decision** — may already
-  cover most of `pdfce-core`'s scope; needs a dedicated audit before
+  cover most of `pdfcer-core`'s scope; needs a dedicated audit before
   Pass 1. See `docs/PRIOR_ART.md`'s "OPEN QUESTION" and `ROADMAP.md`
   Pass 0. Not yet decided — surface this before any from-scratch
-  `pdfce-core` scaffolding begins.
+  `pdfcer-core` scaffolding begins.
 - egui vs iced — not yet confirmed with the user (default: egui/eframe).
 - OSS license — **DECIDED: MIT** (operator, 2026-08-01; `LEGAL.md` §1,
   `ARCHITECTURE.md` §12). Consequence: AGPL/GPL prior art (MuPDF, Poppler,
@@ -454,7 +454,7 @@ become a ce dimension because pdfce can see it.
     XFA is `out_of_scope` — as of Acrobat 8.1+ it carries no AcroForm
     at all, so there is no Acrobat behaviour to match. Static-XFA
     *hybrid* field creation is **refused by name**, decided from
-    pdfce's own capability boundary rather than from Acrobat's: pdfce
+    pdfcer's own capability boundary rather than from Acrobat's: pdfcer
     can write the AcroForm half of a hybrid but not the XFA half, and a
     one-sided add would make an XFA-aware viewer and a plain viewer
     show different field counts for the same document.
@@ -494,15 +494,15 @@ become a ce dimension because pdfce can see it.
     feature mechanism that makes "both" affordable shipped as `Pass 70.0`
     (`fbcb946`) **one commit before** the decision that needs it.
   - **STILL OPEN — `ROADMAP.md` open operator question `(bl)`:** whether
-    a **CC-BY-SA-4.0 model file** may ship inside pdfce's **MIT** portable
+    a **CC-BY-SA-4.0 model file** may ship inside pdfcer's **MIT** portable
     folder. The pure-Rust engine (`ocrs`/`rten`) is **the only OCR route
-    that passes pdfce's wasm32 CI gate** — every alternative makes OCR the
+    that passes pdfcer's wasm32 CI gate** — every alternative makes OCR the
     first feature that cannot cross into the web fork — and its **weights
     are copyleft**. The Apache-2.0 alternative (PaddleOCR via `ocr-rs`)
     covers **50+ languages** but has **no WASM**. This is a legal reading,
     therefore Ken's. *Default if unanswered: ship neither model set.*
   - **Shipped meanwhile:** the engine-**independent** substrate
-    (`9f2af1d`, `pdfce-core::ocr`, ISO 32000-1 §9.3.6 Table 106 mode 3),
+    (`9f2af1d`, `pdfcer-core::ocr`, ISO 32000-1 §9.3.6 Table 106 mode 3),
     and `tools/check-shipped-assets.py` (`e3fb7e0`), which **enforces**
     that every redistributed asset states its licence — **enforcement is
     not acceptance.**
@@ -517,6 +517,6 @@ become a ce dimension because pdfce can see it.
   "sandwich" text-layer approach is the behavioral reference.
 - Poppler's exact license (GPL vs LGPL) — unresolved in `PRIOR_ART.md`,
   re-verify before it matters to any decision.
-- `pdfce-cli`'s exact subcommand surface — scoped incrementally,
+- `pdfcer`'s exact subcommand surface — scoped incrementally,
   feature by feature (see `ROADMAP.md`); Pass 0 only needs the `clap`
   scaffold + a minimal `inspect` subcommand.

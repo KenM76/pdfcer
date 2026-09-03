@@ -1,10 +1,10 @@
 # images — provenance and attribution
 
-Raster-image fixtures for **image placement** — `pdfce-core`'s
+Raster-image fixtures for **image placement** — `pdfcer-core`'s
 `image_import` module (PNG/JPEG/BMP → PDF image XObject),
-`EditSession::add_image`, and the `pdfce-cli add-image` subcommand. Used by
-`crates/pdfce-core/tests/image_placement.rs` and by the unit tests inside
-`crates/pdfce-core/src/image_import/`.
+`EditSession::add_image`, and the `pdfcer add-image` subcommand. Used by
+`crates/pdfcer-core/tests/image_placement.rs` and by the unit tests inside
+`crates/pdfcer-core/src/image_import/`.
 
 ## Source material and license (LEGAL.md §5, project rule 7)
 
@@ -17,14 +17,14 @@ downloaded from anywhere.
 
 Every PNG and BMP is written **byte by byte** with the Python standard
 library (`struct` + `zlib`), deliberately rather than through an imaging
-library. The fixtures that pin the **passthrough** branch assert that pdfce
+library. The fixtures that pin the **passthrough** branch assert that pdfcer
 reuses the source's compressed bytes *verbatim*, so those bytes have to be
 bytes this project chose — a PNG produced by Pillow would carry Pillow's
 choices about chunk order, per-row filter selection and compression level,
-and the test would then be pinning Pillow rather than pdfce.
+and the test would then be pinning Pillow rather than pdfcer.
 
 The JPEGs are the exception: a JPEG needs a real entropy coder, so they are
-encoded with **Pillow** (a developer-machine dependency only — never a pdfce
+encoded with **Pillow** (a developer-machine dependency only — never a pdfcer
 dependency; verified with Pillow 12.1.0) from the same authored pixel data.
 Two of them are then **patched** at the byte level, because no ordinary
 encoder will produce them (see `arithmetic.jpg` below).
@@ -82,7 +82,7 @@ orientation) and a non-square aspect ratio of 3:2 (which is what makes the
 
 | File | Pins |
 |---|---|
-| `interlaced.png` | Adam7. Refused **by name** (`PNG/interlaced`): each pass restarts the predictor's `Prior(x) = 0` rule and PDF has no interlacing, so the `IDAT` cannot be reused and pdfce has no de-interlacer. Built as a *legitimate* interlaced PNG (assembled pass by pass) rather than a file that merely sets the interlace byte, so that if a future Pass adds a de-interlacer the fixture is already a real test of it. |
+| `interlaced.png` | Adam7. Refused **by name** (`PNG/interlaced`): each pass restarts the predictor's `Prior(x) = 0` rule and PDF has no interlacing, so the `IDAT` cannot be reused and pdfcer has no de-interlacer. Built as a *legitimate* interlaced PNG (assembled pass by pass) rather than a file that merely sets the interlace byte, so that if a future Pass adds a de-interlacer the fixture is already a real test of it. |
 
 ### JPEG — the verbatim `/DCTDecode` branch
 
@@ -90,15 +90,15 @@ orientation) and a non-square aspect ratio of 3:2 (which is what makes the
 |---|---|
 | `rgb.jpg` | Baseline SOF0, 3 components → `/DeviceRGB`. The headline byte-identity assertion runs on this one. |
 | `gray.jpg` | Baseline SOF0, 1 component → `/DeviceGray`. |
-| `progressive.jpg` | **SOF2.** 14% of the JPEGs measured inside real PDFs (decision 005 §3.2), so "baseline is enough" is false. §7.4.8 makes it legal from PDF 1.3; pdfce embeds it unchanged and discloses NOTE 5's slower-decode caveat. |
-| `cmyk.jpg` | 4 components with an Adobe APP14 marker whose **transform byte is 0** — R30's exact shape: nothing in the file declares the stored polarity. pdfce embeds it unchanged, writes **no** `/Decode` (R29), and names the ambiguity. |
-| `exif-rot90.jpg` | EXIF `Orientation` = 6 (rotate 90° clockwise), written as a hand-built minimal APP1/IFD0 so the bytes are exactly what this project chose. Pins that pdfce applies the orientation in the **placement matrix** rather than re-encoding the pixels. |
+| `progressive.jpg` | **SOF2.** 14% of the JPEGs measured inside real PDFs (decision 005 §3.2), so "baseline is enough" is false. §7.4.8 makes it legal from PDF 1.3; pdfcer embeds it unchanged and discloses NOTE 5's slower-decode caveat. |
+| `cmyk.jpg` | 4 components with an Adobe APP14 marker whose **transform byte is 0** — R30's exact shape: nothing in the file declares the stored polarity. pdfcer embeds it unchanged, writes **no** `/Decode` (R29), and names the ambiguity. |
+| `exif-rot90.jpg` | EXIF `Orientation` = 6 (rotate 90° clockwise), written as a hand-built minimal APP1/IFD0 so the bytes are exactly what this project chose. Pins that pdfcer applies the orientation in the **placement matrix** rather than re-encoding the pixels. |
 
 ### JPEG — refusal
 
 | File | Pins |
 |---|---|
-| `arithmetic.jpg` | SOF9 (arithmetic entropy coding). Refused **by name** (`JPEG/arithmetic`). **Patched, not encoded**: libjpeg ships with arithmetic coding disabled and Pillow exposes no switch for it, so the only way to get this fixture is to rewrite the frame marker of `rgb.jpg` in place (byte offsets preserved). The entropy-coded data is then nonsense for an arithmetic decoder — which does not matter, because pdfce must refuse it at the **marker walk**, before any decoder sees it. That is precisely the property under test. |
+| `arithmetic.jpg` | SOF9 (arithmetic entropy coding). Refused **by name** (`JPEG/arithmetic`). **Patched, not encoded**: libjpeg ships with arithmetic coding disabled and Pillow exposes no switch for it, so the only way to get this fixture is to rewrite the frame marker of `rgb.jpg` in place (byte offsets preserved). The entropy-coded data is then nonsense for an arithmetic decoder — which does not matter, because pdfcer must refuse it at the **marker walk**, before any decoder sees it. That is precisely the property under test. |
 
 ### BMP — the decode-and-deflate branch
 

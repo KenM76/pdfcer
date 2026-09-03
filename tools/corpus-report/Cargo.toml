@@ -1,8 +1,8 @@
-# corpus-report — pdfce's out-of-tree corpus measurement harness.
+# corpus-report — pdfcer's out-of-tree corpus measurement harness.
 #
 # WHY THIS EXISTS (docs/ROADMAP.md Pass 1.1): Pass 1 shipped a parser +
 # renderer proven only against synthetic fixtures. This tool MEASURES
-# pdfce-core/pdfce-render against real, rights-cleared corpora (veraPDF
+# pdfcer-core/pdfcer-render against real, rights-cleared corpora (veraPDF
 # corpus, PDF Association PDF 2.0 examples — fetched by
 # fixtures/fetch-corpora.sh into the gitignored fixtures/external/) and
 # classifies every file: loads? page tree walks? first page renders?
@@ -38,5 +38,5 @@ publish = false
 [dependencies]
 # The crates under measurement, path-referenced so the harness fails to
 # compile (rather than silently drifting) if their APIs change under it.
-pdfce-core = { path = "../../crates/pdfce-core" }
-pdfce-render = { path = "../../crates/pdfce-render" }
+pdfcer-core = { path = "../../crates/pdfcer-core" }
+pdfcer-render = { path = "../../crates/pdfcer-render" }

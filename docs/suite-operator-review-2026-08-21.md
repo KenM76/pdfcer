@@ -4,7 +4,7 @@
 `tools/suite-check.py` structurally cannot see.** This file records his
 observations verbatim-in-substance, my verification of each, and the two
 instrument faults they expose. It exists because these are the only
-independent judgements of pdfce's suite output that have ever been taken —
+independent judgements of pdfcer's suite output that have ever been taken —
 every other number in this project came from the harness scoring itself.
 
 ---

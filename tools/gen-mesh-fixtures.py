@@ -126,7 +126,7 @@ class BitWriter:
         while len(self.bits) % 8:
             # Pad with 1s, not 0s. The clause says the pad bits "shall be
             # ignored"; padding with the value a lazy reader would find
-            # least convenient is the cheap way to prove pdfce ignores them.
+            # least convenient is the cheap way to prove pdfcer ignores them.
             self.bits.append(1)
 
     def bytes(self) -> bytes:
@@ -561,7 +561,7 @@ def main() -> None:
     files["type4_truncated.pdf"] = build(sh_dict(4, 3), full[: len(full) - 3])
 
     # MSH-A4: an Indexed mesh colour space. A literal reading permits it and
-    # would interpolate palette INDICES; pdfce refuses it by name instead.
+    # would interpolate palette INDICES; pdfcer refuses it by name instead.
     files["type4_indexed.pdf"] = build(
         sh_dict(
             4,

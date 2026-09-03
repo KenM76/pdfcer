@@ -1,6 +1,6 @@
 //! # `icc-census` — what ICC profiles real PDFs actually contain
 //!
-//! A population census of every ICC profile embedded in pdfce's rights-cleared
+//! A population census of every ICC profile embedded in pdfcer's rights-cleared
 //! corpus, answering the six axes the sibling colour project `iccce` asked for
 //! in `request_profile_population_census.md` (2026-08-17).
 //!
@@ -17,12 +17,12 @@
 //!
 //! A population distribution from real documents is the only evidence that
 //! settles it, and it cannot be manufactured by more careful reasoning on
-//! their side. pdfce has the corpus; they do not.
+//! their side. pdfcer has the corpus; they do not.
 //!
 //! ## ★ Why this tool does not violate the iccce boundary
 //!
 //! `ARCHITECTURE.md` §12 decision 064 gives `iccce` **all colour conversion**
-//! in this ecosystem, and pdfce must never grow a CMM.
+//! in this ecosystem, and pdfcer must never grow a CMM.
 //!
 //! **This tool converts nothing.** It reads the 128-byte profile header
 //! (ICC.1:2010 §7.2) and the tag **table** (§7.3) — an inventory of which tags
@@ -32,8 +32,8 @@
 //! evaluates a curve, applies a matrix, or interpolates a CLUT. It is an
 //! inventory of shapes, not a colour engine.
 //!
-//! It lives in `tools/` rather than in `pdfce-core` deliberately, so that the
-//! statement pdfce made to `iccce` on 2026-08-25 — *"nothing in pdfce has ever
+//! It lives in `tools/` rather than in `pdfcer-core` deliberately, so that the
+//! statement pdfcer made to `iccce` on 2026-08-25 — *"nothing in pdfcer has ever
 //! decoded an ICC profile"* — stays true of the shipping engine.
 //!
 //! ## Method, stated because a number without its method is not a claim
@@ -122,8 +122,8 @@ use std::time::{Duration, Instant};
 #[cfg(test)]
 mod tests;
 
-use pdfce_core::document::Document;
-use pdfce_core::object::Object;
+use pdfcer_core::document::Document;
+use pdfcer_core::object::Object;
 
 /// Default per-file wall-clock budget.
 ///
@@ -568,7 +568,7 @@ fn fingerprint(bytes: &[u8]) -> u64 {
 /// document's resource nesting.
 fn classify_into(
     value: &Object,
-    refs: &mut HashMap<pdfce_core::object::ObjId, Reference>,
+    refs: &mut HashMap<pdfcer_core::object::ObjId, Reference>,
     depth: u32,
 ) {
     if depth > 64 {
@@ -635,7 +635,7 @@ fn scan(doc: &Document) -> FileResult {
     // profiles it found into `Unclassified` — reported on the first smoke
     // run as 1 of 2, which reads as a finding about the corpus and was
     // really a finding about this loop.
-    let mut refs: HashMap<pdfce_core::object::ObjId, Reference> = HashMap::new();
+    let mut refs: HashMap<pdfcer_core::object::ObjId, Reference> = HashMap::new();
     for io in doc.objects() {
         classify_into(&io.value, &mut refs, 0);
     }
@@ -655,7 +655,7 @@ fn scan(doc: &Document) -> FileResult {
         let Some(raw) = stream.data_span.slice(doc.bytes()) else {
             continue;
         };
-        let decoded = match pdfce_core::filters::decode_stream(&stream.dict, raw) {
+        let decoded = match pdfcer_core::filters::decode_stream(&stream.dict, raw) {
             Ok(d) => d,
             Err(_) => {
                 // Only counted when the stream could plausibly have been a

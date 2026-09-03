@@ -128,7 +128,7 @@ def build(subtractive: bool) -> bytes:
 # claimed, and its own comment said so while concluding it was safe: "no patch
 # in the conformance corpus detects that". One does -- a `1 0 1 .5 k` mark under
 # such a shading lost its `K = 0.5` and vanished, sixteen times on one page.
-# **K is a plane pdfce HAS**, so this was ink being ERASED by a fix for ink
+# **K is a plane pdfcer HAS**, so this was ink being ERASED by a fix for ink
 # being DROPPED, not the missing per-spot-colorant plane.
 #
 # The tint transform: stack in `spot cyan`.  exch -> cyan spot | 0 -> cyan spot
@@ -145,7 +145,7 @@ def overprint_mixed(overprint: bool) -> bytes:
     WRITING THIS, recorded so the next author does not repeat them:
 
     1. **The page needs a `/Group` with `/CS /DeviceCMYK`.** Without a
-       subtractive blending space pdfce opens no colorant buffer, Table 149
+       subtractive blending space pdfcer opens no colorant buffer, Table 149
        never runs, and the overprint-on and overprint-off pages render
        IDENTICALLY -- the fixture asserts nothing while looking fine.
        `cmyk_buffer=0` was the tell.
@@ -216,7 +216,7 @@ def overprint_spot_only() -> bytes:
     No process colorant is NAMED, so the native-ink route must refuse and let
     the bridge paint. The page needs a `/Group` with `/CS /DeviceCMYK` for the
     same reason the fixture above does: without a subtractive blending space
-    pdfce opens no colorant buffer, Table 149 never runs, and the fixture
+    pdfcer opens no colorant buffer, Table 149 never runs, and the fixture
     asserts nothing while looking fine.
     """
     content = b"q /GS0 gs /Sh0 sh Q\n"
@@ -265,7 +265,7 @@ def spot_shading(*, pattern: bool, over_k: bool = False) -> bytes:
     `pattern=False` draws the shading with `sh` inside a clip; `pattern=True`
     fills the same rectangle with a `/PatternType 2` shading pattern -- the
     route the print-conformance suite's "shading" cells actually use, and
-    the one that bridged through sRGB for pdfce's whole life while `sh` had
+    the one that bridged through sRGB for pdfcer's whole life while `sh` had
     native ink routes since `Pass 122.6`.
     """
     # ★ `over_k`: the DISCRIMINATING geometry. On white paper a deposited spot

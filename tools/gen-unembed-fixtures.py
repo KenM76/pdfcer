@@ -1,9 +1,9 @@
-"""Generate the font-UNEMBEDDING fixtures for `pdfce_core::font_unembed`
+"""Generate the font-UNEMBEDDING fixtures for `pdfcer_core::font_unembed`
 (Pass 67.0 phase B).
 
 Phase A's `tools/gen-fontinfo-fixtures.py` covers the CLASSIFIER — one file
 per removability verdict. This generator covers what the classifier cannot
-reach: the STRUCTURAL hazards that only matter once pdfce starts deleting
+reach: the STRUCTURAL hazards that only matter once pdfcer starts deleting
 objects, and the disclosures that only matter once it does.
 
 Every file here exists to pin ONE branch, and each is named for that branch.
@@ -23,7 +23,7 @@ WHAT EACH FIXTURE PINS
 | File | Branch |
 |---|---|
 | `unembed-shared-program.pdf` | Two descriptors, ONE `/FontFile2` object. The removable font unembeds; the stream is **not freed** because a blocked font still reaches it. Deleting it would blank that font — the failure this fixture exists to make impossible. |
-| `unembed-shared-descriptor.pdf` | Two font dictionaries, ONE `/FontDescriptor` object. The removable font is **blocked outright** (`descriptor-shared`): editing that descriptor would unembed a font pdfce refused to touch. |
+| `unembed-shared-descriptor.pdf` | Two font dictionaries, ONE `/FontDescriptor` object. The removable font is **blocked outright** (`descriptor-shared`): editing that descriptor would unembed a font pdfcer refused to touch. |
 | `unembed-many-pages.pdf` | One font object reached from five pages. Deduplicated to one target listing five pages, and one deletion — not five. |
 | `unembed-acroform-dr.pdf` | A removable embedded font reachable ONLY from the AcroForm `/DR /Font` default-resource dictionary (§12.7.2). It has no page, so its `pages` list is empty and the operation must still work. |
 | `unembed-charset-cidset.pdf` | A descriptor carrying BOTH `/CharSet` (Table 122) and `/CIDSet` (Table 124, deliberately malformed on a simple font — see below). Both go with the program. |
@@ -158,7 +158,7 @@ def shared_program():
 #
 #    /F0 is removable, /F1 is symbolic-with-no-encoding — and both name
 #    object 6 as their /FontDescriptor. Removing /FontFile2 from object 6
-#    unembeds BOTH, including the one pdfce explicitly refused.
+#    unembeds BOTH, including the one pdfcer explicitly refused.
 #
 #    So /F0 is blocked, by name, with `descriptor-shared`. That is the
 #    refusal this fixture exists to prove fires; without it the operation

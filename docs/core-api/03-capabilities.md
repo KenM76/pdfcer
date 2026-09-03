@@ -1,15 +1,15 @@
-# pdfce-core consumer API — Part 3: the feature capabilities
+# pdfcer-core consumer API — Part 3: the feature capabilities
 
 > **★ `crates/pdfce-gui/...` citations.** That crate was removed from this
 > workspace in `Pass 247.0`. Every `pdfce@cce414e:crates/pdfce-gui/...`
 > reference below is a *reference implementation* frozen at the last commit
 > that carried it — read it with
 > `git -C D:\Dev\pdfce show cce414e:crates/pdfce-gui/src/<file>` (the
-> untouched backup repository) or on GitHub at `KenM76/pdfce`. The shipping
+> untouched backup repository) or on GitHub at `KenM76/pdfce` (archived). The shipping
 > GUI is the separate `pdfcer-gui` project.
 
 **Audience.** An engineer or agent building a new GUI shell at
-`D:\dev\pdfceGUI` against this workspace's crates, in a different session,
+`D:\dev\pdfcer-gui` against this workspace's crates, in a different session,
 with no way to ask questions here. This is not rustdoc. It answers one
 question per capability: *I want to build the panel for feature X — what do
 I call, in what order, what must I SHOW the operator, and what will bite me?*
@@ -23,13 +23,13 @@ Every symbol below was read out of the tree at that commit and is cited
 
 | § | Capability | crate / module |
 |---|---|---|
-| 1 | **ce dimensions** — groups, scale/units, the `Pass 69.0` style cascade, `Pass 69.1` tolerance, authoring, the `/PieceInfo` sidecar | `pdfce_core::dimension`, verbs on `EditSession` |
-| 2 | **Forms (AcroForm)** — read, fill, flatten, author, data interchange, script census | `pdfce_core::{forms, forms_author, fdf, formcsv, form_script, richtext, vartext}` |
-| 3 | **Annotations & markup** | `pdfce_core::{annot, annot_author}` |
-| 4 | **Redaction** | `pdfce_core::redact` |
-| 5 | **OCR substrate** (no engine wired) | `pdfce_core::ocr` |
-| 6 | **Print & imposition** | `pdfce-print` |
-| 7 | **Rasterising a page for display** | `pdfce-render` |
+| 1 | **ce dimensions** — groups, scale/units, the `Pass 69.0` style cascade, `Pass 69.1` tolerance, authoring, the `/PieceInfo` sidecar | `pdfcer_core::dimension`, verbs on `EditSession` |
+| 2 | **Forms (AcroForm)** — read, fill, flatten, author, data interchange, script census | `pdfcer_core::{forms, forms_author, fdf, formcsv, form_script, richtext, vartext}` |
+| 3 | **Annotations & markup** | `pdfcer_core::{annot, annot_author}` |
+| 4 | **Redaction** | `pdfcer_core::redact` |
+| 5 | **OCR substrate** (no engine wired) | `pdfcer_core::ocr` |
+| 6 | **Print & imposition** | `pdfcer-print` |
+| 7 | **Rasterising a page for display** | `pdfcer-render` |
 
 **What this part does NOT cover — go to the sibling documents**
 
@@ -45,19 +45,19 @@ one undo entry unless stated otherwise.
 **Terminology (project `CLAUDE.md` rule 15) — binding on any shell that
 renders these words.**
 
-- **ce dimension** — a dimension **pdfce authors**: a `/Line` +
+- **ce dimension** — a dimension **pdfcer authors**: a `/Line` +
   `/IT /LineDimension` annotation with a baked `/AP`, its group, its
   `/Measure` dict and its `/PieceInfo` sidecar record. Authored, editable,
   deletable, re-measurable. Everything in §1.
 - **pdf dimension** — a dimension already in the file, exported by CAD or
-  another authoring tool. Ordinary page content. pdfce reads it and measures
+  another authoring tool. Ordinary page content. pdfcer reads it and measures
   against it and **must not silently alter it**.
 
 Never write a bare "dimension" in the shell's own UI strings, error text,
 logs or docs. The distinction is **provenance**, not representation.
 
 **The rule that shapes this document — project rule 4, "fuzzy, never
-sneaky".** Anything pdfce **inferred** — a best-fit circle and its residual,
+sneaky".** Anything pdfcer **inferred** — a best-fit circle and its residual,
 a snapped point, a near-parallel classification, an auto-detected form field,
 an OCR word and its confidence, a substituted font, a reflow that overflows —
 must be **disclosed** rather than applied silently. Each capability below
@@ -97,7 +97,7 @@ skips one ships a rule-4 violation and will not know it has.
 >
 > One-line test: *would a screenshot of the editing canvas differ from a
 > screenshot of the same document saved and reopened?* If yes, and the
-> difference is pdfce marking its own uncertainty, that is the defect.
+> difference is pdfcer marking its own uncertainty, that is the defect.
 
 **Reading the core/cli/gui state.** Taken from `docs/FEATURES.md` at this
 commit. `gui [ ]` is **not** a missing feature — it is a capability whose
@@ -130,7 +130,7 @@ panel. Read it before designing anything; do not re-derive it.
 - Author a ce dimension of three kinds: **linear** (with an axis
   constraint), **circular** (best-fit circle, displayed as radius *or*
   diameter — one geometry, a display flag), and **angular** (`Pass 68.0`).
-  `crates/pdfce-core/src/dimension/group.rs:153`.
+  `crates/pdfcer-core/src/dimension/group.rs:153`.
 - Named **groups** carrying scale, number format (decimal / fraction /
   feet-inches), decimal marker, drafting standard (ANSI/ISO), an OCG layer,
   and a group-tier style. `group.rs:50`.
@@ -168,7 +168,7 @@ panel. Read it before designing anything; do not re-derive it.
 
 | call | returns | `file:line` |
 |---|---|---|
-| `EditSession::dimension_model(&self) -> DimensionModel` | the whole model, cloned out of the `/PieceInfo` sidecar | `crates/pdfce-core/src/edit.rs:15361` |
+| `EditSession::dimension_model(&self) -> DimensionModel` | the whole model, cloned out of the `/PieceInfo` sidecar | `crates/pdfcer-core/src/edit.rs:15361` |
 | `EditSession::dimension_rects(&self, page_index) -> Vec<(DimensionId, [f64;4])>` | hit rectangles for the canvas, filtered by the annotation's own `/P` | `edit.rs:15645` |
 | `EditSession::dimension_groups_on_page(&self, page_index) -> Vec<GroupId>` | which groups have members on this page | `edit.rs:15725` |
 
@@ -195,7 +195,7 @@ document. Every persistent change goes through an `EditSession` verb below.
 | `delete_dimension(dimension)` | `Result<(), EditError>` — annotation + `/AP` + sidecar together | `edit.rs:16178` |
 
 **Pure helpers a panel calls without an `EditSession`** (all in
-`pdfce_core::dimension`, re-exported at `dimension/mod.rs:77-97`):
+`pdfcer_core::dimension`, re-exported at `dimension/mod.rs:77-97`):
 
 - `resolve_style(&Group, &StyleOverrides) -> DimensionStyle` — `style.rs:479`
 - `style_provenance(&Group, &StyleOverrides) -> StyleProvenance` — `style.rs:526`
@@ -207,7 +207,7 @@ document. Every persistent change goes through an `EditSession` verb below.
 - `author_from_two_lines(&PickedLine, &PickedLine, ParallelPolicy, TwoLinePlacement) -> Result<TwoLineAuthoring, TwoLineRefusal>` — `two_lines.rs:248`
 - `author_dimension(&DimensionKind, DimensionStyle) -> AuthoredDimension` — `author.rs:279`; the `/AP` baker. `AuthoredDimension::label` (`author.rs:240`) is **the exact string baked into the page** — see trap (b).
 
-Geometry the canvas needs comes from `pdfce_core::vector`:
+Geometry the canvas needs comes from `pdfcer_core::vector`:
 `decompose_page(&DocumentView, &Page, Matrix) -> Result<PageObjects, ContentError>`
 (`vector/decompose.rs:1293`), then
 `snap_candidates(Point, &SnapConfig, &PageObjects) -> Vec<SnapCandidate>`
@@ -227,17 +227,17 @@ Pass; everything else is additive.**
 
 **(a) Calibrate a group, then author a linear ce dimension.** This is the
 shape the integration test uses —
-`crates/pdfce-core/tests/dimension_roundtrip.rs:113-126`.
+`crates/pdfcer-core/tests/dimension_roundtrip.rs:113-126`.
 
 ```rust
-use pdfce_core::dimension::{
+use pdfcer_core::dimension::{
     DEFAULT_GROUP_ID, DimensionKind, NumberFormat, ScaleEntry, ScaleState, Unit,
     preview_group_scale,
 };
-use pdfce_core::document::Document;
-use pdfce_core::edit::EditSession;
-use pdfce_core::vector::{AxisConstraint, Point};
-use pdfce_core::writer::SaveOptions;
+use pdfcer_core::document::Document;
+use pdfcer_core::edit::EditSession;
+use pdfcer_core::vector::{AxisConstraint, Point};
+use pdfcer_core::writer::SaveOptions;
 
 fn calibrate_and_dimension(bytes: Vec<u8>) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let mut session = EditSession::new(Document::from_bytes(bytes)?);
@@ -281,10 +281,10 @@ fn calibrate_and_dimension(bytes: Vec<u8>) -> Result<Vec<u8>, Box<dyn std::error
 Mirrors `pdfce@cce414e:crates/pdfce-gui/src/measure_tool.rs:459-469`.
 
 ```rust
-use pdfce_core::dimension::{
+use pdfcer_core::dimension::{
     DEFAULT_GROUP_ID, TwoLinePlacement, TwoLineRefusal, author_from_two_lines,
 };
-use pdfce_core::vector::linepick::{ParallelPolicy, PickedLine, measured_angle_degrees};
+use pdfcer_core::vector::linepick::{ParallelPolicy, PickedLine, measured_angle_degrees};
 
 struct Disclosure {
     measured_angle_degrees: Option<f64>,
@@ -298,7 +298,7 @@ fn two_line_preview(
     b: &PickedLine,
     epsilon_degrees: f64, // Settings::parallel_epsilon_degrees — NEVER a literal
     operator_ticked_treat_as_parallel: bool,
-) -> Result<(pdfce_core::dimension::DimensionKind, Disclosure), TwoLineRefusal> {
+) -> Result<(pdfcer_core::dimension::DimensionKind, Disclosure), TwoLineRefusal> {
     let mut policy = ParallelPolicy::from_setting(epsilon_degrees);
     if operator_ticked_treat_as_parallel {
         policy = policy.forcing_parallel();
@@ -325,9 +325,9 @@ fn two_line_preview(
 — the `gui [ ]` panel.**
 
 ```rust
-use pdfce_core::dimension::{StyleOverrides, StyleSource, resolve_style, style_provenance};
+use pdfcer_core::dimension::{StyleOverrides, StyleSource, resolve_style, style_provenance};
 
-fn style_rows(session: &pdfce_core::edit::EditSession, dim: pdfce_core::dimension::DimensionId) {
+fn style_rows(session: &pdfcer_core::edit::EditSession, dim: pdfcer_core::dimension::DimensionId) {
     let model = session.dimension_model();
     let record = model.dimension(dim).expect("live id");
     let group = model.group(record.group).expect("every record has a group");
@@ -352,8 +352,8 @@ the current struct, change one field, pass the whole thing back
 
 ### 1.5 ★ What the UI must disclose
 
-**Everything a ce dimension shows is derived** — from geometry pdfce fitted,
-a scale the operator calibrated, and a cascade pdfce resolved. Six concrete
+**Everything a ce dimension shows is derived** — from geometry pdfcer fitted,
+a scale the operator calibrated, and a cascade pdfcer resolved. Six concrete
 obligations:
 
 1. **The best-fit circle's residual.** `FitCircle::residual`
@@ -516,10 +516,10 @@ derivations of a display value: the properties pane read `77.5°` while the
   ce-dimension mutation first calls `check_dimension_sidecar()`
   (`edit.rs:16917`) and refuses if the document's `/PieceInfo` sidecar
   version exceeds `SIDECAR_VERSION` (read the constant — `grep 'pub const
-  SIDECAR_VERSION' crates/pdfce-core/src/dimension/sidecar.rs`; it was `2` when
+  SIDECAR_VERSION' crates/pdfcer-core/src/dimension/sidecar.rs`; it was `2` when
   this line was written, `3` when it was next read and `4` now, and the line
   number moved every time). Surface
-  it as *"this file's ce dimensions were written by a newer pdfce"*, not as a
+  it as *"this file's ce dimensions were written by a newer pdfcer"*, not as a
   generic failure.
 - **Kind-mismatch refusals.** `set_dimension_display` refuses a
   non-circular target with `EditError::NotACircularDimension`
@@ -556,11 +556,11 @@ derivations of a display value: the properties pane read `77.5°` while the
 named `forms`, `forms_author`, `fdf`, `formcsv`, `form_script`, `richtext`
 and `vartext` are **read / parse / serialise only**. *Every* mutating verb —
 fill, flatten, create, delete, rename, move, reset, import — is a method on
-**`EditSession`** in `crates/pdfce-core/src/edit.rs`. A shell that goes
+**`EditSession`** in `crates/pdfcer-core/src/edit.rs`. A shell that goes
 looking for `forms::fill(…)` will not find it.
 
 Nothing is re-exported at the crate root (`lib.rs:84-123` are plain
-`pub mod`), so spell the full path: `pdfce_core::forms::parse_acroform`.
+`pub mod`), so spell the full path: `pdfcer_core::forms::parse_acroform`.
 
 ### 2.1 State, and where the opportunities are
 
@@ -593,7 +593,7 @@ those by reference.
 **Read the tree.**
 
 ```rust
-pdfce_core::forms::parse_acroform<G: ObjectGraph + ?Sized>(graph: &G) -> Option<AcroForm>
+pdfcer_core::forms::parse_acroform<G: ObjectGraph + ?Sized>(graph: &G) -> Option<AcroForm>
 ```
 `forms.rs:955`. Generic over `ObjectGraph`, so it runs over a `Document`
 **and** over a live edit overlay (`&session.graph()`) — `forms.rs:945-948`.
@@ -625,13 +625,13 @@ added to prevent.**
 
 `BorderSpec::default()` is *solid, one point* — Table 166's own defaults,
 chosen so that **authoring** a widget without specifying a border reproduces
-the bytes pdfce has always written. That is correct for a writer and a lie
+the bytes pdfcer has always written. That is correct for a writer and a lie
 from a reader. A properties control seeded from it would display *Solid, 1 pt*
 over a widget whose file says nothing, and **the operator's first press would
 write that invention into their document**, silently replacing a border they
 never looked at.
 
-`pdfceGUI` refused to ship the control rather than do that, and cited pdfce's
+`pdfcer-gui` refused to ship the control rather than do that, and cited pdfcer's
 own precedent: the text-colour swatch shows *a sentence* rather than a
 nearest-RGB approximation for a run painted in DeviceCMYK, because a swatch
 showing ink as RGB would write that RGB back on the next press. Same failure,
@@ -647,12 +647,12 @@ A width of **0** is a value ("no border", Table 166), never an absence.
 
 **`visibility: Option<Visibility>` is exact-or-`None`, and `annot_flags`
 carries the raw `/F` beside it.** `Visibility` is deliberately the four
-combinations pdfce can *set*, out of a flag word that admits dozens. That
+combinations pdfcer can *set*, out of a flag word that admits dozens. That
 makes it a good authoring type and an incomplete reading one: a file may
 legitimately carry `Print | NoZoom`. Collapsing such a widget onto the nearest
 of the four would be the border defect wearing a different hat, so the mapping
 refuses and `annot_flags` lets a control say *"these flags are not something
-pdfce can set"* instead of showing nothing or showing a lie.
+pdfcer can set"* instead of showing nothing or showing a lie.
 
 `/F` absent is `0` per Table 164, which **is** one of the four (`ScreenOnly`) —
 so `None` always means *present and unmappable*, never *absent*.
@@ -662,7 +662,7 @@ already modelled here for the same reason, in its own words: modelling it is
 what lets a caption be listed, copied and compared. A border is the same kind
 of fact, and a second locator would be a second way to reach it.
 
-CLI: `pdfce-cli list-fields --widgets` prints one line per widget with rect,
+CLI: `pdfcer list-fields --widgets` prints one line per widget with rect,
 border, visibility, raw flags and appearance state. Per **widget**, not per
 field, because a field may own several widgets with different ones — a single
 field-level column would be a lie the moment a field has two.
@@ -723,10 +723,10 @@ Document-wide counters come from `forms::scan_javascript(graph) -> FormJavaScrip
 ### 2.3 Minimal worked sequences
 
 **(a) Open → read the tree → fill → save.** Read idiom from
-`crates/pdfce-core/tests/form_field_authoring.rs:49-54`.
+`crates/pdfcer-core/tests/form_field_authoring.rs:49-54`.
 
 ```rust
-use pdfce_core::{document::Document, edit::EditSession, forms, writer::SaveOptions};
+use pdfcer_core::{document::Document, edit::EditSession, forms, writer::SaveOptions};
 
 fn fill(bytes: Vec<u8>) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let mut session = EditSession::new(Document::from_bytes(bytes)?);
@@ -756,7 +756,7 @@ fn fill(bytes: Vec<u8>) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
 ```
 
 **(b) Selective flatten — the `gui [ ]` opportunity.** From
-`crates/pdfce-core/tests/form_field_hierarchy.rs:466-474` and `:246-259`.
+`crates/pdfcer-core/tests/form_field_hierarchy.rs:466-474` and `:246-259`.
 
 ```rust
 // Appearances first: flatten burns the artwork, so there must be artwork.
@@ -769,10 +769,10 @@ let out = session.flatten_fields(Some(&["Personal.Address.Zip", "Personal.Addres
 
 **(c) Script recompute — plan, show, then apply.** The borrow shape is
 load-bearing; copied from `pdfce@cce414e:crates/pdfce-gui/src/main.rs:8014-8021` and
-`crates/pdfce-cli/src/main.rs:9712-9715`.
+`crates/pdfcer-cli/src/main.rs:9712-9715`.
 
 ```rust
-use pdfce_core::form_script::{calc::CommaPolicy, recompute};
+use pdfcer_core::form_script::{calc::CommaPolicy, recompute};
 
 // `session.view()` borrows immutably — the plan MUST be produced in a scope
 // that ends before any &mut fill.
@@ -784,7 +784,7 @@ let plan = {
 // Show the plan. Nothing has changed yet. Skipped rows FIRST (see §2.5).
 for s in &plan.skipped { let _ = (&s.field, &s.reason); }
 for c in &plan.changes { let _ = (&c.field, &c.previous, &c.proposed, &c.disclosure); }
-let _order_is_a_guess = plan.order_source.is_pdfce_choice();
+let _order_is_a_guess = plan.order_source.is_pdfcer_choice();
 let _zeros = plan.coerced_operands();
 
 // Only after the operator accepts. There is NO EditSession::apply_recompute —
@@ -797,27 +797,27 @@ for c in plan.changes {
 ### 2.4 ★ What the UI must disclose
 
 Forms are the densest disclosure surface in the crate. Every row below is a
-value pdfce **inferred, substituted or declined** and each has a field on an
+value pdfcer **inferred, substituted or declined** and each has a field on an
 outcome struct precisely so the shell can render it — they exist to be shown,
 not to be logged.
 
 **On every fill** (`FillOutcome`, `edit.rs:5756`):
 
 1. **`xfa_may_disagree`** (`edit.rs:5769-5791`). The document also carries an
-   XFA packet; pdfce filled the AcroForm half and **cannot write the XFA
+   XFA packet; pdfcer filled the AcroForm half and **cannot write the XFA
    half**, so an XFA-aware viewer may show the old value. *"Nothing about the
    saved file looks wrong"* — which is exactly why the shell must say it. Note
    the deliberate asymmetry: **filling succeeds and discloses; field
    *creation* is refused outright** with `EditError::FieldAuthoringRefusedXfa`
    (`edit.rs:2492-2502`), because a one-sided add makes two viewers disagree
    about how many fields the document has.
-2. **`applied_autosize`** (`edit.rs:5828`, `vartext.rs:228-232`) — pdfce
+2. **`applied_autosize`** (`edit.rs:5828`, `vartext.rs:228-232`) — pdfcer
    *chose* the point size by its own heuristic; auto-size is not specified.
    That is an inference. Show the number it picked.
 3. **`unencodable_chars`** (`edit.rs:5830`, `vartext.rs:233-235`) — characters
    replaced with `?` because WinAnsi could not encode them. Silent character
    loss is the worst kind.
-4. **`need_appearances_cleared`** (`edit.rs:5826`) — pdfce cleared the
+4. **`need_appearances_cleared`** (`edit.rs:5826`) — pdfcer cleared the
    producer's "appearances are stale" flag on output.
 
 **On rich text.** `fill_text_field` **refuses** a rich-text field outright
@@ -830,19 +830,19 @@ plain appearance (`edit.rs:12492-12502`). Formatting is lost. Also:
 the import (`edit.rs:13534-13538`), so `ImportOutcome::skipped` must be shown
 — an import that reports "done" while silently dropping entries is the sneaky
 case. And rendering rich text at all *"is policy, not conformance"*
-(`richtext.rs:75-90`): pdfce's choice, disclosed as pdfce's choice.
+(`richtext.rs:75-90`): pdfcer's choice, disclosed as pdfcer's choice.
 
 **On the script census / recompute** — the whole feature is a disclosure
 feature:
 
-5. **pdfce never runs the script.** Every branch of `Disclosure::message()`
+5. **pdfcer never runs the script.** Every branch of `Disclosure::message()`
    says so, repetitively and on purpose (`form_script/disclose.rs:92-97`) —
    it is *"the single fact most likely to be assumed away by a reader who has
    used Acrobat, and the one whose absence would turn a careful disclosure
    into a false claim of authority."* Do not deduplicate that sentence out of
    the UI.
-6. **The calculation order may be pdfce's guess.** `RecomputePlan::order_source`
-   with `is_pdfce_choice()` (`recompute.rs:95-124`) plus
+6. **The calculation order may be pdfcer's guess.** `RecomputePlan::order_source`
+   with `is_pdfcer_choice()` (`recompute.rs:95-124`) plus
    `unlisted_calculations`. The existing GUI renders it in the warning colour
    (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:7952-7957`).
 7. **Blank and non-numeric operands were counted as ZERO**, not skipped —
@@ -851,10 +851,10 @@ feature:
    intuitive reimplementation ('skip what isn't a number') is wrong."*
 8. **List the skipped fields BEFORE the proposed changes.** The existing GUI
    does (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:7957-7968`) and it is the right order:
-   what pdfce declined to compute matters more than what it did.
+   what pdfcer declined to compute matters more than what it did.
 9. **Never auto-run recompute on open** (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:7930-7933`).
 10. **`Field::has_additional_actions`** (`forms.rs:544-548`) — the value shown
-    is *as stored*, possibly stale, because pdfce does not recompute `/CO`
+    is *as stored*, possibly stale, because pdfcer does not recompute `/CO`
     automatically. Badge the field.
 
 **On CSV export.** `CsvExport::neutralised`, `.neutralised_fields` and
@@ -862,7 +862,7 @@ feature:
 evaluate as formulae get a `'` prefix. The PDF is unchanged; the change is
 **visible, not silent**; and it is **reversible on import** (`parse_csv`
 strips it). `formcsv.rs:30-38` names the hazard, including
-`=WEBSERVICE(…)` reaching the network — a capability pdfce refuses itself.
+`=WEBSERVICE(…)` reaching the network — a capability pdfcer refuses itself.
 
 **On authoring a field** (`FieldAuthorDisclosures`, `edit.rs:1006-1035`):
 
@@ -1001,7 +1001,7 @@ count by exactly that many.
   **`CommaPolicy::default()` refuses to guess** the decimal separator,
   because pdf.js's first-comma rewrite turns `1,234` into `1.234` — a
   thousand-fold error (`calc.rs:594-598`).
-- **A script pdfce could not read is always `Custom`** by construction, never
+- **A script pdfcer could not read is always `Custom`** by construction, never
   optimistically a known built-in (`inventory.rs:56-63`); a `/JS` carried as
   a **stream** is still classified, because *"a form whose scripts all live in
   streams would otherwise be reported script-free"* (`inventory.rs:321-324`).
@@ -1052,7 +1052,7 @@ two routes.** `MarkupOptions::note` at author time (`Pass 150.0`) and
 > ### ★★★ What this paragraph used to say, and why it is struck rather than deleted
 >
 > It read: *"geometric markup cannot carry note text … a Comments panel will
-> therefore show 'no note text' on every shape pdfce itself drew — **expected,
+> therefore show 'no note text' on every shape pdfcer itself drew — **expected,
 > not missing data**, and the shell must say so in those words."*
 >
 > ★ Those last words are the problem. This was not merely a stale statement of
@@ -1075,7 +1075,7 @@ two routes.** `MarkupOptions::note` at author time (`Pass 150.0`) and
 TO BUILD SOMETHING THAT NOW EXISTS.** It read, in full:
 
 > ~~"There is no `move_annotation` / `resize_annotation` / `set_annot_rect`
-> anywhere in `pdfce-core` (verified absent). Geometry is fixed at gesture
+> anywhere in `pdfcer-core` (verified absent). Geometry is fixed at gesture
 > end; repositioning is *"Discard-and-replace"*. Only deletion is available
 > afterwards. **Do not design a shell around dragging a placed markup; the
 > verb does not exist.**"~~
@@ -1091,7 +1091,7 @@ That class needs a reader, and it got one.
 
 **What is true now.** `EditSession::move_annotation(annot_id, dx, dy)`
 (`Pass 149.0`) translates `/Rect` **and every geometry key** — see
-`02-editing-and-saving.md`. CLI: `pdfce-cli move-annotation`.
+`02-editing-and-saving.md`. CLI: `pdfcer move-annotation`.
 
 **Both are now built.** `resize_annotation` (`Pass 151.0`) and
 `rotate_annotation` (`Pass 155.0`), for markup, redaction marks and links
@@ -1184,12 +1184,12 @@ refuses at `/P` 1 and 2 and **permits at `/P` 3** (§12.8.2.2 Table 254); `/P`
 
 ### 3.3 Minimal worked sequence
 
-From `crates/pdfce-core/src/edit.rs:18980-19022` and its round-trip sibling
+From `crates/pdfcer-core/src/edit.rs:18980-19022` and its round-trip sibling
 at `:19029-19060`.
 
 ```rust
-use pdfce_core::annot_author::{Color, MarkupSpec, build_appearance};
-use pdfce_core::{annot, edit::EditSession, object::Rect};
+use pdfcer_core::annot_author::{Color, MarkupSpec, build_appearance};
+use pdfcer_core::{annot, edit::EditSession, object::Rect};
 
 fn draw_a_square(session: &mut EditSession) -> Result<(), Box<dyn std::error::Error>> {
     let spec = MarkupSpec::Square {
@@ -1212,7 +1212,7 @@ fn draw_a_square(session: &mut EditSession) -> Result<(), Box<dyn std::error::Er
 }
 
 // Enumerate for a Comments panel — over the LIVE overlay, not the base revision.
-fn comments(session: &EditSession, page_id: pdfce_core::object::ObjId) {
+fn comments(session: &EditSession, page_id: pdfcer_core::object::ObjId) {
     for a in annot::page_annotations(&session.graph(), page_id) {
         let _ = (a.subtype_label(), a.contents.as_deref(), a.title.as_deref(),
                  a.mod_date.as_deref(), a.flags.suppressed_on_screen());
@@ -1230,7 +1230,7 @@ fn comments(session: &EditSession, page_id: pdfce_core::object::ObjId) {
    `:6145-6146`. Undo labels must distinguish the two as well
    (`ui_text.rs:4825-4834`: *"remove a redaction mark"*, deliberately never
    *"undo redaction"*).
-2. **Shapes pdfce drew carry no note text — say it is expected.** See limit 1.
+2. **Shapes pdfcer drew carry no note text — say it is expected.** See limit 1.
    A bare "No note text" column reads as data loss.
 3. **The collateral of a deletion, before it happens.**
    `annotation_deletion_preview` (`edit.rs:11316`) returns the same
@@ -1238,7 +1238,7 @@ fn comments(session: &EditSession, page_id: pdfce_core::object::ObjId) {
    **orphaned**, whether the popup goes, how many group members get
    **promoted**. Show it before the delete. ⚠️ But see the preview's own
    limits in §3.5 — it is not a perfect oracle.
-4. **`Appearance::StateUnresolved`** (`annot.rs:271-278`) — pdfce *"displays
+4. **`Appearance::StateUnresolved`** (`annot.rs:271-278`) — pdfcer *"displays
    nothing and does not guess a first / `On` / `Off` key."* A blank annotation
    with no explanation looks like a rendering bug; say the appearance state
    could not be resolved. The governing setting is
@@ -1303,7 +1303,7 @@ That is a distinct failure and this section is the repair for it.
 | the operator's button | field on `FormatRequest` | works? |
 |---|---|---|
 | **size** | `set_size: Option<f64>` | ✅ always. Changes only the `Tf` operand; the line is relaid out and `advance_delta` is reported |
-| **colour** | `set_fill: Option<NewFill>` | ✅ always. **Stores the chosen device space** (`rgb:`→`rg`, `cmyk:`→`k`, `gray:`→`g`) — pdfce does *not* force-convert to DeviceRGB the way Acrobat does. A run originally painted in a non-device space is disclosed as a narrowing conversion |
+| **colour** | `set_fill: Option<NewFill>` | ✅ always. **Stores the chosen device space** (`rgb:`→`rg`, `cmyk:`→`k`, `gray:`→`g`) — pdfcer does *not* force-convert to DeviceRGB the way Acrobat does. A run originally painted in a non-device space is disclosed as a narrowing conversion |
 | **face** | `set_font: Option<FontSelector>` | ⚠️ **only to a font that is ALREADY a resource on the page** — see below |
 | **bold** | `set_synthetic` (`StyleSynthesis`) | ✅ **on any page**, as a disclosed *synthetic* weight — see §3.6.1 |
 | **italic** | `set_synthetic` | ✅ as a disclosed *synthetic* slant, except where a `Td`/`TD`/`T*` follows the run in the same text object — refused by name, §3.6.1 |
@@ -1323,13 +1323,13 @@ find, the whole pinned show operator is the target**, spelled
 does not translate that decision between the two verbs. Form XObject content
 is reachable (`Pass 119.2`).
 
-CLI: `pdfce-cli format-text --set-size / --set-color / --set-font / …`.
+CLI: `pdfcer format-text --set-size / --set-color / --set-font / …`.
 
 ### ★ The one real limit, and it is a property of the DOCUMENT
 
 ```
-$ pdfce-cli format-text runs-two-explicit.pdf --find ALPHA       --set-font Helvetica-Bold --output bold.pdf
-pdfce-cli: format-text refused: the target font "Helvetica-Bold" is not an
+$ pdfcer format-text runs-two-explicit.pdf --find ALPHA       --set-font Helvetica-Bold --output bold.pdf
+pdfcer: format-text refused: the target font "Helvetica-Bold" is not an
 existing font resource on this page; adding a new font resource / embedding
 a new face is deferred (FF-C)
 ```
@@ -1350,7 +1350,7 @@ consuming project before it was checked.** It is corrected here rather than
 quietly deleted, because the *shape* of the error is worth more than the fact:
 **I measured `set_font`'s refusal, found it real, and inferred a capability
 gap from a single verb — without asking whether a second verb reached the
-same operator goal.** An absence claim about pdfce is a claim about *all*
+same operator goal.** An absence claim about pdfcer is a claim about *all*
 routes, and it was checked against one.
 
 `FormatRequest::set_synthetic` shipped in **`Pass 19.2`** (`ebe35d8`,
@@ -1361,7 +1361,7 @@ Measured on §3.6's own worked example — the *same* Helvetica-only page whose
 `--set-font Helvetica-Bold` refusal is quoted above:
 
 ```
-$ pdfce-cli format-text runs-two-explicit.pdf --find ALPHA       --bold-synthetic --output bold.pdf
+$ pdfcer format-text runs-two-explicit.pdf --find ALPHA       --bold-synthetic --output bold.pdf
     - synthetic bold: the run is painted in text rendering mode 2 (fill,
       THEN stroke — §9.3.6 Table 106) with a stroke width of 0.22 …
 ```
@@ -1374,7 +1374,7 @@ next is the POSTURE's** (`Pass 179.2`, decision 106). *Available* still means
 |---|---|---|
 | `auto` *(default)* | synthesis is **applied**, and the face is named in `FormatReport::real_face_passed_over` | synthesis applies |
 | `warn` | the same, and the shell should surface it prominently | synthesis applies |
-| `refuse` | **refused**, quoting the exact selector to retry with — pdfce's behaviour before this was a choice | synthesis applies |
+| `refuse` | **refused**, quoting the exact selector to retry with — pdfcer's behaviour before this was a choice | synthesis applies |
 
 This paragraph previously said, flatly, that synthesis *"is refused"*. That was
 true of every build up to `0.16.0` and is now true only of `refuse`.
@@ -1388,18 +1388,18 @@ is stable — and NOT *"will this be refused"*, which is not.
 > It used to end: ~~"So between the two verbs, **every page is covered**: where
 > a real Bold exists, `set_font` uses it and synthesis is refused; where none
 > exists, synthesis applies and `set_font` refuses."~~ **That was not true**,
-> and it was sent to `pdfceGUI` in that form.
+> and it was sent to `pdfcer-gui` in that form.
 >
 > `gate_synthesis` decided *"a real face is available"* from two string tests
 > on `/BaseFont` — a family-stem comparison and a search for `bold`/`black`/
 > `heavy`/`semib` — and asked nothing about whether that face could show the
-> run's characters. On pdfce's own fixture
+> run's characters. On pdfcer's own fixture
 > `fixtures/synthetic/textedit/format_family.pdf` it named `/F3`
 > (`Times-Bold`), whose `/Encoding /Differences` reassigns the code for `o`;
 > `--set-font Times-Bold` then refused for coverage, and `/F2` — a bold face on
 > the same page that **does** cover the run — was named by neither refusal.
 > **Both verbs refused. Bold was unreachable on that page** for anyone who did
-> not already know to try a resource pdfce never mentioned.
+> not already know to try a resource pdfcer never mentioned.
 >
 > Fixed in `Pass 144.0`: the gate now asks `set_font`'s own acceptance test
 > (`R221` — ask the accepting code, never restate its conditions), and offers a
@@ -1436,7 +1436,7 @@ thickened."* `R90`'s guarantee is now **reachable rather than mandatory**: set
 a shear into the run's text matrix, which is **not** text state and so is not
 covered by the restore ladder. It brackets the run with two absolute `Tm`
 operators — and a `Tm` sets the text **line** matrix too (§9.4.2 Table 108),
-so a following `Td`/`TD`/`T*` would derive its line from pdfce's matrix
+so a following `Td`/`TD`/`T*` would derive its line from pdfcer's matrix
 instead of the producer's origin and land shifted by this run's advance.
 Refused by name rather than mis-positioned. Bold has no equivalent limit: it
 is `Tr` + `w` + a stroking colour, all restored by value.
@@ -1488,7 +1488,7 @@ gives the **selector that reaches that resource** (the resource key, not the
 `/BaseFont`, when the page carries two subsets of one face — the common case),
 the acceptance verdict with `set_font`'s own refusal message verbatim, and
 whether a real Bold or Italic of that family **would be accepted**. See
-`02-editing-and-saving.md` §1 for the full contract. `pdfce-cli font-preflight`
+`02-editing-and-saving.md` §1 for the full contract. `pdfcer font-preflight`
 is the same answer from a shell.
 
 ### What is refused, and it is never a silent substitution
@@ -1507,10 +1507,10 @@ is the same answer from a shell.
   overflow its original right margin. Reflow is the default; pinning the tail
   is the alternative;
 - a formatting change inside a **tagged** run preserves its BDC/EMC+MCID
-  wrapper and discloses that the structure tree went stale — pdfce does not
+  wrapper and discloses that the structure tree went stale — pdfcer does not
   reproduce Acrobat's tag-corruption defect (`R72`);
 - changing a run's width inside a **justified** line invalidates that line's
-  slack; pdfce discloses that and offers re-justification rather than leaving
+  slack; pdfcer discloses that and offers re-justification rather than leaving
   it wrong.
 
 ### Trap
@@ -1533,7 +1533,7 @@ feature's safety property, not a UI preference.
 
 ### 4.1 ★★ The single most important fact for a new shell
 
-**The "runtime-verified true-removal proof" is NOT in `pdfce-core`.** Core
+**The "runtime-verified true-removal proof" is NOT in `pdfcer-core`.** Core
 provides `redact::apply_redactions` and *keeps the material* for a proof —
 `RedactionReport::redacted_text` exists *"for the absence-proof gate to
 grep"* (`redact.rs:317-319`). The proof itself is implemented in the **GUI
@@ -1553,9 +1553,9 @@ crate**:
 
 A shell that calls `redact::apply_redactions` directly and writes the bytes
 **ships an unverified redaction** and may legitimately not know it. Either
-port `redact_apply.rs` into the new shell, or lift it into `pdfce-core` — but
+port `redact_apply.rs` into the new shell, or lift it into `pdfcer-core` — but
 do not skip it. **UNVERIFIED — whether `prepare_redaction_apply` should be
-promoted into `pdfce-core` is an open engineering question; no decision
+promoted into `pdfcer-core` is an open engineering question; no decision
 record was found. Raise it with the operator before duplicating the file.**
 
 The three-way verdict it implements (`redact_apply.rs:80-84`):
@@ -1563,7 +1563,7 @@ The three-way verdict it implements (`redact_apply.rs:80-84`):
 | redacted text found… | verdict |
 |---|---|
 | in a **decoded stream** of the output | **REFUSE — write nothing.** *"Its survival is a real leak, not a coincidence, and no acknowledgement checkbox makes it acceptable."* |
-| in the **raw bytes only** | **DISCLOSE** as a residual needing the operator's explicit acknowledgement — pdfce cannot tell an un-recognised carrier from a coincidence |
+| in the **raw bytes only** | **DISCLOSE** as a residual needing the operator's explicit acknowledgement — pdfcer cannot tell an un-recognised carrier from a coincidence |
 | nowhere | **verified** — *"this is what licenses §5.1's wording contract to use the word 'verified' at all"* |
 
 Two further constraints from the same file: there is **deliberately no
@@ -1627,7 +1627,7 @@ its whole clip (§8.7.4.5.1) and is not cut this build, so each is a
 `DisclosedNotScrubbed` residual; `Pass 246.1`).
 
 **Images (`Pass 245.0`, `redact_image.rs`).** A raster image a region
-touches — image XObject or inline, any codec pdfce decodes (raw, DCT, CCITT,
+touches — image XObject or inline, any codec pdfcer decodes (raw, DCT, CCITT,
 JBIG2, JPX) — has the covered sample cells **destroyed** (overwritten, then
 re-encoded losslessly as `FlateDecode`; its `/SMask` and stencil `/Mask` are
 cleared over the same cells because a soft mask's alpha is a shape). A
@@ -1643,7 +1643,7 @@ same object number, so no resource dictionary dangles). Every placement gets
 one note naming its page, position, size and fate.
 
 **A mark can be RETAINED.** When an image's samples cannot be decoded (a
-codec feature pdfce lacks, a corrupt codestream, a bit depth Flate cannot
+codec feature pdfcer lacks, a corrupt codestream, a bit depth Flate cannot
 carry), every mark touching that placement is **left in the output as an
 unapplied `/Redact` annotation** — nothing removed under it, no box drawn
 over it — and counted in `marks_retained`, with a note naming the placement
@@ -1672,7 +1672,7 @@ forbids that) cannot be replaced as a unit and is disclosed through the
 `vector_paths` carrier as `DisclosedNotScrubbed`; on every well-formed page
 it is zero and the carrier reads `Scrubbed`. Measured on the operator's
 drawings: a whole-page mark drops 780 and 1,089 path objects respectively,
-a corner mark cuts 25, and `pdfce-render`'s
+a corner mark cuts 25, and `pdfcer-render`'s
 `redaction_leaves_no_ink.rs` proves by pixels that the region renders white.
 
 `RedactError` (`redact.rs:195`): `PageTree`, `NothingToApply`,
@@ -1682,11 +1682,11 @@ which is gone as of `Pass 245.0`), `Content { page, source }`, `Encrypted`,
 
 ### 4.3 Minimal worked sequence
 
-Mark-then-apply, from `crates/pdfce-core/src/redact.rs:2006-2014` and
+Mark-then-apply, from `crates/pdfcer-core/src/redact.rs:2006-2014` and
 `:2182-2214`.
 
 ```rust
-use pdfce_core::{document::Document, edit::EditSession, redact, writer::SaveOptions};
+use pdfcer_core::{document::Document, edit::EditSession, redact, writer::SaveOptions};
 
 // 1. MARK. Non-destructive. The marks live in the session.
 let mut session = EditSession::new(Document::from_bytes(bytes)?);
@@ -1707,8 +1707,8 @@ for c in &report.carriers { let _ = (c.carrier, c.present, c.action.as_str()); }
 let _ = out;
 ```
 
-The `pdfce-cli` consumer path is a clean non-GUI reference:
-`crates/pdfce-cli/src/main.rs:13470` `cmd_redact_apply` → `apply_redactions`
+The `pdfcer` consumer path is a clean non-GUI reference:
+`crates/pdfcer-cli/src/main.rs:13470` `cmd_redact_apply` → `apply_redactions`
 (`:13491`) → per-carrier report (`:13527-13534`) → the acknowledgement gate
 (`:13544-13552`) → exit code `exit::REDACTION_RESIDUALS` (`:13553`).
 
@@ -1718,7 +1718,7 @@ Redaction is the capability where a missed disclosure is not a usability
 defect but a **security failure**. The cardinal rule, verbatim
 (`redact.rs:12-18`):
 
-> **pdfce must NEVER claim content is redacted when it is not.**
+> **pdfcer must NEVER claim content is redacted when it is not.**
 > Under-redaction that is *disclosed* or *refused* is acceptable; silent
 > under-redaction is a catastrophic failure.
 
@@ -1751,7 +1751,7 @@ defect but a **security failure**. The cardinal rule, verbatim
       from a clean `AbsenceVerification`;
    3. **never put the word "Undo" anywhere near a post-apply state.**
 5. **The scanned-page caveat is mandatory, not decorative**
-   (`ui_text.rs:7010-7020`, `:7053-7063`): *"It can only find text pdfce can
+   (`ui_text.rs:7010-7020`, `:7053-7063`): *"It can only find text pdfcer can
    extract — on a scanned page with no text layer it will find nothing, which
    is not the same as there being nothing sensitive there."* This is the
    single most consequential sentence in the whole redaction UI.
@@ -1759,7 +1759,7 @@ defect but a **security failure**. The cardinal rule, verbatim
    result line must say nothing has been removed yet
    (`ui_text.rs:7094-7098`).
 7. **Per-carrier residuals, by name.** Heading (`ui_text.rs:7248-7250`):
-   *"⚠ pdfce could NOT remove the following — read this before continuing:"*,
+   *"⚠ pdfcer could NOT remove the following — read this before continuing:"*,
    then one line per `CarrierStatus` with `action.as_str()`. The verification
    limit line too (`ui_text.rs:7239-7245`): strings under
    `MIN_VERIFIABLE_LEN` (4 chars) *"were too short for a whole-file byte
@@ -1844,7 +1844,7 @@ defect but a **security failure**. The cardinal rule, verbatim
   the document"*; no GUI surfaces it (`FEATURES.md:139`). A new shell showing
   a wrapper's cover page without that warning is showing the wrong document
   and saying nothing.
-  The entry point is `pdfce_core::wrapper::detect(graph) -> WrapperInfo`
+  The entry point is `pdfcer_core::wrapper::detect(graph) -> WrapperInfo`
   (`wrapper.rs:90`), generic over `ObjectGraph`. `WrapperInfo`
   (`wrapper.rs:66`) carries `is_wrapper`, `payload_name: Option<String>` and
   `payload_count: usize`. It is *"cheap: one catalog lookup and a walk of a
@@ -1885,7 +1885,7 @@ margin plus one "word" whose bounding box was the entire page. Noise, not
 degraded output. The **recognition** model was fine throughout; the fault was
 isolated by swapping one file at a time, and the working detection build lives
 on a different channel from the recognition one. See
-`crates/pdfce-core/assets/models/ocrs/PROVENANCE.md` for the four-row table and
+`crates/pdfcer-core/assets/models/ocrs/PROVENANCE.md` for the four-row table and
 the instruction not to "tidy" the two files back onto one channel.
 
 ★ **The consequence for any consumer: every accuracy figure measured before
@@ -1903,7 +1903,7 @@ content and is useless.
 
 ### 5.1 The four layers, and exactly where the boundary sits today
 
-OCR in `pdfce-core` is four separable pieces, and knowing which one you are
+OCR in `pdfcer-core` is four separable pieces, and knowing which one you are
 missing is the difference between a two-hour job and a wrong architecture.
 
 | # | piece | module | state |
@@ -1922,12 +1922,12 @@ operator which file to put where.
 command, the progress, the report, the error path — against the real API, and
 it will work end to end the moment weights are present. You do **not** need to
 design around a placeholder. The one thing you cannot do is ship a build that
-recognises text, and that is a licensing/packaging step on the pdfce side, not
+recognises text, and that is a licensing/packaging step on the pdfcer side, not
 an API gap.
 
 ### 5.2 Public surface
 
-**Piece 1 — types and coordinates** (`crates/pdfce-core/src/ocr/mod.rs`)
+**Piece 1 — types and coordinates** (`crates/pdfcer-core/src/ocr/mod.rs`)
 
 | item | `file:line` |
 |---|---|
@@ -1940,7 +1940,7 @@ an API gap.
 | ★ `words_to_page_space_on(words, img_w, img_h, PagePlacement)` — **use this one** | `ocr/mod.rs` |
 | `PagePlacement::new(rect, rotate)` / `PagePlacement::upright(rect)` | `ocr/mod.rs` |
 
-**Piece 2 — the writer** (`crates/pdfce-core/src/ocr/layer.rs`)
+**Piece 2 — the writer** (`crates/pdfcer-core/src/ocr/layer.rs`)
 
 | item | `file:line` |
 |---|---|
@@ -1953,7 +1953,7 @@ an API gap.
 | `OcrLayerOutcome { bytes, report }` | `ocr/layer.rs:397` |
 | `HELVETICA_ASCENT_FRAC` 0.718 · `HELVETICA_DESCENT_FRAC` 0.207 · `MIN_TZ` 1.0 · `MAX_TZ` 10 000.0 | `ocr/layer.rs:182`, `:190`, `:199`, `:207` |
 
-**Piece 3 — the engine** (`crates/pdfce-core/src/ocr/engine_ocrs.rs`, feature `ocrs`, **on by default**)
+**Piece 3 — the engine** (`crates/pdfcer-core/src/ocr/engine_ocrs.rs`, feature `ocrs`, **on by default**)
 
 | item | `file:line` |
 |---|---|
@@ -1962,7 +1962,7 @@ an API gap.
 | `MODEL_DIR` `"ocrs"` · `DETECTION_MODEL` · `RECOGNITION_MODEL` | `engine_ocrs.rs:86`, `:89`, `:97` |
 | `OcrsEngineError` (`ModelMissing`, `ModelLoad`, `ImageSize`, `Image`, `Recognition`) | `engine_ocrs.rs:108` |
 
-**Piece 4 — finding the weights on disk** (`crates/pdfce-core/src/ocr/models.rs`)
+**Piece 4 — finding the weights on disk** (`crates/pdfcer-core/src/ocr/models.rs`)
 
 | item | `file:line` |
 |---|---|
@@ -1974,10 +1974,10 @@ an API gap.
 ### 5.3 Worked sequence, end to end
 
 ```rust
-use pdfce_core::document::Document;
-use pdfce_core::ocr::{OcrEngine as _, OcrPage, PagePlacement, layer, models,
+use pdfcer_core::document::Document;
+use pdfcer_core::ocr::{OcrEngine as _, OcrPage, PagePlacement, layer, models,
                       words_to_page_space_on};
-use pdfce_core::ocr::engine_ocrs::{MODEL_DIR, OcrsEngine};
+use pdfcer_core::ocr::engine_ocrs::{MODEL_DIR, OcrsEngine};
 
 // 1. Find the weights. An operator-named path that does not exist is REPORTED,
 //    never silently replaced by a bundled copy (models.rs:164).
@@ -1994,14 +1994,14 @@ let src = models::resolve_model_dir_with(
 //    install fails here rather than on page 340 of a batch.
 let engine = OcrsEngine::from_model_dir(src.path())?;
 
-// 3. Rasterise the page yourself (pdfce-render) and give it 8-bit greyscale.
+// 3. Rasterise the page yourself (pdfcer-render) and give it 8-bit greyscale.
 //    Returned rects are IMAGE PIXELS, y-DOWN.
 let words = engine.recognize(img_w, img_h, &grey)?;
 
 // 4. Flip to page space. This is the ONLY place a flip may happen.
 let page_rect = /* the page's crop box, or the region the image covers */;
 let page = OcrPage {
-    // ★★ THE ROTATION TRAP. `pdfce-render` HONOURS `/Rotate` -
+    // ★★ THE ROTATION TRAP. `pdfcer-render` HONOURS `/Rotate` -
     // `page_device_geometry` swaps the raster's axes at 90 and 270 - and
     // `words_to_page_space` does not. A rotation-aware rasteriser feeding a
     // rotation-blind mapping yields an invisible layer TRANSPOSED relative to
@@ -2033,14 +2033,14 @@ differ, and the difference is the whole point (§5.4).
 
 ### 5.4 ★ What the UI must disclose
 
-OCR is **the single largest inference pdfce makes** — every word is a guess.
+OCR is **the single largest inference pdfcer makes** — every word is a guess.
 Rule 4 as amended by **decision 059** says precisely what to do about that, and
 for OCR the amendment does more work than anywhere else in this document:
 
 **Render normally. The page must look untouched — because it is.**
 The layer is written at text rendering mode 3 (ISO 32000-1 §9.3.6 Table 106,
 *"neither fill nor stroke text (invisible)"*), and
-`crates/pdfce-render/tests/ocr_layer_is_invisible.rs` asserts **not one pixel
+`crates/pdfcer-render/tests/ocr_layer_is_invisible.rs` asserts **not one pixel
 of 7,755,264 changes**. The operator asked for exactly this: *"I want OCRed
 stuff to look normal when the command is executed too."*
 
@@ -2103,40 +2103,40 @@ that reports honestly.
 6. **A `Tz` error is invisible to an origin check.** If you write your own
    geometry assertions, assert on the **extent**, not just the position: `Tm`
    sets the left edge correctly no matter how wrong the horizontal scaling is.
-   This cost pdfce a test that named the defect in its own failure message and
+   This cost pdfcer a test that named the defect in its own failure message and
    could not detect it.
 
-### 5.6 What is still owed on the pdfce side
+### 5.6 What is still owed on the pdfcer side
 
 - **The model weights** (~12 MB, two `.rten` files). The licence question is
   settled — the operator answered **yes** on 2026-08-13 to a CC-BY-SA-4.0 model
-  file shipping inside pdfce's MIT portable folder — but the files are not
+  file shipping inside pdfcer's MIT portable folder — but the files are not
   committed, and committing ~12 MB of binary into a public repository's history
   is permanent, so it is a deliberate step rather than a routine one.
-- **A `pdfce-cli ocr` subcommand.** Not yet present; `grep -rn "ocr" crates/pdfce-cli/src/`
+- **A `pdfcer ocr` subcommand.** Not yet present; `grep -rn "ocr" crates/pdfcer-cli/src/`
   returns zero hits at this commit.
 - **A second engine.** The operator's decision (2026-08-12) was *"just build
   for both"*. `ocrs` is the first; the feature is named after the crate rather
   than the capability precisely so the second can land without a rename.
 
 
-## 6. Print & imposition (`pdfce-print`)
+## 6. Print & imposition (`pdfcer-print`)
 
 `Print`: `core [x] · cli [x] · gui [x]` (`FEATURES.md:166`).
 **`Imposition`: `core — · cli [x] · gui [ ]`** (`FEATURES.md:167`) — *"N-up,
 booklet, poster; mutually exclusive, refused in combination. **No GUI surface
 at all.**"* `FEATURES.md:210` names the planned work: *"needs the sheet
-composition extracted into `pdfce-print` so both shells share one
+composition extracted into `pdfcer-print` so both shells share one
 implementation."*
 
 **This is the largest greenfield opportunity in the document.**
 `grep -rn "imposition::" crates/` finds hits **only** in
-`crates/pdfce-cli/src/main.rs`. The planners are built, tested and unused by
+`crates/pdfcer-cli/src/main.rs`. The planners are built, tested and unused by
 any GUI.
 
 **Crate posture:** *"core rasterises, the shell spools"* (`lib.rs:16`).
-`pdfce-print` *"does device setup, placement and blitting, and knows nothing
-about PDF — which is why it does not depend on `pdfce-render`"*
+`pdfcer-print` *"does device setup, placement and blitting, and knows nothing
+about PDF — which is why it does not depend on `pdfcer-render`"*
 (`lib.rs:1893-1896`). **The caller rasterises.**
 Every entry point returns `Err(PrintError::Unsupported)` on non-Windows
 (`lib.rs:1848`, `:1858`, `:1874`, `:2323`).
@@ -2166,7 +2166,7 @@ handed over unchanged** (`lib.rs:1903-1905`).
 `lib.rs:1979`. `SpoolReport { pages, printed, dpi, clipped_pages, job_id }`
 `lib.rs:1943`.
 
-**Imposition** (`pdfce_print::imposition`, `lib.rs:104`). The planners take
+**Imposition** (`pdfcer_print::imposition`, `lib.rs:104`). The planners take
 **only** `(f64, f64)` printable areas and page-size slices — never a driver
 type (`imposition.rs:31-34`) — and return rectangles you composite into one
 pixmap per **sheet**:
@@ -2191,7 +2191,7 @@ Specs: `NUpSpec { grid: NUpGrid, order: PageOrder, border, auto_rotate }`
 (`pdfce@cce414e:crates/pdfce-gui/src/print_flow.rs:637-702`, `:1793-1852`).
 
 ```rust
-use pdfce_print::{
+use pdfcer_print::{
     DeviceGeometry, DeviceSettings, DryRun, JobSpec, PageBitmap, ScaleMode,
     device_features, job_resolution, list_printers, plan_job, printer_caps, spool,
 };
@@ -2209,7 +2209,7 @@ let plans = plan_job(&device, &page_sizes, &spec);
 
 let mut bitmaps = Vec::new();                          // 6  YOU rasterise
 for plan in &plans {
-    let rendered = pdfce_render::render_page_with_view(
+    let rendered = pdfcer_render::render_page_with_view(
         &session.view(), &pages[plan.index], plan.render_scale as f32, &options)?;
     bitmaps.push(PageBitmap {
         width: rendered.pixmap.width(), height: rendered.pixmap.height(),
@@ -2223,10 +2223,10 @@ let _ = (features, res, report.clipped_pages);
 ```
 
 **(b) N-up imposition — the `gui [ ]` opportunity.** From
-`crates/pdfce-cli/src/main.rs:8612-8660`.
+`crates/pdfcer-cli/src/main.rs:8612-8660`.
 
 ```rust
-use pdfce_print::imposition::{NUpGrid, NUpSpec, PageOrder, plan_n_up};
+use pdfcer_print::imposition::{NUpGrid, NUpSpec, PageOrder, plan_n_up};
 
 let nup = NUpSpec {
     grid: NUpGrid::Count(4),
@@ -2244,7 +2244,7 @@ for sheet_index in 0..layout.sheets {
     // let mut sheet = tiny_skia::Pixmap::new(w, h).unwrap(); sheet.fill(WHITE);
     for slot in layout.slots.iter().filter(|s| s.sheet == sheet_index) {
         let scale = (dpi / 72.0) * slot.fit.scale;
-        let _rendered = pdfce_render::render_page_with_view(
+        let _rendered = pdfcer_render::render_page_with_view(
             &session.view(), &pages[sequence[slot.source]], scale as f32, &options)?;
         // blit into slot.fit.rect (y-DOWN, top-left origin — see §6.4)
         let _ = slot.border;
@@ -2263,12 +2263,12 @@ for sheet_index in 0..layout.sheets {
    must never spool as a consequence of anything but a deliberate click.
 2. **Clipping is REPORTED, not refused** — `Placement::clipped`
    (`lib.rs:529`) and `SpoolReport::clipped_pages` (`lib.rs:1950-1955`).
-   *"Acrobat's documented behaviour here is to clip SILENTLY … pdfce reports
+   *"Acrobat's documented behaviour here is to clip SILENTLY … pdfcer reports
    it instead"* (`lib.rs:522-528`). Show it **before** the job goes out; it is
-   pdfce's inference that the page will not fit.
+   pdfcer's inference that the page will not fit.
 3. **Resolution capping.** `JobResolution { dpi, device_dpi, capped }`
-   (`lib.rs:1381`) — when `capped`, pdfce is printing at less than the device
-   can do, by pdfce's own memory judgement. Say so; `uncapped_page_mb()`
+   (`lib.rs:1381`) — when `capped`, pdfcer is printing at less than the device
+   can do, by pdfcer's own memory judgement. Say so; `uncapped_page_mb()`
    (`lib.rs:1400`) is the number that justifies it.
 4. **Duplex is driver-gated, never simulated** (`lib.rs:1533-1543`): *"A
    printer that cannot do it will not be made to by reordering pages and
@@ -2281,17 +2281,17 @@ for sheet_index in 0..layout.sheets {
    (`lib.rs:1915-1932`) — it runs every step except `StartDoc`/`StartPage`/
    `EndPage`/`EndDoc` and the blit. Offer it.
 6. **Imposition: blanks and padding.** `BookletLayout::padded_pages` and
-   `blank_positions` (`imposition.rs:1116-1120`) — pdfce **added blank pages**
+   `blank_positions` (`imposition.rs:1116-1120`) — pdfcer **added blank pages**
    to reach a multiple of four. That is an inference about intent; show the
    count. Likewise `PosterLayout::rows × columns` and `tiles` — how many
    sheets of paper the operator is about to consume.
-7. **`CellFit::rotated`** (`imposition.rs:242`) — pdfce **turned the page**
+7. **`CellFit::rotated`** (`imposition.rs:242`) — pdfcer **turned the page**
    to make it fit. Visible in the preview, and stated.
 
 ### 6.4 Traps
 
 - **★ Imposition modes are mutually exclusive, and the guard is CLI-local.**
-  `crates/pdfce-cli/src/main.rs:8565-8596`: *"N-up, booklet and poster each
+  `crates/pdfcer-cli/src/main.rs:8565-8596`: *"N-up, booklet and poster each
   REMAP the job rather than scale it, and no two of them compose. Before this
   guard existed the three branches ran in sequence and the last one to fire
   silently overwrote the others' work: `--poster --booklet` composed nine
@@ -2299,9 +2299,9 @@ for sheet_index in 0..layout.sheets {
   plausible job that was not the one they asked for, with no indication
   anything had been discarded."* And: *"Refusing is right rather than picking
   a precedence. There is no reading of `--poster --booklet` that is obviously
-  intended, so any precedence pdfce chose would be a guess presented as a
+  intended, so any precedence pdfcer chose would be a guess presented as a
   result."*
-  **`pdfce-print` will not stop you. A new GUI shell must re-implement this
+  **`pdfcer-print` will not stop you. A new GUI shell must re-implement this
   guard.** Message shape: *"{modes} cannot be combined — each one changes the
   shape of the job, and no two of them compose. Pick one."*
 - **★ Imposition `Rect` is y-DOWN, origin top-left — deliberately NOT PDF's
@@ -2354,25 +2354,25 @@ for sheet_index in 0..layout.sheets {
 
 ---
 
-## 7. Rasterising a page for display (`pdfce-render`)
+## 7. Rasterising a page for display (`pdfcer-render`)
 
 `core [x] · gui [x] · cli —` (`FEATURES.md:145-146`). A new shell rebuilds
 the *worker*, not the rasteriser.
 
 **Zero GUI/windowing dependency, verified by `cargo tree` in CI**
 (`lib.rs:13-19`) — a CPU rasteriser is fine, a windowing toolkit is not. And
-*"`pdfce-render` itself never enumerates, opens, or reads a font (rule R19),
+*"`pdfcer-render` itself never enumerates, opens, or reads a font (rule R19),
 which is what makes the same document render to the same pixels on a CI
 runner, a developer laptop, and the WASM fork"* (`lib.rs:224-228`).
 
 ### 7.1 The one call
 
 ```rust
-pdfce_render::render_page_with_view(
+pdfcer_render::render_page_with_view(
     view: &DocumentView<'_>, page: &Page, scale: f32, options: &RenderOptions
 ) -> Result<RenderedPage, RenderError>
 ```
-`crates/pdfce-render/src/lib.rs:235` — **the real implementation**;
+`crates/pdfcer-render/src/lib.rs:235` — **the real implementation**;
 `render_page` (`:165`), `render_page_with` (`:176`) and `render_page_view`
 (`:211`) are wrappers.
 
@@ -2385,7 +2385,7 @@ pdfce_render::render_page_with_view(
   authored correctly and displayed not at all."* This is the same base-revision
   trap as §4.1, in a different subsystem. `DocumentView` is re-exported at
   `lib.rs:81`.
-- `page: &Page` from `pdfce_core::page_tree::pages(&doc)`.
+- `page: &Page` from `pdfcer_core::page_tree::pages(&doc)`.
 - Returns `RenderedPage { pixmap, diagnostics }` (`lib.rs:147`).
 
 **Pixel format:** `tiny_skia::Pixmap` — white-filled (`lib.rs:249`), RGBA8,
@@ -2403,7 +2403,7 @@ gives `RenderError::BadRasterSize { width, height }` (`lib.rs:137`).
 
 ### 7.2 `RenderOptions` — the knobs
 
-`crates/pdfce-render/src/font/mod.rs:428`, `#[non_exhaustive]` (so **use the
+`crates/pdfcer-render/src/font/mod.rs:428`, `#[non_exhaustive]` (so **use the
 builders**, `:684-690`): `fonts: FontEnvironment` `:432`, `annotations: bool`
 `:470`, `annotation_scope: AnnotationScope` `:484`, `cancel: Option<RenderCancel>`
 `:494`, `layers: Option<LayerVisibility>` `:507`, `view_magnification: Option<f32>`
@@ -2426,7 +2426,7 @@ question rather than changing what is drawn).
 | Document and Markups | `DocumentAndMarkups` `:385` (**`RenderOptions` default**) | page content + every annotation |
 | Document and Stamps | `DocumentAndStamps` `:388` | page content + non-markup + `/Stamp` **only** |
 | Form fields only | `FormFieldsOnly` `:403` | `/Widget` appearances, **no page content at all** |
-| (pdfce's own) | `ContentOnly` `:360` | page content, no annotations |
+| (pdfcer's own) | `ContentOnly` `:360` | page content, no annotations |
 
 ### 7.3a The CMYK compositing ceiling — READ it before you size a raster
 
@@ -2460,7 +2460,7 @@ caller to resolve.
 arithmetic stays on this side of the crate boundary; a copy of a measured
 limit is a copy that rots the next time the buffer's element type changes.
 `the_operator_s_ceiling_decides_the_path_and_the_predicate_agrees`
-(`crates/pdfce-render/tests/transparency_is_disclosed.rs`) is what pins the
+(`crates/pdfcer-render/tests/transparency_is_disclosed.rs`) is what pins the
 predicate to the renderer.
 
 **★ Your render tier should end at this ceiling, not at `MAX_PIXMAP_EDGE`.**
@@ -2478,10 +2478,10 @@ path already exceeds the default ceiling. The ceiling has to grow with the
 display *as well*.
 
 **SETTING it.** `RenderOptions::with_max_cmyk_buffer_bytes(Option<usize>)`,
-whose value should come from `pdfce_core::settings::Settings::max_cmyk_buffer_bytes`
+whose value should come from `pdfcer_core::settings::Settings::max_cmyk_buffer_bytes`
 — it rides the existing preset machinery and the settings file, and
 `parse_byte_size` / `format_byte_size` (both `pub` in
-`pdfce_core::settings`) are the **same** vocabulary the file uses, so a
+`pdfcer_core::settings`) are the **same** vocabulary the file uses, so a
 settings window and `settings.txt` accept and show identical strings
 (`default`, `256mib`, `1.5gb`, a bare byte count; `mb` and `mib` both mean
 1,048,576 here).
@@ -2530,10 +2530,10 @@ origin **top-left**) fills `Diagnostics::ink_probe: Option<InkProbe>`. It
 changes no pixel of the output and costs nothing when unset.
 
 ```rust
-use pdfce_render::{InkProbeSource, RenderOptions};
+use pdfcer_render::{InkProbeSource, RenderOptions};
 
 let options = RenderOptions::default().with_ink_probe(612, 440);
-let page = pdfce_render::render_page_with_view(&doc.view(), &page, 2.0, &options)?;
+let page = pdfcer_render::render_page_with_view(&doc.view(), &page, 2.0, &options)?;
 if let Some(p) = page.diagnostics.ink_probe {
     match p.source {
         InkProbeSource::CmykBuffer => println!("ink {:?} alpha {:?}", p.cmyk, p.alpha),
@@ -2558,7 +2558,7 @@ an empty page** a correct colorant composite is the **identity on its
 operand** — transparent backdrop, alpha 1, Normal blend, nothing to blend
 with. So an operand that arrives unchanged and a colour that is still wrong
 **convicts the conversion and acquits the compositor**. That is the whole
-content of the probe, and `crates/pdfce-render/tests/ink_probe.rs` pins it.
+content of the probe, and `crates/pdfcer-render/tests/ink_probe.rs` pins it.
 
 **When there are no colorant numbers.** `InkProbeSource::ScreenSrgb` — the
 page's blending space was additive, or the buffer exceeded
@@ -2575,7 +2575,7 @@ scale, the region and the page's own box, so a coordinate cannot be judged
 when it is parsed — and a diagnostic must not destroy the output it was asked
 about.
 
-**In the CLI:** `pdfce-cli render-page --probe-ink X,Y`, which prints one
+**In the CLI:** `pdfcer render-page --probe-ink X,Y`, which prints one
 extra line beside the stable metrics line:
 
 ```text
@@ -2591,7 +2591,7 @@ operand — one count of blue apart.** That is a property of the compositing
 path, not of the conversion: one path converts an 8-bit paint colour, the
 other converts `f32` colorants at the very end. **Every `DeviceCMYK` colour
 carries that ±1 blue**, so do not read a one-count difference between two
-probes, or between pdfce and another engine, as a disagreement.
+probes, or between pdfcer and another engine, as a disagreement.
 
 *(This block's example read `srgb=24,140,108` until `Pass 174.5`. That is the
 **pre-`Pass 165.0` defect value** — so this document, which a consuming
@@ -2601,7 +2601,7 @@ and a stale one is a wrong claim that reads as an illustration.)*
 
 ### 7.3 Cancellation — the off-thread contract
 
-`RenderCancel` (`crates/pdfce-render/src/cancel.rs:85`) is a plain
+`RenderCancel` (`crates/pdfcer-render/src/cancel.rs:85`) is a plain
 `Arc<AtomicBool>` — *"no windowing, runtime or executor dependency, and works
 identically under wasm"* (`cancel.rs:3-8`). `new()` `:90`, `cancel()` `:100`
 (idempotent, any thread, returns immediately without waiting), `is_cancelled()`
@@ -2624,7 +2624,7 @@ identically under wasm"* (`cancel.rs:3-8`). `new()` `:90`, `cancel()` `:100`
   callers cannot acquire a new failure mode; only a caller that opts in can be
   cancelled.
 
-**Thread-safety:** `pdfce-render` declares no `Send`/`Sync` bounds and
+**Thread-safety:** `pdfcer-render` declares no `Send`/`Sync` bounds and
 contains no threading. `RenderCancel` is asserted `Send + Sync`
 (`cancel.rs:155-158`). **The threading model is entirely the shell's** —
 `pdfce@cce414e:crates/pdfce-gui/src/render_worker.rs` is the reference implementation:
@@ -2642,11 +2642,11 @@ proceeds**, which is only viable because cancellation is fast.
 
 ### 7.4 Minimal worked sequences
 
-**(a) Synchronous** — `crates/pdfce-render/tests/cmyk_intent.rs:102-107`.
+**(a) Synchronous** — `crates/pdfcer-render/tests/cmyk_intent.rs:102-107`.
 
 ```rust
-use pdfce_core::{document::Document, page_tree, settings::CmykIntent};
-use pdfce_render::{RenderOptions, RenderedPage, render_page_with};
+use pdfcer_core::{document::Document, page_tree, settings::CmykIntent};
+use pdfcer_render::{RenderOptions, RenderedPage, render_page_with};
 
 let doc = Document::from_bytes(bytes)?;
 let page = page_tree::pages(&doc)?.remove(0);
@@ -2663,10 +2663,10 @@ let rendered: RenderedPage = render_page_with(&doc, &page, 1.0, &options)?;
 `pdfce@cce414e:crates/pdfce-gui/src/render_worker.rs:425-467`.
 
 ```rust
-use pdfce_render::{RenderOptions, cancel::RenderCancel, render_page_with_view};
+use pdfcer_render::{RenderOptions, cancel::RenderCancel, render_page_with_view};
 
-fn render_on_worker(session: &pdfce_core::edit::EditSession,
-                    page: &pdfce_core::page_tree::Page,
+fn render_on_worker(session: &pdfcer_core::edit::EditSession,
+                    page: &pdfcer_core::page_tree::Page,
                     scale: f32, cancel: &RenderCancel) {
     let mut options = RenderOptions::default().with_annotations(true);
     options.cancel = Some(cancel.clone());
@@ -2692,7 +2692,7 @@ one ('fuzzy, never sneaky')."* And, explicitly: *"A shell that renders pages
 is expected to surface these; **they are not decoration**."*
 
 1. **`glyphs_substituted` + `substituted_fonts`** — *"are these the
-   document's own letterforms?"* A substituted font is pdfce's guess at what a
+   document's own letterforms?"* A substituted font is pdfcer's guess at what a
    missing face should look like. It is the canonical rule-4 case in rendering.
 2. **`glyphs_notdef`** — *"is anything missing?"*
 3. **`fonts_unsupported`** — *"was any text skipped outright?"*
@@ -2709,7 +2709,7 @@ is expected to surface these; **they are not decoration**."*
 8. **`cmyk_buffer_refused`** — *"are these the exact print colours, or the
    approximation?"* (§7.3a). Off-canvas, like everything else here: the
    inferred/approximate content still renders **normally** (`CLAUDE.md`
-   rule 4, narrowed 2026-08-13), and what is disclosed is that pdfce could
+   rule 4, narrowed 2026-08-13), and what is disclosed is that pdfcer could
    not blend in ink at this size — plus, now, that the ceiling is the
    operator's to raise.
 
@@ -2719,7 +2719,7 @@ is expected to surface these; **they are not decoration**."*
   *"`tiny-skia` stores pixels PREMULTIPLIED, both egui constructors accept the
   bytes without complaint, and the wrong one silently darkens every antialiased
   glyph edge."* Use the premultiply-correct upload path, or demultiply
-  (`crates/pdfce-render/tests/cmyk_intent.rs:110-114`). For `pdfce-print`, hand
+  (`crates/pdfcer-render/tests/cmyk_intent.rs:110-114`). For `pdfcer-print`, hand
   `pixmap.data().to_vec()` over **unchanged**.
 - **★ Check the cancel token, don't match the error variant**
   (`render_worker.rs:461-466`).
@@ -2740,7 +2740,7 @@ is expected to surface these; **they are not decoration**."*
   directly.
 - **`FormFieldsOnly` never decodes content streams** (`lib.rs:278-291`), so
   that branch **cannot** return `RenderError::Content`, and
-  `contents_streams_unresolved` stays 0 *"because pdfce did not look.
+  `contents_streams_unresolved` stays 0 *"because pdfcer did not look.
   Reporting a page-level incompleteness it never measured would be an invented
   fact."*
 - **★ Annotation flags come from Table 169, not §12.5.6.2's prose — the prose
@@ -2765,7 +2765,7 @@ is expected to surface these; **they are not decoration**."*
 
 | capability | primary path | core | cli | gui |
 |---|---|:--:|:--:|:--:|
-| ce dimensions (author, groups, scale, two-line) | `pdfce_core::dimension` + `EditSession` | x | x | x |
+| ce dimensions (author, groups, scale, two-line) | `pdfcer_core::dimension` + `EditSession` | x | x | x |
 | ce-dimension **style cascade** | `dimension::{resolve_style, style_provenance}` | x | x | **[ ]** |
 | ce-dimension **tolerance** | `dimension::tolerance` | x | x | **[ ]** |
 | Forms — fill / import / export / create / delete / rename / reset | `forms`, `forms_author`, `fdf`, `formcsv` + `EditSession` | x | x | x / ◐ |
@@ -2775,7 +2775,7 @@ is expected to surface these; **they are not decoration**."*
 | Annotations & markup | `annot`, `annot_author` + `EditSession` | x | x | x |
 | Redaction — mark & apply | `redact` + `EditSession`; **proof in `pdfce-gui`** | x | x | x |
 | Redaction — **unencrypted-wrapper warning** | `wrapper` | x | x | **[ ]** |
-| **OCR substrate** | `pdfce_core::ocr` | **[ ]** | **[ ]** | **[ ]** |
-| Print | `pdfce-print` | x | x | x |
-| **Imposition** (N-up / booklet / poster) | `pdfce_print::imposition` | — | x | **[ ]** |
-| Rasterise a page | `pdfce-render` | x | — | x |
+| **OCR substrate** | `pdfcer_core::ocr` | **[ ]** | **[ ]** | **[ ]** |
+| Print | `pdfcer-print` | x | x | x |
+| **Imposition** (N-up / booklet / poster) | `pdfcer_print::imposition` | — | x | **[ ]** |
+| Rasterise a page | `pdfcer-render` | x | — | x |

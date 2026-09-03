@@ -15,7 +15,7 @@
 > to as "Overprint Preview"."*
 >
 > ★ **The reason this was invisible is worth more than the correction:
-> pdfce's spec corpus held NO CLAUSE 10 AT ALL** until 2026-08-19, and clause
+> pdfcer's spec corpus held NO CLAUSE 10 AT ALL** until 2026-08-19, and clause
 > 10 is the colour-conversion chapter. The gap was found from **outside** the
 > corpus, by a sibling project that tried to cross-reference us and could
 > not. A survey of implementations cannot detect a specification its own
@@ -36,7 +36,7 @@ URL-cited below. Companion to `docs/overprint-architecture-survey.md` (which
 established *why* the N-plane buffer is required) and `docs/compositor-plan.md`
 §4 Stage C (which is what this decides).
 
-**The question this answers.** Once pdfce composites overprint in an N-plane
+**The question this answers.** Once pdfcer composites overprint in an N-plane
 colorant buffer (`Pass 97.1`), the buffer must be collapsed to sRGB for screen
 display — "overprint preview". `docs/overprint-architecture-survey.md` §6
 recorded that this step is unstandardised and that vendors disagree. This file
@@ -85,7 +85,7 @@ Adobe's own wording concedes approximation: Output Preview is *"an onscreen
 simulation that **approximates** blending and overprinting."*
 <https://helpx.adobe.com/acrobat/using/previewing-output-acrobat-pro.html>
 
-⇒ **"Match Acrobat" is not an available specification.** Any pdfce decision
+⇒ **"Match Acrobat" is not an available specification.** Any pdfcer decision
 here is a product decision, and should be recorded as one.
 
 ---
@@ -112,7 +112,7 @@ them behavioural references only.
 | **Mako** (Global Graphics) | **multiply-of-complements** — recipe published | One framebuffer per colorant, then merge scanline-by-scanline: `newVal = 1 − ((1 − eqCMYK[c]·spotVal)·(1 − currentVal))`. Merged CMYK → RGB via ICC. ⭐ | PRIMARY |
 | **callas pdfToolbox** | **= Adobe's** | Built on the **Adobe PDF Library** (not APPE), so its overprint preview *is* Adobe's undisclosed model — **not an independent data point**. Plumbing: `simulationprofile`, `nosimulateoverprint` (simulation **on** by default), `colorspace Multichannel`; precedence sim profile → OutputIntent → sRGB / ISO Coated v2. **★ Its entire CxF surface is embed / extract / ANALYZE — no rendering, no appearance computation, no overprint prediction from spectral data.** The vendor most invested in CxF tooling still treats it as **validation metadata**, not a rendering input. | PRIMARY |
 | **Enfocus PitStop** | **= Adobe's** | *"Overprint preview is an Adobe Acrobat function."* | PRIMARY |
-| **PDFium / Chrome** | **none** | Tint transform only. *(pdfce's render-parity oracle — see §5.)* | PRIMARY |
+| **PDFium / Chrome** | **none** | Tint transform only. *(pdfcer's render-parity oracle — see §5.)* | PRIMARY |
 | **pdf.js** | **none** | Issue #7360, 2016, closed unimplemented. | PRIMARY |
 | **ColorLogic ZePrA** | **spectral** | *"an intelligent spectral color mixing model"*; auto-uses embedded CxF/X-4; *"automatically considers the **opacity and the printing sequence** of spot colors."* | PRIMARY |
 
@@ -160,7 +160,7 @@ them behavioural references only.
    different subtypes. **⇒ a second settings-shaped ambiguity.**
 7. **No Acrobat-vs-Poppler or Acrobat-vs-MuPDF comparison exists anywhere.**
    Both projects validate against **the print-conformance suite** and **ECI
-   Altona Test Suite 2**, not against Acrobat. If pdfce wants that delta it
+   Altona Test Suite 2**, not against Acrobat. If pdfcer wants that delta it
    must measure it — which is what `tools/suite-check.py` plus the Acrobat
    reference strips already do.
 8. **★ THE LOAD-BEARING INVARIANT, stated by two vendors independently.**
@@ -170,7 +170,7 @@ them behavioural references only.
    function is being used to convert spot colors."*
    ⇒ **Tint-transforming early and overprinting correctly are mutually
    exclusive.** This is a third independent confirmation of the N-plane
-   architecture, arriving from vendor documentation rather than from pdfce's
+   architecture, arriving from vendor documentation rather than from pdfcer's
    own ablation (`ac15158`) or from the Artifex paper.
 
 ---
@@ -248,7 +248,7 @@ surveyed except ColorLogic ZePrA.
 
 ---
 
-## §6 — What pdfce should do
+## §6 — What pdfcer should do
 
 ### Default pipeline (confidence: HIGH)
 
@@ -274,7 +274,7 @@ surveyed except ColorLogic ZePrA.
 | **Spot equivalent source** | `separation-tint-transform` (default) / `devicen-collective` / `lab-alternate` | Acrobat and InDesign already surface an equivalent lever ("Use Standard Lab Values For Spots") — parity, not invention |
 | **Destination profile** | `output-intent` (default) / explicit simulation profile / working CMYK | Mirrors callas' documented precedence chain |
 | **OutputIntent selection when ≥2 entries** | pick one, document it | MuPDF takes `[0]` ignoring `/S`; Poppler refuses. §3 item 6 |
-| **Overprint mode** | `off` / `enable` / `simulate` | Ghostscript's tri-state is the right shape **and the right vocabulary**. Acrobat's own preference is four-valued and defaults **off**; recommend pdfce default to *simulate-when-the-page-uses-overprint* and **disclose it off-canvas per rule 4** |
+| **Overprint mode** | `off` / `enable` / `simulate` | Ghostscript's tri-state is the right shape **and the right vocabulary**. Acrobat's own preference is four-valued and defaults **off**; recommend pdfcer default to *simulate-when-the-page-uses-overprint* and **disclose it off-canvas per rule 4** |
 
 ### Cheap wins
 
@@ -285,9 +285,9 @@ surveyed except ColorLogic ZePrA.
   overprint correctly **non-commutative**. Ignored by every surveyed engine
   but ColorLogic. **★ But see §6.5: `DN-N1` records that the standard defines
   NO algorithm to consume these — they are "inputs to an unspecified algorithm
-  by design", marked PERMANENT.** So this is pdfce **inventing** a model, not
+  by design", marked PERMANENT.** So this is pdfcer **inventing** a model, not
   implementing one: it is an "exceed the parity reference" item that must be
-  **disclosed as pdfce's own** and must be a setting. Confidence MEDIUM (data
+  **disclosed as pdfcer's own** and must be a setting. Confidence MEDIUM (data
   is rare; code path is small).
 - **Detect PDF 2.0 OutputIntent `/SpectralData` (CxF/X-4) and disclose it.**
   No open-source engine consumes it and per ICC neither does Acrobat. Full
@@ -304,7 +304,7 @@ operator supplies an NCLR profile.
 
 ---
 
-## §6.5 — ★ WHAT pdfce'S OWN SPEC CORPUS CORRECTS, AND IT CORRECTS BOTH PASSES
+## §6.5 — ★ WHAT pdfcer'S OWN SPEC CORPUS CORRECTS, AND IT CORRECTS BOTH PASSES
 
 A **second pass** from the same researcher converged on every headline above —
 same Bärfuss source, same per-colorant-over-collective rule, same Mako formula,
@@ -347,7 +347,7 @@ research pass ran** — corrected three things:
 | Claim | Corpus says |
 |---|---|
 | Pass 2: *"`SpectralData` **and** `MixingHints` in the OutputIntent dictionary"* | **`/MixingHints` is in the `DeviceN` ATTRIBUTES dictionary** — §8.6.6.5, Table 73, PDF **1.6**, under the `NChannel` subtype, alongside `/Colorants` and `/Process` (`color__devicen.md`). Pass 1 had this right. PDF 2.0's OutputIntent `/SpectralData` is a *separate* key; do not conflate them. |
-| Both passes: *"read `/MixingHints` and switch to the opacity blend"* | **`DN-N1`, marked PERMANENT: "No blending algorithm is defined to consume `/MixingHints`; it is inputs to an unspecified algorithm by design."** So consuming it is **pdfce inventing a model**, not implementing one. Permitted (exceed-the-reference), but it must be disclosed as pdfce's own and is settings-shaped by construction. |
+| Both passes: *"read `/MixingHints` and switch to the opacity blend"* | **`DN-N1`, marked PERMANENT: "No blending algorithm is defined to consume `/MixingHints`; it is inputs to an unspecified algorithm by design."** So consuming it is **pdfcer inventing a model**, not implementing one. Permitted (exceed-the-reference), but it must be disclosed as pdfcer's own and is settings-shaped by construction. |
 | Both passes: *"destination profile = the OutputIntent"* | **`OI-N2`: "the standard states NO relationship between output intents and overprint, trapping, or `Separation` alternate spaces."** Every vendor does it anyway. That makes it the right **default** and a **product decision**, not a conformance requirement — record it as such. |
 
 **And one independent rediscovery worth noting**, because it is the strongest
@@ -372,9 +372,9 @@ record"* for the final ICC hop, and the librarian filed a matching
 
 **`ARCHITECTURE.md` decision 064 (2026-08-17) already assigns colour
 CONVERSION to `iccce`** — the operator's own from-scratch MIT colour-management
-project at `D:\Dev\iccce\`, whose README names pdfce as its first consumer:
+project at `D:\Dev\iccce\`, whose README names pdfcer as its first consumer:
 
-> pdfce owns **COMPOSITING** (overprint, blend modes, transparency groups, and
+> pdfcer owns **COMPOSITING** (overprint, blend modes, transparency groups, and
 > what a PDF's colour components mean); `iccce` owns **CONVERSION** (profile
 > parsing, transform construction, rendering intents, ΔE).
 
@@ -430,7 +430,7 @@ a narrower `u8` buffer surface would fix the **memory** (268 MB → 67 MB in,
 201 MB → 25 MB out at 300 DPI) and **do nothing for the time**, because the
 cost is per pixel regardless of how the pixel arrived.
 
-⇒ **~6 s/page against pdfce's ~0.6 s render — roughly 10×.** So the collapse
+⇒ **~6 s/page against pdfcer's ~0.6 s render — roughly 10×.** So the collapse
 cannot be an unconditional per-frame step in an interactive viewer. Options,
 none chosen yet: collapse only on export; cache the converted page; or engage
 it only for pages that actually use overprint or a declared output intent
@@ -440,7 +440,7 @@ a measurement** when its Pass 6 optimisation work reopens.
 
 ### `lcms2` is still rejected, for the same reason as before
 
-C bindings; cannot cross the **wasm32** gate `pdfce-core`/`pdfce-render` are
+C bindings; cannot cross the **wasm32** gate `pdfcer-core`/`pdfcer-render` are
 held to. **`iccce` gates `wasm32` in its own CI as of 2026-08-17** — build over
 all four library crates, *plus* a separate job asserting every crate in
 `cargo tree` is one of theirs. (Worth stealing: their first version matched
@@ -457,6 +457,6 @@ convert. A dependency with no caller is the `R151` shape.
 
 The print-conformance suite's `SPOT` and `CMYK` categories, plus
 **ECI Altona Test Suite 2**. This is what Poppler itself validates against and
-it is the only rights-clean overprint corpus. pdfce already runs the
+it is the only rights-clean overprint corpus. pdfcer already runs the
 print-conformance half (`tools/suite-check.py`); **Altona is not on this
 machine and is not currently used.**

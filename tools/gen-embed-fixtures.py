@@ -1,9 +1,9 @@
-"""Generate the font-EMBEDDING fixtures for `pdfce_core::font_embed_missing`
+"""Generate the font-EMBEDDING fixtures for `pdfcer_core::font_embed_missing`
 (Pass 67.0 phase E).
 
 Phase A's `tools/gen-fontinfo-fixtures.py` covers the CLASSIFIER; phase B's
 `tools/gen-unembed-fixtures.py` covers the structural hazards of DELETING a
-font program. This generator covers the ones that only exist when pdfce
+font program. This generator covers the ones that only exist when pdfcer
 ADDS one — the shapes where a document says "this font is missing" and the
 question is what may lawfully be written into it.
 
@@ -23,8 +23,8 @@ WHAT EACH FIXTURE PINS
 
 | File | Branch |
 |---|---|
-| `embed-std14-bare.pdf` | `/Helvetica` with **no** `/FontDescriptor`, no `/Widths`, no `/FirstChar`/`/LastChar`, no `/Encoding` — the shape §9.6.2.2 explicitly permits, and **82.9 % of every non-embedded font in the corpus**. Drives `EmbedShape::Synthesise`: pdfce writes the descriptor, the metrics and the encoding from its compiled Adobe Core-14 data, and re-declares `/Subtype /TrueType` so a `glyf` donor can attach (§9.9 Table 126). |
-| `embed-std14-encoded.pdf` | `/Helvetica` bare **except** for an explicit `/Encoding /WinAnsiEncoding`. Same synthesise path, but the encoding is already pinned, so pdfce must NOT write one — and the `/Widths` it writes must be computed under WinAnsi, not under the built-in Standard encoding. Two encodings disagree on a dozen codes; this is the fixture that catches using the wrong one. |
+| `embed-std14-bare.pdf` | `/Helvetica` with **no** `/FontDescriptor`, no `/Widths`, no `/FirstChar`/`/LastChar`, no `/Encoding` — the shape §9.6.2.2 explicitly permits, and **82.9 % of every non-embedded font in the corpus**. Drives `EmbedShape::Synthesise`: pdfcer writes the descriptor, the metrics and the encoding from its compiled Adobe Core-14 data, and re-declares `/Subtype /TrueType` so a `glyf` donor can attach (§9.9 Table 126). |
+| `embed-std14-encoded.pdf` | `/Helvetica` bare **except** for an explicit `/Encoding /WinAnsiEncoding`. Same synthesise path, but the encoding is already pinned, so pdfcer must NOT write one — and the `/Widths` it writes must be computed under WinAnsi, not under the built-in Standard encoding. Two encodings disagree on a dozen codes; this is the fixture that catches using the wrong one. |
 | `embed-attach.pdf` | A non-embedded `/TrueType` font that already carries a `/FontDescriptor` and `/Widths`. Drives `EmbedShape::Attach`: exactly ONE key is added to ONE descriptor and nothing else changes. |
 | `embed-mixed.pdf` | FIVE fonts in one document — one attachable TrueType, one bare standard-14, one `Type0`/`Identity-H` composite, one `Type3`, and one already-embedded font. The partial-success case, which is the COMMON case: some resolve, some refuse by name, and the report must say which is which. |
 | `embed-shared-descriptor.pdf` | Two non-embedded font dictionaries with different `/BaseFont` values pointing at ONE `/FontDescriptor`. Both are blocked (`descriptor-shared`). ★ This is where embedding DIVERGES from unembedding: unembedding two fonts through one descriptor is idempotent, embedding two different donors through one descriptor is a silent overwrite. |
@@ -108,7 +108,7 @@ DESC_METRICS = (
 #
 #    §9.6.2.2 lets the 14 standard fonts omit the descriptor and every
 #    metric, because a conforming reader is required to know them. A file
-#    that leans on that permission has NOTHING in it for pdfce to attach a
+#    that leans on that permission has NOTHING in it for pdfcer to attach a
 #    program to — the descriptor has to be authored, and the widths with it.
 # ---------------------------------------------------------------------------
 def std14_bare():
@@ -126,7 +126,7 @@ def std14_bare():
 # ---------------------------------------------------------------------------
 # 2. The same, with the encoding already pinned.
 #
-#    The widths pdfce writes must follow THIS encoding, not the standard-14
+#    The widths pdfcer writes must follow THIS encoding, not the standard-14
 #    built-in one. See the module docstring for why that is worth a file.
 # ---------------------------------------------------------------------------
 def std14_encoded():
@@ -312,7 +312,7 @@ def symbolic_truetype():
 # ---------------------------------------------------------------------------
 # 9. ★ THE OBJECT-NUMBER COLLISION. Not an embedding shape at all.
 #
-#    A cross-reference STREAM is an indirect object, and pdfce's writer
+#    A cross-reference STREAM is an indirect object, and pdfcer's writer
 #    reuses its number for the update section it emits (R33 — match the
 #    base's section shape). But it is *the section*, not a body object: the
 #    parser never files it, and nothing requires it to appear in its own
@@ -371,10 +371,10 @@ def xref_stream_outside_its_own_size():
 # A donor FOLDER, so `--font-dir` can be exercised without depending on the
 # machine's own fonts.
 #
-# `pdfce-cli`'s font walk registers every face under its advertised names AND
+# `pdfcer`'s font walk registers every face under its advertised names AND
 # under its FILENAME STEM (decision 012), which is what makes this work: the
 # same synthetic sfnt copied under a name a fixture's /BaseFont spells is a
-# face pdfce will resolve for that font, on any machine, with no system font
+# face pdfcer will resolve for that font, on any machine, with no system font
 # folder involved. A test that pointed --font-dir at C:\Windows\Fonts would
 # pass on one laptop and be vacuous everywhere else.
 # ---------------------------------------------------------------------------

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Regenerate crates/pdfce-core/src/image_codec/fixtures_bilevel.rs.
+"""Regenerate crates/pdfcer-core/src/image_codec/fixtures_bilevel.rs.
 
 WHY THIS EXISTS
 ---------------
-`pdfce-core`'s CCITTFaxDecode (§7.4.6) and JBIG2Decode (§7.4.7) adapters
+`pdfcer-core`'s CCITTFaxDecode (§7.4.6) and JBIG2Decode (§7.4.7) adapters
 need end-to-end tests over *real* codestreams. Parameter-mapping unit
 tests prove that Table 11's defaults reach `hayro-ccitt`'s
 `DecodeSettings`, but only an actual T.4/T.6-coded bit stream proves the
@@ -36,7 +36,7 @@ committed output is therefore the rustfmt-normalized form, exactly as
 `tools/gen-jpeg-fixtures.py`'s is.
 
 Requires Pillow with libtiff (a developer-machine dependency only —
-never a pdfce dependency). Verified with Pillow 12.1.0.
+never a pdfcer dependency). Verified with Pillow 12.1.0.
 
 HOW THE CCITT BYTES ARE PRODUCED, AND THE POLARITY TRAP IN DOING SO
 -------------------------------------------------------------------
@@ -128,7 +128,7 @@ from pathlib import Path
 from PIL import Image
 
 REPO = Path(__file__).resolve().parent.parent
-OUT = REPO / "crates" / "pdfce-core" / "src" / "image_codec" / "fixtures_bilevel.rs"
+OUT = REPO / "crates" / "pdfcer-core" / "src" / "image_codec" / "fixtures_bilevel.rs"
 
 WIDTH = 16
 HEIGHT = 4
@@ -438,8 +438,8 @@ HEADER = '''//! # Synthetic CCITT and JBIG2 codestreams for the bilevel adapters
 //! the bytes means the tests run identically from any working directory,
 //! under `cargo test`, under `cargo fuzz`, and in a `wasm32` check.
 
-// Shared by TWO test suites — `pdfce-core`'s codec tests and
-// `pdfce-render`'s rasterizer tests (which pull this file in with
+// Shared by TWO test suites — `pdfcer-core`'s codec tests and
+// `pdfcer-render`'s rasterizer tests (which pull this file in with
 // `#[path]`) — and neither uses the whole set.
 #![allow(dead_code)]
 '''
@@ -469,7 +469,7 @@ def emit(name, data):
 #      `image_codec_jbig2` fuzz targets, which decision 005 §6.5 requires
 #      to come from `fixtures/synthetic/` and never from a downloaded
 #      real-world PDF (`docs/LEGAL.md` §5);
-#   2. an **end-to-end demo** — `pdfce-cli render-page` on a real file,
+#   2. an **end-to-end demo** — `pdfcer render-page` on a real file,
 #      which is the only check that exercises the whole path from xref
 #      parsing through the content stream to the rasterizer.
 

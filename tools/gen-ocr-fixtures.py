@@ -19,7 +19,7 @@ indistinguishable from a broken one.
 
 ★ THE ANSWER IS TO MANUFACTURE THE SCAN, and the reason it works is that a
 scan is a LOSSY PICTURE OF A DOCUMENT THAT ALREADY EXISTED. Render a vector
-page pdfce authored, degrade the raster the way a sheet-fed scanner does, and
+page pdfcer authored, degrade the raster the way a sheet-fed scanner does, and
 wrap the result as an image-only PDF. Nothing is downloaded; every byte
 descends from geometry this project chose (`LEGAL.md` §5 category (a)).
 
@@ -64,13 +64,13 @@ THE FILES
 | `scan.pdf` | `printed.pdf` rendered at 200 dpi, degraded, and wrapped as one full-page image. NO text objects at all - the OCR input |
 | `scan_clean.pdf` | the same wrap with NO degradation - the control that separates "OCR is weak" from "the degradation is too harsh" |
 | `scan_rotated_90.pdf` | byte-for-byte `scan.pdf` plus `/Rotate 90` - a rotation-blind mapping puts every word on the wrong axis while the page still looks perfect |
-| `GROUND_TRUTH.json` | every word and its page-space rect, taken from `printed.pdf` by pdfce itself |
+| `GROUND_TRUTH.json` | every word and its page-space rect, taken from `printed.pdf` by pdfcer itself |
 
 ★ THE DEGRADATION IS DELIBERATELY MILD, and that is a decision, not timidity.
 This fixture exists to prove the PIPELINE - that a page of ordinary printed
 text, scanned, comes back readable and in the right place. It is not a
 stress test of the recogniser's tolerance for bad input. A fixture degraded
-until recognition fails proves nothing about pdfce and would turn every future
+until recognition fails proves nothing about pdfcer and would turn every future
 run into an argument about the noise level. Harder cases belong in their own
 files, added deliberately, each with its own recorded expectation.
 
@@ -108,7 +108,7 @@ HOW TO REGENERATE
 -----------------
     python tools/gen-ocr-fixtures.py
 
-Requires a built `pdfce-cli` (release preferred) for the render and wrap steps;
+Requires a built `pdfcer` (release preferred) for the render and wrap steps;
 the script finds it and says so if it cannot.
 """
 
@@ -422,28 +422,28 @@ def degrade(w: int, h: int, pix: bytearray) -> bytearray:
 
 
 # ---------------------------------------------------------------------------
-# Driving pdfce-cli
+# Driving pdfcer
 # ---------------------------------------------------------------------------
 
 
 def cli() -> Path:
-    for rel in ("target/release/pdfce-cli.exe", "target/debug/pdfce-cli.exe",
-                "target/release/pdfce-cli", "target/debug/pdfce-cli"):
+    for rel in ("target/release/pdfcer.exe", "target/debug/pdfcer.exe",
+                "target/release/pdfcer", "target/debug/pdfcer"):
         p = ROOT / rel
         if p.exists():
             return p
-    sys.exit("pdfce-cli not built - run `cargo build --release -p pdfce-cli` first")
+    sys.exit("pdfcer not built - run `cargo build --release -p pdfcer-cli` first")
 
 
 def run(*args: str) -> str:
     r = subprocess.run([str(cli()), *args], capture_output=True, text=True, encoding="utf-8")
     if r.returncode != 0:
-        sys.exit(f"pdfce-cli {' '.join(args)} failed ({r.returncode}):\n{r.stdout}\n{r.stderr}")
+        sys.exit(f"pdfcer {' '.join(args)} failed ({r.returncode}):\n{r.stdout}\n{r.stderr}")
     return r.stdout + r.stderr
 
 
 def ground_truth(printed: Path) -> dict:
-    """Ask pdfce where each word is IN THE VECTOR ORIGINAL.
+    """Ask pdfcer where each word is IN THE VECTOR ORIGINAL.
 
     ★ This is the answer key, and it is generated rather than typed. It comes
     from `find-text`, i.e. from real Helvetica AFM metrics through the same
@@ -483,11 +483,11 @@ def ground_truth(printed: Path) -> dict:
 
 
 def rotate_pdf(src: Path, dst: Path, degrees: int) -> None:
-    """Copy a one-page PDF and set its `/Rotate`, using pdfce's OWN verb.
+    """Copy a one-page PDF and set its `/Rotate`, using pdfcer's OWN verb.
 
     ★ WHY A ROTATED FIXTURE EXISTS AT ALL, and it is not tidiness.
 
-    `pdfce-render` HONOURS `/Rotate` - `page_device_geometry` swaps the raster's
+    `pdfcer-render` HONOURS `/Rotate` - `page_device_geometry` swaps the raster's
     width and height at 90 and 270 and composes a different transform for each
     of Table 30's four values. Until `Pass 128.1` the OCR chain did not: it
     scaled and y-flipped and nothing else. So a caller that rasterised a
@@ -512,7 +512,7 @@ def rotate_pdf(src: Path, dst: Path, degrees: int) -> None:
     `scan.pdf` is written by `add-image`, whose output it has no business
     assuming anything about. It did not raise; it just lost the image.
 
-    Using pdfce's own verb is better on every axis: it is the tested path, it
+    Using pdfcer's own verb is better on every axis: it is the tested path, it
     performs an INCREMENTAL save so the original bytes survive verbatim
     (project rule 3), and the fixture then exercises the same `/Rotate` a real
     file would carry rather than one this script invented a representation for.

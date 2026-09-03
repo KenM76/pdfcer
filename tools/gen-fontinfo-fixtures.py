@@ -1,4 +1,4 @@
-"""Generate the font-inventory fixtures for `pdfce_core::fontinfo` (Pass 67.0A).
+"""Generate the font-inventory fixtures for `pdfcer_core::fontinfo` (Pass 67.0A).
 
 Every file here exists to pin ONE branch of the inventory sweep or of the
 removability classifier, and each is named for that branch. They are written
@@ -28,7 +28,7 @@ for a font-size reader to measure, so the hazard is not reached.
 `enc-aes-128-embedded-font.pdf` closes that. It is `subset-simple-embedded.pdf`
 — which really does carry a `/FontFile2` — encrypted by **pypdf**, an
 independent implementation, exactly as `gen-encryption-fixtures.py` argues:
-agreement between pdfce's spec-derived decryption and a file pdfce did not
+agreement between pdfcer's spec-derived decryption and a file pdfcer did not
 produce is evidence; agreement with its own output would not be.
 
 Passwords match the rest of the encryption corpus: user `userpw`, owner
@@ -137,7 +137,7 @@ def type3():
 #    for a symbolic font that is the program's own `cmap` table — inside the
 #    bytes an unembed would delete. Classifies as
 #    `Unknown(SymbolicBuiltinEncoding)`, which is deliberately neither
-#    "removable" nor "blocked": pdfce genuinely cannot tell.
+#    "removable" nor "blocked": pdfcer genuinely cannot tell.
 #
 #    The donor is the `Editable` fsType face, so the same fixture also pins a
 #    successful `fsType` read through a `/FontFile2`.

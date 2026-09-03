@@ -25,7 +25,7 @@
 # WHY NOTHING ELSE CATCHES IT
 # ===========================
 #
-# This gate exists because on 2026-08-18 `pdfce-core` reported finding SIX of
+# This gate exists because on 2026-08-18 `pdfcer-core` reported finding SIX of
 # these in its own shipped error messages, two of them live since `95c3416`,
 # and named the reason nothing had caught them:
 #
@@ -97,12 +97,12 @@
 # aligned-column case is now pinned in the clean self-test so a future
 # widening cannot quietly re-break it.
 #
-# ★★★ A `pdfce-cli:` / `pdfce-gui:` DIAGNOSTIC IS PROSE TOO — widened
+# ★★★ A `pdfcer:` / `pdfce-gui:` DIAGNOSTIC IS PROSE TOO — widened
 # 2026-08-27, and this is the THIRD time this one gate has missed by admitting
 # only the spelling somebody had already seen. It reported PASS on a shipped
 # refusal reading
 #
-#     "pdfce-cli: format-text needs --find TEXT, or --pin-span START:LEN with
+#     "pdfcer: format-text needs --find TEXT, or --pin-span START:LEN with
 #      an empty              --find to mean the whole pinned show operator"
 #
 # TWO holes at once, which is why it is worth its own note. The literal was not
@@ -222,13 +222,13 @@ scan() {
                 was_error = in_error
                 if (index(code, "#[error(")) in_error = 1
                 # ★ A CLI DIAGNOSTIC IS PROSE TOO — widened 2026-08-27 after
-                # this gate reported PASS on a shipped `pdfce-cli` refusal
+                # this gate reported PASS on a shipped `pdfcer` refusal
                 # carrying fourteen baked spaces. Same structural argument as
                 # `#[error(...)]`: a literal opening with the CLI
                 # diagnostic prefix is a sentence an operator reads, never an
                 # aligned report column. Measured tree-wide before widening:
                 # 1 finding, the defect.
-                cli = index(code, "\"pdfce-cli: ")
+                cli = index(code, "\"pdfcer: ")
                 prose = (in_error || was_error || cli)
                 if (in_error && index(code, ")]")) in_error = 0
 
@@ -352,7 +352,7 @@ EOF
     mkdir -p "$tmp/dirty5"
     cat > "$tmp/dirty5/cli_flag.rs" <<'EOF'
 fn refuse() {
-    eprintln!("pdfce-cli: format-text needs --find TEXT, or --pin-span with an empty          --find");
+    eprintln!("pdfcer: format-text needs --find TEXT, or --pin-span with an empty          --find");
 }
 EOF
     # The 2026-08-26 widening: a `\n\` continuation that kept its escape and
@@ -362,7 +362,7 @@ EOF
     mkdir -p "$tmp/dirty4"
     cat > "$tmp/dirty4/displaced.rs" <<'EOF'
 pub const fn note() -> &'static str {
-    "# a comment line pdfce writes to disk\n\
+    "# a comment line pdfcer writes to disk\n\
      # a second line, correctly continued.
 \n             # a third, whose predecessor lost its backslash\n"
 }

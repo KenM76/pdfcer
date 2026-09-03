@@ -1,6 +1,6 @@
 # font-parity — the embedded-font-program parse/routing regression gate.
 #
-# WHY THIS EXISTS: FontProgram::parse (crates/pdfce-render/src/font/program.rs)
+# WHY THIS EXISTS: FontProgram::parse (crates/pdfcer-render/src/font/program.rs)
 # routes an embedded font-program stream to one of three parsers by matching
 # BINARY MAGICS on the RAW decoded bytes (sfnt 0x00010000/OTTO/true/ttcf →
 # Sfnt; bare CFF 0x01?? → Cff; PostScript Type 1 %!/PFB → Type1). A regression
@@ -20,7 +20,7 @@
 # out of cargo-about's shipping dependency graph. Never shipped.
 #
 # R21 NOTE: skrifa stays confined to program.rs. This harness depends on
-# pdfce-render and touches font programs ONLY through the public FontProgram /
+# pdfcer-render and touches font programs ONLY through the public FontProgram /
 # ProgramError surface — it never names a skrifa type, so the confinement the
 # module docs rely on is preserved.
 #
@@ -39,8 +39,8 @@ publish = false
 [dependencies]
 # The crates under measurement, path-referenced so an API drift breaks the
 # build rather than silently mismeasuring.
-pdfce-core = { path = "../../crates/pdfce-core" }
-pdfce-render = { path = "../../crates/pdfce-render" }
+pdfcer-core = { path = "../../crates/pdfcer-core" }
+pdfcer-render = { path = "../../crates/pdfcer-render" }
 
 [profile.release]
 opt-level = 3

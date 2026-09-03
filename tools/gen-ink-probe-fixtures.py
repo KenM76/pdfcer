@@ -7,7 +7,7 @@ WHAT THIS BUILDS
 Two pages carrying the **same single opaque CMYK fill**, differing in exactly
 one thing: whether the page declares a subtractive blending colour space.
 
-| file | page group | what pdfce does with it |
+| file | page group | what pdfcer does with it |
 |---|---|---|
 | `flat-cmyk-subtractive.pdf` | `/Group << /S /Transparency /CS /DeviceCMYK >>` | composites in the four-colorant buffer |
 | `flat-cmyk-additive.pdf`    | none                                             | composites on screen, in sRGB |
@@ -27,8 +27,8 @@ four numbers the content stream wrote.
 That sounds too obvious to test, which is exactly why it had never been. It is
 the hinge of an attribution question raised by the sibling `iccce` project on
 2026-08-29: a colorant buffer does two separable things — it **composites** in
-ink (pdfce's, under decision 064) and it **converts** the result to sRGB on the
-way out (iccce's, under the same decision) — and pdfce's only instrument for
+ink (pdfcer's, under decision 064) and it **converts** the result to sRGB on the
+way out (iccce's, under the same decision) — and pdfcer's only instrument for
 turning the buffer off, `--max-cmyk-buffer-bytes`, turns off *both at once*.
 No measurement taken through that switch can say which half moved a pixel.
 

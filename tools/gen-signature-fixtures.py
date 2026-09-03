@@ -33,7 +33,7 @@ Three one-page documents, each with a single `/FT /Sig` field:
      stops short, leaving a tail the signature does not cover.
      **This is conforming**: §12.8.1 makes whole-file coverage a `should`
      ("Other ranges may be used but ... their use is not recommended"),
-     so the fixture proves pdfce reports it without calling it malformed.
+     so the fixture proves pdfcer reports it without calling it malformed.
 
   3. `signed-malformed-range.pdf` — ranges that OVERLAP, which Table 252's
      "exact byte range" does not permit. Distinct from case 2: this one

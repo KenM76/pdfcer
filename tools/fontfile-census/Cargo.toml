@@ -22,7 +22,7 @@
 # GUI-core-separation `cargo tree` checks unambiguous, and keeps cargo-about's
 # THIRD_PARTY_LICENSES.md a picture of the SHIPPING graph only (LEGAL.md §6.3).
 #
-# ZERO NEW DEPENDENCIES — pdfce-core by path, everything else std. A harness
+# ZERO NEW DEPENDENCIES — pdfcer-core by path, everything else std. A harness
 # whose numbers gate a product decision should not be able to blame a
 # third-party crate for them.
 #
@@ -38,7 +38,7 @@ publish = false
 [workspace]
 
 [dependencies]
-pdfce-core = { path = "../../crates/pdfce-core" }
+pdfcer-core = { path = "../../crates/pdfcer-core" }
 
 [profile.release]
 opt-level = 3

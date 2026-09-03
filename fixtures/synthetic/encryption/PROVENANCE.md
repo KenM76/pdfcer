@@ -1,7 +1,7 @@
 # Encrypted-document fixtures
 
 **Synthetic and self-generated** (project rule 7 / `LEGAL.md` §5). The
-plaintext source is `fixtures/synthetic/forms/demo-form.pdf` — pdfce's own
+plaintext source is `fixtures/synthetic/forms/demo-form.pdf` — pdfcer's own
 synthetic form fixture, **committed**, so the corpus is reproducible from a
 clean checkout. The encryption was applied by **pypdf 6.7.0**, chosen
 deliberately as an *independent* implementation.
@@ -11,7 +11,7 @@ whose user password is the **empty string** — the case §7.6.3.1 says a reader
 *shall* try silently before prompting, and the reason permissions-only PDFs
 open everywhere with no dialog.
 
-| File | `/V` | `/R` | `/Length` | `/CFM` | pdfce reads it? |
+| File | `/V` | `/R` | `/Length` | `/CFM` | pdfcer reads it? |
 |---|---|---|---|---|---|
 | `enc-rc4-40.pdf` | 1 | 2 | 40 | — | **yes** |
 | `enc-rc4-128.pdf` | 2 | 3 | 128 | — | **yes** |
@@ -23,7 +23,7 @@ open everywhere with no dialog.
 | `enc-emptyuser-aes-256-r5.pdf` | 5 | 5 | 256 | `/AESV3` | **yes**, with no password |
 
 Note `enc-aes-256-r5.pdf`'s `/Length 256`. `/AESV3` fixes the key at 256 bits,
-so the entry carries no information and pdfce does not read it — ISO 32000-2's
+so the entry carries no information and pdfcer does not read it — ISO 32000-2's
 Table 25 erratum says a *standard* handler should write **32** while
 2.0-as-printed said **256**, and both appear in the wild (**W18**, ambiguity
 **A11**). pypdf followed the printed text.
@@ -33,17 +33,17 @@ Table 25 erratum says a *standard* handler should write **32** while
 **They cut one way only, and the distinction is the whole point.**
 
 For **`/R` 2, 3 and 4**, ISO 32000-1 §7.6 fully specifies the algorithms.
-pdfce's decryption was written from the clause, then checked against files it
+pdfcer's decryption was written from the clause, then checked against files it
 did not produce — so agreement means two independent readings of the same
 specification agree. That is evidence, and as of 2026-08-11 it is *collected*
-evidence: `crates/pdfce-core/tests/encryption_rc4.rs` opens both RC4 fixtures
+evidence: `crates/pdfcer-core/tests/encryption_rc4.rs` opens both RC4 fixtures
 with both the user and the owner password.
 
 For **`/R` 6**, the algorithm (2.B) is **not sourced**: ISO 32000-2 is
 paywalled past step (a). Deriving it from another implementation and then
 testing against that implementation's output would be circular — the test
 could not fail. `enc-aes-256-r6.pdf` is therefore a **refusal fixture**:
-pdfce must decline it *by name*, distinguished from `/R` 5, and the test
+pdfcer must decline it *by name*, distinguished from `/R` 5, and the test
 asserts the refusal rather than a decrypt.
 
 `enc-aes-256-r5.pdf` sits between the two. `/R` 5 is a deprecated Adobe
@@ -82,7 +82,7 @@ skipping test is not coverage; a test vector is.
 **Non-ASCII passwords.** Every password here is ASCII, where `/R` 5's SASLprep
 step is the identity function. No fixture exercises a password that
 normalisation would change, and none can be built without implementing
-SASLprep first — which is why pdfce *discloses* the gap on a failed non-ASCII
+SASLprep first — which is why pdfcer *discloses* the gap on a failed non-ASCII
 authentication rather than claiming to have handled it.
 
 ## ★ Why there are three `emptyuser` files
@@ -91,7 +91,7 @@ There was one, and it was AES-128, and that was a hole.
 
 The empty-user-password path is the most operator-visible behaviour in clause
 7.6 — it is what makes a permissions-only PDF open with no dialog anywhere.
-But pdfce implements ciphers one increment at a time, and while AES is
+But pdfcer implements ciphers one increment at a time, and while AES is
 refused, an AES-only empty-password fixture is rejected **on cipher grounds
 before authentication is ever reached**. The path was implemented, believed,
 and never once executed end-to-end.
@@ -122,7 +122,7 @@ and a fresh file encryption key, by design. Only the *shape* is reproducible.
 constants, so each `/R` 5 algorithm can be exercised in isolation and say
 *which* one broke. That coupling is invisible from both sides, so it is
 asserted:
-`crates/pdfce-core/tests/encryption.rs::the_r5_fixture_still_matches_the_unit_test_constants`
+`crates/pdfcer-core/tests/encryption.rs::the_r5_fixture_still_matches_the_unit_test_constants`
 goes red if the fixture is regenerated. **If it does, copy the new bytes into
 those constants — do not weaken the test.** Without it a regeneration would
 leave the unit tests quietly passing against a file that no longer exists.

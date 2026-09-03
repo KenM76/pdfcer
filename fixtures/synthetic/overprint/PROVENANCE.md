@@ -4,7 +4,7 @@ Single-page PDF fixtures for **ISO 32000-1 §11.7.4.3 `CompatibleOverprint`
 applied to a SAMPLED IMAGE** — Table 149's `Separation`/`DeviceN` row, which
 `Pass 130.2` wired up (`Canvas::fill_image_overprint`,
 `Interpreter::paint_image_overprint`). Used by
-`crates/pdfce-render/tests/overprint_image.rs`.
+`crates/pdfcer-render/tests/overprint_image.rs`.
 
 ## Source material and license (LEGAL.md §5, project rule 7)
 

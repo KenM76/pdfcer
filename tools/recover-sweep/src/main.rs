@@ -1,7 +1,7 @@
 //! recover-sweep — decision 013 Pass B cross-reference-recovery measurement.
 //!
 //! Walks each directory argument for `*.pdf`, LOADS each file through
-//! `pdfce_core::document::Document::from_bytes` (which now routes an
+//! `pdfcer_core::document::Document::from_bytes` (which now routes an
 //! unparseable cross-reference through rebuild-by-scan recovery), and
 //! classifies the outcome:
 //!
@@ -28,9 +28,9 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::time::Duration;
 
-use pdfce_core::document::{DocError, Document};
-use pdfce_core::recover::{RecoverError, RecoveryReason};
-use pdfce_core::xref::XrefErrorKind;
+use pdfcer_core::document::{DocError, Document};
+use pdfcer_core::recover::{RecoverError, RecoveryReason};
+use pdfcer_core::xref::XrefErrorKind;
 
 /// Per-file load budget. Load is O(n) with resource guards, so this only
 /// catches a robustness bug (an infinite loop would be a Pass-B finding).
@@ -223,7 +223,7 @@ fn sweep_dir(dir: &Path) -> Tally {
         };
         // Per-file budget on a worker thread so a robustness bug is a
         // counted timeout rather than a hung sweep.
-        let list = std::env::var_os("PDFCE_LIST_RECOVERED").is_some();
+        let list = std::env::var_os("PDFCER_LIST_RECOVERED").is_some();
         let path_for_thread = list.then(|| path.clone());
         let (tx, rx) = mpsc::channel();
         std::thread::spawn(move || {

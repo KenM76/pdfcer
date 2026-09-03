@@ -2,7 +2,7 @@
 
 Single-page PDF fixtures for **descending into form XObjects** (ISO 32000-1
 §8.10) — `vector::decompose_page`'s recursion and `FormLeaf`. Used by
-`crates/pdfce-core/tests/form_recursion.rs`.
+`crates/pdfcer-core/tests/form_recursion.rs`.
 
 ## Source material and license (LEGAL.md §5, project rule 7)
 

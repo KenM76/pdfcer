@@ -23,7 +23,7 @@ HOW THE GROUND TRUTH IS OBTAINED, and why it is trustworthy
 ------------------------------------------------------------
 Not by transcription. `fixtures/synthetic/ocr/printed.pdf` is the VECTOR page
 the scan was rendered from, so where a word "really is" comes from Helvetica's
-own AFM metrics through pdfce's already-tested extraction path. The two
+own AFM metrics through pdfcer's already-tested extraction path. The two
 rectangles being compared therefore arrive by **completely different routes** -
 font metrics on one side, a neural recogniser looking at pixels on the other -
 which is what makes their agreement a result rather than a tautology (`R215`:
@@ -69,12 +69,12 @@ DEFAULT_TRUTH = ROOT / "fixtures" / "synthetic" / "ocr" / "GROUND_TRUTH.json"
 
 
 def cli() -> Path:
-    for rel in ("target/release/pdfce-cli.exe", "target/debug/pdfce-cli.exe",
-                "target/release/pdfce-cli", "target/debug/pdfce-cli"):
+    for rel in ("target/release/pdfcer.exe", "target/debug/pdfcer.exe",
+                "target/release/pdfcer", "target/debug/pdfcer"):
         p = ROOT / rel
         if p.exists():
             return p
-    sys.exit("pdfce-cli not built")
+    sys.exit("pdfcer not built")
 
 
 def find_rects(pdf: Path, needle: str) -> list[list[float]]:

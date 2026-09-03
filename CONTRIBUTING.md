@@ -1,4 +1,4 @@
-# Contributing to pdfce
+# Contributing to pdfcer
 
 Thanks for your interest. A few things to know before opening an issue
 or PR — this project has some non-default conventions worth reading
@@ -19,7 +19,7 @@ an issue first if you are considering one.
 
 ## License — read before contributing code
 
-**pdfce is MIT-licensed** — `LICENSE` at the repo root, chosen
+**pdfcer is MIT-licensed** — `LICENSE` at the repo root, chosen
 2026-08-01 (`docs/LEGAL.md` §1). By submitting
 a contribution, you agree it's licensed under the terms in `LICENSE`
 at the time of merge (the standard "inbound = outbound" convention
@@ -45,8 +45,8 @@ If a contribution would violate either of these, expect it to need a
 strong justification and explicit maintainer sign-off, not just review
 comments:
 
-1. **GUI-core separation** (`docs/ARCHITECTURE.md` §3) — `pdfce-core`
-   and `pdfce-render` must never gain a GUI/windowing dependency.
+1. **GUI-core separation** (`docs/ARCHITECTURE.md` §3) — `pdfcer-core`
+   and `pdfcer-render` must never gain a GUI/windowing dependency.
 2. **Round-trip / minimal-diff editing** (`docs/ARCHITECTURE.md` §5) —
    objects the user didn't touch must be re-emitted byte-identical or
    omitted from an incremental save, redaction aside.

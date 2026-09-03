@@ -9,17 +9,17 @@ They prove that each rung of the ladder does what the clause says. They
 prove **nothing** about the question an operator actually asks:
 
     "If I hit Copy on a real document, how much of what I get is what
-    the file says, and how much did pdfce make up?"
+    the file says, and how much did pdfcer make up?"
 
 That number cannot be asserted from a fixture; it has to be measured.
-This sweep runs ``pdfce-cli extract-text`` over every PDF in a corpus
+This sweep runs ``pdfcer extract-text`` over every PDF in a corpus
 directory and rolls up the per-rung counters, so the answer is a
 measurement with a denominator rather than an impression.
 
 It is also the panic gate. Extraction walks content streams, decodes
-CMaps and resolves fonts on files pdfce has never seen — the same class
+CMaps and resolves fonts on files pdfcer has never seen — the same class
 of adversarial-input surface the fuzz targets cover, but with real
-structural variety behind it. **Any panic here is a pdfce bug**, and the
+structural variety behind it. **Any panic here is a pdfcer bug**, and the
 sweep exits non-zero for one.
 
 WHAT IT MEASURES, PER FILE
@@ -32,14 +32,14 @@ docs for the channel routing). Rolled up:
   for everything else.
 * ``via_tounicode`` / ``via_encoding`` / ``via_cid`` — §9.10.2 rungs 1,
   2 and 3. **SOURCED**: ISO 32000-1 itself sanctions these values.
-* ``via_extension`` — pdfce's counted glyph-name extension (the font
+* ``via_extension`` — pdfcer's counted glyph-name extension (the font
   failed method 2's whole-array precondition but the name resolved
   through the AGL anyway). Recovered text, **not** sourced.
 * ``failed`` — codes that reached §9.10.2's failure clause and became
   U+FFFD. The headline honesty metric.
 * ``identity_no_tounicode`` — fonts for which "no Unicode is
-  recoverable" is the *standard's* answer, not a pdfce limitation.
-* ``spaces_derived`` / ``lines_derived`` — whitespace pdfce invented.
+  recoverable" is the *standard's* answer, not a pdfcer limitation.
+* ``spaces_derived`` / ``lines_derived`` — whitespace pdfcer invented.
 * ``tagged`` — how many documents carry ``/MarkInfo /Marked true``, i.e.
   for how many of them §14.8.1's four guarantees hold at all.
 
@@ -76,13 +76,13 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 
-CLI = REPO / "target" / "release" / "pdfce-cli.exe"
+CLI = REPO / "target" / "release" / "pdfcer.exe"
 if not CLI.exists():
-    CLI = REPO / "target" / "debug" / "pdfce-cli.exe"
+    CLI = REPO / "target" / "debug" / "pdfcer.exe"
 if not CLI.exists():
-    CLI = REPO / "target" / "release" / "pdfce-cli"
+    CLI = REPO / "target" / "release" / "pdfcer"
 if not CLI.exists():
-    CLI = REPO / "target" / "debug" / "pdfce-cli"
+    CLI = REPO / "target" / "debug" / "pdfcer"
 
 # Per-file wall-clock budget. Extraction is linear in content-stream
 # length with bounded per-font work, so anything past this is a hang, not
@@ -136,7 +136,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if not CLI.exists():
-        print(f"pdfce-cli not built at {CLI}", file=sys.stderr)
+        print(f"pdfcer not built at {CLI}", file=sys.stderr)
         return 2
 
     files = sorted(args.corpus.rglob("*.pdf"))
@@ -236,7 +236,7 @@ def main() -> int:
             ("rung 1  /ToUnicode          SOURCED", "via_tounicode"),
             ("rung 2  encoding + AGL      SOURCED", "via_encoding"),
             ("rung 3  CID collection      SOURCED", "via_cid"),
-            ("        pdfce glyph-name extension  ", "via_extension"),
+            ("        pdfcer glyph-name extension  ", "via_extension"),
             ("rung 4  FAILED -> U+FFFD           ", "failed"),
         ]:
             value = totals[key]
@@ -245,7 +245,7 @@ def main() -> int:
         print(f"{'SOURCED total':<38}{sourced:>10}{sourced / codes:>11.2%}")
 
     print()
-    print("derived (pdfce's own judgement, no spec basis)")
+    print("derived (pdfcer's own judgement, no spec basis)")
     print(f"  word spaces derived : {totals['spaces_derived']}")
     print(f"  line breaks derived : {totals['lines_derived']}")
 
@@ -289,7 +289,7 @@ def main() -> int:
 
     if panics:
         print()
-        print(f"PANICS ({len(panics)}) — these are pdfce BUGS:")
+        print(f"PANICS ({len(panics)}) — these are pdfcer BUGS:")
         for name in panics:
             print(f"  {name}")
     if timeouts:

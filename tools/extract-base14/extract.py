@@ -2,15 +2,15 @@
 """extract-base14 — one-shot extraction of the Foxit base-14 font faces.
 
 WHY THIS EXISTS (docs/decisions/004-text-rendering-fonts.md §4.2/§6.5):
-pdfce-render bundles the 14 Foxit standard-14 substitute faces that
+pdfcer-render bundles the 14 Foxit standard-14 substitute faces that
 pdfium (Chromium's PDF engine) has shipped since 2014. Upstream stores
 them as C byte arrays in core/fxge/fontdata/chromefontdata/*.cpp; this
 tool downloads those files from pdfium.googlesource.com at a recorded
 commit, parses the arrays back into bare-CFF binaries, verifies each
 looks like CFF (or records the actual header), and writes:
 
-  crates/pdfce-render/assets/fonts/<Name>.cff   (14 files)
-  crates/pdfce-render/assets/fonts/PROVENANCE.md
+  crates/pdfcer-render/assets/fonts/<Name>.cff   (14 files)
+  crates/pdfcer-render/assets/fonts/PROVENANCE.md
       source URL + upstream commit + per-file SHA-256 + byte size +
       the verbatim pdfium LICENSE text (BSD-3-Clause).
 
@@ -55,12 +55,12 @@ FACES = {
     "FoxitDingbats.cpp": "FoxitDingbats",
 }
 
-OUT = Path(__file__).resolve().parents[2] / "crates" / "pdfce-render" / "assets" / "fonts"
+OUT = Path(__file__).resolve().parents[2] / "crates" / "pdfcer-render" / "assets" / "fonts"
 
 
 def fetch(url: str) -> bytes:
     req = urllib.request.Request(
-        url, headers={"User-Agent": "pdfce extract-base14 one-shot (see tools/extract-base14)"}
+        url, headers={"User-Agent": "pdfcer extract-base14 one-shot (see tools/extract-base14)"}
     )
     with urllib.request.urlopen(req, timeout=60) as r:
         return r.read()

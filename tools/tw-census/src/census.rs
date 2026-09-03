@@ -20,8 +20,8 @@
 //!
 //! 1. **The predicate is about CODE WIDTH, not about font type.** A Type 0
 //!    composite font whose CMap defines one-byte codespace ranges *is*
-//!    reachable by `Tw`. pdfce's published
-//!    [`GlyphProvenance::composite`](pdfce_core::text_extract::GlyphProvenance::composite)
+//!    reachable by `Tw`. pdfcer's published
+//!    [`GlyphProvenance::composite`](pdfcer_core::text_extract::GlyphProvenance::composite)
 //!    flag is derived from `ExtractFont::is_simple()`, which is exactly a
 //!    code-width test (`CodeWidth::One` vs `CodeWidth::Two`) rather than a
 //!    `/Subtype` test. So `!composite` is precisely the §9.3.3 predicate,
@@ -46,7 +46,7 @@
 //! Two consequences worth stating because they change what the number
 //! means:
 //!
-//! - A `TextRun` in pdfce's extraction output is *not* the same unit. Runs
+//! - A `TextRun` in pdfcer's extraction output is *not* the same unit. Runs
 //!   are split on marked-content and geometry boundaries, so one show
 //!   operator can span several runs and one run can span several operators.
 //!   Grouping by [`RunKey`] undoes both.
@@ -71,11 +71,11 @@
 //!
 //! ## What is deliberately NOT counted
 //!
-//! - **Derived whitespace.** pdfce's extraction inserts synthetic spaces
+//! - **Derived whitespace.** pdfcer's extraction inserts synthetic spaces
 //!   between glyphs that are far apart (`ExtractOptions::word_gap_ratio`).
 //!   Those live in runs whose [`TextOrigin`] is not `Glyphs` and therefore
 //!   carry no [`ExtractedGlyph`]s at all, so they cannot reach this
-//!   module's counters. Good: a derived space is pdfce's inference, not a
+//!   module's counters. Good: a derived space is pdfcer's inference, not a
 //!   code 32 in the file, and `Tw` would not touch it.
 //! - **`/ActualText` runs.** Same mechanism, same reason (§9.10.3).
 //! - **`TJ` numeric adjustments.** They are not glyphs and are not shown
@@ -85,9 +85,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use pdfce_core::span::ByteSpan;
-use pdfce_core::text_extract::{ContentStreamRef, PageText};
-use pdfce_core::text_state::{AmbientOrigin, AmbientTextState};
+use pdfcer_core::span::ByteSpan;
+use pdfcer_core::text_extract::{ContentStreamRef, PageText};
+use pdfcer_core::text_state::{AmbientOrigin, AmbientTextState};
 
 /// The single-byte character code word spacing applies to (§9.3.3).
 const SPACE_CODE: u32 = 32;
@@ -127,7 +127,7 @@ pub struct RunRecord {
     pub space_codes: u64,
     /// Set when glyphs sharing this key disagreed about the composite
     /// flag. Should be impossible (one `Tf` governs one show operator), so
-    /// a non-zero total is a signal that either the corpus or pdfce's
+    /// a non-zero total is a signal that either the corpus or pdfcer's
     /// provenance is stranger than assumed, and the report says so.
     pub font_conflict: bool,
 }
@@ -161,7 +161,7 @@ pub enum RunClass {
     /// Simple font, but no code 32 in the string. `Tw` would be legal and
     /// would do nothing.
     SimpleUnspaced,
-    /// Multi-byte codes. §9.3.3 makes `Tw` void; pdfce would refuse to
+    /// Multi-byte codes. §9.3.3 makes `Tw` void; pdfcer would refuse to
     /// emit it (R91).
     Composite,
 }
@@ -175,7 +175,7 @@ pub enum RunClass {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FontMix {
     /// No show operators at all — a scan, a blank page set, or a file whose
-    /// text pdfce could not reach.
+    /// text pdfcer could not reach.
     NoText,
     /// Every show operator is simple.
     AllSimple,
@@ -203,7 +203,7 @@ impl FontMix {
 ///
 /// This is the second number decision 019 §3.3 asked for — "(b)
 /// prevalence" — and it sizes the *preservation* risk independently of the
-/// authoring question. It is worth having whatever (a) says: pdfce must
+/// authoring question. It is worth having whatever (a) says: pdfcer must
 /// restore an ambient `Tw`/`Ts`/`Tc`/`Tz` correctly around any edit
 /// regardless of whether it ever lets an operator author one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -390,7 +390,7 @@ impl PageCensus {
     /// Pool every provenanced glyph of one extracted page by its show
     /// operator, and fold the ambient text state into the prevalence flags.
     ///
-    /// Ambient states are deduplicated by `Arc` pointer: pdfce publishes
+    /// Ambient states are deduplicated by `Arc` pointer: pdfcer publishes
     /// one `Arc<AmbientTextState>` per run and clones the handle onto every
     /// glyph, so a pointer comparison skips the redundant work for all but
     /// the first glyph of each run without changing the result.
@@ -472,12 +472,12 @@ pub enum Outcome {
     LoadFailed(String),
     /// The page tree could not be walked, so no page was reachable.
     PageTreeFailed(String),
-    /// pdfce-core panicked on this file.
+    /// pdfcer-core panicked on this file.
     Panicked(String),
     /// The per-file wall-clock budget was exceeded.
     TimedOut,
     /// The document loaded and was walked. `totals.runs == 0` means it is
-    /// text-free (a scan, or a file whose text pdfce could not reach) — a
+    /// text-free (a scan, or a file whose text pdfcer could not reach) — a
     /// third category that belongs in neither numerator nor denominator of
     /// the reachability share.
     Measured(DocCensus),
@@ -629,7 +629,7 @@ mod tests {
 
         let mut st = AmbientTextState::initial();
         st.set(
-            pdfce_core::text_state::TextStateParam::HorizScale,
+            pdfcer_core::text_state::TextStateParam::HorizScale,
             90.0,
             b"90 Tz",
         );
@@ -645,7 +645,7 @@ mod tests {
         // to keep those apart.
         let mut st = AmbientTextState::initial();
         st.set(
-            pdfce_core::text_state::TextStateParam::WordSpacing,
+            pdfcer_core::text_state::TextStateParam::WordSpacing,
             0.0,
             b"0 Tw",
         );

@@ -1,5 +1,5 @@
 //! Fuzz target: the Pass 12.M1 snapping engine query
-//! (`pdfce_core::vector::snap_candidates` + the H/V constraint).
+//! (`pdfcer_core::vector::snap_candidates` + the H/V constraint).
 //!
 //! Decision 011 Appendix A Pass 12.M1 is a read-only interaction service with
 //! the crate's panic-free posture (ARCHITECTURE.md §10). This drives, over ANY
@@ -21,8 +21,8 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::content::ContentStream;
-use pdfce_core::vector::{
+use pdfcer_core::content::ContentStream;
+use pdfcer_core::vector::{
     AxisConstraint, Matrix, NoXObjects, Point, SnapConfig, constrained_second_point, decompose,
     measured_length, snap_candidates,
 };

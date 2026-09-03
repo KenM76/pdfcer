@@ -80,13 +80,13 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use pdfce_core::document::Document;
-use pdfce_core::edit::EditSession;
-use pdfce_core::font_unembed::UnembedRequest;
-use pdfce_core::fontinfo;
-use pdfce_core::page_tree::pages_in;
-use pdfce_core::writer::SaveOptions;
-use pdfce_render::render_page;
+use pdfcer_core::document::Document;
+use pdfcer_core::edit::EditSession;
+use pdfcer_core::font_unembed::UnembedRequest;
+use pdfcer_core::fontinfo;
+use pdfcer_core::page_tree::pages_in;
+use pdfcer_core::writer::SaveOptions;
+use pdfcer_render::render_page;
 
 /// One file's result.
 struct Row {
@@ -180,7 +180,7 @@ fn main() {
         usage("at least one corpus directory is required");
     }
 
-    let out_dir = std::env::temp_dir().join("pdfce-unembed-sweep");
+    let out_dir = std::env::temp_dir().join("pdfcer-unembed-sweep");
     if write_output {
         let _ = fs::create_dir_all(&out_dir);
     }
@@ -274,7 +274,7 @@ fn measure(path: &Path, out_dir: &Path, write_output: bool, rel: &str) -> Outcom
     //
     // ★ WITH ONE FALLBACK, and it is a measurement decision rather than a
     // convenience. A hybrid-reference file (§7.5.8.4) refuses a full rewrite
-    // by design — pdfce will not silently normalise a cross-reference
+    // by design — pdfcer will not silently normalise a cross-reference
     // structure it did not author. That refusal is not a failure of THIS
     // feature, and treating it as one would hide the question the sweep
     // exists to answer: does the unembedded file still open and render? So
@@ -340,7 +340,7 @@ fn measure(path: &Path, out_dir: &Path, write_output: bool, rel: &str) -> Outcom
 }
 
 /// How many blocked fonts carry each reason.
-fn count_blockers(plan: &pdfce_core::font_unembed::UnembedPlan) -> BTreeMap<String, usize> {
+fn count_blockers(plan: &pdfcer_core::font_unembed::UnembedPlan) -> BTreeMap<String, usize> {
     let mut out = BTreeMap::new();
     for b in &plan.blocked {
         *out.entry(b.blocker.token().to_owned()).or_insert(0) += 1;

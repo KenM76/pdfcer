@@ -6,7 +6,7 @@ WHY THIS EXISTS
 ---------------
 `/BrotliDecode` is a **PDF Association extension** (EXTN-BROTLI-1 v1.3,
 2026-08-19), not part of ISO 32000-2:2020, so no conformance corpus contains
-a file that uses it. pdfce's unit tests prove the decoder round-trips bytes;
+a file that uses it. pdfcer's unit tests prove the decoder round-trips bytes;
 only a real PDF proves the decoder is *reachable from a page*.
 
 That gap is not hypothetical in this project. A Pass shipped earlier the same
@@ -26,11 +26,11 @@ failure and a rendering failure look alike.
 the extension retitles Table 8 to include Brotli — the predictors apply
 **verbatim**, sharing `FlateDecode`'s code — and because **pdf.js silently
 ignores `/DecodeParms` predictors on Brotli** while honouring them for Flate
-and LZW. A file that renders correctly in pdfce and wrongly in pdf.js is
+and LZW. A file that renders correctly in pdfcer and wrongly in pdf.js is
 worth having on disk, and the divergence is pdf.js's.
 
 ★ THE ONE THING THIS FIXTURE MAY NOT CONTAIN: an inline image using
-`/BrotliDecode`. EXTN-BROTLI-1 §5.2 forbids it outright, and pdfce refuses it
+`/BrotliDecode`. EXTN-BROTLI-1 §5.2 forbids it outright, and pdfcer refuses it
 (`ImageCodecError::BrotliNotAllowedInline`). Writing one here would mean
 shipping a file that violates the very extension the fixture exists to
 demonstrate.
@@ -64,7 +64,7 @@ OUT = pathlib.Path(__file__).resolve().parent.parent / "fixtures" / "synthetic" 
 # fixture was 75 bytes; the predictor variant then decoded to 76, and the test
 # asserting both documents carry identical content failed on a trailing zero.
 #
-# That failure was the FIXTURE's, not pdfce's, and the fix belongs here rather
+# That failure was the FIXTURE's, not pdfcer's, and the fix belongs here rather
 # than in a weakened assertion: relaxing the test to "identical apart from
 # padding" would have thrown away its ability to catch a real predictor bug.
 # The extra trailing newline is a no-op in a content stream and brings the
@@ -83,7 +83,7 @@ def png_up_encode(data: bytes, columns: int) -> bytes:
     """Apply the PNG "Up" predictor (tag 2) that `/Predictor 12` selects.
 
     Each output row is one tag byte followed by `columns` bytes, each the
-    difference from the byte directly above it. This is the *encoder*; pdfce's
+    difference from the byte directly above it. This is the *encoder*; pdfcer's
     `filters::predictor` is the decoder and the two must be exact inverses,
     which is what the fixture checks end to end.
     """

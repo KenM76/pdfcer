@@ -1,5 +1,5 @@
 //! Fuzz target: the Pass 9a vector object decomposition + hit-test +
-//! centerline derivation (`pdfce_core::vector`).
+//! centerline derivation (`pdfcer_core::vector`).
 //!
 //! Decision 011 Appendix A Pass 9a acceptance: *"Fuzz target over the
 //! decomposition (malformed/degenerate paths, huge node counts,
@@ -31,9 +31,9 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::content::ContentStream;
-use pdfce_core::object::ObjId;
-use pdfce_core::vector::{
+use pdfcer_core::content::ContentStream;
+use pdfcer_core::object::ObjId;
+use pdfcer_core::vector::{
     Bounds, MarqueeMode, Matrix, Point, VectorObject, XObjectResolver, XObjectShape, decompose,
     hit_test_point, hit_test_rect, page_candidates,
 };

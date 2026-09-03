@@ -1,6 +1,6 @@
-# cmyk-calibration — deriving pdfce's `DeviceCMYK` → sRGB conversion
+# cmyk-calibration — deriving pdfcer's `DeviceCMYK` → sRGB conversion
 
-The measurement and fitting harness behind `crates/pdfce-core/src/color/`.
+The measurement and fitting harness behind `crates/pdfcer-core/src/color/`.
 This file is the **logic**; the three scripts are the syntax that enacts it. A
 competent engineer should be able to rebuild the whole thing — and re-derive
 the shipped table — from this note alone.
@@ -9,10 +9,10 @@ the shipped table — from this note alone.
 |---|---|
 | `cmyk_probe.py` | Ground truth: render known CMYK patches in a reference engine, read the pixels back. |
 | `fit.py` | Analysis: score candidate conversions, fit the shipped node grid, emit it as Rust. |
-| `compare.py` | Verification: pdfce-vs-pdfium divergence on a real page, by decision 006 §3.7's exact method. |
+| `compare.py` | Verification: pdfcer-vs-pdfium divergence on a real page, by decision 006 §3.7's exact method. |
 | `corpus_cmyk.py` | Verification at scale: the same statistic pooled over every corpus file containing `/DeviceCMYK`. |
 
-Nothing here ships. pdfce depends on none of it; the fitted numbers are pasted
+Nothing here ships. pdfcer depends on none of it; the fitted numbers are pasted
 into `color/cmyk_table.rs` as source, so a release binary carries a table and
 no data file, no parser, and no I/O. `pypdfium2` is tooling-only, exactly as in
 `tools/render-parity` (`docs/LEGAL.md` §6).
@@ -33,10 +33,10 @@ only other implementations' choices:
   `/OutputIntents`).
 - **pdfium** ships a fixed calibrated table (`AdobeCMYK_to_sRGB1`) in the same
   SWOP-derived family, not configurable at all.
-- **pdfce, before 2026-08-08**, used naive additive `1 − min(1, x + k)`. Not a
+- **pdfcer, before 2026-08-08**, used naive additive `1 − min(1, x + k)`. Not a
   model of anything — the formula you write when you need one and have no data.
 
-pdfce is therefore **choosing**, not matching, and this harness is how the
+pdfcer is therefore **choosing**, not matching, and this harness is how the
 choice is made from measurement instead of assertion.
 
 ## 2. Why measurement rather than a profile
@@ -50,11 +50,11 @@ profile. That path was not taken, and the reason is licensing, not accuracy:
 - The freely-downloadable alternatives carry terms of their own. The ECI
   profiles (ISOcoated_v2 and family) may be redistributed only **with their
   licence attached and at no fee** — a non-MIT obligation travelling with a
-  pdfce release, which is the operator's call under rule 13, not an engineer's.
+  pdfcer release, which is the operator's call under rule 13, not an engineer's.
 
 Rendering a patch and reading the pixel back sidesteps all of it: the result is
 a **measurement of program output**, not a copy of a licensed artifact. No ICC
-profile is read, shipped, or redistributed by pdfce or by this harness.
+profile is read, shipped, or redistributed by pdfcer or by this harness.
 
 ## 3. Method
 
@@ -75,7 +75,7 @@ python cmyk_probe.py --levels 9 --engine pdfium --out out/fit-pdfium.tsv
 python cmyk_probe.py --random 4000 --engine pdfium --out out/val-random.tsv
 ```
 
-`--engine pdfce` runs the same probe through the built `pdfce-cli`, which is
+`--engine pdfcer` runs the same probe through the built `pdfcer`, which is
 how you check that the Rust implementation reproduces the fit.
 
 **Use `--random` for validation, not a lattice.** A lattice validation set
@@ -108,9 +108,9 @@ python fit.py --fit out/fit-pdfium.tsv --levels 6 --emit-rust
 ### 3.3 Regenerating `cmyk_table.rs`
 
 `--emit-rust` prints the `GRID_L` constant and the `NODES` array. Paste the
-array body into `crates/pdfce-core/src/color/cmyk_table.rs` between its
+array body into `crates/pdfcer-core/src/color/cmyk_table.rs` between its
 existing header and closing bracket, keeping that file's module documentation
-intact, then run `cargo fmt` and `cargo test -p pdfce-core --lib color::`.
+intact, then run `cargo fmt` and `cargo test -p pdfcer-core --lib color::`.
 
 ## 4. Choosing L
 
@@ -153,12 +153,12 @@ question is answered rather than re-litigated.
 
 ## 5. Verification on a real page (`compare.py`)
 
-Decision 006 §3.7 measured pdfce against pdfium on one 300×232 `DeviceCMYK`
+Decision 006 §3.7 measured pdfcer against pdfium on one 300×232 `DeviceCMYK`
 JPEG at 1:1 and produced the figure the project quotes. `compare.py`
 reproduces that measurement exactly, so before/after are the same method.
 
 ```sh
-cargo build --release -p pdfce-cli
+cargo build --release -p pdfcer-cli
 python compare.py --label after
 ```
 
@@ -179,7 +179,7 @@ numbers digit for digit, which is what establishes that the method matches.
 ### 5.1 At corpus scale (`corpus_cmyk.py`)
 
 Same statistic, pooled over all 83 files in `fixtures/external` whose bytes
-contain `/DeviceCMYK` (81 measured, 2 skipped as unloadable by pdfce), page 1
+contain `/DeviceCMYK` (81 measured, 2 skipped as unloadable by pdfcer), page 1
 of each at 125 DPI — the `render-parity` baseline resolution:
 
 | | before | after |
@@ -235,7 +235,7 @@ Measured end to end on a deliberately **incoherent** 4-megapixel full-page
 `DeviceCMYK` image — 2000×2000 pseudo-random samples, worst case for cache
 locality and for any run-length or memoisation shortcut. Generate it with
 `python cmyk_probe.py --emit-cost-fixture out/big-cmyk.pdf`, then time
-`pdfce-cli render-page --scale 1` on it. Median of five runs:
+`pdfcer render-page --scale 1` on it. Median of five runs:
 
 | conversion | whole-page render |
 |---|---|
@@ -266,7 +266,7 @@ for a case that is not currently hurting.
 
 ## 7. Re-targeting
 
-The grid is data and the tool that produced it is committed, so pointing pdfce
+The grid is data and the tool that produced it is committed, so pointing pdfcer
 at a different printing condition is a re-run of §3, not a code change. If
-pdfce ever grows a user-selectable working CMYK space (Acrobat's model), this
+pdfcer ever grows a user-selectable working CMYK space (Acrobat's model), this
 table becomes its default entry rather than being replaced.

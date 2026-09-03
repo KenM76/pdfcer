@@ -12,7 +12,7 @@ cross-reference table, exactly-20-byte entries (ISO 32000-1 §7.5.4), no
 `/ID`, no timestamps -> running this twice produces byte-identical files.
 
 The two fixtures that need an *embedded* font program embed a bundled Foxit
-Base-14 face (`crates/pdfce-render/assets/fonts/FoxitSans.cff`, provenance in
+Base-14 face (`crates/pdfcer-render/assets/fonts/FoxitSans.cff`, provenance in
 that folder's `PROVENANCE.md`, rights-cleared for redistribution) as a
 `/FontFile3 /Subtype /Type1C` program. That keeps the whole corpus
 synthetic/rights-cleared while giving Pass 14.1 a genuinely embedded (full)
@@ -65,7 +65,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT_DIR = ROOT / "fixtures" / "synthetic" / "textedit"
-CFF_PATH = ROOT / "crates" / "pdfce-render" / "assets" / "fonts" / "FoxitSans.cff"
+CFF_PATH = ROOT / "crates" / "pdfcer-render" / "assets" / "fonts" / "FoxitSans.cff"
 
 PAGE_W = 612
 PAGE_H = 792
@@ -216,7 +216,7 @@ def tm_follower() -> bytes:
 # Pass 14.2 formatting fixtures (size / fill colour / font-family-style)
 # ---------------------------------------------------------------------------
 #
-# These drive `pdfce_core::text_edit::format::set_format` (the three formatting
+# These drive `pdfcer_core::text_edit::format::set_format` (the three formatting
 # operations). Same byte-authored, no-library discipline as above.
 
 
@@ -269,7 +269,7 @@ def format_color() -> bytes:
 
 def format_other() -> bytes:
     """A run "hello world" whose fill colour is set in a NON-DEVICE space —
-    a `/Separation` colour space `/CS0` (`/CS0 cs 0.7 scn`). pdfce records this
+    a `/Separation` colour space `/CS0` (`/CS0 cs 0.7 scn`). pdfcer records this
     as `TextColor::Other`. Proves: a colour change on an Other original is
     DISCLOSED as a space-narrowing conversion (never a silent downgrade), and
     the run's tail is restored to the original `scn` sequence byte-verbatim."""

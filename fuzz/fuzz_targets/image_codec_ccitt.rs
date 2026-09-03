@@ -1,5 +1,5 @@
 //! Fuzz target: the **CCITTFaxDecode adapter**
-//! (`pdfce_core::image_codec::decode_image` over a `/CCITTFaxDecode`
+//! (`pdfcer_core::image_codec::decode_image` over a `/CCITTFaxDecode`
 //! dict, ISO 32000-1 §7.4.6 / ITU-T T.4 / T.6).
 //!
 //! ## Fuzz the PARAMETERS as well as the data
@@ -62,9 +62,9 @@
 
 use libfuzzer_sys::arbitrary::{self, Arbitrary};
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::document::Document;
-use pdfce_core::image_codec::decode_image;
-use pdfce_core::object::{Dict, Name, Object};
+use pdfcer_core::document::Document;
+use pdfcer_core::image_codec::decode_image;
+use pdfcer_core::object::{Dict, Name, Object};
 
 /// The Table 11 cross-product, plus the image dictionary's own geometry,
 /// plus whatever bytes are left over as the codestream.

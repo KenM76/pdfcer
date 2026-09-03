@@ -32,8 +32,8 @@ the band. Such a page is called benign by construction and no one ever looks
 at it.
 
 Worse, the failure compounds. The band is the p99.9 of `frac_over_32` over
-"clean-by-construction" pages — pages for which pdfce disclosed ZERO gaps.
-A bug pdfce does not KNOW about emits no diagnostic, so its page is counted
+"clean-by-construction" pages — pages for which pdfcer disclosed ZERO gaps.
+A bug pdfcer does not KNOW about emits no diagnostic, so its page is counted
 clean-by-construction, and its divergence is folded into the population that
 DEFINES the band. A silent bug does not merely escape detection; it raises
 the threshold that hides other bugs.
@@ -55,7 +55,7 @@ So for each page:
                 `frac_over_32` counts, so this audits the metric's own
                 pixels, not a different set).
   2. `edge_a` = per-channel morphological gradient (3x3 max - 3x3 min) of the
-                PDFCE raster exceeds 32; `edge_b` = the same for the PDFIUM
+                PDFCER raster exceeds 32; `edge_b` = the same for the PDFIUM
                 raster. Per-channel and then max-across-channels, because an
                 isoluminant colour boundary (red|green) has a real edge and
                 no luminance gradient.
@@ -70,7 +70,7 @@ Why the AND of both engines, rather than the union: it is what separates
 "one engine drew something the other did not" (not benign). It catches four
 distinct real-divergence shapes that a union test or a pure size test misses:
 
-  * MISSING OBJECT   -- pdfium draws a filled shape, pdfce leaves the area
+  * MISSING OBJECT   -- pdfium draws a filled shape, pdfcer leaves the area
                         blank. The shape's INTERIOR is uniform in both
                         rasters, so it is edge-free in both; every interior
                         pixel lands in `off`.
@@ -82,7 +82,7 @@ distinct real-divergence shapes that a union test or a pure size test misses:
                         gap.)
   * SHIFTED CONTENT  -- a text block displaced by more than a couple of px
                         puts glyph ink where the other engine has paper. At
-                        the vacated position pdfce has an edge and pdfium
+                        the vacated position pdfcer has an edge and pdfium
                         does not; at the new position the reverse. Neither
                         position is a SHARED edge, so both land in `off`.
                         A union-of-edges test would excuse this entirely;
@@ -136,7 +136,7 @@ OUTPUTS
                                   and the ranked head of the table.
   <outdir>/structure-summary.json machine-readable twin.
   <outdir>/panels/*.png           4-panel triage images:
-                                  [pdfce | pdfium | 8x delta | classification]
+                                  [pdfcer | pdfium | 8x delta | classification]
                                   where the classification panel paints
                                   shared-edge-explained over-pixels GREEN and
                                   unexplained ones RED over a dimmed pdfium
@@ -145,9 +145,9 @@ OUTPUTS
 
 METRIC-DRIFT GUARD
 ==================
-The recorded run pinned its own copy of the CLI (`pdfce-cli-pinned.exe`),
+The recorded run pinned its own copy of the CLI (`pdfcer-pinned.exe`),
 which no longer exists. This tool therefore re-renders with the CURRENT
-`target/release/pdfce-cli` and records BOTH the recomputed `frac32` and the
+`target/release/pdfcer` and records BOTH the recomputed `frac32` and the
 `frac32` the baseline recorded, plus their delta. If the binary has moved,
 the report says so instead of silently comparing two different programs.
 
@@ -156,7 +156,7 @@ USAGE
     python benign_structure.py --tsv out-corpus-4023/per-page.tsv \
         --outdir out-benign-audit [--all | --stratified N] [--bucket benign]
 
-Requires: numpy, scipy, Pillow, a built `pdfce-cli` release binary, and
+Requires: numpy, scipy, Pillow, a built `pdfcer` release binary, and
 `pdfium_worker.py` beside this file (PDFium contact stays in a child process
 for exactly the reason `render_parity.py` documents -- it aborts the host on
 at least one corpus file).
@@ -246,9 +246,9 @@ class StructResult:
     over_thick2_frac: float = 0.0  # share of over pixels >=2px deep (>=5px wide)
 
     # What the two engines actually painted inside the largest unexplained
-    # blob. This is what turns "there is a blob" into a diagnosis: pdfce
-    # (255,255,255) vs pdfium (30,60,180) reads "pdfce drew nothing".
-    off_lcc_pdfce_rgb: str = ""
+    # blob. This is what turns "there is a blob" into a diagnosis: pdfcer
+    # (255,255,255) vs pdfium (30,60,180) reads "pdfcer drew nothing".
+    off_lcc_pdfcer_rgb: str = ""
     off_lcc_pdfium_rgb: str = ""
     off_lcc_mean_delta: float = 0.0
 
@@ -327,7 +327,7 @@ def largest_component(mask: np.ndarray) -> tuple[int, int, tuple[int, int, int, 
 
 
 def analyse(
-    pdfce: np.ndarray, pdfium: np.ndarray, delta: np.ndarray,
+    pdfcer: np.ndarray, pdfium: np.ndarray, delta: np.ndarray,
     pixel_t: int, edge_thr: int, edge_radius: int,
 ) -> dict:
     """Compute the full structural statistic set for one page pair.
@@ -337,9 +337,9 @@ def analyse(
     eighth of the benign population has literally zero over-threshold pixels
     and building four edge maps for them is pure waste.
     """
-    h = min(pdfce.shape[0], pdfium.shape[0], delta.shape[0])
-    w = min(pdfce.shape[1], pdfium.shape[1], delta.shape[1])
-    a = pdfce[:h, :w, :]
+    h = min(pdfcer.shape[0], pdfium.shape[0], delta.shape[0])
+    w = min(pdfcer.shape[1], pdfium.shape[1], delta.shape[1])
+    a = pdfcer[:h, :w, :]
     b = pdfium[:h, :w, :]
     d = delta[:h, :w]
 
@@ -352,7 +352,7 @@ def analyse(
         "off_lcc_px": 0, "off_lcc_frac_of_page": 0.0, "off_lcc_bbox": "",
         "off_lcc_solidity": 0.0, "off_lcc_maxthick": 0.0, "n_off_components": 0,
         "over_maxthick": 0.0, "over_thick2_frac": 0.0,
-        "off_lcc_pdfce_rgb": "", "off_lcc_pdfium_rgb": "", "off_lcc_mean_delta": 0.0,
+        "off_lcc_pdfcer_rgb": "", "off_lcc_pdfium_rgb": "", "off_lcc_mean_delta": 0.0,
         "_masks": None,
     }
     if n_over == 0:
@@ -390,7 +390,7 @@ def analyse(
         if lccmask is not None:
             edt = ndimage.distance_transform_edt(lccmask)
             res["off_lcc_maxthick"] = float(edt.max())
-            res["off_lcc_pdfce_rgb"] = ",".join(
+            res["off_lcc_pdfcer_rgb"] = ",".join(
                 str(int(round(v))) for v in a[lccmask].mean(axis=0))
             res["off_lcc_pdfium_rgb"] = ",".join(
                 str(int(round(v))) for v in b[lccmask].mean(axis=0))
@@ -402,10 +402,10 @@ def analyse(
 
 
 def classification_panel(
-    pdfce: np.ndarray, pdfium: np.ndarray, delta: np.ndarray,
+    pdfcer: np.ndarray, pdfium: np.ndarray, delta: np.ndarray,
     over: np.ndarray, shared: np.ndarray,
 ) -> Image.Image:
-    """[pdfce | pdfium | 8x delta | classification] as one RGB image.
+    """[pdfcer | pdfium | 8x delta | classification] as one RGB image.
 
     The fourth panel is the point of the whole tool: it dims the pdfium raster
     to 25% so the page is still legible as context, then paints every
@@ -414,9 +414,9 @@ def classification_panel(
     candidate; a page whose red is a dust of single pixels is not. That
     judgement is made by looking, which is what the audited bucket never had.
     """
-    h = min(pdfce.shape[0], pdfium.shape[0], delta.shape[0], over.shape[0])
-    w = min(pdfce.shape[1], pdfium.shape[1], delta.shape[1], over.shape[1])
-    a, b = pdfce[:h, :w, :], pdfium[:h, :w, :]
+    h = min(pdfcer.shape[0], pdfium.shape[0], delta.shape[0], over.shape[0])
+    w = min(pdfcer.shape[1], pdfium.shape[1], delta.shape[1], over.shape[1])
+    a, b = pdfcer[:h, :w, :], pdfium[:h, :w, :]
     d = np.clip(delta[:h, :w].astype(np.int32) * 8, 0, 255).astype(np.uint8)
     dmap = np.stack([d, d, d], axis=2)
 
@@ -531,7 +531,7 @@ def main(argv: list[str] | None = None) -> int:
     corpus_root = Path(args.corpus_root)
 
     if not rp.CLI.exists():
-        print(f"ERROR: pdfce-cli not found at {rp.CLI}", file=sys.stderr)
+        print(f"ERROR: pdfcer not found at {rp.CLI}", file=sys.stderr)
         return 2
 
     rows = load_rows(tsv, args.bucket or None)
@@ -567,12 +567,12 @@ def main(argv: list[str] | None = None) -> int:
                               clean=int(r.get("clean", "0") or 0),
                               frac32_recorded=float(r["frac32"]))
             try:
-                pdfce_img, _diag = rp.render_pdfce(
+                pdfcer_img, _diag = rp.render_pdfce(
                     abs_, pg, scale, args.annots, tmp, args.timeout)
                 pdfium_img = worker.render(
                     abs_, pg - 1, scale, args.annots, tmp / "pdfium.raw")
-                delta, stats, _dm = rp.compare(pdfce_img, pdfium_img)
-                st = analyse(pdfce_img, pdfium_img, delta,
+                delta, stats, _dm = rp.compare(pdfcer_img, pdfium_img)
+                st = analyse(pdfcer_img, pdfium_img, delta,
                              args.pixel_t, args.edge_thr, args.edge_radius)
                 masks = st.pop("_masks")
                 sr.frac32_now = stats["frac32"]
@@ -582,7 +582,7 @@ def main(argv: list[str] | None = None) -> int:
                 key = (rel, pg)
                 if key in control_keys and masks is not None:
                     p = outdir / "panels" / safe_name(rel, pg, f"ctl_{sr.off_lcc_px:06d}")
-                    classification_panel(pdfce_img, pdfium_img, delta, *masks).save(p)
+                    classification_panel(pdfcer_img, pdfium_img, delta, *masks).save(p)
                     panels_wanted[key] = p.name
             except rp.ReferenceAborted as exc:
                 worker.kill()
@@ -591,7 +591,7 @@ def main(argv: list[str] | None = None) -> int:
                 worker.kill()
                 sr.status, sr.note = "error", f"pdfium-hang: {exc}"
             except subprocess.TimeoutExpired:
-                sr.status, sr.note = "error", "pdfce-timeout"
+                sr.status, sr.note = "error", "pdfcer-timeout"
             except Exception as exc:  # noqa: BLE001
                 sr.status, sr.note = "error", str(exc)[:120]
             results.append(sr)
@@ -611,19 +611,19 @@ def main(argv: list[str] | None = None) -> int:
             if key in panels_wanted:
                 continue
             try:
-                pdfce_img, _ = rp.render_pdfce(
+                pdfcer_img, _ = rp.render_pdfce(
                     corpus_root / sr.rel, sr.page, scale, args.annots, tmp, args.timeout)
                 pdfium_img = worker.render(
                     corpus_root / sr.rel, sr.page - 1, scale, args.annots,
                     tmp / "pdfium.raw")
-                delta, _stats, _ = rp.compare(pdfce_img, pdfium_img)
-                st = analyse(pdfce_img, pdfium_img, delta,
+                delta, _stats, _ = rp.compare(pdfcer_img, pdfium_img)
+                st = analyse(pdfcer_img, pdfium_img, delta,
                              args.pixel_t, args.edge_thr, args.edge_radius)
                 masks = st.pop("_masks")
                 if masks is None:
                     continue
                 p = outdir / "panels" / safe_name(sr.rel, sr.page, f"top_{sr.off_lcc_px:06d}")
-                classification_panel(pdfce_img, pdfium_img, delta, *masks).save(p)
+                classification_panel(pdfcer_img, pdfium_img, delta, *masks).save(p)
                 panels_wanted[key] = p.name
             except Exception as exc:  # noqa: BLE001
                 print(f"  panel failed {sr.rel} p{sr.page}: {exc}", file=sys.stderr)
@@ -708,7 +708,7 @@ def write_reports(results: list[StructResult], outdir: Path, args,
                 "off_lcc_maxthick": round(s.off_lcc_maxthick, 2),
                 "shared_edge_frac": round(s.shared_edge_frac, 4),
                 "bbox": s.off_lcc_bbox,
-                "pdfce_rgb": s.off_lcc_pdfce_rgb,
+                "pdfcer_rgb": s.off_lcc_pdfcer_rgb,
                 "pdfium_rgb": s.off_lcc_pdfium_rgb,
                 "clean_by_construction": s.clean,
                 "panel": panels.get((s.rel, s.page), ""),
@@ -753,7 +753,7 @@ def write_reports(results: list[StructResult], outdir: Path, args,
                  f"sharedEdge={e['shared_edge_frac']:.3f} frac32={e['frac32']:.5f} "
                  f"clean={e['clean_by_construction']}")
         L.append(f"      {e['file']} p{e['page']}  bbox={e['bbox']} "
-                 f"pdfce={e['pdfce_rgb']} pdfium={e['pdfium_rgb']}")
+                 f"pdfcer={e['pdfcer_rgb']} pdfium={e['pdfium_rgb']}")
     if err:
         L.append("")
         L.append("--- errors ---")

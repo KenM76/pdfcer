@@ -1,7 +1,7 @@
 //! # roundtrip — the corpus-wide proof of `ARCHITECTURE.md` §5
 //!
 //! Walks one or more corpus directories, and for every `*.pdf` that
-//! `pdfce-core` can load, runs all three save paths and checks the
+//! `pdfcer-core` can load, runs all three save paths and checks the
 //! contract each one promises. Emits a per-file TSV and an aggregate
 //! summary in which **every shortfall is enumerated by file and by
 //! reason** — never rounded away (the R20-style counted-shortfall
@@ -25,14 +25,14 @@
 //! ## The fourth mode: mutation (Pass 3.1)
 //!
 //! The three modes above prove that an **untouched** file survives a
-//! save. That was the strongest claim available while pdfce had no
+//! save. That was the strongest claim available while pdfcer had no
 //! editing capability, and it is not the claim Acrobat users actually
 //! depend on. This one is:
 //!
 //! > changing one thing in a document does not perturb anything else.
 //!
 //! So for every loadable file the harness performs a real edit through
-//! the real command log (`pdfce_core::edit::EditSession` — the same type
+//! the real command log (`pdfcer_core::edit::EditSession` — the same type
 //! the GUI and the CLI drive), saves incrementally, and checks three
 //! things that were unmeasurable before Pass 3.1:
 //!
@@ -96,7 +96,7 @@
 //! Page 1 of the input is rendered, page 1 of the output is rendered,
 //! and the pixel buffers are compared. No reference renderer is
 //! involved. This is deliberately **not** Pass 1.1's outstanding
-//! pdfce-vs-pdfium pixel-parity harness, which remains owed and must not
+//! pdfcer-vs-pdfium pixel-parity harness, which remains owed and must not
 //! be reported as closed by this tool. It is, however, most of the same
 //! plumbing.
 //!
@@ -129,11 +129,11 @@ use std::process::ExitCode;
 use std::sync::mpsc;
 use std::time::Duration;
 
-use pdfce_core::document::Document;
-use pdfce_core::edit::{EditSession, InfoField};
-use pdfce_core::object::{ObjId, Provenance, equivalent_across_buffers};
-use pdfce_core::writer::{DirtySet, SaveOptions, save_full, save_incremental};
-use pdfce_core::xref::SectionShape;
+use pdfcer_core::document::Document;
+use pdfcer_core::edit::{EditSession, InfoField};
+use pdfcer_core::object::{ObjId, Provenance, equivalent_across_buffers};
+use pdfcer_core::writer::{DirtySet, SaveOptions, save_full, save_incremental};
+use pdfcer_core::xref::SectionShape;
 
 /// Per-file wall-clock budget.
 ///
@@ -171,7 +171,7 @@ enum Verdict {
     /// The file does not load at all — outside this gate's denominator.
     /// Counted separately so the gate's own percentage is honest.
     NotLoadable,
-    /// pdfce declined a save by name (e.g. a hybrid full rewrite). A
+    /// pdfcer declined a save by name (e.g. a hybrid full rewrite). A
     /// correct outcome, tallied apart from failures.
     Refused,
     /// Page 1 re-renders to different pixels after a save.
@@ -184,7 +184,7 @@ enum Verdict {
     /// An empty-dirty-set incremental save produced a file that is not
     /// byte-identical to the input. **The headline gate's failure.**
     NotByteIdentical,
-    /// A produced file could not be loaded back by pdfce itself.
+    /// A produced file could not be loaded back by pdfcer itself.
     ReloadFailed,
     /// The object graph changed across a save.
     GraphChanged,
@@ -201,7 +201,7 @@ enum Verdict {
     UndoNotByteIdentical,
     /// The file exceeded [`FILE_BUDGET`].
     Timeout,
-    /// A worker panicked. `pdfce-core` has a crate-level panic-free
+    /// A worker panicked. `pdfcer-core` has a crate-level panic-free
     /// policy, so any sighting is a bug, not a data problem.
     Panic,
 }
@@ -630,7 +630,7 @@ fn measure_bytes(bytes: Vec<u8>, mutate: bool) -> Outcome {
         }
         Err(e) => {
             // The expected case here is a hybrid-reference file, which
-            // pdfce declines to flatten (R33). Correct behaviour.
+            // pdfcer declines to flatten (R33). Correct behaviour.
             stats.full_refused += 1;
             return Outcome {
                 verdict: Verdict::Refused,
@@ -679,7 +679,7 @@ fn check_mutation(doc: &Document, source: &[u8], stats: &mut Stats) -> Option<Ou
         (session.rotate_page_by(0, 90), Some(page.id), Some(expected))
     } else {
         (
-            session.set_info_field(InfoField::Title, Some("pdfce round-trip probe")),
+            session.set_info_field(InfoField::Title, Some("pdfcer round-trip probe")),
             None,
             None,
         )
@@ -712,12 +712,12 @@ fn check_mutation(doc: &Document, source: &[u8], stats: &mut Stats) -> Option<Ou
         return Some(Outcome {
             verdict: Verdict::ReloadFailed,
             mode: "mutation",
-            detail: "pdfce could not reload a file it produced from an edit".to_owned(),
+            detail: "pdfcer could not reload a file it produced from an edit".to_owned(),
             stats: *stats,
         });
     };
     if let Some(expected) = expected_rotation {
-        let got = pdfce_core::page_tree::pages(&back)
+        let got = pdfcer_core::page_tree::pages(&back)
             .ok()
             .and_then(|p| p.first().map(|page| page.rotate));
         if got != Some(expected) {
@@ -728,7 +728,7 @@ fn check_mutation(doc: &Document, source: &[u8], stats: &mut Stats) -> Option<Ou
                 stats: *stats,
             });
         }
-    } else if title_of(&back).as_deref() != Some("pdfce round-trip probe") {
+    } else if title_of(&back).as_deref() != Some("pdfcer round-trip probe") {
         return Some(Outcome {
             verdict: Verdict::MutationNotApplied,
             mode: "mutation",
@@ -795,8 +795,8 @@ fn title_of(doc: &Document) -> Option<String> {
     let id = doc.trailer().get(b"Info")?.as_reference()?;
     let dict = doc.get(id)?.value.as_dict()?;
     match dict.get(b"Title")? {
-        pdfce_core::object::Object::String(bytes) => {
-            Some(pdfce_core::edit::decode_text_string(bytes).text)
+        pdfcer_core::object::Object::String(bytes) => {
+            Some(pdfcer_core::edit::decode_text_string(bytes).text)
         }
         _ => None,
     }
@@ -847,7 +847,7 @@ fn check_reload(doc: &Document, out: &[u8], mode: &'static str, stats: Stats) ->
             return Some(Outcome {
                 verdict: Verdict::ReloadFailed,
                 mode,
-                detail: sanitize(&format!("pdfce could not reload its own output: {e}")),
+                detail: sanitize(&format!("pdfcer could not reload its own output: {e}")),
                 stats,
             });
         }
@@ -956,9 +956,9 @@ fn is_section_object(doc: &Document, id: ObjId) -> bool {
 /// Rasterize page 1 at [`RASTER_SCALE`], or `None` if it does not
 /// render.
 fn render_first_page(doc: &Document) -> Option<Vec<u8>> {
-    let pages = pdfce_core::page_tree::pages(doc).ok()?;
+    let pages = pdfcer_core::page_tree::pages(doc).ok()?;
     let page = pages.first()?;
-    let rendered = pdfce_render::render_page(doc, page, RASTER_SCALE).ok()?;
+    let rendered = pdfcer_render::render_page(doc, page, RASTER_SCALE).ok()?;
     Some(rendered.pixmap.data().to_vec())
 }
 
@@ -1050,7 +1050,7 @@ fn print_summary(dir: &Path, rows: &[(String, Outcome)], mutate_limit: usize) ->
         println!("{name:<28} {n:>6}  {:>6.2}%", pct(*n, total));
     }
 
-    // The denominator that matters: files pdfce can load. A file it
+    // The denominator that matters: files pdfcer can load. A file it
     // cannot load is outside the §5 gate's scope, and folding it in
     // would flatter the percentage.
     let d = s.loadable;

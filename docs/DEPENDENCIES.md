@@ -1,7 +1,7 @@
-# What pdfce is built from
+# What pdfcer is built from
 
-Every third-party package pdfce depends on, what each one is *for*, and
-which parts pdfce implements itself instead.
+Every third-party package pdfcer depends on, what each one is *for*, and
+which parts pdfcer implements itself instead.
 
 This answers a different question from `THIRD_PARTY_LICENSES.md`. That file
 is **generated** by `cargo-about` and is licence-shaped — it lists every
@@ -15,7 +15,7 @@ those and update this file, and regenerate `THIRD_PARTY_LICENSES.md`.
 
 ---
 
-## 1. The crates pdfce is
+## 1. The crates pdfcer is
 
 Five crates, ~281,000 lines. The split is not organisational tidiness — the
 boundary between the first three and the last two is the project's
@@ -23,14 +23,14 @@ load-bearing invariant.
 
 | Crate | Lines | What it is |
 |---|---|---|
-| **`pdfce-core`** | ~143,000 | The PDF engine. Object model, tokenizer, cross-reference parsing, incremental writer, filters, fonts, colour, encryption, forms, redaction, editing. Knows nothing about screens. |
-| **`pdfce-render`** | ~20,000 | The headless rasterizer. Turns a page into pixels. Runs with no window and no GPU. |
-| **`pdfce-print`** | ~5,100 | Printer discovery, device capabilities, page placement on a sheet, imposition (n-up, booklet, poster), and spooling. The only crate with platform-specific code. |
-| **`pdfce-cli`** | ~18,000 | The command-line tool. Every batch operation, scriptable. |
+| **`pdfcer-core`** | ~143,000 | The PDF engine. Object model, tokenizer, cross-reference parsing, incremental writer, filters, fonts, colour, encryption, forms, redaction, editing. Knows nothing about screens. |
+| **`pdfcer-render`** | ~20,000 | The headless rasterizer. Turns a page into pixels. Runs with no window and no GPU. |
+| **`pdfcer-print`** | ~5,100 | Printer discovery, device capabilities, page placement on a sheet, imposition (n-up, booklet, poster), and spooling. The only crate with platform-specific code. |
+| **`pdfcer-cli`** | ~18,000 | The command-line tool (binary `pdfcer`). Every batch operation, scriptable. |
 
 ### Why the split matters
 
-**`pdfce-core`, `pdfce-render` and `pdfce-print` must never depend on a
+**`pdfcer-core`, `pdfcer-render` and `pdfcer-print` must never depend on a
 GUI or windowing crate.** Not "should not" — CI greps `cargo tree` on every
 push and fails the build if `egui`, `eframe`, `winit` or `wgpu` appears in
 their dependency trees.
@@ -44,7 +44,7 @@ rewrite. (The desktop GUI is exactly such a shell: the separate
 `pdfcer-gui` project, which depends on this workspace and is not part of
 it. The original in-repo `pdfce-gui` crate was removed in Pass 247.0.)
 
-`pdfce-cli` is held to the same rule, which is why the CLI is a real
+`pdfcer` is held to the same rule, which is why the CLI is a real
 first-class tool rather than a debug harness bolted onto the GUI.
 
 ---
@@ -52,16 +52,16 @@ first-class tool rather than a debug harness bolted onto the GUI.
 ## 2. Third-party packages, by crate
 
 **10 direct third-party dependencies in the engine, 3 in the GUI.** The
-GUI's manifest lists six, but three of those are pdfce's own crates. The
+GUI's manifest lists six, but three of those are pdfcer's own crates. The
 full resolved
 graph is 435 packages, but most of that is the GUI stack's own
-transitive tree — `pdfce-core` pulls a deliberately small set.
+transitive tree — `pdfcer-core` pulls a deliberately small set.
 
-### `pdfce-core` — the engine
+### `pdfcer-core` — the engine
 
-| Package | Licence | What it does for pdfce |
+| Package | Licence | What it does for pdfcer |
 |---|---|---|
-| `thiserror` | MIT OR Apache-2.0 | Derives the error types. Every failure pdfce reports is a typed error rather than a string, and this removes the boilerplate for that. |
+| `thiserror` | MIT OR Apache-2.0 | Derives the error types. Every failure pdfcer reports is a typed error rather than a string, and this removes the boilerplate for that. |
 | `flate2` | MIT OR Apache-2.0 | **Deflate/zlib** — the `/FlateDecode` filter. The single most common compression in any PDF; nearly every modern file's page content and fonts are Flate-compressed. Built with `rust_backend`, so it is pure Rust with no C zlib linked in. |
 | `zune-jpeg` | MIT OR Apache-2.0 OR Zlib | **Decodes JPEG** images (`/DCTDecode`) — every photo and most scans. |
 | `jpeg-encoder` | (MIT OR Apache-2.0) AND IJG | **Encodes JPEG**, for importing an image into a PDF. Note the `AND IJG` — unlike every other dependency here, that is a *conjunctive* licence with its own attribution requirement. |
@@ -72,14 +72,14 @@ transitive tree — `pdfce-core` pulls a deliberately small set.
 | `aes` | MIT OR Apache-2.0 | **AES block cipher**, for opening AES-128 encrypted PDFs. |
 | `cbc` | MIT OR Apache-2.0 | **CBC block-cipher mode**, which is how PDF applies AES. |
 
-### `pdfce-render` — the rasterizer
+### `pdfcer-render` — the rasterizer
 
-| Package | Licence | What it does for pdfce |
+| Package | Licence | What it does for pdfcer |
 |---|---|---|
 | `tiny-skia` | BSD-3-Clause | The **CPU rasterizer**. Fills and strokes paths, blends, clips — a software port of Skia (the engine behind Chrome's graphics). CPU-only is what lets rendering run headless, in tests and in the CLI. |
 | `skrifa` | MIT OR Apache-2.0 | **Reads font files** and extracts glyph outlines from TrueType/OpenType/CFF, so text can be drawn as shapes. |
 | `subsetter` | MIT OR Apache-2.0 | **Font subsetting** — cuts an embedded font down to only the glyphs a document actually uses, so saved files do not carry a whole typeface for six characters. |
-| `iccce-profile` | MIT | **Parses ICC colour profiles.** Reads the profile embedded in a PDF's `/ICCBased` colour space or its `/OutputIntent`, so pdfce can know what a document's colours actually mean rather than guessing from the `/Alternate` space. |
+| `iccce-profile` | MIT | **Parses ICC colour profiles.** Reads the profile embedded in a PDF's `/ICCBased` colour space or its `/OutputIntent`, so pdfcer can know what a document's colours actually mean rather than guessing from the `/Alternate` space. |
 | `iccce-cmm` | MIT | **The colour-management engine** — converts between profiles at a chosen rendering intent. This is what makes a CMYK image in a document with a press profile come out the colour the press would print, rather than the colour a naive formula produces. |
 | `thiserror` | MIT OR Apache-2.0 | As above. |
 
@@ -90,9 +90,9 @@ waste of time. `iccce` is different, and this file is the place that has to
 say so, because the generated `THIRD_PARTY_LICENSES.md` can only answer
 *what licence* and never *why is this here*.
 
-`iccce` (`github.com/KenM76/iccce`, MIT) is a **sibling project of pdfce's,
-written for pdfce** — its README names pdfce as its first consumer. By
-**decision 064** it owns *all* colour conversion: pdfce never implements a
+`iccce` (`github.com/KenM76/iccce`, MIT) is a **sibling project of pdfcer's,
+written for pdfcer** — its README names pdfcer as its first consumer. By
+**decision 064** it owns *all* colour conversion: pdfcer never implements a
 colour-management module, never picks up a competing CMM crate, and hands
 colour questions across that boundary instead. Decision 115 records the
 consumption terms.
@@ -100,33 +100,33 @@ consumption terms.
 Two consequences worth stating plainly:
 
 - **It is pinned to a git tag, not a crates.io version** —
-  `tag = "v0.3.0"` in `crates/pdfce-render/Cargo.toml`. `iccce` is not
+  `tag = "v0.3.0"` in `crates/pdfcer-render/Cargo.toml`. `iccce` is not
   published to crates.io, and its author has declined to promise a release
   cadence, so a tag is the strongest pin available. A tag is immutable in
   practice and `Cargo.lock` records the resolved revision regardless, which
-  is what `pdfce-cli --version` reports.
+  is what `pdfcer --version` reports.
 - **It clears the wasm32 gate**, which is why it is admissible at all.
   Anything that could not cross into the future web fork would make colour
-  management the first capability pdfce could not carry there — see
+  management the first capability pdfcer could not carry there — see
   `ARCHITECTURE.md` §3's GUI-core separation invariant, of which the wasm32
   CI job is the enforcement.
 
-Note where it sits: `pdfce-render`, **not** `pdfce-core`. Colour management
+Note where it sits: `pdfcer-render`, **not** `pdfcer-core`. Colour management
 is a *rendering* concern; the object model has no opinion about what a
-colour looks like. That placement is also why `pdfce-core`'s build script
+colour looks like. That placement is also why `pdfcer-core`'s build script
 could not see the dependency for six days after it landed — see
-`crates/pdfce-core/build.rs`.
+`crates/pdfcer-core/build.rs`.
 
-### `pdfce-print` — printing
+### `pdfcer-print` — printing
 
-| Package | Licence | What it does for pdfce |
+| Package | Licence | What it does for pdfcer |
 |---|---|---|
 | `windows` | MIT OR Apache-2.0 | Microsoft's official Win32 bindings. Used for printer enumeration, device capabilities (resolution, printable area, duplex), the `DEVMODE` job settings, and spooling. **Windows-only** — gated behind `cfg(windows)`, so the crate still builds and its geometry logic still tests on Linux and macOS. |
 | `thiserror` | MIT OR Apache-2.0 | As above. |
 
-### `pdfce-cli` — the command line
+### `pdfcer-cli` — the command line (binary `pdfcer`)
 
-| Package | Licence | What it does for pdfce |
+| Package | Licence | What it does for pdfcer |
 |---|---|---|
 | `clap` | MIT OR Apache-2.0 | Argument parsing, subcommands, `--help` text, shell completions. |
 
@@ -142,7 +142,7 @@ longer lists them. (Before Pass 247.0 an in-repo `pdfce-gui` crate pulled
 
 ## 3. Licensing posture
 
-pdfce is **MIT**. Every direct dependency above is permissive —
+pdfcer is **MIT**. Every direct dependency above is permissive —
 MIT, Apache-2.0, BSD-3-Clause, Zlib, or a choice among them.
 
 - **No copyleft obligation anywhere.** Stated carefully, because the loose
@@ -150,13 +150,13 @@ MIT, Apache-2.0, BSD-3-Clause, Zlib, or a choice among them.
   in the resolved graph *mention* a copyleft licence — `self_cell`
   (`Apache-2.0 OR GPL-2.0-only`) and `r-efi`
   (`MIT OR Apache-2.0 OR LGPL-2.1-or-later`). Both are **disjunctive**: the
-  `OR` is a choice the user makes, and pdfce takes the permissive branch.
+  `OR` is a choice the user makes, and pdfcer takes the permissive branch.
   `cargo-about` resolves `self_cell` to Apache-2.0, and
   `THIRD_PARTY_LICENSES.md` accordingly contains no GPL section at all.
   `r-efi` is a UEFI-target crate and is not in the Windows build in the
   first place — it appears only under `cargo tree --target all`.
 
-  So: **nothing pdfce ships is under a copyleft licence, and nothing
+  So: **nothing pdfcer ships is under a copyleft licence, and nothing
   imposes a copyleft obligation.** What is *not* true is the tempting
   shorter claim that the strings "GPL" or "LGPL" appear nowhere in the
   graph — they do, twice, harmlessly, and a future audit that greps for
@@ -187,7 +187,7 @@ MIT, Apache-2.0, BSD-3-Clause, Zlib, or a choice among them.
 
 ---
 
-## 4. What pdfce implements itself, and why
+## 4. What pdfcer implements itself, and why
 
 Some of this is unavoidable — nobody publishes a crate for "PDF
 cross-reference stream parsing". The interesting entries are the ones where
@@ -199,8 +199,8 @@ The COS object model, the tokenizer, cross-reference tables **and** streams,
 object streams, the incremental-update writer, page-tree walking, content
 stream interpretation, form fields, annotations, redaction, text extraction
 and editing, colour spaces and functions, font embedding, digital-signature
-inspection — all pdfce's own code. This is the ~143,000 lines of
-`pdfce-core`, and it is the project.
+inspection — all pdfcer's own code. This is the ~143,000 lines of
+`pdfcer-core`, and it is the project.
 
 ### Filters written in-crate
 
@@ -234,7 +234,7 @@ This is where the reasoning is most explicit, and it goes both ways.
 other tools already produced. Both are frozen — RFC 1321 has not changed
 since 1992 — so there is no upstream to track and no CVE stream to follow.
 Both are under 200 lines. Taking a dependency for them would have added
-supply-chain surface for no benefit, and `pdfce-core` had no cryptographic
+supply-chain surface for no benefit, and `pdfcer-core` had no cryptographic
 dependency at all at that point.
 
 **Taken as a dependency: AES.** The module that hand-rolled MD5 recorded, in
@@ -248,11 +248,11 @@ What stayed in-crate for AES is the part that is *not* a cryptographic
 hazard: which bytes are the initialisation vector, and what to do about
 padding that does not verify. That last one is a product decision — a
 damaged file is more recoverable if the bytes are kept — and it belongs to
-pdfce, not to a cipher library.
+pdfcer, not to a cipher library.
 
 **Neither is a security recommendation.** RC4 is broken, MD5 is broken, and
 PDF encryption below AES-256 has no integrity protection whatsoever.
-pdfce reads these files because operators have them.
+pdfcer reads these files because operators have them.
 
 ### Small things, deliberately not dependencies
 
@@ -266,8 +266,8 @@ pdfce reads these files because operators have them.
 ## 5. Checking this yourself
 
 ```
-cargo tree -p pdfce-core            # the engine's real dependency graph
-cargo tree -p pdfce-core -e features   # ...including which features are on
+cargo tree -p pdfcer-core            # the engine's real dependency graph
+cargo tree -p pdfcer-core -e features   # ...including which features are on
 cargo tree --duplicates             # two versions of one crate = a problem
 cargo about generate about.hbs      # regenerate THIRD_PARTY_LICENSES.md
 ```
@@ -276,6 +276,6 @@ The GUI-separation invariant is checkable in one command, and it is worth
 knowing how, because it is the claim everything else in §1 rests on:
 
 ```
-cargo tree -p pdfce-core   | grep -Ei "egui|eframe|winit|wgpu"   # must be empty
-cargo tree -p pdfce-render | grep -Ei "egui|eframe|winit|wgpu"   # must be empty
+cargo tree -p pdfcer-core   | grep -Ei "egui|eframe|winit|wgpu"   # must be empty
+cargo tree -p pdfcer-render | grep -Ei "egui|eframe|winit|wgpu"   # must be empty
 ```

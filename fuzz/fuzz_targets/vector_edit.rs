@@ -1,5 +1,5 @@
 //! Fuzz target: the Pass 9c-min vector-edit surgery planners
-//! (`pdfce_core::vector::edit`).
+//! (`pdfcer_core::vector::edit`).
 //!
 //! Decision 011 Appendix A Pass 9c-min acceptance: *"Fuzz over operand
 //! rewriting (degenerate coords, huge operands) 0 crashes."* Over ANY input
@@ -47,8 +47,8 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::content::ContentStream;
-use pdfce_core::vector::{
+use pdfcer_core::content::ContentStream;
+use pdfcer_core::vector::{
     Handle, Matrix, NoXObjects, Point, VectorObject, anchor_count, decompose, plan_delete,
     plan_delete_node, plan_delete_subpath, plan_move, plan_move_handle, plan_move_node,
     plan_move_subpath,

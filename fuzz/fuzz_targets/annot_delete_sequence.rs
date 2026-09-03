@@ -1,6 +1,6 @@
 //! Fuzz target: a **sequence** of annotation DELETIONS, and the three
 //! cascades plus two delegations underneath them
-//! (`pdfce_core::edit::EditSession::delete_annotation`,
+//! (`pdfcer_core::edit::EditSession::delete_annotation`,
 //! `delete_redaction_mark`, `delete_dimension`, `cut_selection`).
 //!
 //! ## Why this target is owed, by name
@@ -92,11 +92,11 @@
 //!
 //! Asserted:
 //!
-//! 1. **No panic, abort or unbounded run.** `pdfce-core` is panic-free by
+//! 1. **No panic, abort or unbounded run.** `pdfcer-core` is panic-free by
 //!    policy (`ARCHITECTURE.md` §10) and every verb here runs on
 //!    attacker-shaped input.
 //! 2. **Whatever is saved, reloads.** A deletion that produces a file
-//!    pdfce itself cannot parse is strictly worse than refusing it.
+//!    pdfcer itself cannot parse is strictly worse than refusing it.
 //! 3. **The preview did not lie.** `annotation_deletion_preview` and
 //!    `delete_annotation` share `plan_annotation_deletion` precisely so a
 //!    shell's warning cannot disagree with the act; over arbitrary
@@ -170,11 +170,11 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::annot::page_annotations;
-use pdfce_core::document::Document;
-use pdfce_core::edit::{AnnotationDeletionRoute, EditSession};
-use pdfce_core::object::ObjId;
-use pdfce_core::writer::SaveOptions;
+use pdfcer_core::annot::page_annotations;
+use pdfcer_core::document::Document;
+use pdfcer_core::edit::{AnnotationDeletionRoute, EditSession};
+use pdfcer_core::object::ObjId;
+use pdfcer_core::writer::SaveOptions;
 use std::cell::RefCell;
 use std::sync::Once;
 
@@ -221,7 +221,7 @@ fn install_input_dump_hook() {
         std::panic::set_hook(Box::new(move |info| {
             CURRENT_INPUT.with(|cell| {
                 if let Ok(input) = cell.try_borrow() {
-                    let path = std::env::temp_dir().join("pdfce-fuzz-panic-input.bin");
+                    let path = std::env::temp_dir().join("pdfcer-fuzz-panic-input.bin");
                     let wrote = std::fs::write(&path, input.as_slice()).is_ok();
                     let hex: String = input.iter().map(|b| format!("{b:02x}")).collect();
                     eprintln!(

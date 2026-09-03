@@ -2,7 +2,7 @@
 # and measures what actually happens.
 #
 # WHY THIS EXISTS. Every other check on this feature is a fixture: a document
-# whose exact shape pdfce chose. That proves each branch works; it cannot
+# whose exact shape pdfcer chose. That proves each branch works; it cannot
 # prove the branches cover what real producers emit, and it cannot answer the
 # three questions that decide whether the feature solves the operator's actual
 # problem —
@@ -15,7 +15,7 @@
 # could not. Unembedding is DEFINED to change how a page looks, so a pixel
 # comparison there would measure nothing. Embedding is defined NOT to move
 # anything — positions come from `/Widths` — and when the face embedded is
-# the same face pdfce's own renderer was already substituting (`--bundled`),
+# the same face pdfcer's own renderer was already substituting (`--bundled`),
 # the raster must come out BYTE-IDENTICAL. That is a real oracle, not a
 # smoke test: it fails if the synthesised widths are wrong, if the written
 # `/Differences` maps a code to the wrong glyph, or if the wrong `/FontFile*`
@@ -30,7 +30,7 @@
 # checks unambiguous, and keeps cargo-about's THIRD_PARTY_LICENSES.md a
 # picture of the SHIPPING graph only (LEGAL.md §6.3).
 #
-# ZERO NEW DEPENDENCIES — pdfce-core and pdfce-render by path, everything
+# ZERO NEW DEPENDENCIES — pdfcer-core and pdfcer-render by path, everything
 # else std.
 #
 # FIXTURE RULE (LEGAL.md §5): reads rights-cleared corpora in place from
@@ -47,8 +47,8 @@ publish = false
 [workspace]
 
 [dependencies]
-pdfce-core = { path = "../../crates/pdfce-core" }
-pdfce-render = { path = "../../crates/pdfce-render" }
+pdfcer-core = { path = "../../crates/pdfcer-core" }
+pdfcer-render = { path = "../../crates/pdfcer-render" }
 
 [profile.release]
 opt-level = 3

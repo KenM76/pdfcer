@@ -6,7 +6,7 @@ WHY THIS FIXTURE EXISTS
 ``EditSession::fill_refusal`` and ``EditSession::deletion_refusal`` use
 **different** certification gates, and the difference is load-bearing for
 the GUI: filling takes the ``/P``-aware gate, deletion takes the strict
-one, so **there are documents where pdfce offers filling and refuses
+one, so **there are documents where pdfcer offers filling and refuses
 deletion.**
 
 Every certification fixture in the corpus before this one used
@@ -37,7 +37,7 @@ The ``/ByteRange`` and ``/Reference`` entries are structural
 placeholders — there are no real signed bytes, and there deliberately
 are none. The guards under test read census-visible *structure*; they do
 not verify a signature, and a fixture carrying real cryptography would
-test a claim pdfce does not make while adding a key nobody can rotate.
+test a claim pdfcer does not make while adding a key nobody can rotate.
 
 Two fields rather than one, on purpose: deletion of a *text* field and of
 a *button* travel slightly different paths in the panel, and a one-field

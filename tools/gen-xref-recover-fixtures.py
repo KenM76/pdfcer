@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generate synthetic cross-reference RECOVERY fixtures (decision 013 Pass B).
 
-Pass B of pdfce decision 013 adds a rebuild-by-scan fallback: when a file's
-stored cross-reference machinery cannot be parsed, pdfce scans the whole
+Pass B of pdfcer decision 013 adds a rebuild-by-scan fallback: when a file's
+stored cross-reference machinery cannot be parsed, pdfcer scans the whole
 buffer for `N G obj` headers and reconstructs the xref + trailer. These
 fixtures are the positive/negative controls for that path — each is a
 deliberately-damaged (or headerless) document that STRICT loading rejects,
@@ -103,7 +103,7 @@ def fx_offset_shifted_startxref():
     """`startxref` points at object 1's dictionary `<<`, not the real xref.
 
     Strict classification sees `DictOpen` there → NotAnXrefSection. Every
-    other byte is a valid classic file, so this is a 'valid file pdfce
+    other byte is a valid classic file, so this is a 'valid file pdfcer
     wrongly rejected' — recovery must open it. (The qpdf/add-contents.pdf
     offset-shift shape.)
     """
@@ -247,7 +247,7 @@ def fx_header_preamble():
 
     This is the veraPDF-gate control for the 2026-08-07 header-preamble fix.
     veraPDF cannot open this INPUT ("can not locate xref table") because it
-    reads offsets as header-relative whenever a preamble exists. pdfce's full
+    reads offsets as header-relative whenever a preamble exists. pdfcer's full
     rewrite must therefore emit `%PDF-` at byte 0 and drop the preamble, at
     which point both readings coincide and the OUTPUT parses everywhere.
     A regression restoring preamble preservation flips this file from
@@ -424,12 +424,12 @@ def fx_missing_endobj_on_page_tree():
     into `3 0 obj` with no terminator -- so a parser that requires
     `endobj` (ISO 32000-1 s7.3.10) drops object 2 as unparseable.
 
-    WHY THIS FIXTURE EXISTS. Until 2026-08-07 pdfce dropped it, and then
+    WHY THIS FIXTURE EXISTS. Until 2026-08-07 pdfcer dropped it, and then
     WROTE a file whose catalog still said `/Pages 2 0 R` while object 2
     was absent -- a document strictly worse than the input, because
-    veraPDF could recover the original and could not recover pdfce's
+    veraPDF could recover the original and could not recover pdfcer's
     rewrite of it. Found by `tools/verapdf-parse-gate.py`, which was the
-    first outside judge of pdfce's own output.
+    first outside judge of pdfcer's own output.
 
     The xref is also removed, because that is what forces the recovery
     path where the leniency lives; with a valid xref the strict loader is

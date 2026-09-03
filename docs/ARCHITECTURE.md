@@ -1,8 +1,8 @@
-# pdfce — Architecture
+# pdfcer — Architecture
 
 This document is the logic. The Rust code is the syntax that enacts it.
 Per the user's standing global rule: a competent engineer (human or LLM)
-should be able to reconstruct pdfce's design from this file (plus
+should be able to reconstruct pdfcer's design from this file (plus
 `ROADMAP.md`, `LEGAL.md`, the PDF-spec RAG, and the Acrobat feature-
 parity RAG) without reading a line of code.
 
@@ -15,7 +15,7 @@ any local network listener — everything happens in one native process.
 It must run from a single folder, including all of its dependencies
 (no installer, no registry writes, no system-wide runtime dependency).
 
-pdfce also ships **CLI capabilities** from the start (`pdfce-cli`, see
+pdfcer also ships **CLI capabilities** from the start (`pdfcer`, see
 §3 and §7) — batch/scriptable operations (merge, split, stamp, convert,
 sign, validate) invokable without opening the GUI at all. This is
 addressed by the user (2026-07-23) as an explicit project requirement,
@@ -31,7 +31,7 @@ fork cheap when the time comes, without over-building for it now.
 
 **Competitive/prior-art landscape confirmed clear** (see
 `docs/PRIOR_ART.md`, researched 2026-07-23): no existing open-source
-project, web or desktop, currently combines pdfce's full target
+project, web or desktop, currently combines pdfcer's full target
 feature breadth in one native application. The closest attempts (Open
 PDF Studio, KillerPDF) each have confirmed major gaps and neither uses
 a native Rust PDF engine. This validates the project's premise.
@@ -56,7 +56,7 @@ are unchanged and permanent, and only the third moved.
 **The line that replaces the absolute is his own:** *what the software
 needs to **RUN**, versus what the operator can **ASK** it to fetch.*
 
-#### Clause 1 — pdfce does not OPERATE over network technology (KEPT; this is the ORIGIN of the rule)
+#### Clause 1 — pdfcer does not OPERATE over network technology (KEPT; this is the ORIGIN of the rule)
 
 No web server, no browser runtime, no local network listener. Everything
 happens in one native process (§1). This is the clause the whole posture
@@ -68,12 +68,12 @@ correction.** The reason is **architecture and performance**, in the
 operator's own words: *"which would bloat it and slow things down the way
 it does for other pdf software."* Every competitor that ships a browser
 runtime or a local service pays for it in install size and startup
-latency, and pdfce's single-native-process design is what buys that back.
+latency, and pdfcer's single-native-process design is what buys that back.
 
 §1.1 recorded the **posture** and not the **reason**, and a posture with
 no stated reason has nothing to check a later restatement against. That
 is very likely how it drifted into an absolute: an agent restating
-*"pdfce doesn't need the network"* with no reason beside it has no way to
+*"pdfcer doesn't need the network"* with no reason beside it has no way to
 tell which broader readings are still faithful, and the broadest reading
 always feels like the safe one. See the `R194` proposal in `ROADMAP.md`
 *Standing rules* for the generalised shape and its two sibling instances.
@@ -84,7 +84,7 @@ No telemetry, no usage analytics, no crash reporting, no
 licence-verification callback, no silent phone-home. Every document a
 user opens is processed entirely locally, in-process, with no data ever
 leaving the machine unless the user explicitly initiates it themselves
-(e.g. emailing a file — an action pdfce doesn't perform on their behalf
+(e.g. emailing a file — an action pdfcer doesn't perform on their behalf
 anyway). If a feature genuinely needs network access **that the operator
 did not ask for at the moment it happens** (an update checker that runs
 at startup, say), it must be **off by default and explicitly opted
@@ -102,7 +102,7 @@ correction, not an optional tidy-up afterwards.
 
 #### Clause 3 — the BLANKET BAN on any network-client crate (★ THIS is what was too broad, and it is NARROWED, not removed)
 
-The old text: *no HTTP/TLS/socket client crate may enter **any** pdfce
+The old text: *no HTTP/TLS/socket client crate may enter **any** pdfcer
 crate.* That turned *"does not need the network to function"* into
 *"cannot fetch anything, ever"* — a different and much stronger claim
 than the one clause 1 was ever about. **Download-update and
@@ -112,16 +112,16 @@ The replacement is a **narrowed gate, not the absence of one**:
 
 | subject | posture | why |
 |---|---|---|
-| **`pdfce-core`, `pdfce-render`** — the ENGINE | **network-free, permanently, gate-enforced** | Parsing and rendering a file must never *require* a network. **Second, independent justification:** both crates must cross into the **wasm32/web fork** (§3), where a native HTTP stack does not exist — so this half of the gate is load-bearing twice over and does not rest on the posture alone. |
-| **`pdfce-cli`, `pdfce-gui`, `tools/`** — the SHELLS | **may carry a network client** for operator-initiated fetching | This is what the operator authorised: model downloads, update downloads, add-in downloads. The fetch happens *because the operator asked*, which is the side of clause 2's line that was never in dispute. |
+| **`pdfcer-core`, `pdfcer-render`** — the ENGINE | **network-free, permanently, gate-enforced** | Parsing and rendering a file must never *require* a network. **Second, independent justification:** both crates must cross into the **wasm32/web fork** (§3), where a native HTTP stack does not exist — so this half of the gate is load-bearing twice over and does not rest on the posture alone. |
+| **`pdfcer`, `pdfce-gui`, `tools/`** — the SHELLS | **may carry a network client** for operator-initiated fetching | This is what the operator authorised: model downloads, update downloads, add-in downloads. The fetch happens *because the operator asked*, which is the side of clause 2's line that was never in dispute. |
 
 **Enforcement, as it now stands on disk:** the fail-closed `no-network`
 CI job, narrowed to the engine at **`197f0a5`** (2026-08-13). Its job
 name was part of the problem and was fixed in the same commit —
-*"verify no HTTP/TLS client in any pdfce crate"* asserted the over-broad
+*"verify no HTTP/TLS client in any pdfcer crate"* asserted the over-broad
 claim to anyone reading a green run, and now reads *"verify the ENGINE
 needs no network (core + render)"*. **A green CI run is no longer
-evidence that pdfce as a whole makes no network calls**, and the name has
+evidence that pdfcer as a whole makes no network calls**, and the name has
 to say so. Per `R192`, the job's comment block now **enumerates** what it
 cannot see (a raw `std::net` socket needs no dependency; build scripts
 and proc macros are outside `cargo tree`'s default edges; the shells are
@@ -131,26 +131,26 @@ is clause 2's obligation and is enforced by review and by the
 decision-record requirement, not by this job).
 
 Adding a network client to a **shell** no longer needs a decision record.
-Adding one to `pdfce-core` or `pdfce-render` is **not** unlockable by a
+Adding one to `pdfcer-core` or `pdfcer-render` is **not** unlockable by a
 future decision record; that bar is unchanged from the original R12.
 
 #### Precision clause (2026-07-30, decision 003 §3.4) — STILL TRUE, STILL USEFUL, and note that it is a different KIND of amendment
 
-pdfce (as of this writing) makes no network requests and contains **no
+pdfcer (as of this writing) makes no network requests and contains **no
 HTTP client and no TLS stack** — verifiable by any reader of the
 generated `THIRD_PARTY_LICENSES.md` — but the shipped GUI binary does
 link the `webbrowser` crate (and its `url` parser dependency), because
 eframe 0.35 hardcodes egui-winit's `links` feature and it cannot be
 disabled downstream. That code opens the OS default browser and makes no
-request itself; it is inert unless pdfce emits an `OpenUrl` event. When
-it fires, the request belongs to the user's browser, not to pdfce. State
+request itself; it is inert unless pdfcer emits an `OpenUrl` event. When
+it fires, the request belongs to the user's browser, not to pdfcer. State
 the posture in exactly these terms (decision 003 §6.3's copy) — "no
 network code at all" would be false.
 
 **★ THE TWO AMENDMENTS ARE NOT THE SAME ACT, and conflating them would
 lose the lesson.** Decision 003 §3.4 was a **correction of WORDING**: the
 claim was very slightly false as phrased, the intent was untouched, and
-nothing about what pdfce may do changed. The 2026-08-13 correction is a
+nothing about what pdfcer may do changed. The 2026-08-13 correction is a
 **correction of SCOPE**: the wording was accurate, and the *subject set
 it quantified over* was wrong. The second is the larger and rarer act —
 it changes what the project is permitted to build, it changes a CI gate,
@@ -160,7 +160,7 @@ one has **061**.
 
 **★ DOWNSTREAM CLAIM THAT IS TRUE TODAY AND BECOMES FALSE ON THE FIRST
 DOWNLOADER, tracked so it is not discovered by a user.** `README.md`'s
-*"Privacy, platform and signing"* block states *"pdfce does not use the
+*"Privacy, platform and signing"* block states *"pdfcer does not use the
 network. It contains no HTTP client and no TLS stack — you can confirm
 this yourself in `THIRD_PARTY_LICENSES.md`."* That is **accurate at HEAD**
 and must **not** be pre-emptively softened, which would make it less true
@@ -188,18 +188,18 @@ agrees, because `cargo-about` generates it from the shipping graph.
 in §12, so a future session re-reading the narrowing finds the answer to
 *"we gave up a guarantee"* **already made** rather than re-litigating it.
 
-The fetch code lives in a sibling crate — working name **`pdfce-fetch`**,
+The fetch code lives in a sibling crate — working name **`pdfcer-fetch`**,
 **PLANNED, NOT BUILT**, no such directory on disk — which the shells
-depend on **optionally** and which `pdfce-core`/`pdfce-render` **never**
+depend on **optionally** and which `pdfcer-core`/`pdfcer-render` **never**
 depend on at all. That is what keeps this section's enforced half
 checkable by `cargo tree` and the wasm32 fork reachable. Full shape and
-its `pdfce-print` precedent: **decision 061 §2**.
+its `pdfcer-print` precedent: **decision 061 §2**.
 
 ## 2. Language & toolkit decision (made 2026-07-23, by the user)
 
 | Decision | Choice | Why |
 |---|---|---|
-| Systems language | **Rust** | Single self-contained native binary (no runtime to bundle), memory safety for a file-format parser that will be fed adversarial/malformed input from the public internet, first-class WASM target for the future web fork, mature crate ecosystem for compression (`flate2`, `weezl` for LZW), fonts (`ttf-parser`, `allsorts`), image codecs, and crypto (`rsa`, `aes`, `sha2`, `rustls`-adjacent primitives) that pdfce will need anyway. |
+| Systems language | **Rust** | Single self-contained native binary (no runtime to bundle), memory safety for a file-format parser that will be fed adversarial/malformed input from the public internet, first-class WASM target for the future web fork, mature crate ecosystem for compression (`flate2`, `weezl` for LZW), fonts (`ttf-parser`, `allsorts`), image codecs, and crypto (`rsa`, `aes`, `sha2`, `rustls`-adjacent primitives) that pdfcer will need anyway. |
 | GUI toolkit | **egui + eframe** (recommended default — see §2.1) | `eframe` is egui's application shell and already targets **both native (winit+wgpu/glow) and WASM+canvas from the same codebase** — this is the single biggest lever for making the later web fork cheap. Immediate-mode fits a tool-heavy, many-panel editor (canvas + thumbnails + inspector + toolbars) well; prior art includes rerun.io and many CAD-adjacent Rust tools built the same way. |
 | Rendering backend | `wgpu` (falls back to `glow`/OpenGL if needed) | Cross-platform, matches eframe's default, no separate native-toolkit dependency to bundle. |
 
@@ -214,15 +214,15 @@ its `pdfce-print` precedent: **decision 061 §2**.
   at Pass 0 once the toolchain is pinned, document it in `Cargo.toml`'s
   `rust-version` field, and re-check it against `docs/PRIOR_ART.md`'s
   candidate dependencies (some crates there have their own MSRV floors
-  that could force pdfce's own MSRV higher than expected).
+  that could force pdfcer's own MSRV higher than expected).
 - **`Cargo.lock`**: **commit it.** This is an application workspace
-  (produces `pdfce-gui`/`pdfce-cli` binaries), not a pure library —
+  (produces `pdfce-gui`/`pdfcer` binaries), not a pure library —
   the Rust ecosystem convention for binaries is to commit the lockfile
   for reproducible builds, unlike libraries which typically don't.
   Don't `.gitignore` it.
   **★ UPDATED 2026-09-03 (`Pass 247.0`, `da3b2f8`, 399th filing;
   decision 128/130).** `pdfce-gui` is removed from this workspace — it
-  produces **`pdfce-cli` only** now. The GUI binary is built by the
+  produces **`pdfcer` only** now. The GUI binary is built by the
   separate `D:\dev\pdfcer-gui` project. `Cargo.lock` shrank 488 → 159
   packages (329 removed, 0 added, 0 version changes) the same commit;
   still committed, same reasoning.
@@ -232,7 +232,7 @@ its `pdfce-print` precedent: **decision 061 §2**.
 The user's decision was "Rust core + native GUI (egui/iced)" — the
 specific pick between the two was left to engineering judgment. This
 document recommends **egui/eframe** for the WASM-parity reason above.
-**pdfce-engineer**: treat this as a strong default, not yet a closed
+**pdfcer-engineer**: treat this as a strong default, not yet a closed
 decision — confirm it explicitly with the user at the start of Pass 0
 (the first real coding session) before the workspace is scaffolded,
 since reversing it later means rewriting the entire GUI crate.
@@ -240,10 +240,10 @@ since reversing it later means rewriting the entire GUI crate.
 ## 3. Workspace layout (Cargo workspace, to be created at Pass 0)
 
 ```
-D:\Dev\pdfce\
+D:\Dev\pdfcer\
   Cargo.toml                  <- workspace root, [workspace] members below
   crates\
-    pdfce-core\                <- COS object model, tokenizer, xref (table + stream),
+    pdfcer-core\                <- COS object model, tokenizer, xref (table + stream),
                                    object streams, incremental-update writer, filters,
                                    fonts, color spaces, encryption/decryption, digital
                                    signature verification, content-stream interpreter
@@ -257,7 +257,7 @@ D:\Dev\pdfce\
                                    `OutlineKind`) plus `build_objects` — emits the new
                                    `/Type0`+`/CIDFontType2`+`/FontDescriptor`+
                                    `FontFile2`+`/ToUnicode` PDF objects from a plan
-                                   `pdfce-render` fills in. No font-PROGRAM parser
+                                   `pdfcer-render` fills in. No font-PROGRAM parser
                                    lives here — `fontdata/` stays metrics-only, even
                                    after this Pass. See §4 for the full contract and
                                    why the split runs this way.
@@ -307,15 +307,15 @@ D:\Dev\pdfce\
                                    **Synthesise** writes the `/FontDescriptor`,
                                    `/Widths`, `/FirstChar`/`/LastChar` and
                                    `/Encoding` §9.6.2.2 permits a standard-14
-                                   font to omit, from pdfce's own compiled
+                                   font to omit, from pdfcer's own compiled
                                    Adobe Core-14 metric tables — the SAME
                                    metrics a reader was already substituting
                                    with, so **glyph positions cannot move**;
                                    only letterforms change. Never derives its
                                    own donor-resolution policy — the shell
                                    (`FontEnvironment::resolve_for_embedding`,
-                                   `pdfce-render`) resolves a name to bytes and
-                                   hands core the bytes; `pdfce-core` sniffs the
+                                   `pdfcer-render`) resolves a name to bytes and
+                                   hands core the bytes; `pdfcer-core` sniffs the
                                    program's own framing itself, unchanged
                                    crate-boundary discipline from `font_embed.rs`.
                                    `EditSession::embed_preview`/`embed_refusal`/
@@ -340,7 +340,7 @@ D:\Dev\pdfce\
                                    **`export/dxf.rs` (`Pass 52.0`/`52.3`,
                                    2026-08-09, `3c4aca4`→`1f4839d`; §12
                                    decision 035, claimed by citation):**
-                                   a WRITE-only path out of pdfce-core's
+                                   a WRITE-only path out of pdfcer-core's
                                    `vector::PageObjects` model into ASCII
                                    DXF — deliberately not governed by §5's
                                    round-trip invariant (foreign output
@@ -460,7 +460,7 @@ D:\Dev\pdfce\
                                    toggling a layer's visibility is
                                    session state a viewer holds, with no
                                    file-format footprint unless the
-                                   operator explicitly saves; pdfce has
+                                   operator explicitly saves; pdfcer has
                                    neither a renderer visibility override
                                    nor a save path for one, so this
                                    module is deliberately view-only (R83)
@@ -484,7 +484,7 @@ D:\Dev\pdfce\
                                    would be valid over." Reached through
                                    the existing `forms::parse_acroform`,
                                    not a third field walk (project rule
-                                   2). CLI surface: `pdfce-cli
+                                   2). CLI surface: `pdfcer
                                    list-signatures` (§7). See `ROADMAP.md`
                                    `Pass 10.0` Shipped entry (seventy-
                                    sixth filing) for the fixture design
@@ -514,7 +514,7 @@ D:\Dev\pdfce\
                                    true of that file's OWN code, wrong
                                    about the file as a whole; both owed a
                                    rewording (398th filing, engineer's).
-                                   CLI: `pdfce-cli verify-signatures`
+                                   CLI: `pdfcer verify-signatures`
                                    (§7).
                                    **`annot.rs`/`layers.rs` (`956ef4d`,
                                    2026-08-10):** `annot::oc_refs` widened
@@ -538,11 +538,11 @@ D:\Dev\pdfce\
                                    leading `=`/`+`/`-`/`@` gets a leading
                                    apostrophe) before writing — an
                                    unneutralised cell would let a form
-                                   value pdfce did not author reach a
+                                   value pdfcer did not author reach a
                                    spreadsheet's live formula engine and,
                                    via `=WEBSERVICE(...)`, the network:
                                    the same capability **R12** refuses in
-                                   pdfce's own tree, reached by a longer
+                                   pdfcer's own tree, reached by a longer
                                    route. Neutralisation is counted AND
                                    NAMED (R181's shape) and REVERSED on
                                    import, so a round trip through a
@@ -555,12 +555,12 @@ D:\Dev\pdfce\
                                    header, XFDF's opening `<`, CSV as the
                                    untried residue — not by file
                                    extension.
-    pdfce-render\               <- Takes pdfce-core's draw-op stream + resources
+    pdfcer-render\               <- Takes pdfcer-core's draw-op stream + resources
                                    (fonts, images, color spaces) and rasterizes to an
                                    in-memory pixel buffer via `tiny-skia` (CPU-only,
                                    pure Rust, no GPU/windowing context — see
                                    docs/PRIOR_ART.md, resolved 2026-07-23).
-                                   Depends on pdfce-core. Still GUI-framework-agnostic
+                                   Depends on pdfcer-core. Still GUI-framework-agnostic
                                    (no egui/eframe dependency) — a headless render
                                    (e.g. "render page 3 to PNG") must work with zero
                                    windowing system present, which is also what makes
@@ -570,16 +570,16 @@ D:\Dev\pdfce\
                                    the content-stream *interpreter* (`gstate`/
                                    `interpret` modules, incl. §8.10.1 Form-XObject
                                    execution and §8.9 image drawing) lives HERE, not
-                                   in pdfce-core as this diagram's original wording
+                                   in pdfcer-core as this diagram's original wording
                                    ("content-stream interpreter... produces a
-                                   display-list/draw-op stream") implied — pdfce-core
+                                   display-list/draw-op stream") implied — pdfcer-core
                                    supplies the lossless content-token model only
-                                   (`content.rs`); pdfce-render walks those tokens and
+                                   (`content.rs`); pdfcer-render walks those tokens and
                                    paints directly, with no separate draw-op IR
                                    in between. Recursive `Do` dispatch into nested
-                                   Form XObjects is therefore a pdfce-render-time
+                                   Form XObjects is therefore a pdfcer-render-time
                                    concern (`MAX_XOBJECT_DEPTH`, §10.1), distinct from
-                                   pdfce-core's parse-time recursion guards (page-tree
+                                   pdfcer-core's parse-time recursion guards (page-tree
                                    depth, xref/ObjStm cycles).
                                    **★ Implementation note (measured 2026-08-07,
                                    `76200e9`) — THE CLIP'S REPRESENTATION IS THIS
@@ -843,7 +843,7 @@ D:\Dev\pdfce\
                                    **★★ THE CACHE IS BUILT, AND THIS
                                    CRATE IS NOW FLOOR-BOUND (2026-08-07,
                                    `ce57ed5`, **`Pass 45.0`**).**
-                                   `crates/pdfce-render/src/clip_cache.rs`
+                                   `crates/pdfcer-render/src/clip_cache.rs`
                                    (414 lines) caches the mask **AFTER**
                                    intersection, keyed on the build inputs
                                    **plus which clip it is intersected
@@ -922,7 +922,7 @@ D:\Dev\pdfce\
                                    unchanged), checks OpenType `OS/2 fsType` embedding
                                    permission (R109) BEFORE calling `subsetter::subset`
                                    (`subsetter` strips `OS/2`), and produces a
-                                   plain-data `FontEmbedPlan` for `pdfce-core::
+                                   plain-data `FontEmbedPlan` for `pdfcer-core::
                                    font_embed` to emit. `SubsetError` (R27-shaped,
                                    one variant per distinct cause) and
                                    `MAX_DONOR_BYTES` (64 MiB, a judgement call, not a
@@ -976,7 +976,7 @@ D:\Dev\pdfce\
                                    is **ANSWERED BY MEASUREMENT as of 2026-08-11
                                    (ninety-first filing, `04f8acd`)** — the literal
                                    "every OCG-shaped object" reading is falsified
-                                   against the installed Acrobat; pdfce's shipped
+                                   against the installed Acrobat; pdfcer's shipped
                                    "registered only" reading is confirmed (this
                                    content-stream path shares `annot.rs`'s
                                    `optional_content_default_off`, so it was never
@@ -1164,7 +1164,7 @@ D:\Dev\pdfce\
                                    filing) AND IS KEPT ONLY AS HISTORY.**
                                    The four modes now ship: Table 137 is
                                    transcribed into
-                                   `pdfce-render/src/blend_nonsep.rs` and
+                                   `pdfcer-render/src/blend_nonsep.rs` and
                                    applied both at a paint and — the half
                                    that actually moves the suite — at a
                                    transparency group's composited result
@@ -1250,7 +1250,7 @@ D:\Dev\pdfce\
                                    groups** (§11.4.6 — each element
                                    should composite against the group's
                                    INITIAL backdrop, not the accumulated
-                                   result; pdfce composites them as
+                                   result; pdfcer composites them as
                                    ordinary groups today, approximated
                                    and counted via
                                    `groups_knockout_approx` (47) rather
@@ -1259,7 +1259,7 @@ D:\Dev\pdfce\
                                    counter). `/SMask` soft-mask groups
                                    (36 occurrences, suite) remain
                                    entirely unread. Both are blocked on
-                                   a `pdfce-spec-librarian` dispatch for
+                                   a `pdfcer-spec-librarian` dispatch for
                                    §11.4.6/§11.5.2–.3, in flight as of
                                    this filing — deliberately not
                                    implemented from training-data recall
@@ -1383,7 +1383,7 @@ D:\Dev\pdfce\
                                    to select between." **True of a
                                    PERMANENT CMYK pipeline; false of a
                                    PER-PAINT one.**
-                                   `pdfce-render/src/overprint.rs` holds
+                                   `pdfcer-render/src/overprint.rs` holds
                                    Table 149 as pure logic; the paint path
                                    rasterises an overprinting paint to a
                                    coverage mask with the SAME rasteriser
@@ -1489,7 +1489,7 @@ D:\Dev\pdfce\
                                    space is DeviceCMYK** — §11.3/§11.4
                                    define blending IN the group's BCS,
                                    and the suite corpus's own patches
-                                   declare `TBCS: DeviceCMYK`; pdfce
+                                   declare `TBCS: DeviceCMYK`; pdfcer
                                    blends in RGB today (decision 068),
                                    so `Difference`/`Exclusion` and the
                                    non-separable modes are computed in
@@ -1507,7 +1507,7 @@ D:\Dev\pdfce\
                                    at the end. **The `iccce`/pdfce
                                    boundary (decision 064) already
                                    applies: iccce owns the final CMYK→RGB
-                                   conversion, pdfce owns everything that
+                                   conversion, pdfcer owns everything that
                                    happens inside the buffer before that
                                    conversion runs** (overprint,
                                    knockout, blend-mode selection — none
@@ -1519,7 +1519,7 @@ D:\Dev\pdfce\
                                    over 2.1 Mpix = ~0.7 µs/pixel**; at
                                    300 DPI, 8.4 Mpix ⇒ **≈6 s over
                                    8.4 Mpix, same per-pixel rate**.
-                                   pdfce renders a full suite page in
+                                   pdfcer renders a full suite page in
                                    ~0.6 s today, so this conversion alone
                                    would cost 2.5×–10× the entire render
                                    — fine for export, too slow for
@@ -1533,7 +1533,7 @@ D:\Dev\pdfce\
                                    spec one:** §8.6.7 says "if
                                    overprinting is not supported, the
                                    value of the overprint parameter shall
-                                   be ignored" — pdfce is CONFORMANT
+                                   be ignored" — pdfcer is CONFORMANT
                                    TODAY without this buffer — and
                                    ISO 32000-1 never describes overprint
                                    PREVIEW on a non-separating device (0
@@ -1564,7 +1564,7 @@ D:\Dev\pdfce\
                                    carries the iccce boundary this plan
                                    sits inside.
                                    **★ FORWARD POINTER, added 2026-08-18
-                                   (pdfce-librarian, hundred-and-
+                                   (pdfcer-librarian, hundred-and-
                                    seventy-fifth filing) — the "iccce
                                    owns the final CMYK→RGB conversion"
                                    half of this plan now has a concrete
@@ -1601,7 +1601,7 @@ D:\Dev\pdfce\
                                    decision 077) — THREE OF THIS CELL'S
                                    STANDING CLAIMS ARE NOW FALSE AND ARE
                                    KEPT ABOVE ONLY AS HISTORY.**
-                                   **(1)** *"pdfce composites them as
+                                   **(1)** *"pdfcer composites them as
                                    ordinary groups today, approximated
                                    and counted via
                                    `groups_knockout_approx` (47)"* and
@@ -1635,7 +1635,7 @@ D:\Dev\pdfce\
                                    premultiplied-alpha `Pixmap` the
                                    claim was made about, and the claim
                                    silently generalised from *that
-                                   buffer* to *any buffer pdfce could
+                                   buffer* to *any buffer pdfcer could
                                    have*. Same shape as `Pass 85.5`'s
                                    `iccce` gate and `85.4b`'s "needs
                                    `Pass 97.0`'s buffer": **three
@@ -1696,7 +1696,7 @@ D:\Dev\pdfce\
                                    complement, `|cb′ − cs′|`, complement
                                    back = `DeviceCMYK 1 0 1 0`, the
                                    green the trap surround requires;
-                                   pdfce renders `(237,1,140)`, **pdfium
+                                   pdfcer renders `(237,1,140)`, **pdfium
                                    `(202,29,108)` — both blend in RGB
                                    and both are wrong, differently**, so
                                    pdfium is a **peer, not an oracle**,
@@ -1773,12 +1773,12 @@ D:\Dev\pdfce\
                                    alpha `α_g` on **SEPARATE** planes
                                    because §11.4.8 reads shape where
                                    §11.4.4 reads alpha.
-                                   `crates/pdfce-render/src/cmyk_buffer.rs`
+                                   `crates/pdfcer-render/src/cmyk_buffer.rs`
                                    + `cmyk_paint.rs`; knockout arithmetic
                                    in
                                    `compositor::composite_element_knockout_cmyk`
                                    / `remove_backdrop_cmyk`.
-                                   **(2)** *"pdfce blends in RGB today
+                                   **(2)** *"pdfcer blends in RGB today
                                    (decision 068), so
                                    `Difference`/`Exclusion` and the
                                    non-separable modes are computed in the
@@ -1819,7 +1819,7 @@ D:\Dev\pdfce\
                                    064) still owns the final conversion"* —
                                    **unchanged as a BOUNDARY and no longer
                                    a BLOCKER.** §11.4.7's collapse ships
-                                   against pdfce's own conversion tables
+                                   against pdfcer's own conversion tables
                                    today. Two conversions exist and **they
                                    are for different jobs**: a
                                    **calibrated** lattice for the TERMINAL
@@ -1912,16 +1912,16 @@ D:\Dev\pdfce\
                                    sentence that enumerates a POPULATION
                                    decays whenever the population changes,
                                    and nothing compiles it.
-    pdfce-print\                 <- Printing: job planning + spooling. Shipped with
+    pdfcer-print\                 <- Printing: job planning + spooling. Shipped with
                                    `Pass 55.2` (2026-08-10) but never documented in this
                                    tree until the eighty-fifth filing — a filing gap this
-                                   entry closes. Depends on NEITHER pdfce-core NOR
-                                   pdfce-render — a printing crate that also rendered
+                                   entry closes. Depends on NEITHER pdfcer-core NOR
+                                   pdfcer-render — a printing crate that also rendered
                                    would need the whole render stack to be testable for
                                    failures (a wrong DEVMODE, an upside-down DIB, a job
                                    left open) that have nothing to do with PDF content.
                                    Rasterization stays in the CALLING SHELL (via
-                                   pdfce-render); this crate only plans placement/
+                                   pdfcer-render); this crate only plans placement/
                                    resolution and, on Windows, spools bytes to a real
                                    device. **The planning arithmetic (`plan_job`,
                                    `job_resolution`, `imposition::{plan_n_up,
@@ -1963,7 +1963,7 @@ D:\Dev\pdfce\
                                    `list_printers`/`printer_caps` non-Windows stubs its
                                    siblings already had. See §12's decision 043 entry.**
                                    **Shared by
-                                   BOTH pdfce-cli and pdfce-gui**, deliberately — the
+                                   BOTH pdfcer and pdfce-gui**, deliberately — the
                                    alternative (each shell
                                    computing its own page placement) is how a GUI print
                                    comes to land differently from a CLI print of the same
@@ -1977,7 +1977,7 @@ D:\Dev\pdfce\
                                    rather than a scale-mode variant. See §12's 2026-08-10
                                    (eighty-fifth filing) entry for the crate-boundary
                                    decision record.
-    pdfce-fetch\                 <- ★★ BUILT 2026-08-13, `7393473` (`Pass 77.0`). This
+    pdfcer-fetch\                 <- ★★ BUILT 2026-08-13, `7393473` (`Pass 77.0`). This
                                    block previously read "PLANNED, NOT BUILT — no such
                                    directory exists on disk"; that was true when decision
                                    061 fixed the crate's SHAPE before it existed, and it
@@ -1988,14 +1988,14 @@ D:\Dev\pdfce\
                                    the crate exists, its five public items are
                                    `PinnedArtifact`, `verify_bytes`, `sha256_hex`,
                                    `fetch_verified` and `MAX_ARTIFACT_BYTES`, and
-                                   `cargo tree` shows `pdfce-core`/`pdfce-render` cannot
+                                   `cargo tree` shows `pdfcer-core`/`pdfcer-render` cannot
                                    see it (zero hits each). But **NO CRATE DEPENDS ON IT
-                                   AT ALL** — `grep -rn "pdfce_fetch" crates/` outside the
+                                   AT ALL** — `grep -rn "pdfcer_fetch" crates/` outside the
                                    crate returns zero hits and neither shell's
                                    `Cargo.toml` names it. So the boundary stated below is
                                    currently enforced TRIVIALLY, and the `cargo tree`
                                    result is not yet evidence about it: nothing has
-                                   exercised it. That changes when the `pdfce-cli`
+                                   exercised it. That changes when the `pdfcer`
                                    subcommand lands (owed; `ROADMAP.md` *Next up*).
                                    Working name; kept.
                                    PURPOSE: pinned-URL download plus SHA-256
@@ -2004,33 +2004,33 @@ D:\Dev\pdfce\
                                    OCR model fetch-and-verify, update download and
                                    add-in download.
                                    BOUNDARY, and it is the load-bearing part:
-                                   `pdfce-cli` and `pdfce-gui` depend on it OPTIONALLY;
-                                   **`pdfce-core` and `pdfce-render` never depend on it
+                                   `pdfcer` and `pdfce-gui` depend on it OPTIONALLY;
+                                   **`pdfcer-core` and `pdfcer-render` never depend on it
                                    at all, under any future decision.** That is what
                                    keeps §1.1's engine half enforceable by `cargo tree`
                                    and keeps the wasm32 fork reachable.
-                                   PRECEDENT, exact: `crates/pdfce-print/Cargo.toml`'s
+                                   PRECEDENT, exact: `crates/pdfcer-print/Cargo.toml`'s
                                    own description reads *"Platform code, shared by both
                                    shells (docs/ARCHITECTURE.md §3). Deliberately NOT in
-                                   pdfce-core or pdfce-render, which must stay
+                                   pdfcer-core or pdfcer-render, which must stay
                                    platform-free."* This crate is that sentence with
                                    **network** in place of **platform**. A non-core
                                    sibling shared by both shells is established practice
                                    here, not a new pattern.
                                    WHAT IS NEW: it is the FIRST STRIPPABLE CAPABILITY
-                                   THAT DOES NOT LIVE IN `pdfce-core`. Every existing
+                                   THAT DOES NOT LIVE IN `pdfcer-core`. Every existing
                                    one (`jpx`, `ocrs`) sits in core and is forwarded
                                    outward to the shells; this one has nowhere to sit in
                                    core, so the forwarding runs the other way — each
                                    shell owns its own default-ON feature that pulls the
-                                   crate in. `crates/pdfce-core/Cargo.toml`'s
+                                   crate in. `crates/pdfcer-core/Cargo.toml`'s
                                    strippable-capability convention is written entirely
                                    in terms of core features forwarded outward and does
                                    not yet describe this shape; extending that header is
                                    filed under *Backlog* in `ROADMAP.md` as the
                                    engineer's edit. ★ STILL OWED at 2026-08-14: read in
                                    that filing's dispatch, the core header is unchanged.
-                                   `7393473` documented the new shape in `pdfce-fetch`'s
+                                   `7393473` documented the new shape in `pdfcer-fetch`'s
                                    OWN `[features]` block, which is better than nothing
                                    and is not the same thing — the next person adding a
                                    strippable capability reads the CORE header, because
@@ -2061,16 +2061,16 @@ D:\Dev\pdfce\
                                    diff: 304 → 167 distinct crates, 137 removed, 0
                                    new). The native desktop shell now lives OUTSIDE
                                    this repository, as the separate project
-                                   `D:\dev\pdfcer-gui` (renamed from `pdfceGUI`,
+                                   `D:\dev\pdfcer-gui` (renamed from `pdfcer-gui`,
                                    operator ruling on open question (cd),
                                    `ROADMAP.md` `Pass 247.1`), consuming
-                                   `pdfce-core`/`pdfce-render` as a dependency into
+                                   `pdfcer-core`/`pdfcer-render` as a dependency into
                                    this tree rather than as a workspace member —
                                    §3's own GUI-core separation invariant is what
                                    makes that possible at all, and the *zero GUI
                                    deps* CI job stays, trivially green, because the
-                                   invariant is a property of `pdfce-core`/
-                                   `pdfce-render`, not of having a shell in the
+                                   invariant is a property of `pdfcer-core`/
+                                   `pdfcer-render`, not of having a shell in the
                                    tree (decision 128 item 3).
                                    **The design history this node carried —
                                    `Pass 44.0`'s background-render threading split,
@@ -2079,7 +2079,7 @@ D:\Dev\pdfce\
                                    is PRESERVED, not deleted; it documents shipped
                                    reasoning that outlived the crate it was written
                                    about.** Full text as it stood immediately before
-                                   removal: `git -C D:\Dev\pdfce show
+                                   removal: `git -C D:\Dev\pdfcer show
                                    cce414e:docs/ARCHITECTURE.md` (the fork point) —
                                    same pinned-commit citation convention as
                                    `docs/core-api/`'s 26 re-pointed citations
@@ -2088,7 +2088,7 @@ D:\Dev\pdfce\
                                    window chrome, file dialogs (rfd crate), menus,
                                    docking layout (egui_dock or hand-rolled), the
                                    `fn main()` entry point and packaged executable.
-                                   Depends on pdfce-core + pdfce-render.~~
+                                   Depends on pdfcer-core + pdfcer-render.~~
                                    **★ THREADING LIVED HERE, AND ONLY HERE
                                    (Pass 44.0, 2026-08-07, `7926a78`).**
                                    `render_worker.rs` (582 lines, `wc -l`
@@ -2096,8 +2096,8 @@ D:\Dev\pdfce\
                                    background rasterization thread, the
                                    channel, the `RenderCancel` token and the
                                    generation counter that discards a
-                                   superseded result. **`pdfce-core` and
-                                   `pdfce-render` remain thread-AGNOSTIC** —
+                                   superseded result. **`pdfcer-core` and
+                                   `pdfcer-render` remain thread-AGNOSTIC** —
                                    they gained only the PROPERTY that makes
                                    this legal (`ObjectGraph: Send + Sync`) and
                                    the MECHANISM it needs (`RenderCancel`, a
@@ -2142,7 +2142,7 @@ D:\Dev\pdfce\
                                    guides, dimension previews) are stashed
                                    in `ctx.data_mut` under an app-owned
                                    `egui::Id`, since `egui::Style` has no
-                                   field for pdfce's own overlay vocabulary.
+                                   field for pdfcer's own overlay vocabulary.
                                    **★ LOAD-BEARING BOUNDARY: chrome is
                                    themed, DOCUMENT colour is not.**
                                    `PdfceApp::markup_color`/`prop_color` and
@@ -2158,7 +2158,7 @@ D:\Dev\pdfce\
                                    `check-ui-strings.sh`) forbids raw colour
                                    literals outside `theme.rs` but honours
                                    that marker as the deliberate exception.
-                                   `Settings::theme` (`pdfce-core`) is a
+                                   `Settings::theme` (`pdfcer-core`) is a
                                    plain `String` token, not `theme::Preset`
                                    — core must never gain GUI vocabulary
                                    (this section's own invariant); a test
@@ -2172,7 +2172,7 @@ D:\Dev\pdfce\
                                    §12 for the full decision record and
                                    `D:\dev\rag\egui\` for the generalized
                                    "centralize + gate" pattern this is the
-                                   third pdfce instance of (strings, icons,
+                                   third pdfcer instance of (strings, icons,
                                    now colour).
                                    **`main.rs` split (`Pass 58.1`,
                                    2026-08-10, `255cf86`→`3a699cf`→
@@ -2193,22 +2193,22 @@ D:\Dev\pdfce\
                                    worth of distance, and a textual test
                                    gate whose subject moved with the code
                                    it was gating.
-    pdfce-cli\                  <- The command-line batch shell. Subcommand parsing
+    pdfcer\                  <- The command-line batch shell. Subcommand parsing
                                    (clap crate), one subcommand per batch operation
                                    (merge/split/rotate/extract, Bates stamp, convert
                                    to PDF/A, sign, validate PDF/A or PDF/UA conformance
                                    and print a report, render-page-to-PNG for scripted
                                    thumbnailing). `fn main()` entry point, packaged as
                                    its own executable alongside pdfce-gui in the same
-                                   single-folder distribution. Depends on pdfce-core +
-                                   pdfce-render, same as pdfce-gui — ZERO GUI/windowing
+                                   single-folder distribution. Depends on pdfcer-core +
+                                   pdfcer-render, same as pdfce-gui — ZERO GUI/windowing
                                    dependencies of its own, see §7. Doubles as a fast,
-                                   windowless way to exercise pdfce-core in tests.
+                                   windowless way to exercise pdfcer-core in tests.
                                    **`printing.rs` (`Pass 55.2`, 2026-08-10,
                                    `ff873bc`+`1862b1f`; §12 decision 036):**
                                    the one genuinely platform-bound
-                                   capability pdfce needs, and deliberately
-                                   NOT in `pdfce-core`/`pdfce-render` — a
+                                   capability pdfcer needs, and deliberately
+                                   NOT in `pdfcer-core`/`pdfcer-render` — a
                                    `windows` dependency there would end the
                                    WASM-fork premise as surely as an `egui`
                                    one. **Core rasterises, the shell
@@ -2245,19 +2245,19 @@ D:\Dev\pdfce\
                                    kept as genuinely different operations
                                    (a test fails if they are collapsed).
                                    Clip is reported by NAME, not silently —
-                                   Acrobat clips without saying so; pdfce
+                                   Acrobat clips without saying so; pdfcer
                                    names the affected pages, warns on
                                    stderr, and still exits 0 (the PREVIEW
                                    succeeded).
-    pdfce-web\ (future, not     <- The web fork. Same pdfce-core + pdfce-render,
+    pdfcer-web\ (future, not     <- The web fork. Same pdfcer-core + pdfcer-render,
       built in this phase)         compiled to wasm32-unknown-unknown, eframe's
                                    web target, served as static files (no server-side
                                    PDF processing — everything still runs in-browser,
                                    preserving the "not a web app in spirit" privacy
                                    posture even in the fork).
   docs\                        <- This file, ROADMAP.md, LEGAL.md, SESSION_LOG.md
-  .claude\agents\               <- pdfce-engineer, pdfce-librarian,
-                                   pdfce-spec-librarian, pdfce-ui-specialist
+  .claude\agents\               <- pdfcer-engineer, pdfcer-librarian,
+                                   pdfcer-spec-librarian, pdfcer-ui-specialist
   tests\                       <- Integration tests: parse→render→compare fixture PDFs
   fixtures\                    <- ONLY synthetic or clearly-licensed-for-redistribution
                                    test PDFs (see LEGAL.md §Test corpus sourcing).
@@ -2265,12 +2265,12 @@ D:\Dev\pdfce\
                                    provenance.
 ```
 
-**Invariant (do not violate):** `pdfce-core` and `pdfce-render` must
+**Invariant (do not violate):** `pdfcer-core` and `pdfcer-render` must
 compile with zero GUI/windowing crates in their dependency tree. This
-is checked, not just hoped for — `cargo tree -p pdfce-core` and
-`cargo tree -p pdfce-render` should never show `egui`, `eframe`,
+is checked, not just hoped for — `cargo tree -p pdfcer-core` and
+`cargo tree -p pdfcer-render` should never show `egui`, `eframe`,
 `winit`, `wgpu` (a headless CPU rasterizer like `tiny_skia` in
-`pdfce-render` is fine; a *windowing* dependency is not). This is the
+`pdfcer-render` is fine; a *windowing* dependency is not). This is the
 single invariant that keeps the future web fork a "swap the shell
 crate" job instead of a rewrite.
 
@@ -2282,7 +2282,7 @@ not: both `std::thread::spawn` and `rayon` `cargo check` CLEANLY for
 1.12.0). `std::thread` **exists** on that target — it type-checks and links;
 only the runtime has no threads to give it. **So the wasm32 leg of CI's
 `cross-check` job stays green while the web build acquires a runtime
-failure**, and a thread pool can enter `pdfce-core` without any gate
+failure**, and a thread pool can enter `pdfcer-core` without any gate
 objecting. Two obligations follow, and they are cheap:
 
 1. **Any threading dependency is declared under
@@ -2291,7 +2291,7 @@ objecting. Two obligations follow, and they are cheap:
    max-cores setting is a **build error**, not a browser crash.
 2. **A dependency's DEFAULT features are checked for one.** `lopdf` enables
    `rayon` **by default** (`PRIOR_ART.md`, `4fca888`), so adding it without
-   `default-features = false` puts a thread pool in `pdfce-core` **with no
+   `default-features = false` puts a thread pool in `pdfcer-core` **with no
    parallel code written at all.**
 
 Full reasoning, the operator's runtime max-cores design, and the
@@ -2301,10 +2301,10 @@ byte-identical-output acceptance criterion: **decision 080** (§12) and
 **★ ABOUT TO BE VALIDATED BY AN INDEPENDENT IMPLEMENTATION, 2026-08-13
 (decision 058, hundred-and-thirty-seventh filing).** The operator has
 paused GUI production in this repo and a **separate GUI project is being
-built in `D:\dev\pdfceGUI` in another session**, which — his words — *"if
+built in `D:\dev\pdfcer-gui` in another session**, which — his words — *"if
 successful will likely replace the current one and may have its dev
-folder merged into this one."* **A second shell consuming `pdfce-core` /
-`pdfce-render` from OUTSIDE this repository is exactly the scenario this
+folder merged into this one."* **A second shell consuming `pdfcer-core` /
+`pdfcer-render` from OUTSIDE this repository is exactly the scenario this
 invariant was written for**, arriving early and in a different costume
 than the web fork it was aimed at. **That is a stronger test than any
 `cargo tree` check**, because `cargo tree` proves only that no windowing
@@ -2318,11 +2318,11 @@ is a place the boundary was drawn wrong**, and is recorded as a finding
 about this repo rather than quietly accommodated. **`cargo tree` remains
 the cheap daily gate** and is not superseded — the two checks answer
 different questions. **Second-order consequence, and the one with teeth:
-`pdfce-core`'s public API now has a REAL external consumer** (§8, project
+`pdfcer-core`'s public API now has a REAL external consumer** (§8, project
 rule 10) — doc-comment completeness and API-guideline compliance stop
 being hygiene and become somebody else's unblocking, by a party who
 **cannot ask a question here**. Full record: `ROADMAP.md`'s **GUI pause**
-block at the head of *In progress*. **Nothing about `D:\dev\pdfceGUI`
+block at the head of *In progress*. **Nothing about `D:\dev\pdfcer-gui`
 beyond the operator's own sentence is known to this repo; nothing further
 is asserted about it here.**
 
@@ -2331,7 +2331,7 @@ is asserted about it here.**
 decision to target Android made; full measurements and effort
 breakdown: `ROADMAP.md`'s Backlog entry, hundred-and-thirteenth
 filing).** `cargo check --target aarch64-linux-android` compiles
-`pdfce-core`, `pdfce-render`, `pdfce-print` and `pdfce-cli` with
+`pdfcer-core`, `pdfcer-render`, `pdfcer-print` and `pdfcer` with
 **zero errors and zero source changes** — the first time this
 invariant has been exercised against a target outside the {Windows,
 Linux, macOS, `wasm32-unknown-unknown`} set decision 043 already
@@ -2341,7 +2341,7 @@ native file-dialog crate) — zero from `egui`, `eframe`, `winit` or
 shell boundary this invariant draws, not inside it. Per decision 043's
 own distinction between a dependency-graph check and a buildability
 check, this is that second, stronger check's **first clean result
-against a genuinely new target class** (the `pdfce-print` incident
+against a genuinely new target class** (the `pdfcer-print` incident
 decision 043 records was that same check's first RED one). `eframe`
 itself carries first-class Android support
 (`NativeOptions::android_app`, `android-game-activity`/
@@ -2358,12 +2358,12 @@ accessibility goal for that target, not both.
 
 ## 4. Core data model (target contract — implemented incrementally per ROADMAP)
 
-This is what `pdfce-core` will expose once Pass 1+ lands. Written now
+This is what `pdfcer-core` will expose once Pass 1+ lands. Written now
 as the target so early implementation work has a north star; update
 this section the moment the real API diverges (the doc is the logic —
 if code and doc disagree, that's a bug in one of them, fix it same-day).
 
-**Current state as of Pass 0 (2026-07-23):** `pdfce-core` exposes ONLY
+**Current state as of Pass 0 (2026-07-23):** `pdfcer-core` exposes ONLY
 the header-probe surface — `PdfVersion { major, minor }`, `PdfError`
 (`thiserror`, `#[non_exhaustive]`), `probe_header(&[u8])`,
 `probe_file(&Path)`, and the `HEADER_SCAN_WINDOW` const (1024, the
@@ -2398,20 +2398,20 @@ engineer integrates the full design text here at Pass 1.
 - `Document::save(path) -> Result<(), PdfError>` — full rewrite.
 - `Document::save_incremental(path) -> Result<(), PdfError>` — **the
   default save mode.** Appends a new xref section + updated/new objects
-  only; every object pdfce did not touch is left byte-identical in the
+  only; every object pdfcer did not touch is left byte-identical in the
   file. This is not an optimization, it's a correctness requirement:
   Acrobat's own digital-signature model depends on incremental updates
   (a signature covers a byte range; anything after that range is a
-  later revision). pdfce must support this from day one, not bolt it on
+  later revision). pdfcer must support this from day one, not bolt it on
   after signatures are implemented.
-- `Document::render_page(index, dpi) -> Pixmap` (in `pdfce-render`,
+- `Document::render_page(index, dpi) -> Pixmap` (in `pdfcer-render`,
   takes a `&Document`).
 
 **IMPLEMENTED (2026-08-02, Pass 17.0, commit `3a56b55` — was a forward
 pointer, now current reality):** `render_page`/`render_page_with` stay
 `&Document`-taking thin wrappers (unchanged signatures), but
-`pdfce-render`'s real internal surface is generalized to accept
-`&pdfce_core::view::DocumentView` (a promoted, top-level home for the
+`pdfcer-render`'s real internal surface is generalized to accept
+`&pdfcer_core::view::DocumentView` (a promoted, top-level home for the
 former `pageops::assemble::DocumentView`) so it can render either a
 plain `Document` or a live `EditSession` overlay — this is what the
 canvas now actually renders (`self.session.view()`, not
@@ -2423,7 +2423,7 @@ two implementation deviations found while building it
 and its same-day continuation-56 follow-up, below.
 
 **IMPLEMENTED (2026-08-03, Pass 18.5, commit `9998a6b`):** the vector
-object model (`pdfce_core::vector`, introduced incrementally from
+object model (`pdfcer_core::vector`, introduced incrementally from
 decision 011/Pass 9a onward, not otherwise itemized in this section)
 gains two hit-testing/content-detail additions. **Invariant:**
 `hit_test_point` is defined as the structural head
@@ -2475,13 +2475,13 @@ were found and fixed in the same Pass: `'`/`"` did not perform their
 tracked in the decomposer's `GState` at all. Zero new Cargo
 dependencies — reuses `text_extract::font::ExtractFont`'s existing
 dictionary-only resolver (rule R21: no glyph-shaping crate in
-`pdfce-core`, a hit-test runs per click). Full build record:
+`pdfcer-core`, a hit-test runs per click). Full build record:
 `ROADMAP.md`'s Pass 18.6 Shipped entry (top of Shipped).
 
 **IMPLEMENTED (2026-08-03, Pass 21.0, FF-C, decision 021, commit
 `48c6b77`; §3/§4 body-section sync filed 2026-08-04, continuation 77 —
-flagged owed at ship, discharged here):** `pdfce-core` gains
-`font_embed.rs` — the FIRST pdfce-core surface that emits a *new*,
+flagged owed at ship, discharged here):** `pdfcer-core` gains
+`font_embed.rs` — the FIRST pdfcer-core surface that emits a *new*,
 operator-supplied font program into a PDF, distinct from every prior
 font-touching module which only ever READ existing font resources.
 Public: `FontEmbedPlan` (plain-data contract: `SubsetGlyph`,
@@ -2496,7 +2496,7 @@ ALLOCATES fresh object ids, never rewrites an existing `/FontFile*`/
 `/FontDescriptor`/`/Font` dict**, so FF-C needs no new §5 exception;
 incremental save stays the default.
 
-`pdfce-render` gains `font::subset` — `plan_subset(donor_bytes, ...)
+`pdfcer-render` gains `font::subset` — `plan_subset(donor_bytes, ...)
 -> Result<FontEmbedPlan, SubsetError>`, parsing the donor via the
 existing skrifa parser (no second font-program parser added anywhere
 — R21 unchanged) and calling `subsetter::subset`. Reads the donor's
@@ -2512,15 +2512,15 @@ measured; see the constant's own doc comment).
 
 **Why the split runs core/render rather than living entirely in one
 crate (decision 021 §3.2):** subsetting is a *write* concern, so
-`pdfce-core` looks like its natural home — but producing a subset
+`pdfcer-core` looks like its natural home — but producing a subset
 first requires *parsing* the donor (coverage from `cmap`, advances
 from `hmtx`, descriptor metrics, the `fsType` bits), and that parser
-already exists in `pdfce-render`. Putting `subsetter` in `pdfce-core`
+already exists in `pdfcer-render`. Putting `subsetter` in `pdfcer-core`
 would give a crate with no font-program parser two of them, purely to
-avoid a plain-data seam. So the seam **is** the design: `pdfce-render`
-parses and subsets, `pdfce-core` emits the PDF objects, and
-`pdfce-core` gains **zero** new dependencies from this Pass.
-`pdfce-core` still has no font-program parser after Pass 21.0 —
+avoid a plain-data seam. So the seam **is** the design: `pdfcer-render`
+parses and subsets, `pdfcer-core` emits the PDF objects, and
+`pdfcer-core` gains **zero** new dependencies from this Pass.
+`pdfcer-core` still has no font-program parser after Pass 21.0 —
 `fontdata/` (§4, standard-14 metrics) remains compiled-in metrics
 only, unchanged.
 
@@ -2541,17 +2541,17 @@ read this §4 entry as FF-C being complete; see `ROADMAP.md`'s Pass
 > **self-justifying** — the refusal was cited as the ground for keeping
 > the types single-byte, and the single-byte types were cited as the
 > ground for keeping the refusal. **R-INV-4 still exists and still
-> fires**, but only on the two font properties no amount of pdfce work
+> fires**, but only on the two font properties no amount of pdfcer work
 > can fix. **]**
 
 ---
 
-## 4.1 §4 SYNC — the `pdfce-core` surface log, **RETIRED 2026-08-29** (decision 102). ★ **FOR THE CURRENT SURFACE READ `docs/core-api/`, NOT THIS SECTION**
+## 4.1 §4 SYNC — the `pdfcer-core` surface log, **RETIRED 2026-08-29** (decision 102). ★ **FOR THE CURRENT SURFACE READ `docs/core-api/`, NOT THIS SECTION**
 
 > ### ★★★ RETIRED — READ THIS BEFORE READING ANYTHING BELOW IT
 >
 > **This section is no longer maintained and must not be read as the current
-> `pdfce-core` surface.** Its last lettered sync is **(AB), 2026-08-23**;
+> `pdfcer-core` surface.** Its last lettered sync is **(AB), 2026-08-23**;
 > `Passes 162.0`–`173.1` shipped after it and **none of them has a section
 > here, deliberately**.
 >
@@ -2559,7 +2559,7 @@ read this §4 entry as FF-C being complete; see `ROADMAP.md`'s Pass
 >
 > | you want | read |
 > |---|---|
-> | the current public surface of `pdfce-core` | **`docs/core-api/`** — `01-reading-and-model.md`, `02-editing-and-saving.md` (every public `EditSession` verb, the command/undo contract, `EditError`'s variants), `03-capabilities.md` |
+> | the current public surface of `pdfcer-core` | **`docs/core-api/`** — `01-reading-and-model.md`, `02-editing-and-saving.md` (every public `EditSession` verb, the command/undo contract, `EditError`'s variants), `03-capabilities.md` |
 > | proof those documents are not stale | **`python tools/check-core-api-verbs.py`** — it derives the verb count and the `EditError` variant count from the crate and **fails** on a missing verb or a stale figure. It runs in CI. |
 > | why a surface changed, and what was rejected | **§12 decision log**, below — `Pass 167.0` → decision **099**, the clipboard formats → decision **100**, `coalesce_last` → decision **101** (body counterpart §11.6) |
 > | when a surface changed | **`docs/ROADMAP.md`** *Shipped*, which carries a per-Pass verification block |
@@ -2613,7 +2613,7 @@ merely incomplete, it was **wrong as written** for anyone reading it as
 the current API.
 
 **This subsection was produced by reading the `pub` items in
-`crates/pdfce-core/src/`, not by reconstructing them from `ROADMAP.md`.**
+`crates/pdfcer-core/src/`, not by reconstructing them from `ROADMAP.md`.**
 That distinction is the method, and it is deliberate: **the roadmap
 records intent; the crate records truth**, and where they disagree the
 crate wins. Where a statement below could not be verified in the source
@@ -2752,7 +2752,7 @@ and an operator who cares about minimal diffs (**R46**) is owed that fact
 rather than left to find it in a diff.
 
 > **This is CLAUDE.md rule 4 applied to REPRESENTATION rather than to
-> value.** pdfce may reshape *how* a thing is written in order to do what
+> value.** pdfcer may reshape *how* a thing is written in order to do what
 > was asked — and says so when it does. Nothing about the rendered page
 > changed; something about the file's recoverability did, and that is
 > exactly the class of fact rule 4 exists to surface.
@@ -2942,8 +2942,8 @@ inline `[SUPERSEDED]` note there).
   > `pub use encoding::{...}` list**, which re-exports only
   > `CharEncoding`, `EncodeResult`, `InverseEncoding`, `RInvTrigger`,
   > `Refusal`. So a caller reaches them at
-  > `pdfce_core::text_edit::encoding::CompositeEncoding` while their
-  > simple-font siblings are available at `pdfce_core::text_edit::`. **The
+  > `pdfcer_core::text_edit::encoding::CompositeEncoding` while their
+  > simple-font siblings are available at `pdfcer_core::text_edit::`. **The
   > asymmetry is real and is either an oversight or a deliberate
   > staging — this sync could not determine which, and does not guess.**
   > Owed: an engineer decision to re-export or to document the omission.
@@ -2958,7 +2958,7 @@ inline `[SUPERSEDED]` note there).
   2. **`/ToUnicode` non-injective** — a ligature destination or a
      collision, so the inverse **is not a function**.
 
-  **Both are properties of the FONT, and no amount of pdfce work fixes
+  **Both are properties of the FONT, and no amount of pdfcer work fixes
   them** — the information is not in the file. That is R110's distinction,
   now load-bearing rather than descriptive.
 
@@ -3045,14 +3045,14 @@ matching the module's existing posture for the vertical case (decision 015
 
 ---
 
-### (H) Decision 026 — the ce-dimension model (`pdfce_core::dimension`)
+### (H) Decision 026 — the ce-dimension model (`pdfcer_core::dimension`)
 
 **Terminology, binding per CLAUDE.md rule 15: everything in this
 subsection is about *ce dimensions* — the `/Line` + `/IT /LineDimension`
-annotations pdfce AUTHORS, with their baked `/AP`, groups, scale,
+annotations pdfcer AUTHORS, with their baked `/AP`, groups, scale,
 `/Measure` dict and `/PieceInfo` sidecar. It says nothing about *pdf
 dimensions* (dimensions a CAD tool already exported into the file), which
-pdfce reads and measures against but must not silently alter.**
+pdfcer reads and measures against but must not silently alter.**
 
 Full current re-export surface (`dimension/mod.rs:62-76`), verified:
 
@@ -3065,7 +3065,7 @@ Full current re-export surface (`dimension/mod.rs:62-76`), verified:
 - **`measure_dict::{build_measure_dict, build_ocg, build_ocproperties}`**
 - **`sidecar::{SIDECAR_VERSION, deserialize_model, serialize_model,
   sidecar_version}`** — **read the constant, do not quote a number here**
-  (`grep 'pub const SIDECAR_VERSION' crates/pdfce-core/src/dimension/sidecar.rs`).
+  (`grep 'pub const SIDECAR_VERSION' crates/pdfcer-core/src/dimension/sidecar.rs`).
   ★ **This line said `SIDECAR_VERSION: i64 = 1` until 2026-08-30 (336th
   filing) and had been wrong since the constant first moved to `2` on
   2026-08-12** (decision (R), `9f2af1d`) — sixteen days and three bumps,
@@ -3103,19 +3103,19 @@ implied**). **`FractionMode::Decimal { places: u32 }`** shows fixed full
 precision so `3.10 m` reads consistently.
 
 **The `/RD` + `/RT` half of the §12.9 `/Measure` mirror is closed; the
-`/FD` half is NOT.** pdfce prints a fixed number of decimal places in its
+`/FD` half is NOT.** pdfcer prints a fixed number of decimal places in its
 **baked** label (`3.10 m`) while the mirrored `/Measure` dict **omits
 `/FD`**, whose spec default of `false` **permits a conforming reader to
 print `3.1 m`**. Any doc comment claiming the two *"agree by
 construction"* is **wrong as written**. Tracked as an open item under
 `ROADMAP.md` *Next up*.
 
-> **★ Why pdfce cannot see this failure from inside itself, which is the
-> generalizable part:** **pdfce's label is baked into the appearance
+> **★ Why pdfcer cannot see this failure from inside itself, which is the
+> generalizable part:** **pdfcer's label is baked into the appearance
 > stream, and the dict is what everyone ELSE computes from.** A test that
-> asserts on pdfce's own rendering will always agree with itself. Any real
-> fix needs **a reader that is not pdfce**, or a test that asserts on the
-> **dict's semantics** rather than on pdfce's rendering of it.
+> asserts on pdfcer's own rendering will always agree with itself. Any real
+> fix needs **a reader that is not pdfcer**, or a test that asserts on the
+> **dict's semantics** rather than on pdfcer's rendering of it.
 
 **Sidecar validation (`3a23694`) — a behavioural contract with no public
 symbol.** `dimension/sidecar.rs` validates every file-supplied placement
@@ -3138,7 +3138,7 @@ filings behind the shipped core surface is the failure §4.1 exists to
 correct — repeating it on the very next core change would be the whole
 lesson unlearned.
 
-**Before** (`pdfce_core::annot::Annotation`): `id`, `subtype`, `rect`,
+**Before** (`pdfcer_core::annot::Annotation`): `id`, `subtype`, `rect`,
 `flags`, `appearance`, `is_popup`, `is_widget`, `oc`. **No note text, no
 author, no modification date** — a struct describing *shapes*.
 
@@ -3148,7 +3148,7 @@ a widening of what is *surfaced*, not new parsing):
 
 | Field | Key | Type | The contract, and why it is that contract |
 |---|---|---|---|
-| `contents` | `/Contents` | `Option<String>` | Decoded through the **§7.9.2 text-string decoder** every other text-string consumer in the crate uses — **not** a private byte-to-char conversion, which would disagree with the rest of pdfce on non-Latin input. Pinned by a **UTF-16BE test asserting `"Ré"`**, which a naive conversion cannot pass |
+| `contents` | `/Contents` | `Option<String>` | Decoded through the **§7.9.2 text-string decoder** every other text-string consumer in the crate uses — **not** a private byte-to-char conversion, which would disagree with the rest of pdfcer on non-Latin input. Pinned by a **UTF-16BE test asserting `"Ré"`**, which a naive conversion cannot pass |
 | `title` | `/T` | `Option<String>` | **ISO 32000-1 Table 170 — a MARKUP-annotation key, not Table 164.** Legitimately **absent** on a Link or a Stamp. `None` therefore means *"this subtype has no such concept"*, **NOT "anonymous"** — documented on the field, because a UI that conflates those two lies about the document |
 | `modified` | `/M` | `Option<String>` | **Stored RAW — deliberately NOT parsed to a date type.** §12.5.2 types `/M` as *"date **or** text string"* and **requires readers to "accept and display a string in any format."** A date parser would have to reject or mangle values the standard obliges a reader to accept. **A test pins a `/M` of `(last Tuesday)` surviving verbatim**, so a later "improvement" to parse it fails loudly |
 
@@ -3161,9 +3161,9 @@ model that does not exist.
 
 **Breaking? NO.** Three added fields on a struct consumers construct only
 by reading a document. **`ARCHITECTURE.md` §3's GUI-core invariant was
-re-verified at this commit specifically** (`cargo tree -p pdfce-core` /
-`-p pdfce-render`: zero GUI-dependency matches) — this was the first Pass
-in several to touch `pdfce-core` at all, so the check was load-bearing
+re-verified at this commit specifically** (`cargo tree -p pdfcer-core` /
+`-p pdfcer-render`: zero GUI-dependency matches) — this was the first Pass
+in several to touch `pdfcer-core` at all, so the check was load-bearing
 rather than ceremonial.
 
 **Still absent, named so the edge is honest:** no `delete_annotation`
@@ -3182,12 +3182,12 @@ recorded rather than rounded up.
 > and `/RC` remain genuinely absent — the sentence is corrected, not
 > retired. See §4.1 subsection (L) for the full new surface.]**
 
-### (K) `e4256f2` — ★★ BREAKING for downstream implementors: `ObjectGraph` gains `Send + Sync`; `pdfce-render` gains `RenderCancel` and `RenderOptions.cancel` — 2026-08-07
+### (K) `e4256f2` — ★★ BREAKING for downstream implementors: `ObjectGraph` gains `Send + Sync`; `pdfcer-render` gains `RenderCancel` and `RenderOptions.cancel` — 2026-08-07
 
 **Two public-surface changes, in two crates, taken together because the
 first exists only to enable the second.**
 
-**1. `pdfce_core::graph::ObjectGraph: Send + Sync` (supertrait added).**
+**1. `pdfcer_core::graph::ObjectGraph: Send + Sync` (supertrait added).**
 
 **Breaking in the semver sense** — a supertrait on a public trait is a new
 obligation on every downstream implementor — **and additive in practice**,
@@ -3210,12 +3210,12 @@ from here. Rust API guideline **`C-SEND-SYNC`** asks for `Send`/`Sync`
 where possible and for exceptions to be documented — **the rationale lives
 on the trait** (`CLAUDE.md` rule 10, §8).
 
-**2. `pdfce_render::RenderCancel` + `RenderOptions.cancel: Option<RenderCancel>`.**
+**2. `pdfcer_render::RenderCancel` + `RenderOptions.cancel: Option<RenderCancel>`.**
 
-A plain **`Arc<AtomicBool>`** (`crates/pdfce-render/src/cancel.rs`). **No
+A plain **`Arc<AtomicBool>`** (`crates/pdfcer-render/src/cancel.rs`). **No
 windowing, no async runtime, no executor** — so **§3's GUI-core separation
 invariant holds** (verified: `cargo tree` reports **0 GUI matches** for
-both `pdfce-core` and `pdfce-render` at this commit), and it compiles and
+both `pdfcer-core` and `pdfcer-render` at this commit), and it compiles and
 behaves identically under **wasm**, which is the property that keeps the
 eventual web fork a shell-crate swap.
 
@@ -3278,13 +3278,13 @@ changed and §4.1 is the living truth.**
 > cancels and **joins** before handing out `&mut` — so **`Arc::get_mut` is
 > infallible by construction**, not by hope.
 >
-> **3. NOT CHANGED: `pdfce-core`'s public API.** `7926a78` touches
+> **3. NOT CHANGED: `pdfcer-core`'s public API.** `7926a78` touches
 > **`pdfce-gui` only** (4 files, +840 / −132; `main.rs`, `raster.rs`,
 > `render_worker.rs`, `ui_text.rs`) — **no core or render file, no
 > manifest**, so this subsection's API description remains the complete
 > and current one, and the GUI-core separation invariant (§3) is untouched
 > by it. **`cargo tree` was re-run anyway and reports 0 GUI matches for
-> `pdfce-core`.**
+> `pdfcer-core`.**
 >
 > **One correction to the ruling's own arithmetic, filed rather than
 > quietly fixed:** the rejected `Arc::get_mut` alternative is described
@@ -3303,11 +3303,11 @@ changed and §4.1 is the living truth.**
 **Closes the gap (J) named and R151 flagged: annotation deletion had a
 core surface (`delete_field`/`delete_widget`/`delete_redaction_mark`/
 `delete_dimension`) for four kinds and NO verb at all for the fifth and
-largest — every annotation pdfce authors or reads that is not one of
+largest — every annotation pdfcer authors or reads that is not one of
 those four (highlight, square, FreeText, stamp, link, and every
-annotation pdfce did not author).**
+annotation pdfcer did not author).**
 
-**New public surface, `crates/pdfce-core/src/edit.rs`:**
+**New public surface, `crates/pdfcer-core/src/edit.rs`:**
 
 - `EditSession::delete_annotation(ObjId) -> Result<AnnotationDeletion, EditError>`
   — the general verb.
@@ -3336,7 +3336,7 @@ annotation pdfce did not author).**
 - New `EditError` variants: `AnnotationNotFound`, `AnnotationLocked`,
   `AnnotationIsTrapNet`, `AnnotationIsWidget`.
 - New `CommandKind::DeleteAnnotation`.
-- `pdfce_core::annot::Annotation` gains `popup`, `in_reply_to`,
+- `pdfcer_core::annot::Annotation` gains `popup`, `in_reply_to`,
   `reply_type` (new `ReplyType` enum) and two derived methods,
   `is_group_subordinate()` / `effective_reply_type()`; `AnnotFlags`
   gains the `LOCKED` bit and a `locked()` accessor.
@@ -3353,7 +3353,7 @@ subsection stands as the complete surface description:**
    is called by both `annotation_deletion_preview` and
    `delete_annotation` itself, so a GUI tooltip's predicted counts and
    the actual deletion's reported counts cannot structurally disagree
-   (see §12; this was a `pdfce-ui-specialist` finding, not the
+   (see §12; this was a `pdfcer-ui-specialist` finding, not the
    engineer's own first design).
 3. **Routing, not absorbing** — the verb's own doc comment names this
    directly (`edit.rs` L8490, "`# Routing, not absorbing`"). Three
@@ -3372,9 +3372,9 @@ subsection stands as the complete surface description:**
    `/P 3` certified document, deleting a ce dimension is REFUSED while
    deleting every other annotation is ALLOWED — the standard's answer
    (Table 254's `P = 3` list names annotations, not `/PieceInfo`
-   metadata), not a pdfce inconsistency.
+   metadata), not a pdfcer inconsistency.
 
-   > **[CORRECTED 2026-08-09, later the same day — pdfce-librarian, per
+   > **[CORRECTED 2026-08-09, later the same day — pdfcer-librarian, per
    > the dispatching engineer's account; the "same **annotation** gate"
    > claim above describes HEAD (`a4c1a8e`), not what `0a727bb` actually
    > shipped.** Per the engineer: at filing time `delete_redaction_mark`
@@ -3386,7 +3386,7 @@ subsection stands as the complete surface description:**
    > `check_certification_for_annotation()` alongside three authoring
    > verbs (`add_markup`, `add_text_annotation`, `add_redaction` — see
    > the new §12 entry, this date). Verified directly:
-   > `crates/pdfce-core/src/edit.rs` L8425 (`delete_redaction_mark`) now
+   > `crates/pdfcer-core/src/edit.rs` L8425 (`delete_redaction_mark`) now
    > calls `check_certification_for_annotation()`; L12916
    > (`delete_dimension`) still calls the strict `check_certification()`.
    > The two delegated routes now differ **by clause**, and
@@ -3395,7 +3395,7 @@ subsection stands as the complete surface description:**
    > shell/git access, relayed from the engineer.]**
 
 **Three cascades the general (non-routed) case handles, all covered in
-`crates/pdfce-core/tests/annot_deletion.rs`'s 16 tests (independently
+`crates/pdfcer-core/tests/annot_deletion.rs`'s 16 tests (independently
 counted against the file, matching the relayed figure): the `/Popup`
 companion (deleted, §12.5.6.14 — deliberately, because leaving an
 orphaned pop-up makes it start DISPLAYING its own `/Contents` per
@@ -3419,7 +3419,7 @@ Comments panel unreachable to the scripted observation harness — the
 `ToggleCommentsPanel` action and its ribbon button existed with no
 script-driven path to them.
 
-**Breaking? NO.** All additions. `cargo tree -p pdfce-core` re-verified
+**Breaking? NO.** All additions. `cargo tree -p pdfcer-core` re-verified
 at this commit: 0 GUI/windowing dependencies (§3 invariant held).
 
 ### (M) `Pass 23.3` residual (`e1430d8`) — `plan_move_nodes`, `EditSession::move_nodes`, and bucket-by-operator anchor grouping — 2026-08-09
@@ -3502,7 +3502,7 @@ checked, by its own author, in the same commit, and the falsifying test
 was preserved rather than discarded once superseded.
 
 **Breaking? NO.** All additions — two new error variants, two new
-functions. `cargo tree -p pdfce-core` unaffected: no `Cargo.toml`
+functions. `cargo tree -p pdfcer-core` unaffected: no `Cargo.toml`
 touched this Pass (relayed by the dispatching engineer; not
 independently re-run by this filing — no shell, hard rule 8).
 
@@ -3566,7 +3566,7 @@ and `edit.rs`:
   "did I hit this object"; here the question is "which run", and naming
   run 0 for an object whose runs were never laid out would hand a caller a
   deletable target that is the wrong one, silently.
-- **`pdfce-cli text-run-delete <input> --object N --run M -o out [--page
+- **`pdfcer text-run-delete <input> --object N --run M -o out [--page
   N] [--mode …] [--verify-undo]`** (`main.rs:2763`/`:13089`).
 
 **A defect in `EditSession::vector_surgery` found by running the new CLI
@@ -3720,7 +3720,7 @@ above). Verified directly in `main.rs`:
   second, untraced path into the same field. Full record:
   `D:\dev\rag\rust\disclosure_channel_with_no_trace_makes_fired_and_never_fired_identical.md`
   (amended this session with the fourth instance).
-- **Ruled NOT to warrant a new pdfce standing rule** — see this session's
+- **Ruled NOT to warrant a new pdfcer standing rule** — see this session's
   `ROADMAP.md` Shipped entry (the un-Pass-ID'd `b5b9f23` gui/tooling
   entry) for the full reasoning: the general methodology claim belongs
   to the cross-project RAG (already does, amended this session); what
@@ -3729,14 +3729,14 @@ above). Verified directly in `main.rs`:
 **Breaking? No** — `pdfce-gui`-internal only; `edit_note`'s public shape
 (`Option<String>`) is unchanged, only how it may be written changed.
 
-### (Q) `74582ca` + `95c3416` — the attachments write surface: `EditSession::attach_file` / `detach_file`, `CommandKind::DetachFile`, and a name-tree shape pdfce REFUSES — 2026-08-12
+### (Q) `74582ca` + `95c3416` — the attachments write surface: `EditSession::attach_file` / `detach_file`, `CommandKind::DetachFile`, and a name-tree shape pdfcer REFUSES — 2026-08-12
 
 **Closes the `R151` gap that had been open since attachments first became
 readable:** `extract_attachment` existed in core with **no shell able to
-call it**, and there was **no write surface at all** — pdfce could read
+call it**, and there was **no write surface at all** — pdfcer could read
 an attachment and could not create or remove one.
 
-**New public surface, `crates/pdfce-core/src/edit.rs`:**
+**New public surface, `crates/pdfcer-core/src/edit.rs`:**
 
 - `EditSession::attach_file(name: &str, bytes: &[u8], description: Option<&str>) -> Result<ObjId, EditError>`
   — **ISO 32000-1 §7.11.4.1 route 2.** Allocates **three** objects in
@@ -3761,7 +3761,7 @@ an attachment and could not create or remove one.
 
 **Guard order on `attach_file` is the SAME three guards, in the same
 order, that every object-creating verb on this type already applies** —
-`EditError::DocumentEncrypted` (pdfce can decrypt but cannot yet write
+`EditError::DocumentEncrypted` (pdfcer can decrypt but cannot yet write
 encryption), the certification refusal
 (`check_certification_for_annotation`), and
 `EditError::ObjectCreationWouldExposeHiddenObjects` when a filtering
@@ -3782,14 +3782,14 @@ that had already mutated state would be worse than no refusal).
 
 **`/CheckSum` is deliberately NOT written, and the reasoning is a
 precedent for every future Optional field.** It is **Optional** and
-**defined as MD5**; pdfce has no MD5. **Adding a hash dependency to write
+**defined as MD5**; pdfcer has no MD5. **Adding a hash dependency to write
 an optional field is a licence and supply-chain decision taken for no
 functional gain** — §9 and project rule 13. The default for an *Optional*
 key whose only implementation route is a new crate is: **omit it, and say
 so.**
 
 **One behaviour is enforced from OUTSIDE this surface and belongs in the
-record:** when `embed-font` actually embeds one of pdfce's own bundled
+record:** when `embed-font` actually embeds one of pdfcer's own bundled
 BSD-3-Clause faces, `attach_file` is used to attach the licence notice as
 `FONT-LICENSE-NOTICE.txt`. **XMP was the other candidate mechanism and
 was rejected on sourcing grounds, not preference** — the spec corpus
@@ -3797,12 +3797,12 @@ records `xmp__* = 0 files`, so writing XMP would have meant writing a
 metadata format from training-data recall (**rule 1**), while §7.11 is
 fully sourced (Tables 44–47). **A sourcing boundary chose the mechanism.**
 
-**Shell coverage as of this entry:** `pdfce-cli` gains
+**Shell coverage as of this entry:** `pdfcer` gains
 `extract-attachment`, `attach-file` and `detach-file`. **`pdfce-gui` has
 NO attachments surface at all** — `core [x] cli [x] gui [ ]`, recorded
 rather than rounded up.
 
-### (R) `e931836` + `905791f` + `9f2af1d` — three new `pdfce-core` surfaces in one session: `vector::linepick`, `DimensionKind::Angular` (+ `SIDECAR_VERSION` 2), and the `ocr` module — 2026-08-12
+### (R) `e931836` + `905791f` + `9f2af1d` — three new `pdfcer-core` surfaces in one session: `vector::linepick`, `DimensionKind::Angular` (+ `SIDECAR_VERSION` 2), and the `ocr` module — 2026-08-12
 
 **All three are core-only. NO shell reaches any of them** — this is
 `R151`'s shape three times over in one entry, and it is recorded as a
@@ -3812,9 +3812,9 @@ signal rather than smoothed. `FEATURES.md` carries the first as
 
 #### `vector::linepick` — a pick primitive that returns a LINE, not a point
 
-**New module `crates/pdfce-core/src/vector/linepick.rs`.** The gap it
+**New module `crates/pdfcer-core/src/vector/linepick.rs`.** The gap it
 fills, stated as a property of the pre-existing API rather than as a
-complaint: **every pick surface in `pdfce-core` returned either a POINT
+complaint: **every pick surface in `pdfcer-core` returned either a POINT
 or an INDEX.** `snap_candidates` → single points. `hit_test_subpaths` →
 subpath indices. `centerline` → two endpoints, but only for a filled thin
 quad. **Nothing could answer *"which line did the operator click"* as a
@@ -3910,9 +3910,9 @@ circle in quadrants**; a single cubic's error grows with sweep and a
 enumeration that does not announce it is closed**, and it answered
 *"Linear"* for an angle — a wrong label with no failure anywhere.
 
-#### `pdfce-core::ocr` — the engine-independent half
+#### `pdfcer-core::ocr` — the engine-independent half
 
-**New module `crates/pdfce-core/src/ocr/`**, plus
+**New module `crates/pdfcer-core/src/ocr/`**, plus
 **`ContentBuilder::set_render_mode`** in `writer/content.rs`. Turns
 recognised words with page positions into an **invisible, selectable text
 layer over an untouched scan**.
@@ -3959,14 +3959,14 @@ See `SESSION_LOG.md`'s hundred-and-thirty-eighth filing for the full
 old-hash → live-hash mapping this rebase produced.**
 
 **Terminology (project rule 15):** this surface resolves style for **ce
-dimensions** — the ones pdfce authors. **It does not touch pdf
+dimensions** — the ones pdfcer authors. **It does not touch pdf
 dimensions.** A CAD-exported dimension's line weight and arrowheads are
-page content pdfce reads and must not alter, and nothing in this module
+page content pdfcer reads and must not alter, and nothing in this module
 has a code path that reaches them.
 
 #### `dimension::style` — three tiers, nine properties, one `Option` each
 
-**New module `crates/pdfce-core/src/dimension/style.rs`.** The cascade:
+**New module `crates/pdfcer-core/src/dimension/style.rs`.** The cascade:
 
 ```
 factory (StyleDefaults::FACTORY)
@@ -3974,7 +3974,7 @@ factory (StyleDefaults::FACTORY)
         -> ce dimension (DimensionRecord::style: StyleOverrides)
 ```
 
-**New public surface in `pdfce_core::dimension`:** `ArrowForm`,
+**New public surface in `pdfcer_core::dimension`:** `ArrowForm`,
 `GroupStyle`, `StyleOverrides`, `StyleDefaults`, `StyleProvenance`,
 `StyleSource`, `resolve_style`, `style_provenance`, plus
 `DimensionStyle::new` and **five new fields** on `DimensionStyle`.
@@ -4099,7 +4099,7 @@ old-hash → live-hash mapping this rebase produced.**
 
 **Terminology (project rule 15):** this surface authors and resolves
 tolerance for **ce dimensions**. **It does not touch pdf dimensions** — a
-tolerance already printed on a CAD-exported drawing is page content pdfce
+tolerance already printed on a CAD-exported drawing is page content pdfcer
 reads and must not alter, and no code path here reaches it.
 
 #### The whole API claim, in one measurable form
@@ -4115,9 +4115,9 @@ moved and a second mechanism would exist beside the first.
 `set_dimension_style` from (S) simply carry two more fields, which is
 what "not a second system" means at the API layer.
 
-#### New public surface in `pdfce_core::dimension`
+#### New public surface in `pdfcer_core::dimension`
 
-**New module `crates/pdfce-core/src/dimension/tolerance.rs`.**
+**New module `crates/pdfcer-core/src/dimension/tolerance.rs`.**
 Re-exported: **`Tolerance`**, **`ToleranceError`**. New error variant
 **`EditError::InvalidTolerance { reason }`**. Two new fields on each of
 `StyleDefaults` / `GroupStyle` / `StyleOverrides` / `StyleProvenance` /
@@ -4239,7 +4239,7 @@ Deferred by the operator's standing instruction of 2026-08-13, together
 with (S)'s panel. **It is the SAME outstanding surface, not a second
 one** — the tolerance is a property of that panel's cascade.
 
-### (U) `ed05033` — `pdfce_core::ocr::layer`: the OCR sandwich WRITER, and the correction of (R)'s claim that slice 1 already was one — 2026-08-13
+### (U) `ed05033` — `pdfcer_core::ocr::layer`: the OCR sandwich WRITER, and the correction of (R)'s claim that slice 1 already was one — 2026-08-13
 
 **`Pass 71.0` slice 2.** (R) above recorded the `ocr` module as *"taking
 recognised words with page positions and writing them into a PDF"*.
@@ -4256,9 +4256,9 @@ half was **right**. **The false claim was in the prose, in the present
 tense** — `R151`'s shape at the documentation layer, where a ledger audit
 cannot see it.
 
-#### New public surface in `pdfce_core::ocr`
+#### New public surface in `pdfcer_core::ocr`
 
-**New module `crates/pdfce-core/src/ocr/layer.rs` (904 lines);
+**New module `crates/pdfcer-core/src/ocr/layer.rs` (904 lines);
 `ocr/mod.rs` gains `pub mod layer;`.**
 
 | item | shape |
@@ -4298,7 +4298,7 @@ page and all subsequent text renders invisible).
 #### Invariants this surface is bound by
 
 - **§3 GUI-core separation** — the **pixel** test lives in
-  `pdfce-render`, not `pdfce-core`, because core cannot rasterise and
+  `pdfcer-render`, not `pdfcer-core`, because core cannot rasterise and
   never will, and **bytes cannot answer "does it look the same"**.
   `cargo tree` on both crates re-verified clean at `ed05033`.
 - **§5 round-trip** — additive only; the scanned image is **never
@@ -4315,7 +4315,7 @@ page and all subsequent text renders invisible).
 at `core [ ] cli [ ] gui [ ]` — unchanged by this entry and deliberately
 so.
 
-### (V) `49af8fb` — `pdfce_core::ocr::engine_ocrs`: the FIRST implementation of the `OcrEngine` trait, behind a Cargo feature — and it reports NO confidence — 2026-08-13
+### (V) `49af8fb` — `pdfcer_core::ocr::engine_ocrs`: the FIRST implementation of the `OcrEngine` trait, behind a Cargo feature — and it reports NO confidence — 2026-08-13
 
 **`Pass 71.0` slice 3.** (R) recorded the `OcrEngine` trait; (U)
 recorded the writer it feeds. **This is the producer**, and it is the
@@ -4325,7 +4325,7 @@ text layer from words obtained some other way.
 
 #### New public surface, gated on `#[cfg(feature = "ocrs")]`
 
-**New module `crates/pdfce-core/src/ocr/engine_ocrs.rs` (345 lines);
+**New module `crates/pdfcer-core/src/ocr/engine_ocrs.rs` (345 lines);
 `ocr/mod.rs` gains a `#[cfg(feature = "ocrs")] pub mod engine_ocrs;`.**
 
 | item | shape |
@@ -4343,7 +4343,7 @@ text layer from words obtained some other way.
 ★ CORRECTED 2026-08-25 (`181d9bd`, `Pass 129.0`, two-hundred-and-sixty-
 second filing) — the DETECTION artefact was replaced and the total moved.**
 The two `.rten` files are committed at
-`crates/pdfce-core/assets/models/ocrs/`, **12,226,728 B over 2 files =
+`crates/pdfcer-core/assets/models/ocrs/`, **12,226,728 B over 2 files =
 6.11 MB each** *(detection **2,510,284 B** + recognition **9,716,444 B**;
 measured by `ls -l` on the directory, 2026-08-25)*, licence
 **CC-BY-SA-4.0** (read from the model card's YAML front matter at source;
@@ -4357,7 +4357,7 @@ is kept legible here rather than silently rewritten** (`R215` (d)),
 because the number is not the interesting part of the correction.
 **The Hugging Face detection build (`text-detection-ssfbcj81.rten`,
 2,523,564 B) DOES NOT WORK with `ocrs` 0.12.2** — it returns noise, and did
-so for every OCR run pdfce ever made between 2026-08-13 and 2026-08-25. The
+so for every OCR run pdfcer ever made between 2026-08-13 and 2026-08-25. The
 **recognition** file is unchanged and still the Hugging Face one; only the
 **detection** file was replaced, with the author's S3 build
 (`text-detection.rten`, 2,510,284 B), which is **what the `ocrs` crate's own
@@ -4395,7 +4395,7 @@ the licence.**
 **The licence boundary lives in `PROVENANCE.md`, deliberately, and is not
 duplicated into a decision record** — a second copy is a copy that can
 drift. In summary: CC-BY-SA has **no linking concept**; these ship
-**unmodified in a COLLECTION**, not as an **ADAPTATION**, so **pdfce's
+**unmodified in a COLLECTION**, not as an **ADAPTATION**, so **pdfcer's
 MIT licence is unaffected** — but **modifying the weights (fine-tuning,
 quantizing, retraining, format conversion) creates Adapted Material that
 must itself be CC-BY-SA.**
@@ -4441,15 +4441,15 @@ as every other refusal in this crate.
 #### Invariants this surface is bound by
 
 - **§3 GUI-core separation** — `cargo tree` re-verified clean on
-  `pdfce-core` and `pdfce-render` at `49af8fb`. **The wasm32 cross-check
+  `pdfcer-core` and `pdfcer-render` at `49af8fb`. **The wasm32 cross-check
   is the sharper form of the same invariant** and was run empirically at
   adoption, with the feature in the **default** set:
-  `cargo check -p pdfce-core -p pdfce-render --target
+  `cargo check -p pdfcer-core -p pdfcer-render --target
   wasm32-unknown-unknown`, clean. Every alternative engine would have
   made OCR the first capability that cannot cross into the web fork.
 - **§1.1 privacy / no-network** — **structural, not promised**: `ocrs`'s
   model downloader lives in the separate **`ocrs-cli` binary crate**, so
-  nothing linkable from `pdfce-core` can fetch. The CI denylist and the
+  nothing linkable from `pdfcer-core` can fetch. The CI denylist and the
   R24 SIMD gate were run locally; both clean.
 - **§9 attribution** — **20 crates added, ZERO copyleft**, no new
   licence category; `ocrs` + the 11 `rten` crates are MIT OR
@@ -4476,7 +4476,7 @@ operator-reachable**, and `FEATURES.md` keeps it at
 `core [ ] cli [ ] gui [ ]` — now the **fourth** consecutive slice to
 refuse that rounding. The reason changed underneath the conclusion:
 **it is no longer the missing weights, it is that no shell has a
-surface** (`pdfce-cli ocr` is unbuilt, and so is the GUI flow). **Note
+surface** (`pdfcer ocr` is unbuilt, and so is the GUI flow). **Note
 the shape — a conclusion that stayed correct while its stated reason went
 stale is exactly the failure this document keeps re-learning.**
 
@@ -4486,9 +4486,9 @@ that already contain text — the wrong input, out-of-distribution in the
 opposite direction from a bad scan. A real quality claim needs a
 rights-cleared scanned page (`LEGAL.md` §5).
 
-### (W) `2fe6216` — `pdfce_render::render_page_region`, and `MAX_PIXMAP_EDGE` CHANGES WHAT IT BOUNDS — 2026-08-13
+### (W) `2fe6216` — `pdfcer_render::render_page_region`, and `MAX_PIXMAP_EDGE` CHANGES WHAT IT BOUNDS — 2026-08-13
 
-**`Pass 74.0`.** A `pdfce-render` entry, filed in this §4.1 sync for the
+**`Pass 74.0`.** A `pdfcer-render` entry, filed in this §4.1 sync for the
 same reason (K) was: this section is where the **actual shipped
 surface** of the headless crates is kept true, and a downstream project
 now builds against it.
@@ -4500,7 +4500,7 @@ pub fn render_page_region(
     doc: &DocumentView<'_>,
     page: &Page,
     scale: f32,
-    region: pdfce_core::page_tree::Rect,  // PAGE space, pre-scale, y-UP
+    region: pdfcer_core::page_tree::Rect,  // PAGE space, pre-scale, y-UP
     options: &RenderOptions,
 ) -> Result<RenderedPage, RenderError>;
 ```
@@ -4516,13 +4516,13 @@ CTM**, not two — a two-corner mapping is correct unrotated and
 ##### ★ AMENDED 2026-08-22 (`Pass 74.1` + `Pass 74.2`, `bd9844d` + `71f7055`, 226th filing) — the CLI surface, and THREE new public items
 
 **`Pass 74.1` gives this function its first direct shell caller**:
-`pdfce-cli render-page --region LLX,LLY,URX,URY`. Until then poster tiling
+`pdfcer render-page --region LLX,LLY,URX,URY`. Until then poster tiling
 reached it only through a display list and on the fallback path, so **the
 path a viewer needs at high zoom could not be exercised or measured from
 outside the crate** — `R151`'s core-only-capability shape, closed.
 
-**`Pass 74.2` adds three public items to `pdfce-render`**, verified against
-`git show 71f7055 -- crates/pdfce-render/src/lib.rs`:
+**`Pass 74.2` adds three public items to `pdfcer-render`**, verified against
+`git show 71f7055 -- crates/pdfcer-render/src/lib.rs`:
 
 ```rust
 pub struct RegionGeometry { pub width: u32, pub height: u32,
@@ -4572,7 +4572,7 @@ pixel count is fixed.
 ★ **The subject of that heading is load-bearing and it used to read only
 "Numerical reach"** (corrected 2026-08-22, 230th filing, hard rule 10 (b) —
 *the label is what gets quoted*). The paragraph below it was always correct and
-the label had no subject at all, so the figure travelled as pdfce's deep-zoom
+the label had no subject at all, so the figure travelled as pdfcer's deep-zoom
 ceiling. It is not. **See `ROADMAP.md`'s `R213`.**
 
 **Numerical reach of PAGE-SPACE CONTENT, measured 2026-08-22 — SEPARATE, MUCH
@@ -4708,7 +4708,7 @@ rotation test is a **unit** test over an in-memory document. Filed under
 *Backlog*; `page_device_geometry`'s four rotation branches have no
 file-level coverage.
 
-### (X) `7393473` + `fa243df` + `991f0d2` + `b943ea1` + `a84bdc3` — a NEW CRATE (`pdfce-fetch`), one new `EditSession` query, two new fields on `Widget` and `Annotation`, and a `pdfce-core` behaviour change that no signature records — 2026-08-13/14
+### (X) `7393473` + `fa243df` + `991f0d2` + `b943ea1` + `a84bdc3` — a NEW CRATE (`pdfcer-fetch`), one new `EditSession` query, two new fields on `Widget` and `Annotation`, and a `pdfcer-core` behaviour change that no signature records — 2026-08-13/14
 
 **Five commits, `Pass 77.0`/`78.0`/`78.1`/`79.0`/`81.0`.** Four are
 additive; **one changes behaviour behind an unchanged signature**
@@ -4716,7 +4716,7 @@ additive; **one changes behaviour behind an unchanged signature**
 **`a84bdc3` (item 6) landed while this section was being written** — see
 `ROADMAP.md`'s `Pass 81.0` *Shipped* entry.
 
-#### 1. NEW CRATE — `pdfce-fetch` (`Pass 77.0`, `7393473`)
+#### 1. NEW CRATE — `pdfcer-fetch` (`Pass 77.0`, `7393473`)
 
 Full crate rationale and boundary in **§3**; decision **061** fixed the shape,
 and **§1.1** governs the network posture. The public surface is deliberately
@@ -4735,7 +4735,7 @@ download-then-check-then-delete shape leaves an unverified file on disk for a
 window, and **a process that dies in that window leaves it there permanently,
 looking exactly like a good one.**
 
-**`pdfce-core` and `pdfce-render` never depend on this crate** — verified by
+**`pdfcer-core` and `pdfcer-render` never depend on this crate** — verified by
 `cargo tree` (zero hits each) and by the wasm32 cross-check. **At `b943ea1`
 NOTHING depends on it**, so that boundary is currently enforced trivially;
 see §3's block for why that distinction matters.
@@ -4797,7 +4797,7 @@ kept deliberately. Two documented facts rather than defaults:
 
 #### 5. `settings` — the store is now resolved ONCE PER PROCESS (`Pass 79.0`, `b943ea1`)
 
-`crates/pdfce-core/src/settings/mod.rs`. Two changes, one of which is a
+`crates/pdfcer-core/src/settings/mod.rs`. Two changes, one of which is a
 contract:
 
 - `directory_is_writable` probes with a **unique** filename (**pid AND a
@@ -4813,9 +4813,9 @@ contract:
 
 #### 6. NEW FIELD — `annot::Annotation::constant_alpha: Option<f64>` (`Pass 81.0`, `a84bdc3`, added mid-filing)
 
-**Additive** (`crates/pdfce-core/src/annot.rs:324`), parsed from the
+**Additive** (`crates/pdfcer-core/src/annot.rs:324`), parsed from the
 annotation dictionary's `/CA` (§12.5.2 Table 164). Paired with a
-`pdfce-render` change: an appearance with `alpha < 1.0` is interpreted into
+`pdfcer-render` change: an appearance with `alpha < 1.0` is interpreted into
 a **transparent scratch pixmap and composited once at that alpha**.
 
 **Two API rulings that a downstream implementor must not "tidy":**
@@ -4882,7 +4882,7 @@ SILENTLY:**
 
 **★ The asymmetry with `dimension_rects` is INTENDED and is documented in
 both places.** `dimension_rects` *does* compare `/P` against the page
-object id — legitimately, because **ce dimensions are pdfce's own and
+object id — legitimately, because **ce dimensions are pdfcer's own and
 always carry it.** That is **a fact about the input, not an
 inconsistency.** A downstream implementor (or a future refactor) that
 "harmonises" the two breaks `widget_rects` in the silent direction.
@@ -4939,18 +4939,18 @@ PDF format by a consuming project before it was caught. See `ROADMAP.md`'s
 `a19e54d` *Shipped* entry (hundred-and-forty-eighth filing) and the
 `R182` amendment for the general finding.
 
-### (Z) `e13f8ed` + `6af5655` + `6b797db` — `pdfce_render`'s DISPLAY-LIST surface, a new `Canvas` seam behind 18 signatures, and `region_device_geometry()` extracted so byte-identity is STRUCTURAL rather than tested-for — 2026-08-18
+### (Z) `e13f8ed` + `6af5655` + `6b797db` — `pdfcer_render`'s DISPLAY-LIST surface, a new `Canvas` seam behind 18 signatures, and `region_device_geometry()` extracted so byte-identity is STRUCTURAL rather than tested-for — 2026-08-18
 
-**`Pass 75.0`.** A `pdfce-render` entry, filed in this §4.1 sync for the
+**`Pass 75.0`.** A `pdfcer-render` entry, filed in this §4.1 sync for the
 same reason (W) was: **this section is where the actual shipped surface of
 the headless crates is kept true, and a downstream project
-(`D:\dev\pdfceGUI`) builds against it.** Architectural positions:
+(`D:\dev\pdfcer-gui`) builds against it.** Architectural positions:
 **decision 071** (§12).
 
 #### New public surface
 
 ```rust
-// crates/pdfce-render/src/display_list.rs
+// crates/pdfcer-render/src/display_list.rs
 pub const MAX_DISPLAY_LIST_BYTES: usize = 256 * 1024 * 1024;
 
 pub struct ClipId(u32);
@@ -4971,7 +4971,7 @@ impl DisplayList {
 
 pub fn record_page(/* … */) -> Result<DisplayList, RenderError>;
 
-// crates/pdfce-render/src/lib.rs
+// crates/pdfcer-render/src/lib.rs
 pub fn region_device_geometry(/* … */) -> Option<(u32, u32, i32, i32)>;
 // ★ 2026-08-22, Pass 74.2: superseded for region geometry by
 //   region_base_geometry_of, which derives in f64 — see entry (W) and
@@ -4989,7 +4989,7 @@ pub enum RenderError {
 
 #### The `Canvas` seam — an internal change with an external contract
 
-`crates/pdfce-render/src/canvas.rs` introduces `Canvas`, which **replaces
+`crates/pdfcer-render/src/canvas.rs` introduces `Canvas`, which **replaces
 `&mut Pixmap` in 16 interpreter signatures and 2 annotation
 signatures**. Two modes: **paint** (byte-for-byte the previous
 behaviour) and **record**.
@@ -5019,7 +5019,7 @@ Same discipline as (W)'s *"it SHARES `render_page_with_view`'s
 implementation rather than duplicating it, so … cannot drift"*, and the
 same discipline decision 071 clause 1 invokes when it refuses a scale
 mismatch rather than re-deriving device-dependent decisions at replay
-time. **Three instances of one rule now, all in `pdfce-render`.**
+time. **Three instances of one rule now, all in `pdfcer-render`.**
 
 #### The cost model this surface replaces — read it against (W)
 
@@ -5063,12 +5063,12 @@ destination back** and have **no recordable formulation**. `record_page`
 returns `PageNotRecordable { reason }`; the caller falls back to
 `render_page_region`. **It never returns a list that renders the page
 nearly right** — decision 071 clause 2 for the argument. **The refusal
-set is pdfce's current compositing frontier and will shrink**, so treat
+set is pdfcer's current compositing frontier and will shrink**, so treat
 the fallback as a live path, not a legacy one.
 
 #### First real consumer — and it was found by disbelieving a prediction
 
-`pdfce-cli`'s **poster printing** (`cmd_print`) rasterises each tile as a
+`pdfcer`'s **poster printing** (`cmd_print`) rasterises each tile as a
 **region replayed from one display list**. `Pass 75.0`'s acceptance
 criterion 7 predicted the CLI column would be `—` (*"a one-shot
 invocation has nothing to hold it across"*); **reading the code to
@@ -5083,18 +5083,18 @@ magnification. **156 sheets in 29 s = ~186 ms per sheet** after the fix.
 instruction. `R151`'s callable-and-uncalled hazard applies to the GUI
 half of this surface and is recorded rather than smoothed over.
 
-### (AA) `e36f96e` — `pdfce_render::Diagnostics` gains `forms_culled`, and `forms_rendered` CHANGES WHAT IT COUNTS without changing its type or its name — 2026-08-22
+### (AA) `e36f96e` — `pdfcer_render::Diagnostics` gains `forms_culled`, and `forms_rendered` CHANGES WHAT IT COUNTS without changing its type or its name — 2026-08-22
 
-**`Pass 74.4`.** A `pdfce-render` entry, filed in this §4.1 sync for the
+**`Pass 74.4`.** A `pdfcer-render` entry, filed in this §4.1 sync for the
 same reason (W) and (Z) were: **this section is where the actual shipped
 surface of the headless crates is kept true, and a downstream project
-(`D:\dev\pdfceGUI`) builds against it.** Architectural position:
+(`D:\dev\pdfcer-gui`) builds against it.** Architectural position:
 **decision 082** (§12).
 
 #### New public surface
 
 ```rust
-// crates/pdfce-render/src/interpret.rs — pub struct Diagnostics
+// crates/pdfcer-render/src/interpret.rs — pub struct Diagnostics
 pub forms_culled: usize,
 ```
 
@@ -5118,7 +5118,7 @@ many form XObjects does this page paint"* is now wrong on any page where
 anything is off screen, and nothing in its build will say so. The
 mitigation shipped in the same commit is the **companion key** that
 finding prescribes — `forms_culled` is emitted beside `forms` rather than
-appended at the end of `pdfce-cli render-page`'s stable metrics line,
+appended at the end of `pdfcer render-page`'s stable metrics line,
 precisely so the pair reads as a pair:
 
 ```
@@ -5130,17 +5130,17 @@ precisely so the pair reads as a pair:
 separately as `xobject_depth_overflows`).
 
 **Two survivors of that narrowing were recorded here as owed, not done** —
-`crates/pdfce-cli/src/main.rs`'s module-docstring line template (which
+`crates/pdfcer-cli/src/main.rs`'s module-docstring line template (which
 stopped at `forms=<S>`) and the same block's *"new counters may be
 appended … existing keys never move"* promise (which `forms_culled`'s
 deliberate mid-line insertion over-states). Both are `crates/`, therefore
 the engineer's, in their own commit. See `ROADMAP.md`'s
 two-hundred-and-twenty-eighth filing, hard-rule-11 sweep.
 
-**★ BOTH ARE DISCHARGED as of 2026-08-22 by `f9dc007`** (`crates/pdfce-cli/src/main.rs`
+**★ BOTH ARE DISCHARGED as of 2026-08-22 by `f9dc007`** (`crates/pdfcer-cli/src/main.rs`
 only, **+24 / −5**): the template carries `forms_culled=<S2>`, and the contract
 paragraph now promises **name**-stability rather than **ordinal** stability,
-naming `crates/pdfce-cli/tests/render_page.rs` as the enforcement. The "owed"
+naming `crates/pdfcer-cli/tests/render_page.rs` as the enforcement. The "owed"
 sentence above is kept rather than deleted because the record of what was owed
 is the audit trail; **this paragraph is the part that is current.**
 
@@ -5196,26 +5196,26 @@ of what it left out.
 
 #### What is NOT in this entry
 
-No `pdfce-core` surface changed. No trait, no error variant, no
+No `pdfcer-core` surface changed. No trait, no error variant, no
 `EditSession` verb. `render_page` / `render_page_region` / `record_page` /
 `replay_region` keep their signatures exactly; the cull is interior to
 `do_form` and **observable only through the counter**, never through the
 raster — which is the whole of decision 082.
 
-### (AB) `1d6db9e` + `5b0d885` + `296a23e` — `pdfce_render::RenderOptions` gains its FIRST FIDELITY-AFFECTING FLAG, `Diagnostics` gains `subpixel_culled`, and the CONTENT-side `f32` ceiling is raised — 2026-08-23
+### (AB) `1d6db9e` + `5b0d885` + `296a23e` — `pdfcer_render::RenderOptions` gains its FIRST FIDELITY-AFFECTING FLAG, `Diagnostics` gains `subpixel_culled`, and the CONTENT-side `f32` ceiling is raised — 2026-08-23
 
 **`Pass 74.7` + `Pass 74.9`.** Filed here for the reason (W), (Z) and (AA)
 were: **this section is where the shipped surface of the headless crates is
-kept true, and a downstream project (`D:\dev\pdfceGUI`) builds against it.**
+kept true, and a downstream project (`D:\dev\pdfcer-gui`) builds against it.**
 Architectural position: **decision 083** (§12), with **082** as its parent.
 
 #### New public surface, as reported by the engineer
 
 ```rust
-// crates/pdfce-render — pub struct RenderOptions
+// crates/pdfcer-render — pub struct RenderOptions
 pub subpixel_culling: bool,   // OFF by default
 
-// crates/pdfce-render — pub struct Diagnostics
+// crates/pdfcer-render — pub struct Diagnostics
 pub subpixel_culled: usize,
 ```
 
@@ -5235,7 +5235,7 @@ asserted.**
 
 > **★★ AMENDED 2026-08-23 (233rd filing) — THE FLAGGED ITEM IS ANSWERED, AND IT
 > WAS ANSWERED BY READING THE SOURCE, NOT BY RELAY.**
-> **`RenderOptions` IS `#[non_exhaustive]`** — `crates/pdfce-render/src/font/mod.rs:427`
+> **`RenderOptions` IS `#[non_exhaustive]`** — `crates/pdfcer-render/src/font/mod.rs:427`
 > carries the attribute immediately above `pub struct RenderOptions`, and the
 > type's own doc block at line 416 says *"`#[non_exhaustive]` so later Passes can
 > add image, annotation and …"*. ⇒ **adding `subpixel_culling` is NOT
@@ -5244,7 +5244,7 @@ asserted.**
 > applies unqualified and (T)'s refinement is satisfied rather than merely
 > assumed. **No version bump is owed on this account.**
 > **Same question, same answer, for `PASS 74.10`'s new variant:** `PoisonReason`
-> is `#[non_exhaustive]` (`crates/pdfce-render/src/display_list.rs:362`), so
+> is `#[non_exhaustive]` (`crates/pdfcer-render/src/display_list.rs:362`), so
 > **`PoisonReason::ScaleBeyondF32` is not source-breaking either** — a downstream
 > `match` already required a wildcard arm.
 > **Sourced by reading those two files** (hard rule 10's corollary — *a
@@ -5280,7 +5280,7 @@ does not conclude the render surface was unchanged because no signature moved.
 
 #### What is NOT in this entry
 
-No `pdfce-core` surface changed. No trait, no error variant, no `EditSession`
+No `pdfcer-core` surface changed. No trait, no error variant, no `EditSession`
 verb. `render_page` / `render_page_region` / `record_page` / `replay_region`
 keep their signatures exactly. **One genuine open item, reported not resolved:
 whether the DISPLAY-LIST replay path carries the same content-side precision as
@@ -5294,7 +5294,7 @@ subject and decision **081**'s. This role could not tell which, and
 > ABOVE IS RESOLVED, AND THE ANSWER WAS A LIVE DEFECT.**
 > **Recorded ops DO carry `f32` transforms**, and `replay_region`
 > post-translates by the region's device origin **also in `f32`**. So from
-> `PASS 74.7` until `PASS 74.10` (`d8f3020`, same day) pdfce had two rendering
+> `PASS 74.7` until `PASS 74.10` (`d8f3020`, same day) pdfcer had two rendering
 > paths that **agreed at ordinary scales and diverged at deep zoom** — half a
 > device pixel at recording scale `5 000`, `47 px` at `500 000`. `record_page`'s
 > own comment made deep zoom the **intended** use of a recording (*"a recording
@@ -5305,7 +5305,7 @@ subject and decision **081**'s. This role could not tell which, and
 > `RenderError::PageNotRecordable` with the **new** `PoisonReason::ScaleBeyondF32`
 > above `Mat64::needs_precise_paths` — **the same predicate the interpreter uses
 > to decide it needs its `f64` route** — and the caller falls back to a direct
-> render, the fallback `pdfce-cli` already performs for the seven capability
+> render, the fallback `pdfcer` already performs for the seven capability
 > refusals. **Signatures are unchanged**; the only public-surface delta is the
 > new `PoisonReason` variant, and that enum is `#[non_exhaustive]` (see the
 > amendment above), so it is not source-breaking.
@@ -5320,8 +5320,8 @@ subject and decision **081**'s. This role could not tell which, and
 complete-looking one that does not.** Not audited in this pass, and
 therefore **neither claimed current nor claimed stale**:
 
-1. **`pdfce-cli`'s argument/output surface.** CLAUDE.md rule 10 puts it
-   under the same API-guidelines check as `pdfce-core`'s `pub` items, and
+1. **`pdfcer`'s argument/output surface.** CLAUDE.md rule 10 puts it
+   under the same API-guidelines check as `pdfcer-core`'s `pub` items, and
    rule 11 means every Pass since 21.0 added subcommands. **§7 (CLI
    capabilities) has not been synced and is presumed to lag by the same
    several Passes §4 did.** Owed: its own dispatch.
@@ -5352,18 +5352,18 @@ for the CLI; (2) decide the **`CompositeEncoding` re-export** question in
 *(Added 2026-08-27, 297th filing, `Pass 145.0` / `0c48bbf`. Created by
 **decision 094**, §12.)*
 
-A **published model guarantee** is a property of `pdfce-core`'s data model
+A **published model guarantee** is a property of `pdfcer-core`'s data model
 that this project states to consumers as **stable**, backed by a test, and
 that a future refactor may therefore **not** break silently. It is a
 deliberately small list, and the bar for adding to it is high — every entry
 is a constraint on work nobody has done yet.
 
-**Why the list exists at all.** `D:\dev\pdfceGUI` (and any future shell)
-builds against `pdfce-core` without building it. A property they *observe* to
+**Why the list exists at all.** `D:\dev\pdfcer-gui` (and any future shell)
+builds against `pdfcer-core` without building it. A property they *observe* to
 be true is not a property they may *rely* on, and decision 058 puts the burden
 of saying which is which on **this** project, not on them. Without a list, the
 only options are (a) they re-derive the property defensively and get a second
-implementation of something pdfce owns (`R221`), or (b) they rely on it
+implementation of something pdfcer owns (`R221`), or (b) they rely on it
 silently and a refactor breaks their build with no failing test on our side.
 
 **The entry format is fixed: the property, the measurement that established
@@ -5380,8 +5380,8 @@ range they occupy **slices cleanly out of the run's text**.*
 
 **A caller may therefore** locate a show operator's glyphs inside a run, take
 their span, and use it as a locator — which is exactly what
-`FormatRequest::whole_operator` / `pinned` now do inside `pdfce-core`, and
-what `pdfceGUI` had already shipped from outside before this guarantee
+`FormatRequest::whole_operator` / `pinned` now do inside `pdfcer-core`, and
+what `pdfcer-gui` had already shipped from outside before this guarantee
 existed.
 
 **The measurement that established it** (`Pass 145.0`, 2026-08-27), over
@@ -5397,15 +5397,15 @@ existed.
 | **non-contiguous groups** | **0** | 0 of 29,246 |
 | **groups not indexing text cleanly** | **0** | 0 of 29,246 |
 
-**The test that pins it.** `crates/pdfce-core/tests/operator_span_invariant.rs`
+**The test that pins it.** `crates/pdfcer-core/tests/operator_span_invariant.rs`
 — it re-runs on every `cargo test`, and it is **sabotage-checked**: excluding
 one glyph per group from the coverage computation turns it red, so the two
 zeroes are measurements rather than a probe that examines nothing.
 
 **The refactor it forbids.** `text_extract/layout.rs`'s run segmentation may
 **not** be changed in a way that lets one `operator_span` group's glyphs
-become non-contiguous inside a run — **even if no pdfce feature notices**.
-That last clause is the whole point: pdfce's own code could absorb such a
+become non-contiguous inside a run — **even if no pdfcer feature notices**.
+That last clause is the whole point: pdfcer's own code could absorb such a
 change without a failing test, and a shell's locator would break. **The test
 is the enforcement; this entry is why it may not be deleted when it looks
 redundant.**
@@ -5433,12 +5433,12 @@ Analogous to the tail-bytes / lazy-round-trip discipline the user's
 other format-RE project (SWFormat) established for SOLIDWORKS files —
 same principle, different format:
 
-- Any object pdfce did not logically modify is re-emitted **byte
+- Any object pdfcer did not logically modify is re-emitted **byte
   identical** (for full rewrite) or **omitted entirely** (for
   incremental save, since the old bytes are simply not touched).
 - Never "normalize" a PDF's internal structure as a side effect of an
   unrelated edit (e.g. don't silently rewrite every xref table to xref
-  streams just because pdfce opened the file). Minimal-diff editing is
+  streams just because pdfcer opened the file). Minimal-diff editing is
   a hard requirement — Acrobat users expect that adding one comment to
   a 400-page contract does not perturb the other 399 pages' bytes,
   and forensic/signature-validity expectations depend on it.
@@ -5462,7 +5462,7 @@ same principle, different format:
   contiguous file bytes to re-emit, so any writer that touches one
   must either promote it to an uncompressed object or rewrite its
   container stream. The contract is documented on the `Provenance`
-  type itself in `pdfce-core`; `file_span()` returns `Some` only for
+  type itself in `pdfcer-core`; `file_span()` returns `Some` only for
   `Provenance::File`. See the §12 continuation-8 entry of 2026-07-30.
 
 ### 5.1 The invariant stated precisely — three contracts, never one
@@ -5501,7 +5501,7 @@ late:
 **Measured, not asserted** (Pass 3.0, 2,914-file corpus): whole-file
 identity 2,898/2,898 loadable files (100%); prior-bytes-intact on
 append 2,898/2,898 (100%); per-object verbatim on full rewrite
-2,897/2,898, the one exception being a hybrid file pdfce **refuses by
+2,897/2,898, the one exception being a hybrid file pdfcer **refuses by
 name** (see below). `tools/roundtrip` is the executable gate; it
 re-runs on every writer-touching Pass.
 
@@ -5555,13 +5555,13 @@ will be re-litigated:
    anywhere requires regeneration**. §14.4 states what `ID[1]` *is*,
    not when a writer must recompute it.
 
-Binding rule: pdfce regenerates `ID[1]` **exactly when a save writes at
+Binding rule: pdfcer regenerates `ID[1]` **exactly when a save writes at
 least one changed object**, and never otherwise. `ID[0]` changes only
-when pdfce creates a document it regards as new (a from-scratch write,
+when pdfcer creates a document it regards as new (a from-scratch write,
 or an explicit "Save As new document") — never on incremental save or
 plain full rewrite. This is also an R41 matter: a gratuitously
-regenerated `/ID` is an observable *pdfce touched this file* signal on
-a file pdfce did not change.
+regenerated `/ID` is an observable *pdfcer touched this file* signal on
+a file pdfcer did not change.
 
 Load-bearing beyond tidiness: `/ID[0]` is an input to §7.6.3.3's
 encryption-key derivation, so an error here becomes a Pass 5 decryption
@@ -5587,7 +5587,7 @@ linearization is stale afterwards.
 
 That is spec-sanctioned and unavoidable — but it is an observable
 property change the operator did not ask for (the file opens more
-slowly over a network). Under the *fuzzy, never sneaky* rule, pdfce:
+slowly over a network). Under the *fuzzy, never sneaky* rule, pdfcer:
 
 - **detects** linearization on load (Annex F.3.3's 1024-byte parameter
   dictionary, with `L`-versus-file-length as the liveness check);
@@ -5622,7 +5622,7 @@ surfaced to the operator as an explicit choice, never resolved
 silently. Naming it here means neither the Redaction Pass nor the
 Signatures Pass can claim surprise.
 
-Structural consequence already in force: pdfce never re-serializes a
+Structural consequence already in force: pdfcer never re-serializes a
 signature dictionary, *even identically*. Its `/Contents` is a
 fixed-width placeholder referenced by byte offsets, so re-emitting it
 is a hazard regardless of whether the bytes come out the same. The
@@ -5637,9 +5637,9 @@ other.
 §7.5.6 contains **no requirement** that an appended update section
 match the form of the section it supersedes. That is a recorded
 NEGATIVE RESULT in the spec RAG, not an oversight — which is precisely
-why the rule has to be pdfce's own.
+why the rule has to be pdfcer's own.
 
-pdfce emits whatever the base file's **newest** cross-reference section
+pdfcer emits whatever the base file's **newest** cross-reference section
 already used, and never chooses:
 
 - a classic §7.5.4 table stays a classic table;
@@ -5683,7 +5683,7 @@ do not guess.
 
 **§5.6 stands, and is narrowed at exactly one point.** A **full
 rewrite** emits `%PDF-` at **byte 0** and discards any preamble — the
-BOM, whitespace or junk that pdfce's 1 KiB header probe tolerates on
+BOM, whitespace or junk that pdfcer's 1 KiB header probe tolerates on
 the way in. `save_incremental` and identity-append are **unchanged**
 and still carry a preamble through; they promise whole-file identity
 and a byte-prefix respectively (§5.1) and **do not call `header_span`
@@ -5694,10 +5694,10 @@ full rather than summarised.**
 
 **What §5.6 said, and it was not wrong.** *Do not normalize what the
 operator did not ask about.* A leading preamble is such a thing, the
-probe tolerates it, and pdfce's emitted offsets were **absolute from
+probe tolerates it, and pdfcer's emitted offsets were **absolute from
 byte 0 exactly as §7.5.4/§7.5.5 require** (*"the byte offset … from
 the beginning of the file"*). Every offset in the output was verified
-to match its true position. **pdfce's writer was correct.**
+to match its true position. **pdfcer's writer was correct.**
 
 **What overturned it, and it is a MEASUREMENT, not a preference.** A
 minimal 3-object file with **correct absolute offsets** and 19 bytes
@@ -5706,20 +5706,20 @@ xref table"* — and the identical file with the junk removed parses
 clean (`failedToParse="0"`). **veraPDF reads offsets as
 HEADER-RELATIVE whenever a preamble exists**, whatever the producer
 intended. So the property is not a quirk of one corpus file's
-convention: **every preamble-preserving file pdfce ever wrote was
+convention: **every preamble-preserving file pdfcer ever wrote was
 unreadable to an independent conformance reader.**
 
 **Why dropping is the right answer rather than a capitulation.** The
 spec RAG (`iso32000__s__7.5.md`) records the offset base as *"a real,
 load-bearing ambiguity"* that **ISO 32000-1 does not resolve** — the
 spec position is byte 0, and it gives readers on the other side no
-guidance at all. Preserving the preamble **picks pdfce's side of an
+guidance at all. Preserving the preamble **picks pdfcer's side of an
 unsettled argument** and ships files only that side can open.
 **Dropping it makes the two readings COINCIDE**: with the header at
 byte 0, *absolute* and *header-relative* are **the same number**, and
 the output is unambiguous to every reader. It also stops re-emitting
 a **§7.5.2 violation** (*"The first line of a PDF file shall be a
-header"*) the operator never asked pdfce to keep.
+header"*) the operator never asked pdfcer to keep.
 
 **Why only a full rewrite may do it.** §5.1's table is the whole
 licence: `save_full` promises per-object-definition byte identity, a
@@ -5783,7 +5783,7 @@ against the base revision, per §11.1. `/ID[1]` is derived per §14.4 in
 object (§5.3); `/ID` is **never synthesised when absent**, in either
 mode — the spec RAG's synthesise-on-full-rewrite recommendation was
 declined (R41: stamping an `/ID` into a file that never had one is an
-observable "pdfce touched this" signal); a real Save-As path may
+observable "pdfcer touched this" signal); a real Save-As path may
 revisit.
 
 **Promotion (R38) in practice.** A touched
@@ -5828,7 +5828,7 @@ the newest cross-reference STREAM's own object number.** The three
 sources above (`objects` map maximum, `/Size`-derived maximum, the
 `highest_object_number` running counter) all miss it. §7.5.8 makes the
 newest xref stream an indirect object like any other, and §5.7's own
-promotion rule above already establishes that pdfce's writer **reuses**
+promotion rule above already establishes that pdfcer's writer **reuses**
 that object's number for the section it re-emits — but the object is
 never filed in `objects` by the parser (it IS the section, not a body
 object inside it), and nothing in the standard requires it to appear
@@ -5847,7 +5847,7 @@ the writer's own re-emitted xref stream at the same number. **Not
 specific to font embedding** — every object-creating command
 (add-text, add-image, annotations, form fields) was exposed on any
 file shaped this way; it survived because no producer any existing
-pdfce fixture came from emits a newest xref stream outside its own
+pdfcer fixture came from emits a newest xref stream outside its own
 `/Size`. Fixture: `fixtures/synthetic/embed/embed-xrefstream-outside-size.pdf`.
 Regression test: `a_created_object_never_collides_with_the_cross_reference_stream`.
 Standing rule: **R189** (`ROADMAP.md`, *Standing rules*) — full record
@@ -5865,10 +5865,10 @@ and bakes its current appearance into the page so it renders identically
 in a non-form-aware viewer. The obvious implementation — splice the
 widget's appearance operators into the existing page content stream —
 would rewrite that stream, which under §5.6 (never normalize) and the R46
-identity discipline is exactly the destructive re-emission pdfce avoids on
+identity discipline is exactly the destructive re-emission pdfcer avoids on
 every object it did not logically change.
 
-**The design pdfce adopted.** Flatten does NOT touch the existing page
+**The design pdfcer adopted.** Flatten does NOT touch the existing page
 content stream. It:
 
 1. builds a one-line overlay content stream that sets the widget's
@@ -5923,7 +5923,7 @@ redaction removes and must rewrite. This finding is escalated as a
 ### 5.9 Every removal/scrub operation forces a full rewrite (R58 — generalizes §5.2's R35)
 
 *(Added 2026-08-01, Pass 8.0 — Redaction landed, and the
-`pdfce-ui-specialist` review generalized R35 into a standing rule that
+`pdfcer-ui-specialist` review generalized R35 into a standing rule that
 binds every future scrub operation, not just redaction-apply.)*
 
 §5.2 established **R35** for redaction specifically: because incremental
@@ -5937,7 +5937,7 @@ is *removal or scrubbing of content*.
 
 **Binding rule (R58):** every removal/scrub operation rides the same
 forced full rewrite as redaction-apply. This includes, prospectively, any
-**Sanitize / Remove-Hidden-Information / metadata-scrub** Pass pdfce may
+**Sanitize / Remove-Hidden-Information / metadata-scrub** Pass pdfcer may
 add. Three obligations travel with the rule:
 
 1. **Force full rewrite, refuse incremental save.** The R35 mechanism,
@@ -5964,7 +5964,7 @@ is the standing-rule form of "removal is never additive, and never
 incremental."
 
 **Staleness flagged, text NOT changed (decision 022 §5.4, filed
-`pdfce-librarian` continuation 80, 2026-08-04 — full text:
+`pdfcer-librarian` continuation 80, 2026-08-04 — full text:
 `ROADMAP.md` Standing rules R58 and Open operator question (v)).**
 R58's binding text above ("every removal/scrub operation forces a full
 rewrite") is already contradicted by two shipped operations that
@@ -6005,10 +6005,10 @@ scrub Pass to remember**."* Measured against the working tree at
 | claim in the text | command | result |
 |---|---|---|
 | a writer-level forcing mechanism exists | `grep -rn "force_full" crates/` · `grep -rn "requires_full" crates/` · `grep -rn "RequiresFullRewrite" crates/` | **0 hits each — 0 of 3.** No such identifier exists in any of the four crates |
-| it is "not left to each scrub Pass to remember" | read `crates/pdfce-core/src/redact.rs:1219–1224` | `apply_redactions` **remembers**: it calls `save_full(doc, &dirty, options)?` itself, under a comment naming R35. It is structural only in that the function returns finished bytes, so its own callers cannot override it — that binds `apply_redactions`, nothing else |
-| the writer refuses incremental save for scrubs | read `crates/pdfce-core/src/writer/save.rs:305–312` | the **only** refusal is `doc.loaded_via_recovery()` → `WriteError::RecoveredBaseForbidsIncremental`. Its own comment calls it *"Sibling of R35 / R58"* — a sibling, i.e. **R67 (§5.10)**, not an implementation of R58 |
+| it is "not left to each scrub Pass to remember" | read `crates/pdfcer-core/src/redact.rs:1219–1224` | `apply_redactions` **remembers**: it calls `save_full(doc, &dirty, options)?` itself, under a comment naming R35. It is structural only in that the function returns finished bytes, so its own callers cannot override it — that binds `apply_redactions`, nothing else |
+| the writer refuses incremental save for scrubs | read `crates/pdfcer-core/src/writer/save.rs:305–312` | the **only** refusal is `doc.loaded_via_recovery()` → `WriteError::RecoveredBaseForbidsIncremental`. Its own comment calls it *"Sibling of R35 / R58"* — a sibling, i.e. **R67 (§5.10)**, not an implementation of R58 |
 | obligation 2's decomposition is general | `grep -rn "decompose_containers" crates/` | **2 hits, both in `redact.rs`** (`:1215` call, `:1670` private definition). Redaction-local |
-| a verb's save mode is decided in core | `grep -rn "save_full\|save_incremental" crates/pdfce-cli/src/` | `main.rs:10733/10735/10743` — the **shell** picks via `RoundTripMode`. No `EditSession` verb constrains it |
+| a verb's save mode is decided in core | `grep -rn "save_full\|save_incremental" crates/pdfcer-cli/src/` | `main.rs:10733/10735/10743` — the **shell** picks via `RoundTripMode`. No `EditSession` verb constrains it |
 
 **Why this is worse than the scope staleness, and why it is a Pass.**
 The scope problem produces named exceptions that a reader can see. The
@@ -6024,7 +6024,7 @@ the file; `C:\personal_rag\pdf\lesson_20260813_absence_assertion_vacuous_under_i
 `RoundTripMode::Full` — the layer that may be replaced wholesale.
 
 **One thing the remedy genuinely cannot do, recorded here because
-nothing in `redact.rs` says it.** `crates/pdfce-core/src/writer/save.rs:584`
+nothing in `redact.rs` says it.** `crates/pdfcer-core/src/writer/save.rs:584`
 returns `WriteError::HybridFullRewrite` for a `SectionShape::Classic
 { xref_stm: Some(_) }` document — a **hybrid-reference file cannot be
 full-rewritten at all** (§7.5.8.4, R33 — see §5.6). Since
@@ -6127,7 +6127,7 @@ conflating the two would either weaken redaction's absence guarantee or
 force every keystroke through a full rewrite that drops revision history
 for no security reason.
 
-**Shipped module layout.** `crates/pdfce-core/src/text_edit/`:
+**Shipped module layout.** `crates/pdfcer-core/src/text_edit/`:
 
 - **`model.rs`** — the derived Run→Line→Block hierarchy over Pass 4's
   extraction (`Block`/`Line` with union `bbox`, `line_indices`, `column`;
@@ -6189,8 +6189,8 @@ in-place edit is known to (R73) — minimal-diff turned into an
 accessibility guarantee.
 
 **Not a fourth forced-full-rewrite sibling, confirmed by the shipped
-gates.** Every Pass 14.x ship re-verified `cargo tree -p pdfce-core` /
-`-p pdfce-render` zero egui/eframe/winit/wgpu/glow (GUI-core separation
+gates.** Every Pass 14.x ship re-verified `cargo tree -p pdfcer-core` /
+`-p pdfcer-render` zero egui/eframe/winit/wgpu/glow (GUI-core separation
 intact); the round-trip/R46 gate stays green for untouched objects; only
 the edited content stream(s) (+ changed resource/font dict) are re-emitted.
 
@@ -6212,7 +6212,7 @@ pattern (Pass 14.2's `format.rs`) directly — `Tc`/`Tz`/`Ts` slot into
 the existing `pre | set_ops | mid | restore_ops | post` splice with no
 structural change. Two new architectural facts this decision
 establishes, both binding on any future text-state-emitting code in
-`pdfce-core`: (1) **`q`/`Q` are illegal inside `BT…ET`** (ISO 32000-1
+`pdfcer-core`: (1) **`q`/`Q` are illegal inside `BT…ET`** (ISO 32000-1
 §8.2 Table 51/Figure 9) — ambient text-state restoration after a
 formatted run is therefore always **restore-by-value**, resolved by a
 ladder in the same family as `TextColor::restore_bytes` (fill colour)
@@ -6220,7 +6220,7 @@ but with one more rung than that ladder needed (R88, corrected by
 Amendment A below — see the decision-log entry for why a third
 "available" case exists between "observed raw bytes" and "refuse"); (2)
 **`Tc`/`Ts` are unscaled text-space quantities (§9.3) and are not
-rescaled by `Tfs`** — pdfce's model stores them as a discriminated
+rescaled by `Tfs`** — pdfcer's model stores them as a discriminated
 `Absolute | Relative` quantity so a font-size change cannot silently
 mis-scale a stored rise or tracking value (R89 — `Tf`/`Tfs` themselves
 are explicitly OUT of this unification, per Amendment A item 3, to
@@ -6247,13 +6247,13 @@ not just later text. Pass 19.2 also added `Tm`/`Tlm` tracking to
 followers refusal gate (see below), and not anticipated by the
 original decision text or by Amendment A's `Tf`/`Tfs` exclusion. So:
 exactly one definition of the six text-state parameters in
-`pdfce-core`, plus two separately-tracked shared-graphics-state
+`pdfcer-core`, plus two separately-tracked shared-graphics-state
 parameters, plus a separately-tracked text matrix — three distinct
 things, not one, and the distinction is deliberate rather than an
 oversight.
 
 **Pass 19.0 SHIPPED (2026-08-03, `38fffad`) — this consolidation is now
-built, not merely planned.** New `pdfce-core/src/text_state.rs` in two
+built, not merely planned.** New `pdfcer-core/src/text_state.rs` in two
 layers: `TextStateParam`/`TextStateParams` (parameter identity +
 resolved values, for arithmetic-only consumers) and
 `AmbientValue`/`AmbientOrigin`/`AmbientTextState`/`AmbientRestoreError`
@@ -6288,7 +6288,7 @@ change; new `MetricSpec`/`ScriptPosition`/`ScriptMetrics` types,
 `format-text --char-spacing`/`--h-scale`/`--superscript`/`--subscript`/
 `--no-script`. Superscript/subscript ratios (0.60× size, +0.34×/−0.18×
 rise, both of the BASE size per decision 019 Amendment B item B.3) are
-pdfce's own choice, not an Acrobat parity claim (Acrobat's own values
+pdfcer's own choice, not an Acrobat parity claim (Acrobat's own values
 are an unsourced gap in the parity catalog). **Decision 019 Amendment
 B, filed same day, corrects three things found while building this
 slice** — see the decision-log entry immediately below for the full
@@ -6311,7 +6311,7 @@ standing rule R92.
 
 **Pass 19.2 SHIPPED (2026-08-03, `ebe35d8`) — free-form `Ts` and
 synthetic bold/italic now built.** New
-`crates/pdfce-core/src/text_edit/synth.rs`: `StyleSynthesis` (the shared
+`crates/pdfcer-core/src/text_edit/synth.rs`: `StyleSynthesis` (the shared
 policy type used by both `format.rs` in-place edit and `addtext.rs`
 Add-Text), `SynthesisPath` (the *only* asymmetry between the two paths
 is remedy *order*, per decision 019 §3.6), `SynthesisOffer`,
@@ -6321,11 +6321,11 @@ tested against a pre-rotated matrix, where overwriting just the shear
 component loses the lean entirely), `matrix_scale` (determinant-based,
 so a shear does not perturb the derived bold stroke width), and
 `detect` (reload-time re-detection of synthetic styles by byte
-inspection, pdfce's own and other producers'). CLI: `--rise`,
+inspection, pdfcer's own and other producers'). CLI: `--rise`,
 `--bold-synthetic`, `--italic-synthetic`. The render-honours-`Tr
 2`-and-sheared-`Tm` prerequisite named in the decision was confirmed
 **empirically, by mutation testing** — a new
-`crates/pdfce-render/tests/synthetic_style_render.rs` rasterizes built
+`crates/pdfcer-render/tests/synthetic_style_render.rs` rasterizes built
 fixtures and interrogates pixels, then deliberately breaks the renderer
 three separate ways (drop mode-2 stroking, zero the `Tm` shear
 component, zero the rise) and re-runs to confirm each mutation fails
@@ -6343,14 +6343,14 @@ decision-log entry immediately below for the full account, and
 `docs/decisions/019-ffh-spacing-scaling-synthetic-styles.md` Amendment
 C for the complete record. **No GUI code and no GUI verification this
 Pass** (slice 19.3, the property surface, is a separate
-`pdfce-ui-specialist` dispatch) — verified via the CLI oracle and a new
+`pdfcer-ui-specialist` dispatch) — verified via the CLI oracle and a new
 R85 case, exercising the same `EditSession` path the GUI will use.
 
 **Pass 19.3 SHIPPED (2026-08-03, `74052d3`) — the GUI property surface
 is now built, AND a defect that had silently disabled every property-
 bar Apply since Pass 14.3 is fixed.** GUI slice: Option-B wrapper
 (`StyleOutcome`/`StyleResolution`/`probe_synthesis`/
-`preview_style_resolution` in `pdfce-core`, read-only and side-effect-
+`preview_style_resolution` in `pdfcer-core`, read-only and side-effect-
 free — `preview_style_resolution` calls `gate_synthesis` up to three
 times rather than re-deriving, proven byte-equal to a non-previewed
 commit) plus the `pdfce-gui` property tree (`MetricUnit`/
@@ -6410,13 +6410,13 @@ vintage; corpus composition — PDF-tooling test suites, not organic
 documents): `docs/decisions/019-ffh-spacing-scaling-synthetic-styles.md`
 Amendment E; `ROADMAP.md`'s continuation-67 In-progress entry.
 
-**Same sweep found a pdfce document-loading defect, engineer-verified —
+**Same sweep found a pdfcer document-loading defect, engineer-verified —
 FIXED 2026-08-03, committed `409a6b5`:** 341 corpus files (8.5%)
 refused to open at all with "page /Contents is neither a stream nor an
 array of streams." Hand-verified NOT a correct rejection —
 `fixtures/external/qpdf/qpdf/qtest/qpdf/add-contents.pdf` is a legal
 file per ISO 32000-1 (`/Contents [ 4 0 R 5 0 R 6 0 R ]`, all eight
-objects present, three intact text-bearing content streams) that pdfce
+objects present, three intact text-bearing content streams) that pdfcer
 refused outright. **The originally-filed diagnosis was wrong in
 mechanism**, not just incomplete: Pass 13b's rebuild-by-scan recovery
 does not undercount objects — the scan correctly proposes all 8
@@ -6466,7 +6466,7 @@ parser policies can the recovery path turn on?"* does not stop at two.**
    `StreamLengthPolicy::RecoverFromEndstream`. **It is that policy's
    sibling by construction, not by analogy:** both are cases where the
    file contradicts §7.3, **which of two readings to believe is a POLICY
-   choice rather than a spec choice**, and pdfce makes it an explicit
+   choice rather than a spec choice**, and pdfcer makes it an explicit
    parameter instead of a hidden default. The leniency accepts **only
    when the terminator is an integer**, so it cannot swallow trailing
    garbage, and the object's provenance is **`RecoveredFile`** — **R94's
@@ -6488,7 +6488,7 @@ entry.
 **The round-trip gate caught a bug in the fix itself.** The first
 repair attempt corrected the recovered object's byte span but left its
 stale `/Length` untouched; because the writer copies `Provenance::File`
-objects verbatim, `save_full` produced a file pdfce itself could not
+objects verbatim, `save_full` produced a file pdfcer itself could not
 reload — a self-inflicted §5.10 round-trip violation, caught by the
 gate that contract exists to enforce. Resolved by adding a third
 `Provenance::RecoveredFile` variant to the already-`#[non_exhaustive]`
@@ -6576,7 +6576,7 @@ canvas UI) and its Shipped records are in `ROADMAP.md`.
 
 ### 5.12 Annotation deletion is surgery-under-incremental-save, NOT a fifth forced-full-rewrite sibling (decision 022 — DECIDED, Pass 22.0 unbuilt)
 
-*(Added 2026-08-04, `pdfce-librarian` continuation 80, as a
+*(Added 2026-08-04, `pdfcer-librarian` continuation 80, as a
 forward-looking design note ahead of Pass 22.0's build — same
 disposition §5.11 had ahead of Pass 14.1, per §5.11's own header note
 above. This section records the SETTLED half of decision 022 §5.4's
@@ -6587,7 +6587,7 @@ above, pending Open operator question (v).)*
 §§5.2/5.9/5.10 (R35/R58/R67) form a **forced-full-rewrite family**:
 every member exists because incremental save structurally *preserves*
 superseded content, which is disqualifying wherever the operation's own
-contract is confidentiality. **Deleting a pdfce-authored annotation
+contract is confidentiality. **Deleting a pdfcer-authored annotation
 (`EditSession::delete_annotation`/`delete_dimension`, decision 022 §6.1,
 Pass 22.0) is confirmed NOT a fifth member of that family**, by the same
 reasoning §5.11 already applied to in-place text editing: deleting an
@@ -6603,7 +6603,7 @@ rewrite that drops revision history for no security reason the
 operation ever promised.
 
 **Exactly which objects change on an annotation delete, per decision
-022 §5.1 — at most four, and the fourth only for a pdfce-authored ce
+022 §5.1 — at most four, and the fourth only for a pdfcer-authored ce
 dimension:**
 
 1. The `/Annots` container — indirect-array XOR inline, never both
@@ -6640,7 +6640,7 @@ instances (`delete_object`, `delete_redaction_mark`, and now
 - **Platform scope (decided 2026-07-30, decision 003 §4.1 — no longer
   a default):** v1 ships **Windows 10/11 x86_64 only**, as a
   deliberate scope decision. The codebase stays platform-clean at all
-  times (no `#[cfg(target_os)]` in `pdfce-core`/`pdfce-render`, rule
+  times (no `#[cfg(target_os)]` in `pdfcer-core`/`pdfcer-render`, rule
   R10), verified continuously by cross-target `cargo check` CI for
   macOS-arm64 and wasm32 — a compile signal, never a support claim
   (rule R9). See `docs/decisions/003-distribution-posture.md` for the
@@ -6649,15 +6649,15 @@ instances (`delete_object`, `delete_redaction_mark`, and now
   **★ NARROWED 2026-08-17 (decision 067).** The cross-target check's
   guarantee covers Rust source, not every build script a dependency
   runs under it — `cargo check` still executes build scripts, and one
-  can compile platform-sensitive C. `pdfce-fetch` (`ureq` → `rustls` →
+  can compile platform-sensitive C. `pdfcer-fetch` (`ureq` → `rustls` →
   `ring`) is **excluded** from this job because `ring`'s build script
   fails cross-compiling to `aarch64-apple-darwin` from the Linux
-  runner; the exclusion is safe only while `pdfce-fetch` has **zero
-  workspace dependents** (verify with `cargo tree -i pdfce-fetch`
+  runner; the exclusion is safe only while `pdfcer-fetch` has **zero
+  workspace dependents** (verify with `cargo tree -i pdfcer-fetch`
   across all four member crates) — the moment that changes, the
-  exclusion silently widens and needs re-scoping. `pdfce-core` +
-  `pdfce-render`'s own wasm32 check is unaffected.
-- No installer. Build produces `pdfce.exe` (Windows first target) plus
+  exclusion silently widens and needs re-scoping. `pdfcer-core` +
+  `pdfcer-render`'s own wasm32 check is unaffected.
+- No installer. Build produces `pdfcer.exe` (Windows first target) plus
   whatever DLLs/assets are needed, all in one output folder.
 - **Payload/user-state partition (decision 003 R15, binding from the
   first Pass that persists anything) — BUILT `Pass 51.0`, 2026-08-08
@@ -6673,29 +6673,29 @@ instances (`delete_object`, `delete_redaction_mark`, and now
   the unresolved placeholder text on disk as of this entry — a
   follow-up owed to whoever next touches that record). When
   `userdata/` cannot be created or written (a read-only share,
-  `Program Files` without elevation), pdfce falls back to the platform
+  `Program Files` without elevation), pdfcer falls back to the platform
   configuration directory and **discloses which one it used** — the
   two locations behave differently on update, so an operator who does
   not know which is live cannot follow the update instructions
-  correctly (fuzzy-never-sneaky, rule 4, applied to a location pdfce
+  correctly (fuzzy-never-sneaky, rule 4, applied to a location pdfcer
   inferred on the operator's behalf). Settings persist as a flat,
   hand-editable `key = value` text file (`settings.txt`) with **per-key**
   fail-soft recovery (one bad line loses one setting and names its own
   line number; a missing file is silently every default) —
   deliberately not `serde`+`toml`, because `ARCHITECTURE.md` §7's
   fail-soft contract is per-key while derived deserialization fails
-  per-document. `pdfce_core::settings` (`crates/pdfce-core/src/
+  per-document. `pdfcer_core::settings` (`crates/pdfcer-core/src/
   settings/mod.rs`) has zero GUI/windowing dependencies (rule 2 holds);
-  both `pdfce-cli` and `pdfce-gui` load it once at startup. User state
+  both `pdfcer` and `pdfce-gui` load it once at startup. User state
   never sits loose among the binaries; the update instructions name
   exactly which files to keep. ~~The packaging smoke test verifies the
-  partition.~~ **CORRECTED 2026-08-10 (`pdfce-librarian`, from
+  partition.~~ **CORRECTED 2026-08-10 (`pdfcer-librarian`, from
   `tools/package-portable.py`, `9146b41`) — this sentence had no test
   behind it when written and still does not name a real one.** No
   automated "packaging smoke test" existed anywhere in the repo until
   this correction was written, and none exists now either — what
   exists is `tools/package-portable.py`, which assembles the payload
-  into a dated `D:\builds\pdfce-<stamp>-<hash>\` folder and stops; it
+  into a dated `D:\builds\pdfcer-<stamp>-<hash>\` folder and stops; it
   performs no verification of its own (no launch, no partition check,
   nothing). The one confirmation on record that `userdata/` truly stays
   absent until first run, and that the partition behaves as designed,
@@ -6735,7 +6735,7 @@ instances (`delete_object`, `delete_redaction_mark`, and now
 - **Release channels (decision 127, 2026-09-03; `R229`, 2026-08-29).** A
   release is finished when the packaged folder has reached **both**
   channels, in this order after the tag and the smoke test: the CLI to
-  OneDrive, alternating `pdfce1`/`pdfce2` so a previous version survives
+  OneDrive, alternating `pdfcer1`/`pdfcer2` so a previous version survives
   (`tools/deploy-onedrive.py`, `R229`); then a **GitHub release for the
   tag with the portable zip as its asset, marked latest** (`gh release
   create <tag> <zip> --latest`, decision 127); then
@@ -6749,28 +6749,28 @@ instances (`delete_object`, `delete_redaction_mark`, and now
   release — `skip` only when `gh` is not installed on the machine
   (`shutil.which`) — so it cannot recur by habit either.
 
-## 7. CLI capabilities (`pdfce-cli`)
+## 7. CLI capabilities (`pdfcer`)
 
-pdfce ships a real command-line interface alongside the GUI, not as a
+pdfcer ships a real command-line interface alongside the GUI, not as a
 debug afterthought. Design points:
 
-- **Same crate-separation discipline as the GUI.** `pdfce-cli` depends
-  on `pdfce-core` + `pdfce-render` exactly like `pdfce-gui` does, and
+- **Same crate-separation discipline as the GUI.** `pdfcer` depends
+  on `pdfcer-core` + `pdfcer-render` exactly like `pdfce-gui` does, and
   is held to the same zero-GUI-dependency-in-core invariant (§3) — the
   CLI's existence is itself proof that invariant is doing its job:
   two completely different front ends, one shared core, no logic
   duplicated.
 - **Subcommand shape** (`clap`-based, final surface scoped alongside
   each feature's own Pass — see `docs/ROADMAP.md`): one subcommand per
-  batch operation, e.g. `pdfce-cli merge a.pdf b.pdf -o out.pdf`,
-  `pdfce-cli extract-pages in.pdf 3-7 -o out.pdf`, `pdfce-cli
-  bates-stamp *.pdf --start 1 --format "DOC-{:06}"`, `pdfce-cli
-  to-pdfa in.pdf --level 2b -o out.pdf`, `pdfce-cli validate-pdfa
+  batch operation, e.g. `pdfcer merge a.pdf b.pdf -o out.pdf`,
+  `pdfcer extract-pages in.pdf 3-7 -o out.pdf`, `pdfcer
+  bates-stamp *.pdf --start 1 --format "DOC-{:06}"`, `pdfcer
+  to-pdfa in.pdf --level 2b -o out.pdf`, `pdfcer validate-pdfa
   in.pdf` (prints a conformance report, non-zero exit on failure —
-  scriptable in CI/document-pipeline contexts), `pdfce-cli sign in.pdf
-  --cert cert.p12 -o out.pdf`, `pdfce-cli render-page in.pdf 3 -o
+  scriptable in CI/document-pipeline contexts), `pdfcer sign in.pdf
+  --cert cert.p12 -o out.pdf`, `pdfcer render-page in.pdf 3 -o
   page3.png --dpi 150`. **Not every subcommand's output is a PDF**:
-  `pdfce-cli export-dxf in.pdf --page 1 -o out.dxf [--units in|mm]
+  `pdfcer export-dxf in.pdf --page 1 -o out.dxf [--units in|mm]
   [--scale S] [--no-fit-arcs] [--no-text]` (`Pass 52.1`, 2026-08-09)
   writes ASCII DXF for CAD import, read-only on the input, with a
   three-way stderr disclosure (`skipped_text`/`unreadable_text`/
@@ -6779,23 +6779,23 @@ debug afterthought. Design points:
 - **The Reader-parity sweep (`Pass 55.x`, 2026-08-10, §12 decision 036)
   added four subcommands that read rather than mutate the PDF, plus one
   that reports on a Windows subsystem the PDF never touches:**
-  `pdfce-cli find-text <input> <needle> [--ignore-case]` (the search-to-
+  `pdfcer find-text <input> <needle> [--ignore-case]` (the search-to-
   quad scan Pass 8's redaction verb already contained, extracted to run
   without marking anything for removal — no encryption/certification
-  gate, since reading is not writing); `pdfce-cli list-outline <input>
-  [--flat]` (§12.3.3 bookmark tree, read-only); `pdfce-cli
+  gate, since reading is not writing); `pdfcer list-outline <input>
+  [--flat]` (§12.3.3 bookmark tree, read-only); `pdfcer
   list-attachments <input>` (§7.11.7 embedded files, both standard
   paths, with a stderr `MAY_BE_ENCRYPTED` warning per §7.6.5's
   otherwise-invisible per-file `/EFF` encryption — see §3's
-  `attachments.rs` note); `pdfce-cli list-printers` and `pdfce-cli
+  `attachments.rs` note); `pdfcer list-printers` and `pdfcer
   print-preview <input> [--printer NAME] [--scale-percent N]` (Windows
   spooler enumeration + page-fit report; **does not print anything** —
   see §3's `printing.rs` note for why spooling is deliberately
   unbuilt). **Completed 2026-08-10 (seventy-fifth filing) with a sixth:**
-  `pdfce-cli list-layers <input>` (§8.11 optional-content groups,
+  `pdfcer list-layers <input>` (§8.11 optional-content groups,
   READ-only — see §3's `layers.rs` note; no toggle subcommand exists,
   by design, R83).
-- **`pdfce-cli list-signatures <input>` (`Pass 10.0`, 2026-08-10,
+- **`pdfcer list-signatures <input>` (`Pass 10.0`, 2026-08-10,
   `2676d4d`+`2ae9991`) — read-only `/ByteRange` coverage, explicitly NOT
   cryptographic verification.** (★ Qualified 2026-09-03: true of THIS
   subcommand still; its sibling `verify-signatures`, next bullet, IS the
@@ -6811,14 +6811,14 @@ debug afterthought. Design points:
   on 2026-08-11 (`04f8acd`); **038 remains genuinely open** and needs a
   spec read rather than a fixture, since its two readings diverge only
   for a group named in both `/ON` and `/OFF`.
-- **`pdfce-cli verify-signatures <input>` (`Pass 10.1`, 2026-09-03,
+- **`pdfcer verify-signatures <input>` (`Pass 10.1`, 2026-09-03,
   `22421b6`; §12 decision 129) — the cryptographic sibling of
   `list-signatures`.** One block per `/FT /Sig` field with a `/V`, in
   `list-signatures`' order: `integrity` — *verified* with the digest and
   signature algorithms named / *digest mismatch* (the covered bytes were
   altered) / *signature invalid* (the digest matches; the CMS signature or
   certificate does not) / *unverifiable: <reason>* (a subfilter, algorithm
-  or curve pdfce lacks — `adbe.x509.rsa_sha1`, `ETSI.RFC3161`, P-521,
+  or curve pdfcer lacks — `adbe.x509.rsa_sha1`, `ETSI.RFC3161`, P-521,
   Brainpool — never reported as either failure); `coverage` — the
   `list-signatures` arithmetic, folded in; **`trust: not checked`** in
   those words on every block; then the certificate's subject / issuer /
@@ -6828,23 +6828,23 @@ debug afterthought. Design points:
   their extents, an ETSI signature short of EOF). Exit **0** every
   signature verified; **12 `SIGNATURE_FAILED`** any digest mismatch or
   invalid signature; **13 `SIGNATURE_UNVERIFIABLE`** none failed but at
-  least one unverifiable — *"pdfce cannot say"* is a different exit from
+  least one unverifiable — *"pdfcer cannot say"* is a different exit from
   *"tampered"*, so a script can branch on the distinction. **The word
   *valid* is never printed**, and neither is *"signed by X"* — the
   disclosure contract is stated in `docs/core-api/01-reading-and-model.md`
   §12.5. `list-signatures` is unchanged and still computes no digest; its
-  help no longer claims pdfce performs no verification, **but its summary
-  line still does** (`crates/pdfce-cli/src/main.rs:14821`, and the
+  help no longer claims pdfcer performs no verification, **but its summary
+  line still does** (`crates/pdfcer-cli/src/main.rs:14821`, and the
   subcommand's doc comment at `:14587`) — owed to the engineer, reported
   at the 398th filing.
-- **`pdfce-cli export-data --format csv` / `import-data` — a third
+- **`pdfcer export-data --format csv` / `import-data` — a third
   form-data interchange format alongside FDF/XFDF (`Pass 62.0`,
   2026-08-11) — carries a security obligation the other two formats
   don't.** A spreadsheet reads a cell beginning `=`/`+`/`-`/`@` as a
   live formula, not text, so an unneutralised form value can trigger a
   process launch or a network fetch (`=WEBSERVICE(...)`) the moment
   the exported file is opened — the same capability §1.1/**R12**
-  already refuses inside pdfce's own tree, reached here by handing the
+  already refuses inside pdfcer's own tree, reached here by handing the
   spreadsheet the trigger instead. Export neutralises with a leading
   apostrophe, discloses every neutralised field BY NAME, and import
   reverses it exactly, so a round trip through a spreadsheet does not
@@ -6878,13 +6878,13 @@ debug afterthought. Design points:
   path (§5); a CLI OCR command's output is still a hint the caller
   chooses to apply, not silently baked into the saved file, unless an
   explicit `--apply` (or similarly unambiguous) flag says otherwise.
-- **Packaging: `pdfce-cli.exe` is the ONLY binary in the portable
+- **Packaging: `pdfcer.exe` is the ONLY binary in the portable
   folder, as of 2026-09-03 (`Pass 247.0`, `da3b2f8`, 399th filing;
   decision 128).** Before this Pass the folder shipped two entry-point
-  binaries (`pdfce-cli.exe` beside `pdfce-gui`'s executable); the GUI
+  binaries (`pdfcer.exe` beside `pdfce-gui`'s executable); the GUI
   binary is now built and packaged entirely by the separate
   `D:\dev\pdfcer-gui` project. `tools/package-portable.py`'s
-  `BINARIES` list is `["pdfce-cli.exe"]`. The packaging smoke test
+  `BINARIES` list is `["pdfcer.exe"]`. The packaging smoke test
   (§6) covers the one binary this repo now ships.
 - ~~**`pdfce-gui`'s own command-line surface is exactly three answers,
   and that boundary is deliberate** (2026-08-12, `9ea0c88`; §12
@@ -6896,7 +6896,7 @@ debug afterthought. Design points:
   rather than being opened as a filename. Before this, `pdfce-gui
   --version` opened a window and never returned: a script or installer
   probing the binary hung indefinitely with no output. The help text
-  points at `pdfce-cli` for batch work **so this stays a courtesy to a
+  points at `pdfcer` for batch work **so this stays a courtesy to a
   terminal and does not grow into a second, competing CLI** — that is
   the boundary this bullet exists to state. Parsed by hand, not by
   `clap`: four string comparisons do not justify an argument-parser
@@ -6908,7 +6908,7 @@ debug afterthought. Design points:
 
 ## 8. Code style & public API design
 
-`pdfce-core`'s public API (and, downstream of it, `pdfce-cli`'s
+`pdfcer-core`'s public API (and, downstream of it, `pdfcer`'s
 argument/output design) follows the official Rust ecosystem
 conventions, not an invented house style:
 
@@ -6918,20 +6918,20 @@ conventions, not an invented house style:
   predictability, type safety).
 
 Full condensed reference, kept up to date as a cross-project resource
-(useful to any future Rust project, not just pdfce):
+(useful to any future Rust project, not just pdfcer):
 `D:\dev\rag\rust\rust-style-guide-and-api-guidelines.md`. This is a
 binding engineering discipline, not a style preference — see
-`.claude\agents\pdfce-engineer.md` §"Code style & API design
+`.claude\agents\pdfcer-engineer.md` §"Code style & API design
 discipline" for the enforcement mechanics (`cargo fmt --check` and
 `cargo clippy -- -D warnings` clean before any Pass ships).
 
 ## 9. Open-source dependencies & attribution
 
-pdfce builds on the existing Rust/OSS ecosystem rather than
+pdfcer builds on the existing Rust/OSS ecosystem rather than
 reinventing every primitive — see `docs/PRIOR_ART.md` for the
 survey/decision record and `docs/LEGAL.md` §6 for the binding
 licensing discipline (permissive-vs-copyleft classification, the
-mandatory per-dependency license check, and why pdfce's own license
+mandatory per-dependency license check, and why pdfcer's own license
 gates which prior art is even usable). Attribution for whatever's
 actually adopted is **generated**, not hand-maintained — `cargo-about`
 produces `THIRD_PARTY_LICENSES.md` from the real `Cargo.lock`,
@@ -6940,14 +6940,14 @@ regenerated at every packaging pass (§6).
 **`docs/DEPENDENCIES.md` (new 2026-08-11, `2b4b2bf`)** is the
 purpose-shaped companion to the generated, licence-shaped
 `THIRD_PARTY_LICENSES.md` — every direct dependency, by crate, with
-what it's *for*, plus what pdfce implements itself instead (MD5/RC4,
+what it's *for*, plus what pdfcer implements itself instead (MD5/RC4,
 the PDF-specific predictors, the ASCII filters) and why. Written by
 hand because a generated file cannot answer "why is this here,"
 only "what license does it carry." Re-run its own §5 commands and
 update it whenever the dependency set changes, same discipline as
 `THIRD_PARTY_LICENSES.md`.
 
-**pdfce's own license is MIT (decided 2026-08-01, `LEGAL.md` §1; see
+**pdfcer's own license is MIT (decided 2026-08-01, `LEGAL.md` §1; see
 §12 decision log).** `LICENSE` (repo root) + `license = "MIT"` in
 `Cargo.toml` `[workspace.package]`, inherited by all four member
 crates via `license.workspace = true`. Every current dependency is
@@ -6963,7 +6963,7 @@ algorithms studied, never linked or copied), per `LEGAL.md` §6.1.
 IJG attribution NOTICE condition that applies unconditionally alongside
 it (an `AND`, not a caller's choice between license terms). Accepted on
 direct operator ruling; the attribution sentence is generated into
-`about.hbs`, never hand-written. pdfce's first shipped image ENCODER,
+`about.hbs`, never hand-written. pdfcer's first shipped image ENCODER,
 under standing rule R28's own named exception (`ROADMAP.md`).
 
 **First dependency for which R24's own lever does not exist: `aes`
@@ -6980,13 +6980,13 @@ decision 039's own sibling entry). `aes` cannot be forced into that
 shape: its intrinsic hardware backends are selected on a **cfg**
 (`aes_backend = "soft"`), and a cfg is settable only from `RUSTFLAGS` or
 `.cargo/config.toml` — global to the build, and **not inherited by any
-downstream consumer of `pdfce-core` as a library**. Forcing the soft
-backend from pdfce's own build config would buy a guarantee true for
-pdfce's own binaries and false for every other crate that depends on
-`pdfce-core`. The hardware backend is therefore accepted deliberately,
+downstream consumer of `pdfcer-core` as a library**. Forcing the soft
+backend from pdfcer's own build config would buy a guarantee true for
+pdfcer's own binaries and false for every other crate that depends on
+`pdfcer-core`. The hardware backend is therefore accepted deliberately,
 bounded by a CI job (`decision 039 — assert \`aes\` carries no extra
 features`, `.github/workflows/ci.yml`) pinning `hazmat` and `zeroize`
-OFF across four targets — the two widenings still under pdfce's control.
+OFF across four targets — the two widenings still under pdfcer's control.
 On `wasm32-unknown-unknown` specifically, `aes` pulls no `cpufeatures`
 and resolves to the soft backend automatically, so the WASM web-fork
 target keeps zero-`unsafe` without any special-casing. Full reasoning:
@@ -7023,17 +7023,17 @@ one. `THIRD_PARTY_LICENSES.md` regenerated via `cargo-about`.
 
 **Fifth dependency, and the first that is a SIBLING PROJECT rather than a
 third-party crate: `iccce-profile` + `iccce-cmm`** — declared in
-`crates/pdfce-render/Cargo.toml`, **`pdfce-core` does not depend on it**, so
+`crates/pdfcer-render/Cargo.toml`, **`pdfcer-core` does not depend on it**, so
 the object model stays free of a colour engine. **MIT**, verified against
 `iccce`'s own `Cargo.toml` at adoption time rather than relayed from an
 earlier reading; permissive, so rule 13's escalation trigger did not fire and
 no operator licence call was needed. `THIRD_PARTY_LICENSES.md` regenerated via
 `cargo-about`.
 
-★ **NOTED 2026-09-02 (`Pass 242.0`, `48f8fbb`; pdfce-librarian 385th
+★ **NOTED 2026-09-02 (`Pass 242.0`, `48f8fbb`; pdfcer-librarian 385th
 filing, no new decision minted) — a THIRD crate from the same sibling
 project, `iccce-color`, is now DECLARED DIRECTLY in
-`crates/pdfce-render/Cargo.toml` too.** It carries the PCS value types
+`crates/pdfcer-render/Cargo.toml` too.** It carries the PCS value types
 (`Xyz`) that `iccce-cmm`'s PCS-side entry points take; it was already in
 the dependency tree transitively, as `iccce-cmm`'s own dependency, but
 `iccce-cmm` does not re-export the type, so code that needs an
@@ -7043,8 +7043,8 @@ dependency **set** unchanged (it was already resolved and vetted
 transitively), so this is a manifest-declaration change, not a new
 licence question; `THIRD_PARTY_LICENSES.md` unchanged, verified by
 regenerating. Not treated as decision-log-worthy on its own: nothing
-about which crate is used, what it is used for, the `pdfce-core`/
-`pdfce-render` boundary, or the pin form (decisions 064/115/123) changes
+about which crate is used, what it is used for, the `pdfcer-core`/
+`pdfcer-render` boundary, or the pin form (decisions 064/115/123) changes
 — it is the same dependency, now named where it is used instead of only
 where it is transitively pulled in.
 
@@ -7054,7 +7054,7 @@ from `tag = "v0.3.0"` to `rev = "a4d9003bf87c61299fa1c6f9c2e2ffffa30de0c3"`
 — the SAME commit the tag pointed at, at `iccce`'s own request** (its reply
 in `D:\Dev\FeatureRequests\iccce_FeatureRequests\open\reply_depend_on_a_pinned_rev_and_the_four_intent_rules_are_accepted.md`,
 2026-09-01): a `rev` is reproducible without asking the sibling project to
-cut a release it cannot promise on pdfce's schedule, and — the reason this
+cut a release it cannot promise on pdfcer's schedule, and — the reason this
 is a decision and not a formatting change — **a tag can be MOVED** by the
 tag-owning repository, while a `rev` cannot. Dependency **set** unchanged;
 both lockfiles moved; `cargo about` regenerated `THIRD_PARTY_LICENSES.md`
@@ -7065,7 +7065,7 @@ tag) is what stays deliberate.** A **path** dependency (`../../../iccce`)
 resolves only on the author's machine and would be a broken build for anyone
 cloning the public repository; **pinning** keeps colour output reproducible,
 because an unpinned git dependency would let a sibling-project commit change
-what pdfce renders between two builds of the same pdfce commit — silently,
+what pdfcer renders between two builds of the same pdfcer commit — silently,
 in the one area where a silent change stays invisible until a conformance
 figure moves. A **vendored copy** was considered and rejected: a fork's
 maintenance burden with none of a fork's purpose. Reversible if the operator
@@ -7073,11 +7073,11 @@ prefers crates.io publication; decision 115 names it as such.
 
 ★ **A downstream literal is now stale and is flagged, not fixed, here** —
 this section documents the dependency, not the build-provenance banner.
-`iccce_provenance()` (`crates/pdfce-core/build.rs`) derives its printed pin
+`iccce_provenance()` (`crates/pdfcer-core/build.rs`) derives its printed pin
 description (`"tag v0.3.0"` vs `"rev …"`) from the resolved `Cargo.lock`
 source string, so it self-corrects to the new form without a code change —
 but its own doc comment's worked example (`build.rs:272`,
-`crates/pdfce-core/src/build.rs:32,109`) and `docs/FEATURES.md`'s *Build
+`crates/pdfcer-core/src/build.rs:32,109`) and `docs/FEATURES.md`'s *Build
 provenance stamp* row still quote the pre-re-pin literal
 (`"iccce: 0.3.0 (tag v0.3.0, a4d9003b, committed …)"`) as current output.
 Owed to the engineer: verify the live `--version` banner text and correct
@@ -7123,7 +7123,7 @@ per RFC 4055), `crypto/ecdsa.rs` (435; P-256 / P-384, RFC 6979 A.2.5 /
 A.2.6 vectors), `asn1.rs` (292; DER, definite lengths only, no BER) and
 `cms.rs` (418) — **2,119 lines over six modules**, each header stating
 that the judgement does **not** extend to signing. `THIRD_PARTY_LICENSES.md`
-unchanged. **Owed:** `docs/DEPENDENCIES.md`'s *"what pdfce implements
+unchanged. **Owed:** `docs/DEPENDENCIES.md`'s *"what pdfcer implements
 itself instead"* list (MD5/RC4, predictors, ASCII filters) is short these
 six. `docs/PRIOR_ART.md`'s three *candidate — verification only* rows are
 closed *checked, NOT taken* (398th filing); its `cms` / `rsa` /
@@ -7132,7 +7132,7 @@ key and therefore falls under decision 039's condition, not this one.
 
 ## 10. Adversarial input hardening & fuzzing
 
-`pdfce-core` parses files from the public internet by design — every
+`pdfcer-core` parses files from the public internet by design — every
 PDF it opens must be treated as **untrusted, potentially adversarial
 input**, not just "possibly malformed." This is a real gap identified
 2026-07-23: the project justified choosing Rust partly on this basis
@@ -7243,7 +7243,7 @@ this. Concretely:
   slower; a ceiling set too high costs the process.**
   **★★ The §6.1.12 implementation-limits run this bullet's own standing
   rule requires is DISCHARGED 2026-08-18** by
-  `crates/pdfce-render/examples/guard_probe.rs` (`2aa1066`): **3,245
+  `crates/pdfcer-render/examples/guard_probe.rs` (`2aa1066`): **3,245
   files walked — 3,145 recorded, 0 TOO-LARGE, 77 refused for a
   CAPABILITY reason (2.4 %: shading / overprint composite / soft mask,
   not the guard), 23 unloadable** — covering the whole
@@ -7275,7 +7275,7 @@ constant.
 **A number the operator typed is not untrusted input.** So a ceiling the
 operator sets is **uncapped**: no guard, no warning, no preflight. The first
 one is
-`pdfce_core::settings::Settings::max_cmyk_buffer_bytes` — the subtractive
+`pdfcer_core::settings::Settings::max_cmyk_buffer_bytes` — the subtractive
 compositing buffer's size limit — on the operator's own ruling for
 `max_zoom_percent`: *"it is up to the user to determine how much of a
 performance hit they want to take."* The renderer's built-in
@@ -7322,8 +7322,8 @@ move on" backlog item.
 ### 10.3 Where this lives in the codebase
 
 Guard logic (size ceilings, depth counters, timeouts) belongs in
-`pdfce-core` itself — not bolted on as a wrapper in `pdfce-gui`/
-`pdfce-cli` — so both front ends (and the future WASM fork) inherit
+`pdfcer-core` itself — not bolted on as a wrapper in `pdfce-gui`/
+`pdfcer` — so both front ends (and the future WASM fork) inherit
 the same hardening automatically. Document each guard's default limit
 and rationale in the doc comment of the function it guards, per the
 documentation-first rule; a reader should understand *why* the number
@@ -7332,19 +7332,19 @@ legitimate single decoded PDF stream this project has seen, small
 enough that hitting it can't exhaust a typical machine's memory").
 
 **Amendment (2026-07-30, Pass 1.1 slice):** the principle stated above
-("guards belong in `pdfce-core`") is precise for **parse-time**
+("guards belong in `pdfcer-core`") is precise for **parse-time**
 recursion (page-tree walk, xref/ObjStm cycles) but not for
 **render-time** recursion — a Form XObject's recursive `Do` execution
-happens inside `pdfce-render`'s content-stream interpreter (§3's
-implementation note), which `pdfce-core` has no visibility into (it
+happens inside `pdfcer-render`'s content-stream interpreter (§3's
+implementation note), which `pdfcer-core` has no visibility into (it
 only ever sees one content stream's tokens at a time, never resolves
-`Do` itself). `MAX_XOBJECT_DEPTH` therefore lives in `pdfce-render`.
+`Do` itself). `MAX_XOBJECT_DEPTH` therefore lives in `pdfcer-render`.
 Both front ends (and the WASM fork) still inherit it automatically,
-because both depend on `pdfce-render` for any rendering at all — the
+because both depend on `pdfcer-render` for any rendering at all — the
 "automatically inherited by every front end" property is what actually
 matters, not which of the two GUI-agnostic crates holds the constant.
 General rule going forward: a guard against adversarial input lives in
-whichever of `pdfce-core`/`pdfce-render` actually performs the
+whichever of `pdfcer-core`/`pdfcer-render` actually performs the
 recursive/expanding operation being guarded.
 
 ### 10.4 A `debug_assert` postcondition is a tripwire, not a guard — the two are different mechanisms with different audiences (2026-08-30, `Pass 185.1`/`185.2`, standing rule `R236`)
@@ -7367,7 +7367,7 @@ ship for seventy-four Passes.
 **★★ The failure mode, concretely, because it is not obvious.** A
 `debug_assert` postcondition over a committed state change reads like
 protection. It is not. In the build operators run, a verb that violates it
-returns `Ok`, saves `Ok`, and writes a file pdfce cannot reopen — which is
+returns `Ok`, saves `Ok`, and writes a file pdfcer cannot reopen — which is
 precisely the shape the 2026-08-20 `/Contents` corruption had, and which
 `debug_assert_page_tree_still_walks`'s own panic message names. **The only
 thing that makes such an assertion speak is somebody generating the input**,
@@ -7383,7 +7383,7 @@ assertion is the *detector*, and it needs an *input source*.
 
 ★★ **The unit is NOT "a named helper", and that scoping was corrected before
 the rule shipped.** `grep -rn "fn debug_assert" crates/*/src/` finds **2**; the
-population of real **invocations** across `pdfce-core` + `pdfce-render` is
+population of real **invocations** across `pdfcer-core` + `pdfcer-render` is
 ~~**24** (12 + 12), measured 2026-08-30 at `7ac98da`~~ → **22** (12 core + **10**
 render), **re-measured 2026-08-31 at `baf0c29` (`Pass 189.0`)** and
 **unchanged at `77631a6`** (`Pass 190.0`/`190.1` added +334 lines to `edit.rs`
@@ -7412,7 +7412,7 @@ visible instead of folding into a total.
 ★★ **Establishing "covered" is a claim about the CALL GRAPH — linking is not
 reaching.** Added 2026-08-31 from `Pass 189.0`, whose *"0 covered"* over
 `cmyk_buffer.rs` was **measured rather than assumed**: every item in the module
-is `pub(crate)`, and the **three fuzz targets that link `pdfce-render` all stop
+is `pub(crate)`, and the **three fuzz targets that link `pdfcer-render` all stop
 at a leaf parser** — `mesh_shading` builds a `ParseInput`, calls `mesh::parse`
 and **never paints**; its `CmykIntent::default()` is a *field of the parse
 input*, the sole reason a grep for `cmyk` lists it, and a **false positive for
@@ -7468,7 +7468,7 @@ from *routes to a behaviour* to **carriers of a hazard** in the same filing.
 the wrong set**; `Pass 190.1` had **the right set and a missing caller.** Both
 failures are real, they are opposite, and **doing one does not discharge the
 other.**
-~~`grep -rn "debug_assert" crates/pdfce-core/src/` finds **34**~~ — **struck
+~~`grep -rn "debug_assert" crates/pdfcer-core/src/` finds **34**~~ — **struck
 2026-08-30 (350th filing): that command returns 44, not 34, and always did;
 of those, 7 are `cfg(debug_assertions)` attributes and 10 are comment prose
 ABOUT `debug_assert`. A source grep over a documentation-first codebase counts
@@ -7545,7 +7545,7 @@ arc.**
 ## 11. Undo/redo architecture
 
 Identified as a real design gap 2026-07-23: the UI standing rule
-"every edit is undoable" (see `pdfce-ui-specialist.md`) was never
+"every edit is undoable" (see `pdfcer-ui-specialist.md`) was never
 reconciled with the round-trip/minimal-diff invariant (§5) — the two
 interact in a way that needs an explicit mechanism, not just a UX
 promise.
@@ -7554,7 +7554,7 @@ promise.
 
 - Every edit the user makes is represented as a small command object
   (`PendingEdit` or similar) with `apply()` and an inverse/`revert()`,
-  operating on `pdfce-core`'s **in-memory** `Document` object graph —
+  operating on `pdfcer-core`'s **in-memory** `Document` object graph —
   never on file bytes directly, and never on the saved file at all.
   The undo stack holds these commands.
 - The **original loaded byte buffer / object graph is retained
@@ -7633,7 +7633,7 @@ not reversible by "Undo" in a later session — there is no data left
 in the file to restore. This matches real-world expectation (redact +
 save = permanent) and is exactly why the UI standing rule requires an
 explicit, honest confirmation dialog for redaction specifically
-(`pdfce-ui-specialist.md`) — the operator needs to understand *before*
+(`pdfcer-ui-specialist.md`) — the operator needs to understand *before*
 saving that this is the one edit type Undo can't rescue them from
 after the fact.
 
@@ -7642,7 +7642,7 @@ the *save-side* half of this exception is now specified in **§5.2**.
 Redaction must force a **full rewrite** and must **refuse incremental
 save**, because incremental save structurally preserves superseded
 content — the old bytes of every replaced object stay in the file by
-construction (§7.5.6). Without that rule, a redaction saved in pdfce's
+construction (§7.5.6). Without that rule, a redaction saved in pdfcer's
 *default* mode would leave the redacted content trivially recoverable,
 and the confirmation dialog this section describes would be promising
 something the writer did not deliver. §5.5 records the resulting
@@ -7683,7 +7683,7 @@ was honored: the mechanism below shipped in that Pass, not after.
 This section records the shape actually built, so §11.1's design
 prose and the code stay reconcilable.)*
 
-- **`EditSession` command log** (`crates/pdfce-core/src/edit.rs`,
+- **`EditSession` command log** (`crates/pdfcer-core/src/edit.rs`,
   1,608 lines): every edit is a command with apply/revert, exactly as
   §11.1 specifies — operating on an **overlay** above the base
   revision, never on the base object graph and never on file bytes.
@@ -7723,7 +7723,7 @@ the code stay reconcilable.)*
   most intricate deletion logic in the crate.
 - **The mechanism.** `EditSession::coalesce_last(count, kind) -> bool`
   (**`pub` since `Pass 212.0`, 2026-09-01 — was private at `Pass 168.0`**;
-  `crates/pdfce-core/src/edit.rs:12926`, verified live 2026-09-01) folds the
+  `crates/pdfcer-core/src/edit.rs:12926`, verified live 2026-09-01) folds the
   last `count` entries on the undo stack into **one** entry carrying `kind`.
   The verb calls the per-target verb N times, then folds. Routing, refusals and
   spec-governed behaviour stay in one implementation.
@@ -7839,7 +7839,7 @@ cached from a previous mutating call; `Pass 188.0` widened the KEY (above)
 but nothing on the read path forced a fresh walk before hashing it. A
 session whose only mutation rewrote a form XObject's own content — without
 otherwise triggering a redecomposition — could see the digest report
-**unchanged** across the edit: `pdfce-core`'s own internal staleness
+**unchanged** across the edit: `pdfcer-core`'s own internal staleness
 handling had become strictly stronger than the signal it published
 externally. **BREAKING: the verb is now `&mut self`** and forces a fresh
 decomposition walk, forms included, before hashing — so the digest always
@@ -7852,9 +7852,9 @@ reported numbers with a nothing-changed control.
 **★★ THE TESTING PROPERTY THIS SECTION EXISTS TO PIN.** Base and overlay
 **agree by construction** on a session whose page set has not been structurally
 edited and whose content has not been appended this session. **Every** test in
-`pdfce-core` was of that shape, so all **4,861** passed identically before and
+`pdfcer-core` was of that shape, so all **4,861** passed identically before and
 after the fix. **The property needs TWO VERBS IN ONE SESSION to be observable
-at all.** `crates/pdfce-core/tests/session_overlay_skew.rs` (10 tests) is the
+at all.** `crates/pdfcer-core/tests/session_overlay_skew.rs` (10 tests) is the
 suite that has that shape; a future refactor that reintroduces a base-only read
 is caught **only** there.
 

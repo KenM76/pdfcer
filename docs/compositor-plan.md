@@ -9,7 +9,7 @@ appearance for the overprint patches).
 > ## SEVEN PATCHES. THE TRANSPARENCY PANELS ARE BLOCKED ON §11.3.4, NOT ON
 > ## THE GROUP MODEL. Read this before scoping `Pass 97.1`.
 >
-> `Pass 97.0` shipped: `crates/pdfce-render/src/compositor.rs` (§11.4.4's
+> `Pass 97.0` shipped: `crates/pdfcer-render/src/compositor.rs` (§11.4.4's
 > element formula, §11.4.8's knockout variant, §11.4.4's backdrop removal,
 > Table 136's thirteen separable blend functions), non-isolated groups
 > rendered over their own backdrop, and a real §11.4.6 knockout
@@ -52,7 +52,7 @@ appearance for the overprint patches).
 > complement back   = (1,0,1,0)  =  DeviceCMYK 1 0 1 0  =  GREEN
 > ```
 >
-> **That is the surround, exactly.** pdfce renders `(237, 1, 140)`; pdfium
+> **That is the surround, exactly.** pdfcer renders `(237, 1, 140)`; pdfium
 > renders `(202, 29, 108)`; both blend in RGB and both are wrong, in
 > different places. The trap is authored on the *blending colour space*,
 > and no amount of group-model correctness reaches it.
@@ -67,7 +67,7 @@ appearance for the overprint patches).
 > Note the shape: **every suite transparency patch declares
 > `/Group /CS /DeviceCMYK` on the PAGE** (`PCS3_161` included, whose own
 > objects are `ICCBased` RGB). So the blending space is CMYK for all of
-> them regardless of what the artwork is coloured in, and pdfce blends
+> them regardless of what the artwork is coloured in, and pdfcer blends
 > every one of them in device sRGB.
 >
 > ### A defect this Pass fixed, and the mechanism is worth carrying
@@ -83,7 +83,7 @@ appearance for the overprint patches).
 > `Sat(white) = 0` and `Lum(white) = 1`, so `Hue`/`Saturation`/`Color` of
 > **anything** over white is white. Measured on `PCS1_162` at scale 2.0:
 >
-> | cell | pdfce before | pdfce after | pdfium |
+> | cell | pdfcer before | pdfcer after | pdfium |
 > |---|---|---|---|
 > | `Hue` | `(255,255,255)` | `(184,184,184)` | `(184,184,184)` |
 > | `Saturation` | `(255,255,255)` | `(184,184,184)` | `(184,184,184)` |
@@ -102,7 +102,7 @@ appearance for the overprint patches).
 >
 > ### What Stage A actually bought
 >
-> 1. **pdfce owns the compositing arithmetic.** `compositor.rs` is the
+> 1. **pdfcer owns the compositing arithmetic.** `compositor.rs` is the
 >    single place §11.4.4/§11.4.8/Table 136 live, so the three call sites
 >    that need them cannot drift.
 > 2. **Knockout is real** (`KnockoutTarget`), including §11.4.6 NOTE 6's
@@ -114,7 +114,7 @@ appearance for the overprint patches).
 >    `groups_backdrop_reruns`.
 > 4. `transparency_groups_knockout_approximated` **changed meaning** —
 >    from "this group is an approximation" to "these elements inside it
->    were", which is zero for a knockout group pdfce rendered exactly.
+>    were", which is zero for a knockout group pdfcer rendered exactly.
 > 5. **The soft mask reaches the group's result** (§11.4.5), and
 >    `outer_is_neutral` learned about soft masks — the third instance of
 >    a graphics-state field being absent from the "is the state still
@@ -124,7 +124,7 @@ appearance for the overprint patches).
 >    twice — this branch and a worktree at `2e6bb83` — identical bucket
 >    for bucket, band for band, same single unexplained file. That is the
 >    intended result and it is why the *isolated* group composite still
->    goes through `tiny_skia::draw_pixmap`: pdfce's `f32` path computes
+>    goes through `tiny_skia::draw_pixmap`: pdfcer's `f32` path computes
 >    the same function with different rounding, so routing the already-
 >    correct case through it would move every anti-aliased edge in the
 >    corpus and turn the parity gate into a rounding detector.
@@ -195,7 +195,7 @@ appearance for the overprint patches).
 >   says in terms:
 >   *"A faint X is due to differences in the CMM and does not indicate a
 >   failure. A clearly visible X indicates that this blend mode is not
->   supported properly which is a failure."* pdfce **has** a different CMM
+>   supported properly which is a failure."* pdfcer **has** a different CMM
 >   — its `DeviceCMYK` → sRGB is the naive additive conversion, and the
 >   parity harness measures `DeviceCMYK`-only pages diverging at 5.4× the
 >   clean-page mean against pdfium's `AdobeCMYK_to_sRGB1` — so this was the
@@ -207,11 +207,11 @@ appearance for the overprint patches).
 >   the same verdict there.
 >
 >   **Ruled out (2) — "the blend is not being applied at all."** pdfium's
->   value sits **between** pdfce's and the surround on essentially every
->   cell (e.g. `(255,0,255)` pdfce, `(34,13,226)` pdfium, `(129,45,156)`
+>   value sits **between** pdfcer's and the surround on essentially every
+>   cell (e.g. `(255,0,255)` pdfcer, `(34,13,226)` pdfium, `(129,45,156)`
 >   surround). A blend that never ran returns `C_s` unchanged and would put
->   pdfce **at** the source, not past pdfium in the same direction. The
->   signature is pdfce applying the blend **harder** than it should — which
+>   pdfcer **at** the source, not past pdfium in the same direction. The
+>   signature is pdfcer applying the blend **harder** than it should — which
 >   is what a wrong operand, not a missing operation, looks like.
 >
 >   ⇒ The remaining candidates, in the order they are worth testing:
@@ -219,7 +219,7 @@ appearance for the overprint patches).
 >   → alternate fallback changing what `0 1 1 scn` means; or the patch's
 >   three-layer structure — its ReadMe describes **"Upper object ICCbased
 >   with transparency effect (Fill), Lower object ICCbased, Background
->   object DeviceCMYK"**, and pdfce's reading of which form XObject is
+>   object DeviceCMYK"**, and pdfcer's reading of which form XObject is
 >   which was **not** established. Establish that first: a wrong operand is
 >   what the evidence points at, and the operand pairing is the thing
 >   nobody has checked.
@@ -278,7 +278,7 @@ suite failures, and why is it one build rather than five?**
 
 The answer given here, **at the time of writing and now owed a re-derivation
 (see the amendment above)**, is that **16 of the then-18** failures are
-downstream of the same missing thing — pdfce has no compositor of its own. It delegates every
+downstream of the same missing thing — pdfcer has no compositor of its own. It delegates every
 per-pixel blend to `tiny_skia`, which composites **8-bit premultiplied sRGB**
 with **Porter-Duff over a transparent-initialised buffer**. ISO 32000-1
 clause 11 requires compositing **in the group's colour space**, over a
@@ -299,7 +299,7 @@ Baseline re-measured 2026-08-18 at `e618d67`:
 
 The five **transparency-group** failures were probed cell by cell with a new
 diagnostic (`tools/suite-cell-probe.py`, §7 below). For each trap X it reports
-three numbers: the colour pdfce painted **inside** the X, the colour pdfce
+three numbers: the colour pdfcer painted **inside** the X, the colour pdfcer
 painted in the **surround**, and the colour **Acrobat** painted at the same
 place. That triple is decisive, because the suite's trap X is drawn so that a
 *correct* engine renders it **the same colour as its surround** — so a
@@ -319,17 +319,17 @@ discriminator falling on the correct side"*, and therefore that §11.3.5.3's
 K-selection rule was the cause. **That inference was wrong, and it was wrong
 in the most persuasive direction — it fit.**
 
-What the counters said at the time, measured with `pdfce-cli render-page` on
+What the counters said at the time, measured with `pdfcer render-page` on
 all four transparency patches: **`blend_modes_applied=11,
 blend_modes_ignored=4`** in every one. `blend_mode_from_name` returned `None`
-for all four nonseparable modes, so pdfce **declined them outright** and
+for all four nonseparable modes, so pdfcer **declined them outright** and
 composited them as `Normal`. They never reached the applied path at all, so
 nothing about them could be evidence for *how* the applied path computes.
 Caught by the librarian while filing, from the code rather than from the
 pixels.
 
 > **★ PAST TENSE AS OF 2026-08-19, and the tense is the point.** The four
-> nonseparable modes ship (`Pass 85.4b`, `972ddbb`) — pdfce computes Table 137
+> nonseparable modes ship (`Pass 85.4b`, `972ddbb`) — pdfcer computes Table 137
 > itself, they no longer touch `blend_modes_ignored`, and `PCS1_160` passes.
 > The paragraph above is a **dated measurement**, still correct about
 > `e618d67` and still load-bearing for the reasoning that follows it.
@@ -389,7 +389,7 @@ of why they fail today. `iso32000__s__11.3.5.md` §4.8, verbatim:
 > **Cs** for the `Luminosity` blend mode."
 
 ⇒ **K is not blended, it is selected**, and the selection differs by mode. The
-same RAG file anticipated the gap in writing: *"pdfce currently composites in
+same RAG file anticipated the gap in writing: *"pdfcer currently composites in
 device RGB. If/when a CMYK path lands, this clause is the whole rule."*
 
 `PCS3_164` (ICCBased **CMYK**) fails **4** cells: the same three declined
@@ -399,13 +399,13 @@ space.
 
 ### 1.2 What the probe found — `PCS1_161` / `PCS3_161` / `PCS1_162` (14 / 15 / 7 cells)
 
-Different shape entirely. In almost every failing cell, **pdfce's surround
-agrees with Acrobat** (within a few levels) while **pdfce's X is a saturated
+Different shape entirely. In almost every failing cell, **pdfcer's surround
+agrees with Acrobat** (within a few levels) while **pdfcer's X is a saturated
 primary** — `[237, 1, 140]`, `[255, 0, 255]`, `[0, 0, 255]`. A saturated
 primary is what a blend mode produces when it is applied against **nothing**:
 `B(cb, cs)` composited over a transparent backdrop returns `cs` unchanged.
 
-The cause is in `crates/pdfce-render/src/interpret.rs` and is already
+The cause is in `crates/pdfcer-render/src/interpret.rs` and is already
 documented honestly in its own comment:
 
 ```rust
@@ -417,7 +417,7 @@ let needs_buffer =
 
 A `tiny_skia::Pixmap` starts **transparent**, and transparent-initialised is
 **isolated** semantics (§11.4.7). So whenever the outer graphics state is not
-neutral, pdfce allocates a buffer — and in doing so **silently converts a
+neutral, pdfcer allocates a buffer — and in doing so **silently converts a
 NON-isolated group into an isolated one**. The comment says so: *"Buffering
 unconditionally gets those wrong in the opposite direction from flattening."*
 
@@ -444,7 +444,7 @@ the mask to the group's **RESULT**. Four patches (`PCS1610`, `PCS1611`,
 `PCS168`, `PCS169`).
 
 There is nowhere to apply a mask to a group result until the group result is a
-thing pdfce owns. Same build.
+thing pdfcer owns. Same build.
 
 ### 1.4 Overprint — the colorant planes
 
@@ -453,7 +453,7 @@ Established three independent ways last session and written up in
 plate was built, ablated, and **reverted** — `ac15158`), by research (seven
 engines converge on one architecture; Artifex's colour architect states in a
 peer-reviewed paper that collapsing colour before compositing *"is not
-possible"* **specifically because of overprint**), and by pdfce's own spec RAG,
+possible"* **specifically because of overprint**), and by pdfcer's own spec RAG,
 which called it *"architectural, a different project"* on 2026-08-08.
 
 Seven patches: `PCS011`, `PCS190`, `PCS191`, `PCS192`, `PCS020`, `PCS030`,
@@ -467,7 +467,7 @@ None of them measures **what the current path actually does wrong**, and that
 gap mattered — the operator asked today whether targeting CMYK was practical
 at all, which is a question the indirect arguments answer weakly.
 
-Measured with `crates/pdfce-render/examples/overprint_roundtrip_probe.rs`
+Measured with `crates/pdfcer-render/examples/overprint_roundtrip_probe.rs`
 (new, re-runnable). `overprint.rs` implements Table 149 **completely and
 correctly** — the decision logic is not the gap. The gap is its input:
 `interpret.rs:3574` calls `overprint::rgb_to_cmyk` to reconstruct the source
@@ -557,7 +557,7 @@ against this probe before assuming it is.
 
 `tiny_skia::Pixmap` is RGBA8 premultiplied with a single alpha. It satisfies
 none of the right-hand column, and no call-site change makes it. The build is
-**a compositor pdfce owns**, with `tiny_skia` demoted from "the thing that
+**a compositor pdfcer owns**, with `tiny_skia` demoted from "the thing that
 blends" to "the thing that scan-converts".
 
 ---
@@ -571,7 +571,7 @@ blends" to "the thing that scan-converts".
 - **Fills** — `tiny_skia::Mask::from_path(path, fill_rule, anti_alias)` gives
   an 8-bit coverage mask.
 - **Strokes** — `PathStroker` converts the stroke to a fill path first; then
-  as above. (pdfce already does this in the clip path.)
+  as above. (pdfcer already does this in the clip path.)
 - **Glyphs** — already outlines; same route as fills.
 - **Images, shadings, tiling patterns** — cannot be reduced to a single colour
   plus coverage. These rasterize into a scratch `Pixmap` as today, and the
@@ -581,7 +581,7 @@ blends" to "the thing that scan-converts".
 
 The compositor then does the per-pixel arithmetic itself. This is the
 structure every surveyed engine uses and it is why "SIMD the blend loop"
-(a suggestion pdfce received from an outside model) is premature: the loop
+(a suggestion pdfcer received from an outside model) is premature: the loop
 does not exist yet, and the failures are arithmetic, not throughput.
 
 ### 3.2 The pixel
@@ -611,7 +611,7 @@ so **one extra scalar per pixel** is the whole cost over a plain RGBA buffer.
 Sourced from `D:\Dev\Rag-Specialized\Compositor\` (new subject, 21 files +
 an archived benchmark, deliberately outside every git repo).
 
-> **★★ CONSUMED AND VALIDATED 2026-08-21 (`pdfce-librarian`, 224th filing,
+> **★★ CONSUMED AND VALIDATED 2026-08-21 (`pdfcer-librarian`, 224th filing,
 > `Pass 97.1e` + `Pass 97.1f`, `a277931` + `ff4b4bf`) — recorded HERE, on the
 > consuming side, so the RAG's claim of usefulness is not filed only in the
 > RAG.** Both amendments below are now **proved in trap marks**, not merely
@@ -623,7 +623,7 @@ an archived benchmark, deliberately outside every git repo).
 > | `backdrop_defaults_zero_fill_inverts_masks.md` | prevented the class **exactly at the Stage A → Stage B boundary it predicted**. Related and learned the hard way the same session: handing a knockout group a **transparent** initial backdrop took `PCS1_161` from **2 traps to 15** — worse than no implementation at all. |
 >
 > **Two of this file's own sentences are now stale and are flagged rather
-> than rewritten** (`pdfce-librarian` does not write this document): `:56`
+> than rewritten** (`pdfcer-librarian` does not write this document): `:56`
 > and `:71` (*"…every one of them in device sRGB"*) are false on a
 > subtractive page since `a277931`, and `:174`'s *"`blends_in_wrong_space`
 > reports **15 of its 15**"* was true at `Pass 97.1d` and is now **0** — the
@@ -696,7 +696,7 @@ is why it was taken.
   confirmed in three implementations. The decided collapse is immune; an
   `nCLR` shortcut is not.
 - **`Mask::from_path` (§3.1) does not exist**, and the coverage-only design
-  as written allocates a page-sized mask per fill — a cost pdfce has already
+  as written allocates a page-sized mask per fill — a cost pdfcer has already
   measured at **259 µs** (`clip_cache.rs`). Bbox-sized + 2 px, reused scratch.
 
 ##### Crate landscape — verified, not relayed
@@ -732,11 +732,11 @@ recoverable error:
 Pre-scan the page's resources for `/Separation` and `/DeviceN` colorant names
 and size the plane set exactly: `CMYK + one plane per distinct spot`.
 Ghostscript's own documentation notes this pre-scan **is possible in PDF and
-impossible in general in PostScript** — it is a structural advantage pdfce
+impossible in general in PostScript** — it is a structural advantage pdfcer
 inherits from the format and should take.
 
 **Cap and fall back honestly.** Beyond a configured plane ceiling, revert to
-the tint transform — which is precisely pdfce's current behaviour, so the
+the tint transform — which is precisely pdfcer's current behaviour, so the
 fallback is already written, already tested and already disclosed by the
 existing counters. Rule 4: the fallback **prints what it did**; it does not
 quietly produce a different picture.
@@ -745,7 +745,7 @@ quietly produce a different picture.
 
 Poppler bug #1565 (still open) is the warning: enabling overprint preview
 routed the whole page through CMYK and **visibly shifted unrelated RGB raster
-content**. pdfce should engage the colorant compositor for the **object
+content**. pdfcer should engage the colorant compositor for the **object
 subtrees that need it** — transparency groups, and content under an overprint
 state — and leave the ordinary sRGB path alone otherwise. A patch that fixes
 7 patches and shifts 25 others is not progress.
@@ -762,8 +762,8 @@ time, on the same pixels.
 
 ### Stage A — the compositor, RGB only (proposed `Pass 97.0`)
 
-Replace the group-buffer path with pdfce's own f32 un-premultiplied buffer and
-pdfce's own composite/blend implementation. **N = 3, sRGB.** No colorant
+Replace the group-buffer path with pdfcer's own f32 un-premultiplied buffer and
+pdfcer's own composite/blend implementation. **N = 3, sRGB.** No colorant
 planes yet.
 
 Delivers:
@@ -796,7 +796,7 @@ Delivers:
 - **§11.3.5.3** nonseparable modes in CMYK: complement CMY to RGB, blend,
   complement back, **select K by mode**.
 - **Table 149 overprint** — already written as pure, tested logic in
-  `pdfce_render::overprint` (12 tests, the table transcribed cell by cell,
+  `pdfcer_render::overprint` (12 tests, the table transcribed cell by cell,
   `bd9d5ef`). It has never had a colorant buffer to run against.
 - **Keep the tint transform OUT of the paint path** for any colorant that owns
   a plane; retain it only to derive that colorant's equivalent colour for the
@@ -832,7 +832,7 @@ an ISO TC171 participant who went looking. Headlines:
 - **★ THE ICC HOP IS `iccce`'S — corrected 2026-08-18.** This bullet named
   `moxcms` as the ICC candidate. **`ARCHITECTURE.md` decision 064 already
   assigned colour CONVERSION to `iccce`** (the operator's sibling MIT project,
-  which names pdfce as its first consumer), and recommending a third-party CMM
+  which names pdfcer as its first consumer), and recommending a third-party CMM
   against it was a call made without reading the record. `iccce` already
   ships what Stage C needs: `Chain::with_destination(&src, Destination::None,
   intent)`, whose built-in sRGB destination is **constructed from published
@@ -843,7 +843,7 @@ an ISO TC171 participant who went looking. Headlines:
   `docs/collapse-model-survey.md` §7: `Destination::None` is an **assertion**,
   not `Option::None` — a declared-but-unparseable output intent is a
   **refusal to propagate**, never a silent fallback; and the conversion costs
-  **~1.4 Mpix/s ≈ 6 s/page against pdfce's ~0.6 s render**, so the collapse
+  **~1.4 Mpix/s ≈ 6 s/page against pdfcer's ~0.6 s render**, so the collapse
   cannot be an unconditional per-frame step.
 
 #### ★★ AMENDMENT 2026-08-19 — THE COLLAPSE IS SPECIFIED IN PDF 2.0. Re-read Stage C before scoping it.
@@ -851,9 +851,9 @@ an ISO TC171 participant who went looking. Headlines:
 Everything above rests on *"there is no consensus formula to find"*, sourced
 from `docs/collapse-model-survey.md`'s thirteen-engine survey. **That is true
 of the engines and false of the standard**, and the difference was invisible
-because pdfce's spec corpus held **no clause 10 at all** until today.
+because pdfcer's spec corpus held **no clause 10 at all** until today.
 
-`iso32000__s__10.8.md` (new, `pdfce-spec-librarian`, 2026-08-19):
+`iso32000__s__10.8.md` (new, `pdfcer-spec-librarian`, 2026-08-19):
 
 - **ISO 32000-2:2020 §10.8.3 "Separation simulation"** specifies a four-step
   algorithm: convert each separation to **"flat XYZ" (no gamma)** against a
@@ -870,7 +870,7 @@ because pdfce's spec corpus held **no clause 10 at all** until today.
 
 It does **not** make the collapse mandatory: §10.8.3 is a `should`, so a
 compositor without it stays conformant. What it changes is the *freedom*.
-The survey's conclusion licensed pdfce to pick any defensible formula because
+The survey's conclusion licensed pdfcer to pick any defensible formula because
 none was specified. One is. It is a **`should` on the OUTCOME**, which means
 **shipping a simulation that does not match its four-step result is a worse
 position than shipping none at all** — a documented deviation rather than a
@@ -883,7 +883,7 @@ blend mode or a transparency group is present.* Stage C is currently written
 as "collapse N planes to sRGB **once, at the end**" — that phrasing is
 exactly the final-pass shape being warned about. **Reconcile before
 scoping**: either the collapse happens inside the group-composite step, or
-Stage C must state why the end-pass is acceptable for pdfce and disclose the
+Stage C must state why the end-pass is acceptable for pdfcer and disclose the
 deviation.
 
 **Do not treat §10.8.3 as a complete specification.** Three of its own
@@ -892,7 +892,7 @@ ambiguities are registered in the same file and two are load-bearing:
 | id | what is unspecified |
 |---|---|
 | `SEP-A3` | **"flat XYZ (no gamma)" is defined nowhere** — one occurrence document-wide. The adopted reading (linear-light CIE 1931 XYZ, no transfer curve) is **DERIVED**, labelled as such |
-| `SEP-A4` | **the per-separation ink→XYZ map is unspecified.** Step (b) says "convert each separation into flat XYZ" without saying by what. ⇒ pdfce's choice, disclosed under rule 4 |
+| `SEP-A4` | **the per-separation ink→XYZ map is unspecified.** Step (b) says "convert each separation into flat XYZ" without saying by what. ⇒ pdfcer's choice, disclosed under rule 4 |
 | `SEP-A2` | step (c) cites **"Table 133"** for the multiply blend, but Table 133 is the compositing-**variables** table; the blend functions are Table 134. Loose citation or erratum; **none filed.** Read as `B(cb, cs) = cb × cs` |
 
 So Stage C now has a specified *target* with three holes in it, rather than
@@ -935,7 +935,7 @@ Both are real, both are separately scoped, neither is blocked on this build.
    class of inference rule 4 exists for: render it normally, disclose it
    off-canvas.
 4. **Scope creep into a rasterizer rewrite.** The line is: `tiny_skia` keeps
-   scan conversion, path stroking, glyph outlines and image sampling. pdfce
+   scan conversion, path stroking, glyph outlines and image sampling. pdfcer
    takes compositing only. If a change requires re-deriving coverage, it is
    out of scope.
 5. **The 8 UNRESOLVED reference-strip patches are not addressed by any of
@@ -948,20 +948,20 @@ Both are real, both are separately scoped, neither is blocked on this build.
 
 An outside model (Gemini, via the operator, 2026-08-18) proposed a route to
 the remaining patches. Recording the assessment because two of its
-recommendations would be **actively wrong for pdfce**, and a future session
+recommendations would be **actively wrong for pdfcer**, and a future session
 that meets the same advice should not have to re-derive why.
 
 **Correct but already held, at lower resolution:** ISO 32000-2 clause 11 as
 the governing text; W3C Compositing Level 1 as a cross-check on the separable
 blend formulas; isolated-vs-non-isolated as the transparency-group axis;
-Porter-Duff alpha weighting; and — independently reaching pdfce's own
+Porter-Duff alpha weighting; and — independently reaching pdfcer's own
 conclusion — that overprint requires **preserving the underlying colorant
 rather than knocking it out**. That last convergence is worth something: an
 outside model with no access to this repo arrived at the same architectural
 requirement as the seven-engine survey.
 
 **Rejected — `lcms2`.** It is a binding to Little CMS, a **C** library. It
-cannot cross the **wasm32 CI gate** that `pdfce-core` and `pdfce-render` are
+cannot cross the **wasm32 CI gate** that `pdfcer-core` and `pdfcer-render` are
 held to (`.github/workflows`, `cargo check --target wasm32-unknown-unknown`),
 and that gate is not negotiable machinery — it is the enforcement of the
 web-fork invariant. The OCR engine decision turned on exactly this constraint.
@@ -976,7 +976,7 @@ replacement is a *narrower* failure than adopting `lcms2` would have been, and
 it has the same root — the record was not read. See
 `docs/collapse-model-survey.md` §7.
 
-**Rejected — `vello`.** GPU, via `wgpu`. `pdfce-render` may not gain a
+**Rejected — `vello`.** GPU, via `wgpu`. `pdfcer-render` may not gain a
 windowing or GPU surface (`ARCHITECTURE.md` §3, project rule 2). This is
 categorical, not a tradeoff. `resvg` is a fair *structural* reference — it is
 `tiny_skia`'s own consumer — but it is a reference, not a dependency.
@@ -993,7 +993,7 @@ Carried forward from `NEXT_SESSION.md` §2, unchanged and still unclaimed:
 
 1. ~~**The trap detector is probably over-counting.**~~ **MEASURED AND FALSE,
    2026-08-18. Do not spend a session on this.** The hypothesis was that
-   `CONTRAST_MIN` — calibrated against pdfce's own output rather than against
+   `CONTRAST_MIN` — calibrated against pdfcer's own output rather than against
    the suite's stated *"Faint X does not indicate a failure!"* — was firing on
    marks the suite pre-declares tolerant (**all ten cells of PCS020**, **cell
    d of every DeviceN patch**). The new probe measured the actual
@@ -1019,13 +1019,13 @@ Carried forward from `NEXT_SESSION.md` §2, unchanged and still unclaimed:
    One live nuance that survives, and is *not* about contrast: `PCS191` cell
    **c** has **two sanctioned correct outcomes** — the suite states a cross
    there is fine *"if the system performs colour conversion and sets the OPM
-   for this patch c to 0"*. pdfce converts but leaves `OPM 1`, so its cross is
-   a genuine failure today. If Stage B ever makes pdfce take the
+   for this patch c to 0"*. pdfcer converts but leaves `OPM 1`, so its cross is
+   a genuine failure today. If Stage B ever makes pdfcer take the
    convert-and-set-OPM-0 route deliberately, the harness must learn that
    cell c is not binary.
 2. **The suite ships its own Reference file** — a whole-suite reference
    render, in the same ZIP, with texts in Registration so they appear in
-   every separation. pdfce is not using it as an oracle and should. This is
+   every separation. pdfcer is not using it as an oracle and should. This is
    the one that bears on the 8 UNRESOLVED.
 
    **Blocked on an input, checked 2026-08-18:** the file is **not on this
@@ -1076,7 +1076,7 @@ Carried forward from `NEXT_SESSION.md` §2, unchanged and still unclaimed:
    The first two **are** PCS190's documented discriminator — the a/b pair's
    DeviceN **omits** the backdrop's colorants and the c/d pair **includes**
    them at 0%, and *"the colorant LIST — not the tint values — decides what
-   survives"*. pdfce cannot see either list. `/Indexed` appears in **4 of the
+   survives"*. pdfcer cannot see either list. `/Indexed` appears in **4 of the
    7 failing overprint patches** (`PCS190`, `PCS191`, `PCS192`, `PCS020`).
 
    Two halves to the fix, and only the first is small: `classify` must recurse
@@ -1117,7 +1117,7 @@ Carried forward from `NEXT_SESSION.md` §2, unchanged and still unclaimed:
    That last row is the one to keep: a patch can pass its own trap and still
    have an object class the renderer never offered the feature to.
 
-   **[★★ CORRECTED 2026-08-31 (pdfce-librarian, 357th filing) — both halves
+   **[★★ CORRECTED 2026-08-31 (pdfcer-librarian, 357th filing) — both halves
    of the `PCS2_031` row above are now known wrong.** It does not pass the
    suite (`Pass 196.0` gives it its first correct verdict, `CRIT?` — the
    already-known n-channel-buffer/missing-spot-plane gap). And the counter's

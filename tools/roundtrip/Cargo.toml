@@ -1,4 +1,4 @@
-# roundtrip — pdfce's corpus-wide round-trip proof harness (Pass 3.0).
+# roundtrip — pdfcer's corpus-wide round-trip proof harness (Pass 3.0).
 #
 # WHY THIS EXISTS (docs/ROADMAP.md Pass 3.0, decision 007): the
 # ARCHITECTURE.md §5 round-trip/minimal-diff invariant has been project
@@ -45,8 +45,8 @@ publish = false
 [dependencies]
 # The crates under measurement, path-referenced so the harness fails to
 # compile (rather than silently drifting) if their APIs change under it.
-pdfce-core = { path = "../../crates/pdfce-core" }
-pdfce-render = { path = "../../crates/pdfce-render" }
+pdfcer-core = { path = "../../crates/pdfcer-core" }
+pdfcer-render = { path = "../../crates/pdfcer-render" }
 
 [profile.release]
 # The corpus is ~2,900 files and every one is saved three ways and

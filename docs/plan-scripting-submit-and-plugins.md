@@ -13,7 +13,7 @@ becomes a status report is a plan nobody can date.
 - **§11 prerequisite 3 — DISCHARGED** before Phase 1, as it required:
   `Pass 133.0` (`afd8da8`) fixed the `/A`-versus-`/AA` hazard blindness of
   §2.7. Verified again on 2026-08-30 on the shipped binary — `inspect`,
-  `list-fields` and `list-annotations` all disclose a pdfce-authored submit.
+  `list-fields` and `list-annotations` all disclose a pdfcer-authored submit.
 - **§8 Phases 2–5 — UNBUILT and unchanged.** Nothing dispatches. `R54` is
   **not engaged** by Phase 1 and its decision-088 amendment is **not relied
   on**; `R12` is not engaged either, since no crate gained network code.
@@ -25,14 +25,14 @@ becomes a status report is a plan nobody can date.
 
 **Original status, retained: DRAFT PLAN. Nothing here is built, filed, or
 decided beyond the operator rulings quoted verbatim in §1.** Authored by
-`pdfce-engineer`, 2026-08-26, at the operator's request ("draft a full plan
+`pdfcer-engineer`, 2026-08-26, at the operator's request ("draft a full plan
 now on what we have"). This document is engineer-owned, in the same class as
 `docs/ocr-engine-survey.md` — a sourcing-and-design record that precedes a
 decision record, not a substitute for one.
 
 **This document does not itself amend any standing rule.** §3 names the rules
 that have to be amended, by number, and states who owns each amendment. An
-amendment happens in `ARCHITECTURE.md` §12 via `pdfce-librarian`, on an
+amendment happens in `ARCHITECTURE.md` §12 via `pdfcer-librarian`, on an
 explicit operator ruling, and not before.
 
 **★ UPDATED 2026-08-26, same day: three of §9's open questions were ruled on
@@ -59,8 +59,8 @@ about — `R54`, "no trigger event ever fires" — which is separate from the
 JavaScript rule and bites a plain, script-free Reset button.**
 
 **★ AMENDED 2026-08-30. (a) IS BUILT** — see the status banner at the head of
-this document. This paragraph opened by saying pdfce *"can already create
-push buttons … that do **nothing** when pressed, because pdfce authors no
+this document. This paragraph opened by saying pdfcer *"can already create
+push buttons … that do **nothing** when pressed, because pdfcer authors no
 action on them and fires no trigger for one"*, and **half of that is now
 false**: `EditSession::set_button_action` authors `/ResetForm`,
 `/SubmitForm`, `/GoTo`, `/Named` and `/URI` (`Pass 182.0`/`Pass 183.0`).
@@ -82,9 +82,9 @@ paraphrased because each one is an authorisation whose exact scope matters.
 
 | # | Ruling | Scope it settles | Scope it does NOT settle |
 |---|---|---|---|
-| **O1** | *"would it work to create a separate project called `D:\Dev\pdfceJS` which developes javascript support, then in order to have Javascript support in pdfce the folder `plugins\pdfceJS` would have to exist in pdfce's folder?"* | A proposal, framed as a question — the **presence of an installed folder** is the capability gate. Assessed in §5; the answer is a qualified yes. | Not itself an authorisation to build. Explicitly prefaced *"plan only, we wont start it yet."* |
+| **O1** | *"would it work to create a separate project called `D:\Dev\pdfceJS` which developes javascript support, then in order to have Javascript support in pdfcer the folder `plugins\pdfceJS` would have to exist in pdfcer's folder?"* | A proposal, framed as a question — the **presence of an installed folder** is the capability gate. Assessed in §5; the answer is a qualified yes. | Not itself an authorisation to build. Explicitly prefaced *"plan only, we wont start it yet."* |
 | **O2** | *"we'd let it do the server thing as long as it matches the same security that adobe already allows."* | Form submission is **permitted in principle**, with Acrobat's own security model as the acceptance criterion. | What Acrobat's model actually *is* — researched, §7. |
-| **O3** | *"I assume that is still written into the separate script side so pdfce still stays server free."* | An **assumption**, tested in §5.2. Mechanically sound; the plan nevertheless relocates the network capability out of the scripting plugin, for reasons in §5.2. | — |
+| **O3** | *"I assume that is still written into the separate script side so pdfcer still stays server free."* | An **assumption**, tested in §5.2. Mechanically sound; the plan nevertheless relocates the network capability out of the scripting plugin, for reasons in §5.2. | — |
 | **O4** | *"We'll allow a submit to send filled data wherever the document's author said."* | **Default destination policy: open.** No host whitelist by default, no blocked hosts, the document author chooses. | Disclosure (settled by O5), payload scope, transport security. |
 | **O5** | *"yes well we'll have support for allowing only submission to whitelists, and your default is good, plus we can show what is being sent as an option too."* | Three things: **(i)** an operator-owned whitelist-only mode exists as an option; **(ii)** the engineer-proposed default — *disclose the destination before anything leaves* — is **approved**; **(iii)** payload disclosure ("show what is being sent") exists as an option. | Which of (i)/(iii) is on by default; see §9 Q3. |
 
@@ -131,7 +131,7 @@ check box gets), `/MK` `/CA` for the caption, `/BS`, `/F`. Merging a second
 widget under one field name works and each widget keeps its own caption.
 Undo reproduces the input byte-for-byte.
 
-**Not reachable in `pdfceGUI`** — field creation is unbuilt there; the
+**Not reachable in `pdfcer-gui`** — field creation is unbuilt there; the
 type palette shows push button absent rather than greyed.
 
 ### 2.2 Action authoring: did not exist, anywhere — **★ AMENDED 2026-08-30, this is the bullet Phase 1 retired**
@@ -148,14 +148,14 @@ absent** — `grep` for `add_link` / `NewLink` still returns nothing — and the
 `/A`-writing primitive built here is the one a future link Pass would reuse,
 exactly as §8 Phase 1 predicted.
 
-Original measurement, 2026-08-26: *"There is **no code path in pdfce that
+Original measurement, 2026-08-26: *"There is **no code path in pdfcer that
 writes an `/A` entry**, on a push button or on anything else. … This is not a
 gap in the button feature; it is a capability the project has never had."*
 
-Every push button pdfce **creates** is still disclosed as inert on both
+Every push button pdfcer **creates** is still disclosed as inert on both
 channels (`FieldAuthorDisclosures::push_button_inert`), which is why this
 never silently surprised anyone. **The flag is unchanged; three sentences
-explaining it said "pdfce never authors one" and were corrected in
+explaining it said "pdfcer never authors one" and were corrected in
 `cff102a`.**
 
 ### 2.3 Action *reading*: partially exists, and is good
@@ -174,7 +174,7 @@ explaining it said "pdfce never authors one" and were corrected in
   insert/delete/reorder, and knows that a `/GoToR` page index must **not**
   be resolved against this document.
 
-So pdfce already understands the action model as *data*. What it lacks is
+So pdfcer already understands the action model as *data*. What it lacks is
 the authoring half and the dispatch half.
 
 ### 2.4 Reset: the verb already exists, without the action
@@ -186,7 +186,7 @@ fields and read-only fields, and reports each skip by reason.
 
 **This is the plan's cheapest win and it is nearly free:** authoring
 `<< /S /ResetForm >>` onto a button means binding a button press to a verb
-pdfce already implements, tests and can undo.
+pdfcer already implements, tests and can undo.
 
 ### 2.5 JavaScript: posture A and posture B both shipped
 
@@ -207,9 +207,9 @@ hand-written scripts, not "my form doesn't add up."
 
 ### 2.6 Network: a primitive exists, deliberately unwired
 
-`crates/pdfce-fetch` is a workspace member (`Pass 77.0`). **No shell links
+`crates/pdfcer-fetch` is a workspace member (`Pass 77.0`). **No shell links
 it.** A default build contains no network code at all, and the fail-closed
-`no-network` CI job proves it for `pdfce-core` + `pdfce-render`
+`no-network` CI job proves it for `pdfcer-core` + `pdfcer-render`
 specifically.
 
 This matters to the plan: **the "network capability as a separable,
@@ -218,7 +218,7 @@ project.** Submission should ride it rather than invent a second route.
 
 ---
 
-### 2.7 ★★★ A SHIPPED DEFECT FOUND WHILE BUILDING THE PROBE — pdfce cannot see a submit button at all
+### 2.7 ★★★ A SHIPPED DEFECT FOUND WHILE BUILDING THE PROBE — pdfcer cannot see a submit button at all
 
 > **★ FIXED 2026-08-26, `Pass 133.0` (`afd8da8`), the same day this was
 > written.** Everything below is kept in the PRESENT TENSE as it was written,
@@ -231,7 +231,7 @@ project.** Submission should ride it rather than invent a second route.
 > rather than merely incomplete. **The three surfaces in the table below all
 > disclose now.**
 
-Discovered 2026-08-26 by running pdfce over the probe PDFs. **This is a
+Discovered 2026-08-26 by running pdfcer over the probe PDFs. **This is a
 defect in shipped disclosure code, not a gap in the unbuilt feature**, and
 it is the single most actionable item in this document.
 
@@ -258,7 +258,7 @@ and which Acrobat then actually submitted to that address:
 | `inspect` | no action, submit, network, URI or launch line at all |
 | `list-annotations` | `subtype=Widget … author="Go"` — no action |
 
-**Three surfaces, none disclosing it.** An operator asking pdfce "is this
+**Three surfaces, none disclosing it.** An operator asking pdfcer "is this
 document going to phone home?" is told *no* about a file that demonstrably
 does.
 
@@ -275,7 +275,7 @@ are in scope rather than patching the one that was noticed. Counting is
 recognition only; it fires no trigger and needs no `R54` amendment.
 
 **Do this BEFORE any of Phase 1.** Authoring submit actions into files while
-pdfce cannot report the ones already there would ship the write half of a
+pdfcer cannot report the ones already there would ship the write half of a
 capability whose read half is blind.
 
 ---
@@ -289,7 +289,7 @@ because the collisions are not where they look.
 
 > *"**R54** — no trigger event ever fires, on load or on any interaction.
 > … Recognition is pure data modeling — there is no JS action dispatcher in
-> pdfce and none is added."*
+> pdfcer and none is added."*
 
 **This forbids honouring a plain, script-free `/ResetForm` action.** It is
 not a JavaScript rule. It says *no trigger fires*, full stop — and a mouse
@@ -313,7 +313,7 @@ than ignored. That preserves `R54`'s intent exactly while unblocking (b).
 amendment is authorised.** The allow-list shape above is what gets filed.
 Two things a future session must not slide past:
 
-1. **The amendment is not retroactive to the code.** Until `pdfce-librarian`
+1. **The amendment is not retroactive to the code.** Until `pdfcer-librarian`
    carries it into the rule text, `R54` on the books still reads *"no trigger
    event ever fires"*, and a Pass may not cite an amendment that has not
    landed.
@@ -323,7 +323,7 @@ Two things a future session must not slide past:
    indistinguishable from a broken button, which is the failure mode the
    whole disclosure posture exists to prevent.
 
-### 3.2 `R53` — "pdfce never executes embedded PDF JavaScript"
+### 3.2 `R53` — "pdfcer never executes embedded PDF JavaScript"
 
 > *"…adding one (posture C — a sandboxed JS engine) is **prohibited scope,
 > not deferred scope**."*
@@ -352,8 +352,8 @@ depends on a ruling nobody has made.
 
 ★ **This plan is the case that forces that ruling.** Note the sequencing
 consequence: if pdfceJS is only ever *hand-installed* by the operator
-(copied into the folder, never downloaded by pdfce), clause 5 arguably is
-not engaged at all, because pdfce fetched nothing. **That is a genuinely
+(copied into the folder, never downloaded by pdfcer), clause 5 arguably is
+not engaged at all, because pdfcer fetched nothing. **That is a genuinely
 cheaper first step and the plan adopts it** (§8, Phase 3) — hand-install
 only, no in-app download, which defers the `R13` ruling rather than
 forcing it.
@@ -362,14 +362,14 @@ forcing it.
 
 ### 3.4 `R12` as narrowed (decision 061) — the network rule
 
-- `pdfce-core`, `pdfce-render`: **may never contain network code, under any
+- `pdfcer-core`, `pdfcer-render`: **may never contain network code, under any
   future decision.** Untouched by this plan and untouchable.
-- `pdfce-cli`, `pdfce-gui`, `tools/`: **may** carry a network client for
+- `pdfcer`, `pdfce-gui`, `tools/`: **may** carry a network client for
   **operator-initiated** fetching. No decision record needed for that class.
 
 ★ **But a submit is a new class, and the rule does not cover it.** Every
-permitted case so far means *pdfce goes where pdfce's authors said* — a
-model file, an update. A submit means *pdfce sends the operator's data
+permitted case so far means *pdfcer goes where pdfcer's authors said* — a
+model file, an update. A submit means *pdfcer sends the operator's data
 where a FILE's author said*. The destination is attacker-controlled in the
 threat-model sense. **This needs its own decision record naming the crate
 and the feature**, per `R12`'s own unlocking clause. O2/O4 authorise the
@@ -415,7 +415,7 @@ This has three consequences that shape the whole phasing in §8:
 2. **The network capability must NOT live inside the scripting plugin**
    (contra O3's assumption) — otherwise a plain submit button, the common
    case, would require installing a *scripting engine*. See §5.2.
-3. **A useful, shippable button feature exists entirely inside pdfce's
+3. **A useful, shippable button feature exists entirely inside pdfcer's
    current rules, minus one narrow `R54` amendment.** Reset and in-document
    navigation need no plugin, no network, no interpreter, and no new
    dependency.
@@ -428,10 +428,10 @@ This has three consequences that shape the whole phasing in §8:
 
 | | In-process library (`.dll`) | **Separate process (recommended)** | Wasm module |
 |---|---|---|---|
-| Isolation | **None.** Runs in pdfce's address space with pdfce's file handles and privileges. A bug in the engine is a pdfce compromise. | **Process boundary.** Can be run with reduced privileges; a crash is contained and reportable. | **Strongest.** Capability-based by construction. |
+| Isolation | **None.** Runs in pdfcer's address space with pdfcer's file handles and privileges. A bug in the engine is a pdfcer compromise. | **Process boundary.** Can be run with reduced privileges; a crash is contained and reportable. | **Strongest.** Capability-based by construction. |
 | Rust ABI problem | Severe — no stable Rust ABI, so a hand-versioned `extern "C"` surface is mandatory and fragile. | **None.** The interface is a message format, not a symbol table. | None. |
 | Implementation language | Must match/pin the toolchain. | **Any.** pdfceJS could wrap any engine in any language. | Anything targeting wasm. |
-| Licence isolation | **No.** Linking into pdfce's process is the classic derived-work case; a copyleft engine is unusable. | **Yes, arguably** — arm's-length separate program. Widens the viable engine set. **Operator's call, not the engineer's.** | Yes. |
+| Licence isolation | **No.** Linking into pdfcer's process is the classic derived-work case; a copyleft engine is unusable. | **Yes, arguably** — arm's-length separate program. Widens the viable engine set. **Operator's call, not the engineer's.** | Yes. |
 | Crosses to the web fork | No. | No (but see below). | **Yes.** |
 | Cost | Low. | Low–moderate (a protocol, a supervisor, a handshake). | High (a wasm runtime is a large dependency). |
 
@@ -459,7 +459,7 @@ Consequences that are now settled rather than recommended:
   re-propose it on performance grounds.
 - **The protocol is the deliverable, and it is versioned from its first
   byte.** A protocol that ships unversioned acquires an implicit version
-  anyway — the one its first consumer happened to observe — and pdfce would
+  anyway — the one its first consumer happened to observe — and pdfcer would
   then be maintaining compatibility with an accident.
 - **The protocol must be specified without reference to any host language,
   process model or transport.** The moment it names a pipe handle, a Rust
@@ -469,7 +469,7 @@ Consequences that are now settled rather than recommended:
 - **This binds `pdfceNet` as well as `pdfceJS`.** Both plugins speak a
   protocol; neither is a linked artefact. That is what keeps §5.6's
   engine-side guarantees (no network, no process spawning in
-  `pdfce-core`/`pdfce-render`) true by construction rather than by
+  `pdfcer-core`/`pdfcer-render`) true by construction rather than by
   vigilance.
 
 ### 5.2 Two plugins, not one — `pdfceJS` and `pdfceNet`
@@ -484,10 +484,10 @@ should not**, for the reason in §4.2: a submit button needs no script.
 
 Installed independently. Present-or-absent is the capability gate (O1's
 mechanism, which is good and is kept). Each is absent from a default build,
-so **O3's goal — "pdfce stays server free" — is preserved and strengthened**:
-a stock pdfce has neither, and `cargo tree` on the shipped binary proves it.
+so **O3's goal — "pdfcer stays server free" — is preserved and strengthened**:
+a stock pdfcer has neither, and `cargo tree` on the shipped binary proves it.
 
-`pdfceNet` should be a thin shell over the existing `pdfce-fetch`
+`pdfceNet` should be a thin shell over the existing `pdfcer-fetch`
 primitive rather than a second network implementation.
 
 ### 5.3 The protocol — effects, not just edits
@@ -496,15 +496,15 @@ An earlier framing in conversation ("the plugin hands back a list of
 proposed changes") was **too narrow, twice over**, and the corrected shape
 is:
 
-The plugin returns a list of **effects**, each of which pdfce either
+The plugin returns a list of **effects**, each of which pdfcer either
 applies as an ordinary undoable `EditSession` command, performs, or
 refuses by name. Effect kinds:
 
-| Effect | pdfce's response |
+| Effect | pdfcer's response |
 |---|---|
 | `SetFieldValue` | An ordinary undoable edit. Same path posture B's recompute already uses. |
 | `SetFieldProperty` (visibility, read-only, required, colour) | Ditto. |
-| `Message` / `Prompt` | **The gap in the earlier framing.** Real forms use alerts constantly for validation. Needs a UI channel; in `pdfce-cli`, printed. |
+| `Message` / `Prompt` | **The gap in the earlier framing.** Real forms use alerts constantly for validation. Needs a UI channel; in `pdfcer`, printed. |
 | `RejectKeystroke` / `ReplaceKeystroke` | **The second gap.** Acrobat's keystroke event inspects and can rewrite each character *as typed* — that is how a phone field refuses letters mid-entry. Requires the plugin consulted per keypress with the power to say no. Latency-sensitive; a local pipe round-trip is affordable, a process spawn per keystroke is not (hold one warm process per document). |
 | `Submit` | Refused unless `pdfceNet` present **and** §6's posture ladder permits. |
 | `Navigate` | In-document: performed. Remote/external: §6. |
@@ -516,7 +516,7 @@ never stops. Near-zero use in real forms; unbounded cost.
 
 **The plugin never touches the file, the filesystem, or the network
 directly.** It receives a script plus a bounded view of field state, and
-returns effects. That keeps every dangerous verb on pdfce's side of the
+returns effects. That keeps every dangerous verb on pdfcer's side of the
 boundary, where the posture ladder and the undo log already live.
 
 ### 5.4 The honest argument for the proposal, stated plainly
@@ -533,7 +533,7 @@ decision reasoned from:
    A separate process with a narrow effect protocol **is** the broker
    architecture, rather than re-importing the thing it defends against.
 3. **The dangerous verbs never move** — submit, navigate, structure changes
-   and messages are pdfce-side effects subject to pdfce's gates. The plugin
+   and messages are pdfcer-side effects subject to pdfcer's gates. The plugin
    gets an interpreter, not capabilities.
 
 That is a real change in the facts, not a costume. **It may still be
@@ -548,17 +548,17 @@ Acrobat-equivalent it is.** These trade directly and no shape escapes it.
 It bites hardest on `DocumentStructure` effects. Acrobat's JS API can
 insert and extract pages, stamp watermarks, flatten, add annotations and
 spawn pages from templates. Supporting those means the script's vocabulary
-becomes approximately *pdfce's entire command surface* — which is the
+becomes approximately *pdfcer's entire command surface* — which is the
 opposite of a small, auditable list.
 
 **Recommended resolution: a second tier.** `DocumentStructure` effects are
 refused unless the operator grants them, per document, and the grant is
 disclosed. This mirrors Acrobat's own trusted-function split (§7) rather
-than inventing a pdfce-specific concept.
+than inventing a pdfcer-specific concept.
 
 ### 5.6 Where the engine's rules still bind
 
-`pdfce-core` and `pdfce-render` gain **nothing** from this plan — no
+`pdfcer-core` and `pdfcer-render` gain **nothing** from this plan — no
 network, no process spawning, no plugin loading, no protocol client. The
 supervisor, the protocol client and `pdfceNet` live in the shells. The
 wasm32 CI gate and the `no-network` gate both stay green untouched, and
@@ -588,7 +588,7 @@ a security bug later.
 ### 6.2 Rung 2 — destination disclosure (**approved default: on**, per O5)
 
 Before any byte leaves, the destination is stated. Not a block — a
-statement. `pdfce-cli` prints it; the GUI shows it.
+statement. `pdfcer` prints it; the GUI shows it.
 
 ★ **Why this is load-bearing and not paranoia: the button's caption is
 written by the document's author too.** A button reading "Save Draft",
@@ -600,7 +600,7 @@ phishing shape, and it is not hypothetical.
 
 ### 6.3 Rung 3 — payload disclosure (option, per O5)
 
-**This is where pdfce exceeds Acrobat** (§7). Acrobat discloses the
+**This is where pdfcer exceeds Acrobat** (§7). Acrobat discloses the
 destination and never the payload scope.
 
 Requirements:
@@ -730,14 +730,14 @@ Acrobat runs **two independent gates**:
 ★ **The sharpest finding: ordinary "I trust this document" trust does NOT
 unlock cross-domain access.** Only the separate, **host-scoped** grant does.
 Document trust and network trust are different things in Acrobat's model —
-a cleaner separation than expected, and one pdfce should copy.
+a cleaner separation than expected, and one pdfcer should copy.
 
-### 7.2 Where pdfce would sit
+### 7.2 Where pdfcer would sit
 
 | Aspect | Acrobat | This plan | Verdict |
 |---|---|---|---|
 | Destination chosen by document author | Yes | Yes (O4) | **Parity** |
-| Same-origin submit silent | Yes | **No — always disclosed** | **Exceeds** (pdfce has no "origin" for a local file; silence would be unjustifiable) |
+| Same-origin submit silent | Yes | **No — always disclosed** | **Exceeds** (pdfcer has no "origin" for a local file; silence would be unjustifiable) |
 | Cross-origin warning naming the URL | Yes | Yes (O5/§6.2) | **Parity** |
 | Per-host persistent grant | Yes | Yes (whitelist, §6.1) | **Parity** — *corrects an earlier engineer claim that the whitelist would exceed Acrobat; Acrobat already has an operator-owned per-host grant.* |
 | Destination may vouch for itself | Yes (policy file) | **No** | **Exceeds** — a hostile host writes a permissive policy |
@@ -862,7 +862,7 @@ dispatch ladder: the full destination is stated (rung 2's *content*, at
 authoring time), the **payload** is computed and disclosed (rung 3, §6.3.1 in
 full), `http` is allowed and said rather than blocked (rung 4's proposed
 default), and every undecidable destination or non-conforming flag word is
-**refused by name**. Rung 1's whitelist has nothing to gate: pdfce sends
+**refused by name**. Rung 1's whitelist has nothing to gate: pdfcer sends
 nothing.
 
 **One thing this phase did not anticipate and Phase 2 inherits:** authoring a
@@ -881,9 +881,9 @@ link annotations):
 | `/ResetForm` | With Table 238 `/Fields` and Table 239's `Include/Exclude` flag. |
 | `/GoTo` | In-document destinations; rides the existing reference-rewrite machinery so page ops keep it correct. |
 | `/Named` | `NextPage`, `PrevPage`, `FirstPage`, `LastPage`. |
-| `/URI` | **Authored** (it is only data), never followed by pdfce. Disclosed. |
-| `/SubmitForm` | **Authored** in Phase 1 (data), **honoured** only in Phase 2. **★ UNBLOCKED 2026-08-26** — §12.7.5.2 is ingested. **Table 236 has exactly FOUR entries: `/S`, `/F`, `/Fields`, `/Flags`** (see the correction in §11.1). The flag word (Table 237 / 2.0 Table 240) is: `Include/Exclude` 1 · `IncludeNoValueFields` 2 · `ExportFormat` 4 · `GetMethod` 8 · `SubmitCoordinates` 16 · `XFDF` 32 · `IncludeAppendSaves` 64 · `IncludeAnnotations` 128 · `SubmitPDF` 256 · `CanonicalFormat` 512 · `ExclNonUserAnnots` 1024 · `ExclFKey` 2048 · **bit 13 is unnamed in both editions** · `EmbedForm` 8192. **Format precedence is specified as a strict `shall` chain: `SubmitPDF` ≻ `XFDF` ≻ `ExportFormat`**; `/Flags 0` means FDF-by-POST, which is a **decision, not an absence** — do not treat a missing `/Flags` as "unspecified format". Nine flags carry *"shall be used only when…"* gates and **none states a reader recovery rule**, so pdfce must choose and disclose its own behaviour for each violated gate. One genuine internal contradiction to refuse or disclose by name: `SubmitPDF`+`GetMethod` (`/Flags 264`) is contemplated by bit 9 and forbidden by bit 4. |
-| `/JavaScript`, `/Launch` | **Refused by name, permanently.** `/Launch` collides with `R13`; `/JavaScript` would author something pdfce refuses to run. |
+| `/URI` | **Authored** (it is only data), never followed by pdfcer. Disclosed. |
+| `/SubmitForm` | **Authored** in Phase 1 (data), **honoured** only in Phase 2. **★ UNBLOCKED 2026-08-26** — §12.7.5.2 is ingested. **Table 236 has exactly FOUR entries: `/S`, `/F`, `/Fields`, `/Flags`** (see the correction in §11.1). The flag word (Table 237 / 2.0 Table 240) is: `Include/Exclude` 1 · `IncludeNoValueFields` 2 · `ExportFormat` 4 · `GetMethod` 8 · `SubmitCoordinates` 16 · `XFDF` 32 · `IncludeAppendSaves` 64 · `IncludeAnnotations` 128 · `SubmitPDF` 256 · `CanonicalFormat` 512 · `ExclNonUserAnnots` 1024 · `ExclFKey` 2048 · **bit 13 is unnamed in both editions** · `EmbedForm` 8192. **Format precedence is specified as a strict `shall` chain: `SubmitPDF` ≻ `XFDF` ≻ `ExportFormat`**; `/Flags 0` means FDF-by-POST, which is a **decision, not an absence** — do not treat a missing `/Flags` as "unspecified format". Nine flags carry *"shall be used only when…"* gates and **none states a reader recovery rule**, so pdfcer must choose and disclose its own behaviour for each violated gate. One genuine internal contradiction to refuse or disclose by name: `SubmitPDF`+`GetMethod` (`/Flags 264`) is contemplated by bit 9 and forbidden by bit 4. |
+| `/JavaScript`, `/Launch` | **Refused by name, permanently.** `/Launch` collides with `R13`; `/JavaScript` would author something pdfcer refuses to run. |
 
 Also Phase 1: `/AP` `/D` (the pressed appearance) and `/MK` icon/label
 layout, so a button looks like a button when held.
@@ -903,7 +903,7 @@ ladder. Requires the `R12` decision record for the new destination class
 
 ### Phase 3 — `pdfceNet`, hand-installed only.
 
-Thin shell over `pdfce-fetch`. **No in-app download** — the operator copies
+Thin shell over `pdfcer-fetch`. **No in-app download** — the operator copies
 the folder in. This deliberately avoids engaging `R13` clause 5 at all
 (§3.3), which is why it is cheap.
 
@@ -945,7 +945,7 @@ every one**, per standing practice, so none of these blocks planning.
 | **Network client inside `pdfceJS`** | Would make the common case (a script-free submit button) depend on installing a scripting engine. §5.2 — and it is the one point where this plan departs from the operator's own stated assumption (O3). |
 | **Plugin returns edits only** | No channel for messages/prompts or keystroke rejection, both of which real forms depend on. §5.3. |
 | **Timers / background scripts** | No place in a request-response protocol; near-zero real-world use; unbounded cost. §5.3. |
-| **Authoring `/JavaScript` or `/Launch` actions** | Authoring something pdfce refuses to run; `R13` collision. §8 Phase 1. |
+| **Authoring `/JavaScript` or `/Launch` actions** | Authoring something pdfcer refuses to run; `R13` collision. §8 Phase 1. |
 | **Wasm plugin runtime now** | Large dependency for a capability nobody has asked for yet. Revisit only for the web fork — where the protocol boundary (§5.1) already covers it. |
 | **Treating the plugin folder as a workaround for `R53`** | It is not one. §3.2. The argument must be made openly or not at all. |
 
@@ -991,7 +991,7 @@ every one**, per standing practice, so none of these blocks planning.
    **Still owed: HTTP-vs-HTTPS treatment, scripted-vs-declared treatment,
    and the raw FDF body.** The technique that works is recorded in §7.2a and
    in the engineer's memory; the harness lived in
-   `%TEMP%\pdfce-submit-probe\` and is disposable — rebuild it rather than
+   `%TEMP%\pdfcer-submit-probe\` and is disposable — rebuild it rather than
    assuming it survives.
 
    ★ **Two operator-environment courtesies, both learned the hard way:**
@@ -1004,16 +1004,16 @@ every one**, per standing practice, so none of these blocks planning.
    (`version:2|ikea.com:2`) restored and verified. Any future run owes the
    same restoration.
 
-3. **★ FIX §2.7 FIRST — pdfce's network-hazard counter is blind to `/A`.**
+3. **★ FIX §2.7 FIRST — pdfcer's network-hazard counter is blind to `/A`.**
    A shipped defect, not part of this plan's new work, and a prerequisite to
    Phase 1 for the reason given there.
 4. **Decision records owed** before any code: the `R54` amendment (Q1), the
    `R12` new-destination-class record (§3.4), and — only if Phase 4 is
    taken — the `R53` reversal (Q2).
-5. **`pdfce-ui-specialist` dispatch** before any GUI surface for the §6
+5. **`pdfcer-ui-specialist` dispatch** before any GUI surface for the §6
    ladder. The disclosure is the feature; getting its placement wrong is
    how rule 4 got narrowed twice already.
-6. **`pdfce-librarian` filing — ★ DONE.** O1–O8 filed as dated operator
+6. **`pdfcer-librarian` filing — ★ DONE.** O1–O8 filed as dated operator
    rulings, `R54` amended (decision 088), `R56`'s stale rule-4 citation
    corrected, `Pass 131.0`–`131.4` minted into *Backlog*, `FEATURES.md`
    rows added, 268th and 269th `SESSION_LOG.md` filings appended.
@@ -1025,7 +1025,7 @@ every one**, per standing practice, so none of these blocks planning.
 **Making a push button work is not a JavaScript problem.** The feature
 everyone reaches for — a Reset button that resets — is blocked by a
 one-line standing rule about trigger dispatch, needs no plugin, no network
-and no interpreter, and binds a button press to a verb pdfce already
+and no interpreter, and binds a button press to a verb pdfcer already
 implements, tests and can undo.
 
 Everything else in this plan is optional, later, and independently

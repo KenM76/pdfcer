@@ -6,7 +6,7 @@ WHY THIS EXISTS
 `docs/decisions/008` Pass 6.0 acceptance criterion 4: the §12.5.5
 appearance-placement algorithm is a **silent-wrongness** class — a wrong
 composition of `/BBox`, `/Matrix` and `/Rect` renders beautifully in the
-wrong place, and pdfce's self-comparison oracle cannot catch it. So the
+wrong place, and pdfcer's self-comparison oracle cannot catch it. So the
 placement is pinned from BOTH directions with fixtures whose geometry is
 known exactly, plus a pdfium raster differential on the corpus subset.
 
@@ -60,7 +60,7 @@ raster alone.
 
 ``placement-degenerate-bbox.pdf``
     ``/BBox [10 10 10 90]`` (zero width): the transformed box is
-    degenerate, the step-b fit matrix is singular, and pdfce must paint
+    degenerate, the step-b fit matrix is singular, and pdfcer must paint
     NOTHING and name the refusal — never a divide-by-zero (risk X2).
 
 ``flags-hidden.pdf``
@@ -76,7 +76,7 @@ raster alone.
 
 ``no-ap-circle.pdf``
     A ``/Circle`` with ``/IC`` (interior colour) and NO ``/AP``: R43
-    named-not-painted — pdfce synthesises nothing from ``/IC``.
+    named-not-painted — pdfcer synthesises nothing from ``/IC``.
 
 ``as-state-checkbox.pdf``
     A ``/Widget`` whose ``/AP /N`` is an On/Off subdictionary, ``/AS

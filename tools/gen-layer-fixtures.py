@@ -3,7 +3,7 @@
 
 WHY THIS EXISTS
 ---------------
-``crates/pdfce-core/src/layers.rs`` reads ISO 32000-1:2008 §8.11 —
+``crates/pdfcer-core/src/layers.rs`` reads ISO 32000-1:2008 §8.11 —
 optional content groups, the catalog ``/OCProperties`` dictionary, and
 the default configuration dictionary ``/D`` (Tables 98, 99, 100, 101).
 Almost every claim that reader makes is about a structure no authoring
@@ -78,7 +78,7 @@ WHAT IT WRITES
 ``basestate-off.pdf``
     ``/D << /BaseState /OFF /ON [...] >>`` — Table 101 says a ``/D``
     configuration's ``/BaseState``, if present, *shall* be ``ON``. Real
-    files disagree. Pins that pdfce follows the initialisation order the
+    files disagree. Pins that pdfcer follows the initialisation order the
     standard gives (base state sets all groups, then ``/ON``/``/OFF``
     override) rather than the standard's *shall*, and discloses the
     violation instead of correcting it silently.
@@ -342,7 +342,7 @@ def unregistered_ocg() -> bytes:
     §8.11.4.2 says ``/OCProperties`` "shall be present if the file
     contains any optional content" and that every OCG "shall be included"
     in ``/OCGs``. It states no reader behaviour for a file that breaks
-    that. pdfce's choice -- report the group, flag it as unregistered --
+    that. pdfcer's choice -- report the group, flag it as unregistered --
     is therefore a disclosure, not a conformance verdict, and this fixture
     is the executable statement of it.
     """
@@ -400,7 +400,7 @@ def radio_locked() -> bytes:
     does when the sets intersect, and an intersecting member makes the
     two constraints jointly unsatisfiable in the obvious way (turning 4 on
     forces 5 off, which says nothing about 6, while turning 6 on forces 5
-    off again). pdfce therefore reports the **whole** ``/RBGroups``
+    off again). pdfcer therefore reports the **whole** ``/RBGroups``
     structure and, in the per-layer convenience field, the first array a
     group belongs to -- with the overlap counted in the diagnostics, so a
     caller cannot mistake "first" for "only".
@@ -472,7 +472,7 @@ def order_cycle(levels: int = 40) -> bytes:
     otherwise entirely well-formed.
 
     A reader without both guards does not report a wrong answer here. It
-    hangs, or it overflows its stack -- and pdfce-core's panic-free policy
+    hangs, or it overflows its stack -- and pdfcer-core's panic-free policy
     (``lib.rs``) treats a stack overflow on untrusted input exactly as it
     treats an ``unwrap``.
     """
@@ -578,7 +578,7 @@ def painted_layers() -> bytes:
 
     Every other fixture in this directory exercises the *enumerator* --
     ``/OCProperties`` structure, name decoding, ``/Order`` hazards. None
-    of them draws anything, because until 2026-08-10 pdfce honoured
+    of them draws anything, because until 2026-08-10 pdfcer honoured
     optional content only on an **annotation's** ``/OC`` entry and
     content-stream ``BDC``/``EMC`` was deferred. A fixture that paints
     through ``BDC`` had nothing to pin.
@@ -694,7 +694,7 @@ def base_state_unchanged() -> bytes:
     exists for the *other* consumer of Table 101 -- an alternate
     ``/Configs`` configuration applied to an already-open document.
 
-    pdfce recovers by treating it as ``ON`` and processing ``/OFF``, so
+    pdfcer recovers by treating it as ``ON`` and processing ``/OFF``, so
     object 5 is hidden. That is Table 101's stated default and the only
     value ``/D`` was allowed to carry; the rival recovery ("leave
     everything as found, process no arrays") would make ``/OFF`` inert
@@ -741,7 +741,7 @@ def base_state_off_unregistered() -> bytes:
 
     * the **literal** reading ("every group in the document") hides
       object 6, since it is not in ``/ON``
-    * the **registered-only** reading -- what pdfce ships today, because
+    * the **registered-only** reading -- what pdfcer ships today, because
       the OFF set is enumerated from ``/OCGs`` -- reports it VISIBLE
 
     Both marks are painted through ``BDC``/``EMC`` so the difference is

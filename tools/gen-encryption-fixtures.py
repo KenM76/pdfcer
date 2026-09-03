@@ -3,7 +3,7 @@ falsifiers.
 
 Source document is synthetic and self-authored (project rule 7). The
 encryption is produced by pypdf — an INDEPENDENT implementation, which is the
-whole point: pdfce's decryption will be written from ISO 32000-1 §7.6 and
+whole point: pdfcer's decryption will be written from ISO 32000-1 §7.6 and
 then checked against files it did not produce. Agreement then means two
 independent readings of the same clause agree, which is evidence; agreement
 with its own output would mean nothing.
@@ -72,7 +72,7 @@ for name, algo in MODES:
 # everywhere with no dialog. It is the single most operator-visible behaviour
 # in clause 7.6, so it gets a fixture in EVERY cipher rather than one.
 #
-# ★ Originally there was only the AES-128 file below. That was a hole: pdfce
+# ★ Originally there was only the AES-128 file below. That was a hole: pdfcer
 # implements ciphers one increment at a time, and while AES is refused, an
 # AES-only empty-password fixture means the empty-password PATH ITSELF is
 # never exercised end-to-end — the file is rejected on cipher grounds before

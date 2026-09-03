@@ -1,11 +1,11 @@
-//! # corpus-report — measure pdfce against a real-world PDF corpus
+//! # corpus-report — measure pdfcer against a real-world PDF corpus
 //!
-//! Pass 1.1's first deliverable (docs/ROADMAP.md): pdfce's Pass 1
+//! Pass 1.1's first deliverable (docs/ROADMAP.md): pdfcer's Pass 1
 //! parser + renderer were proven only against synthetic fixtures. This
 //! harness walks a corpus directory of rights-cleared PDFs
 //! (docs/LEGAL.md §5 — veraPDF corpus, PDF Association PDF 2.0
 //! examples, fetched by `fixtures/fetch-corpora.sh`) and classifies
-//! every file by how far the pdfce pipeline gets with it.
+//! every file by how far the pdfcer pipeline gets with it.
 //!
 //! ## Pipeline measured, per file
 //!
@@ -23,13 +23,13 @@
 //! | Category | Meaning |
 //! |---|---|
 //! | `Ok` | Loaded, tree walked, page 1 rendered (or zero pages — a well-formed empty tree; no render attempted). Diagnostics counted. |
-//! | `RefusedEncrypted` | The deliberate `XrefErrorKind::EncryptionUnsupported` refusal (§7.6) — pdfce has no security handler yet. |
+//! | `RefusedEncrypted` | The deliberate `XrefErrorKind::EncryptionUnsupported` refusal (§7.6) — pdfcer has no security handler yet. |
 //! | `LoadError` | Any other `DocError` (detail = its `Display`, truncated). |
 //! | `MissingResources` | `PageTreeError::MissingRequired("Resources")` — the Pass 1.1 tolerance question's headline number. |
 //! | `OtherPageTreeError` | Any other `PageTreeError`. |
 //! | `RenderError` | `render_page` returned `RenderError`. |
 //! | `Timeout` | The file exceeded the per-file wall-clock budget ([`FILE_BUDGET`]) — recorded and skipped, never blocks the run. |
-//! | `Panic` | Any stage panicked (caught via `catch_unwind`). **A panic here is a pdfce BUG** — the fuzzers found none, but corpus files are structured differently; the file name is reported prominently. |
+//! | `Panic` | Any stage panicked (caught via `catch_unwind`). **A panic here is a pdfcer BUG** — the fuzzers found none, but corpus files are structured differently; the file name is reported prominently. |
 //!
 //! ## Timeout mechanics (and the one deliberate leak)
 //!
@@ -78,7 +78,7 @@
 //!
 //! `0` = measurement ran (whatever it found — errors in *corpus files*
 //! are data, not tool failures); `1` = at least one PANIC was found
-//! (a pdfce bug worth failing loudly for); `2` = usage error; `3` = a
+//! (a pdfcer bug worth failing loudly for); `2` = usage error; `3` = a
 //! corpus directory could not be walked or the TSV could not be
 //! written.
 
@@ -89,10 +89,10 @@ use std::process::ExitCode;
 use std::sync::mpsc;
 use std::time::Duration;
 
-use pdfce_core::document::{DocError, Document};
-use pdfce_core::page_tree::{self, PageTreeError};
-use pdfce_core::xref::XrefErrorKind;
-use pdfce_render::render_page;
+use pdfcer_core::document::{DocError, Document};
+use pdfcer_core::page_tree::{self, PageTreeError};
+use pdfcer_core::xref::XrefErrorKind;
+use pdfcer_render::render_page;
 
 /// Per-file wall-clock budget. A file that exceeds it is recorded as
 /// `Timeout` and its worker thread abandoned (module docs).
@@ -138,7 +138,7 @@ impl Category {
 }
 
 /// Render-diagnostics totals accumulated across every `Ok` file (the
-/// headline counters from `pdfce_render::Diagnostics`, plus the
+/// headline counters from `pdfcer_render::Diagnostics`, plus the
 /// structural ones — cheap to carry, useful in the report).
 #[derive(Debug, Default, Clone, Copy)]
 struct DiagTotals {
@@ -171,13 +171,13 @@ struct DiagTotals {
 }
 
 /// Document-level annotation census (Pass 6.0 acceptance criterion 1,
-/// docs/decisions/008): re-measures §1.2's numbers with **pdfce's own
+/// docs/decisions/008): re-measures §1.2's numbers with **pdfcer's own
 /// machinery** so the Pass gate has a pinned baseline whose denominator
-/// pdfce actually produced (W16). Computed over **all** pages
-/// ([`pdfce_core::annot::page_annotations`]), not just the rendered page
+/// pdfcer actually produced (W16). Computed over **all** pages
+/// ([`pdfcer_core::annot::page_annotations`]), not just the rendered page
 /// 1, because an annotation on page 40 counts as much as one on page 1.
 ///
-/// The `with_appearance` count is pdfce's **usable-appearance** count
+/// The `with_appearance` count is pdfcer's **usable-appearance** count
 /// (a resolvable `/AP` `/N` stream, model `Appearance::Normal`) — which is
 /// a stronger, more meaningful predicate than pypdf's raw `/AP`-key
 /// presence, and a material gap between the two is itself the finding the
@@ -240,13 +240,13 @@ impl Outcome {
     }
 }
 
-/// Census every page's `/Annots` with pdfce's own model (Pass 6.0
+/// Census every page's `/Annots` with pdfcer's own model (Pass 6.0
 /// acceptance criterion 1).
 fn census_annotations(
-    doc: &pdfce_core::document::Document,
+    doc: &pdfcer_core::document::Document,
     pages: &[page_tree::Page],
 ) -> AnnotCensus {
-    use pdfce_core::annot::{Appearance, need_appearances, page_annotations};
+    use pdfcer_core::annot::{Appearance, need_appearances, page_annotations};
     let mut c = AnnotCensus {
         has_acroform: doc
             .catalog()
@@ -282,7 +282,7 @@ fn main() -> ExitCode {
     if args.is_empty() {
         eprintln!("usage: corpus-report <corpus-dir> [more-dirs ...]");
         eprintln!("  Walks each directory for *.pdf, measures every file against the");
-        eprintln!("  pdfce load -> page-tree -> render pipeline, prints a summary table");
+        eprintln!("  pdfcer load -> page-tree -> render pipeline, prints a summary table");
         eprintln!("  per directory, and writes <dir>-report.tsv next to it.");
         return ExitCode::from(2);
     }
@@ -721,13 +721,13 @@ fn print_summary(dir: &Path, rows: &[(String, Outcome)]) -> usize {
     println!("    LZW framing anomaly: {}", diag.lzw_framing_anomalies);
 
     // --- Pass 6.0 annotation census (docs/decisions/008 acceptance 1) ---
-    // Re-measured with pdfce's OWN machinery over ALL pages of every file
+    // Re-measured with pdfcer's OWN machinery over ALL pages of every file
     // whose page tree walked. This is the pinned baseline the Pass gate
     // uses; compare against decision 008's pypdf figures and run down any
     // material divergence (do not average).
     #[allow(clippy::cast_precision_loss)]
     let pct = |n: usize| 100.0 * n as f64 / total.max(1) as f64;
-    println!("\n  annotation census (pdfce-native, all pages):");
+    println!("\n  annotation census (pdfcer-native, all pages):");
     println!(
         "    files with >=1 annotation: {ac_files_with_annots}  ({:.1}%)",
         pct(ac_files_with_annots)
@@ -782,7 +782,10 @@ fn print_summary(dir: &Path, rows: &[(String, Outcome)]) -> usize {
         .filter(|(_, o)| o.category == Category::Panic)
         .collect();
     if !panics.is_empty() {
-        println!("\n  *** PANICS (pdfce BUGS — {} file(s)) ***", panics.len());
+        println!(
+            "\n  *** PANICS (pdfcer BUGS — {} file(s)) ***",
+            panics.len()
+        );
         for (rel, o) in &panics {
             println!("    {rel}");
             println!("      {}", o.detail);

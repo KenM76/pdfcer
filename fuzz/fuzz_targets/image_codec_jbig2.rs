@@ -1,5 +1,5 @@
 //! Fuzz target: the **JBIG2Decode adapter**
-//! (`pdfce_core::image_codec::decode_image` over a `/JBIG2Decode` dict,
+//! (`pdfcer_core::image_codec::decode_image` over a `/JBIG2Decode` dict,
 //! ISO 32000-1 §7.4.7 / ITU-T T.88).
 //!
 //! ## The globals path is the point
@@ -9,14 +9,14 @@
 //! and globals that do not match the page segments."
 //!
 //! That instruction is aimed at the one thing here that is genuinely
-//! pdfce's own code rather than the vendor's. `hayro-jbig2` already
+//! pdfcer's own code rather than the vendor's. `hayro-jbig2` already
 //! carries a `fuzz_jbig2` target over its segment parser, so throwing
 //! bytes at *that* re-runs someone else's campaign. What no upstream
 //! target covers is the **PDF embedding**: `/JBIG2Globals` is a stream
 //! *reference*, so reaching the bytes means resolving an indirect
 //! object, slicing the retained buffer by span, and running the globals
 //! stream's own `/Filter` chain — three failure modes that live entirely
-//! in pdfce and none of which exist upstream.
+//! in pdfcer and none of which exist upstream.
 //!
 //! Splitting one fuzzer input into "globals" and "page" halves is what
 //! makes the mismatched case reachable in volume. Real mismatches — a
@@ -57,9 +57,9 @@
 
 use libfuzzer_sys::arbitrary::{self, Arbitrary};
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::document::Document;
-use pdfce_core::image_codec::decode_image;
-use pdfce_core::object::{Dict, Name, ObjId, Object};
+use pdfcer_core::document::Document;
+use pdfcer_core::image_codec::decode_image;
+use pdfcer_core::object::{Dict, Name, ObjId, Object};
 
 /// One input, split into a globals half and a page half.
 #[derive(Debug, Arbitrary)]

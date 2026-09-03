@@ -3,7 +3,7 @@
 
 WHY THIS EXISTS — AND WHY IT OUTRANKS THE PARITY HARNESS HERE
 =============================================================
-`tools/render-parity` compares pdfce against pdfium. Its own module docstring
+`tools/render-parity` compares pdfcer against pdfium. Its own module docstring
 is careful about what that is worth: pdfium is a CROSS-CHECK, not ground
 truth. Where the two disagree, the harness can only report an
 `unexplained-divergence` — it cannot say which renderer is wrong, because it
@@ -21,8 +21,8 @@ than merely counted.
 It exists because it was needed: on 2026-08-17 `lab.pdf` was the single
 `unexplained-divergence` in the image-fixture parity run (mean delta 15.175,
 frac32 0.121, dmax 156), and the standing assumption -- recorded in the
-session handoff -- was that pdfce's uncalibrated XYZ->sRGB conversion was the
-cause. Measured against this oracle, pdfce is correct to within 1/255 on all
+session handoff -- was that pdfcer's uncalibrated XYZ->sRGB conversion was the
+cause. Measured against this oracle, pdfcer is correct to within 1/255 on all
 three spaces and PDFIUM is not — Lab mean 40.854 / max 152, CalGray 2.000 / 9,
 CalRGB 3.012 / 9. The assumption had the direction of the error backwards.
 See `ROADMAP.md`'s `Pass 85.x` entry.
@@ -38,13 +38,13 @@ WHAT IT DOES NOT COVER
 `/Separation`, `/DeviceN` and `/Indexed` are excluded on purpose: their
 result depends on a tint transform sampled from the document (a PostScript
 calculator, in the DeviceN case), so "ground truth" would mean
-re-implementing pdfce's function evaluator here and comparing it with
+re-implementing pdfcer's function evaluator here and comparing it with
 itself. That is a tautology, not an oracle. Those spaces stay with the
 parity harness and with unit tests over the function evaluator.
 
 `ICCBased` is likewise out of scope and always will be: a correct answer
 needs a real colour-management engine. That is `D:\\Dev\\iccce\\`'s half of
-the boundary, not pdfce's.
+the boundary, not pdfcer's.
 
 USAGE
 =====
@@ -56,10 +56,10 @@ USAGE
 never shipped, never in `cargo test`, never in the GUI-core `cargo tree`
 invariant, and never in `THIRD_PARTY_LICENSES.md`.
 
-Exit code is 1 if pdfce's own error against truth exceeds `--tol` (default 2,
+Exit code is 1 if pdfcer's own error against truth exceeds `--tol` (default 2,
 i.e. two 8-bit codes, which absorbs rounding and the renderer's own f32
 arithmetic) so it can be run as a gate. pdfium's error is REPORTED and never
-gates: this script measures pdfce, and pdfium's numbers are here only so
+gates: this script measures pdfcer, and pdfium's numbers are here only so
 that a future divergence can be attributed at a glance.
 
 SAMPLING — WHY THE INTERIOR ONLY
@@ -187,11 +187,11 @@ def cli_path() -> str:
     from `CreateProcess` the moment it is run from anywhere else.
     """
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    for cand in ("pdfce-cli.exe", "pdfce-cli"):
+    for cand in ("pdfcer.exe", "pdfcer"):
         p = os.path.join(root, "target", "release", cand)
         if os.path.exists(p):
             return p
-    sys.exit("build the release CLI first: cargo build --release -p pdfce-cli")
+    sys.exit("build the release CLI first: cargo build --release -p pdfcer-cli")
 
 
 def render_pdfce(pdf: str, png: str) -> None:
@@ -203,7 +203,7 @@ def render_pdfce(pdf: str, png: str) -> None:
 
 
 def measure(pdf: str, oracle, tmp: str):
-    png = os.path.join(tmp, os.path.basename(pdf) + ".pdfce.png")
+    png = os.path.join(tmp, os.path.basename(pdf) + ".pdfcer.png")
     render_pdfce(pdf, png)
     ours = np.asarray(Image.open(png).convert("RGB")).astype(np.int16)
     h, w = ours.shape[:2]
@@ -251,22 +251,22 @@ def main() -> int:
         failed |= not ok
         report[name] = {
             "texels": int(eo.size),
-            "pdfce_mean": float(eo.mean()), "pdfce_max": int(eo.max()),
+            "pdfcer_mean": float(eo.mean()), "pdfcer_max": int(eo.max()),
             "pdfium_mean": float(er.mean()), "pdfium_max": int(er.max()),
             "ok": bool(ok),
         }
         if not as_json:
             print(f"{name:9s} n={eo.size:5d}  "
-                  f"pdfce mean={eo.mean():6.3f} max={eo.max():4d}  "
+                  f"pdfcer mean={eo.mean():6.3f} max={eo.max():4d}  "
                   f"{'OK ' if ok else 'FAIL'}   "
                   f"| pdfium mean={er.mean():7.3f} max={er.max():4d}")
             if worst and worst[0] > 0:
                 _, x, y, t, o, r = worst
-                print(f"          worst texel ({x},{y}) truth={t} pdfce={o} pdfium={r}")
+                print(f"          worst texel ({x},{y}) truth={t} pdfcer={o} pdfium={r}")
     if as_json:
         print(json.dumps(report, indent=2))
     else:
-        print(f"\ntolerance: pdfce max error must be <= {tol}/255. "
+        print(f"\ntolerance: pdfcer max error must be <= {tol}/255. "
               "pdfium's column is REPORTED, never gated.")
     return 1 if failed else 0
 

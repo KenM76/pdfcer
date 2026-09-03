@@ -44,9 +44,9 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use pdfce_core::document::Document;
-use pdfce_core::filters;
-use pdfce_core::object::{Object, Stream};
+use pdfcer_core::document::Document;
+use pdfcer_core::filters;
+use pdfcer_core::object::{Object, Stream};
 
 /// One embedded font program.
 struct Sample {
@@ -185,7 +185,7 @@ fn collect(doc: &Document, file: &str, out: &mut Vec<Sample>) {
 }
 
 fn measure(doc: &Document, st: &Stream) -> (usize, Option<usize>) {
-    let Some(raw) = pdfce_core::writer::serialize::stream_data(st, doc.bytes()) else {
+    let Some(raw) = pdfcer_core::writer::serialize::stream_data(st, doc.bytes()) else {
         return (0, None);
     };
     let decoded = filters::decode_stream(&st.dict, raw).ok().map(|v| v.len());

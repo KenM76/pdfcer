@@ -21,7 +21,7 @@ That makes every line's left edge, right edge and midpoint an exact,
 hand-computable number, so a right/centre/justified paragraph can be laid out
 flush to an exact margin with no font-metric table in this script. No embedded
 font program is needed (extraction uses §9.10.2 rung 2; positions come from
-pdfce's own Courier metrics), so the fixture is legally clean (§5 category (a),
+pdfcer's own Courier metrics), so the fixture is legally clean (§5 category (a),
 wholly synthetic) and reproducible.
 
 WHAT THE FIXTURE PROVES (one file, five pages)

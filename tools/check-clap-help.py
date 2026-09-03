@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Every `pdfce-cli` subcommand must carry operator-facing help text.
+"""Every `pdfcer` subcommand must carry operator-facing help text.
 
 WHY THIS GATE EXISTS
 ====================
 
 `clap` derives a subcommand's `--help` description from the Rust doc comment
 on its `Command` enum variant. A variant with no doc comment therefore ships
-a **blank description** -- in `pdfce-cli --help`'s subcommand list, and as an
-empty first line of `pdfce-cli <sub> --help`. Nothing fails. The build is
+a **blank description** -- in `pdfcer --help`'s subcommand list, and as an
+empty first line of `pdfcer <sub> --help`. Nothing fails. The build is
 clean, `clippy` is clean, `missing_docs` does not apply (these are private
 items in a binary crate), and every test passes, because no test reads help
 text.
@@ -16,7 +16,7 @@ This is the operator-facing half of a defect class this project has now hit
 **eight times**: a doc comment that ends up attached to the wrong item, or to
 no item at all.
 
-  * Five instances in `crates/pdfce-core/src/edit.rs` were splices that
+  * Five instances in `crates/pdfcer-core/src/edit.rs` were splices that
     anchored on `pub fn name(` and landed INSIDE the preceding item's doc
     block, welding two blocks together. The recorded remedy -- insert AFTER a
     closing brace -- addresses the cause.
@@ -32,7 +32,7 @@ no item at all.
 WHAT THIS CHECKS, AND WHAT IT DELIBERATELY DOES NOT
 ====================================================
 
-Checks: every variant of `pdfce-cli`'s `Command` enum has a `///` doc comment
+Checks: every variant of `pdfcer`'s `Command` enum has a `///` doc comment
 (or an explicit `#[command(about = ...)]`, which is the other way to supply
 one).
 
@@ -65,7 +65,7 @@ import re
 import sys
 from pathlib import Path
 
-MAIN = Path(__file__).resolve().parent.parent / "crates" / "pdfce-cli" / "src" / "main.rs"
+MAIN = Path(__file__).resolve().parent.parent / "crates" / "pdfcer-cli" / "src" / "main.rs"
 
 # A variant declaration at the enum's own indentation: `    Name {`, `    Name(`
 # or `    Name,`. Anchored at exactly four spaces so a field inside a variant
@@ -160,7 +160,7 @@ def main() -> int:
             print(f"  {MAIN.name}:{ln}  {name}", file=sys.stderr)
         print(
             "\nclap derives `--help` from the doc comment on the variant. Without\n"
-            "one the subcommand appears in `pdfce-cli --help` with a blank\n"
+            "one the subcommand appears in `pdfcer --help` with a blank\n"
             "description and its own `--help` opens with an empty line. Nothing\n"
             "else in the build notices -- not clippy, not missing_docs (these are\n"
             "private items in a binary crate), not any test, because no test reads\n"

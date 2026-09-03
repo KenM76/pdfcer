@@ -3,7 +3,7 @@
 WHY THIS EXISTS
 ===============
 
-Large Rust files in this workspace (``edit.rs`` and ``pdfce-cli``'s
+Large Rust files in this workspace (``edit.rs`` and ``pdfcer``'s
 ``main.rs`` are both five figures of lines) are edited by anchored
 search-and-replace far more often than by hand. Two failure modes bit
 repeatedly during one session on 2026-08-11 — **six** and **two** times
@@ -67,7 +67,7 @@ USAGE
     sys.path.insert(0, 'tools')
     from splice import Splicer
 
-    sp = Splicer(r'crates/pdfce-core/src/edit.rs')
+    sp = Splicer(r'crates/pdfcer-core/src/edit.rs')
     sp.plan(old_text, new_text, 'what this edit is')
     sp.plan(other_old, other_new, 'the second edit')
     sp.apply()          # validates everything, then writes, then reports

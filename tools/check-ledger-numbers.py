@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""check-ledger-numbers.py — uniqueness gate for pdfce's numbered ledgers.
+"""check-ledger-numbers.py — uniqueness gate for pdfcer's numbered ledgers.
 
 WHY THIS EXISTS
 ===============
-pdfce keeps four hand-maintained numbered ledgers:
+pdfcer keeps four hand-maintained numbered ledgers:
 
   * Pass IDs            — `### Pass 18.7 — ...` headings in docs/ROADMAP.md
   * Standing rules      — `- **R106 — ...` items in ROADMAP's Standing rules
@@ -711,7 +711,7 @@ def ordinal_to_int(word):
     # UNIQUENESS, not to enforce house style: refusing to parse a heading
     # it can plainly understand would re-create the exact silent-skip this
     # commit is fixing, only one layer further in. The spelling convention
-    # is `pdfce-librarian`'s to enforce in prose; the ledger's job is to
+    # is `pdfcer-librarian`'s to enforce in prose; the ledger's job is to
     # know that 268 is taken.
     m = re.match(r"^(\d+)(?:st|nd|rd|th)$", w)
     if m:

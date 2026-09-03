@@ -1,12 +1,12 @@
-# pdfce
+# pdfcer
 
-# pdfce
+# pdfcer
 
 ## NOTE THAT THE GUI HAS BEEN MOVED INTO IT'S OWN PDFGUI PROJECT.
 I have split the GUI off into its own project with a proper plan.
 Do not use the one included in this project as it is obselete.
 New GUI is here:
-https://github.com/KenM76/pdfceGUI
+https://github.com/KenM76/pdfcer-gui
 
 If you need a fast RUST native pdf GUI editor and are planning it as an
 LLM project the core from this should save you weeks of time.
@@ -20,7 +20,7 @@ work today.
 
 It is a native desktop application — no web server, no browser runtime,
 no local network listener. It runs from a single folder, dependencies
-included, no installer. Alongside the GUI it ships **`pdfce-cli`**, a
+included, no installer. Alongside the GUI it ships **`pdfcer`**, a
 first-class scriptable command line with 108 subcommands, which is
 deliberately not a debug tool: Acrobat Pro has no real equivalent.
 
@@ -40,19 +40,19 @@ bit and AES-128, including the empty-user-password case that opens with
 no prompt at all.
 
 **Not built yet**, among other things: OCR, JavaScript, XFA, *writing*
-an encrypted document (pdfce decrypts to read and edit, but cannot yet
+an encrypted document (pdfcer decrypts to read and edit, but cannot yet
 write one back out), AES-256 and `/R 6` decryption, and a long tail of
-Acrobat Pro's surface. Some capabilities exist in `pdfce-core` and
-`pdfce-cli` but have no GUI yet.
+Acrobat Pro's surface. Some capabilities exist in `pdfcer-core` and
+`pdfcer` but have no GUI yet.
 
 **`docs/FEATURES.md` is the honest, current answer** — a capability
 list with per-surface (core / CLI / GUI) checkboxes, updated whenever a
 feature lands rather than at release time. Read that before assuming
 anything here is complete.
 
-The **[latest release](https://github.com/KenM76/pdfce/releases/latest)**
+The **[latest release](https://github.com/KenM76/pdfcer/releases/latest)**
 is a single-folder portable build for Windows x64. No installer, no
-registry writes: unzip it and run `pdfce-cli.exe`. The desktop GUI is the
+registry writes: unzip it and run `pdfcer.exe`. The desktop GUI is the
 separate [pdfcer-gui](https://github.com/KenM76/pdfcer-gui) project, which
 builds on this engine and ships its own releases.
 
@@ -77,21 +77,21 @@ builds on this engine and ships its own releases.
 
 ## Privacy, platform and signing
 
-> **pdfce does not use the network.** It contains no HTTP client and no
+> **pdfcer does not use the network.** It contains no HTTP client and no
 > TLS stack — you can confirm this yourself in
 > `THIRD_PARTY_LICENSES.md`, which lists every library linked into the
 > binary. There is no telemetry, no analytics, no crash reporting, no
 > licence check, and no update check. Every document you open is
 > processed entirely on your machine.
 >
-> If you click a link inside pdfce, pdfce hands the address to your
+> If you click a link inside pdfcer, pdfcer hands the address to your
 > operating system's default browser. The request is made by your
-> browser, not by pdfce.
+> browser, not by pdfcer.
 >
 > **Updates** are manual: download the new zip and replace the program
-> files (keep your `userdata` folder). pdfce will never update itself.
+> files (keep your `userdata` folder). pdfcer will never update itself.
 >
-> **Supported platform:** Windows 10/11, 64-bit. pdfce's code is kept
+> **Supported platform:** Windows 10/11, 64-bit. pdfcer's code is kept
 > portable and is compiled for Linux, macOS, and WebAssembly on every
 > change, but those builds are not tested or supported, and no artifact
 > is published for them.
@@ -107,7 +107,7 @@ builds on this engine and ships its own releases.
 
 ```sh
 cargo build --release
-cargo run --release -p pdfce-cli -- --help
+cargo run --release -p pdfcer-cli -- --help
 ```
 
 Rust toolchain version is pinned in `rust-toolchain.toml`. There are no
@@ -119,29 +119,29 @@ The engine crates, and the split is load-bearing rather than cosmetic:
 
 | Crate | Role |
 |---|---|
-| `pdfce-core` | The PDF engine — parsing, the object model, editing, writing. **Zero GUI or windowing dependencies.** |
-| `pdfce-render` | Headless rasterizer. Also zero GUI dependencies. |
-| `pdfce-cli` | The scriptable shell. |
+| `pdfcer-core` | The PDF engine — parsing, the object model, editing, writing. **Zero GUI or windowing dependencies.** |
+| `pdfcer-render` | Headless rasterizer. Also zero GUI dependencies. |
+| `pdfcer-cli` | The scriptable shell; its binary is `pdfcer`. |
 
 The desktop application is **not** in this repository. The original in-repo
 GUI crate was removed in Pass 247.0 (2026-09-03); the shipping GUI is the
-separate `pdfcer-gui` project, which depends on `pdfce-core` and
-`pdfce-render` exactly as `pdfce-cli` does — two independent front ends
+separate `pdfcer-gui` project, which depends on `pdfcer-core` and
+`pdfcer-render` exactly as `pdfcer` does — two independent front ends
 over one engine.
 
 Two invariants shape most decisions:
 
-- **GUI–core separation.** `pdfce-core` and `pdfce-render` never gain a
+- **GUI–core separation.** `pdfcer-core` and `pdfcer-render` never gain a
   GUI dependency, which is what keeps an eventual WebAssembly build a
   shell-crate swap instead of a rewrite — and what makes the GUI and
   CLI two independent front ends over one engine.
-- **Round-trip / minimal-diff editing.** Objects pdfce did not
+- **Round-trip / minimal-diff editing.** Objects pdfcer did not
   logically touch are re-emitted byte-identically, or simply omitted
   under the default incremental save. Redaction is the one deliberate
   exception: it must genuinely remove covered content, not mask it.
 
 Where the PDF standard is genuinely ambiguous — and it often is —
-pdfce does not pick silently. The choice becomes an operator setting
+pdfcer does not pick silently. The choice becomes an operator setting
 with a documented default, reachable from *File → Settings* or from a
 plain-text file beside the program. Each one states what the standard
 leaves open, how well-founded the default is, and whether changing it
@@ -151,11 +151,11 @@ affects the file or only the view.
 
 | Doc | What's in it |
 |---|---|
-| `docs/FEATURES.md` | **What pdfce can do today**, per surface. Start here. |
+| `docs/FEATURES.md` | **What pdfcer can do today**, per surface. Start here. |
 | `docs/ARCHITECTURE.md` | Crate layout, data model, invariants, packaging, dated decision log. |
 | `docs/ROADMAP.md` | Pass-by-pass plan and history, with the full reasoning. Large. |
 | `docs/decisions/` | Numbered decision records for the choices that needed one. |
-| `docs/DEPENDENCIES.md` | What each third-party package is *for*, by crate, and what pdfce implements itself instead. The purpose-shaped view `THIRD_PARTY_LICENSES.md` (generated, licence-shaped) can't give you. |
+| `docs/DEPENDENCIES.md` | What each third-party package is *for*, by crate, and what pdfcer implements itself instead. The purpose-shaped view `THIRD_PARTY_LICENSES.md` (generated, licence-shaped) can't give you. |
 | `docs/LEGAL.md` | Licensing posture, PDF-spec sourcing rules, test-corpus rules, dependency attribution. |
 | `docs/PRIOR_ART.md` | What existing crates and tools were adopted, what was reference-only, and why. |
 | `docs/SESSION_LOG.md` | Append-only development record. |
@@ -192,7 +192,7 @@ first.
 
 Third-party dependency licences are generated into
 `THIRD_PARTY_LICENSES.md` by `cargo-about` and are all permissive; no
-copyleft code is linked. pdfce deliberately does not use GPL/AGPL PDF
+copyleft code is linked. pdfcer deliberately does not use GPL/AGPL PDF
 engines (MuPDF, Poppler, Ghostscript), which is why several things were
 implemented from the specification rather than adapted from existing
 code.

@@ -41,7 +41,7 @@ cat <<'EOF'
 
 Done. Next steps (do NOT commit fixtures/external/ wholesale):
   1. Browse fixtures/external/*/ for files that exercise a specific
-     pdfce-core code path you're testing.
+     pdfcer-core code path you're testing.
   2. Copy the specific file(s) you need into fixtures/<category>/,
      with a one-line comment (in the test that uses it, or a sibling
      .md note) recording which source it came from and why.

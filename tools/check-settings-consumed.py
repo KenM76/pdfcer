@@ -8,7 +8,7 @@ Standing rule **R83 — no affordance without capability**. A setting that
 round-trips through ``userdata/settings.txt``, is documented in that
 file's own comments, and is then read by nothing is worse than no setting
 at all: the operator changes it, sees no effect, and reasonably concludes
-pdfce is broken rather than that the knob is decorative.
+pdfcer is broken rather than that the knob is decorative.
 
 This is not hypothetical. The Pass that introduced the settings store
 shipped **two** such fields in its very first commit — ``separations`` and
@@ -25,7 +25,7 @@ WHAT IT CHECKS
 ==============
 
 For every ``pub`` field of ``Settings`` in
-``crates/pdfce-core/src/settings/mod.rs``:
+``crates/pdfcer-core/src/settings/mod.rs``:
 
 1. The field must be **parsed** — its key must appear in an ``apply`` arm,
    or it can never be set from the file.
@@ -39,13 +39,13 @@ For every ``pub`` field of ``Settings`` in
 
 ★ WIDENED 2026-08-18, AFTER IT MISSED THE DEFECT IT EXISTS FOR
 =============================================================
-`DeviceSettings::pick_tray_by_page_size` in ``pdfce-print`` was declared,
+`DeviceSettings::pick_tray_by_page_size` in ``pdfcer-print`` was declared,
 documented, plumbed through ``spool``, **bound to a checkbox that shipped in
 the GUI**, and read by nothing. Exactly R83's failure: the operator ticks a
 box and nothing happens.
 
 This gate did not catch it, and could not have. It was hard-scoped to the
-``Settings`` struct in ``pdfce-core/src/settings/mod.rs`` — one struct, in
+``Settings`` struct in ``pdfcer-core/src/settings/mod.rs`` — one struct, in
 one file, in one crate — while the defect class it was written for is
 "a `pub` option field that no code reads", which is not confined to that
 struct. **A gate scoped to one instance of a class reports clean on the
@@ -77,14 +77,14 @@ Three things had to be right before it caught anything, and each was found
 by sabotage after the previous one looked sufficient: the struct list, the
 read-vs-write distinction (a ``&mut`` borrow handed to a checkbox is the
 PRODUCER, not a consumer), and ``CONSUMER_ROOTS`` — which had never included
-``pdfce-print`` at all, so no pattern could have found a reader in the crate
+``pdfcer-print`` at all, so no pattern could have found a reader in the crate
 the setting lives in.
 
 WHAT IT DELIBERATELY DOES NOT CHECK
 ===================================
 
 That the consumer is *correct*, or that it reaches the pixels/bytes. That
-is a test's job — see ``crates/pdfce-render/tests/cmyk_intent.rs``, which
+is a test's job — see ``crates/pdfcer-render/tests/cmyk_intent.rs``, which
 proves the CMYK intent survives the whole distance from ``RenderOptions``
 to a rendered pixel. This gate only catches the cheaper, dumber failure:
 nobody wired it at all. A grep-based gate that tried to judge semantics
@@ -136,22 +136,22 @@ CONSUMED_BY_OUT_OF_TREE_GUI: dict[str, str] = {
 
 
 ROOT = Path(__file__).resolve().parent.parent
-SETTINGS = ROOT / "crates" / "pdfce-core" / "src" / "settings" / "mod.rs"
+SETTINGS = ROOT / "crates" / "pdfcer-core" / "src" / "settings" / "mod.rs"
 
 # Where a setting may legitimately be consumed. The settings module itself
 # is excluded on purpose (see the module docstring).
 CONSUMER_ROOTS = [
-    ROOT / "crates" / "pdfce-cli" / "src",
-    ROOT / "crates" / "pdfce-render" / "src",
-    ROOT / "crates" / "pdfce-core" / "src",
-    # pdfce-print and pdfce-fetch were ABSENT until 2026-08-18, and that
+    ROOT / "crates" / "pdfcer-cli" / "src",
+    ROOT / "crates" / "pdfcer-render" / "src",
+    ROOT / "crates" / "pdfcer-core" / "src",
+    # pdfcer-print and pdfcer-fetch were ABSENT until 2026-08-18, and that
     # absence — not the pattern, not the struct list — is the deepest reason
     # `DeviceSettings::pick_tray_by_page_size` shipped inert. The gate did
     # not scan the crate the setting lives in, so no regex it used could
     # have found a reader there. A gate's INPUT SET is part of the gate, and
     # this one silently excluded two of the six crates.
-    ROOT / "crates" / "pdfce-print" / "src",
-    ROOT / "crates" / "pdfce-fetch" / "src",
+    ROOT / "crates" / "pdfcer-print" / "src",
+    ROOT / "crates" / "pdfcer-fetch" / "src",
 ]
 
 
@@ -165,7 +165,7 @@ CONSUMER_ROOTS = [
 # value through its own module proves the parser works, not that the program
 # does anything with it. Carrying that rule over to option structs is a
 # mistake: an option struct is an INPUT TO its own crate, so the crate
-# reading it IS the consumption. Excluding `crates/pdfce-render/src` made
+# reading it IS the consumption. Excluding `crates/pdfcer-render/src` made
 # the gate report `RenderOptions.annotation_scope` unread when
 # `effective_annotation_scope()` reads it three lines from its declaration.
 #
@@ -176,8 +176,8 @@ CONSUMER_ROOTS = [
 # field declaration is `pub name: Type` and does not match `.name`, so a
 # struct that only declares a field cannot satisfy this check by accident.
 OPTION_STRUCTS = [
-    ("crates/pdfce-print/src/lib.rs", "DeviceSettings"),
-    ("crates/pdfce-render/src/font/mod.rs", "RenderOptions"),
+    ("crates/pdfcer-print/src/lib.rs", "DeviceSettings"),
+    ("crates/pdfcer-render/src/font/mod.rs", "RenderOptions"),
 ]
 
 
@@ -250,7 +250,7 @@ def check_option_structs() -> list[str]:
             # the write and reports clean.
             #
             # Verified by sabotage: with every genuine read removed
-            # from `pdfce-print`, the naive pattern still matched
+            # from `pdfcer-print`, the naive pattern still matched
             # `pdfce-gui/src/print_flow.rs` and the gate PASSED. It
             # only goes red once assignments are excluded.
             #
@@ -290,7 +290,7 @@ def check_option_structs() -> list[str]:
             # exist, not the thing that honoured it.
             #
             # Found the same way as the last two: by sabotage. Removing
-            # every genuine read from `pdfce-print` left the gate GREEN
+            # every genuine read from `pdfcer-print` left the gate GREEN
             # twice -- once on the raw `.field` pattern and again after
             # assignments were excluded -- because this one borrow kept
             # matching.

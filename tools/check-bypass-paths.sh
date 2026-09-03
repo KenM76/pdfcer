@@ -79,7 +79,7 @@
 #    consistent across both paths and is an add-text/edit-text inconsistency,
 #    not a session/standalone one. Filed separately; do not "fix" it here.
 #
-# 8. `pdfce-cli`'s `round-trip` subcommand — `DirtySet::empty()` is identity
+# 8. `pdfcer`'s `round-trip` subcommand — `DirtySet::empty()` is identity
 #    re-emission. It mutates NOTHING; it exists to prove the writer reproduces
 #    a file byte-for-byte. An instrument, like `tools/`.
 #
@@ -112,13 +112,13 @@ report=""
 
 while IFS= read -r file; do
   case "$file" in
-    */pdfce-core/src/edit.rs) continue ;;
-    */pdfce-core/src/writer/*) continue ;;
-    */pdfce-core/src/redact.rs) continue ;;
-    */pdfce-core/src/document.rs) continue ;;
+    */pdfcer-core/src/edit.rs) continue ;;
+    */pdfcer-core/src/writer/*) continue ;;
+    */pdfcer-core/src/redact.rs) continue ;;
+    */pdfcer-core/src/document.rs) continue ;;
     */tests/*) continue ;;
-    */pdfce-core/src/text_edit/addtext.rs) continue ;;
-    */pdfce-core/src/text_edit/edit.rs) continue ;;
+    */pdfcer-core/src/text_edit/addtext.rs) continue ;;
+    */pdfcer-core/src/text_edit/edit.rs) continue ;;
     ./tools/*) continue ;;
   esac
 

@@ -6,8 +6,8 @@ WHY THIS EXISTS
 `docs/decisions/010` sequences render-fidelity verification (candidate C,
 Pass 11) *ahead* of vector/content-stream editing (candidate A) for one
 structural reason: vector editing is the first subsystem whose correctness
-oracle is independent *visual* fidelity. pdfce's existing round-trip oracle
-(`tools/content-identity`, `tools/roundtrip`) proves pdfce agrees with
+oracle is independent *visual* fidelity. pdfcer's existing round-trip oracle
+(`tools/content-identity`, `tools/roundtrip`) proves pdfcer agrees with
 ITSELF — sufficient for additive authoring, useless for proving an *edited*
 page still renders *correctly*. That needs an independent reference renderer.
 
@@ -15,7 +15,7 @@ This harness is that oracle. It generalizes `tools/annot-pdfium-diff.py`
 (an ink-bounding-box differential on 7 annotation fixtures) into a
 FULL-PAGE, per-channel, per-pixel differential between:
 
-  * pdfce   — via the shipped `pdfce-cli render-page` binary (the same
+  * pdfcer   — via the shipped `pdfcer render-page` binary (the same
               read path the GUI uses), and
   * pdfium  — via `pypdfium2` (the engine inside Chrome; the decision 006
               §3.2 tooling precedent),
@@ -23,7 +23,7 @@ FULL-PAGE, per-channel, per-pixel differential between:
 over the whole loadable conformance corpus (`fixtures/external`, ~2,914
 files). It is out-of-tree tooling exactly like the other corpus harnesses:
 it is never shipped, never in `cargo test`, never in the GUI-core
-`cargo tree` invariant, and pypdfium2 never enters pdfce's runtime
+`cargo tree` invariant, and pypdfium2 never enters pdfcer's runtime
 dependency set or `THIRD_PARTY_LICENSES.md` (decision 010 acceptance;
 LEGAL §6).
 
@@ -53,35 +53,35 @@ The band is NOT a hand-picked number. It is derived from the data:
      touches a LARGE contiguous AREA, i.e. a large fraction. Fraction-of-
      area, not max-delta, is the noise-robust discriminator.)
 
-  2. Each page is tagged with pdfce's OWN disclosed diagnostics (the
+  2. Each page is tagged with pdfcer's OWN disclosed diagnostics (the
      `render-page` stdout tally): does it substitute glyphs, skip a Type3
      font, defer an `sh`/marked-content operator, drop an image codec,
      carry a DeviceCMYK JPEG, etc.? A page with ZERO disclosed gaps AND no
      DeviceCMYK content is "clean-by-construction": whatever it diverges by
-     CAN ONLY be renderer noise, because pdfce itself claims to render it
+     CAN ONLY be renderer noise, because pdfcer itself claims to render it
      fully.
 
   3. The benign band is the high percentile (default p99.0, configurable
      and reported) of `frac_over_32` OVER THE CLEAN-BY-CONSTRUCTION PAGES
      ONLY. The band is a property of the known-benign population, so it
      cannot be "tuned to make a bug pass" — a bug lives, by definition,
-     either on a page pdfce discloses a gap for (bucket ii) or in the
+     either on a page pdfcer discloses a gap for (bucket ii) or in the
      residual tail of clean pages ABOVE their own noise floor (bucket iii).
 
 THE THREE BUCKETS (decision 010 deliverable 3; R20 by-file-and-reason)
 ======================================================================
 Every (file, page) is classified:
 
-  (i)   below-band            — frac_over_32 <= band AND pdfce disclosed
+  (i)   below-band            — frac_over_32 <= band AND pdfcer disclosed
                                  nothing. NOT a verdict of "benign": it was
                                  called `benign-renderer-noise` until
                                  2026-08-09, which asserted a CAUSE from a
                                  THRESHOLD. A structural audit measured
                                  15.4% of that population as not
                                  edge-shaped, and found four confirmed
-                                 pdfce bugs inside it. Small and
+                                 pdfcer bugs inside it. Small and
                                  unexplained; nothing more.
-  (ii)  disclosed-gap[-small]  — pdfce disclosed a gap that explains it
+  (ii)  disclosed-gap[-small]  — pdfcer disclosed a gap that explains it
                                  (Type3, sh shading, /SMask, /OC, image
                                  codec, DeviceCMYK, a substituted font
                                  face, ...). Checked BEFORE the band: an
@@ -91,25 +91,25 @@ Every (file, page) is classified:
                                  marks the below-band half. Formerly this
                                  test ran AFTER the band, which filed
                                  1,656 explained pages as renderer noise —
-                                 including a page pdfce rendered blank.
-  (ii-legacy) known-disclosed-gap — frac_over_32 > band AND pdfce disclosed a
+                                 including a page pdfcer rendered blank.
+  (ii-legacy) known-disclosed-gap — frac_over_32 > band AND pdfcer disclosed a
                                  gap that explains it (Type3, sh shading,
                                  /SMask, /OC, image codec, DeviceCMYK, a
                                  substituted font face, ...). Cross-checked
-                                 against pdfce's existing Diagnostics tally
+                                 against pdfcer's existing Diagnostics tally
                                  so an already-counted gap is SUBTRACTED,
                                  not re-reported as a new bug.
   (iii) unexplained-divergence — frac_over_32 > band AND no disclosed gap
                                  explains it. The genuine bug candidates —
                                  the residual after subtracting (i)+(ii).
 
-Plus three side classifications that are NOT pdfce errors:
+Plus three side classifications that are NOT pdfcer errors:
 
   * reference-divergence — (only in --annots mode) the page carries a
     /Widget or a no-/AP annotation; pdfium needs FPDF_FFLDraw to draw
     widgets and SYNTHESIZES some no-/AP appearances (e.g. /Circle /IC fill)
-    that R43 makes pdfce correctly REFUSE (Pass 6.0 finding). Bucketed
-    reference-side so pdfium's own quirks are never misattributed to pdfce
+    that R43 makes pdfcer correctly REFUSE (Pass 6.0 finding). Bucketed
+    reference-side so pdfium's own quirks are never misattributed to pdfcer
     (decision 010 deliverable 5 / risk Y2). The DEFAULT run is content-only
     (annotations off on both sides), which structurally avoids this
     confounder entirely — the vector-editing oracle cares about page
@@ -118,10 +118,10 @@ Plus three side classifications that are NOT pdfce errors:
   * reference-aborted — pdfium did not "fail", it DIED: an internal CHECK,
     a segfault, a heap corruption, or a hang. See "CRASH ISOLATION" below.
     A reference renderer that aborts on a file has told us nothing about
-    pdfce, so this can never be a pdfce bucket; it is a named, counted,
+    pdfcer, so this can never be a pdfcer bucket; it is a named, counted,
     enumerated property of the REFERENCE tool on that file.
 
-  * skipped — pdfce could not load/render, or pdfium reported a catchable
+  * skipped — pdfcer could not load/render, or pdfium reported a catchable
     failure, or the page boxes disagree past `--dim-tol`. Out of scope, like
     the roundtrip gate's unloadable files. Counted, never silently dropped.
 
@@ -137,7 +137,7 @@ That is **not a Python exception**. It cannot be caught. When this harness
 imported `pypdfium2` into its OWN process it therefore died outright at that
 file (~index 300 of 4,023 in sorted order), with no traceback, no partial
 report, and every accumulated result lost — which is why the corpus sweep
-had been unrunnable. pdfce, for the record, handles the same file correctly:
+had been unrunnable. pdfcer, for the record, handles the same file correctly:
 it refuses it with `not a PDF: no %PDF- header in the first 759 bytes`, exit
 4. The fault is entirely reference-side.
 
@@ -178,7 +178,7 @@ runs BEFORE the sweep, so a mismatch costs a second, not an hour.
 OUTPUTS (deterministic, locale-invariant)
 =========================================
   out/per-page.tsv   — one row per (file, page): dims, metrics, bucket,
-                        reason, the raw pdfce diagnostics. Sorted.
+                        reason, the raw pdfcer diagnostics. Sorted.
   out/per-page.partial.tsv — the streamed, crash-surviving copy (bucket
                         column blank; buckets need the whole population).
                         Removed on a clean, complete run.
@@ -188,7 +188,7 @@ OUTPUTS (deterministic, locale-invariant)
                         unexplained tail (R20) + the aborted-file list.
   out/summary.json    — the same, machine-readable, for a gate/CI check;
                         carries `corpus_fingerprint` and `run.complete`.
-  out/diffs/*.png     — side-by-side (pdfce | pdfium | 8x-amplified delta)
+  out/diffs/*.png     — side-by-side (pdfcer | pdfium | 8x-amplified delta)
                         panels for the top unexplained pages and any page
                         named with --diff, for eyeball triage / the demo.
 
@@ -218,8 +218,8 @@ USAGE
     # gate mode for a render-touching Pass
     python render_parity.py --gate --max-unexplained 0
 
-Requires: pypdfium2, numpy, Pillow, and a built `pdfce-cli` release binary
-(`cargo build --release -p pdfce-cli`).
+Requires: pypdfium2, numpy, Pillow, and a built `pdfcer` release binary
+(`cargo build --release -p pdfcer-cli`).
 """
 
 from __future__ import annotations
@@ -253,7 +253,7 @@ WORKER = HERE / "pdfium_worker.py"
 ROOT = HERE.parent.parent
 DEFAULT_CORPUS = ROOT / "fixtures" / "external"
 CLI = ROOT / "target" / "release" / (
-    "pdfce-cli.exe" if sys.platform == "win32" else "pdfce-cli"
+    "pdfcer.exe" if sys.platform == "win32" else "pdfcer"
 )
 
 # Per-pixel delta threshold (0..255) above which a pixel "differs
@@ -575,7 +575,7 @@ def probe_abort_in_isolation(path: Path, page0: int, scale: float, annots: bool,
 def devicecmyk_in_file(path: Path) -> bool:
     """Whether the raw file bytes mention `/DeviceCMYK`.
 
-    WHY a byte scan and not a diagnostics counter: pdfce's render Diagnostics
+    WHY a byte scan and not a diagnostics counter: pdfcer's render Diagnostics
     count DeviceCMYK *JPEGs* (`dct_cmyk`) but there is no counter for
     DeviceCMYK *vector* fills/strokes, and decision 006 §3.7 established that
     the naive-additive `Rgb::from_cmyk` colorimetry gap affects ALL
@@ -591,7 +591,7 @@ def devicecmyk_in_file(path: Path) -> bool:
         return False
 
 
-# --- pdfce diagnostics -----------------------------------------------------
+# --- pdfcer diagnostics -----------------------------------------------------
 
 # Map of `render-page` stdout keys -> whether a non-zero value is a
 # CONTENT-affecting disclosed gap that would legitimately diverge from
@@ -625,9 +625,9 @@ REF_KEYS = {
 # WHY THESE ARE REFERENCE-DIVERGENCES AND NOT DISCLOSED GAPS
 # ==========================================================
 # The distinction between GAP_KEYS and a reference-divergence is not a matter
-# of taste: it is the claim about WHO is wrong. A disclosed gap says pdfce
-# could not do something. A reference-divergence says pdfce did it correctly
-# and pdfium did not, so the comparison carries no information about pdfce.
+# of taste: it is the claim about WHO is wrong. A disclosed gap says pdfcer
+# could not do something. A reference-divergence says pdfcer did it correctly
+# and pdfium did not, so the comparison carries no information about pdfcer.
 # Asserting the second needs an oracle that is neither renderer, and for
 # these two keys there is one.
 #
@@ -637,29 +637,29 @@ REF_KEYS = {
 # that arithmetic independently of both renderers. Measured 2026-08-17 over
 # 3,600 interior texels per space:
 #
-#     space     pdfce mean / max      pdfium mean / max
+#     space     pdfcer mean / max      pdfium mean / max
 #     lab         0.019 / 1             40.854 / 152
 #     calgray     0.000 / 0              2.000 /   9
 #     calrgb      0.030 / 1              3.012 /   9
 #
-# pdfce is exact to within one 8-bit code on all three; pdfium is not. The
-# session handoff had recorded the opposite assumption -- that pdfce's
+# pdfcer is exact to within one 8-bit code on all three; pdfium is not. The
+# session handoff had recorded the opposite assumption -- that pdfcer's
 # uncalibrated conversion was the CAUSE of the lab.pdf divergence -- and the
 # measurement reversed it.
 #
 # `img_colorant_none` fires for a /Separation /None image, which 8.6.6.4 says
-# "shall never be painted on the page". pdfce leaves the backdrop untouched;
-# pdfium paints the image SOLID BLACK. Measured on sep-none.pdf: every pdfce
+# "shall never be painted on the page". pdfcer leaves the backdrop untouched;
+# pdfium paints the image SOLID BLACK. Measured on sep-none.pdf: every pdfcer
 # pixel (255,255,255) against every pdfium pixel (0,0,0), frac32 = 1.0. That
-# is the maximum divergence the harness can report, and all of it is pdfce
+# is the maximum divergence the harness can report, and all of it is pdfcer
 # being right.
 #
 # THE COST, STATED RATHER THAN HIDDEN
 # ===================================
 # Classifying a page this way removes it from the bug-candidate pool, so a
-# REAL pdfce defect on a page that also carries a Lab image would be masked.
+# REAL pdfcer defect on a page that also carries a Lab image would be masked.
 # That is accepted deliberately, because a page pdfium renders wrongly cannot
-# yield a verdict about pdfce either way -- but it is why the analytic oracle
+# yield a verdict about pdfcer either way -- but it is why the analytic oracle
 # above exists as a separate, non-comparative check. Run it, not this harness,
 # when the question is whether the CIE-based conversions are correct.
 IMAGE_REF_KEYS = {
@@ -672,7 +672,7 @@ def parse_diag_line(line: str) -> dict[str, int] | None:
     """Parse the `render-page` stdout stable line into {key: int}.
 
     Also extracts the raster dimensions from the `-> <path> WxH` clause. The
-    line's contract (pdfce-cli module docs) is append-only key=value pairs,
+    line's contract (pdfcer module docs) is append-only key=value pairs,
     so a robust `k=v` scan survives future counter additions.
     """
     if "->" not in line:
@@ -734,7 +734,7 @@ def to_white_rgb(img: Image.Image) -> np.ndarray:
 def render_pdfce(
     path: Path, page: int, scale: float, annots: bool, tmp: Path, timeout: float
 ) -> tuple[np.ndarray, dict[str, int]]:
-    """Render one page via the pdfce CLI; return (rgb array, diagnostics).
+    """Render one page via the pdfcer CLI; return (rgb array, diagnostics).
 
     decision 012 R63 — the gate is BUNDLED-ONLY by construction: this
     command deliberately never passes `--font-dir`, so the renderer uses
@@ -744,9 +744,9 @@ def render_pdfce(
     `--font-dir` here (or reading one from the environment) would break the
     gate's reproducibility. The invariant is enforced at the render layer
     too (`render_is_font_dir_independent_for_unreferenced_supplied_faces`
-    in `crates/pdfce-render/src/lib.rs`).
+    in `crates/pdfcer-render/src/lib.rs`).
     """
-    out = tmp / "pdfce.png"
+    out = tmp / "pdfcer.png"
     cmd = [
         str(CLI), "render-page", str(path),
         "--page", str(page), "--scale", f"{scale:.6f}", "-o", str(out),
@@ -756,18 +756,18 @@ def render_pdfce(
     r = subprocess.run(cmd, capture_output=True, timeout=timeout)
     if r.returncode != 0:
         raise RuntimeError(
-            "pdfce render rc=%d: %s"
+            "pdfcer render rc=%d: %s"
             % (r.returncode, r.stderr.decode(errors="replace").strip()[:200])
         )
     diag = parse_diag_line(r.stdout.decode(errors="replace")) or {}
-    # `pdfce-cli` prints "note: N structural oddity(ies) tolerated" to
+    # `pdfcer` prints "note: N structural oddity(ies) tolerated" to
     # STDERR, and this function parsed only stdout — so the one thing
-    # pdfce says when it could not act on something was structurally
+    # pdfcer says when it could not act on something was structurally
     # invisible to its own differential oracle.
     #
     # 442 of 3,714 measured pages (11.9%) emit it, and 202 of the 2,015
     # CLEAN-BY-CONSTRUCTION pages do (10.0%). Every one of those helped
-    # define the band while privately reporting that pdfce had skipped
+    # define the band while privately reporting that pdfcer had skipped
     # something. That is the mechanism by which a silent bug raises the
     # threshold that hides other bugs.
     err = r.stderr.decode(errors="replace")
@@ -819,7 +819,7 @@ def gap_reasons(diag: dict[str, int]) -> list[str]:
 
 
 def ref_reasons(diag: dict[str, int], annots: bool) -> list[str]:
-    """Reasons the REFERENCE renderer -- not pdfce -- is the divergent one.
+    """Reasons the REFERENCE renderer -- not pdfcer -- is the divergent one.
 
     `annots` gates only the annotation half: those counters are always zero
     outside `--annots` mode, so consulting them there would be noise. The
@@ -994,7 +994,7 @@ def stale_baseline_banner(cmp_: dict, outdir: Path, rebaseline: bool) -> list[st
         "",
         "   Bucket counts from different corpora are NOT a regression signal. A rise in",
         "   `unexplained` across a corpus-size change measures the new files, not a",
-        "   change in pdfce. Do not diff these two numbers.",
+        "   change in pdfcer. Do not diff these two numbers.",
         "",
     ]
     if rebaseline:
@@ -1031,12 +1031,12 @@ def choose_pages(n_pages: int, cap: int) -> list[int]:
 
 
 def amplify_delta_panel(
-    pdfce: np.ndarray, pdfium_img: np.ndarray, delta: np.ndarray
+    pdfcer: np.ndarray, pdfium_img: np.ndarray, delta: np.ndarray
 ) -> Image.Image:
-    """Build a [pdfce | pdfium | 8x-amplified delta] side-by-side panel."""
-    h = min(pdfce.shape[0], pdfium_img.shape[0], delta.shape[0])
-    w = min(pdfce.shape[1], pdfium_img.shape[1], delta.shape[1])
-    a = pdfce[:h, :w, :]
+    """Build a [pdfcer | pdfium | 8x-amplified delta] side-by-side panel."""
+    h = min(pdfcer.shape[0], pdfium_img.shape[0], delta.shape[0])
+    w = min(pdfcer.shape[1], pdfium_img.shape[1], delta.shape[1])
+    a = pdfcer[:h, :w, :]
     b = pdfium_img[:h, :w, :]
     d = np.clip(delta[:h, :w].astype(np.int32) * 8, 0, 255).astype(np.uint8)
     dmap = np.stack([d, d, d], axis=2)  # grey heatmap; brighter = larger delta
@@ -1097,8 +1097,8 @@ def run(args: argparse.Namespace) -> int:
     if args.cli:
         CLI = Path(args.cli).resolve()
     if not CLI.exists():
-        print(f"ERROR: pdfce-cli not found at {CLI}\n"
-              f"       build it first: cargo build --release -p pdfce-cli", file=sys.stderr)
+        print(f"ERROR: pdfcer not found at {CLI}\n"
+              f"       build it first: cargo build --release -p pdfcer-cli", file=sys.stderr)
         return 2
     if not WORKER.exists():
         print(f"ERROR: reference-renderer worker missing: {WORKER}", file=sys.stderr)
@@ -1151,7 +1151,7 @@ def run(args: argparse.Namespace) -> int:
         print("\n".join(banner), file=sys.stderr)
         if not args.rebaseline:
             # Exit 3 — distinct from 1 (gate FAIL) and 2 (setup error), so a
-            # script can tell "your baseline is stale" from "pdfce regressed".
+            # script can tell "your baseline is stale" from "pdfcer regressed".
             return 3
         archive = outdir / (
             f"summary.superseded-{(prior.get('corpus') or {}).get('files_seen', 'x')}"
@@ -1295,9 +1295,9 @@ def run(args: argparse.Namespace) -> int:
     #
     # THE GAP TEST COMES FIRST. It used to come after the band, and the
     # ordering was not a detail: 1,656 of 3,668 pages in the old "benign"
-    # bucket (45.2%) were pages where pdfce ITSELF disclosed a gap —
+    # bucket (45.2%) were pages where pdfcer ITSELF disclosed a gap —
     # 1,032 deferred-op, 573 font-substituted, 139 font-unsupported, and
-    # so on. The worst single case was a page pdfce rendered COMPLETELY
+    # so on. The worst single case was a page pdfcer rendered COMPLETELY
     # BLANK (`pdfbox/.../merge/multitiff.pdf`, `image-unsupported`
     # disclosed): frac32 0.0798 under a band of 0.0882, so it was filed
     # as renderer noise.
@@ -1311,7 +1311,7 @@ def run(args: argparse.Namespace) -> int:
     # asserted a CAUSE from a THRESHOLD, and the structural audit of
     # 2026-08-09 measured how often that assertion is wrong: 15.4% of the
     # bucket contains a contiguous over-threshold region no shared edge
-    # explains, and four confirmed pdfce bugs were living in it. The
+    # explains, and four confirmed pdfcer bugs were living in it. The
     # buckets are now named for what is actually measured.
     for r in ok:
         if r.refdiv:
@@ -1395,11 +1395,11 @@ def measure_page(
     panics, and — since the reference renderer now lives in a child — zero
     process deaths."""
     try:
-        pdfce_img, diag = render_pdfce(abs_, pg, scale, args.annots, tmp, args.timeout)
+        pdfcer_img, diag = render_pdfce(abs_, pg, scale, args.annots, tmp, args.timeout)
     except subprocess.TimeoutExpired:
-        return PageResult(rel, pg, "skip", "pdfce-timeout")
+        return PageResult(rel, pg, "skip", "pdfcer-timeout")
     except Exception as e:  # noqa: BLE001
-        return PageResult(rel, pg, "skip", f"pdfce: {str(e)[:80]}")
+        return PageResult(rel, pg, "skip", f"pdfcer: {str(e)[:80]}")
     try:
         pdfium_img = worker.render(abs_, pg - 1, scale, args.annots, tmp / "pdfium.raw")
     except ReferenceAborted as exc:
@@ -1409,17 +1409,17 @@ def measure_page(
     except Exception as e:  # noqa: BLE001
         return PageResult(rel, pg, "skip", f"pdfium: {str(e)[:80]}")
 
-    delta, stats, dim_mismatch = compare(pdfce_img, pdfium_img)
+    delta, stats, dim_mismatch = compare(pdfcer_img, pdfium_img)
     gaps = gap_reasons(diag)
     refs = ref_reasons(diag, args.annots)
     if dcmyk:
         gaps = gaps + ["devicecmyk-file"] if "devicecmyk-jpeg" not in gaps else gaps
     # `tolerated` disqualifies a page from DEFINING the band.
     #
-    # "Clean by construction" means pdfce claims to have rendered the page
+    # "Clean by construction" means pdfcer claims to have rendered the page
     # fully, so whatever it diverges by can only be renderer noise. A page
     # that tolerated a structural oddity is making the opposite claim: it
-    # says pdfce hit something it could not act on. Such a page may still
+    # says pdfcer hit something it could not act on. Such a page may still
     # be fine, but it cannot be part of the population that DEFINES what
     # "fine" looks like.
     #
@@ -1437,8 +1437,8 @@ def measure_page(
 
     pr = PageResult(
         rel=rel, page=pg, status="ok",
-        w=min(pdfce_img.shape[1], pdfium_img.shape[1]),
-        h=min(pdfce_img.shape[0], pdfium_img.shape[0]),
+        w=min(pdfcer_img.shape[1], pdfium_img.shape[1]),
+        h=min(pdfcer_img.shape[0], pdfium_img.shape[0]),
         mean=stats["mean"], p95=stats["p95"], dmax=stats["dmax"],
         frac16=stats["frac16"], frac32=stats["frac32"], frac64=stats["frac64"],
         dim_mismatch=dim_mismatch, clean=clean, devicecmyk=int(dcmyk),
@@ -1447,7 +1447,7 @@ def measure_page(
     # Retain arrays only for the worst pages so we can emit diff panels
     # without re-rendering; bounded by keeping them light (frac32 gate).
     if args.emit_diffs > 0 and stats["frac32"] > 0.001:
-        pr._arrays = (pdfce_img, pdfium_img, delta)
+        pr._arrays = (pdfcer_img, pdfium_img, delta)
     return pr
 
 
@@ -1458,10 +1458,10 @@ def emit_diff_panels(ok, diff_target, args, outdir, scale, tmp_reuse) -> None:
         w = PdfiumWorker(timeout=args.pdfium_timeout)
         try:
             with tempfile.TemporaryDirectory() as td:
-                pdfce_img, _ = render_pdfce(abs_, pg, scale, args.annots, Path(td), args.timeout)
+                pdfcer_img, _ = render_pdfce(abs_, pg, scale, args.annots, Path(td), args.timeout)
                 pdfium_img = w.render(abs_, pg - 1, scale, args.annots, Path(td) / "d.raw")
-            delta, _, _ = compare(pdfce_img, pdfium_img)
-            panel = amplify_delta_panel(pdfce_img, pdfium_img, delta)
+            delta, _, _ = compare(pdfcer_img, pdfium_img)
+            panel = amplify_delta_panel(pdfcer_img, pdfium_img, delta)
             name = rel.replace("/", "_").replace("\\", "_")
             panel.save(outdir / "diffs" / f"DIFF_{name}_p{pg}.png")
             print(f"wrote diff panel: diffs/DIFF_{name}_p{pg}.png", file=sys.stderr)
@@ -1487,8 +1487,8 @@ def emit_diff_panels(ok, diff_target, args, outdir, scale, tmp_reuse) -> None:
     )
     chosen = (unexp + rest)[: args.emit_diffs]
     for r in chosen:
-        pdfce_img, pdfium_img, delta = r._arrays
-        panel = amplify_delta_panel(pdfce_img, pdfium_img, delta)
+        pdfcer_img, pdfium_img, delta = r._arrays
+        panel = amplify_delta_panel(pdfcer_img, pdfium_img, delta)
         name = r.rel.replace("/", "_").replace("\\", "_")
         panel.save(outdir / "diffs" / f"{r.bucket}_{r.frac32:.4f}_{name}_p{r.page}.png")
     if chosen:
@@ -1537,9 +1537,9 @@ def write_reports(results, ok, clean, band, band_src, n_files_ok, n_files, args,
         buckets[r.bucket] = buckets.get(r.bucket, 0) + 1
     skipped = [r for r in results if r.status == "skip"]
     aborted = [r for r in results if r.status == "abort"]
-    # `reference-aborted` is reported ALONGSIDE the three pdfce buckets, never
+    # `reference-aborted` is reported ALONGSIDE the three pdfcer buckets, never
     # inside them: a file the reference renderer died on yielded no comparison,
-    # so it is evidence about pdfium, not about pdfce. Folding it into `skip`
+    # so it is evidence about pdfium, not about pdfcer. Folding it into `skip`
     # (the pre-isolation behaviour would have been to not get here at all)
     # would bury a reference-tool crash in a histogram of malformed fixtures.
     buckets["reference-aborted"] = len(aborted)
@@ -1597,7 +1597,7 @@ def write_reports(results, ok, clean, band, band_src, n_files_ok, n_files, args,
             "dpi": args.dpi, "scale": round(scale, 6),
             "pages_per_file_cap": args.pages_per_file,
             "annots": args.annots, "pixel_delta_threshold": PIXEL_DELTA_T,
-            "pdfce_cli": str(CLI),
+            "pdfcer_cli": str(CLI),
         },
         "corpus": {
             "files_seen": n_files, "files_with_a_measured_page": n_files_ok,
@@ -1681,10 +1681,10 @@ def write_reports(results, ok, clean, band, band_src, n_files_ok, n_files, args,
     P(f"  (ii-) disclosed gap, below band     : {buckets['disclosed-gap-small']}")
     P(f"  (iii) unexplained-divergence        : {buckets['unexplained']}")
     P("        NOTE: (i) is a MEASUREMENT, not a verdict. It means the")
-    P("        divergence is small and pdfce disclosed nothing — not that")
+    P("        divergence is small and pdfcer disclosed nothing — not that")
     P("        it is anti-aliasing. The 2026-08-09 structural audit found")
     P("        15.4% of that population is not edge-shaped, and four")
-    P("        confirmed pdfce bugs were inside it.")
+    P("        confirmed pdfcer bugs were inside it.")
     # Printed UNCONDITIONALLY. It used to be gated on `--annots`, which was
     # harmless while only annotation keys fed it and actively misleading once
     # image colour-space keys did: a page moved out of `unexplained` into a
@@ -1693,7 +1693,7 @@ def write_reports(results, ok, clean, band, band_src, n_files_ok, n_files, args,
     # non-zero must always be visible, or the harness is hiding its own work.
     P(f"  (ref) reference-divergence  : {buckets['reference-divergence']}")
     P(f"  (abt) reference-aborted     : {buckets['reference-aborted']}   "
-      f"<- pdfium died; not a pdfce bucket")
+      f"<- pdfium died; not a pdfcer bucket")
     P("")
     P("--- known-gap reason histogram (subtracted from bug candidates) ---")
     for g, c in sorted(gap_hist.items(), key=lambda kv: -kv[1]):
@@ -1737,8 +1737,8 @@ def write_reports(results, ok, clean, band, band_src, n_files_ok, n_files, args,
     for k, c in sorted(skip_hist.items(), key=lambda kv: -kv[1]):
         P(f"  {c:6d}  {k}")
     P("")
-    P("--- reference-renderer aborts (pdfium DIED; NOT a pdfce result) ---")
-    P("  These files tell us nothing about pdfce: the reference renderer ceased to")
+    P("--- reference-renderer aborts (pdfium DIED; NOT a pdfcer result) ---")
+    P("  These files tell us nothing about pdfcer: the reference renderer ceased to")
     P("  exist while opening or rendering them, so no comparison was possible. Each")
     P("  is isolated in a child process, so one costs one file, not the run.")
     if not aborted:
@@ -1779,7 +1779,7 @@ def build_argparser() -> argparse.ArgumentParser:
                    help="substring of a corpus file to emit a diff panel for")
     p.add_argument("--diff-page", type=int, default=1, help="page for --diff (1-based)")
     p.add_argument("--timeout", type=float, default=120.0,
-                   help="per-page pdfce render timeout seconds (default 120)")
+                   help="per-page pdfcer render timeout seconds (default 120)")
     p.add_argument("--pdfium-timeout", type=float, default=120.0,
                    help="per-request reference-renderer timeout seconds (default 120). "
                         "A wedged child cannot report its own wedge, so this is the "
@@ -1796,11 +1796,11 @@ def build_argparser() -> argparse.ArgumentParser:
     p.add_argument("--no-verify-aborts", dest="verify_aborts", action="store_false",
                    help="skip abort re-verification; aborts are then reported UNVERIFIED")
     p.add_argument("--cli", type=str, default=None,
-                   help="path to the pdfce-cli binary to measure (default "
-                        "target/release/pdfce-cli). A full sweep takes tens of minutes; "
+                   help="path to the pdfcer binary to measure (default "
+                        "target/release/pdfcer). A full sweep takes tens of minutes; "
                         "in a repo under active development `cargo build` can relink "
                         "target/release MID-SWEEP, which turns healthy pages into "
-                        "spurious `pdfce:` skips and silently corrupts the run. Pass a "
+                        "spurious `pdfcer:` skips and silently corrupts the run. Pass a "
                         "COPY of the binary to pin the measured build for the whole "
                         "sweep. The path used is recorded in summary.json.")
     p.add_argument("--rebaseline", action="store_true",

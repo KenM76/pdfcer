@@ -1,5 +1,5 @@
 //! Fuzz target: the **FF-C donor subsetter**
-//! (`pdfce_render::font::subset::plan_subset`, Pass 21.0 / decision 021 §3.5).
+//! (`pdfcer_render::font::subset::plan_subset`, Pass 21.0 / decision 021 §3.5).
 //!
 //! ## Why this input is untrusted even though an operator chose it
 //!
@@ -7,7 +7,7 @@
 //! treat that as consent to trust the bytes. It is not. Font files are a
 //! long-standing exploit vector, they arrive by email and download like any
 //! other document, and the operator is in no position to audit an sfnt table
-//! directory. What "the operator chose it" actually rules out is *pdfce being
+//! directory. What "the operator chose it" actually rules out is *pdfcer being
 //! tricked into reading a file the operator never named* — nothing about the
 //! contents.
 //!
@@ -15,7 +15,7 @@
 //!
 //! Typst's `subsetter` is `#![deny(unsafe_code)]` and is exercised by Typst's
 //! own corpus, so hammering its `glyf` walk here would largely re-run someone
-//! else's campaign. pdfce's bugs will be in what pdfce does around it:
+//! else's campaign. pdfcer's bugs will be in what pdfcer does around it:
 //!
 //! 1. **The size ceiling's ORDERING.** `MAX_DONOR_BYTES` has to be checked
 //!    before the parse, or it bounds nothing — a 64 MiB+ input would be fully
@@ -40,13 +40,13 @@
 //! allocate without bound. Note the deliberate absence of a
 //! composite-glyph-depth assertion: `subsetter`'s closure is an iterative
 //! worklist bounded by `numGlyphs`, so cycles terminate structurally upstream
-//! (decision 021 §3.5). A pdfce-side depth guard would be unreachable, and
+//! (decision 021 §3.5). A pdfcer-side depth guard would be unreachable, and
 //! this target plus the cycle fixture cover the property instead.
 
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_render::font::subset::plan_subset;
+use pdfcer_render::font::subset::plan_subset;
 
 /// Cap on how many characters the fuzzer may request.
 ///
@@ -97,16 +97,16 @@ fuzz_target!(|data: &[u8]| {
     }
 
     // The tag is fixed and valid: a malformed one is already covered by a
-    // unit test, and spending fuzz cycles on a parameter pdfce derives itself
+    // unit test, and spending fuzz cycles on a parameter pdfcer derives itself
     // would test the harness rather than the code.
     let _ = plan_subset(font_bytes, face_index, &chars, "FuzzDonor", "ABCDEF");
 
     // ★ The SECOND `fsType` reader, on the same bytes (Pass 67.0 phase A).
     //
-    // `pdfce_core::fontinfo::read_fs_type` walks an sfnt table directory by
+    // `pdfcer_core::fontinfo::read_fs_type` walks an sfnt table directory by
     // hand — magic, `numTables`, 16-byte records, then a `uint16` at offset 8
-    // inside `OS/2` — because `pdfce-core` may not take a font-parsing
-    // dependency (project rule 2; `skrifa` lives in `pdfce-render` and the
+    // inside `OS/2` — because `pdfcer-core` may not take a font-parsing
+    // dependency (project rule 2; `skrifa` lives in `pdfcer-render` and the
     // crate boundary is load-bearing). Hand-written offset arithmetic over
     // attacker-controlled `uint32` offsets and lengths is exactly the code
     // that needs this target, and it needs it on the SAME inputs: a font that
@@ -121,7 +121,7 @@ fuzz_target!(|data: &[u8]| {
     // *Installable*, the most permissive value the field can express, so a
     // guess in the failure path would silently grant the broadest embedding
     // right there is.
-    if let Ok(bits) = pdfce_core::fontinfo::read_fs_type(font_bytes) {
+    if let Ok(bits) = pdfcer_core::fontinfo::read_fs_type(font_bytes) {
         // The version gate is a real branch over attacker-controlled data:
         // OpenType says bits 4-15 MUST be ignored for an `OS/2` version 0 or
         // 1 table, so a v0/v1 font must never come back claiming them.

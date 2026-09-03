@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generate synthetic classic-`xref` EOL fixtures (ISO 32000-1 §7.5.4).
 
-Pass A of pdfce decision 013 (xref recovery) is a MEASUREMENT step whose
-first deliverable is to PROVE pdfce-core's classic cross-reference-table
+Pass A of pdfcer decision 013 (xref recovery) is a MEASUREMENT step whose
+first deliverable is to PROVE pdfcer-core's classic cross-reference-table
 parser is correct across every end-of-line form §7.5.4 and §7.5.1 permit —
 so that the real-world CRLF-correlated load failures can be attributed to
 offset-shift corruption (Pass B territory) rather than to a phantom parser
@@ -20,7 +20,7 @@ Everything else on the section's *structural* lines — the `xref` keyword
 line, each `first count` subsection header, the `trailer` keyword, the
 `startxref` line — falls back to §7.5.1's general line rule: a line may end
 in CR, LF, or CR LF, and (§7.5.4 header text) the two subsection numbers are
-separated by a single SPACE with no fixed width or padding. pdfce's parser
+separated by a single SPACE with no fixed width or padding. pdfcer's parser
 reads those structural lines through the whitespace-skipping lexer, so any
 CR/LF/CRLF and incidental trailing spaces are legal there.
 

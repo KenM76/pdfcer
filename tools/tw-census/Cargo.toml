@@ -21,7 +21,7 @@
 #       picture of the SHIPPING dependency graph only (docs/LEGAL.md §6.3).
 # This tool is never shipped.
 #
-# ZERO NEW DEPENDENCIES: the only dependency is `pdfce-core` by path. Every
+# ZERO NEW DEPENDENCIES: the only dependency is `pdfcer-core` by path. Every
 # other thing it needs (directory walking, thread + timeout isolation, TSV
 # writing, percentage formatting) is std. That is deliberate — a measurement
 # harness whose numbers gate a product decision should not be able to blame a
@@ -48,7 +48,7 @@ publish = false
 [dependencies]
 # The crate under measurement, path-referenced so the harness fails to
 # compile (rather than silently drifting) if its API changes under it.
-pdfce-core = { path = "../../crates/pdfce-core" }
+pdfcer-core = { path = "../../crates/pdfcer-core" }
 
 [profile.release]
 # The corpus is ~4,000 files and every page of every one is extracted with

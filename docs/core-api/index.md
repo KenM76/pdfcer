@@ -1,7 +1,7 @@
-# `pdfce-core` — consumer API map
+# `pdfcer-core` — consumer API map
 
 **For a shell being built against this crate from outside this repository**
-(the new GUI project at `D:\dev\pdfceGUI`, a future WASM shell, any other
+(the new GUI project at `D:\dev\pdfcer-gui`, a future WASM shell, any other
 consumer). Written 2026-08-13; **the figures in the table below were last
 re-derived at `e194b46`, 2026-08-18** — see the note under it.
 
@@ -22,7 +22,7 @@ index and ends with **Traps**.
 > Corrected 2026-08-18. The verb count read **108** when the real number was
 > **116**, and the three line counts were each short.
 >
-> The verb count is the one that cost something. `pdfceGUI` wired
+> The verb count is the one that cost something. `pdfcer-gui` wired
 > `insert_pages` — one of the eight verbs missing from part 2 — and shipped a
 > **wrong operator disclosure** about it, because with the verb absent from
 > the document a chat reply was the only description of it in existence.
@@ -49,7 +49,7 @@ index and ends with **Traps**.
 2. **Hit-test and snap tolerances are PAGE-space radii, and nothing checks
    them.** Pass raw screen pixels and it compiles, runs, and merely drifts
    with zoom.
-3. **Rule 4, "fuzzy never sneaky."** Anything pdfce *inferred* — an OCR
+3. **Rule 4, "fuzzy never sneaky."** Anything pdfcer *inferred* — an OCR
    result, a best-fit circle and its residual, a snapped point, a
    substituted font, a near-parallel classification — must be visible
    **before** it becomes document state, and rejectable without undoing

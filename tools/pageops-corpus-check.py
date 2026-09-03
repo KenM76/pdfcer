@@ -12,7 +12,7 @@ either drags in the whole document or drops something a page needed.
 Those are exactly the shapes that pass a fixture test and fail on a real
 file, so this runs them over the corpus. It is deliberately a *sweep*,
 not a proof: it asserts that every operation either **succeeds and
-produces a document pdfce can read back with the page count it claimed**,
+produces a document pdfcer can read back with the page count it claimed**,
 or **refuses by name**. A refusal is a correct outcome (decision 007's
 R27 posture), and a sweep that counted refusals as failures would push
 the implementation toward guessing.
@@ -50,11 +50,11 @@ from collections import Counter
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-CLI = REPO / "target" / "release" / "pdfce-cli.exe"
+CLI = REPO / "target" / "release" / "pdfcer.exe"
 if not CLI.exists():
-    CLI = REPO / "target" / "debug" / "pdfce-cli.exe"
+    CLI = REPO / "target" / "debug" / "pdfcer.exe"
 
-# pdfce-cli's documented exit codes (see its `exit` module). Only these
+# pdfcer's documented exit codes (see its `exit` module). Only these
 # two are "the operation did not happen, and that is fine".
 EXIT_OK = 0
 EXIT_EDIT_REFUSED = 9
@@ -153,7 +153,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if not CLI.exists():
-        print(f"pdfce-cli not built at {CLI}", file=sys.stderr)
+        print(f"pdfcer not built at {CLI}", file=sys.stderr)
         return 1
 
     pdfs = sorted(args.corpus.rglob("*.pdf"))

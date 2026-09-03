@@ -1,6 +1,6 @@
 //! Fuzz target 12: annotation authoring + content-stream serializer
-//! (`pdfce_core::annot_author`, `pdfce_core::writer::content`,
-//! `pdfce_core::edit::EditSession::add_markup`; docs/decisions/008 Pass 6.1).
+//! (`pdfcer_core::annot_author`, `pdfcer_core::writer::content`,
+//! `pdfcer_core::edit::EditSession::add_markup`; docs/decisions/008 Pass 6.1).
 //!
 //! Two invariants over untrusted input, both the crate's panic-free
 //! policy (X5/X6):
@@ -24,18 +24,18 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfce_core::annot::page_annotations;
-use pdfce_core::annot_author::{
+use pdfcer_core::annot::page_annotations;
+use pdfcer_core::annot_author::{
     Color, LineEnding, MarkupSpec, Quad, StampName, StickyIcon, TextAnnotSpec, TextMarkupKind,
 };
-use pdfce_core::content::ContentStream;
-use pdfce_core::document::Document;
-use pdfce_core::edit::EditSession;
-use pdfce_core::fontdata::Std14;
-use pdfce_core::page_tree::{self, Rect};
-use pdfce_core::vartext::{self, FontResource, Quadding, TextColor};
-use pdfce_core::writer::SaveOptions;
-use pdfce_core::writer::content::reemit_canonical;
+use pdfcer_core::content::ContentStream;
+use pdfcer_core::document::Document;
+use pdfcer_core::edit::EditSession;
+use pdfcer_core::fontdata::Std14;
+use pdfcer_core::page_tree::{self, Rect};
+use pdfcer_core::vartext::{self, FontResource, Quadding, TextColor};
+use pdfcer_core::writer::SaveOptions;
+use pdfcer_core::writer::content::reemit_canonical;
 
 /// A minimal one-page document the authoring path can target.
 const BLANK: &[u8] = b"%PDF-1.7\n%\xE2\xE3\xCF\xD3\n\

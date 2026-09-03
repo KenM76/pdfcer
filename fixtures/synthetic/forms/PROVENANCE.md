@@ -43,7 +43,7 @@ radio/choice support could not otherwise be tested at all:
 
 Every field carries `/Kids` down to its widget(s) as well as the widget's
 `/Parent` back up. The first draft omitted `/Kids` on the two `/Ch` fields
-and pdfce correctly reported `widgets=0` for them — a fixture defect, not a
+and pdfcer correctly reported `widgets=0` for them — a fixture defect, not a
 parser defect, and worth recording so the next author does not repeat it.
 
 ## The five field-hierarchy fixtures (added 2026-08-07)
@@ -59,7 +59,7 @@ field-tree defect.
 They exist because `ROADMAP.md`'s Pass 7.0 entry records that the organic
 corpus **contains no nested field trees at all** (max 63 fields/file, 1x on
 depth, zero nesting). Every non-terminal path in `forms::walk_field` had
-therefore never run against real data. That was survivable while pdfce only
+therefore never run against real data. That was survivable while pdfcer only
 read forms; field authoring ends it, because authoring exists to GENERATE
 those shapes.
 
@@ -72,8 +72,8 @@ those shapes.
 | `xfa-hybrid-form.pdf` | AcroForm + a 2-packet `/XFA` array | That creation refuses (§3.2.2) while reading and filling still work |
 
 On-state names are `/Red` `/Green` `/Blue` rather than the positional `/1`
-`/2` `/3`: positional names are legal (Table 227) but pdfce cannot resolve
-them to export values, so a positional fixture would test a shape pdfce has
+`/2` `/3`: positional names are legal (Table 227) but pdfcer cannot resolve
+them to export values, so a positional fixture would test a shape pdfcer has
 explicitly not committed to.
 
 ### What `mixed-kids-form.pdf` caught, measured
@@ -88,7 +88,7 @@ it recursed into those and **returned** — so a mixed node's own widgets were
 never modelled and the node never reached the projection. Before the fix:
 
 ```
-$ pdfce-cli list-fields fixtures/synthetic/forms/mixed-kids-form.pdf
+$ pdfcer list-fields fixtures/synthetic/forms/mixed-kids-form.pdf
 field name=Order.Qty ... value=3 widgets=1
 ... fields=1
 ```
@@ -113,7 +113,7 @@ entry was not written until the filing that documents the two commits
 that actually exercise them.
 
 **`js-carriers-form.pdf`** exists for decision 020 §7.2's byte-grep test.
-Pass 7.0 guarantees that the three JavaScript carriers pdfce recognizes
+Pass 7.0 guarantees that the three JavaScript carriers pdfcer recognizes
 but never executes (decision 009) — `/AcroForm /CO`, a field `/AA`, and
 the document-level `/Names /JavaScript` tree — re-emit BYTE VERBATIM.
 That guarantee held *structurally* before field authoring existed: filling
@@ -127,7 +127,7 @@ close to it: `/CO` in the `/AcroForm` dict field registration rewrites,
 `/Fields` array that grows, and `/Names /JavaScript` in the CATALOG — the
 object the `/AcroForm`-absent creation path writes when there was no form
 at all. The JavaScript content itself is inert and deliberately trivial;
-pdfce must never parse it, so the content buys no coverage — only the
+pdfcer must never parse it, so the content buys no coverage — only the
 BYTES are the test. Exercised by
 `authoring_a_field_leaves_the_javascript_carriers_intact`.
 
@@ -139,8 +139,8 @@ declares `/Tabs /S` directly rather than inheriting it from the page tree
 — the shape a real producer writes, and the base case the inheriting
 `/Tabs` lookup has to get right before ancestor-walking matters at all.
 Two disclosures are unreachable without it, and neither is a restatement
-of the other: **(1)** the document is tagged and a pdfce-authored field
-cannot be, because pdfce has no structure-tree writer (§3.5.3 — a partial
+of the other: **(1)** the document is tagged and a pdfcer-authored field
+cannot be, because pdfcer has no structure-tree writer (§3.5.3 — a partial
 tag-tree writer was rejected in favour of disclosing the gap); **(2)** the
 page's tab order is *computed from the tag tree* under `/Tabs /S`
 (§14.7, Table 30), so an untagged field on this specific page has **no
@@ -148,7 +148,7 @@ tab position at all** — undefined, not "last" — which is a functional
 defect in the form and not only an accessibility gap (§3.4.3). Without
 this fixture both disclosures would be correct, wired, and never fire —
 exactly the shape R96 exists to forbid. The structure tree is deliberately
-no fuller than an empty `/K []`: pdfce's own check reads no further than
+no fuller than an empty `/K []`: pdfcer's own check reads no further than
 "is `/StructTreeRoot` present", so a richer tree would add bytes without
 adding coverage.
 
@@ -188,12 +188,12 @@ come out false.
 
 `/P 2` is the only value where the two disagree, and it is not an exotic
 one — a certified fillable form is the ordinary real-world case. It is
-what makes "pdfce offers filling and refuses deletion on the same
+what makes "pdfcer offers filling and refuses deletion on the same
 document" a testable claim rather than a doc comment.
 
 The `/ByteRange` and `/Reference` are structural placeholders with no
 signed bytes, deliberately: the guards read census-visible *structure* and
-verify no cryptography, so real signing would test a claim pdfce does not
+verify no cryptography, so real signing would test a claim pdfcer does not
 make while adding a key nobody can rotate.
 
 Two fields rather than one because deleting a text field and deleting a
@@ -244,7 +244,7 @@ Both exist for `Pass 167.0` (the field clipboard — `copy_field` /
 
 **Field CREATION chooses every value itself, so a fixture carrying the
 authoring defaults can verify it. A field COPY is judged entirely on values
-pdfce did NOT choose — and every one of them is invisible when the fixture's
+pdfcer did NOT choose — and every one of them is invisible when the fixture's
 value happens to equal the default.** A `/DA` of `/Helv 0 Tf 0 g` cannot show
 that font, size and colour travelled; it is exactly what a re-author would
 have written anyway. A black `/MK /BC` cannot show that the border colour
@@ -268,13 +268,13 @@ exercised too. Nothing on it is at its default:
 | `/DV` `/V` | `(A)` / `(C)` | deliberately **different**, so "the default value travels while the value does not" is falsifiable |
 | `/TU` | `(Revision letter)` | the accessibility name, and R105's `Carry` answer |
 | `/Ff` | 4194304 | `DoNotSpellCheck` (bit 23) — a flag **no `New*Field` spec can express**, so it can only arrive by being carried |
-| `/MK /BC` `/BG` | blue / cream | the reported "a blue-bordered field pastes black"; nothing in pdfce authors a `/BG` at all |
+| `/MK /BC` `/BG` | blue / cream | the reported "a blue-bordered field pastes black"; nothing in pdfcer authors a `/BG` at all |
 | `/BS` | `/S /D /W 2` | dashed, 2 pt — neither of them the default |
 | `/AP /N` | a real stream with its own `/Resources` | the baked appearance and its closure |
 | `/AA /C` + `/AA /F` | JavaScript streams | the calculate action, which obliges `/AcroForm /CO` (Table 218) |
 | `/AcroForm /CO` | one entry | so "`/CO` grew by exactly one" is measurable against a source that already had one |
 
-**pdfce never executes the JavaScript** (decision 008 §5.1, NF4) — it is here
+**pdfcer never executes the JavaScript** (decision 008 §5.1, NF4) — it is here
 so the clipboard's carry-or-drop decision has something real to carry or drop.
 
 ### `rival-font-form.pdf`

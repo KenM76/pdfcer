@@ -14,7 +14,7 @@ count of 108 that had been true when it was written.
 
 ★ HOW THE DRIFT SURFACED, WHICH IS THE ARGUMENT FOR THE GATE
 
-Not by review. The `pdfceGUI` session wired `insert_pages` and shipped a
+Not by review. The `pdfcer-gui` session wired `insert_pages` and shipped a
 **wrong operator disclosure** about what it does to form fields. They did not
 misread the document — *the document never mentioned the verb*, so a chat
 reply was the only description of it that existed anywhere, and a chat reply
@@ -39,7 +39,7 @@ WHAT IT CHECKS
 ==============
 
 1. Every `pub fn` / `pub const fn` inside an `impl EditSession` block in
-   `crates/pdfce-core/src/edit.rs` is named somewhere in the document.
+   `crates/pdfcer-core/src/edit.rs` is named somewhere in the document.
 2. Every stated verb count anywhere under `docs/core-api/` — the verb index's
    own `Count: N`, and any "N public verbs/methods" prose — equals the number
    actually derived.
@@ -68,7 +68,7 @@ WHAT IT DOES NOT CHECK, STATED SO "GREEN" IS NOT OVER-READ
    `insert_pages` would have passed this gate on the day it shipped while
    still lacking the widget warning that caused the incident.
 2. **Any API surface other than `EditSession`.** `DocumentView`, the free
-   functions, and `pdfce-render`'s surface are all undefended by this.
+   functions, and `pdfcer-render`'s surface are all undefended by this.
 3. **★ It used to read ONE FILE, and that was a live defect, not a
    hypothetical one.** The first version's input was
    `02-editing-and-saving.md`, because that is the file that was being
@@ -144,7 +144,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 
 ROOT = Path(__file__).resolve().parent.parent
-EDIT_RS = ROOT / "crates" / "pdfce-core" / "src" / "edit.rs"
+EDIT_RS = ROOT / "crates" / "pdfcer-core" / "src" / "edit.rs"
 DOC_DIR = ROOT / "docs" / "core-api"
 # The verb index lives here; the other files may still state a COUNT, and a
 # stale count in the directory's front door is what this gate missed first
@@ -430,7 +430,7 @@ def main() -> int:
         print(
             "A consuming project builds against these documents. A verb missing\n"
             "from them is a verb whose only description is whatever somebody said\n"
-            "once in chat -- which is how pdfceGUI shipped a wrong disclosure about\n"
+            "once in chat -- which is how pdfcer-gui shipped a wrong disclosure about\n"
             "`insert_pages`. Add the verb to the relevant section, and update EVERY\n"
             "stated count, including the one in index.md."
         )

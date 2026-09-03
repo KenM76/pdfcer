@@ -1,9 +1,9 @@
-# pdfce — Prior art & candidate open-source dependencies
+# pdfcer — Prior art & candidate open-source dependencies
 
-Living survey of existing open-source projects/crates pdfce can lean
+Living survey of existing open-source projects/crates pdfcer can lean
 on — either as real dependencies (properly licensed and credited) or
 as read-only architectural/behavioral reference. Maintained by
-`pdfce-engineer` (dispatch `pdfce-librarian` for the actual file
+`pdfcer-engineer` (dispatch `pdfcer-librarian` for the actual file
 edits, same discipline as `ARCHITECTURE.md`'s decision log). See
 `docs/LEGAL.md` §6 for the binding licensing/attribution rules this
 document exists to support.
@@ -22,7 +22,7 @@ if this file is more than ~6 months old at the time** — crate
 maintenance status and licensing terms both drift, and one entry
 below (Poppler) is already flagged unresolved.
 
-## RESOLVED (2026-07-30) — `oxidize-pdf` adopt-vs-build: build `pdfce-core` from scratch
+## RESOLVED (2026-07-30) — `oxidize-pdf` adopt-vs-build: build `pdfcer-core` from scratch
 
 **Full decision record: `docs/decisions/001-oxidize-pdf-adopt-vs-build.md`**
 (decided via the KenAgent decision protocol; audit of `bzsanti/oxidizePdf`
@@ -32,7 +32,7 @@ do not silently default to build-from-scratch. That audit happened;
 this is the resolution.
 
 **Verdict: reference-only / differential oracle — out-of-tree only,
-never a shipping dependency.** Build `pdfce-core` from scratch.
+never a shipping dependency.** Build `pdfcer-core` from scratch.
 Concretely: `cargo tree` on all four crates must never show
 `oxidize-pdf`; no fork, no vendoring; **zero literal code ports
 planned** (two narrowly gated conditional candidates — xref-recovery
@@ -64,7 +64,7 @@ value):**
   fingerprint in `/Info`**, deliberately not exposed in the public
   API — would violate the round-trip invariant on every save.
 - **Filter decoders silently return raw undecoded bytes on
-  zlib/predictor failure** — the exact inverse of pdfce's fail-clean
+  zlib/predictor failure** — the exact inverse of pdfcer's fail-clean
   invariant (`ARCHITECTURE.md` §10), and the reason the differential
   oracle is advisory, never authoritative.
 - **Round-trip fails by design**: two disconnected object models
@@ -92,16 +92,16 @@ value):**
 
 | Crate/project | License | Copyleft class | Verdict | Why |
 |---|---|---|---|---|
-| `lopdf` (J-F-Liu) | MIT | permissive | reference-only | Most mature general Rust PDF crate (v0.44.0, 16.2 M downloads, updated 2026-07-10). COS/xref-stream/object-stream read+write. No signature-safe incremental-append (issue #305) — the hardest requirement, unsolved here. **★ It has NO XFA support and never claimed any** — verified 2026-08-21 by fetching `src/lib.rs` and the README: zero occurrences of "XFA" in either. Recorded because an external model named this crate as "an MIT Rust library that implements dynamic XFA", which it is not; see `docs/xfa-implementation-survey.md` for why the four attributes *Rust + PDF + MIT + on GitHub* make it the crate a metadata-level search lands on. **★★ And a second thing to know before ever depending on it: its `rayon` feature is ON BY DEFAULT** ("Parallel object-stream and cross-reference parsing"). Adding `lopdf` without `default-features = false` would put a thread pool inside pdfce's engine crates — and `rayon` compiles cleanly for `wasm32-unknown-unknown`, so the CI wasm cross-check would stay green while the web build acquired a runtime failure. |
+| `lopdf` (J-F-Liu) | MIT | permissive | reference-only | Most mature general Rust PDF crate (v0.44.0, 16.2 M downloads, updated 2026-07-10). COS/xref-stream/object-stream read+write. No signature-safe incremental-append (issue #305) — the hardest requirement, unsolved here. **★ It has NO XFA support and never claimed any** — verified 2026-08-21 by fetching `src/lib.rs` and the README: zero occurrences of "XFA" in either. Recorded because an external model named this crate as "an MIT Rust library that implements dynamic XFA", which it is not; see `docs/xfa-implementation-survey.md` for why the four attributes *Rust + PDF + MIT + on GitHub* make it the crate a metadata-level search lands on. **★★ And a second thing to know before ever depending on it: its `rayon` feature is ON BY DEFAULT** ("Parallel object-stream and cross-reference parsing"). Adding `lopdf` without `default-features = false` would put a thread pool inside pdfcer's engine crates — and `rayon` compiles cleanly for `wasm32-unknown-unknown`, so the CI wasm cross-check would stay green while the web build acquired a runtime failure. |
 | `pdf` / pdf-rs org | MIT | permissive | reference-only | Mature read path; write side self-admittedly "still experimental" per own README. No xref-stream/incremental/encryption/signature evidence found. Do not confuse with the unrelated, immature `pdf-rs` crate (different repo, skip). |
 | `pdf-writer` (Typst) | MIT OR Apache-2.0 | permissive | reference-only | Write-only, from-scratch-buffer model (matches Typst's compile-and-emit use case). No read, no incremental append — architecturally incompatible with append-only saves. Good API-shape reference. |
 | `krilla` (Typst, built on pdf-writer) | MIT OR Apache-2.0 | permissive | reference-only | Higher-level content-drawing API over pdf-writer. **Own docs state encryption/signatures are explicitly out-of-scope** — first-party confirmation the gap is real, not an oversight. |
-| `pdfium-render` | MIT (PDFium itself: BSD-3-Clause OR Apache-2.0, dual) | permissive | reference-only | Idiomatic wrapper over Google's PDFium (Chromium's engine). Requires a large prebuilt C++ shared lib (tens of MB) even statically linked — conflicts with "single Rust binary, no heavy runtime" and undermines the native-Rust-engine thesis. WASM target exists but is a separate C++→WASM module, not unified with pdfce's own Rust→WASM build. Good rendering-fidelity comparison target later, not the core engine. |
-| `mupdf-rs` / `mupdf` | **AGPL-3.0** (dual w/ paid Artifex commercial license) | strong-copyleft | **skip as dependency** | See "Copyleft landmines" below — linking forces pdfce itself to AGPL or a paid license. Reference-only, and even then subject to the clean-room caution below. |
-| `pdf-extract` (jrmuizel) | MIT | permissive | reference-only | Text extraction only, maintained by ex-Mozilla graphics eng. Narrow scope; pdfce needs this as part of a full content-stream interpreter anyway. |
+| `pdfium-render` | MIT (PDFium itself: BSD-3-Clause OR Apache-2.0, dual) | permissive | reference-only | Idiomatic wrapper over Google's PDFium (Chromium's engine). Requires a large prebuilt C++ shared lib (tens of MB) even statically linked — conflicts with "single Rust binary, no heavy runtime" and undermines the native-Rust-engine thesis. WASM target exists but is a separate C++→WASM module, not unified with pdfcer's own Rust→WASM build. Good rendering-fidelity comparison target later, not the core engine. |
+| `mupdf-rs` / `mupdf` | **AGPL-3.0** (dual w/ paid Artifex commercial license) | strong-copyleft | **skip as dependency** | See "Copyleft landmines" below — linking forces pdfcer itself to AGPL or a paid license. Reference-only, and even then subject to the clean-room caution below. |
+| `pdf-extract` (jrmuizel) | MIT | permissive | reference-only | Text extraction only, maintained by ex-Mozilla graphics eng. Narrow scope; pdfcer needs this as part of a full content-stream interpreter anyway. |
 | **`oxidize-pdf`** | MIT | permissive | **reference-only / differential oracle (out-of-tree only, never a shipping dep)** | RESOLVED 2026-07-30, see section above + `docs/decisions/001-oxidize-pdf-adopt-vs-build.md`. Strong COS parser/hybrid-xref worth disagreeing with deliberately (`tools/difftest/` oracle); disqualified as foundation by no `Document::load()`, destructive "incremental" save, `/Info` fingerprint, silent filter fallbacks, PRO-gated signing, bus factor 1. **★ AMENDED 2026-08-12 (hundred-and-twenty-sixth filing) — A FOURTH CLAIM THAT DID NOT SURVIVE INSPECTION, found at HEAD of v4.3.0 during the OCR engine survey: `convert_to_searchable_pdf()` is a STUB THAT DISCARDS THE SCAN.** Same anatomy as the first three — a public API whose name promises a capability its body does not deliver. **Decision 001 (`docs/decisions/001-oxidize-pdf-adopt-vs-build.md` §3.2) is append-only and does NOT list this; per the *Same-filing propagation duty*, THIS ROW and `ROADMAP.md`'s hundred-and-twenty-sixth filing are CANONICAL over that un-amended §3.2.** The finding worth carrying is not the fourth instance itself but its **date**: it was found **two audits and one minor version later** than the first three, so **the claim rate did not fall between v4.2.1 and v4.3.0.** Sourcing: `docs/ocr-engine-survey.md`. |
 | `hayro` + `hayro-syntax`/`hayro-interpret` (LaurenzV, adopted by Typst) | MIT OR Apache-2.0 | permissive | reference-only (engine architecture) | From-scratch pure-Rust PDF interpreter/renderer, read+render only, no edit/write. NOTICE.md discloses incorporating Apache-2.0 code from PDFBox and pdf.js (font encoding maps, function evaluators, AES/MD5/SHA/RC4, flate/PNG-predictor) — all permissive, nothing copyleft. Worth reviewing as a whole-engine architecture reference; also a good real-world example of proper attribution practice to emulate. |
-| **`hayro-write`** (LaurenzV, Typst family) | MIT OR Apache-2.0 | permissive | reference-only — **watch item, decision-001 revisit trigger** | Added 2026-07-30 (v0.7.0, 2026-05-27, >1M downloads). Now provides parse→rewrite of PDF pages via `pdf-writer` — **closes the read→rewrite bridge gap this survey previously recorded as absent ecosystem-wide.** BUT: full re-serialization only, NOT byte-preserving incremental save — pdfce's differentiation stands. Confirmed 2026-07-30: nobody in the Rust ecosystem has signature-safe byte-preserving incremental save (lopdf issue #305 still open). Decision 001 §9 trigger 2: if hayro-write gains byte-preserving incremental append, evaluate depend-or-contribute rather than continuing solo. |
+| **`hayro-write`** (LaurenzV, Typst family) | MIT OR Apache-2.0 | permissive | reference-only — **watch item, decision-001 revisit trigger** | Added 2026-07-30 (v0.7.0, 2026-05-27, >1M downloads). Now provides parse→rewrite of PDF pages via `pdf-writer` — **closes the read→rewrite bridge gap this survey previously recorded as absent ecosystem-wide.** BUT: full re-serialization only, NOT byte-preserving incremental save — pdfcer's differentiation stands. Confirmed 2026-07-30: nobody in the Rust ecosystem has signature-safe byte-preserving incremental save (lopdf issue #305 still open). Decision 001 §9 trigger 2: if hayro-write gains byte-preserving incremental append, evaluate depend-or-contribute rather than continuing solo. |
 | `printpdf` | MIT | permissive | reference-only | Generation-focused (new PDFs/reports), some read, not an incremental-round-trip editor engine. WASM-compilability precedent worth noting. |
 | `pdf_signing` (ralpha) | Apache-2.0/MIT | permissive | skip (immature) | Built on lopdf, explicitly WIP, PNG-signature-image only, no PAdES/PKCS#7/incremental-signing. |
 | `trust_pdf` | — | — | skip (immature) | Verification-only, narrow. |
@@ -120,7 +120,7 @@ of which is a Rust-native engine.
 
 | Crate | License | Verdict | Why |
 |---|---|---|---|
-| `flate2` (+ `miniz_oxide` or `zlib-rs` backend) | MIT OR Apache-2.0 (backends: MIT/Zlib/Apache-2.0) | adopt | Pluggable backend; use `miniz_oxide` or `zlib-rs` (both pure Rust, WASM-safe). **Never enable the `zlib`/`zlib-ng` C backend features in pdfce-core** — breaks WASM/no-toolchain goal. |
+| `flate2` (+ `miniz_oxide` or `zlib-rs` backend) | MIT OR Apache-2.0 (backends: MIT/Zlib/Apache-2.0) | adopt | Pluggable backend; use `miniz_oxide` or `zlib-rs` (both pure Rust, WASM-safe). **Never enable the `zlib`/`zlib-ng` C backend features in pdfcer-core** — breaks WASM/no-toolchain goal. |
 | `weezl` | MIT OR Apache-2.0 | adopt | LZW. Exposes `Decoder::with_tiff_size_switch` — maps directly to PDF's `/EarlyChange` parameter (default 1); verify exact signature at implementation time. |
 | `brotli` | BSD-3-Clause AND MIT | **ADOPTED 2026-08-25** (`Pass 123.0`, `4163ad9`, decode only) | `/BrotliDecode` per `EXTN-BROTLI-1 v1.3` (PDF Association extension to ISO 32000-2:2020, not the base standard itself). Pure Rust — verified `cargo check --target wasm32-unknown-unknown` clean, keeping the web-fork target intact. Version 8.0.4 verified live against crates.io at adoption. Uses the raw state-machine decode API, not the `std::io::Read` wrapper (`brotli::Decompressor`) — a `Read` wrapper reports a truncated stream as a clean `Ok(0)` EOF, indistinguishable from success. **Encoder half not compiled in** — writing Brotli is a separate, deferred question (`ARCHITECTURE.md` §12 decision 086); round-trip rule 3 needs an untouched stream byte-copied, not decoded-and-recompressed. |
 
@@ -146,7 +146,7 @@ adopted 2026-08-13 (`Pass 71.0` slice 3).
 
 | Crate | License | Verdict | Why |
 |---|---|---|---|
-| **`ocrs`** + the `rten` runtime (11 crates) | MIT OR Apache-2.0 throughout; `flatbuffers` beneath is Apache-2.0-only | **ADOPTED 2026-08-13**, feature `ocrs`, default ON | **The only surveyed engine that passes pdfce's wasm32 CI gate** — verified empirically at adoption, not taken from the survey (`cargo check -p pdfce-core -p pdfce-render --target wasm32-unknown-unknown`, clean with the feature in the default set). Every alternative would have made OCR the first capability that cannot cross into the web fork. Adds 20 crates to the attribution file, **zero copyleft**, no new licence category. **No network is structural, not promised**: the model downloader lives in the separate `ocrs-cli` binary crate, so nothing linkable from `pdfce-core` can fetch. **Reports NO per-word confidence** (`TextChar` is a char and a rect) — carried honestly through `reports_confidence() == false` rather than papered over. **Its WEIGHTS are CC-BY-SA-4.0 and are a separate question from the code**: not a Cargo dependency, therefore structurally invisible to `cargo-about`; `tools/check-shipped-assets.py` is what covers them. |
+| **`ocrs`** + the `rten` runtime (11 crates) | MIT OR Apache-2.0 throughout; `flatbuffers` beneath is Apache-2.0-only | **ADOPTED 2026-08-13**, feature `ocrs`, default ON | **The only surveyed engine that passes pdfcer's wasm32 CI gate** — verified empirically at adoption, not taken from the survey (`cargo check -p pdfcer-core -p pdfcer-render --target wasm32-unknown-unknown`, clean with the feature in the default set). Every alternative would have made OCR the first capability that cannot cross into the web fork. Adds 20 crates to the attribution file, **zero copyleft**, no new licence category. **No network is structural, not promised**: the model downloader lives in the separate `ocrs-cli` binary crate, so nothing linkable from `pdfcer-core` can fetch. **Reports NO per-word confidence** (`TextChar` is a char and a rect) — carried honestly through `reports_confidence() == false` rather than papered over. **Its WEIGHTS are CC-BY-SA-4.0 and are a separate question from the code**: not a Cargo dependency, therefore structurally invisible to `cargo-about`; `tools/check-shipped-assets.py` is what covers them. |
 | **`ocr-rs`** (PaddleOCR) | Apache-2.0 | **not yet adopted** — the natural second engine | 50+ languages, materially better multi-language coverage than `ocrs`, which is the operator's stated ranking criterion. **No WASM**, so it cannot be the only engine; it is a strong candidate for the second, where the wasm32 build simply omits it. |
 | **Surya** | Apache-2.0 **code**, modified **Open RAIL-M weights** | **REJECTED — do not re-evaluate on accuracy** | The weights carry a **$5M revenue cap and field-of-use restrictions**, which cannot be bundled in an MIT application at any accuracy. Recorded by name because its benchmark numbers are attractive enough to invite a second look, and the disqualifier is not in them. |
 | **Tesseract** (via any binding) | Apache-2.0 upstream, **but the default Windows build ships LGPL binaries** | reference/precedent only | `PRIOR_ART`'s KillerPDF row cites it as a working bundled-OCR precedent; the LGPL binary detail means it is **not** the free default it appears to be. Native-only, so same wasm32 disqualification as PaddleOCR. |
@@ -155,12 +155,12 @@ adopted 2026-08-13 (`Pass 71.0` slice 3).
 
 | Crate | License | Verdict | Why |
 |---|---|---|---|
-| `ttf-parser` | MIT OR Apache-2.0 (crates.io) / Apache-2.0 (repo field — discrepancy unresolved) | **DO NOT ADOPT (read path)** — verdict flipped 2026-07-30, decision 004 §3.2/§5.2 | The anticipated re-verify happened: aged another 8 months with no commit (last 2025-11-22, no release since 2024-11-29) and grew a queue of unmerged SECURITY-flavored PRs (COLRv1 paint-graph recursion cap, glyf/gvar composite visit cap, CFF2 BLEND empty-stack guard, avar i16 overflow — four filed 2026-07-20, unlanded). Exactly the hardening class pdfce's §10 threat model needs landed, not pending. No bare-Type1 support either. |
+| `ttf-parser` | MIT OR Apache-2.0 (crates.io) / Apache-2.0 (repo field — discrepancy unresolved) | **DO NOT ADOPT (read path)** — verdict flipped 2026-07-30, decision 004 §3.2/§5.2 | The anticipated re-verify happened: aged another 8 months with no commit (last 2025-11-22, no release since 2024-11-29) and grew a queue of unmerged SECURITY-flavored PRs (COLRv1 paint-graph recursion cap, glyf/gvar composite visit cap, CFF2 BLEND empty-stack guard, avar i16 overflow — four filed 2026-07-20, unlanded). Exactly the hardening class pdfcer's §10 threat model needs landed, not pending. No bare-Type1 support either. |
 | `rustybuzz` | MIT | superseded by `harfrust` for any future AUTHORING shaping (decision 004 R17: the RENDER path never shapes) | Pure-Rust HarfBuzz port, pinned to ttf-parser, same staleness (0.20.1, 2024-11-12). Note epaint 0.35 itself moved to `harfrust`. |
 | `allsorts` (Yeslogic) | **Apache-2.0 ONLY (no MIT arm)** | write-side fallback only (decision 001 §6.2), REJECTED for the read path (decision 004 §3.2) | Parser+shaper+**subsetter** from Prince. Actively maintained, but: 23 direct deps incl. `libc`/`ouroboros`/`brotli-decompressor`, no `no_std` (jeopardizes the wasm32 invariant, R11), no crate-level unsafe forbid, no bare-Type1 outline path. Decision 004 §9 flags this evidence into the eventual write-side scoping. |
-| `subsetter` (Typst) | MIT OR Apache-2.0 (**verified live at 0.2.6, 2026-08-03**) | **ADOPT (write path) — rule-13 classification COMPLETE, see "FF-C dependency classification" below** | Purpose-built PDF-embedding subsetter for TrueType/CFF, minimal deps — what Typst itself uses. Leanest option for the write-side embedding/subsetting need. **The 2026-08-03 re-verification found something better than "still permissive": `subsetter 0.2.6` depends on `skrifa 0.42.1`, `read-fonts 0.39.2`, `font-types 0.11.3` — bit-for-bit the versions pdfce already pins through epaint 0.35 — so it unifies with the read path instead of forking it.** Net cost to pdfce's graph at DEFAULT features is **2 packages**: `subsetter` itself and `write-fonts 0.48.1`. **AMENDED 2026-08-03 (decision 021 §3.2): with `default-features = false` (the `variable-fonts` feature — which exists solely to instance variable fonts at non-default axis coordinates, unneeded at pdfce's P0 — is what pulls `write-fonts`/`kurbo` in), net cost drops to 1 package: `subsetter` alone.** `subsetter`'s only non-optional dependency is `rustc-hash 2.1`, already present via `type-map`←eframe. The 2-package figure stays on record as what a naive `cargo add subsetter` costs; `default-features = false` is the R24-style call pdfce already applies to `zune-jpeg`/`hayro-*`. |
+| `subsetter` (Typst) | MIT OR Apache-2.0 (**verified live at 0.2.6, 2026-08-03**) | **ADOPT (write path) — rule-13 classification COMPLETE, see "FF-C dependency classification" below** | Purpose-built PDF-embedding subsetter for TrueType/CFF, minimal deps — what Typst itself uses. Leanest option for the write-side embedding/subsetting need. **The 2026-08-03 re-verification found something better than "still permissive": `subsetter 0.2.6` depends on `skrifa 0.42.1`, `read-fonts 0.39.2`, `font-types 0.11.3` — bit-for-bit the versions pdfcer already pins through epaint 0.35 — so it unifies with the read path instead of forking it.** Net cost to pdfcer's graph at DEFAULT features is **2 packages**: `subsetter` itself and `write-fonts 0.48.1`. **AMENDED 2026-08-03 (decision 021 §3.2): with `default-features = false` (the `variable-fonts` feature — which exists solely to instance variable fonts at non-default axis coordinates, unneeded at pdfcer's P0 — is what pulls `write-fonts`/`kurbo` in), net cost drops to 1 package: `subsetter` alone.** `subsetter`'s only non-optional dependency is `rustc-hash 2.1`, already present via `type-map`←eframe. The 2-package figure stays on record as what a naive `cargo add subsetter` costs; `default-features = false` is the R24-style call pdfcer already applies to `zune-jpeg`/`hayro-*`. |
 | `fontdue` | MIT OR Apache-2.0 OR Zlib | reference-only | Rasterizer only, no shaping (maintainer has publicly declined to add it). |
-| `read-fonts`/`skrifa`/`write-fonts` (Google "fontations") | MIT OR Apache-2.0 | **ADOPT (read path)** — decision 004 §4.1, R21: the single font-program parser in pdfce-render | Most actively maintained font stack, corporate-backed, `#![forbid(unsafe_code)]`, no_std/wasm-clean. THE finding (004 §3.1): `skrifa` re-exports read-fonts as `skrifa::raw`, whose public `ps` module parses bare PostScript **Type 1** (PFB/PFA/eexec/lenIV, verified at source) and bare **CFF** with charstring-to-outline evaluation — all four PDF FontFile cases via one dependency, already in Cargo.lock via epaint 0.35 (zero new packages; pin 0.42 to epaint's resolution, `cargo tree --duplicates` guard). hayro and krilla independently converged on the same stack. |
+| `read-fonts`/`skrifa`/`write-fonts` (Google "fontations") | MIT OR Apache-2.0 | **ADOPT (read path)** — decision 004 §4.1, R21: the single font-program parser in pdfcer-render | Most actively maintained font stack, corporate-backed, `#![forbid(unsafe_code)]`, no_std/wasm-clean. THE finding (004 §3.1): `skrifa` re-exports read-fonts as `skrifa::raw`, whose public `ps` module parses bare PostScript **Type 1** (PFB/PFA/eexec/lenIV, verified at source) and bare **CFF** with charstring-to-outline evaluation — all four PDF FontFile cases via one dependency, already in Cargo.lock via epaint 0.35 (zero new packages; pin 0.42 to epaint's resolution, `cargo tree --duplicates` guard). hayro and krilla independently converged on the same stack. |
 | `postscript` crate | Apache-2.0 OR MIT | **REJECT** — verdict resolved 2026-07-30 (decision 004 §3.2) | The prototype check happened by source inspection: it is a TOKENIZER — its type2 module exposes Program/Operator/Operations and no path/segment/pen types. It does not evaluate charstrings to outlines. |
 | `font` (pdf-rs org) | **no `license` field in Cargo.toml** (README says MIT — conflicting) | **REJECT** (decision 004 §3.2) | Not published on crates.io as depended-on form; pulls 8 git dependencies. Unusable under LEGAL.md §6.2 regardless of capability claims. |
 
@@ -191,7 +191,7 @@ scratch crate (not by reading crates.io pages, and not from memory):
 | `subsetter` licence | `MIT OR Apache-2.0` |
 | Every crate in its transitive graph | permissive — 14× `MIT OR Apache-2.0`, 4× `Apache-2.0 OR MIT`, 2× `Zlib OR Apache-2.0 OR MIT`, 1× `(MIT OR Apache-2.0) AND Unicode-3.0` |
 | Copyleft (GPL/LGPL/AGPL/MPL) anywhere in the graph | **none** |
-| Packages genuinely NEW to pdfce's workspace (default features) | 2 — `subsetter 0.2.6`, `write-fonts 0.48.1` |
+| Packages genuinely NEW to pdfcer's workspace (default features) | 2 — `subsetter 0.2.6`, `write-fonts 0.48.1` |
 | Packages genuinely NEW, `default-features = false` (decision 021 §3.2) | **1** — `subsetter 0.2.6` only |
 | Version skew against the existing read path | **none** — see below |
 
@@ -210,27 +210,27 @@ keeping, because it is exactly what bites anyone reaching for
 ["variable-fonts"]`, and `variable-fonts = ["dep:skrifa",
 "dep:write-fonts", "dep:kurbo"]` is its only feature — it exists
 solely to instance variable fonts at non-default axis coordinates,
-which pdfce does not need at P0. With `default-features = false`,
+which pdfcer does not need at P0. With `default-features = false`,
 `subsetter`'s only non-optional dependency is `rustc-hash = "2.1"`,
-already present in pdfce's `Cargo.lock` via `type-map`←eframe, so the
+already present in pdfcer's `Cargo.lock` via `type-map`←eframe, so the
 net-new count is `subsetter` alone. Re-verified live via `cargo
 metadata --offline` on a scratch crate carrying `subsetter` (features
 off) plus `skrifa = "0.42"`, to prove co-resolution rather than assert
 it: 11 packages, every one permissive, single `read-fonts 0.39.2` /
-`font-types 0.11.3` / `skrifa 0.42.1` — pdfce's exact pinned set.
+`font-types 0.11.3` / `skrifa 0.42.1` — pdfcer's exact pinned set.
 Named revisit trigger (decision 021 §8.2): if variable-font donors turn
 out common in operator font folders, enable `variable-fonts` and accept
 `write-fonts 0.48` back into the graph, with the pin discipline above.
 
 The `(MIT OR Apache-2.0) AND Unicode-3.0` entry is `unicode-ident`,
-and it is **already in pdfce's graph today** (via `syn`/`proc-macro2`),
+and it is **already in pdfcer's graph today** (via `syn`/`proc-macro2`),
 so it adds no attribution obligation that `cargo-about` is not already
 picking up. Worth naming only because `AND` — unlike `OR` — means both
 terms apply, so it is the one row in the table that cannot be
 satisfied by picking the friendlier arm.
 
 **The version-unification finding is the load-bearing one, and it is
-not a licence fact at all.** `pdfce-render`'s `Cargo.toml` already
+not a licence fact at all.** `pdfcer-render`'s `Cargo.toml` already
 documents its `skrifa = "0.42"` pin as load-bearing because it must
 match what `epaint 0.35` resolves. Adding a write-side font crate is
 exactly where that pin could have been broken:
@@ -239,12 +239,12 @@ exactly where that pin could have been broken:
   today) wants `read-fonts 0.42.1` / `font-types 0.12.2`. Taking it
   would put **two incompatible copies of the font parser** in the
   graph — and because subsetting means *read the embedded font, emit a
-  reduced one*, pdfce would be parsing with one version and writing
+  reduced one*, pdfcer would be parsing with one version and writing
   with another, across precisely the seam where a mismatch bites.
 - `write-fonts 0.48.x` is the version that resolves to `read-fonts
   0.39.2` / `font-types 0.11.3`, matching what is already present.
 - `subsetter 0.2.6` **already depends on 0.48.1**, so adopting it
-  gets the correct pin by construction rather than by pdfce guessing
+  gets the correct pin by construction rather than by pdfcer guessing
   a version and hoping. Verified: a probe graph containing both
   `subsetter` and `skrifa 0.42` resolves to a **single** `read-fonts
   0.39.2` and a **single** `font-types 0.11.3`.
@@ -255,7 +255,7 @@ The version map, so nobody has to re-derive it:
 |---|---|---|
 | 0.51.0 | 0.42.1 | 0.12.2 |
 | 0.50.0 | 0.41.0 | 0.12.2 |
-| **0.48.x** | **0.39.2** | **0.11.3** ← matches pdfce/epaint |
+| **0.48.x** | **0.39.2** | **0.11.3** ← matches pdfcer/epaint |
 | 0.46.0 | 0.38.0 | 0.11.3 |
 | 0.44.0 | 0.36.0 | 0.10.1 |
 
@@ -263,7 +263,7 @@ The version map, so nobody has to re-derive it:
 is "Writing font files": it is a table compiler (`FontBuilder`, the
 `tables::*` writers). The glyph-closure and table-rebuilding logic
 that constitutes actual subsetting is `subsetter`'s, or would have to
-be pdfce's. Do not read "adopt `write-fonts`" as "subsetting is a
+be pdfcer's. Do not read "adopt `write-fonts`" as "subsetting is a
 solved dependency" — the two crates are the emitter and the algorithm
 respectively.
 
@@ -287,7 +287,7 @@ Ghostscript set) is `AGPL-3.0-only WITH
 PS-or-PDF-font-exception-20170817`, and the exception covers embedding
 into a *document* only — NOT bundling with an application.
 
-### Rasterization (`pdfce-render`)
+### Rasterization (`pdfcer-render`)
 
 | Crate | License | Verdict | Why |
 |---|---|---|---|
@@ -300,7 +300,7 @@ into a *document* only — NOT bundling with an application.
 | Crate | License | Verdict | Why |
 |---|---|---|---|
 | `moxcms` | BSD-3-Clause OR Apache-2.0 | **★ WITHDRAWN 2026-08-18, same day it was recorded — NOT a candidate** | Recorded here for `Pass 97.2` before `ARCHITECTURE.md` **decision 064** (2026-08-17) had been read. That decision assigns colour CONVERSION to **`iccce`**, so there is no candidate slot: `iccce` already ships `Chain::with_destination(&src, Destination::None, intent)` with a built-in sRGB destination **constructed from published constants** (BT.709-6, W3C transfer constants, Bradford to D50 per ICC.1:2022 Annex E.3) — no shipped `.icc`, no redistribution question. Kept as a row rather than deleted so the next session does not re-propose it: the technical assessment (pure Rust, no C, ≤16 inks, clears wasm32) was correct and irrelevant. Sourcing and the full correction: `docs/collapse-model-survey.md` §7. |
-| `lcms2` | MIT (Rust bindings) around **C** Little-CMS | **rejected for `pdfce-core`/`pdfce-render`** | Rust bindings to a C library — cannot cross the wasm32 gate, same category of rejection as `ring` above. `docs/compositor-plan.md` §6 records this rejection first; `moxcms` is recorded here as the replacement candidate. Not added to the table as an "avoid" row because it was never a live candidate for the core crates, only ever considered for the `iccce` sibling project (whose own boundary is `ARCHITECTURE.md` §12 decision 064 — `iccce` owns ICC conversion, pdfce owns compositing). |
+| `lcms2` | MIT (Rust bindings) around **C** Little-CMS | **rejected for `pdfcer-core`/`pdfcer-render`** | Rust bindings to a C library — cannot cross the wasm32 gate, same category of rejection as `ring` above. `docs/compositor-plan.md` §6 records this rejection first; `moxcms` is recorded here as the replacement candidate. Not added to the table as an "avoid" row because it was never a live candidate for the core crates, only ever considered for the `iccce` sibling project (whose own boundary is `ARCHITECTURE.md` §12 decision 064 — `iccce` owns ICC conversion, pdfcer owns compositing). |
 
 **Not yet added to any `Cargo.toml`.** Rule 13 requires this
 classification entry (done above: dual permissive, clean per `LEGAL.md`
@@ -318,11 +318,11 @@ does.
 | `sha2` | MIT OR Apache-2.0 | adopt | Revision-6 security handler + PAdES hashing. |
 | `md-5` | MIT/Apache-2.0 (convention, not re-fetched live) | adopt, **re-verify version** | Legacy Standard Security Handler revisions 2-4. |
 | `rsa` (RustCrypto) | MIT OR Apache-2.0 | adopt **for signing only**, **watch item — still pre-1.0** | Pure Rust. **`0.10.0-rc.18` on 2026-09-03** (`cargo info`) — a release candidate, not a release. **Open RustSec advisory RUSTSEC-2023-0071 ("Marvin Attack" timing side-channel)** — ★ **narrowed 2026-09-03 (396th filing):** Marvin is a *private-key* timing channel (decryption / signing with the secret exponent). ~~relevant for signature-verification paths handling attacker-controlled input~~ — **it does not apply to verification**, which handles no secret: the public key, the signature and the digest are all in the file, and a timing leak of any of them leaks nothing. It applies to a future signing Pass, where it must be resolved before shipping. `Pass 10.1` (verification) therefore does not take this crate — see the `num-bigint` row and the 2026-09-03 decision-log entry. |
-| `ring` | non-standard mixed license (ISC-style + BoringSSL-derived C/asm) | **avoid in pdfce-core** | Ships C/asm for perf-critical primitives — needs a C/asm toolchain per target, hurts WASM. Prefer the pure-Rust RustCrypto stack; reconsider only behind a feature flag if perf genuinely forces it. |
+| `ring` | non-standard mixed license (ISC-style + BoringSSL-derived C/asm) | **avoid in pdfcer-core** | Ships C/asm for perf-critical primitives — needs a C/asm toolchain per target, hurts WASM. Prefer the pure-Rust RustCrypto stack; reconsider only behind a feature flag if perf genuinely forces it. |
 | `cms` (RustCrypto/formats) | Apache-2.0 OR MIT | adopt, **pre-1.0 — track stabilization** | Pure-Rust CMS (RFC 5652), parses **and** builds SignedData. Right building block for PAdES (CMS-based, PKCS#7 successor). Was `0.3.0-pre.2` at verification (2026-07-23) — **and still `0.3.0-pre.2` on 2026-09-03** (`cargo info`, 396th filing): six weeks with no release. For `Pass 10.1` (verification) the engineer's stated intention is an in-house minimal DER/CMS/X.509 **walker** (~500 lines, read-only, fuzzable) rather than depending on pre-1.0 churn — the *building* half (SignedData construction, for signing) is where this crate would still earn its place. Recheck before any release freeze. |
-| `num-bigint` | MIT OR Apache-2.0 | ~~**candidate — verification only**~~ → **checked, NOT taken (`Pass 10.1` in-crate, `22421b6`; decision 129)** (licence-checked 2026-09-03, `cargo info`: 0.5.1) | RSA modular exponentiation with the *public* exponent for `Pass 10.1`. No secret handled, so no constant-time requirement and no Marvin exposure. ★ **Recorded as a candidate, and the engineer's untracked tree on 2026-09-03 was already going the other way**: `crates/pdfce-core/src/crypto/bignum.rs` — *"Arbitrary-precision unsigned integers for public-key verification only … schoolbook multiplication and shift-subtract division, correct and slow, in safe Rust, with no secret to protect. It does NOT extend to signing."* The stated reason: the ecosystem stack (`num-bigint` / `crypto-bigint` / `p256` / `p384` / `ecdsa` / `elliptic-curve`) resolves to ~25 crates, several carrying `unsafe` with cfg-selected constant-time backends — the shape decision 039 accepted for `aes` only after argument, for a property (constant time) verification does not need. **Not decided**; decided when `Pass 10.1` ships, on whichever argument survived the fuzzer. Rule 13 applies if it enters `Cargo.toml`. ★ **Decided 2026-09-03 at ship (398th filing): NOT taken.** `crypto/bignum.rs` (548 lines: u32 limbs, schoolbook multiply, Knuth Algorithm D division, square-and-multiply modpow, Fermat inversion; 400 random cases against a bit-serial reference, modpow/inversion against Python's `pow`) is what shipped. The scratch-crate resolution measured the stack at **25 crates** with `cmov` / `hybrid-array` carrying cfg-selected `unsafe`; declined because that shape buys constant time, which protects a secret, and verification holds none. Nothing entered `Cargo.toml`; `Cargo.lock` unchanged. Still the crate to reach for if SIGNING ever ships — a private key is the case this row's argument does not cover. |
+| `num-bigint` | MIT OR Apache-2.0 | ~~**candidate — verification only**~~ → **checked, NOT taken (`Pass 10.1` in-crate, `22421b6`; decision 129)** (licence-checked 2026-09-03, `cargo info`: 0.5.1) | RSA modular exponentiation with the *public* exponent for `Pass 10.1`. No secret handled, so no constant-time requirement and no Marvin exposure. ★ **Recorded as a candidate, and the engineer's untracked tree on 2026-09-03 was already going the other way**: `crates/pdfcer-core/src/crypto/bignum.rs` — *"Arbitrary-precision unsigned integers for public-key verification only … schoolbook multiplication and shift-subtract division, correct and slow, in safe Rust, with no secret to protect. It does NOT extend to signing."* The stated reason: the ecosystem stack (`num-bigint` / `crypto-bigint` / `p256` / `p384` / `ecdsa` / `elliptic-curve`) resolves to ~25 crates, several carrying `unsafe` with cfg-selected constant-time backends — the shape decision 039 accepted for `aes` only after argument, for a property (constant time) verification does not need. **Not decided**; decided when `Pass 10.1` ships, on whichever argument survived the fuzzer. Rule 13 applies if it enters `Cargo.toml`. ★ **Decided 2026-09-03 at ship (398th filing): NOT taken.** `crypto/bignum.rs` (548 lines: u32 limbs, schoolbook multiply, Knuth Algorithm D division, square-and-multiply modpow, Fermat inversion; 400 random cases against a bit-serial reference, modpow/inversion against Python's `pow`) is what shipped. The scratch-crate resolution measured the stack at **25 crates** with `cmov` / `hybrid-array` carrying cfg-selected `unsafe`; declined because that shape buys constant time, which protects a secret, and verification holds none. Nothing entered `Cargo.toml`; `Cargo.lock` unchanged. Still the crate to reach for if SIGNING ever ships — a private key is the case this row's argument does not cover. |
 | `p256` / `p384` (RustCrypto) | Apache-2.0 OR MIT | ~~**candidate — verification only**~~ → **checked, NOT taken (`Pass 10.1` in-crate, `22421b6`; decision 129)** (licence-checked 2026-09-03, `cargo info`: 0.14.0 both) | ECDSA verify over NIST P-256 / P-384 for `Pass 10.1`, `default-features = false, features = ["ecdsa"]`. Same posture and same in-house alternative as the `num-bigint` row: prime-field arithmetic with no secret. Signing, if it ever ships, gets the constant-time dependency — the `aes` argument, not the `md5` one. ★ **Decided 2026-09-03 at ship (398th filing): NOT taken.** `crypto/ecdsa.rs` (435 lines: Jacobian coordinates over both curves, on-curve check, RFC 6979 A.2.5 / A.2.6 published vectors, `n·G` is the identity, off-curve point refused per SEC 1 §4.1.4) shipped in its place; P-521 and Brainpool are `Unverifiable` by name, not silently wrong. Same reasoning as the `num-bigint` row. |
-| `sha1` (RustCrypto) | MIT OR Apache-2.0 | ~~**candidate — verification only**~~ → **checked, NOT taken (`Pass 10.1` in-crate, `22421b6`; decision 129)** (licence-checked 2026-09-03, `cargo info`: 0.11.0) | SHA-1 digests for `adbe.pkcs7.sha1` and SHA-1-signed PKCS#7 (legal in PDF 1.7, verified because real files carry it — never *produced*). Sibling of the adopted `sha2`. pdfce already carries in-house `md5.rs` on the *frozen, small, the weakness is the standard's* argument, which reaches SHA-1 equally; either route is fine, the choice is recorded at ship. ★ **Recorded 2026-09-03 at ship (398th filing): in-crate.** `crypto/sha1.rs` (141 lines, FIPS 180-4 vectors), beside `md5.rs` on the same frozen-and-small argument; `sha2` stays the dependency it already was. A SHA-1 digest is disclosed in the verdict's `notes` (rule 4) — verified, never endorsed. |
+| `sha1` (RustCrypto) | MIT OR Apache-2.0 | ~~**candidate — verification only**~~ → **checked, NOT taken (`Pass 10.1` in-crate, `22421b6`; decision 129)** (licence-checked 2026-09-03, `cargo info`: 0.11.0) | SHA-1 digests for `adbe.pkcs7.sha1` and SHA-1-signed PKCS#7 (legal in PDF 1.7, verified because real files carry it — never *produced*). Sibling of the adopted `sha2`. pdfcer already carries in-house `md5.rs` on the *frozen, small, the weakness is the standard's* argument, which reaches SHA-1 equally; either route is fine, the choice is recorded at ship. ★ **Recorded 2026-09-03 at ship (398th filing): in-crate.** `crypto/sha1.rs` (141 lines, FIPS 180-4 vectors), beside `md5.rs` on the same frozen-and-small argument; `sha2` stays the dependency it already was. A SHA-1 digest is disclosed in the verdict's `notes` (rule 4) — verified, never endorsed. |
 | `pkcs7` (RustCrypto/formats) | — | **skip, deprecated** | Maintainers explicitly redirect to `cms`. |
 | `x509-parser` | MIT/Apache-2.0 | adopt | nom-based, zero-copy, fuzzed. Cert reading/validation during PAdES verification. |
 | `x509-cert` (RustCrypto) | Apache-2.0 OR MIT | adopt | Cert construction, shares the `der` crate ASN.1 foundation with `cms` — natural pairing. |
@@ -343,7 +343,7 @@ complete PAdES support actually requires.
 | `clap` (derive API) | MIT OR Apache-2.0 | adopt | Undisputed de facto standard, 4.6.x line confirmed (exact patch digit disputed between two checks — re-verify at `Cargo.toml` time). |
 | `rfd` | MIT | adopt | Cross-platform native dialogs incl. WASM32 target, no C dependency, no subprocess spawning. Remains the standard. |
 | `egui_dock` | MIT (or dual, ecosystem convention) | evaluate | Binary-split docking (left/right, top/bottom). Version discrepancy between two checks (0.19.1 vs 0.20.1) — re-verify before pinning. |
-| `egui_tiles` (egui's own author) | MIT/Apache-2.0 | evaluate | Full horizontal/vertical/grid tiling via a `Behavior` trait — more flexible than egui_dock, but currently lacks some conveniences (close buttons, scroll areas). **Decide between this and egui_dock at the Pass where docking layout is built** — lean toward egui_tiles given pdfce likely wants flexible panel arrangement, unless egui_dock's conveniences save meaningful time. |
+| `egui_tiles` (egui's own author) | MIT/Apache-2.0 | evaluate | Full horizontal/vertical/grid tiling via a `Behavior` trait — more flexible than egui_dock, but currently lacks some conveniences (close buttons, scroll areas). **Decide between this and egui_dock at the Pass where docking layout is built** — lean toward egui_tiles given pdfcer likely wants flexible panel arrangement, unless egui_dock's conveniences save meaningful time. |
 | `egui_extras::TableBuilder` | MIT OR Apache-2.0 (tracks egui) | adopt (thumbnail rail, baseline) | `rows()`/`heterogeneous_rows()` only render visible rows — real virtualization, no extra dependency, adequate for "thousands of pages." |
 | `egui_virtual_list` | MIT | alternative | Purpose-built, targets 1M+ items with instant scroll-to-anywhere — upgrade path if the rail needs to scale further or needs arbitrary-page jump performance. |
 | Pan/zoom image-canvas widget | — | **needs custom implementation** | No well-maintained dedicated crate found (`egui_canvas` is an unmaintained hobby project with no image support). Build directly on `egui::ScrollArea`/`Painter`/`Sense::drag` + `egui_extras` texture handles — this is the one clearly-confirmed "must build ourselves" GUI item. |
@@ -351,20 +351,20 @@ complete PAdES support actually requires.
 ## Existing full OSS PDF tools — feature/architecture reference + competitive landscape
 
 Not Rust dependencies (mostly not Rust at all). Reference for feature
-behavior/edge cases (complements dispatching `pdfce-acrobat-librarian`)
+behavior/edge cases (complements dispatching `pdfcer-acrobat-librarian`)
 and — critically — for confirming whether a genuine market/OSS gap
-remains for pdfce to fill.
+remains for pdfcer to fill.
 
 | Project | License | Copyleft class | Reference-use risk | Notes |
 |---|---|---|---|---|
 | **Stirling-PDF** | MIT core; `proprietary/`, `saas/`, `engine/` dirs separately licensed (open-core) | mixed — **check per-directory** | MIT tree: safe to reference/reuse with attribution. Proprietary/saas/engine trees: avoid entirely. | 87.8k stars, most popular FOSS "PDF Swiss army knife," 50+ tools, extremely active (pushed same day as verification). Best feature-breadth reference; was reportedly GPLv3 before an MIT+proprietary restructure — historical detail unverified. |
-| **OCRmyPDF** | MPL-2.0 | weak-copyleft (file-level) | Safe to study/adapt small pieces with attribution; any MPL *file* copied/modified must itself stay MPL + source-available. | "Sandwich" approach: invisible position-aligned text layer over untouched original image, `--output-type pdfa` flag pattern. Strong direct reference for `pdfce-cli ocr`. ~34.3k stars, active. |
-| **qpdf** | Apache-2.0 | permissive | **Safe to reuse code/tests directly, including literal algorithm porting, with attribution.** Lowest-risk source in this survey alongside PDF.js. | Explicitly not a renderer/text-extractor — pure structural transformer (linearize, encrypt, repair, merge/split, xref/object-stream rewriting). Cleanest architecture model for pdfce-core's structural-integrity layer. 5.25k stars, continuously released since 2008. Possible pre-v7.0 Artistic-2.0 history, unconfirmed. |
+| **OCRmyPDF** | MPL-2.0 | weak-copyleft (file-level) | Safe to study/adapt small pieces with attribution; any MPL *file* copied/modified must itself stay MPL + source-available. | "Sandwich" approach: invisible position-aligned text layer over untouched original image, `--output-type pdfa` flag pattern. Strong direct reference for `pdfcer ocr`. ~34.3k stars, active. |
+| **qpdf** | Apache-2.0 | permissive | **Safe to reuse code/tests directly, including literal algorithm porting, with attribution.** Lowest-risk source in this survey alongside PDF.js. | Explicitly not a renderer/text-extractor — pure structural transformer (linearize, encrypt, repair, merge/split, xref/object-stream rewriting). Cleanest architecture model for pdfcer-core's structural-integrity layer. 5.25k stars, continuously released since 2008. Possible pre-v7.0 Artistic-2.0 history, unconfirmed. |
 | **Apache PDFBox** | Apache-2.0 | permissive | Code: safe, reuse with attribution. **Test corpus (`pdfbox-testfiles` repo): NOT blanket-safe** — its own README warns files "may be copyrighted to third parties," check per-file provenance before any reuse. Cross-reference `LEGAL.md` §5. | Mature broad-coverage Java library — good "what does a mature public API look like" reference. AcroForms, digital signatures via Bouncy Castle. |
 | **MuPDF** (Artifex) | **AGPL-3.0** (dual, paid commercial license available) | strong-copyleft | Read-only architectural reference; **do not copy code; do not link.** See clean-room note below. | Rendering fidelity/speed reputation. Also handles XPS/e-book formats. |
 | **Poppler** | **GPL-2.0-or-later + some GPL-3.0-or-later files [UNVERIFIED — see gaps below]** | strong-copyleft (pending confirmation it's not LGPL) | Read-only architectural reference; do not copy/link pending confirmation, treat as GPL-strictness until proven otherwise. | Engine behind Evince/Okular/`pdftotext`/`pdftoppm`. **Single most important unresolved license fact in this survey — GPL vs LGPL changes the linking-risk analysis materially. Direct COPYING-file check needed before further reliance.** |
 | **PDF.js** (Mozilla) | Apache-2.0 | permissive | **Safe to port algorithm structure/logic directly (even close to literal) with attribution, license copy, and modification notes** — includes an explicit patent grant, a real advantage over GPL/AGPL. Along with qpdf, the lowest-risk source here. | 53.6k stars, ships in Firefox, `pdfjs-dist` npm package, very active. Possible historical MPL→Apache-2.0 relicense, unconfirmed date/bug#. |
-| **Ghostscript** (Artifex) | **AGPL-3.0-or-later** (dual, paid commercial license, same vendor/model as MuPDF) | strong-copyleft | Read-only architectural/behavioral reference; do not copy/link without AGPL compliance or a commercial license. AGPL network-use clause is stricter than plain GPL if pdfce ever exposes a service/API mode. | De facto reference for PDF/A and PDF/X conformance-conversion *behavior* (what auto-fixes vs. flags unconvertible) — directly useful for defining that backlog bucket's feature spec independent of any code reuse. |
+| **Ghostscript** (Artifex) | **AGPL-3.0-or-later** (dual, paid commercial license, same vendor/model as MuPDF) | strong-copyleft | Read-only architectural/behavioral reference; do not copy/link without AGPL compliance or a commercial license. AGPL network-use clause is stricter than plain GPL if pdfcer ever exposes a service/API mode. | De facto reference for PDF/A and PDF/X conformance-conversion *behavior* (what auto-fixes vs. flags unconvertible) — directly useful for defining that backlog bucket's feature spec independent of any code reuse. |
 | **Open PDF Studio** | **LGPL-3.0** | weak-copyleft | Read/architecture reference safe; direct code reuse imposes LGPL obligations on whatever it's linked into (less restrictive than GPL/AGPL — permits linking from differently-licensed code if the LGPL component stays swappable/source-available, but not permissive like MIT/Apache). | **Closest existing native-desktop competitor.** Tauri 2 + Rust backend (but Rust is a thin shell, not a PDF engine) + SolidJS frontend + PDFium/PDF.js/pdf-lib underneath. 373 stars, v1.80.0 (3 days before verification), young/fast-moving. 20+ annotation tools, AcroForm+XFA, comparison, measurement/calibration. **Explicitly absent/unconfirmed: OCR, Bates, PDF/A, PDF/UA tagging, portfolios, true redaction, and whether it creates (vs. only validates) signatures.** |
 | **KillerPDF** | **GPL-3.0** | strong-copyleft | Architecture/feature-behavior reference only; no code reuse without inheriting GPL-3.0. | C#/.NET WPF, PDFium rendering, single ~15.6MB portable Windows EXE. 3,128 stars, 3 months old, fast traction. Bundled Tesseract OCR, form fill+flatten, cloud-cert signing, damage repair validated against a 2,900-file veraPDF corpus. **No redaction, no PDF/A confirmed.** Windows-only. |
 | Xournal++, PDFsam Basic, LibreOffice Draw, Inkscape, Okular | GPL-3.0/GPL-2.0/MPL-2.0/AGPL-3.0 (mixed, per-project) | copyleft (varies) | Reference-only, ruled out as real competitors | Each either not a real content editor (Okular, PDFsam Basic — explicitly page-ops-only per own docs), a general document/vector tool with real PDF-fidelity limitations (LibreOffice Draw, Inkscape), or annotation/sketching-only (Xournal++). |
@@ -374,7 +374,7 @@ remains for pdfce to fill.
 ### Competitive-landscape bottom line
 
 **No existing open-source project — web or desktop — currently
-combines the full breadth pdfce targets** (editing + forms +
+combines the full breadth pdfcer targets** (editing + forms +
 signatures + true redaction + OCR + Bates + PDF/UA tagging + PDF/A +
 portfolios + comparison + optimization) in one native desktop
 application. Stirling-PDF has the widest feature breadth but is a web
@@ -383,7 +383,7 @@ nearest native-desktop attempt (and validates a "thin Rust shell +
 PDFium/PDF.js rendering" pattern) but lacks OCR/Bates/PDF-A/
 accessibility-tagging. KillerPDF proves OCR+forms+signing+repair is
 deliverable natively without a huge codebase, but is GPL-3.0
-(code-reuse-blocked) and Windows-only. **pdfce's scope remains
+(code-reuse-blocked) and Windows-only. **pdfcer's scope remains
 substantially greenfield, particularly for OCR integration, PDF/UA
 tagging, Bates stamping, PDF/A/PDF/X conversion, true-removal
 redaction, and portfolios.** This validates the project's premise —
@@ -393,7 +393,7 @@ decision log).
 ## Copyleft landmines (read this before touching MuPDF/Ghostscript/Poppler source)
 
 - **MuPDF and Ghostscript (both Artifex, both AGPL-3.0[-or-later])**:
-  linking either into pdfce forces pdfce itself to AGPL-3.0 for that
+  linking either into pdfcer forces pdfcer itself to AGPL-3.0 for that
   build, or requires purchasing Artifex's commercial license. This is
   a **project-defining decision**, not a routine dependency pick —
   never back into it via a library choice; if it ever becomes
@@ -461,7 +461,7 @@ the same way, in minutes, whenever they next matter.
 - **2026-07-23** — Document created; three research passes launched.
 - **2026-07-23 (same day)** — First full research pass synthesized.
   Standout finding: `oxidize-pdf` (MIT) may already cover most of
-  pdfce-core's scope — flagged as an open question requiring a
+  pdfcer-core's scope — flagged as an open question requiring a
   dedicated audit before Pass 1, not yet decided. Confirmed gaps: no
   Rust crate does signature-safe incremental saves or PAdES signing
   (build from `cms`+`x509-cert`+RustCrypto). Resolved: pure-Rust
@@ -470,7 +470,7 @@ the same way, in minutes, whenever they next matter.
   Ghostscript are both AGPL-3.0 (Artifex dual-license) — never link
   without a deliberate, user-confirmed decision. Competitive landscape
   confirmed clear — no existing OSS project (web or desktop) combines
-  pdfce's full target feature breadth; Open PDF Studio (LGPL-3.0) and
+  pdfcer's full target feature breadth; Open PDF Studio (LGPL-3.0) and
   KillerPDF (GPL-3.0) are the closest native-desktop attempts, both
   with confirmed gaps (no OCR/Bates/PDF-A/accessibility for the
   former; GPL+Windows-only+no redaction/PDF-A for the latter).
@@ -492,7 +492,7 @@ the same way, in minutes, whenever they next matter.
     `epaint_default_fonts` bundles fonts under OFL-1.1 and
     Ubuntu-font-1.0. These are **font-file** licenses (they permit
     embedding; attribution is satisfied by `THIRD_PARTY_LICENSES.md`) —
-    they do NOT constrain pdfce's own (~~still-undecided,~~ **MIT since
+    they do NOT constrain pdfcer's own (~~still-undecided,~~ **MIT since
     2026-08-01 —** §1/`LEGAL.md` §1) *software* license the way a
     copyleft software dependency would.
     Recorded explicitly so a future session doesn't misread them as
@@ -506,10 +506,10 @@ the same way, in minutes, whenever they next matter.
   - **Reaffirmed:** the `oxidize-pdf` audit (then the "OPEN QUESTION"
     above, since resolved 2026-07-30) remained the outstanding gate
     before Pass 1 — Pass 0 deliberately shipped a thin
-    header-probe-only `pdfce-core` to keep that decision open, and did
+    header-probe-only `pdfcer-core` to keep that decision open, and did
     not adopt or reject `oxidize-pdf`.
 - **2026-07-30** — **`oxidize-pdf` audit completed; adopt-vs-build
-  RESOLVED (KenAgent decision protocol):** build `pdfce-core` from
+  RESOLVED (KenAgent decision protocol):** build `pdfcer-core` from
   scratch; `oxidize-pdf` is reference-only + out-of-tree differential
   test oracle, never a shipping dependency; zero literal ports
   planned; maintained permissive crates (`hayro-jbig2`, `hayro-ccitt`,
@@ -522,7 +522,7 @@ the same way, in minutes, whenever they next matter.
   fallbacks). New `hayro-write` row added: parse→rewrite via
   `pdf-writer` now exists (full re-serialization only) — the
   signature-safe byte-preserving incremental-save gap remains
-  ecosystem-wide (lopdf #305 still open); pdfce's differentiation
+  ecosystem-wide (lopdf #305 still open); pdfcer's differentiation
   stands.
 - **2026-08-18 (hundred-and-seventy-third librarian filing, `138a3c0`)**
   — new **Colour management (ICC)** table added under Supporting crates.
@@ -537,7 +537,7 @@ the same way, in minutes, whenever they next matter.
   WITHDRAWN.** The operator said *"iccce has been updated, please use the
   latest version"*, which surfaced that **`ARCHITECTURE.md` decision 064
   (2026-08-17) had already assigned colour CONVERSION to `iccce`** — the
-  sibling MIT project at `D:\Dev\iccce\` whose README names pdfce as its
+  sibling MIT project at `D:\Dev\iccce\` whose README names pdfcer as its
   first consumer. There was never a candidate slot for a third-party CMM.
   `iccce` already ships the exact call Stage C needs,
   `Chain::with_destination(&src, Destination::None, intent)`, verified by
@@ -570,7 +570,7 @@ the same way, in minutes, whenever they next matter.
   DER / CMS / X.509 walker (~500 lines, fuzzable) instead of `cms`, and
   — one step further than the dispatch, read from the untracked tree —
   in-house verification-side big-number arithmetic in safe Rust
-  (`crates/pdfce-core/src/crypto/bignum.rs`, 13,675 B at filing) instead
+  (`crates/pdfcer-core/src/crypto/bignum.rs`, 13,675 B at filing) instead
   of the ~25-crate `num-bigint` / `p256` stack, on the argument that
   constant-time code protects a secret and verification has none; the
   same file states the judgement *does not extend to signing*. **Nothing
