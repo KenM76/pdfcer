@@ -112,10 +112,182 @@ wherever it appears.*
 
 ## Shipped
 
-**★★★★★★ 407th filing, 2026-09-03 — `4605a86`: `Pass 248.3` SHIPS — NATIVE
-SVG GRADIENTS (AXIAL + FOCAL-RADIAL) FROM THE SAME EXPORT RECORDING;
-OPERATOR-PROMPTED FOLLOW-ON, NEVER FILED IN *NEXT UP*. `Pass 248.4` (EMF
-FOR LIBREOFFICE 24.x) MINTED AND QUEUED IN *NEXT UP*, NOT STARTED.**
+**★★★★★★★ 408th filing, 2026-09-03 — `b8fd06d`: `Pass 248.4` SHIPS — A
+HAND-ROLLED [MS-EMF] WRITER FOR LIBREOFFICE 24.x AND LEGACY WIN32 CLIPBOARD
+CONSUMERS; THE FINDING THAT GDI+'S OWN EMF PLAYER MIS-PLAYS
+`EMR_ALPHABLEND` (REAL GDI IS THE ONLY VALID ORACLE). CLOSES THE
+OPERATOR'S TWO "YES"-APPROVED FOLLOW-ONS IN FULL. `v0.30.0` BUMP COMMIT
+ALREADY ON `main`; THE RELEASE ITSELF IS NOT RECORDED HERE.**
+
+**★ Sourcing (hard rule 8).** No Bash/shell tool available to this filing.
+Commit hashes below were obtained by direct `Read` of `.git/refs/heads/main`
+and `.git/logs/HEAD` — the raw reflog file, not `git log` — which is
+**looking**, not inferring from documents; `refs/heads/main` changed under
+this filing's hands mid-session (first read `b8fd06d…`, second read
+`1f9eb1d…`), confirming a further commit landed **while this filing was in
+progress** — recorded as observed, not smoothed over. **Independently
+verified by direct `Read`/`Grep` this filing**: `crates/pdfcer-render/src/emf.rs`
+— `export_emf`, `export_emf_view`, `EmfOptions`, `EmfOutcome`, `EmfExport`,
+`walk_records` all present at the named line numbers, doc table naming
+`EMR_ALPHABLEND` as the fallback for anything with no vector form and
+`layers_rasterised`/`blend_modes_dropped` as its counters;
+`crates/pdfcer-render/tests/export_emf.rs` — **8** `#[test]` functions
+(`Grep` count), matching the claimed suite; `crates/pdfcer-cli/src/clipboard.rs:207-221`
+— `CF_ENHMETAFILE` placed via `windows::Win32::Graphics::Gdi::SetEnhMetaFileBits`
++ `windows::Win32::System::DataExchange::SetClipboardData`, no
+clipboard-win setter used for it (matches "clipboard-win has no
+metafile-specific setter"); `clipboard.rs:197-238` — placement order
+confirmed **`image/svg+xml` → `CF_ENHMETAFILE` → `PNG` → `CF_DIBV5` →
+`application/pdf`**, exactly "SVG, EMF, PNG, DIBV5, PDF"; `main.rs:3438,
+9119,9132` — `no_emf: bool` flag wired through to `emf: !no_emf` in the
+copy-page options, and the all-formats-off refusal string at `main.rs:12900`
+now lists `--no-emf` alongside the other three; `crates/pdfcer-cli/Cargo.toml:139-145`
+— `windows = { version = "0.62", … }` sits in the CLI's `cfg(windows)`
+target-dependency block (comment above it explains why `clipboard-win` alone
+isn't enough), confirming "joins the CLI's cfg(windows) block"; `fuzz/Cargo.toml`
++ `fuzz/fuzz_targets/export_emf.rs` — fuzz target exists;
+`docs/core-api/03-capabilities.md` §7.10 "Exporting a page as an Enhanced
+Metafile — EMF (`Pass 248.4`)" present at line 2970, naming the same
+GDI-vs-GDI+ `EMR_ALPHABLEND` finding; file is **3,038 lines** total
+(`Read` at that offset lands on the file's final section), matching the
+claimed re-derived line count. **Not independently re-run/re-measured this
+filing** (no shell, no GDI/GDI+ available to re-execute): the specific pixel
+values (`(0,0,128,128)` over white → GDI+ `(134,5,6)` vs real GDI
+`(255,127,127)`, straight-alpha through GDI `(126,127,127)`), the "74
+clauses" figure, the Word `PasteSpecial(wdPasteEnhancedMetafile)` hang/kill
+observation, the clipboard-format enumeration list, and the fmt/clippy/
+`cargo tree`/wasm32/all-19-`check-*.py`/full-workspace-test gate results —
+all relayed from the dispatch. Ledger checked by `Grep` of `ROADMAP.md`
+directly (no shell for `tools/check-ledger-numbers.py`): Pass ceiling
+`248.3`, decision `132`, `R241`, filings `407` — matches this filing's own
+stated "last known" exactly.
+
+### `Pass 248.4` (`b8fd06d`, 2026-09-03) — EMF export: a hand-rolled [MS-EMF] writer from the same export recording SVG uses, for LibreOffice 24.x and legacy Win32 clipboard consumers
+
+**Operator-prompted, not self-scoped** — the second of two "yes"-approved
+follow-ons offered after the `v0.29.1` brief (the first was `Pass 248.3`).
+Filed *Next up* **in progress** by the 407th filing the same day; shipped
+the filing after.
+
+1. **`pdfcer_render::emf`** — a from-scratch [MS-EMF] writer built on the
+   same `ExportState`/export-recording pass `Pass 248.1`/`248.3` already
+   produce for SVG, not a second interpreter of the page. Solid opaque
+   fills/strokes/clips go out as real GDI path records: coordinates in
+   0.01 mm logical units under `MM_TEXT` with no world transform, dashes
+   pre-applied to the path geometry rather than expressed as a pen style
+   (EMF pen dash patterns are far more limited than PDF's), and the miter
+   limit carried as raw float bits (EMF has no float join-limit field, so
+   the writer's own convention is documented at the point it's used).
+2. **Everything EMF has no vector form for** — a solid fill/stroke with
+   alpha < 255, a non-`Normal` blend mode, a gradient brush, an image, or a
+   transparency group/soft-mask layer — is **replayed into a scratch
+   raster**, cropped to its painted bounding box, and written as a single
+   `EMR_ALPHABLEND` record carrying **premultiplied BGRA** (the GDI
+   `AlphaBlend` contract). Each occurrence is a counter on `EmfOutcome`
+   (`rasters_embedded` plus one of `ops_rasterised_for_alpha`/
+   `blend_modes_dropped`/`gradients_rasterised`/`images_embedded`),
+   disclosed off-canvas per `CLAUDE.md` rule 4 — never silently dropped,
+   the same "counted, not refused" posture as `Pass 248.1`'s SVG export and
+   decision 132.
+3. **★ THE FINDING — `System.Drawing.Imaging.Metafile` (GDI+) mis-plays
+   `EMR_ALPHABLEND`; real GDI is the only valid oracle.** A premultiplied
+   `(0, 0, 128, 128)` pixel composited over white came back through GDI+
+   as `(134, 5, 6)` — nearly opaque and wrongly tinted — while playing the
+   identical bytes through **real GDI** (`PlayEnhMetaFile` onto a DIB
+   section, driven via PowerShell P/Invoke, not .NET's managed wrapper)
+   gave `(255, 127, 127)`, exactly the spec's Case II compositing result.
+   A straight-alpha (non-premultiplied) pixel through the same real-GDI
+   path gave `(126, 127, 127)`, confirming premultiplied is the correct
+   contract for the bytes this writer emits. **Consequence for the test
+   suite**: the oracle for `EMR_ALPHABLEND` pixel-parity tests is real GDI,
+   never `System.Drawing`. (`D:\dev\rag\emf\minimal_valid_emf.md`'s own
+   verification harness uses `System.Drawing` for a `FILLPATH`-only file —
+   fine for that record type, but explicitly noted there as *not* an
+   oracle for `EMR_ALPHABLEND`.)
+4. **Surface.** `pdfcer export-image --format emf`, with an `emf:`
+   disclosure line on the way past (rule 4's CLI half — the invocation is
+   the commit, so the print substitutes for off-canvas GUI disclosure).
+   `copy-page` gains `CF_ENHMETAFILE` as a **second** clipboard format,
+   placed via `SetEnhMetaFileBits` + `SetClipboardData` directly (no
+   `clipboard-win` setter exists for a metafile handle) inside
+   `clipboard-win`'s open-clipboard guard. Confirmed placement order:
+   `image/svg+xml` → `CF_ENHMETAFILE` → `PNG` → `CF_DIBV5` →
+   `application/pdf`. A new `--no-emf` flag opts out, joining
+   `--no-svg`/`--no-raster`/`--no-pdf` in the all-formats-off refusal
+   string.
+5. **Dependency.** `windows` 0.62 — already `pdfcer-print`'s version —
+   added to `pdfcer-cli`'s `cfg(windows)` target-dependency block (three
+   feature gates: `Win32_Foundation`, `Win32_Graphics_Gdi`,
+   `Win32_System_DataExchange`; no new package). **The Linux-target
+   clippy was run *before* this commit** — the process gap that produced
+   `a66a4e4`'s CI-red `v0.29.0` tag one Pass ago was not repeated.
+6. **Measured** (relayed, not re-run this filing — see Sourcing above):
+   real-GDI pixel parity on fills, strokes, clips and `EMR_ALPHABLEND`
+   content; Inkscape-import parity on the vector-only fixtures, when
+   Inkscape is installed. A second measurement attempt — Word's
+   `Selection.PasteSpecial(wdPasteEnhancedMetafile)` through combridge COM
+   — **did not return within minutes and the client was killed**; Word
+   itself was undamaged. Recorded as **not measured**, explicitly not as a
+   defect in the metafile — the real-GDI playback of the same bytes is
+   clean, so the hang is attributed to the combridge/Word paste-special
+   path, not to the EMF content. Clipboard enumeration after `copy-page`
+   observed: `image/svg+xml`, `EnhancedMetafile`, `PNG`, `Format17`,
+   `application/pdf`, plus Windows-synthesised `MetaFilePict`/`Bitmap`/
+   `DIB`.
+7. **Tests.** `crates/pdfcer-render/tests/export_emf.rs`, **8** tests
+   (`Grep`-confirmed this filing): structure well-formedness; brush byte
+   order; pen style/width/float-encoded miter limit; pre-dashed geometry;
+   `SAVEDC`/clip/`RESTOREDC` ordering; `EMR_ALPHABLEND` record layout +
+   premultiplied-pixel check; a gradient brush correctly counted rather
+   than silently vectorised; real-GDI pixel parity on fills/stroke/clip/
+   alpha; Inkscape-import parity on vector-only fixtures (conditional on
+   Inkscape being present). Fuzz target `export_emf` added
+   (`fuzz/fuzz_targets/export_emf.rs`, `Grep`-confirmed).
+8. **Gates** (relayed): fmt, clippy `-D warnings` on every target
+   including the Linux cross-check run pre-commit this time, `cargo tree`
+   (core/render still clipboard-free), wasm32 check, fuzz check, all 19
+   `tools/check-*.py`, full workspace test run.
+
+**A RAG reference tree, `D:\dev\rag\emf\`, was built today by a research
+dispatch** (`index.md`, `records_and_file_model.md`,
+`coordinate_transform_records.md`, `path_records.md`, `object_records.md`,
+`raster_records.md`, `comment_records_and_emfplus.md`, `consumers.md`,
+`minimal_valid_emf.md`) — named here so it counts as **handed off**, per
+the librarian's own house-style discipline for that tree (rule 14, flat
+`<topic>.md` files, one finding per file). **Not independently indexed by
+this filing** — a future "index check" invocation should confirm each of
+those files has a matching bullet in `D:\dev\rag\emf\index.md`'s own
+"## Index" list, the same discipline every other `D:/dev/rag/<tool>/`
+subdir gets.
+
+**`docs/core-api/03-capabilities.md`** §7.10 "Exporting a page as an
+Enhanced Metafile — EMF (`Pass 248.4`)" added; §7.9's copy-out section
+amended for the fifth format. Index counts re-derived: **3,038 lines**
+(`Read`-confirmed this filing), **74 clauses** (relayed).
+
+**`docs/FEATURES.md`**: a new Export-section row added — "Export page(s)
+to EMF (Windows Enhanced Metafile)" → `[x]` core / `[x]` cli / `[ ]` gui —
+and the copy-out row amended in place (same `[x]`/`[x]`/`[ ]` boxes) to
+name `CF_ENHMETAFILE` as a placed format and LibreOffice 24.x as now
+reachable, replacing its prior "deliberately deferred" clause.
+
+**No decision minted, no standing rule minted** — the GDI/GDI+ oracle
+split is a single-occurrence finding (see the RAG entry above), not a
+recurring pattern; the two-occurrence bar for a new standing rule is not
+met.
+
+**This closes the operator's two "yes"-approved follow-ons in full.** Next
+up is `Pass 5.4` (encrypt on save), unchanged from its 396th-filing
+scoping. **The engineer bumped the version to `0.30.0` (`1f9eb1d`,
+observed via this filing's second `.git/refs/heads/main` read) to carry
+`248.3` + `248.4` — the release act itself (tag, packaging, GitHub,
+OneDrive, `verify-release.py`) is deliberately NOT recorded here; a later
+filing will record it with measured, not relayed, figures.**
+
+**Ledger.** Filings ceiling `407` → **`408`**; decision ceiling `132`
+unchanged, next free `133`; Pass ceiling `248.3` → **`248.4`**; standing
+rules ceiling `R241` unchanged, next free `R242`; open operator questions:
+none minted, next free `(ce)`.
 
 **★ Sourcing (hard rule 8).** No shell available to this filing — `Read`/
 `Grep` on live source only, no `git`/`gh`. `4605a86`'s own commit message
@@ -106708,26 +106880,17 @@ in the "still open" list. Full build record: this file's own
 > (same `[x]`/`[x]`/`[ ]` boxes). The second offered follow-on is filed
 > immediately below as `Pass 248.4`.
 
-### `Pass 248.4` — **`CF_ENHMETAFILE` (EMF) EXPORT, FOR LIBREOFFICE 24.x AND LEGACY WIN32 CLIPBOARD CONSUMERS** — filed 2026-09-03 (407th filing), operator-prompted (the second of two "yes"-approved follow-ons offered after `v0.29.1`), **IN PROGRESS**
-
-An [MS-EMF] writer in `pdfcer-render`, built from the same export
-recording `Pass 248.1`/`248.3` already produce (paths, pens, brushes,
-clips; alpha/blend flattened with the flattening disclosed off-canvas per
-`CLAUDE.md` rule 4, not silently dropped; text emitted as outlines, the
-same choice the SVG export already made rather than depending on font
-availability at the consumer). Surface: `pdfcer export-image --format
-emf`, and `copy-page` gains `CF_ENHMETAFILE` as a fifth clipboard format —
-`clipboard-win` has no metafile-specific setter, so placement goes through
-`SetEnhMetaFileBits` + `SetClipboardData` directly, a corner of the
-Windows API this crate has not yet touched. Oracle: Inkscape's own EMF
-*import*, rendered back out to PNG, compared against pdfcer's PNG of the
-same page — the reverse direction from `Pass 248.1`/`248.3`'s
-Inkscape-renders-pdfcer's-SVG oracle, because EMF's consumer of interest
-(LibreOffice) is no more scriptable headlessly for clipboard paste than
-Inkscape was for `Pass 248.2`. **Then `Pass 5.4`** (filed below, NOT
-STARTED, order committed SECOND after `Pass 10.1`, which has since
-shipped) is next once `248.4` ships. **No decision minted, no standing
-rule minted** for this filing — `248.4` is scoped, not yet built.
+> ★★★★★★★ **`Pass 248.4` SHIPPED and has left this section, 2026-09-03
+> (408th filing, `b8fd06d`).** Filed here **in progress** by the 407th
+> filing the same day; shipped the filing after. Its full entry — the
+> hand-rolled `pdfcer_render::emf` [MS-EMF] writer, `EMR_ALPHABLEND` for
+> everything EMF has no vector form for, the GDI-vs-GDI+ oracle finding,
+> `CF_ENHMETAFILE` on the clipboard, `--no-emf`, and the Word
+> `PasteSpecial` hang recorded as not-measured rather than as a defect —
+> is at the **top of *Shipped***. `docs/FEATURES.md` gained a new EMF
+> export row (`[x]`/`[x]`/`[ ]`) and the copy-out row's text was amended
+> in place. **This closes the operator's two "yes"-approved follow-ons in
+> full.** `Pass 5.4` (below) is next.
 
 ### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), **NOT STARTED**
 

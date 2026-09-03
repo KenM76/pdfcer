@@ -90339,3 +90339,85 @@ trace of it; flagged as relayed-only rather than silently repeated.
   `index.md`) — this role has no shell to commit them itself this
   invocation.
 - Operator: nothing pending from this filing.
+
+## 2026-09-03 (408th filing) — roadmap update, pass shipped: **`Pass 248.4` (`b8fd06d`) SHIPS — a hand-rolled [MS-EMF] writer for LibreOffice 24.x and legacy Win32 clipboard consumers; the finding that GDI+'s own EMF player mis-plays `EMR_ALPHABLEND` and real GDI is the only valid oracle; closes both operator "yes" follow-ons**
+
+**Sourcing (hard rule 8).** No Bash/shell tool available to this filing.
+Commit hashes obtained by direct `Read` of `.git/refs/heads/main` and
+`.git/logs/HEAD` (the raw reflog) — looking, not inferring from documents.
+`refs/heads/main` changed **between** two reads in this same filing
+(`b8fd06d…` then `1f9eb1d…`), confirming the engineer's `v0.30.0` version
+bump landed while this filing was in progress. **Independently verified by
+direct `Read`/`Grep`**: `pdfcer_render::emf` functions and doc table exist
+as described; `export_emf.rs` has 8 tests; `clipboard.rs` places
+`CF_ENHMETAFILE` via `SetEnhMetaFileBits`+`SetClipboardData` (no
+`clipboard-win` setter), in the order SVG→EMF→PNG→DIBV5→PDF; `main.rs`
+wires `--no-emf` through to the copy-page options and the all-off refusal
+string; `pdfcer-cli/Cargo.toml` has `windows = "0.62"` in the
+`cfg(windows)` block; the fuzz target exists;
+`docs/core-api/03-capabilities.md` §7.10 exists at the claimed line, file
+is 3,038 lines total. **Not independently re-run**: the specific pixel
+values for the GDI/GDI+ finding, the "74 clauses" figure, the Word-hang
+observation, the clipboard enumeration list, and all gate results — relayed
+from the dispatch.
+
+**Shipped:**
+- `Pass 248.4` (`b8fd06d`) — `pdfcer_render::emf::{export_emf,
+  export_emf_view, EmfOptions, EmfOutcome, EmfExport, walk_records}`: solid
+  opaque fills/strokes as real GDI path records (0.01 mm units, `MM_TEXT`,
+  pre-applied dashes, miter limit as float bits); everything EMF has no
+  vector form for (translucent solids, blend modes, gradients, images,
+  transparency groups) replayed into a scratch and written as
+  `EMR_ALPHABLEND` (premultiplied BGRA), each a disclosed counter.
+  `export-image --format emf` with an `emf:` off-canvas-equivalent print
+  line; `copy-page` places `CF_ENHMETAFILE` second in the clipboard
+  transaction via `SetEnhMetaFileBits`+`SetClipboardData` inside
+  `clipboard-win`'s guard; `--no-emf` opts out. `windows` 0.62 joins the
+  CLI's `cfg(windows)` block; the Linux-target clippy was run *before* this
+  commit this time (the gap that produced `a66a4e4`'s red tag was not
+  repeated). 8 new tests in `export_emf.rs`; fuzz target `export_emf`.
+
+**Decisions made this session:**
+- None. No decision minted, no standing rule minted — the GDI/GDI+ oracle
+  split is a single-occurrence finding, not a recurring pattern (two-
+  occurrence bar not met).
+
+**Findings + decisions:**
+- **★ `System.Drawing.Imaging.Metafile` (GDI+) mis-plays `EMR_ALPHABLEND`.**
+  A premultiplied `(0,0,128,128)` pixel over white came back `(134,5,6)`
+  through GDI+ (nearly opaque, wrong), but `(255,127,127)` — the spec's
+  Case II — through real GDI (`PlayEnhMetaFile` onto a DIB section via
+  PowerShell P/Invoke). A straight-alpha pixel gave `(126,127,127)` through
+  the same real-GDI path, confirming premultiplied is the correct contract.
+  **The test oracle for `EMR_ALPHABLEND` is real GDI, never
+  `System.Drawing`.** Filed to `D:\dev\rag\emf\` (below) rather than just
+  here, since it generalizes past this project to any EMF-writing tool.
+- A second measurement attempt — Word's
+  `Selection.PasteSpecial(wdPasteEnhancedMetafile)` through combridge COM —
+  did not return within minutes; the client was killed, Word itself was
+  fine. Recorded as **not measured**, explicitly not as a defect in the
+  metafile (real-GDI playback of the same bytes is clean).
+- A research dispatch built `D:\dev\rag\emf\` today (index.md +
+  8 topic files: file model/records, coordinate transforms, path records,
+  object records, raster records, EMF+ comment records, consumers,
+  a minimal-valid-EMF verification harness). Named here so it counts as
+  handed off, per this role's own house-style discipline for that tree.
+  **Not independently indexed by this filing** — an "index check"
+  invocation should confirm every file has a matching bullet in
+  `D:\dev\rag\emf\index.md`'s own list.
+
+**Still in flight:**
+- `Pass 5.4` (encrypt on save) — next up, unchanged from its 396th-filing
+  scoping.
+- The `v0.30.0` release itself (tag, packaging, GitHub, OneDrive,
+  `verify-release.py`) — the version-bump commit (`1f9eb1d`) is already on
+  `main`, observed via this filing's own second `.git/refs/heads/main` read,
+  but the release act is deliberately NOT recorded in this filing; it
+  belongs to a later one with measured, not relayed, figures.
+
+**For next session:**
+- Engineer: commit this filing's doc edits (docs/ROADMAP.md,
+  docs/FEATURES.md, docs/SESSION_LOG.md) — this role has no shell to commit
+  them itself this invocation. Record the `v0.30.0` release separately once
+  it has actually happened, with measured figures.
+- Operator: nothing pending from this filing.
