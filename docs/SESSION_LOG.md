@@ -89410,3 +89410,224 @@ ceiling `130` → `131`, next free `132`. Rules ceiling `R241`, unchanged.
 Open operator questions: none minted; next free `(ce)`.
 
 **`docs/NEXT_SESSION.md`:** not touched (engineer-owned).
+
+## 2026-09-03 (401st filing) — roadmap update, pass shipped: **`Pass 247.2` (NO code commit; tag `v0.28.0` at `562ca7e`; https://github.com/KenM76/pdfcer/releases/tag/v0.28.0) — `KenM76/pdfcer` created and pushed with every tag; `KenM76/pdfce` archived behind a README pointer (TWO commits there, `fbc53ee` + `c0c67d3`, not the plan's one — the second keeps the archived repo's own filing gate green); `v0.28.0` released (GitHub zip 18,269,564 B; OneDrive `pdfcer1`, with `pdfcer2` SEEDED from `pdfce2` so `R229`'s previous-version check has something to find); `verify-release.py v0.28.0` clean; the `247.0`/`247.1`/`247.2` group fully Shipped; *Next up* headed by `Pass 5.4`; the `pdfceF{n}` survivor ruled a KEEP; ROADMAP's own header/Glossary/protocol renamed; no decision, rule or question minted. ★ Working tree NOT clean at the end of this filing — the engineer's next change (removing decision 131's legacy-key fallback) is in flight beside it, unfiled here**
+
+**Sourcing (hard rule 8).** Shell available, read-only — `git` in
+`D:\Dev\pdfcer` and file reads only; no `cargo`, no gates, no `gh`, no
+`git` in `D:\Dev\pdfce`. **Measured here:** `git remote -v` → `origin
+https://github.com/KenM76/pdfcer.git`; `git log --oneline -3` →
+`562ca7e` (400th filing) on `4db298d` on `2bb7608`; `git status --short`
+→ **empty at the START of this filing, NOT at its end** (see *Still in
+flight*); `git rev-list --left-right --count main...origin/main` →
+**`0 0`**; `git tag | wc -l` → **31**, newest `v0.28.0`, `git rev-parse
+v0.28.0^{commit}` → `562ca7e…efc0a`, annotated (`git tag -n1`: *"pdfcer
+v0.28.0 -- first release under the product's real name; the pdfce line
+continues (v0.27.0 -> v0.28.0); signature verification; the in-repo GUI
+removed"*); `git ls-remote --tags origin | wc -l` → **59** refs (the
+dispatch's 57 measured before `v0.28.0` was pushed; +2 for the new
+tag and its peeled line). `D:\builds\pdfcer-v0.28.0-windows-x64.zip`
+18,269,564 B, `sha256sum` → `64d77604…a466`, equal to the `.sha256`
+sidecar and the dispatch; `D:\builds\pdfcer-20260903-1347-562ca7e\`
+32,411,461 B by `du -sb`, `pdfcer.exe` 19,938,816 B. OneDrive:
+`pdfcer1` `VERSION.txt` → `0.28.0` / `v0.28.0` / deployed
+`2026-09-03T17:52:36Z` / source the build folder above; **32,410,058 B
+= 32,411,461 − BUILD-INFO.txt 1,731 + VERSION.txt 328**, exactly.
+`pdfcer2` `VERSION.txt` → `0.27.0` / `v0.27.0` / deployed
+`2026-09-03T11:30:49Z` / `slot: pdfce2` (inherited from the copy) + the
+appended *"copied verbatim from OneDrive/pdfce2 … still carries its
+pre-rename name pdfce-cli.exe"* note; `pdfce-cli.exe` 19,753,472 B on
+both `pdfcer2` and `pdfce2`; 32,380,199 B. `pdfce1` (`0.26.0`) and
+`pdfce2` (`0.27.0`) untouched — `VERSION.txt` mtimes 06:07 / 07:30,
+before every `pdfcer*` write (13:52–13:54). Channel:
+`note_pdfcer_is_live_re_point_your_three_dependency_lines_to_D_Dev_pdfcer.md`
+exists (4,444 B, 14:02); the GUI side's
+`note_the_gui_is_pdfcer_gui_now_and_here_is_what_moved.md` (12:26)
+says they hold at `file:///D:/Dev/pdfce` behind `package =` shims until
+told the commit — consistent with "not yet re-pointed";
+`reply_signature_integrity_first_then_encryption_and_your_two_sentences.md`
+still in `open\`. **Relayed** (the engineer's dispatch, not
+re-measured): `gh repo create` (description, five topics), the pre-push
+hook's three gates, CI run `33786657866` success at `562ca7e`, the two
+old-repo commits and `isArchived: true`, `pdfcer --version` → revision
+`v0.28.0`, the fresh-folder smoke test, `gh release create … --latest`
+and its title, `verify-release.py` clean, the auto-memory seed. All
+edits under `D:\Dev\pdfcer\docs\`; `D:\Dev\pdfce` not touched.
+
+**Shipped:**
+- **`Pass 247.2`** — publish, archive, release. (1) `KenM76/pdfcer`
+  created public; `origin` re-pointed; `main` and all tags pushed
+  (`R241` hook clean); first CI green. Decision 128 item 5's one-Pass
+  authority for creating a repository: **consumed.** (2) `KenM76/pdfce`:
+  `fbc53ee` README head *"ARCHIVED. The project continues as pdfcer"*
+  → `KenM76/pdfcer` + `KenM76/pdfcer-gui`; **`c0c67d3`** a final
+  `SESSION_LOG.md` entry filing `fbc53ee`, because
+  `check-commits-filed.py` treats a README commit as CODE and a
+  one-commit archive would have left the archived repo's gate
+  permanently red; pushed `cce414e..c0c67d3`; `gh repo archive` →
+  `isArchived: true`. Archiving disables Actions: the old repo's last
+  CI run is `cce414e` (green); `fbc53ee`/`c0c67d3` never ran. Old
+  release pages untouched. (3) `v0.28.0`: annotated tag at `562ca7e`;
+  `package-portable.py` → `D:\builds\pdfcer-20260903-1347-562ca7e`;
+  `Compress-Archive` → the zip; fresh-folder smoke test from the
+  UNZIPPED zip (`pdfcer -V` → `pdfcer 0.28.0`; `verify-signatures` on
+  the tampered fixture → *"integrity: FAILED — the bytes under the
+  signature were ALTERED after signing"*); `gh release create v0.28.0
+  <zip> --latest`, title *"pdfcer v0.28.0 - first release under the
+  real name: the pdfce line continues, signature verification, GUI
+  moved out"*. **The artefact is `pdfcer-v<version>-windows-x64.zip`
+  with `pdfcer.exe` from here on** (`v0.27.0`'s was `pdfce-…` with
+  `pdfce-cli.exe`; 25,281,588 B beside 18,269,564 B in `D:\builds\` —
+  the GUI's weight leaving the package at `247.0`). (4) OneDrive:
+  `deploy-onedrive.py` → `pdfcer1`; `verify-release.py` FAILED
+  *"a PREVIOUS version is still on OneDrive"* — structurally, a fresh
+  pair has none; `pdfcer2` seeded by verbatim copy of `pdfce2` with a
+  note in its `VERSION.txt`; `verify-release.py v0.28.0` then clean on
+  every check. (5) Channel note posted with the commit table, the three
+  exact `Cargo.toml` lines (theirs: `package = "pdfce-core"` shims
+  against `file:///D:/Dev/pdfce`, lines 342/343/358; after: plain
+  `git = "file:///D:/Dev/pdfcer"`), the sidecar-key fact, `PDFCER_*`,
+  and the `theme` out-of-tree citation. Folder name unchanged.
+
+**Decisions made this session:**
+- **None minted; ceiling stays `131`.** Two dated notes under decision
+  128 (item 2: two commits in the archived repo, and why — a plan
+  premise the filing gate refuted; item 5: the one-Pass
+  create/archive authority is consumed). One dated addendum under
+  decision 131: the **`pdfceF{n}` / `pdfceFm{n}` prefix is a KEEP** —
+  `/Resources` keys are arbitrary (ISO 32000-1 §7.8.3) and never
+  shown; allocation is "first unused", prefix-agnostic, so old and new
+  names coexist with no rule between them; a rename would change every
+  add-text/format output byte and move ten files for no
+  operator-visible gain. Scope statement added to 131: a guard is owed
+  only where a reader BRANCHES on the identifier — the sidecar key
+  (guard built at `562ca7e`), not `/Producer`, not the OC configuration
+  name, not a resource name. `pdfceF` is a correct survivor from here on.
+- **No standing rule minted** (`R241` ceiling). `R229` annotated: the
+  renamed slot pair was seeded exactly as its own *"State after
+  `Pass 166.0`"* paragraph records — the rule applied, not an
+  exception. `R175` annotated in its own practical form: `git remote
+  -v` → `KenM76/pdfcer`, checked 2026-09-03; `KenM76/pdfce` archived.
+- **No operator question minted;** next free `(ce)`.
+
+**Findings + decisions:**
+- **A README commit is a CODE commit to `check-commits-filed.py`, so an
+  archive that ends on a README pointer ends RED unless the pointer is
+  itself filed.** Hence two commits. The general shape: *a gate that
+  reads the record keeps binding after the repository stops changing*
+  — an archived repo is a repo whose last verdict is permanent, so the
+  last commit must be the one that satisfies every gate, which for
+  this project means a filing, not a change.
+- **A renamed slot pair is a fresh slot pair, and `R229`'s second check
+  is designed to fail on one.** The "previous version" check cannot be
+  satisfied by deploying alone; it needs a seed, and the rule's own
+  mint did the same. Recorded so the next slot rename (if ever) does
+  not read the failure as a defect in `verify-release.py`.
+- **The mechanical rename turned three DATED facts false** — searched
+  for the claim "`KenM76/pdfcer` was created 2026-08-09" (hard rule 11):
+  `CLAUDE.md:286`, `docs/LEGAL.md:50`, `docs/LEGAL.md:78` all now say
+  `github.com/KenM76/pdfcer` was created 2026-08-09 04:56Z. That
+  repository was **`KenM76/pdfce`**; `KenM76/pdfcer` dates from
+  2026-09-03. `LEGAL.md:84`'s `gh api repos/KenM76/pdfcer/contents/…
+  ?ref=817d518^` recipe is still TRUE (the clone carries the history)
+  — which is also the one-line answer to whether publishing the clone
+  re-exposed the `817d518` material §1.1 records: it did, and §1.1
+  says that exposure was reviewed and accepted, so a second copy is
+  the same decision. **Not this role's files; reported.**
+- **Tag-ref arithmetic, filed in a form that can disagree (hard rule
+  10):** 30 tags ↔ 57 remote refs before `v0.28.0` (27 annotated tags
+  contribute a peeled `^{}` line each; 3 lightweight do not); 31 ↔ 59
+  after. Both figures right for their moment.
+- **The `pdfcer1` byte count ties to the build folder by subtraction**
+  (32,411,461 − 1,731 + 328 = 32,410,058): the deployer drops
+  `BUILD-INFO.txt` and writes `VERSION.txt`. Filed so the next deploy's
+  size can be checked rather than trusted.
+
+**Survivors (hard rule 11) — status after this filing:**
+- **Fixed here (this role's file):** `ROADMAP.md`'s header, Glossary
+  and *Update protocol* — `pdfce`, `pdfce-core`, `pdfce-render`,
+  `pdfce-cli`, `pdfce-gui`, `pdfce-librarian`, `pdfce-engineer`,
+  `pdfce-acrobat-librarian`, `pdfce-spec-librarian` → present-tense
+  names, with a dated note at the head of the Glossary; the `pdfce-gui`
+  bullet now says the crate is removed and names `D:\dev\pdfcer-gui`.
+  Two `pdfce` remain in those blocks and are correct: a quoted RAG
+  sentence and a dated 2026-08 record.
+- **Reported, not fixed (not this role's files):** `CLAUDE.md:286`,
+  `LEGAL.md:50`, `LEGAL.md:78` (above); `FEATURES.md`'s `pdfcer-fetch`
+  row (`R203` re-basing against `pdfcer-gui`); the planned plugin name
+  `pdfceNet`; `ARCHITECTURE.md` §3's CLI layout node (*"alongside
+  `pdfce-gui`"*, a `247.0` survivor).
+- **Correct survivors, do not "fix":** `pdfceF{n}`/`pdfceFm{n}` in
+  `crates/` and `tools/` (ruled a keep); every `pdfce-gui` naming the
+  removed crate; `pdfce@cce414e:` citations; `KenM76/pdfce` and
+  `D:\Dev\pdfce` where they mean the archived repository and the
+  backup; `pdfce_FeatureRequests`; fixture content; every `pdfce` in a
+  dated record.
+
+**Still in flight:**
+- **★ The working tree was clean when this filing began and NOT clean
+  when it ended** — `git status --short` at the end lists 14 paths this
+  filing did not touch (`git diff --stat`, read-only): `crates/pdfcer-
+  core/src/edit.rs` (43 ±), `dimension/mod.rs`, `dimension/sidecar.rs`,
+  `tests/dimension_roundtrip.rs`, **`tests/sidecar_legacy_key.rs`
+  DELETED (−159)**, three `fixtures/synthetic/deletion-collateral/
+  dim-sidecar-*.pdf` (+1 byte each), `tools/gen-deletion-collateral-
+  fixtures.py`, `docs/NEXT_SESSION.md` (283 ±), two agent-memory files
+  and one new. The `edit.rs` diff removes `SIDECAR_KEY_LEGACY` and
+  `sidecar_entry`, and its new doc comment says the fallback was
+  *"REMOVED the same day on the operator's ruling — nobody had used the
+  software in production, so there was nothing to stay compatible
+  with."* **This is the engineer's next change, running concurrently;
+  it is NOT `Pass 247.2`, NOT filed here, and NOT yet a commit.** Its
+  filing — the operator ruling verbatim, the Pass ID, and what becomes
+  of decision 131 (whose first instance it reverses while the general
+  rule may stand) — is owed by the filing that ships it. Everything in
+  this entry and in the `247.2` *Shipped* entry describes `562ca7e`
+  (= `v0.28.0`), where the guard IS present.
+- **GUI side:** the three-line re-point to `file:///D:/Dev/pdfcer`
+  (their shim gate fails their build once `D:\Dev\pdfcer\crates\
+  pdfcer-core` exists, so it cannot be forgotten); a read of
+  `reply_signature_integrity_first…`.
+- **Operator:** `C:\Users\Ken\.claude\CLAUDE.md` still references
+  `D:\Dev\pdfce\` (project-agents paragraph, RAG list) — flagged by
+  plan step 5 and again here; no agent edits it. **Sessions open in
+  `D:\Dev\pdfcer` from now on.**
+- **Engineer:** the three false-dated sentences above; `Pass 5.4`
+  (encrypt on save, `/R` 6 only) heads *Next up*, as the prior
+  hand-off queued — unless the in-flight sidecar change is filed first.
+
+**For next session:**
+- Engineer: commit this filing (the 401st) — `main` was `0 0` against
+  `origin/main` at the tagged release, so the filing commit is the
+  first after `v0.28.0`; if the in-flight sidecar change lands in the
+  same push, it needs its own filing (a code commit unfiled is what
+  `check-commits-filed.py` is red on). Then `Pass 5.4`.
+- Operator: the global `CLAUDE.md` hand edit.
+
+**`docs/ROADMAP.md`:** *Shipped* gained the 401st banner and the
+`Pass 247.2` entry (seven items), followed by the whole
+`247.0`/`247.1`/`247.2` group block **moved from *Next up*** (headings
+demoted one level, text untouched, each subsection carrying its own
+SHIPPED annotation — `247.2`'s added here with the plan-vs-ship
+differences); *Next up* now opens with `Pass 5.4`; the `247.1` entry's
+`pdfceF{n}` survivor bullet gained its disposition; header, Glossary and
+*Update protocol* renamed; `R229` and `R175` annotated. Filings ceiling
+`400` → `401`.
+
+**`docs/FEATURES.md`:** checked, **not changed** — no row (publishing,
+archiving and releasing are not capabilities), and the header carries
+no release/version line to move. (Its ce-dimensions *author* row still
+describes the legacy-key fallback as present — true at `562ca7e`; the
+filing that ships the in-flight removal owes that sentence.)
+
+**`docs/ARCHITECTURE.md`:** §12 decision 128 items 2 and 5 gained dated
+notes; decision 131 gained the `pdfceF{n}` addendum and its scope
+statement; §6 gained one dated sentence naming the release artefact
+`pdfcer-v<version>-windows-x64.zip` (with `v0.28.0`'s measured sizes)
+beside the `pdfcer.exe` line — §6 said nothing contradictory. Decision
+ceiling `131`, unchanged; next free `132`. Rules ceiling `R241`,
+unchanged; next free `R242`. Open operator questions: none minted; next
+free `(ce)`.
+
+**`docs/NEXT_SESSION.md`:** not touched by this filing (engineer-owned;
+it is among the paths the engineer has modified concurrently).

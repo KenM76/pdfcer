@@ -6679,6 +6679,14 @@ instances (`delete_object`, `delete_redaction_mark`, and now
   `pdfcer-render`'s own wasm32 check is unaffected.
 - No installer. Build produces `pdfcer.exe` (Windows first target) plus
   whatever DLLs/assets are needed, all in one output folder.
+  **Release artefact name, as of `v0.28.0` (2026-09-03, `Pass 247.2`,
+  401st filing):** `tools/package-portable.py` emits
+  `D:\builds\pdfcer-<yyyymmdd>-<hhmm>-<short-hash>\` and the release
+  zip is **`pdfcer-v<version>-windows-x64.zip`** with a `.sha256`
+  sidecar (measured for `v0.28.0`: 18,269,564 B; folder 32,411,461 B;
+  `pdfcer.exe` 19,938,816 B). `v0.27.0` and earlier were
+  `pdfce-v<version>-windows-x64.zip` carrying `pdfce-cli.exe`; the two
+  release lines are one version sequence (decision 128).
 - **Payload/user-state partition (decision 003 R15, binding from the
   first Pass that persists anything) — BUILT `Pass 51.0`, 2026-08-08
   (`2a1b0df`):** the distribution folder is split into replaceable
@@ -30882,6 +30890,22 @@ housekeeping.**
    `D:\Dev\pdfce` is never written to again except for one README
    pointer commit when `KenM76/pdfce` is archived — it is the backup the
    operator asked for.
+   **★ NOTE 2026-09-03 (401st filing, `Pass 247.2`) — "one README pointer
+   commit" became TWO, and the second is what makes the first
+   filable.** `fbc53ee` is the README pointer; `c0c67d3` is a final
+   `SESSION_LOG.md` entry filing it. `tools/check-commits-filed.py`
+   counts a README change as a CODE commit and is red on any code
+   commit no filing names — so a one-commit archive would have frozen
+   `KenM76/pdfce` with its own filing gate permanently red at the tip.
+   Archiving disables Actions, so neither commit ever ran CI there (the
+   last run is `cce414e`, green); the gate is green by construction of
+   the record, not by a run. Both pushed, then `gh repo archive
+   KenM76/pdfce -y` → `isArchived: true` (relayed from the engineer; the
+   librarian ran no `git` in `D:\Dev\pdfce`). The backup folder has now
+   received its last writes. Nothing here was false when written — it
+   described a plan whose premise (a README commit is not a code
+   commit) the gate refuted; corrected in place per this log's
+   footer convention, as item 3 was.
 3. **The in-repo GUI crate is removed, not paused.** `crates/pdfce-gui`
    (62,902 lines, 16.8 % of 373,548) has been paused since 2026-08-13
    and superseded by `D:\dev\pdfceGUI` (decision 073's ownership
@@ -30922,6 +30946,14 @@ housekeeping.**
    `KenM76/pdfce` are not** — they are acts outside the working tree
    that the operator's *"Let's do it"* authorises for `Pass 247.2` only,
    because the plan he approved named them. Not read as standing.
+   **★ NOTE 2026-09-03 (401st filing): both acts are DONE and the
+   one-Pass authority is CONSUMED** — `KenM76/pdfcer` created (public,
+   `main` + 31 tags, first CI run on `562ca7e` green, relayed) and
+   `KenM76/pdfce` archived. `git remote -v` in `D:\Dev\pdfcer` →
+   `https://github.com/KenM76/pdfcer.git`, `0 0` against `origin/main`
+   (measured by the filing). Pushing and releasing continue under
+   decisions 090/121/127; creating or archiving any further repository
+   would need its own go-ahead.
 
 **Sequencing is part of the decision:** strip (`247.0`), then rename
 (`247.1`), then publish/archive/release (`247.2`), each green before the
@@ -31217,6 +31249,37 @@ listed among its deliberate keeps** — reported in `ROADMAP.md`'s `247.1`
 Shipped entry as an owed disposition; if it is renamed later, this
 decision's clause 1 does not apply because a resource name is opaque to
 every reader, and nothing looks a document up by it).
+**★ ADDENDUM 2026-09-03 (401st filing, `Pass 247.2`) — the `pdfceF{n}` /
+`pdfceFm{n}` prefix is a KEEP, ruled by the engineer, and this decision
+is the record of why no compatibility work is owed.** (1) They are
+`/Resources` dictionary keys — ISO 32000-1 §7.8.3 leaves the name
+arbitrary; its only property is uniqueness within its own dictionary,
+and no reader, viewer or operator ever sees it. (2) The allocation
+logic is *"first unused `/pdfceF{n}`"* and is prefix-agnostic: a
+`/pdfceF3` written by a `v0.27.0` build and any name a later build
+writes coexist in one dictionary with no rule between them, so there is
+nothing for clause 1 to protect and nothing for clause 3 to retire.
+(3) A rename would change every add-text and format output byte and
+move ten files of tests, fixtures and generators (`grep -rl pdfceF
+crates/ tools/`) for no operator-visible effect. **Scope statement:
+this decision covers identifiers a saved document carries; it obliges
+a compatibility guard only where a reader BRANCHES on the identifier.**
+The sidecar key is looked up by name (guard owed, built); `/Producer`
+and the OCProperties configuration name are display text (no guard);
+a resource name is allocated, never looked up (no guard, and no rename
+either — the cost is real and the benefit is nil). `pdfceF` in
+`crates/` and `tools/` is therefore a correct survivor for every later
+hard-rule-11 sweep.
+*Measured at the moment of this addendum (hard rule 8): the working
+tree of `D:\Dev\pdfcer` held an UNCOMMITTED engineer change removing
+`SIDECAR_KEY_LEGACY`, `EditSession::sidecar_entry` and
+`tests/sidecar_legacy_key.rs`, its doc comment citing an operator
+ruling that nothing in production ever wrote `/pdfce`. That change is
+not filed here and not this addendum's subject; if it ships, the
+filing that ships it owes this decision a dated disposition — the
+general rule (three clauses) can stand while its first instance is
+withdrawn on the ground that the compatibility obligation had no
+documents to protect.*
 
 **Test discipline that made the guard checkable.** The legacy-keyed
 fixture is manufactured at **equal byte length** to the current-keyed
