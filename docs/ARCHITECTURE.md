@@ -5105,6 +5105,19 @@ precision contract binds cache mode exactly as before. See decision 132
 for why the sibling posture is recorded as a standing design principle
 ahead of `Pass 248.1` shipping any code.
 
+**★ AMENDED 2026-09-03 (404th filing, `80f1c3e`) — SHIPPED.** `Pass 248.1`
+is no longer *Next up*; it shipped as `pdfcer_render::svg::export_svg` plus
+the recorder's `ExportState`/`ExportTally` export mode. **And it closed a
+gap in the paragraph directly above**: `Cache` mode's refusal list, as
+written until this filing, did not include an elementary object's own
+`gs /SMask` — the mask was folded into the enclosing clip, invisible to a
+recording, so a cached replay painted such an object unmasked. `Cache`
+mode now refuses there too (`PoisonReason::SoftMask`,
+`interpret.rs:4655`). This is a **correction to this refusal list**, not
+only a report of `Export` mode landing — filed here rather than only in
+`ROADMAP.md` because a reader of *this* paragraph needed the fix as much
+as a reader of the Pass entry did.
+
 #### First real consumer — and it was found by disbelieving a prediction
 
 `pdfcer`'s **poster printing** (`cmd_print`) rasterises each tile as a
@@ -31460,3 +31473,19 @@ explicitly that `Cache` mode and `R211` are unchanged by it.
 **Decision ceiling moves `131` → `132`; next free `133`.** **Standing
 rules ceiling `R241` — unchanged**, next free `R242`. **Open operator
 questions: none minted**; next free `(ce)`.
+
+**★ AMENDED 2026-09-03 (404th filing, `80f1c3e`) — SHIPPED, and the real
+names differ slightly from the placeholder this entry used.** `Pass 248.1`
+shipped `RecordMode`'s two postures as `ExportState`/`ExportTally` +
+`Recorder::new_for_export`, not the generic `RecordMode::{Cache, Export}`
+sketched above — the design this decision records is otherwise unchanged.
+**One thing the design did NOT anticipate and the implementation found**:
+the `Cache`-mode recorder had a **pre-existing defect** this decision's own
+subject matter made visible — an elementary object's `gs /SMask` was never
+a poison site in `Cache` mode, because the mask had been folded into the
+enclosing *clip*, which a recording never carries, so a cached replay of
+such an object painted it unmasked. `Cache` mode now calls
+`refuse(PoisonReason::SoftMask)` there too, closing the gap `R211`/decision
+084 always intended to cover. See `ROADMAP.md`'s `Pass 248.1` *Shipped*
+entry (404th filing) for the full build record, and the amendment to
+§4.1's forward-pointer paragraph below.

@@ -112,6 +112,193 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★ 404th filing, 2026-09-03 — `80f1c3e`: `Pass 248.1` SHIPS — SVG PAGE
+EXPORT, FROM THE RENDERER'S OWN DISPLAY-LIST RECORDING, VIA A SECOND
+NEVER-REFUSING "EXPORT" RECORDING MODE. A PRE-EXISTING CACHE-MODE DEFECT
+(AN ELEMENTARY OBJECT'S `gs /SMask` NEVER POISONED THE CACHE RECORDER) WAS
+FOUND AND FIXED IN PASSING. `Pass 248.2` (COPY-OUT) IS IN PROGRESS,
+UNSHIPPED.**
+
+**★ Sourcing (hard rule 8).** No shell available to this filing —
+Read/Grep on live source and docs only, no `git`. `80f1c3e`'s own commit
+message and `git show --stat` are **relayed** from the engineer's
+dispatch, not re-run. **Independently verified by direct Read/Grep this
+filing**: `crates/pdfcer-render/src/svg.rs` exists and matches the
+dispatch's design description (`export_svg`, `SvgOptions`, `SvgOutcome`,
+`SvgExport`) almost verbatim, including its own module doc comment naming
+the same "second interpreter" trap the plan cites; `crates/pdfcer-render/
+src/interpret.rs:4655` — `canvas.refuse(PoisonReason::SoftMask)` — present
+at an elementary object's `gs /SMask` site; `crates/pdfcer-cli/src/
+main.rs` — `export-image --format svg` wired at the lines the dispatch
+names (`resolve_render_options`, the `svg:` tally line, per-page
+approximation notes); `crates/pdfcer-render/tests/export_svg.rs` — **11**
+tests, matching the dispatch's count; `fuzz/fuzz_targets/export_svg.rs`
+exists; `crates/pdfcer-render/Cargo.toml` — `resvg`/`usvg` pinned
+`= 0.45.1`, `default-features = false`, with the dispatch's own comment
+explaining why (a second `zune-jpeg` via `resvg`'s `raster-images`
+feature, caught by the duplicates guard even as a dev-dependency);
+`Acrobat_Features/export__svg_and_vector_export_status.md` exists (filed
+alongside `Pass 248.0`, read directly, not re-derived); `docs/core-api/
+03-capabilities.md` §7.8 ("Exporting a page as SVG (`Pass 248.1`)") exists
+at the line the dispatch names. **Not independently re-run**: the
+`resvg`/Inkscape pixel-parity numbers, the full test/gate-sweep exit
+codes, and the `crates/pdfcer-cli/src/clipboard.rs` / `copy-page` state
+for `Pass 248.2` — read as existing (the file and the CLI command are on
+disk, confirmed by Grep) but its own completeness is the engineer's
+report, not this filing's measurement. Ledger checked by Grep of
+`ROADMAP.md` directly (no shell for `tools/check-ledger-numbers.py`): Pass
+ceiling `248.0`, decision `132`, `R241`, filings `403` — matches the
+dispatch's stated "last known" exactly.
+
+### `Pass 248.1` (`80f1c3e`, 2026-09-03) — SVG page export from the renderer's own display-list recording, via a second, never-refusing "export" recording mode; a pre-existing cache-mode soft-mask defect fixed in passing
+
+**Relayed from the engineer's dispatch/commit message (not independently
+re-run — no shell this filing); verified facts are marked above.**
+
+1. **The design, per decision `132`** (minted ahead of any code, prior
+   filing): `pdfcer_render::display_list::record_page` gains a second
+   recording mode alongside `Cache` — `Export` (`ExportState`,
+   `ExportTally`, `Recorder::new_for_export`). **`Cache` mode is
+   unchanged and keeps refusing** (`R211`, decision 084) — every site
+   that would `refuse(reason)` there instead, in `Export` mode,
+   rasterises that ONE poisoned operator at the recording scale into a
+   page-sized transparent scratch, and the recorder **harvests** it as
+   an `Op::Fill` image under the clip in force, before the next op and
+   at every frame boundary. Covers shadings (`sh` and pattern fills).
+2. **A soft mask is kept WITH its layer, not folded into a clip.**
+   `Op::Layer` gains `mask: Option<Arc<Mask>>`; an elementary object
+   under `gs /SMask` is wrapped per-op by `push_masked`, sharing one
+   `Arc` keyed on the `gs` mask's own address — so a mask applied to
+   several objects in sequence is emitted once and referenced, not
+   duplicated.
+3. **The approximation is counted, not silently absorbed**: overprint,
+   per-paint non-separable blends, non-isolated groups, and the
+   subtractive (CMYK) page group all add to `ExportTally`, which the
+   disclosure reads from (rule 4 — fuzzy, never sneaky).
+4. **★ A PRE-EXISTING CACHE DEFECT, FOUND AND FIXED IN PASSING, NOT
+   PART OF THE `Pass 248.1` DESIGN ITSELF.** The `Cache`-mode recorder
+   never poisoned on an elementary object's `gs /SMask` — the mask was
+   folded into the enclosing clip's `Mask`, which a *recording* never
+   carries at all (a recording stores draw operations, not the clip
+   state that produced them), so a cached replay of such an object
+   painted it **unmasked**. The `gs /SMask` site now calls
+   `refuse(PoisonReason::SoftMask)` in `Cache` mode too — verified at
+   `interpret.rs:4655` this filing. **Consequence for `pdfcer-gui`**:
+   a few more pages fall back from the cached-replay pan/zoom path to
+   direct `render_page_region`, all of them correctly (the fallback was
+   always the safe side of this bug; the cache was the wrong side).
+   Pinned by a test named
+   `the_cache_recorder_now_refuses_an_elementary_soft_mask_by_name`.
+5. **Public surface**: `pdfcer_render::svg::{export_svg, export_svg_view,
+   SvgOptions { raster_dpi (default 300), background }, SvgOutcome,
+   SvgExport}`; `ExportTally` re-exported. SVG 1.1 plus the one CSS3
+   property `mix-blend-mode` (all sixteen §11.3.5 blend modes); width/
+   height in points, `viewBox` on the recording grid (`raster_dpi / 72`);
+   fills pre-transformed into device space; strokes keep path space plus
+   a `transform`, so a non-uniform CTM scales stroke width per §8.4.3.2;
+   hairlines get `vector-effect="non-scaling-stroke"`; dashes are
+   **pre-applied** via `Path::dash` (tiny-skia exposes no accessor for a
+   dash array) and counted; nested clips via `clip-path` on the
+   `<clipPath>` element itself, so a leaf reference carries its whole
+   parent-clip chain; images as PNG-with-alpha data URIs, clipped on a
+   **wrapping `<g>`** (see the Inkscape trap below — clipping the
+   `<image>` element itself, which also carries a `transform`, is wrong);
+   layers as `<g opacity style="mix-blend-mode">`; soft masks as
+   `<mask maskUnits="userSpaceOnUse" style="color-interpolation:sRGB">`
+   over a grey PNG, deduplicated by `Arc` address; hand-rolled base64
+   (no new dependency); text as glyph outlines; presentation attributes
+   only throughout (Word's SVG importer is not a browser — no `<style>`
+   blocks, no CSS classes).
+6. **CLI**: `export-image --format svg` shares the same stable
+   `resolve_render_options`/`render_counters_line` half as PNG/JPEG
+   export (`Pass 248.0`), plus a SECOND `svg:` line — ops, images,
+   `dashed_pre_applied`, blend_modes, six tally fields, `exact=0|1` — and
+   a per-page stderr note naming every approximation
+   (*"pdfcer: note: the vector payload embeds 2 shading(s) as raster and
+   approximates 1 overprint, 0 non-separable blend, 1 non-isolated
+   group(s)"* is the shape, not a literal transcript).
+7. **★ MEASURED against Inkscape 1.4** (installed on this machine, an
+   independent rendering engine, not `resvg` again): rendered the SVG
+   exports and compared pixel-for-pixel against pdfcer's own transparent
+   PNG of the same page at 96 dpi, both composited over one common
+   backdrop first (see the methodology note below). `hello.pdf`: max 32
+   levels of difference (ordinary anti-aliasing noise); `lab-shading`:
+   max 10; a Type 6 Coons-patch mesh fixture: **exact**;
+   `softmask-group`: **exact**; two `SMask`-image fixtures: 1.5% of
+   pixels differ by more than 32 (edge resampling, not a defect).
+8. **★ The Inkscape render found ONE real writer defect the resvg oracle
+   had not**: `clip-path` set on an `<image>` element that ALSO carries a
+   `transform` is evaluated in the element's **post-transform** user
+   space, not its own — so a device-space clip authored for a
+   transformed image excluded everything, and **two harvested shadings
+   were invisible with every unit test still green**. Fixed by moving
+   the `clip-path` onto a wrapping `<g>` (item 5 above). Recorded as a
+   finding for `D:\dev\rag\rust\` (below).
+9. **★ A measurement-methodology finding, also recorded below**:
+   comparing two RGBA PNGs directly, pixel by pixel, when either carries
+   alpha-0 pixels reports the **RGB channel noise of fully-transparent
+   pixels** as a 100% mismatch — the first comparison attempt read
+   mean-160 "totally different" for a render that was in fact exact.
+   Fix: composite both renders over one common backdrop before diffing.
+10. **Tests**: `tests/export_svg.rs`, **11** — a `resvg` pixel-parity
+    oracle (fills/alpha/even-odd, strokes + dash, nested clips, group
+    opacity + multiply, `/Rotate 90`, empty page, background),
+    structural assertions for shading and soft-mask harvesting, the
+    cache soft-mask refusal (item 4), and an Inkscape end-to-end oracle
+    that runs when Inkscape is installed on the machine and prints a
+    skip line when it is not. Plus 4 unit tests in `svg.rs` and a CLI
+    contract test (7 total in `tests/export_image.rs`, shared with
+    `Pass 248.0`). A fuzz target, `export_svg`, added.
+11. **Dependency note**: `resvg`/`usvg` pinned `=0.45.1`,
+    `default-features = false`, as **dev-dependencies only** (the SVG
+    oracle test, never linked into the shipped binary) — `0.48` pulls in
+    `tiny-skia 0.12` and `png 0.18` alongside the crate's own versions of
+    both, and enabling the `raster-images` feature adds a **second**
+    `zune-jpeg` line; the workspace's `cargo tree --duplicates` guard
+    refuses even a dev-dependency's duplicate, which is what forced the
+    pin and the feature-disabling (a finding for `D:\dev\rag\rust\`,
+    below, if not already recorded there — checked, it is not).
+12. **Gates**: `tools/run-gates.sh`'s automated sweep was interrupted by
+    the harness partway through the doctest phase, **after** every
+    build/clippy/fmt/wasm/`cargo tree` gate and every test binary had
+    already passed; the remaining items on its own checklist were run by
+    hand (doctests 167+1+7+16 ok, `cargo fuzz check`, all 19
+    `tools/check-*.py`; the fuzz crate itself needed one `cargo fmt`
+    pass). Every gate green, relayed for the parts not independently
+    re-run this filing.
+13. **Docs**: `docs/core-api/03-capabilities.md` §7.8 written (entry
+    points, tally fields, disclosures, the two traps above); the
+    appendix's capability→module index re-derived (2,924 lines total, 70
+    clauses).
+
+**`docs/FEATURES.md`**: the "Export page(s) to SVG (vector)" row moves
+from *Planned* to *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui — **not
+rounded up**; no `pdfcer-gui` surface exists yet.
+
+**Still in flight, filed here rather than as a separate entry**:
+`Pass 248.2` (copy-out to other software) is **IN PROGRESS, UNSHIPPED** —
+`crates/pdfcer-cli/src/clipboard.rs` and the `copy-page` CLI verb exist
+on disk (confirmed by Grep this filing: `windows-sys`/`clipboard-win`-
+based, placing `"image/svg+xml"` + trailing NUL, `"PNG"`, `CF_DIBV5`, and
+the one-page PDF, in one clipboard transaction) — the `combridge word`
+end-to-end paste verification, the `CF_ENHMETAFILE` follow-on writer, and
+the empirical Ctrl+V-priority test matrix `docs/clipboard-interop-
+survey.md` §7 still owes are **not yet done**. See its *Next up* entry,
+updated this filing.
+
+**Cross-RAG note**: two candidate findings identified this filing —
+`clip-path` on a transformed element resolving in post-transform space
+(item 8), and the duplicates guard seeing dev-dependencies (item 11) —
+are written to `D:\dev\rag\rust\` in this same filing (see below); no
+`personal_rag/pdf` finding this filing (both are SVG/Cargo-ecosystem
+facts, not PDF-producer-divergence facts).
+
+**Ledger.** Filings ceiling `403` → **`404`**; decision ceiling `132`
+unchanged, next free `133`; Pass ceiling `248.0` → **`248.1`**
+(`248.2` still *Next up*, IN PROGRESS, not yet shipped, so the ceiling
+moves only to `248.1`); standing rules ceiling `R241`, unchanged, next
+free `R242`; open operator questions: none minted, next free `(ce)`.
+
 **★★★★ 403rd filing, 2026-09-03 — `c549219`: `Pass 248.0` SHIPS —
 PAGE EXPORT TO PNG/JPEG WITH REAL TRANSPARENCY AND DPI METADATA.
 `Pass 248.1` (SVG export, the recorder's own second recording mode)
@@ -106067,68 +106254,18 @@ in the "still open" list. Full build record: this file's own
 
 ## Next up
 
-### `Pass 248.1` — **SVG PAGE EXPORT: THE RENDERER'S OWN DISPLAY-LIST RECORDING GAINS A SECOND, NEVER-REFUSING "EXPORT" MODE** — filed 2026-09-03 (403rd filing), plan `docs/export-and-copy-out-plan.md` §1/§4 (`c549219`); decision `132`; **IN PROGRESS**
+> ★★★ **`Pass 248.1` SHIPPED and has left this section, 2026-09-03 (404th
+> filing, `80f1c3e`).** Filed here by the 403rd filing the same day, shipped
+> the next filing. Its full entry — the `ExportState`/`ExportTally` recorder
+> mode, the pre-existing cache soft-mask defect it fixed in passing
+> (`the_cache_recorder_now_refuses_an_elementary_soft_mask_by_name`), the
+> `pdfcer_render::svg` module and CLI surface, the Inkscape 1.4 measurement
+> and the `clip-path`-on-a-transformed-element trap it found — is at the
+> **top of *Shipped***. `docs/FEATURES.md`'s SVG-export row moved from
+> *Planned* to *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui. No remnant
+> of the entry stays here.
 
-**Design (the plan's §1, "the one decision that shapes everything").**
-SVG is produced from `pdfcer_render::display_list::record_page`'s own
-recording, **not** by walking `vector::PageObjects` the way DXF export
-does — that route loses images, clips, transparency, blend modes and
-Type 3 glyphs, and would be a **second interpreter** (a trap this
-project has written down more than three times). One interpreter; the
-SVG contains exactly the geometry the raster painted, at `scale = 1`
-(one SVG unit = one PDF point). Text exports as glyph outlines — the
-same cost every trusted PDF→SVG converter (pdf2svg, Inkscape's default
-import) pays.
-
-The cost of (b) is the recorder's refusal list (`PoisonReason` — `sh`,
-shading patterns, overprint composites, soft masks: everything that
-reads the destination back and has no recordable formulation, `R211`).
-**A second recording mode, "export," is added.** Every site that today
-calls `canvas.refuse(reason)` in **cache** mode instead, in **export**
-mode, rasterises that ONE operator at the recording scale into a
-transparent scratch and records it as an image fill — the same
-scratch-and-evaluator route the subtractive (CMYK) page path already
-takes for a shading — clipped to that operator's own device bounds, not
-the whole page (a page-level poison must not become a page-level
-fallback, or every SVG with one gradient becomes a bitmap in a vector
-costume). **Cache mode keeps refusing; export mode never refuses, and
-COUNTS what it rasterised** so the disclosure can say *"2 shadings and 1
-soft-masked group are embedded as raster in this SVG"* (rule 4). See
-decision `132` for why this is filed as a standing design principle, not
-only a Pass-local implementation choice.
-
-**Acceptance criteria** (from the plan): `pdfcer_render::svg::export_svg
-(doc, page, &SvgOptions) -> SvgExport { svg, outcome }`; `pdfcer
-export-image --format svg`; SVG 1.1 plus the one CSS3 property
-`mix-blend-mode` (covers all sixteen §11.3.5 blend modes; Word's SVG
-importer ignores it and shows Normal — disclosed, not silently
-degraded); text as glyph outlines (glyph count disclosed); images as
-PNG-with-alpha data URIs (a masked image stays masked); nested clips via
-`clip-path` on the `<clipPath>` element itself (a recorded clip's
-*parent* clip must also render, or an enclosing clip is silently lost);
-dashed strokes pre-dashed via `Path::dash` (`tiny_skia::StrokeDash` has
-no accessor to read back); an oracle test that rasterises the emitted
-SVG with `resvg` (dev-dependency, MIT/Apache-2.0) and compares against
-pdfcer's own transparent PNG of the same page at the same scale; a fuzz
-target from raw PDF bytes to SVG.
-
-**Acrobat parity** (`Acrobat_Features/export__svg_and_vector_export_status.md`,
-2026-09-03): **Acrobat has no direct SVG export at all** — it existed in
-Acrobat 8 and was "virtually eliminated" starting with Acrobat 9
-Extended (a directly-sourced Adobe-representative forum post); the only
-surviving vector-export path today is "Save As Other > Encapsulated
-PostScript," one `.eps` file per page. SVG export is therefore **pure
-parity-plus** — there is no Acrobat behaviour to match, only a fresh
-design problem, which is why `FEATURES.md`'s Acrobat column for this row
-is a verified-absence `[ ]`, not a shape-mismatch `—`.
-
-**Traps named in the plan, so a future filing does not re-derive them**:
-`replay_region` (the GUI's cached panning route) is left flattening over
-white on purpose — the export path renders directly and does not touch
-it; Word's SVG importer is not a browser (no `<style>` blocks, no CSS
-classes, presentation attributes only, `<image>` must be a data URI).
-
-### `Pass 248.2` — **COPY-OUT TO OTHER SOFTWARE: WORD/POWERPOINT/EXCEL, INKSCAPE, LIBREOFFICE** — filed 2026-09-03 (403rd filing), plan `docs/export-and-copy-out-plan.md` §3, sourced from `docs/clipboard-interop-survey.md` (2026-09-03); **NOT STARTED**
+### `Pass 248.2` — **COPY-OUT TO OTHER SOFTWARE: WORD/POWERPOINT/EXCEL, INKSCAPE, LIBREOFFICE** — filed 2026-09-03 (403rd filing), plan `docs/export-and-copy-out-plan.md` §3, sourced from `docs/clipboard-interop-survey.md` (2026-09-03); **IN PROGRESS as of the 404th filing** — `crates/pdfcer-cli/src/clipboard.rs` and the `copy-page` CLI verb exist (SVG/PNG/`CF_DIBV5`/one-page-PDF placement in one clipboard transaction); the `combridge word` end-to-end paste verification, the `CF_ENHMETAFILE` follow-on writer, and the empirical Ctrl+V-priority test matrix are not yet done
 
 **What the engine owes, and what it does not.** The GUI-core invariant
 (`ARCHITECTURE.md` §3) means `pdfcer-core`/`pdfcer-render` may not touch

@@ -89924,6 +89924,144 @@ and `Pass 248.2` (NOT STARTED) ahead of `Pass 5.4`. Filings ceiling
 `R241`, unchanged; next free `R242`. Open operator questions: none
 minted; next free `(ce)`.
 
+## 2026-09-03 (404th filing) — roadmap update, pass shipped: **`Pass 248.1` (`80f1c3e`) SHIPS — SVG page export via the renderer's own display-list recording and a second, never-refusing "export" recording mode; a pre-existing cache-mode soft-mask defect fixed in passing; `Pass 248.2` (copy-out) IN PROGRESS, unshipped**
+
+**Sourcing (hard rule 8).** No shell available to this filing —
+`Read`/`Grep` on live source and docs only. `80f1c3e`'s own commit
+message and full test/gate-sweep results are **relayed** from the
+engineer's dispatch, not re-run. **Independently verified by direct
+read this filing:** `crates/pdfcer-render/src/svg.rs` (module doc
+comment, `export_svg`/`SvgOptions`/`SvgOutcome`/`SvgExport`, the "one
+interpreter" design argument, the op→SVG element table) matches the
+dispatch closely; `crates/pdfcer-render/src/interpret.rs:4655` —
+`canvas.refuse(PoisonReason::SoftMask)` — present at the elementary
+`gs /SMask` site the dispatch names as the fixed defect;
+`crates/pdfcer-cli/src/main.rs` — `export-image --format svg` wired at
+the lines named; `crates/pdfcer-render/tests/export_svg.rs` — **11**
+tests, matching; `fuzz/fuzz_targets/export_svg.rs` exists;
+`crates/pdfcer-render/Cargo.toml` — `resvg`/`usvg` pinned `=0.45.1`,
+`default-features = false`, with the dispatch's own explanatory
+comment about a duplicate `zune-jpeg`; `Acrobat_Features/
+export__svg_and_vector_export_status.md` and `docs/core-api/
+03-capabilities.md` §7.8 both exist. **Not independently re-run**: the
+Inkscape/`resvg` pixel-parity numbers themselves, the full gate-sweep
+exit codes, and `Pass 248.2`'s own completeness (its `clipboard.rs` and
+`copy-page` verb were confirmed to EXIST on disk by Grep, which is more
+than last filing had, but their end-to-end correctness is the
+engineer's report). Ledger checked by Grep of `ROADMAP.md` directly (no
+shell for `tools/check-ledger-numbers.py`): Pass ceiling `248.0`,
+decision `132`, `R241`, filings `403` — matched the dispatch's stated
+"last known" exactly.
+
+**Shipped:**
+- **`Pass 248.1`** — `pdfcer_render::display_list`'s recorder gains a
+  second, never-refusing `Export` mode (`ExportState`/`ExportTally`,
+  `Recorder::new_for_export`) alongside the unchanged, still-refusing
+  `Cache` mode (`R211`, decision 084): every poison site (`sh`, pattern
+  shadings, overprint composites, non-separable per-paint blends,
+  non-isolated groups, the subtractive page group) instead rasterises
+  that one operator into a page-sized transparent scratch and harvests
+  it as an `Op::Fill` image under the clip in force — counted, not
+  silently absorbed. Soft masks stay WITH their layer (`Op::Layer`
+  gains `mask: Option<Arc<Mask>>`, deduplicated by the `gs` mask's own
+  address). New module `pdfcer_render::svg` (SVG 1.1 +
+  `mix-blend-mode`; fills pre-transformed to device space; strokes
+  keep path space + a `transform` so a non-uniform CTM scales width
+  correctly; dashes pre-applied via `Path::dash`; nested clips via
+  `clip-path` on the `<clipPath>` element; images as PNG-with-alpha
+  data URIs on a wrapping, untransformed `<g>`; soft masks as `<mask>`
+  over a grey PNG; text as glyph outlines); CLI `export-image --format
+  svg` sharing the PNG/JPEG export's option surface plus a second
+  `svg:` tally line and per-page approximation notes on stderr.
+
+**Decisions made this session:**
+- **No new decision minted** — `Pass 248.1` shipped the design decision
+  132 already recorded ahead of its code (403rd filing). Decision 132's
+  own entry and its `ARCHITECTURE.md` §4.1 forward pointer both gained
+  a dated SHIPPED amendment noting the real type names
+  (`ExportState`/`ExportTally`, not the generic `RecordMode` sketch)
+  and the soft-mask defect fix, since that fix is a correction to the
+  refusal list §4.1 itself describes, not only a status update.
+
+**Findings + decisions:**
+- **★ A pre-existing cache-mode defect, found and fixed in passing, not
+  part of the Pass 248.1 design itself.** The `Cache`-mode recorder
+  never poisoned on an elementary object's `gs /SMask` — the mask was
+  folded into the enclosing CLIP, which a recording never carries, so
+  a cached replay of such an object painted it unmasked. Fixed by
+  making that site call `refuse(SoftMask)` in `Cache` mode too, pinned
+  by a test named for exactly this
+  (`the_cache_recorder_now_refuses_an_elementary_soft_mask_by_name`).
+  Consequence for `pdfcer-gui`: a few more pages fall back from cached
+  pan/zoom replay to direct `render_page_region` — the correct side of
+  a bug that used to silently paint wrong.
+- **★ Measured against Inkscape 1.4 (an independent renderer, not only
+  the `resvg` oracle already in the test suite)**: exact on vector
+  fills/strokes/clips/text/soft masks and a Type 6 Coons-mesh fixture;
+  max 32-level anti-aliasing noise on shadings; 1.5% of pixels differ
+  by >32 on two `SMask`-image fixtures (edge resampling). **The
+  Inkscape render — not the automated oracle — found the writer's one
+  real defect**: `clip-path` on an element that also carries
+  `transform` is evaluated in that element's post-transform space, so
+  a device-space clip on a transformed `<image>` excluded everything;
+  two harvested shadings were invisible with every unit test green.
+  Fixed by moving the clip onto a wrapping, untransformed `<g>`.
+  Written up for `D:\dev\rag\rust\` (below) since there is no dedicated
+  SVG RAG and this is an ecosystem-agnostic SVG fact, not a
+  PDF-producer-divergence one.
+- **A measurement-methodology finding from the same verification
+  work, also written up for `D:\dev\rag\rust\`**: diffing two RGBA
+  renders directly, when either carries alpha-0 pixels, reports the
+  RGB channel noise of fully-transparent pixels as a full mismatch —
+  the first comparison attempt read mean-160 "totally different" for a
+  render that was in fact exact. Fix: composite both over one common
+  backdrop before diffing.
+- **A third finding, Cargo-ecosystem rather than SVG**: the workspace's
+  `cargo tree --duplicates`-based CI guard sees dev-dependencies, not
+  only the shipped graph — adding `resvg`/`usvg` as a test-only oracle
+  pulled a second `tiny-skia`/`png`, and its `raster-images` feature a
+  second `zune-jpeg`; fixed with an exact version pin and
+  `default-features = false`. Also written up for `D:\dev\rag\rust\`.
+- **Three new `D:\dev\rag\rust\` files this filing**
+  (`clip_path_on_a_transformed_element_is_evaluated_in_post_transform_space.md`,
+  `compositing_two_rgba_pngs_with_alpha_must_be_over_a_common_backdrop_first.md`,
+  `cargo_tree_duplicates_guard_sees_dev_dependencies_not_only_build_dependencies.md`),
+  each added to that subdir's own `index.md` in the same filing. No
+  `personal_rag/pdf` finding this filing — all three are SVG/Cargo
+  facts, not PDF-producer-divergence facts.
+
+**Still in flight:**
+- `Pass 248.2` (copy-out) — **now IN PROGRESS**, not "not started" as
+  last filing recorded: `crates/pdfcer-cli/src/clipboard.rs` and the
+  `copy-page` CLI verb exist on disk, placing `"image/svg+xml"` (+
+  trailing NUL), `"PNG"`, `CF_DIBV5` and the one-page PDF in one
+  clipboard transaction. Still owed: the `combridge word` end-to-end
+  paste verification, the `CF_ENHMETAFILE` writer (a follow-on, not
+  assumed), and the empirical Ctrl+V-priority test matrix
+  `docs/clipboard-interop-survey.md` §7 names.
+
+**For next session:**
+- Engineer: commit this filing's doc edits (this role has no shell to
+  commit them itself this invocation); finish `Pass 248.2`
+  (verification + `CF_ENHMETAFILE`), then ship it.
+- Operator: nothing pending from this filing.
+
+**`docs/ROADMAP.md`:** *Shipped* gained the 404th banner and the
+`Pass 248.1` entry (13 numbered facts, the Inkscape measurement, the
+two writer/methodology traps found, the cache soft-mask fix); the
+`Pass 248.1` *Next up* entry was replaced with a "SHIPPED and has left
+this section" pointer (the established convention, e.g. `Pass 246.0`'s
+own); `Pass 248.2`'s *Next up* entry updated from NOT STARTED to IN
+PROGRESS. `docs/ARCHITECTURE.md` §12's decision 132 entry and §4.1's
+forward-pointer paragraph both gained dated SHIPPED amendments.
+`docs/FEATURES.md`'s SVG-export row moved from *Planned* to
+*Implemented*, `[x]` core / `[x]` cli / `[ ]` gui; the copy-out row's
+status text updated to IN PROGRESS. Filings ceiling `403` → `404`;
+decision ceiling `132`, unchanged; Pass ceiling `248.0` → `248.1`
+(`248.2` still unshipped). Standing rules ceiling `R241`, unchanged;
+next free `R242`. Open operator questions: none minted; next free
+`(ce)`.
+
 **`docs/FEATURES.md`:** *Export* section gained one *Implemented* row
 (PNG/JPEG page export, `[x]`/`[x]`/`[ ]`/`[ ]`); *Planned* gained two
 rows (SVG export, `[ ]`/`[ ]`/`[ ]`/`[ ]`; clipboard copy-out,
