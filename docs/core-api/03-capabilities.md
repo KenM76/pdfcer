@@ -2902,6 +2902,71 @@ soft-mask and mesh-shading fixtures.
   shadings inside it forever; the default is 300 for that reason, and the
   CLI's `--dpi` is the same knob.
 
+### 7.9 Copying a page to the OS clipboard — what the engine provides, what the shell must do (`Pass 248.2`)
+
+`core [x] · cli [x] · gui [ ]`. The operator's third ask: *"copy and paste
+anything to other software — like copy and paste vector graphics into word
+or inkscape"*. **The engine never touches a clipboard** (§3's invariant);
+it produces bytes, and a shell places them. The CLI's placement lives in
+`crates/pdfcer-cli/src/clipboard.rs` and is the worked example a GUI shell
+can copy line for line (it is ~60 lines over `clipboard-win`).
+
+**The bytes, and the engine call for each**
+
+| payload | call |
+|---|---|
+| SVG | `svg::export_svg(&doc, &page, &render, &SvgOptions::default().with_raster_dpi(dpi))` — a page; for a *selection*, `ObjectClip::to_pdf` → load → `export_svg` of its one page |
+| PNG with alpha | render with `PageBackdrop::Transparent`, `export::encode_png(&pixmap, Some(dpi))` |
+| the raster itself, for `CF_DIBV5` | the same `Pixmap` (premultiplied BGRA is what DIBV5 readers assume) |
+| one-page PDF | `pageops::extract(&view, &[index])` for a page; `ObjectClip::to_pdf` for a selection |
+
+**The formats to place, IN THIS ORDER, in ONE transaction** (sourced in
+`docs/clipboard-interop-survey.md` §7 from application source at pinned
+revisions; a reader takes the first format it recognises, so the order is
+the design):
+
+1. registered **`"image/svg+xml"`** — the SVG's UTF-8 bytes **plus one
+   trailing NUL** (byte-for-byte what Chromium ≥ M127 writes and what
+   Microsoft validated Office against). Reaches Word/PowerPoint/Excel
+   (M365) as an editable SVG graphic, Inkscape (its 2nd preference, above
+   EMF and PDF), LibreOffice ≥ 25.2, browsers.
+2. registered **`"PNG"`** — the PNG file bytes. Office's preferred raster;
+   Paint.NET, GIMP, Inkscape, LibreOffice, Firefox/Chromium.
+3. **`CF_DIBV5`** — `BITMAPV5HEADER` + 32 bpp `BI_BITFIELDS` BGRA,
+   premultiplied, top-down; `clipboard::dib_v5` builds it. Readers older
+   than the PNG convention; Windows synthesises `CF_DIB`/`CF_BITMAP`.
+4. registered **`"application/pdf"`** — optional; only Inkscape reads it.
+
+Do **not** place `CF_UNICODETEXT` carrying the SVG source (text-first
+readers would paste XML), nor `image/x-inkscape-svg`. `CF_ENHMETAFILE` is
+only needed by LibreOffice 24.x and is a follow-on writer, not assumed.
+
+**Measured 2026-09-03**, `pdfcer copy-page fixtures/synthetic/hello.pdf
+--dpi 96` then a paste into a throw-away Word document through combridge:
+Word inserts one inline shape at **200.2 × 120.0 pt — the page's physical
+size** — of type 17 (Office's "graphic" kind), and the same paste with
+`--no-svg --no-pdf` inserts a plain picture (type 3). The stored OOXML of
+the vector paste carries `svgBlip`. Inkscape's paste could not be driven
+headless (its CLI has no `paste` action); its preference order is taken
+from its own `clipboard.cpp`.
+
+**★ What the UI must disclose:** which formats went on (a paste that
+arrives as pixels where vectors were expected must be explicable), plus
+everything §7.8 discloses for the SVG payload — text as outlines, the
+tally, `mix-blend-mode` not surviving Word's importer.
+
+**Traps**
+
+- **Build every payload BEFORE opening the clipboard.** Windows serialises
+  clipboard access across all processes; a render held inside the
+  transaction stalls the operator's other applications for its duration.
+- **`clipboard-win` has no `CF_ENHMETAFILE` setter** (its generic path
+  passes an `HGLOBAL` where an `HENHMETAFILE` is required); if EMF is ever
+  added it needs `SetEnhMetaFileBits` + `SetClipboardData` directly.
+- **A transparent PNG and an opaque one are different pastes.** Office
+  composites the alpha over the slide; a `--background` makes every payload
+  opaque, deliberately.
+
 ---
 
 ## Appendix — capability → primary module → `FEATURES.md` state

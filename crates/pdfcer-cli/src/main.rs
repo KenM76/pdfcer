@@ -30,6 +30,12 @@
 //!   JPEG, with the DPI written into the file. Honours every render flag
 //!   `render-page` does, through the same resolver. See
 //!   [`cmd_export_image`].
+//! - `copy-page <file> [--page N] [--dpi D] [--no-svg] [--no-raster]
+//!   [--no-pdf] [--background #rrggbb]` (`Pass 248.2`, Windows): places
+//!   the page on the OS clipboard as `image/svg+xml`, `PNG`, `CF_DIBV5`
+//!   and `application/pdf` in one transaction, so it pastes as vectors
+//!   into Word/PowerPoint/Excel/Inkscape and as an alpha raster
+//!   elsewhere. See [`cmd_copy_page`] and `src/clipboard.rs`.
 //! - `round-trip <file> [--mode M] [-o <out.pdf>] [--producer P]`
 //!   (Pass 3.0): saves the document and verifies the
 //!   `ARCHITECTURE.md` §5 round-trip invariant — byte identity in the
@@ -117,6 +123,8 @@
 //!               objects=<N> verbatim=<N> reserialized=<N> reloaded=<0|1> \
 //!               raster_compared=<0|1> raster_identical=<0|1> delinearized=<0|1> \
 //!               promoted=<N>
+//! copy-page:    copied <input> page <N> -> clipboard formats=<a,b,..> <W>x<H> \
+//!               dpi=<D> background=<#rrggbb|none>; <render-page's counters>
 //! export-image: exported <input> page <N> -> <path> <W>x<H> format=<png|jpeg> \
 //!               dpi=<D> transparent=<0|1> background=<#rrggbb|none>; \
 //!               <exactly render-page's counters, below — one format string>
@@ -521,6 +529,8 @@ use pdfcer_core::signature::{SaveMode as CoreSaveMode, SignatureImpact};
 /// code, so treat them the way the public API surface is treated. New
 /// failure modes get new codes rather than reusing an existing one with a
 /// broadened meaning.
+mod clipboard;
+
 mod exit {
     /// Everything succeeded.
     pub const SUCCESS: u8 = 0;
@@ -3387,6 +3397,60 @@ enum Command {
         /// `render-page --print-state`.
         #[arg(long)]
         print_state: bool,
+    },
+
+    /// Copy a page to the OS clipboard so it pastes as EDITABLE VECTORS into
+    /// Word, PowerPoint, Excel and Inkscape, and as an alpha raster
+    /// everywhere else (`Pass 248.2`). Windows only in this build.
+    ///
+    /// One transaction places, in this order: `image/svg+xml` (the SVG
+    /// `export-image --format svg` writes, which Microsoft 365 and Inkscape
+    /// read as vectors), `PNG` (with real transparency, at `--dpi`),
+    /// `CF_DIBV5` (for readers older than the PNG convention), and
+    /// `application/pdf` (the page as a one-page PDF, which Inkscape can
+    /// import). A reader takes the first format it knows, so a paste into
+    /// Word is vectors, a paste into Paint is pixels, and neither needs a
+    /// switch. See docs/clipboard-interop-survey.md for who reads what.
+    ///
+    /// Everything `export-image` discloses is printed here too: the counter
+    /// line, the `svg:` line, and the notes naming what is raster or
+    /// approximated inside the vector payload.
+    CopyPage {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number.
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        /// Resolution of the raster payloads and of anything embedded as
+        /// raster inside the SVG.
+        #[arg(long, default_value_t = 150.0)]
+        dpi: f32,
+        /// Do not place the SVG (vector) payload.
+        #[arg(long)]
+        no_svg: bool,
+        /// Do not place the PNG / DIB (raster) payloads.
+        #[arg(long)]
+        no_raster: bool,
+        /// Do not place the one-page PDF payload.
+        #[arg(long)]
+        no_pdf: bool,
+        /// Opaque background colour (`#rrggbb`) for every payload; the
+        /// default keeps the page's transparency.
+        #[arg(long, value_name = "#RRGGBB")]
+        background: Option<String>,
+        /// Do not paint annotation appearances (ISO 32000-1 §12.5).
+        #[arg(long)]
+        no_annotations: bool,
+        /// Directory of font files for NON-embedded fonts (decision 012).
+        /// Repeatable. See `render-page --font-dir`.
+        #[arg(long = "font-dir", value_name = "DIR")]
+        font_dirs: Vec<PathBuf>,
+        /// Force a layer VISIBLE by `/Name`. Repeatable.
+        #[arg(long = "show-layer", value_name = "NAME")]
+        show_layers: Vec<String>,
+        /// Force a layer HIDDEN by `/Name`. Repeatable.
+        #[arg(long = "hide-layer", value_name = "NAME")]
+        hide_layers: Vec<String>,
     },
 
     /// List a document's annotations per page (ISO 32000-1 §12.5).
@@ -9033,6 +9097,31 @@ fn run() -> ExitCode {
             hide_layers: &hide_layers,
             print_state,
         }),
+        Command::CopyPage {
+            input,
+            page,
+            dpi,
+            no_svg,
+            no_raster,
+            no_pdf,
+            background,
+            no_annotations,
+            font_dirs,
+            show_layers,
+            hide_layers,
+        } => cmd_copy_page(CopyPageArgs {
+            input: &input,
+            page,
+            dpi,
+            svg: !no_svg,
+            raster: !no_raster,
+            pdf: !no_pdf,
+            background: background.as_deref(),
+            annotations: !no_annotations,
+            font_dirs: &font_dirs,
+            show_layers: &show_layers,
+            hide_layers: &hide_layers,
+        }),
         Command::ListAnnotations { input, pages } => cmd_list_annotations(&input, &pages),
         Command::ListLinks { input, pages } => cmd_list_links(&input, &pages),
         Command::DumpObject {
@@ -12733,6 +12822,284 @@ overprint_process_images_unsupported={}",
         // `Pass 204.0`. Appended per the stable-line append-never-insert rule.
         d.overprint_process_images_unsupported,
     )
+}
+
+/// Everything `copy-page` was asked for (`Pass 248.2`).
+struct CopyPageArgs<'a> {
+    input: &'a Path,
+    /// 1-based.
+    page: u32,
+    dpi: f32,
+    svg: bool,
+    raster: bool,
+    pdf: bool,
+    background: Option<&'a str>,
+    annotations: bool,
+    font_dirs: &'a [PathBuf],
+    show_layers: &'a [String],
+    hide_layers: &'a [String],
+}
+
+/// `copy-page`: produce the page in every clipboard format the target
+/// applications read, and place them in one transaction (`Pass 248.2`).
+///
+/// # Contract
+///
+/// - Exit `SUCCESS` with the stable line `copied <input> page <N> ->
+///   clipboard formats=<a,b,c> <W>x<H> dpi=<D> background=<#rrggbb|none>;
+///   <counters>` (the same counter half as `export-image`), then the `svg:`
+///   disclosure line when the SVG was placed, then the per-page notes.
+/// - `RUNTIME_ERROR` for a page out of range, a bad `--background`, every
+///   payload switched off, a render failure, or a clipboard the OS would
+///   not hand over. On a non-Windows build: refused by name, pointing at
+///   `export-image`, which writes the same bytes to files.
+///
+/// # Why the payloads are produced BEFORE the clipboard is opened
+///
+/// A render can take seconds on a CAD sheet; Windows serialises clipboard
+/// access across every process, and holding it open while rendering would
+/// stall the operator's other applications for that long. Everything is
+/// built first; the transaction itself is milliseconds.
+fn cmd_copy_page(args: CopyPageArgs<'_>) -> u8 {
+    use pdfcer_render::export::{Rgb, encode_png, flatten_over};
+
+    let CopyPageArgs {
+        input,
+        page: page_number,
+        dpi,
+        svg: want_svg,
+        raster: want_raster,
+        pdf: want_pdf,
+        background,
+        annotations,
+        font_dirs,
+        show_layers,
+        hide_layers,
+    } = args;
+
+    if !(want_svg || want_raster || want_pdf) {
+        eprintln!(
+            "pdfcer: {}: every payload is switched off (--no-svg --no-raster --no-pdf); nothing to copy",
+            input.display()
+        );
+        return exit::RUNTIME_ERROR;
+    }
+    if !dpi.is_finite() || dpi <= 0.0 {
+        eprintln!(
+            "pdfcer: {}: --dpi must be a positive number, got {dpi}",
+            input.display()
+        );
+        return exit::RUNTIME_ERROR;
+    }
+    let background = match background.map(Rgb::parse_hex) {
+        None => None,
+        Some(Ok(rgb)) => Some(rgb),
+        Some(Err(msg)) => {
+            eprintln!("pdfcer: {}: --background: {msg}", input.display());
+            return exit::RUNTIME_ERROR;
+        }
+    };
+
+    let (font_env, supplied_registered, font_notes) = build_font_environment(font_dirs);
+    for note in &font_notes {
+        eprintln!("pdfcer: font-dir: {note}");
+    }
+    let doc = match open_document(input) {
+        Ok(doc) => doc,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit_code_for_doc(&err);
+        }
+    };
+    let pages = match pdfcer_core::page_tree::pages(&doc) {
+        Ok(pages) => pages,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit::RUNTIME_ERROR;
+        }
+    };
+    let Some(page) = page_number
+        .checked_sub(1)
+        .and_then(|i| pages.get(i as usize))
+    else {
+        eprintln!(
+            "pdfcer: {}: page {page_number} is out of range (document has {} page(s), numbered 1..={})",
+            input.display(),
+            pages.len(),
+            pages.len()
+        );
+        return exit::RUNTIME_ERROR;
+    };
+
+    let scale = dpi / 72.0;
+    let mut render_options = match resolve_render_options(
+        &doc,
+        RenderFlags {
+            verb: "copy-page",
+            input,
+            standard: None,
+            overprint_zero_tint_scope: None,
+            spot_colorant_device_model: None,
+            max_cmyk_buffer_bytes: None,
+            annotations,
+            font_env,
+            fast_subpixel: false,
+            probe_ink: None,
+            print_state: false,
+            scale,
+            show_layers,
+            hide_layers,
+        },
+    ) {
+        Ok(options) => options,
+        Err(code) => return code,
+    };
+    // Rendered TRANSPARENT and flattened per payload if a background was
+    // asked for -- one render serves every format.
+    render_options.backdrop = pdfcer_render::PageBackdrop::Transparent;
+
+    let mut payload = clipboard::ClipboardPayload::default();
+    let mut svg_outcome = None;
+    let mut counters_diag = None;
+    let mut size = (0u32, 0u32);
+
+    if want_svg {
+        let svg_options = pdfcer_render::svg::SvgOptions::default()
+            .with_raster_dpi(dpi)
+            .with_background(background);
+        match pdfcer_render::svg::export_svg(&doc, page, &render_options, &svg_options) {
+            Ok(export) => {
+                size = (
+                    num_px(export.outcome.width_pt * export.outcome.scale),
+                    num_px(export.outcome.height_pt * export.outcome.scale),
+                );
+                payload.svg = Some(export.svg);
+                svg_outcome = Some(export.outcome);
+            }
+            Err(err) => {
+                eprintln!(
+                    "pdfcer: {}: page {page_number}: svg: {err}",
+                    input.display()
+                );
+                return exit::RUNTIME_ERROR;
+            }
+        }
+    }
+    if want_raster {
+        let rendered = match pdfcer_render::render_page_with(&doc, page, scale, &render_options) {
+            Ok(r) => r,
+            Err(err) => {
+                eprintln!("pdfcer: {}: page {page_number}: {err}", input.display());
+                return exit::RUNTIME_ERROR;
+            }
+        };
+        let flat = match background {
+            Some(bg) => flatten_over(&rendered.pixmap, bg).into_owned(),
+            None => rendered.pixmap.clone(),
+        };
+        match encode_png(&flat, Some(dpi)) {
+            Ok(png) => payload.png = Some(png),
+            Err(err) => {
+                eprintln!("pdfcer: {}: page {page_number}: {err}", input.display());
+                return exit::RUNTIME_ERROR;
+            }
+        }
+        size = (flat.width(), flat.height());
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        {
+            payload.pixels_per_metre = (f64::from(dpi) / 0.0254).round().max(0.0) as u32;
+        }
+        payload.pixmap = Some(flat);
+        counters_diag = Some(rendered.diagnostics);
+    }
+    if want_pdf {
+        let view = DocumentView::new(&doc, doc.bytes(), doc.version());
+        match pdfcer_core::pageops::extract(&view, &[page_number as usize - 1]) {
+            Ok((bytes, _report)) => payload.pdf = Some(bytes),
+            Err(err) => return report_page_op_error(&err),
+        }
+    }
+
+    let placed = match clipboard::place(&payload) {
+        Ok(p) => p,
+        Err(err) => {
+            eprintln!("pdfcer: {}: page {page_number}: {err}", input.display());
+            if matches!(err, clipboard::ClipboardError::Unsupported) {
+                eprintln!(
+                    "pdfcer: note: `export-image --format svg|png` writes the same bytes to files on every platform"
+                );
+            }
+            return exit::RUNTIME_ERROR;
+        }
+    };
+
+    // The counter half comes from the raster render when there was one,
+    // else from the SVG's own walk -- same interpreter, same numbers.
+    let diag = counters_diag
+        .as_ref()
+        .or(svg_outcome.as_ref().map(|o| &o.diagnostics));
+    let background_token = background.map_or_else(|| "none".to_owned(), Rgb::to_hex);
+    println!(
+        "copied {} page {page_number} -> clipboard formats={} {}x{} dpi={dpi} background={}; {}",
+        input.display(),
+        placed.formats.join(","),
+        size.0,
+        size.1,
+        background_token,
+        diag.map_or_else(String::new, |d| render_counters_line(
+            d,
+            &doc,
+            supplied_registered
+        ))
+    );
+    if let Some(o) = &svg_outcome {
+        let t = &o.tally;
+        println!(
+            "svg: ops={} images={} dashed_pre_applied={} blend_modes={} \
+shadings_rasterised={} soft_masks_kept={} overprint_approximated={} \
+nonseparable_approximated={} non_isolated_isolated={} colorant_buffer_on_screen={} exact={}",
+            o.ops,
+            o.images_embedded,
+            o.dashed_strokes_pre_applied,
+            o.blend_modes_used,
+            t.shadings_rasterised,
+            t.soft_masks_kept,
+            t.overprint_approximated,
+            t.nonseparable_approximated,
+            t.non_isolated_groups_isolated,
+            t.colorant_buffer_on_screen,
+            u8::from(t.is_exact())
+        );
+        eprintln!(
+            "pdfcer: note: the vector payload carries text as glyph OUTLINES; a paste into Word or Inkscape is editable as shapes, not as words"
+        );
+        if !t.is_exact() {
+            eprintln!(
+                "pdfcer: note: the vector payload embeds {} shading(s) as raster and approximates {} overprint, {} non-separable blend, {} non-isolated group(s) -- see `export-image --format svg` for the per-kind notes",
+                t.shadings_rasterised,
+                t.overprint_approximated,
+                t.nonseparable_approximated,
+                t.non_isolated_groups_isolated
+            );
+        }
+        if o.blend_modes_used > 0 {
+            eprintln!(
+                "pdfcer: note: {} element(s) use mix-blend-mode; Word's SVG importer shows them as Normal, Inkscape honours them",
+                o.blend_modes_used
+            );
+        }
+    }
+    eprintln!(
+        "pdfcer: note: a paste takes the FIRST format the application knows: Word/PowerPoint/Excel and Inkscape take the SVG (vectors); Paint, GIMP, browsers take the PNG (pixels, with transparency)"
+    );
+    if let Some(d) = diag {
+        report_diagnostics(
+            d,
+            render_options.max_cmyk_buffer_bytes,
+            u64::from(size.0) * u64::from(size.1),
+        );
+    }
+    exit::SUCCESS
 }
 
 /// A device dimension recovered from points × scale, rounded up the way

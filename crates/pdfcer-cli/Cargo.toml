@@ -117,6 +117,20 @@ pdfcer-fetch = { workspace = true, optional = true }
 # listed in THIRD_PARTY_LICENSES.md. Verified with `cargo tree` before
 # adding rather than assumed (rule 13).
 
+# clipboard-win: the OS clipboard for `copy-page` (`Pass 248.2`). A SHELL
+# concern, never the engine's (ARCHITECTURE.md s3), and TARGET-GATED like
+# printing so the Linux/macOS CI jobs still compile this crate; on those
+# targets `copy-page` refuses by name and points at `export-image`.
+# License: BSL-1.0 (Boost) -- permissive, OSI-approved, already in
+# about.toml's accepted list and already attributed in pdfcer-gui's tree
+# (docs/clipboard-interop-survey.md s4.1, s6). Chosen over arboard because
+# arboard exposes no registered-format API and `image/svg+xml` is the
+# whole point.
+[target.'cfg(windows)'.dependencies]
+clipboard-win = "5"
+# thiserror: `ClipboardError` (same rationale + license as core's entry).
+thiserror = "2"
+
 [dev-dependencies]
 # png: TEST-ONLY. `tests/export_image.rs` decodes what `export-image` wrote
 # with an independent decoder rather than trusting the encoder about its
