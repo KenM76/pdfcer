@@ -5092,6 +5092,19 @@ nearly right** — decision 071 clause 2 for the argument. **The refusal
 set is pdfcer's current compositing frontier and will shrink**, so treat
 the fallback as a live path, not a legacy one.
 
+**★ ADDED 2026-09-03 (403rd filing, decision 132) — this refusal posture
+is being scoped to a MODE, not the module.** `Pass 248.1` (*Next up*, IN
+PROGRESS — SVG page export) is giving `record_page` a second recording
+mode, **export**, in which every site above that calls `canvas.refuse
+(reason)` in **cache** mode instead rasterises that one operator, at
+recording scale, into a transparent scratch and records it as an image
+fill — clipped to that operator's own device bounds, never the whole
+page. **Cache mode is UNCHANGED and keeps refusing** — this paragraph
+is a forward pointer, not a retraction of anything above; `R211`'s
+precision contract binds cache mode exactly as before. See decision 132
+for why the sibling posture is recorded as a standing design principle
+ahead of `Pass 248.1` shipping any code.
+
 #### First real consumer — and it was found by disbelieving a prediction
 
 `pdfcer`'s **poster printing** (`cmd_print`) rasterises each tile as a
@@ -31372,5 +31385,78 @@ ce-dimension *author* row carries the one-sentence operator-facing
 consequence. `ROADMAP.md`: `Pass 247.1` *Shipped* entry, item 3.
 
 **Decision ceiling moves `130` → `131`; next free `132`.** **Standing
+rules ceiling `R241` — unchanged**, next free `R242`. **Open operator
+questions: none minted**; next free `(ce)`.
+
+### 2026-09-03 (403rd filing, `c549219`) — decision 132: **A RECORDER THAT REFUSES FOR CORRECTNESS (`R211`) GAINS A SIBLING MODE THAT NEVER REFUSES, FOR EXPORT — ONE INTERPRETER, TWO POSTURES, NOT A SECOND INTERPRETER. FIRST INSTANCE: `pdfcer_render::display_list`'S PLANNED "EXPORT" RECORDING MODE (`Pass 248.1`, SVG, IN PROGRESS)**
+
+**(librarian filing, 403rd. No shell available — this decision is read
+from `docs/export-and-copy-out-plan.md` §1 (committed `c549219`) and the
+engineer's dispatch text, not from code: `Pass 248.1` has not shipped.
+Minted anyway, on the same basis decision 073 recorded the GUI pause
+before any replacement code existed — the design is already committed
+and dated, even though the implementation is in progress.)**
+
+**Why this is a decision and not only a Pass-local implementation
+choice**, since the engineer who scoped `Pass 248.1` framed it as the
+latter and invited disagreement: `record_page`'s refusal posture
+(`PoisonReason`, §4.1 above, decision **084**, `R211`) is itself a
+**standing invariant** — "a cache that replays a plausible wrong picture
+is worse than none" — not a one-off implementation detail, and it
+already has its own decision entry precisely because of that status.
+What `Pass 248.1` is building is the **structural opposite** of that
+invariant, living in the **same module**: a mode in which the recorder
+must never fail to produce *something*, and instead **discloses** what
+it approximated (rule 4 — fuzzy, never sneaky) rather than **refusing**.
+A second posture in the interpreter that the first posture's own
+decision record governs is exactly the kind of fact a future session
+reading decision 084/`R211` needs to find from there, not rediscover by
+reading `Pass 248.1`'s diff. Recording it now, ahead of the code, means
+the *ARCHITECTURE.md* body text (§4.1, edited alongside this entry)
+already carries the forward pointer the day the plan was committed,
+rather than three filings after the fact — the exact drift `ARCHITECTURE.md`
+§4 has been caught running behind shipped surface more than once.
+
+**The decision, precisely.** `pdfcer_render::display_list::record_page`
+gains a `RecordMode::{Cache, Export}` (or equivalent) parameter.
+**`Cache` mode is `R211` verbatim, unchanged**: `sh`, shading patterns,
+overprint composites, soft masks and any operator with no recordable
+formulation cause a **refusal** (`PageNotRecordable`), because a wrongly
+plausible cached picture the shell then pans and zooms is worse than a
+fallback to `render_page_region`. **`Export` mode never refuses**: at
+every one of those same poison sites, it rasterises that ONE operator,
+at the recording scale, into a transparent scratch, and records the
+result as an image fill — clipped to that operator's own device bounds,
+never promoted to a whole-page fallback (a page-level poison must not
+become a page-level rasterisation, or a page with one gradient becomes
+a bitmap wearing a vector costume). **Every rasterisation export mode
+performs is COUNTED**, so the SVG's own disclosure can state, off-canvas,
+exactly what was approximated and how much of it there was — the same
+obligation rule 4 places on every other pdfcer inference.
+
+**What this decision does NOT cover, deliberately**: which specific
+poison sites get a rasterised fallback vs. a future native SVG primitive
+(axial/radial shadings as `<linearGradient>`/`<radialGradient>` is
+named in the plan as "the obvious later upgrade, a refinement not a
+prerequisite"); the SVG element vocabulary itself; the oracle-test
+design (`resvg` comparison). Those are `Pass 248.1`'s own implementation
+decisions, correctly the engineer's to make without a decision record
+each.
+
+**Scope beyond SVG.** `record_page` is `pdfcer-render`'s only
+page-to-display-list interpreter; any future consumer that wants a
+full-fidelity, non-refusing traversal of a page (a thumbnail generator,
+a future PDF/A raster fallback, a print-preview cache warmed ahead of
+first paint) inherits this same two-mode shape rather than growing its
+own second interpreter or its own refusal policy — which is the second,
+independent reason this belongs at the module's own decision level
+rather than filed only under `Pass 248.1`.
+
+**Body sections updated in this filing:** §4.1's "What this surface
+REFUSES" subsection (near the `record_page` write-up) gains a dated
+forward-pointer paragraph naming the coming `Export` mode and stating
+explicitly that `Cache` mode and `R211` are unchanged by it.
+
+**Decision ceiling moves `131` → `132`; next free `133`.** **Standing
 rules ceiling `R241` — unchanged**, next free `R242`. **Open operator
 questions: none minted**; next free `(ce)`.

@@ -89801,3 +89801,148 @@ Open operator questions: none minted; next free `(ce)`.
 
 **`docs/NEXT_SESSION.md`:** not touched (engineer-owned; rewritten in
 `4d52fb3`).
+
+---
+
+## 2026-09-03 (403rd filing) — roadmap update, new request + pass shipped: **`Pass 248.0` (`c549219`) SHIPS — export page(s) to PNG/JPEG with real transparency and DPI metadata; `Pass 248.1` (SVG, recorder export mode) and `Pass 248.2` (copy-out to Word/Inkscape/LibreOffice) filed *Next up*; decision 132 minted ahead of `248.1` shipping any code**
+
+**Sourcing (hard rule 8).** **No shell available to this filing** —
+`Read`/`Grep` on live source and docs only. Every fact about `c549219`'s
+diff (test counts, gate exit code, dependency-set claim, `cargo tree`/
+wasm32 invariant results) is **relayed** from the engineer's dispatch,
+not re-run. **Independently verified by direct read this filing:**
+`crates/pdfcer-cli/src/main.rs` (`resolve_render_options`,
+`render_counters_line`, `export-image`, `Pass 248.0` doc markers) and
+`crates/pdfcer-render/src/{export.rs,cmyk_buffer.rs,lib.rs}`
+(`encode_png`/`encode_jpeg`, `to_srgb_transparent`, `PageBackdrop`) all
+exist as described; `docs/core-api/03-capabilities.md` §7.2/§7.7;
+`docs/export-and-copy-out-plan.md` (136 lines, read in full);
+`docs/clipboard-interop-survey.md` (297 lines, read in full — **its own
+§7 recommends FIVE clipboard formats, not the three the dispatch used to
+scope `Pass 248.2`**, see below); the four `Acrobat_Features` RAG files
+named in `ROADMAP.md`'s new *Shipped* entry, headline findings read
+directly. Ledger checked by `Grep` of `ROADMAP.md`/`SESSION_LOG.md`
+directly (no shell to run `tools/check-ledger-numbers.py`): Pass ceiling
+`247.3`, `R241`, decision `131`, filings `402` — matched the dispatch's
+stated "last known" exactly.
+
+**Shipped:**
+- **`Pass 248.0`** — `RenderOptions::backdrop`/`PageBackdrop::{White,
+  Transparent}`; `CmykBuffer::to_srgb_transparent` as a sibling collapse
+  for the subtractive path (not a shared flag — the additive and
+  subtractive paths build their pixels differently, so a flag tested on
+  one alone would silently flatten the other); new
+  `pdfcer_render::export` module (`encode_png` with a `pHYs` DPI chunk,
+  `encode_jpeg` with JFIF density, `flatten_over`, `Rgb::parse_hex`);
+  CLI `pdfcer export-image --pages --format png|jpeg --dpi --transparent
+  --quality --background -o/--output-dir`, refusing `--transparent` for
+  JPEG **by name**; the 230-line render-option block shared between
+  `render-page` and `export-image` via `resolve_render_options`/
+  `render_counters_line`. 7 render + 6 CLI + 4 unit + 2 doctest, gate
+  sweep exit 0 (relayed). `png`/`jpeg-encoder` become direct
+  `pdfcer-render` deps (zero new packages, already attributed).
+
+**Decisions made this session:**
+- **Decision 132 minted**: `pdfcer_render::display_list::record_page`'s
+  refusal posture (`R211`, decision 084) gets a **sibling mode**, not a
+  second interpreter — `Cache` mode keeps refusing at every poison site
+  (`sh`, shadings, overprint composites, soft masks); a new `Export`
+  mode never refuses, instead rasterising the one poisoned operator into
+  a transparent scratch at recording scale, clipped to that operator's
+  own bounds, and **counting** what it rasterised for off-canvas
+  disclosure (rule 4). Minted **ahead of `Pass 248.1` shipping any
+  code** — the engineer scoped this as a Pass-local implementation
+  choice and explicitly invited disagreement; this role minted it
+  because `R211`/decision 084 already record the posture this is the
+  structural opposite of, in the SAME module, so a reader arriving at
+  084 needs the forward pointer from there. `ARCHITECTURE.md` §4.1's
+  "What this surface REFUSES" subsection gained the dated forward-
+  pointer paragraph in the same edit.
+- **No decision minted for the SVG-vocabulary or clipboard-format
+  choices themselves** — those stay the engineer's, per the plan and
+  the survey.
+
+**Findings + decisions:**
+- **A relayed three-format summary undercounted a five-format source.**
+  The dispatch that scoped `Pass 248.2` named `"image/svg+xml"`,
+  `CF_ENHMETAFILE` and `"PNG"` as the clipboard format set; reading
+  `docs/clipboard-interop-survey.md` §7 directly shows its own
+  Recommendation is **five** formats — `CF_DIBV5` and an optional
+  one-page PDF were dropped somewhere between the survey and the
+  dispatch text. The *Next up* entry now quotes the survey's five
+  directly, so this does not compound into a sixth retelling.
+- **Cross-RAG deliverables named in the `ROADMAP.md` entry, per the
+  engineer's own rule that a RAG deliverable is not handed off until a
+  pdfcer doc names it**: `Acrobat_Features/
+  export__page_to_image_png_jpeg_tiff.md`,
+  `export__svg_and_vector_export_status.md`,
+  `clipboard__copy_out_to_other_applications.md` (plus the pre-existing
+  `clipboard__cut_copy_paste_coverage_matrix.md` it extends), and the
+  in-repo `docs/clipboard-interop-survey.md`.
+- **No stale Backlog bucket existed for image export** — the Acrobat
+  RAG's own frontmatter flagged "not yet a registered `ROADMAP.md`
+  Backlog bucket" for this feature; grepped and confirmed none exists,
+  so nothing needed reconciling — the Pass entries substitute for the
+  bucket directly, having been scoped straight from an operator request
+  rather than from a Backlog item maturing.
+- **A process finding, not a code one**: a Python patch script run
+  against the ~40,000-line `main.rs` used an *optional, repeated* regex
+  capture group and backtracked catastrophically — hung over two
+  minutes, twice, before being killed. The fix was a plain string
+  search, not a smarter regex. **The same script's heredoc variant lost
+  its `\n` escapes** on the way through the shell — the same
+  backslash-through-an-intermediate-layer hazard `D:/dev/rag/rust/
+  disclosure_text_must_be_tested_against_producing_branch.md` already
+  names for paths; here it hit a patch payload instead of a path
+  string. Not written up as a new RAG file — it is the same hazard
+  shape already on record, at a new site, not a new mechanism.
+
+**Still in flight:**
+- `Pass 248.1` (SVG export) — engineer already started; recorder export
+  mode, `svg::export_svg`, `resvg` oracle test, fuzz target all unbuilt
+  as of this filing.
+- `Pass 248.2` (copy-out) — not started; needs the CLI clipboard verbs,
+  the EMF writer (hand-emitted `[MS-EMF]` records, `emfsdk` as a
+  parser-oracle dev-dependency), the `pdfcer-gui` channel note, and the
+  empirical Ctrl+V-priority test matrix the survey's §7 still owes.
+- `fuzz/Cargo.lock` — modified by the fuzz check at dispatch time,
+  untracked/uncommitted, explicitly **not this filing's to stage**; the
+  engineer commits it with `248.1`.
+
+**For next session:**
+- Engineer: commit this filing's doc edits (this role has no shell to
+  commit them itself this invocation — see the commit note below);
+  continue `Pass 248.1`; then `Pass 248.2`.
+- Operator: nothing pending from this filing.
+
+**`docs/ROADMAP.md`:** *Shipped* gained the 403rd banner and the
+`Pass 248.0` entry (11 numbered facts, the Acrobat-parity read, the
+cross-RAG hand-off list); *Next up* gained `Pass 248.1` (IN PROGRESS)
+and `Pass 248.2` (NOT STARTED) ahead of `Pass 5.4`. Filings ceiling
+`402` → `403`; decision ceiling `131` → `132`; Pass ceiling `247.3` →
+`248.0` (`248.1`/`248.2` not yet shipped). Standing rules ceiling
+`R241`, unchanged; next free `R242`. Open operator questions: none
+minted; next free `(ce)`.
+
+**`docs/FEATURES.md`:** *Export* section gained one *Implemented* row
+(PNG/JPEG page export, `[x]`/`[x]`/`[ ]`/`[ ]`); *Planned* gained two
+rows (SVG export, `[ ]`/`[ ]`/`[ ]`/`[ ]`; clipboard copy-out,
+`[ ]`/`[ ]`/`[ ]`/`◐`), inserted at the top of the Planned table to
+match their position at the top of *Next up*.
+
+**`docs/ARCHITECTURE.md`:** §12 decision 132 minted (the export-mode
+sibling posture, its scope, what it deliberately does not cover); §4.1's
+`record_page` refusal-surface write-up gained a dated forward-pointer
+paragraph naming the coming `Export` mode and stating `Cache`/`R211` are
+unaffected. Decision ceiling `131` → `132`; next free `133`. Rules
+ceiling `R241`, unchanged; next free `R242`. Open operator questions:
+none minted; next free `(ce)`.
+
+**Commit note (hard rule 8, extended to this filing's own act).** This
+invocation of `pdfcer-librarian` was granted **no shell** — `Read`,
+`Write`, `Edit`, `Glob`, `Grep`, `WebSearch`, `WebFetch` only. The four
+files above were edited on disk; **committing them is the engineer's
+next act, not something this filing can report a hash for.** Stated
+here rather than fabricating one, per hard rule 8's own discipline
+extended to a git-write claim rather than only a git-read one: no
+commit was made by this role this invocation.

@@ -112,6 +112,140 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★ 403rd filing, 2026-09-03 — `c549219`: `Pass 248.0` SHIPS —
+PAGE EXPORT TO PNG/JPEG WITH REAL TRANSPARENCY AND DPI METADATA.
+`Pass 248.1` (SVG export, the recorder's own second recording mode)
+FILED *Next up*, **already IN PROGRESS**; `Pass 248.2` (copy-out to
+Word/Inkscape/LibreOffice) FILED *Next up*, **NOT STARTED**. DECISION
+`132` MINTED for the design principle behind `248.1` before its code
+ships.**
+
+Operator, verbatim, 2026-09-03: *"can you add the ability to export
+page(es) to png, jpg, svg. note that there had better be full support
+(including transparency where supported!). Also I'd like to be able to
+copy and paste anything to other software - like copy and paste vector
+graphics into word or inkscape for example if possible."* Three asks in
+one sentence; scoped by the engineer as **Pass family 248**, with the
+full reasoning committed as `docs/export-and-copy-out-plan.md`
+(`c549219`, alongside the code) — that plan is what this entry
+summarises, not a paraphrase from chat.
+
+**★ Sourcing (hard rule 8).** **No shell available to this filing** —
+Read/Grep on live source and docs only, no `git`. Everything about
+`c549219`'s diff (file list, test counts, gate result, dependency-set
+claim) is **relayed** from the engineer's dispatch and its commit
+message, not independently re-run; that is not itself a git/backup-state
+claim (hard rule 8's literal scope is git/backup/CI state) but it is
+marked *relayed* rather than *measured*, on the same discipline.
+**Independently verified by direct `Read`/`Grep` in this filing:**
+`crates/pdfcer-cli/src/main.rs` — `resolve_render_options`,
+`render_counters_line`, `export-image` subcommand, `--- Pass 248.0`
+doc-comment markers — all present at the lines the dispatch names;
+`crates/pdfcer-render/src/export.rs` exists (`to_srgb_transparent` also
+found in `cmyk_buffer.rs`, `PageBackdrop` in `lib.rs`); `docs/core-api/
+03-capabilities.md` §7.2 (`with_backdrop`/`PageBackdrop::Transparent`)
+and §7.7 (`Exporting a page as a PNG or JPEG file`) both exist and match
+the dispatch's description; `docs/export-and-copy-out-plan.md` (136
+lines) is on disk and read in full for this filing; `docs/
+clipboard-interop-survey.md` (297 lines) is on disk and read in full —
+**its actual §7 Recommendation is a FIVE-format ordered list** (`"image/
+svg+xml"`, `CF_ENHMETAFILE`, `"PNG"`, `CF_DIBV5`, optional
+`"application/pdf"`), **one format wider than the three-format summary
+the dispatch used to scope `Pass 248.2`** (it omitted `CF_DIBV5`); the
+*Next up* entry below quotes the survey's own five, so a future session
+does not under-scope from a paraphrase of a paraphrase. All four new
+`Acrobat_Features` RAG files named below (two `export__*`, `clipboard__
+copy_out_to_other_applications.md`, plus the pre-existing `clipboard__
+cut_copy_paste_coverage_matrix.md` it extends) confirmed present and
+their headline findings read directly, not relayed. **Ledger checked by
+`Grep` of `ROADMAP.md`/`SESSION_LOG.md` directly** (no shell to run
+`tools/check-ledger-numbers.py`): Pass ceiling `247.3`, standing rules
+`R241`, decisions `131`, filings `402` — **matches the dispatch's stated
+"last known" exactly**, so nothing drifted between dispatch and filing.
+
+### `Pass 248.0` (`c549219`, 2026-09-03) — export page(s) to PNG/JPEG with real transparency (PNG) and DPI metadata; the `DeviceCMYK` subtractive collapse gets its OWN transparent path, not a shared flag
+
+**Relayed from the engineer's dispatch/commit message (not independently
+re-run — no shell this filing); verified facts are marked above.**
+
+1. **`RenderOptions::backdrop` / `PageBackdrop::{White, Transparent}`**
+   (ISO 32000-1 §11.4.7 — the page group is already composited
+   *isolated and transparent*; `Transparent` simply declines the final
+   white composite instead of building a second rendering path).
+2. **`CmykBuffer::to_srgb_transparent`, a SIBLING of `to_srgb_over_white`,
+   not a shared flag** — the subtractive (CMYK) collapse builds its
+   pixels *inside* the white composite, so a flag tested only on the
+   additive path would silently flatten every `DeviceCMYK` page; the
+   render tests cover both paths for exactly this reason.
+3. **New module `pdfcer_render::export`**: `encode_png` (writes a `pHYs`
+   chunk — a PNG with none pastes into Word at 96 DPI, four times too
+   large for a 300 DPI export), `encode_jpeg` (JFIF density, flattened
+   over `Rgb` first — JPEG has no alpha), `flatten_over`,
+   `Rgb::parse_hex` (six hex digits only, no `#abc` shorthand).
+4. **CLI `pdfcer export-image`**: `--pages --format png|jpeg --dpi
+   --transparent --quality --background -o/--output-dir`. **Refuses
+   `--transparent` for JPEG BY NAME** — never flattens silently, because
+   a silently white-backed JPEG looks exactly like the export
+   succeeding (rule 4, both directions).
+5. **`cmd_render_page`'s 230-line option block hoisted into
+   `resolve_render_options(RenderFlags)`**, and its counters' `println!`
+   into `render_counters_line` — one resolver and one format string
+   shared by `render-page` and `export-image` (`R92`-adjacent: two
+   verbs, one option surface, so they cannot drift apart one flag at a
+   time). `tools/check-metrics-line-contract.py`'s `PRINTLN_HEAD` moved
+   to the first shared key.
+6. **Tests**: 7 render (decoding with INDEPENDENT decoders — the `png`
+   crate, `zune-jpeg` as a dev-dependency — zero new runtime packages),
+   6 CLI black-box, 4 unit, 2 doctests.
+7. **Dependencies**: `png` and `jpeg-encoder` become **direct** deps of
+   `pdfcer-render` (both already in `Cargo.lock` — **zero new
+   packages**; `MIT OR Apache-2.0` / `(MIT OR Apache-2.0) AND IJG`,
+   already attributed in `THIRD_PARTY_LICENSES.md`); `png` and
+   `zune-jpeg` as dev-deps.
+8. **Invariants**: `cargo tree -p pdfcer-render` GUI-free (relayed, part
+   of the gate sweep); `wasm32-unknown-unknown` check of `pdfcer-core` +
+   `pdfcer-render` passed (relayed).
+9. **Gate sweep**: `tools/run-gates.sh` exit 0 (relayed).
+10. **Acrobat parity** (verified in this filing, not relayed): Acrobat's
+    own Export-To-Image has **no transparency option in any of its four
+    formats** — `Acrobat_Features/export__page_to_image_png_jpeg_tiff.md`
+    (2026-09-03) — so `--transparent` is a genuine **parity-plus**, not
+    a catch-up.
+11. **Docs**: `docs/core-api/03-capabilities.md` §7.7 new (the raster
+    export "I want to… → call this" table, the two traps a hand-rolled
+    encoder would hit — premultiplied-vs-straight alpha,
+    `replay_region`'s cache route still flattening over white), §7.2
+    gains the `with_backdrop` knob; the appendix's capability→module
+    table re-derived.
+
+**`docs/FEATURES.md`**: *Export* section gains one row — PNG/JPEG page
+export, `[x]` core / `[x]` cli / `[ ]` gui (gui not yet consumed by
+`pdfcer-gui`) / `[ ]` Acrobat (verified absence of a transparency
+option, not of the format itself). **Not rounded up.**
+
+**★ Cross-RAG deliverables named here so they are HANDED OFF, not merely
+filed** (a RAG deliverable is not handed off until a pdfcer doc names
+it): `Acrobat_Features/export__page_to_image_png_jpeg_tiff.md` (this
+Pass's own parity read — Acrobat flattens every image export, no
+transparency in any format), `Acrobat_Features/
+export__svg_and_vector_export_status.md` (`Pass 248.1`'s parity read —
+direct SVG export existed in Acrobat 8, "virtually eliminated" from
+Acrobat 9 Extended onward; EPS/PS is the only surviving vector-export
+path today), `Acrobat_Features/
+clipboard__copy_out_to_other_applications.md` (`Pass 248.2`'s parity
+read — Snapshot is raster-only, Adobe-to-Adobe vector copy rides an
+Adobe-internal/proprietary format that does not round-trip through a
+third-party app), and the in-repo, committed
+`docs/clipboard-interop-survey.md` (`Pass 248.2`'s engineering source —
+see the *Next up* entry below for its actual recommendation).
+
+**Ledger.** Filings ceiling `402` → **`403`**; decision ceiling `131` →
+**`132`** (decision `132` minted, below); Pass ceiling `247.3` →
+**`248.0`** (`248.1`/`248.2` filed *Next up*, not yet shipped, so the
+ceiling moves only to `248.0`); standing rules ceiling `R241`,
+unchanged, next free `R242`; open operator questions: none minted, next
+free `(ce)`.
+
 **★★★ 402nd filing, 2026-09-03 — `4d52fb3` (repo: `D:\Dev\pdfcer`; LOCAL
 AT FILING TIME — `2 0` against `origin/main`, pushed together with this
 filing): `Pass 247.3` SHIPS. ★ THE `/pdfce` SIDECAR COMPATIBILITY LAYER
@@ -105932,6 +106066,138 @@ in the "still open" list. Full build record: this file's own
 `f79f044..f79d9a2` *Shipped* entry, top of *Shipped*.
 
 ## Next up
+
+### `Pass 248.1` — **SVG PAGE EXPORT: THE RENDERER'S OWN DISPLAY-LIST RECORDING GAINS A SECOND, NEVER-REFUSING "EXPORT" MODE** — filed 2026-09-03 (403rd filing), plan `docs/export-and-copy-out-plan.md` §1/§4 (`c549219`); decision `132`; **IN PROGRESS**
+
+**Design (the plan's §1, "the one decision that shapes everything").**
+SVG is produced from `pdfcer_render::display_list::record_page`'s own
+recording, **not** by walking `vector::PageObjects` the way DXF export
+does — that route loses images, clips, transparency, blend modes and
+Type 3 glyphs, and would be a **second interpreter** (a trap this
+project has written down more than three times). One interpreter; the
+SVG contains exactly the geometry the raster painted, at `scale = 1`
+(one SVG unit = one PDF point). Text exports as glyph outlines — the
+same cost every trusted PDF→SVG converter (pdf2svg, Inkscape's default
+import) pays.
+
+The cost of (b) is the recorder's refusal list (`PoisonReason` — `sh`,
+shading patterns, overprint composites, soft masks: everything that
+reads the destination back and has no recordable formulation, `R211`).
+**A second recording mode, "export," is added.** Every site that today
+calls `canvas.refuse(reason)` in **cache** mode instead, in **export**
+mode, rasterises that ONE operator at the recording scale into a
+transparent scratch and records it as an image fill — the same
+scratch-and-evaluator route the subtractive (CMYK) page path already
+takes for a shading — clipped to that operator's own device bounds, not
+the whole page (a page-level poison must not become a page-level
+fallback, or every SVG with one gradient becomes a bitmap in a vector
+costume). **Cache mode keeps refusing; export mode never refuses, and
+COUNTS what it rasterised** so the disclosure can say *"2 shadings and 1
+soft-masked group are embedded as raster in this SVG"* (rule 4). See
+decision `132` for why this is filed as a standing design principle, not
+only a Pass-local implementation choice.
+
+**Acceptance criteria** (from the plan): `pdfcer_render::svg::export_svg
+(doc, page, &SvgOptions) -> SvgExport { svg, outcome }`; `pdfcer
+export-image --format svg`; SVG 1.1 plus the one CSS3 property
+`mix-blend-mode` (covers all sixteen §11.3.5 blend modes; Word's SVG
+importer ignores it and shows Normal — disclosed, not silently
+degraded); text as glyph outlines (glyph count disclosed); images as
+PNG-with-alpha data URIs (a masked image stays masked); nested clips via
+`clip-path` on the `<clipPath>` element itself (a recorded clip's
+*parent* clip must also render, or an enclosing clip is silently lost);
+dashed strokes pre-dashed via `Path::dash` (`tiny_skia::StrokeDash` has
+no accessor to read back); an oracle test that rasterises the emitted
+SVG with `resvg` (dev-dependency, MIT/Apache-2.0) and compares against
+pdfcer's own transparent PNG of the same page at the same scale; a fuzz
+target from raw PDF bytes to SVG.
+
+**Acrobat parity** (`Acrobat_Features/export__svg_and_vector_export_status.md`,
+2026-09-03): **Acrobat has no direct SVG export at all** — it existed in
+Acrobat 8 and was "virtually eliminated" starting with Acrobat 9
+Extended (a directly-sourced Adobe-representative forum post); the only
+surviving vector-export path today is "Save As Other > Encapsulated
+PostScript," one `.eps` file per page. SVG export is therefore **pure
+parity-plus** — there is no Acrobat behaviour to match, only a fresh
+design problem, which is why `FEATURES.md`'s Acrobat column for this row
+is a verified-absence `[ ]`, not a shape-mismatch `—`.
+
+**Traps named in the plan, so a future filing does not re-derive them**:
+`replay_region` (the GUI's cached panning route) is left flattening over
+white on purpose — the export path renders directly and does not touch
+it; Word's SVG importer is not a browser (no `<style>` blocks, no CSS
+classes, presentation attributes only, `<image>` must be a data URI).
+
+### `Pass 248.2` — **COPY-OUT TO OTHER SOFTWARE: WORD/POWERPOINT/EXCEL, INKSCAPE, LIBREOFFICE** — filed 2026-09-03 (403rd filing), plan `docs/export-and-copy-out-plan.md` §3, sourced from `docs/clipboard-interop-survey.md` (2026-09-03); **NOT STARTED**
+
+**What the engine owes, and what it does not.** The GUI-core invariant
+(`ARCHITECTURE.md` §3) means `pdfcer-core`/`pdfcer-render` may not touch
+the OS clipboard — that is a shell concern. The engine's job is *bytes
+in every format a target application will accept*: `Pass 248.1`'s SVG,
+`Pass 248.0`'s PNG-with-alpha, and the already-shipped one-page PDF
+(`ObjectClip::to_pdf`, `Pass 120.2`). Placement is `pdfcer-gui`'s (a
+channel note naming the formats in order) and a `pdfcer copy-page` /
+`copy-selection` CLI verb — a **shell**, which may carry an OS-clipboard
+crate, and which lets this engineer verify an end-to-end paste into Word
+today (via `combridge word`) rather than waiting on the GUI project.
+
+**Format set and placement order — from `docs/
+clipboard-interop-survey.md` §7's actual Recommendation, FIVE formats,
+not the three the original scoping conversation named:**
+
+1. **`"image/svg+xml"`** (registered) — UTF-8 bytes of a standalone
+   `<svg>` with explicit `width`/`height` and `viewBox`, plus one
+   trailing NUL byte, in an `HGLOBAL` — byte-for-byte what Chromium ≥
+   M127 writes (validated against 30 native Windows apps by a Microsoft
+   engineer's own PSA). Reaches **Word/PowerPoint/Excel M365 as an
+   editable SVG graphic**, **Inkscape 1.3/1.4** (its own preferred
+   target #2), LibreOffice ≥ 25.2.
+2. **`CF_ENHMETAFILE`** — an `HENHMETAFILE` from `SetEnhMetaFileBits`.
+   Reaches **LibreOffice 24.x, whose ONLY vector route on Windows this
+   is** (its SVG clipboard fix landed only in ≥25.2), Office Paste
+   Special "Picture (Enhanced Metafile)" (ungroupable), Inkscape's
+   fallback target. A follow-on Pass with its own writer — **not
+   assumed here**; the survey names `emfsdk` 0.2.0 (MIT OR Apache-2.0)
+   as a parser-oracle dev-dependency candidate and hand-emitted
+   `[MS-EMF]` records (public spec) as the primary route, classic EMF
+   only for v1 (alpha/blend content flattened and disclosed, rule 4).
+3. **`"PNG"`** (registered) — straight-alpha RGBA PNG bytes, disclosed
+   DPI. Reaches "everything else, with alpha."
+4. **`CF_DIBV5`** — `BITMAPV5HEADER`, premultiplied BGRA. Reaches
+   readers that predate the `"PNG"` convention; Windows synthesises
+   `CF_DIB`/`CF_BITMAP` from it, so those are never placed explicitly.
+5. *(optional, cheap)* **`"application/pdf"`** — the one-page PDF.
+   Only Inkscape consumes it on Windows (target #7, after SVG); Office
+   and LibreOffice never, on Windows.
+
+**Crate**: `clipboard-win` 5.4.1 (`BSL-1.0`, permissive, already in
+`pdfcer-gui`'s dependency graph via `arboard` and already accepted in
+both `about.toml`s) for formats 1/3/4/5 via `register_format` +
+`raw::set_without_clear`; `windows-sys` (`Win32_Graphics_Gdi`,
+`Win32_System_DataExchange`, already present) for format 2 only —
+`clipboard-win` has no metafile setter (its generic path hands an
+`HGLOBAL` where an `HENHMETAFILE` is required). No copyleft anywhere in
+the candidate set; Inkscape (GPL-2.0-or-later) and LibreOffice
+(MPL-2.0) were read as **behavioural references only** (`R61` pattern),
+nothing ported.
+
+**Verification**: an end-to-end paste into Word through `combridge
+word`, plus the empirical test matrix the survey's §7 states is still
+owed (Office's default Ctrl+V priority among SVG/EMF/PNG when all are
+present; Inkscape's PDF-import dialog on paste) — recorded back into
+`docs/clipboard-interop-survey.md`, not re-derived from scratch.
+
+**Acrobat parity** (`Acrobat_Features/
+clipboard__copy_out_to_other_applications.md`, 2026-09-03): Snapshot is
+raster-only; Select-tool vector copy and Edit Object copy are reasoned
+but not confirmed to ride an Acrobat-internal/proprietary in-memory
+representation that only round-trips within Acrobat itself — so
+`FEATURES.md`'s Acrobat column for this row is `◐`, not `[x]`.
+
+**`FEATURES.md`**: two new *Planned* rows (SVG export; clipboard
+copy-out), all boxes unticked except the Acrobat column per the parity
+notes above — filed in the same edit as this entry (rule: a Pass filed
+with no features row is how the two documents start to diverge).
 
 ### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), **NOT STARTED**
 
