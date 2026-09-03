@@ -992,7 +992,12 @@ fn record_impl(
 }
 
 /// Draw `ops` into `pixmap`, culling anything that cannot mark `region`.
-fn replay_ops(ops: &[Op], pixmap: &mut Pixmap, masks: &mut MaskBuilder<'_>, region: DeviceBounds) {
+pub(crate) fn replay_ops(
+    ops: &[Op],
+    pixmap: &mut Pixmap,
+    masks: &mut MaskBuilder<'_>,
+    region: DeviceBounds,
+) {
     for op in ops {
         match op {
             Op::Fill {
@@ -1080,7 +1085,7 @@ fn replay_ops(ops: &[Op], pixmap: &mut Pixmap, masks: &mut MaskBuilder<'_>, regi
 /// The memo is keyed by [`ClipId`], and because a definition's parent always
 /// has a smaller index (see [`ClipId`]), recursion terminates without a
 /// cycle check.
-struct MaskBuilder<'a> {
+pub(crate) struct MaskBuilder<'a> {
     defs: &'a [ClipDef],
     built: Vec<Option<Option<Arc<Mask>>>>,
     width: u32,
@@ -1090,7 +1095,7 @@ struct MaskBuilder<'a> {
 }
 
 impl<'a> MaskBuilder<'a> {
-    fn new(defs: &'a [ClipDef], width: u32, height: u32, x0: f32, y0: f32) -> Self {
+    pub(crate) fn new(defs: &'a [ClipDef], width: u32, height: u32, x0: f32, y0: f32) -> Self {
         Self {
             defs,
             built: vec![None; defs.len()],

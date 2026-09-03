@@ -2961,8 +2961,57 @@ tally, `mix-blend-mode` not surviving Word's importer.
   clipboard access across all processes; a render held inside the
   transaction stalls the operator's other applications for its duration.
 - **`clipboard-win` has no `CF_ENHMETAFILE` setter** (its generic path
-  passes an `HGLOBAL` where an `HENHMETAFILE` is required); if EMF is ever
-  added it needs `SetEnhMetaFileBits` + `SetClipboardData` directly.
+  passes an `HGLOBAL` where an `HENHMETAFILE` is required); the CLI places
+  the metafile with `SetEnhMetaFileBits` + `SetClipboardData` from the
+  `windows` crate inside clipboard-win's guard (`clipboard.rs`,
+  `Pass 248.4`) — copy that block. Placement order is now `image/svg+xml`,
+  `CF_ENHMETAFILE`, `PNG`, `CF_DIBV5`, `application/pdf`.
+
+### 7.10 Exporting a page as an Enhanced Metafile — EMF (`Pass 248.4`)
+
+`core [x] · cli [x] · gui [ ]`. The vector form **LibreOffice 24.x** reads
+from the Windows clipboard (it cannot read a foreign `image/svg+xml` until
+25.2), Office's *Paste Special → Picture (Enhanced Metafile)*, and every
+legacy Win32 consumer. Same export recording as the SVG, same options
+shape.
+
+| I want to… | call |
+|---|---|
+| a page as EMF bytes | `pdfcer_render::emf::export_emf(&doc, &page, &RenderOptions, &EmfOptions) -> Result<EmfExport, RenderError>`; `export_emf_view` for a live `DocumentView` |
+| the raster resolution of anything EMF cannot hold as vectors | `EmfOptions::default().with_raster_dpi(300.0)` (also the grid coordinates are converted from) |
+| validate a metafile before handing it to GDI | `emf::walk_records(&bytes)` — `None` on the three things LibreOffice's reader aborts on |
+| know what became a bitmap | `EmfExport::outcome: EmfOutcome` — `ops`, `rasters_embedded`, `ops_rasterised_for_alpha`, `blend_modes_dropped`, `gradients_rasterised`, `images_embedded`, `layers_rasterised`, `dashed_strokes_pre_applied`, `nonzero_fills_multi_subpath`, plus the recording's `tally` and `diagnostics` |
+
+**What EMF cannot hold, and what the writer does** (each is a counter): no
+per-primitive alpha → a translucent solid op is replayed into a bitmap and
+written as `EMR_ALPHABLEND` (premultiplied BGRA, the GDI contract —
+measured through `PlayEnhMetaFile`: a (0,0,128,128) pixel over white comes
+back (255,127,127), the spec's answer); no blend modes → same, drawn
+`Normal`; no general gradients → bitmap; images → bitmap; a transparency
+group → one bitmap of the whole group with its mask and opacity applied;
+dashes → pre-applied geometry (LibreOffice renders `PS_USERSTYLE` solid);
+text → outlines. Coordinates are 0.01 mm logical units, `MM_TEXT`, no world
+transform — the layout every consumer scales identically
+(`D:\dev\rag\emf\`, the writer's reference).
+
+**★ What the UI must disclose:** the counters above, by name; that Inkscape's
+EMF importer draws **nothing** for `EMR_ALPHABLEND` (Inkscape takes the SVG
+from the same clipboard, so this only matters for a `.emf` file handed to
+it); that LibreOffice 24.x ignores the fill rule (`nonzero_fills_multi_subpath`
+may show holes there).
+
+**Traps**
+
+- **Do not use `System.Drawing.Imaging.Metafile` as an oracle.** GDI+ has
+  its own EMF player and it mis-plays `EMR_ALPHABLEND` (a premultiplied
+  half-alpha pixel came back nearly opaque). Real GDI — `PlayEnhMetaFile`
+  onto a DIB section, which is what the test suite drives through
+  PowerShell P/Invoke — plays it correctly, and Office/Win32 targets are
+  GDI.
+- **Records/Bytes/Handles are back-patched and exact**; LibreOffice's loop
+  bound is `Records`, its clamp is `Bytes`, Inkscape's object table is
+  sized by `Handles`.
+- **A metafile is a GDI handle on the clipboard, not bytes** — see §7.9.
 - **A transparent PNG and an opaque one are different pastes.** Office
   composites the alpha over the slide; a `--background` makes every payload
   opaque, deliberately.

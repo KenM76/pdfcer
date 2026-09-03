@@ -96,7 +96,14 @@ fn refusals_fire_before_the_clipboard_is_touched() {
     let input = dir.write("one.pdf", &one_page());
     let i = input.to_str().unwrap();
 
-    let o = run(&["copy-page", i, "--no-svg", "--no-raster", "--no-pdf"]);
+    let o = run(&[
+        "copy-page",
+        i,
+        "--no-svg",
+        "--no-emf",
+        "--no-raster",
+        "--no-pdf",
+    ]);
     assert_eq!(o.status.code(), Some(1));
     assert!(stderr(&o).contains("nothing to copy"), "{}", stderr(&o));
 
@@ -138,7 +145,7 @@ fn the_clipboard_round_trip_when_asked_for() {
     let out = String::from_utf8_lossy(&o.stdout).into_owned();
     assert!(
         out.contains(
-            "formats=image/svg+xml,PNG,CF_DIBV5,application/pdf 60x60 dpi=72 background=none;"
+            "formats=image/svg+xml,CF_ENHMETAFILE,PNG,CF_DIBV5,application/pdf 60x60 dpi=72 background=none;"
         ),
         "{out}"
     );
@@ -146,6 +153,18 @@ fn the_clipboard_round_trip_when_asked_for() {
         out.lines().nth(1).unwrap().starts_with("svg: ops=1 "),
         "{out}"
     );
+    assert!(
+        out.lines()
+            .nth(2)
+            .unwrap()
+            .starts_with("emf: ops=1 rasters=0 "),
+        "{out}"
+    );
+    // CF_ENHMETAFILE is a GDI handle, which clipboard-win cannot fetch as
+    // bytes; its presence is the OS's word for it.
+    assert!(clipboard_win::raw::is_format_avail(
+        clipboard_win::formats::CF_ENHMETAFILE
+    ));
 
     // Read back exactly what another application would.
     let _guard = clipboard_win::Clipboard::new_attempts(10).expect("open clipboard");

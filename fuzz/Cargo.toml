@@ -508,3 +508,12 @@ path = "fuzz_targets/export_svg.rs"
 test = false
 doc = false
 bench = false
+
+# Pass 248.4: EMF export over untrusted bytes, asserting the output is a
+# well-formed record chain whatever the input was.
+[[bin]]
+name = "export_emf"
+path = "fuzz_targets/export_emf.rs"
+test = false
+doc = false
+bench = false

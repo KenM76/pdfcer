@@ -123,6 +123,9 @@
 //!               objects=<N> verbatim=<N> reserialized=<N> reloaded=<0|1> \
 //!               raster_compared=<0|1> raster_identical=<0|1> delinearized=<0|1> \
 //!               promoted=<N>
+//! emf:          emf: ops=<n> rasters=<n> alpha_rasterised=<n> blend_modes_dropped=<n> \
+//!               gradients_rasterised=<n> images=<n> layers_rasterised=<n> \
+//!               dashed_pre_applied=<n> nonzero_multi_subpath=<n>   (after an EMF export/copy)
 //! copy-page:    copied <input> page <N> -> clipboard formats=<a,b,..> <W>x<H> \
 //!               dpi=<D> background=<#rrggbb|none>; <render-page's counters>
 //! export-image: exported <input> page <N> -> <path> <W>x<H> format=<png|jpeg> \
@@ -3319,7 +3322,8 @@ enum Command {
         /// Selecting more than one page needs `--output-dir`.
         #[arg(long, default_value = "1")]
         pages: String,
-        /// Output format: `png`, `jpeg` (`jpg`), or `svg` (vector,
+        /// Output format: `png`, `jpeg` (`jpg`), `svg` (vector,
+        /// `Pass 248.1`) or `emf` (Windows metafile, `Pass 248.4`);
         /// `Pass 248.1` -- transparent by default, `--dpi` governs only
         /// what must be embedded as raster inside it).
         #[arg(long, value_enum, default_value_t = ImageFormatArg::Png)]
@@ -3428,6 +3432,10 @@ enum Command {
         /// Do not place the SVG (vector) payload.
         #[arg(long)]
         no_svg: bool,
+        /// Do not place the EMF (Windows metafile) payload -- the vector
+        /// form LibreOffice 24.x and legacy Win32 applications read.
+        #[arg(long)]
+        no_emf: bool,
         /// Do not place the PNG / DIB (raster) payloads.
         #[arg(long)]
         no_raster: bool,
@@ -8171,6 +8179,10 @@ enum ImageFormatArg {
     /// JPEG — lossy, always opaque. `jpg` is accepted as a spelling.
     #[value(alias = "jpg")]
     Jpeg,
+    /// EMF — a Windows Enhanced Metafile for LibreOffice 24.x and legacy
+    /// Win32 consumers (`Pass 248.4`): vectors where EMF has them, alpha
+    /// bitmaps where it does not, every substitution counted.
+    Emf,
     /// SVG — vector, resolution-free, transparent unless `--background`
     /// is given (`Pass 248.1`). `--dpi` governs only what has to be
     /// embedded as raster inside it.
@@ -8184,6 +8196,7 @@ impl ImageFormatArg {
             Self::Png => "png",
             Self::Jpeg => "jpg",
             Self::Svg => "svg",
+            Self::Emf => "emf",
         }
     }
 
@@ -8193,6 +8206,7 @@ impl ImageFormatArg {
             Self::Png => "png",
             Self::Jpeg => "jpeg",
             Self::Svg => "svg",
+            Self::Emf => "emf",
         }
     }
 }
@@ -9102,6 +9116,7 @@ fn run() -> ExitCode {
             page,
             dpi,
             no_svg,
+            no_emf,
             no_raster,
             no_pdf,
             background,
@@ -9114,6 +9129,7 @@ fn run() -> ExitCode {
             page,
             dpi,
             svg: !no_svg,
+            emf: !no_emf,
             raster: !no_raster,
             pdf: !no_pdf,
             background: background.as_deref(),
@@ -12831,6 +12847,7 @@ struct CopyPageArgs<'a> {
     page: u32,
     dpi: f32,
     svg: bool,
+    emf: bool,
     raster: bool,
     pdf: bool,
     background: Option<&'a str>,
@@ -12868,6 +12885,7 @@ fn cmd_copy_page(args: CopyPageArgs<'_>) -> u8 {
         page: page_number,
         dpi,
         svg: want_svg,
+        emf: want_emf,
         raster: want_raster,
         pdf: want_pdf,
         background,
@@ -12877,9 +12895,9 @@ fn cmd_copy_page(args: CopyPageArgs<'_>) -> u8 {
         hide_layers,
     } = args;
 
-    if !(want_svg || want_raster || want_pdf) {
+    if !(want_svg || want_emf || want_raster || want_pdf) {
         eprintln!(
-            "pdfcer: {}: every payload is switched off (--no-svg --no-raster --no-pdf); nothing to copy",
+            "pdfcer: {}: every payload is switched off (--no-svg --no-emf --no-raster --no-pdf); nothing to copy",
             input.display()
         );
         return exit::RUNTIME_ERROR;
@@ -12979,6 +12997,25 @@ fn cmd_copy_page(args: CopyPageArgs<'_>) -> u8 {
             Err(err) => {
                 eprintln!(
                     "pdfcer: {}: page {page_number}: svg: {err}",
+                    input.display()
+                );
+                return exit::RUNTIME_ERROR;
+            }
+        }
+    }
+    let mut emf_outcome = None;
+    if want_emf {
+        let emf_options = pdfcer_render::emf::EmfOptions::default()
+            .with_raster_dpi(dpi)
+            .with_background(background);
+        match pdfcer_render::emf::export_emf(&doc, page, &render_options, &emf_options) {
+            Ok(export) => {
+                payload.emf = Some(export.emf);
+                emf_outcome = Some(export.outcome);
+            }
+            Err(err) => {
+                eprintln!(
+                    "pdfcer: {}: page {page_number}: emf: {err}",
                     input.display()
                 );
                 return exit::RUNTIME_ERROR;
@@ -13091,8 +13128,11 @@ shadings_as_gradients={}",
             );
         }
     }
+    if let Some(o) = &emf_outcome {
+        print_emf_disclosure(o, page_number);
+    }
     eprintln!(
-        "pdfcer: note: a paste takes the FIRST format the application knows: Word/PowerPoint/Excel and Inkscape take the SVG (vectors); Paint, GIMP, browsers take the PNG (pixels, with transparency)"
+        "pdfcer: note: a paste takes the FIRST format the application knows: Word/PowerPoint/Excel and Inkscape take the SVG (vectors); LibreOffice 24.x and Paste Special take the EMF; Paint, GIMP, browsers take the PNG (pixels, with transparency)"
     );
     if let Some(d) = diag {
         report_diagnostics(
@@ -13102,6 +13142,45 @@ shadings_as_gradients={}",
         );
     }
     exit::SUCCESS
+}
+
+/// The `emf:` stable line and the per-page notes for a metafile export or
+/// copy (`Pass 248.4`) — one function, so `export-image` and `copy-page`
+/// disclose the same facts in the same words.
+fn print_emf_disclosure(o: &pdfcer_render::emf::EmfOutcome, page_number: impl std::fmt::Display) {
+    println!(
+        "emf: ops={} rasters={} alpha_rasterised={} blend_modes_dropped={} gradients_rasterised={} \
+images={} layers_rasterised={} dashed_pre_applied={} nonzero_multi_subpath={}",
+        o.ops,
+        o.rasters_embedded,
+        o.ops_rasterised_for_alpha,
+        o.blend_modes_dropped,
+        o.gradients_rasterised,
+        o.images_embedded,
+        o.layers_rasterised,
+        o.dashed_strokes_pre_applied,
+        o.nonzero_fills_multi_subpath
+    );
+    eprintln!(
+        "pdfcer: note: page {page_number}: the metafile carries text as glyph OUTLINES; it is the format for LibreOffice 24.x and legacy Win32 consumers -- Word, PowerPoint and Inkscape take the SVG instead"
+    );
+    if o.rasters_embedded > 0 {
+        eprintln!(
+            "pdfcer: note: page {page_number}: {} element(s) are embedded as alpha bitmaps because EMF cannot express them as vectors ({} for transparency, {} for blend modes, {} gradients, {} images, {} transparency groups); Inkscape's EMF import draws none of those",
+            o.rasters_embedded,
+            o.ops_rasterised_for_alpha,
+            o.blend_modes_dropped,
+            o.gradients_rasterised,
+            o.images_embedded,
+            o.layers_rasterised
+        );
+    }
+    if o.nonzero_fills_multi_subpath > 0 {
+        eprintln!(
+            "pdfcer: note: page {page_number}: {} nonzero-rule fill(s) have several subpaths; LibreOffice 24.x ignores the fill rule and may show holes where they overlap",
+            o.nonzero_fills_multi_subpath
+        );
+    }
 }
 
 /// A device dimension recovered from points × scale, rounded up the way
@@ -13333,6 +13412,51 @@ fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
             (None, None) => unreachable!("checked above"),
         };
 
+        if format == ImageFormatArg::Emf {
+            // The Windows-metafile route (`Pass 248.4`): the same export
+            // recording as SVG, written as [MS-EMF] records. `--dpi` is the
+            // recording scale and the resolution of every bitmap inside it;
+            // `--transparent` is EMF's natural state (nothing is drawn where
+            // nothing was painted) and `--background` an opaque first fill.
+            let emf_options = pdfcer_render::emf::EmfOptions::default()
+                .with_raster_dpi(dpi)
+                .with_background(if transparent { None } else { background });
+            let export =
+                match pdfcer_render::emf::export_emf(&doc, page, &render_options, &emf_options) {
+                    Ok(e) => e,
+                    Err(err) => {
+                        eprintln!("pdfcer: {}: page {page_number}: {err}", input.display());
+                        return exit::RUNTIME_ERROR;
+                    }
+                };
+            if let Err(err) = std::fs::write(&path, &export.emf) {
+                eprintln!("pdfcer: {}: {err}", path.display());
+                return exit::IO_ERROR;
+            }
+            let o = &export.outcome;
+            let background_token = match (transparent, background) {
+                (true, _) | (false, None) => "none".to_owned(),
+                (false, Some(bg)) => bg.to_hex(),
+            };
+            println!(
+                "exported {} page {page_number} -> {} {}x{} format=emf dpi={dpi} transparent={} background={}; {}",
+                input.display(),
+                path.display(),
+                num_px(o.width_pt * dpi / 72.0),
+                num_px(o.height_pt * dpi / 72.0),
+                u8::from(background_token == "none"),
+                background_token,
+                render_counters_line(&o.diagnostics, &doc, supplied_registered)
+            );
+            print_emf_disclosure(o, page_number);
+            report_diagnostics(
+                &o.diagnostics,
+                render_options.max_cmyk_buffer_bytes,
+                u64::from(num_px(o.width_pt * dpi / 72.0))
+                    * u64::from(num_px(o.height_pt * dpi / 72.0)),
+            );
+            continue;
+        }
         if format == ImageFormatArg::Svg {
             // The vector route (`Pass 248.1`): one recording of the page
             // through the export recorder, written as SVG. `--dpi` is the
@@ -13469,7 +13593,7 @@ shadings_as_gradients={}",
                 encode_jpeg(&rendered.pixmap, &opts)
             }
             // Written and `continue`d above, before the raster render.
-            ImageFormatArg::Svg => continue,
+            ImageFormatArg::Svg | ImageFormatArg::Emf => continue,
         };
         let bytes = match bytes {
             Ok(b) => b,

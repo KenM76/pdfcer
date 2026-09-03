@@ -134,6 +134,16 @@ thiserror = "2"
 # whole point.
 [target.'cfg(windows)'.dependencies]
 clipboard-win = "5"
+# windows: ONLY for `SetEnhMetaFileBits` + `SetClipboardData(CF_ENHMETAFILE)`
+# (`Pass 248.4`) -- a metafile is a GDI handle, not an HGLOBAL, and
+# clipboard-win has no setter for it. The same crate pdfcer-print already
+# carries at the same version (MIT OR Apache-2.0, attributed); three
+# feature gates, no new package.
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_System_DataExchange",
+] }
 
 [dev-dependencies]
 # png: TEST-ONLY. `tests/export_image.rs` decodes what `export-image` wrote

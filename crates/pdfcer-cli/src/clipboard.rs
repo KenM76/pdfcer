@@ -26,6 +26,7 @@
 //! | # | format | payload | reaches |
 //! |---|---|---|---|
 //! | 1 | registered `"image/svg+xml"` | UTF-8 SVG **plus one trailing NUL** — byte-for-byte what Chromium ≥ M127 writes and what Microsoft validated Office against | Word/PowerPoint/Excel as an editable SVG graphic; Inkscape (its 2nd preference, above EMF and PDF); LibreOffice ≥ 25.2; browsers |
+//! | 1b | `CF_ENHMETAFILE` (`Pass 248.4`) | an [MS-EMF] metafile from `pdfcer_render::emf`, placed as a GDI handle via `SetEnhMetaFileBits` | LibreOffice 24.x (its ONLY vector route on Windows), Office *Paste Special → Picture (Enhanced Metafile)*, Visio/CorelDRAW/CAD; Inkscape ranks it 5th, after the SVG |
 //! | 2 | registered `"PNG"` | the PNG file bytes, straight alpha, DPI in `pHYs` | Office's preferred raster, Paint.NET, GIMP, Inkscape, LibreOffice, Firefox/Chromium, Snip & Sketch |
 //! | 3 | `CF_DIBV5` | `BITMAPV5HEADER` + 32 bpp `BI_BITFIELDS` BGRA, premultiplied, top-down | readers older than the `"PNG"` convention; Windows synthesises `CF_DIB`/`CF_BITMAP` from it |
 //! | 4 | registered `"application/pdf"` | the page as a one-page PDF | Inkscape (7th preference; it imports it through its PDF dialog); nobody else on Windows |
@@ -77,13 +78,19 @@ pub struct ClipboardPayload {
     pub pixels_per_metre: u32,
     /// A one-page PDF.
     pub pdf: Option<Vec<u8>>,
+    /// An Enhanced Metafile (`Pass 248.4`) -- placed as `CF_ENHMETAFILE`,
+    /// which is a GDI HANDLE rather than an `HGLOBAL`, so it goes through
+    /// `SetEnhMetaFileBits` + `SetClipboardData` directly (clipboard-win
+    /// has no metafile setter and its generic path would hand GDI the
+    /// wrong handle type).
+    pub emf: Option<Vec<u8>>,
 }
 
 /// What landed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Placed {
-    /// Format names in placement order: `image/svg+xml`, `PNG`, `CF_DIBV5`,
-    /// `application/pdf` — whichever the payload carried.
+    /// Format names in placement order: `image/svg+xml`, `CF_ENHMETAFILE`,
+    /// `PNG`, `CF_DIBV5`, `application/pdf` — whichever the payload carried.
     pub formats: Vec<&'static str>,
 }
 
@@ -188,6 +195,30 @@ pub fn place(payload: &ClipboardPayload) -> Result<Placed, ClipboardError> {
         raw::set_without_clear(id.get(), &svg_payload(svg))
             .map_err(|_| ClipboardError::Set("image/svg+xml"))?;
         placed.push("image/svg+xml");
+    }
+    if let Some(emf) = &payload.emf {
+        // SAFETY: `SetEnhMetaFileBits` copies `len` bytes out of `ptr`, which
+        // is a live `Vec<u8>` for the whole call; the returned handle is
+        // owned by the clipboard once `SetClipboardData` succeeds (Win32
+        // contract), so it is NOT deleted here on success. The clipboard is
+        // open on this thread (the guard above), which `SetClipboardData`
+        // requires. On failure the handle is ours and is deleted.
+        use windows::Win32::Foundation::HANDLE;
+        use windows::Win32::Graphics::Gdi::{DeleteEnhMetaFile, SetEnhMetaFileBits};
+        use windows::Win32::System::DataExchange::SetClipboardData;
+        let hemf = unsafe { SetEnhMetaFileBits(emf) };
+        if hemf.is_invalid() {
+            return Err(ClipboardError::Set("CF_ENHMETAFILE"));
+        }
+        // CF_ENHMETAFILE = 14 (formats::CF_ENHMETAFILE).
+        let placed_ok = unsafe { SetClipboardData(formats::CF_ENHMETAFILE, Some(HANDLE(hemf.0))) };
+        if placed_ok.is_err() {
+            unsafe {
+                let _ = DeleteEnhMetaFile(Some(hemf));
+            }
+            return Err(ClipboardError::Set("CF_ENHMETAFILE"));
+        }
+        placed.push("CF_ENHMETAFILE");
     }
     if let Some(png) = &payload.png {
         let id = raw::register_format("PNG").ok_or(ClipboardError::Register("PNG"))?;
