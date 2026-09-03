@@ -154,6 +154,22 @@ skrifa = "0.42"
 # a single `read-fonts 0.39.2`, a single `font-types 0.11.3`.
 subsetter = { version = "0.2", default-features = false }
 
+# png: the PNG writer behind `export::encode_png` (`Pass 248.0`). ALREADY in
+# the lock — it is what tiny-skia's `png-format` feature (on by default)
+# uses for `Pixmap::encode_png` — so this adds ZERO packages. Taken as a
+# direct dependency because `Pixmap::encode_png` cannot write a `pHYs`
+# chunk, and a page exported at 300 DPI with no `pHYs` pastes into Word at
+# 96 DPI, four times too large. License: MIT OR Apache-2.0 (permissive).
+png = "0.17"
+
+# jpeg-encoder: the JPEG writer behind `export::encode_jpeg` (`Pass 248.0`).
+# ALREADY a dependency of pdfcer-core (`/DCTDecode` authoring), same
+# version, same features — zero new packages. Only RGB is ever encoded
+# here; the CMYK-inversion finding in `D:\dev\rag\rust\` does not apply to
+# this consumer. License: (MIT OR Apache-2.0) AND IJG — the IJG clause is
+# already carried in THIRD_PARTY_LICENSES.md for core's use.
+jpeg-encoder = { version = "0.7", default-features = false, features = ["std"] }
+
 [dev-dependencies]
 # flate2: TEST-ONLY. The image tests need a genuinely Flate-encoded
 # sample stream to prove the image path runs the /Filter chain rather
@@ -165,3 +181,8 @@ subsetter = { version = "0.2", default-features = false }
 # build and from cargo-about's THIRD_PARTY_LICENSES.md (docs/LEGAL.md
 # §6.3). License: MIT OR Apache-2.0 (permissive).
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+# zune-jpeg: TEST-ONLY, the independent decoder `tests/export_image.rs`
+# reads `export::encode_jpeg`'s output back through. Already pdfcer-core's
+# `/DCTDecode` decoder — zero packages added, and dev-only so it cannot
+# reach the shipped graph. License: MIT OR Apache-2.0 OR Zlib.
+zune-jpeg = { version = "0.5", default-features = false, features = ["std"] }

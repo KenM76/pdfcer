@@ -606,6 +606,7 @@ dependencies = [
  "pdfcer-fetch",
  "pdfcer-print",
  "pdfcer-render",
+ "png",
 ]
 
 [[package]]
@@ -653,11 +654,14 @@ dependencies = [
  "iccce-cmm",
  "iccce-color",
  "iccce-profile",
+ "jpeg-encoder",
  "pdfcer-core",
+ "png",
  "skrifa",
  "subsetter",
  "thiserror",
  "tiny-skia",
+ "zune-jpeg",
 ]
 
 [[package]]

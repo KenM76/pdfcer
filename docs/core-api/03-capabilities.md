@@ -2414,9 +2414,12 @@ builders**, `:684-690`): `fonts: FontEnvironment` `:432`, `annotations: bool`
 `:1004`, `with_cmyk_jpeg_polarity` `:1012`, `with_layers` `:1028`,
 `with_view_magnification` `:1038`, `with_missing_as` `:1043`,
 `with_max_cmyk_buffer_bytes` (`Pass 132.0` — see **§7.3a**, which is the one
-knob whose value you should COMPUTE rather than pick), and `with_ink_probe`
+knob whose value you should COMPUTE rather than pick), `with_ink_probe`
 (`Pass 174.0` — see **§7.3b**; it is the only one of these that ANSWERS a
-question rather than changing what is drawn).
+question rather than changing what is drawn), and **`with_backdrop`**
+(`Pass 248.0` — `backdrop: PageBackdrop`, `White` by default; `Transparent`
+keeps the page group's own alpha instead of compositing it onto paper. See
+**§7.7**; a canvas should never set it, an *export* is what it is for).
 
 `AnnotationScope` (`annot.rs:348`) is the comments-and-forms filter:
 
@@ -2758,6 +2761,76 @@ is expected to surface these; **they are not decoration**."*
   7 both paint nothing, and skipping the outline lookup is safe **only**
   because text clipping is unimplemented — when modes 4–7 land, mode 7 must
   still compute outlines.
+
+### 7.7 Exporting a page as a PNG or JPEG file (`Pass 248.0`)
+
+`core [x] · cli [x] · gui [ ]`. The operator's request (2026-09-03): *"export
+page(es) to png, jpg, svg … full support (including transparency where
+supported!)"*. SVG is `Pass 248.1`; this section is the raster half.
+
+**I want to… → call this**
+
+| I want to… | call |
+|---|---|
+| a PNG that is see-through where nothing was painted | render with `RenderOptions::default().with_backdrop(PageBackdrop::Transparent)`, then `pdfcer_render::export::encode_png(&rendered.pixmap, Some(dpi))` |
+| the ordinary white-backed PNG, but with a `pHYs` DPI so Word/PowerPoint place it at physical size | render with the default backdrop, `encode_png(&pixmap, Some(dpi))` |
+| a JPEG | render (either backdrop — the encoder flattens), `encode_jpeg(&pixmap, &JpegOptions { quality, background, dpi })` — `JpegOptions` is `#[non_exhaustive]`: `let mut o = JpegOptions::default(); o.quality = 92;` |
+| flatten a transparent raster onto a colour myself | `export::flatten_over(&pixmap, Rgb { r, g, b })` — returns `Cow::Borrowed` when every pixel was already opaque |
+| parse an operator's `#rrggbb` | `export::Rgb::parse_hex` (six digits only — no `#abc` shorthand, deliberately) |
+
+**Where the transparency comes from, so you do not build a second source of
+it.** ISO 32000-1 §11.4.7 makes the page an *isolated* transparency group
+composited onto "a backdrop colour appropriate for the medium … nominally
+white". `pdfcer-render` has performed exactly that since 2026-08-17
+(`lib.rs`, the comment block above `flatten_page_group_over_white`): the
+buffer starts transparent and the white is added **once, at the end**.
+`PageBackdrop::Transparent` declines that last step. On the subtractive
+(`DeviceCMYK` page group) path the collapse is a *separate function*
+(`CmykBuffer::to_srgb_transparent`, a sibling of `to_srgb_over_white` with the
+`1 − a` term absent) — which is why the render test covers both paths: a
+flag that worked on the additive path alone would silently flatten every
+CMYK page.
+
+**The two facts a file carries that a `Pixmap` cannot**, and why the
+encoders exist when `Pixmap::encode_png` already does: (1) **physical
+resolution** — a PNG without `pHYs` pastes into Word at 96 DPI, four times
+too large for a 300 DPI export; (2) for JPEG, **the colour the transparency
+was flattened onto**. Resolution is *metadata, never a resample*: render at
+`scale = dpi / 72` and pass the same `dpi` to the encoder; they are two
+claims, and the file can only carry the second.
+
+**★ What the UI must disclose** (rule 4, both directions):
+
+1. **A transparent export IS transparent** — say so beside the file, because
+   a viewer drawing the alpha over a checkerboard and one drawing it over
+   white show two different pictures of the same bytes. The CLI prints
+   `transparent=1 background=none` on the stable line and a stderr note.
+2. **JPEG cannot carry alpha — refuse `transparent` for it by name.** Never
+   flatten silently: a white-backed JPEG looks exactly like the export
+   succeeding. Offer the background colour instead.
+3. **Every `Diagnostics` counter `render-page` discloses applies unchanged**
+   (§7.5) — an export is a render with a different last step. The CLI prints
+   the identical counter set after its own prefix (`render_counters_line`,
+   one `format!` for both verbs).
+
+**Traps**
+
+- **Premultiplied in, straight out.** `tiny_skia` stores premultiplied RGBA;
+  PNG wants straight. Both encoders demultiply through
+  `PremultipliedColorU8::demultiply` — the library's own — and the test
+  asserts a 50 %-alpha red decodes as `(255, 0, 0, 128)`, not
+  `(128, 0, 0, 128)`. A hand-rolled division here ships dark fringes on every
+  anti-aliased edge and no error.
+- **`replay_region` (the display-list cache) still flattens over white.** The
+  shell's cached panning route is untouched by `backdrop`; a transparent
+  export must go through a direct render.
+- **JPEG's 16-bit dimensions.** `encode_jpeg` refuses a side over 65 535 px
+  (`ExportError::TooLargeForJpeg`); PNG has no such limit but
+  `MAX_PIXMAP_EDGE` still bounds the render.
+- **`--background` on a PNG is not the renderer's white.** A non-white
+  background is composited by `flatten_over` on a *transparent* render; the
+  renderer's own white path is used only when no colour was asked for, so an
+  opaque default export is byte-identical to `render-page`'s.
 
 ---
 

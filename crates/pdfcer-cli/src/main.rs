@@ -23,6 +23,13 @@
 //!   and writes a PNG. Each `--font-dir` supplies operator fonts for the
 //!   document's NON-embedded fonts (shell-side folder walk, R61). See
 //!   [`cmd_render_page`] for the full contract.
+//! - `export-image <file> [--pages SPEC] [--format png|jpeg] [--dpi D]
+//!   [--transparent] [--quality Q] [--background #rrggbb] -o <file> |
+//!   --output-dir <dir>` (`Pass 248.0`): renders each selected page and
+//!   writes it as a PNG (with real alpha under `--transparent`) or a
+//!   JPEG, with the DPI written into the file. Honours every render flag
+//!   `render-page` does, through the same resolver. See
+//!   [`cmd_export_image`].
 //! - `round-trip <file> [--mode M] [-o <out.pdf>] [--producer P]`
 //!   (Pass 3.0): saves the document and verifies the
 //!   `ARCHITECTURE.md` §5 round-trip invariant — byte identity in the
@@ -110,6 +117,9 @@
 //!               objects=<N> verbatim=<N> reserialized=<N> reloaded=<0|1> \
 //!               raster_compared=<0|1> raster_identical=<0|1> delinearized=<0|1> \
 //!               promoted=<N>
+//! export-image: exported <input> page <N> -> <path> <W>x<H> format=<png|jpeg> \
+//!               dpi=<D> transparent=<0|1> background=<#rrggbb|none>; \
+//!               <exactly render-page's counters, below — one format string>
 //! render-page:  rendered <input> page <N> -> <output> <W>x<H>; \
 //!               substituted=<n> notdef=<n> unsupported=<n> unknown=<n> \
 //!               deferred=<n> images=<n> images_unsupported=<n> forms=<n> \
@@ -3259,6 +3269,120 @@ enum Command {
         /// state … [permitting] an accurate preview of the content as it
         /// will appear when placed into an aggregating application or
         /// sent to a stand-alone printing system."
+        #[arg(long)]
+        print_state: bool,
+    },
+
+    /// Export page(s) as PNG or JPEG image files — with REAL transparency
+    /// for PNG (`Pass 248.0`).
+    ///
+    /// One file per page. `--dpi` sets the pixel density (150 by default,
+    /// Acrobat's own export default) and is written INTO the file (PNG
+    /// `pHYs`, JFIF density), so Word, PowerPoint and LibreOffice place the
+    /// image at the page's physical size rather than at 96 DPI — four times
+    /// too large for a 300 DPI export, which is the first thing anyone
+    /// pasting a page into a slide would otherwise have to fix.
+    ///
+    /// `--transparent` keeps the page group's own alpha (ISO 32000-1
+    /// §11.4.7: the page IS an isolated transparency group, and the white
+    /// paper is a final composite this flag declines). A pixel nothing
+    /// painted is see-through; a `/ca 0.5` fill is half so. **Acrobat cannot
+    /// do this** — its Export-To-Image flattens onto an opaque background in
+    /// every format with no transparency option, so this is a parity-plus.
+    ///
+    /// JPEG has no alpha channel, so `--transparent` with `--format jpeg` is
+    /// REFUSED by name rather than silently flattened: a white-backed JPEG
+    /// looks exactly like the export succeeding. `--background #rrggbb`
+    /// chooses the colour a JPEG (or a non-transparent PNG) is flattened
+    /// onto; the default is white.
+    ///
+    /// Everything `render-page` honours — `--font-dir`, `--show-layer`/
+    /// `--hide-layer`, `--standard`, `--no-annotations`, the overprint and
+    /// spot-colorant settings, the colorant-buffer ceiling — is honoured here
+    /// through the SAME resolver, so the two verbs cannot disagree about how
+    /// a page looks. The stable stdout line carries `render-page`'s complete
+    /// counter set after its own prefix, for the same reason.
+    ExportImage {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based pages to export: `all`, `3`, `1-4`, `5,1-2`. Default `1`.
+        /// Selecting more than one page needs `--output-dir`.
+        #[arg(long, default_value = "1")]
+        pages: String,
+        /// Output format. `jpg` is accepted for `jpeg`.
+        #[arg(long, value_enum, default_value_t = ImageFormatArg::Png)]
+        format: ImageFormatArg,
+        /// Pixel density. The render scale is `dpi / 72`; the value is also
+        /// written into the file so it opens at physical size elsewhere.
+        #[arg(long, default_value_t = 150.0)]
+        dpi: f32,
+        /// Keep the page's transparency instead of compositing it onto
+        /// white (PNG only — refused for JPEG, which has no alpha).
+        #[arg(long)]
+        transparent: bool,
+        /// JPEG quality, 1–100 (default 90; at 90 and above the encoder
+        /// stops subsampling chroma, which keeps coloured line art crisp).
+        /// Ignored for PNG, which is lossless.
+        #[arg(long, default_value_t = 90)]
+        quality: u8,
+        /// Opaque background colour (`#rrggbb`) that transparency is
+        /// flattened onto. Default white. Contradicts `--transparent`, and
+        /// clap refuses the pair.
+        #[arg(long, value_name = "#RRGGBB", conflicts_with = "transparent")]
+        background: Option<String>,
+        /// Output file, single-page mode. The extension is yours; the
+        /// format comes from `--format`.
+        #[arg(short, long, conflicts_with = "output_dir")]
+        output: Option<PathBuf>,
+        /// Existing directory to write one file per page into, named
+        /// `<stem>_p<n>.<png|jpg>` with `<n>` zero-padded to the widest page
+        /// number in the run so the files sort in page order — the same
+        /// naming `export-dxf --pages` uses.
+        #[arg(long, conflicts_with = "output")]
+        output_dir: Option<PathBuf>,
+        /// Render with the preset for a PDF subset standard (`pdf-x4`,
+        /// `pdf-a2`, `pdf-ua`…; `list-standards` lists them). Applied over
+        /// your saved settings for this run only; see `render-page
+        /// --standard` for what it does and does not claim.
+        #[arg(long)]
+        standard: Option<String>,
+        /// Override `overprint_zero_tint_scope` for this run only. See
+        /// `render-page --overprint-zero-tint-scope`.
+        #[arg(long)]
+        overprint_zero_tint_scope: Option<String>,
+        /// Override `spot_colorant_device_model` for this run only. See
+        /// `render-page --spot-colorant-device-model`.
+        #[arg(long)]
+        spot_colorant_device_model: Option<String>,
+        /// Do not paint annotation appearances (markup, stamps, form-field
+        /// widgets — ISO 32000-1 §12.5). Painted by default, matching what
+        /// a reader shows. The annotation counters on the result line are
+        /// reported either way.
+        #[arg(long)]
+        no_annotations: bool,
+        /// Drop sub-pixel geometry (LOSSY; see `render-page --fast-subpixel`).
+        /// `subpixel_culled=` on the result line says how much was dropped.
+        #[arg(long)]
+        fast_subpixel: bool,
+        /// Override the `max_cmyk_buffer_bytes` setting for this run only
+        /// (`64MiB`, `1.5G`…). See `render-page --max-cmyk-buffer-bytes`.
+        #[arg(long, value_name = "SIZE")]
+        max_cmyk_buffer_bytes: Option<String>,
+        /// Directory of font files to supply for the document's NON-embedded
+        /// fonts (decision 012). Repeatable. See `render-page --font-dir`.
+        #[arg(long = "font-dir", value_name = "DIR")]
+        font_dirs: Vec<PathBuf>,
+        /// Force an optional-content layer VISIBLE, by its `/Name`
+        /// (ISO 32000-1 §8.11). Repeatable. See `render-page --show-layer`.
+        #[arg(long = "show-layer", value_name = "NAME")]
+        show_layers: Vec<String>,
+        /// Force an optional-content layer HIDDEN, by its `/Name`.
+        /// Repeatable. See `render-page --hide-layer`.
+        #[arg(long = "hide-layer", value_name = "NAME")]
+        hide_layers: Vec<String>,
+        /// Export the state a PRINTING application would use: `/AS` usage
+        /// dictionaries NOT applied (ISO 32000-1 §8.11.4.5). See
+        /// `render-page --print-state`.
         #[arg(long)]
         print_state: bool,
     },
@@ -7968,6 +8092,39 @@ enum RoundTripMode {
 ///
 /// Short names because they are typed: `--units mm` reads better than
 /// `--units millimetres` and is what a drawing office would say.
+/// Which image file `export-image` writes (`Pass 248.0`).
+///
+/// Two formats, one transparency story: PNG carries alpha and JPEG
+/// cannot, so `--transparent` is legal for exactly one of them and the
+/// refusal for the other is spelled out at the call site rather than
+/// buried in an encoder that would happily flatten.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+enum ImageFormatArg {
+    /// PNG — lossless RGBA8; keeps transparency with `--transparent`.
+    Png,
+    /// JPEG — lossy, always opaque. `jpg` is accepted as a spelling.
+    #[value(alias = "jpg")]
+    Jpeg,
+}
+
+impl ImageFormatArg {
+    /// The file extension a batch export names its files with.
+    const fn extension(self) -> &'static str {
+        match self {
+            Self::Png => "png",
+            Self::Jpeg => "jpg",
+        }
+    }
+
+    /// The token printed on the stable line (`format=<png|jpeg>`).
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Png => "png",
+            Self::Jpeg => "jpeg",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 enum DxfUnitArg {
     /// Inches ($INSUNITS 1).
@@ -8827,6 +8984,47 @@ fn run() -> ExitCode {
             &hide_layers,
             print_state,
         ),
+        Command::ExportImage {
+            input,
+            pages,
+            format,
+            dpi,
+            transparent,
+            quality,
+            background,
+            output,
+            output_dir,
+            standard,
+            overprint_zero_tint_scope,
+            spot_colorant_device_model,
+            no_annotations,
+            fast_subpixel,
+            max_cmyk_buffer_bytes,
+            font_dirs,
+            show_layers,
+            hide_layers,
+            print_state,
+        } => cmd_export_image(ExportImageArgs {
+            input: &input,
+            pages: &pages,
+            format,
+            dpi,
+            transparent,
+            quality,
+            background: background.as_deref(),
+            output: output.as_deref(),
+            output_dir: output_dir.as_deref(),
+            standard: standard.as_deref(),
+            overprint_zero_tint_scope: overprint_zero_tint_scope.as_deref(),
+            spot_colorant_device_model: spot_colorant_device_model.as_deref(),
+            annotations: !no_annotations,
+            fast_subpixel,
+            max_cmyk_buffer_bytes: max_cmyk_buffer_bytes.as_deref(),
+            font_dirs: &font_dirs,
+            show_layers: &show_layers,
+            hide_layers: &hide_layers,
+            print_state,
+        }),
         Command::ListAnnotations { input, pages } => cmd_list_annotations(&input, &pages),
         Command::ListLinks { input, pages } => cmd_list_links(&input, &pages),
         Command::DumpObject {
@@ -11557,6 +11755,330 @@ recognised={} written={} confidence={}",
     exit::SUCCESS
 }
 
+/// The render-affecting flags `render-page` and `export-image` share, as
+/// one value (`Pass 248.0`).
+///
+/// # Why a struct, and why one resolver
+///
+/// `render-page` resolved its `RenderOptions` inline for 230 lines — the
+/// settings file, three per-invocation overrides that must never write
+/// back, the subset-standard preset and its disclosures, the colorant-
+/// buffer ceiling, the font environment, the ink probe, the viewer-versus-
+/// print `/AS` decision, and the layer overrides. `export-image` needs
+/// every one of those, identically. Two copies would be R92's shape: the
+/// second one is the one that goes stale, and the symptom is a flag that
+/// `render-page` honours and `export-image` parses and ignores
+/// (`feedback_a_shell_flag_can_be_parsed_and_never_used`). So the block
+/// moved here whole, and both verbs call it.
+///
+/// `verb` is only used in messages ("`pdfcer: export-image: …`"), so an
+/// operator reading stderr sees the command they typed.
+struct RenderFlags<'a> {
+    /// The subcommand name, for diagnostics.
+    verb: &'static str,
+    /// The document path, for diagnostics.
+    input: &'a Path,
+    /// `--standard`.
+    standard: Option<&'a str>,
+    /// `--overprint-zero-tint-scope`.
+    overprint_zero_tint_scope: Option<&'a str>,
+    /// `--spot-colorant-device-model`.
+    spot_colorant_device_model: Option<&'a str>,
+    /// `--max-cmyk-buffer-bytes`.
+    max_cmyk_buffer_bytes: Option<&'a str>,
+    /// `!--no-annotations`.
+    annotations: bool,
+    /// The font environment `build_font_environment` produced from
+    /// `--font-dir`. Moved in: it becomes `RenderOptions::fonts`.
+    font_env: pdfcer_render::FontEnvironment,
+    /// `--fast-subpixel`.
+    fast_subpixel: bool,
+    /// `--probe-ink X,Y`.
+    probe_ink: Option<&'a str>,
+    /// `--print-state`.
+    print_state: bool,
+    /// The scale the render will run at — the `/AS` viewer magnification.
+    scale: f32,
+    /// `--show-layer`, by name.
+    show_layers: &'a [String],
+    /// `--hide-layer`, by name.
+    hide_layers: &'a [String],
+}
+
+/// Resolve every render-affecting flag into the `RenderOptions` the engine
+/// takes, reporting each override and preset on stderr exactly as
+/// `render-page` always has.
+///
+/// # Errors
+///
+/// The exit code to return — always `RUNTIME_ERROR` — after the message
+/// naming the flag that could not be honoured has been printed. A malformed
+/// operator value is refused by name rather than defaulted, because a
+/// mistyped token that renders under the default looks exactly like the
+/// flag working.
+fn resolve_render_options(
+    doc: &Document,
+    flags: RenderFlags<'_>,
+) -> Result<pdfcer_render::RenderOptions, u8> {
+    let RenderFlags {
+        verb,
+        input,
+        standard,
+        overprint_zero_tint_scope,
+        spot_colorant_device_model,
+        max_cmyk_buffer_bytes,
+        annotations,
+        font_env,
+        fast_subpixel,
+        probe_ink,
+        print_state,
+        scale,
+        show_layers,
+        hide_layers,
+    } = flags;
+    // Annotation painting is on by default (§12.5); `--no-annotations`
+    // clears it to reproduce the pre-6.0 content-only raster. The font
+    // environment carries any `--font-dir` supplied faces (decision 012);
+    // with no `--font-dir` it is the bundled default (R63).
+    // §8.6.4.4 mandates no CMYK conversion, so the operator's persisted
+    // choice governs (R169). Read from the same `userdata/` store the GUI
+    // uses, so `render-page` and the canvas cannot disagree about what
+    // black looks like. Loading cannot fail — a missing or broken file
+    // yields defaults plus notes, which are reported and never fatal.
+    let (mut settings, settings_report) =
+        pdfcer_core::settings::Settings::load(pdfcer_core::settings::resolve_store());
+    report_settings(&settings_report);
+
+    // The §8.6.7 zero-tint scope, applied over the saved settings and never
+    // written back — same discipline as `--standard` below, and for the same
+    // reason: one diagnostic render must not change how every later render
+    // behaves.
+    //
+    // ★ Parsed by handing the token to the SETTINGS PARSER rather than by
+    // matching the three strings here. `OverprintZeroTintScope::parse` is the
+    // same function the settings FILE parser calls, so a token the file
+    // accepts and a token this flag accepts cannot diverge. A `match` here
+    // would be a second spelling of one enum, and the second spelling is
+    // always the one that goes stale.
+    if let Some(token) = overprint_zero_tint_scope {
+        use pdfcer_core::settings::OverprintZeroTintScope as Scope;
+        match Scope::parse(token) {
+            Some(scope) => {
+                settings.overprint_zero_tint_scope = scope;
+                eprintln!(
+                    "pdfcer: {verb}: overprint_zero_tint_scope = {} for this render only; your saved setting is unchanged",
+                    scope.as_str()
+                );
+            }
+            None => {
+                // Refuse by name rather than falling back silently. A mistyped
+                // token that renders under the DEFAULT looks exactly like the
+                // flag working — and the operator reached for the flag
+                // precisely because they wanted the non-default.
+                eprintln!(
+                    "pdfcer: {verb}: unknown --overprint-zero-tint-scope {token:?} — known: device_cmyk_only, grey_as_k_only, all_process_spaces"
+                );
+                return Err(exit::RUNTIME_ERROR);
+            }
+        }
+    }
+
+    // Same shape as the block above, and deliberately not folded into it:
+    // the two settings answer different questions (`OP-A5` vs `OP-A7`) and a
+    // shared parser would have to know which enum a token belongs to.
+    if let Some(token) = spot_colorant_device_model {
+        use pdfcer_core::settings::SpotColorantDeviceModel as Model;
+        match Model::parse(token) {
+            Some(model) => {
+                settings.spot_colorant_device_model = model;
+                eprintln!(
+                    "pdfcer: {verb}: spot_colorant_device_model = {} for this render only; your saved setting is unchanged",
+                    model.as_str()
+                );
+            }
+            None => {
+                // Refused by name, for the reason the block above gives: a
+                // mistyped token rendering under the default looks exactly
+                // like the flag working, and the operator reached for it
+                // precisely because they wanted the non-default.
+                eprintln!(
+                    "pdfcer: {verb}: unknown --spot-colorant-device-model {token:?} — known: simulate_separations, alternate_space_substitution"
+                );
+                return Err(exit::RUNTIME_ERROR);
+            }
+        }
+    }
+
+    // The subset-standard preset, applied OVER the operator's saved settings
+    // and never written back. A render flag must not mutate a settings file:
+    // one `--standard pdf-x4` render would otherwise silently change how every
+    // later render behaved, which is the shape of surprise rule 4 exists to
+    // stop.
+    if let Some(token) = standard {
+        use pdfcer_core::settings::presets::{RenderPreset, RenderStandard};
+        match RenderStandard::parse(token) {
+            Ok(std) => {
+                let preset = RenderPreset::for_standard(std);
+                let changed = preset.apply(&mut settings);
+                // Rule 4: what the preset MOVED, by name. "4 settings changed"
+                // is not actionable; knowing it was `image_minify` is.
+                if changed.is_empty() {
+                    eprintln!(
+                        "pdfcer: render preset {}: your settings already match it; \
+                         nothing changed",
+                        std.as_str()
+                    );
+                } else {
+                    eprintln!(
+                        "pdfcer: render preset {}: changed {}",
+                        std.as_str(),
+                        changed
+                            .iter()
+                            .map(|k| k.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    );
+                }
+                for line in preset.disclosures() {
+                    eprintln!("pdfcer: {line}");
+                }
+            }
+            Err(bad) => {
+                eprintln!(
+                    "pdfcer: {verb}: unknown --standard {bad:?} — known: {}",
+                    RenderStandard::all()
+                        .iter()
+                        .map(|s| s.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                return Err(exit::RUNTIME_ERROR);
+            }
+        }
+    }
+
+    // The colorant-buffer ceiling: the flag overrides the setting, the
+    // setting overrides the built-in default, and an unreadable flag value
+    // is REPORTED and then ignored rather than quietly meaning zero -- the
+    // same shape as every other bad value in the settings file, because a
+    // silent zero here would read as "pdfcer stopped compositing in ink".
+    let max_cmyk_buffer_bytes = match max_cmyk_buffer_bytes {
+        Some(text) => match pdfcer_core::settings::parse_byte_size(text) {
+            Ok(parsed) => {
+                eprintln!(
+                    "pdfcer: note: --max-cmyk-buffer-bytes {} overrides the `max_cmyk_buffer_bytes` setting for this render ({} pixel(s) may composite in ink)",
+                    pdfcer_core::settings::format_byte_size(parsed),
+                    pdfcer_render::max_cmyk_composite_pixels(parsed)
+                );
+                parsed
+            }
+            Err(bad) => {
+                eprintln!("pdfcer: note: {bad} -- using the setting instead");
+                settings.max_cmyk_buffer_bytes
+            }
+        },
+        None => settings.max_cmyk_buffer_bytes,
+    };
+
+    let mut render_options = pdfcer_render::RenderOptions::default()
+        .with_annotations(annotations)
+        .with_cmyk_intent(settings.cmyk_intent)
+        // The subtractive compositing ceiling. Not a spec ambiguity and not
+        // a policy default: it is a MEMORY budget, and the right number is
+        // a function of the operator's machine and their tolerance, neither
+        // of which is knowable from inside the renderer.
+        .with_max_cmyk_buffer_bytes(max_cmyk_buffer_bytes)
+        .with_page_blend_space_source(settings.page_blend_space_source)
+        // Which colour spaces get OPM 1's zero-tint rule. The default
+        // preserves a spot backdrop under a DeviceGray fill, which is a
+        // DIVERGENCE from ISO 32000-1 (and matches Acrobat only over a spot
+        // backdrop -- NOT over process components, measured `Pass 206.0`);
+        // `device_cmyk_only` is the conforming one. Edition-gated: 32000-2
+        // deletes two of the three provisions that settle it in 1.7.
+        //
+        // ★ SURVIVOR 7. This said "The 8.6.7 ambiguity" and was missed by the
+        // 330th filing's own sweep, which grepped `§8.6.7 ambiguity` — with
+        // the section sign. This line has no `§`. A sweep for a CLAIM is only
+        // as good as its spelling of the claim, which is the same failure the
+        // sweep existed to catch, one level up.
+        .with_overprint_zero_tint_scope(settings.overprint_zero_tint_scope)
+        .with_spot_colorant_device_model(settings.spot_colorant_device_model)
+        // `MSH-A1`: what a type 6/7 mesh-shading PATCH record pads to.
+        // The clause states the rule for a VERTEX and the patch clauses
+        // point back at it without redefining the unit, in both editions.
+        .with_mesh_patch_padding(settings.mesh_patch_padding)
+        // The other four R169 rendering knobs, all spec silences the
+        // standard declines to fill: the mask resampling filter
+        // (`SM-A1`, §8.9.6.3), the minification filter (`IM-A1`,
+        // §8.9.5.3), the CMYK-JPEG polarity rule (`DCT-A1`, §7.4.8) and
+        // the missing-`/AS` policy (`AS-A1`, §12.5.5). Every default is
+        // the behaviour pdfcer shipped before the setting existed, so a
+        // machine with no settings file renders exactly as it always did.
+        .with_mask_resample(settings.mask_resample)
+        .with_image_minify(settings.image_minify)
+        .with_cmyk_jpeg_polarity(settings.cmyk_jpeg_polarity)
+        .with_missing_as(settings.missing_as);
+    render_options.fonts = font_env;
+    // `--fast-subpixel`. Assigned rather than set through a builder for
+    // the reason `RenderOptions`'s own docs give: the type is
+    // `#[non_exhaustive]`, so field assignment is the documented way in.
+    render_options.subpixel_culling = fast_subpixel;
+    // `--probe-ink X,Y`. A malformed pair is refused HERE, before the
+    // render, because it is an operator mistake and nothing about the
+    // document can fix it -- unlike a coordinate that is well-formed but
+    // outside the raster, which cannot be judged until the page geometry
+    // has been resolved and is therefore reported rather than refused.
+    if let Some(spec) = probe_ink {
+        match parse_probe_ink(spec) {
+            Ok((x, y)) => render_options.ink_probe = Some((x, y)),
+            Err(msg) => {
+                eprintln!("pdfcer: --probe-ink: {msg}");
+                return Err(exit::RUNTIME_ERROR);
+            }
+        }
+    }
+    // A raster export is for LOOKING AT, so the verb is a viewer
+    // under §8.11.4.5 and applies `View`-event `/AS` usage at the
+    // requested scale. The print path is the one the clause forbids this
+    // on, and pdfcer's printing does not come through here.
+    // §8.11.4.5: only a viewer examines `/AS`; printing and aggregating
+    // applications "shall not apply the changes based on usage
+    // application dictionaries". `--print-state` is that mode, and NOTE 2
+    // licenses offering it.
+    if !print_state {
+        render_options.view_magnification = Some(scale);
+    }
+
+    // §8.11 layer overrides. Resolved by NAME against the document's own
+    // registry, because a name is what an operator has (`list-layers`
+    // prints them) and an object number is not.
+    if !show_layers.is_empty() || !hide_layers.is_empty() {
+        match resolve_layer_override(doc, show_layers, hide_layers) {
+            Ok((visibility, unmatched)) => {
+                for name in unmatched {
+                    eprintln!(
+                        "pdfcer: no layer named {name:?} in {} — the other --show-layer/--hide-layer names were still applied",
+                        input.display()
+                    );
+                }
+                render_options.layers = Some(visibility);
+            }
+            Err(name) => {
+                eprintln!(
+                    "pdfcer: layer {name:?} was given to both --show-layer and --hide-layer; pdfcer will not guess which you meant"
+                );
+                // `RUNTIME_ERROR` rather than a new usage code: clap owns
+                // the usage vocabulary and this is not a malformed command
+                // line — both flags are spelled correctly and mean what
+                // they say. What cannot be done is honouring both.
+                return Err(exit::RUNTIME_ERROR);
+            }
+        }
+    }
+
+    Ok(render_options)
+}
+
 /// Implement `pdfcer render-page <input> [--page N] [--scale S] -o <out>`.
 ///
 /// # The pipeline
@@ -11671,245 +12193,28 @@ numbered 1..={})",
         return exit::RUNTIME_ERROR;
     };
 
-    // Annotation painting is on by default (§12.5); `--no-annotations`
-    // clears it to reproduce the pre-6.0 content-only raster. The font
-    // environment carries any `--font-dir` supplied faces (decision 012);
-    // with no `--font-dir` it is the bundled default (R63).
-    // §8.6.4.4 mandates no CMYK conversion, so the operator's persisted
-    // choice governs (R169). Read from the same `userdata/` store the GUI
-    // uses, so `render-page` and the canvas cannot disagree about what
-    // black looks like. Loading cannot fail — a missing or broken file
-    // yields defaults plus notes, which are reported and never fatal.
-    let (mut settings, settings_report) =
-        pdfcer_core::settings::Settings::load(pdfcer_core::settings::resolve_store());
-    report_settings(&settings_report);
-
-    // The §8.6.7 zero-tint scope, applied over the saved settings and never
-    // written back — same discipline as `--standard` below, and for the same
-    // reason: one diagnostic render must not change how every later render
-    // behaves.
-    //
-    // ★ Parsed by handing the token to the SETTINGS PARSER rather than by
-    // matching the three strings here. `OverprintZeroTintScope::parse` is the
-    // same function the settings FILE parser calls, so a token the file
-    // accepts and a token this flag accepts cannot diverge. A `match` here
-    // would be a second spelling of one enum, and the second spelling is
-    // always the one that goes stale.
-    if let Some(token) = overprint_zero_tint_scope {
-        use pdfcer_core::settings::OverprintZeroTintScope as Scope;
-        match Scope::parse(token) {
-            Some(scope) => {
-                settings.overprint_zero_tint_scope = scope;
-                eprintln!(
-                    "pdfcer: render-page: overprint_zero_tint_scope = {} for this render only; your saved setting is unchanged",
-                    scope.as_str()
-                );
-            }
-            None => {
-                // Refuse by name rather than falling back silently. A mistyped
-                // token that renders under the DEFAULT looks exactly like the
-                // flag working — and the operator reached for the flag
-                // precisely because they wanted the non-default.
-                eprintln!(
-                    "pdfcer: render-page: unknown --overprint-zero-tint-scope {token:?} — known: device_cmyk_only, grey_as_k_only, all_process_spaces"
-                );
-                return exit::RUNTIME_ERROR;
-            }
-        }
-    }
-
-    // Same shape as the block above, and deliberately not folded into it:
-    // the two settings answer different questions (`OP-A5` vs `OP-A7`) and a
-    // shared parser would have to know which enum a token belongs to.
-    if let Some(token) = spot_colorant_device_model {
-        use pdfcer_core::settings::SpotColorantDeviceModel as Model;
-        match Model::parse(token) {
-            Some(model) => {
-                settings.spot_colorant_device_model = model;
-                eprintln!(
-                    "pdfcer: render-page: spot_colorant_device_model = {} for this render only; your saved setting is unchanged",
-                    model.as_str()
-                );
-            }
-            None => {
-                // Refused by name, for the reason the block above gives: a
-                // mistyped token rendering under the default looks exactly
-                // like the flag working, and the operator reached for it
-                // precisely because they wanted the non-default.
-                eprintln!(
-                    "pdfcer: render-page: unknown --spot-colorant-device-model {token:?} — known: simulate_separations, alternate_space_substitution"
-                );
-                return exit::RUNTIME_ERROR;
-            }
-        }
-    }
-
-    // The subset-standard preset, applied OVER the operator's saved settings
-    // and never written back. A render flag must not mutate a settings file:
-    // one `--standard pdf-x4` render would otherwise silently change how every
-    // later render behaved, which is the shape of surprise rule 4 exists to
-    // stop.
-    if let Some(token) = standard {
-        use pdfcer_core::settings::presets::{RenderPreset, RenderStandard};
-        match RenderStandard::parse(token) {
-            Ok(std) => {
-                let preset = RenderPreset::for_standard(std);
-                let changed = preset.apply(&mut settings);
-                // Rule 4: what the preset MOVED, by name. "4 settings changed"
-                // is not actionable; knowing it was `image_minify` is.
-                if changed.is_empty() {
-                    eprintln!(
-                        "pdfcer: render preset {}: your settings already match it; \
-                         nothing changed",
-                        std.as_str()
-                    );
-                } else {
-                    eprintln!(
-                        "pdfcer: render preset {}: changed {}",
-                        std.as_str(),
-                        changed
-                            .iter()
-                            .map(|k| k.as_str())
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    );
-                }
-                for line in preset.disclosures() {
-                    eprintln!("pdfcer: {line}");
-                }
-            }
-            Err(bad) => {
-                eprintln!(
-                    "pdfcer: render-page: unknown --standard {bad:?} — known: {}",
-                    RenderStandard::all()
-                        .iter()
-                        .map(|s| s.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                );
-                return exit::RUNTIME_ERROR;
-            }
-        }
-    }
-
-    // The colorant-buffer ceiling: the flag overrides the setting, the
-    // setting overrides the built-in default, and an unreadable flag value
-    // is REPORTED and then ignored rather than quietly meaning zero -- the
-    // same shape as every other bad value in the settings file, because a
-    // silent zero here would read as "pdfcer stopped compositing in ink".
-    let max_cmyk_buffer_bytes = match max_cmyk_buffer_bytes {
-        Some(text) => match pdfcer_core::settings::parse_byte_size(text) {
-            Ok(parsed) => {
-                eprintln!(
-                    "pdfcer: note: --max-cmyk-buffer-bytes {} overrides the `max_cmyk_buffer_bytes` setting for this render ({} pixel(s) may composite in ink)",
-                    pdfcer_core::settings::format_byte_size(parsed),
-                    pdfcer_render::max_cmyk_composite_pixels(parsed)
-                );
-                parsed
-            }
-            Err(bad) => {
-                eprintln!("pdfcer: note: {bad} -- using the setting instead");
-                settings.max_cmyk_buffer_bytes
-            }
+    let render_options = match resolve_render_options(
+        &doc,
+        RenderFlags {
+            verb: "render-page",
+            input,
+            standard,
+            overprint_zero_tint_scope,
+            spot_colorant_device_model,
+            max_cmyk_buffer_bytes,
+            annotations,
+            font_env,
+            fast_subpixel,
+            probe_ink,
+            print_state,
+            scale,
+            show_layers,
+            hide_layers,
         },
-        None => settings.max_cmyk_buffer_bytes,
+    ) {
+        Ok(options) => options,
+        Err(code) => return code,
     };
-
-    let mut render_options = pdfcer_render::RenderOptions::default()
-        .with_annotations(annotations)
-        .with_cmyk_intent(settings.cmyk_intent)
-        // The subtractive compositing ceiling. Not a spec ambiguity and not
-        // a policy default: it is a MEMORY budget, and the right number is
-        // a function of the operator's machine and their tolerance, neither
-        // of which is knowable from inside the renderer.
-        .with_max_cmyk_buffer_bytes(max_cmyk_buffer_bytes)
-        .with_page_blend_space_source(settings.page_blend_space_source)
-        // Which colour spaces get OPM 1's zero-tint rule. The default
-        // preserves a spot backdrop under a DeviceGray fill, which is a
-        // DIVERGENCE from ISO 32000-1 (and matches Acrobat only over a spot
-        // backdrop -- NOT over process components, measured `Pass 206.0`);
-        // `device_cmyk_only` is the conforming one. Edition-gated: 32000-2
-        // deletes two of the three provisions that settle it in 1.7.
-        //
-        // ★ SURVIVOR 7. This said "The 8.6.7 ambiguity" and was missed by the
-        // 330th filing's own sweep, which grepped `§8.6.7 ambiguity` — with
-        // the section sign. This line has no `§`. A sweep for a CLAIM is only
-        // as good as its spelling of the claim, which is the same failure the
-        // sweep existed to catch, one level up.
-        .with_overprint_zero_tint_scope(settings.overprint_zero_tint_scope)
-        .with_spot_colorant_device_model(settings.spot_colorant_device_model)
-        // `MSH-A1`: what a type 6/7 mesh-shading PATCH record pads to.
-        // The clause states the rule for a VERTEX and the patch clauses
-        // point back at it without redefining the unit, in both editions.
-        .with_mesh_patch_padding(settings.mesh_patch_padding)
-        // The other four R169 rendering knobs, all spec silences the
-        // standard declines to fill: the mask resampling filter
-        // (`SM-A1`, §8.9.6.3), the minification filter (`IM-A1`,
-        // §8.9.5.3), the CMYK-JPEG polarity rule (`DCT-A1`, §7.4.8) and
-        // the missing-`/AS` policy (`AS-A1`, §12.5.5). Every default is
-        // the behaviour pdfcer shipped before the setting existed, so a
-        // machine with no settings file renders exactly as it always did.
-        .with_mask_resample(settings.mask_resample)
-        .with_image_minify(settings.image_minify)
-        .with_cmyk_jpeg_polarity(settings.cmyk_jpeg_polarity)
-        .with_missing_as(settings.missing_as);
-    render_options.fonts = font_env;
-    // `--fast-subpixel`. Assigned rather than set through a builder for
-    // the reason `RenderOptions`'s own docs give: the type is
-    // `#[non_exhaustive]`, so field assignment is the documented way in.
-    render_options.subpixel_culling = fast_subpixel;
-    // `--probe-ink X,Y`. A malformed pair is refused HERE, before the
-    // render, because it is an operator mistake and nothing about the
-    // document can fix it -- unlike a coordinate that is well-formed but
-    // outside the raster, which cannot be judged until the page geometry
-    // has been resolved and is therefore reported rather than refused.
-    if let Some(spec) = probe_ink {
-        match parse_probe_ink(spec) {
-            Ok((x, y)) => render_options.ink_probe = Some((x, y)),
-            Err(msg) => {
-                eprintln!("pdfcer: --probe-ink: {msg}");
-                return exit::RUNTIME_ERROR;
-            }
-        }
-    }
-    // `render-page` produces a raster for LOOKING AT, so it is a viewer
-    // under §8.11.4.5 and applies `View`-event `/AS` usage at the
-    // requested scale. The print path is the one the clause forbids this
-    // on, and pdfcer's printing does not come through here.
-    // §8.11.4.5: only a viewer examines `/AS`; printing and aggregating
-    // applications "shall not apply the changes based on usage
-    // application dictionaries". `--print-state` is that mode, and NOTE 2
-    // licenses offering it.
-    if !print_state {
-        render_options.view_magnification = Some(scale);
-    }
-
-    // §8.11 layer overrides. Resolved by NAME against the document's own
-    // registry, because a name is what an operator has (`list-layers`
-    // prints them) and an object number is not.
-    if !show_layers.is_empty() || !hide_layers.is_empty() {
-        match resolve_layer_override(&doc, show_layers, hide_layers) {
-            Ok((visibility, unmatched)) => {
-                for name in unmatched {
-                    eprintln!(
-                        "pdfcer: no layer named {name:?} in {} — the other --show-layer/--hide-layer names were still applied",
-                        input.display()
-                    );
-                }
-                render_options.layers = Some(visibility);
-            }
-            Err(name) => {
-                eprintln!(
-                    "pdfcer: layer {name:?} was given to both --show-layer and --hide-layer; pdfcer will not guess which you meant"
-                );
-                // `RUNTIME_ERROR` rather than a new usage code: clap owns
-                // the usage vocabulary and this is not a malformed command
-                // line — both flags are spelled correctly and mean what
-                // they say. What cannot be done is honouring both.
-                return exit::RUNTIME_ERROR;
-            }
-        }
-    }
 
     // ★ THE REGION BRANCH, and it is the same engine call with a smaller
     // pixmap -- `render_page_region` and `render_page` share one
@@ -11954,6 +12259,59 @@ numbered 1..={})",
     // The stable stdout line (module header, "stdout result-line format").
     // Counters last, key=value, fixed order — appended to, never reordered.
     let d = &rendered.diagnostics;
+    println!(
+        "rendered {} page {page_number} -> {} {}x{}; {}",
+        input.display(),
+        output.display(),
+        rendered.pixmap.width(),
+        rendered.pixmap.height(),
+        render_counters_line(d, &doc, supplied_registered)
+    );
+    // ★ A SECOND LINE, NOT MORE KEYS ON THE FIRST ONE.
+    //
+    // The stable line is `key=<integer>` pairs in a fixed order and a
+    // published contract (`tools/check-metrics-line-contract.py` holds all
+    // three copies of it in step). This payload is four floats and a
+    // classification, it is absent unless asked for, and folding it in
+    // would mean either changing that line's shape for every render or
+    // emitting placeholder zeros -- which read exactly like "no ink here",
+    // the one misreading `InkProbeSource` exists to prevent. So it gets its
+    // own prefixed line, which a parser can select or ignore whole.
+    if let Some(probe) = &d.ink_probe {
+        println!("{}", format_ink_probe(probe));
+    }
+    report_diagnostics(
+        d,
+        // The RESOLVED ceiling (flag over setting over default), read back
+        // off the options the render actually ran with, so the note that
+        // quotes it cannot disagree with the buffer that used it.
+        render_options.max_cmyk_buffer_bytes,
+        u64::from(rendered.pixmap.width()) * u64::from(rendered.pixmap.height()),
+    );
+
+    exit::SUCCESS
+}
+
+/// The `key=<integer>` half of the stable result line, shared by
+/// `render-page` and `export-image` (`Pass 248.0`).
+///
+/// ★ ONE format string, not two. The counters are a PUBLISHED CONTRACT
+/// (`R212`, `tools/check-metrics-line-contract.py`), and the moment a
+/// second verb printed its own copy there would be a fourth place for the
+/// list to drift — and the copy nobody tests is the one that goes stale.
+/// `export-image` prints exactly what `render-page` prints, after its own
+/// prefix, so a parity harness that reads one can read the other.
+///
+/// The comments inside are kept with the arguments they explain; they
+/// are the record of WHY each key exists, and a helper that dropped them
+/// would be a list of field accesses nobody could audit.
+fn render_counters_line(
+    d: &pdfcer_render::Diagnostics,
+    doc: &Document,
+    // The `--font-dir` registration count, which lives in the shell (the
+    // walk is shell-side I/O, R61) and not in `Diagnostics`.
+    supplied_registered: usize,
+) -> String {
     // The Pass 6.0 annotation counters are APPENDED to the metrics half,
     // after every pre-existing key — the stable-line contract's
     // append-never-reorder rule (module docs). `annot_no_ap` is a SUM of
@@ -11962,10 +12320,9 @@ numbered 1..={})",
     // stderr where it cannot break a parser. `need_appearances` is the
     // document-scoped `/NeedAppearances` disclosure (R51).
     let annot_no_ap: usize = d.annotations_without_ap.values().sum();
-    let need_appearances = usize::from(pdfcer_core::annot::need_appearances(&doc));
-    println!(
-        "rendered {} page {page_number} -> {} {}x{}; \
-substituted={} notdef={} unsupported={} unknown={} deferred={} \
+    let need_appearances = usize::from(pdfcer_core::annot::need_appearances(doc));
+    format!(
+        "substituted={} notdef={} unsupported={} unknown={} deferred={} \
 images={} images_unsupported={} forms={} forms_culled={} subpixel_culled={} \
 images_codec_unsupported={} codec_features={} codec_geometry_mismatch={} \
 dct_cmyk={} lzw_anomalies={} dct_cmyk_unverifiable={} jpx_preblended={} \
@@ -11998,10 +12355,6 @@ cmyk_buffer={} cmyk_buffer_refused={} cmyk_bridged_pixels={} \
 cmyk_groups_approximated={} cmyk_unbridged_images={} cmyk_native_image_pixels={} rendering_intents_set={} \
 icc_managed_paints={} icc_unmanaged_paints={} \
 overprint_process_images_unsupported={}",
-        input.display(),
-        output.display(),
-        rendered.pixmap.width(),
-        rendered.pixmap.height(),
         d.glyphs_substituted,
         d.glyphs_notdef,
         d.fonts_unsupported,
@@ -12371,25 +12724,299 @@ overprint_process_images_unsupported={}",
         d.icc_unmanaged_paints,
         // `Pass 204.0`. Appended per the stable-line append-never-insert rule.
         d.overprint_process_images_unsupported,
-    );
-    // ★ A SECOND LINE, NOT MORE KEYS ON THE FIRST ONE.
-    //
-    // The stable line is `key=<integer>` pairs in a fixed order and a
-    // published contract (`tools/check-metrics-line-contract.py` holds all
-    // three copies of it in step). This payload is four floats and a
-    // classification, it is absent unless asked for, and folding it in
-    // would mean either changing that line's shape for every render or
-    // emitting placeholder zeros -- which read exactly like "no ink here",
-    // the one misreading `InkProbeSource` exists to prevent. So it gets its
-    // own prefixed line, which a parser can select or ignore whole.
-    if let Some(probe) = &d.ink_probe {
-        println!("{}", format_ink_probe(probe));
-    }
-    report_diagnostics(
-        d,
+    )
+}
+
+/// Everything `export-image` was asked for (`Pass 248.0`).
+///
+/// A struct for the reason `ExportDxfArgs` is one: the flag set is past
+/// the point where positional parameters read as documentation.
+struct ExportImageArgs<'a> {
+    input: &'a Path,
+    /// A `parse_pages` spec.
+    pages: &'a str,
+    format: ImageFormatArg,
+    /// Pixel density; the render scale is `dpi / 72`.
+    dpi: f32,
+    /// Keep the page group's alpha (PNG only).
+    transparent: bool,
+    /// JPEG quality, 1–100.
+    quality: u8,
+    /// `#rrggbb` the page is flattened onto; `None` means white.
+    background: Option<&'a str>,
+    /// Single-page destination.
+    output: Option<&'a Path>,
+    /// Multi-page destination directory.
+    output_dir: Option<&'a Path>,
+    standard: Option<&'a str>,
+    overprint_zero_tint_scope: Option<&'a str>,
+    spot_colorant_device_model: Option<&'a str>,
+    annotations: bool,
+    fast_subpixel: bool,
+    max_cmyk_buffer_bytes: Option<&'a str>,
+    font_dirs: &'a [PathBuf],
+    show_layers: &'a [String],
+    hide_layers: &'a [String],
+    print_state: bool,
+}
+
+/// `export-image`: render each selected page and write it as a PNG or JPEG
+/// (`Pass 248.0`).
+///
+/// # Contract
+///
+/// - Exit `SUCCESS` with one stable stdout line per page:
+///   `exported <input> page <N> -> <path> <W>x<H> format=<png|jpeg>
+///   dpi=<D> transparent=<0|1> background=<#rrggbb|none>; <counters>` where
+///   `<counters>` is byte-for-byte `render-page`'s counter set
+///   ([`render_counters_line`]). Then `report_diagnostics`'s stderr notes,
+///   per page.
+/// - `RUNTIME_ERROR` before touching the disk for: `--transparent` with
+///   JPEG (no alpha channel — refused by name, never flattened silently);
+///   a `--quality` outside 1–100; a non-positive or non-finite `--dpi`; a
+///   `--background` that is not `#rrggbb`; a page spec selecting more than
+///   one page without `--output-dir`; neither destination flag; and every
+///   refusal `resolve_render_options` makes.
+/// - `IO_ERROR` when a file cannot be written. Pages before it are on disk
+///   and their lines were printed; the run stops at the first failure
+///   rather than continuing to fill a directory it cannot write to.
+///
+/// # Why the whole render option set is shared with `render-page`
+///
+/// See [`RenderFlags`]. The short version: a flag `export-image` parsed and
+/// did not honour would look, to the operator, exactly like the flag
+/// working.
+fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
+    use pdfcer_render::export::{JpegOptions, Rgb, encode_jpeg, encode_png, flatten_over};
+
+    let ExportImageArgs {
+        input,
+        pages: pages_spec,
+        format,
+        dpi,
+        transparent,
+        quality,
+        background,
+        output,
+        output_dir,
+        standard,
+        overprint_zero_tint_scope,
+        spot_colorant_device_model,
+        annotations,
+        fast_subpixel,
         max_cmyk_buffer_bytes,
-        u64::from(rendered.pixmap.width()) * u64::from(rendered.pixmap.height()),
-    );
+        font_dirs,
+        show_layers,
+        hide_layers,
+        print_state,
+    } = args;
+
+    // ---- operator-mistake refusals, all before any I/O ----
+    if transparent && format == ImageFormatArg::Jpeg {
+        // Refused by name. JPEG has no alpha channel; flattening silently
+        // would hand back a file that looks exactly like the flag working.
+        eprintln!(
+            "pdfcer: {}: --transparent cannot be honoured for JPEG, which has no alpha channel; drop the flag (the page is flattened onto white, or onto --background) or use --format png",
+            input.display()
+        );
+        return exit::RUNTIME_ERROR;
+    }
+    if !(1..=100).contains(&quality) {
+        eprintln!(
+            "pdfcer: {}: --quality {quality} is outside 1..=100",
+            input.display()
+        );
+        return exit::RUNTIME_ERROR;
+    }
+    if !dpi.is_finite() || dpi <= 0.0 {
+        eprintln!(
+            "pdfcer: {}: --dpi must be a positive number, got {dpi}",
+            input.display()
+        );
+        return exit::RUNTIME_ERROR;
+    }
+    let background = match background.map(Rgb::parse_hex) {
+        None => None,
+        Some(Ok(rgb)) => Some(rgb),
+        Some(Err(msg)) => {
+            eprintln!("pdfcer: {}: --background: {msg}", input.display());
+            return exit::RUNTIME_ERROR;
+        }
+    };
+    if output.is_none() && output_dir.is_none() {
+        eprintln!(
+            "pdfcer: {}: nowhere to write — pass --output <file> for one page, or --output-dir <dir> for several",
+            input.display()
+        );
+        return exit::RUNTIME_ERROR;
+    }
+
+    // Font environment before the document, as `render-page` does: the
+    // walk is shell-side I/O and a bad directory is a note, never fatal.
+    let (font_env, supplied_registered, font_notes) = build_font_environment(font_dirs);
+    for note in &font_notes {
+        eprintln!("pdfcer: font-dir: {note}");
+    }
+
+    let doc = match open_document(input) {
+        Ok(doc) => doc,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit_code_for_doc(&err);
+        }
+    };
+    let pages = match pdfcer_core::page_tree::pages(&doc) {
+        Ok(pages) => pages,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit::RUNTIME_ERROR;
+        }
+    };
+    let selected = match parse_pages(pages_spec, pages.len()) {
+        Ok(v) => v,
+        Err(msg) => {
+            eprintln!("pdfcer: {}: --pages: {msg}", input.display());
+            return exit::RUNTIME_ERROR;
+        }
+    };
+    if selected.len() > 1 && output_dir.is_none() {
+        eprintln!(
+            "pdfcer: {}: --pages selected {} pages but --output names one file; pass --output-dir <dir> instead",
+            input.display(),
+            selected.len()
+        );
+        return exit::RUNTIME_ERROR;
+    }
+
+    // scale = dpi / 72 is the engine's own unit (`render-page --scale`).
+    let scale = dpi / 72.0;
+    let mut render_options = match resolve_render_options(
+        &doc,
+        RenderFlags {
+            verb: "export-image",
+            input,
+            standard,
+            overprint_zero_tint_scope,
+            spot_colorant_device_model,
+            max_cmyk_buffer_bytes,
+            annotations,
+            font_env,
+            fast_subpixel,
+            probe_ink: None,
+            print_state,
+            scale,
+            show_layers,
+            hide_layers,
+        },
+    ) {
+        Ok(options) => options,
+        Err(code) => return code,
+    };
+    // The one option `render-page` never sets. A JPEG is rendered
+    // TRANSPARENT too, and flattened by the encoder over `--background`:
+    // one render serves any backdrop, and the renderer never learns a
+    // colour it would then have to disclose.
+    render_options.backdrop =
+        if transparent || background.is_some() || format == ImageFormatArg::Jpeg {
+            pdfcer_render::PageBackdrop::Transparent
+        } else {
+            pdfcer_render::PageBackdrop::White
+        };
+
+    // Zero-padded to the widest 1-based page number in the run, so a
+    // directory listing sorts in page order (`export-dxf`'s convention).
+    let width = selected
+        .iter()
+        .map(|i| (i + 1).to_string().len())
+        .max()
+        .unwrap_or(1);
+    let stem = input
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "page".to_owned());
+
+    for &index in &selected {
+        let page = &pages[index];
+        let page_number = index + 1;
+        let path = match (output, output_dir) {
+            (Some(file), _) => file.to_path_buf(),
+            (None, Some(dir)) => dir.join(format!(
+                "{stem}_p{page_number:0width$}.{}",
+                format.extension()
+            )),
+            (None, None) => unreachable!("checked above"),
+        };
+
+        let rendered = match pdfcer_render::render_page_with(&doc, page, scale, &render_options) {
+            Ok(r) => r,
+            Err(err) => {
+                eprintln!("pdfcer: {}: page {page_number}: {err}", input.display());
+                return exit::RUNTIME_ERROR;
+            }
+        };
+
+        let bytes = match format {
+            ImageFormatArg::Png => {
+                // A non-transparent PNG with a chosen background is
+                // flattened here, over that colour; the white default was
+                // already composited by the renderer.
+                let flat = match background {
+                    Some(bg) if !transparent => flatten_over(&rendered.pixmap, bg),
+                    _ => std::borrow::Cow::Borrowed(&rendered.pixmap),
+                };
+                encode_png(&flat, Some(dpi))
+            }
+            ImageFormatArg::Jpeg => {
+                let mut opts = JpegOptions::default();
+                opts.quality = quality;
+                opts.background = background.unwrap_or(Rgb::WHITE);
+                opts.dpi = Some(dpi);
+                encode_jpeg(&rendered.pixmap, &opts)
+            }
+        };
+        let bytes = match bytes {
+            Ok(b) => b,
+            Err(err) => {
+                eprintln!("pdfcer: {}: page {page_number}: {err}", path.display());
+                return exit::RUNTIME_ERROR;
+            }
+        };
+        if let Err(err) = std::fs::write(&path, &bytes) {
+            eprintln!("pdfcer: {}: {err}", path.display());
+            return exit::IO_ERROR;
+        }
+
+        let d = &rendered.diagnostics;
+        let background_token = match (transparent, background) {
+            (true, _) => "none".to_owned(),
+            (false, Some(bg)) => bg.to_hex(),
+            (false, None) => Rgb::WHITE.to_hex(),
+        };
+        println!(
+            "exported {} page {page_number} -> {} {}x{} format={} dpi={dpi} transparent={} background={}; {}",
+            input.display(),
+            path.display(),
+            rendered.pixmap.width(),
+            rendered.pixmap.height(),
+            format.as_str(),
+            u8::from(transparent),
+            background_token,
+            render_counters_line(d, &doc, supplied_registered)
+        );
+        if transparent {
+            // Rule 4, the positive direction: say what the file IS, since a
+            // viewer that draws transparency over a checkerboard and one
+            // that draws it over white will show two different pictures.
+            eprintln!(
+                "pdfcer: note: page {page_number} was exported with its transparency kept — pixels nothing painted are fully transparent, not white"
+            );
+        }
+        report_diagnostics(
+            d,
+            render_options.max_cmyk_buffer_bytes,
+            u64::from(rendered.pixmap.width()) * u64::from(rendered.pixmap.height()),
+        );
+    }
 
     exit::SUCCESS
 }

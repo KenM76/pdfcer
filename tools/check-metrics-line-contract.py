@@ -118,7 +118,11 @@ TABLE_ROW = re.compile(r"^//! \| `([a-z0-9_]+)` \|", re.M)
 
 # The println's format string, identified by its first literal bytes rather
 # than by line number so an edit above it cannot silently move the window.
-PRINTLN_HEAD = '"rendered {} page {page_number} -> {} {}x{}; '
+# Updated 2026-09-03 (`Pass 248.0`): the counter half moved into
+# `render_counters_line`, a `format!` shared by `render-page` and
+# `export-image`, so the prefix is no longer in the same string. The
+# head is now the FIRST KEY, which is as stable as the tail anchor below.
+PRINTLN_HEAD = '"substituted={} notdef={} unsupported={}'
 # Updated 2026-08-26 (`Pass 130.1`) when `cmyk_native_image_pixels` was
 # appended. The anchor is the LAST key on the line, so every append moves it —
 # that is the intended cost: the gate's failure message names this constant so

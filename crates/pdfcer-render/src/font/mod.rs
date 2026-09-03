@@ -719,6 +719,51 @@ pub struct RenderOptions {
     /// about a pixel that does not exist would trade the operator's actual
     /// output for their question about it.
     pub ink_probe: Option<(u32, u32)>,
+    /// What the finished page group is composited onto — the last step of
+    /// a render, and the one an **export with transparency** skips
+    /// (`Pass 248.0`).
+    ///
+    /// ISO 32000-1 §11.4.7 renders the page as an *isolated* transparency
+    /// group and then composites its result "with a backdrop colour
+    /// appropriate for the medium … nominally white". pdfcer has done
+    /// exactly that since 2026-08-17: the buffer starts transparent, every
+    /// operator composites into it, and the white is added **once at the
+    /// end**. So for the whole of a render the transparent page the
+    /// operator asked for already exists; [`PageBackdrop::Transparent`]
+    /// simply declines the final step and hands it over with its own
+    /// `αg` intact.
+    ///
+    /// **Default [`PageBackdrop::White`]** — a screen render and a
+    /// `render-page` PNG show paper, as they always have. A see-through
+    /// page is something a caller asks for, because it is only right for
+    /// one use (dropping the artwork onto another background) and looks
+    /// like a defect in every other.
+    pub backdrop: PageBackdrop,
+}
+
+/// The medium a finished page group is composited onto — §11.4.7's
+/// "backdrop colour appropriate for the medium" (`Pass 248.0`).
+///
+/// See [`RenderOptions::backdrop`] for why this exists and why the default
+/// is white. Two variants and no colour parameter, deliberately: a
+/// non-white opaque backdrop is a *consumer's* choice (a JPEG export
+/// flattens over `--background`), and it is performed by
+/// [`crate::export::flatten_over`] on the transparent result rather than
+/// inside the renderer, so that one render can serve any number of
+/// backgrounds and the renderer never learns a colour it would have to
+/// disclose.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum PageBackdrop {
+    /// Composite over opaque white — what paper does, and what every
+    /// screen render shows. Every pixel of the result has alpha 255.
+    #[default]
+    White,
+    /// Keep the page group's own alpha. A pixel nothing painted is fully
+    /// transparent; an anti-aliased edge or a `/ca 0.5` fill is partially
+    /// so. The colour channels are the group's own colour (premultiplied
+    /// in the `Pixmap`, straight in a PNG written from it).
+    Transparent,
 }
 
 /// Where an [`InkProbe`]'s numbers came from — and, for two of the three
@@ -939,6 +984,10 @@ impl Default for RenderOptions {
             // Nobody asked, so nothing is sampled. A probe is a question
             // the operator puts, never a cost every render pays.
             ink_probe: None,
+            // Paper. See the field docs: transparency is asked for, never
+            // assumed, because it is right for one use and wrong for the
+            // rest.
+            backdrop: PageBackdrop::default(),
         }
     }
 }
@@ -1248,6 +1297,26 @@ impl RenderOptions {
 
     pub fn with_missing_as(mut self, policy: MissingAppearanceState) -> Self {
         self.missing_as = policy;
+        self
+    }
+
+    /// Set what the finished page is composited onto (`Pass 248.0`),
+    /// returning `self` for chaining. See [`PageBackdrop`].
+    ///
+    /// Same `#[non_exhaustive]` consuming-builder reasoning as
+    /// [`Self::with_annotations`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use pdfcer_render::{PageBackdrop, RenderOptions};
+    ///
+    /// let options = RenderOptions::default().with_backdrop(PageBackdrop::Transparent);
+    /// assert_eq!(options.backdrop, PageBackdrop::Transparent);
+    /// ```
+    #[must_use]
+    pub fn with_backdrop(mut self, backdrop: PageBackdrop) -> Self {
+        self.backdrop = backdrop;
         self
     }
 

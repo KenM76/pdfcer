@@ -116,3 +116,11 @@ pdfcer-fetch = { workspace = true, optional = true }
 # workspace tree at 0.62 via eframe/winit, MIT-OR-Apache-2.0, and already
 # listed in THIRD_PARTY_LICENSES.md. Verified with `cargo tree` before
 # adding rather than assumed (rule 13).
+
+[dev-dependencies]
+# png: TEST-ONLY. `tests/export_image.rs` decodes what `export-image` wrote
+# with an independent decoder rather than trusting the encoder about its
+# own output. Already in the graph (tiny-skia's png feature, and
+# pdfcer-render's own writer) -- zero packages added; dev-only, so it
+# cannot reach the shipped binary. License: MIT OR Apache-2.0.
+png = "0.17"

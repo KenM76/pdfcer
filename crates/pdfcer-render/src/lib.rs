@@ -66,6 +66,7 @@ pub(crate) mod cmyk_paint;
 pub mod color;
 pub mod compositor;
 pub mod display_list;
+pub mod export;
 pub mod font;
 pub mod gstate;
 pub mod icc;
@@ -108,8 +109,8 @@ pub use display_list::{
     ClipId, DisplayList, DisplayListKey, MAX_DISPLAY_LIST_BYTES, PoisonReason, record_page,
 };
 pub use font::{
-    FallbackKey, FontData, FontEnvironment, GlyphSource, InkProbe, InkProbeSource, RenderOptions,
-    RenderPolicy,
+    FallbackKey, FontData, FontEnvironment, GlyphSource, InkProbe, InkProbeSource, PageBackdrop,
+    RenderOptions, RenderPolicy,
 };
 pub use interpret::Diagnostics;
 pub use layer_state::LayerVisibility;
@@ -348,7 +349,14 @@ pub enum RenderError {
 /// A rendered page: pixels plus the honesty report.
 #[derive(Debug)]
 pub struct RenderedPage {
-    /// The rasterized page, white-backed, RGBA.
+    /// The rasterized page, RGBA (premultiplied, as `tiny_skia` stores it).
+    ///
+    /// **White-backed by default** — every pixel opaque — and see-through
+    /// where nothing was painted when the render asked for
+    /// [`PageBackdrop::Transparent`] (`Pass 248.0`). Which one this is
+    /// follows from the [`RenderOptions`] the caller passed; the struct
+    /// does not repeat it, because a copy of an input is a second place
+    /// for the fact to go stale.
     pub pixmap: Pixmap,
     /// What was NOT fully rendered (module docs).
     pub diagnostics: Diagnostics,
@@ -802,14 +810,31 @@ fn render_impl(
         let probe_cmyk = options
             .ink_probe
             .map(|(px, py)| probe_ink_from_buffer(&buffer, px, py, width, height));
-        if let Some(collapsed) = buffer.to_srgb_over_white() {
+        // §11.4.7's media composite, or — for an export that keeps the
+        // page's transparency (`Pass 248.0`) — the same conversion with the
+        // group's own alpha carried through instead of resolved against
+        // paper. Two sibling collapses rather than one with a flag, because
+        // the transparent one must never contain the `1 − a` term and a
+        // shared body with a branch inside its pixel loop is where that
+        // term would creep back in.
+        let collapsed = match options.backdrop {
+            PageBackdrop::White => buffer.to_srgb_over_white(),
+            PageBackdrop::Transparent => buffer.to_srgb_transparent(),
+        };
+        if let Some(collapsed) = collapsed {
             pixmap = collapsed;
-        } else {
+        } else if options.backdrop == PageBackdrop::White {
             flatten_page_group_over_white(&mut pixmap);
         }
         diagnostics.ink_probe = probe_cmyk;
     } else {
-        flatten_page_group_over_white(&mut pixmap);
+        // `Transparent` is the ONE-LINE case on the additive path: the
+        // group already holds `(Cg·αg, αg)`, so keeping the page's
+        // transparency is declining to add the paper. See
+        // `RenderOptions::backdrop`.
+        if options.backdrop == PageBackdrop::White {
+            flatten_page_group_over_white(&mut pixmap);
+        }
         diagnostics.ink_probe = options
             .ink_probe
             .map(|(px, py)| probe_ink_screen(px, py, width, height));

@@ -2744,6 +2744,57 @@ impl CmykBuffer {
         Some(out)
     }
 
+    /// Collapse the group to sRGB **keeping its own alpha** — the
+    /// [`Self::to_srgb_over_white`] conversion with §11.4.7's media
+    /// composite left out (`Pass 248.0`, [`crate::PageBackdrop::Transparent`]).
+    ///
+    /// # Why a sibling and not a flag on the function above
+    ///
+    /// The two differ in exactly one term — `(1 − a)·W` — and that term is
+    /// the whole defect an export-with-transparency must not contain. A
+    /// shared pixel loop with `if transparent` inside it would put the
+    /// term one refactor away from being applied on both branches; two
+    /// functions whose bodies can be diffed cannot drift that way.
+    ///
+    /// # What the pixel holds
+    ///
+    /// The `Pixmap` is premultiplied, so the stored colour is `Cg·αg` where
+    /// `Cg` is the ink converted through the same intent and spot fold as
+    /// the opaque path (steps one and one-and-a-half there). A downstream
+    /// PNG writer demultiplies. For a pixel with `αg = 0` the colour is
+    /// zero, which is the only premultiplied value a transparent pixel can
+    /// legally hold.
+    ///
+    /// # Returns
+    ///
+    /// `None` on the same allocation failure as [`Self::to_srgb_over_white`].
+    pub(crate) fn to_srgb_transparent(&self) -> Option<Pixmap> {
+        let mut out = Pixmap::new(self.width, self.height)?;
+        let dst = out.pixels_mut();
+        for (idx, slot) in dst.iter_mut().enumerate() {
+            let a = self.alpha[idx].clamp(0.0, 1.0);
+            let rgb = pdfcer_core::color::cmyk_to_srgb_with(
+                self.intent,
+                self.planes[0][idx],
+                self.planes[1][idx],
+                self.planes[2][idx],
+                self.planes[3][idx],
+            );
+            let rgb = self.fold_spots_srgb(idx, rgb);
+            // Premultiply, and NOTHING else: no white, no `1 − a`.
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let q = |v: f32| (v.clamp(0.0, 1.0) * a * 255.0).round() as u8;
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let alpha = (a * 255.0).round() as u8;
+            if let Some(px) =
+                tiny_skia::PremultipliedColorU8::from_rgba(q(rgb[0]), q(rgb[1]), q(rgb[2]), alpha)
+            {
+                *slot = px;
+            }
+        }
+        Some(out)
+    }
+
     /// Fold this pixel's spot colorants into an already-converted process
     /// colour — **ISO 32000-2:2020 §10.8.3, "Separation simulation"**.
     ///
