@@ -1,5 +1,13 @@
 # `pdfce-core` consumer API, part 2 — editing and saving
 
+> **★ `crates/pdfce-gui/...` citations.** That crate was removed from this
+> workspace in `Pass 247.0`. Every `pdfce@cce414e:crates/pdfce-gui/...`
+> reference below is a *reference implementation* frozen at the last commit
+> that carried it — read it with
+> `git -C D:\Dev\pdfce show cce414e:crates/pdfce-gui/src/<file>` (the
+> untouched backup repository) or on GitHub at `KenM76/pdfce`. The shipping
+> GUI is the separate `pdfcer-gui` project.
+
 **Audience:** an engineer or agent building a NEW GUI shell (`D:\dev\pdfceGUI`)
 against `pdfce-core`, in a session that cannot ask questions here.
 **This is not rustdoc.** Rustdoc answers *"what does this function do."* This
@@ -3294,7 +3302,7 @@ assert_only_the_named_objects_changed(&base, &out, &[ObjId::new(4, 0)]);
 ```
 
 **Atomic write is the shell's job.** `pdfce-gui` writes to a temp file in the
-destination directory and renames (`crates/pdfce-gui/src/main.rs:5082-5112`);
+destination directory and renames (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:5082-5112`);
 nothing in `pdfce-core` does this for you.
 
 ### 2.2 There is no round trip back to `Document` — and you do not need one
@@ -3309,7 +3317,7 @@ lines — the definition (`edit.rs:3399`) and one doc cross-reference
 expecting "finish editing and hand back the document."
 
 `pdfce-gui` holds one `EditSession` for the life of the open document
-(constructed at `crates/pdfce-gui/src/main.rs:4855`, `:4928`; owned by `OpenDoc`)
+(constructed at `pdfce@cce414e:crates/pdfce-gui/src/main.rs:4855`, `:4928`; owned by `OpenDoc`)
 and never converts back. Three read views (§2.3) make conversion unnecessary.
 
 The two idioms that genuinely produce a `Document` again:
@@ -3328,7 +3336,7 @@ assert_eq!(String::from_utf8_lossy(&twice).matches("%%EOF").count(), 3);
 **(b) The "materialise" idiom** — `to_full_bytes` → `Document::from_bytes` →
 further processing. Needed when a core API takes `&Document` but the operator's
 edits are still in the overlay. The **only** occurrence in the repo is
-redaction-apply (`crates/pdfce-gui/src/redact_apply.rs:279-296`): unsaved
+redaction-apply (`pdfce@cce414e:crates/pdfce-gui/src/redact_apply.rs:279-296`): unsaved
 `/Redact` marks are invisible to `redact::apply_redactions(&Document)`, so the
 session is materialised first. Note it uses `to_full_bytes` — a materialise
 step under incremental save would carry the prior revision forward into the
@@ -3636,8 +3644,8 @@ recoverable, and **only the shell can prevent it**:
 *"flatten saved incrementally — the pre-flatten field values remain recoverable
 in the prior revision"* (`crates/pdfce-cli/src/main.rs:10344-10356`).
 `pdfce-gui`'s save dialog **always** calls `to_incremental_bytes`
-(`crates/pdfce-gui/src/main.rs:5095-5097`); its only full-rewrite path is
-redaction-apply (`crates/pdfce-gui/src/redact_apply.rs:279-284`, module doc:
+(`pdfce@cce414e:crates/pdfce-gui/src/main.rs:5095-5097`); its only full-rewrite path is
+redaction-apply (`pdfce@cce414e:crates/pdfce-gui/src/redact_apply.rs:279-284`, module doc:
 *"There is deliberately no `to_incremental_bytes` call anywhere in…"*).
 
 A new shell may reasonably do better than that — a "remove permanently"
@@ -3695,7 +3703,7 @@ worth carrying:
   (`linearization.rs:110`, `:274-286`).
 
 There is **no session-level save outcome type**. `SaveOutcome` exists but is
-private to `pdfce-gui` (`crates/pdfce-gui/src/main.rs:1411`). `WriteReport`:
+private to `pdfce-gui` (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:1411`). `WriteReport`:
 **NOT FOUND** anywhere in the workspace. A new shell will want its own.
 
 ---
@@ -3882,11 +3890,11 @@ siblings, not a sequence: the marking verb runs its own scan through the shared
 `scan_text_matches` (`edit.rs:11679`). They also **disagree on query
 semantics** (trap T-05), so feeding one's results to the other is wrong, not
 merely redundant. `pdfce-gui` keeps `find_matches` separate from the Find bar
-(`crates/pdfce-gui/src/main.rs:9812`, `:9932`) and never feeds them in.
+(`pdfce@cce414e:crates/pdfce-gui/src/main.rs:9812`, `:9932`) and never feeds them in.
 
 **Required — mark → materialise → apply, for redaction.**
 `prepare_redaction_apply` refuses with `NothingToApply` when no mark exists
-(`crates/pdfce-gui/src/redact_apply.rs:275-277`), and reads the census from
+(`pdfce@cce414e:crates/pdfce-gui/src/redact_apply.rs:275-277`), and reads the census from
 `session.graph()` (the edited view) rather than `session.document()` — the
 unsaved-mark trap, `redact_apply.rs:272-274`.
 

@@ -13,7 +13,7 @@
 - [Decision 012 supplied fonts](project_decision012_supplied_fonts.md) — first cut shipped (render/CLI/GUI); R61–R65 collide with existing R61 (renumber before filing); GlyphSource migration; skrifa face-name API
 - [Decision 013 Pass B xref recovery](project_decision013_pass_b_xref_recovery.md) — rebuild-by-scan shipped; 566/1109 real-world converted, 0 regressions; standing-rule ~R62 flag; gen-65536 recover-anyway deviation flagged
 - [Run the project's own gates](feedback_run_the_projects_own_gates.md) — fmt/clippy/tests is NOT the full set; check-ui-strings.sh + check-ledger-numbers.py are gates too
-- [GUI diag harness](reference_gui_diag_harness.md) — PDFCE_DIAG/_SCRIPT/_VIEWPORT drive + trace pdfce-gui headlessly; note: it drives the RELEASE binary
+- [GUI diag harness](reference_gui_diag_harness.md) — GONE with the GUI crate in Pass 247.0; lessons (two window sizes, 45 idle frames) still apply to pdfcer-gui's harness
 - [No oracle? extract and test](feedback_no_oracle_extract_and_test.md) — a GUI rule the harness can't reach becomes a pure function + tests, and the substitution is stated, not glossed
 - [CAD exports are one object per view](project_cad_export_structure.md) — SolidWorks emits a whole view as ONE path with 1194 subpaths; sub-object selection is required, not a refinement
 - [Engineer does the observing](feedback_engineer_does_the_observing.md) — Ken won't beta-test; verify operator-facing behavior in the running app yourself, never stall waiting on him
@@ -34,7 +34,7 @@
 - [Rungs: click-out commits, and the three-rung ladder](project_rung_ladder_state.md) — 2026-08-05: Passes 34.0/36.0/36.1/36.2 shipped; what commits implicitly and what still doesn't
 - [Screenshot when the question is visual](feedback_screenshot_when_the_question_is_visual.md) — `drawn=true` in a trace hid a 680px coordinate-space bug; use gui-shot.ps1 for "I can't see X"
 - [Design system + the Acrobat-GUI rule conflict](project_design_system_and_rule12_conflict.md) — UI_PREFERENCES.md is at the REPO ROOT not docs/ (twice misread as missing); chrome theme-aware vs overlay theme-INVARIANT; handoff vs rule 12
-- [GUI work paused + column re-based](project_gui_work_paused.md) — in-repo GUI is being REMOVED; from 2026-08-19 FEATURES.md's gui column tracks D:\dev\pdfceGUI, not crates/pdfce-gui
+- [GUI work paused + column re-based](project_gui_work_paused.md) — in-repo GUI REMOVED 2026-09-03 (Pass 247.0); FEATURES.md's gui column tracks D:\dev\pdfcer-gui
 - [pdfceGUI request channel](project_gui_request_channel.md) — CHECK D:\Dev\FeatureRequests\pdfce_FeatureRequests EVERY SESSION; requests from the new GUI project land there
 - [No provisional marking](feedback_no_provisional_marking.md) — Ken 2026-08-13: inferred content renders NORMALLY, Save commits, disclosure goes off-canvas; marking = a second render path that drifts
 - [Wrapped string literals lose backslashes](feedback_wrapped_string_literals_lose_backslashes.md) — patching them via heredoc ships error messages with 10-space gaps; grep for it, nothing else catches it
@@ -92,3 +92,4 @@
 - [A measured negative can measure a defect](feedback_a_measured_negative_can_measure_a_defect.md) — a prior session's "3x worse, refused" measured raw samples written as ink; probe the intermediate before believing a refusal
 - [A chore commit between two filings is unfiled](feedback_a_chore_commit_between_two_filings_is_unfiled.md) — run check-commits-filed.py before EVERY push; the version bump slipped past two dispatches and CI went red
 - [A byte-level test cannot see a black block](feedback_a_byte_level_test_cannot_see_a_black_block.md) — 22 green redaction tests agreed with a black block inside a transparent mark; assert visual properties on a raster in pdfce-render/tests
+- [The fork: pdfce → pdfcer](project_fork_pdfcer.md) — 2026-09-03: work in D:\Dev\pdfcer (a clone); D:\Dev\pdfce is the untouched backup; 247.1 rename and 247.2 publish follow

@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-  <!-- Generic scissors/cut shape — placeholder, not a vendor trademark logo -->
-  <circle cx="14" cy="14" r="5" stroke="currentColor" stroke-width="2.5"/>
-  <circle cx="14" cy="34" r="5" stroke="currentColor" stroke-width="2.5"/>
-  <path d="M18 17l22 16M18 31L40 15" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>

@@ -52,8 +52,9 @@ anything here is complete.
 
 The **[latest release](https://github.com/KenM76/pdfce/releases/latest)**
 is a single-folder portable build for Windows x64. No installer, no
-registry writes: unzip it and run `pdfce-gui.exe`, or `pdfce-cli.exe` for
-the scriptable side.
+registry writes: unzip it and run `pdfce-cli.exe`. The desktop GUI is the
+separate [pdfcer-gui](https://github.com/KenM76/pdfcer-gui) project, which
+builds on this engine and ships its own releases.
 
 <!--
   ★ THE VERSION NUMBER IS DELIBERATELY NOT WRITTEN HERE.
@@ -105,25 +106,28 @@ the scriptable side.
 ## Building
 
 ```sh
-cargo build --release          # both binaries
-cargo run --release -p pdfce-gui -- path/to/file.pdf
+cargo build --release
 cargo run --release -p pdfce-cli -- --help
 ```
 
 Rust toolchain version is pinned in `rust-toolchain.toml`. There are no
-system dependencies to install; the GUI uses a software/OpenGL backend
-rather than requiring a Vulkan/DX12 stack.
+system dependencies to install.
 
 ## Design
 
-Four crates, and the split is load-bearing rather than cosmetic:
+The engine crates, and the split is load-bearing rather than cosmetic:
 
 | Crate | Role |
 |---|---|
 | `pdfce-core` | The PDF engine — parsing, the object model, editing, writing. **Zero GUI or windowing dependencies.** |
 | `pdfce-render` | Headless rasterizer. Also zero GUI dependencies. |
 | `pdfce-cli` | The scriptable shell. |
-| `pdfce-gui` | The desktop application (egui/eframe). |
+
+The desktop application is **not** in this repository. The original in-repo
+GUI crate was removed in Pass 247.0 (2026-09-03); the shipping GUI is the
+separate `pdfcer-gui` project, which depends on `pdfce-core` and
+`pdfce-render` exactly as `pdfce-cli` does — two independent front ends
+over one engine.
 
 Two invariants shape most decisions:
 

@@ -1,8 +1,10 @@
 //! # Signature *presence* detection and change-impact classification
 //!
-//! **This module verifies nothing.** It computes no digest, parses no
-//! PKCS#7 blob, and validates no certificate chain — all of that is the
-//! Digital-signatures Pass. What it does is answer the one question a
+//! **This module verifies nothing itself.** It computes no digest, parses no
+//! PKCS#7 blob, and validates no certificate chain — integrity and coverage
+//! verification is the sibling `signature_verify` module (`Pass 10.1`),
+//! re-exported below as `verify`/`verify_all`; trust (chain, revocation,
+//! time) is checked by nothing yet. What this file does is answer the one question a
 //! structural editor must answer *before* it writes: **what will this
 //! save do to the signatures already in this document?**
 //!
@@ -142,7 +144,7 @@
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, Name, ObjId, Object};
 
-// The verification stage (`Pass 10.2`) lives in its own module; it is
+// The verification stage (`Pass 10.1`) lives in its own module; it is
 // re-exported here so `signature::verify` is the path a consumer reaches
 // for, beside the census and coverage this file already answers.
 pub use crate::signature_verify::{Integrity, SignatureVerdict, Trust, verify, verify_all};

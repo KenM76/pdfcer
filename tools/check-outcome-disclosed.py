@@ -45,7 +45,11 @@ structs an API fills and hands to a CALLER.
 WHAT COUNTS AS A CONSUMER
 =========================
 
-A read, in a SHELL — `crates/pdfce-cli/src` or `crates/pdfce-gui/src`.
+A read, in a SHELL — `crates/pdfce-cli/src`. (Until Pass 247.0 the in-repo
+GUI crate was the second shell scanned; it is gone, and the separate
+pdfcer-gui project is not on this disk's tree, so the CLI is the ONLY shell
+this gate can see. A field the CLI does not surface is therefore a
+disclosure this repository cannot prove happens anywhere.)
 Deliberately not `crates/pdfce-core`: core's own tests read outcome fields
 constantly (`assert_eq!(out.pages_merged, 2)`), and a round trip through a test
 proves the field is computed, not that anybody is told. The obligation is to
@@ -191,7 +195,6 @@ EXEMPT: dict[str, str] = {
 
 CONSUMER_ROOTS = [
     ROOT / "crates" / "pdfce-cli" / "src",
-    ROOT / "crates" / "pdfce-gui" / "src",
 ]
 
 

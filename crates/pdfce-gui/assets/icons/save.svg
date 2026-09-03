@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-  <!-- Generic save/file-with-cut-corner shape — generic, no trademark risk -->
-  <!-- ui-spec §3.1 "save": rounded-rect body (rx=2, matching document.svg) with an
-       8x8 diagonal cut at the SAME top-right corner the page-fold motif uses, plus a
-       single horizontal "label slot" bar at 2/3 height (y=26). Deliberately NOT
-       upload/download art — that pair stays reserved for import/export. -->
-  <path d="M8 10a2 2 0 0 1 2-2h22l8 8v22a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2z" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
-  <path d="M15 26h18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-</svg>

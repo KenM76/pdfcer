@@ -101,8 +101,6 @@ LOCAL = {
     "cargo test -p pdfce-core --no-default-features": (
         "cargo test -p pdfce-core --no-default-features"
     ),
-    "tools/check-ui-strings.sh": "bash tools/check-ui-strings.sh",
-    "tools/check-disclosure-channel.sh": "bash tools/check-disclosure-channel.sh",
     "tools/check-outcome-disclosed.py": "python tools/check-outcome-disclosed.py",
     "tools/check-commits-filed.py": "python tools/check-commits-filed.py",
     "tools/check-bypass-paths.sh": "bash tools/check-bypass-paths.sh",
@@ -119,7 +117,6 @@ LOCAL = {
     "tools/check-control-bytes.py": "python tools/check-control-bytes.py",
     "tools/check-string-gaps.sh": "bash tools/check-string-gaps.sh",
     "tools/check-public-fns-documented.py": "python tools/check-public-fns-documented.py",
-    "tools/check-theme-colors.sh": "bash tools/check-theme-colors.sh",
     "tools/check-cited-commits-exist.py": "python tools/check-cited-commits-exist.py",
     "tools/check-ci-parity.py": "python tools/check-ci-parity.py",
     "tools/check-ci-job-names.py": "python tools/check-ci-job-names.py",

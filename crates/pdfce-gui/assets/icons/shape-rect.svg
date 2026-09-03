@@ -1,5 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-  <!-- Generic rectangle shape — generic, no trademark risk -->
-  <!-- ui-spec §3.3: a plain outlined square, x=12 y=12 w=24 h=24 rx=1. -->
-  <rect x="12" y="12" width="24" height="24" rx="1" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
-</svg>

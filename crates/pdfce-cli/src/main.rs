@@ -14818,8 +14818,8 @@ fn cmd_list_signatures(input: &Path) -> u8 {
 
     println!(
         "list-signatures {} signatures={} certifications={} with_byte_range={} \
-         (COVERAGE ONLY — pdfce performs no cryptographic verification, so this says \
-         what each signature would protect, never whether it is valid)",
+         (COVERAGE ONLY — this says what each signature would protect, never \
+         whether it is valid; run verify-signatures for integrity)",
         input.display(),
         census.signatures,
         census.certifications,

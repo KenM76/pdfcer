@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-  <!-- Generic magnifier shape — generic, no trademark risk -->
-  <!-- ui-spec §3.1 "magnifier±", the plus twin of zoom-out.svg. -->
-  <circle cx="21" cy="21" r="13" stroke="currentColor" stroke-width="2.5"/>
-  <path d="M30 30l9 9" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-  <path d="M15 21h12M21 15v12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-</svg>

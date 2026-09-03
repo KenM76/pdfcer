@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-  <!-- Generic upload shape — placeholder, not a vendor trademark logo -->
-  <path d="M9 31v8h30v-8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M24 38V16" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-  <path d="M15 25l9-9 9 9" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>

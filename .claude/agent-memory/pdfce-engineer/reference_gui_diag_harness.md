@@ -1,9 +1,13 @@
 ---
 name: gui-diag-harness
-description: pdfce-gui can be driven and traced headlessly via PDFCE_DIAG / PDFCE_DIAG_SCRIPT / PDFCE_DIAG_VIEWPORT — use this to settle GUI defects instead of guessing or grabbing Ken's screen
+description: GONE since Pass 247.0 (2026-09-03) — the in-repo GUI crate and its PDFCE_DIAG harness left with it; GUI defects are pdfcer-gui's, driven by that project's own harness
 metadata:
   type: reference
 ---
+
+**REMOVED in Pass 247.0 (2026-09-03)** with `crates/pdfce-gui`. Readable at
+`git -C D:\Dev\pdfce show cce414e:crates/pdfce-gui/src/diag.rs` if pdfcer-gui
+ever wants the design. Kept for the lessons (two window sizes, 45 idle frames).
 
 `crates/pdfce-gui/src/diag.rs` + `tools/gui-drive.ps1` + `tools/gui-shot.ps1`
 (built 2026-08-04). Three environment variables, all off by default:

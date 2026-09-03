@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-  <!-- Generic sticky-note shape — generic, no trademark risk -->
-  <!-- ui-spec §3.3: a smaller square with a folded BOTTOM-RIGHT corner — the literal
-       sticky-note silhouette. The fold is at the bottom-right, not the top-right, so
-       it never reads as text.svg's page fold. -->
-  <path d="M13 13h22v16l-6 6H13z" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
-  <path d="M35 29h-6v6" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
-</svg>

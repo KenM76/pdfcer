@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-  <!-- Generic shapes/markup-tools shape — generic, no trademark risk -->
-  <!-- ui-spec §3.1 "shapes": a square overlapping a circle, offset by roughly a
-       third. Draws on the same square-plus-circle vocabulary the menu's own rows use
-       (shape-rect.svg / shape-ellipse.svg), so the closed menu button previews what
-       the open menu contains. -->
-  <rect x="10" y="10" width="18" height="18" rx="1" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
-  <circle cx="30" cy="30" r="11" stroke="currentColor" stroke-width="2.5"/>
-</svg>

@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-  <!-- Generic comment/speech-balloon shape — generic, no trademark risk -->
-  <!-- ui-spec §3.1 "comment-bubble": rounded balloon (rx=8) with an angular tail at
-       the bottom-left and TWO short text lines inside, so it reads as "text inside a
-       comment" rather than an empty balloon. -->
-  <rect x="8" y="9" width="32" height="22" rx="8" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
-  <path d="M17 30l-3 9 10-8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M16 17h16M16 23h10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-</svg>

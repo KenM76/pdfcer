@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-  <!-- Generic sidebar/split-pane shape — generic, no trademark risk -->
-  <!-- ui-spec §3.1 "sidebar": window frame (matching window.svg's rect) with ONE
-       vertical divider at x=18 — a narrow left pane + wide right pane. The divider
-       is vertical, unlike window.svg's horizontal title bar, so the two never read
-       as the same concept. -->
-  <rect x="6" y="8" width="36" height="32" rx="2" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
-  <path d="M18 8v32" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-</svg>

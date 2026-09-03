@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-  <!-- Generic text-cursor-with-plus shape — generic, no trademark risk -->
-  <!-- ui-spec §3.1 "text-cursor-plus": an I-beam insertion cursor with a small plus
-       badge. Pairs with edit.svg's pencil as "the page-text family": a pencil modifies
-       marks already on the page, a text cursor with a plus creates new ones. -->
-  <path d="M14 10h10M14 38h10M19 10v28" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-  <path d="M32 12v10M27 17h10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-</svg>

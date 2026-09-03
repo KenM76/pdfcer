@@ -1,5 +1,13 @@
 # pdfce-core consumer API — Part 3: the feature capabilities
 
+> **★ `crates/pdfce-gui/...` citations.** That crate was removed from this
+> workspace in `Pass 247.0`. Every `pdfce@cce414e:crates/pdfce-gui/...`
+> reference below is a *reference implementation* frozen at the last commit
+> that carried it — read it with
+> `git -C D:\Dev\pdfce show cce414e:crates/pdfce-gui/src/<file>` (the
+> untouched backup repository) or on GitHub at `KenM76/pdfce`. The shipping
+> GUI is the separate `pdfcer-gui` project.
+
 **Audience.** An engineer or agent building a new GUI shell at
 `D:\dev\pdfceGUI` against this workspace's crates, in a different session,
 with no way to ask questions here. This is not rustdoc. It answers one
@@ -270,7 +278,7 @@ fn calibrate_and_dimension(bytes: Vec<u8>) -> Result<Vec<u8>, Box<dyn std::error
 ```
 
 **(b) Author from two picked lines, with the disclosure the gesture owes.**
-Mirrors `crates/pdfce-gui/src/measure_tool.rs:459-469`.
+Mirrors `pdfce@cce414e:crates/pdfce-gui/src/measure_tool.rs:459-469`.
 
 ```rust
 use pdfce_core::dimension::{
@@ -760,7 +768,7 @@ let out = session.flatten_fields(Some(&["Personal.Address.Zip", "Personal.Addres
 ```
 
 **(c) Script recompute — plan, show, then apply.** The borrow shape is
-load-bearing; copied from `crates/pdfce-gui/src/main.rs:8014-8021` and
+load-bearing; copied from `pdfce@cce414e:crates/pdfce-gui/src/main.rs:8014-8021` and
 `crates/pdfce-cli/src/main.rs:9712-9715`.
 
 ```rust
@@ -836,15 +844,15 @@ feature:
 6. **The calculation order may be pdfce's guess.** `RecomputePlan::order_source`
    with `is_pdfce_choice()` (`recompute.rs:95-124`) plus
    `unlisted_calculations`. The existing GUI renders it in the warning colour
-   (`crates/pdfce-gui/src/main.rs:7952-7957`).
+   (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:7952-7957`).
 7. **Blank and non-numeric operands were counted as ZERO**, not skipped —
    `RecomputePlan::coerced_operands()` (`recompute.rs:243-254`). `calc.rs:499-503`
    calls this *"the single most important behaviour in this module, because the
    intuitive reimplementation ('skip what isn't a number') is wrong."*
 8. **List the skipped fields BEFORE the proposed changes.** The existing GUI
-   does (`crates/pdfce-gui/src/main.rs:7957-7968`) and it is the right order:
+   does (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:7957-7968`) and it is the right order:
    what pdfce declined to compute matters more than what it did.
-9. **Never auto-run recompute on open** (`crates/pdfce-gui/src/main.rs:7930-7933`).
+9. **Never auto-run recompute on open** (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:7930-7933`).
 10. **`Field::has_additional_actions`** (`forms.rs:544-548`) — the value shown
     is *as stored*, possibly stale, because pdfce does not recompute `/CO`
     automatically. Badge the field.
@@ -1270,7 +1278,7 @@ fn comments(session: &EditSession, page_id: pdfce_core::object::ObjId) {
   update `/StructParent` / `/OBJR`** (`edit.rs:10779-10789`). Named gaps, not
   bugs.
 - **Widget annotations are not canvas-selectable** and cannot become so until
-  that work lands (`crates/pdfce-gui/src/main.rs:801`).
+  that work lands (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:801`).
 
 ---
 
@@ -1531,7 +1539,7 @@ provides `redact::apply_redactions` and *keeps the material* for a proof —
 grep"* (`redact.rs:317-319`). The proof itself is implemented in the **GUI
 crate**:
 
-`crates/pdfce-gui/src/redact_apply.rs`
+`pdfce@cce414e:crates/pdfce-gui/src/redact_apply.rs`
 
 | item | line |
 |---|---|
@@ -1583,7 +1591,7 @@ Empty query or pattern returns `Ok(vec![])`, not an error.
 `RedactSpec` is `annot_author.rs:908`: `quads: Vec<Quad>`,
 `fill: Option<Color>`, `overlay_text: Option<String>`, `quadding: Quadding`.
 A "whole page" mark is just `Quad::from_rect(page.crop_box)` — **CropBox, not
-MediaBox**, deliberately (`crates/pdfce-gui/src/main.rs:9881-9892`).
+MediaBox**, deliberately (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:9881-9892`).
 
 **Census (read-only, generic over `ObjectGraph`).**
 `redact::redaction_marks(graph) -> Vec<RedactionMark>` (`redact.rs:1822`) and
@@ -1723,7 +1731,7 @@ defect but a **security failure**. The cardinal rule, verbatim
    (`annot_author.rs:911-913`). A shell that fills the mark black has built
    the exact trap the feature exists to prevent.
 2. **A persistent, unmissable pending-marks warning.** Existing copy,
-   `crates/pdfce-gui/src/ui_text.rs:109-113`:
+   `pdfce@cce414e:crates/pdfce-gui/src/ui_text.rs:109-113`:
    *"⚠ {count} UNAPPLIED redaction mark(s) — this document is NOT redacted;
    its marked content is still present until you apply the redactions"*; and
    `:6927-6936` *"{count} pending redaction mark(s) — the content underneath
@@ -1763,7 +1771,7 @@ defect but a **security failure**. The cardinal rule, verbatim
    **total, not an overlap count** (`ui_text.rs:7212-7226`); an earlier draft
    mis-attributed it, and the correction is recorded as *"overstating
    collateral damage is a smaller sin than understating it, and still a lie."*
-9. **Friction on the confirm, deliberately** (`crates/pdfce-gui/src/main.rs:10146-10180`):
+9. **Friction on the confirm, deliberately** (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:10146-10180`):
    **no default-button binding (Enter cannot confirm), no keyboard shortcut to
    open or confirm**, the absence is stated on screen, and the confirm button
    is gated one frame behind the acknowledgement checkboxes.
@@ -1781,7 +1789,7 @@ defect but a **security failure**. The cardinal rule, verbatim
   (`redact.rs:1066-1070`), because an incremental save *"structurally
   preserves superseded content … the 'removed' text would sit in the saved
   file one `startxref` hop away, trivially recoverable by any parser that
-  walks `/Prev`"* (`crates/pdfce-gui/src/redact_apply.rs:22-28`).
+  walks `/Prev`"* (`pdfce@cce414e:crates/pdfce-gui/src/redact_apply.rs:22-28`).
 - **An image intersecting a region is DESTROYED, never clipped — and a mark
   over an undecodable image is RETAINED, not applied.** (`Pass 245.0`;
   before it, `RedactError::ImageRegion` refused the whole apply, and a shell
@@ -2180,7 +2188,7 @@ Specs: `NUpSpec { grid: NUpGrid, order: PageOrder, border, auto_rotate }`
 ### 6.2 Minimal worked sequences
 
 **(a) The canonical print pipeline.** Both existing shells follow it
-(`crates/pdfce-gui/src/print_flow.rs:637-702`, `:1793-1852`).
+(`pdfce@cce414e:crates/pdfce-gui/src/print_flow.rs:637-702`, `:1793-1852`).
 
 ```rust
 use pdfce_print::{
@@ -2388,7 +2396,7 @@ pdfce_render::render_page_with_view(
 `lib.rs:344`. Composition (`lib.rs:21-33`): translate the resolved **CropBox**
 to the origin → flip y and scale → apply `/Rotate` **clockwise** (the
 opposite sense to §8.3.3's CCW matrices), swapping width/height for 90°/270°.
-The GUI uses it for hit-testing (`crates/pdfce-gui/src/object_provider.rs:48`).
+The GUI uses it for hit-testing (`pdfce@cce414e:crates/pdfce-gui/src/object_provider.rs:48`).
 
 **Size guard:** `MAX_PIXMAP_EDGE = 16384` (`lib.rs:115`); zero or oversized
 gives `RenderError::BadRasterSize { width, height }` (`lib.rs:137`).
@@ -2619,7 +2627,7 @@ identically under wasm"* (`cancel.rs:3-8`). `new()` `:90`, `cancel()` `:100`
 **Thread-safety:** `pdfce-render` declares no `Send`/`Sync` bounds and
 contains no threading. `RenderCancel` is asserted `Send + Sync`
 (`cancel.rs:155-158`). **The threading model is entirely the shell's** —
-`crates/pdfce-gui/src/render_worker.rs` is the reference implementation:
+`pdfce@cce414e:crates/pdfce-gui/src/render_worker.rs` is the reference implementation:
 `RenderWorker` `:172`, `RenderRequest` `:199` (holds `Arc<EditSession>`),
 `spawn()` `:242`, `poll()` `:323` (never blocks), `cancel_and_wait()` `:387`,
 `Drop` cancels `:416`.
@@ -2652,7 +2660,7 @@ let rendered: RenderedPage = render_page_with(&doc, &page, 1.0, &options)?;
 ```
 
 **(b) Cancellable, off-thread** — the idiom from
-`crates/pdfce-gui/src/render_worker.rs:425-467`.
+`pdfce@cce414e:crates/pdfce-gui/src/render_worker.rs:425-467`.
 
 ```rust
 use pdfce_render::{RenderOptions, cancel::RenderCancel, render_page_with_view};
@@ -2707,7 +2715,7 @@ is expected to surface these; **they are not decoration**."*
 
 ### 7.6 Traps
 
-- **★ Premultiplied alpha.** `crates/pdfce-gui/src/raster.rs:1418-1424`:
+- **★ Premultiplied alpha.** `pdfce@cce414e:crates/pdfce-gui/src/raster.rs:1418-1424`:
   *"`tiny-skia` stores pixels PREMULTIPLIED, both egui constructors accept the
   bytes without complaint, and the wrong one silently darkens every antialiased
   glyph edge."* Use the premultiply-correct upload path, or demultiply
@@ -2740,7 +2748,7 @@ is expected to surface these; **they are not decoration**."*
 - **The default `AnnotationScope` differs between layers.**
   `RenderOptions::default()` is `DocumentAndMarkups` (`font/mod.rs:640-676`);
   the GUI's print dialog defaults to `Document` — Reader's default,
-  deliberately narrower (`crates/pdfce-gui/src/print_flow.rs:570`,
+  deliberately narrower (`pdfce@cce414e:crates/pdfce-gui/src/print_flow.rs:570`,
   `annot.rs:303-316`). Pick deliberately; do not inherit by accident.
 - **`RenderPolicy` is `PartialEq` but deliberately not `Eq`**
   (`font/mod.rs:605-609`) — `view_magnification` is an `f32`, and *"claiming

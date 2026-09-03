@@ -1,6 +1,6 @@
 # pdfce — Cargo workspace root (virtual manifest).
 #
-# This is the Pass 0 deliverable: the four-crate workspace documented in
+# This began as the Pass 0 deliverable: the four-crate workspace documented in
 # docs/ARCHITECTURE.md §3 and §7. It is a *virtual* manifest (no [package]
 # of its own) — the workspace is a container for the member crates, not a
 # crate itself.
@@ -13,8 +13,13 @@
 #                  pdfce-core. Still ZERO GUI/windowing deps (a CPU
 #                  rasterizer like tiny-skia is fine; a windowing crate
 #                  is not).
-#   pdfce-gui    — native egui/eframe desktop shell. The GUI binary.
-#                  Depends on pdfce-core + pdfce-render. GUI deps live HERE.
+#   (the desktop GUI is NOT in this workspace. The original in-repo
+#   `pdfce-gui` crate was removed in Pass 247.0 (decision 128, 2026-09-03);
+#   the shipping GUI is the separate `pdfcer-gui` project at
+#   D:\dev\pdfcer-gui, which depends on pdfce-core + pdfce-render by a
+#   git dependency on this repository. The removed crate is readable at
+#   `git show cce414e:crates/pdfce-gui/...` in the untouched backup
+#   repository D:\Dev\pdfce.)
 #   pdfce-cli    — command-line batch shell (clap). The CLI binary. Depends
 #                  on pdfce-core + pdfce-render, same ZERO-GUI-deps
 #                  discipline as pdfce-core/pdfce-render (see §7).
@@ -31,7 +36,6 @@ resolver = "3"
 members = [
     "crates/pdfce-core",
     "crates/pdfce-render",
-    "crates/pdfce-gui",
     "crates/pdfce-cli",
     "crates/pdfce-print",
     "crates/pdfce-fetch",
@@ -85,9 +89,10 @@ edition = "2024"
 # for this to be set at Pass 0, and to be re-checked against the candidate
 # dependencies "some of which could force pdfce's own MSRV higher than
 # expected." That is exactly what happened: the edition-2024 floor is 1.85,
-# but eframe 0.35 (our largest dependency, the egui application shell) needs
-# rustc 1.92, and with the MSRV-aware resolver a lower value would silently
-# pin egui/eframe several versions behind the current release. For a new app
+# but eframe 0.35 (then our largest dependency, the egui application shell;
+# gone with the GUI crate in Pass 247.0 — the floor is kept, not re-derived)
+# needed rustc 1.92, and with the MSRV-aware resolver a lower value would
+# silently pin egui/eframe several versions behind the release. For a new app
 # built on a pinned 1.97.1 toolchain there is no benefit to an artificially
 # low MSRV, so it is set from the real dependency floor. Bump deliberately
 # (dated decision-log entry) when a future dependency upgrade requires it.

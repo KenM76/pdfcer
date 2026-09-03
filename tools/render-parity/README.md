@@ -514,7 +514,7 @@ re-partitions every page. That is a decision, not a chore.
   BSD-3-Clause PDFium binary; relevant only to whoever *runs the harness*,
   never to a pdfce build or release — LEGAL §6.)
 - **GUI-core separation** is untouched — this is tooling, imports nothing
-  from `pdfce-gui`, and drives `pdfce-cli` (itself GUI-free) as a subprocess.
+  from the GUI shell, and drives `pdfce-cli` (itself GUI-free) as a subprocess.
 - **Determinism / locale-invariance** — files are sorted; DPI is fixed; no
   timestamps or clocks enter the report; both renderers are deterministic.
 

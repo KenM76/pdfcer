@@ -106,7 +106,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          for p in pdfce-cli pdfce-gui pdfce-render; do
+          for p in pdfce-cli pdfce-render; do
             if ! cargo tree -p $p -i hayro-jpeg2000 2>/dev/null | grep -q hayro-jpeg2000; then
               echo "::error::$p's DEFAULT build no longer contains hayro-jpeg2000 — it is missing a forwarding [features] block, so a capability was dropped silently (see pdfce-core/Cargo.toml)"
               exit 1
@@ -309,7 +309,7 @@ jobs:
   # and the COUNT is the part that decays, so the count is the part a gate
   # can falsify.
   audits:
-    name: repository audits (22 checks)
+    name: repository audits (19 checks)
     runs-on: ubuntu-latest
     steps:
       # ★ FULL HISTORY REQUIRED, and its absence was SILENT.
@@ -331,40 +331,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # Decision 002 rule R1: every operator-visible string in pdfce-gui
-      # lives in ui_text.rs. The rule now lives in tools/check-ui-strings.sh
-      # so it can be RUN LOCALLY before pushing — see that script's header
-      # for the exclusions and the reasoning behind each.
-      #
-      # This job was previously an inline grep that FAILED AT BASELINE on 140
-      # hits, and had for some time. A gate that cannot pass enforces nothing
-      # and teaches everyone who sees it red to ignore it — and in this case
-      # the noise was concealing a genuine violation (the Measure sub-tool
-      # names, drawn on the toolbar, living as bare literals in main.rs).
-      # 125 of the 140 were test assertion messages; three of the remainder
-      # were the regex misreading Rust, matching from one literal's closing
-      # quote to the next literal's opening quote.
-      - name: check that operator-visible strings live in ui_text.rs
-        run: bash tools/check-ui-strings.sh
+      # (The three gates that read ONLY the in-repo GUI crate —
+      # check-ui-strings.sh, check-disclosure-channel.sh and
+      # check-theme-colors.sh — were deleted with that crate in Pass 247.0.
+      # A gate over a directory that no longer exists fails for a locator
+      # reason, not a correctness one. The GUI is now the separate
+      # pdfcer-gui project and carries its own gates.)
 
-      # ARCHITECTURE.md 4.1(P): a field carrying a DISCLOSURE OBLIGATION is
-      # assigned only inside its own traced setter, so every note that
-      # reaches the operator also reaches the observation harness.
-      #
-      # Runs beside the string gate because it guards the same surface from
-      # the other side: R1 asks whether the words live where they can be
-      # reviewed; this asks whether they can be SEEN to have been said.
-      #
-      # The rule it enforces was broken at 34 sites and nobody noticed,
-      # because the failure mode of a disclosure channel with no trace is
-      # that "fired" and "never fired" look identical. See the script's
-      # header for how it was found.
-      - name: check the disclosure channel goes through its traced setter
-        run: bash tools/check-disclosure-channel.sh
-
-      # The THIRD side of the same surface. R1 asks whether the words live
-      # where they can be reviewed; the disclosure channel asks whether they
-      # can be SEEN to have been said; this asks whether they are said AT ALL.
+      # (Once the THIRD side of one surface: R1 asked whether the words live
+      # where they can be reviewed, the disclosure channel asked whether they
+      # can be SEEN to have been said — both GUI-only, both gone with the
+      # crate.) This asks whether outcome fields are said AT ALL.
       #
       # `pdfce-core` returns outcome structs whose fields exist solely to
       # discharge rule 4 -- what pdfce decided, inferred, renamed or dropped.
@@ -549,11 +526,6 @@ jobs:
       - name: check every public fn has a doc comment
         run: python tools/check-public-fns-documented.py
 
-      # Every colour in the GUI is a named role in theme.rs, so a theme change
-      # cannot leave one hard-coded literal behind at the wrong contrast.
-      - name: check every colour is a named theme role
-        run: bash tools/check-theme-colors.sh
-
       # Every command THIS FILE runs has a local story: covered by the gate
       # sweep, covered by a named local stand-in, or deliberately CI-only.
       #
@@ -696,8 +668,8 @@ jobs:
       - run: cargo check --workspace --exclude pdfce-fetch --target aarch64-apple-darwin
       # The web-fork invariant, checked positively rather than only by
       # the absence of GUI crates: pdfce-core + pdfce-render must stay
-      # WASM-compilable (ARCHITECTURE.md §3, §1). pdfce-gui/pdfce-cli are
-      # deliberately excluded — they are native shells.
+      # WASM-compilable (ARCHITECTURE.md §3, §1). pdfce-cli is
+      # deliberately excluded — it is a native shell.
       - run: cargo check -p pdfce-core -p pdfce-render --target wasm32-unknown-unknown
 
   no-network:
@@ -724,7 +696,7 @@ jobs:
       #             this has a SECOND independent justification: both
       #             crates must cross into the wasm32/web fork, where a
       #             native HTTP stack does not exist.
-      #   ALLOWED   pdfce-cli, pdfce-gui, tools/ -- the SHELLS. Operator-
+      #   ALLOWED   pdfce-cli, tools/ -- the SHELLS. Operator-
       #             initiated fetching (model downloads, updates,
       #             add-ins) is explicitly permitted.
       #

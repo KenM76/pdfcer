@@ -118,6 +118,22 @@ from pathlib import Path
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+# ★ Fields whose ONLY consumer is the desktop GUI, which since Pass 247.0
+# (decision 128) is the separate `pdfcer-gui` project and not on this tree.
+# This gate can scan only what is on disk under this repository, so a field
+# read exclusively by that shell now looks READ BY NOTHING. Rather than let
+# the gate go red on a promise that IS kept, each such field is listed here
+# with the out-of-tree reader that keeps it — a claim a reader can check with
+# one grep in the other project. An entry here is NOT an allowlist for a
+# dead setting: if the cited reader disappears, the entry is wrong and the
+# setting is dead, exactly as R83 describes.
+CONSUMED_BY_OUT_OF_TREE_GUI: dict[str, str] = {
+    "theme": (
+        "pdfcer-gui: crates/pdfcer-gui/src/app/frame.rs (`self.settings.theme`), "
+        "settings_window.rs (`Preset::from_key(&self.settings.theme)`)"
+    ),
+}
+
 
 ROOT = Path(__file__).resolve().parent.parent
 SETTINGS = ROOT / "crates" / "pdfce-core" / "src" / "settings" / "mod.rs"
@@ -125,7 +141,6 @@ SETTINGS = ROOT / "crates" / "pdfce-core" / "src" / "settings" / "mod.rs"
 # Where a setting may legitimately be consumed. The settings module itself
 # is excluded on purpose (see the module docstring).
 CONSUMER_ROOTS = [
-    ROOT / "crates" / "pdfce-gui" / "src",
     ROOT / "crates" / "pdfce-cli" / "src",
     ROOT / "crates" / "pdfce-render" / "src",
     ROOT / "crates" / "pdfce-core" / "src",
@@ -363,6 +378,12 @@ def main() -> int:
             for path, text in consumers.items()
             if pattern.search(text)
         )
+        if not readers and field in CONSUMED_BY_OUT_OF_TREE_GUI:
+            print(
+                f"settings-consumed: `{field}` has no in-tree reader; consumed "
+                f"out of tree by {CONSUMED_BY_OUT_OF_TREE_GUI[field]}"
+            )
+            continue
         if not readers:
             problems.append(
                 f"`{field}` is parsed and written but READ BY NOTHING. "

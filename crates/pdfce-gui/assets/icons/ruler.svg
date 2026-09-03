@@ -1,5 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-  <!-- Generic ruler/measure shape — placeholder, not a vendor trademark logo -->
-  <rect x="6" y="18" width="36" height="12" rx="2" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
-  <path d="M14 18v6M21 18v9M28 18v6M35 18v9" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-</svg>

@@ -23,6 +23,14 @@
 > source file changed between the two, only `docs/`. Every `file:line`
 > below is therefore valid at `6c5124c`.)
 >
+> **★ `crates/pdfce-gui/...` citations.** That crate was removed from this
+> workspace in `Pass 247.0`. Every `pdfce@cce414e:crates/pdfce-gui/...`
+> reference below is a *reference implementation* frozen at the last commit
+> that carried it — read it with
+> `git -C D:\Dev\pdfce show cce414e:crates/pdfce-gui/src/<file>` (the
+> untouched backup repository) or on GitHub at `KenM76/pdfce`. The shipping
+> GUI is the separate `pdfcer-gui` project.
+>
 > **Audience.** An engineer or agent building a new GUI shell at
 > `D:\dev\pdfceGUI` against this crate, in a different session, with no
 > ability to ask questions here. Rustdoc already exists and is good; this
@@ -1909,7 +1917,7 @@ render/GUI boundary."*
   into page units and passes it here)."* Pass raw screen pixels and your
   hit-testing silently gets more forgiving as the user zooms out and
   unusably tight as they zoom in. The existing shell converts at the call
-  site (`pdfce-gui/src/canvas.rs`'s `screen_tolerance_to_page`); a new shell
+  site (`pdfce@cce414e:crates/pdfce-gui/src/canvas.rs`'s `screen_tolerance_to_page`); a new shell
   must implement the same conversion itself.
 - **T-10.2 `v` and `y` operators have implicit control points.**
   `geometry.rs:429-440`: `cubic_from_v`'s *"first control point is the

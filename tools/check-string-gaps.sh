@@ -228,7 +228,7 @@ scan() {
                 # diagnostic prefix is a sentence an operator reads, never an
                 # aligned report column. Measured tree-wide before widening:
                 # 1 finding, the defect.
-                cli = (index(code, "\"pdfce-cli: ") || index(code, "\"pdfce-gui: "))
+                cli = index(code, "\"pdfce-cli: ")
                 prose = (in_error || was_error || cli)
                 if (in_error && index(code, ")]")) in_error = 0
 

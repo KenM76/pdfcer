@@ -26,7 +26,6 @@ load-bearing invariant.
 | **`pdfce-core`** | ~143,000 | The PDF engine. Object model, tokenizer, cross-reference parsing, incremental writer, filters, fonts, colour, encryption, forms, redaction, editing. Knows nothing about screens. |
 | **`pdfce-render`** | ~20,000 | The headless rasterizer. Turns a page into pixels. Runs with no window and no GPU. |
 | **`pdfce-print`** | ~5,100 | Printer discovery, device capabilities, page placement on a sheet, imposition (n-up, booklet, poster), and spooling. The only crate with platform-specific code. |
-| **`pdfce-gui`** | ~57,000 | The desktop application. Everything you see. |
 | **`pdfce-cli`** | ~18,000 | The command-line tool. Every batch operation, scriptable. |
 
 ### Why the split matters
@@ -40,8 +39,10 @@ Two things fall out of that. The engine is testable without a screen, which
 is why the whole suite — ~3,350 tests — runs in about a minute on a
 desktop, with no display and no printer needed for the vast majority of
 it. And a future web version is a
-*shell swap* — replace `pdfce-gui` with a WASM front end and the other four
-crates come along unchanged — rather than a rewrite.
+*shell swap* — a WASM front end over the same crates — rather than a
+rewrite. (The desktop GUI is exactly such a shell: the separate
+`pdfcer-gui` project, which depends on this workspace and is not part of
+it. The original in-repo `pdfce-gui` crate was removed in Pass 247.0.)
 
 `pdfce-cli` is held to the same rule, which is why the CLI is a real
 first-class tool rather than a debug harness bolted onto the GUI.
@@ -129,17 +130,13 @@ could not see the dependency for six days after it landed — see
 |---|---|---|
 | `clap` | MIT OR Apache-2.0 | Argument parsing, subcommands, `--help` text, shell completions. |
 
-### `pdfce-gui` — the desktop app
+### The desktop app — not here
 
-| Package | Licence | What it does for pdfce |
-|---|---|---|
-| `eframe` | MIT OR Apache-2.0 | The application framework around **egui**, the immediate-mode UI toolkit. Owns the window, the event loop and the OpenGL backend. `accesskit` is enabled, which exposes a native accessibility tree to screen readers. |
-| `egui_tiles` | MIT OR Apache-2.0 | The **docking system** — the draggable, splittable, tabbed panel layout. |
-| `rfd` | MIT | Native **file open/save dialogs**, so pdfce uses the real system picker rather than drawing its own. |
-
-Everything else in the GUI's tree is transitive — pulled in by `eframe`
-rather than chosen. `moxcms` (colour management) and `image`, for example,
-arrive via `eframe`'s clipboard support, not because pdfce asked for them.
+The GUI is the separate `pdfcer-gui` project and carries its own dependency
+record. Nothing in this workspace depends on `egui`, `eframe`, `winit` or
+`wgpu` — CI asserts it on every push, and `THIRD_PARTY_LICENSES.md` no
+longer lists them. (Before Pass 247.0 an in-repo `pdfce-gui` crate pulled
+`eframe`, `egui_tiles` and `rfd`; that crate is gone.)
 
 ---
 
@@ -216,6 +213,18 @@ inspection — all pdfce's own code. This is the ~143,000 lines of
 `FlateDecode` and `LZWDecode` use `flate2` and `weezl` — the compression
 itself is standard and well-served; only the PDF-specific parts around it
 are ours.
+
+### Signature verification — read-only arithmetic, in-crate
+
+`Pass 10.1` (decision 129) added six modules with no new dependency:
+`asn1` (DER), `cms` (RFC 5652 `SignedData` + RFC 5280 X.509 subset),
+`crypto::bignum`, `crypto::rsa` (PKCS#1 v1.5 and PSS verification),
+`crypto::ecdsa` (P-256/P-384) and `crypto::sha1`, consumed by
+`signature_verify`. The argument is the MD5 one, not the AES one: a
+*verifier* holds no secret, so constant-time discipline and the audit
+surface that justify a dependency for a cipher or a signer do not apply.
+A **signing** implementation would hold a private key and takes the
+audited dependency — that decision is deliberately not made here.
 
 ### Cryptography — the deliberate split
 

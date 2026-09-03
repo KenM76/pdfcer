@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-  <!-- Generic copy/duplicate shape — generic, no trademark risk -->
-  <!-- ui-spec §3.1 "copy": two overlapping rounded rects, offset diagonally like a
-       stack of two note cards. Outline only, both stroked, no fill. -->
-  <rect x="10" y="13" width="20" height="24" rx="2" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
-  <rect x="18" y="8" width="20" height="24" rx="2" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
-</svg>
