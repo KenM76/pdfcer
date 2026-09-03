@@ -90277,6 +90277,62 @@ dispatch's stated "last known" exactly.
   followed it, and that cycle is also closed — `v0.29.1` is live, green,
   and deployed.
 
+## 2026-09-03 (407th filing) — roadmap update, pass shipped: **`Pass 248.3` (`4605a86`) SHIPS — native SVG gradients (axial + focal-radial shadings become `<linearGradient>`/`<radialGradient>`, not raster); operator-prompted follow-on, never filed in *Next up*; `Pass 248.4` (EMF export for LibreOffice 24.x) minted and queued, NOT STARTED**
+
+**Sourcing (hard rule 8).** No shell available to this filing — `Read`/
+`Grep` on live source only. `4605a86`'s own commit message is **relayed**
+from the engineer's dispatch, not re-run. **Independently verified by
+direct read this filing**: `display_list.rs`'s `ExportTally` carries
+`shadings_as_gradients` (`#[non_exhaustive]`, `is_exact()` zeroes it before
+comparing); `svg.rs` emits `<linearGradient>`/`<radialGradient>`;
+`shading.rs`'s `gradient_spec()` matches the described algorithm and
+`is_paintable()`'s doc block is correctly attached to its own function
+(the splice hazard the dispatch names is not present at HEAD);
+`export_svg.rs` has 15 tests total, 4 of them new gradient tests. **Not
+corroborated**: the "Inkscape 1.4 within 10 levels on the two
+managed-shading fixtures" figure — neither `managed_shading.rs` (unchanged
+since `Pass 243.0`, no SVG/Inkscape code) nor `export_svg.rs`'s own
+Inkscape oracle test (one shading fixture, tolerance 24, not 10) shows a
+trace of it; flagged as relayed-only rather than silently repeated.
+
+**Shipped:**
+- `Pass 248.3` (`4605a86`) — `Shading::gradient_spec` turns an axial or
+  degenerate-circle radial shading into a thinned SVG gradient stop list
+  (64-sample, keep-only-informative-stops); `svg.rs` emits
+  `<linearGradient>`/`<radialGradient>`, with an `/Extend`=false end
+  becoming a `<clipPath>`; `ExportTally::shadings_as_gradients` is a
+  fidelity count that `is_exact()` deliberately ignores; 4 new pixel-parity
+  tests against `resvg` (15 in the file total). Mesh, function-based,
+  two-circle-radial, and `/Background`/`/BBox` shadings still rasterise.
+  `docs/FEATURES.md`'s SVG-export row text amended in place (boxes
+  unchanged).
+
+**Decisions made this session:**
+- None. No decision minted, no standing rule minted.
+
+**Findings + decisions:**
+- **Process note, not a new finding**: the `is_paintable`/`gradient_spec`
+  doc-block splice hazard (anchoring a new doc comment on the `fn` line
+  instead of the existing doc block above it) recurred in this same
+  session — the engineer's own previously-recorded hazard
+  (`feedback_anchor_on_the_doc_block_not_the_item`). Caught by
+  `check-public-fns-documented.py` before commit; not promoted, since the
+  hazard was already named and this is its second occurrence, not a new
+  pattern.
+- **Two prior claims corrected with dated footers, not rewritten**: the
+  405th filing's "the `Pass 248` family is now complete" (both in its
+  headline and its Ledger paragraph) no longer holds now that `248.3`/
+  `248.4` extend the family — the three-part-*request* claim beside it
+  still holds and was left untouched.
+
+**Still in flight:**
+- `Pass 248.4` (EMF/`CF_ENHMETAFILE` export for LibreOffice 24.x) — scoped,
+  not yet built. `Pass 5.4` (encrypt-on-save) queued after it, unchanged
+  from its 396th-filing scoping.
+
+**For next session:**
+- Build `Pass 248.4`, then `Pass 5.4`, per the operator's own stated order.
+
 **For next session:**
 - Engineer: commit this filing's doc edits (docs/ROADMAP.md,
   docs/SESSION_LOG.md, and the two `D:\dev\rag\rust\` files + its

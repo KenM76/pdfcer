@@ -112,6 +112,142 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★★★ 407th filing, 2026-09-03 — `4605a86`: `Pass 248.3` SHIPS — NATIVE
+SVG GRADIENTS (AXIAL + FOCAL-RADIAL) FROM THE SAME EXPORT RECORDING;
+OPERATOR-PROMPTED FOLLOW-ON, NEVER FILED IN *NEXT UP*. `Pass 248.4` (EMF
+FOR LIBREOFFICE 24.x) MINTED AND QUEUED IN *NEXT UP*, NOT STARTED.**
+
+**★ Sourcing (hard rule 8).** No shell available to this filing — `Read`/
+`Grep` on live source only, no `git`/`gh`. `4605a86`'s own commit message
+and `git show --stat` are **relayed** from the engineer's dispatch, not
+re-run — this filing did not execute `git log -1 --format=%B 4605a86`
+itself. **Independently verified by direct `Read`/`Grep` this filing**:
+`crates/pdfcer-render/src/display_list.rs:1318-1356` —
+`ExportTally` is `#[non_exhaustive]`, carries `shadings_as_gradients: u32`
+documented as "a count of fidelity, not shortfall" beside the pre-existing
+`shadings_rasterised`, and `is_exact()` zeroes `shadings_as_gradients`
+before comparing to `Self::default()` — exactly the "fidelity count,
+ignored by `is_exact`" claim; `crates/pdfcer-render/src/svg.rs:461,472,
+498-499` — `<linearGradient gradientUnits="userSpaceOnUse" …
+spreadMethod="pad">` and the matching `<radialGradient … fx="…"
+fy="…">` emission, present; `crates/pdfcer-render/src/shading.rs:1108-1210`
+— `gradient_spec()` exists, matches the described sample-64-points/
+thin-to-informative-stops algorithm, handles `Geometry::Axial` and both
+degenerate-circle `Geometry::Radial` cases (point→circle and circle→point,
+the latter reversing the ramp so the focal point stays `t = 0`), and
+returns `None` for mesh/function-based/`Background`/`BBox` shadings —
+matching "only function-based, mesh, two-circle radial, `/Background`/
+`/BBox` shadings remain raster"; `shading.rs:1212-1226` — `is_paintable()`'s
+doc block is correctly attached to its own function, separate from
+`gradient_spec`'s — the splice hazard the dispatch describes is **not
+present at HEAD**, consistent with "caught and fixed before commit";
+`crates/pdfcer-render/tests/export_svg.rs` — **15** `#[test]` functions
+total (`Grep` count), with a `// Native gradients (Pass 248.3)` section
+holding four of them (axial exact match, focal-radial exact match, an
+`/Extend` = false clip sampled at actual pixels either side of the
+boundary, a shading used as a pattern fill), each asserting
+`shadings_as_gradients == 1` and pixel parity against `resvg` (tolerances
+0.01-0.015). **Not independently verified, and flagged rather than
+silently repeated**: the dispatch's specific figure *"Inkscape 1.4 within
+10 levels on the two managed-shading fixtures"* —
+`fixtures/synthetic/managed-shading/` and
+`crates/pdfcer-render/tests/managed_shading.rs` exist (6 ICC/Lab
+fixtures, 4 tests, from `Pass 243.0`) but carry **no SVG export or
+Inkscape reference at all**, unchanged by this Pass; `export_svg.rs`'s own
+Inkscape end-to-end test (`inkscape_renders_the_export_like_pdfcer_when_
+it_is_installed`) runs exactly one shading fixture (`axial_shading_page`)
+at a **component tolerance of 24**, not 10, and was not touched here. So
+the "10 levels / two managed-shading fixtures" figure is most likely an ad
+hoc manual measurement — the same shape as `Pass 248.2`'s Word-paste
+measurement, which also left no test-suite trace — **relayed only, not
+corroborated by anything on disk this filing could find.** Version/
+`check-public-fns-documented.py` claims also relayed, not re-run (no
+shell). Ledger checked by `Grep` of `ROADMAP.md` directly (no shell for
+`tools/check-ledger-numbers.py`): Pass ceiling `248.2`, decision `132`,
+`R241`, filings `406` — matches the dispatch's stated "last known"
+exactly.
+
+### `Pass 248.3` (`4605a86`, 2026-09-03) — native SVG gradients: axial and focal-radial shadings go out as `<linearGradient>`/`<radialGradient>`, not raster, from the same export recording `Pass 248.1` shipped
+
+**Operator-prompted, not self-scoped.** After the `v0.29.1` brief the
+operator replied "yes" to two offered optional follow-ons (true SVG
+gradients; `CF_ENHMETAFILE`/EMF for LibreOffice 24.x); the engineer read
+that as "do both, then `Pass 5.4`" and said so. This is the first of the
+two. **Never filed in *Next up*** — it goes directly into *Shipped*
+rather than moving out of a planning entry, which is why *Next up* carries
+no shipped-and-left pointer note for it the way `248.1`/`248.2` do.
+
+1. **`Shading::gradient_spec`** (`shading.rs`) turns an axial or a
+   degenerate-circle radial shading into a `GradientKind` + a thinned stop
+   list: the ramp is sampled at 64 points over its domain, and an interior
+   sample is kept only where it is not the straight-line interpolation of
+   its two neighbours — so a two-colour linear ramp collapses to 2 stops
+   (confirmed by test), not 65. The circle-to-point radial case reverses
+   the sample order so the SVG's focal point (`fx`/`fy`) still lands at
+   `t = 0` of the ramp. Mesh, function-based, and two-circle (neither
+   radius zero) radials return `None` and stay raster, as do shadings
+   carrying `/Background` or `/BBox` (both SVG-inexpressible without a
+   clip pdfcer does not synthesise for them).
+2. **`svg.rs`** emits `<linearGradient gradientUnits="userSpaceOnUse"
+   gradientTransform="…" spreadMethod="pad">` / the equivalent
+   `<radialGradient … fx="…" fy="…">`, referenced from the fill via
+   `fill="url(#g…)"`. An `/Extend` = false end is not expressible as a
+   gradient property in SVG 1.1, so it becomes a `<clipPath>` instead —
+   the band between the axis's two perpendiculars for an unextended axial
+   end, the outer circle for a radial one — verified by a test that
+   samples actual rendered pixels either side of the clip boundary
+   (opaque inside, alpha 0 outside).
+3. **`ExportTally::shadings_as_gradients`** — a new `u32` field on the
+   already-`#[non_exhaustive]` tally, counted beside the pre-existing
+   `shadings_rasterised`. **A fidelity count, not a shortfall count**:
+   `is_exact()` zeroes it before comparing to `Self::default()`, so a page
+   that is ALL native gradients still reports exact. Distinguishing "we
+   drew this perfectly, natively" from "we drew this perfectly, by
+   rasterising" is exactly the shape hard rule 10 asks for — a total that
+   can disagree with its own per-item claim if someone miscounts.
+4. **Tests**: 4 new tests in `crates/pdfcer-render/tests/export_svg.rs`
+   (15 total in the file, up from 11 at `Pass 248.1`) — axial exact pixel
+   match against `resvg`, focal-radial exact match, the `/Extend` = false
+   clip (pixel-sampled, not just structurally asserted), and a shading
+   used as a *pattern fill* of an arbitrary path (confirming the fill path
+   itself is unaffected — only the paint changes from a solid/raster fill
+   to a gradient reference).
+5. **Measured** (relayed, not independently re-run this filing — see
+   Sourcing): Inkscape 1.4 rendering pdfcer's gradient SVGs against the two
+   managed-shading fixtures, within 10 levels per channel.
+6. **Gates**: fmt, clippy `-D warnings`, `cargo tree` (core/render still
+   clipboard- and gradient-crate-free — no new dependency), wasm32 check,
+   fuzz check, all 19 `tools/check-*.py` including
+   `check-public-fns-documented.py` (which is what caught the
+   `is_paintable`/`gradient_spec` doc-block splice before commit — see the
+   process note below), full workspace test run.
+
+**Process note, for the session log rather than the feature record**: a
+splice meant to add `gradient_spec`'s new doc comment anchored on the
+`pub fn gradient_spec(` line instead of on `is_paintable`'s own doc block
+immediately above it in the diff context, welding the wrong doc onto the
+wrong function — the engineer's own previously-recorded hazard
+(`feedback_anchor_on_the_doc_block_not_the_item`, a memory entry, not a
+RAG file) recurring in the same session it would have been most useful.
+`check-public-fns-documented.py` caught the mismatch before commit; **HEAD
+carries the corrected, separated doc blocks** (verified this filing, see
+Sourcing). Not promoted to a new finding — the hazard was already named;
+this is a second occurrence of a known one.
+
+**`docs/FEATURES.md`**: the SVG-export row's TEXT amended in place (same
+`[x]`/`[x]`/`[ ]` boxes — `Pass 248.3` changes what the row *says*, not
+what it ships against) to state that axial and focal-radial shadings are
+now native gradients, narrowing the "rasterises what the cache-mode
+recorder refuses" clause to the shading kinds that still do.
+
+**No decision minted, no standing rule minted.**
+
+**Ledger.** Filings ceiling `406` → **`407`**; decision ceiling `132`
+unchanged, next free `133`; Pass ceiling `248.2` → **`248.3`**; `248.4`
+**MINTED** in *Next up*, NOT STARTED, next free in family `248.5`;
+standing rules ceiling `R241` unchanged, next free `R242`; open operator
+questions: none minted, next free `(ce)`.
+
 **★★ 406th filing, 2026-09-03 — `v0.29.0` (`a66a4e4`) tagged then found CI-RED
 and NEVER RELEASED; `v0.29.1` (`49adf4c`) is the fix, CI GREEN, and IS the
 release. No new Pass, no new decision, no new standing rule — a version-bump
@@ -251,6 +387,14 @@ INKSCAPE AND ALPHA RASTER EVERYWHERE ELSE, ONE PLACEMENT TRANSACTION. THIS
 CLOSES THE OPERATOR'S 2026-09-03 THREE-PART REQUEST IN FULL — THE `Pass
 248` FAMILY (`248.0`/`248.1`/`248.2`) IS NOW COMPLETE.**
 
+**★ AMENDED 2026-09-03 (407th filing).** The three-PART-REQUEST claim
+stands — that request closed here. The FAMILY claim does not: the
+operator approved two further optional follow-ons the same day, minting
+`Pass 248.3` (native SVG gradients, shipped `4605a86`) and `Pass 248.4`
+(EMF export, filed *Next up*). "The 248 family is now complete" is kept
+legible above as the true state at the 405th filing's own writing, not
+retracted.
+
 **★ Sourcing (hard rule 8).** No shell available to this filing —
 Read/Grep on live source and docs only, no `git`. `a8fe04b`'s own commit
 message and `git show --stat` are **relayed** from the engineer's
@@ -385,6 +529,10 @@ unchanged, next free `133`; Pass ceiling `248.1` → **`248.2`** — **the
 248 family is now complete** (`248.0`/`248.1`/`248.2` all shipped);
 standing rules ceiling `R241` unchanged, next free `R242`; open operator
 questions: none minted, next free `(ce)`.
+
+**★ AMENDED 2026-09-03 (407th filing) — "the 248 family is now complete"
+did not survive the day.** `Pass 248.3`/`248.4` extend it further; see the
+407th filing's own Ledger paragraph for the current state.
 
 **★★★★ 404th filing, 2026-09-03 — `80f1c3e`: `Pass 248.1` SHIPS — SVG PAGE
 EXPORT, FROM THE RENDERER'S OWN DISPLAY-LIST RECORDING, VIA A SECOND
@@ -106551,6 +106699,35 @@ in the "still open" list. Full build record: this file's own
 > entry stays here. **This closes the operator's 2026-09-03 three-part
 > request (PNG/JPEG + SVG export + copy-out) in full — the `Pass 248`
 > family is complete.**
+
+> ★★★★★★ **`Pass 248.3` SHIPPED, 2026-09-03 (407th filing, `4605a86`) —
+> never filed in this section.** Operator-prompted (the "yes" to two
+> offered follow-ons after the `v0.29.1` brief): native SVG gradients for
+> axial and focal-radial shadings. Full entry is at the **top of
+> *Shipped***. `docs/FEATURES.md`'s SVG-export row TEXT amended in place
+> (same `[x]`/`[x]`/`[ ]` boxes). The second offered follow-on is filed
+> immediately below as `Pass 248.4`.
+
+### `Pass 248.4` — **`CF_ENHMETAFILE` (EMF) EXPORT, FOR LIBREOFFICE 24.x AND LEGACY WIN32 CLIPBOARD CONSUMERS** — filed 2026-09-03 (407th filing), operator-prompted (the second of two "yes"-approved follow-ons offered after `v0.29.1`), **IN PROGRESS**
+
+An [MS-EMF] writer in `pdfcer-render`, built from the same export
+recording `Pass 248.1`/`248.3` already produce (paths, pens, brushes,
+clips; alpha/blend flattened with the flattening disclosed off-canvas per
+`CLAUDE.md` rule 4, not silently dropped; text emitted as outlines, the
+same choice the SVG export already made rather than depending on font
+availability at the consumer). Surface: `pdfcer export-image --format
+emf`, and `copy-page` gains `CF_ENHMETAFILE` as a fifth clipboard format —
+`clipboard-win` has no metafile-specific setter, so placement goes through
+`SetEnhMetaFileBits` + `SetClipboardData` directly, a corner of the
+Windows API this crate has not yet touched. Oracle: Inkscape's own EMF
+*import*, rendered back out to PNG, compared against pdfcer's PNG of the
+same page — the reverse direction from `Pass 248.1`/`248.3`'s
+Inkscape-renders-pdfcer's-SVG oracle, because EMF's consumer of interest
+(LibreOffice) is no more scriptable headlessly for clipboard paste than
+Inkscape was for `Pass 248.2`. **Then `Pass 5.4`** (filed below, NOT
+STARTED, order committed SECOND after `Pass 10.1`, which has since
+shipped) is next once `248.4` ships. **No decision minted, no standing
+rule minted** for this filing — `248.4` is scoped, not yet built.
 
 ### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), **NOT STARTED**
 
