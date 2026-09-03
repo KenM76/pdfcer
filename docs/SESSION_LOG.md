@@ -89631,3 +89631,173 @@ free `(ce)`.
 
 **`docs/NEXT_SESSION.md`:** not touched by this filing (engineer-owned;
 it is among the paths the engineer has modified concurrently).
+
+---
+
+## 2026-09-03 (402nd filing) — roadmap update, pass shipped: **`Pass 247.3` (`4d52fb3`, in `D:\Dev\pdfcer`, LOCAL — `2 0` against `origin/main`, pushed with this filing) — the legacy `/pdfce` sidecar compatibility layer is REMOVED on the operator's ruling (*"no one has actually used the software yet in production including myself"*); decision 131 SUPERSEDED one filing after its mint; the ce-dimension sidecar is read and written under `/pdfcer` only; nine fixtures re-keyed in place at equal byte length, three regenerated; the three compat tests gone, 4,733 → 4,730 / 0; ★ before the re-keying six `dimension_rotate` tests failed — the fallback's whole caseload was this repo's own fixtures; the 401st filing's three false-dated sentences restored; `v0.28.0` keeps the layer, the next release will not, no re-release; standing-rule candidate named at n = 1 and DECLINED; no decision, rule or question minted**
+
+**Sourcing (hard rule 8).** Shell available, read-only — `git` in
+`D:\Dev\pdfcer` and file reads only; no `cargo`, no gates, no `gh`, no
+`git` in `D:\Dev\pdfce`. **Measured here:** `git log --oneline -4` →
+`4d52fb3` on `d31209c` (401st filing) on `562ca7e` (= `v0.28.0`) on
+`4db298d`; `git rev-list --left-right --count main...origin/main` →
+**`2 0`** (`d31209c`, `4d52fb3` unpushed); `git status --short` → two
+engineer agent-memory paths (`MEMORY.md` modified,
+`feedback_no_backcompat_for_prerelease_formats.md` untracked) —
+concurrent, not this Pass; `git show --stat 4d52fb3` → **24 files,
++178 / −387**. Source: `edit.rs:33196` `SIDECAR_KEY = b"pdfcer"` with
+the doc comment recording the one-release fallback and the ruling;
+`:37598` / `:37616` `piece.get(SIDECAR_KEY)` direct; `:37669` insert
+with no prior remove; `grep -rn "SIDECAR_KEY_LEGACY\|sidecar_entry"
+crates/` → **no hits**; `tests/sidecar_legacy_key.rs` → **absent**.
+Fixtures: the stat's nine `Bin N -> N` (3412, 3309, 3035, 2891, 7357,
+3317 ×4) and three `+1 B` (843→844, 814→815, 993→994); `grep -a` on
+`linear-dim.pdf` and `seed_churn_linear-dim.pdf` → `/pdfcer<<` ×2 each,
+no `/pdfce `; `dim-sidecar-control.pdf` → `/pdfcer <<` ×1;
+`dimension_roundtrip.rs:646` and `gen-deletion-collateral-fixtures.py:194`
+both `/pdfcer`. `git show 4d52fb3 -- CLAUDE.md docs/LEGAL.md` → three
+hunks re-dating `KenM76/pdfcer` → `KenM76/pdfce` with the continuation
+named. **Relayed:** 4,730 / 0; fmt/clippy green; the six
+`dimension_rotate` failures before re-keying; the generator's other 15
+outputs byte-identical; gates 28/29 → 29/29 after one backspace-byte
+fix in an agent-memory index line. All edits under
+`D:\Dev\pdfcer\docs\`; `D:\Dev\pdfce` not touched.
+
+**Shipped:**
+- **`Pass 247.3`** — operator-ruled amendment to `247.1` item 3, minted
+  as the fourth sub-ID of the 247 group (never in *Next up*; shipped
+  directly). (1) `EditSession::sidecar_entry` and `SIDECAR_KEY_LEGACY`
+  deleted; both readers take `/pdfcer` directly; the writer no longer
+  removes `/pdfce`. (2) `tests/sidecar_legacy_key.rs` (3) deleted;
+  4,730 / 0 = 4,733 − 3, back to the post-`247.0` count. (3) Nine
+  fixtures re-keyed IN PLACE `/pdfce <<` → `/pdfcer<<` — a name token
+  ends at the `<` delimiter, so the trailing space is spent on the
+  sixth letter and every xref offset holds; three deletion-collateral
+  fixtures regenerated (+1 B each; the generator now writes `/pdfcer`
+  and is deterministic). (4) `CLAUDE.md` rule 8 and `LEGAL.md` §1.1
+  ×2: `KenM76/pdfce` was created 2026-08-09; `KenM76/pdfcer` dates
+  from 2026-09-03 — restored (the 401st filing's finding, closed).
+  (5) `NEXT_SESSION.md` rewritten for the new folder; agent memory
+  carries the fork state and the rename-at-punctuation lesson.
+
+**Decisions made this session:**
+- **None minted; ceiling stays `131`.** Decision **131 is SUPERSEDED BY
+  OPERATOR RULING**, recorded as a dated note above its text (text
+  untouched) carrying the quote. What survives: the `pdfceF{n}` KEEP
+  addendum (own reasoning — a resource key is allocated, never looked
+  up); the *branches-on-it* scope statement as a description, not an
+  obligation; the three clauses as the shape a post-production rename
+  would reach for, decided that day with the operator. What does not:
+  any obligation to build a guard for a pre-1.0 shape pdfcer itself
+  wrote.
+- **No standing rule minted** (`R241`; next free `R242`). **Candidate
+  named at n = 1 and DECLINED:** *no backward-compatibility layer for a
+  pre-release format pdfcer itself wrote, without an operator ask.*
+  The bar is two occurrences; this is one compat layer built and one
+  ruling removing it, and the `pdfceF{n}` case was a KEEP for a
+  different reason (nothing branches on it). What would count as
+  n = 2: any shim, fallback reader, migration step or dual-spelling
+  acceptance for a pre-1.0 shape (sidecar schema, clip schema, a
+  `/Private` key, settings grammar, a resource prefix) built without
+  an ask. Not n = 2: compatibility with OTHER producers' files, or a
+  shim the operator asked for. **The instruction is in force without
+  a number** — `NEXT_SESSION.md` lines 112–117 and the engineer's
+  agent memory carry it.
+- **No operator question minted;** next free `(ce)`.
+
+**Findings + decisions:**
+- **A compatibility obligation is owed to DOCUMENTS, not to builds.**
+  Decision 131 counted tags (25 of 30 wrote `/pdfce`) and inferred
+  documents; the operator supplied the missing fact (none exist, his
+  own included). The measurement that corroborates him: with the
+  fallback gone and the fixtures not yet re-keyed, **six
+  `dimension_rotate` tests failed** — the fallback's entire caseload
+  was the repository's own test corpus. A guard whose only clients are
+  fixtures is a guard for the tests, and re-keying the fixtures is the
+  honest fix.
+- **A PDF name ends at a delimiter, so `/pdfce <<` → `/pdfcer<<` is a
+  zero-shift edit** (ISO 32000-1 §7.2.2 / §7.3.5). Nine fixtures
+  re-keyed with no xref regeneration — the equal-byte-length trick
+  131's own test fixture used, run in reverse. The three files that
+  came from a generator instead grew 1 B each, which is the difference
+  between *edited in place* and *regenerated* made visible in the stat.
+- **The test-count movement `247.1` → `247.3` nets to zero**: 4,730
+  after `247.0`, +3 at `247.1`, −3 here, 4,730. Filed as the sum so it
+  can disagree with something (hard rule 10).
+- **A fourth backslash casualty in one session, caught by the gate
+  written for it** (relayed): a Bash `python -c` payload lost a
+  backslash and wrote a backspace byte (0x08) into an agent-memory
+  index line; `check-control-bytes.py` went red on the pre-commit tree
+  (28/29), fixed, 29/29. Same family as the 400th filing's item 4 and
+  hard rule 11 clause (e): the spelling glued to an escape is the
+  failure surface.
+- **Hard-rule-11 sweep — claim "pdfcer still reads the pre-rename
+  `/pdfce` sidecar key"** over `crates/`, `tools/`, `docs/`, `.claude/`,
+  `README.md`, `DEPENDENCIES.md`, `docs/core-api/` and the request
+  channel. **Fixed here:** `FEATURES.md` author row (sentence replaced),
+  `ARCHITECTURE.md` §3 (H) (single-key shape), decision 131
+  (superseded note), `ROADMAP.md`'s 400th banner, `247.1` item 3 and
+  its fixture keep-list (annotated in place). **Fixed by the commit:**
+  `edit.rs`, `dimension/mod.rs`, `dimension/sidecar.rs`,
+  `NEXT_SESSION.md`, `project_fork_pdfcer.md`. **★ SURVIVOR, reported —
+  outside the repo, the engineer's channel file:**
+  `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\note_pdfcer_is_live_re_point_your_three_dependency_lines_to_D_Dev_pdfcer.md`
+  line 38 — *"the reader takes `/pdfcer` first and falls back to the
+  pre-rename `/pdfce` … Documents your users saved with ce dimensions
+  under v0.27.0 and earlier open unchanged"* — **false from `4d52fb3`
+  on**, and the GUI side consumes `pdfcer-core` by path dependency on
+  `main`, so their re-point lands on the build without the fallback.
+  Harmless in practice by the operator's own ruling (no such documents
+  on their side either), but it asserts a behaviour the engine no
+  longer has; owed a dated correction. **Correct survivors:** the
+  `v0.28.0` release notes (true of that build); every `/pdfce` in a
+  dated record; fixture content that is not a sidecar key (font names,
+  certificate subjects, `/Reason`); `pdfceF{n}` (KEEP, 401st filing).
+
+**Still in flight:**
+- **Push:** `2 0` — `d31209c` and `4d52fb3`, plus this filing's commit,
+  go up together (the engineer's dispatch says the full gate sweep
+  re-runs first; `R241`'s hook binds the push regardless).
+- **Engineer:** the channel-note survivor above; the 401st filing's
+  still-open survivors — `FEATURES.md`'s `pdfcer-fetch` row (`R203`
+  re-basing against `pdfcer-gui`), the planned `pdfceNet` name,
+  `ARCHITECTURE.md` §3's CLI layout node (*"alongside `pdfce-gui`"*);
+  the next release's notes owe one sentence saying the layer went.
+  Then `Pass 5.4` (encrypt on save, `/R` 6 only) heads *Next up*.
+- **Concurrent, unfiled:** the engineer's agent-memory edit
+  (`feedback_no_backcompat_for_prerelease_formats.md`, untracked;
+  `MEMORY.md` +1) — not code, not this Pass; whichever commit carries
+  it needs no separate filing.
+- **GUI side:** the three-line re-point to `file:///D:/Dev/pdfcer`; a
+  read of `reply_signature_integrity_first…`.
+- **Operator:** `C:\Users\Ken\.claude\CLAUDE.md` still references
+  `D:\Dev\pdfce\`; no agent edits it.
+
+**For next session:**
+- Engineer: commit this filing, push (three commits); correct the
+  channel note; `Pass 5.4`.
+- Operator: the global `CLAUDE.md` hand edit.
+
+**`docs/ROADMAP.md`:** *Shipped* gained the 402nd banner and the
+`Pass 247.3` entry (seven items, the standing-rule disposition in §7,
+the hard-rule-11 sweep with the channel-note survivor); the 400th
+banner, `247.1`'s item 3 and its *What was NOT renamed* fixture bullet
+annotated in place. Filings ceiling `401` → `402`; Pass ceiling `247.2`
+→ `247.3`.
+
+**`docs/FEATURES.md`:** the ce-dimensions *author* row's 400th-filing
+sentence (*pre-rename `/pdfce` sidecars still open; next save re-keys*)
+**removed** — false since `4d52fb3` — and replaced by one sentence
+naming the single key, the one-release fallback and the ruling. No box
+moved.
+
+**`docs/ARCHITECTURE.md`:** §12 decision 131 gains the SUPERSEDED BY
+OPERATOR RULING note (quote, measurement, what survives and in what
+standing, why superseded rather than deleted); §3 (H)'s sidecar
+paragraph corrected to the single-key shape with the fallback's
+one-release life stated as history. Decision ceiling `131`, unchanged;
+next free `132`. Rules ceiling `R241`, unchanged; next free `R242`.
+Open operator questions: none minted; next free `(ce)`.
+
+**`docs/NEXT_SESSION.md`:** not touched (engineer-owned; rewritten in
+`4d52fb3`).

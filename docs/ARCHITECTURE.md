@@ -3062,17 +3062,23 @@ annotations pdfcer AUTHORS, with their baked `/AP`, groups, scale,
 dimensions* (dimensions a CAD tool already exported into the file), which
 pdfcer reads and measures against but must not silently alter.**
 
-**The sidecar's KEY, since `Pass 247.1` (`4db298d`, 2026-09-03; decision
-131).** `/PieceInfo` is keyed by application name (ISO 32000-1 §14.5), so
-the product rename reached it: the writer emits `/PieceInfo << /pdfcer
-… >>` (`edit.rs` `SIDECAR_KEY`), the reader (`EditSession::sidecar_entry`)
-looks for `/pdfcer` first and **falls back to the legacy `/pdfce`**
-(`SIDECAR_KEY_LEGACY`) that every `v0.5.1`–`v0.27.0` save wrote, and
-`write_dimension_model` **removes** a legacy `/pdfce` beside the
-`/pdfcer` it writes, so no document ever carries two sidecars that could
-disagree. The legacy key is therefore retired on the first save after
-the rename, never carried forever, and never dropped silently. Tests:
-`crates/pdfcer-core/tests/sidecar_legacy_key.rs`.
+**The sidecar's KEY is `/pdfcer` — one key, read and written (`Pass
+247.1` renamed it, `Pass 247.3` made it the only one; corrected
+2026-09-03, 402nd filing).** `/PieceInfo` is keyed by application name
+(ISO 32000-1 §14.5), so the product rename reached it: the writer emits
+`/PieceInfo << /pdfcer … >>` and both readers take `piece.get(SIDECAR_KEY)`
+directly (`edit.rs` `SIDECAR_KEY`, the only key constant; `:37598`,
+`:37616`, `:37669` at `4d52fb3`). **There is no fallback to the
+pre-rename `/pdfce`** that `v0.5.1`–`v0.27.0` builds wrote: `Pass 247.1`
+shipped one (`EditSession::sidecar_entry`, `SIDECAR_KEY_LEGACY`,
+retire-on-write, three tests — decision 131) and `Pass 247.3` removed it
+the same day on the operator's ruling that no document saved by those
+builds exists outside this repository's fixtures. A `/pdfce`-keyed
+document, should one ever appear, opens as a document with no
+ce-dimension model — its `/Line` annotations still render off their
+baked `/AP`. `v0.28.0` is the one release that carries the fallback.
+`SIDECAR_KEY`'s doc comment is the in-crate record; decision 131's
+superseded note (§12) is the reasoning.
 
 Full current re-export surface (`dimension/mod.rs:62-76`), verified:
 
@@ -31168,6 +31174,70 @@ rules ceiling `R241` — unchanged**, next free `R242`. **Open operator
 questions: none minted**; next free `(ce)`.
 
 ### 2026-09-03 (400th filing, `4db298d`) — decision 131: **A RENAME MUST NOT COST THE OPERATOR HIS MEASUREMENTS. WHEN AN IDENTIFIER THAT A SAVED DOCUMENT CARRIES CHANGES, THE READER ACCEPTS EVERY NAME THE PRODUCT EVER WROTE, THE WRITER EMITS ONLY THE CURRENT ONE, AND A LEGACY NAME IS RETIRED ON THE FIRST WRITE — NEVER CARRIED FOREVER, NEVER DROPPED SILENTLY. FIRST INSTANCE: THE CE-DIMENSION SIDECAR KEY `/PieceInfo /pdfce` → `/pdfcer`**
+
+> ★★ **SUPERSEDED BY OPERATOR RULING — 2026-09-03, the same day, one
+> filing later (402nd filing, `Pass 247.3`, `4d52fb3`).** The operator,
+> verbatim:
+>
+> > *"I see you made the engine backwards compataible for the
+> > measurements. This is unecessary as no one has actually used the
+> > software yet in production including myself. This compatibility
+> > layer can be removed."*
+>
+> **What the ruling changes.** This decision's three clauses argued
+> from the builds — *25 of 30 tags wrote `/pdfce`* — to an obligation
+> toward the documents those builds saved. The ruling supplies the fact
+> the argument did not have: **no such document exists**, the
+> operator's own included. A compatibility obligation is owed to
+> documents, not to builds, so with the set empty the obligation is
+> void and the mechanism is dead weight. **The measurement that
+> corroborates him** (relayed from the engineer): with the fallback
+> removed and the fixtures not yet re-keyed, **six `dimension_rotate`
+> tests failed** — the fallback's entire caseload was this repository's
+> own test corpus.
+>
+> **What is removed at `4d52fb3`** (read in source, 402nd filing):
+> `EditSession::sidecar_entry`, `SIDECAR_KEY_LEGACY`, the
+> `remove(LEGACY)` step in `write_dimension_model`, and
+> `crates/pdfcer-core/tests/sidecar_legacy_key.rs` (3 tests; 4,733 →
+> 4,730). Both readers take `piece.get(SIDECAR_KEY)` directly
+> (`edit.rs:37598`, `:37616`); the writer inserts `/pdfcer` and removes
+> nothing (`:37669`). Nine fixtures re-keyed `/pdfce <<` → `/pdfcer<<`
+> in place at equal byte length; three regenerated. `v0.28.0` is the
+> one release that carries the fallback; the next will not; no
+> re-release, since nothing operator-visible differs.
+>
+> **What survives, and in what standing.** (1) The **`pdfceF{n}` KEEP
+> addendum below stands on its own reasoning** — a `/Resources` key is
+> allocated, never looked up — and is unaffected. (2) The **scope
+> statement** (*a guard is owed only where a reader BRANCHES on the
+> identifier*) survives as the correct **description** of when a
+> format change is a format change; what no longer follows from it is
+> an obligation to build a guard for a pre-1.0 shape pdfcer itself
+> wrote. (3) The three clauses are **the right shape for a rename that
+> reaches documents that exist** — a future rename made after the
+> product is in production would reach for them; that is a decision
+> for that day, taken with the operator, not a standing obligation
+> carried from this one. (4) The equal-byte-length fixture discipline
+> was reused in reverse for the re-keying.
+>
+> **The instruction in force from here, without a numbered rule** (the
+> standing-rule candidate was named and declined at n = 1 in the
+> `Pass 247.3` `ROADMAP.md` entry, §7): *do not build a
+> backward-compatibility layer for a pre-release format pdfcer itself
+> wrote without an operator ask; re-key fixtures instead of teaching
+> the reader two spellings; compatibility with other producers' files
+> is a different thing and unaffected.* It lives in
+> `docs/NEXT_SESSION.md` and the engineer's agent memory.
+>
+> **Why this is filed as SUPERSEDED rather than reverted or deleted.**
+> The decision was correct on its own premises and wrong on a premise
+> it did not check — a reader arriving here should see both the
+> reasoning and the fact that defeated it, because the reasoning is
+> what a post-1.0 rename will need. The 401st filing's addendum below,
+> written while the removal sat uncommitted in the tree, said this
+> filing owed 131 *"a dated disposition"*; this is it. Text of the
+> decision below is untouched.
 
 **(librarian filing, 400th. Shell available, read-only: the shape below
 is read in source — `crates/pdfcer-core/src/edit.rs:33190` `const
