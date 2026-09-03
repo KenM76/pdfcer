@@ -33187,10 +33187,13 @@ fn collect_references(value: &Object, skip_parent: bool, depth: usize, out: &mut
 const SIDECAR_DATE: &str = "D:20260801000000Z";
 /// The `/PieceInfo` key the ce-dimension sidecar is written under: the
 /// product name, per ISO 32000-1 §14.5 ("the name of the application").
+///
+/// Only this key is read or written. Pre-release builds (code name
+/// `pdfce`, v0.5.1–v0.27.0) wrote `/pdfce`; a fallback reader for it was
+/// shipped in `Pass 247.1` and REMOVED the same day on the operator's
+/// ruling — nobody had used the software in production, so there was
+/// nothing to stay compatible with.
 const SIDECAR_KEY: &[u8] = b"pdfcer";
-/// The key every pre-rename build (v0.5.1–v0.27.0) wrote. Read as a
-/// fallback, removed on write — see `EditSession::sidecar_entry`.
-const SIDECAR_KEY_LEGACY: &[u8] = b"pdfce";
 
 // =====================================================================
 // Dimensioning subsystem wiring (Pass 12.M2, decision 011 §2.3/§2.4)
@@ -33198,7 +33201,7 @@ const SIDECAR_KEY_LEGACY: &[u8] = b"pdfce";
 //
 // The additive in-document integration of the `pdfcer-core::dimension`
 // subsystem. Each method reads the authoritative model from the catalog
-// `/PieceInfo /pdfcer /Private` sidecar (or the legacy `/pdfce` one, or starts fresh), mutates it,
+// `/PieceInfo /pdfcer /Private` sidecar (or starts fresh), mutates it,
 // re-authors any affected `/AP`(s), (re)registers the per-group `/OCG` in
 // `/OCProperties`, writes the sidecar back, and commits everything as ONE
 // undoable command. All authoring is ADDITIVE (overlay-append, §5.8, R46
@@ -37592,7 +37595,7 @@ impl EditSession {
             .and_then(Object::as_dict)
             .cloned()
             .and_then(|catalog| self.deref_dict(catalog.get(b"PieceInfo")))
-            .and_then(|piece| self.sidecar_entry(&piece))
+            .and_then(|piece| self.deref_dict(piece.get(SIDECAR_KEY)))
             .and_then(|pdfcer| self.deref_value(pdfcer.get(b"Private")))
             .and_then(|private| crate::dimension::sidecar_version(&private));
         match found {
@@ -37610,29 +37613,9 @@ impl EditSession {
         let cid = self.graph().catalog_id()?;
         let catalog = self.value(cid)?.as_dict()?.clone();
         let piece = self.deref_dict(catalog.get(b"PieceInfo"))?;
-        let pdfcer = self.sidecar_entry(&piece)?;
+        let pdfcer = self.deref_dict(piece.get(SIDECAR_KEY))?;
         let private = self.deref_value(pdfcer.get(b"Private"))?;
         deserialize_model(&private)
-    }
-
-    /// The ce-dimension sidecar's entry in `/PieceInfo` (ISO 32000-1
-    /// §14.5: one entry per application, keyed by the application's name).
-    ///
-    /// # Two keys, and why the old one is still read
-    ///
-    /// The product was renamed from its pre-release code name `pdfce` to
-    /// `pdfcer` in `Pass 247.1` (decision 128, 2026-09-03). Every document
-    /// saved with ce dimensions by v0.5.1–v0.27.0 carries its sidecar under
-    /// `/pdfce`; a reader that looked only for `/pdfcer` would open those
-    /// files and silently show no ce dimensions — a rename must not cost
-    /// the operator his measurements. So the current key wins when both
-    /// are present, and the legacy key is the fallback. The writer emits
-    /// only `/pdfcer` and removes a legacy `/pdfce` beside it
-    /// (`write_dimension_model`), so a document never carries two sidecars
-    /// that could disagree.
-    fn sidecar_entry(&self, piece: &Dict) -> Option<Dict> {
-        self.deref_dict(piece.get(SIDECAR_KEY))
-            .or_else(|| self.deref_dict(piece.get(SIDECAR_KEY_LEGACY)))
     }
 
     /// Resolve an optional object (following one indirect reference) to an
@@ -37672,8 +37655,7 @@ impl EditSession {
             }
         };
 
-        // /PieceInfo — preserve foreign product keys, replace /pdfcer (and
-        // retire the pre-rename /pdfce, see `sidecar_entry`).
+        // /PieceInfo — preserve foreign product keys, replace /pdfcer.
         let sidecar = serialize_model(model);
         let mut data_dict = Dict::new();
         data_dict.insert(
@@ -37684,11 +37666,6 @@ impl EditSession {
         let mut piece = self
             .deref_dict(catalog.get(b"PieceInfo"))
             .unwrap_or_default();
-        // The pre-release key is retired on write, not left beside the new
-        // one: two sidecars in one document would be two answers to "what
-        // are this file's ce dimensions", and a pre-rename build reading the
-        // stale one would show measurements this save just changed.
-        piece.remove(SIDECAR_KEY_LEGACY);
         piece.insert(Name::from(SIDECAR_KEY), Object::Dict(data_dict));
 
         // /OCProperties — rebuild from pdfcer's group OCGs, preserving foreign.

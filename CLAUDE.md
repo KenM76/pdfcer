@@ -283,8 +283,10 @@ What holds now, replacing the struck bullet:
   matters *more*, not less, now that pushing no longer stops to ask.
 - **★ THE PROJECT IS ALREADY PUBLIC. This bullet said "there is still no
   git remote configured" and that was FALSE** —
-  `github.com/KenM76/pdfcer` is public, created 2026-08-09 04:56Z, `main`
-  pushed 10:18Z. Corrected 2026-08-10. Two consequences worth carrying:
+  `github.com/KenM76/pdfce` (the pre-release repository, now archived;
+  the project continues at `github.com/KenM76/pdfcer`, created 2026-09-03)
+  is public, created 2026-08-09 04:56Z, `main` pushed 10:18Z. Corrected
+  2026-08-10; repository name re-dated 2026-09-03 after the rename. Two consequences worth carrying:
   a repository with a remote is one where a careless `git push` reaches
   the world, and **anything committed here is published by default**, so
   the temp-folder convention for test files is now load-bearing rather

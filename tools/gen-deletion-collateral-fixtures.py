@@ -175,7 +175,7 @@ def page_with_annots(annots: bytes) -> bytes:
 # The ce-dimension `/PieceInfo` sidecar (ISO 32000-1 Section 14.5)
 # ---------------------------------------------------------------------------
 def sidecar(annot_ref: bytes, ap_ref: bytes) -> bytes:
-    """The catalog `/PieceInfo /pdfce /Private` sidecar, hand-written.
+    """The catalog `/PieceInfo /pdfcer /Private` sidecar, hand-written.
 
     Schema per `crates/pdfcer-core/src/dimension/sidecar.rs`: `/Version` 4,
     a `/Groups` array that MUST contain group `/Id 0` (`DEFAULT_GROUP_ID`, or
@@ -191,7 +191,7 @@ def sidecar(annot_ref: bytes, ap_ref: bytes) -> bytes:
     whole of the claim for sites 1 and 2, restated as a fixture.
     """
     return (
-        b"/PieceInfo << /pdfce << /LastModified (D:20260831000000Z) /Private << "
+        b"/PieceInfo << /pdfcer << /LastModified (D:20260831000000Z) /Private << "
         b"/Version 4 "
         b"/Groups [<< /Id 0 /Name (Default) /Scale /one /Unit (mm) "
         b"/Frac /decimal /Places 2 /Visible true >>] "

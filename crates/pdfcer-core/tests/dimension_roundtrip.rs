@@ -181,7 +181,7 @@ fn sidecar_survives_the_save_round_trip_and_matches_the_session_model() {
     .unwrap();
     let expected = s.dimension_model();
 
-    // Reload from disk and read the /PieceInfo /pdfce /Private sidecar back.
+    // Reload from disk and read the /PieceInfo /pdfcer /Private sidecar back.
     let reloaded = Document::from_bytes(save(&s)).unwrap();
     let catalog = reloaded.catalog().unwrap();
     let piece = catalog.get(b"PieceInfo").unwrap().as_dict().unwrap();
@@ -643,7 +643,7 @@ fn a_sidecar_without_the_offset_key_still_loads_every_group_and_dimension() {
 #[test]
 fn a_sidecar_from_a_newer_build_refuses_writes_instead_of_discarding_it() {
     let doc = Document::from_bytes(minimal_pdf_with_catalog(
-        "<< /Type /Catalog /Pages 2 0 R /PieceInfo << /pdfce << /LastModified (D:20260804000000Z) /Private << /Version 999 /Groups [] /Dimensions [] >> >> >> >>",
+        "<< /Type /Catalog /Pages 2 0 R /PieceInfo << /pdfcer << /LastModified (D:20260804000000Z) /Private << /Version 999 /Groups [] /Dimensions [] >> >> >> >>",
     ))
     .unwrap();
     let mut s = EditSession::new(doc);
@@ -1684,7 +1684,7 @@ fn perimeter(closed: bool) -> DimensionKind {
     }
 }
 
-/// The `/PieceInfo /pdfce /Private` sidecar object of a reloaded document,
+/// The `/PieceInfo /pdfcer /Private` sidecar object of a reloaded document,
 /// resolved through the view so an indirect reference is followed.
 fn read_sidecar(doc: &Document) -> Object {
     let catalog = doc.catalog().unwrap();

@@ -47,8 +47,10 @@ public-facing commit posture; publishing remained a separate act.
 
 **★ SUPERSEDED BY EVENTS, 2026-08-09.** This paragraph used to end *"the
 project's first implementation commit (`d8b3903`) remains local only"*.
-It is not local. The operator created `github.com/KenM76/pdfcer`
-(**public**) on 2026-08-09 04:56Z and pushed `main` at 10:18Z. Verify
+It is not local. The operator created `github.com/KenM76/pdfce`
+(**public**; the pre-release repository — archived 2026-09-03, when the
+same history was published as `github.com/KenM76/pdfcer`) on 2026-08-09
+04:56Z and pushed `main` at 10:18Z. Verify
 rather than trust this sentence too — `git remote -v` and
 `gh repo view KenM76/pdfcer --json visibility`.
 
@@ -75,8 +77,9 @@ dependencies). The operator chose MIT.
 >
 > Written 2026-08-09 as a *prospective* blocker — "publishing would
 > disclose this" — on the stated basis that no git remote existed. **That
-> basis was false when it was written.** `github.com/KenM76/pdfcer` was
-> created 2026-08-09 04:56Z and pushed at 10:18Z; this section was written
+> basis was false when it was written.** `github.com/KenM76/pdfce` (the
+> pre-release repository; `KenM76/pdfcer` carries the same history since
+> 2026-09-03) was created 2026-08-09 04:56Z and pushed at 10:18Z; this section was written
 > that evening and asserted the opposite.
 >
 > Found 2026-08-10 by running `git remote -v` while verifying something

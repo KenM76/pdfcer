@@ -19,13 +19,16 @@ keeps the 2,040 cited commit hashes and 30 tags that CI checks.
 **How to apply:**
 - `Pass 247.0` (strip the GUI crate, three GUI-only gates, harness scripts;
   4,730/0 tests = 5,114 − 384 GUI tests) — DONE 2026-09-03 in the clone.
-- `Pass 247.1` (mechanical rename `pdfce`→`pdfcer` in present-tense files;
-  history files ROADMAP/SESSION_LOG/ARCHITECTURE §12/decisions excluded;
-  CLI binary `pdfcer`; OneDrive slots `pdfcer1`/`pdfcer2`) — next.
-- `Pass 247.2` (gh repo create KenM76/pdfcer, push --tags, archive old repo,
-  v0.28.0 release) — creating/archiving repos authorised for THIS Pass only.
-- The GUI is `pdfcer-gui` at `D:\dev\pdfcer-gui` (its own engineer); it
-  depends on the engine by `git = "file:///D:/Dev/pdfce"` today and will
-  re-point to `pdfcer` when told the exact commit through the channel.
+- `Pass 247.1` (rename; CLI binary `pdfcer`, crate `pdfcer-cli`; v0.28.0;
+  sidecar reads legacy `/pdfce` key, decision 131) — DONE 2026-09-03.
+- `Pass 247.2` — DONE 2026-09-03: `KenM76/pdfcer` created and pushed with
+  all tags; `KenM76/pdfce` archived (two pointer commits, its CI ends
+  green); v0.28.0 released (GitHub + OneDrive pdfcer1; pdfcer2 seeded with
+  a copy of pdfce2's v0.27.0). Repo creation/archiving was a ONE-Pass
+  authority — not standing.
+- The GUI is `pdfcer-gui` at `D:\dev\pdfcer-gui` (its own engineer); as of
+  2026-09-03 it still depends on `file:///D:/Dev/pdfce` (frozen); the exact
+  re-point lines were posted on the channel. Check whether they switched.
+- `pdfceF{n}` resource names are a deliberate KEEP (opaque /Resources keys).
 - `check-string-gaps.sh` is NOT GUI-only (plan premise was wrong); it stays.
 - Global `~/.claude/CLAUDE.md` still says `D:\Dev\pdfce\` — Ken's to edit.

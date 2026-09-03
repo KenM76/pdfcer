@@ -2,9 +2,7 @@
 //!
 //! Serialise the [`DimensionModel`] to — and parse it back from — the PDF
 //! object graph, for storage under the document catalog's
-//! `/PieceInfo /pdfcer /Private` (§14.5 Table 319; documents written before
-//! `Pass 247.1` carry the same value under `/pdfce`, which the session still
-//! reads). This is pdfcer's
+//! `/PieceInfo /pdfcer /Private` (§14.5 Table 319). This is pdfcer's
 //! **authoritative** dimensioning model: groups, scale, units, number format,
 //! per-dimension geometry, best-fit params + residual, and the annotation/`/AP`
 //! wiring handles the scale-repropagation needs.

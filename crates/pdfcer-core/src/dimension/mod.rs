@@ -42,7 +42,6 @@
 //!    (§12.5.6.9 Table 178) carrying `/Vertices` for a **perimeter**
 //!    (`Pass 107.0`).
 //! 6. [`sidecar`] — the authoritative §14.5 `/PieceInfo /pdfcer /Private` model
-//!    (`/pdfce`, the pre-release key, is still READ — `EditSession::sidecar_entry`)
 //!    serialization (round-trips the whole [`group::DimensionModel`]).
 //! 7. [`style`] — the **style cascade** (`Pass 69.0`): factory default →
 //!    group default → per-ce-dimension override, one independent
