@@ -460,6 +460,12 @@ pub struct ColorRamp {
 }
 
 impl ColorRamp {
+    /// The `t` range the samples span — the shading's `/Domain`.
+    #[must_use]
+    pub fn domain(&self) -> [f32; 2] {
+        self.domain
+    }
+
     /// Build a ramp by sampling `function` across `domain` and converting
     /// each result through `space`.
     ///
@@ -723,6 +729,65 @@ impl ColorRamp {
     pub fn is_complete(&self) -> bool {
         self.samples.iter().all(Option::is_some)
     }
+}
+
+/// The shape of a shading an SVG can carry as a NATIVE gradient
+/// (`Pass 248.3`) — everything the writer needs, in one owned value.
+///
+/// Only two of the seven shading types have a native SVG form: axial
+/// (Type 2 → `<linearGradient>`) and the FOCAL sub-case of radial
+/// (Type 3 with `r0 == 0` or `r1 == 0` → `<radialGradient fx fy>`; SVG 1.1
+/// has no inner radius, so a true two-circle shading stays raster).
+/// Everything else — function-based, meshes, a `/Background`, a `/BBox`,
+/// an incomplete ramp — takes the rasterise-and-harvest route and is
+/// counted there.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GradientSpec {
+    /// Where the colour runs, in GRADIENT space.
+    pub kind: GradientKind,
+    /// `(offset 0..=1, sRGB)` — the ramp sampled and then thinned to the
+    /// stops that carry information (a stop collinear with its
+    /// neighbours within one 8-bit level is dropped).
+    pub stops: Vec<(f32, [u8; 3])>,
+    /// `/Extend`: whether paint continues beyond `t = 0` / `t = 1`.
+    /// SVG's `spreadMethod="pad"` always continues, so a `false` end is
+    /// expressed by the writer as a CLIP (a band for linear, the outer
+    /// circle for radial).
+    pub extend: [bool; 2],
+    /// Gradient space → the space of the path the brush fills.
+    pub transform: tiny_skia::Transform,
+    /// The constant alpha in force (`/ca`), `0..=1`.
+    pub alpha: f32,
+}
+
+/// The geometry half of a [`GradientSpec`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum GradientKind {
+    /// From `(x0, y0)` at `t = 0` to `(x1, y1)` at `t = 1`.
+    Linear {
+        /// Start.
+        x0: f32,
+        /// Start.
+        y0: f32,
+        /// End.
+        x1: f32,
+        /// End.
+        y1: f32,
+    },
+    /// From the focal point `(fx, fy)` at `t = 0` to the circle of
+    /// radius `r` about `(cx, cy)` at `t = 1`.
+    Radial {
+        /// Outer circle centre.
+        cx: f32,
+        /// Outer circle centre.
+        cy: f32,
+        /// Outer circle radius.
+        r: f32,
+        /// Focal point.
+        fx: f32,
+        /// Focal point.
+        fy: f32,
+    },
 }
 
 /// A resolved shading dictionary (§8.7.4.3, Table 78) plus its geometry.
@@ -1037,6 +1102,110 @@ impl Shading {
             bbox: array_n(doc, dict, b"BBox"),
             anti_alias: boolean(doc, dict, b"AntiAlias"),
             mesh,
+        })
+    }
+
+    /// This shading as a native SVG gradient, if it has one
+    /// (`Pass 248.3`); see [`GradientSpec`] for what qualifies.
+    ///
+    /// `transform` is gradient space → the filled path's space; `alpha`
+    /// the constant alpha in force. The ramp is sampled at 64 points over
+    /// its domain and thinned; a stop is kept only where the colour is not
+    /// the straight-line interpolation of its neighbours.
+    pub fn gradient_spec(
+        &self,
+        transform: tiny_skia::Transform,
+        alpha: f32,
+    ) -> Option<GradientSpec> {
+        if self.mesh.is_some() || self.background.is_some() || self.bbox.is_some() {
+            return None;
+        }
+        let ramp = self.ramp.as_ref()?;
+        if !ramp.is_complete() {
+            return None;
+        }
+        let (kind, extend, reversed) = match self.geometry {
+            Geometry::Axial { coords, extend, .. } => (
+                GradientKind::Linear {
+                    x0: coords[0],
+                    y0: coords[1],
+                    x1: coords[2],
+                    y1: coords[3],
+                },
+                extend,
+                false,
+            ),
+            Geometry::Radial { coords, extend, .. } => {
+                let [x0, y0, r0, x1, y1, r1] = coords;
+                if r0.abs() < 1e-6 && r1 > 0.0 {
+                    (
+                        GradientKind::Radial {
+                            cx: x1,
+                            cy: y1,
+                            r: r1,
+                            fx: x0,
+                            fy: y0,
+                        },
+                        extend,
+                        false,
+                    )
+                } else if r1.abs() < 1e-6 && r0 > 0.0 {
+                    // Circle 1 is the point: run the ramp backwards so the
+                    // focal point is still `t = 0` of the SVG gradient.
+                    (
+                        GradientKind::Radial {
+                            cx: x0,
+                            cy: y0,
+                            r: r0,
+                            fx: x1,
+                            fy: y1,
+                        },
+                        [extend[1], extend[0]],
+                        true,
+                    )
+                } else {
+                    return None;
+                }
+            }
+            Geometry::FunctionBased { .. } | Geometry::Mesh { .. } => return None,
+        };
+        let [t0, t1] = ramp.domain();
+        const N: usize = 64;
+        let mut raw: Vec<(f32, [u8; 3])> = Vec::with_capacity(N + 1);
+        for i in 0..=N {
+            #[allow(clippy::cast_precision_loss)]
+            let u = i as f32 / N as f32;
+            let t = if reversed { 1.0 - u } else { u };
+            let c = ramp.at(t0 + t * (t1 - t0))?;
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let q = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+            raw.push((u, [q(c.r), q(c.g), q(c.b)]));
+        }
+        // Thin: keep the ends and every interior stop that is not the
+        // linear interpolation of its kept predecessor and its successor.
+        let mut stops: Vec<(f32, [u8; 3])> = vec![raw[0]];
+        for i in 1..raw.len() - 1 {
+            let (ua, ca) = *stops.last().unwrap_or(&raw[0]);
+            let (ub, cb) = raw[i + 1];
+            let (u, c) = raw[i];
+            let f = if (ub - ua).abs() < f32::EPSILON {
+                0.0
+            } else {
+                (u - ua) / (ub - ua)
+            };
+            let lerp = |a: u8, b: u8| f32::from(a) + (f32::from(b) - f32::from(a)) * f;
+            let off = (0..3).any(|k| (lerp(ca[k], cb[k]) - f32::from(c[k])).abs() > 1.0);
+            if off {
+                stops.push((u, c));
+            }
+        }
+        stops.push(raw[N]);
+        Some(GradientSpec {
+            kind,
+            stops,
+            extend,
+            transform,
+            alpha: alpha.clamp(0.0, 1.0),
         })
     }
 

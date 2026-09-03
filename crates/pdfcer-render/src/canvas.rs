@@ -105,6 +105,13 @@ pub(crate) enum Brush {
     /// [`Canvas::fill_image`]: paint mode builds its shader straight off
     /// the interpreter's borrow, so the texel copy this variant implies is
     /// paid exactly where something will read it back.
+    /// A native gradient (`Pass 248.3`) — recorded by the EXPORT recorder
+    /// only, so an SVG can write `<linearGradient>`/`<radialGradient>`
+    /// instead of a raster. Replay paints it through tiny-skia's own
+    /// gradient shaders, `Pad` spread; the `Extend` = false ends that
+    /// SVG expresses as a clip are approximated by `Pad` on replay, which
+    /// no cache ever sees (cache mode still refuses shadings).
+    Gradient(Arc<crate::shading::GradientSpec>),
     Image {
         /// The decoded texels, owned because the interpreter's own copy
         /// goes out of scope while a display list outlives the walk.
@@ -336,6 +343,47 @@ impl BrushSpec {
                 paint.blend_mode = self.blend;
                 paint
             }
+            Brush::Gradient(g) => {
+                use crate::shading::GradientKind;
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                let a = (g.alpha.clamp(0.0, 1.0) * 255.0).round() as u8;
+                let stops: Vec<tiny_skia::GradientStop> = g
+                    .stops
+                    .iter()
+                    .map(|(o, c)| {
+                        tiny_skia::GradientStop::new(
+                            *o,
+                            tiny_skia::Color::from_rgba8(c[0], c[1], c[2], a),
+                        )
+                    })
+                    .collect();
+                let shader = match g.kind {
+                    GradientKind::Linear { x0, y0, x1, y1 } => tiny_skia::LinearGradient::new(
+                        tiny_skia::Point::from_xy(x0, y0),
+                        tiny_skia::Point::from_xy(x1, y1),
+                        stops,
+                        SpreadMode::Pad,
+                        g.transform,
+                    ),
+                    GradientKind::Radial { cx, cy, r, fx, fy } => tiny_skia::RadialGradient::new(
+                        tiny_skia::Point::from_xy(fx, fy),
+                        tiny_skia::Point::from_xy(cx, cy),
+                        r,
+                        stops,
+                        SpreadMode::Pad,
+                        g.transform,
+                    ),
+                };
+                Paint {
+                    // A degenerate gradient (zero-length axis, zero radius)
+                    // paints nothing rather than a guessed solid.
+                    shader: shader
+                        .unwrap_or(tiny_skia::Shader::SolidColor(tiny_skia::Color::TRANSPARENT)),
+                    blend_mode: self.blend,
+                    anti_alias: self.anti_alias,
+                    force_hq_pipeline: false,
+                }
+            }
             Brush::Image {
                 texels,
                 quality,
@@ -399,7 +447,7 @@ impl BrushSpec {
                 },
                 f32::from(rgba[3]) / 255.0,
             ),
-            Brush::Image { .. } => (self.clone(), 1.0),
+            Brush::Image { .. } | Brush::Gradient(_) => (self.clone(), 1.0),
         }
     }
 
@@ -412,7 +460,7 @@ impl BrushSpec {
     pub(crate) const fn solid_rgba(&self) -> Option<[u8; 4]> {
         match &self.brush {
             Brush::Solid { rgba } => Some(*rgba),
-            Brush::Image { .. } => None,
+            Brush::Image { .. } | Brush::Gradient(_) => None,
         }
     }
 }
@@ -552,6 +600,55 @@ impl<'a> Canvas<'a> {
         if let Self::Record(r) = self {
             r.poison(reason);
         }
+    }
+
+    /// Whether this canvas is the EXPORT recorder (`Pass 248.3`) — the one
+    /// destination that can take a native gradient instead of pixels.
+    pub(crate) fn exporting(&self) -> bool {
+        matches!(self, Self::Record(r) if r.export.is_some())
+    }
+
+    /// Record a shading as a native gradient fill (`Pass 248.3`).
+    ///
+    /// Export recorder only: returns `false` on every other canvas, and
+    /// the site then takes its ordinary route. `path` is in the space
+    /// `ctm` maps to device; `spec.transform` maps gradient space to that
+    /// same path space.
+    pub(crate) fn record_gradient(
+        &mut self,
+        path: &Path,
+        spec: crate::shading::GradientSpec,
+        rule: FillRule,
+        ctm: Transform,
+        clip: ClipRef<'_>,
+    ) -> bool {
+        let Self::Record(r) = self else {
+            return false;
+        };
+        let Some(export) = r.export.as_mut() else {
+            return false;
+        };
+        export.tally.shadings_as_gradients += 1;
+        let brush = BrushSpec {
+            brush: Brush::Gradient(Arc::new(spec)),
+            blend: BlendMode::SourceOver,
+            anti_alias: true,
+            cmyk: None,
+            spots: Vec::new(),
+            process_tints: None,
+        };
+        r.push_masked(
+            Op::Fill {
+                bounds: fill_bounds(path, ctm),
+                path: Arc::new(path.clone()),
+                brush,
+                rule,
+                ctm,
+                clip: clip.id,
+            },
+            clip.mask,
+        );
+        true
     }
 
     /// The EXPORT recorder's scratch, for a site that has just refused

@@ -2846,7 +2846,7 @@ request, and the format that pastes into Inkscape, Word/PowerPoint/Excel
 | a page as SVG | `pdfcer_render::svg::export_svg(&doc, &page, &RenderOptions, &SvgOptions) -> Result<SvgExport, RenderError>`; `export_svg_view` for an edit session's live `DocumentView` |
 | choose the resolution of anything that must be raster inside it | `SvgOptions::default().with_raster_dpi(300.0)` — also the scale every coordinate is written at (vectors are exact at any value) |
 | an opaque background | `.with_background(Some(Rgb {..}))`; the default is transparent, natively |
-| know what is raster or approximated inside the file | `SvgExport::outcome.tally: ExportTally` — `shadings_rasterised`, `soft_masks_kept`, `overprint_approximated`, `nonseparable_approximated`, `non_isolated_groups_isolated`, `colorant_buffer_on_screen`; `tally.is_exact()` when the whole page went out as geometry |
+| know what is raster or approximated inside the file | `SvgExport::outcome.tally: ExportTally` (`#[non_exhaustive]`) — `shadings_rasterised`, `shadings_as_gradients` (`Pass 248.3`: axial and focal-radial shadings go out as `<linearGradient>`/`<radialGradient>`, exact; only function-based, mesh, two-circle radial, `/Background` or `/BBox` shadings are still raster), `soft_masks_kept`, `overprint_approximated`, `nonseparable_approximated`, `non_isolated_groups_isolated`, `colorant_buffer_on_screen`; `tally.is_exact()` when the whole page went out as geometry (a native gradient counts as exact) |
 | the rest of the disclosure | `outcome.ops`, `images_embedded`, `dashed_strokes_pre_applied`, `blend_modes_used`, `width_pt`/`height_pt`/`scale`, and the render's own `diagnostics` |
 
 **Where the geometry comes from, and why that is the whole design.** The SVG

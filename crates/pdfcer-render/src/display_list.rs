@@ -1316,10 +1316,16 @@ pub(crate) struct ExportState {
 /// What an export recording could not express as geometry, counted
 /// (`Pass 248.1`). Every field is a rule-4 disclosure, not decoration.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ExportTally {
     /// Shadings (`sh` and shading-pattern fills) embedded as RASTER at
-    /// the export resolution rather than as gradients.
+    /// the export resolution rather than as gradients — the ones with no
+    /// native SVG form (function-based, meshes, two-circle radials, a
+    /// `/Background` or `/BBox`, an incomplete ramp).
     pub shadings_rasterised: u32,
+    /// Shadings written as NATIVE gradients (`Pass 248.3`): axial and
+    /// focal radial. A count of fidelity, not shortfall.
+    pub shadings_as_gradients: u32,
     /// Transparency groups whose §11.6.5 soft mask was KEPT (as a mask
     /// image) rather than refused. A count of fidelity, not shortfall.
     pub soft_masks_kept: u32,
@@ -1343,7 +1349,10 @@ impl ExportTally {
     /// Whether anything at all was rasterised or approximated.
     #[must_use]
     pub fn is_exact(&self) -> bool {
-        *self == Self::default()
+        // A native gradient is exact; it is counted, not confessed.
+        let mut without = *self;
+        without.shadings_as_gradients = 0;
+        without == Self::default()
     }
 }
 

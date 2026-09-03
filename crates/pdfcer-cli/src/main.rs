@@ -13057,7 +13057,8 @@ fn cmd_copy_page(args: CopyPageArgs<'_>) -> u8 {
         println!(
             "svg: ops={} images={} dashed_pre_applied={} blend_modes={} \
 shadings_rasterised={} soft_masks_kept={} overprint_approximated={} \
-nonseparable_approximated={} non_isolated_isolated={} colorant_buffer_on_screen={} exact={}",
+nonseparable_approximated={} non_isolated_isolated={} colorant_buffer_on_screen={} exact={} \
+shadings_as_gradients={}",
             o.ops,
             o.images_embedded,
             o.dashed_strokes_pre_applied,
@@ -13068,7 +13069,8 @@ nonseparable_approximated={} non_isolated_isolated={} colorant_buffer_on_screen=
             t.nonseparable_approximated,
             t.non_isolated_groups_isolated,
             t.colorant_buffer_on_screen,
-            u8::from(t.is_exact())
+            u8::from(t.is_exact()),
+            t.shadings_as_gradients
         );
         eprintln!(
             "pdfcer: note: the vector payload carries text as glyph OUTLINES; a paste into Word or Inkscape is editable as shapes, not as words"
@@ -13378,7 +13380,8 @@ fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
             println!(
                 "svg: ops={} images={} dashed_pre_applied={} blend_modes={} \
 shadings_rasterised={} soft_masks_kept={} overprint_approximated={} \
-nonseparable_approximated={} non_isolated_isolated={} colorant_buffer_on_screen={} exact={}",
+nonseparable_approximated={} non_isolated_isolated={} colorant_buffer_on_screen={} exact={} \
+shadings_as_gradients={}",
                 o.ops,
                 o.images_embedded,
                 o.dashed_strokes_pre_applied,
@@ -13389,7 +13392,8 @@ nonseparable_approximated={} non_isolated_isolated={} colorant_buffer_on_screen=
                 t.nonseparable_approximated,
                 t.non_isolated_groups_isolated,
                 t.colorant_buffer_on_screen,
-                u8::from(t.is_exact())
+                u8::from(t.is_exact()),
+                t.shadings_as_gradients
             );
             // Rule 4 in prose, once per page: what is inferred or
             // approximated in the file, by name.
@@ -13398,8 +13402,8 @@ nonseparable_approximated={} non_isolated_isolated={} colorant_buffer_on_screen=
             );
             if t.shadings_rasterised > 0 {
                 eprintln!(
-                    "pdfcer: note: page {page_number}: {} shading(s) are embedded as RASTER images, not gradients",
-                    t.shadings_rasterised
+                    "pdfcer: note: page {page_number}: {} shading(s) are embedded as RASTER images (function-based, mesh, two-circle radial, or carrying /Background or /BBox); {} went out as native gradients",
+                    t.shadings_rasterised, t.shadings_as_gradients
                 );
             }
             if t.soft_masks_kept > 0 {

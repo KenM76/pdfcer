@@ -315,16 +315,120 @@ fn axial_shading_page() -> Vec<u8> {
     )
 }
 
+/// A two-circle radial (both radii non-zero): SVG 1.1 has no inner radius,
+/// so this one stays raster.
+fn two_circle_radial_page() -> Vec<u8> {
+    page(
+        "/Shading << /Sh0 << /ShadingType 3 /ColorSpace /DeviceRGB /Coords [50 40 10 50 40 35] \
+         /Function << /FunctionType 2 /Domain [0 1] /C0 [1 1 0] /C1 [0 0 1] /N 1 >> /Extend [false false] >> >>",
+        "q 10 10 80 60 re W n /Sh0 sh Q",
+        0,
+    )
+}
+
 #[test]
-fn a_shading_is_embedded_as_a_raster_and_said_so() {
-    let (_, svg) = export(axial_shading_page());
-    assert_eq!(svg.outcome.tally.shadings_rasterised, 1);
+fn a_shading_with_no_native_form_is_embedded_as_a_raster_and_said_so() {
+    let (_, svg) = export(two_circle_radial_page());
+    assert_eq!(
+        svg.outcome.tally.shadings_rasterised, 1,
+        "{:?}",
+        svg.outcome.tally
+    );
+    assert_eq!(svg.outcome.tally.shadings_as_gradients, 0);
     assert_eq!(svg.outcome.images_embedded, 1);
     assert!(!svg.outcome.tally.is_exact());
     assert!(svg.svg.contains(r#"<image x="0" y="0" width="#));
     assert!(svg.svg.contains("data:image/png;base64,"));
     // The harvested image is clipped by the clip that was in force.
     assert!(svg.svg.contains(r#"<g clip-path="url(#c0)"#));
+}
+
+// ---------------------------------------------------------------------------
+// Native gradients (`Pass 248.3`) — pixel parity through resvg, which
+// renders gradients without any feature flag
+// ---------------------------------------------------------------------------
+
+#[test]
+fn an_axial_shading_is_a_linear_gradient_and_renders_identically() {
+    let (reference, svg) = export(axial_shading_page());
+    let t = &svg.outcome.tally;
+    assert_eq!(t.shadings_as_gradients, 1, "{t:?}");
+    assert_eq!(t.shadings_rasterised, 0);
+    assert!(t.is_exact(), "a native gradient is exact: {t:?}");
+    assert_eq!(svg.outcome.images_embedded, 0);
+    assert!(svg.svg.contains(r#"<linearGradient id="g"#), "{}", svg.svg);
+    assert!(svg.svg.contains(r#"gradientUnits="userSpaceOnUse""#));
+    assert!(svg.svg.contains(r#"fill="url(#g"#));
+    // A linear ramp thins to its two ends.
+    assert_eq!(svg.svg.matches("<stop ").count(), 2, "{}", svg.svg);
+    assert_matches("axial", &reference, &svg.svg, 0.01);
+}
+
+#[test]
+fn a_focal_radial_shading_is_a_radial_gradient_and_renders_identically() {
+    let bytes = page(
+        "/Shading << /Sh0 << /ShadingType 3 /ColorSpace /DeviceRGB /Coords [45 35 0 50 40 35] \
+         /Function << /FunctionType 2 /Domain [0 1] /C0 [1 1 1] /C1 [0 0.5 0] /N 1 >> /Extend [false true] >> >>",
+        "q 10 10 80 60 re W n /Sh0 sh Q",
+        0,
+    );
+    let (reference, svg) = export(bytes);
+    assert_eq!(
+        svg.outcome.tally.shadings_as_gradients, 1,
+        "{:?}",
+        svg.outcome.tally
+    );
+    assert!(svg.svg.contains(r#"<radialGradient id="g"#), "{}", svg.svg);
+    assert!(svg.svg.contains(r#" fx="45" fy="35""#), "{}", svg.svg);
+    assert_matches("radial", &reference, &svg.svg, 0.015);
+}
+
+#[test]
+fn an_unextended_axial_shading_paints_nothing_beyond_its_ends() {
+    // Axis from x=40 to x=60 inside a clip spanning x=10..90: with
+    // /Extend [false false] the strips 10..40 and 60..90 stay unpainted.
+    let bytes = page(
+        "/Shading << /Sh0 << /ShadingType 2 /ColorSpace /DeviceRGB /Coords [40 0 60 0] \
+         /Function << /FunctionType 2 /Domain [0 1] /C0 [1 0 0] /C1 [0 0 1] /N 1 >> /Extend [false false] >> >>",
+        "q 10 10 80 60 re W n /Sh0 sh Q",
+        0,
+    );
+    let (reference, svg) = export(bytes);
+    assert_eq!(svg.outcome.tally.shadings_as_gradients, 1);
+    assert!(
+        svg.svg.contains(r#"<clipPath id="e"#),
+        "the extent clip: {}",
+        svg.svg
+    );
+    assert_matches("extend-false", &reference, &svg.svg, 0.01);
+    let raster = rasterise(&svg.svg, reference.width(), reference.height());
+    let s = DPI / 72.0;
+    let at = |x: f32, y: f32| {
+        raster.pixels()[((y * s) as u32 * raster.width() + (x * s) as u32) as usize]
+    };
+    assert_eq!(at(20.0, 40.0).alpha(), 0, "left of the band");
+    assert_eq!(at(80.0, 40.0).alpha(), 0, "right of the band");
+    assert!(at(50.0, 40.0).alpha() > 200, "inside the band");
+}
+
+#[test]
+fn a_gradient_shading_pattern_fill_keeps_the_fill_path() {
+    // The same axial shading used as a PATTERN fill of a triangle.
+    let bytes = page(
+        "/Pattern << /P0 << /PatternType 2 /Shading << /ShadingType 2 /ColorSpace /DeviceRGB \
+         /Coords [10 0 90 0] /Function << /FunctionType 2 /Domain [0 1] /C0 [0 1 0] /C1 [1 0 1] /N 1 >> \
+         /Extend [true true] >> >> >>",
+        "/Pattern cs /P0 scn 10 10 m 90 10 l 50 70 l h f",
+        0,
+    );
+    let (reference, svg) = export(bytes);
+    assert_eq!(
+        svg.outcome.tally.shadings_as_gradients, 1,
+        "{:?}",
+        svg.outcome.tally
+    );
+    assert!(svg.svg.contains(r#"<linearGradient id="g"#));
+    assert_matches("pattern-gradient", &reference, &svg.svg, 0.01);
 }
 
 fn soft_masked_page() -> Vec<u8> {

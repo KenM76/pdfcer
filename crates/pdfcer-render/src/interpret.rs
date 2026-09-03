@@ -5018,6 +5018,33 @@ impl Interpreter<'_> {
         // `Canvas::pixmap_mut`: a target that cannot hand one over is one
         // that cannot reproduce this operator, and the honest answer there
         // is to refuse the whole recording rather than to drop the shading.
+        // EXPORT recording with a native form (`Pass 248.3`): an axial or
+        // focal-radial shading is recorded as a GRADIENT fill over the
+        // clip's device rectangle, gradient space → device = the CTM.
+        // Before `refuse`, so it is counted as a gradient, not a raster.
+        if canvas.exporting()
+            && let Some(spec) = shading.gradient_spec(ctm, alpha)
+        {
+            #[allow(clippy::cast_precision_loss)]
+            let rect = tiny_skia::Rect::from_ltrb(
+                region.0 as f32,
+                region.1 as f32,
+                region.2 as f32,
+                region.3 as f32,
+            );
+            if let Some(rect) = rect
+                && canvas.record_gradient(
+                    &PathBuilder::from_rect(rect),
+                    spec,
+                    FillRule::Winding,
+                    Transform::identity(),
+                    self.gs.current.clip_ref(),
+                )
+            {
+                self.diag.shading.painted += 1;
+                return;
+            }
+        }
         canvas.refuse(PoisonReason::Shading);
         // ★ BRIDGED, NOT NATIVE, AND THE REASON IS UPSTREAM OF THIS CALL.
         // `ColorRamp::at` resolves a shading's colour to three-channel
@@ -7048,6 +7075,19 @@ impl Interpreter<'_> {
         } else {
             self.gs.current.fill_alpha
         };
+        // EXPORT recording with a native form (`Pass 248.3`): the fill path
+        // in user space, the gradient in pattern space; gradient → path
+        // space is CTM⁻¹ ∘ (base CTM × pattern matrix). A stroked pattern
+        // keeps the raster route: the fill below would be its outline.
+        if !stroking
+            && canvas.exporting()
+            && let Some(inv) = ctm.invert()
+            && let Some(spec) = shading.gradient_spec(inv.pre_concat(to_device), alpha)
+            && canvas.record_gradient(path, spec, rule, ctm, self.gs.current.clip_ref())
+        {
+            self.diag.shading.painted += 1;
+            return true;
+        }
         canvas.refuse(PoisonReason::Shading);
         let op = if stroking {
             self.gs.current.overprint_stroke

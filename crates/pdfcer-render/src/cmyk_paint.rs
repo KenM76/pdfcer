@@ -337,9 +337,10 @@ pub(crate) fn paint_brush_coverage_into_cmyk(
                 buf.record_bridged_solid(painted);
             }
         }
-        Brush::Image { .. } => {
+        Brush::Image { .. } | Brush::Gradient(_) => {
             // See the doc comment: unreachable through the interpreter,
-            // handled rather than asserted.
+            // handled rather than asserted. A gradient brush exists only
+            // in an export recording, which never composites in ink.
             buf.note_unbridged_image();
         }
     }

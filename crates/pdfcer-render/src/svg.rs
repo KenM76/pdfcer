@@ -25,7 +25,9 @@
 //! groups — and it is paid **without weakening the cache's posture**
 //! (`R211`): the recorder has an *export* mode ([`crate::display_list::ExportState`])
 //! in which every site that would refuse instead rasterises that ONE
-//! operator at the recording scale and records it as an image fill, keeps
+//! operator at the recording scale and records it as an image fill (or,
+//! since `Pass 248.3`, records an axial / focal-radial shading as a NATIVE
+//! gradient brush), keeps
 //! a soft mask with its layer, or records the isolated / `Normal`
 //! approximation — and COUNTS it, so [`SvgOutcome::tally`] can say what is
 //! raster inside the file and what was approximated. Rule 4 (fuzzy, never
@@ -53,6 +55,7 @@
 //! |---|---|
 //! | `Op::Fill` with a solid brush | `<path d="…" fill="rgb()" fill-opacity fill-rule>` — the path is pre-transformed into device space |
 //! | `Op::Fill` with an image brush | `<clipPath>` of the fill path, then `<image>` with `transform="matrix(ctm ∘ image_to_user)"` and a PNG-with-alpha data URI |
+//! | `Op::Fill` with a gradient brush (`Pass 248.3`: an axial or focal-radial shading) | `<linearGradient>` / `<radialGradient gradientUnits="userSpaceOnUse" gradientTransform=…>` with the ramp thinned to its informative stops, `spreadMethod="pad"`; an `/Extend` = false end becomes a `<clipPath>` (the band between the end perpendiculars, or the outer circle) |
 //! | `Op::Stroke` | `<path transform="matrix(ctm)" fill="none" stroke=… stroke-width=…>` — path space kept so a non-uniform CTM scales the width the way §8.4.3.2 says; a hairline gets `vector-effect="non-scaling-stroke"`; a dash array is **pre-applied** with `Path::dash` (tiny-skia exposes no accessor for the array) and counted |
 //! | `Op::Layer` | `<g opacity style="mix-blend-mode:…" mask="url(#m)">` — group opacity in SVG *is* isolated-group compositing, which is the semantics the layer recorded |
 //! | a clip | `<clipPath id clip-path="url(#parent)">` — intersection with the enclosing clip is expressed on the `<clipPath>` element itself, so a leaf reference carries the whole chain |
@@ -439,6 +442,96 @@ impl Writer<'_> {
                 );
                 self.body.push('\n');
             }
+            Brush::Gradient(g) => {
+                use crate::shading::GradientKind;
+                // The path is pre-transformed to device space like any
+                // fill; the gradient's own space reaches device through
+                // ctm ∘ spec.transform, written as `gradientTransform`
+                // with userSpaceOnUse units.
+                let Some(device) = path.clone().transform(ctm) else {
+                    return;
+                };
+                let to_device = ctm.pre_concat(g.transform);
+                let id = self.fresh_id("g");
+                let mut def = String::new();
+                match g.kind {
+                    GradientKind::Linear { x0, y0, x1, y1 } => {
+                        let _ = write!(
+                            def,
+                            r#"<linearGradient id="{id}" gradientUnits="userSpaceOnUse" x1="{}" y1="{}" x2="{}" y2="{}" gradientTransform="{}" spreadMethod="pad">"#,
+                            num(x0),
+                            num(y0),
+                            num(x1),
+                            num(y1),
+                            matrix(to_device)
+                        );
+                    }
+                    GradientKind::Radial { cx, cy, r, fx, fy } => {
+                        let _ = write!(
+                            def,
+                            r#"<radialGradient id="{id}" gradientUnits="userSpaceOnUse" cx="{}" cy="{}" r="{}" fx="{}" fy="{}" gradientTransform="{}" spreadMethod="pad">"#,
+                            num(cx),
+                            num(cy),
+                            num(r),
+                            num(fx),
+                            num(fy),
+                            matrix(to_device)
+                        );
+                    }
+                }
+                for (offset, c) in &g.stops {
+                    let _ = write!(
+                        def,
+                        r#"<stop offset="{}" stop-color="rgb({},{},{})"{}/>"#,
+                        num(*offset),
+                        c[0],
+                        c[1],
+                        c[2],
+                        if g.alpha < 1.0 {
+                            format!(r#" stop-opacity="{}""#, num(g.alpha))
+                        } else {
+                            String::new()
+                        }
+                    );
+                }
+                def.push_str(match g.kind {
+                    GradientKind::Linear { .. } => "</linearGradient>\n",
+                    GradientKind::Radial { .. } => "</radialGradient>\n",
+                });
+                self.defs.push_str(&def);
+
+                // `/Extend` false: SVG pads past the ends, PDF paints nothing
+                // there. A clip in gradient space, carried to device by the
+                // same transform: the band between the end perpendiculars
+                // for linear, the outer circle for radial.
+                let extent_clip =
+                    extent_clip_path(&g.kind, g.extend).and_then(|p| p.transform(to_device));
+                let extent_attr = match extent_clip {
+                    Some(p) => {
+                        let eid = self.fresh_id("e");
+                        let _ = writeln!(
+                            self.defs,
+                            r#"<clipPath id="{eid}"><path d="{}"/></clipPath>"#,
+                            path_data(&p)
+                        );
+                        format!(r#" clip-path="url(#{eid})""#)
+                    }
+                    None => String::new(),
+                };
+                self.indent(depth);
+                let _ = write!(
+                    self.body,
+                    r#"<g{clip_attr}{blend_attr}><path d="{}" fill="url(#{id})"{}{}/></g>"#,
+                    path_data(&device),
+                    if rule == FillRule::EvenOdd {
+                        r#" fill-rule="evenodd""#
+                    } else {
+                        ""
+                    },
+                    extent_attr
+                );
+                self.body.push('\n');
+            }
             Brush::Image {
                 texels,
                 quality,
@@ -656,6 +749,51 @@ impl Writer<'_> {
 // ---------------------------------------------------------------------------
 // Encoding helpers
 // ---------------------------------------------------------------------------
+
+/// The region a gradient with an `/Extend` = false end may paint, as a
+/// path in GRADIENT space (`Pass 248.3`); `None` when both ends extend
+/// (SVG's `pad` then matches PDF exactly).
+///
+/// Linear: the strip between the perpendiculars through the two end points,
+/// extended `FAR` along the axis on any end that DOES extend and `FAR` to
+/// either side. Radial (focal form): the outer circle when the outer end
+/// does not extend; the inner "circle" is the focal point, so its end has
+/// no area to withhold.
+fn extent_clip_path(kind: &crate::shading::GradientKind, extend: [bool; 2]) -> Option<Path> {
+    use crate::shading::GradientKind;
+    const FAR: f32 = 1.0e5;
+    match *kind {
+        GradientKind::Linear { x0, y0, x1, y1 } => {
+            if extend[0] && extend[1] {
+                return None;
+            }
+            let (dx, dy) = (x1 - x0, y1 - y0);
+            let len = (dx * dx + dy * dy).sqrt();
+            if len <= 0.0 || !len.is_finite() {
+                return None;
+            }
+            let (ux, uy) = (dx / len, dy / len);
+            let (px, py) = (-uy * FAR, ux * FAR);
+            let back = if extend[0] { FAR } else { 0.0 };
+            let fwd = if extend[1] { FAR } else { 0.0 };
+            let (sx, sy) = (x0 - ux * back, y0 - uy * back);
+            let (ex, ey) = (x1 + ux * fwd, y1 + uy * fwd);
+            let mut pb = tiny_skia::PathBuilder::new();
+            pb.move_to(sx + px, sy + py);
+            pb.line_to(ex + px, ey + py);
+            pb.line_to(ex - px, ey - py);
+            pb.line_to(sx - px, sy - py);
+            pb.close();
+            pb.finish()
+        }
+        GradientKind::Radial { cx, cy, r, .. } => {
+            if extend[1] {
+                return None;
+            }
+            tiny_skia::PathBuilder::from_circle(cx, cy, r)
+        }
+    }
+}
 
 /// A number with at most three decimals and no trailing zeros — a device
 /// pixel at 300 DPI is 0.24 pt, so three decimals of a pixel is far below

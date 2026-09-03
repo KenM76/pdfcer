@@ -423,7 +423,12 @@ fn svg_is_written_with_its_own_disclosure_line() {
         "{}",
         lines[1]
     );
-    assert!(lines[1].ends_with(" exact=1"), "{}", lines[1]);
+    assert!(lines[1].contains(" exact=1 "), "{}", lines[1]);
+    assert!(
+        lines[1].ends_with(" shadings_as_gradients=0"),
+        "{}",
+        lines[1]
+    );
     assert!(stderr(&o).contains("glyph OUTLINES"));
 
     let svg = std::fs::read_to_string(&out).unwrap();
