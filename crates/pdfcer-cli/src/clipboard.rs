@@ -55,6 +55,12 @@
 //! name could not be registered, or a `SetClipboardData` failed. Each names
 //! the format so the operator knows what did and did not land.
 
+// On a non-Windows target nothing here is reached except the refusing
+// `place`: the payload fields, `dib_v5` and `svg_payload` exist so the CLI's
+// call site compiles identically everywhere, and are dead there BY DESIGN.
+// Allowed for that target only, so a Windows build still flags real rot.
+#![cfg_attr(not(windows), allow(dead_code))]
+
 use pdfcer_render::tiny_skia::Pixmap;
 
 /// What to place. Every field optional so a caller can place a subset.

@@ -106,6 +106,12 @@ pdfcer-render.workspace = true
 # shipped complete and unwired (the R151 shape - a capability that exists
 # and no caller reaches).
 pdfcer-fetch = { workspace = true, optional = true }
+# thiserror: `clipboard::ClipboardError` derives it on EVERY target -- the
+# error type is the same shape on Linux/macOS, where `copy-page` refuses by
+# name -- so it must NOT sit under the cfg(windows) block (that shipped
+# a66a4e4 red on the ubuntu and macOS CI jobs). Same rationale + license
+# (MIT OR Apache-2.0) as core's entry.
+thiserror = "2"
 
 # Windows printing (Reader-parity sweep). TARGET-GATED so the Linux and
 # macOS CI jobs still compile this crate — printing is the one genuinely
@@ -128,8 +134,6 @@ pdfcer-fetch = { workspace = true, optional = true }
 # whole point.
 [target.'cfg(windows)'.dependencies]
 clipboard-win = "5"
-# thiserror: `ClipboardError` (same rationale + license as core's entry).
-thiserror = "2"
 
 [dev-dependencies]
 # png: TEST-ONLY. `tests/export_image.rs` decodes what `export-image` wrote
