@@ -112,6 +112,83 @@ wherever it appears.*
 
 ## Shipped
 
+**★★ 409th filing, 2026-09-03 — `1f9eb1d`: `chore: v0.30.0` — BUMPED AND
+TAGGED locally (carries `Pass 248.3` + `Pass 248.4`); push / package-folder
+verification / GitHub release / OneDrive deploy / `verify-release.py` all
+STILL OWED. A DISCREPANCY FOUND AND NOT SMOOTHED OVER: the packaged folder
+the dispatch named does not exist on disk.**
+
+**Sourcing (hard rule 8).** No shell available to this filing — `Read`/
+`Grep` on `.git/refs/heads/main`, `.git/logs/HEAD`, `.git/refs/tags/v0.30.0`,
+the tag's raw object file, `Cargo.toml`, and `Glob` on `D:\builds\` only; no
+`git`, no `stat`, no `sha256sum`. **Checked, not inferred:**
+- `main`'s HEAD is `7830713…` (the 408th filing's own librarian commit) —
+  **already past** `1f9eb1d`, exactly as the 408th filing's own record
+  anticipated. `.git/logs/HEAD`'s last three entries, read directly, chain
+  `b8fd06d` (Pass 248.4) → `1f9eb1d` (this bump) → `7830713` (408th filing).
+- Root `Cargo.toml` reads `version = "0.30.0"` (`Grep`-confirmed; only the
+  root manifest carries an explicit version string, per-crate manifests
+  inherit it — consistent with prior releases' "3 files" bump pattern).
+- `.git/refs/tags/v0.30.0` exists as a **loose ref**, reading `f3f9121…` — a
+  hash that does **not** textually match `1f9eb1d`. Its raw object was read
+  directly and is zlib-compressed, unintelligible without `git cat-file`
+  (no shell this filing to run one) — consistent with an **annotated tag
+  object** (whose own SHA differs from the commit it wraps) rather than a
+  lightweight tag, but the tag's internal target commit is **not
+  independently confirmed** this filing. Flagged, not asserted either way.
+- `D:\builds\pdfcer-v0.30.0-windows-x64.zip` — **exists** (`Glob`-confirmed).
+  Its byte count (18,398,948) and SHA-256 are **relayed, not independently
+  verified** — no shell for `stat`/hash tooling, and `Read` cannot compute a
+  digest of a binary file.
+- `D:\builds\pdfcer-20260903-1936-1f9eb1d` — the packaged folder the
+  dispatch named — **does not exist**. Checked three ways: exact-path
+  `Glob` (no match), `D:\builds\pdfcer-2026090*` (no match), and
+  `D:\builds\*1f9eb1d*` / `D:\builds\*1936*` (no match). Every packaged
+  folder currently on `D:\builds\` from this project is still prefixed
+  `pdfce-` (pre-rename) or `pdfcegui-` (the separate GUI project); **none is
+  prefixed `pdfcer-`** except the zip file itself. Recorded as a genuine
+  discrepancy between the dispatch's report and disk state, not silently
+  reconciled — a future filing with a shell should resolve whether the
+  folder was deleted after zipping, packaged under a different name, or
+  never actually written.
+- Everything else the dispatch reported — the fresh-folder smoke test
+  (`--version`, EMF export, `shadings_as_gradients=1`, clipboard placement
+  order), the cross-target checks (clippy on `x86_64-unknown-linux-gnu` and
+  `check` on `aarch64-apple-darwin`, both clean, run **before** tagging this
+  time), and the zip's exact size/hash — **relayed, not re-run or
+  re-measured this filing.**
+
+### `1f9eb1d` — `chore: v0.30.0` — version bump BUMPED AND TAGGED locally; push / package-folder verification / GitHub release / OneDrive deploy / `verify-release.py` all IN PROGRESS
+
+Version bump only (root `Cargo.toml`, confirmed `0.30.0` this filing;
+lockfiles/per-crate manifests not individually re-checked). No
+dependency-set change was stated by the dispatch and none is independently
+verified against `THIRD_PARTY_LICENSES.md` this filing. Carries `Pass
+248.3` (native SVG gradients, `4605a86`, shipped 407th filing) and `Pass
+248.4` (EMF export, `b8fd06d`, shipped 408th filing) — both already
+described in full in their own filings; this release bundles them, it does
+not re-describe them. Previous release: `v0.29.1` (`49adf4c`, 406th
+filing).
+
+**★ State at filing time, checked not inferred:** tag `v0.30.0` exists
+**locally only** — not verified against `origin` (no shell for `git
+ls-remote`); `origin/main`'s tip is likewise unverified this filing (no
+shell for `git ls-remote origin main`), so whether `1f9eb1d`/`7830713` have
+reached `origin` is **unknown to this filing**, not asserted either way.
+**Push, resolving the packaged-folder discrepancy above, GitHub release,
+both OneDrive slots (`pdfcer1`/`pdfcer2`), and `verify-release.py` are all
+open steps.** A follow-on filing resolves them, per decision 121 (release
+standing-authorised) and `CLAUDE.md` rule 8 — the standing authority covers
+the *act*, not skipping the gates or skipping verification.
+
+`docs/FEATURES.md`: untouched by this record — a release-in-progress mark,
+not a Pass.
+
+**Ledger.** Filings ceiling `408` → **`409`**; decision ceiling `132`
+unchanged, next free `133`; Pass ceiling `248.4` unchanged — no new Pass,
+a release chore only; standing rules ceiling `R241` unchanged, next free
+`R242`; open operator questions: none minted, next free `(ce)`.
+
 **★★★★★★★ 408th filing, 2026-09-03 — `b8fd06d`: `Pass 248.4` SHIPS — A
 HAND-ROLLED [MS-EMF] WRITER FOR LIBREOFFICE 24.x AND LEGACY WIN32 CLIPBOARD
 CONSUMERS; THE FINDING THAT GDI+'S OWN EMF PLAYER MIS-PLAYS

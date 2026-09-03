@@ -90420,4 +90420,53 @@ from the dispatch.
   docs/FEATURES.md, docs/SESSION_LOG.md) — this role has no shell to commit
   them itself this invocation. Record the `v0.30.0` release separately once
   it has actually happened, with measured figures.
+
+## 2026-09-03 (409th filing) — roadmap update, in-progress mark: `1f9eb1d` (`chore: v0.30.0`) bumped and tagged locally, carrying `Pass 248.3` + `Pass 248.4`; push/package-folder/GitHub/OneDrive/`verify-release.py` all still owed; a discrepancy found and not smoothed over
+
+**Sourcing (hard rule 8).** No shell available to this filing —
+`Read`/`Grep` on `.git/refs/heads/main`, `.git/logs/HEAD`,
+`.git/refs/tags/v0.30.0` (+ its raw object file), `Cargo.toml`, and `Glob`
+on `D:\builds\` only. **Checked, not inferred:** `main`'s HEAD is
+`7830713…` (the 408th filing's own commit), already past `1f9eb1d`, per
+`.git/logs/HEAD`'s chain `b8fd06d` → `1f9eb1d` → `7830713`; root
+`Cargo.toml` reads `0.30.0`; `.git/refs/tags/v0.30.0` is a loose ref
+reading `f3f9121…`, which does **not** textually match `1f9eb1d` — read as
+raw zlib bytes (unintelligible without `git cat-file`, no shell), so most
+likely an annotated tag object rather than a lightweight tag, but its
+internal target is **not independently confirmed**;
+`D:\builds\pdfcer-v0.30.0-windows-x64.zip` **exists** (size/hash relayed,
+not verified — no `stat`/hash tooling). **The packaged folder the dispatch
+named, `D:\builds\pdfcer-20260903-1936-1f9eb1d`, does NOT exist** — checked
+three ways (exact path, `pdfcer-2026090*`, `*1f9eb1d*`/`*1936*`, all no
+match). Every folder on `D:\builds\` from this project is still prefixed
+`pdfce-`/`pdfcegui-`; none is `pdfcer-` except the zip. Flagged as a
+genuine discrepancy, not reconciled. Smoke-test results, cross-target
+clippy/check results, and the zip's exact size/hash are relayed, not
+re-run.
+
+**Shipped:**
+- Nothing new this filing — a release-in-progress mark only, no Pass.
+
+**Decisions made this session:**
+- None.
+
+**Findings + decisions:**
+- The packaged-build-folder discrepancy above: a dispatch's reported
+  artifact path did not exist on disk when checked. Not escalated to a
+  standing rule at n=1; recorded so a second occurrence has something to
+  be the second instance of.
+
+**Still in flight:**
+- `v0.30.0` release: tag cut locally at `1f9eb1d`/`v0.30.0` (target commit
+  not independently dereferenced); push, resolving the packaged-folder
+  discrepancy, GitHub release, both OneDrive slots, and
+  `verify-release.py` are all open. A later filing resolves this mark with
+  measured, not relayed, figures.
+- `Pass 5.4` (encrypt on save) — next up, unchanged.
+
+**For next session:**
+- Engineer/next filing (needs a shell): confirm `origin`'s tip and whether
+  `v0.30.0` is on `origin`'s tags; resolve why the packaged folder named by
+  the dispatch is absent; complete the release steps above; dereference
+  `v0.30.0`'s tag object to confirm it targets `1f9eb1d`.
 - Operator: nothing pending from this filing.
