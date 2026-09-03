@@ -112,6 +112,139 @@ wherever it appears.*
 
 ## Shipped
 
+**★★ 406th filing, 2026-09-03 — `v0.29.0` (`a66a4e4`) tagged then found CI-RED
+and NEVER RELEASED; `v0.29.1` (`49adf4c`) is the fix, CI GREEN, and IS the
+release. No new Pass, no new decision, no new standing rule — a version-bump
++ dependency-placement bug and its correction, filed for the record because a
+tag exists on `origin` with no release behind it.**
+
+**★ Sourcing (hard rule 8).** No shell available to this filing — `Read`/
+`Grep` on live source only, no `git`/`gh`. Every commit-message, CI-run and
+release-tooling claim below is **relayed** from the engineer's dispatch, not
+re-run. **Independently verified by direct `Read`/`Grep` this filing**:
+`crates/pdfcer-cli/Cargo.toml:109-114` — `thiserror = "2"` sits in the
+**normal** `[dependencies]` block with a comment naming exactly the failure
+the dispatch describes (*"the error type is the same shape on Linux/macOS…
+so it must NOT sit under the cfg(windows) block (that shipped a66a4e4 red on
+the ubuntu and macOS CI jobs)"*) — the fix is live at HEAD, not merely
+claimed; `crates/pdfcer-cli/src/clipboard.rs:62` —
+`#![cfg_attr(not(windows), allow(dead_code))]` — present; `Cargo.toml:86` —
+`version = "0.29.1"` at workspace root, matching the claimed tag. **Not
+independently re-run**: the ten CI job results at either commit, the local
+cross-target `clippy`/`check` runs the dispatch says were done before the
+second push, the packaging/smoke-test/`verify-release.py` output, the
+OneDrive `--version` checks, and the backup-bundle byte count. Ledger checked
+by `Grep` of `ROADMAP.md` directly (no shell for
+`tools/check-ledger-numbers.py`): Pass ceiling `248.2`, decision `132`,
+`R241`, filings `405` — matches the dispatch's stated "last known" exactly.
+
+### `a66a4e4` (2026-09-03) — version bump 0.28.0 → 0.29.0, tagged `v0.29.0`, CI RED, never released
+
+Relayed from the dispatch. `crates/pdfcer-cli/Cargo.toml` declared
+`thiserror` only under `[target.'cfg(windows)'.dependencies]`, but
+`clipboard::ClipboardError` (shipped `Pass 248.2`, `a8fe04b`) derives
+`thiserror::Error` unconditionally — the type is constructed by the
+non-Windows refusal arm too, not only the Windows implementation. Compiles
+on Windows (the only platform the engineer had clippy'd locally); fails
+everywhere else. **CI at `a66a4e4`, run `33807876259`: RED** —
+`cargo clippy -D warnings`, `cargo test (ubuntu-latest)`, and the
+cross-target compile check (macOS / `wasm32`) all failed on the missing
+crate; Windows test, fmt, both audits, the licence audit, no-network, the
+GUI-free check and fuzz all stayed green (the failure is exactly as narrow
+as the dependency gate that caused it — nothing else regressed). **The tag
+`v0.29.0` exists on `origin` and there is no release behind it** — no
+release page, no asset — recorded here so a future session does not go
+looking for one. The build **was** deployed to OneDrive slot `pdfcer2` at
+21:31:55Z, **before CI returned red** (`deploy-onedrive.py` packages from
+the local build, it does not gate on CI — see the RAG finding below); the
+deployed Windows binary itself is unaffected by a Linux/macOS/wasm32
+compile failure, so that copy is not broken, merely mis-timed.
+
+### `49adf4c` (2026-09-03) — the fix: `thiserror` moved to the normal dependency block; `0.29.1`; CI GREEN; the actual release
+
+`thiserror` moved out of the `cfg(windows)` target table into
+`[dependencies]` (comment added explaining why, quoted above);
+`#![cfg_attr(not(windows), allow(dead_code))]` added to `clipboard.rs` for
+the helpers unreachable off-Windows by design (same idiom as this tree's own
+prior instance — see the RAG amendment below, third arrow of that family).
+Version bumped to `0.29.1`. **Measured locally BEFORE pushing this time**
+(the gap the first push skipped): `cargo clippy -p pdfcer-cli --all-targets
+--target x86_64-unknown-linux-gnu -- -D warnings` clean, `cargo check
+--target aarch64-apple-darwin` clean (both targets installed on this
+machine), plus Windows clippy/fmt and the `copy_page` + `export_image`
+tests. Tag `v0.29.1` cut at `49adf4c`, pushed. **CI at `49adf4c`, run
+`33809539168`: GREEN, all ten jobs.**
+
+### Release `v0.29.1` (2026-09-03)
+
+Recorded the way `v0.27.0`/`v0.28.0` were recorded. Packaged to
+`D:\builds\pdfcer-20260903-1745-49adf4c` (32,846,289 bytes,
+`package-portable.py`); zip `D:\builds\pdfcer-v0.29.1-windows-x64.zip`,
+18,376,464 bytes, SHA-256
+`3a8797fb949b4e892f8372d2990d4c35fd1119960feee697f4b96ea4f07ee446`.
+Fresh-folder smoke test at `D:\Dev\temp\smoke-0.29.1`: `--version` prints
+`pdfcer 0.29.1`; `export-image --format svg`, `export-image --transparent`,
+`copy-page` all ran. **Note on a smoke-test observation that is NOT a
+defect**: `userdata/` appears in the folder listing after the run because
+the binary creates it on first launch by design (payload/user-state
+partition, `ARCHITECTURE.md` §6) — record that as expected, not as
+evidence the portable folder shipped dirty.
+
+GitHub release
+`https://github.com/KenM76/pdfcer/releases/tag/v0.29.1`, one asset, marked
+latest. `python tools/verify-release.py v0.29.1` **reported clean** —
+every line ok, including "CI is GREEN at the tagged commit," "the CLI for
+v0.29.1 is on OneDrive (pdfcer1)," and "a PREVIOUS version is still on
+OneDrive (0.28.0 → 0.29.0)" — see the OneDrive paragraph below for the
+exact end-state, which differs from the phrase "previous version" in one
+respect worth being precise about.
+
+Backup bundle `D:\Dev\pdfce-backups\pdfcer-2026-09-03-49adf4c-full.bundle`,
+55,697,073 bytes; the earlier `a66a4e4` bundle was deleted, superseded — not
+retained alongside it. **This is a relayed figure, per hard rule 8 — this
+filing did not run `git log`/`ls` itself to confirm bundle currency; the
+engineer's own report is the source, named as such.**
+
+What the release carries: `Pass 248.0`/`248.1`/`248.2` (the whole
+2026-09-03 three-part request) plus `Pass 247.3`'s sidecar-layer removal —
+the release notes state this, including an "ABOUT v0.29.0" paragraph
+explaining the skipped/unreleased tag.
+
+### OneDrive deployment order (`deploy-onedrive.py`, derived alternation)
+
+In the order it happened, because the order is the part worth keeping:
+`0.29.0` → `pdfcer2` at 21:31:55Z (from the packaged build, before CI
+returned red); `0.29.1` → `pdfcer1` at ≈21:47Z, overwriting `0.28.0`.
+**End state**: `pdfcer1` = `0.29.1`, `pdfcer2` = `0.29.0` (both verified
+with `--version`). The "previous version" `verify-release.py` reports
+preserved is `0.29.0` — a build with a compile failure on three *other*
+platforms, but a Windows CLI binary behaviourally identical to `0.29.1`
+(the defect never touched the code path, only which dependency block
+declared a shared crate). Recorded plainly rather than smoothed into "the
+previous release is fine" — it is fine, but for a narrower reason than that
+phrase implies.
+
+### RAG findings filed this session (`D:\dev\rag\rust\`)
+
+1. **Amendment (third arrow, same family)** to
+   `cfg_windows_on_a_plain_data_type_referenced_by_a_non_windows_stub_breaks_every_non_windows_build.md`
+   — this time the cfg boundary that split was in `Cargo.toml`'s manifest
+   (`[target.'cfg(windows)'.dependencies]`), not in Rust source, and what
+   it hid was a whole crate, not a type. See file for full text.
+2. **New file**
+   `a_deploy_script_driven_by_the_local_build_not_by_ci_status_can_publish_before_ci_has_looked.md`
+   — `deploy-onedrive.py` packages and ships from what is on local disk;
+   nothing in that path asks GitHub whether the tagged commit's CI passed.
+   `verify-release.py`'s CI check is the backstop, and it only ran for the
+   corrected tag. General release-pipeline shape, not pdfcer-specific;
+   filed here per the engineer's direction. See file for full text.
+
+Both index entries added to `D:\dev\rag\rust\index.md` in the same filing
+(hard rule: update the index the same session a file is added).
+
+**Still in flight:** nothing. **For next session:** nothing pending from
+this filing; `main` = `49adf4c` = `origin/main`.
+
 **★★★★★ 405th filing, 2026-09-03 — `a8fe04b`: `Pass 248.2` SHIPS — COPY-OUT
 TO THE OS CLIPBOARD, EDITABLE VECTOR (SVG) INTO WORD/POWERPOINT/EXCEL/
 INKSCAPE AND ALPHA RASTER EVERYWHERE ELSE, ONE PLACEMENT TRANSACTION. THIS

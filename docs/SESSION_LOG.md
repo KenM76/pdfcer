@@ -90191,3 +90191,95 @@ git-write claim rather than only a git-read one).** This invocation of
 engineer's next act** — no commit was made by this role this
 invocation. Stated here rather than fabricating a hash or an exit code,
 per hard rule 8's own discipline.
+
+## 2026-09-03 (406th filing) — the version bump that shipped red, and its fix: `v0.29.0` tagged-but-never-released, `v0.29.1` is the actual release; no new Pass, decision, or rule
+
+**Sourcing (hard rule 8).** No shell available to this filing —
+`Read`/`Grep` on live source and docs only. Every CI-run number, the local
+cross-target check results, the packaging/smoke-test/`verify-release.py`
+output, the OneDrive timestamps and the backup-bundle byte count are
+**relayed** from the engineer's dispatch, not re-run. **Independently
+verified by direct read this filing**: `crates/pdfcer-cli/Cargo.toml`
+lines 109–114 — `thiserror = "2"` in the normal `[dependencies]` block,
+with a comment naming the exact `a66a4e4` failure; `clipboard.rs:62` —
+`#![cfg_attr(not(windows), allow(dead_code))]` present; workspace
+`Cargo.toml:86` — `version = "0.29.1"`. Ledger checked by `Grep` of
+`ROADMAP.md` directly (no shell for `tools/check-ledger-numbers.py`): Pass
+ceiling `248.2`, decision `132`, `R241`, filings `405` — matched the
+dispatch's stated "last known" exactly.
+
+**Shipped:**
+- Nothing new in capability terms — this is a bugfix + release cycle for
+  work `Pass 248.2` already shipped in the 405th filing.
+- `a66a4e4` — version bump 0.28.0 → 0.29.0, tag `v0.29.0` cut and pushed.
+  **CI RED** (run `33807876259`): `cargo clippy -D warnings`, `cargo test
+  (ubuntu-latest)`, and the cross-target compile check (macOS/`wasm32`)
+  all failed — `thiserror` was declared only under
+  `[target.'cfg(windows)'.dependencies]` while
+  `clipboard::ClipboardError` derives it on every target. Windows test,
+  fmt, both audits, no-network, GUI-free, and fuzz stayed green. **`v0.29.0`
+  exists on `origin` with no release behind it** — never published, so
+  don't go looking for a release page. It reached OneDrive slot `pdfcer2`
+  at 21:31:55Z anyway, *before* CI returned red (`deploy-onedrive.py`
+  packages off local disk, not off CI status) — the deployed Windows
+  binary itself is unaffected.
+- `49adf4c` — the fix: `thiserror` moved to the normal dependency block;
+  `#![cfg_attr(not(windows), allow(dead_code))]` added to `clipboard.rs`;
+  version `0.29.1`. Measured locally **before** pushing this time: CLI
+  clippy clean on `x86_64-unknown-linux-gnu --all-targets -D warnings`,
+  `cargo check` clean on `aarch64-apple-darwin`, plus Windows clippy/fmt
+  and the `copy_page`/`export_image` tests. Tag `v0.29.1` at `49adf4c`,
+  pushed. **CI GREEN** (run `33809539168`, all ten jobs).
+- `v0.29.1` released: packaged (`D:\builds\pdfcer-20260903-1745-49adf4c`,
+  32,846,289 bytes), zipped (`pdfcer-v0.29.1-windows-x64.zip`,
+  18,376,464 bytes, SHA-256
+  `3a8797fb949b4e892f8372d2990d4c35fd1119960feee697f4b96ea4f07ee446`),
+  fresh-folder smoke-tested clean, GitHub release published and marked
+  latest, `tools/verify-release.py v0.29.1` reported clean. Backup bundle
+  `pdfcer-2026-09-03-49adf4c-full.bundle` (55,697,073 bytes; the
+  superseded `a66a4e4` bundle deleted, not kept alongside).
+
+**Decisions made this session:**
+- None. No architectural choice — a manifest-level dependency-placement
+  bug and its fix.
+
+**Findings + decisions:**
+- **The general shape**: a dependency declared under a
+  `[target.'cfg(windows)'.dependencies]` table while a derive from that
+  crate is used on a type constructed on every target (the non-Windows
+  refusal arm builds `ClipboardError` too) compiles clean on the one
+  platform whose dev host matches the gate, and fails on every other —
+  invisible to any local check run only on that host. Filed as the third
+  amendment to this tree's existing three-way family in
+  `D:\dev\rag\rust\cfg_windows_on_a_plain_data_type_referenced_by_a_non_windows_stub_breaks_every_non_windows_build.md`
+  (prior two arrows: a gated *type* referenced by an ungated stub;
+  an ungated *caller* referencing gated callees. This one: a gated
+  *dependency declaration* feeding an ungated derive-user).
+- **`deploy-onedrive.py` runs off the packaged local build, not off CI
+  status** — a red commit can reach a distribution slot before CI has
+  even finished, as `a66a4e4` → `pdfcer2` demonstrates directly.
+  `verify-release.py`'s "CI is green at the tagged commit" check is the
+  backstop, and it only runs against whichever tag is actually verified —
+  it did not run against `v0.29.0` because nobody asked it to. Filed as a
+  new file,
+  `D:\dev\rag\rust\a_deploy_script_driven_by_the_local_build_not_by_ci_status_can_publish_before_ci_has_looked.md`
+  (general release-pipeline shape, filed to the Rust ecosystem tree per
+  the engineer's direction rather than as pdfcer-only project history).
+- Suggestion surfaced to the engineer, not filed as a rule: whether
+  `run-gates.sh` should gain a Linux-target `clippy --all-targets` pass
+  for the CLI crate specifically, since the existing `wasm32` cross-check
+  only covers `pdfcer-core`/`pdfcer-render` and this defect lived in the
+  CLI's own `Cargo.toml`.
+
+**Still in flight:**
+- Nothing. The operator's 2026-09-03 three-part request (closed at the
+  405th filing) stays closed; this filing is the release cycle that
+  followed it, and that cycle is also closed — `v0.29.1` is live, green,
+  and deployed.
+
+**For next session:**
+- Engineer: commit this filing's doc edits (docs/ROADMAP.md,
+  docs/SESSION_LOG.md, and the two `D:\dev\rag\rust\` files + its
+  `index.md`) — this role has no shell to commit them itself this
+  invocation.
+- Operator: nothing pending from this filing.

@@ -7,141 +7,126 @@ Per standing rule `R216` this file carries **no edit-history layer**. What is
 true now, plus a pointer. Corrections and their prior wording live in the
 append-only record (`ROADMAP.md`, `SESSION_LOG.md`).
 
-Written **2026-09-03**, at the end of the session that executed the fork:
-**`Pass 247.0` / `247.1` / `247.2`** — the project is now **`pdfcer`**, in
-**`D:\Dev\pdfcer`**, published at **`github.com/KenM76/pdfcer`**, released as
-**`v0.28.0`**. Everything below was measured with a shell.
+Written **2026-09-03**, at the end of the session that shipped the operator's
+export/copy-out request as **`Pass 248.0` / `248.1` / `248.2`** and released
+it as **`v0.29.1`**. Everything below was measured with a shell.
 
 **For the ledger — Pass ceiling, rule ceiling, decision ceiling, filing count —
 run `python tools/check-ledger-numbers.py`.** Do not mint from memory.
 
 ---
 
-## §0 ★★ WHERE YOU ARE. Open the session in `D:\Dev\pdfcer`, not `D:\Dev\pdfce`
+## §0 WHERE YOU ARE
 
-- **`D:\Dev\pdfcer` is the project.** `D:\Dev\pdfce` and `KenM76/pdfce` are
-  the operator's frozen backup (archived on GitHub; two pointer commits,
-  `fbc53ee` + `c0c67d3`, are the only writes it ever received after the
-  clone). **Never write there again.** If a session opens in `D:\Dev\pdfce`,
-  `cd D:\Dev\pdfcer` before doing anything.
-- Agents are `.claude/agents/pdfcer-*.md`; dispatch by the new names
-  (`pdfcer-librarian`, …). Their memory is `.claude/agent-memory/pdfcer-*`.
-- Crates: `pdfcer-core`, `pdfcer-render`, `pdfcer-cli`, `pdfcer-print`,
-  `pdfcer-fetch`. **The CLI binary is `pdfcer`** (`[[bin]] name`, clap
-  `name`, `pdfcer.exe`, diagnostic prefix `pdfcer: `); the crate keeps
-  `-cli` (`-p pdfcer-cli`, `crates/pdfcer-cli`). `PDFCER_*` env names.
-  OneDrive slots `pdfcer1` / `pdfcer2`.
-- **The operator still owes** the global `C:\Users\Ken\.claude\CLAUDE.md`
-  (it references `D:\Dev\pdfce\`); not an agent's file to edit.
-- **The GUI side has not re-pointed yet.** `D:\dev\pdfcer-gui`'s three
-  dependency lines still target `file:///D:/Dev/pdfce` with
-  `package = "pdfce-core"` shims; the exact replacement lines are in the
-  channel note
-  `note_pdfcer_is_live_re_point_your_three_dependency_lines_to_D_Dev_pdfcer.md`.
-  Until they switch, nothing after `cce414e` reaches them.
+- **`D:\Dev\pdfcer` is the project** (`D:\Dev\pdfce` is the frozen backup —
+  never write there). Crates `pdfcer-core`, `pdfcer-render`, `pdfcer-cli`
+  (binary `pdfcer`), `pdfcer-print`, `pdfcer-fetch`. The GUI is the separate
+  `D:\dev\pdfcer-gui` project, on `pdfcer` crates since its v0.5.0.
+- `main` = `49adf4c` = `origin/main` = tag `v0.29.1`; release page up, asset
+  SHA-256 `3a8797fb…e446`; OneDrive `pdfcer1` = 0.29.1, `pdfcer2` = 0.29.0.
+  **`v0.29.0` is a tag that was never released** (red off-Windows; see §4).
+- Test total: `cargo test --workspace` green (183 test binaries + doctests);
+  the count moved by +7 render (export_image) +11 render (export_svg) +7 CLI
+  (export_image) +2 CLI (copy_page) +4+4 unit since 4,733.
 
 ---
 
 ## §1 ★ NEXT: `Pass 5.4` — encryption authoring, `/R` 6 / AES-256 only
 
-Queued and scoped at the *Next up* head of `ROADMAP.md` (396th filing;
-inbound pdfcer-gui request
-`request_a_document_cannot_be_encrypted_or_have_its_permissions_set.md`).
-In one paragraph: `EditSession::set_encryption` (owner + user password,
-`/R` 6 only — `/R` 2–4 and 5 refused by name), `set_permissions`,
-`remove_encryption`, all owner-authenticated or refused. Spec is SOURCED:
-`PDF_Spec\security\security__aes256_r6.md` (Algorithm 2.B complete) and
-`iso32000__ref__encryption_impl.md` rows A8/W17/W19/W20/A13. **Owed with
-it:** the crate's stale "not available in the spec corpus" strings
-(`crypto/standard.rs`'s `EncryptionUnsupported::UnsourcedRevision` and the
-doc comments in `crypto/mod.rs`, `standard.rs`, `aes.rs`, `r5.rs`). Writer
-side: `Contents` is never encrypted and a signature digest is over
-CIPHERTEXT (ETSI EN 319 142-1 §5.5) — the exemption list must carry it.
-Disclosure sentence for permissions is in
+Unchanged from the previous hand-off and still at the *Next up* head:
+`EditSession::set_encryption` (owner + user password, `/R` 6 only — `/R` 2–4
+and 5 refused by name), `set_permissions`, `remove_encryption`, all
+owner-authenticated or refused. Spec SOURCED: `PDF_Spec\security\security__aes256_r6.md`
+(Algorithm 2.B complete) and `iso32000__ref__encryption_impl.md` rows
+A8/W17/W19/W20/A13. Owed with it: the crate's stale "not available in the
+spec corpus" strings (`crypto/standard.rs`'s
+`EncryptionUnsupported::UnsourcedRevision`, doc comments in `crypto/mod.rs`,
+`standard.rs`, `aes.rs`, `r5.rs`). Writer side: `Contents` is never
+encrypted and a signature digest is over CIPHERTEXT (ETSI EN 319 142-1
+§5.5) — the exemption list must carry it. Disclosure sentence for
+permissions is in the channel's
 `reply_signature_integrity_first_then_encryption_and_your_two_sentences.md`.
 Ship the `pdfcer` subcommands in the same Pass (rule 11).
 
-## §2 QUEUED AFTER
+## §2 QUEUED AFTER / FOLLOW-ONS FROM TODAY
 
-1. Mesh shadings deposit spot planes; the 8 unresolved conformance patches;
+1. **Export follow-ons, none asked for, all recorded as deliberately not
+   done:** true `<linearGradient>`/`<radialGradient>` for axial/radial
+   shadings (today they are rasterised at `--dpi` and counted in
+   `ExportTally::shadings_rasterised`); `CF_ENHMETAFILE` (only LibreOffice
+   24.x needs it — needs an EMF writer + `SetEnhMetaFileBits` since
+   clipboard-win has no metafile setter); a `copy-selection` CLI verb
+   (the GUI route is `ObjectClip::to_pdf` → `export_svg`, core-api §7.9).
+2. Mesh shadings deposit spot planes; the 8 unresolved conformance patches;
    `sh` cutting under a redaction mark; `set_page_tabs` when asked.
-2. Rename debt, all filed, none blocking: `pdfceF{n}`/`pdfceFm{n}`
-   resource-name prefix is a **deliberate keep** (opaque `/Resources` keys;
-   401st filing) — do not "fix" it; `ROADMAP.md`'s own header/Glossary
-   still say `pdfce` (librarian's); FEATURES's `pdfcer-fetch` row still
-   cites `pdfce-gui` (R203 re-basing).
 3. iccce's `reply_all_four_asks_measured_and_your_bpc_would_have_done_nothing.md`
    is STILL unread by any engine session.
+4. Consider adding a Linux-target clippy of `pdfcer-cli` to `run-gates.sh`
+   (§4 — the librarian was asked to suggest it; the engineer's call).
 
 ---
 
-## §3 STATE OF THE TREE — verified 2026-09-03 at hand-off
+## §3 STATE OF THE ARC THAT SHIPPED TODAY (so it is not rebuilt)
 
-- `main` = `562ca7e` + the 401st filing + the sidecar-compat removal and
-  its filing (pushed; check with
-  `git log --oneline origin/main..HEAD`). Tag `v0.28.0` at `562ca7e`; on
-  GitHub as Latest (`pdfcer-v0.28.0-windows-x64.zip`, SHA-256
-  `64d77604…1466`); OneDrive `pdfcer1` = 0.28.0, `pdfcer2` = 0.27.0 (a
-  copy of `pdfce2`, still named `pdfce-cli.exe`); `verify-release.py
-  v0.28.0` clean. CI green at `562ca7e` (run 33786657866).
-- **Test total:** `cargo test --workspace` **4,733 / 0** (5,114 before the
-  GUI strip − 384 GUI tests; the 3 sidecar-compat tests came and went).
-  `run-gates.sh` PASS 29/29.
-- **Channels:** our unconsumed outbound on the pdfce channel:
-  `reply_signature_integrity_first…` and the new `note_pdfcer_is_live…`.
-  Their two security requests stay open until they consume.
-- **Disk:** a fresh clone's first build is ~1.5 min per profile now that
-  the GUI is gone (was ~6). `target/` in the OLD folder can be deleted.
+- **SVG comes from the renderer's display-list recording in an EXPORT mode
+  that never refuses** (decision 132): shadings rasterised into a scratch
+  and harvested as image fills under their clip; soft masks kept with the
+  layer; overprint / non-separable / non-isolated / colorant-buffer
+  approximations COUNTED. Cache mode unchanged, AND it now refuses an
+  elementary object under `gs /SMask` (it used to replay it unmasked —
+  pinned by a test).
+- Oracles: `tests/export_svg.rs` (resvg `=0.45.1`, no raster-images — the
+  duplicates guard sees dev-deps) + an Inkscape end-to-end test that runs
+  when Inkscape is installed. Word paste measured through combridge
+  (`word run-script` into a NEW doc, closed unsaved): type 17 + `svgBlip`.
+- `docs/core-api/03-capabilities.md` §7.7–§7.9 are the consumer contract;
+  the channel note `note_export_to_png_jpeg_svg_and_copy_out_ship_here_is_what_to_wire.md`
+  is open for pdfcer-gui to consume.
 
 ---
 
 ## §4 THINGS A NEW SESSION MUST KNOW BEFORE TOUCHING ANYTHING
 
-- **★ A Python heredoc through the Bash tool eats one level of
-  backslashes** — recurred AGAIN this session (a `\n` inside a patch
-  became a real newline and broke the script). Any patch containing ANY
-  backslash goes through the `Write` tool to `D:\Dev\temp\<name>.py`, then
-  `python <file>`; every patch asserts its anchor count.
-- **A mechanical rename's failure surface is punctuation.** Three classes
-  the regex sweep could not decide, all found by the gates or the tests,
-  none by reading: a spelling glued to an escape (`\nPDFCE_TEXT`, `\tpdfce`
-  — `\b` sees a word char); a quoted path component (`"crates" /
-  "pdfce-cli"` where the "means the tool" rule wanted `pdfcer`); and test
-  expectations that must equal FIXTURE BYTES (certificate subjects,
-  `/Reason`) — restored, with the generator told to keep the old strings.
-- **Decision 131 (read legacy keys, retire on write) was OVERRULED the
-  same day.** Ken, verbatim: *"This compatibility layer can be removed"* —
-  nobody, including him, has used the software in production. The
-  ce-dimension sidecar is read and written under `/pdfcer` only; the
-  three deletion-collateral fixtures were regenerated with that key. Do
-  not add back-compat shims for pre-release formats without asking.
-- **0xc0000142 in a doctest is starvation, not a failure.** Run
-  `run-gates.sh` alone; re-run the doctest on its own before believing it.
-- **Stage by path. Never `git add -A`.** Push a code commit and its filing
-  commit together. Read CI's colour from GitHub:
-  `gh run list -R KenM76/pdfcer --limit 3 --json status,conclusion,headSha`.
-- **`docs/core-api/` is engineer-owned and moves in the SAME commit** as
-  any `pub` change; `check-core-api-verbs.py` also checks the index's
-  stated line counts.
+- **★ Cross-target check the CLI before pushing a `cfg(windows)` change.**
+  `thiserror` declared only under the Windows block compiled here and broke
+  ubuntu/macOS/clippy in CI after the tag was pushed and OneDrive deployed.
+  `cargo clippy -p pdfcer-cli --all-targets --target x86_64-unknown-linux-gnu -- -D warnings`
+  and `cargo check --target aarch64-apple-darwin` are installed and cheap.
+  And: do not tag/deploy a target-gated change until CI has answered.
+- **A background `cargo test --workspace` / `run-gates.sh` gets killed by
+  the harness after ~10 min** (three times today). Run the doctests
+  separately in the foreground (`cargo test --workspace --doc`, ~2 min) and
+  the python gates from `D:\Dev\temp\tail-gates.txt`'s list; everything
+  else fits under the foreground cap per crate.
+- **The Bash tool's cwd persists** across calls: a `cd fuzz` in one call
+  made the next `python tools/…` fail. Use absolute paths or `cd` back.
+- **A Python patch through a heredoc loses `\n`** (again, twice today) and
+  **a regex with an optional repeated group over the 40k-line main.rs
+  backtracks for minutes** — plain string search, scripts via the Write
+  tool, every anchor asserted.
+- **Diffing two RGBA renders: composite both over one backdrop first.** The
+  RGB of alpha-0 pixels is noise and read as a 100 % mismatch on an exact
+  render.
+- **`clip-path` on an element that also carries `transform` is evaluated
+  post-transform** — put clips on a wrapping `<g>`. Found by Inkscape, not
+  by any unit test.
+- **Stage by path. Never `git add -A`.** The librarian has had no shell in
+  three of four dispatches today — commit its filing yourself, by path,
+  with a message that says so.
 
-## §5 ★★ MEASURED NEGATIVES — DO NOT RE-DERIVE
+## §5 MEASURED NEGATIVES — DO NOT RE-DERIVE
 
-1. `check-string-gaps.sh` is NOT GUI-only (it scans `crates/` and
-   `tools/`); the plan that said so was wrong and is annotated.
-2. Do NOT rename `pdfce-gui` / `pdfce_gui` / `PdfceApp` anywhere — that is
-   the removed crate; the live GUI is `pdfcer-gui` and the two must stay
-   distinguishable.
-3. Do NOT rename `pdfce@cce414e:` citations, `D:\Dev\pdfce-backups\`, the
-   channel folder `pdfce_FeatureRequests`, or fixture content/identifiers
-   (`pdfceAttach.ttf`, "pdfce fixture RSA signer"). The deletion-collateral
-   sidecar fixtures were regenerated under `/pdfcer` when the compat layer
-   was removed.
-4. The prior hand-off's negatives (redaction cells are paper not zero;
-   `W n` stays; CMS signed attributes hash as `SET OF`; `adbe.pkcs7.sha1`
-   digests `SHA1(D)`; no RustCrypto stack for verification) still stand —
-   see `ROADMAP.md` Passes 245.0–246.1 and 10.1.
+1. Inkscape's CLI has no `paste` action; a headless paste cannot be driven.
+2. resvg 0.48 pulls tiny-skia 0.12 + png 0.18 beside the crate's own; its
+   `raster-images` feature a second zune-jpeg line — both refused by the
+   duplicates guard. 0.45.1 is the last line on tiny-skia 0.11.
+3. tiny-skia's `StrokeDash` has no accessor for its array; SVG dashes are
+   pre-applied with `Path::dash`.
+4. The prior hand-off's negatives (rename debt: `pdfceF{n}` is a deliberate
+   keep; `pdfce-gui`/`pdfce@cce414e:` citations/`pdfce_FeatureRequests`
+   folder are NOT to be renamed) still stand.
 
 ## §6 ITEMS OWED BY THE OPERATOR
 
-- Global `CLAUDE.md`'s `D:\Dev\pdfce\` references (§0).
+- Global `C:\Users\Ken\.claude\CLAUDE.md` still references `D:\Dev\pdfce\`.
 - Open questions `(ca)`, `(cb)`, `(cc)` — unchanged.
