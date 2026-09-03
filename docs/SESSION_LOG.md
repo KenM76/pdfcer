@@ -89228,3 +89228,185 @@ workspace-layout node marked removed (history preserved beneath the
 notice, not deleted); §7's packaging bullet corrected to one binary,
 decision 054's bullet struck as moot; §2's `Cargo.lock` bullet
 annotated. Decision ceiling `129` → `130`, next free `131`.
+
+## 2026-09-03 (400th filing) — roadmap update, pass shipped: **`Pass 247.1` (`4db298d`, in `D:\Dev\pdfcer`, LOCAL — not pushed) — THE RENAME: `pdfce` → `pdfcer` over every present-tense file (11,960 scripted substitutions in 609 files; 795 files in the commit); the CLI binary is `pdfcer`, the crate keeps `-cli`; workspace `0.27.0` → `0.28.0`; ★ the ce-dimension sidecar key `/PieceInfo /pdfce` → `/pdfcer` is the ONE behavioural change and it is guarded — read both keys, write one, retire the legacy key on write — decision 131; history keeps the code name; 4,733 / 0; 29/29 twice; `247.2` stays *Next up* and the engineer executes it immediately after this filing**
+
+**Sourcing (hard rule 8).** Shell available, read-only — `git` and file
+reads only; no `cargo`, no gates run by this filing. Checked here: `git
+log --oneline -5` → `4db298d` on `2bb7608` (399th filing) on `da3b2f8`
+(`247.0`) on `cce414e` (fork point). `git remote -v` → `origin` is still
+`https://github.com/KenM76/pdfce.git`, the backup. `git rev-list
+--left-right --count main...origin/main` → **`3 0`** — three unpushed
+commits (`da3b2f8`, `2bb7608`, `4db298d`); `247.2` is what publishes
+them, to a repository that does not exist yet. `git tag | sort -V` → 30
+tags, newest `v0.27.0`, **no `v0.28.0`**. `git show 4db298d --stat |
+tail -1` → 795 files, +15,070 / −11,520. `ls crates/` → five `pdfcer-*`
+directories. `Cargo.toml:86` `version = "0.28.0"`;
+`crates/pdfcer-cli/Cargo.toml:12` `name = "pdfcer"` under `[[bin]]`.
+The sidecar guard read in `edit.rs:33190-33193` (both key constants),
+`:37634-37635` (read with fallback), `:37691-37692` (remove legacy,
+insert current); `tests/sidecar_legacy_key.rs` → 3 `#[test]`. The
+workspace `Cargo.lock` diff read: 15 out / 15 in, five name/version
+pairs plus five dependency-list entries, nothing else. Everything else
+(substitution counts, 4,733, 29/29, 32.4 MB, the fresh-folder run,
+`cargo tree`) is **relayed** from the commit message. All edits under
+`D:\Dev\pdfcer\docs\`; `D:\Dev\pdfce` not touched.
+
+**A convention for this and every later entry:** present-tense things
+carry their current names (`pdfcer`, `pdfcer-core`, `D:\Dev\pdfcer`);
+quoted history keeps the name it was written under. Older entries are
+not renamed.
+
+**Shipped:**
+- **`Pass 247.1`** — the rename. Crates `pdfcer-core`/`-render`/`-cli`/
+  `-print`/`-fetch`, module paths `pdfcer_core::`; **binary `pdfcer`**
+  (`[[bin]]`, clap `name`, `pdfcer.exe`, `CARGO_BIN_EXE_pdfcer`, the
+  refusal prefix `pdfcer: ` that `check-string-gaps.sh` keys on); env
+  `PDFCE_*` → `PDFCER_*`; DXF layer `PDFCER_TEXT`; `/Producer (pdfcer
+  <version>)`; OneDrive slots `pdfcer1`/`pdfcer2`; agent files and
+  memory dirs `pdfcer-*`; `pdfceGUI` → `pdfcer-gui` (relayed: the new
+  repo exists, the old is archived); `0.28.0`. **Deliberately NOT
+  renamed:** the dated records (`ROADMAP.md`, this file, `ARCHITECTURE.md`
+  §12+, `docs/decisions/`, `docs/ui_specs/`, agent-memory contents,
+  `NEXT_SESSION.md`); the REMOVED crate's names `pdfce-gui`/`pdfce_gui`/
+  `PdfceApp`; `pdfce@cce414e:` citations and their `git -C D:\Dev\pdfce
+  show` recipe; `KenM76/pdfce`, `D:\Dev\pdfce`, `D:\Dev\pdfce-backups\`,
+  the channel folder `pdfce_FeatureRequests`; fixture content and the
+  identifiers naming it (font file names, signature-fixture cert subjects
+  and `/Reason`, the hand-written `/pdfce` sidecar in the
+  deletion-collateral fixtures — two test expectations the script
+  renamed were restored to the fixture bytes). Acceptance relayed:
+  build/fmt/clippy green; every out-of-tree crate and `fuzz/` checks
+  green; **4,733 / 0** (= 4,730 after `247.0` + 3 sidecar tests);
+  `run-gates.sh` 29/29 twice, the second on the committed tree;
+  `THIRD_PARTY_LICENSES.md` regenerated; portable package 32.4 MB,
+  fresh-folder run of `-V`/`inspect`/`list-signatures`/
+  `verify-signatures` correct; `cargo tree` GUI-free.
+
+**Decisions made this session:**
+- **Decision 131** (`ARCHITECTURE.md` §12) — **a rename must not cost the
+  operator his measurements.** `/PieceInfo` is keyed by application name
+  (ISO 32000-1 §14.5), so the rename reached a saved document: the
+  writer now emits `/pdfcer`; `EditSession::sidecar_entry` reads
+  `/pdfcer` first and falls back to the legacy `/pdfce` every
+  `v0.5.1`–`v0.27.0` save wrote (25 of the 30 tags);
+  `write_dimension_model` writes `/pdfcer` and REMOVES a legacy `/pdfce`
+  beside it, so no document carries two sidecars that could disagree,
+  and the retirement rides the operator's own save rather than mutating
+  on open. Stated generally: any identifier the product writes INTO a
+  document is part of the document's format, and renaming it is a
+  format change with a compatibility obligation — read every name ever
+  written, write only the current one, retire the old one on the first
+  write. Three tests, the legacy fixture manufactured at equal byte
+  length so every xref offset stays valid.
+- **No standing rule minted; no operator question minted.**
+
+**Findings + decisions:**
+- **A mechanical rename's failure surface is the spelling glued to
+  punctuation an escape sequence supplies.** `\nPDFCE_TEXT\n` in
+  `dxf_export.rs` and a `\tpdfce\t` TSV header in `flat-color-parity.py`
+  survived the scripted pass because the `\b` the regex sees is not the
+  boundary the file's reader sees — the writer is a compiler, not a
+  person. Same family as hard rule 11 clause (e). Hand-fixed.
+- **A rule that "`pdfce-cli` means the tool" ate a Python PATH
+  COMPONENT** — `"crates" / "pdfce-cli" / "src"` in four gates became
+  `"pdfcer"` and all four went red (`check-clap-help.py`,
+  `check-metrics-line-contract.py`, `check-outcome-disclosed.py`,
+  `check-settings-consumed.py`) until fixed to `pdfcer-cli`. The gates
+  did exactly their job: a wrong path is a gate that reads nothing, and
+  each fails on reading nothing. **The same rule hit
+  `ARCHITECTURE.md` §3's layout tree** — the CLI crate's node read
+  `pdfcer\` where the directory is `crates/pdfcer-cli`; fixed by this
+  filing.
+- **Two sentences in `FEATURES.md`'s header and one in `ARCHITECTURE.md`
+  §3 were made wrong-reading by the rename** — *"`D:\dev\pdfcer-gui` →
+  `D:\dev\pdfcer-gui`"*, *"row prose still says `pdfcer-gui`"*, *"renamed
+  from `pdfcer-gui`"* — each a *from*-side that named the old GUI folder
+  `pdfceGUI` and was renamed along with everything else. Restored by
+  hand, and each says so in place.
+- **The seven out-of-tree tool crates' `Cargo.lock` files were STALE and
+  got refreshed** by `cargo check` against the new crate names, +436–510
+  lines each — dependencies `pdfcer-core` had gained since they were
+  last generated. Not a rename artefact; recorded so nobody reads the
+  diff as one.
+- **`247.1`'s plan said eight `Cargo.lock` stanzas; the ship had five** —
+  correct, because `247.0` had already removed the GUI's. A plan's count
+  is a snapshot (the 399th filing's finding, recurring at n=2).
+
+**Survivors reported for the engineer (hard rule 11 — sweep for the
+claim "this product is called pdfce" over the present-tense set; found
+here, NOT fixed here — `crates/` is outside this role's remit):**
+- **★ The emitted resource-name prefix `pdfceF{n}` / `pdfceFm{n}`**
+  (`edit.rs:30051` `format!("pdfceFm{xobj_counter}")`,
+  `text_edit/addtext.rs:96` `/pdfceF1`, `text_edit/edit.rs`,
+  `text_edit/format.rs`, `pdfcer-render/src/font/subset.rs`, two CLI
+  tests, one core test, two fixture generators — **10 files** by
+  `grep -rl pdfceF crates/ tools/`). Written into NEW documents, not
+  fixture content, and absent from the commit's deliberate-keeps list —
+  an undecided survivor or an unrecorded keep. Either rename it (tests
+  and generators move with it) or keep it and say why (a resource name
+  is opaque to every reader). Not this filing's call.
+- `ARCHITECTURE.md` §3 line ~2202: the CLI node still says *"packaged
+  alongside `pdfce-gui`"* — stale since `247.0`, §7 corrects it; a
+  `247.0` survivor, not a `247.1` one.
+- `FEATURES.md` `pdfcer-fetch` row: *"`pdfce-gui` declares no dependency"*
+  — a verdict about the removed crate where the column tracks
+  `D:\dev\pdfcer-gui`; owed a re-basing, not a rename.
+- `FEATURES.md` Planned rows: the never-built plugin is still named
+  `pdfceNet` — a proposed name, the engineer's call whether it follows.
+- `ROADMAP.md`'s own header, Glossary and *Update protocol* still say
+  `pdfce`, `pdfce-core`, `pdfce-librarian`, `pdfce-engineer` — this file
+  was excluded from the pass as history, and its present-tense
+  non-dated blocks came with it. The dispatch said annotate a standing
+  rule if found, do not sweep; `R229` was annotated (binary and slot
+  names); the header/Glossary/protocol survivors are **reported as
+  owed**, not fixed.
+- **Correct survivors, do not "fix":** every `pdfce-gui` in
+  `ARCHITECTURE.md` §1–§11 and `FEATURES.md` (the removed crate);
+  `D:/Dev/temp/pdfce` (scratch folder); every `pdfce` in a dated record.
+
+**Still in flight:**
+- **`Pass 247.2`** (create `KenM76/pdfcer`, re-point `origin`, push
+  `main` with tags, archive `KenM76/pdfce` with a README pointer — the
+  one write the backup folder ever receives — cut `v0.28.0`, deploy to
+  `pdfcer1`/`pdfcer2`, `verify-release.py`) — *Next up*, **being
+  executed by the engineer in this session immediately after this
+  filing.** Repository creation and archiving are authorised for this
+  Pass only (its own step 1); pushing and releasing are standing
+  (decisions 090, 121, 127).
+- Three commits unpushed at filing time: `da3b2f8`, `2bb7608`, `4db298d`
+  — plus this filing's own commit once made. None can go to `origin` as
+  it stands (that is the backup).
+- The `pdfceF{n}` resource-prefix disposition, above.
+
+**For next session:**
+- Engineer: commit this filing; execute `247.2`; then decide the
+  `pdfceF{n}` prefix and the `ROADMAP.md` header/Glossary/protocol
+  survivors; notify `pdfcer-gui`'s session that the crate names and
+  folder are live (`247.1` step 3, as narrowed by (cd)).
+- Operator: `247.2` step 5 flags `C:\Users\Ken\.claude\CLAUDE.md`'s
+  `D:\Dev\pdfce\` references (project agents, RAG list) for a hand edit
+  — no agent edits that file.
+
+**`docs/ROADMAP.md`:** *Shipped* gained the `Pass 247.1` entry (top);
+*Next up*'s group heading gained a `247.1`-shipped note and the
+`#### Pass 247.1` subsection a four-point "how the ship differed"
+annotation (kept, not deleted); `R229` annotated in place (binary
+`pdfcer.exe`, slots `pdfcer1`/`pdfcer2`; text kept as minted). Filings
+ceiling `399` → `400`.
+
+**`docs/FEATURES.md`:** no new row. ce-dimensions *author* row gained
+one sentence (pre-rename documents still open; next save re-keys the
+sidecar). Header: two wrong-reading sentences restored (`pdfceGUI` on
+the *from* side; the "row prose still says" sentence restated as
+resolved by `247.1`). Header already read `pdfcer` / `pdfcer-core` /
+`pdfcer` for product, core and cli — checked, correct.
+
+**`docs/ARCHITECTURE.md`:** §12 decision 131 appended after 130; §3 (H)
+gained the sidecar-key paragraph; §3's CLI layout node `pdfcer\` →
+`pdfcer-cli\`; §3's removed-GUI node's *"renamed from"* restored to
+`pdfceGUI`; §7 spot-checked, reads correctly as renamed. Decision
+ceiling `130` → `131`, next free `132`. Rules ceiling `R241`, unchanged.
+Open operator questions: none minted; next free `(ce)`.
+
+**`docs/NEXT_SESSION.md`:** not touched (engineer-owned).

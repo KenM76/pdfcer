@@ -32,7 +32,7 @@ is no longer paused-and-present; it was **deleted** by `Pass 247.0`
 (dropped from `[workspace] members`, its egui/eframe/wgpu dependency
 tree removed by `cargo tree` diff). The `gui` column has tracked the
 **replacement** since decision 073 and still does — only its name and
-path changed: **`D:\dev\pdfcer-gui` → `D:\dev\pdfcer-gui`**, per the
+path changed: **`D:\dev\pdfceGUI` → `D:\dev\pdfcer-gui`**, per the
 operator's ruling on open question (cd) (`ROADMAP.md`, `Pass 247.1`).
 That project's own `FEATURES.md` states in its header that this column
 **is its acceptance criteria** — nothing ticked here may regress at
@@ -41,9 +41,10 @@ can reach it in a real `pdfcer-gui` build — not when the code exists,
 not when a test passes.** Where `pdfcer-gui`'s own file marks a row ⛔
 blocked on something in `pdfcer-core`, that is a finding about *our*
 boundary and belongs in this project's own records (`ROADMAP.md`,
-decision 058), not only in theirs. **Existing row prose still says
-`pdfcer-gui`** (capability rows are out of this filing's scope per the
-dispatch — a bulk rename there is separate, owed work, not done here).
+decision 058), not only in theirs. Row prose said `pdfceGUI` until
+`Pass 247.1` (`4db298d`, 400th filing) renamed it to `pdfcer-gui`
+mechanically; the two sentences above that the same pass turned into
+`pdfcer-gui → pdfcer-gui` were restored by hand in that filing.
 
 **Maintenance note, added 2026-08-19.** No row states a bare verdict
 about `D:\dev\pdfcer-gui` — the checkbox alone carries a claim of
@@ -200,7 +201,7 @@ provisional; re-verify before any acceptance criterion leans on them.
 
 | core | cli | gui | Acrobat | Feature |
 |:----:|:---:|:---:|:-------:|---------|
-| [x] | [x] | [x] | ◐ | Author a ce dimension with snapping — linear, radius, diameter. **An unknown ce-dimension group id is refused by name** (`DimensionGroupNotFound`, `Pass 178.1`) — it used to be substituted with the DEFAULT group **silently, with a success line naming the group asked for**, and the group carries the scale, so the ce dimension was measured at a scale nobody chose. A shell holding a group id across a reload now gets an error where it used to appear to work; that error is correct and the previous silence was not. |
+| [x] | [x] | [x] | ◐ | Author a ce dimension with snapping — linear, radius, diameter. **An unknown ce-dimension group id is refused by name** (`DimensionGroupNotFound`, `Pass 178.1`) — it used to be substituted with the DEFAULT group **silently, with a success line naming the group asked for**, and the group carries the scale, so the ce dimension was measured at a scale nobody chose. A shell holding a group id across a reload now gets an error where it used to appear to work; that error is correct and the previous silence was not. **A document saved with ce dimensions by any pre-rename `pdfce` build (sidecar keyed `/PieceInfo /pdfce`, `v0.5.1`–`v0.27.0`) still opens with them** — the reader accepts the legacy key, and the next save re-keys the sidecar to `/pdfcer` and drops the old one (`Pass 247.1`, decision 131). |
 | [x] | [x] | [x] | **[ ]** | Groups carrying scale, number format (decimal/fraction) and ANSI/ISO drafting standard — create, rename, delete and re-parent, all four reachable from every shell (`group-rename`, `group-delete --members refuse\|reassign --to N`, `dimension-group`, `Pass 176.0`). Deleting a populated group refuses and reports the member count; `Reassign` is the other policy and there is deliberately no delete-the-members policy (it would be a second `/Annots` removal and would give one undo entry per member). **Deleting the DEFAULT group is refused by name** (`DimensionGroupIsDefault`, under every policy) — the sidecar reader requires it as a coherence check, so removing it emptied the entire measurement model on the next open while the annotations kept rendering off their baked `/AP`. Re-parenting **re-measures**: the label derives from the group's scale, so the dimension reads differently after the move, as one undo entry. The **unit** is writable only as a side effect of `set_group_scale`, which is the sanctioned route rather than a hole, and a notation that names its own unit (`55 5/8"`, `4'-7 1/2"`, `1200mm`) sets the **label's** unit and number format as well as the scale — until `Pass 176.0` it reached only the scale, so an inch calibration produced millimetre labels 25.4× out. **`set_group_scale` refuses an unknown group id by name since `Pass 178.2`** — it used to report success and change nothing, so a recalibration typed against a mistyped id left every ce dimension reading at the old scale. **Every one of the eight ce-dimension group verbs now refuses an unknown id**; four did not before `Pass 176.0`–`178.2`. **Reachable in `pdfcer-gui`** — the Dimension groups panel creates, renames, deletes with a destination and re-parents through the properties picker (that project's own `FEATURES.md`, Phase 7, ✅ 2026-08-19; read here 2026-08-30). |
 | [x] | [x] | [x] | **[ ]** | Switch a placed circular dimension between radius and diameter. |
 | [x] | [x] | [x] | [x] | Reposition by drag, or numerically — `place_dimension(id, offset, text_along)` / `dimension-offset` sets the standoff perpendicular to the measured axis and where the label sits along the dimension line. **The standoff is what the extension lines express**: they grow to span the gap it opens (decision 026, whose title names it), so this is the numeric form of dragging them and no separate extension-line verb is owed. Refused by name for a circular ce dimension, which has no axis to stand off from or slide along. Whole-annotation translation is `move_dimension`, core-only — see *Annotations & markup*. |

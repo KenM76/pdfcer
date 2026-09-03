@@ -2061,7 +2061,10 @@ D:\Dev\pdfcer\
                                    diff: 304 → 167 distinct crates, 137 removed, 0
                                    new). The native desktop shell now lives OUTSIDE
                                    this repository, as the separate project
-                                   `D:\dev\pdfcer-gui` (renamed from `pdfcer-gui`,
+                                   `D:\dev\pdfcer-gui` (renamed from `pdfceGUI` —
+                                   the mechanical rename of `Pass 247.1` had made
+                                   this read "renamed from `pdfcer-gui`", restored
+                                   by hand in the 400th filing;
                                    operator ruling on open question (cd),
                                    `ROADMAP.md` `Pass 247.1`), consuming
                                    `pdfcer-core`/`pdfcer-render` as a dependency into
@@ -2193,7 +2196,12 @@ D:\Dev\pdfcer\
                                    worth of distance, and a textual test
                                    gate whose subject moved with the code
                                    it was gating.
-    pdfcer\                  <- The command-line batch shell. Subcommand parsing
+    pdfcer-cli\                 <- The command-line batch shell — crate `pdfcer-cli`,
+                                   BINARY `pdfcer` (no dash; `Pass 247.1`, `4db298d`).
+                                   The rename script's "`pdfce-cli` means the tool"
+                                   rule had turned this directory name into `pdfcer\`;
+                                   `ls crates/` says `pdfcer-cli`, restored by hand in
+                                   the 400th filing. Subcommand parsing
                                    (clap crate), one subcommand per batch operation
                                    (merge/split/rotate/extract, Bates stamp, convert
                                    to PDF/A, sign, validate PDF/A or PDF/UA conformance
@@ -3053,6 +3061,18 @@ annotations pdfcer AUTHORS, with their baked `/AP`, groups, scale,
 `/Measure` dict and `/PieceInfo` sidecar. It says nothing about *pdf
 dimensions* (dimensions a CAD tool already exported into the file), which
 pdfcer reads and measures against but must not silently alter.**
+
+**The sidecar's KEY, since `Pass 247.1` (`4db298d`, 2026-09-03; decision
+131).** `/PieceInfo` is keyed by application name (ISO 32000-1 §14.5), so
+the product rename reached it: the writer emits `/PieceInfo << /pdfcer
+… >>` (`edit.rs` `SIDECAR_KEY`), the reader (`EditSession::sidecar_entry`)
+looks for `/pdfcer` first and **falls back to the legacy `/pdfce`**
+(`SIDECAR_KEY_LEGACY`) that every `v0.5.1`–`v0.27.0` save wrote, and
+`write_dimension_model` **removes** a legacy `/pdfce` beside the
+`/pdfcer` it writes, so no document ever carries two sidecars that could
+disagree. The legacy key is therefore retired on the first save after
+the rename, never carried forever, and never dropped silently. Tests:
+`crates/pdfcer-core/tests/sidecar_legacy_key.rs`.
 
 Full current re-export surface (`dimension/mod.rs:62-76`), verified:
 
@@ -31112,5 +31132,112 @@ premise; see that entry) — filed under decision 128 rather than here,
 because it corrects THAT entry's own claim, not a new decision.
 
 **Decision ceiling moves `129` → `130`; next free `131`.** **Standing
+rules ceiling `R241` — unchanged**, next free `R242`. **Open operator
+questions: none minted**; next free `(ce)`.
+
+### 2026-09-03 (400th filing, `4db298d`) — decision 131: **A RENAME MUST NOT COST THE OPERATOR HIS MEASUREMENTS. WHEN AN IDENTIFIER THAT A SAVED DOCUMENT CARRIES CHANGES, THE READER ACCEPTS EVERY NAME THE PRODUCT EVER WROTE, THE WRITER EMITS ONLY THE CURRENT ONE, AND A LEGACY NAME IS RETIRED ON THE FIRST WRITE — NEVER CARRIED FOREVER, NEVER DROPPED SILENTLY. FIRST INSTANCE: THE CE-DIMENSION SIDECAR KEY `/PieceInfo /pdfce` → `/pdfcer`**
+
+**(librarian filing, 400th. Shell available, read-only: the shape below
+is read in source — `crates/pdfcer-core/src/edit.rs:33190` `const
+SIDECAR_KEY: &[u8] = b"pdfcer";`, `:33193` `const SIDECAR_KEY_LEGACY:
+&[u8] = b"pdfce";`, `:37634-37635` the `get(SIDECAR_KEY).or_else(…
+LEGACY)` read, `:37691-37692` the `remove(LEGACY)` then
+`insert(SIDECAR_KEY)` write — and the test file
+`crates/pdfcer-core/tests/sidecar_legacy_key.rs` holds 3 `#[test]` by
+`grep -c`. The test count 4,733 and the gate runs are relayed from the
+commit message. `Pass 247.1` is decision 128's second step; this
+decision covers the one place where that step, planned as a
+no-behaviour-change mechanical rename, turned out to change what an
+existing document means.)**
+
+**The problem.** `Pass 247.1` renames every present-tense `pdfce` to
+`pdfcer`. Almost all of those names are internal — crate names, module
+paths, env variables, a binary — and renaming them changes nothing any
+document carries. **One is not.** The ce-dimension model (decision 026)
+persists its groups, scale, number format, style cascade and label
+overrides in a catalog sidecar at `/PieceInfo << /<name> << /Private …
+>> >>`, and ISO 32000-1 §14.5 keys that dictionary **by the application's
+name** — the standard's own instruction that the key be the product
+name is why a product rename reaches a saved file. The writer, after the
+mechanical pass, emits `/pdfcer`. **A reader that then looked only for
+`/pdfcer` would open every document saved with ce dimensions by
+`v0.5.1`–`v0.27.0` — **25 of the 30 tags** by `git tag | sort -V`,
+every one after `v0.5.0` — and show none of their
+measurement model**, while the `/Line` annotations kept rendering off
+their baked `/AP`. Nothing would look wrong on the page. The groups,
+the scale, the overrides, the ability to re-measure or re-scale — all
+gone on the next open, with no error, because "no sidecar" is a valid
+state for a document that never had one. This is the worst kind of
+loss: silent, plausible, and discovered only when the operator reaches
+for a verb that needs the model.
+
+**The rule, in three clauses, and each clause is load-bearing:**
+
+1. **The reader accepts every key the product ever wrote.**
+   `EditSession::sidecar_entry` reads `/pdfcer` first and falls back to
+   `/pdfce`. Order matters: a document that somehow carried both would
+   read the current key, never the legacy one.
+2. **The writer emits only the current key.** `write_dimension_model`
+   writes `/pdfcer`. A new document, or a legacy document's next save,
+   is keyed the one way the current product spells its name.
+3. **A legacy key is retired on the first write, in the same write.**
+   `write_dimension_model` **removes** `/pdfce` beside the `/pdfcer` it
+   inserts. The alternative — leave the old key in place — would let one
+   document carry two sidecars that a later edit could make disagree
+   (and a reader following clause 1 would silently prefer one of them).
+   The other alternative — remove it on OPEN — would be a mutation the
+   operator did not ask for, against §5's minimal-diff invariant and
+   §11.1's commit-point-is-save rule. So the retirement rides the
+   operator's own save, where the sidecar is being rewritten anyway.
+
+**What this is NOT.** Not a migration tool, not a version bump —
+`SIDECAR_VERSION` does not move, because the sidecar's *contents* are
+unchanged; only the dictionary key naming its owner moved. Not a
+promise to read `/pdfce` forever as a matter of policy — it is a promise
+to read it for as long as a document written by a pre-rename build can
+exist, which in practice is forever, and the fallback is two lines. Not
+an exception to §5: an incremental save of a legacy-keyed document
+re-emits the catalog object it was going to re-emit anyway (the sidecar
+lives on the catalog), so the retirement costs no additional object.
+
+**Why it is filed as a decision rather than a Pass detail.** The rename
+was scoped, planned and dispatched as *mechanical* — `247.1`'s own step 1
+says "one mechanical, case-preserving pass" — and the ledger's whole
+argument for a rename being safe rested on it changing no behaviour.
+That premise held everywhere except here, and it failed here for a
+reason that generalises: **any identifier the product writes INTO a
+document is part of that document's format, and renaming it is a format
+change with a compatibility obligation, however small the diff.** The
+candidates in this codebase, by the same reading, are the sidecar key
+(this decision), `/Producer` (informational — a reader does not branch
+on it, so no guard is owed), the OCProperties configuration name
+*"pdfcer dimensions"* (display text, likewise), and the emitted resource
+name prefix `pdfceF{n}` / `pdfceFm{n}` (**not renamed by `247.1` and not
+listed among its deliberate keeps** — reported in `ROADMAP.md`'s `247.1`
+Shipped entry as an owed disposition; if it is renamed later, this
+decision's clause 1 does not apply because a resource name is opaque to
+every reader, and nothing looks a document up by it).
+
+**Test discipline that made the guard checkable.** The legacy-keyed
+fixture is manufactured at **equal byte length** to the current-keyed
+one, so every xref offset in the file stays valid without regenerating
+the table — the same trick the project's fixture generators use, and
+the reason the fallback test exercises the real parser rather than a
+hand-built object tree. Three tests: a fresh save carries only
+`/pdfcer`; a legacy document opens with its ce dimension; saving it
+retires the legacy key and the result re-opens with both ce dimensions
+(the one it had, the one the test added).
+
+**Body sections updated in this filing:** §3's ce-dimension subsection
+(H) gains a paragraph naming the key, the fallback and the retirement,
+beside its existing `SIDECAR_VERSION` note; §3's workspace-layout node
+for the CLI crate corrected `pdfcer\` → `pdfcer-cli\` (a rename-script
+artefact, not a decision — the directory is `crates/pdfcer-cli`, the
+binary is `pdfcer`); §3's removed-GUI node's *"renamed from"* clause
+restored to `pdfceGUI` (same artefact class). `FEATURES.md`'s
+ce-dimension *author* row carries the one-sentence operator-facing
+consequence. `ROADMAP.md`: `Pass 247.1` *Shipped* entry, item 3.
+
+**Decision ceiling moves `130` → `131`; next free `132`.** **Standing
 rules ceiling `R241` — unchanged**, next free `R242`. **Open operator
 questions: none minted**; next free `(ce)`.
