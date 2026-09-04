@@ -125609,6 +125609,126 @@ added. See that section below.
   `TOTAL-PASSED` / `TOTAL-FAILED` / `INDETERMINATE` are that standard's
   words and are not to be borrowed before it is read. Signing also needs
   EN 319 122-1, **not staged** (`SI-G2`).
+  **★★ TRUST LEG SCOPED 2026-09-04 (414th filing) — `Pass 10.2`
+  (import) and `Pass 10.3` (evaluate) minted below, filling the
+  `trust = NotChecked` gap `Pass 10.1` named.** The operator asked
+  whether an installed Acrobat/Reader could cover pdfcer's trust-anchor
+  gap; research this session (decision 133) says yes, by direct-parse of
+  the user's own address book — see the two headed entries immediately
+  below, then the Encryption bullet resumes.
+
+#### `Pass 10.2` — **IMPORT AN INSTALLED ACROBAT/READER TRUST STORE AS A TRUST-ANCHOR SOURCE (opt-in)** — filed 2026-09-04 (414th filing), *Backlog*, NOT STARTED
+
+Self-contained; needs nothing from `Pass 10.3`. Fills the trust-anchor
+half of the gap `Pass 10.1` left when it shipped `trust = NotChecked`.
+The idea: pdfcer does not maintain its own AATL/EUTL bundle and there is
+**no public machine-consumable AATL bundle to fetch** (decision 133);
+an already-refreshed Acrobat/Reader install is the only 1:1 source of
+the anchor set an Acrobat verdict would use, so pdfcer reads that
+install's address book **with its own COS + X.509 code** rather than
+driving Acrobat.
+
+**Format basis (measured this session, cite in code doc comments):**
+`%APPDATA%\Adobe\Acrobat\DC\Security\addressbook.acrodata` is a
+**classic-COS PPKLITE file** — header `%PPKLITE-2.1`, classic 20-byte
+xref (`startxref 3347144`), trailer `<</Size 2990/Root 1 0 R>>`,
+`/Root` a `/Type/Catalog`, **no streams, no object streams, no
+`/Encrypt`**. Schema `/Catalog → /PPK → /AddressBook{/Entries[obj
+refs], /NextID}`; `/ABEType` is an **integer** (1 = certificate entry,
+2 = named-identity grouping); a type-1 entry carries `/Cert` (raw DER
+X.509, **one cert not a chain**, starts `30 82`), `/Source`
+(`(AATL)`/`(EUTL)`/`(ADBE)`, string or array), `/Trust` (int bitfield),
+`/Usage`, `/Editable`, `/Viewable`, optional `/PolicyOID`/`/PolicyUFName`,
+`/ID`; a type-2 entry references type-1 by **`/ID`, not object number**
+(the two-reference-scheme gotcha). Full format:
+`D:\Dev\Rag-Specialized\PDF_Spec\security\security__ppklite_addressbook.md`.
+Why an Acrobat store is a valid superset source (AATL ⊇ Windows-roots ∪
+EUTL by construction):
+`D:\Dev\Rag-Specialized\Acrobat_Features\signatures__trust_anchor_sources_aatl_eutl.md`.
+
+**Acceptance criteria:**
+
+1. **A `.acrodata`/PPKLITE reader in `pdfcer-core`.** Relax the header
+   gate to accept `%PPKLITE-`/`%FDF-` alongside `%PDF-` (**one
+   documented branch**, header sniff only — the existing tokenizer and
+   classic-xref parser handle the rest unchanged). Walk `/Root → /PPK →
+   /AddressBook → /Entries`; resolve **both** reference schemes (object
+   refs in `/Entries`; `/ID` refs from type-2 groupings). Extract each
+   type-1 `/Cert` literal-string DER into pdfcer's **existing** X.509
+   type — **reuse the `Pass 10.1` CMS/X.509 decoder, no new ASN.1**.
+   Capture `/Source`, raw `/Trust`, `/PolicyOID`. Output a
+   `TrustAnchorSet`. Zero GUI; **local file read only, no network.**
+2. **Filter by `/Source`.** Caller can request AATL-only, EUTL-only,
+   both, or all-including-user-added.
+3. **A `cargo-fuzz` target on the reader** (untrusted input,
+   `ARCHITECTURE.md` §10.2) plus a **depth/cycle guard** on the entry
+   graph.
+4. **Shell-side locator (CLI + a setting), platform-specific,
+   shell-only.** Find the Acrobat/Reader Security dir across track
+   variants (Acrobat vs Reader; DC vs 2020/2017). **OFF BY DEFAULT;
+   explicit opt-in** (crate-separation: the locator is shell-side, the
+   reader is `pdfcer-core`).
+5. **A read-only CLI subcommand to list the importable anchors** —
+   count by `/Source`, identities — so the operator can see what
+   enabling would trust **before** enabling it.
+6. **Disclosure (rule 4):** report count-by-source and the store file's
+   **last-modified time** (freshness); **state that the `/Trust`
+   flag→category mapping is pdfcer's provisional reading, not
+   Adobe-confirmed** (the numeric bitfield constants are unpublished →
+   derived, see the trust-flags RAG:
+   `D:\Dev\Rag-Specialized\Acrobat_Features\signatures__trust_flags_and_verdict_pipeline.md`).
+7. **Proof:** parse the real specimen; assert the source split
+   (**≈1567 EUTL / 199 AATL / 1 ADBE**, tolerant to refresh); every
+   `/Cert` decodes to a valid X.509; spot-check an identity against
+   Acrobat's trusted list.
+8. **OPEN ITEM on the Pass:** an operator **Adobe-Reader-EULA review**
+   gates any future **enable-by-default** (decision 133 §3). The Pass
+   ships opt-in/off-by-default without it; only flipping the default
+   needs it.
+
+Revocation and timestamping are **not** at address-book level — they
+live inside each cert's DER extensions (RFC 5280 CDP/AIA), recovered by
+decoding `/Cert`, and belong to `Pass 10.3`'s later increments, not
+here. (`directories.acrodata` is FDF/LDAP directory config;
+`security-policy.acrodata` is encryption-policy presets — neither is a
+trust source.)
+
+#### `Pass 10.3` — **EVALUATE SIGNATURE TRUST AGAINST IMPORTED ANCHORS** — filed 2026-09-04 (414th filing), *Backlog*, NOT STARTED — depends on `Pass 10.2` AND on signature verification maturing
+
+Turns `Trust::NotChecked` into a real verdict. Chain a signer's
+embedded certs (recovered by `Pass 10.1`'s verifier) to an anchor in a
+`Pass 10.2` `TrustAnchorSet`, honour `/Source` and usage, and report a
+trust verdict as a **fact separate from integrity and coverage** (the
+three-facts-never-one-bool posture `Pass 10.1` established).
+
+**Acceptance shape, when scoped:**
+
+1. **Keep "signer unknown" DISTINCT from "valid but untrusted."** These
+   are different operator situations (no anchor found for the chain vs.
+   a chain that resolves to an anchor the store does not mark trusted
+   for this usage); the pipeline reports them apart — see
+   `D:\Dev\Rag-Specialized\Acrobat_Features\signatures__trust_flags_and_verdict_pipeline.md`.
+2. **Trust-anchor resolution and revocation strictness gate
+   INDEPENDENTLY** — a chain can reach a trusted anchor and still be
+   unverifiable for revocation reasons, and vice versa; the two axes do
+   not collapse.
+3. **Revocation (CRL/OCSP from the cert DER's CDP/AIA) and a clock are
+   named as further separate increments, not this Pass** — anchor
+   resolution first; revocation and a validation-time clock are their
+   own later work.
+4. **Spec-research dependency, stated up front:** the `/Trust` bitfield
+   decoding (provisional in `Pass 10.2`) **must be pinned** before
+   fine-grained usage gating (trusted root vs. sign vs. certify vs.
+   dynamic-content vs. embedded-JS vs. privileged-system-ops); the
+   provisional mapping is enough to say *trusted / not*, not enough to
+   gate *for what*.
+
+Composite-verdict naming stays pdfce's own (`Verified` /
+`DigestMismatch` / `SignatureInvalid` / `Unverifiable`, plus a trust
+axis) until ETSI EN 319 102-1 is ingested — the Digital-signatures
+bullet above already forbids borrowing `TOTAL-PASSED` /
+`TOTAL-FAILED` / `INDETERMINATE` before that standard is read.
+
 - **Encryption** — standard security handler, RC4 (legacy read-compat
   only, never write), AES-128/256, public-key (certificate) security
   handler. **Updated 2026-07-31 by decision 007 (Pass 5 in its

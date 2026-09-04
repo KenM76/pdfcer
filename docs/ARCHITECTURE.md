@@ -31489,3 +31489,96 @@ such an object painted it unmasked. `Cache` mode now calls
 084 always intended to cover. See `ROADMAP.md`'s `Pass 248.1` *Shipped*
 entry (404th filing) for the full build record, and the amendment to
 §4.1's forward-pointer paragraph below.
+
+### 2026-09-04 (414th filing) — decision 133: **SOURCING SIGNATURE TRUST ANCHORS FROM AN INSTALLED ACROBAT/READER (opt-in) — pdfce DIRECT-PARSES THE USER'S OWN `addressbook.acrodata` WITH ITS OWN COS + X.509 CODE, RATHER THAN MAINTAINING AN AATL BUNDLE OR DRIVING ACROBAT. OFF BY DEFAULT. SCOPES `Pass 10.2` (import) + `Pass 10.3` (evaluate)**
+
+**(librarian filing, 414th. Docs-only scoping filing — no code shipped.
+Recorded ahead of `Pass 10.2`/`10.3` on the same basis decisions 073 and
+132 were recorded ahead of their code: the design is committed and dated,
+the implementation is Backlog. Grounded in three RAG files created this
+session — the PPKLITE format measured from the real specimen
+(`D:\Dev\Rag-Specialized\PDF_Spec\security\security__ppklite_addressbook.md`),
+the AATL/EUTL superset argument
+(`D:\Dev\Rag-Specialized\Acrobat_Features\signatures__trust_anchor_sources_aatl_eutl.md`),
+and the trust-flags + verdict pipeline
+(`D:\Dev\Rag-Specialized\Acrobat_Features\signatures__trust_flags_and_verdict_pipeline.md`).
+Citing them here closes the cross-RAG handoff — a deliverable is not
+handed off until a pdfce doc names it.)**
+
+**Why this is a decision and not only a Pass-local choice.** `Pass 10.1`
+shipped signature verification with `trust = NotChecked` **by name** —
+integrity and coverage as real facts, trust deliberately empty because
+pdfce has no trust store. Closing that gap forces three choices that
+outlive any one Pass: *where the anchors come from*, *how pdfce reads
+them*, and *whether it is on by default*. Each is an invariant a future
+session must find from here, not re-derive.
+
+**1. WHERE — an installed Acrobat/Reader is the only 1:1 anchor source,
+because AATL ⊇ Windows-roots ∪ EUTL by construction.** Adobe's AATL is
+built by Adobe's own independent CA audit, with no reference to the
+Windows Trusted Root program or to the EU Trusted List; it is a superset
+of both **by how it is constructed**, not by coincidence, which is why
+the operator measured Windows+EUTL at ~55.6% of AATL. Crucially there is
+**no public, machine-consumable AATL bundle** to fetch and ship — so an
+already-refreshed Acrobat/Reader install (which pulls the current AATL +
+EUTL into its address book) is the only source that reproduces the anchor
+set an Acrobat verdict would actually use. pdfce maintaining its own
+bundle would mean maintaining a worse, staler copy of a list it cannot
+authoritatively obtain.
+
+**2. HOW — direct-parse, not automate.** pdfce reads
+`%APPDATA%\Adobe\Acrobat\DC\Security\addressbook.acrodata` with its
+**own COS parser and its own X.509 decoder**, rather than driving
+Acrobat to emit a verdict. Two reasons. (a) The file is trivially within
+pdfce's existing reach: it is a **classic-COS PPKLITE file** — header
+`%PPKLITE-2.1`, classic 20-byte xref, a `/Type/Catalog` root, **no
+streams, no object streams, no `/Encrypt`** — so the existing tokenizer
+and classic-xref parser read it once the `%PDF-` header gate is relaxed
+to also accept `%PPKLITE-`/`%FDF-` (one branch), and each entry's `/Cert`
+is a raw DER X.509 the `Pass 10.1` decoder already handles (no new ASN.1).
+(b) Acrobat's **automatable verdict surface is unproven and fragile**;
+reading a static file the user already has on disk is deterministic and
+depends on nothing pdfce cannot see. The schema and both of its
+reference-resolution schemes (object refs in `/Entries`; `/ID` refs from
+`/ABEType 2` groupings) are recorded in the PPKLITE RAG file; the
+`/Trust` numeric bitfield constants are **unpublished by Adobe**, so
+pdfce's bit→category mapping is **derived and must be disclosed as
+provisional** (rule 4) — pinning it is named as a spec-research
+dependency for `Pass 10.3`.
+
+**3. WHETHER-BY-DEFAULT — off by default, explicit opt-in, disclosed.**
+Legal posture (engineer's educated read, not counsel): reading the
+**user's own already-downloaded file on their own machine** is clean on
+the copyright/redistribution axis — the certs are public, the container
+is an open-standard COS file, and pdfce redistributes nothing. The
+residual fuzz is **contractual** — the Adobe Reader EULA on using its
+data outside Reader — which the engineer judges **fuzzy, not blocking**.
+Per the operator's own standing rule (*"leave it to the user to enable
+if the legal question is fuzzy"*), the feature ships **opt-in /
+off-by-default**, and an **operator EULA review is an OPEN ITEM that
+gates any future enable-by-default** — it does not gate shipping the
+opt-in capability.
+
+**Crate boundary.** The `.acrodata` **reader** is `pdfcer-core` (COS +
+X.509, no GUI, local file read only, no network — the GUI-core-separation
+and no-network invariants both hold). The **locator** that finds the
+Acrobat/Reader Security dir across track variants (Acrobat vs Reader; DC
+vs 2020/2017) is **shell-side** (CLI + a setting), because it is
+platform- and install-specific policy, not object-model logic.
+
+**Scope produced:** `Pass 10.2` (import — a `.acrodata` reader → a
+`TrustAnchorSet`, `/Source` filtering, a fuzz target, a shell-side
+locator, a read-only list CLI, disclosure of source-counts + store
+freshness + the provisional `/Trust` mapping) and `Pass 10.3` (evaluate
+— chain a signer to a `TrustAnchorSet` anchor, turning `NotChecked` into
+a real verdict, "signer unknown" kept DISTINCT from "valid but
+untrusted", revocation/clock named as separate later increments). Both
+Backlog, under the Digital-signatures leg. Revocation and timestamp are
+**not** at address-book level — they live in each cert's DER extensions
+(RFC 5280 CDP/AIA) and are recovered by decoding `/Cert`.
+
+**Decision ceiling moves `132` → `133`; next free `134`.** **Standing
+rules ceiling `R241` — unchanged**, next free `R242`. **Open operator
+questions: none minted here** — the Adobe-Reader-EULA review is filed as
+an OPEN ITEM on `Pass 10.2`, not as a lettered operator question; next
+free `(ce)`.

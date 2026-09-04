@@ -90679,3 +90679,88 @@ verified. Next up: `Pass 5.4` (encrypt on save).
 - Engineer: no in-flight Pass; `v0.31.0` shipped and verified. Consult
   `ROADMAP.md` *Next up* / *Backlog* for the next pick.
 - Operator: nothing pending from this filing.
+
+## 2026-09-04 (414th filing) — SCOPING (docs only): the Acrobat/Reader trust-store reuse feature — `Pass 10.2` (import) + `Pass 10.3` (evaluate) minted to *Backlog*, decision 133 recorded, three RAG files cited
+
+**Shipped:**
+- Nothing — this is a docs-only scoping filing, no code. Two Backlog
+  Passes minted under the Digital-signatures / trust leg, one decision
+  recorded, one `FEATURES.md` *Planned* row added.
+
+**Decisions made this session:**
+- **Decision 133 (`ARCHITECTURE.md` §12):** *"Sourcing signature trust
+  anchors from an installed Acrobat/Reader (opt-in)."* Three sub-choices,
+  each an invariant outliving any one Pass: **(1) WHERE** — an installed
+  Acrobat/Reader is the only 1:1 anchor source, because **AATL ⊇
+  Windows-roots ∪ EUTL by construction** (independent Adobe CA audit, no
+  reference to the other programs) and there is **no public
+  machine-consumable AATL bundle** to fetch and ship; this is why the
+  operator measured Windows+EUTL at ~55.6% of AATL. **(2) HOW** —
+  **direct-parse, not automate**: pdfce reads the user's own
+  `addressbook.acrodata` with its **own COS + X.509 code** (the file is a
+  classic-COS PPKLITE — no streams, no `/Encrypt` — so the existing
+  tokenizer + classic-xref parser read it once the `%PDF-` header gate is
+  relaxed to also accept `%PPKLITE-`/`%FDF-`, one branch; each `/Cert` is
+  raw DER the `Pass 10.1` decoder already handles), rather than driving
+  Acrobat, whose automatable verdict surface is unproven/fragile. **(3)
+  WHETHER-BY-DEFAULT** — **off by default, explicit opt-in, disclosed**:
+  reading the user's own already-downloaded file is clean on
+  copyright/redistribution (public certs, open-standard container, no
+  redistribution); the residual fuzz is contractual (Adobe Reader EULA on
+  using its data outside Reader), judged fuzzy-not-blocking, so per the
+  operator's own rule it ships opt-in and an **operator EULA review is an
+  OPEN ITEM gating any future enable-by-default** — not gating the opt-in
+  ship. Decision ceiling `132` → `133`; next free `134`. No standing rule
+  or operator question minted.
+
+**Findings + decisions:**
+- **Cross-RAG handoff closed.** Three RAG files created this session are
+  now CITED from pdfce docs (a deliverable is not handed off until a
+  pdfce doc names it): `security__ppklite_addressbook.md`
+  (`PDF_Spec/security/`, the `.acrodata`/PPKLITE format measured from the
+  real file — header `%PPKLITE-2.1`, classic 20-byte xref `startxref
+  3347144`, trailer `<</Size 2990/Root 1 0 R>>`, `/Catalog → /PPK →
+  /AddressBook`; `/ABEType` integer 1=cert / 2=named-identity;
+  two-reference-scheme gotcha — object refs in `/Entries`, `/ID` refs
+  from type-2); `signatures__trust_anchor_sources_aatl_eutl.md`
+  (`Acrobat_Features/`, the superset-by-construction argument);
+  `signatures__trust_flags_and_verdict_pipeline.md` (`Acrobat_Features/`,
+  the `/Trust` flags + verdict pipeline, "signer unknown" vs "valid but
+  untrusted").
+- Specimen contents (measured): 1780 cert entries = **1567 EUTL + 199
+  AATL + 1 ADBE** built-in (+ ~13 multi-list) + 709 TSA contacts —
+  becomes `Pass 10.2`'s proof assertion (source split, tolerant to
+  refresh).
+- The `/Trust` numeric bitfield constants are **unpublished by Adobe**, so
+  the bit→category mapping is **derived / provisional** and must be
+  disclosed as such (rule 4); pinning it is a spec-research dependency
+  named on `Pass 10.3`.
+- Revocation/timestamp is **not** at address-book level — it lives in each
+  cert's DER extensions (RFC 5280 CDP/AIA), recovered by decoding `/Cert`;
+  named as a separate later increment on `Pass 10.3`, not part of anchor
+  import. (`directories.acrodata` = FDF/LDAP config;
+  `security-policy.acrodata` = encryption-policy presets — neither a trust
+  source.)
+- **Pass-ID assignment via the ledger, not from memory:**
+  `tools/check-ledger-numbers.py` gave next-free decision `133`, next-free
+  SESSION_LOG filing `414`, and the signature family as Pass 10.x (10.0,
+  10.1 shipped) → **`Pass 10.2`** and **`Pass 10.3`** are the next free
+  sub-IDs. The only prior "Pass 10.2" strings in the tree are a corrected
+  stage-label typo (`signature.rs`, `Pass 10.2` → `Pass 10.1`), never a
+  minted feature — so 10.2 is clean to mint. Ledger re-run clean after the
+  edits (see below).
+
+**Still in flight:**
+- Nothing engineering-side. `Pass 10.2` and `Pass 10.3` are *Backlog*,
+  NOT STARTED. `Pass 10.2` is self-contained; `Pass 10.3` depends on
+  `Pass 10.2` and on signature verification maturing.
+
+**For next session:**
+- Engineer: when `Pass 10.2` is reached, a census over the 2,500-file
+  organic corpus for the store's presence/size would size the effort; the
+  reader reuses the `Pass 10.1` X.509 decoder (no new ASN.1) behind a
+  one-branch header sniff. The `.acrodata` reader is `pdfcer-core`; the
+  install locator is shell-side (crate separation).
+- Operator: **OPEN ITEM — an Adobe-Reader-EULA review** gates ever making
+  the trust-store import **enable-by-default**; it does NOT gate shipping
+  it opt-in/off. Ken's call, when the Pass activates.
