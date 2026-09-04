@@ -112,6 +112,169 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★ 415th filing, 2026-09-04 — `Pass 249.0` + `Pass 249.1` SHIPPED
+(`1e2c778`): two `pdfcer-gui` requests, both `pdfcer-core`, both
+consumer-facing read/classification API (the GUI consumes them; no CLI
+surface). `core [x]` · `cli —` · `gui [ ]` (enabling halves for GUI
+editors not yet built). AND the stale `gui` column reconciled — 63 of 90
+`[x] core / [ ] gui` rows flipped to `[x]` gui on `pdfcer-gui`'s own
+evidence.**
+
+**Sourcing (hard rule 8).** Shell available to this filing. `1e2c778`
+verified by `git log -1 1e2c778` (subject *"feat(core): coarse
+RefusalKind discriminant + widget /MK /BG in the read model"*, committed
+2026-09-04 10:04:06 -0400); it is the parent of `HEAD` = **`572bf45`**
+(`chore: sync fuzz/Cargo.lock to workspace version 0.31.0`, a lockfile
+chore, no feature content), by `git log --oneline 1e2c778..HEAD` = one
+commit, `572bf45` itself. Working tree carries this filing's own doc
+edits only (`git status --short`). All test/gate figures below are
+**relayed from the engineer's dispatch**, not re-run by this role, per
+the hard-rule-8 discipline.
+
+### `Pass 249.0` (2026-09-04, `1e2c778`) — **COARSE, STABLE REFUSAL DISCRIMINANT: `text_edit::{RefusalKind, RefusalClass}`**
+
+**What shipped.** A four-bucket discriminant a front end switches on to
+route **one operator sentence per category** of refused edit, **without**
+matching pdfcer's internal error variants (which drift, and are 118
+strong on `EditError` alone) or grepping `Display` prose. The four
+buckets: `UnsupportedFont` / `StructureFrozen` / `NotFound` / `Other`.
+`refusal_kind()` is impl'd for **both** `text_edit::EditError` and
+`text_edit::AddTextError`, so a consumer classifies either family through
+one call.
+
+**Design choice, stated because it will be tempting to reverse it.**
+`RefusalKind`/`RefusalClass` is deliberately **NOT** `#[non_exhaustive]`.
+The consumer matches it **exhaustively**, and the compiler then *proves*
+the front end has a sentence for every bucket; a new pdfcer error variant
+lands in an existing bucket rather than forcing the consumer to add an
+arm. The stability contract is: buckets do not churn, variants behind
+them may. This is the inverse of the usual `#[non_exhaustive]` default,
+and it is correct here precisely because the type exists to give a
+front end a **closed** set to reason about.
+
+**Proof.** The R-INV-2 font refusal (symbolic font, no encoding) the
+request was filed against classifies as `UnsupportedFont`; four unit
+tests cover the mapping. Documented in
+`docs/core-api/02-editing-and-saving.md` §6.9. New module
+`crates/pdfcer-core/src/text_edit/refusal_kind.rs`.
+
+**Origin.** `pdfcer-gui` request
+`request_can_edit_errors_expose_a_coarse_kind_a_front_end_may_switch_on`.
+The enabling half of a GUI capability — *an editor that explains a
+refused edit in the operator's terms instead of leaking an internal
+error string.*
+
+### `Pass 249.1` (2026-09-04, `1e2c778`) — **WIDGET `/MK /BG` BACKGROUND COLOUR IN THE READ MODEL: `forms::Widget::background: Option<MkColor>`**
+
+**What shipped.** The widget appearance-characteristics `/MK /BG`
+background colour, added to the parsed widget model for an on-page field
+editor that tints its live text box the field's **own** colour.
+`MkColor = None | Gray(f32) | Rgb | Cmyk` (ISO 32000-1 §12.5.6.19 Table
+189).
+
+**The distinctions that were held, not flattened:**
+
+- **Empty array (`Some(MkColor::None)`) is Table 189's explicit "no
+  colour" and stays DISTINCT from absent (`Option::None`).** A field that
+  states *no background* and a field that is *silent* about its
+  background are different facts, and an editor must be able to tell
+  them apart.
+- **`DeviceCMYK` is never flattened to RGB** — a four-component `/BG`
+  comes back as `MkColor::Cmyk`, its own colorants intact.
+- **No default is substituted**, and a **nonconforming component count is
+  declined** rather than coerced.
+
+**Does NOT breach R43.** pdfcer still paints the baked `/AP`; this field
+feeds an **editor overlay**, not a display-time appearance synthesiser.
+The caption doc that read *"nothing consumes `/BG` and `/R`"* was
+corrected in the same commit.
+
+**Proof.** Test `mk_bg_distinguishes_empty_from_absent_and_keeps_cmyk`.
+Documented in `docs/core-api/03-capabilities.md` (Widget field list).
+`forms::Widget::background` is the read-model sibling of
+`::border`/`::visibility`/`::annot_flags` — see *Implemented → Forms*,
+"Read a widget's border and visibility", whose `core` is already `[x]`;
+`::background` extends that same read-model capability and is noted on
+that row (core enumeration), NOT ticked `gui` (the on-page field editor
+that consumes it is not built).
+
+**Origin.** `pdfcer-gui` request
+`request_a_widgets_mk_background_colour_is_not_in_the_read_model`. The
+enabling half of *an editor that keeps a field's own colour.*
+
+**Invariant / gate results (relayed from the engineer's dispatch).**
+Workspace tests **188 binaries all pass** — the single `run-gates.sh`
+"cargo test" red was a background-starvation false negative, re-run clean
+in the foreground; `clippy -D warnings` clean; `fmt` clean;
+`check-core-api-verbs.py` **PASS** (verb count **unchanged at 191** — a
+method on an error type and a struct field are neither `EditSession`
+verbs; the index.md line counts were updated); `cargo tree -p
+pdfcer-core` still **GUI-dep-free**.
+
+### The `gui`-column reconciliation (request 3, this same filing)
+
+`pdfcer-gui`'s `D:\dev\pdfcer-gui\ENGINE_BACKLOG.md` triaged every
+`[x] core / [ ] gui` row in `docs/FEATURES.md` (90 at 2026-09-04) and
+found the column **stale in one direction**: **64** it marks `shipped`
+(reachable in a real `pdfcer-gui` build today, each naming the surface or
+call site), 18 `wanted`, 5 `declined`, 3 `blocked`, 0 `unknown`. The
+likely cause it names: a dozen rows cited a single *"confirmed
+2026-08-19"* absence sweep taken **before** the work landed, never re-run
+— and *"an absence measured once is a claim with a date on it."*
+
+**Acted on:** **63** rows' `gui` box flipped `[ ]` → `[x]`, each verified
+against `ENGINE_BACKLOG.md`'s named surface, and each row's now-false
+gui-negative prose (*"Not reachable in `pdfcer-gui`"*, *"GUI surface
+deliberately paused"*, *"No `pdfcer-gui` build reaches this"*, the
+`confirmed 2026-08-19` evidence basis, etc.) **replaced** — never left to
+contradict the tick (hard rule 11) — with a concise reachability citation
+naming the surface and `ENGINE_BACKLOG.md`, 2026-09-04 as the new basis
+(R203's cite-the-surface-and-date practice).
+
+**Held back, deliberately: one row.** *"Edit an image, text run or pasted
+object added in THIS session"* — `pdfcer-gui` flagged it as its own
+weakest `shipped` claim: its evidence is a **linked revision**
+(`Cargo.lock` pins `04f7ec0`, past `Pass 186.0`), **not an
+operator-pointable surface**, and no driven check asserts it. Left `[ ]`;
+it awaits a pointable surface. `pdfcer-gui` can push back with one.
+
+The 18 `wanted`, 5 `declined`, 3 `blocked` rows correctly stay `[ ]` —
+those are genuine gaps, deliberate non-surfaces, and named blockers
+respectively.
+
+**`docs/FEATURES.md` changed this filing:**
+- 63 `gui` boxes `[ ]` → `[x]` (rows enumerated by surface in
+  `ENGINE_BACKLOG.md`'s `shipped` table), with 48 rows' stale
+  gui-negative clauses rewritten to reachability citations.
+- The "Read a widget's border and visibility" row's core enumeration
+  gains `::background` (`Pass 249.1`, the read-model sibling).
+- Header maintenance note: the same-day-row convention (below) recorded;
+  the reconciliation basis cited.
+- `Pass 249.0`'s `RefusalKind` is **too infrastructural for a standalone
+  capability row** — a coarse error-classification affordance, not a
+  user-facing capability — so it is recorded here and in `SESSION_LOG.md`
+  rather than inventing a row (task-sanctioned).
+
+**Same-day `FEATURES.md`-row convention (request 3's process ask,
+recorded not minted).** `pdfcer-gui` observed that the 2026-09-03
+operator-originated PNG/JPEG/SVG export shipped and was announced in prose
+but produced **no `FEATURES.md` row for a day**, invisibly — *"a
+capability announced in prose has no gate on either side."* The
+convention now recorded in the `FEATURES.md` maintenance contract: **an
+operator-originated request produces a `FEATURES.md` row the same day it
+is scoped — planned/unchecked if the capability does not exist yet** — so
+a prose announcement always has a machine-readable counterpart. This is a
+**documented practice, not a numbered standing rule**: single occurrence,
+and the engineer declined to mint a rule at n=1, consistent with this
+project's two-occurrence bar.
+
+**Ledger.** Filings ceiling `414` → **`415`**; Pass ceiling `248.4` →
+**`249.1`** (family `249` newly headed: `249.0`, `249.1`); decision
+ceiling `133` unchanged, next free `134`; standing rules ceiling `R241`
+unchanged, next free `R242` (no rule minted — the convention above is a
+practice, not a rule); open operator questions: none minted, next free
+`(ce)`.
+
 **★★ 413th filing, 2026-09-03 — `v0.31.0` RESOLVED: IN PROGRESS →
 VERIFIED. The release of `Pass 5.4` (encrypt on save, AES-256 `/R` 6),
 done end to end this session — tag, push, CI, GitHub asset, fresh-folder

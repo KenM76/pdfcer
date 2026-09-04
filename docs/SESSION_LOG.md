@@ -90764,3 +90764,110 @@ verified. Next up: `Pass 5.4` (encrypt on save).
 - Operator: **OPEN ITEM — an Adobe-Reader-EULA review** gates ever making
   the trust-store import **enable-by-default**; it does NOT gate shipping
   it opt-in/off. Ken's call, when the Pass activates.
+
+## 2026-09-04 (415th filing) — `Pass 249.0` + `Pass 249.1` SHIPPED (`1e2c778`): two `pdfcer-gui` core-API affordances; AND the stale `gui` column reconciled (63 rows flipped)
+
+**Sourcing (hard rule 8).** Shell available. `1e2c778` verified by
+`git log -1` as the parent of `HEAD` = `572bf45` (a `fuzz/Cargo.lock`
+version-sync chore, no feature content); `git log --oneline 1e2c778..HEAD`
+= one commit. Test/gate figures relayed from the engineer's dispatch.
+
+**Shipped:**
+- **`Pass 249.0`** (`1e2c778`) — `text_edit::{RefusalKind, RefusalClass}`,
+  a coarse STABLE four-bucket refusal discriminant (`UnsupportedFont` /
+  `StructureFrozen` / `NotFound` / `Other`) a front end switches on to
+  route one operator sentence per category, WITHOUT matching pdfcer's
+  drifting internal error variants or grepping `Display` prose.
+  `refusal_kind()` impl'd for both `text_edit::EditError` and
+  `AddTextError`. Deliberately **NOT** `#[non_exhaustive]`: the consumer
+  matches exhaustively and the compiler proves the sentences complete; new
+  error variants land in an existing bucket. The R-INV-2 font refusal it
+  was filed against classifies `UnsupportedFont`; 4 unit tests. Doc:
+  `docs/core-api/02-editing-and-saving.md` §6.9. New module
+  `crates/pdfcer-core/src/text_edit/refusal_kind.rs`. `core [x]` · `cli —`
+  · `gui [ ]` (enabling half of an editor that explains a refused edit).
+- **`Pass 249.1`** (`1e2c778`) — `forms::Widget::background: Option<MkColor>`,
+  the widget `/MK /BG` background colour (§12.5.6.19 Table 189) in the read
+  model, for an on-page field editor that tints its live text box the
+  field's own colour. `MkColor = None | Gray(f32) | Rgb | Cmyk`. Empty
+  array (`Some(MkColor::None)`, Table 189's explicit "no colour") kept
+  DISTINCT from absent (`Option::None`); `DeviceCMYK` never flattened to
+  RGB; no default substituted; nonconforming component count declined.
+  Does NOT breach R43 — pdfcer still paints the baked `/AP`; this feeds an
+  editor overlay, not a display-time synthesiser (the caption doc's
+  "nothing consumes `/BG`/`/R`" corrected). Test
+  `mk_bg_distinguishes_empty_from_absent_and_keeps_cmyk`. Doc:
+  `docs/core-api/03-capabilities.md` (Widget field list). `core [x]` ·
+  `cli —` · `gui [ ]`.
+
+**Invariant / gate results (relayed):** workspace tests 188 binaries all
+pass — the one `run-gates.sh` "cargo test" red was a background-starvation
+false negative, re-run clean in the foreground; `clippy -D warnings`
+clean; `fmt` clean; `check-core-api-verbs.py` PASS (verb count **unchanged
+at 191** — a method on an error type and a struct field are neither
+`EditSession` verbs; index.md line counts updated); `cargo tree -p
+pdfcer-core` still GUI-dep-free.
+
+**FEATURES.md changes this filing:**
+- **63 `gui` boxes flipped `[ ]` → `[x]`** on `pdfcer-gui`'s evidence
+  (`D:\dev\pdfcer-gui\ENGINE_BACKLOG.md`, which triaged all 90
+  `[x] core / [ ] gui` rows: 64 `shipped`, 18 `wanted`, 5 `declined`, 3
+  `blocked`, 0 `unknown`). Each flip verified against the row's named
+  surface/call site; a representative sample spot-checked for plausibility
+  (File ▸ Merge, the Comments panel, the bookmark/attachment clipboards,
+  the Settings ▸ Colour group, the canvas render path). Nothing looked
+  wrong. 48 of the 63 rows carried now-false gui-negative prose (*"Not
+  reachable in `pdfcer-gui`"*, *"GUI surface deliberately paused"*, *"No
+  `pdfcer-gui` build reaches this"*, the `confirmed 2026-08-19` basis) —
+  each **rewritten** to a reachability citation naming the surface and
+  `ENGINE_BACKLOG.md`, 2026-09-04, never left to contradict the tick
+  (hard rule 11; R203's cite-the-surface-and-date practice).
+- **One `shipped` row HELD BACK**: *"Edit an image, text run or pasted
+  object added in THIS session"* — `pdfcer-gui`'s own weakest claim, its
+  evidence a linked revision (`Cargo.lock` pins `04f7ec0`) rather than an
+  operator-pointable surface, no driven check asserting it. Left `[ ]`; it
+  **awaits a pointable surface**, so `pdfcer-gui` can push back with one.
+  The `wanted`/`declined`/`blocked` rows correctly stay `[ ]`.
+- The "Read a widget's border and visibility" row → "…border, visibility
+  and background colour", core enumeration gaining `::background`
+  (`Pass 249.1`). Safe against `ENGINE_BACKLOG.md`'s opening-clause gate:
+  the gate only tracks `[ ]` gui rows, and this one is now `[x]`.
+- Header maintenance note: reconciliation basis + same-day-row convention
+  recorded (below).
+
+**Decisions / practices recorded this session:**
+- **`Pass 249.0`'s `RefusalKind` is too infrastructural for a standalone
+  FEATURES capability row** — a coarse error-classification affordance, not
+  a user-facing capability — so it is recorded in ROADMAP + here rather than
+  inventing a row (task-sanctioned). `Pass 249.1`'s `::background` maps to
+  the existing widget-read row and is noted there.
+- **Same-day-`FEATURES.md`-row convention** (request 3's process ask): an
+  operator-originated request produces a `FEATURES.md` row the same day it
+  is scoped — planned/unchecked if the capability does not exist yet — so a
+  prose announcement always has a machine-readable counterpart. Prompted by
+  the 2026-09-03 PNG/JPEG/SVG export shipping and being announced in prose
+  with no row for a day, invisibly (*"a capability announced in prose has no
+  gate on either side"*). A **documented practice, not a numbered rule** —
+  single occurrence; the engineer declined to mint a rule at n=1
+  (two-occurrence bar).
+
+**Findings:**
+- The `gui` column was stale **in exactly one direction** and by a
+  structural cause: a verdict about a repository this project does not
+  build has no falsifier here (the finding R203 already records), and a
+  dozen rows leaned on one *"confirmed 2026-08-19"* sweep taken before the
+  work landed. `ENGINE_BACKLOG.md` is the falsifier that was missing — each
+  `shipped` row names the GUI surface, so it is checkable rather than
+  asserted, and it runs in both directions (its `shipped` rows are a report
+  back to us).
+
+**Still in flight:**
+- The one held-back row awaits an operator-pointable surface from
+  `pdfcer-gui`. The 18 `wanted` gaps in `ENGINE_BACKLOG.md` are that
+  shell's own backlog, not ours.
+
+**For next session:**
+- Engineer: nothing blocking. The `pdfcer-gui` requests
+  `request_can_edit_errors...` and `request_a_widgets_mk_background...` are
+  discharged core-side; consumption is the shell's work.
+- Operator: nothing pending from this filing.
