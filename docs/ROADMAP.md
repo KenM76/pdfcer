@@ -112,6 +112,81 @@ wherever it appears.*
 
 ## Shipped
 
+**★★ 422nd filing, 2026-09-04 — `v0.35.0` RESOLVED: IN PROGRESS →
+VERIFIED. The release of `Pass 250.1` (apply redactions INTO the
+`EditSession`, collapse/finalizing variant), done end to end this session —
+tag, push, CI, GitHub asset, fresh-folder smoke test, OneDrive,
+`verify-release.py`. Release act standing-authorized (decision 121,
+*"always go ahead and push the latest one"*).**
+
+**Sourcing (hard rule 8).** This role had a shell. The git figures below
+are MEASURED here — `git log -1 HEAD` = `git log -1 origin/main` = `git
+log -1 v0.35.0` all = **`be8c3cc`** (full
+`be8c3ccdd053b388f867bfc2875abd0fc5170f3c`; subject *"chore: bump version
+to 0.35.0 for the Pass 250.1 release (redaction into the session)"*,
+committed 2026-09-04 19:35:52 -0400); `git status --short` empty (working
+tree carries this filing's own doc edits only); `git log --oneline
+be8c3cc..HEAD` = empty and `git merge-base --is-ancestor be8c3cc HEAD` =
+yes — **the tag is AT `HEAD`**, no commit sits ahead of it (as it was for
+`v0.34.0` at the 420th filing — this filing did NOT touch `NEXT_SESSION.md`,
+it is the engineer's). The CI/asset/OneDrive/smoke-test/build-folder
+figures are relayed from the engineer's dispatch (produced by the
+engineer's own shell this session), named beside each figure per hard
+rule 10.
+
+- **Version bump** `0.34.0 → 0.35.0`: commit **`be8c3cc`**
+  (`chore: bump version to 0.35.0 for the Pass 250.1 release (redaction
+  into the session)`). This is the packaged, tested, CI-green commit the
+  tag points at — the same role `01abb12` played for `v0.34.0` at the
+  420th filing.
+- **Tag** `v0.35.0` → `be8c3cc`, pushed to origin.
+- **`origin/main` = `be8c3cc`** — equal to both the tag and `HEAD`, so
+  `origin/main` **contains** the tag trivially (they are the same commit),
+  which is what `verify-release.py`'s "origin/main contains the tag" check
+  reads.
+- **CI** run **`33930155608`** at **`be8c3cc`** — **GREEN**, at the
+  **tagged commit itself**, and — as at the 420th filing's `v0.34.0` —
+  **no re-run was needed** (first run green).
+- **GitHub release**
+  https://github.com/KenM76/pdfcer/releases/tag/v0.35.0 — asset
+  `pdfcer-v0.35.0-windows-x64.zip`, **18,401,071 bytes**, SHA-256
+  `f5fd0dad63944ac2f8828b5116cca15277161db39fc716329fc95356062afd0d`,
+  plus its `.sha256` sidecar.
+- **Build folder** `D:\builds\pdfcer-20260904-1937-be8c3cc` — folder
+  **33,056,318 bytes**; `pdfcer.exe` **20,580,864 bytes**.
+- **Fresh-folder portable smoke test — PASSED.** The build was copied to a
+  clean path and the COPIED `pdfcer.exe` run: `--version` = `0.35.0`;
+  `inspect` healthy; `trust-store-list` still read the real installed store
+  — **1780 anchors**. `Pass 250.1` added an engine `EditSession` verb
+  (`apply_redactions`) with **no new CLI subcommand**, so — as at the
+  420th filing's `v0.34.0` — this smoke test confirms **binary health**,
+  not a new command. The consumer of `Pass 250.1` is `pdfcer-gui`.
+- **OneDrive**: `deploy-onedrive.py` wrote **`pdfcer1`** = **0.35.0** (5
+  items, 33,055,123 bytes); **`pdfcer2`** = **0.34.0** kept as the previous
+  version — the alternating-slot scheme's guarantee (R229) that a previous
+  version is always available. This release wrote the `pdfcer1` slot (the
+  420th filing's `v0.34.0` had written `pdfcer2`), leaving `v0.34.0` in
+  place as the fallback.
+- **`python tools/verify-release.py v0.35.0` — CLEAN.** Working tree clean;
+  tag exists + pushed + at `HEAD`; `origin/main` contains the tag; GitHub
+  release has an asset; CI green at the tag; OneDrive `pdfcer1` = 0.35.0
+  with 0.34.0 still present.
+- Carries `Pass 250.1` (apply redactions into the `EditSession`, collapse/
+  finalizing variant), shipped at the 421st filing above (Pass code
+  `225db51`); this entry resolves the release mechanics only, it does not
+  re-describe the feature.
+
+`docs/FEATURES.md`: **no change** — the `Pass 250.1` capability row (the
+"Apply a redaction as a DEFERRED edit committed at Save" row, `core [x]` ·
+`cli [ ]` · `gui [ ]` · `Acrobat [x]`) was set at the 421st filing; this
+entry is release bookkeeping only, not a capability change.
+
+**Ledger.** Filings ceiling `421` → **`422`**; Pass ceiling `250.2`
+unchanged — no new Pass, a release-verification entry only (`Pass 250.2`
+remains *Backlog*, unbuilt); decision ceiling `133` unchanged, next free
+`134`; standing rules ceiling `R241` unchanged, next free `R242`; open
+operator questions: none minted, next free `(ce)`.
+
 **★★★ 421st filing, 2026-09-04 — `Pass 250.1` SHIPPED (`225db51`): apply
 redactions INTO the `EditSession` — `EditSession::apply_redactions(&mut
 self) -> Result<RedactionReport, RedactError>` removes the marked content

@@ -91282,3 +91282,62 @@ here.
   leak; recommend a `pdfcer-ui-specialist` pass first.
 - Operator: `Pass 250.2` is the future capability you asked to record; it is
   filed to *Backlog*, not scheduled.
+
+## 2026-09-04 (422nd filing) — `v0.35.0` RELEASED and VERIFIED: `Pass 250.1` (apply redactions into the `EditSession`, collapse/finalizing variant) shipped end to end, IN PROGRESS → VERIFIED
+
+**Shipped:**
+- **`v0.35.0` released and verified** — the release of `Pass 250.1`
+  (`EditSession::apply_redactions(&mut self) -> Result<RedactionReport,
+  RedactError>`, the collapse/finalizing variant that removes marked content
+  INTO the session so SAVE commits it; all in `pdfcer-core`, shipped at the
+  421st filing, code `225db51`). Version bump `0.34.0 → 0.35.0` on commit
+  `be8c3cc` (`be8c3ccdd053b388f867bfc2875abd0fc5170f3c`), which is `HEAD` =
+  `origin/main` = tag `v0.35.0`. Tag pushed. CI run `33930155608` at
+  `be8c3cc` — GREEN at the tagged commit itself, **first run, no re-run
+  needed**. GitHub release published with asset
+  `pdfcer-v0.35.0-windows-x64.zip` (18,401,071 bytes, SHA-256
+  `f5fd0dad63944ac2f8828b5116cca15277161db39fc716329fc95356062afd0d`) plus
+  its `.sha256` sidecar. OneDrive `pdfcer1` updated to 0.35.0 (5 items,
+  33,055,123 bytes); `pdfcer2` stays 0.34.0 as the previous version
+  (alternating slots, R229 — this release wrote the `pdfcer1` slot; the
+  420th filing's `v0.34.0` had written `pdfcer2`). `python
+  tools/verify-release.py v0.35.0` reported clean, every check.
+
+**Decisions made this session:**
+- None minted (decision ceiling `133` unchanged). The release act itself
+  needed no go-ahead — standing-authorized by decision 121 (*"always go
+  ahead and push the latest one"*).
+
+**Findings + decisions:**
+- **CI was green at the tag on the FIRST run** — as at the 420th filing's
+  `v0.34.0`, and unlike the 418th filing's `v0.33.0`, whose green took a
+  re-run after a spurious `iccce` git-fetch timeout on the windows runner.
+- **Fresh-folder portable smoke test PASSED — confirming BINARY HEALTH,
+  not a new command.** The build folder
+  (`D:\builds\pdfcer-20260904-1937-be8c3cc`, 33,056,318 bytes; `pdfcer.exe`
+  20,580,864 bytes) was copied to a clean path and the COPIED binary run:
+  `--version` = 0.35.0; `inspect` healthy; and `trust-store-list` still
+  read the real installed store (1780 anchors). `Pass 250.1` added an
+  engine `EditSession` verb (`apply_redactions`) with **no new CLI
+  surface** (its consumer is `pdfcer-gui`), so the smoke test verifies the
+  portable binary is healthy rather than exercising a new subcommand.
+- **Sourcing (hard rule 8):** this role had a shell. The git figures are
+  MEASURED here — `HEAD` = `origin/main` = tag `v0.35.0` = `be8c3cc`
+  (subject and 2026-09-04 19:35:52 -0400 date), working tree clean by `git
+  status --short`, `be8c3cc..HEAD` empty (the tag is AT `HEAD`). The
+  CI/asset/OneDrive/smoke-test/build-folder figures are relayed from the
+  engineer's dispatch, produced by the engineer's own shell this session.
+- `NEXT_SESSION.md` was NOT touched by this filing — it is engineer-owned.
+
+**Still in flight:**
+- Nothing on the release — `v0.35.0` is fully released and verified.
+  **`Pass 250.2` — undo-preserving deferred redaction** remains *Backlog*,
+  NOT built; it requires the `R35` refuse-incremental-save guard and the
+  foreign-buffer span fold proven not to leak (see the 421st filing).
+
+**For next session:**
+- Engineer: no in-flight Pass; `v0.35.0` shipped and verified. Consult
+  `ROADMAP.md` *Next up* / *Backlog* for the next pick (`Pass 250.2` is the
+  harder redaction shape, unbuilt).
+- Operator: `Pass 250.2` (undo-preserving deferred redaction) is the future
+  capability you asked to record; it is filed to *Backlog*, not scheduled.
