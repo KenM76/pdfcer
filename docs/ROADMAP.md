@@ -112,6 +112,86 @@ wherever it appears.*
 
 ## Shipped
 
+**★★ 420th filing, 2026-09-04 — `v0.34.0` RESOLVED: IN PROGRESS →
+VERIFIED. The release of `Pass 250.0` (object → optional-content-group /
+layer membership on decompose objects), done end to end this session —
+tag, push, CI, GitHub asset, fresh-folder smoke test, OneDrive,
+`verify-release.py`. Release act standing-authorized (decision 121,
+*"always go ahead and push the latest one"*).**
+
+**Sourcing (hard rule 8).** This role had a shell. The git figures below
+are MEASURED here — `git log -1 HEAD` = `git log -1 origin/main` = `git
+log -1 v0.34.0` all = **`01abb12`** (full
+`01abb121e0b7c8e2a2e512bbe9b28c5e4b60fc89`; subject *"chore: bump version
+to 0.34.0 for the Pass 250.0 release (object->layer membership)"*,
+committed 2026-09-04 14:35:51 -0400); `git status --short` empty (working
+tree carries this filing's own doc edits only); `git log --oneline
+01abb12..HEAD` = empty and `git merge-base --is-ancestor 01abb12 HEAD` =
+yes — **the tag is AT `HEAD`**, no commit sits ahead of it (as it was for
+`v0.33.0` at the 418th filing, and unlike `v0.32.0` whose bump commit sat
+one ahead of its NEXT_SESSION regeneration — this filing did NOT touch
+`NEXT_SESSION.md`, it is the engineer's). The version-bump commit is one
+ahead of the 419th filing's librarian commit `c350ef8` (`git log --oneline
+5976a00..01abb12` = `01abb12`, `c350ef8`). The
+CI/asset/OneDrive/smoke-test/build-folder figures are relayed from the
+engineer's dispatch (produced by the engineer's own shell this session),
+named beside each figure per hard rule 10.
+
+- **Version bump** `0.33.0 → 0.34.0`: commit **`01abb12`**
+  (`chore: bump version to 0.34.0 for the Pass 250.0 release
+  (object->layer membership)`). This is the packaged, tested, CI-green
+  commit the tag points at — the same role `2d045ef` played for `v0.33.0`
+  at the 418th filing.
+- **Tag** `v0.34.0` → `01abb12`, pushed to origin.
+- **`origin/main` = `01abb12`** — equal to both the tag and `HEAD`, so
+  `origin/main` **contains** the tag trivially (they are the same commit),
+  which is what `verify-release.py`'s "origin/main contains the tag" check
+  reads.
+- **CI** run **`33906825951`** at **`01abb12`** — **GREEN**, at the
+  **tagged commit itself**, and — unlike the 418th filing's `v0.33.0` —
+  **no re-run was needed this time** (the `iccce` git-fetch timeout that
+  paused that release did not recur).
+- **GitHub release**
+  https://github.com/KenM76/pdfcer/releases/tag/v0.34.0 — asset
+  `pdfcer-v0.34.0-windows-x64.zip`, **18,404,853 bytes**, SHA-256
+  `e1fe3195d41b9fbd4ae42fd8f2f0d7996ee8d22b9bb7ac5b9be9d84bf2173c3a`,
+  plus its `.sha256` sidecar.
+- **Build folder** `D:\builds\pdfcer-20260904-1436-01abb12` — folder
+  **33,067,566 bytes**; `pdfcer.exe` **20,592,128 bytes**.
+- **Fresh-folder portable smoke test — PASSED.** The build was copied to a
+  clean path and the COPIED `pdfcer.exe` run: `--version` = `0.34.0`;
+  `inspect` healthy; `trust-store-list` still read the real installed store
+  — **1780 anchors**. `Pass 250.0` is an engine-library API (`oc:
+  Option<ObjId>` on decompose objects) with **no new CLI surface**, so —
+  unlike the 418th filing's `v0.33.0`, which exercised a brand-new
+  subcommand — this smoke test confirms **binary health**, not a new
+  command. The consumer of `Pass 250.0` is `pdfcer-gui`.
+- **OneDrive**: `deploy-onedrive.py` wrote **`pdfcer2`** = **0.34.0** (5
+  items, 33,066,387 bytes); **`pdfcer1`** = **0.33.0** kept as the previous
+  version — the alternating-slot scheme's guarantee (R229) that a previous
+  version is always available. This release wrote the `pdfcer2` slot (the
+  418th filing's `v0.33.0` had written `pdfcer1`), leaving `v0.33.0` in
+  place as the fallback.
+- **`python tools/verify-release.py v0.34.0` — CLEAN.** Working tree clean;
+  tag exists + pushed + at `HEAD`; `origin/main` contains the tag; GitHub
+  release has an asset; CI green at the tag; OneDrive `pdfcer2` = 0.34.0
+  with 0.33.0 still present.
+- Carries `Pass 250.0` (object → optional-content-group membership on
+  decompose objects), shipped at the 419th filing above (Pass code
+  `5976a00`); this entry resolves the release mechanics only, it does not
+  re-describe the feature.
+
+`docs/FEATURES.md`: **no change** — the `Pass 250.0` capability row (the
+"tell which layer a selected object is on" row, `core [x]` · `cli [ ]` ·
+`gui [ ]`) was set at the 419th filing; this entry is release bookkeeping
+only, not a capability change.
+
+**Ledger.** Filings ceiling `419` → **`420`**; Pass ceiling `250.1`
+unchanged — no new Pass, a release-verification entry only (`Pass 250.1`
+remains *Backlog*, unbuilt); decision ceiling `133` unchanged, next free
+`134`; standing rules ceiling `R241` unchanged, next free `R242`; open
+operator questions: none minted, next free `(ce)`.
+
 **★★★ 419th filing, 2026-09-04 — `Pass 250.0` SHIPPED (`5976a00`): every
 selectable page object now carries the optional-content group (layer) it
 was painted under — `oc: Option<ObjId>` on `PathObject`/`TextObject`/

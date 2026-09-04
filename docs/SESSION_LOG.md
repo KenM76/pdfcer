@@ -91142,3 +91142,68 @@ relayed from the engineer's dispatch, not re-run here.
   without proving the foreign-buffer span fold cannot leak.
 - Operator: the `Pass 250.1` undo-clearing tradeoff in shape (1) is a
   UX/operator call that will surface when it is scheduled.
+
+## 2026-09-04 (420th filing) — `v0.34.0` RELEASED and VERIFIED: `Pass 250.0` (object → optional-content-group / layer membership on decompose) shipped end to end, IN PROGRESS → VERIFIED
+
+**Shipped:**
+- **`v0.34.0` released and verified** — the release of `Pass 250.0`
+  (object → optional-content-group / layer membership on decompose
+  objects; `oc: Option<ObjId>` on `PathObject`/`TextObject`/`ImageObject`,
+  `VectorObject::oc()`/`FormLeaf::oc()`, all in `pdfcer-core`, shipped at
+  the 419th filing, code `5976a00`). Version bump `0.33.0 → 0.34.0` on
+  commit `01abb12` (`01abb121e0b7c8e2a2e512bbe9b28c5e4b60fc89`), which is
+  `HEAD` = `origin/main` = tag `v0.34.0`. Tag pushed. CI run
+  `33906825951` at `01abb12` — GREEN at the tagged commit itself, **no
+  re-run needed this time**. GitHub release published with asset
+  `pdfcer-v0.34.0-windows-x64.zip` (18,404,853 bytes, SHA-256
+  `e1fe3195d41b9fbd4ae42fd8f2f0d7996ee8d22b9bb7ac5b9be9d84bf2173c3a`)
+  plus its `.sha256` sidecar. OneDrive `pdfcer2` updated to 0.34.0 (5
+  items, 33,066,387 bytes); `pdfcer1` stays 0.33.0 as the previous
+  version (alternating slots, R229 — this release wrote the `pdfcer2`
+  slot; the 418th filing's `v0.33.0` had written `pdfcer1`). `python
+  tools/verify-release.py v0.34.0` reported clean, every check.
+
+**Decisions made this session:**
+- None minted (decision ceiling `133` unchanged). The release act itself
+  needed no go-ahead — standing-authorized by decision 121 (*"always go
+  ahead and push the latest one"*).
+
+**Findings + decisions:**
+- **The CI was green at the tag on the FIRST run** — a contrast worth
+  carrying against the 418th filing's `v0.33.0`, whose green took a re-run
+  after a spurious `iccce` git-fetch timeout on the windows runner. That
+  transient did not recur here.
+- **Fresh-folder portable smoke test PASSED — confirming BINARY HEALTH,
+  not a new command.** The build folder
+  (`D:\builds\pdfcer-20260904-1436-01abb12`, 33,067,566 bytes;
+  `pdfcer.exe` 20,592,128 bytes) was copied to a clean path and the
+  COPIED binary run: `--version` = 0.34.0; `inspect` healthy; and
+  `trust-store-list` still read the real installed store (1780 anchors).
+  Unlike `v0.33.0`, this release's `Pass 250.0` is an **engine-library
+  API with no new CLI surface** (its consumer is `pdfcer-gui`), so the
+  smoke test verifies the portable binary is healthy rather than
+  exercising a brand-new subcommand.
+- **Sourcing (hard rule 8):** this role had a shell. The git figures are
+  MEASURED here — `HEAD` = `origin/main` = tag `v0.34.0` = `01abb12`
+  (subject and 2026-09-04 14:35:51 -0400 date), working tree clean by
+  `git status --short`, `01abb12..HEAD` empty (the tag is AT `HEAD`), and
+  the bump commit one ahead of the 419th filing's librarian commit
+  `c350ef8`. The CI/asset/OneDrive/smoke-test/build-folder figures are
+  relayed from the engineer's dispatch, produced by the engineer's own
+  shell this session.
+- `NEXT_SESSION.md` was NOT touched by this filing — it is engineer-owned.
+
+**Still in flight:**
+- Nothing on the release — `v0.34.0` is fully released and verified.
+  **`Pass 250.1` — apply redactions into the EditSession** remains
+  *Backlog*, NOT built; it is safety-critical and blocked on the
+  design-fork decision recorded at the 419th filing (resolve with
+  `pdfcer-ui-specialist` before building).
+
+**For next session:**
+- Engineer: no in-flight Pass; `v0.34.0` shipped and verified. Consult
+  `ROADMAP.md` *Next up* / *Backlog* for the next pick (`Pass 250.1` needs
+  its design fork resolved first).
+- Operator: the `Pass 250.1` undo-clearing tradeoff (shape 1 in the 419th
+  filing) is the one UX/operator call that will surface when it is
+  scheduled.
