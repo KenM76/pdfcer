@@ -112,6 +112,77 @@ wherever it appears.*
 
 ## Shipped
 
+**★★ 416th filing, 2026-09-04 — `v0.32.0` RESOLVED: IN PROGRESS →
+VERIFIED. The release of `Pass 249.0` (`text_edit::{RefusalKind,
+RefusalClass}`) and `Pass 249.1` (`forms::Widget::background` / `MkColor`),
+done end to end this session — tag, push, CI, GitHub asset, fresh-folder
+smoke test, OneDrive, `verify-release.py`. Release act standing-authorized
+(decision 121, *"always go ahead and push the latest one"*).**
+
+**Sourcing (hard rule 8).** This role had a shell. The git figures below
+are MEASURED here — `git log -1` gives `HEAD` = `origin/main` = **`aa27596`**
+(subject *"chore: bump version to 0.32.0 for the Pass 249.0/249.1 release
+(RefusalKind + widget /MK /BG)"*, committed 2026-09-04 10:26:15 -0400);
+`git log -1 v0.32.0` gives the tag at the **same** `aa27596`; `git status
+--short` empty (working tree carries this filing's own doc edits only);
+`git log --oneline aa27596..HEAD` = empty — **the tag is AT `HEAD`**, no
+commit sits ahead of it (unlike `v0.31.0`, whose NEXT_SESSION regeneration
+sat one commit ahead — this filing did NOT touch `NEXT_SESSION.md`, it is
+the engineer's). The CI/asset/OneDrive/smoke-test/build-folder figures are
+relayed from the engineer's dispatch (produced by the engineer's own shell
+this session), named beside each figure per hard rule 10.
+
+- **Version bump** `0.31.0 → 0.32.0`: commit **`aa27596`**
+  (`chore: bump version to 0.32.0 for the Pass 249.0/249.1 release`). This
+  is the packaged, tested, CI-green commit the tag points at — the same
+  role `624ba1e` played for `v0.31.0` at the 413th filing.
+- **Tag** `v0.32.0` → `aa27596`, pushed to origin.
+- **`origin/main` = `aa27596`** — equal to both the tag and `HEAD`, so
+  `origin/main` **contains** the tag trivially (they are the same commit),
+  which is what `verify-release.py`'s "origin/main contains the tag" check
+  reads.
+- **CI** run **`33883827518`** at **`aa27596`** — **GREEN**, at the
+  **tagged commit itself** (as `v0.31.0` was, not a descendant like
+  `v0.30.0`).
+- **GitHub release**
+  https://github.com/KenM76/pdfcer/releases/tag/v0.32.0 — asset
+  `pdfcer-v0.32.0-windows-x64.zip`, **18,393,134 bytes**, SHA-256
+  `0e74d4e8b17c88b8ecb151427f7ca44ff49c123b1c46870f14ff1f487dcdc3e1`,
+  plus its `.sha256` sidecar.
+- **Build folder** `D:\builds\pdfcer-20260904-1034-aa27596` — folder
+  **33,033,020 bytes**; `pdfcer.exe` **20,557,312 bytes**.
+- **Fresh-folder portable smoke test — PASSED.** The build was copied to a
+  clean path and the COPIED `pdfcer.exe` run: `--version` = `0.32.0`;
+  `inspect` and `encrypt` healthy. The two shipped features
+  (`RefusalKind` classification and the widget `/MK /BG` read-model field)
+  are **engine-library API with no CLI surface** — there is no new verb to
+  exercise from the binary — so the smoke test confirms the portable
+  binary is healthy rather than exercising a new subcommand.
+- **OneDrive**: `deploy-onedrive.py` wrote **`pdfcer2`** = **0.32.0** (5
+  items, 33,031,571 bytes); **`pdfcer1`** = **0.31.0** kept as the
+  previous version — the alternating-slot scheme's guarantee (R229) that a
+  previous version is always available. This release wrote the `pdfcer2`
+  slot (the 413th filing's `v0.31.0` had written `pdfcer1`), leaving
+  `v0.31.0` in place as the fallback.
+- **`python tools/verify-release.py v0.32.0` — CLEAN.** Working tree clean;
+  tag exists + pushed + at `HEAD`; `origin/main` contains the tag; GitHub
+  release has an asset; CI green at the tag; OneDrive `pdfcer2` = 0.32.0
+  with 0.31.0 still present.
+- Carries `Pass 249.0` (`text_edit::{RefusalKind, RefusalClass}`) and
+  `Pass 249.1` (`forms::Widget::background` / `MkColor`), both shipped at
+  the 415th filing below (Pass code `1e2c778`); this entry resolves the
+  release mechanics only, it does not re-describe the features.
+
+`docs/FEATURES.md`: **no change** — the `Pass 249.0`/`249.1` rows and the
+`gui`-column reconciliation were set at the 415th filing; this entry is
+release bookkeeping only, not a capability change.
+
+**Ledger.** Filings ceiling `415` → **`416`**; Pass ceiling `249.1`
+unchanged — no new Pass, a release-verification entry only; decision
+ceiling `133` unchanged, next free `134`; standing rules ceiling `R241`
+unchanged, next free `R242`; open operator questions: none minted, next
+free `(ce)`.
+
 **★★★ 415th filing, 2026-09-04 — `Pass 249.0` + `Pass 249.1` SHIPPED
 (`1e2c778`): two `pdfcer-gui` requests, both `pdfcer-core`, both
 consumer-facing read/classification API (the GUI consumes them; no CLI

@@ -90871,3 +90871,60 @@ pdfcer-core` still GUI-dep-free.
   `request_can_edit_errors...` and `request_a_widgets_mk_background...` are
   discharged core-side; consumption is the shell's work.
 - Operator: nothing pending from this filing.
+
+## 2026-09-04 (416th filing) — `v0.32.0` release RESOLVED: IN PROGRESS → VERIFIED, the release of `Pass 249.0` + `Pass 249.1` done end to end this session
+
+**Shipped:**
+- Nothing new in capability terms — this closes out the release mechanics
+  for `v0.32.0`, which carries `Pass 249.0` (`text_edit::{RefusalKind,
+  RefusalClass}`) and `Pass 249.1` (`forms::Widget::background` /
+  `MkColor`), both shipped at the 415th filing (Pass code `1e2c778`).
+  Version bump `0.31.0 → 0.32.0` at `aa27596` (`chore: bump version to
+  0.32.0 for the Pass 249.0/249.1 release`), the packaged/tested/CI-green
+  commit the tag points at. Tag `v0.32.0` at `aa27596`, pushed.
+  `origin/main` = `aa27596` — equal to both the tag and `HEAD`, so the tag
+  sits AT `HEAD` with no commit ahead of it (unlike `v0.31.0`, whose
+  NEXT_SESSION regeneration sat one commit ahead). CI run `33883827518` at
+  `aa27596` — GREEN at the tagged commit itself. GitHub release published
+  with asset `pdfcer-v0.32.0-windows-x64.zip` (18,393,134 bytes, SHA-256
+  `0e74d4e8b17c88b8ecb151427f7ca44ff49c123b1c46870f14ff1f487dcdc3e1`) plus
+  its `.sha256` sidecar. OneDrive `pdfcer2` updated to 0.32.0 (5 items,
+  33,031,571 bytes); `pdfcer1` stays 0.31.0 as the previous version
+  (alternating slots, R229 — this release wrote the `pdfcer2` slot; the
+  413th filing's `v0.31.0` had written `pdfcer1`). `python
+  tools/verify-release.py v0.32.0` reported clean, every check.
+
+**Decisions made this session:**
+- None minted (decision ceiling `133` unchanged). The release act itself
+  needed no go-ahead — standing-authorized by decision 121 (*"always go
+  ahead and push the latest one"*).
+
+**Findings + decisions:**
+- Fresh-folder portable smoke test PASSED: the build folder
+  (`D:\builds\pdfcer-20260904-1034-aa27596`, 33,033,020 bytes;
+  `pdfcer.exe` 20,557,312 bytes) was copied to a clean path and the COPIED
+  binary run. `--version` = 0.32.0; `inspect` and `encrypt` healthy. The
+  two shipped features are engine-library API with **no CLI surface**
+  (`RefusalKind` is an error-classification affordance the GUI consumes;
+  `Widget::background` is a read-model field), so there is no new verb to
+  exercise from the binary — the smoke test confirms the portable binary
+  is healthy.
+- **Sourcing (hard rule 8):** this role had a shell. The git figures are
+  MEASURED here — `HEAD` = `origin/main` = tag `v0.32.0` = `aa27596`,
+  working tree clean by `git status --short`, `aa27596..HEAD` empty (the
+  tag is AT `HEAD`). The CI/asset/OneDrive/smoke-test/build-folder figures
+  are relayed from the engineer's dispatch, produced by the engineer's own
+  shell this session.
+- `NEXT_SESSION.md` was NOT touched by this filing — it is engineer-owned.
+
+**Still in flight:**
+- Nothing — `v0.32.0` is fully released and verified. The GUI-consuming
+  halves of `Pass 249.0`/`249.1` (an editor that explains a refused edit
+  in operator terms; a field editor that tints its box the field's own
+  colour) remain `pdfcer-gui`'s work, unchanged from the 415th filing —
+  consumption notes, not release blockers.
+
+**For next session:**
+- Engineer: no in-flight Pass; `v0.32.0` shipped and verified. Consult
+  `ROADMAP.md` *Next up* / *Backlog* for the next pick.
+- Operator: nothing pending from this filing.
