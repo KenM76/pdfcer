@@ -1749,6 +1749,33 @@ enum Command {
         /// Where to write the plaintext document.
         output: PathBuf,
     },
+    /// List the trust anchors in an installed Acrobat/Reader trust store
+    /// (`Pass 10.2`) — READ-ONLY.
+    ///
+    /// Adobe's downloaded AATL and EU Trusted Lists (EUTL) certificates live in
+    /// `addressbook.acrodata` (a `%PPKLITE-` COS file). This reads that store
+    /// and reports what it trusts, so you can see the anchor set BEFORE anything
+    /// relies on it. It changes nothing and contacts no network.
+    ///
+    /// By default it auto-locates `%APPDATA%\Adobe\Acrobat\<track>\Security\
+    /// addressbook.acrodata`; pass `--file` to point at a specific one.
+    ///
+    /// NOTE: pdfcer does not yet EVALUATE signatures against these anchors
+    /// (that is a later, opt-in step); this subcommand only shows the store.
+    /// Reading Adobe's own already-downloaded file is a local read of your
+    /// file; whether relying on it fits Adobe's Reader licence is your call.
+    TrustStoreList {
+        /// Read a specific `addressbook.acrodata` instead of auto-locating.
+        #[arg(long)]
+        file: Option<PathBuf>,
+        /// Show only anchors from this list: `aatl`, `eutl`, `adbe`, or `all`
+        /// (default `all`).
+        #[arg(long, default_value = "all")]
+        source: String,
+        /// List every anchor's subject/issuer, not just the per-source counts.
+        #[arg(long)]
+        identities: bool,
+    },
     /// List the `/Redact` marks awaiting apply in a document.
     ///
     /// Reports the count and per-page inventory computed from the
@@ -10853,6 +10880,11 @@ fn run() -> ExitCode {
             rekey: true,
         }),
         Command::RemoveEncryption { input, output } => cmd_remove_encryption(&input, &output),
+        Command::TrustStoreList {
+            file,
+            source,
+            identities,
+        } => cmd_trust_store_list(file.as_deref(), &source, identities),
         Command::ListRedactions { input } => cmd_list_redactions(&input),
     };
     ExitCode::from(code)
@@ -24500,6 +24532,110 @@ fn cmd_remove_encryption(input: &Path, output: &Path) -> u8 {
         output.display()
     );
     println!("  the output is a plaintext document that opens with no password");
+    exit::SUCCESS
+}
+
+/// Auto-locate an installed Acrobat/Reader `addressbook.acrodata` across the
+/// track directories a real install may use. Platform-neutral by construction:
+/// `%APPDATA%` is Windows-only, so `env::var` simply returns `Err` elsewhere
+/// and the list is empty (no `cfg(windows)`, so every target still compiles and
+/// lints — the CLI-cross-target rule).
+fn acrobat_trust_store_paths() -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    if let Ok(appdata) = std::env::var("APPDATA") {
+        for track in ["DC", "2020", "2017", "11.0"] {
+            out.push(
+                PathBuf::from(&appdata)
+                    .join("Adobe")
+                    .join("Acrobat")
+                    .join(track)
+                    .join("Security")
+                    .join("addressbook.acrodata"),
+            );
+        }
+    }
+    out
+}
+
+/// Implement `pdfcer trust-store-list` (`Pass 10.2`) — READ-ONLY.
+fn cmd_trust_store_list(file: Option<&Path>, source: &str, identities: bool) -> u8 {
+    use pdfcer_core::trust_store::{self, SourceFilter};
+
+    let filter = match source.trim().to_ascii_lowercase().as_str() {
+        "all" => SourceFilter::All,
+        "aatl" => SourceFilter::Aatl,
+        "eutl" => SourceFilter::Eutl,
+        "adbe" => SourceFilter::Adbe,
+        other => {
+            eprintln!("pdfcer: unknown --source {other:?} (expected all, aatl, eutl or adbe)");
+            return exit::RUNTIME_ERROR;
+        }
+    };
+
+    // Resolve the store path: explicit --file, else the first auto-located one.
+    let path = match file {
+        Some(p) => p.to_path_buf(),
+        None => match acrobat_trust_store_paths().into_iter().find(|p| p.exists()) {
+            Some(p) => p,
+            None => {
+                eprintln!(
+                    "pdfcer: no installed Acrobat/Reader trust store found under \
+                     %APPDATA%\\Adobe\\Acrobat\\<track>\\Security\\addressbook.acrodata. \
+                     Pass --file to read a specific one."
+                );
+                return exit::IO_ERROR;
+            }
+        },
+    };
+
+    let set = match trust_store::load_from_path(&path) {
+        Ok(s) => s,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", path.display());
+            return exit::RUNTIME_ERROR;
+        }
+    };
+
+    // Freshness disclosure: the store is only as current as Acrobat's last
+    // refresh, so name the file's own mtime (rule 4).
+    let mtime = std::fs::metadata(&path)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or_else(
+            || "unknown".to_owned(),
+            |d| format!("{}s since epoch", d.as_secs()),
+        );
+
+    let c = set.counts();
+    println!("trust-store {}", path.display());
+    println!(
+        "  anchors={} aatl={} eutl={} adbe={} other={} undecodable={} last_refresh={}",
+        c.total, c.aatl, c.eutl, c.adbe, c.other, set.undecodable, mtime,
+    );
+    // The provisional-/Trust disclosure (rule 4): the bit meanings are
+    // Adobe-unpublished, so we show the raw integer and never interpret it.
+    println!(
+        "  note: /Trust bit meanings are not published by Adobe; the raw integer is shown, \
+         not an interpreted privilege set. /Source is the authoritative provenance."
+    );
+
+    if identities {
+        for a in set.filter(filter) {
+            let src = if a.sources.is_empty() {
+                "(none)".to_owned()
+            } else {
+                a.sources.join(",")
+            };
+            println!(
+                "  [{src}] trust={} serial={} subject={}",
+                a.trust_bits, a.serial_hex, a.subject
+            );
+        }
+    } else {
+        let shown = set.filter(filter).len();
+        println!("  {shown} anchor(s) match --source {source} (use --identities to list them)");
+    }
     exit::SUCCESS
 }
 

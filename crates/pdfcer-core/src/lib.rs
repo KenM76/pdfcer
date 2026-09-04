@@ -141,6 +141,7 @@ pub mod text_edit;
 pub mod text_extract;
 pub mod text_state;
 pub mod textstring;
+pub mod trust_store;
 pub mod vartext;
 pub mod vector;
 pub mod view;
@@ -286,6 +287,40 @@ pub fn probe_header(prefix: &[u8]) -> Result<PdfVersion, PdfError> {
     // `window.len()` by construction; the `unwrap_or` arm is unreachable but
     // keeps the access checked rather than lint-suppressed.
     parse_version(window.get(pos + MARKER.len()..).unwrap_or(&[]))
+}
+
+/// Probe a COS-family file whose header is NOT `%PDF-` (`Pass 10.2`).
+///
+/// PDF, FDF (§12.7.7) and Adobe's PPKLITE address book
+/// (`addressbook.acrodata`, ISO 32000-1 §7.5 object/xref grammar under a
+/// `%PPKLITE-2.1` header) share the entire COS container — objects, classic
+/// xref, trailer, `startxref`, `%%EOF` — and differ ONLY in the first-line
+/// marker. This is [`probe_header`] with the marker parameterised: it scans the
+/// same bounded window for the FIRST of `markers` that appears and parses the
+/// `M.N` after it. The version token is cosmetic for a non-PDF (PPKLITE's is
+/// `2.1`, unrelated to any PDF version); it is returned so the same
+/// `Document` assembly path can be reused unchanged.
+///
+/// The offsets in a COS xref table are absolute from byte 0, so the header
+/// must be parsed IN PLACE — a caller cannot substitute a `%PDF-` header of a
+/// different length without invalidating every offset. That is why this is a
+/// header-sniff seam, not a rewrite.
+///
+/// # Errors
+///
+/// - [`PdfError::MissingHeader`] if none of `markers` appears in the window.
+/// - [`PdfError::MalformedVersion`] if a marker is present but not followed by
+///   a parseable `M.N`.
+pub fn probe_cos_header(prefix: &[u8], markers: &[&[u8]]) -> Result<PdfVersion, PdfError> {
+    let window = prefix.get(..HEADER_SCAN_WINDOW).unwrap_or(prefix);
+    for marker in markers {
+        if let Some(pos) = find_subslice(window, marker) {
+            return parse_version(window.get(pos + marker.len()..).unwrap_or(&[]));
+        }
+    }
+    Err(PdfError::MissingHeader {
+        searched: window.len(),
+    })
 }
 
 /// Probe a PDF file on disk and return its declared version.

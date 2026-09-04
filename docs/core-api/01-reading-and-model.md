@@ -2481,6 +2481,45 @@ after it; pdfcer does not check who signed it or whether to trust them."*
 The CLI is `verify-signatures`: exit 0 all verified, **12** any failed,
 **13** none failed but some unverifiable.
 
+### 12.5a Trust anchors from an installed Acrobat (`Pass 10.2`, `trust_store`)
+
+The `trust` axis above is `NotChecked` because pdfcer has no trust anchor set.
+`pdfcer_core::trust_store` supplies one by reading the AATL + EU-Trusted-List
+certificates an installed **Acrobat/Reader** has already downloaded into
+`addressbook.acrodata` — a `%PPKLITE-` COS file the existing tokenizer opens
+(via `Document::from_cos_bytes`) and whose embedded certs the Pass-10.1 X.509
+decoder reads. **This is the anchor POOL only; it does not itself produce a
+verdict** (chain-building + revocation + clock are `Pass 10.3`).
+
+```rust
+use pdfcer_core::trust_store::{self, SourceFilter};
+
+let set = trust_store::load_from_path(path)?;      // or load_from_bytes(Vec<u8>)
+let c = set.counts();                               // aatl / eutl / adbe / other / total
+for a in set.filter(SourceFilter::Aatl) {           // AATL-only, or Eutl/Adbe/All
+    // a.subject, a.issuer, a.serial_hex, a.not_before/after,
+    // a.sources (["AATL"], ["EUTL"], …), a.trust_bits (RAW), a.policy_oids, a.der
+}
+```
+
+**Contract points a consumer must respect (rule 4):**
+- **`trust_bits` is RAW and its meaning is provisional.** Adobe does not publish
+  the `/Trust` bit constants; surface the integer + `a.sources`, do NOT act on a
+  specific bit to grant certify / JavaScript / system-operation trust.
+- **`/Source` is the authoritative provenance**, and `SourceFilter` narrows to
+  exactly AATL (the operator's "reconstruct-AATL" concern — AATL is a superset
+  of Windows-roots ∪ EUTL by construction, so reading Acrobat's own store is the
+  only 1:1 route; decision 133).
+- **Freshness is Acrobat's, not pdfcer's** — the anchor set is only as current
+  as Acrobat's last refresh; disclose the store file's mtime.
+- **Locating the file is the SHELL's job** (decision 133): `trust_store` takes a
+  path/bytes; the CLI's `trust-store-list` auto-locates
+  `%APPDATA%\Adobe\Acrobat\<track>\Security\addressbook.acrodata` and is
+  OFF by default (an explicit invocation). `set.undecodable` counts entries whose
+  cert did not decode — disclose it rather than imply the store was fully read.
+- **Read-only, no network.** Nothing is written; a bad store is a named
+  `TrustStoreError`, never a panic (fuzzed).
+
 ### 12.6 ★ Document metadata — the honest gap
 
 **There is no `Document`-level `/Info` accessor, and no XMP reader at all.**

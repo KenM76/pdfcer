@@ -517,3 +517,8 @@ path = "fuzz_targets/export_emf.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "trust_store"
+path = "fuzz_targets/trust_store.rs"
+test = false

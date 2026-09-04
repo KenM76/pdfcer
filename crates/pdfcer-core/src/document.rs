@@ -411,6 +411,41 @@ impl Document {
         Self::from_bytes_with_password(buf, None)
     }
 
+    /// Load a COS-family file whose header is NOT `%PDF-` — a `%PPKLITE-`
+    /// address book or a `%FDF-` file — reusing the exact tokenizer, classic-
+    /// xref parser and object assembly the strict PDF path uses (`Pass 10.2`).
+    ///
+    /// `markers` are the accepted first-line tokens (e.g. `[b"%PPKLITE-"]`).
+    /// Only the STRICT path runs: there is no rebuild-by-scan recovery (these
+    /// files are written by Acrobat and well-formed; a malformed one is an
+    /// error, not a file to guess at) and no password (a trust store carries no
+    /// `/Encrypt`). The result is an ordinary [`Document`] — `get`, `trailer`,
+    /// `resolve` and the [`crate::graph::ObjectGraph`] impl all work — so a
+    /// reader (e.g. [`crate::trust_store`]) walks it with the normal object
+    /// model instead of a bespoke parser.
+    ///
+    /// # Errors
+    ///
+    /// [`DocError::Header`] if none of `markers` matches; [`DocError::Xref`] if
+    /// the cross-reference chain does not parse; other [`DocError`] object-level
+    /// failures as [`from_bytes_with_password`](Self::from_bytes_with_password).
+    pub(crate) fn from_cos_bytes(buf: Vec<u8>, markers: &[&[u8]]) -> Result<Self, DocError> {
+        let header_version = crate::probe_cos_header(&buf, markers).map_err(DocError::Header)?;
+        let loaded = xref::load_xref_chain(&buf).map_err(DocError::Xref)?;
+        Self::assemble(
+            buf,
+            header_version,
+            loaded.table,
+            loaded.trailer,
+            loaded.startxref,
+            loaded.newest_shape,
+            loaded.highest_object_number,
+            loaded.suppressed_by_size,
+            None,
+            None,
+        )
+    }
+
     /// Load a document from bytes, supplying a password for an encrypted file.
     ///
     /// See [`Document::load_with_password`] for what `None` means (it is not
