@@ -90624,3 +90624,58 @@ verified. Next up: `Pass 5.4` (encrypt on save).
   requests of 2026-09-03) are both shipped; no in-flight Pass. Consult
   `ROADMAP.md` *Next up* / *Backlog* for the next pick.
 - Operator: nothing pending from this filing.
+
+## 2026-09-03 (413th filing) — `v0.31.0` release RESOLVED: IN PROGRESS → VERIFIED, the release of `Pass 5.4` done end to end this session
+
+**Shipped:**
+- Nothing new in capability terms — this closes out the release mechanics
+  for `v0.31.0`, which carries `Pass 5.4` (encrypt on save, AES-256 `/R`
+  6; shipped at the 412th filing, Pass code `743830d`). Version bump
+  `0.30.0 → 0.31.0` at `624ba1e` (`chore: bump version to 0.31.0 for the
+  Pass 5.4 release`), the packaged/tested/CI-green commit the tag points
+  at. Tag `v0.31.0` at `624ba1e`, pushed. `origin/main` = `7fe67d5` (the
+  engineer-owned NEXT_SESSION regeneration, docs-only, one commit ahead of
+  the tag, so `origin/main` contains the tag). CI run `33830016873` at
+  `624ba1e` — all jobs green at the tagged commit itself (not a
+  descendant, as `v0.30.0` had needed). GitHub release published with
+  asset `pdfcer-v0.31.0-windows-x64.zip` (18,391,876 bytes, SHA-256
+  `5c837a3f599265b28b874b2060b3bdd5abe35687dbbc01f6e6d3bfd72ad10751`) plus
+  its `.sha256` sidecar. OneDrive `pdfcer1` updated to 0.31.0 (5 items,
+  33,018,771 bytes); `pdfcer2` stays 0.30.0 as the previous version
+  (alternating slots, R229). `python tools/verify-release.py v0.31.0`
+  reported clean, every check.
+
+**Decisions made this session:**
+- None minted (decision ceiling `132` unchanged). The release act itself
+  needed no go-ahead — standing-authorized by decision 121 (*"always go
+  ahead and push the latest one"*).
+
+**Findings + decisions:**
+- Fresh-folder portable smoke test PASSED: the build folder
+  (`D:\builds\pdfcer-20260903-2234-624ba1e`, 33,020,888 bytes;
+  `pdfcer.exe` 20,544,512 bytes) was copied to a clean path and the
+  COPIED binary run. `--version` = 0.31.0; `encrypt` printed the
+  permissions notice; `inspect` on the encrypted file surfaced the
+  A13-naming `PasswordRequiredR6` diagnostic; `remove-encryption` (owner)
+  produced a plaintext that reopened with no password. The Pass's four
+  headline capabilities exercised from a clean folder, not the build tree.
+- **Sourcing (hard rule 8):** this role had a shell. The git figures are
+  MEASURED here — `HEAD` = `origin/main` = `7fe67d5`, tag `v0.31.0` at
+  `624ba1e`, working tree clean by `git status --short`,
+  `624ba1e..7fe67d5` = exactly the one docs-only NEXT_SESSION commit. The
+  CI/asset/OneDrive/smoke-test figures are relayed from the engineer's
+  dispatch, produced by the engineer's own shell this session.
+- `NEXT_SESSION.md` was NOT touched by this filing — it is engineer-owned
+  and already regenerated as `7fe67d5`.
+
+**Still in flight:**
+- Nothing — `v0.31.0` is fully released and verified. `Pass 5.4`'s three
+  carried-forward items (incremental-save-on-encrypted refused; GUI verbs
+  await `pdfcer-gui`'s O108 wiring; A13 default pending a real
+  Acrobat-written `/R` 6 file) are unchanged from the 412th filing and are
+  feature notes, not release blockers.
+
+**For next session:**
+- Engineer: no in-flight Pass; `v0.31.0` shipped and verified. Consult
+  `ROADMAP.md` *Next up* / *Backlog* for the next pick.
+- Operator: nothing pending from this filing.

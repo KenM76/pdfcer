@@ -112,6 +112,77 @@ wherever it appears.*
 
 ## Shipped
 
+**★★ 413th filing, 2026-09-03 — `v0.31.0` RESOLVED: IN PROGRESS →
+VERIFIED. The release of `Pass 5.4` (encrypt on save, AES-256 `/R` 6),
+done end to end this session — tag, push, CI, GitHub asset, fresh-folder
+smoke test, OneDrive, `verify-release.py`. Release act standing-authorized
+(decision 121, *"always go ahead and push the latest one"*).**
+
+**Sourcing (hard rule 8).** This role had a shell. The git figures below
+are MEASURED here — `git log -1` gives `HEAD` = `origin/main` = `7fe67d5`;
+`git log -1 v0.31.0` gives the tag at `624ba1e` (subject *"chore: bump
+version to 0.31.0 for the Pass 5.4 release (encrypt on save, AES-256 /R
+6)"*, committed 2026-09-03 22:32:25 -0400); `git status --short` empty
+(working tree clean); `git log --oneline 624ba1e..7fe67d5` = exactly one
+commit, `7fe67d5` itself. The CI/asset/OneDrive/smoke-test figures are
+relayed from the engineer's dispatch (produced by the engineer's own
+shell this session), named beside each figure per hard rule 10.
+
+- **Version bump** `0.30.0 → 0.31.0`: commit **`624ba1e`**
+  (`chore: bump version to 0.31.0 for the Pass 5.4 release`). This is the
+  packaged, tested, CI-green commit the tag points at — the same role
+  `1f9eb1d` played for `v0.30.0` at the 409th/411th filings.
+- **Tag** `v0.31.0` → `624ba1e`, pushed to origin.
+- **`origin/main` = `7fe67d5`** (`docs: regenerate NEXT_SESSION.md after
+  Pass 5.4 / v0.31.0`) — the engineer-owned NEXT_SESSION regeneration, a
+  docs-only commit sitting one ahead of the tag. So `origin/main`
+  **contains** the tag (`624ba1e` is its parent), which is what
+  `verify-release.py`'s "origin/main contains the tag" check reads. This
+  filing did NOT touch `NEXT_SESSION.md` — it is the engineer's, already
+  regenerated as `7fe67d5`.
+- **CI** run **`33830016873`** at **`624ba1e`** — **all jobs green**.
+  Unlike `v0.30.0` (whose tagged commit had no run of its own, so
+  `verify-release.py` accepted a descendant), the green run here is at the
+  **tagged commit itself**.
+- **GitHub release**
+  https://github.com/KenM76/pdfcer/releases/tag/v0.31.0 — asset
+  `pdfcer-v0.31.0-windows-x64.zip`, **18,391,876 bytes**, SHA-256
+  `5c837a3f599265b28b874b2060b3bdd5abe35687dbbc01f6e6d3bfd72ad10751`,
+  plus its `.sha256` sidecar.
+- **Build folder** `D:\builds\pdfcer-20260903-2234-624ba1e` — folder
+  **33,020,888 bytes**; `pdfcer.exe` **20,544,512 bytes**.
+- **Fresh-folder portable smoke test — PASSED.** The build was copied to a
+  clean path and the COPIED `pdfcer.exe` run: `--version` = `0.31.0`;
+  `encrypt` printed the permissions notice (*"a request, not a lock"*);
+  `inspect` on the encrypted file surfaced the A13-naming
+  `PasswordRequiredR6` diagnostic (the `Pass 5.4` `DocError` variant);
+  `remove-encryption` (owner) produced a plaintext that reopened with no
+  password. The Pass's four headline capabilities exercised from a clean
+  folder, not the build tree.
+- **OneDrive**: `pdfcer1` = **0.31.0** (5 items, 33,018,771 bytes);
+  `pdfcer2` = **0.30.0** kept as the previous version — the alternating-
+  slot scheme's guarantee (R229) that a previous version is always
+  available. This release wrote the `pdfcer1` slot (the 411th filing's
+  `v0.30.0` had written `pdfcer2`), leaving `v0.30.0` in place as the
+  fallback.
+- **`python tools/verify-release.py v0.31.0` — CLEAN.** Working tree
+  clean; tag exists + pushed + at an ancestor of `HEAD`; `origin/main`
+  contains the tag; GitHub release has an asset; CI green at the tag;
+  OneDrive `pdfcer1` = 0.31.0 with 0.30.0 still present.
+- Carries `Pass 5.4` (encrypt on save, AES-256 `/R` 6), shipped at the
+  412th filing below (Pass code `743830d`); this entry resolves the
+  release mechanics only, it does not re-describe the feature.
+
+`docs/FEATURES.md`: **no change** — the `Pass 5.4` encryption rows were
+set correctly at the 412th filing; this entry is release bookkeeping only,
+not a capability change.
+
+**Ledger.** Filings ceiling `412` → **`413`**; Pass ceiling `248.4`
+unchanged — no new Pass, a release-verification entry only; decision
+ceiling `132` unchanged, next free `133`; standing rules ceiling `R241`
+unchanged, next free `R242`; open operator questions: none minted, next
+free `(ce)`.
+
 **★★★ 412th filing, 2026-09-03 — `Pass 5.4` SHIPPED (`743830d`): encrypt
 on save, AES-256 `/R` 6 only. All eleven acceptance criteria met.
 `core [x]` · `cli [x]` · `gui [ ]`.**
