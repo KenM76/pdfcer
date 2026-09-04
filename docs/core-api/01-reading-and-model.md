@@ -1534,6 +1534,23 @@ entry point). Resolvers: `NoXObjects` `:996` / `DocumentXObjects` `:1019`;
 `VectorObject` — `decompose.rs:851`: `Path(PathObject)` | `Text(TextObject)`
 | `Image(ImageObject)`.
 
+**`obj.oc() -> Option<ObjId>`** and the `oc` field on all three object types
+(and `FormLeaf::oc()`) give the **optional-content group (layer)** the object
+was painted under — a `BDC /OC /Pn` section (§8.11.3.2) or an XObject's own
+`/OC` (§8.11.3.3), `Pass 250.0` (`pdfcer-gui` request 2026-09-04). This is what
+connects a canvas selection to a Layers-panel row. Three contract points:
+
+- **Membership, not visibility.** It never resolves whether the layer is on/off
+  (that needs `/OCProperties`, which this walk does not hold); a shell keeps the
+  visibility side itself. An OCMD is reported as its own `ObjId`, never expanded.
+- **`None` means "on no layer", NOT "could not tell".** A `BDC /OC` whose `/Pn`
+  did not resolve is counted in `DecomposeDiagnostics::oc_unresolved` and its
+  object still reports `oc == None` — read the counter to tell the two apart.
+- **No default is substituted** — an object under no `/OC` section is `None`,
+  never the document's first OCG. `FormLeaf::oc()` delegates to the wrapped
+  object (a page-level `BDC /OC` around the form's `Do` is not folded in — a
+  documented partial for that nested case).
+
 ### 10.2 The object types
 
 **`PathObject`** — `decompose.rs:343`.

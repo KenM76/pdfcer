@@ -376,6 +376,14 @@ pub struct PathObject {
     /// conservative superset of the exact curve bounds), for the hit-test
     /// bbox pre-filter and marquee enclosure.
     pub page_bbox: Bounds,
+    /// The innermost `/OC` optional-content group (layer) in force when this
+    /// object was painted from a `BDC /OC /Pn` marked-content section
+    /// (§8.11.3.2) or an XObject's own `/OC` entry (§8.11.3.3). `None`
+    /// means the object is on NO layer; it does NOT mean "could not tell" (see
+    /// [`DecomposeDiagnostics::oc_unresolved`]). Membership only: an OCMD is
+    /// reported as its own `ObjId`, never expanded, and visibility is NOT
+    /// resolved here (`pdfcer-gui` request 2026-09-04).
+    pub oc: Option<ObjId>,
 }
 
 impl PathObject {
@@ -466,6 +474,14 @@ pub struct ImageObject {
     pub tokens: TokenRange,
     /// The equivalent byte span.
     pub bytes: ByteSpan,
+    /// The innermost `/OC` optional-content group (layer) in force when this
+    /// object was painted from a `BDC /OC /Pn` marked-content section
+    /// (§8.11.3.2) or an XObject's own `/OC` entry (§8.11.3.3). `None`
+    /// means the object is on NO layer; it does NOT mean "could not tell" (see
+    /// [`DecomposeDiagnostics::oc_unresolved`]). Membership only: an OCMD is
+    /// reported as its own `ObjId`, never expanded, and visibility is NOT
+    /// resolved here (`pdfcer-gui` request 2026-09-04).
+    pub oc: Option<ObjId>,
 }
 
 /// The font in effect at a text object's first show operator.
@@ -754,6 +770,14 @@ pub struct TextObject {
     /// per-show-operator and lives in [`TextRun`]; this is the graphics-state
     /// transform the whole `BT`...`ET` is drawn under.
     pub ctm: Matrix,
+    /// The innermost `/OC` optional-content group (layer) in force when this
+    /// object was painted from a `BDC /OC /Pn` marked-content section
+    /// (§8.11.3.2) or an XObject's own `/OC` entry (§8.11.3.3). `None`
+    /// means the object is on NO layer; it does NOT mean "could not tell" (see
+    /// [`DecomposeDiagnostics::oc_unresolved`]). Membership only: an OCMD is
+    /// reported as its own `ObjId`, never expanded, and visibility is NOT
+    /// resolved here (`pdfcer-gui` request 2026-09-04).
+    pub oc: Option<ObjId>,
 }
 
 impl TextObject {
@@ -1032,6 +1056,18 @@ impl VectorObject {
             VectorObject::Image(i) => i.bytes,
         }
     }
+
+    /// The optional-content group (layer) this object was painted under, or
+    /// `None` if it is on no layer (`pdfcer-gui` request 2026-09-04). See the
+    /// `oc` field on each variant for the full contract.
+    #[must_use]
+    pub fn oc(&self) -> Option<ObjId> {
+        match self {
+            VectorObject::Path(p) => p.oc,
+            VectorObject::Text(t) => t.oc,
+            VectorObject::Image(i) => i.oc,
+        }
+    }
 }
 
 /// Structural oddities tolerated during decomposition, counted rather than
@@ -1127,6 +1163,12 @@ pub struct DecomposeDiagnostics {
     /// default. A shell that sees a non-zero count here can warn; a shell that
     /// sees zero — which is almost every file — needs nothing.
     pub oc_sections: usize,
+    /// `BDC /OC` sections whose `/Pn` key did NOT resolve to an indirect
+    /// `/Properties` entry an optional-content section pdfcer saw but could
+    /// not name a group for. Distinct from "no `/OC`": an object under only
+    /// such a section reports `oc == None`, and THIS counter is how a shell
+    /// tells the two apart (`pdfcer-gui` request 2026-09-04).
+    pub oc_unresolved: usize,
 }
 
 /// One object reached by **descending into a form XObject** — the unit a hit
@@ -1246,6 +1288,17 @@ impl FormLeaf {
     #[must_use]
     pub fn parent(&self) -> Option<ObjId> {
         self.containment.last().copied()
+    }
+
+    /// The optional-content group (layer) this leaf was painted under
+    /// (`pdfcer-gui` request 2026-09-04). Delegates to the wrapped object,
+    /// which already carries the `/OC` seen inside the form's own content
+    /// stream. A page-level `BDC /OC` enclosing the form's `Do` is NOT folded
+    /// in here (that is the page walk's context) a documented partial for the
+    /// nested case; the common form-interior and XObject-`/OC` cases are exact.
+    #[must_use]
+    pub fn oc(&self) -> Option<ObjId> {
+        self.object.oc()
     }
 
     /// Which content stream this leaf's [`VectorObject::tokens`] range indexes.
@@ -1430,6 +1483,19 @@ pub trait XObjectResolver {
     /// dictionary, or `None` if it cannot be resolved (absent, not a
     /// stream, no `/Subtype`).
     fn classify(&self, name: &[u8]) -> Option<XObjectShape>;
+
+    /// Resolve a `BDC /OC /Pn` section's `/Pn` key through the current
+    /// `/Properties` subdictionary to the OCG's object id (§8.11.3.2).
+    /// Membership only visibility is NOT consulted. `None` when there is no
+    /// indirect `/Properties` entry for `key`. Defaults to `None`.
+    fn oc_group(&self, _properties_key: &[u8]) -> Option<ObjId> {
+        None
+    }
+
+    /// The `/OC` entry on the XObject named `name` (§8.11.3.3), or `None`.
+    fn xobject_oc(&self, _name: &[u8]) -> Option<ObjId> {
+        None
+    }
 }
 
 /// A resolver that classifies nothing — for content with no XObjects, and
@@ -1468,6 +1534,28 @@ pub struct DocumentXObjects<'a> {
 }
 
 impl XObjectResolver for DocumentXObjects<'_> {
+    fn oc_group(&self, key: &[u8]) -> Option<ObjId> {
+        self.resources
+            .get(b"Properties")
+            .map(|o| self.view.resolve(o))
+            .and_then(Object::as_dict)
+            .and_then(|props| props.get(key))
+            .and_then(Object::as_reference)
+    }
+
+    fn xobject_oc(&self, name: &[u8]) -> Option<ObjId> {
+        let xobjects = self
+            .resources
+            .get(b"XObject")
+            .map(|o| self.view.resolve(o))
+            .and_then(Object::as_dict)?;
+        let entry = xobjects.get(name)?;
+        let Object::Stream(stream) = self.view.resolve(entry) else {
+            return None;
+        };
+        stream.dict.get(b"OC").and_then(Object::as_reference)
+    }
+
     fn classify(&self, name: &[u8]) -> Option<XObjectShape> {
         let entry = self
             .resources
@@ -2378,6 +2466,10 @@ struct Decomposer<'a> {
     objects: Vec<VectorObject>,
     diag: DecomposeDiagnostics,
     total_nodes: usize,
+    /// The active `BDC`/`BMC` marked-content stack; each entry is the `/OC`
+    /// group in force for that section (`None` for non-`/OC`/unresolved). The
+    /// innermost `Some` is the current layer.
+    oc_stack: Vec<Option<ObjId>>,
 }
 
 impl<'a> Decomposer<'a> {
@@ -2398,6 +2490,7 @@ impl<'a> Decomposer<'a> {
             objects: Vec::new(),
             diag: DecomposeDiagnostics::default(),
             total_nodes: 0,
+            oc_stack: Vec::new(),
         }
     }
 
@@ -2445,6 +2538,7 @@ impl<'a> Decomposer<'a> {
                 // §8.9.7: an inline image IS the content stream's own bytes.
                 // It has no object of its own to name.
                 None,
+                self.current_oc(),
                 first,
                 op_index,
             );
@@ -2559,9 +2653,25 @@ impl<'a> Decomposer<'a> {
             // section. Visibility is not resolved here; counted so a shell can
             // tell that a page HAS layers.
             b"BDC" => {
-                if operand_names(operands).first().is_some_and(|n| n == b"OC") {
+                let names = operand_names(operands);
+                if names.first().is_some_and(|n| n == b"OC") {
                     self.diag.oc_sections += 1;
+                    // §8.11.3.2: `/OC /Pn` resolve `/Pn` via `/Properties`
+                    // to the group id. Membership only; visibility untouched.
+                    let group = names.get(1).and_then(|k| self.xobjects.oc_group(k));
+                    if group.is_none() {
+                        self.diag.oc_unresolved += 1;
+                    }
+                    self.oc_stack.push(group);
+                } else {
+                    // A non-`/OC` BDC still opens a section; push `None` so the
+                    // matching `EMC` stays paired.
+                    self.oc_stack.push(None);
                 }
+            }
+            b"BMC" => self.oc_stack.push(None),
+            b"EMC" => {
+                self.oc_stack.pop();
             }
             b"gs" => {
                 if let Some(g) = operand_names(operands)
@@ -3072,7 +3182,9 @@ impl<'a> Decomposer<'a> {
         let ctm = pa.ctm;
         let page_bbox = subpaths_page_bounds(&pa.subpaths, ctm);
         let bytes = self.span_of(pa.token_start, op_index);
+        let oc = self.current_oc();
         let obj = PathObject {
+            oc,
             subpaths: pa.subpaths,
             ctm,
             style,
@@ -3509,7 +3621,9 @@ impl<'a> Decomposer<'a> {
         let runs = std::mem::take(&mut t.runs);
         let (preview, font) = t.finish();
         self.diag.text += 1;
+        let oc = self.current_oc();
         self.objects.push(VectorObject::Text(TextObject {
+            oc,
             page_bbox,
             runs,
             approximate: true,
@@ -3527,11 +3641,24 @@ impl<'a> Decomposer<'a> {
 
     // -- Do / image --
 
+    /// The innermost active `/OC` group the layer a just-painted object is
+    /// on. Scans the marked-content stack top-down for the first resolved
+    /// group (non-`/OC`/unresolved sections are `None` and skipped).
+    fn current_oc(&self) -> Option<ObjId> {
+        self.oc_stack.iter().rev().find_map(|e| *e)
+    }
+
     fn do_xobject(&mut self, operands: &[ContentToken], first: usize, op_index: usize) {
         let Some(name) = last_name(operands) else {
             self.diag.unresolved_xobject += 1;
             return;
         };
+        // §8.11.3.3: the XObject's own /OC is the most specific membership;
+        // fall back to the enclosing BDC /OC context.
+        let oc = self
+            .xobjects
+            .xobject_oc(&name)
+            .or_else(|| self.current_oc());
         match self.xobjects.classify(&name) {
             Some(XObjectShape::Image { pixel_size, object }) => {
                 self.emit_image(
@@ -3540,6 +3667,7 @@ impl<'a> Decomposer<'a> {
                     unit_square(),
                     pixel_size,
                     object,
+                    oc,
                     first,
                     op_index,
                 );
@@ -3558,6 +3686,7 @@ impl<'a> Decomposer<'a> {
                     corners,
                     None,
                     object,
+                    oc,
                     first,
                     op_index,
                 );
@@ -3571,6 +3700,7 @@ impl<'a> Decomposer<'a> {
     /// page space by `ctm`; `pixel_size` is the sample count for an image
     /// and `None` for a form.
     #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)]
     fn emit_image(
         &mut self,
         source: ImageSource,
@@ -3578,6 +3708,7 @@ impl<'a> Decomposer<'a> {
         local_corners: [Point; 4],
         pixel_size: Option<(u32, u32)>,
         xobject: Option<ObjId>,
+        oc: Option<ObjId>,
         first: usize,
         op_index: usize,
     ) {
@@ -3595,6 +3726,7 @@ impl<'a> Decomposer<'a> {
         }
         self.objects.push(VectorObject::Image(ImageObject {
             xobject,
+            oc,
             ctm,
             page_bbox,
             source,
@@ -4699,6 +4831,77 @@ mod tests {
         // A form has no samples (§8.10) — never `Some((0, 0))`.
         assert_eq!(imgs[1].pixel_size, None);
         assert_eq!(m.diagnostics.unresolved_xobject, 1); // /Zz
+    }
+
+    #[test]
+    fn objects_carry_the_optional_content_group_they_were_painted_under() {
+        // A resolver that names one OCG (`/P0` -> obj 50), an XObject with its
+        // own `/OC` (obj 60), and leaves `/Missing` unresolvable.
+        struct OcStub;
+        impl XObjectResolver for OcStub {
+            fn classify(&self, name: &[u8]) -> Option<XObjectShape> {
+                match name {
+                    b"Im0" => Some(XObjectShape::Image {
+                        pixel_size: Some((8, 8)),
+                        object: Some(ObjId::new(7, 0)),
+                    }),
+                    _ => None,
+                }
+            }
+            fn oc_group(&self, key: &[u8]) -> Option<ObjId> {
+                match key {
+                    b"P0" => Some(ObjId::new(50, 0)),
+                    _ => None, // /Missing is unresolvable
+                }
+            }
+            fn xobject_oc(&self, name: &[u8]) -> Option<ObjId> {
+                (name == b"Im0").then(|| ObjId::new(60, 0))
+            }
+        }
+
+        // Path 1 under /P0; path 2 under an unresolvable /Missing; path 3 on no
+        // layer; an image whose XObject carries its own /OC (obj 60).
+        let cs = ContentStream::parse(
+            b"/OC /P0 BDC 0 0 m 1 1 l S EMC \
+              /OC /Missing BDC 2 2 m 3 3 l S EMC \
+              4 4 m 5 5 l S \
+              /Im0 Do"
+                .to_vec(),
+        )
+        .unwrap();
+        let m = decompose(&cs, Matrix::IDENTITY, &OcStub);
+        let paths: Vec<_> = m
+            .objects
+            .iter()
+            .filter_map(|o| match o {
+                VectorObject::Path(p) => Some(p),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(paths.len(), 3);
+        assert_eq!(paths[0].oc, Some(ObjId::new(50, 0)), "path under /P0");
+        assert_eq!(
+            paths[1].oc, None,
+            "an unresolvable /OC section leaves oc None, not a wrong group"
+        );
+        assert_eq!(paths[2].oc, None, "path on no layer");
+        assert_eq!(
+            m.diagnostics.oc_unresolved, 1,
+            "the /Missing section is counted so 'no layer' and 'unknown' stay distinct"
+        );
+        assert_eq!(m.diagnostics.oc_sections, 2);
+        // The XObject's own /OC reaches the emitted image (§8.11.3.3).
+        let img = m
+            .objects
+            .iter()
+            .find_map(|o| match o {
+                VectorObject::Image(i) => Some(i),
+                _ => None,
+            })
+            .expect("an image");
+        assert_eq!(img.oc, Some(ObjId::new(60, 0)));
+        // VectorObject::oc() agrees with the field.
+        assert_eq!(m.objects[0].oc(), Some(ObjId::new(50, 0)));
     }
 
     #[test]
