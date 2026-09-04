@@ -254,6 +254,12 @@ pub enum RedactError {
     /// The full-rewrite save failed.
     #[error("writing the redacted document failed: {0}")]
     Write(#[from] WriteError),
+    /// Re-parsing pdfcer's OWN serialized output failed while applying a
+    /// redaction into an [`crate::EditSession`] (`Pass 250.1`). This is an
+    /// internal invariant violation, not a document defect: the bytes were
+    /// produced by pdfcer's writer moments earlier and must re-load.
+    #[error("re-reading the document during redaction failed: {0}")]
+    Reload(#[source] crate::document::DocError),
 }
 
 /// What a carrier sweep found and did for one class of duplicated

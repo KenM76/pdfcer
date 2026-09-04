@@ -7133,6 +7133,12 @@ pub struct EditSession {
     /// longer `Sync`, and `Send + Sync` is exactly what lets a shell move the
     /// session to a worker thread and keep this cost off the UI thread.
     page_objects_cache: Option<PageObjectsCache>,
+    /// Set once [`EditSession::apply_redactions`] has finalized a redaction
+    /// into this session (`Pass 250.1`). A disclosure signal only: the
+    /// redaction collapsed the session onto a clean, fully-rewritten base, so
+    /// no save mode can leak removed content and NO save is refused. The flag
+    /// lets a shell say "a redaction has been applied and finalized".
+    redacted: bool,
 }
 
 /// What [`EditSession::copy_and_splice`] produced, before any command is
@@ -7210,6 +7216,7 @@ impl EditSession {
             redo: Vec::new(),
             quad_point_order: QuadPointOrder::default(),
             page_objects_cache: None,
+            redacted: false,
             #[cfg(debug_assertions)]
             base_page_tree_walked: walkable,
         }
@@ -8344,6 +8351,84 @@ impl EditSession {
         options: &SaveOptions,
     ) -> Result<(Vec<u8>, SaveReport), WriteError> {
         crate::writer::save_full(&self.base, &self.dirty_set(), options)
+    }
+
+    /// Whether a redaction has been APPLIED and finalized into this session
+    /// ([`apply_redactions`](Self::apply_redactions), `Pass 250.1`). This is a
+    /// disclosure signal, not a save gate: an applied redaction collapses the
+    /// session onto a clean full rewrite, so every save mode is safe.
+    #[must_use]
+    pub const fn has_applied_redaction(&self) -> bool {
+        self.redacted
+    }
+
+    /// Apply every `/Redact` mark in this session, removing the marked content
+    /// **into the session** so the redaction is committed by the ordinary save
+    /// verbs rather than written to a file immediately (`Pass 250.1`,
+    /// `pdfcer-gui` request 2026-09-04).
+    ///
+    /// # This FINALIZES the document and cannot be undone (operator ruling, 2026-09-04)
+    ///
+    /// Redaction is a destructive, irreversible content removal. This verb
+    /// implements it by **collapsing** the session: it serialises the current
+    /// document (base + every edit, including the `/Redact` marks), runs the
+    /// removal ([`crate::redact::apply_redactions`]), and adopts the redacted
+    /// bytes as the session's new base with an empty edit/undo stack. The
+    /// operator can keep editing afterward, but **cannot undo past the
+    /// redaction** — a shell MUST disclose that before the operator commits.
+    ///
+    /// # Why no save mode is refused (contrast the request's §4.1)
+    ///
+    /// The request asked that a redacted session refuse incremental save,
+    /// because a redaction left in a *dirty set over the original base* would
+    /// leak via `/Prev`. This implementation removes that hazard at the root
+    /// instead: after the collapse there IS no un-redacted base — the new base
+    /// is a single-revision full rewrite with the content already gone — so an
+    /// incremental save appends to clean bytes and cannot leak. Refusing
+    /// incremental save here would wrongly block a legitimate save of a clean
+    /// document. The undo-preserving *deferred* variant (which WOULD need the
+    /// refuse-guard) is a separate future capability.
+    ///
+    /// The returned [`RedactionReport`](crate::redact::RedactionReport) is the
+    /// disclosure of exactly what was removed and what residual remains; a shell
+    /// verifies absence against the SAVED bytes, as before.
+    ///
+    /// # Errors
+    ///
+    /// - [`RedactError::NothingToApply`](crate::redact::RedactError::NothingToApply)
+    ///   if the session carries no `/Redact` marks.
+    /// - [`RedactError::Write`](crate::redact::RedactError::Write) if serialising
+    ///   the session fails (e.g. a hybrid-reference base, R33).
+    /// - [`RedactError::Reload`](crate::redact::RedactError::Reload) if pdfcer
+    ///   cannot re-read its own output (an internal invariant).
+    /// - Other [`RedactError`](crate::redact::RedactError) removal failures
+    ///   (e.g. an undestroyable image) — the session is left UNCHANGED on any
+    ///   error, so a failed apply never half-redacts.
+    pub fn apply_redactions(
+        &mut self,
+    ) -> Result<crate::redact::RedactionReport, crate::redact::RedactError> {
+        use crate::redact::RedactError;
+        // 1. Serialise the session as one complete revision. This carries the
+        //    /Redact marks (they live in the session's edits, not the base) and
+        //    every other pending edit into a document the redactor can scan.
+        let (full, _) = self
+            .to_full_bytes(&SaveOptions::identity())
+            .map_err(RedactError::Write)?;
+        // 2. Reload so the marks are document state.
+        let doc = Document::from_bytes(full).map_err(RedactError::Reload)?;
+        // 3. Remove the marked content (a full rewrite internally).
+        let (redacted, report) = crate::redact::apply_redactions(&doc, &SaveOptions::default())?;
+        // 4. Adopt the redacted bytes as the new base. Only now, after the
+        //    removal has succeeded, is `self` touched -- so any earlier error
+        //    leaves the session exactly as it was (no half-redaction).
+        let new_base = Document::from_bytes(redacted).map_err(RedactError::Reload)?;
+        // 5. Collapse: reset onto the clean base, preserving the one operator
+        //    setting the session carries, and mark it finalized (undo cleared).
+        let order = self.quad_point_order;
+        *self = EditSession::new(new_base);
+        self.quad_point_order = order;
+        self.redacted = true;
+        Ok(report)
     }
 
     // -- encryption authoring (Pass 5.4, ISO 32000-2:2020 §7.6) -------
