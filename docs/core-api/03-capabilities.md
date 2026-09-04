@@ -614,8 +614,20 @@ pdfcer_core::forms::parse_acroform<G: ObjectGraph + ?Sized>(graph: &G) -> Option
 `radios_in_unison()` `:651`, `has_appearance()` `:661`.
 
 `Widget` (`forms.rs:388`) → `id`, `rect`, `appearance_state`, `on_states`,
-`has_off_appearance`, `page`, `caption` (`/MK /CA`), **`border`**,
-**`visibility`**, **`annot_flags`**, `has_normal_appearance`, `merged`.
+`has_off_appearance`, `page`, `caption` (`/MK /CA`), **`background`** (`/MK /BG`,
+`MkColor`), `rotation` (`/MK /R`), **`border`**, **`visibility`**,
+**`annot_flags`**, `has_normal_appearance`, `merged`.
+
+**`background: Option<MkColor>` (`/MK /BG`).** For an on-page field editor that
+tints its live text box the field's own colour. `None` = the key is ABSENT;
+`Some(MkColor::None)` = an EMPTY array, Table 189's explicit "no colour" — the
+two are distinct facts, both meaning "keep the theme's box" but for reasons the
+file separates. `MkColor` is `None | Gray(f32) | Rgb(f32,f32,f32) |
+Cmyk(f32,f32,f32,f32)`; DeviceCMYK is kept raw, **never** flattened to RGB, and
+no default is ever substituted (same `None`-is-a-fact rule as `border`). A
+nonconforming component count is declined (parses to `None`, i.e. absent). This
+does NOT breach R43 — pdfcer still paints the baked `/AP`; the field feeds an
+editor overlay, not a display-time synthesiser.
 
 #### ★★ `border` and `visibility` — read this before wiring a properties control (`Pass 146.0`)
 

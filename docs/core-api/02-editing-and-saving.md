@@ -4204,6 +4204,38 @@ ids nobody named.
 > **treat it as a corrupt/hostile-file diagnostic, not as an ordinary outcome
 > the operator caused**, and say so in whatever the shell puts on screen.
 
+### 6.9 `RefusalKind` — a coarse, stable discriminant for front-end routing (2026-09-04)
+
+A front end that wants ONE operator sentence per *category* of refusal — rather
+than one per variant, or a grep of the `Display` prose — calls
+`refusal_kind()`:
+
+```rust
+use pdfcer_core::text_edit::{RefusalClass, RefusalKind};
+
+// impl'd for text_edit::EditError AND text_edit::AddTextError
+match err.refusal_kind() {
+    RefusalKind::UnsupportedFont => "This text is in a font pdfcer can't edit safely, so it was left alone.",
+    RefusalKind::StructureFrozen => "This document is protected, so the edit was refused.",
+    RefusalKind::NotFound        => "pdfcer couldn't find what the edit named.",
+    RefusalKind::Other           => "That edit was refused; see the diagnostics for the reason.",
+}
+```
+
+**Match it EXHAUSTIVELY.** `RefusalKind` is deliberately **not**
+`#[non_exhaustive]` — the whole point is that the compiler proves your four
+sentences are complete. The four buckets are a committed contract: a new
+`R-INV-*` code or a split `EditError` variant lands in the SAME bucket (usually
+`Other`), so your `match` neither breaks nor silently mis-routes. Growing the
+enum is a deliberate breaking change (major bump + a channel note), not a
+side effect of the engine learning a new refusal.
+
+Do **not** re-derive this by matching `EditError`/`AddTextError` variants (a
+second copy of pdfcer's taxonomy that drifts) or by grepping `Display` (prose,
+reworded at will). The mapping lives in `text_edit::refusal_kind` next to the
+errors so it moves with them. Trait `RefusalClass` lets a funnel take
+`&impl RefusalClass` and treat both error types uniformly.
+
 ---
 
 ## 7. Object allocation and byte staging

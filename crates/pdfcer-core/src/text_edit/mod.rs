@@ -68,6 +68,7 @@ pub mod forms;
 pub mod model;
 pub mod reflow;
 pub mod reflow_apply;
+pub mod refusal_kind;
 pub mod synth;
 
 pub use addtext::{
@@ -78,6 +79,7 @@ pub use edit::{
     EditError, EditGlyphSource, EditOptions, EditOutcome, EditReport, EditRequest, EditTarget,
     FollowerDisposition, edit_text,
 };
+pub use refusal_kind::{RefusalClass, RefusalKind};
 // `CompositeEncoding` sits beside `InverseEncoding` deliberately: they are the
 // two halves of ONE seam (`plan_edit` picks between them on `font.is_simple()`
 // and both answer the same two questions — per-code values for the §9.4.4

@@ -379,6 +379,55 @@ pub struct ChoiceOption {
     pub display: Vec<u8>,
 }
 
+/// A widget appearance colour read from `/MK` (Table 189), preserving the
+/// device colour space its component count implies and NEVER converting it
+/// (`pdfcer-gui` request 2026-09-04).
+///
+/// The [`None`](MkColor::None) variant is Table 189's **empty array** — an
+/// explicit "no colour" (transparent) — which is a different fact from the key
+/// being ABSENT (modelled by the enclosing `Option` being `None`). A consumer
+/// that collapses the two loses a distinction the file stated.
+///
+/// Component values are the file's own numbers, unclamped: an out-of-range
+/// component is a malformed file, not a value to silently correct. DeviceCMYK
+/// is kept as four components and is **never** flattened to RGB — the same
+/// refusal [`Widget::border`] cites for the text-colour swatch: a nearest-RGB
+/// approximation would be written back on the operator's next press.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum MkColor {
+    /// An empty `/MK` colour array — "no colour" (Table 189). Distinct from the
+    /// key being absent.
+    None,
+    /// One component — DeviceGray.
+    Gray(f32),
+    /// Three components — DeviceRGB.
+    Rgb(f32, f32, f32),
+    /// Four components — DeviceCMYK. Kept raw; never converted to RGB.
+    Cmyk(f32, f32, f32, f32),
+}
+
+impl MkColor {
+    /// Read an `/MK` colour array (`/BG`, `/BC`, …) into an [`MkColor`].
+    ///
+    /// Returns `None` (the key is treated as absent) when the value is not an
+    /// array or its component count is not one of Table 189's 0/1/3/4 — a
+    /// nonconforming count is not a colour pdfcer can name, and inventing one
+    /// would be the substitution [`Widget::border`] refuses. A zero-length
+    /// array returns `Some(MkColor::None)` — present, and stating no colour.
+    #[must_use]
+    pub fn from_array(value: &Object) -> Option<Self> {
+        let a = value.as_array()?;
+        let c = |i: usize| a.get(i).and_then(Object::as_number).map(|v| v as f32);
+        match a.len() {
+            0 => Some(Self::None),
+            1 => Some(Self::Gray(c(0)?)),
+            3 => Some(Self::Rgb(c(0)?, c(1)?, c(2)?)),
+            4 => Some(Self::Cmyk(c(0)?, c(1)?, c(2)?, c(3)?)),
+            _ => None,
+        }
+    }
+}
+
 /// One widget annotation of a field (ISO 32000-1 §12.5.6.19), modelled for
 /// the forms layer.
 ///
@@ -429,7 +478,8 @@ pub struct Widget {
     /// # Why only this one key out of `/MK`
     ///
     /// `/MK` (the appearance-characteristics dictionary, Table 189) also
-    /// carries `/BC`, `/BG`, `/R`, `/RC`, `/AC`, `/I`, `/RI`, `/IX`, `/IF`
+    /// carries `/BC`, `/BG` (now modelled — [`Self::background`]), `/R` (now
+    /// modelled — [`Self::rotation`]), `/RC`, `/AC`, `/I`, `/RI`, `/IX`, `/IF`
     /// and `/TP`. Every one of those is **cosmetic**, and R43 is the standing
     /// rule that pdfcer does not synthesise appearance from `/MK` at display
     /// time — it paints the baked `/AP`. Modelling them would add read-path
@@ -447,6 +497,26 @@ pub struct Widget {
     /// any widget annotation, and a type-gated reader would mean the model
     /// silently disagreeing with the file for the non-button case.
     pub caption: Option<Vec<u8>>,
+    /// `/MK` `/BG` — the widget's **background colour** (Table 189), as the
+    /// file states it, or `None` when `/MK` has no `/BG` (`pdfcer-gui` request
+    /// 2026-09-04).
+    ///
+    /// # This does NOT breach R43 (do not synthesise appearance from `/MK`)
+    ///
+    /// R43 is about **drawing the widget** — pdfcer paints the baked `/AP`, not
+    /// a colour synthesised from `/MK`, and that is unchanged. This field exists
+    /// for a different consumer: an on-page field EDITOR that lays a live text
+    /// box over the raster for the duration of a keystroke and wants to tint
+    /// that box the field's own colour instead of the theme's, so a pale-yellow
+    /// field does not flash white while the operator types. It reads one entry,
+    /// for one gesture, over a raster pdfcer already painted.
+    ///
+    /// [`MkColor::None`] (an empty array) is Table 189's explicit "no colour"
+    /// and is NOT the same as this being `None` (the key absent) — both mean
+    /// "keep the theme's box" to an editor, but for reasons the file
+    /// distinguishes. No default is substituted (`None` is a fact, not a value —
+    /// see [`Self::border`]), and DeviceCMYK is never pre-converted to RGB.
+    pub background: Option<MkColor>,
     /// `/MK` `/R` — the widget's **rotation**, in degrees **counterclockwise**
     /// relative to the page (ISO 32000-1 §12.5.6.19 Table 189 / ISO 32000-2
     /// Table 192), **as the file states it**. `None` when the file is silent
@@ -1529,6 +1599,14 @@ fn model_widget<G: ObjectGraph + ?Sized>(
         .as_ref()
         .and_then(|mk| mk.get(b"CA").map(|o| graph.resolve(o)))
         .and_then(string_bytes);
+    // `/MK` `/BG` (Table 189, `pdfcer-gui` request 2026-09-04). Read on every
+    // widget; resolved through the graph like `/CA`. Absent -> None; empty
+    // array -> Some(MkColor::None); 1/3/4 components -> the implied device
+    // space. Never converted, never defaulted (see `Widget::background`).
+    let background = mk
+        .as_ref()
+        .and_then(|mk| mk.get(b"BG").map(|o| graph.resolve(o)))
+        .and_then(MkColor::from_array);
     // `/MK` `/R` (Table 189 / 2.0 Table 192), `Pass 177.0`. Read now that
     // something CONSUMES it -- `EditSession::rotate_widget` writes it, and a
     // property pdfcer can write and cannot read is exactly the asymmetry
@@ -1558,6 +1636,7 @@ fn model_widget<G: ObjectGraph + ?Sized>(
         has_off_appearance,
         page,
         caption,
+        background,
         rotation,
         border,
         visibility: visibility_of(annot_flags),
@@ -2941,6 +3020,39 @@ fn count_name_tree_node<G: ObjectGraph + ?Sized>(
 mod tests {
     use super::*;
     use crate::document::Document;
+
+    /// `/MK` `/BG` parsing: empty array is a stated "no colour" and NOT the
+    /// same as absent; 1/3/4 components pick the implied device space; CMYK is
+    /// kept as four components (never RGB); a nonconforming count is declined
+    /// rather than invented (`pdfcer-gui` request 2026-09-04).
+    #[test]
+    fn mk_bg_distinguishes_empty_from_absent_and_keeps_cmyk() {
+        use crate::object::Object;
+        let arr = |v: Vec<Object>| Object::Array(v);
+        let num = |x: f64| Object::Real(x);
+
+        // Empty array -> Some(None): present, no colour.
+        assert_eq!(MkColor::from_array(&arr(vec![])), Some(MkColor::None));
+        // 1 component -> Gray.
+        assert_eq!(
+            MkColor::from_array(&arr(vec![num(0.5)])),
+            Some(MkColor::Gray(0.5))
+        );
+        // 3 -> RGB.
+        assert_eq!(
+            MkColor::from_array(&arr(vec![num(1.0), num(1.0), num(0.0)])),
+            Some(MkColor::Rgb(1.0, 1.0, 0.0))
+        );
+        // 4 -> CMYK, kept raw (no RGB flattening).
+        assert_eq!(
+            MkColor::from_array(&arr(vec![num(0.1), num(0.2), num(0.3), num(0.4)])),
+            Some(MkColor::Cmyk(0.1, 0.2, 0.3, 0.4))
+        );
+        // 2 components (nonconforming) -> declined, treated as absent.
+        assert_eq!(MkColor::from_array(&arr(vec![num(0.1), num(0.2)])), None);
+        // Not an array at all -> declined.
+        assert_eq!(MkColor::from_array(&num(0.5)), None);
+    }
 
     /// Assemble a classic-xref PDF from numbered object bodies. Object 1 is
     /// the catalog; the xref is generated from contiguous numbering (gaps
