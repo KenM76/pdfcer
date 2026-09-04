@@ -83,7 +83,7 @@ exclude = [
 # Fields inherited by every member via `<field>.workspace = true`, so the
 # version/edition/MSRV are set in exactly one place.
 [workspace.package]
-version = "0.33.0"
+version = "0.34.0"
 edition = "2024"
 # MSRV (minimum supported Rust version) — docs/ARCHITECTURE.md §2.1a asked
 # for this to be set at Pass 0, and to be re-checked against the candidate
