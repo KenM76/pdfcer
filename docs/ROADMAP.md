@@ -112,6 +112,94 @@ wherever it appears.*
 
 ## Shipped
 
+**★★ 418th filing, 2026-09-04 — `v0.33.0` RESOLVED: IN PROGRESS →
+VERIFIED. The release of `Pass 10.2` (import an installed Acrobat/Reader
+trust store as a trust-anchor source, opt-in), done end to end this
+session — tag, push, CI, GitHub asset, fresh-folder smoke test, OneDrive,
+`verify-release.py`. Release act standing-authorized (decision 121,
+*"always go ahead and push the latest one"*).**
+
+**Sourcing (hard rule 8).** This role had a shell. The git figures below
+are MEASURED here — `git log -1 HEAD` = `origin/main` = **`2d045ef`**
+(full `2d045efdcf2dd5ec4da69cbce36d59079294b2df`; subject *"chore: bump
+version to 0.33.0 for the Pass 10.2 release (Acrobat trust-store
+importer)"*, committed 2026-09-04 12:05:16 -0400); `git log -1 v0.33.0`
+gives the tag at the **same** `2d045ef`; `git status --short` empty
+(working tree carries this filing's own doc edits only); `git log
+--oneline 2d045ef..HEAD` = empty — **the tag is AT `HEAD`**, no commit
+sits ahead of it (as `v0.32.0` was, and unlike `v0.31.0` whose
+NEXT_SESSION regeneration sat one commit ahead — this filing did NOT
+touch `NEXT_SESSION.md`, it is the engineer's). The version-bump commit
+is one ahead of the 417th filing's librarian commit `f824814` (`git log
+--oneline aa27596..2d045ef` = `2d045ef`, `f824814`, `79e259a`,
+`3daface`). The CI/asset/OneDrive/smoke-test/build-folder figures are
+relayed from the engineer's dispatch (produced by the engineer's own
+shell this session), named beside each figure per hard rule 10.
+
+- **Version bump** `0.32.0 → 0.33.0`: commit **`2d045ef`**
+  (`chore: bump version to 0.33.0 for the Pass 10.2 release (Acrobat
+  trust-store importer)`). This is the packaged, tested, CI-green commit
+  the tag points at — the same role `aa27596` played for `v0.32.0` at the
+  416th filing.
+- **Tag** `v0.33.0` → `2d045ef`, pushed to origin.
+- **`origin/main` = `2d045ef`** — equal to both the tag and `HEAD`, so
+  `origin/main` **contains** the tag trivially (they are the same commit),
+  which is what `verify-release.py`'s "origin/main contains the tag" check
+  reads.
+- **CI** run **`33893235706`** at **`2d045ef`** — **GREEN**, at the
+  **tagged commit itself**. ★ **BUT IT TOOK A RE-RUN, and the reason is
+  recorded because it paused the release, not because it was a code
+  failure:** the first attempt's `cargo test (windows-latest)` job failed
+  on a **spurious network timeout fetching the `iccce` git dependency**
+  (three fetch retries all timed out; the `ubuntu` job passed the same
+  commit; nothing in the tree was wrong). `gh run rerun --failed` cleared
+  it to green — a transient-infrastructure red, not a red at the tag that
+  needs an ordering fix (contrast `v0.8.0`'s filing-gate red, which a
+  re-run could not clear). Worth carrying as the shape: a windows-runner
+  git-fetch timeout on `iccce` is retriable, not a signal to hold the
+  release.
+- **GitHub release**
+  https://github.com/KenM76/pdfcer/releases/tag/v0.33.0 — asset
+  `pdfcer-v0.33.0-windows-x64.zip`, **18,401,675 bytes**, SHA-256
+  `f4d90514b4407a647636d2b08e0b830d5041f781732ac500b1c364f53b91cbfb`,
+  plus its `.sha256` sidecar.
+- **Build folder** `D:\builds\pdfcer-20260904-1210-2d045ef` — folder
+  **33,055,812 bytes**; `pdfcer.exe` **20,580,352 bytes**.
+- **Fresh-folder portable smoke test — PASSED.** The build was copied to a
+  clean path and the COPIED `pdfcer.exe` run: `--version` = `0.33.0`;
+  `inspect` healthy; and — unlike `v0.32.0`, whose shipped features had no
+  CLI surface — this release's Pass ships a **new subcommand that the
+  smoke test actually exercised**: the copied binary's **`trust-store-list`
+  read the real installed store — 1780 anchors = 211 AATL / 1576 EUTL / 2
+  ADBE**, with the provisional-`/Trust` and freshness (store-mtime)
+  disclosures printed. So the smoke test confirmed the new capability end
+  to end from the portable binary, not merely that the binary is healthy.
+- **OneDrive**: `deploy-onedrive.py` wrote **`pdfcer1`** = **0.33.0** (5
+  items, 33,054,611 bytes); **`pdfcer2`** = **0.32.0** kept as the previous
+  version — the alternating-slot scheme's guarantee (R229) that a previous
+  version is always available. This release wrote the `pdfcer1` slot (the
+  416th filing's `v0.32.0` had written `pdfcer2`), leaving `v0.32.0` in
+  place as the fallback.
+- **`python tools/verify-release.py v0.33.0` — CLEAN.** Working tree clean;
+  tag exists + pushed + at `HEAD`; `origin/main` contains the tag; GitHub
+  release has an asset; CI green at the tag; OneDrive `pdfcer1` = 0.33.0
+  with 0.32.0 still present.
+- Carries `Pass 10.2` (`pdfcer-core::trust_store` + the `trust-store-list`
+  CLI), shipped at the 417th filing below (Pass code `79e259a`); this entry
+  resolves the release mechanics only, it does not re-describe the feature.
+
+`docs/FEATURES.md`: **no change** — the `Pass 10.2` capability rows (the
+imported-anchors half ticked, the evaluate-a-verdict half `Pass 10.3` still
+`[ ]`) were set at the 417th filing; this entry is release bookkeeping only,
+not a capability change.
+
+**Ledger.** Filings ceiling `417` → **`418`**; Pass ceiling `249.1`
+unchanged — no new Pass, a release-verification entry only (`Pass 10.3`
+remains *Backlog*, unbuilt); decision ceiling `133` unchanged, next free
+`134` (decision 133's Adobe-Reader-EULA-review item stays **open**, gating
+only a future enable-by-default); standing rules ceiling `R241` unchanged,
+next free `R242`; open operator questions: none minted, next free `(ce)`.
+
 **★★★ 417th filing, 2026-09-04 — `Pass 10.2` SHIPPED (`79e259a`): an
 opt-in importer that reads an installed Acrobat/Reader's own trust store
 (`addressbook.acrodata`, PPKLITE) with pdfcer's OWN COS + X.509 code —

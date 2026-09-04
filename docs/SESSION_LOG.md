@@ -91002,3 +91002,74 @@ pdfcer-core` still GUI-dep-free.
 - Operator: the decision-133 **Adobe-Reader-EULA review** is the one open
   item — needed only if/when you want the trust store enabled by default
   rather than opt-in.
+
+## 2026-09-04 (418th filing) — `v0.33.0` RELEASED and VERIFIED: `Pass 10.2` (Acrobat trust-store importer) shipped end to end, IN PROGRESS → VERIFIED
+
+**Shipped:**
+- **`v0.33.0` released and verified** — the release of `Pass 10.2`
+  (import an installed Acrobat/Reader trust store as a trust-anchor
+  source, opt-in; the `pdfcer-core::trust_store` reader + the
+  `trust-store-list` CLI, shipped at the 417th filing, code `79e259a`).
+  Version bump `0.32.0 → 0.33.0` on commit `2d045ef`
+  (`2d045efdcf2dd5ec4da69cbce36d59079294b2df`), which is `HEAD` =
+  `origin/main` = tag `v0.33.0`. Tag pushed. CI run `33893235706` at
+  `2d045ef` — GREEN at the tagged commit itself, **after a re-run** (see
+  Findings). GitHub release published with asset
+  `pdfcer-v0.33.0-windows-x64.zip` (18,401,675 bytes, SHA-256
+  `f4d90514b4407a647636d2b08e0b830d5041f781732ac500b1c364f53b91cbfb`)
+  plus its `.sha256` sidecar. OneDrive `pdfcer1` updated to 0.33.0 (5
+  items, 33,054,611 bytes); `pdfcer2` stays 0.32.0 as the previous
+  version (alternating slots, R229 — this release wrote the `pdfcer1`
+  slot; the 416th filing's `v0.32.0` had written `pdfcer2`). `python
+  tools/verify-release.py v0.33.0` reported clean, every check.
+
+**Decisions made this session:**
+- None minted (decision ceiling `133` unchanged). The release act itself
+  needed no go-ahead — standing-authorized by decision 121 (*"always go
+  ahead and push the latest one"*).
+
+**Findings + decisions:**
+- **The CI green took a RE-RUN, and it was NOT a code failure.** The
+  first CI attempt's `cargo test (windows-latest)` job failed on a
+  **spurious network timeout fetching the `iccce` git dependency** —
+  three fetch retries all timed out; the `ubuntu` job passed the same
+  commit; nothing in the tree was wrong. `gh run rerun --failed` cleared
+  it to green. This is a transient-infrastructure red, not a red at the
+  tag that needs an ordering fix (contrast `v0.8.0`, whose filing-gate
+  red a re-run could not clear). The shape to carry: a windows-runner
+  git-fetch timeout on `iccce` is retriable, not a signal to hold the
+  release.
+- **Fresh-folder portable smoke test PASSED and — unlike `v0.32.0` —
+  actually exercised a NEW subcommand.** The build folder
+  (`D:\builds\pdfcer-20260904-1210-2d045ef`, 33,055,812 bytes;
+  `pdfcer.exe` 20,580,352 bytes) was copied to a clean path and the
+  COPIED binary run: `--version` = 0.33.0; `inspect` healthy; and the new
+  `trust-store-list` **read the real installed store — 1780 anchors = 211
+  AATL / 1576 EUTL / 2 ADBE** — with the provisional-`/Trust` and
+  freshness (store-mtime) disclosures printed. So the portable binary was
+  confirmed to deliver the shipped capability end to end, not merely to
+  be healthy.
+- **Sourcing (hard rule 8):** this role had a shell. The git figures are
+  MEASURED here — `HEAD` = `origin/main` = tag `v0.33.0` = `2d045ef`
+  (subject and 2026-09-04 12:05:16 -0400 date), working tree clean by
+  `git status --short`, `2d045ef..HEAD` empty (the tag is AT `HEAD`), and
+  the bump commit one ahead of the 417th filing's `f824814`. The
+  CI/asset/OneDrive/smoke-test/build-folder figures are relayed from the
+  engineer's dispatch, produced by the engineer's own shell this session.
+- `NEXT_SESSION.md` was NOT touched by this filing — it is engineer-owned.
+
+**Still in flight:**
+- Nothing on the release — `v0.33.0` is fully released and verified.
+  **`Pass 10.3` — evaluate a signer's chain against the imported
+  anchors** remains *Backlog*, NOT built; it turns `Pass 10.1`'s `trust =
+  NotChecked` into a real verdict, gated on signature verification
+  maturing and on the `/Trust` bitfield being pinned (provisional in
+  `Pass 10.2`). No persistent "enable-a-trust-verdict" setting exists yet.
+
+**For next session:**
+- Engineer: no in-flight Pass; `v0.33.0` shipped and verified. Consult
+  `ROADMAP.md` *Next up* / *Backlog* for the next pick (`Pass 10.3` is
+  the natural follow-on but is gated as above).
+- Operator: the decision-133 **Adobe-Reader-EULA review** is the one open
+  item — needed only if/when you want the trust store enabled by default
+  rather than opt-in.
