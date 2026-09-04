@@ -91207,3 +91207,78 @@ relayed from the engineer's dispatch, not re-run here.
 - Operator: the `Pass 250.1` undo-clearing tradeoff (shape 1 in the 419th
   filing) is the one UX/operator call that will surface when it is
   scheduled.
+
+## 2026-09-04 (421st filing) — `Pass 250.1` SHIPPED (`225db51`): apply redactions INTO the `EditSession` (COLLAPSE variant, finalizes/undo cleared, operator ruling recorded, no refuse-guard by design); AND `Pass 250.2` SCOPED to *Backlog* — the undo-preserving deferred variant
+
+**Sourcing (hard rule 8).** Shell available. `225db51` verified by `git
+log -1 225db51` — full `225db51c4576c89261bc30c7e27f69be216871ca`, subject
+*"feat(core): EditSession::apply_redactions -- redaction as a save-committed
+edit (finalizing)"*, committed 2026-09-04 19:28:51 -0400; it **is** `HEAD`
+and `git merge-base --is-ancestor 225db51 HEAD` = yes; `git status --short`
+empty. Test/gate figures relayed from the engineer's dispatch, not re-run
+here.
+
+**Shipped:**
+- **`Pass 250.1`** (`225db51`) — `EditSession::apply_redactions(&mut self)
+  -> Result<RedactionReport, RedactError>` removes marked content INTO the
+  session so SAVE commits it (via `to_incremental_bytes`/`to_full_bytes`),
+  replacing the old write-a-file-now free function `redact::apply_redactions`.
+  **Collapse variant (shape 1):** serialises the session (base + `/Redact`
+  marks + edits) → reloads → runs `redact::apply_redactions` → adopts the
+  redacted bytes as the session's new base with an empty edit/undo stack.
+  **FINALIZES — undo is cleared and cannot be undone**, disclosed via a new
+  `redacted: bool` + `has_applied_redaction()`. `RedactError::Reload` added
+  (enum `#[non_exhaustive]`). Session left UNCHANGED on any error (no
+  half-redaction). Proof `crates/pdfcer-core/tests/redact_into_session.rs`:
+  removed text absent from BOTH incremental and full output, undo cleared,
+  output reopens, apply-with-no-marks refused (`NothingToApply`); 56
+  redaction tests pass. Docs `docs/core-api/02` §1.15; core-api verb count
+  **191 → 193**. `core [x]` · `cli [ ]` · `gui [ ]` (`pdfcer-gui` is the
+  consumer). Origin: `pdfcer-gui` request
+  `open/request_apply_redactions_into_the_session.md`.
+
+**Decisions made this session:**
+- **The operator resolved the 419th filing's design fork toward shape (1),
+  the COLLAPSE variant**, verbatim: *"finalizing the document and can't be
+  undone is ok for now. we'll add the other capability to the roadmap to be
+  done in the future."* Recorded here and in `ROADMAP.md`, **not minted as a
+  decision** (decision ceiling `133` unchanged) — it resolves an existing
+  scoped Pass, it does not set a new architectural invariant.
+
+**Findings + decisions:**
+- **The `R35` refuse-incremental-save guard was DELIBERATELY not built, and
+  that is correct for the collapse variant** — a deviation from the request's
+  literal acceptance criterion 2, recorded so a future reader does not
+  "restore" it. The guard exists to stop a redaction left as a dirty-set edit
+  over the ORIGINAL (un-redacted) base from leaking one `/Prev` hop away on an
+  incremental save. After the collapse there is **no un-redacted base left**
+  — the session's base IS the redacted single-revision full-rewrite bytes —
+  so an incremental append cannot leak and no save mode is refused. The guard
+  becomes owed again only for `Pass 250.2` (shape 2), which leaves the
+  original base in place.
+- **`Pass 250.2` SCOPED to *Backlog* (NOT built)** — "undo-preserving
+  deferred redaction," shape (2): apply the redaction as a deferred dirty-set
+  edit that does NOT collapse the session or clear undo, committed at Save.
+  This is the "other capability" the operator asked to record. It **requires**
+  the `R35` refuse-incremental-save guard (see above) and must solve folding
+  the surgery's foreign-buffer staging spans (`base.len()+local`) into a live
+  session whose marks are in `state`, not `base` — the fragility that made it
+  the harder shape. Cross-references `Pass 250.1` as the shipped simpler
+  variant. Not scheduled.
+
+**Still in flight:**
+- Nothing on `Pass 250.1` — shipped and gate-green (clippy `-D warnings`
+  clean, fmt clean, `check-control-bytes`/`check-public-fns-documented`/
+  `check-string-gaps`/`check-core-api-verbs` green, `wasm32` `pdfcer-core`
+  build succeeds, `cargo tree` GUI-dep-free). `Pass 250.2` is *Backlog*,
+  unbuilt. `v0.34.0` remains the latest release; `Pass 250.1` is unreleased
+  as of this filing.
+
+**For next session:**
+- Engineer: `Pass 250.1` is shipped but not yet released — a release would
+  carry it end to end (standing-authorized, decision 121). `Pass 250.2`
+  (undo-preserving deferred redaction) when picked up needs the `R35`
+  refuse-incremental guard AND the foreign-buffer span fold proven not to
+  leak; recommend a `pdfcer-ui-specialist` pass first.
+- Operator: `Pass 250.2` is the future capability you asked to record; it is
+  filed to *Backlog*, not scheduled.
