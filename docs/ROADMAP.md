@@ -112,6 +112,75 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★ 419th filing, 2026-09-04 — `Pass 250.0` SHIPPED (`5976a00`): every
+selectable page object now carries the optional-content group (layer) it
+was painted under — `oc: Option<ObjId>` on `PathObject`/`TextObject`/
+`ImageObject`, `VectorObject::oc()`, `FormLeaf::oc()`. `core [x]` · `cli
+[ ]` · `gui [ ]` (`pdfcer-gui` is the consumer; no CLI surface yet). And
+`Pass 250.1` SCOPED to *Backlog* — apply redactions INTO the EditSession
+(`EditSession::apply_redactions`), safety-critical, an unresolved design
+fork recorded so the next session picks it up informed; NOT BUILT.**
+
+**Sourcing (hard rule 8).** Shell available. `5976a00` verified by `git
+log -1 5976a00` (full `5976a006021785baa2e2446894bc59646c973216`; subject
+*"feat(core): object -> optional-content-group (layer) membership on
+decompose objects"*, committed 2026-09-04 14:29:03 -0400); it **is** `HEAD`
+(`git log -1 HEAD` = the same hash) and `git merge-base --is-ancestor
+5976a00 HEAD` = yes. All test/gate figures below are **relayed from the
+engineer's dispatch**, not re-run by this role, except the git facts just
+named, which this role ran.
+
+### `Pass 250.0` (`5976a00`, 2026-09-04) — **OBJECT → OPTIONAL-CONTENT-GROUP (LAYER) MEMBERSHIP ON DECOMPOSE: `oc: Option<ObjId>`**
+
+**What shipped** (all in `pdfcer-core`). A selected page object can now be
+asked which optional-content group (layer) it belongs to — the answer
+`pdfcer-gui`'s request `open/request_which_layer_is_this_object_on.md`
+asked for, membership only.
+
+- **The model gains the field.** `PathObject`, `TextObject` and
+  `ImageObject` each carry `oc: Option<ObjId>`; `VectorObject::oc()`
+  returns it, and `FormLeaf::oc()` delegates to the wrapped object.
+- **The `Decomposer` tracks marked content.** A `BDC`/`BMC`/`EMC` stack is
+  maintained during decomposition; on `BDC /OC /Pn` the tag operand `/Pn`
+  is resolved through the resources `/Properties` subdict to the group's
+  `ObjId` — this **mirrors the renderer's existing lookup**, which computed
+  the same id and discarded it. **Membership is recorded; visibility is NOT
+  resolved** — whether the layer is on or off is a separate question this
+  Pass does not answer.
+- **XObjects inherit correctly (§8.11.3.3).** `XObjectResolver` gains
+  `oc_group()` + `xobject_oc()` (both default `None`; `DocumentXObjects`
+  implements them). An XObject painted via `Do` takes its own `/OC` if it
+  has one, else the enclosing `BDC /OC`.
+- **The three non-negotiables from the request are honoured.** "no `/OC`"
+  (`oc == None`) is kept distinct from "unresolvable `BDC /OC`" via a new
+  `DecomposeDiagnostics::oc_unresolved` counter — no default group is ever
+  substituted. An OCMD is left as its own `ObjId` and **never expanded**
+  into member groups.
+- **Deliberately NOT built** (the request said not to): the reverse index
+  (`objects_on_layer` / all-objects-on-a-layer); any visibility filtering.
+
+**Proof.** Test
+`objects_carry_the_optional_content_group_they_were_painted_under`. Gates:
+147 vector tests, plus clippy / fmt / wasm / control-bytes / public-fns /
+core-api all green (relayed from the engineer's dispatch). New public
+surface documented in `docs/core-api/01-reading-and-model.md` §10 (the
+`VectorObject` block).
+
+**Origin.** `pdfcer-gui` request
+`open/request_which_layer_is_this_object_on.md` — the enabling half of a
+GUI capability: *tell the operator which layer a selected object sits on.*
+
+`docs/FEATURES.md`: one new *Implemented* row under *Vector objects
+(Inkscape-style editing)* — "Tell which layer (optional-content group) a
+selected page object is on" → `core [x]` · `cli [ ]` · `gui [ ]` (the GUI
+consumes it) · `Acrobat [x]`.
+
+**Ledger.** Filings ceiling `418` → **`419`**; Pass ceiling `249.1` →
+**`250.1`** (two new Pass IDs minted: `250.0` *Shipped*, `250.1`
+*Backlog*); decision ceiling `133` unchanged, next free `134`; standing
+rules ceiling `R241` unchanged, next free `R242`; open operator questions:
+none minted, next free `(ce)`.
+
 **★★ 418th filing, 2026-09-04 — `v0.33.0` RESOLVED: IN PROGRESS →
 VERIFIED. The release of `Pass 10.2` (import an installed Acrobat/Reader
 trust store as a trust-anchor source, opt-in), done end to end this
@@ -119500,6 +119569,65 @@ nothing gets forgotten, not as a commitment to build in this order.
 > knockout groups) now deposits.** `FEATURES.md`'s *Per-colorant (n-channel)
 > compositing buffer* row narrowed a fifth time to this single remaining
 > scope; no box moves.
+
+### `Pass 250.1` — ★★★ **APPLY REDACTIONS INTO THE `EditSession` — a redaction becomes a DEFERRED edit committed at Save, not a write-a-file-now operation** — filed 2026-09-04 (419th filing), **NOT STARTED** — ★★ **SAFETY-CRITICAL (a leaked redaction is the worst-case bug), and there is an unresolved DESIGN FORK the engineer will not resolve by rushing**
+
+**Status: NOT STARTED.** Origin: `pdfcer-gui` request
+`open/request_apply_redactions_into_the_session.md`. Today redaction is a
+free function `redact::apply_redactions(&Document) -> bytes` — it writes a
+whole new file immediately, outside the session's deferred-edit model. The
+ask is a verb on the session:
+
+```rust
+EditSession::apply_redactions(&mut self) -> Result<RedactionReport, RedactError>
+```
+
+so a redaction lands in the session and is committed at Save by
+`to_incremental_bytes` / `to_full_bytes` like any other edit.
+
+**Acceptance criteria (from the request):**
+
+1. The redaction lands in the session and is committed by
+   `to_incremental_bytes` / `to_full_bytes` like any edit.
+2. **★★★ SAFETY (`R35` / `ARCHITECTURE.md` §5): a redacted session MUST be
+   INCAPABLE of incremental save.** Incremental preserves superseded
+   content, so an incremental save would leave the redacted text
+   recoverable one `/Prev` hop away — the exact leak redaction exists to
+   prevent. The request wants a **sticky flag** that makes
+   `to_incremental_bytes` **refuse by name** (a new `WriteError` variant
+   the caller can match), **NOT** a silent full-rewrite promotion (a
+   silent promotion hides from the caller that the save mode changed).
+3. `RedactionReport` is **unchanged** — especially `redacted_text`, which
+   is the request's absence-proof input.
+4. **Undo:** non-undoable is acceptable **IF disclosed on the type** (clear
+   the undo log, or an irreversible `CommandKind`). A redaction that
+   *appears* undoable but does not restore content is **forbidden**.
+
+**★★ THE DESIGN FORK — recorded so the next session picks it up informed,
+because neither shape is a clean quick win.** Redaction today is built
+from a `DirtySet` plus a staging buffer whose spans are addressed as
+`base.len() + local`. Two implementable shapes:
+
+- **(1) Collapse-to-redacted-base.** Serialize the session (including the
+  `/Redact` marks, which live in the session's own state) → reload →
+  `redact::apply_redactions` → reload the redacted bytes as the session's
+  **new base**; clear state / staging / undo; set a redacted flag. **SAFE**
+  — no un-redacted base remains, so even an incremental save cannot leak —
+  **but** it clears the whole undo log and changes the "deferred dirty-set
+  edit" mental model. The undo-clearing tradeoff is partly a UX/operator
+  call.
+- **(2) Deferred dirty-set + save-guard.** Fold the redaction surgery into
+  the session's dirty set and refuse incremental. **Matches the request's
+  model and preserves undo**, **but** folding the surgery's foreign-buffer
+  staging spans onto the live session — which may already hold staged bytes
+  at different offsets, and whose marks are in `state`, not `base` — is
+  fragile, and that fragility is exactly where the leak risk hides.
+
+**Recommendation:** an engineer + `pdfcer-ui-specialist` pass before
+building (the undo-clearing tradeoff in shape (1) is a UX/operator call).
+**Backlog, not *Next up*** — safety-critical with an open architectural
+choice, not a rush job. `FEATURES.md`: one new *Planned* row under
+*Redaction & security*; no box moves.
 
 ### Unscoped — ★★ A SHADING (`sh`) UNDER A REDACTION MARK IS DISCLOSED BY COUNT, NOT CUT — `Pass 246.1`'s NAMED REMAINDER — filed 2026-09-03 (392nd filing)
 

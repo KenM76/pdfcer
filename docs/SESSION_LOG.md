@@ -91073,3 +91073,72 @@ pdfcer-core` still GUI-dep-free.
 - Operator: the decision-133 **Adobe-Reader-EULA review** is the one open
   item — needed only if/when you want the trust store enabled by default
   rather than opt-in.
+
+## 2026-09-04 (419th filing) — `Pass 250.0` SHIPPED (`5976a00`): object → optional-content-group (layer) membership on decompose; AND `Pass 250.1` SCOPED to *Backlog* — apply redactions into the EditSession, safety-critical, design fork recorded
+
+**Sourcing (hard rule 8).** Shell available. `5976a00` verified by `git
+log -1 5976a00` — full `5976a006021785baa2e2446894bc59646c973216`, subject
+*"feat(core): object -> optional-content-group (layer) membership on
+decompose objects"*, committed 2026-09-04 14:29:03 -0400; it **is** `HEAD`
+and `git merge-base --is-ancestor 5976a00 HEAD` = yes. Test/gate figures
+relayed from the engineer's dispatch, not re-run here.
+
+**Shipped:**
+- **`Pass 250.0`** (`5976a00`) — every selectable page object now carries
+  the optional-content group (layer) it was painted under. `PathObject`/
+  `TextObject`/`ImageObject` gain `oc: Option<ObjId>`; `VectorObject::oc()`
+  and `FormLeaf::oc()` read it. The `Decomposer` tracks a `BDC`/`BMC`/`EMC`
+  stack and resolves `BDC /OC /Pn` through `/Properties` to the group
+  `ObjId` (the lookup the renderer already computed and discarded);
+  `XObjectResolver::oc_group()`/`xobject_oc()` give an XObject its own
+  `/OC` (§8.11.3.3) else the enclosing one. **Membership only — visibility
+  NOT resolved.** `core [x]` · `cli [ ]` · `gui [ ]` (`pdfcer-gui` is the
+  consumer). Origin: `pdfcer-gui` request
+  `open/request_which_layer_is_this_object_on.md`.
+
+**Decisions made this session:**
+- The three request non-negotiables were honoured as *design*, not
+  afterthoughts: (a) `oc == None` kept distinct from an unresolvable
+  `BDC /OC` via a new `DecomposeDiagnostics::oc_unresolved` counter — no
+  default group substituted; (b) an OCMD left as its own `ObjId`, never
+  expanded; (c) visibility deliberately not resolved (membership is a
+  different question and the request asked only for membership). The
+  reverse index (`objects_on_layer`) and any visibility filtering were
+  deliberately not built.
+
+**Findings + decisions:**
+- **`Pass 250.1` SCOPED to *Backlog* (NOT built)** — `EditSession::
+  apply_redactions(&mut self) -> Result<RedactionReport, RedactError>`, so
+  a redaction becomes a deferred edit committed at Save rather than a
+  write-a-file-now free function. Filed to *Backlog*, not *Next up*,
+  because it is **safety-critical** (a leaked redaction is the worst-case
+  bug) and has an unresolved design fork. Acceptance criteria: committed by
+  `to_incremental_bytes`/`to_full_bytes` like any edit; **★ a redacted
+  session MUST be incapable of incremental save** (incremental preserves
+  superseded content → the redacted text survives one `/Prev` hop), via a
+  sticky flag making `to_incremental_bytes` **refuse by name** (a new
+  matchable `WriteError` variant), NOT a silent full-rewrite promotion;
+  `RedactionReport` unchanged; undo non-undoable only if disclosed on the
+  type.
+- **The design fork (recorded for the next session):** (1)
+  collapse-to-redacted-base — serialize → reload → `apply_redactions` →
+  reload the redacted bytes as the new base, clear state/staging/undo, set
+  a redacted flag — SAFE but clears the whole undo log and changes the
+  deferred-edit model; (2) deferred dirty-set + save-guard — fold the
+  surgery into the dirty set and refuse incremental — matches the request's
+  model and preserves undo, but folding the surgery's foreign-buffer
+  staging spans (`base.len()+local`) onto the live session (marks in
+  `state`, not `base`) is fragile and is where the leak risk hides.
+  **Recommend an engineer + `pdfcer-ui-specialist` pass before building**
+  (the undo-clearing tradeoff in (1) is a UX/operator call).
+
+**Still in flight:**
+- Nothing on `Pass 250.0` — shipped and gate-green. `Pass 250.1` is
+  *Backlog*, unbuilt, blocked on the design-fork decision above.
+
+**For next session:**
+- Engineer: `Pass 250.1` (redaction-into-session) when picked up needs the
+  fork resolved with `pdfcer-ui-specialist` first; do not build shape (2)
+  without proving the foreign-buffer span fold cannot leak.
+- Operator: the `Pass 250.1` undo-clearing tradeoff in shape (1) is a
+  UX/operator call that will surface when it is scheduled.
