@@ -112,6 +112,65 @@ wherever it appears.*
 
 ## Shipped
 
+**★★ 411th filing, 2026-09-03 — `v0.30.0` RESOLVED: IN PROGRESS →
+VERIFIED. All figures below are MEASURED from the engineer's own shell,
+not relayed — the 409th/410th filings' relay-only sourcing note no
+longer applies to this entry.**
+
+**Sourcing (hard rule 8).** Engineer had a shell this session; every
+figure below was produced by a command, named beside it, per hard
+rule 10.
+
+- **Tag** `v0.30.0` → `1f9eb1d`.
+- **Pushed with `main`**: `89ba29f..1a31d2d` = `b8fd06d`, `1f9eb1d`,
+  `7830713`, `88f561e`, `1a31d2d` (5 commits); `origin/main` now reads
+  `1a31d2d`.
+- **CI** run `33819555353` at `1a31d2d` — **all ten jobs green**. The
+  tagged commit `1f9eb1d` itself has no run of its own; the four commits
+  after it (`7830713`, `88f561e`, `1a31d2d`, plus this filing's own
+  docs) are non-code, and `tools/verify-release.py` accepted the
+  descendant commit with the note *"no run at the tagged commit; using
+  descendant `1a31d2d`, which differs from the tag only in 4 non-code
+  file(s)"*.
+- **GitHub release**
+  https://github.com/KenM76/pdfcer/releases/tag/v0.30.0 — one asset,
+  `pdfcer-v0.30.0-windows-x64.zip`, **18,398,948 bytes**, SHA-256
+  `835c29b3e1e2120ece53a5580c2ff6cdf640fe3f3a668923018b7b998f2d5cbb`,
+  marked latest.
+- **OneDrive**: `pdfcer2` = 0.30.0 (32,895,886 bytes written;
+  `pdfcer --version` prints `pdfcer 0.30.0`); `pdfcer1` stays at 0.29.1
+  (the alternating-slot deploy, R229). **Deployed only after the
+  cross-target CI jobs had gone green this time** — a deliberate
+  sequencing change from the 406th filing's `v0.29.0` incident (deploy
+  before green CI).
+- **`python tools/verify-release.py v0.30.0`** — clean, every line `ok`.
+- **Backup bundle**: `D:\Dev\pdfce-backups\pdfcer-2026-09-03-1a31d2d-full.bundle`,
+  **55,835,131 bytes**. The prior `49adf4c` bundle deleted, superseded.
+- Carries `Pass 248.3` (native SVG gradients) and `Pass 248.4` (EMF
+  export) — both already described in full in their own filings; this
+  entry resolves the release mechanics only, it does not re-describe
+  the features.
+
+**Correction to the 409th filing's own record** (kept legible, not
+rewritten — see the `★ ANNOTATED 2026-09-03 (411th filing)` note
+inline in that entry below): its claim that
+`D:\builds\pdfcer-20260903-1936-1f9eb1d` "does not exist" was **false**.
+The engineer's shell found it with `ls -d`; the 409th filing's `Glob`
+genuinely returned no match for the same path — the disagreement was
+between two *tools'* visibility into `D:\builds`, not between two
+claims about the world. Named per the corollary to hard rule 10: a
+correction is a claim, and must name its world-source.
+
+`docs/FEATURES.md`: no change — rows for `Pass 248.3`/`248.4` were
+already correct as filed at the 407th/408th filings; this entry is
+release bookkeeping only, not a capability change.
+
+**Ledger.** Filings ceiling `410` → **`411`**; decision ceiling `132`
+unchanged, next free `133`; Pass ceiling `248.4` unchanged — no new
+Pass, a release-verification entry only; standing rules ceiling `R241`
+unchanged, next free `R242`; open operator questions: none minted,
+next free `(ce)`.
+
 **★ 410th filing, 2026-09-03 — `89ba29f`: docs + a lockfile — the 407th
 filing's own commit carried `fuzz/Cargo.lock` beside its three doc files;
 `check-commits-filed.py` classes any commit touching a non-doc path as
@@ -187,6 +246,14 @@ the tag's raw object file, `Cargo.toml`, and `Glob` on `D:\builds\` only; no
   reconciled — a future filing with a shell should resolve whether the
   folder was deleted after zipping, packaged under a different name, or
   never actually written.
+  **★ ANNOTATED 2026-09-03 (411th filing) — this claim was FALSE, and the
+  correction is measured, not relayed: the engineer's own shell ran `ls -d
+  D:\builds\pdfcer-20260903-1936-1f9eb1d` and the folder exists.** This
+  filing's `Glob` genuinely found no match for the same path — the two
+  tools disagree, not the two claims — so the failure was `Glob`'s
+  visibility into `D:\builds`, not the folder's existence. Kept in place
+  rather than deleted, per hard rule 1's append-only discipline; do not
+  re-read the "does not exist" sentence above as current.
 - Everything else the dispatch reported — the fresh-folder smoke test
   (`--version`, EMF export, `shadings_as_gradients=1`, clipboard placement
   order), the cross-target checks (clippy on `x86_64-unknown-linux-gnu` and

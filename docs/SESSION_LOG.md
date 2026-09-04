@@ -90502,3 +90502,42 @@ re-run.
   with `git show --stat 89ba29f`. A future filing with a shell can
   confirm.
 - Operator: nothing pending from this filing.
+
+## 2026-09-03 (411th filing) — `v0.30.0` release RESOLVED: IN PROGRESS → VERIFIED, all figures measured from the engineer's own shell
+
+**Shipped:**
+- Nothing new — this closes out the release mechanics for `v0.30.0`
+  (already carrying `Pass 248.3`/`Pass 248.4`, shipped at the 407th/408th
+  filings). Tag `v0.30.0` (`1f9eb1d`) pushed with `main`
+  (`89ba29f..1a31d2d`); CI run `33819555353` at `1a31d2d` all ten jobs
+  green; GitHub release published with one asset (18,398,948 bytes,
+  SHA-256 `835c29b3e1e2120ece53a5580c2ff6cdf640fe3f3a668923018b7b998f2d5cbb`),
+  marked latest; OneDrive `pdfcer2` updated to 0.30.0 (`pdfcer1` stays
+  0.29.1, alternating slots per R229), deployed only after cross-target
+  CI went green; `tools/verify-release.py v0.30.0` clean; backup bundle
+  `pdfcer-2026-09-03-1a31d2d-full.bundle` (55,835,131 bytes) replaces the
+  superseded `49adf4c` bundle.
+
+**Decisions made this session:**
+- None minted.
+
+**Findings + decisions:**
+- The 409th filing's "packaged folder does not exist" claim was wrong —
+  the folder exists; `Glob` could not see it while the engineer's shell
+  `ls -d` could. Corrected in place in `ROADMAP.md` with a dated
+  annotation, not rewritten, and named per the corollary to hard rule 10
+  (a correction is a claim, and must state its world-source).
+
+**Still in flight:**
+- Nothing — `v0.30.0` is fully released and verified.
+
+**Session-end summary:** the operator's request that opened this
+session (`Pass 248.0`–`248.2`, PNG/JPEG/SVG export + clipboard copy-out)
+is closed in full; both of the operator's "yes"-approved follow-ons
+(`Pass 248.3` native SVG gradients, `Pass 248.4` EMF export) are closed
+in full; `v0.29.1` was released, then `v0.30.0` was released and
+verified. Next up: `Pass 5.4` (encrypt on save).
+
+**For next session:**
+- Engineer: `Pass 5.4` (encrypt on save) is next up.
+- Operator: nothing pending from this filing.
