@@ -112,6 +112,155 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★ 412th filing, 2026-09-03 — `Pass 5.4` SHIPPED (`743830d`): encrypt
+on save, AES-256 `/R` 6 only. All eleven acceptance criteria met.
+`core [x]` · `cli [x]` · `gui [ ]`.**
+
+**Sourcing (hard rule 8).** Shell available to this filing. `743830d`
+verified as `HEAD` by `git log -1 743830d` (subject: *"Pass 5.4: encrypt
+on save — AES-256 /R 6 authoring …"*, committed 2026-09-03 22:21:30
+-0400); working tree clean by `git status --short` (empty). Every test /
+gate figure below is **relayed from the engineer's dispatch**, not
+re-run by this role — recorded as such per the hard-rule-8 discipline.
+
+### `Pass 5.4` (2026-09-03, `743830d`) — **ENCRYPT ON SAVE, AES-256 `/R` 6 ONLY: `set_encryption` · `set_permissions` · `remove_encryption`**
+
+**What shipped.** pdfcer's first write-side encryption. `EditSession`
+gains three verbs that author `/V 5 /R 6 /CFM AESV3` and nothing else —
+no RC4, no `/R` 2–5 authoring, ever (the `pdfcer-gui` requester's ask;
+W14/W17 agree). The read side follows in the same increment: `/R` 6 now
+**parses and decrypts** where it was refusal-only before. Delivered on
+**core** (write side + its read-side consequences) and **cli** (three
+subcommands); **gui is `[ ]`** — the GUI is the separate `D:\dev\pdfcer-gui`
+project, building a read-side security tab (their O108) and consuming
+these verbs when it wires them; not delivered here.
+
+**The eleven acceptance criteria, as met:**
+
+1. **`EditSession::set_encryption(&EncryptionSettings, &SaveOptions)`**
+   writes `/V 5 /R 6 /CFM AESV3` only — Algorithm 2.B (`crypto/r6.rs`),
+   Algorithms 8/9/10 (`crypto/encrypt.rs::build_aes256_r6`). No RC4 /
+   `/R` 2–5 authoring.
+2. **Read side follows:** `/R` 6 now PARSES and decrypts —
+   `standard.rs::authenticate_r5` selects `Hasher::R6` when
+   `revision == 6`. **`EncryptionUnsupported::UnsourcedRevision`
+   RETIRED** — the variant, its `#[error]` string (*"not available in the
+   project's spec corpus"*), its lib test
+   (`r6_is_refused_as_unsourced_before_anything_else_is_read` → rewritten
+   as `r6_parses_like_r5_now_that_algorithm_2b_is_sourced`), and the
+   stale *"unsourced"* doc-comment rows in `crypto/mod.rs`,
+   `crypto/standard.rs`, `crypto/aes.rs`, `crypto/r5.rs`. **This closes
+   the hard-rule-11 `unsourced` / `aes256_r6` survivors the 396th filing
+   recorded as owed to `Pass 5.4`** — the premise correction (Algorithm
+   2.B sourced from the ISO 32000-2 primary since 2026-08-12, but the
+   closure had reached none of pdfcer's own documents) is now made in the
+   code, not merely noted.
+3. **A13 (loop-exit ambiguity) is a SETTING** (`R169`, memory: *make
+   spec ambiguity a setting*) — `A13Reading`, default `PerformThenTest`,
+   threaded through `build_aes256_r6`. An auth failure at `/R` 6 NAMES
+   A13: new `DocError::PasswordRequiredR6` (raised in `document.rs` when
+   `revision == 6`), message cites ISO 32000-2 Algorithm 2.B's loop-exit
+   test. Test: `a_wrong_password_at_r6_names_the_a13_ambiguity`.
+4. **`set_permissions`** — all eight Table 22 bits via
+   `assemble_permissions` (W19: bits 1–2 zero, 7–8/10/13–32 one);
+   `/Perms` per Algorithm 10. Read-side posture (decision 044: reported,
+   never enforced) unchanged.
+5. **`remove_encryption`** — refused BY NAME unless owner
+   (`EncryptError::NotOwner { opened_as: AuthKind }`). Owner-only; a
+   user-authenticated session is told which password would suffice. Test
+   `remove_encryption_is_owner_only`.
+6. **Full-rewrite mode re-serialises EVERY string and stream** through
+   `EncryptingEncoder` (`writer/encoder.rs`, Algorithm 1.A);
+   `writer/save.rs::full_reencode(Option<&EncryptParams>)` →
+   `save_full_encrypted` / `save_full_decrypted`. Clear `/Metadata` (when
+   `/EncryptMetadata false`) and external `/F` streams exempt; the
+   `/Encrypt` dict never encrypted. **A signed document is refused by
+   name** (`EncryptError::SignedDocument`, ETSI EN 319 142-1 §5.5) — so
+   the never-encrypted `/Contents` (N13) case never arises in this cut.
+   Round-trip proof: `what_pdfcer_encrypts_it_reopens_under_both_passwords`.
+7. **Incremental save on an encrypted document — refused by name**
+   (`WriteError::EncryptedSaveUnsupported` stands; the engineer's call
+   between criterion 7's two options, recorded here). The `/R` 6 read
+   side no longer hits that refusal on load — only a save of a
+   still-encrypted base does.
+8. **W20 SASLprep** — UTF-8 + 127-byte truncation only; the gap is
+   DISCLOSED via `EncryptionSettings::SASLPREP_GAP` (CLI prints it when a
+   password is non-ASCII). Read-side posture (decision 045: attempt,
+   never refuse) unchanged.
+9. **CLI** `encrypt` / `set-permissions` / `remove-encryption` each print
+   the permissions notice VERBATIM (*"PDF permissions are a request, not
+   a lock. … Only the password protects the content — and only the user
+   password, which controls opening it."*) — also carried by
+   `EncryptionSettings::PERMISSIONS_DISCLOSURE`. Two surfaces (core
+   const + CLI), one wording.
+10. **Fixtures** verified against **pypdf 6.7.0 BOTH directions** (rule 7,
+    LEGAL §5): pdfcer opens `enc-aes-256-r6.pdf`
+    (`r6_opens_against_an_independent_implementation`); pypdf opens
+    pdfcer's `/R` 6 output with BOTH passwords (decrypt result 1 = user,
+    2 = owner) and rejects a wrong one (0), and reads the decrypted
+    content stream as valid PDF operators (verified manually this
+    session). `enc-aes-256-r6.pdf` is no longer refusal-only.
+11. **Regression:** `an_encrypted_session_still_refuses_a_content_edit`
+    pins that an `EditSession` over an encrypted doc still refuses
+    `add_text` by name (`AddTextError::Encrypted`).
+
+**New public API surface** (`docs/core-api` updated this Pass, §5.5, verb
+count **188 → 191**):
+`EditSession::{set_encryption, set_permissions, remove_encryption}`;
+`edit::EncryptionSettings` (+ `PERMISSIONS_DISCLOSURE`, `SASLPREP_GAP`,
+`new`, `has_non_ascii_password`), `edit::EncryptError`;
+`crypto::encrypt::{build_aes256_r6, assemble_permissions, BuiltEncryption}`,
+`crypto::r6::{hash_2b, A13Reading}`, `crypto::rng::{fill, array, RngError}`,
+`crypto::r5::Hasher`; `crypto::EncryptionConfig::to_encrypt_dict`;
+`writer::{EncryptParams, save_full_encrypted, save_full_decrypted}`;
+`document::DocError::PasswordRequiredR6`.
+
+**Test / invariant results** (relayed from the engineer's dispatch):
+- `tools/run-gates.sh`: **PASS — 29 commands** (incl. 2 filing gates),
+  warm-cache foreground.
+- Encryption integration suite: **30 tests pass**
+  (`crates/pdfcer-core/tests/encryption.rs`); crypto lib tests pass.
+- `cargo fmt --check` clean; `cargo clippy --workspace --all-targets
+  --all-features -- -D warnings` clean.
+- **GUI-core separation intact** — `cargo tree -p pdfcer-core` shows no
+  GUI deps. The one new dependency, `getrandom 0.2` (MIT OR Apache-2.0,
+  permissive), is **target-gated OFF wasm32** and was already in
+  `Cargo.lock` at 0.2.17 (**zero new packages**;
+  `THIRD_PARTY_LICENSES.md` already lists it, no regen needed).
+- **wasm32 crossability intact** — `cargo build -p pdfcer-core --target
+  wasm32-unknown-unknown` succeeds (the `crypto::rng` refusing stub
+  compiles; getrandom absent there). OCR is no longer the only feature
+  that cannot cross into the web fork's concern — encryption crosses too.
+- **Round-trip / minimal-diff:** encryption is the sanctioned W8
+  exception (whole-file re-serialise); a signed doc is refused rather
+  than silently invalidated (`ARCHITECTURE.md` §5.5's either/or, now from
+  the encryption side).
+
+**Still open, carried forward:**
+- **Incremental-save-on-encrypted is refused** (criterion 7's chosen
+  branch), not append-with-existing-key. Revisitable if an operator
+  needs incremental encrypted saves.
+- **GUI verbs** are consumed by the separate `pdfcer-gui` project when it
+  wires them to its O108 read-side security tab; `gui [ ]` on both
+  `FEATURES.md` rows until then.
+- **A13 default** (`PerformThenTest`) is settled for good only by
+  measuring a real Acrobat-written `/R` 6 file ⇒ `C:\personal_rag\pdf\`
+  when one is obtained (criterion 3's residual, unchanged from the
+  Next-up entry).
+
+**`docs/FEATURES.md`:** the *Planned* **"Encrypt a document (AES-256 `/R`
+6 only)…"** row flipped **core `[x]`, cli `[x]`**, gui `[ ]` kept, PDF/A
+`?` kept, re-worded to shipped; the *Implemented* **"Encryption"**
+read-side row corrected — `/R` 6 now READS and WRITES,
+`UnsourcedRevision` retired. Both edited in this filing.
+
+**Ledger.** Filings ceiling `411` → **`412`**; Pass ceiling `248.4`
+unchanged (`Pass 5.4` < the highest ID; a family-`5` increment shipped,
+not a new ceiling); decision ceiling `132` unchanged, next free `133`
+(no new architectural decision — criterion 7's branch choice is recorded
+inline, not minted); standing rules ceiling `R241` unchanged, next free
+`R242`; open operator questions: none minted, next free `(ce)`.
+
 **★★ 411th filing, 2026-09-03 — `v0.30.0` RESOLVED: IN PROGRESS →
 VERIFIED. All figures below are MEASURED from the engineer's own shell,
 not relayed — the 409th/410th filings' relay-only sourcing note no
@@ -107072,7 +107221,26 @@ in the "still open" list. Full build record: this file's own
 > in place. **This closes the operator's two "yes"-approved follow-ons in
 > full.** `Pass 5.4` (below) is next.
 
-### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), **NOT STARTED**
+> ★★★ **`Pass 5.4` SHIPPED and has left this section, 2026-09-03 (412th
+> filing, `743830d`).** Filed here *Next up* by the 396th filing the same
+> day; shipped the last filing of the day. Its full entry — the eleven
+> acceptance criteria as met, the retirement of
+> `EncryptionUnsupported::UnsourcedRevision` (closing the hard-rule-11
+> `unsourced`/`aes256_r6` survivors this entry recorded as owed), A13 as
+> a setting with `DocError::PasswordRequiredR6`, the signed-document
+> refusal (`EncryptError::SignedDocument`), the both-directions pypdf
+> 6.7.0 cross-check, the getrandom-target-gated wasm32 crossability, and
+> the criterion-7 branch choice (incremental-save-on-encrypted refused by
+> name) — is at the **top of *Shipped***. `docs/FEATURES.md`'s *Planned*
+> Encrypt row moved core `[x]` / cli `[x]` (gui `[ ]`), and the
+> *Implemented* Encryption read-side row corrected to READS-and-WRITES.
+> `core [x]` · `cli [x]` · `gui [ ]` — the GUI verbs are the separate
+> `pdfcer-gui` project's O108, wired when it consumes them. No remnant of
+> the entry stays here.
+
+<details><summary>Original <code>Pass 5.4</code> <em>Next up</em> entry (kept for the record — superseded by the <em>Shipped</em> block above)</summary>
+
+### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), ~~**NOT STARTED**~~ **SHIPPED `743830d` — see top of *Shipped***
 
 **★ Sourcing (hard rule 8).** Shell available. The request:
 `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_a_document_cannot_be_encrypted_or_have_its_permissions_set.md`
@@ -107234,6 +107402,8 @@ points, errors and the `docs/core-api/` section).
 `/R` 6 only), set its permission bits, remove encryption"** added this
 filing, unticked; the Encryption row's `/R` 6 clause corrected from
 *unsourced* to *sourced 2026-08-12, not yet built*.
+
+</details>
 
 > ★★★ **`Pass 246.0` SHIPPED and has left this section, 2026-09-03 (391st
 > filing, `194b3a1`).** Filed here by the 390th filing the same day, started

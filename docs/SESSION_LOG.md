@@ -90541,3 +90541,86 @@ verified. Next up: `Pass 5.4` (encrypt on save).
 **For next session:**
 - Engineer: `Pass 5.4` (encrypt on save) is next up.
 - Operator: nothing pending from this filing.
+
+## 2026-09-03 (412th filing) — `Pass 5.4` (`743830d`) SHIPPED — encrypt on save, AES-256 `/R` 6 only (`set_encryption` / `set_permissions` / `remove_encryption`), core + CLI; `/R` 6 now reads AND writes, `UnsourcedRevision` retired; verified against pypdf 6.7.0 both directions
+
+**Shipped:**
+- `Pass 5.4` (`743830d`) — pdfcer's first write-side encryption. Three
+  `EditSession` verbs (`set_encryption`, `set_permissions`,
+  `remove_encryption`) author `/V 5 /R 6 /CFM AESV3` and nothing else
+  (no RC4, no `/R` 2–5 authoring). All **eleven** acceptance criteria
+  met. Boxes: **core `[x]` · cli `[x]` · gui `[ ]`** — the GUI is the
+  separate `D:\dev\pdfcer-gui` project (their O108 read-side security
+  tab), which consumes these verbs when it wires them; not delivered
+  here.
+- Read side follows in the same increment: `/R` 6 now **parses and
+  decrypts** (`standard.rs::authenticate_r5` → `Hasher::R6`), where it
+  was refusal-only before.
+- A13 loop-exit ambiguity is a **setting** (`A13Reading`, default
+  `PerformThenTest`); an auth failure at `/R` 6 names A13 via new
+  `DocError::PasswordRequiredR6`.
+- Full-rewrite encrypt re-serialises every string and stream through
+  `EncryptingEncoder`; a **signed document is refused by name**
+  (`EncryptError::SignedDocument`, ETSI EN 319 142-1 §5.5) rather than
+  silently invalidated; `remove_encryption` is **owner-only**
+  (`EncryptError::NotOwner`).
+- Permissions sentence (*"a request, not a lock"*) printed on **both
+  surfaces** — core const `EncryptionSettings::PERMISSIONS_DISCLOSURE` +
+  CLI `encrypt`/`set-permissions`/`remove-encryption`. SASLprep gap
+  disclosed (`SASLPREP_GAP`; CLI prints it for a non-ASCII password).
+- Fixtures cross-checked against **pypdf 6.7.0 both directions**
+  (`enc-aes-256-r6.pdf` no longer refusal-only); `enc` output opened by
+  pypdf under both passwords, wrong one rejected.
+- Public API: verb count `188 → 191`; new surface incl.
+  `EditSession::{set_encryption, set_permissions, remove_encryption}`,
+  `edit::{EncryptionSettings, EncryptError}`,
+  `crypto::{encrypt::build_aes256_r6, r6::{hash_2b, A13Reading}, rng, r5::Hasher}`,
+  `writer::{EncryptParams, save_full_encrypted, save_full_decrypted}`,
+  `document::DocError::PasswordRequiredR6`.
+
+**Decisions made this session:**
+- None minted (decision ceiling `132` unchanged). Criterion 7's branch
+  choice — **incremental save on an encrypted document is refused by
+  name** (`WriteError::EncryptedSaveUnsupported`), not
+  append-with-existing-key — is the engineer's call, recorded inline in
+  the *Shipped* entry rather than minted as an architectural decision.
+
+**Findings + decisions:**
+- The **hard-rule-11 `unsourced` / `aes256_r6` survivors** the 396th
+  filing recorded as owed to `Pass 5.4` are now CLOSED in code, not just
+  noted: `EncryptionUnsupported::UnsourcedRevision` and its `#[error]`
+  string retired, its lib test renamed
+  (`…refused_as_unsourced…` → `r6_parses_like_r5_now_that_algorithm_2b_is_sourced`),
+  and the stale *"unsourced"* doc-comment rows in `crypto/mod.rs`,
+  `crypto/standard.rs`, `crypto/aes.rs`, `crypto/r5.rs` corrected.
+  Algorithm 2.B had been sourced from the ISO 32000-2 primary since
+  2026-08-12; the closure had reached none of pdfcer's own documents
+  until now.
+- **Invariants intact** (relayed from the engineer's dispatch):
+  `cargo tree -p pdfcer-core` shows no GUI deps; the one new dependency
+  `getrandom 0.2` (MIT OR Apache-2.0) is **target-gated off wasm32** and
+  was already in `Cargo.lock` at 0.2.17 (zero new packages, no
+  `THIRD_PARTY_LICENSES.md` regen); `cargo build -p pdfcer-core --target
+  wasm32-unknown-unknown` succeeds (the `crypto::rng` refusing stub
+  compiles). `tools/run-gates.sh` PASS (29 commands); encryption
+  integration suite 30 tests pass; `cargo fmt --check` + `clippy
+  --workspace --all-targets --all-features -D warnings` clean.
+- **Sourcing (hard rule 8):** this role had a shell; `743830d` verified
+  as `HEAD` by `git log -1`, working tree clean by `git status --short`.
+  The test/gate figures above are relayed from the engineer's dispatch,
+  not re-run.
+
+**Still in flight:**
+- Incremental-save-on-encrypted stays refused (criterion 7's branch),
+  revisitable if an operator needs it.
+- GUI verbs await `pdfcer-gui`'s O108 wiring (`gui [ ]` on both
+  `FEATURES.md` encryption rows until then).
+- A13 default (`PerformThenTest`) is settled for good only by measuring a
+  real Acrobat-written `/R` 6 file ⇒ `C:\personal_rag\pdf\` when one is
+  obtained.
+
+**For next session:**
+- Engineer: `Pass 10.1` and `Pass 5.4` (the two `pdfcer-gui` inbound
+  requests of 2026-09-03) are both shipped; no in-flight Pass. Consult
+  `ROADMAP.md` *Next up* / *Backlog* for the next pick.
+- Operator: nothing pending from this filing.
