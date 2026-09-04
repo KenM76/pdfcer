@@ -112,6 +112,123 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★ 417th filing, 2026-09-04 — `Pass 10.2` SHIPPED (`79e259a`): an
+opt-in importer that reads an installed Acrobat/Reader's own trust store
+(`addressbook.acrodata`, PPKLITE) with pdfcer's OWN COS + X.509 code —
+no Acrobat automation, no network. `core [x]` · `cli [x]` · `gui [ ]`
+(no GUI half; a read-only CLI list and the `pdfcer-core` reader are the
+whole delivery). The trust-anchor HALF of the `trust = NotChecked` gap
+`Pass 10.1` named; `Pass 10.3` (EVALUATE a signer's chain against these
+anchors) STAYS in *Backlog* — it was not built.**
+
+**Sourcing (hard rule 8).** Shell available to this filing. `79e259a`
+verified by `git log -1 79e259a` (subject *"Pass 10.2: import an
+installed Acrobat/Reader trust store as a trust-anchor source
+(opt-in)"*, committed 2026-09-04 11:51:40 -0400); it **is** `HEAD`
+(`git log -1 HEAD` = the same hash) and sits **one commit ahead of** the
+416th filing's librarian commit `3daface` (`git log --oneline
+aa27596..79e259a` = `79e259a` then `3daface`). Working tree carries this
+filing's own doc edits only (`git status --short` empty before them).
+All test/gate/anchor-count figures below are **relayed from the
+engineer's dispatch**, not re-run by this role, per the hard-rule-8
+discipline — except the two git facts just named, which this role ran.
+
+### `Pass 10.2` (`79e259a`, 2026-09-04) — **IMPORT AN INSTALLED ACROBAT/READER TRUST STORE AS A TRUST-ANCHOR SOURCE (opt-in)**
+
+**What shipped.** A read-only importer for an Acrobat/Reader install's
+own certificate address book — the only 1:1 source of the AATL/EUTL
+anchor set an Acrobat verdict would use, since there is no public
+machine-consumable AATL bundle to fetch (decision 133). pdfcer reads the
+store **with its own COS + X.509 stack**, never by driving Acrobat, and
+never over the network.
+
+- **The reader lives in `pdfcer-core::trust_store`.** `lib.rs`'s
+  `probe_cos_header` (a marker-parameterised header sniff) plus
+  `document.rs`'s `Document::from_cos_bytes` (a strict
+  tokenizer / classic-xref / assemble path that accepts `%PPKLITE-` and
+  `%FDF-` headers, no recovery, no password) **reuse the existing COS
+  stack** — one documented header branch, not a second parser. It walks
+  `/Root → /PPK → /AddressBook → /Entries`, keeps `/ABEType 1`
+  (certificate) entries, and decodes each `/Cert` raw DER through the
+  **existing `Pass 10.1` X.509 decoder** (`crate::cms::parse_certificate`
+  — **no new ASN.1**). The two-reference-scheme gotcha is handled:
+  type-2 named-identity groupings (which reference type-1 by `/ID`, not
+  object number) are skipped. A `MAX_ENTRIES` ceiling bounds the walk.
+  Zero GUI dependency; local file read only.
+- **`/Source` filtering** — `SourceFilter::{Aatl, Eutl, Adbe, All}`, with
+  `counts()` reporting the split by source.
+- **New public API surface** (documented this Pass in
+  `docs/core-api/01-reading-and-model.md` §12.5a):
+  `pdfcer_core::trust_store::{TrustAnchor, TrustAnchorSet, SourceFilter,
+  SourceCounts, TrustStoreError, load_from_bytes, load_from_path}`;
+  `Document::from_cos_bytes` (`pub(crate)`); `probe_cos_header`.
+
+**Acceptance criteria — all 8 met.**
+
+1. **`.acrodata`/PPKLITE reader in `pdfcer-core`** — as above; reuses the
+   COS stack and the `Pass 10.1` X.509 decoder, resolves both reference
+   schemes (type-2 skipped), `MAX_ENTRIES` guard, no new ASN.1.
+2. **Filter by `/Source`** — `SourceFilter` + `SourceCounts`.
+3. **`cargo-fuzz` target** — `fuzz/fuzz_targets/trust_store.rs` (compiles;
+   arbitrary bytes never panic), plus the `MAX_ENTRIES` guard as the
+   depth/size bound.
+4/5. **Read-only CLI list subcommand, off by default** — `pdfcer
+   trust-store-list`. It auto-locates
+   `%APPDATA%\Adobe\Acrobat\<track>\Security\addressbook.acrodata` via
+   `env::var` (**no `cfg(windows)`** — cross-target clean), or takes
+   `--file`; `--source` and `--identities` shape the output. It runs only
+   on explicit invocation (the opt-in), and is a **read-only** surface:
+   there is **no persistent "enable-a-verdict" setting yet** — that
+   belongs to `Pass 10.3`.
+6. **Disclosure (rule 4)** — count-by-source, the store file's
+   last-modified time (freshness), an `undecodable` count, and the
+   **provisional-`/Trust` note**: Adobe does not publish the `/Trust`
+   bitfield meanings, so the raw integer is surfaced and **never
+   interpreted** as a category.
+7. **Proof — the real installed store on this machine was read**: **1780
+   anchors = 211 AATL / 1576 EUTL / 2 ADBE / 0 undecodable**, every cert
+   decoded by pdfcer's own X.509 code (integration test
+   `crates/pdfcer-core/tests/trust_store.rs`). The 2024 spec specimen was
+   199 / 1567 / 1; the difference is Acrobat's later refresh — which is
+   exactly why reading the **live** store beats shipping a static bundle.
+   Unit tests cover a synthetic address book (source tags, raw `/Trust`,
+   type-2 skip) and a not-an-address-book refusal.
+8. **OPEN OPERATOR ITEM, carried not resolved** — an **Adobe-Reader-EULA
+   review** gates any future **enable-by-default** (decision 133 §3).
+   This Pass ships **opt-in / off-by-default**, which needs no such
+   review; only flipping the default does.
+
+**Test / invariant results (relayed from the engineer's dispatch).**
+Workspace tests green; `cargo clippy -- -D warnings` clean; `cargo fmt`
+clean; `check-control-bytes`, `check-public-fns-documented` clean;
+`check-core-api-verbs` **PASS** with the verb count **unchanged** (no
+`EditSession` verb added — trust-store reading is not an edit; index.md
+line counts updated). **`wasm32` build of `pdfcer-core` succeeds** — the
+`trust_store` module crosses, its `std::fs` use compiles and is
+unreachable on the viewer target. CLI cross-target (`x86_64-unknown-
+linux-gnu`) `cargo check` clean. Fuzz target compiles. **`cargo tree`
+GUI-dep-free — no new dependencies added** (the reader is built entirely
+on the existing COS + X.509 code).
+
+**`docs/FEATURES.md` this filing:** the single planned row minted at the
+414th filing ("Trust signatures against an installed store … import the
+anchors, then evaluate …") is **split into two** so the reader sees the
+state per half — **(a) "Import an installed Acrobat/Reader trust store
+(opt-in, read-only)"** now `core [x] · cli [x] · gui [ ] · Acrobat [x]`,
+and **(b) "Evaluate a signature's trust against those anchors"** still
+`core [ ] · cli [ ] · gui [ ] · Acrobat [x]` (`Pass 10.3`, *Backlog*).
+Both stay under *Planned* — the overall trust **verdict** is not
+achievable until `Pass 10.3` — with (a)'s shipped halves ticked so the
+plumbing reads as in and the verdict as pending.
+
+**Ledger.** Filings ceiling `416` → **`417`**; Pass ceiling `249.1`
+unchanged (`Pass 10.2` was minted at the 414th filing, this moves it to
+*Shipped* — no new Pass); `Pass 10.3` remains *Backlog*, unbuilt;
+decision ceiling `133` unchanged, next free `134` (decision 133's
+EULA-review item stays **open**, gating only a future enable-by-default);
+standing rules ceiling `R241` unchanged, next free `R242`; open operator
+questions: none minted, next free `(ce)`.
+
 **★★ 416th filing, 2026-09-04 — `v0.32.0` RESOLVED: IN PROGRESS →
 VERIFIED. The release of `Pass 249.0` (`text_edit::{RefusalKind,
 RefusalClass}`) and `Pass 249.1` (`forms::Widget::background` / `MkColor`),
@@ -125851,7 +125968,7 @@ added. See that section below.
   the user's own address book — see the two headed entries immediately
   below, then the Encryption bullet resumes.
 
-#### `Pass 10.2` — **IMPORT AN INSTALLED ACROBAT/READER TRUST STORE AS A TRUST-ANCHOR SOURCE (opt-in)** — filed 2026-09-04 (414th filing), *Backlog*, NOT STARTED
+#### `Pass 10.2` — **IMPORT AN INSTALLED ACROBAT/READER TRUST STORE AS A TRUST-ANCHOR SOURCE (opt-in)** — filed 2026-09-04 (414th filing), ~~*Backlog*, NOT STARTED~~ **SHIPPED `79e259a` (417th filing) — see top of *Shipped***
 
 Self-contained; needs nothing from `Pass 10.3`. Fills the trust-anchor
 half of the gap `Pass 10.1` left when it shipped `trust = NotChecked`.

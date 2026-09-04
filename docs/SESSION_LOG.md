@@ -90928,3 +90928,77 @@ pdfcer-core` still GUI-dep-free.
 - Engineer: no in-flight Pass; `v0.32.0` shipped and verified. Consult
   `ROADMAP.md` *Next up* / *Backlog* for the next pick.
 - Operator: nothing pending from this filing.
+
+## 2026-09-04 (417th filing) — `Pass 10.2` SHIPPED (`79e259a`): an opt-in importer for an installed Acrobat/Reader trust store, proven by reading the real 1780-anchor store
+
+**Shipped:**
+- **`Pass 10.2` — import an installed Acrobat/Reader trust store as a
+  trust-anchor source (opt-in).** `pdfcer-core::trust_store` reads the
+  user's own `addressbook.acrodata` (PPKLITE) **with pdfcer's own COS +
+  X.509 code** — no Acrobat automation, no network. `probe_cos_header`
+  (marker-parameterised header sniff) + `Document::from_cos_bytes`
+  (strict tokenizer / classic-xref path accepting `%PPKLITE-`/`%FDF-`)
+  reuse the existing COS stack; the walk `/Root → /PPK → /AddressBook →
+  /Entries` keeps `/ABEType 1` entries and decodes each `/Cert` through
+  the **existing `Pass 10.1` X.509 decoder** (`cms::parse_certificate`,
+  no new ASN.1); type-2 groupings skipped (two-reference-scheme gotcha),
+  `MAX_ENTRIES` ceiling. `SourceFilter::{Aatl,Eutl,Adbe,All}` +
+  `SourceCounts`. CLI `pdfcer trust-store-list` — read-only, off by
+  default, auto-locates the store via `env::var` (no `cfg(windows)`) or
+  `--file`. New public API: `pdfcer_core::trust_store::{TrustAnchor,
+  TrustAnchorSet, SourceFilter, SourceCounts, TrustStoreError,
+  load_from_bytes, load_from_path}`; `Document::from_cos_bytes`
+  (`pub(crate)`); `probe_cos_header`. Documented in
+  `docs/core-api/01-reading-and-model.md` §12.5a. Commit `79e259a` (=
+  `HEAD`, one ahead of the 416th filing's `3daface`).
+
+**Decisions made this session:**
+- None minted (decision ceiling `133` unchanged). Decision 133's
+  **Adobe-Reader-EULA-review item stays OPEN** — it gates only a future
+  **enable-by-default**; this Pass ships opt-in / off-by-default, which
+  needs no such review. Carried, not resolved.
+
+**Findings + decisions:**
+- **Proof the importer works on real data:** the integration test read
+  the **actual installed store on this machine — 1780 anchors = 211 AATL
+  / 1576 EUTL / 2 ADBE / 0 undecodable**, every cert decoded by pdfcer's
+  own X.509 code. The 2024 spec specimen was 199 / 1567 / 1; the delta is
+  Acrobat's later refresh, which is exactly why reading the live store
+  beats a static bundle. Unit tests: synthetic address book (source tags,
+  raw `/Trust`, type-2 skip) + not-an-address-book refusal.
+- **Disclosure (rule 4):** count-by-source + store mtime (freshness) +
+  `undecodable` count + the **provisional-`/Trust` note** — Adobe does
+  not publish the `/Trust` bitfield meanings, so the raw integer is
+  surfaced and never interpreted as a category.
+- **Invariants (relayed from the engineer's dispatch):** workspace tests
+  green; clippy `-D warnings` / fmt / `check-control-bytes` /
+  `check-public-fns-documented` clean; `check-core-api-verbs` PASS with
+  the verb count **unchanged** (trust-store reading is not an
+  `EditSession` verb); **`wasm32` build of `pdfcer-core` succeeds** (the
+  module crosses; `std::fs` compiles, unreachable on the viewer); CLI
+  cross-target (`x86_64-unknown-linux-gnu`) `cargo check` clean; fuzz
+  target `fuzz/fuzz_targets/trust_store.rs` compiles; **`cargo tree`
+  GUI-dep-free — no new dependencies**.
+- **Sourcing (hard rule 8):** this role had a shell; the git facts
+  (`79e259a` = `HEAD`, subject and date, one commit ahead of `3daface`,
+  clean tree) were MEASURED here. All test/gate/anchor-count figures are
+  relayed from the engineer's dispatch.
+
+**Still in flight:**
+- **`Pass 10.3` — evaluate a signer's chain against the imported
+  anchors** — remains *Backlog*, NOT built. It turns `Pass 10.1`'s
+  `trust = NotChecked` into a real verdict; depends on `Pass 10.2` (now
+  shipped) AND on signature verification maturing. The `/Trust` bitfield
+  decoding (provisional in `Pass 10.2`) must be pinned before
+  fine-grained usage gating.
+- No persistent "enable-a-trust-verdict" setting exists yet — `Pass 10.2`
+  is a read-only list surface only; the enable machinery belongs to
+  `Pass 10.3`.
+
+**For next session:**
+- Engineer: no in-flight Pass. `Pass 10.3` is the natural follow-on but
+  is gated on verification maturing; consult `ROADMAP.md` *Next up* /
+  *Backlog* for the next pick.
+- Operator: the decision-133 **Adobe-Reader-EULA review** is the one open
+  item — needed only if/when you want the trust store enabled by default
+  rather than opt-in.
