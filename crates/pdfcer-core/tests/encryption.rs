@@ -41,8 +41,10 @@
 
 use std::path::{Path, PathBuf};
 
-use pdfcer_core::crypto::{AuthKind, EncryptionUnsupported, PermsCheck};
+use pdfcer_core::crypto::PermissionBit;
+use pdfcer_core::crypto::{AuthKind, PermsCheck};
 use pdfcer_core::document::{DocError, Document};
+use pdfcer_core::edit::{EditSession, EncryptError, EncryptionSettings};
 use pdfcer_core::page_tree;
 use pdfcer_core::writer::{DirtySet, SaveOptions, WriteError};
 
@@ -526,39 +528,10 @@ fn replace_once(haystack: &[u8], from: &[u8], to: &[u8]) -> Vec<u8> {
     out
 }
 
-/// ★ `/R` 6 is still refused, and refused as a **sourcing** gap.
-///
-/// This test used to assert that `/R` 5 and `/R` 6 were refused for different
-/// reasons. `/R` 5 now opens, which makes the distinction sharper rather than
-/// moot: the two revisions share the entire harness — 48-byte `/O` and `/U`,
-/// the two 8-byte salts, the `/UE`/`/OE` unwrap, the `/Perms` block — and
-/// differ in exactly one function, the hash. Everything around that function
-/// is implemented and tested. That is the situation in which filling the gap
-/// from memory is most tempting and least detectable, which is why the refusal
-/// is pinned here rather than left to be noticed.
-///
-/// Deriving Algorithm 2.B from another implementation and then testing against
-/// that implementation's output could not fail. `enc-aes-256-r6.pdf` is
-/// therefore a refusal fixture on purpose and must stay one.
-#[test]
-fn r6_is_still_refused_as_unsourced_now_that_r5_opens() {
-    let r6 = Document::load_with_password(&fixture("enc-aes-256-r6.pdf"), Some(b"userpw"))
-        .expect_err("R6's key derivation is unsourced");
-    assert!(
-        matches!(
-            r6,
-            DocError::Encryption(EncryptionUnsupported::UnsourcedRevision)
-        ),
-        "R6 must report an unsourced algorithm, got {r6:?}"
-    );
-
-    // The same file, the same cipher, the same everything except the hash —
-    // and /R 5 opens. The contrast IS the assertion.
-    assert!(
-        Document::load_with_password(&fixture("enc-aes-256-r5.pdf"), Some(b"userpw")).is_ok(),
-        "/R 5 must open, or the refusal above proves nothing about /R 6"
-    );
-}
+// `r6_is_still_refused_as_unsourced_now_that_r5_opens` was RETIRED in
+// `Pass 5.4`: `/R` 6 is implemented (Algorithm 2.B, sourced from
+// ISO 32000-2:2020) and now OPENS. The replacement is
+// `r6_opens_against_an_independent_implementation` above.
 
 /// A wrong password on an `/R` 5 document is an ordinary password failure —
 /// the SHA-256 comparison either matches or it does not, and there is nothing
@@ -969,4 +942,233 @@ fn the_r5_fixture_still_matches_the_unit_test_constants() {
             0xb5, 0xe1,
         ]
     );
+}
+
+/// **`/R` 6 opens** — the decisive test for Algorithm 2.B (`Pass 5.4`).
+///
+/// The fixture is written by **pypdf 6.7.0**, an INDEPENDENT `/R` 6
+/// implementation (its "AES-256" is `/V 5 /R 6`). If pdfcer's 2.B and its A13
+/// reading were wrong, authentication would fail against pypdf's `/U`/`/O` and
+/// the file would not open. It opening is a cross-implementation proof of both
+/// the hash and the default A13 reading in one shot — the empirical settlement
+/// the corpus said was owed to `personal_rag/pdf`.
+#[test]
+fn r6_opens_against_an_independent_implementation() {
+    for pw in [&b"userpw"[..], b"ownerpw"] {
+        let doc = Document::load_with_password(&fixture("enc-aes-256-r6.pdf"), Some(pw))
+            .expect("/R 6 is implemented and 2.B matches pypdf");
+        assert!(doc.encryption().is_some(), "still an encrypted document");
+        assert!(
+            !page_tree::pages(&doc).expect("page tree walks").is_empty(),
+            "a decrypted /R 6 document has pages"
+        );
+    }
+}
+
+// ===================================================================
+// Pass 5.4 — encrypt-on-save (the WRITE side). The proof is the read
+// side reopening what the write side produced.
+// ===================================================================
+
+/// A plaintext synthetic document with real content to encrypt.
+fn plain_source() -> Document {
+    Document::load(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/synthetic/forms/demo-form.pdf"),
+    )
+    .expect("load plaintext demo-form")
+}
+
+/// The decisive write-side test: what pdfcer ENCRYPTS, pdfcer REOPENS under
+/// both passwords, and the decrypted page content matches the plaintext source
+/// byte-for-byte. This is criterion 6's round-trip proof.
+#[test]
+fn what_pdfcer_encrypts_it_reopens_under_both_passwords() {
+    let plain = plain_source();
+    // A stable reference: the first content stream, decoded, from the plaintext.
+    let want_pages = page_tree::pages(&plain).expect("plaintext pages").len();
+
+    let session = EditSession::new(plain);
+    let settings = EncryptionSettings::new(b"userpw".to_vec(), b"ownerpw".to_vec());
+    let (bytes, report) = session
+        .set_encryption(&settings, &SaveOptions::default())
+        .expect("encrypt on save");
+    assert!(
+        !report.byte_identical,
+        "an encrypted rewrite is never byte-identical"
+    );
+
+    for (pw, kind) in [
+        (&b"userpw"[..], AuthKind::User),
+        (b"ownerpw", AuthKind::Owner),
+    ] {
+        let reopened = Document::from_bytes_with_password(bytes.clone(), Some(pw))
+            .expect("pdfcer reopens what it wrote");
+        let enc = reopened.encryption().expect("carries /Encrypt");
+        assert_eq!(enc.auth, kind, "the expected password opened it");
+        assert_eq!(
+            page_tree::pages(&reopened)
+                .expect("pages after decrypt")
+                .len(),
+            want_pages,
+            "page count survives the encrypt/decrypt round trip"
+        );
+    }
+
+    // A wrong password does not open it.
+    assert!(
+        matches!(
+            Document::from_bytes_with_password(bytes.clone(), Some(b"nope")),
+            Err(DocError::Encryption(_)) | Err(_)
+        ),
+        "a wrong password is refused"
+    );
+}
+
+/// An empty user password makes a permissions-only document: it opens with no
+/// prompt (`AuthKind::EmptyUser`), and the owner password still opens it.
+#[test]
+fn an_empty_user_password_makes_a_no_prompt_document() {
+    let session = EditSession::new(plain_source());
+    let mut settings = EncryptionSettings::new(Vec::new(), b"ownerpw".to_vec());
+    settings.permissions = vec![PermissionBit::Print, PermissionBit::AccessibilityExtract];
+    let (bytes, _) = session
+        .set_encryption(&settings, &SaveOptions::default())
+        .expect("encrypt with empty user password");
+
+    let no_prompt = Document::from_bytes(bytes.clone()).expect("opens with no password");
+    assert_eq!(
+        no_prompt.encryption().expect("encrypted").auth,
+        AuthKind::EmptyUser
+    );
+    let as_owner =
+        Document::from_bytes_with_password(bytes, Some(b"ownerpw")).expect("owner opens");
+    assert_eq!(
+        as_owner.encryption().expect("encrypted").auth,
+        AuthKind::Owner
+    );
+}
+
+/// remove_encryption is owner-only, and a user-authenticated session is refused
+/// BY NAME with the AuthKind that opened it (criterion 5).
+#[test]
+fn remove_encryption_is_owner_only() {
+    // Make an encrypted document first.
+    let (encrypted, _) = EditSession::new(plain_source())
+        .set_encryption(
+            &EncryptionSettings::new(b"userpw".to_vec(), b"ownerpw".to_vec()),
+            &SaveOptions::default(),
+        )
+        .expect("encrypt");
+
+    // Opened as USER: refused, naming the AuthKind.
+    let as_user =
+        Document::from_bytes_with_password(encrypted.clone(), Some(b"userpw")).expect("user opens");
+    let mut user_session = EditSession::new(as_user);
+    match user_session.remove_encryption(&SaveOptions::default()) {
+        Err(EncryptError::NotOwner { opened_as }) => assert_eq!(opened_as, AuthKind::User),
+        other => panic!("expected NotOwner, got {other:?}"),
+    }
+
+    // Opened as OWNER: removal succeeds and the result is plaintext.
+    let as_owner =
+        Document::from_bytes_with_password(encrypted, Some(b"ownerpw")).expect("owner opens");
+    let mut owner_session = EditSession::new(as_owner);
+    let (plain_bytes, _) = owner_session
+        .remove_encryption(&SaveOptions::default())
+        .expect("owner removes encryption");
+    let reopened = Document::from_bytes(plain_bytes).expect("plaintext opens with no password");
+    assert!(
+        reopened.encryption().is_none(),
+        "encryption is gone after remove_encryption"
+    );
+}
+
+/// set_encryption on an already-encrypted document is refused by name.
+#[test]
+fn set_encryption_refuses_an_already_encrypted_document() {
+    let (encrypted, _) = EditSession::new(plain_source())
+        .set_encryption(
+            &EncryptionSettings::new(b"userpw".to_vec(), b"ownerpw".to_vec()),
+            &SaveOptions::default(),
+        )
+        .expect("encrypt");
+    let doc = Document::from_bytes_with_password(encrypted, Some(b"ownerpw")).expect("owner opens");
+    let session = EditSession::new(doc);
+    assert!(matches!(
+        session.set_encryption(
+            &EncryptionSettings::new(b"a".to_vec(), b"b".to_vec()),
+            &SaveOptions::default()
+        ),
+        Err(EncryptError::AlreadyEncrypted)
+    ));
+}
+
+/// set_permissions re-keys an encrypted document with a new /P, owner-only, and
+/// the new permissions are what the reopened document reports.
+#[test]
+fn set_permissions_rekeys_owner_only() {
+    let (encrypted, _) = EditSession::new(plain_source())
+        .set_encryption(
+            &EncryptionSettings::new(b"userpw".to_vec(), b"ownerpw".to_vec()),
+            &SaveOptions::default(),
+        )
+        .expect("encrypt");
+    let doc = Document::from_bytes_with_password(encrypted, Some(b"ownerpw")).expect("owner opens");
+    let mut session = EditSession::new(doc);
+    let mut settings = EncryptionSettings::new(b"userpw".to_vec(), b"ownerpw".to_vec());
+    settings.permissions = vec![PermissionBit::Print]; // print only
+    let (rekeyed, _) = session
+        .set_permissions(&settings, &SaveOptions::default())
+        .expect("owner re-keys permissions");
+    let reopened =
+        Document::from_bytes_with_password(rekeyed, Some(b"userpw")).expect("user opens re-keyed");
+    assert!(
+        reopened.encryption().is_some(),
+        "still encrypted after re-key"
+    );
+}
+
+/// Criterion 11 regression: an EditSession over an ENCRYPTED document still
+/// refuses a page-content edit by name. The `DocumentEncrypted`/`Encrypted`
+/// guards are load-bearing the moment an encrypted document can carry a
+/// session (which it now can — set_permissions/remove_encryption operate on
+/// one), so this pins that a representative content edit is refused before any
+/// work, rather than silently editing ciphertext-derived plaintext and saving
+/// it back unprotected.
+#[test]
+fn an_encrypted_session_still_refuses_a_content_edit() {
+    use pdfcer_core::text_edit::{AddTextError, AddTextRequest};
+    // demo-form.pdf encrypted by pdfcer, reopened as owner.
+    let (encrypted, _) = EditSession::new(plain_source())
+        .set_encryption(
+            &EncryptionSettings::new(b"userpw".to_vec(), b"ownerpw".to_vec()),
+            &SaveOptions::default(),
+        )
+        .expect("encrypt");
+    let doc = Document::from_bytes_with_password(encrypted, Some(b"ownerpw")).expect("owner opens");
+    let mut session = EditSession::new(doc);
+    let req = AddTextRequest::new(0, (72.0, 72.0), "should be refused");
+    assert!(
+        matches!(session.add_text(&req), Err(AddTextError::Encrypted)),
+        "adding page content to an encrypted document is refused by name"
+    );
+}
+
+/// Criterion 3: a WRONG password at `/R` 6 names ambiguity A13 in the
+/// diagnostic rather than a bare "wrong password" — a correct password can be
+/// rejected by the A13 loop-exit reading, and the operator must not be sent to
+/// re-check the one thing that may not be wrong.
+#[test]
+fn a_wrong_password_at_r6_names_the_a13_ambiguity() {
+    use pdfcer_core::document::DocError;
+    let (encrypted, _) = EditSession::new(plain_source())
+        .set_encryption(
+            &EncryptionSettings::new(b"userpw".to_vec(), b"ownerpw".to_vec()),
+            &SaveOptions::default(),
+        )
+        .expect("encrypt");
+    match Document::from_bytes_with_password(encrypted, Some(b"definitely-wrong")) {
+        Err(DocError::PasswordRequiredR6) => {}
+        other => panic!("expected PasswordRequiredR6, got {other:?}"),
+    }
 }

@@ -38,10 +38,10 @@
 //!
 //! | Configuration | Why refused |
 //! |---|---|
-//! | `/R` 6 (at any `/V`) | Algorithm 2.B is **unsourced** past step (a). It is `/R` 5's harness with 2.B substituted for SHA-256, so the missing piece is exactly one function — and deriving it from another implementation, then testing against that implementation, could not fail |
+//! | `/R` 6 (at any `/V`) | **Reads AND writes** (`Pass 5.4`). It is `/R` 5's harness with Algorithm 2.B substituted for SHA-256 at [`crate::crypto::r5::Hasher`]; 2.B was sourced from the ISO 32000-2:2020 primary (2026-08-12), and the write side ([`crate::crypto::encrypt`]) produces `/R` 6 files verified against pypdf |
 //! | `/V 0`, `/V 3` | `/V 3` is an *unpublished* algorithm that "shall not appear in a conforming PDF file"; `/V 0` is undocumented. Nobody can open these |
 //! | `/Filter` ≠ `/Standard` | Public-key and third-party handlers |
-//! | **Writing** any encrypted document | Not implemented in either direction. `/R` 5 is additionally forbidden as a write target: ISO 32000-2 §7.6.4.1 deprecates handler revisions 1–5, so the only non-deprecated AES-256 revision is the one that is unsourced (**W17**) |
+//! | **Writing** an encrypted document | **AES-256 `/R` 6 only** (`Pass 5.4`, [`crate::crypto::encrypt`]). RC4 and `/R` 2–5 are never written: ISO 32000-2 §7.6.4.1 deprecates handler revisions 1–5, and `/R` 6 is the only non-deprecated AES-256 revision (**W17**, W14) |
 //!
 //! A refusal names the configuration rather than saying "encrypted files are
 //! not supported", because those are very different facts to an operator
@@ -95,7 +95,7 @@ use crate::crypto::aes::{KEY_LEN_256, decrypt_cbc_128, decrypt_cbc_256};
 use crate::crypto::md5::{Md5, md5};
 use crate::crypto::r5::{self, OE_UE_LEN, OU_LEN, PERMS_LEN, PermsCheck, PreparedPassword};
 use crate::crypto::rc4::rc4;
-use crate::object::{Dict, ObjId, Object};
+use crate::object::{Dict, Name, ObjId, Object};
 
 /// The 32-byte padding string, ISO 32000-1 §7.6.3.3 (Algorithm 2 step (a)).
 ///
@@ -163,21 +163,6 @@ pub enum EncryptionUnsupported {
     )]
     CipherNotImplemented(&'static str),
 
-    /// `/R` 6's Algorithm 2.B is not sourced in the project's spec corpus
-    /// past step (a), so an implementation would be guesswork.
-    ///
-    /// Distinguished from `/R` 5 in the message on purpose, and the
-    /// distinction survived increment 3 becoming *more* pointed rather than
-    /// less: `/R` 5 is now **implemented**, so the two revisions no longer
-    /// differ by "written" versus "not written" but by "sourced" versus "not
-    /// sourced". The remaining gap is one function — the hash — and everything
-    /// around it already works, which is exactly the situation in which
-    /// guessing is most tempting and least detectable.
-    #[error(
-        "/R 6 (AES-256, hardened) cannot be implemented: its key-derivation algorithm is not available in the project's spec corpus"
-    )]
-    UnsourcedRevision,
-
     /// `/CFM` outside the four names Table 25 defines.
     ///
     /// Table 25 puts a `shall` on the *diagnostic* here, unusually:
@@ -218,9 +203,9 @@ pub enum Cipher {
     /// [`FileKey::object_key`] short-circuits on `/V` ≥ 5 before it looks at
     /// the cipher at all.
     ///
-    /// `/R` 6 also selects `/AESV3` and is still refused, but never gets this
-    /// far: the refusal is on the *revision*, in [`EncryptionConfig::parse`],
-    /// because the gap is in the key derivation and not in the cipher.
+    /// `/R` 6 also selects `/AESV3` and reaches the same cipher — it shares
+    /// this whole path with `/R` 5, differing only in the hash ([`r5::Hasher`],
+    /// Algorithm 2.B for `Pass 5.4`), never in the cipher.
     Aes256,
 }
 
@@ -493,6 +478,82 @@ pub struct Aes256Keys {
 }
 
 impl EncryptionConfig {
+    /// Serialise this configuration back into a `/Encrypt` dictionary value
+    /// (`Pass 5.4`, the write-side inverse of [`EncryptionConfig::parse`]).
+    ///
+    /// Emits exactly the entries [`parse`](EncryptionConfig::parse) reads and
+    /// nothing decorative: `/Filter /Standard`, `/V`, `/R`, `/Length` (bits),
+    /// signed `/P`, the byte-string `/O`/`/U`/`/OE`/`/UE`/`/Perms`, a `/CF`
+    /// with a single `/StdCF` naming `/CFM /AESV3`, and `/StmF`/`/StrF` both
+    /// `/StdCF`. `/EncryptMetadata` is written whenever it is `false` (its
+    /// default is `true`, §7.6.2 Table 21), so a `true` document stays
+    /// minimal.
+    ///
+    /// # Panics
+    ///
+    /// Only for a config with no [`Aes256Keys`] — an internal invariant of the
+    /// `/V 5` writer, never reachable from a parsed `/R` ≤ 4 config because
+    /// this Pass builds only `/V 5` configs. The `expect` documents that.
+    #[must_use]
+    #[allow(clippy::expect_used)] // documented panic (C-FAILURE); see `# Panics`
+    pub fn to_encrypt_dict(&self) -> Object {
+        let keys = self
+            .aes256
+            .as_ref()
+            .expect("to_encrypt_dict is only called on a /V 5 config built by the encryptor");
+
+        let mut stdcf = Dict::new();
+        stdcf.insert(Name(b"CFM".to_vec()), Object::Name(Name(b"AESV3".to_vec())));
+        stdcf.insert(
+            Name(b"AuthEvent".to_vec()),
+            Object::Name(Name(b"DocOpen".to_vec())),
+        );
+        // Table 26: /Length in a crypt filter is BYTES (32), distinct from the
+        // top-level /Length which is BITS (256).
+        stdcf.insert(Name(b"Length".to_vec()), Object::Integer(32));
+        let mut cf = Dict::new();
+        cf.insert(Name(b"StdCF".to_vec()), Object::Dict(stdcf));
+
+        let mut d = Dict::new();
+        d.insert(
+            Name(b"Filter".to_vec()),
+            Object::Name(Name(b"Standard".to_vec())),
+        );
+        d.insert(Name(b"V".to_vec()), Object::Integer(self.version));
+        d.insert(
+            Name(b"R".to_vec()),
+            Object::Integer(i64::from(self.revision)),
+        );
+        #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+        d.insert(
+            Name(b"Length".to_vec()),
+            Object::Integer((self.key_len as i64) * 8),
+        );
+        #[allow(clippy::cast_possible_wrap)]
+        d.insert(
+            Name(b"P".to_vec()),
+            Object::Integer(i64::from(self.p as i32)),
+        );
+        d.insert(Name(b"CF".to_vec()), Object::Dict(cf));
+        d.insert(
+            Name(b"StmF".to_vec()),
+            Object::Name(Name(b"StdCF".to_vec())),
+        );
+        d.insert(
+            Name(b"StrF".to_vec()),
+            Object::Name(Name(b"StdCF".to_vec())),
+        );
+        d.insert(Name(b"O".to_vec()), Object::String(self.o.clone()));
+        d.insert(Name(b"U".to_vec()), Object::String(self.u.clone()));
+        d.insert(Name(b"OE".to_vec()), Object::String(keys.oe.to_vec()));
+        d.insert(Name(b"UE".to_vec()), Object::String(keys.ue.to_vec()));
+        d.insert(Name(b"Perms".to_vec()), Object::String(keys.perms.to_vec()));
+        if !self.encrypt_metadata {
+            d.insert(Name(b"EncryptMetadata".to_vec()), Object::Boolean(false));
+        }
+        Object::Dict(d)
+    }
+
     /// Parse an `/Encrypt` dictionary, refusing anything not implemented.
     ///
     /// `resolve` looks up an indirect reference, because `/O`, `/U` and the
@@ -563,15 +624,15 @@ impl EncryptionConfig {
         // and the document would get all the way to a key derivation that
         // cannot be written. Refusing here keeps the diagnostic pointed at the
         // real cause.
-        if revision == 6 {
-            return Err(EncryptionUnsupported::UnsourcedRevision);
-        }
+        // `/R` 6 is implemented since `Pass 5.4`; it shares the whole `/R` 5
+        // AES-256 harness and differs only in the hash (Algorithm 2.B), which
+        // `crypto::r5::Hasher` selects by revision. So it is NOT refused here.
         // `/V` and `/R` are not independent: Table 3.19 says `/R` is 5 "if the
         // document is encrypted with a /V value of 5", and Table 3.18 says
         // `/V` 5 uses Algorithm 3.1a. A document claiming one without the
         // other has no stated reading (N6), and guessing which half to believe
         // would pick a key derivation on a coin flip.
-        let is_r5 = revision == 5;
+        let is_r5 = revision == 5 || revision == 6;
         if is_r5 != (version == 5) {
             return Err(EncryptionUnsupported::Malformed(
                 "/R 5 and /V 5 must appear together",
@@ -787,7 +848,10 @@ impl EncryptionConfig {
     /// `/R` 5 are checked for agreement in [`Self::parse`] and cannot
     /// disagree afterwards.
     fn is_r5(&self) -> bool {
-        self.revision == 5
+        // True for BOTH /R 5 and /R 6 (`Pass 5.4`): they share the AES-256
+        // /V5 harness and differ only in the hash. The name is kept for
+        // continuity; read it as "the /V5 AES-256 path".
+        self.revision == 5 || self.revision == 6
     }
 
     /// The permissions the document's author declared.
@@ -966,11 +1030,16 @@ impl EncryptionConfig {
         let o: &[u8; OU_LEN] = self.o.as_slice().try_into().ok()?;
         let u: &[u8; OU_LEN] = self.u.as_slice().try_into().ok()?;
         let prepared = PreparedPassword::new(password);
+        // `/R` 5 hashes with SHA-256; `/R` 6 substitutes Algorithm 2.B at the
+        // A13 reading pdfcer defaults to. Nothing else about the path differs.
+        let hasher = if self.revision == 6 {
+            r5::Hasher::R6(crate::crypto::r6::A13Reading::default())
+        } else {
+            r5::Hasher::Sha256
+        };
 
-        if r5::authenticates_as_user(&prepared, u) {
-            let key = r5::file_key_from_user_password(&prepared, u, &keys.ue)?;
-            // The empty user password is the no-prompt case (§7.6.3.1), and it
-            // is a distinct AuthKind at every revision, not only at /R <= 4.
+        if r5::authenticates_as_user(&prepared, u, hasher) {
+            let key = r5::file_key_from_user_password(&prepared, u, &keys.ue, hasher)?;
             let kind = if password.is_empty() {
                 AuthKind::EmptyUser
             } else {
@@ -978,8 +1047,8 @@ impl EncryptionConfig {
             };
             return Some((key.to_vec(), kind));
         }
-        if r5::authenticates_as_owner(&prepared, o, u) {
-            let key = r5::file_key_from_owner_password(&prepared, o, u, &keys.oe)?;
+        if r5::authenticates_as_owner(&prepared, o, u, hasher) {
+            let key = r5::file_key_from_owner_password(&prepared, o, u, &keys.oe, hasher)?;
             return Some((key.to_vec(), AuthKind::Owner));
         }
         None
@@ -1134,6 +1203,17 @@ pub struct FileKey {
 }
 
 impl FileKey {
+    /// The raw file encryption key bytes.
+    ///
+    /// **Secret.** Exposed so the writer's encrypting encoder (`Pass 5.4`) can
+    /// use the key at `/V` 5 (where the object key IS the file key, T24), and
+    /// so a round-trip test can prove the key written into `/UE`/`/OE` is the
+    /// one recovered on load.
+    #[must_use]
+    pub fn raw_key(&self) -> &[u8] {
+        &self.key
+    }
+
     /// Algorithm 1 — the per-object key for object `id`.
     ///
     /// Two traps, both in the byte layout:
@@ -1607,35 +1687,31 @@ mod tests {
         );
     }
 
-    /// `/R` 6 is refused as **unsourced**, and the refusal happens on the
-    /// revision — before `/O`'s length, `/CFM` or anything else is examined.
-    ///
-    /// This test used to assert that `/R` 5 and `/R` 6 were refused for
-    /// different reasons. `/R` 5 now parses, which makes the point sharper:
-    /// the two share every structure and differ only in a hash function, so
-    /// the refusal has to be pinned somewhere or it becomes a one-line
-    /// temptation.
+    /// `/R` 6 PARSES (`Pass 5.4`, criterion 2). It used to be refused as
+    /// "unsourced"; Algorithm 2.B was sourced from the ISO 32000-2 primary on
+    /// 2026-08-12, `/R` 6 now decrypts through `/R` 5's harness with 2.B
+    /// substituted, and the write side produces `/R` 6 files, so a refusal
+    /// here would make a document pdfcer WROTE unopenable. It shares every
+    /// structural check with `/R` 5 (identical dictionary shape), differing
+    /// only in the hash at authentication time.
     #[test]
-    fn r6_is_refused_as_unsourced_before_anything_else_is_read() {
+    fn r6_parses_like_r5_now_that_algorithm_2b_is_sourced() {
         let r6 = r5_encrypt(vec![("R", Object::Integer(6))]);
-        assert_eq!(
-            EncryptionConfig::parse(&r6, &nothing).unwrap_err(),
-            EncryptionUnsupported::UnsourcedRevision
-        );
+        let cfg = EncryptionConfig::parse(&r6, &nothing).expect("/R 6 parses");
+        assert_eq!(cfg.revision, 6);
+        assert_eq!(cfg.stream_cipher, Cipher::Aes256);
 
-        // Even with everything else about the dictionary malformed, the
-        // diagnostic still names the revision -- a document whose real problem
-        // is /R 6 must not be reported as a broken /O.
+        // The structural checks it shares with /R 5 still bite: a /R 6
+        // dictionary missing /UE is malformed the same way a /R 5 one is,
+        // and is NOT waved through as "unsupported revision".
         let mut broken = r5_encrypt(vec![("R", Object::Integer(6))]);
-        broken.remove(b"O");
         broken.remove(b"UE");
-        assert_eq!(
-            EncryptionConfig::parse(&broken, &nothing).unwrap_err(),
-            EncryptionUnsupported::UnsourcedRevision
+        assert!(
+            EncryptionConfig::parse(&broken, &nothing).is_err(),
+            "a structurally broken /R 6 dictionary is still refused"
         );
 
-        // And /R 5 parses, so the refusal above is about the revision rather
-        // than about the shape of the fixture.
+        // And /R 5 parses, as before.
         assert!(EncryptionConfig::parse(&r5_encrypt(vec![]), &nothing).is_ok());
     }
 

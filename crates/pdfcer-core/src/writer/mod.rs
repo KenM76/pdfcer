@@ -162,8 +162,11 @@ pub mod xref_out;
 
 use std::collections::BTreeMap;
 
-pub use encoder::{IdentityEncoder, ObjectEncoder};
-pub use save::{SaveReport, save_full, save_incremental};
+pub use encoder::{EncryptingEncoder, IdentityEncoder, ObjectEncoder};
+pub use save::{
+    EncryptParams, SaveReport, save_full, save_full_decrypted, save_full_encrypted,
+    save_incremental,
+};
 pub use xref_out::XrefOutError;
 
 use crate::object::{Dict, Name, ObjId, Object};

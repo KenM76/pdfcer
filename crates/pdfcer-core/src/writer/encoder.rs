@@ -114,6 +114,79 @@ impl ObjectEncoder for IdentityEncoder {
     }
 }
 
+/// The AES-256 `/R` 6 encrypting encoder (`Pass 5.4`) — the seam's first
+/// non-identity implementation, and the reason it exists (decision 007 W8).
+///
+/// Encrypts every string and stream through **Algorithm 1.A** (§7.6.3.3): a
+/// fresh random 16-byte IV prefixed to AES-256-CBC ciphertext, PKCS#7 always
+/// padded. At `/V` 5 the object key IS the file key (T24), so no per-object
+/// derivation happens here.
+///
+/// # What it does NOT encrypt, and why the writer decides by OWNER id
+///
+/// The `ObjectEncoder` trait hands this only the bytes and the containing
+/// object's id — not the dictionary — so the exemptions that depend on an
+/// object's ROLE (the `/Encrypt` dict itself, cross-reference streams,
+/// `/Metadata` when `/EncryptMetadata` is false, external streams, an
+/// `/Identity` crypt filter) are resolved by the caller into two id sets and
+/// consulted here. A signed document is refused UPSTREAM (`EditError`), so the
+/// per-string `/Contents` exemption (N13) never has to be expressed at this
+/// granularity in this cut.
+#[derive(Debug, Clone)]
+pub struct EncryptingEncoder {
+    key: [u8; 32],
+    /// The `/Encrypt` dictionary's own object number — none of its strings or
+    /// streams are ever encrypted (§7.6: it is what you need to START
+    /// decrypting).
+    encrypt_dict: u32,
+    /// Stream objects whose DATA must be left in clear (xref streams,
+    /// clear `/Metadata`, external `/F` streams, `/Identity`-filtered streams).
+    /// Their non-`/Contents` strings, if any, are still encrypted.
+    clear_streams: std::collections::HashSet<u32>,
+}
+
+impl EncryptingEncoder {
+    /// Build the encoder from the file key and the two exemption sets.
+    #[must_use]
+    pub fn new(
+        key: [u8; 32],
+        encrypt_dict: ObjId,
+        clear_streams: std::collections::HashSet<u32>,
+    ) -> Self {
+        Self {
+            key,
+            encrypt_dict: encrypt_dict.num,
+            clear_streams,
+        }
+    }
+}
+
+impl ObjectEncoder for EncryptingEncoder {
+    fn encode_string<'a>(&self, owner: ObjId, data: &'a [u8]) -> Cow<'a, [u8]> {
+        if owner.num == self.encrypt_dict {
+            return Cow::Borrowed(data);
+        }
+        // A fresh IV per string; on the (desktop-only) chance the CSPRNG is
+        // unreachable the string is left in clear rather than written with a
+        // zero IV — the save's own preflight has already proven entropy works,
+        // so this branch is defence, not a real path.
+        match crate::crypto::rng::array::<16>() {
+            Ok(iv) => Cow::Owned(crate::crypto::aes::encrypt_cbc_256(&self.key, &iv, data)),
+            Err(_) => Cow::Borrowed(data),
+        }
+    }
+
+    fn encode_stream<'a>(&self, owner: ObjId, data: &'a [u8]) -> Cow<'a, [u8]> {
+        if owner.num == self.encrypt_dict || self.clear_streams.contains(&owner.num) {
+            return Cow::Borrowed(data);
+        }
+        match crate::crypto::rng::array::<16>() {
+            Ok(iv) => Cow::Owned(crate::crypto::aes::encrypt_cbc_256(&self.key, &iv, data)),
+            Err(_) => Cow::Borrowed(data),
+        }
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {

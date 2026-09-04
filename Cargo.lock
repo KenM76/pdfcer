@@ -694,6 +694,7 @@ dependencies = [
  "brotli",
  "cbc",
  "flate2",
+ "getrandom",
  "hayro-ccitt",
  "hayro-jbig2",
  "hayro-jpeg2000",

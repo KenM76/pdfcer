@@ -4596,6 +4596,124 @@ pub struct MarkupStyleChange {
     pub dropped: Vec<DroppedProperty>,
 }
 
+/// What to encrypt with, for [`EditSession::set_encryption`] /
+/// [`EditSession::set_permissions`] (`Pass 5.4`).
+///
+/// AES-256 `/R` 6 is the only scheme pdfcer authors (the requester's explicit
+/// ask, W17's `shall not`), so this struct carries no cipher/revision choice —
+/// only the passwords, the granted permission bits, and the two settings the
+/// standard leaves open (`/EncryptMetadata`, and the A13 loop-exit reading).
+///
+/// # Passwords
+///
+/// Raw bytes. An empty `user_password` makes a **permissions-only** document
+/// (it opens with no prompt but the `/P` bits still ride along). The
+/// `owner_password` should differ from the user password; nothing here
+/// enforces that, because the standard does not.
+///
+/// SASLprep (W20) is **not** applied — passwords go through UTF-8 + 127-byte
+/// truncation only. For ASCII passwords this is exact; for non-ASCII it can
+/// disagree with a SASLprep-correct reader. [`EncryptionSettings::SASLPREP_GAP`]
+/// is the disclosure the shells surface (rule 4).
+#[derive(Debug, Clone)]
+pub struct EncryptionSettings {
+    /// The user password (opens the document; `/P`-limited access). Empty for a
+    /// permissions-only document.
+    pub user_password: Vec<u8>,
+    /// The owner password (full access regardless of `/P`).
+    pub owner_password: Vec<u8>,
+    /// The permission bits to GRANT. Bits not listed are denied; the mandatory
+    /// reserved bits (W19) are set by the builder regardless.
+    pub permissions: Vec<crate::crypto::PermissionBit>,
+    /// `/EncryptMetadata` (§7.6.2 Table 21). `true` encrypts the `/Metadata`
+    /// stream along with everything else; `false` leaves it in clear so a
+    /// search indexer can read it.
+    pub encrypt_metadata: bool,
+    /// The A13 loop-exit reading for Algorithm 2.B. The default
+    /// ([`A13Reading::PerformThenTest`](crate::crypto::r6::A13Reading::PerformThenTest))
+    /// is the only interoperable choice — it is what pdfcer's own reader
+    /// authenticates with and what pypdf/Acrobat write — so production callers
+    /// leave it at the default; it is a field only because A13 is a genuine
+    /// spec ambiguity (`R169`).
+    pub a13: crate::crypto::r6::A13Reading,
+}
+
+impl EncryptionSettings {
+    /// The permissions disclosure the shells surface, verbatim (rule 4,
+    /// criterion 9). Two surfaces (this struct and the CLI) carry one wording.
+    pub const PERMISSIONS_DISCLOSURE: &'static str = "PDF permissions are a request, not a lock. A conforming reader honours them; any program that ignores the flag can print, copy or change this document freely. Only the password protects the content -- and only the user password, which controls opening it.";
+
+    /// The SASLprep-gap disclosure (W20). Surfaced when a password contains
+    /// non-ASCII bytes, so an operator knows why a SASLprep-correct reader
+    /// might disagree.
+    pub const SASLPREP_GAP: &'static str = "Passwords are applied as UTF-8 truncated to 127 bytes, not full RFC 4013 SASLprep. ASCII passwords are handled exactly; a password with non-ASCII characters may not match a reader that applies SASLprep.";
+
+    /// A convenience constructor granting **every** permission (the most
+    /// permissive `/P`), leaving metadata encrypted and A13 at its default.
+    #[must_use]
+    pub fn new(user_password: Vec<u8>, owner_password: Vec<u8>) -> Self {
+        Self {
+            user_password,
+            owner_password,
+            permissions: crate::crypto::PermissionBit::all().to_vec(),
+            encrypt_metadata: true,
+            a13: crate::crypto::r6::A13Reading::default(),
+        }
+    }
+
+    /// Whether either password carries a non-ASCII byte, i.e. whether
+    /// [`SASLPREP_GAP`](Self::SASLPREP_GAP) is worth disclosing.
+    #[must_use]
+    pub fn has_non_ascii_password(&self) -> bool {
+        !self.user_password.is_ascii() || !self.owner_password.is_ascii()
+    }
+}
+
+/// Why an encryption-authoring operation could not be performed (`Pass 5.4`).
+///
+/// Each variant names a condition the operator or calling front end can act
+/// on — never a silent failure and never a catch-all.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum EncryptError {
+    /// [`EditSession::set_encryption`] on a document that already carries an
+    /// `/Encrypt` dictionary. Re-encryption is
+    /// [`remove_encryption`](EditSession::remove_encryption) then
+    /// [`set_encryption`](EditSession::set_encryption), or
+    /// [`set_permissions`](EditSession::set_permissions) to re-key in one step.
+    #[error(
+        "the document is already encrypted; remove encryption first, or use set_permissions to re-key"
+    )]
+    AlreadyEncrypted,
+    /// A permissions/removal verb on a document that is not encrypted.
+    #[error("the document is not encrypted")]
+    NotEncrypted,
+    /// A permissions/removal verb on a session that was not opened with the
+    /// OWNER password. Carries the [`AuthKind`](crate::crypto::AuthKind) that
+    /// DID open it, so the caller can tell the operator which password is
+    /// needed before the control is pressed.
+    #[error("this operation requires the owner password; the document was opened as {opened_as:?}")]
+    NotOwner {
+        /// Which password opened the document.
+        opened_as: crate::crypto::AuthKind,
+    },
+    /// Encrypting a signed document would re-encrypt every byte its
+    /// signature(s) covered and so break them by construction (ETSI EN 319
+    /// 142-1 §5.5). Refused by name rather than silently invalidating.
+    #[error(
+        "the document carries a digital signature; encrypting it would re-encrypt the signed bytes and break the signature (ETSI EN 319 142-1 5.5)"
+    )]
+    SignedDocument,
+    /// The OS cryptographically-strong RNG was unreachable, so a strong file
+    /// key / salts / IVs could not be generated. Never on a desktop target; a
+    /// weak key is never substituted.
+    #[error(transparent)]
+    Rng(crate::crypto::rng::RngError),
+    /// An underlying writer error (e.g. a hybrid-reference input, R33).
+    #[error(transparent)]
+    Write(WriteError),
+}
+
 /// Why an edit could not be performed.
 ///
 /// Every variant names a condition the operator (or the calling front
@@ -8226,6 +8344,199 @@ impl EditSession {
         options: &SaveOptions,
     ) -> Result<(Vec<u8>, SaveReport), WriteError> {
         crate::writer::save_full(&self.base, &self.dirty_set(), options)
+    }
+
+    // -- encryption authoring (Pass 5.4, ISO 32000-2:2020 §7.6) -------
+
+    /// Encrypt the document on save with AES-256 `/R` 6 (`Pass 5.4`).
+    ///
+    /// This is a **save transform**, not an undoable edit: it does not mutate
+    /// the session (encryption is a whole-document property applied at write
+    /// time, exactly like [`to_full_bytes`](Self::to_full_bytes) is a whole-
+    /// document rewrite). It returns the encrypted bytes; the session's own
+    /// edits are applied first, then every string and stream — theirs and the
+    /// base document's — is re-serialised through the encrypting encoder
+    /// (`ARCHITECTURE.md` §5, decision 007 W8: encryption is the sanctioned
+    /// exception to minimal-diff, because it touches every object).
+    ///
+    /// Only `/V 5 /R 6 /CFM AESV3` is written — no RC4, no `/R` 2–4, no `/R` 5
+    /// authoring, by the requester's explicit ask and W17's `shall not`.
+    ///
+    /// # Fuzzy-never-sneaky (rule 4)
+    ///
+    /// `/P` permission bits are a REQUEST, not a lock. The caller is expected
+    /// to surface [`EncryptionSettings::permissions_disclosure`] — the CLI
+    /// prints it. Non-ASCII passwords go through UTF-8 + 127-byte truncation
+    /// only, NOT full RFC 4013 SASLprep (W20); the gap is disclosed by
+    /// [`EncryptionSettings::saslprep_gap`].
+    ///
+    /// # Errors
+    ///
+    /// - [`EncryptError::AlreadyEncrypted`] — the document already carries an
+    ///   `/Encrypt` dictionary; re-encryption is decrypt-then-encrypt, which
+    ///   is [`remove_encryption`](Self::remove_encryption) followed by this.
+    /// - [`EncryptError::SignedDocument`] — a full-rewrite encrypt re-encrypts
+    ///   every byte a signature covered and so **breaks every prior signature
+    ///   by construction** (ETSI EN 319 142-1 §5.5). Refused by name rather
+    ///   than silently invalidating, the same posture redaction takes
+    ///   (`ARCHITECTURE.md` §5.5).
+    /// - [`EncryptError::Rng`] — the OS CSPRNG was unreachable (never on a
+    ///   desktop target; a weak key is never substituted).
+    /// - [`EncryptError::Write`] — an underlying [`WriteError`] (e.g. a hybrid
+    ///   input, R33).
+    pub fn set_encryption(
+        &self,
+        settings: &EncryptionSettings,
+        options: &SaveOptions,
+    ) -> Result<(Vec<u8>, SaveReport), EncryptError> {
+        if self.base.encryption().is_some() {
+            return Err(EncryptError::AlreadyEncrypted);
+        }
+        if self.signature_census().any() {
+            return Err(EncryptError::SignedDocument);
+        }
+        let permissions = crate::crypto::encrypt::assemble_permissions(&settings.permissions);
+        let built = crate::crypto::encrypt::build_aes256_r6(
+            &settings.user_password,
+            &settings.owner_password,
+            permissions,
+            settings.encrypt_metadata,
+            settings.a13,
+        )
+        .map_err(EncryptError::Rng)?;
+
+        let encrypt_dict = ObjId::new(self.encrypt_dict_number(), 0);
+        let id0 = crate::crypto::rng::array::<16>().map_err(EncryptError::Rng)?;
+        let id1 = crate::crypto::rng::array::<16>().map_err(EncryptError::Rng)?;
+        let params = crate::writer::EncryptParams {
+            file_key: built.file_key,
+            encrypt_dict,
+            encrypt_dict_value: built.config.to_encrypt_dict(),
+            file_id: [id0.to_vec(), id1.to_vec()],
+            encrypt_metadata: settings.encrypt_metadata,
+        };
+        crate::writer::save_full_encrypted(&self.base, &self.dirty_set(), options, &params)
+            .map_err(EncryptError::Write)
+    }
+
+    /// Rewrite the currently-encrypted document with a NEW `/P` permission set
+    /// and (optionally) new passwords, keeping it AES-256 `/R` 6 (`Pass 5.4`,
+    /// criterion 4).
+    ///
+    /// Setting permission bits on a `/V 5` document means re-deriving `/O`,
+    /// `/U`, `/OE`, `/UE` and `/Perms` — `/P` is bound into `/Perms` (Algorithm
+    /// 10) and cannot be edited in place — so this is a fresh full encrypt
+    /// under a fresh file key. It is therefore **owner-only**: only an owner-
+    /// authenticated session may re-key the document.
+    ///
+    /// The in-memory objects are already plaintext (the read side decrypted
+    /// them on load), so the base is treated as plaintext and re-encrypted.
+    ///
+    /// # Errors
+    ///
+    /// - [`EncryptError::NotEncrypted`] — the document is not encrypted; use
+    ///   [`set_encryption`](Self::set_encryption).
+    /// - [`EncryptError::NotOwner`] — the session was not opened with the owner
+    ///   password. Carries the [`AuthKind`] that DID open it, so the caller can
+    ///   tell the operator which password is needed BEFORE the control is
+    ///   pressed (the reply's ask to `pdfceGUI`).
+    /// - [`EncryptError::SignedDocument`], [`EncryptError::Rng`],
+    ///   [`EncryptError::Write`] — as [`set_encryption`](Self::set_encryption).
+    pub fn set_permissions(
+        &mut self,
+        settings: &EncryptionSettings,
+        options: &SaveOptions,
+    ) -> Result<(Vec<u8>, SaveReport), EncryptError> {
+        match self.base.encryption() {
+            None => return Err(EncryptError::NotEncrypted),
+            Some(enc) => {
+                if enc.auth != crate::crypto::AuthKind::Owner {
+                    return Err(EncryptError::NotOwner {
+                        opened_as: enc.auth,
+                    });
+                }
+            }
+        }
+        if self.signature_census().any() {
+            return Err(EncryptError::SignedDocument);
+        }
+        let permissions = crate::crypto::encrypt::assemble_permissions(&settings.permissions);
+        let built = crate::crypto::encrypt::build_aes256_r6(
+            &settings.user_password,
+            &settings.owner_password,
+            permissions,
+            settings.encrypt_metadata,
+            settings.a13,
+        )
+        .map_err(EncryptError::Rng)?;
+
+        let encrypt_dict = ObjId::new(self.encrypt_dict_number(), 0);
+        let id0 = crate::crypto::rng::array::<16>().map_err(EncryptError::Rng)?;
+        let id1 = crate::crypto::rng::array::<16>().map_err(EncryptError::Rng)?;
+        let params = crate::writer::EncryptParams {
+            file_key: built.file_key,
+            encrypt_dict,
+            encrypt_dict_value: built.config.to_encrypt_dict(),
+            file_id: [id0.to_vec(), id1.to_vec()],
+            encrypt_metadata: settings.encrypt_metadata,
+        };
+        // The base's objects and buffer are ALREADY decrypted in memory
+        // (decrypt-in-place at load); dropping the `/Encrypt` field makes the
+        // base a genuine plaintext document, so save_full_encrypted's
+        // "already encrypted, refuse" guard is correct to pass.
+        self.base.clear_encryption();
+        crate::writer::save_full_encrypted(&self.base, &self.dirty_set(), options, &params)
+            .map_err(EncryptError::Write)
+    }
+
+    /// Remove encryption, writing a plaintext full rewrite (`Pass 5.4`,
+    /// criterion 5).
+    ///
+    /// **Owner-only.** A user-authenticated session is refused by name with the
+    /// [`AuthKind`] that opened it, so the caller can say which password would
+    /// have sufficed. The document's objects are already plaintext in memory
+    /// (decrypted on load); this simply rewrites them with no `/Encrypt` and no
+    /// `/ID`-mandate, i.e. an ordinary [`to_full_bytes`](Self::to_full_bytes)
+    /// over a decrypted view.
+    ///
+    /// # Errors
+    ///
+    /// - [`EncryptError::NotEncrypted`] — nothing to remove.
+    /// - [`EncryptError::NotOwner`] — see above.
+    /// - [`EncryptError::Write`] — an underlying [`WriteError`].
+    pub fn remove_encryption(
+        &mut self,
+        options: &SaveOptions,
+    ) -> Result<(Vec<u8>, SaveReport), EncryptError> {
+        match self.base.encryption() {
+            None => return Err(EncryptError::NotEncrypted),
+            Some(enc) => {
+                if enc.auth != crate::crypto::AuthKind::Owner {
+                    return Err(EncryptError::NotOwner {
+                        opened_as: enc.auth,
+                    });
+                }
+            }
+        }
+        // Objects are already plaintext in memory; dropping `/Encrypt` from
+        // BOTH the base trailer and this session's working trailer turns the
+        // document plaintext. Clearing only the base would leave the session
+        // trailer carrying `/Encrypt`, which the save-time trailer diff would
+        // then re-add as an operator change — exactly the drift the dirty set
+        // computes against the base to avoid.
+        self.base.clear_encryption();
+        self.trailer.remove(b"Encrypt");
+        crate::writer::save_full_decrypted(&self.base, &self.dirty_set(), options)
+            .map_err(EncryptError::Write)
+    }
+
+    /// The object number a fresh `/Encrypt` dictionary is allocated at: one
+    /// past the highest number the base file defines or the session created.
+    fn encrypt_dict_number(&self) -> u32 {
+        let base_max = self.base.xref().iter().map(|(n, _)| n).max().unwrap_or(0);
+        let state_max = self.state.keys().map(|id| id.num).max().unwrap_or(0);
+        let del_max = self.deleted.iter().map(|id| id.num).max().unwrap_or(0);
+        base_max.max(state_max).max(del_max).saturating_add(1)
     }
 
     // -- in-place page-text editing (Pass 14.3 §0.2) ------------------

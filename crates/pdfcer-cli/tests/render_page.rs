@@ -900,26 +900,40 @@ fn capability_gap_refusal_is_honest_and_distinguishable_from_corruption() {
         dir.join("never.png").to_str().unwrap(),
     ]);
 
-    assert_eq!(code(&out), 1, "an unsupported structure is a runtime error");
+    assert_eq!(
+        code(&out),
+        1,
+        "a password-protected file with no password is a runtime error"
+    );
     let err = stderr(&out);
     assert!(
-        err.contains("AES-256"),
-        "the refusal must name WHICH cipher is involved — 'encrypted files are \
-         unsupported' is now false, and a vague message would teach the \
-         operator something untrue: {err:?}"
-    );
-    assert!(
-        err.contains("/R 6") && err.contains("not available"),
-        "the refusal must say the ALGORITHM is unavailable, not that pdfcer has \
-         not got round to it — those resolve differently: {err:?}"
+        err.contains("password"),
+        "the refusal must say a PASSWORD is needed — /R 6 is SUPPORTED now \
+         (Pass 5.4), so a 'not available' message would teach the operator \
+         something untrue: {err:?}"
     );
     assert_eq!(stdout(&out), "");
 
-    // ★ And the contrast, in the same test: the /R 5 file, same cipher, same
-    // dictionary shape, differing only in the hash function, RENDERS. Without
-    // this line the refusal above would be consistent with pdfcer having no
-    // AES-256 support at all, which is what the assertion is trying not to
-    // say.
+    // ★ The same /R 6 file RENDERS with the owner password — Pass 5.4 made /R 6
+    // a supported revision in both directions, so the refusal above is about a
+    // missing PASSWORD, not a missing algorithm.
+    let ok_r6 = run(&[
+        "--open-password",
+        "ownerpw",
+        "render-page",
+        pdf.to_str().unwrap(),
+        "-o",
+        dir.join("r6.png").to_str().unwrap(),
+    ]);
+    assert_eq!(
+        code(&ok_r6),
+        0,
+        "/R 6 must render with a password now that Pass 5.4 shipped: {}",
+        stderr(&ok_r6)
+    );
+
+    // ★ And the /R 5 sibling, same cipher, differing only in the hash, renders
+    // too — the two AES-256 revisions are on the same footing now.
     let ok = run(&[
         "--open-password",
         "userpw",
@@ -928,12 +942,7 @@ fn capability_gap_refusal_is_honest_and_distinguishable_from_corruption() {
         "-o",
         dir.join("r5.png").to_str().unwrap(),
     ]);
-    assert_eq!(
-        code(&ok),
-        0,
-        "/R 5 must render, or the /R 6 refusal above proves nothing: {}",
-        stderr(&ok)
-    );
+    assert_eq!(code(&ok), 0, "/R 5 must render too: {}", stderr(&ok));
 }
 
 /// ★ Decryption produces the RIGHT plaintext, not merely parseable bytes.

@@ -26,14 +26,14 @@
 //! it.** `/R` 6 uses the identical harness — same 48-byte `/O` and `/U`, same
 //! two 8-byte salts, same zero-IV `/UE`/`/OE` unwrap, same 16-byte `/Perms` —
 //! with **Algorithm 2.B substituted for `SHA-256(...)` at every position**.
-//! Algorithm 2.B is sourced only through its step (a); its inner AES-128-CBC
-//! step, its SHA-256/384/512 selector, its round count and its termination
-//! condition are not in the corpus at all. Deriving them from another
-//! implementation and then testing against that implementation's output could
-//! not fail, which is why `enc-aes-256-r6.pdf` is a **refusal** fixture. The
-//! substitution point is the private `hash` function below, and it is
-//! deliberately *not* factored into a pluggable seam: a seam would be an
-//! invitation to fill it from memory.
+//! Algorithm 2.B was sourced from the ISO 32000-2:2020 primary on 2026-08-12 —
+//! its inner AES-128-CBC step, its SHA-256/384/512 selector, its round count
+//! and its termination condition — and is implemented in [`super::r6`]. The
+//! substitution point IS a pluggable seam ([`Hasher`], `Pass 5.4`): `/R` 5
+//! passes [`Hasher::Sha256`] and `/R` 6 passes [`Hasher::R6`], and every
+//! auth/key function below takes one. `enc-aes-256-r6.pdf` is now a
+//! **decryption** fixture (it opens), and pdfcer's own `/R` 6 writer is
+//! cross-checked against pypdf.
 //!
 //! # The layout everything depends on
 //!
@@ -115,13 +115,56 @@ pub const MAX_PASSWORD_LEN: usize = 127;
 /// identical 32-byte output, and *nothing else* about `/R` 5 changes. The
 /// corpus is explicit about that (`iso32000__delta__pdf20_encryption.md` §6),
 /// and it is recorded here so a future session does not re-derive the shape of
-/// the gap — while 2.B's own body stays unsourced and unwritten.
-fn hash(parts: &[&[u8]]) -> [u8; 32] {
-    let mut h = Sha256::new();
-    for p in parts {
-        h.update(p);
+/// the gap. 2.B's body is now sourced and implemented ([`super::r6`], `Pass 5.4`).
+/// Which hash `/R` 5 and `/R` 6 use — the ONE thing that differs between the
+/// two revisions (`Pass 5.4`). `/R` 5 is plain SHA-256; `/R` 6 is Algorithm
+/// 2.B ([`super::r6`]). Every auth/key function below takes one of these and is
+/// otherwise identical across the two revisions.
+///
+/// `input_parts` is the sequence `/R` 5 SHA-256s (e.g. `[password, salt]`);
+/// `password` is repeated because 2.B needs it separately inside `K0`; `u` is
+/// the 48-byte `/U` on the owner paths only. For [`Hasher::Sha256`] the
+/// `password` argument is ignored (the password is already `input_parts[0]`)
+/// and `u`, when present, is appended — reproducing the `/R` 5 concatenation
+/// exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hasher {
+    /// `/R` 5 — plain SHA-256 over the concatenated parts (then `u`).
+    Sha256,
+    /// `/R` 6 — Algorithm 2.B, at the given [`super::r6::A13Reading`].
+    R6(super::r6::A13Reading),
+}
+
+impl Hasher {
+    /// The 32-byte hash this revision computes from the given inputs.
+    #[must_use]
+    pub fn hash(self, input_parts: &[&[u8]], password: &[u8], u: Option<&[u8]>) -> [u8; 32] {
+        match self {
+            Self::Sha256 => {
+                let mut h = Sha256::new();
+                for p in input_parts {
+                    h.update(p);
+                }
+                if let Some(u) = u {
+                    h.update(u);
+                }
+                h.finalize().into()
+            }
+            Self::R6(reading) => {
+                // The full input concatenation is `input_parts ‖ u` — U is part
+                // of the OWNER input string (Algorithm 2.A(c)/12), exactly as
+                // SHA-256 appends it above. 2.B ADDITIONALLY feeds U into every
+                // K0 (its step (a)), so `u` is passed on BOTH — proven against
+                // pypdf's `/O`: U in the input string alone does not match, U in
+                // both does.
+                let mut input: Vec<u8> = input_parts.concat();
+                if let Some(u) = u {
+                    input.extend_from_slice(u);
+                }
+                super::r6::hash_2b(&input, password, u, reading)
+            }
+        }
     }
-    h.finalize().into()
 }
 
 /// A password prepared for `/R` 5 hashing, and an honest note about how far
@@ -251,12 +294,16 @@ impl PreparedPassword {
 /// depends on nothing but the password and eight bytes of salt, which is
 /// precisely why the `/Perms` check exists — see [`PermsCheck`].
 #[must_use]
-pub fn authenticates_as_user(password: &PreparedPassword, u: &[u8; OU_LEN]) -> bool {
+pub fn authenticates_as_user(
+    password: &PreparedPassword,
+    u: &[u8; OU_LEN],
+    hasher: Hasher,
+) -> bool {
     // Ranges are compile-time constants over a fixed-size array, so every
     // index below is in bounds by the type.
     #[allow(clippy::indexing_slicing)]
     let (expect, salt) = (&u[HASH], &u[VALIDATION_SALT]);
-    hash(&[password.as_bytes(), salt]) == expect
+    hasher.hash(&[password.as_bytes(), salt], password.as_bytes(), None) == expect
 }
 
 /// Algorithm 3.12 — does `password` authenticate as the **owner** password?
@@ -274,10 +321,11 @@ pub fn authenticates_as_owner(
     password: &PreparedPassword,
     o: &[u8; OU_LEN],
     u: &[u8; OU_LEN],
+    hasher: Hasher,
 ) -> bool {
     #[allow(clippy::indexing_slicing)]
     let (expect, salt) = (&o[HASH], &o[VALIDATION_SALT]);
-    hash(&[password.as_bytes(), salt, u]) == expect
+    hasher.hash(&[password.as_bytes(), salt], password.as_bytes(), Some(u)) == expect
 }
 
 /// Algorithm 3.2a, user branch — recover the file encryption key from `/UE`.
@@ -304,10 +352,11 @@ pub fn file_key_from_user_password(
     password: &PreparedPassword,
     u: &[u8; OU_LEN],
     ue: &[u8; OE_UE_LEN],
+    hasher: Hasher,
 ) -> Option<[u8; KEY_LEN_256]> {
     #[allow(clippy::indexing_slicing)]
     let salt = &u[KEY_SALT];
-    let unwrap_key = hash(&[password.as_bytes(), salt]);
+    let unwrap_key = hasher.hash(&[password.as_bytes(), salt], password.as_bytes(), None);
     unwrap_key_cbc_256(&unwrap_key, ue).try_into().ok()
 }
 
@@ -328,10 +377,11 @@ pub fn file_key_from_owner_password(
     o: &[u8; OU_LEN],
     u: &[u8; OU_LEN],
     oe: &[u8; OE_UE_LEN],
+    hasher: Hasher,
 ) -> Option<[u8; KEY_LEN_256]> {
     #[allow(clippy::indexing_slicing)]
     let salt = &o[KEY_SALT];
-    let unwrap_key = hash(&[password.as_bytes(), salt, u]);
+    let unwrap_key = hasher.hash(&[password.as_bytes(), salt], password.as_bytes(), Some(u));
     unwrap_key_cbc_256(&unwrap_key, oe).try_into().ok()
 }
 
@@ -523,18 +573,28 @@ mod tests {
     /// handler that conflated them would report the wrong access level.
     #[test]
     fn user_validation_accepts_only_the_user_password() {
-        assert!(authenticates_as_user(&pw(b"userpw"), &U));
-        assert!(!authenticates_as_user(&pw(b"ownerpw"), &U));
-        assert!(!authenticates_as_user(&pw(b""), &U));
-        assert!(!authenticates_as_user(&pw(b"userpw "), &U));
+        assert!(authenticates_as_user(&pw(b"userpw"), &U, Hasher::Sha256));
+        assert!(!authenticates_as_user(&pw(b"ownerpw"), &U, Hasher::Sha256));
+        assert!(!authenticates_as_user(&pw(b""), &U, Hasher::Sha256));
+        assert!(!authenticates_as_user(&pw(b"userpw "), &U, Hasher::Sha256));
     }
 
     /// Algorithm 3.12 accepts the owner password, and **needs the whole
     /// 48-byte `/U`** to do it (T26).
     #[test]
     fn owner_validation_accepts_only_the_owner_password() {
-        assert!(authenticates_as_owner(&pw(b"ownerpw"), &O, &U));
-        assert!(!authenticates_as_owner(&pw(b"userpw"), &O, &U));
+        assert!(authenticates_as_owner(
+            &pw(b"ownerpw"),
+            &O,
+            &U,
+            Hasher::Sha256
+        ));
+        assert!(!authenticates_as_owner(
+            &pw(b"userpw"),
+            &O,
+            &U,
+            Hasher::Sha256
+        ));
     }
 
     /// ★ T26 as a falsification: hashing only `/U`'s 32-byte *hash* instead of
@@ -545,7 +605,11 @@ mod tests {
     /// wrong without leaving the wrong answer in the source.
     #[test]
     fn truncating_u_to_its_hash_breaks_owner_validation_only() {
-        let truncated = hash(&[b"ownerpw", &O[VALIDATION_SALT], &U[HASH]]);
+        let truncated = Hasher::Sha256.hash(
+            &[b"ownerpw", &O[VALIDATION_SALT], &U[HASH]],
+            b"ownerpw",
+            None,
+        );
         assert_ne!(
             truncated, O[HASH],
             "hashing U's 32-byte hash instead of the whole 48-byte string must \
@@ -554,7 +618,12 @@ mod tests {
         );
         // And the correct form does validate, so the assertion above is about
         // the truncation rather than about the test's own inputs.
-        assert!(authenticates_as_owner(&pw(b"ownerpw"), &O, &U));
+        assert!(authenticates_as_owner(
+            &pw(b"ownerpw"),
+            &O,
+            &U,
+            Hasher::Sha256
+        ));
     }
 
     /// ★ Both branches of Algorithm 3.2a recover the **same** key. That
@@ -562,9 +631,9 @@ mod tests {
     /// independently of both passwords and wrapped twice.
     #[test]
     fn both_password_branches_recover_the_same_file_encryption_key() {
-        let from_user =
-            file_key_from_user_password(&pw(b"userpw"), &U, &UE).expect("UE unwraps to 32 bytes");
-        let from_owner = file_key_from_owner_password(&pw(b"ownerpw"), &O, &U, &OE)
+        let from_user = file_key_from_user_password(&pw(b"userpw"), &U, &UE, Hasher::Sha256)
+            .expect("UE unwraps to 32 bytes");
+        let from_owner = file_key_from_owner_password(&pw(b"ownerpw"), &O, &U, &OE, Hasher::Sha256)
             .expect("OE unwraps to 32 bytes");
         assert_eq!(from_user, FILE_KEY);
         assert_eq!(from_owner, FILE_KEY);
@@ -578,8 +647,12 @@ mod tests {
     /// notice.
     #[test]
     fn transposing_the_two_salts_yields_a_different_key() {
-        let right = hash(&[b"userpw".as_slice(), &U[KEY_SALT]]);
-        let wrong = hash(&[b"userpw".as_slice(), &U[VALIDATION_SALT]]);
+        let right = Hasher::Sha256.hash(&[b"userpw".as_slice(), &U[KEY_SALT]], b"userpw", None);
+        let wrong = Hasher::Sha256.hash(
+            &[b"userpw".as_slice(), &U[VALIDATION_SALT]],
+            b"userpw",
+            None,
+        );
         assert_ne!(right, wrong);
         assert_ne!(
             unwrap_key_cbc_256(&wrong, &UE),
@@ -594,7 +667,7 @@ mod tests {
     /// and is not optional: the unwrap has no integrity of its own.
     #[test]
     fn unwrapping_with_a_wrong_password_yields_a_wrong_key_not_an_error() {
-        let bad = file_key_from_user_password(&pw(b"not the password"), &U, &UE)
+        let bad = file_key_from_user_password(&pw(b"not the password"), &U, &UE, Hasher::Sha256)
             .expect("32 bytes of nonsense is still 32 bytes");
         assert_ne!(bad, FILE_KEY);
     }
@@ -745,16 +818,31 @@ mod tests {
         /// `/P -2052`, reinterpreted unsigned (T10).
         const QPDF_P: u32 = 0xFFFF_F7FC;
 
-        assert!(authenticates_as_user(&pw(b"user3"), &QPDF_U));
-        assert!(authenticates_as_owner(&pw(b"owner3"), &QPDF_O, &QPDF_U));
+        assert!(authenticates_as_user(
+            &pw(b"user3"),
+            &QPDF_U,
+            Hasher::Sha256
+        ));
+        assert!(authenticates_as_owner(
+            &pw(b"owner3"),
+            &QPDF_O,
+            &QPDF_U,
+            Hasher::Sha256
+        ));
 
         assert_eq!(
-            file_key_from_user_password(&pw(b"user3"), &QPDF_U, &QPDF_UE),
+            file_key_from_user_password(&pw(b"user3"), &QPDF_U, &QPDF_UE, Hasher::Sha256),
             Some(QPDF_KEY),
             "the user branch must reach the key qpdf publishes for this file"
         );
         assert_eq!(
-            file_key_from_owner_password(&pw(b"owner3"), &QPDF_O, &QPDF_U, &QPDF_OE),
+            file_key_from_owner_password(
+                &pw(b"owner3"),
+                &QPDF_O,
+                &QPDF_U,
+                &QPDF_OE,
+                Hasher::Sha256
+            ),
             Some(QPDF_KEY),
             "and so must the owner branch — one key, two wrapped copies"
         );

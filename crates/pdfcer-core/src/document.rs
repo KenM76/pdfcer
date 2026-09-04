@@ -158,6 +158,24 @@ pub enum DocError {
          hashing — so a correct password can be rejected here"
     )]
     PasswordRequiresNormalisation,
+    /// Authentication failed at handler revision **6** (AES-256 hardened),
+    /// where the failure is **not** unambiguously "wrong password" (`Pass
+    /// 5.4`).
+    ///
+    /// `/R` 6's key derivation (Algorithm 2.B) contains a genuine spec
+    /// ambiguity — **A13**, the loop-exit test, which is internally
+    /// inconsistent between steps (e) and (f) and produces a different digest
+    /// (hence a different key, hence a failed authentication) depending on the
+    /// reading. pdfcer defaults to the reading pypdf and Acrobat write
+    /// ([`crate::crypto::r6::A13Reading::PerformThenTest`]); a document written
+    /// by an implementation that took the other reading would fail here with a
+    /// correct password. This variant names A13 so that failure is not
+    /// reported as "you typed it wrong" (`R169`: a spec ambiguity is disclosed,
+    /// never silently resolved). Raised only at `/R` 6.
+    #[error(
+        "this document is password-protected (AES-256 /R 6); authentication failed. If the password is correct, the cause may be ambiguity A13 in ISO 32000-2 Algorithm 2.B's loop-exit test -- pdfcer uses the reading pypdf and Acrobat write, and a file written under the other reading would not open"
+    )]
+    PasswordRequiredR6,
     /// The `%PDF-` header probe failed — not a PDF.
     #[error(transparent)]
     Header(PdfError),
@@ -672,6 +690,10 @@ impl Document {
                 Some(pw) if config.password_may_need_normalisation(pw) => {
                     DocError::PasswordRequiresNormalisation
                 }
+                // At /R 6 a failure is not unambiguously "wrong password": the
+                // A13 loop-exit ambiguity can reject a correct password for a
+                // file written under the other reading. Name it (Pass 5.4).
+                _ if config.revision == 6 => DocError::PasswordRequiredR6,
                 _ => DocError::PasswordRequired,
             });
         };
@@ -754,6 +776,25 @@ impl Document {
     #[must_use]
     pub fn encryption(&self) -> Option<&DocumentEncryption> {
         self.encryption.as_ref()
+    }
+
+    /// Drop this document's encryption, in memory, without re-parsing.
+    ///
+    /// Load already decrypted every object's strings (in the parsed values) and
+    /// every stream's data (in the retained buffer) — see
+    /// [`Document::decrypt_in_place`]. So a document that WAS encrypted is,
+    /// object-for-object, already a plaintext document; the only things still
+    /// asserting encryption are the [`encryption`](Self::encryption) field and
+    /// the trailer's `/Encrypt` reference. Clearing both is all that
+    /// "remove encryption" needs at the model level — the writer then emits
+    /// plaintext because the bytes it re-serialises already are.
+    ///
+    /// `Pass 5.4`: used by [`crate::EditSession::remove_encryption`] and
+    /// [`crate::EditSession::set_permissions`] (which re-keys, so it first
+    /// clears the old state, then the writer freshly encrypts).
+    pub(crate) fn clear_encryption(&mut self) {
+        self.encryption = None;
+        self.trailer.remove(b"Encrypt");
     }
 
     /// Assemble a [`Document`] from a [`recover::RecoveredXref`].

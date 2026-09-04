@@ -121,10 +121,15 @@
 //! untested code path wearing the appearance of a capability.
 //!
 //! **`/R` 6.** `/R` 6 is *not* a different cipher — it is `/R` 5's harness with
-//! Algorithm 2.B substituted for SHA-256, and 2.B is unsourced past step (a).
-//! So nothing in this module changes for it, and nothing here unblocks it.
+//! Algorithm 2.B substituted for SHA-256 (sourced 2026-08-12, implemented in
+//! [`super::r6`] for `Pass 5.4`). This module's block primitives are used
+//! unchanged by both the `/R` 5 and `/R` 6 paths, and the encrypt-side helpers
+//! below feed [`super::encrypt`]'s writer.
 
-use aes::cipher::{Block, BlockCipherDecrypt, BlockModeDecrypt, KeyInit, KeyIvInit};
+use aes::cipher::{
+    Block, BlockCipherDecrypt, BlockCipherEncrypt, BlockModeDecrypt, BlockModeEncrypt, KeyInit,
+    KeyIvInit,
+};
 use aes::{Aes128, Aes256};
 
 /// One AES block, as the cipher crates model it.
@@ -159,6 +164,8 @@ pub const KEY_LEN_256: usize = 32;
 
 type Aes128CbcDec = cbc::Decryptor<Aes128>;
 type Aes256CbcDec = cbc::Decryptor<Aes256>;
+type Aes128CbcEnc = cbc::Encryptor<Aes128>;
+type Aes256CbcEnc = cbc::Encryptor<Aes256>;
 
 /// Split `data` into its prefixed IV and a whole number of ciphertext blocks.
 ///
@@ -529,6 +536,98 @@ pub fn decrypt_ecb_256_block(key: &[u8; KEY_LEN_256], block: &[u8; BLOCK_LEN]) -
     let mut b = AesBlock::from(*block);
     cipher.decrypt_block(&mut b);
     b.into()
+}
+
+// ===========================================================================
+// ENCRYPT side (`Pass 5.4`) — the mirror of the four decrypt routines above.
+//
+// Nothing here is a cryptographic decision; the block cipher and CBC chaining
+// are RustCrypto's, exactly as on the decrypt side (see the module docs). What
+// stays in-crate is the same policy the read side owns: where the IV goes, and
+// that PKCS#7 is ALWAYS added (§7.6.2 — a full 0x10 block when the plaintext is
+// already block-aligned). These four pair one-to-one with `decrypt_cbc_256`,
+// `unwrap_key_cbc_256`, `decrypt_ecb_256_block` and the AES-128-CBC-no-padding
+// step 2.B needs; every `encrypt_*` is proven against its `decrypt_*` twin in
+// the tests rather than against a vector, because a round trip is the property
+// that matters and the primitive underneath is audited upstream.
+// ===========================================================================
+
+/// AES-128 in CBC mode, **no padding**, explicit key and IV — Algorithm 2.B
+/// step (b). `data` MUST be a whole number of 16-byte blocks (2.B guarantees it:
+/// `|K1| = 64·|K0|`, and `64` is a multiple of the block size). Returns an empty
+/// vector on a bad length rather than panicking, since 2.B calls it in a hot
+/// loop and a malformed input there is a bug to surface as a wrong hash, not a
+/// crash.
+#[must_use]
+pub fn encrypt_cbc_128_nopad(key: &[u8; BLOCK_LEN], iv: &[u8; IV_LEN], data: &[u8]) -> Vec<u8> {
+    if data.is_empty() || !data.len().is_multiple_of(BLOCK_LEN) {
+        return Vec::new();
+    }
+    let blocks = blocks_of(data);
+    let mut out = vec![AesBlock::default(); blocks.len()];
+    let mut enc = Aes128CbcEnc::new(&(*key).into(), &(*iv).into());
+    if enc.encrypt_blocks_b2b(&blocks, &mut out).is_err() {
+        return Vec::new();
+    }
+    flatten(out)
+}
+
+/// AES-256 in CBC mode, **zero IV, no padding** — the inverse of
+/// [`unwrap_key_cbc_256`]. Wraps the 32-byte file encryption key into `/UE` or
+/// `/OE` (Algorithms 8/9). `data` is exactly two blocks (the 32-byte key), so
+/// no padding is added or wanted.
+#[must_use]
+pub fn wrap_key_cbc_256(key: &[u8; KEY_LEN_256], data: &[u8; KEY_LEN_256]) -> [u8; KEY_LEN_256] {
+    let blocks = blocks_of(data);
+    let mut out = vec![AesBlock::default(); blocks.len()];
+    let zero_iv = [0u8; IV_LEN];
+    let mut enc = Aes256CbcEnc::new(&(*key).into(), &zero_iv.into());
+    if enc.encrypt_blocks_b2b(&blocks, &mut out).is_err() {
+        return [0u8; KEY_LEN_256];
+    }
+    flatten(out).try_into().unwrap_or([0u8; KEY_LEN_256])
+}
+
+/// AES-256 in **ECB** mode, one block, no IV — the inverse of
+/// [`decrypt_ecb_256_block`]. Encrypts the 16-byte `/Perms` payload
+/// (Algorithm 10 step (f)).
+#[must_use]
+pub fn encrypt_ecb_256_block(key: &[u8; KEY_LEN_256], block: &[u8; BLOCK_LEN]) -> [u8; BLOCK_LEN] {
+    let cipher = Aes256::new(&(*key).into());
+    let mut b = AesBlock::from(*block);
+    cipher.encrypt_block(&mut b);
+    b.into()
+}
+
+/// AES-256 in CBC mode for a document string or stream — Algorithm 1.A:
+/// a **fresh random 16-byte IV prefixed to the ciphertext**, PKCS#7 padding
+/// always added. The exact inverse of [`decrypt_cbc_256`], IV convention and
+/// all. `iv` is supplied by the caller (from the crate's CSPRNG) so this
+/// function stays free of an entropy dependency and remains unit-testable with
+/// a fixed IV.
+///
+/// Output = `iv ‖ AES-256-CBC(key, iv, plaintext ‖ PKCS#7)`.
+#[must_use]
+pub fn encrypt_cbc_256(key: &[u8; KEY_LEN_256], iv: &[u8; IV_LEN], plaintext: &[u8]) -> Vec<u8> {
+    // PKCS#7 to the next block boundary, ALWAYS present: a full 0x10 block when
+    // already aligned. `pad` is 1..=16, so the cast never truncates.
+    let pad = BLOCK_LEN - (plaintext.len() % BLOCK_LEN);
+    #[allow(clippy::cast_possible_truncation)]
+    let pad_byte = pad as u8;
+    let mut padded = Vec::with_capacity(plaintext.len() + pad);
+    padded.extend_from_slice(plaintext);
+    padded.extend(std::iter::repeat_n(pad_byte, pad));
+
+    let blocks = blocks_of(&padded);
+    let mut out = vec![AesBlock::default(); blocks.len()];
+    let mut enc = Aes256CbcEnc::new(&(*key).into(), &(*iv).into());
+    if enc.encrypt_blocks_b2b(&blocks, &mut out).is_err() {
+        return Vec::new();
+    }
+    let mut result = Vec::with_capacity(IV_LEN + padded.len());
+    result.extend_from_slice(iv);
+    result.extend(flatten(out));
+    result
 }
 
 /// Remove PKCS#7 padding **if and only if** it verifies, leaving the buffer

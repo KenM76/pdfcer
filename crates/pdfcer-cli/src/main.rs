@@ -1660,6 +1660,95 @@ enum Command {
         acknowledge_residuals: bool,
     },
 
+    /// Encrypt a document with **AES-256 (`/R` 6)** and a user and/or owner
+    /// password (`Pass 5.4`).
+    ///
+    /// Only AES-256 `/R` 6 is written — no RC4, no `/R` 2–5. An empty user
+    /// password (omit `--user-password`) makes a permissions-only document that
+    /// opens with no prompt but still carries the `/P` bits.
+    ///
+    /// Permissions default to ALL granted. Restrict with `--allow` (grant only
+    /// the listed bits) and/or `--deny` (remove bits from the granted set).
+    /// Bit names: `print`, `print-high-quality`, `modify-contents`, `copy`,
+    /// `annotate`, `fill-forms`, `accessibility-extract`, `assemble`.
+    ///
+    /// PDF permissions are a request, not a lock — see the notice this prints.
+    Encrypt {
+        /// The document to encrypt.
+        input: PathBuf,
+        /// Where to write the encrypted document.
+        output: PathBuf,
+        /// The user password (opens the document; `/P`-limited). Omit for a
+        /// permissions-only document. Prefer `--user-password-file`.
+        #[arg(long)]
+        user_password: Option<String>,
+        /// Read the user password from a file (first line; `-` for stdin).
+        #[arg(long, conflicts_with = "user_password")]
+        user_password_file: Option<PathBuf>,
+        /// The owner password (full access regardless of `/P`). Prefer
+        /// `--owner-password-file`.
+        #[arg(long)]
+        owner_password: Option<String>,
+        /// Read the owner password from a file (first line; `-` for stdin).
+        #[arg(long, conflicts_with = "owner_password")]
+        owner_password_file: Option<PathBuf>,
+        /// Grant ONLY these permission bits (comma-separated or repeated).
+        /// Default: all granted.
+        #[arg(long, value_delimiter = ',')]
+        allow: Vec<String>,
+        /// Remove these permission bits from the granted set (comma-separated
+        /// or repeated).
+        #[arg(long, value_delimiter = ',')]
+        deny: Vec<String>,
+        /// Leave the `/Metadata` stream in clear (default: encrypt it too).
+        #[arg(long)]
+        no_encrypt_metadata: bool,
+    },
+    /// Re-key an ENCRYPTED document with a new permission set (and optionally
+    /// new passwords), keeping AES-256 `/R` 6 (`Pass 5.4`).
+    ///
+    /// Owner-only: open the document with the OWNER password via
+    /// `--open-password`/`--open-password-file`. `/P` is bound into the
+    /// encryption at the byte level, so setting it re-derives the whole
+    /// `/Encrypt` dictionary under a fresh key.
+    SetPermissions {
+        /// The encrypted document to re-key.
+        input: PathBuf,
+        /// Where to write the re-keyed document.
+        output: PathBuf,
+        /// The new user password (default: reuse via `--user-password`).
+        #[arg(long)]
+        user_password: Option<String>,
+        /// Read the new user password from a file (first line; `-` for stdin).
+        #[arg(long, conflicts_with = "user_password")]
+        user_password_file: Option<PathBuf>,
+        /// The new owner password.
+        #[arg(long)]
+        owner_password: Option<String>,
+        /// Read the new owner password from a file (first line; `-` for stdin).
+        #[arg(long, conflicts_with = "owner_password")]
+        owner_password_file: Option<PathBuf>,
+        /// Grant ONLY these permission bits. Default: all granted.
+        #[arg(long, value_delimiter = ',')]
+        allow: Vec<String>,
+        /// Remove these permission bits from the granted set.
+        #[arg(long, value_delimiter = ',')]
+        deny: Vec<String>,
+        /// Leave the `/Metadata` stream in clear (default: encrypt it too).
+        #[arg(long)]
+        no_encrypt_metadata: bool,
+    },
+    /// Remove encryption from a document (`Pass 5.4`).
+    ///
+    /// Owner-only: open the document with the OWNER password via
+    /// `--open-password`/`--open-password-file`. The output is a plaintext
+    /// document that opens with no password.
+    RemoveEncryption {
+        /// The encrypted document.
+        input: PathBuf,
+        /// Where to write the plaintext document.
+        output: PathBuf,
+    },
     /// List the `/Redact` marks awaiting apply in a document.
     ///
     /// Reports the count and per-page inventory computed from the
@@ -10719,6 +10808,51 @@ fn run() -> ExitCode {
             output,
             acknowledge_residuals,
         } => cmd_redact_apply(&input, &output, acknowledge_residuals),
+        Command::Encrypt {
+            input,
+            output,
+            user_password,
+            user_password_file,
+            owner_password,
+            owner_password_file,
+            allow,
+            deny,
+            no_encrypt_metadata,
+        } => cmd_encrypt(&EncryptCliArgs {
+            input: &input,
+            output: &output,
+            user_password,
+            user_password_file,
+            owner_password,
+            owner_password_file,
+            allow: &allow,
+            deny: &deny,
+            encrypt_metadata: !no_encrypt_metadata,
+            rekey: false,
+        }),
+        Command::SetPermissions {
+            input,
+            output,
+            user_password,
+            user_password_file,
+            owner_password,
+            owner_password_file,
+            allow,
+            deny,
+            no_encrypt_metadata,
+        } => cmd_encrypt(&EncryptCliArgs {
+            input: &input,
+            output: &output,
+            user_password,
+            user_password_file,
+            owner_password,
+            owner_password_file,
+            allow: &allow,
+            deny: &deny,
+            encrypt_metadata: !no_encrypt_metadata,
+            rekey: true,
+        }),
+        Command::RemoveEncryption { input, output } => cmd_remove_encryption(&input, &output),
         Command::ListRedactions { input } => cmd_list_redactions(&input),
     };
     ExitCode::from(code)
@@ -24173,6 +24307,200 @@ struct UnembedArgs<'a> {
     verify_undo: bool,
     keep_subset_tag: bool,
     acknowledge_pdfa: bool,
+}
+
+/// The permissions notice printed by every encryption subcommand, verbatim
+/// (rule 4, criterion 9 — the same wording sent to `pdfceGUI` and carried by
+/// [`pdfcer_core::edit::EncryptionSettings::PERMISSIONS_DISCLOSURE`]).
+const PERMISSIONS_NOTICE: &str = "PDF permissions are a request, not a lock. A conforming reader honours them; any program that ignores the flag can print, copy or change this document freely. Only the password protects the content -- and only the user password, which controls opening it.";
+
+/// Map a CLI permission-bit name to a [`PermissionBit`].
+fn parse_permission_bit(name: &str) -> Result<pdfcer_core::crypto::PermissionBit, String> {
+    use pdfcer_core::crypto::PermissionBit as B;
+    Ok(match name.trim().to_ascii_lowercase().as_str() {
+        "print" => B::Print,
+        "print-high-quality" | "print-hq" => B::PrintHighQuality,
+        "modify-contents" | "modify" => B::ModifyContents,
+        "copy" | "extract" => B::Copy,
+        "annotate" => B::Annotate,
+        "fill-forms" | "fill" => B::FillForms,
+        "accessibility-extract" | "accessibility" => B::AccessibilityExtract,
+        "assemble" => B::Assemble,
+        other => {
+            return Err(format!(
+                "unknown permission bit {other:?} (expected one of: print, print-high-quality, \
+                 modify-contents, copy, annotate, fill-forms, accessibility-extract, assemble)"
+            ));
+        }
+    })
+}
+
+/// Resolve `--allow`/`--deny` into the granted [`PermissionBit`] set. Default
+/// (no `--allow`) is ALL granted; `--deny` removes bits.
+fn resolve_permissions(
+    allow: &[String],
+    deny: &[String],
+) -> Result<Vec<pdfcer_core::crypto::PermissionBit>, String> {
+    use pdfcer_core::crypto::PermissionBit;
+    let mut granted: Vec<PermissionBit> = if allow.is_empty() {
+        PermissionBit::all().to_vec()
+    } else {
+        let mut v = Vec::new();
+        for a in allow {
+            let bit = parse_permission_bit(a)?;
+            if !v.contains(&bit) {
+                v.push(bit);
+            }
+        }
+        v
+    };
+    for d in deny {
+        let bit = parse_permission_bit(d)?;
+        granted.retain(|g| *g != bit);
+    }
+    Ok(granted)
+}
+
+/// Arguments for [`cmd_encrypt`], shared by `encrypt` and `set-permissions`.
+struct EncryptCliArgs<'a> {
+    input: &'a Path,
+    output: &'a Path,
+    user_password: Option<String>,
+    user_password_file: Option<PathBuf>,
+    owner_password: Option<String>,
+    owner_password_file: Option<PathBuf>,
+    allow: &'a [String],
+    deny: &'a [String],
+    encrypt_metadata: bool,
+    /// `true` for `set-permissions` (re-key an already-encrypted document,
+    /// owner-only); `false` for `encrypt` (a plaintext document).
+    rekey: bool,
+}
+
+/// Implement `pdfcer encrypt` and `pdfcer set-permissions` (`Pass 5.4`).
+fn cmd_encrypt(args: &EncryptCliArgs<'_>) -> u8 {
+    use pdfcer_core::edit::{EditSession, EncryptError, EncryptionSettings};
+    use pdfcer_core::writer::SaveOptions;
+
+    let user =
+        match resolve_cli_password(args.user_password.clone(), args.user_password_file.clone()) {
+            Ok(p) => p.unwrap_or_default(),
+            Err(msg) => {
+                eprintln!("pdfcer: {msg}");
+                return exit::IO_ERROR;
+            }
+        };
+    let owner = match resolve_cli_password(
+        args.owner_password.clone(),
+        args.owner_password_file.clone(),
+    ) {
+        Ok(p) => p.unwrap_or_default(),
+        Err(msg) => {
+            eprintln!("pdfcer: {msg}");
+            return exit::IO_ERROR;
+        }
+    };
+    let permissions = match resolve_permissions(args.allow, args.deny) {
+        Ok(p) => p,
+        Err(msg) => {
+            eprintln!("pdfcer: {msg}");
+            return exit::RUNTIME_ERROR;
+        }
+    };
+
+    let doc = match open_document(args.input) {
+        Ok(d) => d,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", args.input.display());
+            return exit_code_for_doc(&err);
+        }
+    };
+    let mut session = EditSession::new(doc);
+    let mut settings = EncryptionSettings::new(user, owner);
+    settings.permissions = permissions;
+    settings.encrypt_metadata = args.encrypt_metadata;
+
+    let result = if args.rekey {
+        session.set_permissions(&settings, &SaveOptions::identity())
+    } else {
+        session.set_encryption(&settings, &SaveOptions::identity())
+    };
+    let (bytes, _report) = match result {
+        Ok(pair) => pair,
+        Err(err) => {
+            eprintln!("pdfcer: encryption refused: {err}");
+            return match err {
+                EncryptError::Write(_) => exit::SAVE_REFUSED,
+                EncryptError::Rng(_) => exit::RUNTIME_ERROR,
+                _ => exit::EDIT_REFUSED,
+            };
+        }
+    };
+
+    if let Err(err) = std::fs::write(args.output, &bytes) {
+        eprintln!("pdfcer: {}: {err}", args.output.display());
+        return exit::IO_ERROR;
+    }
+
+    let verb = if args.rekey {
+        "set-permissions"
+    } else {
+        "encrypt"
+    };
+    println!(
+        "{verb} {} -> {}",
+        args.input.display(),
+        args.output.display()
+    );
+    println!(
+        "  scheme=AES-256/R6 permissions_granted={} encrypt_metadata={} out_bytes={}",
+        settings.permissions.len(),
+        settings.encrypt_metadata,
+        bytes.len(),
+    );
+    // Disclose the SASLprep gap when a password could be affected (rule 4, W20).
+    if settings.has_non_ascii_password() {
+        println!("  note: {}", EncryptionSettings::SASLPREP_GAP);
+    }
+    // The permissions notice, verbatim (criterion 9).
+    println!("  {PERMISSIONS_NOTICE}");
+    exit::SUCCESS
+}
+
+/// Implement `pdfcer remove-encryption` (`Pass 5.4`). Owner-only.
+fn cmd_remove_encryption(input: &Path, output: &Path) -> u8 {
+    use pdfcer_core::edit::{EditSession, EncryptError};
+    use pdfcer_core::writer::SaveOptions;
+
+    let doc = match open_document(input) {
+        Ok(d) => d,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit_code_for_doc(&err);
+        }
+    };
+    let mut session = EditSession::new(doc);
+    let (bytes, _report) = match session.remove_encryption(&SaveOptions::identity()) {
+        Ok(pair) => pair,
+        Err(err) => {
+            eprintln!("pdfcer: remove-encryption refused: {err}");
+            return match err {
+                EncryptError::Write(_) => exit::SAVE_REFUSED,
+                _ => exit::EDIT_REFUSED,
+            };
+        }
+    };
+    if let Err(err) = std::fs::write(output, &bytes) {
+        eprintln!("pdfcer: {}: {err}", output.display());
+        return exit::IO_ERROR;
+    }
+    println!(
+        "remove-encryption {} -> {}",
+        input.display(),
+        output.display()
+    );
+    println!("  the output is a plaintext document that opens with no password");
+    exit::SUCCESS
 }
 
 fn cmd_redact_apply(input: &Path, output: &Path, acknowledge_residuals: bool) -> u8 {

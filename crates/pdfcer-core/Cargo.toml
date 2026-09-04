@@ -355,3 +355,16 @@ ocrs = { version = "0.12.2", optional = true }
 # naming this crate. Gated by the same `ocrs` feature; it has no independent
 # use here. License: MIT OR Apache-2.0.
 rten = { version = "0.24", optional = true }
+
+# getrandom: the CSPRNG for encryption AUTHORING (`Pass 5.4`) — salts, IVs and
+# the 256-bit file encryption key of Algorithms 8/9, which the standard
+# requires be "generated with a strong random number generator". TARGET-GATED
+# OFF wasm32 exactly as pdfcer-cli gates `windows`: getrandom 0.2 emits a
+# compile_error on wasm32-unknown-unknown with no backend feature, and
+# encryption authoring is a save operation that the web fork (a viewer) never
+# performs — so the crate simply is not compiled there and `crypto::rng` falls
+# back to a refusing stub (see that module). ALREADY in Cargo.lock at 0.2.17
+# via the egui side, so ZERO new packages; verified with `cargo tree` before
+# adding (rule 13). License: MIT OR Apache-2.0 (permissive, no operator flag).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+getrandom = "0.2"

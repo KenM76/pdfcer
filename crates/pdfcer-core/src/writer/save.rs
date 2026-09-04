@@ -912,6 +912,326 @@ pub fn save_full(
     Ok((out, report))
 }
 
+/// The values a full **encrypting** rewrite needs beyond the ordinary
+/// [`save_full`] inputs: the file key, the object the `/Encrypt` dictionary
+/// occupies, that dictionary's value, and the two-element `/ID`.
+///
+/// At `/V` 5 `/ID` plays **no** part in key derivation (unlike `/R` 4), so a
+/// freshly generated pair is written verbatim; it exists because §7.5.5 makes
+/// `/ID` mandatory whenever `/Encrypt` is present.
+#[derive(Debug, Clone)]
+pub struct EncryptParams {
+    /// The 32-byte file encryption key (never serialised; drives the encoder).
+    pub file_key: [u8; 32],
+    /// The object number and generation the `/Encrypt` dictionary is written
+    /// at — its own strings/streams are exempt from encryption (§7.6).
+    pub encrypt_dict: ObjId,
+    /// The `/Encrypt` dictionary as a value ready to serialise (`/V 5 /R 6
+    /// /CFM AESV3`, with the byte-string `/O`/`/U`/`/OE`/`/UE`/`/Perms`).
+    pub encrypt_dict_value: Object,
+    /// The `/ID` array's two byte strings.
+    pub file_id: [Vec<u8>; 2],
+    /// `/EncryptMetadata` — when false, `/Metadata` streams are left in clear.
+    pub encrypt_metadata: bool,
+}
+
+/// Rewrite the whole document as one **encrypted** revision (`Pass 5.4`,
+/// ISO 32000-2:2020 §7.6 + Algorithm 1.A).
+///
+/// # Why this is a separate function, not a flag on [`save_full`]
+///
+/// Encryption is decision 007 **W8**'s canonical "touches EVERY string and
+/// EVERY stream" transformation, so the minimal-diff invariant
+/// (`ARCHITECTURE.md` §5) is *deliberately* waived here: no object is emitted
+/// verbatim from its source span, because a verbatim copy would leave the
+/// object's strings and streams in clear. Every object is re-serialised
+/// through the [`EncryptingEncoder`], which is the ONLY difference from a
+/// plaintext rewrite — the serializer recomputes `/Length` from the encrypted
+/// bytes (§7.3.8.2, IV + ciphertext + PKCS#7 pad), so nothing else needs to
+/// change.
+///
+/// # Structural normalisation this DOES perform, and why it is sanctioned
+///
+/// The output is always a **classic cross-reference table** with every
+/// compressed object promoted to file level and every `/Type /ObjStm`
+/// container dropped. This is the same normalisation a recovered document
+/// gets (decision 013), sanctioned here for the same reason it is sanctioned
+/// there: the operation is a whole-file rewrite by nature, so §5's "never
+/// normalise gratuitously" does not bind it — and a classic table sidesteps
+/// the special-case exemptions an xref STREAM would need (its own bytes must
+/// stay in clear, §7.6.2). An object stream's exemption is moot once it is
+/// gone.
+///
+/// # What is left in clear
+///
+/// The `/Encrypt` dictionary itself (it is what a reader needs *before* it can
+/// decrypt anything), and `/Metadata` streams when `encrypt_metadata` is
+/// false (§7.6.2). A signed document is refused UPSTREAM by the caller
+/// ([`crate::EditSession`]) — the write path never sees one — so the
+/// per-string `/Contents` exemption (N13) is not expressed here.
+///
+/// # Errors
+///
+/// - [`WriteError::HybridFullRewrite`] for a hybrid-reference input (R33).
+/// - [`WriteError::EncryptedSaveUnsupported`] if the document is ALREADY
+///   encrypted — re-encryption decrypts first, which is the caller's job.
+/// - [`WriteError::ObjectNumberTooLarge`] (R27) as [`save_full`].
+/// - [`WriteError::MissingObject`] / [`WriteError::UnknownDirtyObject`] for a
+///   dangling reference, as [`save_full`].
+pub fn save_full_encrypted(
+    doc: &Document,
+    dirty: &DirtySet,
+    options: &SaveOptions,
+    enc: &EncryptParams,
+) -> Result<(Vec<u8>, SaveReport), WriteError> {
+    full_reencode(doc, dirty, options, Some(enc))
+}
+
+/// Rewrite the whole document as one revision, re-serialising EVERY string and
+/// stream through an identity encoder — the plaintext sibling of
+/// [`save_full_encrypted`] (`Pass 5.4`, `EditSession::remove_encryption`).
+///
+/// # Why this is distinct from [`save_full`]
+///
+/// [`save_full`] copies an untouched object's DEFINITION BYTES verbatim from
+/// the source. That is wrong for a document that was **decrypted in place**:
+/// decryption shortened each stream's `data_span` (AES strips the 16-byte IV
+/// and padding) but left the dictionary's `/Length` and the trailing bytes in
+/// the source buffer, so a verbatim copy would emit a stale `/Length` over
+/// plaintext-plus-leftover-ciphertext. Re-serialising every object recomputes
+/// `/Length` from the shortened span, which is exactly what removing
+/// encryption needs — and is why saving a decrypted document through the
+/// verbatim path is refused (`WriteError::EncryptedSaveUnsupported`).
+///
+/// The caller must have already dropped the `/Encrypt` state
+/// ([`crate::Document::clear_encryption`]); this function does not write
+/// `/Encrypt` or force `/ID`.
+///
+/// # Errors
+///
+/// As [`save_full_encrypted`].
+pub fn save_full_decrypted(
+    doc: &Document,
+    dirty: &DirtySet,
+    options: &SaveOptions,
+) -> Result<(Vec<u8>, SaveReport), WriteError> {
+    full_reencode(doc, dirty, options, None)
+}
+
+/// The shared body of [`save_full_encrypted`] (`enc = Some`) and
+/// [`save_full_decrypted`] (`enc = None`): a full rewrite that re-serialises
+/// every object through an [`ObjectEncoder`], never verbatim. See both public
+/// wrappers for the contract.
+fn full_reencode(
+    doc: &Document,
+    dirty: &DirtySet,
+    options: &SaveOptions,
+    enc: Option<&EncryptParams>,
+) -> Result<(Vec<u8>, SaveReport), WriteError> {
+    use super::encoder::{EncryptingEncoder, IdentityEncoder, ObjectEncoder};
+
+    let base = doc.bytes();
+    let entry_eol = options.xref_entry_eol.resolve(base);
+    let combined = dirty.combined_source(base);
+
+    if matches!(
+        doc.section_shape(),
+        SectionShape::Classic { xref_stm: Some(_) }
+    ) {
+        return Err(WriteError::HybridFullRewrite);
+    }
+    if doc.encryption().is_some() {
+        // Encrypting requires plaintext; re-encryption decrypts first (the
+        // caller clears `/Encrypt` after decrypt-in-place). A document still
+        // reporting encryption here has not been through that, and its source
+        // bytes are ciphertext.
+        return Err(WriteError::EncryptedSaveUnsupported);
+    }
+
+    // The set of stream objects whose DATA is exempt from encryption
+    // (§7.6.2). Empty when not encrypting. With a classic output table there
+    // is no xref stream to exempt; the remaining categories are clear
+    // `/Metadata` and external (`/F`) streams. Resolved into object numbers so
+    // the encoder — which sees only bytes and an owner id — can consult it.
+    let mut clear_streams: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    if let Some(enc) = enc {
+        for (num, _) in doc.xref().iter() {
+            let id = ObjId::new(num, 0);
+            if let Some(io) = doc.get(id)
+                && let Object::Stream(st) = &io.value
+            {
+                let ty = st.dict.get(b"Type").and_then(Object::as_name);
+                let is_metadata = ty.is_some_and(|n| n.0 == b"Metadata");
+                let external = st.dict.get(b"F").is_some();
+                if (is_metadata && !enc.encrypt_metadata) || external {
+                    clear_streams.insert(num);
+                }
+            }
+        }
+    }
+    let encrypting;
+    let identity = IdentityEncoder;
+    let encoder: &dyn ObjectEncoder = match enc {
+        Some(enc) => {
+            encrypting = EncryptingEncoder::new(enc.file_key, enc.encrypt_dict, clear_streams);
+            &encrypting
+        }
+        None => &identity,
+    };
+
+    // A clean header copied from the source marker so an encrypted rewrite
+    // always loads via the strict path.
+    let mut out = {
+        let mut h = base
+            .get(header_span(base))
+            .unwrap_or(b"%PDF-1.7\n")
+            .to_vec();
+        if !matches!(h.last(), Some(b'\n' | b'\r')) {
+            h.push(b'\n');
+        }
+        h
+    };
+
+    // The base file's old xref stream, if any, is NOT re-emitted as a body
+    // object — the output is a classic table, so the container disappears.
+    let old_xref_stream = match doc.section_shape() {
+        SectionShape::Stream { id, .. } => Some(id.num),
+        _ => None,
+    };
+
+    let body_start = out.len();
+    let _ = body_start;
+    let mut entries: BTreeMap<u32, XrefEntry> = BTreeMap::new();
+    let mut reserialized = 0usize;
+    let mut promoted: Vec<ObjId> = Vec::new();
+
+    let mut numbers: BTreeSet<u32> = doc.xref().iter().map(|(num, _)| num).collect();
+    numbers.extend(dirty.iter().map(|id| id.num));
+    if let Some(enc) = enc {
+        numbers.insert(enc.encrypt_dict.num);
+    }
+
+    for num in numbers {
+        if old_xref_stream == Some(num) {
+            continue;
+        }
+        let entry = doc.xref().get(num);
+        let generation = match entry {
+            Some(XrefEntry::InUse { generation, .. }) => generation,
+            _ => 0,
+        };
+        let id = ObjId::new(num, generation);
+
+        if dirty.is_deleted(id) {
+            continue;
+        }
+
+        // The value to serialise: the /Encrypt dict for its number, else a
+        // dirty replacement, else the base object. A free base entry carries
+        // no body.
+        let value_owned;
+        let value: &Object = if let Some(e) = enc.filter(|e| num == e.encrypt_dict.num) {
+            &e.encrypt_dict_value
+        } else if let Some(v) = dirty.replacement(id) {
+            v
+        } else {
+            match entry {
+                Some(XrefEntry::Free { .. }) => {
+                    entries.insert(
+                        num,
+                        entry.unwrap_or(XrefEntry::Free {
+                            next_free: 0,
+                            generation: 65_535,
+                        }),
+                    );
+                    continue;
+                }
+                _ => {
+                    let io = doc.get(id).ok_or(WriteError::MissingObject { num })?;
+                    value_owned = io.value.clone();
+                    &value_owned
+                }
+            }
+        };
+
+        // A dropped object stream leaves no body; its members are emitted at
+        // file level by their own numbers.
+        if let Object::Stream(st) = value
+            && st
+                .dict
+                .get(b"Type")
+                .and_then(Object::as_name)
+                .is_some_and(|n| n.0 == b"ObjStm")
+        {
+            continue;
+        }
+
+        let offset = out.len() as u64;
+        serialize::write_indirect(&mut out, id, value, &combined, encoder);
+        reserialized += 1;
+        if matches!(entry, Some(XrefEntry::InStream { .. })) {
+            promoted.push(id);
+        }
+        entries.insert(num, XrefEntry::InUse { offset, generation });
+    }
+
+    let highest = entries.keys().copied().max().unwrap_or(0);
+    if highest > MAX_REWRITE_OBJECT_NUMBER {
+        return Err(WriteError::ObjectNumberTooLarge {
+            num: highest,
+            max: MAX_REWRITE_OBJECT_NUMBER,
+        });
+    }
+    entries.entry(0).or_insert(XrefEntry::Free {
+        next_free: 0,
+        generation: 65_535,
+    });
+    for num in 0..=highest {
+        entries.entry(num).or_insert(XrefEntry::Free {
+            next_free: 0,
+            generation: 65_535,
+        });
+    }
+    let deleted = apply_free_list(&mut entries, doc, dirty);
+
+    let mut trailer = copy_trailer_without_prev(doc.trailer());
+    for (key, value) in dirty.trailer_patch().iter() {
+        trailer.insert(key.clone(), value.clone());
+    }
+    trailer.0.retain(|(k, _)| k.as_bytes() != b"XRefStm");
+    if let Some(enc) = enc {
+        // §7.5.5: /Encrypt names the security handler dictionary; /ID is
+        // mandatory when /Encrypt is present. Both are set explicitly here —
+        // never derived — because encryption owns them.
+        trailer.insert(Name::from(b"Encrypt"), Object::Reference(enc.encrypt_dict));
+        trailer.insert(
+            Name::from(b"ID"),
+            Object::Array(vec![
+                Object::String(enc.file_id[0].clone()),
+                Object::String(enc.file_id[1].clone()),
+            ]),
+        );
+    }
+    bump_size(&mut trailer, highest);
+
+    let section_offset = out.len() as u64;
+    xref_out::write_classic_table(&mut out, &entries, entry_eol)?;
+    xref_out::write_classic_tail(&mut out, &trailer, section_offset, options.trailing_eol);
+
+    let report = SaveReport {
+        bytes_written: out.len(),
+        bytes_appended: out.len(),
+        objects_written: reserialized,
+        objects_verbatim: 0,
+        objects_reserialized: reserialized,
+        byte_identical: false,
+        delinearized: doc.linearization().save_invalidates_fast_web_view(),
+        promoted,
+        objects_deleted: deleted,
+    };
+    Ok((out, report))
+}
+
 /// Give every deleted object a conforming type-0 entry and splice them
 /// onto the head of the file's free list. Returns how many were freed.
 ///

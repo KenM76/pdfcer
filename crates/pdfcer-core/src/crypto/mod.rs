@@ -18,9 +18,9 @@
 //! | `/V` 4 at `/R` 4 with `/CFM /V2` (RC4 via crypt filter) | **implemented** |
 //! | `/V` 4 with `/CFM /AESV2` (AES-128) | **implemented** (increment 2) |
 //! | `/V` 5, `/R` 5 with `/CFM /AESV3` (AES-256) | **implemented** (increment 3) |
-//! | `/V` 5, `/R` 6 (AES-256 hardened) | refused as **unsourced** — Algorithm 2.B is not in the project's spec corpus past step (a) |
+//! | `/V` 5, `/R` 6 (AES-256 hardened) | **read AND write** (`Pass 5.4`) — `/R` 5's harness with Algorithm 2.B substituted for SHA-256 ([`r5::Hasher`]); 2.B sourced from ISO 32000-2:2020 (2026-08-12) |
 //! | Public-key handler, third-party handlers | refused by handler name |
-//! | **Writing** encrypted documents | **not implemented, in any configuration.** RC4 will never be written (standing rule W14), and `/R` 5 must never be written either: ISO 32000-2 §7.6.4.1 deprecates handler revisions 1–5, so the only non-deprecated AES-256 revision is the one whose algorithm is unsourced (**W17**) |
+//! | **Writing** encrypted documents | **AES-256 `/R` 6 only** (`Pass 5.4`, [`encrypt`]). RC4 and `/R` 2–5 are never written: W14, and ISO 32000-2 §7.6.4.1 deprecates handler revisions 1–5, leaving `/R` 6 the only non-deprecated AES-256 revision (**W17**) |
 //!
 //! **Do not read "AES-256 is implemented" as "AES-256 is done".** `/R` 6 is
 //! the default for everything Acrobat X and later produced with the "AES-256"
@@ -83,9 +83,12 @@ pub mod aes;
 pub mod apply;
 pub mod bignum;
 pub mod ecdsa;
+pub mod encrypt;
 pub mod md5;
 pub mod r5;
+pub mod r6;
 pub mod rc4;
+pub mod rng;
 pub mod rsa;
 pub mod sha1;
 pub mod standard;

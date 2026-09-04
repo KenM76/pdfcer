@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 188 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 191 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 188 public `EditSession` methods
+## 1. Verb index — all 191 public `EditSession` methods
 
-**Count: 188.** Established by brace-matched extraction of the four
+**Count: 191.** Established by brace-matched extraction of the four
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed.
@@ -142,15 +142,19 @@ Read the columns as: **I want to…** → **call this** → **returns / what tha
 | Redo | `redo(&mut self) -> Option<CommandKind>` | 3634 | What was redone. |
 | Show history depth | `undo_depth(&self) -> usize` | 3653 | Bounded by `MAX_UNDO_DEPTH` = **256** (`edit.rs:166`). |
 
-### 1.5 Save (2)
+### 1.5 Save (5)
 
 | I want to… | Call | Line | Returns |
 |---|---|---|---|
 | Save (the default) | `to_incremental_bytes(&self, &SaveOptions) -> Result<(Vec<u8>, SaveReport), WriteError>` | 4053 | Bytes + report. §7.5.6 append. **Superseded objects stay in the file.** |
 | Save as one revision | `to_full_bytes(&self, &SaveOptions) -> Result<(Vec<u8>, SaveReport), WriteError>` | 4071 | Bytes + report. ⚠️ Destroys every existing signature. |
+| Encrypt on save (AES-256 /R6) | `set_encryption(&self, &EncryptionSettings, &SaveOptions) -> Result<(Vec<u8>, SaveReport), EncryptError>` | edit.rs | Plaintext ⇒ encrypted. §5.5. Refuses a signed doc by name. |
+| Re-key permissions (owner-only) | `set_permissions(&mut self, &EncryptionSettings, &SaveOptions) -> Result<(Vec<u8>, SaveReport), EncryptError>` | edit.rs | New /P on an encrypted doc; `&mut self`. §5.5. |
+| Remove encryption (owner-only) | `remove_encryption(&mut self, &SaveOptions) -> Result<(Vec<u8>, SaveReport), EncryptError>` | edit.rs | Plaintext full rewrite; `&mut self`. §5.5. |
 
-Both take `&self` — saving does not mutate the session and does not clear the
-undo stack or the dirty set. Neither writes to disk.
+The first two take `&self`; the two mutating encryption verbs take `&mut self`
+(they drop the old `/Encrypt` state before re-serialising). Saving does not
+clear the undo stack or the dirty set, and none write to disk. **Detail: §5.5.**
 
 ### 1.6 Signature / structure queries (3)
 
@@ -3705,6 +3709,87 @@ worth carrying:
 There is **no session-level save outcome type**. `SaveOutcome` exists but is
 private to `pdfce-gui` (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:1411`). `WriteReport`:
 **NOT FOUND** anywhere in the workspace. A new shell will want its own.
+
+### 5.5 Encryption authoring — three save transforms (`Pass 5.4`)
+
+Encryption is a **whole-document save transform**, not an undoable command. Like
+`to_full_bytes`, these methods produce bytes; they do not push to the undo
+stack. Only **AES-256 `/R` 6** is written — no RC4, no `/R` 2–5, ever (W14/W17,
+the requester's explicit ask).
+
+```rust
+use pdfcer_core::edit::{EncryptionSettings, EncryptError};
+use pdfcer_core::crypto::PermissionBit;
+use pdfcer_core::writer::SaveOptions;
+
+// Encrypt a PLAINTEXT document. `&self` — the base is not encrypted.
+pub fn set_encryption(&self, settings: &EncryptionSettings, options: &SaveOptions)
+    -> Result<(Vec<u8>, SaveReport), EncryptError>;       // edit.rs
+
+// Re-key an ENCRYPTED document with a new /P (and optionally new passwords).
+// `&mut self` — owner-only; it drops the old /Encrypt then re-encrypts.
+pub fn set_permissions(&mut self, settings: &EncryptionSettings, options: &SaveOptions)
+    -> Result<(Vec<u8>, SaveReport), EncryptError>;       // edit.rs
+
+// Remove encryption. `&mut self` — owner-only; writes a plaintext full rewrite.
+pub fn remove_encryption(&mut self, options: &SaveOptions)
+    -> Result<(Vec<u8>, SaveReport), EncryptError>;       // edit.rs
+```
+
+`EncryptionSettings`:
+
+```rust
+pub struct EncryptionSettings {
+    pub user_password: Vec<u8>,      // empty ⇒ permissions-only (no prompt)
+    pub owner_password: Vec<u8>,
+    pub permissions: Vec<PermissionBit>,   // GRANTED bits; W19 reserved bits added for you
+    pub encrypt_metadata: bool,      // false ⇒ /Metadata left in clear (§7.6.2)
+    pub a13: crypto::r6::A13Reading, // leave at default — the only interoperable reading
+}
+// EncryptionSettings::new(user, owner) grants ALL bits, encrypts metadata, default A13.
+// EncryptionSettings::PERMISSIONS_DISCLOSURE — the notice a shell MUST surface.
+// EncryptionSettings::SASLPREP_GAP          — disclose when has_non_ascii_password().
+```
+
+**Load owner-authenticated for the mutating verbs.** `set_permissions` and
+`remove_encryption` require the session to have opened the document with the
+OWNER password — check via `doc.encryption().unwrap().auth == AuthKind::Owner`
+BEFORE offering the control. Both return `EncryptError::NotOwner { opened_as }`
+(carrying the `AuthKind` that DID open it) if not, so a shell can tell the
+operator which password is needed instead of failing opaquely.
+
+`EncryptError` (non-exhaustive): `AlreadyEncrypted`, `NotEncrypted`,
+`NotOwner { opened_as }`, `SignedDocument`, `Rng(_)`, `Write(_)`.
+
+**Traps.**
+
+- **T-25 `set_encryption` refuses a signed document by name.**
+  `EncryptError::SignedDocument` — encrypting re-encrypts every byte a signature
+  covered, breaking it by construction (ETSI EN 319 142-1 §5.5). Not silent, not
+  "encrypt anyway" — refused. (Same posture as redaction, `ARCHITECTURE.md`
+  §5.5.)
+- **T-26 An encrypted output is NEVER a minimal diff.** These are always full
+  rewrites that re-serialise every string and stream (decision 007 W8), and the
+  output is a **classic xref table** with object streams promoted out — the same
+  normalisation a recovered document gets, sanctioned for the same reason. Do not
+  expect `to_incremental_bytes`-style byte preservation.
+- **T-27 Permissions are a REQUEST, not a lock** — surface
+  `EncryptionSettings::PERMISSIONS_DISCLOSURE`. The CLI prints it verbatim; a GUI
+  must show it too (rule 4).
+- **T-28 SASLprep (W20) is not applied** — passwords are UTF-8 + 127-byte
+  truncation only. ASCII is exact; for non-ASCII, disclose
+  `EncryptionSettings::SASLPREP_GAP` (guard on `has_non_ascii_password()`).
+- **T-29 A still-encrypted session refuses content edits by name** — `add_text`,
+  markup, etc. return their `Encrypted` refusal on a document whose trailer
+  carries `/Encrypt`. Encrypt on a plaintext session, or `remove_encryption`
+  first, then edit.
+
+The write-side primitives live in `pdfcer-core::crypto::encrypt`
+(`build_aes256_r6`, `assemble_permissions`) and `pdfcer-core::writer`
+(`EncryptParams`, `save_full_encrypted`, `save_full_decrypted`); shells use the
+three `EditSession` verbs above and should not touch those directly.
+
+---
 
 ---
 
