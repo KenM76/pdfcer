@@ -112,6 +112,84 @@ wherever it appears.*
 
 ## Shipped
 
+**★★ 426th filing, 2026-09-05 — `v0.37.0` RESOLVED: IN PROGRESS →
+VERIFIED. The release of `Pass 10.4` (persistent "use Acrobat trust store
+(at own risk)" setting — `settings::AcrobatTrustStore { Off, AtOwnRisk }`,
+`Off` by default), done end to end this session — tag, push, CI, GitHub
+asset, fresh-folder smoke test, OneDrive, `verify-release.py`. Release act
+standing-authorized (decision 121, *"always go ahead and push the latest
+one"*).**
+
+**Sourcing (hard rule 8).** This role had a shell. The git figures below
+are MEASURED here — `git log -1 HEAD` = `git log -1 origin/main` = `git
+log -1 v0.37.0` all = **`cce6a69`** (full
+`cce6a691b4037f0e05acf213c236d6ab8fbb414a`; subject *"chore: bump version
+to 0.37.0 for the Pass 10.4 release (at-own-risk trust-store setting)"*,
+committed 2026-09-04 21:06:18 -0400); `git status --short` empty (working
+tree carries this filing's own doc edits only); `git log --oneline
+cce6a69..HEAD` = empty — **the tag is AT `HEAD`**, no commit sits ahead of
+it (as at the 424th filing's `v0.36.0` — this filing did NOT touch
+`NEXT_SESSION.md`, it is the engineer's). The CI/asset/OneDrive/smoke-test/
+build-folder figures are relayed from the engineer's dispatch (produced by
+the engineer's own shell this session), named beside each figure per hard
+rule 10.
+
+- **Version bump** `0.36.0 → 0.37.0`: commit **`cce6a69`**
+  (`chore: bump version to 0.37.0 for the Pass 10.4 release (at-own-risk
+  trust-store setting)`). This is the packaged, tested, CI-green commit the
+  tag points at — the same role `981038b` played for `v0.36.0` at the 424th
+  filing.
+- **Tag** `v0.37.0` → `cce6a69`, pushed to origin.
+- **`origin/main` = `cce6a69`** — equal to both the tag and `HEAD`, so
+  `origin/main` **contains** the tag trivially (they are the same commit),
+  which is what `verify-release.py`'s "origin/main contains the tag" check
+  reads.
+- **CI** run **`33935172132`** at **`cce6a69`** — **GREEN**, at the
+  **tagged commit itself**, and — as at the 424th filing's `v0.36.0` —
+  **no re-run was needed** (first run green).
+- **GitHub release**
+  https://github.com/KenM76/pdfcer/releases/tag/v0.37.0 — asset
+  `pdfcer-v0.37.0-windows-x64.zip`, **18,419,995 bytes**, SHA-256
+  `bbc8a0914c45a1281f1acbd3e7959a4ed4d7b5895fd4a0aa1c05cf2445d425ab`,
+  plus its `.sha256` sidecar.
+- **Build folder** `D:\builds\pdfcer-20260904-2107-cce6a69` — folder
+  **33,110,594 bytes**; `pdfcer.exe` **20,635,648 bytes**.
+- **Fresh-folder portable smoke test — PASSED.** The build was copied to a
+  clean path and the COPIED `pdfcer.exe` run: `--version` = `0.37.0`;
+  `verify-signatures` **WITHOUT** a flag reported trust **NOT CHECKED** —
+  proving `Pass 10.4`'s new setting defaults **OFF** (the safe default
+  decision 134 requires); `verify-signatures --trust-from-acrobat` still
+  evaluated against the real **1780-anchor** installed store and correctly
+  reported the fixture's self-signed signer as *"untrusted: self-signed
+  root not in the trust store"*. So this smoke test exercises **the new
+  setting's default behaviour** (trust off unless opted in) as well as the
+  still-working opt-in flag.
+- **OneDrive**: `deploy-onedrive.py` wrote **`pdfcer1`** = **0.37.0** (5
+  items, 33,109,395 bytes); **`pdfcer2`** = **0.36.0** kept as the previous
+  version — the alternating-slot scheme's guarantee (R229) that a previous
+  version is always available. This release wrote the `pdfcer1` slot (the
+  424th filing's `v0.36.0` had written `pdfcer2`), leaving `v0.36.0` in
+  place as the fallback.
+- **`python tools/verify-release.py v0.37.0` — CLEAN.** Working tree clean;
+  tag exists + pushed + at `HEAD`; `origin/main` contains the tag; GitHub
+  release has an asset; CI green at the tag; OneDrive `pdfcer1` = 0.37.0
+  with 0.36.0 still present.
+- Carries `Pass 10.4` (persistent `settings::AcrobatTrustStore`, `Off` by
+  default; the CLI default for `--trust-from-acrobat`), shipped at the
+  425th filing above (Pass code `184c397`); this entry resolves the release
+  mechanics only, it does not re-describe the feature.
+
+`docs/FEATURES.md`: **no change** — the `Pass 10.4` capability row
+("Persistent *use Acrobat trust store (at own risk)* setting", `core [x]` ·
+`cli [x]` · `gui [ ]` · `Acrobat [x]`) was set at the 425th filing; this
+entry is release bookkeeping only, not a capability change.
+
+**Ledger.** Filings ceiling `425` → **`426`**; Pass ceiling `250.2`
+unchanged — no new Pass, a release-verification entry only; decision
+ceiling `134` unchanged, next free `135`; standing rules ceiling `R241`
+unchanged, next free `R242`; open operator questions: none minted, next
+free `(ce)`.
+
 **★★★ 425th filing, 2026-09-04 — `Pass 10.4` SHIPPED (`184c397`):
 PERSISTENT "USE ACROBAT TRUST STORE (AT OWN RISK)" SETTING. The
 per-invocation `--trust-from-acrobat` flag of `Pass 10.3` now has a

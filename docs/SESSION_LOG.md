@@ -91545,3 +91545,67 @@ here.
   persistent home in the settings file, off by default. The CLI already
   honours it as the default for `--trust-from-acrobat`; the GUI toggle
   lands when the separate `pdfcer-gui` wires it.
+
+## 2026-09-05 (426th filing) — `v0.37.0` RELEASED and VERIFIED: `Pass 10.4` (persistent "use Acrobat trust store (at own risk)" setting) shipped end to end, IN PROGRESS → VERIFIED
+
+**Shipped:**
+- **`v0.37.0` released and verified** — the release of `Pass 10.4`
+  (persistent `settings::AcrobatTrustStore { Off, AtOwnRisk }`, `Off` by
+  default; `pdfcer-core` settings + the `pdfcer` CLI, shipped at the 425th
+  filing, code `184c397`). Version bump `0.36.0 → 0.37.0` on commit
+  `cce6a69` (`cce6a691b4037f0e05acf213c236d6ab8fbb414a`), which is `HEAD` =
+  `origin/main` = tag `v0.37.0`. Tag pushed. CI run `33935172132` at
+  `cce6a69` — GREEN at the tagged commit itself, **first run, no re-run
+  needed**. GitHub release published with asset
+  `pdfcer-v0.37.0-windows-x64.zip` (18,419,995 bytes, SHA-256
+  `bbc8a0914c45a1281f1acbd3e7959a4ed4d7b5895fd4a0aa1c05cf2445d425ab`) plus
+  its `.sha256` sidecar. OneDrive `pdfcer1` updated to 0.37.0 (5 items,
+  33,109,395 bytes); `pdfcer2` stays 0.36.0 as the previous version
+  (alternating slots, R229 — this release wrote the `pdfcer1` slot; the
+  424th filing's `v0.36.0` had written `pdfcer2`). `python
+  tools/verify-release.py v0.37.0` reported clean, every check.
+
+**Decisions made this session:**
+- None minted (decision ceiling `134` unchanged). The release act itself
+  needed no go-ahead — standing-authorized by decision 121 (*"always go
+  ahead and push the latest one"*).
+
+**Findings + decisions:**
+- **CI was green at the tag on the FIRST run** — as at the 420th/422nd/424th
+  filings' releases, and unlike the 418th filing's `v0.33.0`, whose green
+  took a re-run after a spurious git-fetch timeout on the windows runner.
+- **Fresh-folder portable smoke test PASSED — exercising the new setting's
+  DEFAULT-OFF behaviour.** The build folder
+  (`D:\builds\pdfcer-20260904-2107-cce6a69`, 33,110,594 bytes; `pdfcer.exe`
+  20,635,648 bytes) was copied to a clean path and the COPIED binary run:
+  `--version` = 0.37.0; `verify-signatures` **without** a flag reported
+  trust **NOT CHECKED** — confirming `Pass 10.4`'s setting defaults **OFF**
+  (the safe default decision 134 requires); `verify-signatures
+  --trust-from-acrobat` still evaluated against the real installed store
+  (1780 anchors) and correctly reported the fixture's self-signed signer as
+  *"untrusted: self-signed root not in the trust store"*. So the smoke test
+  runs both the default-off posture and the opt-in flag.
+- **Sourcing (hard rule 8):** this role had a shell. The git figures are
+  MEASURED here — `HEAD` = `origin/main` = tag `v0.37.0` = `cce6a69`
+  (subject *"chore: bump version to 0.37.0 for the Pass 10.4 release
+  (at-own-risk trust-store setting)"*, 2026-09-04 21:06:18 -0400), working
+  tree clean by `git status --short`, `cce6a69..HEAD` empty (the tag is AT
+  `HEAD`). The CI/asset/OneDrive/smoke-test/build-folder figures are
+  relayed from the engineer's dispatch, produced by the engineer's own
+  shell this session.
+- `NEXT_SESSION.md` was NOT touched by this filing — it is engineer-owned.
+
+**Still in flight:**
+- Nothing on the release — `v0.37.0` is fully released and verified.
+  **`Pass 10.5`** (full trust validation — revocation CRL/OCSP,
+  validity-date checking against a clock, RFC 5280 path constraints,
+  RSA-PSS cert signatures) remains *Backlog*, NOT built. **`Pass 250.2`**
+  (undo-preserving deferred redaction) remains *Backlog*.
+
+**For next session:**
+- Engineer: no in-flight Pass; `v0.37.0` shipped and verified. `Pass 10.5`
+  (full validation) is the larger deferred trust piece; `Pass 250.2`
+  (undo-preserving deferred redaction) is the harder redaction shape.
+- Operator: the "use Acrobat trust store (at own risk)" setting shipped in
+  `v0.37.0` — the latest portable build (OneDrive `pdfcer1`) carries it,
+  off by default. `v0.36.0` is kept in `pdfcer2` as the fallback.
