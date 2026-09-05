@@ -675,6 +675,27 @@ pub enum WriteError {
         /// The span that could not be sliced.
         span: crate::span::ByteSpan,
     },
+    /// A save was requested on a session that has a **deferred redaction
+    /// pending** ([`crate::edit::EditSession::apply_redactions_deferred`],
+    /// `Pass 250.2`).
+    ///
+    /// A deferred redaction leaves the un-redacted content in the live
+    /// session so the operator's undo history is preserved; the removal is
+    /// carried out only by
+    /// [`crate::edit::EditSession::save_applying_redaction`], which runs the
+    /// surgery over the current state and emits clean bytes. Both ordinary
+    /// save modes are refused meanwhile: an **incremental** save would append
+    /// a delta over the un-redacted base and leak the content via `/Prev`
+    /// (`ARCHITECTURE.md` §5.2), and a **full** rewrite would emit the marks
+    /// with the content still present (an unapplied redaction — a footgun, not
+    /// a leak). Refusing by name, and pointing at the verb that is safe, is the
+    /// honest outcome.
+    #[error(
+        "a deferred redaction is pending; ordinary saves are refused to avoid \
+         leaking (incremental) or silently not applying it (full rewrite) — \
+         use EditSession::save_applying_redaction, or cancel_pending_redaction first"
+    )]
+    RedactionPending,
     /// A full rewrite was requested for a **hybrid-reference** file
     /// (§7.5.8.4).
     ///

@@ -68,3 +68,89 @@ fn apply_without_marks_is_refused_by_name() {
 fn contains(haystack: &[u8], needle: &[u8]) -> bool {
     haystack.windows(needle.len()).any(|w| w == needle)
 }
+
+// -- Pass 250.2: the undo-preserving DEFERRED variant -----------------------
+
+#[test]
+fn a_deferred_redaction_preserves_undo_and_refuses_ordinary_saves() {
+    use pdfcer_core::writer::WriteError;
+
+    let mut session = EditSession::new(hello());
+    // A prior, ordinary edit so there is undo history to preserve.
+    session
+        .set_info_field(pdfcer_core::edit::InfoField::Title, Some("before"))
+        .expect("set a title");
+    let undo_before = session.undo_depth();
+    assert!(undo_before >= 1, "there is undo history to preserve");
+
+    let marked = session
+        .mark_redactions_by_search("Hello", false)
+        .expect("mark redactions");
+    assert!(!marked.is_empty());
+
+    // Stage the redaction (deferred). The preview report discloses the removal.
+    let report = session
+        .apply_redactions_deferred()
+        .expect("stage the deferred redaction");
+    assert!(
+        report.redacted_text.iter().any(|t| t.contains("Hello")),
+        "the preview report discloses the text that WILL be removed"
+    );
+    assert!(session.has_pending_redaction());
+
+    // Undo history is UNTOUCHED -- that is the whole point of the deferred
+    // variant (contrast apply_redactions, which clears it).
+    assert!(
+        session.undo_depth() >= undo_before,
+        "staging a deferred redaction must not clear undo"
+    );
+    assert!(session.can_undo());
+
+    // Both ordinary save modes are refused by name while pending.
+    assert!(matches!(
+        session.to_incremental_bytes(&SaveOptions::default()),
+        Err(WriteError::RedactionPending)
+    ));
+    assert!(matches!(
+        session.to_full_bytes(&SaveOptions::default()),
+        Err(WriteError::RedactionPending)
+    ));
+
+    // The applying save succeeds, removes the text, and does NOT mutate the
+    // session (it takes &self): undo still works afterward.
+    let (bytes, _) = session
+        .save_applying_redaction(&SaveOptions::default())
+        .expect("the applying save produces redacted bytes");
+    assert!(
+        !contains(&bytes, b"Hello"),
+        "the deferred redaction removed the text from the saved bytes"
+    );
+    assert!(
+        Document::from_bytes(bytes).is_ok(),
+        "redacted output reopens"
+    );
+
+    // Session untouched by the save: still pending, still undoable.
+    assert!(session.has_pending_redaction());
+    assert!(
+        session.can_undo(),
+        "the &self save left the undo history intact"
+    );
+}
+
+#[test]
+fn cancelling_a_deferred_redaction_restores_ordinary_saves() {
+    let mut session = EditSession::new(hello());
+    session
+        .mark_redactions_by_search("Hello", false)
+        .expect("mark");
+    session
+        .apply_redactions_deferred()
+        .expect("stage the redaction");
+    assert!(session.has_pending_redaction());
+
+    session.cancel_pending_redaction();
+    assert!(!session.has_pending_redaction());
+    // Ordinary saves work again (the session was never mutated by staging).
+    assert!(session.to_full_bytes(&SaveOptions::default()).is_ok());
+}

@@ -7139,6 +7139,18 @@ pub struct EditSession {
     /// no save mode can leak removed content and NO save is refused. The flag
     /// lets a shell say "a redaction has been applied and finalized".
     redacted: bool,
+    /// Set once [`EditSession::apply_redactions_deferred`] has staged a
+    /// redaction to be applied AT SAVE rather than eagerly (`Pass 250.2`).
+    ///
+    /// Unlike [`redacted`](Self::redacted) (the finalizing collapse, which
+    /// clears undo), a *deferred* redaction leaves the live session — base,
+    /// overlay and the FULL undo/redo history — completely untouched, so the
+    /// operator can keep editing and undo freely. The un-redacted content is
+    /// therefore still present in memory, so while this is set BOTH ordinary
+    /// save modes are refused ([`WriteError::RedactionPending`]): the removal
+    /// is carried out only by [`EditSession::save_applying_redaction`]. This is
+    /// the §4.1 leak-guard the eager collapse did not need.
+    redaction_pending: bool,
 }
 
 /// What [`EditSession::copy_and_splice`] produced, before any command is
@@ -7217,6 +7229,7 @@ impl EditSession {
             quad_point_order: QuadPointOrder::default(),
             page_objects_cache: None,
             redacted: false,
+            redaction_pending: false,
             #[cfg(debug_assertions)]
             base_page_tree_walked: walkable,
         }
@@ -8332,6 +8345,12 @@ impl EditSession {
         &self,
         options: &SaveOptions,
     ) -> Result<(Vec<u8>, SaveReport), WriteError> {
+        // A deferred redaction (Pass 250.2) leaves un-redacted content live in
+        // the session; an incremental save would append a delta over it and
+        // leak via /Prev. Refuse until the redaction is applied or cancelled.
+        if self.redaction_pending {
+            return Err(WriteError::RedactionPending);
+        }
         crate::writer::save_incremental(&self.base, &self.dirty_set(), options)
     }
 
@@ -8350,6 +8369,13 @@ impl EditSession {
         &self,
         options: &SaveOptions,
     ) -> Result<(Vec<u8>, SaveReport), WriteError> {
+        // A deferred redaction (Pass 250.2) is not applied by a plain full
+        // rewrite: this path would emit the /Redact marks with the content
+        // still present (an UNAPPLIED redaction — a footgun, though not a leak).
+        // Refuse and direct the caller to `save_applying_redaction`.
+        if self.redaction_pending {
+            return Err(WriteError::RedactionPending);
+        }
         crate::writer::save_full(&self.base, &self.dirty_set(), options)
     }
 
@@ -8408,27 +8434,143 @@ impl EditSession {
         &mut self,
     ) -> Result<crate::redact::RedactionReport, crate::redact::RedactError> {
         use crate::redact::RedactError;
-        // 1. Serialise the session as one complete revision. This carries the
-        //    /Redact marks (they live in the session's edits, not the base) and
-        //    every other pending edit into a document the redactor can scan.
-        let (full, _) = self
-            .to_full_bytes(&SaveOptions::identity())
-            .map_err(RedactError::Write)?;
-        // 2. Reload so the marks are document state.
-        let doc = Document::from_bytes(full).map_err(RedactError::Reload)?;
-        // 3. Remove the marked content (a full rewrite internally).
-        let (redacted, report) = crate::redact::apply_redactions(&doc, &SaveOptions::default())?;
-        // 4. Adopt the redacted bytes as the new base. Only now, after the
-        //    removal has succeeded, is `self` touched -- so any earlier error
-        //    leaves the session exactly as it was (no half-redaction).
+        // Serialise → reload → remove, over the current state (steps 1-3).
+        let (redacted, report) = self.redact_current_state(&SaveOptions::default())?;
+        // Adopt the redacted bytes as the new base. Only now, after the removal
+        // has succeeded, is `self` touched -- so any earlier error leaves the
+        // session exactly as it was (no half-redaction).
         let new_base = Document::from_bytes(redacted).map_err(RedactError::Reload)?;
-        // 5. Collapse: reset onto the clean base, preserving the one operator
-        //    setting the session carries, and mark it finalized (undo cleared).
+        // Collapse: reset onto the clean base, preserving the one operator
+        // setting the session carries, and mark it finalized (undo cleared).
         let order = self.quad_point_order;
         *self = EditSession::new(new_base);
         self.quad_point_order = order;
         self.redacted = true;
         Ok(report)
+    }
+
+    /// Serialise the current session to one full revision, reload it, and run
+    /// the redaction removal over it — the non-mutating core shared by the
+    /// eager [`apply_redactions`](Self::apply_redactions), the deferred
+    /// [`apply_redactions_deferred`](Self::apply_redactions_deferred) preview,
+    /// and [`save_applying_redaction`](Self::save_applying_redaction).
+    ///
+    /// It serialises via [`crate::writer::save_full`] **directly**, NOT via
+    /// [`to_full_bytes`](Self::to_full_bytes): the latter now refuses when a
+    /// redaction is pending, and this helper must run precisely then.
+    fn redact_current_state(
+        &self,
+        options: &SaveOptions,
+    ) -> Result<(Vec<u8>, crate::redact::RedactionReport), crate::redact::RedactError> {
+        use crate::redact::RedactError;
+        // 1. Serialise the session as one complete revision, carrying the
+        //    /Redact marks (they live in the session's edits) and every other
+        //    pending edit into a document the redactor can scan. Bypasses the
+        //    pending-redaction save guard on purpose (see the doc comment).
+        let (full, _) =
+            crate::writer::save_full(&self.base, &self.dirty_set(), &SaveOptions::identity())
+                .map_err(RedactError::Write)?;
+        // 2. Reload so the marks are document state.
+        let doc = Document::from_bytes(full).map_err(RedactError::Reload)?;
+        // 3. Remove the marked content (a full rewrite internally).
+        crate::redact::apply_redactions(&doc, options)
+    }
+
+    /// Stage a **deferred** redaction: mark this session so that its content
+    /// removal is carried out AT SAVE, by
+    /// [`save_applying_redaction`](Self::save_applying_redaction), rather than
+    /// eagerly collapsed like [`apply_redactions`](Self::apply_redactions)
+    /// (`Pass 250.2`, `pdfcer-gui` request 2026-09-04).
+    ///
+    /// # Undo is fully preserved — that is the whole point
+    ///
+    /// Unlike the eager verb, this does **not** touch the session: base,
+    /// overlay and the entire undo/redo history are left exactly as they were.
+    /// The operator can keep editing and undo freely, including undoing edits
+    /// made *before* staging the redaction. To un-stage the redaction itself,
+    /// call [`cancel_pending_redaction`](Self::cancel_pending_redaction).
+    ///
+    /// # The cost: ordinary saves are refused while pending
+    ///
+    /// Because the un-redacted content is still live in the session, both
+    /// [`to_incremental_bytes`](Self::to_incremental_bytes) (would leak via
+    /// `/Prev`) and [`to_full_bytes`](Self::to_full_bytes) (would emit the
+    /// marks with content intact — an unapplied redaction) return
+    /// [`WriteError::RedactionPending`](crate::writer::WriteError::RedactionPending)
+    /// until the redaction is applied via `save_applying_redaction` or
+    /// cancelled. This is the §4.1 leak-guard the eager collapse did not need.
+    ///
+    /// # What it returns
+    ///
+    /// A PREVIEW [`RedactionReport`](crate::redact::RedactionReport) — computed
+    /// by running the removal over the current state and discarding the bytes —
+    /// so a shell can disclose what *would* be removed before the operator
+    /// commits. The actual removal at save re-runs over the then-current state,
+    /// so if the operator edits in between, the saved result reflects the edits
+    /// (and a shell re-verifies absence against the SAVED bytes, as always).
+    ///
+    /// # Errors
+    ///
+    /// The same [`RedactError`](crate::redact::RedactError) set as
+    /// [`apply_redactions`](Self::apply_redactions); on any error the pending
+    /// flag is NOT set, so a failed staging leaves an ordinary session.
+    pub fn apply_redactions_deferred(
+        &mut self,
+    ) -> Result<crate::redact::RedactionReport, crate::redact::RedactError> {
+        // Run the removal now only to produce the disclosure preview; discard
+        // the bytes. The flag is set only after this succeeds, so a failure
+        // (no marks, hybrid base, undestroyable image) leaves the session
+        // ordinary and saveable.
+        let (_bytes, report) = self.redact_current_state(&SaveOptions::default())?;
+        self.redaction_pending = true;
+        Ok(report)
+    }
+
+    /// Whether a deferred redaction is staged
+    /// ([`apply_redactions_deferred`](Self::apply_redactions_deferred)). While
+    /// true, ordinary saves are refused; save via
+    /// [`save_applying_redaction`](Self::save_applying_redaction).
+    #[must_use]
+    pub const fn has_pending_redaction(&self) -> bool {
+        self.redaction_pending
+    }
+
+    /// Cancel a staged deferred redaction, restoring ordinary save behaviour.
+    ///
+    /// The session was never mutated by staging, so this simply clears the
+    /// flag — no content is affected and undo is unchanged. Idempotent.
+    pub const fn cancel_pending_redaction(&mut self) {
+        self.redaction_pending = false;
+    }
+
+    /// Apply a deferred redaction and return the clean, redacted full-rewrite
+    /// bytes — the ONLY save that succeeds while a redaction is pending
+    /// (`Pass 250.2`).
+    ///
+    /// Runs the removal ([`crate::redact::apply_redactions`]) over the session's
+    /// CURRENT state (serialise → reload → redact) and returns the redacted
+    /// bytes with the [`RedactionReport`](crate::redact::RedactionReport)
+    /// disclosing exactly what was removed and any residual. It takes `&self`
+    /// and does **not** mutate the session, so the operator's undo history
+    /// survives the save untouched — they can save, keep editing, undo, and
+    /// save again.
+    ///
+    /// The output is a single-revision full rewrite with the content already
+    /// gone, so — exactly like the eager collapse — there is no un-redacted
+    /// base in the bytes for any later save to leak. A shell verifies absence
+    /// against these SAVED bytes, as before.
+    ///
+    /// # Errors
+    ///
+    /// The same [`RedactError`](crate::redact::RedactError) set as
+    /// [`apply_redactions`](Self::apply_redactions), notably
+    /// [`RedactError::NothingToApply`](crate::redact::RedactError::NothingToApply)
+    /// if the marks were edited away before the save.
+    pub fn save_applying_redaction(
+        &self,
+        options: &SaveOptions,
+    ) -> Result<(Vec<u8>, crate::redact::RedactionReport), crate::redact::RedactError> {
+        self.redact_current_state(options)
     }
 
     // -- encryption authoring (Pass 5.4, ISO 32000-2:2020 §7.6) -------
