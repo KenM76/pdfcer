@@ -342,10 +342,13 @@ cbc = { version = "0.2.1", default-features = false, features = ["alloc", "block
 #
 # default-features = false IS LOAD-BEARING, NOT TIDINESS (R24), though
 # for a different reason from the codec crates above. sha2's default
-# set is ["alloc", "oid"]; pdfcer calls Sha256::new / update / finalize
-# and nothing else, so `alloc` is unused and `oid` would pull const-oid
-# in to name an ASN.1 identifier no PDF path ever reads. `zeroize` is
-# off deliberately rather than by omission — see the CI step below.
+# set is ["alloc", "oid"]; pdfcer's own calls are Sha256::new / update /
+# finalize, so `alloc` is unused. `oid` IS on since decision 138
+# (2026-09-05) — not from this line but through `rsa`'s optional `sha2`
+# dependency (`features = ["oid"]`), because RSASSA-PKCS1-v1_5 needs
+# `Sha256: AssociatedOid` for its DigestInfo prefix; it is const-oid
+# trait impls only, no backend change, no new unsafe. `zeroize` is off
+# deliberately rather than by omission — see the CI step below.
 #
 # ★ UNSAFE: sha2 is the SECOND dependency whose unsafe cannot be
 # switched off by a feature, and it has the SAME SHAPE as `aes`, so it
@@ -357,8 +360,9 @@ cbc = { version = "0.2.1", default-features = false, features = ["alloc", "block
 # which is global and is NOT inherited by anyone consuming pdfcer-core
 # as a library. Five unsafe sites, all in sha256.rs's backend dispatch.
 # It enables NO extra feature on `aes`, so 039's boundary is untouched
-# by its arrival. `.github/workflows/ci.yml` asserts alloc/oid/zeroize
-# stay off, on all four targets, in the same shape as the `aes` check.
+# by its arrival. `.github/workflows/ci.yml` asserts alloc/zeroize stay
+# off, on all four targets, in the same shape as the `aes` check (the
+# guard caught `oid` arriving on 8a18e53; decision 138 admitted it).
 sha2 = { version = "0.11.0", default-features = false }
 
 # ---------------------------------------------------------------------------
