@@ -112,6 +112,157 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★ 429th filing, 2026-09-05 — TWO CORRECTNESS FIXES SHIPPED in one
+commit (`185e474`, tests included; core-API doc sync `60a34b3`), both
+against the `v0.38.0` release, both found and reported by `pdfcer-gui`.**
+
+### `Pass 250.3` (`185e474`, 2026-09-05) — **THE ENCRYPTION WRITERS REFUSE A PENDING DEFERRED REDACTION — a leak I introduced in `Pass 250.2`, closed**
+
+**★ This is a leak the librarian's own project introduced two Passes ago,
+recorded honestly.** `Pass 250.2` (v0.38.0, undo-preserving deferred
+redaction) guarded the two ordinary save paths — `to_incremental_bytes` /
+`to_full_bytes` — with `has_pending_redaction()` (`WriteError::RedactionPending`),
+so an ordinary save of a session with a staged deferred redaction refuses.
+**It did NOT guard the three encryption writers** — `set_encryption`,
+`set_permissions`, `remove_encryption` (`Pass 5.4`). So encrypting a
+session that carried a staged deferred redaction produced an **encrypted
+file holding the UN-redacted content plus the `/Redact` marks** — the exact
+leak the whole redaction feature exists to prevent. The undo-preserving
+variant opened the window precisely because it keeps the un-redacted base
+**live** (that is its purpose); the eager collapse variant (`Pass 250.1`)
+had no such window because it has no un-redacted base after the collapse.
+
+**Fix.** All three encryption verbs now refuse by name with a new
+`EncryptError::RedactionPending` variant, fired **before**
+`AlreadyEncrypted` / `NotEncrypted` / `NotOwner` (the pending-redaction
+check is the first gate, so a staged redaction cannot slip through on a
+document that also happens to be already-encrypted or owner-mismatched).
+`apply_redactions_deferred`'s doc comment gained a **table of every writer
+refused while a redaction is staged** — the two save modes plus the three
+encryption verbs — with a standing note that **any future whole-document
+writer must join that table**. `EncryptError` is `#[non_exhaustive]`, so
+the new variant is not a breaking change.
+
+**Sourced from `pdfcer-gui`'s report**
+`open/request_set_encryption_ignores_a_pending_redaction.md` (2026-09-05);
+replied **FIXED** (`open/reply_2026-09-05-set-encryption-pending-redaction-FIXED.md`).
+
+**Tests (affected suite, green).** `redact_into_session` — **5 tests**,
+including the new `the_encryption_writers_refuse_while_a_redaction_is_staged`
+(the 41-line addition in `185e474`).
+
+`docs/FEATURES.md`: the *Undo-preserving DEFERRED redaction* row (under
+*Redaction & security → Implemented*) had its refused-writer set **corrected
+and completed** — it enumerated only the two save modes; it now also names
+the three encryption verbs refusing via `EncryptError::RedactionPending`
+(`Pass 250.3`). No box moved (`core [x]` throughout; the leak was a
+correctness gap in an already-shipped `[x]` capability, now closed). The
+core-API reference `docs/core-api/02-editing-and-saving.md` was updated in
+the same code session (`60a34b3`) — the `set_encryption` / `set_permissions`
+/ `remove_encryption` rows already carry the `Pass 250.3` refusal.
+
+### `Pass 251.0` (`185e474`, 2026-09-05) — **`add_text` AFTER AN EARLIER EDIT WAS DUPLICATED, AND `reflow_block` SILENTLY DELETED IT — a PRE-EXISTING text-editing bug, closed**
+
+**Not a `v0.38.0` regression — a latent defect in the per-page
+content-stream sweep, present long before the release.** `text_edit_command`
+folded a page's extra content streams (`contents[1..]`) into `contents[0]`
+**only on the first rewrite** (`if first_edit`). But `add_text` /
+`add_image` / `paste_objects` **append a new non-empty extra AFTER that
+first rewrite** — so the next surgery folded the appended run into
+`contents[0]` while leaving the original extra in place: the run **rendered
+twice**, gaining one more copy per subsequent edit (compounding).
+
+**Fix (defect 1).** Sweep **per surgery**, not once: every extra whose
+current payload (read via `self.value`, i.e. the overlay's current state)
+is non-empty is emptied and its content moved into `contents[0]`; `before`
+is still taken from the overlay so undo restores the run; already-empty
+extras are skipped.
+
+**Fix (defect 2 — the silent deletion).** `reflow_block` planned from the
+**base** (which lacks a run appended this session) and its guard only
+checked `contents[0]`, so it could commit a base-derived plan that **emptied
+the appended extra and silently deleted the added text**. It now **refuses
+by name** when any `contents[1..]` still carries a payload (the
+"refuses-a-page-carrying-an-appended-stream" option `pdfcer-gui` offered) —
+a clean refusal rather than a wrong-and-silent edit, consistent with
+`Pass 186.0`'s existing base-indexed `reflow_block` refusal on a
+page-set change.
+
+**Sourced from `pdfcer-gui`'s report**
+`open/request_added_content_is_duplicated_by_the_next_content_edit.md`
+(2026-09-04); replied **FIXED**
+(`open/reply_2026-09-05-added-text-duplication-FIXED.md`).
+
+**Tests (affected suite, green).** New `content_edit_no_duplication.rs` —
+**3 tests**: no-duplication, no-compounding (**sabotage-verified at 4
+copies** — the defect reproduced before the fix), and
+reflow-refuses-with-the-run-surviving. Also green: `session_overlay_skew`
+(**10**), `add_text` core (**8**).
+
+**No `docs/FEATURES.md` change for `Pass 251.0`.** The text-editing rows
+(*Edit existing text runs*, *Add new page text*, *Edit … added in THIS
+session*) already assert these capabilities as `[x]`; this was a bug in an
+asserted capability, now fixed, and per the file's own rule (*"a row that
+has grown a history has stopped being a scan"*) a correctness fix that
+restores a claimed behaviour moves no box and adds no clause. The 428th
+filing reached the same "no FEATURES change" outcome for release
+bookkeeping; this is the same shape for a bug fix.
+
+**Invariant / gate checks (this filing).** The **affected** tests all pass
+(enumerated above). `cargo clippy -- -D warnings`, `cargo fmt --check`, and
+the **wasm32 GUI-core-separation check** (`cargo tree` / wasm32 build)
+**PASS**. **The full `cargo test --workspace` could NOT be completed
+locally**: this box has ~4.4 GB free RAM, and the workspace test-binary
+**LINK** phase hits Windows **`0xC0000142` `STATUS_DLL_INIT_FAILED`**
+(out-of-memory), even at `CARGO_BUILD_JOBS=2` — the same OOM the `v0.38.0`
+release build hit (RAG'd at the 428th filing,
+`D:/dev/rag/rust/windows_0xC0000142_release_build_is_codegen_oom.md`). The
+**authoritative full-suite run is therefore CI** (adequate RAM), which
+gates the release via `verify-release.py`. Recorded honestly per hard
+rule 8: local full-suite is **OOM-blocked**, **affected-test coverage is
+green**, **CI is the backstop**.
+
+**Sourcing (hard rule 8).** This role had a shell; the git figures are
+MEASURED here. `git log -1 HEAD` = **`60a34b3`** (full
+`60a34b377d80b9b85879ea3c1d7f984149ed991c`, subject *"docs(core-api): record
+the Pass 250.3 / 251.0 refusals on the encryption and reflow rows"*);
+`git log -1 origin/main` = **`0c81b91`** (the 428th filing commit). So
+**`185e474` and `60a34b3` are unpushed** — `HEAD` is two commits ahead of
+`origin/main`, and this docs-only filing commit will make it three
+(pushing `main` is standing-authorized, decision 090, but is the engineer's
+act, not filed here). `git status --short` shows ` M fuzz/Cargo.lock` (a
+pre-existing lockfile modification, NOT part of this filing) plus this
+filing's own doc edits — **this filing commits ONLY the doc files**.
+`git show --stat 185e474` = `edit.rs` (+126/−19) + `content_edit_no_duplication.rs`
+(new, +133) + `redact_into_session.rs` (+41) = 3 files, +281/−19.
+
+**Commits filed by this entry.** **`185e474`** (code + tests for both
+`Pass 250.3` and `Pass 251.0`) and **`60a34b3`** (core-API doc sync) are
+accounted for here — `check-commits-filed` has them both. (They were
+unfiled before this filing, which is why the gate was red; this filing
+turns it green.)
+
+**No new decision minted.** The `250.3` fix **completes** an existing
+safety contract (the refuse-while-staged guard `Pass 250.2` established)
+rather than defining a new one — and the "any future whole-document writer
+must join the refused set" principle is now encoded **in-code** in
+`apply_redactions_deferred`'s doc table, which is the right home for it;
+minting a numbered decision or standing rule at this single occurrence
+would run against the project's two-occurrence bar. The RAM/OOM build
+constraint is a build-environment fact, already RAG'd and recorded at the
+428th filing — not an architectural decision. Decision ceiling `135`
+unchanged. (Rule-11 sweep: neither fix changed a counter's or a
+capability's meaning, so no cross-document meaning-change sweep is owed;
+the one claim that *did* change — the refused-writer set while a redaction
+is staged — was swept across `docs/` and is correct in FEATURES row 295,
+the core-API rows 151–153, and this entry.)
+
+**Ledger.** Filings ceiling `428` → **`429`**; Pass ceiling `250.2` →
+**`251.0`** (`Pass 250.3` is a `250`-family sub-ID; `Pass 251.0` is the new
+ceiling); decision ceiling `135` **unchanged**, next free `136`; standing
+rules ceiling `R241` unchanged, next free `R242`; open operator questions:
+none minted, next free `(ce)`.
+
 **★★ 428th filing, 2026-09-05 — `v0.38.0` RESOLVED: IN PROGRESS →
 VERIFIED. The release of BOTH Passes filed at the 427th filing — `Pass
 10.5` (full signature trust PATH VALIDATION — validity dates, RFC 5280
@@ -120463,6 +120614,169 @@ nothing gets forgotten, not as a commitment to build in this order.
 > knockout groups) now deposits.** `FEATURES.md`'s *Per-colorant (n-channel)
 > compositing buffer* row narrowed a fifth time to this single remaining
 > scope; no box moves.
+
+> ★★★ **FIVE ITEMS ADDED 2026-09-05 (429th filing) — `pdfcer-gui`'s
+> comment/review-workflow gaps, filed as FEATURES (Backlog, not scheduled)
+> after the operator asked `pdfcer-gui` to make review *"look and act the
+> same as Acrobat Reader."*** All five arrived 2026-09-04/05 in
+> `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open`. `Pass 252.0` (text
+> import) is its own item; **`Pass 253.0`–`Pass 253.3` are a coherent
+> "comment & review model completion" family** — all four are annotation
+> read/author gaps for the review workflow, and they carry a build-order
+> dependency chain the requests themselves state (`253.1` review status is
+> two keys on the annotation `253.0`'s reply verb creates). **Scoping any of
+> these into a real Pass should dispatch `pdfcer-acrobat-librarian` FIRST**
+> for the parity behaviour (Acrobat's Comment pane status vocabulary,
+> reply-thread affordances, sticky-note icon set, popup open-state), so
+> acceptance criteria match actual Acrobat Reader/Pro behaviour rather than
+> the request's guess at it. `FEATURES.md`: five new *Planned* rows, all
+> boxes unticked; no box moves elsewhere.
+
+### `Pass 252.0` — ★★★ **A ROUTE FROM A TEXT FILE BACK INTO A PDF — the IMPORT half of "export/import as text"** — filed 2026-09-05 (429th filing, `pdfcer-gui` request 2026-09-04), **NOT STARTED**
+
+Origin: `pdfcer-gui` request
+`open/request_there_is_no_route_from_a_text_file_back_into_a_pdf.md`. The
+operator asked (2026-09-04) for *"export/import"* of text; **the export half
+shipped the same day** (`file.export_text`, on `text_extract::extract_pages_view`
++ `ExtractedText::plain_text()`) and is complete. There is **no engine route
+for import** — `pdfcer_core::build` is compile-provenance, not construction;
+`pageops` inserts/extracts/merges existing pages; `EditRequest` addresses one
+located run, not a page or document; `add_ocr_layer` needs positioned words a
+text file does not have.
+
+**The nearest verb and where it stops:** `add_text` places one run on **one**
+page and, per `R76`/decision 016, **emits overflow past the crop box rather
+than clipping** — right for a hand-placed note, wrong for a 40 KB text file
+(pages 2..9 would exist painted off the sheet, invisible in every viewer,
+present in every extraction — a feature that silently loses eight-ninths of
+its input while reporting success, which rule 4 and R76 both refuse). And the
+round trip is **not reconstructible from the export** either (derived line
+breaks, one-glyph-is-not-one-character, 13 % of runs spanning >1 show
+operator) — any import must be **authored, not reversed**.
+
+**The ask (one of two, whichever is cheaper — `pdfcer-gui` explicitly does
+NOT want a reversible format):**
+1. **A paginating text placer** — `add_text` with a "continue onto a new page"
+   disposition, or a sibling verb taking `&str` + a page template (size,
+   margins, font, size), overflow **creating a page** instead of emitting past
+   the edge, returning the pages it created. Undo shape is the engine's call
+   (`import_form_data`'s N-entries-per-undo is the precedent);
+   `pdfcer-gui` will report whatever is chosen.
+2. **A page-level text replace** — `EditRequest`-shaped but addressing a
+   *page*, refused-and-explained where the page's existing runs cannot be
+   reconciled. This is the one that answers *"exported, fixed a typo in
+   Notepad, put it back."*
+
+**A reasoned `declined` (with the argument) is an equally acceptable
+outcome** — `pdfcer-gui` will record it in `ENGINE_BACKLOG.md`. **Acceptance:
+dispatch `pdfcer-acrobat-librarian`** — Acrobat's "Create PDF from text file"
+is the parity reference for pagination behaviour. **Not urgent.**
+
+### `Pass 253.0` — ★★★ **AUTHOR A COMMENT REPLY: write `/IRT` + `/RT` (reply threading)** — filed 2026-09-05 (429th filing, `pdfcer-gui` request 2026-09-05), **NOT STARTED** — head of the *comment & review model completion* family
+
+Origin: `pdfcer-gui` request
+`open/request_a_reply_can_be_read_and_never_written.md`. **Reading a thread
+already works** — `Annotation::in_reply_to` (`annot.rs:431`), `reply_type`
+(`annot.rs:441`), `effective_reply_type` (Table 170's default `R`,
+`annot.rs:557`). `/IRT` and `/RT` are **read-only, plus REMOVED in two write
+sites** (the deletion cascade `edit.rs:24969`, the clipboard strip
+`edit.rs:10673`). There is **no constructor, no `MarkupOptions`/`MarkupNote`
+field, no verb** that takes a parent — the whole 16-verb `EditSession`
+annotation surface was checked.
+
+**The ask:** `session.add_reply(parent: ObjId, &MarkupNote) -> Result<ObjId, _>`
+authoring a `/Text` annotation carrying `/IRT parent`, `/RT /R`, the three note
+keys, and (§12.5.6.14 `shall`) its own `/Popup`. Deliberately **small**: no
+`/RT /Group` authoring (`Reply` only), no cycle-checking beyond one level, no
+thread resolution (keep `annot.rs:88-95`'s non-goal). **Report** should carry
+whether the parent already had a `/Popup` and whether the reply got one
+(§12.5.6.14 makes the pop-up structural, and `pdfcer-gui` now draws them). **A
+second, smaller ask on the same key:** when a **whole thread** is copied
+(parent + replies, which the annotation clipboard can already carry), the
+`/IRT` strip at `edit.rs:10673` silently turns a conversation into unrelated
+remarks — asked not for a fix but for a **disclosure** (a count of
+relationships the clip had to break). **Priority: HIGH, and ahead of
+`Pass 253.1`, which depends on it.** **Acceptance: dispatch
+`pdfcer-acrobat-librarian`** for Acrobat Reader's reply affordance. Nothing is
+blocked (the pop-up and thread read shipped without it).
+
+### `Pass 253.1` — ★★★ **`/State` + `/StateModel` REVIEW STATUS (Accepted / Rejected / Cancelled / Completed / None) — Acrobat's whole review workflow, not modelled at all** — filed 2026-09-05 (429th filing, `pdfcer-gui` request 2026-09-05), **NOT STARTED** — DEPENDS ON `Pass 253.0`
+
+Origin: `pdfcer-gui` request
+`open/request_review_status_is_not_modelled_at_all.md`. Measured absent
+tree-wide: `b"State"` **0 hits**, `b"StateModel"` **0**, `Rejected`/`Cancelled`
+**0**, the `Accepted`/`Completed`/`Review` hits all unrelated. Not read, not
+written, not modelled, not doc-commented. Acrobat's Comment pane carries a
+status on every comment — the thing that makes a 40-comment drawing-set review
+finishable.
+
+**★ The spec decides the API shape:** §12.5.6.4 Table 171 carries the status
+**not on the reviewed annotation** but on a **separate `/Text` annotation**
+whose `/IRT` points at it, with `/State` + `/StateModel` on *that* one — so
+history is preserved (three reviewers, three surviving statuses, "current" =
+most recent). **⇒ this depends on `Pass 253.0`'s `/IRT` authoring**; if `253.0`
+ships, this is two keys on the annotation the reply verb already creates.
+**The ask:** read side — `Annotation::state` / `state_model` (`pdfcer-gui`
+prefers typed, `ReviewState { Accepted, Rejected, Cancelled, Completed, None,
+Other(Vec<u8>) }` + `StateModel { Marked, Review, Other(..) }`, per `R27`, so a
+file inventing a vocabulary is modelled not repaired); write side —
+`session.add_review_state(target, ReviewState, /T, /M)`. **No resolver
+wanted** ("which of five is current" is a reader-UI question, `pdfcer-gui`
+picks). **Priority: MEDIUM** — the largest single gap between `pdfcer-gui`'s
+review surface and Acrobat's, but behind the reply verb in build order.
+**Acceptance: dispatch `pdfcer-acrobat-librarian`** for Acrobat's status
+vocabulary and filter. Nothing blocked.
+
+### `Pass 253.2` — ★★ **EDIT AN EXISTING `/Text` ANNOTATION'S ICON (`/Name`) AND COLOUR (`/C`) — both write-once at authoring, and `/C` cannot even be READ back** — filed 2026-09-05 (429th filing, `pdfcer-gui` request 2026-09-05), **NOT STARTED** — *comment & review model completion* family
+
+Origin: `pdfcer-gui` request
+`open/request_a_sticky_notes_icon_and_colour_cannot_be_changed.md`. Authoring
+works (`TextAnnotSpec::Sticky.icon` → `/Name`, the complete Table 172 set of
+seven in `StickyIcon`), but `set_markup_style` **cannot reach a `/Text` at
+all** — `annot_author::spec_from_dict` has no `b"Text"` arm and falls to
+`SpecReadError::UnsupportedSubtype`. And **`/C` is never read** — the parser
+reads only `b"CA"`; `grep 'b"C"' annot.rs` confirms — so a colour swatch and
+Acrobat's *sort by colour* are both unreachable **because pdfcer cannot find
+out what colour a note currently is**. Also: `StickyIcon::name` is private with
+no `from_name`/`FromStr`, so even *displaying* an existing note's icon is
+blocked.
+
+**The ask:** read side — `Annotation::color: Option<Vec<f64>>` (`/C` raw
+components; length says the space — `R27`) and `icon: Option<Vec<u8>>` (`/Name`
+raw); write side — `set_sticky_icon(id, StickyIcon)` or, preferably, one
+`set_text_annot_style(id, &TextAnnotStyle)` covering icon + colour. **★ If only
+one thing is built, make it the `/C` READ** — one key in an existing parser,
+unblocks two `pdfcer-gui` surfaces immediately, and affects **every** markup
+subtype, not just `/Text`. **Priority: `/C` read MEDIUM; icon + colour write
+LOW** (delete-and-replace is a real workaround, and `pdfcer-gui` owns the
+author-time icon-chooser half). **Acceptance: dispatch
+`pdfcer-acrobat-librarian`** for the icon set and colour-sort behaviour.
+Nothing blocked.
+
+### `Pass 253.3` — ★★ **READ (and optionally WRITE) A POPUP'S `/Open` FLAG — a decision-058 boundary defect: `pdfcer-gui` parses the dictionary behind the crate's back** — filed 2026-09-05 (429th filing, `pdfcer-gui` request 2026-09-05), **NOT STARTED** — *comment & review model completion* family
+
+Origin: `pdfcer-gui` request `open/request_popup_open_state_cannot_be_read.md`
+(explicitly a **decision-058 workaround report** — *anything the GUI has to
+work around is a place the crate boundary was drawn wrong*). `sticky_note`
+**writes** `/Open` on both the parent (`annot_author.rs:3212`) and its `/Popup`
+(`:3224`), but `Annotation` has **no `open` field** and `model_annotation`
+never reads `b"Open"` (tree-wide: exactly two hits, both writes). **pdfcer
+writes a state it cannot read** — a round trip through its own crate loses it,
+and `pdfcer-gui` shipped a workaround (`notepopup/model.rs::open_flag`) reading
+the raw dict through public `ObjectGraph::value` — the seam that drifts.
+
+**The ask:** read half — `Annotation::open: Option<bool>` (`Option`, not
+`bool`, to tell *"file said closed"* from *"file said nothing"* — needed to
+place a `/Square`'s pop-up correctly, since Table 170 gives geometric markup no
+`/Open` of its own). Write half — `set_annotation_open(id, bool)` writing
+`/Open` on the annotation **and** its `/Popup` as one undo entry, and (a
+**markup-style** verb) **refusing a ce dimension and a `/Widget` by name** the
+way `set_markup_note` does. **Priority: read half MEDIUM** (the workaround is a
+boundary defect that will drift); **write half LOW** (today's
+interface-memory-only close is honest and disclosed, though not what Acrobat —
+where closing a note persists — does). **Acceptance: dispatch
+`pdfcer-acrobat-librarian`** for Acrobat's open-state persistence. Nothing
+blocked (the pop-up honours `/Open` on load, tested both directions).
 
 ### ~~`Pass 250.1` — ★★★ **APPLY REDACTIONS INTO THE `EditSession` — a redaction becomes a DEFERRED edit committed at Save, not a write-a-file-now operation** — filed 2026-09-04 (419th filing), **NOT STARTED** — ★★ **SAFETY-CRITICAL (a leaked redaction is the worst-case bug), and there is an unresolved DESIGN FORK the engineer will not resolve by rushing**~~ — **DISCHARGED 2026-09-04 (421st filing): SHIPPED as `Pass 250.1` (`225db51`), see *Shipped* above.**
 
