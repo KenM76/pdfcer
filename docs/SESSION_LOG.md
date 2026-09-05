@@ -93639,3 +93639,112 @@ the requester's probe table.
 - Operator: nothing to try until `0.41.0` — in `pdfcer-gui`, once it picks
   up the fix, clicking on blank paper with the text tool should start new
   text instead of jumping the caret to the nearest line.
+
+## 2026-09-06 (443rd filing) — NO PASS SHIPPED. One `pdfcer-gui` inbound scoped: the font pre-flight tests the text that is THERE, not the text about to be TYPED, and cannot survey a face the page does not carry — `Pass 142.2` minted, *Next up* after `Pass 256.0` (family 142, where `preview_font_resources` was minted; NOT `256.2`). The operator's question — *"if the character isn't available in a pdf are we able to change to a different font?"* — is answered YES today (`format-text --set-font Helvetica-Bold`, then `edit-text --replace "€"`, proven by the requester on his file); the Pass makes the shell's chooser exact instead of trial-and-error. `bdefb09` (comment-only, the 442nd's owed survivor) filed. `Pass 256.0` in build.
+
+**Shipped:** nothing. One code commit filed: `bdefb09` *"test(core):
+narrow the rotated_text comment about the hit_test fallback (Pass 14.5 gave
+it a reach)"* — `crates/pdfcer-core/tests/rotated_text.rs`, `+3/−1`
+(`git show --stat`), comment only, `2026-09-05 19:24:17 -0400`. Discharges
+the 442nd filing's owed one-line amendment at `rotated_text.rs:683–686`.
+
+**Inbound, read late.** `pdfcer-gui`'s
+`request_font_preflight_tests_the_text_that_is_there_not_the_text_about_to_be_typed.md`
+landed at `2026-09-05 18:06:41 -0400` (mtime by `stat`) and was read at
+session end, after the 442nd filing — roughly nine hours. Recorded as such.
+Its severity, in their words: *"a narrowing, not a blocker."*
+
+**What the request establishes (quoted; their measurements, not re-run
+here).** On `apartment work - signed.pdf` p.2, `AAAAAA+Arimo-Bold` is an
+embedded `Identity-H` subset with no `€`. `edit-text --find "n" --replace
+"€"` refuses by name (exit 9). `format-text --find "n" --set-font
+Helvetica-Bold` then the same `edit-text` lands; `extract-text` reads
+`4. I€terior Door Package`. Two things they record as thanks: `set_font`
+takes a standard-14 name the page lacks and authors the resource
+(`Pass 162.0`); and it scopes to the matched span — one character
+re-encoded. **The two gaps, checked in source here at `bdefb09`:**
+(1) `preview_font_resources` (`edit.rs:9848` / `format.rs:3494`) runs
+`accept_font_target` (`format.rs:2387`) against the LOCATED text; passing
+the prospective string as `find` fails to anchor; no public free function
+applies the embedded-subset floor (`edit.rs:1786–1788`), so
+`has_char() == true` does not imply acceptance. (2) `survey_page_fonts`
+(`format.rs:3122`) walks `/Resources /Font` only, so a shell's standard-14
+half is offered untested — and the shell honours `R221` by saying so rather
+than re-deriving the encoding rule. `Std14::ALL` = `fontdata/mod.rs:230`.
+
+**Disposition (engineer's, filed).** **`Pass 142.2`**, ONE Pass for both
+halves: (a) a `candidate` parameter as a NEW verb beside the old
+(`preview_font_resources_for`, name provisional), every `FontAcceptance`
+derived against `candidate` INCLUDING the embedded-subset floor, so
+`Refused { character }` names the first character the face cannot hold;
+`preview_font_resources` byte-compatible; (b) `Std14::ALL` surveyed against
+the same candidate with a `presence` marker (`OnPage` vs `WouldBeAdded`),
+the encoding rule engine-side; CLI `font-preflight --candidate TEXT` prints
+both halves; tests on `fixtures/synthetic` — `€` against a subset face
+(refused, names `€`) and against `Helvetica` (accepted; `Euro` at WinAnsi
+`0o200`, `fontdata/mod.rs:97`, `PDF_Spec/fonts/font__std14_widths__helvetica.md`).
+Nine acceptance criteria in the ROADMAP entry, including the hard-rule-11
+sweep the Pass owes when it ships (the *"NOT surveyed by this check"* bold
+line and the `FEATURES.md` pre-flight row's *"scoped to faces ON THIS
+PAGE"*). **The family choice, stated:** the dispatch offered `256.2` or a
+sub-ID where `preview_font_resources` was minted. That is `Pass 142.1`
+(`2e6235c`, 297th) — the verb, `FontPreflight`, `FontAcceptance` and
+`font-preflight` all date from it. `142.0` and `142.1` exist
+(`grep -o "Pass 142\.[0-9]*"`); **`142.2` minted**; Pass ceiling stays
+`256.1`. Same precedent as the 442nd (`14.5`, not `139.x`).
+
+**Recorded, not minted.** The request's note that
+`RefusalKind::UnsupportedFont` conflates *font uneditable* with *one
+character missing* — filed as a dated note on the `Pass 249.0` *Shipped*
+entry. Not a Pass: the enum is deliberately exhaustive, so a fifth bucket
+breaks every consumer's match, and the consumer says in writing it is not
+blocked (`Refusal.trigger` / `.character` carry the distinction).
+
+**`FEATURES.md`.** One *Planned* row ADDED directly under `Pass 256.0`'s,
+`[ ] [ ] [ ] ?`. **One dispatch premise declined:** it suggested Acrobat
+`[x]`. The Acrobat RAG records the coverage-failure behaviour of a face
+change as an unconfirmed GAP
+(`text_edit__font_family_style_change_on_format.md`) and says nothing about
+a chooser that coverage-tests a candidate string; `?` is what this role can
+substantiate. No box moves elsewhere.
+
+**ROADMAP edits.** 443rd head at the top of *Shipped*; *Next up* intro note;
+the `Pass 142.2` entry after `Pass 256.0`'s; a dated status note on
+`Pass 256.0` (IN BUILD, relayed — its entry stays *Next up* until a commit
+exists; and it is no longer the only *Next up* item); the `Pass 249.0`
+footer. Docs-only filing: `ROADMAP.md`, `FEATURES.md`, `SESSION_LOG.md`,
+staged by name.
+
+**Decisions made this session:** none. Decision ceiling `138`.
+
+**Findings + decisions:** none generalizable; no RAG written. Every source
+line number the request cites resolves at `bdefb09` (checked with `grep -n`
+/ `sed -n`), which is worth one sentence because two requests this week did
+not survive re-measurement (the 442nd's own note).
+
+**Sourcing (hard rule 8).** Measured here: `git log --oneline -3` =
+`bdefb09`, `d33f9fe`, `c8c9344`; `git status --short` clean at filing start
+and, at gate time, carrying the engineer's in-flight `Pass 256.0` fixtures
+and generator (2 modified, 3 untracked; NOT staged here); `git show --stat
+bdefb09`; request mtime by `stat`; source lines on the
+working tree. Relayed: `Pass 256.0` in build. Quoted: the request's repro
+and output. NOT measured: `origin/main` — push state not asserted.
+
+**Gates (this role, on the filing tree): in the filing commit's message.**
+
+**Still in flight:**
+- `Pass 256.0` (edit text across show operators) — IN BUILD by the
+  engineer (its fixtures and generator were in the working tree at gate
+  time, uncommitted); first Pass of `0.41.0` beside `Pass 14.5`.
+- `Pass 142.2` — *Next up*, NOT STARTED, directly after `256.0`.
+- Unpushed at the 442nd: `8670523`, `c8c9344`, `d33f9fe`; plus `bdefb09` and
+  this filing. Whether the engineer pushed between is not measured here.
+- A reply to the `pdfcer-gui` request on the channel — the engineer's, not
+  yet written at this filing (the inbound was read at session end).
+
+**For next session:**
+- Engineer: finish `Pass 256.0`; reply on the channel that `142.2` is
+  minted and (a) ships first inside it if he splits the work; then `142.2`.
+- Operator: nothing new to try — the two-verb route (`format-text
+  --set-font Helvetica-Bold`, then `edit-text --replace "€"`) already works
+  on the shipped `0.40.0` for a character the run's own font cannot hold.
