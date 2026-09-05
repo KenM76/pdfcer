@@ -289,6 +289,19 @@ pub(crate) struct Certificate<'a> {
     /// The `SubjectKeyIdentifier` extension's value, if present (for a
     /// `subjectKeyIdentifier` signer id).
     pub subject_key_id: Option<&'a [u8]>,
+    /// The RAW `TBSCertificate` bytes (RFC 5280 §4.1.1.1) — exactly what the
+    /// issuer signed. Chain validation hashes THIS and checks it against
+    /// [`sig_value`](Self::sig_value) with the issuer's key (`Pass 10.3`).
+    pub tbs_der: &'a [u8],
+    /// The subject `Name`'s raw DER — matched against a candidate issuer's
+    /// [`issuer_der`](Self::issuer_der) to link a chain (`Pass 10.3`).
+    pub subject_der: &'a [u8],
+    /// The OUTER `signatureAlgorithm` OID (RFC 5280 §4.1.1.2), naming both the
+    /// signature scheme and its hash (e.g. `sha256WithRSAEncryption`).
+    pub sig_alg_oid: Option<String>,
+    /// The `signatureValue` BIT STRING contents — the issuer's signature over
+    /// [`tbs_der`](Self::tbs_der).
+    pub sig_value: &'a [u8],
 }
 
 /// Parse an X.509 v3 certificate (RFC 5280 §4.1).
@@ -296,6 +309,20 @@ pub(crate) fn parse_certificate(der: &[u8]) -> Option<Certificate<'_>> {
     let (cert, _) = asn1::expect(der, asn1::SEQUENCE)?;
     let kids = asn1::children(cert)?;
     let tbs = kids.first().filter(|t| t.tag == asn1::SEQUENCE)?;
+    let tbs_der = tbs.raw;
+    // The outer signatureAlgorithm (kids[1]) names the hash+scheme; the
+    // signatureValue (kids[2]) is the issuer's signature over `tbs_der`.
+    let sig_alg_oid = kids
+        .get(1)
+        .and_then(|alg| asn1::children(*alg))
+        .and_then(|c| c.into_iter().next())
+        .filter(|t| t.tag == asn1::OID)
+        .and_then(|t| asn1::oid_to_string(t.content));
+    let sig_value = kids
+        .get(2)
+        .filter(|t| t.tag == asn1::BIT_STRING)
+        .and_then(|t| asn1::bit_string_bytes(*t))
+        .unwrap_or(&[]);
     let tbs_kids = asn1::children(*tbs)?;
     let mut it = tbs_kids.iter().copied().peekable();
     // version [0] EXPLICIT INTEGER DEFAULT v1
@@ -342,6 +369,10 @@ pub(crate) fn parse_certificate(der: &[u8]) -> Option<Certificate<'_>> {
         not_after,
         key,
         subject_key_id,
+        tbs_der,
+        subject_der: subject_tlv.raw,
+        sig_alg_oid,
+        sig_value,
     })
 }
 
@@ -401,7 +432,21 @@ fn name_to_string(name: Tlv<'_>) -> String {
     parts.join(", ")
 }
 
-impl SignedData<'_> {
+impl<'a> SignedData<'a> {
+    /// The RAW DER of the signer's certificate (the one [`signer_certificate`]
+    /// parses) — the starting point for chain building (`Pass 10.3`).
+    pub(crate) fn signer_certificate_der(&self) -> Option<&'a [u8]> {
+        let signer = self.signer.as_ref()?;
+        self.certificates.iter().copied().find(|der| {
+            parse_certificate(der).is_some_and(|c| match &signer.sid {
+                SignerId::IssuerSerial { issuer_der, serial } => {
+                    c.issuer_der == *issuer_der && c.serial == *serial
+                }
+                SignerId::SubjectKeyId(id) => c.subject_key_id == Some(*id),
+            })
+        })
+    }
+
     /// The certificate the first signer's `sid` names, parsed.
     pub(crate) fn signer_certificate(&self) -> Option<Certificate<'_>> {
         let signer = self.signer.as_ref()?;

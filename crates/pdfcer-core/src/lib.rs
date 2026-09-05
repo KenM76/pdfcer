@@ -141,6 +141,7 @@ pub mod text_edit;
 pub mod text_extract;
 pub mod text_state;
 pub mod textstring;
+pub mod trust_chain;
 pub mod trust_store;
 pub mod vartext;
 pub mod vector;

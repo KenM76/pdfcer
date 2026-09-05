@@ -179,3 +179,41 @@ fn verify_by_index_matches_verify_all() {
     assert_eq!(one, signature::verify_all(&doc.view(), &bytes)[0]);
     assert!(signature::verify(&doc.view(), &bytes, 1).is_none());
 }
+
+/// `Pass 10.3` — the `anchors` parameter flips trust from NotChecked to a real
+/// verdict. With `None`, trust is `NotChecked` (unchanged). With an EMPTY trust
+/// store, the signer does not chain to anything, so trust is NOT `NotChecked`
+/// — it is `Untrusted` or `SignerUnknown`, never a false `Trusted`. (The
+/// `Trusted` path is proven by the `trust_chain` unit tests against a synthetic
+/// root→leaf chain.)
+#[test]
+fn trust_anchors_flip_the_verdict_and_an_empty_store_is_never_trusted() {
+    use pdfcer_core::trust_store::TrustAnchorSet;
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/synthetic/signature-verify/sig-ecdsa-p256-cades.pdf");
+    let bytes = std::fs::read(&path).expect("read signed fixture");
+    let doc = Document::from_bytes(bytes.clone()).expect("load signed fixture");
+
+    // Default (no anchors): NotChecked.
+    let plain = signature::verify_all(&doc.view(), &bytes);
+    assert_eq!(plain.len(), 1);
+    assert_eq!(plain[0].trust, Trust::NotChecked);
+
+    // Empty anchor store: trust WAS evaluated, and the signer chains to nothing.
+    let empty = TrustAnchorSet::default();
+    let checked = signature::verify_all_with_trust(&doc.view(), &bytes, Some(&empty));
+    assert_eq!(checked.len(), 1);
+    assert_ne!(
+        checked[0].trust,
+        Trust::NotChecked,
+        "supplying anchors must evaluate trust, not leave it NotChecked"
+    );
+    assert!(
+        matches!(
+            checked[0].trust,
+            Trust::Untrusted { .. } | Trust::SignerUnknown
+        ),
+        "an empty store yields Untrusted/SignerUnknown, never a false Trusted: {:?}",
+        checked[0].trust
+    );
+}

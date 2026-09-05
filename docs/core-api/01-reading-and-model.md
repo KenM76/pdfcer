@@ -2475,7 +2475,7 @@ shell must keep apart:
 |---|---|---|
 | `integrity` | `Integrity` — `Verified { digest_algorithm, signature_algorithm }` / `DigestMismatch` / `SignatureInvalid` / `Unverifiable { reason }` | are the signed bytes unaltered (digest over `/ByteRange` vs the signed `messageDigest`), and is the signature over the signed attributes genuine against the signer's OWN embedded certificate? `DigestMismatch` = the document was altered; `SignatureInvalid` = the digest matches but the signature/certificate does not; `Unverifiable` names why pdfcer cannot say (a subfilter, algorithm or curve it lacks, a malformed CMS, a missing certificate) and is never either of the others |
 | `coverage` | `ByteRangeCoverage` | was anything appended after signing (`covers_to_eof()`) |
-| `trust` | `Trust` — **only `NotChecked`** this build | nobody: no trust store, chain, revocation or clock |
+| `trust` | `Trust` — `NotChecked` unless anchors are supplied (`Pass 10.3`), then `Trusted`/`Untrusted`/`SignerUnknown` | `verify_all_with_trust` + a trust-anchor pool; chain/signature only, NOT revocation or clock |
 
 Plus claims — `signer_subject`, `signer_issuer`, `cert_not_before`,
 `cert_not_after`, `signing_time`, and the dictionary's `name`/`date`/
@@ -2500,7 +2500,7 @@ The CLI is `verify-signatures`: exit 0 all verified, **12** any failed,
 
 ### 12.5a Trust anchors from an installed Acrobat (`Pass 10.2`, `trust_store`)
 
-The `trust` axis above is `NotChecked` because pdfcer has no trust anchor set.
+Until `Pass 10.3`, the `trust` axis was always `NotChecked` for lack of a trust anchor set.
 `pdfcer_core::trust_store` supplies one by reading the AATL + EU-Trusted-List
 certificates an installed **Acrobat/Reader** has already downloaded into
 `addressbook.acrodata` — a `%PPKLITE-` COS file the existing tokenizer opens
@@ -2536,6 +2536,35 @@ for a in set.filter(SourceFilter::Aatl) {           // AATL-only, or Eutl/Adbe/A
   cert did not decode — disclose it rather than imply the store was fully read.
 - **Read-only, no network.** Nothing is written; a bad store is a named
   `TrustStoreError`, never a panic (fuzzed).
+
+### 12.5b Evaluating signer trust against the anchors (`Pass 10.3`, `trust_chain`)
+
+`signature::verify_all_with_trust(graph, bytes, anchors: Option<&TrustAnchorSet>)`
+turns the anchor pool into a per-signature `Trust` verdict. `None` ⇒ `NotChecked`
+(identical to `verify_all`). `Some` ⇒ each signer is chained, **by verifying
+each link's signature**, to a trusted anchor:
+
+- `Trust::Trusted { anchor_subject, source }` — the signer chains to an anchor.
+- `Trust::Untrusted { reason }` — a parsed signer that does NOT chain (incomplete
+  chain, untrusted self-signed root, or a link whose signature failed). A valid
+  signature with an untrusted signer is `Integrity::Verified` + `Trust::Untrusted`
+  ("valid but untrusted") — the two axes are independent.
+- `Trust::SignerUnknown` — the signer certificate could not be parsed.
+
+**★ What `Trusted` does NOT mean.** It is signature-linkage only. `trust_chain`
+does **not** check certificate **revocation** (CRL/OCSP), **validity dates**
+against a clock, or **RFC 5280** `basicConstraints`/`keyUsage`. The verdict
+carries a note saying so, and a shell MUST surface it. Every uncertainty
+resolves to `Untrusted`, never a false `Trusted` (RSA-PSS cert signatures are
+declined for now — safe direction). These deferred checks are future increments.
+
+**Opt-in and at the operator's risk (decision 133).** Supplying the Acrobat
+store is the shell's choice, off by default. The CLI's `verify-signatures
+--trust-from-acrobat` loads it and prints the at-own-risk disclosure (reading
+Adobe's own downloaded file is a local read; whether relying on it fits the
+Adobe Reader licence is the operator's call, resolved by an explicit opt-in, not
+a pdfcer legal determination). A persistent GUI settings toggle is owed
+separately.
 
 ### 12.6 ★ Document metadata — the honest gap
 

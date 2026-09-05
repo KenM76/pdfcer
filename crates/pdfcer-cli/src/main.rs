@@ -2210,6 +2210,16 @@ enum Command {
     VerifySignatures {
         /// Input PDF.
         input: PathBuf,
+        /// Evaluate signer TRUST against the trust store an installed
+        /// Acrobat/Reader has downloaded (AATL + EU Trusted Lists), read from
+        /// `%APPDATA%\\Adobe\\Acrobat\\<track>\\Security\\addressbook.acrodata`
+        /// (`Pass 10.3`). OFF by default. ⚠ AT YOUR OWN RISK: it reads Adobe's
+        /// own downloaded file (a local read), and whether relying on it fits
+        /// the Adobe Reader licence is your call. Even when trusted, this is a
+        /// SIGNATURE-CHAIN check only — revocation, validity dates and CA
+        /// constraints are NOT verified.
+        #[arg(long = "trust-from-acrobat")]
+        trust_from_acrobat: bool,
     },
 
     /// **List a document's optional-content groups** — layers (§8.11).
@@ -9016,7 +9026,10 @@ fn run() -> ExitCode {
             json,
         } => cmd_font_preflight(&input, page, &find, pin_span.as_deref(), json),
         Command::ListSignatures { input } => cmd_list_signatures(&input),
-        Command::VerifySignatures { input } => cmd_verify_signatures(&input),
+        Command::VerifySignatures {
+            input,
+            trust_from_acrobat,
+        } => cmd_verify_signatures(&input, trust_from_acrobat),
         Command::ListPrinters => cmd_list_printers(),
         Command::Print {
             input,
@@ -16016,7 +16029,7 @@ fn cmd_list_outline(input: &Path, flat: bool) -> u8 {
 /// malformed. The two are deliberately distinguishable in the output.
 /// `verify-signatures`: the integrity + coverage verdicts, one block per
 /// signature field, with trust named as not checked on every one.
-fn cmd_verify_signatures(input: &Path) -> u8 {
+fn cmd_verify_signatures(input: &Path, trust_from_acrobat: bool) -> u8 {
     use pdfcer_core::signature::{self, Integrity, Trust};
     let bytes = match std::fs::read(input) {
         Ok(b) => b,
@@ -16032,7 +16045,46 @@ fn cmd_verify_signatures(input: &Path) -> u8 {
             return exit_code_for_doc(&err);
         }
     };
-    let verdicts = signature::verify_all(&doc.view(), &bytes);
+    // Trust is opt-in and AT THE OPERATOR'S RISK (Pass 10.3): only when
+    // --trust-from-acrobat is passed do we read the installed Acrobat store and
+    // evaluate the chain. Absent the flag, trust stays NotChecked.
+    let anchors = if trust_from_acrobat {
+        match acrobat_trust_store_paths().into_iter().find(|p| p.exists()) {
+            Some(store) => match pdfcer_core::trust_store::load_from_path(&store) {
+                Ok(set) => {
+                    let c = set.counts();
+                    println!(
+                        "trust: using {} anchors from {} (aatl={} eutl={} adbe={})",
+                        c.total,
+                        store.display(),
+                        c.aatl,
+                        c.eutl,
+                        c.adbe,
+                    );
+                    println!(
+                        "  ⚠ AT YOUR OWN RISK: read from Adobe's own downloaded file; whether relying on it fits the Adobe Reader licence is your call. A 'trusted' result is a SIGNATURE-CHAIN check only -- revocation, validity dates and CA/key-usage constraints are NOT verified."
+                    );
+                    Some(set)
+                }
+                Err(err) => {
+                    eprintln!(
+                        "pdfcer: could not read the Acrobat trust store {}: {err}; trust not checked",
+                        store.display()
+                    );
+                    None
+                }
+            },
+            None => {
+                eprintln!(
+                    "pdfcer: no installed Acrobat/Reader trust store found; trust not checked"
+                );
+                None
+            }
+        }
+    } else {
+        None
+    };
+    let verdicts = signature::verify_all_with_trust(&doc.view(), &bytes, anchors.as_ref());
     if verdicts.is_empty() {
         println!(
             "verify-signatures {}: 0 signature field(s)",
@@ -16089,13 +16141,25 @@ fn cmd_verify_signatures(input: &Path) -> u8 {
                 v.coverage.uncovered_tail
             )
         };
-        let trust = match v.trust {
-            Trust::NotChecked => "NOT CHECKED (no trust store, no chain, no revocation, no clock)",
+        let trust = match &v.trust {
+            Trust::NotChecked => {
+                "NOT CHECKED (no trust store, no chain, no revocation, no clock)".to_owned()
+            }
+            Trust::Trusted {
+                anchor_subject,
+                source,
+            } => format!(
+                "TRUSTED via {} [{}] (chain/signature only -- NOT revocation/validity/CA checked)",
+                anchor_subject,
+                source.join(",")
+            ),
+            Trust::Untrusted { reason } => format!("UNTRUSTED: {reason}"),
+            Trust::SignerUnknown => {
+                "SIGNER UNKNOWN (the signer certificate could not be parsed)".to_owned()
+            }
             other => {
-                // A trust verdict this shell does not know is not one it
-                // can vouch for.
                 eprintln!("pdfcer: unknown trust verdict {other:?}; reported as not checked");
-                "NOT CHECKED (unknown verdict)"
+                "NOT CHECKED (unknown verdict)".to_owned()
             }
         };
         println!(
@@ -16123,7 +16187,7 @@ fn cmd_verify_signatures(input: &Path) -> u8 {
         }
     }
     println!(
-        "verify-signatures {}: {} signature(s), {} verified, {} failed, {} unverifiable -- trust NOT checked on any",
+        "verify-signatures {}: {} signature(s), {} verified, {} failed, {} unverifiable (trust is per-signature above; pass --trust-from-acrobat to check it)",
         input.display(),
         verdicts.len(),
         verdicts.len() - failed - unverifiable,

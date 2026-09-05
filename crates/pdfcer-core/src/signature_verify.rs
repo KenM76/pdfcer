@@ -120,14 +120,38 @@ pub enum Integrity {
     },
 }
 
-/// Whether the signer is who the certificate claims and was entitled to
-/// sign. **Only [`Trust::NotChecked`] exists this build.**
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Whether the signer is who the certificate claims and was entitled to sign.
+///
+/// [`NotChecked`](Trust::NotChecked) is the default: no trust anchors were
+/// supplied. When anchors ARE supplied (`Pass 10.3`, an opt-in read of an
+/// installed Acrobat's trust store), the other variants report whether the
+/// signer chains, BY SIGNATURE, to one of them. ★ A [`Trusted`](Trust::Trusted)
+/// verdict is signature-linkage only: revocation, validity dates and RFC 5280
+/// CA/key-usage constraints are NOT checked (those are later increments), and
+/// the verdict's own note says so.
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Trust {
     /// No trust store, no chain building, no revocation, no time check.
     /// The certificate's subject and validity dates are reported as claims.
     NotChecked,
+    /// The signer chains, by valid signatures, to a trusted anchor. NOT a full
+    /// validity/revocation verdict (see the type docs and the verdict note).
+    Trusted {
+        /// The trusted anchor's subject the chain terminated at.
+        anchor_subject: String,
+        /// That anchor's `/Source` provenance (`AATL`/`EUTL`/`ADBE`).
+        source: Vec<String>,
+    },
+    /// Trust was evaluated and the signer does NOT chain to a trusted anchor
+    /// (a valid signature can still be *untrusted* — "valid but untrusted").
+    Untrusted {
+        /// Why (incomplete chain, untrusted root, bad link signature, …).
+        reason: String,
+    },
+    /// Trust was requested but the signer's certificate could not be parsed,
+    /// so trust could not even be attempted. Distinct from `Untrusted`.
+    SignerUnknown,
 }
 
 /// The verdict on one signature field.
@@ -169,6 +193,24 @@ pub struct SignatureVerdict {
 /// [`crate::signature::byte_range_coverage`].
 #[must_use]
 pub fn verify_all<G: ObjectGraph + ?Sized>(graph: &G, bytes: &[u8]) -> Vec<SignatureVerdict> {
+    verify_all_with_trust(graph, bytes, None)
+}
+
+/// [`verify_all`] plus **trust evaluation** against `anchors` (`Pass 10.3`).
+///
+/// When `anchors` is `None`, trust is [`Trust::NotChecked`] (identical to
+/// [`verify_all`]). When `Some`, each signature's signer is chained by
+/// signature to the anchor pool (e.g. an installed Acrobat's AATL/EUTL store,
+/// read opt-in by the shell) and the verdict's [`SignatureVerdict::trust`]
+/// reports [`Trust::Trusted`]/[`Untrusted`](Trust::Untrusted)/[`SignerUnknown`](Trust::SignerUnknown).
+/// Integrity is unaffected by trust — a signature can be
+/// [`Integrity::Verified`] and [`Trust::Untrusted`] (valid but untrusted).
+#[must_use]
+pub fn verify_all_with_trust<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    bytes: &[u8],
+    anchors: Option<&crate::trust_store::TrustAnchorSet>,
+) -> Vec<SignatureVerdict> {
     let mut out = Vec::new();
     let Some(form) = crate::forms::parse_acroform(graph) else {
         return out;
@@ -186,7 +228,7 @@ pub fn verify_all<G: ObjectGraph + ?Sized>(graph: &G, bytes: &[u8]) -> Vec<Signa
         else {
             continue;
         };
-        let mut verdict = verify_dict(graph, bytes, dict);
+        let mut verdict = verify_dict(graph, bytes, dict, anchors);
         verdict.field_name = Some(field.fully_qualified_name.clone());
         out.push(verdict);
     }
@@ -220,6 +262,7 @@ fn verify_dict<G: ObjectGraph + ?Sized>(
     graph: &G,
     bytes: &[u8],
     dict: &crate::object::Dict,
+    anchors: Option<&crate::trust_store::TrustAnchorSet>,
 ) -> SignatureVerdict {
     let sub_filter = text(graph, dict, b"SubFilter");
     let mut notes = Vec::new();
@@ -551,6 +594,41 @@ fn verify_dict<G: ObjectGraph + ?Sized>(
     } else {
         Integrity::SignatureInvalid
     };
+    // Trust (Pass 10.3): only when the caller supplied anchors. Integrity above
+    // is independent -- a valid signature by an untrusted signer is Verified +
+    // Untrusted.
+    if let Some(anchors) = anchors {
+        verdict.trust = match sd.signer_certificate_der() {
+            None => {
+                notes.push(
+                    "trust: the signer certificate is not embedded, so trust could not be evaluated"
+                        .to_owned(),
+                );
+                Trust::SignerUnknown
+            }
+            Some(signer_der) => {
+                match crate::trust_chain::evaluate(signer_der, &sd.certificates, anchors) {
+                    crate::trust_chain::ChainVerdict::Trusted {
+                        anchor_subject,
+                        source,
+                    } => {
+                        notes.push(
+                        "trust: the signer chains by signature to a trusted anchor. This is NOT a full validity check -- certificate revocation (CRL/OCSP), validity dates against a clock, and RFC 5280 CA/key-usage constraints are NOT verified (Pass 10.3)."
+                            .to_owned(),
+                    );
+                        Trust::Trusted {
+                            anchor_subject,
+                            source,
+                        }
+                    }
+                    crate::trust_chain::ChainVerdict::Untrusted { reason } => {
+                        Trust::Untrusted { reason }
+                    }
+                    crate::trust_chain::ChainVerdict::SignerUnparseable => Trust::SignerUnknown,
+                }
+            }
+        };
+    }
     verdict.notes = notes;
     verdict
 }
