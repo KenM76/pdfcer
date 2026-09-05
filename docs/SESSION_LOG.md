@@ -93528,3 +93528,114 @@ already filed (428th and 440th filings).
   line. Not in it yet: timestamps, Windows-store certificates, signing
   encrypted files, certifying signatures. Your typo fix (*"clien"*) is the
   next thing built.
+
+## 2026-09-05 (442nd filing) — `Pass 14.5` SHIPPED (`8670523`, unreleased, post-`v0.40.0`): `EditableTextModel::hit_test` answers `None` beyond one line-height of every line. Before, its fallback took the nearest line at ANY distance — `pdfcer-gui` measured a point 100 000 pt right of a 612 pt page and one at (1e9, 1e9) both resolving to a run, `None` returned 0 times in ~30 probes on two documents — so their click-on-blank-paper-to-add-text arm was dead code on every real document. Filed under the `14` family (the function's origin, `Pass 14.0`), not `139.x`. One FEATURES row replaced. Reply posted FIXED. `main` to be pushed right after this filing (`8670523` + `c8c9344` + this).
+
+**Session shape.** Ninth filing of the day, after the 441st (`4338391`,
+`v0.40.0` released). Between them the engineer read the inbound
+`request_hit_test_has_no_distance_bound_so_a_click_on_blank_paper_finds_text.md`
+(pdfcer-gui, 2026-09-05), fixed it in one file (`8670523`, 19:13:35),
+posted the reply, and recorded the unreleased fix in `NEXT_SESSION.md`
+(`c8c9344`, +5). Docs-only filing: `ROADMAP.md`, `FEATURES.md`,
+`SESSION_LOG.md` staged by name.
+
+**Inbound.** `hit_test(x, y)` chose a line by containment, then by
+"nearest whose box spans `y`", then — with `best_dy` starting at `f64::MAX`
+and no bound — the nearest line by baseline at any distance; `hit_in_line`
+clamped to that line's end. `chosen` was therefore `Some` on any page with
+one line of text, and the doc comment said so: *"Returns `None` only when
+the page has no clustered glyph at all."* The requester quoted that sentence
+as the tell — read as a description, it was a defect. Their probes (quoted,
+not re-run here): `apartment work - signed.pdf` p.2 run 0 at right +0 /
++215 / +1 000 / +100 000 pt → run 0 offset 25 every time (the `contains_y`
+arm never tested `x`); below −200 / −1 000 / −100 000 → run 12, 31, 31; 10 k
+above-right / 10 k below-left / (1e9, 1e9) → run 0 / 31 / 0. `SW41177.pdf`
+p.1 (457 runs, 164 lines): +100 000 right → run 0, −100 000 below → run 284,
+(1e9, 1e9) → run 314. **0 `None` of ~30.** Their `place.rs:129` arm
+(`NoRun` → new-text origin, trace `text-edit-became-add`) had never fired
+on a real document; they declined a shell-side threshold (cannot tell a
+3 pt snap from an unbounded fallback; a bound is a second opinion about
+core geometry, `R221`) and offered three shapes.
+
+**Fix (`8670523`, `model.rs` only, `+69/−21`).** Shape (a): a line is in
+reach iff the point lies inside its box inflated by
+`max(line.size, box height)` on every side; containing box wins outright;
+else nearest-by-baseline among lines in reach; else `None`. `hit_in_line`
+unchanged, so click-just-past-the-last-character and click-a-little-above
+/-below still snap. Derived from the line, not a parameter, so every caller
+gets presence semantics without a second opinion — (b) `hit_test_within`
+and (c) `Hit { snapped }` declined for that reason. Rotated lines: their
+page-space box, inflated the same way — generous, never tighter.
+
+**Tests (relayed).** New `hit_test_answers_none_beyond_one_line_height_of_every_line`
+— 10 pt `"Hi"` at (72, 700): 4 caret assertions (inside; 6 pt past; 6 pt
+above; 6 pt below) + 5 `None` assertions (215 pt right; 200 pt below; 30 pt
+above; (1e9, 1e9); (−1e4, −1e4)) = 9 of 9. `tests/rotated_text.rs`,
+`tests/text_edit.rs`, model tests: unchanged, green. `cargo fmt`,
+clippy `-D warnings`, `check-string-gaps`: green.
+
+**The one behaviour that moved (named in the reply).** A click more than
+one line-height from every line now yields `None`; any shell flow that
+relied on always-a-caret (a "click far below the last line to append"
+gesture, if one exists) must adapt — a differently-named placement query
+was offered. Reply:
+`D:/Dev/FeatureRequests/pdfce_FeatureRequests/open/reply_2026-09-05-hit-test-none-beyond-one-line-height-FIXED.md`.
+
+**Premise check — ONE premise wrong, corrected in the filing.** The
+dispatch expected a `139.x` sub-ID. `git log -S 'pub fn hit_test(&self, x:
+f64' -- crates/pdfce-core/src/text_edit/model.rs` → `d8b3903`, the
+`Pass 14.0` commit (2026-08-01, decision 014 Pass 1 of 4; the ROADMAP entry's
+API list names `hit_test`). `Pass 139.x` fixed the rotated boxes `hit_test`
+reads and cited this fallback as what masked them — a consumer, not the
+origin. `14.0`–`14.4` exist → **`Pass 14.5` minted.** Other premises
+confirmed: one file, `+69/−21`; the request's probe figures as quoted; fix
+is post-tag (`git merge-base --is-ancestor 8670523 v0.40.0` = false).
+
+**`FEATURES.md`.** *Implemented → Text*, the "Edit existing text runs in
+place" row: sentence REPLACED to carry "a click resolves to a caret only
+within one line-height of a line and answers no text here beyond it". No
+box moves. The rotated-baseline row mentions caret hit-testing only in the
+rotation context — left alone. The `⬜` row `pdfcer-gui` says it carries is
+theirs to close.
+
+**Hard-rule-11 sweep (claim: "`None` only when the page has no text").**
+Keywords *clustered glyph* / *nearest line* / *nearest-line* / *vertically
+nearest*, case-insensitive, over `docs/` (minus the ledgers), `crates/`,
+`tools/`, `README.md`. Correct survivors: `model.rs:1073/1162/1191`
+(`glyph()` resolution, different claim); `docs/ui_specs/pass-14.3-text-edit-ui.md:296–297`
+(the spec said *"or the click missed every line"* — now true for the first
+time); `tests/rotated_text.rs:210`, `:488` (history). **One owed
+survivor:** `tests/rotated_text.rs:683–686` — *"the nearest-line-by-baseline
+fallback still finds the right line, so a wrong box is invisible through
+that door"* is now true only for a box wrong by less than one line-height;
+the assertion is unaffected, the comment's reasoning is narrower than it
+says. Reported to the engineer; `crates/` is outside this role's remit.
+
+**No decision minted; no RAG written.** The fix restores the contract the
+`Pass 14.3` spec already stated. The generalizable lesson — a doc comment
+can describe a defect in the grammar of a contract, and a reader will
+believe it — is the `R222`/hard-rule-11 family already on record.
+
+**Sourcing (hard rule 8).** Measured here: `git show --stat 8670523`
+(1 file, +69/−21, 19:13:35 −0400); `git log origin/main..HEAD` =
+`c8c9344`, `8670523` — so `origin/main` = `4338391` and the unpushed set
+is those two plus this filing; `check-commits-filed` listed `8670523` as
+unfiled before this entry. Relayed: test counts, gate colours. Quoted:
+the requester's probe table.
+
+**Gates (this role, on the filing tree): in the filing commit's message.**
+
+**Still in flight:**
+- Push `main`: `8670523` + `c8c9344` + this filing (standing-authorized,
+  decision 090). Nothing else unpushed.
+- Owed to the engineer: the `tests/rotated_text.rs:683–686` comment
+  narrowing (one line).
+- `Pass 256.0` (edit text across show operators) — *Next up*, NOT STARTED.
+- `0.41.0` bump at the next release only; `8670523` rides in it.
+
+**For next session:**
+- Engineer: push; start `Pass 256.0`; amend the `rotated_text.rs:683`
+  comment when next in that file.
+- Operator: nothing to try until `0.41.0` — in `pdfcer-gui`, once it picks
+  up the fix, clicking on blank paper with the text tool should start new
+  text instead of jumping the caret to the nearest line.
