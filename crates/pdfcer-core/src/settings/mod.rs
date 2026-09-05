@@ -1719,6 +1719,22 @@ pub enum TrailingEol {
 /// a field here, a line in [`Settings::apply`], a line in
 /// [`Settings::write_to_string`], and a row in the round-trip test. The
 /// default belongs on the *type*, not here.
+/// Whether pdfcer may read an installed Acrobat/Reader's downloaded trust store
+/// (AATL + EU Trusted Lists) as a signature-trust anchor source (`Pass 10.4`;
+/// decisions 133/134). OFF by default. `AtOwnRisk` is an explicit operator
+/// opt-in: reading Adobe's own downloaded file is a local read, and whether
+/// relying on it fits the Adobe Reader licence is the operator's call, not a
+/// pdfcer legal determination -- so it is never on unless the operator sets it.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub enum AcrobatTrustStore {
+    /// Do not read Acrobat's trust store; signature trust stays `NotChecked`
+    /// unless a caller supplies anchors another way. The default.
+    #[default]
+    Off,
+    /// Read it, at the operator's own risk (see the type docs).
+    AtOwnRisk,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct Settings {
@@ -1735,6 +1751,10 @@ pub struct Settings {
     /// (`Pass 179.0`). Defaults to [`StylePolicy::Auto`] — decide and apply,
     /// silently.
     pub style_policy: StylePolicy,
+    /// Whether to read an installed Acrobat/Reader's trust store for signature
+    /// trust (`Pass 10.4`). `Off` by default; `AtOwnRisk` is the operator's
+    /// explicit, disclosed opt-in (see [`AcrobatTrustStore`]).
+    pub acrobat_trust_store: AcrobatTrustStore,
     /// How `DeviceCMYK` is converted for display.
     pub cmyk_intent: CmykIntent,
     /// The largest **subtractive compositing buffer** the renderer may
@@ -1899,6 +1919,7 @@ impl Default for Settings {
         Self {
             separations: SeparationPolicy::default(),
             style_policy: StylePolicy::default(),
+            acrobat_trust_store: AcrobatTrustStore::default(),
             cmyk_intent: CmykIntent::default(),
             // `None`, and deliberately NOT a copy of the renderer's
             // constant: `pdfcer-core` cannot see `pdfcer-render` (the
@@ -2130,6 +2151,13 @@ const fn separation_token(policy: SeparationPolicy) -> &'static str {
 /// The settings-file token for a CMYK intent. See [`separation_token`].
 /// The persisted spelling of a [`StylePolicy`], for the settings file and for
 /// the `BadValue` note that names the fallback.
+const fn acrobat_trust_store_token(v: AcrobatTrustStore) -> &'static str {
+    match v {
+        AcrobatTrustStore::Off => "off",
+        AcrobatTrustStore::AtOwnRisk => "at_own_risk",
+    }
+}
+
 const fn style_policy_token(policy: StylePolicy) -> &'static str {
     match policy {
         StylePolicy::Auto => "auto",
@@ -2352,6 +2380,17 @@ impl Settings {
                     value: value.to_owned(),
                     line,
                     using: style_policy_token(Self::default().style_policy).to_owned(),
+                }),
+            },
+            "acrobat_trust_store" => match value {
+                "off" => self.acrobat_trust_store = AcrobatTrustStore::Off,
+                "at_own_risk" => self.acrobat_trust_store = AcrobatTrustStore::AtOwnRisk,
+                _ => notes.push(SettingNote::BadValue {
+                    key: key.to_owned(),
+                    value: value.to_owned(),
+                    line,
+                    using: acrobat_trust_store_token(Self::default().acrobat_trust_store)
+                        .to_owned(),
                 }),
             },
             "cmyk_intent" => match value {
@@ -2665,6 +2704,19 @@ impl Settings {
             out,
             "style_policy = {}\n",
             style_policy_token(self.style_policy)
+        );
+
+        out.push_str(
+            "# acrobat_trust_store: off (default) or at_own_risk.\n\
+             # at_own_risk reads an installed Acrobat/Reader's downloaded AATL and\n\
+             # EU-Trusted-List trust store to evaluate signature trust -- a local\n\
+             # read of Adobe's own file, AT YOUR OWN RISK (whether relying on it\n\
+             # fits the Adobe Reader licence is your call, not pdfcer's).\n",
+        );
+        let _ = writeln!(
+            out,
+            "acrobat_trust_store = {}\n",
+            acrobat_trust_store_token(self.acrobat_trust_store)
         );
 
         out.push_str(
@@ -3535,6 +3587,8 @@ mod tests {
             cmyk_intent: CmykIntent::NeutralBlack,
             // NOT the default (`Auto`), same reason.
             style_policy: StylePolicy::Refuse,
+            // NOT the default (`Off`), per the round-trip discipline.
+            acrobat_trust_store: AcrobatTrustStore::AtOwnRisk,
             // NOT the default (`OutputIntentIfSubtractive`) -- see the note
             // above about a value that matches the default proving nothing.
             page_blend_space_source: PageBlendSpaceSource::DeviceNative,

@@ -16045,10 +16045,18 @@ fn cmd_verify_signatures(input: &Path, trust_from_acrobat: bool) -> u8 {
             return exit_code_for_doc(&err);
         }
     };
-    // Trust is opt-in and AT THE OPERATOR'S RISK (Pass 10.3): only when
-    // --trust-from-acrobat is passed do we read the installed Acrobat store and
-    // evaluate the chain. Absent the flag, trust stays NotChecked.
-    let anchors = if trust_from_acrobat {
+    // Trust is opt-in and AT THE OPERATOR'S RISK (Pass 10.3/10.4): read the
+    // installed Acrobat store either when --trust-from-acrobat is passed OR when
+    // the persistent `acrobat_trust_store = at_own_risk` setting is on. Absent
+    // both, trust stays NotChecked.
+    let (settings, _settings_report) =
+        pdfcer_core::settings::Settings::load(pdfcer_core::settings::resolve_store());
+    let setting_on =
+        settings.acrobat_trust_store == pdfcer_core::settings::AcrobatTrustStore::AtOwnRisk;
+    if setting_on && !trust_from_acrobat {
+        println!("trust: acrobat_trust_store = at_own_risk (persistent setting); evaluating trust");
+    }
+    let anchors = if trust_from_acrobat || setting_on {
         match acrobat_trust_store_paths().into_iter().find(|p| p.exists()) {
             Some(store) => match pdfcer_core::trust_store::load_from_path(&store) {
                 Ok(set) => {

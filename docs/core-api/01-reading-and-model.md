@@ -2563,8 +2563,7 @@ store is the shell's choice, off by default. The CLI's `verify-signatures
 --trust-from-acrobat` loads it and prints the at-own-risk disclosure (reading
 Adobe's own downloaded file is a local read; whether relying on it fits the
 Adobe Reader licence is the operator's call, resolved by an explicit opt-in, not
-a pdfcer legal determination). A persistent GUI settings toggle is owed
-separately.
+a pdfcer legal determination). A persistent opt-in setting exists: `settings::AcrobatTrustStore { Off, AtOwnRisk }` (`Pass 10.4`, default `Off`); the CLI reads it as the default for `--trust-from-acrobat`, and the GUI binds it for its security tab.
 
 ### 12.6 ★ Document metadata — the honest gap
 
