@@ -4712,6 +4712,23 @@ pub enum EncryptError {
     /// An underlying writer error (e.g. a hybrid-reference input, R33).
     #[error(transparent)]
     Write(WriteError),
+    /// A deferred redaction is staged
+    /// ([`apply_redactions_deferred`](EditSession::apply_redactions_deferred),
+    /// `Pass 250.2`), so the un-redacted content is still live in the session.
+    /// Encrypting, re-keying or removing encryption now would produce a file
+    /// holding the content the operator asked to remove — the exact failure the
+    /// redaction feature exists to prevent — so it is refused by name, exactly
+    /// as [`to_incremental_bytes`](EditSession::to_incremental_bytes) and
+    /// [`to_full_bytes`](EditSession::to_full_bytes) refuse
+    /// ([`WriteError::RedactionPending`]). Apply the redaction with
+    /// [`save_applying_redaction`](EditSession::save_applying_redaction) (then
+    /// encrypt the result), or clear it with
+    /// [`cancel_pending_redaction`](EditSession::cancel_pending_redaction)
+    /// (`Pass 250.3`).
+    #[error(
+        "a deferred redaction is pending; encrypting/re-keying/removing encryption now would write the un-redacted content -- apply it via save_applying_redaction first, or cancel_pending_redaction"
+    )]
+    RedactionPending,
 }
 
 /// Why an edit could not be performed.
@@ -8492,13 +8509,24 @@ impl EditSession {
     ///
     /// # The cost: ordinary saves are refused while pending
     ///
-    /// Because the un-redacted content is still live in the session, both
-    /// [`to_incremental_bytes`](Self::to_incremental_bytes) (would leak via
-    /// `/Prev`) and [`to_full_bytes`](Self::to_full_bytes) (would emit the
-    /// marks with content intact — an unapplied redaction) return
-    /// [`WriteError::RedactionPending`](crate::writer::WriteError::RedactionPending)
-    /// until the redaction is applied via `save_applying_redaction` or
-    /// cancelled. This is the §4.1 leak-guard the eager collapse did not need.
+    /// Because the un-redacted content is still live in the session, **every
+    /// operation that writes a whole document refuses by name** until the
+    /// redaction is applied via [`save_applying_redaction`](Self::save_applying_redaction)
+    /// or cleared with [`cancel_pending_redaction`](Self::cancel_pending_redaction).
+    /// This is the §4.1 leak-guard the eager collapse did not need. The complete
+    /// refused-while-staged set (`Pass 250.2` + `Pass 250.3`):
+    ///
+    /// | verb | refusal |
+    /// |---|---|
+    /// | [`to_incremental_bytes`](Self::to_incremental_bytes) | [`WriteError::RedactionPending`](crate::writer::WriteError::RedactionPending) — would leak via `/Prev` |
+    /// | [`to_full_bytes`](Self::to_full_bytes) | [`WriteError::RedactionPending`] — would emit the marks with content intact |
+    /// | [`set_encryption`](Self::set_encryption) | [`EncryptError::RedactionPending`] — would encrypt the un-redacted content |
+    /// | [`set_permissions`](Self::set_permissions) | [`EncryptError::RedactionPending`] — re-key re-serialises the un-redacted session |
+    /// | [`remove_encryption`](Self::remove_encryption) | [`EncryptError::RedactionPending`] — full rewrite of the un-redacted session |
+    ///
+    /// The ONLY document-writing verb that succeeds while staged is
+    /// `save_applying_redaction`, which performs the removal first. Any future
+    /// whole-document writer MUST join this table.
     ///
     /// # What it returns
     ///
@@ -8616,6 +8644,13 @@ impl EditSession {
         settings: &EncryptionSettings,
         options: &SaveOptions,
     ) -> Result<(Vec<u8>, SaveReport), EncryptError> {
+        // A staged deferred redaction (Pass 250.2) leaves the un-redacted
+        // content live; encrypting it now would write that content into an
+        // encrypted file -- the exact leak redaction exists to prevent. Refuse
+        // by name, as the to_*_bytes writers do (Pass 250.3).
+        if self.redaction_pending {
+            return Err(EncryptError::RedactionPending);
+        }
         if self.base.encryption().is_some() {
             return Err(EncryptError::AlreadyEncrypted);
         }
@@ -8674,6 +8709,11 @@ impl EditSession {
         settings: &EncryptionSettings,
         options: &SaveOptions,
     ) -> Result<(Vec<u8>, SaveReport), EncryptError> {
+        // Refuse while a deferred redaction is staged (Pass 250.3) — re-keying
+        // re-serialises the still-un-redacted session, leaking the content.
+        if self.redaction_pending {
+            return Err(EncryptError::RedactionPending);
+        }
         match self.base.encryption() {
             None => return Err(EncryptError::NotEncrypted),
             Some(enc) => {
@@ -8735,6 +8775,11 @@ impl EditSession {
         &mut self,
         options: &SaveOptions,
     ) -> Result<(Vec<u8>, SaveReport), EncryptError> {
+        // Refuse while a deferred redaction is staged (Pass 250.3): removing
+        // encryption writes a full rewrite of the still-un-redacted session.
+        if self.redaction_pending {
+            return Err(EncryptError::RedactionPending);
+        }
         match self.base.encryption() {
             None => return Err(EncryptError::NotEncrypted),
             Some(enc) => {
@@ -9540,6 +9585,27 @@ impl EditSession {
             return Err(RErr::Unsupported(
                 "the page's content was already edited this session; reflow is planned against \
                  the base content, so save and reopen before reflowing this page"
+                    .to_owned(),
+            ));
+        }
+
+        // ★ A run appended this session lives in an EXTRA stream (contents[1..]),
+        // NOT in contents[0], so the guard above misses it. Reflow plans from the
+        // base — which does not contain the appended run — and committing that
+        // plan runs `text_edit_command`'s sweep, which empties every non-empty
+        // extra and would SILENTLY DELETE the added text. Refuse by name instead
+        // (pdfcer-gui bug, 2026-09-04; Pass 251.0). This is the "refuses a page
+        // carrying a non-empty appended stream" option the shell asked for.
+        if page
+            .contents
+            .iter()
+            .skip(1)
+            .any(|id| matches!(self.value(*id), Some(Object::Stream(s)) if s.data_span.len > 0))
+        {
+            return Err(RErr::Unsupported(
+                "text was added to this page this session (in a new content stream); reflow is \
+                 planned against the base content and would drop the added run, so save and \
+                 reopen before reflowing this page"
                     .to_owned(),
             ));
         }
@@ -13542,18 +13608,31 @@ impl EditSession {
 
     /// Build the one [`Command`] that replaces `content_id` with the freshly
     /// spliced `new_content` (staged into this session's buffer as a raw
-    /// stream) and, on the FIRST edit to this content object, empties any
-    /// extra content streams on a multi-stream page.
+    /// stream) and empties every OTHER content stream on a multi-stream page
+    /// that currently carries a payload.
     ///
     /// Shared by [`Self::edit_text`] and [`Self::format_text`]; the only
     /// difference between a REPLACE and a FORMAT command is the
-    /// [`CommandKind`] label. On the first edit the whole edited content lives
-    /// in the first object and the extras are emptied so byte offsets stay
-    /// coherent (mirrors `write_incremental`); on a subsequent edit the extras
-    /// are already emptied, so no redundant no-op write is recorded (kept out
-    /// of the undo entry by the `first_edit` gate — the offset in an empty
-    /// stream's span would otherwise make an all-empty re-write look like a
-    /// change).
+    /// [`CommandKind`] label. The whole edited content lives in the first
+    /// object (`content_id == page.contents[0]`), because the caller splices
+    /// the WHOLE `/Contents` list concatenated and writes the result here — so
+    /// every non-empty extra (`contents[1..]`) was folded into it and MUST be
+    /// emptied, or the folded run renders twice.
+    ///
+    /// # ★ The sweep runs on EVERY surgery, not only the first (`Pass 251.0`)
+    ///
+    /// The prior implementation swept the extras only on the FIRST edit to
+    /// `contents[0]` (`if first_edit`), on the premise that a subsequent edit
+    /// would find them already empty. **`add_text`/`add_image`/`paste_objects`
+    /// falsify that premise**: they APPEND a new, non-empty extra stream
+    /// (`page_tree::append_content_stream`) *after* the first rewrite, so the
+    /// next surgery folded it into `contents[0]` and left it in place — the run
+    /// rendered twice, once more per subsequent edit (pdfcer-gui bug,
+    /// 2026-09-04). The predicate is now "empty every extra whose current
+    /// payload is non-empty", checked per surgery via [`Self::value`], which
+    /// restores the invariant `content.rs` relies on. `before` still comes from
+    /// the overlay, so undo restores the run; an already-empty extra is skipped,
+    /// so the no-redundant-no-op-write intent of the old gate is preserved.
     fn text_edit_command(
         &mut self,
         kind: CommandKind,
@@ -13563,7 +13642,6 @@ impl EditSession {
     ) -> Command {
         use crate::text_edit::edit::make_raw_stream;
         let content_before = self.state.get(&content_id).cloned();
-        let first_edit = content_before.is_none();
 
         let len = new_content.len();
         let span = self.stage_bytes(&new_content);
@@ -13573,8 +13651,18 @@ impl EditSession {
             after: Some(make_raw_stream(span, len)),
         }];
 
-        if first_edit {
-            for id in page.contents.iter().skip(1) {
+        // Empty every EXTRA content stream (contents[1..]) whose CURRENT payload
+        // is non-empty. The splice above concatenated the whole /Contents list
+        // into contents[0], so any non-empty extra is now duplicated on the page
+        // and must be cleared. Checked per surgery (not once per session, the old
+        // `first_edit` gate), because add_text/add_image/paste_objects append a
+        // fresh non-empty extra AFTER the first rewrite — see the doc comment
+        // (Pass 251.0). `self.value` reads the overlay-or-base current payload;
+        // an already-empty extra is skipped so no redundant no-op write is kept.
+        for id in page.contents.iter().skip(1) {
+            let nonempty =
+                matches!(self.value(*id), Some(Object::Stream(s)) if s.data_span.len > 0);
+            if nonempty {
                 let empty = self.stage_bytes(&[]);
                 objects.push(ObjectWrite {
                     id: *id,

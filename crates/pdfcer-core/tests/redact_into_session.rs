@@ -154,3 +154,44 @@ fn cancelling_a_deferred_redaction_restores_ordinary_saves() {
     // Ordinary saves work again (the session was never mutated by staging).
     assert!(session.to_full_bytes(&SaveOptions::default()).is_ok());
 }
+
+// -- Pass 250.3: the encryption writers also refuse while a redaction is staged
+//    (the leak vector pdfcer-gui found in v0.38.0 — set_encryption ignored the
+//    pending flag and would have written the un-redacted content encrypted).
+
+#[test]
+fn the_encryption_writers_refuse_while_a_redaction_is_staged() {
+    use pdfcer_core::edit::{EncryptError, EncryptionSettings};
+
+    let mut session = EditSession::new(hello());
+    session
+        .mark_redactions_by_search("Hello", false)
+        .expect("mark");
+    session
+        .apply_redactions_deferred()
+        .expect("stage the redaction");
+    assert!(session.has_pending_redaction());
+
+    let opts = SaveOptions::default();
+    let settings = EncryptionSettings::new(b"u".to_vec(), b"o".to_vec());
+
+    // The redaction guard fires FIRST, before AlreadyEncrypted/NotEncrypted, so
+    // all three refuse by name on this (unencrypted) staged session.
+    assert!(matches!(
+        session.set_encryption(&settings, &opts),
+        Err(EncryptError::RedactionPending)
+    ));
+    assert!(matches!(
+        session.set_permissions(&settings, &opts),
+        Err(EncryptError::RedactionPending)
+    ));
+    assert!(matches!(
+        session.remove_encryption(&opts),
+        Err(EncryptError::RedactionPending)
+    ));
+
+    // Cancel, and the guard lifts (set_encryption now reaches its real logic and
+    // succeeds on the unencrypted doc).
+    session.cancel_pending_redaction();
+    assert!(session.set_encryption(&settings, &opts).is_ok());
+}
