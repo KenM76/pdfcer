@@ -112,6 +112,216 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★ 427th filing, 2026-09-04 — TWO Passes SHIPPED in one session, the
+two backlog items the operator said "do both" about. `Pass 10.5`
+(`e1cdd3b`): signature trust PATH VALIDATION — the deterministic,
+no-network parts of RFC 5280 (certificate validity dates against the
+signing-time clock, CA/`keyUsage` constraints on intermediates, and
+RSA-PSS certificate signatures) added on top of `Pass 10.3`'s
+signature-linkage. `Pass 250.2` (`41095eb`): undo-preserving DEFERRED
+redaction — a redaction staged at Save that leaves the live session and
+its FULL undo/redo history untouched, the counterpart to `Pass 250.1`'s
+finalizing collapse. `Pass 10.6` (signature revocation) SCOPED to
+*Backlog* as the remaining trust slice; the no-network-precludes-
+revocation-in-core boundary recorded as decision 135.**
+
+**★ Both Passes are `pdfcer-core` (`Pass 10.5` touches the `pdfcer` CLI's
+`verify-signatures` output/help too; `Pass 250.2` leaves the CLI
+unchanged — the deferred/undo distinction is a GUI/session concept a
+single-shot CLI has no place for).** `core [x]` on both; `cli [x]` on
+`10.5` (updated help/output), `cli` N/A on `250.2` (the existing `redact`
+subcommand already applies-and-writes = the equivalent of
+`save_applying_redaction`); `gui [ ]` on both (the separate `pdfcer-gui`
+project consumes them).
+
+**★ `Pass 10.5` is STILL NOT full revocation-aware trust, and this is
+recorded prominently so nobody rounds it up.** What shipped is the
+**deterministic, offline** half: validity-window checking (RFC 5280
+§4.1.2.5, only when a clock is supplied — the CMS `signingTime`; absent it,
+validity is NOT checked and is DISCLOSED as such), CA/`keyUsage`
+constraints on intermediates (§4.2.1.9 `basicConstraints cA TRUE`,
+§4.2.1.3 `keyUsage` not clearing `keyCertSign`), and RSA-PSS certificate
+signatures (params from the cert's `signatureAlgorithm`, RFC 4055).
+**REVOCATION (CRL/OCSP) is NOT checked and CANNOT be, in core** — it needs
+the network `pdfcer-core` is forbidden to touch (the no-network invariant /
+CI gate). `PathChecks.revocation_checked` is **always `false`** this build,
+and both the verdict note and the CLI output state exactly which checks ran
+and that revocation is not among them (rule 4 stays honest). Revocation
+belongs to a shell that fetches, or to embedded DSS/LTV data, and is
+`Pass 10.6` (*Backlog*). **Every uncertainty still resolves to `Untrusted`,
+never a false `Trusted` — the `Pass 10.3` safety direction is preserved.**
+
+**Sourcing (hard rule 8).** This role had a shell. Both hashes were
+MEASURED here by `git log -1 --format='%H | %ci | %s' <hash>`: `Pass 10.5`
+= **`e1cdd3b`** (full `e1cdd3b74cb9fdebe7cd84fb1e49c0fc9fce4102`, subject
+*"Pass 10.5: signature trust path validation — validity dates, RFC 5280
+CA/key-usage constraints, RSA-PSS cert signatures"*, committed 2026-09-04
+22:44:30 -0400); `Pass 250.2` = **`41095eb`** (full
+`41095ebbdd1e6280852656329928af0c3af9e747`, subject *"Pass 250.2:
+undo-preserving deferred redaction (applies at save, refuses ordinary
+saves meanwhile)"*, committed 2026-09-04 22:44:37 -0400). `41095eb` **is**
+`HEAD` (`git rev-parse HEAD` = the same hash); `git log --oneline
+e1cdd3b..41095eb` = `41095eb` alone, so `10.5` sits **immediately before**
+`250.2`; `git status --short` empty before this filing's own doc edits.
+All test/gate figures below are **relayed from the engineer's dispatch**,
+not re-run by this role, except the git facts just named.
+
+**Gates / invariants (relayed).** Full local `tools/run-gates.sh` run to
+completion: `clippy --workspace --all-targets --all-features -D warnings`
+clean; `cargo fmt --all --check` clean; the `wasm32` check of
+`pdfcer-core`/`pdfcer-render` clean (**GUI-core separation invariant
+holds**); the `cargo tree` grep for `egui`/`eframe`/`winit`/`wgpu`/
+`reqwest`/`hyper` found nothing (**no-network + no-GUI invariants
+intact**); `cargo test --workspace` green (`pdfcer-core` lib **2015
+passed / 0 failed**, every integration binary 0 failed), including the
+**8** `trust_chain` and **4** `redact_into_session` tests;
+`cargo test -p pdfcer-core --no-default-features` green; all python filing/
+parity gates green. The ONE initial failure was `check-core-api-verbs.py`
+(stated verb count `193` vs derived `197` after the four new `EditSession`
+methods, plus `01`/`02` line+clause counts) — **reconciled**:
+`02-editing-and-saving.md` and `index.md` now state **197** verbs,
+`01-reading` **2,899 lines / 151 clauses**, `02-editing` **4,614 lines /
+140 clauses**, the `"Count:"`/`"four impl blocks"` prose corrected to
+**197 / five**; re-run of `check-core-api-verbs` PASS.
+
+**Round-trip / minimal-diff (rule 3 / `ARCHITECTURE.md` §5).** `Pass 250.2`
+PRESERVES it: `save_applying_redaction` produces a **single-revision full
+rewrite** (redaction is the sanctioned §5 exception, deliberate and scoped
+to the redacted objects), and the deferred guard specifically PREVENTS the
+incremental save that would violate removal — an incremental append over
+the un-redacted base would leak the covered content via `/Prev` (§5.2),
+which is why BOTH ordinary save modes are refused by name
+(`WriteError::RedactionPending`) while a redaction is staged.
+
+`docs/FEATURES.md`: under *Planned → Redaction & security*, the
+"Undo-preserving deferred redaction" row (`Pass 250.2`) moved to
+*Implemented → Redaction & security* and set `core [x]` · `cli —` ·
+`gui [ ]` · `Acrobat [x]` (cli is N/A: the deferred/undo distinction is a
+session concept; the existing `redact` subcommand already covers the CLI).
+Under *Planned*, the signature-trust cluster's `Pass 10.5` row moved
+`core [x]` · `cli [x]` · `gui [ ]` · `Acrobat [x]`, reworded to the
+deterministic offline checks it actually shipped; a NEW `Pass 10.6` row was
+added for **signature revocation**, all pdfcer columns `[ ]`, `Acrobat [x]`,
+with the no-network note; and the `Pass 10.3` row's "deferred (`Pass 10.5`)"
+pointer was corrected — clock + constraints + RSA-PSS now ship, only
+revocation remains deferred (`Pass 10.6`).
+
+**Inbound sweep.** This session began by sweeping
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests` **twice** for new inbound
+`pdfcer-gui` requests — **none found**; every recent file there is the
+engineer's own outbound reply.
+
+**Ledger.** Filings ceiling `426` → **`427`**; Pass ceiling `250.2`
+**unchanged** — `Pass 10.5` and `Pass 250.2` moved *Backlog* → *Shipped*,
+and one new Pass ID minted (`Pass 10.6`, *Backlog*), a family-10 sub-ID,
+not a new max; decision ceiling `134` → **`135`** (one minted: the
+no-network invariant precludes revocation in `pdfcer-core` — `Pass 10.5`
+recorded it, `Pass 10.6` scopes the deferral), next free `136`; standing
+rules ceiling `R241` unchanged, next free `R242`; open operator questions:
+none minted, next free `(ce)`.
+
+### `Pass 10.5` (`e1cdd3b`, 2026-09-04) — **SIGNATURE TRUST PATH VALIDATION — VALIDITY DATES, RFC 5280 CA/KEY-USAGE CONSTRAINTS, RSA-PSS CERT SIGNATURES (THE DETERMINISTIC, NO-NETWORK PARTS; REVOCATION STILL DEFERRED)**
+
+**What shipped** (`pdfcer-core` + the `pdfcer` CLI). Builds on `Pass 10.3`'s
+signature-linkage trust. `trust_chain::evaluate` now takes `now:
+Option<&str>` (an ISO signing-time clock) and additionally verifies, each
+as its own axis on top of linkage:
+
+- **Certificate validity dates** — every cert in the chain must satisfy
+  `notBefore <= now <= notAfter` (RFC 5280 §4.1.2.5) **when a clock is
+  supplied**. `signature_verify` passes the CMS `signingTime`; **absent it,
+  validity is NOT checked and it is DISCLOSED as such** (the honest
+  direction — no clock means no validity claim, never a silent pass).
+- **RFC 5280 CA / key-usage constraints on intermediates** —
+  `basicConstraints cA TRUE` (§4.2.1.9) and `keyUsage` not clearing
+  `keyCertSign` (§4.2.1.3). **A configured anchor is trusted as declared,
+  but its own validity dates are still checked.**
+- **RSA-PSS certificate signatures now verify** — params taken from the
+  cert's `signatureAlgorithm` (RFC 4055), reusing
+  `signature_verify::pss_params`. RSA PKCS#1 v1.5 and ECDSA already worked;
+  anything else is still declined (the safe direction).
+
+**New public surface.** `trust_chain::PathChecks { validity_checked,
+constraints_checked, revocation_checked }`; `ChainVerdict::Trusted` gains
+`checks: PathChecks`; `evaluate(.., now)`; `signature::Trust::Trusted`
+gains `validity_checked: bool`. `crypto::cms::Certificate` gains `is_ca`,
+`key_usage_cert_sign`, and the full `sig_alg: Option<AlgId>` (replacing the
+OID-only `sig_alg_oid`). `asn1` gains the `BOOLEAN` tag const.
+
+**★ REVOCATION is NOT done and CANNOT be, in core — decision 135.**
+`PathChecks.revocation_checked` is **always `false`** this build. CRL/OCSP
+need the network `pdfcer-core` is forbidden to touch (the no-network
+invariant, enforced by the `cargo tree` `reqwest`/`hyper` CI gate).
+Revocation belongs to a shell that fetches, or to embedded DSS/LTV data,
+and is the named later increment `Pass 10.6` (*Backlog*, below). The verdict
+note and the CLI output state exactly which checks ran and that revocation
+is not among them.
+
+**CLI.** `verify-signatures --trust-from-acrobat` output and help updated to
+say **chain + CA/key-usage + validity-at-signing-time** are checked and
+**revocation is not**.
+
+**Tests.** `trust_chain` unit tests **5 → 8**: a valid 3-cert chain via a CA
+intermediate is trusted; a non-CA intermediate breaks the chain; a chain
+that verifies by signature but is outside its validity window is untrusted;
+an RSA-PSS-signed cert verifies. New OpenSSL-generated P-256 and
+RSA-2048/PSS DER fixtures embedded in the test module. `core-api` §12.5b
+updated.
+
+`docs/FEATURES.md`: the *Planned* signature-trust cluster's `Pass 10.5` row
+moved `core [x]` · `cli [x]` · `gui [ ]` · `Acrobat [x]`, reworded to the
+deterministic offline checks; a new `Pass 10.6` revocation row added,
+unticked, with the no-network note; the `Pass 10.3` row's deferred pointer
+corrected.
+
+### `Pass 250.2` (`41095eb`, 2026-09-04) — **UNDO-PRESERVING DEFERRED REDACTION — a redaction STAGED at Save that leaves the live session and its FULL undo/redo history untouched (the counterpart to `Pass 250.1`'s finalizing collapse)**
+
+**What shipped** (all in `pdfcer-core`). The undo-preserving counterpart to
+`Pass 250.1`'s finalizing collapse:
+
+- **`EditSession::apply_redactions_deferred(&mut self) ->
+  Result<RedactionReport, RedactError>`** stages a redaction to be applied
+  **AT SAVE** and leaves the live session — base, overlay AND the **full
+  undo/redo history** — completely untouched (contrast
+  `apply_redactions`, which collapses and clears undo). It returns a
+  **PREVIEW** report of what would be removed.
+- **While staged (`has_pending_redaction()` true), BOTH ordinary save modes
+  are refused by name** (new `WriteError::RedactionPending`): incremental
+  would leak the un-redacted content via `/Prev` (`ARCHITECTURE.md` §5.2),
+  and a plain full rewrite would emit the `/Redact` marks with content
+  intact (an unapplied redaction). **This is the §4.1 leak-guard the eager
+  collapse variant did not need** (`Pass 250.1` had no un-redacted base
+  left to leak; the deferred variant sits over the ORIGINAL base, so the
+  guard is owed — exactly as the `Pass 250.1` filing predicted it would
+  become owed "the moment anyone builds `Pass 250.2`").
+- **The removal is carried out only by
+  `save_applying_redaction(&self, &SaveOptions) -> Result<(Vec<u8>,
+  RedactionReport), RedactError>`**, which runs the surgery over the
+  CURRENT state and returns clean **single-revision** redacted bytes; it
+  takes `&self` so **undo survives the save**.
+- **`cancel_pending_redaction(&mut self)`** un-stages, restoring the
+  ordinary save modes.
+- A private `redact_current_state` helper (serialise via `writer::save_full`
+  directly, bypassing the new pending-save guard it must run under) is now
+  **shared** by the eager path, the deferred preview, and the applying
+  save — one surgery implementation, three callers.
+
+**CLI: unchanged.** `pdfcer` is single-shot (no session, no undo), so the
+deferred / undo-preserving distinction is a GUI/session concept; the
+existing `redact` subcommand already applies-and-writes — the equivalent
+of `save_applying_redaction`.
+
+**Tests.** 2 new integration tests in `tests/redact_into_session.rs`: a
+deferred redaction preserves undo, refuses both save modes by name, and its
+applying save removes the text without mutating the session; cancelling
+restores ordinary saves. `core-api` §1.15 updated with four new rows; the
+`Pass 250.1` row's stale "separate Backlog capability" note updated to point
+at `250.2`.
+
+`docs/FEATURES.md`: the "Undo-preserving deferred redaction" row moved from
+*Planned* to *Implemented → Redaction & security*, `core [x]` · `cli —` ·
+`gui [ ]` · `Acrobat [x]`.
+
 **★★ 426th filing, 2026-09-05 — `v0.37.0` RESOLVED: IN PROGRESS →
 VERIFIED. The release of `Pass 10.4` (persistent "use Acrobat trust store
 (at own risk)" setting — `settings::AcrobatTrustStore { Off, AtOwnRisk }`,
@@ -120212,9 +120422,21 @@ building (the undo-clearing tradeoff in shape (1) is a UX/operator call).
 choice, not a rush job. `FEATURES.md`: one new *Planned* row under
 *Redaction & security*; no box moves.
 
-### `Pass 250.2` — ★★ **UNDO-PRESERVING DEFERRED REDACTION — apply a redaction as a deferred dirty-set edit that does NOT collapse the session or clear undo, committed at Save** — filed 2026-09-04 (421st filing), **NOT STARTED** — ★★ **SAFETY-CRITICAL, and the HARDER of the two shapes by design**
+### ~~`Pass 250.2` — ★★ **UNDO-PRESERVING DEFERRED REDACTION — apply a redaction as a deferred dirty-set edit that does NOT collapse the session or clear undo, committed at Save** — filed 2026-09-04 (421st filing), **NOT STARTED** — ★★ **SAFETY-CRITICAL, and the HARDER of the two shapes by design**~~ — **DISCHARGED 2026-09-04 (427th filing): SHIPPED as `Pass 250.2` (`41095eb`), see *Shipped* above.**
 
-**Status: NOT STARTED.** Origin: the operator's ruling when resolving `Pass
+**★ SHIPPED 2026-09-04 (427th filing), `41095eb`.** Built as
+`EditSession::apply_redactions_deferred` (stages at Save, leaves base +
+overlay + the FULL undo/redo history untouched, returns a preview report),
+`save_applying_redaction(&self, ..)` (runs the surgery over the current
+state, returns single-revision clean bytes, `&self` so undo survives), and
+`cancel_pending_redaction`. The `R35` refuse-incremental-save guard —
+predicted below to become owed here — **was built**: while staged, BOTH
+ordinary save modes are refused by name (`WriteError::RedactionPending`),
+because a redaction left over the ORIGINAL un-redacted base would leak via
+`/Prev`. The foreign-buffer-staging-spans problem (criterion 2) was solved
+by a shared `redact_current_state` helper reused by the eager path, the
+deferred preview and the applying save. The original scoping is kept
+legible below. **Status: SHIPPED (see *Shipped* above).** Origin: the operator's ruling when resolving `Pass
 250.1`'s design fork — *"we'll add the other capability to the roadmap to be
 done in the future."* This is **shape (2)** from that fork, recorded as a
 future capability because the operator asked for it, **not scheduled**.
@@ -126950,7 +127172,24 @@ oversight — it is deliberate scope separation.
 4. **The setting's round-trip is proven** against the settings module's
    existing stability gate before shipping.
 
-#### `Pass 10.5` — **FULL TRUST VALIDATION — REVOCATION, CLOCK, RFC 5280 PATH CONSTRAINTS** — filed 2026-09-04 (423rd filing), *Backlog*, NOT STARTED — depends on `Pass 10.3`
+#### ~~`Pass 10.5` — **FULL TRUST VALIDATION — REVOCATION, CLOCK, RFC 5280 PATH CONSTRAINTS** — filed 2026-09-04 (423rd filing), *Backlog*, NOT STARTED — depends on `Pass 10.3`~~ — **PARTIALLY DISCHARGED 2026-09-04 (427th filing): the DETERMINISTIC, NO-NETWORK parts SHIPPED as `Pass 10.5` (`e1cdd3b`); REVOCATION carved out to `Pass 10.6` (below).**
+
+**★ SHIPPED 2026-09-04 (427th filing), `e1cdd3b` — checks 2, 3 and 4 of
+the five below.** `Pass 10.5` as shipped delivers the **deterministic,
+offline** checks: **(2)** validity-date checking against the signing-time
+clock (RFC 5280 §4.1.2.5; when a clock is supplied — absent it, validity is
+not checked and is DISCLOSED as such), **(3)** RFC 5280 CA/`keyUsage`
+constraints on intermediates (§4.2.1.9 `basicConstraints cA TRUE`,
+§4.2.1.3 `keyUsage` not clearing `keyCertSign`), and **(4)** RSA-PSS
+certificate signatures (RFC 4055). New surface `trust_chain::PathChecks`,
+`ChainVerdict::Trusted { checks }`, `evaluate(.., now)`,
+`signature::Trust::Trusted { validity_checked }`. See *Shipped* above.
+**STILL DEFERRED:** **(1) revocation (CRL/OCSP)** — carved out to
+`Pass 10.6` (below), because it **cannot run in `pdfcer-core`**: CRL/OCSP
+need the network the no-network invariant forbids (decision 135). **(5) the
+`/Trust` bitfield pinning** (provisional since `Pass 10.2`) — not built;
+folded into `Pass 10.6`'s scope. The original five-part scoping is kept
+legible below.
 
 The deferred half of a real eIDAS / RFC 5280 verdict. `Pass 10.3`
 shipped **signature-linkage only** (each chain link's signature verified
@@ -126978,6 +127217,42 @@ collapse into "trusted":
 
 Every uncertainty still resolves to `Untrusted`/`Unverifiable`, never a
 false `Trusted` — the `Pass 10.3` safety direction is preserved.
+
+#### `Pass 10.6` — **SIGNATURE REVOCATION — validate embedded DSS/LTV revocation info, and/or shell-supplied OCSP/CRL responses; surface CDP/AIA URLs for a shell to fetch** — filed 2026-09-04 (427th filing), *Backlog*, NOT STARTED — depends on `Pass 10.5`
+
+**Status: NOT STARTED.** The remaining trust slice after `Pass 10.5` shipped
+the deterministic offline checks (validity dates, CA/`keyUsage` constraints,
+RSA-PSS cert signatures). Revocation is the one check a production
+eIDAS/RFC-5280 verdict still owes, and it is the one that **cannot live in
+`pdfcer-core`** as an active fetch: CRL and OCSP require the network the
+**no-network invariant forbids** the crate (decision 135, enforced by the
+`cargo tree` `reqwest`/`hyper` CI gate). `Pass 10.5` set
+`PathChecks.revocation_checked = false` unconditionally and disclosed it.
+
+**Scope — three routes that respect the invariant:**
+
+1. **Embedded DSS/LTV revocation info** — a PAdES B-LT/B-LTA document
+   carries the CRLs/OCSP responses it was validated against inside the
+   `/DSS` dictionary (ETSI EN 319 142). Validating **that embedded data**
+   is offline and belongs in `pdfcer-core`.
+2. **Shell-supplied OCSP/CRL responses** — `pdfcer-core` accepts a
+   caller-provided CRL/OCSP response (fetched by a shell that IS allowed
+   the network) and validates it against the chain. Core validates; the
+   shell fetches.
+3. **Surface CDP/AIA URLs** — decode each cert's DER `CRLDistributionPoints`
+   / `AuthorityInfoAccess` extensions and hand the URLs to a shell so it
+   can fetch (2)'s inputs. Decoding is offline; fetching is the shell's.
+
+**Also folds in `Pass 10.5` check (5):** pin the provisional `/Trust`
+bitfield decoding (provisional since `Pass 10.2`) so fine-grained usage
+gating (trusted root vs. sign vs. certify vs. dynamic-content vs.
+embedded-JS vs. privileged-system ops) is possible — the provisional
+mapping says *trusted / not*, not *for what*.
+
+Every uncertainty must still resolve to `Untrusted`/`Unverifiable`, never a
+false `Trusted` — the `Pass 10.3`/`10.5` safety direction is preserved.
+`FEATURES.md`: one *Planned* row under the signature-trust cluster
+(revocation), all pdfcer columns `[ ]`, `Acrobat [x]`. **Not scheduled.**
 
 - **Encryption** — standard security handler, RC4 (legacy read-compat
   only, never write), AES-128/256, public-key (certificate) security

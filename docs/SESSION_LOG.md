@@ -91609,3 +91609,133 @@ here.
 - Operator: the "use Acrobat trust store (at own risk)" setting shipped in
   `v0.37.0` — the latest portable build (OneDrive `pdfcer1`) carries it,
   off by default. `v0.36.0` is kept in `pdfcer2` as the fallback.
+
+## 2026-09-04 (427th filing) — TWO Passes SHIPPED: `Pass 10.5` (`e1cdd3b`) signature trust PATH VALIDATION (deterministic no-network RFC 5280 parts) + `Pass 250.2` (`41095eb`) undo-preserving DEFERRED redaction; the two "do both" backlog items; revocation carved to `Pass 10.6`; no-network-precludes-revocation-in-core recorded as decision 135
+
+**Shipped:**
+- **`Pass 10.5`** (`e1cdd3b`) — signature trust **path validation**, the
+  deterministic no-network parts of RFC 5280, on top of `Pass 10.3`'s
+  signature-linkage. `trust_chain::evaluate` now takes `now: Option<&str>`
+  (an ISO signing-time clock) and additionally verifies: **(1)** certificate
+  validity dates — every cert must satisfy `notBefore <= now <= notAfter`
+  (§4.1.2.5) **when a clock is supplied**; **absent it, validity is NOT
+  checked and is DISCLOSED as such**; `signature_verify` passes the CMS
+  `signingTime`. **(2)** RFC 5280 CA/`keyUsage` constraints on intermediates
+  — `basicConstraints cA TRUE` (§4.2.1.9), `keyUsage` not clearing
+  `keyCertSign` (§4.2.1.3); a configured anchor is trusted as declared but
+  its own validity dates are still checked. **(3)** RSA-PSS certificate
+  signatures (params from the cert's `signatureAlgorithm`, RFC 4055, reusing
+  `signature_verify::pss_params`); RSA PKCS#1 v1.5 and ECDSA already worked,
+  anything else still declined (safe). New surface `trust_chain::PathChecks
+  { validity_checked, constraints_checked, revocation_checked }`,
+  `ChainVerdict::Trusted { checks }`, `evaluate(.., now)`,
+  `signature::Trust::Trusted { validity_checked }`; `cms::Certificate` gains
+  `is_ca`, `key_usage_cert_sign`, and the full `sig_alg: Option<AlgId>`
+  (replacing OID-only `sig_alg_oid`); `asn1` gains the `BOOLEAN` tag const.
+  CLI `verify-signatures --trust-from-acrobat` output/help updated to say
+  chain + CA/key-usage + validity-at-signing-time are checked, revocation is
+  not. Tests `trust_chain` **5 → 8** (valid 3-cert chain via a CA
+  intermediate trusted; a non-CA intermediate breaks the chain; a chain that
+  verifies by signature but is outside its validity window untrusted; an
+  RSA-PSS-signed cert verifies) with new OpenSSL-generated P-256 and
+  RSA-2048/PSS DER fixtures; `core-api` §12.5b updated.
+  `core [x]` · `cli [x]` · `gui [ ]` · `Acrobat [x]`.
+- **`Pass 250.2`** (`41095eb`) — undo-preserving **DEFERRED** redaction, the
+  counterpart to `Pass 250.1`'s finalizing collapse.
+  `EditSession::apply_redactions_deferred(&mut self) ->
+  Result<RedactionReport, RedactError>` stages a redaction to apply **AT
+  SAVE** and returns a PREVIEW report, leaving base, overlay AND the **full
+  undo/redo history** untouched. While staged (`has_pending_redaction()`),
+  **BOTH ordinary save modes are refused by name (`WriteError::RedactionPending`)**
+  — the §4.1 leak-guard the collapse variant did not need: incremental would
+  leak the un-redacted content via `/Prev` (§5.2), a plain full rewrite
+  would emit the `/Redact` marks with content intact. The removal is carried
+  out only by `save_applying_redaction(&self, &SaveOptions) -> Result<(Vec<u8>,
+  RedactionReport), RedactError>`, which runs the surgery over the current
+  state and returns clean single-revision redacted bytes; **`&self` so undo
+  survives the save**. `cancel_pending_redaction(&mut self)` un-stages. A
+  private `redact_current_state` helper (serialise via `writer::save_full`,
+  bypassing the new pending-save guard) is now shared by the eager path, the
+  deferred preview and the applying save. CLI unchanged — `pdfcer` is
+  single-shot (no session, no undo), so the deferred/undo distinction is a
+  GUI/session concept; the existing `redact` subcommand already
+  applies-and-writes (= `save_applying_redaction`). 2 new integration tests
+  in `tests/redact_into_session.rs`; `core-api` §1.15 updated with four new
+  rows, the `250.1` row's stale "separate Backlog capability" note repointed
+  at `250.2`. `core [x]` · `cli —` (N/A, single-shot) · `gui [ ]` ·
+  `Acrobat [x]`.
+
+**Decisions made this session:**
+- **decision 135** — **signature revocation (CRL/OCSP) is architecturally
+  excluded from `pdfcer-core` by the no-network invariant.** `Pass 10.5`
+  shipped the deterministic offline RFC 5280 checks and left
+  `PathChecks.revocation_checked = false` unconditionally, because CRL/OCSP
+  are network fetches and `pdfcer-core` cannot open a socket (the
+  `no-network` fail-closed CI job, `cargo tree` denylist against
+  `reqwest`/`hyper`). Revocation becomes a **layered** capability: core
+  validates OFFLINE evidence (embedded DSS/LTV data; shell-supplied
+  OCSP/CRL responses) and DECODES CDP/AIA URLs; a shell that IS permitted
+  the network does the active fetch. This is an **application** of the
+  existing invariant, not a change to it (§1.1 body unchanged). Scopes
+  `Pass 10.6`.
+
+**Findings + decisions:**
+- **Both "do both" backlog items shipped.** The operator had said "do both"
+  about `Pass 10.5` (full trust validation) and `Pass 250.2`
+  (undo-preserving redaction); both landed this session — `10.5` in its
+  deterministic-offline form (revocation carved out), `250.2` in full.
+- **The `R35` refuse-incremental-save guard the `Pass 250.1` filing
+  PREDICTED would become owed "the moment anyone builds `Pass 250.2`" was
+  built.** `Pass 250.1` (collapse) correctly did without it — no un-redacted
+  base remained; `Pass 250.2` (deferred over the ORIGINAL base) needs it,
+  and has it as `WriteError::RedactionPending`.
+- **Round-trip / minimal-diff preserved.** `save_applying_redaction`
+  produces a single-revision full rewrite (redaction is the sanctioned §5
+  exception, scoped to the redacted objects); the deferred guard PREVENTS
+  the incremental save that would violate removal.
+- **Inbound sweep:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests` swept
+  **twice** at session start — no new inbound `pdfcer-gui` requests; every
+  recent file there is the engineer's own outbound reply.
+- **Gates (relayed from the engineer's dispatch):** full `tools/run-gates.sh`
+  to completion — clippy `--workspace --all-targets --all-features -D
+  warnings` clean, `cargo fmt --all --check` clean, wasm32 check of
+  `pdfcer-core`/`pdfcer-render` clean (GUI-core separation holds), the
+  `cargo tree` grep for `egui`/`eframe`/`winit`/`wgpu`/`reqwest`/`hyper`
+  found nothing (no-network + no-GUI intact), `cargo test --workspace`
+  green (`pdfcer-core` lib **2015 passed / 0 failed**, every integration
+  binary 0 failed) including the 8 `trust_chain` + 4 `redact_into_session`
+  tests, `cargo test -p pdfcer-core --no-default-features` green, all python
+  gates green. The ONE initial failure — `check-core-api-verbs.py` (stated
+  `193` vs derived `197` after the four new `EditSession` methods, plus
+  `01`/`02` line+clause counts) — was **reconciled**: `02` + `index.md` now
+  state **197** verbs, `01-reading` **2,899 lines / 151 clauses**, `02`
+  **4,614 lines / 140 clauses**, the `"Count:"`/`"four impl blocks"` prose
+  corrected to **197 / five**; re-run PASS.
+- **Sourcing (hard rule 8):** this role had a shell. Both hashes MEASURED
+  here — `Pass 10.5` = `e1cdd3b` (subject *"Pass 10.5: signature trust path
+  validation…"*, 2026-09-04 22:44:30 -0400), `Pass 250.2` = `41095eb`
+  (subject *"Pass 250.2: undo-preserving deferred redaction…"*, 2026-09-04
+  22:44:37 -0400); `41095eb` **is** `HEAD`; `e1cdd3b..41095eb` = `41095eb`
+  alone (so `10.5` immediately precedes `250.2`); working tree clean before
+  this filing's doc edits. Test/gate figures relayed from the engineer's
+  dispatch, not re-run.
+
+**Still in flight:**
+- **`Pass 10.6`** (signature revocation) is *Backlog*, NOT built — the
+  remaining trust slice: validate embedded DSS/LTV revocation info and/or
+  shell-supplied OCSP/CRL responses, surface CDP/AIA URLs for a shell to
+  fetch, pin the provisional `/Trust` bitfield. Cannot run in core
+  (decision 135).
+- No release cut this filing (docs-only). `Pass 10.5` + `Pass 250.2` are
+  un-released so far.
+
+**For next session:**
+- Engineer: no in-flight Pass. A release carrying `Pass 10.5` + `Pass 250.2`
+  is un-cut (release act standing-authorized, decision 121). `Pass 10.6`
+  (revocation) is the next trust increment and is the layered, shell-fetch
+  shape decision 135 describes.
+- Operator: signature verification now checks a signer's certificate dates
+  and CA constraints (and PSS-signed certs), not just the chain linkage — but
+  it still does NOT check whether a certificate was revoked; that needs the
+  network and is the next piece. Redaction can now be staged and undone right
+  up until you save (alongside the existing finalizing apply).

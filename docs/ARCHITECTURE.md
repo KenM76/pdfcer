@@ -31642,3 +31642,60 @@ risk and does not decide it.
 rules ceiling `R241` — unchanged**, next free `R242`. **Open operator
 questions: none minted; the resolved item was an OPEN ITEM on `Pass 10.2`,
 never a lettered question — next free `(ce)`.**
+
+### 2026-09-04 (427th filing) — decision 135: **SIGNATURE REVOCATION (CRL/OCSP) IS ARCHITECTURALLY EXCLUDED FROM `pdfcer-core` BY THE NO-NETWORK INVARIANT. `pdfcer-core` VALIDATES ONLY OFFLINE REVOCATION EVIDENCE — EMBEDDED DSS/LTV DATA AND SHELL-SUPPLIED OCSP/CRL RESPONSES — AND DECODES CDP/AIA URLs FOR A SHELL TO FETCH; THE ACTIVE FETCH IS A SHELL'S JOB. SCOPES `Pass 10.6`.**
+
+**(librarian filing, 427th. Recorded with `Pass 10.5` (`e1cdd3b`), which
+shipped the deterministic offline trust checks and left
+`PathChecks.revocation_checked = false` unconditionally; the decision it
+records is why that field is a constant this build, and what a real
+revocation Pass must look like.)**
+
+**The architecture point.** `Pass 10.5` added the deterministic, no-network
+half of RFC 5280 path validation to `trust_chain::evaluate` — certificate
+validity dates against the signing-time clock (§4.1.2.5), CA/`keyUsage`
+constraints on intermediates (§4.2.1.9 / §4.2.1.3), and RSA-PSS certificate
+signatures (RFC 4055). It did **NOT** add revocation, and the reason is
+structural, not scheduling: **CRL and OCSP are network fetches, and
+`pdfcer-core` is forbidden the network** (the no-network invariant — see the
+`no-network` fail-closed CI job, a `cargo tree` denylist against
+`reqwest`/`hyper`, §1.1 above). A crate that cannot open a socket cannot
+fetch a CRL or query an OCSP responder.
+
+**What it decides.** Revocation does not become "unsupported"; it becomes a
+**layered** capability whose active-fetch step lives outside core:
+
+- **`pdfcer-core` validates OFFLINE revocation evidence** — the CRLs/OCSP
+  responses a PAdES B-LT/B-LTA document already carries in its `/DSS`
+  dictionary (ETSI EN 319 142), and CRL/OCSP responses a **shell** hands it
+  after fetching them. Validation is arithmetic over bytes already in hand;
+  it is offline; it belongs in core.
+- **`pdfcer-core` decodes, never fetches, CDP/AIA** — it reads each cert's
+  DER `CRLDistributionPoints` / `AuthorityInfoAccess` extensions and
+  surfaces the URLs for a shell to fetch. Decoding a URL is offline;
+  dereferencing it is the shell's act.
+- **The active fetch is a SHELL's job** — a GUI or CLI that IS permitted the
+  network (the operator's 2026-08-08 ruling narrowed the no-network rule to
+  core + render specifically; a shell may fetch) retrieves the CRL/OCSP and
+  passes the response back into core to validate.
+
+**Why this does not alter the invariant body.** This decision is an
+**application** of the existing no-network invariant, not a change to it —
+§1.1 already states `pdfcer-core`/`pdfcer-render` make no network calls, and
+that text is unchanged. The decision records the *consequence* for signature
+trust: revocation is drawn on the core/shell boundary, the same boundary
+GUI-core separation draws for windowing.
+
+**Disclosure stays honest (rule 4).** `Pass 10.5`'s verdict note and CLI
+output state exactly which checks ran and that revocation is not among them;
+`PathChecks.revocation_checked` is `false` this build and is not hidden.
+Every uncertainty still resolves to `Untrusted`, never a false `Trusted` —
+the `Pass 10.3`/`10.5` safety direction is preserved.
+
+**Scopes `Pass 10.6`** (*Backlog*): the three offline-respecting routes
+above, plus pinning the provisional `/Trust` bitfield decoding (provisional
+since `Pass 10.2`).
+
+**Decision ceiling moves `134` → `135`; next free `136`.** **Standing rules
+ceiling `R241` — unchanged**, next free `R242`. **Open operator questions:
+none minted — next free `(ce)`.**
