@@ -92091,3 +92091,93 @@ asserted (running).
   things you asked for are now on the plan: the "show all lines thin like
   CAD" display option (near-term), and being able to drag/add/delete the
   corners of a markup shape you drew (later).
+
+## 2026-09-05 (433rd filing) — `Pass 254.0` SHIPPED (`8f9fb3e`, NOT yet pushed): the "line weights off" hairline DISPLAY mode the operator asked for by name — `RenderOptions::stroke_display: StrokeDisplay { Actual, Hairline }` caps every stroke at one device pixel; FILLS untouched; DISPLAY-only (no CLI flag, no export sets it). Batch held before the next portable release, per Ken's 2026-09-05 "build all before the next portable release unless I say otherwise."
+
+**Shipped:**
+- `Pass 254.0` (`8f9fb3e`) — a "line weights OFF" hairline display mode.
+  New `RenderOptions::stroke_display: StrokeDisplay { Actual (default),
+  Hairline }` (an **enum**, not a `bool` — room for "enhance thin lines" as a
+  third variant later), plumbed through `RenderPolicy` into the interpreter
+  exactly like `subpixel_culling`. In `Hairline`, `stroke_params` caps
+  `width = min(floored, min_user_width)` (one device pixel in user space),
+  which with the pre-existing ISO 32000-1 §8.4.3.2 floor lands every stroke at
+  ~1 device pixel. **FILLS untouched** — only `S`/`s`/`B`/`B*` strokes reach
+  `stroke_params`, so a hatch of thin fills cannot vanish. Files:
+  `crates/pdfcer-render/src/{lib.rs, interpret.rs, font/mod.rs}`, +108/−9, all
+  in-crate. Operator-requested directly (the inert `view.thin_lines` control
+  removed 2026-08-17 for lack of a `RenderOptions` field). This is the CAD
+  "line weights OFF" convention (AutoCAD `LWDISPLAY` off) — thick→thin — the
+  OPPOSITE of Acrobat's "enhance thin lines" (thin→thick), which the request
+  warned must not be shipped inverted.
+
+**Decisions made this session:**
+- **DISPLAY-only is the design, not an omission — no CLI flag, no export path
+  sets `Hairline`.** Every export (PNG/JPEG/SVG/EMF/DXF/PDF, incl. the CLI's
+  `render-page`) renders the document's REAL widths; a hairline export would be
+  an unfaithful file — *"the one thing worse than not having this feature is
+  having it silently follow the operator into a file he sends a client."* So
+  FEATURES marks `cli —` (not applicable by design), not `[ ]` (unbuilt) — the
+  earlier scoping had left `cli ?` pending exactly this call, and the Pass
+  settled it. The `pdfcer-gui` shell sets the mode for its canvas and owns the
+  off-canvas "screen != paper" disclosure (rule 4: an operator reading aid, not
+  pdfcer marking its own uncertainty), so `gui [ ]` is a real gap owned there.
+- **No new decision record minted** — a contained render-time display option
+  backed by the existing `subpixel_culling` pattern is not architectural.
+  Decision ceiling `135` unchanged.
+
+**Findings + decisions:**
+- The rasteriser already drew a width-0 / sub-pixel stroke as one pixel; what
+  was missing was a field to force ALL strokes to that ceiling. The change is
+  one `RenderOptions` field plus one branch in the stroke path, exactly as the
+  `pdfcer-gui` request predicted — contained.
+
+**`docs/FEATURES.md`:**
+- The "line weights off" row moved from *Planned* to *Implemented* (*Fonts &
+  rendering*), placed with the sub-pixel-culling render-mode row. Boxes:
+  **`core [x]` · `cli —` · `gui [ ]` · `Acrobat [x]`** — `Acrobat [x]` for
+  its View ▸ Line Weights toggle (the direct analog; its separate "enhance
+  thin lines" preference is the opposite convention and is not the parity
+  claim). The row previously read `[ ] core / ? cli / [ ] gui / ? Acrobat`
+  in *Planned*; the `cli ?` resolved to `—` and the `Acrobat ?` to `[x]`.
+
+**Still in flight:**
+- **Batch, release HELD.** Per Ken's 2026-09-05 ruling — *"build all before the
+  next portable release unless I say otherwise"* — this session is building a
+  batch: `Pass 251.1` (delete-pages nested-`/Count` fix) shipped `e4cefcd`
+  (432nd filing); `Pass 254.0` ships now; **`Pass 255.0` (markup-shape vertex
+  read/edit) and digital signing are still to come.** No `v0.40.0` cut, no
+  OneDrive deploy until the batch is done. The engineer recorded the cadence
+  rule in agent memory (`dfd203f`).
+- `Pass 252.0`, `Pass 253.0`–`253.3` and `Pass 255.0` remain unscoped/not-
+  started in *Backlog*.
+
+**Sourcing (hard rule 8):** this role had a shell. `git rev-parse 8f9fb3e` =
+`8f9fb3e1c3554a7ed55061197f1c90ab67dcf267` (subject *"feat(render): "line
+weights off" hairline display mode (Pass 254.0)"*); `git show --stat 8f9fb3e` =
+3 files, +108/−9 (`interpret.rs`, `font/mod.rs`, `lib.rs`; **no `Cargo.toml`**,
+so GUI-core separation is untouched by construction). `git rev-parse HEAD` =
+`dfd203f` (an agent-memory note, no code — skipped by `check-commits-filed`),
+between the code commit and this filing. `git rev-parse origin/main` =
+`e4cefcd` — so `8f9fb3e` is NOT pushed and the branch is 3 commits ahead of
+`origin/main` (`7ecc8d9`, `8f9fb3e`, `dfd203f`). `git status --short` carries
+this filing's own doc edits only. **`8f9fb3e` is a CODE commit and was unfiled
+before this filing — which blocked the push; this filing names its hash in
+`ROADMAP.md` and here, turning `check-commits-filed` green and unblocking the
+batch push.** `cargo clippy`/`cargo fmt` not run workspace-wide at ship time;
+the targeted `pdfcer-render` test `hairline_mode_thins_strokes_but_leaves_
+fills_untouched` is green (a 12-unit stroke's dark-pixel count drops >3× under
+`Hairline`; a fill renders byte-identically in both modes). Full gate + CI are
+the backstop and gate the release, not this filing.
+
+**For next session:**
+- Engineer: the batch continues — `Pass 255.0` (markup-shape vertex read/edit)
+  and digital signing are the remaining items before the next portable release.
+  The push is now unblocked (`check-commits-filed` green); pushing `main` is
+  standing-authorized, the RELEASE act waits for the batch.
+- Operator: the "show all lines thin like CAD" display option you asked for is
+  built into the engine. It affects the on-screen view only — printing and
+  every export still use the real line weights, so a file you send out is never
+  changed. It will appear as a toggle once the GUI wires it up. Held back from
+  a new portable download until the rest of this batch (markup-corner editing
+  and digital signing) is done, as you asked.

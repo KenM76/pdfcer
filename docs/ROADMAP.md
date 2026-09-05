@@ -112,6 +112,138 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★ 433rd filing, 2026-09-05 — ONE FEATURE PASS SHIPPED (`Pass 254.0`,
+code `8f9fb3e`) — the "line weights off" hairline DISPLAY mode the operator
+asked for by name. NOT yet pushed: this is a docs-only filing that turns
+`check-commits-filed` green so the batch push is unblocked; the release is
+still HELD until the batch is done (see the batch note below).**
+
+### `Pass 254.0` (`8f9fb3e`, 2026-09-05) — **A "LINE WEIGHTS OFF" HAIRLINE DISPLAY MODE — cap every stroke's DEVICE width at one pixel, so a dense CAD sheet reads by GEOMETRY, not by drafting weight, at high zoom**
+
+**Operator-requested directly.** The View-tab control was removed 2026-08-17
+(`view.thin_lines`, registered but inert) for lack of a `RenderOptions` field
+to back it; the operator asked for the working feature by name — *"show all
+lines without their thickness — thin lines or something like cad has… I do
+want that display option!"*. This is the CAD **"line weights OFF"** convention
+(AutoCAD `LWDISPLAY` off), the **OPPOSITE** of Acrobat's "enhance thin lines"
+preference: that thickens sub-pixel strokes so they do not vanish; **this thins
+fat ones** so adjacent geometry at 200–400 % zoom stops merging into a solid-
+black blob and the operator can answer *"are these two lines coincident, or
+0.3 mm apart?"*.
+
+**Implementation.** A new `RenderOptions::stroke_display: StrokeDisplay {
+Actual (default), Hairline }` — deliberately an **enum, not a `bool`**, leaving
+room for "enhance thin lines" as a future third variant (a `bool` would then
+mean "one of the two"). Plumbed through `RenderPolicy` into the interpreter
+**exactly like `subpixel_culling`** (the projection and its carried-field test
+updated in step). `stroke_params` gains the ceiling: in `Hairline`, `width =
+min(floored, min_user_width)` where `min_user_width` is one device pixel
+expressed in user space, so — combined with the pre-existing ISO 32000-1
+§8.4.3.2 minimum-width floor — every stroke lands at ~1 device pixel. **FILLS
+are untouched**: only `S`/`s`/`B`/`B*` painted strokes reach `stroke_params`,
+so a hatch built from thin fills cannot vanish. Files touched:
+`crates/pdfcer-render/src/{lib.rs, interpret.rs, font/mod.rs}` (+108/−9), all
+in-crate.
+
+**★ DISPLAY-ONLY BY DESIGN — this is the constraint, not an omission, and it
+governs the FEATURES boxes.** It changes the **canvas only**. **No CLI flag,
+and no export path sets it**: every export (PNG/JPEG/SVG/EMF/DXF/PDF, including
+the CLI's `render-page`) renders with the document's REAL widths. A hairline
+export would be an unfaithful file — *"the one thing worse than not having this
+feature is having it silently follow the operator into a file he sends a
+client."* The `pdfcer-gui` shell sets `Hairline` for its interactive canvas and
+owns the off-canvas "screen != paper while this is on" disclosure (rule 4:
+this is the operator choosing a reading aid, not pdfcer marking its own
+uncertainty — so the disclosure is off-canvas, no accept/reject gate). Consumed
+in `pdfcer-gui`, not here.
+
+**Test (new, green).** `pdfcer-render` unit test
+`hairline_mode_thins_strokes_but_leaves_fills_untouched` — a 12-unit stroke's
+dark-pixel count drops **>3×** under `Hairline`, and a fill renders
+**byte-identically** in both modes (fills untouched). PASS.
+`cargo clippy`/`cargo fmt` were **not yet run workspace-wide** at ship time —
+the fix compiles and the targeted test is green; the full local gate and CI
+are the backstop (the batch is not released until both are green, per the
+batch note below).
+
+**Invariant checks.** GUI-core separation (rule 2): the change is confined to
+`pdfcer-render` and touches **no `Cargo.toml`** — no windowing/GUI dependency
+added, so `pdfcer-core`/`pdfcer-render`'s dependency graph is unchanged by
+construction. Round-trip/minimal-diff (rule 3): N/A — a render-time display
+option writes no document bytes.
+
+**Sourcing (hard rule 8).** This role had a shell; git figures are MEASURED
+here. `git rev-parse 8f9fb3e` = **`8f9fb3e1c3554a7ed55061197f1c90ab67dcf267`**
+(subject *"feat(render): "line weights off" hairline display mode (Pass
+254.0)"*); `git show --stat 8f9fb3e` = **3 files, +108/−9**
+(`interpret.rs`, `font/mod.rs`, `lib.rs`; no `Cargo.toml`). `git rev-parse
+HEAD` = **`dfd203f`** (*"memory(pdfcer-engineer): record the batch-release
+cadence rule"*, an agent-memory note touching only `.claude/agent-memory/`, no
+code — skipped by `check-commits-filed`), which sits **between** the code
+commit and this filing. `git rev-parse origin/main` = **`e4cefcd`** — so
+neither `8f9fb3e` NOR the 432nd filing (`7ecc8d9`) is pushed yet; the local
+branch is **3 commits ahead** of `origin/main` (`7ecc8d9`, `8f9fb3e`,
+`dfd203f`). `git status --short` carries this filing's own doc edits only.
+
+**Commit filed by this entry.** **`8f9fb3e`** (the `Pass 254.0` code) is
+accounted for here — `check-commits-filed` (which joins on the short hash
+appearing in `ROADMAP.md`/`SESSION_LOG.md`, and which checks any commit
+touching `crates/`) now sees it. It was **unfiled before this filing** — which
+is exactly why the push was blocked; **this filing turns the gate green** and
+unblocks the batch push. `dfd203f` (agent-memory) and `7ecc8d9` (the 432nd
+filing, docs-only) are not code commits and are skipped by the gate.
+
+**`docs/FEATURES.md`: the "line weights off" row moved from *Planned* to
+*Implemented* (*Fonts & rendering*), boxes set `core [x]` · `cli —` · `gui [ ]`
+· `Acrobat [x]`.**
+- **`core [x]`** — the `RenderOptions` field and the `Hairline` behaviour, shipped.
+- **`cli —`, NOT `[ ]` — deliberately not a flag, not an unbuilt box.** Every
+  export path renders REAL widths (above); a `render-page --hairline` would be
+  the unfaithful-export outcome the request forbids. The `—` records that the
+  CLI box is **not applicable by design**, so a future reader does not
+  "complete" it.
+- **`gui [ ]`** — a genuine not-yet-built gap owned by the separate
+  `pdfcer-gui` project (it sets the mode for its canvas and owns the disclosure);
+  the core half it consumes is done.
+- **`Acrobat [x]`** — Acrobat's **View ▸ Line Weights** toggle is the direct
+  analog (turning line-weights display off draws all strokes at a minimal
+  width regardless of declared weight). Acrobat's separate "enhance thin lines"
+  preference is the OPPOSITE convention and is not what this row claims parity
+  with.
+
+**No new decision minted.** A contained render-time display option backed by an
+existing pattern (`subpixel_culling`) — not an architectural decision. Decision
+ceiling `135` **unchanged**. (Rule-11 sweep: `Pass 254.0` added a capability
+rather than changing any counter's or existing capability's meaning, so no
+cross-document meaning-change sweep is owed. Searched `hairline`/`stroke
+display`/`line weight` case-insensitively over the render surface and the docs
+per clause (e): the surviving descriptions are the FEATURES *Fonts & rendering*
+sub-pixel-culling row's incidental "so a hairline (thin but long) still paints"
+— a TRUE statement about culling, not about this mode, left intact — and the
+new FEATURES row and this entry. No stale copy of a "the thin-lines button does
+nothing"/"no field forces all strokes to hairline" claim survives, that being
+the defect this Pass closes.)
+
+**★ Batch context (Ken's 2026-09-05 ruling — the release is HELD).** This
+session is building a **batch** before the next portable release: `Pass 251.1`
+(delete-pages nested-`/Count` fix) shipped `e4cefcd` at the 432nd filing;
+`Pass 254.0` ships now; **`Pass 255.0` (markup-shape vertex read/edit) and
+digital signing are still to come.** Per the operator, verbatim intent: *"build
+all before the next portable release unless I say otherwise."* So no `v0.40.0`
+is cut, no OneDrive deploy, and the push may proceed (it is unblocked by this
+filing) but the RELEASE act waits until the batch is done. The engineer records
+the cadence rule in agent memory (`dfd203f`).
+
+**Ledger.** Filings ceiling `432` → **`433`**; Pass ceiling **`255.0`
+UNCHANGED** (`254.0 < 255.0`; `255.0` was already assigned as a *Backlog*
+family head at the 432nd filing, and `Pass 254.0` shipping does not advance the
+ceiling); decision ceiling `135` **unchanged**, next free `136`; standing rules
+ceiling `R241` unchanged, next free `R242`; open operator questions: none
+minted, next free `(ce)`. `Pass 252.0`, `Pass 253.0`–`253.3` and `Pass 255.0`
+remain unscoped/not-started in *Backlog*.
+
+---
+
 **★★★ 432nd filing, 2026-09-05 — ONE CORRECTNESS FIX SHIPPED and pushed
 (`e4cefcd`, tests + fixture + generator included), against the `v0.39.0`
 release, found and reported by `pdfcer-gui` against a real drawing; AND
@@ -109021,78 +109153,23 @@ in the "still open" list. Full build record: this file's own
 
 ## Next up
 
-### `Pass 254.0` — ★★★ **A "LINE WEIGHTS OFF" DISPLAY MODE: draw EVERY stroke as a hairline (one device pixel), for reading a dense CAD sheet** — filed 2026-09-05 (432nd filing, `pdfcer-gui` request 2026-09-05), **NOT STARTED** — ★★ **OPERATOR-REQUESTED DIRECTLY** — render/view family
-
-Origin: `pdfcer-gui` request
-`open/request_a_line_weights_off_display_mode_for_dense_cad_drawings.md`.
-**The operator asked for it by name**, verbatim: *"awhile ago you told me
-you removed the button to show all lines without their thickness — thin
-lines or something like cad has. The button never worked but I do want that
-display option!"* (`view.thin_lines` was registered and **inert**, then
-unregistered 2026-08-17 with six other dead `view.*` settings — a button
-that did nothing is exactly the defect being reported).
-
-**★★★ WHICH OF THE TWO CONVENTIONS THIS IS — THEY ARE OPPOSITES, AND
-SHIPPING THE WRONG ONE IS WORSE THAN SHIPPING NOTHING.** This is **"line
-weights OFF"**: every stroke is drawn at **one device pixel whatever width
-the file declares** — AutoCAD's `LWDISPLAY` off (its default), and every CAD
-viewer. It is **NOT** "enhance thin lines" (Acrobat's preference of that
-name), which does the **reverse** — bumps sub-pixel strokes **up** to one
-pixel so hairlines do not vanish. **(1) makes thick things thinner; (2)
-makes thin things thicker.** The operator asked for (1) — *"show all lines
-**without their thickness**"*, naming CAD. Do not invert it; do not ship (2)
-under this Pass. `view.antialiasing` (the other dead control unregistered in
-the same 2026-08-17 sweep) is **explicitly NOT** part of this ask.
-
-**Why it matters on his documents.** He reads dense A1 site plans at
-200–400 %, where a 0.7 mm (~2 pt) stroke is 4–8 px of solid black and
-adjacent geometry merges into a blob. Line weights off is how a draughtsman
-reads a busy drawing — and the fastest way to answer *"are these two lines
-coincident, or 0.3 mm apart?"*, which fat strokes make unanswerable.
-
-**The ask.** A field on `pdfcer-render`'s `RenderOptions`. The rasteriser
-already understands hairlines (`display_list.rs` draws a width-0 / sub-pixel
-stroke as one pixel); there is **no field to force ALL strokes to that**.
-`pdfcer-gui`'s suggested (non-binding) spelling: `pub stroke_display:
-StrokeDisplay // Actual (default) | Hairline` — an **enum**, not a `bool`,
-because "enhance thin lines" is a plausible third variant later and
-`hairline: bool` would then mean *"one of the two"*. Contained: one
-`RenderOptions` field plus one branch in the stroke path.
-
-**What it must be honest about (state these in the Pass, don't infer):**
-1. **Fills are untouched** — only `S`/`s`/`B`/`B*` painted strokes change; a
-   hatch built from thin fills must not vanish.
-2. **A stroke already sub-pixel stays as it is** — this mode is a *ceiling*,
-   not a *set* (expected, but state it).
-3. **Whether the result line reports the mode** — `subpixel_culled` is the
-   precedent (a counter printed whether or not the flag is set), so a raster
-   carries the fact that it is not a faithful-width render.
-
-**★★ IT IS A DISPLAY MODE — the constraint `pdfcer-gui` will hold, and the
-engine half must not defeat.** It changes the **canvas only**. Print, print
-preview, and **every export** — PDF, PNG, JPEG, SVG, EMF, DXF — render with
-the document's **real widths**. *"The one thing worse than not having this
-feature is having it silently follow the operator into a file he sends a
-client."* This bears on the `cli` scope below. Rule 4 applies in the one
-direction that fits: this is the operator choosing a reading aid, not pdfcer
-marking its own uncertainty — but the screen/paper divergence is
-**disclosed off-canvas while the mode is on** (`pdfcer-gui`'s job).
-
-**Rejected on the shell side (recorded so it is not re-litigated):**
-re-stroking a rasterised pixmap (widths are gone by then — would need a
-second renderer, the thing this project refuses), and post-processing the
-raster (cannot tell a stroke from a filled bar; corrupts text).
-
-**Acceptance: dispatch `pdfcer-acrobat-librarian` FIRST** — for how
-Acrobat's "line weights" View behaves, so the acceptance criteria and the
-`Acrobat` FEATURES column are grounded rather than guessed (Acrobat has a
-View ▸ Line Weights toggle *and* an "enhance thin lines" preference; which
-maps to convention (1) vs (2) is exactly what the RAG must settle). **Scoped
-NEAR-TERM / *Next up*** given the direct operator ask and that the change is
-contained. **cli scope is a Pass decision, not settled here**: `render-page`
-produces a raster, and whether that counts as "the canvas" (gets the mode)
-or "an export" (real widths, per the constraint above) is undecided —
-FEATURES marks the `cli` box `?` accordingly.
+> ★★★ **`Pass 254.0` SHIPPED and has left this section, 2026-09-05 (433rd
+> filing, code `8f9fb3e`).** Filed here *Next up* by the 432nd filing the same
+> day; shipped the next filing. Its full entry — the
+> `RenderOptions::stroke_display: StrokeDisplay { Actual (default), Hairline }`
+> field (an **enum**, not a `bool`, leaving room for "enhance thin lines" as a
+> third variant), plumbed through `RenderPolicy` into the interpreter exactly
+> like `subpixel_culling`; the one-device-pixel stroke ceiling in
+> `stroke_params` (`width = min(floored, min_user_width)`, combined with the
+> pre-existing §8.4.3.2 floor so every stroke lands at ~1 device pixel); FILLS
+> untouched (only `S`/`s`/`B`/`B*` reach `stroke_params`); and the deliberate
+> **DISPLAY-only / no-CLI-flag** boundary — is at the **top of *Shipped***.
+> `docs/FEATURES.md`'s "line weights off" row moved from *Planned* to
+> *Implemented*: `core [x]` · `cli —` (deliberately NOT a flag — every export
+> path renders REAL widths) · `gui [ ]` (the separate `pdfcer-gui` project sets
+> it for its canvas and owns the off-canvas "screen != paper" disclosure) ·
+> `Acrobat [x]` (View ▸ Line Weights toggle). No remnant of the entry stays
+> here.
 
 > ★★★ **`Pass 248.1` SHIPPED and has left this section, 2026-09-03 (404th
 > filing, `80f1c3e`).** Filed here by the 403rd filing the same day, shipped
