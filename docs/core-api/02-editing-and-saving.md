@@ -148,9 +148,9 @@ Read the columns as: **I want to…** → **call this** → **returns / what tha
 |---|---|---|---|
 | Save (the default) | `to_incremental_bytes(&self, &SaveOptions) -> Result<(Vec<u8>, SaveReport), WriteError>` | 4053 | Bytes + report. §7.5.6 append. **Superseded objects stay in the file.** |
 | Save as one revision | `to_full_bytes(&self, &SaveOptions) -> Result<(Vec<u8>, SaveReport), WriteError>` | 4071 | Bytes + report. ⚠️ Destroys every existing signature. |
-| Encrypt on save (AES-256 /R6) | `set_encryption(&self, &EncryptionSettings, &SaveOptions) -> Result<(Vec<u8>, SaveReport), EncryptError>` | edit.rs | Plaintext ⇒ encrypted. §5.5. Refuses a signed doc by name. |
-| Re-key permissions (owner-only) | `set_permissions(&mut self, &EncryptionSettings, &SaveOptions) -> Result<(Vec<u8>, SaveReport), EncryptError>` | edit.rs | New /P on an encrypted doc; `&mut self`. §5.5. |
-| Remove encryption (owner-only) | `remove_encryption(&mut self, &SaveOptions) -> Result<(Vec<u8>, SaveReport), EncryptError>` | edit.rs | Plaintext full rewrite; `&mut self`. §5.5. |
+| Encrypt on save (AES-256 /R6) | `set_encryption(&self, &EncryptionSettings, &SaveOptions) -> Result<(Vec<u8>, SaveReport), EncryptError>` | edit.rs | Plaintext ⇒ encrypted. §5.5. Refuses a signed doc by name, and (`Pass 250.3`) a pending deferred redaction (`EncryptError::RedactionPending`) — else it would encrypt the un-redacted content. |
+| Re-key permissions (owner-only) | `set_permissions(&mut self, &EncryptionSettings, &SaveOptions) -> Result<(Vec<u8>, SaveReport), EncryptError>` | edit.rs | New /P on an encrypted doc; `&mut self`. §5.5. Refuses a pending deferred redaction (`EncryptError::RedactionPending`, `Pass 250.3`). |
+| Remove encryption (owner-only) | `remove_encryption(&mut self, &SaveOptions) -> Result<(Vec<u8>, SaveReport), EncryptError>` | edit.rs | Plaintext full rewrite; `&mut self`. §5.5. Refuses a pending deferred redaction (`EncryptError::RedactionPending`, `Pass 250.3`). |
 
 The first two take `&self`; the two mutating encryption verbs take `&mut self`
 (they drop the old `/Encrypt` state before re-serialising). Saving does not
@@ -387,7 +387,7 @@ need their own policy).
 | Change size / colour / family in place | `format_text(&mut self, &FormatRequest, &FormatOptions) -> Result<FormatReport, text_edit::FormatError>` | 4171 | One undo entry. |
 | Ask what synthetic bold/italic *would* do | `preview_style_resolution(&self, page_index, find, pinned_span, want) -> Result<StyleResolution, FormatError>` | 7388 | Pure query. **Decides where a style button routes** — see below; an empty `find` is not a wildcard here. |
 | Ask which fonts `set_font` would ACCEPT for a run | `preview_font_resources(&self, page_index, find, pinned_span) -> Result<FontPreflight, FormatError>` | 7459 | Pure query. **Per RUN, not per page** — see below. |
-| Re-wrap a recognised paragraph | `reflow_block(&mut self, page_index, block_index, &ReflowRequest) -> Result<ReflowApplyReport, ReflowApplyError>` | 4297 | One undo entry. **Planned against the BASE** — see trap T-14. |
+| Re-wrap a recognised paragraph | `reflow_block(&mut self, page_index, block_index, &ReflowRequest) -> Result<ReflowApplyReport, ReflowApplyError>` | 4297 | One undo entry. **Planned against the BASE** — see trap T-14. Refuses (not silently deletes) a page carrying a run appended this session (`Pass 251.0`): the base plan would drop it. |
 | Add a new text run at coordinates | `add_text(&mut self, &AddTextRequest) -> Result<AddTextReport, AddTextError>` | 4365 | Appends a new content stream; originals stay byte-verbatim. |
 | Add an invisible OCR text layer to one or more pages | `add_ocr_layer(&mut self, &[OcrPageLayer<'_>], &OcrLayerOptions) -> Result<Vec<OcrLayerReport>, OcrLayerError>` | 7313 | **ONE undo entry for the whole run**, however many pages. Reads the SESSION graph, not the base. |
 | Give ONE page a private copy of a shared form XObject | `unshare_form(&mut self, page_index, form: ObjId) -> Result<UnshareFormReport, EditError>` | 7367 | Copy-on-write. Refuses a **nested** invocation by name. |
