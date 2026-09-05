@@ -922,37 +922,58 @@ impl<'a> EditableTextModel<'a> {
     /// Map a page-space point to a caret [`TextPosition`].
     ///
     /// Finds the line whose box contains `(x, y)` — or, if none does, the
-    /// vertically nearest line — then the glyph on that line whose
-    /// horizontal extent contains `x` (or the nearest), and resolves to the
-    /// glyph's leading or trailing boundary by which half of the glyph `x`
-    /// fell in. Returns `None` only when the page has no clustered glyph at
-    /// all. Pure geometry over the borrowed page; introduces no GUI type.
+    /// nearest line **within reach** — then the glyph on that line whose
+    /// extent along the line contains the point (or the nearest), and
+    /// resolves to the glyph's leading or trailing boundary by which half
+    /// of the glyph it fell in. Pure geometry over the borrowed page;
+    /// introduces no GUI type.
+    ///
+    /// # `None` means "no text here" — the reach is one line-height
+    ///
+    /// A line is *in reach* when the point lies inside its box **inflated
+    /// by one line-height on every side** (the larger of the line's font
+    /// size and its box height). That keeps the gesture every editor
+    /// relies on — clicking just past the last character puts the caret
+    /// after it, clicking a little above or below a line still lands on
+    /// it — and makes a click on blank paper answer `None`.
+    ///
+    /// **Until 2026-09-05 this fell back to the nearest line at ANY
+    /// distance**, so `None` was reachable only on a page with no text at
+    /// all; the doc comment said so and read as a description rather than
+    /// the defect it was. `pdfcer-gui` measured it: a point 100 000 pt to
+    /// the right of a 612 pt page, and one a billion points away, both
+    /// resolved to a run, which made its *click-in-space-to-add-text*
+    /// gesture dead code on every real document — it was asking a
+    /// placement-that-never-fails and reading the answer as a presence
+    /// test. The bound is derived from the line rather than taken as a
+    /// parameter (their shape (a)) so that every caller, including ones not
+    /// yet written, gets the presence semantics without a second opinion
+    /// about this crate's geometry. The bound is axis-aligned in page
+    /// space, which for a rotated line is its page-space box inflated the
+    /// same way — generous, never tighter than the line itself.
     #[must_use]
     pub fn hit_test(&self, x: f64, y: f64) -> Option<TextPosition> {
-        // Pick the line: containing box first, else nearest by baseline.
+        // Pick the line: a containing box wins outright; otherwise the
+        // nearest-by-baseline line whose INFLATED box contains the point.
         let mut chosen: Option<&Line> = None;
         let mut best_dy = f64::MAX;
         for line in &self.lines {
             let b = line.bbox;
-            let contains_y = y >= b.lly && y <= b.ury;
-            let dy = (y - f64::from(line.baseline_y)).abs();
-            if contains_y && x >= b.llx && x <= b.urx {
+            if y >= b.lly && y <= b.ury && x >= b.llx && x <= b.urx {
                 return self.hit_in_line(line, x, y);
             }
-            if contains_y && dy < best_dy {
+            let reach = f64::from(line.size).max(b.ury - b.lly).max(0.0);
+            let in_reach = x >= b.llx - reach
+                && x <= b.urx + reach
+                && y >= b.lly - reach
+                && y <= b.ury + reach;
+            if !in_reach {
+                continue;
+            }
+            let dy = (y - f64::from(line.baseline_y)).abs();
+            if dy < best_dy {
                 best_dy = dy;
                 chosen = Some(line);
-            }
-        }
-        // No box contained the point in x; fall back to the nearest line by
-        // baseline distance, then clamp within it.
-        if chosen.is_none() {
-            for line in &self.lines {
-                let dy = (y - f64::from(line.baseline_y)).abs();
-                if dy < best_dy {
-                    best_dy = dy;
-                    chosen = Some(line);
-                }
             }
         }
         chosen.and_then(|line| self.hit_in_line(line, x, y))
@@ -1571,6 +1592,33 @@ mod tests {
         assert_eq!(left.column, 0);
         assert_eq!(right.column, 1);
         assert!(m.diagnostics().is_multi_column());
+    }
+
+    #[test]
+    fn hit_test_answers_none_beyond_one_line_height_of_every_line() {
+        // pdfcer-gui, 2026-09-05: `None` was unreachable on any page with
+        // text, because the fallback took the nearest line at ANY distance.
+        // "Hi" at (72, 700), 10 pt: the line box is roughly x 72..82,
+        // y 700..710, so the reach is one line-height (10 pt) around it.
+        let p = page(vec![glyph_run(&[
+            ("H", 72.0, 700.0, 6.0, 10.0),
+            ("i", 78.0, 700.0, 4.0, 10.0),
+        ])]);
+        let m = EditableTextModel::recognize(&p, &BlockRecognitionOptions::default());
+        // Inside, just past the end, and a little above/below: still a caret.
+        assert!(m.hit_test(75.0, 705.0).is_some(), "inside the box");
+        assert!(
+            m.hit_test(88.0, 705.0).is_some(),
+            "6 pt past the last glyph"
+        );
+        assert!(m.hit_test(75.0, 716.0).is_some(), "6 pt above the line");
+        assert!(m.hit_test(75.0, 694.0).is_some(), "6 pt below the line");
+        // Beyond one line-height in any direction: blank paper.
+        assert_eq!(m.hit_test(300.0, 705.0), None, "215 pt to the right");
+        assert_eq!(m.hit_test(75.0, 500.0), None, "200 pt below");
+        assert_eq!(m.hit_test(75.0, 740.0), None, "30 pt above");
+        assert_eq!(m.hit_test(1.0e9, 1.0e9), None, "a billion points away");
+        assert_eq!(m.hit_test(-1.0e4, -1.0e4), None, "off the sheet");
     }
 
     #[test]
