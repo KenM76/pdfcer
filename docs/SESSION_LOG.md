@@ -91893,3 +91893,104 @@ here.
 **For next session:**
 - Engineer: the `gui` column is now reconciled against `pdfcer-gui`'s 2026-09-05 (`5c01c83`) `FEATURES.md`. When `pdfcer-gui` next drives the three *BUILT AND UNDRIVEN* rows (layer-membership readout, five-kind annotation copy/paste, Comments-panel authoring), flip those on its evidence. Consider a periodic (per-release) `gui`-column reconciliation against `pdfcer-gui/FEATURES.md`+`NO_SURFACE.md` rather than per-notice updates; if a second staleness episode lands, that practice earns a numbered standing rule.
 - Operator: the engine's feature list was under-selling the GUI — eleven capabilities the GUI actually has (deferred redaction, the whole signature-verification and trust family, encryption, and page/clipboard export to PNG/JPEG/SVG/EMF and editable vector) were marked "no GUI" and are now marked reachable. No functional change; the scan just tells the truth about what the GUI can do.
+
+## 2026-09-05 (431st filing) — `v0.39.0` RELEASED and VERIFIED: the two correctness fixes from the 429th filing shipped end to end, IN PROGRESS → VERIFIED — `Pass 250.3` (encryption writers refuse a pending deferred redaction) + `Pass 251.0` (`add_text`-after-edit duplication + `reflow_block` silent deletion); tag `67d9342`, binary built from docs-only commit `8787661` (code identical), OneDrive `pdfcer1`
+
+**Shipped:**
+- **`v0.39.0` released and verified** — the release of the two correctness
+  fixes filed at the 429th filing (both in `185e474`, core-API doc sync
+  `60a34b3`): `Pass 250.3` (the three encryption writers
+  `set_encryption`/`set_permissions`/`remove_encryption` refuse a pending
+  deferred redaction via `EncryptError::RedactionPending`, closing a leak
+  `Pass 250.2` introduced) and `Pass 251.0` (`add_text`-after-edit
+  duplication + `reflow_block` silent deletion, a pre-existing text-editing
+  bug). Version bump `0.38.0 → 0.39.0` on commit `67d9342`
+  (`67d9342c8b4efa45a37eb38e6e6134f35316992d`) — the **tagged** commit. Tag
+  `v0.39.0` pushed. THREE docs-only commits landed AFTER the bump —
+  `4aa6920` (README: OCR corrected from "not built" to shipped), `b93e933`
+  (the 430th filing — FEATURES `gui`-column reconciliation), `8787661` (an
+  agent-memory note) — so `HEAD` = `origin/main` = `8787661`
+  (`8787661dce4f9eaa872f08823c4fa44ebda4b4fc`), three commits ahead of the
+  tag; the tag is an **ancestor** of `origin/main`. **The release binary
+  was built from `8787661`** (revision string `v0.39.0-3-g8787661`,
+  clean/not-dirty); the three intervening commits are all documentation, so
+  the binary's CODE is byte-for-byte the tagged `v0.39.0` source. CI
+  **GREEN at the tagged commit** `67d9342` (and independently green on
+  `5f6bf65` and `67d9342`, confirming the local `cargo test --workspace`
+  failures were OOM/`0xC0000142` false-negatives, not real). GitHub release
+  published with asset `pdfcer-v0.39.0-windows-x64.zip` (**18,002,465
+  bytes**, SHA-256
+  `5c3dad0f56eac6bc8ecf87124ce18e7127234059473ebf53e5708e3bac32b31a`) plus
+  its `.sha256` sidecar. OneDrive deployed to slot **`pdfcer1`** (the older
+  slot; it held 0.37.0 → now 0.39.0); **`pdfcer2` retains 0.38.0** — the two
+  slots now hold DIFFERENT versions (0.39.0 / 0.38.0), the
+  both-slots-same-version failure did NOT occur (R229; the 428th filing's
+  `v0.38.0` wrote `pdfcer2`, this one wrote `pdfcer1`, alternation intact).
+  `python tools/verify-release.py v0.39.0` — PASS, every check.
+
+**Decisions made this session:**
+- None minted (decision ceiling `135` unchanged). The release act itself
+  needed no go-ahead — standing-authorized by decision 121 (*"always go
+  ahead and push the latest one"*).
+
+**Findings + decisions:**
+- **The tag is NOT at `HEAD` this release, and that is expected.** Three
+  docs-only commits (`4aa6920`, `b93e933`, `8787661`) landed after the
+  version-bump tag `67d9342`, so the tag is an **ancestor** of `origin/main`
+  rather than equal to `HEAD` (same shape as the 428th filing, which had one
+  README commit after the tag; here there are three). `verify-release.py`'s
+  check is exactly "tag is an ancestor of `origin/main` HEAD", which passed.
+  The binary was built from `8787661`; its only diffs from the tag are
+  documentation, so the compiled code is identical to the tagged `v0.39.0`
+  source.
+- **Two doc-accuracy misses the operator caught this session, both fixed and
+  shipped in `v0.39.0`.** (1) The README claimed OCR was "not built" though
+  it shipped in `Pass 129.0` — corrected in `4aa6920` (OCR: not built →
+  shipped). (2) The `docs/FEATURES.md` `gui` column had drifted stale: an
+  audit against `pdfcer-gui`'s own re-measured `FEATURES.md` found the engine
+  **UNDER-claimed** the GUI by **11 capabilities** (all signatures/trust,
+  encryption, export/clipboard), **zero over-claims**; all 11 flipped
+  `gui [ ]`→`[x]` in the 430th filing (`b93e933`), and the DXF export tick
+  was checked and confirmed genuinely `[x]`. **Root cause:** the `gui` column
+  was updated from `pdfcer-gui`'s CONSUMED channel notices, not reconciled
+  against that project's authoritative `FEATURES.md`; the engineer saved an
+  agent-memory feedback note (`8787661`) making that reconciliation a
+  standing check.
+- **Fresh-folder portable smoke test PASSED.** The portable build was copied
+  to a clean path and the COPIED binary run standalone: `pdfcer 0.39.0`;
+  `inspect` on a fixture worked.
+- **Build-environment gotcha (same constraint as `v0.38.0`; already RAG'd,
+  no new decision).** On this low-RAM box (~4.4 GB free), the release binary
+  was compiled with `CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1` because parallel
+  codegen OOMs as Windows `0xC0000142`. `cu=1` is build-time only (tagged
+  source unchanged) and yields a maximally-optimized binary. **New cost
+  observed this release:** the clean re-stamp needed several relaunches
+  because the single-crate CLI compile at `cu=1` kept being reaped — a known
+  cost of the low-memory setting, not a defect. Lesson already at
+  `D:/dev/rag/rust/windows_0xC0000142_release_build_is_codegen_oom.md`.
+- **Sourcing (hard rule 8):** this role had a shell. The git figures are
+  MEASURED here — `HEAD` = `origin/main` = `8787661`; tag `v0.39.0` =
+  `67d9342`; `git status --short` empty; `git log --oneline
+  v0.39.0..origin/main` = `8787661`, `b93e933`, `4aa6920`; `git merge-base
+  --is-ancestor v0.39.0 origin/main` = true. The CI/asset/OneDrive/
+  smoke-test/build-env figures are relayed from the engineer's dispatch (the
+  engineer's own shell this session).
+- `NEXT_SESSION.md` was NOT touched by this filing — it is engineer-owned.
+
+**Still in flight:**
+- Nothing on the release — `v0.39.0` is fully released and verified. The
+  five comment/review-workflow Backlog items scoped at the 429th filing
+  (`Pass 252.0` text import; `Pass 253.0`–`253.3` the comment & review model
+  completion family) remain unscoped and unscheduled.
+
+**For next session:**
+- Engineer: no in-flight Pass; `v0.39.0` shipped and verified. The review
+  family (`Pass 253.0` reply authoring at the head) is the queued next work;
+  scoping any of it should dispatch `pdfcer-acrobat-librarian` first.
+- Operator: the two bugs `pdfcer-gui` found (encryption leaking a pending
+  redaction; added text duplicating/vanishing on a later edit) are now
+  shipped fixed in `v0.39.0` — the latest portable build (OneDrive
+  `pdfcer1`) carries both. `v0.38.0` is kept in `pdfcer2` as the fallback.
+  Two documentation-accuracy fixes you flagged also rode along: the README
+  now says OCR is built, and the feature list no longer under-sells what the
+  GUI can do.

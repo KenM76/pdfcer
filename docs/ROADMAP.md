@@ -112,6 +112,132 @@ wherever it appears.*
 
 ## Shipped
 
+**★★ 431st filing, 2026-09-05 — `v0.39.0` RESOLVED: IN PROGRESS →
+VERIFIED. The release of the two correctness fixes filed at the 429th
+filing (`185e474`) — `Pass 250.3` (the three encryption writers refuse a
+pending deferred redaction via `EncryptError::RedactionPending`, closing a
+leak `Pass 250.2` introduced) and `Pass 251.0` (`add_text`-after-edit
+duplication + `reflow_block` silent deletion, a pre-existing text-editing
+bug) — done end to end: tag, push, CI, GitHub asset, fresh-folder smoke
+test, OneDrive, `verify-release.py`. Release act standing-authorized
+(decision 121, *"always go ahead and push the latest one"*).**
+
+**★ THE TAG IS NOT AT `HEAD` THIS RELEASE, and that is expected — read the
+sourcing before concluding anything is wrong.** Like the 428th filing
+(`v0.38.0`), commits landed AFTER the version-bump tag — this time
+**THREE**, and ALL docs-only. So the tag `v0.39.0` = the bump commit
+`67d9342`, and `HEAD` = `origin/main` = `8787661`, three commits ahead.
+The tag is an **ancestor** of `origin/main` (not equal to it), which is
+exactly what `verify-release.py`'s "tag is an ancestor of `origin/main`
+HEAD" check reads. **The release binary was built from `8787661`** (its
+revision string is `v0.39.0-3-g8787661`, clean/not-dirty); the three
+commits between the tag and `8787661` are `4aa6920` (README: OCR corrected
+from "not built" to shipped), `b93e933` (the 430th filing — FEATURES
+`gui`-column reconciliation) and `8787661` (an agent-memory note) —
+**all docs-only, none entering the binary** — so **the released binary's
+CODE is byte-for-byte the tagged `v0.39.0` source**.
+
+**Sourcing (hard rule 8).** This role had a shell. The git figures below
+are MEASURED here — `git log -1 HEAD` = `git log -1 origin/main` =
+**`8787661`** (full `8787661dce4f9eaa872f08823c4fa44ebda4b4fc`, subject
+*"memory(pdfcer-engineer): record the verify-public-claims-and-gui-column
+lesson"*, committed 2026-09-05 10:31:31 -0400); `git log -1 v0.39.0` =
+**`67d9342`** (full `67d9342c8b4efa45a37eb38e6e6134f35316992d`, subject
+*"chore: bump version to 0.39.0 for the Pass 250.3 + Pass 251.0 release
+(encryption refuses a pending redaction; add_text duplication + reflow
+deletion fixed)"*, committed 2026-09-05 08:20:23 -0400); `git status
+--short` empty (working tree carries this filing's own doc edits only);
+`git log --oneline v0.39.0..origin/main` = **`8787661`, `b93e933`,
+`4aa6920`** — three docs-only commits sit ahead of the tag; `git
+merge-base --is-ancestor v0.39.0 origin/main` = **true**. The CI/asset/
+OneDrive/smoke-test/build-env figures are relayed from the engineer's
+dispatch (produced by the engineer's own shell this session), named beside
+each figure per hard rule 10.
+
+- **Version bump** `0.38.0 → 0.39.0`: commit **`67d9342`**
+  (`chore: bump version to 0.39.0 for the Pass 250.3 + Pass 251.0 release
+  …`). This is the tagged commit — the same role `b01964f` played for
+  `v0.38.0` at the 428th filing.
+- **Tag** `v0.39.0` → `67d9342`, pushed to origin.
+- **Three docs-only commits after the tag**: `4aa6920` (README: OCR
+  corrected from "not built" to shipped), `b93e933` (430th filing —
+  FEATURES `gui`-column reconciliation), `8787661` (agent-memory note) —
+  pushed to `origin/main`; `HEAD` = `origin/main` = `8787661`. **The
+  release binary was built from `8787661`** (revision string
+  `v0.39.0-3-g8787661`, clean); its diff from the tag `67d9342` is
+  documentation only, so the release binary's CODE is identical to the
+  tagged `v0.39.0` code.
+- **`origin/main` = `8787661`**, three docs commits ahead of the tag
+  `67d9342`; the tag is an **ancestor** of `origin/main` — the check
+  `verify-release.py` performs (not the "= `HEAD`" equality the 424th/426th
+  releases happened to satisfy).
+- **CI** — **GREEN at the tagged commit** `67d9342`; and independently CI
+  was green on `5f6bf65` (the 429th filing commit) and `67d9342`,
+  confirming the local `cargo test --workspace` failures were OOM /
+  `0xC0000142` false-negatives (adequate-RAM CI is authoritative), not real
+  regressions.
+- **GitHub release**
+  https://github.com/KenM76/pdfcer/releases/tag/v0.39.0 — asset
+  `pdfcer-v0.39.0-windows-x64.zip`, **18,002,465 bytes**, SHA-256
+  `5c3dad0f56eac6bc8ecf87124ce18e7127234059473ebf53e5708e3bac32b31a`,
+  plus its `.sha256` sidecar.
+- **Fresh-folder portable smoke test — PASSED.** The portable build was
+  copied to a clean path and the COPIED binary run standalone: `pdfcer
+  0.39.0`; `inspect` on a fixture worked.
+- **OneDrive**: deployed to slot **`pdfcer1`** (the OLDER slot; it held
+  0.37.0 → now 0.39.0); **`pdfcer2` retains 0.38.0**. The two slots now
+  hold **DIFFERENT** versions (`pdfcer1` = 0.39.0, `pdfcer2` = 0.38.0) —
+  the alternating-slot scheme's guarantee (R229) held; **the
+  both-slots-same-version failure did NOT occur.** (The 428th filing's
+  `v0.38.0` wrote `pdfcer2`; this one wrote `pdfcer1`, so the alternation
+  is intact.)
+- **`python tools/verify-release.py v0.39.0` — PASS.** Working tree clean;
+  tag exists, pushed, and is an **ancestor** of `origin/main` HEAD
+  (`8787661`, advanced by three docs commits — expected); GitHub release has
+  assets; **CI GREEN at the tagged commit**; CLI `v0.39.0` on OneDrive
+  `pdfcer1`; previous `0.38.0` preserved (on `pdfcer2`).
+- **Build-environment note (same constraint as `v0.38.0`; already RAG'd,
+  no new decision).** The release binary was compiled with
+  `CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1` because this machine had ~4.4 GB
+  free; parallel codegen OOMs as Windows **`0xC0000142`**. `cu=1` is a
+  **build-time** setting only — the tagged SOURCE is unchanged — and yields
+  a maximally-optimized binary, so the artifact is a faithful, fully
+  optimized build of the `v0.39.0` source. **Additional cost observed this
+  release:** the clean re-stamp needed several relaunches because the
+  single-crate CLI compile at `cu=1` kept being reaped — a known cost of
+  the low-memory setting, not a defect. Filed to
+  `D:/dev/rag/rust/windows_0xC0000142_release_build_is_codegen_oom.md` at
+  the 428th filing.
+- Carries `Pass 250.3` and `Pass 251.0` (both `185e474`; core-API doc sync
+  `60a34b3`), shipped at the 429th filing above; this entry resolves the
+  release mechanics only, it does not re-describe the fixes.
+
+`docs/FEATURES.md`: **no change** — the 429th filing already set what these
+fixes touched (`Pass 250.3` corrected the deferred-redaction row's
+refused-writer set, no box moved; `Pass 251.0` restored a claimed behaviour
+and moved no box). This entry is release bookkeeping only, not a capability
+change; FEATURES.md carries no version/release marker to update. The 430th
+filing's `gui`-column reconciliation is unaffected.
+
+**Commits now filed by this release entry.** `4aa6920` (README OCR
+correction), `b93e933` (the 430th filing), and `8787661` (the agent-memory
+note) are docs-only commits that sit between the tag and `HEAD`; they are
+accounted for here / already docs-skipped, and `67d9342` (the tag/bump
+commit) is named above — `check-commits-filed` stays green.
+
+**No new decision minted.** A release-verification entry, not an
+architectural decision. The RAM/OOM build constraint is a build-environment
+fact already RAG'd at the 428th filing. Decision ceiling `135` unchanged.
+(Rule-11 sweep: this filing changed no counter's or capability's meaning —
+release bookkeeping only — so no cross-document meaning-change sweep is
+owed.)
+
+**Ledger.** Filings ceiling `430` → **`431`**; Pass ceiling `251.0`
+**unchanged** — no new Pass, a release-verification entry only; decision
+ceiling `135` unchanged, next free `136`; standing rules ceiling `R241`
+unchanged, next free `R242`; open operator questions: none minted, next
+free `(ce)`.
+
 **★★★ 429th filing, 2026-09-05 — TWO CORRECTNESS FIXES SHIPPED in one
 commit (`185e474`, tests included; core-API doc sync `60a34b3`), both
 against the `v0.38.0` release, both found and reported by `pdfcer-gui`.**
