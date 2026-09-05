@@ -112,6 +112,69 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★ 425th filing, 2026-09-04 — `Pass 10.4` SHIPPED (`184c397`):
+PERSISTENT "USE ACROBAT TRUST STORE (AT OWN RISK)" SETTING. The
+per-invocation `--trust-from-acrobat` flag of `Pass 10.3` now has a
+persistent home: `settings::AcrobatTrustStore { Off, AtOwnRisk }` in
+`pdfcer_core::settings`, **`Off` by default**. `core [x]` · `cli [x]` ·
+`gui [ ]` (the separate `pdfcer-gui` project binds it) · `Acrobat [x]`.
+Makes decision 134 concrete — the EULA question is answered by an
+explicit operator opt-in, off by default, disclosed in the settings file
+itself, and is NOT a pdfcer legal determination.**
+
+**What shipped** (`pdfcer-core` settings + the `pdfcer` CLI):
+
+- **`settings::AcrobatTrustStore { Off, AtOwnRisk }`**, default `Off`.
+  `Off` ⇒ signature trust stays `NotChecked` (the `Pass 10.1` posture);
+  `AtOwnRisk` ⇒ the shell may read an installed Acrobat/Reader trust
+  store to evaluate a signer's chain (the `Pass 10.2`/`10.3` route). The
+  token literally spells **"at own risk"**, and `write_to_string` emits a
+  disclosure comment beside it, so the consent is **explicit in the
+  settings file** — not buried in a bool named `trust = true`.
+- **Full settings wiring** — the field, its default, the parse arm, the
+  `write_to_string` block, and the exhaustive round-trip-test row — and
+  the **strict settings round-trip gate PASSES** (37 settings tests
+  green). This is the gate `Pass 10.4` was deliberately split out for
+  (423rd filing): settings must serialise and reload byte-stably, and
+  that deserves its own pass rather than being tacked onto the tail of
+  the `Pass 10.3` trust-evaluation session.
+- **CLI**: `verify-signatures` now reads the setting as the **DEFAULT**
+  for `--trust-from-acrobat` (this is the pdfcer-side consumer, so the
+  setting is **not an R151 orphan** — a core setting no shell reaches);
+  the flag still **forces it on** for one run regardless of the setting.
+- The **GUI** (separate `pdfcer-gui`) binds the setting for its security
+  tab — hence `gui [ ]` here, a real cross-project gap, not a shape
+  mismatch.
+- `docs/core-api/01` §12.5b updated — the "persistent setting is owed"
+  note now says the setting exists.
+
+**Gates (relayed from the engineer's dispatch).** clippy `-D warnings`
+clean, `cargo fmt` clean, wasm32 build, control-bytes, string-gaps,
+public-fns, core-api verbs, and the settings round-trip test (37 tests)
+all **green**.
+
+**Sourcing (hard rule 8).** This role had a shell. `184c397` verified by
+`git log -1 --format='%H %s' 184c397` — full
+`184c397af159740becb9550b2e2bbdd7b052f77e`, subject *"Pass 10.4:
+persistent "use Acrobat trust store (at own risk)" setting"* (both
+MEASURED here). `git rev-parse HEAD` = the same hash, so it **is** `HEAD`,
+and it sits ahead of the 424th filing's release-bump commit `981038b`.
+Working tree carries this filing's own doc edits only. The gate/test
+figures (37 settings tests, clippy/fmt/wasm32/etc.) are **relayed from
+the engineer's dispatch**, not re-run by this role.
+
+`docs/FEATURES.md`: the `Pass 10.4` row ("Persistent *use Acrobat trust
+store (at own risk)* setting") moved `core [x]` · `cli [x]` · `gui [ ]` ·
+`Acrobat [x]`, worded to record the shipped surface. The `gui` box stays
+`[ ]` — the setting is consumed by the separate `pdfcer-gui` project,
+unbuilt here.
+
+**Ledger.** Filings ceiling `424` → **`425`**; Pass ceiling `250.2`
+unchanged (family-10 sub-ID, not a new max); decision ceiling `134`
+unchanged (this makes decision 134 concrete, mints none), next free
+`135`; standing rules ceiling `R241` unchanged, next free `R242`; open
+operator questions: none minted, next free `(ce)`.
+
 **★★ 424th filing, 2026-09-04 — `v0.36.0` RESOLVED: IN PROGRESS →
 VERIFIED. The release of `Pass 10.3` (evaluate a signer's chain against an
 installed Acrobat's trust store, opt-in / at-own-risk), done end to end this
@@ -253,7 +316,9 @@ the consumer of the `Pass 10.2` `TrustAnchorSet`:
   Acrobat/Reader store (via the `Pass 10.2` reader) and prints the
   **AT-YOUR-OWN-RISK** disclosure and the **not-a-full-check** disclosure
   (revocation/clock/constraints not verified) alongside the verdict. This
-  is the CLI opt-in; the persistent GUI setting is `Pass 10.4` (*Backlog*).
+  is the CLI opt-in; the persistent setting is `Pass 10.4` (~~*Backlog*~~
+  **SHIPPED `184c397`, 425th filing** — `settings::AcrobatTrustStore`, now
+  the CLI default for this flag; GUI half in the separate `pdfcer-gui`).
 
 **Proof.** Unit tests on `trust_chain` (a synthetic root→leaf chain:
 trusted / wrong-anchor / signer-unknown / self-signed-untrusted); an
@@ -126778,7 +126843,7 @@ axis) until ETSI EN 319 102-1 is ingested — the Digital-signatures
 bullet above already forbids borrowing `TOTAL-PASSED` /
 `TOTAL-FAILED` / `INDETERMINATE` before that standard is read.
 
-#### `Pass 10.4` — **PERSISTENT "USE ACROBAT TRUST STORE (AT OWN RISK)" SETTING** — filed 2026-09-04 (423rd filing), *Backlog*, NOT STARTED
+#### `Pass 10.4` — **PERSISTENT "USE ACROBAT TRUST STORE (AT OWN RISK)" SETTING** — filed 2026-09-04 (423rd filing), ~~*Backlog*, NOT STARTED~~ **SHIPPED `184c397` (425th filing) — see top of *Shipped*. `settings::AcrobatTrustStore { Off, AtOwnRisk }`, `Off` by default, the CLI's default for `--trust-from-acrobat`; settings round-trip gate green; GUI half consumed by the separate `pdfcer-gui`. Decision 134 made concrete.**
 
 The `Pass 10.3` CLI flag `--trust-from-acrobat` is **per-invocation**;
 the operator asked for a **setting** (decision 134). This Pass adds a

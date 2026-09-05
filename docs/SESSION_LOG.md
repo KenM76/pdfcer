@@ -91486,3 +91486,62 @@ here.
   portable build (OneDrive `pdfcer2`) has `verify-signatures
   --trust-from-acrobat`, opt-in and at your own risk. `v0.35.0` is kept in
   `pdfcer1` as the fallback.
+
+## 2026-09-04 (425th filing) — `Pass 10.4` SHIPPED (`184c397`): persistent "use Acrobat trust store (at own risk)" setting; decision 134 made concrete; settings round-trip gate green
+
+**Shipped:**
+- **`Pass 10.4`** (`184c397`) — the persistent
+  `settings::AcrobatTrustStore { Off, AtOwnRisk }` setting in
+  `pdfcer_core::settings`, **`Off` by default**. `Off` ⇒ signature trust
+  stays `NotChecked`; `AtOwnRisk` ⇒ the shell may read an installed
+  Acrobat/Reader trust store to evaluate a signer's chain. The token
+  literally spells "at own risk" and `write_to_string` emits a disclosure
+  comment beside it, so the consent is **explicit in the settings file**.
+  Full settings wiring — field, default, parse arm, `write_to_string`
+  block, and the exhaustive round-trip-test row — with the **strict
+  settings round-trip gate green (37 settings tests)**. CLI:
+  `verify-signatures` reads the setting as the DEFAULT for
+  `--trust-from-acrobat` (so it is **not an R151 orphan**); the flag still
+  forces it on for one run. The separate `pdfcer-gui` binds it for its
+  security tab (`gui [ ]` here). `docs/core-api/01` §12.5b updated.
+  `core [x]` · `cli [x]` · `gui [ ]` · `Acrobat [x]`.
+
+**Decisions made this session:**
+- None minted (decision ceiling `134` unchanged). This Pass makes
+  **decision 134 concrete** — the decision-133 EULA gate is replaced by
+  an explicit operator opt-in, off by default, disclosed in the settings
+  file itself, and is NOT a pdfcer legal determination.
+
+**Findings + decisions:**
+- **The setting closes the R151 gap `Pass 10.3` would otherwise have
+  opened.** A core setting with no shell consumer is an R151 orphan; the
+  CLI reading it as the `--trust-from-acrobat` default makes pdfcer itself
+  a consumer, so the setting is reachable from a pdfcer shell, not only
+  from the future `pdfcer-gui`.
+- **The split-out was deliberate, not an oversight** (recorded at the
+  423rd filing): the settings module's round-trip gate is strict (settings
+  must serialise and reload byte-stably), and a new setting deserves its
+  own pass. That gate passes with 37 tests green.
+- Gates (relayed from the engineer's dispatch): clippy `-D warnings`
+  clean, fmt clean, wasm32 build, control-bytes, string-gaps, public-fns,
+  core-api verbs, settings round-trip — all green.
+- **Sourcing (hard rule 8):** this role had a shell and read `184c397`'s
+  hash and ancestry (it is `HEAD`, ahead of the 424th filing's release
+  bump `981038b`); the gate/test figures are relayed from the engineer's
+  dispatch.
+
+**Still in flight:**
+- **`Pass 10.5`** (full trust validation — revocation CRL/OCSP,
+  validity-date checking against a clock, RFC 5280 path constraints,
+  RSA-PSS cert signatures) remains *Backlog*, NOT built — the deferred
+  half of a real eIDAS/RFC-5280 verdict on top of `Pass 10.3`'s linkage.
+- **`Pass 250.2`** (undo-preserving deferred redaction) remains *Backlog*.
+
+**For next session:**
+- Engineer: no in-flight Pass. `Pass 10.5` is the larger deferred trust
+  piece; `Pass 250.2` is the harder redaction shape. A release of
+  `Pass 10.4` is un-cut so far this filing (docs-only).
+- Operator: the "use Acrobat trust store (at own risk)" toggle now has a
+  persistent home in the settings file, off by default. The CLI already
+  honours it as the default for `--trust-from-acrobat`; the GUI toggle
+  lands when the separate `pdfcer-gui` wires it.
