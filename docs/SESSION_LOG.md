@@ -93382,3 +93382,149 @@ per target, and gate it in CI (which is what caught this).
   waiting for the automated checks to pass on the exact code that will
   ship; one check flagged a dependency detail, it was reviewed and recorded
   as acceptable, and the release goes out once the re-run is green.
+
+## 2026-09-05 (441st filing) — `v0.40.0` RELEASED. The 440th filing's HELD release is done end to end: CI run `33996394065` on `de0e963` GREEN 10/10; annotated tag `v0.40.0` at `de0e963` (== `origin/main`), pushed; release build `cu=1`, 5 m 50 s, banner `pdfcer 0.40.0 / revision v0.40.0`; portable folder `D:\builds\pdfcer-20260905-1858-de0e963` (31,902,316 bytes); fresh-folder smoke test PASSED including `sign` + `verify-signatures`; GitHub release with zip (18,321,001 bytes, sha256 `67fb3525…2b57` — full hash below) + `.sha256`; OneDrive `pdfcer2` = 0.40.0, `pdfcer1` keeps 0.39.0; `verify-release.py` nine of nine `ok`. One code commit filed: `de0e963` (Cargo.toml comment fix, decision 138). Next: `Pass 256.0`.
+
+**Session shape.** Eighth filing of the day, after the 440th (`1c34631`,
+which held the release for CI). Between them the engineer: fixed the
+`Cargo.toml` comment the 440th filing owed (`de0e963`, 18:35:19); pushed
+`1c34631` + `de0e963`; read CI green; tagged, built, packaged, smoke-tested,
+released, deployed, verified; then refreshed the handoff (`2cca543`,
+19:00:49, `docs/NEXT_SESSION.md` only). Docs-only filing: `ROADMAP.md`,
+`SESSION_LOG.md` staged by name. `FEATURES.md` untouched — a release moves
+no capability box (the 435th/438th filings already set what this binary
+delivers).
+
+**The release procedure as run (engineer's shell; figures relayed unless
+marked measured):**
+1. `de0e963` *"chore(core): correct the sha2 dependency comment for decision
+   138 (oid is on via rsa)"* — `crates/pdfcer-core/Cargo.toml` `+10/−6`,
+   comment-only (measured: `git show --stat`; the diff replaces *"`oid`
+   would pull const-oid in to name an ASN.1 identifier no PDF path ever
+   reads"* with the decision-138 reading, and *"asserts alloc/oid/zeroize
+   stay off"* with *"asserts alloc/zeroize stay off … the guard caught `oid`
+   arriving on 8a18e53; decision 138 admitted it"*).
+2. Push `1c34631` + `de0e963`; CI run `33996394065` on `de0e963` →
+   **`completed` / `success`, 10 of 10 jobs** (measured: `gh run view
+   33996394065 --json conclusion,status,headSha,jobs`): *cross-target
+   compile check (macOS / wasm32)*, *fuzz targets build (nightly)*, *cargo
+   fmt --check*, *verify the ENGINE needs no network (core + render)*,
+   *repository audits (19 checks)*, *third-party license audit*, *cargo test
+   (windows-latest)*, **verify pdfcer-core / pdfcer-render have zero GUI
+   deps** (the decision-039 `sha2` step, red at `33994927156`, now passes
+   under decision 138), *cargo clippy -D warnings*, *cargo test
+   (ubuntu-latest)* — all `success`.
+3. Annotated tag `v0.40.0` at `de0e963`, pushed (measured: `git cat-file -t
+   v0.40.0` = `tag`; `git ls-remote --tags origin 'v0.40*'` = `769a0dd…` →
+   `refs/tags/v0.40.0`, peeled `de0e963f451f060628d41ff455f928103d7a72f4`;
+   `git rev-parse origin/main` = the same commit). The 440th filing's local
+   tag at `03f6004` had been deleted before any push; `git tag -l 'v0.40*'`
+   now lists exactly one tag.
+4. Release build at the tag: `CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+   CARGO_BUILD_JOBS=2 cargo build --release -p pdfcer-cli` — **5 m 50 s**;
+   banner `pdfcer 0.40.0 / revision v0.40.0` (no `-N-g…` suffix: the tag is
+   on the last code commit). Same low-memory `cu=1` constraint as
+   `v0.38.0`/`v0.39.0`; build-time only.
+5. `tools/package-portable.py --no-build` →
+   `D:\builds\pdfcer-20260905-1858-de0e963` — measured `du -sb`
+   **31,902,316 bytes** = `pdfcer.exe` 19,363,328 + `LICENSE` 1,088 +
+   `THIRD_PARTY_LICENSES.md` 285,972 + `README.md` 10,070 + `BUILD-INFO.txt`
+   6,612 + `models/ocrs/` (8,518 + 2,510,284 + 9,716,444). `BUILD-INFO.txt`
+   reads *Commit: de0e963 / Branch: main*, lists the nine commits since the
+   previous build `8787661`. The 440th's `-1819-03f6004` folder and zip were
+   deleted (measured: `ls D:\builds | grep 1819` empty).
+6. Fresh-folder smoke test PASSED: folder copied to a temp dir, the COPIED
+   exe run: `--version` → `0.40.0`; `sign hello.pdf --cert
+   rsa2048-legacy.pfx …` → `level=B-B … self_verified=1`;
+   `verify-signatures` → 1 signature, 1 verified. First release smoke test
+   to exercise `sign`; the legacy-era `.pfx` means the RFC 7292
+   `pkcs-12PbeIds` decryption path is what shipped smoke-tested.
+7. Zip `D:\builds\pdfcer-v0.40.0-windows-x64.zip` — measured **18,321,001
+   bytes**; `.zip.sha256` (97 bytes) read by this role:
+   `67fb352591eb4e707666de0958971b73b00be3e6ed2acc0efd773e26af8f2b57`.
+8. GitHub release https://github.com/KenM76/pdfcer/releases/tag/v0.40.0 —
+   measured via `gh release view`: published `2026-09-05T22:59:18Z`, target
+   `main`, two assets (the zip 18,321,001; the `.sha256` 97). Notes: two
+   headline features (`sign`, `annotation-vertex`) and five stated limits
+   (B-B only; `.pfx` only; frame-only visible appearance; encrypted refused;
+   no certifying signatures) — each has a Pass ID or dated note
+   (`10.10`, `10.11`, `10.14`, the *Encryption* bullet, `10.12`).
+9. `tools/deploy-onedrive.py` → slot **`pdfcer2`** (older; held 0.38.0):
+   5 items / 31,896,032 bytes relayed; measured `du -sb` = **31,896,032**,
+   `VERSION.txt` (328 bytes) = `version: 0.40.0 / commit: v0.40.0 /
+   deployed: 2026-09-05T22:59:17Z / source: D:\builds\pdfcer-20260905-1858-de0e963
+   / slot: pdfcer2`; `pdfcer2\pdfcer.exe --version` = `pdfcer 0.40.0 …
+   revision: v0.40.0`. **`pdfcer1` keeps 0.39.0** (`revision:
+   v0.39.0-3-g8787661`, measured). R229 alternation intact (v0.38.0 →
+   pdfcer2, v0.39.0 → pdfcer1, v0.40.0 → pdfcer2).
+10. `python tools/verify-release.py v0.40.0` — **re-run by this role at
+    filing, nine of nine `ok`**, verbatim:
+    `ok working tree clean` · `ok tag v0.40.0 exists locally` · `ok tag is
+    at HEAD (ADVANCED: HEAD=2cca543 has moved on since the release; the tag
+    is still an ancestor, which is the normal state after any post-release
+    commit)` · `ok tag v0.40.0 is pushed` · `ok origin/main CONTAINS the
+    tagged commit` · `ok GitHub release has at least one asset` · `ok CI is
+    GREEN at the tagged commit` · `ok the CLI for v0.40.0 is on OneDrive
+    (pdfcer2)` · `ok a PREVIOUS version is still on OneDrive (0.39.0)` →
+    *"verify-release: clean -- tag, HEAD, origin/main, CI and the release
+    agree"*.
+
+**The red-then-green sequence, one sentence:** run `33994927156` on
+`8a18e53` was RED on one step (decision 039's `sha2` fence, the `oid`
+widening from `rsa`'s optional-dependency `features = ["oid"]`), and run
+`33996394065` on `de0e963` — after guard amendment `1c6f670` and the comment
+fix — is GREEN 10/10, so the tag was cut only then.
+
+**Premise checks — one premise OVERTAKEN, the rest confirmed:**
+- **Overtaken, not wrong:** the dispatch said tag `v0.40.0` == `HEAD` ==
+  `origin/main`. At filing (measured) the tag == `origin/main` == `de0e963`,
+  but **`HEAD` = `2cca543`** — the engineer's `NEXT_SESSION.md` refresh
+  (19:00:49) landed after the dispatch was written, and it is UNPUSHED
+  (`git rev-parse origin/main` = `de0e963`). `verify-release.py` accounts
+  for it (*ADVANCED*). Filed as measured; `2cca543` is `docs:`-prefixed,
+  not a code commit, so it needs no filing of its own.
+- Confirmed: `de0e963` is comment-only in one file; CI 10/10 green with the
+  named job present; annotated tag pushed at `de0e963`; folder 31,902,316
+  bytes with the listed contents; zip 18,321,001 bytes and the sha256
+  prefix `67fb352591eb4e707666de09…` extends to the full hash above; release
+  has two assets; OneDrive `pdfcer2` = 0.40.0 at 31,896,032 bytes, `pdfcer1`
+  = 0.39.0; `verify-release.py` nine `ok`; `-1819-03f6004` gone. The
+  build-time (5 m 50 s), smoke-test transcript, and the "5 items" count are
+  relayed — this role did not re-run them (the deployed folder has 5 files +
+  `models/` at depth 1, consistent).
+
+**Workspace version note.** `Cargo.toml:86` = `0.40.0` (measured) and it is
+now RELEASED. The next bump is **`0.41.0` at the next release**, not before —
+the bump is the first act of a release, not the last act of a batch (the
+440th filing bumped before CI reported and had to hold; the tag then moved
+from `03f6004` to `de0e963`, so the bump and the tag are two commits apart
+this release, which is fine and recorded).
+
+**No RAG written this filing.** The release mechanics are the `v0.39.0`
+procedure re-run; the `cu=1` constraint and the tag-waits-for-CI lesson are
+already filed (428th and 440th filings).
+
+**Gates (this role, on the filing tree): in the filing commit's message.**
+
+**Still in flight:**
+- `2cca543` (NEXT_SESSION.md refresh) + this filing UNPUSHED — next push
+  carries both; nothing code-bearing is unpushed.
+- **`Pass 256.0`** — edit text ACROSS show operators (the operator's
+  *"clien"* → *"client"* typo, one show operator per glyph) — *Next up*,
+  NOT STARTED. This is where the next session starts.
+- `Pass 256.1`, `10.10`–`10.14`, `252.0`, `253.0`–`253.3` — *Backlog*,
+  unscoped/not started.
+
+**For next session:**
+- Engineer: (1) push `main` (standing-authorized); (2) start `Pass 256.0`
+  per its acceptance criteria (439th filing) — the operator's own document
+  is the verification file; (3) no version bump until the next release.
+- Operator: **`v0.40.0` is live.** OneDrive `pdfcer2` has it (`pdfcer1`
+  still has 0.39.0 if you need to step back). New in this one: `pdfcer sign
+  in.pdf --cert your.pfx --password … -o out.pdf` signs a PDF (PAdES B-B,
+  invisible by default, `--visible x0,y0,x1,y1 --page N` for a frame) and
+  `pdfcer verify-signatures` checks it; `pdfcer annotation-vertex` moves,
+  inserts or removes a corner of a polygon / cloud / polyline or an end of a
+  line. Not in it yet: timestamps, Windows-store certificates, signing
+  encrypted files, certifying signatures. Your typo fix (*"clien"*) is the
+  next thing built.

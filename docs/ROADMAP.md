@@ -112,6 +112,141 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★ 441st filing, 2026-09-05 (late) — `v0.40.0` RELEASED: the 440th
+filing's HELD → RELEASED. The batch the operator ordered on 2026-09-05
+(*"build all before the next portable release unless I say otherwise"*) is
+shipped end to end — tag, push, CI, GitHub asset, fresh-folder smoke test,
+OneDrive, `verify-release.py`. Release act standing-authorized (decision 121).**
+The one code commit filed here is **`de0e963`** *"chore(core): correct the
+sha2 dependency comment for decision 138 (oid is on via rsa)"* —
+`crates/pdfcer-core/Cargo.toml` only, `+10/−6`, COMMENT-ONLY (the 440th
+filing's owed survivor at `Cargo.toml:345–361`: *"`oid` would pull const-oid
+in …"* and *"CI asserts alloc/oid/zeroize stay off"* — both now read as
+decision 138 has them). `chore(core)` is a code prefix for
+`check-commits-filed`, so it is named here. `1c6f670` (CI guard) and
+`03f6004` (bump) were filed at the 440th.
+
+**What the release IS (the batch, per the operator's ruling).** `Pass 255.0`
+markup-shape vertex editing (`35ca5be`, 435th filing) + `Pass 10.7` / `10.8` /
+`10.9` digital signing — PKCS#12 import + the `Signer` trait, CAdES
+`SignedData`, PAdES B-B incremental signing + `pdfcer sign` (`7734261`, 438th
+filing); plus the signing fixtures `e6c0271`, decisions **136 / 137 / 138**,
+and five Passes MINTED but not built (`256.0`, `256.1`, `10.12`–`10.14`, 439th
+filing). `Pass 251.1` (`e4cefcd`, 432nd) and `Pass 254.0` (`8f9fb3e`, 433rd)
+also ride in this binary — they shipped after `v0.39.0`'s tag `67d9342`.
+
+**The red-then-green CI sequence, in one sentence:** run `33994927156` on
+`8a18e53` went RED on the decision-039 `sha2` fence (the `oid` widening,
+440th filing), and run **`33996394065`** on **`de0e963`** — the amended guard
+`1c6f670` plus this comment fix — is **`completed` / `success`, 10 of 10
+jobs**, including *"verify pdfcer-core / pdfcer-render have zero GUI deps"*,
+whose decision-039 step now passes under decision 138. Read by this role via
+`gh run view 33996394065 --json conclusion,status,headSha,jobs` (headSha
+`de0e963f451f060628d41ff455f928103d7a72f4`); the ten job names and
+conclusions are listed in the SESSION_LOG entry.
+
+**Sourcing (hard rule 8).** This role had a shell; the git / GitHub /
+OneDrive / disk figures below are MEASURED by this role at filing unless
+marked *relayed* (the engineer's own shell, this session). `git cat-file -t
+v0.40.0` = **`tag`** (annotated); `git rev-parse v0.40.0^{commit}` =
+`de0e963f451f060628d41ff455f928103d7a72f4`; `git ls-remote --tags origin
+'v0.40*'` = `769a0dd…` → `refs/tags/v0.40.0`, peeled `de0e963…` — the tag is
+PUSHED; `git rev-parse origin/main` = **`de0e963`** — so the tagged commit IS
+`origin/main`; `git tag -l 'v0.40*'` = exactly `v0.40.0` (the 440th filing's
+deleted local tag at `03f6004` left nothing behind). **`HEAD` is
+`2cca543`**, ONE docs-only commit ahead of the tag and UNPUSHED at this
+filing (*"docs: refresh NEXT_SESSION.md handoff — v0.40.0 released; Pass
+256.0 is next"*, `docs/NEXT_SESSION.md` only, `+89/−119`, 19:00:49) — landed
+after the release was verified; it and this filing go up on the next push.
+`verify-release.py` reads this as *"tag is at HEAD (ADVANCED: HEAD=2cca543
+has moved on since the release; the tag is still an ancestor …)"* — the
+normal post-release state, same as `v0.39.0`'s three docs commits.
+
+- **Version bump** `0.39.0 → 0.40.0`: `03f6004` (440th filing). **Workspace
+  version at HEAD: `0.40.0`** (`Cargo.toml:86`, measured) — RELEASED. **The
+  next bump is `0.41.0` at the next release, not before**; a bump is the
+  first act of a release, not the last act of a batch.
+- **Tag** `v0.40.0` → **`de0e963`** (annotated, pushed, == `origin/main`).
+  Unlike `v0.39.0` (tag = bump commit, binary three docs commits later) the
+  tag sits on the LAST code commit, so the released binary's revision string
+  is exactly **`v0.40.0`** with no `-N-g…` suffix.
+- **Release build (relayed):** `CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+  CARGO_BUILD_JOBS=2 cargo build --release -p pdfcer-cli`, **5 m 50 s**, at
+  the tag; banner `pdfcer 0.40.0 / revision v0.40.0`. Same low-memory
+  build-time constraint as `v0.38.0`/`v0.39.0` (`cu=1`; RAG'd at the 428th
+  filing) — SOURCE unchanged, a fully-optimized binary.
+- **Portable folder (measured):** `D:\builds\pdfcer-20260905-1858-de0e963`,
+  `du -sb` = **31,902,316 bytes**: `pdfcer.exe` **19,363,328** + `LICENSE`
+  1,088 + `THIRD_PARTY_LICENSES.md` **285,972** (regenerated for the signing
+  deps; `v0.39.0`'s was 228,637) + `README.md` 10,070 + `BUILD-INFO.txt`
+  6,612 + `models/ocrs/` (`PROVENANCE.md` 8,518, `text-detection.rten`
+  2,510,284, `text-rec-checkpoint.rten` 9,716,444). `BUILD-INFO.txt`:
+  *Commit: de0e963*, *Branch: main*, the `THIS BUILD` line names the two
+  headline features, and *"Changes since the previous build (8787661)"* lists
+  the nine commits `afc199d` … `de0e963`. Packaged with
+  `tools/package-portable.py --no-build`. The 440th filing's
+  `-1819-03f6004` folder and its zip are GONE (`ls D:\builds | grep 1819` =
+  empty).
+- **Fresh-folder smoke test — PASSED (relayed):** folder copied to a temp
+  dir; the COPIED `pdfcer.exe --version` → `0.40.0`; `sign hello.pdf --cert
+  rsa2048-legacy.pfx …` → `level=B-B … self_verified=1`;
+  `verify-signatures` on the output → 1 signature, 1 verified. This is the
+  first release whose smoke test exercises `sign` — the fixture is the
+  legacy-era (3DES/RC2) `.pfx`, so the RFC 7292 `pkcs-12PbeIds` path ships
+  smoke-tested.
+- **GitHub release** https://github.com/KenM76/pdfcer/releases/tag/v0.40.0
+  (published `2026-09-05T22:59:18Z`, target `main`, measured via `gh release
+  view`) — assets `pdfcer-v0.40.0-windows-x64.zip` **18,321,001 bytes**
+  (`v0.39.0`'s was 18,002,465; +318,536) and its `.sha256` sidecar (97
+  bytes). SHA-256, read from `D:\builds\pdfcer-v0.40.0-windows-x64.zip.sha256`:
+  **`67fb352591eb4e707666de0958971b73b00be3e6ed2acc0efd773e26af8f2b57`**.
+  The release notes name the two headline features (`sign`;
+  `annotation-vertex`) and FIVE stated limits, verbatim in substance: level
+  is always **B-B** (no B-T / B-LT / B-LTA); only a `.pfx` file signs (no
+  Windows store, no PKCS#11); visible signatures draw a thin frame only;
+  encrypted documents cannot be signed; certifying (`/DocMDP`) signatures
+  are not authored. Those five map onto `Pass 10.10` (B-T), `10.11`
+  (store / token), `10.14` (composed appearance), the *Encryption* bullet's
+  incremental-over-encrypted note, and `Pass 10.12` respectively — every
+  stated limit has a Pass ID or a dated note, none is an orphan.
+- **OneDrive (measured):** `tools/deploy-onedrive.py` wrote slot
+  **`pdfcer2`** (the OLDER slot; it held 0.38.0 → now **0.40.0**) —
+  `C:\Users\Ken\OneDrive\pdfcer2`: `du -sb` = **31,896,032 bytes**, 5 items
+  at depth 1 + `models/` (the folder minus `BUILD-INFO.txt`, plus a 328-byte
+  `VERSION.txt` reading `version: 0.40.0 / commit: v0.40.0 / deployed:
+  2026-09-05T22:59:17Z / source: D:\builds\pdfcer-20260905-1858-de0e963 /
+  slot: pdfcer2`); `pdfcer2\pdfcer.exe --version` = `pdfcer 0.40.0 …
+  revision: v0.40.0`. **`pdfcer1` retains 0.39.0** (`pdfcer1\pdfcer.exe
+  --version` = `pdfcer 0.39.0 … revision: v0.39.0-3-g8787661`). The
+  alternating-slot scheme (R229) held for the third consecutive release
+  (`v0.38.0` → `pdfcer2`, `v0.39.0` → `pdfcer1`, `v0.40.0` → `pdfcer2`).
+- **`python tools/verify-release.py v0.40.0` — CLEAN, nine of nine `ok`,
+  re-run by this role at filing:** working tree clean; tag exists locally;
+  tag is at HEAD (ADVANCED: `HEAD=2cca543`, tag still an ancestor); tag
+  pushed; `origin/main` CONTAINS the tagged commit; GitHub release has at
+  least one asset; **CI is GREEN at the tagged commit**; the CLI for
+  `v0.40.0` is on OneDrive (`pdfcer2`); a PREVIOUS version is still on
+  OneDrive (0.39.0). Verdict line: *"verify-release: clean -- tag, HEAD,
+  origin/main, CI and the release agree"*.
+- **Batch cadence, closed.** The 433rd, 435th, 438th, 439th and 440th filings
+  each carried a *"release HELD per the batch ruling"* line; this entry
+  discharges all of them. The engineer's memory rule (`dfd203f`, 433rd) and
+  the 440th's *"tag waits for CI green on the PUSHED tree"* lesson both
+  applied here: tag cut only after run `33996394065` reported green.
+
+`docs/FEATURES.md`: **no change** — the 438th (signing rows → Implemented)
+and 435th (vertex editing) filings already set the boxes this binary
+delivers; the 439th's five Planned rows stay Planned. Release bookkeeping
+only; FEATURES.md carries no version marker. Docs-only filing: `ROADMAP.md`,
+`SESSION_LOG.md` staged by name.
+
+**Ledger.** Filings ceiling `440` → **`441`**; Pass ceiling **`256.1`
+UNCHANGED**; decision ceiling **`138` UNCHANGED**, next free `139`; standing
+rules ceiling **`R241` unchanged**, next free `R242`; open operator
+questions: none minted, next free `(ce)`. `Pass 256.0` (edit text across
+show operators) is *Next up* and NOT STARTED — the next session's first
+engineering task.
+
 **★★★ 440th filing, 2026-09-05 (late) — NO PASS SHIPPED. DECISION 138
 AUTHORED: CI CAUGHT A FEATURE WIDENING ON THE BATCH PUSH, AND THE RELEASE IS
 HELD FOR IT.** CI run `33994927156` on `8a18e53` (the 439th's 7-commit
@@ -162,7 +297,7 @@ sha256 `e6472135b4ca…` — both measured on disk by this role), and NOT
 TAGGED, NOT RELEASED, NOT DEPLOYED — HELD for CI green on the amended tree
 (`1c6f670`, not yet pushed at this filing: `git log --oneline
 origin/main..HEAD` = `03f6004`, `5875f23`, `796ff8c`, `1c6f670`). The
-release filing will be the 441st.**
+release filing will be the 441st.** *★ RESOLVED at the 441st filing (above): tag `v0.40.0` → `de0e963` (not `03f6004` — two more commits landed first: the guard fix `1c6f670` and the comment fix `de0e963`), CI `33996394065` green 10/10, released, deployed to `pdfcer2`; the `-1819-03f6004` folder and zip (sha256 `e6472135b4ca…`) were deleted and are superseded by `-1858-de0e963` / sha256 `67fb3525…`.*
 
 **Ledger.** Filings ceiling `439` → **`440`**; Pass ceiling **`256.1`
 UNCHANGED**; decision ceiling `137` → **`138`**, next free `139`; standing
