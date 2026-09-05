@@ -2430,6 +2430,47 @@ mod tests {
     }
 
     #[test]
+    fn hairline_mode_thins_strokes_but_leaves_fills_untouched() {
+        // Pass 254.0 — the CAD "line weights off" display mode. A fat stroke
+        // must collapse to ~1 device pixel; a FILL must be byte-for-byte
+        // unchanged (only S/s/B/B* strokes change, never geometry).
+        fn dark(pm: &tiny_skia::Pixmap) -> usize {
+            pm.pixels()
+                .iter()
+                .filter(|p| p.red() < 128 && p.alpha() > 0)
+                .count()
+        }
+        let hairline = RenderOptions {
+            stroke_display: crate::font::StrokeDisplay::Hairline,
+            ..Default::default()
+        };
+
+        // A 12-unit-wide horizontal stroke across the middle of a 100x100 page.
+        let (doc, page) = doc_with_content("12 w 20 50 m 80 50 l S", "");
+        let actual =
+            render_page_with_view(&doc.view(), &page, 1.0, &RenderOptions::default()).unwrap();
+        let hair = render_page_with_view(&doc.view(), &page, 1.0, &hairline).unwrap();
+        let (a, h) = (dark(&actual.pixmap), dark(&hair.pixmap));
+        assert!(a > 0, "the thick stroke paints in the default (a={a})");
+        assert!(
+            h * 3 < a,
+            "hairline must collapse the 12 px stroke to ~1 px, a large drop (a={a} h={h})"
+        );
+
+        // A FILL alone renders IDENTICALLY in both modes — hairline never
+        // touches fills, or a hatch built from thin fills would vanish.
+        let (fdoc, fpage) = doc_with_content("0 0 0 rg 20 20 60 30 re f", "");
+        let fa =
+            render_page_with_view(&fdoc.view(), &fpage, 1.0, &RenderOptions::default()).unwrap();
+        let fh = render_page_with_view(&fdoc.view(), &fpage, 1.0, &hairline).unwrap();
+        assert_eq!(
+            dark(&fa.pixmap),
+            dark(&fh.pixmap),
+            "hairline must not change a filled region"
+        );
+    }
+
+    #[test]
     fn subpixel_culling_is_off_by_default_and_counted_when_on() {
         // The OPT-IN, lossy cull. Three things are asserted and the third
         // is the one that matters: that the default renders it, that the

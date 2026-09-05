@@ -519,6 +519,11 @@ pub struct RenderOptions {
     /// left out. An operator comparing two renders can see which one paid
     /// for its speed and how much.
     pub subpixel_culling: bool,
+    /// How strokes are drawn relative to their declared width
+    /// ([`StrokeDisplay`], `Pass 254.0`). `Actual` by default; `Hairline`
+    /// is the CAD "line weights off" display convention. A shell sets this
+    /// for its interactive canvas ONLY — exports keep real widths.
+    pub stroke_display: StrokeDisplay,
     /// **Which classes** of annotation to paint when [`Self::annotations`]
     /// permits any — the four-way Acrobat print scope (Document / Document
     /// and Markups / Document and Stamps / Form fields only) plus pdfcer's
@@ -924,6 +929,33 @@ pub struct RenderPolicy<'a> {
     /// See [`RenderOptions::subpixel_culling`]. The only LOSSY entry in
     /// this bundle, which is why its counter is reported separately.
     pub subpixel_culling: bool,
+    /// See [`RenderOptions::stroke_display`]. Carried so the interpreter's
+    /// `stroke_params` can cap the device width without reaching for options.
+    pub stroke_display: StrokeDisplay,
+}
+
+/// How strokes are drawn relative to their declared width (`Pass 254.0`).
+///
+/// A DISPLAY convention, set by a shell for its interactive canvas — NOT an
+/// export knob. Every export (PNG/JPEG/SVG/EMF/DXF/PDF) renders with the
+/// document's real widths; a hairline raster is a reading aid, never something
+/// that follows the operator into a file (`pdfcer-gui` request 2026-09-05).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+#[non_exhaustive]
+pub enum StrokeDisplay {
+    /// Draw every stroke at its declared width, mapped through the CTM (with
+    /// the pre-existing one-device-pixel floor, §8.4.3.2). The default.
+    #[default]
+    Actual,
+    /// The CAD "line weights OFF" convention (AutoCAD `LWDISPLAY` off): CAP
+    /// every stroke's DEVICE width at one pixel, so a fat 8 px stroke reads as
+    /// 1 px and adjacent geometry stops merging into a blob. A CEILING, not a
+    /// set — combined with pdfcer's existing sub-pixel floor, every stroke
+    /// ends up ~1 device pixel. FILLS are untouched (only `S`/`s`/`B`/`B*`
+    /// strokes change): a filled region is geometry, not a drafting weight.
+    /// This is the OPPOSITE of Acrobat's "enhance thin lines" (which makes thin
+    /// things thicker); this makes thick things thinner.
+    Hairline,
 }
 
 impl Default for RenderOptions {
@@ -950,6 +982,9 @@ impl Default for RenderOptions {
             // puts that choice with the operator rather than with the
             // default.
             subpixel_culling: false,
+            // Faithful widths by default; a shell opts its canvas into
+            // hairline display, never an export.
+            stroke_display: StrokeDisplay::Actual,
             // Every class painted — the pre-existing "annotations on"
             // behaviour, spelled as a scope. See `AnnotationScope`'s type
             // docs for why the default is Acrobat Pro's rather than
@@ -1343,6 +1378,7 @@ impl RenderOptions {
             layers: self.layers.as_ref(),
             view_magnification: self.view_magnification,
             subpixel_culling: self.subpixel_culling,
+            stroke_display: self.stroke_display,
         }
     }
 }
@@ -1425,6 +1461,9 @@ mod render_policy_tests {
                 // this test exists to catch a knob that reaches
                 // `RenderOptions` and never reaches `RenderPolicy`.
                 subpixel_culling: false,
+                // Not set by any `with_*` above, so it must still be the
+                // default — same carried-field assertion as its sibling.
+                stroke_display: crate::font::StrokeDisplay::Actual,
             }
         );
         assert_ne!(options.policy(), RenderPolicy::default());

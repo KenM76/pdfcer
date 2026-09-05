@@ -141,7 +141,7 @@ use crate::cancel::RenderCancel;
 use crate::canvas::{BrushSpec, Canvas, ClipRef, LayerPaint};
 use crate::display_list::{ClipDef, PoisonReason};
 use crate::font::program::FontProgram;
-use crate::font::{FontEnvironment, RenderPolicy};
+use crate::font::{FontEnvironment, RenderPolicy, StrokeDisplay};
 use crate::gstate::{GStateStack, GraphicsState, LineCap, LineJoin, Mat64, Rgb};
 use crate::image::{self, ImageError, ImageNotes, ImageOrigin};
 use crate::text::{LoadedFont, TextObject};
@@ -2349,6 +2349,7 @@ pub fn trace_paths(
         blend_space: crate::compositor::BlendSpace::Additive,
         path: PathBuilder::new(),
         subpixel_culling: policy.subpixel_culling,
+        stroke_display: policy.stroke_display,
         path_precise: false,
         path_ctm64: Mat64::IDENTITY,
         path_origin: None,
@@ -2444,6 +2445,7 @@ fn run_nested(
         blend_space,
         path: PathBuilder::new(),
         subpixel_culling: policy.subpixel_culling,
+        stroke_display: policy.stroke_display,
         path_precise: false,
         path_ctm64: Mat64::IDENTITY,
         path_origin: None,
@@ -2607,6 +2609,7 @@ pub(crate) fn run_form_at_on(
         blend_space: crate::compositor::BlendSpace::Additive,
         path: PathBuilder::new(),
         subpixel_culling: policy.subpixel_culling,
+        stroke_display: policy.stroke_display,
         path_precise: false,
         path_ctm64: Mat64::IDENTITY,
         path_origin: None,
@@ -2915,6 +2918,9 @@ struct Interpreter<'a> {
     /// [`RenderOptions::subpixel_culling`], carried down so `do_form` can
     /// consult it without reaching back for the options.
     subpixel_culling: bool,
+    /// [`RenderOptions::stroke_display`], carried so `stroke_params` can
+    /// cap the device width for the CAD "line weights off" mode (Pass 254.0).
+    stroke_display: StrokeDisplay,
 }
 
 impl Interpreter<'_> {
@@ -8784,15 +8790,28 @@ impl Interpreter<'_> {
             }
         };
         let min_user_width = if scale > 0.0 { 1.0 / scale } else { 0.0 };
+        // §8.4.3.2: width 0 means "thinnest line the device can render", which
+        // is exactly the floor; a non-zero width takes the floor only when it
+        // would otherwise land under a pixel.
+        let floored = if self.gs.current.line_width <= 0.0 {
+            min_user_width
+        } else {
+            self.gs.current.line_width.max(min_user_width)
+        };
+        // Pass 254.0 — the CAD "line weights off" CEILING. In `Hairline` mode
+        // cap the DEVICE width at one pixel (`min_user_width` in user space), so
+        // a fat stroke reads as 1 px and adjacent geometry stops merging.
+        // Combined with the floor above, every stroke lands at ~1 device pixel,
+        // which is exactly the convention. FILLS never reach here, so a filled
+        // region keeps its geometry (only `S`/`s`/`B`/`B*` strokes change).
+        let width = match self.stroke_display {
+            StrokeDisplay::Hairline => floored.min(min_user_width),
+            // `Actual` and any future variant render at the declared (floored)
+            // width; `#[non_exhaustive]` requires the wildcard.
+            _ => floored,
+        };
         Stroke {
-            // §8.4.3.2: width 0 means "thinnest line the device can
-            // render", which is exactly the floor; a non-zero width takes
-            // the floor only when it would otherwise land under a pixel.
-            width: if self.gs.current.line_width <= 0.0 {
-                min_user_width
-            } else {
-                self.gs.current.line_width.max(min_user_width)
-            },
+            width,
             miter_limit: self.gs.current.miter_limit,
             line_cap: match self.gs.current.line_cap {
                 LineCap::Butt => SkCap::Butt,
