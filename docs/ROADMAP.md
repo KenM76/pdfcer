@@ -112,6 +112,119 @@ wherever it appears.*
 
 ## Shipped
 
+**★★ 428th filing, 2026-09-05 — `v0.38.0` RESOLVED: IN PROGRESS →
+VERIFIED. The release of BOTH Passes filed at the 427th filing — `Pass
+10.5` (full signature trust PATH VALIDATION — validity dates, RFC 5280
+CA/`keyUsage` constraints, RSA-PSS cert signatures; the deterministic
+no-network parts) and `Pass 250.2` (undo-preserving deferred redaction) —
+done end to end this session: tag, push, CI, GitHub asset, fresh-folder
+smoke test, OneDrive, `verify-release.py`. Release act standing-authorized
+(decision 121, *"always go ahead and push the latest one"*).**
+
+**★ THE TAG IS NOT AT `HEAD` THIS RELEASE, and that is expected — read the
+sourcing before concluding anything is wrong.** Unlike the 424th/426th
+filings (`v0.36.0`/`v0.37.0`, where tag = `HEAD`), a **README-only** commit
+`09fe85f` landed AFTER the version-bump tag. So the tag `v0.38.0` = the
+bump commit `b01964f`, and `HEAD` = `origin/main` = `09fe85f`, one commit
+ahead. The tag is an **ancestor** of `origin/main` (not equal to it), which
+is exactly what `verify-release.py`'s "tag is an ancestor of `origin/main`
+HEAD" check reads. **The release binary was built from `09fe85f`**, whose
+diff from the tag is the README text only — **the compiled code is
+byte-for-byte the tagged `v0.38.0` source**, the README does not enter the
+binary.
+
+**Sourcing (hard rule 8).** This role had a shell. The git figures below
+are MEASURED here — `git log -1 HEAD` = `git log -1 origin/main` =
+**`09fe85f`** (full `09fe85f594ccba910495818ede391880ddf4afeb`, subject
+*"docs(README): reflect shipped encryption authoring and signature trust
+validation on the landing page"*, committed 2026-09-05 03:39:04 -0400);
+`git log -1 v0.38.0` = **`b01964f`** (full
+`b01964fbcbff0435751fc3ac640478d75b4608cc`, subject *"chore: bump version
+to 0.38.0 for the Pass 10.5 + Pass 250.2 release (full signature trust
+validation; undo-preserving deferred redaction)"*, committed 2026-09-04
+22:56:58 -0400); `git status --short` empty (working tree carries this
+filing's own doc edits only); `git log --oneline v0.38.0..HEAD` =
+**`09fe85f` alone** — one commit (the README) sits ahead of the tag; `git
+merge-base --is-ancestor v0.38.0 origin/main` = **true**. The CI/asset/
+OneDrive/smoke-test/build-env figures are relayed from the engineer's
+dispatch (produced by the engineer's own shell this session), named beside
+each figure per hard rule 10.
+
+- **Version bump** `0.37.0 → 0.38.0`: commit **`b01964f`**
+  (`chore: bump version to 0.38.0 for the Pass 10.5 + Pass 250.2 release
+  (full signature trust validation; undo-preserving deferred redaction)`).
+  This is the tagged commit — the same role `cce6a69` played for `v0.37.0`
+  at the 426th filing.
+- **Tag** `v0.38.0` → `b01964f`, pushed to origin.
+- **README landing-page update**: commit **`09fe85f`**
+  (`docs(README): reflect shipped encryption authoring and signature trust
+  validation on the landing page`) — pushed to `origin/main`; `HEAD` =
+  `origin/main` = this commit. **The release binary was built from
+  `09fe85f`**; its diff from the tag `b01964f` is README text only, so the
+  release binary's CODE is identical to the tagged `v0.38.0` code.
+- **`origin/main` = `09fe85f`**, one README commit ahead of the tag
+  `b01964f`; the tag is an **ancestor** of `origin/main` — the check
+  `verify-release.py` performs (not the "= `HEAD`" equality the two prior
+  releases happened to satisfy).
+- **CI** — **GREEN at the tagged commit** `b01964f`.
+- **GitHub release**
+  https://github.com/KenM76/pdfcer/releases/tag/v0.38.0 — asset
+  `pdfcer-v0.38.0-windows-x64.zip`, **18,002,160 bytes**, SHA-256
+  `53e3af7a38574e55eccc766f8635864bf329feede6d64c34eb8a60ac2ee5d71e`,
+  plus its `.sha256` sidecar.
+- **Fresh-folder portable smoke test — PASSED.** The portable build was
+  copied to a clean path and the COPIED binary run standalone:
+  `pdfcer 0.38.0`; `inspect` on a fixture worked; and the newly shipped
+  surface is all present — `verify-signatures --trust-from-acrobat`
+  (`Pass 10.5`'s full path validation), `encrypt`, and `trust-store-list`.
+- **OneDrive**: deployed to slot **`pdfcer2`** (the OLDER slot); **`pdfcer1`
+  retains 0.37.0**. The two slots now hold **DIFFERENT** versions
+  (`pdfcer1` = 0.37.0, `pdfcer2` = 0.38.0) — the alternating-slot scheme's
+  guarantee (R229) held; **the both-slots-same-version failure did NOT
+  occur.** (The 426th filing's `v0.37.0` had written `pdfcer1`; this one
+  wrote `pdfcer2`, so the alternation is intact.)
+- **`python tools/verify-release.py v0.38.0` — PASS.** Working tree clean;
+  tag exists, pushed, and is an **ancestor** of `origin/main` HEAD
+  (`09fe85f`, advanced by the README commit — expected); GitHub release has
+  assets; **CI GREEN at the tagged commit**; CLI `v0.38.0` on OneDrive
+  `pdfcer2`; previous `0.37.0` preserved (on `pdfcer1`).
+- **Gates (relayed).** Full local `tools/run-gates.sh` was run to
+  completion and was green except a stale `check-core-api-verbs` count
+  (`193 → 197` after the four new `EditSession` methods) — **reconciled and
+  re-verified** (`check-core-api-verbs` PASS). This is the same
+  reconciliation recorded at the 427th filing (the Pass-shipping filing);
+  restated here because the release re-ran the full gate suite.
+- **Build-environment note (relayed; RAG'd — see below).** The release
+  binary was compiled with `CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1` because
+  this machine had ~4.4 GB of 16 GB free; the normal parallel release build
+  (default codegen-units, and a `cu=256` attempt especially) ran the
+  compiler **out of memory**, presenting as Windows **`0xC0000142`**
+  (DLL-init/resource failure), NOT as a timeout or disk-full. `cu=1` is a
+  **build-time** setting only — the tagged SOURCE is unchanged — and yields
+  a maximally-optimized binary, so the artifact is a faithful, fully
+  optimized build of the `v0.38.0` source. Freeing ~185 GB of stale
+  `target/debug` artifacts (disk was at 97%) was necessary first. Filed to
+  `D:/dev/rag/rust/` as the generalizable lesson (below).
+- Carries `Pass 10.5` (`e1cdd3b`) and `Pass 250.2` (`41095eb`), both
+  shipped at the 427th filing above; this entry resolves the release
+  mechanics only, it does not re-describe the features.
+
+`docs/FEATURES.md`: **no change** — both capability rows were set at the
+427th filing (`Pass 10.5`: `core [x]` · `cli [x]` · `gui [ ]` ·
+`Acrobat [x]`; `Pass 250.2`: `core [x]` · `cli —` · `gui [ ]` ·
+`Acrobat [x]`). This entry is release bookkeeping only, not a capability
+change; FEATURES.md carries no version/release marker to update.
+
+**Commits now filed by this release entry.** `b01964f` (the version bump/
+tag commit) and `09fe85f` (the README landing-page commit) are accounted
+for here — `check-commits-filed` has them both.
+
+**Ledger.** Filings ceiling `427` → **`428`**; Pass ceiling `250.2`
+**unchanged** — no new Pass, a release-verification entry only (`Pass 10.6`
+remains *Backlog*, unbuilt); decision ceiling `135` unchanged, next free
+`136`; standing rules ceiling `R241` unchanged, next free `R242`; open
+operator questions: none minted, next free `(ce)`.
+
 **★★★ 427th filing, 2026-09-04 — TWO Passes SHIPPED in one session, the
 two backlog items the operator said "do both" about. `Pass 10.5`
 (`e1cdd3b`): signature trust PATH VALIDATION — the deterministic,

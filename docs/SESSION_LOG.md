@@ -91739,3 +91739,90 @@ here.
   it still does NOT check whether a certificate was revoked; that needs the
   network and is the next piece. Redaction can now be staged and undone right
   up until you save (alongside the existing finalizing apply).
+
+## 2026-09-05 (428th filing) — `v0.38.0` RELEASED and VERIFIED: BOTH Passes from the 427th filing shipped end to end, IN PROGRESS → VERIFIED — `Pass 10.5` (full signature trust path validation) + `Pass 250.2` (undo-preserving deferred redaction); tag `b01964f`, binary built from README commit `09fe85f` (code identical), OneDrive `pdfcer2`
+
+**Shipped:**
+- **`v0.38.0` released and verified** — the release of both Passes filed at
+  the 427th filing: `Pass 10.5` (`e1cdd3b`, full signature trust path
+  validation — validity dates, RFC 5280 CA/`keyUsage` constraints, RSA-PSS
+  cert signatures; the deterministic no-network parts) and `Pass 250.2`
+  (`41095eb`, undo-preserving deferred redaction). Version bump
+  `0.37.0 → 0.38.0` on commit `b01964f`
+  (`b01964fbcbff0435751fc3ac640478d75b4608cc`) — the **tagged** commit.
+  Tag `v0.38.0` pushed. A README-only commit `09fe85f`
+  (`09fe85f594ccba910495818ede391880ddf4afeb`, *"docs(README): reflect
+  shipped encryption authoring and signature trust validation on the
+  landing page"*) landed AFTER the bump, so `HEAD` = `origin/main` =
+  `09fe85f`, one commit ahead of the tag; the tag is an **ancestor** of
+  `origin/main`. **The release binary was built from `09fe85f`** — its diff
+  from the tag is README text only, so the binary's CODE is byte-for-byte
+  the tagged `v0.38.0` source. CI **GREEN at the tagged commit** `b01964f`.
+  GitHub release published with asset `pdfcer-v0.38.0-windows-x64.zip`
+  (18,002,160 bytes, SHA-256
+  `53e3af7a38574e55eccc766f8635864bf329feede6d64c34eb8a60ac2ee5d71e`) plus
+  its `.sha256` sidecar. OneDrive deployed to slot **`pdfcer2`** (the older
+  slot); **`pdfcer1` retains 0.37.0** — the two slots now hold DIFFERENT
+  versions (0.37.0 / 0.38.0), the both-slots-same-version failure did NOT
+  occur (R229; the 426th filing's `v0.37.0` wrote `pdfcer1`, this one wrote
+  `pdfcer2`, alternation intact). `python tools/verify-release.py v0.38.0`
+  — PASS, every check.
+
+**Decisions made this session:**
+- None minted (decision ceiling `135` unchanged). The release act itself
+  needed no go-ahead — standing-authorized by decision 121 (*"always go
+  ahead and push the latest one"*).
+
+**Findings + decisions:**
+- **The tag is NOT at `HEAD` this release, and that is expected.** A
+  README-only commit `09fe85f` landed after the version-bump tag `b01964f`,
+  so the tag is an **ancestor** of `origin/main` rather than equal to
+  `HEAD` (as at the 424th/426th filings). `verify-release.py`'s check is
+  exactly "tag is an ancestor of `origin/main` HEAD", which passed. The
+  binary was built from `09fe85f`; its only diff from the tag is README
+  text, so the compiled code is identical to the tagged `v0.38.0` source.
+- **Fresh-folder portable smoke test PASSED.** The portable build was
+  copied to a clean path and the COPIED binary run standalone: `pdfcer
+  0.38.0`; `inspect` on a fixture worked; and the new surface —
+  `verify-signatures --trust-from-acrobat` (`Pass 10.5`'s full path
+  validation), `encrypt`, `trust-store-list` — is all present.
+- **Gates:** full local `tools/run-gates.sh` run to completion, green
+  except a stale `check-core-api-verbs` count (`193 → 197` after the four
+  new `EditSession` methods), reconciled and re-verified (PASS). Same
+  reconciliation recorded at the 427th filing; the release re-ran the full
+  suite.
+- **Build-environment gotcha (RAG'd to `D:/dev/rag/rust/`):** on this
+  low-RAM Windows box (~4.4 GB of 16 GB free), the normal parallel release
+  build (default codegen-units, and a `cu=256` attempt especially) ran the
+  compiler out of memory, presenting as Windows **`0xC0000142`**
+  (DLL-init/resource failure) — NOT a timeout or disk-full. Setting
+  `CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1` (a build-time-only setting; the
+  tagged source is unchanged; it also yields a maximally-optimized binary)
+  fixed it. Freeing ~185 GB of stale `target/debug` artifacts (disk at 97%)
+  was needed first. Lesson written to
+  `D:/dev/rag/rust/windows_0xC0000142_release_build_is_codegen_oom.md`.
+- **Sourcing (hard rule 8):** this role had a shell. The git figures are
+  MEASURED here — `HEAD` = `origin/main` = `09fe85f`; tag `v0.38.0` =
+  `b01964f`; `git status --short` empty; `git log --oneline
+  v0.38.0..HEAD` = `09fe85f` alone; `git merge-base --is-ancestor v0.38.0
+  origin/main` = true. The CI/asset/OneDrive/smoke-test/build-env figures
+  are relayed from the engineer's dispatch (the engineer's own shell this
+  session).
+- `NEXT_SESSION.md` was NOT touched by this filing — it is engineer-owned.
+
+**Still in flight:**
+- Nothing on the release — `v0.38.0` is fully released and verified.
+  **`Pass 10.6`** (signature revocation — CRL/OCSP, or embedded DSS/LTV)
+  remains *Backlog*, NOT built: revocation needs the network `pdfcer-core`
+  is forbidden to touch (decision 135), so it belongs to a fetching shell
+  or to embedded revocation data.
+
+**For next session:**
+- Engineer: no in-flight Pass; `v0.38.0` shipped and verified. `Pass 10.6`
+  (revocation) is the remaining trust slice and is shell/DSS-shaped, not a
+  core-only piece.
+- Operator: full signature trust path validation (`Pass 10.5`) and
+  undo-preserving deferred redaction (`Pass 250.2`) shipped in `v0.38.0` —
+  the latest portable build (OneDrive `pdfcer2`) carries both. `v0.37.0` is
+  kept in `pdfcer1` as the fallback. Signature checking still does NOT test
+  whether a certificate was revoked — that needs the network and is next.
