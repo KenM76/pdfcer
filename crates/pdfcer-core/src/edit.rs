@@ -31937,6 +31937,52 @@ impl EditSession {
             drop_from_parent = newly_empty;
         }
 
+        // --- decrement /Count on EVERY ancestor that lost leaves --------
+        //
+        // The splice loop above rewrites a node only when its OWN /Kids
+        // array changed (`kept.len() == kids.len()` skips the rest). On a
+        // NESTED page tree that leaves the counts stale above the immediate
+        // parent: an ancestor higher up keeps all its kids (its child node
+        // survives, merely with fewer leaves under it), so its /Count is
+        // never touched and a reader that trusts the root /Count -- Acrobat
+        // does -- shows the removed pages as trailing blanks. §7.7.3.2: an
+        // intermediate node's /Count is "the number of leaf nodes that are
+        // descendants of this node", so every ancestor with lost leaves must
+        // drop. `PageSlot::ancestors` (root first) supplies the whole chain,
+        // and `leaves_under`/`lost_under` were already tallied over it; this
+        // consumes them for the nodes the splice loop skipped. The insertion
+        // verbs already walk to the root -- this makes removal match them
+        // (pdfcer-gui bug 2026-09-05, `SW41177.pdf`).
+        for node_id in &touched {
+            if freed.contains(node_id) {
+                continue;
+            }
+            // A node the splice loop rewrote already carries the correct
+            // count (leaves_under − lost_under); re-touching it would clobber
+            // its freshly spliced /Kids. Only the ancestors it SKIPPED remain.
+            if scratch.contains_key(node_id) {
+                continue;
+            }
+            let lost = lost_under.get(node_id).copied().unwrap_or(0);
+            if lost == 0 {
+                continue;
+            }
+            let Some(node) = self.pending_dict(&scratch, &freed, *node_id) else {
+                continue;
+            };
+            let count = leaves_under
+                .get(node_id)
+                .copied()
+                .unwrap_or(0)
+                .saturating_sub(lost);
+            let mut updated = node.clone();
+            updated.insert(
+                Name::from(b"Count"),
+                Object::Integer(i64::try_from(count).unwrap_or(0)),
+            );
+            scratch.insert(*node_id, Object::Dict(updated));
+        }
+
         // --- repair preseparated page sets (§14.11.4) ------------------
         //
         // Applied HERE, after the splice and before the sweep, and the
