@@ -93255,3 +93255,130 @@ message.
   hand and pdfcer currently rewrites one placed piece at a time. Making a
   whole word edit as one piece, so the line re-spaces, is the next thing
   being built.
+
+## 2026-09-05 (440th filing) — NO PASS SHIPPED. Decision **138** AUTHORED: CI run `33994927156` on `8a18e53` went RED on exactly one step — *"decision 039 (extended) — assert `sha2` carries no extra features"* — because `rsa`'s optional `sha2` dependency declares `features = ["oid"]`; `oid` (= `const-oid` `AssociatedOid` impls, no backend change, no new `unsafe`) is ACCEPTED into 039's `sha2` fence, `alloc`/`zeroize` stay forbidden, guard amended in `1c6f670`. `v0.40.0` is BUMPED (`03f6004`), BUILT + PACKAGED, and NOT TAGGED / NOT RELEASED / NOT DEPLOYED — the local tag was deleted; HELD for CI green on the amended tree. Commits filed: `03f6004`, `796ff8c`, `1c6f670`. One `D:/dev/rag/rust/` finding written.
+
+**Session shape.** Seventh filing of the day, late, after the 439th
+(`5875f23`). Between them: the engineer bumped the version (`03f6004`,
+18:06:50), built and packaged `v0.40.0` (18:19), tagged it locally, read
+CI, deleted the tag, wrote a memory note (`796ff8c`, 18:24:24) and amended
+the CI guard (`1c6f670`, 18:24:48). Docs-only filing: `ROADMAP.md`,
+`ARCHITECTURE.md`, `SESSION_LOG.md` staged by name; the RAG files are
+outside the repository. `FEATURES.md` untouched — no capability moved.
+
+**CI — read by this role, `gh run view 33994927156 --json
+jobs,conclusion,headSha`:** `headSha` `8a18e5371a9e6df9abf9efef83483192993d81a7`,
+`conclusion: failure`. Ten jobs:
+- `success` — *cargo fmt --check*
+- `success` — *verify the ENGINE needs no network (core + render)*
+- `success` — *repository audits (19 checks)*
+- `success` — *cargo test (ubuntu-latest)*
+- `success` — *cross-target compile check (macOS / wasm32)*
+- `success` — *fuzz targets build (nightly)*
+- `success` — *cargo clippy -D warnings*
+- `success` — *cargo test (windows-latest)*
+- **`failure`** — *verify pdfcer-core / pdfcer-render have zero GUI deps*;
+  failed step: *decision 039 (extended) — assert `sha2` carries no extra
+  features*
+- `success` — *third-party license audit*
+
+**Decision 138 (`ARCHITECTURE.md` §12) — the substance:**
+- **Mechanism, measured in `~/.cargo/registry/src/*/rsa-0.10.0-rc.18/Cargo.toml`:**
+  NO `sha2` key in `[features]` (lines 52–77: `default`, `encoding`,
+  `getrandom`, `hazmat`, `pkcs5`, `serde`, `std`). The `sha2` feature is
+  Cargo's implicit optional-dependency feature, and lines 174–178 read
+  `[dependencies.sha2] version = "0.11" features = ["oid"] optional = true
+  default-features = false`. Enabling `rsa/sha2` therefore enables
+  `sha2/oid`; feature unification applies it to pdfcer-core's own
+  `default-features = false` line. `sha2-0.11.0/Cargo.toml:51`
+  `oid = ["digest/oid"]`; `digest-0.11.3/Cargo.toml:52`
+  `oid = ["dep:const-oid"]`.
+- **What it adds:** `const_oid::AssociatedOid` impls for the SHA-2 types.
+  No backend change, no new `unsafe`, no new package — `cargo tree -p
+  pdfcer-core -i const-oid --depth 1` = `der v0.8.2`, `digest v0.11.3`,
+  `rsa v0.10.0-rc.18` (const-oid 0.10.2 was already present; decision 137's
+  survey counted it at 1 `unsafe` line).
+- **Why it is required:** `rsa::pkcs1v15::SigningKey::<D>::new` is bounded
+  `D: Digest + AssociatedOid` to build the RFC 8017 §9.2 `DigestInfo`
+  prefix; `SignatureAlgorithm::RsaPkcs1Sha256` (`Pass 10.7`) needs it.
+  PSS and ECDSA do not.
+- **Ruling:** `oid` accepted into 039's `sha2` fence; `alloc` forbidden
+  (nothing needs an owned digest buffer); `zeroize` forbidden for 039's
+  reason (`FileKey` in a plain `Vec<u8>` — zeroizing hash state would be
+  theatre). Guard: `grep -E 'sha2 feature "(alloc|zeroize)"'`; comment
+  block and `::error::` message name 138. `cargo tree -p pdfcer-core -e
+  features | grep -E 'aes feature|sha2 feature'` at filing prints exactly
+  one line: `sha2 feature "oid"`. `aes` untouched.
+- **Order of operations:** local sweep green before and after (the step is
+  *genuinely CI-only* per `check-ci-parity.py`); caught by CI after the
+  push — the guard's purpose. The record was minted, THEN the guard moved.
+  The fault in the sequence was tagging a release before CI reported on
+  the pushed tree.
+- **Relationship:** 039 (the fence, first move of it); 137 (the survey's
+  §6 line 364 DOES quote rsa's `features=["oid"]` — the gap was propagation
+  to the guard and 137's table, not a survey omission).
+
+**Release status (measured):** `03f6004` = `Cargo.toml` + `Cargo.lock`
+only (+6/−6). `D:\builds\pdfcer-20260905-1819-03f6004` exists;
+`D:\builds\pdfcer-v0.40.0-windows-x64.zip` sha256 begins `e6472135b4ca`
+(`sha256sum`, this role). `git tag -l 'v0.40*'` → EMPTY (the local tag was
+deleted, never pushed). `git log --oneline origin/main..HEAD` = `1c6f670`,
+`796ff8c`, `5875f23`, `03f6004` — four unpushed. **HELD** until CI is green
+on the amended tree; that release filing will be the 441st.
+
+**Premise checks — one wording corrected, three confirmed, one refined:**
+- **Corrected:** the dispatch said rsa's Cargo FEATURE `sha2` "is defined
+  as enabling `sha2/oid`". There is no such `[features]` entry; the edge is
+  the `features = ["oid"]` on the optional dependency declaration (an
+  implicit feature). Same effect, different place — and the place matters:
+  a reader auditing `[features]` tables for `dep/feature` entries misses
+  it; only `cargo tree -e features` sees it. Filed that way in 138 and the
+  RAG.
+- **Refined:** "const-oid already in the tree via `der`/`spki`/`pkcs8`" —
+  the measured inverse tree at depth 1 is `der`, `digest`, `rsa`; `spki`
+  and `pkcs8` reach it through `der`. Same conclusion.
+- **Refined:** "the survey's feature table did not call out the edge" — the
+  TABLE did not; the survey's §6 prose (line 364) did. Filed as a
+  propagation gap.
+- Confirmed: `sha2-0.11.0/Cargo.toml:51` is `oid = ["digest/oid"]`; tag
+  absent; build dir and zip present with the stated sha256 prefix; CI job
+  and step names verbatim as above; `03f6004` touches only the two
+  manifest files.
+
+**Survivors of the old "`oid` is off" claim (hard rule 11 sweep, by CLAIM
+over `docs/`, `crates/pdfcer-core/Cargo.toml`, the RAG):** `ARCHITECTURE.md`
+§9 `sha2` paragraph — dated amendment added; §12 decision 039's 2026-08-11
+amendment — dated forward-pointer footer added;
+`D:/dev/rag/rust/sha2_0_11_default_features_and_cfg_selected_backend_same_shape_as_aes.md`
+— dated footer (also corrects its `oid = ["digest/oid", "dep:const-oid"]`
+to the manifest's `["digest/oid"]`). **OWED TO THE ENGINEER, outside this
+role's remit:** `crates/pdfcer-core/Cargo.toml:345–361` — *"`oid` would
+pull const-oid in to name an ASN.1 identifier no PDF path ever reads"* and
+*"`.github/workflows/ci.yml` asserts alloc/oid/zeroize stay off"* — both
+false since `1c6f670`. `DEPENDENCIES.md`/`PRIOR_ART.md`: no `oid` claim.
+
+**RAG written (`D:/dev/rag/rust/`, one file + one `index.md` bullet):**
+`a_dependencys_feature_can_enable_a_feature_on_an_already_audited_neighbour_audit_cargo_tree_e_features.md`
+— the general shape: a dependency line is a set of feature edges into
+crates already in the tree; `[features]` tables do not show edges carried
+on optional-dependency declarations; audit with `cargo tree -e features`,
+per target, and gate it in CI (which is what caught this).
+
+**Gates (this role, on the filing tree): in the filing commit's message.**
+
+**Still in flight:**
+- `1c6f670` + this filing UNPUSHED; push, then read CI on the amended tree.
+- **`v0.40.0` HELD** until that CI is green; then tag, `verify-release.py`,
+  deploy — the 441st filing.
+- `Pass 256.0` — *Next up*, NOT STARTED.
+- `crates/pdfcer-core/Cargo.toml:345–361` comment — owed (engineer).
+
+**For next session:**
+- Engineer: (1) push; (2) read CI on the amended tree from GitHub; (3) if
+  green, tag `v0.40.0` from `03f6004` or HEAD (the engineer's call — record
+  which), package/verify/deploy, dispatch the 441st; (4) fix the
+  `Cargo.toml` comment; (5) `Pass 256.0`.
+- Operator: nothing to try — the release you were promised is built but is
+  waiting for the automated checks to pass on the exact code that will
+  ship; one check flagged a dependency detail, it was reviewed and recorded
+  as acceptable, and the release goes out once the re-run is green.

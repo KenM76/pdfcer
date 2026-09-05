@@ -7144,6 +7144,12 @@ off via `default-features = false` for the same reason `aes` cannot;
 defaults, and a CI job (extending decision 039's existing one) asserts
 `alloc`/`oid`/`zeroize` stay off across all four targets. Full
 reasoning: §12's decision 039 amendment.
+**★ Amended 2026-09-05 (440th filing, decision 138): `oid` is now ON**
+— `rsa`'s optional `sha2` dependency declares `features = ["oid"]`, and
+RSASSA-PKCS1-v1_5 needs `Sha256: AssociatedOid` for the RFC 8017 §9.2
+`DigestInfo` prefix. `oid` is `const-oid` trait impls only (no backend
+change, no new `unsafe`, no new package). The CI job now asserts
+`alloc`/`zeroize` stay off (`1c6f670`); `aes`'s fence is unchanged.
 
 **Fourth dependency, first for the `/BrotliDecode` filter: `brotli` 8.0.4
 (2026-08-25, `Pass 123.0`, `4163ad9`; see §12 decision 086).**
@@ -21412,6 +21418,12 @@ targets. Cross-project half:
 Full build record: `ROADMAP.md`'s `Pass 5` increment 3 Shipped entry
 (hundred-and-tenth filing).
 
+**★ Forward pointer, 2026-09-05 (440th filing) — the `sha2` fence MOVED by
+one feature: decision 138 accepts `oid` (required by `rsa`'s RSASSA-PKCS1-v1_5
+path, `Pass 10.7`); `alloc`/`zeroize` remain forbidden and the CI step's
+regex is now `(alloc|zeroize)` (`1c6f670`). This entry stays as written; read
+138 for the current fence.**
+
 ### 2026-08-11 (hundred-and-second filing, `5d2b19b` + `483cb4d`) — decision 040: `print_render_options` is the single shared builder for print render policy; a second independent construction site is what let `cmyk_intent` go missing from one of two
 
 **Sourcing.** No shell tool this dispatch (hard rule 8). The dispatching
@@ -32179,3 +32191,145 @@ ledger gate's reported ceiling `137` / next free `138` is unchanged in
 number and changed in meaning: `137` is no longer a claim.** **Standing
 rules ceiling `R241` — unchanged**, next free `R242`. **Open operator
 questions: none minted — next free `(ce)`.**
+
+### 2026-09-05 (440th filing) — decision 138: **DECISION 039'S `sha2` ACCEPTANCE IS EXTENDED TO THE `oid` FEATURE — `rsa`'s optional `sha2` dependency is declared with `features = ["oid"]`, so `pdfcer-core` now carries `sha2 feature "oid"` on every target; `oid` = `digest/oid` = `const-oid` `AssociatedOid` impls for the SHA-2 types and NOTHING ELSE (no backend change, no new `unsafe`, `const-oid 0.10.2` already in the tree), and the edge is LOAD-BEARING for RSASSA-PKCS1-v1_5 (`SigningKey::<D>::new` requires `D: Digest + AssociatedOid` to build the RFC 8017 §9.2 `DigestInfo` prefix). `alloc` and `zeroize` stay FORBIDDEN. The CI guard regex moved from `(alloc|oid|zeroize)` to `(alloc|zeroize)` in `1c6f670`, AFTER this record was minted. Caught by CI on `8a18e53` — the local sweep cannot see this step — and the packaged, LOCALLY-tagged `v0.40.0` was UN-tagged and HELD for CI green on the amended tree.**
+
+**(librarian filing, 440th. Authors the record the engineer minted on
+2026-09-05 and the `ci:` commit `1c6f670` cites by number. Every fact below
+was MEASURED by this role at filing unless attributed: the CI run via
+`gh run view 33994927156 --json jobs,conclusion,headSha`; the crate
+manifests in `~/.cargo/registry/src/*/`; the feature graph via `cargo tree
+-p pdfcer-core -e features`; the tag state via `git tag -l 'v0.40*'`.)**
+
+**What happened, in order, with times from `git log --format=%ci`.**
+`8a18e53` (the 7-commit batch push of the 439th filing) started CI run
+`33994927156`. `03f6004` *"chore(release): bump workspace version to
+0.40.0"* landed at **18:06:50** (`Cargo.toml` + `Cargo.lock` only, 2 files,
++6/−6); the release was built and packaged at 18:19
+(`D:\builds\pdfcer-20260905-1819-03f6004`, zip
+`D:\builds\pdfcer-v0.40.0-windows-x64.zip`, sha256 `e6472135b4ca…`) and
+**tagged locally**. Then CI reported: **`conclusion: failure` on `headSha
+8a18e53…`, 10 jobs, 9 `success`, 1 `failure`** — the job *"verify
+pdfcer-core / pdfcer-render have zero GUI deps"*, and inside it exactly one
+step: *"decision 039 (extended) — assert `sha2` carries no extra features"*.
+The nine green: *cargo fmt --check*; *verify the ENGINE needs no network
+(core + render)*; *repository audits (19 checks)*; *cargo test
+(ubuntu-latest)*; *cargo test (windows-latest)*; *cross-target compile
+check (macOS / wasm32)*; *fuzz targets build (nightly)*; *cargo clippy -D
+warnings*; *third-party license audit*. The step's grep matched `sha2
+feature "oid"` on all four targets it loops over (native,
+`x86_64-pc-windows-msvc`, `aarch64-apple-darwin`, `wasm32-unknown-unknown`).
+The engineer **deleted the local tag** (never pushed — `git tag -l 'v0.40*'`
+is EMPTY at this filing; `git ls-remote --tags` not consulted because the
+tag never left the machine), wrote the memory note `796ff8c` (18:24:24),
+minted this decision, and amended the guard in `1c6f670` (18:24:48). The
+release is **HELD** until CI is green on the amended tree.
+
+**Cause — the mechanism, stated precisely because the dispatch's wording
+was close but not exact.** `rsa 0.10.0-rc.18`'s `Cargo.toml` has **no
+`sha2` key in its `[features]` table** (lines 52–77 declare `default`,
+`encoding`, `getrandom`, `hazmat`, `pkcs5`, `serde`, `std` — nothing else).
+The `sha2` feature pdfcer enables is Cargo's **IMPLICIT optional-dependency
+feature**, and the edge lives on the dependency declaration itself:
+
+```toml
+# rsa-0.10.0-rc.18/Cargo.toml:174–178
+[dependencies.sha2]
+version = "0.11"
+features = ["oid"]
+optional = true
+default-features = false
+```
+
+Enabling `rsa/sha2` activates that dependency **with the features its
+declaration names**, so `sha2/oid` turns on. Cargo's feature unification
+then applies it to pdfcer-core's own `sha2 = { version = "0.11.0",
+default-features = false }` line — the `default-features = false` there is
+intact and irrelevant, because unification is a UNION across every path to
+the package. `sha2 0.11.0`'s `oid = ["digest/oid"]` (its `Cargo.toml:51`);
+`digest 0.11.3`'s `oid = ["dep:const-oid"]` (`Cargo.toml:52`). Net: the
+`const_oid::AssociatedOid` impls for `Sha224`/`Sha256`/`Sha384`/`Sha512`
+and their truncated variants, nothing else. **`const-oid 0.10.2` was ALREADY
+in the tree** — `cargo tree -p pdfcer-core -i const-oid --depth 1` at this
+filing: `der v0.8.2`, `digest v0.11.3`, `rsa v0.10.0-rc.18` (the dispatch
+said "via `der`/`spki`/`pkcs8`"; `spki` and `pkcs8` reach it THROUGH `der`,
+and `rsa` depends on it directly — same conclusion, the inverse tree is the
+measured form). Decision 137's survey counted `const-oid` at **1 `unsafe`
+line**; that count is unchanged by a trait impl being turned on.
+
+**Why the edge is load-bearing, not incidental.**
+`rsa::pkcs1v15::SigningKey::<D>::new` is bounded `D: Digest + AssociatedOid`
+— the PKCS#1 v1.5 encoding (RFC 8017 §9.2, EMSA-PKCS1-v1_5) prefixes the
+hash with the DER `DigestInfo` whose `AlgorithmIdentifier` carries the
+digest's OID, and `rsa` obtains that OID from `<D as AssociatedOid>::OID`
+rather than from a hand-written table. Without `sha2/oid` the
+`RsaPkcs1Sha256` arm of `SignatureAlgorithm` (`Pass 10.7`) does not
+compile. RSA-PSS (`RsaPssSha256`) and ECDSA do not need it; the RSA v1.5
+default (`Signer::default_algorithm()` for an RSA key) does.
+
+**The ruling.** Decision 039's `sha2` acceptance — the cfg-selected
+intrinsic backend, first extended to `sha2` on 2026-08-11 — **now also
+accepts the `oid` feature**, on the grounds above: it changes no backend,
+adds no `unsafe`, adds no package, and is required by a shipped Pass.
+**`alloc` stays forbidden** (pdfcer's own hashing calls only
+`Sha256::new`/`update`/`finalize`; nothing needs an owned digest buffer).
+**`zeroize` stays forbidden, for 039's own reason, restated so it is not
+re-litigated:** `FileKey` holds the file-encryption key in a plain
+`Vec<u8>`, so zeroizing the hash STATE while the key it derived sits un-zeroed
+would be theatre — a guarantee the code cannot honour. The guard now reads
+`grep -E 'sha2 feature "(alloc|zeroize)"'` and its comment block and error
+message name decision 138 (`.github/workflows/ci.yml`, `1c6f670`, +16/−10).
+**`aes` is untouched**: `cargo tree -p pdfcer-core -e features | grep -E
+'aes feature|sha2 feature'` at this filing prints exactly one line,
+`sha2 feature "oid"`.
+
+**Order of operations, stated honestly.** The local gate sweep was GREEN
+on the pushed tree and stayed green after the widening, because
+`check-ci-parity.py` classes this step as *genuinely CI-only* (it needs
+three cross-target `cargo tree` invocations the local sweep does not run).
+So the widening was invisible locally and **was caught only by CI, after
+the push — which is exactly what the guard exists for**: a feature edge
+into an audited crate got a record BEFORE the guard moved, not after. What
+went wrong is not the guard but the SEQUENCE around it — a release was
+built, packaged and locally tagged **before CI had reported on the tree it
+would ship**. Two rules fall out, both now in the engineer's memory
+(`796ff8c`, `a-dependency-feature-can-widen-a-neighbour`): (1) **a release
+tag waits for CI green on the PUSHED tree**, never on a local sweep; (2)
+**any `Cargo.toml` change gets `cargo tree -p pdfcer-core -e features |
+grep -E 'aes feature|sha2 feature'` run locally before the push** — the
+one line that would have shown `sha2 feature "oid"` before `8a18e53`.
+
+**Relationship to 039 and 137.** 039 accepted the `aes`/`sha2` `unsafe`
+intrinsic backends and fenced their Cargo features; this is the first time
+one of those fences MOVED, and it moved by one named feature with the
+reason recorded. 137 adopted the signing stack; its table lists `rsa` with
+`sha2`, `encoding` and its §6 line 364 DOES quote rsa's
+`[dependencies.sha2] version = "0.11" features=["oid"]` — so **the survey
+recorded the edge; the gap was PROPAGATION**: nobody carried that
+parenthetical from the survey's generation check to the CI guard's fence
+(or to 137's feature table, which is where a reader would look). Filed as a
+propagation gap, not a survey fault, and not a fault of the guard, which
+did its job. Cross-project half (the general shape, greppable):
+`D:/dev/rag/rust/a_dependencys_feature_can_enable_a_feature_on_an_already_audited_neighbour_audit_cargo_tree_e_features.md`.
+
+**Survivors of the old claim ("`oid` is off"), swept by this role (hard
+rule 11, searching for the CLAIM):** §9's `sha2` paragraph — dated pointer
+added this filing; §12 decision 039's 2026-08-11 amendment — dated
+forward-pointer footer added (the entry itself stays, append-only);
+`D:/dev/rag/rust/sha2_0_11_default_features_and_cfg_selected_backend_same_shape_as_aes.md`
+— dated footer added (it also mis-states `oid` as
+`["digest/oid", "dep:const-oid"]`; the manifest says `["digest/oid"]`).
+**One survivor OUTSIDE this role's remit, owed to the engineer:**
+`crates/pdfcer-core/Cargo.toml:345–361` (the `sha2` dependency's comment
+block) still says *"`oid` would pull const-oid in to name an ASN.1
+identifier no PDF path ever reads"* and *"`.github/workflows/ci.yml`
+asserts alloc/oid/zeroize stay off"* — both false since `1c6f670`.
+`docs/DEPENDENCIES.md`, `docs/PRIOR_ART.md`: no `oid` claim found
+(`grep -n -i 'oid'`).
+
+**Body sections:** §9 (the `sha2` paragraph — pointer to this decision).
+No other body section describes the feature fence.
+
+**Decision ceiling: `137` → `138`**, next free `139`. **Standing rules
+ceiling `R241` — unchanged**, next free `R242`. **Open operator questions:
+none minted — next free `(ce)`.**

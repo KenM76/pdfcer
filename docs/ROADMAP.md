@@ -112,6 +112,63 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★ 440th filing, 2026-09-05 (late) — NO PASS SHIPPED. DECISION 138
+AUTHORED: CI CAUGHT A FEATURE WIDENING ON THE BATCH PUSH, AND THE RELEASE IS
+HELD FOR IT.** CI run `33994927156` on `8a18e53` (the 439th's 7-commit
+push) = **`failure`: 10 jobs, 9 `success`, 1 `failure`** — the job *"verify
+pdfcer-core / pdfcer-render have zero GUI deps"*, one step: *"decision 039
+(extended) — assert `sha2` carries no extra features"* (read by this role
+via `gh run view … --json jobs`). The grep found `sha2 feature "oid"` on all
+four targets. **Cause:** `rsa 0.10.0-rc.18`'s optional `sha2` dependency is
+declared `features = ["oid"]` (its `Cargo.toml:174–178` — an IMPLICIT
+optional-dep feature; no `sha2` key exists in its `[features]` table), and
+Cargo feature unification puts `oid` on pdfcer-core's own
+`default-features = false` `sha2` line. `oid` = `digest/oid` = `const-oid`
+`AssociatedOid` impls for the SHA-2 types, nothing else — no backend change,
+no new `unsafe`, `const-oid 0.10.2` already in the tree (`cargo tree -i
+const-oid --depth 1`: `der`, `digest`, `rsa`). Load-bearing:
+`rsa::pkcs1v15::SigningKey::<D>::new` requires `D: Digest + AssociatedOid`
+for the RFC 8017 §9.2 `DigestInfo` prefix — the `RsaPkcs1Sha256` arm of
+`Pass 10.7` does not compile without it. **Ruling (decision 138):** 039's
+`sha2` acceptance extends to `oid`; `alloc` and `zeroize` stay forbidden
+(zeroize: `FileKey` sits in a plain `Vec<u8>` — zeroizing the hash state
+would be theatre). Guard regex `(alloc|oid|zeroize)` → `(alloc|zeroize)`,
+comment and error message name 138: `1c6f670` *"ci: decision 138 — allow
+sha2 `oid` (rsa/sha2 feature edge) in the decision-039 guard"*, `+16/−10`,
+`.github/workflows/ci.yml` only. Also filed: `796ff8c` (engineer memory,
+`a-dependency-feature-can-widen-a-neighbour`, 2 files +33) and `03f6004`
+*"chore(release): bump workspace version to 0.40.0"* (`Cargo.toml` +
+`Cargo.lock` only, +6/−6, 18:06:50). **Order of operations, honestly:** the
+local sweep was green — `check-ci-parity.py` classes the step *genuinely
+CI-only* — so the widening was invisible locally and caught only after the
+push, which is what the guard exists for; but the release had already been
+BUILT + PACKAGED (18:19) and LOCALLY TAGGED before CI reported. **Tag
+DELETED, never pushed** — `git tag -l 'v0.40*'` is EMPTY at this filing.
+Lesson (engineer memory + `D:/dev/rag/rust/`): a release tag waits for CI
+green on the PUSHED tree; any `Cargo.toml` change gets `cargo tree -p
+pdfcer-core -e features | grep -E 'aes feature|sha2 feature'` before the
+push (at this filing it prints exactly one line, `sha2 feature "oid"`).
+Decision 137's survey DID record the edge (§6 line 364 quotes
+`[dependencies.sha2] … features=["oid"]`); the gap was PROPAGATION to the
+guard and to 137's table, not the survey. **One survivor owed to the
+engineer (outside this role's remit):** `crates/pdfcer-core/Cargo.toml:345–361`
+still says `oid` is off and CI asserts `alloc/oid/zeroize`. `FEATURES.md`:
+NO rows change (no capability moved). Docs-only: `ROADMAP.md`,
+`ARCHITECTURE.md`, `SESSION_LOG.md` staged by name.
+
+**★ RELEASE STATUS — `v0.40.0` is BUMPED (`03f6004`), BUILT + PACKAGED
+(`D:\builds\pdfcer-20260905-1819-03f6004`, `D:\builds\pdfcer-v0.40.0-windows-x64.zip`,
+sha256 `e6472135b4ca…` — both measured on disk by this role), and NOT
+TAGGED, NOT RELEASED, NOT DEPLOYED — HELD for CI green on the amended tree
+(`1c6f670`, not yet pushed at this filing: `git log --oneline
+origin/main..HEAD` = `03f6004`, `5875f23`, `796ff8c`, `1c6f670`). The
+release filing will be the 441st.**
+
+**Ledger.** Filings ceiling `439` → **`440`**; Pass ceiling **`256.1`
+UNCHANGED**; decision ceiling `137` → **`138`**, next free `139`; standing
+rules ceiling **`R241` unchanged**, next free `R242`; open operator
+questions: none minted, next free `(ce)`.
+
 **★★★ 439th filing, 2026-09-05 (evening) — NO PASS SHIPPED. FIVE PASSES
 MINTED FROM TWO SOURCES, AND ONE ASK ANSWERED "ALREADY EXISTS". (1) A
 `pdfcer-gui` inbound PAIR about ONE typo in the operator's own document —
@@ -209,6 +266,17 @@ gates including `check-string-gaps`, `check-clap-help`,
 PASS) and `check-outcome-disclosed`.
 
 ### `Pass 10.7` (`7734261`, 2026-09-05) — **PKCS#12 IMPORT + THE `Signer` SEAM — `Pkcs12Signer::from_der(pfx, password)`: RFC 7292 PFX v3, MAC verified FIRST as the password check, PBES2 AND legacy `pkcs-12PbeIds` decryption, key↔leaf by `localKeyId` then by public-key identity, chain leaf→issuer; the `Signer` trait every later key source implements — and it takes the MESSAGE, not the digest (a recorded deviation with its reason)**
+
+**★ Note 2026-09-05 (440th filing): CI guard caught `sha2/oid` — decision
+138.** This Pass's `rsa` dependency (feature `sha2`) enables `sha2/oid`
+through rsa's own `[dependencies.sha2] features = ["oid"]` declaration; the
+decision-039 CI step that fences `sha2`'s features went red on the batch
+push `8a18e53` (run `33994927156`, the only red step of 10 jobs). The edge
+is required — `pkcs1v15::SigningKey::<D>::new` needs `D: AssociatedOid` for
+the `DigestInfo` prefix (RFC 8017 §9.2), so the `RsaPkcs1Sha256` arm depends
+on it. Accepted by decision 138; guard amended in `1c6f670`; `alloc`/`zeroize`
+still forbidden. The gate did its job; the filing lesson is that the release
+tag must wait for CI on the pushed tree (see the 440th head).
 
 **Files.** `crates/pdfcer-core/src/sign/mod.rs` (538 lines — the trait,
 `SignatureAlgorithm`, `SignError`, `verify_raw_signature`, the `rand_core`
