@@ -190,3 +190,16 @@ not before, because before the fmt the literal is clean.
 **How to apply:** in the shutdown sweep, order matters: `cargo fmt` **then**
 `tools/run-gates.sh`. Running the gate first certifies a tree the formatter is
 about to change.
+
+## ★ 2026-09-05 — EIGHTH, and this one went through the WRITE tool, so the standing fix did not cover it
+
+The patch script was written with the Write tool (no shell layer at all) and
+STILL shipped two gaps. Mechanism: **Python itself** treats a backslash at end
+of line inside a non-raw `"""…"""` string as a line continuation and deletes
+both the backslash and the newline. The Rust `\`-continuation I typed was
+eaten by the Python parser, not by bash.
+
+⇒ "Write a script file" is necessary, not sufficient. In a Python patch
+script, Rust source that contains ANY backslash must sit in a **raw** string
+(`r"""…"""`) or spell the backslash `\`. `check-string-gaps.sh` caught both
+gaps before commit — run it after `cargo fmt`, every time.
