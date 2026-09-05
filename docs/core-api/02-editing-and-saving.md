@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 197 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 202 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 197 public `EditSession` methods
+## 1. Verb index — all 202 public `EditSession` methods
 
-**Count: 197.** Established by brace-matched extraction of the five
+**Count: 202.** Established by brace-matched extraction of the five
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed.
@@ -1477,7 +1477,7 @@ always errors.
 | Why a flatten would refuse, before attempting it | `flatten_refusal(&self) -> Option<EditError>` | 13915 | `None` when a flatten would proceed. |
 | Where a page's widgets are | `widget_rects(&self, page_index: usize) -> Vec<(ObjId, [f64; 4])>` | 17893 | Annotation id and `/Rect`. A **query**, not an edit — useful for hit-testing and for reporting orphans (see `insert_pages`). |
 
-### 1.15 Annotations (16) — detail in part 3
+### 1.15 Annotations (21) — detail in part 3
 
 | I want to… | Call | Line | Returns |
 |---|---|---|---|
@@ -1525,6 +1525,43 @@ always errors.
 | Ask whether annotation deletion is refused document-wide | `annotation_deletion_refusal(&self) -> Option<EditError>` | 11492 | ⚠️ Takes no `annot_id`, so it cannot see the three per-annotation refusals. |
 
 | Restyle an existing markup annotation | `set_markup_style(&mut self, annot_id: ObjId, style: &MarkupStyle) -> Result<MarkupStyleChange, EditError>` | 12372 | Rebuilds the baked `/AP`. |
+| **Reshape a markup annotation — one vertex** | `reshape_annotation(&mut self, annot_id: ObjId, edit: VertexEdit, modified: Option<&str>) -> Result<AnnotationReshape, EditError>` | edit.rs | **`Pass 255.0`, `pdfcer-gui` request 2026-09-05.** Move / insert / remove one vertex of a `/Polygon` (plain or cloudy), `/PolyLine`, or (move only) `/Line`; rebuilds `/Vertices` (or `/L`), `/Rect` AND the `/AP` stream from ONE bake — the same one `add_markup` used, so a reshaped cloud scallops identically to a redrawn one. `modified` stamps `/M` verbatim; `None` leaves it (pdfcer reads no clock). See the box below for the matrix. |
+| Preview a reshape (pure) | `reshape_annotation_preview(&self, annot_id: ObjId, edit: VertexEdit) -> Result<ReshapeForecast, EditError>` | edit.rs | `Pass 255.0`. Same guards, same refusals, same recomputed `/Rect`, nothing written. Grey a handle with this. |
+| Drag one vertex | `move_annotation_vertex(&mut self, annot_id: ObjId, index: usize, dx: f64, dy: f64) -> Result<AnnotationReshape, EditError>` | edit.rs | `Pass 255.0`. `reshape_annotation(id, VertexEdit::Move{..}, None)`. |
+| Insert a vertex AFTER `after` | `insert_annotation_vertex(&mut self, annot_id: ObjId, after: usize, at: Point) -> Result<AnnotationReshape, EditError>` | edit.rs | `Pass 255.0`. New vertex lands at index `after + 1`. Polygon/PolyLine only. |
+| Remove a vertex | `remove_annotation_vertex(&mut self, annot_id: ObjId, index: usize) -> Result<AnnotationReshape, EditError>` | edit.rs | `Pass 255.0`. Floor **3** (Polygon) / **2** (PolyLine) — `ReshapeWouldBreachVertexFloor` below it, never a silent clamp. |
+
+> #### ★ `reshape_annotation` — the per-subtype matrix, and the two things a shell will otherwise get wrong
+>
+> | `/Subtype` | move | insert | remove | floor | read it from |
+> |---|---|---|---|---|---|
+> | `/Polygon` (incl. cloud `/BE`) | ✓ | ✓ | ✓ | 3 | `Annotation::vertices` |
+> | `/PolyLine` | ✓ | ✓ | ✓ | 2 | `Annotation::vertices` |
+> | `/Line` (incl. arrows) | ✓ index 0/1 | refused | refused | — | `Annotation::line` |
+> | `/Ink` | refused | refused | refused | — | `Annotation::ink_list` (read-only) |
+> | `/Square`, `/Circle`, text markup | refused | refused | refused | — | — (`/Rect` / `/QuadPoints`) |
+>
+> Every "refused" is **`EditError::GeometryNotReshapable { edit, reason, .. }`** with a
+> one-sentence `reason` you may show verbatim — never a silent no-op. Ink is refused on
+> purpose: Acrobat has never offered per-point ink editing at any version, so
+> whole-annotation `move_annotation` / `resize_annotation` is the model. Polygon/PolyLine
+> **insert and remove exceed current Acrobat DC** (drag-existing-point only since Acrobat
+> XI) deliberately.
+>
+> **1. Two lock flags, two gates.** `/F` **Locked** (bit 8, value 128) refuses — it covers
+> "position and size". `/F` **LockedContents** (bit 10, value **512**, not 1024) does NOT
+> refuse — it guards the note text. Do not grey a handle on `locked_contents()`.
+>
+> **2. A cloudy Polygon's `/Rect` is the bulged outline.** There is no `/RD` on a Polygon
+> in either ISO edition, so `rect_after` encloses the scallops, not the vertex hull. Draw
+> anchors at `Annotation::vertices` (the pre-bulge polygon), not on the rectangle.
+>
+> **Also disclosed, not done:** if the annotation carries `/Measure`, its stated
+> measurement is NOT recomputed — `AnnotationReshape::measure_not_recomputed` is `true`
+> and the number may read stale. A ce dimension (rule 15) is refused here
+> (`AnnotationIsCeDimension`); its own `move_dimension_vertex` re-measures.
+>
+> Undo kind: `CommandKind::ReshapeAnnotation { edit }`. CLI: `pdfcer annotation-vertex`.
 | **Write a note onto an existing annotation** | `set_markup_note(&mut self, annot_id: ObjId, note: &MarkupNote) -> Result<MarkupNoteChange, EditError>` | 18327 | `Pass 154.0`. `/Contents`, and `/T`/`/M` only if the note carries them — a partial note does **not** clear the author. Reports the text it REPLACED. |
 | **Remove a note** | `clear_markup_note(&mut self, annot_id: ObjId) -> Result<MarkupNoteChange, EditError>` | — | `Pass 154.0`. Removes `/Contents`, `/T`, `/M`. A distinct act from an empty note; the shape stays. |
 | Set the `/QuadPoints` corner order | `set_quad_point_order(&mut self, order: QuadPointOrder)` | 5476 | ⚠️ **Session state, not a per-call argument.** Governs what is AUTHORED from now on; does **not** sweep the document. ~~*"decision 062 fixes markup authoring at one entry point, so an `add_markup_with` would be a second"*~~ — **corrected 2026-08-27**: `add_markup_with` now exists and is **not** a second entry point (see §1.15.1). The ruling stands on its own ground: quad order is a **document-wide convention**, so a per-call argument would let two annotations in one file disagree about what UL/UR/LL/LR means, which is the divergence `Pass 62.x` exists to prevent. |
@@ -4000,7 +4037,7 @@ borrow it (`tests/image_placement.rs:238-247`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs:2300`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**118 variants** at `Pass 237.0`, counted at depth 1 inside `pub enum EditError`.
+**122 variants** at `Pass 255.0`, counted at depth 1 inside `pub enum EditError`.
 No inherent `impl EditError` block and **no `is_*` classification helpers**
 (`NOT FOUND — searched `impl EditError` in `edit.rs`); callers discriminate with
 `matches!`.

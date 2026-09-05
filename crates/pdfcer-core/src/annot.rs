@@ -179,6 +179,22 @@ impl AnnotFlags {
     /// `Locked` as cosmetic would perform deletions it forbids. Hence a
     /// named constant for exactly one of them.
     pub const LOCKED: u32 = 1 << 7;
+    /// Table 165 bit 10, `LockedContents` (PDF 1.7): *"do not allow the
+    /// contents of the annotation to be modified by the user"*. The
+    /// standard's 1-based, low-order-first bit numbering makes bit 10
+    /// the value **512** (`1 << 9`) — not 1024, which a reader counting
+    /// from bit 1 = value 1 and doubling *ten* times arrives at by
+    /// mistake.
+    ///
+    /// **This is the flag reshape does NOT check** (`Pass 255.0`). A
+    /// vertex move, insert or remove changes the annotation's
+    /// *position/size*, which is `Locked`'s domain; `LockedContents`
+    /// guards the *contents* — the `/Contents` / `/RC` text — and its
+    /// own Table 165 row says it *"does not restrict deletion or
+    /// modification of other annotation properties"*. Reading it as a
+    /// blanket lock would refuse a reshape the standard permits; ignoring
+    /// `Locked` would perform one it forbids. Two flags, two gates.
+    pub const LOCKED_CONTENTS: u32 = 1 << 9;
 
     /// Whether the Hidden flag (Table 165 bit 2) is set.
     #[must_use]
@@ -226,6 +242,14 @@ impl AnnotFlags {
     #[must_use]
     pub const fn locked(self) -> bool {
         self.0 & Self::LOCKED != 0
+    }
+
+    /// Whether the LockedContents flag (Table 165 bit 10, value 512) is
+    /// set. See [`Self::LOCKED_CONTENTS`] for why it is a separate gate
+    /// from [`Self::locked`] and why geometry edits do not consult it.
+    #[must_use]
+    pub const fn locked_contents(self) -> bool {
+        self.0 & Self::LOCKED_CONTENTS != 0
     }
 
     /// Whether this annotation is suppressed from **on-screen** display,
@@ -282,11 +306,26 @@ pub enum Appearance {
 /// One page annotation, modelled read-only (ISO 32000-1 §12.5, Table 164).
 ///
 /// Carries exactly what the render path needs to place-and-paint plus what
-/// the diagnostics need to count — no more. It is **not** a faithful echo
-/// of the annotation dictionary (per-subtype geometry keys `/L`,
-/// `/Vertices`, `/InkList`, `/QuadPoints`, `/IC`, `/MK`, icon `/Name` are
-/// deliberately *not* modelled: under R43 they are neither painted nor,
-/// in Pass 6.0, generated from).
+/// the diagnostics need to count, plus — since `Pass 255.0` — the
+/// **point geometry a shell needs to draw reshape anchors from**
+/// ([`Self::vertices`], [`Self::line`], [`Self::ink_list`]). It is still
+/// **not** a faithful echo of the annotation dictionary: `/QuadPoints`,
+/// `/IC`, `/MK` and icon `/Name` are deliberately *not* modelled (under
+/// R43 they are neither painted nor generated from here).
+///
+/// # Why the point geometry joined the model (`Pass 255.0`)
+///
+/// `pdfcer-gui` reported (2026-09-05) that a polygon's own shape was not
+/// a fact `pdfcer-core` exposed about a polygon: `add_markup` could author
+/// a thirty-click cloud whose vertices could never be read back, so a
+/// shell could not draw a single anchor to drag — the capability was not
+/// merely unavailable, it was invisible. Re-parsing `/Vertices` in the
+/// shell was refused (decision 058: a second geometry implementation
+/// drifts), so the engine owns the read. The three fields are read for
+/// **every** subtype that carries the key, on the same reasoning as `/T`:
+/// an absent key is `None`, which is the truth, and a subtype-gated reader
+/// would make the model silently disagree with a file that carries the
+/// key anyway.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Annotation {
     /// The annotation object's identity, if it was reached by an indirect
@@ -304,6 +343,40 @@ pub struct Annotation {
     pub rect: Option<Rect>,
     /// Decoded `/F` flags (§12.5.3, Table 165). Default `0`.
     pub flags: AnnotFlags,
+    /// `/Vertices` — the ordered vertex list of a `/Polygon` or
+    /// `/PolyLine` (ISO 32000-1 §12.5.6.9, Table 178), as `(x, y)` pairs
+    /// in default user space. `None` when the key is absent or is not an
+    /// array; an odd trailing coordinate is dropped rather than invented.
+    ///
+    /// A revision cloud is a `/Polygon` with `/BE << /S /C >>`, so its
+    /// vertices are the **pre-bulge** polygon — the scallops are baked
+    /// into `/AP` from these, and `/Rect` bounds the bulged outline
+    /// (there is no `/RD` on a Polygon to record the difference). A shell
+    /// drawing anchors draws them here, not on the cloud's outline.
+    ///
+    /// Reshaped through [`crate::edit::EditSession::reshape_annotation`]
+    /// and its three vertex wrappers.
+    pub vertices: Option<Vec<(f64, f64)>>,
+    /// `/L` — the two endpoints of a `/Line` (§12.5.6.7, Table 175),
+    /// `[start, end]`. `None` when absent or not exactly four numbers.
+    ///
+    /// A ce dimension (rule 15) is also a `/Line` and carries `/L`, so
+    /// this is populated for it too — but its geometry is edited through
+    /// the dimension verbs, and the annotation reshape verbs refuse it by
+    /// name.
+    pub line: Option<[(f64, f64); 2]>,
+    /// `/InkList` — the strokes of an `/Ink` annotation (§12.5.6.13,
+    /// Table 182), one inner vector per stroke. `None` when absent or not
+    /// an array; a stroke that is not itself an array of numbers reads as
+    /// empty rather than being skipped, so stroke indices stay aligned
+    /// with the file's.
+    ///
+    /// **Read-only geometry by design.** pdfcer refuses per-point ink
+    /// editing by name (Acrobat has never offered it at any version —
+    /// whole-stroke move/resize/delete only); the field exists so a shell
+    /// can *show* the strokes, and so `move_annotation` /
+    /// `resize_annotation` have something to report about.
+    pub ink_list: Option<Vec<Vec<(f64, f64)>>>,
     /// `/CA` — the annotation's **constant opacity** (§12.5.2, Table 164),
     /// `0.0`–`1.0`. `None` when the key is absent, which §12.5.2 defines as
     /// fully opaque.
@@ -929,6 +1002,34 @@ fn model_annotation<G: ObjectGraph + ?Sized>(
 
     let appearance = select_normal_appearance(graph, dict, missing_as);
 
+    // `Pass 255.0` point geometry. Each is read whenever its key is present
+    // and array-shaped, regardless of `/Subtype` — see the struct docs.
+    // `/L` is the one with a fixed arity: four numbers or nothing. A
+    // six-number `/L` is malformed and reads as `None` rather than as
+    // "the first two points", which would be the model repairing the file.
+    let vertices = dict
+        .get(b"Vertices")
+        .map(|o| graph.resolve(o))
+        .filter(|o| o.as_array().is_some())
+        .map(|o| crate::annot_author::pairs_of(o, graph));
+    let line = dict.get(b"L").and_then(|o| {
+        let o = graph.resolve(o);
+        let arity_ok = o.as_array().is_some_and(|items| items.len() == 4);
+        match (arity_ok, crate::annot_author::pairs_of(o, graph).as_slice()) {
+            (true, &[a, b]) => Some([a, b]),
+            _ => None,
+        }
+    });
+    let ink_list = dict.get(b"InkList").and_then(|o| {
+        let strokes = graph.resolve(o).as_array()?;
+        Some(
+            strokes
+                .iter()
+                .map(|stroke| crate::annot_author::pairs_of(graph.resolve(stroke), graph))
+                .collect::<Vec<_>>(),
+        )
+    });
+
     // §8.11.3.3 annotation /OC entry — an OCG or OCMD indirect reference. Only
     // the reference is modelled here; the render path resolves its default
     // visibility against /OCProperties /D (Pass 12.M2).
@@ -1004,6 +1105,9 @@ fn model_annotation<G: ObjectGraph + ?Sized>(
         subtype,
         rect,
         flags,
+        vertices,
+        line,
+        ink_list,
         constant_alpha,
         appearance,
         is_popup,

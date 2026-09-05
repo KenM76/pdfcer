@@ -2362,7 +2362,15 @@ for page in &pages_in(&doc)? {
 `flags: AnnotFlags`, `appearance: Appearance`, `is_popup`, `contents`,
 `title` (conventionally the author, Table 170), `mod_date` (**raw and
 unparsed** — §12.5.2 requires accepting any format), `oc`, `popup`,
-`in_reply_to`, `reply_type`.
+`in_reply_to`, `reply_type`, and — **`Pass 255.0`** — the point geometry a
+shell draws reshape anchors from: `vertices: Option<Vec<(f64, f64)>>`
+(`/Vertices`, Polygon/PolyLine; for a cloud these are the PRE-bulge
+vertices), `line: Option<[(f64, f64); 2]>` (`/L`, Line — populated for a ce
+dimension too), `ink_list: Option<Vec<Vec<(f64, f64)>>>` (`/InkList`, one
+inner vec per stroke; read-only geometry — per-point ink editing is refused
+by name). Each is read whenever its key is present regardless of subtype;
+absent → `None`, never an empty list. `AnnotFlags::locked_contents()` (bit 10,
+value **512**) joined `locked()` (bit 8, 128) — two gates, see part 2 §1.15.
 Methods: `is_widget()` `:450`, `is_group_subordinate()` `:468`,
 `effective_reply_type()` `:485`, `subtype_label()` `:495`.
 `AnnotFlags(pub u32)` `:132`, `Appearance` `:253`, `ReplyType` `:432`.

@@ -307,6 +307,19 @@ pub enum CommandKind {
     /// different: undoing an add removes the annotation, undoing a style
     /// change puts the previous style back on an annotation that stays.
     SetMarkupStyle,
+    /// One vertex of an existing markup annotation was moved, inserted or
+    /// removed, and its appearance re-baked from the new geometry
+    /// (`Pass 255.0`, `pdfcer-gui` request 2026-09-05).
+    ///
+    /// Distinct from [`Self::SetMarkupStyle`] for the Undo label's sake:
+    /// "Undo reshape" and "Undo restyle" are different promises to the
+    /// operator even though both rewrite the same two objects. Distinct
+    /// from [`Self::EditDimensionVertex`] because that one re-measures a
+    /// ce dimension and this one never touches a `/Measure`.
+    ReshapeAnnotation {
+        /// Which of the three vertex operations it was.
+        edit: VertexEditKind,
+    },
     /// Several pages were given the same `/MediaBox` in one operation.
     ///
     /// Carries only a count, for the reason [`Self::ReorderPages`] does:
@@ -3579,7 +3592,22 @@ impl VertexEdit {
             Self::Remove { .. } => VertexEditKind::Removed,
         }
     }
+}
 
+impl VertexEditKind {
+    /// The operation as the lowercase verb a message or a CLI token uses
+    /// — `"move"`, `"insert"`, `"remove"`. Stable; the CLI prints it.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Moved => "move",      // ui-text-exempt: stable output token
+            Self::Inserted => "insert", // ui-text-exempt: stable output token
+            Self::Removed => "remove",  // ui-text-exempt: stable output token
+        }
+    }
+}
+
+impl VertexEdit {
     /// The vertex index this edit names.
     ///
     /// For [`Self::Insert`] that is the `after` index — the first vertex of
@@ -3968,6 +3996,164 @@ pub enum GroupDeletion {
 /// by `appearance_was_pdfces`, which the caller computes by rebuilding the
 /// appearance from the annotation's UNMODIFIED properties and comparing
 /// bytes. See that variant for why a blunt always-on flag was replaced.
+/// The pure output of [`EditSession::reshape_plan`]: everything a reshape
+/// needs to write, computed without writing.
+struct ReshapePlan {
+    /// The annotation dictionary as the session currently has it.
+    current: Dict,
+    /// The geometry + style read back from `current`, untouched.
+    original: MarkupSpec,
+    /// The bake of the RESHAPED spec — dictionary keys, stream, `/Rect`.
+    authored: annot_author::AuthoredAppearance,
+    /// What to tell the caller.
+    forecast: ReshapeForecast,
+}
+
+/// The two object writes of a markup regeneration, staged but not yet
+/// committed. See [`EditSession::regenerate_markup_appearance`].
+struct RegeneratedMarkup {
+    /// The replacement annotation dictionary. The caller may still add
+    /// keys the bake does not own (`/CA`, `/M`) before committing.
+    updated: Dict,
+    /// The `/AP` `/N` stream's object id — existing (in place) or new.
+    ap_id: ObjId,
+    /// The stream object itself, its bytes already staged.
+    ap_stream: Object,
+    /// How `ap_id` relates to what the file had.
+    appearance: AppearanceWrite,
+    /// The recomputed `/Rect`.
+    rect_after: page_tree::Rect,
+}
+
+/// Apply one vertex edit to a [`MarkupSpec`], enforcing the per-subtype
+/// matrix documented on [`EditSession::reshape_annotation`].
+///
+/// Pure: takes the spec by reference, returns a new one or a named
+/// refusal. The matrix lives HERE and nowhere else — the verb, the
+/// preview and the CLI all reach it through this function, which is what
+/// makes "refused by name" a single answer rather than three.
+///
+/// Note there is no wildcard arm. `MarkupSpec` is `#[non_exhaustive]`
+/// for consumers, but inside this crate the match is exhaustive on
+/// purpose: a new variant must decide its row of the matrix here, at
+/// compile time, rather than silently inheriting a refusal.
+fn reshape_spec(
+    spec: &MarkupSpec,
+    edit: VertexEdit,
+    id: ObjId,
+    subtype: &str,
+) -> Result<MarkupSpec, EditError> {
+    let refuse = |reason: &'static str| EditError::GeometryNotReshapable {
+        id,
+        subtype: subtype.to_owned(),
+        edit: edit.kind(),
+        reason,
+    };
+    let out_of_range = |index: usize, count: usize| EditError::AnnotationVertexIndexOutOfRange {
+        id,
+        subtype: subtype.to_owned(),
+        index,
+        count,
+    };
+    let placeable = |(x, y): (f64, f64)| -> Result<(f64, f64), EditError> {
+        if x.is_finite() && y.is_finite() {
+            Ok((x, y))
+        } else {
+            Err(EditError::AnnotationVertexNotPlaceable { id, x, y })
+        }
+    };
+
+    let mut out = spec.clone();
+    let (points, minimum): (&mut Vec<(f64, f64)>, usize) = match &mut out {
+        MarkupSpec::Polygon { vertices, .. } | MarkupSpec::Cloud { vertices, .. } => (vertices, 3),
+        MarkupSpec::PolyLine { vertices, .. } => (vertices, 2),
+        MarkupSpec::Line { start, end, .. } => {
+            return match edit {
+                VertexEdit::Move { index, dx, dy } => {
+                    let target = match index {
+                        0 => start,
+                        1 => end,
+                        _ => return Err(out_of_range(index, 2)),
+                    };
+                    *target = placeable((target.0 + dx, target.1 + dy))?;
+                    Ok(out)
+                }
+                VertexEdit::Insert { .. } | VertexEdit::Remove { .. } => Err(refuse(
+                    "a /Line has exactly two endpoints (ISO 32000-1 12.5.6.7 /L); a three-point \
+                     open path is a /PolyLine, not a Line with an extra vertex — author a \
+                     PolyLine instead. Moving either endpoint is supported",
+                )),
+            };
+        }
+        MarkupSpec::Ink { .. } => {
+            return Err(refuse(
+                "per-point ink editing is refused by name: an /InkList stroke is a recorded pen \
+                 trace, and Acrobat has never offered per-point ink editing at any version — \
+                 move, resize or delete the whole annotation instead",
+            ));
+        }
+        MarkupSpec::Square { .. } | MarkupSpec::Circle { .. } => {
+            return Err(refuse(
+                "a /Square or /Circle is defined by its /Rect, not by vertices — use \
+                 resize_annotation",
+            ));
+        }
+        MarkupSpec::TextMarkup { .. } => {
+            return Err(refuse(
+                "/QuadPoints are text-anchored quadrilaterals that follow the text they mark, \
+                 not free vertices",
+            ));
+        }
+    };
+
+    let count = points.len();
+    match edit {
+        VertexEdit::Move { index, dx, dy } => {
+            let Some(p) = points.get_mut(index) else {
+                return Err(out_of_range(index, count));
+            };
+            *p = placeable((p.0 + dx, p.1 + dy))?;
+        }
+        VertexEdit::Insert { after, at } => {
+            if after >= count {
+                return Err(out_of_range(after, count));
+            }
+            let at = placeable((at.x, at.y))?;
+            points.insert(after + 1, at);
+        }
+        VertexEdit::Remove { index } => {
+            if index >= count {
+                return Err(out_of_range(index, count));
+            }
+            if count - 1 < minimum {
+                return Err(EditError::ReshapeWouldBreachVertexFloor {
+                    id,
+                    subtype: subtype.to_owned(),
+                    remaining: count - 1,
+                    minimum,
+                });
+            }
+            points.remove(index);
+        }
+    }
+    Ok(out)
+}
+
+/// How many vertices a spec has, as [`ReshapeForecast::vertices_before`]
+/// counts them: `/Vertices` length, 2 for a `/Line`, every point of every
+/// stroke for `/Ink`, and 0 for the rectangle- and quad-based shapes,
+/// which have none.
+fn spec_vertex_count(spec: &MarkupSpec) -> usize {
+    match spec {
+        MarkupSpec::Polygon { vertices, .. }
+        | MarkupSpec::Cloud { vertices, .. }
+        | MarkupSpec::PolyLine { vertices, .. } => vertices.len(),
+        MarkupSpec::Line { .. } => 2,
+        MarkupSpec::Ink { strokes, .. } => strokes.iter().map(Vec::len).sum(),
+        MarkupSpec::Square { .. } | MarkupSpec::Circle { .. } | MarkupSpec::TextMarkup { .. } => 0,
+    }
+}
+
 fn dropped_properties<G: ObjectGraph + ?Sized>(
     graph: &G,
     annot: &Dict,
@@ -4594,6 +4780,97 @@ pub struct MarkupStyleChange {
     /// Properties the regenerated appearance does not reproduce, in the
     /// order they were detected. Empty is the common case.
     pub dropped: Vec<DroppedProperty>,
+}
+
+/// What a markup reshape **would** do — the pure half of
+/// [`AnnotationReshape`], returned by
+/// [`EditSession::reshape_annotation_preview`] without writing anything
+/// (`Pass 255.0`).
+///
+/// Every refusal the real verb can make, the preview makes first, through
+/// the same code — so a shell can grey a handle, and the CLI can
+/// `--dry-run`, and both are answering the question the real invocation
+/// would answer. What it cannot know is how the appearance stream will be
+/// *written* (in place, copied, created), because that depends on
+/// allocating an object number, which a `&self` query does not do; that
+/// is why [`AnnotationReshape`] carries the extra fields rather than this
+/// struct carrying `Option`s.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct ReshapeForecast {
+    /// The annotation — unchanged in identity, as with every in-place
+    /// markup verb.
+    pub annot_id: ObjId,
+    /// Its `/Subtype`, lossily decoded (`Polygon`, `PolyLine`, `Line`).
+    pub subtype: String,
+    /// Which operation this is.
+    pub edit: VertexEditKind,
+    /// Vertex count before. A `/Line` reports 2.
+    pub vertices_before: usize,
+    /// Vertex count after: `before` for a move, `+1`/`-1` otherwise.
+    pub vertices_after: usize,
+    /// The `/Rect` before, §7.9.5-normalised, as the file had it.
+    pub rect_before: Option<page_tree::Rect>,
+    /// The `/Rect` after — recomputed from the new geometry **by the same
+    /// bake that authored it**. For a revision cloud this is the full
+    /// bulged outline, not the vertex hull: a cloudy `/Polygon` has no
+    /// `/RD` in either ISO edition, so the outline is the only rectangle
+    /// there is to record.
+    pub rect_after: page_tree::Rect,
+    /// `true` when the annotation carries a `/Measure` dictionary
+    /// (§12.9) whose stated measurement pdfcer did **not** recompute.
+    ///
+    /// # Disclosed rather than done, and why
+    ///
+    /// A `/Line` or `/PolyLine` authored as a measurement by another tool
+    /// carries its value as `/Contents` text and, usually, as a caption
+    /// baked into `/AP`. Moving an endpoint changes the true distance;
+    /// Acrobat recomputes the number and — a sourced user complaint —
+    /// silently clobbers any manual override in doing so. pdfcer's markup
+    /// bake draws no caption and reads no `/Measure`, so it neither
+    /// recomputes nor clobbers: the geometry moves, `/Measure` and
+    /// `/Contents` survive verbatim, and **this flag says the text may now
+    /// be stale**. A ce dimension (rule 15) is not affected — it is
+    /// refused here and re-measured by its own verbs.
+    pub measure_not_recomputed: bool,
+}
+
+/// What [`EditSession::reshape_annotation`] did to one annotation
+/// (`Pass 255.0`). The [`ReshapeForecast`] fields plus how the write
+/// went.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct AnnotationReshape {
+    /// The annotation's object id — unchanged.
+    pub annot_id: ObjId,
+    /// Its `/Subtype`.
+    pub subtype: String,
+    /// Which operation this was.
+    pub edit: VertexEditKind,
+    /// Vertex count before.
+    pub vertices_before: usize,
+    /// Vertex count after.
+    pub vertices_after: usize,
+    /// The `/Rect` before.
+    pub rect_before: Option<page_tree::Rect>,
+    /// The `/Rect` after, from the re-bake. See
+    /// [`ReshapeForecast::rect_after`] for the cloud note.
+    pub rect_after: page_tree::Rect,
+    /// How the appearance stream was written — the same three cases as a
+    /// restyle.
+    pub appearance: AppearanceWrite,
+    /// Properties the regenerated appearance does not reproduce, as
+    /// [`EditSession::set_markup_style`] reports them. A foreign
+    /// appearance is always named here, because pdfcer cannot show that
+    /// re-baking it was lossless.
+    pub dropped: Vec<DroppedProperty>,
+    /// See [`ReshapeForecast::measure_not_recomputed`].
+    pub measure_not_recomputed: bool,
+    /// Whether `/M` was rewritten. `true` only when the caller supplied a
+    /// date: pdfcer reads no clock (determinism — the same edit on the
+    /// same file produces the same bytes), so the three convenience
+    /// wrappers leave `/M` exactly as it was and say so here.
+    pub mod_date_written: bool,
 }
 
 /// What to encrypt with, for [`EditSession::set_encryption`] /
@@ -6396,6 +6673,97 @@ pub enum EditError {
         /// Its `/Subtype`, so the message names something the operator can
         /// find on the page.
         subtype: String,
+    },
+    /// A reshape verb was given a vertex index the annotation does not
+    /// have (`Pass 255.0`).
+    ///
+    /// Indices are 0-based positions in `/Vertices` (or 0/1 for a
+    /// `/Line`'s `/L`). For an insert, the index is the vertex the new one
+    /// goes *after*, so it too must name an existing vertex — there is no
+    /// "insert before the first" spelling; rotate the polygon's start
+    /// instead, which is what every other tool does as well.
+    #[error(
+        "annotation {id} ({subtype}) has {count} vertices, so vertex index {index} names nothing"
+    )]
+    AnnotationVertexIndexOutOfRange {
+        /// The annotation.
+        id: ObjId,
+        /// Its `/Subtype`.
+        subtype: String,
+        /// The index that was asked for.
+        index: usize,
+        /// How many vertices the annotation actually has.
+        count: usize,
+    },
+    /// Removing the vertex would leave fewer than the shape's minimum
+    /// (`Pass 255.0`): a `/Polygon` needs **3**, a `/PolyLine` **2**.
+    ///
+    /// **pdfcer's own floor, disclosed as such.** Acrobat's behaviour at
+    /// the floor is undocumented — its native GUI has no delete-vertex
+    /// gesture at all (removed after Acrobat XI), so the case cannot arise
+    /// there, and its scripting path's behaviour on a too-short `vertices`
+    /// array is unsourced. So pdfcer picks the geometric minimum (an area
+    /// needs three points; a path needs two) and refuses by name rather
+    /// than silently clamping or turning the shape into something else.
+    /// Deleting the whole annotation is the honest way to go below it.
+    #[error(
+        "removing that vertex would leave {remaining}, and a {subtype} needs at least {minimum}; delete the annotation instead if that is the intent"
+    )]
+    ReshapeWouldBreachVertexFloor {
+        /// The annotation.
+        id: ObjId,
+        /// Its `/Subtype`.
+        subtype: String,
+        /// How many vertices the removal would leave.
+        remaining: usize,
+        /// The floor for this subtype.
+        minimum: usize,
+    },
+    /// The annotation's geometry is not something a vertex edit can
+    /// apply to, for a reason that is stated (`Pass 255.0`).
+    ///
+    /// This is the **named refusal** `pdfcer-gui` asked for instead of
+    /// silence — *"a shell that must guess which subtypes have editable
+    /// geometry will guess wrong on the next one you add."* The cases:
+    ///
+    /// - **`/Ink`, any edit.** An `/InkList` stroke is a recorded pen
+    ///   trace, and Acrobat has never offered per-point ink editing at any
+    ///   version through any interface short of scripting-array
+    ///   replacement — whole-annotation move/resize/delete only. pdfcer
+    ///   matches that model on purpose and says so. The strokes are still
+    ///   *readable* (`Annotation::ink_list`), so a shell can show them.
+    /// - **`/Line`, insert or remove.** A Line has exactly two endpoints
+    ///   (§12.5.6.7 `/L`); a three-point open path *is* a `/PolyLine`, not
+    ///   a Line with an extra vertex. Moving either endpoint is supported.
+    /// - **`/Square` / `/Circle`.** Defined by `/Rect`, not by vertices —
+    ///   [`EditSession::resize_annotation`] is the verb.
+    /// - **Text markup.** `/QuadPoints` are text-anchored quadrilaterals
+    ///   that follow the text they mark; they are not free vertices.
+    #[error("annotation {id} ({subtype}) cannot have a vertex {}: {reason}", .edit.as_str())]
+    GeometryNotReshapable {
+        /// The annotation.
+        id: ObjId,
+        /// Its `/Subtype`.
+        subtype: String,
+        /// Which operation was refused. A `/Line` refuses two of the three;
+        /// the others refuse all three.
+        edit: VertexEditKind,
+        /// Why, in one sentence the shell may show verbatim.
+        reason: &'static str,
+    },
+    /// A reshape would put a vertex at a non-finite coordinate
+    /// (`Pass 255.0`) — a NaN or infinite `dx`/`dy` on a move, or an
+    /// unusable `at` on an insert. Written into `/Vertices` it would make
+    /// the annotation unparseable by the next reader, so it is refused
+    /// before anything is staged.
+    #[error("({x}, {y}) is not a usable page coordinate for a vertex of annotation {id}")]
+    AnnotationVertexNotPlaceable {
+        /// The annotation.
+        id: ObjId,
+        /// The offending x.
+        x: f64,
+        /// The offending y.
+        y: f64,
     },
     /// [`EditSession::delete_annotation`] was given a `/TrapNet`
     /// (§12.5.6.21).
@@ -25486,9 +25854,324 @@ impl EditSession {
 
         let spec = apply_markup_style(original, style);
         let authored = annot_author::build_appearance_with(&spec, self.quad_point_order);
+        let mut regen = self.regenerate_markup_appearance(annot_id, &current, authored)?;
 
+        // /CA is pdfcer's to set here and is NOT part of `build_appearance`
+        // (it composites the annotation onto the page rather than
+        // affecting what the appearance draws), so it is applied to the
+        // dictionary directly.
+        match style.opacity {
+            Some(StyleEdit::Set(alpha)) => {
+                regen
+                    .updated
+                    .insert(Name::from(b"CA"), Object::Real(alpha.clamp(0.0, 1.0)));
+            }
+            Some(StyleEdit::Clear) => {
+                regen.updated.remove(b"CA");
+            }
+            None => {}
+        }
+
+        let change = MarkupStyleChange {
+            annot_id,
+            rect_before: target.rect,
+            rect_after: regen.rect_after,
+            appearance: regen.appearance,
+            dropped: dropped_properties(&self.graph(), &current, appearance_was_pdfces),
+        };
+
+        self.commit_regenerated_markup(annot_id, regen, CommandKind::SetMarkupStyle);
+        Ok(change)
+    }
+
+    /// Move, insert or remove **one vertex** of an existing markup
+    /// annotation, re-baking its appearance from the new geometry
+    /// (`Pass 255.0`, `pdfcer-gui` request 2026-09-05: *"I also can't edit
+    /// or delete nodes of a markup shape once it is drawn"*).
+    ///
+    /// # Which subtypes, which operations — the matrix, and where it sits
+    /// against Acrobat
+    ///
+    /// | `/Subtype` | move | insert | remove | floor |
+    /// |---|---|---|---|---|
+    /// | `/Polygon` (plain or cloudy `/BE`) | yes | yes | yes | 3 |
+    /// | `/PolyLine` | yes | yes | yes | 2 |
+    /// | `/Line` (incl. arrows) | yes (index 0/1) | refused | refused | — |
+    /// | `/Ink` | refused | refused | refused | — |
+    /// | `/Square`, `/Circle`, text markup | refused | refused | refused | — |
+    ///
+    /// **Polygon/PolyLine insert and remove EXCEED current Acrobat DC by
+    /// design.** Acrobat's shipped GUI drags an existing vertex and does
+    /// nothing else; add-vertex/delete-vertex existed in Acrobat 9/XI and
+    /// was removed by the DC era, while Acrobat's own scripting layer still
+    /// exposes `vertices` as an unrestricted read/write array. pdfcer ships
+    /// all three, mirroring its ce-dimension vertex verbs, because parity
+    /// is a floor (project memory) and because the operator's complaint was
+    /// literally about deleting nodes. Every refusal in the table is
+    /// **named** — [`EditError::GeometryNotReshapable`] carries a reason a
+    /// shell may show verbatim — because `pdfcer-gui` asked for a refusal
+    /// by name over an inferred one.
+    ///
+    /// # What travels with the reshape
+    ///
+    /// The `/Vertices` (or `/L`) array, the `/Rect`, and the `/AP` `/N`
+    /// stream — all three from **one** bake,
+    /// [`annot_author::build_appearance_with`], the same function
+    /// [`EditSession::add_markup`] authored the shape with. That is not
+    /// tidiness: a revision cloud's scallops are computed from its vertices
+    /// by an `/I`-to-geometry mapping the standard never specifies (`Pass
+    /// 82.0` invented it), so a second, independent cloud function would
+    /// make edit-in-place and delete-and-redraw disagree about the same
+    /// shape. Re-using the authoring bake is what keeps them identical.
+    /// Consequently a cloudy `/Polygon`'s new `/Rect` is the **full bulged
+    /// outline** — it has no `/RD` to record a pre-bulge rectangle (that
+    /// key is enumerated only for FreeText, Square/Circle and Caret in
+    /// both ISO editions), so the outline is the only rectangle there is.
+    ///
+    /// `/M` is rewritten only when `modified` is `Some`, verbatim (§12.5.2
+    /// admits any string). pdfcer reads no clock; the shell that knows the
+    /// time supplies it, and [`AnnotationReshape::mod_date_written`] says
+    /// whether it did.
+    ///
+    /// Everything else in the dictionary survives: `/NM`, `/T`,
+    /// `/Contents`, `/RC`, `/IRT`/`/RT`, `/Popup`, `/CreationDate`, `/Subj`,
+    /// `/F`, `/P`, `/OC`, `/StructParent`, `/BE`, and `/Measure` — the last
+    /// **deliberately not recomputed**; see
+    /// [`ReshapeForecast::measure_not_recomputed`].
+    ///
+    /// # Two lock gates, not one
+    ///
+    /// `/F` **Locked** (Table 165 bit 8, value 128) refuses the reshape:
+    /// its text forbids modifying *"position and size"*, which a vertex
+    /// edit is. `/F` **LockedContents** (bit 10, value 512) does **not**:
+    /// it guards the comment text, and its own row says it does not
+    /// restrict other property changes. Treating either as the other is a
+    /// spec-contradicting bug in one direction or the other, so they are
+    /// two separate checks and a test pins each.
+    ///
+    /// # Undo
+    ///
+    /// One command, [`CommandKind::ReshapeAnnotation`], two objects (the
+    /// dictionary and its `/N` stream). Undo puts the previous vertex list,
+    /// rectangle and appearance back on an annotation that never lost its
+    /// identity.
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::AnnotationNotFound`] — no page's `/Annots` lists it.
+    /// - [`EditError::AnnotationIsCeDimension`] — a ce dimension; use
+    ///   [`EditSession::move_dimension_vertex`] and its siblings, which
+    ///   re-measure.
+    /// - [`EditError::AnnotationLocked`] — Table 165 bit 8.
+    /// - [`EditError::GeometryNotReshapable`] — the matrix's refusals.
+    /// - [`EditError::AnnotationVertexIndexOutOfRange`] — `index` (or
+    ///   `after`) names no vertex.
+    /// - [`EditError::ReshapeWouldBreachVertexFloor`] — a remove below 3
+    ///   (Polygon) or 2 (PolyLine).
+    /// - [`EditError::AnnotationVertexNotPlaceable`] — a non-finite result.
+    /// - [`EditError::MarkupSpec`] — an unmodelled subtype or unreadable
+    ///   geometry (pdfcer will not guess it).
+    /// - [`EditError::AppearanceHasStates`], [`EditError::DocumentEncrypted`],
+    ///   [`EditError::CertificationForbidsChange`],
+    ///   [`EditError::ObjectCreationWouldExposeHiddenObjects`],
+    ///   [`EditError::ObjectNumbersExhausted`], [`EditError::NotADictionary`],
+    ///   [`EditError::PageTree`] — as for [`EditSession::set_markup_style`].
+    pub fn reshape_annotation(
+        &mut self,
+        annot_id: ObjId,
+        edit: VertexEdit,
+        modified: Option<&str>,
+    ) -> Result<AnnotationReshape, EditError> {
+        let plan = self.reshape_plan(annot_id, edit)?;
+        // Was the appearance on disk one pdfcer would have drawn from the
+        // UNMODIFIED geometry? Measured before the reshape is applied, as
+        // `set_markup_style` does, and for the same reason.
+        let appearance_was_pdfces = self.appearance_matches(
+            &plan.current,
+            &annot_author::build_appearance_with(&plan.original, self.quad_point_order).ap_content,
+        );
+        let mut regen =
+            self.regenerate_markup_appearance(annot_id, &plan.current, plan.authored)?;
+        if let Some(m) = modified {
+            regen
+                .updated
+                .insert(Name::from(b"M"), Object::String(m.as_bytes().to_vec()));
+        }
+        let f = plan.forecast;
+        let report = AnnotationReshape {
+            annot_id,
+            subtype: f.subtype,
+            edit: f.edit,
+            vertices_before: f.vertices_before,
+            vertices_after: f.vertices_after,
+            rect_before: f.rect_before,
+            rect_after: regen.rect_after,
+            appearance: regen.appearance,
+            dropped: dropped_properties(&self.graph(), &plan.current, appearance_was_pdfces),
+            measure_not_recomputed: f.measure_not_recomputed,
+            mod_date_written: modified.is_some(),
+        };
+        self.commit_regenerated_markup(
+            annot_id,
+            regen,
+            CommandKind::ReshapeAnnotation { edit: f.edit },
+        );
+        Ok(report)
+    }
+
+    /// What [`EditSession::reshape_annotation`] would do, without doing
+    /// it — every guard and every refusal, through the same code, and
+    /// nothing staged (`Pass 255.0`).
+    ///
+    /// The preflight a shell uses to decide whether a handle is draggable
+    /// or a "delete vertex" item is enabled, and what `pdfcer
+    /// annotation-vertex --dry-run` prints. See [`ReshapeForecast`] for
+    /// what it can and cannot know.
+    ///
+    /// # Errors
+    ///
+    /// Exactly those of [`EditSession::reshape_annotation`] except the
+    /// object-allocation ones, which only a write can hit.
+    pub fn reshape_annotation_preview(
+        &self,
+        annot_id: ObjId,
+        edit: VertexEdit,
+    ) -> Result<ReshapeForecast, EditError> {
+        self.reshape_plan(annot_id, edit).map(|p| p.forecast)
+    }
+
+    /// Move vertex `index` of a markup annotation by `(dx, dy)` — the
+    /// drag-a-handle gesture (`Pass 255.0`). `/M` is left as it was;
+    /// use [`EditSession::reshape_annotation`] to stamp a date.
+    ///
+    /// Works on a `/Polygon`, `/PolyLine` or `/Line` (index 0 or 1). See
+    /// [`EditSession::reshape_annotation`] for the matrix and the errors.
+    pub fn move_annotation_vertex(
+        &mut self,
+        annot_id: ObjId,
+        index: usize,
+        dx: f64,
+        dy: f64,
+    ) -> Result<AnnotationReshape, EditError> {
+        self.reshape_annotation(annot_id, VertexEdit::Move { index, dx, dy }, None)
+    }
+
+    /// Insert a new vertex at `at`, immediately **after** vertex `after`,
+    /// on a `/Polygon` or `/PolyLine` (`Pass 255.0`). The new vertex's
+    /// index is `after + 1`. `/M` is left as it was.
+    ///
+    /// Refused by name on a `/Line` (two endpoints by definition) and on
+    /// `/Ink`. See [`EditSession::reshape_annotation`].
+    pub fn insert_annotation_vertex(
+        &mut self,
+        annot_id: ObjId,
+        after: usize,
+        at: Point,
+    ) -> Result<AnnotationReshape, EditError> {
+        self.reshape_annotation(annot_id, VertexEdit::Insert { after, at }, None)
+    }
+
+    /// Remove vertex `index` from a `/Polygon` (floor 3) or `/PolyLine`
+    /// (floor 2) (`Pass 255.0`). `/M` is left as it was.
+    ///
+    /// Refused by name at the floor, on a `/Line`, and on `/Ink`. See
+    /// [`EditSession::reshape_annotation`].
+    pub fn remove_annotation_vertex(
+        &mut self,
+        annot_id: ObjId,
+        index: usize,
+    ) -> Result<AnnotationReshape, EditError> {
+        self.reshape_annotation(annot_id, VertexEdit::Remove { index }, None)
+    }
+
+    /// The pure half of a reshape: every gate, the geometry edit, and the
+    /// bake — nothing staged, nothing allocated.
+    ///
+    /// Shared by [`EditSession::reshape_annotation`] and
+    /// [`EditSession::reshape_annotation_preview`] so the preview cannot
+    /// drift from the verb: they are the same function up to the write.
+    fn reshape_plan(&self, annot_id: ObjId, edit: VertexEdit) -> Result<ReshapePlan, EditError> {
+        // Document gates before annotation gates — same order and same
+        // reasoning as `set_markup_style`.
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+        // §12.8.2.2 Table 254 `P = 3` names annotation "modification".
+        self.check_certification_for_annotation()?;
+
+        let (target, _all) = self.locate_annotation(annot_id)?;
+        let subtype = String::from_utf8_lossy(&target.subtype).into_owned();
+
+        let Some(Object::Dict(current)) = self.value(annot_id) else {
+            return Err(EditError::NotADictionary {
+                id: annot_id,
+                key: "Subtype",
+            });
+        };
+        let current = current.clone();
+
+        // A ce dimension is a /Line and would otherwise be reshaped as a
+        // bare line, its label and witness lines gone and its value stale.
+        // Its own verbs re-measure; this one sends the caller there.
+        if self.is_ce_dimension(annot_id, &current) {
+            return Err(EditError::AnnotationIsCeDimension { id: annot_id });
+        }
+
+        // Gate ONE of two: Table 165 bit 8, Locked — "position and size".
+        // Gate two, LockedContents, is deliberately NOT consulted: it
+        // guards the comment text, not the geometry. `AnnotFlags::
+        // LOCKED_CONTENTS` carries the reasoning; a test pins both.
+        if target.flags.locked() {
+            return Err(EditError::AnnotationLocked {
+                id: annot_id,
+                subtype: subtype.clone(),
+            });
+        }
+
+        let original = annot_author::spec_from_dict(&self.graph(), &current)?;
+        let reshaped = reshape_spec(&original, edit, annot_id, &subtype)?;
+        let authored = annot_author::build_appearance_with(&reshaped, self.quad_point_order);
+
+        let forecast = ReshapeForecast {
+            annot_id,
+            subtype,
+            edit: edit.kind(),
+            vertices_before: spec_vertex_count(&original),
+            vertices_after: spec_vertex_count(&reshaped),
+            rect_before: target.rect,
+            rect_after: authored.rect,
+            measure_not_recomputed: current.contains_key(b"Measure"),
+        };
+        Ok(ReshapePlan {
+            current,
+            original,
+            authored,
+            forecast,
+        })
+    }
+
+    /// Build the two object writes a markup regeneration consists of — the
+    /// annotation dictionary with its geometry keys replaced, and the
+    /// `/AP` `/N` stream — without committing them.
+    ///
+    /// Factored out of [`EditSession::set_markup_style`] in `Pass 255.0`
+    /// so that restyle and reshape are **one** regeneration route: same
+    /// slot choice (reuse / copy-on-write / create), same key ownership,
+    /// same `/Size` guard. Two copies of this would be two chances for a
+    /// cloud to bake differently depending on which verb touched it.
+    ///
+    /// Stages the appearance bytes and may allocate an object number, so
+    /// it is `&mut self`; the caller decides what else goes into the
+    /// dictionary (a `/CA`, an `/M`) and then commits via
+    /// [`EditSession::commit_regenerated_markup`].
+    fn regenerate_markup_appearance(
+        &mut self,
+        annot_id: ObjId,
+        current: &Dict,
+        authored: annot_author::AuthoredAppearance,
+    ) -> Result<RegeneratedMarkup, EditError> {
         // Where does the new appearance go? Three cases, cheapest first.
-        let ap_slot = self.appearance_slot(annot_id, &current)?;
+        let ap_slot = self.appearance_slot(annot_id, current)?;
         let new_ap_id = match ap_slot {
             AppearanceSlot::Reuse(id) => id,
             AppearanceSlot::Allocate => {
@@ -25527,19 +26210,6 @@ impl EditSession {
             // and cheaper than special-casing them out.
             updated.insert(key.clone(), value.clone());
         }
-        // /CA is pdfcer's to set here and is NOT part of `build_appearance`
-        // (it composites the annotation onto the page rather than
-        // affecting what the appearance draws), so it is applied to the
-        // dictionary directly.
-        match style.opacity {
-            Some(StyleEdit::Set(alpha)) => {
-                updated.insert(Name::from(b"CA"), Object::Real(alpha.clamp(0.0, 1.0)));
-            }
-            Some(StyleEdit::Clear) => {
-                updated.remove(b"CA");
-            }
-            None => {}
-        }
         let mut ap = Dict::new();
         ap.insert(Name::from(b"N"), Object::Reference(new_ap_id));
         updated.insert(Name::from(b"AP"), Object::Dict(ap));
@@ -25556,41 +26226,50 @@ impl EditSession {
             data_span: ap_span,
         });
 
-        let change = MarkupStyleChange {
-            annot_id,
-            rect_before: target.rect,
-            rect_after: authored.rect,
-            appearance: match ap_slot {
-                AppearanceSlot::Reuse(id) => AppearanceWrite::InPlace(id),
-                AppearanceSlot::Allocate => match Self::existing_appearance_id(&current) {
-                    Some(from) => AppearanceWrite::CopiedOnWrite {
-                        from,
-                        to: new_ap_id,
-                    },
-                    None => AppearanceWrite::Created(new_ap_id),
+        let appearance = match ap_slot {
+            AppearanceSlot::Reuse(id) => AppearanceWrite::InPlace(id),
+            AppearanceSlot::Allocate => match Self::existing_appearance_id(current) {
+                Some(from) => AppearanceWrite::CopiedOnWrite {
+                    from,
+                    to: new_ap_id,
                 },
+                None => AppearanceWrite::Created(new_ap_id),
             },
-            dropped: dropped_properties(&self.graph(), &current, appearance_was_pdfces),
         };
 
+        Ok(RegeneratedMarkup {
+            updated,
+            ap_id: new_ap_id,
+            ap_stream,
+            appearance,
+            rect_after: authored.rect,
+        })
+    }
+
+    /// Commit a [`RegeneratedMarkup`] as one undoable command of `kind`.
+    fn commit_regenerated_markup(
+        &mut self,
+        annot_id: ObjId,
+        regen: RegeneratedMarkup,
+        kind: CommandKind,
+    ) {
         self.commit(Command {
-            kind: CommandKind::SetMarkupStyle,
+            kind,
             objects: vec![
                 ObjectWrite {
                     id: annot_id,
                     before: self.state.get(&annot_id).cloned(),
-                    after: Some(Object::Dict(updated)),
+                    after: Some(Object::Dict(regen.updated)),
                 },
                 ObjectWrite {
-                    id: new_ap_id,
-                    before: self.state.get(&new_ap_id).cloned(),
-                    after: Some(ap_stream),
+                    id: regen.ap_id,
+                    before: self.state.get(&regen.ap_id).cloned(),
+                    after: Some(regen.ap_stream),
                 },
             ],
             removals: Vec::new(),
             trailer: None,
         });
-        Ok(change)
     }
 
     /// Whether `annot`'s current `/AP` `/N` stream holds exactly

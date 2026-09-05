@@ -744,7 +744,7 @@ fn read_numbers<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict, key: &[u8]) ->
 
 /// Turn a flat `[x1 y1 x2 y2 …]` array object into coordinate pairs,
 /// dropping a trailing unpaired value.
-fn pairs_of<G: ObjectGraph + ?Sized>(obj: &Object, graph: &G) -> Vec<(f64, f64)> {
+pub(crate) fn pairs_of<G: ObjectGraph + ?Sized>(obj: &Object, graph: &G) -> Vec<(f64, f64)> {
     let Some(items) = obj.as_array() else {
         return Vec::new();
     };

@@ -6841,6 +6841,81 @@ enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// **Edit one vertex of a markup annotation** (`Pass 255.0`) — move it,
+    /// insert a new one after it, or remove it — on a `/Polygon` (plain or
+    /// cloudy), a `/PolyLine`, or (move only) a `/Line`.
+    ///
+    /// The `/Vertices` (or `/L`) array, the `/Rect` and the appearance
+    /// stream are all rebuilt from the new geometry by the same bake
+    /// `annotate` authored the shape with, so a reshaped revision cloud
+    /// scallops exactly as a redrawn one would. Read the current vertices
+    /// from `list-annotations`, which prints `vertices=` / `line=` /
+    /// `ink=` per annotation. Indices are 0-based in array order.
+    ///
+    /// Insert and remove on a polygon or polyline EXCEED current Acrobat
+    /// (whose GUI only drags existing points) on purpose. The floor is 3
+    /// vertices for a Polygon and 2 for a PolyLine — a removal that would
+    /// go below it is refused; delete the annotation instead.
+    ///
+    /// Refused by name, never silently: any vertex edit on `/Ink` (a pen
+    /// trace is moved, resized or redrawn whole — Acrobat has never offered
+    /// per-point ink editing either), insert/remove on a `/Line` (two
+    /// endpoints by definition), any edit on a `/Square`, `/Circle` or text
+    /// markup (no vertices), a ce dimension (use `dimension-vertex`, which
+    /// re-measures), and an annotation with the Locked flag. The
+    /// LockedContents flag does NOT block a reshape — it guards the note
+    /// text, not the geometry.
+    ///
+    /// If the annotation carries a `/Measure` dictionary its stated
+    /// measurement is NOT recomputed and the command says so on stderr —
+    /// the number may now be stale.
+    ///
+    /// `--dry-run` answers exactly what the real invocation would, through
+    /// the same guards, and writes nothing.
+    AnnotationVertex {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page the annotation is on.
+        #[arg(long, default_value_t = 1)]
+        page: usize,
+        /// Which annotation, numbered from 0 in `list-annotations` order.
+        #[arg(long, default_value_t = 0)]
+        annot: usize,
+        /// What to do: `move`, `insert` or `remove`.
+        #[arg(long, value_enum)]
+        op: VertexOpArg,
+        /// The vertex, 0-based. For `insert`, the vertex the new one goes
+        /// AFTER.
+        #[arg(long)]
+        index: usize,
+        /// Horizontal shift in points (move only), positive to the right.
+        #[arg(long, default_value_t = 0.0, allow_hyphen_values = true)]
+        dx: f64,
+        /// Vertical shift in points (move only), positive UP.
+        #[arg(long, default_value_t = 0.0, allow_hyphen_values = true)]
+        dy: f64,
+        /// Where the new vertex goes (insert only), as `x,y` in points.
+        #[arg(long, allow_hyphen_values = true)]
+        at: Option<String>,
+        /// A `/M` modification date to stamp, verbatim (e.g.
+        /// `D:20260905120000Z`). pdfcer reads no clock; without this the
+        /// annotation's `/M` is left exactly as it was.
+        #[arg(long)]
+        modified: Option<String>,
+        /// Report what would happen and write nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Output path (required unless `--dry-run`).
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// How to save: incremental (default) or full rewrite.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// After saving, undo in memory and check the base bytes are
+        /// untouched.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// **Place a ce dimension** (Pass 27.1): set how far its dimension line
     /// stands off the geometry and where its value sits along that line.
     ///
@@ -10278,6 +10353,35 @@ fn run() -> ExitCode {
             dx,
             dy,
             at: at.as_deref(),
+            dry_run,
+            output: output.as_deref(),
+            mode,
+            verify_undo,
+        }),
+        Command::AnnotationVertex {
+            input,
+            page,
+            annot,
+            op,
+            index,
+            dx,
+            dy,
+            at,
+            modified,
+            dry_run,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_annotation_vertex(&AnnotationVertexArgs {
+            input: &input,
+            page,
+            annot,
+            op,
+            index,
+            dx,
+            dy,
+            at: at.as_deref(),
+            modified: modified.as_deref(),
             dry_run,
             output: output.as_deref(),
             mode,
@@ -14656,9 +14760,31 @@ fn cmd_list_annotations(input: &Path, pages_spec: &str) -> u8 {
                 Some(s) => quoted_token(s),
                 None => "none".to_owned(),
             };
+            // `Pass 255.0`: the point geometry a shell draws reshape anchors
+            // from, in the same `x,y;x,y` spelling `annotate` accepts, so
+            // the output of this command can be fed back to
+            // `annotation-vertex --at`. `none` when the key is absent.
+            let pts = |v: &[(f64, f64)]| {
+                v.iter()
+                    .map(|(x, y)| format!("{x},{y}"))
+                    .collect::<Vec<_>>()
+                    .join(";")
+            };
+            let vertices = annot
+                .vertices
+                .as_deref()
+                .map_or_else(|| "none".to_owned(), pts);
+            let line = annot
+                .line
+                .as_ref()
+                .map_or_else(|| "none".to_owned(), |l| pts(&l[..]));
+            let ink = annot.ink_list.as_deref().map_or_else(
+                || "none".to_owned(),
+                |strokes| strokes.iter().map(|s| pts(s)).collect::<Vec<_>>().join("|"),
+            );
             println!(
                 "annot page={} index={array_index} subtype={subtype} rect={rect} \
-flags=0x{:X} widget={} disposition={disposition} ap={ap_shape} action={} author={} note={} modified={}",
+flags=0x{:X} widget={} disposition={disposition} ap={ap_shape} action={} author={} note={} modified={} vertices={vertices} line={line} ink={ink}",
                 page_index + 1,
                 annot.flags.0,
                 usize::from(annot.is_widget()),
@@ -27850,6 +27976,235 @@ impl VertexOpArg {
 }
 
 /// Borrowed argument bundle for [`cmd_dimension_vertex`] (clippy arg-count).
+/// Arguments of `annotation-vertex`, bundled so [`cmd_annotation_vertex`]
+/// stays inside clippy's seven-argument limit.
+struct AnnotationVertexArgs<'a> {
+    input: &'a Path,
+    page: usize,
+    annot: usize,
+    op: VertexOpArg,
+    index: usize,
+    dx: f64,
+    dy: f64,
+    at: Option<&'a str>,
+    modified: Option<&'a str>,
+    dry_run: bool,
+    output: Option<&'a Path>,
+    mode: SaveMode,
+    verify_undo: bool,
+}
+
+/// `annotation-vertex` (`Pass 255.0`): one vertex of a markup annotation,
+/// moved / inserted / removed, through
+/// `EditSession::reshape_annotation`.
+///
+/// The CLI has no session and no undo, so the invocation IS the commit and
+/// every disclosure rides out with it (project rules 4 and 11): the vertex
+/// count before and after, the recomputed `/Rect`, how the appearance
+/// stream was written, anything the re-bake dropped, and — the one that
+/// matters most because it is invisible — whether a `/Measure` the
+/// annotation carries was left un-recomputed.
+///
+/// `--dry-run` goes through `reshape_annotation_preview`, which is the
+/// same code up to the write, so a scripted preflight and the real thing
+/// cannot disagree.
+fn cmd_annotation_vertex(args: &AnnotationVertexArgs<'_>) -> u8 {
+    use pdfcer_core::edit::{AppearanceWrite, VertexEdit};
+
+    if args.page == 0 {
+        eprintln!(
+            "pdfcer: {}: --page is 1-based; 0 is not a page",
+            args.input.display()
+        );
+        return exit::RUNTIME_ERROR;
+    }
+    let edit = match args.op {
+        VertexOpArg::Move => VertexEdit::Move {
+            index: args.index,
+            dx: args.dx,
+            dy: args.dy,
+        },
+        VertexOpArg::Insert => {
+            let Some(text) = args.at else {
+                eprintln!(
+                    "pdfcer: {}: --op insert needs --at x,y (where the new vertex goes)",
+                    args.input.display()
+                );
+                return exit::EDIT_REFUSED;
+            };
+            let Some(at) = parse_dim_points(text).and_then(|pts| pts.first().copied()) else {
+                eprintln!(
+                    "pdfcer: {}: --at must be `x,y` in points",
+                    args.input.display()
+                );
+                return exit::EDIT_REFUSED;
+            };
+            VertexEdit::Insert {
+                after: args.index,
+                at,
+            }
+        }
+        VertexOpArg::Remove => VertexEdit::Remove { index: args.index },
+    };
+
+    let (source, mut session) = match open_for_edit(args.input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+
+    // Resolve (page, index) to an object id — the same addressing
+    // `move-annotation` uses, so an operator lists once and edits many.
+    let annot_id = {
+        let slots = match session.page_slots() {
+            Ok(slots) => slots,
+            Err(err) => {
+                eprintln!("pdfcer: {}: {err}", args.input.display());
+                return exit::RUNTIME_ERROR;
+            }
+        };
+        let Some(slot) = slots.get(args.page - 1) else {
+            eprintln!(
+                "pdfcer: {}: no page {} — the document has {} page(s)",
+                args.input.display(),
+                args.page,
+                slots.len()
+            );
+            return exit::RUNTIME_ERROR;
+        };
+        let annots = pdfcer_core::annot::page_annotations(&session.graph(), slot.id);
+        let Some(annot) = annots.get(args.annot) else {
+            eprintln!(
+                "pdfcer: {}: page {} has no annotation at index {} — it has {} (indices 0..{})",
+                args.input.display(),
+                args.page,
+                args.annot,
+                annots.len(),
+                annots.len().saturating_sub(1)
+            );
+            return exit::RUNTIME_ERROR;
+        };
+        let Some(id) = annot.id else {
+            eprintln!(
+                "pdfcer: {}: page {} index {} is a direct dictionary inside /Annots, not an indirect object — it has no identity to reshape",
+                args.input.display(),
+                args.page,
+                args.annot
+            );
+            return exit::EDIT_REFUSED;
+        };
+        id
+    };
+
+    let rect_token =
+        |r: &pdfcer_core::page_tree::Rect| format!("{},{},{},{}", r.llx, r.lly, r.urx, r.ury);
+
+    if args.dry_run {
+        let f = match session.reshape_annotation_preview(annot_id, edit) {
+            Ok(f) => f,
+            Err(err) => return report_edit_error(args.input, &err),
+        };
+        if f.measure_not_recomputed {
+            eprintln!(
+                "pdfcer: {}: this annotation carries /Measure; its stated measurement would NOT be recomputed and may read stale after the reshape",
+                args.input.display()
+            );
+        }
+        println!(
+            "annotation-vertex {} page={} annot={} subtype={} op={} index={} dry_run=1 vertices_before={} vertices_after={} rect_before={} rect_after={} measure_stale={}",
+            args.input.display(),
+            args.page,
+            args.annot,
+            sanitize_token(&f.subtype),
+            f.edit.as_str(),
+            args.index,
+            f.vertices_before,
+            f.vertices_after,
+            f.rect_before
+                .as_ref()
+                .map_or_else(|| "none".to_owned(), rect_token),
+            rect_token(&f.rect_after),
+            u8::from(f.measure_not_recomputed),
+        );
+        return exit::SUCCESS;
+    }
+
+    let Some(output) = args.output else {
+        eprintln!(
+            "pdfcer: {}: --output is required unless --dry-run is passed",
+            args.input.display()
+        );
+        return exit::EDIT_REFUSED;
+    };
+
+    let r = match session.reshape_annotation(annot_id, edit, args.modified) {
+        Ok(r) => r,
+        Err(err) => return report_edit_error(args.input, &err),
+    };
+
+    // Disclosures, invisible-first: the measurement caveat cannot be seen
+    // on the page, the dropped properties can.
+    if r.measure_not_recomputed {
+        eprintln!(
+            "pdfcer: {}: this annotation carries /Measure; its stated measurement was NOT recomputed — the geometry moved, the number did not, so it may now read stale",
+            args.input.display()
+        );
+    }
+    for d in &r.dropped {
+        eprintln!(
+            "pdfcer: {}: the regenerated appearance does not reproduce: {d:?}",
+            args.input.display()
+        );
+    }
+
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        output,
+        args.mode,
+        ProducerArg::Preserve,
+        args.verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let ap = match r.appearance {
+        AppearanceWrite::InPlace(_) => "in-place",
+        AppearanceWrite::Created(_) => "created",
+        AppearanceWrite::CopiedOnWrite { .. } => "copied",
+        // `AppearanceWrite` is #[non_exhaustive]; a future variant must
+        // print SOMETHING rather than fail to compile a shell.
+        _ => "other",
+    };
+    let rep = &outcome.report;
+    println!(
+        "annotation-vertex {} page={} annot={} subtype={} op={} index={} vertices_before={} vertices_after={} rect_before={} rect_after={} appearance={ap} dropped={} measure_stale={} m_written={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        args.input.display(),
+        args.page,
+        args.annot,
+        sanitize_token(&r.subtype),
+        r.edit.as_str(),
+        args.index,
+        r.vertices_before,
+        r.vertices_after,
+        r.rect_before
+            .as_ref()
+            .map_or_else(|| "none".to_owned(), rect_token),
+        rect_token(&r.rect_after),
+        r.dropped.len(),
+        u8::from(r.measure_not_recomputed),
+        u8::from(r.mod_date_written),
+        args.mode.name(),
+        output.display(),
+        outcome.changed,
+        rep.objects_written,
+        rep.bytes_appended,
+        rep.bytes_written,
+        u32::from(outcome.undo_verified),
+        u32::from(outcome.undo_identical),
+    );
+    exit::SUCCESS
+}
+
 struct DimensionVertexArgs<'a> {
     input: &'a Path,
     dimension: u32,
