@@ -92262,3 +92262,193 @@ filing does not perform it). One commit, docs-only (`ROADMAP.md` +
 - Operator: the "edit or delete a node of a drawn markup shape" gap you found
   is now fully specced and queued in the current build batch, ahead of the next
   portable download.
+
+## 2026-09-05 (435th filing) — `Pass 255.0` SHIPPED (`35ca5be`, NOT yet pushed): markup-shape vertex editing — `/Vertices`, `/L`, `/InkList` enter the read model; move/insert/remove a vertex on Polygon/PolyLine, move an endpoint on Line; Ink/Square/Circle/text markup refused by name; one appearance bake shared with restyle; CLI `annotation-vertex`. Plus `13a0a13` (fuzz lockfile → `0.39.0`). Batch continues (signing next); release still HELD.
+
+**Session shape.** Resumed from `docs/NEXT_SESSION.md` (engineer-owned
+handoff, `26f0257`): the operator's plan is *"build all before the next
+portable release"* — `Pass 255.0` first, then the digital-signing arc, then
+`v0.40.0`. Both FeatureRequests channels were checked at session start: **no
+new inbound** since the 2026-09-05 replies.
+
+**Shipped:**
+- `Pass 255.0` (`35ca5be`) — markup-shape vertex editing, core + CLI.
+  - **Read model** (`annot.rs`): `Annotation::vertices: Option<Vec<(f64,f64)>>`
+    (`/Vertices`), `line: Option<[(f64,f64);2]>` (`/L`, exactly four numbers),
+    `ink_list: Option<Vec<Vec<(f64,f64)>>>` (`/InkList`, one `Vec` per
+    stroke); absent → `None`, never an empty list; a cloud's `vertices` are
+    the PRE-bulge polygon. `AnnotFlags::LOCKED_CONTENTS = 1 << 9` (**512**) +
+    `locked_contents()`.
+  - **Verbs** (`edit.rs`, 197 → 202 public verbs, `check-core-api-verbs`
+    PASS): `reshape_annotation(id, VertexEdit, modified: Option<&str>) ->
+    AnnotationReshape`; `reshape_annotation_preview` (pure, same guards);
+    `move_annotation_vertex` / `insert_annotation_vertex` (lands at
+    `after + 1`) / `remove_annotation_vertex`. New `EditError` variants
+    (118 → 122): `AnnotationVertexIndexOutOfRange`,
+    `ReshapeWouldBreachVertexFloor`, `GeometryNotReshapable { id, subtype,
+    edit, reason }`, `AnnotationVertexNotPlaceable`. New
+    `CommandKind::ReshapeAnnotation { edit }`, `VertexEditKind::as_str()`.
+  - **Matrix:** Polygon (plain or `/BE` cloud) + PolyLine: move/insert/remove,
+    floors 3 / 2 (below → `ReshapeWouldBreachVertexFloor`, never a clamp).
+    Line (incl. arrows): move index 0/1 only; insert/remove →
+    `GeometryNotReshapable` naming PolyLine as the remedy. Ink: every edit
+    refused by name (reason cites Acrobat's whole-stroke model). Square,
+    Circle, text markup: refused by name. ce dimension:
+    `AnnotationIsCeDimension` → `move_dimension_vertex` & co. (which
+    re-measure). Polygon/PolyLine insert+remove **exceed current Acrobat DC,
+    match historical Acrobat 9/XI** — deliberate.
+  - **One bake:** `set_markup_style`'s tail factored into private
+    `regenerate_markup_appearance` + `commit_regenerated_markup`; reshape uses
+    the same route, so `/Vertices`/`/L`, `/Rect` and `/AP` come from the same
+    `annot_author::build_appearance_with` that authored the shape. Test proves
+    a reshaped cloud's `/AP` is byte-identical to a fresh cloud with the same
+    vertices; a cloudy Polygon's `/Rect` is therefore the full bulged outline
+    (no `/RD` on a Polygon — criterion 2's asymmetry honoured by construction;
+    Square/Circle refuse reshape, so no second path was needed).
+  - **Two lock gates:** Locked (128) refuses, LockedContents (512) does not —
+    tested each way on a hand-written flagged polygon. Certified-doc
+    (`check_certification_for_annotation`) and encryption gates as in
+    `set_markup_style`.
+  - **CLI:** `annotation-vertex <in> --page P --annot I --op
+    move|insert|remove --index N [--dx --dy | --at x,y] [--modified D:…]
+    [--dry-run] -o out [--mode] [--verify-undo]`; stdout `annotation-vertex …
+    subtype= op= index= vertices_before= vertices_after= rect_before=
+    rect_after= appearance= dropped= measure_stale= m_written= mode= -> out`.
+    `list-annotations` prints `vertices=`, `line=`, `ink=` in `x,y;x,y`
+    spelling (ink strokes `|`-separated). Driven end to end on
+    `fixtures/synthetic/annot/demo-annotated.pdf` (polygon + ink authored;
+    list; dry-run; move `/Rect` `99,99,201,201` → `99,99,231,201`; insert
+    with `/M`; remove; Ink refusal exit 9).
+  - **Tests:** `crates/pdfcer-core/tests/annot_reshape.rs`, **15**, all
+    against re-parsed saved bytes; sabotage — LockedContents-as-lock, cloud
+    flattens on reshape, insert-before-index — each caught by exactly one
+    named test. Workspace 193/193 test binaries green (`--all-features`);
+    `-p pdfcer-core --no-default-features` green (engineer-reported).
+  - **Docs:** `docs/core-api/02-editing-and-saving.md` §1.15 16 → 21 rows
+    (boxed per-subtype matrix), `01-reading-and-model.md`, `index.md` counts.
+    Channel reply on disk:
+    `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_2026-09-05-markup-vertices-SHIPPED.md`.
+- `13a0a13` — `chore(fuzz): refresh fuzz/Cargo.lock to workspace version
+  0.39.0`. Lockfile only (+2/−2); `cd fuzz && cargo check --bins` (a CI gate)
+  rewrites it, and it had recorded `0.37.0` for two releases. **Named here
+  because `fuzz/` is a `check-commits-filed` code prefix** — the gate spared it
+  only as the tip.
+
+**Deviations from the filed acceptance criteria (notes, not decisions):**
+- **(a) `/Measure` NOT recomputed on a Line/PolyLine endpoint move**
+  (criterion 3 asked for it). pdfcer's markup bake reads no `/Measure` and
+  draws no caption, so a foreign measurement annotation keeps `/Measure` and
+  `/Contents` verbatim and `AnnotationReshape::measure_not_recomputed == true`
+  discloses the number may be stale (CLI: `measure_stale=` on stderr).
+  Recomputing another producer's caption text without redrawing its caption
+  would put dictionary and appearance in disagreement; rule 4 is satisfied by
+  disclosure. ce dimensions re-measure via their own verbs. The
+  "never silently clobber a manual override" half is satisfied trivially —
+  nothing is clobbered.
+- **(b) `/M` is caller-supplied, not stamped on every reshape** (criterion 2
+  asked for an update). pdfcer reads no clock (existing ruling, `MarkupNote`);
+  `reshape_annotation(.., Some("D:…"))` stamps it verbatim, the three wrappers
+  leave `/M` untouched, `mod_date_written` says which.
+- **(c) No separate whole-stroke Ink translate** (criterion 1's optional
+  `should_have`): `move_annotation` already translates `/InkList`
+  (`Pass 149.0`).
+
+**Correction to the 434th filing's criterion 4.** It read *"LockedContents
+(bit 10, value 1024)"*. Table 165's 1-based, low-order-first numbering puts
+bit 8 Locked at 128 = `1 << 7` and bit 10 LockedContents at **512** =
+`1 << 9`; 1024 was a bit-counting slip. Code and docs use 512. The criterion
+text is amended in `ROADMAP.md` by strike-through (in the criteria block
+preserved under the *Shipped* entry), not silently rewritten. Source: the
+code (`annot.rs:197`), read by this role.
+
+**Decisions made this session:**
+- None new. Five verbs on an existing surface sharing an existing bake; the
+  three deviations follow already-decided rules (no clock; disclosure over a
+  second rendering path; an existing translate verb). Decision ceiling `135`
+  UNCHANGED.
+
+**Findings + gotchas (engineer-reported):**
+- **A Python `\` + newline inside a NON-raw triple-quoted string is a Python
+  line continuation.** A Rust `\`-continued string literal written through a
+  Python patch script therefore ships with the backslash-newline consumed and
+  the next line's leading indentation glued in as a multi-space gap — exactly
+  the defect `tools/check-string-gaps.sh` exists to catch, and **it caught two
+  before commit**. Write such patches from raw strings (`r"""…"""`) or
+  re-escape the backslash.
+- **`tools/run-gates.sh` cannot survive being backgrounded in this
+  environment** — the process is reaped. Run the `check-ci-parity.py --list`
+  commands individually in the foreground with `CARGO_BUILD_JOBS=2`, compiling
+  the tests first with `--no-run`. All PASS this session: fmt, clippy
+  (workspace, all-targets, all-features, `-D warnings`), wasm32 check of
+  core + render, fuzz `cargo check --bins`, cargo-about
+  (`THIRD_PARTY_LICENSES.md` unchanged — no dependency change), and all 22
+  python/bash gates. `cargo tree -p pdfcer-core -p pdfcer-render`: no
+  GUI/network crate.
+
+**`docs/FEATURES.md`:**
+- The **Read and edit a markup shape's vertices** row moved from *Planned* to
+  *Implemented* (*Annotations & markup*, last row of the section). Boxes:
+  **`core [x]` · `cli [x]` · `gui [ ]` · `Acrobat [x]`**. The row previously
+  read `[ ] core / ? cli / [ ] gui / [x] Acrobat`; the `cli ?` resolved to
+  `[x]` (`annotation-vertex` is the index-addressed verb the `?` was waiting
+  on). `gui` deliberately NOT ticked — `pdfcer-gui` has not wired anchors or
+  dragging. Text rewritten to what shipped (matrix, one-bake cloud guarantee,
+  two lock gates, `/Measure` disclosed-not-recomputed, exceeds Acrobat DC on
+  insert/remove). The *Author geometric markup* and ce-dimension vertex rows
+  were left unchanged on purpose — the new row carries the cross-reference,
+  and appending to either would grow a history the file's header forbids.
+
+**Rule-11 sweep (the meaning of "vertex editing" changed — no longer
+"ce dimensions only").** Grepped `vertic`/`ink_list`/`InkList`
+case-insensitively over `docs/*.md`, `annot.rs`, `edit.rs`, CLI `main.rs`,
+filtering for *only / cannot / not in the model / absent from / ce dimension*.
+Survivors of the OLD claim outside the two append-only ledgers: the FEATURES
+*Planned* row (moved by this filing) and **`docs/NEXT_SESSION.md` §1
+("Pass 255.0 — BUILD THIS FIRST")** — engineer-owned, **reported as owed**,
+not edited here. Correct survivors, left alone: FEATURES *Move/Resize anything
+carrying a `/Rect`* rows (geometry keys travel with a whole-annotation
+transform — true, and why deviation (c) needed no build); the ce-dimension
+vertex verbs' own rustdoc in `edit.rs`; `main.rs:6864` (the new subcommand's
+help routing a ce dimension to `dimension-vertex`).
+
+**Still in flight:**
+- **Batch, release HELD** (Ken, 2026-09-05: *"build all before the next
+  portable release unless I say otherwise"*): `Pass 251.1` (`e4cefcd`),
+  `Pass 254.0` (`8f9fb3e`), `Pass 255.0` (`35ca5be`) shipped; **digital
+  signing is the remaining arc**, then `v0.40.0` (tag, package, smoke-test,
+  OneDrive — standing-authorized once the batch is done, decision 121, with
+  green gates + `verify-release.py`).
+- `Pass 252.0` and `Pass 253.0`–`253.3` remain unscoped/not-started in
+  *Backlog*.
+- `pdfcer-gui` owes the GUI half: anchors from
+  `Annotation::vertices`/`line`/`ink_list`, drag through the verbs; the
+  channel reply tells it so.
+
+**Sourcing (hard rule 8):** this role had a shell; git figures MEASURED.
+`git rev-parse HEAD` = `13a0a13204c1760ea92d3d4d4dafc8c879f3d6c4`;
+`git rev-parse origin/main` = `26f0257`; `git rev-list --count
+origin/main..HEAD` = **2** (`35ca5be`, `13a0a13`) — **neither pushed**.
+`git show --stat 35ca5be` = 8 files, +1,990/−48, no `Cargo.toml`;
+`git show --stat 13a0a13` = 1 file, +2/−2 (`fuzz/Cargo.lock`). `git status
+--short` clean before this filing; carries this filing's own doc edits only.
+Gates re-run by this role before committing: `check-ledger-numbers`,
+`check-passes-filed`, `check-commits-filed`, `check-cited-commits-exist`,
+`check-cited-verbs-exist`, `check-control-bytes` (results in the filing
+commit's message). Test/gate figures marked *engineer-reported* above were
+not re-run here.
+
+**Ledger.** Filings `434` → **`435`**; Pass ceiling **`255.0` UNCHANGED** (the
+ceiling Pass itself shipped; no new family); decision ceiling **`135`
+UNCHANGED**, next free `136`; standing rules `R241` unchanged, next free
+`R242`; open operator questions none minted, next free `(ce)`.
+
+**For next session:**
+- Engineer: refresh `docs/NEXT_SESSION.md` (§1 still says build 255.0 first);
+  the signing arc is next; push is unblocked (`check-commits-filed` green
+  after this filing); release waits for the batch.
+- Operator: the "edit or delete a node of a drawn markup shape" gap you found
+  is built into the engine and its command line — corners of a polygon, cloud
+  or polyline can be moved, added or removed, and a line's endpoints moved;
+  freehand ink stays whole-stroke (as in Acrobat) and says so rather than
+  guessing. It reaches the GUI once `pdfcer-gui` draws the handles. Held back
+  from a new portable download until digital signing is in, as you asked.
