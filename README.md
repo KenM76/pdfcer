@@ -31,8 +31,11 @@ page operations (merge, split, extract, insert, delete, reorder,
 rotate); text extraction and text editing with reflow; AcroForm field
 creation, editing, filling, flattening and FDF/XFDF import/export;
 markup annotations; redaction (mark, review and apply — either
-finalizing or undo-preserving); Bates numbering; PDF/A validation and
-conversion; **digital-signature verification** (integrity and
+finalizing or undo-preserving); Bates numbering; **OCR** — recognise a
+scanned page and add an invisible, selectable text layer beneath it
+(the scan is never re-encoded), to a new file or into the open document;
+PDF/A validation and conversion; **digital-signature verification**
+(integrity and
 byte-range coverage) and, opt-in, **trust evaluation** against an
 imported Acrobat/Reader trust store (certificate-chain linkage,
 validity dates at signing time, and RFC 5280 CA/key-usage constraints);
@@ -45,7 +48,7 @@ empty-user-password case that opens with no prompt at all; and
 **authoring encryption** (AES-256, `/R 6`), setting the eight permission
 bits, and removing encryption from an owner-authenticated document.
 
-**Not built yet**, among other things: OCR, JavaScript, XFA, *creating*
+**Not built yet**, among other things: JavaScript, XFA, *creating*
 digital signatures (pdfcer verifies them but does not yet sign),
 signature revocation checking (CRL/OCSP — deliberately excluded from
 the engine by its no-network rule, so it belongs to a shell or to
