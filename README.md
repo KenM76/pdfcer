@@ -30,20 +30,28 @@ deliberately not a debug tool: Acrobat Pro has no real equivalent.
 page operations (merge, split, extract, insert, delete, reorder,
 rotate); text extraction and text editing with reflow; AcroForm field
 creation, editing, filling, flattening and FDF/XFDF import/export;
-markup annotations; redaction (mark, review and apply); Bates
-numbering; PDF/A validation and conversion; digital-signature
-inspection; vector object and node editing; measurement and dimension
-authoring; image placement from PNG, JPEG, BMP and TIFF; printing, with
-page placement, orientation, duplex, copies and n-up/booklet/poster
-imposition; and **opening password-protected documents** — RC4 40–128
-bit and AES-128, including the empty-user-password case that opens with
-no prompt at all.
+markup annotations; redaction (mark, review and apply — either
+finalizing or undo-preserving); Bates numbering; PDF/A validation and
+conversion; **digital-signature verification** (integrity and
+byte-range coverage) and, opt-in, **trust evaluation** against an
+imported Acrobat/Reader trust store (certificate-chain linkage,
+validity dates at signing time, and RFC 5280 CA/key-usage constraints);
+vector object and node editing; measurement and dimension authoring;
+image placement from PNG, JPEG, BMP and TIFF; printing, with page
+placement, orientation, duplex, copies and n-up/booklet/poster
+imposition; **opening password-protected documents** — RC4 40–128 bit,
+AES-128 and AES-256 (both `/R 5` and `/R 6`), including the
+empty-user-password case that opens with no prompt at all; and
+**authoring encryption** (AES-256, `/R 6`), setting the eight permission
+bits, and removing encryption from an owner-authenticated document.
 
-**Not built yet**, among other things: OCR, JavaScript, XFA, *writing*
-an encrypted document (pdfcer decrypts to read and edit, but cannot yet
-write one back out), AES-256 and `/R 6` decryption, and a long tail of
-Acrobat Pro's surface. Some capabilities exist in `pdfcer-core` and
-`pdfcer` but have no GUI yet.
+**Not built yet**, among other things: OCR, JavaScript, XFA, *creating*
+digital signatures (pdfcer verifies them but does not yet sign),
+signature revocation checking (CRL/OCSP — deliberately excluded from
+the engine by its no-network rule, so it belongs to a shell or to
+embedded revocation data), and a long tail of Acrobat Pro's surface.
+Some capabilities exist in `pdfcer-core` and `pdfcer` but have no GUI
+yet.
 
 **`docs/FEATURES.md` is the honest, current answer** — a capability
 list with per-surface (core / CLI / GUI) checkboxes, updated whenever a
