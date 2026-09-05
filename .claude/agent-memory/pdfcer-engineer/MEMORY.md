@@ -97,3 +97,4 @@
 - [Cross-target check the CLI before pushing](feedback_cross_target_check_the_cli_before_pushing.md) — a cfg(windows) dependency block hid a break on every other target; v0.29.0 is a dead tag because of it
 - [Export + copy-out arc (Pass 248.x)](project_export_and_copy_out_arc.md) — SVG comes from the export recorder (decision 132), never a second writer; Word paste measured via combridge; EMF/copy-selection/true gradients deliberately not done
 - [No back-compat for pre-release formats](feedback_no_backcompat_for_prerelease_formats.md) - Ken 2026-09-03: nothing is in production; re-key fixtures, never teach the reader two spellings; ask first
+- [Verify public claims against FEATURES + the GUI](feedback_verify_public_claims_against_features_and_gui.md) — README status lines are sourced from docs/FEATURES.md every time; the gui column is reconciled against pdfcer-gui's OWN FEATURES.md, not trusted from CONSUMED notices
