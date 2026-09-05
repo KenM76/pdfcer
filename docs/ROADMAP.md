@@ -112,6 +112,102 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★ 423rd filing, 2026-09-04 — `Pass 10.3` SHIPPED (`55062c5`):
+EVALUATE a signer's chain against imported trust anchors — `trust =
+NotChecked` finally becomes a real verdict. `trust_chain::evaluate` walks
+issuer→subject links, VERIFYING each link's signature (RSA PKCS#1 v1.5 +
+ECDSA, SHA-1/256/384/512; RSA-PSS declined = safe), depth-capped +
+cycle-guarded, to a trusted anchor. `core [x]` · `cli [x]` · `gui [ ]`
+(no GUI half; the `pdfcer-gui` project consumes it). AND: the operator's
+EULA ruling recorded as **decision 134** (the decision-133 EULA gate is
+replaced by an explicit at-own-risk opt-in, off by default); `Pass 10.4`
+(a persistent GUI setting) and `Pass 10.5` (full trust validation —
+revocation/clock/RFC-5280 constraints) SCOPED to *Backlog*, NOT built.**
+
+**★ SECURITY — this is SIGNATURE-LINKAGE ONLY, recorded prominently.**
+`Pass 10.3` verifies that each certificate in the chain was actually
+signed by the next, up to a trusted anchor. It does **NOT** check
+revocation (CRL/OCSP), validity dates against a clock, or RFC 5280
+`basicConstraints`/`keyUsage`/path-length constraints — those are named
+as future increments (`Pass 10.5`), disclosed in the verdict note and in
+the CLI output. **Every uncertainty resolves to `Untrusted`, never a
+false `Trusted`.** Integrity and trust remain INDEPENDENT axes: a
+cryptographically valid signature by an untrusted signer is `Verified` +
+`Untrusted` ("valid but untrusted"), and `SignerUnknown` (no anchor found
+for the chain) is kept DISTINCT from `Untrusted` (a reason the chain
+could not be trusted).
+
+**Sourcing (hard rule 8).** This role had a shell. `55062c5` verified by
+`git log -1 55062c5` — full `55062c53cd1bad3f10e1014c58bda7463ea0ef48`,
+subject *"Pass 10.3: evaluate signer trust against imported anchors
+(opt-in, at own risk)"*, committed 2026-09-04 20:25:37 -0400; it **is**
+`HEAD` (`git log -1 HEAD` = the same hash) and sits **one commit ahead
+of** the 422nd filing's librarian commit `72c27f4` (`git log --oneline
+72c27f4..HEAD` = `55062c5`). Working tree carries this filing's own doc
+edits only (`git status --short` empty before them). All test/gate figures
+below are **relayed from the engineer's dispatch**, not re-run by this
+role, except the git facts just named, which this role ran.
+
+### `Pass 10.3` (`55062c5`, 2026-09-04) — **EVALUATE SIGNATURE TRUST AGAINST IMPORTED ANCHORS — `Trust::NotChecked` BECOMES A REAL VERDICT (SIGNATURE-LINKAGE ONLY; REVOCATION/CLOCK/CONSTRAINTS DEFERRED)**
+
+**What shipped** (`pdfcer-core` + the `pdfcer` CLI). The trust half of the
+gap `Pass 10.1` named when it shipped `trust = NotChecked` by name, and
+the consumer of the `Pass 10.2` `TrustAnchorSet`:
+
+- **`crypto::cms::Certificate` exposes the DER slices a chain walk needs**
+  — `tbs_der`, `subject_der`, `sig_alg_oid`, `sig_value`, plus
+  `signer_certificate_der()`. No new ASN.1 beyond surfacing what the
+  `Pass 10.1` decoder already parsed.
+- **`trust_chain.rs` (NEW):** `evaluate(signer, intermediates,
+  &TrustAnchorSet) -> ChainVerdict` walks issuer→subject links and
+  **verifies each link's signature** — RSA PKCS#1 v1.5 and ECDSA, over
+  SHA-1/256/384/512; **RSA-PSS is DECLINED**, which is the safe direction
+  (an unverifiable link cannot yield `Trusted`). The walk is **depth-capped
+  and cycle-guarded**, and terminates at a trusted anchor in the set.
+  `ChainVerdict::{Trusted, Untrusted, SignerUnparseable}`.
+- **`signature_verify`:** `Trust` gained `Trusted { anchor_subject, source
+  }` / `Untrusted { reason }` / `SignerUnknown` (and **dropped `Copy`** —
+  the new variants carry owned data). `verify_all_with_trust(graph, bytes,
+  Option<&TrustAnchorSet>)` is re-exported from `signature`;
+  `verify_all` is now `verify_all_with_trust(None)` and reports
+  `NotChecked` exactly as before (unchanged behaviour for callers that pass
+  no store). Integrity and trust are computed as **independent facts** —
+  see the security note above.
+- **CLI:** `verify-signatures --trust-from-acrobat` loads the installed
+  Acrobat/Reader store (via the `Pass 10.2` reader) and prints the
+  **AT-YOUR-OWN-RISK** disclosure and the **not-a-full-check** disclosure
+  (revocation/clock/constraints not verified) alongside the verdict. This
+  is the CLI opt-in; the persistent GUI setting is `Pass 10.4` (*Backlog*).
+
+**Proof.** Unit tests on `trust_chain` (a synthetic root→leaf chain:
+trusted / wrong-anchor / signer-unknown / self-signed-untrusted); an
+integration test on `signature_verify` (anchors flip the verdict; an
+empty store yields `Untrusted`/`SignerUnknown`, never a false `Trusted`).
+Proven on the **real installed store via the CLI (1780 anchors)** — the
+test fixture's self-signed signer correctly reports *"untrusted:
+self-signed root not in the trust store"*. New public surface documented
+in `docs/core-api/01-reading-and-model.md` §12.5 (the trust axis) and
+§12.5b. Gates green (relayed): `cargo clippy -- -D warnings`, `cargo fmt`,
+`wasm32` build of `pdfcer-core`, control-bytes, string-gaps, public-fns,
+and core-api verbs; `cargo tree` confirms `pdfcer-core` GUI-dep-free.
+
+**`docs/FEATURES.md` this filing:** the *Planned* row **"Evaluate a
+signature's trust against those anchors"** (minted at the 414th filing,
+kept planned through `Pass 10.2`) is ticked **`core [x]` · `cli [x]` ·
+`gui [ ]` · `Acrobat [x]`** and reworded to note it is **signature-linkage
+only** (revocation/clock/constraints deferred to `Pass 10.5`) and
+**opt-in / at-own-risk**. Two new *Planned* rows follow it — the persistent
+setting (`Pass 10.4`) and full trust validation (`Pass 10.5`).
+
+**Ledger.** Filings ceiling `422` → **`423`**; Pass ceiling `250.2`
+unchanged — `Pass 10.3` was minted at the 414th filing (this moves it to
+*Shipped*), and `Pass 10.4`/`Pass 10.5` are new **family-10 sub-IDs**,
+both below the numeric ceiling, so the ceiling does not move; decision
+ceiling `133` → **`134`** (decision 134 resolves decision 133's open
+Adobe-Reader-EULA item — see `ARCHITECTURE.md` §12), next free `135`;
+standing rules ceiling `R241` unchanged, next free `R242`; open operator
+questions: none minted, next free `(ce)`.
+
 **★★ 422nd filing, 2026-09-04 — `v0.35.0` RESOLVED: IN PROGRESS →
 VERIFIED. The release of `Pass 250.1` (apply redactions INTO the
 `EditSession`, collapse/finalizing variant), done end to end this session —
@@ -126570,7 +126666,7 @@ here. (`directories.acrodata` is FDF/LDAP directory config;
 `security-policy.acrodata` is encryption-policy presets — neither is a
 trust source.)
 
-#### `Pass 10.3` — **EVALUATE SIGNATURE TRUST AGAINST IMPORTED ANCHORS** — filed 2026-09-04 (414th filing), *Backlog*, NOT STARTED — depends on `Pass 10.2` AND on signature verification maturing
+#### `Pass 10.3` — **EVALUATE SIGNATURE TRUST AGAINST IMPORTED ANCHORS** — filed 2026-09-04 (414th filing), ~~*Backlog*, NOT STARTED — depends on `Pass 10.2` AND on signature verification maturing~~ **SHIPPED `55062c5` (423rd filing) — see top of *Shipped*. Delivered signature-linkage evaluation (chain-link signature verification to a trusted anchor); revocation/clock/RFC-5280 constraints were split out to `Pass 10.5` below**
 
 Turns `Trust::NotChecked` into a real verdict. Chain a signer's
 embedded certs (recovered by `Pass 10.1`'s verifier) to an anchor in a
@@ -126605,6 +126701,64 @@ Composite-verdict naming stays pdfce's own (`Verified` /
 axis) until ETSI EN 319 102-1 is ingested — the Digital-signatures
 bullet above already forbids borrowing `TOTAL-PASSED` /
 `TOTAL-FAILED` / `INDETERMINATE` before that standard is read.
+
+#### `Pass 10.4` — **PERSISTENT "USE ACROBAT TRUST STORE (AT OWN RISK)" SETTING** — filed 2026-09-04 (423rd filing), *Backlog*, NOT STARTED
+
+The `Pass 10.3` CLI flag `--trust-from-acrobat` is **per-invocation**;
+the operator asked for a **setting** (decision 134). This Pass adds a
+persistent setting so the GUI's security tab and the CLI's default both
+read one place.
+
+**Why it was NOT built with `Pass 10.3`:** the `pdfcer_core::settings`
+module's **round-trip gate is strict** (settings must serialise and
+reload byte-stably), and adding a setting deserves its own careful pass
+rather than being tacked onto the tail of a long trust-evaluation
+session. Recorded so a future session does not read the omission as an
+oversight — it is deliberate scope separation.
+
+**Acceptance shape, when scoped:**
+
+1. **An `AcrobatTrustStore { Off, AtOwnRisk }` setting** (or a
+   documented bool) in `pdfcer_core::settings`, **`Off` by default**,
+   carrying the **at-own-risk** disclosure text (decision 134 — Adobe may
+   change its EULA; the user consents per-setting, and this is NOT a
+   pdfcer legal determination).
+2. **The CLI reads it as the default** for `--trust-from-acrobat` (the
+   flag still overrides per-invocation).
+3. **The GUI consumes it** for its security tab (a toggle with the
+   at-own-risk disclosure inline, off-canvas per rule 4 — a setting is
+   not an inference gate, so no accept/reject flow).
+4. **The setting's round-trip is proven** against the settings module's
+   existing stability gate before shipping.
+
+#### `Pass 10.5` — **FULL TRUST VALIDATION — REVOCATION, CLOCK, RFC 5280 PATH CONSTRAINTS** — filed 2026-09-04 (423rd filing), *Backlog*, NOT STARTED — depends on `Pass 10.3`
+
+The deferred half of a real eIDAS / RFC 5280 verdict. `Pass 10.3`
+shipped **signature-linkage only** (each chain link's signature verified
+to a trusted anchor); this Pass adds the checks a production validator
+owes on top of linkage, each as a **separate axis** that does not
+collapse into "trusted":
+
+1. **Revocation — CRL and OCSP**, discovered from **each cert's DER
+   CDP/AIA extensions** (RFC 5280). A chain can reach a trusted anchor
+   and still be unverifiable for revocation reasons, and vice versa; the
+   two axes report apart (the `Pass 10.3` posture).
+2. **Validity-date checking against a clock** — a validation-time clock
+   (signature time vs. cert `notBefore`/`notAfter`), stated as its own
+   input rather than assumed to be "now".
+3. **RFC 5280 path-validation constraints** — `basicConstraints`
+   (CA:TRUE, path-length), `keyUsage`, extended key usage; a leaf must
+   not be treated as a CA, an over-long path must fail.
+4. **RSA-PSS certificate signatures** — declined (safe) in `Pass 10.3`;
+   this Pass verifies them so a PSS-signed link is `Trusted` rather than
+   `Untrusted`-by-decline.
+5. **The `/Trust` bitfield decoding must be pinned** (provisional since
+   `Pass 10.2`) before fine-grained usage gating (trusted root vs. sign
+   vs. certify vs. dynamic-content vs. embedded-JS vs. privileged-system
+   ops) — the provisional mapping says *trusted / not*, not *for what*.
+
+Every uncertainty still resolves to `Untrusted`/`Unverifiable`, never a
+false `Trusted` — the `Pass 10.3` safety direction is preserved.
 
 - **Encryption** — standard security handler, RC4 (legacy read-compat
   only, never write), AES-128/256, public-key (certificate) security

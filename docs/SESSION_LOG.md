@@ -91341,3 +91341,81 @@ here.
   harder redaction shape, unbuilt).
 - Operator: `Pass 250.2` (undo-preserving deferred redaction) is the future
   capability you asked to record; it is filed to *Backlog*, not scheduled.
+
+## 2026-09-04 (423rd filing) — `Pass 10.3` SHIPPED (`55062c5`): evaluate signer trust against imported anchors (signature-linkage only, opt-in/at-own-risk); the EULA→opt-in ruling recorded as decision 134; `Pass 10.4` (setting) + `Pass 10.5` (full validation) SCOPED to *Backlog*
+
+**Shipped:**
+- **`Pass 10.3` — evaluate a signer's chain against imported trust
+  anchors** (`pdfcer-core` + the `pdfcer` CLI, code `55062c5`). Turns the
+  `trust = NotChecked` that `Pass 10.1` named into a real verdict.
+  `crypto::cms::Certificate` now exposes `tbs_der` / `subject_der` /
+  `sig_alg_oid` / `sig_value` + `signer_certificate_der()`; the new
+  `trust_chain.rs` `evaluate(signer, intermediates, &TrustAnchorSet) ->
+  ChainVerdict` walks issuer→subject links, **verifying each link's
+  signature** (RSA PKCS#1 v1.5 + ECDSA over SHA-1/256/384/512; RSA-PSS
+  declined = safe), depth-capped and cycle-guarded, to a trusted anchor.
+  `signature_verify::Trust` gained `Trusted { anchor_subject, source }` /
+  `Untrusted { reason }` / `SignerUnknown` (dropped `Copy`);
+  `verify_all_with_trust(graph, bytes, Option<&TrustAnchorSet>)` is
+  re-exported, with `verify_all == verify_all_with_trust(None)` (unchanged
+  `NotChecked`). CLI: `verify-signatures --trust-from-acrobat` loads the
+  installed store and prints the at-own-risk + not-a-full-check
+  disclosures. `core [x]` · `cli [x]` · `gui [ ]` (`pdfcer-gui` is the
+  consumer). Proven on the real installed store via the CLI (1780 anchors;
+  the fixture's self-signed signer correctly reports "untrusted:
+  self-signed root not in the trust store").
+
+**Decisions made this session:**
+- **Decision 134** — the operator's EULA ruling, verbatim: *"they could
+  change the eula after this. we just need the user to set a setting that
+  allows at their own risk."* This **resolves decision 133 §3's open
+  Adobe-Reader-EULA item**: the EULA gate is replaced by an explicit
+  at-own-risk opt-in, off by default, disclosed — NOT a pdfcer legal
+  determination (Adobe may change terms; the user consents per-use /
+  per-setting). "Enable-by-default" is no longer a destination — the
+  feature stays operator-enabled. Decision ceiling `133` → `134`, next
+  free `135`. See `ARCHITECTURE.md` §12 (decision 134 + a forward-pointer
+  amendment on decision 133 §3).
+
+**Findings + decisions:**
+- **SECURITY — `Pass 10.3` is SIGNATURE-LINKAGE ONLY.** It verifies each
+  chain link's signature to a trusted anchor; it does **not** check
+  revocation (CRL/OCSP), validity dates against a clock, or RFC 5280
+  `basicConstraints`/`keyUsage`/path-length constraints — deferred to
+  `Pass 10.5`, disclosed in the verdict note and CLI output. **Every
+  uncertainty resolves to `Untrusted`, never a false `Trusted`.**
+  Integrity and trust are independent axes: a valid signature by an
+  untrusted signer is `Verified` + `Untrusted`; `SignerUnknown` is kept
+  distinct from `Untrusted`.
+- **Gates green (relayed):** clippy `-D warnings`, fmt, `wasm32` build of
+  `pdfcer-core`, control-bytes, string-gaps, public-fns, core-api verbs;
+  `cargo tree` confirms `pdfcer-core` GUI-dep-free. New public surface
+  documented in `docs/core-api/01-reading-and-model.md` §12.5 + §12.5b.
+- **Sourcing (hard rule 8):** this role had a shell. `HEAD` = `55062c5`
+  (full `55062c53cd1bad3f10e1014c58bda7463ea0ef48`, subject *"Pass 10.3:
+  evaluate signer trust against imported anchors (opt-in, at own risk)"*,
+  2026-09-04 20:25:37 -0400), one commit ahead of the 422nd filing's
+  librarian commit `72c27f4` (`git log --oneline 72c27f4..HEAD` =
+  `55062c5`); `git status --short` empty before this filing's doc edits.
+  All test/gate/anchor-count figures relayed from the engineer's
+  dispatch, except the git facts just named.
+
+**Still in flight:**
+- **`Pass 10.4` — persistent "use Acrobat trust store (at own risk)"
+  setting** (*Backlog*, NOT built). The operator asked for a setting; the
+  `Pass 10.3` flag is per-invocation. NOT built this Pass because the
+  `pdfcer_core::settings` round-trip gate is strict and deserves its own
+  careful pass.
+- **`Pass 10.5` — full trust validation** (*Backlog*, NOT built):
+  revocation (CRL/OCSP from cert DER CDP/AIA), validity-date checking
+  against a clock, RFC 5280 path constraints, and RSA-PSS cert signatures
+  — the deferred half of a real eIDAS/RFC-5280 verdict.
+
+**For next session:**
+- Engineer: `Pass 10.3` shipped at `HEAD` (`55062c5`), unreleased — the
+  next release picks it up. `Pass 10.4` (the setting) is the natural
+  follow-on; `Pass 10.5` (full validation) is the larger deferred piece.
+- Operator: the trust-store trust check now works from the CLI
+  (`verify-signatures --trust-from-acrobat`), opt-in and at your own risk.
+  A persistent setting so you don't pass the flag each time is filed as
+  `Pass 10.4`; full revocation/expiry checking is `Pass 10.5`.

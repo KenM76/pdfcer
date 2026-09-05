@@ -31559,6 +31559,17 @@ off-by-default**, and an **operator EULA review is an OPEN ITEM that
 gates any future enable-by-default** — it does not gate shipping the
 opt-in capability.
 
+**★★ THE EULA-REVIEW OPEN ITEM IN §3 IS RESOLVED 2026-09-04 (423rd
+filing) — see decision 134 below.** The operator ruled that the EULA
+gate is replaced by an **explicit at-own-risk opt-in setting**, off by
+default: pdfcer does not undertake an EULA review at all, because Adobe
+could change the EULA after any review, so the durable posture is user
+consent per-setting rather than a pdfcer legal determination. The
+"enable-by-default" that §3 said this item gated is simply **not a
+destination** — the feature stays operator-enabled, at the operator's own
+risk. This paragraph is kept as written for its history; decision 134 is
+the current text.
+
 **Crate boundary.** The `.acrodata` **reader** is `pdfcer-core` (COS +
 X.509, no GUI, local file read only, no network — the GUI-core-separation
 and no-network invariants both hold). The **locator** that finds the
@@ -31582,3 +31593,52 @@ rules ceiling `R241` — unchanged**, next free `R242`. **Open operator
 questions: none minted here** — the Adobe-Reader-EULA review is filed as
 an OPEN ITEM on `Pass 10.2`, not as a lettered operator question; next
 free `(ce)`.
+
+### 2026-09-04 (423rd filing) — decision 134: **THE ADOBE-READER-EULA REVIEW (decision 133 §3's open item) IS REPLACED BY AN EXPLICIT AT-OWN-RISK OPT-IN, OFF BY DEFAULT, DISCLOSED — NOT A pdfcer LEGAL DETERMINATION. RESOLVES decision 133 §3.**
+
+**(librarian filing, 423rd. Recorded with `Pass 10.3`, which shipped the
+CLI opt-in that this decision governs — `verify-signatures
+--trust-from-acrobat`, code `55062c5`.)**
+
+**The open item.** Decision 133 §3 shipped the Acrobat trust-store import
+**opt-in / off-by-default** and named an **operator Adobe-Reader-EULA
+review** as an OPEN ITEM that would gate any future *enable-by-default*.
+That item is now resolved.
+
+**The operator's ruling, verbatim (2026-09-04):** *"they could change the
+eula after this. we just need the user to set a setting that allows at
+their own risk."*
+
+**What it decides.** The EULA gate is **removed and replaced by user
+consent per-setting**, for a reason that outlives any one review: **an
+EULA review is not durable** — Adobe can change the terms after pdfcer
+reviews them, so a one-time legal reading would be stale the moment it is
+filed. The durable posture is therefore **not** a pdfcer legal
+determination about the EULA; it is an **explicit operator opt-in, off by
+default, at the operator's own risk, disclosed**. The user consents each
+time (per invocation) or once (per persistent setting); pdfcer states the
+risk and does not decide it.
+
+**Consequences.**
+
+- **"Enable-by-default" is no longer a destination.** Decision 133 §3
+  framed the EULA review as the gate in front of flipping the default;
+  with this decision there is no default-on to gate — the feature stays
+  operator-enabled, always. The gate is dissolved, not merely satisfied.
+- **The CLI opt-in is the per-invocation consent:** `pdfcer
+  verify-signatures --trust-from-acrobat` (shipped `Pass 10.3`,
+  `55062c5`), which prints the **at-your-own-risk** disclosure.
+- **The persistent consent is a SETTING**, scoped as `Pass 10.4`
+  (*Backlog*): an `AcrobatTrustStore { Off, AtOwnRisk }` setting in
+  `pdfcer_core::settings`, off by default, read by the CLI as its default
+  and by the GUI's security tab. A setting, not an inference gate — so no
+  accept/reject flow (rule 4); the at-own-risk text is the disclosure.
+- **This is the operator's standing "leave a fuzzy legal question to the
+  user to enable" rule applied once more** (the same rule decision 133 §3
+  cited), now made concrete: the vehicle of that consent is a named
+  setting, and the EULA-review branch of §3 is closed.
+
+**Decision ceiling moves `133` → `134`; next free `135`.** **Standing
+rules ceiling `R241` — unchanged**, next free `R242`. **Open operator
+questions: none minted; the resolved item was an OPEN ITEM on `Pass 10.2`,
+never a lettered question — next free `(ce)`.**
