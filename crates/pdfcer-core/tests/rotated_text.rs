@@ -681,7 +681,9 @@ fn the_editable_model_clusters_a_rotated_line_as_one_line() {
     // Asserted here rather than left to `hit_test`, because sabotage showed
     // `hit_test` does not depend on it: when the box fails to contain the
     // point, the nearest-line-by-baseline fallback still finds the right
-    // line, so a wrong box is invisible through that door. It is not
+    // line — provided the box is wrong by less than one line-height, the
+    // reach `Pass 14.5` gave that fallback (2026-09-05) — so a modestly
+    // wrong box is invisible through that door. It is not
     // invisible to a shell that draws a selection highlight from
     // `Line::bbox`, which is what the box is for.
     for line in model.lines() {
