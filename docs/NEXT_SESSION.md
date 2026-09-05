@@ -1,145 +1,117 @@
-# NEXT SESSION — start here
+# NEXT_SESSION.md — engineer handoff
 
-Engineer-owned handoff. Read this **before** `ROADMAP.md` — that says what
-shipped, this says what to do next. **Overwrite it once acted on.**
+**Read this FIRST on resume**, then the latest `docs/SESSION_LOG.md` entry for
+detail. This file is engineer-owned (write it directly; it is NOT a librarian
+doc). It is replaced each session with the current handoff.
 
-Per standing rule `R216` this file carries **no edit-history layer**. What is
-true now, plus a pointer. Corrections and their prior wording live in the
-append-only record (`ROADMAP.md`, `SESSION_LOG.md`).
-
-Written **2026-09-03**, at the end of the session that shipped **`Pass 5.4`**
-(encrypt on save, AES-256 `/R` 6 only) and cut release **`v0.31.0`**.
-Everything below was measured with a shell.
-
-**For the ledger — Pass ceiling, rule ceiling, decision ceiling, filing count —
-run `python tools/check-ledger-numbers.py`.** Do not mint from memory.
+**Written:** 2026-09-05, end of a long session. **HEAD:** `9301164`. **Released:**
+v0.39.0 (on GitHub + OneDrive pdfcer1). **Ledger:** filings **434**, Pass ceiling
+**255.0**, decisions **135**. Workspace version in `Cargo.toml` is `0.39.0`
+(bump to `0.40.0` at the next release).
 
 ---
 
-## §0 WHERE YOU ARE
+## THE PLAN (operator-approved 2026-09-05) — do these two, in order
 
-- **`D:\Dev\pdfcer` is the project** (`D:\Dev\pdfce` is the frozen backup —
-  never write there). Crates `pdfcer-core`, `pdfcer-render`, `pdfcer-cli`
-  (binary `pdfcer`), `pdfcer-print`, `pdfcer-fetch`. The GUI is the separate
-  `D:\dev\pdfcer-gui` project, on `pdfcer` crates since its v0.5.0.
-- `main` = `624ba1e` = `origin/main`: `743830d` (`Pass 5.4`) + `d37219f`
-  (412th filing) + `624ba1e` (version bump to 0.31.0). Previous release
-  `v0.30.0` at `1f9eb1d`; OneDrive `pdfcer2` = 0.30.0, `pdfcer1` = 0.29.1.
-  `v0.29.0` is a tag that was never released (red off-Windows) — leave it.
-- **Release `v0.31.0` — verify its final state before assuming.** At the
-  moment this file was written it was IN PROGRESS: packaged at `624ba1e`
-  (`D:\builds\pdfcer-20260903-2234-624ba1e`, `pdfcer.exe` 20,544,512 B),
-  fresh-folder smoke test passed (encrypt / remove-encryption / the A13
-  diagnostic all surfaced from the copied binary), CI run `33830016873` was
-  building. **Owed if not done:** tag `v0.31.0` at `624ba1e` + push; `gh
-  release create` with the packaged zip; `deploy-onedrive.py` (next slot is
-  **`pdfcer1`** — `pdfcer2` holds 0.30.0); `verify-release.py`; a release
-  filing. `git tag -l v0.31.0` and `gh release view v0.31.0` tell you where
-  it actually stopped.
-- `cargo test --workspace` green; `run-gates.sh` PASS (29 commands).
+The operator said **"build all before the next portable release unless I say
+otherwise"** — accumulate the whole batch on `main` (push freely, CI validates),
+and cut ONE portable release when the batch is done. Two items remain:
 
----
+### 1. Pass 255.0 — markup-shape vertex editing  ← BUILD THIS FIRST
+Scoped-ready and decision-free. **Acceptance criteria are already in
+`docs/ROADMAP.md`** (434th filing), sourced from
+`D:\Dev\Rag-Specialized\Acrobat_Features\markup__vertex_editing_and_reshape.md`.
+Core-first (`pdfcer-core` annotation model + `EditSession` verbs), then the GUI
+consumes it. Key criteria:
+- `/Polygon` + `/PolyLine` (`/Vertices`): MOVE + INSERT + REMOVE a vertex — this
+  **exceeds** current Acrobat DC (drag-only) deliberately. Min floor Polygon ≥ 3,
+  PolyLine ≥ 2 → named refusal at the floor.
+- `/Line`: 2 endpoints, move only.
+- `/Ink` (`/InkList`): **named refusal** for per-point insert/remove (Acrobat
+  never had per-point ink editing — whole-stroke only).
+- Each reshape: regenerate `/AP` `/N`, recompute `/Rect`, update `/M`. ★ Cloud
+  `/BE` `/Polygon` has NO `/RD`, so `/Rect` = the full bulged outline — a
+  separate recompute path from Square/Circle clouds (which may carry `/RD`).
+- Two independent lock gates: `/F` **Locked** blocks reshape; **LockedContents**
+  does NOT. Plus the standing certified-doc / `/DocMDP` refusal.
+- `/Measure` caveat: moving an endpoint recomputes the value; never silently
+  clobber a manual override if one is ever added.
 
-## §1 ★ NEXT — consult `ROADMAP.md`'s *Next up* head
+### 2. Digital signing — the large arc  ← BUILD SECOND (operator approved the shape)
+**Fully grounded already** — read these before writing any crypto (project rule 1):
+- Spec (construction side): `D:\Dev\Rag-Specialized\PDF_Spec\iso32000\iso32000__ref__signature_creation.md`,
+  `…\security\security__cms_signeddata_build.md`, `…\pades\pades__ref__creation_by_level.md`,
+  `…\security\security__rfc3161_timestamp.md`, `…\security\security__pkcs12_import.md`.
+- Acrobat behavior / ID sources: `D:\Dev\Rag-Specialized\Acrobat_Features\signatures__digital_id_sources.md`
+  (+ `signatures__signing_operation_options.md`, `…__format_and_level_choices.md`, `…__signing_defaults_and_limits.md`).
 
-`Pass 5.4` shipped, so the previous three hand-offs' "NEXT: 5.4" is spent.
-The genuine next item is whatever now sits at the head of *Next up* in
-`ROADMAP.md` — read it, do not mint from here. The recorded queue is §2.
-
-## §2 QUEUED AFTER
-
-1. Mesh shadings deposit spot planes; the 8 unresolved conformance patches;
-   `sh` cutting under a redaction mark; `set_page_tabs` when asked.
-2. iccce's `reply_all_four_asks_measured_and_your_bpc_would_have_done_nothing.md`
-   is STILL unread by any engine session.
-3. Optional, unasked, recorded only: a `copy-selection` CLI verb (the GUI
-   route is `ObjectClip::to_pdf` → `export_svg`/`export_emf`); true
-   `<radialGradient fr>` for two-circle radials (SVG 2 only).
-4. **`pdfceGUI` consumes the encryption verbs** (their O108 read-side
-   security tab) when they wire them — `docs/core-api` §5.5 is the contract.
-
----
-
-## §3 STATE OF THE ENCRYPTION ARC (so it is not rebuilt)
-
-- **AES-256 `/R` 6 only, in BOTH directions.** Read: `standard.rs`
-  `authenticate_r5` picks `r5::Hasher::R6(A13Reading::default())` when
-  `revision == 6`. Write: `crypto/encrypt.rs::build_aes256_r6` (Algorithms
-  8/9/10), `crypto/r6.rs::hash_2b` (Algorithm 2.B). RC4 / `/R` 2–5 are never
-  written (W14/W17).
-- **The seam is `r5::Hasher`** (Sha256 vs R6). The owner path feeds `/U` into
-  BOTH the seed string and every K0 — proven against pypdf, do not "simplify".
-- **A13 is a SETTING** (`A13Reading`, default `PerformThenTest` = what pypdf
-  and Acrobat write). A `/R` 6 auth failure raises `DocError::PasswordRequiredR6`,
-  which NAMES A13 — that is the only interoperable reading, so a file written
-  under the other one is the disclosed failure mode.
-- **The three verbs are SAVE TRANSFORMS**, not undoable commands:
-  `EditSession::set_encryption` (`&self`, plaintext ⇒ encrypted),
-  `set_permissions` (`&mut self`, owner-only re-key), `remove_encryption`
-  (`&mut self`, owner-only). `set_permissions`/`remove_encryption` call
-  `Document::clear_encryption` first (objects are already plaintext in memory
-  from decrypt-in-place at load).
-- **Encryption waives minimal-diff by design** (decision 007 W8): every string
-  and stream re-serialised through `EncryptingEncoder`; classic-table output,
-  object streams promoted out. A signed document is REFUSED by name
-  (`EncryptError::SignedDocument`) — never silently invalidated.
-- **Criterion-7 branch chosen:** incremental save of a still-encrypted base is
-  REFUSED (`WriteError::EncryptedSaveUnsupported`), not append-with-existing-key.
-  If a future ask needs the latter, it is a new increment.
-- **The write side is proven by the read side + pypdf 6.7.0** both directions.
-  `enc-aes-256-r6.pdf` is now a decryption fixture, not refusal-only.
-
-## §4 STATE OF THE EXPORT ARC (still current from v0.30.0)
-
-- **One recording, three writers.** `record_page_for_export` (export mode of
-  the display-list recorder, decision 132) feeds `svg.rs`, `emf.rs` and the
-  raster path. Never build a writer over `vector::PageObjects`.
-- **SVG** gradients native for axial and focal-radial; raster fallback for the
-  rest, counted in `ExportTally`. Oracles resvg `=0.45.1` + Inkscape.
-- **EMF** from `D:\dev\rag\emf\`; oracle is REAL GDI (`PlayEnhMetaFile`), NOT
-  `System.Drawing` (mis-plays `EMR_ALPHABLEND`).
-- `docs/core-api/03-capabilities.md` §7.7–§7.10 is that consumer contract.
+**Operator-approved shape (2026-09-05):**
+- **First build = PAdES B-B (basic), default format CAdES, first key source = a
+  .pfx / PKCS#12 file.** Rationale: .pfx is the ONLY source where the raw key is
+  legitimately in-memory, so B-B-from-a-file is fully self-contained (no network,
+  no OS key store) — ships and tests on its own. SHA-256 default.
+- **Then** layer on: Windows-cert-store + PKCS#11-token key sources; B-T
+  (timestamp); B-LT/B-LTA (need the backlogged revocation piece, Pass 10.6).
+- **Architecture — the load-bearing design:** all four ID sources collapse to
+  **hash-in / signature-out**, so `pdfcer-core` defines a `Signer` trait
+  (`sign(digest) -> sig`, `certificate_chain()`) and ships a `Pkcs12Signer`
+  (in-core, the one source that also supplies a local key). Windows-store / token
+  signers are shell-side impls (key never leaves its custodian). This keeps the
+  no-network invariant and lets the operator pick any source through one pipeline.
+- Signing MUST be an **incremental update** (append; prior signatures stay valid)
+  with the two-pass `/ByteRange` placeholder + back-patch (`SC-2`/`SC-7`). Needs
+  NEW crypto: RSA/ECDSA **private-key** signing (crate has verify only) + PKCS#12
+  parse (RFC 7292). CMS `0x31` retag (`CB-4`).
+- Refusals to match: one certifying signature per doc; signing an encrypted doc
+  is permission-bit-gated not blanket; refuse a signed/certified doc past its MDP.
 
 ---
 
-## §5 THINGS A NEW SESSION MUST KNOW BEFORE TOUCHING ANYTHING
+## Build environment — READ before any release build (this cost hours)
+This box has **~4.4 GB free RAM**. The normal parallel release build OOMs — it
+presents as Windows **`0xC0000142` / STATUS_DLL_INIT_FAILED**, NOT a timeout or
+disk-full. Full lesson in `D:\dev\rag\rust`. Recipe that works:
+- Build with **`CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_BUILD_JOBS=2`** (least
+  memory; also best-optimized). Slow but survives.
+- The environment reaps long detached processes; **finished crates cache**, so
+  relaunch the SAME config repeatedly until an uninterrupted pass finishes.
+- Keep `target/debug` pruned (`rm -rf target/debug` freed 185 GB when disk hit 97%).
+- `cargo test --workspace` OOMs on the LINK phase locally — **CI is the
+  authoritative full-suite backstop** (it's green on everything pushed). Run
+  affected test files individually with the low-memory env.
 
-- **Push (`main`, fast-forward) and RELEASE are STANDING-AUTHORIZED**
-  (decisions 090, 121) — no per-act go-ahead. `--force`, non-`main` branches,
-  and non-release tags are NOT. Scrub `check-suite-name-absent.py` green
-  before any push (public repo).
-- **★ Cross-target check the CLI before pushing a `cfg(windows)` change**
-  (`cargo clippy -p pdfcer-cli --all-targets --target x86_64-unknown-linux-gnu -- -D warnings`);
-  a skipped one cost the dead `v0.29.0` tag.
-- **A filing commit carries ONLY docs.** A version-bump chore commit is a
-  separate code commit — file it with the release filing.
-- **`run-gates.sh` FOREGROUND with a warm cache.** Backgrounding it gets it
-  killed (~10 min) and 0xc0000142 doctest failures look like real ones.
-- **Patch scripts through the Write tool**, plain string anchors, every anchor
-  asserted; anchor on the DOC BLOCK not the `fn`, and a `//` line between the
-  `///` doc and the item makes `check-public-fns-documented.py` see it as
-  undocumented (bit this Pass — `to_encrypt_dict`). Inserting a method BEFORE
-  another orphans the later one's doc (bit this Pass — `parse`).
-- **`cargo fmt` collapses `\`-continued string literals** into one physical
-  line, baking the leading whitespace into a gap — `check-string-gaps.sh`
-  catches it. Write long `#[error(...)]` messages as ONE line.
-- **The librarian has no shell** — paste exact commit hashes into its dispatch.
+## Release procedure (when the batch is done — bump to 0.40.0)
+bump `Cargo.toml` version → commit chore → tag `v0.40.0` at the chore → build
+(low-memory recipe) → `tools/package-portable.py` (rebuilds cli clean + packages;
+run it from a CLEAN tree or the binary stamps `-dirty`) → fresh-folder smoke test
+→ zip `pdfcer-vX-windows-x64.zip` + `.sha256` → `gh release create` → 
+`tools/deploy-onedrive.py` (alternates pdfcer1/pdfcer2; pdfcer1=0.39.0 now, so
+0.40.0 → pdfcer2) → `tools/verify-release.py v0.40.0` → librarian release filing.
+Releasing is standing-authorized (decision 121); pushing `main` is (decision 090).
 
-## §6 MEASURED NEGATIVES — DO NOT RE-DERIVE
+## Standing habits this session reinforced
+- **README/public claims are sourced from `docs/FEATURES.md` every time** (I
+  shipped a stale "OCR not built" — OCR shipped Pass 129.0). Grep FEATURES per claim.
+- **Reconcile the FEATURES `gui` column against `D:\Dev\pdfcer-gui\FEATURES.md` +
+  `NO_SURFACE.md`**, not CONSUMED notices — it was stale by 11 capabilities.
+- **Check BOTH FeatureRequests channels every session**:
+  `D:\Dev\FeatureRequests\pdfce_FeatureRequests` (open/ dir). Requests outrank backlog.
+- Dispatch `pdfcer-librarian` for every ROADMAP/FEATURES/SESSION_LOG/decision write;
+  `pdfcer-acrobat-librarian`/`pdfcer-spec-librarian` to ground a Pass before building.
+- Never bundle code into a filing commit; file a code commit before pushing it off
+  the tip (check-commits-filed exempts only the tip).
 
-1. `/R` 6's only interoperable A13 reading is `PerformThenTest`; the other
-   reading fails to open a pypdf/Acrobat file. Kept switchable for tests only.
-2. Inkscape's CLI has no `paste`; Word's `PasteSpecial(wdPasteEnhancedMetafile)`
-   via COM hung.
-3. resvg 0.48 pulls a duplicate tiny-skia/zune-jpeg — the duplicates guard
-   refuses it; `=0.45.1` is the last on tiny-skia 0.11.
-4. GDI+ (`System.Drawing`) mis-plays `EMR_ALPHABLEND`; real GDI is exact.
-5. Rename debt unchanged: `pdfceF{n}` is a deliberate keep; `pdfce-gui`,
-   `pdfce@cce414e:` citations, `pdfce_FeatureRequests` are NOT to be renamed.
+## Not for the engineer to decide (operator's)
+- **Buy-me-a-coffee link** in the MIT copyright notice — the OPERATOR is handling
+  this himself, in the MIT-compatible spot (the notice). Nothing owed from the engineer.
+- Any B-LT/B-LTA signing → depends on Pass 10.6 revocation (backlogged, open
+  operator question `(bl)` about the CC-BY-SA OCR model still stands separately).
 
-## §7 ITEMS OWED BY THE OPERATOR
-
-- Global `C:\Users\Ken\.claude\CLAUDE.md` still references `D:\Dev\pdfce\`.
-- Open questions `(ca)`, `(cb)`, `(cc)` — unchanged.
-- The XFA read/fill re-scoping (open question `(p)`) and the OCR model-file
-  licence call (`(bl)`) remain the operator's.
+## What shipped this session (all on main, CI green)
+Pass 5.4 encryption authoring; Pass 10.2–10.5 signature trust (import Acrobat
+store, evaluate chain, validity dates, RFC-5280 CA/key-usage, RSA-PSS); Pass 250.0
+object→layer; 250.1 finalizing redaction; 250.2 undo-preserving deferred redaction;
+250.3 encryption refuses a pending redaction (a leak 250.2 opened); 251.0 add_text
+duplication + reflow deletion fix; 251.1 delete_pages ancestor `/Count` fix (nested
+tree); 254.0 line-weights hairline display mode. Releases v0.38.0 and v0.39.0.
+README + FEATURES `gui` column corrected.
