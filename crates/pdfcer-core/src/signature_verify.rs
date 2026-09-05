@@ -126,22 +126,29 @@ pub enum Integrity {
 /// supplied. When anchors ARE supplied (`Pass 10.3`, an opt-in read of an
 /// installed Acrobat's trust store), the other variants report whether the
 /// signer chains, BY SIGNATURE, to one of them. ★ A [`Trusted`](Trust::Trusted)
-/// verdict is signature-linkage only: revocation, validity dates and RFC 5280
-/// CA/key-usage constraints are NOT checked (those are later increments), and
-/// the verdict's own note says so.
+/// verdict checks signature linkage, RFC 5280 CA/key-usage constraints, and —
+/// when a signing-time clock is available — certificate validity dates
+/// (`Pass 10.5`); it does NOT check revocation (CRL/OCSP), which needs the
+/// network `pdfcer-core` never touches. The verdict's own note says exactly
+/// what ran.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Trust {
     /// No trust store, no chain building, no revocation, no time check.
     /// The certificate's subject and validity dates are reported as claims.
     NotChecked,
-    /// The signer chains, by valid signatures, to a trusted anchor. NOT a full
-    /// validity/revocation verdict (see the type docs and the verdict note).
+    /// The signer chains, by valid signatures, to a trusted anchor, and RFC
+    /// 5280 CA/key-usage constraints held. NOT a revocation verdict, and only a
+    /// validity-date verdict when `validity_checked` (see the type docs and note).
     Trusted {
         /// The trusted anchor's subject the chain terminated at.
         anchor_subject: String,
         /// That anchor's `/Source` provenance (`AATL`/`EUTL`/`ADBE`).
         source: Vec<String>,
+        /// Whether certificate validity dates were checked against the signing
+        /// time. `false` means no clock was available, so expiry was NOT checked
+        /// (revocation is never checked this build — pdfcer-core has no network).
+        validity_checked: bool,
     },
     /// Trust was evaluated and the signer does NOT chain to a trusted anchor
     /// (a valid signature can still be *untrusted* — "valid but untrusted").
@@ -607,18 +614,27 @@ fn verify_dict<G: ObjectGraph + ?Sized>(
                 Trust::SignerUnknown
             }
             Some(signer_der) => {
-                match crate::trust_chain::evaluate(signer_der, &sd.certificates, anchors) {
+                // The signing time is the RFC 5280 reference clock: was the
+                // chain valid WHEN the document was signed (Pass 10.5)?
+                let now = signer.signing_time.as_deref();
+                match crate::trust_chain::evaluate(signer_der, &sd.certificates, anchors, now) {
                     crate::trust_chain::ChainVerdict::Trusted {
                         anchor_subject,
                         source,
+                        checks,
                     } => {
-                        notes.push(
-                        "trust: the signer chains by signature to a trusted anchor. This is NOT a full validity check -- certificate revocation (CRL/OCSP), validity dates against a clock, and RFC 5280 CA/key-usage constraints are NOT verified (Pass 10.3)."
-                            .to_owned(),
-                    );
+                        let validity = if checks.validity_checked {
+                            "validity dates were checked at the signing time"
+                        } else {
+                            "validity dates were NOT checked (no signing-time clock)"
+                        };
+                        notes.push(format!(
+                            "trust: the signer chains by signature to a trusted anchor, and RFC 5280 CA/key-usage constraints held; {validity}. Certificate revocation (CRL/OCSP) is NOT checked -- pdfcer-core never touches the network (Pass 10.5)."
+                        ));
                         Trust::Trusted {
                             anchor_subject,
                             source,
+                            validity_checked: checks.validity_checked,
                         }
                     }
                     crate::trust_chain::ChainVerdict::Untrusted { reason } => {
@@ -762,7 +778,7 @@ fn check_signature(
 
 /// `RSASSA-PSS-params` (RFC 4055 §3.1): `(hash, mgf1 hash, salt length)`,
 /// with the RFC's defaults for absent fields.
-fn pss_params(alg: &cms::AlgId<'_>) -> Result<(Hash, Hash, usize), String> {
+pub(crate) fn pss_params(alg: &cms::AlgId<'_>) -> Result<(Hash, Hash, usize), String> {
     let mut hash = Hash::Sha1;
     let mut mgf = Hash::Sha1;
     let mut salt = 20usize;

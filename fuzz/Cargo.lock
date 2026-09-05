@@ -366,7 +366,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-core"
-version = "0.32.0"
+version = "0.37.0"
 dependencies = [
  "aes",
  "brotli",
@@ -394,7 +394,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-render"
-version = "0.32.0"
+version = "0.37.0"
 dependencies = [
  "iccce-cmm",
  "iccce-color",

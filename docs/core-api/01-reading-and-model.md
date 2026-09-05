@@ -2544,19 +2544,35 @@ turns the anchor pool into a per-signature `Trust` verdict. `None` ⇒ `NotCheck
 (identical to `verify_all`). `Some` ⇒ each signer is chained, **by verifying
 each link's signature**, to a trusted anchor:
 
-- `Trust::Trusted { anchor_subject, source }` — the signer chains to an anchor.
+- `Trust::Trusted { anchor_subject, source, validity_checked }` — the signer
+  chains to an anchor, AND RFC 5280 CA/key-usage constraints held.
+  `validity_checked` is `true` iff certificate validity dates were checked
+  against the signing time (`false` ⇒ no signing-time clock, so expiry was not
+  verified). Revocation is never checked (see below).
 - `Trust::Untrusted { reason }` — a parsed signer that does NOT chain (incomplete
-  chain, untrusted self-signed root, or a link whose signature failed). A valid
-  signature with an untrusted signer is `Integrity::Verified` + `Trust::Untrusted`
-  ("valid but untrusted") — the two axes are independent.
+  chain, untrusted self-signed root, a link whose signature failed, a non-CA
+  intermediate, or a certificate outside its validity window at the signing
+  time). A valid signature with an untrusted signer is `Integrity::Verified` +
+  `Trust::Untrusted` ("valid but untrusted") — the two axes are independent.
 - `Trust::SignerUnknown` — the signer certificate could not be parsed.
 
-**★ What `Trusted` does NOT mean.** It is signature-linkage only. `trust_chain`
-does **not** check certificate **revocation** (CRL/OCSP), **validity dates**
-against a clock, or **RFC 5280** `basicConstraints`/`keyUsage`. The verdict
-carries a note saying so, and a shell MUST surface it. Every uncertainty
-resolves to `Untrusted`, never a false `Trusted` (RSA-PSS cert signatures are
-declined for now — safe direction). These deferred checks are future increments.
+**★ What `Trusted` DOES and does NOT mean (`Pass 10.5`).** `trust_chain::evaluate(
+signer_der, intermediates, anchors, now: Option<&str>)` returns
+`ChainVerdict::Trusted { anchor_subject, source, checks: PathChecks }`, where
+`PathChecks { validity_checked, constraints_checked, revocation_checked }`
+records exactly which checks ran. It verifies: **signature linkage** (every
+issuer→subject link), **CA/key-usage constraints** on intermediates
+(`basicConstraints` cA TRUE + `keyUsage` not clearing `keyCertSign`;
+`constraints_checked` always `true`), and — when `now` is supplied — **validity
+dates** (`notBefore ≤ now ≤ notAfter` for every cert, RFC 5280 §4.1.2.5). It
+does **not** check **revocation** (CRL/OCSP): that needs the network
+`pdfcer-core` never touches, so `revocation_checked` is always `false` this
+build (a shell that fetches, or embedded DSS/LTV data, is the later increment).
+Cert signatures verify for RSA PKCS#1 v1.5, RSASSA-PSS (params from the cert's
+`signatureAlgorithm`) and ECDSA; any other scheme is declined (safe direction).
+The verdict carries
+a note stating precisely what ran; a shell MUST surface it. Every uncertainty
+resolves to `Untrusted`, never a false `Trusted`.
 
 **Opt-in and at the operator's risk (decision 133).** Supplying the Acrobat
 store is the shell's choice, off by default. The CLI's `verify-signatures

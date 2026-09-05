@@ -296,12 +296,25 @@ pub(crate) struct Certificate<'a> {
     /// The subject `Name`'s raw DER — matched against a candidate issuer's
     /// [`issuer_der`](Self::issuer_der) to link a chain (`Pass 10.3`).
     pub subject_der: &'a [u8],
-    /// The OUTER `signatureAlgorithm` OID (RFC 5280 §4.1.1.2), naming both the
-    /// signature scheme and its hash (e.g. `sha256WithRSAEncryption`).
-    pub sig_alg_oid: Option<String>,
+    /// The OUTER `signatureAlgorithm` (RFC 5280 §4.1.1.2) — its OID names the
+    /// scheme and hash (e.g. `sha256WithRSAEncryption`), and its `params` carry
+    /// the `RSASSA-PSS-params` when the scheme is RSA-PSS (needed to verify a
+    /// PSS-signed certificate, `Pass 10.5`).
+    pub sig_alg: Option<AlgId<'a>>,
     /// The `signatureValue` BIT STRING contents — the issuer's signature over
     /// [`tbs_der`](Self::tbs_der).
     pub sig_value: &'a [u8],
+    /// `true` iff the `basicConstraints` extension (RFC 5280 §4.2.1.9, OID
+    /// `2.5.29.19`) is present with `cA` TRUE. A certificate used as an
+    /// *intermediate* issuer must be a CA; a leaf (`false`) that appears as an
+    /// issuer is a chain defect (`Pass 10.5`).
+    pub is_ca: bool,
+    /// Whether the `keyUsage` extension (RFC 5280 §4.2.1.3, OID `2.5.29.15`)
+    /// asserts `keyCertSign` (bit 5): `Some(true)` present-and-set,
+    /// `Some(false)` present-but-clear, `None` extension absent. An issuer with
+    /// `Some(false)` must not be used to sign certificates (`Pass 10.5`); `None`
+    /// leaves the constraint unstated and is not, alone, disqualifying.
+    pub key_usage_cert_sign: Option<bool>,
 }
 
 /// Parse an X.509 v3 certificate (RFC 5280 §4.1).
@@ -312,12 +325,7 @@ pub(crate) fn parse_certificate(der: &[u8]) -> Option<Certificate<'_>> {
     let tbs_der = tbs.raw;
     // The outer signatureAlgorithm (kids[1]) names the hash+scheme; the
     // signatureValue (kids[2]) is the issuer's signature over `tbs_der`.
-    let sig_alg_oid = kids
-        .get(1)
-        .and_then(|alg| asn1::children(*alg))
-        .and_then(|c| c.into_iter().next())
-        .filter(|t| t.tag == asn1::OID)
-        .and_then(|t| asn1::oid_to_string(t.content));
+    let sig_alg = kids.get(1).and_then(|alg| alg_id(*alg));
     let sig_value = kids
         .get(2)
         .filter(|t| t.tag == asn1::BIT_STRING)
@@ -340,6 +348,8 @@ pub(crate) fn parse_certificate(der: &[u8]) -> Option<Certificate<'_>> {
     let spki = it.next().filter(|t| t.tag == asn1::SEQUENCE)?;
     let key = parse_spki(spki)?;
     let mut subject_key_id = None;
+    let mut is_ca = false;
+    let mut key_usage_cert_sign = None;
     // Optional issuerUniqueID [1], subjectUniqueID [2], extensions [3].
     for t in it {
         if t.tag == asn1::context(3) {
@@ -349,12 +359,36 @@ pub(crate) fn parse_certificate(der: &[u8]) -> Option<Certificate<'_>> {
                 let Some(oid_t) = parts.first().filter(|t| t.tag == asn1::OID) else {
                     continue;
                 };
-                if asn1::oid_to_string(oid_t.content).as_deref() == Some("2.5.29.14") {
+                let oid_s = asn1::oid_to_string(oid_t.content);
+                if oid_s.as_deref() == Some("2.5.29.14") {
                     // extnValue OCTET STRING wrapping an OCTET STRING.
                     if let Some(outer) = parts.last().filter(|t| t.tag == asn1::OCTET_STRING)
                         && let Some((inner, _)) = asn1::expect(outer.content, asn1::OCTET_STRING)
                     {
                         subject_key_id = Some(inner.content);
+                    }
+                } else if oid_s.as_deref() == Some("2.5.29.19") {
+                    // basicConstraints (RFC 5280 §4.2.1.9): extnValue OCTET STRING
+                    // wrapping SEQUENCE { cA BOOLEAN DEFAULT FALSE, pathLen … }.
+                    // cA is TRUE iff the first child is a BOOLEAN 0xFF.
+                    if let Some(outer) = parts.last().filter(|t| t.tag == asn1::OCTET_STRING)
+                        && let Some((seq, _)) = asn1::expect(outer.content, asn1::SEQUENCE)
+                        && let Some(kids) = asn1::children(seq)
+                        && let Some(first) = kids.first()
+                        && first.tag == asn1::BOOLEAN
+                    {
+                        is_ca = first.content.first().copied() == Some(0xFF);
+                    }
+                } else if oid_s.as_deref() == Some("2.5.29.15") {
+                    // keyUsage (RFC 5280 §4.2.1.3): extnValue OCTET STRING wrapping
+                    // a BIT STRING. keyCertSign is bit 5 → (first bit byte & 0x04).
+                    // The BIT STRING content is [unused_count, bit_bytes…]; a
+                    // nonzero unused count is normal here, so read content raw.
+                    if let Some(outer) = parts.last().filter(|t| t.tag == asn1::OCTET_STRING)
+                        && let Some((bits, _)) = asn1::expect(outer.content, asn1::BIT_STRING)
+                    {
+                        let cert_sign = bits.content.get(1).copied().unwrap_or(0) & 0x04 != 0;
+                        key_usage_cert_sign = Some(cert_sign);
                     }
                 }
             }
@@ -371,8 +405,10 @@ pub(crate) fn parse_certificate(der: &[u8]) -> Option<Certificate<'_>> {
         subject_key_id,
         tbs_der,
         subject_der: subject_tlv.raw,
-        sig_alg_oid,
+        sig_alg,
         sig_value,
+        is_ca,
+        key_usage_cert_sign,
     })
 }
 

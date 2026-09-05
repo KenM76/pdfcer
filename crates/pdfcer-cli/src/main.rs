@@ -2215,9 +2215,10 @@ enum Command {
         /// `%APPDATA%\\Adobe\\Acrobat\\<track>\\Security\\addressbook.acrodata`
         /// (`Pass 10.3`). OFF by default. ⚠ AT YOUR OWN RISK: it reads Adobe's
         /// own downloaded file (a local read), and whether relying on it fits
-        /// the Adobe Reader licence is your call. Even when trusted, this is a
-        /// SIGNATURE-CHAIN check only — revocation, validity dates and CA
-        /// constraints are NOT verified.
+        /// the Adobe Reader licence is your call. A trusted result checks the
+        /// signature chain, RFC 5280 CA/key-usage constraints, and certificate
+        /// validity dates at the signing time — but NOT revocation (CRL/OCSP),
+        /// which needs the network pdfcer-core never uses.
         #[arg(long = "trust-from-acrobat")]
         trust_from_acrobat: bool,
     },
@@ -16070,7 +16071,7 @@ fn cmd_verify_signatures(input: &Path, trust_from_acrobat: bool) -> u8 {
                         c.adbe,
                     );
                     println!(
-                        "  ⚠ AT YOUR OWN RISK: read from Adobe's own downloaded file; whether relying on it fits the Adobe Reader licence is your call. A 'trusted' result is a SIGNATURE-CHAIN check only -- revocation, validity dates and CA/key-usage constraints are NOT verified."
+                        "  ⚠ AT YOUR OWN RISK: read from Adobe's own downloaded file; whether relying on it fits the Adobe Reader licence is your call. A 'trusted' result checks the chain, RFC 5280 CA/key-usage constraints, and validity dates at the signing time -- but NOT revocation (CRL/OCSP), which needs the network pdfcer-core never uses."
                     );
                     Some(set)
                 }
@@ -16156,10 +16157,16 @@ fn cmd_verify_signatures(input: &Path, trust_from_acrobat: bool) -> u8 {
             Trust::Trusted {
                 anchor_subject,
                 source,
+                validity_checked,
             } => format!(
-                "TRUSTED via {} [{}] (chain/signature only -- NOT revocation/validity/CA checked)",
+                "TRUSTED via {} [{}] (chain + CA/key-usage constraints{}; revocation NOT checked)",
                 anchor_subject,
-                source.join(",")
+                source.join(","),
+                if *validity_checked {
+                    " + validity dates"
+                } else {
+                    ", but validity dates NOT checked (no signing-time clock)"
+                },
             ),
             Trust::Untrusted { reason } => format!("UNTRUSTED: {reason}"),
             Trust::SignerUnknown => {
