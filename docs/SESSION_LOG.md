@@ -93066,3 +93066,192 @@ next free `(ce)`.
   an encrypted file, a timestamp from a time authority, or a Windows-store
   / smart-card ID — each is on the list and none is silent about being
   missing.
+
+
+## 2026-09-05 (439th filing) — NO PASS SHIPPED. FIVE PASSES MINTED: `Pass 256.0` (edit text ACROSS show operators, *Next up*) and `Pass 256.1` (`/ToUnicode` partial inversion, *Backlog*) from a `pdfcer-gui` request-and-correction pair about ONE typo; `Pass 10.12` (certifying signatures), `10.13` (sign into a pre-placed field), `10.14` (signing hardening) from the 438th's "owed, none scheduled" list, *Backlog*. The correction's ask (b) ALREADY EXISTS — the whole-operator pin, verified on the operator's own file; reply posted. `main` PUSHED at `8a18e53` (7 commits), CI awaited. Two `D:/dev/rag/rust/` findings written. No decision minted.
+
+**Session shape.** Sixth filing of the day, evening, after the 438th
+(`8a18e53`). Between them the engineer pushed `main` and answered the
+channel. Docs-only: `ROADMAP.md`, `FEATURES.md`, `SESSION_LOG.md` staged by
+name; the two RAG files are outside the repository.
+
+**The inbound — both files read in full by this role:**
+- `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_identity_h_text_is_uneditable_and_it_is_most_real_documents.md`
+  (`pdfcer-gui`, 2026-09-05, against `pdfcer-core` `b1033ab`) — **RETRACTED
+  AS A DIAGNOSIS by its authors** (the banner at its top). Its observations
+  are true: every original face `Type0/CIDFontType2` `Identity-H`
+  `FontFile2` `verdict=blocked-identity`; 384 glyphs decode via
+  `to_unicode`, 98 via `encoding_agl`; his own pdfcer-written
+  `WinAnsiEncoding` lines edit. Its conclusion — `Identity-H` is the wall —
+  is false.
+- `…\open\correction_identity_h_is_NOT_the_cause_the_producer_writes_one_glyph_per_show_operator.md`
+  (evening, against `pdfcer.exe` from `26f0257`) — **the real cause: the
+  producer writes one two-byte code + one `Td` + one `Tj` PER LETTER**;
+  `edit-text` locates `--find` within one show operator by contract, so
+  `"clien"` cannot match and `NoMatch` is the true answer. Falsified in three
+  commands: `fixtures/synthetic/text/composite-editable.pdf` (identical
+  verdict line) edits; `--find "n" --replace "t"` on his page 2 succeeds in
+  `AAAAAA+Arimo-Bold`, a face the request named as blocked; the decompressed
+  stream. **Their tell against themselves: `NoMatch`, not `R-INV-*`.** Asks:
+  (1) nothing urgent — their shell now explains the limit in the operator's
+  words (they consumed `RefusalKind`, `Pass 249.0`, to do it); (2)(a) a
+  multi-operator replace; (2)(b) a request shape naming WHICH operator;
+  (3) the `/ToUnicode` inversion decided on its own merits. Plus a process
+  note: **a new public TYPE is invisible to their verb- and
+  `FEATURES.md`-keyed gates** — announce shipped types on the channel by
+  name. The engineer accepted it in the reply and listed the session's
+  shipped types there.
+
+**Verified fact (the engineer, on the operator's file; this role read the
+reply and did not re-run it):** ask (b) exists — `Pass 145.0`'s
+whole-operator pin (`0c48bbf`, 297th filing), constructors `Pass 152.0`
+(`06e4c27`). `EditRequest::find_replace(1, "", "nt")` + `pinned_span =
+Some(ByteSpan { start: 7250, len: 7 })` on
+`C:\Users\Ken\OneDrive\pdfTests\apartment work - signed.pdf` page 2, text
+object 12 (*"Final quality walkthrough with clien"*, 36 runs, the pinned
+span = the last run, the `n`) → `base_font BAAAAA+Arimo-Regular`,
+`advance_delta +8.03`, disposition `Reflow`, `followers_repositioned 0`;
+reopened *"Final quality walkthrough with client"*. Two disclosures the
+shell must carry (both in `EditReport::disclosures`): followers 0 means the
+tail does NOT re-space — the next operators sit on the producer's own `Td`s
+— and the `/ActualText` staleness note. **No Pass for (b).**
+
+**Reply posted (engineer):**
+`…\open\reply_2026-09-05-one-glyph-per-operator-the-pin-already-fixes-his-typo.md`
+(against `7734261`): (b) shipped, with the code above; (a) scoped, ID in
+this filing, *Next up*; (3) scoped, *Backlog*; the process note accepted.
+
+**Minted — `ROADMAP.md`:**
+- **`Pass 256.0`** — *Next up*, head of family 256. A `find` may span
+  CONSECUTIVE show operators of one text object sharing font resource, size
+  and baseline; the replacement is re-encoded into the operator holding the
+  match END; matched glyphs in earlier operators are removed (an emptied
+  operator dropped or left empty — engineer decides, discloses); following
+  `Td`/`Tm` steps shift by the net advance the way `followers_repositioned`
+  already repositions in-operator followers; `EditReport.operators_spanned`
+  (1 for today's edits) + followers moved disclosed; `NoMatch` unchanged
+  when the run does not span (today's contract is a subset — an
+  equivalence test on saved bytes); an `MCID` boundary inside the match
+  refused by name, `/ActualText` staleness disclosure unchanged (`R72`);
+  tests on a synthetic one-glyph-per-operator composite fixture (generator
+  under `tools/`) proving `--find "clien" --replace "client"` with
+  `operators_spanned == 5`, a `TJ`-array split case, and a `Tf`-change →
+  `NoMatch`; `edit-text` gains it with NO new flag — the four `--help`
+  sentences *"Locates `--find` within one show operator"*
+  (`crates/pdfcer-cli/src/main.rs:6002`, `:6086`, `:22704`, `:23528`)
+  rewritten; Acrobat parity from
+  `Acrobat_Features\text_edit__in_place_editing_mechanism.md` (Acrobat
+  edits per heuristically grouped run — consecutive glyph-showing
+  operators by font/baseline/adjacency, algorithm unpublished — and
+  re-positions the rest of the run; pdfcer's published grouping rule is the
+  exceed point).
+- **`Pass 256.1`** — *Backlog*, after `256.0`. Per-character (per mapped
+  STRING, §9.10.3) inversion of `/ToUnicode`: an unambiguous unit is
+  written, a colliding unit refused by name with its CIDs, in the `R-INV-4`
+  message; today `ToUnicodeCMap::injective_inverse()`
+  (`text_edit/encoding.rs:221`/`:268`, call at `edit.rs:2622`) refuses the
+  whole font. The correction's caveat carried verbatim: it did not cause his
+  file's refusal; exposure unmeasured — a corpus census is step one.
+  Acrobat has no analogue by this route (it re-encodes through a resolvable
+  font, `text_edit__font_handling_on_edit.md`).
+- **`Pass 10.12`** certifying signatures — `/Reference [<< /TransformMethod
+  /DocMDP /TransformParams << /P n /V /1.2 >> >>]` + catalog `/Perms
+  /DocMDP`, `--certify --mdp-level none|form-fill|annotate` (Table 254
+  `P` 1/2/3, default 2 printed), first signature only, a second refused by
+  name; `SignatureImpact` round trip; approval-after-certify matrix.
+  Sourced `PDF_Spec\iso32000__s__12.8.md`,
+  `Acrobat_Features\signatures__signing_operation_options.md`. The 438th's
+  `10.9` #8 had already named `Pass 10.12` for this — the ID matches.
+- **`Pass 10.13`** sign INTO a pre-placed empty `/FT /Sig` field —
+  `--field-name` resolves to an existing field with no `/V` and signs into
+  it; already-signed or wrong-`/FT` refused by name; `/Lock` → `/FieldMDP`
+  or refused by name; `/SV` honoured or refused by name; fixture generator
+  under `tools/`. Sourced `Acrobat_Features\forms__signature_fields.md`.
+- **`Pass 10.14`** signing hardening — the three CMS sabotage tests (retag,
+  `SET OF` order, message-digest), stripped-`localKeyId` pairing test,
+  pyHanko/OpenSSL second-signature fixture, `tools/content-identity` for
+  `sign`, a composed visible appearance (text; no graphic), P-384 if a store
+  is added. One Pass, the engineer's own list.
+- All three signing IDs sit in *Backlog* after `Pass 10.11`; the `10.9`
+  *Shipped* entry's not-in-scope paragraph and the *Digital signatures*
+  bullet carry dated pointers. **The encrypted-document permission gate is
+  NOT minted** — a dated note on the *Encryption* bullet (it falls out of
+  incremental-save-over-an-encrypted-base, that bullet's first-class
+  requirement; `SignApplyError::Encrypted` today, because of
+  `WriteError::EncryptedSaveUnsupported`).
+- 439th head at the top of *Shipped*; a *Next up* note; a *Backlog* note.
+
+**`docs/FEATURES.md`:** five new *Planned* rows — `256.0` as the FIRST
+Planned row (the only *Next up* item), `[ ] [ ] [ ] [x]`; `256.1` after the
+restyle-outside-standard-14 row, `[ ] [ ] [ ] [x]`; `10.12`, `10.13`
+(`[ ] [ ] [ ] [x]`) and `10.14` (`[ ] [ ] — ◐`) after the `10.11` row. No
+box moves.
+
+**RAG written (`D:/dev/rag/rust/`, two files + two `index.md` bullets, the
+438th's gotchas 1–2, verified against the vendored crate sources this
+filing):**
+- `signature_3_randomized_digest_signer_takes_a_closure_that_feeds_the_digest_not_a_digest.md`
+  — `RandomizedDigestSigner::try_sign_digest_with_rng<R: TryCryptoRng +
+  ?Sized, F: Fn(&mut D) -> Result<(), Error>>(&self, rng: &mut R, f: F)`
+  (`signature-3.0.0/src/signer.rs:189`); pdfcer's call at
+  `crates/pdfcer-core/src/sign/mod.rs:355`/`:367`.
+- `rsa_0_10_pkcs1v15_signing_key_has_no_randomized_prehash_signer_so_blinded_prehash_signing_is_unreachable.md`
+  — `rsa-0.10.0-rc.18/src/pkcs1v15/signing_key.rs` implements
+  `DigestSigner`, `PrehashSigner`, `RandomizedDigestSigner`,
+  `RandomizedSigner`, `RandomizedMultipartSigner`, `Signer`,
+  `MultipartSigner` — NO `RandomizedPrehashSigner`; `pss/signing_key.rs:150`
+  has it. Why `Signer::sign` takes the MESSAGE (`Pass 10.7` #1 deviation).
+
+**Premise checks (this role, measured):**
+- `git rev-parse HEAD origin/main` → `8a18e53` both: **pushed**.
+  `git rev-list --count 7d34f70..8a18e53` = **7** (`e6c0271`, `ae156e3`,
+  `bd04969`, `7734261`, `afc199d`, `8e8bc37`, `8a18e53`). CI's colour NOT
+  read by this role. `git status --short` at start: clean.
+- `injective_inverse` — name CONFIRMED (`ToUnicodeCMap::injective_inverse`);
+  `EditRequest::find_replace` (`edit.rs:367`), `pinned_span` (`:355`),
+  `followers_repositioned` (`:580`) exist; **`operators_spanned` does NOT
+  exist** — `Pass 256.0` introduces it. `grep -c "Pass 256"` over
+  `ROADMAP.md` and `FEATURES.md` = 0 before this filing — the family is
+  free.
+- **One dispatch premise found wrong, minor:** the request names the file
+  `apartment work.pdf`; `ls C:\Users\Ken\OneDrive\pdfTests\` at filing time
+  lists ONLY `apartment work - signed.pdf`. The engineer measured on the
+  `- signed` copy and said so; the unsigned name is not on disk here
+  (renamed, moved, or paraphrased by the requester). Recorded in the
+  `256.0` entry, not resolved.
+- The Acrobat RAG has a text-editing file (`text_edit__in_place_editing_mechanism.md`)
+  — cited, with its recorded GAP (grouping algorithm unpublished) rather
+  than the dispatch's stronger "regroups a whole line".
+- `signature` is `3.0.0` in `Cargo.lock` (the 437th wrote `3.0`); `rsa
+  0.10.0-rc.18` confirmed.
+
+**Gates (this role, on the filing tree):** baseline before edits —
+`check-ledger-numbers` clean (filings 438 → 439; decisions 137 → 138; R241 →
+R242), `check-passes-filed` clean, `check-commits-filed` clean (809 code
+commits, 5 known-unfiled in baseline), `check-cited-commits-exist` clean
+(82 docs), `check-cited-verbs-exist` PASS (7), `check-string-gaps` PASS,
+`check-control-bytes` clean (902 files). After edits: in the filing commit's
+message.
+
+**Still in flight:**
+- **Batch, release HELD** (operator: *"build all before the next portable
+  release unless I say otherwise"*): `251.1`, `254.0`, `255.0`,
+  `10.7`–`10.9` shipped in the batch; `v0.40.0` waits on the operator's
+  word or the batch's end.
+- `Pass 256.0` — *Next up*, NOT STARTED; the next engineering item.
+- `Pass 256.1`, `10.10`–`10.14`, `252.0`, `253.0`–`253.3` — *Backlog*.
+- CI on `8a18e53` — awaited; read its colour from GitHub before the next
+  push.
+
+**For next session:**
+- Engineer: (1) read CI on `8a18e53`; (2) build `Pass 256.0` — start at
+  `find_anchor` (the span rule belongs where `effective_find` already
+  unifies `edit_text`/`format_text`), the fixture generator first; (3)
+  refresh `NEXT_SESSION.md`; (4) announce any new public TYPE on the
+  channel by name (the accepted process note).
+- Operator: the typo you found is fixable TODAY from a caret — click into
+  the `n`, type `nt` — but the rest of that line will not shuffle over to
+  make room, because the program that made your PDF placed every letter by
+  hand and pdfcer currently rewrites one placed piece at a time. Making a
+  whole word edit as one piece, so the line re-spaces, is the next thing
+  being built.

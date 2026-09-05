@@ -112,6 +112,65 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★ 439th filing, 2026-09-05 (evening) — NO PASS SHIPPED. FIVE PASSES
+MINTED FROM TWO SOURCES, AND ONE ASK ANSWERED "ALREADY EXISTS". (1) A
+`pdfcer-gui` inbound PAIR about ONE typo in the operator's own document —
+*"clien"* for *"client"*, page 2 of his apartment-work PDF, the FIRST real
+document he tried to correct. The morning request
+(`request_identity_h_text_is_uneditable_and_it_is_most_real_documents.md`)
+diagnosed `Identity-H` + a one-way `/ToUnicode` as the cause and is
+**RETRACTED by its authors** (the banner at its top). The evening correction
+(`correction_identity_h_is_NOT_the_cause_the_producer_writes_one_glyph_per_show_operator.md`)
+found the real cause by reading the content stream: **the producer emits ONE
+show operator PER GLYPH** — `… 8.0310822 0 Td (\x00Q) Tj 17.657089 0 Td
+(\x00W) Tj …`, one two-byte code, one `Td`, one `Tj`, per letter — and
+`edit_text` locates `find` within ONE show operator by its documented
+contract, so a five-character `find` is `NoMatch`. The message was TRUE and
+the diagnosis was wrong: the very face the request named as blocked
+(`AAAAAA+Arimo-Bold`, `verdict=blocked-identity`) edits end to end with a
+one-character `find`. The engineer's reply
+(`reply_2026-09-05-one-glyph-per-operator-the-pin-already-fixes-his-typo.md`,
+on the channel) VERIFIED on the operator's file that the correction's ask
+**(b)** — *"a request shape naming WHICH `n`"* — **ALREADY EXISTS as the
+whole-operator pin** (`Pass 145.0`, `0c48bbf`, 297th filing; the named
+constructors `EditRequest::whole_operator` / `pinned`, `Pass 152.0`,
+`06e4c27`): `EditRequest::find_replace(1, "", "nt")` with `pinned_span =
+Some(last_run.bytes)` (text object 12, *"Final quality walkthrough with
+clien"*, 36 runs, last run `ByteSpan { start: 7250, len: 7 }` = the `n`) →
+`edit_text` succeeds, `base_font BAAAAA+Arimo-Regular`, `advance_delta
++8.03`, disposition `Reflow`, `followers_repositioned 0`; the reopened text
+reads *"…with client"*. **No Pass for (b).** Minted: **`Pass 256.0`** — EDIT
+ACROSS SHOW OPERATORS (ask (a)), ***Next up*** — a request outranks the
+backlog, and he hit it on the first real document; **`Pass 256.1`** —
+`/ToUnicode` PARTIAL INVERSION (ask (3)), *Backlog*, weighed on its own
+merits with the correction's own caveat carried: it did not cause his file's
+refusal. (2) The 438th filing's signing gaps recorded as *"owed, none
+scheduled"* become Pass IDs so they stop being prose: **`Pass 10.12`**
+certifying signatures (`/DocMDP` + `/Perms`, one per document, the first
+signature), **`Pass 10.13`** sign INTO a pre-placed empty `/FT /Sig` field,
+**`Pass 10.14`** signing hardening (the unwritten sabotage tests, the
+stripped-`localKeyId` pairing test, a foreign second-signature fixture,
+`tools/content-identity` for `sign`, a composed visible appearance) — all
+*Backlog*, after `Pass 10.11`. The encrypted-document permission gate is
+NOT minted — it is a dated note on the *Encryption* bullet, where
+incremental-save-over-an-encrypted-base already lives as a first-class
+requirement and the gate falls out of it. **No decision minted.** `main` IS
+PUSHED: `git rev-parse HEAD origin/main` = `8a18e53` / `8a18e53` (measured
+at filing start); `git rev-list --count 7d34f70..8a18e53` = **7**
+(`e6c0271`, `ae156e3`, `bd04969`, `7734261`, `afc199d`, `8e8bc37`,
+`8a18e53`); CI's colour NOT read by this role — awaited. The two
+`D:/dev/rag/rust/` findings the 438th filing left owed (its gotchas 1–2)
+are WRITTEN this filing. Docs-only: `ROADMAP.md`, `FEATURES.md`,
+`SESSION_LOG.md` staged by name. Release still HELD per the batch ruling.**
+
+**Ledger.** Filings ceiling `438` → **`439`**; Pass ceiling `255.0` →
+**`256.1`** (new family `256` — text editing across show-operator
+boundaries; `10.12`–`10.14` are sub-IDs of family 10, the *Digital
+signatures* bucket, on the 436th filing's ID reasoning); decision ceiling
+**`137` UNCHANGED**, next free `138`; standing rules ceiling `R241`
+unchanged, next free `R242`; open operator questions: none minted, next free
+`(ce)`.
+
 **★★★ 438th filing, 2026-09-05 — THREE FEATURE PASSES SHIPPED IN ONE COMMIT
 (`Pass 10.7`, `Pass 10.8`, `Pass 10.9`, code `7734261`) — DIGITAL SIGNING,
 THE CREATE SIDE OF ISO 32000-1 §12.8: a `.pfx`/`.p12` opens into a
@@ -499,6 +558,14 @@ composer; `/FieldMDP`; **certifying signatures / `/DocMDP` authoring (new —
 see 8)**; **signing into a pre-placed field (new — see 1)**; timestamps
 (`Pass 10.11`); `/DSS` / LTV (`Pass 10.6`); any key source but a `.pfx`
 (`Pass 10.10`); `/DocTimeStamp`; the encrypted-document permission gate (7a).
+
+**★ Amendment 2026-09-05 (439th filing):** the "new" items above now have
+IDs — certifying signatures = **`Pass 10.12`**, signing into a pre-placed
+field = **`Pass 10.13`**, the unwritten tests + `tools/content-identity` for
+`sign` + a composed visible appearance = **`Pass 10.14`** — all *Backlog*,
+after `Pass 10.11`. The encrypted-document permission gate (7a) is
+deliberately NOT minted; see the dated note on the *Encryption* bullet in
+*Backlog*.
 
 **Ledger.** Filings ceiling `437` → **`438`**; Pass ceiling **`255.0`
 UNCHANGED** (`10.7`–`10.9` are sub-IDs filed at the 436th); decision ceiling
@@ -110047,6 +110114,19 @@ in the "still open" list. Full build record: this file's own
 
 ## Next up
 
+> ★★★★ **ONE ITEM ADDED 2026-09-05 (439th filing) — `Pass 256.0`, EDIT TEXT
+> ACROSS SHOW OPERATORS, from the `pdfcer-gui` correction of the same
+> evening (its ask (a)).** Filed *Next up* rather than *Backlog* because the
+> operator hit it on the FIRST real document he tried to correct a typo in —
+> a request outranks the backlog (the engineer's reply, on the channel). The
+> live entry is at the END of this section's shipped-notes, immediately above
+> the collapsed `10.7`–`10.9` record. Its sibling `Pass 256.1` (`/ToUnicode`
+> partial inversion, the correction's ask (3)) is *Backlog*. The correction's
+> ask (b) — a request shape naming WHICH operator — needed NO Pass: it is the
+> whole-operator pin (`Pass 145.0`), verified on the operator's own file (see
+> the 439th head in *Shipped*). `docs/FEATURES.md`: two new *Planned* rows,
+> all pdfcer boxes unticked; no box moves.
+
 > ★★★ **`Pass 254.0` SHIPPED and has left this section, 2026-09-05 (433rd
 > filing, code `8f9fb3e`).** Filed here *Next up* by the 432nd filing the same
 > day; shipped the next filing. Its full entry — the
@@ -110155,6 +110235,158 @@ in the "still open" list. Full build record: this file's own
 > are kept below, collapsed, for the record** — the acceptance criteria they
 > carry are what the *Shipped* entries were walked against; a reader amending
 > a criterion amends it there by strike-through, never by rewrite.
+
+### `Pass 256.0` — ★★★★ **EDIT TEXT ACROSS SHOW OPERATORS — a `find` may span CONSECUTIVE show operators of one text object when they share font resource, size and baseline, so a producer that writes ONE GLYPH PER SHOW OPERATOR (and ordinary `TJ`-split kerning output) becomes editable; today's single-operator contract stays a SUBSET** — filed 2026-09-05 (439th filing, `pdfcer-gui` correction 2026-09-05 evening, ask (a)), *Next up*, **NOT STARTED** — head of family 256 (text editing across operator boundaries)
+
+**Status: NOT STARTED.** The one engine gap the operator's first real typo
+exposed. The correction's own words for the shape: *"What a caret in a line
+of one-glyph-per-operator text means is 'replace this span of the visual
+line', which is N operators."*
+
+**The inbound, and the shape worth keeping.** Two files, one typo. The
+morning request read `list-fonts`' `verdict=blocked-identity` column on every
+original face, saw every glyph decode through `to_unicode` (384) rather than
+`encoding_agl` (98), saw that his own pdfcer-written `WinAnsiEncoding` lines
+edit, and concluded `Identity-H` was the wall. Retracted the same evening by
+its authors, in three commands: `pdfcer-core`'s own
+`fixtures/synthetic/text/composite-editable.pdf` carries the identical
+verdict line and edits
+(`composite_refusal_reachable.rs::an_invertible_composite_run_is_editable_end_to_end`
+— `Pass 29.0` refuses a composite run ONLY when `/ToUnicode` is absent or
+non-injective); `--find "n" --replace "t"` on his page 2 succeeded in
+`AAAAAA+Arimo-Bold`, one of the three faces named as blocked; and the
+decompressed content stream is the diagnosis — `BT /F4 28.91 Tf 1 0 0 -1
+8.03125 29 Tm (\x00\x17) Tj 16.0762787 0 Td (\x00\x11) Tj 8.0310822 0 Td
+(\x00\x03) Tj …` — **one two-byte code, one `Td`, one `Tj`, per letter.** His
+editable lines differed from the uneditable ones in TWO ways at once (a
+reversible encoding AND whole-line show operators), and the variable with a
+printed verdict column took the blame. **The tell they name against
+themselves:** `edit-text` answered `NoMatch`, not `R-INV-*` — a font refusal
+names the font; a locational refusal was read as a font refusal because the
+font had already been found guilty. (The shape `R220`(e) records — a true
+symptom carrying a false mechanism — this time caught by the requester
+before it reached this document.)
+
+**What ALREADY exists — verified by the engineer on the operator's own file;
+NOT built here.** Ask **(b)** — *"pin the operator that letter is in and
+replace ITS text … what is missing is a request shape that names WHICH
+`n`"* — is the whole-operator pin, `Pass 145.0` (`0c48bbf`), with the named
+constructors `EditRequest::whole_operator(page, span, replace)` /
+`EditRequest::pinned(span)` (`Pass 152.0`, `06e4c27`) and the CLI spelling
+`edit-text --pin-span START:LEN` with no `--find`. Measured on
+`C:\Users\Ken\OneDrive\pdfTests\apartment work - signed.pdf` (**the only
+apartment-work file in that folder at filing time, by `ls`** — the request's
+`apartment work.pdf` is not there; the engineer measured on the `- signed`
+copy and said so), page 2, `page_objects()` text object 12 = *"Final quality
+walkthrough with clien"*, 36 runs, last run `bytes = ByteSpan { start: 7250,
+len: 7 }`:
+
+```rust
+let mut req = EditRequest::find_replace(1, "", "nt");
+req.pinned_span = Some(last_run.bytes);   // VectorObject::Text(t).runs[i].bytes
+session.edit_text(&req, &EditOptions::default())?;
+// base_font BAAAAA+Arimo-Regular, advance_delta +8.03, disposition Reflow,
+// followers_repositioned 0; reopened: "Final quality walkthrough with client"
+```
+
+Two disclosures the shell's sentence must carry, both already in
+`EditReport::disclosures`: `followers_repositioned: 0` — with one glyph per
+operator there are no in-operator followers, and the NEXT operators sit where
+the producer's own `Td` put them, so the line does NOT re-space after the
+insert (the new `t` may crowd what follows) — and the tagged-PDF
+`/ActualText` staleness note. **That un-respaced tail is exactly what this
+Pass exists to fix:** (b) is the caret-sized answer today; (a) is the
+line-sized one.
+
+**Acceptance criteria** (drafted by this role from the engineer's reply; the
+engineer amends by strike-through, never by rewrite):
+
+1. **Span rule.** A `find` may match across CONSECUTIVE show operators
+   (`Tj`, `'`, `"`, and `TJ` elements) of ONE text object (`BT…ET`) when the
+   operators share the same font resource (`Tf` name) and size and the same
+   baseline — no intervening `Tm`/`Td`/`TD`/`T*` that changes the
+   text-space y; an x-only `Td` between operators is the producer's advance
+   and is permitted. The grouping rule is DOCUMENTED in the module docs —
+   Acrobat's own grouping is unpublished
+   (`Acrobat_Features\text_edit__in_place_editing_mechanism.md`, recorded
+   GAP), and that RAG's stated `must_have` is that pdfcer document its own.
+2. **Where the replacement lands.** The replacement is re-encoded — through
+   the run's OWN font encoding via the existing `R-INV` ladder; nothing about
+   encoding changes in this Pass — into the operator holding the match END;
+   the matched glyphs in EARLIER operators are removed from their operands.
+   An operator emptied by that removal is either dropped together with its
+   own `Td` (its advance folded into the next operator's step) or left as an
+   empty string — **the engineer decides, and the choice is disclosed in the
+   module docs and the report.** Round-trip: only the text object's operators
+   are rewritten; the rest of the stream is byte-identical.
+3. **Followers.** Every operator AFTER the match end in the same text object
+   has its `Td`/`Tm` x-step shifted by the net advance delta, the same way
+   the single-operator path repositions in-operator followers today
+   (`followers_repositioned`), applied across operator boundaries. The line
+   re-spaces; `Reflow` is the default disposition.
+4. **Report.** `EditReport` gains `operators_spanned: u64` (**1** for
+   today's single-operator edits, so the field is never absent) and counts
+   the moved followers in the existing `followers_repositioned`. The CLI
+   summary line prints both. Rule 4: disclosed, never gated — the edit
+   renders exactly as saved content renders.
+5. **`NoMatch` is still the answer when the run does not span** — a font or
+   size change, a baseline change, another text object, or a `find` that
+   straddles an `ET`. Today's contract is a strict subset of the new one:
+   every edit that succeeds at `8a18e53` succeeds with the IDENTICAL saved
+   bytes after this Pass (an equivalence test on saved bytes, the
+   `Pass 152.0` pattern).
+6. **Tagged PDF unchanged.** The `/ActualText` staleness disclosure
+   (`text_edit/edit.rs`, the `R72` posture) fires exactly as it does for a
+   single-operator edit; a multi-operator match that crosses an `MCID`
+   boundary (`BDC`/`EMC` between the operators) is REFUSED by name in this
+   cut, not merged — the structure tree's granularity is the operator's, and
+   two marked-content sequences cannot become one silently.
+7. **Tests.** A synthetic one-glyph-per-operator fixture — generator added
+   under `tools/` (the `gen-*-fixtures.py` pattern), a composite
+   `Identity-H` face so the fixture is the operator's shape and not a
+   simple-font stand-in — proving the `pdfcer-gui` repro: `edit-text --page 1
+   --find "clien" --replace "client"` succeeds, `extract-text` reads back
+   `client`, `operators_spanned == 5`, and the operator after the match moved
+   by the advance of `t`. A second case: a `TJ` array whose elements split a
+   word (`[(cli) -20 (en)] TJ`) — one operator, several elements — edits with
+   `operators_spanned == 1`, proving element splits and operator splits are
+   both covered. A third: the same fixture with a `Tf` change mid-word →
+   `NoMatch`, by name.
+8. **CLI.** `edit-text` gains the capability with NO new flag. The four
+   `--help` sentences that state the old contract — *"Locates `--find`
+   within one show operator on `--page`"* (`crates/pdfcer-cli/src/main.rs`
+   `:6002`, `:6086`, `:22704`, `:23528` at `8a18e53`) — are rewritten to
+   state the widened one (consecutive operators, same font/size/baseline,
+   one text object); `check-clap-help.py` and `check-cli-help-leads.py`
+   green. `docs/core-api/02-editing-and-saving.md`'s `edit_text` section and
+   `03-capabilities.md`'s targeting paragraph (`R220`(a): the
+   capability-shaped document is the primary landing place) say the same.
+9. **Acrobat parity.** Acrobat edits at the level of a heuristically
+   identified RUN — consecutive glyph-showing operators grouped by font
+   resource, baseline and horizontal adjacency, algorithm unpublished — and
+   recalculates positioning for the remainder of that run on the line; it
+   never exposes the operator boundary
+   (`Acrobat_Features\text_edit__in_place_editing_mechanism.md`). This Pass
+   reaches that behaviour for the one-glyph-per-operator and `TJ`-split
+   shapes; pdfcer's PUBLISHED grouping rule and its `operators_spanned`
+   disclosure are the exceed-Acrobat points.
+
+**Invariants:** round-trip/minimal-diff (criterion 2 — measured by
+`tools/content-identity` on the fixture); GUI-core separation (`cargo tree -p
+pdfcer-core`, no change expected); wasm32 check clean; `check-string-gaps`
+and `check-outcome-disclosed` green.
+
+**Not in scope, by name:** a `find` across TEXT OBJECTS (`ET … BT`); across
+a font or size change inside a line (criterion 5, refused by name); merging
+marked-content sequences (criterion 6); the `/ToUnicode` partial inversion
+(`Pass 256.1`, *Backlog*); a caret-scoped request shape (exists — the pin,
+above); `format_text` across operators — the same seam, filed when asked:
+`FormatRequest` carries the same `(find, pinned_span)` pair through
+`effective_find`, so the span rule will want to live in `find_anchor`, not
+in `plan_edit`.
+
+`docs/FEATURES.md`: one *Planned* row at the top of the section (the only
+*Next up* item), `[ ] [ ] [ ] [x]`.
 
 <details><summary>Original <code>Pass 10.7</code> / <code>10.8</code> / <code>10.9</code> <em>Next up</em> entries (kept for the record — superseded by the <em>Shipped</em> block at the top of the file)</summary>
 
@@ -122381,6 +122613,78 @@ nothing gets forgotten, not as a commitment to build in this order.
 > the request's guess at it. `FEATURES.md`: five new *Planned* rows, all
 > boxes unticked; no box moves elsewhere.
 
+> ★★ **ONE ITEM ADDED 2026-09-05 (439th filing) — `Pass 256.1`, `/ToUnicode`
+> PARTIAL INVERSION, from the `pdfcer-gui` correction of the same evening
+> (its ask (3)), weighed on its own merits.** The request that first asked
+> for it is RETRACTED as a diagnosis — it would NOT have fixed the operator's
+> typo (his faces already edit; the cause was one show operator per glyph,
+> `Pass 256.0`, *Next up*) — and the correction asks that the capability be
+> decided on what it IS: a narrowing of a wholesale refusal to a
+> per-character one. Queued behind `256.0`; exposure unmeasured.
+> `docs/FEATURES.md`: one new *Planned* row in the text cluster, all pdfcer
+> boxes unticked.
+
+### `Pass 256.1` — ★★ **`/ToUnicode` PARTIAL INVERSION — invert per CHARACTER, not per FONT: an unambiguous character is written, a colliding character is refused BY NAME (which characters, from which CIDs); today `ToUnicodeCMap::injective_inverse()` refuses the WHOLE composite font when ANY character maps from more than one CID** — filed 2026-09-05 (439th filing, `pdfcer-gui` correction 2026-09-05 evening, ask (3)), *Backlog*, **NOT STARTED** — family 256, after `Pass 256.0`
+
+**Status: NOT STARTED. Today, measured in source at `8a18e53`:**
+`ToUnicodeCMap::injective_inverse()` (`crates/pdfcer-core/src/text_edit/encoding.rs:221`
+the doc, `:268` the call that builds `reverse`) errors if any Unicode string
+is produced by two or more CIDs; `text_edit/edit.rs:2622` turns that error
+into `R-INV-4` (`RInvTrigger::Composite`, *"This font's character map cannot
+be inverted, so pdfcer could not know which code to write back: …"*) for the
+WHOLE font. `Pass 29.0`'s rule — a composite run is refused only when
+`/ToUnicode` is absent or non-injective — is the rule this Pass narrows; the
+ABSENT half is untouched (*"the information is not in the file"* stays
+true).
+
+**The correction's caveat, carried verbatim so nobody ships this and tells
+him it fixed his file:** *"It would still be the right fix for a composite
+font whose `/ToUnicode` is non-injective in SOME characters and unambiguous
+in others, which today is refused wholesale by `injective_inverse()`. That
+is a real narrowing and it may be worth doing. It is simply not what is
+standing between the operator and his missing `t`."* His three faces
+(`AAAAAA+AbrilFatface-Regular`, `AAAAAA+Arimo-Bold`, `BAAAAA+Arimo-Regular`)
+are injective — `--find "n" --replace "t"` succeeded — so **exposure is
+unmeasured**: no operator file is known to hit `R-INV-4`'s non-injective
+branch. A corpus census (how many `Identity-H` fonts carry a non-injective
+`/ToUnicode`, and how many of THOSE collide in fewer than all their strings)
+is the first step and may re-rank this either way.
+
+**Acceptance criteria** (draft):
+1. `injective_inverse()` — or a sibling, `partial_inverse()`; the engineer
+   names it — returns a reverse map for every Unicode string with exactly
+   ONE producing CID PLUS the set of colliding strings with their CIDs; the
+   whole-font error is retired in favour of that structure.
+2. The edit gate asks the question PER REPLACEMENT UNIT: a code maps to a
+   STRING (§9.10.3), so the unit is the mapped string, not the `char`. If
+   every unit of `replace` has exactly one CID, the edit proceeds; otherwise
+   the refusal names the colliding units and their candidate CIDs — *"'fi'
+   is produced by CIDs 0x0122 and 0x0149; pdfcer will not guess"* — inside
+   the `R-INV-4` message, `RefusalKind` unchanged (`Pass 249.0`).
+3. Units NOT in `replace` may collide freely — a font whose ligatures collide
+   no longer blocks editing plain letters.
+4. Disclosure (rule 4): the report says the inverse was PARTIAL and how many
+   strings collided, even on success.
+5. Tests: a synthetic composite fixture whose `/ToUnicode` maps two CIDs to
+   one string (a ligature and its parts) — editing a plain word succeeds;
+   editing a word containing the collided string is refused naming both
+   CIDs; `composite_refusal_reachable.rs` still passes. Generator under
+   `tools/`.
+6. Spec sourcing before build: §9.10.3 (`/ToUnicode` CMap semantics,
+   `bfchar`/`bfrange` to STRINGS) via `PDF_Spec`; dispatch
+   `pdfcer-spec-librarian` if the many-to-one direction is not already
+   recorded there.
+7. Acrobat parity: none to match by this route — Acrobat re-encodes through
+   a font it can RESOLVE (an installed system font, or specific
+   embedded-font conditions; `Acrobat_Features\text_edit__font_handling_on_edit.md`),
+   never through `/ToUnicode`, and refuses outright when it cannot. Per-unit
+   inversion is pdfcer's own route (the operator's standing rule: exceed the
+   parity reference when the better option exists).
+
+`docs/FEATURES.md`: one *Planned* row, `[ ] [ ] [ ] [x]` — Acrobat `[x]`
+because Acrobat edits such text (by a different route); pdfcer's route is
+what is planned.
+
 ### `Pass 252.0` — ★★★ **A ROUTE FROM A TEXT FILE BACK INTO A PDF — the IMPORT half of "export/import as text"** — filed 2026-09-05 (429th filing, `pdfcer-gui` request 2026-09-04), **NOT STARTED**
 
 Origin: `pdfcer-gui` request
@@ -129247,6 +129551,14 @@ added. See that section below.
   signing into a pre-placed field, and the encrypted-document permission
   gate (waits on incremental-save-over-encrypted). `docs/FEATURES.md`: three
   of the five rows moved to *Implemented*.
+  ★ **IDs MINTED 2026-09-05 (439th filing):** certifying signatures =
+  **`Pass 10.12`**, signing into a pre-placed field = **`Pass 10.13`**, the
+  438th's unwritten tests + `tools/content-identity` for `sign` + a composed
+  visible appearance = **`Pass 10.14`** — entries below, after `Pass 10.11`.
+  The encrypted-document permission gate is deliberately NOT minted: it is a
+  dated note on the *Encryption* bullet (incremental save over an encrypted
+  base is that bullet's first-class requirement; the gate falls out of it).
+  `docs/FEATURES.md`: three new *Planned* rows after the `10.11` row.
 
 #### `Pass 10.2` — **IMPORT AN INSTALLED ACROBAT/READER TRUST STORE AS A TRUST-ANCHOR SOURCE (opt-in)** — filed 2026-09-04 (414th filing), ~~*Backlog*, NOT STARTED~~ **SHIPPED `79e259a` (417th filing) — see top of *Shipped***
 
@@ -129578,6 +129890,158 @@ CI job stays green for the engine.
 `docs/FEATURES.md`: one *Planned* row in the signature cluster, all pdfcer
 columns `[ ]`, `Acrobat [x]`. **Not scheduled** — after `10.9` ships.
 
+#### `Pass 10.12` — **CERTIFYING SIGNATURES — the `/DocMDP` transform (`/Reference [<< /Type /SigRef /TransformMethod /DocMDP /TransformParams << /P 1|2|3 /V /1.2 >> >>]`) + the catalog `/Perms /DocMDP`; `pdfcer sign --certify --mdp-level none|form-fill|annotate`; ONE per document, a second refused by name; must be the document's FIRST signature** — filed 2026-09-05 (439th filing; the 438th's recorded deviation `10.9` #8, which named this ID in advance), *Backlog*, NOT STARTED — depends on `Pass 10.9`
+
+**Status: NOT STARTED.** Sourced from
+`D:\Dev\Rag-Specialized\PDF_Spec\iso32000__s__12.8.md` (§12.8.2.2 DocMDP;
+**Table 254** `P` = 1 no changes / 2 form fill-in + signing — THE DEFAULT /
+3 form fill-in + signing + annotation create/delete/modify; §12.8.2.2.1 the
+certifier is *"the author of a document (the person applying the first
+signature)"*; `/Perms` Table 258 — `/DocMDP` present means a conforming
+reader SHALL enforce) and
+`Acrobat_Features\signatures__signing_operation_options.md` (certifying /
+author vs approval; the permission level is chosen at CERTIFY time only and
+restricts every later change; a document may carry one certifying signature
+plus approvals; Acrobat's three-way vocabulary is the `--mdp-level`
+spelling). The READ side already exists — `SignatureImpact` (`Pass 3.2`)
+classifies `/P` 1/2/3 — and `Pass 10.9` already refuses an approval
+signature on a `P=1` document (`CertificationForbids { permission: 1 }`).
+
+**Acceptance criteria** (draft):
+1. `SignRequest` gains a certification option carrying the level;
+   `EditSession::sign` writes the `/Reference` array on the signature
+   dictionary (`/Type /SigRef`, `/TransformMethod /DocMDP`,
+   `/TransformParams << /Type /TransformParams /P n /V /1.2 >>`) and
+   `/Perms << /DocMDP <sig ref> >>` on the catalog, in the SAME incremental
+   update; the `/Reference` digest entries are omitted (deprecated in PDF
+   2.0 — cite the clause on build).
+2. `--mdp-level` → `none` = 1, `form-fill` = 2, `annotate` = 3; `--certify`
+   without a level = 2, the standard's own default — PRINTED, so the choice
+   is never silent.
+3. Refused BY NAME: a document that already carries `/Perms /DocMDP` (a
+   second certification); a document with ANY existing signature
+   (§12.8.2.2.1 — certification is the first signature; a later certifying
+   signature cannot govern changes made before it); an encrypted base
+   (unchanged from `10.9`). Names are the engineer's; each refusal states
+   the rule and the remedy (sign as approval instead).
+4. Self-verification widens: `signature_verify` on the output reports the
+   certification and its `P`; `verify-signatures` prints `certifying=yes
+   mdp=<n>`; `SignatureImpact` classifies pdfcer's own output identically to
+   a foreign certified fixture (round trip through the read side, the
+   `Pass 3.2` model).
+5. Approval-after-certification matrix tested: `P=1` → refused (exists);
+   `P=2`, `P=3` → permitted, and the certified signature still verifies
+   after (the incremental update leaves its `/ByteRange` intact).
+6. Tests in `tests/sign_document.rs`: certify → verify; certify twice →
+   refused; certify over an existing approval → refused; the matrix (5). One
+   OpenSSL cross-check of the CMS (the `10.8` oracle) — the CMS itself is
+   unchanged, so one suffices.
+7. Disclosure: the CLI prints the level AND its plain meaning (*"no
+   changes"* / *"form fill-in and signing"* / *"… and annotations"*) — the
+   number is the standard's, the operator reads words.
+
+**Not in scope:** `/FieldMDP` (a field-lock transform — `Pass 10.13`'s seam
+when a pre-placed field carries `/Lock`); `/UR3` usage rights; enforcement
+on pdfcer's own EDIT verbs beyond what `SignatureImpact` already refuses.
+
+`docs/FEATURES.md`: one *Planned* row, `[ ] [ ] [ ] [x]`.
+
+#### `Pass 10.13` — **SIGN INTO A PRE-PLACED EMPTY `/FT /Sig` FIELD — an existing field with no `/V` is the target when `--field-name` names it; today `--field-name` only CREATES a new field and a name collision is refused** — filed 2026-09-05 (439th filing; the 438th's recorded deviation `10.9` #1), *Backlog*, NOT STARTED — depends on `Pass 10.9`
+
+**Status: NOT STARTED.** The shape every "sign here" workflow produces: a
+form author places an empty signature field — Acrobat renders it as an empty
+placeholder, its own "sign here" cue
+(`Acrobat_Features\forms__signature_fields.md`) — and the signer signs INTO
+it. `Pass 10.9`'s `--field-name` refuses the collision (`FieldNameTaken`),
+so today pdfcer can sign such a document only by adding a SECOND field
+beside the one the author placed. Also sourced there: **lock-on-signing is
+configured on the FIELD before signing** (`/Lock`, Table 233 — actions
+`All` / `Exclude` / `Include`) and becomes a `/FieldMDP` transform at signing
+time; and a seed-value dictionary (`/SV`, Table 234) may constrain the
+signer.
+
+**Acceptance criteria** (draft):
+1. Resolution of `--field-name` / `SignRequest.field_name`: (a) no such
+   field → CREATE (today's behaviour, unchanged); (b) an existing terminal
+   field with `/FT /Sig` and NO `/V` → SIGN INTO IT — `/V` ← the signature
+   dictionary, the field's own widget `/Rect` + `/P` place the appearance
+   (visible when the rect is non-degenerate; `--rect` refused by name when
+   the field already has one), `/AcroForm /SigFlags` |= 3; (c) `/FT /Sig`
+   WITH `/V` (already signed) → refused by name; (d) any other `/FT` →
+   refused by name. The field dictionary is the only pre-existing object
+   rewritten — incremental, round-trip measured.
+2. **`/Lock` on the field:** honoured by writing the `/FieldMDP` `/Reference`
+   entry the lock describes — OR refused by name (*"this field asks to lock
+   fields on signing and pdfcer does not write `/FieldMDP` yet"*) — **the
+   engineer decides at build; ignoring the lock is not an option.**
+3. **`/SV` on the field:** a seed value whose constraints pdfcer can
+   evaluate (`/Filter`, `/SubFilter`, `/DigestMethod`, `/Reasons`, the `/Ff`
+   required bits) is honoured or refused by name; one it cannot evaluate is
+   refused by name, never skipped. Acrobat's own enforcement strictness is a
+   recorded GAP in the RAG; pdfcer's is total.
+4. Disclosure: `field=<name> (existing|created)` printed; the report
+   carries which.
+5. Tests: a fixture with a pre-placed empty `/Sig` field (generator under
+   `tools/` — writes the AcroForm, not a `.pfx`): sign into it →
+   `verify-signatures` 1/1 and `list-signatures` shows the field's name;
+   sign into it again → refused; `--field-name` of a text field → refused; a
+   field with `/Lock` → whichever branch of (2) the engineer took, tested by
+   name.
+
+**Not in scope:** authoring an EMPTY signature field for someone else to
+sign (a forms verb — the `add_field` family, filed when asked); `/SV`
+authoring.
+
+`docs/FEATURES.md`: one *Planned* row, `[ ] [ ] [ ] [x]`.
+
+#### `Pass 10.14` — **SIGNING HARDENING OWED FROM THE `10.7`–`10.9` CUT — the three CMS sabotage tests (`0x31` retag, `SET OF` order, message-digest), a stripped-`localKeyId` pairing test, a pyHanko/OpenSSL-produced second-signature fixture, `tools/content-identity` run for `sign`, and a COMPOSED visible appearance (text, not only a frame)** — filed 2026-09-05 (439th filing; the 438th's recorded deviations `10.7` tests (e), `10.8` #8, `10.9` #1 appearance half, `10.9` #10, and the un-run `content-identity` invariant), *Backlog*, NOT STARTED — small; the engineer's own list, one Pass
+
+**Status: NOT STARTED.** Everything here was a criterion of the 436th
+filing that the 438th recorded as NOT done. One Pass because each item is an
+afternoon and none changes the public API; splitting them would mint five
+IDs for one commit.
+
+**Acceptance criteria:**
+1. **Sabotage tests** (they prove the VERIFIER discriminates, not that the
+   builder is correct): (a) signedAttrs digested under its `0xA0` context
+   tag instead of the `0x31` `SET OF` retag → `signature_verify` rejects
+   AND OpenSSL rejects; (b) `SET OF` attributes emitted out of X.690 §11.6
+   order → both reject; (c) a wrong `message-digest` → both reject. Each
+   test builds a deliberately broken CMS through a test-only hook, not by
+   editing bytes blind.
+2. **Stripped-`localKeyId`:** `tools/gen-signing-fixtures.py` gains a PFX
+   whose key and leaf bags carry NO `localKeyId`; `Pkcs12Signer::from_der`
+   pairs by public-key identity (the 438th's stated fallback) — tested.
+3. **Foreign second signature:** a fixture signed by pyHanko or `openssl
+   cms` (generator recorded in `tools/`; synthetic, rights-cleared input per
+   `LEGAL.md` §5); pdfcer adds an approval signature on top → BOTH verify,
+   the foreign `/ByteRange` intact; and pdfcer-signed-then-foreign-signed
+   if the tool is available — recorded as NOT MEASURED otherwise, never as
+   passed.
+4. **`tools/content-identity` for `sign`:** run and recorded — every object
+   the signing write did not touch is byte-identical; the result filed as
+   objects compared / objects identical (hard rule 10(a)).
+5. **Composed appearance:** `/AP /N` carries text lines — signer CN (from
+   the leaf's subject), `/M` as a date, `--reason` / `--location` when given
+   — set in Helvetica (standard 14, no embedding), fitted to the rect
+   (shrink-to-fit; overflow refused by name, never clipped silently), the
+   frame kept. Acrobat's appearance is a configurable set of such fields
+   plus an optional graphic
+   (`Acrobat_Features\signatures__signing_operation_options.md`); the
+   GRAPHIC (logo / image) is NOT here. `verify-signatures` and Acrobat
+   Reader both display it (Reader is available for a render check).
+6. ECDSA P-384 end to end IF a P-384 store is added to the fixture
+   generator (the 438th recorded none exists) — otherwise recorded as
+   untested, by name.
+
+**Invariants:** no new dependency (rule 13 — pyHanko / OpenSSL are
+generator-side tools, never linked); `cargo tree` unchanged; wasm32 check
+clean.
+
+`docs/FEATURES.md`: one *Planned* row — `core [ ]` · `cli [ ]` · `gui —`
+(nothing for a shell) · `Acrobat ◐` (the tests and `content-identity` are
+pdfcer's own; the composed appearance has an Acrobat analogue).
+
 - **Encryption** — standard security handler, RC4 (legacy read-compat
   only, never write), AES-128/256, public-key (certificate) security
   handler. **Updated 2026-07-31 by decision 007 (Pass 5 in its
@@ -129842,6 +130306,19 @@ columns `[ ]`, `Acrobat [x]`. **Not scheduled** — after `10.9` ships.
   fact). The reply that committed the order is
   `reply_signature_integrity_first_then_encryption_and_your_two_sentences.md`
   (08:41): signature verification (`Pass 10.1`) first, this second.
+  **★ NOTE 2026-09-05 (439th filing) — the encrypted-document PERMISSION
+  GATE for signing lives HERE, deliberately NOT minted as a Pass.**
+  `Pass 10.9` (438th filing, deviation #7a) refuses an encrypted base
+  OUTRIGHT (`SignApplyError::Encrypted`) because `save_incremental` cannot
+  yet append to an encrypted base (`WriteError::EncryptedSaveUnsupported`,
+  `Pass 5.4`'s criterion-7 branch). The criterion as filed was a
+  PERMISSION-bit gate — sign only when Table 22 permits, refuse by name
+  otherwise. That gate is a two-line consequence of
+  incremental-save-over-an-encrypted-base, the first-class requirement this
+  bullet already states, so it is filed as a clause of THAT work rather than
+  as its own ID: when incremental save over an encrypted base ships, `sign`
+  drops the outright refusal and gates on the permission bit IN THE SAME
+  COMMIT, or its refusal text says why not.
 - **Adobe LiveCycle / AEM Document Security, and third-party proprietary
   DRM handlers (FileOpen, Locklizard, and similar) — recorded as
   IMPOSSIBLE, not declined.** Added 2026-08-11, operator request (*"can
