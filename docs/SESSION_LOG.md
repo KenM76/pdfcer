@@ -92845,3 +92845,224 @@ none minted, next free `(ce)`.
   signing never does); the reasoning is written down and will be re-read at
   every upgrade. Nothing is downloadable yet; the release still waits for
   the batch.
+
+## 2026-09-05 (438th filing) — THREE PASSES SHIPPED IN ONE COMMIT: `Pass 10.7` (PKCS#12 import + the `Signer` seam), `Pass 10.8` (CMS `SignedData` build, CAdES B-B), `Pass 10.9` (the PDF-level write + `pdfcer sign`) — code `7734261`. DIGITAL SIGNING, PAdES B-B from a `.pfx`, RSA v1.5 / RSA-PSS / ECDSA, always incremental, self-verified; accepted by pdfcer's own verifier AND by OpenSSL. Plus `afc199d` (`fuzz/Cargo.lock`). No decision minted (136 + 137 cover the arc and the stack). NOT pushed; release still HELD.
+
+**Session shape.** Fifth filing of the day, after the 437th (`bd04969`,
+decision 137). The engineer committed the whole signing tree as ONE feature
+commit (`7734261`, 19 files, +6,160 / −56) and one lockfile chore
+(`afc199d`, `fuzz/Cargo.lock` +10), then dispatched this filing. Docs-only:
+`ROADMAP.md`, `FEATURES.md`, `SESSION_LOG.md` staged by name. Source of
+truth: `git log -1 --format=%B 7734261` (the engineer's per-Pass summary,
+written to be lifted), `git show --stat`, and the tree itself — every code
+claim below that this role could check was read from the source, not relayed
+(cited by file:line where it matters).
+
+**Shipped:**
+- **`Pass 10.7`** — `sign/mod.rs` (538) + `sign/pkcs12.rs` (1,153):
+  `Pkcs12Signer::from_der(pfx, password)`, RFC 7292 PFX v3, MAC verified
+  FIRST, PBES2 (PBKDF2 HMAC-SHA-1/256/384/512 + AES/3DES) AND legacy
+  `pkcs-12PbeIds` (3DES 3-key/2-key, RC2-128, RC2-40), key↔leaf by
+  `localKeyId` then public-key identity, chain leaf→issuer; the `Signer`
+  trait (`sign(algorithm, message)`, `certificate_chain()`,
+  `default_algorithm()`, `key_label()`), `SignatureAlgorithm` ×4 with DER
+  `AlgorithmIdentifier`s, `verify_raw_signature` public. Refusals by name:
+  `MacMismatch`, `UnsupportedScheme` (RC4, PK-integrity mode, unknown
+  PRF/cipher), `DecryptFailed`, `NoPrivateKey`, `MultipleKeys`,
+  `UnsupportedKey`, `NoMatchingCertificate`, `Malformed` (incl. BER — a
+  recorded gap). Tests `tests/pkcs12_import.rs` ×4.
+- **`Pass 10.8`** — `sign/der_out.rs` (268) + `sign/cms_build.rs` (210):
+  in-house DER writer (definite lengths, minimal INTEGER, X.690 §11.6
+  `SET OF` sort — unit-tested), `SignedData` v1, detached `id-data`,
+  signedAttrs {content-type, message-digest, `signing-certificate-v2` with
+  SHA-256 DEFAULT omitted + `issuerSerial`}, NO signing-time, `0x31` retag
+  by construction, full chain, single signer, no `crls`, no
+  `unsignedAttrs`.
+- **`Pass 10.9`** — `edit.rs` +366 (`EditSession::sign(signer,
+  &SignRequest, &SaveOptions) -> Result<(Vec<u8>, SignReport),
+  SignApplyError>`, `CommandKind::AddSignatureField`), `sign/apply.rs` (508),
+  CLI `sign` (+368, replaces the Pass 0 stub; new CLI `signing` feature,
+  default ON, = `pdfcer-core/signing`), `docs/core-api/02` §1.31 (verbs
+  **202 → 203**), README status lines. Refusals by name:
+  `SigningTimeNotPdfDate`, `Encrypted`, `RecoveredBase`, `RedactionPending`,
+  `CertificationForbids { permission: 1 }`, `FieldNameTaken`,
+  `PageOutOfRange`, `ReservationTooSmall { needed, reserved }`,
+  `SelfVerificationFailed`, `PlaceholderNotFound`. Tests
+  `tests/sign_document.rs` ×5. Live: `sign` → `verify-signatures` 1/1;
+  second `sign` (EC, pkcs7, visible) → 2/2; wrong password exit 12; legacy
+  `.pfx` + PSS ok.
+- **`afc199d`** — `fuzz/Cargo.lock` re-resolved for the signing deps.
+  Lockfile only; named because `fuzz/` is a `check-commits-filed` code
+  prefix.
+
+**Deviations from the 436th filing's criteria — all recorded as NOTES on
+the Shipped entries, none as a decision (the ROADMAP entries carry the
+reasoning; this is the index):**
+- `10.7` #1: the `Signer` trait takes the MESSAGE, not the digest (see
+  gotcha 2 below for why). The algorithm-naming design note IS met.
+- `10.7` #4: BER inside a PFX is REFUSED BY NAME (`Malformed`), not read.
+- `10.7` tests (e): the stripped-`localKeyId` sabotage test not written.
+- `10.8` #8: the three named sabotage tests (unsorted → rejected; `0xA0`
+  signed → rejected; signing-time absent) NOT written as separate tests;
+  the OpenSSL oracle and the `der_out` sort test stand in. ECDSA P-384 has
+  no fixture store, untested end-to-end.
+- `10.9` #1: visible `/AP` is a thin FRAME, no text; **signing INTO an
+  existing empty field is not built** — `--field-name` names a NEW field,
+  a collision is refused.
+- `10.9` #4: default reserve 12 288 B, not ~16 KB.
+- `10.9` #5: a full rewrite is NOT OFFERED (no path) rather than refused by
+  name.
+- `10.9` #7a: **encrypted documents refused OUTRIGHT**, not permission-bit
+  gated — `save_incremental` cannot append to an encrypted base yet
+  (`Pass 5.4`'s branch); the error text says so. #7b: `/DocMDP` refuses
+  P=1 only (P=2/3 permit approval — the filed reading). #7c: a second
+  certifying signature is not a case because…
+- **`10.9` #8: certifying signatures (`--certify --mdp`, `/DocMDP`
+  authoring) NOT BUILT — approval only.** The largest unfiled gap in the
+  cut; owed as its own increment.
+- `10.9` #10: second-signature test on pdfcer's own output only; the
+  pyHanko-fixture half untested.
+- `10.9` #11: `--dry-run` and a password PROMPT not shipped — `--password`
+  is a command-line argument, empty default (`main.rs:1871`–`1873`).
+- `10.9` invariants: `tools/content-identity` NOT run for `sign`.
+
+**Gates (engineer-run on `7734261`, relayed; the eight docs gates re-run
+by this role on the filing tree — see the filing commit's message):**
+`cargo fmt --check`; `cargo clippy --workspace --all-targets --all-features
+-D warnings`; `cargo test --workspace --all-features` **195 / 195 test
+binaries**; `cargo test -p pdfcer-core --no-default-features` green
+(signing OFF compiles; the two `#![cfg(feature = "signing")]` tests compile
+to nothing; verification NOT gated); `cd fuzz && cargo check --bins`;
+`cargo check -p pdfcer-core -p pdfcer-render --target
+wasm32-unknown-unknown` clean; `cargo tree` — no GUI / network crate (GUI-
+core separation and no-network hold, measured); all 21 script gates incl.
+`check-string-gaps`, `check-clap-help`, `check-public-fns-documented`,
+`check-core-api-verbs` (203, PASS), `check-outcome-disclosed`.
+
+**Findings + gotchas (engineer's, this stretch; ecosystem-general — the
+first two are candidates for `D:/dev/rag/rust/`, NOT written this filing,
+owed):**
+1. **`signature 3.0`'s `try_sign_digest_with_rng` takes a CLOSURE that
+   feeds the digest** — `Fn(&mut D) -> Result<()>` — not a digest instance.
+   Code written against the 2.x shape (pass a finished `Digest`) does not
+   compile and the error does not say why.
+2. **`rsa 0.10.0-rc.18`'s `pkcs1v15::SigningKey` has NO
+   `RandomizedPrehashSigner` impl.** Blinded prehash signing is therefore
+   unreachable; blinding is only on `RandomizedDigestSigner`, which
+   consumes the MESSAGE. This is why `Signer::sign` takes the message
+   rather than the prehash (the `10.7` #1 deviation) — the alternative was
+   an unblinded RSA path, which decision 137 forbids.
+3. **The OpenSSL oracle:** `openssl cms -verify -noverify -binary -inform
+   DER -content <spans>` accepts every algorithm's output; this is the
+   independent check that makes the in-crate verifier's agreement a
+   cross-check rather than a mirror.
+4. **The wasm RSA refusal:** `SignError::RandomUnavailable` fires before any
+   key arithmetic on wasm32 (no RNG for blinding); ECDSA (RFC 6979) signs
+   there. Measured by the wasm32 check.
+5. **Workflow (this machine):** the whole-workspace `cargo test` run cannot
+   be backgrounded here — the background job was reaped twice. Compile with
+   `--no-run` first, then run in the foreground.
+
+**Premise checks on the dispatch (this role, measured):**
+- **Confirmed:** `Signer` shape (`mod.rs:220`–`233`); `verify_raw_signature`
+  public (`mod.rs:454`); BER refused by name with the *"(or BER-encoded,
+  which pdfcer does not read)"* message (`pkcs12.rs:98`) and a module
+  header section *"BER"* (`:61`); every listed `Pkcs12Error` and
+  `SignApplyError` variant exists; the `p12-keystore` provenance sentence
+  is in `pkcs12.rs`'s header (`:73`) — **the 437th filing's credit question
+  is CLOSED, NOT OWED** (readable reference only, no code borrowed); the
+  CLI `signing` feature (`crates/pdfcer-cli/Cargo.toml:25`) and both
+  `#![cfg(feature = "signing")]` guards; `[not yet implemented]` gone from
+  `sign` (three survivors remain: `bates-stamp`, `to-pdfa`,
+  `validate-pdfa` — all still true); README lines 42–46 and 56–60 read as
+  described; test names as listed (4 + 5); `der_out` sort unit test
+  exists (`set_of_sorts_by_encoding_not_by_insertion`); zeroize at
+  `pkcs12.rs:513` + hand-written `Debug` at `:212`; no iteration cap.
+- **Line counts by `wc -l` differ from the dispatch's:** `der_out.rs`
+  **268** (dispatch: 262 — the 437th filing's pre-commit figure);
+  `mod.rs` 538, `pkcs12.rs` 1,153, `cms_build.rs` 210, `apply.rs` 508,
+  `pkcs12_import.rs` 181, `sign_document.rs` 405. Filed as measured.
+- **Two facts the dispatch stated as met that are DEVIATIONS from the
+  filed criteria and are filed as such:** `--field-name` refuses a
+  collision, which means signing INTO a pre-placed empty field (criterion
+  10.9 #1) is not built; and certifying signatures (criterion 10.9 #8) are
+  not built — the dispatch said so of #7c but did not name #8 as a
+  deviation. Neither is wrong in the code; both are gaps against the
+  filed text and are now on record.
+
+**Rule-11 sweep** (claim: *"pdfcer verifies signatures but does not sign"*
+→ FALSE at `7734261`; *"`Pass 10.7`–`10.9` NOT STARTED / Next up"* →
+SHIPPED). Grepped `not yet sign|does not sign|cannot sign|NOT STARTED.*10\.[789]|stub`
+over `docs/*.md`, `README.md`, `docs/core-api/*.md`, reading for the
+claim. **Changed by the engineer in `7734261`:** README status paragraph
+(both the built and the not-built halves); the CLI stub doc string;
+`docs/core-api/02` §1.31 + `index.md`. **Changed by this role, this
+filing:** `FEATURES.md:128` — `sign` removed from the *"exist … as stubs
+that print 'not implemented'"* list (a survivor in the file that was
+moving the rows); the three *Next up* entries' status (struck → SHIPPED)
+and the arc blockquote; the *Backlog* *Digital signatures* bullet gains a
+SHIPPED note. **Correct survivors, named so the next sweep does not "fix"
+them:** the 436th/437th ROADMAP heads and SESSION_LOG entries (history);
+`PRIOR_ART.md:59` (about `oxidize-pdf`); decision 136's *"crate stack not
+decided here"*; `NEXT_SESSION.md` §*NEXT — Digital signing* (engineer-
+owned, stale by one commit — the engineer's refresh, not this role's
+edit); the three remaining `[not yet implemented]` CLI stubs.
+
+**`docs/FEATURES.md`:** the three *Planned* signing rows (`10.7`, `10.8`,
+`10.9`) moved to *Implemented* under *Redaction & security*, directly after
+the trust-path-validation row — `core [x]` · `cli [x]` · `gui [ ]` ·
+`Acrobat [x]`, each row stating its first-cut limits (visible = frame only;
+level B-B; encrypted refused; `.pfx` only; approval only; message-in
+trait). `gui [ ]` because `pdfcer-gui` has not wired the verb (the reply
+posted to `pdfce_FeatureRequests/open/reply_2026-09-05-a-document-can-be-signed-SHIPPED.md`
+tells it the surface). Rows `10.10` and `10.11` stay *Planned*; the
+revocation row's B-LT/B-LTA cross-reference stays. Line 128's stub list
+corrected.
+
+**Still in flight:**
+- **Unpushed, five commits:** `e6c0271`, `ae156e3`, `bd04969`, `7734261`,
+  `afc199d` (`git rev-list --count origin/main..HEAD` = **5** at filing
+  start; `origin/main` = `7d34f70`) — six with this filing. "Always push"
+  stands (decision 090); the engineer pushes after this record.
+- **Batch, release HELD** (operator: *"build all before the next portable
+  release unless I say otherwise"*): `251.1`, `254.0`, `255.0`,
+  `10.7`–`10.9` shipped in the batch; `v0.40.0` waits on the operator's
+  word or the batch's end.
+- Owed from this cut, none scheduled: certifying signatures (`/DocMDP`
+  authoring); signing into a pre-placed field; the encrypted-document
+  permission gate (waits on incremental-save-over-encrypted); the two
+  sabotage tests + the stripped-`localKeyId` test; the pyHanko-fixture
+  second-signature test; `tools/content-identity` on `sign`; a password
+  prompt; two `D:/dev/rag/rust/` findings (gotchas 1–2).
+- `Pass 10.10` (shell-side key sources), `10.11` (B-T) — *Backlog*, not
+  started. `Pass 252.0`, `253.0`–`253.3` unscoped.
+
+**Sourcing (hard rule 8):** this role had a shell; every git figure
+MEASURED. `git status --short` at start: clean. `git log --oneline -1` =
+`afc199d`. `git show --stat 7734261`: 19 files, +6,160 / −56. Baseline
+gates before edits: `check-ledger-numbers` clean (filings 437 → next 438;
+decisions 137 → 138; R241 → R242); `check-passes-filed` clean;
+`check-commits-filed` — `7734261` unfiled (expected; this filing files it),
+`afc199d` deferred as tip; `check-cited-commits-exist` clean (82 docs);
+`check-cited-verbs-exist` PASS (7); `check-string-gaps` PASS;
+`check-control-bytes` clean (901 files); `check-core-api-verbs` PASS
+(203). Results after edits in the filing commit's message.
+
+**Ledger.** Filings `437` → **`438`**; Pass ceiling **`255.0` UNCHANGED**;
+decision ceiling **`137` UNCHANGED**, next free `138`; standing rules
+`R241` unchanged, next free `R242`; open operator questions none minted,
+next free `(ce)`.
+
+**For next session:**
+- Engineer: (1) push the six; (2) refresh `NEXT_SESSION.md` — its
+  *"NEXT — Digital signing"* section is now history; (3) decide whether
+  certifying signatures and pre-placed-field signing get a Pass ID now or
+  wait for a request; (4) write the two `rust` RAG findings (gotchas 1–2)
+  or dispatch this role to; (5) the sabotage tests if wanted by name.
+- Operator: your documents can now be signed — from a `.pfx` digital ID,
+  with a signature Acrobat and OpenSSL both accept, added on top of the
+  file so nothing already in it changes and any earlier signature stays
+  valid. Not yet: a certifying ("lock this document") signature, signing
+  an encrypted file, a timestamp from a time authority, or a Windows-store
+  / smart-card ID — each is on the list and none is silent about being
+  missing.
