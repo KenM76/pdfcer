@@ -14,6 +14,11 @@ the next portable release") is DONE and shipped.
 
 ---
 
+## Unreleased since v0.40.0 (goes into 0.41.0)
+- `8670523` fix: `EditableTextModel::hit_test` returns `None` beyond one
+  line-height of every line (pdfcer-gui request, measured at 1e9 pt); their
+  click-on-blank-paper-to-add-text arm can now fire. Reply posted.
+
 ## THE NEXT WORK — in order
 
 ### 1. `Pass 256.0` — edit text ACROSS show operators (*Next up*) ← START HERE
