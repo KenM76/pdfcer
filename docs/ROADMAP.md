@@ -112,6 +112,100 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★ 432nd filing, 2026-09-05 — ONE CORRECTNESS FIX SHIPPED and pushed
+(`e4cefcd`, tests + fixture + generator included), against the `v0.39.0`
+release, found and reported by `pdfcer-gui` against a real drawing; AND
+TWO new `pdfcer-gui` feature requests scoped (`Pass 254.0` line-weights-off
+display mode → *Next up*; `Pass 255.0` markup-shape vertex read/edit →
+*Backlog*).**
+
+### `Pass 251.1` (`e4cefcd`, 2026-09-05) — **`delete_pages` DECREMENTS `/Count` ON *EVERY* ANCESTOR, NOT JUST THE IMMEDIATE PARENT — a PRE-EXISTING page-tree bug invisible on flat trees, closed**
+
+**A latent defect in `delete_pages_with`, present before `v0.38.0` — the
+corpus missed it because every fixture had a FLAT (one-level) page tree.**
+`delete_pages_with`'s splice loop rewrote a `/Pages` node's `/Count` **only
+when that node's own `/Kids` changed** — the guard `if kept.len() ==
+kids.len() { continue; }`. On a **nested** page tree (an intermediate
+`/Pages` node between the root and the leaf pages, as real CAD exporters
+emit) the ancestors **above the immediate parent** kept their pre-delete
+counts: the root `/Count` stayed at the original total. A reader that
+trusts the root `/Count` — **Acrobat does** — then rendered the removed
+pages as trailing blank pages.
+
+**Fix.** A **second pass after the splice loop** decrements `/Count` on
+every touched ancestor the splice loop skipped (any node with `lost_under
+> 0` whose own `/Kids` were unchanged), setting it to `leaves_under −
+lost_under` — the node's true surviving-leaf tally. This matches the page
+**insertion** verbs, which already walk to the root updating `/Count` at
+every level. **`page-copy --cut` shares `delete_pages_with` and is fixed by
+the same change.** ISO 32000-1 §7.7.3.2 (the page tree: a `/Pages` node's
+`/Count` is the number of leaf `/Page` objects in the subtree rooted at
+it — an invariant at **every** level, not only the leaf's parent).
+
+**Sourced from `pdfcer-gui`'s report** — filed 2026-09-05 against a real
+**36-page nested SolidWorks drawing** (`SW41177.pdf`); replied **FIXED**.
+
+**Tests (new, green).** `crates/pdfcer-core/tests/page_tree_nested_count.rs`
+— **2 tests**, both pass, on a synthetic **THREE-level** fixture
+`fixtures/synthetic/pageops/nested-tree-3level.pdf` (generator
+`tools/gen-nested-page-tree-fixture.py`, +103): a recursive walker asserts
+**every** `/Pages` node's `/Count` equals its true leaf tally after a deep
+delete, on **incremental** and **full** saves alike.
+**SABOTAGE-CONFIRMED:** the shipped `v0.39.0` binary (unfixed
+`delete_pages`) leaves the **root `/Count` at 12 for an 11-leaf tree** after
+a deep delete; the fixed code passes. Full local `cargo test --workspace`
+remains **OOM-blocked** on this box (~4.4 GB RAM → Windows `0xC0000142`
+`STATUS_DLL_INIT_FAILED` at the test-binary link phase, RAG'd at the 428th
+filing); **CI is the backstop** (fix pushed, CI running).
+
+**Sourcing (hard rule 8).** This role had a shell; the git figures are
+MEASURED here. `git rev-parse HEAD` = `git rev-parse origin/main` =
+**`e4cefcd`** (full `e4cefcd77a5b6b1ae9d3f5acff3a9398d9323882`, subject
+*"fix(pageops): delete_pages decrements /Count on EVERY ancestor, not just
+the immediate parent (Pass 251.1)"*) — so the fix commit **is `HEAD` and is
+pushed** (`git merge-base --is-ancestor e4cefcd origin/main` = true). `git
+show --stat e4cefcd` = `edit.rs` (+46) + `page_tree_nested_count.rs` (new,
++122) + `nested-tree-3level.pdf` (new, Bin 2,488 B) +
+`gen-nested-page-tree-fixture.py` (new, +103) = **4 files, +271/−0**. `git
+status --short` carries this filing's own doc edits only.
+
+**Commit filed by this entry.** **`e4cefcd`** (code + tests + fixture +
+generator for `Pass 251.1`) is accounted for here — `check-commits-filed`
+has it. (It was unfiled before this filing; this filing turns the gate
+green.)
+
+**`docs/FEATURES.md`: no change.** `delete_pages` (and `page-copy --cut`)
+are existing `[x]` capabilities in the *Document & pages* row (rotate /
+delete / reorder / extract); this fix **restores promised behaviour** — the
+root `/Count` invariant `delete-pages --help` already asserts is now kept in
+code — rather than adding a capability, so **no box moves and no clause is
+appended**, per the file's own *"a row that has grown a history has stopped
+being a scan"* rule. Same "no FEATURES change for a correctness fix"
+outcome as the 429th (Pass 251.0) and 431st (release) filings.
+
+**No new decision minted.** A correctness fix restoring the §7.7.3.2
+`/Count` invariant an existing verb already promised — not an architectural
+decision. Decision ceiling `135` **unchanged**. (Rule-11 sweep: this fix
+changed no counter's or capability's meaning — `/Count` now merely reads
+correctly where it was already supposed to — so no cross-document
+meaning-change sweep is owed. Searched the claim case-insensitively over the
+page-ops surface (`edit.rs`, FEATURES *Document & pages* row,
+`delete-pages`/`page-copy` CLI help) per clause (e): the FEATURES row's
+delete/extract prose and the CLI help's "ancestors' counts drop" promise
+are the surviving descriptions and both are now TRUE — no stale copy of a
+"parent only" claim survives.)
+
+**Ledger.** Filings ceiling `431` → **`432`**; Pass ceiling `251.0` →
+**`255.0`** (`Pass 251.1` is a `251`-family sub-ID under the family head
+`251.0`, which remains; `Pass 254.0` and `Pass 255.0` are the two new
+feature families scoped by this filing — `255.0` is the new ceiling);
+decision ceiling `135` **unchanged**, next free `136`; standing rules
+ceiling `R241` unchanged, next free `R242`; open operator questions: none
+minted, next free `(ce)`. `Pass 252.0` and `Pass 253.0`–`253.3` (429th
+filing) remain unscoped in *Backlog*.
+
+---
+
 **★★ 431st filing, 2026-09-05 — `v0.39.0` RESOLVED: IN PROGRESS →
 VERIFIED. The release of the two correctness fixes filed at the 429th
 filing (`185e474`) — `Pass 250.3` (the three encryption writers refuse a
@@ -108927,6 +109021,79 @@ in the "still open" list. Full build record: this file's own
 
 ## Next up
 
+### `Pass 254.0` — ★★★ **A "LINE WEIGHTS OFF" DISPLAY MODE: draw EVERY stroke as a hairline (one device pixel), for reading a dense CAD sheet** — filed 2026-09-05 (432nd filing, `pdfcer-gui` request 2026-09-05), **NOT STARTED** — ★★ **OPERATOR-REQUESTED DIRECTLY** — render/view family
+
+Origin: `pdfcer-gui` request
+`open/request_a_line_weights_off_display_mode_for_dense_cad_drawings.md`.
+**The operator asked for it by name**, verbatim: *"awhile ago you told me
+you removed the button to show all lines without their thickness — thin
+lines or something like cad has. The button never worked but I do want that
+display option!"* (`view.thin_lines` was registered and **inert**, then
+unregistered 2026-08-17 with six other dead `view.*` settings — a button
+that did nothing is exactly the defect being reported).
+
+**★★★ WHICH OF THE TWO CONVENTIONS THIS IS — THEY ARE OPPOSITES, AND
+SHIPPING THE WRONG ONE IS WORSE THAN SHIPPING NOTHING.** This is **"line
+weights OFF"**: every stroke is drawn at **one device pixel whatever width
+the file declares** — AutoCAD's `LWDISPLAY` off (its default), and every CAD
+viewer. It is **NOT** "enhance thin lines" (Acrobat's preference of that
+name), which does the **reverse** — bumps sub-pixel strokes **up** to one
+pixel so hairlines do not vanish. **(1) makes thick things thinner; (2)
+makes thin things thicker.** The operator asked for (1) — *"show all lines
+**without their thickness**"*, naming CAD. Do not invert it; do not ship (2)
+under this Pass. `view.antialiasing` (the other dead control unregistered in
+the same 2026-08-17 sweep) is **explicitly NOT** part of this ask.
+
+**Why it matters on his documents.** He reads dense A1 site plans at
+200–400 %, where a 0.7 mm (~2 pt) stroke is 4–8 px of solid black and
+adjacent geometry merges into a blob. Line weights off is how a draughtsman
+reads a busy drawing — and the fastest way to answer *"are these two lines
+coincident, or 0.3 mm apart?"*, which fat strokes make unanswerable.
+
+**The ask.** A field on `pdfcer-render`'s `RenderOptions`. The rasteriser
+already understands hairlines (`display_list.rs` draws a width-0 / sub-pixel
+stroke as one pixel); there is **no field to force ALL strokes to that**.
+`pdfcer-gui`'s suggested (non-binding) spelling: `pub stroke_display:
+StrokeDisplay // Actual (default) | Hairline` — an **enum**, not a `bool`,
+because "enhance thin lines" is a plausible third variant later and
+`hairline: bool` would then mean *"one of the two"*. Contained: one
+`RenderOptions` field plus one branch in the stroke path.
+
+**What it must be honest about (state these in the Pass, don't infer):**
+1. **Fills are untouched** — only `S`/`s`/`B`/`B*` painted strokes change; a
+   hatch built from thin fills must not vanish.
+2. **A stroke already sub-pixel stays as it is** — this mode is a *ceiling*,
+   not a *set* (expected, but state it).
+3. **Whether the result line reports the mode** — `subpixel_culled` is the
+   precedent (a counter printed whether or not the flag is set), so a raster
+   carries the fact that it is not a faithful-width render.
+
+**★★ IT IS A DISPLAY MODE — the constraint `pdfcer-gui` will hold, and the
+engine half must not defeat.** It changes the **canvas only**. Print, print
+preview, and **every export** — PDF, PNG, JPEG, SVG, EMF, DXF — render with
+the document's **real widths**. *"The one thing worse than not having this
+feature is having it silently follow the operator into a file he sends a
+client."* This bears on the `cli` scope below. Rule 4 applies in the one
+direction that fits: this is the operator choosing a reading aid, not pdfcer
+marking its own uncertainty — but the screen/paper divergence is
+**disclosed off-canvas while the mode is on** (`pdfcer-gui`'s job).
+
+**Rejected on the shell side (recorded so it is not re-litigated):**
+re-stroking a rasterised pixmap (widths are gone by then — would need a
+second renderer, the thing this project refuses), and post-processing the
+raster (cannot tell a stroke from a filled bar; corrupts text).
+
+**Acceptance: dispatch `pdfcer-acrobat-librarian` FIRST** — for how
+Acrobat's "line weights" View behaves, so the acceptance criteria and the
+`Acrobat` FEATURES column are grounded rather than guessed (Acrobat has a
+View ▸ Line Weights toggle *and* an "enhance thin lines" preference; which
+maps to convention (1) vs (2) is exactly what the RAG must settle). **Scoped
+NEAR-TERM / *Next up*** given the direct operator ask and that the change is
+contained. **cli scope is a Pass decision, not settled here**: `render-page`
+produces a raster, and whether that counts as "the canvas" (gets the mode)
+or "an export" (real widths, per the constraint above) is undecided —
+FEATURES marks the `cli` box `?` accordingly.
+
 > ★★★ **`Pass 248.1` SHIPPED and has left this section, 2026-09-03 (404th
 > filing, `80f1c3e`).** Filed here by the 403rd filing the same day, shipped
 > the next filing. Its full entry — the `ExportState`/`ExportTally` recorder
@@ -120903,6 +121070,73 @@ interface-memory-only close is honest and disclosed, though not what Acrobat —
 where closing a note persists — does). **Acceptance: dispatch
 `pdfcer-acrobat-librarian`** for Acrobat's open-state persistence. Nothing
 blocked (the pop-up honours `/Open` on load, tested both directions).
+
+### `Pass 255.0` — ★★★ **READ AND EDIT A MARKUP SHAPE'S VERTICES — `/Vertices` (Polygon/PolyLine/Line) and `/InkList` (Ink) are not in the model, so a node of a drawn cloud/polygon/polyline/line/arrow/ink stroke cannot be moved, inserted or deleted** — filed 2026-09-05 (432nd filing, `pdfcer-gui` request 2026-09-05), **NOT STARTED** — annotation-geometry family, **pairs conceptually with the *comment & review model completion* family (`Pass 253.x`) but is GEOMETRY, not workflow**
+
+Origin: `pdfcer-gui` request
+`open/request_a_markup_shapes_vertices_cannot_be_read_or_edited.md`.
+Reported by the operator, in his own words: *"I also can't edit or delete
+nodes of a markup shape once it is drawn."*
+
+**Vertex editing exists for EXACTLY ONE kind of object — ce dimensions**
+(`EditSession::move_dimension_vertex` / `insert_dimension_vertex` /
+`remove_dimension_vertex`, rule 15's own objects with a `/PieceInfo`
+sidecar). **No verb** takes an *annotation* id and a vertex index (grep of
+`edit.rs`'s public surface for `vertic|ink_list|InkList|Vertices` returns
+the three dimension verbs and nothing else), and **`Annotation` does not
+model the geometry at all** — `annot.rs` has no `vertices` field and no
+`ink_list` field. So a shell cannot even *draw* the anchors, let alone drag
+one.
+
+**★ This is a READ-MODEL GAP FIRST, not a missing verb.** A markup shape's
+own geometry is not a fact `pdfcer-core` currently exposes. `add_markup`
+**authors** clouds/polygons/polylines/lines/arrows/ink and `pdfcer-gui`
+offers all of them — so the product can **create** a shape whose geometry it
+can never **read back**: the operator cannot correct a misplaced vertex (his
+only remedy is delete-and-redraw a thirty-click shape), a shell cannot show
+the anchors (the capability is not merely unavailable, it is invisible), and
+it is asymmetric with ce dimensions in a way no operator expects (two
+polylines, one with draggable nodes and one without, the difference being
+which ribbon tab authored it). **He found it himself, unprompted** — the
+strongest evidence the asymmetry is felt, not theoretical.
+
+**The ask, in consumption order:**
+1. **Read (the prerequisite — nothing else is reachable without it).**
+   `Annotation::vertices() -> Option<&[(f64, f64)]>` for `/Polygon` and
+   `/PolyLine` (ISO 32000-1 §12.5.6.9, Table 178), `Annotation::ink_list()
+   -> Option<&[Vec<(f64, f64)>]>` for `/Ink` (§12.5.6.13); `/Line` carries
+   `/L`, two points (§12.5.6.7). Without this a shell cannot draw a single
+   anchor.
+2. **Move.** `move_annotation_vertex(annot_id, index, dx, dy)`, built on
+   `move_dimension_vertex`'s own model — **including its `/AP` regeneration**,
+   which is the part a shell must not attempt itself.
+3. **Insert and remove.** `insert_annotation_vertex` /
+   `remove_annotation_vertex`, mirroring the two dimension verbs.
+
+**★★ A NAMED REFUSAL is a perfectly good answer for some subtypes on (2)/(3)
+— `pdfcer-gui` would rather have it by name than infer it.** `/Ink` may be
+better treated as immutable strokes than an editable polyline; a `/Square`
+or `/Circle` has a `/Rect`, not vertices. **What a shell cannot use is
+silence** — it will otherwise guess which subtypes have editable geometry
+and guess wrong on the next one added. Decision 058's boundary discipline
+applies: `pdfcer-gui` will **not** re-parse the annotation dictionary in the
+shell to draw anchors (it could — `/Vertices` is a plain array — but that is
+a second, weaker geometry implementation that drifts, the exact thing
+refused once over `/OC` membership, which the engine then answered properly
+within hours as `Pass 250.0`).
+
+**Note (no action owed here):** `pdfcer-gui` also observed it calls only
+`move_dimension_vertex`, not the insert/remove dimension verbs — that is
+*its* gap, closing in the same pass on its side; the operator's *"or delete
+nodes"* is two gaps wearing one sentence, and the ce-dimension half is not
+this Pass's.
+
+**Acceptance: dispatch `pdfcer-acrobat-librarian` FIRST** — for Acrobat's
+reshape-annotation behaviour (which subtypes it lets you reshape, and how it
+handles ink), so the per-subtype editable/refused matrix matches real
+behaviour. **Scoped *Backlog*** (not near-term): a read-model addition plus
+three verbs across `pdfcer-core`'s annotation surface, larger than the
+line-weights Pass and not the operator's stated priority.
 
 ### ~~`Pass 250.1` — ★★★ **APPLY REDACTIONS INTO THE `EditSession` — a redaction becomes a DEFERRED edit committed at Save, not a write-a-file-now operation** — filed 2026-09-04 (419th filing), **NOT STARTED** — ★★ **SAFETY-CRITICAL (a leaked redaction is the worst-case bug), and there is an unresolved DESIGN FORK the engineer will not resolve by rushing**~~ — **DISCHARGED 2026-09-04 (421st filing): SHIPPED as `Pass 250.1` (`225db51`), see *Shipped* above.**
 

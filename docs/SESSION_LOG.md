@@ -91994,3 +91994,100 @@ here.
   Two documentation-accuracy fixes you flagged also rode along: the README
   now says OCR is built, and the feature list no longer under-sells what the
   GUI can do.
+
+## 2026-09-05 (432nd filing) — `Pass 251.1` SHIPPED (`e4cefcd`, pushed): `delete_pages` now decrements `/Count` on EVERY page-tree ancestor, not just the immediate parent — a pre-existing nested-tree bug found by `pdfcer-gui` on a real SolidWorks drawing; AND two new `pdfcer-gui` feature requests scoped (`Pass 254.0` line-weights-off display mode → *Next up*; `Pass 255.0` markup-shape vertex read/edit → *Backlog*)
+
+**Shipped:**
+- `Pass 251.1` (`e4cefcd`) — `delete_pages_with`'s splice loop rewrote a
+  `/Pages` node's `/Count` only when its own `/Kids` changed (`if kept.len()
+  == kids.len() { continue; }`), so on a NESTED page tree the ancestors
+  above the immediate parent kept stale counts — the root stayed at the
+  pre-delete total, and a reader that trusts the root `/Count` (Acrobat)
+  showed the deleted pages as trailing blanks. Fix: a second pass after the
+  splice loop decrements `/Count` on every touched ancestor with `lost_under
+  > 0` that the loop skipped (`leaves_under − lost_under`), matching the
+  insertion verbs that already walk to the root. ISO 32000-1 §7.7.3.2.
+  **`page-copy --cut` shares `delete_pages_with` and is fixed too.** A
+  PRE-EXISTING bug (before `v0.38.0`), invisible on flat one-level trees,
+  which is why the corpus missed it. Found and reported by `pdfcer-gui` on a
+  real 36-page nested SolidWorks drawing (`SW41177.pdf`); replied FIXED.
+
+**Decisions made this session:**
+- None. `Pass 251.1` is a correctness fix restoring the §7.7.3.2 `/Count`
+  invariant an existing verb already promised — not an architectural
+  decision. Decision ceiling `135` unchanged.
+
+**Findings + decisions:**
+- **Flat-tree corpus blind spot.** The page-tree `/Count` bug survived
+  since before `v0.38.0` because every fixture had a one-level page tree,
+  where "immediate parent" and "root" are the same node. Real CAD exporters
+  emit nested `/Pages` intermediates; the new fixture
+  `fixtures/synthetic/pageops/nested-tree-3level.pdf` (generator
+  `tools/gen-nested-page-tree-fixture.py`) is a THREE-level tree, and the
+  new test `crates/pdfcer-core/tests/page_tree_nested_count.rs` (2 tests)
+  walks recursively asserting every node's `/Count` equals its true leaf
+  tally after a deep delete, on incremental and full saves.
+  **Sabotage-confirmed:** the shipped `v0.39.0` binary leaves the root
+  `/Count` at 12 for an 11-leaf tree; the fixed code passes.
+- **Local full-suite still OOM-blocked** (~4.4 GB RAM → `0xC0000142` at the
+  test-binary link phase, RAG'd 428th filing); affected tests green, **CI
+  is the backstop** (fix pushed, CI running).
+- **Two new `pdfcer-gui` feature requests scoped** (2026-09-05):
+  - `Pass 254.0` (*Next up*, render/view) — a "line weights off" display
+    mode: draw every stroke as a hairline (one device pixel), for reading a
+    dense CAD sheet at high zoom. A `pdfcer-render` `RenderOptions` field
+    (`stroke_display: Actual|Hairline`). **Operator-requested directly.**
+    Recorded emphatically: this is the CAD convention (thick→thin), NOT
+    "enhance thin lines" (thin→thick) which the request warns is routinely
+    confused and worse-than-nothing to ship inverted. Display only — every
+    export renders real widths. `cli` applicability (`render-page` raster =
+    canvas or export?) is a Pass decision, marked `?` in FEATURES.
+  - `Pass 255.0` (*Backlog*, annotation-geometry) — read and edit a markup
+    shape's vertices: `/Vertices` and `/InkList` are not in `Annotation` at
+    all, so a node of a drawn cloud/polygon/polyline/line/arrow/ink cannot
+    be moved/inserted/deleted (vertex editing today is ce-dimensions only).
+    A read-model gap FIRST (`vertices()`/`ink_list()`), then move/insert/
+    remove verbs; a named per-subtype refusal is acceptable. Pairs with the
+    comment/review family (`Pass 253.x`) but is geometry, not workflow — so
+    a separate family head, not `253.4`. Operator found the asymmetry with
+    ce dimensions himself.
+  - **Both**: scoping into a real Pass should dispatch
+    `pdfcer-acrobat-librarian` first (254.0: how Acrobat's "line weights"
+    View behaves; 255.0: Acrobat's reshape-annotation behaviour).
+
+**`docs/FEATURES.md`:**
+- **`delete_pages`: no box moved, no clause appended.** It is an existing
+  `[x]` capability (*Document & pages* row); this fix restores promised
+  behaviour rather than adding a capability — same "no FEATURES change for a
+  correctness fix" shape as the 429th (Pass 251.0) and 431st filings.
+- **Two new *Planned* rows added**, all boxes unticked as owed: the
+  line-weights row (`[ ] core / ? cli / [ ] gui / ? Acrobat`, placed high as
+  a near-term item) and the markup-vertex row (`[ ] core / ? cli / [ ] gui /
+  [x] Acrobat`, placed in the comment/review cluster).
+
+**Still in flight:**
+- Nothing on `Pass 251.1` — shipped and pushed, CI running as the
+  full-suite backstop. `Pass 254.0` (*Next up*) and `Pass 255.0`
+  (*Backlog*) are scoped and unscheduled; `Pass 252.0` and `Pass
+  253.0`–`253.3` (429th filing) remain unscoped in *Backlog*.
+
+**Sourcing (hard rule 8):** this role had a shell. `git rev-parse HEAD` =
+`git rev-parse origin/main` = `e4cefcd` (the fix commit IS `HEAD` and IS
+pushed; `git merge-base --is-ancestor e4cefcd origin/main` = true); `git
+show --stat e4cefcd` = `edit.rs` (+46) + `page_tree_nested_count.rs` (new,
++122) + `nested-tree-3level.pdf` (new, 2,488 B) +
+`gen-nested-page-tree-fixture.py` (new, +103) = 4 files, +271/−0; `git
+status --short` carries this filing's own doc edits only. CI colour not
+asserted (running).
+
+**For next session:**
+- Engineer: no in-flight Pass. Queued work is `Pass 253.0` (comment reply
+  authoring, head of the review family), `Pass 254.0` (line-weights-off, the
+  smaller near-term operator ask), then `Pass 255.0`; each should dispatch
+  `pdfcer-acrobat-librarian` first per its entry.
+- Operator: the trailing-blank-pages bug `pdfcer-gui` found when deleting
+  pages from your SolidWorks drawings is fixed and pushed — it only bit
+  drawings with a nested page structure, which is why it went unnoticed. Two
+  things you asked for are now on the plan: the "show all lines thin like
+  CAD" display option (near-term), and being able to drag/add/delete the
+  corners of a markup shape you drew (later).
