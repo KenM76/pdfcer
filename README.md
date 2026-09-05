@@ -39,6 +39,11 @@ PDF/A validation and conversion; **digital-signature verification**
 byte-range coverage) and, opt-in, **trust evaluation** against an
 imported Acrobat/Reader trust store (certificate-chain linkage,
 validity dates at signing time, and RFC 5280 CA/key-usage constraints);
+**digital signing** — PAdES B-B (`ETSI.CAdES.detached`, or
+`adbe.pkcs7.detached`) from a PKCS#12 `.pfx`/`.p12` digital ID, RSA
+(PKCS#1 v1.5 or PSS) and ECDSA P-256/P-384, appended as an incremental
+update so earlier signatures stay valid, and self-verified before the
+file is written;
 vector object and node editing; measurement and dimension authoring;
 image placement from PNG, JPEG, BMP and TIFF; printing, with page
 placement, orientation, duplex, copies and n-up/booklet/poster
@@ -48,8 +53,10 @@ empty-user-password case that opens with no prompt at all; and
 **authoring encryption** (AES-256, `/R 6`), setting the eight permission
 bits, and removing encryption from an owner-authenticated document.
 
-**Not built yet**, among other things: JavaScript, XFA, *creating*
-digital signatures (pdfcer verifies them but does not yet sign),
+**Not built yet**, among other things: JavaScript, XFA, signature
+timestamps and long-term validation (PAdES B-T/B-LT/B-LTA — the
+timestamp round trip is a shell's job), Windows-certificate-store and
+PKCS#11-token digital IDs (only a `.pfx` file signs today),
 signature revocation checking (CRL/OCSP — deliberately excluded from
 the engine by its no-network rule, so it belongs to a shell or to
 embedded revocation data), and a long tail of Acrobat Pro's surface.

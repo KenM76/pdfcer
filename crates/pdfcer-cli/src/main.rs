@@ -1817,16 +1817,99 @@ enum Command {
         input: PathBuf,
     },
 
-    /// Sign a PDF with a PKCS#12 certificate (PAdES). [not yet implemented]
+    #[cfg(feature = "signing")]
+    /// **Sign a PDF** with a PKCS#12 digital ID — PAdES B-B by default
+    /// (`Pass 10.9`; ISO 32000-1 §12.8, ETSI EN 319 142-1).
+    ///
+    /// The signature is appended as an incremental update, so every byte of
+    /// the input — and every signature already in it — is preserved; a second
+    /// `sign` on the output adds a second signature and the first still
+    /// verifies. The `.pfx`'s integrity MAC is checked first (a wrong
+    /// `--password` fails there, by name), both PKCS#12 encryption eras are
+    /// read, and the signer's certificate chain is embedded in the CMS. Before
+    /// the file is written pdfcer re-reads it and verifies its own signature
+    /// with `verify-signatures`' engine; a signature pdfcer cannot verify is
+    /// never written.
+    ///
+    /// `--format`: `cades` (default) writes `/SubFilter /ETSI.CAdES.detached`
+    /// (PAdES); `pkcs7` writes `adbe.pkcs7.detached` (the widest legacy
+    /// reader support). Both are CMS, both detached, both carry the
+    /// `signing-certificate-v2` attribute. `--algorithm` defaults to the key's
+    /// own: RSA PKCS#1 v1.5 for an RSA key, ECDSA for an EC key; `rsa-pss` is
+    /// the PAdES-preferred RSA scheme.
+    ///
+    /// `--signing-time` is the `/M` the signature claims, as a PDF date
+    /// (`D:YYYYMMDDHHmmSSZ`). pdfcer's engine reads no clock; when the flag
+    /// is absent THIS COMMAND derives the time from the system clock and
+    /// PRINTS that it did (project rule 4 — a derived value is disclosed,
+    /// never silent). `--reason`, `--location`, `--contact`, `--name` are the
+    /// signer's own words, written verbatim.
+    ///
+    /// Invisible by default (`/Rect [0 0 0 0]`, nothing drawn). `--visible
+    /// x0,y0,x1,y1` places a widget on `--page` with a thin frame; the details
+    /// (signer, time) live in the signature panel of any reader, not in the
+    /// frame — a composed appearance is a later increment.
+    ///
+    /// Refused by name, nothing written: a signing time that is not a PDF
+    /// date; an encrypted document (the incremental writer cannot append to
+    /// one yet); a document opened through cross-reference recovery; a
+    /// certification signature whose `/DocMDP` permission is 1 (no changes);
+    /// a colliding `--field-name`; a `--page` out of range; a CMS larger than
+    /// `--reserve` bytes (default 12288 — raise it for a long chain).
+    ///
+    /// The level printed is always `B-B`: pdfcer embeds no timestamp and no
+    /// revocation data yet, and never claims a level the material does not
+    /// support. Exit 12 when the signature was refused or failed
+    /// self-verification; 9 for a refused request; 3 for a file that cannot
+    /// be read or written.
     Sign {
         /// Input PDF.
         input: PathBuf,
-        /// PKCS#12 (.p12/.pfx) certificate file.
+        /// PKCS#12 (`.p12`/`.pfx`) digital ID: private key + certificate chain.
         #[arg(long)]
         cert: PathBuf,
+        /// The container's password. Empty if omitted.
+        #[arg(long, default_value = "")]
+        password: String,
         /// Output path for the signed PDF.
         #[arg(short, long)]
         output: PathBuf,
+        /// `cades` (PAdES, default) or `pkcs7` (`adbe.pkcs7.detached`).
+        #[arg(long, value_enum, default_value_t = SignFormatArg::Cades)]
+        format: SignFormatArg,
+        /// Signature algorithm; default is the key's own (RSA PKCS#1 v1.5 or
+        /// ECDSA).
+        #[arg(long, value_enum)]
+        algorithm: Option<SignAlgorithmArg>,
+        /// The claimed signing time as a PDF date (`D:20260905120000Z`).
+        /// Derived from the system clock, and disclosed, when absent.
+        #[arg(long)]
+        signing_time: Option<String>,
+        /// `/Name` — the signer's display name.
+        #[arg(long)]
+        name: Option<String>,
+        /// `/Reason` — why the document is being signed.
+        #[arg(long)]
+        reason: Option<String>,
+        /// `/Location` — where, in the signer's words.
+        #[arg(long)]
+        location: Option<String>,
+        /// `/ContactInfo`.
+        #[arg(long)]
+        contact: Option<String>,
+        /// The signature field's name; `Signature1`, `Signature2`, … when absent.
+        #[arg(long)]
+        field_name: Option<String>,
+        /// Make the signature visible: the widget rectangle `x0,y0,x1,y1` in
+        /// points on `--page`.
+        #[arg(long, allow_hyphen_values = true)]
+        visible: Option<String>,
+        /// 1-based page for `--visible`.
+        #[arg(long, default_value_t = 1)]
+        page: usize,
+        /// Bytes reserved for the signature blob.
+        #[arg(long, default_value_t = 12 * 1024)]
+        reserve: usize,
     },
 
     /// **List the document's bookmarks** (ISO 32000-1 §12.3.3).
@@ -8945,7 +9028,40 @@ fn run() -> ExitCode {
         Command::BatesStamp { .. } => unimplemented_stub("bates-stamp"),
         Command::ToPdfa { .. } => unimplemented_stub("to-pdfa"),
         Command::ValidatePdfa { .. } => unimplemented_stub("validate-pdfa"),
-        Command::Sign { .. } => unimplemented_stub("sign"),
+        #[cfg(feature = "signing")]
+        Command::Sign {
+            input,
+            cert,
+            password,
+            output,
+            format,
+            algorithm,
+            signing_time,
+            name,
+            reason,
+            location,
+            contact,
+            field_name,
+            visible,
+            page,
+            reserve,
+        } => cmd_sign(&SignArgs {
+            input: &input,
+            cert: &cert,
+            password: &password,
+            output: &output,
+            format,
+            algorithm,
+            signing_time: signing_time.as_deref(),
+            name: name.as_deref(),
+            reason: reason.as_deref(),
+            location: location.as_deref(),
+            contact: contact.as_deref(),
+            field_name: field_name.as_deref(),
+            visible: visible.as_deref(),
+            page,
+            reserve,
+        }),
         Command::ListOutline { input, flat } => cmd_list_outline(&input, flat),
         Command::MergeDocument {
             input,
@@ -26836,6 +26952,252 @@ fn fill_color_json(color: Option<&pdfcer_core::text_extract::TextColor>) -> Stri
 
 /// Emit the standard "not implemented yet" message for a stub subcommand
 /// and return [`exit::UNIMPLEMENTED`].
+/// `--format` for `sign`.
+#[cfg(feature = "signing")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+enum SignFormatArg {
+    /// `/SubFilter /ETSI.CAdES.detached` — PAdES (ISO 32000-2 §12.8.3.4).
+    Cades,
+    /// `/SubFilter /adbe.pkcs7.detached` — ISO 32000-1 §12.8.3.3.
+    Pkcs7,
+}
+
+/// `--algorithm` for `sign`.
+#[cfg(feature = "signing")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+enum SignAlgorithmArg {
+    /// RSASSA-PKCS1-v1_5 with SHA-256 (RSA keys; the default for them).
+    RsaPkcs1,
+    /// RSASSA-PSS with SHA-256 (RSA keys; PAdES-preferred).
+    RsaPss,
+    /// ECDSA with SHA-256 over P-256 (EC P-256 keys; their default).
+    EcdsaP256,
+    /// ECDSA with SHA-384 over P-384 (EC P-384 keys; their default).
+    EcdsaP384,
+}
+
+/// Arguments of `sign`, bundled to stay inside clippy's argument limit.
+#[cfg(feature = "signing")]
+struct SignArgs<'a> {
+    input: &'a Path,
+    cert: &'a Path,
+    password: &'a str,
+    output: &'a Path,
+    format: SignFormatArg,
+    algorithm: Option<SignAlgorithmArg>,
+    signing_time: Option<&'a str>,
+    name: Option<&'a str>,
+    reason: Option<&'a str>,
+    location: Option<&'a str>,
+    contact: Option<&'a str>,
+    field_name: Option<&'a str>,
+    visible: Option<&'a str>,
+    page: usize,
+    reserve: usize,
+}
+
+/// The current UTC time as a PDF date string (`D:YYYYMMDDHHmmSSZ`, ISO
+/// 32000-1 §7.9.4), from the system clock.
+///
+/// This is the ONE place in the CLI that reads a clock for a value that
+/// ends up inside a document, and it exists only because PAdES requires
+/// `/M` and a batch signer has no operator to type one. The caller prints
+/// that the value was derived (rule 4). Howard Hinnant's `civil_from_days`
+/// does the calendar arithmetic; there is no timezone — the `Z` is honest.
+#[cfg(feature = "signing")]
+fn pdf_date_now() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(0));
+    let days = secs.div_euclid(86_400);
+    let sod = secs.rem_euclid(86_400);
+    // civil_from_days: shift the epoch to 0000-03-01 so leap days fall last.
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    format!(
+        "D:{y:04}{m:02}{d:02}{:02}{:02}{:02}Z",
+        sod / 3600,
+        (sod % 3600) / 60,
+        sod % 60
+    )
+}
+
+/// `sign` (`Pass 10.9`): PKCS#12 in, signed PDF out, every derived or
+/// disclosed fact printed (rules 4 and 11).
+#[cfg(feature = "signing")]
+fn cmd_sign(args: &SignArgs<'_>) -> u8 {
+    use pdfcer_core::sign::apply::{SignApplyError, SignRequest};
+    use pdfcer_core::sign::cms_build::SubFilter;
+    use pdfcer_core::sign::pkcs12::Pkcs12Signer;
+    use pdfcer_core::sign::{SignatureAlgorithm, Signer as _};
+
+    // --- the digital ID -----------------------------------------------------
+    let pfx = match std::fs::read(args.cert) {
+        Ok(b) => b,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", args.cert.display());
+            return exit::IO_ERROR;
+        }
+    };
+    let signer = match Pkcs12Signer::from_der(&pfx, args.password) {
+        Ok(s) => s,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", args.cert.display());
+            return exit::SIGNATURE_FAILED;
+        }
+    };
+    let id = signer.report();
+    // Rule 4: what the container was made of, and whether its integrity was
+    // actually checked.
+    match &id.mac {
+        Some(mac) => eprintln!(
+            "pdfcer: {}: PKCS#12 integrity MAC ({mac}, {} iterations) verified; key bag {}; {} certificate(s) in the chain{}",
+            args.cert.display(),
+            id.mac_iterations.unwrap_or(1),
+            id.key_scheme,
+            id.chain_length,
+            if id.unrelated_certificates > 0 {
+                format!(
+                    "; {} unrelated certificate(s) ignored",
+                    id.unrelated_certificates
+                )
+            } else {
+                String::new()
+            }
+        ),
+        None => eprintln!(
+            "pdfcer: {}: the PKCS#12 container carries NO integrity MAC, so the password could not be checked before decryption and the file's integrity is unverified",
+            args.cert.display()
+        ),
+    }
+
+    // --- the request ---------------------------------------------------------
+    let (signing_time, derived) = match args.signing_time {
+        Some(t) => (t.to_owned(), false),
+        None => (pdf_date_now(), true),
+    };
+    if derived {
+        eprintln!(
+            "pdfcer: --signing-time not given; /M {signing_time} was DERIVED from this machine's clock (UTC). Pass --signing-time to state it yourself."
+        );
+    }
+    let visible = match args.visible {
+        None => None,
+        Some(text) => {
+            let nums: Vec<f64> = text
+                .split(',')
+                .map(|t| t.trim().parse::<f64>())
+                .collect::<Result<_, _>>()
+                .unwrap_or_default();
+            let [x0, y0, x1, y1] = nums.as_slice() else {
+                eprintln!(
+                    "pdfcer: {}: --visible must be `x0,y0,x1,y1` in points",
+                    args.input.display()
+                );
+                return exit::EDIT_REFUSED;
+            };
+            if args.page == 0 {
+                eprintln!(
+                    "pdfcer: {}: --page is 1-based; 0 is not a page",
+                    args.input.display()
+                );
+                return exit::EDIT_REFUSED;
+            }
+            Some((
+                args.page - 1,
+                pdfcer_core::page_tree::Rect {
+                    llx: x0.min(*x1),
+                    lly: y0.min(*y1),
+                    urx: x0.max(*x1),
+                    ury: y0.max(*y1),
+                },
+            ))
+        }
+    };
+    let mut request = SignRequest::at(signing_time.clone());
+    request.sub_filter = match args.format {
+        SignFormatArg::Cades => SubFilter::EtsiCadesDetached,
+        SignFormatArg::Pkcs7 => SubFilter::AdbePkcs7Detached,
+    };
+    request.algorithm = args.algorithm.map(|a| match a {
+        SignAlgorithmArg::RsaPkcs1 => SignatureAlgorithm::RsaPkcs1v15Sha256,
+        SignAlgorithmArg::RsaPss => SignatureAlgorithm::RsaPssSha256,
+        SignAlgorithmArg::EcdsaP256 => SignatureAlgorithm::EcdsaP256Sha256,
+        SignAlgorithmArg::EcdsaP384 => SignatureAlgorithm::EcdsaP384Sha384,
+    });
+    request.name = args.name.map(str::to_owned);
+    request.reason = args.reason.map(str::to_owned);
+    request.location = args.location.map(str::to_owned);
+    request.contact_info = args.contact.map(str::to_owned);
+    request.field_name = args.field_name.map(str::to_owned);
+    request.visible = visible;
+    request.reserve = args.reserve;
+
+    // --- sign ----------------------------------------------------------------
+    let (_source, mut session) = match open_for_edit(args.input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let (bytes, report) = match session.sign(
+        &signer,
+        &request,
+        &pdfcer_core::writer::SaveOptions::identity(),
+    ) {
+        Ok(pair) => pair,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", args.input.display());
+            return match err {
+                SignApplyError::Sign(_)
+                | SignApplyError::Cms(_)
+                | SignApplyError::ReservationTooSmall { .. }
+                | SignApplyError::SelfVerificationFailed { .. }
+                | SignApplyError::PlaceholderNotFound { .. } => exit::SIGNATURE_FAILED,
+                SignApplyError::Write(_) => exit::SAVE_REFUSED,
+                _ => exit::EDIT_REFUSED,
+            };
+        }
+    };
+    if let Err(err) = std::fs::write(args.output, &bytes) {
+        eprintln!("pdfcer: {}: {err}", args.output.display());
+        return exit::IO_ERROR;
+    }
+
+    let sub_filter = String::from_utf8_lossy(report.sub_filter.name()).into_owned();
+    println!(
+        "sign {} -> {}; field={} subtype={} algorithm={:?} key={} signer={} serial={} certificates={} byte_range={},{},{},{} cms_bytes={} reserved={} signing_time={} time_derived={} level={} prior_signatures={} self_verified={} out_bytes={}",
+        args.input.display(),
+        args.output.display(),
+        quoted_token(&report.field_name),
+        sub_filter,
+        report.algorithm,
+        signer.key_label(),
+        quoted_token(&report.signer_subject),
+        report.signer_serial_hex,
+        report.certificates,
+        report.byte_range[0],
+        report.byte_range[1],
+        report.byte_range[2],
+        report.byte_range[3],
+        report.cms_bytes,
+        report.reserved_bytes,
+        report.signing_time,
+        u8::from(derived),
+        report.pades_level,
+        report.prior_signatures,
+        u8::from(report.self_verified),
+        bytes.len(),
+    );
+    exit::SUCCESS
+}
+
 fn unimplemented_stub(name: &str) -> u8 {
     eprintln!(
         "pdfcer: `{name}` is not implemented yet — it ships in a later Pass \

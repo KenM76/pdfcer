@@ -16,10 +16,13 @@ path = "src/main.rs"
 # Mirrors `pdfcer-core`'s strippable-capability features so a lighter CLI is
 # one flag rather than a manifest edit. Default ON: `--no-default-features`
 # is the deliberate act, never the accident.
-default = ["jpx", "ocrs"]
+default = ["jpx", "ocrs", "signing"]
 jpx = ["pdfcer-core/jpx", "pdfcer-render/jpx"]
 # The `ocrs` text-recognition engine (`Pass 71.0` slice 3).
 ocrs = ["pdfcer-core/ocrs", "pdfcer-render/ocrs"]
+# Digital signing (`sign` subcommand) — the private-key crates live behind
+# pdfcer-core's `signing` feature; a CLI built without it has no `sign`.
+signing = ["pdfcer-core/signing"]
 
 # `download` — operator-initiated fetching of pinned artefacts, currently the
 # OCR model weights (`fetch-ocr-models`).

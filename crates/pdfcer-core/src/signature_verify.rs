@@ -656,7 +656,10 @@ fn coverage_len(ranges: &[(u64, u64)]) -> usize {
         .sum()
 }
 
-fn hash_for(oid_str: &str) -> Option<Hash> {
+/// The digest a `digestAlgorithm` OID names, or `None` for one pdfcer does
+/// not verify (MD5 is deliberately absent: PAdES forbids it and ISO 32000-2
+/// deprecates it, so a verdict over it would be `Unverifiable` by name).
+pub(crate) fn hash_for(oid_str: &str) -> Option<Hash> {
     match oid_str {
         oid::SHA1 => Some(Hash::Sha1),
         oid::SHA256 => Some(Hash::Sha256),
@@ -669,7 +672,7 @@ fn hash_for(oid_str: &str) -> Option<Hash> {
 /// Verify `signature` over `attrs_digest` with `key` under `alg`.
 /// `Ok((verified, algorithm name))`, or `Err(reason)` when the combination
 /// is one pdfcer does not implement.
-fn check_signature(
+pub(crate) fn check_signature(
     key: &PublicKey<'_>,
     alg: &cms::AlgId<'_>,
     hash: Hash,

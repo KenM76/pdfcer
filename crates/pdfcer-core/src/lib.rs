@@ -133,6 +133,8 @@ mod redact_image;
 mod redact_vector;
 pub mod richtext;
 pub mod settings;
+#[cfg(feature = "signing")]
+pub mod sign;
 pub mod signature;
 pub mod signature_verify;
 pub mod span;

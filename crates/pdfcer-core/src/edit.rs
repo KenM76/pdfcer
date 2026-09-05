@@ -320,6 +320,12 @@ pub enum CommandKind {
         /// Which of the three vertex operations it was.
         edit: VertexEditKind,
     },
+    /// A signature field with its (still zero-filled) signature dictionary
+    /// was staged by [`EditSession::sign`] (`Pass 10.9`). The command exists
+    /// so the session's history stays truthful about the objects it holds;
+    /// the SIGNED bytes are what `sign` returns, and a session that keeps
+    /// editing after a sign should be re-opened on them (see the verb).
+    AddSignatureField,
     /// Several pages were given the same `/MediaBox` in one operation.
     ///
     /// Carries only a count, for the reason [`Self::ReorderPages`] does:
@@ -41276,6 +41282,366 @@ fn rewrite_da_font(da: &[u8], from: &[u8], to: &[u8]) -> Vec<u8> {
         out.extend_from_slice(token);
     }
     out
+}
+
+#[cfg(feature = "signing")]
+impl EditSession {
+    /// **Sign the document** — PAdES B-B (or `adbe.pkcs7.detached`) with any
+    /// [`crate::sign::Signer`], as an incremental update, and return the
+    /// signed bytes (`Pass 10.9`; ISO 32000-1 §12.8, ETSI EN 319 142-1).
+    ///
+    /// # What it does, in order (`iso32000__ref__signature_creation.md` `SC-2`)
+    ///
+    /// 1. **Guards**, each a named refusal: a signing time that is not a PDF
+    ///    date; a pending deferred redaction; an encrypted document (the
+    ///    incremental writer cannot append to one yet); a base loaded via
+    ///    cross-reference recovery (nothing can be appended to it — decision
+    ///    013); a certification signature whose `/DocMDP` `/P` is 1 (no
+    ///    changes at all); a colliding field name; a page out of range.
+    /// 2. **Stages** the signature field (`/FT /Sig`, a merged widget on
+    ///    `page` with `/Rect [0 0 0 0]` when invisible — `SC-4`), registers
+    ///    it in `/AcroForm /Fields` and sets **`/SigFlags 3`** (`SC-5`:
+    ///    SignaturesExist + AppendOnly), and the signature dictionary (Table
+    ///    252): `/Filter /Adobe.PPKLite`, the `/SubFilter`, `/M`, the
+    ///    optional `/Name` `/Reason` `/Location` `/ContactInfo`, **no `/Cert`**
+    ///    (PAdES `PB-N1`), a `/ByteRange` of fixed-width sentinels and a
+    ///    `/Contents` of `reserve` zero bytes — one undoable
+    ///    [`CommandKind::AddSignatureField`].
+    /// 3. **Serialises** the session as an incremental update (`SC-7`; a full
+    ///    rewrite would move every prior signature's bytes) with `options`.
+    /// 4. **Locates** the hole and the sentinels in the appended revision,
+    ///    **patches `/ByteRange`** in place to `[0 a b len−b]` (`SC-3`: the
+    ///    second span reaches EOF), **digests** the two spans, builds the CMS
+    ///    (`crate::sign::cms_build`), and **back-patches** the hex into the
+    ///    hole — same-length overwrites only, no other byte moves.
+    /// 5. **Self-verifies**: re-parses the result and runs
+    ///    [`crate::signature_verify`] over it; anything but
+    ///    `Integrity::Verified` with full coverage is a refusal, and no bytes
+    ///    are returned. pdfcer does not hand out a signature it cannot itself
+    ///    verify.
+    ///
+    /// # The returned bytes ARE the document; the session is not
+    ///
+    /// The session still holds the staged placeholder objects (zeros in
+    /// `/Contents`), not the signature, and its `/ByteRange` sentinels are
+    /// meaningless. A caller that wants to keep editing **must re-open the
+    /// returned bytes** (`Document::from_bytes`) — every later edit must
+    /// append after this signature, and only a session on the signed file
+    /// knows where that is. A CLI writes the bytes and is done; a GUI
+    /// reloads. Undoing the staged command in the old session is harmless
+    /// and pointless.
+    ///
+    /// # What is authored, what is disclosed (rule 4)
+    ///
+    /// The signing time, name, reason, location and contact are the
+    /// caller's words, written verbatim. pdfcer infers nothing here — but
+    /// the report states what it wrote: the `/M`, the signer certificate's
+    /// subject and serial, the SubFilter, the algorithm, the byte range, the
+    /// CMS size against the reservation, and the PAdES level actually
+    /// produced (`B-B` — `PC-12`: never a higher level than the material
+    /// embedded). A visible signature's appearance is, in this first cut, a
+    /// **thin frame only** — no text; the details live in the report and in
+    /// any reader's signature panel. (A composed appearance is a later
+    /// increment.)
+    ///
+    /// # Errors
+    ///
+    /// Every [`crate::sign::apply::SignApplyError`] variant; see each.
+    pub fn sign(
+        &mut self,
+        signer: &dyn crate::sign::Signer,
+        request: &crate::sign::apply::SignRequest,
+        options: &SaveOptions,
+    ) -> Result<(Vec<u8>, crate::sign::apply::SignReport), crate::sign::apply::SignApplyError> {
+        use crate::sign::apply::{self as apply, SignApplyError};
+
+        // --- 1. guards ---------------------------------------------------
+        if !apply::looks_like_pdf_date(&request.signing_time) {
+            return Err(SignApplyError::SigningTimeNotPdfDate {
+                given: request.signing_time.clone(),
+            });
+        }
+        if self.redaction_pending {
+            return Err(SignApplyError::RedactionPending);
+        }
+        if self.base.encryption().is_some() || self.base.trailer().contains_key(b"Encrypt") {
+            return Err(SignApplyError::Encrypted);
+        }
+        if self.base.loaded_via_recovery() {
+            return Err(SignApplyError::RecoveredBase);
+        }
+        let found = census(&self.graph());
+        // Table 254: P = 1 permits NO changes; 2 permits form fill-in AND
+        // signing; 3 adds annotations. Adding a signature is the act P = 2
+        // exists to allow, so only P = 1 refuses here.
+        if found.certification_permission == Some(1) {
+            return Err(SignApplyError::CertificationForbids { permission: 1 });
+        }
+        let prior_signatures = found.signatures;
+
+        // --- 2a. the field name ------------------------------------------
+        let existing: Vec<String> = forms::parse_acroform(&self.graph())
+            .map(|f| {
+                f.fields
+                    .iter()
+                    .map(|x| x.fully_qualified_name.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let field_name = match &request.field_name {
+            Some(n) => {
+                if existing.contains(n) {
+                    return Err(SignApplyError::FieldNameTaken { name: n.clone() });
+                }
+                n.clone()
+            }
+            None => {
+                // Acrobat's own convention: Signature1, Signature2, …
+                let mut i = 1usize;
+                loop {
+                    let candidate = format!("Signature{i}");
+                    if !existing.contains(&candidate) {
+                        break candidate;
+                    }
+                    i += 1;
+                }
+            }
+        };
+
+        // --- 2b. the page ------------------------------------------------
+        let slots = self.page_slots().map_err(EditError::from)?;
+        let (page_index, rect) = match request.visible {
+            Some((p, r)) => (p, r),
+            None => (
+                0,
+                page_tree::Rect {
+                    llx: 0.0,
+                    lly: 0.0,
+                    urx: 0.0,
+                    ury: 0.0,
+                },
+            ),
+        };
+        let page_id =
+            slots
+                .get(page_index)
+                .map(|s| s.id)
+                .ok_or(SignApplyError::PageOutOfRange {
+                    page: page_index,
+                    count: slots.len(),
+                })?;
+
+        // --- 2c. the objects ---------------------------------------------
+        let algorithm = request
+            .algorithm
+            .unwrap_or_else(|| signer.default_algorithm());
+        let sig_id = ObjId::new(self.alloc_number()?, 0);
+        let field_id = ObjId::new(self.alloc_number()?, 0);
+
+        let mut sig = Dict::new();
+        sig.insert(Name::from(b"Type"), Object::Name(Name::from(b"Sig")));
+        sig.insert(
+            Name::from(b"Filter"),
+            Object::Name(Name::from(b"Adobe.PPKLite")),
+        );
+        sig.insert(
+            Name::from(b"SubFilter"),
+            Object::Name(Name::from(request.sub_filter.name())),
+        );
+        sig.insert(
+            Name::from(b"ByteRange"),
+            Object::Array(vec![
+                Object::Integer(0),
+                Object::Integer(apply::BYTE_RANGE_SENTINEL),
+                Object::Integer(apply::BYTE_RANGE_SENTINEL),
+                Object::Integer(apply::BYTE_RANGE_SENTINEL),
+            ]),
+        );
+        // All-zero bytes are non-printable, so the serializer emits the
+        // hexadecimal form: `<` + 2·reserve zeros + `>` — the hole.
+        sig.insert(
+            Name::from(b"Contents"),
+            Object::String(vec![0u8; request.reserve.max(1)]),
+        );
+        sig.insert(
+            Name::from(b"M"),
+            Object::String(request.signing_time.as_bytes().to_vec()),
+        );
+        for (key, value) in [
+            (&b"Name"[..], &request.name),
+            (b"Reason", &request.reason),
+            (b"Location", &request.location),
+            (b"ContactInfo", &request.contact_info),
+        ] {
+            if let Some(v) = value {
+                sig.insert(Name::from(key), Object::String(encode_text_string(v)));
+            }
+        }
+
+        let mut field = Dict::new();
+        field.insert(Name::from(b"Type"), Object::Name(Name::from(b"Annot")));
+        field.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Widget")));
+        field.insert(Name::from(b"FT"), Object::Name(Name::from(b"Sig")));
+        field.insert(
+            Name::from(b"T"),
+            Object::String(encode_text_string(&field_name)),
+        );
+        field.insert(Name::from(b"V"), Object::Reference(sig_id));
+        field.insert(
+            Name::from(b"Rect"),
+            Object::Array(vec![
+                Object::Real(rect.llx),
+                Object::Real(rect.lly),
+                Object::Real(rect.urx),
+                Object::Real(rect.ury),
+            ]),
+        );
+        field.insert(Name::from(b"P"), Object::Reference(page_id));
+        // Print (bit 3). Invisible signatures conventionally also carry
+        // Locked (bit 8) so a reader offers no "move" on an empty rectangle;
+        // pdfcer writes 132 for those, 4 for a visible one.
+        field.insert(
+            Name::from(b"F"),
+            Object::Integer(if request.visible.is_some() { 4 } else { 132 }),
+        );
+        let mut objects = vec![ObjectWrite {
+            id: sig_id,
+            before: None,
+            after: Some(Object::Dict(sig)),
+        }];
+        // A visible signature gets a thin frame as its appearance (first cut:
+        // no text — the report carries the details).
+        if let Some((_, r)) = request.visible {
+            let ap_id = ObjId::new(self.alloc_number()?, 0);
+            let w = (r.urx - r.llx).max(0.0);
+            let h = (r.ury - r.lly).max(0.0);
+            let content = format!(
+                "0 0 0 RG 1 w 0.5 0.5 {} {} re S\n",
+                (w - 1.0).max(0.0),
+                (h - 1.0).max(0.0)
+            );
+            let mut ap_dict = Dict::new();
+            ap_dict.insert(Name::from(b"Type"), Object::Name(Name::from(b"XObject")));
+            ap_dict.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Form")));
+            ap_dict.insert(
+                Name::from(b"BBox"),
+                Object::Array(vec![
+                    Object::Real(0.0),
+                    Object::Real(0.0),
+                    Object::Real(w),
+                    Object::Real(h),
+                ]),
+            );
+            ap_dict.insert(
+                Name::from(b"Length"),
+                Object::Integer(i64::try_from(content.len()).unwrap_or(0)),
+            );
+            let span = self.stage_bytes(content.as_bytes());
+            objects.push(ObjectWrite {
+                id: ap_id,
+                before: None,
+                after: Some(Object::Stream(Stream {
+                    dict: ap_dict,
+                    data_span: span,
+                })),
+            });
+            let mut ap = Dict::new();
+            ap.insert(Name::from(b"N"), Object::Reference(ap_id));
+            field.insert(Name::from(b"AP"), Object::Dict(ap));
+        }
+        objects.push(ObjectWrite {
+            id: field_id,
+            before: None,
+            after: Some(Object::Dict(field)),
+        });
+        objects.extend(self.annots_writes(page_id, field_id, &slots)?);
+
+        // /AcroForm: register the field and set /SigFlags 3 on whichever
+        // dictionary holds the form (indirect /AcroForm, or inline in the
+        // catalog — `acroform_register_write` returns the right object).
+        let mut af_write = self.acroform_register_write(field_id)?;
+        if let Some(Object::Dict(d)) = &mut af_write.after {
+            if let Some(Object::Dict(inline)) = d.get(b"AcroForm").cloned() {
+                let mut inline = inline;
+                inline.insert(Name::from(b"SigFlags"), Object::Integer(3));
+                d.insert(Name::from(b"AcroForm"), Object::Dict(inline));
+            } else {
+                d.insert(Name::from(b"SigFlags"), Object::Integer(3));
+            }
+        }
+        objects.push(af_write);
+
+        self.commit(Command {
+            kind: CommandKind::AddSignatureField,
+            objects,
+            removals: Vec::new(),
+            trailer: None,
+        });
+
+        // --- 3. serialise ----------------------------------------------------
+        let (mut bytes, _report) = self.to_incremental_bytes(options)?;
+        let revision_start = self.base.bytes().len();
+
+        // --- 4. locate, patch /ByteRange, digest, CMS, back-patch ------------
+        let hole = apply::locate_hole(&bytes, revision_start, sig_id, request.reserve.max(1))?;
+        let byte_range = apply::patch_byte_range(&mut bytes, hole);
+        let digest = apply::digest_spans(&bytes, hole, algorithm);
+        let cms = crate::sign::cms_build::build(signer, algorithm, &digest)?;
+        apply::back_patch(&mut bytes, hole, &cms.der)?;
+
+        // --- 5. self-verify ----------------------------------------------------
+        let reparsed = Document::from_bytes(bytes.clone()).map_err(|e| {
+            SignApplyError::SelfVerificationFailed {
+                reason: format!("the signed bytes did not re-parse: {e}"),
+            }
+        })?;
+        let verdicts = crate::signature_verify::verify_all(&reparsed.view(), &bytes);
+        let ours = verdicts
+            .iter()
+            .find(|v| v.field_name.as_deref() == Some(field_name.as_str()))
+            .ok_or_else(|| SignApplyError::SelfVerificationFailed {
+                reason: format!(
+                    "the verifier found {} signature(s) but none named {field_name:?}",
+                    verdicts.len()
+                ),
+            })?;
+        if !matches!(
+            ours.integrity,
+            crate::signature_verify::Integrity::Verified { .. }
+        ) {
+            return Err(SignApplyError::SelfVerificationFailed {
+                reason: format!("{:?}", ours.integrity),
+            });
+        }
+        if !ours.coverage.covers_to_eof() {
+            return Err(SignApplyError::SelfVerificationFailed {
+                reason: format!(
+                    "/ByteRange leaves {} uncovered byte(s) at the end of the file",
+                    ours.coverage.uncovered_tail
+                ),
+            });
+        }
+
+        Ok((
+            bytes,
+            crate::sign::apply::SignReport {
+                field_name,
+                signature_id: sig_id,
+                sub_filter: request.sub_filter,
+                algorithm,
+                signer_subject: cms.signer_subject,
+                signer_serial_hex: cms.signer_serial_hex,
+                certificates: cms.certificates,
+                byte_range,
+                cms_bytes: cms.der.len(),
+                reserved_bytes: request.reserve.max(1),
+                signing_time: request.signing_time.clone(),
+                pades_level: "B-B",
+                self_verified: true,
+                prior_signatures,
+            },
+        ))
+    }
 }
 
 #[cfg(test)]
