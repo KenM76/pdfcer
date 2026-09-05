@@ -51,7 +51,16 @@ first-class tool rather than a debug harness bolted onto the GUI.
 
 ## 2. Third-party packages, by crate
 
-**10 direct third-party dependencies in the engine, 3 in the GUI.** The
+~~**10 direct third-party dependencies in the engine, 3 in the GUI.**~~
+★ **Corrected 2026-09-05 (437th librarian filing, decision 137): `pdfcer-core`
+declares 25 direct third-party dependencies — 24 in `[dependencies]` plus
+`getrandom` under a `cfg(not(target_arch = "wasm32"))` target table —
+counted from `crates/pdfcer-core/Cargo.toml` in the working tree that adopts
+the signing stack (15 before it; the table below had been short five rows —
+`brotli`, `ocrs`, `rten`, `sha2`, `getrandom` — since well before signing,
+and gains them now with the ten signing crates).** The "3 in the GUI" half
+of the struck sentence is not re-measured here — the GUI is a separate
+project since `Pass 247.0`. The
 GUI's manifest lists six, but three of those are pdfcer's own crates. The
 full resolved
 graph is 435 packages, but most of that is the GUI stack's own
@@ -70,7 +79,16 @@ transitive tree — `pdfcer-core` pulls a deliberately small set.
 | `hayro-jbig2` | Apache-2.0 OR MIT | **JBIG2 decoding** — a later bilevel scan format, common in aggressively compressed scans. |
 | `hayro-jpeg2000` | Apache-2.0 OR MIT | **JPEG 2000 decoding** (`/JPXDecode`). |
 | `aes` | MIT OR Apache-2.0 | **AES block cipher**, for opening AES-128 encrypted PDFs. |
-| `cbc` | MIT OR Apache-2.0 | **CBC block-cipher mode**, which is how PDF applies AES. |
+| `cbc` | MIT OR Apache-2.0 | **CBC block-cipher mode**, which is how PDF applies AES. *(2026-09-05: gains `alloc` + `block-padding` for PKCS#7 unpadding of PKCS#12 bags.)* |
+| `sha2` | MIT OR Apache-2.0 | **SHA-256**, the key-derivation primitive for AES-256 (`/R` 5) encrypted PDFs, and the digest every signature pdfcer authors or verifies uses. *(Row added 2026-09-05; present since 2026-08-11.)* |
+| `getrandom` | MIT OR Apache-2.0 | **OS randomness** for encryption authoring and RSA blinding. Target-gated OFF on wasm32, where those operations refuse by name instead. *(Row added 2026-09-05.)* |
+| `brotli` | BSD-3-Clause AND MIT | **Brotli decoding** — the `/BrotliDecode` filter (PDF 2.0). Decode only. *(Row added 2026-09-05; present since `Pass 123.0`.)* |
+| `ocrs` + `rten` | MIT OR Apache-2.0 | **Pure-Rust OCR** (`ocrs` feature, default ON): text recognition over page images, written as an invisible text layer. `rten` is its inference runtime. *(Rows added 2026-09-05; present since `Pass 71.0`.)* |
+| `rsa` | MIT OR Apache-2.0 | **★ SIGNING (feature `signing`, default ON; decision 137, 2026-09-05).** RSA private-key operation — PKCS#1 v1.5 and RSASSA-PSS — on a constant-time big-number backend. Used ONLY through its blinded (`Randomized*`) paths. `0.10.0-rc.18`, a release candidate; carries the open RUSTSEC-2023-0071 advisory, accepted for signing because the advisory's channel is a decryption oracle signing never runs — reasoning in `ARCHITECTURE.md` §12 decision 137, re-checked at every bump. Verification of RSA signatures does NOT use it (in-crate, decision 129). |
+| `p256`, `p384` | Apache-2.0 OR MIT | **SIGNING.** ECDSA over NIST P-256 / P-384 with a deterministic nonce (RFC 6979), so it needs no randomness and works on wasm32. Also reads the EC private key out of a `.pfx`. Verification of ECDSA signatures does NOT use them (in-crate). |
+| `signature`, `rand_core` | Apache-2.0 OR MIT / MIT OR Apache-2.0 | **SIGNING.** Trait crates only — the signer interface `rsa` and the ECDSA crates implement, and the RNG interface pdfcer's own randomness adapter implements so `rsa` never pulls its own. |
+| `sha1`, `hmac`, `pbkdf2` | MIT OR Apache-2.0 | **SIGNING — PKCS#12 import only.** Opening a `.pfx`/`.p12` digital ID: `hmac` checks the file's integrity MAC (the password check), `pbkdf2` derives keys for modern (OpenSSL 3) containers, `sha1` is the digest every LEGACY container's MAC and key derivation are built on. pdfcer never writes a `.pfx` and never authors a SHA-1 signature. |
+| `des`, `rc2` | MIT OR Apache-2.0 | **SIGNING — PKCS#12 import only, legacy READ.** Triple-DES and 40-bit RC2 are the ciphers inside every Windows-exported and OpenSSL ≤ 1.1 `.pfx`. Same posture as `rc4`: obsolete ciphers, read because operators have the files, never written. |
 
 ### `pdfcer-render` — the rasterizer
 
@@ -224,7 +242,18 @@ are ours.
 *verifier* holds no secret, so constant-time discipline and the audit
 surface that justify a dependency for a cipher or a signer do not apply.
 A **signing** implementation would hold a private key and takes the
-audited dependency — that decision is deliberately not made here.
+audited dependency — ~~that decision is deliberately not made here.~~
+★ **made 2026-09-05, decision 137:** signing DOES take the audited,
+constant-time dependencies (`rsa`, `p256`/`p384` — rows in §2), behind a
+default-ON `signing` feature, while the verify-only modules above stay
+exactly as they are. What stayed in-crate on the signing side is, again,
+the part that is not a cryptographic hazard: the DER encoder
+(`sign/der_out.rs`), the CMS `SignedData` assembly (`sign/cms_build.rs`)
+and the PKCS#12 container walk (`sign/pkcs12.rs`) — parsing and byte
+layout pdfcer already owns the reader for, with no secret arithmetic in
+them. The RustCrypto `cms` crate was not taken because its builder does
+not compile against current dependencies; `pkcs12` because it does not
+decrypt. Both facts are dated in `docs/PRIOR_ART.md`.
 
 ### Cryptography — the deliberate split
 

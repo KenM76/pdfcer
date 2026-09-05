@@ -92642,3 +92642,206 @@ open operator questions none minted, next free `(ce)`.
   identities, then trusted timestamps, follow on the same plumbing. Nothing
   is downloadable yet; the new portable release still waits for the batch
   as you asked.
+
+## 2026-09-05 (437th filing) — NO PASS SHIPPED. Decision **137** AUTHORED — the signing CRATE STACK: the survey's LEAN stack adopted behind a default-ON `signing` feature (`rsa 0.10.0-rc.18` blinded-only with RUSTSEC-2023-0071 ACCEPTED for signing on recorded reasoning; `p256`/`p384 0.14`; `signature`; `rand_core`; `sha1`/`hmac`/`pbkdf2`/`des`/`rc2` for PKCS#12 import); CMS/DER and PKCS#12 IN-CRATE on `asn1.rs`; `cms`/`pkcs12`/`pkcs5`/`pkcs8[encryption]`/`x509-cert`/`p12-keystore`/`p12`/`ring` NOT taken. `PRIOR_ART.md` six rows amended + twelve added; `DEPENDENCIES.md` updated. Rule 13's order honoured — the `Cargo.toml` change is STILL uncommitted at filing; the engineer commits it after this record.
+
+**Session shape.** Fourth filing of the day, immediately after the 436th
+(`ae156e3`), which minted decision 136 (the arc's shape) and CLAIMED `137`
+by name for the crate stack. This filing authors `137` and nothing else —
+docs-only, five files staged by name (`ARCHITECTURE.md`, `PRIOR_ART.md`,
+`ROADMAP.md`, `SESSION_LOG.md`, `DEPENDENCIES.md`). Source of truth:
+`docs/signing-crate-survey.md` (513 lines, dated 2026-09-05, written by a
+research agent this session; untracked at filing — the engineer commits it
+with the code), read in full and cited by section in the record; plus the
+working tree, read directly (`git diff crates/pdfcer-core/Cargo.toml`,
+`crates/pdfcer-core/src/sign/*.rs`).
+
+**Shipped:**
+- None. No code commit filed. The engineer's signing code is in the
+  working tree, uncommitted: `crates/pdfcer-core/src/sign/` — `mod.rs` 510,
+  `pkcs12.rs` 1,046, `der_out.rs` 262, `cms_build.rs` 204, `apply.rs` 465 =
+  **2,487 lines over five files** — plus `tests/pkcs12_import.rs` 118
+  (`wc -l`); `Cargo.lock` +406; `THIRD_PARTY_LICENSES.md` +1,108/−42;
+  `lib.rs` +2 (`#[cfg(feature = "signing")] pub mod sign;`);
+  `signature_verify.rs` ±4. `Pass 10.7`–`10.9` stay *Next up*, NOT STARTED
+  as filed; they ship when the engineer says so.
+
+**Decisions made this session:**
+- **Decision 137** (`ARCHITECTURE.md` §12; body: §5.13 pointer, §9 sixth
+  dependency paragraph). **The stack:** `signing = [dep:rsa, dep:p256,
+  dep:p384, dep:signature, dep:rand_core, dep:sha1, dep:hmac, dep:pbkdf2,
+  dep:des, dep:rc2]`, default ON, every crate `optional = true`,
+  `default-features = false`; `rsa` features `sha2`+`encoding` (NOT
+  `getrandom`); `p256`/`p384` features `ecdsa`+`pkcs8`; `pbkdf2` feature
+  `hmac`; `cbc` gains `alloc`+`block-padding`. **Measured (survey §7/§8,
+  `m_lean`):** 48 crates resolved, 32 new to the lock, 18 `unsafe`
+  carriers of which 11 new (`cmov` 3 `asm!` files, `crypto-bigint`,
+  `cpufeatures 0.3.1`, `sha1`, `base16ct`, `base64ct`, `der`,
+  `elliptic-curve`, `const-oid`, `pem-rfc7468`, `aes 0.9.3` bump); one
+  pre-release pin (`rsa`, + transitive `pkcs1 rc.4`); one `sha2 0.11.0`,
+  one `digest 0.11.3`. **Why this is decision 129's other half:** 129 kept
+  verification in-crate because no secret is handled; every one of those
+  module headers said the judgement *does not extend to signing*; signing
+  handles a private key, so it gets the vetted constant-time dependency —
+  decision 039's shape (cfg-selected constant-time backends carrying
+  `unsafe`), applied a third time after `aes` and `sha2`.
+- **RUSTSEC-2023-0071 ("Marvin") ACCEPTED for the signing path** — open
+  against every `rsa` version, no patched release, last modified
+  2026-04-25. Six-point reasoning recorded in 137 (survey §2 in substance):
+  the residual channel (`rsa#626`, fix `#680` unmerged, Bleichenbacher
+  demo 2026-06-01) is the PKCS#1 v1.5 DECRYPTION de-padding oracle and
+  signing has no de-padding step; the modexp channel (`#19`) closed
+  2026-01-07 on `crypto-bigint 0.7` constant-time Montgomery; pdfcer signs
+  ONLY via the blinded `Randomized*` paths (`sign/mod.rs:332`
+  `RandomizedDigestSigner`; `rsa`'s plain `Signer` impls skip blinding —
+  survey finding 5); the advisory's own workaround (*"local,
+  non-compromised systems are considered safe"*) describes a desktop
+  signing operation; disclosed in `Cargo.toml`, `PRIOR_ART.md`, the survey
+  §9 and this record, re-checked at every `rsa` bump; `signing` OFF is the
+  build with no `rsa` in the tree. **No `cargo audit`/`cargo deny` in CI
+  today** (`grep` of `.github/workflows/ci.yml` for `cargo audit|cargo-audit|
+  cargo deny|cargo-deny|rustsec` → nothing); if one is ever added it
+  carries `ignore = ["RUSTSEC-2023-0071"]` with this rationale.
+- **wasm32 posture:** RSA signing refuses (`SignError::RandomUnavailable`,
+  raised before any key arithmetic) exactly as encryption authoring does;
+  ECDSA signs on wasm32 (RFC 6979, no RNG). `rsa/getrandom` OFF because it
+  drags `getrandom 0.4.3` which fails on wasm32 without `wasm_js` and
+  would duplicate pdfcer's gated `getrandom 0.2`.
+- **CMS/DER IN-CRATE (`Pass 10.8`'s question answered):** `cms`'s
+  `builder` does not compile against today's deps — 11 errors, both
+  pre-releases, native and wasm32 (survey finding 1). `sign/der_out.rs`
+  writes the DER (X.690 §11.6 `SET OF` sort, tested against `asn1.rs`);
+  `der 0.8` is transitive and NOT used directly (`grep "der::" src/sign/`
+  → nothing) so no foreign type crosses a `pub` signature.
+- **PKCS#12 IN-CRATE:** `sign/pkcs12.rs` on `asn1.rs`; KDF from RFC 7292
+  B.2 verified against the `pkcs12` crate's published vector
+  (`pkcs12.rs:1016`–`1022`: `"ge@äheim"`, salt `0102…08`, 100 rounds,
+  SHA-256, ids 1/2/3). Not taken: `pkcs12` (no decrypt, no MAC verify, pins
+  `cms =0.3.0-pre.1`), `pkcs5`/`pkcs8[encryption]` (no PBES1 —
+  `NoPbes1CryptSupport`; 8 unused AEAD/scrypt crates), `x509-cert` (certs
+  pass through raw), `p12-keystore` (78 crates, wasm32 fail; `pbes1.rs`
+  a READ reference), `p12` (2022, `digest 0.10` generation, wasm32 fail),
+  `ring` (unchanged).
+
+**Findings + gotchas (this role, measured):**
+- **★ Premise corrections to the dispatch — three.** (1) *"`der_out.rs`
+  ~170 lines"* — **262** by `wc -l` (its own header says *"two hundred
+  lines"*; both low). Filed as measured. (2) *"`p12-keystore` … credited in
+  the `pkcs12.rs` header"* — **NO credit exists anywhere in `sign/`**
+  (`grep -rn "p12-keystore\|p12_keystore\|pbes1.rs" crates/pdfcer-core/src/sign/`
+  → no hits). The survey's instruction was conditional (*"credit it … IF
+  structure is borrowed"*); filed as *owed if borrowed — engineer states
+  which*, not as done. (3) The dispatch framed the tree as `Pass 10.7`
+  work; the tree ALSO holds `cms_build.rs` (204) and `apply.rs` (465) —
+  `Pass 10.8`/`10.9` territory. Filed as a measured working-tree fact, NOT
+  as a Pass status change. **Confirmed premises:** no `cargo audit`/`deny`
+  in CI; `der` not used directly; `RandomUnavailable` exists (`mod.rs:179`);
+  the adapter is `PdfcerRng: rand_core::TryRng + TryCryptoRng`
+  (`mod.rs:402`/`:422`); the KDF vector is the `pkcs12` crate's; all
+  survey numbers (48/32/18/11; 11 errors; +1,108/−42; +406) match the file
+  and the diff.
+- **Invariants re-measured on the working tree, not relayed:**
+  `cargo tree -p pdfcer-core -p pdfcer-render -e normal` → no `egui`,
+  `eframe`, `winit`, `wgpu`, `reqwest`, `hyper`; `rsa v0.10.0-rc.18`,
+  `p256`/`p384 v0.14.0`, `signature v3.0.0`, `rand_core v0.10.1`, `sha1
+  v0.11.0`, `hmac v0.13.0`, `pbkdf2 v0.13.0`, `des v0.9.0`, `rc2 v0.9.0`,
+  `der v0.8.2`, `crypto-bigint v0.7.5`, `cmov v0.5.4` present; one `sha2
+  v0.11.0`, one `digest v0.11.3`; `getrandom v0.2.17` ONLY (no `0.4`).
+  `cargo check -p pdfcer-core -p pdfcer-render --target
+  wasm32-unknown-unknown` → `Finished` in 13.51 s, exit 0, with **8
+  pre-existing `pdfcer-core` lib warnings** the engineer may want to look
+  at before committing (not this filing's; not read in detail).
+- **Observation for the engineer (crates/ outside this role's remit):**
+  `lib.rs` gates the ENTIRE `sign` module — `Signer` trait and
+  `SignatureAlgorithm` included — so a `Pass 10.10` shell-side signer needs
+  `signing` ON in `pdfcer-core` although it takes no private-key crate.
+  Fine at default ON; a sentence in `10.10`'s scoping if a lite build is
+  ever meant to sign through a custodian. Also: the `Cargo.toml` feature
+  comment says *"`sign` refuses by name"* in an OFF build — with the module
+  cfg'd out there is no core `sign` to refuse; presumably the CLI verb
+  does. Worth one clarifying word in that comment.
+- **`pdfcer-core` now carries TWO SHA-1s by design:** `crypto/sha1.rs`
+  (verification, decision 129, no `Digest` impl) and the `sha1` crate (a
+  `digest::Digest` impl the KDF/HMAC generics need). Recorded on the
+  `PRIOR_ART.md` `sha1` row so nobody "deduplicates" it.
+- **Rule-11 sweep** (meaning change: *"the crate stack is not decided"* →
+  decided; *"`cms` is the building block"* → not taken). Grepped `cms`,
+  `x509-cert`, `rsa`, `signing-crate-survey`, `137` over `docs/*.md`
+  (excluding the survey), reading for the CLAIM. **Changed:** `PRIOR_ART.md`
+  founding recipe (*"build from `cms` + `x509-cert`"*) struck and amended;
+  its two *Verification gaps* items (`cms`, `rsa`) dated; `DEPENDENCIES.md`
+  §4's *"that decision is deliberately not made here"* closed; §5.13's
+  *"owed"* parenthetical given a dated pointer; the three ROADMAP sites
+  (`Pass 10.7` posture, `Pass 10.8` scope, Backlog bullet) amended; §9's
+  *"rows stay open for the SIGNING half"* followed by the new paragraph.
+  **Correct survivors, left alone and reported so the next sweep does not
+  "fix" them:** decision 136's *"THE CRATE STACK IS NOT DECIDED HERE"*
+  (true of 136 — 137 is the record; append-only); the 436th ROADMAP head
+  and SESSION_LOG entry (history); `NEXT_SESSION.md:44` (engineer-owned;
+  describes the survey as this session's — still true); `README.md:52`
+  *"does not yet sign"* (true until `Pass 10.9` ships; owed at that ship,
+  already named there). `docs/core-api/` — zero hits for a crate claim.
+
+**`docs/FEATURES.md`:** **unchanged, deliberately.** A crate-stack
+decision is not a capability; no Pass moved, no box changes. The five
+signing rows filed in the 436th stand as they are.
+
+**Still in flight:**
+- **Engineer, immediately:** commit the signing tree (`Cargo.toml`,
+  `Cargo.lock`, `THIRD_PARTY_LICENSES.md`, `lib.rs`, `signature_verify.rs`,
+  `src/sign/`, `tests/pkcs12_import.rs`, `docs/signing-crate-survey.md`) —
+  rule 13's record now precedes it. State the `p12-keystore` credit
+  question in that commit. Then ship `10.7` → `10.8` → `10.9` against the
+  filed criteria and `e6c0271`; the librarian files each.
+- **Batch, release HELD** (operator: *"build all before the next portable
+  release unless I say otherwise"*): `251.1`, `254.0`, `255.0` shipped;
+  signing arc remains before `v0.40.0`.
+- `Pass 252.0`, `253.0`–`253.3` unscoped/not started in *Backlog*.
+
+**Sourcing (hard rule 8):** this role had a shell; every git and tree
+figure MEASURED. `git status --short` at filing: ` M Cargo.lock`,
+` M THIRD_PARTY_LICENSES.md`, ` M crates/pdfcer-core/Cargo.toml`,
+` M crates/pdfcer-core/src/lib.rs`, ` M crates/pdfcer-core/src/signature_verify.rs`,
+`?? crates/pdfcer-core/src/sign/`, `?? crates/pdfcer-core/tests/pkcs12_import.rs`,
+`?? docs/signing-crate-survey.md`; re-run after the gates, the engineer's
+concurrent work had ADDED ` M crates/pdfcer-cli/Cargo.toml`,
+` M crates/pdfcer-cli/src/main.rs`, ` M crates/pdfcer-core/src/edit.rs`,
+` M docs/core-api/02-editing-and-saving.md`,
+`?? crates/pdfcer-core/tests/sign_document.rs` — the tree moved during the
+filing; none of it staged here (`docs/core-api/` is the engineer's edit,
+not this role's). `git diff --numstat`: `Cargo.lock` 406/0,
+`THIRD_PARTY_LICENSES.md` 1108/42. Licences of every crate row written
+into `DEPENDENCIES.md` verified against `cargo metadata` (not memory):
+`ocrs 0.12.2`, `rten 0.24.0`, `getrandom 0.2.17`, `des`, `rc2`, `hmac`,
+`pbkdf2`, `sha1`, `rand_core`, `rsa` = `MIT OR Apache-2.0`; `p256`,
+`p384`, `signature` = `Apache-2.0 OR MIT`; `brotli` = `BSD-3-Clause AND
+MIT`. `git log --oneline -1` = `ae156e3`
+(the 436th filing) at start. Line counts by `wc -l`. Survey numbers from
+the file itself, not the dispatch. Gates run before committing:
+`check-ledger-numbers`, `check-passes-filed`, `check-commits-filed`,
+`check-cited-commits-exist`, `check-cited-verbs-exist`, `check-string-gaps`,
+`check-control-bytes` — all green at baseline (before edits); results after
+edits in the filing commit's message.
+
+**Ledger.** Filings `436` → **`437`**; Pass ceiling **`255.0` UNCHANGED**;
+decision ceiling **`137` — AUTHORED** (the gate reported `137` from the
+436th's claim; unchanged in number, changed in meaning), next free `138`;
+standing rules `R241` unchanged, next free `R242`; open operator questions
+none minted, next free `(ce)`.
+
+**For next session:**
+- Engineer: (1) commit the signing tree — the decision record is in; (2)
+  answer the `p12-keystore` credit question in `pkcs12.rs`'s header (yes →
+  credit; no → nothing); (3) glance at the 8 wasm32 `pdfcer-core` warnings;
+  (4) build `10.7` → `10.8` → `10.9`; (5) at `10.9`'s ship, sweep
+  `README.md:52` and the CLI stub doc string; (6) refresh
+  `NEXT_SESSION.md`; (7) push — `e6c0271`, `ae156e3` and this filing are
+  the unpushed set (measure with `git rev-list --count origin/main..HEAD`
+  before asserting).
+- Operator: the cryptography libraries that will hold your signing key are
+  chosen and on record — vetted, constant-time, permissively licensed, all
+  from the same Rust family pdfcer already uses for AES. One of them carries
+  a known-but-inapplicable security advisory (it concerns decrypting, which
+  signing never does); the reasoning is written down and will be re-read at
+  every upgrade. Nothing is downloadable yet; the release still waits for
+  the batch.

@@ -112,6 +112,51 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★ 437th filing, 2026-09-05 — NO PASS SHIPPED. DECISION 137 AUTHORED —
+THE SIGNING CRATE STACK (the record the 436th filing CLAIMED by name):
+`docs/signing-crate-survey.md`'s LEAN stack is adopted behind a default-ON
+`signing` feature on `pdfcer-core` — `rsa 0.10.0-rc.18` (blinded
+`Randomized*` paths ONLY, `getrandom` OFF; RUSTSEC-2023-0071 open against
+every version and ACCEPTED for the signing path with the reasoning on
+record), `p256`/`p384 0.14` (RFC 6979, signs on wasm32), `signature 3.0`,
+`rand_core 0.10`, and `sha1`/`hmac`/`pbkdf2`/`des`/`rc2` for PKCS#12
+import; CMS/DER writing (`sign/der_out.rs`, 262 lines) and PKCS#12 parsing
+(`sign/pkcs12.rs`, 1,046) IN-HOUSE on `asn1.rs`; `cms` (builder does not
+compile), `pkcs12`, `pkcs5`/`pkcs8[encryption]`, `x509-cert`,
+`p12-keystore`, `p12`, `ring` NOT taken. 48 crates resolved / 32 new to
+the lock / 18 `unsafe` carriers, 11 new — decision 039's shape, third
+application, because a private key is handled (decision 129's stated
+other half). All permissive (rule 13); `THIRD_PARTY_LICENSES.md`
++1,108/−42. `PRIOR_ART.md` Cryptography table: six rows amended, twelve
+added. `DEPENDENCIES.md` updated in the same filing.** Docs-only; this
+filing stages five docs files by name (`FEATURES.md` untouched — no
+capability changed). **Rule 13's order is honoured because the tree is
+STILL uncommitted at filing** — `git status --short` at the start:
+` M Cargo.lock`, ` M THIRD_PARTY_LICENSES.md`, ` M crates/pdfcer-core/Cargo.toml`,
+` M crates/pdfcer-core/src/lib.rs`, ` M crates/pdfcer-core/src/signature_verify.rs`,
+`?? crates/pdfcer-core/src/sign/`, `?? crates/pdfcer-core/tests/pkcs12_import.rs`,
+`?? docs/signing-crate-survey.md`; by the gates run, the engineer's
+concurrent work had added ` M crates/pdfcer-cli/Cargo.toml`,
+` M crates/pdfcer-cli/src/main.rs`, ` M crates/pdfcer-core/src/edit.rs`,
+` M docs/core-api/02-editing-and-saving.md`,
+`?? crates/pdfcer-core/tests/sign_document.rs` — the tree is moving; the
+engineer commits all of it AFTER this record. Invariants measured by this role on that tree: `cargo tree -p
+pdfcer-core -p pdfcer-render -e normal` has no `egui`/`eframe`/`winit`/
+`wgpu`/`reqwest`/`hyper`, one `sha2 0.11.0`, one `digest 0.11.3`,
+`getrandom v0.2.17` only; `cargo check -p pdfcer-core -p pdfcer-render
+--target wasm32-unknown-unknown` `Finished` (13.51 s, exit 0). `Pass
+10.7`–`10.9` remain *Next up*, NOT STARTED as filed — the tree's `sign/`
+module (2,487 lines over five files + a 118-line test) is the engineer's
+in-flight work, filed when the engineer ships it. Release still HELD per
+the batch ruling.
+
+**Ledger.** Filings ceiling `436` → **`437`**; Pass ceiling **`255.0`
+UNCHANGED**; decision ceiling **`137` — AUTHORED this filing** (the gate
+already reported `137` from the 436th filing's claim; the number is
+unchanged, its meaning is not: `137` is now a record, not a claim), next
+free `138`; standing rules ceiling `R241` unchanged, next free `R242`; open
+operator questions: none minted, next free `(ce)`.
+
 **★★★ 436th filing, 2026-09-05 — NO PASS SHIPPED. THE DIGITAL-SIGNING ARC
 IS SCOPED AND FILED: `Pass 10.7` (PKCS#12 import + the `Signer` seam),
 `Pass 10.8` (CMS `SignedData` build, CAdES B-B) and `Pass 10.9` (the
@@ -109849,6 +109894,40 @@ MIT OR Apache-2.0 — no operator licence flag is needed (rule 13's copyleft
 clause is not engaged); `THIRD_PARTY_LICENSES.md` regenerates with the
 dependency change.
 
+**★ DECIDED 2026-09-05 (437th filing) — decision 137, `ARCHITECTURE.md`
+§12; this Pass is no longer gated.** The stack is the survey's LEAN one,
+exactly as the paragraph above listed it, behind a default-ON `signing`
+feature. Every item the paragraph said the record must carry, it carries:
+**Marvin** — RUSTSEC-2023-0071 is open against every `rsa` version with no
+patched release and is ACCEPTED for signing because the residual channel
+is the PKCS#1 v1.5 DECRYPTION de-padding oracle (signing has no de-padding
+step), the modexp channel closed 2026-01-07 on `crypto-bigint 0.7`, pdfcer
+signs only through the blinded `Randomized*` paths, and the advisory's own
+workaround names local systems safe; re-checked at every `rsa` bump;
+`signing` OFF removes it from the tree. **Pre-1.0** — `rsa` is the one
+pre-release pin (`pkcs1 0.8.0-rc.4` rides with it); every ECDSA crate is
+the Jul-2026 stable wave. **wasm32** — `rsa/getrandom` OFF (it drags
+`getrandom 0.4`, which fails on wasm32), so RSA signing refuses there with
+`SignError::RandomUnavailable` as encryption authoring does; ECDSA (RFC
+6979) signs on wasm32; `cargo check --target wasm32-unknown-unknown` of
+core+render clean (measured by the engineer and re-measured by the
+librarian). **`cms` vs in-crate** — in-crate: `cms`'s `builder` does not
+compile against today's dependencies (11 errors, native and wasm32);
+`sign/der_out.rs` (262 lines, X.690 §11.6 `SET OF` ordering, tested
+against `asn1.rs`) writes the DER and `der 0.8` — transitive anyway — is
+not used directly. **PKCS#12** — in-house on `asn1.rs` (`sign/pkcs12.rs`),
+KDF from RFC 7292 B.2 verified against the `pkcs12` crate's published
+vector; `pkcs12`/`pkcs5`/`pkcs8[encryption]`/`p12-keystore`/`p12` not
+taken, each for a measured reason (no decryption, no PBES1, wasm32 fail,
+stale generation). `PRIOR_ART.md` rows amended in the same filing;
+`THIRD_PARTY_LICENSES.md` regenerated (+1,108/−42). The `Cargo.toml`
+change was STILL uncommitted at the 437th filing, so rule 13's order
+holds. Two things the librarian measured that the engineer should read:
+`lib.rs` gates the whole `sign` module (trait included), so a `Pass 10.10`
+shell signer needs `signing` ON; and `p12-keystore`'s `pbes1.rs` is NOT
+credited in `sign/` — the survey asked for a credit IF structure was
+borrowed, so the engineer states which.
+
 **Disclosure (rule 4/11).** Nothing here is inferred; the CLI prints the
 loaded identity — certificate subject, serial, key algorithm, chain length —
 and never the password.
@@ -109874,6 +109953,23 @@ deliberately unscheduled — the Acrobat RAG's `nice_to_have`).
 bytes for the `/Contents` hole. The bytes only; where they go is `Pass 10.9`.
 pdfcer already PARSES and VERIFIES this object (`Pass 10.1`: `asn1.rs`,
 `cms.rs`) — this is the BUILD direction, new.
+
+**★ The "`cms` crate or in-crate writer?" question this Pass carried is
+ANSWERED — decision 137 (2026-09-05, 437th filing): IN-CRATE.** RustCrypto
+`cms`'s `builder` feature does not compile against the current dependency
+resolution (11 errors on both `0.3.0-pre.1` and `-pre.2`, native and
+wasm32 — `docs/signing-crate-survey.md` §0 finding 1, §5), and its
+types-only half is a pre-release pin for ~150 lines of structs. The DER
+encoder is `crates/pdfcer-core/src/sign/der_out.rs` (262 lines: definite
+lengths, minimal INTEGER, **X.690 §11.6 `SET OF` ordering** — criterion 5's
+sort — tested against the `asn1.rs` reader); `der 0.8` is in the tree
+transitively and deliberately NOT used, so no foreign type crosses a `pub`
+signature. Criterion 8's `openssl cms -verify` oracle and the
+insertion-order sabotage test are what catch a §11.6 mistake a lenient
+reader would not — the survey's own risk 3 — so they are load-bearing,
+not optional. Working-tree note, measured: `sign/cms_build.rs` (204 lines)
+already exists at the 437th filing; this Pass ships when the engineer says
+so, against the criteria above.
 
 **Sourcing:** `D:\Dev\Rag-Specialized\PDF_Spec\security\security__cms_signeddata_build.md`
 (`CB-1`…`CB-11`) and `pades\pades__ref__creation_by_level.md` (`PC-1`…`PC-4`),
@@ -128721,6 +128817,13 @@ added. See that section below.
   stores + OpenSSL generator). **The crate stack is a SEPARATE decision,
   owed (`137`, claimed by name) BEFORE the working tree's uncommitted
   `Cargo.toml` change lands** — see `Pass 10.7`'s *Dependency posture* in *Next up*.
+  ★ **Decision 137 AUTHORED 2026-09-05 (437th filing), while the
+  `Cargo.toml` change was still uncommitted — order honoured.** `rsa
+  0.10.0-rc.18` / `p256`+`p384 0.14` / `signature` / `rand_core` +
+  `sha1`/`hmac`/`pbkdf2`/`des`/`rc2` behind a default-ON `signing`
+  feature; CMS/DER and PKCS#12 in-crate; `cms`, `pkcs12`, `x509-cert` and
+  the rest NOT taken; Marvin accepted for signing on recorded reasoning.
+  `ARCHITECTURE.md` §12 decision 137 and `PRIOR_ART.md` are the record.
   `docs/FEATURES.md`: the single *Planned* *"Sign a document"* row is
   replaced by FIVE rows (one per Pass); the revocation row gains the
   B-LT/B-LTA cross-reference.
