@@ -264,14 +264,20 @@ jobs:
       #     as its own dependency. That is not a feature pdfcer selects and not
       #     one it can turn off.)
       #
-      # THE EXCEPTION IS BOUNDED TO EXACTLY THAT, and this asserts the three
-      # things still under our control. `sha2`'s default feature set is
-      # ["alloc", "oid"]; pdfcer takes it with `default-features = false`, so
-      # all three below are OFF and must stay off:
+      # THE EXCEPTION IS BOUNDED TO EXACTLY THAT, and this asserts the things
+      # still under our control. `sha2`'s default feature set is
+      # ["alloc", "oid"]; pdfcer takes it with `default-features = false`.
       #
-      #   - `alloc` / `oid` are not needed: pdfcer calls `Sha256::new`,
-      #     `update` and `finalize` and nothing else. `oid` in particular
-      #     drags in const-oid for an ASN.1 identifier no PDF path uses.
+      #   - `alloc` is not needed: pdfcer calls `Sha256::new`, `update` and
+      #     `finalize` and nothing else.
+      #   - ★ `oid` is ON since decision 138 (2026-09-05, the signing arc):
+      #     `rsa`'s `sha2` feature enables `sha2/oid` so that
+      #     `Sha256: AssociatedOid`, which RSASSA-PKCS1-v1_5 needs to build
+      #     the DigestInfo prefix (RFC 8017 §9.2). `oid` = `digest/oid` =
+      #     `const-oid` trait impls ONLY — no backend change, no new `unsafe`
+      #     (const-oid was already in the tree via `der`/`spki`). This step
+      #     caught the widening on 8a18e53 exactly as designed; the record
+      #     was minted and THEN this line changed, not the other way round.
       #   - `zeroize` stays OFF for the SAME reason it does on `aes`, and the
       #     reason is stronger here rather than weaker: `FileKey` holds the
       #     file encryption key in an ordinary `Vec<u8>`, and at /R 5 the
@@ -284,13 +290,13 @@ jobs:
           fail=0
           for t in "" "--target x86_64-pc-windows-msvc" "--target aarch64-apple-darwin" "--target wasm32-unknown-unknown"; do
             if cargo tree -p pdfcer-core -e features $t 2>/dev/null \
-                 | grep -E 'sha2 feature "(alloc|oid|zeroize)"'; then
+                 | grep -E 'sha2 feature "(alloc|zeroize)"'; then
               # Same no-backticks rule as the step above, and for the same
               # reason: this string is double-quoted, so a backtick would run
               # the enclosed word as a command and silently delete it from the
               # message. The comment is repeated rather than cross-referenced
               # because the mistake is made while typing THIS line.
-              echo "::error::pdfcer-core $t enables an extra feature on the sha2 crate. Decision 039 (extended to sha2) accepted ONLY the cfg-selected intrinsic backend; alloc/oid/zeroize are separate widenings and need a new decision record."
+              echo "::error::pdfcer-core $t enables an extra feature on the sha2 crate. Decision 039 (extended to sha2) accepted ONLY the cfg-selected intrinsic backend, and decision 138 added oid for the signing arc; alloc/zeroize are separate widenings and need a new decision record."
               fail=1
             fi
           done
