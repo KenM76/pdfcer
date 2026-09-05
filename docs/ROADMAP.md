@@ -121215,6 +121215,106 @@ behaviour. **Scoped *Backlog*** (not near-term): a read-model addition plus
 three verbs across `pdfcer-core`'s annotation surface, larger than the
 line-weights Pass and not the operator's stated priority.
 
+**★ ACCEPTANCE CRITERIA (added 2026-09-05, 434th filing).** The
+`pdfcer-acrobat-librarian` dispatch called for above has now run; all
+criteria below are sourced from
+`D:\Dev\Rag-Specialized\Acrobat_Features\markup__vertex_editing_and_reshape.md`
+(created 2026-09-05). Read that file before implementing — it carries the
+per-source citations, the spec-clause anchors, and the flagged GAPs behind
+each line here.
+
+1. **Per-subtype reshape matrix.**
+   - **`/Polygon` + `/PolyLine`** (`/Vertices`): support **MOVE, INSERT, and
+     REMOVE** a vertex. This **EXCEEDS current Acrobat by design, not by
+     accident** — Acrobat DC's native GUI is *drag-an-existing-point only*;
+     add-vertex/delete-vertex existed in Acrobat 9/XI and was **removed** by
+     the DC era (a confirmed regression, multiple first-hand sources). pdfcer
+     ships all three, mirroring the already-shipped ce-dimension verbs
+     (`move_dimension_vertex`/`insert_dimension_vertex`/
+     `remove_dimension_vertex`). Frame the Pass doc as "exceeds current
+     Acrobat DC, matches historical Acrobat 9/XI" — both halves sourced. This
+     is a deliberate **exceed-the-reference** call (MEMORY: parity is a floor).
+   - **`/Line`** (`/L`, exactly 2 endpoints): **MOVE only**; stays 2 points.
+     No insert/remove — a 3-point open path is a `/PolyLine` by construction,
+     not a `/Line`. A request to "add a point to a Line" is refused by name,
+     or optionally offered as a *disclosed* convert-to-PolyLine (never
+     silent).
+   - **`/Ink`** (`/InkList`): **NAMED REFUSAL for per-point insert/remove.**
+     Acrobat has never had per-point ink editing at any version, through any
+     interface except raw scripting-array replacement — whole-stroke
+     move/resize/delete-and-redraw only. pdfcer refuses per-point ink edit
+     **by name** rather than pretending the gap does not exist (rule 4:
+     fuzzy-never-sneaky — refuse audibly, do not silently no-op). Ship `/Ink`
+     **read** (`ink_list()`) regardless as the read-model prerequisite;
+     whole-stroke translate is an optional low-risk `should_have` that matches
+     Acrobat's own whole-object model. Per-point ink editing, if ever wanted,
+     is a fresh exceed-Acrobat feature, not a parity backfill.
+   - **Minimum-vertex floor:** Polygon **≥ 3**, PolyLine **≥ 2**. A REMOVE
+     that would breach the floor is a **named refusal** (`EditError`-style
+     variant), never a silent clamp or no-op. ★ GAP: what Acrobat does at the
+     floor is **undocumented** (its native GUI has no delete-vertex gesture,
+     so the case cannot arise there; the scripting path's behaviour on a
+     below-floor `vertices` array is unsourced) — pdfcer therefore **picks and
+     discloses its own floor** rather than chasing an unfindable Acrobat
+     baseline.
+
+2. **What travels with a reshape.** Every reshape verb regenerates `/AP /N`,
+   recomputes `/Rect`, and updates `/M` (modification date) — implement once,
+   centrally, the way `move_dimension_vertex` already regenerates its own
+   `/AP` (the shell must NOT attempt the `/AP` bake itself, per the ask
+   above). **★ Cloud (`/BE`) `/Rect` asymmetry — one recompute path cannot
+   treat both subtypes the same:**
+   - A **cloud-styled `/Polygon` has NO `/RD`** in either ISO edition
+     (`/RD` is enumerated only for FreeText, Square/Circle, and Caret), so its
+     `/Rect` **must be recomputed as the FULL bulged cloud outline** — there
+     is no companion key to record the pre-bulge shape.
+   - A **cloud-styled Square/Circle MAY record the pre-bulge rectangle via the
+     optional `/RD`** while `/Rect` bounds the bulges. Do not write one
+     `/Rect`-recompute path that assumes `/RD` is universally available — it
+     is not, by spec, for exactly the subtype (Polygon) most likely to carry a
+     cloud reshape.
+   - ★ GAP (flagged, not resolved): whether a reshape **re-runs the
+     cloud-scallop algorithm** over the moved vertices is a *reasoned
+     inference*, not a directly-sourced Acrobat fact — it is the only
+     self-consistent behaviour given `/BE` stores no cached geometry, but do
+     not present it as "matching Acrobat." The re-bake MUST reuse the exact
+     `/I`-to-geometry mapping the authoring path (`Pass 82.0`) invented — a
+     second, independently-invented cloud function would desync the outline
+     between edit-in-place and delete-and-redraw.
+
+3. **Measurement caveat.** Moving a `/Line`/`/PolyLine` endpoint that carries
+   `/Measure` recomputes the measured value from the new geometry × the
+   annotation's stored scale (directly sourced). ★ **EXCEED Acrobat here:**
+   Acrobat *silently clobbers* a prior manual value override on reshape (a
+   sourced user-reported friction). If pdfcer ever supports a manual override,
+   a reshape must **preserve it with a visible staleness disclosure, or warn
+   before clobbering — never silently destroy it** (rule 4). (This is the
+   GEOMETRY-side recompute trigger; it does NOT resolve the separate
+   static-vs-associative *scale-side* GAP in `measure__scale_and_calibration.md`
+   — keep them distinct.)
+
+4. **Two INDEPENDENT lock gates, not one "locked" bool.**
+   - **`/F` Locked** (bit 8, value 128) **blocks reshape wholesale** on every
+     subtype — a vertex move/insert/remove is a "position/size" modification,
+     the exact language of Table 165 (direct spec-text match, ISO 32000-1/-2).
+   - **`/F` LockedContents** (bit 10, value 1024) **does NOT block reshape** —
+     geometry is a *property*, not "contents" (contents = `/RC` comment text).
+     Getting this backwards (treating any locked bit as a blanket refusal) is a
+     concrete spec-contradicting bug: it would wrongly refuse a
+     LockedContents-only annotation Acrobat permits, or wrongly permit a
+     Locked one Acrobat refuses. Implement as **two separate boolean gates.**
+   - **Plus the standing certified-doc / `/DocMDP` refusal** and the
+     commenting-permission gate, inherited from
+     `markup__permissions_signature_interaction.md` — not re-derived here: a
+     certified doc's "Comments, form fill-in, and digital signatures" tier
+     permits reshape; "No changes allowed" and "form-fill-only" refuse it.
+
+5. **Placement.** Pairs conceptually with the comment/review family
+   (`Pass 253.x`) but is **GEOMETRY, not workflow.** **Core-first**
+   (`pdfcer-core` read-model + verbs), **then the GUI consumes** — the shell
+   will not re-parse the annotation dictionary to draw anchors (decision 058
+   boundary discipline; a second, drifting geometry implementation is refused).
+
 ### ~~`Pass 250.1` — ★★★ **APPLY REDACTIONS INTO THE `EditSession` — a redaction becomes a DEFERRED edit committed at Save, not a write-a-file-now operation** — filed 2026-09-04 (419th filing), **NOT STARTED** — ★★ **SAFETY-CRITICAL (a leaked redaction is the worst-case bug), and there is an unresolved DESIGN FORK the engineer will not resolve by rushing**~~ — **DISCHARGED 2026-09-04 (421st filing): SHIPPED as `Pass 250.1` (`225db51`), see *Shipped* above.**
 
 **★ RESOLVED 2026-09-04 (421st filing).** The operator resolved the design

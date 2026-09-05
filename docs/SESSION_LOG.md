@@ -92181,3 +92181,84 @@ the backstop and gate the release, not this filing.
   changed. It will appear as a toggle once the GUI wires it up. Held back from
   a new portable download until the rest of this batch (markup-corner editing
   and digital signing) is done, as you asked.
+
+## 2026-09-05 (434th filing) — `Pass 255.0` ACCEPTANCE CRITERIA written (Backlog refinement, docs-only) — markup-shape vertex editing scoped ready to implement from fresh Acrobat grounding
+
+**Shipped:**
+- Nothing (docs-only). No code, no Pass status change.
+
+**Filed:**
+- **`Pass 255.0` acceptance-criteria block added to `ROADMAP.md`** under the
+  existing 432nd-filing Backlog entry. Sourced entirely from the new RAG file
+  `D:\Dev\Rag-Specialized\Acrobat_Features\markup__vertex_editing_and_reshape.md`
+  (created 2026-09-05 by `pdfcer-acrobat-librarian`), **cited by name in the
+  entry** so a future reader knows where the behaviour came from. Five criteria
+  recorded:
+  1. **Per-subtype reshape matrix.** `/Polygon`+`/PolyLine` (`/Vertices`) get
+     MOVE+INSERT+REMOVE — a deliberate **exceed** of current Acrobat DC (whose
+     native GUI is drag-existing-point only; add/delete-vertex existed in
+     Acrobat 9/XI and was removed), recorded as an exceed, not an overshoot.
+     `/Line` (`/L`, 2 endpoints): MOVE only, stays 2 (no insert/remove — a
+     3-point open path is a PolyLine by construction). `/Ink` (`/InkList`):
+     **named refusal** for per-point insert/remove (Acrobat has never had
+     per-point ink editing at any version; whole-stroke only) — refused by
+     name, not silently. Minimum-vertex floor Polygon ≥ 3 / PolyLine ≥ 2, with
+     a named refusal at the floor (open GAP: Acrobat's floor behaviour is
+     undocumented, so pdfcer picks and discloses its own).
+  2. **What travels with a reshape:** regenerate `/AP /N`, recompute `/Rect`,
+     update `/M`. ★ Cloud (`/BE`) `/Rect` asymmetry — a cloud-styled
+     `/Polygon` has NO `/RD` in either ISO edition (so `/Rect` = the FULL
+     bulged outline), while a cloud-styled Square/Circle MAY record the
+     pre-bulge shape via `/RD`; one recompute path cannot treat both the same.
+     Whether reshape re-runs the scallop algorithm is a flagged GAP (reasoned
+     inference, not sourced); the re-bake must reuse the `Pass 82.0` authoring
+     `/I`-to-geometry mapping, not invent a second.
+  3. **Measurement caveat:** a `/Line`/`/PolyLine` endpoint move that carries
+     `/Measure` recomputes the value; if pdfcer ever supports a manual
+     override, a reshape must NOT silently destroy it (Acrobat does — a
+     deliberate exceed, rule 4).
+  4. **Two INDEPENDENT lock gates:** `/F` **Locked** (bit 8) blocks reshape
+     (spec: position/size); `/F` **LockedContents** (bit 10) does NOT (geometry
+     is a property, not "contents"). Two boolean gates, not one "locked" bool.
+     Plus the standing certified-doc/`/DocMDP` refusal, inherited.
+  5. **Placement:** pairs with the comment/review family (`Pass 253.x`) but is
+     GEOMETRY, not workflow; core-first, then the GUI consumes (decision 058
+     boundary discipline).
+
+**Decisions made this session:**
+- None new. This filing records the fruit of the `pdfcer-acrobat-librarian`
+  dispatch the 432nd filing's Pass 255.0 entry called for; decision ceiling
+  `135` UNCHANGED.
+
+**FEATURES.md:** no change owed — the Pass 255.0 vertex-editing row already
+exists (added by the 432nd filing) and this refinement moved no checkbox
+(a Backlog-refinement filing ticks nothing).
+
+**Still in flight:**
+- **Autonomous-loop prep.** The batch (Ken's 2026-09-05 *"build all before the
+  next portable release unless I say otherwise"*) continues to HOLD its
+  portable release — no `v0.40.0` cut, no OneDrive deploy until the batch is
+  done. `Pass 255.0` is now **scoped-ready to implement** (read-model +
+  three verbs across `pdfcer-core`'s annotation surface, per the criteria
+  above). **Digital signing remains the large arc** still ahead in the batch.
+- `Pass 252.0` and `Pass 253.0`–`253.3` remain unscoped/not-started in
+  *Backlog*.
+
+**Sourcing (hard rule 8):** this is a Backlog-prep filing — **no push** (it
+rides the eventual batch push; pushing `main` is standing-authorized but this
+filing does not perform it). One commit, docs-only (`ROADMAP.md` +
+`SESSION_LOG.md`). The commit hash is reported to the engineer.
+
+**Ledger.** Filings `433` → **`434`**; Pass ceiling **`255.0` UNCHANGED**
+(refinement of an existing Backlog Pass, not a new Pass); decision ceiling
+**`135` UNCHANGED**.
+
+**For next session:**
+- Engineer: `Pass 255.0` is implementation-ready — the per-subtype matrix,
+  the `/Rect`/`/RD` cloud asymmetry, the two lock gates and the named refusals
+  are all spelled in `ROADMAP.md`, sourced to
+  `markup__vertex_editing_and_reshape.md`. The two flagged GAPs (floor
+  behaviour, cloud re-bake) are pdfcer's own design calls, not parity blockers.
+- Operator: the "edit or delete a node of a drawn markup shape" gap you found
+  is now fully specced and queued in the current build batch, ahead of the next
+  portable download.
