@@ -112,6 +112,82 @@ wherever it appears.*
 
 ## Shipped
 
+**★★ 424th filing, 2026-09-04 — `v0.36.0` RESOLVED: IN PROGRESS →
+VERIFIED. The release of `Pass 10.3` (evaluate a signer's chain against an
+installed Acrobat's trust store, opt-in / at-own-risk), done end to end this
+session — tag, push, CI, GitHub asset, fresh-folder smoke test, OneDrive,
+`verify-release.py`. Release act standing-authorized (decision 121, *"always
+go ahead and push the latest one"*).**
+
+**Sourcing (hard rule 8).** This role had a shell. The git figures below
+are MEASURED here — `git log -1 HEAD` = `git log -1 origin/main` = `git
+log -1 v0.36.0` all = **`981038b`** (full
+`981038b615a668ebf01ffbf980d5094b292dd835`; subject *"chore: bump version
+to 0.36.0 for the Pass 10.3 release (signature trust evaluation, opt-in)"*,
+committed 2026-09-04 20:33:18 -0400); `git status --short` empty (working
+tree carries this filing's own doc edits only); `git log --oneline
+981038b..HEAD` = empty and `git merge-base --is-ancestor 981038b HEAD` =
+yes — **the tag is AT `HEAD`**, no commit sits ahead of it (as at the 422nd
+filing's `v0.35.0` — this filing did NOT touch `NEXT_SESSION.md`, it is the
+engineer's). The CI/asset/OneDrive/smoke-test/build-folder figures are
+relayed from the engineer's dispatch (produced by the engineer's own shell
+this session), named beside each figure per hard rule 10.
+
+- **Version bump** `0.35.0 → 0.36.0`: commit **`981038b`**
+  (`chore: bump version to 0.36.0 for the Pass 10.3 release (signature
+  trust evaluation, opt-in)`). This is the packaged, tested, CI-green commit
+  the tag points at — the same role `be8c3cc` played for `v0.35.0` at the
+  422nd filing.
+- **Tag** `v0.36.0` → `981038b`, pushed to origin.
+- **`origin/main` = `981038b`** — equal to both the tag and `HEAD`, so
+  `origin/main` **contains** the tag trivially (they are the same commit),
+  which is what `verify-release.py`'s "origin/main contains the tag" check
+  reads.
+- **CI** run **`33933405575`** at **`981038b`** — **GREEN**, at the
+  **tagged commit itself**, and — as at the 422nd filing's `v0.35.0` —
+  **no re-run was needed** (first run green).
+- **GitHub release**
+  https://github.com/KenM76/pdfcer/releases/tag/v0.36.0 — asset
+  `pdfcer-v0.36.0-windows-x64.zip`, **18,422,694 bytes**, SHA-256
+  `7a4fbd7b3dec3164212350bafc560fd541cbda16588e8936b711e5e5600d32c8`,
+  plus its `.sha256` sidecar.
+- **Build folder** `D:\builds\pdfcer-20260904-2037-981038b` — folder
+  **33,111,108 bytes**; `pdfcer.exe` **20,635,648 bytes**.
+- **Fresh-folder portable smoke test — PASSED.** The build was copied to a
+  clean path and the COPIED `pdfcer.exe` run: `--version` = `0.36.0`; the
+  NEW `verify-signatures --trust-from-acrobat` printed the at-own-risk
+  disclosure, verified integrity, and correctly reported the fixture's
+  self-signed signer as *"untrusted: self-signed root not in the trust
+  store"* against the real installed store — **1780 anchors**. Unlike the
+  422nd filing's `v0.35.0` (which added an engine-only verb with no new CLI
+  subcommand), `Pass 10.3` added a real CLI opt-in flag, so this smoke test
+  exercises **the new command**, not only binary health.
+- **OneDrive**: `deploy-onedrive.py` wrote **`pdfcer2`** = **0.36.0** (5
+  items, 33,109,907 bytes); **`pdfcer1`** = **0.35.0** kept as the previous
+  version — the alternating-slot scheme's guarantee (R229) that a previous
+  version is always available. This release wrote the `pdfcer2` slot (the
+  422nd filing's `v0.35.0` had written `pdfcer1`), leaving `v0.35.0` in
+  place as the fallback.
+- **`python tools/verify-release.py v0.36.0` — CLEAN.** Working tree clean;
+  tag exists + pushed + at `HEAD`; `origin/main` contains the tag; GitHub
+  release has an asset; CI green at the tag; OneDrive `pdfcer2` = 0.36.0
+  with 0.35.0 still present.
+- Carries `Pass 10.3` (evaluate a signer's chain against imported trust
+  anchors — signature-linkage only, opt-in / at-own-risk), shipped at the
+  423rd filing below (Pass code `55062c5`); this entry resolves the release
+  mechanics only, it does not re-describe the feature.
+
+`docs/FEATURES.md`: **no change** — the `Pass 10.3` capability row (the
+"Evaluate a signature's trust against those anchors" row, `core [x]` ·
+`cli [x]` · `gui [ ]` · `Acrobat [x]`) was set at the 423rd filing; this
+entry is release bookkeeping only, not a capability change.
+
+**Ledger.** Filings ceiling `423` → **`424`**; Pass ceiling `250.2`
+unchanged — no new Pass, a release-verification entry only; decision
+ceiling `134` unchanged, next free `135`; standing rules ceiling `R241`
+unchanged, next free `R242`; open operator questions: none minted, next
+free `(ce)`.
+
 **★★★ 423rd filing, 2026-09-04 — `Pass 10.3` SHIPPED (`55062c5`):
 EVALUATE a signer's chain against imported trust anchors — `trust =
 NotChecked` finally becomes a real verdict. `trust_chain::evaluate` walks

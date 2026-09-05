@@ -91419,3 +91419,70 @@ here.
   (`verify-signatures --trust-from-acrobat`), opt-in and at your own risk.
   A persistent setting so you don't pass the flag each time is filed as
   `Pass 10.4`; full revocation/expiry checking is `Pass 10.5`.
+
+## 2026-09-04 (424th filing) — `v0.36.0` RELEASED and VERIFIED: `Pass 10.3` (evaluate a signer's chain against an installed Acrobat's trust store, opt-in/at-own-risk) shipped end to end, IN PROGRESS → VERIFIED
+
+**Shipped:**
+- **`v0.36.0` released and verified** — the release of `Pass 10.3`
+  (signature trust evaluation against an installed Acrobat's trust store,
+  opt-in / at-own-risk; `pdfcer-core` + the `pdfcer` CLI, shipped at the
+  423rd filing, code `55062c5`). Version bump `0.35.0 → 0.36.0` on commit
+  `981038b` (`981038b615a668ebf01ffbf980d5094b292dd835`), which is `HEAD` =
+  `origin/main` = tag `v0.36.0`. Tag pushed. CI run `33933405575` at
+  `981038b` — GREEN at the tagged commit itself, **first run, no re-run
+  needed**. GitHub release published with asset
+  `pdfcer-v0.36.0-windows-x64.zip` (18,422,694 bytes, SHA-256
+  `7a4fbd7b3dec3164212350bafc560fd541cbda16588e8936b711e5e5600d32c8`) plus
+  its `.sha256` sidecar. OneDrive `pdfcer2` updated to 0.36.0 (5 items,
+  33,109,907 bytes); `pdfcer1` stays 0.35.0 as the previous version
+  (alternating slots, R229 — this release wrote the `pdfcer2` slot; the
+  422nd filing's `v0.35.0` had written `pdfcer1`). `python
+  tools/verify-release.py v0.36.0` reported clean, every check.
+
+**Decisions made this session:**
+- None minted (decision ceiling `134` unchanged). The release act itself
+  needed no go-ahead — standing-authorized by decision 121 (*"always go
+  ahead and push the latest one"*).
+
+**Findings + decisions:**
+- **CI was green at the tag on the FIRST run** — as at the 420th/422nd
+  filings' releases, and unlike the 418th filing's `v0.33.0`, whose green
+  took a re-run after a spurious git-fetch timeout on the windows runner.
+- **Fresh-folder portable smoke test PASSED — exercising the NEW COMMAND,
+  not only binary health.** The build folder
+  (`D:\builds\pdfcer-20260904-2037-981038b`, 33,111,108 bytes; `pdfcer.exe`
+  20,635,648 bytes) was copied to a clean path and the COPIED binary run:
+  `--version` = 0.36.0; the new `verify-signatures --trust-from-acrobat`
+  printed the at-own-risk disclosure, verified integrity, and correctly
+  reported the fixture's self-signed signer as *"untrusted: self-signed
+  root not in the trust store"* against the real installed store (1780
+  anchors). Unlike the 422nd filing's `v0.35.0` (engine-only verb, no new
+  CLI surface), `Pass 10.3` added a real CLI opt-in flag, so this smoke
+  test runs the new command end to end.
+- **Sourcing (hard rule 8):** this role had a shell. The git figures are
+  MEASURED here — `HEAD` = `origin/main` = tag `v0.36.0` = `981038b`
+  (subject *"chore: bump version to 0.36.0 for the Pass 10.3 release
+  (signature trust evaluation, opt-in)"*, 2026-09-04 20:33:18 -0400),
+  working tree clean by `git status --short`, `981038b..HEAD` empty and
+  `git merge-base --is-ancestor 981038b HEAD` = yes (the tag is AT `HEAD`).
+  The CI/asset/OneDrive/smoke-test/build-folder figures are relayed from
+  the engineer's dispatch, produced by the engineer's own shell this
+  session.
+- `NEXT_SESSION.md` was NOT touched by this filing — it is engineer-owned.
+
+**Still in flight:**
+- Nothing on the release — `v0.36.0` is fully released and verified.
+  **`Pass 10.4`** (persistent "use Acrobat trust store (at own risk)"
+  setting) and **`Pass 10.5`** (full trust validation — revocation / clock
+  / RFC-5280 constraints) both remain *Backlog*, NOT built.
+
+**For next session:**
+- Engineer: no in-flight Pass; `v0.36.0` shipped and verified. Consult
+  `ROADMAP.md` *Next up* / *Backlog* for the next pick — `Pass 10.4` (the
+  persistent setting) is the natural follow-on to `Pass 10.3`; `Pass 10.5`
+  (full validation) is the larger deferred piece; `Pass 250.2`
+  (undo-preserving deferred redaction) is the harder redaction shape.
+- Operator: the trust-store trust check shipped in `v0.36.0` — the latest
+  portable build (OneDrive `pdfcer2`) has `verify-signatures
+  --trust-from-acrobat`, opt-in and at your own risk. `v0.35.0` is kept in
+  `pdfcer1` as the fallback.
