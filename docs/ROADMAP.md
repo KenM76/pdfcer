@@ -112,6 +112,26 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★ 436th filing, 2026-09-05 — NO PASS SHIPPED. THE DIGITAL-SIGNING ARC
+IS SCOPED AND FILED: `Pass 10.7` (PKCS#12 import + the `Signer` seam),
+`Pass 10.8` (CMS `SignedData` build, CAdES B-B) and `Pass 10.9` (the
+PDF-level signing write + `pdfcer sign`) under *Next up*; `Pass 10.10`
+(Windows-store / PKCS#11 key sources, shell-side) and `Pass 10.11` (PAdES
+B-T — embed a supplied RFC 3161 token) under *Backlog*. Decision **136**
+minted — the arc's SHAPE (B-B first, CAdES default, a `.pfx` as the first
+key source, every key source behind one hash-in / signature-out `Signer`
+trait whose only in-core implementation is `Pkcs12Signer`). One fixture
+commit filed: `e6c0271` (synthetic PKCS#12 stores + the OpenSSL generator,
+`tools/gen-signing-fixtures.py`). Docs-only `94f67ee` (NEXT_SESSION.md
+refresh) and `7d34f70` (engineer memory) named for the record.** `e6c0271`
+is the only unpushed commit at filing time (`git rev-list --count
+origin/main..HEAD` = **1**; `origin/main` = `7d34f70`). **The crate-stack
+decision is NOT this filing's** — the working tree carries an uncommitted
+`Cargo.toml`/`Cargo.lock` change adopting the survey's stack, and its
+decision record (`137`, claimed by name in this filing, not yet authored)
+plus `PRIOR_ART.md` rows are owed BEFORE that commit lands (rule 13); see *Dependency posture* under `Pass 10.7` in
+*Next up*. Release still HELD per the operator's batch ruling.
+
 **★★★ 435th filing, 2026-09-05 — ONE FEATURE PASS SHIPPED (`Pass 255.0`,
 code `35ca5be`) — MARKUP-SHAPE VERTEX EDITING: `/Vertices`, `/L` and
 `/InkList` enter the read model, and a vertex of a `/Polygon`/`/PolyLine` (or
@@ -109667,6 +109687,401 @@ in the "still open" list. Full build record: this file's own
 > `pdfcer-gui` project's O108, wired when it consumes them. No remnant of
 > the entry stays here.
 
+> ★★★ **THE DIGITAL-SIGNING ARC — filed here 2026-09-05 (436th filing).**
+> Three Passes below (`10.7` → `10.8` → `10.9`, build order = dependency
+> order); two more (`10.10`, `10.11`) sit in *Backlog* under the *Digital
+> signatures* bullet next to `Pass 10.6`. The arc's shape is decision **136**
+> (`ARCHITECTURE.md` §12; body section §5.13). **ID decision, stated so the
+> next reader does not re-litigate it:** these are sub-IDs of family **10**
+> (the *Digital signatures* bucket, family 10 since decision 008), not a new
+> family head. `10.1`–`10.6` are the bucket's VERIFY half; `10.7`+ are its
+> SIGN half — the same split the 396th filing made in the bucket's own text.
+> A new family would sever the one dependency the ledger expresses by family
+> (`10.11`'s B-LT/B-LTA note → `10.6` revocation). Two-digit minors are
+> precedented (`Pass 174.10`). **The operator approved building `10.7`–`10.9`
+> now, in the current batch, before the `0.40.0` release** (NEXT_SESSION.md at
+> `26f0257`: *"operator approved the shape"*; his batch words verbatim:
+> *"build all before the next portable release unless I say otherwise"*).
+
+### `Pass 10.7` — **PKCS#12 IMPORT + THE `Signer` SEAM — `Pkcs12Signer`: parse a `.pfx`/`.p12` (RFC 7292), VERIFY THE MAC FIRST as the password check, decrypt BOTH encryption eras, pair key↔leaf, order the chain leaf→CA; and the hash-in / signature-out `Signer` trait every later key source implements** — filed 2026-09-05 (436th filing), *Next up*, **NOT STARTED** — first Pass of the signing arc (decision 136); gated on the crate-stack decision (see *Dependency posture*)
+
+**Origin.** The *Digital signatures* bucket's SIGN half, unscheduled since
+the 396th filing split verification off as `Pass 10.1` (*"signing needs a
+key source, a certificate source, a PAdES-level decision and a signing-time
+`/ByteRange` patch in the writer, and is not scheduled"*). All four of those
+are now decided or sourced: the key source is a `.pfx` (this Pass), the
+certificate source is the same container, the level is B-B (`Pass 10.8`),
+the patch is `Pass 10.9`. The operator approved the shape 2026-09-05
+(recorded by the engineer in `docs/NEXT_SESSION.md` at `26f0257`, §2
+*"Digital signing — the large arc ← BUILD SECOND (operator approved the
+shape)"*; the only verbatim operator words on record are the batch ruling
+quoted in the blockquote above — the shape itself is the engineer's
+proposal, approved, not the operator's dictation).
+
+**★ Why a `.pfx` first, and why the trait exists from the first commit.**
+`D:\Dev\Rag-Specialized\Acrobat_Features\signatures__digital_id_sources.md`
+(created 2026-09-05) sorts Acrobat's four digital-ID source classes by ONE
+fact — *whether the raw private key is ever available to the signing
+application*: **(a) a PKCS#12 file — yes, the app decrypts the container and
+signs in-process, "the only source class where an application-level
+implementer legitimately holds the raw private key in memory"**; (b) a
+Windows-certificate-store entry — only if the key was provisioned
+exportable; otherwise Windows signs via `CryptSignHash`/`NCryptSignHash` and
+hands back a blob; (c) a roaming/cloud (CSC) identity — the TSP's HSM signs,
+key never local; (d) a PKCS#11 token/smart card/HSM — the device signs, the
+module is a bridge. Three of four are *"send a hash, receive a signature"*.
+So `pdfcer-core` defines the primitive in that shape — a **`Signer`
+trait** — and `Pkcs12Signer` is its FIRST IMPLEMENTATION, not a special case
+generalised later (the RAG's own `must_have` design constraint, adopted).
+B-B from a `.pfx` is the only fully self-contained build: no network, no OS
+key store, no device — which is why it is first.
+
+**Sourcing for every criterion below** (project rule 1 — read them before
+writing a byte): `D:\Dev\Rag-Specialized\PDF_Spec\security\security__pkcs12_import.md`
+(`P12-0`…`P12-14`, dated 2026-09-05), with `security__cms_signeddata_build.md`
+`CB-5` for the trait's algorithm obligation.
+
+**Acceptance criteria.**
+
+1. **The `Signer` trait, in `pdfcer-core` (a `sign` module — working name;
+   the engineer names it).** `sign(digest) -> signature` takes the
+   ALREADY-COMPUTED digest, never the message — the CNG `NCryptSignHash` /
+   PKCS#11 `C_Sign` shape, so `Pass 10.10`'s custodial impls fit without a
+   second pipeline. `certificate_chain()` returns DER certificates leaf
+   first. **Librarian's design note, sourced from `CB-5`, not a decision:**
+   the trait must also NAME the algorithm its bytes are — RSA PKCS#1 v1.5 /
+   RSASSA-PSS / ECDSA, curve, digest OID — because the CMS
+   `SignerInfo.signatureAlgorithm` has to agree with the signature bytes,
+   and for PKCS#1 v1.5 the `DigestInfo` wrap (EMSA-PKCS1-v1_5, RFC 8017
+   §9.2) happens INSIDE the signer (a raw hash goes in). A trait that returns
+   bytes without saying what they are cannot be wrapped correctly by
+   `Pass 10.8`.
+2. **PFX v3** (`P12-1`). Password-integrity mode is the target
+   (`authSafe.contentType = data`, `macData` present); public-key-integrity
+   mode (`signedData`, no `macData`) is REFUSED BY NAME (`P12-2` — rare; no
+   fixture has it).
+3. **Verify the MAC FIRST, as the password check** (`P12-2`; Appendix A HMAC
+   with the Appendix B KDF, `id = 3`). Password in the KDF's BMPString /
+   UTF-16BE null-terminated form for the MAC and the PKCS#12-KDF bags; raw
+   bytes per PKCS#5 for PBES2 bags (`P12-11` — the wrong encoding looks
+   exactly like a wrong password; try both before reporting one). A missing
+   `macData` is handled (`P12-12`). **Wrong password → a NAMED refusal
+   variant**, never a generic parse error and never a message that says
+   which byte failed.
+4. **Unwrap `authSafe` → `AuthenticatedSafe` = `SEQUENCE OF ContentInfo`,
+   accepting BER** (`P12-14` — indefinite lengths live here; this is the
+   opposite posture from `CB-8`'s DER-only signed attributes, so the ASN.1
+   reader needs a BER mode, or a second reader). Walk `data` and
+   `EncryptedData` ContentInfos both (`P12-3`); `EnvelopedData` refused by
+   name.
+5. **BOTH encryption eras decrypt** (`P12-9`/`P12-10`): **modern** PBES2
+   (`id-PBES2`) / PBKDF2 / AES-CBC, **and legacy** `pbeWithSHAAnd3-KeyTripleDES-CBC`
+   (key bag) + `pbeWithSHAAnd40BitRC2-CBC` (cert bags) under the SHA-1
+   PKCS#12 KDF — *"the single most common legacy shape"*. The RC4 PBE
+   variants (`pbeWithSHAAnd128BitRC4` …) are refused by name — rare, not in
+   the fixtures, never silently fallen through.
+6. **`pkcs8ShroudedKeyBag` → `EncryptedPrivateKeyInfo` → `PrivateKeyInfo`**
+   (`P12-7`, RFC 5958): RSA (`rsaEncryption`) and EC (`id-ecPublicKey`,
+   named curves **P-256 and P-384** — the two `Pass 10.1` verifies). Every
+   other key type (P-521, Brainpool, Ed25519, DSA) refused by name. An
+   unshrouded `keyBag` is accepted (rare, legal).
+7. **Pair key ↔ leaf via `localKeyId`, falling back to a public-key match**
+   (`P12-6`/`P12-8`); collect every `certBag`/`x509Certificate`; **order the
+   chain leaf → CA**. A store with a key and no matching certificate, or
+   certificates and no key, is refused by name (it is not a signing
+   identity).
+8. **Secrecy.** The decrypted key and the password are never logged, never
+   persisted, never placed in an error string or a `Debug` impl; zeroized on
+   drop (`security__pkcs12_import.md` §7).
+9. **Large iteration counts are not an error** (`P12-13`) — no timing
+   heuristic, no "this is taking too long" refusal.
+
+**Fixtures — ALREADY ON DISK, commit `e6c0271` (this filing names it;
+`fixtures/` is a `check-commits-filed` code prefix).** `fixtures/synthetic/signing/`:
+`rsa2048-modern.pfx` (2,776 B; PBES2/PBKDF2/AES-256-CBC, MAC SHA-256),
+`rsa2048-legacy.pfx` (2,634 B; **the SAME key + cert** under
+`pbeWithSHAAnd3-KeyTripleDES-CBC` / `pbeWithSHAAnd40BitRC2-CBC`, MAC SHA-1),
+`ecp256-modern.pfx` (1,299 B; EC P-256, PBES2/AES-256), `rsa2048.cer`
+(957 B) and `ecp256.cer` (571 B) as DER leaves for chain-equality assertions,
+`rsa2048.key.der` (1,217 B) and `ecp256.key.der` (138 B) as plaintext PKCS#8
+for the **OpenSSL oracle only — never loaded through pdfcer**, and
+`PROVENANCE.md`. Password `pdfcer` for every container (ASCII, so `P12-11`
+has one answer). Category (a) synthetic under `LEGAL.md` §5, minted by
+`tools/gen-signing-fixtures.py` (176 lines) with OpenSSL 1.1.1s — an
+INDEPENDENT producer, which is what makes the files an oracle for the
+importer rather than a mirror of it (pdfcer has no PKCS#12 writer, `P12-0`).
+Eras verified with `openssl pkcs12 -info` at generation. Keys are NOT
+deterministic across regeneration (`openssl req -newkey`), so no test may
+assert a signature VALUE — round trips, chain equality and refusals only
+(`PROVENANCE.md` says so). **Tests owed by this Pass:** (a) modern and legacy
+RSA containers yield byte-identical `PrivateKeyInfo` and leaf; (b) each
+store's extracted leaf equals its `.cer` byte-for-byte; (c) wrong password →
+the named refusal, for both eras; (d) the EC store yields an ECDSA-capable
+signer; (e) a sabotage test — a container whose `localKeyId` is stripped
+still pairs by public key.
+
+**★★ Dependency posture — THE CRATE STACK IS NOT DECIDED IN THIS FILING,
+AND ITS RECORD IS OWED BEFORE THE `Cargo.toml` CHANGE IS COMMITTED.**
+Decision 129 forbids reusing the in-crate, verify-only, NOT-constant-time
+`crypto/bignum.rs` / `crypto/ecdsa.rs` with a private key — a
+constant-time signing primitive is REQUIRED. The engineer's survey
+`docs/signing-crate-survey.md` (dated 2026-09-05) EXISTS on disk at filing
+time as an UNTRACKED file (measured: `git status --short` → `??`), and the
+working tree ALSO carries an uncommitted `crates/pdfcer-core/Cargo.toml`
+(+ `Cargo.lock`, +406 lines) adopting the survey's "LEAN" stack behind a
+`signing` Cargo feature, default ON — `rsa 0.10.0-rc.18`, `p256`/`p384`
+`0.14`, `signature 3.0`, `rand_core 0.10`, and the PKCS#12 plumbing
+`sha1`/`hmac`/`pbkdf2`/`des`/`rc2` (`git diff crates/pdfcer-core/Cargo.toml`,
+read by this role). **Project rule 13 puts the decision record + the
+`docs/PRIOR_ART.md` rows BEFORE any `Cargo.toml` change; the change is
+uncommitted, so the order can still be honoured — author decision `137`
+(claimed by name in this filing; the ledger gate already counts it) and amend `PRIOR_ART.md`'s `rsa` / `cms` / `x509-cert` /
+`num-bigint` rows in the SAME commit as, or before, that `Cargo.toml`.** This
+filing neither mints it nor stages it (the filing commit stages the four
+docs files by name). What the record must carry, per the survey's own scope
+and the standing rows: the Marvin advisory (`RUSTSEC-2023-0071`) addressed
+explicitly for the SIGNING path (the `rsa` row already narrows it to
+private-key operations); `rsa`'s pre-1.0 (release-candidate) status as a
+watch item; the wasm32 posture (RSA blinding needs an RNG; ECDSA via RFC
+6979 does not); and whether RustCrypto `cms` BUILDS `SignedData` or the
+in-crate DER writer does (`Pass 10.8`'s question). All named candidates are
+MIT OR Apache-2.0 — no operator licence flag is needed (rule 13's copyleft
+clause is not engaged); `THIRD_PARTY_LICENSES.md` regenerates with the
+dependency change.
+
+**Disclosure (rule 4/11).** Nothing here is inferred; the CLI prints the
+loaded identity — certificate subject, serial, key algorithm, chain length —
+and never the password.
+
+**Invariants to verify at ship:** `cargo tree -p pdfcer-core` gains no GUI,
+network or OS-key-store crate (rule 2; decision 061's engine row); the
+`--no-default-features` build (signing OFF) still compiles and still
+VERIFIES signatures — the engineer's `Cargo.toml` comment says verification
+is deliberately NOT gated, and a test should hold that true.
+
+**`docs/FEATURES.md`:** one *Planned* row, placed at the TOP of *Planned*
+(it is *Next up*), `[ ]` core · `[ ]` cli · `[ ]` gui · `Acrobat [x]`.
+
+**Not in scope, by name:** writing a `.pfx` (import only, `P12-0`); any other
+key source (`Pass 10.10`); the CMS build (`Pass 10.8`); the PDF write
+(`Pass 10.9`); cloud/CSC identities (architecturally covered by the trait,
+deliberately unscheduled — the Acrobat RAG's `nice_to_have`).
+
+### `Pass 10.8` — **BUILD THE CMS `SignedData` — CAdES, PAdES B-B: `version 1`, detached `id-data`, signed attributes content-type + message-digest + `signing-certificate-v2` (SHA-256), NO signing-time, the `0x31` retag over a DER-SORTED `SET OF`, one signer, the full chain, `crls` omitted** — filed 2026-09-05 (436th filing), *Next up*, **NOT STARTED** — depends on `Pass 10.7` (a `Signer`)
+
+**Scope.** Given (a) the digest over the `/ByteRange` spans, (b) a `Signer`,
+(c) options — produce the DER `ContentInfo { id-signedData, SignedData }`
+bytes for the `/Contents` hole. The bytes only; where they go is `Pass 10.9`.
+pdfcer already PARSES and VERIFIES this object (`Pass 10.1`: `asn1.rs`,
+`cms.rs`) — this is the BUILD direction, new.
+
+**Sourcing:** `D:\Dev\Rag-Specialized\PDF_Spec\security\security__cms_signeddata_build.md`
+(`CB-1`…`CB-11`) and `pades\pades__ref__creation_by_level.md` (`PC-1`…`PC-4`),
+both dated 2026-09-05; Acrobat defaults from
+`D:\Dev\Rag-Specialized\Acrobat_Features\signatures__signing_defaults_and_limits.md`.
+
+**Acceptance criteria.**
+
+1. **`SignedData.version = 1`** (`CB-1` — `eContentType = id-data` and
+   `sid = issuerAndSerialNumber`, so the RFC 5652 §5.1 ladder lands on 1).
+   `digestAlgorithms = { id-sha256 }`, one entry, equal to
+   `SignerInfo.digestAlgorithm`. `certificates` = the FULL chain from
+   `Signer::certificate_chain()` (PAdES requirement a); **`crls` OMITTED**
+   (`CB-1` note, `CB-11` — B-LT revocation lives in the PDF-level `/DSS`,
+   `Pass 10.6`, never here).
+2. **Detached:** `encapContentInfo = { id-data, eContent ABSENT }` (`CB-2`).
+3. **`SignerInfo` v1, `sid = issuerAndSerialNumber`** of the leaf (`CB-3` —
+   the interoperable choice; `subjectKeyIdentifier` is not authored).
+4. **Signed attributes — exactly these, DER-sorted (`CB-3`, `CB-6`):**
+   `content-type` = `id-data`; `message-digest` = the `/ByteRange` digest as
+   an OCTET STRING inside the attribute's `SET OF AttributeValue` (`CB-9` —
+   the raw digest is never what is signed); **`signing-certificate-v2`**
+   (RFC 5035, OID …16.2.47) with `certs[0]` = the leaf, `certHash` = SHA-256
+   over the ENTIRE DER certificate, `hashAlgorithm` per the ASN.1 DEFAULT
+   (SHA-256) — **`CB-7`: RFC 5035's prose sentence saying SHA-1 is a v1
+   residue; follow the ASN.1**, and emit `hashAlgorithm` explicitly whenever
+   it is not SHA-256. **NO `signing-time` attribute** (`PC-3` — PAdES
+   `shall not be present`; the claimed time is the PDF `/M`). The same
+   omission applies to the `adbe.pkcs7.detached` option — ONE attribute
+   set, one code path, `/M` carries the claim in both. `signing-certificate`
+   v1 (SHA-1) is never authored.
+5. **The exact bytes signed — the `0x31` retag (`CB-4`):** the signature is
+   over `DER(SET OF Attribute)` with the UNIVERSAL `SET` tag `0x31`, elements
+   sorted ascending by their full DER encoding; the WIRE `signedAttrs` is the
+   same length + content under the `[0] IMPLICIT` tag `0xA0`. The `Signer`
+   receives `H(DER-with-0x31)`; for RSA PKCS#1 v1.5 the `DigestInfo` wrap is
+   the signer's (criterion 1 of `Pass 10.7`) — `CB-5`'s one-shot-vs-low-level
+   gotcha is decided ONCE, at the trait boundary.
+6. **Algorithms (`CB-5`):** RSA **PKCS#1 v1.5 DEFAULT** — Acrobat parity:
+   PSS is opt-in there (`bEnableRSAPSSSigning`, default OFF), and the
+   `pdfcer verify-signatures` corpus is v1.5-heavy; **RSASSA-PSS as an
+   OPTION** with RFC 4055 params (hash, MGF1, salt length) carried in
+   `signatureAlgorithm`; **ECDSA** `ecdsa-with-SHA256` / `-SHA384`, the
+   signature OCTET STRING wrapping DER `SEQUENCE { r, s }`. **SHA-256
+   default; SHA-1 and MD5 are never authored** (PAdES §6.2.1 prohibits MD5;
+   Acrobat has defaulted to SHA-256 since 9.1 and the RAG's `must_have` says
+   SHA-1 need not be offered at all). SHA-384/512 as options if the engineer
+   wants them; not required.
+7. **DER throughout, definite lengths only** (`CB-8`); **exactly one
+   `SignerInfo`** (`CB-10`).
+8. **Oracle, BOTH directions, over all three fixture stores:** pdfcer's own
+   `signature::verify` (it already knows the retag —
+   `iso32000__ref__signature_verification.md`) must return integrity
+   `Verified`; **and** `openssl cms -verify -binary -inform DER -content
+   <spans> -CAfile fixtures/synthetic/signing/rsa2048.cer` (resp.
+   `ecp256.cer`) must accept — an independent producer's verifier, so a
+   shared misreading cannot pass. **Sabotage tests, each caught by exactly
+   one named test:** insertion-order (unsorted) attributes → REJECTED by the
+   verifier, proving the DER sort is load-bearing; `0xA0` used as the signed
+   tag → rejected; a present `signing-time` → a test asserts its ABSENCE.
+9. **Size reporting:** the builder exposes the blob length so `Pass 10.9` can
+   size the hole (`SC-6`); the recommended measure is a probe build with the
+   real chain and a dummy digest.
+
+**Not in scope, by name:** the `id-aa-timeStampToken` unsigned attribute
+(`Pass 10.11`); `crls`; multiple signers; the deprecated `adbe.pkcs7.sha1`
+and `adbe.x509.rsa_sha1` encodings (`SC-1` — never authored).
+
+**`docs/FEATURES.md`:** one *Planned* row at the top of *Planned*, all
+pdfcer columns `[ ]`, `Acrobat [x]`.
+
+### `Pass 10.9` — **THE PDF-LEVEL SIGNING WRITE — an `EditSession` signing verb + `pdfcer sign`: a `/FT /Sig` field with `/SigFlags 3`, the Table 252 dictionary with `/SubFilter /ETSI.CAdES.detached` BY DEFAULT and `/M` REQUIRED, the two-pass `/Contents` hole, ALWAYS an incremental update, SELF-VERIFIED before returning; encrypted / certified / second-certification refusals BY NAME; the PAdES level PRINTED** — filed 2026-09-05 (436th filing), *Next up*, **NOT STARTED** — depends on `Pass 10.7` + `Pass 10.8`
+
+**Sourcing:** `D:\Dev\Rag-Specialized\PDF_Spec\iso32000\iso32000__ref__signature_creation.md`
+(`SC-1`…`SC-8`, dated 2026-09-05) for the write; `pades__ref__creation_by_level.md`
+(`PC-2`, `PC-3`, `PC-12`); Acrobat behaviour from
+`signatures__signing_operation_options.md`, `signatures__format_and_level_choices.md`
+and `signatures__signing_defaults_and_limits.md` (all 2026-09-05). The CLI
+stub: `crates/pdfcer-cli/src/main.rs` ~line 1821, clap variant
+`Sign { input, --cert, --output }`, doc string `[not yet implemented]`,
+dispatched to `unimplemented_stub("sign")` at ~8948 — fill it, do not add a
+second verb.
+
+**Acceptance criteria.**
+
+1. **Signature field + widget (`SC-4`).** A merged field/widget:
+   `/FT /Sig`, `/T` unique in the document, `/V` → the signature dictionary,
+   `/Subtype /Widget`, `/P` the page, `/F` print-only. **INVISIBLE by
+   default: `/Rect [0 0 0 0]`, no `/AP`** — the batch/CLI case. Optional
+   VISIBLE placement (`--visible x0,y0,x1,y1 --page P`) with a MINIMAL `/AP
+   /N` (plain text: subject + `/M`) — the Acrobat-parity appearance composer
+   (Name / Date / Location / Reason / DN toggles, graphic, watermark;
+   `signatures__signing_operation_options.md`) is NOT this Pass (appearance
+   is *"cosmetic, not evidentiary"*). Signing INTO an existing empty
+   `/FT /Sig` field by name (`--field-name`) is supported; visible/invisible
+   is per-signature, never document-wide.
+2. **`/AcroForm`** created if absent; the widget in `/Fields`; **`/SigFlags
+   3`** (`SC-5` — `SignaturesExist` + `AppendOnly`, the machine-readable
+   R36). The page's `/Annots` gains the widget.
+3. **The signature dictionary (Table 252; `SC-1`, `PC-2`):** `/Type /Sig`,
+   `/Filter /Adobe.PPKLite`, **`/SubFilter /ETSI.CAdES.detached` DEFAULT**,
+   `adbe.pkcs7.detached` as the option (`--format pkcs7`). **pdfcer's default
+   DIVERGES from Acrobat's out-of-the-box default (legacy PKCS#7,
+   `aSignFormat`; "CAdES-Equivalent" is opt-in there) — by design**, the
+   Acrobat RAG's own `DISCHARGED [2026-09-05]` note and the standing memory
+   rule (parity is a floor): pdfcer has no installed base to stay compatible
+   with, and a fresh Acrobat's output *"is not conformant with the PAdES
+   baseline profile"*. **`/M` REQUIRED** (`PC-3`), a PDF date string,
+   CALLER-SUPPLIED — pdfcer reads no clock; **the CLI MAY derive it from the
+   system clock when `--signing-time` is absent, AND PRINTS THAT IT DID**
+   (`m_source=system-clock`) — rule 4/11, and the exceed-Acrobat opportunity
+   both Acrobat RAG files name (Acrobat's no-TSA, clock-derived time is
+   visually indistinguishable from a TSA time). **NO `/Cert`** (`PB-N1`).
+   `/Name`, `/Reason`, `/Location`, `/ContactInfo` optional pass-throughs.
+   `/ByteRange` exactly four integers.
+4. **The two-pass hole (`SC-2`).** Reserve `L` hex characters (default
+   ~16 KB; `--reserve`), `/Contents <000…0>` zero-filled; a FIXED-WIDTH
+   `/ByteRange` placeholder; serialise the incremental update; locate the
+   hole — **the `<` and `>` delimiters are INSIDE the gap** (the fixture
+   defect `Pass 10.1` found); `/ByteRange [0 a b EOF−b]` with `len2`
+   reaching EOF (`SC-3` — the ISO 32000-2 endpoint rule; a short range
+   leaves an unsigned tail); digest span 1 ‖ span 2; CMS via `Pass 10.8`;
+   hex-encode; **assert `2N ≤ L`, else REFUSE BY NAME stating both sizes —
+   NEVER shrink the hole** (`SC-6`); zero-pad; back-patch in place — **no
+   byte outside `(a, b)` changes** (a test compares the file before and after
+   the patch outside the hole).
+5. **ALWAYS an incremental update (`SC-7`, R36).** A full-rewrite save
+   requested together with signing is refused by name. A document loaded via
+   xref recovery forces a full rewrite (R67), so the writer already refuses
+   incremental there — the signing verb SURFACES that refusal, it does not
+   add a new one.
+6. **`/Contents` is never encrypted and never line-wrapped (`SC-8`, §7.6.1)**
+   — on an encrypted document the encoder skips the signature dictionary's
+   `/Contents` string.
+7. **Refusals, by name, sourced from Acrobat's own behaviour
+   (`signatures__signing_defaults_and_limits.md`):**
+   - **Encrypted document — PERMISSION-BIT-GATED, NOT BLANKET.** Signing is
+     permitted when the document opens AND the encryption dictionary's
+     permission bits allow it: signing INTO an existing field needs the
+     fill-in-forms permission (the Table 22 bit that covers *"fill in
+     existing interactive form fields (including signature fields)"* — cite
+     the bit number from `PDF_Spec\iso32000\iso32000__s__7.6.*` at build
+     time, it is not asserted here); CREATING a new signature field
+     additionally needs the modify permission — a TWO-permission operation
+     the refusal message must NAME (the RAG's `should_have`: *"name the
+     actual constraint, not a generic 'cannot sign'"*). Any claim that
+     encrypted PDFs cannot be signed is an oversimplification — refuse on the
+     bits, not on `/Encrypt`.
+   - **Certified document.** `/DocMDP /P 1` forbids ANY further signature;
+     `/P 2` and `/P 3` permit a further APPROVAL signature only. Reuse the
+     READ-side classification (`SignatureImpact`, `Pass 3.2`) — one
+     permission vocabulary, not a second.
+   - **A SECOND CERTIFYING signature is refused regardless of `/P`** — one
+     certification per document, ever (Acrobat treats it as a hard,
+     level-independent ceiling). Certification must also be the FIRST
+     signature: `--certify` on a document that already carries any
+     signature is refused by name (`SC-6` gotcha list; §12.8).
+   - **Hole too small** (criterion 4). **Xref-recovered document**
+     (criterion 5).
+8. **Certifying vs approval.** Default is an APPROVAL signature. `--certify
+   --mdp 1|2|3` writes `/Reference [<< /TransformMethod /DocMDP
+   /TransformParams << /P n /V /1.2 >> >>]` and the catalog `/Perms /DocMDP`
+   pointing back — the three-level ladder is FIXED (no composable bits;
+   Acrobat RAG). `/FieldMDP` lock dictionaries are a later `should_have`,
+   not here.
+9. **Self-verify before returning.** After the back-patch, run
+   `signature::verify` on the OUTPUT bytes: integrity must be `Verified`,
+   coverage complete, the prior signatures (if any) still `Verified`. Anything
+   else → the write is REFUSED, the output is not left on disk, and the
+   failure is named — the verifier is the oracle (it already knows the
+   retag).
+10. **A second signature on an already-signed document** appends after the
+    first, its `/ByteRange` reaching the new EOF; the first still verifies
+    (test on a pyHanko-signed `Pass 10.1` fixture and on pdfcer's own).
+11. **CLI surface — fill the stub.** `pdfcer sign <in> --cert <pfx>
+    [--password <pw> | prompt, never echoed, never an env-var default]
+    [--format cades|pkcs7] [--reason … --location … --contact … --name …]
+    [--field-name F | --visible x0,y0,x1,y1 --page P] [--signing-time D:…]
+    [--certify --mdp n] [--reserve N] [--dry-run] -o <out>`. **Stdout, one
+    line, `key=value` (the project's own convention):** `sign … subfilter=
+    level=B-B signer="<subject>" serial= alg= m=<D:…>
+    m_source=caller|system-clock field= rect= byte_range=[…]
+    contents_reserved= contents_used= mode=incremental verified=yes -> out`.
+    **`level=` is the level ACTUALLY produced** (`PC-12`, rule 11) — always
+    `B-B` in this Pass; `Pass 10.11` adds `B-T`. Exit codes per the existing
+    ladder; a refusal exits non-zero with its name.
+12. **Rule 4.** Nothing is inferred except a system-clock `/M` when the
+    caller supplied none — and that is printed. The GUI half (the separate
+    `pdfcer-gui`) discloses the same off-canvas; nothing is drawn on the page
+    beyond the signature's own appearance.
+
+**Invariants at ship:** `cargo tree -p pdfcer-core` unchanged in kind
+(rule 2); round-trip — every object the signing verb did not touch is
+omitted from the incremental section (rule 3; `tools/content-identity`
+reports 0 content-stream changes for `sign`); wasm32 check of core + render
+green (the engineer's `Cargo.toml` note says RSA signing REFUSES on wasm32
+for want of an RNG while ECDSA does not — that refusal must be by name).
+
+**`docs/FEATURES.md`:** one *Planned* row at the top of *Planned*, all
+pdfcer columns `[ ]`, `Acrobat [x]`. **Sweep owed at ship (hard rule 11):**
+`README.md` line 52 *"pdfcer verifies them but does not yet sign"* — TRUE at
+this filing, FALSE when this Pass ships; the CLI stub's `[not yet
+implemented]` doc string; `docs/core-api/` gains the verb.
+
+**Not in scope, by name:** the appearance composer; `/FieldMDP`; timestamps
+(`Pass 10.11`); `/DSS` / LTV (`Pass 10.6`'s dependency); any key source but
+a `.pfx` (`Pass 10.10`); a `/DocTimeStamp` (B-LTA).
+
 <details><summary>Original <code>Pass 5.4</code> <em>Next up</em> entry (kept for the record — superseded by the <em>Shipped</em> block above)</summary>
 
 ### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), ~~**NOT STARTED**~~ **SHIPPED `743830d` — see top of *Shipped***
@@ -128284,6 +128699,32 @@ added. See that section below.
   the user's own address book — see the two headed entries immediately
   below, then the Encryption bullet resumes.
 
+  **★★★ SIGNING SCOPED 2026-09-05 (436th filing) — the SIGN half of this
+  bucket leaves *"not scheduled"*.** The operator approved the arc's shape
+  (NEXT_SESSION.md at `26f0257`; batch ruling verbatim: *"build all before
+  the next portable release unless I say otherwise"*) and it is decision
+  **136**: PAdES **B-B first**, **CAdES** (`/SubFilter /ETSI.CAdES.detached`)
+  as the DEFAULT format, a **`.pfx`/PKCS#12 file as the first key source**,
+  and — the load-bearing architecture — every key source collapsing to
+  **hash-in / signature-out** behind a `Signer` trait in `pdfcer-core`
+  whose only in-core implementation is `Pkcs12Signer`; Windows-store /
+  PKCS#11 / cloud signers are SHELL-side impls, so the engine gains neither
+  a network nor an OS key store. Filed as **`Pass 10.7`** (PKCS#12 import +
+  the trait), **`Pass 10.8`** (CMS `SignedData` build, B-B) and **`Pass
+  10.9`** (the PDF-level write + `pdfcer sign`) under *Next up* — the
+  operator approved building them in the current batch, before `0.40.0` —
+  and **`Pass 10.10`** (shell-side key sources) and **`Pass 10.11`** (B-T,
+  a supplied RFC 3161 token) below, in this section after `Pass 10.6`.
+  B-LT / B-LTA are NOT re-scoped: they need the validation material
+  `Pass 10.6` provides and are filed as a note on `10.11`. Fixtures already
+  on disk: `e6c0271` (`fixtures/synthetic/signing/`, three synthetic PKCS#12
+  stores + OpenSSL generator). **The crate stack is a SEPARATE decision,
+  owed (`137`, claimed by name) BEFORE the working tree's uncommitted
+  `Cargo.toml` change lands** — see `Pass 10.7`'s *Dependency posture* in *Next up*.
+  `docs/FEATURES.md`: the single *Planned* *"Sign a document"* row is
+  replaced by FIVE rows (one per Pass); the revocation row gains the
+  B-LT/B-LTA cross-reference.
+
 #### `Pass 10.2` — **IMPORT AN INSTALLED ACROBAT/READER TRUST STORE AS A TRUST-ANCHOR SOURCE (opt-in)** — filed 2026-09-04 (414th filing), ~~*Backlog*, NOT STARTED~~ **SHIPPED `79e259a` (417th filing) — see top of *Shipped***
 
 Self-contained; needs nothing from `Pass 10.3`. Fills the trust-anchor
@@ -128506,6 +128947,113 @@ Every uncertainty must still resolve to `Untrusted`/`Unverifiable`, never a
 false `Trusted` — the `Pass 10.3`/`10.5` safety direction is preserved.
 `FEATURES.md`: one *Planned* row under the signature-trust cluster
 (revocation), all pdfcer columns `[ ]`, `Acrobat [x]`. **Not scheduled.**
+
+**★ Also the gate for PAdES B-LT / B-LTA SIGNING (added 2026-09-05, 436th
+filing).** `pades__ref__creation_by_level.md` `PC-8`/`PC-10`: B-LT needs
+the CRL/OCSP responses for every cert in the chain at signing time, placed
+in a `/DSS`; B-LTA needs those plus an archive `/DocTimeStamp`. Route (2)
+above — core validates shell-supplied responses — is exactly the material a
+`/DSS` writer embeds, so the B-LT/B-LTA signing Pass is filed WHEN THIS
+SHIPS, not before; `Pass 10.11` (below) stops at B-T and says so.
+
+#### `Pass 10.10` — **SHELL-SIDE KEY SOURCES — a Windows-certificate-store identity (CNG `NCryptSignHash`) and a PKCS#11 token as `Signer` implementations in `pdfcer` (the CLI crate), NEVER in `pdfcer-core`; the key never leaves its custodian** — filed 2026-09-05 (436th filing), *Backlog*, NOT STARTED — depends on `Pass 10.7` (the trait) and `Pass 10.9` (the pipeline)
+
+**Status: NOT STARTED.** Second stage of decision 136's shape (*"then
+Windows-cert-store + PKCS#11 token key sources"*). Sourced from
+`D:\Dev\Rag-Specialized\Acrobat_Features\signatures__digital_id_sources.md`
+(2026-09-05): Acrobat's four ID source classes — (a) PKCS#12 file
+(`Pass 10.7`), (b) Windows Certificate Store (CAPI/CSP legacy or CNG/KSP),
+(c) roaming/cloud (CSC, ETSI TS 119 432), (d) PKCS#11 token / smart card /
+HSM. For (b)-non-exportable, (c) and (d) *"pdfcer-core must never assume it
+can extract or hold a raw private key"* — which is why the trait already
+has the hash-in shape and why these impls live in a shell.
+
+**Scope.**
+1. **Windows certificate store via CNG** — `NCryptSignHash` (target CNG, NOT
+   legacy CryptoAPI: Adobe deprecated CAPI devices in favour of CNG; the RAG
+   records an unresolved CSP-vs-KSP contradiction across sources and names
+   the CNG surface as *"Acrobat's own current direction"*). Identity chosen
+   per operation by thumbprint (`--cert-thumbprint`); the store's own
+   certificate chain supplies `certificate_chain()`. An exportable software
+   key is NOT exported — it is signed through the same API, one path.
+2. **PKCS#11** — a vendor module path (`--pkcs11-module`), slot, PIN
+   (prompted, never echoed); `C_Sign` with the hash. Build and test against a
+   REAL reference module (OpenSC, or SoftHSM2 in CI when available; a named
+   skip otherwise) — the RAG's `should_have`, because *"a conformant PKCS#11
+   v2.x surface is necessary but historically not always sufficient"*.
+3. **Certificate visibility filtering** as Acrobat does it uniformly:
+   only identities whose `keyUsage` includes `digitalSignature` (and
+   typically `nonRepudiation`) and whose private key is reachable are
+   offered; the rest are named as unusable, not hidden silently (rule 4).
+4. **Identity selection is per-operation**, never bound install-wide.
+5. **Cloud / CSC — NOT this Pass, NOT foreclosed.** The trait covers it; the
+   RAG ranks it `nice_to_have` behind the other three because testing needs
+   a commercial TSP relationship.
+
+**Invariants:** the `windows`/`cryptoki`-class crates enter the **CLI
+crate only** — `cargo tree -p pdfcer-core` is UNCHANGED (rule 2, decision
+061's engine row); the CLI is Windows-conditional for (1) (`cfg(windows)`),
+with the verb refusing by name elsewhere. Disclosure: the CLI prints which
+custodian signed (`source=windows-store|pkcs11`, thumbprint / token label),
+same line shape as `Pass 10.9`.
+
+`docs/FEATURES.md`: one *Planned* row in the signature cluster — **core `—`**
+(deliberately never in core: a shape, not a gap), `cli [ ]`, `gui [ ]`,
+`Acrobat [x]`. **Not scheduled** — after `10.7`–`10.9` ship.
+
+#### `Pass 10.11` — **PAdES B-T — EMBED A SUPPLIED RFC 3161 TOKEN as the `id-aa-timeStampToken` unsigned attribute (`pdfcer-core`); the TSA round trip is `pdfcer`'s (network, shell); the hole is sized for it; the level and the time's SOURCE are printed. B-LT / B-LTA stay gated on `Pass 10.6`** — filed 2026-09-05 (436th filing), *Backlog*, NOT STARTED — depends on `Pass 10.8` + `Pass 10.9`
+
+**Status: NOT STARTED.** Third stage of decision 136's shape (*"then B-T
+(timestamp)"*). Sourced from
+`D:\Dev\Rag-Specialized\PDF_Spec\security\security__rfc3161_timestamp.md`
+(`TS-0`…`TS-11`) and `pades__ref__creation_by_level.md` (`PC-5`, `PC-6`,
+`PC-11`), both 2026-09-05; Acrobat's TSA model from
+`Acrobat_Features\signatures__format_and_level_choices.md` (a named TSA
+list with a default; B-T needs a reachable TSA at sign time).
+
+**Scope — the boundary is `TS-0`:** obtaining a token is a NETWORK act;
+embedding one is in-core.
+1. **Core embeds** a `TimeStampToken` (bytes) as the `id-aa-timeStampToken`
+   (…16.2.14) UNSIGNED attribute in `SignerInfo.unsignedAttrs`, DER (PAdES
+   requirement o), whose `messageImprint` is the hash of the
+   `SignerInfo.signature` OCTET STRING (`TS-5`/`TS-6`, RFC 3161 Appendix A).
+   Core VERIFIES the token before embedding (`TS-10`): status `granted`/
+   `grantedWithMods`, nonce echoed, `messageImprint` equal to what was
+   requested, the TSA's own CMS signature valid (the token is itself a
+   `SignedData`, version 3, `id-ct-TSTInfo`). A rejected or mismatched token
+   is refused by name — never embedded.
+2. **The CLI does the round trip** (`--tsa-url`, optional auth): build
+   `TimeStampReq` (`certReq = TRUE` so the token is self-contained, `TS-3`;
+   a random nonce, `TS-2`), POST `application/timestamp-query`, parse
+   `application/timestamp-reply` (`TS-8`). **This is the shell's first
+   network client**, permitted by decision 061 (shells may fetch) — and it
+   TRIGGERS `ARCHITECTURE.md` §1.1's tracked obligation: `README.md`'s
+   *"pdfcer does not use the network. It contains no HTTP client and no TLS
+   stack"* must be rewritten IN THE SAME PASS (claim-bearing copy). Whether
+   the fetch lives in the planned `pdfcer-fetch` sibling (decision 061 §2)
+   or the CLI directly is the engineer's call at build time. A
+   `--timestamp-token <file>` path takes a pre-fetched token with NO network.
+3. **Hole sizing:** a token with its TSA chain is often 4–8 KB (`TS-9`);
+   when B-T is signed in ONE pass the `/Contents` reservation grows
+   accordingly (`SC-6`); the token is added AFTER the signature value is
+   computed and before the final back-patch (`PC-5`).
+4. **Disclosure (rule 4/11):** `level=B-T`, `m_source=…`, `tsa_time=<genTime>`
+   printed; **absent a token, pdfcer produces B-B and SAYS SO** (`PC-6`) —
+   the exceed-Acrobat point both Acrobat RAG files name (Acrobat's no-TSA
+   output looks identical to its TSA output).
+5. **B-LT / B-LTA — NOT scoped here, deliberately.** `PC-7`…`PC-10`: B-LT
+   needs a `/DSS` holding the chain + CRL/OCSP responses (revocation material
+   `pdfcer-core` cannot fetch — `Pass 10.6`'s routes supply it); B-LTA needs
+   a `/DocTimeStamp` (`/SubFilter /ETSI.RFC3161`, `TS-7`) over the file after
+   the DSS. Both are filed as a Pass WHEN `Pass 10.6` ships, using the
+   promotion model (`PC-11` — each level is a further incremental update).
+
+**Invariants:** `cargo tree -p pdfcer-core` gains no network crate (the
+verifier for the token reuses `Pass 10.1`'s CMS path); the `no-network`
+CI job stays green for the engine.
+
+`docs/FEATURES.md`: one *Planned* row in the signature cluster, all pdfcer
+columns `[ ]`, `Acrobat [x]`. **Not scheduled** — after `10.9` ships.
 
 - **Encryption** — standard security handler, RC4 (legacy read-compat
   only, never write), AES-128/256, public-key (certificate) security

@@ -92452,3 +92452,193 @@ UNCHANGED**, next free `136`; standing rules `R241` unchanged, next free
   freehand ink stays whole-stroke (as in Acrobat) and says so rather than
   guessing. It reaches the GUI once `pdfcer-gui` draws the handles. Held back
   from a new portable download until digital signing is in, as you asked.
+
+## 2026-09-05 (436th filing) — NO PASS SHIPPED. The digital-signing arc SCOPED and FILED: `Pass 10.7` (PKCS#12 import + the `Signer` seam), `10.8` (CMS `SignedData` build, CAdES B-B), `10.9` (the PDF-level write + `pdfcer sign`) *Next up*; `10.10` (Windows-store / PKCS#11 key sources, shell-side), `10.11` (B-T, a supplied RFC 3161 token) *Backlog*. Decision 136 minted (the arc's SHAPE). Fixture commit `e6c0271` filed. Crate-stack decision NOT minted — owed as 137 before the working tree's `Cargo.toml` change is committed.
+
+**Session shape.** Third filing of the day. Resumed from `docs/NEXT_SESSION.md`
+(`94f67ee`, engineer-owned): `Pass 255.0` done, *"Digital signing, the large
+arc (operator approved the shape)"* next. This filing is the scoping the
+handoff asked for (*"Pass ID: scope with the librarian"*). Two docs-only
+commits named for the record: `94f67ee` (NEXT_SESSION.md refresh) and
+`7d34f70` (engineer memory — eighth backslash-continuation recurrence).
+
+**Shipped:**
+- None. One CODE commit filed (`fixtures/` and `tools/` are
+  `check-commits-filed` prefixes): **`e6c0271`** — `fixtures/synthetic/signing/`
+  (9 files, +218: `rsa2048-modern.pfx` 2,776 B PBES2/PBKDF2/AES-256-CBC + MAC
+  SHA-256; `rsa2048-legacy.pfx` 2,634 B, the SAME key + cert under
+  `pbeWithSHAAnd3-KeyTripleDES-CBC` / `pbeWithSHAAnd40BitRC2-CBC` + MAC SHA-1;
+  `ecp256-modern.pfx` 1,299 B; DER leaves `rsa2048.cer` 957 B / `ecp256.cer`
+  571 B; plaintext PKCS#8 `rsa2048.key.der` 1,217 B / `ecp256.key.der` 138 B
+  for the OpenSSL oracle ONLY; `PROVENANCE.md`) + `tools/gen-signing-fixtures.py`
+  (176 lines, OpenSSL 1.1.1s, detects 3.x). Category (a) synthetic
+  (`LEGAL.md` §5); password `pdfcer`; eras verified with `openssl pkcs12
+  -info` at generation; keys non-deterministic across regeneration, so tests
+  assert round trips / chain equality / refusals, never a signature value.
+  No code, no `Cargo.toml` change in the commit.
+
+**Filed (Pass entries minted this filing):**
+- **ID decision:** sub-IDs of family **10** (the *Digital signatures* bucket,
+  family 10 since decision 008), not a new family head: `10.1`–`10.6` are the
+  bucket's VERIFY half, `10.7`+ its SIGN half — the split the 396th filing
+  made in the bucket's own text; a new family would sever `10.11` →
+  `10.6`'s dependency. Two-digit minors precedented (`Pass 174.10`).
+- **`Pass 10.7`** — PKCS#12 import (RFC 7292: PFX v3, MAC-first password
+  check with the BMPString KDF, BER inside, BOTH encryption eras, key↔leaf
+  by `localKeyId`/public key, chain leaf→CA, RSA + EC P-256/P-384, zeroize)
+  AND the `Signer` trait (hash in / signature out; the librarian's `CB-5`
+  note: the trait must also name the algorithm its bytes are). Nine
+  criteria, `P12-*` anchors; five tests owed against `e6c0271`.
+- **`Pass 10.8`** — CMS `SignedData` BUILD: version 1, detached `id-data`,
+  content-type + message-digest + `signing-certificate-v2` (SHA-256, `CB-7`
+  gotcha), NO signing-time (`PC-3`), the `0x31` retag over a DER-sorted SET
+  (`CB-4`), one signer, full chain, no `crls`; RSA v1.5 default, PSS/ECDSA
+  options; oracle BOTH ways (`signature::verify` + `openssl cms -verify`);
+  three sabotage tests. Nine criteria, `CB-*`/`PC-*` anchors.
+- **`Pass 10.9`** — the PDF-level write + `pdfcer sign`: `/FT /Sig` merged
+  widget (invisible default), `/SigFlags 3`, Table 252 dict with
+  `/SubFilter /ETSI.CAdES.detached` DEFAULT (`adbe.pkcs7.detached` option —
+  a recorded divergence from Acrobat's out-of-box PKCS#7), `/M` required and
+  caller-supplied (CLI may derive from the clock AND prints `m_source`), no
+  `/Cert`; the `SC-2` two-pass hole (delimiters inside the gap, `/ByteRange`
+  to EOF, never shrink, no byte outside the hole changes); ALWAYS
+  incremental (R36); `/Contents` never encrypted; refusals BY NAME —
+  encrypted doc PERMISSION-BIT-gated not blanket (two-permission field
+  creation named), `/DocMDP /P 1`, second certification regardless of `/P`,
+  certify-not-first, hole too small, xref-recovered; `--certify --mdp`
+  writes `/Reference` + `/Perms /DocMDP`; SELF-VERIFY before returning;
+  fills the existing clap stub (`main.rs` ~1821, `unimplemented_stub("sign")`
+  ~8948). Twelve criteria.
+- **`Pass 10.10`** (*Backlog*) — Windows-store (CNG `NCryptSignHash`, not
+  CAPI) and PKCS#11 (`C_Sign`, tested against a real module) `Signer` impls
+  in the CLI crate ONLY; `cargo tree -p pdfcer-core` unchanged; cloud/CSC
+  covered by the trait, unscheduled.
+- **`Pass 10.11`** (*Backlog*) — B-T: core verifies (`TS-10`) and embeds a
+  supplied token as `id-aa-timeStampToken` (`TS-5`/`TS-6`); the CLI does the
+  TSA round trip (`--tsa-url`; `--timestamp-token` for no-network) — **the
+  shell's first network client, which trips §1.1's tracked README
+  obligation in the same Pass**; hole sized for it; `level=B-T` printed,
+  B-B "and says so" absent a token. **B-LT/B-LTA NOT re-scoped** — a note on
+  `Pass 10.6` records that its route (2) material is what a `/DSS` writer
+  embeds; that Pass is filed when `10.6` ships.
+
+**Decisions made this session:**
+- **Decision 136** (`ARCHITECTURE.md` §12; body §5.13 new, §1.1 pointer):
+  the arc's SHAPE — B-B first, CAdES default, `.pfx` first key source, one
+  hash-in/signature-out `Signer` trait in core with `Pkcs12Signer` its ONLY
+  in-core impl, custodial signers shell-side; an APPLICATION of the
+  no-network / GUI-core boundaries (as 135 was), not a change to them.
+  **Provenance stated exactly:** the operator's verbatim words on record are
+  the batch ruling only (*"build all before the next portable release unless
+  I say otherwise"*); the shape was the engineer's proposal, APPROVED
+  (NEXT_SESSION.md at `26f0257`). No quote invented.
+- **NOT decided — the crate stack (reserved as 137, by name).** See findings.
+
+**Findings + gotchas (this role, measured):**
+- **★ Premise corrections to the dispatch.** (1) *"`docs/signing-crate-survey.md`,
+  in progress"* — the file did NOT exist at this role's first check and DID
+  exist, **untracked**, by the time the working tree was re-read (`git
+  status --short` → `?? docs/signing-crate-survey.md`); the engineer is
+  writing it concurrently. (2) The dispatch said the stack *"will be minted
+  as its own decision + PRIOR_ART rows before any `Cargo.toml` change"* —
+  **the `Cargo.toml` change is ALREADY in the working tree, uncommitted**:
+  `crates/pdfcer-core/Cargo.toml` (+ `Cargo.lock`, +406 lines) adds a
+  `signing` feature, default ON, with `rsa 0.10.0-rc.18`, `p256`/`p384 0.14`,
+  `signature 3.0`, `rand_core 0.10`, `sha1`/`hmac`/`pbkdf2`/`des`/`rc2`
+  (`git diff`, read here). Rule 13's order can still be honoured because
+  nothing is committed: **decision 137 + `PRIOR_ART.md` row amendments
+  (`rsa`, `cms`, `x509-cert`, `num-bigint`) must land in or before that
+  commit.** This filing stages the four docs files BY NAME and nothing else.
+  (3) *"both on `main`, `e6c0271` is unpushed"* — confirmed; `94f67ee` and
+  `7d34f70` are already at `origin/main`.
+- **The `Signer` trait needs to carry algorithm identity, not only bytes**
+  (`security__cms_signeddata_build.md` `CB-5`): the CMS `signatureAlgorithm`
+  must agree with the signature, and PKCS#1 v1.5's `DigestInfo` wrap belongs
+  inside the signer since the trait takes a digest. Filed as a design note on
+  `Pass 10.7` criterion 1, for the engineer to shape — not a decision.
+- **`Pass 10.11`'s `--tsa-url` is the first network client any shell links**,
+  so `ARCHITECTURE.md` §1.1's tracked claim (README: *"contains no HTTP client
+  and no TLS stack"*) falls due IN THAT PASS. Recorded on the Pass, in §1.1
+  and in decision 136 so it is not discovered by a user.
+
+**`docs/FEATURES.md` (same filing, per the maintenance contract):**
+- The single *Planned* **Sign a document** row is REPLACED by five rows:
+  `10.7`, `10.8`, `10.9` at the TOP of *Planned* (they are *Next up*);
+  `10.10` and `10.11` in the signature cluster beside revocation. Boxes all
+  `[ ]` / `Acrobat [x]` — **except `Pass 10.10`'s core column, which is `—`**
+  (deliberately never in core: a shape, not a gap — the legend's own
+  distinction; the dispatch asked for `[ ]` everywhere, deviated here and
+  said so).
+- The **Signature revocation** row's sentence replaced to add the B-LT/B-LTA
+  cross-reference (no note appended — the header forbids histories).
+- **Four fully-ticked rows MOVED from *Planned* to *Implemented → Redaction &
+  security*** (Import an installed Acrobat/Reader trust store; Evaluate a
+  signature's trust; the at-own-risk setting; Trust path validation). All
+  four read `[x] [x] [x] [x]` — the gui column was ticked by the 2026-09-05
+  pdfcer-gui note — yet sat under *Planned*, where "a `[x]` means the model
+  or verb exists and only the named shell is missing". Placement drift, not
+  a checkbox change; moved as-is.
+- **A hard-rule-11 survivor from an OLDER meaning change, found and fixed:**
+  the *Implemented* **Verify a signature's integrity and coverage** row still
+  said `trust` — *"only `NotChecked` exists: no trust store, no chain, no
+  revocation, no clock"*. True at `Pass 10.1`; false since `10.3`/`10.5`. Now
+  reads `NotChecked` by default, a real verdict only through the opt-in
+  trust-store rows, revocation never.
+
+**Rule-11 sweep (the meaning of "signing" changed — from *not scheduled,
+nobody asked* to *Next up, three Passes*).** Grepped `sign` case-insensitively
+over `README.md`, `docs/core-api/*.md`, `docs/FEATURES.md`, the ROADMAP
+bucket and `docs/NEXT_SESSION.md`, reading for the CLAIM. Changed here: the
+bucket text (amended), FEATURES row (replaced). **Correct survivors, left
+alone and reported so the next sweep does not "fix" them:** `README.md:52`
+*"pdfcer verifies them but does not yet sign"* — TRUE until `Pass 10.9`
+ships, and named on that Pass as owed at ship; the CLI stub's `[not yet
+implemented]` doc string (same); the spec RAG's `pdfce_relevance:
+"does not exist yet"` notes (true; the spec-librarian's file, hard rule 6);
+`NEXT_SESSION.md` (engineer-owned, already says signing is next — nothing
+owed). `docs/core-api/` has no not-built-signing claim (zero hits).
+
+**Still in flight:**
+- **Batch, release HELD** (operator: *"build all before the next portable
+  release unless I say otherwise"*): `251.1`, `254.0`, `255.0` shipped; the
+  signing arc `10.7` → `10.8` → `10.9` is what remains before `v0.40.0`.
+- **Decision 137 (crate stack) + `PRIOR_ART.md` rows** — owed BEFORE the
+  uncommitted `Cargo.toml`/`Cargo.lock` change is committed (rule 13); the
+  survey doc is untracked and should ride the same commit.
+- `Pass 252.0`, `253.0`–`253.3` unscoped/not started in *Backlog*.
+
+**Sourcing (hard rule 8):** this role had a shell; every git figure
+MEASURED. `git rev-parse HEAD` = `e6c0271f0616cfdb21a4736839f0d8fc1e102f00`;
+`git rev-parse --short origin/main` = `7d34f70`; `git rev-list --count
+origin/main..HEAD` = **1** (`e6c0271` only — unpushed). `git show e6c0271
+--stat` = 9 files, +218, no `Cargo.toml`. `git status --short` before this
+filing: ` M Cargo.lock`, ` M crates/pdfcer-core/Cargo.toml`,
+`?? docs/signing-crate-survey.md` — the engineer's concurrent work, NOT
+staged here. Fixture byte counts by `ls -l`. Spec and Acrobat RAG files read
+in full, not relayed (five `PDF_Spec` files, four `Acrobat_Features` files,
+all `date`/`last_verified: 2026-09-05`). Gates run before committing:
+`check-ledger-numbers`, `check-passes-filed`, `check-commits-filed`,
+`check-cited-commits-exist`, `check-cited-verbs-exist`, `check-string-gaps`,
+`check-control-bytes` — results in the filing commit's message.
+
+**Ledger.** Filings `435` → **`436`**; Pass ceiling **`255.0` UNCHANGED**
+(five new sub-IDs inside family 10: `10.7`–`10.11`; highest ID unchanged);
+decision ceiling **`135` → `136`** minted; **`137` CLAIMED by name for the
+crate-stack record, not yet authored** — the ledger gate reads a §12 mention
+as spoken for and reports ceiling `137`, next free `138` (precedent
+`037`/`038`); author `137` next, do not skip it; standing rules `R241` unchanged, next free `R242`;
+open operator questions none minted, next free `(ce)`.
+
+**For next session:**
+- Engineer: (1) mint decision 137 + amend `PRIOR_ART.md` in/before the
+  `Cargo.toml` commit; (2) build `10.7` → `10.8` → `10.9` against the filed
+  criteria and `e6c0271`; (3) at `10.9`'s ship, sweep `README.md:52` and the
+  CLI stub doc string; (4) refresh `NEXT_SESSION.md`; (5) push — `e6c0271`
+  and this filing are the unpushed set.
+- Operator: signing is now planned in detail and next in the build queue —
+  first from a `.pfx` certificate file (the self-contained case), producing a
+  standards-conformant PAdES signature that pdfcer checks against itself and
+  against OpenSSL before it hands the file back; Windows-store and smart-card
+  identities, then trusted timestamps, follow on the same plumbing. Nothing
+  is downloadable yet; the new portable release still waits for the batch
+  as you asked.
