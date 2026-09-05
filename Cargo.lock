@@ -673,7 +673,7 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
 name = "pdfcer-cli"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "clap",
  "clipboard-win",
@@ -688,7 +688,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-core"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "aes",
  "brotli",
@@ -709,7 +709,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-fetch"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "sha2 0.10.9",
  "thiserror",
@@ -718,7 +718,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-print"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "thiserror",
  "windows",
@@ -726,7 +726,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-render"
-version = "0.38.0"
+version = "0.39.0"
 dependencies = [
  "flate2",
  "iccce-cmm",
