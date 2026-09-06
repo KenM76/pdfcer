@@ -25,9 +25,23 @@ the next portable release") is DONE and shipped.
   posted. Criteria 5 and 7 amended in the filing (Td followers now re-space;
   fixture spells with A/B/C).
 
+- `5f9beb3` **Pass 142.2 SHIPPED**: `preview_font_resources_for(page, find,
+  pin, candidate)` + `FontPreflight::{candidate, standard_14}`; CLI
+  `font-preflight --candidate`. `70c1e29`: sign_document oracle test flake
+  fixed (per-call temp dir). Reply posted.
+
 ## THE NEXT WORK — in order
 
-### 1. `Pass 142.2` — font pre-flight for the text ABOUT TO BE TYPED (*Next up*) ← START HERE
+### 1. Pick from *Next up* / *Backlog* in `docs/ROADMAP.md` — the inbound queue is EMPTY
+Candidates, in the order I would take them: `Pass 256.1` (`/ToUnicode`
+partial inversion — per-character refusal instead of wholesale), `10.14`
+(signing hardening: CMS sabotage tests, composed visible appearance,
+content-identity run), `10.12` (certifying signatures `/DocMDP`), `10.13`
+(sign into a pre-placed empty `/Sig` field), `10.10`/`10.11` (shell-side
+signers; B-T timestamp). Then the 0.41.0 batch release (three unreleased
+fixes/features are already on `main`).
+
+### (done) `Pass 142.2` — font pre-flight for the text ABOUT TO BE TYPED
 pdfcer-gui request (`request_font_preflight_tests_the_text_that_is_there_not_the_text_about_to_be_typed.md`),
 scoped in the 443rd filing; reply posted (`reply_2026-09-06-font-preflight-candidate-text-is-scoped-as-142-2.md`).
 (a) a `candidate: &str` parameter on a new verb beside `preview_font_resources`
