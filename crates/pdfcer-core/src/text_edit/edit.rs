@@ -1870,10 +1870,37 @@ pub(crate) fn plan_edit_target(
         let e = composite
             .encode_str(&req.replace)
             .map_err(EditError::Refused)?;
+        // `Pass 256.1` disclosure: the replacement avoided every ambiguous
+        // character, but the font HAS some, and an operator typing the next
+        // edit deserves to know which ones will be refused.
+        let mut disclosures = Vec::new();
+        let ambiguous = composite.ambiguous_chars();
+        if !ambiguous.is_empty() {
+            let list: Vec<String> = ambiguous
+                .iter()
+                .take(8)
+                .map(|(ch, codes)| {
+                    format!(
+                        "{ch:?} (codes {})",
+                        codes
+                            .iter()
+                            .map(u32::to_string)
+                            .collect::<Vec<_>>()
+                            .join("/")
+                    )
+                })
+                .collect();
+            disclosures.push(format!(
+                "font map: {} character(s) of this font are produced by more than one code and are REFUSED if a replacement needs them — {}{}; this replacement used none of them.",
+                ambiguous.len(),
+                list.join(", "),
+                if ambiguous.len() > 8 { ", …" } else { "" }
+            ));
+        }
         EncodedReplacement {
             codes: e.cids.iter().map(|&c| u32::from(c)).collect(),
             bytes: e.to_bytes(),
-            disclosures: Vec::new(),
+            disclosures,
         }
     };
 
@@ -3026,9 +3053,12 @@ pub(crate) fn classify_font(
                 ));
             }
             Some(cmap) => {
-                if let Err(e) = cmap.injective_inverse() {
+                // `Pass 256.1`: only a map with NOTHING invertible (empty, or
+                // over the size ceiling) refuses the font; a collision on some
+                // characters is refused per character in `encode_str`.
+                if let Err(e) = cmap.partial_inverse() {
                     return Err(refuse(format!(
-                        "This font's character map cannot be inverted, so pdfcer could not know which code to write back: {e}"
+                        "This font's character map cannot be inverted at all, so pdfcer could not know which code to write back: {e}"
                     )));
                 }
                 // Invertible: fall through. The run is editable.

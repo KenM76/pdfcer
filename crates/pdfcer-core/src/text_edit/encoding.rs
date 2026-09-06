@@ -227,6 +227,10 @@ pub struct CompositeEncoding {
     /// Unicode scalar → the CID that shows it. One CID, because the map it
     /// was built from was verified injective.
     reverse: BTreeMap<char, u32>,
+    /// Characters two or more codes produce (`Pass 256.1`) — kept so a
+    /// request for one is refused BY NAME with the candidate codes, rather
+    /// than the whole font being refused before any request is made.
+    ambiguous: BTreeMap<char, Vec<u32>>,
 }
 
 /// The result of encoding text into a composite font's codes.
@@ -262,11 +266,27 @@ impl CompositeEncoding {
     /// destination, a collision naming both codes, an empty map, or a map too
     /// large to materialise. The caller surfaces it; this type does not
     /// paraphrase it into something vaguer.
+    /// Build the reverse map. Since `Pass 256.1` a collision in the
+    /// `/ToUnicode` no longer fails the build: the colliding characters are
+    /// kept aside and refused individually by [`Self::encode_str`] when — and
+    /// only when — a replacement needs one of them. The errors that remain
+    /// are the map-wide ones ([`NotInjective::TooLarge`],
+    /// [`NotInjective::Empty`]).
     pub fn build(base_font: &str, cmap: &ToUnicodeCMap) -> Result<Self, NotInjective> {
+        let partial = cmap.partial_inverse()?;
         Ok(Self {
             base_font: base_font.to_owned(),
-            reverse: cmap.injective_inverse()?,
+            reverse: partial.unambiguous,
+            ambiguous: partial.ambiguous,
         })
+    }
+
+    /// The characters this font can produce but pdfcer will not write,
+    /// because more than one code produces each (`Pass 256.1`). Empty for
+    /// an injective map.
+    #[must_use]
+    pub fn ambiguous_chars(&self) -> &BTreeMap<char, Vec<u32>> {
+        &self.ambiguous
     }
 
     /// Encode `target` into this font's CIDs.
@@ -279,6 +299,27 @@ impl CompositeEncoding {
     pub fn encode_str(&self, target: &str) -> Result<CompositeEncodeResult, Refusal> {
         let mut cids = Vec::with_capacity(target.chars().count());
         for ch in target.chars() {
+            if let Some(codes) = self.ambiguous.get(&ch) {
+                // `Pass 256.1`: the per-character refusal that replaced the
+                // whole-font one. Writing any of these codes would render a
+                // real glyph that MAY be the wrong one — indistinguishable
+                // from correct output on screen — so pdfcer names the choice
+                // it declined to make instead of making it.
+                let list = codes
+                    .iter()
+                    .map(u32::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                return Err(Refusal {
+                    trigger: RInvTrigger::Ambiguous,
+                    character: Some(ch),
+                    base_font: self.base_font.clone(),
+                    message: format!(
+                        "this font's character map gives {ch:?} to {} different codes ({list}), so there is no single code that means it and pdfcer will not guess; every other character of this font still edits — keep the edit to those, or choose a font that maps {ch:?} once.",
+                        codes.len()
+                    ),
+                });
+            }
             let Some(&code) = self.reverse.get(&ch) else {
                 return Err(Refusal {
                     trigger: RInvTrigger::TargetAbsent,
@@ -621,13 +662,31 @@ mod tests {
         );
     }
 
-    /// A non-injective CMap must never yield an encoder at all — the
-    /// refusal belongs where the evidence is (R110), not at encode time
-    /// when the caller has already committed to an edit.
+    /// `Pass 256.1`: a non-injective CMap yields an encoder whose AMBIGUOUS
+    /// characters are refused one at a time, by name, with the codes —
+    /// instead of no encoder at all. The refusal still lands where the
+    /// evidence is (R110): at the character two codes produce, not at the
+    /// font.
     #[test]
-    fn a_non_injective_cmap_yields_no_encoder() {
-        let err = composite(&[(1, "A"), (7, "A")]).expect_err("two codes, one char");
-        assert!(matches!(err, NotInjective::Collision { .. }), "{err:?}");
+    fn a_non_injective_cmap_refuses_only_the_ambiguous_character() {
+        let enc = composite(&[(1, "A"), (7, "A"), (3, "B")]).expect("B is unambiguous");
+        assert_eq!(enc.ambiguous_chars().get(&'A'), Some(&vec![1, 7]));
+        assert!(enc.covers('B') && !enc.covers('A'));
+        let ok = enc
+            .encode_str("B")
+            .expect("the unambiguous character encodes");
+        assert_eq!(ok.cids, vec![3]);
+        let err = enc.encode_str("BA").expect_err("A has two codes");
+        assert_eq!(err.trigger, RInvTrigger::Ambiguous);
+        assert_eq!(err.character, Some('A'));
+        assert!(err.message.contains("1, 7"), "{}", err.message);
+        // A map with ONLY collisions still builds (something is decodable) but
+        // nothing in it is writable; a map with nothing single-character at
+        // all does not build.
+        let only = composite(&[(1, "A"), (7, "A")]).expect("builds; every write is refused");
+        assert!(only.encode_str("A").is_err());
+        let err = composite(&[(1, "AB")]).expect_err("only a ligature destination");
+        assert!(matches!(err, NotInjective::Empty), "{err:?}");
     }
 
     /// Empty input is not an error — replacing text with nothing is a

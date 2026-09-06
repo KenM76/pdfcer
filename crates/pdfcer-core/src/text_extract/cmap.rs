@@ -163,6 +163,24 @@ pub enum NotInjective {
 ///
 /// Cheap to clone is deliberately *not* claimed — a CMap is built once
 /// per font per extraction and shared by reference.
+/// What a `/ToUnicode` map says for certain and what it does not — the
+/// result of [`ToUnicodeCMap::partial_inverse`] (`Pass 256.1`).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct PartialInverse {
+    /// Characters produced by exactly ONE code: writing them back is exact.
+    pub unambiguous: BTreeMap<char, u32>,
+    /// Characters produced by two or more codes, with every such code in
+    /// ascending order: writing them back would be a guess, and is refused
+    /// by name at the character that needs it.
+    pub ambiguous: BTreeMap<char, Vec<u32>>,
+    /// Codes whose destination is more than one character (a ligature such
+    /// as `ffl`): no single character maps back to them.
+    pub multi_char_codes: usize,
+    /// Codes whose destination is the empty string.
+    pub empty_codes: usize,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct ToUnicodeCMap {
     /// Form-A `bfchar` entries and form-C array elements, materialized.
@@ -706,6 +724,89 @@ impl ToUnicodeCMap {
             return Err(NotInjective::Empty);
         }
         Ok(inverse)
+    }
+
+    /// The inverse map with its ambiguities KEPT rather than fatal
+    /// (`Pass 256.1`).
+    ///
+    /// [`Self::injective_inverse`] refuses the whole map on the first
+    /// character two codes share — which refused every edit in a font whose
+    /// only collision is, say, a ligature alternate, even edits that never
+    /// touch it. This returns everything the map does say for certain
+    /// (`unambiguous`) beside what it does not (`ambiguous`, each character
+    /// with every code that produces it), so a caller can refuse PER
+    /// CHARACTER: writing an unambiguous character is exact; writing an
+    /// ambiguous one is refused by name, with the candidate codes.
+    ///
+    /// Codes whose destination is several characters (a ligature) or none
+    /// are counted, not fatal — no single character maps back to them, so
+    /// they simply cannot be written. The two errors that remain are the
+    /// two that leave nothing to invert: a map over the size ceiling, and a
+    /// map with no single-character, unambiguous destination at all.
+    ///
+    /// # Errors
+    ///
+    /// [`NotInjective::TooLarge`] and [`NotInjective::Empty`].
+    pub fn partial_inverse(&self) -> Result<PartialInverse, NotInjective> {
+        let mut codes: BTreeSet<u32> = self.singles.keys().copied().collect();
+        let mut seen = codes.len();
+        if seen > MAX_BF_ENTRIES {
+            return Err(NotInjective::TooLarge {
+                entries: MAX_BF_ENTRIES,
+            });
+        }
+        for range in &self.ranges {
+            let span = u64::from(range.hi) - u64::from(range.lo) + 1;
+            if span > MAX_BF_ENTRIES as u64 {
+                return Err(NotInjective::TooLarge {
+                    entries: MAX_BF_ENTRIES,
+                });
+            }
+            for code in range.lo..=range.hi {
+                codes.insert(code);
+                seen += 1;
+                if seen > MAX_BF_ENTRIES {
+                    return Err(NotInjective::TooLarge {
+                        entries: MAX_BF_ENTRIES,
+                    });
+                }
+            }
+        }
+        let mut by_char: BTreeMap<char, Vec<u32>> = BTreeMap::new();
+        let mut multi_char_codes = 0usize;
+        let mut empty_codes = 0usize;
+        for code in codes {
+            let Some(text) = self.lookup(code) else {
+                continue;
+            };
+            let mut chars = text.chars();
+            match (chars.next(), chars.next()) {
+                (Some(ch), None) => by_char.entry(ch).or_default().push(code),
+                (None, _) => empty_codes += 1,
+                (Some(_), Some(_)) => multi_char_codes += 1,
+            }
+        }
+        let mut unambiguous = BTreeMap::new();
+        let mut ambiguous = BTreeMap::new();
+        for (ch, codes) in by_char {
+            match codes.as_slice() {
+                [one] => {
+                    unambiguous.insert(ch, *one);
+                }
+                _ => {
+                    ambiguous.insert(ch, codes);
+                }
+            }
+        }
+        if unambiguous.is_empty() && ambiguous.is_empty() {
+            return Err(NotInjective::Empty);
+        }
+        Ok(PartialInverse {
+            unambiguous,
+            ambiguous,
+            multi_char_codes,
+            empty_codes,
+        })
     }
 
     /// Whether this CMap contains no usable mapping at all.

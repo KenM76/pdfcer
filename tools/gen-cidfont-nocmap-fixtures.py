@@ -290,6 +290,66 @@ def cidfont_with_tounicode() -> bytes:
 
 
 
+def _cidfont_document(ttf: bytes, cid_to_gid: bytes, tounicode: bytes, content: bytes) -> bytes:
+    """The one-page Type0/Identity-H document every `cidfont_*` fixture is
+    (objects 1..10), parameterised by the four things that vary."""
+    objects: dict[int, bytes] = {
+        1: b"<< /Type /Catalog /Pages 2 0 R >>",
+        2: (
+            f"<< /Type /Pages /Kids [3 0 R] /Count 1 "
+            f"/MediaBox [0 0 {PAGE_WIDTH} {PAGE_HEIGHT}] "
+            f"/Resources << /Font << /F0 5 0 R >> >> >>"
+        ).encode("ascii"),
+        3: b"<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>",
+        4: raw_stream(content, ""),
+        5: (
+            b"<< /Type /Font /Subtype /Type0 /BaseFont /ABCDEF+pdfceSyntheticBox "
+            b"/Encoding /Identity-H /DescendantFonts [6 0 R] /ToUnicode 10 0 R >>"
+        ),
+        6: (
+            b"<< /Type /Font /Subtype /CIDFontType2 "
+            b"/BaseFont /ABCDEF+pdfceSyntheticBox "
+            b"/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> "
+            b"/FontDescriptor 7 0 R /CIDToGIDMap 8 0 R /DW 1000 >>"
+        ),
+        7: (
+            b"<< /Type /FontDescriptor /FontName /ABCDEF+pdfceSyntheticBox "
+            b"/Flags 4 /FontBBox [0 -200 1000 800] /ItalicAngle 0 "
+            b"/Ascent 800 /Descent -200 /CapHeight 700 /StemV 80 "
+            b"/FontFile2 9 0 R >>"
+        ),
+        8: raw_stream(cid_to_gid, ""),
+        9: raw_stream(ttf, f" /Length1 {len(ttf)}"),
+        10: raw_stream(tounicode, ""),
+    }
+    return serialize(objects)
+
+
+def cidfont_partially_injective_tounicode() -> bytes:
+    """The non-injective map with ONE unambiguous character beside the
+    collision (`Pass 256.1`).
+
+    CIDs 1 and 2 both mean 'A'; CID 3 means 'B'. The page shows CID 1 ("A")
+    on one line and CID 3 ("B") on another, so CID 3 is carried by the
+    embedded subset. Editing A -> B must SUCCEED (B is unambiguous and
+    carried); editing anything -> A must be refused BY CHARACTER, naming
+    CIDs 1 and 2 — the whole-font refusal the non-injective sibling used to
+    prove is exactly what this fixture proves is gone.
+    """
+    ttf = build_nocmap_truetype()
+    # CIDs 0..3 -> GIDs 0,1,1,1: every visible CID draws the one box glyph.
+    cid_to_gid = bytes([0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01])
+    tounicode = (
+        b"/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n"
+        b"/CMapName /pdfcer-Identity-UCS def\n/CMapType 2 def\n"
+        b"1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n"
+        b"3 beginbfchar\n<0001> <0041>\n<0002> <0041>\n<0003> <0042>\nendbfchar\n"
+        b"endcmap\nend\nend\n"
+    )
+    content = b"BT\n/F0 48 Tf\n72 600 Td\n<0001> Tj\n0 -60 Td\n<0003> Tj\nET\n"
+    return _cidfont_document(ttf, cid_to_gid, tounicode, content)
+
+
 def cidfont_noninjective_tounicode() -> bytes:
     """The same composite font carrying a NON-INJECTIVE `/ToUnicode`.
 
@@ -368,6 +428,10 @@ def main() -> int:
     p3 = OUT / "cidfonttype2-noninjective-tounicode.pdf"
     p3.write_bytes(cidfont_noninjective_tounicode())
     print(f"wrote {p3} ({p3.stat().st_size} bytes)  [NON-injective /ToUnicode]")
+
+    p4 = OUT / "cidfonttype2-partially-injective-tounicode.pdf"
+    p4.write_bytes(cidfont_partially_injective_tounicode())
+    print(f"wrote {p4} ({p4.stat().st_size} bytes)  [A ambiguous (CIDs 1,2), B unambiguous (CID 3); page shows A and B]")
     return 0
 
 

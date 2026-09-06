@@ -97,7 +97,7 @@ fn an_invertible_composite_run_is_editable_end_to_end() {
 /// single answer. Guessing would emit a real, wrong glyph — indistinguishable
 /// from correct output on screen, which is exactly why this refuses instead.
 #[test]
-fn a_non_injective_composite_font_is_refused_by_name() {
+fn a_non_injective_composite_fonts_ambiguous_character_is_refused_by_name() {
     let doc = load("cidfonttype2-noninjective-tounicode.pdf");
     let err = edit_text(
         &doc,
@@ -108,11 +108,15 @@ fn a_non_injective_composite_font_is_refused_by_name() {
 
     match err {
         EditError::Refused(r) => {
-            assert_eq!(r.trigger, RInvTrigger::Composite);
+            // `Pass 256.1`: the refusal is now PER CHARACTER. The font is
+            // accepted (nothing else in it is ambiguous), and the request
+            // fails at the one character two codes produce, naming both.
+            assert_eq!(r.trigger, RInvTrigger::Ambiguous);
+            assert_eq!(r.character, Some('A'));
             let msg = r.message;
             assert!(
-                msg.contains("cannot be inverted"),
-                "the refusal must name the obstruction: {msg}"
+                msg.contains("different codes") && msg.contains("1, 2"),
+                "the refusal must name the obstruction and the codes: {msg}"
             );
             // R110: the operator has to be able to tell "this font can never
             // be edited" from "pdfcer cannot do it yet". This is the first.
