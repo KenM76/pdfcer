@@ -95785,3 +95785,162 @@ ceiling `R241` all unchanged. Docs-only filing: `ROADMAP.md`,
   `sign --certify`, `sign --field-name`, the visible signature that shows who
   signed, and `format-text --bold` that just works. `pdfcer1` still holds
   0.41.0 if anything regresses.
+
+
+## 2026-09-06 (456th filing) — `Pass 14.6` MINTED AND SHIPPED in one filing (`b64ddb6`, unreleased, post-`v0.42.0` — the first item of the `0.43.0` batch): a Type 0 font's `/FontDescriptor` is read from the DESCENDANT CIDFont (§9.7.4.1, Table 117; Table 121 puts none on the parent), so a composite run's `embedded`, `flags` and `symbolic` describe the font that carries the glyphs. Before: every composite run was `embedded=false` — a false *"NON-embedded; a bundled Base-14 substitute renders the edited glyphs"* disclosure and `EditGlyphSource::NonEmbedded` on most real documents (the requester's `AAAAAA+Arimo-Bold`, 8,640 bytes of `/FontFile2`), and the embedded-subset floor `R-INV-1` NEVER ran on a composite run. The requester's §4 question answered by MEASUREMENT: new fixture `cidfonttype2-subset-floor.pdf` (`/ToUnicode` maps A, B, C; the page paints A and C) — `A → B` went to the writer before, refused `R-INV-1 … code 2 … does not already carry on this page` (`TargetAbsent`, `'B'`) now; `A → C` succeeds. The floor itself untouched (`carried_codes` already held CIDs). `tests/composite_descriptor.rs` RUN HERE 2/2. Family **14** (where `classify_font` and the floor were minted, `Pass 14.1`), NOT `256.2` — the third decline of that ID on the 442nd's precedent. ★ A QUEUE MISS recorded: the request (mtime `2026-09-05 18:05:33`) sat unscoped for 12 h 57 m across eleven filings while its three same-hour siblings shipped; the 445th's `ls -lt`-newest check could not see it. `FEATURES.md` untouched (measured — no row claimed composites report non-embedded). No decision.
+
+**Shipped:**
+- `Pass 14.6` — `b64ddb6` *"fix(core): a Type 0 font's /FontDescriptor is
+  read from the descendant CIDFont — composite runs are embedded, and the
+  subset floor now guards them"*, authored `2026-09-06 07:02:37 -0400`, 4
+  files `+128/−1`: `crates/pdfcer-core/src/text_edit/edit.rs` (+21/−1, the
+  `descriptor_holder` hunk at `:3073–3091`),
+  `crates/pdfcer-core/tests/composite_descriptor.rs` (new, 78 lines, 2
+  tests), `fixtures/synthetic/text/cidfonttype2-subset-floor.pdf` (new,
+  2,216 B), `tools/gen-cidfont-nocmap-fixtures.py` (+30,
+  `cidfont_subset_floor()`). Answers
+  `D:/Dev/FeatureRequests/pdfce_FeatureRequests/open/request_classify_font_reads_fontdescriptor_from_the_type0_parent_where_it_never_is.md`
+  (pdfcer-gui, 2026-09-05 18:05). Reply:
+  `open/reply_2026-09-06-composite-descriptor-read-from-the-descendant-FIXED.md`
+  (06:53, *"hash in the next filing"* — this one). Full entry: `ROADMAP.md`
+  *Shipped*, 456th head + `### Pass 14.6`.
+
+**Decisions made this session:** none. Decision ceiling `138`. The
+requester's §5 alternative (scope the floor to simple fonts explicitly, by
+name) was DECLINED by the engineer with the fixture as the reason — recorded
+in the Pass entry as a criterion, not minted as a decision: the floor's
+comment never claimed a font kind, and the measurement shows the composite
+`/ToUnicode` gate is not sufficient on its own.
+
+**Findings + decisions:**
+- **Two of pdfcer's own surfaces disagreed about one font in one file, and
+  the one the operator meets while editing was the wrong one.** `list-fonts`
+  (which reads the descendant) said `embedded=FontFile2 bytes=8640`;
+  `edit-text` (`classify_font`, reading the parent) said NON-embedded. The
+  contradiction was visible on the requester's screen as
+  `glyph_source=Bundled subset=true` — a pair no real font can produce, since
+  a subset tag on a non-embedded font is meaningless. Worth carrying as a
+  pattern: **a `subset=true` beside `embedded=false` is a self-refuting
+  report** (hard rule 10's shape — two forms of one fact, filed side by side,
+  disagreeing).
+- **The requester's §4 — *"could a `/ToUnicode` broader than the retained
+  glyphs let a CID through?"* — is YES, measured, not argued.** They could
+  not construct the corruption on their file because real subsetters emit
+  `/ToUnicode` from exactly the glyphs kept; the synthetic fixture separates
+  the map from the painted set and the pre-fix writer accepted CID 2 with no
+  painted glyph vouching for it. The saved file would have carried a blank
+  where `B` should be, with no refusal. **The fix that closes it is the same
+  one-line resolution change that fixes the disclosure** — the floor was
+  always written for both kinds; it was starved of the `embedded` bit.
+- **Accepted behaviour change, stated so nobody files it as a regression:** a
+  composite-subset edit typing a character whose CID is in `/ToUnicode` but
+  painted only on a DIFFERENT page of the document is now refused on this
+  page (`TargetAbsent`), exactly as a simple embedded subset is. The
+  requester predicted this and asked the engineer to decide; the engineer
+  kept the page-scoped proxy for both kinds. A document-scoped floor for
+  composite subsets is the *Not in this Pass* line.
+- **The queue miss, and its mechanism.** Four `pdfcer-gui` requests landed
+  between 17:08 and 18:09 on 2026-09-05; three were scoped and shipped
+  (`256.0`, `142.2`, `14.5`) across the 443rd–445th filings, and the 18:05
+  one was not. The 445th's premise correction found the 20:43 request by
+  reading the NEWEST `request_*` — a check that answers *"is anything newer
+  than the last thing I scoped?"*, which cannot see an older file that was
+  skipped. `grep -n '18:05' ROADMAP.md SESSION_LOG.md` returns nothing before
+  this filing. The engineer's `c192f76` `NEXT_SESSION.md:19` *"the inbound
+  queue is EMPTY"* was written with the file on disk. **A queue check has to
+  diff the folder against the set of scoped names, not read its head.**
+  Reported to the engineer (the queue parse and `NEXT_SESSION.md` are his);
+  not minted as a rule at n=1 — the 445th already recorded one instance of
+  *"the check was made before the arrival, or missed it"*, so this is n=2
+  of the wider *"queue said empty and was not"* shape, and the mint trigger
+  is named here: a third.
+- **Family choice, for the record:** `256.2` has now been offered three
+  times (443rd, 445th, 456th) and declined three times on the 442nd's
+  precedent — file under the function's origin. `classify_font`, `R-INV-1..8`,
+  the embedded-subset floor, `EditGlyphSource` and `trust_disclosure` are
+  all `Pass 14.1`'s (`ROADMAP.md:109393`). `14.6` verified free by
+  `grep -o "Pass 14\.[0-9a-z]*" | sort | uniq -c` (14.0–14.5 present, `14.x`
+  the generic form, `14.6` zero hits in `docs/`).
+- **Rule-11 sweep** (bare keywords `NonEmbedded`, `composite`, `floor`,
+  `FontDescriptor`, `glyph_source` over `text_edit/edit.rs`, `text_edit/mod.rs`,
+  `pdfcer-cli/src/main.rs`, `docs/core-api/`, `FEATURES.md`; every hit read):
+  ZERO survivors in `crates/`. Correct hits recorded so the next sweep does
+  not "fix" them: `edit.rs:3773` (a test asserting `NonEmbedded` on a
+  non-embedded simple Helvetica fixture), `edit.rs:546`/`:3667` (neutral
+  trust-level doc comments), `edit.rs:1913` (the floor's comment, which never
+  named a font kind), `main.rs:418` (`CompositeNotEmbedded` is
+  `pdfcer-render`'s counter, `interpret.rs:1231`, not `classify_font`).
+  ONE `docs/` survivor, engineer-owned: `NEXT_SESSION.md:19`.
+- **Session gotcha (not a rule; the engineer's RAG entry, cross-referenced):**
+  `D:` reached ZERO bytes free mid-session — `target/debug/deps` 141 GB of
+  stale test binaries + `incremental` 45 GB (195 GB `target/`); first
+  symptom rustc `STATUS_ACCESS_VIOLATION`, then git *"Out of diskspace"* on
+  `index.lock`. Fix: kill the stuck `cargo`/`rustc`, `rm -rf
+  target/debug/{deps,incremental}` — 186 GB back, one debug rebuild. `df -h
+  /d` here: 200 G free of 954 G. Entry on disk and indexed:
+  `D:/dev/rag/rust/cargo_target_dir_debug_deps_grows_without_bound_and_fills_the_disk_195gb_test_binaries.md`
+  (1,690 B; `index.md:4332`). Suggested for `NEXT_SESSION.md` (engineer's
+  file): a session-start `du -sh target/` habit line.
+
+**Sourcing (hard rule 8).** Measured here, with a shell: `git status
+--porcelain` (CLEAN at the start of this filing); `git rev-parse --short
+origin/main` = `c192f76`; `git log --oneline origin/main..HEAD` = `b64ddb6`
+only; `git describe --tags --abbrev=0` = `v0.42.0`; `git show -s --format=%B
+b64ddb6`; `git show --stat b64ddb6` (4 files, `+128/−1`); `git show b64ddb6
+-- crates/pdfcer-core/src/text_edit/edit.rs` (the hunk read in full); `cat`
+of the test file, the request and the reply; `ls -la --time-style=full-iso`
+on the channel folder (request `2026-09-05 18:05:33.087 -0400`, reply
+`2026-09-06 06:53:54.054 -0400`); `git diff --stat HEAD --
+fixtures/synthetic/text/` EMPTY (the four sibling fixtures' `06:51` mtimes
+are the generator's re-emission, their bytes equal `HEAD`'s); `cargo test -p
+pdfcer-core --test composite_descriptor` → **2 passed** (9.65 s compile);
+`grep -rn 'Table 121' D:/Dev/Rag-Specialized/PDF_Spec/` confirms Table 121 =
+the Type 0 font dictionary (§9.7.6) before citing it; `python
+tools/check-ledger-numbers.py` (filings `455` → next free `456`; `R241`;
+decisions `138`; Pass `257.0`); `ls -t D:\Dev\pdfce-backups` newest
+`pdfcer-2026-09-03-1a31d2d-full.bundle`, `git rev-list --count 1a31d2d..HEAD`
+= **116** before this filing; `df -h /d`; `ls`/`grep` on the RAG entry and
+its index line. RELAYED only: the sabotage run, the workspace suite,
+fmt/clippy/gates on the engineer's tree, the 141/45/186 GB figures, the
+requester's `list-fonts`/`edit-text` output.
+
+**`docs/FEATURES.md`:** NOT TOUCHED. `grep -in "non-embedded\|composite fonts
+report\|glyph_source\|bundled base-14" docs/FEATURES.md` = nothing; rows
+`:191` (edit in place incl. composite/CID) and `:355` (`list-fonts`,
+embedded/subset status — the surface that was right) make no claim this fix
+falsifies. A defect fix that moves no capability box leaves the file alone.
+
+**ROADMAP edits.** 456th head at the top of *Shipped* with its ledger table,
+followed by the new `### Pass 14.6` entry (Before / After / requester's file
+/ tests / five acceptance criteria written at ship / Not in this Pass).
+Ledger: filings `455` → `456`; Pass ceiling `257.0` unchanged (`14.6` is a
+sub-ID below it); decision ceiling `138`, rule ceiling `R241` unchanged.
+Docs-only filing: `ROADMAP.md`, `SESSION_LOG.md`, staged by name.
+`ARCHITECTURE.md` §12: nothing minted. No RAG tier written by this role —
+the one finding of the session is the engineer's Rust-RAG entry, already on
+disk and indexed.
+
+**Gates (this role, on the filing tree): in the filing commit's message.**
+
+**Still in flight:**
+- Unpushed after this filing: `b64ddb6` + this filing (`origin/main` =
+  `c192f76`). Standing-authorized push (decision 090).
+- Unreleased: `b64ddb6` — the first item of the `0.43.0` batch; `v0.42.0` =
+  `e59b084`.
+- *Next up* empty. *Backlog* signing remainder `10.10`, `10.11`, `10.6`.
+- Owed (engineer): `NEXT_SESSION.md:19` *"the inbound queue is EMPTY"* —
+  stale at write time; plus the suggested `du -sh target/` habit line, and
+  the queue-check shape (diff the folder against scoped names, not `ls -lt`
+  head) for the next refresh.
+- The `R-INV-2` composite branch with a STREAM `/Encoding` is reachable and
+  untested — an open case named in the Pass entry, not owed.
+- Backup bundle is 116 commits behind `HEAD` (measured); cadence note.
+
+**For next session:**
+- Engineer: push; refresh `NEXT_SESSION.md` (the three owed lines above);
+  re-run the queue check as a set difference — this filing's miss is the
+  second time "queue empty" was written with a request on disk.
+- Operator: nothing to try yet — the fix ships with `0.43.0`. When it does:
+  `edit-text` on a document whose fonts are embedded subsets (most real ones)
+  stops saying a bundled substitute renders your letters, and a character the
+  page never painted is refused by name instead of being written blank.
