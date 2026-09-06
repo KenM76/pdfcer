@@ -112,6 +112,75 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★ 448th filing, 2026-09-06 (early; the 2026-09-05 session still running
+past midnight — dated by the clock, as the 443rd–447th were; the git author
+stamps read `2026-09-05 22:26:40` and `22:26:41 -0400`) — NO PASS SHIPPED.
+Two commits filed, PRE-RELEASE: the 447th's two owed rule-11 survivors
+DISCHARGED, and the `0.41.0` version bump landed.** **`3ae1fb4`** *"docs(core):
+two stale 'planned against the base' survivors after Pass 257.0"* — 2 files,
+`+9/−7` (`git show --stat`): (a) `crates/pdfcer-core/src/text_edit/format.rs`
+module header (`//!`, `:203–208`) no longer says the target font *"must be a
+REAL, already-existing font RESOURCE … this cut adds no new resource-dict
+entry"*; it now states the `Pass 162.0` contract — an existing resource on the
+page OR a standard-14 name the page lacks, bound as a new `/Font` object
+(`created_font`), still nothing embedded; a face that is neither is refused
+(the embedded-donor half of FF-C, `Pass 142.0`). (b) `crates/pdfcer-core/src/edit.rs`
+`:10004–10006`, the surviving `Pass 251.0` reflow refusal's USER-FACING string
+now reads *"reflow re-emits the page's first content stream only and
+committing would drop the added run, so save and reopen before reflowing this
+page"* instead of *"reflow is planned against the base content"* — the
+disclosure and the comment above it (`:9995–9996`, *"the plan re-emits
+contents[0] only, and the sweep is what would drop the extra stream's run"*)
+now give the SAME reason. Behaviour unchanged in both: comment and string
+edits only. **`46601b0`** *"chore: bump workspace version to 0.41.0"* — the
+RELEASE BUMP: `Cargo.toml` `[workspace.package] version = "0.40.0"` →
+`"0.41.0"`; `Cargo.lock` `+5/−5`; **`fuzz/Cargo.lock` `+2/−2`, and its
+`pdfcer-core`/`pdfcer-render` entries go `0.39.0` → `0.41.0` DIRECTLY** — the
+fuzz lock was never re-locked for `v0.40.0` (it had sat modified-and-unstaged
+since that bump; the 447th recorded it as the one unrelated modification at
+the start of that filing), so it skips a version here and rides along with the
+bump. **★ The release itself is NOT cut at this filing** — `git tag --list
+'v0.41*'` is EMPTY and `git describe --tags --abbrev=0` = `v0.40.0`; the
+engineer pushes and cuts it next (decisions 090/121, standing-authorized;
+gates first), and the 449th filing carries the tag/zip/sha/CI facts. **No
+release fact is claimed here.**
+
+**Re-sweep (rule 11, clause (e)) — the same claim over the same file set, at
+`46601b0`:** `grep -rin "planned against the base|already-existing font"` over
+`crates/pdfcer-core/src`, `crates/pdfcer-cli/src`, `docs/core-api`,
+`docs/FEATURES.md`, `docs/ARCHITECTURE.md` returns TWO hits, BOTH correctly
+past-tensed and NOT to be "fixed": `edit.rs:9946` (*"Before 257.0 it planned
+against the base document"* — the `reflow_block` rustdoc, history) and
+`docs/core-api/02-editing-and-saving.md:2649` (*"used to re-derive the page
+from the base document … Since `Pass 257.0` it takes the session's
+`DocumentView`"*). **Zero live survivors of the 447th's claim remain.**
+
+**`docs/FEATURES.md`: NOT TOUCHED — no capability changed.** Both commits are
+comment/string and version-metadata edits; the `Pass 257.0` *Implemented* row
+and the *Reflow within a block* row filed by the 447th already describe the
+behaviour these wordings now match.
+
+**Sourcing (hard rule 8).** This role HAD a shell and measured: `git log
+--oneline -8`; `git status --short` = CLEAN at the start of this filing (the
+447th's three unstaged bump files are now `46601b0`); `git show -s --format=%B`
+and `git show --stat --format=` for both commits; the full diff of `3ae1fb4`
+READ (`git show --format= 3ae1fb4`) and the `Cargo.toml`/`fuzz/Cargo.lock`
+hunks of `46601b0` READ; the corrected source lines by `sed -n 200,212p
+format.rs` and `sed -n 9990,10010p edit.rs` on the working tree; author dates
+by `git log --format='%h %ad' -3`; `git remote -v` = `origin`
+`github.com/KenM76/pdfcer.git`; **`origin/main` = `bdefb09`; `git log
+--oneline origin/main..HEAD | wc -l` = 17 before this filing; `git log
+--oneline v0.40.0..HEAD | wc -l` = 23 before this filing**; the re-sweep grep
+above; `check-ledger-numbers.py` CLEAN (filings ceiling read `447 -> next free
+448`); `check-commits-filed.py` before this filing: `3ae1fb4` UNFILED (the one
+blocker), `46601b0` the DEFERRED tip. Nothing relayed.
+
+**Ledger.** Filings ceiling `447` → **`448`**; Pass ceiling **`257.0`
+UNCHANGED** (nothing minted); decision ceiling **`138` UNCHANGED**, next free
+`139`; standing rules ceiling **`R241` unchanged**, next free `R242`; open
+operator questions: none minted, next free `(ce)`. *Next up* UNCHANGED
+(`Pass 179.0` only). Owed-survivor ledger: **ZERO owed** after this filing.
+
 **★★★★ 447th filing, 2026-09-06 (early; the 2026-09-05 session still running
 past midnight — dated by the clock, as the 443rd–446th were; the git author
 stamps read `2026-09-05 22:11:23 -0400`) — `Pass 257.0` SHIPPED, unreleased
@@ -256,6 +325,14 @@ remit; OWED to the engineer):**
   disclosure and its comment now disagree about WHY, and the string is the
   half that reaches the operator. The refusal itself is correct; only the
   reason wording is stale.
+  > **★ BOTH DISCHARGED at `3ae1fb4` (448th filing, 2026-09-06).** The
+  > `format.rs` module header (`:203–208`) now states the `Pass 162.0`
+  > contract (existing resource OR a standard-14 name bound as a new `/Font`;
+  > embedded-donor face still refused, `Pass 142.0`); the `Pass 251.0`
+  > refusal string (`edit.rs:10004–10006`) now gives the comment's reason
+  > (*"reflow re-emits the page's first content stream only and committing
+  > would drop the added run"*). Verified by reading the diff and the working
+  > tree, not the commit subject. Re-sweep at `46601b0`: zero live survivors.
 - Survivors that are CORRECT and must not be "fixed": `edit.rs:13932` (*"one
   vector edit per page per session, then save and reopen"* — a historical
   bug description, 2026-08-04); every `save-and-reopen` in `dimension/`,

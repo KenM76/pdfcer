@@ -94396,3 +94396,89 @@ the four files — a different measure, filed beside it).
   session becomes typeable at once — the *"save this document, open it, and
   type the 'q' once more"* sentence goes away, and reflow after an edit on
   the same page no longer asks for a save.
+
+## 2026-09-06 (448th filing) — NO PASS SHIPPED. Pre-release filing: the 447th's two owed rule-11 survivors DISCHARGED at `3ae1fb4` (the `format.rs` module header now states the `Pass 162.0` set-font contract; the `Pass 251.0` reflow refusal string now gives the comment's reason — re-emits the first content stream only, committing would drop the added run), and the `0.41.0` workspace bump landed at `46601b0` (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` — the fuzz lock jumps `0.39.0` → `0.41.0`, never having been re-locked for `v0.40.0`). Release NOT cut yet — no `v0.41*` tag; the 449th carries the release facts. Re-sweep at `46601b0`: zero live survivors. `FEATURES.md` untouched — no capability change. No decision.
+
+**Shipped:** nothing. Two commits filed —
+- **`3ae1fb4`** — *"docs(core): two stale 'planned against the base' survivors
+  after Pass 257.0"*, 2 files, `+9/−7`, author stamp `2026-09-05 22:26:40
+  -0400`. Comment/string edits only, behaviour unchanged:
+  1. `crates/pdfcer-core/src/text_edit/format.rs:203–208` (module `//!`) —
+     was *"the target must be a REAL, already-existing font RESOURCE … this cut
+     adds no new resource-dict entry"*; now: an existing resource on the page
+     OR, since `Pass 162.0`, a standard-14 name the page lacks, bound as a new
+     `/Font` (`created_font`), nothing embedded; neither → refused (embedded-
+     donor half of FF-C, `Pass 142.0`).
+  2. `crates/pdfcer-core/src/edit.rs:10004–10006` — the surviving `Pass 251.0`
+     refusal's user-facing string; was *"reflow is planned against the base
+     content and would drop the added run"*; now *"reflow re-emits the page's
+     first content stream only and committing would drop the added run, so
+     save and reopen before reflowing this page"*. Matches the comment at
+     `:9995–9996`.
+- **`46601b0`** — *"chore: bump workspace version to 0.41.0"*, author stamp
+  `22:26:41 -0400`. `Cargo.toml` `[workspace.package] version` `"0.40.0"` →
+  `"0.41.0"`; `Cargo.lock` `+5/−5`; `fuzz/Cargo.lock` `+2/−2` with
+  `pdfcer-core` and `pdfcer-render` `0.39.0` → `0.41.0` directly (the lock was
+  never re-locked for `v0.40.0`; the 447th saw it modified-and-unstaged at
+  its start). **The release bump, not the release**: `git tag --list 'v0.41*'`
+  EMPTY, `git describe --tags --abbrev=0` = `v0.40.0`.
+
+**`docs/FEATURES.md`.** NOT TOUCHED — no capability changed; the `Pass 257.0`
+and *Reflow within a block* rows filed by the 447th already describe what
+these wordings now say.
+
+**ROADMAP edits.** 448th head at the top of *Shipped*; a dated DISCHARGED note
+under the 447th head's two owed-survivor bullets. Docs-only filing:
+`ROADMAP.md`, `SESSION_LOG.md`, staged by name.
+
+**Decisions made this session:** none. Decision ceiling `138`.
+
+**Findings + decisions:**
+- **Both 447th rule-11 survivors DISCHARGED** by `3ae1fb4` — verified by
+  reading the diff and the working-tree lines, not the subject.
+- **Re-sweep (clause (e)), same claim, same file set, at `46601b0`:**
+  `grep -rin "planned against the base|already-existing font"` over
+  `crates/pdfcer-core/src`, `crates/pdfcer-cli/src`, `docs/core-api`,
+  `FEATURES.md`, `ARCHITECTURE.md` → TWO hits, both correctly past-tensed and
+  NOT to be "fixed": `edit.rs:9946` (*"Before 257.0 it planned against the
+  base document"*) and `docs/core-api/02-editing-and-saving.md:2649` (*"used
+  to re-derive the page from the base document"*). Zero live survivors.
+- **The fuzz lock skipped a version.** `fuzz/Cargo.lock` went `0.39.0` →
+  `0.41.0` in one hop: the `v0.40.0` bump changed the workspace version but
+  the fuzz lock's re-lock was never committed (it sat modified in the tree
+  through the 443rd–447th filings). Recorded so a reader of the lock history
+  does not go looking for a missing `0.40.0` commit; nothing owed — `46601b0`
+  closes it.
+
+**Sourcing (hard rule 8).** Measured here, with a shell: `git log --oneline
+-8`; `git status --short` = CLEAN at the start of this filing; `git show -s
+--format=%B` and `git show --stat --format=` for `3ae1fb4` and `46601b0`; the
+full `3ae1fb4` diff and the `Cargo.toml`/`fuzz/Cargo.lock` hunks of `46601b0`
+READ; `sed -n 200,212p format.rs`, `sed -n 9990,10010p edit.rs` on the working
+tree; author dates by `git log --format='%h %ad' -3`; `git remote -v` =
+`origin` `github.com/KenM76/pdfcer.git`; **`origin/main` = `bdefb09`; `git log
+--oneline origin/main..HEAD | wc -l` = 17 before this filing; `git log
+--oneline v0.40.0..HEAD | wc -l` = 23 before this filing**; `git tag --list
+'v0.41*'` empty; `check-ledger-numbers.py` CLEAN (`447 -> next free 448`);
+`check-commits-filed.py` before this filing: `3ae1fb4` UNFILED (the single
+blocker), `46601b0` the deferred tip. Nothing relayed.
+
+**Gates (this role, on the filing tree): in the filing commit's message.**
+
+**Still in flight:**
+- *Next up*: `Pass 179.0` only (automatic bold ladder, decision `106`, NOT
+  STARTED since the 340th filing).
+- Unpushed: seventeen commits plus this filing (against `origin/main` =
+  `bdefb09`). Standing-authorized push (decision 090).
+- Unreleased since `v0.40.0`: twenty-three commits plus this filing; the
+  version already reads `0.41.0` at `46601b0`. Release standing-authorized
+  (decision 121) — gates, fresh-folder smoke, `verify-release.py`, tag,
+  package, OneDrive, then the 449th filing records tag/zip/sha/CI.
+- Owed (engineer): NOTHING from this role's ledger — the survivor ledger is
+  at zero for the first time since the 445th filing.
+- `pdfcer-gui`: unchanged from the 447th (consumes `257.0` on its next pin).
+
+**For next session:**
+- Engineer: push, cut `v0.41.0`, dispatch the 449th with the release facts.
+- Operator: nothing new to try; `0.41.0` is the batch that carries
+  `Pass 14.5`, `256.0`, `142.2`, `256.1`, `257.0`.
