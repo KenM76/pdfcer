@@ -218,7 +218,9 @@ def main() -> int:
         subject = git("log", "-1", "--format=%s", token).strip()
         replacement = ""
         if subject:
-            for line in git("log", "--format=%h\t%s", "HEAD").splitlines():
+            # `--abbrev=7`: citations are 7 characters; git's default `%h`
+            # length grows with the object count (2026-09-06).
+            for line in git("log", "--abbrev=7", "--format=%h\t%s", "HEAD").splitlines():
                 h, _, s = line.partition("\t")
                 if s == subject:
                     replacement = h

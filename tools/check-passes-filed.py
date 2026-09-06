@@ -161,7 +161,11 @@ def main() -> int:
     # history is 323 commits and scanning it takes 0.5 s, so the window was
     # buying nothing and costing exactly the case it exists for.
     rng = f"{args.since}..HEAD" if args.since else "--all"
-    raw = git("log", rng, "--format=%h\x1f%s")
+    # `--abbrev=7`: the record cites SEVEN-character hashes, and git's default
+    # `%h` length GROWS with the object count — a fresh CI clone crossed the
+    # threshold to 8 characters on 2026-09-06 and every citation stopped
+    # matching at once (20 "UNFILED", all of them filed). Pin the join key.
+    raw = git("log", rng, "--abbrev=7", "--format=%h\x1f%s")
 
     roadmap = ROADMAP.read_text(encoding="utf-8", errors="replace")
 
@@ -226,7 +230,7 @@ def main() -> int:
     # `--all` is the scan range, so the tip is taken from HEAD explicitly
     # rather than from the first line of the log, which under `--all` is the
     # newest commit on ANY ref and need not be the commit under test.
-    tip = git("rev-parse", "--short", "HEAD").strip()
+    tip = git("rev-parse", "--short=7", "HEAD").strip()
     pending = [c for c in claimed if c[0] not in roadmap and not is_docs_only(c[0])]
     deferred = [c for c in pending if c[0] == tip and not args.strict_tip]
     unfiled = [c for c in pending if c not in deferred]

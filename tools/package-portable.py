@@ -179,7 +179,7 @@ def main() -> int:
         return 1
 
     # --- identity, before anything is built --------------------------------
-    short = git("rev-parse", "--short", "HEAD") or "unknown"
+    short = git("rev-parse", "--short=7", "HEAD") or "unknown"
     subject = git("log", "-1", "--format=%s")
     # ★ DIRTY MEANS "THE BINARIES ARE NOT THIS COMMIT", NOT "THE TREE MOVED".
     #

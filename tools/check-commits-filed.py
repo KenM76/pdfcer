@@ -325,7 +325,9 @@ def main() -> int:
     )
     baseline = load_baseline()
 
-    log_args = ["log", "--format=%h"]
+    # `--abbrev=7`: the join key must be the length the record cites; git's
+    # default `%h` grows with the object count (see the sibling gate, 2026-09-06).
+    log_args = ["log", "--abbrev=7", "--format=%h"]
     if args.since:
         log_args.append(f"--since={args.since}")
     hashes = [h for h in git(*log_args).split() if h]
