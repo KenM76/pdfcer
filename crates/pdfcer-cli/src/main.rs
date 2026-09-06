@@ -1901,7 +1901,10 @@ enum Command {
         #[arg(long)]
         field_name: Option<String>,
         /// Make the signature visible: the widget rectangle `x0,y0,x1,y1` in
-        /// points on `--page`.
+        /// points on `--page`. The box shows a frame and, in Helvetica shrunk
+        /// to fit, the signer's name, the date, and `--reason`/`--location`
+        /// when given; a box too small for that text at 4 pt is refused by
+        /// name (never clipped). The lines are printed on success.
         #[arg(long, allow_hyphen_values = true)]
         visible: Option<String>,
         /// 1-based page for `--visible`.
@@ -27279,6 +27282,19 @@ fn cmd_sign(args: &SignArgs<'_>) -> u8 {
         u8::from(report.self_verified),
         bytes.len(),
     );
+    // Rule 4: the operator cannot read the appearance back without a viewer,
+    // so say what the box shows.
+    if !report.appearance_lines.is_empty() {
+        println!(
+            "  appearance: {}",
+            report
+                .appearance_lines
+                .iter()
+                .map(|l| quoted_token(l))
+                .collect::<Vec<_>>()
+                .join(" | ")
+        );
+    }
     exit::SUCCESS
 }
 

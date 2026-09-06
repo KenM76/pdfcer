@@ -80,7 +80,87 @@ EXPECTED = [
     "ecp256.cer",
     "rsa2048.key.der",
     "ecp256.key.der",
+    # `Pass 10.14` additions (built from the EXISTING rsa2048 material unless
+    # `--regen`, so adding a shape does not re-mint every key):
+    "rsa2048-nolocalkeyid.pfx",
+    "ecp384-modern.pfx",
+    "ecp384.cer",
+    "ecp384.key.der",
 ]
+
+LOCAL_KEY_ID = "local_key_id"  # asn1crypto's name for 1.2.840.113549.1.9.21
+
+
+def pkcs12_kdf(password: str, salt: bytes, iterations: int, key_id: int, n: int) -> bytes:
+    """RFC 7292 Appendix B.2 with SHA-256 (u = 32, v = 64) — the same
+    derivation `pdfcer-core::sign::pkcs12` performs, ported so the MAC of a
+    hand-edited container can be recomputed. Password enters as BMPString
+    with a trailing NUL (P12-11)."""
+    import hashlib
+    u, v = 32, 64
+    d = bytes([key_id]) * v
+    pw = password.encode("utf-16-be") + b"\x00\x00"
+
+    def repeat_to_v(src: bytes) -> bytes:
+        if not src:
+            return b""
+        length = v * -(-len(src) // v)
+        return (src * (length // len(src) + 1))[:length]
+
+    i = bytearray(repeat_to_v(salt) + repeat_to_v(pw))
+    out = b""
+    for _ in range(-(-n // u)):
+        a = hashlib.sha256(d + bytes(i)).digest()
+        for _ in range(1, iterations):
+            a = hashlib.sha256(a).digest()
+        out += a
+        b = (a * (v // len(a) + 1))[:v]
+        b_int = int.from_bytes(b, "big") + 1
+        for off in range(0, len(i), v):
+            block = int.from_bytes(i[off:off + v], "big") + b_int
+            i[off:off + v] = (block & ((1 << (8 * v)) - 1)).to_bytes(v, "big")
+    return out[:n]
+
+
+def strip_local_key_id(src: Path, dst: Path) -> None:
+    """Remove every `localKeyId` bag attribute from a PFX whose bags sit in
+    PLAINTEXT `data` SafeContents (export with `-certpbe NONE` so the cert
+    bags are not inside `encryptedData`), then recompute the SHA-256 MAC
+    over the rewritten authSafe. The result pairs key and leaf ONLY by
+    public-key identity — the fallback `Pkcs12Signer::from_der` documents."""
+    import hmac
+    import hashlib
+    from asn1crypto import core, pkcs12 as p12
+
+    pfx = p12.Pfx.load(src.read_bytes())
+    auth = p12.AuthenticatedSafe.load(pfx["auth_safe"]["content"].native)
+    removed = 0
+    new_cis = []
+    for ci in auth:
+        if ci["content_type"].native != "data":
+            raise SystemExit("strip_local_key_id: a SafeContents is encrypted; export with -certpbe NONE")
+        sc = p12.SafeContents.load(ci["content"].native)
+        bags = []
+        for bag in sc:
+            kept = [a for a in bag["bag_attributes"] if a["type"].native != LOCAL_KEY_ID]
+            removed += len(bag["bag_attributes"]) - len(kept)
+            bags.append(p12.SafeBag({"bag_id": bag["bag_id"], "bag_value": bag["bag_value"], "bag_attributes": p12.Attributes(kept)}))
+        new_cis.append(p12.ContentInfo({"content_type": "data", "content": core.OctetString(p12.SafeContents(bags).dump(force=True))}))
+    auth_bytes = p12.AuthenticatedSafe(new_cis).dump(force=True)
+    mac_data = pfx["mac_data"]
+    assert mac_data["mac"]["digest_algorithm"]["algorithm"].native == "sha256"
+    salt = mac_data["mac_salt"].native
+    iterations = mac_data["iterations"].native
+    key = pkcs12_kdf(PASSWORD, salt, iterations, 3, 32)
+    mac = hmac.new(key, auth_bytes, hashlib.sha256).digest()
+    out = p12.Pfx({
+        "version": pfx["version"],
+        "auth_safe": p12.ContentInfo({"content_type": "data", "content": core.OctetString(auth_bytes)}),
+        "mac_data": p12.MacData({"mac": {"digest_algorithm": {"algorithm": "sha256"}, "digest": mac}, "mac_salt": salt, "iterations": iterations}),
+    })
+    dst.write_bytes(out.dump(force=True))
+    if removed < 2:
+        raise SystemExit(f"strip_local_key_id: expected to remove a localKeyId from the key AND the cert bag, removed {removed}")
 
 
 def run(*args: str) -> None:
@@ -130,6 +210,28 @@ def export_pfx(work: Path, key_pem: Path, cert_pem: Path, name: str, out: Path, 
     run(*args)
 
 
+def added_shapes(work: Path, rsa_key: Path, rsa_cert: Path, major: int) -> None:
+    """`Pass 10.14`: the stripped-`localKeyId` RSA store and the EC P-384 store."""
+    plain = work / "rsa-plaincerts.pfx"
+    run("openssl", "pkcs12", "-export", "-inkey", str(rsa_key), "-in", str(rsa_cert),
+        "-name", "pdfcer-rsa-nolkid", "-passout", f"pass:{PASSWORD}",
+        "-certpbe", "NONE", "-keypbe", "AES-256-CBC", "-macalg", "sha256", "-out", str(plain))
+    strip_local_key_id(plain, OUT / "rsa2048-nolocalkeyid.pfx")
+
+    ec_key = work / "ec384.key.pem"
+    ec_cert = work / "ec384.cert.pem"
+    run("openssl", "ecparam", "-name", "secp384r1", "-genkey", "-noout", "-out", str(ec_key))
+    run("openssl", "req", "-x509", "-new", "-key", str(ec_key), "-out", str(ec_cert),
+        "-days", DAYS, "-sha384",
+        "-subj", "/CN=pdfcer synthetic EC P-384 signer (test fixture, trust nothing)/O=pdfcer fixtures/C=CA")
+    export_pfx(work, ec_key, ec_cert, "pdfcer-ec384", OUT / "ecp384-modern.pfx", True, major)
+    run("openssl", "x509", "-in", str(ec_cert), "-outform", "DER", "-out", str(OUT / "ecp384.cer"))
+    run("openssl", "pkcs8", "-topk8", "-nocrypt", "-in", str(ec_key), "-outform", "DER",
+        "-out", str(OUT / "ecp384.key.der"))
+    for f in ("rsa2048-nolocalkeyid.pfx", "ecp384-modern.pfx", "ecp384.cer", "ecp384.key.der"):
+        print(f"wrote {OUT / f} ({(OUT / f).stat().st_size} B)")
+
+
 def main() -> int:
     if "--check" in sys.argv:
         missing = [f for f in EXPECTED if not (OUT / f).exists()]
@@ -139,8 +241,17 @@ def main() -> int:
 
     major = openssl_major()
     OUT.mkdir(parents=True, exist_ok=True)
+    regen = "--regen" in sys.argv or not (OUT / "rsa2048.key.der").exists()
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
+        if not regen:
+            print("base stores exist; adding the Pass 10.14 shapes only (pass --regen to re-mint everything)")
+            rsa_key = work / "rsa.key.pem"
+            rsa_cert = work / "rsa.cert.pem"
+            run("openssl", "pkey", "-inform", "DER", "-in", str(OUT / "rsa2048.key.der"), "-out", str(rsa_key))
+            run("openssl", "x509", "-inform", "DER", "-in", str(OUT / "rsa2048.cer"), "-out", str(rsa_cert))
+            added_shapes(work, rsa_key, rsa_cert, major)
+            return 0
 
         # --- RSA-2048 -------------------------------------------------------
         rsa_key = work / "rsa.key.pem"
@@ -166,6 +277,8 @@ def main() -> int:
         run("openssl", "x509", "-in", str(ec_cert), "-outform", "DER", "-out", str(OUT / "ecp256.cer"))
         run("openssl", "pkcs8", "-topk8", "-nocrypt", "-in", str(ec_key), "-outform", "DER",
             "-out", str(OUT / "ecp256.key.der"))
+
+        added_shapes(work, rsa_key, rsa_cert, major)
 
     for f in EXPECTED:
         print(f"wrote {OUT / f} ({(OUT / f).stat().st_size} B)")

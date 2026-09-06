@@ -3279,7 +3279,7 @@ operator has to get the order of right.
 
 | I want to… | Call | Line | Returns |
 |---|---|---|---|
-| **Sign the document** (PAdES B-B / `adbe.pkcs7.detached`) | `sign(&mut self, signer: &dyn sign::Signer, request: &sign::apply::SignRequest, options: &SaveOptions) -> Result<(Vec<u8>, sign::apply::SignReport), sign::apply::SignApplyError>` | edit.rs | **`Pass 10.9`** (feature `signing`, default on). Stages a `/FT /Sig` field + Table 252 dictionary, serialises an **incremental update**, patches `/ByteRange` to EOF, digests, builds the CMS through the `Signer`, back-patches the hole, then **self-verifies with `signature_verify`** before returning. |
+| **Sign the document** (PAdES B-B / `adbe.pkcs7.detached`) | `sign(&mut self, signer: &dyn sign::Signer, request: &sign::apply::SignRequest, options: &SaveOptions) -> Result<(Vec<u8>, sign::apply::SignReport), sign::apply::SignApplyError>` | edit.rs | **`Pass 10.9`** (feature `signing`, default on). Stages a `/FT /Sig` field + Table 252 dictionary, serialises an **incremental update**, patches `/ByteRange` to EOF, digests, builds the CMS through the `Signer`, back-patches the hole, then **self-verifies with `signature_verify`** before returning. **`Pass 10.14`:** a visible signature's `/AP` carries the frame plus composed text (signer CN, `Date:`, `Reason:`/`Location:` when given) in Helvetica, shrink-to-fit between 10 pt and 4 pt; too small → `SignApplyError::AppearanceOverflow` before any object is staged; the lines are on `SignReport.appearance_lines` (empty when invisible). |
 
 > #### ★ `sign` returns the DOCUMENT; the session does not become it
 >

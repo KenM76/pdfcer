@@ -126,6 +126,60 @@ pub fn build(
     algorithm: SignatureAlgorithm,
     message_digest: &[u8],
 ) -> Result<BuiltCms, CmsBuildError> {
+    build_with(signer, algorithm, message_digest, Sabotage::None)
+}
+
+/// A deliberate defect to build INTO a `SignedData` (`Pass 10.14`) — the
+/// test-only hook behind the three CMS sabotage tests. Each variant breaks
+/// exactly one thing the builder gets right, so a verifier that accepts the
+/// result is proven NOT to check that thing. Never reachable from a signing
+/// request; `#[doc(hidden)]` because it is an instrument, not an API.
+#[doc(hidden)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Sabotage {
+    /// The correct build.
+    None,
+    /// Sign the attributes under their WIRE tag (`[0] IMPLICIT`, `0xA0`)
+    /// instead of the `SET OF` (`0x31`) retag RFC 5652 §5.4 requires — the
+    /// `CB-4` mistake.
+    DigestUnderContextTag,
+    /// Emit the `SET OF` attributes out of X.690 §11.6 order AND sign
+    /// those bytes consistently. Not DER — but MEASURED 2026-09-06: both
+    /// pdfcer's verifier and OpenSSL 1.1.1 hash the attributes AS RECEIVED
+    /// (retagged `0x31`), so this is accepted by both. Kept as the record
+    /// of that measurement; the tamper that matters is
+    /// [`Self::ReorderedAfterSigning`].
+    UnsortedAttributes,
+    /// Sign the DER-sorted set, then emit the attributes in a different
+    /// order on the wire — an attacker or a buggy relayer reordering
+    /// attributes after the fact. A verifier hashing as received rejects
+    /// this (the digest no longer matches); one that re-sorts canonically
+    /// would ACCEPT it, which is why "as received" is the safer rule.
+    ReorderedAfterSigning,
+    /// A `message-digest` attribute that is not the digest of the
+    /// `/ByteRange` spans (first byte flipped).
+    WrongMessageDigest,
+}
+
+/// [`build`] with a [`Sabotage`] applied. Test-only; see the enum.
+///
+/// # Errors
+///
+/// As [`build`].
+#[doc(hidden)]
+pub fn build_with(
+    signer: &dyn Signer,
+    algorithm: SignatureAlgorithm,
+    message_digest: &[u8],
+    sabotage: Sabotage,
+) -> Result<BuiltCms, CmsBuildError> {
+    let mut message_digest = message_digest.to_vec();
+    if sabotage == Sabotage::WrongMessageDigest
+        && let Some(b) = message_digest.first_mut()
+    {
+        *b ^= 0xFF;
+    }
+    let message_digest = message_digest.as_slice();
     let chain = signer.certificate_chain();
     let leaf_der = chain.first().ok_or(CmsBuildError::NoCertificate)?;
     let leaf = crate::cms::parse_certificate(leaf_der).ok_or(CmsBuildError::LeafUnparseable)?;
@@ -157,15 +211,45 @@ pub fn build(
     );
 
     // The SET OF, DER-sorted, tagged 0x31 — THIS is what gets signed (CB-4).
-    let signed_attrs_set = der_out::set_of(vec![
-        content_type,
-        message_digest_attr,
-        signing_certificate_v2,
+    let reorder = |sorted: &[u8]| -> Vec<u8> {
+        let mut items: Vec<&[u8]> = Vec::new();
+        let mut rest = sorted;
+        if let Some((set_tlv, _)) = crate::asn1::read(sorted) {
+            rest = set_tlv.content;
+        }
+        while let Some((item, tail)) = crate::asn1::read(rest) {
+            items.push(item.raw);
+            rest = tail;
+        }
+        items.reverse();
+        der_out::tlv(crate::asn1::SET, &items.concat())
+    };
+    let sorted_set = der_out::set_of(vec![
+        content_type.clone(),
+        message_digest_attr.clone(),
+        signing_certificate_v2.clone(),
     ]);
-    let signature = signer.sign(algorithm, &signed_attrs_set)?;
+    let signed_attrs_set = if sabotage == Sabotage::UnsortedAttributes {
+        // Sorted, then reversed: definitely not X.690 §11.6 order.
+        reorder(&sorted_set)
+    } else {
+        sorted_set.clone()
+    };
+    let signature = if sabotage == Sabotage::DigestUnderContextTag {
+        let content = crate::asn1::read(&signed_attrs_set).map_or(&[][..], |(t, _)| t.content);
+        signer.sign(algorithm, &der_out::context(0, content))?
+    } else {
+        signer.sign(algorithm, &signed_attrs_set)?
+    };
 
-    // The same content octets re-tagged [0] IMPLICIT for the wire.
-    let (set_tlv, _) = crate::asn1::read(&signed_attrs_set).unwrap_or((
+    // The same content octets re-tagged [0] IMPLICIT for the wire — unless
+    // the sabotage is to reorder AFTER signing.
+    let wire_set = if sabotage == Sabotage::ReorderedAfterSigning {
+        reorder(&signed_attrs_set)
+    } else {
+        signed_attrs_set.clone()
+    };
+    let (set_tlv, _) = crate::asn1::read(&wire_set).unwrap_or((
         crate::asn1::Tlv {
             tag: crate::asn1::SET,
             content: &[],

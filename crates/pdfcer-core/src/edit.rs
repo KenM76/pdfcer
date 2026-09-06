@@ -41533,20 +41533,52 @@ impl EditSession {
             before: None,
             after: Some(Object::Dict(sig)),
         }];
-        // A visible signature gets a thin frame as its appearance (first cut:
-        // no text — the report carries the details).
+        // A visible signature's appearance (`Pass 10.14`): the thin frame of
+        // the first cut, plus the composed text — signer CN, date, and the
+        // reason/location when given — set in Helvetica (standard 14, no
+        // embedding) and shrunk to fit the rectangle; a rectangle too small
+        // for the text at the legible floor is REFUSED by name before any
+        // object is staged, never clipped. The lines are also disclosed on
+        // the report (rule 4).
+        let mut appearance_lines = Vec::new();
         if let Some((_, r)) = request.visible {
-            let ap_id = ObjId::new(self.alloc_number()?, 0);
+            let leaf_subject = signer
+                .certificate_chain()
+                .first()
+                .and_then(|der| crate::cms::parse_certificate(der))
+                .map(|c| c.subject)
+                .unwrap_or_default();
+            appearance_lines = apply::appearance_lines(
+                &leaf_subject,
+                &request.signing_time,
+                request.reason.as_deref(),
+                request.location.as_deref(),
+            );
             let w = (r.urx - r.llx).max(0.0);
             let h = (r.ury - r.lly).max(0.0);
-            let content = format!(
-                "0 0 0 RG 1 w 0.5 0.5 {} {} re S\n",
-                (w - 1.0).max(0.0),
-                (h - 1.0).max(0.0)
-            );
+            let size = apply::layout_appearance(&appearance_lines, w, h)?;
+            let content = apply::appearance_content(&appearance_lines, size, w, h);
+            let ap_id = ObjId::new(self.alloc_number()?, 0);
             let mut ap_dict = Dict::new();
             ap_dict.insert(Name::from(b"Type"), Object::Name(Name::from(b"XObject")));
             ap_dict.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Form")));
+            // /Helv as an INLINE Type1 dict: no new object, nothing embedded.
+            let mut helv = Dict::new();
+            helv.insert(Name::from(b"Type"), Object::Name(Name::from(b"Font")));
+            helv.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Type1")));
+            helv.insert(
+                Name::from(b"BaseFont"),
+                Object::Name(Name::from(b"Helvetica")),
+            );
+            helv.insert(
+                Name::from(b"Encoding"),
+                Object::Name(Name::from(b"WinAnsiEncoding")),
+            );
+            let mut fonts = Dict::new();
+            fonts.insert(Name::from(b"Helv"), Object::Dict(helv));
+            let mut resources = Dict::new();
+            resources.insert(Name::from(b"Font"), Object::Dict(fonts));
+            ap_dict.insert(Name::from(b"Resources"), Object::Dict(resources));
             ap_dict.insert(
                 Name::from(b"BBox"),
                 Object::Array(vec![
@@ -41663,6 +41695,7 @@ impl EditSession {
                 pades_level: "B-B",
                 self_verified: true,
                 prior_signatures,
+                appearance_lines,
             },
         ))
     }

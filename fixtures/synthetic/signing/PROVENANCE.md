@@ -40,3 +40,19 @@ pdfcer has no PKCS#12 writer (import only — `security__pkcs12_import.md` §0),
 so an independent producer is the only option — and that independence is what
 makes the files an oracle for the importer rather than a mirror of it
 (project rule 7: a fixture must not inherit a bug from the code it tests).
+
+## Added in `Pass 10.14` (2026-09-06)
+
+| File | Key | Container | Exercises |
+|---|---|---|---|
+| `rsa2048-nolocalkeyid.pfx` | the **same** RSA-2048 key + cert as `rsa2048-modern.pfx` | PBES2 / AES-256-CBC key bag, cert bag in PLAINTEXT `data` (`-certpbe NONE`), MAC SHA-256 — then every `localKeyId` bag attribute REMOVED and the MAC recomputed by the generator (`strip_local_key_id`, Appendix B.2 KDF ported to Python) | `Pkcs12Signer::from_der`'s fallback: key and leaf paired by PUBLIC-KEY IDENTITY when no `localKeyId` pairs them (`P12-6` second clause) |
+| `ecp384-modern.pfx`, `ecp384.cer`, `ecp384.key.der` | EC P-384 (`secp384r1`) | PBES2 / AES-256-CBC, MAC SHA-256 | the ECDSA P-384 / SHA-384 signing path end to end (was recorded UNTESTED by the 438th filing for want of a store) |
+| `foreign-pyhanko-first.pdf` | signed by **pyHanko** with `rsa2048-modern.pfx` | — | pdfcer adds an approval signature ON TOP of a signature it did not write; both verify, the foreign `/ByteRange` intact |
+| `pdfcer-then-pyhanko.pdf` | `pdfcer sign` (field `Signature1`), then pyHanko countersigns (field `ForeignSig`) | — | a foreign tool countersigning pdfcer's output; both verify |
+
+The two `.pdf` fixtures come from `tools/gen-foreign-signature-fixtures.py`
+(pyHanko is a generator-side tool only — never linked, rule 13; it stamps the
+signing time from the clock, so the bytes are not reproducible and the
+committed file is the fixture). `hello.pdf` is pdfcer's own synthetic page.
+`gen-signing-fixtures.py` now adds the two stores from the EXISTING
+`rsa2048` material by default; `--regen` re-mints everything.

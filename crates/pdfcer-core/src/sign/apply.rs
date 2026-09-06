@@ -92,8 +92,12 @@ pub struct SignRequest {
     /// name; `None` picks `Signature1`, `Signature2`, … as Acrobat does.
     pub field_name: Option<String>,
     /// Where the widget goes: `(page_index, rect)` for a visible signature
-    /// (the appearance is a plain framed text block naming the signer and
-    /// the time), or `None` for an **invisible** signature — `/Rect [0 0 0 0]`
+    /// — a thin frame plus, since `Pass 10.14`, the composed text lines
+    /// ([`appearance_lines`]: signer CN, date, reason/location when given)
+    /// set in Helvetica and shrunk to fit; a rectangle too small for them
+    /// at [`APPEARANCE_MIN_SIZE`] is refused
+    /// ([`SignApplyError::AppearanceOverflow`]) — or `None` for an
+    /// **invisible** signature — `/Rect [0 0 0 0]`
     /// on the first page, nothing drawn (`SC-4`). Invisible is the default
     /// for batch/CLI signing.
     pub visible: Option<(usize, crate::page_tree::Rect)>,
@@ -165,6 +169,12 @@ pub struct SignReport {
     pub self_verified: bool,
     /// Signatures that already existed in the document before this one.
     pub prior_signatures: usize,
+    /// The text lines composed into a VISIBLE signature's appearance
+    /// (`Pass 10.14`): signer name, date, and the reason/location when
+    /// given — disclosed here because the operator cannot read them back
+    /// from the file without a viewer (rule 4). Empty for an invisible
+    /// signature.
+    pub appearance_lines: Vec<String>,
 }
 
 /// Why a document could not be signed. Every variant is a refusal by name.
@@ -260,6 +270,23 @@ pub enum SignApplyError {
     /// The session could not stage or serialize (an edit-layer error).
     #[error(transparent)]
     Edit(#[from] crate::edit::EditError),
+    /// The composed appearance text does not fit the visible rectangle
+    /// even at the smallest legible size (`Pass 10.14`). Refused by name
+    /// rather than clipped: a signature box whose text is silently cut is
+    /// a signature box that misstates who signed.
+    #[error(
+        "the visible signature's {lines} text line(s) do not fit a {width:.0} x {height:.0} pt rectangle even at {min_size} pt; enlarge --visible, or drop --reason/--location"
+    )]
+    AppearanceOverflow {
+        /// Lines composed.
+        lines: usize,
+        /// Rectangle width, pt.
+        width: f64,
+        /// Rectangle height, pt.
+        height: f64,
+        /// The floor the layout would not go below.
+        min_size: f64,
+    },
     /// The writer refused.
     #[error(transparent)]
     Write(#[from] crate::writer::WriteError),
@@ -375,6 +402,224 @@ pub(crate) fn back_patch(bytes: &mut [u8], hole: Hole, der: &[u8]) -> Result<(),
         slot.copy_from_slice(hex.as_bytes());
     }
     Ok(())
+}
+
+/// The lines a visible signature's appearance shows (`Pass 10.14`) — the
+/// same independently-present fields Acrobat composes (name, date, reason,
+/// location; `Acrobat_Features\signatures__signing_operation_options.md`):
+/// a field that was not given is simply absent, never shown empty.
+///
+/// `signer_subject` is the leaf's subject as `cms` renders it
+/// (`CN=…, O=…, C=…`); the `CN` is shown, the whole subject when there is
+/// none. `signing_time` is the `/M` PDF date, rendered `YYYY.MM.DD HH:MM:SS`
+/// plus its zone as written (`Z`, or `+hh'mm'`); a date that does not
+/// parse is shown verbatim rather than dropped.
+#[must_use]
+pub fn appearance_lines(
+    signer_subject: &str,
+    signing_time: &str,
+    reason: Option<&str>,
+    location: Option<&str>,
+) -> Vec<String> {
+    let cn = common_name(signer_subject).unwrap_or(signer_subject);
+    let mut lines = vec![format!("Digitally signed by {cn}")];
+    lines.push(format!("Date: {}", human_pdf_date(signing_time)));
+    if let Some(r) = reason.filter(|r| !r.trim().is_empty()) {
+        lines.push(format!("Reason: {}", r.trim()));
+    }
+    if let Some(l) = location.filter(|l| !l.trim().is_empty()) {
+        lines.push(format!("Location: {}", l.trim()));
+    }
+    lines
+}
+
+/// The `CN=` value of a rendered subject (`CN=…, O=…, C=…`). A CN may itself
+/// contain `, ` (this project's own fixture subjects do), so the value ends
+/// at the next `, <ATTR>=` boundary — a comma followed by an all-uppercase
+/// attribute type and `=` — not at the first comma.
+fn common_name(subject: &str) -> Option<&str> {
+    let start = subject.find("CN=")? + 3;
+    let rest = &subject[start..];
+    let mut end = rest.len();
+    let mut from = 0;
+    while let Some(i) = rest[from..].find(", ") {
+        let after = &rest[from + i + 2..];
+        let attr_len = after.bytes().take_while(u8::is_ascii_uppercase).count();
+        if (1..=8).contains(&attr_len) && after.as_bytes().get(attr_len) == Some(&b'=') {
+            end = from + i;
+            break;
+        }
+        from += i + 2;
+    }
+    Some(rest[..end].trim())
+}
+
+/// `D:YYYYMMDDHHmmSS<zone>` → `YYYY.MM.DD HH:mm:SS <zone>`; anything that
+/// is not that shape is returned as given.
+fn human_pdf_date(s: &str) -> String {
+    let d = s.strip_prefix("D:").unwrap_or(s);
+    let digits = d.bytes().take_while(u8::is_ascii_digit).count();
+    if digits < 14 {
+        return s.to_owned();
+    }
+    let (n, zone) = d.split_at(14);
+    let zone = zone.trim();
+    let mut out = format!(
+        "{}.{}.{} {}:{}:{}",
+        &n[0..4],
+        &n[4..6],
+        &n[6..8],
+        &n[8..10],
+        &n[10..12],
+        &n[12..14]
+    );
+    if !zone.is_empty() {
+        out.push(' ');
+        out.push_str(zone);
+    }
+    out
+}
+
+/// Smallest size the appearance layout will use; below this the text is
+/// not legible in print, so the layout refuses instead (rule 4).
+pub const APPEARANCE_MIN_SIZE: f64 = 4.0;
+/// Largest size the layout will use — the frame stays a modest label.
+pub const APPEARANCE_MAX_SIZE: f64 = 10.0;
+/// Line height as a multiple of the size.
+const APPEARANCE_LEADING: f64 = 1.15;
+/// Inset from the frame, pt, each side.
+const APPEARANCE_PAD: f64 = 2.0;
+
+/// Width of `text` in Helvetica at 1000 units/em, WinAnsi-encoded; a
+/// character WinAnsi cannot encode counts as `?`, which is also what the
+/// content stream shows for it (see [`pdf_literal_winansi`]).
+fn helvetica_width_units(text: &str) -> u32 {
+    let (bytes, _) = winansi_bytes(text);
+    bytes
+        .iter()
+        .map(|&code| {
+            crate::fontdata::encoding_glyph_name(crate::fontdata::BaseEncoding::WinAnsi, code)
+                .and_then(|g| crate::fontdata::std14_width(crate::fontdata::Std14::Helvetica, g))
+                .map_or(556, u32::from)
+        })
+        .sum()
+}
+
+/// Encode `text` as WinAnsi bytes; returns the bytes and how many
+/// characters were replaced by `?` because WinAnsi has no code for them.
+fn winansi_bytes(text: &str) -> (Vec<u8>, usize) {
+    // A 256-entry reverse map is cheap and avoids depending on a table
+    // shape elsewhere in fontdata.
+    let mut map = std::collections::HashMap::new();
+    for code in 0u8..=255 {
+        if let Some(c) =
+            crate::fontdata::encoding_glyph_name(crate::fontdata::BaseEncoding::WinAnsi, code)
+                .and_then(crate::fontdata::glyph_name_to_unicode)
+        {
+            map.entry(c).or_insert(code);
+        }
+    }
+    let mut replaced = 0usize;
+    let bytes = text
+        .chars()
+        .map(|c| {
+            if c.is_ascii() {
+                c as u8
+            } else if let Some(&b) = map.get(&c) {
+                b
+            } else {
+                replaced += 1;
+                b'?'
+            }
+        })
+        .collect();
+    (bytes, replaced)
+}
+
+/// `text` as a PDF literal string `(…)` in WinAnsi, with `(`, `)` and the
+/// backslash escaped and every non-ASCII byte written as an octal escape,
+/// so the content stream stays 7-bit clean (ISO 32000-1 §7.3.4.2).
+fn pdf_literal_winansi(text: &str) -> String {
+    let (bytes, _) = winansi_bytes(text);
+    let mut out = String::from("(");
+    for b in bytes {
+        match b {
+            0x28 | 0x29 | 0x5C => {
+                out.push(char::from(0x5C));
+                out.push(char::from(b));
+            }
+            0x20..=0x7E => out.push(char::from(b)),
+            _ => out.push_str(&format!("{}{:03o}", char::from(0x5C), b)),
+        }
+    }
+    out.push(')');
+    out
+}
+
+/// Choose the one Helvetica size at which every line fits `w` x `h` (with
+/// the pad and leading above), between the max and min sizes — shrink to
+/// fit, never clip.
+///
+/// # Errors
+///
+/// [`SignApplyError::AppearanceOverflow`] when even the minimum size
+/// overflows the rectangle in either direction.
+pub(crate) fn layout_appearance(lines: &[String], w: f64, h: f64) -> Result<f64, SignApplyError> {
+    let inner_w = (w - 2.0 * APPEARANCE_PAD).max(0.0);
+    let inner_h = (h - 2.0 * APPEARANCE_PAD).max(0.0);
+    let widest = lines
+        .iter()
+        .map(|l| helvetica_width_units(l))
+        .max()
+        .unwrap_or(0);
+    #[allow(clippy::cast_precision_loss)] // widths are small integers
+    let by_width = if widest == 0 {
+        APPEARANCE_MAX_SIZE
+    } else {
+        inner_w * 1000.0 / f64::from(widest)
+    };
+    #[allow(clippy::cast_precision_loss)] // a handful of lines
+    let by_height = inner_h / (lines.len().max(1) as f64 * APPEARANCE_LEADING);
+    let size = by_width.min(by_height).min(APPEARANCE_MAX_SIZE);
+    if size < APPEARANCE_MIN_SIZE {
+        return Err(SignApplyError::AppearanceOverflow {
+            lines: lines.len(),
+            width: w,
+            height: h,
+            min_size: APPEARANCE_MIN_SIZE,
+        });
+    }
+    // Two decimals is plenty and keeps the stream short and stable.
+    Ok((size * 100.0).floor() / 100.0)
+}
+
+/// The `/AP /N` content: the thin frame (kept from the first cut) and the
+/// lines set in `/Helv` at `size`, top-down from the pad, WinAnsi literal
+/// strings. The form's `/BBox` is `[0 0 w h]`.
+pub(crate) fn appearance_content(lines: &[String], size: f64, w: f64, h: f64) -> String {
+    let mut out = format!(
+        "0 0 0 RG 1 w 0.5 0.5 {} {} re S\n",
+        (w - 1.0).max(0.0),
+        (h - 1.0).max(0.0)
+    );
+    if lines.is_empty() {
+        return out;
+    }
+    let leading = size * APPEARANCE_LEADING;
+    // First baseline: one size below the top pad (ascent ≈ size for a label).
+    let first_y = h - APPEARANCE_PAD - size;
+    out.push_str(&format!(
+        "BT 0 g /Helv {size} Tf {APPEARANCE_PAD} {first_y} Td {leading} TL\n"
+    ));
+    for (i, line) in lines.iter().enumerate() {
+        if i > 0 {
+            out.push_str("T* ");
+        }
+        out.push_str(&pdf_literal_winansi(line));
+        out.push_str(" Tj\n");
+    }
+    out.push_str("ET\n");
+    out
 }
 
 /// A permissive PDF-date shape check: `D:` then at least four digits, and
@@ -494,6 +739,94 @@ mod tests {
         // Searching from the base would find nothing because the base has no
         // such object; the scan never looks before `revision_start`.
         assert!(locate_hole(&bytes, bytes.len(), crate::object::ObjId::new(12, 0), 4).is_err());
+    }
+
+    #[test]
+    fn appearance_lines_compose_only_what_was_given() {
+        let l = appearance_lines(
+            "CN=Ken M, O=pdfcer, C=CA",
+            "D:20260906031844Z",
+            None,
+            Some(" Toronto "),
+        );
+        assert_eq!(
+            l,
+            vec![
+                "Digitally signed by Ken M".to_owned(),
+                "Date: 2026.09.06 03:18:44 Z".to_owned(),
+                "Location: Toronto".to_owned()
+            ]
+        );
+        // No CN: the whole subject; a non-date /M: verbatim; empty reason: absent.
+        let l = appearance_lines("O=pdfcer", "yesterday", Some("  "), None);
+        assert_eq!(l[0], "Digitally signed by O=pdfcer");
+        assert_eq!(l[1], "Date: yesterday");
+        assert_eq!(l.len(), 2);
+        assert_eq!(
+            human_pdf_date("D:20260906031844+05'30'"),
+            "2026.09.06 03:18:44 +05'30'"
+        );
+        // A CN that itself contains ", " (this project's fixture subjects do).
+        let l = appearance_lines(
+            "CN=pdfcer synthetic RSA signer (test fixture, trust nothing), O=pdfcer fixtures, C=CA",
+            "D:20260906031844Z",
+            None,
+            None,
+        );
+        assert_eq!(
+            l[0],
+            "Digitally signed by pdfcer synthetic RSA signer (test fixture, trust nothing)"
+        );
+        assert_eq!(common_name("O=x, CN=Only Name"), Some("Only Name"));
+        assert_eq!(common_name("O=x"), None);
+    }
+
+    #[test]
+    fn layout_shrinks_to_fit_and_refuses_below_the_floor() {
+        let lines = vec![
+            "Digitally signed by Somebody".to_owned(),
+            "Date: 2026.09.06 03:18:44 Z".to_owned(),
+        ];
+        // Roomy: capped at the max size.
+        assert!(
+            (layout_appearance(&lines, 300.0, 60.0).unwrap() - APPEARANCE_MAX_SIZE).abs() < 1e-9
+        );
+        // Narrow: shrinks below 10 but stays legible.
+        let s = layout_appearance(&lines, 90.0, 60.0).unwrap();
+        assert!(
+            (APPEARANCE_MIN_SIZE..APPEARANCE_MAX_SIZE).contains(&s),
+            "{s}"
+        );
+        // Tiny: refused by name, never clipped.
+        let err = layout_appearance(&lines, 20.0, 8.0).unwrap_err();
+        assert!(
+            matches!(err, SignApplyError::AppearanceOverflow { lines: 2, .. }),
+            "{err}"
+        );
+        assert!(err.to_string().contains("do not fit"));
+    }
+
+    #[test]
+    fn appearance_content_escapes_and_encodes() {
+        let c = appearance_content(
+            &["A (b) c".to_owned(), "caf\u{e9} \u{2603}".to_owned()],
+            8.0,
+            200.0,
+            40.0,
+        );
+        assert!(c.starts_with("0 0 0 RG 1 w 0.5 0.5 199 39 re S\n"));
+        assert!(c.contains("/Helv 8 Tf"));
+        assert!(c.contains(&format!(
+            "(A {}(b{}) c) Tj",
+            char::from(0x5C),
+            char::from(0x5C)
+        )));
+        // é is WinAnsi 0xE9 → octal 351; the snowman has no code → '?'.
+        assert!(
+            c.contains(&format!("(caf{}351 ?) Tj", char::from(0x5C))),
+            "{c}"
+        );
+        assert!(c.is_ascii());
     }
 
     #[test]
