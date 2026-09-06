@@ -94482,3 +94482,166 @@ blocker), `46601b0` the deferred tip. Nothing relayed.
 - Engineer: push, cut `v0.41.0`, dispatch the 449th with the release facts.
 - Operator: nothing new to try; `0.41.0` is the batch that carries
   `Pass 14.5`, `256.0`, `142.2`, `256.1`, `257.0`.
+
+## 2026-09-06 (449th filing) — `v0.41.0` RELEASED. The 448th filing's bumped-not-cut release is done end to end: CI run `34007817244` on `c4e39e7` GREEN 10/10 on the first run; annotated tag `v0.41.0` at `c4e39e7` (== `origin/main`, the 448th filing's own commit), pushed, `git describe` = `v0.41.0`; release build `cu=1`, 6 m 15 s, banner `pdfcer 0.41.0 / built 2026-09-06T03:12:18Z / revision v0.41.0`; portable folder `D:\builds\pdfcer-20260905-2318-c4e39e7` (31,946,564 bytes; exe 19,404,800); fresh-folder smoke test PASSED — `--version`, `sign` + `verify-signatures`, and for the first time `edit-text`; GitHub release with zip (18,337,263 bytes, sha256 `927225be…da20` — full hash below) + `.sha256`; OneDrive `pdfcer1` = 0.41.0, `pdfcer2` keeps 0.40.0; `verify-release.py` nine of nine `ok` on the engineer's clean tree (eight of nine at this filing — the one FAIL is the engineer's open `NEXT_SESSION.md` refresh, not the release). No code commit filed. Next: `Pass 179.0` is the only *Next up* item; the inbound queue is the engineer's to read.
+
+**Session shape.** Ninth filing of the 2026-09-05 session (the 441st–448th
+preceded it; the clock has passed midnight UTC-4 since the 443rd). Between
+the 448th (`c4e39e7`, 22:53:54 -0400) and this filing the engineer: ran
+`run-gates.sh` 29/29; pushed the seventeen-plus-one commits (`origin/main`
+`bdefb09` → `c4e39e7`); read CI green; tagged `c4e39e7`; built, packaged,
+smoke-tested, released, deployed, verified; drafted the release notes; and
+began the handoff refresh (`docs/NEXT_SESSION.md`, `+98/−125`, UNCOMMITTED
+in the tree at this filing — his, committed after this lands). Docs-only
+filing: `ROADMAP.md`, `SESSION_LOG.md` staged by name. `FEATURES.md`
+untouched — a release moves no capability box and the file carries no
+version marker.
+
+**What the release carries (five Passes, all CLI/core, since `de0e963`):**
+`Pass 14.5` (`8670523`, `hit_test` answers `None` beyond one line-height),
+`Pass 256.0` (`1343f0e`, `edit_text` across consecutive show operators),
+`Pass 142.2` (`5f9beb3`, `font-preflight --candidate` + the standard 14),
+`Pass 256.1` (`56dde4d`, per-character `/ToUnicode` refusal), `Pass 257.0`
+(`5e95805`, planners take `&DocumentView`; two reflow refusals removed).
+`git log --oneline v0.40.0..HEAD | wc -l` = **24** = 7 code + 4 test/fix
+(`70c1e29`, `cfb5b5c`, `1a22a00`, `bdefb09`) + 1 memory (`6e2c439`) + 8
+filings + 4 `NEXT_SESSION.md` refreshes. ★ The dispatch named `dfd203f` as
+an in-range memory commit; by `git log v0.40.0..HEAD` it is NOT in the range
+(it predates `v0.40.0`). Corrected in the ROADMAP head with that source.
+
+**The release procedure as run (engineer's shell; figures relayed unless
+marked measured):**
+1. Push: `origin/main` `bdefb09` → `c4e39e7` (measured: `git rev-parse
+   origin/main` = `c4e39e7`). Pre-push `run-gates.sh` 29/29 on the filing
+   tree; `check-suite-name-absent.py` clean; the pre-push hook re-ran the
+   gates green (relayed).
+2. CI run `34007817244` on `c4e39e7` → **`completed` / `success`, 10 of 10
+   jobs** (measured: `gh run view 34007817244 --json
+   conclusion,status,headSha,jobs`): *verify the ENGINE needs no network
+   (core + render)*, *third-party license audit*, *cargo clippy -D
+   warnings*, *cross-target compile check (macOS / wasm32)*, *repository
+   audits (19 checks)*, *cargo test (ubuntu-latest)*, *cargo test
+   (windows-latest)*, *verify pdfcer-core / pdfcer-render have zero GUI
+   deps*, *cargo fmt --check*, *fuzz targets build (nightly)* — all
+   `success`. Green on the first run — no red-then-green as at `v0.40.0`.
+3. Annotated tag `v0.41.0` at `c4e39e7`, pushed (measured: `git cat-file -t
+   v0.41.0` = `tag`; `git ls-remote --tags origin 'v0.41*'` = `34af7df…` →
+   `refs/tags/v0.41.0`, peeled `c4e39e7ad3f5e18f6601aaf3c22fc7b915841c8a`;
+   `git tag -l 'v0.41*'` = exactly one tag; `git describe --tags` =
+   `v0.41.0`).
+4. Release build at the tag: `CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+   CARGO_BUILD_JOBS=2 cargo build --release -p pdfcer-cli` — **6 m 15 s**
+   (relayed; `v0.40.0`'s took 5 m 50 s). Banner measured on the folder
+   exe: `pdfcer 0.41.0 / built 2026-09-06T03:12:18Z / revision v0.41.0 /
+   committed 2026-09-06T02:53:54Z / iccce 0.3.0 (rev a4d9003b)`.
+5. `tools/package-portable.py --no-build` →
+   `D:\builds\pdfcer-20260905-2318-c4e39e7` — measured `du -sb`
+   **31,946,564 bytes** = `pdfcer.exe` 19,404,800 + `LICENSE` 1,088 +
+   `THIRD_PARTY_LICENSES.md` 285,972 (same size as `v0.40.0`'s — no
+   dependency change) + `README.md` 10,070 + `BUILD-INFO.txt` 9,388 +
+   `models/ocrs/` (8,518 + 2,510,284 + 9,716,444). Versus `v0.40.0`'s
+   31,902,316: +44,248 = exe +41,472 + BUILD-INFO +2,776. `BUILD-INFO.txt`
+   reads *Commit: c4e39e7 / Branch: main / Changes since the previous build
+   (de0e963)*.
+6. Fresh-folder smoke test PASSED (relayed): folder copied to a temp dir,
+   the COPIED exe run: `--version` → `0.41.0`; `sign
+   fixtures/synthetic/text/subset-simple-embedded.pdf` with
+   `rsa2048-modern.pfx` → `self_verified=1 level=B-B`; `verify-signatures`
+   → 1 verified, 0 failed; `edit-text --find ABC --replace ABB` → OK. First
+   release smoke to exercise `edit-text` (the surface four of the five batch
+   Passes touch) and the modern-era `.pfx` (`v0.40.0`'s used the legacy-era
+   one).
+7. Zip `D:\builds\pdfcer-v0.41.0-windows-x64.zip` — measured **18,337,263
+   bytes** (`v0.40.0`'s 18,321,001; +16,262). SHA-256 computed by this role
+   (`sha256sum`) AND read from the sidecar — they agree:
+   `927225bec94f96893083c2ab7851a69ddae27743a76cb764acda2590704ada20`. The
+   `.sha256` sidecar is 98 bytes, CRLF-terminated (`od -c`); `v0.40.0`'s
+   was 97 — the one-byte difference is the line ending, not the content.
+8. GitHub release https://github.com/KenM76/pdfcer/releases/tag/v0.41.0 —
+   measured via `gh release view --json`: published `2026-09-06T03:19:50Z`,
+   target `main`, not draft, not prerelease, two assets (the zip 18,337,263;
+   the `.sha256` 98). Notes read by this role: three New (`256.0`, `142.2`,
+   `256.1`), three Fixed (`257.0`, `14.5`, `cfb5b5c`), three limits stated
+   plainly (B-B / `.pfx` only → `10.10`/`10.11`; non-page non-standard-14
+   face swap refused → FF-C embedded-donor half, `142.0`; reflow refuses an
+   appended-run page → the `251.0` refusal). Every limit has a Pass ID.
+9. `tools/deploy-onedrive.py` → slot **`pdfcer1`** (older; held 0.39.0): 5
+   items / 31,937,504 bytes relayed; measured `du -sb` = **31,937,504**
+   (= folder − `BUILD-INFO.txt` 9,388 + `VERSION.txt` 328); `VERSION.txt`
+   = `version: 0.41.0 / commit: v0.41.0 / deployed: 2026-09-06T03:19:54Z /
+   source: D:\builds\pdfcer-20260905-2318-c4e39e7 / slot: pdfcer1`;
+   `pdfcer1\pdfcer.exe --version` = `pdfcer 0.41.0 … revision: v0.41.0`.
+   **`pdfcer2` keeps 0.40.0** (`revision: v0.40.0`, 31,896,032 bytes,
+   measured). R229 alternation intact for the fourth consecutive release
+   (v0.38.0 → pdfcer2, v0.39.0 → pdfcer1, v0.40.0 → pdfcer2, v0.41.0 →
+   pdfcer1).
+10. `python tools/verify-release.py v0.41.0` — **nine of nine `ok`**
+    (relayed, on the engineer's clean tree after deploy). **Re-run by this
+    role at filing: eight `ok`, one `FAIL`** — *"working tree clean: 1
+    uncommitted path(s)"*, which is ` M docs/NEXT_SESSION.md` (`git status
+    --short`; `git diff --stat` = 1 file, `+98/−125`), the engineer's
+    handoff refresh in progress. Not a release defect: the tag, HEAD,
+    `origin/main`, CI, the GitHub asset and both OneDrive slots all read
+    `ok`. Recorded both ways so the two runs reconcile.
+
+**`docs/FEATURES.md`.** NOT TOUCHED — no capability changed; no *"released
+in"* or version marker exists in the file (`grep -in "released in|0\.40|0\.41"`
+returns nothing).
+
+**ROADMAP edits.** 449th head at the top of *Shipped*; a dated ★ RESOLVED
+note appended to the 448th head's *"The release itself is NOT cut at this
+filing"* sentence, pointing here (the same shape the 441st gave the 440th).
+
+**Decisions made this session:** none. Decision ceiling `138`.
+
+**Findings + decisions:**
+- **Green on the first CI run.** The decision-138 guard amended at
+  `1c6f670` (440th) held across a 24-commit batch with no `Cargo.toml`
+  dependency change; `THIRD_PARTY_LICENSES.md` is byte-for-byte the same
+  size as `v0.40.0`'s (285,972), consistent with the notes' *"no dependency
+  changes since v0.40.0"*.
+- **The tag sits on a librarian filing commit, not a code commit.** The
+  448th filing was the last commit before the push, so `c4e39e7` (docs-only)
+  is what `v0.41.0` names; the last code commit is `3ae1fb4` and the bump is
+  `46601b0`, both ancestors. Harmless — `describe` is clean — but a reader
+  of `git show v0.41.0` sees a filing message, not a feature; `BUILD-INFO.txt`
+  quotes that long subject twice, which is why it grew 2,776 bytes.
+- **The dispatch's commit inventory had one out-of-range hash** (`dfd203f`);
+  caught by running `git log v0.40.0..HEAD` rather than copying the list.
+  Same species as hard rule 8: check, then assert, and say which.
+
+**Sourcing (hard rule 8).** Measured here, with a shell: `git log
+--oneline -5`; `git status --short --untracked-files=all` = ` M
+docs/NEXT_SESSION.md` only; `git describe --tags`; `git tag --points-at
+HEAD`; `git cat-file -t v0.41.0`; `git rev-parse v0.41.0^{commit}`,
+`origin/main`, `HEAD`; `git ls-remote --tags origin 'v0.41*'`; `git remote
+-v`; `git log --format='%h %ad %s' --date=iso v0.40.0..HEAD` (24 lines,
+read); `gh release view v0.41.0 --json …` and `--json body`; `gh run view
+34007817244 --json …`; `du -sb` / `ls -la` on the portable folder and both
+OneDrive slots; `--version` on the folder exe and both slot exes;
+`sha256sum` on the zip; `stat`/`od -c` on the sidecar; `cat VERSION.txt`;
+`grep` on `BUILD-INFO.txt`; `python tools/verify-release.py v0.41.0`;
+`check-ledger-numbers.py` CLEAN before this filing (`448 -> next free
+449`); `check-commits-filed.py` CLEAN before this filing (822 code commits,
+5 baseline). Relayed (engineer): build time, smoke-test transcript,
+`run-gates.sh` 29/29, the nine-of-nine `verify-release` run.
+
+**Gates (this role, on the filing tree): in the filing commit's message.**
+
+**Still in flight:**
+- *Next up*: `Pass 179.0` only (automatic bold ladder, decision `106`, NOT
+  STARTED since the 340th filing).
+- Unpushed after this filing: this filing alone (against `origin/main` =
+  `c4e39e7` = the tag). The engineer's `NEXT_SESSION.md` refresh follows it.
+- Unreleased: nothing — `v0.41.0` is at the 448th filing's commit; the
+  next bump is `0.42.0`, at the next release, not before.
+- Owed (engineer): NOTHING from this role's ledger.
+- `pdfcer-gui`: consumes `257.0` on its next pin (unchanged from the 447th).
+
+**For next session:**
+- Engineer: commit the `NEXT_SESSION.md` refresh; push (this filing + it);
+  read the `pdfcer-gui` inbound queue; then `Pass 179.0` or whatever the
+  operator asks for.
+- Operator: `pdfcer1` on OneDrive is 0.41.0 — try `pdfcer edit-text` on the
+  file whose typo sat across five operators, and `pdfcer font-preflight
+  --candidate` before typing a character a subset may not hold.
