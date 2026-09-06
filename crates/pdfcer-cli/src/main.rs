@@ -1920,7 +1920,14 @@ enum Command {
         /// Implies `--certify`.
         #[arg(long, value_enum)]
         mdp_level: Option<MdpLevelArg>,
-        /// The signature field's name; `Signature1`, `Signature2`, … when absent.
+        /// The signature field's name; `Signature1`, `Signature2`, … when
+        /// absent. Naming an EXISTING, empty `/FT /Sig` field signs INTO it
+        /// (`Pass 10.13`): its own rectangle and page place the signature,
+        /// a `/Lock` on it becomes a `/FieldMDP` lock, and its seed-value
+        /// constraints (`/SV`) are enforced in full — a required one this
+        /// request does not meet, or one pdfcer cannot evaluate, is refused
+        /// by name. An already-signed field, a non-signature field, or
+        /// `--visible` alongside an existing field are refused.
         #[arg(long)]
         field_name: Option<String>,
         /// Make the signature visible: the widget rectangle `x0,y0,x1,y1` in
@@ -27355,7 +27362,13 @@ fn cmd_sign(args: &SignArgs<'_>) -> u8 {
             eprintln!("pdfcer: {}: {err}", args.input.display());
             return match err {
                 SignApplyError::AlreadyCertified { .. }
-                | SignApplyError::CertificationNotFirst { .. } => exit::EDIT_REFUSED,
+                | SignApplyError::CertificationNotFirst { .. }
+                | SignApplyError::FieldNotSignature { .. }
+                | SignApplyError::FieldAlreadySigned { .. }
+                | SignApplyError::FieldHasKids { .. }
+                | SignApplyError::RectRefusedForExistingField { .. }
+                | SignApplyError::SeedValueViolated { .. }
+                | SignApplyError::SeedValueUnevaluable { .. } => exit::EDIT_REFUSED,
                 SignApplyError::Sign(_)
                 | SignApplyError::Cms(_)
                 | SignApplyError::ReservationTooSmall { .. }
@@ -27373,10 +27386,15 @@ fn cmd_sign(args: &SignArgs<'_>) -> u8 {
 
     let sub_filter = String::from_utf8_lossy(report.sub_filter.name()).into_owned();
     println!(
-        "sign {} -> {}; field={} subtype={} algorithm={:?} key={} signer={} serial={} certificates={} byte_range={},{},{},{} cms_bytes={} reserved={} signing_time={} time_derived={} level={} prior_signatures={} self_verified={} out_bytes={}",
+        "sign {} -> {}; field={} ({}) subtype={} algorithm={:?} key={} signer={} serial={} certificates={} byte_range={},{},{},{} cms_bytes={} reserved={} signing_time={} time_derived={} level={} prior_signatures={} self_verified={} out_bytes={}",
         args.input.display(),
         args.output.display(),
         quoted_token(&report.field_name),
+        if report.field_reused {
+            "existing"
+        } else {
+            "created"
+        },
         sub_filter,
         report.algorithm,
         signer.key_label(),
@@ -27396,6 +27414,13 @@ fn cmd_sign(args: &SignArgs<'_>) -> u8 {
         u8::from(report.self_verified),
         bytes.len(),
     );
+    // `Pass 10.13`: what signing INTO the author's field carried with it.
+    if let Some(lock) = &report.field_lock {
+        println!("  field_lock: /FieldMDP {lock} (copied from the field's /Lock, Table 233)");
+    }
+    for n in &report.notes {
+        println!("  note: {n}");
+    }
     if let Some(level) = report.certification {
         println!(
             "  certification: DocMDP P={} ({}){}",

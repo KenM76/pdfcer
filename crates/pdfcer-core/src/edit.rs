@@ -146,6 +146,18 @@ use crate::pageops::separation::{SeparationImpact, SeparationPolicy, SeparationS
 use crate::pageops::{self};
 use crate::settings::QuadPointOrder;
 use crate::signature::{SaveMode, SignatureCensus, SignatureImpact, census, impact_of};
+
+/// A pre-placed empty signature field the request asked to sign INTO
+/// (`Pass 10.13`): see [`EditSession::sign`].
+#[cfg(feature = "signing")]
+struct ReusedSigField {
+    id: ObjId,
+    dict: Dict,
+    rect: page_tree::Rect,
+    page_id: ObjId,
+    lock: Option<crate::sign::apply::FieldLock>,
+    notes: Vec<String>,
+}
 use crate::span::ByteSpan;
 use crate::vartext::FontResource;
 use crate::vector::Point;
@@ -22702,6 +22714,221 @@ impl EditSession {
         })
     }
 
+    /// A pre-placed empty `/FT /Sig` field resolved for signing INTO
+    /// (`Pass 10.13`) — its dictionary as it stands, where its widget lives,
+    /// and what its `/Lock` and `/SV` asked for.
+    ///
+    /// Produced by [`Self::reusable_sig_field`]; every refusal that concerns
+    /// the field happens there, before any object number is allocated.
+    #[cfg(feature = "signing")]
+    fn reusable_sig_field(
+        &self,
+        id: ObjId,
+        name: &str,
+        request: &crate::sign::apply::SignRequest,
+    ) -> Result<ReusedSigField, crate::sign::apply::SignApplyError> {
+        let graph = self.graph();
+        let dict = graph
+            .resolved(id)
+            .as_dict()
+            .cloned()
+            .ok_or(EditError::NotADictionary { id, key: "field" })?;
+        let ft = dict
+            .get(b"FT")
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_name)
+            .map(|n| String::from_utf8_lossy(n.as_bytes()).into_owned())
+            .unwrap_or_else(|| "unknown".to_owned());
+        if ft != "Sig" {
+            return Err(crate::sign::apply::SignApplyError::FieldNotSignature {
+                name: name.to_owned(),
+                field_type: ft,
+            });
+        }
+        if dict.contains_key(b"V") {
+            return Err(crate::sign::apply::SignApplyError::FieldAlreadySigned {
+                name: name.to_owned(),
+            });
+        }
+        if dict.contains_key(b"Kids") {
+            return Err(crate::sign::apply::SignApplyError::FieldHasKids {
+                name: name.to_owned(),
+            });
+        }
+        if request.visible.is_some() {
+            return Err(
+                crate::sign::apply::SignApplyError::RectRefusedForExistingField {
+                    name: name.to_owned(),
+                },
+            );
+        }
+        let rect = dict
+            .get(b"Rect")
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_array)
+            .and_then(|a| {
+                let n: Vec<f64> = a
+                    .iter()
+                    .filter_map(|o| graph.resolve(o).as_number())
+                    .collect();
+                match n[..] {
+                    [x0, y0, x1, y1] => Some(page_tree::Rect {
+                        llx: x0.min(x1),
+                        lly: y0.min(y1),
+                        urx: x0.max(x1),
+                        ury: y0.max(y1),
+                    }),
+                    _ => None,
+                }
+            })
+            .unwrap_or(page_tree::Rect {
+                llx: 0.0,
+                lly: 0.0,
+                urx: 0.0,
+                ury: 0.0,
+            });
+        // The page: `/P` when the widget carries it, else the page whose
+        // `/Annots` lists it (§12.5.2 makes `/P` optional).
+        let page_id = match dict.get(b"P") {
+            Some(Object::Reference(p)) => *p,
+            _ => {
+                let slots = self.page_slots().map_err(EditError::from)?;
+                slots
+                    .iter()
+                    .find(|s| {
+                        crate::annot::page_annotations(&graph, s.id)
+                            .iter()
+                            .any(|a| a.id == Some(id))
+                    })
+                    .map(|s| s.id)
+                    .or_else(|| slots.first().map(|s| s.id))
+                    .ok_or(crate::sign::apply::SignApplyError::PageOutOfRange {
+                        page: 0,
+                        count: 0,
+                    })?
+            }
+        };
+        // /Lock (Table 233): honoured by copying Action/Fields into a
+        // /FieldMDP transform at signing time — never ignored.
+        let lock = match dict.get(b"Lock").map(|o| graph.resolve(o)) {
+            Some(Object::Dict(l)) => {
+                let action = l
+                    .get(b"Action")
+                    .map(|o| graph.resolve(o))
+                    .and_then(Object::as_name)
+                    .map(|n| String::from_utf8_lossy(n.as_bytes()).into_owned())
+                    .unwrap_or_else(|| "All".to_owned());
+                if !matches!(action.as_str(), "All" | "Include" | "Exclude") {
+                    return Err(crate::sign::apply::SignApplyError::SeedValueUnevaluable {
+                        name: name.to_owned(),
+                        what: format!(
+                            "/Lock /Action /{action} is not All, Include or Exclude (Table 233)"
+                        ),
+                    });
+                }
+                let fields: Vec<String> = match l.get(b"Fields").map(|o| graph.resolve(o)) {
+                    Some(Object::Array(a)) => a
+                        .iter()
+                        .filter_map(|o| match graph.resolve(o) {
+                            Object::String(b) => {
+                                Some(crate::textstring::decode_text_string(b).text)
+                            }
+                            _ => None,
+                        })
+                        .collect(),
+                    _ => Vec::new(),
+                };
+                if action != "All" && fields.is_empty() {
+                    return Err(crate::sign::apply::SignApplyError::SeedValueUnevaluable {
+                        name: name.to_owned(),
+                        what: format!(
+                            "/Lock /Action /{action} names no /Fields (Table 233 requires them)"
+                        ),
+                    });
+                }
+                Some(crate::sign::apply::FieldLock { action, fields })
+            }
+            _ => None,
+        };
+        // /SV (Table 234): every constraint honoured, checked, or refused.
+        let notes = match dict.get(b"SV").map(|o| graph.resolve(o)) {
+            Some(Object::Dict(sv)) => {
+                // Resolve one level so the evaluator sees direct values.
+                let mut direct = Dict::new();
+                for (k, v) in sv.iter() {
+                    direct.insert(k.clone(), graph.resolve(v).clone());
+                }
+                let algorithm = request
+                    .algorithm
+                    .unwrap_or(crate::sign::SignatureAlgorithm::RsaPkcs1v15Sha256);
+                crate::sign::apply::check_seed_value(name, &direct, request, algorithm)?
+            }
+            _ => Vec::new(),
+        };
+        Ok(ReusedSigField {
+            id,
+            dict,
+            rect,
+            page_id,
+            lock,
+            notes,
+        })
+    }
+
+    /// The AcroForm write that sets `/SigFlags 3` WITHOUT registering a
+    /// field — for a signature written into a field that is already in
+    /// `/Fields` (`Pass 10.13`). Same object choice as
+    /// [`Self::acroform_register_write`]: the indirect `/AcroForm` when there
+    /// is one, else the catalog.
+    #[cfg(feature = "signing")]
+    fn acroform_sigflags_write(&self) -> Result<ObjectWrite, EditError> {
+        let graph = self.graph();
+        let catalog_id = graph.catalog_id().ok_or(EditError::NotADictionary {
+            id: ObjId::new(0, 0),
+            key: "Root",
+        })?;
+        let catalog = graph
+            .resolved(catalog_id)
+            .as_dict()
+            .ok_or(EditError::NotADictionary {
+                id: catalog_id,
+                key: "AcroForm",
+            })?
+            .clone();
+        match catalog.get(b"AcroForm").cloned() {
+            Some(Object::Reference(af_id)) => {
+                let mut af = graph
+                    .resolved(af_id)
+                    .as_dict()
+                    .ok_or(EditError::NotADictionary {
+                        id: af_id,
+                        key: "AcroForm",
+                    })?
+                    .clone();
+                af.insert(Name::from(b"SigFlags"), Object::Integer(3));
+                Ok(ObjectWrite {
+                    id: af_id,
+                    before: self.state.get(&af_id).cloned(),
+                    after: Some(Object::Dict(af)),
+                })
+            }
+            other => {
+                let mut cat = catalog;
+                let mut af = match other {
+                    Some(Object::Dict(d)) => d,
+                    _ => Dict::new(),
+                };
+                af.insert(Name::from(b"SigFlags"), Object::Integer(3));
+                cat.insert(Name::from(b"AcroForm"), Object::Dict(af));
+                Ok(ObjectWrite {
+                    id: catalog_id,
+                    before: self.state.get(&catalog_id).cloned(),
+                    after: Some(Object::Dict(cat)),
+                })
+            }
+        }
+    }
+
     /// Register `field_id` in the catalog's `/AcroForm` `/Fields`, creating
     /// the `/AcroForm` dictionary (with `/DR` and `/DA`) when the document
     /// has none.
@@ -41420,7 +41647,9 @@ impl EditSession {
         }
 
         // --- 2a. the field name ------------------------------------------
-        let existing: Vec<String> = forms::parse_acroform(&self.graph())
+        let form = forms::parse_acroform(&self.graph());
+        let existing: Vec<String> = form
+            .as_ref()
             .map(|f| {
                 f.fields
                     .iter()
@@ -41428,10 +41657,20 @@ impl EditSession {
                     .collect()
             })
             .unwrap_or_default();
+        // `Pass 10.13`: a `field_name` that already exists is signed INTO
+        // when it is an EMPTY, merged `/FT /Sig` field — the "sign here"
+        // placeholder a form author placed. Anything else that exists under
+        // that name is refused by name.
+        let mut reuse: Option<ReusedSigField> = None;
         let field_name = match &request.field_name {
             Some(n) => {
                 if existing.contains(n) {
-                    return Err(SignApplyError::FieldNameTaken { name: n.clone() });
+                    let id = form
+                        .as_ref()
+                        .and_then(|f| f.fields.iter().find(|x| &x.fully_qualified_name == n))
+                        .map(|x| x.id)
+                        .ok_or_else(|| SignApplyError::FieldNameTaken { name: n.clone() })?;
+                    reuse = Some(self.reusable_sig_field(id, n, request)?);
                 }
                 n.clone()
             }
@@ -41450,7 +41689,23 @@ impl EditSession {
 
         // --- 2b. the page ------------------------------------------------
         let slots = self.page_slots().map_err(EditError::from)?;
-        let (page_index, rect) = match request.visible {
+        // The rectangle the appearance is laid out in: the request's for a
+        // created field, the field's own for a reused one (a reused field
+        // with a degenerate rect is an invisible signature).
+        let visible: Option<(usize, page_tree::Rect)> = match &reuse {
+            Some(r) => {
+                let page_index = slots.iter().position(|s| s.id == r.page_id).unwrap_or(0);
+                let degenerate = (r.rect.urx - r.rect.llx).abs() < f64::EPSILON
+                    || (r.rect.ury - r.rect.lly).abs() < f64::EPSILON;
+                if degenerate {
+                    None
+                } else {
+                    Some((page_index, r.rect))
+                }
+            }
+            None => request.visible,
+        };
+        let (page_index, rect) = match visible {
             Some((p, r)) => (p, r),
             None => (
                 0,
@@ -41462,21 +41717,26 @@ impl EditSession {
                 },
             ),
         };
-        let page_id =
-            slots
+        let page_id = match &reuse {
+            Some(r) => r.page_id,
+            None => slots
                 .get(page_index)
                 .map(|s| s.id)
                 .ok_or(SignApplyError::PageOutOfRange {
                     page: page_index,
                     count: slots.len(),
-                })?;
+                })?,
+        };
 
         // --- 2c. the objects ---------------------------------------------
         let algorithm = request
             .algorithm
             .unwrap_or_else(|| signer.default_algorithm());
         let sig_id = ObjId::new(self.alloc_number()?, 0);
-        let field_id = ObjId::new(self.alloc_number()?, 0);
+        let field_id = match &reuse {
+            Some(r) => r.id,
+            None => ObjId::new(self.alloc_number()?, 0),
+        };
 
         let mut sig = Dict::new();
         sig.insert(Name::from(b"Type"), Object::Name(Name::from(b"Sig")));
@@ -41531,6 +41791,52 @@ impl EditSession {
                 Object::Array(vec![Object::Dict(sigref)]),
             );
         }
+        // `Pass 10.13`: a reused field's `/Lock` (Table 233) becomes a
+        // `/FieldMDP` reference (§12.8.2.4, Table 256) — `Action`/`Fields`
+        // COPIED from the lock (direct objects: a signature dictionary
+        // under a byte-range signature holds no references), `/Data` the
+        // catalog, the object the field-value analysis runs on.
+        if let Some(lock) = reuse.as_ref().and_then(|r| r.lock.as_ref()) {
+            let catalog_id = self.graph().catalog_id().ok_or(EditError::NotADictionary {
+                id: ObjId::new(0, 0),
+                key: "Root",
+            })?;
+            let mut params = Dict::new();
+            params.insert(
+                Name::from(b"Type"),
+                Object::Name(Name::from(b"TransformParams")),
+            );
+            params.insert(
+                Name::from(b"Action"),
+                Object::Name(Name::from(lock.action.as_bytes())),
+            );
+            if !lock.fields.is_empty() {
+                params.insert(
+                    Name::from(b"Fields"),
+                    Object::Array(
+                        lock.fields
+                            .iter()
+                            .map(|f| Object::String(encode_text_string(f)))
+                            .collect(),
+                    ),
+                );
+            }
+            params.insert(Name::from(b"V"), Object::Name(Name::from(b"1.2")));
+            let mut sigref = Dict::new();
+            sigref.insert(Name::from(b"Type"), Object::Name(Name::from(b"SigRef")));
+            sigref.insert(
+                Name::from(b"TransformMethod"),
+                Object::Name(Name::from(b"FieldMDP")),
+            );
+            sigref.insert(Name::from(b"TransformParams"), Object::Dict(params));
+            sigref.insert(Name::from(b"Data"), Object::Reference(catalog_id));
+            let mut refs = match sig.get(b"Reference") {
+                Some(Object::Array(a)) => a.clone(),
+                _ => Vec::new(),
+            };
+            refs.push(Object::Dict(sigref));
+            sig.insert(Name::from(b"Reference"), Object::Array(refs));
+        }
         for (key, value) in [
             (&b"Name"[..], &request.name),
             (b"Reason", &request.reason),
@@ -41542,32 +41848,37 @@ impl EditSession {
             }
         }
 
-        let mut field = Dict::new();
-        field.insert(Name::from(b"Type"), Object::Name(Name::from(b"Annot")));
-        field.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Widget")));
-        field.insert(Name::from(b"FT"), Object::Name(Name::from(b"Sig")));
-        field.insert(
-            Name::from(b"T"),
-            Object::String(encode_text_string(&field_name)),
-        );
+        let mut field = match &reuse {
+            // The author's field, untouched but for the value it was
+            // placed to receive (and the appearance below).
+            Some(r) => r.dict.clone(),
+            None => {
+                let mut field = Dict::new();
+                field.insert(Name::from(b"Type"), Object::Name(Name::from(b"Annot")));
+                field.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Widget")));
+                field.insert(Name::from(b"FT"), Object::Name(Name::from(b"Sig")));
+                field.insert(
+                    Name::from(b"T"),
+                    Object::String(encode_text_string(&field_name)),
+                );
+                field.insert(
+                    Name::from(b"Rect"),
+                    Object::Array(vec![
+                        Object::Real(rect.llx),
+                        Object::Real(rect.lly),
+                        Object::Real(rect.urx),
+                        Object::Real(rect.ury),
+                    ]),
+                );
+                field.insert(Name::from(b"P"), Object::Reference(page_id));
+                field.insert(
+                    Name::from(b"F"),
+                    Object::Integer(if visible.is_some() { 4 } else { 132 }),
+                );
+                field
+            }
+        };
         field.insert(Name::from(b"V"), Object::Reference(sig_id));
-        field.insert(
-            Name::from(b"Rect"),
-            Object::Array(vec![
-                Object::Real(rect.llx),
-                Object::Real(rect.lly),
-                Object::Real(rect.urx),
-                Object::Real(rect.ury),
-            ]),
-        );
-        field.insert(Name::from(b"P"), Object::Reference(page_id));
-        // Print (bit 3). Invisible signatures conventionally also carry
-        // Locked (bit 8) so a reader offers no "move" on an empty rectangle;
-        // pdfcer writes 132 for those, 4 for a visible one.
-        field.insert(
-            Name::from(b"F"),
-            Object::Integer(if request.visible.is_some() { 4 } else { 132 }),
-        );
         let mut objects = vec![ObjectWrite {
             id: sig_id,
             before: None,
@@ -41581,7 +41892,7 @@ impl EditSession {
         // object is staged, never clipped. The lines are also disclosed on
         // the report (rule 4).
         let mut appearance_lines = Vec::new();
-        if let Some((_, r)) = request.visible {
+        if let Some((_, r)) = visible {
             let leaf_subject = signer
                 .certificate_chain()
                 .first()
@@ -41650,12 +41961,18 @@ impl EditSession {
             before: None,
             after: Some(Object::Dict(field)),
         });
-        objects.extend(self.annots_writes(page_id, field_id, &slots)?);
+        if reuse.is_none() {
+            objects.extend(self.annots_writes(page_id, field_id, &slots)?);
+        }
 
         // /AcroForm: register the field and set /SigFlags 3 on whichever
         // dictionary holds the form (indirect /AcroForm, or inline in the
         // catalog — `acroform_register_write` returns the right object).
-        let mut af_write = self.acroform_register_write(field_id)?;
+        let mut af_write = if reuse.is_some() {
+            self.acroform_sigflags_write()?
+        } else {
+            self.acroform_register_write(field_id)?
+        };
         if let Some(Object::Dict(d)) = &mut af_write.after {
             if let Some(Object::Dict(inline)) = d.get(b"AcroForm").cloned() {
                 let mut inline = inline;
@@ -41775,6 +42092,12 @@ impl EditSession {
                 prior_signatures,
                 appearance_lines,
                 certification: request.certify,
+                field_reused: reuse.is_some(),
+                field_lock: reuse
+                    .as_ref()
+                    .and_then(|r| r.lock.as_ref())
+                    .map(apply::FieldLock::describe),
+                notes: reuse.map(|r| r.notes).unwrap_or_default(),
             },
         ))
     }

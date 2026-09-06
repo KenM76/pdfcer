@@ -237,6 +237,19 @@ pub struct SignReport {
     /// The DocMDP permission written when this was a certification
     /// signature (`Pass 10.12`); `None` for an approval signature.
     pub certification: Option<MdpPermission>,
+    /// `true` when the signature was written INTO a pre-placed empty
+    /// `/FT /Sig` field the request named (`Pass 10.13`); `false` when the
+    /// field was created by this call.
+    pub field_reused: bool,
+    /// The `/FieldMDP` lock written because the reused field carried a
+    /// `/Lock` (`Pass 10.13`, §12.8.2.4): `"All"`, `"Include: a, b"` or
+    /// `"Exclude: a, b"`. `None` when no lock was present.
+    pub field_lock: Option<String>,
+    /// Rule-4 notes: seed-value constraints that were RECOMMENDED (not
+    /// required) and not met, or present-but-not-honoured entries such as a
+    /// `LegalAttestation` list — things the form author asked for that this
+    /// signature does not do. Empty for a created field.
+    pub notes: Vec<String>,
     /// The text lines composed into a VISIBLE signature's appearance
     /// (`Pass 10.14`): signer name, date, and the reason/location when
     /// given — disclosed here because the operator cannot read them back
@@ -287,8 +300,15 @@ pub enum SignApplyError {
     /// A deferred redaction is staged; sign after applying or cancelling it.
     #[error("a deferred redaction is pending; apply or cancel it before signing")]
     RedactionPending,
-    /// The chosen field name already exists.
-    #[error("a form field named {name:?} already exists; choose another signature field name")]
+    /// The chosen field name is listed by the form parser but its field
+    /// dictionary could not be resolved for signing into (`Pass 10.13`
+    /// resolves an existing name instead of refusing it outright; this
+    /// variant is the internal-inconsistency fallback, not the normal
+    /// collision — see [`Self::FieldAlreadySigned`],
+    /// [`Self::FieldNotSignature`]).
+    #[error(
+        "a form field named {name:?} already exists and could not be resolved for signing; choose another signature field name"
+    )]
     FieldNameTaken {
         /// The colliding name.
         name: String,
@@ -338,6 +358,72 @@ pub enum SignApplyError {
     /// The session could not stage or serialize (an edit-layer error).
     #[error(transparent)]
     Edit(#[from] crate::edit::EditError),
+    /// `field_name` names an existing field that is not an `/FT /Sig`
+    /// field (`Pass 10.13`). Nothing written.
+    #[error(
+        "the field {name:?} exists and is a {field_type} field, not a signature field; pdfcer signs only into an /FT /Sig field — choose another --field-name"
+    )]
+    FieldNotSignature {
+        /// The field's fully qualified name.
+        name: String,
+        /// Its `/FT`, rendered (`Tx`, `Btn`, `Ch`, or `unknown`).
+        field_type: String,
+    },
+    /// `field_name` names a signature field that already carries a `/V`
+    /// (`Pass 10.13`). A signed field is never re-signed in place — that
+    /// would replace one signature with another under the same name.
+    #[error(
+        "the signature field {name:?} is already signed; sign into another empty field or omit --field-name to add a new one"
+    )]
+    FieldAlreadySigned {
+        /// The field's fully qualified name.
+        name: String,
+    },
+    /// `field_name` names a signature field whose widgets are `/Kids`
+    /// (a non-merged field) — the first cut signs into MERGED
+    /// field-widgets only (`Pass 10.13`).
+    #[error(
+        "the signature field {name:?} has its widget(s) under /Kids; pdfcer signs into a merged field-widget only in this cut — sign into another field or omit --field-name"
+    )]
+    FieldHasKids {
+        /// The field's fully qualified name.
+        name: String,
+    },
+    /// `visible` was given together with a `field_name` that resolves to an
+    /// existing field: the field's own `/Rect` places the signature, so a
+    /// second rectangle is a contradiction, refused rather than resolved
+    /// (`Pass 10.13`).
+    #[error(
+        "the existing field {name:?} already has a rectangle; --visible/--page do not apply when signing into a pre-placed field — drop them (the field's /Rect and page are used)"
+    )]
+    RectRefusedForExistingField {
+        /// The field's fully qualified name.
+        name: String,
+    },
+    /// The field's seed-value dictionary (`/SV`, Table 234) states a
+    /// REQUIRED constraint this request does not meet (`Pass 10.13`).
+    /// Nothing written; the message names the constraint and what would
+    /// satisfy it.
+    #[error("the field {name:?} requires {constraint}; nothing was written")]
+    SeedValueViolated {
+        /// The field's fully qualified name.
+        name: String,
+        /// The constraint, in words, with the satisfying value(s).
+        constraint: String,
+    },
+    /// The field's seed-value dictionary carries a constraint pdfcer does
+    /// not evaluate (`/Cert`, a required `/TimeStamp`, `/LegalAttestation`
+    /// required, `/AddRevInfo true`, an unknown key) — refused by name,
+    /// never skipped (`Pass 10.13`).
+    #[error(
+        "the field {name:?} carries a seed-value constraint pdfcer cannot honour ({what}); nothing was written — sign into another field, or ask the form author to relax it"
+    )]
+    SeedValueUnevaluable {
+        /// The field's fully qualified name.
+        name: String,
+        /// Which entry, and why.
+        what: String,
+    },
     /// A certification was requested on a document that is already
     /// certified (`Pass 10.12`; §12.8.2.2.1 — *"A document can contain
     /// only one signature field that contains a DocMDP transform method"*).
@@ -396,6 +482,275 @@ pub(crate) struct Hole {
     /// Offset of the first sentinel digit inside `/ByteRange [0 ` — the
     /// three sentinels follow, each `1000000000` separated by one space.
     pub byte_range_digits: usize,
+}
+
+/// What a signature field's `/Lock` (Table 233) asks for, copied verbatim
+/// into the `/FieldMDP` transform parameters at signing time (§12.8.2.4,
+/// Table 256: *"Action/Fields shall be copied from the signature field's
+/// lock dictionary"*).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FieldLock {
+    /// `All`, `Include` or `Exclude`.
+    pub action: String,
+    /// The field names, for `Include`/`Exclude`.
+    pub fields: Vec<String>,
+}
+
+impl FieldLock {
+    /// One line for the report: `All`, `Include: a, b`.
+    #[must_use]
+    pub fn describe(&self) -> String {
+        if self.fields.is_empty() {
+            self.action.clone()
+        } else {
+            format!("{}: {}", self.action, self.fields.join(", "))
+        }
+    }
+}
+
+/// Evaluate a signature field's seed-value dictionary (`/SV`, ISO 32000-1
+/// Table 234) against the request about to be signed (`Pass 10.13`).
+///
+/// The rule this enforces is TOTAL: every entry is either honoured,
+/// checked, or refused by name — nothing is skipped. Table 234's `/Ff` bits
+/// say which entries are REQUIRED constraints (1 `Filter`, 2 `SubFilter`,
+/// 3 `V`, 4 `Reasons`, 5 `LegalAttestation`, 6 `AddRevInfo`, 7
+/// `DigestMethod`); an unmet required constraint is
+/// [`SignApplyError::SeedValueViolated`], an unmet RECOMMENDED one is a note
+/// (rule 4). Entries pdfcer does not evaluate — `/Cert` (Table 235), a
+/// required `/TimeStamp`, a required `/LegalAttestation`, `/AddRevInfo
+/// true`, any unknown key — are [`SignApplyError::SeedValueUnevaluable`].
+/// Acrobat's own strictness is a recorded gap in the Acrobat RAG; pdfcer's
+/// is deliberately total, because a constraint the form author wrote and the
+/// signer silently ignored is exactly the kind of quiet divergence rule 4
+/// forbids.
+///
+/// `sv` must be fully resolved (direct values); `field` is the fully
+/// qualified name, for the messages. Returns the notes.
+///
+/// # Errors
+///
+/// [`SignApplyError::SeedValueViolated`], [`SignApplyError::SeedValueUnevaluable`].
+pub fn check_seed_value(
+    field: &str,
+    sv: &crate::object::Dict,
+    request: &SignRequest,
+    algorithm: SignatureAlgorithm,
+) -> Result<Vec<String>, SignApplyError> {
+    use crate::object::Object;
+    let name_of = |o: &Object| -> Option<String> {
+        match o {
+            Object::Name(n) => Some(String::from_utf8_lossy(n.as_bytes()).into_owned()),
+            _ => None,
+        }
+    };
+    let text_of = |o: &Object| -> Option<String> {
+        match o {
+            Object::String(b) => Some(crate::textstring::decode_text_string(b).text),
+            Object::Name(n) => Some(String::from_utf8_lossy(n.as_bytes()).into_owned()),
+            _ => None,
+        }
+    };
+    let names_of = |o: &Object| -> Vec<String> {
+        match o {
+            Object::Array(a) => a.iter().filter_map(name_of).collect(),
+            other => name_of(other).into_iter().collect(),
+        }
+    };
+    let ff = sv.get(b"Ff").and_then(Object::as_int).unwrap_or(0);
+    let required = |bit: u32| ff & (1i64 << (bit - 1)) != 0;
+    let violated = |constraint: String| SignApplyError::SeedValueViolated {
+        name: field.to_owned(),
+        constraint,
+    };
+    let unevaluable = |what: String| SignApplyError::SeedValueUnevaluable {
+        name: field.to_owned(),
+        what,
+    };
+    let mut notes = Vec::new();
+
+    for (key, _) in sv.iter() {
+        match key.as_bytes() {
+            b"Type" | b"Ff" | b"Filter" | b"SubFilter" | b"DigestMethod" | b"V" | b"Reasons"
+            | b"MDP" | b"TimeStamp" | b"LegalAttestation" | b"AddRevInfo" | b"Cert" => {}
+            other => {
+                return Err(unevaluable(format!(
+                    "unknown seed-value entry /{}",
+                    String::from_utf8_lossy(other)
+                )));
+            }
+        }
+    }
+
+    // /Filter — the signature handler. pdfcer's is Adobe.PPKLite.
+    if let Some(f) = sv.get(b"Filter").and_then(name_of)
+        && f != "Adobe.PPKLite"
+    {
+        {
+            if required(1) {
+                return Err(violated(format!(
+                    "the signature handler /{f} (Filter, required); pdfcer writes Adobe.PPKLite"
+                )));
+            }
+            notes.push(format!(
+                "seed value: the form author recommends the handler /{f}; pdfcer writes Adobe.PPKLite (not a required constraint)"
+            ));
+        }
+    }
+    // /SubFilter — the encodings the author accepts.
+    if let Some(list) = sv.get(b"SubFilter").map(names_of) {
+        let ours = request.sub_filter.name();
+        let ours_s = String::from_utf8_lossy(ours).into_owned();
+        if !list.iter().any(|n| n == &ours_s) {
+            if required(2) {
+                return Err(violated(format!(
+                    "a SubFilter among [{}] (required); this request writes {ours_s} — pass --format to choose one the field accepts",
+                    list.join(", ")
+                )));
+            }
+            notes.push(format!(
+                "seed value: the form author recommends a SubFilter among [{}]; this request writes {ours_s} (not a required constraint)",
+                list.join(", ")
+            ));
+        }
+    }
+    // /DigestMethod — the digests the author accepts.
+    if let Some(list) = sv.get(b"DigestMethod").map(names_of) {
+        let ours = match algorithm {
+            SignatureAlgorithm::EcdsaP384Sha384 => "SHA384",
+            _ => "SHA256",
+        };
+        if !list.iter().any(|n| n == ours) {
+            if required(7) {
+                return Err(violated(format!(
+                    "a digest among [{}] (DigestMethod, required); this request digests with {ours}",
+                    list.join(", ")
+                )));
+            }
+            notes.push(format!(
+                "seed value: the form author recommends a digest among [{}]; this request digests with {ours} (not a required constraint)",
+                list.join(", ")
+            ));
+        }
+    }
+    // /V — the seed-value parser capability the author requires. pdfcer
+    // implements Table 234 as ISO 32000-1 states it (level 1.0; 2.0 adds
+    // nothing this evaluator lacks), so anything above 2.0 is unknown.
+    if let Some(v) = sv.get(b"V").and_then(Object::as_number)
+        && v > 2.0
+    {
+        {
+            if required(3) {
+                return Err(unevaluable(format!(
+                    "/V {v}: a seed-value parser level above 2.0 is required and pdfcer implements 2.0"
+                )));
+            }
+            notes.push(format!(
+                "seed value: the form author recommends parser level {v}; pdfcer implements 2.0 (not a required constraint)"
+            ));
+        }
+    }
+    // /Reasons — the reasons the signer may give.
+    if let Some(Object::Array(list)) = sv.get(b"Reasons") {
+        let reasons: Vec<String> = list.iter().filter_map(text_of).collect();
+        let ok = request
+            .reason
+            .as_deref()
+            .is_some_and(|r| reasons.iter().any(|x| x == r));
+        if !ok {
+            if required(4) {
+                return Err(violated(format!(
+                    "a --reason among [{}] (required); this request gives {}",
+                    reasons.join(", "),
+                    request
+                        .reason
+                        .as_deref()
+                        .map_or("none".to_owned(), |r| format!("{r:?}"))
+                )));
+            }
+            notes.push(format!(
+                "seed value: the form author suggests a reason among [{}] (not a required constraint)",
+                reasons.join(", ")
+            ));
+        }
+    }
+    // /MDP — whether this must (or must not) be a certification, and at
+    // what level. Table 234: P = 0 is an ordinary signature; 1..=3 a
+    // certification with that DocMDP P. (The RAG records the spec's own
+    // "author" ambiguity here; pdfcer reads P literally.)
+    if let Some(Object::Dict(mdp)) = sv.get(b"MDP")
+        && let Some(p) = mdp.get(b"P").and_then(Object::as_int)
+    {
+        {
+            match (p, request.certify) {
+                (0, None) => {}
+                (0, Some(_)) => {
+                    return Err(violated(
+                        "an ordinary (approval) signature (MDP /P 0); this request certifies — drop --certify"
+                            .to_owned(),
+                    ));
+                }
+                (1..=3, Some(level)) if i64::from(level.p()) == p => {}
+                (1..=3, _) => {
+                    return Err(violated(format!(
+                        "a certification signature with DocMDP P={p} (MDP); this request {} — pass --certify --mdp-level {}",
+                        request
+                            .certify
+                            .map_or("does not certify".to_owned(), |l| format!(
+                                "certifies at P={}",
+                                l.p()
+                            )),
+                        match p {
+                            1 => "none",
+                            2 => "form-fill",
+                            _ => "annotate",
+                        }
+                    )));
+                }
+                _ => {
+                    return Err(unevaluable(format!(
+                        "/MDP /P {p} is outside Table 234's 0..=3"
+                    )));
+                }
+            }
+        }
+    }
+    // /TimeStamp — a required timestamp is a B-T signature, not built.
+    if let Some(Object::Dict(ts)) = sv.get(b"TimeStamp") {
+        let ts_required = ts.get(b"Ff").and_then(Object::as_int).unwrap_or(0) & 1 != 0;
+        if ts_required {
+            return Err(unevaluable(
+                "/TimeStamp with Ff 1: a timestamp token is required and pdfcer signs at level B-B only (no timestamp)"
+                    .to_owned(),
+            ));
+        }
+        notes.push("seed value: the form author suggests a timestamp server; pdfcer signs at level B-B, no timestamp (not a required constraint)".to_owned());
+    }
+    // /LegalAttestation — pdfcer writes no legal attestation.
+    if sv.get(b"LegalAttestation").is_some() {
+        if required(5) {
+            return Err(unevaluable(
+                "/LegalAttestation is required and pdfcer writes no legal attestation".to_owned(),
+            ));
+        }
+        notes.push("seed value: the form author lists legal attestations; pdfcer writes none (not a required constraint)".to_owned());
+    }
+    // /AddRevInfo — revocation information embedding is B-LT, not built.
+    if let Some(Object::Boolean(true)) = sv.get(b"AddRevInfo") {
+        if required(6) {
+            return Err(unevaluable(
+                "/AddRevInfo true is required and pdfcer embeds no revocation information (level B-B)".to_owned(),
+            ));
+        }
+        notes.push("seed value: the form author asks for embedded revocation information; pdfcer embeds none, level B-B (not a required constraint)".to_owned());
+    }
+    // /Cert — Table 235 certificate constraints: not evaluated in this cut.
+    if sv.get(b"Cert").is_some() {
+        return Err(unevaluable(
+            "/Cert (Table 235 certificate constraints — subject, issuer, key usage, OID) is not evaluated by pdfcer yet".to_owned(),
+        ));
+    }
+    Ok(notes)
 }
 
 /// Find the signature object's `/Contents` hole and `/ByteRange` sentinels

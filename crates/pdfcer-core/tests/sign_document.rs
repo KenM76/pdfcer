@@ -338,7 +338,9 @@ fn refusals_are_named_and_write_nothing() {
         "{err:?}"
     );
 
-    // Field-name collision.
+    // Field-name collision with a SIGNED field: since `Pass 10.13` an
+    // existing name is resolved (an empty /Sig field would be signed into);
+    // a field that already carries a signature is refused as such.
     let (first, _) = sign_hello(&rsa, &SignRequest::at(T0));
     let mut s2 = EditSession::new(Document::from_bytes(first).unwrap());
     let mut req = SignRequest::at(T0);
@@ -347,7 +349,7 @@ fn refusals_are_named_and_write_nothing() {
         .sign(&rsa, &req, &SaveOptions::identity())
         .expect_err("taken");
     assert!(
-        matches!(err, SignApplyError::FieldNameTaken { .. }),
+        matches!(err, SignApplyError::FieldAlreadySigned { .. }),
         "{err:?}"
     );
 

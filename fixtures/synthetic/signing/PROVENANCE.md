@@ -56,3 +56,18 @@ signing time from the clock, so the bytes are not reproducible and the
 committed file is the fixture). `hello.pdf` is pdfcer's own synthetic page.
 `gen-signing-fixtures.py` now adds the two stores from the EXISTING
 `rsa2048` material by default; `--regen` re-mints everything.
+
+## Added in `Pass 10.13` (2026-09-06) — pre-placed EMPTY signature fields
+
+`tools/gen-sig-field-fixtures.py`, deterministic, nothing signed. One page,
+an empty merged `/FT /Sig` field `SignHere` (`/Rect [72 600 300 660]`) and a
+text field `Name`:
+
+| File | Extra on the field | Exercises |
+|---|---|---|
+| `sig-field-empty.pdf` | — | sign INTO the field (its rect/page place the appearance); `Name` for the wrong-type refusal |
+| `sig-field-lock.pdf` | `/Lock << /Action /All >>` (Table 233) | the `/FieldMDP` reference copied from the lock (§12.8.2.4, Table 256) |
+| `sig-field-lock-include.pdf` | `/Lock << /Action /Include /Fields [(Name)] >>` | same, with `/Fields` |
+| `sig-field-sv-ok.pdf` | `/SV` with every evaluable constraint, satisfiable by defaults (`Reasons` recommended only, `MDP /P 0`) | the seed-value evaluator's honoured/noted branches |
+| `sig-field-sv-strict.pdf` | `/SV /Ff 72 /Reasons [(Only this reason)] /DigestMethod [/SHA1]` | a REQUIRED constraint a default request violates → refused by name |
+| `sig-field-sv-cert.pdf` | `/SV /Cert << /Ff 1 /Subject [(anyone)] >>` (Table 235) | a constraint pdfcer does not evaluate → refused by name, never skipped |
