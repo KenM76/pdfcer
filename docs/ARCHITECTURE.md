@@ -28796,6 +28796,29 @@ free 072.**
   **`R90` is AMENDED, not minted**, in `ROADMAP.md`'s *Standing rules*, in this
   same filing.
 
+  ---
+
+  **★★★★ SHIPPED 2026-09-06 — `Pass 179.0` at `72b7296` (451st filing).** Every
+  *"STILL NOT BUILT"* / *"NOT STARTED"* sentence in this record above is now a
+  dated statement about the tree before `72b7296`, kept legible per the
+  project's convention. What shipped is the ENGINEER'S read of the ladder as
+  recorded here: `FormatRequest::set_style` (CLI `--bold`, `--italic`), per
+  axis — rung 1 a real face on the page through `set_font`'s coverage gate,
+  rung 2 the standard-14 sibling of the run's OWN family
+  (`fontdata::std14_styled`, nothing embedded), rung 3 absent (`Pass 142.0`),
+  rung 4 synthesis — with the rung disclosed on `FormatReport::style_ladder`
+  and on stdout. Two things this record did not predict, both recorded in
+  `ROADMAP.md`'s 451st head: (i) a FULL standard-14 sibling for both axes is
+  tried before a one-axis page face, so a whole real face beats a
+  half-synthesised one; (ii) under `refuse` the ladder stops before rung 4
+  with `FormatError::SynthesisRefusedByPosture` naming `--bold-synthetic`, and
+  `--bold-synthetic` itself still refuses on a resident real face in that
+  posture — ruling 2 kept the stance, and the 340th filing's criterion 7
+  (*"it no longer refuses"*) was amended toward it. Cross-family substitution
+  is NOT taken — pdfcer's choice, the `Acrobat_Features` gap left open. `R90`
+  amended in the same filing: under `auto` the fallback is APPLIED, disclosed,
+  not offered. **The decision ceiling does not move.**
+
 - **2026-08-30 — Decision `107`: pdfce NOW AUTHORS DECLARED `/A` ACTIONS ON
   PUSH BUTTONS. DECISION `009` POSTURE A's *AUTHORING* BOUNDARY MOVED TWICE IN
   ONE DAY, ON TWO OPERATOR RULINGS HOURS APART — AND THE POSTURE ITSELF DID

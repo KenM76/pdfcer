@@ -94822,3 +94822,189 @@ newest = `pdfcer-2026-09-03-1a31d2d-full.bundle` (55,835,131 B, Sep 3
   now prints what the box says; if the box is too small the refusal names
   the size floor (4 pt) and the remedy. Reader has not been asked to render
   it — a screenshot from Reader would close criterion 5's open half.
+
+## 2026-09-06 (451st filing) — `Pass 179.0` SHIPPED (`72b7296`, unreleased, post-`v0.41.0`): bold becomes AUTOMATIC — `FormatRequest::set_style` / `format-text --bold --italic` walks a per-axis ladder (a real face on the page through `set_font`'s coverage gate → the standard-14 sibling of the run's own family, nothing embedded → synthesis) and DISCLOSES the rung (`FormatReport::style_ladder`, the `style_ladder:` stdout line); `RealFaceAvailable` unreachable from the verb; `refuse` stops before synthesis with `SynthesisRefusedByPosture` naming `--bold-synthetic`. Criterion 7 AMENDED (the override still refuses under `refuse` — ruling 2 wins); criterion 5 gained an ordering decision (a full standard-14 sibling beats a half-synthesised page face). Cross-family substitution NOT taken, not claimed as Acrobat-confirmed. `tests/style_ladder.rs` RUN HERE 8/8. Verb count 204 unchanged. `R90` AMENDED; decision `106` footnoted, no decision minted. The 450th's three rule-11 survivors and tool fix DISCHARGED in the same commit; its spec-RAG line DISPATCHED (not done). THREE new rule-11 survivors owed (all `crates/`). `FEATURES.md`: *Planned* ladder row → *Implemented → Text* `[x] [x] [ ] ◐`; rows `:196`, `:353`, `:450` re-sentenced. *Next up* has NO live Pass entry.
+
+**Shipped:**
+- **`Pass 179.0`** — `72b7296` *"feat(core,cli): bold becomes AUTOMATIC — the
+  style ladder binds a real face or synthesises, no operator intervention
+  (Pass 179.0)"*, 13 files, `+998/−21` (`git show --stat`), author stamp
+  `2026-09-06 04:31:29 -0400`. Minted at the 340th filing (2026-08-30,
+  decision `106`), the only live *Next up* entry since; built in one commit.
+  `format.rs` `+417` (`StyleLadder` `#[non_exhaustive]` { requested, bound,
+  rung, synthesised, passed_over }; `StyleRung::{RealFaceOnPage,
+  StandardFourteenSibling, Synthetic, AlreadyStyled}`;
+  `FormatError::SynthesisRefusedByPosture { style, run_font, passed, flag }`;
+  the ladder runs FIRST when a style is asked for, every rung a `plan_font`
+  binding through `accept_font_target` — `R221`); `fontdata/mod.rs` `+39`
+  (`std14_styled(face, bold, italic)`); `synth.rs` `+13`
+  (`StyleSynthesis::axes()`); `edit.rs` `+10`; `pdfcer-cli/src/main.rs` `+46`
+  (`--bold`, `--italic`, `conflicts_with_all = ["set_font", …]`, the
+  `style_ladder:` line, the *"style: bold via rung N"* sentence). Tests:
+  `crates/pdfcer-core/tests/style_ladder.rs` (307 lines, 8 — RUN HERE, 8
+  passed, 0.01 s); `crates/pdfcer-cli/tests/format_text.rs` `+136` (4).
+  Docs: `core-api/02` `format_text` row (4,700 → 4,702 lines), `core-api/03`
+  §3.6.0 new + §3.6.1 re-headed as the override + the **bold** capability row
+  (3,059 → 3,084 lines, 74 → 75 clauses), `core-api/index.md` counts. No new
+  `EditSession` verb; 204 unchanged.
+- **In the same commit, owed from the 450th:** the three *"thin frame only"*
+  survivors DISCHARGED (`edit.rs` `sign` rustdoc; the CLI `sign` command help
+  paragraph; `core-api/02` §1); `tools/check-passes-filed.py` and
+  `check-commits-filed.py` decode git output with `encoding="utf-8",
+  errors="replace"` (`+1/−1` each) — the `◐` crash closed.
+
+**`Pass 179.0` criteria walked (the 340th's eight):** **1 MET** — one verb
+(`set_style` / `.style()` / `--bold` `--italic`); `RealFaceAvailable`
+unreachable from it. **2 MET** — rung 1 binds through `accept_font_target`
+via `plan_font`; `format_twins.pdf`: the `/Differences` twin passed over BY
+NAME with its `R-INV-7` refusal, the plain twin bound
+(`rung=RealFaceOnPage bound="Times-Bold"`). **3 MET, MEASURED** on the
+shipped debug binary — `format_other.pdf --find hello --bold` →
+`set_font=Helvetica->Helvetica-Bold`, `style_ladder: requested=bold
+rung=StandardFourteenSibling bound="Helvetica-Bold" synthesised=nothing
+passed_over=0`, `/pdfceF1` added, nothing embedded, no `2 Tr` — the exact
+input `v0.41.0` synthesises on. **4 MET** — `subset-simple-embedded.pdf` →
+rung 4, `2 Tr`, `synthetic_bold_width`. **5 MET + ORDERING DECISION** —
+`Verdana` + `Verdana-Bold`, `set_style(BoldItalic)` → real Bold at rung 1,
+Italic synthesised, one operation; and a FULL standard-14 sibling (rung 2,
+both axes) is tried BEFORE a one-axis page face (rung 1, one axis):
+`Times-Roman` + `Times-Bold` on page, bold-italic → `Times-BoldItalic`,
+nothing synthesised. **6 MET** — `format_text.rs` +4 assert the
+`style_ladder:` line and the *"style: bold via rung 2: the standard-14
+sibling"* sentence on STDOUT of the shipped binary; exit `9` for the posture
+refusal. **7 MET, LAST SENTENCE AMENDED** — the criterion said
+`--bold-synthetic` *"no longer refuses"*; shipped: under `auto`/`warn` with a
+real face available it proceeds and names the passed-over face (`Pass 179.2`
+behaviour), under `refuse` it STILL refuses (`RealFaceAvailable`). The
+criterion was written under ruling 1 alone; ruling 2 (*"make … refusing
+available as well"*) keeps the stance reachable through the posture; the
+engineer let the later ruling win. NEW: the ladder reaching rung 4 under
+`refuse` returns `SynthesisRefusedByPosture` — nothing faked on pdfcer's
+authority in that posture. `set_style` + `set_font`, or an overlapping
+`set_synthetic` axis, refused as `Unsupported` (clap conflicts in the CLI).
+**8 MET** — fmt/clippy clean, `cargo test --workspace` green (relayed,
+foreground), every non-cargo gate green individually (`run-gates.sh` as one
+process exceeds the 10-minute foreground limit — noted, not a rule); no new
+dependency, `cargo tree` untouched. The criterion's `FEATURES.md` *"rows 149,
+280"* are `:196`/`:353` at `HEAD` — same two capabilities, the file grew.
+**Sabotage** (rung 2 disabled) fails 3 of 8 (relayed). **Cross-family
+std14 substitution NOT taken** — `Verdana` stays `Verdana`; the debatable
+rung resolved same-family-only by pdfcer's own choice; the `Acrobat_Features`
+gap stays open, NOT claimed Acrobat-confirmed. Rung 3 absent (`Pass 142.0`).
+
+**`docs/FEATURES.md`.** The *Planned* ladder row (`:424`) REMOVED; one
+*Implemented* row ADDED under *Text* after the `style_policy` row,
+`[x] [x] [ ] ◐` — `gui [ ]` (`pdfcer-gui` notified, not consumed); Acrobat
+`◐`, the per-axis exceed stated in prose (the legend has no exceeds glyph).
+Row `:196` re-sentenced (*"bold and italic are AUTOMATIC"*; the
+*Planned*-`179.0` sentence and the 2026-08-30 "synthesises although
+`--set-font Helvetica-Bold` binds" measurement struck). Row `:353`
+(`font-preflight`): *"still `Pass 179.0` … *Planned*"* replaced. Row `:450`
+(`Pass 142.0`): *"ships without it"* → *"shipped without it"*.
+
+**ROADMAP edits.** 451st head + the `Pass 179.0` *Shipped* entry at the top
+of *Shipped*; a left-the-section note at the end of *Next up*'s notes; the
+`Pass 179.0` entry KEPT in place, heading struck and annotated, a dated
+criteria-walk block inserted after criterion 8 (7 amended, 5's ordering);
+**`R90` AMENDED** (a dated block before the rule's original text: under
+`auto` the fallback is APPLIED and disclosed; `refuse` keeps the per-use
+acceptance as an opt-in posture). Ledger: filings `450` → `451`; Pass ceiling
+`257.0`, decision ceiling `138`, rule ceiling `R241` all unchanged.
+`ARCHITECTURE.md` §12: decision `106` gains a dated SHIPPED footer (its
+*"STILL NOT BUILT"* blocks are dated records, not rewritten).
+
+**Channel (by `ls -lt`).** Posted by the engineer:
+`open/notice_2026-09-06-automatic-bold-ladder.md` (1,974 B, 04:32) — the
+public surface, the suggested wiring (*Bold button →
+`.style(StyleSynthesis::new(bold, italic))`; drop any "no real bold face —
+use synthetic?" prompt*), nothing owed back. Read in full by this role.
+
+**Decisions made this session:** none. Decision ceiling `138`. `106`
+footnoted; `R90` amended (not minted).
+
+**Findings + decisions:**
+- **A criterion written under one ruling can be contradicted by the same
+  decision's second ruling** — criterion 7 (*"it no longer refuses"*) was
+  true of ruling 1 and false of the pair; the 341st filing had already
+  recorded the pair's effect on `R90` and on the *Not in this Pass* bullet,
+  but not on criterion 7. Resolved at ship time toward the later ruling.
+  Same shape as the 341st's *"true of ruling 1 and false of the pair"*
+  finding — n=2 for that shape, both on decision `106`.
+- **The rung numbers are a preference order per axis, not a search order
+  across axes** — a full real face at rung 2 beats a half-real face at
+  rung 1. Recorded in code and in the 451st head; not a rule.
+- **Hard-rule-11 sweep, the claim "the ladder is not built / the operator
+  picks / two routes"**, over `format.rs`, `synth.rs`, `settings/mod.rs`,
+  `fontdata/mod.rs`, `main.rs`, `edit.rs`, `docs/core-api/*`, `README.md`,
+  `NEXT_SESSION.md`, `ARCHITECTURE.md`, `FEATURES.md`. **THREE survivors,
+  OWED to the engineer:** `crates/pdfcer-core/src/text_edit/format.rs:3174–3175`
+  (`StyleOutcome::RealFaceResolves` rustdoc — *"the automatic ladder that
+  would switch is `Pass 179.0` and is not built"*);
+  `crates/pdfcer-core/src/text_edit/format.rs:3931–3934`
+  (`FontPreflight::real_bold` rustdoc — *"the automatic ladder, `Pass 179.0`,
+  which is not built. Until it is…"*); `crates/pdfcer-cli/src/main.rs:26199–26205`
+  (`font-preflight`'s `real_bold=-` STDOUT hint — *"--bold-synthetic is one
+  route; the other is --set-font…"*, an exhaustive two-route claim that omits
+  `--bold`; the italic arm has the same shape). **Correct, do not "fix":**
+  `format.rs:707`, `core-api/03:1377` (rung 3 not built — true);
+  `settings/mod.rs:396` (dated: "before `Pass 179.0`"); `main.rs:2399–2401`
+  (`real_bold` does not survey the std14 — still true of that accessor);
+  `main.rs:6280–6291` (`--bold-synthetic` help; not false, does not yet
+  mention `--bold` — the engineer's call); the dated blocks in decision `106`.
+- **The 450th's spec-RAG contradiction**
+  (`security__cms_signeddata_build.md:137–139`) is DISPATCHED to
+  `pdfcer-spec-librarian` by the engineer in parallel with this filing —
+  recorded as dispatched, not done (hard rule 6).
+- **Premise corrections to the dispatch, with source:** none of substance.
+  `FEATURES.md` "rows 149, 280" (criterion 8's wording, carried into the
+  dispatch) are lines `196`/`353` at `HEAD` by `grep -n` — same rows. The
+  channel notice the dispatch said the engineer *would* post was already on
+  disk at 04:32 (`ls -lt`), one minute after the commit's author stamp.
+
+**Sourcing (hard rule 8).** Measured here: `git show -s --format=%B
+72b7296`; `git show --stat --format= 72b7296` (13 files `+998/−21`); `git
+log -1 --format=%ad --date=iso 72b7296`; `git status --short` (CLEAN at the
+start of this filing); **At GATE TIME six files were modified in the working tree that were CLEAN at the start of this filing — `crates/pdfcer-cli/src/main.rs`, `crates/pdfcer-core/src/edit.rs`, `sign/apply.rs`, `signature_verify.rs`, `docs/core-api/02-editing-and-saving.md`, `docs/core-api/index.md` (`+290/−2`, `git diff --stat`; `Pass 10.12` certification signatures, by their `+` lines) — the engineer's in-flight work, NOT staged here.** `git rev-parse origin/main` = `f9bc7c8`; `git log
+--oneline origin/main..main` = 4 (`187fa09`, `9a3dd53`, `a19f359`,
+`72b7296`); **`cargo test -p pdfcer-core --test style_ladder`: 8 passed, 0
+failed, 0.01 s**; test names by `grep -n '^fn '` on `style_ladder.rs` and
+`format_text.rs`; `git show 72b7296 -- docs/core-api/index.md` (the
+line/clause counts); `python tools/check-ledger-numbers.py` (filings `450` →
+next free `451`); the survivors by `sed -n` on the working tree; the channel
+by `ls -lt`, the notice read in full; **backup: `ls -t D:\Dev\pdfce-backups`
+newest = `pdfcer-2026-09-03-1a31d2d-full.bundle`, `1a31d2d` an ancestor of
+`HEAD` (`git merge-base --is-ancestor`), `git rev-list --count 1a31d2d..HEAD`
+= 101 before this filing.** Relayed (the engineer's shell): the
+`format_other.pdf` stdout line on the shipped debug binary, `cargo test
+--workspace` green, fmt/clippy, the individual non-cargo gates, sabotage
+3 of 8.
+
+**Gates (this role, on the filing tree): in the filing commit's message.**
+
+**Still in flight:**
+- *Next up*: **EMPTY of live Pass entries** — the first time since the 340th
+  filing. The engineer's next item comes from *Backlog* (`10.12`/`10.13`
+  signing remainder, `142.0` the ladder's rung 3, or the operator's next
+  request).
+- Unpushed after this filing: five commits (`187fa09`, `9a3dd53`, `a19f359`,
+  `72b7296`, this filing) against `origin/main` = `f9bc7c8`. Push is
+  standing-authorized (decision 090).
+- Unreleased since `v0.41.0`: `Pass 10.14`, `Pass 179.0` and three filings —
+  `0.42.0` material at the next batch release (decision 121; gates first).
+- Owed (engineer, `crates/`): the three rule-11 survivors above.
+- Dispatched, not done: the spec-librarian amendment of
+  `security__cms_signeddata_build.md:137–139`.
+- `pdfcer-gui`: wire Bold/Italic to `.style(StyleSynthesis::new(bold,
+  italic))`; show `style_ladder` off-canvas; drop the "use synthetic?" prompt.
+  `gui [ ]` until reachable in a real build.
+- Backup bundle is 101 commits behind `HEAD` (measured above) — the
+  engineer's cadence, noted not nagged.
+
+**For next session:**
+- Engineer: fix the three survivors (two rustdocs in `format.rs`, the
+  `font-preflight` stdout hint pair in `main.rs`); confirm the spec-librarian
+  dispatch landed; push. Then the next *Backlog* item — *Next up* is empty.
+- Operator: `pdfcer format-text --find TEXT --bold` (or `--italic`, or both)
+  now picks the face itself and prints which rung it took; `--bold-synthetic`
+  is the override if you want the stroke regardless; `--style-policy refuse`
+  makes pdfcer stop rather than synthesise.
