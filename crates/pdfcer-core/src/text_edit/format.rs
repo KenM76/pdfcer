@@ -200,10 +200,12 @@
 //!
 //! A successful family change NEVER triggers font embedding: the coverage
 //! gate excludes anything needing glyph data pdfcer cannot resolve, so
-//! subsetting stays FF-C. **Scope boundary (binding):** the target must be
-//! a REAL, already-existing font RESOURCE on the page (swap `Times-Roman`
-//! for an existing `Times-Bold`); this cut adds no new resource-dict entry
-//! and embeds nothing, so only the content stream changes. Algorithmic
+//! subsetting stays FF-C. **Scope boundary:** the target is an existing
+//! font RESOURCE on the page (swap `Times-Roman` for an existing
+//! `Times-Bold`) or, since `Pass 162.0`, a standard-14 name the page lacks,
+//! which is bound as a new `/Font` object (`created_font`) — still nothing
+//! embedded. A face that is neither is refused (the embedded-donor half of
+//! FF-C, `Pass 142.0`). Algorithmic
 //! faux-bold/faux-italic synthesis is FF-H — not built here. An
 //! outlined/vectorized-text target has no font resource to swap and is
 //! refused with 14.1's existing "font resource is unresolvable" reason, not

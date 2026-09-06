@@ -10001,9 +10001,9 @@ impl EditSession {
             .any(|id| matches!(self.value(*id), Some(Object::Stream(s)) if s.data_span.len > 0))
         {
             return Err(RErr::Unsupported(
-                "text was added to this page this session (in a new content stream); reflow is \
-                 planned against the base content and would drop the added run, so save and \
-                 reopen before reflowing this page"
+                "text was added to this page this session (in a new content stream); reflow \
+                 re-emits the page's first content stream only and committing would drop the \
+                 added run, so save and reopen before reflowing this page"
                     .to_owned(),
             ));
         }
