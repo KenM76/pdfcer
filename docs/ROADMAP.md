@@ -112,6 +112,663 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★ 457th filing, 2026-09-06 — FOUR PASSES MINTED AND SHIPPED IN ONE
+FILING FROM ONE COMMIT, none of which ever had a *Backlog* or a *Next up*
+entry: **`Pass 258.0`**, **`258.1`**, **`258.2`**, **`258.3`**, all in
+**`5c2b61f`** *"fix(core): markup border style, /FreeText note repaint, and
+bookmarks that open other files"*, authored `2026-09-06 13:47:15 -0400`, **19
+files, `+3,550/−75`** (`git show --stat`) — plus a follow-up **`d39aa33`**
+(`14:04:02`, 2 files `+6/−5`, `Pass 258.0`'s refusal wording; see below),
+UNRELEASED — the second item of the
+`0.43.0` batch after `b64ddb6`. **Pass family 258 verified free before
+minting:** `grep -o "Pass 258\.[0-9a-z]*" docs/*.md | sort | uniq -c` = ZERO
+hits in every one of the twenty `docs/*.md` files, and
+`tools/check-ledger-numbers.py` read the live ceiling as `257.0` with `258` in
+neither the headed nor the *claimed-but-not-yet-headed* list. **Ceiling
+`257.0` → `258.3`.****
+
+**Why four Pass IDs and not one.** The commit is one commit because two seams
+are shared — `annot_author`'s reader half (`258.0`'s `read_border_dash` and
+`258.1`'s `text_spec_from_dict` are the same *"read a placed annotation back
+into the model that authored it"* move) and `outline`'s destination reader
+(`258.2` resolves the file, `258.3` consumes the resolution). But the four
+answer **four different requests from two different requesters**, ship four
+separately-testable capabilities in four new test files, and carry **two
+independent breaking changes**. Filing them as one Pass would make the
+`FEATURES.md` rows, the acceptance criteria and the two `BREAKING` notes
+share one entry that no reader could decompose. **Sub-IDs of one family**
+rather than four families, because `258.0`'s `AppearanceOptions` seam is what
+`258.1` reads through, and `258.2` is what `258.3` re-points.
+
+**The four inbound requests, all read in full from the channel, mtimes by
+`ls -la --time-style=full-iso`:**
+
+| mtime (2026-09-06) | file | Pass |
+|---|---|---|
+| `09:22:57.261` | `request_markupstyle_cannot_express_a_dashed_border.md` (5,946 B) | `258.0` (1) |
+| `09:25:47.219` | `request_a_text_boxs_painted_words_cannot_be_rewritten.md` (9,766 B) | `258.1` |
+| `10:40:26.983` | `request_set_markup_style_accepts_a_width_for_a_text_markup_and_does_nothing_with_it.md` (4,466 B) | `258.0` (3) |
+| `10:40:51.678` | `request_markupstyle_endings_is_not_a_styleedit_so_line_endings_cannot_be_removed.md` (4,302 B) | `258.0` (2) |
+
+`258.2` and `258.3` answer an **operator** ask of the same day (a folder of
+PDFs, one a table of contents whose bookmarks open the others), relayed by the
+engineer with the two third-party answers it had already collected — `cpdf`'s
+`<</F 251 0 R/S/Launch>>` and `pdftk`'s `BookmarkPageNumber: 0`. **No queue
+miss this filing:** every `request_*` of 2026-09-06 in the channel folder is
+scoped by this entry, checked as a **set difference** over the folder rather
+than by reading its head — the remedy the 456th filing named after its own
+12 h 57 m miss, applied here at its first opportunity.
+
+**The channel reply is on disk and predates this filing by one minute:**
+`open/reply_2026-09-06-all-four-markup-requests-SHIPPED.md` (8,173 B, mtime
+`13:48:36.267`, commit `13:47:15`). It names all four request files by name,
+carries the breaking-change warnings, and closes with *"Nothing owed back.
+Ship it."* Its last section is the methodology note this filing dispositions
+below.
+
+**★★ THE ONE FINDING THIS FILING ADDS THAT THE DISPATCH DID NOT HAVE: THE
+METHODOLOGY FINDING IS ALREADY A STANDING RULE, MINTED THIRTY DAYS AGO, AND
+THE MINT IS THEREFORE DECLINED.** The engineer offered *"a standing rule or at
+least a session-log note — your call which"* for the finding that **a `"not
+X"` assertion is vacuous when the feature that would produce `X` is absent**.
+It is **`R162`**, minted 2026-08-07 (twelfth filing, `Pass 20.2`), whose
+enforceable form already reads:
+
+> *"A test whose claim is 'X is not there' must, in the same test, assert over
+> the SAME container that the thing it is scanning was populated at all …
+> Detection cost is near zero once stated: ask, of any negative assertion,
+> 'what does this test do if the collection is empty?' If the answer is
+> 'passes,' it needs a positive control."*
+
+The `Pass 258.1` instance is a **new site-class of an existing rule, not a new
+rule**: the "container" is not a collection but a **single `bool`
+disclosure field** (`MarkupNoteChange::appearance_rebaked`), and "empty" is not
+an empty array but **the producing feature switched off**. `R162`'s question
+returns *"passes"* verbatim, and `R162`'s prescribed remedy — a positive
+control over the same container, in the same test — is **exactly what the
+engineer wrote** (`a_foreign_appearance_is_left_alone_and_disclosed`'s control
+block). Filed as a **dated instance note on `R162`** (*Standing rules*) and as
+a new instance-class section in the cross-project RAG file `R162` already
+points at,
+`D:/dev/rag/rust/absence_assertion_must_first_prove_the_container_could_have_held_it.md`.
+**Rule ceiling `R241` unchanged; next free is still `R242`.**
+
+Note the shape, because it is the one this project keeps paying for in the
+other direction: **a correct finding, independently re-derived, that was
+already written down.** The 445th–456th filings recorded the mirror image (an
+answer sourced in one document while another still asked the question). This
+is the same failure with the roles swapped — a rule that exists, is binding,
+and was not consulted because the finding felt new. **The cost here was
+nil** (the remedy chosen matches the rule exactly), which is precisely why it
+is worth recording: the instinct was right and the ledger was not read.
+
+**★★ RULE-11 SWEEP — SIX SURVIVORS, ALL IN `crates/`, ALL REPORTED AND NONE
+EDITED (the sweep is this role's, `crates/` is not).** The claims that changed
+meaning are (a) *"pdfcer authors solid strokes only"*, (b) *"a `/BS /D` is
+carried by the dictionary, not by the appearance"*, and (c) *"a note is
+content the operator cannot recover from the canvas"*. Swept by **bare
+keyword** (`dash`, `DashPattern`, `BorderStyle`, `solid`, `recover from the
+canvas`, `/Launch`, `outline_dropped`, `cross-file`, `no border`) over the
+seven files the four Passes touch plus `docs/core-api/` and `FEATURES.md`,
+clause (e) — narrow the file set, widen the pattern — with **every hit read**:
+
+| # | site | the stale claim | why it is stale |
+|---|---|---|---|
+| 1 | `crates/pdfcer-core/src/edit.rs:4887` | `DroppedProperty::BorderStyle`'s own doc: *"pdfcer authors `/S /S` (solid) only."* | **FALSE since `258.0`** — pdfcer authors `/S /D` now. The variant fires for `/B`, `/I`, `/U`, and for `/D` only when the dash was genuinely not carried. |
+| 2 | `crates/pdfcer-core/src/edit.rs:4890` | `DroppedProperty::DashPattern`'s doc: *"Carried by the dictionary, not by the regenerated appearance."* | True **of the case that still fires**, and unqualified — a shell reading it concludes every `/BS /D` is dropped. Weaker than survivor 1; still owed a *"only when not preserved"* clause. |
+| 3 | `crates/pdfcer-cli/src/main.rs:30924` | the operator-facing disclosure string: *"the /BS /S border style (dashed, beveled, inset or underline): pdfcer authors solid strokes only."* | **FALSE, and it is on the CLI's own output**, which is the half that reaches an operator. `R222`'s territory exactly — the doc comment was corrected and the format string was not. |
+| 4 | `crates/pdfcer-cli/src/main.rs:30928` | *"the /BS /D dash array: the regenerated stroke is continuous."* | Same shape as survivor 2, on the printed channel. |
+| 5 | `crates/pdfcer-core/src/edit.rs:15614` | `MarkupNoteChange`'s struct doc: *"A note is **content the operator cannot recover from the canvas**."* | `Pass 258.1`'s own test header calls this sentence **backwards** for `/FreeText`, whose note *is* what the canvas paints — and the struct it heads gained `appearance_rebaked` in the same commit without the header being reconciled. |
+| 6 | `crates/pdfcer-core/src/edit.rs:26099` | `set_markup_note`'s own doc, the identical sentence | Same claim, second copy, on the verb a shell reads first. **The reason clause (e) exists**: one correction, two spellings, and the grep that found the first would not have found the second without reading for the claim. |
+
+**Correct hits recorded so the NEXT sweep does not "fix" them:**
+`annot_author.rs:838` (*"The loss is disclosed by the caller
+(`DroppedProperty::DashPattern`)"*) is about an **invalid** `/D` array
+degrading to `None`, which still discloses and is right;
+`annot_author.rs:1913` (a dash already `[] 0`, §8.4.1 Table 52) is a solid
+line by definition; `edit.rs:44983–45002` is the in-crate test
+`restyling_discloses_what_the_regeneration_dropped`, **deliberately updated in
+place** by this commit with its reasoning written beside it (see below), not a
+survivor; `main.rs:16237`'s *"cross-file breakage"* is about **renamed named
+destinations**, an unrelated merge disclosure; `pageops/references.rs:43` and
+`:235` correctly say `/Launch` names no page. `docs/core-api/` carries no
+stale copy of any of the three claims — `02-editing-and-saving.md:1528`,
+`:4095` and `index.md` were all updated **in the same commit**.
+
+**★ THREE DELIBERATE BEHAVIOUR CHANGES, stated here so none of them is filed
+as a regression:**
+
+1. **`DroppedProperty::BorderStyle` and `::DashPattern` no longer fire when
+   the dash is preserved.** The in-crate test
+   `restyling_discloses_what_the_regeneration_dropped` (`edit.rs:44983`) was
+   **updated in place with the reasoning, not deleted** — and its comment
+   already documented the same narrowing when `Pass 98.0` did it to
+   `BorderEffect`, so the file now carries both instances of one shape. A
+   shell keying a string on either variant has had its **meaning narrowed**,
+   which is why it is in the channel reply's *"what you must know"* list.
+2. **A `/FreeText` whose appearance pdfcer did not author is left alone and
+   reported**, never overwritten with pdfcer's plainer rendering — the note
+   still commits, `appearance_rebaked` is `false`, and the designer's shadow
+   survives. `false` is **not a failure return**; it is correct and final on a
+   sticky, a stamp, and a foreign `/FreeText`.
+3. **`pageops::merge`'s signature changed** — a third argument, the sources'
+   file names. `&[]` restores the pre-`258.3` behaviour exactly.
+
+**Sourcing (hard rule 8) — measured here, with a shell, every figure named
+with the command that produced it:** `git rev-parse origin/main` =
+**`4dca180`**; `git rev-list --count origin/main..HEAD` = **1** (`5c2b61f`
+only, before this filing); `git describe --tags --abbrev=0` = **`v0.42.0`**;
+`git show -s --format=%H|%ad` and `git show --stat 5c2b61f` (19 files,
+`+3,550/−75`); the four new test files read in full
+(`markup_border_style.rs` 627 lines / 15 tests, `free_text_note_rebake.rs` 588
+lines / 11 tests, `outline_launch_targets.rs` 196 lines / 5 tests,
+`merge_relinks_cross_file_bookmarks.rs` 344 lines / 5 tests — **1,755 lines
+carrying 36 new tests**, by `wc -l` and `grep -c '#\[test\]'` per file, the
+four summing to the total; **1 test per 48.8 lines**, which is the density
+this project's test files run at because the reasoning is in the file); the
+commit message read in full via `git log -1
+--format=%B`; the channel folder listed with `ls -la --time-style=full-iso`
+(199 entries) and the four requests plus the reply read; `git show 5c2b61f --
+docs/core-api/` (the `EditError` count `122 → 124` and both new variants);
+`python tools/check-ledger-numbers.py` → *"SESSION_LOG filings: 456 → next
+free is 457"*, rules `R241`, decisions `138`, Pass ceiling `257.0`, `258` in
+neither list; `grep -o "Pass 258\.[0-9a-z]*" docs/*.md` → zero hits in all
+twenty files; `ls -t D:\Dev\pdfce-backups` newest
+**`pdfcer-2026-09-03-1a31d2d-full.bundle`**, `git rev-list --count
+1a31d2d..HEAD` = **117** before this filing (was 116 at the 456th — one
+commit's drift, the bundle is unchanged). **RELAYED, not measured here:** the
+workspace suite (`4,966 passed / 0 failed`), `cargo fmt --all --check`,
+`cargo clippy --workspace --all-targets -- -D warnings`, `cargo tree -p
+pdfcer-core -p pdfcer-render` (no egui/eframe/winit/wgpu/reqwest/hyper),
+`cargo check -p pdfcer-core -p pdfcer-render --target wasm32-unknown-unknown`,
+the non-cargo gates including `check-core-api-verbs`, and every sabotage run.
+
+**★ WORKING TREE NOT CLEAN AT FILING TIME, AND IT IS THE ENGINEER'S, NOT
+THIS ROLE'S.** `git status --porcelain` shows four modified files —
+`Cargo.toml` (`version = "0.42.0"` → `"0.43.0"`), `Cargo.lock`,
+`fuzz/Cargo.lock`, `tools/content-identity/Cargo.lock` — an **uncommitted
+release version bump** in flight. Reported, not staged and not touched; this
+filing stages `ROADMAP.md`, `FEATURES.md` and `SESSION_LOG.md` **by name**.
+
+**★★ AND A SECOND COMMIT LANDED WHILE THIS FILING WAS BEING WRITTEN, WHICH IS
+`R201`'s SITUATION EXACTLY — `Pass 258.0` THEREFORE SPANS TWO COMMITS AND THE
+ENTRY BELOW SAYS SO.** `d39aa33` *"fix(core): drop the doubled article from
+StylePropertyNotApplicable's message"*, authored **`2026-09-06 14:04:02
+-0400`** — seventeen minutes after `5c2b61f` and mid-dispatch — 2 files,
+`+6/−5`. The refusal printed *"annotation 6 0 is a /Highlight and has no **A
+BORDER WIDTH**"*: the article was baked into the `property` value **and** the
+`#[error]` format string supplied one of its own. `"a border width"` →
+`"border width"`, `"a border dash"` → `"border dash"`, with the field's own
+doc comment now stating the contract (*"No leading article: the message
+supplies the grammar around it"*); the one test asserting the string was
+updated with it.
+
+**The finding in it is the engineer's and is worth carrying**, in his own
+words: *"Found by driving the release binary rather than by reading the format
+string, which is the only way this class shows up: **every test asserted the
+field, and the field was right**."* That is a **fourth** member of the
+`R87`/`R159`/`R162`/`R164` family this filing already has one instance of — an
+assertion on a **component** cannot see a defect in the **composition**, and
+both halves were independently correct. It is `R222`'s neighbourhood (operator
+text is shipped UI, swept under rule 11) and the commit says so itself.
+**Detected 2026-09-06 by this role via `git log --oneline` at gate time**, not
+by the dispatch, which described one commit; the ledger's *Unpushed* row counts
+both.
+
+**`docs/FEATURES.md` — FIVE ROWS, TWO OF THEM NEW, all in the same filing per
+the maintenance contract.** The `gui` column is **`pdfcer-gui`'s to tick** and
+is not moved by this filing on the two new rows (`R203`: no bare verdict about
+a repository this project does not build; the basis for `[ ]` is that
+`pdfcer-gui` has not yet wired the controls, stated by the channel reply's own
+*"that is the Line style control `RIBBON_IA.md` §5.8 has been waiting for"*).
+
+| row | change |
+|---|---|
+| **NEW** — *Border line style on a markup: preserve, author and clear a dash* | `[x]` core · `[x]` cli · `[ ]` gui · `[x]` Acrobat. New capability, not a restatement of the restyle row. |
+| **NEW** — *Which file does a bookmark open?* (`/Launch` + `/GoToR` targets, `list-outline --json`) | `[x]` core · `[x]` cli · `[ ]` gui · `[x]` Acrobat. |
+| *Restyle a placed markup annotation* (`:266`) | sentence **replaced**, not appended to: the endings-clear, the not-applicable refusal and the `MarkupStyleSupport` predicate. Boxes unchanged. |
+| *Write, correct or clear a note on an annotation that already exists* (`:257`) | sentence **replaced**: the `/FreeText` re-bake and `appearance_rebaked`. Boxes unchanged — the Comments panel already calls `set_markup_note`, so the fix reaches `pdfcer-gui` through a surface already ticked. |
+| *Merge several files into one* (`:172`) | sentence **replaced**: `outline_relinked=`, and the third argument. Boxes unchanged. |
+
+#### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass IDs | ceiling `257.0`; *Next up* empty of live entries | ceiling **`258.3`** — **`258.0`, `258.1`, `258.2`, `258.3` MINTED + *Shipped*** in one filing (none ever in *Backlog* or *Next up*); *Next up* still empty of live entries |
+| Decisions | ceiling `138`, next free `139` | **unchanged** — the `AppearanceOptions`-vs-enum-field choice **followed** the existing `QuadPointOrder` precedent rather than setting one, and a choice that applies a standing precedent is not a decision record (the engineer's own lean, checked against `ARCHITECTURE.md` §12 and agreed) |
+| Standing rules | ceiling `R241`, next free `R242` | **unchanged** — the methodology finding is **`R162`**, minted 2026-08-07; a **dated instance note** added to it, no re-mint |
+| SESSION_LOG filings | `456` | **`457`** |
+| Owed-survivor ledger | ZERO in `crates/`; ONE in `docs/` (`NEXT_SESSION.md:19`, engineer's) | **SIX in `crates/`** (table above, all engineer-owned); the `docs/` survivor is discharged — `NEXT_SESSION.md` is `821ab47`'s and the queue it called empty is now scoped |
+| `FEATURES.md` | — | **five rows changed, two of them NEW** (see the `FEATURES.md` block above) |
+| Unpushed | `5c2b61f` | `5c2b61f` + **`d39aa33`** (landed mid-dispatch) + this filing (standing-authorized push, decision 090) |
+| Unreleased | `b64ddb6`, `5c2b61f` | **`b64ddb6`, `5c2b61f`, `d39aa33`** — the `0.43.0` batch; `v0.42.0` = `e59b084` (the version bump to `0.43.0` is UNCOMMITTED in the working tree) |
+
+### `Pass 258.0` (`5c2b61f` + `d39aa33`, 2026-09-06) — ★★★★ **THE BORDER LINE STYLE: A DASHED MARK IN THE OPERATOR'S FILE WAS SILENTLY SOLIDIFIED THE FIRST TIME ITS COLOUR WAS CHANGED — DISCLOSED, WHICH IS THE FLOOR AND NOT THE CEILING — AND FOUR APPEARANCE-REGENERATION ROUTES CARRIED THE DEFECT, NOT THE ONE REPORTED** — ★★★ **`MarkupStyle::endings` COULD BE SET BUT NEVER REMOVED: THE NEAREST A CALLER COULD GET WAS `[/None /None]`, WHICH IS TABLE 176'S OWN DEFAULT AND THEREFORE THE LEAST INFORMATIVE KEY AVAILABLE** — ★★ **A `width` ON A TEXT MARKUP RETURNED `Ok` WITH AN EMPTY `dropped` AND DID NOTHING; NOW `EditError::StylePropertyNotApplicable`, PLUS A `MarkupStyleSupport` PREDICATE SO A SHELL CAN ASK INSTEAD OF CARRYING ITS OWN COPY OF THE LIST** — ★ **BREAKING: `MarkupStyle` LOSES `Copy`; `endings` CHANGES TYPE** — three `pdfcer-gui` requests of 2026-09-06 in one seam, minted and shipped in one filing
+
+**The defect, in the requester's words, and it is a loss of the operator's
+own work rather than a missing feature:**
+
+> *"A dashed mark that already exists in the operator's file is silently
+> converted to a solid one the first time he changes its colour."*
+
+**The mechanism, and nothing in it was wrong on its own.**
+`set_markup_style` regenerates `/AP` from `annot_author::spec_from_dict`; the
+spec had no dash field; the rebuilt appearance was therefore solid. `/BS /D`
+**survived in the dictionary**, and under **`R43`** pdfcer paints from `/AP`
+— so the file's two halves disagreed and the appearance won.
+
+**It was disclosed** (`DroppedProperty::DashPattern` fired), and the
+requester put the distinction better than a rule could:
+
+> *"An operator who wanted a red dashed cloud and pressed the colour swatch
+> has been given a red solid one, and 'we told you' is a poor second to 'we
+> kept it'."*
+
+**The fix follows `Pass 98.0`'s `/BE` precedent exactly** — read the property
+back on the way **in**, so a regeneration re-authors it — rather than growing
+`MarkupStyle` a field and calling the loss disclosed. All three asks landed,
+not only the preservation the requester said they would take alone, because
+once the dash was in the pipeline the other two were nearly free: **preserve**
+(`/BS` `/S` + `/D` read back; a restyle that does not mention `dash` keeps
+one, **including a dash pdfcer never authored**), **author**
+(`MarkupOptions::dash`, CLI `add-markup --dash 4,2`), **restyle**
+(`MarkupStyle::dash: Option<StyleEdit<BorderDash>>` — `Set` dashes, `Clear`
+solidifies, `None` leaves alone).
+
+**★★ FOUR ROUTES REGENERATE AN APPEARANCE, AND THE REPORT NAMED ONE.**
+`set_markup_style` is the reported route. `resize_annotation`,
+`reshape_annotation` and `add_markup_inner` bake through the same generator
+and **would all have solidified a dash too** — so the defect was reachable by
+dragging a resize handle or a vertex, not only by pressing a swatch. All four
+carry the dash now, **each proven by a separate sabotage**. This is `R219`'s
+obligation discharged at authoring time rather than discovered by the shell
+one route at a time.
+
+**The shape of `dash` in the API — `AppearanceOptions`, not a `MarkupSpec`
+field, and the precedent is named rather than invented.** A dash cuts across
+the stroked subtypes exactly as `QuadPointOrder` cuts across the text-markup
+ones, and that is the **house precedent this follows** — it does not set one,
+which is why no decision record is minted for it. Cost: **~15 call sites
+instead of ~190** (a field on seven `MarkupSpec` variants). New public items:
+`annot_author::BorderDash`, `annot_author::AppearanceOptions`,
+`annot_author::build_appearance_opts`.
+
+**Two spec facts the model refuses to invent, both sourced before coding:**
+
+- **`BorderDash` carries NO PHASE.** Table 166's `/D` is the array alone, and
+  the standard says the phase *"shall be assumed 0"* — so modelling a phase
+  would invent a value **the file cannot express**. The channel reply tells
+  the shell not to offer a phase control, for the same reason.
+- **`BorderDash::new` enforces §8.4.3.6 at construction** (every element
+  non-negative, not all zero; the empty array *is* the solid line) and returns
+  `Option`. **Table 166's `/D` default `[3]` is honoured** for a `/BS /S /D`
+  carrying no array — read as `[3]`, not as solid.
+
+**The second request — `endings` could be SET but never REMOVED.**
+`MarkupStyle::endings` was a bare `Option<(LineEnding, LineEnding)>` while its
+three siblings were `Option<StyleEdit<_>>`. The nearest a caller could get to
+removing `/LE` was writing `[/None /None]` — and **Table 176's default for
+both ends is `/None`**, making that the least informative key available: it
+says exactly what its own absence would have said. **A file could not be
+returned to the state it was opened in, in a key neither UI shows.** The
+requester's deciding argument was a signed drawing and *"is this
+byte-identical to what my client sent me"*; it beat the cheaper doc-comment
+alternative they themselves offered. `Clear` now removes `/LE`; `Set` writes
+it, `Set((None, None))` included if a caller ever wants the key present and
+empty-handed.
+
+**The third request — a `width` on a text markup was silently swallowed.**
+`Ok`, no error, no `DroppedProperty`, nothing changed:
+`MarkupSpec::TextMarkup` has no border to widen. **A shell trusting that pair
+was entitled to tell the operator the width took.** Now refused by name —
+`EditError::StylePropertyNotApplicable { id, subtype, property }`, one
+showable sentence, **refused before anything is written so the session is
+untouched**. And the shell gets to ask in advance:
+`edit::MarkupStyleSupport::for_subtype(&[u8])` → `takes_border`,
+`takes_interior`, `takes_endings`. The requester's own sentence is quoted into
+its doc comment because it is the justification:
+
+> *"That list is the engine's to know. The first subtype that gains or loses a
+> border is the day our copy is wrong and nothing tells us."*
+
+**The alternative they offered and we declined, with their own reasoning:**
+reporting the ignored width as a `DroppedProperty` instead of refusing. A
+`dropped` entry means **the file lost something**; here nothing was lost — the
+**request** was ignored. Different sentences to an operator, and `dropped`
+keeps its meaning. `R221`'s hazard is closed too: **a test asserts the
+predicate and the refusal agree**, so a drift between them fails pdfcer's
+build rather than the shell's.
+
+**BREAKING, both predicted by the requester:**
+1. **`MarkupStyle` is no longer `Copy`** (`BorderDash` owns a `Vec<f64>`); it
+   stays `Clone + Default + PartialEq`. Implicit copies become move errors,
+   all mechanical.
+2. **`MarkupStyle::endings` changes type** to `Option<StyleEdit<(LineEnding,
+   LineEnding)>>`.
+
+**Tests — `crates/pdfcer-core/tests/markup_border_style.rs` (627 lines, 15
+tests), each verified non-vacuous by sabotage (relayed):**
+`a_colour_change_does_not_solidify_a_dashed_border`,
+`a_resize_does_not_solidify_a_dashed_border`,
+`a_reshape_does_not_solidify_a_dashed_border` (the three regeneration routes
+the report did not name, plus `authoring_solid_is_unchanged_by_this_pass` for
+the fourth), `clearing_the_dash_makes_it_solid_in_dictionary_and_appearance`,
+`a_solid_mark_can_be_made_dashed`,
+`an_unusable_dash_pattern_is_refused_at_construction`,
+`clearing_the_endings_removes_the_key`,
+`setting_none_none_still_writes_the_key` (the two states Table 176 makes
+distinguishable), `a_width_on_a_text_markup_is_refused_by_name`,
+`a_dash_on_a_text_markup_is_refused_by_name`,
+`endings_on_a_square_are_refused_by_name`,
+`a_refused_property_leaves_the_session_untouched`,
+`the_support_matrix_answers_in_advance`, `the_predicate_and_the_refusal_agree`.
+
+**Acceptance criteria — written at ship, from the three requests, all met:**
+1. A restyle that does not mention `dash` preserves an existing one, including
+   a foreign dash — **met** (test 1; the other three routes tests 2–4).
+2. A dash can be authored and cleared through both shells — **met**
+   (`MarkupOptions::dash`, `MarkupStyle::dash`, CLI `add-markup --dash` and
+   `set-markup-style --dash ON,OFF,…|solid`).
+3. `/LE` can be removed, not only set to its own default — **met**.
+4. A property the subtype cannot take is refused by name with nothing written,
+   and a predicate answers in advance — **met**; the `DroppedProperty`
+   alternative **declined** with the requester's own reasoning.
+5. `DroppedProperty::BorderStyle`/`::DashPattern` stop firing on a preserved
+   dash, and the in-crate disclosure test is **updated in place with the
+   reasoning** rather than deleted — **met** (`edit.rs:44983–45002`; the same
+   file already documented `Pass 98.0`'s identical narrowing of
+   `BorderEffect`).
+
+**Not in this Pass:** `/S /B`, `/S /I` and `/S /U` (beveled, inset,
+underline) are still authored as solid and still disclosed — a dash is the
+one non-solid style with a §8.4.3.6 model behind it. **Owed (reported, not
+edited — this role does not touch `crates/`):** four of the six rule-11
+survivors above are this Pass's — `edit.rs:4887`, `edit.rs:4890`,
+`main.rs:30924`, `main.rs:30928`.
+
+---
+
+### `Pass 258.1` (`5c2b61f`, 2026-09-06) — ★★★★ **A `/FreeText`'s PAINTED WORDS NOW FOLLOW ITS NOTE: `set_markup_note` CHANGED `/Contents` AND LEFT THE PAGE PAINTING THE OLD TEXT — THE ONLY PLACE AN OPERATOR COULD TYPE WORDS, PRESS SAVE, SEE NO ERROR, AND HAVE THE DOCUMENT NOT SAY WHAT THEY WROTE** — ★★★ **`annot_author::text_spec_from_dict` — THE READER `pdfcer-gui` IDENTIFIED AS THE SINGLE BLOCKER UNDER THREE SURFACES — NOW EXISTS AND IS PUBLIC** — ★★ **`multiline` IS NOT IN THE FILE (§12.5.6.6 GIVES THE SUBTYPE NO SUCH KEY), SO IT IS *MEASURED*: BAKE THE ORIGINAL TEXT BOTH WAYS AND COMPARE AGAINST THE BYTES ON DISK — ONE COMPARISON ANSWERING TWO QUESTIONS** — ★ **A FOREIGN APPEARANCE IS LEFT ALONE AND REPORTED, NEVER REPLACED WITH pdfcer's PLAINER RENDERING** — minted and shipped in one filing
+
+**Why the two values diverge with no visible first moment.**
+`annot_author::free_text` bakes `/AP` `/N` from the caller's text **and then
+writes the same string into `/Contents`**, so the two agree **exactly** when
+the box is placed. `write_markup_note`'s command carried the annotation
+object only, never the appearance stream. `R43` means pdfcer paints from
+`/AP`. Every one of those three was correct in isolation; together they made
+the note verb's own documentation — *"a note is content the operator cannot
+recover from the canvas"* — **backwards for this one subtype**, where
+`/Contents` **is** the appearance's input.
+
+**★ It is `/FreeText` ONLY, and the family is deliberately not uniform:**
+
+| `/Subtype` | is `/Contents` painted? | `set_markup_note` before | after |
+|---|---|---|---|
+| `/FreeText` | **yes** — it is the appearance's own input | stale | **re-baked** |
+| `/Text` (sticky) | no — shown by the reader's popup | correct | **unchanged** |
+| `/Stamp` | no — a comment *about* the stamp; never written by `stamp()` | correct | **unchanged** |
+
+**The stamp row is the opposite of a defect and the requester said so by
+name:** *"Please do not 'fix' it by making a stamp's note drive its label —
+that would break the one of the three that is currently right."* That
+paragraph is **quoted into the test that pins it**, so it is asserted rather
+than merely intended.
+
+**The re-bake is inside `set_markup_note`, not a second verb.** The requester
+asked for exactly that — *"rather than a second verb you might forget to
+call"* — and it ships as **one call, one undo entry, both halves**.
+
+**★★ `multiline` is MEASURED, because the file does not carry it.**
+§12.5.6.6 gives `/FreeText` no multiline flag — `/Ff` is a **form-field** key
+and a `/FreeText` is not a field. So the re-bake bakes the **original** text
+**both ways** and compares each against the appearance already on disk. A
+match names the layout **and** proves the appearance is pdfcer's own; no match
+means it is foreign and must be left alone. **One measurement, both answers**
+— the same trick `set_markup_style` uses, with one more degree of freedom.
+Consequence a shell must know: **`TextAnnotSpec::FreeText::multiline` coming
+back from `text_spec_from_dict` is ALWAYS `false` and must not be believed**;
+a caller re-authoring a `/FreeText` itself has to run the same comparison or
+supply the value.
+
+**The blocker under three surfaces, now removed.**
+`annot_author::text_spec_from_dict` reads `/FreeText`, `/Text` and `/Stamp`
+back into `TextAnnotSpec`. Without it there was no way to re-author a placed
+`/FreeText`, **and** no way to change a sticky note's icon and colour
+(`request_a_sticky_notes_icon_and_colour_cannot_be_changed.md`, still open),
+**and** no way to serve the clipboard's `FreeText | Text | Stamp` arm. One
+reader, three surfaces.
+
+**New disclosure field: `MarkupNoteChange::appearance_rebaked: bool.**
+`true` when the picture moved with the words. **`false` is not a failure** —
+it is correct and final on a sticky, on a stamp, and on a `/FreeText` whose
+appearance pdfcer did not author. A status line can finally say **which half
+moved**. Rule 4 shape: the re-bake **renders exactly as saved content will
+render** (no badge, no provisional marking on the page) and the disclosure
+that pdfcer inferred the layout lives **off-canvas**, in the returned report
+and the CLI's printed line.
+
+**The authoring-time trap, closed before it cost anyone anything.** Passing
+both `TextAnnotSpec::FreeText { text }` and `MarkupOptions::note` with
+**different** words produced a document whose two halves disagreed **from
+creation**. The requester called it *"a loaded gun on a verb whose two
+arguments look independent and are not"*. Now
+`EditError::FreeTextNoteConflictsWithText { spec_text, note_text }`.
+**Identical strings are still allowed** — that is what the authoring path
+writes anyway, so refusing them would be refusal on principle.
+
+**Tests — `crates/pdfcer-core/tests/free_text_note_rebake.rs` (588 lines, 11
+tests):** `editing_a_free_texts_note_repaints_the_box`,
+`the_note_and_the_repaint_are_one_undo_entry`,
+`a_multiline_box_stays_multiline_through_an_edit` (the measurement, exercised),
+`a_sticky_notes_appearance_is_not_rebaked`,
+`a_stamps_note_does_not_become_its_label` (the requester's paragraph, pinned),
+`a_foreign_appearance_is_left_alone_and_disclosed`,
+`authoring_a_free_text_with_a_conflicting_note_is_refused`,
+`authoring_a_free_text_with_a_matching_note_is_allowed`,
+`a_free_text_reads_back`,
+`a_sticky_note_reads_back_including_its_icon_and_colour`,
+`a_non_text_subtype_is_refused_by_name`. Assertions are made **against the
+saved bytes** (`painted_text` re-parses an incremental save), not against the
+session overlay — `R159`, and the right choice here because the whole defect
+was a file whose dictionary and appearance disagreed.
+
+**★★ THE `R162` INSTANCE, AND IT IS THE REASON THE FILE IS WORTH READING.**
+The first version of `a_foreign_appearance_is_left_alone_and_disclosed`
+asserted `!change.appearance_rebaked` — **and passed with the entire re-bake
+disabled.** A `"not X"` assertion is vacuous when the feature that would
+produce `X` is absent, which is `R162` exactly, with the container being a
+single `bool` rather than a collection. It became a test only once a
+**control** asserting the positive sat beside it (`control_change
+.appearance_rebaked` must be `true` on an unmodified pdfcer appearance),
+carrying the reasoning in a comment the next reader will meet:
+
+> *"'Not re-baked' is equally true of a re-bake that is DISABLED, so this
+> assertion measured nothing until the same edit was shown to re-bake when
+> the appearance is left alone."*
+
+**A second sabotage found a different thing, and the engineer recorded the
+distinction rather than the reassurance.** Widening the `/FreeText` subtype
+guard (`edit.rs:26247`) to apply to **every** subtype left the sticky-note and
+stamp tests **GREEN**. The real protection is **structural and one level
+down** — `rebake_free_text_appearance` destructures the `TextAnnotSpec` as
+`FreeText` and returns `None` for anything else, whatever the guard says. That
+is written into the code as a comment (*"this subtype test is a FAST PATH, not
+the guarantee … worth knowing rather than mistaking for those tests guarding
+it"*) instead of leaving two tests looking like they guard something they do
+not. This half is **`R221`'s** cause — two agreeing implementations of one
+predicate, mutually masking — correctly diagnosed and correctly left in place,
+since the redundant one is a cheap fast path and the doc comment now says so.
+
+**Acceptance criteria — written at ship, all met:**
+1. A `/FreeText`'s note edit repaints the box, in one command and one undo
+   entry — **met**.
+2. Sticky and stamp are untouched, asserted not assumed — **met**.
+3. A foreign appearance survives intact, the note still commits, and
+   `appearance_rebaked` is `false` — **met**, with the positive control beside
+   it.
+4. `multiline` is recovered without inventing a key the spec has not — **met**
+   (measured; the reader's own field is documented as unusable).
+5. The authoring-time conflict is refused by name — **met**; identical strings
+   allowed.
+
+**Owed (reported, not edited):** rule-11 survivors 5 and 6 — `edit.rs:15614`
+and `edit.rs:26099`, the *"a note is content the operator cannot recover from
+the canvas"* sentence, now backwards for the one subtype this Pass changed,
+in two spellings.
+
+---
+
+### `Pass 258.2` (`5c2b61f`, 2026-09-06) — ★★★ **WHICH FILE DOES THIS BOOKMARK OPEN? `/Launch` ACTIONS NOW REPORT THE FILE THEY NAME — THE RESOLVER ALREADY EXISTED AND WAS SIMPLY NOT CALLED FOR `/Launch`, SO EVERYTHING BUT THE ACTION'S `/S` WAS DISCARDED** — ★★ **`list-outline` STOPS PRINTING DESTINATIONS WITH RUST'S `{:?}`: A `/GoToR` FILENAME WAS REACHING OPERATORS AS A DECIMAL BYTE ARRAY WHILE `list-links` HAD THE READABLE RENDERER ALL ALONG** — ★ **READING IS NOT RUNNING: `R13` IS UNTOUCHED — THIS IS A FILENAME TO SHOW** — an operator ask, minted and shipped in one filing
+
+**The ask, and why two other tools could not answer it.** A folder of PDFs,
+one a table of contents whose bookmarks open the others; the operator wanted
+*"the name of the bookmark and the filename it points to"*. `cpdf` gave
+`<</F 251 0 R/S/Launch>>` — an **unresolved indirect reference** to a file
+specification. `pdftk` gave `BookmarkPageNumber: 0`, which is `pdftk`
+correctly reporting that the bookmark names no page **in this document** while
+saying nothing about the file it does name.
+
+**pdfcer's own gap was narrower and slightly worse.** `file_spec_bytes` — the
+resolver that turns `251 0 R` into `chapter1.pdf` — **already existed and was
+already used for `/GoToR`**. `read_action` simply did not call it for
+`/Launch`, so `Destination::NonNavigation` could say *"this bookmark launches
+something"* and never **what**. `Destination::NonNavigation` gains a
+`file: Option<Vec<u8>>` field. `/Launch` stays a non-navigation action — it
+starts an application, it is not a jump — but *"which file"* is answerable,
+and **refusing to answer it was an omission rather than a position**.
+
+**Where the filename is read from, and why three spellings.** Table 203 (ISO
+32000-2 Table 207) makes `/Launch`'s `/F` **required unless** `/Win`, `/Mac`
+or `/Unix` is present, and those three are **deprecated in PDF 2.0**
+(§12.6.4.6: *"The `F` entry determines the file specification platform to be
+launched"*). So `/F` is tried first and the `/Win` sub-dictionary's own bare
+`/F` second. `None` for every other action type, for a `/Launch` with no
+usable entry (Table 203's own *"it shall do nothing"* case), and for a file
+specification in a shape the module does not read.
+
+**The second half, which nobody asked for and which was worse.** For the
+`/GoToR` case where the filename **was** parsed, `list-outline` printed the
+destination with Rust's `{:?}` — so the answer reached the operator as
+`file: Some([99, 104, 97, …])`. **The information was right and unreadable**,
+and `list-links` had had the readable renderer for the same enum the whole
+time. `list-outline` now uses it, and gains **`--json`** for a folder-sized
+job.
+
+**New fixture — `fixtures/synthetic/outline/toc-launch-targets.pdf` (1,798
+B), four bookmarks covering every shape a real table of contents mixes:**
+
+| bookmark | action | file named by |
+|---|---|---|
+| Chapter 1 | `/Launch` | **indirect** `/F` filespec dict — the operator's exact shape |
+| Chapter 2 | `/Launch` | direct `/F` string |
+| Appendix | `/Launch` | `/Win << /F >>` only (the 2.0-deprecated fallback) |
+| Chapter 3 | `/GoToR` | `/F` + `/D` page |
+
+**★ Reading is not running.** `R13` is untouched. A `/Launch` target is a
+filename to **show**, and pdfcer resolves it **precisely so an operator can
+see what a document would do without a viewer doing it**. The field's own doc
+comment says so at the point of definition, not only in this entry.
+
+**Tests — `crates/pdfcer-core/tests/outline_launch_targets.rs` (196 lines, 5
+tests):** `every_bookmark_reports_the_file_it_opens` (★ the ask itself: title
+→ filename for all four), `an_indirect_file_specification_resolves`,
+`a_win_platform_dictionary_is_read_when_f_is_absent`,
+`a_launch_is_still_not_a_page_destination` (the boundary — resolving a
+filename did not turn `/Launch` into navigation),
+`an_action_without_a_file_reports_none`.
+
+**Acceptance criteria — written at ship, all met:** every bookmark that opens
+a file reports it, across all four carrier shapes (**met**); the deprecated
+platform fallback is read and is not preferred (**met**); `/Launch` does not
+become a page destination (**met**); the CLI prints it readably and offers
+`--json` (**met**); `R13` unchanged, nothing executed (**met**).
+
+---
+
+### `Pass 258.3` (`5c2b61f`, 2026-09-06) — ★★★★ **`merge` RE-POINTS CROSS-FILE BOOKMARKS INSTEAD OF DROPPING THEM — MEASURED FIRST: MERGING A TABLE OF CONTENTS WITH THE FOUR FILES ITS BOOKMARKS LAUNCHED GAVE `outline_kept=0 outline_dropped=4`, EVERY ONE OF THE OPERATOR'S OWN TITLES DISCARDED, HONESTLY BUT COMPLETELY** — ★★★ **ORDER IS THE FIX: RE-POINTING MUST PRECEDE PRUNING, BECAUSE A `/Launch` ENTRY HAS NO PAGE IN ITS OWN SOURCE AND THE PRUNER REACHES IT FIRST** — ★★ **A LINK NAMING A FILE *NOT* IN THE MERGE IS STILL DROPPED, AND THAT IS DELIBERATE** — ★ **BREAKING: `pageops::merge` TAKES A THIRD ARGUMENT** — minted and shipped in one filing
+
+**The problem was stated by someone else and confirmed by measurement.** The
+operator brought another engineer's answer to his own question, whose closing
+paragraph was:
+
+> *"Launch and GoToR actions point at external files by name, so once
+> everything is one document the targets no longer exist and the bookmarks
+> break. If you merge, you need to rewrite each bookmark to an internal
+> destination afterwards."*
+
+**That was accurate about pdfcer**, and it was **measured before anything was
+built**: `outline_kept=0 outline_dropped=4`. pdfcer *disclosed* the loss —
+**the floor, not the ceiling**, the same distinction `Pass 258.0` turned on
+for a dashed border, in the same commit.
+
+**Why the merge can do better than the post-processing script that was
+advised.** The advice was to rebuild the mapping afterwards. But **the merge
+already knows** which file each source came from: it is **holding the list**.
+The mapping the operator would otherwise reconstruct by hand is **free at
+exactly the moment it is needed**, and **no other stage of the pipeline has
+both halves at once**.
+
+**★★ Order is the fix, and getting it backwards produces a correct-looking
+implementation that never fires.** Re-pointing must happen **before**
+pruning. A `/Launch` entry has **no page in its own source**, so the pruner
+discards it before anything can notice that the file it names is sitting in
+the same merge.
+
+**Matching, stated precisely because it is an inference.** By **file name**,
+**case-insensitively**, **ignoring directories** — a `/Launch` says
+`chapter1.pdf`, not `chapter1`, and not `C:\jobs\chapter1.pdf`. This is
+**rule 4** territory: pdfcer is inferring that `chapter1.pdf` in a `/Launch`
+means the `chapter1.pdf` in this merge, so it is **disclosed** —
+`AssembleReport::outline_items_relinked`, counted **separately from `kept`**
+because it is a different fact: these entries did not merely survive, **their
+destination was rewritten**, and an operator comparing the merged document
+with the original is entitled to know which. The CLI prints
+`outline_relinked=` in its token line **and** a named stderr line when the
+count is non-zero.
+
+**What is deliberately NOT done.** A link naming a file that was **not**
+merged stays unresolved and prunes as before. That bookmark is **genuinely
+dead** — the file it names is not in the document and not on the way in — and
+**inventing a destination for it would be a worse answer than dropping it and
+saying so**. Both counts are reported, so the two outcomes are
+distinguishable.
+
+**New API.** `AssembleOptions::source_files: Vec<Vec<u8>>` — each source's
+name **on disk**, deliberately separate from `source_titles` (what to *call*
+each source in the generated heading, usually a stem and freely chosen). **It
+has to be the real name or the match fails.** `AssembleReport
+::outline_items_relinked: usize`.
+
+**BREAKING: `pageops::merge` takes a third argument** — the sources' file
+names. **`&[]` restores the pre-`258.3` behaviour exactly**, and an empty
+slice disables re-pointing entirely, which is what every caller had before.
+
+**Tests — `crates/pdfcer-core/tests/merge_relinks_cross_file_bookmarks.rs`
+(344 lines, 5 tests):**
+`cross_file_bookmarks_are_repointed_instead_of_dropped`,
+`a_repointed_bookmark_lands_on_the_right_page` (a `/GoToR`'s `/D` page
+survives the re-point, not merely the file),
+`a_link_to_a_file_outside_the_merge_is_still_dropped`,
+`without_file_names_nothing_is_repointed` (the `&[]` compatibility path),
+`matching_ignores_directories_and_case`. The fixture is built inline and
+carries the same four action shapes `258.2`'s fixture does.
+
+**Acceptance criteria — written at ship, all met:** a bookmark whose target
+file is also a source is re-pointed at that file's pages, `/GoToR`'s page
+included (**met**); re-pointing runs before pruning (**met**, and the test
+that would catch the reverse is
+`cross_file_bookmarks_are_repointed_instead_of_dropped` against the measured
+`0/4` baseline); a link outside the merge is still dropped and counted
+(**met**); the inference is disclosed and counted separately from `kept`
+(**met**); the old behaviour is reachable with `&[]` (**met**).
+
+**Not in this Pass:** matching by **path** rather than by bare name (a merge
+of two `chapter1.pdf` from different folders re-points both at whichever
+source matched first — named here as the open case, not owed); and
+re-pointing a `/GoToR` **named destination** rather than a page number.
+
+---
+
 **★★★ 456th filing, 2026-09-06 — `Pass 14.6` MINTED AND SHIPPED IN ONE
 FILING, straight from the inbound queue (no *Backlog* entry ever existed, no
 *Next up* entry either), UNRELEASED (post-`v0.42.0`, the first item of the
@@ -143268,6 +143925,70 @@ not a judgment call:**
   that has moved them R157 → R158 → R159 → R161 → R162 → R163. **Nothing
   is renumbered.** Pass family stays **43**; decision records stay
   **031**; operator questions stay **(bb)**.
+
+  > **★★ DATED INSTANCE NOTE — 2026-09-06 (457th filing, `Pass 258.1`,
+  > `5c2b61f`): A NEW SITE-CLASS — THE CONTAINER IS A SINGLE `bool`, AND
+  > "EMPTY" IS THE PRODUCING FEATURE BEING SWITCHED OFF. NO RE-MINT;
+  > CEILING STAYS `R241`, NEXT FREE `R242`.**
+  >
+  > Every instance above has a **collection** for its container — an
+  > `/Annots` array, a results dict, a 44-file corpus, a source-text
+  > concatenation. This one has a **disclosure flag**.
+  > `crates/pdfcer-core/tests/free_text_note_rebake.rs`'s
+  > `a_foreign_appearance_is_left_alone_and_disclosed` first asserted
+  > `!change.appearance_rebaked` — *"a hand-authored appearance must be
+  > reported rather than replaced"* — and **passed with the entire re-bake
+  > disabled**. `R162`'s question, asked verbatim (*"what does this test do
+  > if the collection is empty?"*), returns **"passes"**: a feature that
+  > never sets the flag satisfies every `!flag` assertion ever written over
+  > it, exactly as an empty array satisfies every `assert_ne!` in a loop.
+  >
+  > **The prescribed remedy is what shipped**, unprompted — a **positive
+  > control over the same container, in the same test**: an unmodified
+  > pdfcer appearance must come back `appearance_rebaked == true`, so the
+  > refusal above it is *a decision rather than an absence*. The comment
+  > beside it says so in the code.
+  >
+  > **★ WHY THIS IS AN INSTANCE NOTE AND NOT A MINT, and the reasoning is
+  > the point.** The engineer offered *"a standing rule or at least a
+  > session-log note — your call which"*, having re-derived the finding
+  > independently and correctly. **It is already this rule.** Generalising
+  > `R162` from *"a quantifier over an empty collection"* to *"an assertion
+  > whose falsifying condition the code cannot currently produce"* costs
+  > one sentence and covers both; a second number for the `bool` case would
+  > split one diagnosis across two rules and make the tell ambiguous, which
+  > is precisely the failure `R225` was minted to prevent for `R221`.
+  >
+  > **The shape worth carrying, because it is the mirror of the one this
+  > project keeps recording.** The 445th–456th filings kept finding *an
+  > answer already sourced in one document while another still asked the
+  > question*. This is the same failure with the roles swapped: **a rule
+  > that exists, binds, and was re-derived from scratch because the finding
+  > felt new.** The cost here was **nil** — the remedy chosen matches the
+  > rule exactly — which is what makes it worth writing down rather than
+  > shrugging at: the instinct was right and the ledger was not read.
+  > **`R162` is thirty days old and lives in the file the engineer would
+  > have grepped for `vacuous`, which is not the word the rule uses.** That
+  > is hard rule 11 clause (e) aimed at this document: *a search for a
+  > claim is only as good as its spelling of the claim.*
+  >
+  > A second sabotage in the same commit found a **different** cause with
+  > the same signature and was diagnosed correctly on the spot: widening
+  > `edit.rs:26247`'s `/FreeText` subtype guard to every subtype left the
+  > sticky-note and stamp tests **green**, because the real protection is
+  > structural one level down (`rebake_free_text_appearance` destructures a
+  > `TextAnnotSpec` as `FreeText`). **That is `R221`'s cause** — two
+  > agreeing implementations of one predicate, mutually masking — not
+  > `R162`'s, and the engineer wrote the distinction into a code comment
+  > instead of leaving two tests looking like they guard something they do
+  > not. **Three causes, one signature, three different remedies**
+  > (`R221` delete the duplicate · `R225` change the fixture · `R162` add
+  > the positive control): the fork `R225`'s own warrant argued for.
+  >
+  > **Written up:** a new instance-class section in
+  > `D:/dev/rag/rust/absence_assertion_must_first_prove_the_container_could_have_held_it.md`
+  > (the file this rule already points at), indexed in
+  > `D:/dev/rag/rust/index.md`.
 
   > **✅ AMENDED 2026-08-07 (later the same day) — R163 IS NOW MINTED**
   > (the compile-error-over-remembering rule, immediately below). **The
