@@ -93901,3 +93901,203 @@ Lifted: the algorithm, from `1343f0e`'s message.
 - Operator: `edit-text --page 2 --find "clien" --replace "client"` on the
   apartment file now lands in one command and the line re-spaces — no pin
   needed. In the GUI, nothing changes until `pdfcer-gui` consumes it.
+
+## 2026-09-06 (445th filing) — `Pass 142.2` SHIPPED (`5f9beb3`, unreleased, post-`v0.40.0`): the font pre-flight tests the text ABOUT TO BE TYPED — `EditSession::preview_font_resources_for(page, find, pinned_span, candidate)` (the 204th verb) computes every `FontAcceptance`, page faces AND the standard 14, against the candidate through `set_font`'s own gate with the embedded-subset floor, so a refusal names the FIRST character a face cannot hold; `FontPreflight::{candidate, standard_14}`, `Std14Entry`/`Std14Presence::{OnPage, WouldBeAdded}`; `pdfcer font-preflight --candidate TEXT`. Measured on the operator's file: `€` refused by both Arimo subsets, accepted by Helvetica on-page and Helvetica-Bold would-add, refused by ZapfDingbats. Three criteria AMENDED (1, 2, 6). `70c1e29` (signing-oracle test race) and `cfb5b5c` (the bold/italic hint sentences — criterion 9's sweep, DISCHARGED by the engineer between dispatch and filing) named; `c277cc9` (docs-only) mentioned. ★ The dispatch's "inbound queue EMPTY" is contradicted by disk: one `pdfcer-gui` request at 20:43, unreplied, UNSCOPED. No decision.
+
+**Shipped:**
+- `Pass 142.2` — `5f9beb3` *"feat(core,cli): font pre-flight for the text
+  ABOUT TO BE TYPED + the standard 14 surveyed (Pass 142.2)"*, authored
+  `2026-09-05 20:48:28 -0400`, 8 files, `+409/−14` (`git show --stat`):
+  `text_edit/format.rs` `+143` (`FontPreflight::candidate`/`standard_14`,
+  `Std14Presence`, `Std14Entry`, the worker `preview_font_resources_for`);
+  `edit.rs` `+53` (the verb); `pdfcer-cli/src/main.rs` `+93` (`--candidate`,
+  the `candidate=` run line, the `standard-14` block, the two JSON fields);
+  `text_edit/mod.rs` `+2/−2` (re-exports); `text_edit/edit.rs` `+3/−1`
+  (the 444th's owed `EditRequest::find` rustdoc — DISCHARGED here, the
+  dispatch did not say so; measured by `git show`);
+  `tests/font_preflight_candidate.rs` `+115` (3 tests); core-api 02 + index.
+- `70c1e29` *"test(core): sign_document OpenSSL oracle uses a per-call temp
+  dir"* — `tests/sign_document.rs` `+11/−1`, authored 20:48:27. CODE commit,
+  named: two of the five signing tests run concurrently and shared one
+  pid-keyed temp dir, overwriting each other's `sig.der`/`content.bin`
+  mid-verify — an intermittent *"CMS_SignerInfo_verify_content: verification
+  failure"* that was the harness, not the signature (seen once in a
+  197-binary run, never in CI). Filed as a dated note on `Pass 10.9`'s
+  *Shipped* test paragraph.
+- `cfb5b5c` *"fix(cli): font-preflight bold/italic hints no longer claim the
+  standard 14 are 'NOT surveyed'"* — `main.rs` `+2/−2`, authored 20:51:00 —
+  the rule-11 survivor criterion 9 named, plus its `italic:` twin the
+  criterion did NOT name. **Committed while this filing was being prepared**
+  (absent from this role's first `git log`, present in its second); the
+  dispatch asked for it to be filed as owed and it is filed as done.
+- `c277cc9` *"docs: NEXT_SESSION.md — Pass 142.2 shipped; queue empty,
+  candidates listed"* — `docs/NEXT_SESSION.md` only, `+15/−1`; mentioned.
+  Its *"queue empty"* is the premise corrected below.
+
+**What the verb does (lifted from the commit; lines measured).**
+`preview_font_resources_for` (`edit.rs:9898`; worker `format.rs:3625`):
+`find`/`pinned_span` locate the run exactly as `preview_font_resources` does
+(`effective_find`, `Pass 147.0`); `candidate` is what every acceptance is
+computed against, through `accept_font_target` (`format.rs:2387`) with the
+embedded-subset floor (`text_edit/edit.rs:1786–1788`), so `Refused {
+character }` names the first character the face cannot hold in the edit's
+own words. `FontPreflight::candidate` (`format.rs:3432`) is `Some` for the
+new verb, `None` for the old. `FontPreflight::standard_14` (`:3435`) lists
+all fourteen (`Std14::ALL`), each `Std14Entry { base_font, presence,
+acceptance }` (`:3478`) with `Std14Presence::OnPage { resource }` (reuses
+that page resource's verdict — listed once) or `WouldBeAdded` (`:3463`;
+tested against `addtext::std14_resource_dict(face)`, `addtext.rs:1957` —
+the exact dictionary `set_font` authors, so preview and commit agree). The
+encoding rule is engine-side on `Std14Entry::acceptance`: WinAnsi for the
+twelve text faces (`Euro` at `0o200`), built-in for `Symbol`/`ZapfDingbats`.
+The OLD verb carries both new fields (candidate `None`, the fourteen tested
+against the located text); an empty candidate is identical to it. CLI:
+`font-preflight --candidate TEXT`, `candidate=` on the run line, a
+`standard-14` block (`ACCEPT`/`REFUSE`, `on-page (/key)` | `would-add`,
+`refused_character`), JSON `candidate` + `standard_14`; exit OK whatever the
+verdicts.
+
+**The three amendments (engineer's, struck through in the ROADMAP entry,
+kept legible).** (1) the old verb's JSON is NOT byte-identical — its
+verdicts are (tested), its shape is a superset (two new keys; the struct is
+`#[non_exhaustive]`). (2) an EMPTY candidate is not refused — it means the
+located text and equals the old query; the `R221` zero-character vacuity
+cannot recur because an empty located text with no pin is already refused
+by `effective_find`. (6) `Symbol` ACCEPTS `€` (its built-in encoding carries
+`Euro`) where the draft assumed both symbol faces would refuse; only
+`ZapfDingbats` refuses. Also: the once-only `OnPage` listing is not on the
+fixture (no standard-14 face there) — measured on the operator's file
+instead; the test cites WinAnsi `0o200`, not Annex D by name.
+
+**Measured on the operator's document (engineer, relayed):**
+`C:\Users\Ken\OneDrive\pdfTests\apartment work - signed.pdf`, page 2,
+`font-preflight --find n --candidate €` → `/F4`, `/F5` (Arimo subsets)
+REFUSE; `/pdfceF1…F5` (pdfcer's own Helvetica resources) ACCEPT; standard-14
+block `Helvetica ACCEPT on-page (/pdfceF1)`, `Helvetica-Bold ACCEPT
+would-add`, `ZapfDingbats REFUSE`.
+
+**Tests + gates (engineer, relayed; test count measured):**
+`tests/font_preflight_candidate.rs`, 3 `#[test]` (`grep -c`), on
+`subset-simple-embedded.pdf` (carries exactly `A` `B` `C`): `€` → subset
+`Refused { character: Some('€') }`, all fourteen listed `WouldBeAdded`,
+`Helvetica`/`Helvetica-Bold`/`Times-Roman`/`Courier-BoldOblique` ACCEPT,
+`Symbol` ACCEPTS, `ZapfDingbats` REFUSES; `"CAB"` accepted; `"AZ"` refused
+naming `'Z'` with the SUBSET message; old query unchanged, `candidate ==
+None`, `standard_14.len() == 14`; empty candidate → `entries` and
+`standard_14` equal to the old. Sabotage: testing the LOCATED text instead
+of the candidate → 2 fail; every would-add face marked accepted → 1 fails.
+Gates: fmt, clippy `--workspace --all-targets --all-features -D warnings`,
+string-gaps, core-api-verbs (204), outcome-disclosed, clap-help,
+public-fns-documented. 197/197 workspace test binaries. No `Cargo.toml`
+change; `cargo tree` not re-run, not asserted.
+
+**Hard-rule-11 sweep (the survey's reach changed meaning: page faces only →
+page faces AND the fourteen).** Case-insensitive `surveyed` / `on this
+page` / `page does not carry` over `format.rs`, `edit.rs`, `main.rs`,
+core-api 02/03, `ARCHITECTURE.md`, `README.md`, `FEATURES.md`; every hit
+read. CORRECTED here: the `FEATURES.md` pre-flight row's page-only clause
+(replaced). Correct and surviving (do not "fix"): `format.rs:3381`/`:3390`
+(`real_bold`/`real_italic` really are page-scoped), `:3076`, `:3412` (the
+key, not the reach), `:2595` (`R90`'s gate), `:3623` (the new worker).
+`main.rs`: `grep -in surveyed` → one hit, `:3026`, OCR — the `bold:`/`italic:`
+hints (`:26157–26173`) already rewritten by `cfb5b5c`. **ONE OLDER survivor,
+NOT this Pass's, owed to the engineer:** `docs/core-api/03-capabilities.md:1344–1360`
+— *"`set_font` selects; it does not create … Filed as Backlog `Pass 142.0`,
+with the missing pre-flight as `142.1`"* plus the `FF-C` refusal transcript:
+the pre-`Pass 162.0` contract, a transcript (a result, not an expectation —
+the shape rule 11 warns about). One paragraph.
+
+**`FEATURES.md`.** The `Pass 142.2` *Planned* row REMOVED; one *Implemented*
+row ADDED under *Fonts & rendering* beneath the pre-flight row, `[x] [x] [ ]
+?` — `gui` unticked (`pdfcer-gui` has not consumed it), Acrobat `?` (the RAG
+records a GAP; precedent for `?` in *Implemented*: the image-placement
+preview and render-preset rows). The existing pre-flight row's *"scoped to
+faces ON THIS PAGE … NOT surveyed by this check"* clause REPLACED (the
+file's own replace-never-append rule).
+
+**ROADMAP edits.** 445th head + the `Pass 142.2` *Shipped* entry at the top
+of *Shipped*; a dated test-note amendment on `Pass 10.9` (`70c1e29`); a
+*Next up* intro note; the `Pass 142.2` *Next up* entry kept legible — heading
+and status struck, criteria 1, 2 and 6 struck with amendments beside them,
+criterion 9 marked discharged, a dated 445th status note. Docs-only filing:
+`ROADMAP.md`, `FEATURES.md`, `SESSION_LOG.md`, staged by name.
+
+**★★ Channel — the premise corrected.** Posted (by `ls -la`):
+`reply_2026-09-06-font-preflight-candidate-SHIPPED.md` (2,256 B, 20:48) —
+names the verb, `Std14Entry`, `Std14Presence`, both new fields (lines 22,
+30), per `pdfcer-gui`'s announce-new-types process note. **INBOUND, NOT
+EMPTY:** `request_edit_text_resolves_font_names_against_the_base_revision.md`
+(10,066 B, mtime `2026-09-05 20:43` by `ls -lt`; no `reply_*` names it) —
+`edit_text` plans with `plan_edit(&self.base, …)` and `resolve_font_dict`
+derefs the run's `Tf` name through the base, while `format_text` binds a
+newly authored `/Font` against `self.graph()`; so a face swapped in THIS
+SESSION makes the next `edit_text` on that run refuse — `Unsupported("…
+unresolvable in the target stream's resources")` pinned, `NoMatch` unpinned
+(untrue: the text IS on the page). Save-and-reopen between the two verbs
+succeeds (their control); a swap to a face the file already carries edits at
+once. They note `preview_font_resources` reads `&self.base` too (MEASURED:
+`edit.rs:9875`) and that `reflow_block` already refuses this class by name.
+Asks: (1) plan against the session view; (2) resolve `/Font` through the
+graph; (3) else a named `EditError` variant. Not blocked (they ship a
+save-and-reopen sentence and a `facewall.rs` assertion). This is the LAST
+STEP of the route `142.2` serves. UNSCOPED — no Pass ID claimed; the parse
+is the engineer's. `iccce` channel: newest file `2026-09-01 05:44` — nothing
+new.
+
+**Decisions made this session:** none. Decision ceiling `138`.
+
+**Findings + decisions:** none generalizable beyond the commit messages and
+the ROADMAP entry; no RAG written. (`Symbol`'s built-in encoding carrying
+`Euro` is a spec fact — the spec-librarian's territory, and already encoded
+in `fontdata`.)
+
+**Sourcing (hard rule 8).** Measured here: `git log --oneline -7` =
+`cfb5b5c`, `c277cc9`, `5f9beb3`, `70c1e29`, `1c1d4c4`, `7c17d72`, `1343f0e`
+(`cfb5b5c` arrived between this role's first and second `git log`); `git
+status --short` EMPTY at both `git log` reads and, at gate time, carrying the
+engineer's IN-FLIGHT `Pass 256.1` work (five `crates/`+`tools/` files
+modified, `tests/tounicode_partial_inverse.rs` and a
+`cidfonttype2-partially-injective-tounicode.pdf` fixture untracked — NOT
+staged here); `git show --stat` for all four commits;
+author dates by `git log --format=%ad`; **`origin/main` = `bdefb09`; `git log
+origin/main..HEAD | wc -l` = 8 before this filing — `main` is UNPUSHED by
+`6673584`, `1343f0e`, `7c17d72`, `1c1d4c4`, `70c1e29`, `5f9beb3`, `c277cc9`,
+`cfb5b5c` plus this filing**; the test file and the new request READ in
+full; symbol lines by `grep -n` at `cfb5b5c`; channel files by `ls -la` /
+`ls -lt`; the reply's type announcement by `grep -n`. Relayed: the
+operator-file measurement, 197/197, the gate list, the sabotage results.
+Lifted: the verb contract, from `5f9beb3`'s message.
+
+**Gates (this role, on the filing tree): in the filing commit's message.**
+
+**Still in flight:**
+- **The 20:43 inbound** (`edit_text` resolves `/Font` names against
+  `self.base`) — UNREAD by the engineer as far as the record shows (`c277cc9`
+  says the queue is empty); to be read, minted or refused, and replied.
+- **`Pass 256.1` (`/ToUnicode` partial inversion, *Backlog*) IN BUILD at gate
+  time** — measured: its files in the working tree, uncommitted (see
+  Sourcing); no commit to cite yet. The engineer took `NEXT_SESSION.md`'s
+  first candidate before reading the 20:43 inbound, as far as the record
+  shows.
+- *Next up*'s only live Pass entry: `Pass 179.0` (automatic bold ladder,
+  decision `106`, NOT STARTED since the 340th filing).
+- Unpushed: eight commits plus this filing (measured against `origin/main`
+  = `bdefb09`). Engineer pushes on his cadence (decision 090).
+- Unreleased since `v0.40.0`: `Pass 14.5` (`8670523`), `Pass 256.0`
+  (`1343f0e`), `Pass 142.2` (`5f9beb3`), plus `70c1e29` and `cfb5b5c` —
+  `0.41.0` material (standing-authorized, decision 121; gates first).
+- Owed: `docs/core-api/03-capabilities.md:1344–1360` (pre-`162.0` `set_font`
+  paragraph, engineer's, one paragraph). The 444th's `EditRequest::find`
+  rustdoc is DISCHARGED (`5f9beb3`).
+
+**For next session:**
+- Engineer: FIRST the 20:43 inbound — it is the last step of the `€` route
+  and the dispatch believed the queue empty; then pick from *Next up* /
+  *Backlog* (`docs/NEXT_SESSION.md` lists candidates: `256.1`, `10.14`,
+  `10.12`, `10.13`, `10.10`/`10.11`); then the `0.41.0` batch release;
+  push.
+- Operator: `pdfcer font-preflight --page 2 --find n --candidate €` on the
+  apartment file now names which faces can hold the euro before anything is
+  typed; in the GUI nothing changes until `pdfcer-gui` consumes it — and
+  typing into a face swapped in the SAME session still needs a save and
+  reopen first (the new inbound; pdfcer's own limit, on the list).
