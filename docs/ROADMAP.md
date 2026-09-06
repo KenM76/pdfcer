@@ -112,6 +112,336 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★ 459th filing, 2026-09-06 — `v0.43.0` RELEASED: the 458th filing's
+BUMPED-NOT-CUT → RELEASED, end to end — push, CI green, tag, release build,
+portable folder, fresh-folder smoke test, GitHub assets, OneDrive,
+`verify-release.py` NINE of NINE. Release act standing-authorized (decision
+121). NO Pass is minted or shipped here — all five Passes in the batch were
+already filed (`Pass 14.6` at the 456th; `Pass 258.0`–`258.3` at the 457th).
+★ THE TAG SITS ON A LIBRARIAN FILING COMMIT — `2399f53`, the 458th filing
+itself — which is the `v0.7.0`/`R217`-family ordering working as designed and
+is why `verify-release.py`'s CI check took its DIRECT path this time rather
+than the descendant fallback `b5f5554` built.** `git describe --tags
+--abbrev=0` = **`v0.43.0`**; annotated tag `v0.43.0` (object
+`af47d2dbc7d2b1da67e5c7c12e82b8b213f649a5`) → **`2399f53`** == `origin/main`
+== `HEAD`, `git rev-list --count origin/main..HEAD` = **0** at the start of
+this filing, `git status --porcelain` **EMPTY**. After this filing lands,
+`HEAD` is one docs-only commit past the tag and unpushed until the engineer's
+next push — the normal post-release state, as `v0.41.0`'s and `v0.42.0`'s.
+
+**What the release IS (the batch since `v0.42.0`'s tag `e59b084`).** **Five
+Passes, all core+CLI, no GUI column moved** (the GUI half is `pdfcer-gui`'s to
+tick, `R203`):
+
+- **`Pass 14.6`** (`b64ddb6`, 456th) — a Type 0 font's `/FontDescriptor` is
+  read from the **descendant** CIDFont (ISO 32000-1 §9.7.4.1, Table 117;
+  Table 121 puts none on the parent), so composite runs report `embedded`
+  and the embedded-subset floor `R-INV-1` covers them. **Unreleased in
+  `v0.42.0` — this release retires that debt**, and the GitHub notes say so
+  by name (*"Unreleased in 0.42.0"*).
+- **`Pass 258.0`** (`5c2b61f` **+ `d39aa33`**, 457th — the Pass spans two
+  commits) — markup border **line style**: a dashed mark was silently
+  solidified the first time its colour changed, on **all four**
+  appearance-regeneration routes; `/BS` `/S` + `/D` are now read back on the
+  way in, `--dash` authors and clears, `/LE` can be genuinely removed, and a
+  width on a text markup is refused by name instead of silently ignored.
+- **`Pass 258.1`** (`5c2b61f`, 457th) — a `/FreeText`'s note repaints its box
+  in the same command and one undo entry; a foreign appearance is left intact
+  and reported via `MarkupNoteChange::appearance_rebaked`.
+- **`Pass 258.2`** (`5c2b61f`, 457th) — `/Launch` actions report the file they
+  open; `list-outline` stops printing destinations through Rust's `{:?}` and
+  gains `--json`. **Recognised and disclosed, never executed — `R13`
+  untouched.**
+- **`Pass 258.3`** (`5c2b61f`, 457th) — `merge` re-points cross-file bookmarks
+  instead of dropping them; `outline_relinked=` is disclosed separately from
+  `outline_kept=` because the destination was rewritten.
+
+**The commit set, counted so it can disagree (hard rule 10).** `git rev-list
+--count v0.42.0..v0.43.0` = **13**, and the composition closes: **3 code**
+(`b64ddb6`, `5c2b61f`, `d39aa33`) + **1 fuzz-gate fix** (`499cf3e`) + **1
+bump-plus-corrections chore** (`95a936e`) + **4 librarian filings** (455th
+`8906de5`, 456th `f9ed0dc`, 457th `02c2734`, 458th `2399f53`) + **4 docs**
+(`c192f76`, `099bdc7`, `821ab47`, `4dca180`) = 13. Author stamps run
+`2026-09-06 06:37:07 -0400` (`8906de5`) → `15:25:27 -0400` (`2399f53`) —
+**8 h 48 m, one session, 13 commits = one commit per 40.6 minutes.** ★ **The
+range STARTS with `v0.42.0`'s own release filing (`8906de5`, the 455th),
+exactly as that filing predicted in writing** — *"this filing will ship inside
+`v0.43.0`"* — a prediction discharged by measurement rather than by memory.
+
+**CI, in one sentence.** Run **`34054972923`** on **`2399f53`** (created
+`2026-09-06T19:27:57Z`, ≈2 m 30 s after the commit) — `completed` /
+`success`, **10 of 10 jobs green**, measured here by `gh run view
+34054972923 --json conclusion,status,headSha,jobs` (headSha
+`2399f53024ed76b6826b5514373335a0620865d5`). The ten job names are in the
+`SESSION_LOG.md` entry; the one that matters for this release is **`fuzz
+targets build (nightly)` — GREEN**, the job that was red on `95a936e`.
+
+**★★ THE CI-RED EPISODE IS CLOSED, AND THE DISPATCH'S OWN WORDING NEEDED
+CORRECTING BY MEASUREMENT.** The dispatch said the 458th filing *"left CI
+unread on `499cf3e`"*. It is stronger and simpler than that: **`499cf3e` has
+NO CI RUN AT ALL, and never could have.** Measured — `gh api
+'repos/KenM76/pdfcer/actions/runs?head_sha=499cf3eb76bcf57aa9bb4f866a46346382f0348e'`
+→ **`total_count: 0`**; cross-checked against `gh run list -L 40`, zero rows
+with that `headSha`. `499cf3e` and `2399f53` went to `origin` in **one push**,
+and **GitHub creates one run per push, on the tip** — so the tip's run is the
+verdict for every commit the push carried. ⇢ **An instruction to "read CI on
+commit X" is unanswerable whenever X is not a push tip**, and the honest
+statement is *"the verdict on the fix arrived at `2399f53`"*, not *"the
+verdict at `499cf3e` was unread"*.
+
+★ **NOTHING IS MINTED FOR THIS — THE MECHANISM IS ALREADY ON RECORD, and
+finding that out is the point.** `b5f5554` (§*"CI runs once per push, on the
+tip; a release tag is never the tip"*, ~line 13056 of this file) states the
+identical mechanism and **`tools/verify-release.py` already encodes it** as
+the descendant fallback it built for `v0.22.0`. The only new thing here is the
+commit **position**: `b5f5554` reasoned about the commit **below** the tip (a
+release tag), this instance is about a commit **between** two others in the
+same push. Same mechanism, different seat. **Declined to mint**, on the
+2026-09-02 warrant this file already carries: a rule that exists and was not
+consulted is a compliance gap, not a rule gap. **Trigger named for a future
+filing:** if a third instance arrives where the *reader* — not the tool —
+looks for a run on a non-tip commit, that is `n = 3` on "read CI at the push
+tip, and name the tip", and it earns an `R` number then. Ceilings unaffected:
+rules `R241`, next free `R242`.
+
+**★★ THE GATE SWEEP, RECORDED HONESTLY — `tools/run-gates.sh` COULD NOT BE RUN
+AS ONE PROCESS, AND THE REASON IS NO LONGER THE ONE `NEXT_SESSION.md` GIVES.**
+Relayed from the engineer, with this role's own measurements beside it:
+
+- **All 29 commands from `python tools/check-ci-parity.py --list` were run and
+  are green**, every one executed, none omitted, each logged — the sweep was
+  completed **in foreground chunks** rather than as one process.
+- **`cargo about generate about.hbs -o THIRD_PARTY_LICENSES.md` RAN** —
+  `cargo-about 0.9.1` **is** installed; the engineer had been about to skip it
+  on an assumption and checked instead. It produced **no diff**, which is a
+  fact this role can corroborate independently: `THIRD_PARTY_LICENSES.md` in
+  the portable folder is **285,972 bytes — byte-identical in size to
+  `v0.40.0`'s, `v0.41.0`'s and `v0.42.0`'s**. **No dependency change since
+  `v0.40.0`**, now confirmed by regeneration rather than by inference from a
+  file size.
+- **`cargo test --workspace --all-features` — 4,966 passed.** ★ **This is the
+  `--all-features` variant, and it is NOT what had been running earlier in the
+  session** (plain `cargo test --workspace`).
+- ★★★ **`bash tools/run-gates.sh` was KILLED BY THE HARNESS'S LOW-MEMORY
+  WATCHDOG FOUR TIMES, always during the `cargo test` step, and capping
+  `CARGO_BUILD_JOBS=2` did not save it.** Machine state measured **by this
+  role at filing**: `Get-CimInstance Win32_OperatingSystem` → **6.34 GB free
+  of 15.92 GB** (the engineer observed 5.9–7.2 GB free across the four kills —
+  consistent; the watchdog fires on a **threshold**, not on exhaustion).
+
+  ★★ **A SWEEP CORRECTED THE DISPATCH'S FRAMING AND THIS ROLE'S FIRST DRAFT OF
+  IT, AND THE CORRECTION IS THE MORE USEFUL FINDING.** The dispatch offered
+  *"the runner gets OOM-killed in the background too"* as new, and this entry
+  was first drafted that way. **It is not new** — a bare-keyword sweep for
+  `run-gates` over `docs/` and `tools/` (hard rule 11 clause (e)) found the
+  background kill **already recorded twice**: `SESSION_LOG.md:87174`
+  (*"`tools/run-gates.sh`'s own backgrounded run gets killed by the harness"*)
+  and `:92378` (*"cannot survive being backgrounded in this environment — the
+  process is reaped"*). **What is new is the CAUSE and a FALSIFIED REMEDY:**
+  - both prior records attribute the kill to the **10-minute window / process
+    reaping**; today's four kills are a **low-memory watchdog firing inside
+    the `cargo test` step**, which is a different mechanism with a different
+    fix;
+  - `SESSION_LOG.md:92379-92381` prescribes *"run the `check-ci-parity.py
+    --list` commands individually in the foreground **with
+    `CARGO_BUILD_JOBS=2`**, compiling the tests first with `--no-run`"* —
+    and **`CARGO_BUILD_JOBS=2` did not save the one-process run today**. That
+    variable caps *compilation* parallelism; `cargo test` peaks in the **run**
+    phase at `--test-threads` = logical core count. **The memory knob is
+    `-- --test-threads=N`, and no document in this repo said so.**
+
+  ⇢ **`docs/NEXT_SESSION.md:128` is a LOSSY RESTATEMENT of a fuller record
+  that already existed**: it says only that the runner *"as one process
+  exceeds the 10-minute foreground limit"*, which invites *"background it
+  instead"* — the one remedy two prior `SESSION_LOG.md` entries already close.
+  **Reported to the engineer, NOT edited** — `NEXT_SESSION.md` is
+  engineer-owned (`R216`). ★ **Note the shape, because this project has named
+  it before** (the XFA bullet in `CLAUDE.md`, verbatim: *"the answer was
+  already sourced in one document while another still asked the question"*):
+  nothing here contradicted anything, the fuller finding simply never
+  propagated to the file the next session actually reads. **Grep the corpus
+  before recording something as new** — which is what turned a restatement
+  into a real finding. RAG'd this filing:
+  `D:/dev/rag/rust/run_gates_sweep_is_oom_killed_in_the_background_not_only_too_slow_in_the_foreground.md`,
+  cross-referencing rather than duplicating the existing
+  `a_cargo_test_workspace_failure_inside_a_gate_sweep_may_be_starvation_not_a_real_failure.md`.
+
+  **Correct hits recorded so the next sweep does not "fix" them:**
+  `ROADMAP.md:2385`, `:5323`, `:34554`, `:116485` and `SESSION_LOG.md:72122`,
+  `:85185`, `:87174`, `:90804`, `:92378`, `:94751`, `:94886` are all **dated
+  history in append-only sections**, correct as written on their own dates.
+
+**★ ONE FIGURE THE SWEEP MADE CHECKABLE, and it is a set difference, not a
+count.** `python tools/check-ci-parity.py --list` prints **29 commands** and
+`bash tools/run-gates.sh --list` prints **29 commands** (1 pre-flight + 26 + 2
+filing gates last) — **the same number, DIFFERENT SETS**, and reading "29" off
+either one as though it were the other is the trap. Measured here:
+`check-ci-parity`'s 29 carries `cargo about generate` and `cargo test
+--workspace --all-features` and lacks `check-history-not-rewritten.py` and
+plain `cargo test --workspace`; `run-gates.sh`'s 29 is the exact mirror — it
+runs the **plain** workspace test and the pre-flight, and lists the other two
+under *"skipped (named, never silent)"*, `--all-features` requiring `--full`.
+**Symmetric difference: 4 commands.** So the engineer's sweep, driven from
+`check-ci-parity --list`, covered `cargo about` and `--all-features` that a
+bare `run-gates.sh` would have named-skipped — and did **not** cover
+`check-history-not-rewritten.py`, which this role ran separately at filing
+(exit 0). `ls tools/check-*` = **23** scripts, unchanged.
+
+**Sourcing (hard rule 8).** This role had a shell; **every figure below is
+MEASURED here at filing** unless marked *relayed*. `git cat-file -t v0.43.0` =
+**`tag`** (annotated; subject *"pdfcer 0.43.0"*, tagger date `2026-09-06
+15:57:08 -0400`); `git rev-list -n 1 v0.43.0` =
+`2399f53024ed76b6826b5514373335a0620865d5`; `git ls-remote --tags origin
+v0.43.0` = `af47d2d…` → `refs/tags/v0.43.0` — **the tag is PUSHED**, and the
+local `git rev-parse v0.43.0` returns the **same** `af47d2d…` **tag object**
+(checked because the annotated-object-vs-commit distinction is exactly the
+sort of thing that gets filed as a hash — the 457th filing recorded the same
+care for `v0.42.0`); `git rev-parse origin/main` = `2399f53`; `git status
+--porcelain` EMPTY.
+
+- **Version bump** `0.42.0 → 0.43.0`: `95a936e` (458th filing; `Cargo.toml`
+  plus the three lockfiles, bundled with six sentence corrections for the
+  commit's own stated reason). **Workspace version at HEAD: `0.43.0`** —
+  RELEASED. **The next bump is `0.44.0` at the next release, not before.**
+- **Tag** `v0.43.0` → **`2399f53`** (annotated, pushed, == `origin/main` ==
+  `HEAD`). ★ Unlike `v0.42.0` (tagged on a `NEXT_SESSION.md` refresh) and
+  `v0.41.0`, this tag sits on **the librarian filing commit itself**, cut from
+  the tip after the 458th landed — so `verify-release.py`'s *"CI is GREEN at
+  the tagged commit"* is answered **directly**, with no descendant fallback.
+- **Release build (relayed):** built after the tag, so the revision string
+  names the tag exactly. **Banner, measured here on the deployed exe
+  (`C:\Users\Ken\OneDrive\pdfcer1\pdfcer.exe --version`):** `pdfcer 0.43.0 /
+  built 2026-09-06T19:57:13Z / revision v0.43.0 / committed
+  2026-09-06T19:25:27Z / iccce 0.3.0 (rev a4d9003b, committed
+  2026-09-01T08:54:36Z)`. **No `-dirty` suffix, no `-N-g…` suffix.**
+- **Portable folder (measured):** `D:\builds\pdfcer-20260906-1605-2399f53`,
+  `du -sb` = **32,116,491 bytes over 8 files** (`find -type f | wc -l` = 8) =
+  `pdfcer.exe` **19,563,008** (`v0.42.0`'s 19,510,784; **+52,224** for five
+  Passes of code — `v0.42.0`'s growth over `v0.41.0` was +105,984 for four) +
+  `BUILD-INFO.txt` **21,107** (`v0.42.0`'s 17,389; **+3,718**) +
+  `THIRD_PARTY_LICENSES.md` **285,972** (unchanged, and now
+  regeneration-confirmed) + `README.md` 10,070 + `LICENSE` 1,088 +
+  `models/ocrs/` (`PROVENANCE.md` 8,518, `text-detection.rten` 2,510,284,
+  `text-rec-checkpoint.rten` 9,716,444). **Sum check: 32,116,491 − 32,060,549
+  = 55,942 = exe +52,224 + BUILD-INFO +3,718.** Exact.
+- **Fresh-folder smoke test — PASSED (relayed).**
+- **Zip (measured):** `D:\builds\pdfcer-v0.43.0-windows-x64.zip`
+  **18,360,651 bytes** (`v0.42.0`'s 18,378,152; **−17,501 — SMALLER than the
+  previous release despite a 52 KB LARGER exe**, which is compression
+  variance, not a shrinking binary; filed explicitly because a bare
+  "18.4 MB → 18.4 MB" hides a sign flip). SHA-256 **computed here** with
+  `sha256sum` **and** read from the `.sha256` sidecar (**97 bytes**;
+  `v0.42.0`'s was 98) — the two agree:
+  **`4dd983ca264566e32560c559ad1b31f39a8fbcf8d2ecd7405f6eca060c605e73`**. ★
+  **And it agrees with a THIRD, independent source: the digest GitHub itself
+  records for the uploaded asset** — `gh release view v0.43.0 --json assets`
+  → `"digest": "sha256:4dd983ca…5e73"`. The engineer separately downloaded the
+  published asset back with `curl` and re-hashed it to the same value
+  (relayed). **Local bytes, sidecar, GitHub's own digest, and a round-trip
+  download: four agreeing sources for one hash.**
+- **GitHub release** **https://github.com/KenM76/pdfcer/releases/tag/v0.43.0**
+  — ★ **the dispatch's URL named owner `KenB76` and was wrong; the dispatch
+  flagged it and asked for verification, and this is it**: `gh release view
+  v0.43.0 --json url` returns the `KenM76` form above (published
+  `2026-09-06T19:57:08Z`, name *"pdfcer 0.43.0"*, tag `v0.43.0`). Two assets,
+  both `state: uploaded`, created `2026-09-06T20:07:58Z`:
+  `pdfcer-v0.43.0-windows-x64.zip` **18,360,651** and its `.sha256` sidecar
+  **97**. The notes (engineer-drafted, read in full here via `--json body`)
+  carry **four feature sections** each traceable to a Pass — border line style
+  (`258.0`, and it names *"four different operations did it, not just one"*),
+  a text box's words following its note (`258.1`), bookmarks that open other
+  files (`258.2`, with the *"Reading is not running"* line — `R13` stated to
+  the operator), merge keeping a table of contents working (`258.3`, with both
+  disclosed counters named) — plus an **"Also"** paragraph for `14.6` that
+  says *"Unreleased in 0.42.0"* **out loud**, and a **"Breaking (library
+  consumers)"** section listing all three: `MarkupStyle` losing `Copy` and
+  `endings` changing type, `pageops::merge`'s third argument (`&[]` restores
+  the old behaviour), and `DroppedProperty::BorderStyle`/`::DashPattern` no
+  longer firing on a preserved dash. **Every breaking change the 457th filing
+  recorded reaches the operator's release notes; none is an orphan.**
+- **OneDrive (measured):** `tools/deploy-onedrive.py` wrote slot **`pdfcer1`**
+  (which held **0.41.0** — see the correction below) — `C:\Users\Ken\OneDrive\pdfcer1`:
+  `du -sb` = **32,095,712 bytes over 8 files**, and the arithmetic closes
+  against the build folder: **32,116,491 − `BUILD-INFO.txt` 21,107 +
+  `VERSION.txt` 328 = 32,095,712.** Exact. `VERSION.txt` reads `version:
+  0.43.0 / commit: v0.43.0 / deployed: 2026-09-06T20:08:14Z / source:
+  D:\builds\pdfcer-20260906-1605-2399f53 / slot: pdfcer1`. **`pdfcer2` retains
+  0.42.0** (`VERSION.txt` `version: 0.42.0 … deployed: 2026-09-06T10:29:36Z …
+  slot: pdfcer2`; `du -sb` **32,043,488**, unchanged from the 455th's figure
+  for that slot). ★ **Two corrections to the dispatch, both from `find`/`du`
+  rather than from the deploy script's own report:** it said *"5 items"* — the
+  slot holds **8 FILES** (6 entries at depth 1, of which `models/` carries 3);
+  and it said `pdfcer1` *"previously held 0.41.0"*, which is right and worth
+  pinning because it is what makes the alternation legible. **The
+  alternating-slot scheme (`R229`) held for the SIXTH consecutive release** —
+  `v0.38.0` → `pdfcer2`, `v0.39.0` → `pdfcer1`, `v0.40.0` → `pdfcer2`,
+  `v0.41.0` → `pdfcer1`, `v0.42.0` → `pdfcer2`, **`v0.43.0` → `pdfcer1`** —
+  and the invariant it exists to protect ("a previous version is always still
+  on OneDrive") is what `verify-release.py`'s ninth check reads.
+- **`python tools/verify-release.py v0.43.0` — NINE of nine `ok`, exit 0,
+  RE-RUN BY THIS ROLE AT FILING on a clean tree** (not relayed; the engineer's
+  own run agreed): working tree clean · tag `v0.43.0` exists locally · tag is
+  at HEAD · tag is pushed · `origin/main` CONTAINS the tagged commit · GitHub
+  release has at least one asset · **CI is GREEN at the tagged commit** · the
+  CLI for `v0.43.0` is on OneDrive (`pdfcer1`) · a PREVIOUS version is still
+  on OneDrive (0.42.0). ★ **This is the first release since `v0.41.0` where
+  this role's own re-run was nine of nine** — the 449th and 455th both got
+  eight-of-nine on the *working tree clean* check, because the engineer's
+  post-release `NEXT_SESSION.md` refresh had already landed in the tree by
+  filing time. It had not, here.
+- **Pre-push gates (relayed):** green on the tree that was pushed;
+  `check-suite-name-absent.py` clean before the push, as `CLAUDE.md` rule 8
+  requires of a public repository.
+- **Cadence.** The batch ran bump → filing → push → **CI RED** → fix → push →
+  filing → **CI GREEN on the fresh clone** → tag → build → package → smoke →
+  release → deploy → verify. The 440th's *"tag waits for CI green on the
+  PUSHED tree"* lesson held for the **fourth** consecutive release, and here
+  it was load-bearing twice over: the previous push's CI was red, and the fix
+  for it had no run of its own.
+
+`docs/FEATURES.md`: **NO CHANGE, and this was CONFIRMED rather than assumed**
+(the dispatch believed it and asked for a check). Three measurements: the
+457th filing already set the five rows this binary delivers (`:266`, `:267`
+border line style, `:369` which file a bookmark opens, and the `258.1`/`14.6`
+rows) at `[x]` core / `[x]` cli / `[ ]` gui; a release moves no capability
+box; and the file **carries no version or "released in" marker at all** —
+`grep -inE "released.in|v0\.4[0-9]\.0|0\.43"` over it returns **nothing**, so
+there is no version string in it that a release could make stale. Docs-only
+filing: `ROADMAP.md`, `SESSION_LOG.md` staged by name. `docs/NEXT_SESSION.md`
+deliberately NOT staged (the engineer's, `R216`) — and it has **TWO reported
+stalenesses**: `:128` (the lossy `run-gates.sh` sentence, above) and
+**`:9`–`:15`, which still name `v0.42.0` as the released version, `e59b084` as
+its commit, OneDrive `pdfcer2`/`pdfcer1` as `0.42.0`/`0.41.0`, and the
+workspace version as `0.42.0` with *"bump to `0.43.0`"* still in the future** —
+every one of those five facts is superseded by this release. The engineer
+refreshes that file after each release (the 455th filing watched it appear
+mid-filing); reported, not edited. `ARCHITECTURE.md` §12: **nothing minted** — a
+release moves no boundary, and the decision that authorises it (**121**,
+*"always go ahead and push the latest one"*) is already on record.
+
+**Ledger.** Filings ceiling `458` → **`459`** (`check-ledger-numbers.py`:
+*"SESSION_LOG filings: 458 → next free is 459"* before this filing); Pass
+ceiling **`258.3` UNCHANGED** (nothing minted; the five released Passes were
+minted at the 456th and 457th); decision ceiling **`138` UNCHANGED**, next
+free `139`; standing rules ceiling **`R241` UNCHANGED**, next free `R242`
+(one mint considered and declined, above); open operator questions: none
+minted, next free `(ce)`. *Next up*: EMPTY of live Pass entries.
+**Owed-survivor ledger: ZERO** in `crates/` and ZERO in `docs/` — the 458th
+discharged all six of the 457th's, verified there by reading the source, and
+this filing adds none (a release filing touches no `crates/` claim). ★ **One
+NON-survivor reported instead**: `docs/NEXT_SESSION.md:128`, engineer-owned,
+half-true, named above. Backup bundle
+`pdfcer-2026-09-03-1a31d2d-full.bundle` is **126 commits behind `HEAD`**
+(`git rev-list --count 1a31d2d..HEAD`, measured; `ls -t D:\Dev\pdfce-backups`
+newest — 117 at the 457th, so **nine commits of drift**, the bundle itself
+unchanged) — a released tag on a public remote is its own off-machine copy of
+the tree, so this is the engineer's cadence, **noted not nagged**. **Disk,
+because the 456th filed a figure this one can disagree with:** `df -h /d` =
+**137 G free of 954 G** at filing, against the 456th's **200 G** measured
+after its `target/debug` prune the same day — **63 G consumed in one
+session**, which is `target/` regrowing and is exactly why that filing
+suggested a `du -sh target/` session-start habit.
+
 **★★★ 458th filing, 2026-09-06 — NO PASS MINTED, NO PASS SHIPPED. A short
 filing that unblocks a push: `95a936e` *"chore: 0.43.0, and retire four
 sentences `Pass 258.0`/`258.1` made false"* is filed, and with it **ALL SIX of
@@ -136,7 +466,13 @@ authored `2026-09-06 14:47:40 -0400`. The two halves:
    engineer's, in flight"*; it is now committed. **THE RELEASE IS NOT CUT** —
    `git describe --tags --abbrev=0` = **`v0.42.0`**, and `git tag --list
    'v0.43*'` is **EMPTY**. The release filing follows separately, as it did
-   for the 448th→449th and 454th→455th pairs.
+   for the 448th→449th and 454th→455th pairs. *★ RESOLVED at the 459th filing
+   (above): annotated tag `v0.43.0` (object `af47d2d…`) → **`2399f53`**, this
+   filing's own commit — CI run `34054972923` green 10/10 on it, including the
+   `fuzz targets build (nightly)` job that `499cf3e` fixed — released (zip
+   18,360,651 bytes, sha256 `4dd983ca…5e73`, agreed by four independent
+   sources), deployed to `pdfcer1`, `verify-release.py` NINE of nine on a
+   clean tree.*
 2. **The six sentence corrections** — no behaviour change; `4,966 tests
    green`, `fmt`/`clippy` clean, dependency set unchanged so
    `THIRD_PARTY_LICENSES.md` needs no regeneration (all relayed).
@@ -303,6 +639,19 @@ their denominator.**
 | Unpushed | `5c2b61f`, `d39aa33`, the 457th filing | **`499cf3e`** + this filing (`origin/main` = `95a936e`; standing-authorized push, decision 090) |
 | Unreleased | `b64ddb6`, `5c2b61f`, `d39aa33` | **`b64ddb6`, `5c2b61f`, `d39aa33`, `02c2734`, `95a936e`, `499cf3e`** — the `0.43.0` batch, now **bumped but not cut**; `v0.42.0` = `e59b084` |
 | CI | green on `4dca180` | **RED on `95a936e`** (run `34052985417`), fixed by `499cf3e`, whose own verdict must be read from GitHub after the push |
+
+*★ **RESOLVED 2026-09-06, 459th filing — and this row's last clause was
+UNANSWERABLE AS WRITTEN.** `499cf3e` **has no CI run and never could have**:
+measured by `gh api 'repos/KenM76/pdfcer/actions/runs?head_sha=499cf3eb76…0348e'`
+→ **`total_count: 0`**, cross-checked against `gh run list -L 40`. It was
+pushed together with `2399f53`, and **GitHub runs CI once per push, on the
+tip** — the mechanism `b5f5554` already records and `tools/verify-release.py`
+already encodes. **The verdict on the fix is run `34054972923` at `2399f53`:
+`success`, 10 of 10 jobs, `fuzz targets build (nightly)` GREEN**, and
+`v0.43.0` is tagged there. ⇢ Write **"read CI at the push tip, and name the
+tip"** — never *"read CI on commit X"* for an X that is not one. Nothing
+minted; the declined-mint reasoning and the named trigger are in the 459th
+filing.*
 
 **★★★★ 457th filing, 2026-09-06 — FOUR PASSES MINTED AND SHIPPED IN ONE
 FILING FROM ONE COMMIT, none of which ever had a *Backlog* or a *Next up*
