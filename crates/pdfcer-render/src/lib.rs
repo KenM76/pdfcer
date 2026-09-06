@@ -113,7 +113,7 @@ pub use display_list::{
 };
 pub use font::{
     FallbackKey, FontData, FontEnvironment, GlyphSource, InkProbe, InkProbeSource, PageBackdrop,
-    RenderOptions, RenderPolicy,
+    RenderOptions, RenderPolicy, StrokeDisplay,
 };
 pub use interpret::Diagnostics;
 pub use layer_state::LayerVisibility;

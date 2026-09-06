@@ -1429,6 +1429,53 @@ pub struct Diagnostics {
     /// raster carries the count of what it left out rather than the
     /// operator having to remember which flags produced it (rule 4).
     pub subpixel_culled: usize,
+    /// Strokes whose declared width was **thinned** by
+    /// [`StrokeDisplay::Hairline`]'s one-device-pixel ceiling (`Pass 254.0`,
+    /// extended `Pass 254.1`).
+    ///
+    /// # Why this counter exists at all
+    ///
+    /// A hairline raster is **deliberately not a faithful one** — it shows
+    /// the document's geometry, not the document's drafting weights — and
+    /// that divergence is invisible in the pixels: a CAD sheet drawn at
+    /// uniform hairline looks like a CAD sheet, not like a renderer
+    /// decision. Rule 4 ("fuzzy, never sneaky") therefore asks for the fact
+    /// to be *stated* somewhere off-canvas rather than inferred, and this is
+    /// where a shell reads it from.
+    ///
+    /// [`Self::subpixel_culled`] is the exact precedent, deliberately
+    /// followed rather than re-invented: it is on the metrics line **whether
+    /// or not** the option that produces it is set, so a raster always
+    /// carries the count of what its options did to it. Same here — a render
+    /// in [`StrokeDisplay::Actual`] reports `0`, and a `0` from a hairline
+    /// render is itself a fact (the page had nothing fat enough to thin).
+    ///
+    /// # What is counted — CAPPED strokes, not strokes drawn
+    ///
+    /// One per stroking paint whose floored user-space width was strictly
+    /// **greater** than one device pixel and was therefore reduced. It is
+    /// **not** a count of strokes painted, and that distinction is what
+    /// makes the counter answer the operator's actual question ("how much of
+    /// this drawing am I seeing at a lie of a width?") instead of a question
+    /// they did not ask.
+    ///
+    /// ★ It is also the machine-readable statement that the mode is a
+    /// **CEILING, not a set**: a stroke already at or under one device pixel
+    /// is left exactly as [`StrokeDisplay::Actual`] would have drawn it, so
+    /// it is not counted here. A page of hairlines rendered in `Hairline`
+    /// mode reports `0` and is byte-identical to the same page rendered in
+    /// `Actual` — see `tests/stroke_display_hairline.rs`.
+    ///
+    /// # Scope
+    ///
+    /// Counted at the one place stroke geometry is resolved
+    /// (`Interpreter::stroke_params`), so it covers path strokes (`S`, `s`,
+    /// `B`, `B*`, `b`, `b*`), stroked **text** (§9.3.6 render modes 1/2/5/6,
+    /// which §9.3.6 requires to use the same line-width parameter in user
+    /// space), and the same operators inside form XObjects, patterns,
+    /// Type 3 glyph procedures and annotation appearance streams. Fills are
+    /// never counted because fills never reach that function.
+    pub strokes_hairlined: usize,
     /// `Do` invocations refused because they would have exceeded
     /// [`MAX_XOBJECT_DEPTH`] **or** re-entered a form already on the
     /// stack (a cycle). Their content is missing from the raster.
@@ -1833,6 +1880,7 @@ polarity unverifiable (decision 006 R30)",
         self.forms_rendered += other.forms_rendered;
         self.forms_culled += other.forms_culled;
         self.subpixel_culled += other.subpixel_culled;
+        self.strokes_hairlined += other.strokes_hairlined;
         self.xobject_depth_overflows += other.xobject_depth_overflows;
         self.type3_glyph_procs_run += other.type3_glyph_procs_run;
         self.type3_glyphs_missing += other.type3_glyphs_missing;
@@ -2341,6 +2389,12 @@ pub fn trace_paths(
         // the name, since two streams can define different spaces
         // under colliding colorant names.
         spot_luts: std::cell::RefCell::new(HashMap::new()),
+        // Zero per stream: a form XObject, a pattern and a Type 3 glyph
+        // procedure each build their own interpreter, and each folds its
+        // own tally into its own `Diagnostics`, which the caller then
+        // merges. Sharing one counter across streams would double-count
+        // whatever the merge already adds.
+        hairline_capped: std::cell::Cell::new(0),
         icc: crate::icc::IccBridgeCache::new(output_intent_profile(doc)),
         // Geometry only — `trace_paths` records paths and
         // composites nothing, so §11.3.4 cannot apply. Additive
@@ -2441,6 +2495,12 @@ fn run_nested(
         // the name, since two streams can define different spaces
         // under colliding colorant names.
         spot_luts: std::cell::RefCell::new(HashMap::new()),
+        // Zero per stream: a form XObject, a pattern and a Type 3 glyph
+        // procedure each build their own interpreter, and each folds its
+        // own tally into its own `Diagnostics`, which the caller then
+        // merges. Sharing one counter across streams would double-count
+        // whatever the merge already adds.
+        hairline_capped: std::cell::Cell::new(0),
         icc: crate::icc::IccBridgeCache::new(output_intent_profile(doc)),
         blend_space,
         path: PathBuilder::new(),
@@ -2494,6 +2554,10 @@ fn run_nested(
     let (managed, unmanaged) = interp.icc.tallies();
     interp.diag.icc_managed_paints += managed;
     interp.diag.icc_unmanaged_paints += unmanaged;
+    // And the hairline ceiling's tally, for the same reason and by the same
+    // route: `stroke_params` takes `&self` and cannot reach `diag` where the
+    // capping happens. See `Interpreter::hairline_capped`.
+    interp.diag.strokes_hairlined += interp.hairline_capped.get();
     interp.diag
 }
 
@@ -2598,6 +2662,12 @@ pub(crate) fn run_form_at_on(
         // the name, since two streams can define different spaces
         // under colliding colorant names.
         spot_luts: std::cell::RefCell::new(HashMap::new()),
+        // Zero per stream: a form XObject, a pattern and a Type 3 glyph
+        // procedure each build their own interpreter, and each folds its
+        // own tally into its own `Diagnostics`, which the caller then
+        // merges. Sharing one counter across streams would double-count
+        // whatever the merge already adds.
+        hairline_capped: std::cell::Cell::new(0),
         icc: crate::icc::IccBridgeCache::new(output_intent_profile(doc)),
         // §12.5.5: an appearance stream with no `/Group` is a
         // NON-ISOLATED group, and a non-isolated group INHERITS
@@ -2645,6 +2715,10 @@ pub(crate) fn run_form_at_on(
     let (managed, unmanaged) = interp.icc.tallies();
     interp.diag.icc_managed_paints += managed;
     interp.diag.icc_unmanaged_paints += unmanaged;
+    // And the hairline ceiling's tally, for the same reason and by the same
+    // route: `stroke_params` takes `&self` and cannot reach `diag` where the
+    // capping happens. See `Interpreter::hairline_capped`.
+    interp.diag.strokes_hairlined += interp.hairline_capped.get();
     interp.diag
 }
 
@@ -2729,6 +2803,64 @@ struct Interpreter<'a> {
     /// agree or a paint would find one curve and deposit into a different
     /// plane.
     spot_luts: std::cell::RefCell<HashMap<Box<[u8]>, Arc<crate::cmyk_buffer::SpotLut>>>,
+    /// Strokes this stream thinned under [`StrokeDisplay::Hairline`],
+    /// pending the fold into [`Diagnostics::strokes_hairlined`]
+    /// (`Pass 254.1`).
+    ///
+    /// # Why a `Cell` rather than `&mut self`
+    ///
+    /// Exactly the [`Self::spot_luts`] argument, one function along.
+    /// [`Interpreter::stroke_params`] takes `&self` and every one of its
+    /// seven call sites evaluates it *inside* a `canvas.stroke(…)`
+    /// expression that is already holding an immutable borrow of `self` —
+    /// `self.gs.current.clip_ref()` for the clip, `self.solid_authored(…)`
+    /// for the paint. Widening it to `&mut self` is a borrow-checker
+    /// refactor of the hot paint path in order to increment a counter,
+    /// which is the wrong trade; the same trade was already declined for
+    /// the tint-transform cache above.
+    ///
+    /// Single-threaded by construction (the engine takes no threads), and
+    /// a `Cell<usize>` cannot even be observed mid-borrow the way a
+    /// `RefCell` can, so this is the cheaper half of the precedent.
+    ///
+    /// # Why it is FOLDED at the end rather than incremented in place
+    ///
+    /// [`crate::icc::IccBridgeCache::tallies`] set the pattern: a counter
+    /// that cannot reach `self.diag` at the moment it happens is collected
+    /// beside the thing that produces it and merged once, at the same two
+    /// drain points, so there is exactly one line in this file that decides
+    /// what a returned [`Diagnostics`] contains. `trace_paths` builds an
+    /// interpreter whose diagnostics are discarded by design, so it has no
+    /// drain and needs none.
+    ///
+    /// # ★ Which of the two drains actually carries a value — MEASURED
+    ///
+    /// **`run_nested`'s does; `run_form_at_on`'s is always zero today**, and
+    /// that is worth stating because it is not visible from either call site.
+    /// `run_form_at_on` builds an interpreter and immediately hands the whole
+    /// stream to [`Interpreter::do_form`], which executes the form's content
+    /// through `run_nested` — on both its branches, the buffered
+    /// transparency-group one and the paint-inline one. So the outer
+    /// interpreter never executes a single operator, `stroke_params` is never
+    /// called on it, and its cell cannot leave zero. Every real tally —
+    /// page content, form XObjects, tiling patterns, Type 3 glyph
+    /// procedures, transparency groups, **and annotation appearance streams**
+    /// — arrives through `run_nested` and is carried outward by
+    /// [`Diagnostics::merge`].
+    ///
+    /// The fold at `run_form_at_on` is kept anyway, for the reason
+    /// [`Diagnostics::merge`] gives about the annotation counters in the same
+    /// situation: *written out in full so it stays correct if that ever
+    /// changes, rather than silently dropping a counter.* If that function
+    /// ever gains a code path that paints without descending into `do_form`,
+    /// the alternative is an under-count nobody would see — the picture would
+    /// be right and only the disclosure would be wrong, which is the failure
+    /// mode this counter exists to prevent.
+    ///
+    /// Established by sabotage, not by reading: deleting the `run_nested`
+    /// fold turns `tests/stroke_display_hairline.rs` red in six places;
+    /// deleting the `run_form_at_on` fold changes nothing.
+    hairline_capped: std::cell::Cell<usize>,
     /// §11.3.4's **blending colour space**, for the group this stream is
     /// the contents of.
     ///
@@ -8804,12 +8936,36 @@ impl Interpreter<'_> {
         // Combined with the floor above, every stroke lands at ~1 device pixel,
         // which is exactly the convention. FILLS never reach here, so a filled
         // region keeps its geometry (only `S`/`s`/`B`/`B*` strokes change).
+        //
+        // ★ A CEILING, NOT A SET, and the two are only distinguishable on a
+        // stroke that is ALREADY sub-pixel. `floored` is `max(declared,
+        // min_user_width)` — the §8.4.3.2 / §10.6.4 floor above — so for such a
+        // stroke `floored == min_user_width` and `min` returns it unchanged:
+        // this mode can never make a line THICKER, and an already-hairline
+        // drawing renders byte-identically with the mode on and off. That is
+        // the answer to `pdfcer-gui`'s question 2 (2026-09-05), and it is not
+        // an accident of the `min` — it is why a `min` was chosen over an
+        // assignment. Acrobat's "enhance thin lines" is the opposite operation
+        // and would be a THIRD variant here, never a change to this arm.
         let width = match self.stroke_display {
             StrokeDisplay::Hairline => floored.min(min_user_width),
             // `Actual` and any future variant render at the declared (floored)
             // width; `#[non_exhaustive]` requires the wildcard.
             _ => floored,
         };
+        // Pass 254.1 — the rule-4 disclosure. Count only strokes the ceiling
+        // actually THINNED, so the number answers "how much of this drawing am
+        // I reading at a width the file did not ask for?". A strict `<` is what
+        // keeps an already-sub-pixel stroke out of the tally (see above): for
+        // those, `width == floored` exactly, so they are not counted, and a
+        // hairline render of a hairline drawing correctly reports zero.
+        //
+        // `Cell` rather than `&mut self.diag`: this function is `&self` and is
+        // called inside expressions already borrowing `self`. See
+        // `Interpreter::hairline_capped`.
+        if width < floored {
+            self.hairline_capped.set(self.hairline_capped.get() + 1);
+        }
         Stroke {
             width,
             miter_limit: self.gs.current.miter_limit,

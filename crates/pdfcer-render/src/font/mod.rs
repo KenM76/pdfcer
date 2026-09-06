@@ -523,6 +523,16 @@ pub struct RenderOptions {
     /// ([`StrokeDisplay`], `Pass 254.0`). `Actual` by default; `Hairline`
     /// is the CAD "line weights off" display convention. A shell sets this
     /// for its interactive canvas ONLY — exports keep real widths.
+    ///
+    /// # It is DISCLOSED, not silent (rule 4)
+    ///
+    /// `Diagnostics::strokes_hairlined` counts the strokes the ceiling
+    /// actually thinned, and — following
+    /// [`Self::subpixel_culling`]'s counter exactly — it is reported
+    /// whether or not this field is set, so a raster always carries the
+    /// fact that it is not a faithful one. A hairline raster looks like a
+    /// CAD drawing rather than like a renderer decision, so the operator
+    /// cannot see this one; that is precisely when rule 4 bites.
     pub stroke_display: StrokeDisplay,
     /// **Which classes** of annotation to paint when [`Self::annotations`]
     /// permits any — the four-way Acrobat print scope (Document / Document
@@ -940,6 +950,33 @@ pub struct RenderPolicy<'a> {
 /// export knob. Every export (PNG/JPEG/SVG/EMF/DXF/PDF) renders with the
 /// document's real widths; a hairline raster is a reading aid, never something
 /// that follows the operator into a file (`pdfcer-gui` request 2026-09-05).
+///
+/// # Why an enum and not a `bool`
+///
+/// There is a **third**, opposite convention with an equal claim to the name
+/// "thin lines": Acrobat's *enhance thin lines*, which thickens strokes that
+/// would fall below one device pixel so they do not fade. `hairline: bool`
+/// would then have to mean "one of the two", and the field would be unable to
+/// say which. It is not implemented here — it is only the reason the shape of
+/// this type is an enum.
+///
+/// # Where the spec sits, and where it does not
+///
+/// ISO 32000-1 §8.4.3.2 defines the line-width parameter and gives `0 w` the
+/// meaning *"the thinnest line that can be rendered at device resolution: 1
+/// device pixel wide"*, and §10.6.4 *Scan Conversion Rules* (renumbered
+/// §10.7.4 in ISO 32000-2) sets the minimum-coverage floor that keeps a
+/// sub-pixel stroke visible. Both are FLOORS, and pdfcer implements them in
+/// [`Actual`](Self::Actual) — see the floor in `Interpreter::stroke_params`.
+///
+/// ★ **No clause authorises a ceiling.** Thinning a stroke the file declared
+/// wide has no basis in the standard and is not offered as one: it is a
+/// reading aid the operator switches on, applied at display time only, and it
+/// never reaches emitted bytes (`w`, `/LW` and `/SA` round-trip untouched
+/// under R34 — this is a render-radius decision, like the zoom). The standard
+/// does not even contain the word *hairline*: measured zero hits in ISO
+/// 32000-1 and zero in ISO 32000-2, so it is an industry term used here for
+/// what it communicates, never cited as a spec concept.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 #[non_exhaustive]
 pub enum StrokeDisplay {
@@ -955,6 +992,27 @@ pub enum StrokeDisplay {
     /// strokes change): a filled region is geometry, not a drafting weight.
     /// This is the OPPOSITE of Acrobat's "enhance thin lines" (which makes thin
     /// things thicker); this makes thick things thinner.
+    ///
+    /// # A CEILING, not a set — what happens to an already-thin stroke
+    ///
+    /// Nothing. A stroke whose device width is already at or below one pixel
+    /// is drawn exactly as [`Actual`](Self::Actual) would draw it — which,
+    /// because of pdfcer's §8.4.3.2/§10.6.4 floor, means one device pixel in
+    /// both modes. A page of hairlines therefore renders **byte-identically**
+    /// with this mode on and off, and `Diagnostics::strokes_hairlined` reports
+    /// `0` for it. The mode can only ever remove weight, never add it.
+    ///
+    /// # What it applies to
+    ///
+    /// Every stroking paint, because the cap lives at the single point where
+    /// stroke geometry is resolved: path strokes (`S`, `s`, `B`, `B*`, `b`,
+    /// `b*`), stroked TEXT (§9.3.6 render modes 1/2/5/6 — §9.3.6 requires the
+    /// line width to be interpreted in user space for text exactly as for a
+    /// path, so a stroked title block thins with the drawing rather than
+    /// standing out against it), and the same operators inside form XObjects,
+    /// tiling patterns, Type 3 glyph procedures and annotation appearance
+    /// streams. Dash patterns, caps, joins and the miter limit are untouched:
+    /// a dashed centreline stays a dashed centreline, drawn thin.
     Hairline,
 }
 
