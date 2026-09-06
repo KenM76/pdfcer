@@ -41404,6 +41404,20 @@ impl EditSession {
             return Err(SignApplyError::CertificationForbids { permission: 1 });
         }
         let prior_signatures = found.signatures;
+        // `Pass 10.12`: a certification is ONE per document and the FIRST
+        // signature (§12.8.2.2.1) — refused by name before any allocation.
+        if request.certify.is_some() {
+            if found.certifications > 0 || found.perms_enforced {
+                return Err(SignApplyError::AlreadyCertified {
+                    permission: found.certification_permission.unwrap_or(2),
+                });
+            }
+            if found.signatures > 0 {
+                return Err(SignApplyError::CertificationNotFirst {
+                    existing: found.signatures,
+                });
+            }
+        }
 
         // --- 2a. the field name ------------------------------------------
         let existing: Vec<String> = forms::parse_acroform(&self.graph())
@@ -41493,6 +41507,30 @@ impl EditSession {
             Name::from(b"M"),
             Object::String(request.signing_time.as_bytes().to_vec()),
         );
+        // `Pass 10.12`: the DocMDP transform (§12.8.2.2, Tables 253/254).
+        // `/V /1.2` is a NAME, not a number (Table 254's own note); the
+        // `DigestMethod`/`DigestValue` entries of the reference dictionary are
+        // omitted — deprecated in PDF 2.0 (ISO 32000-2 corrigendum #117).
+        if let Some(level) = request.certify {
+            let mut params = Dict::new();
+            params.insert(
+                Name::from(b"Type"),
+                Object::Name(Name::from(b"TransformParams")),
+            );
+            params.insert(Name::from(b"P"), Object::Integer(i64::from(level.p())));
+            params.insert(Name::from(b"V"), Object::Name(Name::from(b"1.2")));
+            let mut sigref = Dict::new();
+            sigref.insert(Name::from(b"Type"), Object::Name(Name::from(b"SigRef")));
+            sigref.insert(
+                Name::from(b"TransformMethod"),
+                Object::Name(Name::from(b"DocMDP")),
+            );
+            sigref.insert(Name::from(b"TransformParams"), Object::Dict(params));
+            sig.insert(
+                Name::from(b"Reference"),
+                Object::Array(vec![Object::Dict(sigref)]),
+            );
+        }
         for (key, value) in [
             (&b"Name"[..], &request.name),
             (b"Reason", &request.reason),
@@ -41627,6 +41665,44 @@ impl EditSession {
                 d.insert(Name::from(b"SigFlags"), Object::Integer(3));
             }
         }
+        // `Pass 10.12`: the catalog's `/Perms /DocMDP` (§12.8.4, Table 258)
+        // — the entry a conforming reader SHALL enforce — in the SAME
+        // update. Written into the catalog write `acroform_register_write`
+        // already produced when the AcroForm is inline (one write per
+        // object per command), else as its own catalog write. An existing
+        // `/Perms` (a `/UR3`, say) keeps its other keys.
+        if request.certify.is_some() {
+            let catalog_id = self.graph().catalog_id().ok_or(EditError::NotADictionary {
+                id: ObjId::new(0, 0),
+                key: "Root",
+            })?;
+            let with_perms = |catalog: &mut Dict| {
+                let mut perms = catalog
+                    .get(b"Perms")
+                    .and_then(|o| self.graph().resolve(o).as_dict().cloned())
+                    .unwrap_or_default();
+                perms.insert(Name::from(b"DocMDP"), Object::Reference(sig_id));
+                catalog.insert(Name::from(b"Perms"), Object::Dict(perms));
+            };
+            if af_write.id == catalog_id {
+                if let Some(Object::Dict(d)) = &mut af_write.after {
+                    with_perms(d);
+                }
+            } else {
+                let mut catalog = self.graph().resolved(catalog_id).as_dict().cloned().ok_or(
+                    EditError::NotADictionary {
+                        id: catalog_id,
+                        key: "Root",
+                    },
+                )?;
+                with_perms(&mut catalog);
+                objects.push(ObjectWrite {
+                    id: catalog_id,
+                    before: self.state.get(&catalog_id).cloned(),
+                    after: Some(Object::Dict(catalog)),
+                });
+            }
+        }
         objects.push(af_write);
 
         self.commit(Command {
@@ -41698,6 +41774,7 @@ impl EditSession {
                 self_verified: true,
                 prior_signatures,
                 appearance_lines,
+                certification: request.certify,
             },
         ))
     }

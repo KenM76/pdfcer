@@ -3169,11 +3169,12 @@ pub enum StyleOutcome {
     /// does.** This variant answers *"is a real face available"* — which is
     /// stable — and not *"will this be refused"*, which is not.
     ///
-    /// Note what this still does **not** promise: pdfcer will not switch to
-    /// that face on the operator's behalf. Changing the family is a separate,
-    /// explicit act through the font control. (The automatic ladder that
-    /// *would* switch is `Pass 179.0` and is not built.) Copy that implies
-    /// otherwise misstates the mechanism.
+    /// Note what this still does **not** promise for the EXPLICIT synthetic
+    /// verb: `set_synthetic` will not switch to that face on the operator's
+    /// behalf — it is the override. The route that DOES switch is
+    /// [`FormatRequest::set_style`] (`Pass 179.0`), whose ladder binds this
+    /// same face at rung 1. Copy that implies the explicit verb switches
+    /// misstates the mechanism.
     RealFaceResolves {
         /// The `/BaseFont` of the real face that resolves.
         real_font: String,
@@ -3928,10 +3929,12 @@ impl FontPreflight {
     /// `set_font` binds them with no embedding at all, and **this survey does
     /// not look for them**, so `None` under-reports what is reachable.
     ///
-    /// Closing that gap is the automatic ladder, `Pass 179.0`, which is not
-    /// built. Until it is, a shell that treats `None` as "synthesis is the
-    /// only option" will fake a weight on a plain Helvetica page where a real
-    /// one was one command away.
+    /// The automatic ladder ([`FormatRequest::set_style`], `Pass 179.0`)
+    /// closes that gap: it tries the standard-14 sibling itself (rung 2), so
+    /// `None` here does NOT mean "synthesis is the only option" — a shell
+    /// wanting the whole answer asks `set_style` and reads
+    /// [`FormatReport::style_ladder`]; [`FontPreflight::standard_14`]
+    /// lists the siblings this query did survey since `Pass 142.2`.
     #[must_use]
     pub fn real_bold(&self) -> Option<&FontSibling> {
         self.run_entry().and_then(|e| e.real_bold.as_ref())

@@ -190,6 +190,11 @@ pub struct SignatureVerdict {
     pub date: Option<String>,
     pub reason: Option<String>,
     pub location: Option<String>,
+    /// `Some(P)` when this is a **certification** signature — its
+    /// `/Reference` holds a `SigRef` with `/TransformMethod /DocMDP`
+    /// (§12.8.2.2); `P` defaults to 2 when the transform parameters omit it
+    /// (Table 254). `None` for an approval signature. (`Pass 10.12`)
+    pub certification: Option<u8>,
     /// Disclosures: a weak digest, non-zero padding, an odd CMS version,
     /// extra signers — everything the operator cannot see from the verdict.
     pub notes: Vec<String>,
@@ -250,6 +255,33 @@ pub fn verify<G: ObjectGraph + ?Sized>(
     index: usize,
 ) -> Option<SignatureVerdict> {
     verify_all(graph, bytes).into_iter().nth(index)
+}
+
+/// The DocMDP `/P` of a signature dictionary's `/Reference` array, if a
+/// `SigRef` with `/TransformMethod /DocMDP` is present (§12.8.2.2). Absent
+/// `/P` is **2** (Table 254's default — permissive, not locked); the same
+/// reading `signature::census` applies, kept in step so the verifier and
+/// the census cannot disagree about one file.
+fn docmdp_permission<G: ObjectGraph + ?Sized>(graph: &G, dict: &crate::object::Dict) -> Option<u8> {
+    let refs = graph.resolve(dict.get(b"Reference")?).as_array()?;
+    refs.iter().find_map(|r| {
+        let sigref = graph.resolve(r).as_dict()?;
+        let method = graph.resolve(sigref.get(b"TransformMethod")?).as_name()?;
+        if method.as_bytes() != b"DocMDP" {
+            return None;
+        }
+        Some(
+            sigref
+                .get(b"TransformParams")
+                .map(|o| graph.resolve(o))
+                .and_then(Object::as_dict)
+                .and_then(|p| p.get(b"P").map(|o| graph.resolve(o)))
+                .and_then(Object::as_int)
+                .and_then(|p| u8::try_from(p).ok())
+                .filter(|p| (1..=3).contains(p))
+                .unwrap_or(2),
+        )
+    })
 }
 
 fn text<G: ObjectGraph + ?Sized>(
@@ -338,6 +370,7 @@ fn verify_dict<G: ObjectGraph + ?Sized>(
         date: text(graph, dict, b"M"),
         reason: text(graph, dict, b"Reason"),
         location: text(graph, dict, b"Location"),
+        certification: docmdp_permission(graph, dict),
         notes: Vec::new(),
     };
     let unverifiable = |reason: &str| Integrity::Unverifiable {

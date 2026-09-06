@@ -1851,6 +1851,13 @@ enum Command {
     /// `--reason`/`--location` when given; the lines are printed on success,
     /// and a box too small for them at 4 pt is refused by name.
     ///
+    /// `--certify` (with `--mdp-level none|form-fill|annotate`) makes it a
+    /// CERTIFICATION signature: the document's author signature, carrying
+    /// the DocMDP permission every conforming reader enforces on later
+    /// changes. It must be the first signature and there is one per
+    /// document; both are refused by name. The level and its meaning are
+    /// printed; `verify-signatures` reports them back.
+    ///
     /// Refused by name, nothing written: a signing time that is not a PDF
     /// date; an encrypted document (the incremental writer cannot append to
     /// one yet); a document opened through cross-reference recovery; a
@@ -1898,6 +1905,21 @@ enum Command {
         /// `/ContactInfo`.
         #[arg(long)]
         contact: Option<String>,
+        /// Make this a CERTIFICATION (author) signature (`Pass 10.12`, ISO
+        /// 32000-1 §12.8.2.2): writes the `/DocMDP` transform and the
+        /// catalog's `/Perms`, which every conforming reader enforces on
+        /// later changes. Must be the document's FIRST signature, and a
+        /// document carries only one — both refused by name. Level from
+        /// `--mdp-level`; without it, the standard's default (`form-fill`,
+        /// P=2), printed so the choice is never silent.
+        #[arg(long)]
+        certify: bool,
+        /// What a certified document still permits (Table 254): `none`
+        /// (P=1, any change invalidates), `form-fill` (P=2, form fill-in
+        /// and signing — the default), `annotate` (P=3, also annotations).
+        /// Implies `--certify`.
+        #[arg(long, value_enum)]
+        mdp_level: Option<MdpLevelArg>,
         /// The signature field's name; `Signature1`, `Signature2`, … when absent.
         #[arg(long)]
         field_name: Option<String>,
@@ -9067,6 +9089,8 @@ fn run() -> ExitCode {
             reason,
             location,
             contact,
+            certify,
+            mdp_level,
             field_name,
             visible,
             page,
@@ -9083,6 +9107,8 @@ fn run() -> ExitCode {
             reason: reason.as_deref(),
             location: location.as_deref(),
             contact: contact.as_deref(),
+            certify,
+            mdp_level,
             field_name: field_name.as_deref(),
             visible: visible.as_deref(),
             page,
@@ -16476,6 +16502,13 @@ fn cmd_verify_signatures(input: &Path, trust_from_acrobat: bool) -> u8 {
             v.date.as_deref().unwrap_or("-"),
             v.reason.as_deref().unwrap_or("-"),
         );
+        if let Some(p) = v.certification {
+            println!(
+                "  certification: DocMDP P={p} ({})",
+                pdfcer_core::sign::apply::MdpPermission::from_p(p)
+                    .map_or("unknown level", |m| m.meaning())
+            );
+        }
         for n in &v.notes {
             println!("  note: {n}");
         }
@@ -26198,9 +26231,9 @@ fn cmd_font_preflight(
         ),
         None => println!(
             "bold: no real bold face of this run's family is a resource ON THIS PAGE. \
-             --bold-synthetic is one route; the other is --set-font with a standard-14 \
-             bold name (Helvetica-Bold, Times-Bold, Courier-Bold), which needs no \
-             embedding — see its ACCEPT/REFUSE in the standard-14 block above"
+             --bold binds the standard-14 bold sibling (Helvetica-Bold, Times-Bold, Courier-Bold; no embedding) \
+             when the run's family has one, else synthesises; --set-font names a face outright; \
+             --bold-synthetic forces the stroke — see ACCEPT/REFUSE in the standard-14 block above"
         ),
     }
     match pre.real_italic() {
@@ -26210,9 +26243,9 @@ fn cmd_font_preflight(
         ),
         None => println!(
             "italic: no real italic face of this run's family is a resource ON THIS PAGE. \
-             --italic-synthetic is one route; the other is --set-font with a standard-14 \
-             oblique name (Helvetica-Oblique, Times-Italic, Courier-Oblique), which needs \
-             no embedding — see its ACCEPT/REFUSE in the standard-14 block above"
+             --italic binds the standard-14 italic sibling (Helvetica-Oblique, Times-Italic, Courier-Oblique; no embedding) \
+             when the run's family has one, else synthesises; --set-font names a face outright; \
+             --italic-synthetic forces the stroke — see ACCEPT/REFUSE in the standard-14 block above"
         ),
     }
     exit::SUCCESS
@@ -27089,6 +27122,31 @@ enum SignFormatArg {
     Pkcs7,
 }
 
+/// `--mdp-level` for `sign --certify` (`Pass 10.12`): Table 254's three
+/// values in Acrobat's own vocabulary.
+#[cfg(feature = "signing")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+enum MdpLevelArg {
+    /// P = 1 — no changes permitted.
+    None,
+    /// P = 2 — form fill-in and signing (the standard's default).
+    FormFill,
+    /// P = 3 — form fill-in, signing and annotations.
+    Annotate,
+}
+
+#[cfg(feature = "signing")]
+impl MdpLevelArg {
+    const fn permission(self) -> pdfcer_core::sign::apply::MdpPermission {
+        use pdfcer_core::sign::apply::MdpPermission as M;
+        match self {
+            Self::None => M::NoChanges,
+            Self::FormFill => M::FormFillAndSign,
+            Self::Annotate => M::FormFillSignAnnotate,
+        }
+    }
+}
+
 /// `--algorithm` for `sign`.
 #[cfg(feature = "signing")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
@@ -27117,6 +27175,9 @@ struct SignArgs<'a> {
     reason: Option<&'a str>,
     location: Option<&'a str>,
     contact: Option<&'a str>,
+    /// `--certify` / `--mdp-level` (`Pass 10.12`).
+    certify: bool,
+    mdp_level: Option<MdpLevelArg>,
     field_name: Option<&'a str>,
     visible: Option<&'a str>,
     page: usize,
@@ -27264,6 +27325,17 @@ fn cmd_sign(args: &SignArgs<'_>) -> u8 {
     request.reason = args.reason.map(str::to_owned);
     request.location = args.location.map(str::to_owned);
     request.contact_info = args.contact.map(str::to_owned);
+    // `Pass 10.12`: `--mdp-level` implies `--certify`; `--certify` alone
+    // takes Table 254's default (P=2) and SAYS so below.
+    let mdp_defaulted = args.certify && args.mdp_level.is_none();
+    request.certify = if args.certify || args.mdp_level.is_some() {
+        Some(args.mdp_level.map_or(
+            pdfcer_core::sign::apply::MdpPermission::FormFillAndSign,
+            |l| l.permission(),
+        ))
+    } else {
+        None
+    };
     request.field_name = args.field_name.map(str::to_owned);
     request.visible = visible;
     request.reserve = args.reserve;
@@ -27282,6 +27354,8 @@ fn cmd_sign(args: &SignArgs<'_>) -> u8 {
         Err(err) => {
             eprintln!("pdfcer: {}: {err}", args.input.display());
             return match err {
+                SignApplyError::AlreadyCertified { .. }
+                | SignApplyError::CertificationNotFirst { .. } => exit::EDIT_REFUSED,
                 SignApplyError::Sign(_)
                 | SignApplyError::Cms(_)
                 | SignApplyError::ReservationTooSmall { .. }
@@ -27322,6 +27396,18 @@ fn cmd_sign(args: &SignArgs<'_>) -> u8 {
         u8::from(report.self_verified),
         bytes.len(),
     );
+    if let Some(level) = report.certification {
+        println!(
+            "  certification: DocMDP P={} ({}){}",
+            level.p(),
+            level.meaning(),
+            if mdp_defaulted {
+                " -- --mdp-level not given; this is Table 254's default"
+            } else {
+                ""
+            }
+        );
+    }
     // Rule 4: the operator cannot read the appearance back without a viewer,
     // so say what the box shows.
     if !report.appearance_lines.is_empty() {

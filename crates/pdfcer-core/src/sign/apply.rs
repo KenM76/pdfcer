@@ -60,6 +60,55 @@ use super::cms_build::SubFilter;
 
 /// What to sign with, and how the signature dictionary should read.
 ///
+/// The DocMDP access permission a certification signature grants
+/// (ISO 32000-1 §12.8.2.2, Table 254). The number is the standard's; the
+/// operator reads the words ([`Self::meaning`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MdpPermission {
+    /// `P = 1` — no changes to the document are permitted; any change
+    /// invalidates the signature.
+    NoChanges,
+    /// `P = 2` — form fill-in, page-template instantiation and signing are
+    /// permitted. **Table 254's default.**
+    FormFillAndSign,
+    /// `P = 3` — as 2, plus annotation creation, deletion and modification.
+    FormFillSignAnnotate,
+}
+
+impl MdpPermission {
+    /// The `/P` value (Table 254).
+    #[must_use]
+    pub const fn p(self) -> u8 {
+        match self {
+            Self::NoChanges => 1,
+            Self::FormFillAndSign => 2,
+            Self::FormFillSignAnnotate => 3,
+        }
+    }
+
+    /// From a `/P` value; anything outside 1..=3 is `None` (the standard
+    /// names no others).
+    #[must_use]
+    pub const fn from_p(p: u8) -> Option<Self> {
+        match p {
+            1 => Some(Self::NoChanges),
+            2 => Some(Self::FormFillAndSign),
+            3 => Some(Self::FormFillSignAnnotate),
+            _ => None,
+        }
+    }
+
+    /// Table 254's meaning in plain words, for a disclosure.
+    #[must_use]
+    pub const fn meaning(self) -> &'static str {
+        match self {
+            Self::NoChanges => "no changes",
+            Self::FormFillAndSign => "form fill-in and signing",
+            Self::FormFillSignAnnotate => "form fill-in, signing and annotations",
+        }
+    }
+}
+
 /// Everything optional is *authored*, not inferred: the reason, location
 /// and contact are the operator's words, and the signing time is the
 /// caller's PDF date string (pdfcer reads no clock — see `signing_time`).
@@ -88,6 +137,21 @@ pub struct SignRequest {
     pub location: Option<String>,
     /// `/ContactInfo`, free text.
     pub contact_info: Option<String>,
+    /// Make this a **certification** (author) signature carrying the given
+    /// DocMDP permission (`Pass 10.12`, ISO 32000-1 §12.8.2.2): the
+    /// signature dictionary gains `/Reference [<< /Type /SigRef
+    /// /TransformMethod /DocMDP /TransformParams << /Type /TransformParams
+    /// /P n /V /1.2 >> >>]` and the catalog gains `/Perms << /DocMDP … >>`
+    /// (§12.8.4 Table 258) in the same incremental update. Table 253's
+    /// `DigestMethod` is omitted — *"Optional; deprecated in PDF 2.0"*
+    /// (ISO 32000-2, corrigendum item #117). `None` = an approval signature.
+    ///
+    /// A certification must be the document's FIRST signature (§12.8.2.2.1:
+    /// the certifier is *"the author of a document (the person applying the
+    /// first signature)"*) and a document carries at most one — both are
+    /// refused by name ([`SignApplyError::CertificationNotFirst`],
+    /// [`SignApplyError::AlreadyCertified`]).
+    pub certify: Option<MdpPermission>,
     /// The signature field's `/T`. Must not collide with an existing field
     /// name; `None` picks `Signature1`, `Signature2`, … as Acrobat does.
     pub field_name: Option<String>,
@@ -114,6 +178,7 @@ impl Default for SignRequest {
             name: None,
             reason: None,
             location: None,
+            certify: None,
             contact_info: None,
             field_name: None,
             visible: None,
@@ -169,6 +234,9 @@ pub struct SignReport {
     pub self_verified: bool,
     /// Signatures that already existed in the document before this one.
     pub prior_signatures: usize,
+    /// The DocMDP permission written when this was a certification
+    /// signature (`Pass 10.12`); `None` for an approval signature.
+    pub certification: Option<MdpPermission>,
     /// The text lines composed into a VISIBLE signature's appearance
     /// (`Pass 10.14`): signer name, date, and the reason/location when
     /// given — disclosed here because the operator cannot read them back
@@ -270,6 +338,28 @@ pub enum SignApplyError {
     /// The session could not stage or serialize (an edit-layer error).
     #[error(transparent)]
     Edit(#[from] crate::edit::EditError),
+    /// A certification was requested on a document that is already
+    /// certified (`Pass 10.12`; §12.8.2.2.1 — *"A document can contain
+    /// only one signature field that contains a DocMDP transform method"*).
+    /// Nothing written. Sign as an approval instead.
+    #[error(
+        "the document is already certified (/DocMDP, P={permission}); a document carries ONE certification signature — sign without --certify to add an approval signature"
+    )]
+    AlreadyCertified {
+        /// The existing certification's `/P`.
+        permission: u8,
+    },
+    /// A certification was requested on a document that already carries a
+    /// signature (`Pass 10.12`; §12.8.2.2.1 — the certifier is the author,
+    /// *"the person applying the first signature"*; a later certification
+    /// could not govern changes made before it). Nothing written.
+    #[error(
+        "the document already carries {existing} signature(s); a certification must be the FIRST signature — sign without --certify to add an approval signature"
+    )]
+    CertificationNotFirst {
+        /// Signatures already present.
+        existing: usize,
+    },
     /// The composed appearance text does not fit the visible rectangle
     /// even at the smallest legible size (`Pass 10.14`). Refused by name
     /// rather than clipped: a signature box whose text is silently cut is

@@ -148,7 +148,10 @@ fn a_bold_claim_that_cannot_cover_the_run_routes_to_synthesis_not_to_that_face()
     // surveyed (the block above the hint), so the hint points at that block
     // instead of denying it — and the test pins that the standard-14 block is
     // really there, so the pointer is not a promise.
-    assert!(text.contains("--bold-synthetic is one route"), "{text}");
+    assert!(
+        text.contains("--bold binds the standard-14 bold sibling"),
+        "{text}"
+    );
     assert!(
         text.contains("Helvetica-Bold") && text.contains("standard-14 block above"),
         "the other route, and where its verdict is, must both be stated: {text}"
