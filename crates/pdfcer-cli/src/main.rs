@@ -912,6 +912,23 @@ enum Command {
     /// stops same-named fields from becoming ONE logical field that
     /// fills every copy at once.
     ///
+    /// A BOOKMARK THAT OPENS ANOTHER OF THESE FILES IS RE-POINTED at that
+    /// file's pages inside the merged document, instead of being dropped.
+    ///
+    /// This is the table-of-contents case: one PDF whose bookmarks open the
+    /// other PDFs in a folder, through a `/Launch` or `/GoToR` action
+    /// (§12.6.4.5, §12.6.4.3). Merging destroys every one of those targets
+    /// — the bookmark still says *open `chapter1.pdf`* and there is no
+    /// longer a `chapter1.pdf` — so before `Pass 258.3` all of them were
+    /// discarded and the operator's own bookmark titles went with them.
+    ///
+    /// Matching is by file NAME, case-insensitively, ignoring directories.
+    /// A bookmark naming a file that is NOT one of the inputs is still
+    /// dropped: it is genuinely dead, and inventing a destination for it
+    /// would be worse. Both counts are on the metrics line
+    /// (`outline_relinked=`, `outline_dropped=`) and the re-pointing is
+    /// also stated in prose, because matching a filename is an INFERENCE.
+    ///
     /// PDF inputs only. Converting Word/Excel/images to PDF as part of a
     /// merge is a separate capability, not a flag on this one.
     Merge {
@@ -1330,6 +1347,17 @@ enum Command {
         /// operator asked for.
         #[arg(long, value_name = "ALPHA")]
         opacity: Option<f64>,
+        /// Draw the border DASHED: comma-separated on/off point lengths
+        /// (`4,2` = 4 on, 2 off; `3` = the Table 166 default).
+        ///
+        /// A dashed revision cloud and a dashed leader are ordinary AEC
+        /// markup. Omit for the solid border pdfcer authored exclusively
+        /// before `Pass 258.0`.
+        ///
+        /// Has no effect on a text markup (highlight, underline,
+        /// strike-out, squiggly), which draws no `/BS` border.
+        #[arg(long, value_name = "ON,OFF,...")]
+        dash: Option<String>,
         /// The note text this annotation carries (`/Contents`, §12.5.2
         /// Table 164) — what a reviewer's comment panel shows as the comment
         /// (`Pass 150.0`).
@@ -1956,6 +1984,15 @@ enum Command {
         /// that parse rather than read. `level=` is present either way.
         #[arg(long)]
         flat: bool,
+        /// Emit JSON instead: one array of bookmark objects, each with
+        /// `title`, `level`, and — when the bookmark opens another file —
+        /// the `file` it names.
+        ///
+        /// For the case this was built for: a table-of-contents PDF whose
+        /// bookmarks launch the other PDFs in a folder. `title` + `file`
+        /// is the pair to read; everything else is context.
+        #[arg(long, conflicts_with = "flat")]
+        json: bool,
     },
 
     /// **Rename a bookmark** — its `/Title` (`Pass 157.0`).
@@ -4815,6 +4852,18 @@ enum Command {
         /// fact about the file from an explicit `1.0`.
         #[arg(long, value_name = "0.0-1.0|none")]
         opacity: Option<String>,
+        /// Border line style: a dash pattern as comma-separated point
+        /// lengths (`4,2` = 4 on, 2 off; `3` = the Table 166 default), or
+        /// `solid` to remove the dash.
+        ///
+        /// OMITTING THIS PRESERVES AN EXISTING DASH. Before `Pass 258.0` a
+        /// restyle silently solidified a dashed border, because the
+        /// regenerated appearance had no dash to draw and `/AP` is what
+        /// gets painted (R43).
+        ///
+        /// Refused by name on a text markup, which has no border to dash.
+        #[arg(long, value_name = "ON,OFF,...|solid")]
+        dash: Option<String>,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,
@@ -9121,7 +9170,7 @@ fn run() -> ExitCode {
             page,
             reserve,
         }),
-        Command::ListOutline { input, flat } => cmd_list_outline(&input, flat),
+        Command::ListOutline { input, flat, json } => cmd_list_outline(&input, flat, json),
         Command::MergeDocument {
             input,
             source,
@@ -9863,6 +9912,7 @@ fn run() -> ExitCode {
             interior,
             width,
             opacity,
+            dash,
             output,
             mode,
             verify_undo,
@@ -9875,6 +9925,7 @@ fn run() -> ExitCode {
                 interior: interior.as_deref(),
                 width,
                 opacity: opacity.as_deref(),
+                dash: dash.as_deref(),
             },
             &output,
             mode,
@@ -11030,6 +11081,7 @@ fn run() -> ExitCode {
             width,
             cloud,
             opacity,
+            dash,
             note,
             note_author,
             note_date,
@@ -11057,6 +11109,7 @@ fn run() -> ExitCode {
             width,
             cloud,
             opacity,
+            dash: dash.as_deref(),
             note,
             note_author,
             note_date,
@@ -15177,12 +15230,22 @@ fn describe_destination(destination: &Destination) -> String {
                 view_token(view)
             )
         }
-        Destination::NonNavigation { action } => {
+        Destination::NonNavigation { action, file } => {
             let action = match action {
                 Some(name) => sanitize_token(&String::from_utf8_lossy(name.as_bytes())),
                 None => "unreadable".to_owned(),
             };
-            format!("dest=action action={action}")
+            // A `/Launch` names a file, and printing it is the whole point
+            // of reading it (§12.6.4.5). Omitted rather than printed as
+            // `none` for the actions that name no file, so the key's
+            // presence means something.
+            match file {
+                Some(bytes) => format!(
+                    "dest=action action={action} file={}",
+                    quoted_token(&String::from_utf8_lossy(bytes.as_slice()))
+                ),
+                None => format!("dest=action action={action}"),
+            }
         }
         // `Destination` is `#[non_exhaustive]`; a variant added later
         // must not silently become one of the five above.
@@ -16208,7 +16271,7 @@ undo_identical={} delinearized={}",
 /// including "this tree was truncated because it contained a cycle".
 /// A command that reported a partial outline as if it were the whole
 /// thing would be making a claim about the document it cannot support.
-fn cmd_list_outline(input: &Path, flat: bool) -> u8 {
+fn cmd_list_outline(input: &Path, flat: bool, json: bool) -> u8 {
     let doc = match open_document(input) {
         Ok(doc) => doc,
         Err(err) => {
@@ -16219,6 +16282,79 @@ fn cmd_list_outline(input: &Path, flat: bool) -> u8 {
     let session = pdfcer_core::edit::EditSession::new(doc);
     let outline = pdfcer_core::outline::read_outline(&session.graph());
 
+    // ---- JSON: the machine-readable shape, for a folder of files ----
+    //
+    // Emitted from the SAME `Outline` the text branch walks, so the two
+    // cannot disagree about what the document contains. Only the rendering
+    // differs, which is the whole reason this is a flag and not a second
+    // command with a second reader.
+    if json {
+        fn emit_json(
+            items: &[pdfcer_core::outline::OutlineItem],
+            n: &mut usize,
+            out: &mut Vec<String>,
+        ) {
+            for it in items {
+                *n += 1;
+                // `target_file` is the operator-facing answer: which OTHER
+                // file this bookmark opens. Both action types that name one
+                // are folded together here — a `/Launch` and a `/GoToR`
+                // answer the same question, and a script asking "what does
+                // this ToC point at" should not have to know which spelling
+                // the producer chose.
+                let (kind, file, page) = match &it.destination {
+                    Some(Destination::Page { page_index, .. }) => {
+                        ("page".to_owned(), None, Some(*page_index))
+                    }
+                    Some(Destination::UnmappedPage { .. }) => ("unmapped".to_owned(), None, None),
+                    Some(Destination::Named { .. }) => ("named".to_owned(), None, None),
+                    Some(Destination::Remote { file, .. }) => (
+                        "remote".to_owned(),
+                        file.as_ref()
+                            .map(|b| String::from_utf8_lossy(b).into_owned()),
+                        None,
+                    ),
+                    Some(Destination::NonNavigation { action, file }) => (
+                        action.as_ref().map_or_else(
+                            || "action".to_owned(),
+                            |a| String::from_utf8_lossy(a.as_bytes()).into_owned(),
+                        ),
+                        file.as_ref()
+                            .map(|b| String::from_utf8_lossy(b).into_owned()),
+                        None,
+                    ),
+                    // `Destination` is `#[non_exhaustive]`: a variant added
+                    // later must land here visibly rather than be silently
+                    // reported as one of the shapes above.
+                    Some(_) => ("other".to_owned(), None, None),
+                    None => ("none".to_owned(), None, None),
+                };
+                let mut fields = vec![
+                    format!("\"n\":{n}"),
+                    format!("\"obj\":{}", it.id.num),
+                    format!("\"level\":{}", it.level),
+                    format!("\"title\":\"{}\"", json_escape(&it.title)),
+                    format!("\"kind\":\"{}\"", json_escape(&kind)),
+                ];
+                if let Some(f) = file.as_deref() {
+                    fields.push(format!("\"file\":\"{}\"", json_escape(f)));
+                }
+                if let Some(pg) = page {
+                    fields.push(format!("\"page\":{}", pg + 1));
+                }
+                out.push(format!("  {{{}}}", fields.join(",")));
+                emit_json(&it.children, n, out);
+            }
+        }
+        let mut rows = Vec::new();
+        let mut n = 0usize;
+        emit_json(&outline.items, &mut n, &mut rows);
+        println!("[");
+        println!("{}", rows.join(",\n"));
+        println!("]");
+        return exit::SUCCESS;
+    }
+
     // `n` is threaded through rather than counted per-level so it is the
     // DOCUMENT-order index, which is what `add-bookmark --under` takes. A
     // per-level counter would print 1,2,1,2 and silently mean something
@@ -16228,12 +16364,20 @@ fn cmd_list_outline(input: &Path, flat: bool) -> u8 {
         for it in items {
             *n += 1;
             shown += 1;
+            // ★ `describe_destination`, NOT `{d:?}` (`Pass 258.2`). The
+            // Rust `Debug` form printed a `/GoToR`'s filename as a decimal
+            // BYTE ARRAY — `file: Some([84, 101, ...])` — which is the
+            // right information rendered unusably, and an operator asking
+            // "which file does this bookmark open" could not read it.
+            // `list-links` had the readable renderer all along; the two
+            // commands answer the same question about the same key and
+            // now answer it the same way.
             let dest = match &it.destination {
-                Some(d) => format!("{d:?}"),
+                Some(d) => describe_destination(d),
                 // Distinguished from a destination pdfcer could not
                 // resolve: an item with no destination at all is a
                 // heading, which is legal and common.
-                None => "-".to_owned(),
+                None => "dest=-".to_owned(),
             };
             let indent = if flat {
                 String::new()
@@ -16246,7 +16390,7 @@ fn cmd_list_outline(input: &Path, flat: bool) -> u8 {
             // Without it the bookmark clipboard was documented, correct and
             // unreachable from the one command that lists bookmarks.
             println!(
-                "{indent}bookmark n={n} obj={} level={} open={} title={:?} dest={dest}",
+                "{indent}bookmark n={n} obj={} level={} open={} title={:?} {dest}",
                 it.id.num,
                 it.level,
                 u32::from(it.open),
@@ -22439,6 +22583,8 @@ struct AnnotateArgs<'a> {
     cloud: Option<f64>,
     /// `/CA` (Pass 81.1). `None` omits the key.
     opacity: Option<f64>,
+    /// `--dash ON,OFF,...` (`Pass 258.0`). `None` authors a solid border.
+    dash: Option<&'a str>,
     text: Option<&'a str>,
     font: &'a str,
     size: f64,
@@ -22527,9 +22673,22 @@ fn cmd_annotate(args: &AnnotateArgs<'_>) -> u8 {
     } else {
         None
     };
+    // A parse failure is refused BEFORE the session is opened, so a bad
+    // pattern leaves the file untouched rather than partway through.
+    let dash = match parse_dash_edit(args.dash) {
+        Ok(Some(pdfcer_core::edit::StyleEdit::Set(d))) => Some(d),
+        // `--dash solid` on an AUTHORING call is the default, not an edit:
+        // there is no existing dash to clear.
+        Ok(Some(pdfcer_core::edit::StyleEdit::Clear) | None) => None,
+        Err(msg) => {
+            eprintln!("pdfcer: {msg}");
+            return exit::EDIT_REFUSED;
+        }
+    };
     let markup_options = pdfcer_core::edit::MarkupOptions {
         opacity: args.opacity,
         note,
+        dash,
     };
     let add_result = if is_text_bearing(args.kind) {
         match build_text_annot_spec(args) {
@@ -27602,6 +27761,18 @@ copied; {} were carried and repointed.",
             report.outline_items_kept
         );
     }
+    // ★ Rule 4: re-pointing a cross-file bookmark is pdfcer INFERRING that
+    // `chapter1.pdf` in a /Launch means the `chapter1.pdf` in this merge.
+    // That inference is almost always right and is never silent.
+    if report.outline_items_relinked > 0 {
+        eprintln!(
+            "pdfcer: {}: {} bookmark(s) pointed at another file and were re-pointed to that \
+file's pages inside this document; they would otherwise have been dropped, because the file \
+they named no longer exists once everything is one document.",
+            output.display(),
+            report.outline_items_relinked
+        );
+    }
     if report.form_fields_renamed > 0 {
         eprintln!(
             "pdfcer: {}: {} form field(s) were renamed with a Doc<N>_ prefix because their \
@@ -27835,13 +28006,14 @@ fn separation_metrics(impact: &pdfcer_core::pageops::SeparationImpact) -> String
 fn assemble_metrics(report: &pdfcer_core::pageops::AssembleReport, out_bytes: usize) -> String {
     format!(
         "pages={} objects={} dangling={} outline_kept={} outline_dropped={} \
-fields_renamed={} fields_dropped={} dests_dropped={} labels_dropped={} labels_stale={} \
-struct_tree_dropped={} ocg_carried={} {} out_bytes={out_bytes}",
+outline_relinked={} fields_renamed={} fields_dropped={} dests_dropped={} labels_dropped={} \
+labels_stale={} struct_tree_dropped={} ocg_carried={} {} out_bytes={out_bytes}",
         report.pages,
         report.objects_copied,
         report.dangling_references,
         report.outline_items_kept,
         report.outline_items_dropped,
+        report.outline_items_relinked,
         report.form_fields_renamed,
         report.form_fields_dropped,
         report.named_destinations_dropped,
@@ -30357,6 +30529,61 @@ struct MarkupStyleArg<'a> {
     width: Option<f64>,
     /// `--opacity 0.0-1.0|none`.
     opacity: Option<&'a str>,
+    /// `--dash ON,OFF,...|solid`.
+    dash: Option<&'a str>,
+}
+
+/// Parse a `--dash ON,OFF,...|solid` flag into a
+/// [`StyleEdit`](pdfcer_core::edit::StyleEdit) over a
+/// [`BorderDash`](pdfcer_core::annot_author::BorderDash).
+///
+/// Three outcomes, and the three-way split is the point of the flag:
+///
+/// * absent → `None` → **leave the border style alone**, preserving a dash
+///   the file already carries. This is the case that used to lose the
+///   operator's dash silently (`Pass 258.0`).
+/// * `solid` → `Some(StyleEdit::Clear)` → remove the dash.
+/// * `4,2` → `Some(StyleEdit::Set(..))` → dash with that pattern.
+///
+/// # Errors
+///
+/// A message naming the flag, for the caller to print. §8.4.3.6's
+/// constraints are enforced here rather than deeper down so the operator is
+/// told which value was wrong while the number they typed is still in view.
+fn parse_dash_edit(
+    value: Option<&str>,
+) -> Result<Option<pdfcer_core::edit::StyleEdit<pdfcer_core::annot_author::BorderDash>>, String> {
+    use pdfcer_core::annot_author::BorderDash;
+    use pdfcer_core::edit::StyleEdit;
+
+    let Some(raw) = value else {
+        return Ok(None);
+    };
+    if raw.eq_ignore_ascii_case("solid") {
+        return Ok(Some(StyleEdit::Clear));
+    }
+    let mut pattern = Vec::new();
+    for part in raw.split(',') {
+        let part = part.trim();
+        match part.parse::<f64>() {
+            Ok(v) => pattern.push(v),
+            Err(_) => {
+                return Err(format!(
+                    "--dash: `{part}` is not a number; expected comma-separated point \
+                     lengths like `4,2`, or `solid`"
+                ));
+            }
+        }
+    }
+    BorderDash::new(pattern)
+        .map(|d| Some(StyleEdit::Set(d)))
+        .ok_or_else(|| {
+            format!(
+                "--dash: `{raw}` is not a usable dash pattern -- every length must be \
+             non-negative and at least one must be greater than zero (ISO 32000-1 \
+             8.4.3.6). Use `solid` to remove a dash."
+            )
+        })
 }
 
 /// Parse a `RRGGBB`-or-`none` colour flag into a
@@ -30528,6 +30755,19 @@ fn cmd_set_markup_note(
             None => "nothing".to_owned(),
         }
     );
+    // ★ Rule 11: the CLI PRINTS what the GUI would disclose off-canvas.
+    // Whether the picture moved with the words is the whole point of
+    // `Pass 258.1` and is invisible in the exit code.
+    println!(
+        "  appearance={}",
+        if change.appearance_rebaked {
+            "re-baked from the new text"
+        } else if change.subtype == "FreeText" {
+            "left alone -- it is not one pdfcer authored, so the box still paints its previous words"
+        } else {
+            "unchanged (this subtype does not paint its /Contents)"
+        }
+    );
     finish_edit(input, &saved)
 }
 
@@ -30598,12 +30838,20 @@ fn cmd_set_markup_style(
             }
         },
     };
+    let dash = match parse_dash_edit(style.dash) {
+        Ok(d) => d,
+        Err(msg) => {
+            eprintln!("pdfcer: {msg}");
+            return exit::EDIT_REFUSED;
+        }
+    };
     let wanted = MarkupStyle {
         stroke,
         interior,
         width: style.width,
         opacity,
         endings: None,
+        dash,
     };
 
     let (source, mut session) = match open_for_edit(input) {
@@ -36836,7 +37084,21 @@ fn cmd_merge(inputs: &[PathBuf], output: &Path, bookmarks: bool) -> u8 {
         Vec::new()
     };
 
-    let (bytes, report) = match pdfcer_core::pageops::merge(&views, &titles) {
+    // The file NAME of each source, so a bookmark that opens another of
+    // these files can be re-pointed at it (`Pass 258.3`). Distinct from
+    // `titles`, which is what to CALL each source in the generated
+    // heading: a `/Launch` says `chapter1.pdf`, not `chapter1`.
+    let files: Vec<Vec<u8>> = inputs
+        .iter()
+        .map(|path| {
+            path.file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default()
+                .into_bytes()
+        })
+        .collect();
+
+    let (bytes, report) = match pdfcer_core::pageops::merge(&views, &titles, &files) {
         Ok(pair) => pair,
         Err(err) => return report_page_op_error(&err),
     };

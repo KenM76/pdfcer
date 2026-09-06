@@ -206,6 +206,19 @@ pub struct AssembleOptions {
     /// one means turning a file path into display text, and
     /// `pdfcer-core` does not own user-facing text (decision 002 R1).
     pub source_titles: Vec<Vec<u8>>,
+    /// Each source's FILE NAME, used only to re-point bookmarks that open
+    /// another file (`/Launch`, `/GoToR`) at that file's pages in the
+    /// assembled document.
+    ///
+    /// Separate from [`Self::source_titles`], which is what to CALL each
+    /// source in the generated per-source heading — usually a stem, and
+    /// freely chosen by the caller. This is what the source is NAMED on
+    /// disk, and it has to be the real name or the match fails: a
+    /// `/Launch` says `chapter1.pdf`, not `chapter1`.
+    ///
+    /// Empty disables re-pointing entirely, which is the behaviour every
+    /// caller had before `Pass 258.3`.
+    pub source_files: Vec<Vec<u8>>,
     /// Whether to carry the catalog source's `/PageLabels` number tree
     /// (§12.4.2) into the output, **stale**, rather than dropping it.
     ///
@@ -255,6 +268,7 @@ impl Default for AssembleOptions {
             info_from: Some(0),
             outline: OutlinePolicy::Subset,
             source_titles: Vec::new(),
+            source_files: Vec::new(),
             carry_page_labels: false,
             rename_duplicate_fields: false,
             separations: SeparationPolicy::Repair,
@@ -308,6 +322,30 @@ pub struct AssembleReport {
     pub outline_items_kept: usize,
     /// Outline entries dropped because their destination was not copied.
     pub outline_items_dropped: usize,
+    /// Outline entries that pointed at **another file** and were re-pointed
+    /// to that file's pages inside the assembled document.
+    ///
+    /// # ★ What this counts, and why it is not folded into `kept`
+    ///
+    /// A table-of-contents PDF's bookmarks open the other PDFs in a folder
+    /// through `/Launch` or `/GoToR` (§12.6.4.5, §12.6.4.3). Merging those
+    /// files destroys every one of those targets — the bookmark still says
+    /// *open `chapter1.pdf`* and there is no longer a `chapter1.pdf` — so
+    /// before `Pass 258.3` they were all dropped, and the operator's own
+    /// bookmark titles went with them.
+    ///
+    /// Now, when the named file is **also one of the sources**, the entry
+    /// is re-pointed at that file's pages in the output. Counted
+    /// separately because it is a different fact from *carried*: these
+    /// entries do not merely survive, their destination was **rewritten**,
+    /// and an operator comparing the merged document with the original is
+    /// entitled to know which. Rule 4 — this is pdfcer inferring intent
+    /// from a filename match, and an inference is disclosed.
+    ///
+    /// A link naming a file that was NOT merged stays unresolved and
+    /// prunes as before: that bookmark is genuinely dead, and inventing a
+    /// destination would be worse than dropping it.
+    pub outline_items_relinked: usize,
     /// AcroForm fields renamed to resolve a cross-source name collision.
     pub form_fields_renamed: usize,
     /// AcroForm fields dropped because their widget annotations straddle

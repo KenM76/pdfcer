@@ -765,6 +765,7 @@ fn merge_then_split_round_trips_the_page_count() {
             DocumentView::new(&b, b.bytes(), b.version()),
         ],
         &[],
+        &[],
     )
     .unwrap();
     assert_eq!(report.pages, 6);

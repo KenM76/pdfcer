@@ -643,7 +643,7 @@ fn merging_preserves_an_intact_set_across_documents() {
         DocumentView::new(&plain, plain.bytes(), plain.version()),
         DocumentView::new(&doc, doc.bytes(), doc.version()),
     ];
-    let (bytes, report) = merge(&views, &[]).expect("merge must succeed");
+    let (bytes, report) = merge(&views, &[], &[]).expect("merge must succeed");
 
     assert!(
         report.separations.is_empty(),

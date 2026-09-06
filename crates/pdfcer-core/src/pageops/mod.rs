@@ -455,6 +455,7 @@ pub fn extract_with(
 pub fn merge(
     sources: &[DocumentView<'_>],
     titles: &[Vec<u8>],
+    files: &[Vec<u8>],
 ) -> Result<(Vec<u8>, AssembleReport), PageOpError> {
     let mut order: Vec<PageRef> = Vec::new();
     for (index, source) in sources.iter().enumerate() {
@@ -474,6 +475,7 @@ pub fn merge(
             OutlinePolicy::PerSource
         },
         source_titles: titles.to_vec(),
+        source_files: files.to_vec(),
         // No single source to inherit a numbering scheme from, and
         // Acrobat does not generate one either — it tells the operator to
         // apply a fresh scheme (or Bates numbering) after combining.
@@ -573,6 +575,7 @@ pub fn insert(
         info_from: Some(0),
         outline: OutlinePolicy::Subset,
         source_titles: Vec::new(),
+        source_files: Vec::new(),
         // The target keeps every one of its own pages, so its label tree
         // still describes real pages — just with the wrong numbers after
         // the insertion point. Acrobat leaves exactly this stale; pdfcer
@@ -782,7 +785,7 @@ mod tests {
     fn merge_concatenates_every_source_in_order() {
         let a = three_pages();
         let b = three_pages();
-        let (bytes, report) = merge(&[view(&a), view(&b)], &[]).unwrap();
+        let (bytes, report) = merge(&[view(&a), view(&b)], &[], &[]).unwrap();
         assert_eq!(report.pages, 6);
         let out = Document::from_bytes(bytes).unwrap();
         assert_eq!(crate::page_tree::pages(&out).unwrap().len(), 6);
@@ -796,6 +799,7 @@ mod tests {
         let (bytes, _) = merge(
             &[view(&a), view(&b)],
             &[b"First".to_vec(), b"Second".to_vec()],
+            &[],
         )
         .unwrap();
         let out = Document::from_bytes(bytes).unwrap();

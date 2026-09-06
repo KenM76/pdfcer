@@ -1525,7 +1525,7 @@ always errors.
 
 | Ask whether annotation deletion is refused document-wide | `annotation_deletion_refusal(&self) -> Option<EditError>` | 11492 | ⚠️ Takes no `annot_id`, so it cannot see the three per-annotation refusals. |
 
-| Restyle an existing markup annotation | `set_markup_style(&mut self, annot_id: ObjId, style: &MarkupStyle) -> Result<MarkupStyleChange, EditError>` | 12372 | Rebuilds the baked `/AP`. |
+| Restyle an existing markup annotation | `set_markup_style(&mut self, annot_id: ObjId, style: &MarkupStyle) -> Result<MarkupStyleChange, EditError>` | 12372 | Rebuilds the baked `/AP`. **`Pass 258.0`:** `MarkupStyle` is no longer `Copy`; `endings` is now `Option<StyleEdit<..>>` so `/LE` can be REMOVED and not merely set to `[/None /None]`; a new `dash: Option<StyleEdit<BorderDash>>` sets or clears a dashed border. Refuses `StylePropertyNotApplicable` for a property the subtype has not -- ask `MarkupStyleSupport::for_subtype` first. |
 | **Reshape a markup annotation — one vertex** | `reshape_annotation(&mut self, annot_id: ObjId, edit: VertexEdit, modified: Option<&str>) -> Result<AnnotationReshape, EditError>` | edit.rs | **`Pass 255.0`, `pdfcer-gui` request 2026-09-05.** Move / insert / remove one vertex of a `/Polygon` (plain or cloudy), `/PolyLine`, or (move only) `/Line`; rebuilds `/Vertices` (or `/L`), `/Rect` AND the `/AP` stream from ONE bake — the same one `add_markup` used, so a reshaped cloud scallops identically to a redrawn one. `modified` stamps `/M` verbatim; `None` leaves it (pdfcer reads no clock). See the box below for the matrix. |
 | Preview a reshape (pure) | `reshape_annotation_preview(&self, annot_id: ObjId, edit: VertexEdit) -> Result<ReshapeForecast, EditError>` | edit.rs | `Pass 255.0`. Same guards, same refusals, same recomputed `/Rect`, nothing written. Grey a handle with this. |
 | Drag one vertex | `move_annotation_vertex(&mut self, annot_id: ObjId, index: usize, dx: f64, dy: f64) -> Result<AnnotationReshape, EditError>` | edit.rs | `Pass 255.0`. `reshape_annotation(id, VertexEdit::Move{..}, None)`. |
@@ -1563,7 +1563,7 @@ always errors.
 > (`AnnotationIsCeDimension`); its own `move_dimension_vertex` re-measures.
 >
 > Undo kind: `CommandKind::ReshapeAnnotation { edit }`. CLI: `pdfcer annotation-vertex`.
-| **Write a note onto an existing annotation** | `set_markup_note(&mut self, annot_id: ObjId, note: &MarkupNote) -> Result<MarkupNoteChange, EditError>` | 18327 | `Pass 154.0`. `/Contents`, and `/T`/`/M` only if the note carries them — a partial note does **not** clear the author. Reports the text it REPLACED. |
+| **Write a note onto an existing annotation** | `set_markup_note(&mut self, annot_id: ObjId, note: &MarkupNote) -> Result<MarkupNoteChange, EditError>` | 18327 | `Pass 154.0`. `/Contents`, and `/T`/`/M` only if the note carries them — a partial note does **not** clear the author. Reports the text it REPLACED. **`Pass 258.1`:** on a `/FreeText` it now also RE-BAKES `/AP` from the new words, in the same command (one undo entry) — that subtype's `/Contents` *is* what its appearance paints, so the edit used to leave the page showing the old text. `MarkupNoteChange::appearance_rebaked` says whether it moved; `false` on a sticky/stamp (their notes are not painted) and on a `/FreeText` whose appearance pdfcer did not author, which is left alone rather than replaced. |
 | **Remove a note** | `clear_markup_note(&mut self, annot_id: ObjId) -> Result<MarkupNoteChange, EditError>` | — | `Pass 154.0`. Removes `/Contents`, `/T`, `/M`. A distinct act from an empty note; the shape stays. |
 | Set the `/QuadPoints` corner order | `set_quad_point_order(&mut self, order: QuadPointOrder)` | 5476 | ⚠️ **Session state, not a per-call argument.** Governs what is AUTHORED from now on; does **not** sweep the document. ~~*"decision 062 fixes markup authoring at one entry point, so an `add_markup_with` would be a second"*~~ — **corrected 2026-08-27**: `add_markup_with` now exists and is **not** a second entry point (see §1.15.1). The ruling stands on its own ground: quad order is a **document-wide convention**, so a per-call argument would let two annotations in one file disagree about what UL/UR/LL/LR means, which is the divergence `Pass 62.x` exists to prevent. |
 | Read it back | `quad_point_order(&self) -> QuadPointOrder` | 5482 | Defaults to `ReadingOrder` — what Acrobat, PDFBox and pdf.js emit and expect. |
@@ -4089,7 +4089,14 @@ borrow it (`tests/image_placement.rs:238-247`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs:2300`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**122 variants** at `Pass 255.0`, counted at depth 1 inside `pub enum EditError`.
+**124 variants** at `Pass 258.1`, counted at depth 1 inside `pub enum EditError`.
+The two added since `Pass 255.0` are `StylePropertyNotApplicable` (a
+`MarkupStyle` property set on a subtype that has none -- a `width` or `dash`
+on a text markup, `endings` on anything but a `/Line`; it was a **silent
+no-op** until `Pass 258.0`) and `FreeTextNoteConflictsWithText` (a
+`/FreeText` authored with a `MarkupOptions::note` whose words differ from the
+`TextAnnotSpec::FreeText::text` being painted -- for that subtype the two are
+the same key, `/Contents`, and there is no defensible winner to pick).
 No inherent `impl EditError` block and **no `is_*` classification helpers**
 (`NOT FOUND — searched `impl EditError` in `edit.rs`); callers discriminate with
 `matches!`.

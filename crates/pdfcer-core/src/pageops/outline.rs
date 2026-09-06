@@ -85,7 +85,36 @@ struct Item {
     /// a source page id in element 0 — or `None` when this entry is a
     /// pure container being kept only because a descendant is kept.
     destination: Option<(ObjId, Vec<Object>)>,
+    /// The external file this entry opens, when it opens one: a `/Launch`
+    /// or `/GoToR` file name, plus the 0-based page inside it a `/GoToR`
+    /// names.
+    ///
+    /// Read during collection and resolved in [`build`] against the other
+    /// sources' file names — see [`relink`].
+    external: Option<ExternalLink>,
+    /// The OUTPUT object number this entry was re-pointed to, once a
+    /// cross-file link has been matched to a source in this merge.
+    ///
+    /// Distinct from `destination`, which holds a page id local to the
+    /// entry's OWN source. A re-pointed entry targets a page belonging to
+    /// a *different* source, so it cannot be expressed in those terms:
+    /// two sources may legitimately use the same object number, which is
+    /// exactly why `page_map` is keyed by `(source, id)`. This field
+    /// short-circuits that lookup with the answer already resolved.
+    relinked_to: Option<u32>,
     children: Vec<Item>,
+}
+
+/// A bookmark that opens **another file** — the shape a table-of-contents
+/// PDF is made of (§12.6.4.5 `/Launch`, §12.6.4.3 `/GoToR`).
+#[derive(Debug, Clone)]
+struct ExternalLink {
+    /// The file specification's name, as bytes.
+    file: Vec<u8>,
+    /// The 0-based page index inside that file, when the action names one.
+    /// `/GoToR` can; `/Launch` cannot, and gets `None` — which resolves to
+    /// the target file's first page.
+    page: Option<usize>,
 }
 
 impl Item {
@@ -95,9 +124,11 @@ impl Item {
     /// kept — dropping it would reparent its children to the root and
     /// destroy the hierarchy the operator can see.
     fn is_kept(&self, kept_pages: &HashSet<ObjId>) -> bool {
-        self.destination
-            .as_ref()
-            .is_some_and(|(page, _)| kept_pages.contains(page))
+        self.relinked_to.is_some()
+            || self
+                .destination
+                .as_ref()
+                .is_some_and(|(page, _)| kept_pages.contains(page))
             || self.children.iter().any(|child| child.is_kept(kept_pages))
     }
 }
@@ -142,6 +173,39 @@ pub fn build(
         return Ok(());
     }
 
+    // ★ RE-POINT CROSS-FILE BOOKMARKS FIRST, then prune. A table-of-
+    // contents entry that opens `chapter1.pdf` has no page in its OWN
+    // source, so pruning would discard it before anything had a chance to
+    // notice that `chapter1.pdf` is sitting in this very merge. Order is
+    // the whole fix.
+    //
+    // Each source's output page numbers, in page order, so a `/GoToR` can
+    // land on the page it names rather than only on the file's first.
+    let mut source_pages: Vec<Vec<u32>> = vec![Vec::new(); sources.len()];
+    for (position, (src, id)) in selected.iter().enumerate() {
+        if let Some(number) = page_numbers.get(position) {
+            if let Some(pages) = source_pages.get_mut(*src) {
+                pages.push(*number);
+            }
+            let _ = id;
+        }
+    }
+    let source_first_page: Vec<Option<u32>> =
+        source_pages.iter().map(|p| p.first().copied()).collect();
+
+    let mut roots = roots;
+    if !options.source_files.is_empty() {
+        for (_, items) in &mut roots {
+            relink(
+                items,
+                &options.source_files,
+                &source_first_page,
+                &source_pages,
+                report,
+            );
+        }
+    }
+
     // Filter each source's tree to the entries that survive, then emit.
     let mut top_level: Vec<(usize, Item)> = Vec::new();
     for (source_index, items) in roots {
@@ -174,6 +238,10 @@ pub fn build(
                         destination: first_page.map(|(_, id)| {
                             (id, vec![Object::Null, Object::Name(Name::from(b"Fit"))])
                         }),
+                        // A generated per-source heading points at a page
+                        // of its own source; it is never a cross-file link.
+                        external: None,
+                        relinked_to: None,
                         children: surviving,
                     },
                 ));
@@ -292,6 +360,15 @@ fn read_siblings(
                 .cloned()
                 .unwrap_or_else(|| Object::String(Vec::new())),
             destination: page.map(|p| (p, array)),
+            // Only when there is no local page: an entry that navigates
+            // within its own file is not a cross-file link, whatever else
+            // its action dictionary carries.
+            external: if page.is_none() {
+                read_external_link(graph, dict)
+            } else {
+                None
+            },
+            relinked_to: None,
             children: read_siblings(
                 view,
                 resolver,
@@ -304,6 +381,134 @@ fn read_siblings(
         current = dict.get(b"Next").and_then(Object::as_reference);
     }
     out
+}
+
+/// Read a `/Launch` or `/GoToR` action's target file, and the page inside
+/// it when one is named.
+///
+/// These are the two action types that name another **file** (§12.6.4.5
+/// and §12.6.4.3). Every other action — `/URI`, `/JavaScript`, `/Named` —
+/// names nothing this merge can re-point, and is left alone.
+///
+/// The file specification is resolved through
+/// [`crate::outline::file_spec_bytes`], which prefers `/UF` over `/F`: the
+/// same resolver `list-outline` uses, so the name matched here is exactly
+/// the name an operator was shown. `/Launch`'s deprecated `/Win` `/F`
+/// bare-path form is honoured too, for the old files a long-lived table of
+/// contents is actually made of.
+fn read_external_link<G: crate::graph::ObjectGraph + ?Sized>(
+    graph: &G,
+    item: &Dict,
+) -> Option<ExternalLink> {
+    let action = graph.resolve(item.get(b"A")?).as_dict()?;
+    let subtype = graph
+        .resolve(action.get(b"S")?)
+        .as_name()?
+        .as_bytes()
+        .to_vec();
+    match subtype.as_slice() {
+        b"Launch" => Some(ExternalLink {
+            file: crate::outline::read_launch_file(graph, action)?,
+            // §12.6.4.5 launches an application on a file; it names no
+            // page, so the merge lands on the file's first one.
+            page: None,
+        }),
+        b"GoToR" => Some(ExternalLink {
+            file: crate::outline::file_spec_bytes(graph, action.get(b"F")?)?,
+            // Table 199's remote destination is an array whose FIRST
+            // element is a 0-based page NUMBER (not a reference — the
+            // reference form cannot name a page of another file). Any
+            // other shape, including a named destination belonging to the
+            // target file's own namespace, resolves to the first page
+            // rather than to a guess.
+            page: graph
+                .resolve(action.get(b"D").unwrap_or(&Object::Null))
+                .as_array()
+                .and_then(|a| a.first())
+                .and_then(Object::as_number)
+                .and_then(|n| usize::try_from(n as i64).ok()),
+        }),
+        _ => None,
+    }
+}
+
+/// Re-point every cross-file bookmark whose target file is **also one of
+/// the sources being merged**.
+///
+/// # ★ Why this exists
+///
+/// A table-of-contents PDF's bookmarks open the other PDFs in the folder.
+/// Merging those files into one document makes every one of those targets
+/// vanish: the bookmark still says *open `chapter1.pdf`*, and there is no
+/// longer a `chapter1.pdf`. Before this, pdfcer dropped all of them —
+/// honestly (`outline_dropped=4`, disclosed on the merge report) but
+/// completely, so the operator's own bookmark titles were lost and only
+/// the per-source headings pdfcer generates itself remained.
+///
+/// The merge already knows which file each source came from, so the
+/// mapping the operator would otherwise have to build by hand is
+/// available for free at exactly the moment it is needed.
+///
+/// # Matching
+///
+/// By file NAME, case-insensitively, comparing the last path component
+/// only. A `/Launch` names `chapter1.pdf`; the operator merged
+/// `C:\work\chapter1.pdf`. Requiring those to be equal would answer
+/// "never". Case-insensitivity follows the platform the operator is on and
+/// the fact that a PDF file specification carries no case rule of its own.
+///
+/// An unmatched link is left unresolved and the entry prunes as before —
+/// a bookmark pointing at a file that was NOT merged is genuinely dead,
+/// and inventing a destination for it would be worse than dropping it.
+fn relink(
+    items: &mut [Item],
+    source_files: &[Vec<u8>],
+    source_first_page: &[Option<u32>],
+    source_pages: &[Vec<u32>],
+    report: &mut AssembleReport,
+) {
+    for item in items {
+        if let Some(link) = &item.external
+            && let Some(target) = source_files
+                .iter()
+                .position(|name| same_file(name, &link.file))
+        {
+            // The page inside the target file, when the action named one
+            // and that page exists; otherwise the file's first page.
+            let number = link
+                .page
+                .and_then(|index| source_pages.get(target).and_then(|p| p.get(index)).copied())
+                .or_else(|| source_first_page.get(target).copied().flatten());
+            if let Some(number) = number {
+                item.relinked_to = Some(number);
+                report.outline_items_relinked += 1;
+            }
+        }
+        relink(
+            &mut item.children,
+            source_files,
+            source_first_page,
+            source_pages,
+            report,
+        );
+    }
+}
+
+/// Whether a file specification names the same file as a merge source,
+/// comparing the last path component case-insensitively.
+///
+/// Both separators are treated as separators regardless of platform: a PDF
+/// authored on Windows carries backslashes, and the same document opened
+/// on Linux must still match.
+fn same_file(source: &[u8], spec: &[u8]) -> bool {
+    fn base(bytes: &[u8]) -> Vec<u8> {
+        let cut = bytes
+            .iter()
+            .rposition(|b| *b == b'/' || *b == b'\\')
+            .map_or(0, |p| p + 1);
+        bytes.get(cut..).unwrap_or(bytes).to_ascii_lowercase()
+    }
+    !source.is_empty() && base(source) == base(spec)
 }
 
 /// Drop every entry that neither targets a copied page nor holds a
@@ -331,6 +536,8 @@ fn prune(items: &[Item], kept_pages: &HashSet<ObjId>, report: &mut AssembleRepor
         out.push(Item {
             title: item.title.clone(),
             destination,
+            external: item.external.clone(),
+            relinked_to: item.relinked_to,
             children,
         });
     }
@@ -376,7 +583,20 @@ fn emit_siblings(
         if let Some(next) = ids.get(position + 1) {
             dict.insert(Name::from(b"Next"), Object::Reference(*next));
         }
-        if let Some((page, array)) = &item.destination
+        // A re-pointed cross-file link resolves to an OUTPUT object
+        // number directly; it cannot go through `page_map`, whose key is
+        // (source, source-local id) and whose answer would be about the
+        // wrong file. Checked first, because an entry that has both is one
+        // whose own page also survived and whose link is redundant.
+        if let Some(number) = item.relinked_to {
+            dict.insert(
+                Name::from(b"Dest"),
+                Object::Array(vec![
+                    Object::Reference(ObjId::new(number, 0)),
+                    Object::Name(Name::from(b"Fit")),
+                ]),
+            );
+        } else if let Some((page, array)) = &item.destination
             && let Some(number) = page_map.get(&(*source_index, *page))
         {
             let mut rewritten = array.clone();

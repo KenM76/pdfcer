@@ -3192,7 +3192,18 @@ fn apply_markup_style(
             end,
             color: required(color, style.stroke),
             width: width(w),
-            endings: style.endings.unwrap_or(endings),
+            // `Clear` draws no endings AND drops the key; the
+            // key-dropping half is the dictionary's business and is done
+            // by `set_markup_style`, since `MarkupSpec` has no way to say
+            // "absent" — see `MarkupStyle::endings`.
+            endings: match style.endings {
+                None => endings,
+                Some(StyleEdit::Clear) => (
+                    annot_author::LineEnding::None,
+                    annot_author::LineEnding::None,
+                ),
+                Some(StyleEdit::Set(e)) => e,
+            },
         },
         MarkupSpec::Ink {
             strokes,
@@ -4176,6 +4187,7 @@ fn dropped_properties<G: ObjectGraph + ?Sized>(
     graph: &G,
     annot: &Dict,
     appearance_was_pdfces: bool,
+    dash_preserved: bool,
 ) -> Vec<DroppedProperty> {
     let mut out = Vec::new();
 
@@ -4206,14 +4218,25 @@ fn dropped_properties<G: ObjectGraph + ?Sized>(
         out.push(DroppedProperty::RectDifferences);
     }
     if let Some(Object::Dict(bs)) = annot.get(b"BS").map(|o| graph.resolve(o)) {
-        // Table 166: /S defaults to /S (solid). Anything else — /D /B /I
-        // /U — is a look pdfcer does not author.
+        // ★ A DASH IS NO LONGER ALWAYS A LOSS (`Pass 258.0`) — the same
+        // shape as the `/BE` narrowing above, and for the same reason: a
+        // report of a loss that did not happen trains the operator to
+        // discount the ones that did. `dash_preserved` says the
+        // regenerated appearance is dashed, so neither the style nor the
+        // pattern went anywhere.
+        //
+        // Still reported when it is genuinely gone: a `/D` array the
+        // regeneration did not carry (an operator explicitly cleared it,
+        // or `read_border_dash` could not use it), and `/S` naming a
+        // BEVELED, INSET or UNDERLINE border, none of which pdfcer
+        // authors and none of which a dash preserves.
         if let Some(Object::Name(n)) = bs.get(b"S").map(|o| graph.resolve(o))
             && n.as_bytes() != b"S"
+            && !(dash_preserved && n.as_bytes() == b"D")
         {
             out.push(DroppedProperty::BorderStyle);
         }
-        if bs.get(b"D").is_some() {
+        if bs.get(b"D").is_some() && !dash_preserved {
             out.push(DroppedProperty::DashPattern);
         }
     }
@@ -4323,7 +4346,7 @@ pub enum StyleEdit<T> {
 /// [`crate::dimension::style::StyleOverrides`], which is the same kind of
 /// thing and is likewise plain. Adding a field here is a breaking change;
 /// that is the honest cost of a struct callers build.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct MarkupStyle {
     /// `/C` — the stroke/border colour (§12.5.6).
     pub stroke: Option<StyleEdit<annot_author::Color>>,
@@ -4349,7 +4372,148 @@ pub struct MarkupStyle {
     pub opacity: Option<StyleEdit<f64>>,
     /// `/LE` — the line-ending styles (§12.5.6.7, Table 176). `Line`
     /// only.
-    pub endings: Option<(annot_author::LineEnding, annot_author::LineEnding)>,
+    ///
+    /// ★ **`Clear` REMOVES the key; it does not write `[/None /None]`**
+    /// (`Pass 258.0`, `pdfcer-gui` request 2026-09-06). This field was a
+    /// bare `Option<(LineEnding, LineEnding)>` until then, which made
+    /// *"draw no arrowheads"* expressible and *"have no `/LE` at all"*
+    /// not — so an operator who turned an arrow's heads off got a file
+    /// that no longer matched the one they opened, differing in a key
+    /// neither UI shows. Table 176's default for both ends **is**
+    /// `/None`, so the written array said exactly what its absence would
+    /// have said: the least informative option available.
+    ///
+    /// `Set((None, None))` still writes the explicit array, for a caller
+    /// that wants the key present and empty-handed. The two are different
+    /// bytes and this project does not treat different bytes as the same
+    /// document.
+    pub endings: Option<StyleEdit<(annot_author::LineEnding, annot_author::LineEnding)>>,
+    /// `/BS` `/S` + `/D` — the border **line style**: dashed, or solid
+    /// (§12.5.4, Table 166).
+    ///
+    /// `Set(dash)` makes the border dashed with that pattern; `Clear`
+    /// makes it solid; `None` leaves whatever the annotation already has,
+    /// **including a dash pdfcer did not author** — which is the whole
+    /// point of the field's existence.
+    ///
+    /// # ★ Why this field exists, and what shipped before it
+    ///
+    /// Before `Pass 258.0` a dashed mark in the operator's file was
+    /// **silently converted to a solid one the first time its colour was
+    /// changed**. Nothing was wrong with the reasoning that produced that:
+    /// `set_markup_style` regenerates `/AP` from the spec, the spec had no
+    /// dash, and R43 means pdfcer paints from `/AP`. The `/BS /D` key
+    /// survived in the dictionary, so the file's two halves disagreed and
+    /// the appearance won.
+    ///
+    /// It was **disclosed** — `DroppedProperty::DashPattern` fired — and
+    /// disclosure is the rule's floor, not its ceiling. `pdfcer-gui` put
+    /// it exactly right when it asked for this: *"an operator who wanted a
+    /// red dashed cloud and pressed the colour swatch has been given a red
+    /// solid one, and 'we told you' is a poor second to 'we kept it'."*
+    ///
+    /// The fix follows `Pass 98.0`'s `/BE` precedent — read the property
+    /// back on the way IN so a restyle re-authors it — and this field is
+    /// the half that then lets a shell *change* it. A restyle that does
+    /// not mention `dash` now preserves one.
+    ///
+    /// Ignored by the text-markup family, which has no border; ask
+    /// [`MarkupStyleSupport::takes_border`] rather than assuming.
+    pub dash: Option<StyleEdit<annot_author::BorderDash>>,
+}
+
+/// Which [`MarkupStyle`] properties a given `/Subtype` can actually take.
+///
+/// # ★ Why this exists rather than a shell matching on `MarkupSpec`
+///
+/// Before `Pass 258.0`, `set_markup_style` accepted a `width` for a
+/// `/Highlight` and **silently discarded it**: `MarkupSpec::TextMarkup` has
+/// no border-width field, so there was nothing to apply it to, and the call
+/// returned `Ok` with an empty `dropped` list. A shell that trusted that
+/// pair was entitled to tell the operator the width took.
+///
+/// `pdfcer-gui` worked around it by hiding the width control for the four
+/// text-markup subtypes — correct today, and a copy of **this crate's**
+/// knowledge living in a shell. It said so when it filed the request:
+///
+/// > *"That list is the engine's to know. The first subtype that gains or
+/// > loses a border is the day our copy is wrong and nothing tells us."*
+///
+/// So the list is published here, next to the verb it governs, and the
+/// refusal below makes a drifted copy loud rather than silent. A shell
+/// asks; it does not re-derive.
+///
+/// # The matrix
+///
+/// | `/Subtype` | border (`width`, `dash`) | interior | endings |
+/// |---|---|---|---|
+/// | `/Square`, `/Circle` | yes | yes | no |
+/// | `/Polygon` (incl. cloudy) | yes | yes | no |
+/// | `/PolyLine`, `/Ink` | yes | no | no |
+/// | `/Line` | yes | no | **yes** |
+/// | `/Highlight`, `/Underline`, `/StrikeOut`, `/Squiggly` | **no** | no | no |
+///
+/// `stroke` and `opacity` are omitted because every subtype takes both —
+/// a field that is always `true` is a field a caller learns to ignore.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct MarkupStyleSupport {
+    /// The subtype draws a `/BS` border, so [`MarkupStyle::width`] and
+    /// [`MarkupStyle::dash`] mean something. False for the text-markup
+    /// family: a highlight is a colour wash and an underline is its own
+    /// line, and neither is drawn from a border style.
+    pub takes_border: bool,
+    /// The subtype has an `/IC` interior, so [`MarkupStyle::interior`]
+    /// means something (§12.5.6.8, §12.5.6.13).
+    pub takes_interior: bool,
+    /// The subtype has `/LE` line endings, so [`MarkupStyle::endings`]
+    /// means something. `/Line` only — Table 176's `/LE` is declared for
+    /// `/PolyLine` too, but pdfcer authors endings on a line alone.
+    pub takes_endings: bool,
+}
+
+impl MarkupStyleSupport {
+    /// What the given `/Subtype` name supports (§12.5.6).
+    ///
+    /// An unrecognised subtype answers `false` to everything, which is the
+    /// conservative direction: a caller is told a property is unavailable
+    /// rather than being told one is available on a shape pdfcer cannot
+    /// restyle at all.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::edit::MarkupStyleSupport;
+    ///
+    /// assert!(MarkupStyleSupport::for_subtype(b"Square").takes_border);
+    /// assert!(!MarkupStyleSupport::for_subtype(b"Highlight").takes_border);
+    /// assert!(MarkupStyleSupport::for_subtype(b"Line").takes_endings);
+    /// ```
+    #[must_use]
+    pub fn for_subtype(subtype: &[u8]) -> Self {
+        match subtype {
+            b"Square" | b"Circle" | b"Polygon" => Self {
+                takes_border: true,
+                takes_interior: true,
+                takes_endings: false,
+            },
+            b"PolyLine" | b"Ink" => Self {
+                takes_border: true,
+                takes_interior: false,
+                takes_endings: false,
+            },
+            b"Line" => Self {
+                takes_border: true,
+                takes_interior: false,
+                takes_endings: true,
+            },
+            _ => Self {
+                takes_border: false,
+                takes_interior: false,
+                takes_endings: false,
+            },
+        }
+    }
 }
 
 impl MarkupStyle {
@@ -4603,6 +4767,19 @@ pub struct MarkupOptions {
     /// See [`MarkupNote`] for why the three travel together and why pdfcer
     /// does not supply the timestamp.
     pub note: Option<MarkupNote>,
+    /// `/BS` `/S /D` + `/D` — draw this mark's border **dashed**
+    /// (§12.5.4, Table 166). `None` authors the solid border pdfcer
+    /// authored exclusively before `Pass 258.0`.
+    ///
+    /// A dashed revision cloud and a dashed leader are ordinary AEC
+    /// markup, which is why this is authorable and not only preservable.
+    ///
+    /// Ignored by the text-markup family — a highlight is a wash and an
+    /// underline is its own line; neither draws a `/BS` border. Ask
+    /// [`MarkupStyleSupport::takes_border`] rather than matching on the
+    /// spec's variants, and see [`EditError::StylePropertyNotApplicable`]
+    /// for what a *restyle* does with the same mistake.
+    pub dash: Option<annot_author::BorderDash>,
 }
 
 impl MarkupOptions {
@@ -7109,6 +7286,66 @@ pub enum EditError {
     /// already exists: [`EditSession::set_dimension_style`] restyles a ce
     /// dimension through the model that knows what one is. This is a
     /// signpost, not a limitation.
+    /// A `/FreeText` was authored with a `MarkupOptions::note` whose words
+    /// differ from the `TextAnnotSpec::FreeText::text` being painted.
+    ///
+    /// # Why this is refused instead of resolved
+    ///
+    /// For a `/FreeText` alone, `/Contents` is not a comment *about* the
+    /// annotation — it **is** the string its appearance is baked from. The
+    /// note is applied after the bake, so accepting both would produce an
+    /// annotation whose painted words and whose `/Contents` disagreed from
+    /// the moment it was created, with no edit involved and nothing for a
+    /// disclosure to attach to.
+    ///
+    /// There is no defensible winner to pick: baking the note would discard
+    /// the `text` the caller passed, and keeping `text` would discard the
+    /// note. The caller knows which they meant. Identical strings are
+    /// allowed, since that is what the authoring path writes anyway.
+    ///
+    /// Reported by `pdfcer-gui` as *"a loaded gun on a verb whose two
+    /// arguments look independent and are not"*, before it had cost anyone
+    /// anything.
+    #[error(
+        "a /FreeText's note and its painted text are the same key (/Contents) and cannot differ: the spec paints {spec_text:?} while the note says {note_text:?} — pass the words once, in TextAnnotSpec::FreeText::text"
+    )]
+    FreeTextNoteConflictsWithText {
+        /// The words the appearance would have painted.
+        spec_text: String,
+        /// The words the note would have written into `/Contents`.
+        note_text: String,
+    },
+    /// A [`MarkupStyle`] property was set on a `/Subtype` that has no such
+    /// property — a `width` or a `dash` on a text markup, an `endings` on
+    /// anything but a `/Line`.
+    ///
+    /// # ★ Why this is a refusal and not a `DroppedProperty`
+    ///
+    /// It was a **silent no-op** until `Pass 258.0`: the value was
+    /// discarded, `Ok` was returned, and `dropped` was empty. This project
+    /// treats that shape as worse than a refusal, and `pdfcer-gui` named
+    /// the reason when it asked for this — the two are *different
+    /// sentences to an operator*:
+    ///
+    /// > *"a `dropped` entry reads as 'something in the file was lost', and
+    /// > here nothing was lost — the operator's REQUEST was ignored."*
+    ///
+    /// So `dropped` keeps its meaning (the FILE lost something) and this
+    /// carries the other one (the CALL asked for something impossible).
+    /// [`MarkupStyleSupport`] answers the same question in advance, which
+    /// is how a shell avoids ever seeing this.
+    #[error(
+        "annotation {id} is a /{subtype} and has no {property}; ISO 32000-1 §12.5.6 gives that property to other subtypes only — ask MarkupStyleSupport::for_subtype before offering the control"
+    )]
+    StylePropertyNotApplicable {
+        /// The annotation that was asked to change.
+        id: ObjId,
+        /// Its `/Subtype`, as a displayable string.
+        subtype: String,
+        /// Which [`MarkupStyle`] field did not apply — `"a border width"`,
+        /// `"a border dash"` or `"line endings"`.
+        property: &'static str,
+    },
     #[error(
         "annotation {id} is a ce dimension; use set_dimension_style, which regenerates its label and witness lines — restyling it as plain markup would silently reduce it to bare geometry"
     )]
@@ -16668,6 +16905,28 @@ pub struct MarkupNoteChange {
     /// leaves any existing `/T` and `/M` **untouched** rather than clearing
     /// them. This names what actually moved.
     pub keys_written: Vec<String>,
+    /// Whether the annotation's `/AP` `/N` was **re-baked** from the new
+    /// words, so the page paints what `/Contents` now says.
+    ///
+    /// # ★ True for exactly one subtype, and false is not a failure
+    ///
+    /// A `/FreeText`'s `/Contents` *is* the input its appearance is drawn
+    /// from, so an edit that did not reach the appearance would leave the
+    /// page painting the old text — the defect `Pass 258.1` closed. For a
+    /// sticky note and a stamp the note is **not** painted (a popup shows
+    /// one; the other is a comment about the stamp), so there is nothing
+    /// stale and `false` here is the correct, complete outcome.
+    ///
+    /// It is also `false` when the `/FreeText`'s existing appearance is one
+    /// pdfcer would **not** have drawn — a hand-authored or Acrobat-authored
+    /// stream with a shadow, a gradient or an image in it. Such an
+    /// appearance is deliberately left alone rather than replaced by
+    /// pdfcer's plainer rendering of the same words, and this field is how a
+    /// shell knows to say so: the note changed, the picture did not.
+    ///
+    /// Rule 4 — the operator is told off-canvas which half moved, rather
+    /// than discovering it by reading the page.
+    pub appearance_rebaked: bool,
 }
 
 /// What a page's `/Tabs` entry (ISO 32000-1 §7.7.3.3 Table 30, values in
@@ -23218,7 +23477,13 @@ impl EditSession {
         }
 
         // Generate the appearance + annotation dictionary.
-        let authored = annot_author::build_appearance_with(spec, self.quad_point_order);
+        let authored = annot_author::build_appearance_opts(
+            spec,
+            &annot_author::AppearanceOptions {
+                quad_order: self.quad_point_order,
+                dash: options.dash.clone(),
+            },
+        );
 
         // Allocate object numbers: appearance stream, then annotation.
         let ap_id = ObjId::new(self.alloc_number()?, 0);
@@ -24562,12 +24827,24 @@ impl EditSession {
         // against the OLD bytes would disagree every time and refuse every
         // resize.
         let has_ap = updated.contains_key(b"AP");
+        // The dash travels beside the spec (`AppearanceOptions`), so it is
+        // read from the ORIGINAL dictionary and used by both bakes below —
+        // otherwise a resize would silently solidify a dashed border, which
+        // is the defect `Pass 258.0` closed in `set_markup_style` and which
+        // would simply have moved here.
+        let resize_dash = annot_author::read_border_dash(&self.graph(), dict);
         let ap_is_pdfces = has_ap
             && annot_author::spec_from_dict(&self.graph(), dict).is_ok_and(|original| {
                 self.appearance_matches(
                     dict,
-                    &annot_author::build_appearance_with(&original, self.quad_point_order)
-                        .ap_content,
+                    &annot_author::build_appearance_opts(
+                        &original,
+                        &annot_author::AppearanceOptions {
+                            quad_order: self.quad_point_order,
+                            dash: resize_dash.clone(),
+                        },
+                    )
+                    .ap_content,
                 )
             });
 
@@ -24736,7 +25013,13 @@ impl EditSession {
         let mut objects = Vec::new();
         if matches!(appearance, ResizedAppearance::Rebuilt) {
             let spec = annot_author::spec_from_dict(&self.graph(), &updated)?;
-            let authored = annot_author::build_appearance_with(&spec, self.quad_point_order);
+            let authored = annot_author::build_appearance_opts(
+                &spec,
+                &annot_author::AppearanceOptions {
+                    quad_order: self.quad_point_order,
+                    dash: resize_dash.clone(),
+                },
+            );
             // Where the rebuilt appearance may go. `appearance_slot` is the
             // SHIPPED answer to this question — it refuses to rewrite a stream
             // another annotation also references, which a resize would
@@ -25909,6 +26192,7 @@ impl EditSession {
                 key: "Contents",
             });
         };
+        let dict_before = dict.clone();
         let mut updated = dict.clone();
 
         // What is being overwritten, read BEFORE anything is written. These
@@ -25943,13 +26227,50 @@ impl EditSession {
             }
         }
 
-        self.commit(Command {
-            kind: CommandKind::SetMarkupNote,
-            objects: vec![ObjectWrite {
+        // ★ A `/FreeText`'s `/Contents` IS its painted words, so the
+        // dictionary edit above is only half the act. Re-bake the
+        // appearance from the new text — in the SAME command, so the two
+        // halves share one undo entry and can never be undone apart.
+        //
+        // Every other subtype falls straight through: a sticky note's and a
+        // stamp's `/Contents` are not painted, so there is nothing stale to
+        // refresh and rewriting their appearance would be damage.
+        // ★ This subtype test is a FAST PATH, not the guarantee. The real
+        // protection is structural and one level down: the helper reads a
+        // `TextAnnotSpec` and destructures it as `FreeText`, so a sticky
+        // note or a stamp returns `None` there whatever this line says.
+        // Established by sabotage — widening this condition to every
+        // subtype left the sticky and stamp tests GREEN, which is worth
+        // knowing rather than mistaking for those tests guarding it.
+        let new_text = note.map_or("", |n| n.text.as_str());
+        let rebake = (target.subtype == b"FreeText")
+            .then(|| self.rebake_free_text_appearance(annot_id, &dict_before, &updated, new_text))
+            .flatten();
+
+        let appearance_rebaked = rebake.is_some();
+        let objects = match rebake {
+            Some(regen) => vec![
+                ObjectWrite {
+                    id: annot_id,
+                    before: self.state.get(&annot_id).cloned(),
+                    after: Some(Object::Dict(regen.updated)),
+                },
+                ObjectWrite {
+                    id: regen.ap_id,
+                    before: self.state.get(&regen.ap_id).cloned(),
+                    after: Some(regen.ap_stream),
+                },
+            ],
+            None => vec![ObjectWrite {
                 id: annot_id,
                 before: self.state.get(&annot_id).cloned(),
                 after: Some(Object::Dict(updated)),
             }],
+        };
+
+        self.commit(Command {
+            kind: CommandKind::SetMarkupNote,
+            objects,
             removals: Vec::new(),
             trailer: None,
         });
@@ -25960,6 +26281,7 @@ impl EditSession {
             replaced,
             replaced_author,
             keys_written,
+            appearance_rebaked,
         })
     }
 
@@ -26096,21 +26418,90 @@ impl EditSession {
             return Err(EditError::AnnotationIsCeDimension { id: annot_id });
         }
 
+        // ★ Refuse a property this subtype does not have, BEFORE anything
+        // is regenerated, so the file is untouched when the answer is no.
+        // Until `Pass 258.0` these were silently discarded — see
+        // `EditError::StylePropertyNotApplicable` for why that is treated
+        // as the worse failure.
+        let subtype_name = {
+            let graph = self.graph();
+            match current.get(b"Subtype").map(|o| graph.resolve(o)) {
+                Some(Object::Name(n)) => n.as_bytes().to_vec(),
+                _ => Vec::new(),
+            }
+        };
+        let support = MarkupStyleSupport::for_subtype(&subtype_name);
+        let named = || String::from_utf8_lossy(&subtype_name).into_owned();
+        if !support.takes_border {
+            if style.width.is_some() {
+                return Err(EditError::StylePropertyNotApplicable {
+                    id: annot_id,
+                    subtype: named(),
+                    property: "a border width",
+                });
+            }
+            if style.dash.is_some() {
+                return Err(EditError::StylePropertyNotApplicable {
+                    id: annot_id,
+                    subtype: named(),
+                    property: "a border dash",
+                });
+            }
+        }
+        if style.endings.is_some() && !support.takes_endings {
+            return Err(EditError::StylePropertyNotApplicable {
+                id: annot_id,
+                subtype: named(),
+                property: "line endings",
+            });
+        }
+
         // Read the current geometry + style back out.
         let original = annot_author::spec_from_dict(&self.graph(), &current)?;
+
+        // ★ The dash lives BESIDE the spec, not in it (see
+        // `annot_author::AppearanceOptions`), so it is read separately and
+        // travels through both bakes below. Reading it here — from the
+        // dictionary, before anything is regenerated — is what makes a
+        // dash pdfcer did not author survive a restyle that does not
+        // mention it.
+        let dash_before = annot_author::read_border_dash(&self.graph(), &current);
+        let dash_after = match &style.dash {
+            None => dash_before.clone(),
+            Some(StyleEdit::Clear) => None,
+            Some(StyleEdit::Set(d)) => Some(d.clone()),
+        };
 
         // Was the appearance on disk one pdfcer would have drawn from these
         // same properties? Answered by rebuilding from the UNMODIFIED spec
         // and comparing bytes, BEFORE the overrides are applied — the
         // order is the whole trick, and applying them first would compare
         // the new look against the old bytes and always disagree.
+        //
+        // The comparison bake uses `dash_before` for the same reason it
+        // uses the unmodified spec: a dashed annotation pdfcer authored
+        // must compare EQUAL to itself, and it would not if this bake were
+        // solid.
         let appearance_was_pdfces = self.appearance_matches(
             &current,
-            &annot_author::build_appearance_with(&original, self.quad_point_order).ap_content,
+            &annot_author::build_appearance_opts(
+                &original,
+                &annot_author::AppearanceOptions {
+                    quad_order: self.quad_point_order,
+                    dash: dash_before.clone(),
+                },
+            )
+            .ap_content,
         );
 
         let spec = apply_markup_style(original, style);
-        let authored = annot_author::build_appearance_with(&spec, self.quad_point_order);
+        let authored = annot_author::build_appearance_opts(
+            &spec,
+            &annot_author::AppearanceOptions {
+                quad_order: self.quad_point_order,
+                dash: dash_after.clone(),
+            },
+        );
         let mut regen = self.regenerate_markup_appearance(annot_id, &current, authored)?;
 
         // /CA is pdfcer's to set here and is NOT part of `build_appearance`
@@ -26129,12 +26520,28 @@ impl EditSession {
             None => {}
         }
 
+        // `/LE` on the same footing. `build_appearance` writes the array
+        // unconditionally for a `/Line`, so REMOVING the key has to happen
+        // here, after the bake — the appearance already draws no endings
+        // because `apply_markup_style` set both to `None`; this is the
+        // dictionary catching up with it. Table 176's default is
+        // `[/None /None]`, so the file loses nothing by the key's absence
+        // and gains back the shape it had before an operator experimented.
+        if matches!(style.endings, Some(StyleEdit::Clear)) {
+            regen.updated.remove(b"LE");
+        }
+
         let change = MarkupStyleChange {
             annot_id,
             rect_before: target.rect,
             rect_after: regen.rect_after,
             appearance: regen.appearance,
-            dropped: dropped_properties(&self.graph(), &current, appearance_was_pdfces),
+            dropped: dropped_properties(
+                &self.graph(),
+                &current,
+                appearance_was_pdfces,
+                dash_after.is_some(),
+            ),
         };
 
         self.commit_regenerated_markup(annot_id, regen, CommandKind::SetMarkupStyle);
@@ -26243,9 +26650,17 @@ impl EditSession {
         // Was the appearance on disk one pdfcer would have drawn from the
         // UNMODIFIED geometry? Measured before the reshape is applied, as
         // `set_markup_style` does, and for the same reason.
+        let reshape_dash = annot_author::read_border_dash(&self.graph(), &plan.current);
         let appearance_was_pdfces = self.appearance_matches(
             &plan.current,
-            &annot_author::build_appearance_with(&plan.original, self.quad_point_order).ap_content,
+            &annot_author::build_appearance_opts(
+                &plan.original,
+                &annot_author::AppearanceOptions {
+                    quad_order: self.quad_point_order,
+                    dash: reshape_dash.clone(),
+                },
+            )
+            .ap_content,
         );
         let mut regen =
             self.regenerate_markup_appearance(annot_id, &plan.current, plan.authored)?;
@@ -26264,7 +26679,12 @@ impl EditSession {
             rect_before: f.rect_before,
             rect_after: regen.rect_after,
             appearance: regen.appearance,
-            dropped: dropped_properties(&self.graph(), &plan.current, appearance_was_pdfces),
+            dropped: dropped_properties(
+                &self.graph(),
+                &plan.current,
+                appearance_was_pdfces,
+                reshape_dash.is_some(),
+            ),
             measure_not_recomputed: f.measure_not_recomputed,
             mod_date_written: modified.is_some(),
         };
@@ -26387,7 +26807,15 @@ impl EditSession {
 
         let original = annot_author::spec_from_dict(&self.graph(), &current)?;
         let reshaped = reshape_spec(&original, edit, annot_id, &subtype)?;
-        let authored = annot_author::build_appearance_with(&reshaped, self.quad_point_order);
+        // Preserve a dashed border across a vertex edit — same reasoning as
+        // the resize route above.
+        let authored = annot_author::build_appearance_opts(
+            &reshaped,
+            &annot_author::AppearanceOptions {
+                quad_order: self.quad_point_order,
+                dash: annot_author::read_border_dash(&self.graph(), &current),
+            },
+        );
 
         let forecast = ReshapeForecast {
             annot_id,
@@ -26501,6 +26929,113 @@ impl EditSession {
             appearance,
             rect_after: authored.rect,
         })
+    }
+
+    /// Re-bake a `/FreeText`'s `/AP` `/N` from the words now in its
+    /// `/Contents`, when — and only when — the appearance on disk is one
+    /// pdfcer would have drawn.
+    ///
+    /// # ★ Why this exists at all
+    ///
+    /// `pdfcer-gui`, 2026-09-06: *"`set_markup_note` on a `/FreeText`
+    /// changes the dictionary and leaves the page painting the old words.
+    /// The two values start identical at authoring time, so the divergence
+    /// has no visible first moment."*
+    ///
+    /// It is `/FreeText` **only**, and the family is deliberately not
+    /// uniform. A sticky note's `/Contents` is shown by the reader's popup
+    /// and never painted; a `/Stamp`'s `/Contents` is a comment *about* the
+    /// stamp and is never written by `stamp()` at all. Both are already
+    /// correct, and "fixing" the stamp would break the one of the three
+    /// that was right — the requester asked for that in as many words.
+    ///
+    /// # ★★ The byte comparison answers TWO questions at once
+    ///
+    /// `TextAnnotSpec::FreeText::multiline` is **not recoverable** from the
+    /// dictionary (see [`annot_author::text_spec_from_dict`] — §12.5.6.6
+    /// gives the subtype no such key). So this bakes the ORIGINAL text both
+    /// ways and compares each against the bytes already on disk:
+    ///
+    /// * a match tells us which layout produced this appearance, **and**
+    ///   that the appearance is pdfcer's own — so re-baking is lossless;
+    /// * no match means the appearance is foreign (Acrobat's, a designer's,
+    ///   anything with a shadow or an image in it), and it is **left
+    ///   alone** and reported rather than overwritten.
+    ///
+    /// One measurement, both answers, and the narrow honest version the
+    /// requester said they would rather have now than a broad one later.
+    /// It is the same `appearance_was_pdfces` trick `set_markup_style` and
+    /// `reshape_annotation` already use, extended by one degree of freedom.
+    ///
+    /// Returns `None` when the annotation is not a `/FreeText`, when its
+    /// spec cannot be read, when the new text cannot be laid out, or when
+    /// the appearance is foreign.
+    fn rebake_free_text_appearance(
+        &mut self,
+        annot_id: ObjId,
+        before: &Dict,
+        after: &Dict,
+        new_text: &str,
+    ) -> Option<RegeneratedMarkup> {
+        // ★ TWO dictionaries, and the split is load-bearing. The spec and
+        // the appearance comparison must both read `before` — the state the
+        // file is actually in — because the whole measurement is "does the
+        // stream on disk match a bake of the words that were there when it
+        // was drawn". Reading them from `after`, which already carries the
+        // NEW `/Contents`, compares the new words against the old picture
+        // and never matches, silently disabling the re-bake entirely.
+        // `after` is used only as the base to carry every key this verb
+        // does not own.
+        let original = annot_author::text_spec_from_dict(&self.graph(), before).ok()?;
+        let annot_author::TextAnnotSpec::FreeText {
+            rect,
+            text: old_text,
+            font,
+            font_size,
+            color,
+            quadding,
+            border,
+            border_width,
+            ..
+        } = original
+        else {
+            return None;
+        };
+
+        // Which layout drew what is on disk? Measured, not assumed.
+        let spec_with = |text: &str, multiline: bool| annot_author::TextAnnotSpec::FreeText {
+            rect,
+            text: text.to_owned(),
+            font,
+            font_size,
+            color,
+            quadding,
+            multiline,
+            border,
+            border_width,
+        };
+        let multiline = [false, true].into_iter().find(|&m| {
+            annot_author::build_text_annotation(&spec_with(&old_text, m))
+                .is_ok_and(|baked| self.appearance_matches(before, &baked.ap_content))
+        })?;
+
+        let authored = annot_author::build_text_annotation(&spec_with(new_text, multiline)).ok()?;
+        // `AuthoredTextAnnot` and `AuthoredAppearance` carry the same three
+        // pieces this needs; the regeneration plumbing is shared rather
+        // than duplicated, so the appearance-slot rules (which refuse to
+        // rewrite a stream a second annotation also references) apply here
+        // exactly as they do to a restyle.
+        self.regenerate_markup_appearance(
+            annot_id,
+            after,
+            annot_author::AuthoredAppearance {
+                annot: authored.annot,
+                ap_dict: authored.ap_dict,
+                ap_content: authored.ap_content,
+                rect: authored.rect,
+            },
+        )
+        .ok()
     }
 
     /// Commit a [`RegeneratedMarkup`] as one undoable command of `kind`.
@@ -28119,6 +28654,30 @@ impl EditSession {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification_for_annotation()?;
+
+        // ★ THE LOADED GUN ON TWO ARGUMENTS THAT LOOK INDEPENDENT AND ARE
+        // NOT (`pdfcer-gui`, 2026-09-06, second finding).
+        //
+        // For a `/FreeText` — and only a `/FreeText` — `/Contents` IS the
+        // string the appearance is baked from. `options.note` is applied
+        // AFTER the bake, so a caller passing both got an annotation whose
+        // painted words and whose `/Contents` disagreed **from the first
+        // moment**, with no edit involved and nothing to disclose.
+        //
+        // Refused rather than silently resolved, because there is no
+        // defensible way to pick a winner: baking `note.text` would ignore
+        // the `spec.text` the caller passed, and keeping `spec.text` would
+        // ignore the note. The caller knows which they meant; pdfcer does
+        // not. Identical strings are harmless and allowed — that is what
+        // `free_text` writes anyway.
+        if let (TextAnnotSpec::FreeText { text, .. }, Some(note)) = (spec, &options.note)
+            && &note.text != text
+        {
+            return Err(EditError::FreeTextNoteConflictsWithText {
+                spec_text: text.clone(),
+                note_text: note.text.clone(),
+            });
+        }
 
         let slots = self.page_slots()?;
         let count = slots.len();
@@ -44411,8 +44970,6 @@ endstream",
 
         for expected in [
             DroppedProperty::RectDifferences,
-            DroppedProperty::BorderStyle,
-            DroppedProperty::DashPattern,
             DroppedProperty::ForeignAppearance,
         ] {
             assert!(
@@ -44421,19 +44978,36 @@ endstream",
                 change.dropped
             );
         }
-        // ★ `BorderEffect` USED TO BE IN THAT LIST, and its removal is the
-        // point of `Pass 98.0`. This fixture's `/BE << /S /C /I 2 >>` on a
-        // `/Square` is now READ BACK and re-baked, so disclosing it as
-        // dropped would be a FALSE disclosure.
+        // ★ THREE properties have LEFT that list, in two Passes, and each
+        // departure is a fix rather than a regression. The list this test
+        // began with was `BorderEffect`, `RectDifferences`, `BorderStyle`,
+        // `DashPattern`, `ForeignAppearance`.
+        //
+        // `Pass 98.0` removed `BorderEffect`: this fixture's
+        // `/BE << /S /C /I 2 >>` on a `/Square` is now READ BACK and
+        // re-baked.
+        //
+        // `Pass 258.0` removed `BorderStyle` and `DashPattern` for the same
+        // reason and by the same mechanism: this fixture's
+        // `/BS << /W 3 /S /D /D [3 2] >>` is a DASHED border, and the
+        // regenerated appearance is now dashed too, so the operator lost
+        // nothing to disclose. That was the whole defect — a dashed mark
+        // silently solidified on its first recolour.
         //
         // Rule 4 cuts both ways: a reported loss that did not happen trains
-        // the operator to discount the four above, which did.
-        assert!(
-            !change.dropped.contains(&DroppedProperty::BorderEffect),
-            "a cloudy /BE on a /Square is preserved now, so it must NOT be \
-             reported as dropped; got {:?}",
-            change.dropped
-        );
+        // the operator to discount the two above, which did.
+        for absent in [
+            DroppedProperty::BorderEffect,
+            DroppedProperty::BorderStyle,
+            DroppedProperty::DashPattern,
+        ] {
+            assert!(
+                !change.dropped.contains(&absent),
+                "{absent:?} is PRESERVED now, so it must not be reported as \
+                 dropped; got {:?}",
+                change.dropped
+            );
+        }
     }
 
     /// The cases where `/BE` is still genuinely lost, so the disclosure is

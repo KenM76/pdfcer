@@ -124,6 +124,97 @@ impl Color {
     }
 }
 
+/// A dashed annotation border — `/BS` `<< /S /D /D [..] >>` (§12.5.4,
+/// Table 166).
+///
+/// # Why this is a type and not a bare `Vec<f64>`
+///
+/// §8.4.3.6 constrains a dash array: every element is non-negative, and
+/// they are **not all zero** (a pattern of all zeros describes a line that
+/// is never on and never off, which is not a line). An empty array is the
+/// standard's own spelling of *solid*. Those are three invariants a caller
+/// would otherwise have to re-check at every use, so they are enforced once,
+/// here, at construction — and [`Self::new`] returning `None` is what makes
+/// a malformed dash in a foreign file **unreadable rather than infectious**.
+///
+/// # ★ There is no phase, and that is the standard's doing, not an omission
+///
+/// The content-stream `d` operator takes an array **and a phase**
+/// (§8.4.3.6), and [`crate::writer::content::ContentBuilder::set_dash`]
+/// accordingly takes both. Table 166's `/D` row does **not**: it carries the
+/// array alone, and the specification states the phase *"shall be assumed
+/// 0"*. So a border dash genuinely has one degree of freedom fewer than a
+/// content-stream dash, and modelling a phase here would invent a value the
+/// file cannot express and the reader must ignore. pdfcer emits phase `0`
+/// when it bakes the appearance, because that is what the dictionary means.
+///
+/// # Default
+///
+/// Table 166 gives `/D` the default `[3]` — see [`Self::table_166_default`].
+/// That is the pattern an annotation gets when it declares `/S /D` and no
+/// `/D` array, and it is what pdfcer reads such an annotation as.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BorderDash {
+    /// Alternating on/off run lengths in points. Non-empty, all finite,
+    /// all non-negative, not all zero — the invariant [`Self::new`] holds.
+    pattern: Vec<f64>,
+}
+
+impl BorderDash {
+    /// Build a dash from an on/off run-length array, validating §8.4.3.6.
+    ///
+    /// Returns `None` when the pattern cannot describe a dashed line:
+    /// when it is empty (which *is* the standard's solid line, and so is
+    /// not a dash), when any element is negative or non-finite, or when
+    /// every element is zero.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::annot_author::BorderDash;
+    ///
+    /// assert!(BorderDash::new(vec![3.0]).is_some());
+    /// assert!(BorderDash::new(vec![4.0, 2.0]).is_some());
+    ///
+    /// // Not dashes: solid, negative, and never-on.
+    /// assert!(BorderDash::new(vec![]).is_none());
+    /// assert!(BorderDash::new(vec![-1.0]).is_none());
+    /// assert!(BorderDash::new(vec![0.0, 0.0]).is_none());
+    /// ```
+    #[must_use]
+    pub fn new(pattern: impl Into<Vec<f64>>) -> Option<Self> {
+        let pattern = pattern.into();
+        if pattern.is_empty()
+            || pattern.iter().any(|v| !v.is_finite() || *v < 0.0)
+            || pattern.iter().all(|v| *v == 0.0)
+        {
+            return None;
+        }
+        Some(Self { pattern })
+    }
+
+    /// Table 166's default dash — `[3]`, i.e. 3 points on, 3 points off.
+    ///
+    /// This is what `/BS << /S /D >>` means when it carries no `/D` array,
+    /// so it is what pdfcer reads such a border as rather than treating a
+    /// declared-dashed border as solid.
+    #[must_use]
+    pub fn table_166_default() -> Self {
+        Self { pattern: vec![3.0] }
+    }
+
+    /// The on/off run lengths, in points.
+    #[must_use]
+    pub fn pattern(&self) -> &[f64] {
+        &self.pattern
+    }
+
+    /// The `/D` array as it is written into the border-style dictionary.
+    fn to_array(&self) -> Object {
+        Object::Array(self.pattern.iter().copied().map(Object::Real).collect())
+    }
+}
+
 /// One text-markup quadrilateral (`/QuadPoints` group, §12.5.6.10),
 /// authored in the Z / reading-order convention documented in the module
 /// docs: upper-left, upper-right, lower-left, lower-right.
@@ -458,6 +549,11 @@ pub enum SpecReadError {
 ///
 /// [`SpecReadError`] — an unmodelled subtype, or geometry pdfcer will not
 /// guess at.
+///
+/// # See also
+///
+/// [`text_spec_from_dict`] — the same job for the three text-bearing
+/// subtypes, which this function deliberately does not cover.
 pub fn spec_from_dict<G: ObjectGraph + ?Sized>(
     graph: &G,
     annot: &Dict,
@@ -658,12 +754,6 @@ pub(crate) fn read_border_width<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict
         .unwrap_or(1.0)
 }
 
-/// Read `/LE` (Table 176), degrading anything outside the three pdfcer
-/// authors to [`LineEnding::None`].
-///
-/// Degrading rather than failing: see [`spec_from_dict`]'s note — this is
-/// the one lossy step, and it is lossy in a direction the caller can
-/// disclose.
 /// Read a cloudy border effect back out of an annotation dictionary —
 /// `/BE << /S /C /I n >>` (§12.5.4, Table 167).
 ///
@@ -710,6 +800,305 @@ pub(crate) fn read_border_effect<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dic
     Some(intensity.clamp(0.0, 2.0))
 }
 
+/// Read `/BS` back into a [`BorderDash`] — the dash-preservation half of
+/// the border style (§12.5.4, Table 166).
+///
+/// Returns `Some` when the annotation declares a **dashed** border, and
+/// `None` when it declares any other style, declares none, or declares a
+/// `/D` array §8.4.3.6 does not admit.
+///
+/// # The two ways a file says "dashed", and why both are honoured
+///
+/// Table 166 splits the information across two keys: `/S /D` says *the
+/// style is dashed* and `/D [..]` says *with this pattern*. They are
+/// independently optional, so three of the four combinations occur:
+///
+/// | `/S` | `/D` | read as |
+/// |---|---|---|
+/// | `/D` | present | that pattern |
+/// | `/D` | absent | [`BorderDash::table_166_default`] — `[3]`, the table's own default |
+/// | absent | present | that pattern — see below |
+/// | `/S` (or `/B`, `/I`, `/U`) | either | `None`; not a dash |
+///
+/// The third row is the interesting one. `/S` defaults to `/S` (solid), so
+/// a literal reading makes `/BS << /D [4 2] >>` a **solid** border with a
+/// dash array that means nothing. Producers nonetheless write it, and
+/// Acrobat draws it dashed; reading it as solid would silently discard a
+/// pattern the file went out of its way to state. pdfcer honours it, on the
+/// same reasoning [`read_border_effect`] gives for clamping rather than
+/// refusing an out-of-range `/I`: a reader that "corrects" a file into
+/// losing more than the file got wrong has made the operator's document
+/// worse, not more conformant.
+///
+/// # Why an invalid array degrades to `None` rather than failing the read
+///
+/// The same reason `/LE` degrades — see [`spec_from_dict`]. The border is
+/// cosmetic and the geometry is not, so refusing to recolour a square
+/// because its dash array is `[0 0]` would be a refusal with no upside.
+/// The loss is disclosed by the caller (`DroppedProperty::DashPattern`),
+/// which is what keeps the degradation from being silent.
+pub(crate) fn read_border_dash<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    annot: &Dict,
+) -> Option<BorderDash> {
+    let Object::Dict(bs) = annot.get(b"BS").map(|o| graph.resolve(o))? else {
+        return None;
+    };
+    // Table 166: /S defaults to /S (solid). /B, /I and /U are borders
+    // pdfcer does not author and are not dashes either.
+    let declared_dashed = match bs.get(b"S").map(|o| graph.resolve(o)) {
+        Some(Object::Name(n)) => match n.as_bytes() {
+            b"D" => true,
+            _ => return None,
+        },
+        // /S absent: not dashed on its own, but a /D array present alongside
+        // is honoured — see the doc comment's third row.
+        _ => false,
+    };
+    match bs.get(b"D").map(|o| graph.resolve(o)) {
+        Some(Object::Array(items)) => {
+            let pattern: Vec<f64> = items
+                .iter()
+                .filter_map(|o| graph.resolve(o).as_number())
+                .collect();
+            // A /D that is present but unusable is a dropped pattern, not a
+            // reason to call a declared-dashed border solid — fall back to
+            // the table default in that case so /S /D still reads as dashed.
+            BorderDash::new(pattern).or_else(|| declared_dashed.then(BorderDash::table_166_default))
+        }
+        _ => declared_dashed.then(BorderDash::table_166_default),
+    }
+}
+
+/// Read a **text-bearing** annotation back out of its dictionary — the
+/// inverse of [`build_text_annotation`], as [`spec_from_dict`] is the
+/// inverse of [`build_appearance`].
+///
+/// # ★ Why this exists: three surfaces were blocked on one missing reader
+///
+/// `pdfcer-gui` filed it as the single blocker under three separate
+/// symptoms, and it was right:
+///
+/// 1. **A `/FreeText`'s painted words went stale.** `set_markup_note`
+///    changed `/Contents` and left `/AP` drawing the old text. For a
+///    `/FreeText` — alone among the three — `/Contents` *is* the
+///    appearance's own input, so the two start identical at authoring time
+///    and diverge on the first edit, with no visible first moment.
+/// 2. **A sticky note's icon and colour could not be changed**, because
+///    nothing could read the existing ones back.
+/// 3. **The clipboard could not place one**, and said so in a sentence
+///    shown to operators: *"pdfcer can author this kind of annotation but
+///    cannot yet read one back off a page into the model the clipboard
+///    carries."*
+///
+/// One reader, three surfaces.
+///
+/// # ★★ `multiline` is NOT recoverable, and that is the standard's doing
+///
+/// [`free_text`] writes `/DA`, `/Contents`, `/Q`, `/C` and `/BS` — and
+/// **nothing that records whether the text was laid out as one line or
+/// wrapped**. `/Ff` is a form-field key and a `/FreeText` is not a field;
+/// §12.5.6.6 gives the subtype no multiline flag at all. So the returned
+/// [`TextAnnotSpec::FreeText`] always carries `multiline: false`, and a
+/// caller that needs the true value must **measure** it rather than believe
+/// this field: bake the spec both ways and compare against the appearance
+/// already on disk. [`crate::edit::EditSession::set_markup_note`] does
+/// exactly that, which is also what tells it whether the appearance is one
+/// pdfcer drew.
+///
+/// Stating the limit here rather than guessing is the point. A reader that
+/// inferred `multiline` from the presence of a newline would be right most
+/// of the time and silently wrong on a wrapped single-sentence note.
+///
+/// # Errors
+///
+/// [`SpecReadError::UnsupportedSubtype`] for any `/Subtype` outside
+/// `/FreeText`, `/Text` and `/Stamp`; [`SpecReadError::BadGeometry`] when
+/// `/Rect` is missing or unreadable, or when a `/FreeText`'s `/DA` is
+/// absent or unparseable — pdfcer will not invent a font size it was not
+/// told.
+pub fn text_spec_from_dict<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    annot: &Dict,
+) -> Result<TextAnnotSpec, SpecReadError> {
+    let subtype = match annot.get(b"Subtype").map(|o| graph.resolve(o)) {
+        Some(Object::Name(n)) => n.as_bytes().to_vec(),
+        _ => Vec::new(),
+    };
+    let rect =
+        read_rect(graph, annot, b"Rect").ok_or(SpecReadError::BadGeometry { key: "Rect" })?;
+    let contents = read_contents_text(graph, annot);
+
+    match subtype.as_slice() {
+        b"FreeText" => {
+            let Some(da) = read_raw_string(graph, annot, b"DA") else {
+                return Err(SpecReadError::BadGeometry { key: "DA" });
+            };
+            let parsed = vartext::parse_default_appearance(&da)
+                .map_err(|_| SpecReadError::BadGeometry { key: "DA" })?;
+            // The `Std14` is named by the APPEARANCE's resources, not by
+            // `/DA`: `/DA` carries a resource NAME (`/Helv`), and the map
+            // from that name to a base font lives in the form XObject's
+            // `/Resources` `/Font`. Falling back to Helvetica matches the
+            // posture `build_push_button_appearance` already takes for an
+            // unresolvable resource name.
+            let font = read_appearance_font(graph, annot, &parsed.font_name)
+                .unwrap_or(crate::fontdata::Std14::Helvetica);
+            let quadding = match annot.get(b"Q").map(|o| graph.resolve(o)) {
+                Some(Object::Integer(q)) => Quadding::from_code(*q),
+                _ => Quadding::Left,
+            };
+            Ok(TextAnnotSpec::FreeText {
+                rect,
+                text: contents,
+                font,
+                font_size: parsed.font_size,
+                color: parsed.color.unwrap_or(TextColor::Gray(0.0)),
+                quadding,
+                multiline: false, // NOT recoverable — see the doc comment.
+                border: read_color(graph, annot, b"C"),
+                border_width: read_border_width(graph, annot),
+            })
+        }
+        b"Text" => Ok(TextAnnotSpec::Sticky {
+            rect,
+            icon: read_name_value(graph, annot, b"Name")
+                .as_deref()
+                .and_then(sticky_icon_from_name)
+                .unwrap_or(StickyIcon::Note),
+            contents,
+            color: read_color(graph, annot, b"C").unwrap_or(Color::Rgb(1.0, 1.0, 0.0)),
+            open: matches!(
+                annot.get(b"Open").map(|o| graph.resolve(o)),
+                Some(Object::Boolean(true))
+            ),
+        }),
+        b"Stamp" => Ok(TextAnnotSpec::Stamp {
+            rect,
+            name: read_name_value(graph, annot, b"Name")
+                .as_deref()
+                .and_then(stamp_name_from_name)
+                .unwrap_or(StampName::Draft),
+            // ★ A stamp's `/Contents` is a comment ABOUT the stamp, not the
+            // stamp's words — `stamp()` never writes it. Reading it as the
+            // label would make a note drive the stamp's face, which is the
+            // one thing `pdfcer-gui` explicitly asked NOT to happen: of the
+            // three subtypes the stamp is the one already correct.
+            label: None,
+            color: read_color(graph, annot, b"C").unwrap_or(Color::Gray(0.0)),
+        }),
+        _ => Err(SpecReadError::UnsupportedSubtype {
+            subtype: String::from_utf8_lossy(&subtype).into_owned(),
+        }),
+    }
+}
+
+/// A `/Name`-valued key, as raw bytes.
+fn read_name_value<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    annot: &Dict,
+    key: &[u8],
+) -> Option<Vec<u8>> {
+    match graph.resolve(annot.get(key)?) {
+        Object::Name(n) => Some(n.as_bytes().to_vec()),
+        _ => None,
+    }
+}
+
+/// A string-valued key as raw bytes, with no text-string decoding.
+fn read_raw_string<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    annot: &Dict,
+    key: &[u8],
+) -> Option<Vec<u8>> {
+    match graph.resolve(annot.get(key)?) {
+        Object::String(bytes) => Some(bytes.clone()),
+        _ => None,
+    }
+}
+
+/// `/Contents` decoded as a §7.9.2 text string, or empty when absent.
+fn read_contents_text<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict) -> String {
+    read_raw_string(graph, annot, b"Contents")
+        .map(|bytes| crate::textstring::decode_text_string(&bytes).text)
+        .unwrap_or_default()
+}
+
+/// The [`StickyIcon`] a `/Name` value denotes, or `None` for one pdfcer
+/// does not author (§12.5.6.4 leaves the set open-ended).
+fn sticky_icon_from_name(name: &[u8]) -> Option<StickyIcon> {
+    Some(match name {
+        b"Comment" => StickyIcon::Comment,
+        b"Key" => StickyIcon::Key,
+        b"Note" => StickyIcon::Note,
+        b"Help" => StickyIcon::Help,
+        b"NewParagraph" => StickyIcon::NewParagraph,
+        b"Paragraph" => StickyIcon::Paragraph,
+        b"Insert" => StickyIcon::Insert,
+        _ => return None,
+    })
+}
+
+/// The [`StampName`] a `/Name` value denotes, or `None` for a stamp name
+/// outside the standard set (§12.5.6.12 permits any name).
+fn stamp_name_from_name(name: &[u8]) -> Option<StampName> {
+    Some(match name {
+        b"Approved" => StampName::Approved,
+        b"Experimental" => StampName::Experimental,
+        b"NotApproved" => StampName::NotApproved,
+        b"AsIs" => StampName::AsIs,
+        b"Expired" => StampName::Expired,
+        b"NotForPublicRelease" => StampName::NotForPublicRelease,
+        b"Confidential" => StampName::Confidential,
+        b"Final" => StampName::Final,
+        b"Sold" => StampName::Sold,
+        b"Departmental" => StampName::Departmental,
+        b"ForComment" => StampName::ForComment,
+        b"TopSecret" => StampName::TopSecret,
+        b"Draft" => StampName::Draft,
+        b"ForPublicRelease" => StampName::ForPublicRelease,
+        _ => return None,
+    })
+}
+
+/// The `Std14` a `/FreeText`'s appearance resources bind `name` to.
+///
+/// `/AP` `/N` `/Resources` `/Font` `/<name>` `/BaseFont`, mapped through
+/// [`crate::fontdata::std14_by_base_font`]. Returns `None` when any hop is
+/// missing or names a font outside the standard 14 — an embedded face in a
+/// hand-authored `/FreeText`, for instance, which pdfcer cannot re-author.
+fn read_appearance_font<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    annot: &Dict,
+    name: &[u8],
+) -> Option<crate::fontdata::Std14> {
+    let Object::Dict(ap) = graph.resolve(annot.get(b"AP")?) else {
+        return None;
+    };
+    let Object::Stream(stream) = graph.resolve(ap.get(b"N")?) else {
+        return None;
+    };
+    let Object::Dict(resources) = graph.resolve(stream.dict.get(b"Resources")?) else {
+        return None;
+    };
+    let Object::Dict(fonts) = graph.resolve(resources.get(b"Font")?) else {
+        return None;
+    };
+    let Object::Dict(font) = graph.resolve(fonts.get(name)?) else {
+        return None;
+    };
+    let Object::Name(base) = graph.resolve(font.get(b"BaseFont")?) else {
+        return None;
+    };
+    crate::fontdata::std14_by_base_font(&String::from_utf8_lossy(base.as_bytes()))
+}
+
+/// Read `/LE` (Table 176), degrading anything outside the three pdfcer
+/// authors to [`LineEnding::None`].
+///
+/// Degrading rather than failing: see [`spec_from_dict`]'s note — this is
+/// the one lossy step, and it is lossy in a direction the caller can
+/// disclose.
 fn read_line_endings<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict) -> (LineEnding, LineEnding) {
     let Some(Object::Array(items)) = annot.get(b"LE").map(|o| graph.resolve(o)) else {
         return (LineEnding::None, LineEnding::None);
@@ -1241,6 +1630,60 @@ pub fn build_appearance(spec: &MarkupSpec) -> AuthoredAppearance {
     build_appearance_with(spec, QuadPointOrder::default())
 }
 
+/// Cosmetic properties that cut **across** [`MarkupSpec`]'s variants rather
+/// than belonging to any one of them.
+///
+/// # Why these are an argument and not fields on the enum
+///
+/// A dash applies to every stroked subtype — `Square`, `Circle`, `Line`,
+/// `Ink`, `Polygon`, `Cloud`, `PolyLine` — and to none of the text-markup
+/// family. Repeating a `dash` field on seven variants would state one fact
+/// seven times and give six of the seven no place to differ, and every
+/// construction site in and out of the crate would have to name it.
+///
+/// The house precedent is [`QuadPointOrder`], which is cross-cutting in
+/// exactly the same way (only the text-markup family reads it) and is
+/// likewise an argument. Adding a field here is a breaking change only for
+/// callers that construct the struct exhaustively, which is why it is
+/// `#[non_exhaustive]` and built through [`Self::default`] plus field
+/// assignment.
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_core::annot_author::{AppearanceOptions, BorderDash};
+///
+/// let mut opts = AppearanceOptions::default();
+/// opts.dash = BorderDash::new(vec![4.0, 2.0]);
+/// ```
+#[derive(Debug, Clone, PartialEq, Default)]
+#[non_exhaustive]
+pub struct AppearanceOptions {
+    /// The `/QuadPoints` corner order for the text-markup family
+    /// (§12.5.6.10, ambiguity `QP-A1`). Ignored by every other subtype.
+    pub quad_order: QuadPointOrder,
+    /// `/BS` `/D` — a dashed border (§12.5.4, Table 166), or `None` for the
+    /// solid border pdfcer authored exclusively before `Pass 258.0`.
+    ///
+    /// Ignored by [`MarkupSpec::TextMarkup`], which has no border to dash:
+    /// a highlight is a wash and an underline is its own line, neither
+    /// drawn from `/BS`. Ask
+    /// [`crate::edit::MarkupStyleSupport::takes_border`] rather than
+    /// matching on the variant.
+    pub dash: Option<BorderDash>,
+}
+
+/// As [`build_appearance`], with explicit cross-cutting cosmetic options.
+///
+/// This is the real implementation; [`build_appearance`] and
+/// [`build_appearance_with`] are thin wrappers that supply defaults, so
+/// there is exactly one appearance-generating code path and no second one
+/// to drift from it.
+#[must_use]
+pub fn build_appearance_opts(spec: &MarkupSpec, opts: &AppearanceOptions) -> AuthoredAppearance {
+    build_appearance_inner(spec, opts)
+}
+
 /// As [`build_appearance`], with an explicit `/QuadPoints` corner order
 /// (§12.5.6.10, ambiguity **`QP-A1`**).
 ///
@@ -1262,6 +1705,19 @@ pub fn build_appearance(spec: &MarkupSpec) -> AuthoredAppearance {
 /// worst case: a deliberate divergence from a `shall`-adjacent statement,
 /// with no runtime symptom in the tool that made it.
 pub fn build_appearance_with(spec: &MarkupSpec, order: QuadPointOrder) -> AuthoredAppearance {
+    build_appearance_inner(
+        spec,
+        &AppearanceOptions {
+            quad_order: order,
+            dash: None,
+        },
+    )
+}
+
+/// The one appearance generator. See [`build_appearance_opts`].
+fn build_appearance_inner(spec: &MarkupSpec, opts: &AppearanceOptions) -> AuthoredAppearance {
+    let order = opts.quad_order;
+    let dash = opts.dash.as_ref();
     match spec {
         MarkupSpec::Square {
             rect,
@@ -1277,6 +1733,7 @@ pub fn build_appearance_with(spec: &MarkupSpec, order: QuadPointOrder) -> Author
             *border_width,
             false,
             *border_effect,
+            dash,
         ),
         MarkupSpec::Circle {
             rect,
@@ -1298,6 +1755,7 @@ pub fn build_appearance_with(spec: &MarkupSpec, order: QuadPointOrder) -> Author
             // rather than by a runtime error, because the type simply
             // does not offer it.
             None,
+            dash,
         ),
         MarkupSpec::Line {
             start,
@@ -1305,18 +1763,20 @@ pub fn build_appearance_with(spec: &MarkupSpec, order: QuadPointOrder) -> Author
             color,
             width,
             endings,
-        } => line(*start, *end, *color, *width, *endings),
+        } => line(*start, *end, *color, *width, *endings, dash),
         MarkupSpec::Ink {
             strokes,
             color,
             width,
-        } => ink(strokes, *color, *width),
+        } => ink(strokes, *color, *width, dash),
         MarkupSpec::Polygon {
             vertices,
             border,
             interior,
             width,
-        } => polygon_like(b"Polygon", vertices, *border, *interior, *width, true, None),
+        } => polygon_like(
+            b"Polygon", vertices, *border, *interior, *width, true, None, dash,
+        ),
         MarkupSpec::Cloud {
             vertices,
             border,
@@ -1331,6 +1791,7 @@ pub fn build_appearance_with(spec: &MarkupSpec, order: QuadPointOrder) -> Author
             *width,
             true,
             Some(*intensity),
+            dash,
         ),
         MarkupSpec::PolyLine {
             vertices,
@@ -1349,6 +1810,7 @@ pub fn build_appearance_with(spec: &MarkupSpec, order: QuadPointOrder) -> Author
             // lists only square, circle and polygon. An open polyline
             // cannot carry one.
             None,
+            dash,
         ),
         MarkupSpec::TextMarkup { kind, quads, color } => text_markup(*kind, quads, *color, order),
     }
@@ -1442,17 +1904,56 @@ fn base_annot(subtype: &[u8], rect: Rect) -> Dict {
 }
 
 /// A `/BS` border-style dictionary carrying width `w` (§12.5.4 Table 168).
-fn border_style(w: f64) -> Object {
+/// Emit the `d` operator for a border dash, or nothing at all when the
+/// border is solid.
+///
+/// # Why nothing rather than `[] 0 d`
+///
+/// A freshly built [`ContentBuilder`] starts in the initial graphics state,
+/// whose dash pattern is already the solid `[] 0` (§8.4.1, Table 52). An
+/// explicit reset would be two bytes of noise in every appearance pdfcer
+/// has ever written, and — the reason that matters here — it would change
+/// the bytes of every existing solid appearance, breaking the byte
+/// comparison `set_markup_style` uses to tell a pdfcer-authored appearance
+/// from a foreign one (`DroppedProperty::ForeignAppearance`). Emitting
+/// nothing keeps every already-authored annotation byte-identical.
+///
+/// The phase is always `0`: Table 166's `/D` carries no phase and the
+/// standard says it *"shall be assumed 0"*. See [`BorderDash`].
+fn apply_dash(b: &mut ContentBuilder, dash: Option<&BorderDash>) {
+    if let Some(d) = dash {
+        b.set_dash(d.pattern(), 0.0);
+    }
+}
+
+fn border_style(w: f64, dash: Option<&BorderDash>) -> Object {
     let mut bs = Dict::new();
     bs.insert(Name::from(b"Type"), Object::Name(Name::from(b"Border")));
     bs.insert(Name::from(b"W"), Object::Real(w));
-    bs.insert(Name::from(b"S"), Object::Name(Name::from(b"S"))); // solid
+    match dash {
+        // Table 166: /S /D plus the explicit /D array. Both are written
+        // even though /D alone is widely honoured, because /S is what the
+        // table actually defines the style by and a reader that consults
+        // /S first must not see the default `solid`.
+        Some(d) => {
+            bs.insert(Name::from(b"S"), Object::Name(Name::from(b"D")));
+            bs.insert(Name::from(b"D"), d.to_array());
+        }
+        None => {
+            bs.insert(Name::from(b"S"), Object::Name(Name::from(b"S"))); // solid
+        }
+    }
     Object::Dict(bs)
 }
 
 /// Square (`inscribe_ellipse = false`) or Circle (`= true`): a filled
 /// and/or stroked rectangle/ellipse inset by half the border width so the
 /// stroke stays inside `BBox`.
+// Each parameter is one of the subtype's own §12.5.6 properties, so
+// bundling them into a struct would invent a type whose only purpose is to
+// satisfy a lint and whose fields would be the same list one indirection
+// away. The house precedent is `free_text`, allowed for the same reason.
+#[allow(clippy::too_many_arguments)]
 fn rectangle_like(
     subtype: &[u8],
     rect: Rect,
@@ -1461,6 +1962,7 @@ fn rectangle_like(
     border_width: f64,
     inscribe_ellipse: bool,
     cloud: Option<f64>,
+    dash: Option<&BorderDash>,
 ) -> AuthoredAppearance {
     let shape = positive_rect(rect);
     // ★ /Rect must CONTAIN the cloud, which bulges outside the square the
@@ -1493,7 +1995,7 @@ fn rectangle_like(
     if let Some(c) = interior {
         annot.insert(Name::from(b"IC"), c.to_array());
     }
-    annot.insert(Name::from(b"BS"), border_style(border_width));
+    annot.insert(Name::from(b"BS"), border_style(border_width, dash));
     if let Some(i) = cloud {
         annot.insert(Name::from(b"BE"), border_effect_dict(i));
         // All four insets are equal, so the left/top/right/bottom ordering
@@ -1519,6 +2021,7 @@ fn rectangle_like(
     if let (true, Some(c)) = (has_stroke, border) {
         c.apply_stroke(&mut b);
         b.set_line_width(border_width);
+        apply_dash(&mut b, dash);
         if cloud.is_some() {
             b.set_line_join(LineJoin::Round);
         }
@@ -1595,6 +2098,7 @@ fn line(
     color: Color,
     width: f64,
     endings: (LineEnding, LineEnding),
+    dash: Option<&BorderDash>,
 ) -> AuthoredAppearance {
     // Arrowheads and stroke width extend past the endpoints; the margin
     // must contain them.
@@ -1613,7 +2117,7 @@ fn line(
         ]),
     );
     annot.insert(Name::from(b"C"), color.to_array());
-    annot.insert(Name::from(b"BS"), border_style(width));
+    annot.insert(Name::from(b"BS"), border_style(width, dash));
     annot.insert(
         Name::from(b"LE"),
         Object::Array(vec![
@@ -1704,7 +2208,12 @@ fn emit_line_ending(
 
 /// `/Ink` — each stroke is a polyline (`move_to` first point, `line_to`
 /// the rest), all stroked with one uniform width.
-fn ink(strokes: &[Vec<(f64, f64)>], color: Color, width: f64) -> AuthoredAppearance {
+fn ink(
+    strokes: &[Vec<(f64, f64)>],
+    color: Color,
+    width: f64,
+    dash: Option<&BorderDash>,
+) -> AuthoredAppearance {
     let rect = bounds_of(
         strokes.iter().flat_map(|s| s.iter().copied()),
         (width / 2.0).max(1.0),
@@ -1725,11 +2234,12 @@ fn ink(strokes: &[Vec<(f64, f64)>], color: Color, width: f64) -> AuthoredAppeara
     );
     annot.insert(Name::from(b"InkList"), ink_list);
     annot.insert(Name::from(b"C"), color.to_array());
-    annot.insert(Name::from(b"BS"), border_style(width));
+    annot.insert(Name::from(b"BS"), border_style(width, dash));
 
     let mut b = ContentBuilder::new();
     color.apply_stroke(&mut b);
     b.set_line_width(width);
+    apply_dash(&mut b, dash);
     b.set_line_cap(LineCap::Round);
     b.set_line_join(LineJoin::Round);
     for stroke in strokes {
@@ -1916,6 +2426,11 @@ fn cloud_path(b: &mut ContentBuilder, vertices: &[(f64, f64)], intensity: f64) {
     b.close_subpath();
 }
 
+// Each parameter is one of the subtype's own §12.5.6 properties, so
+// bundling them into a struct would invent a type whose only purpose is to
+// satisfy a lint and whose fields would be the same list one indirection
+// away. The house precedent is `free_text`, allowed for the same reason.
+#[allow(clippy::too_many_arguments)]
 fn polygon_like(
     subtype: &[u8],
     vertices: &[(f64, f64)],
@@ -1924,6 +2439,7 @@ fn polygon_like(
     width: f64,
     closed: bool,
     cloud: Option<f64>,
+    dash: Option<&BorderDash>,
 ) -> AuthoredAppearance {
     // ★ The cloud bulges OUTSIDE the vertex hull, so the bounding box has
     // to grow by the scallop radius or the appearance stream would be
@@ -1947,7 +2463,7 @@ fn polygon_like(
     if let Some(c) = interior {
         annot.insert(Name::from(b"IC"), c.to_array());
     }
-    annot.insert(Name::from(b"BS"), border_style(width));
+    annot.insert(Name::from(b"BS"), border_style(width, dash));
     if let Some(i) = cloud {
         annot.insert(Name::from(b"BE"), border_effect_dict(i));
     }
@@ -1960,6 +2476,7 @@ fn polygon_like(
     if let (true, Some(c)) = (has_stroke, border) {
         c.apply_stroke(&mut b);
         b.set_line_width(width);
+        apply_dash(&mut b, dash);
         // Round joins on a cloud: the scallops meet at tangent angles and
         // a miter there spikes. Straight polygons keep the miter they
         // have always had.
@@ -3135,7 +3652,11 @@ fn free_text(
     }
     if let Some(bc) = border {
         annot.insert(Name::from(b"C"), bc.to_array());
-        annot.insert(Name::from(b"BS"), border_style(border_width));
+        // Solid, deliberately: `TextAnnotSpec::FreeText` carries no dash
+        // field, so there is no operator intent to express here. A dashed
+        // `/FreeText` frame is a `TextAnnotSpec` question, not a
+        // `MarkupSpec` one, and is not in this Pass.
+        annot.insert(Name::from(b"BS"), border_style(border_width, None));
     }
 
     Ok(AuthoredTextAnnot {

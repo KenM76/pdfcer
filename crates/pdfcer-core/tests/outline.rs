@@ -369,7 +369,9 @@ fn actions_are_classified_and_never_executed() {
     // Non-navigation actions: named, not executed, not "broken".
     for (index, subtype) in [(3usize, "URI"), (4, "JavaScript")] {
         match &flat[index].destination {
-            Some(Destination::NonNavigation { action: Some(name) }) => {
+            Some(Destination::NonNavigation {
+                action: Some(name), ..
+            }) => {
                 assert_eq!(name.as_bytes(), subtype.as_bytes());
             }
             other => panic!("expected NonNavigation /{subtype}, got {other:?}"),

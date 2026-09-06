@@ -504,6 +504,43 @@ pub enum Destination {
         /// way, and counted in
         /// [`OutlineDiagnostics::unreadable_actions`].
         action: Option<Name>,
+        /// The external file the action names, when it names one — today
+        /// that means a `/Launch` (§12.6.4.5).
+        ///
+        /// # ★ Why a non-navigation action carries a filename at all
+        ///
+        /// A operator asked, 2026-09-06, for the obvious thing: a
+        /// table-of-contents PDF whose bookmarks open the other PDFs in a
+        /// folder, and a listing of *bookmark title → file it opens*.
+        /// `cpdf` gave them `<</F 251 0 R/S/Launch>>` and `pdftk` gave
+        /// them a page number of 0; neither would resolve the file
+        /// specification. pdfcer already resolved one for `/GoToR` and
+        /// **threw it away for `/Launch`**, which is the same question
+        /// asked of the same key.
+        ///
+        /// `/Launch` is not navigation — it starts an application — so it
+        /// stays in this variant rather than becoming a `Remote`. But
+        /// *"which file"* is answerable, and refusing to answer it was an
+        /// omission rather than a position.
+        ///
+        /// # Where it is read from
+        ///
+        /// Table 203 (2.0: 207) makes `/F` *required unless* `/Win`,
+        /// `/Mac` or `/Unix` is present, so `/F` is tried first and the
+        /// `/Win` sub-dictionary's own bare-path `/F` second. Those three
+        /// platform entries are **deprecated in PDF 2.0** — §12.6.4.6:
+        /// *"The `F` entry determines the file specification platform to
+        /// be launched"* — so the fallback exists for older files and is
+        /// not the preferred shape.
+        ///
+        /// `None` for every other action type, for a `/Launch` with no
+        /// usable entry (Table 203's own *"it shall do nothing"* case),
+        /// and for a file specification in a shape this module does not
+        /// read — see [`file_spec_bytes`].
+        ///
+        /// ★ **Recognised and disclosed, never executed** (R13). This is
+        /// a filename to SHOW an operator, not a path to open.
+        file: Option<Vec<u8>>,
     },
 }
 
@@ -2178,7 +2215,10 @@ fn read_action<G: ObjectGraph + ?Sized>(
         .and_then(Object::as_dict)
     else {
         context.diagnostics.unreadable_actions += 1;
-        return Destination::NonNavigation { action: None };
+        return Destination::NonNavigation {
+            action: None,
+            file: None,
+        };
     };
     let subtype = graph
         .resolve(action.get(b"S").unwrap_or(&Object::Null))
@@ -2186,7 +2226,10 @@ fn read_action<G: ObjectGraph + ?Sized>(
         .cloned();
     let Some(subtype) = subtype else {
         context.diagnostics.unreadable_actions += 1;
-        return Destination::NonNavigation { action: None };
+        return Destination::NonNavigation {
+            action: None,
+            file: None,
+        };
     };
 
     match subtype.as_bytes() {
@@ -2198,12 +2241,55 @@ fn read_action<G: ObjectGraph + ?Sized>(
             .and_then(|dest| resolve_destination_value(graph, dest, context))
             .unwrap_or(Destination::NonNavigation {
                 action: Some(subtype),
+                file: None,
             }),
         // §12.6.4.3 — another file.
         b"GoToR" => read_remote(graph, action, context),
-        _ => Destination::NonNavigation {
+        // §12.6.4.5 — launch an application, usually to open a file. Not
+        // navigation, so it stays a non-navigation action; but the file it
+        // names is readable and worth reading. See the variant's `file`.
+        b"Launch" => Destination::NonNavigation {
+            file: read_launch_file(graph, action),
             action: Some(subtype),
         },
+        _ => Destination::NonNavigation {
+            action: Some(subtype),
+            file: None,
+        },
+    }
+}
+
+/// The file a `/Launch` action names (§12.6.4.5, Table 203; 2.0 Table 207).
+///
+/// `/F` first — the entry Table 203 makes *required unless* a platform
+/// dictionary is present, and the only one PDF 2.0 still endorses. Then the
+/// `/Win` sub-dictionary's own `/F`, which is a **bare path string** rather
+/// than a file specification, for files old enough to use it.
+///
+/// `/Mac` and `/Unix` are not read: both are deprecated alongside `/Win` in
+/// PDF 2.0, neither has a documented internal structure in either edition
+/// (Table 204/205 describe `/Win` alone), and inventing one would be
+/// guessing at bytes rather than reading them.
+///
+/// `/Win` `/P` — the parameter string *"passed to the application"* — is
+/// deliberately **not** returned. It is an argv, not a filename, and this
+/// function answers *"which file does this bookmark open"*.
+pub(crate) fn read_launch_file<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    action: &Dict,
+) -> Option<Vec<u8>> {
+    if let Some(file) = action
+        .get(b"F")
+        .and_then(|spec| file_spec_bytes(graph, spec))
+    {
+        return Some(file);
+    }
+    let win = graph
+        .resolve(action.get(b"Win").unwrap_or(&Object::Null))
+        .as_dict()?;
+    match graph.resolve(win.get(b"F")?) {
+        Object::String(bytes) => Some(bytes.clone()),
+        _ => None,
     }
 }
 
@@ -2308,7 +2394,10 @@ fn read_remote<G: ObjectGraph + ?Sized>(
 /// Anything not covered returns `None` rather than a guess, so a caller
 /// sees "pdfcer could not read this file reference" instead of a
 /// plausible wrong path.
-fn file_spec_bytes<G: ObjectGraph + ?Sized>(graph: &G, spec: &Object) -> Option<Vec<u8>> {
+pub(crate) fn file_spec_bytes<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    spec: &Object,
+) -> Option<Vec<u8>> {
     match graph.resolve(spec) {
         Object::String(bytes) => Some(bytes.clone()),
         Object::Dict(dict) => {
@@ -3575,7 +3664,8 @@ mod tests {
             assert_eq!(
                 outline.items[0].destination,
                 Some(Destination::NonNavigation {
-                    action: Some(Name::from(subtype))
+                    action: Some(Name::from(subtype)),
+                    file: None,
                 }),
                 "for /S /{}",
                 String::from_utf8_lossy(subtype)

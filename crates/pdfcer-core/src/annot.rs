@@ -3399,7 +3399,7 @@ mod tests {
         assert_eq!(found.links.len(), 1);
         assert_eq!(found.links_without_destination, 0);
         match &found.links[0].destination {
-            Destination::NonNavigation { action } => {
+            Destination::NonNavigation { action, .. } => {
                 assert_eq!(
                     action.as_ref().map(Name::as_bytes),
                     Some(&b"URI"[..]),

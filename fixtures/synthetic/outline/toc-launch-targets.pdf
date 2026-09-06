@@ -1,0 +1,82 @@
+%PDF-1.7
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R /Outlines 10 0 R /PageMode /UseOutlines >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 49 >>
+stream
+BT /F1 18 Tf 40 700 Td (Table of Contents) Tj ET
+endstream
+endobj
+10 0 obj
+<< /Type /Outlines /First 11 0 R /Last 14 0 R /Count 4 >>
+endobj
+11 0 obj
+<< /Title (Chapter 1 - Foundations) /Parent 10 0 R /Next 12 0 R /A 20 0 R >>
+endobj
+12 0 obj
+<< /Title (Chapter 2 - Methods) /Parent 10 0 R /Prev 11 0 R /Next 13 0 R /A 22 0 R >>
+endobj
+13 0 obj
+<< /Title (Appendix - Legacy) /Parent 10 0 R /Prev 12 0 R /Next 14 0 R /A 23 0 R >>
+endobj
+14 0 obj
+<< /Title (Chapter 3 - Results) /Parent 10 0 R /Prev 13 0 R /A 24 0 R >>
+endobj
+20 0 obj
+<< /S /Launch /F 21 0 R >>
+endobj
+21 0 obj
+<< /Type /Filespec /F (chapter1.pdf) /UF (chapter1.pdf) >>
+endobj
+22 0 obj
+<< /S /Launch /F (chapter2.pdf) >>
+endobj
+23 0 obj
+<< /S /Launch /Win << /F (appendix.pdf) /O (open) >> >>
+endobj
+24 0 obj
+<< /S /GoToR /F (chapter3.pdf) /D [2 /Fit] /NewWindow true >>
+endobj
+xref
+0 25
+0000000000 65535 f 
+0000000015 00000 n 
+0000000104 00000 n 
+0000000161 00000 n 
+0000000287 00000 n 
+0000000357 00000 n 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000455 00000 n 
+0000000529 00000 n 
+0000000622 00000 n 
+0000000724 00000 n 
+0000000824 00000 n 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000913 00000 n 
+0000000956 00000 n 
+0000001031 00000 n 
+0000001082 00000 n 
+0000001154 00000 n 
+trailer
+<< /Size 25 /Root 1 0 R >>
+startxref
+1232
+%%EOF

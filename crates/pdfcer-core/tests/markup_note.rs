@@ -139,6 +139,7 @@ fn a_note_survives_beside_an_opacity_without_either_disturbing_the_other() {
     let a = authored(&MarkupOptions {
         opacity: Some(0.4),
         note: Some(MarkupNote::new("half visible").by("Ken")),
+        dash: None,
     });
     assert_eq!(a.contents.as_deref(), Some("half visible"));
     assert_eq!(a.title.as_deref(), Some("Ken"));
