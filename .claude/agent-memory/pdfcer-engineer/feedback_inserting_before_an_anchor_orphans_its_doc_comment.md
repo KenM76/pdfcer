@@ -1,6 +1,6 @@
 ---
 name: inserting-before-an-anchor-orphans-its-doc-comment
-description: Splicing code in "before `fn foo(`" or "before `Variant {`" lands INSIDE the preceding doc comment — nothing compiles wrong, and only running the binary shows it
+description: Splicing code in "before `fn foo(`" or "before `Variant {`" lands INSIDE the preceding doc comment; recurred FIVE times on 2026-09-06 — the fix is structural (walk back over `///`/`#[` lines before inserting), and the public-fns gate now catches the fn case
 metadata:
   type: feedback
 ---
@@ -35,3 +35,21 @@ The general shape: **a doc comment has no syntactic tie to its item, so
 Related: [[windows-paths-need-literal-edits]] (the other way patch tooling
 silently changes what you wrote), [[engineer-does-the-observing]] (running it
 is the check).
+
+**★ RECURRED FIVE TIMES IN ONE SESSION (2026-09-06)** — `looks_like_pdf_date`,
+`std14_by_base_font`, `RealFaceAvailable` (an enum variant: its `#[error]`
+attribute was split from its name → "only one #[error] allowed"), `is_none`
+(a `#[must_use]` duplicated onto the wrong fn), `locate_hole` (twice). Three
+were caught by `tools/check-public-fns-documented.py`, two by the compiler.
+Reading this memory did not prevent it: the anchor is chosen at script-writing
+time, when the item's line is the natural search key. The rule that held:
+
+- **The patch script anchors on the item but INSERTS at the doc block's start**
+  — after locating `fn name(`, walk back while the previous line starts with
+  `///`, `#[`, or (for a `thiserror` variant) the multi-line `#[error(` body,
+  and insert there. `move_block()` in the 2026-09-06 scripts is the shape.
+- **Prefer inserting AFTER a complete item** (after its closing `}` + blank
+  line) over inserting before the next one — nothing above a closing brace is
+  a doc comment.
+- Run `python tools/check-public-fns-documented.py` right after any splice
+  into `crates/`; it names the orphaned fn in one line.
