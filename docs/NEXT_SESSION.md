@@ -10,10 +10,9 @@ handoff doc … stop all work after making the handoff"). **Released:**
 0.41.0); `verify-release.py v0.42.0` nine of nine. **Unreleased on `main`:**
 `b64ddb6` **Pass 14.6** (a Type 0 font's `/FontDescriptor` is read from the
 descendant CIDFont — composite runs report embedded and the R-INV-1 subset
-floor now guards them; filed 456th `f9ed0dc`). `origin/main` = `099bdc7` plus
-this handoff commit; CI on `099bdc7` was IN PROGRESS at close — **read its
-colour from GitHub first** (`gh run list -L 1`); the previous run on
-`e59b084` was green 10/10. Workspace version `0.42.0` (bump to `0.43.0` at
+floor now guards them; filed 456th `f9ed0dc`). **Confirmed green after
+close:** `origin/main` = `821ab47` (this handoff commit, pushed) — `gh run
+list -L 1` shows `success` on it, 15m23s. Workspace version `0.42.0` (bump to `0.43.0` at
 the next release). Ledger: filings 456, Pass ceiling 257.0, decisions 138,
 rules R241. Batch rule (operator, 2026-09-05): build everything pending, then
 ONE release.

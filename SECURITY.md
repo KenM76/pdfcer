@@ -9,10 +9,12 @@ slips through anyway.
 
 ## Supported versions
 
-Not applicable yet — pdfcer is pre-1.0 with **no tagged release**. Only
-the current `main` is supported, and there is nothing older to support.
-This section gets a real version-support table once there is a first
-release.
+pdfcer is pre-1.0 and tags portable releases regularly (currently
+`v0.42.0`), but there is still no formal version-support table — only
+the **latest tagged release and current `main`** are supported. An
+older tag will not receive a backported fix; upgrade to the latest
+release instead. This section gets a real support table (e.g. "last N
+minor releases") once the project reaches 1.0.
 
 Note that `docs/FEATURES.md` is kept true at HEAD rather than at
 release time, so it may describe capabilities that no tag contains.
@@ -20,11 +22,15 @@ release time, so it may describe capabilities that no tag contains.
 ## Reporting a vulnerability
 
 **Do not open a public GitHub issue for a security vulnerability.**
-Until a dedicated security-contact channel exists (tracked as a
-pre-first-release TODO — GitHub's private vulnerability reporting
-feature, once this repository has a public GitHub presence, is the
-likely mechanism), report privately to the project maintainer through
-a GitHub security advisory on this repository (Security -> Report a vulnerability), or a private issue if that is unavailable.
+This repository (`github.com/KenM76/pdfcer`) is public, but **GitHub's
+private vulnerability reporting feature is not yet enabled on it** — so
+the "Security → Report a vulnerability" tab most public repos show is
+not available here yet. **Enabling it is a maintainer-side repository
+setting, not a documentation fix, and is an outstanding TODO** — until
+it is enabled, there is no private-by-default channel on GitHub itself
+for a report. In the meantime, contact the project maintainer through
+their GitHub profile (`github.com/KenM76`) rather than filing a public
+issue.
 
 When reporting, please include:
 

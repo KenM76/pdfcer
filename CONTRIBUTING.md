@@ -6,8 +6,12 @@ first.
 
 ## Project status
 
-Pre-1.0 and moving fast. The Cargo workspace is real — four crates,
-a desktop GUI and a 60-subcommand CLI. `docs/FEATURES.md` is the
+Pre-1.0 and moving fast. The Cargo workspace is real — five crates
+(`pdfcer-core`, `pdfcer-render`, `pdfcer-cli`, `pdfcer-print`,
+`pdfcer-fetch` — see `docs/DEPENDENCIES.md` §1) and a 139-subcommand CLI.
+The desktop GUI is a separate project, [`pdfcer-gui`](https://github.com/KenM76/pdfcer-gui),
+which depends on this workspace and is not part of it (the original
+in-repo GUI crate was removed `Pass 247.0`). `docs/FEATURES.md` is the
 current answer to what works, and it is kept true at HEAD rather than
 at release time, so it may describe capabilities newer than any tag.
 
@@ -54,7 +58,7 @@ comments:
 ## Code style
 
 `cargo fmt` and `cargo clippy -- -D warnings` clean, no exceptions —
-enforced by CI (`.github/workflows/ci.yml`) once the workspace exists.
+enforced by CI (`.github/workflows/ci.yml`) on every push and PR.
 Public API design follows the Rust API Guidelines — see
 `docs/ARCHITECTURE.md` §8 for specifics.
 

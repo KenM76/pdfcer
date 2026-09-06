@@ -9,7 +9,10 @@ crate in the graph with its licence text, because that is a legal
 obligation. It cannot tell you why anything is there. This file is the
 purpose-shaped view, written by hand.
 
-Measured at `644b564`, 2026-08-11. Figures come from `cargo metadata` and
+~~Measured at `644b564`, 2026-08-11.~~ ★ **Re-measured at `821ab47`,
+2026-09-06 — the old figures undercounted every crate (weeks of growth) and
+missed a whole fifth crate, `pdfcer-fetch`, added `Pass 77.0` (2026-08-13)
+and never folded in here.** Figures come from `cargo metadata` and
 `cargo tree`, not from memory — if you change the dependency set, re-run
 those and update this file, and regenerate `THIRD_PARTY_LICENSES.md`.
 
@@ -17,35 +20,43 @@ those and update this file, and regenerate `THIRD_PARTY_LICENSES.md`.
 
 ## 1. The crates pdfcer is
 
-Five crates, ~281,000 lines. The split is not organisational tidiness — the
-boundary between the first three and the last two is the project's
-load-bearing invariant.
+Five crates, ~329,700 lines. The split is not organisational tidiness — the
+boundary between the network-and-GUI-free three and the last two is the
+project's load-bearing invariant.
 
 | Crate | Lines | What it is |
 |---|---|---|
-| **`pdfcer-core`** | ~143,000 | The PDF engine. Object model, tokenizer, cross-reference parsing, incremental writer, filters, fonts, colour, encryption, forms, redaction, editing. Knows nothing about screens. |
-| **`pdfcer-render`** | ~20,000 | The headless rasterizer. Turns a page into pixels. Runs with no window and no GPU. |
-| **`pdfcer-print`** | ~5,100 | Printer discovery, device capabilities, page placement on a sheet, imposition (n-up, booklet, poster), and spooling. The only crate with platform-specific code. |
-| **`pdfcer-cli`** | ~18,000 | The command-line tool (binary `pdfcer`). Every batch operation, scriptable. |
+| **`pdfcer-core`** | ~228,000 | The PDF engine. Object model, tokenizer, cross-reference parsing, incremental writer, filters, fonts, colour, encryption, forms, redaction, editing. Knows nothing about screens or the network. |
+| **`pdfcer-render`** | ~54,000 | The headless rasterizer. Turns a page into pixels. Runs with no window and no GPU. |
+| **`pdfcer-cli`** | ~39,000 | The command-line tool (binary `pdfcer`). Every batch operation, scriptable. |
+| **`pdfcer-print`** | ~8,000 | Printer discovery, device capabilities, page placement on a sheet, imposition (n-up, booklet, poster), and spooling. Platform-specific (Windows) code, gated behind `cfg(windows)`. |
+| **`pdfcer-fetch`** | ~435 | Operator-initiated network downloads only — a pinned URL fetched over HTTPS and checked against a pinned SHA-256 before anything is written (OCR model weights today; add-ins are the anticipated future consumer, decision 061 §7 — not executable yet, R13). The **only** crate in the workspace allowed to carry a network client; `pdfcer-core` and `pdfcer-render` are permanently barred from one (R12/R13, `ARCHITECTURE.md` §1.1). Consumed today by `pdfcer-cli`'s `fetch-ocr-models` behind its own `download` feature (default ON); no GUI links it yet. |
 
 ### Why the split matters
 
-**`pdfcer-core`, `pdfcer-render` and `pdfcer-print` must never depend on a
-GUI or windowing crate.** Not "should not" — CI greps `cargo tree` on every
-push and fails the build if `egui`, `eframe`, `winit` or `wgpu` appears in
-their dependency trees.
+**`pdfcer-core` and `pdfcer-render` must never depend on a GUI or windowing
+crate, or on a network client.** Not "should not" — CI greps `cargo tree` on
+every push and fails the build if `egui`, `eframe`, `winit` or `wgpu`
+appears in their dependency trees, and the no-network half is its own
+fail-closed CI job (R12/R13). `pdfcer-print` and `pdfcer-fetch` are the two
+sibling crates that carry the one thing core/render may not: `pdfcer-print`
+carries the platform (Windows) surface, `pdfcer-fetch` carries the network
+surface — each pulled in only by a shell that opts into it, never by core or
+render themselves.
 
-Two things fall out of that. The engine is testable without a screen, which
-is why the whole suite — ~3,350 tests — runs in about a minute on a
-desktop, with no display and no printer needed for the vast majority of
-it. And a future web version is a
+Two things fall out of that. The engine is testable without a screen or a
+network connection, which is why the whole suite — thousands of tests —
+runs in about a minute on a desktop, with no display, no printer and no
+network needed for the vast majority of it. And a future web version is a
 *shell swap* — a WASM front end over the same crates — rather than a
 rewrite. (The desktop GUI is exactly such a shell: the separate
 `pdfcer-gui` project, which depends on this workspace and is not part of
 it. The original in-repo `pdfce-gui` crate was removed in Pass 247.0.)
 
-`pdfcer` is held to the same rule, which is why the CLI is a real
-first-class tool rather than a debug harness bolted onto the GUI.
+`pdfcer` is held to the same rule for its own manifest, which is why the CLI
+is a real first-class tool rather than a debug harness bolted onto the GUI —
+but `pdfcer-cli` itself is a shell, so it is one of the two places allowed
+to link `pdfcer-fetch` and `pdfcer-print`.
 
 ---
 
@@ -61,10 +72,14 @@ the signing stack (15 before it; the table below had been short five rows —
 and gains them now with the ten signing crates).** The "3 in the GUI" half
 of the struck sentence is not re-measured here — the GUI is a separate
 project since `Pass 247.0`. The
-GUI's manifest lists six, but three of those are pdfcer's own crates. The
-full resolved
-graph is 435 packages, but most of that is the GUI stack's own
-transitive tree — `pdfcer-core` pulls a deliberately small set.
+GUI's manifest lists six, but three of those are pdfcer's own crates.
+★ **Re-measured 2026-09-06: this workspace's own resolved graph
+(`cargo metadata`, all crates + dev-dependencies) is 215 packages** — the
+struck `435` figure dates from before `Pass 247.0` removed the in-repo GUI
+crate and was mostly that crate's own transitive tree, not this workspace's.
+`pdfcer-core` and `pdfcer-render` each pull a deliberately small set;
+`pdfcer-fetch`'s `download` feature is what brings the graph's one
+substantial transitive addition (`ureq` → `rustls` → `ring`, table below).
 
 ### `pdfcer-core` — the engine
 
@@ -148,6 +163,20 @@ could not see the dependency for six days after it landed — see
 |---|---|---|
 | `clap` | MIT OR Apache-2.0 | Argument parsing, subcommands, `--help` text, shell completions. |
 
+### `pdfcer-fetch` — operator-initiated network downloads (new since 2026-08-11, Pass 77.0)
+
+The one crate in the workspace permitted to carry a network client at all —
+see §1. Linked by `pdfcer-cli` behind its own `download` feature (default
+ON); stripping the feature turns every entry point into a named
+`FetchError::FeatureUnsupported` refusal rather than a silent no-op, and
+also drops the whole TLS stack's attribution from `THIRD_PARTY_LICENSES.md`.
+
+| Package | Licence | What it does for pdfcer |
+|---|---|---|
+| `thiserror` | MIT OR Apache-2.0 | As above. |
+| `sha2` | MIT OR Apache-2.0 | Verifies a downloaded artifact against its pinned SHA-256. Not gated behind `download` — a verifier that disappears with the fetcher would make the stripped build weaker than it needs to be; it can also check an operator-supplied file against the same manifest with no network at all. |
+| `ureq` | MIT OR Apache-2.0 | **Blocking HTTPS client** (`download` feature only). Chosen over `reqwest` because this crate makes one kind of request — GET a pinned URL to a file — and the caller (a CLI subcommand or a future GUI worker thread) has no async reactor to join, so an async runtime would be pure overhead. Pulls `rustls` (Apache-2.0 OR ISC OR MIT), `ring` (Apache-2.0 AND ISC — conjunctive, both apply), `rustls-webpki` (ISC), `untrusted` (ISC), and `webpki-roots` (CDLA-Permissive-2.0 — a *data* licence for Mozilla's root certificate store, not code; required an explicit `about.toml` acceptance, granted by the operator 2026-08-13). All permissive; zero copyleft added to the graph. |
+
 ### The desktop app — not here
 
 The GUI is the separate `pdfcer-gui` project and carries its own dependency
@@ -217,7 +246,7 @@ The COS object model, the tokenizer, cross-reference tables **and** streams,
 object streams, the incremental-update writer, page-tree walking, content
 stream interpretation, form fields, annotations, redaction, text extraction
 and editing, colour spaces and functions, font embedding, digital-signature
-inspection — all pdfcer's own code. This is the ~143,000 lines of
+inspection — all pdfcer's own code. This is the ~228,000 lines of
 `pdfcer-core`, and it is the project.
 
 ### Filters written in-crate

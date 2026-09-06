@@ -21,7 +21,7 @@ work today.
 It is a native desktop application — no web server, no browser runtime,
 no local network listener. It runs from a single folder, dependencies
 included, no installer. Alongside the GUI it ships **`pdfcer`**, a
-first-class scriptable command line with 108 subcommands, which is
+first-class scriptable command line with 139 subcommands, which is
 deliberately not a debug tool: Acrobat Pro has no real equivalent.
 
 ## Status: pre-1.0, under active development
