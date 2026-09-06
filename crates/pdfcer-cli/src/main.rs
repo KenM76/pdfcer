@@ -26157,7 +26157,7 @@ fn cmd_font_preflight(
             "bold: no real bold face of this run's family is a resource ON THIS PAGE. \
              --bold-synthetic is one route; the other is --set-font with a standard-14 \
              bold name (Helvetica-Bold, Times-Bold, Courier-Bold), which needs no \
-             embedding and is NOT surveyed by this check"
+             embedding — see its ACCEPT/REFUSE in the standard-14 block above"
         ),
     }
     match pre.real_italic() {
@@ -26169,7 +26169,7 @@ fn cmd_font_preflight(
             "italic: no real italic face of this run's family is a resource ON THIS PAGE. \
              --italic-synthetic is one route; the other is --set-font with a standard-14 \
              oblique name (Helvetica-Oblique, Times-Italic, Courier-Oblique), which needs \
-             no embedding and is NOT surveyed by this check"
+             no embedding — see its ACCEPT/REFUSE in the standard-14 block above"
         ),
     }
     exit::SUCCESS
