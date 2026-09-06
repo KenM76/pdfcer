@@ -223,7 +223,17 @@ fn exercise_producers(doc: &Document) {
     // cross-source name collision fires at once, which is what the
     // duplicate-field renaming exists for.
     let second = DocumentView::new(doc, doc.bytes(), doc.version());
-    if let Ok((bytes, _)) = pdfcer_core::pageops::merge(&[view, second], &[]) {
+    // The third argument is the sources' FILE NAMES, used to re-point
+    // bookmarks that open another of the merged files (`Pass 258.3`). Both
+    // names are given, and both are the SAME name, deliberately: merging a
+    // document with itself means every `/Launch` in it matches BOTH sources,
+    // which is the ambiguous case the re-pointer has to survive rather than
+    // the tidy one. `&[]` would skip the whole code path.
+    if let Ok((bytes, _)) = pdfcer_core::pageops::merge(
+        &[view, second],
+        &[],
+        &[b"fuzz.pdf".to_vec(), b"fuzz.pdf".to_vec()],
+    ) {
         Document::from_bytes(bytes).expect("merge produced an unloadable file");
     }
 }
