@@ -128,6 +128,13 @@ OUTCOME_STRUCTS: list[tuple[str, str]] = [
     ("crates/pdfcer-core/src/edit.rs", "ImportOutcome"),
     ("crates/pdfcer-core/src/edit.rs", "FlattenOutcome"),
     ("crates/pdfcer-core/src/edit.rs", "ImageAuthorOutcome"),
+    # `Pass 259.0`. Registered in the SAME commit that added the struct --
+    # the gate is opt-in by construction (see the module docs), so a new
+    # report type is invisible to it until named here, and "clean" would
+    # have meant "clean about the structs I was told about". The field that
+    # most needs the coverage is `popup_written`: a shell that ignored it
+    # would tell an operator a window opened when there was no window.
+    ("crates/pdfcer-core/src/edit.rs", "AnnotationOpenChange"),
     # `Pass 119.0`. Not in `edit.rs`, and that is the point: the gate's list was
     # written from ONE file, so every report type living in a submodule was
     # outside it while the summary line read "clean". `EditReport` gained three

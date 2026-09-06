@@ -515,6 +515,15 @@ pub enum CommandKind {
     /// already records: undoing an add removes the annotation; undoing a note
     /// change restores the previous words on an annotation that stays.
     SetMarkupNote,
+    /// [`EditSession::set_annotation_open`] wrote `/Open` on an annotation
+    /// and/or its `/Popup` companion.
+    ///
+    /// Its own variant rather than folded into [`Self::SetMarkupNote`]
+    /// because the two undo to different things: undoing a note change
+    /// restores words, undoing this restores a window state, and a shell
+    /// that labels its undo stack would otherwise tell the operator the
+    /// wrong one.
+    SetAnnotationOpen,
     /// [`EditSession::rotate_annotation`] turned an annotation about a point:
     /// its geometry keys, its appearance `/Matrix`, and the `/Rect` that
     /// bounds the result.
@@ -15619,6 +15628,54 @@ pub struct AnnotationRotate {
     pub rect_differences_untouched: bool,
 }
 
+/// What [`EditSession::set_annotation_open`] did.
+///
+/// Two booleans rather than one, because `/Open` lives on up to two objects
+/// and a caller has to be able to tell which were reached — see the verb for
+/// why the state is a property of the PAIR.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct AnnotationOpenChange {
+    /// The annotation addressed.
+    pub annot_id: ObjId,
+    /// Its `/Subtype`, for a message.
+    pub subtype: String,
+    /// The state requested.
+    pub open: bool,
+    /// What the ANNOTATION's own `/Open` said before the call.
+    ///
+    /// `None` for "the key was absent" as well as for "it held something
+    /// that was not a boolean" — the same posture
+    /// [`crate::annot::Annotation::open`] takes, and for the same reason:
+    /// Table 172's default is `false`, and reporting a definite prior
+    /// `false` for a key the file never carried would be an invention.
+    ///
+    /// It does not report the `/Popup`'s prior value. Where the two
+    /// disagreed, the pair was already inconsistent, and this verb's job is
+    /// to end that rather than to narrate it.
+    pub was: Option<bool>,
+    /// Whether `/Open` was written on the annotation itself.
+    ///
+    /// `false` for every subtype but `/Text` and `/Popup`: Table 169 gives
+    /// no other annotation the key, and adding it would be noise a later
+    /// reader could mistake for meaning. A `/Square`'s window state lives on
+    /// its companion — see [`Self::popup_written`].
+    pub annotation_written: bool,
+    /// Whether `/Open` was written on the `/Popup` companion.
+    ///
+    /// `false` when the annotation has none. **That is not a failure**: an
+    /// annotation without a pop-up has no window to open, and this verb
+    /// deliberately does not manufacture one, because choosing its `/Rect`
+    /// would be authoring rather than a state change.
+    ///
+    /// ★ When BOTH are `false` the call was a no-op and **no undo entry was
+    /// pushed** — the state was not refused, there was simply nowhere to put
+    /// it. A shell offering this over a mixed selection can send everything
+    /// and read this pair, rather than filtering by subtype and keeping its
+    /// own copy of which shapes have windows.
+    pub popup_written: bool,
+}
+
 /// What a [`set_markup_note`](EditSession::set_markup_note) or
 /// [`clear_markup_note`](EditSession::clear_markup_note) call did
 /// (`Pass 154.0`).
@@ -26161,6 +26218,151 @@ impl EditSession {
     /// The same set as [`Self::set_markup_note`], minus the date check.
     pub fn clear_markup_note(&mut self, annot_id: ObjId) -> Result<MarkupNoteChange, EditError> {
         self.write_markup_note(annot_id, None)
+    }
+
+    /// Open or close an annotation's pop-up window — `/Open` on the
+    /// annotation **and on its `/Popup` companion**, as one undo entry.
+    ///
+    /// # ★ pdfcer wrote this key from `Pass 6.2` and could read neither copy
+    ///
+    /// `annot_author::sticky_note` sets `/Open` on the note and again on the
+    /// pop-up it creates. Nothing read either back, so a round trip through
+    /// pdfcer's own model lost the state, and `pdfcer-gui` — building a
+    /// canvas note pop-up because the operator reported he *"could add a
+    /// yellow sticky note but ... couldn't figure out how to read it"* —
+    /// resorted to parsing the dictionary through `ObjectGraph::value`.
+    /// They reported that workaround rather than keeping it (decision 058).
+    /// [`crate::annot::Annotation::open`] is the read half; this is the write.
+    ///
+    /// # Why BOTH objects, and why that is not redundancy
+    ///
+    /// Table 170 gives geometric markup **no `/Open` of its own**: a
+    /// `/Square`'s window state exists only on its companion. A `/Text` has
+    /// one on itself, and `sticky_note` writes both. So "the state" is a
+    /// property of the PAIR, and a verb that set one of them would leave
+    /// the two disagreeing on exactly the subtype the operator uses most.
+    /// Both are written when both exist; whichever exists is written when
+    /// only one does; and [`AnnotationOpenChange`] reports which.
+    ///
+    /// # What it does NOT do
+    ///
+    /// It does not create a `/Popup`. An annotation without one has no
+    /// window to open, and manufacturing the companion — with a `/Rect` the
+    /// caller did not choose — is authoring, not a state change. Such a
+    /// call succeeds, writes the annotation's own `/Open` if the subtype
+    /// takes one, and says `popup_written: false`.
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::NotADictionary`] — `annot_id` is not an annotation.
+    /// - [`EditError::AnnotationNotFound`] — no such annotation on any page.
+    /// - [`EditError::DocumentEncrypted`] and the certification gate, as for
+    ///   [`Self::set_markup_note`].
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use pdfcer_core::{document::Document, edit::EditSession, object::ObjId};
+    /// # fn f(session: &mut EditSession, note: ObjId) -> Result<(), Box<dyn std::error::Error>> {
+    /// let change = session.set_annotation_open(note, true)?;
+    /// assert!(change.annotation_written || change.popup_written);
+    /// # Ok(()) }
+    /// ```
+    pub fn set_annotation_open(
+        &mut self,
+        annot_id: ObjId,
+        open: bool,
+    ) -> Result<AnnotationOpenChange, EditError> {
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+        self.check_certification_for_annotation()?;
+
+        let (target, _all) = self.locate_annotation(annot_id)?;
+        let subtype = target.subtype_label();
+
+        let Some(Object::Dict(current)) = self.value(annot_id) else {
+            return Err(EditError::NotADictionary {
+                id: annot_id,
+                key: "Open",
+            });
+        };
+        let mut updated = current.clone();
+
+        // Which objects carry an `/Open` worth writing? The annotation
+        // itself only when its subtype HAS one -- Table 172 gives it to
+        // `/Text` and Table 183 to `/Popup`, and nothing else in Table 169
+        // has the key. Writing it onto a `/Square` would add a key the
+        // standard does not define there, which is noise a later reader
+        // could mistake for meaning.
+        let takes_own_open = matches!(target.subtype.as_slice(), b"Text" | b"Popup");
+        let popup_id = updated.get(b"Popup").and_then(Object::as_reference);
+
+        let mut objects = Vec::new();
+        let was = {
+            let graph = self.graph();
+            match updated.get(b"Open").map(|o| graph.resolve(o)) {
+                Some(Object::Boolean(v)) => Some(*v),
+                _ => None,
+            }
+        };
+
+        if takes_own_open {
+            updated.insert(Name::from(b"Open"), Object::Boolean(open));
+            objects.push(ObjectWrite {
+                id: annot_id,
+                before: self.state.get(&annot_id).cloned(),
+                after: Some(Object::Dict(updated)),
+            });
+        }
+
+        let mut popup_written = false;
+        if let Some(pid) = popup_id
+            && let Some(Object::Dict(popup)) = self.value(pid)
+        {
+            let mut popup = popup.clone();
+            popup.insert(Name::from(b"Open"), Object::Boolean(open));
+            objects.push(ObjectWrite {
+                id: pid,
+                before: self.state.get(&pid).cloned(),
+                after: Some(Object::Dict(popup)),
+            });
+            popup_written = true;
+        }
+
+        let annotation_written = takes_own_open;
+        if objects.is_empty() {
+            // Nothing carries the key and nothing was invented. Reported as
+            // a no-op rather than refused: asking a shape with no window to
+            // open is a reasonable thing for a shell to do over a mixed
+            // selection, and a refusal there would make the caller filter by
+            // subtype -- which is the copy of this crate's knowledge that
+            // `MarkupStyleSupport` exists to prevent.
+            return Ok(AnnotationOpenChange {
+                annot_id,
+                subtype,
+                open,
+                was,
+                annotation_written: false,
+                popup_written: false,
+            });
+        }
+
+        self.commit(Command {
+            kind: CommandKind::SetAnnotationOpen,
+            objects,
+            removals: Vec::new(),
+            trailer: None,
+        });
+
+        Ok(AnnotationOpenChange {
+            annot_id,
+            subtype,
+            open,
+            was,
+            annotation_written,
+            popup_written,
+        })
     }
 
     /// The shared implementation of [`Self::set_markup_note`] and

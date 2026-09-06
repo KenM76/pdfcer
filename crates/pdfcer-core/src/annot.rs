@@ -512,6 +512,49 @@ pub struct Annotation {
     /// with [`Self::effective_reply_type`] rather than being unable to
     /// tell "the file said `R`" from "the file said nothing".
     pub reply_type: Option<ReplyType>,
+    /// `/Open` — whether this annotation's window is **initially displayed
+    /// open** (§12.5.6.4 Table 172 on a `/Text`, §12.5.6.14 Table 183 on a
+    /// `/Popup`).
+    ///
+    /// # ★ pdfcer WROTE this key and could not read it back
+    ///
+    /// `annot_author::sticky_note` has set `/Open` on both the note and its
+    /// `/Popup` companion since `Pass 6.2`, and nothing in the crate ever
+    /// read either one — a round trip through pdfcer's own model lost it.
+    /// `pdfcer-gui` found it the way boundary defects are usually found: it
+    /// needed the value, could not get it, and **parsed the dictionary
+    /// behind the read model's back**, reporting the workaround under
+    /// decision 058 rather than keeping it. Their words: *"the day
+    /// `Annotation` grows the field, two places will answer the same
+    /// question and one of them will be ours."* This is the field.
+    ///
+    /// # `Option<bool>`, for [`Self::reply_type`]'s reason
+    ///
+    /// Table 172's default is `false`, but **absent and explicitly-`false`
+    /// are different facts about the document** and this struct reports
+    /// facts. A consumer that wants the default applies it. The distinction
+    /// is load-bearing for exactly the case that prompted the request:
+    /// Table 170 gives geometric markup **no `/Open` of its own**, so a
+    /// `/Square`'s window state lives only on its `/Popup`, and a reader
+    /// that could not tell *"said closed"* from *"said nothing"* would
+    /// silently shut every note some other producer authored open.
+    ///
+    /// # Where to look for a shape's state
+    ///
+    /// On the annotation itself for a `/Text`; on the companion for
+    /// everything else. [`page_annotations`] returns the `/Popup` objects
+    /// too, each with its own `open`, so pairing is a lookup of
+    /// [`Self::popup`] rather than a second dictionary read.
+    ///
+    /// # ★ It is a GROUP ATTRIBUTE, which a consumer must not miss
+    ///
+    /// §12.5.6.2: in an `/IRT` + `/RT /Group` annotation group, `/Open` is
+    /// one of the entries that *"shall apply to the group as a whole"*, and
+    /// **a subordinate's own value shall be IGNORED** in favour of the
+    /// group primary's. This field reports what each annotation's own
+    /// dictionary says; resolving the group is the consumer's step, and
+    /// [`Self::in_reply_to`] plus [`Self::reply_type`] are what it needs.
+    pub open: Option<bool>,
     /// `/A` — the **action performed when this annotation is activated**
     /// (§12.5.2 Table 164), as its `/S` type name. `None` when the
     /// annotation carries no `/A`.
@@ -1083,6 +1126,15 @@ fn model_annotation<G: ObjectGraph + ?Sized>(
             other => ReplyType::Other(other.to_vec()),
         });
 
+    // `/Open` (Table 172 / Table 183). A non-boolean value reads as absent
+    // rather than as `false`: the key is malformed, and reporting a
+    // definite "the file said closed" from bytes that said no such thing
+    // would be an invention — the same posture `/RT` takes one block up.
+    let open = match dict.get(b"Open").map(|o| graph.resolve(o)) {
+        Some(Object::Boolean(v)) => Some(*v),
+        _ => None,
+    };
+
     // `/A`'s `/S` type name (§12.5.2 Table 164). Resolved through the graph
     // because an action dictionary is routinely indirect, and taken as the
     // NAME only — see the field's documentation for why the parameters stay
@@ -1118,6 +1170,7 @@ fn model_annotation<G: ObjectGraph + ?Sized>(
         popup,
         in_reply_to,
         reply_type,
+        open,
         action_type,
         action_chains,
     }

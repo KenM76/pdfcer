@@ -4805,6 +4805,46 @@ enum Command {
         #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
         mode: SaveMode,
     },
+    /// **Open or close an annotation's pop-up window** — `/Open`
+    /// (ISO 32000-1 §12.5.6.4 Table 172, §12.5.6.14 Table 183).
+    ///
+    /// WRITES BOTH THE ANNOTATION AND ITS `/Popup` COMPANION, as one undo
+    /// entry. Table 170 gives geometric markup no `/Open` of its own, so a
+    /// square's window state lives only on the companion, and a verb that
+    /// wrote one of the two would leave them disagreeing.
+    ///
+    /// pdfcer has WRITTEN this key since `Pass 6.2` and could not read it
+    /// back until `Pass 259.0`; `list-annotations` now prints it as
+    /// `open=1|0|none`, where `none` means the file carries no such key —
+    /// a different fact from `0`, and the reason the reported value has
+    /// three states.
+    ///
+    /// IT DOES NOT CREATE A `/Popup`. An annotation without one has no
+    /// window to open, and choosing that companion's rectangle would be
+    /// authoring rather than a state change. Such a call is a reported
+    /// no-op, not a refusal, so a script can pass a whole page's
+    /// annotations without first filtering by subtype.
+    SetAnnotationOpen {
+        /// Input PDF.
+        input: PathBuf,
+        /// Page, 1-BASED — the `page=` value `list-annotations` prints.
+        #[arg(long)]
+        page: usize,
+        /// Index within that page's `/Annots`, 0-BASED — the `index=`
+        /// value `list-annotations` prints.
+        #[arg(long)]
+        index: usize,
+        /// Open the window. Pass `--open false` to close it.
+        #[arg(long, action = clap::ArgAction::Set)]
+        open: bool,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
+
     /// Restyle an EXISTING markup annotation in place (ISO 32000-1
     /// §12.5.6), keeping its object identity.
     ///
@@ -9904,6 +9944,14 @@ fn run() -> ExitCode {
             &output,
             mode,
         ),
+        Command::SetAnnotationOpen {
+            input,
+            page,
+            index,
+            open,
+            output,
+            mode,
+        } => cmd_set_annotation_open(&input, page, index, open, &output, mode),
         Command::SetMarkupStyle {
             input,
             page,
@@ -15023,7 +15071,7 @@ fn cmd_list_annotations(input: &Path, pages_spec: &str) -> u8 {
             );
             println!(
                 "annot page={} index={array_index} subtype={subtype} rect={rect} \
-flags=0x{:X} widget={} disposition={disposition} ap={ap_shape} action={} author={} note={} modified={} vertices={vertices} line={line} ink={ink}",
+flags=0x{:X} widget={} disposition={disposition} ap={ap_shape} action={} author={} note={} modified={} open={} vertices={vertices} line={line} ink={ink}",
                 page_index + 1,
                 annot.flags.0,
                 usize::from(annot.is_widget()),
@@ -15050,6 +15098,17 @@ flags=0x{:X} widget={} disposition={disposition} ap={ap_shape} action={} author=
                 opt_token(annot.title.as_ref()),
                 opt_token(annot.contents.as_ref()),
                 opt_token(annot.mod_date.as_ref()),
+                // `/Open` (Pass 259.0). THREE values, not two: `none` means
+                // the file carried no such key, which is a different fact
+                // from `0` and the reason the model uses `Option<bool>` --
+                // a geometric markup has no `/Open` of its own and keeps
+                // its window state on its `/Popup` companion, listed here
+                // as its own row.
+                match annot.open {
+                    Some(true) => "1",
+                    Some(false) => "0",
+                    None => "none",
+                },
             );
         }
     }
@@ -30768,6 +30827,117 @@ fn cmd_set_markup_note(
             "unchanged (this subtype does not paint its /Contents)"
         }
     );
+    finish_edit(input, &saved)
+}
+
+/// Implement `pdfcer set-annotation-open`.
+///
+/// Addressed by `--page` + `--index`, the exact pair `list-annotations`
+/// prints, so the two commands compose — the same convention every other
+/// annotation verb uses rather than a second one invented here.
+fn cmd_set_annotation_open(
+    input: &Path,
+    page: usize,
+    index: usize,
+    open: bool,
+    output: &Path,
+    mode: SaveMode,
+) -> u8 {
+    if page == 0 {
+        eprintln!("pdfcer: --page is 1-based; 0 is not a page");
+        return exit::EDIT_REFUSED;
+    }
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+
+    let annot_id = {
+        let slots = match session.page_slots() {
+            Ok(slots) => slots,
+            Err(err) => {
+                eprintln!("pdfcer: {}: {err}", input.display());
+                return exit::RUNTIME_ERROR;
+            }
+        };
+        let Some(slot) = slots.get(page - 1) else {
+            eprintln!(
+                "pdfcer: {}: --page {page} is out of range (the document has {} page(s))",
+                input.display(),
+                slots.len()
+            );
+            return exit::EDIT_REFUSED;
+        };
+        let annots = pdfcer_core::annot::page_annotations(&session.graph(), slot.id);
+        let Some(annot) = annots.get(index) else {
+            eprintln!(
+                "pdfcer: {}: --index {index} is out of range (page {page} has {} annotation(s))",
+                input.display(),
+                annots.len()
+            );
+            return exit::EDIT_REFUSED;
+        };
+        match annot.id {
+            Some(id) => id,
+            None => {
+                eprintln!(
+                    "pdfcer: {}: that annotation is a direct object and has no identity to address",
+                    input.display()
+                );
+                return exit::EDIT_REFUSED;
+            }
+        }
+    };
+
+    let change = match session.set_annotation_open(annot_id, open) {
+        Ok(change) => change,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit::EDIT_REFUSED;
+        }
+    };
+
+    let saved = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        false,
+    ) {
+        Ok(saved) => saved,
+        Err(code) => return code,
+    };
+
+    println!(
+        "set-annotation-open {} page {page} index {index} -> {}",
+        input.display(),
+        output.display()
+    );
+    // Rule 11: the CLI PRINTS what the GUI discloses off-canvas. WHICH of
+    // the two objects moved is the whole answer here, and `was=` is the
+    // three-state prior value -- `none` for a key the file never carried.
+    println!(
+        "  obj={} subtype={} open={} was={} annotation_written={} popup_written={}",
+        change.annot_id.num,
+        change.subtype,
+        u32::from(change.open),
+        match change.was {
+            Some(true) => "1".to_owned(),
+            Some(false) => "0".to_owned(),
+            None => "none".to_owned(),
+        },
+        u32::from(change.annotation_written),
+        u32::from(change.popup_written),
+    );
+    if !change.annotation_written && !change.popup_written {
+        println!(
+            "  nothing was written: a /{} carries no /Open of its own and this one has no \
+/Popup companion, so it has no window to open. Not a refusal -- there was nowhere to put the \
+state, and no undo entry was pushed.",
+            change.subtype
+        );
+    }
     finish_edit(input, &saved)
 }
 
