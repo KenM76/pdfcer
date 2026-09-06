@@ -114,7 +114,17 @@ fn der_outer_len(der: &[u8]) -> (usize, usize) {
 }
 
 fn openssl_verifies(cms_der: &[u8], content: &[u8], cert_der: &[u8]) -> Result<(), String> {
-    let dir = std::env::temp_dir().join(format!("pdfcer-sign-oracle-{}", std::process::id()));
+    // One directory PER CALL: the tests in this file run in parallel threads
+    // of one process, so a pid-keyed directory made two of them overwrite
+    // each other's `sig.der`/`content.bin` mid-verify — an intermittent
+    // "verification failure" that was the harness, not the signature.
+    static CALL: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = CALL.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!(
+        "pdfcer-sign-oracle-{}-{n}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
     std::fs::create_dir_all(&dir).unwrap();
     let sig = dir.join("sig.der");
     let data = dir.join("content.bin");
