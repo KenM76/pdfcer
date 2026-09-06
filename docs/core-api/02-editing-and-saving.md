@@ -3309,8 +3309,14 @@ operator has to get the order of right.
 > incremental writer cannot append to an encrypted base yet — broader than
 > Acrobat's permission-bit gate, and says so), `RecoveredBase`,
 > `RedactionPending`, `CertificationForbids { permission: 1 }`,
-> `FieldNameTaken`, `PageOutOfRange`, `ReservationTooSmall { needed, reserved }`
-> (default reserve 12 288 bytes; never grown after layout), `SelfVerificationFailed`.
+> `PageOutOfRange`, `ReservationTooSmall { needed, reserved }`
+> (default reserve 12 288 bytes; never grown after layout), `SelfVerificationFailed`;
+> since `Pass 10.14` `AppearanceOverflow`; since `Pass 10.12` `AlreadyCertified`,
+> `CertificationNotFirst`; since `Pass 10.13` (an existing `field_name`)
+> `FieldAlreadySigned`, `FieldNotSignature`, `FieldHasKids`,
+> `RectRefusedForExistingField`, `SeedValueViolated`, `SeedValueUnevaluable` —
+> `FieldNameTaken` is now only the internal fallback (name listed, field
+> unresolvable).
 >
 > A visible signature (`SignRequest::visible = Some((page, rect))`) gets a
 > widget whose appearance is a thin frame plus composed text — signer CN,
