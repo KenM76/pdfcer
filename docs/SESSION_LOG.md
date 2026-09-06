@@ -94645,3 +94645,180 @@ OneDrive slots; `--version` on the folder exe and both slot exes;
 - Operator: `pdfcer1` on OneDrive is 0.41.0 — try `pdfcer edit-text` on the
   file whose typo sat across five operators, and `pdfcer font-preflight
   --candidate` before typing a character a subset may not hold.
+
+## 2026-09-06 (450th filing) — `Pass 10.14` SHIPPED (`187fa09`, unreleased, post-`v0.41.0`): signing hardening — the two verifiers (pdfcer, OpenSSL 1.1.1) PROVEN to discriminate through a doc-hidden `cms_build::build_with(.., Sabotage)`; criterion 1(b) AMENDED BY MEASUREMENT (an unsorted `SET OF` signed consistently is ACCEPTED by both — hashed as received; the rejecting case is attributes REORDERED AFTER SIGNING, added as a fourth sabotage); a no-`localKeyId` `.pfx` pairs by public key; foreign signatures BOTH ways with pyHanko; `content-identity` 7 / 7 / 7 / 0 for `sign`; a COMPOSED visible appearance (signer CN, date, reason, location; Helvetica shrink-to-fit 10 → 4 pt; overflow refused by name before staging; lines disclosed and printed); ECDSA P-384 end to end. Criterion 5's Acrobat Reader clause NOT MEASURED. `9a3dd53` (content-identity lock re-lock, no code) named. THREE rule-11 survivors owed (`edit.rs:41366–41369`, `main.rs:1848–1851`, `core-api/02:3315–3317`) plus one spec-RAG line owed to the spec-librarian. One tier-5 RAG lesson WRITTEN. No decision.
+
+**Shipped:**
+- **`Pass 10.14`** — `187fa09` *"feat(core,cli): signing hardening — CMS
+  sabotage tests, no-localKeyId pairing, foreign signatures, composed
+  appearance, P-384 (Pass 10.14)"*, 15 files, `+1141/−19` (`git show
+  --stat`), author stamp `2026-09-06 03:58:22 -0400`. Minted at the 439th
+  from the 438th's list of deviations; everything on that list is here, in
+  one commit, no verb changed. `tests/sign_hardening.rs` (11 tests — RUN
+  HERE, 11 passed, 0.67 s); `sign/apply.rs` `+337` (`appearance_lines`,
+  `layout_appearance`, `appearance_content`, `APPEARANCE_MIN_SIZE` 4 /
+  `APPEARANCE_MAX_SIZE` 10, `SignApplyError::AppearanceOverflow { lines,
+  width, height, min_size }`); `sign/cms_build.rs` `+98` (`Sabotage::{None,
+  DigestUnderContextTag, UnsortedAttributes, ReorderedAfterSigning,
+  WrongMessageDigest}`, `build_with`, both `#[doc(hidden)]`); `edit.rs`
+  `+49`; `pdfcer-cli/src/main.rs` `+18` (the `appearance: "…" | "…"` line,
+  the `--visible` flag help). Fixtures: `rsa2048-nolocalkeyid.pfx` (2,613 B),
+  `ecp384-modern.pfx` (1,419 B) / `ecp384.cer` / `ecp384.key.der`,
+  `foreign-pyhanko-first.pdf` (7,144 B), `pdfcer-then-pyhanko.pdf`
+  (32,599 B) — `PROVENANCE.md` `+16`. Generators: `gen-signing-fixtures.py`
+  `+113` (adds shapes from the existing rsa2048 material by default;
+  `--regen` re-mints), new `gen-foreign-signature-fixtures.py` (84 lines,
+  pyHanko generator-side only). Contract doc: `docs/core-api/02` `sign` row
+  gained a `Pass 10.14` sentence; verb count 204 unchanged (run here).
+- **`9a3dd53`** — `tools/content-identity/Cargo.lock` `+452/−1`: the path
+  dependency followed the `0.41.0` workspace bump (`46601b0`); the lock had
+  not. No code; named for `check-commits-filed`.
+
+**`Pass 10.14` criteria walked (the 439th's six):** **1 MET, 1(b) AMENDED
+BY MEASUREMENT** — (a) `0xA0`-tag digest → both reject; (c) wrong
+`message-digest` → both reject; (b) predicted *"out of X.690 §11.6 order →
+both reject"*, MEASURED: an unsorted set whose signature covers exactly
+those bytes is ACCEPTED by pdfcer AND OpenSSL 1.1.1 (neither re-encodes
+canonically; both hash as received under `0x31`). pdfcer keeps the oracle's
+rule on purpose — a stricter verifier would refuse what other readers
+accept, and would PASS the tamper that matters: attributes REORDERED AFTER
+SIGNING, which as-received rejects (both verifiers, `(false, false)`). Four
+sabotages plus a `Sabotage::None` control that proves the splice is
+accepted. **2 MET** — the OID proven ABSENT, MAC verified, paired leaf `==`
+`rsa2048.cer`. **3 MET, both directions MEASURED** (pyHanko available) —
+pdfcer over pyHanko: both verify, foreign `/ByteRange` intact, OpenSSL
+verifies pdfcer's; pyHanko over pdfcer: both verify. **4 MET (relayed):**
+7 files / 7 content streams / 7 byte-identical / 0 corrupted; plus
+`out[..base.len()] == base` on every signing test. **5 MET on the pdfcer
+half** — frame + four lines, `render-page` inspected (relayed); overflow
+refused before staging; **Acrobat Reader NOT driven — NOT MEASURED, not
+passed.** **6 MET** — the P-384 store was added; `EcdsaP384Sha384` end to
+end through both verifiers.
+
+**`docs/FEATURES.md`.** The `Pass 10.14` *Planned* row REMOVED; one
+*Implemented* row ADDED under *Redaction & security* beneath the `10.9`
+sign row, `[x] [x] [ ] ◐` — `gui [ ]` rather than the entry's predicted `—`
+(the composed appearance and its overflow remedy are what `pdfcer-gui`
+wires when it wires `sign`; the channel notice says so). The `10.9` sign
+row's *"`--visible` draws a thin FRAME only, no text"* clause REPLACED.
+
+**ROADMAP edits.** 450th head + the `Pass 10.14` *Shipped* entry at the top
+of *Shipped*; the *Backlog* entry's header and status line struck and
+annotated (`SHIPPED 187fa09 (450th filing)`), a dated walk-through block
+inserted after criterion 6 (1(b) amended; 5's Reader clause NOT MEASURED;
+`gui [ ]`). Ledger: filings `449` → `450`; nothing else moves.
+
+**Channel (by `ls -lt`).** Posted by the engineer:
+`open/notice_2026-09-06-sign-report-appearance-lines.md` (1,046 B, 03:45) —
+`SignReport.appearance_lines`, `SignApplyError::AppearanceOverflow`, the
+composed appearance, the doc-hidden hook, the no-`localKeyId` test; nothing
+owed back. Newest inbound is still the 01:04 CONSUMED note from the 447th's
+thread — nothing new to read.
+
+**Decisions made this session:** none. Decision ceiling `138`.
+
+**Findings + decisions:**
+- **CMS `signedAttrs` are verified AS RECEIVED, not re-sorted** (measured
+  2026-09-06, pdfcer + OpenSSL 1.1.1s): an out-of-DER-order `SET OF` whose
+  signature covers those exact bytes verifies under both; a canonicalising
+  verifier would reject it AND would accept a post-signing reorder that
+  as-received rejects. Builder: DER-sort before signing, never reorder
+  after. Verifier: hash the received content octets under `0x31`. Written:
+  `C:\personal_rag\pdf\lesson_20260906_cms_signed_attributes_are_verified_as_received_not_resorted.md`
+  (quirk / HIGH); subject and master indexes updated.
+- **A spec-RAG line is contradicted by the measurement** —
+  `D:\Dev\Rag-Specialized\PDF_Spec\security\security__cms_signeddata_build.md:137–139`
+  says an unsorted set *"produces a signature no verifier accepts"*. The
+  builder advice stands; the verifier claim is false for the two verifiers
+  measured. NOT amended by this role (hard rule 6) — owed to a
+  `pdfcer-spec-librarian` dispatch.
+- **The 20260903 signature-verification lesson said "P-384 has no
+  end-to-end fixture"** — true then, false since `187fa09`; dated footer
+  added to the lesson and the index parenthetical amended (this role's
+  tier).
+- **Hard-rule-11 sweep, the claim "a visible signature is a thin frame only
+  / a composed appearance is a later increment"**, over the sign modules,
+  `edit.rs`, `main.rs`, `docs/core-api`, `FEATURES.md`, `ARCHITECTURE.md`,
+  `README.md`, `NEXT_SESSION.md`, `PROVENANCE.md`. THREE survivors, OWED to
+  the engineer: `crates/pdfcer-core/src/edit.rs:41366–41369` (the `sign`
+  verb rustdoc); `crates/pdfcer-cli/src/main.rs:1848–1851` (the `sign`
+  COMMAND help paragraph — `187fa09` fixed the `--visible` FLAG help and
+  missed this one; user-facing via `--help`);
+  `docs/core-api/02-editing-and-saving.md:3315–3317` (§1 prose; the verb
+  row was fixed). Correct, do not "fix": `sign/apply.rs:95`, `:596`,
+  `edit.rs:41536`, the `P-384` plumbing in `sign/mod.rs` / `pkcs12.rs`, the
+  `10.7` FEATURES row.
+- **`run-gates.sh` exceeded the 10-minute foreground limit twice today**;
+  the engineer ran the cargo gates individually. A note for whoever runs
+  the sweep next, not a rule: the derived list is still the contract, only
+  the wall-clock is the problem.
+- **The public-fns gate earned its keep**: an insert-before-anchor splice
+  orphaned a doc block; the gate caught it before commit.
+- **`tools/check-passes-filed.py` CRASHES locally on the first commit SUBJECT
+  carrying a byte cp1252 cannot decode** — found by this filing's own first
+  commit, whose subject held `◐` (`E2 97 90`; `0x90` is undefined in cp1252).
+  Its `git()` helper (`:96–105`) runs `subprocess.run(..., text=True)` with no
+  `encoding=`, so Windows decodes git's UTF-8 through the locale codec
+  (`locale.getpreferredencoding()` = `cp1252` here); the `except` swallows the
+  `UnicodeDecodeError`, returns `None`, and the gate dies with
+  `'NoneType' object has no attribute 'splitlines'` — NOT a clean/red verdict.
+  Every earlier subject in 826 commits happened to be cp1252-decodable
+  (`—`, `→` are in cp1252; `◐`, `★` are not), so the gate never crashed
+  before; CI on Linux would not see it. `check-commits-filed.py:232–235` has
+  the same `text=True` shape and survives only because it reads hashes, not
+  subjects. Fix (engineer, `tools/`): `encoding="utf-8", errors="replace"`
+  on both `subprocess.run` calls. This filing's commit was AMENDED to a
+  cp1252-safe subject so the gate could run (unpushed; not a history
+  rewrite). Written: `D:/dev/rag/rust/a_gate_that_decodes_git_through_the_locale_codec_crashes_on_the_first_non_cp1252_subject.md`.
+
+**Sourcing (hard rule 8).** Measured here: `git show -s --format=%B` on
+`187fa09` and `9a3dd53`; `git show --stat --format=` on both (15 files
+`+1141/−19`; 1 file `+452/−1`; fixture sizes); `git log --format='%h %ad'
+--date=iso -3`; `git status --short` (CLEAN at the start of this filing; at GATE TIME four
+`crates/` files modified — `pdfcer-cli/src/main.rs`, `fontdata/mod.rs`,
+`text_edit/format.rs`, `text_edit/mod.rs`, `+494/−4` — the engineer's
+in-flight work, NOT staged here);
+`git remote -v`; **`origin/main` = `f9bc7c8`; `git rev-list --count
+origin/main..HEAD` = 2 before this filing; `git rev-list --count
+v0.41.0..HEAD` = 4 before this filing** (`3cffa15`, `f9bc7c8`, `187fa09`,
+`9a3dd53`); **`cargo test -p pdfcer-core --test sign_hardening`: 11 passed,
+0 failed, 0.67 s; `openssl version` = `OpenSSL 1.1.1s 1 Nov 2022`**; the 11
+test names by `grep -n '^fn '`; `python tools/check-core-api-verbs.py` (204,
+PASS); enum variants, error fields, size constants and the three survivors
+by `grep -n` / `sed -n` on the working tree at `9a3dd53`; the channel by
+`ls -lt`, the notice read in full; **backup: `ls -t D:\Dev\pdfce-backups`
+newest = `pdfcer-2026-09-03-1a31d2d-full.bundle` (55,835,131 B, Sep 3
+19:55), `1a31d2d` an ancestor of `HEAD`, `git rev-list --count 1a31d2d..HEAD`
+= 99 before this filing.** Relayed: `content-identity` 7 / 7 / 7 / 0, the
+`render-page` inspection, `run-gates.sh` 29/29, the public-fns catch.
+
+**Gates (this role, on the filing tree): in the filing commit's message.**
+
+**Still in flight:**
+- *Next up*: `Pass 179.0` only (automatic bold ladder, decision `106`, NOT
+  STARTED since the 340th filing).
+- Unpushed after this filing: three commits (`187fa09`, `9a3dd53`, this
+  filing) against `origin/main` = `f9bc7c8`. Push is standing-authorized
+  (decision 090).
+- Unreleased since `v0.41.0`: `Pass 10.14` and this filing — `0.42.0`
+  material at the next batch release (decision 121; gates first).
+- Owed (engineer): the three rule-11 survivors above; a
+  `pdfcer-spec-librarian` dispatch for `security__cms_signeddata_build.md:137–139`.
+- Owed (engineer, `tools/`): `encoding="utf-8"` on the `git()` helpers of
+  `check-passes-filed.py` and `check-commits-filed.py` (above).
+- `pdfcer-gui`: the notice is informational — show `appearance_lines` in
+  the post-sign disclosure when `sign` is wired; the overflow remedy is
+  *enlarge the box, or drop reason/location*.
+- Backup bundle is 99 commits behind `HEAD` (measured above) — the
+  engineer's cadence, noted not nagged.
+
+**For next session:**
+- Engineer: fix the three survivors (two rustdoc/help paragraphs, one
+  core-api paragraph — all say "thin frame only / later increment");
+  dispatch the spec-librarian for the contradicted line; push. Then
+  `Pass 179.0`, or `10.12` / `10.13` if the operator wants signing finished
+  before bold.
+- Operator: `pdfcer sign --visible x0,y0,x1,y1 --reason … --location …`
+  now prints what the box says; if the box is too small the refusal names
+  the size floor (4 pt) and the remedy. Reader has not been asked to render
+  it — a screenshot from Reader would close criterion 5's open half.

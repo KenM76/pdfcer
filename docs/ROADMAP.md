@@ -112,6 +112,256 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★ 450th filing, 2026-09-06 (early; the 2026-09-05 session still running
+past midnight — dated by the clock, as the 443rd–449th were; the git author
+stamp reads `2026-09-06 03:58:22 -0400`) — `Pass 10.14` SHIPPED, unreleased
+(post-`v0.41.0`): **`187fa09`** *"feat(core,cli): signing hardening — CMS
+sabotage tests, no-localKeyId pairing, foreign signatures, composed
+appearance, P-384 (Pass 10.14)"*, 15 files, `+1141/−19` (`git show --stat`).
+Everything the 438th filing recorded as owed from the `10.7`–`10.9` cut, in
+one commit, and NO verb changed. ONE MORE COMMIT NAMED: **`9a3dd53`**
+*"chore(tools): re-lock content-identity against pdfcer-core 0.41.0"* —
+`tools/content-identity/Cargo.lock` only, `+452/−1`, no code (the path
+dependency followed the workspace bump at `46601b0`; the lock had not);
+named so `check-commits-filed` sees it. No decision minted.**
+
+**What a caller sees, stated first.** `pdfcer sign --visible x0,y0,x1,y1
+--reason … --location …` now draws a box that SAYS something: the frame of
+the first cut plus *"Digitally signed by <CN>"*, *"Date: YYYY.MM.DD HH:MM:SS
+<zone>"*, and *"Reason: …"* / *"Location: …"* when given, set in `/Helv`
+(inline Type1 Helvetica, WinAnsi, nothing embedded), shrink-to-fit between
+`APPEARANCE_MAX_SIZE` 10 pt and `APPEARANCE_MIN_SIZE` 4 pt on real AFM
+widths (`sign/apply.rs:485`/`:487`, `fontdata::std14_width`). A box too small
+even at 4 pt is refused BY NAME — `SignApplyError::AppearanceOverflow { lines,
+width, height, min_size }` (`apply.rs:280`), raised BEFORE any object is
+staged, so the session is unmodified — never clipped: *a signature box whose
+text is silently cut is a signature box that misstates who signed*. The
+lines are disclosed on `SignReport::appearance_lines: Vec<String>`
+(`apply.rs:177`; empty when invisible) and `pdfcer sign` prints them as
+`appearance: "…" | "…"` (rule 4 — the operator cannot read the box back
+without a viewer). CN extraction survives a comma inside the CN (this
+project's fixture subjects carry one). The two verifiers — pdfcer's and
+OpenSSL 1.1.1's — are now PROVEN to DISCRIMINATE: a doc-hidden
+`cms_build::build_with(.., Sabotage)` builds a `SignedData` with exactly one
+defect (`Sabotage::{None, DigestUnderContextTag, UnsortedAttributes,
+ReorderedAfterSigning, WrongMessageDigest}`, `cms_build.rs:139`);
+`tests/sign_hardening.rs` splices it into a really-signed `hello.pdf` over
+the file's REAL byte-range digest (asserting the byte ranges did not move)
+and asks both. A `Sabotage::None` control proves the splice itself is
+accepted, so the refusals are the defects' doing. A `.pfx` with NO
+`localKeyId` pairs key and leaf by public-key identity
+(`rsa2048-nolocalkeyid.pfx`). pdfcer signs on top of a pyHanko signature and
+pyHanko countersigns pdfcer's output — BOTH directions measured. ECDSA P-384
+end to end (`ecp384-modern.pfx`).
+
+**Acceptance criteria walked (the 439th's six):** **1 MET, and 1(b) AMENDED
+BY MEASUREMENT.** (a) attributes digested under the `0xA0` wire tag (`CB-4`)
+→ both reject (`attributes_digested_under_the_context_tag_are_rejected_by_both`);
+(c) a wrong `message-digest` → both reject
+(`a_wrong_message_digest_is_rejected_by_both`). (b) expected *"`SET OF`
+attributes emitted out of X.690 §11.6 order → both reject"* — MEASURED
+2026-09-06: an unsorted set SIGNED CONSISTENTLY (the signature covers those
+exact bytes) is ACCEPTED by both pdfcer and OpenSSL 1.1.1 — neither
+re-encodes the set canonically before hashing; both hash the attributes AS
+RECEIVED, retagged `0x31`
+(`an_unsorted_set_signed_consistently_is_accepted_by_both_as_received`,
+asserting `(true, true)` — the test pins AGREEMENT with the oracle, so a
+divergence either way is noticed). pdfcer keeps the oracle's rule ON
+PURPOSE: a stricter verifier would refuse signatures every other reader
+accepts, and the tamper that IS an attack — attributes REORDERED AFTER
+SIGNING — is caught by the as-received rule
+(`Sabotage::ReorderedAfterSigning`,
+`attributes_reordered_after_signing_are_rejected_by_both`, `(false, false)`);
+a canonicalising verifier would ACCEPT that one, which is why as-received is
+the safer rule, not merely the lenient one. So the criterion's three
+sabotages became FOUR tests plus a control, and the one it mis-predicted is
+recorded as a measurement, not rewritten. **2 MET:** `gen-signing-fixtures.py`
+mints `rsa2048-nolocalkeyid.pfx` (2,613 B) from the SAME RSA material as
+`rsa2048-modern.pfx` — cert bag exported in plaintext (`-certpbe NONE`),
+every `localKeyId` bag attribute removed with asn1crypto, the SHA-256 MAC
+recomputed by a Python port of the Appendix B.2 KDF (`strip_local_key_id`);
+the test (`a_store_without_local_key_id_pairs_key_and_leaf_by_public_key`)
+proves the OID is ABSENT from the store, the MAC verified, the paired leaf
+`==` `rsa2048.cer`, and signs with it. The generator now ADDS shapes from the
+existing material by default; `--regen` re-mints everything. **3 MET, BOTH
+directions MEASURED** (pyHanko was available; neither half is "not
+measured"): `tools/gen-foreign-signature-fixtures.py` (84 lines; pyHanko
+generator-side only, rule 13) → `foreign-pyhanko-first.pdf` (7,144 B) and
+`pdfcer-then-pyhanko.pdf` (32,599 B); pdfcer (ECDSA P-256) signs on top of
+the pyHanko signature → both verify, the foreign `/ByteRange` intact, OpenSSL
+verifies pdfcer's (`pdfcer_signs_on_top_of_a_pyhanko_signature_and_both_verify`);
+the pyHanko countersignature (field `ForeignSig`) over pdfcer's output → both
+verify (`a_pyhanko_countersignature_over_pdfcer_output_leaves_both_verifiable`).
+pyHanko stamps the clock, so the bytes are not reproducible and the committed
+file IS the fixture (`PROVENANCE.md`). **4 MET (relayed, with its
+denominator):** `tools/content-identity` over 7 signed outputs (RSA / EC-256 /
+EC-384 / no-lkid / visible / foreign ×2) — **7 files / 7 content streams / 7
+byte-identical / 0 corrupted — GATE PASS**; and every signing test now
+asserts `out[..base.len()] == base` (the incremental update touches nothing
+below the old EOF). **5 MET on the pdfcer half; the Reader half NOT
+MEASURED.** Frame + composed lines as above
+(`the_appearance_carries_signer_date_reason_and_location`); overflow refused
+before staging
+(`a_rectangle_too_small_for_the_appearance_is_refused_before_any_write`).
+Rendered with `render-page` and inspected — the box shows all four lines, the
+frame intact (relayed). **Acrobat Reader was NOT driven**; the criterion's
+*"Acrobat Reader displays it"* clause is recorded as NOT MEASURED, not as
+passed. The GRAPHIC (logo / image) was never in scope. **6 MET:** the store
+the criterion's IF waited on was ADDED — `ecp384-modern.pfx` (1,419 B) /
+`ecp384.cer` / `ecp384.key.der` (secp384r1, PBES2 / AES-256-CBC, MAC
+SHA-256) — and `EcdsaP384Sha384` runs end to end through pdfcer's verifier
+and OpenSSL (`ecdsa_p384_signs_and_both_verifiers_accept_it`). The 20260903
+RAG lesson's *"P-384 has no end-to-end fixture"* is amended in place this
+filing (below).
+
+**Invariants:** no new dependency — pyHanko / asn1crypto / cryptography are
+generator-side Python only; no manifest in `git show --stat` (no
+`Cargo.toml` / `Cargo.lock` among the 15 files), so `cargo tree` is unchanged
+by construction and GUI-core separation untouched. Round-trip: criterion 4.
+Rule 4: `appearance_lines` discloses what pdfcer WROTE — printed, not gated.
+`run-gates.sh` 29/29 (relayed; the cargo gates were run individually because
+the script exceeded the 10-minute foreground limit twice today — a note, not
+a rule); the public-fns gate caught an orphaned doc block from an
+insert-before-anchor splice, moved back before commit. Public surface: TWO
+additions (`SignReport.appearance_lines`,
+`SignApplyError::AppearanceOverflow`) plus the doc-hidden
+`cms_build::{Sabotage, build_with}`; NO new `EditSession` verb —
+`check-core-api-verbs` PASS, **204** methods, count unchanged (run here); the
+`sign` verb row in `docs/core-api/02-editing-and-saving.md` gained a
+`Pass 10.14` sentence. Channel:
+`open/notice_2026-09-06-sign-report-appearance-lines.md` (1,046 B, 03:45 by
+`ls -lt`) tells `pdfcer-gui` the two additions and the remedy sentence;
+nothing owed back.
+
+**Hard-rule-11 sweep (this role's) — the claim "a visible signature is a
+thin frame only / no text / a composed appearance is a later increment",
+plus "P-384 untested", searched for the CLAIM (keywords `frame`, `no text`,
+`later increment`, `P-384`, `untested`, `not measured`) over
+`crates/pdfcer-core/src/sign/*.rs`, `crates/pdfcer-core/src/edit.rs`,
+`crates/pdfcer-cli/src/main.rs`, `docs/core-api/*.md`, `docs/FEATURES.md`,
+`docs/ARCHITECTURE.md`, `README.md`, `docs/NEXT_SESSION.md`,
+`fixtures/synthetic/signing/PROVENANCE.md`. THREE SURVIVORS, all outside
+this role's remit; OWED to the engineer:**
+- `crates/pdfcer-core/src/edit.rs:41366–41369` — the `sign` verb's rustdoc:
+  *"A visible signature's appearance is, in this first cut, a **thin frame
+  only** — no text; … (A composed appearance is a later increment.)"*. The
+  same commit's comment at `:41536` says the frame PLUS the text — the
+  corrected spelling was the one remembered (clause (e)'s shape).
+- `crates/pdfcer-cli/src/main.rs:1848–1851` — the `sign` COMMAND's help
+  paragraph: *"places a widget on `--page` with a thin frame; the details
+  (signer, time) live in the signature panel of any reader, not in the frame
+  — a composed appearance is a later increment."* `187fa09` corrected the
+  `--visible` FLAG's help (*"The box shows a frame and, in Helvetica shrunk
+  to fit, the signer's name…"*) and missed the command-level paragraph —
+  user-facing, reaches `pdfcer sign --help`.
+- `docs/core-api/02-editing-and-saving.md:3315–3317` — §1's refusal
+  paragraph: *"gets a widget with a **thin frame** appearance only"*; the
+  verb ROW in the same file was updated, this prose was not.
+- Correct and must NOT be "fixed": `sign/apply.rs:95` and `:596` (*"a thin
+  frame plus, since `Pass 10.14`, the composed text lines"* / *"the thin
+  frame (kept from the first cut) and the…"*); `edit.rs:41536`; every
+  `P-384` hit in `sign/mod.rs` and `pkcs12.rs` (algorithm plumbing, not a
+  coverage claim); `docs/FEATURES.md`'s `10.7` row (*"key↔leaf by
+  `localKeyId` then public key"* — the fallback now has its test).
+- One survivor in THIS role's tier, fixed here: `C:\personal_rag\pdf\`'s
+  20260903 signature-verification lesson and its index entry said *"P-384
+  has no end-to-end fixture"* — dated footer added, index parenthetical
+  amended.
+- One survivor in the SPEC-LIBRARIAN's tier, NOT touched (hard rule 6):
+  `D:\Dev\Rag-Specialized\PDF_Spec\security\security__cms_signeddata_build.md:137–139`
+  says an unsorted `SET OF` *"produces a signature no verifier accepts"*.
+  MEASURED FALSE on 2026-09-06 for pdfcer and OpenSSL 1.1.1 when the
+  signature covers the unsorted bytes; the BUILDER advice (*DER-sort*)
+  stands, the verifier claim does not. Owed: a `pdfcer-spec-librarian`
+  dispatch to amend it with the measurement.
+
+**`docs/FEATURES.md`.** The `Pass 10.14` *Planned* row REMOVED; one
+*Implemented* row ADDED under *Redaction & security*, beneath the `10.9`
+sign row: `[x] [x] [ ] ◐`. The 439th's entry predicted `gui —`; filed as
+`gui [ ]` instead, and the divergence is deliberate: the composed appearance
+and its overflow remedy are what `pdfcer-gui` must wire when it wires `sign`
+(the sign row is `gui [ ]` too, and the channel notice tells the shell so) —
+the test and `content-identity` halves have no shell shape, but a row is one
+cell and the operator-visible half decides it. The `10.9` sign row's clause
+*"`--visible` draws a thin FRAME only, no text"* REPLACED with the composed
+appearance and its refusal.
+
+**RAG (tier 5) — WRITTEN this filing:**
+`C:\personal_rag\pdf\lesson_20260906_cms_signed_attributes_are_verified_as_received_not_resorted.md`
+(quirk / HIGH) — CMS `signedAttrs` are verified AS RECEIVED, not re-sorted:
+OpenSSL 1.1.1 `cms -verify` and pdfcer both accept a `SET OF` emitted out of
+X.690 §11.6 order when the signature covers those exact bytes; a strict
+re-encoding verifier would reject what Acrobat-class readers accept, and
+would PASS the post-signing reorder that as-received catches. Builder: sort
+BEFORE signing (DER) and never touch attribute order after. Verifier: hash
+the received content under a `0x31` tag. Subject and master indexes updated;
+the 20260903 lesson footnoted.
+
+**Sourcing (hard rule 8).** Measured here: `git show -s --format=%B` on both
+commits; `git show --stat` (15 files `+1141/−19`; 1 file `+452/−1`; fixture
+byte sizes); author stamps by `git log --format='%h %ad'`; `git status
+--short` CLEAN at the start of this filing — at GATE TIME four `crates/` files
+were modified (`pdfcer-cli/src/main.rs`, `fontdata/mod.rs`,
+`text_edit/format.rs` `+395`, `text_edit/mod.rs`; `+494/−4` by `git diff
+--stat`), the engineer's IN-FLIGHT work, NONE of it staged here; `git remote -v` = `origin`
+`github.com/KenM76/pdfcer.git`; **`origin/main` = `f9bc7c8`; `git rev-list
+--count origin/main..HEAD` = 2 before this filing (`187fa09`, `9a3dd53`);
+`git rev-list --count v0.41.0..HEAD` = 4 before this filing (`3cffa15`,
+`f9bc7c8`, `187fa09`, `9a3dd53`)**; **`cargo test -p pdfcer-core --test
+sign_hardening` RUN HERE: 11 passed, 0 failed, 0.67 s** (`openssl version` =
+`OpenSSL 1.1.1s 1 Nov 2022`, on PATH); the 11 test names by `grep -n '^fn '`
+(11 `#[test]`); `python tools/check-core-api-verbs.py` RUN HERE: 204, PASS;
+`Sabotage` variants, `AppearanceOverflow` fields and the size constants by
+`sed -n` on the working tree at `9a3dd53`; the three survivors by `grep -n`
+then `sed -n` on the same tree; the channel by `ls -lt`; the notice READ in
+full. **Backup currency (by `ls -t D:\Dev\pdfce-backups` and `git
+rev-list --count`): newest bundle `pdfcer-2026-09-03-1a31d2d-full.bundle`
+(55,835,131 B, Sep 3 19:55); `1a31d2d` is an ancestor of `HEAD`; the bundle
+is 99 commits behind `HEAD` before this filing.** RELAYED, not measured:
+`content-identity` 7 / 7 / 7 / 0, the `render-page` inspection, `run-gates.sh`
+29/29, the public-fns catch. LIFTED from `187fa09`'s message: the
+as-received reasoning, the KDF-port description.
+
+**Ledger.** Filings ceiling `449` → **`450`**; Pass ceiling **`257.0`
+UNCHANGED** (nothing minted; `10.14` was minted at the 439th); decision
+ceiling **`138` UNCHANGED**, next free `139`; standing rules ceiling
+**`R241` unchanged**, next free `R242`; open operator questions: none
+minted, next free `(ce)`. *Next up* UNCHANGED (`Pass 179.0` only, NOT
+STARTED). Owed-survivor ledger: **THREE** (`edit.rs:41366–41369`,
+`main.rs:1848–1851`, `core-api/02:3315–3317`) plus ONE spec-librarian
+dispatch (`security__cms_signeddata_build.md:137–139`), plus ONE tool fix:
+`tools/check-passes-filed.py:96–105` decodes `git log` through the locale
+codec (`text=True`, no `encoding=`) and CRASHED on this filing's first commit
+subject (`◐`, `0x90` undefined in cp1252) — the subject was amended to be
+cp1252-safe; `check-commits-filed.py:232–235` has the same shape (see
+`SESSION_LOG.md`, this filing). Digital-signatures
+family `10` open after this: `10.4` (`/DSS`/LTV), `10.5` revocation, `10.10`
+shell-side key sources, `10.11` B-T, `10.12` certifying, `10.13`
+pre-placed field — all *Backlog*.
+
+### `Pass 10.14` (`187fa09`, 2026-09-06) — ★★★★ **SIGNING HARDENING — the two verifiers PROVEN to DISCRIMINATE (a doc-hidden `cms_build::build_with(.., Sabotage)` builds one defect at a time; the `0xA0`-tag digest, a wrong `message-digest`, and attributes REORDERED AFTER SIGNING are all rejected by pdfcer AND OpenSSL 1.1.1; an unsorted `SET OF` signed consistently is ACCEPTED by both, as received — criterion 1(b) AMENDED by measurement); a `.pfx` with no `localKeyId` pairs key↔leaf by public key; foreign signatures BOTH ways with pyHanko; `tools/content-identity` 7 / 7 / 7 / 0 for `sign`; a COMPOSED visible appearance (signer CN, date, reason, location in Helvetica, shrink-to-fit 10 → 4 pt, overflow refused by name BEFORE staging, the lines disclosed on `SignReport.appearance_lines` and printed by `pdfcer sign`); ECDSA P-384 end to end** — ★ **no verb changed; `SignReport.appearance_lines` and `SignApplyError::AppearanceOverflow` are the whole public delta**
+
+**Before (the 438th filing's record at `7734261`):** the three CMS sabotage
+tests were unwritten; the no-`localKeyId` fallback in `Pkcs12Signer::from_der`
+was untested; no foreign-signed fixture existed; `content-identity` had not
+been run for `sign`; `--visible` drew a thin frame and nothing else; P-384
+had no store to test with.
+
+**After (`187fa09`):** `crates/pdfcer-core/tests/sign_hardening.rs` — 11
+tests, run at this filing: 11 passed. Fixtures (`PROVENANCE.md` carries
+each): `rsa2048-nolocalkeyid.pfx`, `ecp384-modern.pfx` / `ecp384.cer` /
+`ecp384.key.der`, `foreign-pyhanko-first.pdf`, `pdfcer-then-pyhanko.pdf`.
+Generators: `tools/gen-signing-fixtures.py` (`+113`), new
+`tools/gen-foreign-signature-fixtures.py` (84 lines). Code: `sign/apply.rs`
+(`+337`: `appearance_lines`, `layout_appearance`, `appearance_content`,
+`APPEARANCE_{MIN,MAX}_SIZE`, `AppearanceOverflow`), `sign/cms_build.rs`
+(`+98`: `Sabotage`, `build_with`), `edit.rs` (`+49`), `pdfcer-cli/src/main.rs`
+(`+18`: the `appearance:` line, the `--visible` flag help). Contract doc:
+`docs/core-api/02-editing-and-saving.md` `sign` row. Channel: the notice.
+NOT measured: Acrobat Reader's rendering of the box. Full account: the 450th
+head above; the *Backlog* entry (struck, annotated) carries the six criteria
+and the 1(b) / 5 amendments.
+
 **★★★★ 449th filing, 2026-09-06 (early; the 2026-09-05 session still running
 past midnight — dated by the clock, as the 443rd–448th were; the tag's
 commit carries author stamp `2026-09-05 22:53:54 -0400`) — `v0.41.0`
@@ -132330,9 +132580,9 @@ authoring.
 
 `docs/FEATURES.md`: one *Planned* row, `[ ] [ ] [ ] [x]`.
 
-#### `Pass 10.14` — **SIGNING HARDENING OWED FROM THE `10.7`–`10.9` CUT — the three CMS sabotage tests (`0x31` retag, `SET OF` order, message-digest), a stripped-`localKeyId` pairing test, a pyHanko/OpenSSL-produced second-signature fixture, `tools/content-identity` run for `sign`, and a COMPOSED visible appearance (text, not only a frame)** — filed 2026-09-05 (439th filing; the 438th's recorded deviations `10.7` tests (e), `10.8` #8, `10.9` #1 appearance half, `10.9` #10, and the un-run `content-identity` invariant), *Backlog*, NOT STARTED — small; the engineer's own list, one Pass
+#### `Pass 10.14` — **SIGNING HARDENING OWED FROM THE `10.7`–`10.9` CUT — the three CMS sabotage tests (`0x31` retag, `SET OF` order, message-digest), a stripped-`localKeyId` pairing test, a pyHanko/OpenSSL-produced second-signature fixture, `tools/content-identity` run for `sign`, and a COMPOSED visible appearance (text, not only a frame)** — filed 2026-09-05 (439th filing; the 438th's recorded deviations `10.7` tests (e), `10.8` #8, `10.9` #1 appearance half, `10.9` #10, and the un-run `content-identity` invariant), ~~*Backlog*, NOT STARTED~~ **SHIPPED `187fa09` (450th filing) — see top of *Shipped*** — small; the engineer's own list, one Pass
 
-**Status: NOT STARTED.** Everything here was a criterion of the 436th
+**Status: ~~NOT STARTED~~ SHIPPED `187fa09`, 2026-09-06 (450th filing).** Everything here was a criterion of the 436th
 filing that the 438th recorded as NOT done. One Pass because each item is an
 afternoon and none changes the public API; splitting them would mint five
 IDs for one commit.
@@ -132369,6 +132619,18 @@ IDs for one commit.
 6. ECDSA P-384 end to end IF a P-384 store is added to the fixture
    generator (the 438th recorded none exists) — otherwise recorded as
    untested, by name.
+
+> **★ 450th filing, 2026-09-06 — walked against `187fa09`.** 1 MET with
+> 1(b) AMENDED BY MEASUREMENT: an unsorted `SET OF` signed consistently is
+> ACCEPTED by both verifiers (pdfcer and OpenSSL 1.1.1 both hash the
+> attributes as received) — the rejecting case is attributes REORDERED
+> AFTER SIGNING, added as a fourth sabotage; the as-received rule is kept on
+> purpose. 2 MET. 3 MET, BOTH directions measured (pyHanko available).
+> 4 MET: 7 files / 7 content streams / 7 byte-identical / 0 corrupted.
+> 5 MET on the pdfcer half; Acrobat Reader NOT driven — its clause is NOT
+> MEASURED, not passed. 6 MET — the P-384 store was added. `docs/FEATURES.md`
+> row filed `gui [ ]`, not `—` (the composed appearance is shell-reachable).
+> Account: the 450th head at the top of *Shipped*.
 
 **Invariants:** no new dependency (rule 13 — pyHanko / OpenSSL are
 generator-side tools, never linked); `cargo tree` unchanged; wasm32 check
