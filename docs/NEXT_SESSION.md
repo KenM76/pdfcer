@@ -4,18 +4,33 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-09-06, session close, on the operator's instruction ("make a
-handoff doc … stop all work after making the handoff"). **Released:**
-**v0.42.0** at `e59b084` (GitHub release + OneDrive `pdfcer2`; `pdfcer1` holds
-0.41.0); `verify-release.py v0.42.0` nine of nine. **Unreleased on `main`:**
-`b64ddb6` **Pass 14.6** (a Type 0 font's `/FontDescriptor` is read from the
-descendant CIDFont — composite runs report embedded and the R-INV-1 subset
-floor now guards them; filed 456th `f9ed0dc`). **Confirmed green after
-close:** `origin/main` = `821ab47` (this handoff commit, pushed) — `gh run
-list -L 1` shows `success` on it, 15m23s. Workspace version `0.42.0` (bump to `0.43.0` at
-the next release). Ledger: filings 456, Pass ceiling 257.0, decisions 138,
-rules R241. Batch rule (operator, 2026-09-05): build everything pending, then
-ONE release.
+**Written:** 2026-09-06, second session of the day, at release close.
+**Released: `v0.43.0`** at `2399f53` — GitHub release with the
+`windows-x64` zip + `.sha256` sidecar, OneDrive slot **`pdfcer1`**
+(`pdfcer2` keeps `0.42.0` as the previous version), `verify-release.py
+v0.43.0` **nine of nine on a clean tree**, and the published asset
+**downloaded back from GitHub and re-hashed** — the checksum matches, so the
+link works. **Nothing unreleased on `main`** at that point. Workspace
+version **`0.43.0`** (bump to `0.44.0` at the next release). Ledger: filings
+**459**, Pass ceiling **258.3**, decisions 138, rules R241. Batch rule
+(operator, 2026-09-05): build everything pending, then ONE release.
+
+**Shipped in it:** Passes **258.0–258.3** (markup border line style — a dash
+preserved across all FOUR appearance-regeneration routes, and authorable and
+restylable; `/LE` removable; a width on a text markup refused by name with
+`MarkupStyleSupport` to ask in advance; a `/FreeText`'s note re-baking its
+appearance; `/Launch`//`/GoToR` reporting the file they open, plus
+`list-outline --json`; `merge` re-pointing cross-file bookmarks) and **Pass
+14.6**, which was unreleased in 0.42.0.
+
+★ **CI WENT RED ONCE IN THIS SESSION AND THE CAUSE IS A HABIT, NOT AN
+ACCIDENT.** `cargo +nightly fuzz build` failed E0061 because `Pass 258.3`
+grew `pageops::merge` a third argument and `fuzz/fuzz_targets/` still passed
+two. **The fuzz crate is not in the workspace, so `cargo check --workspace
+--all-targets` cannot see it.** The gate list was read and one line —
+`cd fuzz && cargo check --bins`, command 10 of 29 — was not executed.
+`R209`'s own founding instance, recurring 32 days later, named in advance in
+writing by the person who skipped it. Run the RUNNER, not its `--list`.
 
 ---
 
@@ -103,11 +118,22 @@ otherwise, never as passed.
 `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open` and
 `iccce_FeatureRequests\open`: list every `request_*`/`correction_*` and match
 each against a `reply_*`/`done_*`/notice that names it. A request sat
-unscoped 13 h on 2026-09-06 because the check read only the newest file. At
-close: every request answered; `done_…CONSUMED` from pdfcer-gui covers
-256.0/256.1/257.0; five notices + two replies posted this session.
+unscoped 13 h on 2026-09-06 because the check read only the newest file —
+compare the folder as a SET, do not read its head.
 `D:\Dev\FeatureRequests\pdfcer-gui\` is a GUI-shell review addressed to the
 pdfcer-gui project — nothing owed by core.
+
+**At the close of the 0.43.0 session:** the four `pdfcer-gui` requests of
+2026-09-06 (dashed border, `endings` asymmetry, the swallowed width, the
+`/FreeText`'s painted words) are all **shipped and answered** in one reply,
+`reply_2026-09-06-all-four-markup-requests-SHIPPED.md`. **Nothing is owed
+back on that reply** — it closes with "Ship it." Two items in it are things
+pdfcer-gui did **not** ask for and may want to wire: `list-outline`'s
+readable destinations + `--json`, and `merge`'s cross-file re-pointing;
+both are flagged in the reply under "Two things you did not ask for".
+**It also warns them of a hole they may share:** their own negative
+assertions guarding these disclosures may be vacuous the way ours was —
+see the methodology note at the end of that file.
 
 ## Gotchas this session paid for (all in agent memory / RAGs)
 - **Disk hit ZERO**: `target/debug/deps` 141 GB of stale test binaries +
@@ -125,9 +151,23 @@ pdfcer-gui project — nothing owed by core.
   so write prose that mentions those verbs with the Write tool, not Bash.
 - Rust `\` continuations inside Python literals: build with `chr(92)`;
   `check-string-gaps.sh` detects the damage.
-- `run-gates.sh` as one process exceeds the 10-minute foreground limit;
-  pre-warm `cargo test --workspace --no-run`, run tests, then loop the
-  non-cargo gates from `run-gates.sh --list`.
+- ★ **`run-gates.sh` has TWO failure modes, and the second one is not the
+  one this note used to describe.** It exceeds the 10-minute foreground
+  limit — and backgrounding it does **not** fix that, because the harness's
+  low-memory watchdog kills it, **four times in a row on 2026-09-06**,
+  always during the `cargo test` step, on a machine showing 5.9–7.2 GB free
+  of 15.9 GB. **`CARGO_BUILD_JOBS=2` does NOT save it**, which falsifies by
+  name the remedy the older note prescribed: that knob caps *compilation*,
+  while `cargo test` peaks in the **run** phase at `--test-threads` = core
+  count. **The memory knob is `-- --test-threads=N`.** Try that first.
+  If the sweep still has to be split, split it by executing the derived
+  list (`check-ci-parity.py --list`) **in full, in chunks** — never by
+  re-typing a subset, which is how CI went red this session.
+  **`check-ci-parity.py --list` and `run-gates.sh --list` both print 29 and
+  are DIFFERENT SETS** (symmetric difference 4): the parity list has
+  `cargo about generate` and `--all-features` that `run-gates.sh`
+  name-skips, and **omits `check-history-not-rewritten.py`**, which the
+  other has. Run both lists' union, or the runner.
 - OpenSSL 1.1.1 and pdfcer both verify signedAttrs AS RECEIVED (an unsorted
   set signed consistently is accepted; reordering after signing is caught);
   spec RAG CB-4 split accordingly — sort before signing, never reorder.
@@ -145,8 +185,22 @@ signature fields, shell signers (store / PKCS#11), authoring an empty
 signature field.
 
 ## Build environment — READ before any release build
+
+★ **`target/` was PRUNED at the close of the 0.43.0 session**, so the next
+build is COLD — the release build will take substantially longer than the
+~6.5 min warm figure below, and `cargo test --workspace` likewise. This is
+expected, not a fault.
+**Measured 2026-09-06:** `target/debug/deps` had reached **57 GB** and
+`target/debug/incremental` **16 GB** — 73 GB, against the 20 GB prune
+threshold three lines up in this same file, and **63 GB of regrowth in a
+single session**. `rm -rf target/debug/{deps,incremental}` took `/d` from
+**137 GB free to 210 GB**. Nothing under `target/` is tracked
+(`.gitignore:3` `**/target/`), which is what makes this safe; check that
+rather than assuming it.
+
 ~4.4 GB free RAM. Release build: `CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
-CARGO_BUILD_JOBS=2 cargo build --release -p pdfcer-cli` (~6.5 min warm). Never
+CARGO_BUILD_JOBS=2 cargo build --release -p pdfcer-cli` (~6.5 min warm,
+8m32s observed on 2026-09-06). Never
 background `cargo test --workspace`, `run-gates.sh` or `gh run watch`; poll
 `gh run view --json status,conclusion` in a foreground loop (CI ≈ 13 min).
 
