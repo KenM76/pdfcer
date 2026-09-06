@@ -495,7 +495,7 @@ fn a_width_on_a_text_markup_is_refused_by_name() {
             subtype, property, ..
         } => {
             assert_eq!(subtype, "Highlight");
-            assert_eq!(property, "a border width");
+            assert_eq!(property, "border width");
         }
         other => panic!("expected StylePropertyNotApplicable, got {other:?}"),
     }

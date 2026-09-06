@@ -7342,8 +7342,9 @@ pub enum EditError {
         id: ObjId,
         /// Its `/Subtype`, as a displayable string.
         subtype: String,
-        /// Which [`MarkupStyle`] field did not apply — `"a border width"`,
-        /// `"a border dash"` or `"line endings"`.
+        /// Which [`MarkupStyle`] field did not apply — `"border width"`,
+        /// `"border dash"` or `"line endings"`. No leading article: the
+        /// message supplies the grammar around it.
         property: &'static str,
     },
     #[error(
@@ -26437,14 +26438,14 @@ impl EditSession {
                 return Err(EditError::StylePropertyNotApplicable {
                     id: annot_id,
                     subtype: named(),
-                    property: "a border width",
+                    property: "border width",
                 });
             }
             if style.dash.is_some() {
                 return Err(EditError::StylePropertyNotApplicable {
                     id: annot_id,
                     subtype: named(),
-                    property: "a border dash",
+                    property: "border dash",
                 });
             }
         }
