@@ -1327,7 +1327,12 @@ That is a distinct failure and this section is the repair for it.
 | **alignment, leading** | — | ❌ not a run-level property; those live on `reflow_block` |
 
 Targeting is by `find` text or by `pinned_span` — the same
-`GlyphProvenance::operator_span` pin `edit_text` takes. **With a pin and no
+`GlyphProvenance::operator_span` pin `edit_text` takes. **Since `Pass 256.0`
+`edit_text`'s `find` also matches ACROSS consecutive show operators** that share
+font resource, size, spacing and baseline (a producer that writes one glyph per
+`Tj`, or a `TJ` split): the run is edited as one, the followers on the line are
+re-spaced, and `EditReport::operators_spanned` says how many operators it took.
+`format_text` still targets one operator. **With a pin and no
 find, the whole pinned show operator is the target**, spelled
 `FormatRequest::whole_operator(page, span)` and
 `EditRequest::whole_operator(page, span, replacement)` respectively. Same

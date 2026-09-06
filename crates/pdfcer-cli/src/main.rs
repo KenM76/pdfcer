@@ -5999,7 +5999,7 @@ enum Command {
 
     /// Edit a page's own text in place (Pass 14.1): re-encode a run + relayout.
     ///
-    /// Locates `--find` within one show operator on `--page`, re-encodes
+    /// Locates `--find` on `--page` — inside one show operator, or (`Pass 256.0`) across CONSECUTIVE show operators that share font resource, size and baseline, the shape a producer writes when it emits one glyph per operator, re-encodes
     /// `--replace` in that run's OWN font encoding (inverting /Encoding, never
     /// /ToUnicode which is one-way and lossy, ISO 32000-1 §9.6.6), preserves
     /// the §9.4.4 advance so un-edited text stays put, relayouts the edited
@@ -6083,7 +6083,7 @@ enum Command {
 
     /// Format a page's own text in place (Pass 14.2): size, colour, font family.
     ///
-    /// Locates `--find` within one show operator on `--page` and applies any
+    /// Locates `--find` on `--page` — inside one show operator, or (`Pass 256.0`) across CONSECUTIVE show operators that share font resource, size and baseline, the shape a producer writes when it emits one glyph per operator and applies any
     /// combination of three formatting changes to that run, reusing the Pass
     /// 14.1 advance-preserving surgery (only the changed text-state operators
     /// differ), then saves INCREMENTALLY (the prior state survives in history
@@ -22701,7 +22701,7 @@ struct EditTextArgs<'a> {
 
 /// `edit-text`: Pass 14.1 in-place text editing.
 ///
-/// Locates `--find` within one show operator on `--page`, re-encodes
+/// Locates `--find` on `--page` — inside one show operator, or (`Pass 256.0`) across CONSECUTIVE show operators that share font resource, size and baseline, the shape a producer writes when it emits one glyph per operator, re-encodes
 /// `--replace` in that run's OWN font encoding (inverting `/Encoding`, never
 /// `/ToUnicode` — §9.6.6 / `iso32000__ref__inverse_encoding.md`), preserves
 /// the §9.4.4 advance so un-edited text stays put, relayouts the line
@@ -22814,11 +22814,12 @@ fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
         args.page, args.find, args.replace
     );
     println!(
-        "  base_font={} content_object={} advance_delta={:.3} followers_repositioned={}",
+        "  base_font={} content_object={} advance_delta={:.3} followers_repositioned={} operators_spanned={}",
         report.base_font,
         report.content_object,
         report.advance_delta,
-        report.followers_repositioned
+        report.followers_repositioned,
+        report.operators_spanned
     );
     // The disposition ACTUALLY USED and the sibling-stream collapse count.
     // Both were computed and printed by nobody until `check-outcome-disclosed`
@@ -23525,7 +23526,7 @@ fn parse_set_color(spec: &str) -> Result<pdfcer_core::text_edit::NewFill, String
 /// `format-text`: Pass 14.2 in-place formatting (size / fill colour /
 /// font-family-style).
 ///
-/// Locates `--find` within one show operator on `--page`, applies the
+/// Locates `--find` on `--page` — inside one show operator, or (`Pass 256.0`) across CONSECUTIVE show operators that share font resource, size and baseline, the shape a producer writes when it emits one glyph per operator, applies the
 /// requested formatting via the shared advance-preserving surgery, relayouts
 /// the line (reflow by default; `--pin` compensates), and saves
 /// INCREMENTALLY. Every gate — a coverage refusal on a family change, a

@@ -2084,7 +2084,7 @@ pub(crate) fn plan_format_target(
             FollowerDisposition::Reflow => {
                 for r in recs.iter().skip(anchor_index + 1) {
                     match &r.rec {
-                        Rec::Boundary => break,
+                        Rec::Boundary | Rec::Td { .. } => break,
                         Rec::Show(s) if matches!(s.op, ShowOp::Quote | ShowOp::DoubleQuote) => {
                             break;
                         }
@@ -3890,7 +3890,7 @@ fn plan_synthetic_italic(
     for r in recs.iter().skip(anchor_index + 1) {
         match &r.rec {
             Rec::EndText => break,
-            Rec::Boundary => {
+            Rec::Boundary | Rec::Td { .. } => {
                 return Err(FormatError::ShearUnsupported(
                     "a Td/TD/T* next-line operator follows this run inside the same text object. \
                      Synthetic italic must inject an absolute `Tm`, and a `Tm` sets the text LINE \

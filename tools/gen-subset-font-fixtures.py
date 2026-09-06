@@ -557,6 +557,92 @@ def composite_editable() -> bytes:
     return serialize(objects)
 
 
+def _composite_objects(content: bytes, fonts: dict[str, int]) -> dict[int, bytes]:
+    """The `composite_editable` document with `content` as its page stream and
+    `fonts` mapping resource names to font-object numbers (all pointing at
+    the same Type0 object 5, so two NAMES can share one face — the shape a
+    `Tf` change mid-word takes when a producer re-declares a resource)."""
+    ttf = build_subset_truetype()
+    tounicode = (
+        b"begincmap\n1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n"
+        b"3 beginbfchar\n<0001> <0041>\n<0002> <0042>\n<0003> <0043>\nendbfchar\n"
+        b"endcmap\n"
+    )
+    font_res = " ".join(f"/{name} {num} 0 R" for name, num in fonts.items())
+    return {
+        1: b"<< /Type /Catalog /Pages 2 0 R >>",
+        2: (
+            f"<< /Type /Pages /Kids [3 0 R] /Count 1 "
+            f"/MediaBox [0 0 {PAGE_WIDTH} {PAGE_HEIGHT}] "
+            f"/Resources << /Font << {font_res} >> >> >>"
+        ).encode("ascii"),
+        3: b"<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>",
+        4: raw_stream(content, ""),
+        5: (
+            b"<< /Type /Font /Subtype /Type0 /BaseFont /CMPOSE+pdfceSubsetDemo "
+            b"/Encoding /Identity-H /DescendantFonts [6 0 R] /ToUnicode 10 0 R >>"
+        ),
+        6: (
+            b"<< /Type /Font /Subtype /CIDFontType2 "
+            b"/BaseFont /CMPOSE+pdfceSubsetDemo "
+            b"/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> "
+            b"/FontDescriptor 7 0 R /CIDToGIDMap /Identity /DW 1000 "
+            b"/W [1 [600 600 600]] >>"
+        ),
+        7: (
+            b"<< /Type /FontDescriptor /FontName /CMPOSE+pdfceSubsetDemo "
+            b"/Flags 4 /FontBBox [0 -200 600 800] /ItalicAngle 0 "
+            b"/Ascent 800 /Descent -200 /CapHeight 700 /StemV 80 "
+            b"/FontFile2 9 0 R >>"
+        ),
+        9: raw_stream(ttf, f" /Length1 {len(ttf)}"),
+        10: raw_stream(tounicode, ""),
+    }
+
+
+def composite_per_glyph() -> bytes:
+    """ONE SHOW OPERATOR PER GLYPH — the shape `Pass 256.0` exists for.
+
+    The operator's own producer (2026-09-05) wrote every letter as its own
+    `Tj` with a `Td` between: `(\x00\x17) Tj 16.07 0 Td (\x00\x11) Tj …`.
+    This fixture reproduces that shape with the three-glyph composite donor
+    so the word "ABC" is THREE operators, each advanced by the producer's
+    own `Td` (600/1000 × 48 pt = 28.8 pt), followed on the same line by a
+    fourth operator "C" positioned the same way — the follower whose
+    position must move when the word changes length. A second line "B"
+    exists so a growing replacement ("ABCB") stays inside the embedded
+    subset floor without depending on the edited operators themselves.
+    """
+    content = (
+        b"BT\n/F0 48 Tf\n1 0 0 1 72 600 Tm\n"
+        b"<0001> Tj\n28.8 0 Td\n<0002> Tj\n28.8 0 Td\n<0003> Tj\n"
+        b"57.6 0 Td\n<0003> Tj\n"
+        b"-115.2 -60 Td\n<0002> Tj\nET\n"
+    )
+    return serialize(_composite_objects(content, {"F0": 5}))
+
+
+def composite_tj_split() -> bytes:
+    """A word split across `TJ` ELEMENTS inside ONE operator:
+    `[<0001> -20 <00020003>] TJ` — "A", a kern, "BC". A find of "AB" crosses
+    the element boundary but not an operator boundary, so
+    `operators_spanned` must read 1 while the edit still succeeds."""
+    content = b"BT\n/F0 48 Tf\n1 0 0 1 72 600 Tm\n[<0001> -20 <00020003>] TJ\nET\n"
+    return serialize(_composite_objects(content, {"F0": 5}))
+
+
+def composite_font_change() -> bytes:
+    """The per-glyph shape with a `Tf` CHANGE mid-word: "A" in `/F0`, "B"
+    and "C" in `/F1` (a second resource NAME for the same face). A find of
+    "ABC" must NOT span the change — `NoMatch`, by name — because the
+    grouping rule is the resource name, not the face behind it."""
+    content = (
+        b"BT\n/F0 48 Tf\n1 0 0 1 72 600 Tm\n"
+        b"<0001> Tj\n28.8 0 Td\n/F1 48 Tf\n<0002> Tj\n28.8 0 Td\n<0003> Tj\nET\n"
+    )
+    return serialize(_composite_objects(content, {"F0": 5, "F1": 5}))
+
+
 def main() -> int:
     out_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else OUT
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -595,6 +681,16 @@ def main() -> int:
     ce = out_dir / "composite-editable.pdf"
     ce.write_bytes(composite_editable())
     print(f"wrote {ce.name} ({ce.stat().st_size} bytes)  [Type0, 3 CIDs, injective ToUnicode]")
+
+    # `Pass 256.0` — text edits across show operators.
+    for name, build, note in [
+        ("composite-per-glyph.pdf", composite_per_glyph, "one Tj + Td per glyph; ABC + follower C + line 2 B"),
+        ("composite-tj-split.pdf", composite_tj_split, "[<A> -20 <BC>] TJ — a TJ-element split, one operator"),
+        ("composite-font-change.pdf", composite_font_change, "A in /F0, BC in /F1 — a Tf change mid-word"),
+    ]:
+        f = out_dir / name
+        f.write_bytes(build())
+        print(f"wrote {f.name} ({f.stat().st_size} bytes)  [{note}]")
 
     cyc = out_dir / "subset-cycle-donor.ttf"
     cyc.write_bytes(build_cycle_truetype())

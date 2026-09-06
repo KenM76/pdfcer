@@ -578,6 +578,20 @@ pub struct EditReport {
     pub disposition: FollowerDisposition,
     /// How many following absolute `Tm`s were repositioned by `ΔA` (reflow).
     pub followers_repositioned: u64,
+    /// How many consecutive show operators the match spanned (`Pass 256.0`).
+    ///
+    /// **1** for the ordinary case — the match lay inside one operator, as
+    /// every edit did before `Pass 256.0`. Greater than 1 when the producer
+    /// wrote the matched text across several operators (one glyph per `Tj`
+    /// with a `Td` between, the shape the operator's own document had) and
+    /// pdfcer edited them as one run: the replacement went into the
+    /// operator holding the match's END, the matched glyphs were removed
+    /// from the earlier ones (an operator emptied that way is left as an
+    /// empty `() Tj`, its `Td` step re-spaced), and every following
+    /// operator on the line moved by the net advance. Never absent, so a
+    /// shell can always show it; rule 4 says a multi-operator edit is
+    /// disclosed, and this is the number that discloses it.
+    pub operators_spanned: u64,
     /// The `/MCID` of the enclosing marked-content sequence, if the edit was
     /// inside a Tagged-PDF sequence (its wrapper is preserved; §14.7).
     pub tagged_mcid: Option<i64>,
@@ -829,7 +843,25 @@ pub(crate) enum Rec {
     Show(Box<ShowData>),
     /// An absolute `Tm` with its six operands.
     Tm([f64; 6]),
-    /// A `Td`/`TD`/`T*`/`'`/`"` — a line boundary reflow does not cross.
+    /// A `Td` / `TD` next-line operator with its operands (`Pass 256.0`).
+    ///
+    /// Recorded rather than folded into [`Rec::Boundary`] because a producer
+    /// that writes ONE glyph per show operator advances between them with
+    /// an x-only `Td`, and both the cross-operator match and the follower
+    /// re-spacing need to see (and rewrite) that step. Every consumer that
+    /// treated `Boundary` as "the line ends here" still does — an x-only
+    /// `Td` is a boundary for a single-operator match too — but the span
+    /// path may look through it when `ty == 0`.
+    Td {
+        /// The horizontal operand.
+        tx: f64,
+        /// The vertical operand; non-zero means a new line.
+        ty: f64,
+        /// `true` for `TD` (which also sets the leading), `false` for `Td`.
+        leading: bool,
+    },
+    /// A `T*`/`'`/`"` (or a malformed `Td`/`TD`) — a line boundary reflow
+    /// does not cross.
     Boundary,
     /// `ET` — the end of a text object (§9.4.1).
     ///
@@ -1168,14 +1200,26 @@ impl<'a> Walk<'a> {
                         .ambient
                         .set_indirect(TextStateParam::Leading, -*ty, "TD");
                     self.next_line(*tx, *ty);
+                    Rec::Td {
+                        tx: *tx,
+                        ty: *ty,
+                        leading: true,
+                    }
+                } else {
+                    Rec::Boundary
                 }
-                Rec::Boundary
             }
             b"Td" => {
                 if let [tx, ty] = n.as_slice() {
                     self.next_line(*tx, *ty);
+                    Rec::Td {
+                        tx: *tx,
+                        ty: *ty,
+                        leading: false,
+                    }
+                } else {
+                    Rec::Boundary
                 }
-                Rec::Boundary
             }
             // `T*` is "0 −TL Td" (Table 108). `TL` comes from the shared
             // ambient state, which is exactly why 19.0 had to track it.
@@ -1673,7 +1717,8 @@ pub(crate) fn plan_edit_target(
     let recs = walk.recs;
 
     // --- locate the anchor show operator ---
-    let anchor_index = find_anchor(&recs, req)?;
+    let span = find_anchor_span(&recs, req)?;
+    let anchor_index = span.last;
     let OpRec {
         start: a_start,
         end: a_end,
@@ -1684,6 +1729,39 @@ pub(crate) fn plan_edit_target(
     else {
         return Err(EditError::NoMatch(req.find.clone()));
     };
+    // The operators BEFORE the last one in a span, each with the character
+    // range of the match that falls inside it (in its own text coordinates).
+    // Empty for a single-operator match. `plan_edit_target`'s font, encoding
+    // and floor logic runs on the LAST operator (the one that receives the
+    // replacement); every operator in a span shares the resource by the
+    // grouping rule, so the classification is the same for all of them.
+    let mut leading_ops: Vec<(usize, &ShowData, usize, usize)> = Vec::new();
+    if span.first != span.last {
+        let mut offset = 0usize;
+        for k in span.first..span.last {
+            let Some(OpRec {
+                rec: Rec::Show(s), ..
+            }) = recs.get(k)
+            else {
+                continue;
+            };
+            let lo = span.pos.saturating_sub(offset).min(s.text.len());
+            let hi = span.end.saturating_sub(offset).min(s.text.len());
+            if hi > lo {
+                leading_ops.push((k, s, lo, hi));
+            }
+            offset += s.text.len();
+        }
+    }
+    // The character range of the match inside the LAST operator.
+    let last_offset: usize = (span.first..span.last)
+        .filter_map(|k| match recs.get(k) {
+            Some(OpRec {
+                rec: Rec::Show(s), ..
+            }) => Some(s.text.len()),
+            _ => None,
+        })
+        .sum();
     if matches!(anchor.op, ShowOp::Quote | ShowOp::DoubleQuote) {
         return Err(EditError::Unsupported(
             "editing a run shown with the ' or \" operator is deferred (first cut edits Tj/TJ)"
@@ -1731,17 +1809,31 @@ pub(crate) fn plan_edit_target(
     // operator, so a caller that already located it need not describe it.
     // Unpinned, an empty `find` is still refused by `match_run`.
     let find = effective_find(anchor, &req.find, req.pinned_span);
-    let m = match_run(anchor, find)?;
+    let m = if span.first == span.last {
+        // `match_range` rather than `match_run`: inside one operator the
+        // match may cross TJ ELEMENTS (`[(cli) -20 (en)] TJ`), which the
+        // edit path handles since `Pass 256.0`; `match_run` keeps refusing
+        // that for `format_text`, whose emitter has not learnt it.
+        if find.is_empty() {
+            // Same refusal `match_run` gives: an empty find with no pin is
+            // a caller error, not "not found" (route_enumeration pins it).
+            return Err(EditError::Unsupported("empty find text".to_owned()));
+        }
+        let pos = anchor
+            .text
+            .find(find)
+            .ok_or_else(|| EditError::NoMatch(find.to_owned()))?;
+        match_range(anchor, pos, pos + find.len(), find)?
+    } else {
+        // In the last operator the match starts at character 0 (it began
+        // in an earlier operator) and ends where the span says.
+        match_range(anchor, 0, span.end.saturating_sub(last_offset), find)?
+    };
+    let leading_matches: Vec<(usize, &ShowData, MatchRun)> = leading_ops
+        .iter()
+        .map(|(k, s, lo, hi)| match_range(s, *lo, *hi, find).map(|mr| (*k, *s, mr)))
+        .collect::<Result<_, _>>()?;
 
-    // --- encode the replacement (R-INV-1/5/6/7/8) ---
-    //
-    // Two font families, two encoders, one shape downstream (Pass 29.0). A
-    // COMPOSITE run goes through `CompositeEncoding`, which inverts the
-    // font's `/ToUnicode` and yields CIDs; a SIMPLE run goes through
-    // `InverseEncoding` over glyph names. `EncodedReplacement` is what makes
-    // everything after this point identical for both: the advance loop needs
-    // per-code values, the splice needs bytes, and those are the only two
-    // things the rest of `plan_edit` asks for.
     let encoded = if font.is_simple() {
         let glyph_names = font.glyph_names().ok_or_else(|| {
             EditError::Unsupported("the run's font has no invertible encoding".to_owned())
@@ -1806,71 +1898,63 @@ pub(crate) fn plan_edit_target(
     }
 
     // --- advance delta (§9.4.4) ---
-    let a_old: f64 = m
+    // The old advance of the LAST operator's part of the match (its glyphs
+    // plus any TJ kerns the match swallowed); the new advance is the whole
+    // replacement, which lands there.
+    let a_old_last: f64 = m
         .old_codes
         .iter()
         .map(|&c| glyph_advance(&font, c, anchor))
-        .sum();
+        .sum::<f64>()
+        + m.kern_advance;
     let a_new: f64 = encoded
         .codes
         .iter()
         .map(|&c| glyph_advance(&font, c, anchor))
         .sum();
-    let delta = a_new - a_old;
+    // Per-operator advance deltas, in record order: every leading operator
+    // only loses glyphs; the last one loses its part and gains the
+    // replacement.
+    let mut op_deltas: Vec<(usize, f64)> = leading_matches
+        .iter()
+        .map(|(k, s, mr)| {
+            let lost: f64 = mr
+                .old_codes
+                .iter()
+                .map(|&c| glyph_advance(&font, c, s))
+                .sum::<f64>()
+                + mr.kern_advance;
+            (*k, -lost)
+        })
+        .collect();
+    op_deltas.push((anchor_index, a_new - a_old_last));
+    let delta: f64 = op_deltas.iter().map(|(_, d)| d).sum();
 
-    // --- re-emit the anchor operator ---
     let pin_num = match opts.disposition {
         FollowerDisposition::Pin => compensating_tj(delta, anchor.tf_size, anchor.th()),
         FollowerDisposition::Reflow => None,
     };
     let new_op_bytes = emit_edited_operator(anchor, &m, &encoded.bytes, pin_num);
     let mut edits: Vec<(usize, usize, Vec<u8>)> = vec![(*a_start, *a_end, new_op_bytes)];
-
-    // --- reflow: shift following absolute Tm(s) on the same line by ΔA ---
-    //
-    // ★★ "ON THE SAME LINE" IS ENFORCED HERE, AND IT USED NOT TO BE
-    // (`Pass 121.1`). This loop shifted EVERY following `Tm` until a
-    // `Td`/`TD`/`T*`/`'`/`"` boundary — and a content stream that positions
-    // every run with `Tm` and never emits `Td` has no boundary at all, so one
-    // edit moved the entire rest of the text object sideways.
-    //
-    // That is not a hypothetical: on the operator's own benchmark CAD drawing
-    // a four-character edit reported **1,676 followers repositioned**. Every
-    // label, dimension callout and title-block field after the edited one
-    // would have slid by the advance delta — an edit that wrecks the drawing,
-    // which is worse than the "editing does nothing" it replaced. The defect
-    // predates `Pass 119.0`; that Pass is simply what first let the surgery
-    // reach a stream shaped this way.
-    //
-    // The model's own words are "the rest of the LINE"
-    // (`iso32000__ref__text_edit_surgery.md` §3), and a line is a BASELINE. A
-    // following `Tm` continues the edited line only if it differs from the
-    // anchor's in `e` ALONE — same orientation, same scale, same `f`. Anything
-    // else re-anchors somewhere new, so the line is over and the scan stops.
-    //
-    // Deliberately strict: a same-line `Tm` that also changes scale is treated
-    // as a new line and left alone. **Leaving text where the producer put it
-    // is always recoverable; moving it is not**, and a conservative miss shows
-    // up as an overlap the operator can see, while a permissive hit shows up
-    // as 1,676 silently displaced labels.
-    let mut followers = 0u64;
-    if matches!(opts.disposition, FollowerDisposition::Reflow) && delta != 0.0 {
-        for r in recs.iter().skip(anchor_index + 1) {
-            match &r.rec {
-                Rec::Boundary => break,
-                Rec::Show(s) if matches!(s.op, ShowOp::Quote | ShowOp::DoubleQuote) => break,
-                Rec::Tm(m) => {
-                    if !same_line(anchor, m) {
-                        break;
-                    }
-                    let moved = emit_tm([m[0], m[1], m[2], m[3], m[4] + delta, m[5]]);
-                    edits.push((r.start, r.end, moved));
-                    followers += 1;
-                }
-                _ => {}
-            }
+    let mut emptied = 0u64;
+    for (k, s, mr) in &leading_matches {
+        let bytes = emit_edited_operator(s, mr, &[], None);
+        if bytes.starts_with(b"() Tj") || bytes == b"[()] TJ" {
+            emptied += 1;
+        }
+        if let Some(r) = recs.get(*k) {
+            edits.push((r.start, r.end, bytes));
         }
     }
+
+    let mut reflowed = if matches!(opts.disposition, FollowerDisposition::Reflow) && delta != 0.0 {
+        reposition_followers(&recs, anchor, &op_deltas)
+    } else {
+        Reflowed::default()
+    };
+    let followers = reflowed.followers;
+    let td_note = reflowed.note.take();
+    edits.append(&mut reflowed.edits);
 
     // --- splice the edits into the decoded buffer ---
     let new_content = splice(&stream.buf, &mut edits);
@@ -1880,6 +1964,23 @@ pub(crate) fn plan_edit_target(
     //     write step, Pass 14.3 §0.2) ---
     let mut disclosures = Vec::new();
     disclosures.extend(encoded.disclosures);
+    // Show operators only — the records between them (the producer's `Td`
+    // steps) are not operators the text was written across.
+    let operators_spanned = leading_matches.len() as u64 + 1;
+    if operators_spanned > 1 {
+        disclosures.push(format!(
+            "span: the text was written across {operators_spanned} consecutive show operators (one glyph per operator is a common producer shape) and was edited as ONE run — the replacement went into the operator holding the match's end, the matched glyphs were removed from the {} earlier one(s){}, and the operators after it on the line were re-spaced by the net advance ({delta:.3} pt).",
+            operators_spanned - 1,
+            if emptied > 0 {
+                format!(" ({emptied} left as an empty `() Tj` so the producer's own positioning chain stays intact)")
+            } else {
+                String::new()
+            }
+        ));
+    }
+    if let Some(note) = td_note {
+        disclosures.push(note);
+    }
     if req.find.is_empty() {
         // Reached only on a pinned request — `match_run` refuses an empty
         // find without a pin — so this cannot fire for a caller who simply
@@ -1945,6 +2046,7 @@ pub(crate) fn plan_edit_target(
         advance_delta: delta,
         disposition: opts.disposition,
         followers_repositioned: followers,
+        operators_spanned,
         tagged_mcid: anchor.mcid,
         content_object: content_id.num,
         extra_objects_emptied: extra_emptied,
@@ -2130,6 +2232,140 @@ pub(crate) fn plan_edit_anywhere(
 /// should not move silently relocates content the operator was not editing.
 /// So an unknown matrix shifts nothing, and `FollowerDisposition::Pin`
 /// remains available for a caller that wants the tail explicitly held.
+/// Re-space the operators that follow an edit on the same line
+/// (`Pass 256.0` generalisation of the `Tm`-only follower loop).
+///
+/// `op_deltas` are the edited show operators (record index, advance
+/// change) in record order. Walking forward from the first of them, two
+/// running quantities are kept: `cum`, the total change so far, and
+/// `absorbed`, how much of it the positioning chain has already realised.
+///
+/// - An absolute **`Tm`** on the same row is rewritten with `e + cum`; that
+///   realises everything, so `absorbed = cum`.
+/// - An x-only **`Td`** is RELATIVE to the line matrix it also replaces, so
+///   shifting it by `cum − absorbed` moves that operator and every later
+///   relative step with it — the cumulative effect falls out of the
+///   operator's own semantics (§9.4.2), and `absorbed = cum`.
+/// - A **`Td` with `ty ≠ 0`** starts a new line, still relative to the
+///   shifted chain: it is rewritten with `tx − absorbed` so the next line
+///   lands exactly where the producer put it, and the walk stops.
+/// - **`T*`**, `'`, `"` and `ET` stop the walk. `T*` cannot be compensated
+///   (it has no operands), so when one — or a `'`/`"` — lies ahead in the
+///   same text object, `Td` steps are NOT rewritten at all (the pre-256.0
+///   behaviour: only `Tm` followers move) and the report says why. That
+///   keeps every edit that succeeded before this Pass producing the bytes
+///   it produced then, and confines the new re-spacing to text objects
+///   whose remaining lines are positioned by `Td`/`Tm`.
+fn reposition_followers(recs: &[OpRec], anchor: &ShowData, op_deltas: &[(usize, f64)]) -> Reflowed {
+    let Some(&(first_idx, _)) = op_deltas.first() else {
+        return Reflowed::default();
+    };
+    // Look ahead: is there an uncompensatable next-line operator before ET?
+    let td_safe = !recs.iter().skip(first_idx + 1).any(|r| match &r.rec {
+        Rec::EndText => false,
+        Rec::Boundary => true,
+        Rec::Show(s) => matches!(s.op, ShowOp::Quote | ShowOp::DoubleQuote),
+        _ => false,
+    }) || !recs
+        .iter()
+        .skip(first_idx + 1)
+        .take_while(|r| !matches!(r.rec, Rec::EndText))
+        .any(|r| matches!(r.rec, Rec::Boundary) || matches!(&r.rec, Rec::Show(s) if matches!(s.op, ShowOp::Quote | ShowOp::DoubleQuote)));
+    let has_td = recs
+        .iter()
+        .skip(first_idx + 1)
+        .take_while(|r| !matches!(r.rec, Rec::EndText))
+        .any(|r| matches!(r.rec, Rec::Td { .. }));
+
+    let mut edits = Vec::new();
+    let mut followers = 0u64;
+    let mut cum = 0.0f64;
+    let mut absorbed = 0.0f64;
+    for (i, r) in recs.iter().enumerate().skip(first_idx) {
+        if let Some((_, d)) = op_deltas.iter().find(|(k, _)| *k == i) {
+            cum += d;
+            continue;
+        }
+        match &r.rec {
+            Rec::EndText | Rec::Boundary => break,
+            Rec::Show(s) if matches!(s.op, ShowOp::Quote | ShowOp::DoubleQuote) => break,
+            Rec::Tm(m) => {
+                if !same_line(anchor, m) {
+                    break;
+                }
+                edits.push((
+                    r.start,
+                    r.end,
+                    emit_tm([m[0], m[1], m[2], m[3], m[4] + cum, m[5]]),
+                ));
+                absorbed = cum;
+                followers += 1;
+            }
+            Rec::Td { tx, ty, leading } if td_safe => {
+                let op: &[u8] = if *leading { b" TD" } else { b" Td" };
+                // Glyph widths arrive as f32, so a delta of "one 28.8 pt
+                // glyph" is 28.80000114…; rounding the rewritten operand
+                // to 1/10 000 pt (a 720 000th of an inch) keeps the
+                // producer's own numbers clean instead of smearing f32
+                // noise across the line. The absolute-`Tm` path is left
+                // as it always was (pre-256.0 bytes stay identical).
+                if *ty == 0.0 {
+                    let shift = round4(cum - absorbed);
+                    if shift != 0.0 {
+                        let mut out = Vec::new();
+                        emit_number(&mut out, round4(tx + shift));
+                        out.push(b' ');
+                        emit_number(&mut out, *ty);
+                        out.extend_from_slice(op);
+                        edits.push((r.start, r.end, out));
+                        followers += 1;
+                    }
+                    absorbed = cum;
+                } else {
+                    // A new line: undo the chain's x shift so it lands where
+                    // the producer put it, then stop.
+                    if round4(absorbed) != 0.0 {
+                        let mut out = Vec::new();
+                        emit_number(&mut out, round4(tx - absorbed));
+                        out.push(b' ');
+                        emit_number(&mut out, *ty);
+                        out.extend_from_slice(op);
+                        edits.push((r.start, r.end, out));
+                    }
+                    break;
+                }
+            }
+            Rec::Td { .. } => break,
+            _ => {}
+        }
+    }
+    let note = (has_td && !td_safe).then(|| {
+        "relayout: the operators after this edit are positioned by `Td` steps, but a later line in the same text object uses `T*`, `'` or `\"` (which pdfcer cannot re-anchor), so those `Td` steps were NOT re-spaced — the text after the edit keeps the producer's original positions and may crowd or gap the edited glyphs."
+            .to_owned()
+    });
+    Reflowed {
+        edits,
+        followers,
+        note,
+    }
+}
+
+/// What [`reposition_followers`] decided: the byte-range rewrites, how many
+/// positioning operators moved, and the disclosure when `Td` steps were
+/// deliberately left alone.
+#[derive(Default)]
+struct Reflowed {
+    edits: Vec<(usize, usize, Vec<u8>)>,
+    followers: u64,
+    note: Option<String>,
+}
+
+/// Round to 1/10 000 pt — see `reposition_followers`.
+fn round4(v: f64) -> f64 {
+    let r = (v * 10_000.0).round() / 10_000.0;
+    if r == 0.0 { 0.0 } else { r }
+}
+
 fn same_line(anchor: &ShowData, follower: &[f64; 6]) -> bool {
     if !anchor.matrix_known {
         return false;
@@ -2281,8 +2517,135 @@ pub(crate) fn disclose_form_edit(
 // Locating + matching
 // ===================================================================
 
+/// Where a match lives: one show operator, or — `Pass 256.0` — a run of
+/// consecutive ones.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Anchor {
+    /// Index of the first show operator of the span in the walk's records.
+    pub(crate) first: usize,
+    /// Index of the last (`== first` for a single-operator match).
+    pub(crate) last: usize,
+    /// Character offset of the match within the concatenated text of the
+    /// span (`first.text ++ … ++ last.text`).
+    pub(crate) pos: usize,
+    /// One past the match's last character, in the same coordinate.
+    pub(crate) end: usize,
+}
+
+/// Whether two show operators may be edited as ONE run (`Pass 256.0`'s
+/// grouping rule — pdfcer's own, documented here because Acrobat's is
+/// unpublished): same font RESOURCE NAME and size, same character/word
+/// spacing and horizontal scale, same marked-content sequence, both `Tj`
+/// or `TJ`, and the same text-space row — every text-matrix component but
+/// the x translation equal, which is what "same baseline" means once a
+/// producer's `Td` steps have been folded into the matrix.
+fn spannable(a: &ShowData, b: &ShowData) -> bool {
+    a.matrix_known
+        && b.matrix_known
+        && a.font_name == b.font_name
+        && a.tf_size == b.tf_size
+        && a.mcid == b.mcid
+        && a.tc() == b.tc()
+        && a.tw() == b.tw()
+        && a.th() == b.th()
+        && matches!(a.op, ShowOp::Tj | ShowOp::TJ)
+        && matches!(b.op, ShowOp::Tj | ShowOp::TJ)
+        && same_line(a, &b.text_matrix)
+}
+
+/// Locate `req.find` as a single operator ([`find_anchor`]) or, failing
+/// that, as a span of consecutive spannable operators whose concatenated
+/// text contains it (`Pass 256.0`).
+///
+/// The scan is left to right: from each show operator `i`, operators are
+/// appended while [`spannable`] holds and the records between them are
+/// only x-only `Td` steps, same-row `Tm`s, or ignorable operators. The
+/// first span whose text contains `find` with the match STARTING inside
+/// operator `i`'s own text wins — a match that starts later would be found
+/// from that later `i`, so spans are never longer than they need to be. A
+/// pinned request never spans: the pin names one operator.
+pub(crate) fn find_anchor_span(recs: &[OpRec], req: &EditRequest) -> Result<Anchor, EditError> {
+    match find_anchor(recs, req) {
+        Ok(i) => {
+            let Some(OpRec {
+                rec: Rec::Show(s), ..
+            }) = recs.get(i)
+            else {
+                return Err(EditError::NoMatch(req.find.clone()));
+            };
+            let find = effective_find(s, &req.find, req.pinned_span);
+            let pos = s.text.find(find).unwrap_or(0);
+            return Ok(Anchor {
+                first: i,
+                last: i,
+                pos,
+                end: pos + find.len(),
+            });
+        }
+        Err(e) if req.pinned_span.is_some() || req.find.is_empty() => return Err(e),
+        Err(_) => {}
+    }
+    for (i, r) in recs.iter().enumerate() {
+        let Rec::Show(head) = &r.rec else { continue };
+        if !matches!(head.op, ShowOp::Tj | ShowOp::TJ) {
+            continue;
+        }
+        let mut text = head.text.clone();
+        let mut last = i;
+        let mut j = i + 1;
+        while let Some(next) = recs.get(j) {
+            match &next.rec {
+                Rec::Ignore => {}
+                Rec::Td { ty, .. } if *ty == 0.0 => {}
+                Rec::Tm(m) if same_line(head, m) => {}
+                Rec::Show(s) if spannable(head, s) => {
+                    text.push_str(&s.text);
+                    last = j;
+                }
+                _ => break,
+            }
+            j += 1;
+        }
+        if last == i {
+            continue;
+        }
+        if let Some(pos) = text.find(&req.find)
+            && pos < head.text.len()
+        {
+            let end = pos + req.find.len();
+            // Trim the span to the operators the match actually touches.
+            let mut acc = head.text.len();
+            let mut last_used = i;
+            for k in (i + 1)..=last {
+                if acc >= end {
+                    break;
+                }
+                if let Some(OpRec {
+                    rec: Rec::Show(s), ..
+                }) = recs.get(k)
+                {
+                    acc += s.text.len();
+                    last_used = k;
+                }
+            }
+            if last_used == i {
+                continue; // fits in one operator after all; `find_anchor` would have said so
+            }
+            return Ok(Anchor {
+                first: i,
+                last: last_used,
+                pos,
+                end,
+            });
+        }
+    }
+    Err(EditError::NoMatch(req.find.clone()))
+}
+
 /// Find the anchor operator: the pinned span if given, else the first show
-/// operator whose decoded text contains `find`.
+/// operator whose decoded text contains `find`. The single-operator locator
+/// every route used before `Pass 256.0`; [`find_anchor_span`] tries it first
+/// and only then looks across operators.
 pub(crate) fn find_anchor(recs: &[OpRec], req: &EditRequest) -> Result<usize, EditError> {
     for (i, r) in recs.iter().enumerate() {
         let Rec::Show(s) = &r.rec else { continue };
@@ -2364,6 +2727,19 @@ fn pin_names_operator(r: &OpRec, pin: ByteSpan) -> bool {
 /// `pub(crate)` so Pass 14.2's formatting surgery can reuse the identical
 /// single-element, contiguous-code-range match the REPLACE surgery uses.
 pub(crate) struct MatchRun {
+    /// The TJ element the match ENDS in (`== elem` for a single-element
+    /// match, which every match was before `Pass 256.0`). When it differs,
+    /// `b_hi` is a byte offset within THIS element, and the elements
+    /// strictly between `elem` and `elem_hi` — strings and kern numbers
+    /// alike — are consumed by the edit.
+    pub(crate) elem_hi: usize,
+    /// The horizontal displacement, in text-space units already scaled by
+    /// `Tfs`/`Th` (i.e. glyph-advance units), contributed by the `TJ` kern
+    /// numbers strictly between `elem` and `elem_hi`. Zero for a
+    /// single-element match. Part of the OLD advance the replacement
+    /// replaces, because those numbers are dropped with the glyphs around
+    /// them.
+    pub(crate) kern_advance: f64,
     /// Which element the matched codes live in.
     pub(crate) elem: usize,
     /// Byte range within that element's string.
@@ -2466,8 +2842,35 @@ pub(crate) fn match_run(anchor: &ShowData, find: &str) -> Result<MatchRun, EditE
         .text
         .find(find)
         .ok_or_else(|| EditError::NoMatch(find.to_owned()))?;
-    let end = pos + find.len();
+    let m = match_range(anchor, pos, pos + find.len(), find)?;
+    if m.elem_hi != m.elem {
+        // The single-operator, single-element contract `format_text` and
+        // every pre-256.0 caller rely on. The cross-element form is reached
+        // only through `match_range` by the span path in `plan_edit_target`.
+        return Err(EditError::Unsupported(
+            "the match spans more than one TJ string element (cross-element edit deferred)"
+                .to_owned(),
+        ));
+    }
+    Ok(m)
+}
 
+/// Map a character range `[pos, end)` of `anchor.text` onto the operator's
+/// operands — the slots it covers, the element(s) they sit in, and the
+/// byte extents within the first and last of those elements (`Pass 256.0`
+/// generalisation of the single-element `match_run`).
+///
+/// A match may cross `TJ` element boundaries here: `elem..=elem_hi` is the
+/// element range, `b_lo` is a byte offset in `elem`, `b_hi` in `elem_hi`,
+/// and `kern_advance` totals the kern numbers strictly between them (as an
+/// advance, so it can be subtracted with the glyphs it separated). `find`
+/// is only for the error message.
+pub(crate) fn match_range(
+    anchor: &ShowData,
+    pos: usize,
+    end: usize,
+    find: &str,
+) -> Result<MatchRun, EditError> {
     let matched: Vec<&ShowSlot> = anchor
         .slots
         .iter()
@@ -2477,37 +2880,39 @@ pub(crate) fn match_run(anchor: &ShowData, find: &str) -> Result<MatchRun, EditE
         .first()
         .ok_or_else(|| EditError::NoMatch(find.to_owned()))?;
     let elem = first.elem;
-    if matched.iter().any(|s| s.elem != elem) {
-        return Err(EditError::Unsupported(
-            "the match spans more than one TJ string element (cross-element edit deferred)"
-                .to_owned(),
-        ));
-    }
-    // Simple font ⇒ one byte per code, so the matched byte range is
-    // contiguous from the first matched code to just past the last.
-    let b_lo = matched.iter().map(|s| s.byte_in_elem).min().unwrap_or(0);
-    // `+ width`, not `+ 1`: the end of a code is its start plus however many
-    // bytes it occupied. Those were the same number for every code that
-    // could reach here before Pass 21.1, which is exactly why the constant
-    // looked correct.
+    let elem_hi = matched.iter().map(|s| s.elem).max().unwrap_or(elem);
+    let b_lo = matched
+        .iter()
+        .filter(|s| s.elem == elem)
+        .map(|s| s.byte_in_elem)
+        .min()
+        .unwrap_or(0);
     let b_hi = matched
         .iter()
+        .filter(|s| s.elem == elem_hi)
         .map(|s| s.byte_in_elem + usize::from(s.width))
         .max()
-        .unwrap_or(b_lo);
-    // Carried at full width (Pass 29.0). This used to narrow to `u8` with a
-    // `filter_map`, which was correct while composite runs were refused above
-    // `match_run` — every code that reached here fitted. Now that they are
-    // editable, narrowing would silently DROP each two-byte CID, leaving
-    // `A_old` at zero and the advance compensation wrong by the width of the
-    // whole matched run: text that reflowed or pinned to the wrong place with
-    // nothing to indicate it.
+        .unwrap_or(0);
+    // TJ numbers between the first and last matched element: each shifts
+    // the pen by -n/1000 text-space units, scaled by Tfs and Th (§9.4.3).
+    let kern_advance: f64 = anchor
+        .elems
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i > elem && *i < elem_hi)
+        .map(|(_, e)| match e {
+            ShowElem::Num(n) => -n / 1000.0 * anchor.tf_size * anchor.th(),
+            ShowElem::Str(_) => 0.0,
+        })
+        .sum();
     let old_codes = matched.iter().map(|s| s.code).collect();
     Ok(MatchRun {
         elem,
         b_lo,
         b_hi,
         old_codes,
+        elem_hi,
+        kern_advance,
     })
 }
 
@@ -2769,20 +3174,37 @@ fn emit_edited_operator(
     let mut elems: Vec<ShowElem> = Vec::new();
     for (i, e) in anchor.elems.iter().enumerate() {
         match e {
+            // The element the match starts in: its prefix, the replacement,
+            // and — from the element the match ENDS in — the suffix. For a
+            // single-element match (`elem_hi == elem`) that is the one
+            // element's own suffix, byte for byte what it always was.
             ShowElem::Str(bytes) if i == m.elem => {
                 let mut out = Vec::new();
                 out.extend_from_slice(bytes.get(..m.b_lo).unwrap_or(&[]));
                 out.extend_from_slice(new_codes);
-                out.extend_from_slice(bytes.get(m.b_hi..).unwrap_or(&[]));
+                let tail_src = if m.elem_hi == m.elem {
+                    Some(bytes)
+                } else {
+                    match anchor.elems.get(m.elem_hi) {
+                        Some(ShowElem::Str(t)) => Some(t),
+                        _ => None,
+                    }
+                };
+                if let Some(t) = tail_src {
+                    out.extend_from_slice(t.get(m.b_hi..).unwrap_or(&[]));
+                }
                 elems.push(ShowElem::Str(out));
             }
+            // Strings and kern numbers strictly inside the matched element
+            // range, and the end element itself, are consumed (their glyphs
+            // were part of the match; their kerning separated glyphs that no
+            // longer exist).
+            _ if i > m.elem && i <= m.elem_hi => {}
             ShowElem::Str(bytes) => elems.push(ShowElem::Str(bytes.clone())),
             ShowElem::Num(v) => elems.push(ShowElem::Num(*v)),
         }
     }
 
-    // A single-string Tj under REFLOW stays a `(str) Tj`; anything else (a
-    // pin compensation, or a genuine TJ) is emitted as a `[ … ] TJ` array.
     let single_str = matches!(elems.as_slice(), [ShowElem::Str(_)]);
     if anchor.op == ShowOp::Tj && single_str && pin_num.is_none() {
         let mut out = Vec::new();
