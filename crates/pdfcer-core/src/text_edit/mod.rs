@@ -94,8 +94,8 @@ pub use encoding::{
 pub use format::{
     FillModel, FontAcceptance, FontPreflight, FontResourceEntry, FontSelector, FontSibling,
     FormatError, FormatOptions, FormatOutcome, FormatReport, FormatRequest, MetricSpec, NewFill,
-    SUBSCRIPT, SUPERSCRIPT, ScriptMetrics, ScriptPosition, Std14Entry, Std14Presence, StyleOutcome,
-    StyleResolution, set_format,
+    SUBSCRIPT, SUPERSCRIPT, ScriptMetrics, ScriptPosition, Std14Entry, Std14Presence, StyleLadder,
+    StyleOutcome, StyleResolution, StyleRung, set_format,
 };
 pub use forms::{
     FormRef, FormScan, InvocationSet, InvocationSite, MAX_FORM_DEPTH, ResourceTier,

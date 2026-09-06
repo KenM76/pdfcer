@@ -384,7 +384,7 @@ need their own policy).
 | I want to… | Call | Line | Returns |
 |---|---|---|---|
 | Replace text in place | `edit_text(&mut self, &EditRequest, &EditOptions) -> Result<EditReport, text_edit::EditError>` | 4126 | Report, **not** saved bytes. One undo entry. **`Pass 256.0`:** `find` may span CONSECUTIVE show operators of one text object that share font resource, size, spacing and baseline (the one-glyph-per-`Tj` producer shape, and `TJ`-element splits); the replacement lands in the operator holding the match END, earlier matched glyphs are removed (an emptied operator stays as `() Tj`), and the following `Td`/`Tm` steps on the line are re-spaced by the net advance — with a new line's `Td` compensated so it stays put. `EditReport::operators_spanned` (1 for the old single-operator case) discloses it. A `Tf`/size/MCID change or `ET` inside the would-be span is still `NoMatch`. `Td` steps are NOT re-spaced when a later line of the same text object uses `T*`/`'`/`"` (uncompensatable) — disclosed. **`Pass 256.1`:** a composite font whose `/ToUnicode` has a collision is no longer refused wholesale — the unambiguous characters edit, and a replacement needing an ambiguous one is refused per character (`RInvTrigger::Ambiguous`, message names the codes); the report discloses the font's ambiguous characters. |
-| Change size / colour / family in place | `format_text(&mut self, &FormatRequest, &FormatOptions) -> Result<FormatReport, text_edit::FormatError>` | 4171 | One undo entry. |
+| Change size / colour / family in place | `format_text(&mut self, &FormatRequest, &FormatOptions) -> Result<FormatReport, text_edit::FormatError>` | 4171 | One undo entry. **`Pass 179.0`:** `FormatRequest::set_style` (builder `.style(StyleSynthesis)`) asks for bold/italic WITHOUT naming a face — the ladder binds a real page face (rung 1, through the `set_font` coverage gate), else the standard-14 sibling of the run's own family (rung 2, nothing embedded), else synthesises (rung 4; `style_policy = refuse` → `FormatError::SynthesisRefusedByPosture`). Per axis. Outcome on `FormatReport::style_ladder: Option<StyleLadder>` (`rung: StyleRung`, `bound`, `synthesised`, `passed_over`) and in the disclosures. `set_synthetic` stays as the explicit override; not combinable with `set_font` or an overlapping `set_synthetic` axis (`Unsupported`). |
 | Ask what synthetic bold/italic *would* do | `preview_style_resolution(&self, page_index, find, pinned_span, want) -> Result<StyleResolution, FormatError>` | 7388 | Pure query. **Decides where a style button routes** — see below; an empty `find` is not a wildcard here. |
 | Ask which fonts `set_font` would ACCEPT for a run | `preview_font_resources(&self, page_index, find, pinned_span) -> Result<FontPreflight, FormatError>` | 7459 | Pure query. **Per RUN, not per page** — see below. `FontPreflight` now also carries `standard_14: Vec<Std14Entry>` (every standard-14 face coverage-tested for the same text, `presence` = `OnPage { resource }` / `WouldBeAdded`) and `candidate: None` (`Pass 142.2`). |
 | Ask which fonts can hold the text ABOUT TO BE TYPED | `preview_font_resources_for(&self, page_index, find, pinned_span, candidate: &str) -> Result<FontPreflight, FormatError>` | edit.rs | **`Pass 142.2`**, pdfcer-gui request 2026-09-05. `find`/`pinned_span` locate the run; every `FontAcceptance` — page faces AND the standard 14 — is computed against `candidate` through the same gate `set_font` applies (embedded-subset floor included), so `Refused { character }` names the first character a face cannot hold. `candidate == ""` behaves exactly as `preview_font_resources`. CLI: `font-preflight --candidate TEXT`. |
@@ -3313,8 +3313,10 @@ operator has to get the order of right.
 > (default reserve 12 288 bytes; never grown after layout), `SelfVerificationFailed`.
 >
 > A visible signature (`SignRequest::visible = Some((page, rect))`) gets a
-> widget with a **thin frame** appearance only; the details are in the report
-> and in any reader's signature panel. CLI: `pdfcer sign`.
+> widget whose appearance is a thin frame plus composed text — signer CN,
+> date, reason/location when given — in Helvetica, shrink-to-fit
+> (`Pass 10.14`; `SignReport::appearance_lines`, `AppearanceOverflow` when
+> the rectangle cannot hold the lines). CLI: `pdfcer sign`.
 
 ## 2. Construction, and the session's three read views
 

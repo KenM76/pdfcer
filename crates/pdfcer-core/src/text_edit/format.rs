@@ -683,7 +683,40 @@ pub struct FormatRequest {
     /// "Enable Artificial Bold/Italic styles"). If a real face *does*
     /// resolve on the page, the request is **refused** by name and pointed
     /// at that face ([`FormatError::RealFaceAvailable`]).
+    ///
+    /// ★ Since `Pass 179.0` this is the **explicit override** — the operator
+    /// asking for the stroke *despite* whatever real face exists. The
+    /// automatic route is [`Self::set_style`]. Under the `auto`/`warn`
+    /// postures an override with a real face available is applied and the
+    /// passed-over face is disclosed; under `refuse` it is still refused by
+    /// name — that posture exists to keep the old behaviour reachable
+    /// (decision 106, second ruling).
     pub set_synthetic: Option<StyleSynthesis>,
+    /// Make the run bold and/or italic **without saying how** (`Pass 179.0`,
+    /// decision 106 — *"bold font should be automatically used if available,
+    /// but otherwise synthetic should be supported, and the user shouldn't
+    /// have to intervene"*). pdfcer walks a ladder and takes the first rung
+    /// that binds, per axis:
+    ///
+    /// 1. a real face already on the page (same family first, then any)
+    ///    that claims the style AND passes the `set_font` coverage gate;
+    /// 2. the standard-14 sibling of the run's own family
+    ///    (`Helvetica`→`Helvetica-Bold`, `Times-Roman`→`Times-BoldItalic`,
+    ///    …) — bound as a new `/Font` resource, nothing embedded
+    ///    ([`crate::fontdata::std14_styled`]);
+    /// 3. *(a `--font-dir` donor — `Pass 142.0`, not built)*;
+    /// 4. synthesis (R90), subject to the posture: `auto`/`warn` apply it
+    ///    and disclose the rung; `refuse` returns
+    ///    [`FormatError::SynthesisRefusedByPosture`] so nothing is faked
+    ///    without an explicit [`Self::set_synthetic`].
+    ///
+    /// Per-axis: a real Bold may bind while Italic is synthesised in the
+    /// same operation (an exceed over Acrobat's single combined toggle).
+    /// The rung taken is on [`FormatReport::style_ladder`] and in the
+    /// disclosures. Cannot be combined with [`Self::set_font`] (name the
+    /// styled face directly instead) or with an overlapping
+    /// [`Self::set_synthetic`] axis.
+    pub set_style: Option<StyleSynthesis>,
 }
 
 impl FormatRequest {
@@ -705,6 +738,7 @@ impl FormatRequest {
             set_script: None,
             set_rise: None,
             set_synthetic: None,
+            set_style: None,
             target: EditTarget::Auto,
         }
     }
@@ -848,6 +882,14 @@ impl FormatRequest {
         self
     }
 
+    /// Ask for bold and/or italic and let pdfcer choose the source
+    /// (`Pass 179.0`; see [`Self::set_style`]).
+    #[must_use]
+    pub fn style(mut self, style: StyleSynthesis) -> Self {
+        self.set_style = Some(style);
+        self
+    }
+
     /// Whether any formatting operation was requested.
     ///
     /// `pub(crate)` rather than private because **two** entry points must
@@ -876,7 +918,55 @@ impl FormatRequest {
                 None => true,
                 Some(s) => s.is_none(),
             }
+            && match self.set_style {
+                None => true,
+                Some(s) => s.is_none(),
+            }
     }
+}
+
+/// The rung the automatic style ladder took (`Pass 179.0`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum StyleRung {
+    /// A real face already on the page was bound (rung 1).
+    RealFaceOnPage,
+    /// The standard-14 sibling of the run's own family was bound as a new
+    /// resource, nothing embedded (rung 2).
+    StandardFourteenSibling,
+    /// No real face; the stroke/shear was synthesised (rung 4).
+    Synthetic,
+    /// The run already had the requested style; nothing to change.
+    AlreadyStyled,
+}
+
+impl std::fmt::Display for StyleRung {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::RealFaceOnPage => "rung 1: a real face on the page",
+            Self::StandardFourteenSibling => "rung 2: the standard-14 sibling",
+            Self::Synthetic => "rung 4: synthetic",
+            Self::AlreadyStyled => "already styled",
+        })
+    }
+}
+
+/// The automatic style ladder's outcome, per axis (`Pass 179.0`).
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct StyleLadder {
+    /// What was asked for.
+    pub requested: StyleSynthesis,
+    /// The face bound, when a rung bound one (`/BaseFont`).
+    pub bound: Option<String>,
+    /// The rung that bound a face — or `Synthetic`/`AlreadyStyled`.
+    pub rung: StyleRung,
+    /// The axes that ended up synthesised (rung 4) — may be a strict subset
+    /// of `requested` when a real face covered the other axis.
+    pub synthesised: StyleSynthesis,
+    /// Real faces that CLAIMED the style but could not show the run's
+    /// characters, in the order tried — the reason rung 1 did not bind.
+    pub passed_over: Vec<String>,
 }
 
 /// Per-format options.
@@ -1025,6 +1115,9 @@ pub struct FormatReport {
     /// under [`StylePolicy::Auto`] it is a reported fact like any other. Under
     /// [`StylePolicy::Refuse`] it is always `None`, because the call failed.
     pub real_face_passed_over: Option<String>,
+    /// What the automatic style ladder did (`Pass 179.0`) — `None` when
+    /// [`FormatRequest::set_style`] was not set.
+    pub style_ladder: Option<StyleLadder>,
     /// The user-space stroke width a synthetic bold emitted (§9.3.6), quoted
     /// by value so the number is never hidden from the operator (rule 4).
     pub synthetic_bold_width: Option<f64>,
@@ -1125,6 +1218,24 @@ pub enum FormatError {
          exactly the number given and does not resize."
     )]
     ConflictingRise,
+    /// The automatic style ladder (`Pass 179.0`) found no real face to bind
+    /// and the posture is `refuse`, which forbids synthesising on its own
+    /// authority. Nothing was applied. `--bold-synthetic` /
+    /// `--italic-synthetic` is the explicit override.
+    #[error(
+        "no real {style} face binds for '{run_font}' (rung 1: page faces{passed}; rung 2: no standard-14 sibling), and style_policy=refuse forbids an automatic synthetic fallback; pass --{flag}-synthetic to apply the stroke explicitly, or --set-font a face"
+    )]
+    SynthesisRefusedByPosture {
+        /// `bold` / `italic` / `bold italic`.
+        style: &'static str,
+        /// The run's face.
+        run_font: String,
+        /// `": <face> could not show these characters"` or `""`.
+        passed: String,
+        /// `bold` or `italic` — the flag to retry with.
+        flag: &'static str,
+    },
+
     /// Synthetic bold/italic was requested but a **real** face with that
     /// style resolves on the page — and, since `Pass 144.0`, one that
     /// `set_font` would actually **accept for this run**.
@@ -1667,7 +1778,24 @@ pub(crate) fn plan_format_target(
     let m = match_run(anchor, find).map_err(FormatError::from_edit)?;
 
     // --- resolve the family-change target, if any, and re-encode the run ---
-    let font_plan = plan_font(doc, page_resources_dict, &recs, req, find)?;
+    //
+    // ★ `Pass 179.0` — the automatic style ladder runs FIRST when the caller
+    // asked for bold/italic without naming a face (`set_style`): each rung
+    // is a `set_font`-shaped plan through the ONE coverage gate (`R221`), so
+    // a face that binds here is exactly a face `--set-font` would bind.
+    let (font_plan, ladder, ladder_synthesis) = plan_style_ladder(
+        doc,
+        page_resources_dict,
+        &recs,
+        req,
+        find,
+        anchor,
+        &orig_font,
+    )?;
+    let font_plan = match font_plan {
+        Some(plan) => Some(plan),
+        None => plan_font(doc, page_resources_dict, &recs, req, find)?,
+    };
 
     // Lifted out immediately, and cloned, so the resource-creation payload
     // cannot be lost to a later move of `font_plan` — it is the one part of
@@ -1918,7 +2046,39 @@ pub(crate) fn plan_format_target(
     // The gate runs FIRST and is fallback-only: if a real Bold/Italic face
     // resolves on this page, the request is refused and pointed at it. Only
     // then is anything emitted.
-    let synthesis = req.set_synthetic.unwrap_or_default();
+    // The explicit override plus whatever the ladder left for rung 4; the
+    // two never overlap on an axis (`plan_style_ladder` refuses that).
+    let explicit = req.set_synthetic.unwrap_or_default();
+    let synthesis = StyleSynthesis::new(
+        explicit.bold() || ladder_synthesis.bold(),
+        explicit.italic() || ladder_synthesis.italic(),
+    );
+    // Rung 4 under `refuse`: the ladder found nothing real and the posture
+    // forbids faking a weight on pdfcer's own authority (decision 106's
+    // second ruling keeps that stance reachable). The EXPLICIT override is
+    // not gated here — it is gated below, against a real face, as before.
+    if !ladder_synthesis.is_none() && opts.style_policy == StylePolicy::Refuse {
+        let passed = ladder.as_ref().map_or(String::new(), |l| {
+            if l.passed_over.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    ": {} could not show these characters",
+                    l.passed_over.join(", ")
+                )
+            }
+        });
+        return Err(FormatError::SynthesisRefusedByPosture {
+            style: axes_label(ladder_synthesis),
+            run_font: orig_font.base_font.clone(),
+            passed,
+            flag: if ladder_synthesis.bold() {
+                "bold"
+            } else {
+                "italic"
+            },
+        });
+    }
     // Hoisted to the siblings' scope: the report is built far below this
     // block, and a value that only exists inside the `if` cannot reach it.
     let mut real_face_passed_over: Option<String> = None;
@@ -2134,6 +2294,9 @@ pub(crate) fn plan_format_target(
     };
 
     let mut disclosures: Vec<String> = Vec::new();
+    if let Some(l) = &ladder {
+        disclosures.push(disclosure_style_ladder(l));
+    }
     if let Some(plan) = &font_plan {
         disclosures.extend(plan.disclosures.iter().cloned());
     }
@@ -2277,6 +2440,7 @@ pub(crate) fn plan_format_target(
         rise_change: new_rise.map(|r| (anchor.text_state.rise.value, r)),
         synthesis,
         real_face_passed_over,
+        style_ladder: ladder,
         synthetic_bold_width,
         synthetic_italic,
         restore_narrowed,
@@ -2462,6 +2626,255 @@ fn accept_font_target(
 /// `req.find`. On a pinned whole-operator request (`Pass 145.0`) the two
 /// differ, and checking coverage against `req.find` there would test the
 /// empty string and pass every face.
+/// `Pass 179.0` — the automatic style ladder (decision 106). Returns the
+/// font plan a rung bound (if any), the ladder record for the report, and
+/// the axes left for synthesis (rung 4). `(None, None, StyleSynthesis::None)`
+/// when the request did not set [`FormatRequest::set_style`].
+///
+/// Order, per the entry's ladder table: rung 1 tries a real face already on
+/// the page that claims the FULL requested style — same family first, then
+/// any family — then, for a two-axis request, a face carrying one axis so
+/// the other can be synthesised; rung 2 is the standard-14 sibling of the
+/// run's OWN family (never a cross-family standard-14 face: `Arial` text
+/// does not silently become `Helvetica-Bold` — that branch is recorded as an
+/// open gap in the Acrobat RAG and is not taken here). Every candidate is
+/// bound by [`plan_font`] — the same code and the same coverage gate as
+/// `set_font` (`R221`); a candidate the gate refuses is recorded on
+/// `passed_over` and the next rung is tried.
+///
+/// # Errors
+///
+/// [`FormatError::Unsupported`] when `set_style` is combined with `set_font`
+/// or with an overlapping `set_synthetic` axis; anything [`plan_font`]
+/// returns other than a coverage refusal.
+#[allow(clippy::too_many_arguments)] // one call site, and each item is a distinct input
+fn plan_style_ladder(
+    doc: &DocumentView<'_>,
+    resources: &Dict,
+    recs: &[OpRec],
+    req: &FormatRequest,
+    find: &str,
+    anchor: &ShowData,
+    orig_font: &ExtractFont,
+) -> Result<(Option<FontPlan>, Option<StyleLadder>, StyleSynthesis), FormatError> {
+    let Some(style) = req.set_style.filter(|s| !s.is_none()) else {
+        return Ok((None, None, StyleSynthesis::None));
+    };
+    if req.set_font.is_some() {
+        return Err(FormatError::Unsupported(
+            "--bold/--italic choose the face for you; with --set-font, name the styled face \
+             directly (e.g. --set-font Helvetica-Bold)"
+                .to_owned(),
+        ));
+    }
+    if let Some(explicit) = req.set_synthetic
+        && ((explicit.bold() && style.bold()) || (explicit.italic() && style.italic()))
+    {
+        return Err(FormatError::Unsupported(
+            "--bold and --bold-synthetic (or --italic and --italic-synthetic) ask for the same \
+             axis twice; use one"
+                .to_owned(),
+        ));
+    }
+
+    let mut passed_over: Vec<String> = Vec::new();
+    // Bind `selector` through the ONE gate; a coverage refusal is a rung
+    // miss, not an error.
+    let try_bind =
+        |selector: &str, passed_over: &mut Vec<String>| -> Result<Option<FontPlan>, FormatError> {
+            let mut probe = req.clone();
+            probe.set_font = Some(FontSelector::new(selector));
+            match plan_font(doc, resources, recs, &probe, find) {
+                Ok(plan) => Ok(plan),
+                Err(FormatError::CoverageFailure(r)) => {
+                    passed_over.push(format!("{} ({})", r.base_font, r.message));
+                    Ok(None)
+                }
+                Err(e) => Err(e),
+            }
+        };
+
+    // Already there? (asking for bold on Times-Bold, or on a run whose face
+    // claims the style)
+    let already = (!style.bold()
+        || crate::text_edit::synth::name_claims_bold(&orig_font.base_font))
+        && (!style.italic() || crate::text_edit::synth::name_claims_italic(&orig_font.base_font));
+    if already {
+        return Ok((
+            None,
+            Some(StyleLadder {
+                requested: style,
+                bound: None,
+                rung: StyleRung::AlreadyStyled,
+                synthesised: StyleSynthesis::None,
+                passed_over,
+            }),
+            StyleSynthesis::None,
+        ));
+    }
+
+    // --- rung 1: a real face on the page, carrying the FULL style ---
+    let candidates = survey_page_fonts(doc, resources, recs, find);
+    let want = family_stem(&orig_font.base_font);
+    let exclude = Some(anchor.font_name.as_slice());
+    // A page face that CLAIMS an axis but the survey already refused (it
+    // cannot show the run) is named up front: it is the reason rung 1 may
+    // not bind, and the operator cannot see the survey.
+    for c in candidates.iter().filter(|c| {
+        exclude.is_none_or(|x| c.resource != x)
+            && ((style.bold() && c.claims_bold) || (style.italic() && c.claims_italic))
+    }) {
+        if let Err(e) = &c.accepted {
+            passed_over.push(format!("{} ({e})", c.base_font));
+        }
+    }
+    let try_page_face = |look: StyleSynthesis,
+                         rest: StyleSynthesis,
+                         passed_over: &mut Vec<String>|
+     -> Result<Option<(FontPlan, StyleSynthesis)>, FormatError> {
+        let found = find_styled_face(&candidates, Some(&want), look, exclude)
+            .or_else(|| find_styled_face(&candidates, None, look, exclude));
+        let Some(face) = found else {
+            return Ok(None);
+        };
+        Ok(try_bind(&face.selector, passed_over)?.map(|plan| (plan, rest)))
+    };
+    if let Some((plan, rest)) = try_page_face(style, StyleSynthesis::None, &mut passed_over)? {
+        let bound = plan.font.base_font.clone();
+        return Ok((
+            Some(plan),
+            Some(StyleLadder {
+                requested: style,
+                bound: Some(bound),
+                rung: StyleRung::RealFaceOnPage,
+                synthesised: rest,
+                passed_over,
+            }),
+            rest,
+        ));
+    }
+
+    // --- rung 2: the standard-14 sibling of the run's own family (FULL
+    //     style; a real face for both axes beats a half-synthesised one) ---
+    if let Some(own) = crate::fontdata::basefont_to_std14(orig_font.base_font.as_bytes()) {
+        let bold = style.bold() || crate::text_edit::synth::name_claims_bold(&orig_font.base_font);
+        let italic =
+            style.italic() || crate::text_edit::synth::name_claims_italic(&orig_font.base_font);
+        if let Some(sib) = crate::fontdata::std14_styled(own, bold, italic)
+            && sib != own
+            && let Some(plan) =
+                try_bind(crate::fontdata::std14_base_font_name(sib), &mut passed_over)?
+        {
+            let bound = plan.font.base_font.clone();
+            return Ok((
+                Some(plan),
+                Some(StyleLadder {
+                    requested: style,
+                    bound: Some(bound),
+                    rung: StyleRung::StandardFourteenSibling,
+                    synthesised: StyleSynthesis::None,
+                    passed_over,
+                }),
+                StyleSynthesis::None,
+            ));
+        }
+    }
+
+    // --- rung 1 again, per axis: a page face carrying ONE of two requested
+    //     axes, the other synthesised (the Acrobat exceed) ---
+    if style.bold() && style.italic() {
+        for (look, rest) in [
+            (StyleSynthesis::Bold, StyleSynthesis::Italic),
+            (StyleSynthesis::Italic, StyleSynthesis::Bold),
+        ] {
+            if let Some((plan, rest)) = try_page_face(look, rest, &mut passed_over)? {
+                let bound = plan.font.base_font.clone();
+                return Ok((
+                    Some(plan),
+                    Some(StyleLadder {
+                        requested: style,
+                        bound: Some(bound),
+                        rung: StyleRung::RealFaceOnPage,
+                        synthesised: rest,
+                        passed_over,
+                    }),
+                    rest,
+                ));
+            }
+        }
+    }
+
+    // --- rung 4: synthesise (rung 3, a donor face, is Pass 142.0) ---
+    Ok((
+        None,
+        Some(StyleLadder {
+            requested: style,
+            bound: None,
+            rung: StyleRung::Synthetic,
+            synthesised: style,
+            passed_over,
+        }),
+        style,
+    ))
+}
+
+/// `bold` / `italic` / `bold italic` / `nothing` — the axes alone, without
+/// [`StyleSynthesis`]'s own "synthetic" prefix, which would misdescribe a
+/// rung that bound a REAL face.
+const fn axes_label(s: StyleSynthesis) -> &'static str {
+    match (s.bold(), s.italic()) {
+        (true, true) => "bold italic",
+        (true, false) => "bold",
+        (false, true) => "italic",
+        (false, false) => "nothing",
+    }
+}
+
+/// The rule-4 sentence for the ladder's outcome.
+fn disclosure_style_ladder(l: &StyleLadder) -> String {
+    let passed = if l.passed_over.is_empty() {
+        String::new()
+    } else {
+        format!(
+            " Passed over (could not show these characters): {}.",
+            l.passed_over.join("; ")
+        )
+    };
+    match (l.rung, &l.bound) {
+        (StyleRung::AlreadyStyled, _) => format!(
+            "style: the run is already {}; nothing to change.",
+            axes_label(l.requested)
+        ),
+        (StyleRung::Synthetic, _) => format!(
+            "style: {} via {} — no real face on the page claims it and the run's family has no \
+             standard-14 sibling, so the style is synthesised (Tr 2 stroke / Tm shear).{passed}",
+            axes_label(l.requested),
+            l.rung
+        ),
+        (rung, Some(face)) if l.synthesised.is_none() => format!(
+            "style: {} via {} — bound '{face}'{}.{passed}",
+            axes_label(l.requested),
+            rung,
+            if rung == StyleRung::StandardFourteenSibling {
+                ", a standard-14 face, so nothing is embedded"
+            } else {
+                ""
+            }
+        ),
+        (rung, Some(face)) => format!(
+            "style: {} — {} bound '{face}' for the {} axis; {} is synthesised (rung 4).{passed}",
+            axes_label(l.requested),
+            rung,
+            axes_label(StyleSynthesis::new(
+                l.requested.bold() && !l.synthesised.bold(),
+                l.requested.italic() && !l.synthesised.italic()
+            )),
+            axes_label(l.synthesised)
+        ),
+        (rung, None) => format!("style: {} via {}.{passed}", axes_label(l.requested), rung),
+    }
+}
+
 fn plan_font(
     doc: &DocumentView<'_>,
     resources: &Dict,

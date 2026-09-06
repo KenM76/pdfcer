@@ -100,7 +100,7 @@ def git(*args: str) -> str:
             ["git", *args],
             cwd=ROADMAP.parent.parent,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             check=True,
         ).stdout
     except (subprocess.CalledProcessError, FileNotFoundError) as exc:

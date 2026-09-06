@@ -245,6 +245,45 @@ impl Std14 {
     ];
 }
 
+/// The standard-14 face of `face`'s FAMILY carrying exactly the requested
+/// weight and slant (`Pass 179.0`, rung 2 of the automatic style ladder):
+/// `Helvetica` + bold → `Helvetica-Bold`, `Times-Italic` + bold →
+/// `Times-BoldItalic`, `Courier-Bold` + (no bold, italic) →
+/// `Courier-Oblique`. The three text families have every combination, so
+/// the answer is `None` only for `Symbol` and `ZapfDingbats`, which have
+/// no styled siblings at all (§9.6.2.2, Annex D).
+///
+/// Asking for the style a face already has returns the face itself — the
+/// caller decides whether that is "nothing to do".
+#[must_use]
+pub const fn std14_styled(face: Std14, bold: bool, italic: bool) -> Option<Std14> {
+    use Std14::{
+        Courier, CourierBold, CourierBoldOblique, CourierOblique, Helvetica, HelveticaBold,
+        HelveticaBoldOblique, HelveticaOblique, TimesBold, TimesBoldItalic, TimesItalic,
+        TimesRoman,
+    };
+    let family = match face {
+        Helvetica | HelveticaBold | HelveticaOblique | HelveticaBoldOblique => 0u8,
+        TimesRoman | TimesBold | TimesItalic | TimesBoldItalic => 1,
+        Courier | CourierBold | CourierOblique | CourierBoldOblique => 2,
+        Std14::Symbol | Std14::ZapfDingbats => return None,
+    };
+    Some(match (family, bold, italic) {
+        (0, false, false) => Helvetica,
+        (0, true, false) => HelveticaBold,
+        (0, false, true) => HelveticaOblique,
+        (0, true, true) => HelveticaBoldOblique,
+        (1, false, false) => TimesRoman,
+        (1, true, false) => TimesBold,
+        (1, false, true) => TimesItalic,
+        (1, true, true) => TimesBoldItalic,
+        (_, false, false) => Courier,
+        (_, true, false) => CourierBold,
+        (_, false, true) => CourierOblique,
+        (_, true, true) => CourierBoldOblique,
+    })
+}
+
 /// Map an exact §9.6.2.2 `BaseFont` name to its [`Std14`] variant.
 ///
 /// **Exact std-14 names only** — no aliases, no case-folding, no subset

@@ -41363,10 +41363,12 @@ impl EditSession {
     /// subject and serial, the SubFilter, the algorithm, the byte range, the
     /// CMS size against the reservation, and the PAdES level actually
     /// produced (`B-B` — `PC-12`: never a higher level than the material
-    /// embedded). A visible signature's appearance is, in this first cut, a
-    /// **thin frame only** — no text; the details live in the report and in
-    /// any reader's signature panel. (A composed appearance is a later
-    /// increment.)
+    /// embedded). A visible signature's appearance (`Pass 10.14`) is a thin
+    /// frame plus composed text — signer CN, date, and the reason/location
+    /// when given — in Helvetica, shrunk to fit; the lines are on
+    /// `SignReport::appearance_lines`, and a rectangle too small for them is
+    /// refused (`SignApplyError::AppearanceOverflow`) before anything is
+    /// staged.
     ///
     /// # Errors
     ///

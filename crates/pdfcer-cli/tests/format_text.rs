@@ -413,3 +413,139 @@ fn set_font_to_a_non_standard_14_face_is_still_refused() {
     assert!(err.contains("FF-C"), "{err}");
     assert!(!out_path.exists(), "a refusal must write no output file");
 }
+
+// ---------------------------------------------------------------------------
+// `Pass 179.0` — the automatic style ladder, as the SHIPPED BINARY reports it
+// (criterion 6: the rung sentence reaches stdout, not only the core's report).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn bold_with_no_face_named_binds_the_standard_14_sibling_and_says_so() {
+    // The Pass's discriminating fixture: one font resource, Helvetica. The
+    // shipped binary used to synthesise here; now it binds Helvetica-Bold and
+    // embeds nothing.
+    let out_path = temp_path("ladder_rung2");
+    let out = run(&[
+        fixture("format_other.pdf").to_str().unwrap(),
+        "--find",
+        "hello",
+        "--bold",
+        "-o",
+        out_path.to_str().unwrap(),
+    ]);
+    assert!(out.status.success(), "exit 0: {}", stderr(&out));
+    let text = stdout(&out);
+    assert!(
+        text.contains("style_ladder: requested=bold rung=StandardFourteenSibling bound=\"Helvetica-Bold\" synthesised=nothing"),
+        "{text}"
+    );
+    assert!(
+        text.contains("style: bold via rung 2: the standard-14 sibling"),
+        "{text}"
+    );
+    assert!(
+        text.contains("synthesis=none"),
+        "nothing synthesised: {text}"
+    );
+    let edited = std::fs::read(&out_path).unwrap();
+    let s = String::from_utf8_lossy(&edited);
+    assert!(
+        s.contains("/BaseFont /Helvetica-Bold"),
+        "the sibling was bound"
+    );
+    assert!(!s.contains("2 Tr"), "no synthetic stroke");
+    let _ = std::fs::remove_file(out_path);
+}
+
+#[test]
+fn bold_binds_a_real_face_already_on_the_page_first() {
+    let out_path = temp_path("ladder_rung1");
+    let out = run(&[
+        fixture("format_twins.pdf").to_str().unwrap(),
+        "--find",
+        "hello",
+        "--bold",
+        "-o",
+        out_path.to_str().unwrap(),
+    ]);
+    assert!(out.status.success(), "exit 0: {}", stderr(&out));
+    let text = stdout(&out);
+    assert!(
+        text.contains("rung=RealFaceOnPage bound=\"Times-Bold\""),
+        "{text}"
+    );
+    // The /Differences twin claimed bold but cannot show 'o'; it is NAMED as
+    // passed over, not silently skipped.
+    assert!(text.contains("passed_over=1"), "{text}");
+    assert!(
+        text.contains("Passed over (could not show these characters): Times-Bold (R-INV-7"),
+        "{text}"
+    );
+    let _ = std::fs::remove_file(out_path);
+}
+
+#[test]
+fn refuse_posture_stops_at_rung_4_and_names_the_override() {
+    let out_path = temp_path("ladder_refuse");
+    let out = run(&[
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/synthetic/text/subset-simple-embedded.pdf")
+            .to_str()
+            .unwrap(),
+        "--find",
+        "ABC",
+        "--bold",
+        "--style-policy",
+        "refuse",
+        "-o",
+        out_path.to_str().unwrap(),
+    ]);
+    assert_eq!(out.status.code(), Some(EDIT_REFUSED), "{}", stderr(&out));
+    let err = stderr(&out);
+    assert!(
+        err.contains("style_policy=refuse forbids an automatic synthetic fallback"),
+        "{err}"
+    );
+    assert!(err.contains("--bold-synthetic"), "{err}");
+    assert!(!out_path.exists(), "nothing written");
+    // Under the default posture the same request synthesises and says which rung.
+    let out = run(&[
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/synthetic/text/subset-simple-embedded.pdf")
+            .to_str()
+            .unwrap(),
+        "--find",
+        "ABC",
+        "--bold",
+        "-o",
+        out_path.to_str().unwrap(),
+    ]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(
+        text.contains("rung=Synthetic bound=- synthesised=bold"),
+        "{text}"
+    );
+    assert!(text.contains("style: bold via rung 4: synthetic"), "{text}");
+    let _ = std::fs::remove_file(out_path);
+}
+
+#[test]
+fn bold_and_set_font_together_are_refused_by_clap() {
+    let out = run(&[
+        fixture("format_other.pdf").to_str().unwrap(),
+        "--find",
+        "hello",
+        "--bold",
+        "--set-font",
+        "Helvetica-Bold",
+        "-o",
+        temp_path("ladder_conflict").to_str().unwrap(),
+    ]);
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("cannot be used with"),
+        "{}",
+        stderr(&out)
+    );
+}

@@ -1846,9 +1846,10 @@ enum Command {
     /// signer's own words, written verbatim.
     ///
     /// Invisible by default (`/Rect [0 0 0 0]`, nothing drawn). `--visible
-    /// x0,y0,x1,y1` places a widget on `--page` with a thin frame; the details
-    /// (signer, time) live in the signature panel of any reader, not in the
-    /// frame — a composed appearance is a later increment.
+    /// x0,y0,x1,y1` places a widget on `--page` showing a frame and, in
+    /// Helvetica shrunk to fit, the signer's name, the date and
+    /// `--reason`/`--location` when given; the lines are printed on success,
+    /// and a box too small for them at 4 pt is refused by name.
     ///
     /// Refused by name, nothing written: a signing time that is not a PDF
     /// date; an encrypted document (the incremental writer cannot append to
@@ -6290,6 +6291,21 @@ enum Command {
         /// about what pdfcer can do. Ask `font-preflight` first.
         #[arg(long = "bold-synthetic")]
         bold_synthetic: bool,
+        /// Make the run BOLD and let pdfcer choose how (`Pass 179.0`): a real
+        /// bold face already on the page if one can show the text, else the
+        /// standard-14 bold sibling of the run's own family (`Helvetica` →
+        /// `Helvetica-Bold`, nothing embedded), else the synthetic stroke —
+        /// the last step subject to `--style-policy` (`refuse` stops there
+        /// and names `--bold-synthetic` as the explicit override). The rung
+        /// taken is printed. Not with `--set-font` (name the styled face
+        /// directly) or `--bold-synthetic`.
+        #[arg(long, conflicts_with_all = ["set_font", "bold_synthetic"])]
+        bold: bool,
+        /// Make the run ITALIC the same automatic way (`--bold` describes
+        /// the ladder); the two combine, per axis — a real Bold may bind
+        /// while Italic is synthesised in the same operation.
+        #[arg(long, conflicts_with_all = ["set_font", "italic_synthetic"])]
+        italic: bool,
         /// Apply SYNTHETIC italic: a 12-degree oblique shear premultiplied
         /// into the run's text matrix. Same `--style-policy` handling as
         /// `--bold-synthetic`. REFUSED when a Td/TD/T* next-line operator
@@ -10245,6 +10261,8 @@ fn run() -> ExitCode {
             rise,
             bold_synthetic,
             italic_synthetic,
+            bold,
+            italic,
             style_policy,
             output,
             pin,
@@ -10268,6 +10286,7 @@ fn run() -> ExitCode {
                 bold_synthetic,
                 italic_synthetic,
             ),
+            style: pdfcer_core::text_edit::StyleSynthesis::new(bold, italic),
             style_policy,
             // clap's `conflicts_with` guarantees at most one is set, so this
             // ladder cannot silently prefer one over another.
@@ -23457,6 +23476,8 @@ struct FormatTextArgs<'a> {
     /// [`StyleSynthesis::None`] means none were, which is the default and
     /// the only state in which nothing is synthesized (R90).
     synthetic: pdfcer_core::text_edit::StyleSynthesis,
+    /// `--bold` / `--italic`: the automatic ladder (`Pass 179.0`).
+    style: pdfcer_core::text_edit::StyleSynthesis,
     /// `--style-policy`, or `None` to use the stored setting. Overrides the
     /// setting for this invocation only; nothing is persisted.
     style_policy: Option<StylePolicyArg>,
@@ -23722,6 +23743,9 @@ fn cmd_format_text(args: &FormatTextArgs<'_>) -> u8 {
     if !args.synthetic.is_none() {
         req = req.synthetic(args.synthetic);
     }
+    if !args.style.is_none() {
+        req = req.style(args.style);
+    }
     // ★ The bold/italic fallback posture (`Pass 179.0`, decision 106).
     //
     // Resolved HERE, in the shell, and handed to core as a value -- the
@@ -23764,6 +23788,7 @@ fn cmd_format_text(args: &FormatTextArgs<'_>) -> u8 {
                 | FormatError::WordSpacingComposite { .. }
                 | FormatError::ConflictingRise
                 | FormatError::RealFaceAvailable { .. }
+                | FormatError::SynthesisRefusedByPosture { .. }
                 | FormatError::ShearUnsupported(_)
                 | FormatError::Encrypted => exit::EDIT_REFUSED,
                 FormatError::Write(_) => exit::SAVE_REFUSED,
@@ -23874,6 +23899,21 @@ fn cmd_format_text(args: &FormatTextArgs<'_>) -> u8 {
     // face, the resource, whether the family differs and the exact
     // `--set-font` to retry with; re-wording it here would be a second
     // description of one fact, and the two would drift.
+    // `Pass 179.0`: which rung the automatic ladder took. The full sentence
+    // is also among the disclosures below; this line is the machine-readable
+    // summary a script keys on.
+    if let Some(l) = &report.style_ladder {
+        println!(
+            "  style_ladder: requested={} rung={:?} bound={} synthesised={} passed_over={}",
+            l.requested.axes(),
+            l.rung,
+            l.bound
+                .as_deref()
+                .map_or_else(|| "-".to_owned(), quoted_token),
+            l.synthesised.axes(),
+            l.passed_over.len()
+        );
+    }
     if let Some(passed_over) = &report.real_face_passed_over {
         match policy {
             pdfcer_core::settings::StylePolicy::Warn => {

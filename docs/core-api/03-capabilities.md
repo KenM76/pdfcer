@@ -1317,8 +1317,8 @@ That is a distinct failure and this section is the repair for it.
 | **size** | `set_size: Option<f64>` | ✅ always. Changes only the `Tf` operand; the line is relaid out and `advance_delta` is reported |
 | **colour** | `set_fill: Option<NewFill>` | ✅ always. **Stores the chosen device space** (`rgb:`→`rg`, `cmyk:`→`k`, `gray:`→`g`) — pdfcer does *not* force-convert to DeviceRGB the way Acrobat does. A run originally painted in a non-device space is disclosed as a narrowing conversion |
 | **face** | `set_font: Option<FontSelector>` | ⚠️ **only to a font that is ALREADY a resource on the page** — see below |
-| **bold** | `set_synthetic` (`StyleSynthesis`) | ✅ **on any page**, as a disclosed *synthetic* weight — see §3.6.1 |
-| **italic** | `set_synthetic` | ✅ as a disclosed *synthetic* slant, except where a `Td`/`TD`/`T*` follows the run in the same text object — refused by name, §3.6.1 |
+| **bold** | `set_style` (`StyleSynthesis`) — automatic ladder, §3.6.0; `set_synthetic` = explicit synthetic override, §3.6.1 | ✅ **on any page**: a real face when one binds (page face or standard-14 sibling, nothing embedded), else a disclosed *synthetic* weight |
+| **italic** | `set_style` / `set_synthetic` | ✅ same ladder; the synthetic rung is refused by name where a `Td`/`TD`/`T*` follows the run in the same text object, §3.6.1 |
 | character spacing | `set_char_spacing` (`Tc`, §9.3.2) | ✅ |
 | word spacing | `set_word_spacing` (`Tw`, §9.3.3) | ✅ simple fonts; **refused by name on a composite run** (`Tw` is spec-void for multi-byte codes, so emitting it would do nothing) |
 | horizontal scale | `set_h_scale` (`Tz`, §9.3.4) | ✅ |
@@ -1363,7 +1363,32 @@ donor program into `format_text` is the open half of `FF-C` (Backlog
 (`edit_text`, `preview_*`, `reflow_block` all resolve it through the session
 view); before, it resolved only after a save and reopen.
 
-#### ★★ 3.6.1 But bold and italic ARE reachable — `set_synthetic`
+#### ★★★ 3.6.0 Bold and italic are AUTOMATIC — `set_style` (`Pass 179.0`, decision 106)
+
+Ken, 2026-08-30: *"bold font should be automatically used if available, but
+otherwise synthetic should be supported, and the user shouldn't have to
+intervene."* `FormatRequest::set_style` / `.style(StyleSynthesis::Bold)` /
+CLI `--bold`, `--italic` — the caller says WHAT, pdfcer chooses HOW, per axis:
+
+| rung | source | what it costs the file |
+|---|---|---|
+| 1 | a real face already on the page that claims the style and passes the `set_font` coverage gate (same family first, then any) | a `Tf` swap |
+| 2 | the standard-14 sibling of the run's OWN family (`Helvetica`→`Helvetica-Bold`, `Times-Roman`→`Times-BoldItalic`, `Courier`→`Courier-Oblique`; `fontdata::std14_styled`) | one new `/Font` dict, nothing embedded |
+| 3 | *(a `--font-dir` donor — `Pass 142.0`, not built)* | — |
+| 4 | synthesis (R90: `Tr 2` stroke / `Tm` shear) — `auto`/`warn` apply and disclose; `refuse` → `FormatError::SynthesisRefusedByPosture` naming `--bold-synthetic` as the override | a text-state change |
+
+A full real face beats a half-synthesised one (rung 2 for both axes is
+tried before rung 1 for one axis), and a real Bold may bind while Italic is
+synthesised in the same operation — an exceed over Acrobat's single combined
+toggle. Cross-family standard-14 substitution (`Arial` text → `Helvetica-Bold`)
+is NOT taken: `Arial` maps to the Helvetica family only through
+`basefont_to_std14`'s alias table, so an `Arial` run does reach rung 2, but a
+`Verdana` run does not. `FormatReport::style_ladder` says which rung fired,
+what was bound, what was synthesised and which page faces were passed over
+(and why); the same sentence is in `disclosures` and on `pdfcer format-text`'s
+stdout (`style_ladder: requested=… rung=… bound=… synthesised=…`).
+
+#### ★★ 3.6.1 But bold and italic ARE reachable — `set_synthetic` (the explicit override since `Pass 179.0`)
 
 **This paragraph replaces a wrong one. The first draft of §3.6 said bold and
 italic were unavailable on existing text, and that claim was sent to a

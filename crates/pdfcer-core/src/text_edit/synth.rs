@@ -177,6 +177,19 @@ impl StyleSynthesis {
         matches!(self, Self::Italic | Self::BoldItalic)
     }
 
+    /// The axes alone — `bold`, `italic`, `bold italic`, or `nothing` —
+    /// without [`Self::label`]'s "synthetic" prefix, for sentences about a
+    /// style that a REAL face may have supplied (`Pass 179.0`).
+    #[must_use]
+    pub const fn axes(self) -> &'static str {
+        match self {
+            Self::None => "nothing",
+            Self::Bold => "bold",
+            Self::Italic => "italic",
+            Self::BoldItalic => "bold italic",
+        }
+    }
+
     /// Whether anything at all is synthesized.
     #[must_use]
     pub const fn is_none(self) -> bool {
