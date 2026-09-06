@@ -112,6 +112,298 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★ 444th filing, 2026-09-06 (early; the 2026-09-05 session running past
+midnight — dated by the clock, as the 443rd was) — `Pass 256.0` SHIPPED,
+unreleased (post-`v0.40.0`): **`1343f0e`** *"feat(core,cli): edit text ACROSS
+consecutive show operators (Pass 256.0)"*, authored `2026-09-05 20:22:25
+-0400`, 11 files, `+823/−99` (`git show --stat`). A `find` may now match
+across CONSECUTIVE show operators of one text object when they share font
+resource name, size, `Tc`/`Tw`/`Tz`, marked-content sequence and the same
+text-space row — the one-glyph-per-`Tj` shape the operator's first real typo
+sat in, and ordinary `TJ`-element splits. MEASURED on his document
+(`C:\Users\Ken\OneDrive\pdfTests\apartment work - signed.pdf`, page 2):
+`edit-text --find "clien" --replace "client"` → `base_font=BAAAAA+Arimo-Regular
+advance_delta=8.032 followers_repositioned=4 operators_spanned=5`;
+`extract-text --pages 2` reads *"Final quality walkthrough with client"*. Two
+acceptance criteria AMENDED by the engineer (5 and 7 — struck through in the
+*Next up* entry, which stays legible below the fold). The 443rd filing's owed
+channel reply (`142.2` is minted) is POSTED, and so is this Pass's SHIPPED
+reply. Followed by `7c17d72` *"docs: NEXT_SESSION.md — Pass 256.0 shipped;
+142.2 is next"* (docs-only, `docs/NEXT_SESSION.md`, `+19/−1`; mentioned, not
+narrated — the engineer's handoff file). No decision minted. `Pass 142.2` is
+now the HEAD of *Next up*.**
+
+**The one behaviour that moved for edits that ALREADY worked — stated first
+because it is the half a reader planning around the old contract needs.**
+Criterion 5 promised *"every edit that succeeds at `8a18e53` succeeds with
+the IDENTICAL saved bytes"*. That holds for `Tm`-positioned and follower-less
+edits. It does NOT hold where the operators AFTER a single-operator edit on
+the same line are positioned by `Td` steps: before `1343f0e` they were left
+where the producer's `Td` put them (the un-respaced tail the correction
+observed on the pin — `followers_repositioned 0`, the new `t` crowding what
+followed); now they are RE-SPACED by the advance delta like the in-operator
+followers always were. The engineer's judgement, recorded as his amendment:
+keeping the tail un-respaced for a one-operator edit while re-spacing it for
+a spanned one would be an inconsistency no operator would accept. The
+SHIPPED reply on the channel names this as the one behaviour that changed.
+
+**Fixtures — three NEW files only; the regenerated old ones were RESTORED.**
+`tools/gen-subset-font-fixtures.py` (`+96`) gained the three-glyph composite
+donor cases and re-emitted every fixture it owns; fontTools stamps a
+creation date, so the pre-existing fixtures came out byte-different for no
+reason a reader could act on, and the engineer restored them before
+committing. `git show --stat 1343f0e` lists exactly three files under
+`fixtures/synthetic/text/` — `composite-per-glyph.pdf` (2,269 B),
+`composite-tj-split.pdf` (2,201 B), `composite-font-change.pdf` (2,244 B),
+all `Bin 0 ->` — and `composite-editable.pdf` (mtime 19:50 by `ls -la`, the
+restore) is NOT in the diff. A regenerated committed fixture is a change
+that needs a reason; these three have one and the others were not changed.
+
+**Hard-rule-11 sweep — the one-operator contract CHANGED MEANING, so every
+place that states it was read.** Grep for `one show operator` /
+`single show` / `within one show` over `crates/pdfcer-core/src`,
+`crates/pdfcer-cli/src`, `docs/core-api`, `docs/FEATURES.md`,
+`docs/ARCHITECTURE.md`, `README.md` (case-insensitive; the pattern widened
+to the bare keyword per clause (e)), every hit read:
+- **ONE SURVIVOR, owed to the engineer (this role does not edit `crates/`):**
+  `crates/pdfcer-core/src/text_edit/edit.rs:340`, the rustdoc on
+  `EditRequest::find` — *"The text to locate within one show operator's
+  decoded run."* — now states the pre-256.0 contract on the very field
+  whose meaning widened. One sentence.
+- **Survive and are CORRECT — do not "fix":** `format.rs:586` and `:596`
+  (`FormatRequest::find`, *"within one show operator's decoded run"*) —
+  `format_text` still targets one operator (`match_run` refuses
+  cross-element for it; the commit says so); `docs/core-api/02-editing-and-saving.md:438`
+  quotes that `FormatRequest` sentence; `edit.rs:2725` (*"A resolved match
+  within one show operator"*, `MatchRun`) — still true, the span is
+  `Anchor`'s, not `MatchRun`'s; `edit.rs:2520` already says *"one show
+  operator, or — `Pass 256.0` — a run of consecutive ones"*; the four CLI
+  `--help` sentences at `main.rs:6002/6086/22704/23529` were rewritten in
+  the commit; `delete_text_run`'s *"one show operator"* everywhere is a
+  different verb's true contract; `docs/core-api/01-reading-and-model.md:981–1027`
+  is the `Pass 145.0` run-vs-operator census, unaffected.
+- `docs/FEATURES.md`: the *Planned* row is REPLACED by an *Implemented* row
+  (below); no other row stated the one-operator contract.
+
+**`docs/FEATURES.md`.** The `Pass 256.0` *Planned* row (top of the section)
+REMOVED; one *Implemented* row ADDED under *Text*, directly beneath the
+in-place-edit row, **`[x] [x] [ ] [x]`** — `gui` UNTICKED: `pdfcer-gui` has
+not consumed it (their one-letter-at-a-time sentence is theirs to change).
+The row carries the `T*` exception and the *"`format_text` still
+single-operator"* fact. The `Pass 142.2` *Planned* row's tail *"*Next up*
+after `Pass 256.0`"* → *"*Next up*"* (sentence replaced, not appended).
+
+**No decision minted; no RAG written.** Decision ceiling `138` unchanged.
+The span rule is pdfcer's own and is documented on `find_anchor_span` /
+`spannable` in `text_edit/edit.rs` — a documented engine rule, not an
+architectural decision; nothing about crate boundaries, libraries or
+invariants moved (no `Cargo.toml` change, so `cargo tree` was not re-run
+and is not asserted).
+
+**Sourcing (hard rule 8).** This role had a shell; MEASURED at filing:
+`git log --oneline -3` = `7c17d72`, `1343f0e`, `6673584` (443rd filing);
+`git status --short` EMPTY at filing start — **and at gate time carrying
+the engineer's IN-FLIGHT `Pass 142.2` work** (`main.rs`, `edit.rs`,
+`text_edit/format.rs`, `text_edit/mod.rs`, `docs/core-api/02` + `index.md`
+modified, `tests/font_preflight_candidate.rs` untracked; the new verb is
+`preview_font_resources_for`), NONE of it staged here (three docs by name).
+**`check-core-api-verbs` is RED on that working tree** — `index.md:17` says
+`02` is 4,692 lines, his in-flight `02` is 4,693 — **and GREEN on HEAD plus
+this filing's three docs** (verified in a throwaway `git worktree` at
+`7c17d72` with the three files copied in: *"every verb documented, count
+agrees"*); the red is his to clear when `142.2` commits. `git show --stat
+1343f0e` = 11 files, `+823/−99`; `git show --stat 7c17d72` = one file, `+19/−1`; commit
+author dates by `git log --format=%ad`; **`origin/main` = `bdefb09`
+(`git rev-parse`), `git log origin/main..HEAD | wc -l` = 3 BEFORE this
+filing (`6673584`, `1343f0e`, `7c17d72`) — so `main` is UNPUSHED by three
+commits plus this one; the engineer pushes on his cadence (decision 090)**;
+both replies present in `D:/Dev/FeatureRequests/pdfce_FeatureRequests/open/`
+by `ls -la` (SHIPPED reply 3,017 B mtime 20:22; the `142.2` reply 1,954 B
+mtime 20:09); `tests/text_edit_span.rs` = 5 `#[test]` (`grep -c`); the
+three fixture sizes by `ls -la`; `operators_spanned` at `edit.rs:594` /
+`main.rs:22817`, `find_anchor_span` at `edit.rs:2567`, `spannable` at
+`:2542`, `reposition_followers` at `:2259`, `match_range` at `:2868`,
+`plan_edit_target` at `:1696`, `Rec::Td` at `:855` — all by `grep -n` on
+the working tree at `7c17d72`. RELAYED from the engineer (not re-run here):
+the measurement on the operator's file, the gate list and 196/196, the
+sabotage-mutation results, the `find_anchor` displaced-doc-comment catch.
+LIFTED from `1343f0e`'s message: the span rule, the follower algorithm, the
+emptied-operator disposition, the f32 rounding, the two amendments.
+
+**Ledger.** Filings ceiling `443` → **`444`**; Pass ceiling **`256.1`
+UNCHANGED** (nothing minted); decision ceiling **`138` UNCHANGED**, next free
+`139`; standing rules ceiling **`R241` unchanged**, next free `R242`; open
+operator questions: none minted, next free `(ce)`. *Next up* now holds
+`Pass 142.2` alone (NOT STARTED).
+
+### `Pass 256.0` (`1343f0e`, 2026-09-05) — ★★★★ **EDIT TEXT ACROSS SHOW OPERATORS — a `find` matches across CONSECUTIVE `Tj`/`TJ` operators of one text object when they share font resource name, size, `Tc`/`Tw`/`Tz`, marked-content sequence and text-space ROW, so a producer that writes ONE GLYPH PER SHOW OPERATOR (the operator's own document) and ordinary `TJ`-split kerning output are editable as one run; the replacement lands in the operator holding the match END, the earlier matched glyphs are removed, emptied operators stay as `() Tj`, and the line's `Td` followers RE-SPACE — `EditReport::operators_spanned`, `edit-text` with no new flag** — ★ **measured on the operator's file: `"clien"` → `"client"`, `operators_spanned=5`, `followers_repositioned=4`, advance `+8.032`**
+
+**Origin.** The 439th filing's mint — the `pdfcer-gui` correction of
+2026-09-05, ask (a): *"What a caret in a line of one-glyph-per-operator text
+means is 'replace this span of the visual line', which is N operators."*
+The operator's first real typo (`clien` → `client`, page 2 of `apartment
+work - signed.pdf`) sat in a stream reading `(\x00\x17) Tj 16.076 0 Td
+(\x00\x11) Tj 8.031 0 Td …` — one two-byte code, one `Td`, one `Tj`, per
+letter. `edit-text` located `--find` inside ONE show operator by contract,
+so a five-letter find was `NoMatch`: correct, and useless. The pin
+(`Pass 145.0`) fixed the letter but left the tail un-respaced. Filed
+*Next up* over the backlog because he hit it on the first document he tried
+to correct.
+
+**THE SPAN RULE — pdfcer's own, published on `find_anchor_span` /
+`spannable` (`crates/pdfcer-core/src/text_edit/edit.rs:2567` / `:2542`).**
+Acrobat's grouping is unpublished (`Acrobat_Features\text_edit__in_place_editing_mechanism.md`,
+recorded GAP; its `must_have` is that pdfcer document its own). A `find` may
+match across CONSECUTIVE show operators (`Tj`/`TJ`) of ONE text object when
+they share: the font RESOURCE NAME (not `/BaseFont` — two resources with one
+name are two fonts here), the size, character and word spacing (`Tc`/`Tw`),
+horizontal scale (`Tz`), the marked-content sequence (`MCID`), and the same
+text-space ROW — every text-matrix component but the x translation. The
+records BETWEEN them may only be x-only `Td`s, same-row `Tm`s, or ignorable
+operators. **A pinned request never spans** (the pin names one operator; that
+is its meaning). `find_anchor` (single operator, `:2649`) is tried FIRST, so
+every edit that matched before matches the same way and reports
+`operators_spanned = 1`.
+
+**What the edit does (`plan_edit_target`, `:1696`).**
+- The replacement is re-encoded through the run's OWN font — the `R-INV`
+  ladder and the embedded-subset floor are UNCHANGED — and written into the
+  operator holding the match END; the matched glyphs are removed from the
+  earlier operators.
+- **Emptied-operator disposition, DECIDED (criterion 2 left it to the
+  engineer): kept as an empty `() Tj`.** The producer's own positioning
+  chain — its `Td` per glyph — stays intact and is re-spaced by the follower
+  logic rather than folded away. Disclosed in the `span:` report line and
+  the module docs.
+- `match_range` (`:2868`) generalises `match_run` (`:2837`) to a character
+  range that may cross `TJ` ELEMENTS: `MatchRun` gains `elem_hi` and
+  `kern_advance` (the kern numbers swallowed between the first and last
+  matched element, carried as an advance so the delta is exact), and
+  `emit_edited_operator` (`:3166`) collapses `elem..=elem_hi` into one
+  string. Inside one operator `edit_text` uses `match_range` too, so
+  `[(cli) -20 (en)] TJ` edits with `operators_spanned = 1` and the kern
+  consumed. **`match_run` keeps refusing cross-element for `format_text`,
+  whose emitter has not learnt it — `format_text` is still single-operator
+  (not in scope, by name in the mint).**
+- **FOLLOWERS (`reposition_followers`, `:2259`) — WIDENED past criterion 3.**
+  `Td`/`TD` are now recorded as `Rec::Td { tx, ty, leading }` (`:855`)
+  instead of an opaque `Boundary`. The walk from the first edited operator
+  carries `cum` (total advance change so far) and `absorbed` (what the
+  positioning chain has already realised): an x-only `Td` is shifted by
+  `cum − absorbed` — it is RELATIVE, so the shift propagates by the
+  operator's own semantics; an absolute `Tm` on the row by `cum`; a `Td`
+  with `ty ≠ 0` (a NEW LINE) is rewritten `tx − absorbed` so the next line
+  lands exactly where the producer put it, and the walk stops. **Exception,
+  disclosed:** when a later line in the same text object uses `T*`, `'` or
+  `"` (no operands to compensate), `Td` steps are NOT rewritten — the
+  pre-256.0 behaviour — and a `relayout:` disclosure (`:2343`) says the text
+  after the edit keeps the producer's positions and may crowd or gap.
+  Rewritten `Td` operands are ROUNDED to 1/10 000 pt so f32 glyph widths do
+  not smear `28.80000114`-shaped noise across the line; the absolute-`Tm`
+  path is unchanged.
+- `EditReport::operators_spanned: u64` (`:594`) — `1` for every
+  pre-256.0-shaped edit, so the field is never absent; the CLI prints
+  `operators_spanned=` on its summary line (`main.rs:22817`) and a `span:`
+  disclosure line names the count and the `() Tj` disposition
+  (`edit.rs:1972`). `check-outcome-disclosed` clean.
+- `format.rs` (`+4/−4`): the two `Rec::Boundary` breaks also break on
+  `Rec::Td`, so `format_text` and synthetic-italic behaviour are
+  byte-identical to before.
+
+**The nine acceptance criteria, walked (the 439th filing's list; the
+engineer amends by strike-through, and did, twice):**
+1. Span rule — MET; documented as above. Note the shipped rule is
+   TIGHTER than drafted: `Tc`/`Tw`/`Tz` and the MCID join font-resource,
+   size and row as grouping keys.
+2. Replacement in the match-END operator, earlier glyphs removed — MET;
+   emptied operators kept as `() Tj` (the engineer's choice, disclosed).
+3. Followers — MET and WIDENED (`Rec::Td`, `cum`/`absorbed`, the new-line
+   compensation, the `T*` exception, the rounding).
+4. Report — MET (`operators_spanned`, CLI summary, `span:` line).
+5. `NoMatch` + identical bytes — **AMENDED.** ~~*"every edit that succeeds
+   at `8a18e53` succeeds with the IDENTICAL saved bytes after this Pass"*~~
+   holds for `Tm`-positioned and follower-less edits; **`Td`-positioned
+   followers on the edited line are now RE-SPACED where they were left in
+   place before** — the un-respaced tail the correction observed on the
+   pin, and the inconsistency the engineer declined to ship. `NoMatch` for a
+   `Tf` change, a row change, an `ET`, an MCID change — MET (test). The
+   `route_enumeration` contract (an unpinned EMPTY find is refused, not
+   `NoMatch`) preserved.
+6. Tagged PDF — MET: the MCID must be equal across the span (a match
+   crossing `BDC`/`EMC` does not span, so it is `NoMatch`, not a merge);
+   the `/ActualText` staleness disclosure unchanged.
+7. Tests — MET with an **AMENDMENT**: ~~the fixture proves the repro
+   `--find "clien" --replace "client"` … `operators_spanned == 5`~~ — the
+   fixture spells its word with the three-glyph composite donor's `A`/`B`/`C`
+   (`composite-per-glyph.pdf`: `A` `B` `C` as three `Tj`, a follower `C`, a
+   second line `B`), and the `pdfcer-gui` repro itself was run on the
+   operator's REAL document instead (the measurement below).
+   `composite-tj-split.pdf` (`[<A> -20 <BC>] TJ` → `operators_spanned 1`,
+   kern consumed, delta `−0.96`) and `composite-font-change.pdf` (`A` in
+   `/F0`, `BC` in `/F1` → `NoMatch`; `"BC"` inside `/F1` spans 2) as
+   specified. `tests/text_edit_span.rs`, **5 tests** (`+200`):
+   `a_find_across_three_operators_edits_as_one_run` (→ `"ACB"`, two `() Tj`,
+   `Td` steps untouched at delta 0);
+   `a_growing_replacement_respaces_the_followers_and_keeps_the_next_line_put`
+   (`"ABCB"` → two `0 0 Td`, follower `144 0 Td`, next line `-144 -60 Td`,
+   `followers_repositioned 3`);
+   `a_split_across_tj_elements_inside_one_operator_spans_one`;
+   `a_font_resource_change_mid_word_is_not_spanned`;
+   `the_pin_never_spans_and_single_operator_edits_report_one`. **Four
+   sabotage mutations, each caught by a named test** (relayed):
+   shift-by-`cum` (instead of `cum − absorbed`), drop-`kern_advance`,
+   no-new-line-compensation, replacement-in-FIRST-operator. Workspace:
+   **196 of 196** test binaries green (relayed).
+8. CLI — MET: the four `--help` sentences (`main.rs:6002`, `:6086`,
+   `:22704`, `:23529`) rewritten to state the widened contract; NO new flag;
+   `docs/core-api/02-editing-and-saving.md` `edit_text` row and
+   `03-capabilities.md` targeting paragraph updated (`index.md` line count
+   `3,050` → `3,055`); `check-clap-help`, `check-cli-help-leads`,
+   `check-core-api-verbs` green (relayed).
+9. Acrobat parity — MET as scoped: Acrobat edits a heuristically grouped run
+   and never exposes the operator boundary; pdfcer reaches that for the
+   one-glyph-per-operator and `TJ`-split shapes, and its PUBLISHED grouping
+   rule plus `operators_spanned` are the exceed.
+
+**Measured on the operator's document (engineer, relayed; the file is the
+`- signed` copy, the only apartment-work file in that folder at the 439th's
+`ls`).** `C:\Users\Ken\OneDrive\pdfTests\apartment work - signed.pdf`,
+page 2: `edit-text --find "clien" --replace "client"` →
+`base_font=BAAAAA+Arimo-Regular advance_delta=8.032 followers_repositioned=4
+operators_spanned=5`; `extract-text --pages 2` reads *"Final quality
+walkthrough with client"*. Against the 439th's pin measurement on the same
+line (`advance_delta +8.03`, `followers_repositioned 0`): same delta, and
+the four operators after the match now move with it — the tail re-spaces.
+
+**Gates on the tree (engineer, relayed):** `cargo fmt`; `cargo clippy` on
+core + cli `-D warnings`; `check-string-gaps`; `check-public-fns-documented`
+— **which caught one displaced doc comment on `find_anchor`** (the
+doc-block-anchor weld, the known trap: an inserted function between a doc
+block and its item) and it was restored before commit; `check-outcome-disclosed`;
+`check-clap-help`; `check-cli-help-leads`; `check-core-api-verbs`;
+`check-control-bytes`; `check-suite-name-absent`. Full workspace 196/196.
+**Invariants unchanged:** no `Cargo.toml` change, so GUI-core separation
+was not re-measured and is not asserted here; round-trip — only the text
+object's operators are rewritten, per the module contract (the 439th's
+`tools/content-identity` measurement on the fixture is NOT reported by the
+engineer and is not claimed).
+
+**Not in scope (unchanged from the mint, by name):** a `find` across TEXT
+OBJECTS; `format_text` across operators (`match_run` still refuses
+cross-element for format — the same seam, filed when asked); merging
+marked-content sequences; `/ToUnicode` partial inversion (`Pass 256.1`,
+*Backlog*).
+
+**Channel.** Two replies posted in
+`D:/Dev/FeatureRequests/pdfce_FeatureRequests/open/` (by `ls -la`):
+`reply_2026-09-06-edit-text-spans-show-operators-SHIPPED.md` (3,017 B,
+20:22 — names the ONE behaviour that moved, the `Td`-follower re-spacing),
+and `reply_2026-09-06-font-preflight-candidate-text-is-scoped-as-142-2.md`
+(1,954 B, 20:09 — the 443rd filing's owed reply).
+
+**Owed:** the `EditRequest::find` rustdoc survivor at `text_edit/edit.rs:340`
+(one sentence; engineer's). `pdfcer-gui` consumption is theirs.
+
 **★★★ 443rd filing, 2026-09-06 (early; the 2026-09-05 session running past
 midnight — dated by the clock) — NO PASS SHIPPED. ONE INBOUND SCOPED, ONE
 CODE COMMIT FILED. The inbound: `pdfcer-gui`'s
@@ -110628,6 +110920,18 @@ in the "still open" list. Full build record: this file's own
 > Pass because they are one query and one CLI flag. `docs/FEATURES.md`: one
 > new *Planned* row under `256.0`'s, `[ ] [ ] [ ] ?`.
 
+> ★★★★ **`Pass 256.0` SHIPPED 2026-09-05, `1343f0e` (444th filing, dated
+> 2026-09-06 by the clock) — see top of *Shipped*.** Its entry below is KEPT
+> in place rather than removed, because two of its acceptance criteria were
+> AMENDED by the engineer at ship time (5: `Td`-positioned followers on the
+> edited line now re-space for single-operator edits too; 7: the fixture
+> spells its word with the composite donor's `A`/`B`/`C`, the repro ran on
+> the operator's real document) — struck through there, legible, the
+> amendment beside each. `Pass 142.2` is now the HEAD of this section.
+> `docs/FEATURES.md`: the `256.0` *Planned* row REPLACED by an *Implemented*
+> row under *Text*, `[x] [x] [ ] [x]` (`gui` unticked — `pdfcer-gui` has not
+> consumed it).
+
 > ★★★ **`Pass 254.0` SHIPPED and has left this section, 2026-09-05 (433rd
 > filing, code `8f9fb3e`).** Filed here *Next up* by the 432nd filing the same
 > day; shipped the next filing. Its full entry — the
@@ -110737,9 +111041,10 @@ in the "still open" list. Full build record: this file's own
 > carry are what the *Shipped* entries were walked against; a reader amending
 > a criterion amends it there by strike-through, never by rewrite.
 
-### `Pass 256.0` — ★★★★ **EDIT TEXT ACROSS SHOW OPERATORS — a `find` may span CONSECUTIVE show operators of one text object when they share font resource, size and baseline, so a producer that writes ONE GLYPH PER SHOW OPERATOR (and ordinary `TJ`-split kerning output) becomes editable; today's single-operator contract stays a SUBSET** — filed 2026-09-05 (439th filing, `pdfcer-gui` correction 2026-09-05 evening, ask (a)), *Next up*, **NOT STARTED** — head of family 256 (text editing across operator boundaries)
+### `Pass 256.0` — ★★★★ **EDIT TEXT ACROSS SHOW OPERATORS — a `find` may span CONSECUTIVE show operators of one text object when they share font resource, size and baseline, so a producer that writes ONE GLYPH PER SHOW OPERATOR (and ordinary `TJ`-split kerning output) becomes editable; today's single-operator contract stays a SUBSET** — filed 2026-09-05 (439th filing, `pdfcer-gui` correction 2026-09-05 evening, ask (a)), ~~*Next up*, **NOT STARTED**~~ **SHIPPED `1343f0e` (444th filing) — see top of *Shipped*; criteria 5 and 7 AMENDED below** — head of family 256 (text editing across operator boundaries)
 
-**Status: NOT STARTED.** The one engine gap the operator's first real typo
+~~**Status: NOT STARTED.**~~ **Status: SHIPPED `1343f0e`, 2026-09-05 (444th
+filing).** The one engine gap the operator's first real typo
 exposed. The correction's own words for the shape: *"What a caret in a line
 of one-glyph-per-operator text means is 'replace this span of the visual
 line', which is N operators."*
@@ -110832,10 +111137,19 @@ engineer amends by strike-through, never by rewrite):
    renders exactly as saved content renders.
 5. **`NoMatch` is still the answer when the run does not span** — a font or
    size change, a baseline change, another text object, or a `find` that
-   straddles an `ET`. Today's contract is a strict subset of the new one:
+   straddles an `ET`. ~~Today's contract is a strict subset of the new one:
    every edit that succeeds at `8a18e53` succeeds with the IDENTICAL saved
    bytes after this Pass (an equivalence test on saved bytes, the
-   `Pass 152.0` pattern).
+   `Pass 152.0` pattern).~~
+   > ★ **AMENDED at ship time by the engineer (`1343f0e`, 444th filing).**
+   > The identical-bytes clause holds for `Tm`-positioned and follower-less
+   > edits. It does NOT hold where `Td`-positioned followers sit after a
+   > single-operator edit on the same line: those were left in place before
+   > — precisely the un-respaced tail the correction observed on the pin
+   > (`followers_repositioned 0`) — and are now RE-SPACED by the advance
+   > delta. Keeping the tail un-respaced for a one-operator edit while
+   > re-spacing it for a spanned one is an inconsistency no operator would
+   > accept. The `NoMatch` half of this criterion stands and is tested.
 6. **Tagged PDF unchanged.** The `/ActualText` staleness disclosure
    (`text_edit/edit.rs`, the `R72` posture) fires exactly as it does for a
    single-operator edit; a multi-operator match that crosses an `MCID`
@@ -110845,10 +111159,21 @@ engineer amends by strike-through, never by rewrite):
 7. **Tests.** A synthetic one-glyph-per-operator fixture — generator added
    under `tools/` (the `gen-*-fixtures.py` pattern), a composite
    `Identity-H` face so the fixture is the operator's shape and not a
-   simple-font stand-in — proving the `pdfcer-gui` repro: `edit-text --page 1
+   simple-font stand-in — ~~proving the `pdfcer-gui` repro: `edit-text --page 1
    --find "clien" --replace "client"` succeeds, `extract-text` reads back
    `client`, `operators_spanned == 5`, and the operator after the match moved
-   by the advance of `t`. A second case: a `TJ` array whose elements split a
+   by the advance of `t`.~~
+   > ★ **AMENDED at ship time by the engineer (`1343f0e`, 444th filing).**
+   > The fixture spells its word with the three-glyph composite donor's
+   > `A`/`B`/`C` (`composite-per-glyph.pdf`: `A` `B` `C` as three `Tj`, a
+   > follower `C`, a second line `B`), not `"clien"`; the `pdfcer-gui` repro
+   > itself was run on the operator's REAL document instead —
+   > `operators_spanned=5`, `followers_repositioned=4`, `extract-text` reads
+   > *"…with client"* (the *Shipped* entry). The second and third cases
+   > below shipped as specified (`composite-tj-split.pdf`,
+   > `composite-font-change.pdf`).
+
+   A second case: a `TJ` array whose elements split a
    word (`[(cli) -20 (en)] TJ`) — one operator, several elements — edits with
    `operators_spanned == 1`, proving element splits and operator splits are
    both covered. A third: the same fixture with a `Tf` change mid-word →
@@ -110894,9 +111219,19 @@ in `plan_edit`.
 > moves when one exists). And it is no longer the only *Next up* item:
 > `Pass 142.2` (below) is queued directly after it.
 
+> ★★★★ **Status note 2026-09-06 (444th filing): SHIPPED `1343f0e`** (authored
+> `2026-09-05 20:22:25 -0400`). The build record, the walked criteria, the
+> two amendments and the measurement on the operator's file are the
+> `Pass 256.0` entry at the top of *Shipped*. The shipped span rule is
+> TIGHTER than criterion 1's draft (`Tc`/`Tw`/`Tz` and the MCID join the
+> grouping keys) and the follower rule is WIDER than criterion 3's (`Rec::Td`
+> with `cum`/`absorbed`, new-line compensation, the `T*` exception, 1/10 000 pt
+> rounding). `Pass 142.2` (below) is now the HEAD of *Next up*.
+
 ### `Pass 142.2` — ★★★ **THE FONT PRE-FLIGHT TESTS THE TEXT ABOUT TO BE TYPED, NOT ONLY THE TEXT THAT IS THERE — a CANDIDATE string beside the locator, every face's `FontAcceptance` derived against IT with the embedded-subset floor applied, so a refusal names the FIRST character the face cannot hold; and the STANDARD 14 surveyed for the same string, marked `WouldBeAdded` beside the page's own `OnPage` faces, the encoding rule staying ENGINE-side** — filed 2026-09-06 (443rd filing, `pdfcer-gui` request of 2026-09-05), *Next up* AFTER `Pass 256.0`, **NOT STARTED** — family 142 (the font pre-flight: `142.1` minted `preview_font_resources`; `142.0`, the embedded-donor restyle, is *Backlog*)
 
-**Status: NOT STARTED.** Sourced from
+**Status: NOT STARTED — the HEAD of *Next up* since the 444th filing
+(`Pass 256.0` shipped `1343f0e`).** Sourced from
 `D:/Dev/FeatureRequests/pdfce_FeatureRequests/open/request_font_preflight_tests_the_text_that_is_there_not_the_text_about_to_be_typed.md`
 (2026-09-05 18:06). Severity in the requester's words: *"a narrowing, not a
 blocker … the difference between a chooser that is exact and one that is

@@ -93748,3 +93748,156 @@ and output. NOT measured: `origin/main` — push state not asserted.
 - Operator: nothing new to try — the two-verb route (`format-text
   --set-font Helvetica-Bold`, then `edit-text --replace "€"`) already works
   on the shipped `0.40.0` for a character the run's own font cannot hold.
+
+
+## 2026-09-06 (444th filing) — `Pass 256.0` SHIPPED (`1343f0e`, unreleased, post-`v0.40.0`): `edit_text`'s `find` matches ACROSS consecutive show operators of one text object that share font resource name, size, `Tc`/`Tw`/`Tz`, MCID and text-space row — the one-glyph-per-`Tj` producer shape the operator's first real typo sat in, and `TJ`-element splits. Measured on his file: `"clien"` → `"client"`, `operators_spanned=5`, `followers_repositioned=4`. Two acceptance criteria AMENDED by the engineer (5: `Td` followers on the edited line now RE-SPACE for single-operator edits too; 7: the fixture spells with the donor's `A`/`B`/`C`, the repro ran on the real document). Both owed channel replies POSTED. `7c17d72` (docs-only, `NEXT_SESSION.md`) mentioned. No decision. Next: `Pass 142.2`, now the head of *Next up*.
+
+**Shipped:**
+- `Pass 256.0` — `1343f0e` *"feat(core,cli): edit text ACROSS consecutive
+  show operators (Pass 256.0)"*, `2026-09-05 20:22:25 -0400`, 11 files,
+  `+823/−99` (`git show --stat`): `text_edit/edit.rs` `+598`-ish of the
+  change (`find_anchor_span`, `spannable`, `match_range`, `Rec::Td`,
+  `reposition_followers` rewritten, `EditReport::operators_spanned`);
+  `format.rs` `+4/−4` (the two `Boundary` breaks also break on `Rec::Td`);
+  `pdfcer-cli/src/main.rs` `+13` (four `--help` sentences, the summary
+  line); `tests/text_edit_span.rs` `+200` (5 tests); three NEW fixtures;
+  `tools/gen-subset-font-fixtures.py` `+96`; core-api 02/03/index.
+  Built and shipped in this continuation of the 2026-09-05 session.
+- Followed by `7c17d72` *"docs: NEXT_SESSION.md — Pass 256.0 shipped; 142.2
+  is next"* — `docs/NEXT_SESSION.md` only, `+19/−1`; the engineer's handoff,
+  mentioned not narrated.
+
+**The span rule (lifted from the commit; published on `find_anchor_span` /
+`spannable`, `edit.rs:2567` / `:2542`).** Consecutive `Tj`/`TJ` of ONE text
+object sharing font RESOURCE NAME, size, `Tc`/`Tw`/`Tz`, marked-content
+sequence and the same text-space ROW (every `Tm` component but x); only
+x-only `Td`, same-row `Tm` or ignorable operators between; a pinned request
+never spans; `find_anchor` (single operator) tried first so every old edit
+matches the same way with `operators_spanned = 1`. Replacement lands in the
+match-END operator, earlier matched glyphs removed, **an emptied operator is
+kept as `() Tj`** (the producer's positioning chain stays intact; decided by
+the engineer, disclosed in the `span:` line). Followers: `Td`/`TD` are now
+`Rec::Td { tx, ty, leading }` (were opaque `Boundary`); an x-only `Td`
+shifts by `cum − absorbed`, an absolute row `Tm` by `cum`, a new line's
+`Td` is rewritten `tx − absorbed` so the next line stays put and the walk
+stops; **exception:** a later `T*`/`'`/`"` line in the text object → `Td`
+steps NOT rewritten (old behaviour) and a `relayout:` disclosure says so.
+Rewritten `Td` operands rounded to 1/10 000 pt (f32 glyph widths).
+**`format_text` is still single-operator** — `match_run` refuses
+cross-element for it; the same seam, filed when asked.
+
+**The two amendments (engineer's, struck through in the ROADMAP entry, kept
+legible).** Criterion 5's *"IDENTICAL saved bytes"* holds for
+`Tm`-positioned and follower-less edits, NOT where `Td`-positioned followers
+sit after a single-operator edit on the same line: those were left in place
+before (the un-respaced tail the correction observed on the pin) and are now
+re-spaced — keeping the tail un-respaced for one operator while re-spacing
+it for a span would be an inconsistency no operator would accept. Criterion
+7's fixture spells its word with the composite donor's three glyphs
+(`composite-per-glyph.pdf`: `A` `B` `C` as three `Tj`, follower `C`, line 2
+`B`), not `"clien"`; the `pdfcer-gui` repro ran on the operator's real
+document instead.
+
+**Measured on the operator's document (engineer, relayed):**
+`C:\Users\Ken\OneDrive\pdfTests\apartment work - signed.pdf`, page 2,
+`edit-text --find "clien" --replace "client"` →
+`base_font=BAAAAA+Arimo-Regular advance_delta=8.032 followers_repositioned=4
+operators_spanned=5`; `extract-text --pages 2` → *"Final quality walkthrough
+with client"*. Same `+8.03` delta as the 439th's pin measurement; the four
+operators after the match now move with it.
+
+**Tests + gates (engineer, relayed):** `tests/text_edit_span.rs` 5 tests
+(`grep -c "#\[test\]"` = 5 here) — three-operator edit → `"ACB"`, two
+`() Tj`, `Td` untouched at delta 0; growth `"ABCB"` → two `0 0 Td`, follower
+`144 0 Td`, next line `-144 -60 Td`, `followers_repositioned 3`; `TJ`-split →
+`operators_spanned 1`, kern consumed, delta `−0.96`; `Tf` change → `NoMatch`
+while `"BC"` inside `/F1` spans 2; the pin never spans. Four sabotage
+mutations each caught by a named test (shift-by-`cum`, drop-`kern_advance`,
+no-new-line-compensation, replacement-in-first-operator). 196/196 workspace
+test binaries. Gates: fmt, clippy core+cli `-D warnings`, string-gaps,
+public-fns-documented (**caught one displaced doc comment on `find_anchor`
+— the doc-block-anchor weld — restored**), outcome-disclosed, clap-help,
+cli-help-leads, core-api-verbs, control-bytes, suite-name-absent. No
+`Cargo.toml` change; `cargo tree` not re-run, not asserted.
+
+**Fixtures.** Only the three NEW files changed (`git show --stat`: three
+`Bin 0 ->` under `fixtures/synthetic/text/`). The generator re-emitted the
+pre-existing fixtures too (fontTools stamps a date) and the engineer
+RESTORED them before committing — `composite-editable.pdf` carries a fresh
+mtime (19:50 by `ls -la`) and is NOT in the diff. Stated because a
+regenerated committed fixture is a change that needs a reason.
+
+**Hard-rule-11 sweep (the one-operator contract changed meaning).**
+ONE survivor, owed to the engineer: `crates/pdfcer-core/src/text_edit/edit.rs:340`,
+`EditRequest::find`'s rustdoc — *"The text to locate within one show
+operator's decoded run."* Surviving and CORRECT (do not "fix"):
+`format.rs:586`/`:596` (`FormatRequest::find` — `format_text` really is
+still one operator), `docs/core-api/02-editing-and-saving.md:438` (quotes
+it), `edit.rs:2725` (`MatchRun` — within one operator; the span is
+`Anchor`'s), every `delete_text_run` *"one show operator"*, the
+`Pass 145.0` census in core-api 01. The four CLI `--help` sentences were
+rewritten in the commit.
+
+**`FEATURES.md`.** The `Pass 256.0` *Planned* row REMOVED; one *Implemented*
+row ADDED under *Text*, beneath the in-place-edit row, `[x] [x] [ ] [x]` —
+`gui` unticked, `pdfcer-gui` has not consumed it; the row carries the `T*`
+exception and *"`format_text` still one operator"*. The `Pass 142.2` row's
+tail *"*Next up* after `Pass 256.0`"* → *"*Next up*"*.
+
+**ROADMAP edits.** 444th head + the `Pass 256.0` *Shipped* entry at the top
+of *Shipped*; *Next up* intro note; the `Pass 256.0` *Next up* entry kept
+legible with its heading and status struck through, criteria 5 and 7 struck
+with the amendments beside them, and a dated 444th status note; the
+`Pass 142.2` entry marked HEAD of *Next up*. Docs-only filing: `ROADMAP.md`,
+`FEATURES.md`, `SESSION_LOG.md`, staged by name.
+
+**Channel.** Posted in `D:/Dev/FeatureRequests/pdfce_FeatureRequests/open/`
+(by `ls -la`): `reply_2026-09-06-edit-text-spans-show-operators-SHIPPED.md`
+(3,017 B, 20:22 — names the one behaviour that moved) and
+`reply_2026-09-06-font-preflight-candidate-text-is-scoped-as-142-2.md`
+(1,954 B, 20:09 — the 443rd's owed reply).
+
+**Decisions made this session:** none. Decision ceiling `138`. The span
+rule is an engine rule documented at its function, not an architectural
+decision.
+
+**Findings + decisions:** none generalizable beyond what the commit message
+and the ROADMAP entry carry; no RAG written. (The doc-block-anchor weld is
+already a known trap; not re-filed.)
+
+**Sourcing (hard rule 8).** Measured here: `git log --oneline -3` =
+`7c17d72`, `1343f0e`, `6673584`; `git status --short` EMPTY at filing start
+and, at gate time, carrying the engineer's IN-FLIGHT `Pass 142.2` work
+(four `crates/` files + `docs/core-api/02` + `index.md` modified,
+`tests/font_preflight_candidate.rs` untracked; NOT staged here) —
+`check-core-api-verbs` is RED on that working tree for his in-flight
+`index.md` line count (4,692 vs 4,693) and GREEN on HEAD plus this filing's
+three docs, verified in a throwaway worktree; `git show --stat` for both
+commits; author dates by `git log --format=%ad`;
+**`origin/main` = `bdefb09`; `git log origin/main..HEAD | wc -l` = 3 before
+this filing — `main` is UNPUSHED by `6673584`, `1343f0e`, `7c17d72` plus
+this filing**; reply files and fixture sizes by `ls -la`; symbol line
+numbers by `grep -n` at `7c17d72`; test count by `grep -c`. Relayed:
+the operator-file measurement, 196/196, the gate list, the sabotage results.
+Lifted: the algorithm, from `1343f0e`'s message.
+
+**Gates (this role, on the filing tree): in the filing commit's message.**
+
+**Still in flight:**
+- `Pass 142.2` (font pre-flight tests a CANDIDATE string; standard 14
+  surveyed) — *Next up*, now the head of the section; **IN BUILD at gate
+  time** (measured: its files in the working tree, uncommitted — see
+  Sourcing). The ROADMAP entry says NOT STARTED as of this filing's text;
+  it moves when a commit exists.
+- Unpushed: `6673584`, `1343f0e`, `7c17d72`, and this filing (measured
+  against `origin/main` = `bdefb09`). Engineer pushes on his cadence.
+- Unreleased since `v0.40.0`: `Pass 14.5` (`8670523`) and `Pass 256.0`
+  (`1343f0e`) — `0.41.0` material.
+- Owed: the `EditRequest::find` rustdoc at `text_edit/edit.rs:340` (one
+  sentence, engineer's).
+
+**For next session:**
+- Engineer: `Pass 142.2`; the one-sentence rustdoc survivor; push.
+- Operator: `edit-text --page 2 --find "clien" --replace "client"` on the
+  apartment file now lands in one command and the line re-spaces — no pin
+  needed. In the GUI, nothing changes until `pdfcer-gui` consumes it.
