@@ -1265,3 +1265,35 @@ samples. **The only working discovery route remains a web search on the SAMPLE F
 a deeper preview. Scope of this negative: the catalogue-page-scrape method, on both ISO
 and SIST flavours.** Untried and still open: whether a *different national body's own
 webstore* serves a deeper preview under its own domain.
+
+## 4u. ITU-T X.690 (ASN.1 BER/CER/DER) — FREE, NO GATE, CLEAN `pdftotext` (verified 2026-09-06)
+
+**Why you need it:** every signature/crypto document in this corpus delegates its
+byte layout to X.690 — RFC 5652 (CMS `signedAttrs` "MUST be DER encoded"), RFC 3161,
+RFC 7292 (PKCS#12), X.509 certificates, the PPKLite `/Cert` blobs. **When a corpus
+file says *"DER requires …"*, X.690 is the citation.**
+
+```
+curl -sL -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" -o x690.pdf \
+  "https://www.itu.int/rec/dologin_pub.asp?lang=e&id=T-REC-X.690-202102-I!!PDF-E&type=items"
+pdftotext -layout x690.pdf x690.txt
+```
+
+- **HTTP 200, `application/pdf`, 840 764 B, 38 pp.** Same `dologin_pub.asp` endpoint
+  as the staged T-series. **NO TIES login gate** — unlike T.81 (4c), which is the
+  only one of the ITU fetches that gates.
+- **`pdftotext -layout` is clean** — no symbol-font blanking (4r), no one-token-per-line
+  breakage (PLRM3), no ligature loss. Clause headings grep directly: `grep -n "^11\.6"`.
+- Staged `_sources\ITU-T_X.690_202102.pdf`, `license_basis: free_primary`, quotable
+  with citation. Registered in `LEGAL_NOTE.md`'s sourcing table **and** `index.md`'s
+  `_sources\` inventory (68h — two registrations).
+- **The document's own structure, so you cite the right clause:** clause 8 = BER,
+  9 = CER, **10 = DER** (*"the basic encoding described in clause 8, together with the
+  following restrictions and those also listed in clause 11"*), **11 = restrictions
+  shared by CER and DER**. So a DER rule may live in **clause 11**, not clause 10 —
+  **§11.6 Set-of components** is the `SET OF` ordering rule, while **§10.3 Set
+  components** (tag order, per X.680 §8.6) is a **DECOY** that does not apply to a
+  `SET OF`. Getting this backwards produces a plausible-looking wrong citation.
+- **Same pattern applies to the rest of the ASN.1 stack** if ever needed: X.680
+  (`T-REC-X.680-…`) is the notation, X.681/682/683 the extensions, X.691 PER,
+  X.696 OER — all on the same free endpoint, all ISO/IEC 8824/8825 twins.

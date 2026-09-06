@@ -6215,3 +6215,144 @@ regression, with no erratum as of 2026-09-03.**
   anchors (a keyword line indented 11 spaces, not 18) before they silently
   no-op'd. Keep doing this; a silent `.replace` that matches nothing is the
   index-drift mechanism.
+
+---
+
+## 71. ★★★ THE **"A MEASUREMENT CONTRADICTS ONE SENTENCE IN YOUR CORPUS"** DISPATCH — *the engineer ran a test; the RAG file is wrong; correct it* (2026-09-06, `signedAttrs` `SET OF` ordering, `security__cms_signeddata_build.md` `CB-4a`–`CB-4d`)
+
+**Shape:** `pdfce-engineer` sends a MEASURED result (test names, oracle, version)
+that falsifies a specific sentence in a corpus file, and tells you what the
+corrected entry must say. **This is the inverse of item 66/67** — there the corpus
+was silent and an oracle needed explaining; here the corpus SPOKE and was wrong.
+Cheaper than a build (no new file, no count-cell movement) but with two traps that
+a "just edit the sentence" reading walks straight into.
+
+### 71a. ★★★ THE WRONG HALF WAS THE **CONSEQUENCE**, NOT THE OBLIGATION — split them and only one dies
+
+The sentence was: *"DER also requires the `SET OF` elements be sorted … a BER
+encoder that emits them in insertion order **produces a signature no verifier
+accepts**."* Two claims fused into one bullet:
+
+| half | status after measurement |
+|---|---|
+| **obligation** — the BUILDER must DER-sort | **SURVIVES INTACT.** RFC 5652 §5.3 (`SignedAttributes MUST be DER encoded`) + X.690 §11.6. It was **uncited**; the fix ADDED the citation |
+| **consequence** — therefore verifiers reject an unsorted set | **DEAD.** OpenSSL 1.1.1s and pdfce both **ACCEPT** an unsorted set that was signed over exactly those bytes |
+
+★ **`X is required` ⇏ `a non-X encoding is rejected`.** That inference is a
+**non-sequitur whenever the consumer does not validate canonicity** — and for
+`SET OF` ordering inside CMS, no measured verifier does. **Before writing a
+consequence sentence, ask which party is supposed to ENFORCE it and whether anyone
+measured that they do.** Same discipline as **65a** (split the `shall` from the
+measurable predicate), applied to a `MUST` whose violation nobody checks.
+⇒ the deliverable is a **LADDER, not a rewritten sentence**: `CB-4a` builder /
+`CB-4b` verifier-measured / `CB-4c` the tamper consequence / `CB-4d` the pdfce
+policy note. One ID per party.
+
+### 71b. ★★★ THE LENIENT RULE WAS THE **MORE SECURE** ONE — and the same measurement proves it
+
+The dispatch gave two results that look opposed and are the same fact:
+**unsorted-but-consistently-signed ⇒ ACCEPT**; **reordered-after-signing ⇒ REJECT**.
+Both follow from *hash the attribute octets AS RECEIVED under a `0x31` tag*.
+★ **A re-canonicalising verifier would INVERT BOTH:** it would **tolerate the
+attack** (re-sorting normalises the permutation away) **and reject the honest odd
+producer**. So "harden it, re-sort before hashing" is not merely over-strict, it is
+**less safe**. Write that reasoning into the file — otherwise a future Pass reads
+`CB-4b` as sloppiness and "fixes" it.
+⇒ the shape to reuse: **when a measurement shows a consumer is lenient, ask what
+the STRICT alternative would do to the ATTACK CASE** before calling the leniency a
+hole.
+
+### 71c. ★★ THE MISSING CITATION WAS IN A STANDARD THE CORPUS DID NOT HOLD — and it was free, 38 pp., 2 minutes away
+
+The corpus had asserted "DER requires the SET OF be sorted" **with no source**, in
+two files, for a day. The source is **ITU-T X.690 (02/2021) = ISO/IEC 8825-1:2021**,
+`free_primary`, same itu.int `dologin_pub.asp` endpoint as the T-series and **no
+TIES gate** (contrast T.81, which is gated):
+`https://www.itu.int/rec/dologin_pub.asp?lang=e&id=T-REC-X.690-202102-I!!PDF-E&type=items`
+→ HTTP 200, 38 pp. Extraction: plain `pdftotext -layout`, clean.
+The rules that matter, quotable (`free_primary`):
+- **§11.6 Set-of components** — *"The encodings of the component values of a set-of
+  value shall appear in ascending order, the encodings being compared as octet
+  strings with the shorter components being padded at their trailing end with
+  0-octets."* + NOTE *"The padding octets are for comparison purposes only and do
+  not appear in the encodings."*
+- **§10 Distinguished encoding rules** — the clause-8 basic encoding *"together with
+  the following restrictions and those also listed in clause 11"* ⇒ **§11 applies to
+  DER**; that is the link that makes §11.6 normative for a DER encoder.
+- **★ §10.3 Set components is a DECOY**: it orders a **SET** by TAG (per X.680 §8.6).
+  `SignedAttributes ::= SET OF Attribute` ⇒ **§11.6, not §10.3.** A file that cites
+  §10.3 for attribute ordering is wrong in a way that reads plausible.
+★ **GENERAL:** the ASN.1/DER **encoding layer** is a first-class corpus dependency
+now (RFC 5652 CMS, RFC 3161, RFC 7292 PKCS#12, X.509 in `/Cert`, PPKLite). Staged
+as `_sources\ITU-T_X.690_202102.pdf`. **When a corpus file says "DER requires …",
+the citation is X.690, and you now hold it.**
+
+### 71d. ★★ THE SIBLING FILE CARRIED THE SAME ASSUMPTION IN A **PARENTHESIS** — sixth instance
+
+`iso32000__ref__signature_verification.md` §5 trap 3 ended:
+*"…DER requires the `SET OF` members be sorted by encoding, **which they already are
+in the file**."* The dispatch did not mention it; **grep found it in one pass**
+(`rg "sort|SET OF" iso32000/iso32000__ref__signature_verification.md`).
+★ And note the asymmetry that makes this instance worth remembering: **the
+sibling's CONCLUSION was already right** ("prefer byte-splicing over
+re-serialisation") **and the measurement STRENGTHENS it** — only its stated *reason*
+was wrong. **A correction can leave a sibling's verdict standing while killing its
+argument; amend the argument, say the verdict survives, and say WHY it now survives
+for a better reason.** (Compare **67c**, where a refutation destroyed my own
+support.)
+⇒ **On any correction dispatch, grep every file that states the same fact FROM THE
+OTHER SIDE** (build↔verify, writer↔reader, producer↔consumer). `related_files`
+is the first place to look, and here it did not list the sibling in both directions
+— fixed.
+
+### 71e. ★ VERIFY THE DISPATCH'S OWN MEASUREMENT — it cost four commands and improved the entry
+
+Everything the dispatch asserted was checked before being written down (item 62/55
+discipline, and it paid):
+- `rg` the two test names → **both exist**, `crates/pdfcer-core/tests/sign_hardening.rs:229/237`.
+- `openssl version` → **OpenSSL 1.1.1s 1 Nov 2022**, mingw64 — matches the dispatch.
+- Reading the harness added **three facts the dispatch did not state** and the file
+  needed: (1) the oracle runs **`-noverify`**, i.e. **CHAIN VERIFICATION IS OFF** —
+  so the measurement is scoped to **integrity**, which is exactly the axis, and says
+  nothing about trust (**66a: ask what MODE the oracle was in** — fourth instance,
+  and this time the answer was in the harness source, not inferable); (2) there is a
+  **`Sabotage::None` control** accepted by both, so a rejection cannot be a splice
+  artefact; (3) the test's own comment records that pdfce **keeps** the as-received
+  rule deliberately and asserts agreement **in both directions** — that is `CB-4d`,
+  and without it a later Pass would "harden" the verifier and break interop.
+- **SCOPE THE MEASUREMENT IN THE FILE: `n = 2`.** OpenSSL 1.1.1s + pdfce. **NOT
+  measured:** OpenSSL 3.x, Acrobat, pyHanko, BouncyCastle, .NET `SignedCms`, Java.
+  *An oracle measures a device, not a rule* (66a/67e/68f) — so `CB-4a` is the
+  unconditional statement and `CB-4b` is the one with a named population.
+
+### 71f. Filing shape — a CORRECTION costs 4 files, 0 new files, 0 count cells
+
+- **0 new corpus files.** Recounted anyway: **185 total / 182 content**, and every
+  per-prefix `ls` matched the index cells exactly — **first session in several where
+  nothing was stale.** Recording that is worth as much as recording drift.
+- `security/security__cms_signeddata_build.md`: frontmatter `clause`/`license_basis`/
+  `keywords`; a **6-line AMENDMENT BANNER spliced under the §4 HEADING** (66g/67g —
+  top of the superseded section, not only the footer); the struck sentence replaced
+  by `CB-4a`–`CB-4d`; a new **§4.1 provenance+scope** subsection; §6 step 1 and §7
+  `CB-8` pointers; §8 X.690 entry; a dated **UPDATE footer with a was/now table**.
+- ★ **A subsection inserted mid-clause SPLIT THE PARENT'S BULLET LIST** — `§4.1`
+  landed between `CB-4d` and `CB-5`, orphaning `CB-5` under the wrong heading.
+  **After inserting a `###` inside a `##` clause, re-print the file's heading map
+  (`grep -n "^## \|^### "`) and move the block to the END of the parent clause.**
+- `iso32000/iso32000__ref__signature_verification.md`: trap 3 amendment + keywords +
+  `related_files` (added the build file **and** the creation file — they cited it,
+  it did not cite them).
+- `index.md`: **Status build-log entry (49 lines, 4 findings)** + the `security__`
+  prefix cell + **2 trigger rows (build side AND verify side)** + the `_sources\`
+  inventory row + **2 new search recipes, both RUN**.
+- `LEGAL_NOTE.md`: **one sourcing-table row** for X.690 (68h — a staged source costs
+  TWO registrations; both done, one line each).
+- ★★ **`LEGAL_NOTE.md` IS CRLF; every other corpus file is LF.** Writing it with
+  `newline="\n"` rewrote **all 519 lines** and the diff went from 1 hunk to whole-file.
+  **`file <path>` before writing, and re-check the diff hunk count after** — a
+  whole-file diff on a one-line edit is the tell. Restored with a
+  `open(p,'rb') → replace(b'\n', b'\r\n')` pass.
+- Backslash arithmetic bit twice: a markdown payload written into a **non-raw**
+  Python string holds `\\` in the SCRIPT and `\` at RUNTIME, so a later
+  `str.replace` over the SCRIPT file needs **four** backslashes, not two. Print
+  `[i for i,c in enumerate(line) if c=='\\']` rather than guessing from `repr`.
