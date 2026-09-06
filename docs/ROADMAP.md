@@ -112,6 +112,540 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★ 460th filing, 2026-09-06 — FIVE PASSES SHIPPED FROM THREE COMMITS, AND
+★★★★ **NOT ONE OF THEM IS THE ID THE DISPATCH ASKED FOR. FOUR OF THE FIVE WERE
+ALREADY MINTED IN *Backlog* AS `Pass 253.0`–`253.3` ON 2026-09-05 (`5f6bf65`,
+429th filing), FROM THE SAME FOUR REQUEST FILES, NAMING THE SAME FOUR VERBS —
+AND THE DISPATCH ASKED FOR THE IDs `259.0`/`259.1`, WHICH WOULD HAVE MINTED
+DUPLICATE IDs FOR AN ALREADY-SCOPED FEATURE AND LEFT `253.0`–`253.3` STRANDED
+IN *Backlog* FOREVER, MARKED NOT STARTED, DESCRIBING SHIPPED CODE.** The three
+commits, all unpushed, all unreleased (`origin/main` = `05696b5`,
+`git describe --tags --abbrev=0` = `v0.43.0`, so this is the first of the
+`0.44.0` batch): **`0ab3c84`** *"feat(core): /Open is readable and writable —
+pdfcer wrote a key it could not read back"* (`2026-09-06 18:13:48 -0400`, 7
+files, `+761/−5`); **`fe746ec`** *"feat(core): the review features — note
+icon/colour, replies, and review status"* (`19:03:57`, 10 files,
+`+2255/−24`); **`79e76e0`** *"feat(render): disclose how many strokes the
+hairline mode actually thinned"* (`19:05:13`, 4 files, `+853/−1`) — all by
+`git show --stat --date=iso`.
+
+**★★★★ THE ID RULING, AND IT IS THE FINDING OF THIS FILING.** Hard rule 2
+(*Pass IDs are stable, never reused for a different feature*) has a second
+edge the project has never had to state: **an ID already minted for a feature
+must be USED for that feature, not stepped around.** A shipped Pass filed
+under a fresh ID while an identical *Backlog* entry survives does not merely
+waste a number — it creates **two records of one feature that can never agree
+again**, one of them permanently reading NOT STARTED. Measured, not argued:
+
+| shipped here | *Backlog* entry that already described it, `ROADMAP.md` | filed | the *Backlog* entry's own words |
+|---|---|---|---|
+| `0ab3c84` `/Open` read + write | **`Pass 253.3`** | 2026-09-05 (`5f6bf65`, 429th) | *"read half — `Annotation::open: Option<bool>` (`Option`, not `bool`, to tell "file said closed" from "file said nothing"…). Write half — `set_annotation_open(id, bool)` writing `/Open` on the annotation **and** its `/Popup` as one undo entry"* |
+| `fe746ec` icon/colour | **`Pass 253.2`** | same | *"one `set_text_annot_style(id, &TextAnnotStyle)` covering icon + colour"*, *"`Annotation::color: Option<Vec<f64>>`… and `icon: Option<Vec<u8>>`"*, *"`StickyIcon::name` is private with no `from_name`"* |
+| `fe746ec` replies | **`Pass 253.0`** | same | *"`session.add_reply(parent: ObjId, &MarkupNote)`… `/RT /R`… no `/RT /Group` authoring (`Reply` only)… no thread resolution"*, *"**Report** should carry whether the parent already had a `/Popup` and whether the reply got one"* |
+| `fe746ec` review status | **`Pass 253.1`** | same | *"`session.add_review_state(target, ReviewState, /T, /M)`"*, *"**No resolver wanted**"* |
+| `79e76e0` hairline disclosure | **`Pass 254.0`**'s own request, criterion 3 | 2026-09-05 (`8f9fb3e`, 433rd) | request: *"**Whether the result line reports it**, so a raster carries the fact that it is not a faithful one. `subpixel_culled` is the precedent"* |
+
+The *Backlog* entries do not merely overlap — **they name the verbs by
+signature**, including the two the shipped code renamed nothing about. So the
+IDs filed here are `253.3`, `253.2`, `253.0`, `253.1` (all four **discharged
+from *Backlog***, their entries struck in place with a forward pointer, per the
+`Pass 250.1` precedent of the 421st filing) and `254.1` for the hairline
+disclosure. **The IDs `259.0` and `259.1` were NOT minted and REMAIN FREE** — and
+they are deliberately not spelled as a `Pass`-prefixed token anywhere, because
+`tools/check-ledger-numbers.py` drives its ceiling off any *mention* and would
+otherwise list `259` as *already spoken for; do NOT reuse*, which is the exact
+opposite of the truth. Measured: writing the token once put `259` into that
+list; rewriting it took it back out. The
+Pass ceiling stays **`258.3`** — every ID filed here is a sub-ID below it.
+
+**Why `254.1` and not a new head, answering the dispatch's question directly.**
+The 442nd filing's precedent — *file under the function's origin, not the
+family of the document that exposed it* — points at `Pass 254.0` (`8f9fb3e`,
+2026-09-05 12:48:28), which minted `StrokeDisplay`, `RenderOptions::
+stroke_display` and the `min(floored, one device pixel)` ceiling. `79e76e0`
+adds no capability of its own: it adds the **counter that discloses the
+capability 254.0 built**, in the same crate, in the same functions, answering
+**criterion 3 of the same request file** that 254.0 answered criteria 1 and 2
+of. A new family head would assert that this is a different feature; it is the
+same feature's missing half. `254.1` verified free — `grep -c "Pass 254\.1"`
+over `ROADMAP.md`, `SESSION_LOG.md`, `FEATURES.md`, `ARCHITECTURE.md` = **0,
+0, 0, 0**, and `254` is absent from `check-ledger-numbers.py`'s CLAIMED BUT NOT
+YET HEADED list.
+
+**★★★ HOW THE COLLISION HAPPENED, BECAUSE THE MECHANISM IS THE REUSABLE PART
+AND IT IS NOT CARELESSNESS.** All five requests were **still sitting in the
+channel's `open/`** at the moment they were re-scoped — `open/` is the only
+index the scoping audit reads, and **a request does not leave `open/` when it
+is scoped; it leaves when it is answered.** The four annotation requests were
+scoped into *Backlog* on 2026-09-05 08:17:11 and shipped 2026-09-06 18:13/19:03
+(**33 h 56 m / 34 h 46 m later**); the hairline request was scoped AND shipped
+on 2026-09-05 (10:57:55 → 12:48:28, **1 h 50 m**) and re-scoped 2026-09-06
+19:05:13 (**30 h 17 m** after it was already done). In every case the *Backlog*
+entry cited the request **by filename** — `grep -n
+"request_a_reply_can_be_read_and_never_written"` over `ROADMAP.md` finds
+`Pass 253.0` in one command — so **the link existed and was never traversed,
+because nothing asks for it.** The 459th filing's own *Still in flight* section
+even carried `request_a_sticky_notes_icon_and_colour_cannot_be_changed.md`
+forward by name — **and did not name `Pass 253.2` beside it**, which is the
+discontinuity in miniature: the request was tracked, its Pass ID was not.
+`request_a_line_weights_off_display_mode_for_dense_cad_drawings` is cited in
+`ROADMAP.md` **zero** times (`grep -c`) — the 433rd filing scoped it without
+recording the filename, so even the grep that would have worked for the other
+four would have failed for this one. **`R242` is minted below** for this, at
+**n = 5 in one day**, and it names the mechanical gate that replaces the habit.
+
+**What actually shipped, beyond the *Backlog* asks — three places the built
+thing is BETTER than the entry that scoped it, and one where it is smaller.**
+
+1. **★★ `add_review_state`'s shape was WRONG IN THE REQUEST AND IN
+   `Pass 253.1`'s *Backlog* entry, and only a spec ingestion found it.** Both
+   proposed `add_review_state(target, …)` as a pure function of its arguments.
+   §12.5.6.3's closing `shall` — *"Additional state changes shall be made by
+   adding text annotations **in reply to the previous reply** for a given
+   user"* — makes a **second** status by the same author attach to **that
+   author's previous status**, not to the target. The shipped verb walks the
+   `/IRT` graph, filters by `/T`, and attaches to the deepest node for that
+   author. ★ **The wrong shape is INVISIBLE**: a star of state annotations all
+   pointing at the target renders identically to a correct chain in every
+   viewer, so no screenshot, no render diff and no operator report would ever
+   have surfaced it. `ReviewStateAdded::attached_to` and `::chain_depth` are
+   what make it checkable, and the CLI prints them. The engineer dispatched
+   `pdfcer-spec-librarian` **before writing any of the code**, because
+   §12.5.6.3 was not in the corpus and project rule 1 forbids implementing
+   spec-governed behaviour from memory; the ingestion (new corpus file
+   `iso32000__s__12.5.6.3.md`, committed alongside as
+   `.claude/agent-memory/pdfcer-spec-librarian/project_corpus_state.md`,
+   `+161`) **changed the design three times**. This is rule 1 paying for
+   itself in the only way that can be measured: the defect it prevented was
+   not detectable by testing the built thing.
+2. **`/State` and `/StateModel` are TEXT STRINGS, not names.** `/State
+   /Accepted` is a different COS object type that no conforming reader would
+   match. Sabotage-verified: writing them as names fails 3 tests.
+3. **`/StateModel` is *"required if `State` is present"* (Table 171), so the
+   non-conforming pairing is UNREPRESENTABLE** — `ReviewState` derives its own
+   model rather than taking one. The *Backlog* entry asked for a typed
+   `StateModel { Marked, Review, Other(..) }` as a separate write-side
+   argument; the shipped design deletes the argument instead of validating it.
+4. **The `R27` split is asymmetric, and deliberately so.** The *Backlog* entry
+   asked for typed `ReviewState { …, Other(Vec<u8>) }` on **both** sides.
+   Shipped: the **read** side is open — `Annotation::state`/`::state_model`
+   are `Option<String>`, verbatim, because neither key carries a *"shall be
+   one of"* anywhere in either edition, so a value outside Table 171's
+   vocabulary is *unhandled, not illegal*; the **write** side is a closed
+   seven-variant `ReviewState` (`Accepted`, `Rejected`, `Cancelled`,
+   `Completed`, `None`, `Marked`, `Unmarked` — both models) with **no
+   `Other`**, because pdfcer authoring a vocabulary the standard does not
+   define would be inventing one. *Read the open set; author the closed one.*
+5. **SMALLER than the entry in exactly one place, named here so it is not
+   mistaken for done:** `Pass 253.0`'s **second, smaller ask** — a disclosure
+   of how many `/IRT` relationships the annotation clipboard had to break when
+   a whole thread is copied — is **NOT built** (`grep -n
+   "relationships_broken\|irt_broken\|irt_stripped"` over `edit.rs` = nothing).
+   Filed as **`Pass 253.4`** in *Backlog* below rather than left inside a
+   discharged entry where it would vanish. `253.4` verified free (`grep -c`
+   over all four documents = 0).
+
+**★★ TWO GATE FINDINGS, both from the commit messages and both about gates
+that CANNOT FAIL LOUDLY.**
+`tools/check-outcome-disclosed.py` is **opt-in by construction** — its own docs
+say *"adding a struct to `OUTCOME_STRUCTS` is how this gate grows"* — so all
+four new report structs (`AnnotationOpenChange`, `TextAnnotStyleChange`,
+`ReplyAdded`, `ReviewStateAdded`) were **invisible to it** and its summary line
+would have printed *clean* while covering nothing. Registered in the same
+commits; **141 fields / 19 structs → 147 / 20 → 162 / 23** (relayed), and on
+registration it immediately found a real gap — `AnnotationOpenChange::annot_id`
+computed and printed nowhere, now printed as `obj=`. ★ *A gate whose coverage
+is a hand-maintained list reports on its list, not on the tree; its green is a
+statement about what someone remembered to add.* Second: **`check-clap-help` +
+`check-cli-help-leads` together** caught a splice anchored on
+`SetMarkupStyle {` — which sits **after** that variant's doc block — welding the
+new subcommand's doc comment onto the end of `SetMarkupStyle`'s and leaving
+`SetMarkupStyle` with **no `--help` text at all**. Both are shipped
+operator-facing strings; nothing else in the build would have noticed. The
+recurring lesson, restated in the commit: **insert AFTER a closing brace.**
+
+**Rule-11 sweep — the claim that changed is *"`/Open`, `/C`, `/Name`, `/IRT`,
+`/State` are unreadable / unwritable"* and *"the hairline mode reports
+nothing"*; swept by BARE KEYWORD (clause (e)) over the six files these
+features touch — `annot.rs`, `annot_author.rs`, `edit.rs`,
+`pdfcer-cli/src/main.rs`, `pdfcer-render/src/font/mod.rs`, `FEATURES.md`,
+`docs/core-api/` — every hit read.** ZERO survivors in `crates/`; the four
+`FEATURES.md` *Planned* rows that asserted the gaps are **moved and rewritten**
+this filing (below). Correct hits that must NOT be "fixed" by a later sweep:
+`annot.rs`'s `state`/`state_model` rustdoc says the status *"is not specified
+in the annotation itself"* — that is §12.5.6.3 quoted, not a stale claim about
+pdfcer; `font/mod.rs:1002`'s *"renders byte-identically with this mode on and
+off"* is the confirmed ceiling semantics, not an admission that nothing
+happened. **`docs/core-api/` was updated inside the commits themselves** (verb
+count **204 → 205 → 208**, `EditError` **124**) — measured green here at
+`HEAD` by inspection, see *Sourcing*.
+
+**★★ ONE SURVIVOR FOUND OUTSIDE THE INTENDED SWEEP, AND IT WAS FOUND BY A GATE
+RATHER THAN BY READING — CORRECTED HERE.**
+`docs/core-api/02-editing-and-saving.md:1567`–`:1570` **already cited
+the two IDs `259.0` (once) and `259.1` (×3), each spelled with a `Pass`
+prefix**: the engineer wrote the dispatch's
+anticipated IDs into a shipped reference document inside the commits
+themselves, before this role had ruled on them. Left alone they would have
+been the project's own API doc citing four Pass IDs that do not exist — and,
+worse, **`check-ledger-numbers.py` drives its Pass ceiling off any *mention***,
+so those four tokens put `259` into the gate's *"already spoken for; do NOT
+reuse"* list, **reserving the very IDs this filing declined to mint**. Measured
+in both directions: with the tokens present the gate printed
+*"Pass families MENTIONED: up to 259"*; corrected to `253.3` / `253.2` /
+`253.0` / `253.1`, it prints *"up to 258 (highest ID 258.3)"* and `259` is gone
+from the list. ★ **This is why the filing's own prose spells those two IDs
+without a `Pass` prefix** — a sentence saying *"they were not minted"* is
+invisible to a regex whose input is the token. **THREE successive drafts of
+this very entry re-reserved `259`** — the entry, the sentence explaining the
+entry, and the sentence reporting that finding — each caught only by re-running
+the gate. *Re-run the ledger gate after writing ABOUT a ledger number, not only
+after assigning one.* **A ledger claim is made by SPELLING,
+not by meaning.** `docs/core-api/` is engineer-maintained; the edit was taken
+rather than reported because the content corrected is a **ledger number**,
+which is this role's, and because the alternative was a gate that lies to every
+future session about which IDs are free.
+
+**★ TWO CAPABILITIES SHIPPED WITH NO SHELL REACH, and both are stated rather
+than rounded up (`R151`'s shape).** `Diagnostics::strokes_hairlined` has **no
+CLI surface**: `grep -n "strokes_hairlined" crates/pdfcer-cli/src/main.rs` =
+nothing, and the request's own precedent — `subpixel_culled`, printed on the
+`render-page` result line *whether or not the flag is set* — is therefore only
+half-matched. **This is correct, not owed**, and the reason is `Pass 254.0`'s:
+`pdfcer` has no `--hairline` flag and will not get one (a hairline export is an
+unfaithful file), so a printed count would be a constant zero on every CLI
+invocation. The `cli` box stays `—`, consistent with 254.0's row. Second:
+`Annotation::state`/`::state_model` are read-side fields with no dedicated CLI
+column — `list-annotations` gained `open=`, `color=` and `icon=` but not
+`state=`; the review chain is reachable through `set-review-state`'s report
+only. Named as a gap, not ticked.
+
+**Sourcing (hard rule 8) — measured HERE with a shell unless marked RELAYED.**
+`git log --oneline origin/main..HEAD` = exactly `79e76e0`, `fe746ec`,
+`0ab3c84` (three, `origin/main` = `05696b5`); `git remote -v` =
+`https://github.com/KenM76/pdfcer.git`; `git describe --tags --abbrev=0` =
+`v0.43.0`; `git show --stat --date=iso` on each of the three; all three commit
+messages read in full; the three new test files read and their test functions
+counted **9 / 19 / 13** (`annotation_open_state.rs`, `review_features.rs`,
+`stroke_display_hairline.rs` — matching the commit messages' *9 new*, *19
+new*, *13 tests*); `python tools/check-ledger-numbers.py` = *"Pass families
+with headings: up to 258 (highest ID 258.3) … standing rules R241 → next free
+R242 … decision records 138 → next free 139 … SESSION_LOG filings 459 → next
+free 460"*, `clean — no duplicate Pass, rule, or decision numbers`; the four
+*Backlog* entries `Pass 253.0`–`253.3` read in full at `ROADMAP.md:127815`–
+`127920`; `git log -S "Pass 253.3" -- docs/ROADMAP.md` = **`5f6bf65`,
+2026-09-05 08:17:11 -0400** (the mint); `git log -1 8f9fb3e` = **2026-09-05
+12:48:28 -0400**; request mtimes by `ls --time-style=full-iso` (`01:30:08`,
+`01:30:41`, `01:31:15`, `01:31:49`, `10:57:55`, all 2026-09-05) and **all five
+still in `open/`** at this filing; `python tools/check-core-api-verbs.py` =
+**exit 1, and the cause is NOT these commits** — it names one verb,
+`place_text`, which is in the **uncommitted working tree** of an in-flight
+subagent (`git status --porcelain` shows `M edit.rs`, `M main.rs`, `M
+text_edit/mod.rs`, `M tools/check-outcome-disclosed.py`, `?? placetext.rs`,
+`?? tests/place_text.rs`), so `docs/core-api` is correct at `HEAD` (208) and
+stale only against work not yet committed; `python
+tools/check-outcome-disclosed.py` = *"clean — 185 field(s) across 24 outcome
+struct(s)"* — **higher than the 162/23 the commits record, again because of the
+in-flight subagent's registration**, and the per-commit deltas corroborate the
+commit messages (`OUTCOME_STRUCTS` entries at `05696b5` / `0ab3c84` /
+`fe746ec` = **+1**, **+3**); `ls -t D:/Dev/pdfce-backups` newest
+`pdfcer-2026-09-03-1a31d2d-full.bundle`, `git rev-list --count 1a31d2d..HEAD`
+= **131** (126 at the 459th); `df -h /d` = **162 G free of 954 G** (137 G at
+the 459th — 25 G recovered, `target/` churn). **RELAYED, not re-run here:**
+workspace `cargo test` **5,010 passed / 0 failed**; `cargo fmt --all --check`;
+`cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cd
+fuzz && cargo check --bins`; the wasm32 check; `cargo tree` (no
+egui/eframe/winit/wgpu/reqwest/hyper); `cargo test -p pdfcer-core
+--no-default-features`; the 19 non-cargo gates; and every sabotage matrix.
+
+**Invariant checks.** Rule 2 (GUI-core separation): **no `Cargo.toml` is
+touched by any of the three commits** (`git show --stat`), so no dependency
+edge moved and the `cargo tree` result is unchanged by construction; the
+engineer's `cargo tree` run is relayed above as the direct check. Rule 3
+(round-trip / minimal-diff): all four annotation verbs write through
+`EditSession` commands into the incremental-save path — `set_annotation_open`
+writes two objects in **one** undo entry precisely so a round trip cannot leave
+the pair disagreeing; `79e76e0` writes no document bytes at all (a render-time
+counter). Rule 4 (fuzzy, never sneaky): `strokes_hairlined` and
+`attached_to`/`chain_depth` are both **off-canvas disclosures of things the
+operator cannot see** — a hairline raster looks like a CAD drawing rather than
+like a renderer decision, and a wrong `/IRT` star renders identically to a
+correct chain. Rule 11 (CLI parity): four new subcommands ship in the same
+commits — `set-annotation-open`, `set-text-annot-style`, `add-reply`,
+`set-review-state` — plus three new `list-annotations` columns.
+
+#### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass IDs | ceiling `258.3`; *Backlog* `253.0`–`253.3` **NOT STARTED** | ceiling **`258.3` UNCHANGED — no new family minted, and `259.x` NOT minted**; `253.0`, `253.1`, `253.2`, `253.3` **discharged *Backlog* → *Shipped***; **`254.1` minted + *Shipped***; **`253.4` minted into *Backlog*** (`253.0`'s unbuilt second ask) |
+| Decisions | ceiling `138`, next free `139` | **`139` MINTED** — the review model's boundary: no currency resolver, open read / closed write |
+| Standing rules | ceiling `R241`, next free `R242` | **`R242` MINTED** — a scoped request is invisible to an audit that reads only `open/` |
+| SESSION_LOG filings | `459` | **`460`** |
+| Owed-survivor ledger | ZERO in `crates/`, ZERO in `docs/` | **ZERO in `crates/`**; **ONE process item owed to the engineer**: five request files still in `open/` with no reply written for any of the five (`ls` measured) |
+| Unpushed | none (`origin/main` = `05696b5` = `HEAD` before these) | `0ab3c84`, `fe746ec`, `79e76e0` + this filing (standing-authorized push, decision 090) |
+| Unreleased | none (`v0.43.0` = `2399f53`) | the three commits + this filing — **first of the `0.44.0` batch** |
+
+### `Pass 253.3` (`0ab3c84`, 2026-09-06) — ★★★★ **`/Open` IS READABLE AND WRITABLE: pdfcer HAD WRITTEN A KEY IT COULD NOT READ BACK SINCE `Pass 6.2` — a tree-wide `grep b"Open"` returned TWO HITS, BOTH WRITES, so a round trip through pdfcer's OWN MODEL lost the pop-up state and `pdfcer-gui` shipped a workaround parsing the raw dictionary through `ObjectGraph::value`** — ★★★ **`Annotation::open: Option<bool>` — `Option` BECAUSE ABSENT IS A DIFFERENT FACT FROM EXPLICITLY-FALSE, and that distinction is load-bearing: Table 170 gives geometric markup no `/Open` of its own, so a `/Square`'s window state lives ONLY on its companion and a reader that could not tell "said closed" from "said nothing" would silently shut every note another producer authored open** — ★★ **`set_annotation_open` writes BOTH objects in ONE undo entry, because the state is a property of the PAIR** — ★ **`/Open` is a §12.5.6.2 GROUP ATTRIBUTE and the field says so: in an `/IRT` + `/RT /Group` group the primary's value applies and a subordinate's "shall be ignored" — pdfcer reports what each dictionary says and leaves the resolution to the consumer** — discharged from *Backlog* (429th filing, `5f6bf65`)
+
+**Origin.** `pdfcer-gui` request `open/request_popup_open_state_cannot_be_read.md`
+(mtime `2026-09-05 01:31:15 -0400`), filed by them explicitly **under decision
+058** — *anything the GUI has to work around is a place the crate boundary was
+drawn wrong* — with the workaround reported rather than kept: *"the day
+`Annotation` grows the field, two places will answer the same question and one
+of them will be ours."* The operator's own words the same day, relayed in the
+commit: *"could add a yellow sticky note but even in read mode I don't think I
+could figure out how to read it."* **The pop-up window had been in his files
+all along — pdfcer authored it — and no shell had ever drawn it.**
+
+**Before.** `annot_author::sticky_note` set `/Open` on the note **and** on the
+`/Popup` companion it creates, from `Pass 6.2` onward. `model_annotation`
+never read `b"Open"`. Two hits tree-wide, both writes.
+
+**Shipped.**
+- **Read:** `Annotation::open: Option<bool>`. A **non-boolean** value reads as
+  `None` for the same reason an absent key does — Table 172's default is
+  `false`, and reporting a definite prior `false` for a key the file never
+  carried would be an invention.
+- **Write:** `EditSession::set_annotation_open(id, bool)` — annotation and
+  `/Popup`, one undo entry. Refuses a **ce dimension** and a **`/Widget`** by
+  name (`EditError::AnnotationMoveWrongVerb`), exactly as the *Backlog* entry
+  asked and as `set_markup_note` does.
+- **It does NOT create a `/Popup`** for an annotation that has none: choosing
+  that companion's `/Rect` is **authoring**, not a state change. That case is a
+  **reported no-op with no undo entry**, not a refusal — so a shell can send a
+  mixed selection and read `annotation_written`/`popup_written` back instead of
+  keeping its own copy of which subtypes have windows. Same reasoning that
+  produced `MarkupStyleSupport` in `Pass 258.0`.
+- **Report:** `AnnotationOpenChange { annot_id, subtype, open, was:
+  Option<bool>, annotation_written, popup_written }`. `annot_id` is printed as
+  `obj=` — a gap the disclosure gate found the moment the struct was
+  registered.
+- **CLI (rule 11):** `set-annotation-open`; `list-annotations` prints
+  `open=1|0|none` — **three states**, for the reason above.
+
+**Tests — `crates/pdfcer-core/tests/annotation_open_state.rs`, 9 (relayed
+green; function names read here):**
+`an_authored_open_state_reads_back`,
+`the_popup_companion_carries_the_state_as_well`,
+`an_absent_key_reads_as_none_not_false`,
+`a_non_boolean_open_reads_as_none`,
+`setting_open_writes_the_annotation_and_its_popup_as_one_command`,
+`undo_restores_both_halves`,
+`a_geometric_markup_takes_the_state_on_its_popup_only`,
+`a_no_op_pushes_no_undo_entry`,
+`the_write_half_and_the_read_half_agree`.
+**Sabotage (relayed):** forcing the read to `None` fails 5; skipping the
+`/Popup` write fails the pair-consistency test.
+
+**Acceptance criteria — from the `Pass 253.3` *Backlog* entry, all met.**
+1. `Annotation::open: Option<bool>` distinguishing said-closed from
+   said-nothing — **met**.
+2. Write half `set_annotation_open` covering annotation + `/Popup` in one undo
+   entry — **met** (the entry rated this half LOW priority; it shipped anyway).
+3. Refuse a ce dimension and a `/Widget` by name — **met**, both.
+4. **Exceeded:** the §12.5.6.2 group-attribute fact is documented **on the
+   field**, so a consumer meets it at the point of use rather than
+   discovering it. Not asked for.
+
+**Not in this Pass:** creating a `/Popup` for an annotation that lacks one;
+resolving the group attribute (deliberately the consumer's step).
+
+### `Pass 253.2` (`fe746ec`, 2026-09-06) — ★★★★ **A STICKY NOTE'S ICON AND COLOUR WERE WRITE-ONCE: `set_markup_style` CANNOT REACH A `/Text` AT ALL — `spec_from_dict`'s own `UnsupportedSubtype` names it — so the ONLY route to a different icon was DELETE THE NOTE AND PLACE ANOTHER, losing its `/M`, its object identity and any reply hung off it** — ★★★ **`/C` WAS NEVER READ ON ANY SUBTYPE: `grep -n 'b"C"'` over `annot.rs` returned ONLY `b"CA"`, so a colour swatch and Acrobat's sort-by-colour were unreachable not because the value is hard to CHANGE but because nothing could find out what it WAS** — ★★ **RAW ON PURPOSE: `Annotation::color` is raw components because the component COUNT is the colour space (Table 164) and a two-component array is malformed in a way a reader must SEE rather than have repaired; `::icon` is raw `/Name` bytes because §12.5.6.4's icon set is OPEN ("Additional names may be supported as well") and a producer's own name must arrive unmangled** — ★ **`StickyIcon::name` made public and `from_name` added — it was a closed type with no way in or out** — discharged from *Backlog* (429th filing, `5f6bf65`)
+
+**Origin.** `open/request_a_sticky_notes_icon_and_colour_cannot_be_changed.md`
+(mtime `2026-09-05 01:31:49 -0400`). The requester ranked the `/C` read the
+**single highest-value item in their file**, and the *Backlog* entry agreed in
+writing (*"★ If only one thing is built, make it the `/C` READ"*) — one key in
+an existing parser, unblocking two `pdfcer-gui` surfaces at once, affecting
+**every** markup subtype rather than only `/Text`. Both halves shipped.
+
+**Shipped.** `EditSession::set_text_annot_style(id, &TextAnnotStyle)` covering
+icon + colour, **regenerating `/AP`** — because `R43` means the alternative is
+a dictionary that disagrees with the picture. Read side
+`Annotation::color: Option<Vec<f64>>` and `::icon: Option<Vec<u8>>`.
+`StickyIcon::name` public, `StickyIcon::from_name` added.
+Report `TextAnnotStyleChange { annot_id, subtype, icon_written, color_written,
+appearance: AppearanceWrite }` — the same three-way appearance answer every
+other regenerating verb gives, so a shell can tell an in-place rewrite from a
+copy-on-write that left another annotation's stream alone.
+**CLI:** `set-text-annot-style`; `list-annotations` gains `color=` and `icon=`
+columns, **three states each** (absent, empty and present are different facts).
+
+**Tests (relayed green; names read here):**
+`the_colour_reads_back_as_raw_components`,
+`a_malformed_colour_array_is_reported_not_repaired`,
+`the_icon_reads_back_including_a_name_pdfcer_does_not_author`,
+`sticky_icon_round_trips_through_its_own_names`,
+`a_placed_notes_icon_can_be_changed`,
+`a_placed_notes_colour_can_be_changed_independently`,
+`an_icon_on_a_stamp_is_refused_by_name`.
+**Sabotage (relayed):** forcing the `/C` read to `None` fails 4; ignoring the
+icon fails 1.
+
+**Acceptance criteria — from the *Backlog* entry, all met.** `/C` read on every
+markup subtype (**met**, and it is the highest-value slice as filed); icon read
+(**met**); `set_text_annot_style` rather than a narrow `set_sticky_icon`
+(**met** — the entry stated the preference and it was taken);
+`StickyIcon::name` reachable plus a `from_name` (**met**).
+
+### `Pass 253.0` (`fe746ec`, 2026-09-06) — ★★★ **A THREAD COULD BE READ AND NEVER CONTINUED: `/IRT` and `/RT` have been in the read model since `Pass 38.5` with NOTHING TO WRITE THEM — and they were actively REMOVED in two write sites (the deletion cascade and the clipboard strip)** — ★★ **`EditSession::add_reply` scoped exactly as asked: `/RT /R` only, no `/Group`, no thread resolution** — ★ **`parent_had_popup` / `reply_has_popup` reported BY NAME, because §12.5.6.14 makes a pop-up STRUCTURAL and `pdfcer-gui` now DRAWS them: "a reply that quietly acquired a second window at a second location is something we would rather be told about than discover on a screenshot"** — discharged from *Backlog* (429th filing, `5f6bf65`) — ★ **PARTIAL: the entry's SECOND, SMALLER ASK IS NOT BUILT — see `Pass 253.4`, *Backlog***
+
+**Origin.** `open/request_a_reply_can_be_read_and_never_written.md` (mtime
+`2026-09-05 01:30:41 -0400`). Reading a thread already worked
+(`Annotation::in_reply_to`, `reply_type`, `effective_reply_type` with Table
+170's default `R`). There was **no constructor, no `MarkupOptions`/
+`MarkupNote` field, and no verb taking a parent** across the whole
+`EditSession` annotation surface.
+
+**Shipped.** `add_reply(parent, &MarkupNote) -> Result<ReplyAdded, _>`
+authoring a `/Text` carrying `/IRT parent`, `/RT /R`, the three note keys, and
+(§12.5.6.14 `shall`) its own `/Popup`. Report `ReplyAdded { reply_id,
+parent_id, page_index, parent_had_popup, reply_has_popup }`. Replying to a
+**ce dimension is refused**. **CLI:** `add-reply`.
+
+**Tests (relayed green; names read here):** `a_reply_can_be_authored`,
+`a_reply_inherits_the_parents_colour`, `the_report_says_which_popups_exist`,
+`a_reply_is_one_command`, `replying_to_a_ce_dimension_is_refused`.
+**Sabotage (relayed):** dropping `/IRT`+`/RT` fails 1.
+
+**Acceptance criteria — from the *Backlog* entry.** The verb, its four keys and
+its `/Popup` — **met**. `Reply` only, no `/Group`, no thread resolution — **met,
+as scoped, not as a shortfall**. The pop-up pair reported — **met**. ★ **The
+entry's second ask — a count of `/IRT` relationships the annotation clipboard
+had to break when a whole thread is copied — NOT met** (`grep` for a counter
+returns nothing). Filed as **`Pass 253.4`** in *Backlog* rather than buried in
+a discharged entry.
+
+### `Pass 253.1` (`fe746ec`, 2026-09-06) — ★★★★ **REVIEW STATUS SHIPS, AND THE REQUEST'S OWN API WAS WRONG: §12.5.6.3's CLOSING `shall` MAKES A SECOND STATUS BY THE SAME AUTHOR REPLY TO *THAT AUTHOR'S PREVIOUS STATUS*, NOT TO THE TARGET — so `add_review_state(target, …)` CANNOT be a pure function of its arguments; the shipped verb WALKS the `/IRT` GRAPH, FILTERS BY `/T`, AND ATTACHES TO THE DEEPEST NODE FOR THAT AUTHOR** — ★★★ **THE WRONG SHAPE IS INVISIBLE — a star of state annotations all pointing at the target renders IDENTICALLY to a correct chain in every viewer, so nothing would ever have reported it and the history a reviewer's chain encodes simply would not be there; `attached_to` and `chain_depth` are what make it CHECKABLE** — ★★ **`/State` and `/StateModel` are TEXT STRINGS, NOT NAMES; `/StateModel` is "required if `State` is present", so `ReviewState` DERIVES its own model and the non-conforming pairing is UNREPRESENTABLE** — ★ **NO RESOLVER for which status is "current" — a DECISION (`139`), not a scope cut** — discharged from *Backlog* (429th filing, `5f6bf65`)
+
+**Origin.** `open/request_review_status_is_not_modelled_at_all.md` (mtime
+`2026-09-05 01:30:08 -0400`), measured absent tree-wide at the time: `b"State"`
+**0 hits**, `b"StateModel"` **0**, `Rejected`/`Cancelled` **0**. Not read, not
+written, not modelled, not doc-commented. This is Acrobat's whole review
+workflow — the thing that makes a 40-comment drawing-set review finishable.
+
+**★★★ Rule 1 paid for itself here, and it is the most important thing in this
+filing after the ID ruling.** §12.5.6.3 was **not in the spec corpus**, so the
+engineer dispatched `pdfcer-spec-librarian` **before writing any of the code**
+rather than implementing from memory. The ingestion (new corpus file
+`iso32000__s__12.5.6.3.md`) **changed the design three separate times** — the
+text-string/name error, the required-`/StateModel` asymmetry, and the chaining
+`shall` above. The third is the one that matters: **it is undetectable by
+testing the built thing**, because both shapes render identically. A defect
+that no test, screenshot or operator report can surface is exactly the class
+rule 1 exists for, and this is the first time in the project's record that it
+can be pointed at.
+
+**Shipped.**
+- **Read (open set):** `Annotation::state: Option<String>` and
+  `::state_model: Option<String>`, **verbatim** — neither key carries a *"shall
+  be one of"* anywhere in either edition, so a value outside Table 171's
+  vocabulary is *unhandled, not illegal*, and reporting it verbatim is reading
+  the file rather than tolerating it. The rustdoc states the asymmetric
+  binding a writer must know (Table 171: `/StateModel` required if `/State` is
+  present; the converse does **not** hold) and warns that an absent `/State`
+  is **not independently interpretable** — its default depends on the model
+  (`Unmarked` under `Marked`, `None` under `Review`), and `None` is a
+  **writable value**, not a spelling of "absent".
+- **Write (closed set):** `EditSession::add_review_state`, taking
+  `ReviewState { Accepted, Rejected, Cancelled, Completed, None, Marked,
+  Unmarked }` — both models, **no `Other`**. Report `ReviewStateAdded {
+  state_id, target_id, attached_to, chain_depth, state }`, where `target_id` is
+  the **root** the caller asked about and `attached_to` is what `/IRT`
+  actually points at.
+- **CLI:** `set-review-state`, printing `attached_to` and `chain_depth`.
+
+**Tests (relayed green; names read here):**
+`a_review_state_is_a_separate_annotation_referring_by_irt`,
+`the_state_keys_are_text_strings_not_names`,
+`the_state_model_is_derived_from_the_state`,
+`a_second_status_by_the_same_author_chains_onto_the_first`,
+`a_different_author_starts_their_own_chain`,
+`a_review_state_is_one_command`,
+`a_review_state_has_no_contents_of_its_own`.
+**Sabotage (relayed):** replacing the per-user chain with a star fails 1;
+writing `/State` as a name fails 3.
+
+**Acceptance criteria — from the *Backlog* entry.** Read side (**met**, as
+`String` rather than the typed enum the entry asked for — see decision `139`
+for why, and it is a divergence with a reason, not a shortfall); write side
+`add_review_state` (**met**, with the entry's own signature **corrected by the
+standard**); no resolver (**met**, and now a decision record rather than an
+unwritten preference); `R27` honoured (**met**, in the asymmetric form).
+
+**Not in this Pass, and each is deliberate:** any notion of a *current* status
+(decision `139`); a `state=` column on `list-annotations`; `/StateModel` as a
+separate typed write argument (deleted rather than validated).
+
+### `Pass 254.1` (`79e76e0`, 2026-09-06) — ★★★ **DISCLOSE HOW MANY STROKES THE HAIRLINE MODE ACTUALLY THINNED — `Diagnostics::strokes_hairlined` counts strokes THINNED, not strokes DRAWN, and the distinction IS the disclosure: without it an operator could switch the mode on, see no change, and have no way to tell "this drawing has no strokes thin enough to matter" from "the setting is not working"** — ★★ **THE FEATURE THIS REQUEST ASKED FOR ALREADY EXISTED — criteria 1 and 2 shipped as `Pass 254.0` (`8f9fb3e`, 2026-09-05 12:48); criterion 3 did not, and this builds it** — ★ **`StrokeDisplay` re-exported at the crate root: it was reachable only as `pdfcer_render::font::StrokeDisplay` while `RenderOptions::stroke_display` was a `pub` field of that type — a public field whose type a consumer had to go spelunking for** — minted and shipped in one filing, as a sub-Pass of `254`
+
+**Origin.** `open/request_a_line_weights_off_display_mode_for_dense_cad_drawings.md`
+(mtime `2026-09-05 10:57:55 -0400`) — **the same file `Pass 254.0` answered**,
+read here in full. Its three criteria: (1) fills untouched, (2) an already
+sub-pixel stroke left exactly alone (*"a ceiling, not a set"*), (3) *"whether
+the result line reports it, so a raster carries the fact that it is not a
+faithful one — `subpixel_culled` is the precedent."* **1 and 2 were satisfied
+by `254.0`. 3 was not, and nothing in the build said so.**
+
+**Shipped.**
+- `Diagnostics::strokes_hairlined` — a count of strokes **actually thinned**.
+  Folded through the nested interpreter's merge (`Diagnostics::merge`), so
+  form XObjects, transparency groups and annotation `/AP` streams all
+  contribute.
+- `StrokeDisplay` re-exported from `pdfcer_render`'s root (`lib.rs`, one line).
+- **The ceiling semantics are confirmed, not changed:** `min(floored, one
+  device pixel)`. Because pdfcer already applies the §8.4.3.2 / §10.6.4 floor
+  (§10.7.4 in ISO 32000-2), an already-sub-pixel stroke has `floored == one
+  device pixel`, so the `min` is a no-op and such a page renders
+  **byte-identically** with the mode on and off, reporting **zero**. ★ The
+  counter is the machine-readable proof of that — *"it did nothing"* becomes a
+  **measurement** rather than a shrug.
+- **Spec note carried in the code, and it is the right shape:** *"hairline"*
+  has **zero occurrences in either ISO 32000 edition**, so it is cited as an
+  industry term and **never as spec**; and **no clause authorises a ceiling** —
+  §8.4.3.2 and §10.6.4 are both FLOORS. Thinning a stroke the file declared
+  wide is a reading aid the operator switches on, applied at display time
+  only, never reaching emitted bytes (`w`, `/LW`, `/SA` round-trip untouched
+  under `R34`).
+
+**Tests — `crates/pdfcer-render/tests/stroke_display_hairline.rs`, 13 (relayed
+green; names read here):** `a_fat_stroke_collapses_to_about_one_device_pixel`,
+`the_ceiling_is_computed_in_device_space_so_it_holds_at_every_zoom`,
+`fills_are_never_touched`, `a_hatch_of_thin_fills_does_not_vanish`,
+`an_already_sub_pixel_stroke_is_left_exactly_alone`,
+`hairline_never_thickens_anything`,
+`the_ceiling_is_counted_whether_or_not_the_mode_is_on`,
+`the_count_is_of_strokes_thinned_not_strokes_drawn`,
+`strokes_inside_a_form_xobject_are_capped_and_counted`,
+`the_tally_survives_a_nested_interpreter_and_its_merge`,
+`strokes_in_an_annotation_appearance_are_capped_and_counted`,
+`stroked_text_is_covered_by_the_same_ceiling`,
+`actual_is_the_default_so_no_existing_caller_can_notice_this_exists`.
+**Sabotage (relayed, and run by the engineer rather than trusted from the
+agent's report):** forcing the counter never to increment fails **6**, across
+the plain path, form XObjects, a nested transparency group, an annotation
+`/AP` stream and stroked text. One defensive fold (`run_form_at_on`) is
+**provably dead** because that function delegates every operator to
+`run_nested`; kept per this project's precedent for defensive folds and
+documented as **MEASURED-dead**, never claimed as coverage.
+
+**Not done, and the reason is the right one.** Nothing forces exports to
+ignore the mode: `pdfcer-render` **cannot tell a canvas render from a PNG
+render**, and silently overriding an explicit caller option is worse than the
+risk. The shell owns that, and the requester states it as theirs. Also **no
+CLI reach** — see the filing preamble's `R151` note: `pdfcer` has no
+`--hairline` flag by `254.0`'s design, so a printed count would be a constant
+zero.
+
+**Also carried from the request, not acted on:** `view.antialiasing` was
+unregistered in the same 2026-08-17 sweep for the same reason
+(*"`interpret.rs` sets `anti_alias: true` as a literal"*). The requester
+explicitly did **not** ask for it, and mentioned it only so that a session
+opening `RenderOptions` anyway would know a second dead control waits on a
+neighbouring field. Recorded here so the next session opening that struct
+finds it.
+
 **★★★★ 459th filing, 2026-09-06 — `v0.43.0` RELEASED: the 458th filing's
 BUMPED-NOT-CUT → RELEASED, end to end — push, CI green, tag, release build,
 portable folder, fresh-folder smoke test, GitHub assets, OneDrive,
@@ -127812,7 +128346,14 @@ outcome** — `pdfcer-gui` will record it in `ENGINE_BACKLOG.md`. **Acceptance:
 dispatch `pdfcer-acrobat-librarian`** — Acrobat's "Create PDF from text file"
 is the parity reference for pagination behaviour. **Not urgent.**
 
-### `Pass 253.0` — ★★★ **AUTHOR A COMMENT REPLY: write `/IRT` + `/RT` (reply threading)** — filed 2026-09-05 (429th filing, `pdfcer-gui` request 2026-09-05), **NOT STARTED** — head of the *comment & review model completion* family
+### ~~`Pass 253.0` — ★★★ **AUTHOR A COMMENT REPLY: write `/IRT` + `/RT` (reply threading)** — filed 2026-09-05 (429th filing, `pdfcer-gui` request 2026-09-05), **NOT STARTED** — head of the *comment & review model completion* family~~ — **DISCHARGED 2026-09-06 (460th filing): SHIPPED as `Pass 253.0` (`fe746ec`), see *Shipped* above. ★ PARTIAL — the second, smaller ask below (a disclosure of `/IRT` relationships the clipboard had to break) is NOT built; it is re-filed as `Pass 253.4` in this section so it does not vanish inside a discharged entry.**
+
+**★ Discharge note, 460th filing.** This entry was **not found** by the
+session that shipped it: the request file stayed in the channel's `open/`,
+the audit that re-reads `open/` counted it as outstanding, and the work was
+dispatched as new. The dispatch asked for a fresh Pass ID. Filing it here
+instead is what keeps one feature to one ID (hard rule 2's second edge, argued
+in the 460th filing's preamble); **`R242`** is minted for the mechanism.
 
 Origin: `pdfcer-gui` request
 `open/request_a_reply_can_be_read_and_never_written.md`. **Reading a thread
@@ -127840,7 +128381,21 @@ relationships the clip had to break). **Priority: HIGH, and ahead of
 `pdfcer-acrobat-librarian`** for Acrobat Reader's reply affordance. Nothing is
 blocked (the pop-up and thread read shipped without it).
 
-### `Pass 253.1` — ★★★ **`/State` + `/StateModel` REVIEW STATUS (Accepted / Rejected / Cancelled / Completed / None) — Acrobat's whole review workflow, not modelled at all** — filed 2026-09-05 (429th filing, `pdfcer-gui` request 2026-09-05), **NOT STARTED** — DEPENDS ON `Pass 253.0`
+### ~~`Pass 253.1` — ★★★ **`/State` + `/StateModel` REVIEW STATUS (Accepted / Rejected / Cancelled / Completed / None) — Acrobat's whole review workflow, not modelled at all** — filed 2026-09-05 (429th filing, `pdfcer-gui` request 2026-09-05), **NOT STARTED** — DEPENDS ON `Pass 253.0`~~ — **DISCHARGED 2026-09-06 (460th filing): SHIPPED as `Pass 253.1` (`fe746ec`), see *Shipped* above.**
+
+**★★ Two claims in the body below were CORRECTED BY THE STANDARD before the
+code was written, and are left in place as history rather than edited (this
+section is append-only in the same sense as *Shipped*).** (1) The ask
+*"`session.add_review_state(target, ReviewState, /T, /M)`"* is **not
+implementable as a pure function of its arguments** — §12.5.6.3's closing
+`shall` chains a second status by the same author onto **that author's
+previous status**, so the verb walks the `/IRT` graph and filters by `/T`.
+(2) The clause *"history is preserved… "current" = most recent"* asserts an
+ordering the standard does not define; `/M` is optional and empirically ties.
+**Decision `139`** records the resulting boundary: pdfcer reports the chain and
+**never** resolves currency. Both corrections came from a
+`pdfcer-spec-librarian` ingestion of §12.5.6.3, dispatched **before** any code
+was written per project rule 1.
 
 Origin: `pdfcer-gui` request
 `open/request_review_status_is_not_modelled_at_all.md`. Measured absent
@@ -127867,7 +128422,7 @@ review surface and Acrobat's, but behind the reply verb in build order.
 **Acceptance: dispatch `pdfcer-acrobat-librarian`** for Acrobat's status
 vocabulary and filter. Nothing blocked.
 
-### `Pass 253.2` — ★★ **EDIT AN EXISTING `/Text` ANNOTATION'S ICON (`/Name`) AND COLOUR (`/C`) — both write-once at authoring, and `/C` cannot even be READ back** — filed 2026-09-05 (429th filing, `pdfcer-gui` request 2026-09-05), **NOT STARTED** — *comment & review model completion* family
+### ~~`Pass 253.2` — ★★ **EDIT AN EXISTING `/Text` ANNOTATION'S ICON (`/Name`) AND COLOUR (`/C`) — both write-once at authoring, and `/C` cannot even be READ back** — filed 2026-09-05 (429th filing, `pdfcer-gui` request 2026-09-05), **NOT STARTED** — *comment & review model completion* family~~ — **DISCHARGED 2026-09-06 (460th filing): SHIPPED as `Pass 253.2` (`fe746ec`), see *Shipped* above — BOTH halves, including the write half this entry rated LOW.**
 
 Origin: `pdfcer-gui` request
 `open/request_a_sticky_notes_icon_and_colour_cannot_be_changed.md`. Authoring
@@ -127893,7 +128448,7 @@ author-time icon-chooser half). **Acceptance: dispatch
 `pdfcer-acrobat-librarian`** for the icon set and colour-sort behaviour.
 Nothing blocked.
 
-### `Pass 253.3` — ★★ **READ (and optionally WRITE) A POPUP'S `/Open` FLAG — a decision-058 boundary defect: `pdfcer-gui` parses the dictionary behind the crate's back** — filed 2026-09-05 (429th filing, `pdfcer-gui` request 2026-09-05), **NOT STARTED** — *comment & review model completion* family
+### ~~`Pass 253.3` — ★★ **READ (and optionally WRITE) A POPUP'S `/Open` FLAG — a decision-058 boundary defect: `pdfcer-gui` parses the dictionary behind the crate's back** — filed 2026-09-05 (429th filing, `pdfcer-gui` request 2026-09-05), **NOT STARTED** — *comment & review model completion* family~~ — **DISCHARGED 2026-09-06 (460th filing): SHIPPED as `Pass 253.3` (`0ab3c84`), see *Shipped* above — BOTH halves, including the write half this entry rated LOW, plus the §12.5.6.2 group-attribute fact documented on the field (not asked for).**
 
 Origin: `pdfcer-gui` request `open/request_popup_open_state_cannot_be_read.md`
 (explicitly a **decision-058 workaround report** — *anything the GUI has to
@@ -127917,6 +128472,37 @@ interface-memory-only close is honest and disclosed, though not what Acrobat —
 where closing a note persists — does). **Acceptance: dispatch
 `pdfcer-acrobat-librarian`** for Acrobat's open-state persistence. Nothing
 blocked (the pop-up honours `/Open` on load, tested both directions).
+
+### `Pass 253.4` — ★★ **COPYING A WHOLE THREAD SILENTLY TURNS A CONVERSATION INTO UNRELATED REMARKS — the annotation clipboard STRIPS `/IRT` with no count of what it broke** — filed 2026-09-06 (460th filing), **NOT STARTED** — *comment & review model completion* family
+
+**Origin: the SECOND, SMALLER ASK inside `Pass 253.0`'s request**
+(`open/request_a_reply_can_be_read_and_never_written.md`), re-filed with its
+own ID because `253.0` shipped without it and an unbuilt ask left inside a
+discharged entry is an unbuilt ask nobody will find. `253.0` shipping does
+**not** discharge this.
+
+**What is true today.** The annotation clipboard can already carry a parent
+and its replies together; the `/IRT` strip on paste then removes the link,
+so a copied thread arrives as a set of unrelated remarks. Measured at the
+460th filing: `grep -n "relationships_broken\|irt_broken\|irt_stripped"`
+over `crates/pdfcer-core/src/edit.rs` returns **nothing** — there is no
+counter and no report field.
+
+**The ask, verbatim in shape from the requester: NOT a fix — a
+DISCLOSURE.** They did not ask for `/IRT` remapping across a paste (that is
+the separate *"markup annotation carries `/CA`, `/T` and `/Contents` across
+the clipboard"* row in `FEATURES.md`, which also names `/IRT` as *"stripped
+at copy time rather than remapped"*). They asked for **a count of the
+relationships the clip had to break**, on the paste report, so a shell can
+say so. This is rule 4 exactly: pdfcer performs a lossy transformation the
+operator cannot see, so it owes an off-canvas statement, not a gate.
+
+**Priority: LOW.** The loss is real but visible in its effect (the replies
+are still there, just unthreaded), and `add_reply` now gives an operator a
+route to re-establish a thread by hand — which was not true when the ask was
+written. **Nothing is blocked.** Acceptance: no `pdfcer-acrobat-librarian`
+dispatch needed — this is a disclosure of pdfcer's own behaviour, not a
+parity question.
 
 ### ~~`Pass 250.1` — ★★★ **APPLY REDACTIONS INTO THE `EditSession` — a redaction becomes a DEFERRED edit committed at Save, not a write-a-file-now operation** — filed 2026-09-04 (419th filing), **NOT STARTED** — ★★ **SAFETY-CRITICAL (a leaked redaction is the worst-case bug), and there is an unresolved DESIGN FORK the engineer will not resolve by rushing**~~ — **DISCHARGED 2026-09-04 (421st filing): SHIPPED as `Pass 250.1` (`225db51`), see *Shipped* above.**
 
@@ -155952,6 +156538,82 @@ ceiling `114` → `115`** (`iccce` enters as a git dependency pinned to tag
   **Standing rules ceiling `R240` → `R241`; next free `R242`.** **Decision
   ceiling `126` — UNCHANGED, next free `127`** — a process rule, not an
   architectural ruling.
+
+- **R242 — A REQUEST DOES NOT LEAVE `open/` WHEN IT IS SCOPED; IT LEAVES WHEN
+  IT IS ANSWERED. SO AN AUDIT THAT COUNTS OUTSTANDING WORK BY READING `open/`
+  WILL RE-SCOPE WORK THAT IS ALREADY SCOPED, AND — WHEN IT SHIPS UNDER A FRESH
+  ID — WILL STRAND THE EXISTING *Backlog* ENTRY FOREVER, MARKED NOT STARTED,
+  DESCRIBING SHIPPED CODE. BEFORE SCOPING ANY REQUEST FILE, GREP `ROADMAP.md`
+  FOR ITS FILENAME; AND WHEN SCOPING ONE, WRITE THE FILENAME INTO THE ENTRY SO
+  THAT GREP CAN SUCCEED.** Minted 2026-09-06 (460th filing), librarian-minted,
+  at **n = 5 in a single day**.
+
+  | | `253.0` | `253.1` | `253.2` | `253.3` | the hairline |
+  |---|---|---|---|---|---|
+  | request mtime (2026-09-05) | 01:30:41 | 01:30:08 | 01:31:49 | 01:31:15 | 10:57:55 |
+  | scoped into `ROADMAP.md` | `5f6bf65`, 08:17:11 | same | same | same | 433rd filing (`8f9fb3e` shipped 12:48:28) |
+  | request filename cited in the entry? | **yes** | **yes** | **yes** | **yes** | **NO** (`grep -c` = 0) |
+  | still in `open/` when re-scoped? | yes | yes | yes | yes | yes |
+  | re-scoped as new work | 2026-09-06 19:03 | 19:03 | 19:03 | 18:13 | 19:05 |
+  | interval | 34 h 46 m | 34 h 46 m | 34 h 46 m | 33 h 56 m | 30 h 17 m after it SHIPPED |
+  | ID the dispatch asked for | `259.1` | `259.1` | `259.1` | `259.0` | "254.1 or a new ID" |
+
+  **What the near-miss would have cost, because "we caught it" is not the
+  measure.** Filing under `259.0`/`259.1` produces **two records of one
+  feature**, and the *Backlog* half can never be corrected without rewriting
+  an append-only section — so it would have read NOT STARTED, in the file the
+  project calls *the contract*, about four verbs that exist. Hard rule 2 says
+  IDs are never **reused**; this is its unstated second edge: **an ID already
+  minted for a feature must be USED for it, not stepped around.**
+
+  **Why the fix is mechanical and not attentional.** Four of the five entries
+  **did** cite their request by filename — the link existed and one grep would
+  have found it. It was not traversed because **nothing asks for it**: the
+  audit's input is a directory listing, and a directory listing cannot carry
+  a Pass ID. The 459th filing is the proof that diligence is not the missing
+  ingredient — it carried
+  `request_a_sticky_notes_icon_and_colour_cannot_be_changed.md` forward by
+  name in *Still in flight*, **and did not name `Pass 253.2` beside it.** The
+  request was tracked; its ID was not.
+
+  **What the rule requires.**
+  1. **Before scoping any `request_*.md`:** `grep -n "<filename without
+     extension>" docs/ROADMAP.md`. A hit means it is already scoped — file
+     under **that** ID.
+  2. **When scoping one:** the *Backlog*/*Next up* entry states
+     `Origin: open/<exact filename>` on its own line. Four of five already do
+     this; the fifth is why the grep in (1) is necessary but not sufficient.
+  3. **`tools/check-requests-scoped.py`, owed to the engineer** — for each
+     `request_*.md` in the channel's `open/`, report whether `docs/ROADMAP.md`
+     cites its filename. It is a **citation-link check, not a content check**:
+     it never asks whether a Pass is *correct*, only whether the link a human
+     would follow exists — so it is exactly the mechanical shape hard rule 11
+     says a disclosure gate can never be, and the shape `R241`'s clause 1
+     succeeded with. Its output IS the scoping audit's input, replacing the
+     directory listing. **Until it exists, clause 1 is the habit it replaces**
+     — written down so the interval has an instruction, not so the interval
+     can be extended (`R241`'s clause-3 shape, deliberately mirrored).
+  4. **A shipped Pass's filing writes a reply into the channel**, which is what
+     actually empties `open/`. At this mint **none of the five has a reply**
+     (`ls` measured) — so all five would be counted outstanding *again* by the
+     next audit. Reply-writing is the engineer's act; this clause records that
+     the ledger stays dirty until it happens.
+
+  **Not `R216`.** `R216` is about not editing engineer-owned files; this is
+  about a query nobody runs. **Not the 456th filing's queue-miss note**, which
+  was the opposite failure — a request that was **never** scoped while a
+  document said the queue was empty. That one was declined a rule at n = 2
+  with its trigger named; **this is the same underlying fact seen from the
+  other side** (the `open/` directory is not an index of outstanding work in
+  *either* direction), and between them the shape is now at n ≥ 7. The 456th's
+  named trigger is hereby discharged into this rule.
+
+  **Cross-project derivation, written this filing (not deferred):**
+  `D:/dev/rag/rust/a_work_queue_that_is_a_directory_listing_cannot_carry_the_id_the_work_was_given.md`.
+
+  **Standing rules ceiling `R241` → `R242`; next free `R243`.** **Decision
+  ceiling `138` → `139`** (minted the same filing, for a different subject —
+  the review model's boundary), next free `140`.
 
 ## Update protocol
 

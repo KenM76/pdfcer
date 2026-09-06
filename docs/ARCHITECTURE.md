@@ -5492,6 +5492,65 @@ synthetic fixture runs**, and **that ratio is the trap**: near-zero on
 synthetic text, routine on real typeset copy, so a `find`-based locator looks
 correct in every fixture a shell writes for itself.
 
+### 4.2.2 The review-state chain guarantee — pdfcer reports the graph and never resolves currency
+
+*(Added 2026-09-06, 460th filing, `Pass 253.1` / `fe746ec`. Created by
+**decision 139**, §12.)*
+
+**The guarantee.** *A review status authored by `EditSession::add_review_state`
+is a separate `/Text` annotation whose `/IRT` points at the **deepest existing
+status by the same `/T` on that target's chain**, not at the target itself
+whenever such a status exists — and `ReviewStateAdded::attached_to` and
+`::chain_depth` report exactly which node it landed on. pdfcer states no
+opinion about which status on a target is the **current** one.*
+
+**A caller may therefore** rebuild each author's status history by walking
+`/IRT` and grouping on `/T`, and may rely on the chain being a chain — one
+node per status per author, in authoring order — rather than a star. **A
+caller must therefore** supply its own currency rule; there is no
+`current_state()` and there will not be one without a new decision record.
+
+**Why the graph shape is a guarantee and not an implementation detail.**
+§12.5.6.3 closes with a `shall`: *"Additional state changes shall be made by
+adding text annotations **in reply to the previous reply** for a given user."*
+★ **A star and a chain render identically in every viewer**, so a consumer
+that assumed `add_review_state(target, …)` attached to `target` would produce
+conforming-looking, history-destroying output that no screenshot, render diff
+or operator report could surface. The two report fields exist to make the
+shape **checkable from outside**, which is what turns it into something a
+shell may rely on rather than observe.
+
+**Why there is no resolver — measured, not preferred.** The standard defines
+**no ordering** over the statuses on a target (`current state` and `most
+recent` do not occur in either edition in an annotation context); `/M` is
+**optional** (Table 164) and empirically ties, because a batch of statuses set
+in one session share a timestamp to the second. Any resolver would therefore
+be pdfcer inventing a rule and presenting it as a reading of the file — the
+`R27` failure mode, one layer up. The requester asked for exactly this split,
+verbatim: *"Give us the annotations and the keys; we will pick."*
+
+**The read/write asymmetry this implies, and it is deliberate.**
+`Annotation::state` / `::state_model` are `Option<String>` — the **open** set,
+verbatim, because neither key carries a *"shall be one of"* in either edition,
+so a value outside Table 171's vocabulary is *unhandled, not illegal*.
+`edit::ReviewState` is a **closed** seven-variant enum with **no `Other`** —
+the set pdfcer **authors**. *Read the open set; author the closed one.*
+
+**The test that pins it.** `crates/pdfcer-core/tests/review_features.rs` —
+`a_second_status_by_the_same_author_chains_onto_the_first` and
+`a_different_author_starts_their_own_chain`, plus
+`the_state_keys_are_text_strings_not_names` and
+`the_state_model_is_derived_from_the_state` for the encoding half.
+**Sabotage-checked:** replacing the per-user chain with a star fails 1;
+writing `/State` as a name fails 3.
+
+**The refactor it forbids.** Attaching a status to the target unconditionally
+(the shape the request and the `Pass 253.1` *Backlog* entry both proposed);
+adding an `Other(..)` arm to `ReviewState` (it would let pdfcer author a
+vocabulary the standard does not define); typing
+`Annotation::state`/`::state_model` as that enum (it would repair a producer's
+value on the way in); and adding any `current`/`latest`/`effective` status
+accessor without a new decision record superseding **139**.
 
 ## 5. Round-trip / non-destructive-editing invariant
 
@@ -32375,3 +32434,103 @@ No other body section describes the feature fence.
 **Decision ceiling: `137` → `138`**, next free `139`. **Standing rules
 ceiling `R241` — unchanged**, next free `R242`. **Open operator questions:
 none minted — next free `(ce)`.**
+
+### 2026-09-06 (460th filing) — decision 139: **THE REVIEW MODEL'S CRATE BOUNDARY — pdfcer AUTHORS THE `/IRT` CHAIN §12.5.6.3 REQUIRES AND REPORTS WHICH NODE IT ATTACHED TO (`attached_to`, `chain_depth`), AND STATES NO OPINION ABOUT WHICH STATUS IS *CURRENT*, BECAUSE THE STANDARD DEFINES NO ORDERING (`current state` / `most recent` occur nowhere in either edition in an annotation context) AND `/M` IS OPTIONAL AND EMPIRICALLY TIES. THE READ SIDE IS THE OPEN SET (`Option<String>`, VERBATIM), THE WRITE SIDE THE CLOSED ONE (`ReviewState`, SEVEN VARIANTS, NO `Other`). ★ THE REQUEST'S OWN API AND THE `Pass 253.1` *Backlog* ENTRY BOTH PROPOSED `add_review_state(target, …)` AS A PURE FUNCTION OF ITS ARGUMENTS; §12.5.6.3's CLOSING `shall` MAKES THAT IMPOSSIBLE, AND A SPEC-LIBRARIAN INGESTION DISPATCHED *BEFORE ANY CODE WAS WRITTEN* (PROJECT RULE 1) IS WHAT FOUND IT — THE WRONG SHAPE RENDERS IDENTICALLY TO THE RIGHT ONE, SO NOTHING DOWNSTREAM COULD EVER HAVE REPORTED IT.**
+
+**(librarian filing, 460th. Authors the record for a boundary the engineer
+drew in `fe746ec` and flagged in the dispatch as *"decision-shaped… I lean
+yes but it is your call"*. Every fact below is either MEASURED here — the
+commit, the source, the ledger gate — or explicitly RELAYED from the commit
+message and the engineer's test run.)**
+
+**The decision, in one line.** *`pdfcer-core` owns the graph; the shell owns
+the verdict.*
+
+**What was decided, and each clause's warrant.**
+
+1. **`add_review_state` walks `/IRT` and filters by `/T`.** §12.5.6.3, a
+   `shall`: *"Additional state changes shall be made by adding text
+   annotations **in reply to the previous reply** for a given user."* So a
+   second status by the same author attaches to **that author's previous
+   status**, and the per-author chain is what carries their history. A
+   different author starts their own chain from the target. This is not a
+   preference — the alternative is non-conforming.
+2. **`attached_to` and `chain_depth` are reported.** ★ **This is the clause
+   that makes clause 1 checkable, and it exists because the failure is
+   invisible by construction.** A star of state annotations all pointing at
+   the target renders identically to a correct chain in every viewer. No
+   screenshot, no render diff, no `content-identity` run and no operator
+   report would ever surface it; the history a reviewer's chain encodes would
+   simply not be there, and the document would look fine. Rule 4 applies in
+   its purest form — the inference the operator *cannot see by definition* is
+   the one that owes an off-canvas disclosure.
+3. **No resolver for which status is *current*.** MEASURED, not preferred:
+   the standard defines no ordering over the statuses on a target (`current
+   state` / `most recent` occur nowhere in either edition in an annotation
+   context), and `/M` is **optional** (Table 164) and empirically ties — a
+   batch set in one session shares a timestamp to the second. A resolver would
+   be pdfcer **inventing a rule and presenting it as a reading of the file**,
+   which is `R27`'s failure mode one layer up. The requester asked for exactly
+   this split: *"Give us the annotations and the keys; we will pick."*
+4. **`/State` and `/StateModel` are text strings, not names.** `/State
+   /Accepted` is a different COS object type that no conforming reader would
+   match. Sabotage: writing them as names fails 3 tests.
+5. **`/StateModel` is derived, not taken.** Table 171 makes it *"required if
+   `State` is present, otherwise optional"* — and the converse does **not**
+   hold. So the one non-conforming pairing is made **unrepresentable** rather
+   than validated: `ReviewState` derives its own model, and the write-side
+   argument the *Backlog* entry asked for is deleted instead of checked.
+6. **Open read, closed write.** `Annotation::state` / `::state_model` are
+   `Option<String>` — neither key carries a *"shall be one of"* in either
+   edition, so a producer's own vocabulary is **modelled, not repaired**
+   (`R27`). `edit::ReviewState` is closed at seven variants — `Accepted`,
+   `Rejected`, `Cancelled`, `Completed`, `None` (the Review model) and
+   `Marked`, `Unmarked` (the Marked model) — with **no `Other`**, because
+   pdfcer authoring a vocabulary the standard does not define is the mirror
+   image of repairing one it does not recognise.
+
+**★★★ Why this record exists at all, and it is a stronger reason than "an API
+shape was chosen".** The *Backlog* entry `Pass 253.1` — written by this role
+on 2026-09-05 (`5f6bf65`) from the requester's own file — asserted, in
+writing, that *"history is preserved (three reviewers, three surviving
+statuses, "current" = most recent)"*. **That sentence is wrong twice**: it
+asserts an ordering the standard does not define, and it names a currency rule
+nothing supports. It sat in *the contract* for 34 hours and would have been
+implemented as written had the engineer worked from it. **What stopped it was
+project rule 1** — §12.5.6.3 was not in the spec corpus, so
+`pdfcer-spec-librarian` was dispatched **before any of the code was written**,
+and the ingestion (new corpus file `iso32000__s__12.5.6.3.md`) changed the
+design three separate times. This is the first case in the project's record
+where rule 1 can be shown to have prevented a defect that **no amount of
+testing the built thing could have caught**, and that is why it is minted as a
+decision rather than left in a Pass entry: *the value of sourcing before
+writing is highest exactly where the unsourced version would still have
+passed.*
+
+**What this decision does NOT decide.** Whether a shell should surface a
+"current" status at all (it is `pdfcer-gui`'s call, and Acrobat's own answer
+was not sourced — no `pdfcer-acrobat-librarian` dispatch was made for the
+status vocabulary, which the `Pass 253.1` entry had listed as an acceptance
+step); whether `list-annotations` gains a `state=` column (named as a gap in
+the 460th filing, not built); whether `/RT /Group` authoring is ever added
+(`Pass 253.0` scoped it out and nothing here reopens it).
+
+**Body sections updated in this filing:** **§4.2.2** — the review-state chain
+guarantee, in §4.2's fixed entry format (property · measurement · pinning test
+· forbidden refactor), including the refactor list this decision forbids. §4
+itself is retired in favour of `docs/core-api/` (decision 102), which the
+commits updated in-place (verb count **205 → 208**).
+
+**Rule-11 sweep for this record (searching for the CLAIM):** the only
+documents asserting *"review status is not modelled"* were `FEATURES.md`'s
+*Planned* row and `ROADMAP.md`'s `Pass 253.1` *Backlog* entry — the first
+replaced, the second struck with a dated correction note naming both wrong
+clauses rather than silently edited (that section is append-only in the same
+sense as *Shipped*). `grep -in "state_model\|StateModel\|review status"` over
+`docs/` finds no other claim. ZERO survivors.
+
+**Decision ceiling: `138` → `139`**, next free `140`. **Standing rules ceiling
+`R241` → `R242`** (minted the same filing, for a different subject — a scoped
+request being invisible to an audit that reads only `open/`), next free
+`R243`. **Pass ceiling `258.3` — UNCHANGED.** **Open operator questions: none
+minted — next free `(ce)`.**
