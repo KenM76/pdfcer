@@ -9,14 +9,17 @@ doc). It is replaced each session with the current handoff.
 0.41.0). `tools/verify-release.py v0.42.0` nine of nine ok; CI run 34026486538
 green 10/10 — including the repository audits, after `2da1d62` pinned the
 filing gates to 7-character hashes (git's auto `%h` grew to 8 on the fresh CI
-clone and reported 224 filed commits as unfiled). **Nothing is unreleased on
-`main`.** Workspace version is `0.42.0` (bump to `0.43.0` at the next
+clone and reported 224 filed commits as unfiled). **Unreleased on `main` since v0.42.0: `b64ddb6` Pass 14.6** (a Type 0
+font's descriptor is read from the descendant CIDFont — composite runs
+report embedded and the subset floor guards them; answered a pdfcer-gui
+request that sat UNSCOPED for 13 h because the queue check read only the
+newest file). Workspace version is `0.42.0` (bump to `0.43.0` at the next
 release). Batch rule (operator, 2026-09-05): build everything pending, then
 ONE release.
 
 ## THE NEXT WORK — in order
 
-### 1. Pick from *Backlog* — the inbound queue is EMPTY
+### 1. Pick from *Backlog* — the inbound queue is EMPTY (checked by DIFFING the folder against scoped names, not by reading its head)
 Candidates, in the order I would take them: `10.10`/`10.11` (shell-side
 signers; B-T timestamp — the seed-value evaluator now names "B-T not built"
 as a refusal, so a timestamp is the most-asked-for gap), `142.0` (the
@@ -78,6 +81,10 @@ zip via Python `zipfile` + sha256 → `git push origin vX` → `gh release creat
 release filing → refresh this file.
 
 ## Standing habits
+- **Queue check = diff, not head:** `ls open/request_*` against the replies/CONSUMED
+  names; an older skipped request is invisible to "anything newer?".
+- **Session start: `du -sh target/debug/deps target/debug/incremental`** — 186 GB of
+  stale test binaries filled D: to zero on 2026-09-06; prune when deps > 20 GB.
 - Check BOTH FeatureRequests channels every session.
 - Announce every new public TYPE/SIGNATURE on the channel by name.
 - Anchor a splice on the DOC BLOCK, not the item.
