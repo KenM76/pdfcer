@@ -10,7 +10,7 @@ doc). It is replaced each session with the current handoff.
 Pass 10.14 (signing hardening), `72b7296` Pass 179.0 (automatic bold ladder),
 `02bb1ba` Pass 10.12 (certifying signatures), `ab40127` Pass 10.13 (sign into
 a pre-placed field), plus `9a3dd53`/`3ae1fb4`-class chores and the filings.
-Workspace version is `0.41.0` (bump to `0.42.0` at the next release). Batch
+Workspace version is `0.42.0` (bumped at `d6b998f`; tag at release). Batch
 rule (operator, 2026-09-05): build everything pending, then ONE release.
 
 ## THE NEXT WORK — in order
