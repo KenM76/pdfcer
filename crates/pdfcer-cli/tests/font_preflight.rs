@@ -144,15 +144,20 @@ fn a_bold_claim_that_cannot_cover_the_run_routes_to_synthesis_not_to_that_face()
     // synthesis was never "the" route. The line understated what pdfcer can
     // do, which sends an operator to the worse remedy and fails nothing.
     //
-    // The message now offers both and says which one this survey does not
-    // look for, so the test pins BOTH halves — a correction that named only
-    // the standard-14 route without saying it is unsurveyed would be true and
-    // still misleading.
+    // The message offers both routes. Since `Pass 142.2` the standard 14 ARE
+    // surveyed (the block above the hint), so the hint points at that block
+    // instead of denying it — and the test pins that the standard-14 block is
+    // really there, so the pointer is not a promise.
     assert!(text.contains("--bold-synthetic is one route"), "{text}");
     assert!(
-        text.contains("Helvetica-Bold") && text.contains("NOT surveyed by this check"),
-        "the other route, and the scope of the check, must both be stated: {text}"
+        text.contains("Helvetica-Bold") && text.contains("standard-14 block above"),
+        "the other route, and where its verdict is, must both be stated: {text}"
     );
+    assert!(
+        text.contains("standard-14 (tested for the same text"),
+        "{text}"
+    );
+    assert!(!text.contains("NOT surveyed by this check"), "{text}");
 }
 
 #[test]
