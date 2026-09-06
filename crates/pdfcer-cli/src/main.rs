@@ -2423,6 +2423,13 @@ enum Command {
         /// `--set-font` accept?"* — without having to describe it.
         #[arg(long = "pin-span", value_name = "START:LEN")]
         pin_span: Option<String>,
+        /// The text you are ABOUT TO WRITE (`Pass 142.2`). Every face is
+        /// then tested against THESE characters instead of the located text
+        /// — the question a chooser actually has when a character is missing
+        /// from the run's own font. The standard-14 block is tested for the
+        /// same text either way.
+        #[arg(long, value_name = "TEXT")]
+        candidate: Option<String>,
         /// Emit machine-readable JSON instead of the aligned listing.
         #[arg(long)]
         json: bool,
@@ -9215,8 +9222,16 @@ fn run() -> ExitCode {
             page,
             find,
             pin_span,
+            candidate,
             json,
-        } => cmd_font_preflight(&input, page, &find, pin_span.as_deref(), json),
+        } => cmd_font_preflight(
+            &input,
+            page,
+            &find,
+            pin_span.as_deref(),
+            candidate.as_deref(),
+            json,
+        ),
         Command::ListSignatures { input } => cmd_list_signatures(&input),
         Command::VerifySignatures {
             input,
@@ -25895,9 +25910,10 @@ fn cmd_font_preflight(
     page: usize,
     find: &str,
     pin_span: Option<&str>,
+    candidate: Option<&str>,
     json: bool,
 ) -> u8 {
-    use pdfcer_core::text_edit::FontAcceptance;
+    use pdfcer_core::text_edit::{FontAcceptance, Std14Presence};
 
     if page == 0 {
         eprintln!("pdfcer: --page is 1-based; 0 is not a valid page number");
@@ -25931,12 +25947,56 @@ fn cmd_font_preflight(
         }
     };
     let session = pdfcer_core::edit::EditSession::new(doc);
-    let pre = match session.preview_font_resources(page - 1, find, pin) {
+    let pre = match candidate {
+        Some(c) => session.preview_font_resources_for(page - 1, find, pin, c),
+        None => session.preview_font_resources(page - 1, find, pin),
+    };
+    let pre = match pre {
         Ok(p) => p,
         Err(err) => {
             eprintln!("pdfcer: font-preflight refused: {err}");
             return exit::EDIT_REFUSED;
         }
+    };
+    let std14_rows = |json: bool| -> Vec<String> {
+        pre.standard_14
+            .iter()
+            .map(|e| {
+                let (presence, res) = match &e.presence {
+                    Std14Presence::OnPage { resource } => ("on-page", Some(resource.clone())),
+                    Std14Presence::WouldBeAdded => ("would-add", None),
+                    // `Std14Presence` is #[non_exhaustive]; print something.
+                    _ => ("other", None),
+                };
+                let (accepted, refusal, character) = match &e.acceptance {
+                    FontAcceptance::Accepted => (true, String::new(), None),
+                    FontAcceptance::Refused { message, character } => {
+                        (false, message.clone(), *character)
+                    }
+                    _ => (false, "unknown acceptance".to_owned(), None),
+                };
+                if json {
+                    format!(
+                        "    {{ \"base_font\": \"{}\", \"presence\": \"{}\", \"resource\": {}, \"accepted\": {}, \"refusal\": \"{}\", \"refused_character\": {} }}",
+                        json_escape(&e.base_font),
+                        presence,
+                        res.as_deref().map_or_else(|| "null".to_owned(), |r| format!("\"{}\"", json_escape(r))),
+                        accepted,
+                        json_escape(&refusal),
+                        character.map_or_else(|| "null".to_owned(), |c| format!("\"U+{:04X}\"", c as u32)),
+                    )
+                } else {
+                    format!(
+                        "  {:<22} {}  {}{}{}",
+                        e.base_font,
+                        if accepted { "ACCEPT" } else { "REFUSE" },
+                        presence,
+                        res.as_deref().map_or_else(String::new, |r| format!(" (/{r})")),
+                        character.map_or_else(String::new, |c| format!("  refused_character=U+{:04X} '{c}'", c as u32)),
+                    )
+                }
+            })
+            .collect()
     };
 
     if json {
@@ -25950,6 +26010,15 @@ fn cmd_font_preflight(
             "  \"run_font\": \"{}\",\n",
             json_escape(&pre.run_font)
         ));
+        out.push_str(&format!(
+            "  \"candidate\": {},\n",
+            pre.candidate
+                .as_deref()
+                .map_or_else(|| "null".to_owned(), |c| format!("\"{}\"", json_escape(c)))
+        ));
+        out.push_str("  \"standard_14\": [\n");
+        out.push_str(&std14_rows(true).join(",\n"));
+        out.push_str("\n  ],\n");
         out.push_str("  \"entries\": [\n");
         let rows: Vec<String> = pre
             .entries
@@ -26012,9 +26081,17 @@ fn cmd_font_preflight(
     // is the operator's own characters rather than the empty string that was
     // passed in. Printing it is how a caller sees what was actually tested.
     println!(
-        "run: /{} {:?} text={:?}",
-        pre.run_resource, pre.run_font, pre.text
+        "run: /{} {:?} text={:?} candidate={}",
+        pre.run_resource,
+        pre.run_font,
+        pre.text,
+        pre.candidate
+            .as_deref()
+            .map_or_else(|| "none".to_owned(), |c| format!("{c:?}"))
     );
+    if pre.candidate.is_some() {
+        println!("  (acceptance below is for the CANDIDATE text, not the located text)");
+    }
     for e in &pre.entries {
         let verdict = if e.acceptance.is_accepted() {
             "ACCEPT"
@@ -26063,6 +26140,12 @@ fn cmd_font_preflight(
         page,
         n_ok
     );
+    println!(
+        "standard-14 (tested for the same text; `would-add` = --set-font authors the resource):"
+    );
+    for row in std14_rows(false) {
+        println!("{row}");
+    }
     // Rule 4: the fact that decides a style control is stated outright rather
     // than left for the reader to derive from the per-entry columns.
     match pre.real_bold() {

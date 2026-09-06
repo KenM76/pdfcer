@@ -337,7 +337,9 @@ pub enum FollowerDisposition {
 pub struct EditRequest {
     /// 0-based page index.
     pub page_index: usize,
-    /// The text to locate within one show operator's decoded run.
+    /// The text to locate — within one show operator's decoded run, or
+    /// (`Pass 256.0`) across consecutive spannable operators of one text
+    /// object when no single operator holds it (see `find_anchor_span`).
     pub find: String,
     /// The replacement text (re-encoded into the run's font).
     pub replace: String,

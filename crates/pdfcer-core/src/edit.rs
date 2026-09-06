@@ -9875,6 +9875,59 @@ impl EditSession {
         preview_font_resources(&self.base, page, &stream, find, pinned_span)
     }
 
+    /// [`EditSession::preview_font_resources`] for the text the caller is
+    /// ABOUT TO WRITE (`Pass 142.2`, `pdfcer-gui` request 2026-09-05).
+    ///
+    /// `find`/`pinned_span` locate the run exactly as before; `candidate` is
+    /// the replacement text whose characters every face is tested against —
+    /// through the same gate `set_font` applies, embedded-subset floor
+    /// included. So the operator's question *"if the character isn't
+    /// available in a pdf are we able to change to a different font?"* gets
+    /// an exact list: `FontPreflight::accepted()` are the page faces that can
+    /// hold it, `FontPreflight::standard_14` says which of the fourteen can
+    /// (and whether each is already on the page or would be authored), and a
+    /// refusal names the first character the face cannot hold
+    /// (`FontAcceptance::Refused { character }`).
+    ///
+    /// An empty `candidate` tests the located text, i.e. behaves exactly as
+    /// [`EditSession::preview_font_resources`].
+    ///
+    /// # Errors
+    ///
+    /// As [`EditSession::preview_font_resources`].
+    pub fn preview_font_resources_for(
+        &self,
+        page_index: usize,
+        find: &str,
+        pinned_span: Option<crate::span::ByteSpan>,
+        candidate: &str,
+    ) -> Result<crate::text_edit::FontPreflight, crate::text_edit::FormatError> {
+        use crate::text_edit::FormatError as FmtError;
+        use crate::text_edit::format::preview_font_resources_for;
+
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(FmtError::Encrypted);
+        }
+        let pages = self.pages()?;
+        let page = pages
+            .get(page_index)
+            .ok_or(FmtError::PageIndex(page_index))?;
+        if page.contents.is_empty() {
+            return Err(FmtError::Unsupported(
+                "the page has no /Contents to edit".to_owned(),
+            ));
+        }
+        let stream = self.current_page_content(page).map_err(FmtError::Content)?;
+        preview_font_resources_for(
+            &self.base,
+            page,
+            &stream,
+            find,
+            pinned_span,
+            Some(candidate),
+        )
+    }
+
     /// Apply one within-block reflow (Pass 15.1) as a single undo-able
     /// command — the session-integrated sibling of the free-function
     /// [`apply_reflow`](crate::text_edit::apply_reflow), reusing the shared

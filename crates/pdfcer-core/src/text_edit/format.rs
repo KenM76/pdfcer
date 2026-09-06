@@ -3119,6 +3119,69 @@ struct FontCandidate {
 /// Resources whose value does not resolve to a dictionary are skipped
 /// silently — a malformed `/Font` entry is not a face, and a parse-level
 /// refusal here would take out an unrelated edit.
+/// Coverage-test every standard-14 face for `text` (`Pass 142.2`).
+///
+/// A face already on the page reuses that resource's verdict (and names
+/// the key); one that is not is tested against the very dictionary
+/// `set_font` would author for it (`addtext::std14_resource_dict`), so the
+/// answer here and the outcome of the later `set_font` cannot disagree.
+/// The embedded-subset floor does not arise: no standard-14 face is
+/// embedded, so `carried_codes` is never consulted (the empty resource
+/// name is deliberate).
+fn survey_standard_14(
+    doc: &Document,
+    recs: &[OpRec],
+    page_fonts: &[FontCandidate],
+    text: &str,
+) -> Vec<Std14Entry> {
+    crate::fontdata::Std14::ALL
+        .iter()
+        .map(|&face| {
+            let name = crate::fontdata::std14_base_font_name(face);
+            let on_page = page_fonts
+                .iter()
+                .find(|c| crate::fontdata::std14_by_base_font(&c.base_font) == Some(face));
+            match on_page {
+                Some(c) => Std14Entry {
+                    base_font: name.to_owned(),
+                    presence: Std14Presence::OnPage {
+                        resource: String::from_utf8_lossy(&c.resource).into_owned(),
+                    },
+                    acceptance: acceptance_of(&c.accepted),
+                },
+                None => {
+                    let accepted = match crate::text_edit::addtext::std14_resource_dict(face) {
+                        Object::Dict(dict) => {
+                            accept_font_target(doc, recs, b"", &dict, text).map(|_| ())
+                        }
+                        _ => Err(FormatError::TargetFontMissing(name.to_owned())),
+                    };
+                    Std14Entry {
+                        base_font: name.to_owned(),
+                        presence: Std14Presence::WouldBeAdded,
+                        acceptance: acceptance_of(&accepted),
+                    }
+                }
+            }
+        })
+        .collect()
+}
+
+/// A `FormatError` verdict as the public [`FontAcceptance`], naming the
+/// first refused character when there is one.
+fn acceptance_of(accepted: &Result<(), FormatError>) -> FontAcceptance {
+    match accepted {
+        Ok(()) => FontAcceptance::Accepted,
+        Err(e) => FontAcceptance::Refused {
+            message: e.to_string(),
+            character: match e {
+                FormatError::CoverageFailure(r) => r.character,
+                _ => None,
+            },
+        },
+    }
+}
+
 fn survey_page_fonts(
     doc: &Document,
     resources: &Dict,
@@ -3357,6 +3420,19 @@ pub struct FontResourceEntry {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct FontPreflight {
+    /// The text the CANDIDATE faces were tested against (`Pass 142.2`):
+    /// `Some(candidate)` when the caller supplied the text it intends to
+    /// WRITE, `None` when acceptance was computed against the located text
+    /// (the pre-142.2 question, "can this run be restyled into that face?").
+    ///
+    /// The operator's question — *"if the character isn't available in a
+    /// pdf are we able to change to a different font?"* — is only answerable
+    /// against the text about to be typed, which need not share a character
+    /// with the text already there.
+    pub candidate: Option<String>,
+    /// Every standard-14 face, coverage-tested for the same text as the page
+    /// fonts, with whether it is already on the page (`Pass 142.2`).
+    pub standard_14: Vec<Std14Entry>,
     /// The characters every acceptance answer was computed against —
     /// **resolved**, not the caller's string.
     ///
@@ -3374,6 +3450,41 @@ pub struct FontPreflight {
     pub run_font: String,
     /// Every `/Font` resource on the page, in dictionary order.
     pub entries: Vec<FontResourceEntry>,
+}
+
+/// Whether a standard-14 face in [`FontPreflight::standard_14`] is already a
+/// resource on the page or would be authored by `set_font` (`Pass 142.2`).
+///
+/// The distinction the consuming chooser draws — *is present* versus *would
+/// be added* — carried as a fact rather than inferred from the page-font
+/// list, so a shell need not re-derive which page resource is which face.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Std14Presence {
+    /// The face is already a font resource on the page, under this key.
+    OnPage {
+        /// The `/Resources /Font` key.
+        resource: String,
+    },
+    /// Not on the page; `set_font` with this name would author the resource
+    /// (a standard-14 face needs no embedding — ISO 32000-1 §9.6.2.2).
+    WouldBeAdded,
+}
+
+/// One standard-14 face, coverage-tested for the pre-flight's text
+/// (`Pass 142.2`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Std14Entry {
+    /// The `/BaseFont` name (`Helvetica-Bold`, `Symbol`, …).
+    pub base_font: String,
+    /// On the page, or would be authored.
+    pub presence: Std14Presence,
+    /// Whether the face can hold every character of the tested text under
+    /// its own encoding — `WinAnsiEncoding` for the twelve text faces, the
+    /// built-in font-specific encoding for `Symbol` and `ZapfDingbats`. The
+    /// rule lives HERE, so a shell never re-derives which face uses which.
+    pub acceptance: FontAcceptance,
 }
 
 impl FontPreflight {
@@ -3498,6 +3609,27 @@ pub(crate) fn preview_font_resources(
     find: &str,
     pinned_span: Option<ByteSpan>,
 ) -> Result<FontPreflight, FormatError> {
+    preview_font_resources_for(doc, page, stream, find, pinned_span, None)
+}
+
+/// [`preview_font_resources`] with the text the caller intends to WRITE
+/// (`Pass 142.2`, `pdfcer-gui` request 2026-09-05).
+///
+/// `find`/`pinned_span` still LOCATE the run; `candidate`, when given, is
+/// what every face's acceptance is computed against — through the same
+/// `accept_font_target` gate `set_font` applies, embedded-subset floor
+/// included — so a chooser can list the faces that can hold the character
+/// the operator is about to type rather than the ones that can hold what is
+/// already there. The standard 14 are surveyed for the same text whether or
+/// not the page carries them ([`FontPreflight::standard_14`]).
+pub(crate) fn preview_font_resources_for(
+    doc: &Document,
+    page: &crate::page_tree::Page,
+    stream: &ContentStream,
+    find: &str,
+    pinned_span: Option<ByteSpan>,
+    candidate: Option<&str>,
+) -> Result<FontPreflight, FormatError> {
     let mut walk = Walk::new(doc, &page.resources);
     for op in stream.operations() {
         walk.operation(&op, &stream.buf);
@@ -3575,8 +3707,15 @@ pub(crate) fn preview_font_resources(
         )));
     }
 
-    let candidates = survey_page_fonts(doc, resources, &recs, find);
+    // The text acceptance is tested against: the caller's candidate if it
+    // gave one, else the located text (the pre-142.2 question).
+    let tested: &str = match candidate {
+        Some(c) if !c.is_empty() => c,
+        _ => find,
+    };
+    let candidates = survey_page_fonts(doc, resources, &recs, tested);
     let styled = styled_by_family(&candidates);
+    let standard_14 = survey_standard_14(doc, &recs, &candidates, tested);
     let entries = candidates
         .iter()
         .map(|c| FontResourceEntry {
@@ -3616,6 +3755,8 @@ pub(crate) fn preview_font_resources(
         .collect();
 
     Ok(FontPreflight {
+        candidate: candidate.filter(|c| !c.is_empty()).map(str::to_owned),
+        standard_14,
         // The RESOLVED text, so `text` and the verdicts describe the same
         // characters. Reporting the caller's empty string here while having
         // tested the operator's would be a smaller version of the same lie.
