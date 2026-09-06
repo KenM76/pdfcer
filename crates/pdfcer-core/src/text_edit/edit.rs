@@ -102,6 +102,7 @@ use std::collections::{BTreeSet, HashMap};
 
 use crate::content::{ContentError, ContentStream, ContentTokenKind, Operation};
 use crate::document::Document;
+use crate::graph::ObjectGraph;
 use crate::object::{Dict, Name, ObjId, Object, Stream};
 use crate::page_tree::{self, Page, PageTreeError};
 use crate::settings::UnmappableCode;
@@ -109,6 +110,7 @@ use crate::span::ByteSpan;
 use crate::text_edit::encoding::{CompositeEncoding, InverseEncoding, RInvTrigger, Refusal};
 use crate::text_extract::font::ExtractFont;
 use crate::text_state::{AmbientTextState, TextStateParam};
+use crate::view::DocumentView;
 use crate::writer::content::{emit_literal_string, emit_number};
 use crate::writer::{DirtySet, SaveOptions, WriteError, save_incremental};
 
@@ -890,7 +892,7 @@ pub(crate) struct OpRec {
 /// `redact::Surgeon`, reusing the same `content` tokenizer and §9.4.4
 /// advance model rather than a second interpreter).
 pub(crate) struct Walk<'a> {
-    doc: &'a Document,
+    doc: &'a DocumentView<'a>,
     resources: &'a Dict,
     font_cache: HashMap<Vec<u8>, Option<ExtractFont>>,
     /// The graphics-state subset this walk models. One struct rather than
@@ -981,7 +983,7 @@ impl GState {
 }
 
 impl<'a> Walk<'a> {
-    pub(crate) fn new(doc: &'a Document, resources: &'a Dict) -> Self {
+    pub(crate) fn new(doc: &'a DocumentView<'a>, resources: &'a Dict) -> Self {
         Self {
             doc,
             resources,
@@ -1556,10 +1558,11 @@ pub fn edit_text(
         .get(req.page_index)
         .ok_or(EditError::PageIndex(req.page_index))?;
     // BASE READ (decision 018 caller audit): `edit_text` is the one-shot
-    // `&Document` entry point — it plans against the file as loaded and
-    // hands the plan to an incremental save. The GUI's accumulating
-    // multi-edit path is `EditSession::current_page_content`, not this.
-    let (plan, target) = plan_edit_anywhere(doc, &doc.view(), page, req, opts)?;
+    // `&Document` entry point — it plans against the file as loaded (its
+    // own view; there is no overlay here) and hands the plan to an
+    // incremental save. The GUI's accumulating multi-edit path is
+    // `EditSession::edit_text`, which plans against the session view.
+    let (plan, target) = plan_edit_anywhere(&doc.view(), page, req, opts)?;
     // Incremental save (R34/R70). Which object gets rewritten now depends on
     // where the text was found (`Pass 119.0`): the page's first content
     // object, or the form XObject's own stream. Both are one-object rewrites
@@ -1612,7 +1615,7 @@ pub(crate) struct EditPlan {
 /// See [`EditError`]: a named refusal, no match, an unsupported run, a
 /// page with no `/Contents`, or a content-parse failure.
 pub(crate) fn plan_edit(
-    doc: &Document,
+    doc: &DocumentView<'_>,
     page: &Page,
     stream: &ContentStream,
     req: &EditRequest,
@@ -1696,7 +1699,7 @@ impl EditPlanTarget {
 ///
 /// See [`EditError`].
 pub(crate) fn plan_edit_target(
-    doc: &Document,
+    doc: &DocumentView<'_>,
     target: &EditPlanTarget,
     stream: &ContentStream,
     req: &EditRequest,
@@ -1799,10 +1802,13 @@ pub(crate) fn plan_edit_target(
                     .to_owned(),
             )
         })?;
-    // `&doc.view()` (Pass 17.1) — see `ExtractFont::resolve`. The text-edit
-    // planner is base-relative by contract (`EditSession::edit_text` plans
-    // against the base and splices the result), so the base view is correct.
-    let font = ExtractFont::resolve(&doc.view(), font_dict);
+    // `doc` is whatever graph the CALLER plans against (`Pass 257.0`): the
+    // session passes its overlay view, so a `/Font` object created earlier
+    // in the same session (a `format_text` face swap) resolves here; the
+    // one-shot `edit_text` passes the loaded file's view. Before 257.0 this
+    // was `&Document` — base-relative by contract — and a swapped-in face
+    // was "unresolvable" until the operator saved and reopened.
+    let font = ExtractFont::resolve(doc, font_dict);
     let class = classify_font(doc, font_dict, &font)?;
 
     // --- map the find text to a contiguous code range in one element ---
@@ -2124,8 +2130,7 @@ pub(crate) fn plan_edit_target(
 /// caller asserted a fact about the document, and silently searching somewhere
 /// else would hide that the assertion was wrong.
 pub(crate) fn edit_candidates(
-    doc: &Document,
-    view: &crate::view::DocumentView<'_>,
+    doc: &DocumentView<'_>,
     page: &Page,
     req: &EditRequest,
 ) -> Result<Vec<(EditPlanTarget, ContentStream)>, EditError> {
@@ -2137,7 +2142,7 @@ pub(crate) fn edit_candidates(
         // the table — it is simply not a candidate. The refusal only fires
         // when the caller asked for the page stream by name (below).
         if let Ok(target) = EditPlanTarget::page(page) {
-            match ContentStream::from_page(view, page) {
+            match ContentStream::from_page(doc, page) {
                 Ok(stream) => out.push((target, stream)),
                 Err(e) => return Err(EditError::Content(e)),
             }
@@ -2151,7 +2156,7 @@ pub(crate) fn edit_candidates(
         return Ok(out);
     }
 
-    let scan = forms::scan_page_forms(doc, view, page);
+    let scan = forms::scan_page_forms(doc, page);
     if scan.forms.is_empty() {
         if let EditTarget::Form { object } = req.target {
             return Err(EditError::Unsupported(format!(
@@ -2161,7 +2166,7 @@ pub(crate) fn edit_candidates(
         return Ok(out);
     }
     // ONE document walk for every candidate (see `forms::invocation_map`).
-    let mut map = forms::invocation_map(doc, view);
+    let mut map = forms::invocation_map(doc);
     let mut seen: BTreeSet<u32> = BTreeSet::new();
     for form in scan.forms {
         if let EditTarget::Form { object } = req.target
@@ -2175,7 +2180,7 @@ pub(crate) fn edit_candidates(
         if !seen.insert(form.id.num) {
             continue;
         }
-        let Ok(stream) = ContentStream::from_form(view, form.id) else {
+        let Ok(stream) = ContentStream::from_form(doc, form.id) else {
             // An undecodable form is skipped rather than fatal: every other
             // form on the page is still editable, and refusing the whole
             // request would cost the operator content that is fine (§10).
@@ -2218,13 +2223,12 @@ pub(crate) fn edit_candidates(
 ///
 /// See [`EditError`].
 pub(crate) fn plan_edit_anywhere(
-    doc: &Document,
-    view: &crate::view::DocumentView<'_>,
+    doc: &DocumentView<'_>,
     page: &Page,
     req: &EditRequest,
     opts: &EditOptions,
 ) -> Result<(EditPlan, EditPlanTarget), EditError> {
-    let candidates = edit_candidates(doc, view, page, req)?;
+    let candidates = edit_candidates(doc, page, req)?;
     if candidates.is_empty() {
         return Err(EditError::NoMatch(req.find.clone()));
     }
@@ -2484,7 +2488,7 @@ pub(crate) fn refuse_unsuitable_form(
 /// and the only honest response is to **say so**, off-canvas, in the report
 /// (rule 4 as narrowed by decision 059: render normally, report separately).
 pub(crate) fn disclose_form_edit(
-    doc: &Document,
+    doc: &DocumentView<'_>,
     form: &crate::text_edit::forms::FormRef,
     invocations: Option<&crate::text_edit::forms::InvocationSet>,
     anchor: &ShowData,
@@ -2990,7 +2994,7 @@ pub(crate) struct FontClass {
 /// Classify the anchor font and apply the font-level refuse triggers
 /// R-INV-2/3/4 (the per-character triggers are the inverse map's job).
 pub(crate) fn classify_font(
-    doc: &Document,
+    doc: &DocumentView<'_>,
     font_dict: &Dict,
     font: &ExtractFont,
 ) -> Result<FontClass, EditError> {
@@ -3603,7 +3607,7 @@ fn op_span(op: &Operation<'_>) -> (usize, usize) {
 /// The `/MCID` integer of a `BDC`/`BMC` operator, if its property operand is
 /// an inline dict carrying one (§14.7.4.2). A named property resource is not
 /// resolved in the first cut — its MCID is treated as absent.
-fn mcid_of(doc: &Document, op: &Operation<'_>) -> Option<i64> {
+fn mcid_of(doc: &DocumentView<'_>, op: &Operation<'_>) -> Option<i64> {
     for t in op.operands {
         if let ContentTokenKind::Operand(Object::Dict(d)) = &t.kind {
             return doc.resolve(d.get(b"MCID")?).as_int();
@@ -3614,7 +3618,7 @@ fn mcid_of(doc: &Document, op: &Operation<'_>) -> Option<i64> {
 
 /// Resolve a `/Font /<name>` resource to its font dictionary.
 pub(crate) fn resolve_font_dict<'a>(
-    doc: &'a Document,
+    doc: &'a DocumentView<'a>,
     resources: &'a Dict,
     name: &[u8],
 ) -> Option<&'a Dict> {
@@ -3629,8 +3633,8 @@ pub(crate) fn resolve_font_dict<'a>(
 }
 
 /// Resolve a `/Font /<name>` resource to an [`ExtractFont`].
-fn resolve_font(doc: &Document, resources: &Dict, name: &[u8]) -> Option<ExtractFont> {
-    resolve_font_dict(doc, resources, name).map(|d| ExtractFont::resolve(&doc.view(), d))
+fn resolve_font(doc: &DocumentView<'_>, resources: &Dict, name: &[u8]) -> Option<ExtractFont> {
+    resolve_font_dict(doc, resources, name).map(|d| ExtractFont::resolve(doc, d))
 }
 
 /// Whether a `/BaseFont` name carries a §9.6.4 subset tag (`ABCDEF+…`):
@@ -3969,8 +3973,9 @@ mod tests {
         let doc = Document::from_bytes(src).unwrap();
         let pages = crate::page_tree::pages(&doc).unwrap();
         let page = &pages[0];
-        let stream = ContentStream::from_page(&doc.view(), page).unwrap();
-        let mut walk = Walk::new(&doc, &page.resources);
+        let view = doc.view();
+        let stream = ContentStream::from_page(&view, page).unwrap();
+        let mut walk = Walk::new(&view, &page.resources);
         for op in stream.operations() {
             walk.operation(&op, &stream.buf);
         }

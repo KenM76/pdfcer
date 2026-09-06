@@ -388,7 +388,7 @@ need their own policy).
 | Ask what synthetic bold/italic *would* do | `preview_style_resolution(&self, page_index, find, pinned_span, want) -> Result<StyleResolution, FormatError>` | 7388 | Pure query. **Decides where a style button routes** — see below; an empty `find` is not a wildcard here. |
 | Ask which fonts `set_font` would ACCEPT for a run | `preview_font_resources(&self, page_index, find, pinned_span) -> Result<FontPreflight, FormatError>` | 7459 | Pure query. **Per RUN, not per page** — see below. `FontPreflight` now also carries `standard_14: Vec<Std14Entry>` (every standard-14 face coverage-tested for the same text, `presence` = `OnPage { resource }` / `WouldBeAdded`) and `candidate: None` (`Pass 142.2`). |
 | Ask which fonts can hold the text ABOUT TO BE TYPED | `preview_font_resources_for(&self, page_index, find, pinned_span, candidate: &str) -> Result<FontPreflight, FormatError>` | edit.rs | **`Pass 142.2`**, pdfcer-gui request 2026-09-05. `find`/`pinned_span` locate the run; every `FontAcceptance` — page faces AND the standard 14 — is computed against `candidate` through the same gate `set_font` applies (embedded-subset floor included), so `Refused { character }` names the first character a face cannot hold. `candidate == ""` behaves exactly as `preview_font_resources`. CLI: `font-preflight --candidate TEXT`. |
-| Re-wrap a recognised paragraph | `reflow_block(&mut self, page_index, block_index, &ReflowRequest) -> Result<ReflowApplyReport, ReflowApplyError>` | 4297 | One undo entry. **Planned against the BASE** — see trap T-14. Refuses (not silently deletes) a page carrying a run appended this session (`Pass 251.0`): the base plan would drop it. |
+| Re-wrap a recognised paragraph | `reflow_block(&mut self, page_index, block_index, &ReflowRequest) -> Result<ReflowApplyReport, ReflowApplyError>` | 4297 | One undo entry. **Planned against the SESSION VIEW** since `Pass 257.0` — composes with an earlier `edit_text`/`format_text` on the same page and with structural page edits (T-14 records the refusals that stood before). Still refuses (not silently deletes) a page carrying a run appended this session (`Pass 251.0`): the plan re-emits the first content object only and the sweep would drop the extra. |
 | Add a new text run at coordinates | `add_text(&mut self, &AddTextRequest) -> Result<AddTextReport, AddTextError>` | 4365 | Appends a new content stream; originals stay byte-verbatim. |
 | Add an invisible OCR text layer to one or more pages | `add_ocr_layer(&mut self, &[OcrPageLayer<'_>], &OcrLayerOptions) -> Result<Vec<OcrLayerReport>, OcrLayerError>` | 7313 | **ONE undo entry for the whole run**, however many pages. Reads the SESSION graph, not the base. |
 | Give ONE page a private copy of a shared form XObject | `unshare_form(&mut self, page_index, form: ObjId) -> Result<UnshareFormReport, EditError>` | 7367 | Copy-on-write. Refuses a **nested** invocation by name. |
@@ -2643,15 +2643,14 @@ repo passed under both.
    `page_objects(3)` on a three-page document used to return the text of page
    four.
 
-**One verb is deliberately narrower than the rest.** `reflow_block`'s planner
-(`plan_reflow_from_doc`) re-derives the page from the base document by index —
-it needs extraction provenance the staging buffer does not carry, which is the
-same reason it already refuses a page whose content was rewritten this
-session. It therefore now **refuses by name** once the page set has changed:
-*"the document's page set was changed this session (a page was added, removed
-or reordered); reflow is planned against the base document's pages, so save
-and reopen before reflowing."* That is a named refusal, never a silent
-mis-splice.
+**One verb WAS deliberately narrower than the rest — until `Pass 257.0`.**
+`reflow_block`'s planner (`plan_reflow_from_doc`) used to re-derive the page
+from the base document by index and therefore refused by name once the page
+set had changed (*"…reflow is planned against the base document's pages, so
+save and reopen before reflowing"*). Since `Pass 257.0` it takes the session's
+`DocumentView` — the same graph every other verb reads — so an overlay page
+index names the sheet the operator sees and the refusal is gone
+(`session_overlay_skew.rs::reflow_follows_the_overlay_page_set_after_a_structural_edit`).
 
 **What was never affected**, so you do not need to re-verify it: annotations
 are addressed by `ObjId` and read through the overlay-aware `value()` /
@@ -2660,15 +2659,18 @@ FreeText, ce dimensions, form-field authoring, pasted fields, adopted
 widgets, redaction marks, file attachments and bookmarks were all editable
 the instant they were authored, and still are.
 
-**One residual, named so it is not rediscovered as a new bug.** `edit_text`,
-`format_text` and the two `preview_*` verbs pass `&self.base` to the text
-planner as the object resolver, so a `/Font` resource **created this session**
-(by `add_text`, or by `format_text`'s own `created_font` path) is named by the
-overlay page's `/Resources` and cannot be resolved through it. The failure is
-a clean refusal, not a wrong edit, and it is the same outcome as before this
-Pass — the resource used to be invisible, and is now unresolvable. Fixing it
-means threading a view through `text_edit`'s ~40 `doc: &Document` signatures,
-which is its own Pass.
+**The residual this paragraph used to name is FIXED (`Pass 257.0`).** `edit_text`,
+`format_text`, `preview_font_resources`/`_for`, `preview_style_resolution` and
+`reflow_block` used to pass `&self.base` to the text planners as the object
+resolver, so a `/Font` resource **created this session** (by `add_text`, or by
+`format_text`'s own `created_font` path) was named by the overlay page's
+`/Resources` and could not be resolved through it — a clean refusal (pinned:
+*"unresolvable in the target stream's resources"*; by text: `NoMatch`, which was
+untrue of the page), reported by `pdfcer-gui` 2026-09-05. Every planner in
+`text_edit` now takes `&DocumentView<'_>` and the session passes `self.view()`;
+the type system makes the old mistake a compile error (there is no
+`&Document` → `&DocumentView` coercion). The shell's three measurements are
+`tests/session_graph_resolution.rs`.
 
 ### ⚡ `page_content_generation` — the agreement check, and what it does NOT promise
 
@@ -4554,12 +4556,17 @@ take the **write** lock to search. Note the asymmetry:
 
 §3.4.
 
-### T-14 `reflow_block` refuses after an in-session text edit on the same page
+### T-14 `reflow_block` used to refuse after an in-session text edit on the same page — RETIRED `Pass 257.0`
 
-`edit.rs:4281-4290`: it is planned against the **base** document, so it returns
-`ReflowApplyError::Unsupported` when `edit_text`/`format_text` already rewrote
-that page's content object this session. *"Save and reopen to reflow after an
-in-session edit of the same page."*
+Until `Pass 257.0` it was planned against the **base** document, so it returned
+`ReflowApplyError::Unsupported` when `edit_text`/`format_text` had already
+rewritten that page's content object this session (*"Save and reopen to reflow
+after an in-session edit of the same page"*), and likewise once the page set had
+changed. Both refusals are gone: the planner reads the session view, so the
+reflow composes (`edit.rs` test
+`reflow_after_an_in_session_edit_of_the_same_page_composes`). The one reflow
+refusal that remains is a page carrying a content stream APPENDED this session
+(`Pass 251.0`) — see the verb row.
 
 ### T-15 One object, one merged write per command — last write wins, silently
 

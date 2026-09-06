@@ -26257,7 +26257,7 @@ fn cmd_inspect_forms(input: &Path, pages_spec: &str) -> u8 {
 
     let view = doc.view();
     // ONE document walk for every page's `paints` column (`forms::invocation_map`).
-    let map = forms::invocation_map(&doc, &view);
+    let map = forms::invocation_map(&view);
 
     let mut total = 0u64;
     let mut shared = 0u64;
@@ -26267,7 +26267,7 @@ fn cmd_inspect_forms(input: &Path, pages_spec: &str) -> u8 {
         let Some(page) = page_list.get(index) else {
             continue;
         };
-        let scan = forms::scan_page_forms(&doc, &view, page);
+        let scan = forms::scan_page_forms(&view, page);
         println!("  page {}:", index + 1);
         if scan.forms.is_empty() {
             println!("    (none -- every mark on this page comes from its own /Contents)");

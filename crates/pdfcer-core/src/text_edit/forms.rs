@@ -68,7 +68,7 @@
 use std::collections::{BTreeSet, HashSet};
 
 use crate::content::ContentStream;
-use crate::document::Document;
+use crate::graph::ObjectGraph;
 use crate::object::{Dict, ObjId, Object};
 use crate::page_tree::{self, Page};
 use crate::view::DocumentView;
@@ -224,7 +224,7 @@ impl FormRef {
     /// would be reporting a fact about the dictionary while claiming to report
     /// a fact about the edit.
     #[must_use]
-    pub fn owns_font(&self, doc: &Document, name: &[u8]) -> bool {
+    pub fn owns_font(&self, doc: &DocumentView<'_>, name: &[u8]) -> bool {
         doc.resolve(self.dict.get(b"Resources").unwrap_or(&Object::Null))
             .as_dict()
             .and_then(|r| r.get(b"Font"))
@@ -302,7 +302,7 @@ pub const MAX_FORM_DEPTH: usize = 64;
 /// form still has every other form editable and refusing the page would cost
 /// the operator content that is fine (§10 fail-clean).
 #[must_use]
-pub fn scan_page_forms(doc: &Document, view: &DocumentView<'_>, page: &Page) -> FormScan {
+pub fn scan_page_forms(view: &DocumentView<'_>, page: &Page) -> FormScan {
     let mut scan = FormScan::default();
     let Ok(stream) = ContentStream::from_page(view, page) else {
         scan.unresolved += 1;
@@ -310,7 +310,6 @@ pub fn scan_page_forms(doc: &Document, view: &DocumentView<'_>, page: &Page) -> 
     };
     let mut active: Vec<u32> = Vec::new();
     walk_forms(
-        doc,
         view,
         &stream,
         &page.resources,
@@ -331,7 +330,6 @@ pub fn scan_page_forms(doc: &Document, view: &DocumentView<'_>, page: &Page) -> 
 /// for the level below.
 #[allow(clippy::too_many_arguments)]
 fn walk_forms(
-    doc: &Document,
     view: &DocumentView<'_>,
     stream: &ContentStream,
     page_resources: &Dict,
@@ -357,7 +355,7 @@ fn walk_forms(
         else {
             continue;
         };
-        let Some(entry) = doc
+        let Some(entry) = view
             .resolve(enclosing.get(b"XObject").unwrap_or(&Object::Null))
             .as_dict()
             .and_then(|d| d.get(&name))
@@ -376,7 +374,7 @@ fn walk_forms(
             scan.unresolved += 1;
             continue;
         };
-        if doc
+        if view
             .resolve(form.dict.get(b"Subtype").unwrap_or(&Object::Null))
             .as_name()
             .is_none_or(|n| n.as_bytes() != b"Form")
@@ -393,7 +391,7 @@ fn walk_forms(
         }
 
         let (resources, resource_tier) =
-            effective_resources(doc, &form.dict, page_resources, enclosing);
+            effective_resources(view, &form.dict, page_resources, enclosing);
         scan.forms.push(FormRef {
             id,
             name,
@@ -418,7 +416,6 @@ fn walk_forms(
         };
         active.push(id.num);
         walk_forms(
-            doc,
             view,
             &inner,
             page_resources,
@@ -438,7 +435,7 @@ fn walk_forms(
 /// See [`ResourceTier`] for why the order is own → page → enclosing and why
 /// the merge is per-category rather than all-or-nothing.
 fn effective_resources(
-    doc: &Document,
+    doc: &DocumentView<'_>,
     form_dict: &Dict,
     page_resources: &Dict,
     enclosing: &Dict,
@@ -559,8 +556,8 @@ impl InvocationSet {
 /// rather than as a total — an under-count presented as a total is the same
 /// class of defect as a silent edit.
 #[must_use]
-pub fn invocation_set(doc: &Document, view: &DocumentView<'_>, object: u32) -> InvocationSet {
-    invocation_map(doc, view)
+pub fn invocation_set(view: &DocumentView<'_>, object: u32) -> InvocationSet {
+    invocation_map(view)
         .remove(&object)
         .unwrap_or(InvocationSet {
             object,
@@ -582,17 +579,14 @@ pub fn invocation_set(doc: &Document, view: &DocumentView<'_>, object: u32) -> I
 /// find: the whole point of that field is that a form pdfcer failed to see is
 /// exactly the one whose absence from a count would be wrong.
 #[must_use]
-pub fn invocation_map(
-    doc: &Document,
-    view: &DocumentView<'_>,
-) -> std::collections::BTreeMap<u32, InvocationSet> {
+pub fn invocation_map(view: &DocumentView<'_>) -> std::collections::BTreeMap<u32, InvocationSet> {
     let mut map: std::collections::BTreeMap<u32, InvocationSet> = std::collections::BTreeMap::new();
-    let Ok(pages) = page_tree::pages(doc) else {
+    let Ok(pages) = page_tree::pages_in(view) else {
         return map;
     };
     let mut incomplete: BTreeSet<usize> = BTreeSet::new();
     for (index, page) in pages.iter().enumerate() {
-        let scan = scan_page_forms(doc, view, page);
+        let scan = scan_page_forms(view, page);
         if scan.depth_overflows > 0 || scan.unresolved > 0 {
             incomplete.insert(index);
         }
@@ -619,8 +613,8 @@ pub fn invocation_map(
 /// a cheap pre-filter for a caller that only wants to know *whether* a page
 /// has editable form content.
 #[must_use]
-pub fn form_objects_on_page(doc: &Document, view: &DocumentView<'_>, page: &Page) -> Vec<u32> {
-    let scan = scan_page_forms(doc, view, page);
+pub fn form_objects_on_page(view: &DocumentView<'_>, page: &Page) -> Vec<u32> {
+    let scan = scan_page_forms(view, page);
     let mut seen = HashSet::new();
     scan.forms
         .iter()

@@ -9262,7 +9262,7 @@ impl EditSession {
             match page.contents.first().copied() {
                 Some(content_id) => {
                     let stream = self.current_page_content(&page).map_err(TeError::Content)?;
-                    match plan_edit(&self.base, &page, &stream, req, opts) {
+                    match plan_edit(&self.view(), &page, &stream, req, opts) {
                         Ok(plan) => {
                             let command = self.text_edit_command(
                                 CommandKind::EditText,
@@ -9330,8 +9330,8 @@ impl EditSession {
         use crate::text_edit::edit::{is_locational_error, plan_edit_target};
         use crate::text_edit::forms;
 
-        let scan = forms::scan_page_forms(&self.base, &self.view(), page);
-        let mut map = forms::invocation_map(&self.base, &self.view());
+        let scan = forms::scan_page_forms(&self.view(), page);
+        let mut map = forms::invocation_map(&self.view());
         let mut seen: std::collections::BTreeSet<u32> = std::collections::BTreeSet::new();
         let mut first_locational = page_error;
         // The SEARCH runs in the loop; the COMMIT happens once, after it
@@ -9363,7 +9363,7 @@ impl EditSession {
             let form_id = form.id;
             let form_dict = form.dict.clone();
             let target = crate::text_edit::edit::EditPlanTarget::form(form, invocations);
-            match plan_edit_target(&self.base, &target, &stream, req, opts) {
+            match plan_edit_target(&self.view(), &target, &stream, req, opts) {
                 Ok(plan) => {
                     found = Some((form_id, form_dict, plan.new_content, plan.report));
                     break;
@@ -9545,7 +9545,7 @@ impl EditSession {
                     let stream = self
                         .current_page_content(&page)
                         .map_err(FmtError::Content)?;
-                    match plan_format(&self.base, &page, &stream, req, opts) {
+                    match plan_format(&self.view(), &page, &stream, req, opts) {
                         Ok(plan) => {
                             let mut report = plan.report;
                             let mut command = self.text_edit_command(
@@ -9634,8 +9634,8 @@ impl EditSession {
         use crate::text_edit::format::{is_locational_format_error, plan_format_target};
         use crate::text_edit::forms;
 
-        let scan = forms::scan_page_forms(&self.base, &self.view(), page);
-        let mut map = forms::invocation_map(&self.base, &self.view());
+        let scan = forms::scan_page_forms(&self.view(), page);
+        let mut map = forms::invocation_map(&self.view());
         let mut seen: std::collections::BTreeSet<u32> = std::collections::BTreeSet::new();
         let mut first_locational = page_error;
         let mut found: Option<FormatFormHit> = None;
@@ -9655,7 +9655,7 @@ impl EditSession {
             let form_id = form.id;
             let form_dict = form.dict.clone();
             let target = crate::text_edit::edit::EditPlanTarget::form(form, invocations);
-            match plan_format_target(&self.base, &target, &stream, req, opts) {
+            match plan_format_target(&self.view(), &target, &stream, req, opts) {
                 Ok(plan) => {
                     found = Some((
                         form_id,
@@ -9798,7 +9798,7 @@ impl EditSession {
             ));
         }
         let stream = self.current_page_content(page).map_err(FmtError::Content)?;
-        preview_style_resolution(&self.base, page, &stream, find, pinned_span, want)
+        preview_style_resolution(&self.view(), page, &stream, find, pinned_span, want)
     }
 
     /// Ask which of the page's font resources `set_font` would **accept**
@@ -9872,7 +9872,7 @@ impl EditSession {
             ));
         }
         let stream = self.current_page_content(page).map_err(FmtError::Content)?;
-        preview_font_resources(&self.base, page, &stream, find, pinned_span)
+        preview_font_resources(&self.view(), page, &stream, find, pinned_span)
     }
 
     /// [`EditSession::preview_font_resources`] for the text the caller is
@@ -9919,7 +9919,7 @@ impl EditSession {
         }
         let stream = self.current_page_content(page).map_err(FmtError::Content)?;
         preview_font_resources_for(
-            &self.base,
+            &self.view(),
             page,
             &stream,
             find,
@@ -9938,15 +9938,17 @@ impl EditSession {
     /// lands as ONE [`CommandKind::ReflowBlock`] whose `before` restores the
     /// byte-identical pre-reflow stream on undo (decision 015 §3.4/R75).
     ///
-    /// The reflow is planned against the **base** document's content (it
-    /// extracts + recognises the page fresh, needing provenance the staging
-    /// buffer does not carry), so — unlike the accumulating
-    /// [`Self::edit_text`]/[`Self::format_text`] — it refuses when the page's
-    /// content object was **already** rewritten this session (a prior text or
-    /// format edit): the base-relative byte offsets would not match the staged
-    /// content. Save and reopen to reflow after an in-session edit of the same
-    /// page. This is a clean, named refusal, never a silent mis-splice
-    /// (rule 4).
+    /// Since `Pass 257.0` the reflow is planned against the **session view**
+    /// — the page is extracted and recognised fresh from the CURRENT content
+    /// (a prior text or format edit's staged stream, or the base on the first
+    /// edit), so it composes with [`Self::edit_text`]/[`Self::format_text`]
+    /// and with structural page edits in the same session. Before 257.0 it
+    /// planned against the base document and refused both cases by name.
+    ///
+    /// One refusal remains: a page carrying a non-empty content stream
+    /// APPENDED this session (an `add_text` run) — the plan re-emits the
+    /// first content object only and committing sweeps the extras, which
+    /// would drop the run; that is refused by name (rule 4), never mis-spliced.
     ///
     /// # Errors
     ///
@@ -9954,7 +9956,7 @@ impl EditSession {
     /// free function raises — a named composite refusal, a
     /// rotated/shared/non-contiguous block, a missing-provenance or
     /// bad-index/width error — plus an [`ReflowApplyError::Unsupported`] when
-    /// the page's content was already edited this session. A refusal happens
+    /// text was appended to the page this session. A refusal happens
     /// BEFORE any mutation (rule 4): the session is left untouched.
     pub fn reflow_block(
         &mut self,
@@ -9975,46 +9977,13 @@ impl EditSession {
             .first()
             .ok_or_else(|| RErr::Unsupported("the page has no /Contents to reflow".to_owned()))?;
 
-        // ★★ Reflow's PLANNER IS BASE-INDEXED, and `Pass 186.0` made that a
-        // hazard it did not used to be. `plan_reflow_from_doc` takes
-        // `(&self.base, page_index)` and re-derives the page itself; every
-        // other read in this method now resolves `page_index` against the
-        // OVERLAY. Those two agree only while the session has not added,
-        // removed or reordered a page.
-        //
-        // If they disagree, the failure is silent and destructive in the worst
-        // available way: the plan describes base page N while `content_id`
-        // names overlay page N's content stream, so the reflowed bytes of one
-        // sheet are staged into a DIFFERENT sheet's content object. Before
-        // this Pass both halves read the base, so they were consistent with
-        // each other and merely addressed a sheet the operator was not
-        // looking at.
-        //
-        // Refused by name rather than by teaching the planner the overlay:
-        // that is a real feature (`plan_reflow_from_doc` needs extraction
-        // provenance the staging buffer does not carry -- the same reason the
-        // already-edited refusal below exists) and it is not this Pass.
-        let base_page_id = page_tree::pages(&self.base)
-            .ok()
-            .and_then(|p| p.get(page_index).map(|p| p.id));
-        if base_page_id != Some(page.id) {
-            return Err(RErr::Unsupported(
-                "the document's page set was changed this session (a page was added, removed or \
-                 reordered); reflow is planned against the base document's pages, so save and \
-                 reopen before reflowing"
-                    .to_owned(),
-            ));
-        }
-
-        // Reflow is planned from base content; refuse if this content object
-        // was already rewritten this session (see the method docs).
-        if self.state.contains_key(&content_id) {
-            return Err(RErr::Unsupported(
-                "the page's content was already edited this session; reflow is planned against \
-                 the base content, so save and reopen before reflowing this page"
-                    .to_owned(),
-            ));
-        }
+        // `Pass 257.0`: the planner reads the SESSION VIEW — the same graph
+        // every other read in this method uses — so an overlay page index,
+        // and a content object already rewritten this session, are both
+        // planned against exactly what the operator sees. The two "save and
+        // reopen before reflowing" refusals that stood here (page set changed;
+        // content already edited) are gone; their tests now assert the reflow
+        // composes.
 
         // ★ A run appended this session lives in an EXTRA stream (contents[1..]),
         // NOT in contents[0], so the guard above misses it. Reflow plans from the
@@ -10023,6 +9992,8 @@ impl EditSession {
         // extra and would SILENTLY DELETE the added text. Refuse by name instead
         // (pdfcer-gui bug, 2026-09-04; Pass 251.0). This is the "refuses a page
         // carrying a non-empty appended stream" option the shell asked for.
+        // Still true after `Pass 257.0`: the plan re-emits contents[0] only,
+        // and the sweep is what would drop the extra stream's run.
         if page
             .contents
             .iter()
@@ -10037,7 +10008,7 @@ impl EditSession {
             ));
         }
 
-        let plan = plan_reflow_from_doc(&self.base, page_index, block_index, req)?;
+        let plan = plan_reflow_from_doc(&self.view(), page_index, block_index, req)?;
         let kind = CommandKind::ReflowBlock {
             lines_before: plan.report.lines_before,
             lines_after: plan.report.lines_after,
@@ -47182,10 +47153,15 @@ mod text_edit_session_tests {
     }
 
     #[test]
-    fn reflow_after_an_in_session_edit_of_the_same_page_is_refused() {
-        // Reflow is planned from base content; refuse if the page's content
-        // was already rewritten this session (a clean named refusal, rule 4).
-        let src = text_pdf("BT /F1 10 Tf 72 740 Td (teh cat) Tj ET\n");
+    fn reflow_after_an_in_session_edit_of_the_same_page_composes() {
+        // `Pass 257.0`: reflow plans from the SESSION VIEW, so it reads the
+        // staged stream a prior edit produced and composes with it. Before,
+        // this was refused by name ("already edited this session").
+        let src = text_pdf(
+            "BT /F1 10 Tf 72 740 Td (teh cat sat) Tj ET
+             BT /F1 10 Tf 72 726 Td (on the mat) Tj ET
+",
+        );
         let mut session = EditSession::new(Document::from_bytes(src).unwrap());
         session
             .edit_text(
@@ -47193,16 +47169,34 @@ mod text_edit_session_tests {
                 &EditOptions::default(),
             )
             .unwrap();
-        let err = session
-            .reflow_block(0, 0, &crate::text_edit::ReflowRequest::new())
-            .unwrap_err();
-        assert!(
-            matches!(err, crate::text_edit::ReflowApplyError::Unsupported(m)
-                if m.contains("already edited this session")),
-            "reflow after an in-session edit is refused by name"
-        );
-        // The failed reflow left the session at exactly the one prior edit.
-        assert_eq!(session.undo_depth(), 1);
+        let mut req = crate::text_edit::ReflowRequest::new();
+        req.wrap_width = Some(400.0);
+        let report = session
+            .reflow_block(0, 0, &req)
+            .expect("reflow composes with an in-session edit of the same page");
+        assert_eq!(session.undo_depth(), 2);
+        assert!(report.lines_after <= report.lines_before);
+        // The reflowed page carries the EDITED text, not the base's.
+        let (bytes, _) = session
+            .to_incremental_bytes(&SaveOptions::identity())
+            .unwrap();
+        let doc = Document::from_bytes(bytes).unwrap();
+        let pages = crate::page_tree::pages(&doc).unwrap();
+        let text = crate::text_extract::extract_page(
+            &doc,
+            &pages[0],
+            0,
+            &crate::text_extract::ExtractOptions::default(),
+        )
+        .unwrap();
+        let joined = text
+            .runs
+            .iter()
+            .map(|r| r.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(joined.contains("the cat sat"), "{joined}");
+        assert!(!joined.contains("teh"), "{joined}");
     }
 
     #[test]

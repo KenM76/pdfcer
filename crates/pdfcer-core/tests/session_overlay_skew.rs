@@ -278,22 +278,23 @@ fn every_surviving_index_names_the_right_sheet_after_a_structural_edit() {
     assert!(s.page_objects(3).is_err(), "index 3 must not resolve");
 }
 
-/// `reflow_block`'s planner is base-indexed and cannot be handed an overlay
-/// page index. It must say so **by name** rather than splice one sheet's
-/// reflowed bytes into another sheet's content object — which is what the
-/// naive half of this Pass would have made it do.
+/// `reflow_block` plans against the SESSION VIEW since `Pass 257.0`, so an
+/// overlay page index names the sheet the operator sees — the same sheet every
+/// other verb in this file resolves. Before 257.0 the planner was base-indexed
+/// and refused by name once the page set had changed; that refusal is gone,
+/// and this test asserts the reflow lands on the RIGHT sheet.
 #[test]
-fn reflow_refuses_once_the_page_set_has_changed() {
+fn reflow_follows_the_overlay_page_set_after_a_structural_edit() {
     let mut s = four_pages();
     s.delete_pages(&[0]).unwrap();
-    let err = s
-        .reflow_block(0, 0, &pdfcer_core::text_edit::ReflowRequest::default())
-        .expect_err("reflow must refuse after a structural page edit");
-    let msg = err.to_string();
+    s.reflow_block(0, 0, &pdfcer_core::text_edit::ReflowRequest::default())
+        .expect("reflow plans against the overlay page set");
+    let got = page_text(&mut s, 0);
     assert!(
-        msg.contains("page set was changed"),
-        "the refusal must name its reason, got: {msg}"
+        got.contains("Page Two"),
+        "index 0 is the sheet that says Page Two after deleting page one, got: {got}"
     );
+    assert!(page_text(&mut s, 2).contains("Page Four"));
 }
 
 // -------------------------------------------------------------------------

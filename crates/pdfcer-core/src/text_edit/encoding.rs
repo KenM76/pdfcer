@@ -72,7 +72,13 @@ pub enum RInvTrigger {
     ToUnicodeOnly,
     /// R-INV-4 — composite (Type 0 / CIDFont) run; deferred to FF-C.
     Composite,
-    /// R-INV-5 — ambiguous inverse: multiple codes map to `U` (soft).
+    /// R-INV-5 — ambiguous inverse: multiple codes map to `U`. **Soft on a
+    /// simple font** — a code is chosen and disclosed
+    /// ([`CharEncoding::Chosen`]) — but **a refusal on a composite font**
+    /// (`Pass 256.1`): there the codes are CIDs, a CID choice picks a glyph,
+    /// and pdfcer does not pick glyphs. [`Self::is_hard`] reports the
+    /// simple-font disposition; a [`Refusal`] carrying this trigger is a
+    /// refusal regardless — test the type, not the trigger.
     Ambiguous,
     /// R-INV-6 — `U`'s glyph is present only inside a multi-scalar ligature
     /// name; single-char substitution not attempted in the first cut (soft).
@@ -104,8 +110,13 @@ impl RInvTrigger {
     }
 
     /// Whether this trigger is a **hard** refusal (1, 2, 3, 4, 7, 8) rather
-    /// than a soft/disclosed outcome (5, 6). A hard trigger stops the edit;
-    /// a soft one records a disclosure and proceeds.
+    /// than a soft/disclosed outcome (5, 6) **when it arises on a simple
+    /// font**. A hard trigger stops the edit; a soft one records a disclosure
+    /// and proceeds. The one trigger with two dispositions is
+    /// [`Self::Ambiguous`]: soft here, but on a composite font it is
+    /// returned inside a [`Refusal`] (`Pass 256.1`), and a `Refusal` is hard
+    /// by construction — consumers deciding "did the edit stop?" must key on
+    /// receiving a `Refusal`, not on this method.
     #[must_use]
     pub const fn is_hard(self) -> bool {
         matches!(

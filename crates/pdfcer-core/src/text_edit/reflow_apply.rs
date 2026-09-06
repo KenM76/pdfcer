@@ -125,12 +125,14 @@
 
 use crate::content::{ContentError, ContentStream, ContentTokenKind, Operation};
 use crate::document::Document;
+use crate::graph::ObjectGraph;
 use crate::object::{Dict, Object};
 use crate::page_tree::{self, Page, PageTreeError};
 use crate::span::ByteSpan;
 use crate::text_extract::font::ExtractFont;
 use crate::text_extract::{self, ContentStreamRef, ExtractError, ExtractOptions, GlyphProvenance};
 use crate::text_state::{AmbientRestoreError, AmbientTextState, TextStateParam};
+use crate::view::DocumentView;
 use crate::writer::content::{emit_literal_string, emit_number};
 
 use super::edit::{
@@ -281,7 +283,7 @@ pub fn apply_reflow(
     block_index: usize,
     req: &ReflowRequest,
 ) -> Result<ReflowOutcome, ReflowApplyError> {
-    let plan = plan_reflow_from_doc(doc, page_index, block_index, req)?;
+    let plan = plan_reflow_from_doc(&doc.view(), page_index, block_index, req)?;
     let pages = page_tree::pages(doc)?;
     let page = pages
         .get(page_index)
@@ -304,15 +306,15 @@ pub fn apply_reflow(
 ///
 /// See [`ReflowApplyError`].
 pub(crate) fn plan_reflow_from_doc(
-    doc: &Document,
+    doc: &DocumentView<'_>,
     page_index: usize,
     block_index: usize,
     req: &ReflowRequest,
 ) -> Result<ReflowPlan, ReflowApplyError> {
-    if doc.trailer().contains_key(b"Encrypt") {
+    if doc.trailer_entry(b"Encrypt").is_some() {
         return Err(ReflowApplyError::Encrypted);
     }
-    let pages = page_tree::pages(doc)?;
+    let pages = page_tree::pages_in(doc)?;
     let page = pages
         .get(page_index)
         .ok_or(ReflowApplyError::PageIndex(page_index))?;
@@ -321,7 +323,7 @@ pub(crate) fn plan_reflow_from_doc(
     // operators' spans + matrices) and enable the overflow disclosure by
     // supplying the page cropbox unless the caller overrode it.
     let options = ExtractOptions::default().with_provenance(true);
-    let extracted = text_extract::extract_page(doc, page, page_index, &options)?;
+    let extracted = text_extract::extract_page_view(doc, page, page_index, &options)?;
     let model =
         EditableTextModel::recognize(&extracted, &super::reflow::reflow_recognition_options());
 
@@ -332,11 +334,11 @@ pub(crate) fn plan_reflow_from_doc(
     let engine = ReflowEngine::new(&model);
     let preview = engine.preview(block_index, &req)?;
 
-    // BASE READ (decision 018 caller audit) — the one-shot `&Document`
-    // reflow entry point; the block model it was planned against was
-    // extracted from the same base document a few lines above, so reading
-    // anything else here would desynchronize the two.
-    let stream = ContentStream::from_page(&doc.view(), page)?;
+    // SAME GRAPH as the extraction a few lines above (decision 018 caller
+    // audit, re-based on the caller's view in `Pass 257.0`): the block model
+    // and the stream it is spliced into must come from one graph, or the
+    // plan's byte offsets describe a different stream than the one edited.
+    let stream = ContentStream::from_page(doc, page)?;
     plan_reflow(doc, page, &stream, &model, block_index, &preview)
 }
 
@@ -355,7 +357,7 @@ pub(crate) fn plan_reflow_from_doc(
 /// See [`ReflowApplyError`]: a composite refusal, missing provenance, or an
 /// unsupported (rotated/shared/non-contiguous/…) block.
 pub(crate) fn plan_reflow(
-    doc: &Document,
+    doc: &DocumentView<'_>,
     page: &Page,
     stream: &ContentStream,
     model: &EditableTextModel<'_>,
@@ -383,8 +385,9 @@ pub(crate) fn plan_reflow(
         resolve_font_dict(doc, &page.resources, &prov.font_resource).ok_or_else(|| {
             ReflowApplyError::Unsupported("the block's font resource is unresolvable".to_owned())
         })?;
-    // `&doc.view()` (Pass 17.1) — base-relative planner, see `edit.rs`.
-    let font = ExtractFont::resolve(&doc.view(), font_dict);
+    // `doc` is the caller's graph — the session overlay or the loaded
+    // file (`Pass 257.0`); see `plan_edit_target` in `edit.rs`.
+    let font = ExtractFont::resolve(doc, font_dict);
     refuse_if_composite(font_dict, &font, doc)?;
     let embedded = font_is_embedded(font_dict, doc);
 
@@ -800,7 +803,7 @@ fn origin_to_tm(x: f64, y: f64, prov: &BlockProvenance) -> Result<(f64, f64), Re
 fn refuse_if_composite(
     font_dict: &Dict,
     font: &ExtractFont,
-    doc: &Document,
+    doc: &DocumentView<'_>,
 ) -> Result<(), ReflowApplyError> {
     let subtype = font_dict
         .get(b"Subtype")
@@ -825,7 +828,7 @@ fn refuse_if_composite(
 }
 
 /// Whether the font carries an embedded program (`/FontFile`/`2`/`3`).
-fn font_is_embedded(font_dict: &Dict, doc: &Document) -> bool {
+fn font_is_embedded(font_dict: &Dict, doc: &DocumentView<'_>) -> bool {
     font_dict
         .get(b"FontDescriptor")
         .map(|o| doc.resolve(o))

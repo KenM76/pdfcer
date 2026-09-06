@@ -1342,22 +1342,26 @@ is reachable (`Pass 119.2`).
 
 CLI: `pdfcer format-text --set-size / --set-color / --set-font / …`.
 
-### ★ The one real limit, and it is a property of the DOCUMENT
+### ★ The one remaining limit: a NON-standard face the page does not carry
 
 ```
-$ pdfcer format-text runs-two-explicit.pdf --find ALPHA       --set-font Helvetica-Bold --output bold.pdf
-pdfcer: format-text refused: the target font "Helvetica-Bold" is not an
-existing font resource on this page; adding a new font resource / embedding
-a new face is deferred (FF-C)
+$ pdfcer format-text runs-two-explicit.pdf --find ALPHA --set-font Helvetica-Bold --output bold.pdf
+format-text: ... set_font Helvetica-Bold (standard-14 resource /F3 added to the page)
+$ pdfcer format-text runs-two-explicit.pdf --find ALPHA --set-font Calibri --output cal.pdf
+pdfcer: format-text refused: the target font "Calibri" is not an existing
+font resource on this page ...
 ```
 
-**`set_font` selects; it does not create.** The target must already be in
-`/Resources /Font`, located by resource key or by `/BaseFont` (subset tag
-stripped per §9.6.4). `FF-C` is the tracked identifier for *add a font
-resource / embed a new face*; `add_text` already does it for Standard-14 and
-(via `--embed-font`) for donor faces, but it is not wired into `format_text`,
-whose plan currently produces a content buffer and no new objects. Filed as
-Backlog `Pass 142.0`, with the missing pre-flight as `142.1`.
+**`set_font` selects an existing resource, or AUTHORS a standard-14 one
+(`Pass 162.0`).** The target is located by resource key or by `/BaseFont`
+(subset tag stripped per §9.6.4); a standard-14 name the page lacks is bound
+as a new `/Font` object and disclosed (the `created_font` path). What is still
+refused is a face that is neither on the page nor standard-14 — embedding a
+donor program into `format_text` is the open half of `FF-C` (Backlog
+`Pass 142.0`); `add_text --embed-font` already does it for new text. Since
+`Pass 257.0` the face a swap creates is editable in the same session
+(`edit_text`, `preview_*`, `reflow_block` all resolve it through the session
+view); before, it resolved only after a save and reopen.
 
 #### ★★ 3.6.1 But bold and italic ARE reachable — `set_synthetic`
 

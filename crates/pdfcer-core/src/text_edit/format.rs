@@ -233,6 +233,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::content::{ContentError, ContentStream};
 use crate::document::Document;
+use crate::graph::ObjectGraph;
 use crate::object::{Dict, Object};
 use crate::page_tree::{self, PageTreeError};
 use crate::settings::StylePolicy;
@@ -252,6 +253,7 @@ use crate::text_edit::synth::{
 };
 use crate::text_extract::font::ExtractFont;
 use crate::text_state::{AmbientRestoreError, AmbientTextState, TextStateParam};
+use crate::view::DocumentView;
 use crate::writer::content::emit_number;
 
 /// How close two text-state operands must be before pdfcer treats a
@@ -559,10 +561,14 @@ impl NewFill {
 
 /// How the operator names the family-change target font.
 ///
-/// The target must be a REAL, already-existing font RESOURCE on the page
-/// (scope boundary). It is located by either its `/Resources /Font`
-/// resource key (`F2`) or its `/BaseFont` (`Times-Bold`, matched exactly or
-/// with the §9.6.4 subset tag stripped).
+/// The target is an existing font RESOURCE on the page — located by either
+/// its `/Resources /Font` resource key (`F2`) or its `/BaseFont`
+/// (`Times-Bold`, matched exactly or with the §9.6.4 subset tag stripped) —
+/// or, since `Pass 162.0`, a standard-14 name the page lacks, which
+/// `format_text` binds as a new `/Font` object. A face that is neither is
+/// refused (the embedded-donor half of FF-C, `Pass 142.0`). When two
+/// resources share a `/BaseFont`, the resource key is the unambiguous
+/// spelling.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct FontSelector {
@@ -1304,7 +1310,7 @@ pub fn set_format(
     // BASE READ (decision 018 caller audit) — same rationale as
     // `text_edit::edit_text`: this is the one-shot `&Document` entry point,
     // planning against the file as loaded for an incremental save.
-    let (plan, target) = plan_format_anywhere(doc, &doc.view(), page, req, opts)?;
+    let (plan, target) = plan_format_anywhere(&doc.view(), page, req, opts)?;
     // Incremental save (R34/R70), exactly as 14.1 — and, since `Pass 119.2`,
     // to whichever stream held the run: the page's first content object, or
     // the form XObject's own. The plan's report already carries the correct
@@ -1414,8 +1420,7 @@ pub fn set_format(
 ///
 /// See [`FormatError`].
 pub(crate) fn plan_format_anywhere(
-    doc: &Document,
-    view: &crate::view::DocumentView<'_>,
+    doc: &DocumentView<'_>,
     page: &crate::page_tree::Page,
     req: &FormatRequest,
     opts: &FormatOptions,
@@ -1427,7 +1432,7 @@ pub(crate) fn plan_format_anywhere(
         pinned_span: req.pinned_span,
         target: req.target,
     };
-    let candidates = crate::text_edit::edit::edit_candidates(doc, view, page, &locate)
+    let candidates = crate::text_edit::edit::edit_candidates(doc, page, &locate)
         .map_err(FormatError::from_edit)?;
     if candidates.is_empty() {
         return Err(FormatError::NoMatch(req.find.clone()));
@@ -1509,7 +1514,7 @@ pub(crate) struct FormatPlan {
 /// font, no match, an unsupported run, a page with no `/Contents`, or a
 /// content-parse failure.
 pub(crate) fn plan_format(
-    doc: &Document,
+    doc: &DocumentView<'_>,
     page: &crate::page_tree::Page,
     stream: &ContentStream,
     req: &FormatRequest,
@@ -1548,7 +1553,7 @@ pub(crate) fn plan_format(
 ///
 /// See [`FormatError`].
 pub(crate) fn plan_format_target(
-    doc: &Document,
+    doc: &DocumentView<'_>,
     target: &EditPlanTarget,
     stream: &ContentStream,
     req: &FormatRequest,
@@ -1619,8 +1624,9 @@ pub(crate) fn plan_format_target(
                 .to_owned(),
         )
         })?;
-    // `&doc.view()` (Pass 17.1) — base-relative planner, see `edit.rs`.
-    let orig_font = ExtractFont::resolve(&doc.view(), orig_dict);
+    // `doc` is the caller's graph — the session overlay or the loaded
+    // file (`Pass 257.0`); see `plan_edit_target` in `edit.rs`.
+    let orig_font = ExtractFont::resolve(doc, orig_dict);
     let orig_size = anchor.tf_size;
 
     // --- R91: the `Tw` capability gate (Pass 19.4) ---
@@ -2385,13 +2391,13 @@ struct AcceptedFont {
 /// reports for (1). **Every one of them is a refusal `set_font` itself would
 /// produce, verbatim** — that is the whole point of routing through here.
 fn accept_font_target(
-    doc: &Document,
+    doc: &DocumentView<'_>,
     recs: &[OpRec],
     resource: &[u8],
     target_dict: &Dict,
     text: &str,
 ) -> Result<AcceptedFont, FormatError> {
-    let target = ExtractFont::resolve(&doc.view(), target_dict);
+    let target = ExtractFont::resolve(doc, target_dict);
 
     // (1) Font-level refuse triggers (composite / symbolic-no-encoding /
     // /ToUnicode-only) — reuse 14.1's classifier verbatim.
@@ -2455,7 +2461,7 @@ fn accept_font_target(
 /// differ, and checking coverage against `req.find` there would test the
 /// empty string and pass every face.
 fn plan_font(
-    doc: &Document,
+    doc: &DocumentView<'_>,
     resources: &Dict,
     recs: &[OpRec],
     req: &FormatRequest,
@@ -2660,7 +2666,7 @@ fn family_stem(base_font: &str) -> String {
 /// [`FormatError::RealFaceAvailable`], naming the resource, the `/BaseFont`,
 /// and whether it is the same family.
 fn gate_synthesis(
-    doc: &Document,
+    doc: &DocumentView<'_>,
     resources: &Dict,
     recs: &[OpRec],
     run_font: &str,
@@ -2877,7 +2883,7 @@ impl StyleResolution {
 /// preview cannot say something the commit path would not do, because it asks
 /// the commit path's own function.
 fn probe_synthesis(
-    doc: &Document,
+    doc: &DocumentView<'_>,
     resources: &Dict,
     recs: &[OpRec],
     run_font: &str,
@@ -2948,7 +2954,7 @@ fn probe_synthesis(
 /// outcome is the point of the query and comes back as
 /// [`StyleOutcome::RealFaceResolves`].
 pub(crate) fn preview_style_resolution(
-    doc: &Document,
+    doc: &DocumentView<'_>,
     page: &crate::page_tree::Page,
     stream: &ContentStream,
     find: &str,
@@ -2986,7 +2992,7 @@ pub(crate) fn preview_style_resolution(
                 .to_owned(),
         )
         })?;
-    let run_font = ExtractFont::resolve(&doc.view(), orig_dict).base_font;
+    let run_font = ExtractFont::resolve(doc, orig_dict).base_font;
     let resources = page_resources(page);
     let current = anchor.font_name.as_slice();
 
@@ -3129,7 +3135,7 @@ struct FontCandidate {
 /// embedded, so `carried_codes` is never consulted (the empty resource
 /// name is deliberate).
 fn survey_standard_14(
-    doc: &Document,
+    doc: &DocumentView<'_>,
     recs: &[OpRec],
     page_fonts: &[FontCandidate],
     text: &str,
@@ -3183,7 +3189,7 @@ fn acceptance_of(accepted: &Result<(), FormatError>) -> FontAcceptance {
 }
 
 fn survey_page_fonts(
-    doc: &Document,
+    doc: &DocumentView<'_>,
     resources: &Dict,
     recs: &[OpRec],
     text: &str,
@@ -3242,7 +3248,7 @@ fn survey_page_fonts(
 }
 
 /// A font dictionary's `/BaseFont` as a `String`, or `None` when it has none.
-fn base_font_of(doc: &Document, dict: &Dict) -> Option<String> {
+fn base_font_of(doc: &DocumentView<'_>, dict: &Dict) -> Option<String> {
     dict.get(b"BaseFont")
         .map(|o| doc.resolve(o))
         .and_then(Object::as_name)
@@ -3603,7 +3609,7 @@ fn sibling_of(c: &FontCandidate) -> FontSibling {
 /// failure. A font resource that would **refuse** is never an error here;
 /// that is the answer, carried as [`FontAcceptance::Refused`].
 pub(crate) fn preview_font_resources(
-    doc: &Document,
+    doc: &DocumentView<'_>,
     page: &crate::page_tree::Page,
     stream: &ContentStream,
     find: &str,
@@ -3623,7 +3629,7 @@ pub(crate) fn preview_font_resources(
 /// already there. The standard 14 are surveyed for the same text whether or
 /// not the page carries them ([`FontPreflight::standard_14`]).
 pub(crate) fn preview_font_resources_for(
-    doc: &Document,
+    doc: &DocumentView<'_>,
     page: &crate::page_tree::Page,
     stream: &ContentStream,
     find: &str,
@@ -3661,7 +3667,7 @@ pub(crate) fn preview_font_resources_for(
                 .to_owned(),
         )
         })?;
-    let run_font = ExtractFont::resolve(&doc.view(), orig_dict).base_font;
+    let run_font = ExtractFont::resolve(doc, orig_dict).base_font;
     let resources = page_resources(page);
 
     // `Pass 147.0`. THE SAME RESOLUTION `plan_format` APPLIES, and it has to
@@ -4101,7 +4107,7 @@ fn plan_synthetic_italic(
 /// Locate a family-change target resource by resource key first, then by
 /// `/BaseFont` (exact, or with the §9.6.4 subset tag stripped).
 fn resolve_target_resource<'a>(
-    doc: &'a Document,
+    doc: &'a DocumentView<'a>,
     resources: &'a Dict,
     selector: &str,
 ) -> Option<(Vec<u8>, &'a Dict)> {
@@ -4338,7 +4344,7 @@ fn page_resources(page: &crate::page_tree::Page) -> &Dict {
 /// the R-INV-2/3/4 refuse triggers — a size/colour-only edit keeps the run's
 /// own codes and must never be gated by the inverse-encoding triggers (a
 /// symbolic or `/ToUnicode`-only font can still be resized/recoloured).
-fn embed_and_subset(doc: &Document, font_dict: &Dict, font: &ExtractFont) -> (bool, bool) {
+fn embed_and_subset(doc: &DocumentView<'_>, font_dict: &Dict, font: &ExtractFont) -> (bool, bool) {
     let embedded = font_dict
         .get(b"FontDescriptor")
         .map(|o| doc.resolve(o))
@@ -5126,8 +5132,9 @@ mod tests {
         let doc = Document::from_bytes(bytes.to_vec()).expect("saved file reloads");
         let pages = crate::page_tree::pages(&doc).expect("page tree");
         let page = pages.first().expect("one page");
-        let stream = ContentStream::from_page(&doc.view(), page).expect("content");
-        let mut walk = Walk::new(&doc, &page.resources);
+        let view = doc.view();
+        let stream = ContentStream::from_page(&view, page).expect("content");
+        let mut walk = Walk::new(&view, &page.resources);
         for op in stream.operations() {
             walk.operation(&op, &stream.buf);
         }
@@ -6157,8 +6164,9 @@ mod tests {
     fn preview(doc: &Document, find: &str, want: StyleSynthesis) -> StyleResolution {
         let pages = page_tree::pages(doc).unwrap();
         let page = pages.first().unwrap();
-        let stream = ContentStream::from_page(&doc.view(), page).unwrap();
-        preview_style_resolution(doc, page, &stream, find, None, want).unwrap()
+        let view = doc.view();
+        let stream = ContentStream::from_page(&view, page).unwrap();
+        preview_style_resolution(&view, page, &stream, find, None, want).unwrap()
     }
 
     /// The preview's whole reason to exist: the operator learns which of the
@@ -6399,8 +6407,9 @@ mod tests {
         // Reload and re-derive the run's state from the file alone.
         let reloaded = Document::from_bytes(out.bytes.clone()).unwrap();
         let pages = crate::page_tree::pages(&reloaded).unwrap();
-        let stream = ContentStream::from_page(&reloaded.view(), &pages[0]).unwrap();
-        let mut walk = Walk::new(&reloaded, &pages[0].resources);
+        let view = reloaded.view();
+        let stream = ContentStream::from_page(&view, &pages[0]).unwrap();
+        let mut walk = Walk::new(&view, &pages[0].resources);
         for op in stream.operations() {
             walk.operation(&op, &stream.buf);
         }
@@ -6444,8 +6453,9 @@ mod tests {
         // Re-walk the saved result and ask what state the SECOND run is in.
         let reloaded = Document::from_bytes(out.bytes).unwrap();
         let pages = crate::page_tree::pages(&reloaded).unwrap();
-        let stream = ContentStream::from_page(&reloaded.view(), &pages[0]).unwrap();
-        let mut walk = Walk::new(&reloaded, &pages[0].resources);
+        let view = reloaded.view();
+        let stream = ContentStream::from_page(&view, &pages[0]).unwrap();
+        let mut walk = Walk::new(&view, &pages[0].resources);
         for op in stream.operations() {
             walk.operation(&op, &stream.buf);
         }
