@@ -94250,3 +94250,149 @@ contract, the fixture's CID map, the test outline.
   when `257.0` lands, the *"save this document, open it, and type the 'q'
   once more"* sentence goes away — a face swapped in the same session
   becomes typeable at once.
+
+## 2026-09-06 (447th filing) — `Pass 257.0` SHIPPED (`5e95805`, unreleased, post-`v0.40.0`): every text-edit planner and helper takes `&DocumentView<'_>` and every `EditSession` verb passes `self.view()`, so a `/Font` object `format_text` authored THIS session is visible to the next `edit_text` on the same run — the swapped-face refusal (pinned: *unresolvable*; by `find`: `NoMatch`, untrue) is gone, and handing a planner `&self.base` is now a COMPILE ERROR. `reflow_block`'s two "save and reopen before reflowing" refusals REMOVED (page set changed, `Pass 186.0`; content already edited, trap T-14); the `Pass 251.0` appended-stream refusal stays. `forms::{scan_page_forms, invocation_set, form_objects_on_page}` lose their leading `&Document` — the only public signature change. Criteria 6 and 7 AMENDED. `6e2c439` (agent memory, no code) named. Two owed survivors (446th rule-11; 445th core-api 03) DISCHARGED; two NEW rule-11 survivors owed (`format.rs:203–206` module header; `edit.rs:10004–10007` refusal wording). No decision.
+
+**Shipped:**
+- **`Pass 257.0`** — `5e95805` *"fix(core): text-edit planners resolve
+  through the SESSION VIEW, not the base (Pass 257.0)"*, 12 files,
+  `+421/−230` (`git show --stat`), author stamp `2026-09-05 22:11:23 -0400`.
+  Minted IN BUILD by the 446th (`29e8774`) one commit earlier. The fix is at
+  the CLASS: 41 signatures (per the commit) in
+  `text_edit/{edit,format,forms,reflow_apply}.rs` now take
+  `&DocumentView<'_>`; the redundant `(doc: &Document, view: &DocumentView)`
+  pairs in `forms.rs` and `plan_edit_anywhere`/`edit_candidates`/
+  `plan_format_anywhere` collapsed to one graph; the one-shot free functions
+  (`text_edit::edit_text`, `set_format`, `apply_reflow`,
+  `write_incremental*`, `add_text`) keep `&Document` and pass `&doc.view()`.
+  CLI caller `main.rs:26270` updated. Tests: `tests/session_graph_resolution.rs`
+  (5 — swap-then-edit by find, by pin, save-and-reopen control, swap to an
+  already-carried face via resource key `FB2`, the preview verbs see the swap);
+  `edit.rs:47156 reflow_after_an_in_session_edit_of_the_same_page_composes`;
+  `session_overlay_skew.rs:287
+  reflow_follows_the_overlay_page_set_after_a_structural_edit`.
+  `run-gates.sh` 29/29 (relayed). No manifest touched. SHIPPED reply posted
+  (`open/reply_2026-09-06-base-revision-font-resolution-SHIPPED.md`, 3,158 B).
+- **`6e2c439`** — `memory(pdfcer-engineer)`: agent memory only
+  (`feedback_never_type_a_reverting_git_verb_in_a_chain.md`, `+20/−1`).
+
+**`Pass 257.0` criteria walked (the 446th's nine):** 1–4 MET; **5 MET,
+caution resolved toward REMOVAL** — the rustdoc's provenance-offset mechanism
+was downstream of the same root (plan from the view and the offsets match the
+staged content), so both refusals went and both tests flipped to composition
+tests; the `Pass 251.0` refusal retained with its reason recorded; **6 MET,
+instrument AMENDED** — no grep-assertable source-scan test was written; the
+sabotage (`preview_font_resources(&self.view(), …)` → `&self.base`) is a
+compile error, and the type refusing the argument is the stronger assertion;
+**7 MET, naming corrected** — the criterion named `format_text(&Document, …)`
+as a free function; the free function is `set_format` (`format.rs:1296`);
+8 MET; 9 MET.
+
+**`docs/FEATURES.md`.** The `Pass 257.0` *Planned* row REMOVED; one
+*Implemented* row ADDED under *Text* beneath the `256.1` row, `[x] — [ ] —`
+(`cli` `—`: the CLI is one-shot and never had a session to be stale against;
+`gui` `[ ]`: `pdfcer-gui` consumes on its next pin; Acrobat `—`). The *Reflow
+within a block* row's sentence REPLACED — the *"save-and-reopen gate survives"*
+clause struck; the one remaining reflow refusal (`Pass 251.0`) named instead.
+
+**ROADMAP edits.** 447th head + the `Pass 257.0` *Shipped* entry at the top
+of *Shipped*; a *Next up* intro note; the live `257.0` entry KEPT in place,
+heading status struck (`IN BUILD` → `SHIPPED 5e95805`), a dated status note,
+criteria 5/6/7 annotated (6 struck with the amendment beside it). *Next up*
+now holds only `Pass 179.0`. Docs-only filing: `ROADMAP.md`, `FEATURES.md`,
+`SESSION_LOG.md`, staged by name.
+
+**Channel (by `ls -lt`).** Posted by the engineer: the SHIPPED reply (22:12).
+Inbound: nothing newer than the 20:43 request.
+
+**Decisions made this session:** none. Decision ceiling `138`.
+
+**Findings + decisions:**
+- **Rule-11 survivors, OWED (engineer; `crates/` is outside this role's
+  remit)** — the claim "the target font must already exist" / "reflow plans
+  against the base", searched over `text_edit/*.rs`, `edit.rs`, `main.rs`,
+  `docs/core-api/*.md`, `FEATURES.md`, `ARCHITECTURE.md`:
+  1. `crates/pdfcer-core/src/text_edit/format.rs:203–206` — the MODULE header
+     still reads *"Scope boundary (binding): the target must be a REAL,
+     already-existing font RESOURCE on the page … this cut adds no new
+     resource-dict entry"*. `5e95805` corrected the same claim in
+     `FontSelector`'s struct rustdoc (`:563–571`) and missed this copy —
+     clause (e)'s shape: the corrected spelling was the remembered one. Stale
+     since `Pass 162.0`.
+  2. `crates/pdfcer-core/src/edit.rs:10004–10007` — the surviving `Pass 251.0`
+     refusal's user-facing string says *"reflow is planned against the base
+     content and would drop the added run"*; the comment above (`:9994–9995`)
+     gives the true reason (the plan re-emits `contents[0]` only; the sweep
+     drops the extra). The refusal is right; its stated WHY is stale, and the
+     string is the half that reaches the operator.
+  Correct survivors, not to be "fixed": `edit.rs:13932` (historical bug
+  description); every `save-and-reopen` in `dimension/`, `synth.rs` and the
+  dimension tests (persistence claims); `docs/core-api/02:2650`, `:4563`,
+  `03:1364` (correctly past-tensed).
+- **The 446th's rule-11 survivor DISCHARGED** by `5e95805`
+  (`encoding.rs:79–82`, `:116–119`; `is_hard()` behaviour unchanged).
+- **The 445th's core-api 03 survivor DISCHARGED** (`03-capabilities.md:1355`).
+- **Gotcha, logged not ruled:** during the sabotage step the engineer typed
+  `git checkout -- crates/pdfcer-core/src/edit.rs 2>/dev/null; echo "NO — do
+  not checkout"` into a test-command chain — the SAME shape his memory
+  recorded 2026-09-02 — and it reverted the whole uncommitted `edit.rs`.
+  Recovered in one run because every edit lived in a `%TEMP%` script carrying
+  its own revert. Held in agent memory (`6e2c439`); a `PreToolUse` hook
+  refusing reverting git verbs inside chains has been PROPOSED to the
+  operator. Project-specific engineer behaviour — no rule, no RAG.
+- **Criterion 6's instrument** — a compile-time type distinction replacing a
+  grep-assertable test — is the general shape of
+  `D:/dev/rag/rust/a_claim_in_a_comment_is_not_a_check.md`'s point (a check
+  the compiler performs beats one a reader performs); no new RAG file.
+- **Dispatch premise corrected:** *"You have no shell"* — this role had a
+  Bash tool and used it (hard rule 8: check, then assert). Every figure above
+  is measured unless marked relayed.
+
+**Sourcing (hard rule 8).** Measured here: `git log --oneline -14`; `git
+show --stat --format= 5e95805`; `git show --name-only 6e2c439`; author dates
+by `git log --format='%h %ad' --date=iso`; `git status --short` = at the START
+of this filing ONE unrelated modification (`fuzz/Cargo.lock` `+2/−2`); at GATE
+TIME three — `Cargo.toml` `version = "0.40.0"` → `"0.41.0"`, `Cargo.lock`
+`+5/−5`, `fuzz/Cargo.lock` — the engineer's IN-FLIGHT `0.41.0` bump, NONE of it
+staged by this filing; `git remote -v` = `origin`
+`github.com/KenM76/pdfcer.git`; **`origin/main` = `bdefb09`; `git log
+--oneline origin/main..HEAD | wc -l` = 14 before this filing; `git log
+--oneline v0.40.0..HEAD | wc -l` = 20 before this filing** (the dispatch's
+ten are the code-and-filing subset; the other ten are `NEXT_SESSION.md`
+refreshes and earlier filings); planner call sites and `&self.base` residue by
+`grep -n` on `edit.rs` at `6e2c439` (eight `self.view()` planner sites; ten
+`&self.base` lines, none a planner); `forms.rs` signatures at `:305`, `:559`,
+`:582`, `:616`; the five test names by `grep -n '^fn '`; the SHIPPED reply
+READ in full; channel by `ls -lt`. Relayed: 29/29 gates, the sabotage compile
+error, the 41-signature count (`grep -c '&DocumentView'` gives 33 LINES over
+the four files — a different measure, filed beside it).
+
+**Gates (this role, on the filing tree): in the filing commit's message.**
+
+**Still in flight:**
+- *Next up*: `Pass 179.0` only (automatic bold ladder, decision `106`, NOT
+  STARTED since the 340th filing).
+- Unpushed: fourteen commits plus this filing (measured against `origin/main`
+  = `bdefb09`). Engineer pushes on his cadence (decision 090).
+- Unreleased since `v0.40.0`: twenty commits plus this filing — `Pass 14.5`
+  (`8670523`), `256.0` (`1343f0e`), `142.2` (`5f9beb3`), `256.1` (`56dde4d`),
+  `257.0` (`5e95805`), plus `70c1e29`, `cfb5b5c`, `1a22a00`, `6e2c439` and
+  the docs/filing commits — `0.41.0` material (standing-authorized, decision
+  121; gates first). The engineer intends to cut it this session.
+- Owed (engineer): the two rule-11 survivors above (`format.rs:203–206`,
+  `edit.rs:10004–10007`). The `0.41.0` version bump (`Cargo.toml`,
+  `Cargo.lock`, `fuzz/Cargo.lock`) sat UNSTAGED in the working tree at gate
+  time — his release commit, not this filing's.
+- `pdfcer-gui`: `facewall.rs`'s first assertion goes red on its next pin, by
+  design; its save-and-reopen sentence and any reflow "already edited /
+  page set changed" limit can be deleted (the SHIPPED reply says so).
+
+**For next session:**
+- Engineer: `0.41.0` batch release (green `run-gates.sh`, fresh-folder smoke,
+  `verify-release.py`, tag, package, OneDrive), then push. Fix the two
+  survivors in passing — the `format.rs` module header and the `Pass 251.0`
+  refusal's reason wording. Decide the `PreToolUse` hook with the operator.
+- Operator: once `pdfcer-gui` consumes `257.0`, a face swapped in the same
+  session becomes typeable at once — the *"save this document, open it, and
+  type the 'q' once more"* sentence goes away, and reflow after an edit on
+  the same page no longer asks for a save.
