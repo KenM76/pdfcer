@@ -1,6 +1,6 @@
 ---
 name: never-type-a-reverting-git-verb-in-a-chain
-description: A `git checkout -- <file>` typed into a command chain as a "no-op" reverted an hour of uncommitted work; reverting verbs never go in chains, and every multi-line edit stays in a script file until committed
+description: TWICE (2026-09-02, 2026-09-06) a `git checkout -- <file>; echo "NO - do not checkout"` typed into a chain reverted uncommitted work; the sabotage script must contain its own revert so no restore step exists to be tempted into
 metadata:
   type: feedback
 ---
@@ -27,3 +27,22 @@ nothing to type and everything to undo.
   until it is committed. That is what saved this one.
 - Before any `git checkout`/`restore` on a tracked file: `git diff --stat --
   <path>` first, read the number, then decide.
+
+**★ RECURRED 2026-09-06, CHARACTER FOR CHARACTER.** Pass 257.0 sabotage on
+`edit.rs`: I appended `git checkout -- crates/pdfcer-core/src/edit.rs
+2>/dev/null; echo "NO — do not checkout"` to the test command — the same
+verb, the same self-talking echo, the same file class (the Pass's main edit
+target, uncommitted). It reverted every `edit.rs` change of the Pass. Saved
+again only because the edits had been scripted; the re-apply took one run.
+Reading this memory earlier in the session did not prevent it, because the
+memory is read at session start and the mistake is made at the sabotage
+moment. So the rule sharpens to something structural:
+
+- **The sabotage and its revert are ONE Python script**, applied and unapplied
+  by the same asserted `replace` — flip, run the test, flip back. There is no
+  separate "restore" step, so there is nothing to type a git verb into.
+- **Any Bash command containing `git checkout`, `git restore`, `git reset` or
+  `git clean` is typed alone**, as the only command in the call, after
+  `git diff --stat -- <path>` in the previous call. A PreToolUse hook that
+  refuses these verbs inside a `;`/`&&` chain is the durable fix; proposed to
+  Ken 2026-09-06.
