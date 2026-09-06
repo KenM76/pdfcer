@@ -95458,3 +95458,198 @@ citations (rustdoc on disk; the spec RAG not re-opened here).
   and if the form author required a particular reason, digest or handler,
   pdfcer names what is required and stops rather than guessing. An unknown
   name still creates a new field, as before.
+
+## 2026-09-06 (454th filing) — NO PASS SHIPPED. Pre-release filing, unblocks the push: the `0.42.0` workspace bump landed at `d6b998f` (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`, `tools/content-identity/Cargo.lock` — four locks/manifests, `0.41.0` → `0.42.0`); release NOT cut yet (`git tag --list 'v0.42*'` EMPTY, `git describe --tags --abbrev=0` = `v0.41.0`) — the release filing follows. And a GATE finding, `2da1d62`: CI run `34024691738` on `c7409d3` went red with **224** `UNFILED` Pass commits (the log's count; the commit message says 20), every one filed, every hash EIGHT characters — git's `core.abbrev=auto` `%h` length crossed 7 → 8 on the fresh CI clone, so no 7-character citation matched; the unrelated `encoding="utf-8"` edit that shipped in the same push was the red herring. Fixed by pinning `--abbrev=7` / `--short=7` in four tools; reproduced HERE with `GIT_CONFIG_PARAMETERS="'core.abbrev=9'"` (pre-fix script 224 `UNFILED`, post-fix clean — matching CI's 224 exactly). Two docs/memory-only commits named (`795ae68`, `c7409d3`). Rust RAG entry written (gate-methodology angle; cross-refs the engineer's `claude_code` lesson, does not duplicate it). Candidate rule `R242` considered and NOT minted — the check is a one-line grep, and the sweep for it ran here: ZERO unpinned uses left in `tools/` / `.github/`. `FEATURES.md` untouched — no capability change. No decision.
+
+**Shipped:** nothing. Four commits filed, two of them code —
+- **`2da1d62`** — *"fix(tools): pin the filing gates' join key to 7-character
+  hashes — git's auto %h grew to 8 on a fresh clone"*, 4 files, `+13/−5`,
+  author stamp `2026-09-06 05:50:06 -0400`. `check-passes-filed.py:168`
+  (`git log rng --abbrev=7 --format=%h\x1f%s`) and `:233` (`rev-parse
+  --short=7 HEAD`); `check-commits-filed.py:330` (`--abbrev=7`);
+  `check-cited-commits-exist.py:223` (`--abbrev=7` on the `%h\t%s` listing);
+  `package-portable.py` (`rev-parse --short=7` — the build-folder name
+  `pdfcer-<date>-<7>`, a stable name rather than a join). Comments at each
+  site name the cause and the date. No crate source touched; no Pass ID —
+  the same class as `cd86adc` (108th filing) and the gate's founding filing.
+- **`d6b998f`** — *"chore: bump workspace version to 0.42.0"*, 4 files,
+  `+9/−9`, author stamp `05:27:32 -0400`. `Cargo.toml` `[workspace.package]
+  version` `"0.41.0"` → `"0.42.0"`; `Cargo.lock` `+5/−5`; `fuzz/Cargo.lock`
+  `+2/−2`; `tools/content-identity/Cargo.lock` `+1/−1` — the first bump to
+  carry the content-identity lock in the same commit (the 448th's `0.41.0`
+  bump touched three files). **The release bump, not the release.**
+- **`795ae68`** — *"docs: refresh NEXT_SESSION.md for the 0.42.0 batch; sign
+  row refusal list names the 10.12/10.13/10.14 variants"*, 3 files, `+71/−98`,
+  `05:24:13 -0400`. **Discharges the 453rd's ONE owed survivor**
+  (`docs/core-api/02-editing-and-saving.md:3312`): the `sign` refusal
+  blockquote now lists `AppearanceOverflow` (10.14), `AlreadyCertified` /
+  `CertificationNotFirst` (10.12), and the six 10.13 variants, with
+  `FieldNameTaken` demoted to the internal fallback — verified by the diff's
+  `−`/`+` lines. `core-api/index.md` counts; `NEXT_SESSION.md` `−98/+71`
+  (engineer-owned, `R216`).
+- **`c7409d3`** — *"memory(pdfcer-engineer): signing arc state 2026-09-06;
+  anchor-orphan lesson recurred five times"*, 3 files under
+  `.claude/agent-memory/pdfcer-engineer/`, `+70/−36`, `05:24:13 -0400`.
+  Memory only. **This is the commit CI run `34024691738` went red on** — the
+  push carrying it was the first fresh clone past the abbreviation threshold.
+
+**The gate finding, in full (the reason this filing has a paragraph and a RAG
+entry rather than a line).** `check-passes-filed.py` and
+`check-commits-filed.py` join `git log --format=%h` against the record's
+7-character citations. `%h` under `core.abbrev=auto` (git ≥ 2.11) is the
+shortest prefix git judges unique for the repository's CURRENT object count,
+floor 7, stepping to 8 as the repository grows — and the threshold is
+computed from the packed count, which a fresh `actions/checkout` clone (one
+pack) reaches before a long-lived working clone with loose objects does. So:
+CI red, local clean, on a push whose only gate-touching diff was the 450th
+filing's cp1252 `encoding=` fix — three red herrings in one. **Figures, with
+sources:** CI step *check every Pass-claiming commit is filed* printed
+**224** `UNFILED` lines (`gh run view 34024691738 --log-failed | grep -c
+UNFILED` = 224, all under that one step; the `commits-filed` step 0); the
+first three hashes in the log are `79e259a1`, `743830d6`, `b8fd06d1` — eight
+characters. Locally `git rev-parse --short HEAD` = `2da1d62` (seven) at
+`count 5330` loose / `in-pack 11328` / `packs 1` (`git count-objects -v`).
+**Reproduced here, both directions:** the PRE-fix script (`git show
+2da1d62~1:tools/check-passes-filed.py`, run from `tools/`) under
+`GIT_CONFIG_PARAMETERS="'core.abbrev=9'"` → **224 `UNFILED`**; the
+committed script under the same → `passes-filed: clean` (plus the standing
+`Pass 97.1 claimed by 2 commits` note, unrelated). **224 = 224**: the local
+reproduction produces CI's exact count, which is the confirmation that the
+cause is the abbreviation length and nothing else in the push. The
+dispatch's and the commit message's *"20 UNFILED"* is corrected to 224 by
+the CI log; the *"224 before, clean after"* half of the message was already
+right.
+
+**Standing-rule judgement — `R242` NOT minted, and why.** The engineer
+offered the candidate *"any tool that compares abbreviated hashes to text
+pins the abbreviation length"* against the two-occurrence bar, citing the
+2026-08-11 depth-1 clone (`cd86adc`, 108th filing) as the first occurrence
+of *"a filing gate lying in CI for an environmental reason"*. Both counts
+are right and neither reaches a mint: the WIDER shape is at n = 2 with a
+different mechanism and a different fix each time (a refusal guard vs. a
+pinned parameter), so a rule phrased at that altitude could only say "be
+suspicious of CI-only reds", which is not an instruction; the SENTENCE
+offered is at n = 1. The stronger reason is the project's own disposition
+from `R241`'s minting (393rd/394th filings): **where the check is
+mechanical, the gate is the rule.** This check is a one-line grep, and it
+ran here as this filing's rule-11-shaped sweep — `grep -rn -- '%h\|--short'`
+over `tools/`, `.github/`, `crates/*/build.rs` with `abbrev=7|short=7`
+excluded — **ZERO unpinned `%h` / `--short` uses remain**; every other
+`rev-parse` in `tools/` returns a full hash or a non-hash
+(`--is-shallow-repository`, `--git-dir`, `--verify`, `--abbrev-ref`,
+`--show-toplevel`); `verify-release.py` and `check-history-not-rewritten.py`
+compare full hashes. **One reported, correct, not touched (`crates/`):**
+`crates/pdfcer-core/build.rs:132` — `git describe --tags --always --dirty`
+with no `--abbrev`, so the banner's `-g<hash>` suffix follows
+`core.abbrev=auto` and two machines can print `v0.41.0-16-g2da1d62` vs
+`…-g2da1d62a`. Cosmetic: nothing joins on the banner, and at an exact tag
+(the release case `verify-release.py` reads) `describe` prints the bare tag
+with no hash. Pin only if a tool ever parses the suffix. The candidate is
+recorded by name in the RAG entry with the grep that would be its gate;
+mint at a third gate or a second repository.
+
+**RAG entry written (tier 4, `D:/dev/rag/rust/`):**
+`gits_default_short_hash_length_grows_with_the_object_count_so_a_gate_joining_h_against_pinned_citations_fails_all_at_once_on_a_fresh_clone.md`
++ an `index.md` bullet at the top of *Index*. The gate-methodology angle
+only — the two-instance table (depth-1 vs. abbrev), why the pinned parameter
+is the stronger fix shape, the candidate rule and its grep, the survivors.
+It CROSS-REFERENCES the engineer's
+`C:/personal_rag/claude_code/lesson_20260906_git_short_hash_length_grows_with_object_count.md`
+for the git mechanics and does not restate them (read here in full: the
+"Rule" paragraph is the candidate sentence, verbatim). Not edited — the
+troubleshooting-librarian's tree.
+
+**`docs/FEATURES.md`.** NOT TOUCHED — no capability changed; a version bump
+and a gate fix add nothing a caller can do.
+
+**ROADMAP edits.** 454th head at the top of *Shipped*; a dated DISCHARGED
+note under the 453rd head's owed-survivor row (the `core-api/02:3312`
+blockquote, by `795ae68`). Ledger: filings `453` → `454`; Pass ceiling
+`257.0`, decision ceiling `138`, rule ceiling `R241` all unchanged. Docs-only
+filing: `ROADMAP.md`, `SESSION_LOG.md`, staged by name. `ARCHITECTURE.md`
+§12: nothing minted — no crate boundary, library or invariant moved.
+
+**Decisions made this session:** none. Decision ceiling `138`.
+
+**Findings + decisions:**
+- **The 453rd's ONE owed survivor DISCHARGED** by `795ae68` — verified by the
+  diff (`git show 795ae68 -- docs/core-api/02-editing-and-saving.md`: the
+  `−` line names `FieldNameTaken` first; the `+` lines list the ten variants
+  and demote it). Owed-survivor ledger: ZERO in `crates/`, ZERO in `docs/`.
+- **A dispatch premise corrected, with source:** *"20 UNFILED Pass commits"*
+  → **224**, by the CI log (`--log-failed`, per-step `uniq -c`). The
+  relayed local reproduction figure (224) was right and is what the CI log
+  agrees with; the mismatch was between two sentences of the same message.
+  Recorded per hard rule 10's corollary — a correction names its source.
+- **The unrelated edit in the same push is the general trap, restated:** a
+  diff that touches the gate is not evidence that the diff caused the gate's
+  red. The 450th filing's cp1252 fix and this red arrived together and were
+  unrelated; the cure for that was the local reproduction under a forced
+  `core.abbrev`, which isolates the environmental variable. Filed in the RAG
+  entry, not as a rule.
+- **`NEXT_SESSION.md:13` is now stale by one commit** — *"Workspace version
+  is `0.41.0` (bump to `0.42.0` at the next release)"* was true when
+  `795ae68` was written (05:24) and false three minutes later at `d6b998f`
+  (05:27). Engineer-owned (`R216`); reported, not touched. `:9` and `:18`
+  already describe the batch as `0.42.0`.
+- **`origin/main` = `c7409d3`** (`git rev-parse origin/main`), exactly as the
+  dispatch guessed with a question mark; the earlier push landed it. Unpushed
+  before this filing: `d6b998f`, `2da1d62` — TWO, not the four the dispatch
+  listed (`795ae68` and `c7409d3` are ON `origin/main`). `check-commits-filed`
+  before this filing: `d6b998f` UNFILED (the single blocker), `2da1d62` the
+  DEFERRED tip — matches the dispatch.
+
+**Sourcing (hard rule 8).** Measured here, with a shell: `git log --oneline
+-8`; `git status --porcelain` = CLEAN at the start of this filing; `git show
+-s --format=%B` for `2da1d62` and `d6b998f`; `git show --stat` for all four
+commits (files, `+/−`, author stamps by `--date=iso`); the full `2da1d62`
+diff READ (all four tools' hunks); the `d6b998f` hunks of `Cargo.toml` and the
+three locks READ; `git rev-parse origin/main` = `c7409d3`; `git log
+--oneline origin/main..HEAD` = 2; `git describe --tags` =
+`v0.41.0-16-g2da1d62`; `git tag --list 'v0.42*'` EMPTY; `gh run view
+34024691738 --json` (conclusion `failure`, head `c7409d3`, created
+`09:27:16Z`, 9 jobs green, *repository audits (19 checks)* red) and `gh run
+list --limit 3` (the two prior runs, `f9bc7c8` and `c4e39e7`, both
+`success`); `gh run view --log-failed` piped through `grep -c UNFILED` and a
+per-step `uniq -c`; `git rev-parse --short HEAD` and `git count-objects -v`
+for the local abbreviation facts; **the reproduction under
+`GIT_CONFIG_PARAMETERS="'core.abbrev=9'"` run HERE on both the pre-fix
+script (224) and the committed one (clean)**; the sweep by `grep -rn` over
+`tools/`, `.github/`, `crates/*/build.rs` with `sed`/`cut`; `python
+tools/check-ledger-numbers.py` (filings `453` → next free `454` before this
+filing); `python tools/check-commits-filed.py` (one UNFILED, one deferred);
+the engineer's `claude_code` lesson by `cat`; **backup: `ls -t
+D:\Dev\pdfce-backups` newest = `pdfcer-2026-09-03-1a31d2d-full.bundle`, `git
+rev-list --count 1a31d2d..HEAD` = 111 before this filing.** Nothing relayed
+except the commit messages' own accounts, each checked against the diff or
+the log as stated.
+
+**Gates (this role, on the filing tree): in the filing commit's message.**
+
+**Still in flight:**
+- Unpushed after this filing: `d6b998f`, `2da1d62` + this filing — three
+  commits against `origin/main` = `c7409d3`. `check-commits-filed` is what
+  blocked the push; this filing is its discharge. Standing-authorized push
+  (decision 090); the pre-push hook runs the same gate.
+- Unreleased since `v0.41.0`: `Pass 10.14`, `179.0`, `10.12`, `10.13`, the
+  gate fix and seven filings; the version already reads `0.42.0` at
+  `d6b998f`. Release standing-authorized (decision 121) — gates, fresh-folder
+  smoke, `verify-release.py`, tag, package, OneDrive, then the release filing
+  records tag/zip/sha/CI. **CI must be read from GitHub on the push that
+  carries `2da1d62`**: the `c7409d3` red is the last verdict on record, and
+  the fix has not yet been exercised on a fresh clone.
+- Owed (engineer): NOTHING from this role's ledger. Optional, named: the
+  one-line grep as a gate (`%h`/`--short` without `abbrev=`/`short=` under
+  `tools/`, `.github/`) if the candidate is ever wanted mechanically;
+  `NEXT_SESSION.md:13`'s version sentence.
+- *Next up* still empty of live Pass entries; the signing remainder in
+  *Backlog* is `10.10`, `10.11`, `10.6`.
+- Backup bundle is 111 commits behind `HEAD` (measured above) — the
+  engineer's cadence, noted not nagged.
+
+**For next session:**
+- Engineer: push (the hook re-runs `check-commits-filed`, now satisfied);
+  read CI's colour on the new run before cutting `v0.42.0`; then the release
+  filing.
+- Operator: nothing new to try until `0.42.0` ships — it is the batch that
+  carries the three signing Passes and the automatic bold ladder.

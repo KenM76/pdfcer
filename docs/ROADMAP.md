@@ -112,6 +112,101 @@ wherever it appears.*
 
 ## Shipped
 
+**★★ 454th filing, 2026-09-06 — NO PASS SHIPPED. Pre-release filing, unblocks
+the push: the `0.42.0` workspace bump at **`d6b998f`** *"chore: bump workspace
+version to 0.42.0"* (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`,
+`tools/content-identity/Cargo.lock`; `+9/−9`; author stamp `2026-09-06
+05:27:32 -0400`) — **the release bump, not the release**: `git tag --list
+'v0.42*'` EMPTY, `git describe --tags --abbrev=0` = `v0.41.0`; the release
+filing follows. And a GATE fix, **`2da1d62`** *"fix(tools): pin the filing
+gates' join key to 7-character hashes — git's auto %h grew to 8 on a fresh
+clone"* (4 tools, `+13/−5`, `05:50:06 -0400`; no crate source, no Pass ID —
+the `cd86adc` class). Two docs/memory-only commits named: `795ae68` (NEXT_SESSION
+refresh + the `core-api/02` refusal list — **discharges the 453rd's one owed
+survivor**) and `c7409d3` (engineer memory — **the commit CI went red on**).
+No decision minted, no rule minted (`R242` considered, declined — below).
+`FEATURES.md` NOT TOUCHED: no capability changed.**
+
+**What broke, stated first.** CI run `34024691738` on `c7409d3`
+(`2026-09-06 09:27:16Z`): nine jobs green, *repository audits (19 checks)*
+red — the step *check every Pass-claiming commit is filed* printed **224
+`UNFILED`** lines (`gh run view --log-failed | grep -c UNFILED`; the
+`commits-filed` step 0), every one of them a filed Pass commit from weeks
+earlier, **every hash EIGHT characters** (`79e259a1`, `743830d6`,
+`b8fd06d1`). The same gate was clean on the working clone (`git rev-parse
+--short HEAD` = `2da1d62`, seven; `count 5330` loose / `in-pack 11328` /
+`packs 1`). **Cause:** `check-passes-filed.py` and `check-commits-filed.py`
+join `git log --format=%h` against the record's 7-character citations, and
+`%h` under `core.abbrev=auto` is the shortest prefix git judges unique for
+the repository's CURRENT object count — floor 7, stepping to 8 as the
+repository grows, with the threshold computed from the packed count that a
+fresh `actions/checkout` clone (one pack) reaches before a long-lived clone
+with loose objects does. The push also carried the 450th filing's unrelated
+`encoding="utf-8"` edit to the same gate, which made the wrong cause look
+obvious. **Fix:** `--abbrev=7` (`check-passes-filed.py:168`,
+`check-commits-filed.py:330`, `check-cited-commits-exist.py:223`) and
+`--short=7` (`check-passes-filed.py:233`; `package-portable.py`'s
+build-folder name, a stable name rather than a join). **Reproduced HERE,
+both directions,** with `GIT_CONFIG_PARAMETERS="'core.abbrev=9'"`: the
+pre-fix script (`git show 2da1d62~1:tools/check-passes-filed.py`) → **224
+`UNFILED`**; the committed script → `passes-filed: clean`. **224 = 224** —
+the local reproduction yields CI's exact count, which is what isolates the
+abbreviation length from everything else in the push. The dispatch's and the
+commit message's *"20 UNFILED"* is CORRECTED to 224 by the CI log (per-step
+`uniq -c`); the message's *"224 before, clean after"* was already right.
+
+**`R242` considered and NOT minted.** Candidate offered: *"any tool that
+compares abbreviated hashes to text pins the abbreviation length"*, with the
+2026-08-11 depth-1 clone (`cd86adc`, 108th filing) as the first occurrence of
+*"a filing gate lying in CI for an environmental reason"*. The wider shape is
+at n = 2 with a different mechanism and a different fix each time (a refusal
+guard vs. a pinned parameter); the sentence is at n = 1. The deciding reason
+is `R241`'s own disposition (393rd/394th filings): **where the check is
+mechanical, the gate is the rule** — and this check is one grep, which ran
+here as the filing's sweep: `%h` / `--short` over `tools/`, `.github/`,
+`crates/*/build.rs` with `abbrev=7|short=7` excluded → **ZERO unpinned uses
+remain**; every other `rev-parse` in `tools/` returns a full hash or a
+non-hash; `verify-release.py` and `check-history-not-rewritten.py` compare
+full hashes. **One reported, correct, not touched (`crates/`):**
+`crates/pdfcer-core/build.rs:132` — `git describe --tags --always --dirty`
+without `--abbrev`, so the banner's `-g<hash>` suffix follows the auto
+length across machines; cosmetic, nothing joins on it, and at an exact tag
+(the release case) `describe` prints the bare tag. The candidate and its
+grep are recorded by name in the RAG entry; mint at a third gate or a second
+repository.
+
+**RAG entry (tier 4, `D:/dev/rag/rust/`):**
+`gits_default_short_hash_length_grows_with_the_object_count_so_a_gate_joining_h_against_pinned_citations_fails_all_at_once_on_a_fresh_clone.md`
++ `index.md` bullet — the gate-methodology angle (the two-instance table,
+why a pinned parameter beats a refusal guard where available, the candidate
+rule and its grep, the survivors). CROSS-REFERENCES the engineer's
+`C:/personal_rag/claude_code/lesson_20260906_git_short_hash_length_grows_with_object_count.md`
+for the git mechanics; does not restate it; that tree not edited.
+
+**Sourcing (hard rule 8).** Measured here, with a shell — the full list is
+in the 454th `SESSION_LOG.md` entry. The load-bearing ones: `gh run view
+34024691738 --json` + `--log-failed` (the 224 and the eight-character
+hashes); the reproduction under a forced `core.abbrev` on both scripts; the
+full `2da1d62` and `d6b998f` diffs read; `git rev-parse origin/main` =
+`c7409d3` (so the unpushed set before this filing is `d6b998f`, `2da1d62` —
+TWO, not the dispatch's four; `795ae68` and `c7409d3` are already on the
+remote); `check-commits-filed.py` before this filing: `d6b998f` UNFILED, the
+single blocker, `2da1d62` the deferred tip; `check-ledger-numbers.py`
+`453 → next free 454`; backup `pdfcer-2026-09-03-1a31d2d-full.bundle`, `git
+rev-list --count 1a31d2d..HEAD` = 111. `NEXT_SESSION.md:13` (*"Workspace
+version is `0.41.0`"*) is stale by one commit — engineer-owned, reported.
+
+#### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass IDs | ceiling `257.0`; *Next up* empty of live entries | unchanged — no Pass shipped, none filed |
+| Decisions | ceiling `138`, next free `139` | unchanged |
+| Standing rules | ceiling `R241`, next free `R242` | unchanged — **`R242` considered, declined** (the check is a grep) |
+| SESSION_LOG filings | `453` | **`454`** |
+| Owed-survivor ledger | ZERO in `crates/`; ONE in `docs/core-api/02:3312` | **ZERO in `crates/`, ZERO in `docs/`** — the `02:3312` blockquote DISCHARGED by `795ae68` (verified by its `−`/`+` lines); `build.rs:132` reported as a correct survivor, not owed |
+| Release | `v0.41.0`, version `0.41.0` | `v0.41.0` still the tag; **version `0.42.0` at `d6b998f`** — bumped, not cut |
+
 **★★★★ 453rd filing, 2026-09-06 — `Pass 10.13` SHIPPED, unreleased
 (post-`v0.41.0`): **`ab40127`** *"feat(core,cli): sign INTO a pre-placed empty
 signature field — /Lock → /FieldMDP, seed values enforced in full (Pass
@@ -331,7 +426,7 @@ rustdoc is on disk; the clauses were not re-opened in the spec RAG here).
 | Decisions | ceiling `138`, next free `139` | unchanged |
 | Standing rules | ceiling `R241`, next free `R242` | unchanged |
 | SESSION_LOG filings | `452` | **`453`** |
-| Owed-survivor ledger | ZERO in `crates/`; `NEXT_SESSION.md:39` reported | **ZERO in `crates/`**; **ONE in `docs/core-api/02:3312`** owed to the engineer (the refusal blockquote); three `docs/` survivors found and fixed HERE; `NEXT_SESSION.md` now correct by the engineer's own uncommitted refresh |
+| Owed-survivor ledger | ZERO in `crates/`; `NEXT_SESSION.md:39` reported | **ZERO in `crates/`**; **ONE in `docs/core-api/02:3312`** owed to the engineer (the refusal blockquote); three `docs/` survivors found and fixed HERE; `NEXT_SESSION.md` now correct by the engineer's own uncommitted refresh — ★ **DISCHARGED at the 454th filing** by `795ae68` (the blockquote lists the ten variants, `FieldNameTaken` demoted; verified by the diff) |
 
 ### `Pass 10.13` (`ab40127`, 2026-09-06) — ★★★★ **SIGN INTO A PRE-PLACED EMPTY `/FT /Sig` FIELD — `SignRequest::field_name` naming an existing empty merged signature field signs INTO it (its own `/Rect` + page place the appearance; `/V` set; `/SigFlags |= 3`; nothing appended to `/Annots` or `/Fields`); `/Lock` (Table 233) HONOURED as a `/FieldMDP` signature reference (§12.8.2.4, Table 256); `/SV` (Table 234) enforced in FULL — required-and-unmet refused by name with the satisfying values, recommended-and-unmet disclosed, unevaluable refused by name never skipped; six new `SignApplyError` variants; non-merged (`/Kids`) fields refused by name (narrowed)** — from *Backlog* (439th filing), never in *Next up*
 
