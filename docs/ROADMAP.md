@@ -112,6 +112,294 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★ 446th filing, 2026-09-06 (early; the 2026-09-05 session running past
+midnight — dated by the clock, as the 443rd–445th were) — `Pass 256.1`
+SHIPPED, unreleased (post-`v0.40.0`): **`56dde4d`** *"feat(core): /ToUnicode
+inversion refuses PER CHARACTER, not per font (Pass 256.1)"*, authored
+`2026-09-05 21:27:23 -0400`, 8 files, `+400/−15` (`git show --stat`). A
+composite font whose `/ToUnicode` carried ONE collision — two CIDs producing
+the same character, typically a ligature alternate — was refused WHOLESALE by
+`injective_inverse()` (`R-INV-4`, *"cannot be inverted"*), so no edit in that
+font succeeded, including edits that never touched the colliding character.
+Now `ToUnicodeCMap::partial_inverse()` splits the map into the characters
+produced by exactly ONE code (written exactly) and the characters produced by
+several (refused BY NAME, at the character, with every candidate code); only a
+map with NOTHING invertible still refuses the font. Filed straight from
+*Backlog* (439th filing) — it never sat in *Next up*; the engineer took it as
+`NEXT_SESSION.md`'s first candidate. ONE MORE CODE COMMIT NAMED: **`1a22a00`**
+(`tests/font_preflight.rs` `+11/−6` — the CLI test pins `cfb5b5c`'s rewritten
+`bold:` hint and the standard-14 block). **`c277cc9`** (docs-only,
+`NEXT_SESSION.md`) mentioned; already named by the 445th. No decision minted.
+★ **The 20:43 inbound the 445th found UNSCOPED is now READ, ACKNOWLEDGED on
+the channel, and MINTED here as `Pass 257.0`** (*Next up*, IN BUILD) — a new
+family head: session verbs plan against the SESSION graph, not the base
+revision. ★ **The 439th's stated FIRST STEP — a corpus census of
+non-injective `/ToUnicode` maps — was NOT run**; the narrowing was cheap
+enough to ship without one, and exposure stays UNMEASURED (below).**
+
+**What a caller sees, stated first.** `EditError::Refused(Refusal { trigger:
+RInvTrigger::Ambiguous, character: Some(c), base_font, message })` — the
+message shape, from `encoding.rs:318`: *"this font's character map gives 'A'
+to 2 different codes (1, 2), so there is no single code that means it and
+pdfcer will not guess; every other character of this font still edits — keep
+the edit to those, or choose a font that maps 'A' once."* `RefusalKind` is
+UNCHANGED (`Refused` still classes `UnsupportedFont`; `Pass 249.0`'s bucket
+set is deliberately exhaustive, and the SHIPPED reply tells `pdfcer-gui` to
+read `Refusal.trigger == Ambiguous` for the *"this letter has two glyphs in
+this font; pick another font for it"* sentence). The whole-font refusal's
+wording moved one word — *"cannot be inverted"* → *"cannot be inverted AT
+ALL"* (`text_edit/edit.rs:3061`) — and now fires only on
+`NotInjective::TooLarge` / `NotInjective::Empty`. ★ **Rule-4 disclosure even
+on success:** when the replacement AVOIDED every ambiguous character but the
+font HAS some, the `EditReport` carries *"font map: N character(s) of this
+font are produced by more than one code and are REFUSED if a replacement
+needs them — 'A' (codes 1/2), …; this replacement used none of them."* — the
+first EIGHT named, an ellipsis past that (`text_edit/edit.rs:1873–1899`).
+`pdfcer edit-text` reaches all of it with NO new flag (the report's
+disclosures were already printed).
+
+**The new surface, by name (measured by `grep -n` on the working tree at
+`56dde4d`):** `text_extract::cmap::PartialInverse` (`cmap.rs:170`,
+`#[non_exhaustive]`, `Default`) `{ unambiguous: BTreeMap<char, u32>,
+ambiguous: BTreeMap<char, Vec<u32>>` (codes ascending)`, multi_char_codes:
+usize, empty_codes: usize }`; `ToUnicodeCMap::partial_inverse(&self) ->
+Result<PartialInverse, NotInjective>` (`cmap.rs:750`; a ligature destination
+such as `ffl` and an empty destination are COUNTED, not fatal — no single
+character maps back to them, so they simply cannot be written);
+`CompositeEncoding::ambiguous_chars(&self) -> &BTreeMap<char, Vec<u32>>`
+(`encoding.rs:288`). `injective_inverse()` is UNCHANGED for callers that want
+the strict answer. `CompositeEncoding::build` now calls `partial_inverse`, so
+a collisions-only map BUILDS (and every write through it is then refused) and
+a ligature-only map is `Empty`. `classify_font` (`text_edit/edit.rs:3053`)
+refuses a composite only when `partial_inverse` errs.
+
+**Acceptance criteria walked (the 439th's draft, seven items; three amended
+at ship, one not asserted, one pre-criterion step not done):**
+1. **`partial_inverse()` — the sibling, as the draft allowed the engineer to
+   name it.** Returns the reverse map for every character with exactly ONE
+   producing code PLUS the colliding characters with their codes; the
+   whole-font error is retired for collisions and kept for `TooLarge`/`Empty`.
+   MET.
+2. ~~*"the unit is the mapped STRING, not the `char`"*~~ **AMENDED at ship:
+   the unit is the `char`.** A code whose destination is a multi-character
+   string (a ligature) is COUNTED in `multi_char_codes` and is not invertible
+   to any single character — so a ligature is never written, and a
+   replacement that spells `fi` as two letters uses the two letters' own
+   codes. The draft's example (*"'fi' is produced by CIDs 0x0122 and 0x0149"*)
+   is therefore not the shape that ships; the shipped shape is *"'A' … 2
+   different codes (1, 2)"*. `RefusalKind` unchanged, as required. The
+   refusal names the colliding character and every candidate code — MET in
+   the amended unit.
+3. Characters NOT in `replace` may collide freely — MET (the fixture's `A`
+   collides; `A → B` succeeds).
+4. Disclosure on success — MET and WIDER than drafted: the report names the
+   ambiguous characters (first eight) and their codes, not only a count.
+5. Tests — MET: fixture `fixtures/synthetic/text/cidfonttype2-partially-injective-tounicode.pdf`
+   (2,216 B; CIDs 1 and 2 → `A`, CID 3 → `B`; the page shows `A` and `B`),
+   emitted by a new shared `_cidfont_document` builder in
+   `tools/gen-cidfont-nocmap-fixtures.py` (`+64`); the generator re-emitted
+   the sibling fixtures too and those were RESTORED, not committed (only the
+   new PDF is in the commit — `git show --stat`). `tests/tounicode_partial_inverse.rs`
+   (3 `#[test]`, `+127`): `the_unambiguous_character_edits_even_though_another_collides`
+   (`A → B` succeeds WITH the `font map:` disclosure),
+   `the_ambiguous_character_is_refused_by_name_with_its_codes` (`B → A`
+   refused, `Ambiguous`, naming `1, 2`; `"BA"` fails at the `A`),
+   `a_map_with_nothing_invertible_still_refuses_the_whole_font` (the
+   no-`/ToUnicode` sibling still refuses / `NoMatch`).
+   `composite_refusal_reachable.rs`'s wholesale test REWRITTEN to pin the
+   per-character shape — renamed `a_non_injective_composite_font_is_refused_by_name`
+   → `a_non_injective_composite_fonts_ambiguous_character_is_refused_by_name`;
+   `encoding.rs`'s unit test likewise, `a_non_injective_cmap_yields_no_encoder`
+   → `a_non_injective_cmap_refuses_only_the_ambiguous_character` (renames by
+   `git show`). Sabotage (relayed): ignoring the ambiguity (guess a code) and
+   picking the first colliding code in `partial_inverse` — each caught.
+6. Spec sourcing (§9.10.3 via `PDF_Spec`) — **NOT ASSERTED by the dispatch;
+   not claimed here.** `cmap.rs`'s module header already cites
+   `iso32000__s__9.10.3.md` (the `bfchar`/`bfrange`-to-STRING semantics this
+   Pass inverts), which is the fact criterion 6 asked to be sourced.
+7. Acrobat parity — nothing to match by this route (Acrobat re-encodes
+   through a font it can RESOLVE, never through `/ToUnicode`); per-character
+   inversion is pdfcer's own. Unchanged.
+- **Pre-criterion step, NOT DONE: the census.** The 439th wrote *"a corpus
+  census … is the first step and may re-rank this either way."* No census was
+  run; the engineer shipped on cost (the narrowing is `+101` lines of
+  `cmap.rs` and a call-site swap). Exposure is still UNMEASURED — no operator
+  file is known to hit the non-injective branch (his three faces are
+  injective; the 439th's caveat stands verbatim in the *Backlog* entry).
+  Recorded, not owed: the census would now rank a SHIPPED narrowing, which
+  is not a decision anyone needs.
+
+**Hard-rule-11 sweep (this role's) — `RInvTrigger::Ambiguous` CHANGED
+MEANING: it is now also a HARD refusal, on the composite path.** Grep
+case-insensitive for `ambiguous`, `R-INV-5`, `soft`, `is_hard`,
+`injective`, `cannot be inverted` over `text_edit/encoding.rs`,
+`text_edit/edit.rs`, `text_extract/cmap.rs`, `pdfcer-cli/src/main.rs`,
+`docs/core-api/02`, `03`, `docs/FEATURES.md` (clause (e): narrow files, wide
+pattern), every hit read:
+- ★ **ONE SURVIVOR, OWED to the engineer (`crates/` is outside this role's
+  remit):** `encoding.rs:75` documents the variant as *"R-INV-5 — ambiguous
+  inverse: multiple codes map to `U` (soft)"* and `RInvTrigger::is_hard()`
+  (`encoding.rs:106–120`) returns `false` for it — *"a soft one records a
+  disclosure and proceeds"* — while `CompositeEncoding::encode_str`
+  (`encoding.rs:314`) now returns it inside an `Err(Refusal)` that STOPS the
+  edit. **The same trigger id now has TWO dispositions:** on a SIMPLE font
+  `InverseEncoding::encode_char` CHOOSES (reused-in-run, else lowest code)
+  and discloses (`CharEncoding::Chosen`, `encoding.rs:481`; test
+  `r_inv_5_ambiguous_chooses_and_discloses`); on a COMPOSITE font the same
+  `Ambiguous` REFUSES. Either the rustdoc and `is_hard` should say *"soft on
+  simple fonts, hard on composite"*, or the composite path deserves its own
+  id. Not a defect in behaviour — a consumer keying on `is_hard()` to decide
+  whether an edit proceeded would be told `false` about a refusal, which is
+  the exposure. **Premise of the dispatch, sharpened:** *"pre-existing
+  variant, first use"* — the VARIANT pre-existed and its ID was already in
+  use on the simple-font path (the `Chosen` disclosure string reads
+  `"R-INV-5: …"`); `56dde4d` is its first use as a `Refusal.trigger`
+  (`git grep RInvTrigger::Ambiguous 52a1b5e` = one hit, a test asserting
+  `!is_hard()`).
+- **Survive and are CORRECT — do not "fix":** `main.rs:22728` (*"R-INV-5
+  ambiguity … surfaced verbatim"* — the CLI prints disclosures, still true
+  for both dispositions); `text_edit/edit.rs:3061` (the widened *"at all"*);
+  `encoding.rs:221`–`:268` (`injective_inverse`'s own doc — it IS still
+  strict, by design); `docs/core-api/02-editing-and-saving.md:386` (the
+  `edit_text` row, extended by `56dde4d` itself); the 439th's *Backlog* entry
+  (kept legible, struck and annotated in this filing).
+- The 445th's owed `docs/core-api/03-capabilities.md:1344–1360` survivor
+  (pre-`162.0` `set_font` paragraph) — STILL OWED; not this Pass's, not
+  touched by `56dde4d` (`git show --stat`).
+
+**`docs/FEATURES.md`.** The `Pass 256.1` *Planned* row REMOVED; one
+*Implemented* row ADDED under *Text*, directly beneath the `Pass 256.0`
+across-operators row, **`[x] [x] [ ] [x]`** — `cli` TICKED because `edit-text`
+reaches the per-character refusal and the `font map:` disclosure with no new
+flag (the report's disclosures were already printed); `gui` UNTICKED
+(`pdfcer-gui` has not consumed it — the SHIPPED reply is on the channel);
+Acrobat `[x]` as the 439th ruled (Acrobat edits such text by a different
+route). One *Planned* row ADDED at the TOP of the section for `Pass 257.0`,
+`[ ] [ ] [ ] —` (a correctness fix to existing verbs; Acrobat has no
+"base revision" to resolve against).
+
+**★★ THE INBOUND — read, acknowledged, minted.**
+`D:/Dev/FeatureRequests/pdfce_FeatureRequests/open/request_edit_text_resolves_font_names_against_the_base_revision.md`
+(the 445th's UNSCOPED item) is READ by the engineer and ACKNOWLEDGED:
+`reply_2026-09-06-base-revision-font-resolution-ACK-and-plan.md` posted (by
+`ls`), *"ACCEPTED — in build now; Pass ID in the next ROADMAP filing"* — this
+filing is that filing. **Shape chosen: the requester's (1)** — the text-edit
+planners (`plan_edit`, `plan_edit_target`, `plan_format`,
+`plan_format_target`, `preview_*`, and the `Walk` that decodes the stream)
+resolve through the session's object graph (`self.view()`/`self.graph()`),
+not `&self.base`, fixing `edit_text`, `format_text`, `preview_font_resources`
+/ `_for` and every later verb that reaches a planner in one move, rather than
+teaching `resolve_font_dict` alone. **MEASURED here on the working tree at
+`56dde4d`, `grep -n self.base crates/pdfcer-core/src/edit.rs`: SEVEN planner
+call sites hand the base** — `plan_edit(&self.base, …)` `:9265`,
+`plan_edit_target(&self.base, …)` `:9366`, `plan_format(&self.base, …)`
+`:9548`, `plan_format_target(&self.base, …)` `:9658`,
+`preview_style_resolution(&self.base, …)` `:9801`,
+`preview_font_resources(&self.base, …)` `:9875`,
+`plan_reflow_from_doc(&self.base, …)` `:10040`; plus `:9922` inside
+`preview_font_resources_for`. Minted as **`Pass 257.0`** — a NEW family head
+(the defect is a class over session verbs, not a text-editing feature, so
+neither `256.x` nor `142.x`), *Next up*, IN BUILD — the live entry is at the
+END of *Next up*'s shipped-notes, after `Pass 142.2`'s, immediately above the
+collapsed `10.7`–`10.9` record. The SHIPPED reply for `Pass 256.1` is also on
+the channel: `reply_2026-09-06-tounicode-partial-inversion-SHIPPED.md` (by
+`ls`; names `PartialInverse`, `partial_inverse()`, `ambiguous_chars()`, the
+fixture and the contract-doc row, per `pdfcer-gui`'s announce-new-types
+note). No other `request_*` newer than 20:43 (by `ls -lt`).
+
+**No decision minted; no RAG written.** Decision ceiling `138` unchanged.
+Nothing about crate boundaries, libraries or invariants moved (no
+`Cargo.toml` change, so `cargo tree` was not re-run and is not asserted).
+The one generalizable finding — a trigger enum whose hard/soft predicate is
+asserted by a method rather than by the type system will drift the first
+time a second call site reuses a variant with a different disposition — is
+already the shape of `D:/dev/rag/rust/a_claim_in_a_comment_is_not_a_check.md`;
+no second file.
+
+**Sourcing (hard rule 8).** This role had a shell; MEASURED at filing: `git
+log --oneline -8` = `56dde4d`, `1a22a00`, `52a1b5e`, `cfb5b5c`, `c277cc9`,
+`5f9beb3`, `70c1e29`, `1c1d4c4`; `git status --short` EMPTY before this
+filing's edits — and at GATE TIME carrying the engineer's IN-FLIGHT `Pass 257.0` work (`pdfcer-cli/src/main.rs`, `edit.rs`, `text_edit/edit.rs`, `text_edit/format.rs`, `text_edit/forms.rs`, `text_edit/reflow_apply.rs` modified, `git diff --stat`), NONE of it staged here (three docs by name); `git show --stat`/`--numstat` for `56dde4d` (`edit.rs`
+`+33/−3`, `encoding.rs` `+66/−7`, `cmap.rs` `+101/−0`,
+`composite_refusal_reachable.rs` `+8/−4`, `tounicode_partial_inverse.rs`
+`+127`, core-api 02 `+1/−1`, the fixture binary, the generator `+64`) and
+`1a22a00`; author dates by `git log --format=%ad`; `56dde4d`'s FULL message
+READ (`git log -1 --format=%B`); the `edit.rs` and `cmap.rs` hunks READ
+(`git show 56dde4d -- …`); symbol lines by `grep -n` on the working tree at
+`56dde4d`; test names by `grep -n '#\[test\]' -A1` and the renames by `git
+show`; `git grep RInvTrigger::Ambiguous 52a1b5e`; **`origin/main` =
+`bdefb09` (`git rev-parse`), `git log --oneline origin/main..HEAD | wc -l` =
+11 before this filing** (`6673584`, `1343f0e`, `7c17d72`, `1c1d4c4`,
+`70c1e29`, `5f9beb3`, `c277cc9`, `cfb5b5c`, `52a1b5e`, `1a22a00`, `56dde4d`)
+— `main` is UNPUSHED by eleven commits plus this one; the engineer pushes on
+his cadence (decision 090); the inbound request and both replies READ in
+full; channel files by `ls`/`ls -lt`. RELAYED from the engineer (not re-run
+here): workspace 198/198; `fmt`, `clippy`, `check-string-gaps`,
+`check-public-fns-documented` (one doc-weld on `is_empty` caught by the gate
+and repaired before commit), `check-core-api-verbs`,
+`check-outcome-disclosed` green; the two sabotage mutations. LIFTED from
+`56dde4d`'s message: the `PartialInverse` contract, the fixture's CID map,
+the test outline.
+
+**Ledger.** Filings ceiling `445` → **`446`**; Pass ceiling `256.1` →
+**`257.0`** (`Pass 257.0` minted, a new family head); decision ceiling
+**`138` UNCHANGED**, next free `139`; standing rules ceiling **`R241`
+unchanged**, next free `R242`; open operator questions: none minted, next
+free `(ce)`. *Next up* now holds **`Pass 257.0`** (IN BUILD) at its head and
+**`Pass 179.0`** (the automatic bold ladder, decision `106`, NOT STARTED since
+the 340th filing); the `256.0` and `142.2` entries stay in place, struck and
+annotated. `Pass 256.1`'s *Backlog* entry stays in place, struck and
+annotated (it shipped from *Backlog* without passing through *Next up*).
+
+### `Pass 256.1` (`56dde4d`, 2026-09-05) — ★★ **`/ToUnicode` PARTIAL INVERSION — a composite font's character map is inverted PER CHARACTER, not per font: `ToUnicodeCMap::partial_inverse() -> Result<PartialInverse { unambiguous, ambiguous, multi_char_codes, empty_codes }, NotInjective>`; a character produced by exactly ONE code is written exactly, a character produced by SEVERAL is refused BY NAME at that character with every candidate code (`RInvTrigger::Ambiguous`, *"gives 'A' to 2 different codes (1, 2) … every other character of this font still edits"*), and only a map with NOTHING invertible (`TooLarge`/`Empty`) still refuses the whole font; the `EditReport` names the font's ambiguous characters (first eight) even when the replacement avoided them; `edit-text` with no new flag** — ★ **the 439th's census was NOT run; exposure stays unmeasured, and the narrowing shipped on cost**
+
+**Before (`Pass 29.0`'s rule, measured in source at `8a18e53` by the 439th):**
+a composite run was refused when `/ToUnicode` was absent OR non-injective —
+`injective_inverse()` erred if ANY Unicode string was produced by two or
+more CIDs, and `classify_font` turned that into `R-INV-4` for the WHOLE
+font. The ABSENT half is untouched by this Pass (*"the information is not
+in the file"* stays true, and is the third test).
+
+**After.** `partial_inverse()` (`cmap.rs:750`) walks the singles and the
+`bfrange`s once, keeping the same `MAX_BF_ENTRIES` ceiling
+(`NotInjective::TooLarge`); every single-character destination is bucketed
+by `char` — one producer → `unambiguous`, several → `ambiguous` with the
+codes in ascending order; multi-character destinations (ligatures) and empty
+destinations are counted (`multi_char_codes`, `empty_codes`), not inverted;
+a map whose two maps are both empty is `NotInjective::Empty`.
+`CompositeEncoding::build` (`encoding.rs`) consumes the result, so a font
+with collisions BUILDS an encoder; `encode_str` checks `ambiguous` FIRST for
+each character (`encoding.rs:300–325`) and refuses there with
+`RInvTrigger::Ambiguous`, then `reverse` (the composite `R-INV-1`,
+unchanged); `ambiguous_chars()` (`encoding.rs:288`) exposes the set.
+`plan_edit_target` (`text_edit/edit.rs:1873–1899`) adds the success-path
+disclosure. `classify_font` (`text_edit/edit.rs:3053`) swaps
+`injective_inverse` for `partial_inverse` and widens its sentence to *"cannot
+be inverted at all"*.
+
+**Fixture and tests:** criterion 5 in the filing head above — the fixture,
+the generator's shared `_cidfont_document` builder, the three integration
+tests, the two rewritten/renamed tests. Sabotage (relayed): ignoring the
+ambiguity (guesses a code) → caught by the refusal test; picking the first
+colliding code in `partial_inverse` → caught.
+
+**Gates (relayed):** workspace 198/198; `fmt`, `clippy`, `check-string-gaps`,
+`check-public-fns-documented` (one `is_empty` doc-weld caught and repaired
+pre-commit), `check-core-api-verbs`, `check-outcome-disclosed` green.
+
+**Invariants:** round-trip/minimal-diff unaffected (the change is in WHICH
+edits are accepted, not in what a write emits); GUI-core separation — no
+`Cargo.toml` change, `cargo tree` not re-run, not asserted.
+
+**Owed (engineer):** the `RInvTrigger::Ambiguous` rustdoc *"(soft)"* and
+`is_hard()` → `false` (`encoding.rs:75`, `:106–120`) no longer describe the
+composite path — see the rule-11 sweep in the filing head.
+
+**Not in scope, by name:** the census (not run; recorded); a ligature written
+as a single code (a multi-character destination is never inverted);
+`RefusalKind` growth (its bucket set is deliberately exhaustive); the
+simple-font `R-INV-5` choose-and-disclose behaviour (unchanged).
+
 **★★★★ 445th filing, 2026-09-06 (early; the 2026-09-05 session running past
 midnight — dated by the clock, as the 443rd and 444th were) — `Pass 142.2`
 SHIPPED, unreleased (post-`v0.40.0`): **`5f9beb3`** *"feat(core,cli): font
@@ -111288,6 +111576,20 @@ in the "still open" list. Full build record: this file's own
 > this session is "unresolvable" until a save) is UNSCOPED — the 445th head
 > in *Shipped* summarises it; the parse is the engineer's act.
 
+> ★★★★ **ONE ITEM ADDED 2026-09-06 (446th filing) — `Pass 257.0`, SESSION
+> VERBS PLAN AGAINST THE SESSION GRAPH, NOT THE BASE REVISION, from the
+> `pdfcer-gui` request of 2026-09-05 20:43 (the 445th's UNSCOPED item; ACK
+> posted 2026-09-06; IN BUILD).** A NEW family head — the defect is a class
+> over every session verb that reaches a planner through `&self.base` (seven
+> call sites measured), not a text-editing feature, so neither `256.x` nor
+> `142.x`. Filed *Next up* because it is the LAST STEP of the `€` route
+> `Pass 142.2` serves and `pdfcer-gui` ships a save-and-reopen sentence
+> around it today. The live entry follows `Pass 142.2`'s, immediately above
+> the collapsed `10.7`–`10.9` record; **it is now the HEAD of this section**,
+> ahead of `Pass 179.0`. `Pass 256.1` shipped the same filing (`56dde4d`)
+> straight from *Backlog* — its entry there is struck and annotated, not
+> moved. `docs/FEATURES.md`: one new *Planned* row at the top, `[ ] [ ] [ ] —`.
+
 > ★★★ **`Pass 254.0` SHIPPED and has left this section, 2026-09-05 (433rd
 > filing, code `8f9fb3e`).** Filed here *Next up* by the 432nd filing the same
 > day; shipped the next filing. Its full entry — the
@@ -111750,6 +112052,139 @@ engineer may ship (a) before (b) inside it and say so.
 
 `docs/FEATURES.md`: one *Planned* row directly under `Pass 256.0`'s,
 `[ ] [ ] [ ] ?` — Acrobat `?` because the RAG records a GAP, not an absence.
+
+### `Pass 257.0` — ★★★★ **SESSION VERBS PLAN AGAINST THE SESSION GRAPH, NOT THE BASE REVISION — `edit_text`, `format_text`, `preview_font_resources`/`_for`, `preview_style_resolution` and every other verb that reaches `plan_edit`/`plan_edit_target`/`plan_format`/`plan_format_target`/`preview_*` resolve fonts, resources and form XObjects through `self.view()`/`self.graph()`, so a `/Font` object `format_text` authored THIS SESSION is visible to the next `edit_text` on the same run instead of being "unresolvable"; the `Walk` that decodes the stream resolves the same way, so the unpinned voice stops saying `NoMatch` about text that is on the page** — filed 2026-09-06 (446th filing, `pdfcer-gui` request of 2026-09-05 20:43, ACK posted 2026-09-06), *Next up*, **IN BUILD** — head of family 257 (session-graph resolution; a correctness class over session verbs, so neither `256.x` nor `142.x`)
+
+**Status: IN BUILD as of this filing** (the engineer's ACK on the channel:
+*"ACCEPTED — in build now; Pass ID in the next ROADMAP filing"*; no commit to
+cite yet — the entry moves when one exists).
+
+**Origin.**
+`D:/Dev/FeatureRequests/pdfce_FeatureRequests/open/request_edit_text_resolves_font_names_against_the_base_revision.md`
+(10,066 B, 2026-09-05 20:43; read in full by this role and by the engineer).
+Against `pdfcer-core` `v0.40.0` `03f6004`, re-read unchanged at `1c1d4c4`.
+Severity in the requester's words: *"it makes the only remedy pdfcer has for a
+subset-font refusal unreachable inside a session. No data is at risk — the
+refusal happens before any mutation, as rule 4 requires."* ACK:
+`open/reply_2026-09-06-base-revision-font-resolution-ACK-and-plan.md`.
+
+**The defect, in the requester's one sentence:** `EditSession::format_text`
+may create a new `/Font` object and correctly binds it against `self.graph()`
+— *"not `self.base`"*, as its own comment says — but `EditSession::edit_text`
+then plans with `plan_edit(&self.base, …)`, and `resolve_font_dict`
+dereferences the run's `Tf` name THROUGH THAT BASE DOCUMENT. The object
+exists only in the overlay, so the deref answers `None` and the edit is
+refused. **The stream read is the session's (`current_page_content`, which is
+what makes five sequential edits accumulate) and only the object graph that
+the names inside it are resolved through is the base's** — two halves of one
+read disagreeing about which revision they describe.
+
+**Three measurements (theirs, all asserted in `pdfcer-gui`'s
+`crates/pdfcer-gui/src/canvas/textedit/facewall.rs`, which goes RED the day
+this ships — the engineer's ACK asks them to let it):**
+1. One session, `subset-simple-embedded.pdf` (their `fixtures/subset-font-floor.pdf`
+   is a byte copy): `edit_text` `ABC → ABCq` → `R-INV-1` (the subset has no
+   `q`); `format_text` `FontSelector::new("Helvetica")` onto `ABC` → OK
+   (authors a new `/Font`); `edit_text` `ABC → ABCq` again → REFUSED — pinned
+   (`whole_operator` with a span re-measured from a fresh extraction after
+   the swap): `Unsupported("the run's font resource is unresolvable in the
+   target stream's resources")`; by `find`: `NoMatch("ABC")` — *"text to edit
+   ("ABC") was not found in an editable run on the page"*, the UNTRUE one
+   (locating by text decodes every show operator, decoding needs the font,
+   the font will not resolve).
+2. Control: the same pair with `to_incremental_bytes` + `Document::from_bytes`
+   between the verbs SUCCEEDS, and `extract-text` reads the `q` back.
+3. Bound: a face swap to a `/Font` the file ALREADY carries is editable at
+   once, same session, no save — so the trigger is the NEWLY CREATED object,
+   not the swap.
+
+**Where it is (theirs, MEASURED here on the working tree at `56dde4d` by
+`grep -n self.base crates/pdfcer-core/src/edit.rs`):** `plan_edit(&self.base,
+…)` `edit.rs:9265`; `plan_edit_target(&self.base, …)` `:9366`;
+`plan_format(&self.base, …)` `:9548`; `plan_format_target(&self.base, …)`
+`:9658`; `preview_style_resolution(&self.base, …)` `:9801`;
+`preview_font_resources(&self.base, …)` `:9875`; `&self.base` inside
+`preview_font_resources_for` `:9922`; `plan_reflow_from_doc(&self.base, …)`
+`:10040`. `text_edit/edit.rs`: `resolve_font_dict(doc: &Document, …)` derefs
+`/Font` and the named entry through `doc.resolve`; `plan_edit_target` turns
+`None` into the `Unsupported` sentence. `format_text`'s own
+`bind_font_resource(&self.graph(), …)` is the correct sibling and the comment
+that states the rule.
+
+**Why a class, not one broken verb (theirs, accepted by the engineer):**
+*"a session verb allocates an indirect object, and a later session verb
+resolves a name that points at it"* — every planner reached through
+`&self.base` has it. `reflow_block` already refuses this class by name
+(*"Save and reopen to reflow after an in-session edit of the same page"*,
+`edit.rs:9947`); `preview_font_resources` surveys the wrong revision after a
+swap (not yet seen to bite).
+
+**Shape chosen: the requester's (1).** The planners and the decoding `Walk`
+take the session's view, fixing every consumer in one move rather than
+teaching `resolve_font_dict` alone (their (2)); their (3), a named
+`EditError` variant, is NOT taken — the refusal is removed, not renamed.
+
+**Acceptance criteria:**
+1. `edit_text`, `format_text`, `preview_font_resources`,
+   `preview_font_resources_for`, `preview_style_resolution` and every other
+   session verb that reaches `plan_edit` / `plan_edit_target` / `plan_format`
+   / `plan_format_target` / `preview_*` resolve object references — fonts,
+   resources, form XObjects — through `self.view()` / `self.graph()`, never
+   `&self.base`.
+2. The `pdfcer-gui` repro passes IN ONE SESSION: `format_text`
+   (`FontSelector::new("Helvetica")` onto the `ABC` run of
+   `fixtures/synthetic/text/subset-simple-embedded.pdf`, which creates a new
+   `/Font` object) then `edit_text` `ABC → ABCq` SUCCEEDS — both by `find`
+   and by a re-measured pin.
+3. The control (save + reopen between the verbs) still succeeds and yields
+   the same text.
+4. A face swap to a font the page ALREADY carries stays editable in-session
+   (unchanged behaviour — their measurement 3).
+5. `reflow_block`'s *"save and reopen to reflow after an in-session edit"*
+   refusal is RE-EXAMINED: if the same root cause, it is removed in this
+   Pass; if not, its retention is recorded here with the reason. ★ Read
+   before deciding: its rustdoc (`edit.rs:9941–9950`) gives a DIFFERENT
+   mechanism — the reflow *"extracts + recognises the page fresh, needing
+   provenance the staging buffer does not carry"*, so *"the base-relative
+   byte offsets would not match the staged content"* — a provenance-offset
+   mismatch, not a name-resolution miss, though it is planned through
+   `plan_reflow_from_doc(&self.base, …)` (`:10040`) like the others. The
+   criterion is satisfied either way; what it forbids is leaving the refusal
+   in place unexamined.
+6. No `&self.base` remains as a PLANNER argument in `edit.rs` — grep-
+   assertable; a source-scan test in `tests/route_enumeration.rs`'s style is
+   the acceptance instrument (other `self.base` reads — the trailer's
+   `/Encrypt` check at `:9908`, and the like — are not planner arguments and
+   are not in scope).
+7. The free functions `text_edit::edit_text(&Document, …)` /
+   `format_text(&Document, …)` keep their signatures (they pass `&doc.view()`
+   internally).
+8. Tests: the three `pdfcer-gui` measurements as tests in
+   `crates/pdfcer-core/tests/`; existing suites unchanged
+   (`composite_refusal_reachable.rs`, `tounicode_partial_inverse.rs`,
+   `font_preflight_candidate.rs` and the rest still green).
+9. Channel: a SHIPPED reply naming the hash, so `pdfcer-gui` can delete the
+   save-and-reopen sentence it shows today (*"pdfcer cannot type into a font
+   it has just added to a file until that file has been saved and opened
+   again"*) and let `facewall.rs` go red on purpose.
+
+**Invariants:** round-trip/minimal-diff — resolving through the graph reads
+the same objects the writer will emit, so the two cannot disagree; GUI-core
+separation — no dependency change expected (`cargo tree -p pdfcer-core`
+unchanged); rule 4 — a refusal is REMOVED, nothing is inferred.
+
+**Not in scope, by name:** a named `EditError` variant for the old refusal
+(their (3) — moot once the refusal is gone); `pdfcer-gui`'s consumption
+(theirs); the automatic bold ladder (`Pass 179.0`); the embedded-donor
+restyle (`Pass 142.0`).
+
+**Acrobat parity:** none to match — Acrobat has no "base revision" a
+session verb could resolve against; this is pdfcer's own session model
+(`ARCHITECTURE.md` §11.1, the commit point is Save) being made
+self-consistent.
+
+`docs/FEATURES.md`: one *Planned* row at the TOP of the section (the head of
+*Next up*), `[ ] [ ] [ ] —`.
 
 <details><summary>Original <code>Pass 10.7</code> / <code>10.8</code> / <code>10.9</code> <em>Next up</em> entries (kept for the record — superseded by the <em>Shipped</em> block at the top of the file)</summary>
 
@@ -123987,9 +124422,21 @@ nothing gets forgotten, not as a commitment to build in this order.
 > `docs/FEATURES.md`: one new *Planned* row in the text cluster, all pdfcer
 > boxes unticked.
 
-### `Pass 256.1` — ★★ **`/ToUnicode` PARTIAL INVERSION — invert per CHARACTER, not per FONT: an unambiguous character is written, a colliding character is refused BY NAME (which characters, from which CIDs); today `ToUnicodeCMap::injective_inverse()` refuses the WHOLE composite font when ANY character maps from more than one CID** — filed 2026-09-05 (439th filing, `pdfcer-gui` correction 2026-09-05 evening, ask (3)), *Backlog*, **NOT STARTED** — family 256, after `Pass 256.0`
+### `Pass 256.1` — ★★ **`/ToUnicode` PARTIAL INVERSION — invert per CHARACTER, not per FONT: an unambiguous character is written, a colliding character is refused BY NAME (which characters, from which CIDs); today `ToUnicodeCMap::injective_inverse()` refuses the WHOLE composite font when ANY character maps from more than one CID** — filed 2026-09-05 (439th filing, `pdfcer-gui` correction 2026-09-05 evening, ask (3)), ~~*Backlog*, **NOT STARTED**~~ **SHIPPED `56dde4d` (446th filing) — see top of *Shipped*; criterion 2 AMENDED below; the census NOT run** — family 256, after `Pass 256.0`
 
-**Status: NOT STARTED. Today, measured in source at `8a18e53`:**
+> ★★ **Status note 2026-09-06 (446th filing): SHIPPED `56dde4d`** (authored
+> `2026-09-05 21:27:23 -0400`, 8 files, `+400/−15`) — straight from *Backlog*,
+> never *Next up*: the engineer took it as `NEXT_SESSION.md`'s first
+> candidate. The build record, the walked criteria and the one amendment
+> (criterion 2, struck below — the inversion unit is the `char`, not the
+> mapped STRING; a ligature destination is COUNTED, never written) are the
+> `Pass 256.1` entry at the top of *Shipped*. The sibling `partial_inverse()`
+> is the name chosen. **The census this entry calls "the first step" was NOT
+> run** — the narrowing shipped on cost; the caveat below stands verbatim and
+> exposure is still unmeasured. Criterion 6 (spec sourcing) was not asserted
+> by the engineer; `cmap.rs`'s header already cites `iso32000__s__9.10.3.md`.
+
+~~**Status: NOT STARTED.**~~ **Before `56dde4d`, measured in source at `8a18e53`:**
 `ToUnicodeCMap::injective_inverse()` (`crates/pdfcer-core/src/text_edit/encoding.rs:221`
 the doc, `:268` the call that builds `reverse`) errors if any Unicode string
 is produced by two or more CIDs; `text_edit/edit.rs:2622` turns that error
@@ -124018,12 +124465,21 @@ is the first step and may re-rank this either way.
    names it — returns a reverse map for every Unicode string with exactly
    ONE producing CID PLUS the set of colliding strings with their CIDs; the
    whole-font error is retired in favour of that structure.
-2. The edit gate asks the question PER REPLACEMENT UNIT: a code maps to a
+2. ~~The edit gate asks the question PER REPLACEMENT UNIT: a code maps to a
    STRING (§9.10.3), so the unit is the mapped string, not the `char`. If
    every unit of `replace` has exactly one CID, the edit proceeds; otherwise
    the refusal names the colliding units and their candidate CIDs — *"'fi'
    is produced by CIDs 0x0122 and 0x0149; pdfcer will not guess"* — inside
-   the `R-INV-4` message, `RefusalKind` unchanged (`Pass 249.0`).
+   the `R-INV-4` message, `RefusalKind` unchanged (`Pass 249.0`).~~
+   **AMENDED at ship (446th filing): the unit is the `char`.** A code whose
+   destination is a multi-character string (a ligature) is COUNTED in
+   `PartialInverse::multi_char_codes` and is never inverted — no single
+   character maps back to it — so a ligature is never written and the
+   two-letter spelling uses the letters' own codes. The refusal is its own
+   trigger, `RInvTrigger::Ambiguous`, not a sentence inside `R-INV-4`, and
+   names the character and every candidate code: *"gives 'A' to 2 different
+   codes (1, 2) … every other character of this font still edits"*.
+   `RefusalKind` unchanged, as required.
 3. Units NOT in `replace` may collide freely — a font whose ligatures collide
    no longer blocks editing plain letters.
 4. Disclosure (rule 4): the report says the inverse was PARTIAL and how many

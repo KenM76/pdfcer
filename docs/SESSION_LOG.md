@@ -94101,3 +94101,152 @@ Lifted: the verb contract, from `5f9beb3`'s message.
   typed; in the GUI nothing changes until `pdfcer-gui` consumes it — and
   typing into a face swapped in the SAME session still needs a save and
   reopen first (the new inbound; pdfcer's own limit, on the list).
+
+## 2026-09-06 (446th filing) — `Pass 256.1` SHIPPED (`56dde4d`, unreleased, post-`v0.40.0`): a composite font's `/ToUnicode` is inverted PER CHARACTER, not per font — `ToUnicodeCMap::partial_inverse() -> Result<PartialInverse { unambiguous, ambiguous, multi_char_codes, empty_codes }, NotInjective>`; a character with exactly one producing code is written exactly, a colliding one is refused BY NAME with every candidate code (`RInvTrigger::Ambiguous`: *"gives 'A' to 2 different codes (1, 2) … every other character of this font still edits"*), only `TooLarge`/`Empty` still refuse the whole font; the report discloses the font's ambiguous characters (first eight) even when the edit avoided them. Criterion 2 AMENDED (the unit is the `char`, not the mapped string; ligature destinations are counted, never written); the 439th's census was NOT run — exposure stays unmeasured. `1a22a00` (CLI test pins the bold hint + standard-14 block) named; `c277cc9` mentioned. ★ The 20:43 inbound (`edit_text` resolves `/Font` against `self.base`) READ, ACK posted, MINTED **`Pass 257.0`** — session verbs plan against the SESSION graph — *Next up*, IN BUILD. No decision. One rule-11 survivor owed: `RInvTrigger::Ambiguous` is documented *"(soft)"* and `is_hard()` says `false` while the composite path now refuses on it.
+
+**Shipped:**
+- `Pass 256.1` — `56dde4d` *"feat(core): /ToUnicode inversion refuses PER
+  CHARACTER, not per font (Pass 256.1)"*, authored `2026-09-05 21:27:23
+  -0400`, 8 files, `+400/−15` (`git show --numstat`): `text_extract/cmap.rs`
+  `+101` (`PartialInverse`, `partial_inverse()`); `text_edit/encoding.rs`
+  `+66/−7` (`CompositeEncoding::build` on the partial inverse,
+  `ambiguous_chars()`, the per-character refusal in `encode_str`, the unit
+  test renamed `a_non_injective_cmap_refuses_only_the_ambiguous_character`);
+  `text_edit/edit.rs` `+33/−3` (the `font map:` success-path disclosure in
+  `plan_edit_target`; `classify_font` on `partial_inverse`, *"cannot be
+  inverted at all"*); `tests/tounicode_partial_inverse.rs` `+127` (3 tests);
+  `tests/composite_refusal_reachable.rs` `+8/−4` (the wholesale test
+  rewritten and renamed `…fonts_ambiguous_character_is_refused_by_name`);
+  `docs/core-api/02-editing-and-saving.md` `+1/−1` (the `edit_text` row);
+  the fixture `cidfonttype2-partially-injective-tounicode.pdf` (2,216 B; CIDs
+  1, 2 → `A`, 3 → `B`); `tools/gen-cidfont-nocmap-fixtures.py` `+64` (the
+  shared `_cidfont_document` builder; sibling fixtures re-emitted and
+  RESTORED, not committed). Shipped straight from *Backlog*, never *Next
+  up* — `NEXT_SESSION.md`'s first candidate.
+- `1a22a00` *"test(cli): font-preflight test pins the new bold hint and the
+  standard-14 block"* — `crates/pdfcer-cli/tests/font_preflight.rs` `+11/−6`,
+  authored 21:27:22. CODE commit, named: the test that `cfb5b5c`'s hint
+  rewrite (445th filing) would otherwise have left unpinned.
+- `c277cc9` *"docs: NEXT_SESSION.md — Pass 142.2 shipped; queue empty,
+  candidates listed"* — docs-only, `+15/−1`; mentioned (already named by the
+  445th, whose premise correction it triggered).
+
+**Minted:**
+- **`Pass 257.0`** — SESSION VERBS PLAN AGAINST THE SESSION GRAPH, NOT THE
+  BASE REVISION — *Next up*, IN BUILD, a NEW family head (a correctness class
+  over session verbs; neither `256.x` nor `142.x`). From
+  `request_edit_text_resolves_font_names_against_the_base_revision.md`
+  (`pdfcer-gui`, 2026-09-05 20:43 — the 445th's UNSCOPED item): `format_text`
+  binds a newly authored `/Font` against `self.graph()` while `edit_text`
+  plans with `plan_edit(&self.base, …)` and `resolve_font_dict` derefs the
+  run's `Tf` name through the base, so a face swapped in THIS session makes
+  the next `edit_text` refuse — pinned `Unsupported("… unresolvable in the
+  target stream's resources")`, unpinned `NoMatch` (untrue). Control
+  (save+reopen between the verbs) succeeds; a swap to a face the file already
+  carries edits at once. MEASURED here: SEVEN planner call sites hand
+  `&self.base` (`edit.rs:9265`, `:9366`, `:9548`, `:9658`, `:9801`, `:9875`,
+  `:10040`) plus `:9922` inside `preview_font_resources_for`. Shape: the
+  requester's (1) — planners and the decoding `Walk` take the session's
+  view. Nine acceptance criteria in the *Next up* entry; criterion 5 carries
+  a caution that `reflow_block`'s rustdoc names a DIFFERENT mechanism
+  (provenance offsets), so its re-examination starts informed. ACK posted:
+  `reply_2026-09-06-base-revision-font-resolution-ACK-and-plan.md`.
+
+**`Pass 256.1` criteria walked (the 439th's seven):** 1 MET
+(`partial_inverse`, the named sibling); **2 AMENDED** — the inversion unit is
+the `char`, not the §9.10.3 mapped STRING: a multi-character destination (a
+ligature) is COUNTED in `multi_char_codes` and never written, so the draft's
+*"'fi' is produced by CIDs 0x0122 and 0x0149"* is not the shipped shape; 3
+MET (`A → B` succeeds while `A` collides); 4 MET and wider (the eight named,
+not only counted); 5 MET (fixture, generator, three tests, two rewrites);
+**6 NOT ASSERTED** by the dispatch (spec sourcing — `cmap.rs`'s header
+already cites `iso32000__s__9.10.3.md`); 7 unchanged (nothing to match).
+**The census — the 439th's "first step" — NOT RUN**; shipped on cost
+(`+101` lines and a call-site swap); exposure unmeasured; recorded, not owed.
+
+**`docs/FEATURES.md`.** The `Pass 256.1` *Planned* row REMOVED; one
+*Implemented* row ADDED under *Text*, beneath the `256.0` across-operators
+row, `[x] [x] [ ] [x]` — `cli` ticked (`edit-text` reaches it with no new
+flag), `gui` unticked (`pdfcer-gui` has not consumed it), Acrobat `[x]` as
+the 439th ruled. One *Planned* row ADDED at the top of the section for
+`Pass 257.0`, `[ ] [ ] [ ] —` (Acrobat has no base revision to resolve
+against).
+
+**ROADMAP edits.** 446th head + the `Pass 256.1` *Shipped* entry at the top
+of *Shipped*; a *Next up* intro note + the `Pass 257.0` live entry (after
+`142.2`'s, above the collapsed `10.7`–`10.9` record); the `Pass 256.1`
+*Backlog* entry kept legible — heading status struck, a dated 446th status
+note, criterion 2 struck with the amendment beside it. Docs-only filing:
+`ROADMAP.md`, `FEATURES.md`, `SESSION_LOG.md`, staged by name.
+
+**Channel (by `ls`).** Posted:
+`reply_2026-09-06-tounicode-partial-inversion-SHIPPED.md` (names
+`PartialInverse`, `partial_inverse()`, `ambiguous_chars()`, the fixture, the
+contract-doc row — per `pdfcer-gui`'s announce-new-types note) and
+`reply_2026-09-06-base-revision-font-resolution-ACK-and-plan.md`. Inbound:
+nothing newer than the 20:43 request (`ls -lt`).
+
+**Decisions made this session:** none. Decision ceiling `138`.
+
+**Findings + decisions:**
+- **Rule-11 survivor, OWED (engineer; `crates/` is outside this role's
+  remit):** `RInvTrigger::Ambiguous` is documented *"R-INV-5 — ambiguous
+  inverse … (soft)"* (`encoding.rs:75`) and `is_hard()` returns `false` for it
+  (`:106–120`, *"a soft one records a disclosure and proceeds"*), while
+  `CompositeEncoding::encode_str` (`:314`) now returns it inside
+  `Err(Refusal)` — a stop. Same id, two dispositions: SIMPLE fonts CHOOSE and
+  disclose (`CharEncoding::Chosen`, `:481`, lowest or reused-in-run code);
+  COMPOSITE fonts REFUSE. Fix is the rustdoc + `is_hard` (or a separate id);
+  the behaviour itself is the intended one. Sharpens the dispatch's *"first
+  use"*: first use as a `Refusal.trigger` (`git grep` at `52a1b5e` = one
+  test hit); the id was already on the simple-font path.
+- The 445th's `docs/core-api/03-capabilities.md:1344–1360` survivor
+  (pre-`162.0` `set_font` paragraph) — STILL OWED, untouched by `56dde4d`.
+- No RAG written: the one generalizable shape (a hard/soft predicate asserted
+  by a method drifts when a second call site reuses a variant) is already
+  `D:/dev/rag/rust/a_claim_in_a_comment_is_not_a_check.md`'s.
+
+**Sourcing (hard rule 8).** Measured here: `git log --oneline -8` =
+`56dde4d`, `1a22a00`, `52a1b5e`, `cfb5b5c`, `c277cc9`, `5f9beb3`,
+`70c1e29`, `1c1d4c4`; `git status --short` EMPTY before this filing's edits — and at GATE TIME carrying the engineer's IN-FLIGHT `Pass 257.0` work (`pdfcer-cli/src/main.rs`, `edit.rs`, `text_edit/edit.rs`, `text_edit/format.rs`, `text_edit/forms.rs`, `text_edit/reflow_apply.rs` modified, `git diff --stat`), NONE of it staged here (three docs by name);
+`git show --stat`/`--numstat` for `56dde4d` and `1a22a00`; `56dde4d`'s full
+message and its `edit.rs`/`cmap.rs` hunks READ; author dates by `git log
+--format=%ad`; symbol and test lines by `grep -n` on the working tree at
+`56dde4d`; renames by `git show`; **`origin/main` = `bdefb09`; `git log
+--oneline origin/main..HEAD | wc -l` = 11 before this filing** (`6673584`,
+`1343f0e`, `7c17d72`, `1c1d4c4`, `70c1e29`, `5f9beb3`, `c277cc9`, `cfb5b5c`,
+`52a1b5e`, `1a22a00`, `56dde4d`); the request and both replies READ in full;
+channel files by `ls`/`ls -lt`. Relayed: 198/198, the gate list (`fmt`,
+`clippy`, `string-gaps`, `public-fns` — one `is_empty` doc-weld caught and
+repaired pre-commit — `core-api-verbs`, `outcome-disclosed`), the two
+sabotage mutations. Lifted from `56dde4d`'s message: the `PartialInverse`
+contract, the fixture's CID map, the test outline.
+
+**Gates (this role, on the filing tree): in the filing commit's message.**
+
+**Still in flight:**
+- **`Pass 257.0` IN BUILD** (relayed via the ACK; no commit to cite yet).
+  The `pdfcer-gui` `facewall.rs` assertion goes red when it lands — by
+  design.
+- *Next up*: `Pass 257.0` (head, IN BUILD), then `Pass 179.0` (automatic
+  bold ladder, decision `106`, NOT STARTED since the 340th filing).
+- Unpushed: eleven commits plus this filing (measured against `origin/main`
+  = `bdefb09`). Engineer pushes on his cadence (decision 090).
+- Unreleased since `v0.40.0`: `Pass 14.5` (`8670523`), `Pass 256.0`
+  (`1343f0e`), `Pass 142.2` (`5f9beb3`), `Pass 256.1` (`56dde4d`), plus
+  `70c1e29`, `cfb5b5c`, `1a22a00` (test/hint fixes) — `0.41.0` material
+  (standing-authorized, decision 121; gates first).
+- Owed (engineer): the `RInvTrigger::Ambiguous` rustdoc/`is_hard` survivor
+  (above); `docs/core-api/03-capabilities.md:1344–1360` (pre-`162.0`
+  `set_font` paragraph, from the 445th).
+
+**For next session:**
+- Engineer: finish `Pass 257.0` (nine criteria; criterion 6's source-scan
+  test is the instrument, criterion 5's `reflow_block` re-examination starts
+  from its rustdoc's DIFFERENT mechanism); post the SHIPPED reply; then the
+  `0.41.0` batch release; push. Fix the `is_hard`/rustdoc survivor in
+  passing.
+- Operator: nothing changes on screen until `pdfcer-gui` consumes `256.1`;
+  when `257.0` lands, the *"save this document, open it, and type the 'q'
+  once more"* sentence goes away — a face swapped in the same session
+  becomes typeable at once.
