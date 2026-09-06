@@ -4882,12 +4882,25 @@ pub enum DroppedProperty {
     /// properties still sees it — but pdfcer's own `/AP` does not draw it,
     /// and under R43 that is what gets painted.
     BorderEffect,
-    /// `/BS` `/S` named a border style other than solid — `/D` dashed,
-    /// `/B` beveled, `/I` inset or `/U` underline (§12.5.4, Table 166).
-    /// pdfcer authors `/S /S` (solid) only.
+    /// `/BS` `/S` named a border style pdfcer does not author — `/B`
+    /// beveled, `/I` inset or `/U` underline (§12.5.4, Table 166).
+    ///
+    /// ★ **NARROWED BY `Pass 258.0`, exactly as [`Self::BorderEffect`] was
+    /// by `Pass 98.0`.** `/S /D` (dashed) has left that list: a dashed
+    /// border is now read back and re-authored, so reporting it here would
+    /// be a FALSE disclosure — and rule 4 cuts both ways. The superseded
+    /// wording was *"pdfcer authors `/S /S` (solid) only"*, which was true
+    /// when it was written.
     BorderStyle,
-    /// `/BS` `/D` — an explicit dash array. Carried by the dictionary,
-    /// not by the regenerated appearance.
+    /// `/BS` `/D` — an explicit dash array that could **not** be carried.
+    ///
+    /// ★ **ALSO NARROWED BY `Pass 258.0`.** It used to fire for every dash,
+    /// on the reasoning that the array was *"carried by the dictionary, not
+    /// by the regenerated appearance"* — which described the DEFECT rather
+    /// than a property of the format, and the defect was that a dashed mark
+    /// silently solidified on its first restyle. It now fires only where
+    /// the pattern is genuinely gone: an array §8.4.3.6 does not admit
+    /// (negative, or every element zero), or a caller that cleared it.
     DashPattern,
     /// `/RD` — rectangle differences (§12.5.6.8): an inner rectangle
     /// inset from `/Rect`. pdfcer derives its geometry from `/Rect` (or
@@ -15612,11 +15625,18 @@ pub struct AnnotationRotate {
 ///
 /// # Why the REPLACED text is measured rather than merely overwritten
 ///
-/// A note is **content the operator cannot recover from the canvas**. A shape
-/// still shows its geometry after a restyle, so `set_markup_style` can be
-/// undone by eye; a comment that has been overwritten leaves no trace on the
-/// page at all. Rule 4's disclosure obligation therefore bites here in a way
-/// it does not there.
+/// A note is **content the operator usually cannot recover from the canvas**.
+/// A shape still shows its geometry after a restyle, so `set_markup_style`
+/// can be undone by eye; a comment that has been overwritten leaves no trace
+/// on the page at all. Rule 4's disclosure obligation therefore bites here in
+/// a way it does not there.
+///
+/// ★ **`/FreeText` IS THE EXCEPTION, and the word "usually" is carrying it
+/// (`Pass 258.1`).** For that one subtype the note IS on the canvas — it is
+/// the string the appearance is baked from — and this sentence read as flatly
+/// backwards there for as long as the appearance went stale. It no longer
+/// does: the note now re-bakes `/AP`, and [`Self::appearance_rebaked`] says
+/// whether it did.
 ///
 /// `pdfcer-gui` asked for exactly this and framed it well: *"if a rule-4
 /// disclosure is owed anywhere here, it is on the case where the annotation
@@ -26097,10 +26117,16 @@ impl EditSession {
     ///
     /// # ★ The disclosure this owes
     ///
-    /// A note is content the operator **cannot recover from the canvas**. A
-    /// restyled shape still shows its geometry; overwritten words leave no
-    /// trace on the page. [`MarkupNoteChange::replaced`] carries the previous
-    /// text — the text, not a count — so a shell can offer it back.
+    /// A note is content the operator **usually cannot recover from the
+    /// canvas**. A restyled shape still shows its geometry; overwritten words
+    /// leave no trace on the page. [`MarkupNoteChange::replaced`] carries the
+    /// previous text — the text, not a count — so a shell can offer it back.
+    ///
+    /// ★ **Except on a `/FreeText`**, whose `/Contents` is exactly what its
+    /// appearance paints. There the words ARE on the canvas, this verb
+    /// re-bakes the appearance so the page follows them, and
+    /// [`MarkupNoteChange::appearance_rebaked`] reports whether it could
+    /// (`Pass 258.1`).
     ///
     /// # Errors
     ///

@@ -30921,11 +30921,12 @@ fn cmd_set_markup_style(
                  paints from /AP."
             }
             DroppedProperty::BorderStyle => {
-                "the /BS /S border style (dashed, beveled, inset or underline): pdfcer \
-                 authors solid strokes only."
+                "the /BS /S border style: pdfcer authors solid and DASHED strokes, so \
+                 this one is beveled, inset or underline, which it does not."
             }
             DroppedProperty::DashPattern => {
-                "the /BS /D dash array: the regenerated stroke is continuous."
+                "the /BS /D dash array: it could not be used, so the regenerated stroke \
+                 is continuous. A dash pdfcer can read is preserved, not dropped."
             }
             DroppedProperty::RectDifferences => {
                 "the /RD rectangle differences: pdfcer draws from /Rect (or the \
