@@ -964,7 +964,7 @@ pub fn text_spec_from_dict<G: ObjectGraph + ?Sized>(
             rect,
             icon: read_name_value(graph, annot, b"Name")
                 .as_deref()
-                .and_then(sticky_icon_from_name)
+                .and_then(StickyIcon::from_name)
                 .unwrap_or(StickyIcon::Note),
             contents,
             color: read_color(graph, annot, b"C").unwrap_or(Color::Rgb(1.0, 1.0, 0.0)),
@@ -1022,21 +1022,6 @@ fn read_contents_text<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict) -> Strin
     read_raw_string(graph, annot, b"Contents")
         .map(|bytes| crate::textstring::decode_text_string(&bytes).text)
         .unwrap_or_default()
-}
-
-/// The [`StickyIcon`] a `/Name` value denotes, or `None` for one pdfcer
-/// does not author (§12.5.6.4 leaves the set open-ended).
-fn sticky_icon_from_name(name: &[u8]) -> Option<StickyIcon> {
-    Some(match name {
-        b"Comment" => StickyIcon::Comment,
-        b"Key" => StickyIcon::Key,
-        b"Note" => StickyIcon::Note,
-        b"Help" => StickyIcon::Help,
-        b"NewParagraph" => StickyIcon::NewParagraph,
-        b"Paragraph" => StickyIcon::Paragraph,
-        b"Insert" => StickyIcon::Insert,
-        _ => return None,
-    })
 }
 
 /// The [`StampName`] a `/Name` value denotes, or `None` for a stamp name
@@ -2845,7 +2830,14 @@ pub enum StickyIcon {
 
 impl StickyIcon {
     /// The `/Name` bytes (§12.5.6.4).
-    const fn name(self) -> &'static [u8] {
+    ///
+    /// Public since `Pass 259.1`. It was private, and `pdfcer-gui` reported
+    /// the consequence: *"even a shell that only wanted to DISPLAY which
+    /// icon an existing note carries cannot get from `/Name` to the enum,
+    /// nor from the enum to the bytes."* A closed type with no way in or
+    /// out is a type a consumer cannot use.
+    #[must_use]
+    pub const fn name(self) -> &'static [u8] {
         match self {
             Self::Comment => b"Comment",
             Self::Key => b"Key",
@@ -2855,6 +2847,44 @@ impl StickyIcon {
             Self::Paragraph => b"Paragraph",
             Self::Insert => b"Insert",
         }
+    }
+
+    /// The icon a `/Name` value denotes, or `None` for one pdfcer does not
+    /// draw.
+    ///
+    /// # ★ `None` is not an error, and a caller must not treat it as one
+    ///
+    /// §12.5.6.4's seven names are a **standard set, not a closed one** —
+    /// *"Additional names may be supported as well"* — so a producer's own
+    /// icon name is conforming and simply has no variant here. That is why
+    /// [`crate::annot::Annotation::icon`] reports the raw bytes: a shell
+    /// shows what the file says and falls back on its own terms, rather
+    /// than having an unknown name normalised to `Note` on the way past.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::annot_author::StickyIcon;
+    ///
+    /// assert_eq!(StickyIcon::from_name(b"Key"), Some(StickyIcon::Key));
+    /// assert_eq!(StickyIcon::from_name(b"Sparkle"), None);
+    ///
+    /// // Round trip, for every name pdfcer authors.
+    /// let icon = StickyIcon::Help;
+    /// assert_eq!(StickyIcon::from_name(icon.name()), Some(icon));
+    /// ```
+    #[must_use]
+    pub fn from_name(name: &[u8]) -> Option<Self> {
+        Some(match name {
+            b"Comment" => Self::Comment,
+            b"Key" => Self::Key,
+            b"Note" => Self::Note,
+            b"Help" => Self::Help,
+            b"NewParagraph" => Self::NewParagraph,
+            b"Paragraph" => Self::Paragraph,
+            b"Insert" => Self::Insert,
+            _ => return None,
+        })
     }
 }
 

@@ -524,6 +524,12 @@ pub enum CommandKind {
     /// that labels its undo stack would otherwise tell the operator the
     /// wrong one.
     SetAnnotationOpen,
+    /// [`EditSession::set_text_annot_style`] changed a text-bearing
+    /// annotation's icon or colour and re-baked its appearance.
+    SetTextAnnotStyle,
+    /// [`EditSession::add_review_state`] stamped `/State` + `/StateModel`
+    /// onto the state annotation it had just authored.
+    AddReviewState,
     /// [`EditSession::rotate_annotation`] turned an annotation about a point:
     /// its geometry keys, its appearance `/Matrix`, and the `/Rect` that
     /// bounds the result.
@@ -3131,6 +3137,72 @@ enum AppearanceSlot {
 /// field `build_appearance` then ignores, which is worse than not
 /// accepting them. Named rather than silently dropped: it is a real
 /// remainder, not a decision.
+/// Apply a [`TextAnnotStyle`] to a spec, leaving every field the caller did
+/// not name exactly as it was.
+///
+/// A free function beside [`apply_markup_style`], and shaped like it, so the
+/// two override models stay legible as the same idea applied to two spec
+/// families rather than drifting into two conventions.
+fn apply_text_annot_style(
+    spec: annot_author::TextAnnotSpec,
+    style: &TextAnnotStyle,
+) -> annot_author::TextAnnotSpec {
+    use annot_author::TextAnnotSpec;
+    match spec {
+        TextAnnotSpec::Sticky {
+            rect,
+            icon,
+            contents,
+            color,
+            open,
+        } => TextAnnotSpec::Sticky {
+            rect,
+            icon: style.icon.unwrap_or(icon),
+            contents,
+            color: style.color.unwrap_or(color),
+            open,
+        },
+        TextAnnotSpec::Stamp {
+            rect,
+            name,
+            label,
+            color,
+        } => TextAnnotSpec::Stamp {
+            rect,
+            name,
+            label,
+            color: style.color.unwrap_or(color),
+        },
+        // A `/FreeText`'s `/C` is its FRAME colour, and the spec models it
+        // as `Option<Color>` because a frameless text box is a real thing.
+        // `Some` sets it; `None` leaves it, which means this verb cannot
+        // REMOVE a frame -- the same limit `TextAnnotStyle::color` documents
+        // for the other two, and for the same reason: there is no way to
+        // say "remove" that is distinguishable from "do not touch".
+        TextAnnotSpec::FreeText {
+            rect,
+            text,
+            font,
+            font_size,
+            color,
+            quadding,
+            multiline,
+            border,
+            border_width,
+        } => TextAnnotSpec::FreeText {
+            rect,
+            text,
+            font,
+            font_size,
+            color,
+            quadding,
+            multiline,
+            border: style.color.or(border),
+            border_width,
+        },
+    }
+}
+
 fn apply_markup_style(
     spec: annot_author::MarkupSpec,
     style: &MarkupStyle,
@@ -15628,6 +15700,203 @@ pub struct AnnotationRotate {
     pub rect_differences_untouched: bool,
 }
 
+/// What to change about an existing text-bearing annotation's appearance —
+/// [`EditSession::set_text_annot_style`].
+///
+/// # Why this is not `MarkupStyle`
+///
+/// `MarkupStyle` reaches its annotation through
+/// [`annot_author::spec_from_dict`], whose arms are the geometric family and
+/// the four text markups. **There is no `/Text` arm**, and its own
+/// `SpecReadError::UnsupportedSubtype` names `Text` explicitly. So the two
+/// verbs are not a split anyone chose for tidiness — they read through
+/// different functions because the two families are modelled by different
+/// spec types, and `TextAnnotSpec` only became readable in `Pass 258.1`.
+///
+/// # A field left `None` is left alone
+///
+/// Same contract as `MarkupStyle`: this is an override set, not a
+/// replacement. A call that names only the icon does not touch the colour.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct TextAnnotStyle {
+    /// `/Name` — which icon a `/Text` sticky note displays (§12.5.6.4).
+    ///
+    /// **`/Text` only.** Refused by name on any other subtype
+    /// ([`EditError::StylePropertyNotApplicable`]): a `/Stamp`'s face comes
+    /// from its own `/Name` vocabulary and a `/FreeText` has no icon at all,
+    /// so silently ignoring this would be the swallowed-`width` defect
+    /// `Pass 258.0` closed, one family along.
+    pub icon: Option<annot_author::StickyIcon>,
+    /// `/C` — the annotation's colour (§12.5.2, Table 164).
+    ///
+    /// # Why this cannot CLEAR the colour, unlike `MarkupStyle::stroke`
+    ///
+    /// `TextAnnotSpec`'s three variants all carry a **required** `Color`:
+    /// a sticky note's icon, a stamp's face and a free text's frame are
+    /// drawn in one, and "no colour" is not a state the authoring type can
+    /// express. A `StyleEdit::Clear` here would have to invent a fallback —
+    /// silently picking yellow for a note whose colour an operator asked to
+    /// remove — so the option is not offered rather than offered and faked.
+    ///
+    /// The read half reports the file's truth either way:
+    /// [`crate::annot::Annotation::color`] distinguishes an absent `/C`
+    /// from an explicitly empty one.
+    pub color: Option<annot_author::Color>,
+}
+
+/// A review status a state annotation can carry (§12.5.6.3, Table 171;
+/// ISO 32000-2 Table 174 — renumbered, word-identical).
+///
+/// # ★ One enum for two vocabularies, so the pairing cannot be got wrong
+///
+/// The standard defines **two state models with disjoint value sets**, and
+/// Table 171 makes `/StateModel` *"Required if `State` is present"*. Keeping
+/// the model as a second argument would let a caller write `Accepted` under
+/// the `Marked` model — the one combination that is non-conforming — and
+/// nothing would catch it. Here each variant knows its own model
+/// ([`Self::model`]), so the pair is correct by construction and the
+/// authoring verb has no way to emit a mismatch.
+///
+/// # British spelling, verbatim
+///
+/// `Cancelled`, not `Canceled`. The standard's spelling is the wire format.
+///
+/// # `None` is a VALUE, not an absence
+///
+/// `Review`'s `None` means *"this user has explicitly set no status"* and is
+/// written into the file as the text string `None`. It is the model's
+/// default, but writing it is a different act from omitting `/State`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ReviewState {
+    /// `Review` model — the comment was accepted.
+    Accepted,
+    /// `Review` model — the comment was rejected.
+    Rejected,
+    /// `Review` model — the comment was cancelled. **British spelling**, as
+    /// the standard writes it.
+    Cancelled,
+    /// `Review` model — the comment was completed.
+    Completed,
+    /// `Review` model — no status. The model's default, and a writable
+    /// value in its own right.
+    None,
+    /// `Marked` model — the comment is marked.
+    Marked,
+    /// `Marked` model — the comment is not marked. The model's default.
+    Unmarked,
+}
+
+impl ReviewState {
+    /// The `/StateModel` this state belongs to, as the text string the file
+    /// carries.
+    ///
+    /// Derived rather than supplied — see the type's own note for why.
+    #[must_use]
+    pub const fn model(self) -> &'static str {
+        match self {
+            Self::Marked | Self::Unmarked => "Marked",
+            _ => "Review",
+        }
+    }
+
+    /// The `/State` value, as the text string the file carries.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::edit::ReviewState;
+    ///
+    /// assert_eq!(ReviewState::Cancelled.as_str(), "Cancelled");
+    /// assert_eq!(ReviewState::Cancelled.model(), "Review");
+    /// assert_eq!(ReviewState::Marked.model(), "Marked");
+    /// ```
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Accepted => "Accepted",
+            Self::Rejected => "Rejected",
+            Self::Cancelled => "Cancelled",
+            Self::Completed => "Completed",
+            Self::None => "None",
+            Self::Marked => "Marked",
+            Self::Unmarked => "Unmarked",
+        }
+    }
+}
+
+/// What [`EditSession::add_review_state`] authored.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ReviewStateAdded {
+    /// The state annotation created.
+    pub state_id: ObjId,
+    /// The annotation whose status this describes — the ROOT of the chain,
+    /// which is what a caller asked about.
+    pub target_id: ObjId,
+    /// What this state annotation's `/IRT` actually points at.
+    ///
+    /// # ★ Not always `target_id`, and that is the standard's doing
+    ///
+    /// §12.5.6.3, a `shall`: *"Additional state changes shall be made by
+    /// adding text annotations **in reply to the previous reply** for a
+    /// given user."* So the SECOND status this author sets chains onto their
+    /// own previous one rather than onto the target, and the chain per user
+    /// is what carries their history.
+    ///
+    /// This field is how a caller can see that happened. The failure it
+    /// guards against is invisible on screen: a star of state annotations
+    /// all pointing at the target renders identically to a correct chain.
+    pub attached_to: ObjId,
+    /// How deep the chain for this author now is — `1` for their first
+    /// status on this target.
+    pub chain_depth: usize,
+    /// The state written.
+    pub state: ReviewState,
+}
+
+/// What [`EditSession::add_reply`] authored.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ReplyAdded {
+    /// The reply annotation.
+    pub reply_id: ObjId,
+    /// The annotation it replies to — its `/IRT`.
+    pub parent_id: ObjId,
+    /// The page it was placed on, 0-based.
+    pub page_index: usize,
+    /// Whether the PARENT already had a `/Popup` before this call.
+    ///
+    /// # ★ Asked for by name, and the reason is worth keeping
+    ///
+    /// §12.5.6.14 makes a pop-up structural, and `pdfcer-gui` now **draws**
+    /// them. Their words: *"a reply that quietly acquired a second window at
+    /// a second location is something we would rather be told about than
+    /// discover on a screenshot."* This pair of booleans is that telling.
+    pub parent_had_popup: bool,
+    /// Whether the REPLY was given a `/Popup` of its own.
+    pub reply_has_popup: bool,
+}
+
+/// What [`EditSession::set_text_annot_style`] did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct TextAnnotStyleChange {
+    /// The annotation restyled.
+    pub annot_id: ObjId,
+    /// Its `/Subtype`.
+    pub subtype: String,
+    /// Whether `/Name` was rewritten.
+    pub icon_written: bool,
+    /// Whether `/C` was rewritten.
+    pub color_written: bool,
+    /// How the regenerated appearance was written — the same three-way
+    /// answer [`AppearanceWrite`] gives every other regenerating verb, so a
+    /// shell can tell an in-place rewrite from a copy-on-write that left
+    /// another annotation's stream alone.
+    pub appearance: AppearanceWrite,
+}
+
 /// What [`EditSession::set_annotation_open`] did.
 ///
 /// Two booleans rather than one, because `/Open` lives on up to two objects
@@ -26220,6 +26489,448 @@ impl EditSession {
         self.write_markup_note(annot_id, None)
     }
 
+    /// Record a **review status** on an annotation — a `/Text` annotation
+    /// carrying `/State`, `/StateModel`, `/T` and `/IRT` (§12.5.6.3).
+    ///
+    /// # The gap
+    ///
+    /// The operator, 2026-09-05: *"the review features should look and act
+    /// the same as they do in Acrobat Reader."* `pdfcer-gui`: *"`/State` and
+    /// `/StateModel`: Acrobat's whole review workflow is unreachable."*
+    /// `StateModel` appeared nowhere in `pdfcer-core` — not read, not
+    /// written, not modelled.
+    ///
+    /// # ★★ THE STATUS IS NOT WRITTEN ONTO THE ANNOTATION IT DESCRIBES
+    ///
+    /// §12.5.6.3 puts it on a **separate** `/Text` annotation that points at
+    /// the reviewed one through `/IRT`, and says so with a `shall`. That is
+    /// why this verb returns a new [`ObjId`] rather than mutating the
+    /// target, and why nothing about the target changes.
+    ///
+    /// # ★★ AND A SECOND STATUS CHAINS ONTO THE FIRST, PER AUTHOR
+    ///
+    /// The clause's last sentence is also a `shall`: *"Additional state
+    /// changes shall be made by adding text annotations **in reply to the
+    /// previous reply** for a given user."* So this verb **walks the `/IRT`
+    /// graph rooted at `target`**, keeps the annotations whose `/T` matches
+    /// `author`, and attaches to the deepest one — building a per-author
+    /// chain rather than a star.
+    ///
+    /// It is worth being blunt about why that is implemented rather than
+    /// simplified away: **the wrong shape is invisible.** A star of state
+    /// annotations all pointing at the target renders the same as a correct
+    /// chain in every viewer, so nothing would ever report it, and the
+    /// history a reviewer's chain encodes would simply not be there.
+    /// [`ReviewStateAdded::attached_to`] and
+    /// [`ReviewStateAdded::chain_depth`] expose what happened.
+    ///
+    /// # No resolver, and that is a decision rather than a scope cut
+    ///
+    /// Deciding which of several state annotations is *current* is left to
+    /// the caller, as `pdfcer-gui` asked (*"Give us the annotations and the
+    /// keys; we will pick"*) — and the standard supports that: it says
+    /// **nothing whatever** about ordering or currency. Measured over both
+    /// editions, no occurrence of `current state` or `most recent` concerns
+    /// annotations. `/M` is not required and empirically ties, so a
+    /// `/M`-sorted resolver would be guessing. Shipping none is
+    /// spec-correct.
+    ///
+    /// # Constraints honoured
+    ///
+    /// * `/State` and `/StateModel` are **text strings**, not names.
+    /// * `/StateModel` is derived from the state, so the one non-conforming
+    ///   combination cannot be expressed — see [`ReviewState`].
+    /// * `/IRT` requires **both annotations on the same page**, so the state
+    ///   is placed on the target's page.
+    /// * `/RT` is **omitted**: it defaults to `R`, and `/RT /Group` would be
+    ///   actively wrong here because `/T` is a group attribute that *"shall
+    ///   be ignored"* on subordinates — the status would survive while its
+    ///   owner vanished.
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::AnnotationNotFound`], [`EditError::NotADictionary`],
+    ///   [`EditError::AnnotationIsCeDimension`] — as for [`Self::add_reply`].
+    /// - [`EditError::DocumentEncrypted`], the certification gate and the
+    ///   allocation guards, as for every authoring verb.
+    pub fn add_review_state(
+        &mut self,
+        target_id: ObjId,
+        state: ReviewState,
+        author: &str,
+        modified: Option<&str>,
+    ) -> Result<ReviewStateAdded, EditError> {
+        // A state annotation IS a reply that carries two more keys, so it
+        // goes through the reply verb's placement, guards and page
+        // resolution rather than a second copy of them -- and through the
+        // `extra` seam, so the two keys land in the SAME command and one
+        // undo removes the whole status.
+        let (attached_to, chain_depth) = self.deepest_state_for_author(target_id, author);
+
+        let mut note = MarkupNote::new(String::new()).by(author.to_owned());
+        if let Some(m) = modified {
+            note = note.at(m.to_owned());
+        }
+        // `/Contents` is deliberately EMPTY. A status is not a comment, and
+        // inventing "Accepted" as the body would put a sentence in the
+        // operator's comment list that the operator never wrote.
+        let added = self.add_reply_with(
+            attached_to,
+            &note,
+            &[
+                (
+                    Name::from(b"State"),
+                    Object::String(encode_text_string(state.as_str())),
+                ),
+                (
+                    Name::from(b"StateModel"),
+                    Object::String(encode_text_string(state.model())),
+                ),
+            ],
+        )?;
+
+        Ok(ReviewStateAdded {
+            state_id: added.reply_id,
+            target_id,
+            attached_to,
+            chain_depth: chain_depth + 1,
+            state,
+        })
+    }
+
+    /// The annotation a new state by `author` must reply to, and how many
+    /// of that author's states already hang off `target`.
+    ///
+    /// §12.5.6.3's *"in reply to the previous reply for a given user"*.
+    /// Returns `target` itself when this author has no state on it yet.
+    ///
+    /// The walk is depth-bounded: a `/IRT` cycle is legal syntax (nothing in
+    /// §12.5.6.2 forbids one) and this must terminate on a malformed file
+    /// rather than hang.
+    fn deepest_state_for_author(&self, target: ObjId, author: &str) -> (ObjId, usize) {
+        const MAX_CHAIN: usize = 64;
+        let graph = self.graph();
+        let Ok(slots) = self.page_slots() else {
+            return (target, 0);
+        };
+        // Every annotation on every page, once -- the chain is page-bound by
+        // `/IRT`'s own rule, but reading them all is cheaper than resolving
+        // which page first and is what makes this robust to a file that
+        // broke that rule.
+        let all: Vec<crate::annot::Annotation> = slots
+            .iter()
+            .flat_map(|slot| crate::annot::page_annotations(&graph, slot.id))
+            .collect();
+
+        let mut current = target;
+        let mut depth = 0usize;
+        loop {
+            let next = all.iter().find(|a| {
+                a.in_reply_to == Some(current)
+                    && a.state.is_some()
+                    && a.title.as_deref() == Some(author)
+            });
+            match next {
+                Some(a) if depth < MAX_CHAIN => {
+                    let Some(id) = a.id else { break };
+                    current = id;
+                    depth += 1;
+                }
+                _ => break,
+            }
+        }
+        (current, depth)
+    }
+
+    /// Author a **reply** to an existing annotation — a `/Text` carrying
+    /// `/IRT` and `/RT /R` (§12.5.6.2, Table 170).
+    ///
+    /// # The gap
+    ///
+    /// `pdfcer-gui`, 2026-09-05: *"we can read a comment thread and cannot
+    /// add to it."* [`crate::annot::Annotation::in_reply_to`] and
+    /// [`crate::annot::Annotation::reply_type`] have modelled the two keys
+    /// since `Pass 38.5`, and nothing could write them — so a Comments panel
+    /// could display a conversation and not continue one.
+    ///
+    /// # Scope, fixed by the requester and kept deliberately small
+    ///
+    /// They named three non-requirements so the verb would stay small, and
+    /// all three are honoured:
+    ///
+    /// 1. **`/RT /R` only — no `/Group` authoring.** A group primary carries
+    ///    §12.5.6.2's *"shall be ignored"* rule for its subordinates'
+    ///    `/Contents`, `/M`, `/C`, `/T`, `/Popup`, `/CreationDate`, `/Subj`
+    ///    and `/Open`, which is a different feature with different
+    ///    semantics. Nobody has asked for it.
+    /// 2. **No cycle checking beyond the obvious.** A `/IRT` cycle is legal
+    ///    syntax and a reply-to-a-reply is wanted; the shell bounds its own
+    ///    walk. Only a reply to ITSELF is refused, which is not a thread.
+    /// 3. **No thread resolution.** `annot.rs`'s stated non-goal stands:
+    ///    this returns an annotation, not a conversation.
+    ///
+    /// # Placement, and why it does not matter much
+    ///
+    /// At the parent's own `/Rect`. The requester was explicit that they did
+    /// not care — *"a reader draws a reply inside its parent's window rather
+    /// than at its own coordinates"* — and co-locating keeps a reply from
+    /// appearing as a stray icon somewhere else on the sheet if a reader
+    /// ignores the thread.
+    ///
+    /// The reply is placed on **the page the parent is on**, found by
+    /// walking the page tree. A reply on a different page from its parent
+    /// would be legal and useless.
+    ///
+    /// # `/M` is the caller's, as always
+    ///
+    /// pdfcer reads no clock. See [`MarkupNote`] for why that is a
+    /// determinism decision rather than an omission.
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::AnnotationNotFound`] — no such parent on any page.
+    /// - [`EditError::NotADictionary`] — the parent is not an annotation.
+    /// - [`EditError::AnnotationIsCeDimension`] — a ce dimension is pdfcer's
+    ///   own construct, not a comment, and a reply to one would be a comment
+    ///   thread hung off a measurement.
+    /// - [`EditError::DocumentEncrypted`], the certification gate,
+    ///   [`EditError::ObjectCreationWouldExposeHiddenObjects`],
+    ///   [`EditError::ObjectNumbersExhausted`] — as for every authoring verb.
+    /// - [`EditError::MarkupNoteEmpty`] and the note's own validation.
+    pub fn add_reply(
+        &mut self,
+        parent_id: ObjId,
+        note: &MarkupNote,
+    ) -> Result<ReplyAdded, EditError> {
+        self.add_reply_with(parent_id, note, &[])
+    }
+
+    /// [`Self::add_reply`], plus extra dictionary entries written into the
+    /// same command.
+    ///
+    /// Private: the only caller is [`Self::add_review_state`], and the pair
+    /// of keys it passes is meaningless without the rules that verb
+    /// enforces. Exposing it would be exposing "write any key you like onto
+    /// an annotation pdfcer authored", which is not a capability with a
+    /// contract.
+    fn add_reply_with(
+        &mut self,
+        parent_id: ObjId,
+        note: &MarkupNote,
+        extra: &[(Name, Object)],
+    ) -> Result<ReplyAdded, EditError> {
+        note.validate()?;
+
+        // The parent's dictionary, and WHICH PAGE it sits on. The page is
+        // not on the read model, so it is resolved by the same page-tree
+        // walk `locate_annotation` does -- a reply belongs on its parent's
+        // page, and one placed elsewhere would be legal and useless.
+        let (page_index, parent_dict) = {
+            let slots = self.page_slots()?;
+            let graph = self.graph();
+            let mut found = None;
+            for (index, slot) in slots.iter().enumerate() {
+                if crate::annot::page_annotations(&graph, slot.id)
+                    .iter()
+                    .any(|a| a.id == Some(parent_id))
+                {
+                    found = Some(index);
+                    break;
+                }
+            }
+            let Some(index) = found else {
+                return Err(EditError::AnnotationNotFound { id: parent_id });
+            };
+            let Some(Object::Dict(dict)) = graph.value(parent_id) else {
+                return Err(EditError::NotADictionary {
+                    id: parent_id,
+                    key: "Subtype",
+                });
+            };
+            (index, dict.clone())
+        };
+
+        if self.is_ce_dimension(parent_id, &parent_dict) {
+            return Err(EditError::AnnotationIsCeDimension { id: parent_id });
+        }
+
+        let parent_had_popup = parent_dict.contains_key(b"Popup");
+        let rect = {
+            let slots = self.page_slots()?;
+            let page_id = slots
+                .get(page_index)
+                .ok_or(EditError::AnnotationNotFound { id: parent_id })?
+                .id;
+            let graph = self.graph();
+            crate::annot::page_annotations(&graph, page_id)
+                .into_iter()
+                .find(|a| a.id == Some(parent_id))
+                .and_then(|a| a.rect)
+                .ok_or(EditError::AnnotationNotFound { id: parent_id })?
+        };
+
+        // A sticky note is the reply's carrier: §12.5.6.2 puts no constraint
+        // on a reply's subtype, and a `/Text` is the one an operator expects
+        // to see in a comments list. Its colour follows the PARENT's when the
+        // parent has one, so a thread reads as a thread rather than as a
+        // yellow note answering a red one.
+        // Follow the PARENT's colour when it has one, so a thread reads as
+        // a thread rather than as a yellow note answering a red one. The
+        // component count is the colour space (Table 164) -- the same fact
+        // `Annotation::color` reports raw -- so an array pdfcer cannot map
+        // falls back rather than being reinterpreted.
+        let color = {
+            let graph = self.graph();
+            match parent_dict.get(b"C").map(|o| graph.resolve(o)) {
+                Some(Object::Array(items)) => {
+                    let c: Vec<f64> = items
+                        .iter()
+                        .filter_map(|o| graph.resolve(o).as_number())
+                        .collect();
+                    match c.as_slice() {
+                        [g] => annot_author::Color::Gray(*g),
+                        [r, gr, b] => annot_author::Color::Rgb(*r, *gr, *b),
+                        [c0, m, y, k] => annot_author::Color::Cmyk(*c0, *m, *y, *k),
+                        _ => annot_author::Color::Rgb(1.0, 1.0, 0.0),
+                    }
+                }
+                _ => annot_author::Color::Rgb(1.0, 1.0, 0.0),
+            }
+        };
+
+        let spec = TextAnnotSpec::Sticky {
+            rect,
+            icon: annot_author::StickyIcon::Comment,
+            contents: note.text.clone(),
+            color,
+            // A reply arrives closed. Opening every reply on load would
+            // stack windows over the sheet, and `/Open` is now settable
+            // (`set_annotation_open`) for a shell that wants otherwise.
+            open: false,
+        };
+
+        let reply_id = self.add_text_annotation_inner(
+            page_index,
+            &spec,
+            &MarkupOptions {
+                note: Some(note.clone()),
+                ..Default::default()
+            },
+            Some(parent_id),
+            extra,
+        )?;
+
+        let reply_has_popup = matches!(
+            self.value(reply_id),
+            Some(Object::Dict(d)) if d.contains_key(b"Popup")
+        );
+
+        Ok(ReplyAdded {
+            reply_id,
+            parent_id,
+            page_index,
+            parent_had_popup,
+            reply_has_popup,
+        })
+    }
+
+    /// Restyle an existing **text-bearing** annotation — a sticky note's
+    /// icon and colour, a stamp's or free text's colour — keeping its object
+    /// identity.
+    ///
+    /// # ★ The gap this closes, and why it needed `Pass 258.1` first
+    ///
+    /// `pdfcer-gui`, 2026-09-05, after the operator asked that *"these are
+    /// fully editable"*: a sticky note's icon and colour were **write-once**.
+    /// [`Self::set_markup_style`] cannot reach a `/Text` at all — it reads
+    /// through [`annot_author::spec_from_dict`], which has no `b"Text"` arm
+    /// and says so in its own error type. So the only route to a different
+    /// icon was **delete the note and place another**, losing its `/M`, its
+    /// object identity and any reply thread hung off it.
+    ///
+    /// The blocker was the missing reader, not the missing writer.
+    /// [`annot_author::text_spec_from_dict`] shipped in `Pass 258.1` for the
+    /// `/FreeText` re-bake, and this verb is the second of the three
+    /// surfaces that request predicted it would unblock.
+    ///
+    /// # It regenerates the appearance, and must
+    ///
+    /// R43: pdfcer paints from `/AP` or not at all. Writing `/Name` alone
+    /// would leave the note drawing its old icon while the dictionary
+    /// claimed otherwise — a file whose two halves disagree, which is the
+    /// same defect `Pass 258.1` closed for a `/FreeText`'s words. The
+    /// appearance is re-baked from the amended spec through the same
+    /// [`annot_author::build_text_annotation`] that authored it.
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::StylePropertyNotApplicable`] — an `icon` on anything
+    ///   but a `/Text`.
+    /// - [`EditError::MarkupSpec`] — the subtype is not text-bearing, or its
+    ///   spec cannot be read back (`text_spec_from_dict`'s refusals).
+    /// - [`EditError::TextAnnotation`] — the amended spec cannot be laid out.
+    /// - [`EditError::DocumentEncrypted`], the certification gate,
+    ///   [`EditError::NotADictionary`], [`EditError::AppearanceHasStates`],
+    ///   [`EditError::ObjectCreationWouldExposeHiddenObjects`] — as for
+    ///   [`Self::set_markup_style`].
+    pub fn set_text_annot_style(
+        &mut self,
+        annot_id: ObjId,
+        style: &TextAnnotStyle,
+    ) -> Result<TextAnnotStyleChange, EditError> {
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+        self.check_certification_for_annotation()?;
+
+        let (target, _all) = self.locate_annotation(annot_id)?;
+        let subtype = target.subtype_label();
+
+        // Refuse an inapplicable property BEFORE anything is written, the
+        // posture `Pass 258.0` established: a silently swallowed request is
+        // treated here as worse than a named refusal.
+        if style.icon.is_some() && target.subtype != b"Text" {
+            return Err(EditError::StylePropertyNotApplicable {
+                id: annot_id,
+                subtype: subtype.clone(),
+                property: "a sticky-note icon",
+            });
+        }
+
+        let Some(Object::Dict(current)) = self.value(annot_id) else {
+            return Err(EditError::NotADictionary {
+                id: annot_id,
+                key: "Subtype",
+            });
+        };
+        let current = current.clone();
+
+        let original = annot_author::text_spec_from_dict(&self.graph(), &current)?;
+        let amended = apply_text_annot_style(original, style);
+        let authored = annot_author::build_text_annotation(&amended)?;
+
+        let regen = self.regenerate_markup_appearance(
+            annot_id,
+            &current,
+            annot_author::AuthoredAppearance {
+                annot: authored.annot,
+                ap_dict: authored.ap_dict,
+                ap_content: authored.ap_content,
+                rect: authored.rect,
+            },
+        )?;
+        let appearance = regen.appearance;
+        self.commit_regenerated_markup(annot_id, regen, CommandKind::SetTextAnnotStyle);
+
+        Ok(TextAnnotStyleChange {
+            annot_id,
+            subtype,
+            icon_written: style.icon.is_some(),
+            color_written: style.color.is_some(),
+            appearance,
+        })
+    }
+
     /// Open or close an annotation's pop-up window — `/Open` on the
     /// annotation **and on its `/Popup` companion**, as one undo entry.
     ///
@@ -28864,7 +29575,7 @@ impl EditSession {
         options: &MarkupOptions,
     ) -> Result<ObjId, EditError> {
         options.validate()?;
-        self.add_text_annotation_inner(page_index, spec, options)
+        self.add_text_annotation_inner(page_index, spec, options, None, &[])
     }
 
     fn add_text_annotation_inner(
@@ -28872,6 +29583,18 @@ impl EditSession {
         page_index: usize,
         spec: &TextAnnotSpec,
         options: &MarkupOptions,
+        // `Some(parent)` authors this annotation as a REPLY: `/IRT parent`
+        // plus `/RT /R`, written into the same command as the annotation
+        // itself so a reply is one undo entry rather than an add followed
+        // by a patch. Private, because a caller reaches it through
+        // `add_reply`, whose name says what the pair of keys means.
+        reply_to: Option<ObjId>,
+        // Extra dictionary entries stamped onto the annotation before the
+        // command is built, so a caller that needs more than the spec type
+        // expresses gets ONE undo entry rather than an add followed by a
+        // patch. `/State` + `/StateModel` are the reason it exists; see
+        // `add_review_state`.
+        extra: &[(Name, Object)],
     ) -> Result<ObjId, EditError> {
         // Guards, identical order to add_markup (X10, X11, /Size) — and
         // identical GATE as of `Pass 38.5`: the annotation-aware one, since
@@ -28989,6 +29712,20 @@ impl EditSession {
 
         if let Some(pid) = popup_id {
             annot.insert(Name::from(b"Popup"), Object::Reference(pid));
+        }
+
+        // `/IRT` + `/RT /R` (§12.5.6.2, Table 170). `/RT` is written
+        // EXPLICITLY even though Table 170's default is `R`, because the
+        // absent case is what `Annotation::reply_type` reports as "the file
+        // said nothing" -- and a reply pdfcer authored should say what it
+        // is rather than rely on a reader applying the default. `/Group` is
+        // deliberately not authorable here; see `add_reply`.
+        if let Some(parent) = reply_to {
+            annot.insert(Name::from(b"IRT"), Object::Reference(parent));
+            annot.insert(Name::from(b"RT"), Object::Name(Name::from(b"R")));
+        }
+        for (key, value) in extra {
+            annot.insert(key.clone(), value.clone());
         }
 
         let mut objects = vec![

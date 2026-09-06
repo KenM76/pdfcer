@@ -6356,3 +6356,164 @@ discipline, and it paid):
   Python string holds `\\` in the SCRIPT and `\` at RUNTIME, so a later
   `str.replace` over the SCRIPT file needs **four** backslashes, not two. Print
   `[i for i,c in enumerate(line) if c=='\\']` rather than guessing from `repr`.
+
+
+---
+
+## 72. The **INGEST-THE-CLAUSE-THE-CORPUS-ONLY-SUMMARISED, DRIVEN BY A DOWNSTREAM PROJECT'S FEATURE REQUEST** dispatch — *"the corpus has two lines on §12.5.6.3; the GUI project cannot build a review-status model against them"* (2026-09-06, `iso32000__s__12.5.6.3.md`, for the `/State` + `/StateModel` implementation)
+
+**Shape.** A **sibling project** (`pdfcer-gui`) filed a feature request naming the exact
+corpus lines it tried to build against and could not. The dispatch quoted them, listed
+7 numbered questions, guessed one answer and **explicitly invited refutation of the
+guess**, and asked for a same-session correction to the summarising file. **Six of the
+seven questions were determinate; the headline was a `shall` nobody asked about.**
+
+### 72a. ★★★ THE HEADLINE WAS A `shall` IN THE CLAUSE'S **LAST SENTENCE**, AND IT BREAKS THE DISPATCH'S PROPOSED API SIGNATURE
+
+§12.5.6.3's closing sentence — *"Additional state changes **shall** be made by adding
+text annotations **in reply to the previous reply** for a given user."* — means the
+**second** status set by a user has `/IRT` → **that user's previous state annotation**,
+not → the target. The dispatch proposed
+`add_review_state(target, state, user, m)`, which is **correct only for the first
+change**. ⇒ **the verb cannot be a pure function of its arguments**; it must walk the
+existing `/IRT` graph rooted at `target`, filter by `/T`, and attach to the deepest node
+for that user. A writer that always attaches to `target` produces a **star** where the
+standard mandates a **chain**, and *every viewer still renders something*, so the
+violation is invisible.
+
+**Generalise: read the clause's LAST sentence as carefully as its first.** Three
+paragraphs of definition were followed by one sentence of *maintenance* semantics, and
+the maintenance sentence is the one with a blast radius. Same shape as **63f** (the key
+the implementation turns on was a default) and **69b** (the constraint was on the
+container, not the clause).
+
+### 72b. ★★ THE SAME CROSS-REFERENCE WAS WRONG IN **BOTH** EDITIONS BECAUSE IT WAS **MECHANICALLY RENUMBERED**
+
+§12.5.6.3 cites `/IRT` as *"see Table 173"* (1.7) and *"see Table 176"* (2.0). **Both are
+the LINK-ANNOTATION table**; `/IRT` is in the MARKUP table (1.7 Table 170 / 2.0 Table 172).
+The error tracked the wrong table **perfectly across twelve years and one edition**,
+because the renumbering pass updated the pointer without checking the target.
+
+**⇒ New probe, cheap, for any clause file: follow every table cross-reference the clause
+makes and confirm the cited table actually contains the named key.** Two of three in this
+clause were right (`/T` → Table 170 ✓, `/State`/`/StateModel` → Table 172 ✓) and one was
+wrong — so the error is not detectable by "the citations look consistent".
+
+ISO-approved erratum **Issue #479** (`closed`, label `ISO approved`) fixes the 2.0 half;
+**the 1.7 half stands forever** — `pdf-issues.pdfa.org` has **no 32000-1 tree** (index
+enumerated: `32000-2-2020`, `14289-1-2014`, `19005-4-2020`, `21757-1-2020`,
+`15930-9-2020`, `16612-3-2020`, `16684-2-2014`, `14739-1-2014`). Third instance of the
+1.7-erratum-stands-forever shape after `HD-E1` and `MK-E1`.
+
+### 72c. ★★ THE STANDARD'S OWN PUBLISHED FILE IMPLEMENTS THE CLAUSE — AND IT IS THE BEST AVAILABLE WORKED EXAMPLE
+
+§12.5.6.3 has **no EXAMPLE, no NOTE, no figure** in either edition (measured; contrast
+§12.5.6.4, which does carry a worked `22 0 obj`). But the **staged
+`ISO_32000-2_sponsored_EC3.pdf` errata markup IS a conforming instance of this exact
+mechanism**, and it settles two questions the prose leaves open:
+
+- **A 3-deep chain exists** (physical p. 495: `/Caret` 5100 ← `Completed` 5102 ←
+  `Accepted` 5112 ← `Completed` 5119, all `/T (PDF Association)`) — confirming the
+  per-user chain is real, not theoretical.
+- **`/M` TIES.** Objects 5102 and 5112 carry the *same* `/M D:20240429120000+2'00'`.
+  ⇒ **a `/M`-sorted "current status" resolver picks wrong 50 % of the time on ISO's own
+  file**, which is a far stronger argument against that resolver than "the standard is
+  silent". This also **refines memory item 3-ISO2-ter** ("walk `/IRT` and take max `/M`"):
+  the `/IRT` chain is authoritative, `/M` is a tie-breaker that can itself tie.
+
+**Generalise: when a clause has no EXAMPLE, check whether one of the corpus's own STAGED
+SOURCES is an instance of the feature.** A specification PDF is a PDF.
+
+### 72d. ★★ GRADING "WHICH ONE IS CURRENT?" — COUNT THE PHRASE THE STANDARD WOULD HAVE USED
+
+Item **63a** applied to a *currency* question rather than a *permission* question:
+
+| probe | 1.7 | 2.0 | where the hits are |
+|---|---|---|---|
+| `current state` | **5** | **5** | graphics-state stack (§8.4.2) + optional-content group states (§8.11). **Zero** about annotations. |
+| `most recent` | 12 | 17 | none in §12.5.6 |
+| `pdf-issues` API `StateModel` | **0 results** | | positive control: `Annotation states` → **38** |
+
+⇒ **PERMANENT ambiguity, evidenced.** And the deliverable inverted the usual advice:
+the dispatch pre-emptively said *"we do not need a resolver"* and asked only to be told
+whether the standard said anything. **The right answer was to promote that scope cut to a
+SPEC-CORRECT DECISION** — shipping no resolver is what the standard supports, not a gap
+being tolerated. **When a dispatch apologises for a scope cut, check whether the standard
+endorses it; saying so is worth more than the negative result.**
+
+### 72e. ★ A `text string` TYPE HAS FOUR CONSEQUENCES A `name` DOES NOT, AND ONLY ONE IS OBVIOUS
+
+`/State` and `/StateModel` are `text string`s in both editions (`/State (Accepted)`, never
+`/State /Accepted`). Beyond the obvious syntax:
+
+1. **Strings are ENCRYPTED; names are not** (§7.6). A writer that "optimises" an
+   identifier-shaped value into a name produces a document whose review states survive
+   decryption differently from every other string.
+2. **§7.9.2 encoding applies** — PDFDocEncoding or UTF-16BE with a `FE FF` BOM. All eight
+   defined values are ASCII, but a producer *may* emit UTF-16BE ⇒ **compare after string
+   decoding, never on raw bytes.**
+3. **No `shall be one of`** anywhere for either key ⇒ an unlisted value is *unhandled*,
+   not *illegal* ⇒ an `Other(Vec<u8>)` escape is **spec-grounded**, not defensive coding.
+4. Value-name spelling is load-bearing and non-obvious in two places: **British
+   `Cancelled`**, and **`None` is a WRITABLE member of the `Review` vocabulary**, not
+   "the key is absent".
+
+**Whenever a corpus file records a key, record its TYPE and then ask what the type
+implies about encryption, encoding and comparison.** A type-column reading is not
+finished at the syntax.
+
+### 72f. ★ THE OPERATIVE CONSTRAINTS LIVED OUTSIDE THE DISPATCHED CLAUSE — INCLUDING ONE THAT SILENTLY DESTROYS THE FEATURE
+
+The clause is six sentences. Everything a writer needs is elsewhere:
+
+- **`/IRT`'s *"Both annotations shall be on the same page of the document"*** (Table 170 /
+  2.0-172) ⇒ a state annotation is **page-bound** to its target; page delete/extract must
+  cascade. **Never mentioned in §12.5.6.3.**
+- **`/IRT` changes TYPE in FDF** — a text string holding the target's `/NM` ⇒ a review
+  state that must survive an FDF round-trip **requires the target to carry `/NM`**, which
+  is Optional.
+- **`/RT` defaults to `R`** (Table 170) — so omitting `/RT` is correct. **But `/RT /Group`
+  is actively destructive here**, via a two-hop mechanism: §12.5.6.2's group paragraph
+  lists **`T`** among the "group attributes" that *"shall be ignored"* on subordinates,
+  and `/T` is precisely what §12.5.6.3 uses to identify the user. `/State` is **not** in
+  that ignore list ⇒ **the state survives while its owner vanishes.** No single clause
+  states this; it is the conjunction of three.
+
+**Generalise: for any clause that says "indicate X with entries A, B, C", read A, B and
+C's OWN table rows in full — the obligations that make the feature work or break are
+usually there, not in the clause that names them.**
+
+### 72g. Filing shape
+
+- `iso32000__s__12.5.6.3.md` (45 kB), modelled on `iso32000__s__12.5.6.19.md` /
+  `iso32000__s__12.6.4.10.md`. ID scheme `AS-0.x` (read-first) / `AS-Wn` (authoring) /
+  `AS-Nn` (measured negatives) / `AS-An` (ambiguities) / `AS-Gn` (gaps) / `AS-E1`
+  (erratum) / **`AS-D1` (a measured DELETION — a new ID kind, distinct from an erratum
+  because nothing is wrong, the sentence simply left)**.
+- **The summarising file was CORRECTED IN PLACE, not rewritten** (`iso32000__s__12.5.6.md`
+  lines 299–302). A dated `★ UPDATED 2026-09-06 — SUPERSEDED FOR AUTHORING` blockquote
+  spliced **directly under the bullet**, opening with *"Nothing above this note is
+  wrong"*, then the four losses enumerated (type / carrier / values / binding). Precedent
+  followed exactly: that file's own `/BE` `/I` note. `updated:` bumped, keywords +
+  `related_files` extended.
+- **`iso32000__s__12.5.6.md` IS CRLF** (the second corpus file found to be, after
+  `LEGAL_NOTE.md` — item 71f). The `Edit` tool preserved it; a Python patch needed
+  `newline=""` **and** CRLF in the match strings. **Verified after: 878 CRLF / 0 bare LF.**
+  ⇒ **`file <path>` before editing is now a two-file habit, not a one-file exception.**
+- `index.md`: **1 file-table row + 8 trigger rows + 8 search-recipe lines + 2
+  spec-ambiguity-register rows + the prefix-table COUNT cell.** Count **recounted from
+  disk (103 → 105)** — the cell was stale by one *again*, **sixth session running**.
+- ★★ **THREE of my own load-bearing quotations were LINE-WRAPPED and therefore
+  UN-GREPPABLE** — `in reply to the previous reply`, `Both annotations shall be on the
+  same page of the document`, and `The state is not specified in the annotation itself…`
+  all returned **0** on a flat phrase grep of the file I had just written. One of them was
+  in a search recipe I had just added, which is how it was caught. **Item 63j's rule
+  ("execute every recipe you add") caught one; the other two needed a deliberate audit.**
+  ⇒ **NEW STANDING STEP: after writing a clause file, flat-grep every sentence you expect
+  a future reader to search for, and unwrap the ones that fail.** Cheap loop:
+  `for p in "<phrase>" ...; do printf "%s %s\n" "$p" "$(grep -c "$p" FILE)"; done`.
+- Licence audit (70f): four blockquote blocks ≥6 lines, **all four ISO 32000-1
+  `free_primary`**; every ISO 32000-2 reading is paraphrase or fragment-length quotation.
+  The two long *quotations* of 2.0's corrected text come from the **free**
+  `pdf-issues.pdfa.org` `<ins>`/`<del>` page, not from the licensed PDF — **the standard
+  route for quoting a licensed clause: quote its erratum instead.**

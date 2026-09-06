@@ -396,6 +396,100 @@ pub struct Annotation {
     /// as 0.25. That is why pdfcer's markup writer sets `/CA` alone and leaves
     /// the appearance's graphics state at 1.0.
     pub constant_alpha: Option<f64>,
+    /// `/C` — the annotation's colour, as the **raw component array**
+    /// (§12.5.2, Table 164).
+    ///
+    /// # ★ Why raw components and not a typed colour
+    ///
+    /// **The component COUNT is the colour space**, and Table 164 says so:
+    /// 0 components means *no colour, transparent*; 1 is `DeviceGray`; 3 is
+    /// `DeviceRGB`; 4 is `DeviceCMYK`. So the array's length is information,
+    /// and a file carrying **two** components is malformed in a way a reader
+    /// should be able to SEE rather than have repaired underneath it (R27).
+    /// `pdfcer-gui` asked for exactly this shape and gave that reason.
+    ///
+    /// A typed enum would have to either refuse the two-component case,
+    /// losing the annotation, or invent a space for it, losing the evidence.
+    /// Authoring is where a type belongs, and
+    /// [`crate::annot_author::Color`] is that type.
+    ///
+    /// # An empty array is NOT the same as an absent key
+    ///
+    /// `Some(vec![])` is the standard's own spelling of *"no colour"* — a
+    /// zero-length array is explicitly admitted — while `None` means the
+    /// file said nothing at all and the reader's own default applies. The
+    /// same distinction [`Self::open`] draws, for the same reason.
+    ///
+    /// # What it colours depends on the subtype
+    ///
+    /// Table 164 defines `/C` as the colour of the annotation's **background
+    /// or title bar**, and each subtype's own table narrows it: on a markup
+    /// annotation it is the stroke, on a `/Text` it is the icon, on a
+    /// `/Popup` the window. This field reports the key; it does not
+    /// interpret which surface the value paints.
+    pub color: Option<Vec<f64>>,
+    /// `/Name` — the icon a `/Text` or `/FileAttachment` annotation displays
+    /// (§12.5.6.4, §12.5.6.15), as **raw name bytes**.
+    ///
+    /// # Raw bytes, for the same reason `/C` is raw components
+    ///
+    /// §12.5.6.4's list — `Comment`, `Key`, `Note`, `Help`, `NewParagraph`,
+    /// `Paragraph`, `Insert` — is a **standard set, not a closed one**:
+    /// *"Additional names may be supported as well."* So a producer's own
+    /// icon name is conforming, and [`crate::annot_author::StickyIcon`] has
+    /// no `Other` variant to hold one. Reporting the bytes lets a shell show
+    /// what the file actually says and fall back on its own terms, rather
+    /// than having the value silently normalised to `Note` on the way past.
+    ///
+    /// Authoring is again where the type belongs: pdfcer writes only names
+    /// it can draw an appearance for.
+    ///
+    /// `None` for every subtype that has no `/Name`, and for one whose
+    /// `/Name` is not a name object.
+    pub icon: Option<Vec<u8>>,
+    /// `/State` — this annotation's review status (§12.5.6.3, Table 171;
+    /// 2.0 Table 174), as the **decoded text string**.
+    ///
+    /// # ★ The state is on a SEPARATE annotation, not on the one reviewed
+    ///
+    /// §12.5.6.3 is explicit and says it with a `shall`: *"The state is not
+    /// specified in the annotation itself but in a separate text annotation
+    /// that refers to the original annotation by means of its `IRT` …
+    /// entry"*, and *"State changes made by a user **shall** be indicated in
+    /// a text annotation"*. So a caller looking for "the status of this
+    /// comment" reads the annotations that reply to it, not this field on
+    /// the comment.
+    ///
+    /// `/Subtype /Text` is the **only** subtype whose table defines `/State`.
+    ///
+    /// # Verbatim, and why it is a `String` rather than an enum
+    ///
+    /// Neither key carries a *"shall be one of"* anywhere in either edition,
+    /// so a value outside Table 171's vocabulary is **unhandled, not
+    /// illegal**. Reporting it verbatim is therefore reading the file rather
+    /// than tolerating it. [`crate::edit::ReviewState`] is the closed set
+    /// pdfcer AUTHORS; this is the open set it reads.
+    ///
+    /// # An absent `/State` is NOT independently interpretable
+    ///
+    /// Table 171's default depends on the model: `Unmarked` when
+    /// [`Self::state_model`] is `Marked`, `None` when it is `Review`. And
+    /// `None` is a **writable value**, not a spelling of "the key is
+    /// absent". A caller that wants the effective state must read both
+    /// fields together.
+    pub state: Option<String>,
+    /// `/StateModel` — which review vocabulary [`Self::state`] belongs to
+    /// (§12.5.6.3): `Marked` or `Review`, as the decoded text string.
+    ///
+    /// # The binding is ASYMMETRIC, which a writer must know
+    ///
+    /// Table 171: `/StateModel` is *"Required if `State` is present,
+    /// otherwise optional"*. The converse does **not** hold — a
+    /// `/StateModel` with no `/State` is legal and means the model's
+    /// default. So the only non-conforming combination is `/State` present
+    /// with this absent, and pdfcer's authoring side makes that
+    /// unrepresentable by deriving the model from the state.
+    pub state_model: Option<String>,
     /// The selected normal (`/N`) appearance, per §12.5.5.
     pub appearance: Appearance,
     /// Whether `/Subtype` is `Popup` (§12.5.6.14). A `/Popup` is a reader
@@ -1100,6 +1194,33 @@ fn model_annotation<G: ObjectGraph + ?Sized>(
         .map(|o| graph.resolve(o))
         .and_then(Object::as_number)
         .map(|v| v.clamp(0.0, 1.0));
+    // `/C` as raw components (Table 164). The LENGTH is the colour space, so
+    // nothing is normalised, clamped or refused here -- see the field. A
+    // non-numeric element is dropped, which shortens the array and is
+    // therefore visible as the malformation it is rather than being silently
+    // substituted with a zero.
+    let color = match dict.get(b"C").map(|o| graph.resolve(o)) {
+        Some(Object::Array(items)) => Some(
+            items
+                .iter()
+                .filter_map(|o| graph.resolve(o).as_number())
+                .collect(),
+        ),
+        _ => None,
+    };
+    // `/Name`, raw. §12.5.6.4's icon set is open ("Additional names may be
+    // supported as well"), so a producer's own name reaches the caller
+    // unmangled.
+    let icon = match dict.get(b"Name").map(|o| graph.resolve(o)) {
+        Some(Object::Name(n)) => Some(n.as_bytes().to_vec()),
+        _ => None,
+    };
+    // §12.5.6.3. BOTH ARE TEXT STRINGS, not names -- so they decode through
+    // §7.9.2 like any other text string, which matters because a producer
+    // may emit UTF-16BE and a byte comparison against "Accepted" would then
+    // silently miss. `text_of` is the same decoder `/Contents` uses.
+    let state = text_of(b"State");
+    let state_model = text_of(b"StateModel");
     let contents = text_of(b"Contents");
     let title = text_of(b"T");
     let mod_date = text_of(b"M");
@@ -1161,6 +1282,10 @@ fn model_annotation<G: ObjectGraph + ?Sized>(
         line,
         ink_list,
         constant_alpha,
+        color,
+        icon,
+        state,
+        state_model,
         appearance,
         is_popup,
         oc,

@@ -135,6 +135,15 @@ OUTCOME_STRUCTS: list[tuple[str, str]] = [
     # most needs the coverage is `popup_written`: a shell that ignored it
     # would tell an operator a window opened when there was no window.
     ("crates/pdfcer-core/src/edit.rs", "AnnotationOpenChange"),
+    # `Pass 259.1`, registered in the same commit as the structs -- the gate
+    # is opt-in, so "clean" means "clean about what it was told about".
+    # `ReviewStateAdded::attached_to` is the one that most needs a reader:
+    # a star of state annotations renders identically to the per-user chain
+    # 12.5.6.3 requires, so that field is the ONLY place the difference is
+    # visible to anyone.
+    ("crates/pdfcer-core/src/edit.rs", "TextAnnotStyleChange"),
+    ("crates/pdfcer-core/src/edit.rs", "ReplyAdded"),
+    ("crates/pdfcer-core/src/edit.rs", "ReviewStateAdded"),
     # `Pass 119.0`. Not in `edit.rs`, and that is the point: the gate's list was
     # written from ONE file, so every report type living in a submodule was
     # outside it while the summary line read "clean". `EditReport` gained three

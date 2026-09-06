@@ -4805,6 +4805,135 @@ enum Command {
         #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
         mode: SaveMode,
     },
+    /// **Restyle a sticky note, stamp or text box** — its icon and/or its
+    /// colour (ISO 32000-1 §12.5.6.4, §12.5.2 Table 164).
+    ///
+    /// THE VERB `set-markup-style` CANNOT REACH THESE SUBTYPES. That one
+    /// reads through the geometric spec model, which has no `/Text` arm and
+    /// says so by name; before `Pass 259.1` the only route to a different
+    /// icon was to delete the note and place another, losing its `/M`, its
+    /// object identity and any reply hung off it.
+    ///
+    /// The appearance is REGENERATED, because pdfcer paints from `/AP` or
+    /// not at all — writing `/Name` alone would leave the note drawing its
+    /// old icon while the dictionary claimed otherwise.
+    ///
+    /// `--icon` is refused by name on anything but a `/Text`: a stamp's face
+    /// comes from its own vocabulary and a text box has no icon.
+    SetTextAnnotStyle {
+        /// Input PDF.
+        input: PathBuf,
+        /// Page, 1-BASED — the `page=` value `list-annotations` prints.
+        #[arg(long)]
+        page: usize,
+        /// Index within that page's `/Annots`, 0-BASED.
+        #[arg(long)]
+        index: usize,
+        /// Sticky-note icon. `/Text` only.
+        #[arg(long, value_name = "NAME")]
+        icon: Option<StickyIconArg>,
+        /// Colour as `RRGGBB` hex.
+        ///
+        /// There is no `none`: the authoring model gives a note's icon, a
+        /// stamp's face and a text box's frame a REQUIRED colour, so "no
+        /// colour" is not a state it can express and offering the word
+        /// would mean inventing a fallback.
+        #[arg(long, value_name = "RRGGBB")]
+        color: Option<String>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
+
+    /// **Set a review status on a comment** — `/State` + `/StateModel`
+    /// (ISO 32000-1 §12.5.6.3, Table 171).
+    ///
+    /// THE STATUS IS NOT WRITTEN ONTO THE COMMENT. §12.5.6.3 puts it on a
+    /// SEPARATE text annotation that points back through `/IRT`, and says
+    /// so with a `shall` — so this creates an annotation and leaves the one
+    /// you named untouched.
+    ///
+    /// A SECOND STATUS BY THE SAME AUTHOR CHAINS ONTO THEIR FIRST, not onto
+    /// the comment: "Additional state changes shall be made by adding text
+    /// annotations in reply to the previous reply for a given user." The
+    /// printed `attached_to=` says which annotation this one replied to,
+    /// because the wrong shape is invisible in every viewer.
+    ///
+    /// pdfcer does NOT decide which of several statuses is "current". The
+    /// standard says nothing about ordering or currency, `/M` is optional
+    /// and empirically ties, so any resolver would be guessing.
+    SetReviewState {
+        /// Input PDF.
+        input: PathBuf,
+        /// Page of the annotation being reviewed, 1-BASED.
+        #[arg(long)]
+        page: usize,
+        /// Index of the annotation being reviewed, 0-BASED.
+        #[arg(long)]
+        index: usize,
+        /// The status. `marked`/`unmarked` are the Marked model; the rest
+        /// are the Review model. `/StateModel` follows automatically.
+        #[arg(long, value_enum)]
+        state: ReviewStateArg,
+        /// The reviewer's name (`/T`). Required: §12.5.6.3 makes the
+        /// per-user chain the structure, so a status with no owner has
+        /// nowhere to chain.
+        #[arg(long, value_name = "NAME")]
+        author: String,
+        /// The status's `/M` date, verbatim.
+        #[arg(long, value_name = "D:YYYYMMDDHHMMSS")]
+        note_date: Option<String>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
+
+    /// **Reply to a comment** — a `/Text` annotation carrying `/IRT` and
+    /// `/RT /R` (ISO 32000-1 §12.5.6.2, Table 170).
+    ///
+    /// A thread could be READ and not continued: `/IRT` and `/RT` have been
+    /// in the read model since `Pass 38.5` and nothing could write them.
+    ///
+    /// The reply is placed at its parent's own rectangle, on its parent's
+    /// page, and takes its parent's colour so a thread reads as one
+    /// conversation. It arrives CLOSED; use `set-annotation-open` to change
+    /// that.
+    ///
+    /// `--note-date` is yours to supply, as everywhere else — pdfcer reads
+    /// no clock, so an omitted date means the key is not written rather
+    /// than that "now" is invented.
+    AddReply {
+        /// Input PDF.
+        input: PathBuf,
+        /// Page of the annotation being replied to, 1-BASED.
+        #[arg(long)]
+        page: usize,
+        /// Index of the annotation being replied to, 0-BASED.
+        #[arg(long)]
+        index: usize,
+        /// The reply's text (`/Contents`).
+        #[arg(long)]
+        note: String,
+        /// The reply's author (`/T`).
+        #[arg(long, value_name = "NAME")]
+        note_author: Option<String>,
+        /// The reply's `/M` date, verbatim (`D:YYYYMMDDHHMMSS`).
+        #[arg(long, value_name = "D:YYYYMMDDHHMMSS")]
+        note_date: Option<String>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
+
     /// **Open or close an annotation's pop-up window** — `/Open`
     /// (ISO 32000-1 §12.5.6.4 Table 172, §12.5.6.14 Table 183).
     ///
@@ -9944,6 +10073,49 @@ fn run() -> ExitCode {
             &output,
             mode,
         ),
+        Command::SetTextAnnotStyle {
+            input,
+            page,
+            index,
+            icon,
+            color,
+            output,
+            mode,
+        } => cmd_set_text_annot_style(&input, page, index, icon, color.as_deref(), &output, mode),
+        Command::SetReviewState {
+            input,
+            page,
+            index,
+            state,
+            author,
+            note_date,
+            output,
+            mode,
+        } => cmd_set_review_state(
+            &input,
+            page,
+            index,
+            (state, &author, note_date.as_deref()),
+            &output,
+            mode,
+        ),
+        Command::AddReply {
+            input,
+            page,
+            index,
+            note,
+            note_author,
+            note_date,
+            output,
+            mode,
+        } => cmd_add_reply(
+            &input,
+            page,
+            index,
+            (&note, note_author.as_deref(), note_date.as_deref()),
+            &output,
+            mode,
+        ),
         Command::SetAnnotationOpen {
             input,
             page,
@@ -15071,7 +15243,7 @@ fn cmd_list_annotations(input: &Path, pages_spec: &str) -> u8 {
             );
             println!(
                 "annot page={} index={array_index} subtype={subtype} rect={rect} \
-flags=0x{:X} widget={} disposition={disposition} ap={ap_shape} action={} author={} note={} modified={} open={} vertices={vertices} line={line} ink={ink}",
+flags=0x{:X} widget={} disposition={disposition} ap={ap_shape} action={} author={} note={} modified={} open={} color={} icon={} vertices={vertices} line={line} ink={ink}",
                 page_index + 1,
                 annot.flags.0,
                 usize::from(annot.is_widget()),
@@ -15109,6 +15281,28 @@ flags=0x{:X} widget={} disposition={disposition} ap={ap_shape} action={} author=
                     Some(false) => "0",
                     None => "none",
                 },
+                // `/C` as the RAW components, space-free so the field stays
+                // one token. The COUNT is the colour space (Table 164), so
+                // `0.2,0.4` -- two components, which no space defines -- is
+                // printed as it is rather than repaired: an operator who
+                // sees it is seeing the file's actual malformation.
+                // `empty` is the standard's own "no colour"; `none` is an
+                // absent key. Three states, as the model has.
+                match annot.color.as_deref() {
+                    None => "none".to_owned(),
+                    Some([]) => "empty".to_owned(),
+                    Some(c) => c
+                        .iter()
+                        .map(|v| format!("{v}"))
+                        .collect::<Vec<_>>()
+                        .join(","),
+                },
+                // `/Name`, raw -- §12.5.6.4's set is open, so a producer's
+                // own icon name prints as itself.
+                annot.icon.as_deref().map_or_else(
+                    || "none".to_owned(),
+                    |n| sanitize_token(&String::from_utf8_lossy(n)),
+                ),
             );
         }
     }
@@ -30827,6 +31021,345 @@ fn cmd_set_markup_note(
             "unchanged (this subtype does not paint its /Contents)"
         }
     );
+    finish_edit(input, &saved)
+}
+
+/// `--icon` for `set-text-annot-style`: the seven §12.5.6.4 names pdfcer
+/// draws an appearance for.
+///
+/// The clause's set is OPEN — "Additional names may be supported as well" —
+/// so this enum is what pdfcer can AUTHOR, not what it can read. A file's
+/// own icon name reaches a caller intact through
+/// `Annotation::icon` and prints on `list-annotations`.
+/// `--state` for `set-review-state`: Table 171's two vocabularies.
+///
+/// One flag rather than two, because `/StateModel` is *"Required if `State`
+/// is present"* and is derivable from the value — offering it separately
+/// would let an operator pair `accepted` with the `Marked` model, which is
+/// the single non-conforming combination.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
+enum ReviewStateArg {
+    /// Review model.
+    Accepted,
+    /// Review model.
+    Rejected,
+    /// Review model. British spelling, as the standard writes it.
+    Cancelled,
+    /// Review model.
+    Completed,
+    /// Review model — an explicit "no status", which is a written value and
+    /// not the same as leaving the key off.
+    None,
+    /// Marked model.
+    Marked,
+    /// Marked model.
+    Unmarked,
+}
+
+impl ReviewStateArg {
+    fn to_core(self) -> pdfcer_core::edit::ReviewState {
+        use pdfcer_core::edit::ReviewState as R;
+        match self {
+            Self::Accepted => R::Accepted,
+            Self::Rejected => R::Rejected,
+            Self::Cancelled => R::Cancelled,
+            Self::Completed => R::Completed,
+            Self::None => R::None,
+            Self::Marked => R::Marked,
+            Self::Unmarked => R::Unmarked,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
+enum StickyIconArg {
+    Comment,
+    Key,
+    Note,
+    Help,
+    NewParagraph,
+    Paragraph,
+    Insert,
+}
+
+impl StickyIconArg {
+    fn to_core(self) -> pdfcer_core::annot_author::StickyIcon {
+        use pdfcer_core::annot_author::StickyIcon as I;
+        match self {
+            Self::Comment => I::Comment,
+            Self::Key => I::Key,
+            Self::Note => I::Note,
+            Self::Help => I::Help,
+            Self::NewParagraph => I::NewParagraph,
+            Self::Paragraph => I::Paragraph,
+            Self::Insert => I::Insert,
+        }
+    }
+}
+
+/// Resolve `--page`/`--index` to an annotation's object id.
+///
+/// One helper rather than a copy in each verb: the addressing convention is
+/// `list-annotations`' output and a second spelling of it would drift.
+fn resolve_annotation(
+    session: &pdfcer_core::edit::EditSession,
+    input: &Path,
+    page: usize,
+    index: usize,
+) -> Result<pdfcer_core::object::ObjId, u8> {
+    if page == 0 {
+        eprintln!("pdfcer: --page is 1-based; 0 is not a page");
+        return Err(exit::EDIT_REFUSED);
+    }
+    let slots = match session.page_slots() {
+        Ok(slots) => slots,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return Err(exit::RUNTIME_ERROR);
+        }
+    };
+    let Some(slot) = slots.get(page - 1) else {
+        eprintln!(
+            "pdfcer: {}: --page {page} is out of range (the document has {} page(s))",
+            input.display(),
+            slots.len()
+        );
+        return Err(exit::EDIT_REFUSED);
+    };
+    let annots = pdfcer_core::annot::page_annotations(&session.graph(), slot.id);
+    let Some(annot) = annots.get(index) else {
+        eprintln!(
+            "pdfcer: {}: --index {index} is out of range (page {page} has {} annotation(s))",
+            input.display(),
+            annots.len()
+        );
+        return Err(exit::EDIT_REFUSED);
+    };
+    annot.id.ok_or_else(|| {
+        eprintln!(
+            "pdfcer: {}: that annotation is a direct object and has no identity to address",
+            input.display()
+        );
+        exit::EDIT_REFUSED
+    })
+}
+
+/// Implement `pdfcer set-text-annot-style`.
+fn cmd_set_text_annot_style(
+    input: &Path,
+    page: usize,
+    index: usize,
+    icon: Option<StickyIconArg>,
+    color: Option<&str>,
+    output: &Path,
+    mode: SaveMode,
+) -> u8 {
+    if icon.is_none() && color.is_none() {
+        eprintln!("pdfcer: nothing to change: pass --icon, --color, or both");
+        return exit::EDIT_REFUSED;
+    }
+    let parsed_color = match color.map(parse_color) {
+        None => None,
+        Some(Ok(c)) => Some(c),
+        Some(Err(msg)) => {
+            eprintln!("pdfcer: --color: {msg}");
+            return exit::EDIT_REFUSED;
+        }
+    };
+
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let annot_id = match resolve_annotation(&session, input, page, index) {
+        Ok(id) => id,
+        Err(code) => return code,
+    };
+
+    let style = pdfcer_core::edit::TextAnnotStyle {
+        icon: icon.map(StickyIconArg::to_core),
+        color: parsed_color,
+    };
+    let change = match session.set_text_annot_style(annot_id, &style) {
+        Ok(c) => c,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit::EDIT_REFUSED;
+        }
+    };
+
+    let saved = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        false,
+    ) {
+        Ok(saved) => saved,
+        Err(code) => return code,
+    };
+
+    println!(
+        "set-text-annot-style {} page {page} index {index} -> {}",
+        input.display(),
+        output.display()
+    );
+    println!(
+        "  obj={} subtype={} icon_written={} color_written={} appearance={}",
+        change.annot_id.num,
+        change.subtype,
+        u32::from(change.icon_written),
+        u32::from(change.color_written),
+        match change.appearance {
+            pdfcer_core::edit::AppearanceWrite::InPlace(_) => "in-place",
+            pdfcer_core::edit::AppearanceWrite::Created(_) => "created",
+            pdfcer_core::edit::AppearanceWrite::CopiedOnWrite { .. } => "copied",
+            // `AppearanceWrite` is #[non_exhaustive]; a future variant must
+            // print SOMETHING rather than fail to compile a shell.
+            _ => "other",
+        },
+    );
+    finish_edit(input, &saved)
+}
+
+/// Implement `pdfcer set-review-state`.
+fn cmd_set_review_state(
+    input: &Path,
+    page: usize,
+    index: usize,
+    // (state, author, /M date) -- bundled for the same reason
+    // `cmd_add_reply` bundles its note triple: they are one operator
+    // intention arriving as three flags, and splitting them out is what
+    // pushes this past clippy's argument limit for no reader's benefit.
+    status: (ReviewStateArg, &str, Option<&str>),
+    output: &Path,
+    mode: SaveMode,
+) -> u8 {
+    let (state, author, note_date) = status;
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let target_id = match resolve_annotation(&session, input, page, index) {
+        Ok(id) => id,
+        Err(code) => return code,
+    };
+
+    let added = match session.add_review_state(target_id, state.to_core(), author, note_date) {
+        Ok(a) => a,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit::EDIT_REFUSED;
+        }
+    };
+
+    let saved = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        false,
+    ) {
+        Ok(saved) => saved,
+        Err(code) => return code,
+    };
+
+    println!(
+        "set-review-state {} page {page} index {index} -> {}",
+        input.display(),
+        output.display()
+    );
+    // Rule 11. `attached_to` is the disclosure that matters: a star of
+    // statuses all pointing at the comment renders identically to the
+    // per-user chain 12.5.6.3 requires, so this is the only place the
+    // difference is visible.
+    println!(
+        "  state_obj={} target_obj={} state={} model={} attached_to={} chain_depth={}",
+        added.state_id.num,
+        added.target_id.num,
+        added.state.as_str(),
+        added.state.model(),
+        added.attached_to.num,
+        added.chain_depth,
+    );
+    if added.attached_to != added.target_id {
+        println!(
+            "  note: this is not {author}'s first status on that comment, so it replies to their previous one rather than to the comment -- 12.5.6.3 requires the per-user chain."
+        );
+    }
+    finish_edit(input, &saved)
+}
+
+/// Implement `pdfcer add-reply`.
+fn cmd_add_reply(
+    input: &Path,
+    page: usize,
+    index: usize,
+    note: (&str, Option<&str>, Option<&str>),
+    output: &Path,
+    mode: SaveMode,
+) -> u8 {
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let parent_id = match resolve_annotation(&session, input, page, index) {
+        Ok(id) => id,
+        Err(code) => return code,
+    };
+
+    let mut built = pdfcer_core::edit::MarkupNote::new(note.0);
+    if let Some(a) = note.1 {
+        built = built.by(a);
+    }
+    if let Some(d) = note.2 {
+        built = built.at(d);
+    }
+
+    let added = match session.add_reply(parent_id, &built) {
+        Ok(a) => a,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit::EDIT_REFUSED;
+        }
+    };
+
+    let saved = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        false,
+    ) {
+        Ok(saved) => saved,
+        Err(code) => return code,
+    };
+
+    println!(
+        "add-reply {} page {page} index {index} -> {}",
+        input.display(),
+        output.display()
+    );
+    // Rule 11. The two pop-up booleans are the disclosure pdfcer-gui asked
+    // for by name: 12.5.6.14 makes a pop-up structural and a shell that
+    // DRAWS them would otherwise discover a second window on a screenshot.
+    println!(
+        "  reply_obj={} parent_obj={} page={} parent_had_popup={} reply_has_popup={}",
+        added.reply_id.num,
+        added.parent_id.num,
+        added.page_index + 1,
+        u32::from(added.parent_had_popup),
+        u32::from(added.reply_has_popup),
+    );
+    if added.reply_has_popup && !added.parent_had_popup {
+        println!(
+            "  note: the reply carries a /Popup and its parent did not, so this document now \
+has a comment window it did not have before."
+        );
+    }
     finish_edit(input, &saved)
 }
 
