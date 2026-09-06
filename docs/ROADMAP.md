@@ -112,6 +112,264 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★ 452nd filing, 2026-09-06 — `Pass 10.12` SHIPPED, unreleased
+(post-`v0.41.0`): **`02bb1ba`** *"feat(core,cli): certifying signatures —
+/DocMDP transform + catalog /Perms, one per document, first signature only
+(Pass 10.12)"*, 10 files, `+691/−18` (`git show --stat`), author stamp
+`2026-09-06 04:52:20 -0400`. Filed at the 439th (2026-09-05) straight into
+*Backlog* as the first of the signing remainder, built one day later in one
+commit — the first *Backlog* item taken since *Next up* emptied at the 451st.
+**`063f774`** *"memory(pdfcer-spec-librarian): X.690 sourcing, CB-4 split, four
+standing cautions"* (agent memory, no code) is named beside it. No decision
+minted, no rule amended. Also in the same commit: the 451st filing's THREE
+owed rule-11 survivors, DISCHARGED. The spec-RAG contradiction the 450th owed
+and the 451st recorded as DISPATCHED is now DISCHARGED by
+`pdfcer-spec-librarian` — verified on disk by this role, below.**
+
+**What a caller sees, stated first.** `pdfcer sign --certify` with no level
+prints `certification: DocMDP P=2 (form fill-in and signing) -- --mdp-level
+not given; this is Table 254's default` (the choice is never silent; the whole
+string is pinned by the CLI test);
+`--mdp-level annotate` prints `P=3 (form fill-in, signing and annotations)`
+and implies `--certify`; `pdfcer verify-signatures` on the output prints the
+same `certification: DocMDP P=n (<meaning>)` line back. In core the request
+is `SignRequest::certify: Option<MdpPermission>` — `MdpPermission::{NoChanges
+(P=1), FormFillAndSign (P=2), FormFillSignAnnotate (P=3)}` with `p()`,
+`from_p()` and `meaning()` so a shell prints words, never the bare integer;
+`None` is the unchanged approval signature. `EditSession::sign` then writes,
+in the SAME incremental update, `/Reference [<< /Type /SigRef
+/TransformMethod /DocMDP /TransformParams << /Type /TransformParams /P n /V
+/1.2 >> >>]` on the signature dictionary (`/V` a NAME, Table 254's note) and
+`/Perms << /DocMDP <sig> >>` on the catalog (§12.8.4 Table 258 — the entry a
+conforming reader SHALL enforce), merged into an existing `/Perms` and into
+the catalog write the inline-AcroForm registration already produces — one
+write per object per command. Table 253's `DigestMethod`/`DigestValue` are
+OMITTED, cited: *"Optional; deprecated in PDF 2.0"* (ISO 32000-2 corrigendum
+#117; spec-RAG row `SI-E8`). Two refusals BEFORE any allocation
+(§12.8.2.2.1): `SignApplyError::AlreadyCertified { permission }` (one
+certification per document) and `SignApplyError::CertificationNotFirst {
+existing }` (the certifier is *"the person applying the first signature"*);
+each names the remedy — sign without `--certify`. The 10.9 `P=1` refusal
+(`CertificationForbids`) is now reachable from pdfcer's OWN certification.
+Read side: `SignatureVerdict::certification: Option<u8>` (P, default 2 when
+the params omit it — the SAME reading `signature::census` applies, so
+verifier and census cannot disagree about one file);
+`SignReport::certification: Option<MdpPermission>` echoes what was written.
+
+**The seven draft criteria, walked (the 439th filing's list, in the *Backlog*
+entry — kept in place, struck and annotated, because two were amended at ship
+time):**
+
+1. **`/Reference` SigRef + `/Perms /DocMDP` in the SAME incremental update;
+   digest entries omitted with the clause cited — MET.** `DigestMethod`
+   omitted, Table 253 *"Optional; deprecated in PDF 2.0"* — corrigendum #117
+   cited in the rustdoc (`apply.rs:147`, `edit.rs:41513`); `SI-E8` is the
+   spec-RAG row that sources it.
+2. **`--mdp-level none|form-fill|annotate` → 1/2/3; `--certify` alone = 2,
+   PRINTED as defaulted — MET.** `--mdp-level` implies `--certify`
+   (`main.rs:27328`); the default sentence is pinned by
+   `certify_without_a_level_takes_the_default_and_says_so`.
+3. **Refused BY NAME, rule + remedy stated; encrypted base unchanged — MET.**
+   `AlreadyCertified { permission }`, `CertificationNotFirst { existing }`,
+   both `SignApplyError` variants, both before staging (`edit.rs:41407–41415`);
+   the encrypted-base refusal is `10.9`'s, untouched.
+4. **Self-verification widens; the census classifies pdfcer's output like a
+   foreign certified fixture — MET, CLI SPELLING AMENDED.** The draft said
+   `verify-signatures` prints `certifying=yes mdp=<n>`; shipped:
+   `certification: DocMDP P=n (<meaning>)` (`main.rs:16507`) — one line, the
+   words beside the number, the same shape `sign` prints, so criterion 7's
+   disclosure and this one are one string. pdfcer's `P=2` output classifies
+   identically to `fixtures/synthetic/forms/certified-p2-form.pdf` (1,312 B,
+   2026-09-03) —
+   `the_read_side_classifies_pdfcer_output_like_a_foreign_certified_fixture`.
+5. **The approval-after-certification matrix — MET, both permitted levels
+   tested.** `P=1` then approval → refused (`CertificationForbids`, exists);
+   `P=2` and `P=3` then approval → permitted, and the certification's verdict
+   still intact after (`the_approval_after_certification_matrix`).
+6. **Tests — MET, LOCATION AMENDED; the OpenSSL cross-check NOT RE-RUN.** The
+   draft named additions to `tests/sign_document.rs`; shipped as a NEW file
+   `crates/pdfcer-core/tests/sign_certify.rs` (250 lines, 6 tests) plus
+   `crates/pdfcer-cli/tests/sign_certify.rs` (131 lines, 3). The draft's *"one
+   OpenSSL cross-check of the CMS"* was not run for this Pass: the CMS bytes
+   are the `10.8` build unchanged (`cms_build` not in the diff) and the
+   `10.14` oracle tests already cover that builder — recorded as **covered by
+   the existing oracle, not re-run**, which is a weaker statement than the
+   draft's and is filed as such.
+7. **The CLI prints the level AND its plain meaning — MET.** `p()` +
+   `meaning()`; `mdp_level_implies_certify_and_prints_the_words` pins the
+   words for `annotate`.
+
+**Tests, RUN HERE.** `cargo test -p pdfcer-core --test sign_certify`: **6
+passed, 0 failed, 0.60 s** —
+`a_certification_writes_the_docmdp_transform_and_the_catalog_perms`,
+`the_read_side_classifies_pdfcer_output_like_a_foreign_certified_fixture`,
+`a_second_certification_is_refused_by_name_and_writes_nothing`,
+`a_certification_over_an_existing_approval_is_refused_by_name`,
+`the_approval_after_certification_matrix`,
+`mdp_permission_round_trips_its_table_254_values`. `cargo test -p pdfcer-cli
+--test sign_certify`: **3 passed, 0 failed, 0.50 s** —
+`certify_without_a_level_takes_the_default_and_says_so`,
+`mdp_level_implies_certify_and_prints_the_words`,
+`a_second_certification_and_a_late_certification_are_refused_with_exit_9`
+(exit `9` for both refusals). **Sabotage (the first-signature check disabled)
+fails 1 of 6** (relayed). `cargo test --workspace` green (foreground), fmt and
+clippy clean, `check-string-gaps`, `check-public-fns-documented`,
+`check-core-api-verbs`, `check-clap-help` green (relayed). No new dependency —
+`Cargo.lock` not in the diff, `cargo tree` untouched.
+
+**Public surface (the channel notice
+`open/notice_2026-09-06-certifying-signatures.md`, 1,420 B, 04:52 — the same
+minute as the commit's author stamp; posted by the engineer, read in full by
+this role):** `sign::apply::MdpPermission` (new enum; `p`, `from_p`,
+`meaning`); `SignRequest::certify`; `SignReport::certification`;
+`SignApplyError::{AlreadyCertified, CertificationNotFirst}`;
+`SignatureVerdict::certification`. **No new `EditSession` verb — verb count
+204 unchanged** (`docs/core-api/index.md` still says 204; `02`'s `sign` row
+gained a `Pass 10.12` sentence, 4,702 lines unchanged, **140 → 142 clauses
+cited** — by `git show 02bb1ba -- docs/core-api/`). The notice's suggested UI
+shape — a *"Certify (author signature)"* choice with the three levels, enabled
+only while the document carries no signature, P=2 shown as the default in
+words — is the shell's to build; `gui [ ]` until reachable in a real build.
+
+**Also in `02bb1ba`, owed from the 451st filing — DISCHARGED (verified by the
+`−` lines of the diff and by `grep` on the tree):** the three *"ladder not
+built / two routes"* rule-11 survivors — `StyleOutcome::RealFaceResolves` and
+`FontPreflight::real_bold` rustdoc (`format.rs`, `+8/−13`), and
+`font-preflight`'s bold/italic stdout hints, which now name `--bold`/`--italic`
+as the automatic route (the two *"--bold-synthetic is one route; the other is
+--set-font…"* strings are gone; the pinned CLI test
+`crates/pdfcer-cli/tests/font_preflight.rs` updated, `+3/−2`).
+
+**The 450th's spec-RAG contradiction — DISCHARGED by `pdfcer-spec-librarian`
+(2026-09-06), verified here by `grep` on the corpus, not taken from the
+dispatch:** `D:\Dev\Rag-Specialized\PDF_Spec\security\security__cms_signeddata_build.md`
+now splits `CB-4` into **`CB-4a`** (BUILDER rule, DER-sort the attributes —
+RFC 5652 §5.3 + X.690 §11.6, unchanged and mandatory), **`CB-4b`**
+(VERIFIER rule as MEASURED — bytes as received, n=2: OpenSSL 1.1.1s and
+pdfcer), **`CB-4c`** (the tamper case: reordered AFTER signing) and **`CB-4d`**
+(pdfcer's policy) — the split is announced at `:120–122` and the rows sit at
+`:135–166`; `iso32000\iso32000__ref__signature_verification.md` trap 3
+(`:271`) amended (`:293`, `:308` now cite `CB-4a`); ITU-T X.690 (02/2021)
+added to `_sources` (`ITU-T_X.690_202102.pdf`, 840,764 B, 04:38). ★ The
+dispatch named both files without their subdirectories (`security\`,
+`iso32000\`) — corrected here with the paths as found by `find`. **The
+spec-librarian's suggestion** — a *"which verifiers tolerate what"* census
+belonging in `C:\personal_rag\pdf\`, cross-referenced to `CB-4b` — is noted
+as a **Backlog-adjacent idea, NOT built and NOT filed as a Pass**: the tier-5
+lesson the 450th wrote
+(`lesson_20260906_cms_signed_attributes_are_verified_as_received_not_resorted.md`)
+already holds the n=2 measurement; a census is a third verifier's worth of
+work, and nobody has asked for it.
+
+**Channel (by `ls -lt`; both read in full by this role).**
+`open/done_2026-09-06-base-revision-font-resolution-CONSUMED.md` (13,601 B,
+**01:04** — on disk BEFORE the 451st filing, which did not record it; recorded
+now): `pdfcer-gui` consumed `Pass 257.0` (and `256.0`, `256.1` from the same
+bump) against **`f9bc7c8`**, which they call *"engine v0.41.0"* — by `git log
+c4e39e7..f9bc7c8` that pin is TWO docs-only commits past the tag (the 449th
+filing and a `NEXT_SESSION.md` refresh), so the code they drove IS `v0.41.0`.
+Their `facewall.rs` tripwire went red on the first run and now asserts the
+SUCCESS in both request shapes; `tools/ui-verify` drives the retype green on
+the real binary (*"edit-text page=0 n=1 epoch=2 — the 'q' goes in, one
+gesture, no save, no reopen"*). **Their standing "synthesised spaces" theory
+was FALSE on the operator's file** — 36 characters, 36 operators, spaces
+included; the unpinned whole-run `find` matches. `Refusal::trigger ==
+Ambiguous` now gets its own sentence. `forms::invocation_set`'s signature
+change reached them at `app::actions::xobject::fanout`. Their own finding,
+worth carrying: a plan written from one cause (*"delete the blocked-state
+sentence when the fix ships"*) would have deleted the handling for every other
+cause — the state stayed, the cause was removed from the sentence. **Nothing
+owed by core.**
+
+**★ Rule-11 sweep — the claim "certifying signatures are not built / every
+signature pdfcer writes is an APPROVAL signature / `/DocMDP` authoring is
+owed"**, searched by bare keyword (`certif`, `approval`, `DocMDP`, `/Perms`)
+over `edit.rs`, `sign/apply.rs`, `sign/mod.rs`, `signature_verify.rs`,
+`signature.rs`, `main.rs`, `docs/core-api/*`, `README.md`, `NEXT_SESSION.md`,
+`ARCHITECTURE.md`, `FEATURES.md`, `tools/*`. **ZERO survivors in `crates/`** —
+the engineer's own commit re-sentenced the `sign` command help (`main.rs:1854–
+1860`) and the `sign` rustdoc. **TWO survivors in `docs/`, both this role's,
+both FIXED in this filing:** `docs/FEATURES.md:312` (the `Pass 10.9` sign row's
+*"**Not built:** certifying signatures (`/DocMDP` authoring), signing INTO a
+pre-placed field, a password prompt, `--dry-run`"* — re-sentenced, the row now
+points at the new certification row and keeps the three still-true items);
+`docs/ARCHITECTURE.md:6704` (§5.13's HEADING: *"decision 136 — DECIDED, `Pass
+10.7`–`10.9` unbuilt"* — false since `7734261` at the 438th filing, three
+signing Passes ago, and a body section is the living truth, not the audit
+trail; given a dated footer and the heading annotated *"unbuilt AT WRITING"*).
+**One survivor reported, not touched:** `docs/NEXT_SESSION.md:39` lists
+`10.12` among the signing remainder — the engineer's own hand-off, refreshed
+by the engineer after each filing. **Correct, survive, do not "fix":**
+`edit.rs:6353` (the `CertificationForbids` message — a certified document
+with P=1 still forbids); `core-api/02:3920–3921` (a `/Reference` DocMDP alone
+is detection-only, only the catalog `/Perms` is enforced — the correct reading
+of Table 258, and exactly why `10.12` writes both); `ROADMAP.md:2821` (the
+438th's dated *"owed as its own increment"*); `FEATURES.md:205` (the OCR row's
+*"refuses a certified change-forbidding document"* — the read side, still
+true); `main.rs:1856`/`:1910` (the new help text, correct).
+
+**`docs/FEATURES.md` (this filing).** The *Planned* certifying-signature row
+(`:470`, `[ ] [ ] [ ] [x]`) REMOVED; one *Implemented* row ADDED under
+*Redaction & security* directly after the `Pass 10.9` sign row, **`[x] [x] [ ]
+[x]`** — `gui [ ]` (`pdfcer-gui` notified 04:52, not consumed); Acrobat `[x]`
+(parity: Acrobat's *Certify* with the same three permission levels, chosen at
+certify time, one per document). Row `:312` re-sentenced as above.
+
+**Sourcing (hard rule 8).** This role had a shell. MEASURED here: `git show -s
+--format=%B 02bb1ba`; `git show --stat --format= 02bb1ba` (10 files
+`+691/−18`); `git log -1 --format=%ad --date=iso 02bb1ba`; `git status
+--short` = CLEAN at the start of this filing; **At GATE TIME three files were modified in the working tree that were CLEAN at the start of this filing — `crates/pdfcer-cli/src/main.rs`, `crates/pdfcer-core/src/edit.rs`, `crates/pdfcer-core/src/sign/apply.rs` (`+703/−38`, `git diff --stat -- crates/`; `Pass 10.13` — sign into a pre-placed field, `/FieldMDP` — by their `+` lines) — the engineer's in-flight work, NOT staged here.** `git rev-parse origin/main` =
+**`f9bc7c8`**; `git log --oneline origin/main..HEAD` = **7** (`187fa09`,
+`9a3dd53`, `a19f359`, `72b7296`, `8d12bf1`, `02bb1ba`, `063f774`) — matches
+the dispatch; `git describe --tags` = `v0.41.0-9-g063f774`; **both test files
+run here** (6/6 in 0.60 s, 3/3 in 0.50 s); test names by `grep -n '^fn '`;
+`git show 02bb1ba -- docs/core-api/` for the clause counts and the `−` lines
+for the discharged survivors; the public-surface names by `grep -n` on
+`sign/apply.rs` and `signature_verify.rs`; `python
+tools/check-ledger-numbers.py` (filings `451` → next free `452` before this
+filing); the channel by `ls -la` and `cat`, both files read in full; the
+spec-RAG discharge by `find` + `grep -n 'CB-4'` and `ls -la _sources`; the
+sweep by `grep -n -i` over the named files and `sed -n` on the hits; `git
+log --oneline c4e39e7..f9bc7c8` (= 2, docs-only) for the gui pin; **backup:
+`ls -t D:\Dev\pdfce-backups` newest = `pdfcer-2026-09-03-1a31d2d-full.bundle`,
+`1a31d2d` an ancestor of `HEAD` (`git merge-base --is-ancestor`), `git
+rev-list --count 1a31d2d..HEAD` = 104 before this filing.** RELAYED (the
+engineer's shell): `cargo test --workspace` green, fmt/clippy, the four named
+non-cargo gates, the 1-of-6 sabotage figure, the corrigendum #117 / `SI-E8`
+citation (the rustdoc is on disk; the corrigendum itself was not opened here).
+
+#### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass IDs | ceiling `257.0`; *Next up* empty of live entries | ceiling **`257.0`** unchanged; **`Pass 10.12` *Shipped*** (from *Backlog*, never in *Next up*); *Next up* still empty of live entries; the signing remainder in *Backlog* is now `10.10`, `10.11`, `10.13` |
+| Decisions | ceiling `138`, next free `139` | unchanged |
+| Standing rules | ceiling `R241`, next free `R242` | unchanged |
+| SESSION_LOG filings | `451` | **`452`** |
+| Owed-survivor ledger | THREE (`crates/`, the 451st's) + the spec-RAG line DISPATCHED | **ZERO in `crates/`** (all three discharged in `02bb1ba`); spec-RAG line **DISCHARGED** (verified); two `docs/` survivors found and fixed HERE; `NEXT_SESSION.md:39` reported to the engineer |
+
+### `Pass 10.12` (`02bb1ba`, 2026-09-06) — ★★★★ **CERTIFYING SIGNATURES — `SignRequest::certify: Option<MdpPermission>` / `pdfcer sign --certify [--mdp-level none|form-fill|annotate]` writes the `/DocMDP` transform (`/Reference [<< /Type /SigRef /TransformMethod /DocMDP /TransformParams << /P n /V /1.2 >> >>]`) on the signature dictionary AND `/Perms << /DocMDP >>` on the catalog in ONE incremental update; Table 254's `P` 1/2/3, default 2 PRINTED as defaulted; the level's plain meaning printed beside the number; ONE per document (`AlreadyCertified`) and the document's FIRST signature (`CertificationNotFirst`), both refused by name before anything is staged, both naming the remedy; the read side (`SignatureVerdict::certification`, the census) classifies pdfcer's output like a foreign certified fixture; `DigestMethod` omitted (deprecated in PDF 2.0, cited)** — the first of the 439th filing's signing remainder, taken from *Backlog*
+
+**Before (`v0.41.0`):** every signature pdfcer wrote was an APPROVAL
+signature; a certified document could be READ (`SignatureImpact`, `Pass
+3.2`) and a `P=1` one refused an approval (`CertificationForbids`, `Pass
+10.9`), but pdfcer could not author the certification itself.
+
+**After (`02bb1ba`):** `sign/apply.rs` `+90` (`MdpPermission`, the two
+refusals, `SignRequest::certify`, `SignReport::certification`); `edit.rs`
+`+77` (the SigRef array, the `/Perms` merge into the catalog write, the
+first-signature and one-per-document checks before allocation);
+`signature_verify.rs` `+33` (`SignatureVerdict::certification`, the
+default-2 reading shared with the census); `pdfcer-cli/src/main.rs` `+98`
+(`--certify`, `--mdp-level`, `MdpLevelArg`, the `certification: DocMDP P=n
+(<meaning>)` line on both `sign` and `verify-signatures`, exit `9`). Tests:
+`sign_certify.rs` ×2 (core 250 lines / 6, CLI 131 lines / 3 — both run
+here, 9/9). Contract docs: `core-api/02` `sign` row (+2 clauses cited);
+`index.md` counts. Channel: the 04:52 notice. Full account, criteria walk
+(4 and 6 amended), the rule-11 sweep and the `FEATURES.md` changes: the
+452nd head above; the *Backlog* entry (struck, annotated) carries the seven
+draft criteria.
+
 **★★★★ 451st filing, 2026-09-06 — `Pass 179.0` SHIPPED, unreleased
 (post-`v0.41.0`): **`72b7296`** *"feat(core,cli): bold becomes AUTOMATIC — the
 style ladder binds a real face or synthesises, no operator intervention (Pass
@@ -132765,9 +133023,9 @@ CI job stays green for the engine.
 `docs/FEATURES.md`: one *Planned* row in the signature cluster, all pdfcer
 columns `[ ]`, `Acrobat [x]`. **Not scheduled** — after `10.9` ships.
 
-#### `Pass 10.12` — **CERTIFYING SIGNATURES — the `/DocMDP` transform (`/Reference [<< /Type /SigRef /TransformMethod /DocMDP /TransformParams << /P 1|2|3 /V /1.2 >> >>]`) + the catalog `/Perms /DocMDP`; `pdfcer sign --certify --mdp-level none|form-fill|annotate`; ONE per document, a second refused by name; must be the document's FIRST signature** — filed 2026-09-05 (439th filing; the 438th's recorded deviation `10.9` #8, which named this ID in advance), *Backlog*, NOT STARTED — depends on `Pass 10.9`
+#### `Pass 10.12` — **CERTIFYING SIGNATURES — the `/DocMDP` transform (`/Reference [<< /Type /SigRef /TransformMethod /DocMDP /TransformParams << /P 1|2|3 /V /1.2 >> >>]`) + the catalog `/Perms /DocMDP`; `pdfcer sign --certify --mdp-level none|form-fill|annotate`; ONE per document, a second refused by name; must be the document's FIRST signature** — filed 2026-09-05 (439th filing; the 438th's recorded deviation `10.9` #8, which named this ID in advance), ~~*Backlog*, NOT STARTED~~ **SHIPPED `02bb1ba` (452nd filing) — see top of *Shipped*** — depended on `Pass 10.9` (shipped `7734261`)
 
-**Status: NOT STARTED.** Sourced from
+**Status: ~~NOT STARTED~~ SHIPPED `02bb1ba`, 2026-09-06 (452nd filing).** Sourced from
 `D:\Dev\Rag-Specialized\PDF_Spec\iso32000__s__12.8.md` (§12.8.2.2 DocMDP;
 **Table 254** `P` = 1 no changes / 2 form fill-in + signing — THE DEFAULT /
 3 form fill-in + signing + annotation create/delete/modify; §12.8.2.2.1 the
@@ -132815,11 +133073,34 @@ signature on a `P=1` document (`CertificationForbids { permission: 1 }`).
    changes"* / *"form fill-in and signing"* / *"… and annotations"*) — the
    number is the standard's, the operator reads words.
 
+**★ Criteria walked at ship time — 2026-09-06, 452nd filing (`02bb1ba`).**
+1 MET (`DigestMethod` omitted, Table 253 *"Optional; deprecated in PDF
+2.0"*, ISO 32000-2 corrigendum #117 / RAG row `SI-E8` cited). 2 MET
+(`--mdp-level` implies `--certify`; the bare `--certify` prints that P=2
+defaulted). 3 MET (`SignApplyError::AlreadyCertified { permission }`,
+`SignApplyError::CertificationNotFirst { existing }` — the engineer's names;
+each states rule + remedy; the encrypted-base refusal is `10.9`'s,
+untouched). **4 MET, CLI SPELLING AMENDED** — not `certifying=yes mdp=<n>`
+but `certification: DocMDP P=n (<meaning>)`, the same line `sign` prints;
+`SignatureVerdict::certification: Option<u8>` (default 2 when the params
+omit it, the census's reading); pdfcer's `P=2` output classifies identically
+to `fixtures/synthetic/forms/certified-p2-form.pdf` (tested). 5 MET — `P=1`
+refused (`CertificationForbids`), `P=2` and `P=3` permit an approval and the
+certification still verifies (both tested). **6 MET, LOCATION AMENDED, the
+OpenSSL cross-check NOT RE-RUN** — a NEW file
+`crates/pdfcer-core/tests/sign_certify.rs` (6) rather than additions to
+`sign_document.rs`, plus `crates/pdfcer-cli/tests/sign_certify.rs` (3); the
+CMS is the `10.8` build unchanged and the `10.14` oracle tests cover it —
+recorded as *covered by the existing oracle, not re-run*. 7 MET (`p()` +
+`meaning()`). Sabotage (first-signature check disabled) fails 1 of 6. Full
+account: the 452nd head at the top of *Shipped*.
+
 **Not in scope:** `/FieldMDP` (a field-lock transform — `Pass 10.13`'s seam
 when a pre-placed field carries `/Lock`); `/UR3` usage rights; enforcement
 on pdfcer's own EDIT verbs beyond what `SignatureImpact` already refuses.
 
-`docs/FEATURES.md`: one *Planned* row, `[ ] [ ] [ ] [x]`.
+`docs/FEATURES.md`: one *Planned* row, `[ ] [ ] [ ] [x]` — **moved to
+*Implemented → Redaction & security* at the 452nd filing, `[x] [x] [ ] [x]`.**
 
 #### `Pass 10.13` — **SIGN INTO A PRE-PLACED EMPTY `/FT /Sig` FIELD — an existing field with no `/V` is the target when `--field-name` names it; today `--field-name` only CREATES a new field and a name collision is refused** — filed 2026-09-05 (439th filing; the 438th's recorded deviation `10.9` #1), *Backlog*, NOT STARTED — depends on `Pass 10.9`
 

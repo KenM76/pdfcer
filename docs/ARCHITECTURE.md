@@ -6701,7 +6701,20 @@ membership), which is not in genuine dispute — three independent
 instances (`delete_object`, `delete_redaction_mark`, and now
 `delete_annotation`) already agree.
 
-### 5.13 Signing is the CANONICAL incremental-save case, and the private key enters `pdfcer-core` from exactly one source — a PKCS#12 file — behind a hash-in / signature-out `Signer` trait (decision 136 — DECIDED, `Pass 10.7`–`10.9` unbuilt)
+### 5.13 Signing is the CANONICAL incremental-save case, and the private key enters `pdfcer-core` from exactly one source — a PKCS#12 file — behind a hash-in / signature-out `Signer` trait (decision 136 — DECIDED, `Pass 10.7`–`10.9` unbuilt AT WRITING; shipped since — footer below)
+
+*★ **Footer 2026-09-06 (452nd filing).** The heading's *"`Pass 10.7`–`10.9`
+unbuilt"* was true on 2026-09-05 and has been false since `7734261` (the
+438th filing, the same day): `10.7`–`10.9` shipped there, `10.14` (hardening,
+composed appearance, P-384) at `187fa09` (450th) and `10.12` (certifying
+signatures — `/DocMDP` + catalog `/Perms`, one per document, first signature
+only) at `02bb1ba` (452nd). The SHAPE this section records is the shape that
+was built: one `Signer` trait, `Pkcs12Signer` the only in-core implementation,
+signing the canonical incremental-save case. Found by the 452nd filing's
+rule-11 sweep — a body section is the living truth, not the audit trail, so
+the heading is annotated rather than left as a dated record. Still unbuilt:
+`10.10` (store/token signers, shell-side by this section's own design),
+`10.11` (B-T timestamp), `10.13` (sign into a pre-placed field).*
 
 *(Added 2026-09-05, 436th filing, as a forward-looking design note ahead
 of the signing arc's build — the same disposition §5.11 had ahead of
