@@ -5,20 +5,18 @@ detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
 **Written:** 2026-09-06, end of the third session of the batch. **Released:**
-**v0.41.0** at `c4e39e7` (GitHub release + OneDrive `pdfcer1`; `pdfcer2` holds
-0.40.0). **Unreleased on `main` since then — the 0.42.0 batch:** `187fa09`
-Pass 10.14 (signing hardening), `72b7296` Pass 179.0 (automatic bold ladder),
-`02bb1ba` Pass 10.12 (certifying signatures), `ab40127` Pass 10.13 (sign into
-a pre-placed field), plus `9a3dd53`/`3ae1fb4`-class chores and the filings.
-Workspace version is `0.42.0` (bumped at `d6b998f`; tag at release). Batch
-rule (operator, 2026-09-05): build everything pending, then ONE release.
+**v0.42.0** at `e59b084` (GitHub release + OneDrive `pdfcer2`; `pdfcer1` holds
+0.41.0). `tools/verify-release.py v0.42.0` nine of nine ok; CI run 34026486538
+green 10/10 — including the repository audits, after `2da1d62` pinned the
+filing gates to 7-character hashes (git's auto `%h` grew to 8 on the fresh CI
+clone and reported 224 filed commits as unfiled). **Nothing is unreleased on
+`main`.** Workspace version is `0.42.0` (bump to `0.43.0` at the next
+release). Batch rule (operator, 2026-09-05): build everything pending, then
+ONE release.
 
 ## THE NEXT WORK — in order
 
-### 1. Cut the 0.42.0 batch release
-The procedure below; four Passes are unreleased. Then refresh this file.
-
-### 2. Pick from *Backlog* — the inbound queue is EMPTY
+### 1. Pick from *Backlog* — the inbound queue is EMPTY
 Candidates, in the order I would take them: `10.10`/`10.11` (shell-side
 signers; B-T timestamp — the seed-value evaluator now names "B-T not built"
 as a refusal, so a timestamp is the most-asked-for gap), `142.0` (the
@@ -27,7 +25,7 @@ standard-14 — rung 3 of the style ladder), `/SV /Cert` evaluation (Table 235,
 refused by name today), non-merged (`/Kids`) signature fields, a forms verb to
 AUTHOR an empty signature field.
 
-### 3. Check `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open` and `iccce_FeatureRequests\open` first
+### 2. Check `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open` and `iccce_FeatureRequests\open` first
 pdfcer-gui consumed 256.0/256.1/257.0 (their `done_…CONSUMED.md`); four
 notices posted this session (sign appearance, automatic bold, certifying,
 sign-into-field). `D:\Dev\FeatureRequests\pdfcer-gui\` is a GUI-shell review
