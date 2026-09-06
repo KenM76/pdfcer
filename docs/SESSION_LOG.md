@@ -96225,3 +96225,103 @@ modifications are the engineer's and are left alone).
   prints *bookmark title → the file it opens* (add `--json` for a folder); and
   `pdfcer merge` on that folder keeps those bookmarks, re-pointed at the pages
   they now live on, instead of dropping them.
+
+## 2026-09-06 (458th filing) — NO PASS MINTED, NO PASS SHIPPED. A short filing that unblocks a push: `95a936e` *"chore: 0.43.0, and retire four sentences `Pass 258.0`/`258.1` made false"* filed, and with it **ALL SIX of the 457th filing's rule-11 survivors DISCHARGED — verified here by reading the four files, not by accepting the dispatch's word** (owed-survivor ledger **SIX in `crates/` → ZERO**). Two unlike things in one commit for the commit's own stated reason (*"separating them would put a knowingly-false operator string into a tagged build"*): the **`0.43.0` release-prep bump** (`Cargo.toml:86` + the three lockfiles — the working-tree change the 457th reported as in flight, now committed; **release NOT cut**, `git describe --tags --abbrev=0` = `v0.42.0`, `git tag --list 'v0.43*'` EMPTY) and the six sentence corrections (no behaviour change). ★★ The deferred tip **`499cf3e`** *"fix(fuzz): pageops_sequence calls merge with its third argument"* is narrated but not filed as a Pass — the gate defers the tip — because its **cause** is the reusable half: **CI run `34052985417` on `95a936e` RED** (`cargo +nightly fuzz build`, `E0061`) because `Pass 258.3` grew `pageops::merge` a third parameter while the fuzz target still passed two, and **the fuzz crate is not in the workspace, so `cargo check --workspace --all-targets` cannot see it** — local green and CI red, neither signal wrong. **That is `R209`'s founding instance 1 recurring**: the engineer's 2026-08-05 agent-memory note is titled *"the cargo-fuzz gate is the one that gets skipped"*, and it is the line skipped again **thirty-two days later**. **Dated instance note appended to `R209`; NO new rule; ceiling stays `R241`.** The one new sub-shape, a step worse than the 2026-09-02 instance: `run-gates.sh` was **consulted for its `--list`** and the list then **hand-executed minus one line** (2026-09-02 it merely sat unrun) — *reading a runner's manifest and typing it out converts a mechanism back into memory*. Denominator, as clause (e) requires: `run-gates.sh --list` = **29 commands** + 2 named skips, `ls tools/check-*` = **23**; `cd fuzz && cargo check --bins` is **command 10 of 29**. ★ The fix's own trap, avoided deliberately: `&[]` would have compiled, satisfied the gate and **fuzzed none of the new path**; the target now passes **two identical file names** so merging a document with itself makes every `/Launch` match BOTH sources — the ambiguous case (the `R162`/`R225` family, no mint). ★ A figure the **457th filing got wrong, corrected by measurement**: the backup bundle was filed at **117** commits behind with the drift *inferred* from the 456th's 116 (*"one commit's drift"*) — `git rev-list --count 1a31d2d..5c2b61f` says **121**, four commits, all four of them already named in that same filing; live figure at `HEAD` is **125**. `FEATURES.md` **not touched** — measured, not assumed (no version marker in the file at all; row `:267` already reads *"Beveled, inset and underline borders are still authored solid and still disclosed"*, the corrected claim). No decision. One correct-but-unqualified hit recorded so the next sweep does not "fix" it: `tests/markup_note_edit.rs:159`, whose fixture is a drawn shape, not a `/FreeText`.
+
+**Shipped:**
+- Nothing. No Pass minted, no Pass shipped. This filing exists to make
+  `tools/check-commits-filed.py` green so `499cf3e` can be pushed.
+
+**Commits filed:**
+- **`95a936e`** *"chore: 0.43.0, and retire four sentences `Pass 258.0`/`258.1`
+  made false"* — 6 files, `+53/−26`, authored `2026-09-06 14:47:40 -0400`.
+  `Cargo.toml` `0.42.0` → `0.43.0` plus `Cargo.lock`, `fuzz/Cargo.lock` and
+  `tools/content-identity/Cargo.lock`; the corrections in
+  `crates/pdfcer-core/src/edit.rs` and `crates/pdfcer-cli/src/main.rs`.
+- **`499cf3e`** *"fix(fuzz): pageops_sequence calls merge with its third
+  argument"* — 1 file, `+11/−1`, authored `2026-09-06 15:10:35 -0400`.
+  **Narrated, not filed as a Pass** — it is the tip and the gate defers the
+  tip; it mints nothing.
+
+**The six survivors, discharged — each verified by reading the source:**
+- `edit.rs:4887` → **`:4892`** — *"pdfcer authors `/S /S` (solid) only"* is now
+  a `Pass 98.0`-shaped narrowing with the superseded wording kept legible
+  (`R216`).
+- `edit.rs:4890` → **`:4897`** — the unqualified *"carried by the dictionary,
+  not by the regenerated appearance"* now names the two cases that still fire
+  (an array §8.4.3.6 does not admit; a caller that cleared it).
+- `main.rs:30924` — the **printed** string now reads *"pdfcer authors solid and
+  DASHED strokes, so this one is beveled, inset or underline"*.
+- `main.rs:30928` → **`:30927`** — the **printed** string gained the qualifier
+  that turns a format claim back into a case report: *"it could not be used,
+  so the regenerated stroke is continuous. A dash pdfcer can read is
+  preserved, not dropped."*
+- `edit.rs:15614` → **`:15628`** and `edit.rs:26099` → **`:26120`** — *"cannot
+  recover from the canvas"* became *"**usually** cannot"*, with the `/FreeText`
+  exception named and pointing at `MarkupNoteChange::appearance_rebaked`.
+  **Both spellings reached**, which was the open question when they were
+  reported in two places by a sweep that had to read for the claim rather
+  than grep for the phrase.
+- Arithmetic closes: `grep -rn -i "recover from the canvas" crates/` returns
+  **three** hits — the corrected `edit.rs:15628`, the `Pass 258.1` test header
+  quoting the old sentence in order to call it backwards (the record, not a
+  survivor), and `tests/markup_note_edit.rs:159` (correct on its own subject;
+  see above).
+
+**Decisions made this session:**
+- **None.** A release-prep version bump and six doc/string corrections move no
+  architectural boundary. `ARCHITECTURE.md` §12 untouched; decision ceiling
+  `138`, next free `139`.
+- **`R209` instance, not a mint.** The fuzz-gate recurrence is that rule's own
+  founding instance repeating, so it is filed as a dated note under *Standing
+  rules* and the ceiling stays `R241`. The 2026-09-02 note on the same rule
+  already argued the disposition: a rule that is correct, written and
+  unconsulted has a **compliance** gap, not a wording gap.
+
+**Findings + decisions:**
+- **A workspace-wide check cannot see a crate outside the workspace.** `cargo
+  check --workspace --all-targets` is the sweep that feels total and is not;
+  `fuzz/` is excluded by construction. The stand-in `R209` already prescribes —
+  `cd fuzz && cargo check --bins` — takes seconds, needs no nightly and no ASan
+  DLL, and catches the entire class that has ever broken that CI job.
+- **Reading a runner's `--list` and typing the commands out is not running the
+  runner.** New sub-shape on `R209`: the previous instance was a remedy
+  ignored; this one is a remedy consulted and then partially executed, which
+  produces the same evidence a complete sweep produces.
+- **A trivially compiling fix can satisfy a gate and exercise nothing.** `&[]`
+  for `merge`'s new argument was the version that looks right and fuzzes
+  nothing; two identical file names is the version that drives the ambiguous
+  branch. Same family as `R162` and `R225`; no mint.
+- **An inferred drift figure is still an inferred figure.** The 457th filing's
+  bundle count was reasoned from the previous filing's number rather than
+  measured, and was wrong by four — hard rule 8's forbidden middle option,
+  committed by this role, corrected here with the command named.
+
+**Still in flight:**
+- **Unpushed after this filing:** `499cf3e` + this filing (`origin/main` =
+  `95a936e`; standing-authorized push, decision 090).
+- **Unreleased:** `b64ddb6`, `5c2b61f`, `d39aa33`, `02c2734`, `95a936e`,
+  `499cf3e` — the `0.43.0` batch, now **bumped but not cut**. `v0.42.0` =
+  `e59b084`.
+- **CI verdict on `499cf3e` must be read from GitHub after the push** (`R209`
+  clause (b) — never inferred from a local sweep, never from CI on the parent).
+- *Next up* still empty of live entries. *Backlog* signing remainder `10.10`,
+  `10.11`, `10.6`.
+- `request_a_sticky_notes_icon_and_colour_cannot_be_changed.md` (2026-09-05
+  01:31) remains **unblocked but not shipped** — carried forward from the
+  457th, unchanged by this filing.
+- Backup bundle `pdfcer-2026-09-03-1a31d2d-full.bundle` is **125** commits
+  behind `HEAD` (measured, `git rev-list --count 1a31d2d..HEAD`). Cadence note,
+  not an alarm.
+
+**For next session:**
+- **Engineer:** push `499cf3e` + this filing, then **read CI's colour from
+  GitHub** rather than from the local sweep. Then cut `v0.43.0` — the bump is
+  committed, the tag is not, and releasing is standing-authorized (decision
+  121) but still owes a green `tools/run-gates.sh` (**the runner, not its
+  `--list`**), a fresh-folder smoke test, and `verify-release.py`.
+- **Engineer, carried:** the owed-survivor ledger is **ZERO** — nothing owed
+  from this filing.
+- **Operator:** nothing user-visible changed. `0.43.0`'s contents are what the
+  456th and 457th filings shipped; this filing only made the version number and
+  four sentences honest before the tag.

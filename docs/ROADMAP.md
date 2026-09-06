@@ -112,6 +112,198 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★ 458th filing, 2026-09-06 — NO PASS MINTED, NO PASS SHIPPED. A short
+filing that unblocks a push: `95a936e` *"chore: 0.43.0, and retire four
+sentences `Pass 258.0`/`258.1` made false"* is filed, and with it **ALL SIX of
+the 457th filing's rule-11 survivors are DISCHARGED — verified here by reading
+the four files, not by accepting the dispatch's word.** The owed-survivor
+ledger goes **SIX in `crates/` → ZERO**. The deferred tip `499cf3e`
+*"fix(fuzz): pageops_sequence calls merge with its third argument"* is
+narrated but not filed as a Pass — the gate defers the tip — because its
+**cause** is the reusable half: **`R209`'s founding gate, skipped again, and
+the instance is dated onto `R209` rather than minted as a new rule.****
+
+**Why `95a936e` carries two unlike things, in the commit's own reasoning:**
+*"Bundled because the corrections are what makes the release honest rather
+than merely newer, and separating them would put a knowingly-false operator
+string into a tagged build."* **6 files, `+53/−26`** (`git show --stat`),
+authored `2026-09-06 14:47:40 -0400`. The two halves:
+
+1. **The `0.43.0` release-prep bump** — `Cargo.toml:86` `version = "0.42.0"`
+   → `"0.43.0"` plus the **three** lockfiles (`Cargo.lock`,
+   `fuzz/Cargo.lock`, `tools/content-identity/Cargo.lock`). This is the
+   uncommitted working-tree change the 457th filing reported as *"the
+   engineer's, in flight"*; it is now committed. **THE RELEASE IS NOT CUT** —
+   `git describe --tags --abbrev=0` = **`v0.42.0`**, and `git tag --list
+   'v0.43*'` is **EMPTY**. The release filing follows separately, as it did
+   for the 448th→449th and 454th→455th pairs.
+2. **The six sentence corrections** — no behaviour change; `4,966 tests
+   green`, `fmt`/`clippy` clean, dependency set unchanged so
+   `THIRD_PARTY_LICENSES.md` needs no regeneration (all relayed).
+
+**★★ THE SIX SURVIVORS, DISCHARGED — VERIFIED HERE BY READING THE SOURCE, NOT
+BY TAKING THE DISPATCH'S WORD.** The dispatch asked for exactly that check
+(*"verify that yourself rather than taking my word for it"*), which is the
+right instruction and the one this role's hard rule 10 corollary already
+compels: **a correction is a claim, and it must name its world-source.** The
+source here is `grep -rn -i` over the two files by **bare keyword** (`solid`,
+`continuous`, `recover from the canvas`) plus `sed -n` on every hit — clause
+(e)'s narrow-the-file-set, widen-the-pattern shape.
+
+| # | site (457th filing's line) | the superseded sentence | what is there NOW | verdict |
+|---|---|---|---|---|
+| 1 | `edit.rs:4887` → **`:4892`** | *"pdfcer authors `/S /S` (solid) only"* | *"★ **NARROWED BY `Pass 258.0`, exactly as [`Self::BorderEffect`] was by `Pass 98.0`.** `/S /D` (dashed) has left that list … reporting it here would be a FALSE disclosure — and rule 4 cuts both ways. The superseded wording was … which was true when it was written."* | **DISCHARGED**, and the old wording is **kept legible** per `R216` |
+| 2 | `edit.rs:4890` → **`:4897`** | *"carried by the dictionary, not by the regenerated appearance"* (unqualified) | *"★ **ALSO NARROWED BY `Pass 258.0`.** It used to fire for every dash, on the reasoning that … — which described the DEFECT rather than a property of the format … It now fires only where the pattern is genuinely gone: an array §8.4.3.6 does not admit (negative, or every element zero), or a caller that cleared it."* | **DISCHARGED** |
+| 3 | `main.rs:30924` (unmoved) | *"pdfcer authors solid strokes only"* — **printed** | *"the /BS /S border style: pdfcer authors solid and DASHED strokes, so this one is beveled, inset or underline, which it does not."* | **DISCHARGED on the operator channel** |
+| 4 | `main.rs:30928` → **`:30927`** | *"the regenerated stroke is continuous"* — **printed** | *"the /BS /D dash array: **it could not be used, so** the regenerated stroke is continuous. **A dash pdfcer can read is preserved, not dropped.**"* | **DISCHARGED** — the qualifier that turns a format claim back into a case report |
+| 5 | `edit.rs:15614` → **`:15628`** | *"A note is content the operator **cannot** recover from the canvas."* | *"…**usually cannot**…"*, followed by *"★ **`/FreeText` IS THE EXCEPTION, and the word 'usually' is carrying it (`Pass 258.1`)** … the note now re-bakes `/AP`, and [`Self::appearance_rebaked`] says whether it did."* | **DISCHARGED** |
+| 6 | `edit.rs:26099` → **`:26120`** | the identical sentence on `set_markup_note`'s own doc | *"…**usually cannot** recover from the canvas…"* + *"★ **Except on a `/FreeText`**, whose `/Contents` is exactly what its appearance paints … [`MarkupNoteChange::appearance_rebaked`] reports whether it could (`Pass 258.1`)."* | **DISCHARGED — both spellings reached**, which was the open question |
+
+**Measured totals: `grep -rn -i "recover from the canvas" crates/` returns
+THREE hits, and the arithmetic closes** — `edit.rs:15628` (corrected),
+`tests/free_text_note_rebake.rs:17` (the `Pass 258.1` header **quoting** the
+old sentence to call it backwards, which is the record and must not be
+"fixed"), and `tests/markup_note_edit.rs:159`. **`grep -rn -i "solid"` over
+`edit.rs` + `main.rs` returns 33 hits, every one read**, none of them a
+survivor.
+
+**★ ONE CORRECT HIT RECORDED SO THE NEXT SWEEP DOES NOT "FIX" IT — clause
+(e)'s explicit obligation.** `crates/pdfcer-core/tests/markup_note_edit.rs:159`
+still carries the sentence **unqualified**: *"★★ A note is content the
+operator **cannot recover from the canvas**."* It heads
+`replacing_a_note_discloses_the_words_it_destroyed`, whose fixture is
+`drawn_shape()` — **a shape annotation, not a `/FreeText`** — so on its own
+subject the sentence is **true, not stale**, and qualifying it would weaken a
+test header that is correct about the case it tests. It was **not** among the
+457th filing's six and is **not** a seventh; it is recorded here because the
+next reader greping `recover from the canvas` will land on it.
+
+**★★ THE DEFERRED TIP `499cf3e`, AND THE REASON IT IS IN THIS RECORD AT ALL —
+`R209`'S FOUNDING GATE, SKIPPED AGAIN, THIRTY-TWO DAYS LATER.** `1 file,
+`+11/−1``, authored `2026-09-06 15:10:35 -0400`. Not filed as a Pass (it
+mints nothing; `check-commits-filed.py` defers the tip), but the mechanism is
+the reusable half and it belongs where the next session will look.
+
+**CI went RED on `95a936e`, read from GitHub rather than inferred** (`R209`
+clause (b)): `gh run list -L 3` → run **`34052985417`**, `CI`, `main`, push,
+**`failure`**, `15m28s`, started `2026-09-06T18:50:23Z`. The job was
+`cargo +nightly fuzz build`; the error `E0061`; the cause `Pass 258.3` growing
+`pageops::merge` a third parameter while
+`fuzz/fuzz_targets/pageops_sequence.rs:226` still passed two.
+
+**The mechanism, and it is `R209`'s in one sentence: `cargo check --workspace
+--all-targets` CANNOT SEE the fuzz crate, because the fuzz crate is not in the
+workspace.** The local sweep was **genuinely green** and CI was **genuinely
+red**, and neither signal was wrong — which is exactly the property `R209`'s
+founding text names as *"what lets this survive for days"*.
+
+**★★★ THIS IS `R209`'s OWN INSTANCE 1, RECURRING — THE SAME GATE, NAMED IN
+ADVANCE, THIRTY-TWO DAYS APART.** `R209`'s founding instance 1 is the
+engineer's agent memory of **2026-08-05**, whose title is *"the cargo-fuzz
+gate is the one that gets skipped"*. The dispatch reports the same memory
+still on file and the same line skipped: *"I ran the gate list by hand and
+skipped that line."* **A dated instance note is appended to `R209`; NO NEW
+RULE IS MINTED. Ceiling stays `R241`, next free `R242`.** The full reasoning,
+and the one genuinely new sub-shape (the remedy was **consulted for its list**
+and the list was then **hand-executed minus one line** — different from the
+2026-09-02 instance, where `run-gates.sh` sat unrun), is in the note itself
+under *Standing rules*.
+
+**The denominator, because `R209` clause (e) requires one and this filing is
+about `R209`:** `bash tools/run-gates.sh --list` prints **29 commands** (1
+pre-flight + 26 + 2 filing gates, in that order) plus **2 named skips**;
+`ls tools/check-*` returns **23** scripts. **`cd fuzz && cargo check --bins`
+is command 10 of 29** — present, listed, and the one not run. *A sweep that
+omits a gate is indistinguishable from a green one*, in the form where the
+sweeper is holding the list.
+
+**★ THE FIX'S OWN TRAP, AVOIDED DELIBERATELY, AND IT IS THE HALF WORTH
+CARRYING.** The compiling minimal fix is `&[]` for the new argument. It would
+have **satisfied the gate, satisfied CI, and fuzzed none of the new code
+path** — `Pass 258.3`'s own *Not in this Pass* records that `&[]` restores
+pre-`258.3` behaviour exactly. What shipped instead passes **two IDENTICAL
+file names** (`b"fuzz.pdf"` twice), because the target merges a document with
+**itself**: a shared name makes every `/Launch` in it match **both** sources,
+which is the **ambiguous** case the re-pointer has to survive rather than the
+tidy one. **No rule minted for this either** — it is `R162`'s family (an
+assertion, or here an exercise, that proves nothing until the container could
+have held the thing) meeting `R225`'s (ask what the fixture would have done),
+and both already say it. Recorded as a worked instance, not a mint.
+
+**`docs/FEATURES.md` — NOT TOUCHED, and the judgement is MEASURED rather than
+assumed**, as the dispatch asked. `grep -in "solid\|recover from the
+canvas\|continuous\|0\.42\|0\.43" docs/FEATURES.md` returns **seven hits, all
+read, none falsified**: the file carries **no version marker at all** (zero
+hits for either version string, so a bump cannot stale it), and row `:267` —
+the `Pass 258.0` border-line-style row the 457th filing added — already reads
+*"Beveled, inset and underline borders are still authored solid and still
+disclosed"*, which is the corrected claim, not the retired one. **No capability
+moved**: a version bump and six sentence corrections change nothing an
+operator can do. `docs/core-api/` likewise carries no stale copy — its four
+`solid` hits (`03-capabilities.md:638`, `:1771`, `:3032`, `:3038`) are about
+`BorderSpec::default()`, redaction marks, and EMF replay respectively.
+
+**`ARCHITECTURE.md` §12 — NOTHING MINTED.** No boundary moved; a release-prep
+bump and a doc-string narrowing are neither.
+
+**Sourcing (hard rule 8) — measured here with a shell, each figure with the
+command that produced it:** `git rev-parse origin/main` = **`95a936e`** (the
+push of `95a936e` succeeded; it is `499cf3e` that the hook is blocking);
+`git rev-list --count origin/main..HEAD` = **1** (`499cf3e` only);
+`git describe --tags --abbrev=0` = **`v0.42.0`**; `git status --porcelain`
+**CLEAN** at the start of this filing; `git log -1 --format=%B` on both
+commits, read in full; `git show --stat` on both (`95a936e` 6 files
+`+53/−26`; `499cf3e` 1 file `+11/−1`); `git show 499cf3e --
+fuzz/fuzz_targets/pageops_sequence.rs` for the diff quoted above;
+`gh run list -L 3` for the CI verdict; `python tools/check-ledger-numbers.py`
+→ *"SESSION_LOG filings: 457 → next free is 458"*, rules `R241`, decisions
+`138`, Pass ceiling `258.3`; `bash tools/run-gates.sh --list` for the 29-command
+denominator; `ls tools/check-*` for the 23-script one.
+
+**★ AND A FIGURE THE 457th FILING GOT WRONG, CORRECTED BY MEASUREMENT WITH ITS
+WORLD-SOURCE NAMED — hard rule 8's forbidden middle option, committed by this
+role one filing ago.** The 457th recorded the backup bundle as **117** commits
+behind `HEAD`, *"(was 116 at the 456th — one commit's drift, the bundle is
+unchanged)"*. **That parenthesis is the defect: the drift was INFERRED from
+the previous filing's number rather than measured.** Measured now, per tip, by
+`git rev-list --count 1a31d2d..<tip>` against the newest bundle in
+`D:\Dev\pdfce-backups` (`ls -t` → `pdfcer-2026-09-03-1a31d2d-full.bundle`):
+
+| tip | filed | **measured** |
+|---|---|---|
+| `b64ddb6` (456th) | 116 | **116** ✓ |
+| `5c2b61f` (457th) | **117** | **121** ✗ — four commits' drift, not one |
+| `95a936e` | — | **124** |
+| `499cf3e` (`HEAD`) | — | **125** |
+
+The four unaccounted commits are the ones between `b64ddb6` and `5c2b61f`
+(`f9ed0dc`, `099bdc7`, `821ab47`, `4dca180`) — every one of them already named
+in the 457th filing's own text, which is what makes the inference indefensible
+rather than unlucky. **The bundle itself is unchanged; only the count was
+wrong.** `git rev-list --count 1a31d2d..HEAD` = **125** is the live figure.
+
+**RELAYED, not measured here:** the workspace suite (`4,966 passed / 0
+failed`), `cargo fmt --all --check`, `cargo clippy` clean, and the
+dependency-set-unchanged claim behind `THIRD_PARTY_LICENSES.md` needing no
+regeneration.
+
+**Gates (this role, on the filing tree): in the filing commit's message, with
+their denominator.**
+
+#### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass IDs | ceiling `258.3`; *Next up* empty of live entries | **unchanged** — no Pass minted, no Pass shipped; *Next up* still empty of live entries |
+| Decisions | ceiling `138`, next free `139` | **unchanged** — a release-prep bump and six sentence corrections move no boundary |
+| Standing rules | ceiling `R241`, next free `R242` | **unchanged** — a **dated instance note added to `R209`**, no re-mint; the fuzz-gate skip is `R209`'s founding instance recurring, not a new rule |
+| SESSION_LOG filings | `457` | **`458`** |
+| **Owed-survivor ledger** | **SIX in `crates/`** | **ZERO** — all six discharged in `95a936e` and **verified here by reading the source**; one correct-and-unqualified hit recorded (`tests/markup_note_edit.rs:159`) so the next sweep does not "fix" it |
+| `FEATURES.md` | — | **NOT TOUCHED** — measured, not assumed; no capability moved, no version marker in the file |
+| Unpushed | `5c2b61f`, `d39aa33`, the 457th filing | **`499cf3e`** + this filing (`origin/main` = `95a936e`; standing-authorized push, decision 090) |
+| Unreleased | `b64ddb6`, `5c2b61f`, `d39aa33` | **`b64ddb6`, `5c2b61f`, `d39aa33`, `02c2734`, `95a936e`, `499cf3e`** — the `0.43.0` batch, now **bumped but not cut**; `v0.42.0` = `e59b084` |
+| CI | green on `4dca180` | **RED on `95a936e`** (run `34052985417`), fixed by `499cf3e`, whose own verdict must be read from GitHub after the push |
+
 **★★★★ 457th filing, 2026-09-06 — FOUR PASSES MINTED AND SHIPPED IN ONE
 FILING FROM ONE COMMIT, none of which ever had a *Backlog* or a *Next up*
 entry: **`Pass 258.0`**, **`258.1`**, **`258.2`**, **`258.3`**, all in
@@ -203,7 +395,16 @@ nil** (the remedy chosen matches the rule exactly), which is precisely why it
 is worth recording: the instinct was right and the ledger was not read.
 
 **★★ RULE-11 SWEEP — SIX SURVIVORS, ALL IN `crates/`, ALL REPORTED AND NONE
-EDITED (the sweep is this role's, `crates/` is not).** The claims that changed
+EDITED (the sweep is this role's, `crates/` is not).**
+
+> **★ RESOLVED 2026-09-06 (458th filing) — ALL SIX DISCHARGED in `95a936e`,
+> verified by reading the four files rather than by accepting the report.
+> Owed-survivor ledger `SIX in crates/` → `ZERO`.** The table below is kept
+> exactly as filed (`R216`: preserved wrong wording belongs in the record);
+> the new line numbers, the replacement sentences and the one
+> correct-but-unqualified hit deliberately left alone are in the 458th head.
+
+The claims that changed
 meaning are (a) *"pdfcer authors solid strokes only"*, (b) *"a `/BS /D` is
 carried by the dictionary, not by the appearance"*, and (c) *"a note is
 content the operator cannot recover from the canvas"*. Swept by **bare
@@ -149528,6 +149729,66 @@ same cause (hashes exist only at commit time), two different failure modes.
   > finding `R217`'s third amendment note reached for a different rule
   > the same week (*"reported as defective three times and corrected zero
   > times"*). **Ceiling unaffected: rules `R239`, next free `R240`.**
+
+  > **★★ FURTHER INSTANCE, 2026-09-06, 458th filing (`95a936e` red, `499cf3e`
+  > the fix) — THIS RULE'S *FOUNDING INSTANCE 1* RECURRED: THE SAME GATE,
+  > NAMED IN ADVANCE IN THE ENGINEER'S OWN AGENT MEMORY, SKIPPED AGAIN
+  > THIRTY-TWO DAYS LATER. NO NEW RULE — THE INSTANCE IS DATED ONTO `R209`
+  > BECAUSE `R209` **IS** THE RULE.**
+  >
+  > **What happened.** `Pass 258.3` grew `pageops::merge` a third parameter;
+  > `fuzz/fuzz_targets/pageops_sequence.rs:226` still passed two. CI run
+  > **`34052985417`** on `95a936e` went **red** on `cargo +nightly fuzz build`
+  > with `E0061` (verdict read from GitHub via `gh run list -L 3`, per clause
+  > (b), not inferred). **The fuzz crate is not in the workspace, so `cargo
+  > check --workspace --all-targets` cannot see it** — the local sweep was
+  > genuinely green, CI was genuinely red, and *neither signal was wrong*,
+  > which is this rule's founding sentence restated on a new day.
+  >
+  > **★ Why it is instance 1 and not a fresh finding.** `R209`'s instance 1 is
+  > the engineer's `.claude/agent-memory/` note of **2026-08-05**, titled
+  > *"the cargo-fuzz gate is the one that gets skipped"*. The dispatch opening
+  > this filing reports that memory still on file **and** the same line skipped:
+  > *"it is in `run-gates.sh`, it is in CI, and it is the one I skip when I
+  > sweep by hand."* Named in advance, in writing, by the person who then
+  > skipped it. **A rule that predicts its own next violation and does not
+  > prevent it is not a rule with a wording gap.**
+  >
+  > **★★ THE ONE GENUINELY NEW SUB-SHAPE, and it is a step worse than the
+  > 2026-09-02 instance: THE REMEDY WAS CONSULTED FOR ITS LIST, AND THE LIST
+  > WAS THEN HAND-EXECUTED MINUS ONE LINE.** On 2026-09-02 `tools/run-gates.sh`
+  > *"sat on disk, unrun"* — a remedy ignored. Here it was **run with
+  > `--list`**, its output read, and the commands **retyped selectively**.
+  > ⇢ ***Reading a runner's list and executing it by hand converts a mechanism
+  > back into memory, which is the exact thing the mechanism replaced.*** The
+  > remedy is `bash tools/run-gates.sh` — the runner, not its manifest. Clause
+  > (e)'s *"a sweep that omits a gate is indistinguishable from a green one"*
+  > covers this precisely; the sweeper was **holding the list** and the omission
+  > still produced identical evidence.
+  >
+  > **The denominator, since this clause requires one of every gate-sweep
+  > figure:** `bash tools/run-gates.sh --list` prints **29 commands** (1
+  > pre-flight, 26, then the 2 filing gates last by construction) plus **2
+  > named skips**; `ls tools/check-*` returns **23** scripts. **`cd fuzz &&
+  > cargo check --bins` is command 10 of 29** — the `LOCAL-VIA` stand-in this
+  > rule's own founding text prescribes for the offending job, by name.
+  >
+  > **Declined to mint or amend, on the 2026-09-02 note's own warrant:** the
+  > rule was correct, written, cited by the offender in advance, and
+  > unconsulted at the moment of use. That is a **compliance gap, not a rule
+  > gap**, and a sharper sentence is demonstrably not the fix — the sentence
+  > was already sharp enough to be quoted. **Ceiling unaffected: rules `R241`,
+  > next free `R242`.**
+  >
+  > **★ Recorded beside it, because the fix could have been green and useless:**
+  > the compiling minimal repair was `&[]` for the new argument, which would
+  > have satisfied the gate **and exercised none of `Pass 258.3`'s new path**
+  > (`&[]` restores pre-`258.3` behaviour exactly, by that Pass's own note).
+  > The shipped fix passes **two identical file names**, so merging a document
+  > with itself makes every `/Launch` match **both** sources — the ambiguous
+  > case, not the tidy one. That belongs to `R162`/`R225`, both of which
+  > already say it; noted here only because *this* rule is about gates that
+  > report green without having asked anything.
 
   **Ceiling moves `R208` → `R209`; next free `R210`.**
 
