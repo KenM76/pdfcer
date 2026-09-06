@@ -4,143 +4,116 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-09-05, end of the second session of the day. **Released:**
-**v0.40.0** at `de0e963` (GitHub release + OneDrive `pdfcer2`; `pdfcer1` holds
-0.39.0). `tools/verify-release.py v0.40.0` clean. **Ledger after the 441st
-filing:** filings 441, Pass ceiling **256.1**, decisions **138** (next 139),
-rules R241 (next R242). Workspace version is `0.40.0` (bump to `0.41.0` at the
-next release). The batch the operator ruled on 2026-09-05 ("build all before
-the next portable release") is DONE and shipped.
+**Written:** 2026-09-06 (UTC; the 2026-09-05 late-evening session). **Released:**
+**v0.41.0** at `c4e39e7` (GitHub release + OneDrive `pdfcer1`; `pdfcer2` holds
+0.40.0). `tools/verify-release.py v0.41.0` nine of nine ok. CI run
+34007817244 green 10/10. **Ledger after the 449th filing:** filings 449, Pass
+ceiling **257.0**, decisions **138** (next 139), rules R241 (next R242).
+Workspace version is `0.41.0` (bump to `0.42.0` at the next release).
+**Nothing is unreleased on `main`.** Both FeatureRequests channels are
+empty of unanswered inbound (`pdfce_FeatureRequests\open` holds only my
+replies; `iccce_FeatureRequests\open` likewise).
 
 ---
 
-## Unreleased since v0.40.0 (goes into 0.41.0)
-- `8670523` fix: `EditableTextModel::hit_test` returns `None` beyond one
-  line-height of every line (pdfcer-gui request, measured at 1e9 pt); their
-  click-on-blank-paper-to-add-text arm can now fire. Reply posted.
-- `1343f0e` **Pass 256.0 SHIPPED**: `edit_text` spans consecutive show
-  operators (one-glyph-per-`Tj` producers, `TJ` splits); followers re-space
-  via `Rec::Td`; `EditReport::operators_spanned`. Verified on the operator's
-  file: `--find "clien" --replace "client"` → spanned 5, followers 4. Reply
-  posted. Criteria 5 and 7 amended in the filing (Td followers now re-space;
-  fixture spells with A/B/C).
-
-- `5f9beb3` **Pass 142.2 SHIPPED**: `preview_font_resources_for(page, find,
-  pin, candidate)` + `FontPreflight::{candidate, standard_14}`; CLI
-  `font-preflight --candidate`. `70c1e29`: sign_document oracle test flake
-  fixed (per-call temp dir). Reply posted.
+## What this session shipped (all in v0.41.0)
+- `5e95805` **Pass 257.0** — every text-edit planner takes `&DocumentView<'_>`
+  and every `EditSession` verb passes `self.view()`, so a `/Font` that
+  `format_text` authored this session is typeable by the next `edit_text`
+  (pdfcer-gui's three measurements are `tests/session_graph_resolution.rs`).
+  Handing a planner `&self.base` is now a COMPILE ERROR. `reflow_block`'s two
+  "save and reopen before reflowing" refusals (page set changed; content
+  already edited — trap T-14) are REMOVED; only the Pass 251.0 appended-run
+  refusal remains. Public signature change: `text_edit::forms::{scan_page_forms,
+  invocation_set, form_objects_on_page}` lost their leading `&Document`.
+  SHIPPED reply posted and marked released.
+- `56dde4d` Pass 256.1 (per-character `/ToUnicode` refusal), `5f9beb3` Pass
+  142.2 (font pre-flight for the candidate text + standard 14), `1343f0e` Pass
+  256.0 (edit across show operators), `8670523` Pass 14.5 (`hit_test`
+  presence), `3ae1fb4` two stale-wording survivors.
 
 ## THE NEXT WORK — in order
 
 ### 1. Pick from *Next up* / *Backlog* in `docs/ROADMAP.md` — the inbound queue is EMPTY
-Candidates, in the order I would take them: `Pass 256.1` (`/ToUnicode`
-partial inversion — per-character refusal instead of wholesale), `10.14`
-(signing hardening: CMS sabotage tests, composed visible appearance,
-content-identity run), `10.12` (certifying signatures `/DocMDP`), `10.13`
-(sign into a pre-placed empty `/Sig` field), `10.10`/`10.11` (shell-side
-signers; B-T timestamp). Then the 0.41.0 batch release (three unreleased
-fixes/features are already on `main`).
+Candidates, in the order I would take them: `10.14` (signing hardening: CMS
+sabotage tests, composed visible appearance, content-identity run), `10.12`
+(certifying signatures `/DocMDP`), `10.13` (sign into a pre-placed empty
+`/Sig` field), `10.10`/`10.11` (shell-side signers; B-T timestamp), `142.0`
+(the embedded-donor half of FF-C: `format_text` to a face that is neither on
+the page nor standard-14). A smaller one now within reach: let `reflow_block`
+COMPOSE with an appended run instead of refusing (the plan reads the view now;
+what remains is re-emitting the block across contents[0] and the extras
+rather than sweeping the extras).
 
-### (done) `Pass 142.2` — font pre-flight for the text ABOUT TO BE TYPED
-pdfcer-gui request (`request_font_preflight_tests_the_text_that_is_there_not_the_text_about_to_be_typed.md`),
-scoped in the 443rd filing; reply posted (`reply_2026-09-06-font-preflight-candidate-text-is-scoped-as-142-2.md`).
-(a) a `candidate: &str` parameter on a new verb beside `preview_font_resources`
-— every `FontAcceptance` computed by `accept_font_target` against the candidate
-(incl. the embedded-subset floor at `edit.rs` ~1788); (b) `Std14::ALL` surveyed
-for the same candidate with `OnPage`/`WouldBeAdded`; CLI `font-preflight
---candidate TEXT`. Code: `text_edit/format.rs` (`survey_page_fonts` ~3122,
-`FontAcceptance` ~3245, `FontPreflight` ~3359, `preview_font_resources` in
-`edit.rs` ~9848). Tests: `€` against the subset face (refused, names `€`) and
-against Helvetica (WinAnsi carries it).
+### 2. Check `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open` and `iccce_FeatureRequests\open` first
+pdfcer-gui files requests there at any hour; three landed during this session.
+`D:\Dev\FeatureRequests\pdfcer-gui\` is a GUI-shell REVIEW handoff (2026-09-03,
+REVIEW.md + mockups) addressed to the pdfcer-gui project — nothing in it is
+owed by core; do not re-read it as an inbound.
 
-### (done) `Pass 256.0` — edit text ACROSS show operators
-Operator hit it on the first real document he tried to correct (`clien` →
-`client`; the producer writes ONE show operator PER GLYPH, and `edit-text`
-finds within one operator by contract). Acceptance criteria are in
-`docs/ROADMAP.md` (439th filing). Facts to carry in:
-- **Ask (b) already exists**: `EditRequest::pinned_span` + empty `find` =
-  whole-operator target. Verified on his file (`C:\Users\Ken\OneDrive\pdfTests\
-  apartment work - signed.pdf`, page 2, text object 12, last run
-  `ByteSpan{7250,7}`): replace `"nt"` → "…with client". pdfcer-gui has been told
-  (`reply_2026-09-05-one-glyph-per-operator-the-pin-already-fixes-his-typo.md`).
-- Code map (`crates/pdfcer-core/src/text_edit/edit.rs`, 3629 lines):
-  `find_anchor` (2286) picks ONE `OpRec` whose `ShowData.text` contains `find`;
-  `match_run` (2461) maps the match to slots within ONE `TJ` element and refuses
-  cross-element already ("cross-element edit deferred"); `plan_edit_target`
-  (1652) does the re-encode + follower reflow; `same_line` (2133) is the
-  follower test. 256.0 = an anchor that is a RANGE of consecutive `Show` recs
-  (same font resource, `tf_size`, baseline, one text object / no MCID crossing),
-  text concatenated for the `find`, replacement written into the operator
-  holding the match END, matched glyphs removed from earlier operators, and the
-  following operators' `Td`/`Tm` shifted by the net advance (the existing
-  follower machinery). Add `EditReport.operators_spanned`. Fixture: a synthetic
-  one-glyph-per-operator composite (generator under `tools/`), plus a `TJ`-split
-  case. No new CLI flag; rewrite the four `--help` sentences that state the
-  one-operator contract (`main.rs` ~6002/6086/22704/23528).
-- Refuse by name where the span crosses an MCID or a font change.
+## Gotchas this session paid for (all recorded in agent memory)
+- **Reverting git verbs in a chain — RECURRED.** `git checkout -- <file>
+  2>/dev/null; echo "NO — do not checkout"` typed into a test command reverted
+  the whole uncommitted `edit.rs` (2026-09-02 shape, character for character).
+  Recovered because every edit was a `%TEMP%` script. New rule: a sabotage
+  script contains its own revert; any `checkout/restore/reset/clean` is the ONLY
+  command in its call. A PreToolUse hook is the structural fix — proposed to Ken.
+- Python patch scripts: a Rust `\`-continuation in a `'''…'''` literal is eaten
+  by Python itself; build the line with `chr(92)`. `tools/check-string-gaps.sh`
+  is the detector, run after `cargo fmt`.
+- `tools/run-gates.sh` after a VERSION BUMP exceeds the 10-minute foreground
+  limit and gets moved to background (this time it survived; usually it is
+  reaped). Pre-warm: `cargo clippy --workspace --all-targets`, then `cargo test
+  --workspace --no-run`, then `cargo test --workspace` (≈4 min warm), THEN
+  run-gates.
+- The pre-push hook re-runs the gates, so `git push` sits silent for minutes
+  and looks hung; use `GIT_TERMINAL_PROMPT=0` and a 3-minute timeout, alone.
+- `format_twins.pdf`: `FontSelector::new("Times-Bold")` binds `/FB1` (the
+  `/Differences` twin) — name `/FB2` by resource key in tests.
+- A librarian filing can find rule-11 survivors in `crates/` that are the
+  engineer's to fix; fix them before the release commit, not after.
 
-### 2. Then: `Pass 256.1` (`/ToUnicode` partial inversion, Backlog), and the
-signing gaps `10.12` (certifying `/DocMDP`), `10.13` (sign into a pre-placed
-empty `/Sig` field), `10.14` (hardening: CMS sabotage tests, composed visible
-appearance, content-identity run), `10.10` (Windows-store / PKCS#11 shell-side
-signers — the `Signer` trait + `sign::verify_raw_signature` are ready for it),
-`10.11` (B-T timestamp; the TSA round trip is the CLI's — first network client
-in a shell, §1.1 README claim falls due).
-
----
-
-## Signing arc — what is true now (so nothing is re-derived)
-Shipped `7734261` (Passes 10.7–10.9): `sign::Signer`, `Pkcs12Signer` (both
-PKCS#12 eras, MAC first), in-house DER writer + CAdES `SignedData`,
-`EditSession::sign` (incremental, `/ByteRange` to EOF, self-verified with
-`signature_verify`), `pdfcer sign`. Tests cross-check with `openssl cms
--verify`. Level is always B-B. Encrypted docs refused outright. RSA refuses on
-wasm32 (no blinding entropy); ECDSA works there. Crate stack = decision 137
-(`rsa 0.10 rc` under the open Marvin advisory, accepted on recorded reasoning:
-signing never runs the decryption oracle; blinded paths only). Memory:
+## Signing state (unchanged this session)
+PAdES B-B from a `.pfx` (Passes 10.7–10.9, v0.40.0): `sign::{der_out,
+cms_build, pkcs12, apply}`, `EditSession::sign`, `pdfcer sign`. Tests
+cross-check with `openssl cms -verify`. Level is always B-B. Encrypted docs
+refused outright. RSA refuses on wasm32 (no blinding entropy); ECDSA works
+there. Crate stack = decision 137 (`rsa 0.10 rc` under the open Marvin
+advisory, accepted: signing never runs the decryption oracle). Memory:
 `.claude/agent-memory/pdfcer-engineer/project_signing_arc_state.md`.
 
-## The red push, and the rule it left
-The 7-commit batch push went RED on ONE CI step: `rsa`'s optional `sha2`
-dependency has `features = ["oid"]`, which the decision-039 guard forbids on
-`sha2`. Decision 138 admitted `oid` (const-oid trait impls only, needed for the
-PKCS#1 v1.5 DigestInfo) and the guard regex moved. **That step is CI-only** —
-`check-ci-parity.py --list` marks 3 steps as such. Before pushing any
-`Cargo.toml` change: `cargo tree -p pdfcer-core -e features | grep -E 'aes
+## The red push of v0.40.0, and the rule it left
+`rsa`'s optional `sha2` dependency has `features = ["oid"]`, which the
+decision-039 guard forbade. Decision 138 admitted `oid`. **That step is
+CI-only** — `check-ci-parity.py --list` marks 3 steps as such. Before pushing
+any `Cargo.toml` change: `cargo tree -p pdfcer-core -e features | grep -E 'aes
 feature|sha2 feature'` and compare with `.github/workflows/ci.yml`. **Never tag
-a release before CI is green on the pushed tree** — a local tag was made and
-had to be deleted this time.
+a release before CI is green on the pushed tree.**
 
 ## Build environment — READ before any release build
 This box has **~4.4 GB free RAM**. Release build: **`CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
 CARGO_BUILD_JOBS=2 cargo build --release -p pdfcer-cli`** (~6 min with a warm
-cache). The environment reaps long BACKGROUND processes: `tools/run-gates.sh`
-and `cargo test --workspace` cannot be backgrounded — `--no-run` first, then run
-in the foreground (195 test binaries in < 10 min warm). `gh run watch` also gets
-reaped in the background; poll `gh run view --json status,conclusion` in a short
-foreground loop instead.
+cache). Long BACKGROUND processes get reaped: never background `cargo test
+--workspace` or `run-gates.sh`; `gh run watch` too — poll `gh run view --json
+status,conclusion` in a foreground loop (CI ≈ 13 min).
 
-## Release procedure (worked 2026-09-05, twice)
-bump `Cargo.toml` version → chore commit → PUSH and wait for CI green → tag at
-that commit → rebuild (the banner reads `git describe`) → `tools/package-portable.py
---no-build --note "…"` → fresh-folder smoke test (copy the build dir, run
-`--version`, `sign`, `verify-signatures`) → zip with Python `zipfile` (Compress-
-Archive misquotes `$VAR` paths) + `sha256sum … > .sha256` → `git push origin
-vX` → `gh release create vX zip sha256 --notes-file …` → `tools/deploy-onedrive.py`
-→ `tools/verify-release.py vX` → librarian release filing.
+## Release procedure (worked 2026-09-05 twice and 2026-09-06)
+bump `Cargo.toml` version (`cargo metadata --offline` for both lockfiles,
+incl. `fuzz/Cargo.lock`) → chore commit → librarian filing for any unfiled
+code commit (`check-commits-filed.py`; the tip is allowed to be deferred) →
+PUSH (hook runs gates) and poll CI green → `git tag -a vX -m … <sha>` → rebuild
+(the banner reads `git describe`) → `tools/package-portable.py --no-build
+--note "…"` → fresh-folder smoke test (copy the build dir, run `--version`,
+`sign` with `fixtures/synthetic/signing/rsa2048-modern.pfx` password `pdfcer`,
+`verify-signatures`, `edit-text`) → zip with Python `zipfile` + sha256 → `git
+push origin vX` → `gh release create vX zip sha256 --title … --notes-file …` →
+`tools/deploy-onedrive.py` → `tools/verify-release.py vX` → librarian release
+filing → refresh this file.
 
-## Standing habits this session reinforced
-- Check BOTH FeatureRequests channels every session (`D:\Dev\FeatureRequests\
-  pdfce_FeatureRequests\open`, `iccce_FeatureRequests\open`). Three replies were
-  posted today; nothing new inbound at close.
-- A new public TYPE gets announced on the channel by name (pdfcer-gui's gates
-  key on verbs and FEATURES rows only) — done in the one-glyph reply.
-- A Python patch script eats a Rust `\`-continuation even via the Write tool
-  (Python's own line continuation); use raw strings.
+## Standing habits
+- Check BOTH FeatureRequests channels every session.
+- A new public TYPE or a changed public SIGNATURE gets announced on the
+  channel by name (pdfcer-gui's gates key on verbs and FEATURES rows only).
 - Anchor a splice on the DOC BLOCK, not the item.
-- Never bundle code into a filing commit; a chore (even a lockfile) is a CODE
-  commit for `check-commits-filed` — name it in the next filing.
-
-## Not for the engineer to decide (operator's)
-- Buy-me-a-coffee link in the MIT notice — operator's own task.
-- Open question `(bl)` (CC-BY-SA OCR model) still stands.
+- Batch releases: build everything pending, then ONE portable release
+  (operator, 2026-09-05).
