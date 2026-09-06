@@ -350,6 +350,32 @@ def cidfont_partially_injective_tounicode() -> bytes:
     return _cidfont_document(ttf, cid_to_gid, tounicode, content)
 
 
+def cidfont_subset_floor() -> bytes:
+    """The composite font whose `/ToUnicode` is BROADER than the glyphs the
+    page paints (pdfcer-gui's §4 question, 2026-09-05; the composite half
+    of the embedded-subset floor, R-INV-1).
+
+    CIDs 1, 2, 3 mean 'A', 'B', 'C' — all three invertible — but the page
+    paints only CID 1 and CID 3. Editing A -> C must SUCCEED (C is carried);
+    editing A -> B must be REFUSED by the floor: CID 2 is in the map but no
+    glyph for it is painted on this page, so nothing proves the embedded
+    subset carries it. Before the descriptor was read from the descendant
+    CIDFont, `class.embedded` was false for every composite run and this
+    edit went through to the writer.
+    """
+    ttf = build_nocmap_truetype()
+    cid_to_gid = bytes([0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01])
+    tounicode = (
+        b"/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n"
+        b"/CMapName /pdfcer-Identity-UCS def\n/CMapType 2 def\n"
+        b"1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n"
+        b"3 beginbfchar\n<0001> <0041>\n<0002> <0042>\n<0003> <0043>\nendbfchar\n"
+        b"endcmap\nend\nend\n"
+    )
+    content = b"BT\n/F0 48 Tf\n72 600 Td\n<0001> Tj\n0 -60 Td\n<0003> Tj\nET\n"
+    return _cidfont_document(ttf, cid_to_gid, tounicode, content)
+
+
 def cidfont_noninjective_tounicode() -> bytes:
     """The same composite font carrying a NON-INJECTIVE `/ToUnicode`.
 
@@ -432,6 +458,10 @@ def main() -> int:
     p4 = OUT / "cidfonttype2-partially-injective-tounicode.pdf"
     p4.write_bytes(cidfont_partially_injective_tounicode())
     print(f"wrote {p4} ({p4.stat().st_size} bytes)  [A ambiguous (CIDs 1,2), B unambiguous (CID 3); page shows A and B]")
+
+    p5 = OUT / "cidfonttype2-subset-floor.pdf"
+    p5.write_bytes(cidfont_subset_floor())
+    print(f"wrote {p5} ({p5.stat().st_size} bytes)  [A,B,C mapped; page paints A and C only — the composite floor]")
     return 0
 
 

@@ -3070,7 +3070,26 @@ pub(crate) fn classify_font(
         }
     }
 
-    let descriptor = font_dict
+    // The descriptor lives on the SIMPLE font dictionary — or, for a Type 0
+    // font, on its descendant CIDFont (§9.7.4.1; Table 117 makes it a
+    // required entry of the CIDFont dictionary, and it is never on the
+    // parent). Reading it from the parent made every composite run
+    // "non-embedded" — a false disclosure on most real documents, and it
+    // silenced the embedded-subset floor for them (pdfcer-gui, 2026-09-05).
+    let descriptor_holder: Dict = if subtype.as_slice() == b"Type0" {
+        font_dict
+            .get(b"DescendantFonts")
+            .map(|o| doc.resolve(o))
+            .and_then(Object::as_array)
+            .and_then(|a| a.first())
+            .map(|o| doc.resolve(o))
+            .and_then(Object::as_dict)
+            .cloned()
+            .unwrap_or_default()
+    } else {
+        font_dict.clone()
+    };
+    let descriptor = descriptor_holder
         .get(b"FontDescriptor")
         .map(|o| doc.resolve(o))
         .and_then(Object::as_dict);
