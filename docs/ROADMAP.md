@@ -112,6 +112,240 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★ 453rd filing, 2026-09-06 — `Pass 10.13` SHIPPED, unreleased
+(post-`v0.41.0`): **`ab40127`** *"feat(core,cli): sign INTO a pre-placed empty
+signature field — /Lock → /FieldMDP, seed values enforced in full (Pass
+10.13)"*, 16 files, `+1278/−44` (`git show --stat`), author stamp
+`2026-09-06 05:13:39 -0400`. Filed at the 439th (2026-09-05) into *Backlog*
+as the 438th's recorded `10.9` deviation #1, built the next day in one
+commit — the second *Backlog* item taken in a row since *Next up* emptied
+at the 451st, and the third signing Pass of the day (`10.14`, `10.12`,
+`10.13`). No decision minted, no rule amended. ONE narrowing recorded
+(non-merged `/Kids` fields refused by name, not handled). The dispatch's
+premise about the working tree corrected below.**
+
+**What a caller sees, stated first.** A form author places an empty
+signature field — the "sign here" placeholder every form workflow produces —
+and until this commit `pdfcer sign --field-name <that name>` was refused as a
+collision (`FieldNameTaken`); pdfcer could only add a SECOND field beside
+the author's. Now `SignRequest::field_name` naming an EXISTING field is
+resolved BEFORE any object number is allocated
+(`EditSession::reusable_sig_field`, `edit.rs:22724`): an empty, merged
+`/FT /Sig` field is **signed into** — `/V` ← the signature dictionary, the
+field's own `/Rect` and page (`/P`, else the page whose `/Annots` lists it)
+place the appearance (a degenerate rect = invisible), every other entry of
+the author's dictionary survives, no widget is appended to `/Annots`,
+`/Fields` is untouched, `/AcroForm /SigFlags |= 3` through a new
+`acroform_sigflags_write` (`edit.rs:22884`). An unknown name still CREATES,
+unchanged. The CLI prints `field=<name> (existing|created)`
+(`main.rs:27393`), `field_lock: /FieldMDP <All|Include: a, b|Exclude: …>
+(copied from the field's /Lock, Table 233)` (`main.rs:27418`) and `note:
+seed value: …` lines; the six new refusals exit `9`. **Measured by the
+core test, not asserted:** the pre-existing objects re-emitted are EXACTLY
+the field and the AcroForm holder (the catalog — the fixture's form is
+inline) — asserted as the set `{1, 5}` on `sig-field-empty.pdf`; and
+`parse_acroform` sees ONE `/Sig` field afterwards, not two.
+
+**The five draft criteria, walked (the 439th filing's list, in the *Backlog*
+entry — kept in place, struck and annotated; ONE narrowing and ONE
+engineer's-choice recorded):**
+
+1. **Resolution of `field_name` — MET, with a NARROWING.** (a) no such
+   field → CREATE, unchanged. (b) existing empty merged `/FT /Sig` → signed
+   into, as above; the draft's *"`--rect` refused by name when the field
+   already has one"* shipped as `--visible`/`--page` alongside an existing
+   field → `SignApplyError::RectRefusedForExistingField { name }`
+   (`apply.rs:399`; the message names the remedy — drop them, the field's
+   `/Rect` and page are used). (c) `/V` present →
+   `FieldAlreadySigned { name }`. (d) any other `/FT` →
+   `FieldNotSignature { name, field_type }` (`apply.rs:366`). **Narrowed:**
+   a field whose widgets sit under `/Kids` (non-merged) →
+   `FieldHasKids { name }` (`apply.rs:388`) — merged field-widgets only in
+   this cut, refused by name rather than half-handled; a Backlog-adjacent
+   remainder, not filed as a Pass (nobody has asked; the author-placed
+   placeholder is a merged widget in every fixture this project has). The
+   *"only pre-existing object rewritten"* clause was measured as TWO objects
+   — the field and the AcroForm holder (`SigFlags`) — which is what the
+   draft meant and what round-trip requires; recorded as measured, not as
+   the draft's looser wording.
+2. **`/Lock` — the engineer chose HONOUR, not refuse.** Action/Fields are
+   COPIED from the lock into a `/FieldMDP` signature reference (§12.8.2.4,
+   Table 256; direct objects, `/Data` the catalog — `edit.rs:41794`);
+   `SignReport::field_lock: Option<String>` (`apply.rs:247`) says what was
+   written; `signature::census().field_mdp` counts it (`signature.rs:558`;
+   tested). `Include`/`Exclude` with no `/Fields`, or an unknown `/Action`,
+   → `SeedValueUnevaluable` by name (`edit.rs:22822`, `:22842`) — the draft's
+   *"ignoring the lock is not an option"* holds in both branches.
+3. **`/SV` — MET, enforcement TOTAL.** `sign::apply::check_seed_value(field,
+   sv, request, algorithm)` (`apply.rs:534`) reads Table 234's `/Ff` bits
+   1–7 to decide required vs recommended: a REQUIRED constraint the request
+   does not meet → `SeedValueViolated { name, constraint }` naming the
+   satisfying values (`/Filter` = `Adobe.PPKLite`; `/SubFilter` list vs
+   `--format`; `/DigestMethod` list vs the algorithm's SHA-256/SHA-384;
+   `/Reasons` list vs `--reason`; `/MDP /P 0` = must NOT certify, `1..3` =
+   must certify at that level, vs `--certify`); a RECOMMENDED one unmet →
+   `SignReport::notes` (rule 4 — printed as `note: seed value: …`,
+   `apply.rs:596`/`:612`/`:631`); anything pdfcer does not evaluate →
+   `SeedValueUnevaluable { name, what }`, never skipped: `/Cert` (Table 235),
+   a required `/TimeStamp` (B-T not built — `10.11`), a required
+   `/LegalAttestation`, `/AddRevInfo true` when required (B-LT not built),
+   a required `/V` above 2.0, unknown keys. Acrobat's own strictness stays
+   a recorded RAG gap; pdfcer's is total by design — exactly what the entry
+   said it would be.
+4. **Disclosure — MET.** `field=<name> (existing|created)` printed;
+   `SignReport::{field_reused: bool, field_lock, notes}` (`apply.rs:243–252`)
+   carry it for a shell.
+5. **Tests — MET.** Fixtures from `tools/gen-sig-field-fixtures.py` (115
+   lines, deterministic, nothing signed — writes the AcroForm, not a
+   `.pfx`): `fixtures/synthetic/signing/sig-field-{empty,lock,lock-include,
+   sv-ok,sv-strict,sv-cert}.pdf` (1,079 / 1,123 / 1,144 / 1,271 / 1,157 /
+   1,136 B; `PROVENANCE.md` `+15`). `crates/pdfcer-core/tests/sign_into_field.rs`
+   (255 lines, 5) and `crates/pdfcer-cli/tests/sign_into_field.rs` (144
+   lines, 3) — the draft's every clause has a test by name (below), plus one
+   the draft did not ask for: the committed
+   `fixtures/synthetic/forms/unfillable-fields-form.pdf` "Approved"
+   placeholder signs into. `verify-signatures` 1/1 and `list-signatures`
+   naming the field are the CLI test's assertions.
+
+**Tests, RUN HERE.** `cargo test -p pdfcer-core --test sign_into_field`:
+**5 passed, 0 failed, 0.48 s** —
+`signing_into_the_empty_field_reuses_it_and_rewrites_only_it_and_the_catalog`,
+`the_refusals_by_name_write_nothing`,
+`a_lock_on_the_field_becomes_a_field_mdp_transform`,
+`seed_values_are_honoured_checked_or_refused_never_skipped`,
+`the_forms_fixture_with_an_approval_placeholder_signs_into_it`. `cargo test
+-p pdfcer-cli --test sign_into_field`: **3 passed, 0 failed, 0.37 s** —
+`signing_into_the_placeholder_says_existing_and_verifies`,
+`a_lock_is_reported_and_a_created_field_says_created`,
+`seed_value_refusals_exit_9_and_name_the_constraint`. **Also in the diff:**
+`crates/pdfcer-core/tests/sign_document.rs::refusals_are_named_and_write_nothing`
+(`:309`) amended `+4/−2` — a collision with a SIGNED field is now
+`FieldAlreadySigned`, not `FieldNameTaken`; `FieldNameTaken` survives as the
+internal-inconsistency fallback (`edit.rs:41672`, rustdoc rewritten at
+`apply.rs:304–312`). `cargo test --workspace` green (foreground — one
+expected failure, this very test, fixed in the same commit), clippy/fmt
+clean, gates clean (relayed). No new dependency — `Cargo.lock` not in the
+diff.
+
+**Public surface (the channel notice
+`open/notice_2026-09-06-sign-into-field.md`, 1,647 B, **05:14** — one minute
+after the commit's author stamp; posted by the engineer, read in full by
+this role):** `SignApplyError::{FieldNotSignature { name, field_type },
+FieldAlreadySigned { name }, FieldHasKids { name },
+RectRefusedForExistingField { name }, SeedValueViolated { name, constraint },
+SeedValueUnevaluable { name, what }}`; `SignReport::{field_reused: bool,
+field_lock: Option<String>, notes: Vec<String>}`; `sign::apply::FieldLock {
+action, fields }` + `describe()` (`apply.rs:492`, `:502`);
+`sign::apply::check_seed_value`. **No new `EditSession` verb — verb count
+204 unchanged** (`docs/core-api/index.md` still says 204; `02`'s `sign` row
+extended with a `Pass 10.13` sentence, 4,702 lines unchanged, **142 → 143
+clauses cited** — by `git show ab40127 -- docs/core-api/`). The notice's
+suggested shell shape — list a document's empty placeholders through
+`forms::parse_acroform` (`field_type == Some(FieldType::Signature)` and
+`value == FieldValue::Absent`) and let the "sign here" click target one — is
+the shell's to build; `gui [ ]` until reachable in a real build. ★ The
+dispatch said the engineer *"writes it now"*; by `ls -la` it was on disk
+before this filing began.
+
+**★ Rule-11 sweep — the claim "signing INTO a pre-placed field is not built /
+a `--field-name` collision is refused / `/FieldMDP` is not written"**,
+searched by bare keyword (`pre-placed`, `10.13`, `FieldNameTaken`,
+`collision`) over `edit.rs`, `sign/apply.rs`, `signature.rs`, `formclip.rs`,
+`main.rs`, `docs/core-api/*`, `README.md`, `NEXT_SESSION.md`,
+`ARCHITECTURE.md`, `FEATURES.md`. **ZERO survivors in `crates/`** — the
+engineer's commit re-sentenced the `--field-name` help (`main.rs:1922–1930`),
+the `sign` rustdoc and `FieldNameTaken`'s rustdoc. **THREE survivors in
+`docs/`, all this role's, all FIXED in this filing:** `docs/FEATURES.md:312`
+(the `10.9` sign row: *"**Not built:** signing INTO a pre-placed field
+(`Pass 10.13`), …"* — re-sentenced to point at the new row; a
+*"field-name collision"* in its refusal list re-sentenced to *"an
+already-signed field"*); `docs/FEATURES.md:313` (the `10.12` row: *"**Not
+built:** `/FieldMDP` field locks (`Pass 10.13`'s seam), `/UR3`"* — `/UR3`
+alone stays unbuilt); `docs/ARCHITECTURE.md:6717` (§5.13's 452nd-filing
+footer lists `10.13` among *"still unbuilt"* — a dated footer appended; the
+452nd's footer stays legible as the record it was). **ONE survivor owed to
+the engineer, not touched (engineer-owned file):**
+`docs/core-api/02-editing-and-saving.md:3312` — the `sign` row's refusal
+blockquote names `FieldNameTaken` as the collision refusal and none of the
+six new variants; the row itself (`:3282`) was extended in `ab40127` but the
+blockquote three lines below it was not. **ONE reported, not touched:**
+`docs/NEXT_SESSION.md:60` (uncommitted refresh, engineer's) already records
+`10.13` as shipped — correct. **Correct, survive, do not "fix":**
+`edit.rs:33199`, `:35103`, `:35246`, `:40273`, `:40861`, `formclip.rs:78`,
+`:679`, `main.rs:2198`, `:2264`, `core-api/02:2172`, `:2936`,
+`assemble.rs:311`, `:695` — every one is the FORMS `EditError::FieldNameTaken`
+(rename / paste / assemble collisions), a different mechanism from the
+signing `SignApplyError::FieldNameTaken`; `edit.rs:41672` (the fallback,
+correct); `signature.rs:124–126`, `:299–301` (the read side records a
+`/FieldMDP` and deliberately does not change the verdict — still the correct
+reading of §12.8.2.4, and unrelated to whether pdfcer now WRITES one);
+`core-api/01:1978` (`T-10.13` is a snapping test ID, not this Pass).
+
+**`docs/FEATURES.md` (this filing).** The *Planned* sign-into-field row
+(`:471`, `[ ] [ ] [ ] [x]`) REMOVED; one *Implemented* row ADDED under
+*Redaction & security* directly after the `Pass 10.12` certifying row,
+**`[x] [x] [ ] [x]`** — `gui [ ]` (`pdfcer-gui` notified 05:14, not
+consumed); Acrobat `[x]` (parity: Acrobat signs into an author-placed field,
+honours the field's lock and seed values — its strictness on the latter is
+the RAG's recorded gap, pdfcer's is total). Rows `:312` and `:313`
+re-sentenced as above.
+
+**Sourcing (hard rule 8).** This role had a shell. MEASURED here: `git show
+-s --format=%B ab40127`; `git show --stat --format='%ad %an' --date=iso
+ab40127` (16 files `+1278/−44`, the author stamp); `git rev-parse
+origin/main` = **`f9bc7c8`**; `git log --oneline origin/main..HEAD` = **9**
+(`187fa09`, `9a3dd53`, `a19f359`, `72b7296`, `8d12bf1`, `02bb1ba`, `063f774`,
+`04e6ca4`, `ab40127`) — matches the dispatch; `git describe --tags` =
+`v0.41.0-11-gab40127`; **both test files run here** (5/5 in 0.48 s, 3/3 in
+0.37 s); test names by `grep -n '#[test]' -A1`; `git show ab40127 --
+docs/core-api/` (clause counts 142 → 143, 204 verbs) and `-- tests/
+sign_document.rs` (the `FieldNameTaken` → `FieldAlreadySigned` swap, by its
+`−`/`+` lines); the public-surface names and line numbers by `grep -n` on
+`sign/apply.rs` and `edit.rs`; the CLI strings by `sed -n` on `main.rs`; the
+fixtures by `ls -la fixtures/synthetic/signing/` (six files, 04:56) and
+`grep -n sig-field PROVENANCE.md` (`:62–73`); `python
+tools/check-ledger-numbers.py` (filings `452` → next free `453` before this
+filing); the channel by `ls -la` + `cat` (the notice read in full); the sweep
+by `grep -rin` over the named files and `sed -n`/`awk` on the hits;
+**backup: `ls -t D:\Dev\pdfce-backups` newest =
+`pdfcer-2026-09-03-1a31d2d-full.bundle`, `git rev-list --count 1a31d2d..HEAD`
+= 106 before this filing.** **★ Working tree, and the dispatch's premise
+corrected by `git status --porcelain`:** the dispatch said the engineer's
+uncommitted `NEXT_SESSION.md` refresh *"may be"* in the tree — it IS, and so
+are THREE more modified files the dispatch did not name:
+`.claude/agent-memory/pdfcer-engineer/MEMORY.md`,
+`…/feedback_inserting_before_an_anchor_orphans_its_doc_comment.md`,
+`…/project_signing_arc_state.md` — all four the engineer's, NONE staged here
+(the first `git status --short` of this filing returned CLEAN; the four
+appeared between that call and the second, i.e. the engineer was writing
+them during this filing). RELAYED (the engineer's shell): `cargo test
+--workspace` green with the one expected failure fixed, fmt/clippy, the
+non-cargo gates; the §12.8.2.4 / Table 256 / Table 233–235 citations (the
+rustdoc is on disk; the clauses were not re-opened in the spec RAG here).
+
+#### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass IDs | ceiling `257.0`; *Next up* empty of live entries | ceiling **`257.0`** unchanged; **`Pass 10.13` *Shipped*** (from *Backlog*, never in *Next up*); *Next up* still empty of live entries; the signing remainder in *Backlog* is now `10.10`, `10.11` (+ `10.6` revocation) |
+| Decisions | ceiling `138`, next free `139` | unchanged |
+| Standing rules | ceiling `R241`, next free `R242` | unchanged |
+| SESSION_LOG filings | `452` | **`453`** |
+| Owed-survivor ledger | ZERO in `crates/`; `NEXT_SESSION.md:39` reported | **ZERO in `crates/`**; **ONE in `docs/core-api/02:3312`** owed to the engineer (the refusal blockquote); three `docs/` survivors found and fixed HERE; `NEXT_SESSION.md` now correct by the engineer's own uncommitted refresh |
+
+### `Pass 10.13` (`ab40127`, 2026-09-06) — ★★★★ **SIGN INTO A PRE-PLACED EMPTY `/FT /Sig` FIELD — `SignRequest::field_name` naming an existing empty merged signature field signs INTO it (its own `/Rect` + page place the appearance; `/V` set; `/SigFlags |= 3`; nothing appended to `/Annots` or `/Fields`); `/Lock` (Table 233) HONOURED as a `/FieldMDP` signature reference (§12.8.2.4, Table 256); `/SV` (Table 234) enforced in FULL — required-and-unmet refused by name with the satisfying values, recommended-and-unmet disclosed, unevaluable refused by name never skipped; six new `SignApplyError` variants; non-merged (`/Kids`) fields refused by name (narrowed)** — from *Backlog* (439th filing), never in *Next up*
+
+**Before (`v0.41.0` + `10.12`):** `--field-name` only CREATED a field; a
+name already in the AcroForm was refused as `FieldNameTaken`, so a document
+with an author-placed "sign here" field could only be signed by adding a
+SECOND field beside it; a `/Lock` on the author's field was never read and
+no `/FieldMDP` was ever written; `/SV` was never read.
+
+**After (`ab40127`):** the author's field is the target; its lock becomes
+the `/FieldMDP` the author asked for; its seed values are checked before
+anything is staged. Full account, criteria walk, tests, sweep and sourcing:
+the 453rd head immediately above.
+
 **★★★★ 452nd filing, 2026-09-06 — `Pass 10.12` SHIPPED, unreleased
 (post-`v0.41.0`): **`02bb1ba`** *"feat(core,cli): certifying signatures —
 /DocMDP transform + catalog /Perms, one per document, first signature only
@@ -133102,9 +133336,9 @@ on pdfcer's own EDIT verbs beyond what `SignatureImpact` already refuses.
 `docs/FEATURES.md`: one *Planned* row, `[ ] [ ] [ ] [x]` — **moved to
 *Implemented → Redaction & security* at the 452nd filing, `[x] [x] [ ] [x]`.**
 
-#### `Pass 10.13` — **SIGN INTO A PRE-PLACED EMPTY `/FT /Sig` FIELD — an existing field with no `/V` is the target when `--field-name` names it; today `--field-name` only CREATES a new field and a name collision is refused** — filed 2026-09-05 (439th filing; the 438th's recorded deviation `10.9` #1), *Backlog*, NOT STARTED — depends on `Pass 10.9`
+#### `Pass 10.13` — **SIGN INTO A PRE-PLACED EMPTY `/FT /Sig` FIELD — an existing field with no `/V` is the target when `--field-name` names it; today `--field-name` only CREATES a new field and a name collision is refused** — filed 2026-09-05 (439th filing; the 438th's recorded deviation `10.9` #1), ~~*Backlog*, NOT STARTED~~ **SHIPPED `ab40127` (453rd filing) — see top of *Shipped*** — depended on `Pass 10.9` (shipped `7734261`)
 
-**Status: NOT STARTED.** The shape every "sign here" workflow produces: a
+**Status: ~~NOT STARTED~~ SHIPPED `ab40127`, 2026-09-06 (453rd filing).** The shape every "sign here" workflow produces: a
 form author places an empty signature field — Acrobat renders it as an empty
 placeholder, its own "sign here" cue
 (`Acrobat_Features\forms__signature_fields.md`) — and the signer signs INTO
@@ -133144,11 +133378,51 @@ signer.
    field with `/Lock` → whichever branch of (2) the engineer took, tested by
    name.
 
+**★ Criteria walked at ship time — 2026-09-06, 453rd filing (`ab40127`).**
+**1 MET, NARROWED** — (a) unknown name → create, unchanged; (b) existing
+empty merged `/FT /Sig` → signed into (`/V` set; the field's own `/Rect` +
+`/P`, else the page whose `/Annots` lists it, place the appearance; a
+degenerate rect = invisible; `--visible`/`--page` alongside →
+`RectRefusedForExistingField`; `/SigFlags |= 3` via
+`acroform_sigflags_write`; no `/Fields` push, no `/Annots` append); (c)
+`/V` present → `FieldAlreadySigned`; (d) other `/FT` → `FieldNotSignature {
+name, field_type }`. **Narrowed:** widgets under `/Kids` → `FieldHasKids` —
+merged field-widgets only in this cut, refused by name. Round trip MEASURED:
+the pre-existing objects re-emitted are exactly the field and the AcroForm
+holder (the set `{1, 5}` on `sig-field-empty.pdf`). **2 — the engineer
+chose HONOUR:** `/FieldMDP` SigRef with Action/Fields COPIED from the lock
+(§12.8.2.4, Table 256; direct objects; `/Data` = the catalog);
+`SignReport::field_lock` reports it; `signature::census().field_mdp` counts
+it (tested). `Include`/`Exclude` without `/Fields`, or an unknown Action →
+`SeedValueUnevaluable` by name. **3 MET, TOTAL** — `apply::check_seed_value`
+(Table 234 `/Ff` bits 1–7): required-and-unmet → `SeedValueViolated { name,
+constraint }` naming the satisfying values (`/Filter`, `/SubFilter` vs
+`--format`, `/DigestMethod` vs the algorithm, `/Reasons` vs `--reason`,
+`/MDP /P 0` vs `1..3` vs `--certify`); recommended-and-unmet →
+`SignReport::notes`; unevaluable → `SeedValueUnevaluable { name, what }`
+(`/Cert` Table 235, a required `/TimeStamp`, a required
+`/LegalAttestation`, `/AddRevInfo true` required, `/V` > 2.0 required,
+unknown keys). **4 MET** — `field=<name> (existing|created)`, `field_lock:
+/FieldMDP …`, `note: seed value: …` printed; `SignReport::{field_reused,
+field_lock, notes}`. **5 MET** — `tools/gen-sig-field-fixtures.py` →
+`sig-field-{empty,lock,lock-include,sv-ok,sv-strict,sv-cert}.pdf`
+(deterministic, nothing signed; `PROVENANCE.md` updated);
+`crates/pdfcer-core/tests/sign_into_field.rs` (5) and
+`crates/pdfcer-cli/tests/sign_into_field.rs` (3), both RUN by the 453rd
+filing (5/5, 3/3); the committed `forms/unfillable-fields-form.pdf`
+"Approved" placeholder signs into (a test the draft did not ask for).
+`sign_document.rs::refusals_are_named_and_write_nothing` amended — a
+collision with a SIGNED field is `FieldAlreadySigned`; `FieldNameTaken` is
+now the internal-inconsistency fallback. Full account: the 453rd head at the
+top of *Shipped*.
+
 **Not in scope:** authoring an EMPTY signature field for someone else to
 sign (a forms verb — the `add_field` family, filed when asked); `/SV`
-authoring.
+authoring; **non-merged (`/Kids`) signature fields — narrowed out at ship
+time, refused by name (`FieldHasKids`), not filed as a Pass.**
 
-`docs/FEATURES.md`: one *Planned* row, `[ ] [ ] [ ] [x]`.
+`docs/FEATURES.md`: one *Planned* row, `[ ] [ ] [ ] [x]` — **moved to
+*Implemented → Redaction & security* at the 453rd filing, `[x] [x] [ ] [x]`.**
 
 #### `Pass 10.14` — **SIGNING HARDENING OWED FROM THE `10.7`–`10.9` CUT — the three CMS sabotage tests (`0x31` retag, `SET OF` order, message-digest), a stripped-`localKeyId` pairing test, a pyHanko/OpenSSL-produced second-signature fixture, `tools/content-identity` run for `sign`, and a COMPOSED visible appearance (text, not only a frame)** — filed 2026-09-05 (439th filing; the 438th's recorded deviations `10.7` tests (e), `10.8` #8, `10.9` #1 appearance half, `10.9` #10, and the un-run `content-identity` invariant), ~~*Backlog*, NOT STARTED~~ **SHIPPED `187fa09` (450th filing) — see top of *Shipped*** — small; the engineer's own list, one Pass
 

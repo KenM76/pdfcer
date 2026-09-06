@@ -6716,6 +6716,12 @@ the heading is annotated rather than left as a dated record. Still unbuilt:
 `10.10` (store/token signers, shell-side by this section's own design),
 `10.11` (B-T timestamp), `10.13` (sign into a pre-placed field).*
 
+*★ **Footer 2026-09-06 (453rd filing).** The line above is now stale by
+one item: `10.13` (sign into a pre-placed field, `/Lock` → `/FieldMDP`,
+`/SV` enforced in full) shipped at `ab40127` the same day, one filing later.
+Still unbuilt from this section's arc: `10.10` and `10.11` only. The 452nd's
+footer is kept as written — it was true at 04:52 and false by 05:13.*
+
 *(Added 2026-09-05, 436th filing, as a forward-looking design note ahead
 of the signing arc's build — the same disposition §5.11 had ahead of
 Pass 14.1 and §5.12 ahead of Pass 22.0. Records the SETTLED shape; the
