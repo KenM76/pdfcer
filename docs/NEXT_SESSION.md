@@ -18,10 +18,28 @@ the next portable release") is DONE and shipped.
 - `8670523` fix: `EditableTextModel::hit_test` returns `None` beyond one
   line-height of every line (pdfcer-gui request, measured at 1e9 pt); their
   click-on-blank-paper-to-add-text arm can now fire. Reply posted.
+- `1343f0e` **Pass 256.0 SHIPPED**: `edit_text` spans consecutive show
+  operators (one-glyph-per-`Tj` producers, `TJ` splits); followers re-space
+  via `Rec::Td`; `EditReport::operators_spanned`. Verified on the operator's
+  file: `--find "clien" --replace "client"` → spanned 5, followers 4. Reply
+  posted. Criteria 5 and 7 amended in the filing (Td followers now re-space;
+  fixture spells with A/B/C).
 
 ## THE NEXT WORK — in order
 
-### 1. `Pass 256.0` — edit text ACROSS show operators (*Next up*) ← START HERE
+### 1. `Pass 142.2` — font pre-flight for the text ABOUT TO BE TYPED (*Next up*) ← START HERE
+pdfcer-gui request (`request_font_preflight_tests_the_text_that_is_there_not_the_text_about_to_be_typed.md`),
+scoped in the 443rd filing; reply posted (`reply_2026-09-06-font-preflight-candidate-text-is-scoped-as-142-2.md`).
+(a) a `candidate: &str` parameter on a new verb beside `preview_font_resources`
+— every `FontAcceptance` computed by `accept_font_target` against the candidate
+(incl. the embedded-subset floor at `edit.rs` ~1788); (b) `Std14::ALL` surveyed
+for the same candidate with `OnPage`/`WouldBeAdded`; CLI `font-preflight
+--candidate TEXT`. Code: `text_edit/format.rs` (`survey_page_fonts` ~3122,
+`FontAcceptance` ~3245, `FontPreflight` ~3359, `preview_font_resources` in
+`edit.rs` ~9848). Tests: `€` against the subset face (refused, names `€`) and
+against Helvetica (WinAnsi carries it).
+
+### (done) `Pass 256.0` — edit text ACROSS show operators
 Operator hit it on the first real document he tried to correct (`clien` →
 `client`; the producer writes ONE show operator PER GLYPH, and `edit-text`
 finds within one operator by contract). Acceptance criteria are in
