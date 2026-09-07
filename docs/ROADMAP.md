@@ -112,6 +112,212 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★★ 464th filing, 2026-09-07 — `rotate_annotation` NOW COMPOSES, AND AN
+ANNOTATION'S ROTATION CAN BE READ, SET ABSOLUTELY, AND PLACED. `Pass 155.1` +
+`Pass 155.2` — MINTED INTO *Backlog* AT THE 462nd, SHIPPED HERE IN ONE COMMIT
+(`98d0abb`) — DISCHARGE THE 463rd's THREE FLAGGED DISCLOSURES AT THE ROOT
+RATHER THAN LEAVING THEM FLAGGED. Workspace bumped to `0.45.0` (`ce62c1f`),
+UNRELEASED.** Two commits, both **unpushed** at the start of this filing
+(`git rev-parse origin/main` = `6f9141b6…`, the 463rd's own filing commit;
+`git rev-parse HEAD` = `ce62c1f6…`): `98d0abb` (`fix(core): rotation
+composes, and its angle is readable (Pass 155.1 + 155.2)`) and `ce62c1f`
+(`chore: 0.45.0`). **Pass ceiling `258.3` UNCHANGED** — both IDs were already
+minted into *Backlog* at the 462nd filing under `rotate_annotation`'s origin
+family (`Pass 155.0`, `0ce65dc`), verified before starting by grepping
+`ROADMAP.md` for both request filenames (`R242`); this filing **ships**
+them, mints nothing. **Decisions `139` UNCHANGED, standing rules `R243`
+UNCHANGED** — no crate boundary, library choice or invariant moved, and no
+mint was requested.
+
+**The defect, restated from the 462nd/463rd's own flagged disclosure.**
+`rotate_annotation`'s `/Rect` used to be derived from the **previous**
+`/Rect`, so a second turn bounded an already-enlarged rectangle while the
+appearance's `/Matrix` had only accumulated to 2θ; §12.5.5 step (c) then
+scaled the artwork **up** to fill the surplus, and every subsequent turn
+compounded it. The operator reported it himself, unprompted — *"the rotate
+bug in the review objects where the object gets larger with each enactment
+of the tool"* — and `pdfcer-gui` measured it on rendered pixels: four 15°
+turns drew a `/Square` **1.93× wider and 1.42× taller** than one 60° turn.
+
+**The fix — `/Rect` is now derived from the artwork, named by rule.**
+`AnnotationRotate::rect_derived_from: RectDerivation` (new,
+`crates/pdfcer-core/src/edit.rs:16036`) names which of three rules produced
+the new `/Rect`: `Artwork` (the appearance `BBox` mapped through the
+**composed** `/Matrix`) and `Geometry` (`/L`/`/Vertices`/`/InkList`/`/CL`)
+both **compose exactly**; `PreviousRect` — an annotation with neither an
+appearance nor rotatable geometry — **still does not compose**, because
+nothing better exists to derive from, and is now **disclosed** rather than
+silently repeated. The CLI prints `rect_derived=` on the outcome line
+(`main.rs:32958`).
+
+**Acceptance criterion, walked and MET more sharply than asked.** The
+requester's own criterion: *N* rotations totalling θ and one rotation of θ
+draw the same size. The shipped test
+(`crates/pdfcer-core/tests/annot_rotate_composable.rs`, new — confirmed on
+disk) recomputes §12.5.5 steps (a) and (b) from the **saved file** to get
+step (c)'s fit scale, and asserts it is **exactly 1.0** after 1, 2, 4, 8 and
+24 turns — not merely "close," and not merely "the pixels look right."
+
+**`Pass 155.2` — the write-without-read asymmetry closed, plus the absolute
+setter a typed properties field needs.**
+`Annotation::appearance_matrix: Option<[f64; 6]>` (raw six numbers,
+`annot.rs:540`) and `Annotation::appearance_rotation_degrees()` /
+`annot::rotation_degrees()` (`annot.rs:877` / `:789`; anticlockwise, `None`
+when the matrix is not a rotation-plus-uniform-scale — a skew or a mirror is
+not an angle and is not reported as one) give a shell something to read for
+the first time. `EditSession::set_annotation_rotation(annot_id, anchor,
+degrees)` (`edit.rs:25418`) sets the angle **absolutely** rather than
+composing a delta — the shape a typed field needs, since composing a typed
+value as a delta requires the shell to already trust its own idea of the
+current angle — and **refuses** (`EditError::AnnotationRotationUnreadable`,
+`edit.rs:6789`) rather than assuming zero when the matrix can't be read as
+one. `pdfcer_render::annot::appearance_placement()`
+(`crates/pdfcer-render/src/annot.rs:828`) makes §12.5.5's placement
+quadrilateral public, replacing private copies of the same normative
+algorithm. CLI: `rotate-annotation --absolute`, new test file
+`crates/pdfcer-cli/tests/rotate_annotation_absolute.rs` (confirmed on disk).
+
+**★★ THE THREE FLAGGED DISCLOSURES FROM THE 463rd's LEDGER ARE DISCHARGED AT
+THE ROOT, IN THE SAME COMMIT, NOT RE-FLAGGED.** The 463rd filing recorded a
+new answer to a gap in hard rule 11 — a disclosure refuted but not yet
+measured is **flagged in place, not deleted** — for exactly three copies of
+*"the artwork does not grow"* (`edit.rs:15942`, `edit.rs:24907`,
+`main.rs:5286`), each carrying an **"★★ THIS CLAIM IS UNDER INVESTIGATION"**
+block. **Verified here: that marker is GONE.** `grep -rn "THIS CLAIM IS
+UNDER INVESTIGATION" crates/` = **zero hits**. `grep -rn "artwork does not
+grow" crates/` still returns the same three locations
+(`edit.rs:15976`, `edit.rs:25015`/neighbourhood, `main.rs:5286`, line numbers
+shifted by the doc growth), and each is now followed by a proper R216-shaped
+correction — the superseded sentence struck or quoted, the true statement
+(derived-from-artwork, `RectDerivation`, `rect_derived_from`) written in its
+place — rather than the interim "under investigation" flag. This is the
+463rd's own named precedent (*"they close for good with `Pass 155.1`, not
+separately"*) actually landing, not merely repeated.
+
+**`docs/core-api/02-editing-and-saving.md` and `03-capabilities.md` were
+updated by the engineer in the same commit — verified here, not assumed.**
+Both files cite `rotate_annotation`, `RectDerivation` and
+`rect_derived_from` correctly at `HEAD` (`grep -n` for all three symbols
+over `docs/core-api/`). No survivor owed there.
+
+**`docs/FEATURES.md` — both affected rows changed in this filing.** `:266`
+(rotate) — the "★ DEFECTIVE ON THE SECOND TURN" paragraph is rewritten as
+**FIXED**, the struck wording kept legible per `R216`, naming
+`RectDerivation`'s three routes and disclosing that `PreviousRect` still does
+not compose. Boxes unchanged (core/cli/gui all already `[x]`) — the verb's
+signature didn't change, only its correctness. **A new row is inserted
+directly below it** for `Pass 155.2`: `core [x]`, `cli [x]` (`--absolute`),
+`gui [ ]` — `pdfcer-gui` has not wired the new read/absolute-set/placement
+surface as of this filing (its Acrobat column is left `?`; not checked
+against the Feature RAG this filing).
+
+**`R242` clause 4 applied — the two request files stay in `open/`.**
+`open/request_rotate_annotation_grows_the_artwork_when_applied_twice.md` and
+`open/request_an_annotations_rotation_angle_cannot_be_read.md` are
+**answered**, not removed: `open/reply_2026-09-07-rotation-composes-now-and-
+the-angle-is-readable-SHIPPED.md` (confirmed present on disk) is the thing
+that closes them — a request leaves `open/` on being **answered**, never on
+being scoped or shipped alone.
+
+**Verification — relayed by the engineer (`R209`) except where marked
+measured here.** `cargo fmt --all --check`, `cargo clippy --workspace
+--all-targets --all-features -- -D warnings`, `cargo check -p pdfcer-core -p
+pdfcer-render --target wasm32-unknown-unknown`, `cargo tree -p pdfcer-core -p
+pdfcer-render` (no egui/eframe/winit/wgpu/reqwest/hyper — GUI-core separation
+invariant holds), `cd fuzz && cargo check --bins`, `cargo test -p
+pdfcer-core --no-default-features` — all reported clean. Targeted test run
+(**not** a full `cargo test --workspace` — see the RAG finding below):
+`pdfcer-core --lib` 2039 passed, `pdfcer-render --lib` 407 passed,
+`pdfcer-cli --bin pdfcer` 20 passed, plus 19 named integration/unit test
+binaries, **0 failed across all of them**, including the two new files
+(`annot_rotate_composable.rs`, 8 tests; `rotate_annotation_absolute.rs`, 5
+tests). ★ **A full `cargo test --workspace` was NOT run to completion** —
+the harness's low-memory watchdog killed it twice more, on top of the six
+kills already on record for this project. Recorded as a targeted run, not
+"full suite green" (see the dated RAG footer below).
+
+**Invariants.** GUI-core separation: untouched, confirmed by `cargo tree`
+above — no `Cargo.toml` moved. Round-trip/minimal-diff: unaffected — the
+change is confined to how `/Rect` is derived and what `pdfcer-core`/
+`pdfcer-render` expose for reading, not to what bytes are rewritten for
+objects pdfcer did not touch. Rule 4 (fuzzy, never sneaky): `rect_derived_
+from` is the new disclosure, **off-canvas** (the outcome struct plus the
+CLI's `rect_derived=` line), nothing drawn on the page. Rule 11 (CLI
+parity): `--absolute` and `rect_derived=` ship in the same commit as the
+core verbs.
+
+**Findings graduated to `D:/dev/rag/rust/` — two dated footers on existing
+files, no new files** (the corpus was checked first, per hard rule 11 and
+the tree's own "don't duplicate" discipline).
+
+1. `a_sabotage_can_only_be_as_discriminating_as_the_fixture_it_runs_on.md` —
+   a **fourth cause** for a surviving sabotage, alongside the file's existing
+   "redundant predicate" / "non-discriminating fixture" pair: **an
+   alternate, also-correct rule the code falls through to.** Disabling the
+   `Artwork` rule left the fixture (a `/Polygon`, which carries both an
+   appearance and `/Vertices`) routed to `Geometry`, which also composes —
+   the A/B test stayed green while measuring the wrong route. Remedy: pin
+   the **route** taken (assert which `RectDerivation` variant fired), not
+   only the outcome.
+2. `run_gates_sweep_is_oom_killed_in_the_background_not_only_too_slow_in_the_foreground.md`
+   — the file's prescribed remedy (`-- --test-threads=N`) is **necessary but
+   not sufficient** for a full `cargo test --workspace`: `CARGO_BUILD_JOBS=1`
+   + `--no-run` + `--test-threads=2`/`4` still died on the combined run;
+   per-crate foreground runs at `--test-threads=2` all completed. The
+   additional knob is splitting by **target**, not only throttling threads.
+
+**Not graduated, by this role's own call, per the dispatch's explicit
+invitation to judge it:** a test asserting a placed appearance edge would be
+"genuinely off-axis" under a rotating `/Matrix`, which failed because the
+fixture's angle was a quarter turn — axis-aligned by construction, not by
+defect. Recorded here in prose rather than as a new RAG file: it is the
+existing "a transform with a fixed point/axis" row of the sabotage file's
+own table (dated footer, 2026-08-28), restated on the assertion-writing side
+rather than the sabotage side, and a new file would duplicate rather than
+add.
+
+#### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass IDs | ceiling `258.3`; `155.1`/`155.2` minted into *Backlog* (462nd) | **UNCHANGED — both SHIPPED, none minted.** `259.x` still free |
+| Decisions | ceiling `139`, next free `140` | **unchanged — not considered.** No crate boundary, library choice or invariant moved |
+| Standing rules | ceiling `R243`, next free `R244` | **unchanged — not considered; no mint requested** |
+| SESSION_LOG filings | `463` | **`464`** |
+| Owed-survivor ledger | ZERO in `crates/`, ZERO in `docs/` (463rd) | **still ZERO — and the THREE flagged-in-place disclosures from the 463rd are now discharged AT THE ROOT** (the underlying defect fixed, not merely re-flagged) in the same commit that shipped the fix |
+| Unpushed | `98d0abb` + `ce62c1f` (2 commits; `origin/main` = `6f9141b`) | that plus this filing (3 commits) — **standing-authorized push** (decision 090) |
+| Unreleased | `98d0abb` + `ce62c1f` (workspace `0.45.0`; last tag `v0.44.1`) | that plus this filing — **docs only; no unreleased code beyond `ce62c1f`.** Cutting `v0.45.0` is a separate, standing-authorized act (decision 121) not performed by this filing |
+| Requests in `open/` | 206 files, **49** `request_*` (unchanged from 463rd count + the new reply) | **unchanged this filing** — both rotation requests answered (reply confirmed present), neither removed per `R242` clause 4 |
+
+**Sourcing (hard rule 8).** This dispatch supplied **Read/Write/Edit/Glob/
+Grep/WebSearch/WebFetch — no general shell tool.** Facts below were
+established the way each is marked:
+- **Measured directly, via `.git` plumbing (`Read` on `.git/refs/heads/main`,
+  `.git/refs/remotes/origin/main`, `.git/logs/HEAD`), not inferred from any
+  document:** `HEAD` = `ce62c1f6bfc5b6bc7eeaafa0f5cb57ef413a71b4`,
+  `origin/main` = `6f9141b94333668a47b85679fa1c917af554f983`, and the exact
+  two-commit unpushed sequence `98d0abb` → `ce62c1f`, both subjects matching
+  the dispatch verbatim.
+- **Backup bundle distance — computed, not read off a prior filing's
+  number.** `pdfcer-2026-09-03-1a31d2d-full.bundle` (confirmed the current
+  bundle by `Glob`; no newer `*1a31d2d*` or later-dated full bundle exists)
+  is **142 commits behind `HEAD`**: counted from `.git/logs/HEAD` as the
+  commits strictly after `1a31d2d`'s creation (143 reflog entries) minus the
+  **one** `commit (amend)` in that range (line replacing the 450th filing's
+  pre-amend commit, which is not an ancestor of `HEAD`) = 142. Cross-checked
+  against three independent prior filings' own self-reported figures at
+  earlier tips (99 at `Pass 10.14`'s commit, 136 at the 462nd, 139 at the
+  463rd's `bb07cd0`) — each reproduces exactly from the same reflog count.
+  Cadence note, not an alarm.
+- **NOT verified this filing, and not inferred:** disk free space and
+  `du -sh target/`. Both need a general shell command this dispatch did not
+  provide `Read`/`Grep`/`Glob` access to compute. **Engineer should check
+  `df -h /d` and `du -sh target/` directly** rather than carry forward the
+  463rd's figures (124 G free / 93 G, now at least two commits stale).
+- Two request files and the closing reply confirmed present by `Glob`
+  (206 total `open/*.md`, 49 `request_*.md`, both rotation requests among
+  them, reply file present).
+
 **★★★★★ 463rd filing, 2026-09-07 — `v0.44.1` RELEASED: THE SECOND RELEASE OF
 ONE SESSION, AND IT EXISTS BECAUSE THE FIRST SHIPPED TWO DEFECTS THE CONSUMING
 PROJECT FOUND WITHIN HOURS. ★★ AND `667325b` — THE BUMP CHORE — DISCHARGES ALL
@@ -129023,128 +129229,6 @@ nothing gets forgotten, not as a commitment to build in this order.
 > per-character one. Queued behind `256.0`; exposure unmeasured.
 > `docs/FEATURES.md`: one new *Planned* row in the text cluster, all pdfcer
 > boxes unticked.
-
-### `Pass 155.1` — ★★★★ **`rotate_annotation` IS NOT COMPOSABLE: THE ARTWORK GROWS ON EVERY TURN AFTER THE FIRST, AND `pdfcer-gui` REFUTED THE VERB'S OWN DISCLOSURE WITH RENDERED PIXELS** — filed 2026-09-07 (462nd filing), **NOT STARTED** — *annotation transforms* family (`Pass 155.0`, `0ce65dc`)
-
-**Origin:** `open/request_rotate_annotation_grows_the_artwork_when_applied_twice.md`
-(mtime `2026-09-07 13:16:25 -0400`, 6,865 B), measured against the `v0.44.0`
-pin `e1bdb6c`. **The operator reported it himself, unprompted** — *"the rotate
-bug in the review objects where the object gets larger with each enactment of
-the tool."*
-
-**The claim, and it is not the `/Rect`-grows disclosure.** Turning a markup
-15° **four times** does not draw the same picture as turning it 60° **once**.
-Measured on their machine, ink bounding boxes in device pixels at scale 2 on
-a 140 × 60 pt `/Square`, diffed against a render of the same page without the
-annotation:
-
-| | ink bbox (device px @ scale 2) | w × h |
-|---|---|---|
-| authored, unrotated | `(400, 2447)–(679, 2567)` | **279 × 120** |
-| **A** — one 60° turn | `(418, 2356)–(661, 2658)` | **243 × 302** |
-| **B** — four 15° turns | `(305, 2292)–(774, 2722)` | **469 × 430** |
-
-**A is exactly right** and the instrument is therefore sound:
-140·cos 60 + 60·sin 60 = 121.96 pt → 244 px, and 140·sin 60 + 60·cos 60 =
-151.24 pt → 302 px. **B is 1.93× wider and 1.42× taller** — 469/243 and
-430/302 — and the ink itself is drawn at that size, not a box around it.
-
-**The cause, from pdfcer's own source (their reading, and it holds).** At
-`edit.rs:24997` the new `/Rect` is the upright bound of the four rotated
-corners **of the current `/Rect`**; at `:25041` the rotation is composed into
-the appearance's `/Matrix`. Both are individually right and they diverge after
-one call: turn 2 takes the AABB of an **already-enlarged rectangle** and
-rotates *that*, while `/Matrix` has only accumulated to 2θ — so §12.5.5 step
-(c), which *"scales and translates"* **A** to fit the transformed `BBox` onto
-`/Rect` exactly, **scales the artwork up** to fill the over-large rectangle.
-Every subsequent turn compounds it.
-
-**⇒ The `/Rect` must be derived from the ARTWORK, not from the previous
-`/Rect`.** The information is already in hand at that point: the appearance
-`BBox` transformed through the **composed** `/Matrix` and bounded upright, or
-— with no `/AP` — the bound of the geometry keys the verb has just rotated
-exactly (`/L`, `/Vertices`, `/InkList`, `/CL`) plus the border allowance. The
-current corner-bound is correct only for the degenerate case of an annotation
-with neither.
-
-**Acceptance criterion, given by the requester as a test rather than as
-prose.** *N* rotations totalling θ and one rotation of θ produce the same
-drawn size, to within antialiasing. Their harness already exists
-(`crates/pdfcer-gui/tests/annotation_rotation_grows.rs`) and will go green the
-day this ships. **Idempotence under composition is the whole property; the
-rule chosen to reach it is pdfcer's.** No `pdfcer-acrobat-librarian` dispatch
-needed — this is a defect against pdfcer's own stated behaviour, not a parity
-question.
-
-**★★ THIS PASS ALSO OWES A DISCLOSURE CORRECTION, AND THE STALE TEXT IS
-ALREADY LOCATED.** *"The artwork does not grow"* is **true of the first
-rotation and false of the second**, and it stands in **three** places at
-`5d5fafb` — `crates/pdfcer-core/src/edit.rs:15942` (`AnnotationRotate::to`),
-`:24895` (`rotate_annotation`), `crates/pdfcer-cli/src/main.rs:5286` (CLI
-`--help`). Reported by the 462nd filing as owed `crates/` work, not edited by
-this role. `docs/FEATURES.md:266` carried the same claim and **was** corrected
-in that filing. Per `R216` the superseded wording is preserved where it is
-replaced, not deleted.
-
-**Priority: HIGH** — the operator hit it himself, it silently damages
-document content, and the shell has a rotate grip wired
-(`ENGINE_BACKLOG.md`, 2026-09-04) so it is reachable today.
-
-### `Pass 155.2` — ★★★ **AN ANNOTATION'S ROTATION ANGLE CANNOT BE READ, SO NO SHELL CAN SHOW IT, TYPE IT, OR DRAW A SELECTION BOX IN THE OBJECT'S ORIENTATION — plus the ABSOLUTE setter a properties field needs** — filed 2026-09-07 (462nd filing), **NOT STARTED** — *annotation transforms* family (`Pass 155.0`, `0ce65dc`)
-
-**Origin:** `open/request_an_annotations_rotation_angle_cannot_be_read.md`
-(mtime `2026-09-07 13:16:57 -0400`, 5,324 B), sibling of `Pass 155.1`, filed
-separately because it is a different topic. **Prompted by the operator,
-2026-09-07** — *"the angle should be editable from the properties, and the box
-outlined when an object is selected should be in the same angled orientation
-as the object."*
-
-**What is true today.** `annot::Annotation` (`annot.rs:330`) carries `id`,
-`subtype`, `rect`, `flags`, `vertices`, `line`, `ink_list`, `constant_alpha`,
-`color`, `icon`, `state`, `state_model`, `appearance`, `is_popup`. **There is
-no rotation and no route to one:** `Appearance::Normal` carries `stream_id`
-and nothing else, so the `/Matrix` the rotation deliberately lives in
-(`edit.rs:25041`) is not in the read model at any level. This is a
-**write-without-read asymmetry** — the `Pass 146.0` shape, where a properties
-control could only ever be seeded from an invention.
-
-**The read half — and the requester states a preference with a reason
-pdfcer itself gave them.** Either `rotation: Option<f64>` (degrees
-anticlockwise, decomposed from the appearance `/Matrix`, `None` when the
-matrix is not a rotation-plus-uniform-scale, because *a skew or a mirror is
-not an angle and must not be reported as one*) **or** the raw
-`appearance_matrix: Option<[f64; 6]>`. **They prefer the raw matrix "if you
-have to choose one"**, quoting `Annotation::color`'s own justification back:
-*"the component count IS the colour space, so a malformed array is something
-you should see rather than have repaired."* Same argument — a shell handed
-six numbers can tell a rotation from a skew and disclose the difference; a
-shell handed `None` cannot separate *"not rotated"* from *"rotated in a way
-we declined to describe."* **Both if cheap.** ★ Note this is the **third
-consecutive request from this shell to argue for raw-over-modelled from a
-precedent pdfcer set** (`Annotation::color`, `::icon`, now this) — the
-raw-when-the-shape-is-the-fact principle has become a shared vocabulary, and
-that is worth preserving deliberately.
-
-**The write half — an ABSOLUTE setter, and it is not a convenience wrapper.**
-`set_annotation_rotation(&mut self, annot_id, anchor: (f64, f64), degrees:
-f64) -> Result<AnnotationRotate, EditError>` — absolute, anticlockwise from
-the authored orientation. `rotate_annotation` is a **delta** verb, right for a
-drag; a typed properties field is **inherently absolute** (the operator sees
-`30°` and types `45°`), and composing that as a delta requires the shell to
-already know the current angle *and* to trust that its idea matches the file's
-— **the first time those disagree the object silently ends up somewhere
-else.**
-
-**★★ THE TWO HALVES OF THIS FAMILY INTERLOCK, WHICH IS WHY THEY SHOULD BE
-SCOPED TOGETHER EVEN THOUGH THEY WERE FILED APART.** The requester makes the
-point themselves: **an absolute setter has to derive `/Rect` from the artwork
-rather than from the previous `/Rect`**, which is exactly `Pass 155.1`'s fix.
-Build `155.1` first and `155.2`'s write half is nearly free; build `155.2`
-first and it cannot be correct.
-
-**Priority: MEDIUM-HIGH** — nothing is damaged, but the properties panel and
-the oriented selection box the operator asked for are both blocked on the read
-half. No `pdfcer-acrobat-librarian` dispatch needed.
 
 ### `Pass 256.1` — ★★ **`/ToUnicode` PARTIAL INVERSION — invert per CHARACTER, not per FONT: an unambiguous character is written, a colliding character is refused BY NAME (which characters, from which CIDs); today `ToUnicodeCMap::injective_inverse()` refuses the WHOLE composite font when ANY character maps from more than one CID** — filed 2026-09-05 (439th filing, `pdfcer-gui` correction 2026-09-05 evening, ask (3)), ~~*Backlog*, **NOT STARTED**~~ **SHIPPED `56dde4d` (446th filing) — see top of *Shipped*; criterion 2 AMENDED below; the census NOT run** — family 256, after `Pass 256.0`
 
