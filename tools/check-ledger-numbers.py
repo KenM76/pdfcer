@@ -874,10 +874,38 @@ def main() -> int:
     for _, pid, _ in passes:
         heading_families[pid.split(".")[0]].append(pid)
 
+    # ★ THE MENTION SCAN READS MORE THAN ROADMAP.md, and it did not until
+    # 2026-09-06. A `Pass 259.x` citation was written into
+    # `docs/core-api/02-editing-and-saving.md` for an ID that was never
+    # minted, and this gate printed "MENTIONED: up to 258" and `clean`
+    # while the token sat on disk -- because its input set was ROADMAP,
+    # SESSION_LOG, decisions/ and ARCHITECTURE, and `docs/core-api/` is
+    # none of those.
+    #
+    # That file is the one a SEPARATE project builds against, so a Pass ID
+    # spelled there is exactly as load-bearing as one in the roadmap: it
+    # reserves the number in every reader's mind while reserving it in no
+    # tool's. The blind spot is now closed by scanning every Markdown file
+    # under docs/ for the mention ceiling.
+    #
+    # Only the CEILING widens. Heading extraction still reads ROADMAP
+    # alone, because a heading is a claim about the roadmap's own structure
+    # and a reference document does not get to declare one.
     mentioned = defaultdict(list)
-    for ln in lines:
-        for pid in re.findall(rf"Pass ({PASS_ID})", ln):
-            mentioned[pid.split(".")[0]].append(pid)
+    mention_sources = {ROADMAP: lines}
+    for root, _dirs, files in os.walk(os.path.join("docs")):
+        for name in sorted(files):
+            if not name.endswith(".md"):
+                continue
+            rel = os.path.join(root, name)
+            if rel in mention_sources:
+                continue
+            mention_sources[rel] = read_lines(rel)
+    for src, src_lines in mention_sources.items():
+        for ln in src_lines:
+            for pid in re.findall(rf"Pass ({PASS_ID})", ln):
+                mentioned[pid.split(".")[0]].append(pid)
+        _ = src
 
     def top_of(fams):
         if not fams:
