@@ -1107,7 +1107,21 @@ That class needs a reader, and it got one.
 
 **Both are now built.** `resize_annotation` (`Pass 151.0`) and
 `rotate_annotation` (`Pass 155.0`), for markup, redaction marks and links
-alike, both CLI-wired. `move_dimension` and `move_widget` remain the verbs
+alike, both CLI-wired.
+
+★★ **`Pass 155.1` / `Pass 155.2` (2026-09-07) completed the rotation half**,
+after the operator reported the defect himself. `rotate_annotation` is now
+**composable** — it was not, and the artwork grew on every turn after the
+first — and its outcome names which of three rectangle rules it used
+(`RectDerivation`), because only two of the three compose. Alongside it:
+`set_annotation_rotation` (absolute, idempotent, for a typed properties
+field), `Annotation::appearance_matrix` +
+`Annotation::appearance_rotation_degrees()` (the angle was previously
+unreadable, so a shell could write a rotation it could not read back), and
+`pdfcer_render::annot::appearance_placement` (where the artwork actually
+lands, for a selection outline that follows the object instead of an upright
+`/Rect` visibly larger than it). CLI: `rotate-annotation --absolute`, plus
+`rect_derived=` on the report. `move_dimension` and `move_widget` remain the verbs
 for ce dimensions and widgets respectively, and all three transform verbs
 refuse both by name.
 

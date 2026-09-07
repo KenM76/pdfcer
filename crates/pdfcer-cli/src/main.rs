@@ -5285,18 +5285,14 @@ enum Command {
     /// rotated shape is larger unless the angle is a multiple of 90°. The
     /// artwork does not grow; only the rectangle around it does.
     ///
-    /// ★★ **THIS CLAIM IS UNDER INVESTIGATION AND MAY BE FALSE WHEN THE
-    /// VERB IS APPLIED REPEATEDLY** (`pdfcer-gui` request 2026-09-07,
-    /// scoped as `Pass 155.1`, NOT yet fixed). The operator reported it
-    /// himself: *"the rotate bug in the review objects where the object
-    /// gets larger with each enactment of the tool."* The sentence above
-    /// is correct for ONE rotation of an unrotated annotation; what is
-    /// disputed is the SECOND, where `/Rect` — already grown — appears to
-    /// be taken as the artwork to re-bound.
-    ///
-    /// It is flagged rather than deleted because the mechanism is not yet
-    /// measured, and a disclosure that quietly disappears is worse than
-    /// one that says it is in doubt.
+    /// ★★ **THAT WAS FALSE FROM THE SECOND ROTATION ONWARDS UNTIL
+    /// `Pass 155.1` (2026-09-07).** The rectangle used to be derived from
+    /// the previous rectangle, so each turn bounded an already-grown box
+    /// while the appearance's `/Matrix` only accumulated the angle — and
+    /// §12.5.5 then scaled the artwork **up** to fill the surplus. Four 15°
+    /// turns drew a square 1.93× wider than one 60° turn. It is now derived
+    /// from the artwork, and `rect_derived=` on the second output line says
+    /// from which of three sources.
     ///
     /// `/RD` is left alone and reported: at an angle that is not a quarter
     /// turn, no axis-aligned inset expresses the rotated result.
@@ -5312,8 +5308,27 @@ enum Command {
         /// Rotation in degrees, ANTICLOCKWISE — PDF user space has its origin
         /// at the bottom-left (§8.3.2.3), so positive turns the way a
         /// mathematician expects and not the way a screen does.
+        ///
+        /// A DELTA from wherever the annotation is now, unless `--absolute`.
         #[arg(long, allow_negative_numbers = true)]
         degrees: f64,
+        /// Treat `--degrees` as an ABSOLUTE angle measured from the
+        /// annotation's authored orientation, rather than as a delta
+        /// (`Pass 155.2`).
+        ///
+        /// pdfcer reads the annotation's current angle out of its appearance
+        /// `/Matrix` and applies the difference — so `--absolute --degrees 45`
+        /// leaves it at 45° whatever it was at before, and running it twice
+        /// changes nothing the second time.
+        ///
+        /// This is what a typed properties field needs. It REFUSES rather
+        /// than guesses when the current angle cannot be read: an annotation
+        /// with no appearance stream has nowhere to record an orientation
+        /// (§12.5.2 requires `/Rect` upright), and a `/Matrix` carrying a
+        /// shear or a mirror is not an angle at all. Without this flag the
+        /// delta form works on both, because a delta needs no starting angle.
+        #[arg(long)]
+        absolute: bool,
         /// Pivot x in points — the point that does NOT move.
         #[arg(long, allow_negative_numbers = true)]
         anchor_x: f64,
@@ -10386,6 +10401,7 @@ fn run() -> ExitCode {
             page,
             index,
             degrees,
+            absolute,
             anchor_x,
             anchor_y,
             output,
@@ -10394,6 +10410,7 @@ fn run() -> ExitCode {
             &input,
             (page, index),
             degrees,
+            absolute,
             (anchor_x, anchor_y),
             &output,
             mode,
@@ -32797,6 +32814,7 @@ fn cmd_rotate_annotation(
     input: &Path,
     at: (usize, usize),
     degrees: f64,
+    absolute: bool,
     anchor: (f64, f64),
     output: &Path,
     mode: SaveMode,
@@ -32849,16 +32867,45 @@ fn cmd_rotate_annotation(
         id
     };
 
-    let out = match session.rotate_annotation(annot_id, anchor, degrees) {
+    // `--absolute` routes to the setter that reads the current angle out of
+    // the file rather than trusting a caller's idea of it (`Pass 155.2`).
+    let out = match if absolute {
+        session.set_annotation_rotation(annot_id, anchor, degrees)
+    } else {
+        session.rotate_annotation(annot_id, anchor, degrees)
+    } {
         Ok(o) => o,
         Err(err) => return report_edit_error(input, &err),
     };
+    if absolute {
+        // Rule 4: the outcome echoes the DELTA applied, not the absolute
+        // target the caller asked for, so the two numbers differ on screen
+        // and the reason is said rather than left to be inferred.
+        eprintln!(
+            "pdfcer: {}: --absolute: the annotation was at {:.4} degrees, so {:.4} was applied to reach {degrees:.4}. The lines below report the turn that happened, not the angle you asked for.",
+            input.display(),
+            degrees - out.degrees,
+            out.degrees,
+        );
+    }
 
     let grew = (out.to.urx - out.to.llx) * (out.to.ury - out.to.lly)
         > (out.from.urx - out.from.llx) * (out.from.ury - out.from.lly) + 1e-6;
     if grew {
         eprintln!(
             "pdfcer: {}: its /Rect is now LARGER, and that is correct — ISO 32000-1 12.5.2 requires an upright rectangle, and the upright box bounding a rotated shape is bigger unless the angle is a multiple of 90 degrees. The artwork did not grow; the rectangle around it did.",
+            input.display()
+        );
+    }
+    // Rule 4: pdfcer chose between three rules for the new rectangle on
+    // evidence the operator cannot see, and only two of the three compose.
+    // The one that does not is disclosed BEFORE the outcome lines, because
+    // it is the thing they would not predict -- rotating twice really does
+    // enlarge such an annotation, and saying nothing would leave them to
+    // discover it the way the operator discovered the defect this replaced.
+    if out.rect_derived_from == pdfcer_core::edit::RectDerivation::PreviousRect {
+        eprintln!(
+            "pdfcer: {}: this annotation carries no appearance stream and no rotatable geometry keys, so its artwork IS its rectangle and there is nowhere to record an orientation. Its new /Rect had to be bounded from the old one, which means REPEATED rotation of this annotation keeps enlarging it. Give it an appearance stream first if you need to turn it more than once.",
             input.display()
         );
     }
@@ -32908,7 +32955,7 @@ fn cmd_rotate_annotation(
         out.to.ury,
     );
     println!(
-        "  geometry_keys_rotated={} appearance_matrix={}",
+        "  geometry_keys_rotated={} appearance_matrix={} rect_derived={}",
         if out.geometry_keys_rotated.is_empty() {
             "none".to_owned()
         } else {
@@ -32918,6 +32965,12 @@ fn cmd_rotate_annotation(
             "composed"
         } else {
             "absent"
+        },
+        match out.rect_derived_from {
+            pdfcer_core::edit::RectDerivation::Artwork => "artwork",
+            pdfcer_core::edit::RectDerivation::Geometry => "geometry",
+            pdfcer_core::edit::RectDerivation::PreviousRect => "previous-rect",
+            _ => "unknown",
         }
     );
     finish_edit(input, &saved)

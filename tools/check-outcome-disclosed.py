@@ -141,6 +141,13 @@ OUTCOME_STRUCTS: list[tuple[str, str]] = [
     # a star of state annotations renders identically to the per-user chain
     # 12.5.6.3 requires, so that field is the ONLY place the difference is
     # visible to anyone.
+    # `Pass 155.1`, registered in the SAME commit that grew the struct. It
+    # earns the list rather than joining it for tidiness: `rect_derived_from`
+    # names which of three rules produced the new `/Rect`, and only two of the
+    # three compose. A shell that dropped it would offer a rotate grip that
+    # silently enlarges the object on every use -- which is the exact defect
+    # this Pass fixed, re-introduced one level up.
+    ("crates/pdfcer-core/src/edit.rs", "AnnotationRotate"),
     ("crates/pdfcer-core/src/edit.rs", "TextAnnotStyleChange"),
     ("crates/pdfcer-core/src/edit.rs", "ReplyAdded"),
     ("crates/pdfcer-core/src/edit.rs", "ReviewStateAdded"),

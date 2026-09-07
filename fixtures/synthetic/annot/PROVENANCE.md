@@ -1,6 +1,7 @@
 # annot — provenance and attribution
 
-Sixteen minimal PDFs for Pass 6.0 (annotation appearance **rendering**,
+Eighteen minimal PDFs — sixteen for Pass 6.0 (annotation appearance
+**rendering**,
 read-side; ISO 32000-1 §12.5, `docs/decisions/008`). Each file isolates
 **one** claim from the appearance-display contract — the §12.5.5
 placement algorithm from both directions, the §12.5.3 display flags, the
@@ -52,6 +53,7 @@ substitute was chosen, not on glyph shapes.
 | `flags-noview.pdf` | `/F 32` (NoView): screen-suppressed on the screen render path, counted |
 | `popup-not-painted.pdf` | a `/Popup` with a (malformed) full-page `/AP`: never page content (risk X4) |
 | `no-ap-circle.pdf` | a `/Circle` with `/IC` and no `/AP`: R43 — pdfcer synthesises nothing from `/IC` |
+| `no-ap-polyline.pdf` | a `/PolyLine` with `/Vertices` and no `/AP`, whose `/Rect` sits 5 units outside the vertex bound on every side — added for `Pass 155.1`, the only fixture that reaches `rotate_annotation`'s **geometry** rectangle rule (every other one has an appearance, or no geometry at all). The deliberate 5-unit allowance is what stops an implementation that drops the border allowance from passing |
 | `rect-differences-square.pdf` | a `/Square` with `/RD [2 4 2 4]`, `/BS << /W 3 >>` and a **generator-written** `/AP`: the only fixture carrying `/RD`, and the resize suite's foreign-appearance case. The four `/RD` values are deliberately unequal so a bug that scales every slot by `sx` is visible (Table 175 orders them [left, top, right, bottom]); the `/AP` is foreign **by construction**, which is what makes `Pass 151.0`'s "pdfcer will not redraw somebody else's artwork" gate measurable |
 
 ### Appearance-state selection (§12.5.5)

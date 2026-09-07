@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 209 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 210 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 209 public `EditSession` methods
+## 1. Verb index — all 210 public `EditSession` methods
 
-**Count: 209.** Established by brace-matched extraction of the five
+**Count: 210.** Established by brace-matched extraction of the five
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed.
@@ -1497,9 +1497,45 @@ always errors.
 | Delete any annotation | `delete_annotation(&mut self, annot_id) -> Result<AnnotationDeletion, EditError>` | 10847 | **Routes** to the two specialised verbs above for `/Redact` and ce dimensions. ⚠️ **Refuses with `AnnotationObjectIsStructural` when the `/Annots` entry is the document catalog, the `/AcroForm`, a page-tree node or a page** (`Pass 190.1`) — **an entry in a structural array is not necessarily the kind of object that array is for**, and a page whose `/Annots` named the catalog produced a file with no page-tree root. Same shape as `delete_field`'s `FieldObjectIsInPageTree` above, in a second carrier; the guard is `refuse_if_in_page_tree` plus an identity check plus a `/Type` test (`/Type` is optional on an annotation, so its **absence** proves nothing and its **presence** naming something else is decisive). ★ The refusal lives in `annotation_deletion_guards`, which `annotation_deletion_preview` also calls, **so the dry run and the real run agree.** ⚠️ **Widened at `Pass 191.1`: the guard now runs over the whole removal SET, after the cascades rather than before them.** It had run on the *target* only, and this command deletes a set — the `/Popup` cascade joined it afterwards, un-guarded, and could take a page with it. A guard written over "the target plus whatever the cascades added" cannot be out-flanked by a cascade added later. §6.8. |
 | **Move** any annotation | `move_annotation(&mut self, annot_id, dx, dy) -> Result<AnnotationMove, EditError>` | 16978 | `Pass 149.0`. Translates `/Rect` **and every geometry key**. **Refuses** a widget and a ce dimension by name — see below. |
 | **Resize** any annotation | `resize_annotation(&mut self, annot_id, anchor: (f64, f64), sx, sy, opts: &ResizeOptions) -> Result<AnnotationResize, EditError>` | 17442 | `Pass 151.0`. Scales `/Rect` **and every geometry key** about `anchor`. `/RD` scales by default; `/BS /W` does not — both are flags. **Re-authors the `/AP` only where pdfcer drew it**, refusing rather than distorting a foreign one. Same two refusals as `move_annotation`. |
-| **Rotate** any annotation | `rotate_annotation(&mut self, annot_id, anchor: (f64, f64), degrees: f64) -> Result<AnnotationRotate, EditError>` | 17429 | `Pass 155.0`. Turns geometry keys AND composes the rotation into the appearance's own `/Matrix` (§12.5.5 step a), so a FOREIGN appearance rotates correctly and nothing is redrawn. No options type — a rotation is an isometry, so no stroke can distort. `/Rect` grows to the upright box that bounds the result, which §12.5.2 requires. **★ The angle is applied AS GIVEN and the result is never snapped** — see below. |
+| **Rotate** any annotation | `rotate_annotation(&mut self, annot_id, anchor: (f64, f64), degrees: f64) -> Result<AnnotationRotate, EditError>` | 17429 | `Pass 155.0`. Turns geometry keys AND composes the rotation into the appearance's own `/Matrix` (§12.5.5 step a), so a FOREIGN appearance rotates correctly and nothing is redrawn. No options type — a rotation is an isometry, so no stroke can distort. `/Rect` grows to the upright box that bounds the result, which §12.5.2 requires. **★ The angle is applied AS GIVEN and the result is never snapped** — see below. **★★ `Pass 155.1` (2026-09-07): the verb is now COMPOSABLE — it was not, and the artwork grew on every turn after the first. `AnnotationRotate` gains `rect_derived_from`. See the box below.** |
+| **Set** an annotation's rotation ABSOLUTELY | `set_annotation_rotation(&mut self, annot_id, anchor: (f64, f64), degrees: f64) -> Result<AnnotationRotate, EditError>` | edit.rs | **`Pass 155.2`, `pdfcer-gui` request 2026-09-07.** `degrees` is measured anticlockwise **from the annotation's authored orientation** — the same zero `Annotation::appearance_rotation_degrees` reports against, because both go through `annot::rotation_degrees`. Reads the current angle out of the file and applies the difference, so it is **idempotent**: setting 45 twice moves nothing the second time. This is what a typed properties field needs; `rotate_annotation` stays the drag-grip delta. Returns that verb's outcome unchanged, so `AnnotationRotate::degrees` is **the delta applied, not the absolute target**. ⚠️ **Refuses `AnnotationRotationUnreadable`** when the current angle cannot be read (no appearance stream — §12.5.2 requires `/Rect` upright, so there is nowhere to record one — or a `/Matrix` carrying a shear or a mirror, which is not an angle). It refuses rather than assuming zero: an operator typing 45 on an object already at 30 would silently get 75. **`rotate_annotation` still works on both**, because a delta needs no starting angle. |
 | Preview an annotation deletion | `annotation_deletion_preview(&self, annot_id) -> Result<AnnotationDeletion, EditError>` | 11316 | Pure `&self` query. |
 | **Reorder** a page's annotations — the tab order | `reorder_annotations(&mut self, page_index: usize, new_order: &[ObjId]) -> Result<AnnotsReorder, EditError>` | — | `Pass 237.0`. Permutes the page's `/Annots` array, **moving references and nothing else** — no annotation dictionary is read or written, so every widget keeps its id, its field, its `/Parent` chain and its `/AA`. ONE undo entry. `new_order` is the page's indirect entries **by id**, each once; refuses `AnnotsNotAPermutation` (naming missing / unknown / repeated ids), `AnnotsDuplicateReference`, `TrapNetMustStayLast`, `AnnotStatesMismatch`. Honours the three `shall`s a permutation can break (TrapNet-last, `/AnnotStates`, `/GoToE` `/A`). **Reads `/Tabs`, never writes it** — see below. |
+
+> #### ★★ `Pass 155.1` — the rectangle is derived from the ARTWORK, and which rule was used is REPORTED
+>
+> **The defect this replaced, because a caller may still be holding the old
+> claim.** Until 2026-09-07 the new `/Rect` was the upright bound of the four
+> rotated corners of the **old `/Rect`**, and this document's own row said
+> *"`/Rect` grows to the upright box that bounds the result"* without saying
+> what "the result" was bounded from. That is right once and wrong every time
+> after: turn 2 bounds an already-enlarged rectangle while the appearance's
+> `/Matrix` has only reached 2θ, so §12.5.5 step (c) — which *"scales and
+> translates"* **A** to fit the transformed `/BBox` onto `/Rect` exactly —
+> **scales the artwork up** to fill the surplus.
+>
+> **The operator reported it himself**: *"the rotate bug in the review objects
+> where the object gets larger with each enactment of the tool."*
+> `pdfcer-gui` measured it in rendered pixels: on a 140 × 60 pt `/Square`, one
+> 60° turn drew 243 × 302 device px (exactly right) while **four 15° turns
+> drew 469 × 430** — 1.93× wider, 1.42× taller.
+>
+> **The rule now**, and it is a function of the artwork's current orientation,
+> never of the previous rectangle. Three sources, tried in order, each named in
+> `AnnotationRotate::rect_derived_from` (`RectDerivation`):
+>
+> | Variant | When | Composes? |
+> |---|---|---|
+> | `Artwork` | there is a usable appearance stream | **yes** — the rectangle is the `/BBox` through the composed `/Matrix`, bounded upright, times whatever anisotropic scale the previous placement was applying (so a producer's deliberately-stretched appearance keeps its stretch, and that factor is invariant) |
+> | `Geometry` | no appearance, but `/L` `/Vertices` `/QuadPoints` `/CL` `/InkList` turned | **yes** — the bound of the rotated points plus the old border allowance, re-applied as a single scalar (four per-side insets do not survive a non-quarter turn, the same reason `/RD` is left alone) |
+> | `PreviousRect` | neither | **NO** — a `/Square` or `/Circle` with no `/AP`, whose artwork *is* the rectangle. There is nowhere to record an orientation, so it genuinely grows on every turn. **Reported so a shell can stop**; give the annotation an appearance first if it needs a rotate grip. |
+>
+> **What a shell should do with it:** a rotate grip that ignores
+> `rect_derived_from` re-introduces the operator's bug one level up, on the
+> third of annotations that reach the `PreviousRect` rule.
+>
+> The acceptance criterion, as the requester supplied it: *N* rotations
+> totalling θ and one rotation of θ produce the same drawn size.
 
 > #### ★ `rotate_annotation` never snaps, and a caller comparing floats must expect that
 >
@@ -4094,7 +4130,7 @@ borrow it (`tests/image_placement.rs:238-247`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs:2300`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**124 variants** at `Pass 258.1`, counted at depth 1 inside `pub enum EditError`.
+**125 variants** at `Pass 155.2`, counted at depth 1 inside `pub enum EditError`.
 The two added since `Pass 255.0` are `StylePropertyNotApplicable` (a
 `MarkupStyle` property set on a subtype that has none -- a `width` or `dash`
 on a text markup, `endings` on anything but a `/Line`; it was a **silent

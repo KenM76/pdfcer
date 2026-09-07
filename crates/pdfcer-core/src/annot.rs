@@ -491,6 +491,53 @@ pub struct Annotation {
     pub state_model: Option<String>,
     /// The selected normal (`/N`) appearance, per §12.5.5.
     pub appearance: Appearance,
+    /// The **`/Matrix` of the selected appearance stream** (Table 95),
+    /// raw, as `[a b c d e f]` (`Pass 155.2`).
+    ///
+    /// # ★ Why the raw six numbers rather than a decomposed angle
+    ///
+    /// `pdfcer-gui` asked for this and gave pdfcer's own argument back:
+    /// [`Self::color`] is a raw component array because *"the component
+    /// count IS the colour space, so a malformed array is something you
+    /// should see rather than have repaired"*. The same holds here, and
+    /// harder. A shell handed six numbers can tell a rotation from a skew,
+    /// a mirror or a shear, and disclose which; a shell handed
+    /// `Option<f64>` cannot separate *"not rotated"* from *"rotated in a
+    /// way pdfcer declined to describe"* — and the second is exactly the
+    /// case an operator most needs told about.
+    ///
+    /// The convenience is a **method**, not a second field:
+    /// [`Self::appearance_rotation_degrees`]. Two fields that must agree
+    /// about the same matrix is the `R243` shape — the agreement belongs in
+    /// one function both readers call, and here that function is the
+    /// accessor.
+    ///
+    /// # Why the rotation lives here at all
+    ///
+    /// §12.5.2 requires `/Rect` to be **upright**, so a rotated annotation
+    /// cannot record its angle there. §12.5.5 step (a) transforms the
+    /// appearance `/BBox` through this matrix *"to produce a quadrilateral
+    /// with arbitrary orientation"*, and step (c) concatenates it with the
+    /// placement matrix — so **this is the only place an annotation's
+    /// orientation exists**, and it is where
+    /// [`crate::edit::EditSession::rotate_annotation`] writes it.
+    ///
+    /// # `None`, and what it does and does not mean
+    ///
+    /// `None` when there is no selected normal appearance stream (see
+    /// [`Self::appearance`], which distinguishes the reasons), when the
+    /// stream carries no `/Matrix`, or when its `/Matrix` is not six
+    /// resolvable numbers.
+    ///
+    /// The last two collapse deliberately, and against this struct's usual
+    /// habit of separating absent from malformed: **Table 95 gives an
+    /// absent `/Matrix` the identity as its default, and `pdfcer-render`
+    /// treats a malformed one as the identity too.** Reporting them apart
+    /// here would make the read model disagree with what the renderer will
+    /// actually do, which is the worse of the two errors. A caller wanting
+    /// the effective matrix substitutes the identity for `None` whenever
+    /// [`Self::appearance`] is [`Appearance::Normal`].
+    pub appearance_matrix: Option<[f64; 6]>,
     /// Whether `/Subtype` is `Popup` (§12.5.6.14). A `/Popup` is a reader
     /// UI window, **never** page content — a structural non-paint rule
     /// stronger than R43, checked before flags or appearance (risk X4).
@@ -702,6 +749,59 @@ pub struct Annotation {
     pub action_chains: bool,
 }
 
+/// Decompose a `[a b c d e f]` matrix into **degrees anticlockwise**, or
+/// `None` when it is not a rotation with an optional uniform scale
+/// (`Pass 155.2`).
+///
+/// # ★ One function, two callers, on purpose
+///
+/// [`Annotation::appearance_rotation_degrees`] (the read side) and
+/// [`crate::edit::EditSession::set_annotation_rotation`] (the write side)
+/// must agree **exactly** about what the current angle is: the setter
+/// computes its delta as `wanted − current`, and a shell seeds the field it
+/// types into from the reader. If the two disagreed by so much as a
+/// tolerance, an operator could open a properties panel showing `30°`, press
+/// Enter without editing, and watch the object move.
+///
+/// That is the `R243` shape — two call sites that must agree about a value
+/// neither can read back from the file — and `R243` says the agreement goes
+/// in one function they both call rather than in a comment. This is that
+/// function.
+///
+/// # The test
+///
+/// `[a b c d]` is `s·R(θ)` exactly when `a = d = s·cos θ`, `b = −c = s·sin θ`
+/// and `s > 0`. Checked as: the two column norms agree (uniform scale),
+/// `a = d` and `b = −c` (a rotation, not a mirror — a reflection has the
+/// same column norms and the opposite determinant). Tolerances are relative
+/// to the scale so they hold for a 0.01× appearance as well as a 100× one.
+///
+/// A shear, a non-uniform scale and a mirror all return `None` rather than
+/// the nearest angle: an appearance that is skewed still *looks* turned, so
+/// a confident wrong number here would be seeded into a field the operator
+/// is about to commit.
+///
+/// # Returns
+///
+/// `Some(θ)` in `(−180, 180]`, `0.0` for the identity; `None` for a
+/// non-finite, degenerate (`s ≈ 0`) or non-rotation matrix.
+#[must_use]
+pub fn rotation_degrees(matrix: [f64; 6]) -> Option<f64> {
+    let [a, b, c, d, _, _] = matrix;
+    if !(a.is_finite() && b.is_finite() && c.is_finite() && d.is_finite()) {
+        return None;
+    }
+    let s = a.hypot(b);
+    let tol = 1e-9 * s.max(1.0);
+    if s <= f64::EPSILON || (c.hypot(d) - s).abs() > tol {
+        return None;
+    }
+    if (a - d).abs() > tol || (b + c).abs() > tol {
+        return None;
+    }
+    Some(b.atan2(a).to_degrees())
+}
+
 /// `/RT` — the relationship [`Annotation::in_reply_to`] expresses
 /// (ISO 32000-1 §12.5.6.2, Table 170, PDF 1.6).
 ///
@@ -723,6 +823,65 @@ pub enum ReplyType {
 }
 
 impl Annotation {
+    /// The annotation's **rotation in degrees anticlockwise**, decomposed
+    /// from [`Self::appearance_matrix`] (`Pass 155.2`).
+    ///
+    /// This is the convenience half of that field, and it is a method
+    /// rather than a second field on purpose: two stored values that must
+    /// agree about one matrix is the `R243` shape, and the agreement
+    /// belongs in the single function both readers call.
+    ///
+    /// # What counts as an angle, and what is refused
+    ///
+    /// A matrix `[a b c d e f]` is a rotation by θ, optionally with a
+    /// **uniform** scale *s* and any translation, exactly when
+    /// `a = d = s·cos θ` and `b = −c = s·sin θ`. Anything else — a
+    /// non-uniform scale, a shear, a mirror (negative determinant) — is
+    /// **not an angle**, and this returns `None` rather than reporting the
+    /// nearest one.
+    ///
+    /// That refusal is the point. An appearance that is skewed still *looks*
+    /// turned, so a decomposition that answered "about 30°" would be a
+    /// confident wrong number in a properties field the operator is about
+    /// to type into — and typing into it would commit the invention. A
+    /// caller that wants to show something anyway has the raw matrix and
+    /// can say what it really is.
+    ///
+    /// # ★ This is the EFFECTIVE angle, where the field is the RAW fact
+    ///
+    /// The two differ in one case and the difference is deliberate. An
+    /// annotation that has an appearance stream but **no `/Matrix` key**
+    /// reports `None` from [`Self::appearance_matrix`] — the file really did
+    /// say nothing — but **`Some(0.0)` here**, because Table 95 gives an
+    /// absent `/Matrix` the identity as its default and that is what
+    /// `pdfcer-render` will actually paint with.
+    ///
+    /// Returning `None` there instead would be technically defensible and
+    /// practically wrong: it would make an ordinary unrotated annotation —
+    /// which is *most* of them, since nothing writes an identity `/Matrix`
+    /// it does not need — indistinguishable from one pdfcer declined to
+    /// describe, and a properties field would show a blank where the honest
+    /// answer is `0°`. The split gives a caller both readings: the field
+    /// says what the document contains, the method says what it means.
+    ///
+    /// # Returns
+    ///
+    /// `Some(θ)` in `(−180, 180]`, anticlockwise, `0.0` for the identity and
+    /// for an absent `/Matrix` on a real appearance.
+    ///
+    /// `None` when there is **no normal appearance stream at all** (there is
+    /// then no orientation to report — see [`Self::appearance`], which says
+    /// why there is none), or when the matrix is present but is not a
+    /// rotation with an optional uniform scale.
+    #[must_use]
+    pub fn appearance_rotation_degrees(&self) -> Option<f64> {
+        match self.appearance_matrix {
+            Some(m) => rotation_degrees(m),
+            // Table 95's documented default, and what the renderer uses.
+            None => matches!(self.appearance, Appearance::Normal { .. }).then_some(0.0),
+        }
+    }
+
     /// Whether this annotation is a form-field widget (`/Subtype`
     /// `Widget`, §12.5.6.19). A widget *is* an annotation first (R49);
     /// this is a census convenience — 87.8 % of organic annotations are
@@ -1137,6 +1296,31 @@ fn model_annotation<G: ObjectGraph + ?Sized>(
     );
 
     let appearance = select_normal_appearance(graph, dict, missing_as);
+    // `Pass 155.2`: the /Matrix of the SELECTED appearance, so the field
+    // always describes the stream that will actually be painted rather than
+    // whichever one `/AP` `/N` happens to name first.
+    let appearance_matrix = match appearance {
+        Appearance::Normal {
+            stream_id: Some(id),
+        } => graph
+            .value(id)
+            .and_then(|o| match graph.resolve(o) {
+                Object::Stream(s) => s.dict.get(b"Matrix").map(|m| graph.resolve(m).clone()),
+                _ => None,
+            })
+            .and_then(|m| {
+                let arr = m.as_array()?;
+                let n: Vec<f64> = arr
+                    .iter()
+                    .filter_map(|o| graph.resolve(o).as_number())
+                    .collect();
+                match n.as_slice() {
+                    &[a, b, c, d, e, f] => Some([a, b, c, d, e, f]),
+                    _ => None,
+                }
+            }),
+        _ => None,
+    };
 
     // `Pass 255.0` point geometry. Each is read whenever its key is present
     // and array-shaped, regardless of `/Subtype` — see the struct docs.
@@ -1286,6 +1470,7 @@ fn model_annotation<G: ObjectGraph + ?Sized>(
         state,
         state_model,
         appearance,
+        appearance_matrix,
         is_popup,
         oc,
         contents,

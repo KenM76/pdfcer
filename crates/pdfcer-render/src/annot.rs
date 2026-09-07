@@ -770,6 +770,97 @@ fn paint_appearance(
     }
 }
 
+/// **Where an annotation's appearance actually lands on the page** — the
+/// four corners of its `/BBox` after ISO 32000-1 §12.5.5's full placement
+/// algorithm, in default user space (`Pass 155.2`).
+///
+/// # ★★ Why a renderer exports this, when it looks like a paint internal
+///
+/// It is not a paint internal — it is the answer to *"where is this
+/// object?"*, and three things a **shell** draws depend on it: a selection
+/// outline, a rotate grip, and a hit test. All three are otherwise computed
+/// from `/Rect`, which §12.5.2 forces **upright**. So on a turned annotation
+/// every one of them is wrong — the operator sees an upright box visibly
+/// larger than the artwork and, as pdfcer's own `rotate_annotation` doc
+/// comment predicted, *"cannot tell that from a bug"*. He did exactly that
+/// on 2026-09-07.
+///
+/// `pdfcer-gui` reported (2026-09-07, decision 058) that reaching the answer
+/// without this function meant re-implementing §12.5.5 in the shell —
+/// including this module's `MIN_BOX_EXTENT` degeneracy floor copied by
+/// value and its `/AS` single-entry rule copied out of a doc comment. That
+/// is **a second implementation of a normative algorithm**, in a crate that
+/// does not model appearance-state subdictionaries. Exporting the one
+/// implementation deletes four copies of it and is the better shape; they
+/// asked for the field instead and said they would prefer this.
+///
+/// # The algorithm, unchanged and shared with the paint path
+///
+/// * **step (a)** — the `/BBox` corners through the appearance's own
+///   `/Matrix`, then the upright bound of that quadrilateral;
+/// * **step (b)** — the scale-and-translate **A** mapping that bound onto
+///   `/Rect`, independently in x and y (anisotropic, normative);
+/// * **step (c)** — `/Matrix` concatenated with **A**.
+///
+/// The returned corners are the `/BBox` corners through `Matrix × A`, so
+/// they are a **quadrilateral of arbitrary orientation**, not a rectangle,
+/// and that is the point.
+///
+/// # Corner order
+///
+/// `[lower-left, lower-right, upper-right, upper-left]` **of the `/BBox`**,
+/// i.e. in appearance space before the transform. After a rotation past 90°
+/// the first element is no longer the leftmost point on the page — the order
+/// describes the artwork, not the screen, which is what lets a caller draw
+/// an outline that follows the object and read an angle off one edge.
+///
+/// # Returns
+///
+/// `None`, and deliberately without distinguishing why, when the annotation
+/// has no `/Rect`, its selected normal appearance is not a reachable stream
+/// (see [`pdfcer_core::annot::Appearance`], which *does* distinguish the
+/// reasons), the stream has no readable `/BBox`, or the transformed box is
+/// degenerate on either axis — the case where step (b) would divide by zero
+/// and §12.5.5 specifies no handling. The paint path refuses to place in
+/// exactly these cases and counts them; a caller here should fall back to
+/// `/Rect` and say so.
+#[must_use]
+pub fn appearance_placement(doc: &DocumentView<'_>, annot: &Annotation) -> Option<[(f64, f64); 4]> {
+    let rect = annot.rect?;
+    let Appearance::Normal {
+        stream_id: Some(id),
+    } = annot.appearance
+    else {
+        return None;
+    };
+    let Object::Stream(stream) = doc.resolved(id) else {
+        return None;
+    };
+    let bbox = read_rect_numbers(doc, &stream.dict, b"BBox")?;
+    let matrix = read_matrix(doc, &stream.dict);
+    let tbox = transformed_appearance_box(bbox, matrix)?;
+    let placement = matrix.post_concat(fit_matrix(tbox, rect));
+
+    let [minx, miny, maxx, maxy] = bbox;
+    #[allow(clippy::cast_possible_truncation)]
+    let mut corners = [
+        Point::from_xy(minx as f32, miny as f32),
+        Point::from_xy(maxx as f32, miny as f32),
+        Point::from_xy(maxx as f32, maxy as f32),
+        Point::from_xy(minx as f32, maxy as f32),
+    ];
+    placement.map_points(&mut corners);
+    if !corners.iter().all(|p| p.x.is_finite() && p.y.is_finite()) {
+        return None;
+    }
+    Some([
+        (f64::from(corners[0].x), f64::from(corners[0].y)),
+        (f64::from(corners[1].x), f64::from(corners[1].y)),
+        (f64::from(corners[2].x), f64::from(corners[2].y)),
+        (f64::from(corners[3].x), f64::from(corners[3].y)),
+    ])
+}
+
 /// §12.5.5 step a: transform the corners of `bbox` (normalised
 /// `[minx, miny, maxx, maxy]`) by `matrix` and return the smallest upright
 /// rectangle enclosing the resulting quadrilateral as

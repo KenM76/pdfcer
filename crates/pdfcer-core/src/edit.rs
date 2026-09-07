@@ -6758,6 +6758,40 @@ pub enum EditError {
         /// The `/Subtype`, so the refusal names what was pointed at.
         subtype: String,
     },
+    /// [`EditSession::set_annotation_rotation`] was asked for an **absolute**
+    /// angle on an annotation whose **current** angle cannot be read
+    /// (`Pass 155.2`).
+    ///
+    /// # Why this is a refusal and not a "treat it as 0°"
+    ///
+    /// An absolute setter is *"make it exactly this"*, and it reaches that by
+    /// applying the difference from where the annotation is now. If "now" is
+    /// unknown and pdfcer assumed zero, the operator who typed `45` on an
+    /// object already turned 30° would silently get 75° — an invention
+    /// committed by the act of typing, which is precisely what rule 4 exists
+    /// to stop.
+    ///
+    /// Two situations produce it, both named in `why`: the annotation has no
+    /// appearance stream at all (so there is nowhere its orientation could
+    /// be recorded — `/Rect` is required upright by §12.5.2), or its
+    /// appearance `/Matrix` is not a rotation-plus-uniform-scale (a shear or
+    /// a mirror is not an angle; see
+    /// [`crate::annot::Annotation::appearance_rotation_degrees`]).
+    ///
+    /// **[`EditSession::rotate_annotation`] still works on both**, because a
+    /// *delta* needs no starting angle. A shell that only wants a drag grip
+    /// should use it.
+    #[error(
+        "the {subtype} annotation's current rotation cannot be read, so an absolute angle \
+         cannot be applied to it: {why}. Nothing was rotated -- rotate_annotation (a delta) \
+         still works, because it does not need to know where the annotation is now."
+    )]
+    AnnotationRotationUnreadable {
+        /// The `/Subtype`, so the refusal names what was pointed at.
+        subtype: String,
+        /// Which of the two situations it was, in the operator's terms.
+        why: &'static str,
+    },
     /// A markup annotation was authored with geometry that names no point
     /// (an empty `/InkList`, an empty vertex list, or no quads). Refused
     /// rather than emit an empty appearance for a non-empty subtype, which
@@ -15938,24 +15972,38 @@ pub struct AnnotationRotate {
     /// The `/Rect` before.
     pub from: page_tree::Rect,
     /// The `/Rect` after. **Usually LARGER**, and that is not a defect: a
-    /// rotated rectangle's upright bounding box grows, and §12.5.2 requires
+    /// rotated shape's upright bounding box grows, and §12.5.2 requires
     /// `/Rect` to be upright. The artwork does not grow.
     ///
-    /// ★★ **THIS CLAIM IS UNDER INVESTIGATION AND MAY BE FALSE WHEN THE
-    /// VERB IS APPLIED REPEATEDLY** (`pdfcer-gui` request 2026-09-07,
-    /// scoped as `Pass 155.1`, NOT yet fixed). The operator reported it
-    /// himself: *"the rotate bug in the review objects where the object
-    /// gets larger with each enactment of the tool."* The sentence above
-    /// is correct for ONE rotation of an unrotated annotation; what is
-    /// disputed is the SECOND, where `/Rect` — already grown — appears to
-    /// be taken as the artwork to re-bound.
+    /// ★★ **THAT LAST SENTENCE WAS FALSE FROM THE SECOND ROTATION ONWARDS
+    /// UNTIL `Pass 155.1` (2026-09-07), AND IT IS PRESERVED HERE RATHER
+    /// THAN QUIETLY REPLACED** (R216). It read *"The artwork does not
+    /// grow; only the rectangle that bounds it does"* and it was correct
+    /// for exactly one rotation of an unrotated annotation. `pdfcer-gui`
+    /// refuted it with rendered pixels — four 15° turns drew a `/Square`
+    /// **1.93× wider and 1.42× taller** than one 60° turn — after the
+    /// operator reported it himself: *"the rotate bug in the review
+    /// objects where the object gets larger with each enactment of the
+    /// tool."*
     ///
-    /// It is flagged rather than deleted because the mechanism is not yet
-    /// measured, and a disclosure that quietly disappears is worse than
-    /// one that says it is in doubt.
+    /// The cause was that this rectangle was derived from the **previous
+    /// rectangle**, so each turn bounded an already-grown box while the
+    /// appearance's `/Matrix` only accumulated the angle; §12.5.5 step (c)
+    /// then scaled the artwork **up** to fill the surplus. It is now
+    /// derived from the artwork — see [`Self::rect_derived_from`], which
+    /// names which of three rules was used, and
+    /// [`RectDerivation::PreviousRect`], which is the one case where the
+    /// old behaviour survives because nothing better exists.
     pub to: page_tree::Rect,
     /// Which geometry keys were rotated, in the order tried.
     pub geometry_keys_rotated: Vec<String>,
+    /// **Which rule produced [`Self::to`]** (`Pass 155.1`).
+    ///
+    /// This is a rule-4 disclosure, not diagnostics: pdfcer chose between
+    /// three derivations on evidence the caller cannot see, and only one of
+    /// the three composes. A shell that offers a rotate grip needs to know
+    /// which it got — see [`RectDerivation::PreviousRect`].
+    pub rect_derived_from: RectDerivation,
     /// `true` if the appearance stream's `/Matrix` was updated — which is how
     /// a rotation is expressed, per §12.5.5.
     pub appearance_matrix_updated: bool,
@@ -15966,6 +16014,64 @@ pub struct AnnotationRotate {
     /// multiple of 90° there is no axis-aligned inset that expresses the
     /// rotated result, so pdfcer does not invent one.
     pub rect_differences_untouched: bool,
+}
+
+/// Which rule [`EditSession::rotate_annotation`] used to derive the new
+/// `/Rect` (`Pass 155.1`).
+///
+/// # Why the caller is told, rather than this being an internal detail
+///
+/// §12.5.2 forces `/Rect` upright, so a rotation cannot be expressed by
+/// moving the rectangle — it goes into the appearance's `/Matrix` (§12.5.5)
+/// and the rectangle must be re-derived to match. **What it can be derived
+/// FROM depends on what the annotation carries**, and the three sources are
+/// not equally good: two compose exactly under repeated rotation and one
+/// cannot. A shell offering a rotate grip is entitled to know which it got,
+/// because the third one degrades the object every time it is used.
+///
+/// This is the disclosure half of the defect `Pass 155.1` fixed: the old
+/// code used the third rule unconditionally and said nothing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum RectDerivation {
+    /// **From the appearance stream's `/BBox` through the composed
+    /// `/Matrix`** — §12.5.5 step (a). The best case and the common one:
+    /// the rectangle is exactly the box the ink now occupies, so step (c)'s
+    /// fit matrix stays a pure translation and the artwork is drawn at its
+    /// true size.
+    ///
+    /// Any anisotropic scale the *previous* placement was applying (a
+    /// producer whose `/Rect` deliberately stretches its own appearance) is
+    /// measured and re-applied, so this rule does not quietly un-stretch a
+    /// foreign annotation. That factor is invariant under the rule, which
+    /// is what makes N turns of θ/N agree with one turn of θ.
+    Artwork,
+    /// **From the rotated geometry keys** (`/L`, `/Vertices`, `/QuadPoints`,
+    /// `/CL`, `/InkList`), plus the border allowance the old rectangle
+    /// carried beyond the old geometry.
+    ///
+    /// Used when there is no usable appearance stream. The geometry is
+    /// rotated exactly, so its bound is a function of the total angle alone
+    /// and this composes too. The allowance is re-applied as a **single
+    /// scalar** — the largest of the four old insets — because four
+    /// per-side insets do not survive a rotation that is not a quarter
+    /// turn, the same reason `/RD` is left alone
+    /// ([`AnnotationRotate::rect_differences_untouched`]).
+    Geometry,
+    /// **From the previous `/Rect`** — the upright bound of its four rotated
+    /// corners.
+    ///
+    /// ★ **This one does NOT compose, and it is reported so a caller can
+    /// stop.** It is used only when the annotation has neither a usable
+    /// appearance stream nor any rotated geometry — a `/Square` or
+    /// `/Circle` with no `/AP`, whose artwork *is* the rectangle. There is
+    /// nowhere in such an annotation to record an orientation, so no rule
+    /// can do better; the rectangle genuinely grows on every turn, and so
+    /// does whatever a reader regenerates inside it.
+    ///
+    /// A shell that wants a composable rotate grip on such an annotation
+    /// must give it an appearance first.
+    PreviousRect,
 }
 
 /// What to change about an existing text-bearing annotation's appearance —
@@ -24900,25 +25006,49 @@ impl EditSession {
     ///   preserved, including the drawn stroke width. There is no
     ///   `scale_stroke_width` question here and no options type at all.
     ///
-    /// # `/Rect` grows, and that is correct
+    /// # `/Rect` grows, and that is correct — but it must grow from the
+    /// ARTWORK, not from itself (`Pass 155.1`)
     ///
-    /// A rotated rectangle's upright bounding box is larger than the original
+    /// A rotated shape's upright bounding box is larger than the original
     /// unless the angle is a multiple of 90°. `/Rect` must be upright, so it
     /// becomes that larger box — [`AnnotationRotate::to`] reports it. **The
     /// artwork does not grow**; only the rectangle that bounds it does.
     ///
-    /// ★★ **THIS CLAIM IS UNDER INVESTIGATION AND MAY BE FALSE WHEN THE
-    /// VERB IS APPLIED REPEATEDLY** (`pdfcer-gui` request 2026-09-07,
-    /// scoped as `Pass 155.1`, NOT yet fixed). The operator reported it
-    /// himself: *"the rotate bug in the review objects where the object
-    /// gets larger with each enactment of the tool."* The sentence above
-    /// is correct for ONE rotation of an unrotated annotation; what is
-    /// disputed is the SECOND, where `/Rect` — already grown — appears to
-    /// be taken as the artwork to re-bound.
+    /// ★★ **THAT WAS TRUE OF THE FIRST ROTATION AND FALSE OF EVERY ONE
+    /// AFTER IT, FROM `Pass 155.0` UNTIL `Pass 155.1` (2026-09-07).** The
+    /// operator reported it himself — *"the rotate bug in the review objects
+    /// where the object gets larger with each enactment of the tool"* — and
+    /// `pdfcer-gui` refuted the sentence above with rendered pixels rather
+    /// than with an argument: on a 140 × 60 pt `/Square`, one 60° turn drew
+    /// an ink box of 243 × 302 device px (exactly right —
+    /// 140·cos 60 + 60·sin 60 = 121.96 pt) while **four 15° turns drew
+    /// 469 × 430**, 1.93× wider and 1.42× taller.
     ///
-    /// It is flagged rather than deleted because the mechanism is not yet
-    /// measured, and a disclosure that quietly disappears is worse than
-    /// one that says it is in doubt.
+    /// **The mechanism, and it is worth stating because both halves were
+    /// individually correct.** The new `/Rect` was the upright bound of the
+    /// four rotated corners of the CURRENT `/Rect`, and the rotation was
+    /// composed into the appearance's own `/Matrix`. After turn 1 those
+    /// agree: the transformed `BBox` bounds to exactly the new rectangle,
+    /// so §12.5.5 step (c)'s matrix **A** is unit-scale and the ink is drawn
+    /// at true size. Turn 2 bounds an **already-enlarged rectangle**, while
+    /// `/Matrix` has only reached 2θ — so step (c), which *"scales and
+    /// translates"* **A** to fit the transformed `BBox` onto `/Rect`
+    /// exactly, **scales the artwork up** to fill the surplus. Every turn
+    /// compounds it.
+    ///
+    /// **The rule now:** the rectangle is a function of the artwork's
+    /// current orientation, never of the previous rectangle. Three sources,
+    /// tried in order and named in the outcome
+    /// ([`AnnotationRotate::rect_derived_from`]): the appearance `BBox`
+    /// through the composed `/Matrix` ([`RectDerivation::Artwork`]); the
+    /// rotated geometry keys plus the old border allowance
+    /// ([`RectDerivation::Geometry`]); and, only when the annotation carries
+    /// neither, the old corner-bound ([`RectDerivation::PreviousRect`]) —
+    /// which still does not compose, and says so.
+    ///
+    /// **The property this buys**, which is the acceptance criterion the
+    /// requester supplied as a test rather than as prose: *N* rotations
+    /// totalling θ and one rotation of θ produce the same drawn size.
     ///
     /// # What is left alone, and reported
     ///
@@ -25012,7 +25142,15 @@ impl EditSession {
         let rot = Matrix::rotate(radians).about(pivot);
 
         // ---- geometry keys. Rotating these is unconditional and exact.
+        //
+        // `Pass 155.1`: the points are collected as well as written, because
+        // the new /Rect is derived from the ARTWORK and the rotated geometry
+        // IS the artwork when there is no appearance stream. `before` gives
+        // back the border allowance the old rectangle carried; `after` gives
+        // the box the new one must contain.
         let mut geometry_keys_rotated = Vec::new();
+        let mut geom_before: Vec<(f64, f64)> = Vec::new();
+        let mut geom_after: Vec<(f64, f64)> = Vec::new();
         for key in [
             b"L".as_slice(),
             b"Vertices".as_slice(),
@@ -25023,7 +25161,8 @@ impl EditSession {
             if let Some(Object::Array(items)) = resolved
                 && !items.is_empty()
             {
-                updated.insert(Name::from(key), Object::Array(map_flat(&items, rot)));
+                let out = map_flat_collecting(&items, rot, &mut geom_before, &mut geom_after);
+                updated.insert(Name::from(key), Object::Array(out));
                 geometry_keys_rotated.push(String::from_utf8_lossy(key).into_owned());
             }
         }
@@ -25036,7 +25175,12 @@ impl EditSession {
             let out: Vec<Object> = strokes
                 .iter()
                 .map(|st| match self.graph().resolve(st) {
-                    Object::Array(pts) => Object::Array(map_flat(pts, rot)),
+                    Object::Array(pts) => Object::Array(map_flat_collecting(
+                        pts,
+                        rot,
+                        &mut geom_before,
+                        &mut geom_after,
+                    )),
                     other => other.clone(),
                 })
                 .collect();
@@ -25044,29 +25188,113 @@ impl EditSession {
             geometry_keys_rotated.push("InkList".to_owned());
         }
 
-        // ---- /Rect: the upright box bounding the rotated old rectangle.
+        // ---- the appearance's composed /Matrix, computed BEFORE /Rect
+        // because /Rect is now derived from it (`Pass 155.1`).
         //
-        // §12.5.2 requires /Rect upright, so the four rotated corners are
-        // bounded rather than stored. This is where the rectangle grows.
-        let corners = [
-            (rect.llx, rect.lly),
-            (rect.urx, rect.lly),
-            (rect.urx, rect.ury),
-            (rect.llx, rect.ury),
-        ];
-        let mapped: Vec<Point> = corners
-            .iter()
-            .map(|&(x, y)| rot.map_point(Point { x, y }))
+        // About the appearance's OWN origin, not the page anchor: §12.5.5
+        // step (b) re-derives the translation from the new /Rect, so a
+        // page-space pivot composed in here would be applied twice.
+        let ap = Self::existing_appearance_id(&updated).and_then(|ap_id| match self.value(ap_id) {
+            Some(Object::Stream(stream)) => {
+                let stream = stream.clone();
+                let existing = read_matrix(&self.graph(), &stream.dict);
+                let bbox = stream
+                    .dict
+                    .get(b"BBox")
+                    .and_then(|o| read_rect_array(&self.graph(), o));
+                Some((ap_id, stream, existing, bbox))
+            }
+            _ => None,
+        });
+        let composed = ap.as_ref().map(|(_, _, existing, _)| {
+            existing.post_concat(crate::vector::geometry::Matrix::rotate(radians))
+        });
+
+        // ---- /Rect, derived from the artwork rather than from the previous
+        // /Rect (`Pass 155.1` — see the verb's doc comment for the defect
+        // this replaces and why the three rules are ordered this way).
+        let (rotated, rect_derived_from) = 'derive: {
+            // (a) The artwork is an appearance stream. §12.5.5 step (a) is
+            //     the only thing that says where its ink lands, so the new
+            //     rectangle is that box -- times whatever anisotropic scale
+            //     the OLD placement was already applying, so a producer's
+            //     deliberately-stretched appearance keeps its stretch.
+            //
+            //     That scale is invariant under this rule (the new /Rect is
+            //     the new box times it, so recovering it next turn yields the
+            //     same numbers), which is what makes the verb composable.
+            if let (Some((_, _, existing, Some(bbox))), Some(composed)) = (ap.as_ref(), composed)
+                && let Some(old_box) = transformed_box_bound(*bbox, *existing)
+                && let Some(new_box) = transformed_box_bound(*bbox, composed)
+            {
+                let sx = (rect.urx - rect.llx) / (old_box[2] - old_box[0]);
+                let sy = (rect.ury - rect.lly) / (old_box[3] - old_box[1]);
+                if sx.is_finite() && sy.is_finite() && sx > 0.0 && sy > 0.0 {
+                    let (w, h) = (
+                        (new_box[2] - new_box[0]) * sx,
+                        (new_box[3] - new_box[1]) * sy,
+                    );
+                    // The artwork's centre is the /Rect's centre (step (c)
+                    // maps the transformed box onto /Rect exactly), so it
+                    // moves exactly where the rotation sends that point.
+                    let c = rot.map_point(Point {
+                        x: (rect.llx + rect.urx) / 2.0,
+                        y: (rect.lly + rect.ury) / 2.0,
+                    });
+                    break 'derive (
+                        page_tree::Rect::from_corners(
+                            c.x - w / 2.0,
+                            c.y - h / 2.0,
+                            c.x + w / 2.0,
+                            c.y + h / 2.0,
+                        ),
+                        RectDerivation::Artwork,
+                    );
+                }
+            }
+            // (b) No usable appearance, but geometry keys turned exactly.
+            //     Bound them and re-apply the allowance the old rectangle
+            //     kept beyond the old geometry -- a single scalar, because
+            //     four per-side insets do not survive a rotation that is not
+            //     a quarter turn (the same reason /RD is left alone). The
+            //     allowance is invariant under this rule, so it composes.
+            if let (Some(b), Some(a)) = (bound_points(&geom_before), bound_points(&geom_after)) {
+                let pad = [
+                    b[0] - rect.llx,
+                    b[1] - rect.lly,
+                    rect.urx - b[2],
+                    rect.ury - b[3],
+                ]
+                .into_iter()
+                .fold(0.0f64, f64::max);
+                break 'derive (
+                    page_tree::Rect::from_corners(a[0] - pad, a[1] - pad, a[2] + pad, a[3] + pad),
+                    RectDerivation::Geometry,
+                );
+            }
+            // (c) Neither. The artwork is the rectangle itself -- a /Square
+            //     or /Circle with no /AP -- and there is nowhere to record an
+            //     orientation, so the upright bound of the rotated rectangle
+            //     is the only answer available. It is NOT composable and the
+            //     outcome says so.
+            let mapped: Vec<(f64, f64)> = [
+                (rect.llx, rect.lly),
+                (rect.urx, rect.lly),
+                (rect.urx, rect.ury),
+                (rect.llx, rect.ury),
+            ]
+            .into_iter()
+            .map(|(x, y)| {
+                let p = rot.map_point(Point { x, y });
+                (p.x, p.y)
+            })
             .collect();
-        let (mut lo_x, mut lo_y) = (f64::INFINITY, f64::INFINITY);
-        let (mut hi_x, mut hi_y) = (f64::NEG_INFINITY, f64::NEG_INFINITY);
-        for p in &mapped {
-            lo_x = lo_x.min(p.x);
-            lo_y = lo_y.min(p.y);
-            hi_x = hi_x.max(p.x);
-            hi_y = hi_y.max(p.y);
-        }
-        let rotated = page_tree::Rect::from_corners(lo_x, lo_y, hi_x, hi_y);
+            let b = bound_points(&mapped).unwrap_or([rect.llx, rect.lly, rect.urx, rect.ury]);
+            (
+                page_tree::Rect::from_corners(b[0], b[1], b[2], b[3]),
+                RectDerivation::PreviousRect,
+            )
+        };
         updated.insert(
             Name::from(b"Rect"),
             Object::Array(vec![
@@ -25080,19 +25308,11 @@ impl EditSession {
         let rd = updated.get(b"RD").map(|o| self.graph().resolve(o).clone());
         let rect_differences_untouched = matches!(rd, Some(Object::Array(ref a)) if !a.is_empty());
 
-        // ---- the appearance: compose the rotation into its own /Matrix.
-        //
-        // About the appearance's OWN origin, not the page anchor: step (b)
-        // re-derives the translation from the new /Rect, so a page-space
-        // pivot composed in here would be applied twice.
+        // ---- the appearance: write back the /Matrix composed above.
         let mut objects = Vec::new();
         let mut appearance_matrix_updated = false;
-        if let Some(ap_id) = Self::existing_appearance_id(&updated)
-            && let Some(Object::Stream(stream)) = self.value(ap_id)
-        {
-            let mut stream = stream.clone();
-            let existing = read_matrix(&self.graph(), &stream.dict);
-            let composed = existing.post_concat(Matrix::rotate(radians));
+        if let (Some((ap_id, stream, _, _)), Some(composed)) = (ap, composed) {
+            let mut stream = stream;
             stream.dict.insert(
                 Name::from(b"Matrix"),
                 Object::Array(
@@ -25132,7 +25352,117 @@ impl EditSession {
             geometry_keys_rotated,
             appearance_matrix_updated,
             rect_differences_untouched,
+            rect_derived_from,
         })
+    }
+
+    /// Set an annotation's rotation to an **absolute** angle about `anchor`
+    /// (`Pass 155.2`) — the typed-field companion to
+    /// [`Self::rotate_annotation`]'s drag-grip delta.
+    ///
+    /// `degrees` is measured anticlockwise **from the annotation's authored
+    /// orientation**, which is the orientation in which its appearance
+    /// stream was drawn — the same zero
+    /// [`crate::annot::Annotation::appearance_rotation_degrees`] reports
+    /// against, because both go through
+    /// [`crate::annot::rotation_degrees`].
+    ///
+    /// # ★★ Why this is not a convenience wrapper
+    ///
+    /// `pdfcer-gui` asked for it and gave the argument: **a properties field
+    /// is inherently absolute.** The operator sees `30°` and types `45°`.
+    /// Expressing that as a delta requires the shell to already know the
+    /// current angle *and* to trust that its idea of it matches the file's
+    /// — and *"the first time those disagree the object silently ends up
+    /// somewhere else"*. Their words, and they are right: a shell's cached
+    /// angle can go stale through an undo, a reload, or an edit by any other
+    /// verb, and nothing would report the divergence.
+    ///
+    /// Composing the delta **here**, from the file, removes the class. The
+    /// caller states the destination; pdfcer works out the journey.
+    ///
+    /// # It is also `Pass 155.1`'s fix approached from the forced side
+    ///
+    /// An absolute setter cannot derive `/Rect` from the previous `/Rect` —
+    /// there is no previous rotation to compose against, only a target — so
+    /// it *has* to derive from the artwork. That was already true of
+    /// [`Self::rotate_annotation`] as of `Pass 155.1`, which is why this
+    /// verb is a thin composition over it rather than a second
+    /// implementation of the rectangle rule.
+    ///
+    /// # Behaviour
+    ///
+    /// Reads the current angle from the selected appearance `/Matrix`,
+    /// applies `degrees − current` through [`Self::rotate_annotation`], and
+    /// returns that verb's outcome unchanged — including
+    /// [`AnnotationRotate::degrees`], which reports **the delta actually
+    /// applied**, not the absolute target. A caller wanting to confirm the
+    /// destination re-reads the annotation; the outcome describes the edit.
+    ///
+    /// A no-op delta (the annotation is already at `degrees`) is still
+    /// committed, so undo history and the returned rectangle stay honest
+    /// about the call having happened.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::AnnotationRotationUnreadable`] when the current angle
+    /// cannot be read — no appearance stream, or a `/Matrix` that is not a
+    /// rotation-plus-uniform-scale. **`rotate_annotation` still works in
+    /// both cases**; a delta needs no starting angle.
+    ///
+    /// Everything [`Self::rotate_annotation`] refuses, refused identically
+    /// and by the same code: the encryption and certification gates, a
+    /// non-existent or non-annotation target, a widget or ce dimension
+    /// (each named to its own verb), a missing `/Rect`, and a non-finite
+    /// angle.
+    pub fn set_annotation_rotation(
+        &mut self,
+        annot_id: ObjId,
+        anchor: (f64, f64),
+        degrees: f64,
+    ) -> Result<AnnotationRotate, EditError> {
+        let (target, _all) = self.locate_annotation(annot_id)?;
+        let subtype = target.subtype_label();
+
+        if !degrees.is_finite() {
+            return Err(EditError::ResizeFactorInvalid {
+                axis: "degrees",
+                value: degrees,
+            });
+        }
+
+        // The current angle, from the file rather than from the caller. The
+        // two refusals are separated because they tell the operator
+        // different things to do about it.
+        let Some(ap_id) = self
+            .value(annot_id)
+            .and_then(|o| match o {
+                Object::Dict(d) => Some(d.clone()),
+                _ => None,
+            })
+            .as_ref()
+            .and_then(Self::existing_appearance_id)
+        else {
+            return Err(EditError::AnnotationRotationUnreadable {
+                subtype,
+                why: "it has no appearance stream, and ISO 32000-1 12.5.2 requires /Rect to be upright -- so there is nowhere in this annotation an orientation could be recorded",
+            });
+        };
+        let Some(Object::Stream(stream)) = self.value(ap_id) else {
+            return Err(EditError::AnnotationRotationUnreadable {
+                subtype,
+                why: "its /AP /N does not resolve to a stream, so there is no appearance /Matrix to read an angle from",
+            });
+        };
+        let m = read_matrix(&self.graph(), &stream.dict);
+        let Some(current) = crate::annot::rotation_degrees([m.a, m.b, m.c, m.d, m.e, m.f]) else {
+            return Err(EditError::AnnotationRotationUnreadable {
+                subtype,
+                why: "its appearance /Matrix is not a rotation with a uniform scale -- a shear or a mirror is not an angle, and reporting the nearest one would seed a properties field with an invention",
+            });
+        };
+
+        self.rotate_annotation(annot_id, anchor, degrees - current)
     }
 
     /// **Delete any annotation**, with every dependent object and reference
@@ -49746,7 +50076,8 @@ fn read_text_string_entry<G: crate::graph::ObjectGraph + ?Sized>(
 }
 
 /// Map a flat `[x y x y ...]` coordinate array through an arbitrary matrix
-/// (`Pass 155.0`).
+/// (`Pass 155.0`), appending every pair it actually mapped to `before` (as
+/// read) and `after` (as written) — `Pass 155.1`.
 ///
 /// The third of the family beside [`scale_flat`] and [`translate_flat`], and
 /// the general one -- both of those are special cases of it. They are kept
@@ -49757,7 +50088,35 @@ fn read_text_string_entry<G: crate::graph::ObjectGraph + ?Sized>(
 ///
 /// Odd-length and non-numeric elements are copied through unchanged: pdfcer
 /// does not repair a producer's geometry as a side effect of rotating it.
-fn map_flat(items: &[Object], m: crate::vector::geometry::Matrix) -> Vec<Object> {
+///
+/// # ★ Why the two output vectors, rather than a `flat_points` sibling
+///
+/// `Pass 155.1` needs the **bound of the rotated geometry** to derive a
+/// `/Rect` from the artwork instead of from the previous `/Rect`, and the
+/// bound of the geometry **as it was** to recover the border allowance the
+/// old rectangle carried. A rotation is not derivable from an axis-aligned
+/// bound, so both point sets are genuinely needed.
+///
+/// The obvious shape — a `flat_points(items)` helper beside this one,
+/// documented as *"uses the same pairing rule"* — is exactly the failure
+/// `R243` was minted for: **two call sites that must agree about a rule
+/// neither can read back from the file, with the agreement living in a
+/// comment.** The pairing rule is not trivial (it steps in twos, copies a
+/// non-numeric pair through *unchanged*, and preserves a trailing odd
+/// element), so a second implementation would silently disagree the first
+/// time a producer wrote a malformed array — and the disagreement would
+/// surface as a `/Rect` that does not bound the geometry, which nothing
+/// checks. So there is **one** walker, and the points come out of it.
+///
+/// A pair that is copied through unchanged is deliberately **not**
+/// collected: pdfcer did not rotate it, so bounding it as though it had
+/// would put the rectangle somewhere the artwork is not.
+fn map_flat_collecting(
+    items: &[Object],
+    m: crate::vector::geometry::Matrix,
+    before: &mut Vec<(f64, f64)>,
+    after: &mut Vec<(f64, f64)>,
+) -> Vec<Object> {
     use crate::vector::geometry::Point;
     let mut out = Vec::with_capacity(items.len());
     let mut i = 0;
@@ -49768,6 +50127,8 @@ fn map_flat(items: &[Object], m: crate::vector::geometry::Matrix) -> Vec<Object>
         ) {
             (Some(x), Some(y)) => {
                 let p = m.map_point(Point { x, y });
+                before.push((x, y));
+                after.push((p.x, p.y));
                 out.push(Object::Real(p.x));
                 out.push(Object::Real(p.y));
             }
@@ -49784,6 +50145,78 @@ fn map_flat(items: &[Object], m: crate::vector::geometry::Matrix) -> Vec<Object>
     }
     out
 }
+
+/// The smallest upright box `[minx, miny, maxx, maxy]` containing every
+/// point in `pts` (`Pass 155.1`).
+///
+/// `None` for an empty slice or one whose points are not all finite — a
+/// hostile or malformed coordinate must not silently produce an infinite
+/// `/Rect`, and the callers each have a documented fallback for `None`.
+fn bound_points(pts: &[(f64, f64)]) -> Option<[f64; 4]> {
+    if pts.is_empty() {
+        return None;
+    }
+    let (mut lo_x, mut lo_y) = (f64::INFINITY, f64::INFINITY);
+    let (mut hi_x, mut hi_y) = (f64::NEG_INFINITY, f64::NEG_INFINITY);
+    for &(x, y) in pts {
+        if !(x.is_finite() && y.is_finite()) {
+            return None;
+        }
+        lo_x = lo_x.min(x);
+        lo_y = lo_y.min(y);
+        hi_x = hi_x.max(x);
+        hi_y = hi_y.max(y);
+    }
+    Some([lo_x, lo_y, hi_x, hi_y])
+}
+
+/// The smallest upright box containing `bbox`'s four corners after `m` —
+/// ISO 32000-1 §12.5.5 **step (a)**, in `f64` (`Pass 155.1`).
+///
+/// # Why this is here and not shared with `pdfcer-render`'s copy
+///
+/// `pdfcer-render::annot` performs the identical computation in `f32`,
+/// because its result feeds a `tiny_skia::Transform` in the paint path.
+/// Sharing would mean either putting an `f32` helper in `pdfcer-core` (which
+/// has no business carrying the renderer's numeric type) or making the paint
+/// path convert per annotation. The two are kept separate **deliberately**,
+/// and the reason is written here so the next reader does not "fix" it:
+/// this is step (a) alone — six lines of min/max over four mapped corners —
+/// not §12.5.5's placement algorithm, which lives in `pdfcer-render` in one
+/// place and is now public as `appearance_placement`.
+///
+/// `None` when the transformed box is degenerate on either axis or not
+/// finite: the step-(b) fit matrix is then singular and §12.5.5 specifies no
+/// handling, so the caller falls back rather than dividing by zero.
+fn transformed_box_bound(bbox: [f64; 4], m: crate::vector::geometry::Matrix) -> Option<[f64; 4]> {
+    use crate::vector::geometry::Point;
+    let [x0, y0, x1, y1] = bbox;
+    let (minx, maxx) = (x0.min(x1), x0.max(x1));
+    let (miny, maxy) = (y0.min(y1), y0.max(y1));
+    let mapped: Vec<(f64, f64)> = [(minx, miny), (maxx, miny), (maxx, maxy), (minx, maxy)]
+        .into_iter()
+        .map(|(x, y)| {
+            let p = m.map_point(Point { x, y });
+            (p.x, p.y)
+        })
+        .collect();
+    let bound = bound_points(&mapped)?;
+    if (bound[2] - bound[0]) <= MIN_PLACEMENT_EXTENT
+        || (bound[3] - bound[1]) <= MIN_PLACEMENT_EXTENT
+    {
+        return None;
+    }
+    Some(bound)
+}
+
+/// The degeneracy floor below which §12.5.5's step-(b) fit is treated as
+/// singular (`Pass 155.1`).
+///
+/// The same value as `pdfcer-render::annot`'s `MIN_BOX_EXTENT`, and the same
+/// justification: the standard specifies no handling for a collapsed
+/// appearance box, so pdfcer refuses to derive a placement from one rather
+/// than dividing by an extent of zero.
+const MIN_PLACEMENT_EXTENT: f64 = 1e-6;
 
 /// Read a form XObject's `/Matrix` (Table 97), defaulting to identity.
 ///

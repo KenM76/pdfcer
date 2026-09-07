@@ -253,6 +253,26 @@ def main() -> int:
         {4: b"<< /Type /Annot /Subtype /Circle /Rect [40 40 160 160] /IC [1 0 0] >>"},
     )
 
+    # `Pass 155.1`. A /PolyLine carrying /Vertices and NO /AP -- the only
+    # shape that reaches `rotate_annotation`'s GEOMETRY derivation, where the
+    # new /Rect is bounded from the rotated vertices plus the allowance the
+    # old rectangle kept beyond them. Every other fixture here either has an
+    # appearance (the ARTWORK rule) or no geometry at all (the PREVIOUS-RECT
+    # rule), so without this file that branch has no test.
+    #
+    # The rectangle is deliberately 5 units larger than the vertex bound on
+    # every side: a fixture whose /Rect exactly hugged its geometry would
+    # pass an implementation that dropped the allowance entirely.
+    files["no-ap-polyline.pdf"] = one_page(
+        "/Annots [4 0 R]",
+        {
+            4: (
+                b"<< /Type /Annot /Subtype /PolyLine /Rect [55 55 145 125] "
+                b"/Vertices [60 60 140 60 100 120] /C [0 0 1] >>"
+            )
+        },
+    )
+
     # -- appearance-state selection (§12.5.5) ---------------------------
     checkbox = lambda as_state: one_page(
         "/Annots [4 0 R]",

@@ -2371,8 +2371,44 @@ inner vec per stroke; read-only geometry — per-point ink editing is refused
 by name). Each is read whenever its key is present regardless of subtype;
 absent → `None`, never an empty list. `AnnotFlags::locked_contents()` (bit 10,
 value **512**) joined `locked()` (bit 8, 128) — two gates, see part 2 §1.15.
+**`Pass 155.2` (`pdfcer-gui` request 2026-09-07) added the ORIENTATION**, which
+nothing on this struct carried before — so no shell could show an annotation's
+angle, type into it, or draw a selection outline that followed the object:
+
+* `appearance_matrix: Option<[f64; 6]>` — the `/Matrix` of the **selected**
+  appearance stream (Table 95), **raw**. Raw for `color`'s reason, given back
+  to pdfcer by the requester: a shell handed six numbers can tell a rotation
+  from a skew and disclose the difference; one handed `Option<f64>` cannot
+  separate *"not rotated"* from *"rotated in a way we declined to describe"*.
+  §12.5.2 requires `/Rect` upright, so **this is the only place an
+  annotation's orientation exists**. `None` when there is no selected normal
+  appearance, or the stream's `/Matrix` is absent or malformed — the last two
+  collapse deliberately, because Table 95 gives both the identity and that is
+  what `pdfcer-render` paints with.
+* `appearance_rotation_degrees() -> Option<f64>` — the **effective** angle,
+  anticlockwise in `(−180, 180]`. `Some(0.0)` where the field is `None` but
+  there IS an appearance (Table 95's default), so an ordinary unrotated
+  annotation reads as `0°` rather than as a blank. `None` for a shear, a
+  mirror or a non-uniform scale: **those are not angles**, and a confident
+  wrong number here would be seeded into a properties field the operator is
+  about to commit. Both this and `EditSession::set_annotation_rotation` go
+  through `annot::rotation_degrees([f64; 6])` — **one function, because the
+  reader seeds the field the writer commits, and a tolerance's worth of
+  disagreement would move the object on an unedited Enter.**
+
+★ **The placement is a `pdfcer-render` function, not a field**:
+`pdfcer_render::annot::appearance_placement(&DocumentView, &Annotation) ->
+Option<[(f64, f64); 4]>` returns the `/BBox` corners after §12.5.5's full
+algorithm, in default user space, in `/BBox` corner order (LL, LR, UR, UL
+*of the artwork*, not of the screen). That is where a **selection outline**, a
+**rotate grip** and a **hit test** belong; all three are otherwise computed
+from `/Rect`, which §12.5.2 forces upright and is therefore wrong on every
+turned annotation. `None` for no `/Rect`, no reachable appearance stream, no
+readable `/BBox`, or a degenerate transformed box (step (b) singular).
+
 Methods: `is_widget()` `:450`, `is_group_subordinate()` `:468`,
-`effective_reply_type()` `:485`, `subtype_label()` `:495`.
+`effective_reply_type()` `:485`, `subtype_label()` `:495`,
+`appearance_rotation_degrees()`.
 `AnnotFlags(pub u32)` `:132`, `Appearance` `:253`, `ReplyType` `:432`.
 `page_annotations_with` `:567` takes a `MissingAppearanceState` policy.
 `need_appearances(&graph)` `:1553` checks `/AcroForm /NeedAppearances`.
