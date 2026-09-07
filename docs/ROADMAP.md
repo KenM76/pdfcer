@@ -112,6 +112,153 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★★ 465th filing, 2026-09-07 — `v0.45.0` RELEASED: THE ROTATE FIX
+(`Pass 155.1`/`Pass 155.2`, SHIPPED AT THE 464th) IS NOW ON THE OPERATOR'S
+ONEDRIVE, AND THE FRESH-FOLDER SMOKE TEST REPRODUCED HIS OWN BUG REPORT AS A
+FIXED CASE, NOT MERELY A PASSING TEST. NO Pass IS MINTED OR SHIPPED HERE.**
+Tag `v0.45.0` → **`654b150`**, which is the **464th filing's own librarian
+commit** — no version-bump chore was needed for this release (the workspace
+was already bumped to `0.45.0` by `ce62c1f`, inside the batch the 464th
+filing shipped), so the release batch is exactly the three commits the 464th
+filing already recorded as unreleased: `98d0abb` (fix) + `ce62c1f` (chore) +
+`654b150` (the filing itself). **Composition closes: 1 code + 1 chore + 1
+librarian filing = 3, same shape as the `v0.44.1` release (463rd filing).**
+
+**★★ SOURCING FOR THIS ENTRY, STATED UP FRONT PER HARD RULE 8.** This
+dispatch supplied **Read/Write/Edit/Glob/Grep/WebSearch/WebFetch — no shell
+tool.** Every release fact below is **relayed** from the engineer, who
+states plainly they ran each command themselves (`R209`); this role did not
+independently re-run `gh`, `sha256sum`, `git`, or any OneDrive/disk
+inspection this filing. Where the relayed figures do not add up on their own
+terms, that is flagged below rather than smoothed over.
+
+**★★ THE RELEASE FACTS (relayed).**
+
+- **CI, in one sentence.** Run **`34157535369`**, green at the tagged commit
+  `654b150`, read from GitHub itself rather than assumed.
+- **Release binary rebuilt AFTER tagging**, so the banner names the release:
+  `pdfcer 0.45.0`, `revision: v0.45.0`, built `2026-09-07T20:14:11Z`.
+- **Portable folder** `D:\builds\pdfcer-20260907-1623-654b150` — **8 files,
+  34,682,145 bytes: `pdfcer.exe`, 2 `.rten` model weights
+  (`text-detection.rten`, `text-rec-checkpoint.rten`), their
+  `models/ocrs/PROVENANCE.md`, and 4 root doc/licence files
+  (`BUILD-INFO.txt`, `LICENSE`, `README.md`, `THIRD_PARTY_LICENSES.md`)** —
+  same file count and same model set as `v0.44.1`, no new model.
+  **★ RESOLVED, was flagged in this filing's first draft.** The "three OCR
+  model files" wording that produced the apparent 8-vs-9 mismatch was this
+  role's own mis-relay of `tools/package-portable.py`'s
+  `staged 3 model file(s)` line — that counter counts everything staged
+  under `models/`, including `PROVENANCE.md`, not weight files alone. A
+  `find . -type f` over the built folder (supplied after the flag was
+  raised) settled it directly: 8 files, 2 weights, 1 provenance doc. The
+  growth over `v0.44.1` (**+2,204,881 bytes**) is therefore the binary, not
+  a new artefact — `pdfcer.exe` grew to 22,147,584 bytes carrying this
+  release's actual code (a new verb, a new public render function, a new
+  error variant, a new enum, the rewritten rectangle derivation). **The
+  flag itself was correct to raise** — it caught a real error, just not the
+  one it guessed at (an engineer relaying a tool's summary-line wording
+  rather than the set the line actually counts).
+- **Zip** `pdfcer-0.45.0-windows-x64.zip`, **18,917,084 bytes** — **+486,153
+  over `v0.44.1`'s 18,430,931**, consistent with the portable-folder growth
+  above. SHA-256
+  **`69e0071dd58aacc8d5437e334c6468e2f27744348566f2993f2fc6c094e614e9`**
+  (64 hex chars, counted).
+- **GitHub release** `https://github.com/KenM76/pdfcer/releases/tag/v0.45.0`,
+  asset + `.sha256` uploaded. **The published asset was downloaded back and
+  re-hashed — matches.** Same four-source-agreement pattern (local bytes,
+  sidecar, GitHub digest, round-trip download) this project has used for
+  every release since `v0.43.0`.
+- **OneDrive.** Slot **`pdfcer2`** (the older slot) now holds `0.45.0`;
+  **`pdfcer1` retains `0.44.1`** as the fall-back-to version — **note this
+  is the OPPOSITE slot assignment from the `v0.44.1` release**, which wrote
+  to `pdfcer1` and left `0.44.0` on `pdfcer2` (both are the alternating
+  scheme `Pass 166.0`/`R229` mandates; recorded so a reader does not read
+  "`pdfcer2`" as a fixed "latest" slot). 5 items, 34,680,288 bytes.
+- **`tools/verify-release.py v0.45.0` — nine of nine, clean tree.**
+
+**★★ THE FRESH-FOLDER SMOKE TEST REPRODUCED THE OPERATOR'S OWN WORDS AS A
+FIXED CASE, ON THE SHIPPED BINARY, NOT ONLY IN A UNIT TEST.** Copied to a
+clean path outside the build directory and run there:
+
+```
+four successive 15-degree turns  ->  rect [68.66 -9.28 164.28 86.34]
+one single 60-degree turn        ->  rect [68.66 -9.28 164.28 86.34]
+```
+
+Identical, in the shipped exe, in a fresh folder — the exact comparison the
+operator himself named (*"the object gets larger with each enactment of the
+tool"*), now measured on the artifact he will actually run, not only on the
+`annot_rotate_composable.rs` fixture the 464th filing shipped. Both calls
+reported `rect_derived=artwork`. Also confirmed there: `--absolute 45` on an
+annotation sitting at 60° applied `-15.0000` and said so; **re-running the
+identical command applied `0.0000` and the rectangle did not move**
+(idempotent, as an absolute setter should be); the non-composing branch
+warns by name on a `/Circle` with no `/AP` (`rect_derived=previous-rect`
+plus the repeated-rotation warning); and `--absolute` on that same `/Circle`
+is **refused**, naming `rotate_annotation` (the delta verb) as the one that
+still works on ungeometrisable annotations. Five checks, all on the real
+downloaded/deployed binary, all matching what `Pass 155.1`/`155.2` claimed.
+
+**★★ DISK/TARGET FIGURES THE 464th FILING FLAGGED AS UNMEASURABLE ARE NOW
+MEASURED (relayed) — and they moved further than the 463rd→464th gap did.**
+`D:` — **109 G free of 954 G (89% used)** after a prune, **83 G free**
+before it. `target/` — **102 G** after, **128 G** before;
+`target/debug/incremental` alone was **26 G** and was the entire prune
+(confirmed gitignored via `git ls-files target` returning zero lines,
+checked **before** deleting, not after). The 464th filing's own carried
+figures (121 G free / 93 G `target/`) were **stale in the worse
+direction** — the tree grew **35 GB** in the gap between two filings of the
+same session, which is faster growth than the −3 G the 463rd filing
+recorded against the 462nd. Reclaimed **26 GB** by deleting build-cache
+incrementals only; nothing tracked was touched.
+
+**★ A build-vs-test widening of the low-memory-watchdog finding, reported as
+a correlation and not a proven cause.** The watchdog killed **three more**
+commands this session (a full `cargo test --workspace`, its waiter, and — new
+to this project's record — a **background release build**); the release
+build then **completed in the foreground** at the identical
+`CARGO_BUILD_JOBS=1`. Foreground has now survived where background died for
+both a test run (464th filing) and a plain build (here), on a disk that sat
+at 89–92% full with a 100+ GB build cache both times. **No mechanism is
+claimed** — correlation, not causation — and it is filed as a dated footer
+rather than a new rule for exactly that reason:
+`D:/dev/rag/rust/run_gates_sweep_is_oom_killed_in_the_background_not_only_too_slow_in_the_foreground.md`.
+
+**`docs/FEATURES.md` — CHECKED, NOT TOUCHED, and that is the judgement.**
+Rows `:266` (rotate, fixed) and `:267` (`Pass 155.2`, read/absolute-set/
+placement) were both already updated in the **464th** filing, in the same
+filing as the fix's own `ROADMAP.md` entry — verified here by re-reading
+both rows at `HEAD`: `:266` already carries the struck-through superseded
+sentence plus the `RectDerivation`-named correction with all three shell
+boxes `[x]`; `:267` already exists with `gui [ ]` disclosed. **A release
+moves no capability box** — nothing became reachable at `654b150` that was
+not already reachable at `ce62c1f` — so this filing changes nothing in
+`FEATURES.md`, and that omission is deliberate rather than an oversight.
+
+#### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass IDs | ceiling `258.3`; `259.x` free | **unchanged — no Pass minted, no Pass shipped.** A release is not a Pass |
+| Decisions | ceiling `139`, next free `140` | **unchanged, and not considered** — the release act is standing-authorized by decision 121, so a release generates no decision record |
+| Standing rules | ceiling `R243`, next free `R244` | **unchanged — no mint requested this filing** |
+| SESSION_LOG filings | `464` | **`465`** |
+| Owed-survivor ledger | ZERO in `crates/`, ZERO in `docs/` (464th) | **still ZERO** — this filing found no new survivor; the portable-folder file-count discrepancy above is a release-packaging question, not a doc/code disclosure survivor |
+| Unreleased | `98d0abb` + `ce62c1f` + `654b150` (workspace `0.45.0`; last tag `v0.44.1`) | **NONE beyond this filing itself** — `v0.45.0` is tagged, built, published to GitHub, and deployed to OneDrive slot `pdfcer2` |
+| Requests in `open/` | 206 files, 49 `request_*` (464th, relayed) | **not independently reverified this filing (no shell available to this role)** — carried forward; nothing in this release touched `open/` |
+
+**★ Amendment, same filing session, after a real `find -type f` listing
+closed the flag above:** the portable-folder discrepancy is resolved, not
+outstanding — see the ★ RESOLVED note in the portable-folder bullet.
+**For next session (engineer):** no outstanding release action —
+`v0.45.0` is the current OneDrive build on `pdfcer2`, `pdfcer1` is the
+fallback at `0.44.1`. Worth carrying as a general habit rather than a rule:
+when relaying a packaging tool's own summary line (e.g.
+`staged N model file(s)`), check what set the counter actually counts
+before repeating its wording as a description of file *kinds* — this is
+the same family as a gate that under-reports looking green, or a census
+counter that omits a producer.
+
 **★★★★★ 464th filing, 2026-09-07 — `rotate_annotation` NOW COMPOSES, AND AN
 ANNOTATION'S ROTATION CAN BE READ, SET ABSOLUTELY, AND PLACED. `Pass 155.1` +
 `Pass 155.2` — MINTED INTO *Backlog* AT THE 462nd, SHIPPED HERE IN ONE COMMIT

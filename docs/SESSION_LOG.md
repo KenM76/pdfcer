@@ -96542,4 +96542,100 @@ modifications are the engineer's and are left alone).
 **For next session:**
 - **Engineer:** push the three unpushed commits (fix, bump, this filing). Then decide whether/when to cut `v0.45.0` — it is standing-authorized, not mandatory immediately.
 - **Engineer, carried:** re-measure disk free space and `target/` size at session start (last known: 121 G free / 93 G, now at least three commits stale); refresh the backup bundle when convenient (142 commits behind).
+
+## 2026-09-07 (465th filing) — `v0.45.0` RELEASED; the rotate fix reproduced your own bug report as a fixed case on the shipped binary
+
+**Shipped:**
+- No Pass. `v0.45.0` is a **release**, tagged at **`654b150`** — the 464th
+  filing's own librarian commit. No version-bump chore was needed: the
+  workspace was already at `0.45.0` (`ce62c1f`, inside the batch the 464th
+  filing shipped). Release batch = `98d0abb` (fix) + `ce62c1f` (chore) +
+  `654b150` (filing) — 3 commits, same shape as `v0.44.1`.
+
+**Decisions made this session:**
+- None. No crate boundary, library choice or invariant moved. The release
+  act itself is standing-authorized (decision 121); no new decision record.
+
+**Findings + decisions:**
+- **All release facts this filing are relayed, not measured by this role —
+  stated up front per hard rule 8.** This dispatch had no shell tool
+  (`Read`/`Write`/`Edit`/`Glob`/`Grep`/`WebSearch`/`WebFetch` only). The
+  engineer reports running every check themselves.
+- CI green at `654b150` (run `34157535369`, read from GitHub). Release
+  binary rebuilt after tagging: `pdfcer 0.45.0`, `revision: v0.45.0`, built
+  `2026-09-07T20:14:11Z`.
+- **Portable folder** `D:\builds\pdfcer-20260907-1623-654b150` — 8 files,
+  34,682,145 bytes: `pdfcer.exe`, 2 `.rten` model weights
+  (`text-detection.rten`, `text-rec-checkpoint.rten`), their
+  `models/ocrs/PROVENANCE.md`, and 4 root doc/licence files — same file
+  count and same model set as `v0.44.1`, no new model. **★ Resolved
+  same session, after being flagged as a discrepancy in this filing's
+  first draft:** the "three OCR model files" wording was this role's own
+  mis-relay of `package-portable.py`'s `staged 3 model file(s)` line,
+  which counts everything staged under `models/` (2 weights + 1
+  provenance doc), not weight files alone. A `find -type f` listing
+  settled it. The +2,204,881-byte growth over `v0.44.1` is the binary
+  (22,147,584 bytes, carrying this release's actual code), not a new
+  artefact. The flag was right to raise — it caught a real error, just
+  the opposite one from what it guessed.
+- Zip `pdfcer-0.45.0-windows-x64.zip`, 18,917,084 bytes (+486,153 over
+  `v0.44.1`), sha256
+  `69e0071dd58aacc8d5437e334c6468e2f27744348566f2993f2fc6c094e614e9`
+  (64 hex chars, counted) — downloaded back from GitHub and re-hashed,
+  matches. GitHub release live at
+  `https://github.com/KenM76/pdfcer/releases/tag/v0.45.0`.
+- **OneDrive: slot `pdfcer2`** now holds `0.45.0`; `pdfcer1` retains
+  `0.44.1` as fallback — the **opposite slot** from `v0.44.1`'s own
+  deployment (which wrote `pdfcer1`, left `0.44.0` on `pdfcer2`), consistent
+  with the alternating scheme (`Pass 166.0`/`R229`), not a fixed "latest"
+  slot. `verify-release.py v0.45.0` — nine of nine, clean tree.
+- **Fresh-folder smoke test reproduced the operator's own reported bug as a
+  fixed case, on the shipped exe, not only in a unit test:** four
+  successive 15° turns and one single 60° turn both drew
+  `rect [68.66 -9.28 164.28 86.34]`, both reporting `rect_derived=artwork`.
+  Also confirmed there: `--absolute 45` on a 60°-rotated annotation applied
+  `-15.0000` and said so; re-running it applied `0.0000` with no further
+  movement (idempotent); a `/Circle` with no `/AP` warns by name on the
+  non-composing branch (`rect_derived=previous-rect` + repeated-rotation
+  warning); and `--absolute` on that same `/Circle` is refused, naming
+  `rotate_annotation` as the verb that still works.
+- **Disk/target figures the 464th filing flagged as unmeasurable (no shell
+  that dispatch) are now measured (relayed), and moved further than the
+  463rd→464th gap:** `D:` 83 G free before a prune, 109 G free after (of 954
+  G, 89% used); `target/` 128 G before, 102 G after; `target/debug/
+  incremental` alone was 26 G and was the entire prune (confirmed
+  gitignored via `git ls-files target` = 0 lines, checked **before**
+  deleting). The 464th filing's carried figures (121 G / 93 G) were stale
+  in the worse direction — the tree grew 35 GB across one session's gap
+  between two filings, faster than the 463rd→464th −3 G.
+- **A build-vs-test widening of the low-memory-watchdog finding, filed as a
+  correlation, not a cause.** Three more kills this session (a full `cargo
+  test --workspace`, its waiter, and — new — a **background release
+  build**); the release build then completed **in the foreground** at the
+  same `CARGO_BUILD_JOBS=1`. Foreground has now survived where background
+  died for both a test run (464th filing) and a plain build (here), on a
+  disk sitting at 89–92% full with a 100+ GB build cache both times. No
+  mechanism claimed — graduated as a dated footer, not a new rule, to
+  `D:/dev/rag/rust/run_gates_sweep_is_oom_killed_in_the_background_not_only_too_slow_in_the_foreground.md`.
+- **`docs/FEATURES.md` checked, not touched — verified rather than assumed.**
+  Rows `:266` (rotate fix) and `:267` (`Pass 155.2`) were both already
+  updated by the 464th filing in the same filing as its `ROADMAP.md` entry;
+  re-read at `HEAD` here and both are still correct. A release moves no
+  capability box, so no `FEATURES.md` edit this filing.
+
+**Still in flight:**
+- `open/` request counts (206 files, 49 `request_*`) carried forward from
+  the 464th, not independently reverified this filing — no shell available
+  to this role, and nothing in a release touches `open/`.
+- Backup bundle currency and any further disk drift: not re-checked this
+  filing beyond what's reported above (relayed, not measured by this role).
+
+**For next session:**
+- **Engineer:** none outstanding — the portable-folder file-count question
+  was resolved same session (see Findings above); no follow-up needed.
+- **Operator:** `v0.45.0` is on your OneDrive at slot `pdfcer2`; `pdfcer1`
+  still has `0.44.1` if you need to go back. The rotate bug you reported was
+  checked again on the actual downloaded build in a clean folder — four
+  small turns now draw exactly the same size as one big turn, not just in
+  the test suite.
 - **Operator:** **the rotate bug you reported is fixed** — turning something in several small steps now draws exactly the same as turning it once in one big step, checked mathematically rather than just by eye. **You can now also read an object's rotation angle and set it directly to a number** (not just nudge it by a delta), which is what a properties-panel angle box and an angle-aware selection outline both need — those aren't wired into the shell yet, but the engine now has everything they need to work.
