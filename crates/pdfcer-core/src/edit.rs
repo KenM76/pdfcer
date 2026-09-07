@@ -15940,6 +15940,19 @@ pub struct AnnotationRotate {
     /// The `/Rect` after. **Usually LARGER**, and that is not a defect: a
     /// rotated rectangle's upright bounding box grows, and §12.5.2 requires
     /// `/Rect` to be upright. The artwork does not grow.
+    ///
+    /// ★★ **THIS CLAIM IS UNDER INVESTIGATION AND MAY BE FALSE WHEN THE
+    /// VERB IS APPLIED REPEATEDLY** (`pdfcer-gui` request 2026-09-07,
+    /// scoped as `Pass 155.1`, NOT yet fixed). The operator reported it
+    /// himself: *"the rotate bug in the review objects where the object
+    /// gets larger with each enactment of the tool."* The sentence above
+    /// is correct for ONE rotation of an unrotated annotation; what is
+    /// disputed is the SECOND, where `/Rect` — already grown — appears to
+    /// be taken as the artwork to re-bound.
+    ///
+    /// It is flagged rather than deleted because the mechanism is not yet
+    /// measured, and a disclosure that quietly disappears is worse than
+    /// one that says it is in doubt.
     pub to: page_tree::Rect,
     /// Which geometry keys were rotated, in the order tried.
     pub geometry_keys_rotated: Vec<String>,
@@ -24894,6 +24907,19 @@ impl EditSession {
     /// becomes that larger box — [`AnnotationRotate::to`] reports it. **The
     /// artwork does not grow**; only the rectangle that bounds it does.
     ///
+    /// ★★ **THIS CLAIM IS UNDER INVESTIGATION AND MAY BE FALSE WHEN THE
+    /// VERB IS APPLIED REPEATEDLY** (`pdfcer-gui` request 2026-09-07,
+    /// scoped as `Pass 155.1`, NOT yet fixed). The operator reported it
+    /// himself: *"the rotate bug in the review objects where the object
+    /// gets larger with each enactment of the tool."* The sentence above
+    /// is correct for ONE rotation of an unrotated annotation; what is
+    /// disputed is the SECOND, where `/Rect` — already grown — appears to
+    /// be taken as the artwork to re-bound.
+    ///
+    /// It is flagged rather than deleted because the mechanism is not yet
+    /// measured, and a disclosure that quietly disappears is worse than
+    /// one that says it is in doubt.
+    ///
     /// # What is left alone, and reported
     ///
     /// `/RD` — four insets measured along `/Rect`'s own axes (Table 175). At
@@ -28165,45 +28191,6 @@ impl EditSession {
         })
     }
 
-    /// Re-bake a `/FreeText`'s `/AP` `/N` from the words now in its
-    /// `/Contents`, when — and only when — the appearance on disk is one
-    /// pdfcer would have drawn.
-    ///
-    /// # ★ Why this exists at all
-    ///
-    /// `pdfcer-gui`, 2026-09-06: *"`set_markup_note` on a `/FreeText`
-    /// changes the dictionary and leaves the page painting the old words.
-    /// The two values start identical at authoring time, so the divergence
-    /// has no visible first moment."*
-    ///
-    /// It is `/FreeText` **only**, and the family is deliberately not
-    /// uniform. A sticky note's `/Contents` is shown by the reader's popup
-    /// and never painted; a `/Stamp`'s `/Contents` is a comment *about* the
-    /// stamp and is never written by `stamp()` at all. Both are already
-    /// correct, and "fixing" the stamp would break the one of the three
-    /// that was right — the requester asked for that in as many words.
-    ///
-    /// # ★★ The byte comparison answers TWO questions at once
-    ///
-    /// `TextAnnotSpec::FreeText::multiline` is **not recoverable** from the
-    /// dictionary (see [`annot_author::text_spec_from_dict`] — §12.5.6.6
-    /// gives the subtype no such key). So this bakes the ORIGINAL text both
-    /// ways and compares each against the bytes already on disk:
-    ///
-    /// * a match tells us which layout produced this appearance, **and**
-    ///   that the appearance is pdfcer's own — so re-baking is lossless;
-    /// * no match means the appearance is foreign (Acrobat's, a designer's,
-    ///   anything with a shadow or an image in it), and it is **left
-    ///   alone** and reported rather than overwritten.
-    ///
-    /// One measurement, both answers, and the narrow honest version the
-    /// requester said they would rather have now than a broad one later.
-    /// It is the same `appearance_was_pdfces` trick `set_markup_style` and
-    /// `reshape_annotation` already use, extended by one degree of freedom.
-    ///
-    /// Returns `None` when the annotation is not a `/FreeText`, when its
-    /// spec cannot be read, when the new text cannot be laid out, or when
-    /// the appearance is foreign.
     /// Measure a `/FreeText`'s `multiline`, which is **not in the file**.
     ///
     /// # ★ Why this is a measurement and not a field
@@ -28271,6 +28258,45 @@ impl EditSession {
         })
     }
 
+    /// Re-bake a `/FreeText`'s `/AP` `/N` from the words now in its
+    /// `/Contents`, when — and only when — the appearance on disk is one
+    /// pdfcer would have drawn.
+    ///
+    /// # ★ Why this exists at all
+    ///
+    /// `pdfcer-gui`, 2026-09-06: *"`set_markup_note` on a `/FreeText`
+    /// changes the dictionary and leaves the page painting the old words.
+    /// The two values start identical at authoring time, so the divergence
+    /// has no visible first moment."*
+    ///
+    /// It is `/FreeText` **only**, and the family is deliberately not
+    /// uniform. A sticky note's `/Contents` is shown by the reader's popup
+    /// and never painted; a `/Stamp`'s `/Contents` is a comment *about* the
+    /// stamp and is never written by `stamp()` at all. Both are already
+    /// correct, and "fixing" the stamp would break the one of the three
+    /// that was right — the requester asked for that in as many words.
+    ///
+    /// # ★★ The byte comparison answers TWO questions at once
+    ///
+    /// `TextAnnotSpec::FreeText::multiline` is **not recoverable** from the
+    /// dictionary (see [`annot_author::text_spec_from_dict`] — §12.5.6.6
+    /// gives the subtype no such key). So this bakes the ORIGINAL text both
+    /// ways and compares each against the bytes already on disk:
+    ///
+    /// * a match tells us which layout produced this appearance, **and**
+    ///   that the appearance is pdfcer's own — so re-baking is lossless;
+    /// * no match means the appearance is foreign (Acrobat's, a designer's,
+    ///   anything with a shadow or an image in it), and it is **left
+    ///   alone** and reported rather than overwritten.
+    ///
+    /// One measurement, both answers, and the narrow honest version the
+    /// requester said they would rather have now than a broad one later.
+    /// It is the same `appearance_was_pdfces` trick `set_markup_style` and
+    /// `reshape_annotation` already use, extended by one degree of freedom.
+    ///
+    /// Returns `None` when the annotation is not a `/FreeText`, when its
+    /// spec cannot be read, when the new text cannot be laid out, or when
+    /// the appearance is foreign.
     fn rebake_free_text_appearance(
         &mut self,
         annot_id: ObjId,

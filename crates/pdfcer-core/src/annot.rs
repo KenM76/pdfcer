@@ -436,8 +436,7 @@ pub struct Annotation {
     /// §12.5.6.4's list — `Comment`, `Key`, `Note`, `Help`, `NewParagraph`,
     /// `Paragraph`, `Insert` — is a **standard set, not a closed one**:
     /// *"Additional names may be supported as well."* So a producer's own
-    /// icon name is conforming, and [`crate::annot_author::StickyIcon`] has
-    /// no `Other` variant to hold one. Reporting the bytes lets a shell show
+    /// icon name is conforming. Reporting the bytes lets a shell show
     /// what the file actually says and fall back on its own terms, rather
     /// than having the value silently normalised to `Note` on the way past.
     ///

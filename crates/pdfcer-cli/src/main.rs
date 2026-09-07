@@ -5285,6 +5285,19 @@ enum Command {
     /// rotated shape is larger unless the angle is a multiple of 90°. The
     /// artwork does not grow; only the rectangle around it does.
     ///
+    /// ★★ **THIS CLAIM IS UNDER INVESTIGATION AND MAY BE FALSE WHEN THE
+    /// VERB IS APPLIED REPEATEDLY** (`pdfcer-gui` request 2026-09-07,
+    /// scoped as `Pass 155.1`, NOT yet fixed). The operator reported it
+    /// himself: *"the rotate bug in the review objects where the object
+    /// gets larger with each enactment of the tool."* The sentence above
+    /// is correct for ONE rotation of an unrotated annotation; what is
+    /// disputed is the SECOND, where `/Rect` — already grown — appears to
+    /// be taken as the artwork to re-bound.
+    ///
+    /// It is flagged rather than deleted because the mechanism is not yet
+    /// measured, and a disclosure that quietly disappears is worse than
+    /// one that says it is in doubt.
+    ///
     /// `/RD` is left alone and reported: at an angle that is not a quarter
     /// turn, no axis-aligned inset expresses the rotated result.
     RotateAnnotation {
