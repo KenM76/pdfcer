@@ -962,10 +962,14 @@ pub fn text_spec_from_dict<G: ObjectGraph + ?Sized>(
         }
         b"Text" => Ok(TextAnnotSpec::Sticky {
             rect,
+            // ★ NOT normalised. `unwrap_or(StickyIcon::Note)` here is what
+            // made `set_text_annot_style` rewrite a producer's own icon to
+            // `/Note` when an operator changed the colour -- the reader was
+            // right to model the seven, and the WRITER was wrong to bake the
+            // fallback back. `Other` carries the bytes so neither has to.
             icon: read_name_value(graph, annot, b"Name")
                 .as_deref()
-                .and_then(StickyIcon::from_name)
-                .unwrap_or(StickyIcon::Note),
+                .map_or(StickyIcon::Note, StickyIcon::from_name_lossless),
             contents,
             color: read_color(graph, annot, b"C").unwrap_or(Color::Rgb(1.0, 1.0, 0.0)),
             open: matches!(
@@ -2809,7 +2813,27 @@ use crate::vartext::{self, FontResource, Quadding, TextColor, VarTextError};
 const TEXT_FONT_RESOURCE: &[u8] = b"Helv";
 
 /// A Text-annotation icon name (§12.5.6.4, Table 172). Default `Note`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+///
+/// # ★ The set is OPEN, and [`Self::Other`] is what holds the rest
+///
+/// §12.5.6.4 lists seven names and then says *"Additional names may be
+/// supported as well"*, so a producer's own icon is **conforming**. Before
+/// `Pass 253.5` this enum modelled the seven and nothing else, and the
+/// consequence was not merely that such a name could not be authored: it
+/// was that `set_text_annot_style` **silently rewrote one to `/Note`**
+/// when an operator changed the note's colour — somebody else's content,
+/// altered by a control that says nothing about icons.
+///
+/// # Why carrying the bytes costs nothing
+///
+/// `sticky_note` paints the **same glyph for every variant** — the icon
+/// chooses the `/Name` written, not the picture drawn — so an unmodelled
+/// name renders exactly as a modelled one does. There is no appearance
+/// divergence to disclose and no fallback to explain; the only thing that
+/// was ever lost was the name itself, and now it is not.
+///
+/// **No longer `Copy`**, since [`Self::Other`] owns its bytes.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum StickyIcon {
     /// `/Comment`.
     Comment,
@@ -2826,6 +2850,14 @@ pub enum StickyIcon {
     Paragraph,
     /// `/Insert`.
     Insert,
+    /// An icon name §12.5.6.4 permits and pdfcer does not model — carried
+    /// verbatim so a round trip does not rewrite it.
+    ///
+    /// Constructed by [`text_spec_from_dict`] when it reads a `/Name`
+    /// outside the seven. A caller may build one, and pdfcer will write
+    /// exactly these bytes; it is not validated against the standard,
+    /// because the standard does not constrain it.
+    Other(Vec<u8>),
 }
 
 impl StickyIcon {
@@ -2836,8 +2868,11 @@ impl StickyIcon {
     /// icon an existing note carries cannot get from `/Name` to the enum,
     /// nor from the enum to the bytes."* A closed type with no way in or
     /// out is a type a consumer cannot use.
+    ///
+    /// **Borrowed and no longer `const`** as of `Pass 253.5`, because
+    /// [`Self::Other`] owns its bytes.
     #[must_use]
-    pub const fn name(self) -> &'static [u8] {
+    pub fn name(&self) -> &[u8] {
         match self {
             Self::Comment => b"Comment",
             Self::Key => b"Key",
@@ -2846,7 +2881,36 @@ impl StickyIcon {
             Self::NewParagraph => b"NewParagraph",
             Self::Paragraph => b"Paragraph",
             Self::Insert => b"Insert",
+            Self::Other(raw) => raw,
         }
+    }
+
+    /// The icon a `/Name` denotes, modelling an unlisted one as
+    /// [`Self::Other`] rather than discarding it.
+    ///
+    /// This is the constructor a READER wants; [`Self::from_name`] is the
+    /// one a caller wants when it needs to know whether pdfcer models the
+    /// name at all. Keeping them separate is deliberate: `from_name`'s
+    /// `None` is load-bearing for a shell deciding what to put in a
+    /// chooser, and folding the two would take that answer away.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::annot_author::StickyIcon;
+    ///
+    /// assert_eq!(StickyIcon::from_name_lossless(b"Key"), StickyIcon::Key);
+    /// assert_eq!(
+    ///     StickyIcon::from_name_lossless(b"Sparkle"),
+    ///     StickyIcon::Other(b"Sparkle".to_vec())
+    /// );
+    /// // Round trip, for a name pdfcer does not model.
+    /// let foreign = StickyIcon::from_name_lossless(b"Sparkle");
+    /// assert_eq!(foreign.name(), b"Sparkle");
+    /// ```
+    #[must_use]
+    pub fn from_name_lossless(name: &[u8]) -> Self {
+        Self::from_name(name).unwrap_or_else(|| Self::Other(name.to_vec()))
     }
 
     /// The icon a `/Name` value denotes, or `None` for one pdfcer does not
@@ -3100,7 +3164,7 @@ pub fn build_text_annotation(spec: &TextAnnotSpec) -> Result<AuthoredTextAnnot, 
             contents,
             color,
             open,
-        } => Ok(sticky_note(*rect, *icon, contents, *color, *open)),
+        } => Ok(sticky_note(*rect, icon.clone(), contents, *color, *open)),
         TextAnnotSpec::Stamp {
             rect,
             name,

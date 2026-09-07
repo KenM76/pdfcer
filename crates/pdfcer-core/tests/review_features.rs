@@ -83,8 +83,14 @@ fn sticky(icon: StickyIcon, color: Color) -> TextAnnotSpec {
 }
 
 fn saved(s: &EditSession) -> Vec<Annotation> {
+    // A hand-built fixture with no xref table is a RECOVERED document and
+    // refuses an incremental save by name, so fall back to a full rewrite.
+    // The assertions are about annotation keys, which both paths emit
+    // identically; the save mode is a property of the fixture, not of the
+    // behaviour under test.
     let (bytes, _) = s
         .to_incremental_bytes(&SaveOptions::identity())
+        .or_else(|_| s.to_full_bytes(&SaveOptions::identity()))
         .expect("save");
     let doc = Document::from_bytes(bytes).expect("re-parse");
     let page = pdfcer_core::page_tree::page_slots(&doc).expect("pages")[0].id;
@@ -626,4 +632,199 @@ fn a_review_state_has_no_contents_of_its_own() {
         body.as_deref().unwrap_or("").is_empty(),
         "expected no words, got {body:?}"
     );
+}
+
+// ---------------------------------------------------------------------------
+// `Pass 253.5` — two defects in `Pass 253.2`, reported by pdfcer-gui hours
+// after it shipped. Both are the same mistake: re-baking from a reader whose
+// output is documented as unsafe to bake from.
+// ---------------------------------------------------------------------------
+
+fn free_text_spec(text: &str, multiline: bool) -> TextAnnotSpec {
+    TextAnnotSpec::FreeText {
+        rect: Rect {
+            llx: 20.0,
+            lly: 20.0,
+            urx: 220.0,
+            ury: 90.0,
+        },
+        text: text.to_owned(),
+        font: pdfcer_core::fontdata::Std14::Helvetica,
+        font_size: 12.0,
+        color: pdfcer_core::vartext::TextColor::Gray(0.0),
+        quadding: pdfcer_core::vartext::Quadding::Left,
+        multiline,
+        border: Some(Color::Gray(0.0)),
+        border_width: 1.0,
+    }
+}
+
+/// The painted appearance of an annotation, from the SAVED bytes.
+fn painted(s: &EditSession, id: ObjId) -> String {
+    let (bytes, _) = s
+        .to_incremental_bytes(&SaveOptions::identity())
+        .expect("save");
+    let doc = Document::from_bytes(bytes).expect("re-parse");
+    let pdfcer_core::object::Object::Dict(annot) = &doc.get(id).expect("annotation").value else {
+        return String::new();
+    };
+    let Some(pdfcer_core::object::Object::Dict(ap)) = annot.get(b"AP").map(|o| doc.resolve(o))
+    else {
+        return String::new();
+    };
+    let pdfcer_core::object::Object::Stream(stream) = doc.resolve(ap.get(b"N").expect("/AP /N"))
+    else {
+        return String::new();
+    };
+    String::from_utf8_lossy(
+        stream
+            .data_span
+            .slice(doc.bytes())
+            .expect("appearance bytes"),
+    )
+    .into_owned()
+}
+
+/// ★ **DEFECT 1.** Changing only the COLOUR of a wrapped text box must not
+/// un-wrap it.
+///
+/// `text_spec_from_dict` always reports `multiline: false` — §12.5.6.6 gives
+/// the subtype no such key — and `Pass 253.2` baked that value back. So a
+/// control captioned *colour* silently destroyed the operator's layout.
+#[test]
+fn recolouring_a_multiline_free_text_does_not_unwrap_it() {
+    let mut s = session();
+    let id = s
+        .add_text_annotation(
+            0,
+            &free_text_spec(
+                "alpha beta gamma delta epsilon zeta eta theta iota kappa",
+                true,
+            ),
+        )
+        .expect("place a wrapped text box");
+
+    let before = painted(&s, id).matches("Tj").count();
+    assert!(before >= 2, "the fixture must actually wrap (got {before})");
+
+    s.set_text_annot_style(
+        id,
+        &TextAnnotStyle {
+            color: Some(Color::Rgb(1.0, 0.0, 0.0)),
+            ..Default::default()
+        },
+    )
+    .expect("recolour");
+
+    let after = painted(&s, id).matches("Tj").count();
+    assert_eq!(
+        after, before,
+        "★ the box must still wrap. One `Tj` means it collapsed to a single \
+         line — the reader's placeholder `multiline: false` baked back, \
+         destroying layout from a control whose caption says COLOUR"
+    );
+}
+
+/// A single-line box stays single-line: the measurement is a measurement,
+/// not a blanket "always true".
+#[test]
+fn recolouring_a_single_line_free_text_keeps_it_single_line() {
+    let mut s = session();
+    let id = s
+        .add_text_annotation(0, &free_text_spec("short", false))
+        .expect("place");
+    s.set_text_annot_style(
+        id,
+        &TextAnnotStyle {
+            color: Some(Color::Rgb(0.0, 0.0, 1.0)),
+            ..Default::default()
+        },
+    )
+    .expect("recolour");
+    assert_eq!(painted(&s, id).matches("Tj").count(), 1);
+}
+
+/// ★ **DEFECT 2.** Changing only the COLOUR of a note whose icon pdfcer does
+/// not model must not rewrite that icon to `/Note`.
+#[test]
+fn recolouring_a_note_preserves_an_icon_pdfcer_does_not_model() {
+    let bytes = br#"%PDF-1.7
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Annots [4 0 R] >> endobj
+4 0 obj << /Type /Annot /Subtype /Text /Rect [10 10 30 30] /Name /Sparkle /Contents (hi) /C [1 1 0] >> endobj
+trailer << /Size 5 /Root 1 0 R >>
+"#;
+    let mut s = EditSession::new(Document::from_bytes(bytes.to_vec()).expect("rebuildable"));
+    let id = ObjId::new(4, 0);
+
+    s.set_text_annot_style(
+        id,
+        &TextAnnotStyle {
+            color: Some(Color::Rgb(1.0, 0.0, 0.0)),
+            ..Default::default()
+        },
+    )
+    .expect("recolour only");
+
+    assert_eq!(
+        one(&saved(&s), id).icon.as_deref(),
+        Some(&b"Sparkle"[..]),
+        "★ §12.5.6.4's icon set is OPEN, so /Sparkle is conforming and is \
+         somebody else's content. Rewriting it to /Note during a COLOUR \
+         change is a silent alteration the operator never asked for and no \
+         control on screen mentions"
+    );
+    assert_eq!(
+        one(&saved(&s), id).color.as_deref(),
+        Some([1.0, 0.0, 0.0].as_slice()),
+        "and the colour the operator DID ask for still landed"
+    );
+}
+
+/// The foreign name survives a round trip through the spec, which is where
+/// it used to be lost.
+#[test]
+fn an_unmodelled_icon_round_trips_through_the_spec() {
+    assert_eq!(
+        StickyIcon::from_name_lossless(b"Sparkle"),
+        StickyIcon::Other(b"Sparkle".to_vec()),
+        "the reader models it rather than discarding it"
+    );
+    assert_eq!(
+        StickyIcon::from_name_lossless(b"Sparkle").name(),
+        b"Sparkle"
+    );
+    assert_eq!(
+        StickyIcon::from_name(b"Sparkle"),
+        None,
+        "★ and `from_name` still answers 'pdfcer does not model this' — a \
+         shell populating an icon chooser needs that answer, so the two \
+         constructors stay separate"
+    );
+    assert_eq!(StickyIcon::from_name_lossless(b"Key"), StickyIcon::Key);
+}
+
+/// An explicit icon still wins over the preserved one — preservation is for
+/// the case where the caller said nothing.
+#[test]
+fn an_explicit_icon_still_replaces_a_foreign_one() {
+    let bytes = br#"%PDF-1.7
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Annots [4 0 R] >> endobj
+4 0 obj << /Type /Annot /Subtype /Text /Rect [10 10 30 30] /Name /Sparkle /Contents (hi) /C [1 1 0] >> endobj
+trailer << /Size 5 /Root 1 0 R >>
+"#;
+    let mut s = EditSession::new(Document::from_bytes(bytes.to_vec()).expect("rebuildable"));
+    let id = ObjId::new(4, 0);
+    s.set_text_annot_style(
+        id,
+        &TextAnnotStyle {
+            icon: Some(StickyIcon::Key),
+            ..Default::default()
+        },
+    )
+    .expect("set an icon");
+    assert_eq!(one(&saved(&s), id).icon.as_deref(), Some(&b"Key"[..]));
 }

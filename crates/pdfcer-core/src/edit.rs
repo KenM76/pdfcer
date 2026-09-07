@@ -3167,6 +3167,12 @@ enum AppearanceSlot {
 fn apply_text_annot_style(
     spec: annot_author::TextAnnotSpec,
     style: &TextAnnotStyle,
+    // The MEASURED `multiline` for a `/FreeText` -- see
+    // `EditSession::measure_free_text_multiline`. `None` keeps whatever the
+    // spec carries, which for a spec straight out of the reader is `false`;
+    // the caller is expected to have decided by then whether re-baking at
+    // all is safe.
+    measured_multiline: Option<bool>,
 ) -> annot_author::TextAnnotSpec {
     use annot_author::TextAnnotSpec;
     match spec {
@@ -3178,7 +3184,7 @@ fn apply_text_annot_style(
             open,
         } => TextAnnotSpec::Sticky {
             rect,
-            icon: style.icon.unwrap_or(icon),
+            icon: style.icon.clone().unwrap_or(icon),
             contents,
             color: style.color.unwrap_or(color),
             open,
@@ -3217,7 +3223,8 @@ fn apply_text_annot_style(
             font_size,
             color,
             quadding,
-            multiline,
+            // The measured value wins over the reader's placeholder.
+            multiline: measured_multiline.unwrap_or(multiline),
             border: style.color.or(border),
             border_width,
         },
@@ -16143,6 +16150,27 @@ pub struct TextAnnotStyleChange {
     /// shell can tell an in-place rewrite from a copy-on-write that left
     /// another annotation's stream alone.
     pub appearance: AppearanceWrite,
+    /// The `/FreeText`'s previous appearance was **not one pdfcer would
+    /// have drawn**, and re-baking replaced it.
+    ///
+    /// # ★ Measured, and it is the same measurement as `multiline`
+    ///
+    /// A `/FreeText`'s layout is not in the file (§12.5.6.6 has no
+    /// multiline key), so it is recovered by baking the annotation's own
+    /// text both ways and comparing against the bytes on disk. When
+    /// **neither** matches, the appearance came from somewhere else — a
+    /// designer's stream with a shadow, a gradient, an image — and this
+    /// verb has just overwritten it with pdfcer's plainer rendering.
+    ///
+    /// One measurement, two facts: which layout drew it, and whether
+    /// pdfcer drew it at all. `set_markup_note` uses the second to decline
+    /// the re-bake entirely; this verb cannot decline, because the operator
+    /// asked to change the colour and R43 means the change is invisible
+    /// unless `/AP` moves. So it proceeds and says so.
+    ///
+    /// `false` for every subtype but `/FreeText`, which are the ones whose
+    /// appearance is icon- or face-driven rather than laid out.
+    pub appearance_was_foreign: bool,
 }
 
 /// What [`EditSession::set_annotation_open`] did.
@@ -27154,7 +27182,24 @@ impl EditSession {
         let current = current.clone();
 
         let original = annot_author::text_spec_from_dict(&self.graph(), &current)?;
-        let amended = apply_text_annot_style(original, style);
+
+        // ★ MEASURE `multiline` BEFORE RE-BAKING. The reader cannot report
+        // it (§12.5.6.6 gives the subtype no such key) and always says
+        // `false`, so baking that value back UN-WRAPS a wrapped text box --
+        // silently, from a control whose caption says "colour". That is the
+        // defect `Pass 253.5` fixes, and it shipped in `Pass 253.2` because
+        // this verb re-bakes a `/FreeText` and did not do what
+        // `set_markup_note` had been doing correctly one verb away.
+        //
+        // Measured against the ORIGINAL spec, whose text is what drew the
+        // appearance on disk. `None` means neither layout reproduces those
+        // bytes -- the appearance is foreign -- and is reported rather than
+        // silently treated as `false`.
+        let measured_multiline = self.measure_free_text_multiline(&current, &original);
+        let foreign_appearance = matches!(original, annot_author::TextAnnotSpec::FreeText { .. })
+            && measured_multiline.is_none();
+
+        let amended = apply_text_annot_style(original, style, measured_multiline);
         let authored = annot_author::build_text_annotation(&amended)?;
 
         let regen = self.regenerate_markup_appearance(
@@ -27176,6 +27221,7 @@ impl EditSession {
             icon_written: style.icon.is_some(),
             color_written: style.color.is_some(),
             appearance,
+            appearance_was_foreign: foreign_appearance,
         })
     }
 
@@ -28158,6 +28204,73 @@ impl EditSession {
     /// Returns `None` when the annotation is not a `/FreeText`, when its
     /// spec cannot be read, when the new text cannot be laid out, or when
     /// the appearance is foreign.
+    /// Measure a `/FreeText`'s `multiline`, which is **not in the file**.
+    ///
+    /// # ★ Why this is a measurement and not a field
+    ///
+    /// §12.5.6.6 gives `/FreeText` no multiline key — `/Ff` is a form-field
+    /// entry and a `/FreeText` is not a field — so
+    /// [`annot_author::text_spec_from_dict`] cannot report it and always
+    /// says `false`. Baking that value back is how a wrapped text box
+    /// silently un-wraps.
+    ///
+    /// So it is recovered the only way it can be: bake `spec`'s own text
+    /// **both ways** and compare each against the appearance already on
+    /// disk. A match names the layout that produced it.
+    ///
+    /// # ★★ ONE helper, called by BOTH re-bakers, and that is the fix
+    ///
+    /// `set_markup_note` measured this correctly from the day it shipped;
+    /// `set_text_annot_style` shipped hours later and did not, and the
+    /// consequence was that changing a text box's COLOUR could un-wrap it.
+    /// The defect was never one forgetful call site — it was two re-bakers
+    /// of the same subtype disagreeing about a value neither could read.
+    /// A third re-baker that calls this cannot repeat it; one that does not
+    /// call it will fail the same way, which is why the returned `None`
+    /// case is documented as "leave the appearance alone" rather than
+    /// "assume false".
+    ///
+    /// Returns `None` when neither layout reproduces the bytes on disk —
+    /// the appearance is then **foreign** (a designer's, with a shadow or a
+    /// gradient) and a caller must leave it alone and report, exactly as
+    /// [`Self::rebake_free_text_appearance`] does. `None` is NOT a licence
+    /// to guess `false`.
+    fn measure_free_text_multiline(
+        &self,
+        on_disk: &Dict,
+        spec: &annot_author::TextAnnotSpec,
+    ) -> Option<bool> {
+        let annot_author::TextAnnotSpec::FreeText {
+            rect,
+            text,
+            font,
+            font_size,
+            color,
+            quadding,
+            border,
+            border_width,
+            ..
+        } = spec
+        else {
+            return None;
+        };
+        [false, true].into_iter().find(|&m| {
+            let probe = annot_author::TextAnnotSpec::FreeText {
+                rect: *rect,
+                text: text.clone(),
+                font: *font,
+                font_size: *font_size,
+                color: *color,
+                quadding: *quadding,
+                multiline: m,
+                border: *border,
+                border_width: *border_width,
+            };
+            annot_author::build_text_annotation(&probe)
+                .is_ok_and(|baked| self.appearance_matches(on_disk, &baked.ap_content))
+        })
+    }
+
     fn rebake_free_text_appearance(
         &mut self,
         annot_id: ObjId,
@@ -28190,7 +28303,9 @@ impl EditSession {
             return None;
         };
 
-        // Which layout drew what is on disk? Measured, not assumed.
+        // Which layout drew what is on disk? Measured, not assumed --
+        // through the SHARED helper, so this verb and `set_text_annot_style`
+        // cannot disagree about it again.
         let spec_with = |text: &str, multiline: bool| annot_author::TextAnnotSpec::FreeText {
             rect,
             text: text.to_owned(),
@@ -28202,10 +28317,7 @@ impl EditSession {
             border,
             border_width,
         };
-        let multiline = [false, true].into_iter().find(|&m| {
-            annot_author::build_text_annotation(&spec_with(&old_text, m))
-                .is_ok_and(|baked| self.appearance_matches(before, &baked.ap_content))
-        })?;
+        let multiline = self.measure_free_text_multiline(before, &spec_with(&old_text, false))?;
 
         let authored = annot_author::build_text_annotation(&spec_with(new_text, multiline)).ok()?;
         // `AuthoredTextAnnot` and `AuthoredAppearance` carry the same three

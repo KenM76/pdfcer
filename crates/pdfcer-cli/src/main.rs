@@ -31685,11 +31685,12 @@ fn cmd_set_text_annot_style(
         output.display()
     );
     println!(
-        "  obj={} subtype={} icon_written={} color_written={} appearance={}",
+        "  obj={} subtype={} icon_written={} color_written={} was_foreign={} appearance={}",
         change.annot_id.num,
         change.subtype,
         u32::from(change.icon_written),
         u32::from(change.color_written),
+        u32::from(change.appearance_was_foreign),
         match change.appearance {
             pdfcer_core::edit::AppearanceWrite::InPlace(_) => "in-place",
             pdfcer_core::edit::AppearanceWrite::Created(_) => "created",
