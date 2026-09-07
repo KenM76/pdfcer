@@ -152,6 +152,19 @@ OUTCOME_STRUCTS: list[tuple[str, str]] = [
     # would have stayed green if all three had been dropped on the floor.
     ("crates/pdfcer-core/src/text_edit/edit.rs", "EditReport"),
     ("crates/pdfcer-core/src/text_edit/format.rs", "FormatReport"),
+    # The plain-text import. Registered in the SAME commit that added the
+    # struct, because this gate is opt-in by construction and "clean" otherwise
+    # means "clean about the structs I was told about".
+    #
+    # It is a strong case for the list rather than a routine addition: an
+    # import is BULK content nobody has read character by character, so
+    # `chars_dropped_unmappable`, `dropped_unmappable_chars`,
+    # `chars_dropped_control`, `tabs_collapsed` and `blank_pages` are each the
+    # only place a difference between the text file and the document is
+    # visible at all. A shell that ignored `dropped_unmappable_chars` would
+    # tell an operator an import succeeded while their file quietly lost its
+    # Greek.
+    ("crates/pdfcer-core/src/text_edit/placetext.rs", "PlaceTextReport"),
     # `Pass 113.0` / `Pass 120.0`. Added when each landed rather than
     # afterwards -- the `EditReport` lesson was that a struct outside this list
     # is a struct whose fields can be dropped on the floor while the gate

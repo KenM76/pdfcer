@@ -66,6 +66,10 @@ pub mod encoding;
 pub mod format;
 pub mod forms;
 pub mod model;
+/// Pouring a plain-text file into as many NEW pages as it needs — the import
+/// half of `export_text`. Paginates around the shipped 16.1 boxed
+/// [`add_text`] rather than adding a second wrapper or a second emitter.
+pub mod placetext;
 pub mod reflow;
 pub mod reflow_apply;
 pub mod refusal_kind;
@@ -104,6 +108,9 @@ pub use forms::{
 pub use model::{
     Block, BlockDiagnostics, BlockKind, BlockRecognitionOptions, EditableTextModel, GlyphRef, Line,
     TextPosition,
+};
+pub use placetext::{
+    DEFAULT_MARGIN_PT, PageTemplate, PlaceTextError, PlaceTextReport, Unmappable, blank_document,
 };
 pub use reflow::{
     AlignmentSource, BlockAlignment, DetectedAlignment, PageOverflow, ReflowDiagnostics,

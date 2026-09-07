@@ -6751,6 +6751,113 @@ enum Command {
         #[arg(short, long)]
         output: PathBuf,
     },
+    /// **Import a plain-text file as PDF pages** — the round trip back from
+    /// `extract-text`.
+    ///
+    /// Reads `TEXT_FILE` (UTF-8), wraps it to a column of your page template,
+    /// and creates **as many pages as the text needs**. This is the import half
+    /// of `extract-text`: text could come out of a document and there was no
+    /// route back in. `add-text` is the neighbouring verb and is deliberately
+    /// different — it places a run on ONE page and emits whatever will not fit
+    /// past the paper edge, which is right for a note and would silently lose
+    /// most of a text file.
+    ///
+    /// With `--input` the pages are inserted into that document at
+    /// `--position`. Without it, pdfcer creates the document.
+    ///
+    /// Everything pdfcer decides on the way is printed: how many pages, how
+    /// many lines per page, characters placed, tabs collapsed (indentation is
+    /// LOST — PDF has no tab stops), form feeds honoured as page breaks,
+    /// control characters removed, and blank pages kept. A character the
+    /// Standard-14 face cannot represent — anything outside WinAnsi, so Greek,
+    /// Cyrillic, CJK — **refuses the whole import and names every one of them**
+    /// rather than dropping it; `--drop-unmappable` places the rest instead and
+    /// reports exactly which characters were lost.
+    ///
+    /// A form feed (U+000C) is honoured as an explicit page break, which is the
+    /// separator `extract-text --page-separator formfeed` writes — so an
+    /// exported, edited, re-imported file keeps its pagination.
+    PlaceText {
+        /// The plain-text file to import (UTF-8; a leading byte-order mark is
+        /// stripped, CRLF and lone CR both read as one line break).
+        text_file: PathBuf,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Insert the created pages into this PDF. Omit to have pdfcer create
+        /// the document (a fresh file of exactly the pages the text needs).
+        #[arg(long)]
+        input: Option<PathBuf>,
+        /// Where the created pages go in `--input`: `end` (default), `start`,
+        /// `before:N` or `after:N` with N a 1-based page number. Ignored
+        /// without `--input`.
+        #[arg(long, value_name = "WHERE", default_value = "end")]
+        position: String,
+        /// Sheet size: `letter` (default), `legal`, `a4`, `a3`, `tabloid`,
+        /// `ansi-d`, … Superseded by `--page-size`.
+        #[arg(long, default_value = "letter")]
+        paper: String,
+        /// Turn the sheet on its side.
+        #[arg(long)]
+        landscape: bool,
+        /// Explicit sheet size in points, `W,H` — overrides `--paper` and
+        /// `--landscape` (e.g. `612,792`).
+        #[arg(long = "page-size", value_name = "W,H")]
+        page_size: Option<String>,
+        /// Margin on all four sides, points. 72 (one inch) by default.
+        #[arg(long, default_value_t = 72.0)]
+        margin: f64,
+        /// Left margin, points — overrides `--margin` on that side alone.
+        #[arg(long = "margin-left", value_name = "PT")]
+        margin_left: Option<f64>,
+        /// Right margin, points — overrides `--margin` on that side alone.
+        #[arg(long = "margin-right", value_name = "PT")]
+        margin_right: Option<f64>,
+        /// Top margin, points — overrides `--margin` on that side alone.
+        #[arg(long = "margin-top", value_name = "PT")]
+        margin_top: Option<f64>,
+        /// Bottom margin, points — overrides `--margin` on that side alone.
+        #[arg(long = "margin-bottom", value_name = "PT")]
+        margin_bottom: Option<f64>,
+        /// Standard-14 `BaseFont` name (`Helvetica`, `Times-Roman`, `Courier`,
+        /// …) or `auto` (= Helvetica). Exact ISO 32000-1 §9.6.2.2 spelling.
+        #[arg(long, default_value = "auto")]
+        font: String,
+        /// Font size in points.
+        #[arg(long, default_value_t = 12.0)]
+        size: f64,
+        /// Leading (baseline-to-baseline) in points. Omitted = `1.2 x size`,
+        /// which is reported as a derived default.
+        #[arg(long, value_name = "PT")]
+        leading: Option<f64>,
+        /// Column alignment: `left` (default) | `center` | `right` | `justify`.
+        ///
+        /// With `justify`, a paragraph cut across a page break has the line
+        /// before the break set flush left — each page is wrapped as its own
+        /// text and a paragraph's last line is never stretched. pdfcer counts
+        /// and reports how many paragraphs that affected.
+        #[arg(long, value_name = "MODE")]
+        align: Option<String>,
+        /// Text colour as `r,g,b` components in `0..=1` (e.g. `0,0,0.5`).
+        /// Omitted = black.
+        #[arg(long, value_name = "R,G,B")]
+        color: Option<String>,
+        /// Place the text even when the font cannot represent some of it,
+        /// dropping those characters and reporting exactly which were lost.
+        ///
+        /// Off by default, and never inferred. Without it pdfcer refuses the
+        /// whole import and names every offending character, because an import
+        /// is bulk content nobody has read character by character and a silent
+        /// hole in it is unrecoverable.
+        #[arg(long = "drop-unmappable")]
+        drop_unmappable: bool,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// `/Producer` handling for `--mode full` (ignored otherwise).
+        #[arg(long, value_enum, default_value_t = ProducerArg::Preserve)]
+        producer: ProducerArg,
+    },
     /// Author a dimension (Pass 12.M2): a scaled measurement `/Line`
     /// `/IT /LineDimension` annotation with a baked appearance, on its group's
     /// optional-content layer, with the scale mirrored into a portable
@@ -10652,6 +10759,45 @@ fn run() -> ExitCode {
             color: color.as_deref(),
             font_dirs: &font_dirs,
             embed_font: embed_font.as_deref(),
+        }),
+        Command::PlaceText {
+            text_file,
+            output,
+            input,
+            position,
+            paper,
+            landscape,
+            page_size,
+            margin,
+            margin_left,
+            margin_right,
+            margin_top,
+            margin_bottom,
+            font,
+            size,
+            leading,
+            align,
+            color,
+            drop_unmappable,
+            mode,
+            producer,
+        } => cmd_place_text(&PlaceTextArgs {
+            text_file: &text_file,
+            output: &output,
+            input: input.as_deref(),
+            position: &position,
+            paper: &paper,
+            landscape,
+            page_size: page_size.as_deref(),
+            margins: (margin, margin_left, margin_right, margin_top, margin_bottom),
+            font: &font,
+            size,
+            leading,
+            align: align.as_deref(),
+            color: color.as_deref(),
+            drop_unmappable,
+            mode,
+            producer,
         }),
         Command::DimensionAdd {
             input,
@@ -23717,6 +23863,339 @@ fn cmd_add_text(args: &AddTextArgs<'_>) -> u8 {
         println!("    - {d}");
     }
     exit::SUCCESS
+}
+
+/// Named arguments for [`cmd_place_text`] (grouped to dodge clippy's
+/// `too_many_arguments`, matching [`AddTextArgs`]).
+struct PlaceTextArgs<'a> {
+    /// The plain-text file to import.
+    text_file: &'a Path,
+    output: &'a Path,
+    /// The PDF to insert into, or `None` to have pdfcer create the document.
+    input: Option<&'a Path>,
+    /// `end` | `start` | `before:N` | `after:N`, N 1-based.
+    position: &'a str,
+    /// Named sheet size id (`letter`, `a4`, …).
+    paper: &'a str,
+    landscape: bool,
+    /// Explicit `"W,H"` sheet size in points, overriding `paper`/`landscape`.
+    page_size: Option<&'a str>,
+    /// `(all, left, right, top, bottom)` — the per-side values override `all`.
+    ///
+    /// A tuple rather than five fields because they are one input with one
+    /// resolution rule, and splitting them invites a caller to apply four of
+    /// them and forget the fifth.
+    margins: (f64, Option<f64>, Option<f64>, Option<f64>, Option<f64>),
+    /// Standard-14 `BaseFont` name or `auto`.
+    font: &'a str,
+    size: f64,
+    /// Leading in points, or `None` for the derived `1.2 x size`.
+    leading: Option<f64>,
+    /// Alignment keyword, or `None` (defaults to left).
+    align: Option<&'a str>,
+    /// `"r,g,b"` fill colour, or `None` for black.
+    color: Option<&'a str>,
+    /// Place the text and drop what the face cannot encode, instead of
+    /// refusing the whole import.
+    drop_unmappable: bool,
+    mode: SaveMode,
+    producer: ProducerArg,
+}
+
+/// `place-text`: import a plain-text file as PDF pages.
+///
+/// The batch half of `EditSession::place_text` (rule 11 — every feature ships
+/// its `pdfcer` equivalent in the same session as the engine verb). The
+/// operator's real input is a `.txt` on disk, so this reads a file rather than
+/// taking a `--text` string the way `add-text` does: a shell that has to
+/// inline a 40 KB document into an argument list has not been given a batch
+/// tool.
+///
+/// ## Two shapes, one verb
+///
+/// With `--input`, pages are inserted into that document at `--position`.
+/// Without it there is no document, and `EditSession::place_text` deliberately
+/// refuses to insert beside nothing — so this builds a ONE-page scaffold with
+/// `blank_document`, imports after it, and deletes the scaffold. That is three
+/// engine calls rather than a fourth code path, and the CLI is the right place
+/// for it: the invocation IS the commit here (rule 11), so the extra undo entry
+/// the delete costs is not observable, whereas a "create a document" mode
+/// inside the engine verb would be.
+///
+/// ## What it prints
+///
+/// Every field of the report, in `key=value` form for a script, then the
+/// verbatim disclosures. The counts that matter most are the ones describing
+/// what did NOT survive the import — dropped characters, collapsed tabs,
+/// blank pages — because those are the ones nothing in the output file can
+/// tell the operator (rule 4).
+#[allow(
+    clippy::too_many_lines,
+    reason = "argument validation, the two document shapes, and the report print-out are one linear command; the validation half is a sequence of independent named refusals that reads better in order than split across helpers that each take the same args struct"
+)]
+fn cmd_place_text(args: &PlaceTextArgs<'_>) -> u8 {
+    use pdfcer_core::fontdata::{Std14, std14_by_base_font};
+    use pdfcer_core::page_tree::Rect;
+    use pdfcer_core::paper::{Orientation, PaperSize};
+    use pdfcer_core::text_edit::{
+        BlockAlignment, NewTextColor, PageTemplate, PlaceTextError, Unmappable, blank_document,
+    };
+
+    // --- everything the operator typed, validated before any file is read.
+    let media = match args.page_size {
+        Some(s) => match parse_at_pair(s) {
+            Some((w, h)) if w > 0.0 && h > 0.0 => Rect::from_corners(0.0, 0.0, w, h),
+            _ => {
+                eprintln!(
+                    "pdfcer: --page-size expects two positive comma-separated numbers \"W,H\" \
+                     (points), got {s:?}"
+                );
+                return exit::EDIT_REFUSED;
+            }
+        },
+        None => match PaperSize::from_id(args.paper) {
+            Some(p) => p.rect_with(if args.landscape {
+                Orientation::Landscape
+            } else {
+                Orientation::Portrait
+            }),
+            None => {
+                eprintln!(
+                    "pdfcer: --paper {:?} is not a known sheet size (letter, legal, a0..a6, \
+                     tabloid, executive, ansi-a..ansi-e)",
+                    args.paper
+                );
+                return exit::EDIT_REFUSED;
+            }
+        },
+    };
+
+    let font = if args.font.eq_ignore_ascii_case("auto") {
+        Std14::Helvetica
+    } else {
+        match std14_by_base_font(args.font) {
+            Some(f) => f,
+            None => {
+                eprintln!(
+                    "pdfcer: --font {:?} is not a Standard-14 BaseFont name \
+                     (e.g. Helvetica, Times-Roman, Courier-Bold)",
+                    args.font
+                );
+                return exit::EDIT_REFUSED;
+            }
+        }
+    };
+
+    let align = match args.align {
+        None => BlockAlignment::Left,
+        Some(s) => match BlockAlignment::parse(s) {
+            Some(a) => a,
+            None => {
+                eprintln!("pdfcer: --align {s:?}: expected left|center|right|justify");
+                return exit::EDIT_REFUSED;
+            }
+        },
+    };
+
+    let color = match args.color {
+        None => NewTextColor::Black,
+        Some(s) => match parse_rgb_triple(s) {
+            Some((r, g, b)) => NewTextColor::Rgb(r, g, b),
+            None => {
+                eprintln!(
+                    "pdfcer: --color expects three comma-separated components in 0..=1 \
+                     \"r,g,b\", got {s:?}"
+                );
+                return exit::EDIT_REFUSED;
+            }
+        },
+    };
+
+    let (all, left, right, top, bottom) = args.margins;
+    let template = PageTemplate::new()
+        .with_media_box(media)
+        .with_margins(
+            left.unwrap_or(all),
+            right.unwrap_or(all),
+            top.unwrap_or(all),
+            bottom.unwrap_or(all),
+        )
+        .with_font(font)
+        .with_size(args.size)
+        .with_leading(args.leading)
+        .with_alignment(align)
+        .with_color(color)
+        .with_unmappable(if args.drop_unmappable {
+            Unmappable::Drop
+        } else {
+            Unmappable::Refuse
+        });
+
+    let text = match std::fs::read_to_string(args.text_file) {
+        Ok(t) => t,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", args.text_file.display());
+            return exit::IO_ERROR;
+        }
+    };
+
+    // --- the two document shapes.
+    let creating = args.input.is_none();
+    let (source, mut session) = match args.input {
+        Some(input) => match open_for_edit(input) {
+            Ok(pair) => pair,
+            Err(code) => return code,
+        },
+        None => {
+            // One blank page to splice beside, removed again below. See this
+            // function's docs for why the engine verb does not do this itself.
+            let doc = match blank_document(media, 1) {
+                Ok(d) => d,
+                Err(err) => {
+                    eprintln!("pdfcer: could not create a document: {err}");
+                    return exit::RUNTIME_ERROR;
+                }
+            };
+            let bytes = doc.bytes().to_vec();
+            (bytes, pdfcer_core::edit::EditSession::new(doc))
+        }
+    };
+
+    let position = if creating {
+        pdfcer_core::pageops::InsertPosition::End
+    } else {
+        // The SAME parser `insert-pages --at` uses. A second one here would be
+        // a second spelling of `before:N` that agrees today.
+        match parse_insert_position(args.position) {
+            Ok(p) => p,
+            Err(message) => {
+                eprintln!("pdfcer: --position {:?}: {message}", args.position);
+                return exit::EDIT_REFUSED;
+            }
+        }
+    };
+
+    let report = match session.place_text(&text, &template, position) {
+        Ok(r) => r,
+        Err(err) => {
+            eprintln!("pdfcer: place-text refused: {err}");
+            return match err {
+                PlaceTextError::Scaffold(_) => exit::RUNTIME_ERROR,
+                _ => exit::EDIT_REFUSED,
+            };
+        }
+    };
+
+    if creating {
+        // The scaffold page is now the LAST page (the import went after it is
+        // false — `End` inserted after it, so it is index 0). Removing it is
+        // what makes `place-text` with no `--input` produce a document of
+        // exactly the pages the text needed.
+        match session.delete_pages(&[0]) {
+            Ok(out) if out.pages_removed == 1 => {}
+            Ok(out) => {
+                eprintln!(
+                    "pdfcer: internal: removing the scaffold page removed {} page(s), not 1. \
+                     This is a bug; refusing rather than writing a document with a stray page",
+                    out.pages_removed
+                );
+                return exit::RUNTIME_ERROR;
+            }
+            Err(err) => {
+                eprintln!("pdfcer: internal: the scaffold page could not be removed: {err}");
+                return exit::RUNTIME_ERROR;
+            }
+        }
+    }
+
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        args.output,
+        args.mode,
+        args.producer,
+        false,
+    ) {
+        Ok(o) => o,
+        Err(code) => return code,
+    };
+
+    println!(
+        "place-text {} -> {}",
+        args.text_file.display(),
+        args.output.display()
+    );
+    println!(
+        "  pages_created={} first_page={} blank_pages={} lines_placed={} lines_per_page={}",
+        report.pages_created,
+        // 1-based for the operator, and re-based on the finished document: with
+        // no `--input` the scaffold page in front of them is gone by now.
+        if creating {
+            1
+        } else {
+            report.first_page_index + 1
+        },
+        report.blank_pages,
+        report.lines_placed,
+        report.lines_per_page
+    );
+    println!(
+        "  chars_input={} chars_placed={} whitespace_normalised={} controls_dropped={} \
+         unmappable_dropped={}",
+        report.chars_input,
+        report.chars_placed,
+        report.whitespace_normalised,
+        report.chars_dropped_control,
+        report.chars_dropped_unmappable
+    );
+    println!(
+        "  bom_stripped={} crlf_normalised={} tabs_collapsed={} page_breaks={} \
+         overlong_words={} paragraphs_split={}",
+        report.bom_stripped,
+        report.crlf_normalised,
+        report.tabs_collapsed,
+        report.explicit_page_breaks,
+        report.overlong_words,
+        report.paragraphs_split_across_pages
+    );
+    println!(
+        "  leading={:.2}{} alignment={} box_overflow_lines={} undo_entries={} coalesced={}",
+        report.leading,
+        if report.leading_derived {
+            " (derived)"
+        } else {
+            ""
+        },
+        align.as_str(),
+        report.box_overflow_lines,
+        report.undo_entries,
+        report.coalesced
+    );
+    if !report.dropped_unmappable_chars.is_empty() {
+        // Named, not just counted: the count says something is missing, this
+        // says what, which is the difference between a disclosure the operator
+        // can act on and one they can only worry about.
+        let named: Vec<String> = report
+            .dropped_unmappable_chars
+            .iter()
+            .map(|(c, n)| format!("U+{:04X} x{n}", *c as u32))
+            .collect();
+        println!("  dropped_characters: {}", named.join(", "));
+    }
+    if creating && args.mode == SaveMode::Incremental {
+        eprintln!(
+            "pdfcer: {}: pdfcer created this document, so its base revision is the one blank \
+scaffold page the import was placed beside. Under --mode incremental that page's object stays in \
+the file's revision history (ISO 32000-1 §7.5.6 appends; it does not erase). --mode full writes \
+the finished document without it.",
+            args.output.display()
+        );
+    }
+    println!("  disclosures:");
+    for d in &report.disclosures {
+        println!("    - {d}");
+    }
+    finish_edit(args.text_file, &outcome)
 }
 
 /// Parse `"x,y"` into two `f64` points, or `None` on any malformed input.

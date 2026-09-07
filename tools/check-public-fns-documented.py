@@ -125,14 +125,39 @@ def is_documented(lines: list[str], index: int) -> bool:
 
     Walks back over attribute lines, which legitimately sit between the
     doc comment and the item -- `#[must_use]`, `#[inline]`, `#[allow(...)]`
-    and `#[cfg(...)]` stacks are all normal here. A multi-line attribute
-    (a `#[derive(...)]` broken across lines, say) is handled by also
-    accepting a bare `)]` continuation.
+    and `#[cfg(...)]` stacks are all normal here.
+
+    ★ MULTI-LINE ATTRIBUTES ARE WALKED BY BRACKET DEPTH, not by matching a
+    bare `)]` line. The older version accepted only a closing line that was
+    EXACTLY `)]` or `}]`, so an attribute whose inner lines carry content --
+
+        #[allow(
+            clippy::too_many_arguments,
+        )]
+
+    -- stopped the walk on `clippy::too_many_arguments,` and the function
+    was reported as undocumented WHEN IT WAS NOT. A false positive here is
+    worse than a miss: it is a gate telling an author to restructure
+    working code, and on 2026-09-06 it did exactly that to a `pub fn` whose
+    doc comment was present and correct the whole time. Found by a subagent
+    that took the gate's word and rewrote the function around it.
     """
     j = index - 1
+    depth = 0
     while j >= 0:
         stripped = lines[j].strip()
-        if stripped.startswith("#[") or stripped.startswith("#!") or stripped in (")]", "}]"):
+        if depth > 0:
+            # Inside a multi-line attribute, walking upward: a `#[` line
+            # opens it (from this direction, closes the walk).
+            depth -= stripped.count("#[")
+            depth += stripped.count(")]") + stripped.count("}]")
+            j -= 1
+            continue
+        if stripped.startswith("#[") or stripped.startswith("#!"):
+            j -= 1
+            continue
+        if stripped.endswith(")]") or stripped.endswith("}]"):
+            depth = 1
             j -= 1
             continue
         break

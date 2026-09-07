@@ -669,6 +669,27 @@ pub enum CommandKind {
     /// provenance, tagged-untagged, inheritance-safe resources) is returned by
     /// that method, not carried on the command.
     AddText,
+    /// One plain-text IMPORT: `pages` blank pages were created and the text was
+    /// poured into them, all as ONE undo entry
+    /// ([`EditSession::place_text`]).
+    ///
+    /// The whole point of the variant is the fold. An import is `1 + N`
+    /// commands underneath — one [`Self::InsertPages`] and one
+    /// [`Self::AddText`] per non-blank page — and a shell that surfaced those
+    /// would make `Ctrl+Z` peel an eleven-page import apart one page at a time
+    /// while the operator watched. `coalesce_last` relabels the group with
+    /// this, so an undo control reads *"undo import text"* and one press
+    /// removes the whole thing.
+    ///
+    /// Carries the page count because that is the one number an undo label
+    /// wants (*"undo import of 11 pages"*); everything else the import decided
+    /// is in the
+    /// [`PlaceTextReport`](crate::text_edit::PlaceTextReport) the method
+    /// returns, not on the command.
+    PlaceText {
+        /// How many pages the import created.
+        pages: usize,
+    },
     /// An invisible OCR text layer (ISO 32000-1 §9.3.6 Table 106 rendering
     /// mode 3) was written onto one **or more** pages by
     /// [`EditSession::add_ocr_layer`]: a content stream and a Standard-14 font
@@ -10893,6 +10914,233 @@ impl EditSession {
         let mut report = prep.report;
         report.content_object = content_num;
         report.font_object = font_num;
+        Ok(report)
+    }
+
+    /// **Import a plain-text document**: create as many pages as `text` needs,
+    /// pour it into them, and land the whole thing as **ONE undo entry**.
+    ///
+    /// The import half of `export_text`, and the answer to
+    /// `pdfcer-gui`'s *"text comes OUT of a document and there is no route back
+    /// in"*. Before this, nothing in `pdfcer-core` turned a `&str` into pages:
+    /// [`Self::add_text`] places a run on ONE page and, by design (R76),
+    /// **emits** whatever will not fit past the paper edge rather than
+    /// clipping it — the right contract for a hand-placed note and a silent
+    /// eight-ninths data loss for a 40 KB text file. The one thing this adds is
+    /// that **overflow creates a page**.
+    ///
+    /// # What it reuses, and what it therefore cannot get wrong
+    ///
+    /// Everything except the pagination:
+    ///
+    /// - the wrap is the shipped 16.1 boxed [`Self::add_text`], measured by
+    ///   §9.4.4 AFM advances through the ONE greedy breaker
+    ///   ([`crate::linebreak::greedy_pack`]);
+    /// - the pages are created by building a scaffold document of blank pages
+    ///   and splicing them in with [`Self::insert_pages`], so `/Count`
+    ///   propagation, object renumbering and stream re-staging are the code
+    ///   that already does those;
+    /// - the fold is [`Self::coalesce_last`].
+    ///
+    /// There is no second wrapper, no second emitter and no second splice. The
+    /// module documentation on [`crate::text_edit::placetext`] carries the
+    /// reasoning, the sanitisation rules and the spec citations.
+    ///
+    /// # The undo entry, and the one case where there is more than one
+    ///
+    /// An import is `1 + N` commands underneath (one insert, one add per
+    /// non-blank page) folded into a single
+    /// [`CommandKind::PlaceText`]. The fold is **checked, not assumed**:
+    /// [`Self::coalesce_last`] returns `false` when the undo stack is shorter
+    /// than the group, which happens when an import needs more commands than
+    /// [`MAX_UNDO_DEPTH`] (an import of more than 255 non-blank pages). In that
+    /// case **every page was still placed** — only the grouping failed — and
+    /// [`PlaceTextReport::coalesced`] is `false` with
+    /// [`PlaceTextReport::undo_entries`] giving the real count, so a shell can
+    /// say so instead of promising one undo it does not have.
+    ///
+    /// # Where the pages go
+    ///
+    /// `position` places them relative to the pages already open, so an import
+    /// **appends into the current document** rather than demanding an empty
+    /// one. It does need at least one existing page to splice beside —
+    /// [`Self::insert_pages`] resolves its insertion point from a sibling slot
+    /// — and says so by name
+    /// ([`PlaceTextError::NoPageToInsertBeside`](crate::text_edit::PlaceTextError::NoPageToInsertBeside))
+    /// rather than creating a page-less document to find out whether one is
+    /// even conforming (the spec RAG has no answer on that, checked
+    /// 2026-09-06).
+    ///
+    /// The created pages are
+    /// `report.first_page_index .. report.first_page_index + report.pages_created`
+    /// in the document as it stands after the call.
+    ///
+    /// # Disclosure (rule 4)
+    ///
+    /// The returned [`PlaceTextReport`](crate::text_edit::PlaceTextReport)
+    /// carries every judgement the import made — pages created, blank pages
+    /// kept, characters placed, whitespace normalised, tabs collapsed (and
+    /// therefore indentation lost), form feeds honoured as page breaks,
+    /// control characters dropped, characters the face could not encode, words
+    /// too wide to break, and paragraphs cut across a page boundary — plus
+    /// ready-to-print `disclosures`. A shell that prints the disclosures has
+    /// discharged the obligation.
+    ///
+    /// # Errors
+    ///
+    /// [`PlaceTextError`](crate::text_edit::PlaceTextError): empty or
+    /// whitespace-only text, an invalid size, margins that leave no column, a
+    /// column too short for one line, a character the face cannot encode under
+    /// the default [`Unmappable::Refuse`](crate::text_edit::Unmappable::Refuse)
+    /// policy, a page-less document, or a failure from the underlying insert /
+    /// add. **Every refusal happens before any page exists**: the whole plan is
+    /// computed, and can refuse, without touching the session.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use pdfcer_core::document::Document;
+    /// use pdfcer_core::edit::EditSession;
+    /// use pdfcer_core::pageops::InsertPosition;
+    /// use pdfcer_core::text_edit::PageTemplate;
+    ///
+    /// let doc = Document::load(std::path::Path::new("in.pdf"))?;
+    /// let mut session = EditSession::new(doc);
+    /// let text = std::fs::read_to_string("notes.txt")?;
+    /// let report = session.place_text(&text, &PageTemplate::new(), InsertPosition::End)?;
+    /// println!("{} page(s) from {} characters", report.pages_created, report.chars_placed);
+    /// for d in &report.disclosures {
+    ///     eprintln!("{d}");
+    /// }
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn place_text(
+        &mut self,
+        text: &str,
+        template: &crate::text_edit::PageTemplate,
+        position: crate::pageops::InsertPosition,
+    ) -> Result<crate::text_edit::PlaceTextReport, crate::text_edit::PlaceTextError> {
+        use crate::text_edit::{AddTextRequest, PlaceTextError, placetext};
+
+        // Plan FIRST. Everything that can refuse refuses here, with nothing
+        // created — a refusal after a partial write is not a refusal, and an
+        // import is exactly the operation where a partial one is worst.
+        let plan = placetext::plan(text, template)?;
+        let page_count = plan.pages.len();
+
+        let existing = self
+            .pages()
+            .map_err(|err| PlaceTextError::Insert(EditError::PageTree(err)))?
+            .len();
+        if existing == 0 {
+            return Err(PlaceTextError::NoPageToInsertBeside);
+        }
+        // Computed BEFORE the insert, from the position and the pre-insert page
+        // count, because `InsertPosition::slot` is defined against the document
+        // the pages are going INTO. Reading it back afterwards would need the
+        // inserted ids, which `insert_pages` deliberately does not return.
+        let first = position.slot(existing);
+
+        let scaffold = placetext::blank_document(template.media_box, page_count)?;
+        let source_pages: Vec<usize> = (0..page_count).collect();
+        {
+            let view = DocumentView::new(&scaffold, scaffold.bytes(), scaffold.version());
+            self.insert_pages(&view, &source_pages, position)?;
+        }
+        // The insert is command #1 of the group. Counted here, incremented per
+        // successful `add_text`, and handed to `coalesce_last` — which counts
+        // commands THIS session just pushed and cannot check a miscount, so the
+        // number has to come from the loop that made them, never from
+        // `page_count`.
+        let mut commands = 1usize;
+
+        let column = plan.column;
+        let mut report = plan.report;
+        report.first_page_index = first;
+
+        let mut extra: Vec<String> = Vec::new();
+        let mut page_overflow_pt = 0.0_f64;
+        for (k, page) in plan.pages.iter().enumerate() {
+            if page.text.is_empty() {
+                // A deliberately blank page: `add_text` would refuse it as
+                // `NoWordsToWrap`, and the page is meant to be there.
+                continue;
+            }
+            let req = AddTextRequest::new(first + k, (0.0, 0.0), page.text.clone())
+                .with_font(template.face)
+                .with_size(template.size)
+                .with_color(template.color)
+                .with_box(column.llx, column.lly, column.width(), column.height())
+                .with_alignment(template.alignment)
+                // The RESOLVED leading, never `None`. Passing `None` would make
+                // the boxed path derive `1.2 x size` per page and disclose that
+                // derivation N times; the derivation is one fact about the
+                // import, disclosed once, by `plan`.
+                .with_leading(Some(plan.leading));
+            let page_report = self.add_text(&req)?;
+            commands += 1;
+            report.box_overflow_lines += page_report.box_overflow_lines;
+            page_overflow_pt += page_report.page_overflow_pt;
+            // Deduplicated, and the per-page LAYOUT recap dropped.
+            //
+            // Two different noise problems, and only the first is obvious. The
+            // face/tagging/resources lines are IDENTICAL on every page, so
+            // printing "this run uses a bundled Standard-14 face" eleven times
+            // teaches the reader to skip the block that also holds the line
+            // that matters — `contains` handles those.
+            //
+            // The `"boxed add: …"` family is worse than repetitive: it is
+            // per-page and therefore reads as CONTRADICTING the import's own
+            // totals. A two-page import printed "wrapped to 33 line(s)" and
+            // "wrapped to 24 line(s)" beside its own `lines_placed=81`, which
+            // an operator has no way to reconcile (the per-page numbers omit
+            // blank lines; the import's does not). Every member of that family
+            // — the wrap recap, the estimated space, the overlong words, the
+            // box and page overflow — is already reported document-level, with
+            // correct totals, by `plan` and by the ★ self-check below.
+            //
+            // ★ The risk this takes, stated rather than hidden: a `"boxed
+            // add: "` disclosure added to `addtext` LATER, describing
+            // something this report does not cover, would be swallowed here.
+            // The guard is `place_text_covers_everything_the_boxed_add_would_say`
+            // in `tests/place_text.rs`, which drives the conditions that
+            // produce each member of the family and asserts this report says
+            // so itself.
+            for d in page_report.disclosures {
+                if d.starts_with("boxed add: ") {
+                    continue;
+                }
+                if !report.disclosures.contains(&d) && !extra.contains(&d) {
+                    extra.push(d);
+                }
+            }
+        }
+
+        report.coalesced =
+            self.coalesce_last(commands, CommandKind::PlaceText { pages: page_count });
+        report.undo_entries = if report.coalesced { 1 } else { commands };
+
+        // ★ The self-check, surfaced rather than trusted. The pagination exists
+        // to make this impossible; if it ever fires, this module's line-fitting
+        // arithmetic and the boxed placement's have diverged, and the operator
+        // is the first to find out rather than the last.
+        if report.box_overflow_lines > 0 || page_overflow_pt > 0.0 {
+            extra.push(format!(
+                "★ pdfcer's pagination and its text placement disagree: {} line(s) fell outside \
+                 the column they were paginated into ({page_overflow_pt:.2}pt past a page). Every \
+                 line is still EMITTED as real page content (R76), but the page count is wrong \
+                 for this input — please report it",
+                report.box_overflow_lines
+            ));
+        }
+        if !report.coalesced {
+            extra.push(format!(
+                "this import is {commands} undo entries, not one: it needed more commands than \
+                 the {MAX_UNDO_DEPTH}-deep undo history can group. Every page was still placed — \
+                 only the grouping failed, so undoing it takes {commands} steps"
+            ));
+        }
+        report.disclosures.extend(extra);
         Ok(report)
     }
 
