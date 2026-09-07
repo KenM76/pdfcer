@@ -112,6 +112,230 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★★ 462nd filing, 2026-09-07 — THE WARNING THAT WOULD HAVE PREVENTED
+THIS DEFECT WAS WRITTEN BY ITS OWN AUTHOR, THE SAME DAY, ONE VERB AWAY, AND
+DID NOT WORK. `R243` IS MINTED FOR THAT, AND IT IS THE FILING'S HEADLINE
+RATHER THAN EITHER DEFECT.** `Pass 258.1` (`5c2b61f`, 2026-09-06) shipped
+`set_markup_note`'s `/FreeText` re-bake and its channel reply said, verbatim:
+*"ALWAYS false and you must not believe it … If you ever re-author a
+`/FreeText` yourself, you have to do that too."* Hours later, in the same
+session, `Pass 253.2` (`fe746ec`) shipped `set_text_annot_style` — **a second
+re-baker of the same subtype** — which believed it. A wrapped text box
+collapsed to one line from a control captioned *colour*.
+
+**The interval is ZERO DAYS and the author is THE SAME PERSON.** That is what
+makes this worth a rule rather than a note, because it **refutes the usual
+mitigations by construction**: the warning was not stale, not buried in an
+old document, not written by somebody else, not unread — its author wrote it
+and then wrote the code it forbade. A **documented obligation on a future
+caller is not a control**, and no amount of prominence makes it one. What
+worked is what `Pass 253.5` actually did: **`measure_free_text_multiline` is
+now the ONE place that decides, and both re-bakers call it.** Full statement:
+`R243`, *Standing rules*.
+
+**★★★★ THE FIX IS ONE SHARED HELPER, NOT A SECOND CORRECT CALL SITE, AND THE
+DISTINCTION IS THE ENGINEERING CONTENT.** The property that failed was never
+*"this caller forgot"* — it was **two re-bakers of one subtype disagreeing
+about a value neither can read from the file**. §12.5.6.6 gives `/FreeText`
+no multiline key (`/Ff` is a form-field entry and a `/FreeText` is not a
+field), so `text_spec_from_dict` reports `multiline: false` **always**, as a
+placeholder rather than as a reading. It is recovered by **measurement** —
+bake the annotation's own text both ways, compare each against the appearance
+bytes on disk — and a match names the layout that drew it. A third re-baker
+that calls the helper cannot repeat this; one that does not will fail
+identically, which is why the helper's `None` is documented as *"leave the
+appearance alone"* rather than *"assume `false`"*.
+
+**★★★ ONE MEASUREMENT, TWO FACTS — AND THE SECOND ONE HAD BEEN THROWN AWAY.**
+`None` from that measurement does not mean *"not multiline"*; it means
+**neither layout reproduces the bytes**, i.e. the appearance came from
+somewhere else — a designer's stream with a shadow, a gradient, an image —
+and this verb has just overwritten it with pdfcer's plainer rendering.
+`set_markup_note` uses that answer to **decline** the re-bake. This verb
+**cannot** decline (the operator asked for a colour change and `R43` makes
+the change invisible unless `/AP` moves), so it proceeds **and says so**:
+`TextAnnotStyleChange::appearance_was_foreign`, printed by the CLI as
+`was_foreign=`. That is rule 4 in its narrow, post-decision-059 form —
+**render normally, report off-canvas, both** — not a badge, not a gate.
+
+**★★ THE ICON DEFECT WAS FIXED AT THE SPEC END, WHICH IS `Pass 98.0`'s `/BE`
+SHAPE AND THE REQUESTER'S STATED PREFERENCE *"BY A DISTANCE"*.** §12.5.6.4
+lists seven icon names and then says *"Additional names may be supported as
+well"*, so a producer's `/Sparkle` is **conforming** and is **somebody else's
+content**. The reader normalising it to `Note` was **right for a reader
+modelling seven**; the writer baking that fallback back was the defect.
+`StickyIcon::Other(Vec<u8>)` carries the bytes, so **neither half has to
+infer anything**. It costs **nothing in the drawing**, and that is checked
+rather than assumed: `sticky_note` paints the **same glyph for all seven
+variants** — the icon chooses the `/Name` written, not the picture drawn — so
+an unmodelled name renders **exactly** as a modelled one and there is **no
+appearance divergence to disclose**. `from_name` **keeps** returning `Option`
+over the seven and `from_name_lossless` is the reader's constructor; folding
+them would take away the answer a shell needs to populate an icon chooser.
+
+**★ BREAKING, AND THE WINDOW IS ONE DAY WIDE — STATED SO A CONSUMER CAN SIZE
+IT.** `StickyIcon` is **no longer `Copy`** (`Other` owns its bytes) and
+`name()` is **borrowed and no longer `const`**. Both were made public
+**yesterday**, by `Pass 253.2` (`fe746ec`, 2026-09-06), so the only consumer
+that can have compiled against the old shape is `pdfcer-gui` at its `v0.44.0`
+pin. Filed as a figure that can disagree with something (hard rule 10): the
+blast radius is **1 day / 1 release / 2 public items**.
+
+**★★ HARD-RULE-11 SWEEP — TWO SURVIVORS IN `crates/`, BOTH REPORTED AND
+NEITHER EDITED, PLUS A FOURTH INSTANCE OF THE DOC-SPLICE FAMILY.** Clause (e)
+method: bare keywords over the narrow file set the change touches, every hit
+read. Keywords `StickyIcon`, `Other`, `multiline`, `set_text_annot_style`,
+`appearance_was_foreign`, `measure_free_text_multiline`, over
+`crates/pdfcer-core/src/annot.rs`, `annot_author.rs`, `edit.rs`,
+`crates/pdfcer-cli/src/main.rs`, `docs/FEATURES.md`, `docs/ROADMAP.md`,
+`docs/core-api/*.md`.
+
+1. **`crates/pdfcer-core/src/annot.rs:439` — a doc comment that names the
+   very variant this Pass added, and says it does not exist.** Verbatim at
+   `5d5fafb`: *"a producer's own icon name is conforming, and
+   [`crate::annot_author::StickyIcon`] **has no `Other` variant to hold
+   one**."* It now has exactly that variant. The rest of the block (raw bytes
+   on `Annotation::icon`, the parallel with `/C`) stays correct; **one
+   sentence is false**. Owed to the engineer — `crates/` is outside this
+   role's remit.
+2. **`crates/pdfcer-core/src/edit.rs:28168–28237` — THE DOC-COMMENT SPLICE
+   HAZARD, FOURTH INSTANCE, THIRD TIME IN THIS FILE.** `measure_free_text_multiline`
+   was inserted **between `rebake_free_text_appearance` and its doc block**,
+   so the new function now carries **two fused blocks** — it opens *"Re-bake a
+   `/FreeText`'s `/AP` `/N` from the words now in its `/Contents`"* (which it
+   does not do) and says *"Returns `None` … when the new text cannot be laid
+   out"* (it takes no new text) — and **`rebake_free_text_appearance` at
+   `:28274` now has no doc comment at all**. Same shape as `Pass 155.0`'s
+   *"doc-comment splice hazard recurred in the same file for the second time
+   in one day"* and the `R230` / `check-cli-help-leads.py` sibling.
+   **★ WHY TWENTY-THREE GREEN GATES DID NOT SEE IT, WHICH IS THE REPORTABLE
+   PART:** `tools/check-public-fns-documented.py` exists *for exactly this
+   symptom* — its own header says *"the missing doc comment is usually
+   somewhere else, welded to the wrong item"* — but its denominator is
+   **`pub` / `pub(crate)` functions**, and **both functions here are
+   private**. This is `R209`'s species pointed at a gate's input set: *a claim
+   about a set is only as good as the enumeration of the set.* A **dated
+   instance note is added to `R209`**; **no new rule minted for it**, because
+   the mechanism is `R209`'s and the remedy (widen the gate's denominator to
+   private `fn`s, or argue in writing why not) is a `crates/`-side decision
+   the engineer owns. Owed to the engineer.
+
+**Correct hits a later sweep must NOT "fix":** `annot_author.rs:2934`'s
+`assert_eq!(StickyIcon::from_name(b"Sparkle"), None)` — that is
+`from_name`'s **deliberately preserved** answer, not a survivor of the old
+behaviour; `crates/pdfcer-cli/src/main.rs:31554`'s `StickyIconArg` — a
+`clap` value-enum over the seven **authorable** names, correct to stay closed
+because pdfcer writes only names it can draw; the many `multiline` hits under
+`docs/decisions/` and `ARCHITECTURE.md` — **form-field** `/Ff` bit 13, an
+unrelated meaning of the word, and the one place clause (e)'s bare-keyword
+grep is noisiest.
+
+**★★ THE SWEEP ALSO RAN OVER THE TWO REQUESTS ARRIVING TONIGHT, AND FOUND A
+LIVE FALSE DISCLOSURE IN THREE PLACES.** `pdfcer-gui` has refuted
+`rotate_annotation`'s own disclosure **with rendered pixels** (below,
+`Pass 155.1`): *"The artwork does not grow"* is **true of the first rotation
+and false of the second** — four 15° turns draw the shape **1.93× wider and
+1.42× taller** than one 60° turn. Three copies at `5d5fafb`:
+`crates/pdfcer-core/src/edit.rs:15942` (`AnnotationRotate::to`'s rustdoc),
+`:24895` (`rotate_annotation`'s own), and
+`crates/pdfcer-cli/src/main.rs:5286` (the CLI's `--help`). All three are
+`crates/` and owed to the engineer. **The fourth copy is `docs/FEATURES.md:266`
+and it IS this role's, so it is corrected in this filing** rather than
+reported.
+
+#### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass IDs | ceiling `258.3`; `253.0`–`253.4` exist, `253.5` free | ceiling **`258.3` UNCHANGED** — `253.5` is a sub-ID below it and mints no family; **`Pass 253.5` MINTED AND SHIPPED IN ONE FILING**; **`Pass 155.1` + `Pass 155.2` MINTED into *Backlog*** under `rotate_annotation`'s origin family (`Pass 155.0`, `0ce65dc`), not `259.x` — the 442nd/456th file-under-the-function's-origin precedent, **fourth application**; `259.x` **still free and still not minted** |
+| Decisions | ceiling `139`, next free `140` | **unchanged — `140` CONSIDERED AND DECLINED.** Candidate: *"an open enumerated set in the standard is modelled with an `Other(bytes)` variant."* Declined because it is **not new** — it is `Pass 98.0`'s `/BE` shape applied a second time, and a decision record that restates an existing precedent makes the precedent harder to find, not easier. Recorded here as the **second application** instead |
+| Standing rules | ceiling `R242`, next free `R243` | **`R243` MINTED** — a documented obligation on a future caller is not a control. Ceiling moves to `R243`, **next free `R244`**. Plus a **dated instance note on `R209`** (the doc-splice gate's `pub`-only denominator); **no rule minted for the splice family** — it has `R230` and `check-public-fns-documented.py`, and what failed was a denominator, which is `R209` |
+| SESSION_LOG filings | `461` | **`462`** |
+| Owed-survivor ledger | ZERO in `crates/`; one item owed to the engineer (`check-ledger-numbers.py` blind to `docs/core-api/`, discharged by `e1bdb6c`) | **FIVE in `crates/`, all reported, none edited**: `annot.rs:439` (the `Other` sentence), `edit.rs:28168`/`:28274` (the splice, two functions), `edit.rs:15942`, `edit.rs:24895` and `main.rs:5286` (the rotate disclosure, refuted by pixels). **ZERO in `docs/`** — `FEATURES.md:266`, `FEATURES.md:270` and `core-api/02:1568` corrected in this filing |
+| Unpushed | `5d5fafb` only (`origin/main` = `e1bdb6c`, by `git rev-parse origin/main`) | that plus this filing — **standing-authorized push** (decision 090) |
+| Unreleased | `5d5fafb` (`git describe --tags --abbrev=0` = **`v0.44.0`**) | that plus this filing — the first two of the **`0.44.1`** batch. ★ **A PATCH bump is ALREADY IN THE WORKING TREE, UNCOMMITTED, and this role did not put it there:** `git diff Cargo.toml` shows `version = "0.44.0"` → **`"0.44.1"`** at `Cargo.toml:86`, plus the three lockfiles (`Cargo.lock`, `fuzz/Cargo.lock`, `tools/content-identity/Cargo.lock`). **Deliberately NOT staged** — it is the engineer's release-prep change (`R216`), and it is reported rather than carried. **The draft of this row said `0.45.0` and was corrected by `git status --porcelain` + `git diff`, not by reasoning** — `Pass 253.5` fixes two defects in `v0.44.0` and adds no feature, so a patch level is the right call and the tree already says so |
+| Requests in `open/` | 22 files (`ls`) | **two scoped and shipped** (`253.5`), **two scoped into *Backlog*** (`155.1`, `155.2`); per `R242` none of the four leaves `open/` on scoping alone |
+
+### `Pass 253.5` (`5d5fafb`, 2026-09-07) — ★★★★ **A COLOUR CHANGE UN-WRAPPED A TEXT BOX AND REWROTE SOMEBODY ELSE'S ICON: TWO DEFECTS IN `Pass 253.2`, REPORTED BY `pdfcer-gui` AGAINST `v0.44.0` WITHIN HOURS OF IT SHIPPING** — ★★★★ **THE PREVENTING WARNING WAS WRITTEN BY THE SAME AUTHOR THE SAME DAY, ONE VERB AWAY, AND DID NOT WORK — `R243` IS MINTED FOR THAT** — ★★★ **FIXED WITH ONE SHARED HELPER (`measure_free_text_multiline`), NOT A SECOND CORRECT CALL SITE: THE PROPERTY THAT FAILED WAS TWO RE-BAKERS OF ONE SUBTYPE DISAGREEING ABOUT A VALUE NEITHER CAN READ** — ★★ **ONE MEASUREMENT, TWO FACTS: ITS `None` NOW SURFACES AS `TextAnnotStyleChange::appearance_was_foreign` INSTEAD OF BEING DISCARDED** — ★ **`StickyIcon::Other(Vec<u8>)` — §12.5.6.4's SET IS OPEN, SO THE FIX IS AT THE SPEC END (`Pass 98.0`'s `/BE` SHAPE, THE REQUESTER'S PREFERENCE "BY A DISTANCE"), AND IT COSTS NOTHING IN THE DRAWING BECAUSE `sticky_note` PAINTS THE SAME GLYPH FOR ALL SEVEN** — **BREAKING**, one day wide — minted and shipped in one filing
+
+**Origin.** Two `pdfcer-gui` requests, both against the `v0.44.0` pin
+(`e1bdb6c`):
+`open/request_set_text_annot_style_rebakes_a_freetext_without_measuring_multiline.md`
+(mtime `2026-09-06 21:37:30 -0400`, 4,429 B) and
+`open/request_set_text_annot_style_rewrites_a_foreign_icon_name.md`
+(mtime `2026-09-06 21:37:54 -0400`, 3,501 B). **Both verified unscoped
+before minting**, per `R242`: `grep -rn` for each filename over `docs/`
+returned **nothing**. `Pass 253.5` verified free by
+`grep -oh "Pass 253\.[0-9a-z]*" docs/*.md | sort | uniq -c` — `253.0` ×31,
+`253.1` ×16, `253.2` ×9, `253.3` ×12, `253.4` ×11, **`253.5` zero**.
+
+**Filed under family 253, not a new family.** `set_text_annot_style` was
+minted by `Pass 253.2`; these are defects in that verb. The 456th filing's
+precedent — *file under the function's origin* — is applied for the fourth
+time, and `259.x` stays free.
+
+**Defect 1 — a colour change un-wrapped a text box.** `text_spec_from_dict`
+reports `multiline: false` unconditionally, because §12.5.6.6 gives
+`/FreeText` no such key. `set_markup_note` (`Pass 258.1`, `5c2b61f`)
+therefore **measures** it; `set_text_annot_style` (`Pass 253.2`, `fe746ec`)
+re-baked the same subtype and did not. The requester's words: *"this destroys
+the operator's content, silently, on a control whose caption says colour."*
+
+**Defect 2 — a colour change rewrote a foreign icon to `/Note`.** The reader
+normalised `/Sparkle` (correct for a reader modelling seven names); the
+writer baked the fallback back (not correct for anything). §12.5.6.4:
+*"Additional names may be supported as well."*
+
+**The shape of the fix, and why it is one helper rather than two call sites.**
+`measure_free_text_multiline(&self, on_disk: &Dict, spec: &TextAnnotSpec) ->
+Option<bool>` bakes `spec`'s own text at `multiline` `false` **and** `true`
+and compares each against the `/AP` `/N` bytes on disk (`appearance_matches`).
+Both `set_text_annot_style` and `rebake_free_text_appearance` now call it and
+**cannot disagree again**. `StickyIcon` gains `Other(Vec<u8>)`;
+`from_name_lossless` is the reader's constructor and `from_name` is unchanged.
+
+**Public surface.** `StickyIcon::Other(Vec<u8>)` (new variant),
+`StickyIcon::from_name_lossless(&[u8]) -> Self` (new, with a runnable
+rustdoc example), `TextAnnotStyleChange::appearance_was_foreign: bool` (new
+field on a `#[non_exhaustive]` struct). **Breaking:** `StickyIcon` loses
+`Copy`; `StickyIcon::name` becomes `fn name(&self) -> &[u8]` (was
+`const fn name(self) -> &'static [u8]`).
+
+**Tests — five, in `crates/pdfcer-core/tests/review_features.rs`, and each
+one was run against the SHIPPED BUG rather than against a mutation.**
+Restoring `measured_multiline = None` fails
+`recolouring_a_multiline_free_text_does_not_unwrap_it`; restoring
+`unwrap_or(StickyIcon::Note)` fails
+`recolouring_a_note_preserves_an_icon_pdfcer_does_not_model`. That is `R162`
+satisfied at the strongest available level — the negative was proven against
+the **actual** prior code, not a stand-in for it. The other three:
+`recolouring_a_single_line_free_text_keeps_it_single_line` (the measurement
+is a measurement, not a blanket `true`),
+`an_unmodelled_icon_round_trips_through_the_spec` (and `from_name` still
+answers `None` for `Sparkle` — the separation is asserted, not merely
+intended), `an_explicit_icon_still_replaces_a_foreign_one` (preservation is
+for the case where the caller said nothing). The wrap oracle is the **painted
+appearance from the SAVED bytes** — `painted()` re-parses the incremental
+save and counts `Tj` operators in `/AP` `/N` — so it measures what a viewer
+draws, not what the spec struct says.
+
+**Gates.** Workspace suite green; `cargo fmt --all --check`;
+`cargo clippy --workspace --all-targets --all-features -D warnings`;
+`cd fuzz && cargo check --bins`; the wasm32 check; and 19 non-cargo gates —
+all reported clean by the dispatching engineer. **`R209` note:** that
+enumeration is the engineer's; this role did not re-run them, and says so
+rather than repeating the claim as its own.
+
+**Invariants.** GUI-core separation: untouched — no `Cargo.toml` moved, and
+the change is confined to `pdfcer-core` plus one `println!` in `pdfcer-cli`.
+Round-trip / minimal-diff: **strengthened in the direction the invariant
+points** — the whole Pass is about *not* rewriting bytes pdfcer did not
+logically touch (a producer's icon name, a designer's appearance stream).
+Rule 4 (fuzzy, never sneaky): `appearance_was_foreign` is the new
+disclosure, **off-canvas** (a report field and a CLI counter), with
+**nothing drawn on the page** — decision 059's narrowing honoured exactly.
+Rule 11 (CLI parity): the CLI prints `was_foreign=` in the same commit.
+
 **★★★★ 461st filing, 2026-09-06 — `R242` WORKED, WITHIN MINUTES OF BEING
 MINTED, AND THAT IS THE FILING'S HEADLINE RATHER THAN THE FEATURE.** The
 460th filing minted `R242` at 19:58 (*a request does not leave `open/` when it
@@ -128567,6 +128791,128 @@ nothing gets forgotten, not as a commitment to build in this order.
 > `docs/FEATURES.md`: one new *Planned* row in the text cluster, all pdfcer
 > boxes unticked.
 
+### `Pass 155.1` — ★★★★ **`rotate_annotation` IS NOT COMPOSABLE: THE ARTWORK GROWS ON EVERY TURN AFTER THE FIRST, AND `pdfcer-gui` REFUTED THE VERB'S OWN DISCLOSURE WITH RENDERED PIXELS** — filed 2026-09-07 (462nd filing), **NOT STARTED** — *annotation transforms* family (`Pass 155.0`, `0ce65dc`)
+
+**Origin:** `open/request_rotate_annotation_grows_the_artwork_when_applied_twice.md`
+(mtime `2026-09-07 13:16:25 -0400`, 6,865 B), measured against the `v0.44.0`
+pin `e1bdb6c`. **The operator reported it himself, unprompted** — *"the rotate
+bug in the review objects where the object gets larger with each enactment of
+the tool."*
+
+**The claim, and it is not the `/Rect`-grows disclosure.** Turning a markup
+15° **four times** does not draw the same picture as turning it 60° **once**.
+Measured on their machine, ink bounding boxes in device pixels at scale 2 on
+a 140 × 60 pt `/Square`, diffed against a render of the same page without the
+annotation:
+
+| | ink bbox (device px @ scale 2) | w × h |
+|---|---|---|
+| authored, unrotated | `(400, 2447)–(679, 2567)` | **279 × 120** |
+| **A** — one 60° turn | `(418, 2356)–(661, 2658)` | **243 × 302** |
+| **B** — four 15° turns | `(305, 2292)–(774, 2722)` | **469 × 430** |
+
+**A is exactly right** and the instrument is therefore sound:
+140·cos 60 + 60·sin 60 = 121.96 pt → 244 px, and 140·sin 60 + 60·cos 60 =
+151.24 pt → 302 px. **B is 1.93× wider and 1.42× taller** — 469/243 and
+430/302 — and the ink itself is drawn at that size, not a box around it.
+
+**The cause, from pdfcer's own source (their reading, and it holds).** At
+`edit.rs:24997` the new `/Rect` is the upright bound of the four rotated
+corners **of the current `/Rect`**; at `:25041` the rotation is composed into
+the appearance's `/Matrix`. Both are individually right and they diverge after
+one call: turn 2 takes the AABB of an **already-enlarged rectangle** and
+rotates *that*, while `/Matrix` has only accumulated to 2θ — so §12.5.5 step
+(c), which *"scales and translates"* **A** to fit the transformed `BBox` onto
+`/Rect` exactly, **scales the artwork up** to fill the over-large rectangle.
+Every subsequent turn compounds it.
+
+**⇒ The `/Rect` must be derived from the ARTWORK, not from the previous
+`/Rect`.** The information is already in hand at that point: the appearance
+`BBox` transformed through the **composed** `/Matrix` and bounded upright, or
+— with no `/AP` — the bound of the geometry keys the verb has just rotated
+exactly (`/L`, `/Vertices`, `/InkList`, `/CL`) plus the border allowance. The
+current corner-bound is correct only for the degenerate case of an annotation
+with neither.
+
+**Acceptance criterion, given by the requester as a test rather than as
+prose.** *N* rotations totalling θ and one rotation of θ produce the same
+drawn size, to within antialiasing. Their harness already exists
+(`crates/pdfcer-gui/tests/annotation_rotation_grows.rs`) and will go green the
+day this ships. **Idempotence under composition is the whole property; the
+rule chosen to reach it is pdfcer's.** No `pdfcer-acrobat-librarian` dispatch
+needed — this is a defect against pdfcer's own stated behaviour, not a parity
+question.
+
+**★★ THIS PASS ALSO OWES A DISCLOSURE CORRECTION, AND THE STALE TEXT IS
+ALREADY LOCATED.** *"The artwork does not grow"* is **true of the first
+rotation and false of the second**, and it stands in **three** places at
+`5d5fafb` — `crates/pdfcer-core/src/edit.rs:15942` (`AnnotationRotate::to`),
+`:24895` (`rotate_annotation`), `crates/pdfcer-cli/src/main.rs:5286` (CLI
+`--help`). Reported by the 462nd filing as owed `crates/` work, not edited by
+this role. `docs/FEATURES.md:266` carried the same claim and **was** corrected
+in that filing. Per `R216` the superseded wording is preserved where it is
+replaced, not deleted.
+
+**Priority: HIGH** — the operator hit it himself, it silently damages
+document content, and the shell has a rotate grip wired
+(`ENGINE_BACKLOG.md`, 2026-09-04) so it is reachable today.
+
+### `Pass 155.2` — ★★★ **AN ANNOTATION'S ROTATION ANGLE CANNOT BE READ, SO NO SHELL CAN SHOW IT, TYPE IT, OR DRAW A SELECTION BOX IN THE OBJECT'S ORIENTATION — plus the ABSOLUTE setter a properties field needs** — filed 2026-09-07 (462nd filing), **NOT STARTED** — *annotation transforms* family (`Pass 155.0`, `0ce65dc`)
+
+**Origin:** `open/request_an_annotations_rotation_angle_cannot_be_read.md`
+(mtime `2026-09-07 13:16:57 -0400`, 5,324 B), sibling of `Pass 155.1`, filed
+separately because it is a different topic. **Prompted by the operator,
+2026-09-07** — *"the angle should be editable from the properties, and the box
+outlined when an object is selected should be in the same angled orientation
+as the object."*
+
+**What is true today.** `annot::Annotation` (`annot.rs:330`) carries `id`,
+`subtype`, `rect`, `flags`, `vertices`, `line`, `ink_list`, `constant_alpha`,
+`color`, `icon`, `state`, `state_model`, `appearance`, `is_popup`. **There is
+no rotation and no route to one:** `Appearance::Normal` carries `stream_id`
+and nothing else, so the `/Matrix` the rotation deliberately lives in
+(`edit.rs:25041`) is not in the read model at any level. This is a
+**write-without-read asymmetry** — the `Pass 146.0` shape, where a properties
+control could only ever be seeded from an invention.
+
+**The read half — and the requester states a preference with a reason
+pdfcer itself gave them.** Either `rotation: Option<f64>` (degrees
+anticlockwise, decomposed from the appearance `/Matrix`, `None` when the
+matrix is not a rotation-plus-uniform-scale, because *a skew or a mirror is
+not an angle and must not be reported as one*) **or** the raw
+`appearance_matrix: Option<[f64; 6]>`. **They prefer the raw matrix "if you
+have to choose one"**, quoting `Annotation::color`'s own justification back:
+*"the component count IS the colour space, so a malformed array is something
+you should see rather than have repaired."* Same argument — a shell handed
+six numbers can tell a rotation from a skew and disclose the difference; a
+shell handed `None` cannot separate *"not rotated"* from *"rotated in a way
+we declined to describe."* **Both if cheap.** ★ Note this is the **third
+consecutive request from this shell to argue for raw-over-modelled from a
+precedent pdfcer set** (`Annotation::color`, `::icon`, now this) — the
+raw-when-the-shape-is-the-fact principle has become a shared vocabulary, and
+that is worth preserving deliberately.
+
+**The write half — an ABSOLUTE setter, and it is not a convenience wrapper.**
+`set_annotation_rotation(&mut self, annot_id, anchor: (f64, f64), degrees:
+f64) -> Result<AnnotationRotate, EditError>` — absolute, anticlockwise from
+the authored orientation. `rotate_annotation` is a **delta** verb, right for a
+drag; a typed properties field is **inherently absolute** (the operator sees
+`30°` and types `45°`), and composing that as a delta requires the shell to
+already know the current angle *and* to trust that its idea matches the file's
+— **the first time those disagree the object silently ends up somewhere
+else.**
+
+**★★ THE TWO HALVES OF THIS FAMILY INTERLOCK, WHICH IS WHY THEY SHOULD BE
+SCOPED TOGETHER EVEN THOUGH THEY WERE FILED APART.** The requester makes the
+point themselves: **an absolute setter has to derive `/Rect` from the artwork
+rather than from the previous `/Rect`**, which is exactly `Pass 155.1`'s fix.
+Build `155.1` first and `155.2`'s write half is nearly free; build `155.2`
+first and it cannot be correct.
+
+**Priority: MEDIUM-HIGH** — nothing is damaged, but the properties panel and
+the oriented selection box the operator asked for are both blocked on the read
+half. No `pdfcer-acrobat-librarian` dispatch needed.
+
 ### `Pass 256.1` — ★★ **`/ToUnicode` PARTIAL INVERSION — invert per CHARACTER, not per FONT: an unambiguous character is written, a colliding character is refused BY NAME (which characters, from which CIDs); today `ToUnicodeCMap::injective_inverse()` refuses the WHOLE composite font when ANY character maps from more than one CID** — filed 2026-09-05 (439th filing, `pdfcer-gui` correction 2026-09-05 evening, ask (3)), ~~*Backlog*, **NOT STARTED**~~ **SHIPPED `56dde4d` (446th filing) — see top of *Shipped*; criterion 2 AMENDED below; the census NOT run** — family 256, after `Pass 256.0`
 
 > ★★ **Status note 2026-09-06 (446th filing): SHIPPED `56dde4d`** (authored
@@ -157037,6 +157383,127 @@ ceiling `114` → `115`** (`iccce` enters as a git dependency pinned to tag
   **Standing rules ceiling `R241` → `R242`; next free `R243`.** **Decision
   ceiling `138` → `139`** (minted the same filing, for a different subject —
   the review model's boundary), next free `140`.
+
+- **R243 — A DOCUMENTED OBLIGATION ON A FUTURE CALLER IS NOT A CONTROL. WHEN
+  TWO CALL SITES MUST AGREE ABOUT A VALUE NEITHER CAN READ FROM THE FILE, THE
+  AGREEMENT GOES IN ONE FUNCTION THEY BOTH CALL — NOT IN A WARNING. A PASS
+  THAT WRITES *"IF YOU EVER DO X YOU MUST ALSO DO Y"* OWES EITHER THE
+  EXTRACTION OR A NAMED, WRITTEN REASON WHY EXTRACTION IS IMPOSSIBLE.** Minted
+  2026-09-07 (462nd filing), librarian-minted at the engineer's explicit
+  request to judge it, **at n = 1 with a ZERO-DAY INTERVAL AND A SINGLE
+  AUTHOR** — which is the strongest form the evidence can take, not the
+  weakest.
+
+  **The founding instance, with its clock.** `Pass 258.1` (`5c2b61f`,
+  2026-09-06) shipped `set_markup_note`'s `/FreeText` re-bake. Its channel
+  reply, written the same day by the engineer who wrote the code, said
+  verbatim: *"ALWAYS false and you must not believe it … If you ever
+  re-author a `/FreeText` yourself, you have to do that too."* **Hours later,
+  in the same session,** `Pass 253.2` (`fe746ec`) shipped
+  `set_text_annot_style` — a **second re-baker of the same subtype** — which
+  believed it. `pdfcer-gui` reported the consequence against `v0.44.0` within
+  hours of release: changing a text box's **colour** collapsed a wrapped box
+  to one line, *"silently, on a control whose caption says colour."* Fixed by
+  `Pass 253.5` (`5d5fafb`).
+
+  **★ WHY n = 1 IS ENOUGH HERE, AND IT IS THE WHOLE ARGUMENT.** An occurrence
+  count is a proxy for *"the mitigations we have do not work."* This instance
+  measures that directly, because it **refutes every mitigation by
+  construction**:
+
+  | mitigation the project would otherwise reach for | refuted by |
+  |---|---|
+  | *write the warning down* | it **was** written down, in the shipping reply |
+  | *make it more prominent* | it was the reply's own emphasis, in capitals |
+  | *keep it fresh* | interval **zero days** |
+  | *put it where the next reader will look* | the next reader **was the author** |
+  | *have the author review the second call site* | the author **wrote** the second call site |
+
+  There is no sixth column. A rule minted at n = 5 would name the same
+  mechanism and cost four more defects to reach it.
+
+  **The mechanism, stated so it is applicable rather than evocative.** A
+  warning is addressed to **a reader who has stopped to read**. The person
+  writing the next function an hour later has not stopped — they are holding a
+  different question (*"how do I change the colour?"*), and the obligation
+  belongs to a question they are not asking (*"what does this reader's output
+  not tell me?"*). **Documentation is retrieved by a query; a control is
+  imposed without one.** So the remedy is never a better sentence. It is
+  **removing the choice**: `measure_free_text_multiline` is now the only place
+  that decides, and both re-bakers call it. A third re-baker that calls it
+  cannot repeat the defect; one that does not will fail **identically**, which
+  is why the helper's `None` is documented as *"leave the appearance alone"*
+  rather than *"assume `false`"* — the fallback is designed to be **loud**,
+  not convenient.
+
+  **What the rule obliges, in three lines.**
+  1. When a Pass documents an obligation that a **future call site** must
+     honour, ask in the filing: *can this be a function they must call?* If
+     yes, extract it in the same Pass.
+  2. If it genuinely cannot be extracted, **name the reason in writing** —
+     in the Pass entry, not only in the doc comment. An unexplained warning
+     is an unpaid debt with no due date.
+  3. Where the obligation concerns a value the file does not carry (a
+     placeholder, a default, an inferred flag), the extraction is
+     **mandatory**, because a placeholder is exactly the kind of value that
+     reads as a reading.
+
+  **Checkable after the fact**, which puts it in the same species as hard
+  rules 8, 10 and 11 — commitments on behaviour, verified by a reader asking
+  whether the filing performed them, not by machinery. **No gate is proposed
+  and none is possible**: deciding whether a documented obligation *could*
+  have been a function requires knowing what the function is for.
+
+  **What this rule is NOT, because three neighbours are close enough to be
+  confused with it.**
+  - **Not `R209`.** That is about *"all gates green"* naming a set nobody
+    enumerated — a claim about a **set**. This is about a claim about a
+    **future action**.
+  - **Not `R230` / the doc-splice family.** Those are about documentation
+    being **mechanically corrupted** (a `///` block welded to the wrong item).
+    Here the documentation was **perfectly correct and perfectly placed**, and
+    still did not work. That is the finding.
+  - **Not `R162`.** That is *prove a negative test by breaking it*. `Pass
+    253.5` satisfies `R162` separately and at its strongest — each test was
+    run against the **shipped bug** rather than a mutation.
+
+  **Cross-project sibling, one layer up:**
+  `D:/dev/rag/rust/a_claim_in_a_comment_is_not_a_check.md` (a comment arguing
+  a search had been widened enough, while the search had not been). Same
+  species — **prose asserting a property instead of code enforcing it** — seen
+  at the *checking* layer rather than the *calling* layer. Derivation written
+  this filing:
+  `D:/dev/rag/rust/a_documented_obligation_on_a_future_caller_is_not_a_control.md`.
+
+  **Standing rules ceiling `R242` → `R243`; next free `R244`.** Decision
+  ceiling **`139` unchanged**, next free `140` (`140` considered and declined
+  this filing — see the 462nd's ledger).
+
+- **`R209` — DATED INSTANCE NOTE, 2026-09-07 (462nd filing): THE DOC-SPLICE
+  GATE'S DENOMINATOR IS `pub`, AND THE FOURTH INSTANCE LANDED ON TWO PRIVATE
+  FUNCTIONS.** `tools/check-public-fns-documented.py` exists for precisely the
+  symptom that occurred — its own header says *"the missing doc comment is
+  usually somewhere else, welded to the wrong item"* — and it did not fire,
+  because `Pass 253.5` inserted `measure_free_text_multiline` between
+  `rebake_free_text_appearance` and its doc block and **both functions are
+  private**. Result at `5d5fafb`: `edit.rs:28168–28237` carries **two fused
+  doc blocks** (opening *"Re-bake a `/FreeText`'s `/AP` `/N` …"*, which the
+  new function does not do) and `edit.rs:28274` carries **none**. `rustfmt`,
+  `clippy -D warnings` and 23 gates were all green.
+
+  **This is `R209`'s mechanism, not a new one:** a claim about a set — *"the
+  doc-splice gate covers this"* — is only as good as the enumeration of the
+  set, and nobody had enumerated **`pub` versus private**. It is the third
+  distinct place the same enumeration failure has been recorded (CI job set,
+  gate script set, now gate input set).
+
+  **Owed to the engineer, not decided here:** widen the gate's denominator to
+  private `fn`s, or write down why not. Widening is not free — private helpers
+  are where the project's own documentation-first bar is loosest, so the gate
+  would go red at baseline, and `D:/dev/rag/rust/ci_gate_red_at_baseline_enforces_nothing.md`
+  says what that costs. **A staged denominator** (private `fn`s in files that
+  already pass, or private `fn`s touched by the diff) is the shape that avoids
+  it. `R243` is **not** minted for this; the failure was a denominator.
 
 ## Update protocol
 
