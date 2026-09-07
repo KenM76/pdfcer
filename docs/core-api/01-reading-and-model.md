@@ -2386,7 +2386,18 @@ angle, type into it, or draw a selection outline that followed the object:
   collapse deliberately, because Table 95 gives both the identity and that is
   what `pdfcer-render` paints with.
 * `appearance_rotation_degrees() -> Option<f64>` — the **effective** angle,
-  anticlockwise in `(−180, 180]`. `Some(0.0)` where the field is `None` but
+  anticlockwise in `(−180, 180]` — **SIGNED, and pdfcer's other rotation
+  reader is not: `WidgetRotation::was`/`::now` are `[0, 360)`.** The two
+  differ for a real reason (`/MK /R` is a stored declaration pdfcer
+  normalises; this decomposes a matrix through `atan2`, and forcing it
+  positive would make a 1° clockwise nudge read as `359`), but a consumer who
+  learns one and generalises to the other is wrong about **every clockwise
+  angle** — `pdfcer-gui` did exactly that within an hour of this shipping and
+  every turned markup reported itself upright, with 3,860 of their in-process
+  tests green. Want `[0, 360)`? `θ.rem_euclid(360.0)`, at the boundary where
+  the convention changes. pdfcer deliberately ships no second accessor: two
+  functions answering *"what angle is this"* is the `R243` shape.
+  `Some(0.0)` where the field is `None` but
   there IS an appearance (Table 95's default), so an ordinary unrotated
   annotation reads as `0°` rather than as a blank. `None` for a shear, a
   mirror or a non-uniform scale: **those are not angles**, and a confident

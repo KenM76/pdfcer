@@ -781,6 +781,34 @@ pub struct Annotation {
 /// a confident wrong number here would be seeded into a field the operator
 /// is about to commit.
 ///
+/// # ★★ SIGNED, and pdfcer's OTHER rotation reader is NOT — read this
+///
+/// This returns **`(−180, 180]`**. [`crate::edit::WidgetRotation`] reports
+/// `/MK /R` reduced into **`[0, 360)`**. Two rotation readers, one crate,
+/// **different conventions**, and a consumer who learns one and generalises
+/// to the other is wrong about every clockwise angle.
+///
+/// That is not hypothetical. `pdfcer-gui` consumed this function within an
+/// hour of it shipping (2026-09-07) and its adapter's doc comment — carried
+/// over from a local implementation that *had* normalised — still claimed
+/// `[0, 360)`. **Every clockwise rotation reported itself upright**, and
+/// 3,860 of their in-process tests stayed green; only a driven UI test whose
+/// drag happened to go clockwise caught it.
+///
+/// **The two ranges differ for a real reason, not by accident.** `/MK /R` is
+/// a *stored declaration* constrained to multiples of 90, and reducing it
+/// into `[0, 360)` is pdfcer normalising a value the file carries. This
+/// function *decomposes a matrix* through `atan2`, whose natural range is
+/// signed — and forcing it positive would make a 1° clockwise nudge read as
+/// `359`, which is the wrong thing to show in a properties field and the
+/// wrong thing to subtract in [`crate::edit::EditSession::set_annotation_rotation`].
+///
+/// **A caller wanting `[0, 360)` writes `θ.rem_euclid(360.0)`** — one
+/// expression, at the boundary where the convention actually changes. pdfcer
+/// deliberately does **not** ship a second accessor for it: two functions
+/// answering "what angle is this" is the `R243` shape, and the one that got
+/// called less would be the one that drifted.
+///
 /// # Returns
 ///
 /// `Some(θ)` in `(−180, 180]`, `0.0` for the identity; `None` for a

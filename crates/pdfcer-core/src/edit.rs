@@ -19331,6 +19331,19 @@ pub struct WidgetRotation {
     /// permits both unreduced forms — its whole constraint is "a multiple of
     /// 90" — so this reports a **pdfcer product rule**, not a correction of the
     /// caller. A shell echoing the angle back should echo [`Self::now`].
+    ///
+    /// ★★ **[`Self::was`] and [`Self::now`] are `[0, 360)`; pdfcer's OTHER
+    /// rotation reader is SIGNED.**
+    /// [`crate::annot::rotation_degrees`] and
+    /// [`crate::annot::Annotation::appearance_rotation_degrees`] return
+    /// `(−180, 180]`, because they decompose a matrix through `atan2` rather
+    /// than normalising a stored declaration. A consumer who learns this
+    /// struct's convention and generalises it to those is **wrong about every
+    /// clockwise angle** — `pdfcer-gui` made exactly that mistake within an
+    /// hour of the annotation reader shipping (2026-09-07), and every turned
+    /// markup reported itself upright. Cross-referenced from both sides
+    /// because a convention difference is only a trap while it is undocumented
+    /// in the place the reader is standing.
     pub normalised: bool,
     /// Whether the widget's appearance stream was **redrawn** in the rotated
     /// frame.
