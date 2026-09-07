@@ -112,6 +112,206 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★★ 466th filing, 2026-09-07 — pdfcer'S TWO ROTATION READERS NOW NAME EACH
+OTHER'S CONVENTION, FROM BOTH SIDES (`a4939fa`, DOCS ONLY) — AND A COURTESY
+SENTENCE WRITTEN INTO SOMEONE ELSE'S HANDOFF GOT CHECKED RATHER THAN TRUSTED,
+PRODUCING A SECOND COMMIT (`f244932`) THAT PROVES pdfcer'S OWN ROTATION SUITE
+HAD THE IDENTICAL BLIND SPOT. NO Pass IS MINTED OR SHIPPED HERE. `R244`
+MINTED — A DOCUMENT CAN BE ENTIRELY CORRECT AND STILL UNSAFE TO GENERALISE
+FROM.** `a4939fa` — no behaviour change, no new API, no test change.
+`f244932` — no behaviour change, no new API, **two new tests**, folded into
+this same filing because it landed after this entry was first drafted and
+before either commit was pushed (the push hook allows only the tip commit to
+go unfiled; one filing now covers both).
+
+**★★ THE TRIGGER, AND WHY IT WAS NOT A BROKEN CONTRACT ON pdfcer'S SIDE.**
+`pdfcer-gui` consumed `Annotation::appearance_rotation_degrees`
+(`Pass 155.2`, shipped the 464th filing this session) within an hour of it
+shipping and hit a defect **on its own side** — recorded in its own
+`INDEX.md` (2026-09-07, `D:\Dev\FeatureRequests\pdfce_FeatureRequests\
+INDEX.md` line 79): its adapter's doc comment, carried over unchanged from a
+**local** implementation that DID normalise, claimed `[0, 360)`. Every
+clockwise rotation therefore reported itself upright, and a selection
+outline that should have followed the rotation went back to axis-aligned.
+**Verified before writing anything, not assumed**: pdfcer's own range is
+stated, consistently, as SIGNED `(−180, 180]` in three places —
+`crates/pdfcer-core/src/annot.rs:786-789`, `:510-513`, and
+`docs/core-api/01-reading-and-model.md:2388-2399`. The fault was entirely
+`pdfcer-gui`'s own stale comment, not a broken contract here.
+
+**★★ THE STRUCTURAL FINDING, AND IT IS pdfcer'S OWN.** pdfcer has **two**
+rotation readers with **two different conventions**, and — before this
+commit — each was documented correctly AT ITS OWN DEFINITION while NEITHER
+named the other:
+
+| reader | convention | source |
+|---|---|---|
+| `annot::rotation_degrees` / `Annotation::appearance_rotation_degrees` | SIGNED, `(−180, 180]`, decomposed from a matrix via `atan2` | `annot.rs:905` |
+| `EditSession`'s `WidgetRotation::was` / `::now` | UNSIGNED, `[0, 360)`, a stored `/MK /R` declaration pdfcer normalises | `edit.rs:19312` |
+
+That gap — not either individual document — is the entire defect surface: a
+consumer who learns one convention and generalises to the other is wrong
+about every clockwise angle. Both sides now carry the other's convention
+inline (`annot.rs:786`, `edit.rs:19335`), and
+`docs/core-api/01-reading-and-model.md` carries the note where a consuming
+project actually reads, with the conversion (`θ.rem_euclid(360.0)`) given
+rather than left for the reader to derive a second time.
+
+**What was deliberately NOT done, and why.** No normalisation of
+`appearance_rotation_degrees` — forcing it positive would make a 1°
+clockwise nudge read as `359`, wrong for a properties field and wrong inside
+`set_annotation_rotation`'s own delta math (`wanted − current`). No second
+accessor — two functions answering *"what angle is this"* is the shape
+`R243` already names and forbids.
+
+**`docs/FEATURES.md` — checked, not touched, and that is the judgement.**
+Rows `:266` and `:267` re-read at `HEAD`; no capability changed, and both
+rows were already correct at the level of detail `FEATURES.md` carries.
+
+**Deliberately NOT released — reasoning recorded so a future session does
+not read "unreleased commit" as an oversight.** No shipped user-facing
+string changed — the `clap --help` surface is untouched, this is
+doc-comment-only plus one `docs/core-api/` file — and `docs/core-api/` is
+read from the repository, not packaged into a release tarball. **Pushing IS
+the delivery** for a change of this shape. `v0.45.0` (465th filing, tag
+`654b150`) stands as the current release; no version bump, no new tag, no
+OneDrive deploy owed by this filing.
+
+#### Standing rule minted — `R244`
+
+**A document can be entirely correct and still be unsafe to generalise
+from.** Two definitions answering the same shaped question ("an
+annotation's rotation, as a number") in different conventions must name
+each other AT THE POINT OF DEFINITION, not only after a consumer trips on
+the gap. Checked against the three closest existing rules before minting —
+`R220` (capability filed under the wrong document), `R212` (one enforced
+copy drifting from a stale published copy), `R213` (a magnitude claim
+missing its subject) — and none fit, because in each of those a reader who
+stops to look at a single document can find something to disagree with.
+**Here neither document was wrong; the contradiction existed only inside a
+consumer's head**, at the moment they generalised from one definition to
+the other. Same species as this role's own hard rule 10 in its own agent
+file (a total and a per-item form are one fact in two shapes; writing both
+converts a set-property into a single-claim property ordinary review can
+catch) — one layer down, in source-code doc comments rather than in this
+role's own filed figures. Full text and the mint's reasoning: *Standing
+rules*, below. Minted on the verified founding instance alone, on the same
+"n=1 is enough when the mechanism is proven, not merely observed" warrant
+`R243` used one filing ago (462nd).
+
+#### Second commit folded in — `f244932`: a courtesy sentence got checked, and pdfcer's own rotation suite had the identical blind spot
+
+**What happened.** Writing the note back to `pdfcer-gui` about the
+signed/unsigned trap above, the engineer added, as a courtesy, *"a rotation
+test that only ever turns one way is testing half the number line — ours had
+the same hole."* **That sentence was then checked, not left as asserted.**
+Grepped across **both** rotation test files — `annot_rotate.rs` and
+`annot_rotate_composable.rs`, 16 tests between them at the time — every
+angle fed to `rotate_annotation`/`set_annotation_rotation` was **positive**:
+`15`, `22`, `30`, `37.5`, `45`, `60`. **Zero negative angles, in either
+file.** A sign error in the signed reader `R244` is about — the exact
+convention `pdfcer-gui` mis-generalised — was invisible to pdfcer's own
+suite by construction, not by bad luck.
+
+**Two tests added to `annot_rotate_composable.rs`** (verified directly by
+this role via `Grep`/`Read`, not relayed — file now carries **10** `#[test]`
+functions, `annot_rotate.rs` unchanged at **9**):
+
+1. `a_clockwise_rotation_reports_a_negative_angle_and_still_composes` — a
+   `−30°` turn must read back as `appearance_rotation_degrees() == −30.0`.
+   The assertion message names **both** plausible wrong answers rather than
+   restating the right one: `330` means a reader normalised into
+   `[0, 360)` and broke the subtraction inside `set_annotation_rotation`;
+   `+30` means `atan2`'s arguments were taken in the wrong order. Also
+   checks composability holds at negative angles: one `−60°` turn produces
+   the identical rect as four `−15°` turns.
+2. `an_absolute_negative_target_is_reached_from_a_positive_start` — the same
+   defect from the delta-arithmetic side. `set_annotation_rotation` computes
+   `wanted − current`; a **normalised** `current` makes that subtraction
+   wrong by exactly 360 for clockwise cases. Starting at `+40°` and asking
+   for `−25°` is a `−65°` delta; a normalising reader computes
+   `−25 − 335 = −360` and the object does not move at all. Both the applied
+   delta (`out.degrees`) and the landed absolute angle are asserted.
+
+**The sabotage was the real bug, not a synthetic mutation** — `#[cfg]`-gated
+`rotation_degrees` to `.rem_euclid(360.0)` before returning, which is
+**literally the implementation `pdfcer-gui`'s stale doc comment described**.
+Result: **both new tests failed; the other eight in the file, and all nine
+in `annot_rotate.rs`, stayed green.** That is the finding — it confirms the
+existing suite was structurally blind to this defect in precisely the shape
+`pdfcer-gui`'s own 3,860 green in-process tests were, and that these two
+tests are now the only thing standing between this regression and a release.
+Sabotage reverted; both files green (`annot_rotate` 9, `annot_rotate_composable`
+10) — verified by this role directly, not relayed.
+
+**Considered against `R244`, and declined to widen it — a judgement call,
+recorded so a future filing does not need to re-litigate it.** `R244`'s
+shape is *two individually-correct definitions of the same domain concept,
+in different conventions, that fail to name each other.* This finding is
+adjacent but not the same shape: there is only **one** convention in play
+(the signed reader), and the gap is that the test suite sampled only **one
+sign** of its own domain — nearer this role's own `D:/dev/rag/rust`
+neighbour on under-sampled differential/property ranges
+(`a_differential_test_proves_agreement_only_over_the_range_it_samples.md`,
+which is about a *magnitude* threshold rather than a *sign*) than to
+`R244`'s cross-document convention mismatch. Not minting a new standing rule
+for it either, at `n=1`, in a project-specific test file rather than a
+public API contract — but see the `D:/dev/rag/rust` finding filed alongside
+this entry, which generalises the shape for any Rust project's numeric test
+suite.
+
+**The mechanism worth naming on its own: a courtesy claim written for
+someone else became checkable the moment it was written down.** The
+engineer asserted a fact about pdfcer's own test coverage inside a reply
+intended for a different project, then verified the assertion rather than
+letting it stand on courtesy alone — the same discipline this role's hard
+rule 10 states for filed figures ("a claim about X is a measurement"),
+arriving through the side door of drafting a message to someone else.
+Recorded here because the mechanism is repeatable and cheap, not because it
+is new in kind.
+
+#### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass IDs | ceiling `258.3`; `259.x` free | **unchanged — no Pass minted, no Pass shipped**, by either commit. Doc-only plus test-coverage-only |
+| Decisions | ceiling `139`, next free `140` | **unchanged — not considered.** No crate boundary, library choice or invariant moved |
+| Standing rules | ceiling `R243`, next free `R244` | **`R244` MINTED** — two individually-correct documents that never name each other fail the same way a drifted one does. Ceiling moves to `R244`, **next free `R245`**. `f244932`'s coverage-gap finding **considered against `R244` and NOT folded into it** — different shape (one convention, under-sampled sign) — and **no second rule minted** for it at `n=1`; see the reasoning above |
+| SESSION_LOG filings | `465` | **`466`** — this filing now covers two commits (`a4939fa` + `f244932`), amended in place before either was pushed |
+| Owed-survivor ledger | ZERO in `crates/`, ZERO in `docs/` (465th) | **still ZERO** — this filing closes a gap and adds test coverage, finds no new survivor |
+| Unpushed | carried from 465th (that filing's own three commits, pushed or not, unconfirmed by this role) | that plus `a4939fa`, `f244932`, and this filing's own (now-amended) librarian commit — standing-authorized push (decision 090); not urgent for a doc-and-test-only pair but should not sit unpushed indefinitely |
+| Unreleased | `a4939fa` | **`a4939fa` + `f244932`, deliberately unreleased — see reasoning above.** `v0.45.0` remains the current release; two new `#[test]` functions in a workspace test crate do not ship in a portable-folder release |
+| Requests in `open/` | 206 files, 49 `request_*` (465th, relayed, not independently reverified) | **unchanged this filing** — nothing in either commit touches `open/` |
+| Test count | `annot_rotate.rs` 9, `annot_rotate_composable.rs` 8 (implied, pre-`f244932`) | **`annot_rotate.rs` 9 (unchanged), `annot_rotate_composable.rs` 10 (+2)** — both counted directly by this role via `Grep "#\[test\]"`, not relayed |
+
+**Sourcing (hard rule 8).** This dispatch supplied **Read/Write/Edit/Glob/
+Grep/WebSearch/WebFetch — no general shell tool.** **Verified directly by
+this role, via `Grep`/`Read` on live source:** the doc-comment content at
+`annot.rs:786-789`/`:510-513`/`:905`, `edit.rs:19312-19346`, and
+`docs/core-api/01-reading-and-model.md:2388-2399`; `FEATURES.md` rows
+`:266`/`:267` re-read and confirmed unchanged-and-still-correct; the full
+text of both new test functions and the `#[test]` count in both
+`annot_rotate.rs` (9) and `annot_rotate_composable.rs` (10) at
+`crates/pdfcer-core/tests/`. **Relayed, not independently verified this
+dispatch (no shell tool, so no `git show`/`git log`):** the exact wording of
+commit `f244932`'s message, and that the sabotage (`.rem_euclid(360.0)`) was
+applied, both tests failed under it, and it was then reverted with both
+files returning to green — this role read the *resulting* test files at
+`HEAD`, which is consistent with that account, but did not itself run the
+sabotage-and-revert cycle. **Not verified this filing, and not inferred:**
+exact push/unpushed commit count, backup bundle distance, disk/`target/`
+size — none of these move by a doc-plus-test commit pair, but none were
+re-measured either; carry the 465th filing's own figures with the same
+staleness caveat that filing itself recorded.
+**Two further instances of the same shape were named by the engineer's
+dispatch but NOT independently located by this role's own grep of
+`ROADMAP.md`/`SESSION_LOG.md` this filing** — `docs/core-api/` running eight
+verbs behind an implementation earlier the same day, and, from project
+memory, a `comparison__pdfcer_feature_column.md` RAG deliverable filed in
+its producing tree and never referenced by any pdfcer document. Recorded as
+the engineer's count, not this role's confirmed total; the mint above does
+not depend on them.
+
 **★★★★★ 465th filing, 2026-09-07 — `v0.45.0` RELEASED: THE ROTATE FIX
 (`Pass 155.1`/`Pass 155.2`, SHIPPED AT THE 464th) IS NOW ON THE OPERATOR'S
 ONEDRIVE, AND THE FRESH-FOLDER SMOKE TEST REPRODUCED HIS OWN BUG REPORT AS A
@@ -157968,6 +158168,98 @@ ceiling `114` → `115`** (`iccce` enters as a git dependency pinned to tag
   says what that costs. **A staged denominator** (private `fn`s in files that
   already pass, or private `fn`s touched by the diff) is the shape that avoids
   it. `R243` is **not** minted for this; the failure was a denominator.
+
+- **R244 — TWO DEFINITIONS THAT ANSWER THE SAME SHAPED QUESTION IN DIFFERENT
+  CONVENTIONS MUST NAME EACH OTHER AT THE POINT OF DEFINITION, NOT ONLY WHEN A
+  CONSUMER TRIPS ON THE GAP. A DOCUMENT CAN BE ENTIRELY CORRECT AND STILL BE
+  UNSAFE TO GENERALISE FROM.** Minted 2026-09-07 (466th filing), librarian-
+  minted at the engineer's explicit invitation to judge it, from `a4939fa`'s
+  signposting of pdfcer's two rotation readers.
+
+  **The founding instance, verified by this role directly in `crates/` and
+  `docs/core-api/`, not relayed.** `Annotation::appearance_rotation_degrees` /
+  `annot::rotation_degrees` decompose a matrix through `atan2` and report
+  **SIGNED, `(−180, 180]`** (`annot.rs:905`). `EditSession`'s
+  `WidgetRotation::was` / `::now` normalise a stored `/MK /R` declaration and
+  report **UNSIGNED, `[0, 360)`** (`edit.rs:19312`). Both were documented
+  **correctly at their own definition** the moment they shipped (`Pass
+  155.2`, 464th filing this session) — grep confirms `(−180, 180]` stated
+  consistently in three places (two in `annot.rs`, one in
+  `docs/core-api/01-reading-and-model.md`) and `[0, 360)` stated consistently
+  wherever `WidgetRotation` is defined. **Neither mentioned the other.**
+  `pdfcer-gui` consumed the new signed reader within an hour of it shipping,
+  carried forward a doc comment written for the OLD, normalising local
+  implementation, and every clockwise rotation reported itself upright.
+
+  **Why this is not `R220`, `R212`, or `R213` — the three closest
+  neighbours, checked before minting.** `R220` is a capability filed under
+  the wrong document (mechanism vs. the reader's question) — here **both**
+  documents were the right document for their own fact. `R212` is drift: one
+  enforced copy of a SINGLE contract pulling away from a stale published
+  copy — here NEITHER copy was stale; both were correct on the day the
+  defect occurred. `R213` is a magnitude claim missing its SUBJECT (a number
+  with no stated "of what") — here the subject was fully stated
+  (`(−180, 180]` IS a complete, correct claim); what was missing was a
+  named DIFFERENCE from the adjacent, differently-conventioned claim.
+  In each of those three, a reader who stops to look at a single document
+  can find something to disagree with. **Here there was nothing wrong to
+  find by reading either document alone** — the two facts became a
+  contradiction only inside a third party's head, the moment they
+  generalised from one definition to the other.
+
+  **The mechanism, and why no test or gate catches it.** Two APIs that share
+  a name, a shape, or a domain concept (here: "an annotation's rotation, as
+  a number") invite a consumer to learn one and reuse the lesson for the
+  other. If the conventions genuinely differ, that reuse is silently wrong,
+  and it is wrong in a way neither document's own review can catch — each is
+  reviewed in isolation, against the world it describes, and both pass.
+  **This is hard rule 10's own argument, one layer down.** Hard rule 10 (this
+  role's own agent file) says a total and its per-item form are the same
+  fact in two shapes, and only writing both together turns a set-property
+  (consistency) into a single-claim property (review can catch a single
+  wrong-looking sentence, never a silent cross-document assumption). Two
+  conventions sharing a domain concept are the same shape: correctness is
+  per-document, but SAFETY-TO-GENERALISE is a property of the pair, and
+  nothing in an append-only doc comment, a doc-splice gate, or a
+  doc-coverage checker evaluates a pair.
+
+  **What the rule obliges, in two lines.**
+  1. When a Pass ships a new API answering a question an EXISTING API in the
+     same crate also answers (same shape, same domain noun, different
+     convention), the new API's own doc comment names the existing one and
+     states the difference explicitly — and the existing one is amended in
+     the SAME commit to name the new one back. One-directional signposting
+     is half the job.
+  2. Where the two conventions are mechanically related (a sign, a range, a
+     unit), state the conversion inline (`θ.rem_euclid(360.0)`, here) rather
+     than leaving the reader to derive it — a reader who has already been
+     burned once should not have to re-derive the fix.
+
+  **Checkable after the fact, not gatable — same species as `R220`/`R243`.**
+  A mechanical check would need to know which two APIs are "the same shaped
+  question," which is a semantic judgement, not a syntactic one. The
+  obligation lives in the writing, verified by a reader (or this role, at
+  the next filing touching either site) asking: does the new definition cite
+  its sibling, and does the sibling cite it back?
+
+  **Relayed, not independently verified this filing.** The engineer's
+  dispatch names two further instances of the same shape from earlier the
+  same day — `docs/core-api/` running eight verbs behind an implementation
+  (a consuming project substituted a chat reply for the missing doc) — and,
+  from project memory, `comparison__pdfcer_feature_column.md`, a deliverable
+  filed in its producing RAG and never referenced by any pdfcer document.
+  Neither was located by this role's own grep of `ROADMAP.md`/`SESSION_LOG.md`
+  within this dispatch — their phrasing may differ from what was searched,
+  and this role's own hard rule 11(e) (in its agent file — a sweep is only as
+  good as its spelling of the claim) is the caution that applies to a future,
+  better-targeted search for them. **The mint stands on the verified founding
+  instance alone**, on the same "n=1 is enough when the mechanism is proven,
+  not merely observed" warrant `R243` used one filing ago.
+
+  **Standing rules ceiling `R243` → `R244`; next free `R245`.** Decision
+  ceiling **`139` unchanged** — this is a documentation-consistency
+  obligation on future Passes, not a crate boundary, library choice or
+  invariant.
 
 ## Update protocol
 

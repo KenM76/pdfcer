@@ -96639,3 +96639,158 @@ modifications are the engineer's and are left alone).
   small turns now draw exactly the same size as one big turn, not just in
   the test suite.
 - **Operator:** **the rotate bug you reported is fixed** — turning something in several small steps now draws exactly the same as turning it once in one big step, checked mathematically rather than just by eye. **You can now also read an object's rotation angle and set it directly to a number** (not just nudge it by a delta), which is what a properties-panel angle box and an angle-aware selection outline both need — those aren't wired into the shell yet, but the engine now has everything they need to work.
+
+## 2026-09-07 (466th filing) — pdfcer's two rotation readers now name each other's convention, `R244` is minted because two individually-correct documents can still fail a reader who generalises across them, AND a courtesy sentence in the handoff got checked rather than trusted
+
+**★ Amended in place, same filing, before either commit was pushed.** A
+second commit (`f244932`) landed after this entry was first drafted; the
+push hook allows only the tip commit to go unfiled, so this entry now covers
+both commits rather than becoming a 467th filing.
+
+**Shipped:**
+- No Pass, either commit. `a4939fa` is **documentation only** — no behaviour
+  change, no new API, no test change. It signposts, from both sides, that
+  `Annotation::appearance_rotation_degrees()` / `annot::rotation_degrees()`
+  are **SIGNED, `(−180, 180]`** (an `atan2` decomposition of a matrix) while
+  `EditSession`'s `WidgetRotation::was`/`::now` are **UNSIGNED, `[0, 360)`**
+  (a normalised `/MK /R` declaration) — and gives the conversion
+  (`θ.rem_euclid(360.0)`) rather than leaving a reader to derive it.
+- `f244932` is **test-coverage only** — no behaviour change, no new API,
+  **two new tests** in `crates/pdfcer-core/tests/annot_rotate_composable.rs`
+  (file now 10 `#[test]` functions, `annot_rotate.rs` unchanged at 9 —
+  counted directly by this role, not relayed). See Findings below.
+
+**Decisions made this session:**
+- None. No crate boundary, library choice or invariant moved. Deliberately
+  **not** normalising `appearance_rotation_degrees` and deliberately **not**
+  adding a second accessor are both restatements of an existing convention
+  (`Pass 155.2`, shipped 464th filing this session), not new decisions —
+  normalising would make a 1° clockwise nudge read as `359` (wrong for a
+  properties field, and wrong inside `set_annotation_rotation`'s own delta
+  math), and a second accessor is the shape `R243` already forbids.
+
+**Findings + decisions:**
+- **The trigger, and it was NOT a broken contract on pdfcer's side —
+  verified before writing anything.** `pdfcer-gui` consumed
+  `appearance_rotation_degrees` within an hour of `Pass 155.2` shipping and
+  hit a defect: its own adapter doc comment, carried over unchanged from a
+  LOCAL implementation that DID normalise, claimed `[0, 360)`. Every
+  clockwise rotation therefore reported itself upright. pdfcer's own range
+  is stated as `(−180, 180]` consistently in three places — two in
+  `crates/pdfcer-core/src/annot.rs` (`:786-789`, `:510-513`) and one in
+  `docs/core-api/01-reading-and-model.md` (`:2388-2399`) — confirmed by grep
+  before concluding the fault was entirely on the consuming side.
+- **The structural finding is pdfcer's own, and it is what earns a
+  filing.** pdfcer has TWO rotation readers, each correctly documented AT
+  ITS OWN DEFINITION, and NEITHER named the other before this commit:
+  `annot::rotation_degrees`/`Annotation::appearance_rotation_degrees`
+  (signed, `atan2`-decomposed) and `WidgetRotation::was`/`::now` (unsigned, a
+  stored declaration normalised). A consumer who learns one and generalises
+  to the other is wrong about every clockwise angle — which is exactly what
+  happened. Both sides now cross-reference (`annot.rs:786`,
+  `edit.rs:19335`), and `docs/core-api/01` carries the note where a
+  consuming project actually reads, with the `rem_euclid` conversion inline.
+- **`R244` MINTED** (Standing rules, `docs/ROADMAP.md`) — checked against
+  three close neighbours first (`R220`: capability filed under the wrong
+  document; `R212`: one enforced copy drifting from one stale published
+  copy; `R213`: a magnitude claim missing its subject) and none fit, because
+  in each of those a reader can find something to disagree with by reading a
+  single document. Here **neither document was wrong**; the contradiction
+  existed only inside a consumer's head, the moment they generalised from
+  one definition to the other. Same species as this role's own hard rule 10
+  (a total and a per-item form are one fact in two shapes; writing both
+  converts a set-property into a single-claim property that ordinary review
+  can catch) — one layer down, in source-code doc comments rather than in
+  this role's own filed figures. Minted at the verified founding instance
+  alone, on the same "n=1 is enough when the mechanism is proven" warrant
+  `R243` used one filing ago (462nd).
+- **Two further instances of the same shape were named by the engineer's
+  dispatch but NOT independently located by this role's own grep of
+  `ROADMAP.md`/`SESSION_LOG.md` this filing**: `docs/core-api/` running eight
+  verbs behind an implementation (a consuming project substituted a chat
+  reply for a missing doc entry), and, from project memory, a
+  `comparison__pdfcer_feature_column.md` RAG deliverable filed in its
+  producing tree and never referenced by any pdfcer document. Recorded as
+  the engineer's count, not this role's confirmed total — their phrasing may
+  differ from what was searched, and this role's own hard rule 11(e) is the
+  caution that applies to a future, better-targeted search for them.
+- **`docs/FEATURES.md` checked, not touched** — re-read rows `:266` (rotate
+  fix) and `:267` (`Pass 155.2`) at `HEAD`; neither describes the
+  signed/unsigned distinction at the level of detail this commit adds, and
+  neither needed to — no capability changed, both rows were already correct.
+  Confirms the requester's own belief rather than assuming it.
+- **`f244932` — a courtesy sentence in the handoff note got CHECKED, not
+  trusted, and the check found something.** Writing the note to
+  `pdfcer-gui` about the signed/unsigned trap above, the engineer added
+  *"a rotation test that only ever turns one way is testing half the number
+  line — ours had the same hole"* as a courtesy aside, then checked it
+  before sending. Grepped across both rotation test files (16 tests total
+  at the time): **every angle was positive** — `15`, `22`, `30`, `37.5`,
+  `45`, `60`. Zero negative angles anywhere. A sign error in the SIGNED
+  reader — the exact convention `pdfcer-gui` mis-generalised — was
+  invisible to pdfcer's own suite by construction.
+- **Two tests added to `annot_rotate_composable.rs`** (verified directly by
+  this role, file now 10 `#[test]` functions, `annot_rotate.rs` unchanged at
+  9): `a_clockwise_rotation_reports_a_negative_angle_and_still_composes`
+  (`−30°` must read back as `−30.0`, not `330` — normalised — or `+30` —
+  `atan2` args reversed — plus negative-angle composability: `1 × −60`
+  equals `4 × −15`), and
+  `an_absolute_negative_target_is_reached_from_a_positive_start` (the same
+  defect from the delta side: `+40°` to `−25°` is a `−65°` delta;
+  `set_annotation_rotation` computes `wanted − current`, and a normalised
+  `current` computes `−25 − 335 = −360` instead, moving nothing).
+- **Sabotage used the real bug, not a synthetic mutation**: `rotation_degrees`
+  patched to `.rem_euclid(360.0)` before returning — literally the
+  implementation `pdfcer-gui`'s stale doc comment described. **Both new
+  tests failed; the other eight in the file, and all nine in
+  `annot_rotate.rs`, stayed green.** That result is the finding: it confirms
+  the coverage gap was real and that these two tests are now the only thing
+  between this exact regression and a release. Sabotage reverted; both files
+  green (9 and 10) — verified directly, not relayed.
+- **Considered against `R244`, declined to widen it — a judgement call.**
+  `R244` is two individually-correct *definitions* of the same concept in
+  different *conventions* failing to cross-reference. This finding has only
+  ONE convention in play and a test suite that sampled just one *sign* of
+  its own domain — closer kin to
+  `D:/dev/rag/rust/a_differential_test_proves_agreement_only_over_the_range_it_samples.md`
+  (under-sampled *magnitude*, here under-sampled *sign*) than to `R244`'s
+  cross-document mismatch. No second standing rule minted either, at `n=1`,
+  in a project test file rather than a public contract — but the
+  generalisable shape is filed to `D:/dev/rag/rust/` alongside this entry
+  for any future Rust project's numeric test suite.
+- **The mechanism worth naming on its own:** a claim about pdfcer's own test
+  coverage, written into a message meant for a different project, became
+  checkable the moment it was written down — and got checked. Same
+  discipline this role's own hard rule 10 states for filed figures ("a
+  claim is a measurement"), arriving through the side door of drafting a
+  reply to someone else.
+- **Deliberately NOT released, reasoning recorded so a future session does
+  not read "unreleased commit" as an oversight.** No shipped user-facing
+  string changed in either commit — the `clap --help` surface is untouched;
+  `a4939fa` is doc-comment-only plus one `docs/core-api/` file (read from
+  the repository, not packaged into a release tarball), and `f244932` adds
+  two `#[test]` functions to a workspace test crate, which never ships in a
+  portable-folder release. **Pushing IS the delivery** for changes of this
+  shape. `v0.45.0` (465th filing) stands as the current release; no version
+  bump, no tag, no OneDrive deploy owed by this filing.
+
+**Still in flight:**
+- Nothing new. Unpushed/unreleased state carried from the 465th filing is
+  unaffected by a doc-and-test commit pair — engineer should confirm current
+  push state before assuming a number from an earlier filing still holds
+  (hard rule 8).
+- Backup bundle currency and disk/`target/` size: not re-measured this
+  filing — no shell tool available to this role (Read/Write/Edit/Glob/Grep/
+  WebSearch/WebFetch only).
+
+**For next session:**
+- **Engineer:** none outstanding from this filing specifically. Push
+  `a4939fa`, `f244932`, and this filing's (now-amended) librarian commit
+  together under the standing push authorization (decision 090) whenever
+  convenient — a doc-and-test pair is not urgent, but it should not sit
+  unpushed indefinitely either.
+- **Operator:** nothing to try — this filing fixed a piece of internal
+  documentation that could confuse a future integration, and closed a gap in
+  pdfcer's own test coverage that a released build had not yet hit. Not
+  anything you would see. The rotation fix itself (`v0.45.0`) is unchanged
+  and already on your OneDrive.
