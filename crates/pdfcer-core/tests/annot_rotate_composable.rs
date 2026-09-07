@@ -409,6 +409,105 @@ fn the_rotation_angle_can_be_read_back_from_the_annotation() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// 4. CLOCKWISE. Half the number line, and until now none of it was tested.
+// ---------------------------------------------------------------------------
+
+/// ★★ A clockwise rotation reports a NEGATIVE angle, and composes.
+///
+/// # Why this test exists, and it is not symmetry-for-its-own-sake
+///
+/// `pdfcer-gui` consumed [`Annotation::appearance_rotation_degrees`] within an
+/// hour of `Pass 155.2` shipping and hit a defect: their adapter's doc comment
+/// claimed `[0, 360)` — carried over from a local implementation that *had*
+/// normalised — while this returns a **signed** `atan2` in `(−180, 180]`. So
+/// **every clockwise rotation reported itself upright**, and their selection
+/// outline snapped back to axis-aligned. **3,860 of their in-process tests
+/// were green**; a driven UI test caught it only because its drag happened to
+/// go clockwise.
+///
+/// That was their stale comment, not a broken contract here. But checking
+/// afterwards showed **this crate had the identical blind spot**: across both
+/// rotation test files, *every* angle was positive — `15`, `22`, `30`, `37.5`,
+/// `45`, `60`. **A sign error is invisible to a test that only ever turns one
+/// way**, so pdfcer's own suite could not have caught the mirror of their bug.
+///
+/// The two assertions below are chosen to fail on the two plausible wrong
+/// implementations rather than to restate the right one: a **normalising**
+/// reader returns `330` where this demands `−30`, and a reader that took
+/// `atan2`'s arguments in the wrong order returns `+30`.
+#[test]
+fn a_clockwise_rotation_reports_a_negative_angle_and_still_composes() {
+    let (mut s, id) = triangle();
+    s.rotate_annotation(id, ANCHOR, -30.0).expect("rotate");
+
+    let slots = s.page_slots().expect("slots");
+    let got = page_annotations(&s.graph(), slots[0].id)
+        .into_iter()
+        .find(|a| a.id == Some(id))
+        .and_then(|a| a.appearance_rotation_degrees())
+        .expect("an angle");
+    assert!(
+        (got + 30.0).abs() < 1e-6,
+        "a 30-degree CLOCKWISE turn must read as -30.0, not {got}. \
+         330 means somebody normalised into [0, 360) and broke the \
+         subtraction in set_annotation_rotation; +30 means atan2's \
+         arguments are the wrong way round."
+    );
+
+    // ... and the composability property is not a property of positive angles.
+    let (mut one, id_a) = triangle();
+    one.rotate_annotation(id_a, ANCHOR, -60.0).expect("rotate");
+    let one = reload(&one);
+    let (aw, ah) = rect_size(&one, id_a);
+
+    let (mut four, id_b) = triangle();
+    for _ in 0..4 {
+        four.rotate_annotation(id_b, ANCHOR, -15.0).expect("rotate");
+    }
+    let four = reload(&four);
+    let (bw, bh) = rect_size(&four, id_b);
+
+    assert!(
+        (aw - bw).abs() < 1e-6 && (ah - bh).abs() < 1e-6,
+        "clockwise must compose too: 1 x -60 gave {aw:.4} x {ah:.4}, \
+         4 x -15 gave {bw:.4} x {bh:.4}"
+    );
+}
+
+/// The absolute setter lands on a NEGATIVE target, from a positive start.
+///
+/// This is the arithmetic `pdfcer-gui`'s defect would have corrupted from the
+/// other end: `set_annotation_rotation` computes `wanted − current`, and a
+/// normalised `current` makes that subtraction wrong by 360 for exactly the
+/// clockwise cases. Starting at `+40` and asking for `−25` is a 65-degree
+/// clockwise delta, and a normalising reader would compute `−25 − 335 = −360`
+/// and land back where it started.
+#[test]
+fn an_absolute_negative_target_is_reached_from_a_positive_start() {
+    let (mut s, id) = triangle();
+    s.rotate_annotation(id, ANCHOR, 40.0)
+        .expect("start positive");
+
+    let out = s
+        .set_annotation_rotation(id, ANCHOR, -25.0)
+        .expect("set a clockwise absolute angle");
+    assert!(
+        (out.degrees + 65.0).abs() < 1e-6,
+        "the delta applied should be -65 (from +40 to -25), not {}. \
+         -360 means the current angle was read normalised.",
+        out.degrees
+    );
+
+    let slots = s.page_slots().expect("slots");
+    let got = page_annotations(&s.graph(), slots[0].id)
+        .into_iter()
+        .find(|a| a.id == Some(id))
+        .and_then(|a| a.appearance_rotation_degrees())
+        .expect("an angle");
+    assert!((got + 25.0).abs() < 1e-6, "must land on -25.0, got {got}");
+}
+
 /// A shear, a mirror and a non-uniform scale are **not angles** and must not
 /// be reported as ones, however turned the artwork looks. A properties field
 /// seeded from a confident wrong number commits the invention the moment the
