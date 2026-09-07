@@ -112,6 +112,239 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★★ 463rd filing, 2026-09-07 — `v0.44.1` RELEASED: THE SECOND RELEASE OF
+ONE SESSION, AND IT EXISTS BECAUSE THE FIRST SHIPPED TWO DEFECTS THE CONSUMING
+PROJECT FOUND WITHIN HOURS. ★★ AND `667325b` — THE BUMP CHORE — DISCHARGES ALL
+FIVE OF THE 462nd FILING'S `crates/` SURVIVORS: TWO CORRECTED, AND THREE
+**FLAGGED IN PLACE RATHER THAN DELETED**, WHICH IS A NEW ANSWER TO A QUESTION
+HARD RULE 11 DOES NOT COVER. NO Pass IS MINTED OR SHIPPED HERE.** `git
+describe --tags --abbrev=0` = **`v0.44.1`**; annotated tag `v0.44.1` (object
+`53ff13d3a5e9f066093640bcfcaf68c3ba9e93af`, tagger date `2026-09-07 14:03:59
+-0400`) → **`667325b`**, which is also `origin/main` at the start of this
+filing. `git rev-list --count v0.44.0..v0.44.1` = **3**, and the composition
+closes: **1 code** (`5d5fafb`, `Pass 253.5`) + **1 librarian filing** (`9b15ed7`,
+the 462nd) + **1 bump-plus-corrections chore** (`667325b`) = 3. Tag-to-tag
+interval `v0.44.0` (`2026-09-06 21:00:20 -0400`) → `v0.44.1` (`2026-09-07
+14:03:59 -0400`) = **17 h 3 m 39 s**.
+
+**★★★ THE SECOND RELEASE IS FILED PLAINLY RATHER THAN SMOOTHED OVER, AND BOTH
+HALVES OF IT ARE TRUE AT ONCE.** `v0.44.0` (`e1bdb6c`) and `v0.44.1`
+(`667325b`) are the same session. The second exists because the first shipped
+two defects in `Pass 253.2` (`fe746ec`) that `pdfcer-gui` found within hours of
+the release. **The batch-release rule worked** — the defects reached a
+consumer, were reported, fixed and re-released inside one session, which is
+exactly the loop a fast release cadence is for, and the loop closed in
+**17 hours**. **And the defects were in code written the same day it shipped**,
+which is the exposure the loop does not remove and which no cadence can. Both
+sentences are recorded because a filing that kept only the first would read as
+a success story about a defect the operator's consuming project had to find,
+and a filing that kept only the second would hide the fact that the recovery
+path is working as designed. The engineering half of *why* it happened is the
+462nd filing's headline and `R243`; this filing carries only the release fact.
+
+**★★ `667325b` — THE BUMP CHORE, AND ALL FIVE OF THE 462nd's `crates/`
+SURVIVORS ARE DISCHARGED IN IT.** A **PATCH** bump (`0.44.0` → `0.44.1` at
+`Cargo.toml:86` plus the three lockfiles) — correct on the merits: `Pass 253.5`
+fixes two defects and adds no capability. `git show --stat` = **7 files,
++88 / −50**. No behaviour change; `fmt`, `clippy` and every doc/CLI gate green
+and the `Pass 253.5` tests still passing (relayed by the engineer, and this
+role did not re-run them — `R209`).
+
+1. **★★ THREE COPIES OF A LIVE FALSE DISCLOSURE — FLAGGED, NOT DELETED, and
+   the distinction is the engineering content.** `crates/pdfcer-core/src/edit.rs:15942`
+   (`AnnotationRotate::to`), `:24907` (`rotate_annotation`; it was `:24895` at
+   `5d5fafb` and moved by the first flag) and
+   `crates/pdfcer-cli/src/main.rs:5286` (the CLI's `--help`, **operator-facing**)
+   all still say *"the artwork does not grow; only the rectangle around it
+   does"*. Each now carries, immediately below it, a block opening **"★★ THIS
+   CLAIM IS UNDER INVESTIGATION AND MAY BE FALSE WHEN THE VERB IS APPLIED
+   REPEATEDLY"**, naming the `pdfcer-gui` request, `Pass 155.1` as **not yet
+   fixed**, the operator's own words (*"the object gets larger with each
+   enactment of the tool"*), and the suspected mechanism — `/Rect`, **already
+   grown**, appearing to be taken as the artwork to re-bound on the second
+   turn. Verified here: `grep -rn "artwork does not grow" crates/` = **exactly
+   three hits**, each with the flag beneath it.
+   **★ WHY THIS IS A NEW ANSWER RATHER THAN A ROUTINE FIX.** Hard rule 11 says
+   *sweep for the claim and report the survivors*; it is **silent on what to do
+   with a survivor whose replacement text is not yet known**. The default
+   reflex is deletion, and deletion is wrong twice here: the sentence is
+   **correct for one rotation of an unrotated annotation**, so deleting it
+   trades a true-but-incomplete claim for no claim at all; and it is **the only
+   written record of what pdfcer believes it does**, which is precisely the
+   thing `Pass 155.1` has to disprove. *A disclosure that quietly disappears is
+   worse than one that says it is in doubt.* **`R244` CONSIDERED AND DECLINED**
+   — see the ledger.
+2. **★★ THE DOC-COMMENT SPLICE, FOURTH INSTANCE — SEPARATED.**
+   `measure_free_text_multiline` and `rebake_free_text_appearance` now sit at
+   `edit.rs:28225` and `:28300` with a doc block each (measured here by
+   `grep -n "fn measure_free_text_multiline\|fn rebake_free_text_appearance"`).
+   ★ The engineer created this fourth instance **inside the commit that fixed a
+   different instance of the same class**, and says so in the commit message —
+   recorded because it is the sharpest available restatement of `R243`, minted
+   one filing earlier: *a written warning is not a control, including when the
+   author is the same person on the same day.* **The gate stays owed and the
+   reason is unchanged:** `tools/check-public-fns-documented.py`'s denominator
+   is `pub`, both functions are private, and widening it goes **red at
+   baseline** — so the fix is a **staged** denominator and is its own change,
+   not a rider on a release (`R209`'s note, 462nd filing). Carried into
+   `docs/NEXT_SESSION.md` by the engineer.
+3. **`annot.rs`'s `/Name` doc — CORRECTED.** The sentence *"[`StickyIcon`] has
+   no `Other` variant to hold one"* — falsified by `Pass 253.5` **in the commit
+   that added the variant** — is gone; the block now reads *"Reporting the
+   bytes lets a shell show what the file actually says and fall back on its own
+   terms."* Verified here: `grep -n "Other. variant to hold"
+   crates/pdfcer-core/src/annot.rs` = **no hits**.
+
+**★★ THE MEASURED RELEASE FACTS.** Every figure below was measured at filing
+unless marked *relayed*.
+
+- **CI, in one sentence.** Run **`34149060644`** on **`667325b`** — `gh api
+  'repos/KenM76/pdfcer/actions/runs?head_sha=667325b6a9…'` → `total_count: 1`,
+  `conclusion: success`, created `2026-09-07T17:47:48Z`, updated
+  `18:03:32Z` = **15 m 44 s**, **10 of 10 jobs green** (job list in the
+  `SESSION_LOG.md` entry). The last to finish was **`cargo test
+  (windows-latest)` at `18:03:31Z`**. ★ **The tag was cut at `18:03:59Z` — 28
+  seconds after CI's slowest job went green.** Filed as a figure that can
+  disagree with something: the release did not race CI.
+- **Release binary.** Banner measured here on the deployed exe
+  (`C:\Users\Ken\OneDrive\pdfcer1\pdfcer.exe --version`): `pdfcer 0.44.1 /
+  built 2026-09-07T18:03:59Z / revision v0.44.1 / committed
+  2026-09-07T17:47:01Z / iccce 0.3.0 (rev a4d9003b, committed
+  2026-09-01T08:54:36Z)`. **No `-dirty` suffix, no `-N-g…` suffix** — built
+  after the tag. ★ **Two "built" timestamps exist and they differ by 7 m 13 s**:
+  the exe's `built:` is `18:03:59Z` (equal to the tag's own timestamp **to the
+  second**) while `BUILD-INFO.txt`'s *"Built: 2026-09-07 14:11:12"* is
+  `18:11:12Z` — the text file records when `package-portable.py` ran, the exe
+  records the compile stamp. Recorded as an observation; the mechanism behind
+  the exact tag-second match was **not** investigated and is not claimed.
+- **Portable folder (measured).** `D:\builds\pdfcer-20260907-1411-667325b`,
+  `du -sb` = **32,477,264 bytes over 8 files** (`find -type f | wc -l` = 8),
+  and the eight sum **exactly**: `pdfcer.exe` **19,942,912** +
+  `models/ocrs/text-rec-checkpoint.rten` 9,716,444 +
+  `models/ocrs/text-detection.rten` 2,510,284 + `THIRD_PARTY_LICENSES.md`
+  285,972 + `README.md` 10,070 + `models/ocrs/PROVENANCE.md` 8,518 +
+  `BUILD-INFO.txt` **1,976** + `LICENSE` 1,088 = **32,477,264**. **The exe is
+  +5,120 over `v0.44.0`'s 19,937,792** — one bug-fix Pass; `v0.43.0` →
+  `v0.44.0` was **+374,784** over five Passes, so the ratio is what a patch
+  release should look like.
+- **★ `BUILD-INFO.txt` SHRANK, 2,866 → 1,976 (−890), AND THE CAUSE IS MEASURED
+  RATHER THAN GUESSED.** `diff` against `v0.44.0`'s copy: the *"Changes since
+  the previous build"* list carries **3 commits** here against **9** for
+  `v0.44.0`, and the summary paragraph is one sentence shorter. Filed because a
+  file that shrinks inside a release folder looks like a packaging regression
+  and is not one — the same species of sign-flip the 459th filing recorded for
+  a zip that got smaller while its exe grew.
+- **Zip (measured).** `D:\builds\pdfcer-v0.44.1-windows-x64.zip` **18,430,931
+  bytes** (`v0.43.0`'s 18,360,651; **+70,280**). SHA-256 **computed here** with
+  `sha256sum` **and** read from the **97-byte** sidecar — the two agree:
+  **`2848e636917c74c7e212588c9b10b4048f625c78275a3ae039f502d3a2a150a0`**. ★ **A
+  third source agrees — GitHub's own recorded digest for the uploaded asset**
+  (`gh release view v0.44.1 --json assets` → `"digest":
+  "sha256:2848e636…a150a0"`), and the engineer separately **downloaded the
+  published asset back with `curl` and re-hashed it** to the same value
+  (*relayed*). **Local bytes, sidecar, GitHub's digest, and a round-trip
+  download: four agreeing sources for one hash** — the same four the 459th
+  filing established for `v0.43.0`.
+- **GitHub release** **https://github.com/KenM76/pdfcer/releases/tag/v0.44.1**
+  — verified here by `gh release view v0.44.1 --json url` (created
+  `2026-09-07T18:03:59Z`). **Two assets, both `state: uploaded`**, created
+  `18:12:41Z`: `pdfcer-v0.44.1-windows-x64.zip` **18,430,931** and its
+  `.sha256` sidecar **97**. `git ls-remote --tags origin v0.44.1` =
+  `53ff13d3…` → `refs/tags/v0.44.1` — **the tag is PUSHED**, and the local
+  `git rev-parse v0.44.1` returns the **same tag object**, checked because the
+  annotated-object-vs-commit distinction is exactly the sort of thing that gets
+  filed as a hash.
+- **OneDrive (measured).** Slot **`pdfcer1`** (which held **0.43.0**) —
+  `C:\Users\Ken\OneDrive\pdfcer1`, `du -sb` = **32,475,616 bytes over 8 files**,
+  and the arithmetic closes against the build folder: **32,477,264 −
+  `BUILD-INFO.txt` 1,976 + `VERSION.txt` 328 = 32,475,616.** Exact.
+  `VERSION.txt` reads `version: 0.44.1 / commit: v0.44.1 / deployed:
+  2026-09-07T18:12:52Z / source: D:\builds\pdfcer-20260907-1411-667325b / slot:
+  pdfcer1`. **`pdfcer2` retains `0.44.0`** (`VERSION.txt` `version: 0.44.0 …
+  deployed: 2026-09-07T01:11:51Z … source:
+  D:\builds\pdfcer-20260906-2109-e1bdb6c`), **32,470,496 bytes** — the previous
+  version is still on disk beside the current one, which is the property
+  `verify-release.py`'s ninth check exists to hold.
+- **`tools/verify-release.py v0.44.1` — RE-RUN HERE AT FILING: NINE of nine**,
+  on a clean tree (`git status --porcelain` EMPTY). One line carries a
+  qualifier and it is the expected one: *"tag is at HEAD (**ADVANCED**:
+  HEAD=`bb07cd0` has moved on since the release; the tag is still an ancestor,
+  which is the normal state after any post-release commit)"* — `bb07cd0` is the
+  engineer's `docs/NEXT_SESSION.md` refresh, committed `2026-09-07 14:14:32
+  -0400`, 10 m 33 s after the tag.
+- **Fresh-folder smoke test — PASSED (*relayed*), and ★ BOTH FIXES WERE
+  RE-VERIFIED THERE ON THE REAL BINARY RATHER THAN TRUSTED FROM THE UNIT
+  TESTS** (*relayed*): a recoloured multi-line `/FreeText` still draws **two**
+  lines (it collapsed to one before), and a note whose `/Name` is `/Sparkle`
+  still says `/Sparkle` after a colour-only change. Recorded with the emphasis
+  the engineer gave it, because the whole reason this release exists is that
+  `v0.44.0`'s unit tests were green over both defects.
+
+**★★ HARD-RULE-11 SWEEP — ZERO SURVIVORS, AND TWO CORRECT HITS RECORDED SO A
+LATER SWEEP DOES NOT "FIX" THEM.** Two meaning changes to sweep for: (a) three
+doc sentences now say they are **in doubt**, and (b) the workspace version is
+`0.44.1`, so *"the latest release is `v0.44.0`"* is no longer true anywhere.
+Clause (e) method — bare keyword over the narrow file set, every hit read.
+
+- Keywords `artwork`, `grow`, over `docs/FEATURES.md`, `docs/NEXT_SESSION.md`,
+  `docs/core-api/`, `tools/`, `README.md` and `crates/`: **ZERO survivors.**
+  `docs/FEATURES.md:266` already carries the struck-through, dated correction
+  (462nd filing) and is still accurate at `HEAD`; `docs/NEXT_SESSION.md:56` and
+  `:63` state the flag and instruct the fix into `Pass 155.1`'s own commit; the
+  three `crates/` copies are the flagged ones above; `docs/core-api/` has **no
+  copy at all**.
+- Keyword `0.44`, over every tracked `.md` / `.py` / `.toml` / `.rs`: **ZERO
+  survivors**, and **two correct hits a later sweep must NOT touch** —
+  `docs/PRIOR_ART.md:95` (`lopdf` at **v0.44.0**) and `docs/PRIOR_ART.md:260`
+  (a `write-fonts` **0.44.0** row in the version-compatibility table). **Both
+  are OTHER CRATES' version numbers, not pdfcer's**, and they are the single
+  noisiest place a bare `0.44` grep lands.
+
+**`docs/FEATURES.md`: NOT TOUCHED, and that is the judgement rather than an
+omission.** Checked, not assumed. **A release moves no capability box** —
+nothing became reachable at `667325b` that was not reachable at `5d5fafb` — and
+`667325b` changes no behaviour at all (doc comments plus `version =`). The two
+rows `Pass 253.5` touched were amended in the **462nd** filing, in the same
+filing as its `ROADMAP.md` change, and both are still correct at `HEAD`:
+`:266`'s rotate row already carries the struck-through *"the artwork does not
+grow"* with `Pass 155.1` named, and `:270` already names
+`appearance_was_foreign`. `grep` for a version stamp in the file's header
+returns nothing — `FEATURES.md` deliberately carries no release number, so a
+release cannot stale it.
+
+#### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass IDs | ceiling `258.3`; `259.x` free | **UNCHANGED — no Pass minted, no Pass shipped.** A release is not a Pass and `667325b` is a chore; the only Pass in the `v0.44.1` batch (`253.5`) was filed at the 462nd. `259.x` **still free and still not minted** |
+| Decisions | ceiling `139`, next free `140` | **unchanged, and `140` was not even considered** — the release **act** is standing-authorized by **decision 121** (*"always go ahead and push the latest one"*), so a release generates no decision record. Recorded explicitly because "no decision" and "decision not considered" are different states |
+| Standing rules | ceiling `R243`, next free `R244` | **unchanged — `R244` CONSIDERED AND DECLINED.** Candidate: *"a disclosure that has been refuted but not yet MEASURED is flagged in place, not deleted."* Declined on **provenance, not merit**: rules in this project are minted at the engineer's **explicit request** (`R243`'s own recorded provenance, 462nd filing), and this dispatch asked for none. Recorded instead as a **named precedent — flag-don't-delete, first application `667325b`** — with the trigger stated: **if it recurs, that is the mint.** The candidate is reported back to the engineer |
+| SESSION_LOG filings | `462` | **`463`** |
+| Owed-survivor ledger | **FIVE** in `crates/`, **ZERO** in `docs/` (462nd) | **ZERO in `crates/`, ZERO in `docs/` — all five discharged by `667325b`.** Two by correction (`annot.rs:439`'s `Other` sentence; the `edit.rs` doc splice, both functions), three by **flag in place** (`edit.rs:15942`, `:24907`, `main.rs:5286`). ★ The three flags are **discharged as survivors but NOT as defects** — they carry an accurate in-doubt marker and they close for good with **`Pass 155.1`**, not separately |
+| Unpushed | `bb07cd0` only (`git rev-parse origin/main` = **`667325b`** — the tagged commit is already on the remote) | that plus this filing — **standing-authorized push** (decision 090). Both docs-only |
+| Unreleased | `bb07cd0` (`git describe --tags --abbrev=0` = **`v0.44.1`**) | that plus this filing — **docs only; there is no unreleased CODE on `main`.** The next code commit opens the `0.45.0` batch |
+| Requests in `open/` | 205 files, **49** `request_*` (`ls`) | unchanged — **nothing leaves `open/` in this filing.** Two answered by reply at the 462nd (`R242` clause 4), two scoped and unworked (`Pass 155.1`, `Pass 155.2`) |
+
+**Gate note, and it is the reason this filing was dispatched.**
+`tools/check-commits-filed.py` named **exactly one** unfiled code commit at the
+start of this filing — **`667325b`** — and that is what this entry discharges.
+The gate blocks a push until it is filed, which is the mechanism working as
+designed: a release chore that carries three flagged disclosures and a
+doc-splice fix is **not** a commit whose one-line subject would have sufficed.
+
+**Sourcing (hard rule 8).** This role had a shell; every figure above is
+**measured here at filing** unless marked *relayed*. `git status --porcelain`
+**EMPTY** at the start of this filing. `git rev-parse origin/main` =
+`667325b6a91e078aefbfe789685ac506aa82e464`. `git cat-file -t v0.44.1` =
+**`tag`** (annotated; subject *"pdfcer 0.44.1"*). **Backup bundle
+`pdfcer-2026-09-03-1a31d2d-full.bundle` (55,835,131 B, `ls -la
+D:\Dev\pdfce-backups\`) is 139 commits behind `HEAD`** — `git rev-list --count
+1a31d2d..HEAD`, run here; **136 at the 462nd**, and the three added are exactly
+`9b15ed7`, `667325b`, `bb07cd0`. Cadence note, not an alarm. **Disk: `df -h /d`
+= 121 G free of 954 G** (124 G at the 462nd; **−3 G in one filing**), `du -sh
+target/` = **93 G**, still 77% of the free space and still the obvious first
+reclaim.
+
 **★★★★★ 462nd filing, 2026-09-07 — THE WARNING THAT WOULD HAVE PREVENTED
 THIS DEFECT WAS WRITTEN BY ITS OWN AUTHOR, THE SAME DAY, ONE VERB AWAY, AND
 DID NOT WORK. `R243` IS MINTED FOR THAT, AND IT IS THE FILING'S HEADLINE
