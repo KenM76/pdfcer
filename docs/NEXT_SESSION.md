@@ -16,12 +16,17 @@ previous version), `verify-release.py v0.45.0` **nine of nine on a clean
 tree**, and the published asset **downloaded back from GitHub and re-hashed**
 (`69e0071d…`, matches — the link works).
 
-Workspace version **`0.45.0`**. Ledger: filings **465**, Pass ceiling
-**`258.3`**, decisions **139**, rules **R243**.
+Workspace version **`0.45.0`**. Ledger: filings **466**, Pass ceiling
+**`258.3`**, decisions **139**, rules **R244**.
 
-**★ ONE COMMIT IS UNPUSHED** at the time of writing — `35eb0d1`, the 465th
-filing. Push it (standing-authorized, decision 090). Everything before it,
-including the tag, is on `origin`.
+**Working tree clean, nothing unpushed, `origin/main` == `HEAD`** (`ce8231c`).
+
+**★ THREE COMMITS SHIPPED AFTER THE RELEASE AND ARE DELIBERATELY NOT IN IT** —
+`a4939fa` (doc signposting), `f244932` (clockwise tests), `ce8231c` (the 466th
+filing). **Do not read "unreleased commits" as an oversight**: none changes a
+shipped user-facing string — the clap `--help` surface is untouched — and
+`docs/core-api/` is read from the repo rather than from a release tarball, so
+**pushing is the delivery**. `v0.45.0` stands as current.
 
 ### What shipped
 
@@ -176,6 +181,31 @@ a quarter turn is axis-aligned by definition — the code was right. Replaced
 with a bearing check that is correct at any angle *and* cross-checks the two
 halves of `Pass 155.2` against each other.
 
+### I asserted something about our own test coverage without measuring it — and it was true
+
+Writing back to `pdfcer-gui` about their signed-`atan2` defect, I said *"a
+rotation test that only ever turns one way is testing half the number line"*
+and added, as a courtesy, *"ours had the same hole"*.
+
+**Then I checked.** Across both rotation test files — sixteen tests — **every
+angle was positive**: 15, 22, 30, 37.5, 45, 60. Zero negative. A sign error
+was invisible to all of them, exactly as it was to their 3,860.
+
+★ **The mechanism is worth more than the fix, and it is reusable: writing a
+claim about my own work into a document meant for somebody else made the claim
+CHECKABLE.** It was courteous, unverified, and correct. Two clockwise tests
+now exist; sabotaged with the *real* bug (`.rem_euclid(360.0)`) they both
+fail and **the other seventeen stay green**.
+
+### Two readers, two conventions, and neither named the other (`R244`)
+
+`annot::rotation_degrees` returns `(−180, 180]`; `WidgetRotation::was`/`::now`
+are `[0, 360)`. Both documented correctly **at their own definitions**;
+neither mentioned the other, and that gap cost `pdfcer-gui` a defect within an
+hour. Both now cross-reference. `R244` was minted for the general shape —
+**correctness is a property of a document, usability is a property of the
+graph between documents, and every gate here checks only the former.**
+
 ### Prose through the Bash tool broke twice, again
 
 Two heredocs carrying commit messages died on `unexpected EOF`. **Write the
@@ -193,6 +223,12 @@ memory and it still cost two cycles.
 - Anchor a doc-comment splice on the DOC BLOCK, not the item.
 - Batch releases: build everything pending, then ONE release.
 - **Sabotage every new test — and check what the sabotage FELL THROUGH TO.**
+- **Sabotage with the REAL bug where one exists**, not a mutation you invented
+  — and note which OTHER tests stayed green, because that number is the
+  measure of how blind the suite was.
+- **A courtesy claim in a reply is still a claim.** If you write "ours has the
+  same problem" to another project, measure it before you send it; twice now
+  that sentence has been true.
 - Register any new report struct in `check-outcome-disclosed`'s
   `OUTCOME_STRUCTS` in the SAME commit; the gate is opt-in and prints "clean"
   about what it was not told.
