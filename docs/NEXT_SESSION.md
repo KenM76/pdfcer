@@ -16,10 +16,10 @@ previous version), `verify-release.py v0.45.0` **nine of nine on a clean
 tree**, and the published asset **downloaded back from GitHub and re-hashed**
 (`69e0071d…`, matches — the link works).
 
-Workspace version **`0.45.0`**. Ledger: filings **466**, Pass ceiling
-**`258.3`**, decisions **139**, rules **R244**.
+Workspace version **`0.45.0`**. Ledger: filings **467**, Pass ceiling
+**`259.0`**, decisions **139**, rules **R244**.
 
-**Working tree clean, nothing unpushed, `origin/main` == `HEAD`** (`ce8231c`).
+**Working tree clean, nothing unpushed** as of the last loop tick.
 
 **★ THREE COMMITS SHIPPED AFTER THE RELEASE AND ARE DELIBERATELY NOT IN IT** —
 `a4939fa` (doc signposting), `f244932` (clockwise tests), `ce8231c` (the 466th
@@ -78,7 +78,13 @@ So the top of the next session is the operator's earlier ordered plan
    page contents with all the usual options (scale to fit without distortions,
    to fill page without distortion, to fill page with distortion, set custom
    size, etc)."*
-3. **`Pass 10.11`** — finish B-T timestamps (RFC 3161 token as the
+3. **`Pass 259.0`** — the `docs/core-api/` line-citation class (minted
+   2026-09-07, *Backlog*, NOT STARTED). Three candidate remedies are in the
+   entry and it deliberately picks none: fix the numbers, drop them for symbol
+   names, or build `tools/check-doc-line-citations.py` and fix to green. My
+   leaning is recorded there and is **not** binding. Cheap first stage if you
+   take the gate: past-EOF only, which needs no judgement to detect.
+4. **`Pass 10.11`** — finish B-T timestamps (RFC 3161 token as the
    `id-aa-timeStampToken` unsigned attribute; `SignRequest.reserve` grows; the
    TSA round trip is the CLI's under decision 061; flip
    `apply::check_seed_value`'s refusal of a required `/TimeStamp`).
@@ -87,9 +93,25 @@ So the top of the next session is the operator's earlier ordered plan
 
 ## OWED, and small
 
-- **`docs/core-api/03-capabilities.md:1181`** cites `StickyIcon` at
+- ~~**`docs/core-api/03-capabilities.md:1181`** cites `StickyIcon` at
   `annot_author.rs:1022`; it is at `2837`. Whole-document line-citation drift,
-  pre-existing, still not fixed.
+  pre-existing, still not fixed.~~
+  **★★ MEASURED 2026-09-07 AND PROMOTED OUT OF "small" — it is `Pass 259.0`,
+  and it was understated by about three orders of magnitude.** The struck
+  wording is kept because *how* it was understated is the lesson: it describes
+  **one** citation, because one is what somebody happened to notice. **Nobody
+  had measured the class.**
+  There are **941** line citations across the three `docs/core-api/`
+  documents (460 file-qualified, 481 bare) and **no gate resolves a single
+  one** — `check-cited-commits-exist` checks hashes, `check-cited-verbs-exist`
+  checks that a verb exists, neither opens a file at a line. A strict sample
+  scored **0 of 6 correct**; a 40-item random sample of file-qualified
+  citations found **3 pointing PAST THE END of the file they name** and 11
+  more on unrelated code, against a *generous* pass test.
+  **I deliberately did NOT fix the nine in that paragraph.** Fixing 9 of 941
+  and retiring the flag would leave 932 wrong while making the document look
+  *more* trustworthy — **a partial fix to a class is how an owed item stops
+  being owed without stopping being true.**
 - **`tools/check-requests-scoped.py`** — owed by `R242`. A citation-link check,
   never a content check. Still unbuilt.
 - **`check-public-fns-documented.py`'s denominator is `pub`**, so it cannot see
