@@ -112,6 +112,349 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★ 461st filing, 2026-09-06 — `R242` WORKED, WITHIN MINUTES OF BEING
+MINTED, AND THAT IS THE FILING'S HEADLINE RATHER THAN THE FEATURE.** The
+460th filing minted `R242` at 19:58 (*a request does not leave `open/` when it
+is SCOPED, only when it is ANSWERED — so grep `ROADMAP.md` for the request's
+filename before scoping anything*). `cd3933c` was committed at **20:26, 28
+minutes later**, and its own message records the grep being run and the ID
+being found: *"filed under Pass 252.0, which already existed… found by
+grepping ROADMAP for the request's filename before writing the commit
+message."* **No new ID was minted; `259.x` stays free.** A rule that changes
+the next action taken after it is written is the only kind whose value is
+measurable, and this one is measurable at n = 1 with a 28-minute interval —
+against `R242`'s own founding intervals of **33 h 56 m to 34 h 46 m**. That
+comparison is the whole point: the same query, run at the same place in the
+process, cost 30-plus hours of duplicate scoping five times and cost nothing
+here.
+
+**★★★ `Pass 252.0` IS DISCHARGED FROM *Backlog*, AND ITS BACKLOG ENTRY HAD
+ALREADY PREDICTED THE IMPLEMENTATION'S HARDEST POINT.** The entry, written
+2026-09-05 (429th filing, `5f6bf65`) without a line of the code existing,
+named the exact hazard: *"`add_text` emits overflow past the crop box rather
+than clipping — right for a hand-placed note, wrong for a 40 KB text file
+(pages 2..9 would exist painted off the sheet, invisible in every viewer,
+present in every extraction — **a feature that silently loses eight-ninths of
+its input while reporting success**)."* The shipped `PlaceTextReport` carries
+**`box_overflow_lines`, a self-check that must be zero** — a machine-readable
+answer to that sentence, and a test (`no_placed_line_falls_outside_the_column_it_was_paginated_into`)
+that asserts it. **This is evidence the scoping discipline pays**, and it is
+worth naming because scoping is normally invisible work: a Backlog entry that
+anticipates the central failure mode converts a hazard that would have been
+discovered by a bug report into an acceptance criterion written before the
+build.
+
+**★★ THE PRIMITIVE IS THE STORY, NOT THE VERB. NOTHING IN `pdfcer-core` COULD
+CREATE A PAGE BEFORE — ONLY COPY ONE.** `pageops` inserts, extracts, merges
+and reorders **existing** pages; `pdfcer_core::build` is compile-provenance,
+not construction; `EditRequest` addresses one located run. `text_edit::blank_document(media: Rect, count: usize)`
+is the first route in the crate from **no document** to **a document**, and it
+is why this was the largest of the six requests in the batch rather than the
+smallest.
+
+**★ AND IT ADDS THAT CAPABILITY WITHOUT BREAKING THE "THE CRATE ONLY EVER
+PARSES" SHAPE — checked here, because a new constructor is exactly where that
+invariant would go.** `blank_document` does **not** assemble an
+`ObjectGraph` in memory: `scaffold_bytes` emits real PDF 1.7 bytes (`%PDF-1.7`
+header, binary comment, `/Catalog` → `/Pages` → N `/Page` objects, xref,
+trailer) and hands them to **`Document::from_bytes`**, the same entry point
+every opened file goes through (`placetext.rs:1275`, `:1375`). So there is
+still exactly **one** way a `Document` comes into existence, and
+`ARCHITECTURE.md` §4's entry-point table (`Document::load` / `::from_bytes`,
+`document.rs:251`/`:261`) is **not falsified and needs no edit** — verified by
+reading, not assumed. The media box is emitted **through the writer's own
+number formatter**, so a fractional sheet (A4 = 595.2755905511811 pt) round-
+trips the way every other rectangle pdfcer writes does.
+
+**★★ A SABOTAGE FOUND A REAL BUG THAT FOURTEEN GREEN TESTS DID NOT, AND THE
+REASON IS THE TRANSFERABLE PART.** Rejoining a page's lines as **separate
+paragraphs** (rather than as one continuing paragraph) left **all 14 tests
+green**. The defect is **invisible under left, centre and right alignment** —
+those three place each line at a computed origin and never redistribute — and
+shows **only under justification**, as missing inter-word slack. A test
+asserting the `] TJ` slack in the emitted content stream was added and that
+sabotage now fails; **15 tests**, and the count in the commit message (*15
+new*) is the file's own (`grep -c "#\[test\]" crates/pdfcer-core/tests/place_text.rs`
+= **15**, measured here). The engineer **independently re-verified the undo
+fold** rather than accepting the sabotage report — disabling `coalesce_last`
+fails `the_whole_import_is_one_undo_entry`. Seven other sabotages were red as
+expected. ⇒ *An alignment mode that redistributes is a different code path
+from one that positions, and a test suite covering three positioning modes
+covers none of the redistributing one.*
+
+**★★ A GATE HAD A FALSE POSITIVE AND AN AUTHOR OBEYED IT. FILED AS A DATED
+INSTANCE NOTE ON `R224` RATHER THAN AS `R243` — the mint is DECLINED here, on
+the record, with its trigger named.** `tools/check-public-fns-documented.py`
+reported a **documented** `pub fn` as undocumented, because a multi-line
+`#[allow(…)]` whose inner lines carry content sat between the doc block and the
+item: the walk accepted only a bare `)]` continuation line and terminated on
+the attribute's own arguments. It is now walked by **bracket depth**, proved in
+both directions with a throwaway probe (the documented multi-line case passes;
+a genuinely undocumented one is still caught). **The reason this is a note and
+not a rule is in the *Standing rules* section under `R224`** — briefly: the
+project already holds the claim twice, in opposite directions, and the honest
+filing is the one that makes them agree rather than a third numbered assertion.
+
+**★★ ONE SURVIVOR FOUND AND CORRECTED, AND IT CARRIES A CORRECTION TO THE
+460TH FILING'S OWN STATED MECHANISM.** `docs/core-api/02-editing-and-saving.md:1571`
+— written inside `cd3933c` itself — cited **`259.2`, prefixed with the word
+`Pass`** (spelled here WITHOUT that prefix on purpose, for the reason the 460th
+filing recorded and this entry's first draft promptly re-proved: *a ledger
+claim is made by SPELLING, not by meaning*, so a sentence saying an ID was
+never minted still reserves it if it spells the token) — an ID that has
+never been minted and that the 460th filing explicitly declined to mint. It
+also said the report carries **21 fields** where the struct has **23**. Both
+corrected here, taking the same warrant the 460th filing took for the same
+file: **the content corrected is a ledger number, which is this role's**, and
+the alternative is the project's own API reference citing a Pass that does not
+exist.
+
+**★ The correction to the mechanism, which matters more than the survivor.**
+The 460th filing wrote that leaving `259.x` tokens in `docs/core-api/`
+would be caught because *"`check-ledger-numbers.py` drives its Pass ceiling off
+any mention, so those four tokens put `259` into the gate's 'already spoken
+for; do NOT reuse' list."* **That is false about this file.** Measured here:
+`docs/core-api/02-editing-and-saving.md:1571` held the fully `Pass`-prefixed
+token for `259.2` on disk while `python tools/check-ledger-numbers.py` printed
+*"Pass families MENTIONED: up to 258 (highest ID 258.3)"* and `clean` — because
+the gate's input set is `docs/ROADMAP.md`, `docs/SESSION_LOG.md`,
+`docs/decisions/` and `docs/ARCHITECTURE.md` (`check-ledger-numbers.py:116-118`,
+`:380`, `:588`) and **`docs/core-api/` is not in it**. What actually re-reserved
+`259` at the 460th filing was the librarian's own **ROADMAP drafts**, which the
+gate does read. ⇒ ***`docs/core-api/` can carry a fabricated Pass ID
+indefinitely and no gate will ever say so*** — a live `R192` instance (one tool,
+an input set narrower than its obligation), reported to the engineer as owed
+rather than closed here, since widening a gate is `tools/`. **A correction is a
+claim** (hard rule 10's corollary): this one's world-source is the two commands
+above, run in this filing, not the previous entry's reasoning.
+
+**★ ONE CAPABILITY SHIPS WITH NO GUI REACH, STATED RATHER THAN ROUNDED UP
+(`R151`'s shape).** `place_text` has a full CLI surface — `place-text`, **20
+arguments** (one positional `<TEXT_FILE>` + 19 flags, counted on the
+`Command::PlaceText` variant), and **every one of `PlaceTextReport`'s 23 fields
+is read by it**
+(measured field by field over `crates/pdfcer-cli/src/main.rs`; the thinnest is
+one read, `disclosures` is read 43 times). `pdfcer-gui` has not consumed it and
+has not been notified beyond the channel reply, so the `gui` box is `[ ]`, a
+**gap**, not a `—`.
+
+**Sourcing (hard rule 8) — measured HERE with a shell unless marked RELAYED.**
+`git log -1 --format=%B cd3933c` read in full; `git show --stat cd3933c` = **8
+files, 2,792 insertions, 5 deletions** (`main.rs` +479, `edit.rs` +248,
+`text_edit/mod.rs` +7, `text_edit/placetext.rs` +1,512 new,
+`tests/place_text.rs` +503 new, `docs/core-api/index.md` ±1, and the two
+`tools/` gates); `grep -c "#\[test\]" crates/pdfcer-core/tests/place_text.rs`
+= **15**, and the 15 test names read; `PlaceTextReport`'s field count by
+`sed -n '/pub struct PlaceTextReport/,/^}/p' … | grep -c "    pub "` = **23**,
+listed and numbered — **the commit message and the dispatch both say 21, and
+the gate's own arithmetic agrees with 23**: `check-outcome-disclosed.py` prints
+*"185 field(s) across 24 outcome struct(s)"* at `HEAD` against the 460th
+filing's recorded 162/23, and **185 − 162 = 23** (hard rule 10: a total filed
+beside its per-item form is what makes a set-property checkable by one
+subtraction); `python tools/check-ledger-numbers.py` = *"Pass families with
+headings: up to 258 (highest ID 258.3) … standing rules R242 → next free R243 …
+decision records 139 → next free 140 … SESSION_LOG filings 460 → next free
+461"*, `clean`; `python tools/check-core-api-verbs.py` = **PASS — every verb
+documented, count agrees** (208 → **209**, `git show cd3933c -- docs/core-api/index.md`);
+`python tools/check-public-fns-documented.py` = *clean, 33 carried as DEBT*;
+`git remote -v` = `https://github.com/KenM76/pdfcer.git`, `origin/main` =
+`05696b5`, `git log --oneline origin/main..HEAD` = **five** (`0ab3c84`,
+`fe746ec`, `79e76e0`, `d2ea5de`, `cd3933c`) before this filing;
+`git describe --tags --abbrev=0` = `v0.43.0`; `git status --porcelain` = clean
+at the start of this filing; `ls -t D:/Dev/pdfce-backups` newest
+`pdfcer-2026-09-03-1a31d2d-full.bundle`, `git rev-list --count 1a31d2d..HEAD`
+= **133** (131 at the 460th); `df -h /d` = **152 G free of 954 G** (162 G at
+the 460th — 10 G consumed, `target/` churn); the channel reply
+`open/reply_2026-09-06-all-six-review-and-import-requests-SHIPPED.md` read in
+full (**8,488 B**, mtime `2026-09-06 20:26:46 -0400` by `ls --time-style=full-iso`),
+its six-row table naming all six request files against `Pass 253.3` / `253.2` /
+`253.0` / `253.1` / `254.1` / `252.0`; the `Pass 252.0` *Backlog* entry read in
+full at `ROADMAP.md:128309`–`128348` **before** any edit. **RELAYED, not re-run
+here:** workspace `cargo test` **5,037 passed / 0 failed** under
+`--test-threads=4`; `cargo fmt --check`; `cargo clippy --workspace
+--all-targets --all-features -- -D warnings`; `cd fuzz && cargo check --bins`;
+the wasm32 check; `cargo tree` (no GUI/network edge); the 18 non-cargo gates;
+the eight-sabotage matrix; and the `place-text` → `extract-text` round trip on
+the real binary.
+
+**★ THE STARVED-RUN-LOOKS-BROKEN SHAPE, RECORDED AS THE ENGINEER ASKED.** The
+**unbounded** `cargo test` run reports **two `pdfcer-cli` dimension-group tests
+as failing**; they pass **in isolation** and pass under `--test-threads=4`.
+That is a **resource collision, not a defect** — and it is filed here precisely
+so a future session that meets a red unbounded run does not spend a session
+bisecting a bug that is not there. It is the same shape as the 456th filing's
+disk exhaustion (`rustc STATUS_ACCESS_VIOLATION` and `git Out of diskspace`,
+both symptoms of `target/` at 195 GB rather than of any code): **on this
+machine, a red result from a run competing for a scarce resource is evidence
+about the machine first and about the code second.** The honest form of the
+figure, per hard rule 10, is *"5,037 passed / 0 failed at `--test-threads=4`;
+2 failed of 5,037 unbounded, both passing in isolation"* — both numbers, with
+the condition in the label rather than only in the prose beside it.
+
+**Invariant checks.** Rule 2 (GUI-core separation): **no `Cargo.toml` is
+touched** by `cd3933c` (`git show --stat`), so no dependency edge moved and the
+`cargo tree` result is unchanged by construction; the engineer's run is relayed
+above. Rule 3 (round-trip / minimal-diff): an import is **`insert_pages` + N
+boxed `add_text` through the ordinary `EditSession` command path**, so it goes
+out through incremental save like any other edit; `blank_document` produces a
+**new** document rather than mutating an opened one, so the minimal-diff
+obligation does not apply to the scaffold. Rule 4 (fuzzy, never sneaky): this
+Pass is close to a worked example of the rule — an import is **bulk content
+nobody has read character by character**, so every difference between the text
+file and the document is disclosed by a named counter
+(`chars_dropped_unmappable` + `dropped_unmappable_chars` per code point,
+`chars_dropped_control`, `tabs_collapsed`, `whitespace_normalised`,
+`crlf_normalised`, `bom_stripped`, `blank_pages`, `overlong_words`,
+`paragraphs_split_across_pages`, `box_overflow_lines`), the default is
+**refusal** rather than a silent drop, and `Unmappable::Drop` is an explicit
+opt-in that still reports each lost code point. Nothing is drawn on the page to
+mark it. Rule 11 (CLI parity): `place-text` ships in the same commit.
+
+**Rule 11 sweep (hard rule 11, clause (e) — bare keywords over the narrow file
+set the feature touches, every hit read).** Keywords `place_text`,
+`blank_document`, `259`, `21 fields`, `create a page`, `no engine route`,
+`check-public-fns-documented`, over `docs/FEATURES.md`, `docs/ROADMAP.md`,
+`docs/NEXT_SESSION.md`, `docs/ARCHITECTURE.md`, `docs/core-api/*.md`,
+`tools/check-public-fns-documented.py`, `crates/pdfcer-render/src/cmyk_buffer.rs`.
+**ONE survivor, corrected** (`docs/core-api/02-editing-and-saving.md:1571`, the
+`259.2` + 21-fields line above). **ZERO in `crates/`.** **Correct hits
+that a later sweep must NOT "fix":** `cmyk_buffer.rs:1048`'s *"`tools/check-public-fns-documented.py`
+exists because the observable symptom of a corrupted doc block is an
+undocumented NEIGHBOUR"* — a statement of why the gate exists, untouched by a
+change to how it walks attributes; `NEXT_SESSION.md:145`'s *"`check-public-fns-documented.py`
+catches the fn case"* — still true and now more true; the gate's own header
+*"skipping attributes (`#[...]`) and `#[cfg]`-gated stacks"* — the fix widens
+that claim rather than falsifying it; and the six `259` hits in
+`docs/core-api/01-…` and `03-…` are **line numbers**, not Pass IDs. The
+`FEATURES.md` *Planned* row asserting *"No engine route exists"* is **moved and
+rewritten** this filing (below), not left as a survivor.
+
+#### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass IDs | ceiling `258.3`; *Backlog* `252.0` **NOT STARTED** (filed 2026-09-05, 429th) | ceiling **`258.3` UNCHANGED — no new family minted, `259.x` still NOT minted and still free**; **`252.0` discharged *Backlog* → *Shipped*** |
+| Decisions | ceiling `139`, next free `140` | **unchanged** — no decision minted; the candidate (*"the crate gains a document constructor"*) was **considered and declined**: `blank_document` routes through `Document::from_bytes` like every opened file, so no boundary moved and `ARCHITECTURE.md` §4 is not falsified |
+| Standing rules | ceiling `R242`, next free `R243` | **unchanged — `R243` CONSIDERED AND DECLINED**; a **dated instance note added to `R224`** for the gate false positive, with the trigger for a future mint named there |
+| SESSION_LOG filings | `460` | **`461`** |
+| Owed-survivor ledger | ZERO in `crates/`, ONE process item owed to the engineer (five request files with no reply) | **ZERO in `crates/`**; the 460th's process item is **DISCHARGED** — one reply covering all six requests is on disk (8,488 B, `ls` measured), naming each request's Pass ID; **ONE NEW item owed to the engineer**: `tools/check-ledger-numbers.py` cannot see `docs/core-api/` (an `R192` blind spot, measured above) |
+| Unpushed | `0ab3c84`, `fe746ec`, `79e76e0` + the 460th filing | those four + `cd3933c` + this filing — **standing-authorized push** (decision 090) |
+| Unreleased | the three commits + the 460th filing (`v0.43.0` = `2399f53`) | those + `cd3933c` + this filing — the `0.44.0` batch, now **six** |
+
+### `Pass 252.0` (`cd3933c`, 2026-09-06) — ★★★★ **A ROUTE FROM A TEXT FILE BACK INTO A PDF: `EditSession::place_text(text, &PageTemplate, InsertPosition)` — and the primitive underneath it, `text_edit::blank_document`, IS THE FIRST WAY ANYTHING IN `pdfcer-core` HAS EVER CREATED A PAGE RATHER THAN COPIED ONE** — ★★★ **THE *Backlog* ENTRY PREDICTED THE CENTRAL HAZARD BEFORE A LINE EXISTED — "a feature that silently loses eight-ninths of its input while reporting success" — AND `PlaceTextReport::box_overflow_lines` IS THE MACHINE-READABLE ANSWER TO THAT EXACT SENTENCE, ASSERTED ZERO BY A TEST** — ★★ **ONE UNDO ENTRY FOR A WHOLE IMPORT, WHICH THE REQUESTER ASKED FOR BY NAME: plan (pure, refuses before anything exists) → `blank_document` → `insert_pages` → boxed `add_text` per page → `coalesce_last`** — ★ **NO SECOND EMITTER: `add_text` RE-DERIVES THE LINE BREAKS, WHICH IS EXACT BECAUSE GREEDY FIRST-FIT IS PREFIX-STABLE** — discharged from *Backlog* (429th filing, `5f6bf65`), **filed under the ID it already had, `R242`'s first application**
+
+**Origin.** `pdfcer-gui` request
+`open/request_there_is_no_route_from_a_text_file_back_into_a_pdf.md` (mtime
+`2026-09-04 22:12:16 -0400`). The operator asked for *"export/import"* of text;
+the **export** half shipped the same day (`file.export_text`, on
+`text_extract::extract_pages_view` + `ExtractedText::plain_text()`) and the
+sentence could not be finished. This was **the largest of the six requests in
+the batch, not the smallest**, and the reason is the primitive: `pageops`
+inserts, extracts, merges and reorders **existing** pages; `pdfcer_core::build`
+is compile-provenance, not construction; `EditRequest` addresses one located
+run; `add_ocr_layer` needs positioned words a text file does not have. There
+was nothing to build **on**.
+
+**The shape, and why each step is where it is.**
+
+1. **`placetext::plan(text, template)` is PURE and runs FIRST.** Everything
+   that can refuse refuses here, **with nothing created** — the source comment
+   states the reason and it is the right one: *"a refusal after a partial write
+   is not a refusal, and an import is exactly the operation where a partial one
+   is worst."* A half-imported 40 KB file is a document the operator must now
+   audit.
+2. **`blank_document(media, count)`** emits PDF 1.7 bytes and parses them
+   (above). Fractional media boxes go through the writer's own number
+   formatter.
+3. **`insert_pages`** places them at the caller's `InsertPosition`, so an
+   import can **append to an existing document** as well as make a new one
+   (`place-text --input`). A page-less document is **refused by name**.
+4. **N boxed `add_text` calls**, one per planned page.
+5. **`coalesce_last`** folds the lot into **one undo entry**. Honest about its
+   own limit: if an import exceeds the undo depth, `coalesced` comes back
+   **`false`** with a real `undo_entries` count rather than a lie.
+
+**★ The single-emitter argument, which is the design's load-bearing claim.**
+There is **no second wrapper and no second line-breaking emitter**: `add_text`
+re-derives the line breaks from the text the planner assigned to each page.
+That is exact — not approximately exact — **because greedy first-fit is
+prefix-stable**: the break positions greedy first-fit chooses for a prefix of a
+paragraph are the same positions it chooses for that prefix inside the whole
+paragraph. So the planner's pagination and the emitter's line breaking cannot
+disagree, and the project avoids the failure mode it has hit repeatedly
+elsewhere (two code paths describing the same behaviour, drifting).
+
+**Judgement calls, all documented in the module, all rule-4 shaped.**
+
+- **Unmappable characters REFUSE the whole import**, naming **every** one with
+  counts. `Unmappable::Drop` (`--drop-unmappable`) is an **explicit opt-in**
+  that still reports **each lost code point** — dropping silently is not
+  offered at all.
+- **U+000C (form feed) is a HARD PAGE BREAK**, matching **`extract-text`'s own
+  page separator**, so text exported from pdfcer and imported back keeps its
+  pagination. The round trip was verified on the real binary.
+- **Tabs become inter-word whitespace, and the lost indentation is COUNTED**
+  (`tabs_collapsed`) rather than swallowed.
+- **Empty or whitespace-only input is refused by name**; so is **a column too
+  short for one line** (`PageTooShort`) and **a column of no width**
+  (`NoColumn`).
+- **A run of blank lines keeps its pages** rather than being collapsed.
+- **Appends via `InsertPosition`**, refusing by name on a page-less document.
+
+**`PlaceTextReport` — 23 fields, every one read by the CLI** (`pages_created`,
+`first_page_index`, `blank_pages`, `lines_placed`, `lines_per_page`,
+`chars_input`, `chars_placed`, `whitespace_normalised`,
+`chars_dropped_control`, `chars_dropped_unmappable`, `dropped_unmappable_chars`,
+`bom_stripped`, `crlf_normalised`, `tabs_collapsed`, `explicit_page_breaks`,
+`overlong_words`, `paragraphs_split_across_pages`, `box_overflow_lines`,
+`undo_entries`, `coalesced`, `leading_derived`, `leading`, `disclosures`).
+Registered in `tools/check-outcome-disclosed.py` **in the same commit that
+added the struct** — the gate is opt-in by construction, so "clean" otherwise
+means "clean about the structs I was told about", and the registration comment
+argues the case rather than asserting it: *"a shell that ignored
+`dropped_unmappable_chars` would tell an operator an import succeeded while
+their file quietly lost its Greek."*
+
+**Tests — 15, and one of them exists because a sabotage found a bug fourteen
+green tests did not** (the `] TJ` justification-slack assertion; full argument
+in the filing preamble above). Named: `an_import_creates_the_pages_its_text_needs`,
+`every_word_of_the_input_reaches_the_document`,
+`no_placed_line_falls_outside_the_column_it_was_paginated_into`,
+`the_whole_import_is_one_undo_entry`,
+`an_unencodable_character_refuses_the_whole_import_and_names_every_one`,
+`dropping_unencodable_characters_is_opt_in_and_says_exactly_what_was_lost`,
+`every_input_character_is_accounted_for`, `a_form_feed_starts_a_new_page`,
+`an_empty_or_whitespace_only_import_is_refused_by_name`,
+`an_import_appends_and_leaves_the_existing_page_alone`,
+`a_run_of_blank_lines_keeps_its_pages_rather_than_being_swallowed`,
+`a_justified_import_discloses_the_paragraphs_it_had_to_cut`,
+`a_justified_line_is_actually_justified_in_the_content_stream`,
+`place_text_covers_everything_the_boxed_add_would_say`,
+`a_column_too_short_for_one_line_is_refused_by_name`.
+
+**CLI (rule 11).** `pdfcer place-text <TEXT_FILE> -o out.pdf`, with `--input`
+(append into an existing document), `--position`, `--paper`, `--landscape`,
+`--page-size`, `--margin` plus the four per-side overrides, `--font`, `--size`,
+`--leading`, `--align`, `--color`, `--drop-unmappable`, `--mode`, `--producer`.
+Round trip verified on the real binary: `place-text` → `extract-text` returns
+the input.
+
+**Acceptance criteria — from the `Pass 252.0` *Backlog* entry.** The entry
+offered **two** routes and said either was acceptable, plus a reasoned decline.
+**Route 1 (a paginating text placer) is what shipped**, in the sibling-verb
+form the entry described — *"a sibling verb taking `&str` + a page template
+(size, margins, font, size), overflow **creating a page** instead of emitting
+past the edge, returning the pages it created"* — with the undo shape left to
+the engineer, as the entry said, and answered as **one entry**. **Route 2 (a
+page-level text replace, the one answering *"exported, fixed a typo in Notepad,
+put it back"*) is NOT built and is not claimed**; the round trip that ships is
+export → **new pages**, not export → edit → **replace in place**. The entry's
+*"Acceptance: dispatch `pdfcer-acrobat-librarian`"* for Acrobat's "Create PDF
+from text file" pagination behaviour was **not performed** — recorded here as a
+deviation rather than glossed, since the entry named it. Neither of those is
+filed as a new Pass: route 2 was an alternative, not an unbuilt half, and the
+operator's sentence is now finishable.
+
 **★★★★ 460th filing, 2026-09-06 — FIVE PASSES SHIPPED FROM THREE COMMITS, AND
 ★★★★ **NOT ONE OF THEM IS THE ID THE DISPATCH ASKED FOR. FOUR OF THE FIVE WERE
 ALREADY MINTED IN *Backlog* AS `Pass 253.0`–`253.3` ON 2026-09-05 (`5f6bf65`,
@@ -128306,7 +128649,25 @@ is the first step and may re-rank this either way.
 because Acrobat edits such text (by a different route); pdfcer's route is
 what is planned.
 
-### `Pass 252.0` — ★★★ **A ROUTE FROM A TEXT FILE BACK INTO A PDF — the IMPORT half of "export/import as text"** — filed 2026-09-05 (429th filing, `pdfcer-gui` request 2026-09-04), **NOT STARTED**
+### ~~`Pass 252.0` — ★★★ **A ROUTE FROM A TEXT FILE BACK INTO A PDF — the IMPORT half of "export/import as text"** — filed 2026-09-05 (429th filing, `pdfcer-gui` request 2026-09-04), **NOT STARTED**~~ — **DISCHARGED 2026-09-06 (461st filing): SHIPPED as `Pass 252.0` (`cd3933c`), see *Shipped* above — route 1 (the paginating placer) built; route 2 (a page-level text replace) NOT built and not claimed.**
+
+**★ Discharge note, 461st filing — THIS ENTRY WAS FOUND, AND THAT IS THE
+POINT.** The four `Pass 253.x` entries above were discharged one filing earlier
+**without** being found: the session that shipped them dispatched the work as
+new and asked for fresh IDs, because a scoped request stays in the channel's
+`open/` and an audit that reads `open/` counts it as outstanding. **`R242` was
+minted for exactly that, at 19:58 on 2026-09-06.** `cd3933c` was committed at
+**20:26 — 28 minutes later** — and its message records the new habit being
+exercised: *"found by grepping ROADMAP for the request's filename before
+writing the commit message."* Against `R242`'s founding intervals of 33 h 56 m
+to 34 h 46 m, the same query cost nothing. **No new ID was minted; `259.x`
+remains free.**
+
+**★ And this entry had already predicted the implementation's hardest point** —
+the crop-box overflow named in its own body below, which shipped as
+`PlaceTextReport::box_overflow_lines`, a self-check asserted zero by a test.
+A *Backlog* entry that anticipates the central failure mode is scoping paying
+for itself, and it is filed as such because scoping is otherwise invisible work.
 
 Origin: `pdfcer-gui` request
 `open/request_there_is_no_route_from_a_text_file_back_into_a_pdf.md`. The
@@ -154028,6 +154389,68 @@ same cause (hashes exist only at commit time), two different failure modes.
   can be empty"* — reaches this without stretching, and per-occurrence
   elevation is forbidden by the 2026-08-05 ruling. **Ceiling stays `R224`,
   next free `R225`.**
+
+  **★★ DATED INSTANCE NOTE, 2026-09-06 (461st filing) — THIS RULE'S MAXIM HAS A
+  SECOND HALF, AND THE PROJECT LEARNED IT THE WAY IT LEARNS EVERYTHING. `R243`
+  CONSIDERED AND DECLINED; FILED HERE INSTEAD, BECAUSE THE HONEST FILING IS THE
+  ONE THAT MAKES TWO EXISTING CLAIMS AGREE RATHER THAN A THIRD NUMBERED
+  ASSERTION.**
+
+  The maxim above reads *"a false positive costs an hour; a false negative
+  costs the class the gate was built for."* **That is true of a heuristic being
+  DESIGNED and false of a gate already SHIPPED**, and `cd3933c` is the
+  measurement. `tools/check-public-fns-documented.py` reported a **documented**
+  `pub fn` as undocumented: its upward walk over attributes accepted only a
+  closing line that was **exactly** `)]` or `}]`, so an attribute whose inner
+  lines carry content —
+
+      #[allow(
+          clippy::too_many_arguments,
+      )]
+
+  — terminated the walk on `clippy::too_many_arguments,` and the doc block
+  above it was never seen. **A subagent took the gate's word and restructured
+  the function around it.** Fixed by walking bracket depth, proved in both
+  directions with a throwaway probe file (documented multi-line case passes; a
+  genuinely undocumented one still caught).
+
+  **Why the two halves do not contradict each other, which is the whole reason
+  to file this here rather than as a new number.** The maxim is about the
+  moment a scan is being **written**, where a false positive *fails loudly* and
+  is therefore *fixed* — the 30-line-window cut above flagged all four
+  known-good sites and was replaced the same hour. Once a gate is **shipped and
+  trusted**, a false positive is no longer loud: it is **obeyed**. Its cost is
+  not an hour of investigation but **a change to working code, made by an
+  author who had no reason to doubt the tool**, landing in a diff that looks
+  like a cleanup. ⇒ ***"Write the strict version first" applies while you can
+  still see the gate fail; after it ships, the reviewer of a gate's finding is
+  the author it is instructing, and that author has no independent evidence.***
+
+  **The project already held both halves and had never put them side by side.**
+  `check-commits-filed`'s own filing records the engineer's words — *"a gate
+  that cries wolf on correct work is a gate everyone learns to ignore… a gate's
+  false-positive rate is a correctness property of the gate, not a tolerable
+  nuisance"* — which is the **ignored** failure mode. `cd3933c` is the
+  **obeyed** one, and it is strictly worse: an ignored gate wastes the gate; an
+  obeyed one damages the code. Two dispositions, one property.
+
+  **Why no mint, stated so a future session can overrule it on evidence rather
+  than re-argue it.** (a) At **n = 2** for the obeyed direction, this project's
+  own bar declines — the 456th filing declined a queue rule at n = 2 with its
+  trigger named, and `R242` was minted at n = 5. (b) A new rule whose text
+  contradicted `R224`'s maxim would leave the two numbered claims to be
+  reconciled by whoever met them next, which is the failure `R192` and hard
+  rule 11 both exist to prevent. (c) There is **no mechanical carrier** for it:
+  a gate cannot check its own precision, so the remedy is a habit —
+  *when a gate tells you working code is wrong, reproduce its finding on a
+  probe before changing the code* — and habits belong in the rule they qualify.
+  **Trigger for a future mint, named rather than left implicit: a THIRD
+  instance in which a gate's false positive changes source that was correct.**
+  At that point the shape earns its own number and this note becomes its
+  evidence table.
+
+  **Ceiling stays `R242` (project-wide), next free `R243`. `R224`'s own
+  numbering is untouched.**
 
 - **R225 — BEFORE TRUSTING A GREEN SABOTAGE RUN, ASK WHAT THE *FIXTURE* WOULD
   HAVE SHOWN. A FIXTURE ON WHICH THE CORRECT ANSWER AND THE PLAUSIBLE WRONG
