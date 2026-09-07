@@ -129497,6 +129497,122 @@ Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
 
+> ★★ **ONE ITEM ADDED 2026-09-07 (467th filing) — `docs/core-api/`'s
+> LINE-NUMBER CITATIONS ARE SYSTEMICALLY WRONG, MEASURED FOR THE FIRST TIME
+> RATHER THAN SPOT-FIXED.** `docs/NEXT_SESSION.md` carried one owed citation
+> (`StickyIcon` at `:1181`, actually `:2837`) inherited from a prior session.
+> This filing measured the CLASS instead of discharging the one instance —
+> see `Pass 259.0` below. No remedy chosen here; the acceptance criteria
+> embed the open choice. `docs/FEATURES.md`: no row (internal doc tooling,
+> not a product capability — see the entry's own note).
+
+### `Pass 259.0` — ★★ **`docs/core-api/`'S 941 LINE-NUMBER CITATIONS ARE UNGATED BY ANY EXISTING TOOL, AND A STRICT SAMPLE MEASURED 0 OF 6 CORRECT** — filed 2026-09-07 (467th filing), **NOT STARTED** — new family (documentation-integrity tooling; no origin Pass)
+
+**Origin.** `docs/NEXT_SESSION.md` inherited a single owed item from a prior
+session: `03-capabilities.md:1181` cites `StickyIcon` at
+`annot_author.rs:1022`; the live location is `:2837`. Fixing that one
+citation and calling the owed item discharged would have retired the flag
+while the class stayed wrong — this filing measured the class instead,
+during an idle loop tick (no shell available to this filing; the counts
+below are relayed from the dispatching session's measurement, not
+independently re-run here).
+
+**Scope measured, across the three `docs/core-api/*.md` files:**
+
+| citation kind | count |
+|---|---|
+| file-qualified (`` `edit.rs:123` ``) | 460 |
+| bare (`` `:123` ``, file taken from surrounding context) | 481 |
+| **total** | **941** |
+
+**No existing gate resolves a line number.**
+`tools/check-cited-commits-exist.py` checks commit hashes;
+`tools/check-cited-verbs-exist.py` checks that a named verb exists
+somewhere in the target file; `tools/check-core-api-verbs.py` counts verbs
+against a stated total. None of the three opens the cited file at the
+cited line.
+
+**Sample 1 — strict.** 17 bare `Symbol:N` citations in
+`03-capabilities.md`, checked against
+`crates/pdfcer-core/src/annot_author.rs` by resolving each named `pub`
+item's real definition line. **6 of 17 resolved to a real item by name; 0
+of those 6 landed on the correct line:**
+
+| symbol | cited | actual |
+|---|---|---|
+| `Color` | `:85` | `:87` |
+| `Quad` | `:129` | `:222` |
+| `TextMarkupKind` | `:179` | `:282` |
+| `LineEnding` | `:299` | `:1153` |
+| `StickyIcon` | `:1022` | `:2837` |
+| `StampName` | `:1060` | `:2960` |
+
+Two more citations on the same lines, same pattern: `MarkupSpec` cited
+`:215`, actual `:318`; `TextAnnotSpec` cited `:1144`, actual `:3044`;
+`Quad::from_rect` cited `:145`, actual `:238`.
+
+**Sample 2 — generous, cross-document.** 40 file-qualified citations,
+random seed 7, drawn across all three `docs/core-api/*.md` files, checked
+by opening the named file at the named line: **26 of 40 (65%) land on a
+plausible definition/doc/blank line; 3 of 40 (7.5%) land past end-of-file;
+11 of 40 (27.5%) land on unrelated code.** The 26-of-40 pass criterion is
+deliberately generous — a citation scores as a pass if the landing line
+merely *starts with* `pub`, `impl`, `fn`, `const`, `#[`, `///`, `//`, or is
+blank, so the honest reading of this sample is *"at least 14 of 40 (35%)
+demonstrably wrong; the remaining 26 unverified, not confirmed."* The 3 of
+40 past-end-of-file citations (e.g. `mod.rs:1148` cited in a 568-line
+file) are wrong under any reading and require no judgement call to
+detect — the natural first gate stage.
+
+**Why this is a Pass and not a doc fix.** `docs/core-api/` is what
+`pdfcer-gui` — a separate project, separate repository, separate engineer
+— builds against; that is the reason this document tree exists at all
+(ruled 2026-08-18, after it was found eight verbs behind and `pdfcer-gui`
+shipped a wrong operator-facing disclosure sourced from the gap). A wrong
+line number sends a consuming project's reader to the wrong code with
+full confidence. The dispatching session characterised this as `R244`'s
+shape one level down — a claim that reads as maintained because nothing
+can check it, and decays silently until someone follows it and lands
+somewhere wrong.
+
+**Acceptance criteria — the scoping Pass decides the REMEDY; none is
+pre-chosen by this filing:**
+
+1. **(a) Fix the numbers.** Restores the class to true today; does not
+   survive the next edit to any cited file. A hand-maintained line number
+   has not been shown sustainable in this codebase — the 0-of-6 strict
+   sample is direct evidence for that, not merely a plausibility argument.
+2. **(b) Drop line numbers from citations, keep symbol names only.**
+   Self-maintaining (a symbol name is a grep target that survives edits; a
+   line number is not) and costs nothing to build, but discards real
+   navigational value for a reader who today jumps straight to a line, and
+   changes a citation convention used ~941 times.
+3. **(c) Build `tools/check-doc-line-citations.py` and drive it to
+   green.** Converts an unfalsifiable claim into a checked one — the
+   staged-denominator treatment already prescribed for
+   `tools/check-public-fns-documented.py` applies here too, since this
+   gate would also start **red at baseline across hundreds of instances**.
+   Natural staging: stage 1 is the past-end-of-file check alone (3 known
+   failures in sample 2, zero judgement calls, trivially correct); stage 2
+   is file-qualified citations; stage 3 is bare citations (hardest of the
+   three — requires resolving "file taken from context" per citation).
+
+No remedy is chosen by this filing. A leaning is recorded, not binding on
+the scoping Pass: **(c), staged as above** — because (a) alone is
+evidenced not to hold unassisted, and (b) throws away value the six
+correctly-named (if wrongly-numbered) symbols in sample 1 show a reader
+currently relies on. **Whichever remedy is picked, fixing a subset of the
+941 and calling this entry discharged is explicitly the wrong shape** — a
+partial fix retires the flag while the remainder stays wrong, which reads
+to a future reader as *more* trustworthy than an un-fixed document, not
+less.
+
+**`docs/FEATURES.md`: no row.** This is internal documentation tooling,
+not a product capability — no `core`/`cli`/`gui` box applies, matching the
+precedent already set by `check-cited-commits-exist`,
+`check-cited-verbs-exist` and `check-core-api-verbs`, none of which carry
+a `FEATURES.md` row either.
+
 > ★★★ **`Pass 255.0` SHIPPED and has left this section, 2026-09-05 (435th
 > filing, code `35ca5be`).** Filed here *Backlog* by the 432nd filing, given
 > acceptance criteria by the 434th, shipped the next filing **straight from
