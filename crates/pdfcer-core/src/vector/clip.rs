@@ -303,7 +303,30 @@ impl RawAnnotation {
 #[non_exhaustive]
 pub enum ClipAnnotation {
     /// A markup annotation, as the spec `add_markup` authors from.
-    Markup(Box<crate::annot_author::MarkupSpec>),
+    /// A markup pdfcer MODELS, carried as its spec **plus the properties
+    /// that live beside the spec rather than inside it**.
+    ///
+    /// # ★★ Why the second field exists
+    ///
+    /// `MarkupSpec` describes the SHAPE. Four things an operator can see are
+    /// deliberately not in it — the border **dash** (`/BS` `/S` + `/D`), the
+    /// **opacity** (`/CA`), the **note text** (`/Contents`) and the **author**
+    /// (`/T`) — because they are author-time options, not geometry.
+    ///
+    /// Carrying only the spec therefore **silently lost all four on every
+    /// copy-paste**. A dashed revision cloud came back solid; a 50 %-opacity
+    /// highlight came back opaque; a comment came back blank and unsigned.
+    /// Nothing disclosed it, because from the paste's point of view it was
+    /// authoring a fresh mark and there was nothing to report.
+    ///
+    /// ★ The dash case is the sharpest: `docs/FEATURES.md` enumerated the
+    /// four regeneration routes that used to solidify a dash — *"restyle,
+    /// resize, reshape, author"* — and read as though the class were closed.
+    /// **Copy-paste was a fifth and was not in the list.**
+    Markup(
+        Box<crate::annot_author::MarkupSpec>,
+        Box<crate::annot_author::MarkupCarry>,
+    ),
     /// A **ce dimension** — pdfcer's own measured annotation (project rule 15;
     /// this is never a *pdf dimension*, which is page content and travels as a
     /// [`ClipItem`]).
@@ -396,7 +419,7 @@ impl ClipAnnotation {
     #[must_use]
     pub fn label(&self) -> String {
         match self {
-            Self::Markup(_) => "markup".to_owned(),
+            Self::Markup(..) => "markup".to_owned(),
             Self::Dimension { .. } => "ce dimension".to_owned(),
             Self::Raw(raw) => raw.subtype.clone(),
             Self::Unsupported { subtype } => format!("{subtype} (unsupported)"),
@@ -868,9 +891,12 @@ impl ObjectClip {
         );
         for annotation in &self.annotations {
             match annotation {
-                ClipAnnotation::Markup(spec) => {
+                ClipAnnotation::Markup(spec, carry) => {
                     out.push(0);
                     put_cos(&mut out, &crate::annot_author::encode_spec(spec));
+                    // The author-time properties, as a SECOND object rather
+                    // than extra keys in the spec's -- see `MarkupCarry`.
+                    put_cos(&mut out, &crate::annot_author::encode_carry(carry));
                 }
                 ClipAnnotation::Dimension {
                     group_name,
@@ -1051,10 +1077,15 @@ impl ObjectClip {
             annotations.reserve(count);
             for _ in 0..count {
                 annotations.push(match r.take(1)?.first().copied().unwrap_or(2) {
-                    0 => ClipAnnotation::Markup(Box::new(
-                        crate::annot_author::decode_spec(&r.cos()?)
-                            .map_err(|e| ClipError::Content(e.to_string()))?,
-                    )),
+                    0 => {
+                        let spec = crate::annot_author::decode_spec(&r.cos()?)
+                            .map_err(|e| ClipError::Content(e.to_string()))?;
+                        // Read in the order written. `decode_carry` cannot
+                        // fail -- a garbled optional property reads as absent
+                        // rather than losing the geometry with it.
+                        let carry = crate::annot_author::decode_carry(&r.cos()?);
+                        ClipAnnotation::Markup(Box::new(spec), Box::new(carry))
+                    }
                     1 => {
                         let group_name = String::from_utf8_lossy(&r.bytes()?).into_owned();
                         let (format, scale, standard) =

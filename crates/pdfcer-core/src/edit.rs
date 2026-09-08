@@ -11821,7 +11821,21 @@ impl EditSession {
         // enclosing it. Everything else -- and that is most annotations --
         // travels as its own dictionary.
         match crate::annot_author::spec_from_dict(&self.graph(), &dict) {
-            Ok(spec) => Ok(crate::vector::ClipAnnotation::Markup(Box::new(spec))),
+            Ok(spec) => {
+                // The four properties that live BESIDE the spec. Read here
+                // rather than at paste, because paste has only the clip --
+                // the source document may not even be open by then.
+                let carry = crate::annot_author::MarkupCarry {
+                    dash: crate::annot_author::read_border_dash(&self.graph(), &dict),
+                    opacity: annot.constant_alpha,
+                    contents: annot.contents.clone(),
+                    author: annot.title.clone(),
+                };
+                Ok(crate::vector::ClipAnnotation::Markup(
+                    Box::new(spec),
+                    Box::new(carry),
+                ))
+            }
             Err(_) => self.clip_raw_annotation(annot, id, &dict),
         }
     }
@@ -12075,7 +12089,7 @@ impl EditSession {
         let axis_aligned = at.b == 0.0 && at.c == 0.0;
         for annotation in &clip.annotations {
             match annotation {
-                ClipAnnotation::Markup(spec) => {
+                ClipAnnotation::Markup(spec, carry) => {
                     let moved = crate::annot_author::transform_spec(spec, at);
                     if !axis_aligned && moved.1 {
                         disclosures.push(format!(
@@ -12083,7 +12097,30 @@ impl EditSession {
                             annotation.label()
                         ));
                     }
-                    self.add_markup(page_index, &moved.0)?;
+                    // ★ The carried properties, applied through the SAME
+                    // options type authoring uses -- so a pasted mark and a
+                    // freshly-authored one go through one code path and
+                    // cannot disagree about how a dash or an opacity is
+                    // written. Before this the paste called `add_markup`
+                    // with defaults and silently dropped all four.
+                    // A note exists if EITHER half was carried: an unsigned
+                    // comment and a signed blank are both things a source
+                    // annotation can legitimately be, and reconstructing the
+                    // missing half as an empty string is how `/Contents` and
+                    // `/T` stay independent through the round trip.
+                    let note = (carry.contents.is_some() || carry.author.is_some()).then(|| {
+                        let note = MarkupNote::new(carry.contents.clone().unwrap_or_default());
+                        match &carry.author {
+                            Some(a) => note.by(a.clone()),
+                            None => note,
+                        }
+                    });
+                    let opts = MarkupOptions {
+                        dash: carry.dash.clone(),
+                        opacity: carry.opacity,
+                        note,
+                    };
+                    self.add_markup_with(page_index, &moved.0, &opts)?;
                     placed += 1;
                 }
                 ClipAnnotation::Dimension {

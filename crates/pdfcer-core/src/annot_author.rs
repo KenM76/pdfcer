@@ -1195,6 +1195,68 @@ pub struct AuthoredAppearance {
 // The clipboard codec (`Pass 169.0`)
 // ---------------------------------------------------------------------------
 
+/// Encode a [`MarkupCarry`] for the clipboard, as a sibling of
+/// [`encode_spec`].
+///
+/// A separate object rather than extra keys inside the spec's dictionary:
+/// the spec is also what `reshape` and `restyle` rebuild from, and burying
+/// author-time properties in it would put them one careless `decode_spec`
+/// away from being treated as geometry.
+///
+/// Absent fields are omitted, not defaulted — `None` means the source did not
+/// have one, and [`decode_carry`] must be able to tell that from a zero.
+#[must_use]
+pub fn encode_carry(carry: &MarkupCarry) -> Object {
+    let mut d = Dict::new();
+    if let Some(dash) = &carry.dash {
+        d.insert(
+            Name::from(b"D"),
+            Object::Array(dash.pattern().iter().map(|v| Object::Real(*v)).collect()),
+        );
+    }
+    if let Some(ca) = carry.opacity {
+        d.insert(Name::from(b"CA"), Object::Real(ca));
+    }
+    if let Some(t) = &carry.contents {
+        d.insert(
+            Name::from(b"Contents"),
+            Object::String(t.clone().into_bytes()),
+        );
+    }
+    if let Some(t) = &carry.author {
+        d.insert(Name::from(b"T"), Object::String(t.clone().into_bytes()));
+    }
+    Object::Dict(d)
+}
+
+/// Decode what [`encode_carry`] wrote.
+///
+/// Never fails: a malformed or absent entry reads as `None`, which is the
+/// same answer as "the source did not have one". A clipboard is not a
+/// document — refusing to paste a whole mark because one optional property
+/// was garbled would lose the geometry too, and the geometry is what the
+/// operator asked for.
+#[must_use]
+pub fn decode_carry(obj: &Object) -> MarkupCarry {
+    let Some(d) = obj.as_dict() else {
+        return MarkupCarry::default();
+    };
+    let text = |k: &[u8]| match d.get(k) {
+        Some(Object::String(b)) => Some(String::from_utf8_lossy(b).into_owned()),
+        _ => None,
+    };
+    MarkupCarry {
+        dash: d
+            .get(b"D")
+            .and_then(Object::as_array)
+            .map(|a| a.iter().filter_map(Object::as_number).collect::<Vec<_>>())
+            .and_then(BorderDash::new),
+        opacity: d.get(b"CA").and_then(Object::as_number),
+        contents: text(b"Contents"),
+        author: text(b"T"),
+    }
+}
+
 /// The clipboard's exact COS encoding of a [`MarkupSpec`].
 ///
 /// # ★ Why this is not `build_appearance(spec).annot`, which was tried first
@@ -3239,6 +3301,36 @@ pub struct CheckBoxStateAppearance {
     pub ap_dict: Dict,
     /// The state's content-stream bytes (raw, unfiltered).
     pub content: Vec<u8>,
+}
+
+/// The author-time properties that travel BESIDE a [`MarkupSpec`] — what a
+/// clipboard has to carry so a pasted mark is the one that was copied.
+///
+/// # Why these four are not in the spec
+///
+/// [`MarkupSpec`] describes the **shape**: where the points are, what colour
+/// the stroke is, how wide. These four are properties of the *annotation*
+/// rather than the geometry — the border **dash**, the **opacity**, the
+/// **note text**, and the **author** — and keeping them out of the spec is
+/// right, because the spec is also what a *reshape* and a *restyle* rebuild
+/// from and neither of those should be able to change an author's name.
+///
+/// The cost was that anything carrying a spec alone dropped all four, which
+/// is what the clipboard did until 2026-09-08.
+///
+/// All four are `Option`, and `None` means **the source did not have one** —
+/// not "use a default". A paste writes only what it was given.
+#[derive(Debug, Clone, PartialEq, Default)]
+#[non_exhaustive]
+pub struct MarkupCarry {
+    /// `/BS` `/S /D` + `/D` — the border dash pattern.
+    pub dash: Option<BorderDash>,
+    /// `/CA` — constant opacity, `0.0`–`1.0`.
+    pub opacity: Option<f64>,
+    /// `/Contents` — the note text.
+    pub contents: Option<String>,
+    /// `/T` — the author (Table 170's title).
+    pub author: Option<String>,
 }
 
 /// Which glyph a check box or radio button draws when it is **on**
