@@ -4517,6 +4517,20 @@ enum Command {
         /// Where the widget is visible (§12.5.3 Table 165).
         #[arg(long, value_enum, default_value_t = VisibilityArg::Visible)]
         visibility: VisibilityArg,
+        /// Which glyph the box draws when ON: check, cross, star, circle,
+        /// square or diamond. Default `check`.
+        ///
+        /// These are Acrobat's six. pdfcer draws each as VECTOR ARTWORK and
+        /// also records the choice in `/MK /CA` as the ZapfDingbats character
+        /// Acrobat stores, so another editor reads back which style you
+        /// picked.
+        ///
+        /// Drawing rather than setting a ZapfDingbats font is deliberate:
+        /// Acrobat's own appearance depends on resolving that font at display
+        /// time and has a long-standing bug failing to, leaving the box
+        /// blank. Paths need no font and no substitution.
+        #[arg(long, value_name = "check|cross|star|circle|square|diamond")]
+        check_style: Option<String>,
     },
 
     /// Author one member of a radio group (ISO 32000-1 §12.7.4.2.1).
@@ -10124,6 +10138,7 @@ fn run() -> ExitCode {
             border,
             border_width,
             visibility,
+            check_style,
         } => cmd_add_check_box(&AddCheckBoxArgs {
             input: &input,
             name: &name,
@@ -10142,6 +10157,7 @@ fn run() -> ExitCode {
             border,
             border_width,
             visibility,
+            check_style: check_style.as_deref(),
         }),
         Command::AddRadioButton {
             input,
@@ -30121,6 +30137,8 @@ struct AddTextFieldArgs<'a> {
 
 /// Borrowed argument bundle for [`cmd_add_check_box`] (clippy arg-count).
 struct AddCheckBoxArgs<'a> {
+    /// Which glyph the ON state draws — `CheckStyle::parse` names.
+    check_style: Option<&'a str>,
     input: &'a Path,
     name: &'a str,
     page: usize,
@@ -30267,6 +30285,19 @@ fn cmd_add_check_box(args: &AddCheckBoxArgs<'_>) -> u8 {
         .with_flags(args.read_only, args.required)
         .with_border(args.border.into(), args.border_width)
         .with_visibility(args.visibility.into());
+
+    // The tick style. Refused by name on an unknown word rather than silently
+    // defaulting to a check: an operator who typed `--check-style tik` wants
+    // to be told, not to get a tick and believe it worked.
+    if let Some(name) = args.check_style {
+        let Some(style) = pdfcer_core::annot_author::CheckStyle::parse(name) else {
+            eprintln!(
+                "pdfcer: --check-style {name:?} -- known: check, cross, star, circle, square,                  diamond (Acrobat's six)"
+            );
+            return exit::RUNTIME_ERROR;
+        };
+        spec.style = style;
+    }
     // R105: exactly one of the two must have been chosen. `clap`'s
     // `conflicts_with` rules out BOTH; only "neither" can reach here, and it
     // is refused rather than defaulted.

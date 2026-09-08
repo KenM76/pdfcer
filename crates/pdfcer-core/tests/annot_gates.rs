@@ -126,10 +126,14 @@ fn set_locked(s: &mut EditSession, id: ObjId) {
 fn every_transform_verb_refuses_a_locked_annotation() {
     // (name, the call) — each built fresh, because a refusal must leave the
     // session usable and a shared one would hide a partial mutation.
-    let cases: Vec<(
-        &str,
+    /// One transform verb, as a name and a call. A `type` alias because the
+    /// tuple is otherwise complex enough that clippy asks for one — and it
+    /// reads better at the call sites below.
+    type Verb = (
+        &'static str,
         Box<dyn Fn(&mut EditSession, ObjId) -> Result<(), EditError>>,
-    )> = vec![
+    );
+    let cases: Vec<Verb> = vec![
         (
             "move_annotation",
             Box::new(|s: &mut EditSession, id| s.move_annotation(id, 10.0, 10.0).map(|_| ())),

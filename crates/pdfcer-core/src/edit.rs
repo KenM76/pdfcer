@@ -2124,6 +2124,16 @@ pub struct NewCheckBox {
     pub border: BorderSpec,
     /// `/F` — where the widget is visible (§12.5.3 Table 165).
     pub visibility: Visibility,
+    /// Which glyph the box draws when it is ON
+    /// ([`crate::annot_author::CheckStyle`], `Pass 261.0`).
+    ///
+    /// Defaults to [`CheckStyle::Check`], which is what every earlier pdfcer
+    /// version drew, so an existing caller's output is unchanged.
+    ///
+    /// pdfcer draws the shape as vector artwork **and** records the choice in
+    /// `/MK` `/CA` — see the type for why both, and why not a ZapfDingbats
+    /// `Tf`.
+    pub style: crate::annot_author::CheckStyle,
 }
 
 /// The facts about an existing radio group that a joining member is checked
@@ -2213,6 +2223,15 @@ pub struct NewRadioButton {
     pub border: BorderSpec,
     /// `/F` — where the widget is visible (§12.5.3 Table 165).
     pub visibility: Visibility,
+    /// Which glyph the button draws when it is ON
+    /// ([`crate::annot_author::CheckStyle`], `Pass 261.0`).
+    ///
+    /// Defaults to [`CheckStyle::Check`]. ★ pdfcer does **not** force
+    /// [`CheckStyle::Circle`] here even though a filled circle is the
+    /// conventional radio glyph — Acrobat does not force it either, and
+    /// silently overriding a caller's explicit choice is the substitution
+    /// this project refuses elsewhere.
+    pub style: crate::annot_author::CheckStyle,
 }
 
 impl NewRadioButton {
@@ -2255,6 +2274,7 @@ impl NewRadioButton {
             tooltip: TooltipChoice::Undecided,
             no_toggle_to_off: false,
             radios_in_unison: false,
+            style: crate::annot_author::CheckStyle::default(),
             read_only: false,
             required: false,
             // Table 166 / Table 165 defaults, so a field created without
@@ -2381,6 +2401,7 @@ impl NewCheckBox {
             name: name.into(),
             rect,
             on_state: "Yes".to_owned(),
+            style: crate::annot_author::CheckStyle::default(),
             checked: false,
             tooltip: TooltipChoice::Undecided,
             read_only: false,
@@ -20986,7 +21007,7 @@ impl EditSession {
         // VECTOR artwork, not a ZapfDingbats glyph — see
         // `build_check_box_appearances` for why the shared text generator
         // cannot draw a check mark.
-        let (off, on) = annot_author::build_check_box_appearances(w, h);
+        let (off, on) = annot_author::build_check_box_appearances(w, h, spec.style);
         let off_id = ObjId::new(self.alloc_number()?, 0);
         let on_id = ObjId::new(self.alloc_number()?, 0);
 
@@ -21038,6 +21059,33 @@ impl EditSession {
         let mut ap = Dict::new();
         ap.insert(Name::from(b"N"), Object::Dict(n));
         d.insert(Name::from(b"AP"), Object::Dict(ap));
+
+        // `/MK` `/CA` — record WHICH glyph the operator picked, as the single
+        // ZapfDingbats character Acrobat stores (Table 189/192). pdfcer's own
+        // artwork does not need it: the shape is already drawn as paths in
+        // the `/AP` above, which is what makes it render without resolving a
+        // font (see `CheckStyle`).
+        //
+        // ★ It is written for INTEROPERABILITY and for pdfcer's own resize.
+        // Without it the operator's choice would be invisible to every other
+        // editor's style picker, and `build_button_states` — which recovers
+        // the style from exactly this key — would redraw a tick the first
+        // time the field was resized.
+        //
+        // PRESERVE-AND-PATCH, because the creation path above already put a
+        // hard-coded `/BC` in here and a fresh dictionary would drop it.
+        {
+            let mut mk = d
+                .get(b"MK")
+                .and_then(Object::as_dict)
+                .cloned()
+                .unwrap_or_default();
+            mk.insert(
+                Name::from(b"CA"),
+                Object::String(vec![spec.style.mk_caption_char()]),
+            );
+            d.insert(Name::from(b"MK"), Object::Dict(mk));
+        }
 
         let mut objects = vec![
             ObjectWrite {
@@ -33420,7 +33468,25 @@ impl EditSession {
     ) -> Result<Vec<annot_author::CheckBoxStateAppearance>, EditError> {
         Ok(match kind {
             forms::ButtonKind::Check => {
-                let (off, on) = annot_author::build_check_box_appearances(w, h);
+                // ★ The style is recovered from `/MK` `/CA`, which this
+                // function already receives — so RESIZING a star check box
+                // redraws a star, not a tick. Without this the operator's
+                // choice would survive in the file (Table 189 is advisory, so
+                // nothing clears it) and vanish from the pixels on the first
+                // geometry edit: the worst of both.
+                //
+                // An unrecognised character falls back to `Check` rather than
+                // refusing. `/MK` `/CA` is unconstrained by Table 189, so a
+                // producer may legitimately store anything there, and refusing
+                // to redraw a box because pdfcer cannot name its glyph would
+                // make a foreign field unresizable.
+                let style = caption
+                    .as_bytes()
+                    .first()
+                    .copied()
+                    .and_then(annot_author::CheckStyle::from_mk_caption_char)
+                    .unwrap_or_default();
+                let (off, on) = annot_author::build_check_box_appearances(w, h, style);
                 vec![off, on]
             }
             forms::ButtonKind::Radio => {

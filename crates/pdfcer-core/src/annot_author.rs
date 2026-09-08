@@ -3241,6 +3241,148 @@ pub struct CheckBoxStateAppearance {
     pub content: Vec<u8>,
 }
 
+/// Which glyph a check box or radio button draws when it is **on**
+/// (`Pass 261.0`, 2026-09-07).
+///
+/// # Acrobat's six, and why pdfcer draws them rather than setting a font
+///
+/// Acrobat's check-box options expose exactly six styles — Check, Cross,
+/// Star, Circle, Square, Diamond — and stores the choice as a
+/// **single-character `/MK` `/CA` string** naming a ZapfDingbats glyph
+/// (Table 189/192). The character codes are not folklore; they were derived
+/// for this from Adobe's own `ZapfDingbats.afm` metrics and the Adobe Glyph
+/// List, and independently reproduced by a second method before being
+/// accepted:
+///
+/// | Style | `/MK` `/CA` | ZapfDingbats glyph | Unicode |
+/// |---|---|---|---|
+/// | [`Self::Check`] | `4` | `a20` | U+2714 heavy check mark |
+/// | [`Self::Cross`] | `8` | `a24` | U+2718 heavy ballot X |
+/// | [`Self::Star`] | `H` | `a35` | U+2605 black star |
+/// | [`Self::Circle`] | `l` | `a71` | U+25CF black circle |
+/// | [`Self::Square`] | `n` | `a73` | U+25A0 black square |
+/// | [`Self::Diamond`] | `u` | `a78` | U+25C6 black diamond |
+///
+/// ★★ **pdfcer writes that character AND draws the shape as vector
+/// artwork.** Acrobat's own appearance streams `Tf` a ZapfDingbats font and
+/// show the glyph, which makes the tick depend on resolving that font at
+/// display time — and Acrobat and Reader have a real, recurring bug failing
+/// exactly that resolution, leaving the box blank. Drawing the shape into
+/// the `/AP` removes the dependency: the artwork is paths, so it needs no
+/// font, no `/Resources` entry and no substitution, and it renders
+/// identically everywhere.
+///
+/// `/MK` `/CA` is written anyway, because Table 189 is **advisory** and it is
+/// how any other editor reads back *"which style did the operator pick"* to
+/// populate its own picker. Writing the artwork without the character would
+/// make the choice invisible to every other tool; writing the character
+/// without the artwork would inherit Acrobat's bug.
+///
+/// # `Off` draws the box only
+///
+/// No style affects the off state — it is the border and nothing else, on
+/// every style. §12.7.4.2.3's on/off pair is what carries the value; the
+/// glyph is only ever the on half.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum CheckStyle {
+    /// A tick. Acrobat's default and pdfcer's, so an unspecified style
+    /// produces exactly what every earlier pdfcer version produced.
+    #[default]
+    Check,
+    /// A saltire cross — the ballot X, not a plus sign.
+    Cross,
+    /// A five-pointed star.
+    Star,
+    /// A filled circle. On a RADIO button this is the conventional choice and
+    /// the one an operator expects; pdfcer does not force it, because Acrobat
+    /// does not either.
+    Circle,
+    /// A filled square.
+    Square,
+    /// A filled diamond — a square on its point, not a rhombus.
+    Diamond,
+}
+
+impl CheckStyle {
+    /// The `/MK` `/CA` character Acrobat stores for this style.
+    ///
+    /// A single ASCII byte indexing the ZapfDingbats encoding — see the table
+    /// on the type. Written so another editor can read the operator's choice
+    /// back; pdfcer's own artwork does not depend on it.
+    #[must_use]
+    pub const fn mk_caption_char(self) -> u8 {
+        match self {
+            Self::Check => b'4',
+            Self::Cross => b'8',
+            Self::Star => b'H',
+            Self::Circle => b'l',
+            Self::Square => b'n',
+            Self::Diamond => b'u',
+        }
+    }
+
+    /// Recover a style from a `/MK` `/CA` character.
+    ///
+    /// `None` for any other byte, and that is a fact worth reporting rather
+    /// than defaulting: Table 189 places no constraint on `/CA`, so a
+    /// producer may legitimately store a character outside these six, and
+    /// answering [`Self::Check`] would tell a shell's picker the operator
+    /// chose a tick when they chose something pdfcer cannot name.
+    #[must_use]
+    pub const fn from_mk_caption_char(c: u8) -> Option<Self> {
+        match c {
+            b'4' => Some(Self::Check),
+            b'8' => Some(Self::Cross),
+            b'H' => Some(Self::Star),
+            b'l' => Some(Self::Circle),
+            b'n' => Some(Self::Square),
+            b'u' => Some(Self::Diamond),
+            _ => None,
+        }
+    }
+
+    /// The lower-case name pdfcer's CLI and reports use.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Check => "check",
+            Self::Cross => "cross",
+            Self::Star => "star",
+            Self::Circle => "circle",
+            Self::Square => "square",
+            Self::Diamond => "diamond",
+        }
+    }
+
+    /// Parse [`Self::as_str`], case-insensitively. `None` on anything else.
+    #[must_use]
+    pub fn parse(name: &str) -> Option<Self> {
+        match name.to_ascii_lowercase().as_str() {
+            "check" | "tick" => Some(Self::Check),
+            "cross" | "x" => Some(Self::Cross),
+            "star" => Some(Self::Star),
+            "circle" => Some(Self::Circle),
+            "square" => Some(Self::Square),
+            "diamond" => Some(Self::Diamond),
+            _ => None,
+        }
+    }
+
+    /// Every style, for a shell building a picker and for exhaustive tests.
+    #[must_use]
+    pub const fn all() -> [Self; 6] {
+        [
+            Self::Check,
+            Self::Cross,
+            Self::Star,
+            Self::Circle,
+            Self::Square,
+            Self::Diamond,
+        ]
+    }
+}
+
 /// Build a check box's **two** appearance states — on and off — as
 /// vector-drawn artwork (§12.7.4.2.3).
 ///
@@ -3285,6 +3427,7 @@ pub struct CheckBoxStateAppearance {
 pub fn build_check_box_appearances(
     width: f64,
     height: f64,
+    style: CheckStyle,
 ) -> (CheckBoxStateAppearance, CheckBoxStateAppearance) {
     let (w, h) = (width.max(1.0), height.max(1.0));
     let rect = Rect {
@@ -3310,22 +3453,96 @@ pub fn build_check_box_appearances(
 
     let mut on = ContentBuilder::new();
     border(&mut on);
-    // The check itself: a short down-stroke into a long up-stroke, scaled to
-    // the box and centred, with a round join so the vertex reads as a tick
-    // rather than as two crossing lines. Proportions are the conventional
-    // check: the descender lands ~40% across and the ascender rises above
-    // the start of the down-stroke.
+    // The glyph, as VECTOR ARTWORK rather than a ZapfDingbats `Tf`+`Tj`.
+    // See `CheckStyle`: Acrobat sets the font and has a recurring bug failing
+    // to resolve it, which leaves the box blank; paths need no font, no
+    // `/Resources` entry and no substitution.
+    //
+    // All six share one frame so they read as a set at any box size: `s` is
+    // the half-extent of a centred square inset by a quarter of the smaller
+    // side, which is what keeps a 12pt box and a 40pt box looking alike.
     let m = (w.min(h)) * 0.25;
     let (cx, cy) = (w / 2.0, h / 2.0);
     let s = (w.min(h) - 2.0 * m) / 2.0;
     on.set_stroke_gray(0.0);
-    on.set_line_width((s * 0.32).max(0.6));
+    on.set_fill_gray(0.0);
     on.set_line_cap(LineCap::Round);
     on.set_line_join(LineJoin::Round);
-    on.move_to(cx - s, cy + s * 0.1);
-    on.line_to(cx - s * 0.25, cy - s * 0.7);
-    on.line_to(cx + s, cy + s * 0.8);
-    on.paint(Paint::Stroke);
+    match style {
+        CheckStyle::Check => {
+            // A short down-stroke into a long up-stroke, round-joined so the
+            // vertex reads as a tick and not as two crossing lines. The
+            // descender lands ~40% across and the ascender rises above the
+            // start of the down-stroke -- the conventional proportions.
+            on.set_line_width((s * 0.32).max(0.6));
+            on.move_to(cx - s, cy + s * 0.1);
+            on.line_to(cx - s * 0.25, cy - s * 0.7);
+            on.line_to(cx + s, cy + s * 0.8);
+            on.paint(Paint::Stroke);
+        }
+        CheckStyle::Cross => {
+            // A saltire -- two diagonals -- NOT a plus. U+2718 is the ballot
+            // X, and a plus sign would read as "add" on a form.
+            on.set_line_width((s * 0.32).max(0.6));
+            on.move_to(cx - s * 0.8, cy - s * 0.8);
+            on.line_to(cx + s * 0.8, cy + s * 0.8);
+            on.move_to(cx - s * 0.8, cy + s * 0.8);
+            on.line_to(cx + s * 0.8, cy - s * 0.8);
+            on.paint(Paint::Stroke);
+        }
+        CheckStyle::Star => {
+            // Five points, filled. Outer vertices every 72 degrees starting
+            // at 90 (a point straight up, which is what makes it read as a
+            // star rather than as a pentagon), inner vertices at 36 degrees
+            // offset and 0.382 of the radius -- the golden ratio the classic
+            // five-pointed star uses, so the arms are neither spindly nor
+            // stubby.
+            let outer = s * 0.95;
+            let inner = outer * 0.382;
+            for i in 0..10 {
+                let r = if i % 2 == 0 { outer } else { inner };
+                let a = std::f64::consts::FRAC_PI_2 + f64::from(i) * std::f64::consts::PI / 5.0;
+                let (x, y) = (cx + r * a.cos(), cy + r * a.sin());
+                if i == 0 {
+                    on.move_to(x, y);
+                } else {
+                    on.line_to(x, y);
+                }
+            }
+            on.close_subpath();
+            on.paint(Paint::Fill);
+        }
+        CheckStyle::Circle => {
+            // Four Bezier arcs. 0.5523 is the standard circle constant
+            // (4/3 * tan(pi/8)); a smaller value visibly flattens the
+            // quadrants at the sizes a check box is drawn at.
+            let r = s * 0.85;
+            let k = r * 0.552_284_749_8;
+            on.move_to(cx + r, cy);
+            on.curve_to(cx + r, cy + k, cx + k, cy + r, cx, cy + r);
+            on.curve_to(cx - k, cy + r, cx - r, cy + k, cx - r, cy);
+            on.curve_to(cx - r, cy - k, cx - k, cy - r, cx, cy - r);
+            on.curve_to(cx + k, cy - r, cx + r, cy - k, cx + r, cy);
+            on.close_subpath();
+            on.paint(Paint::Fill);
+        }
+        CheckStyle::Square => {
+            let r = s * 0.8;
+            on.rect(cx - r, cy - r, r * 2.0, r * 2.0);
+            on.paint(Paint::Fill);
+        }
+        CheckStyle::Diamond => {
+            // A square on its point, not a rhombus: equal half-extents on
+            // both axes.
+            let r = s * 0.95;
+            on.move_to(cx, cy + r);
+            on.line_to(cx + r, cy);
+            on.line_to(cx, cy - r);
+            on.line_to(cx - r, cy);
+            on.close_subpath();
+            on.paint(Paint::Fill);
+        }
+    }
 
     // No /Resources entries: nothing here names a font, an XObject or a
     // colour space, so an empty dict is correct rather than merely minimal.
