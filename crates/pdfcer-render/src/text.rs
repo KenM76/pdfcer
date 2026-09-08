@@ -750,7 +750,7 @@ fn load_simple(
 
     let program = FontProgram::parse(data.bytes()).map_err(|_| UnsupportedFont::UnusableProgram)?;
     let names = encoding_table(doc, font_dict, embedded_program_present, flags, std14);
-    let gids = resolve_gids(&program, &names);
+    let gids = resolve_gids(&program, &names, flags, embedded_program_present);
 
     // METRICS-ONLY std-14 widening (§9.6.2.2 has no answer for this file).
     //
@@ -1119,39 +1119,138 @@ fn implicit_base(embedded: bool, flags: u32, std14: Option<Std14>) -> Option<Bas
 ///
 /// Order, per §9.6.6.2 and §9.6.6.4:
 ///
-/// 1. With a glyph name, on an **sfnt** program — Branch A:
+/// 1. **A symbolic font with an embedded program takes Branch B FIRST** —
+///    the program's own built-in encoding, keyed by the raw code. See the
+///    section below; this rung is why this function needs `flags` at all.
+/// 2. With a glyph name, on an **sfnt** program — Branch A:
 ///    name → Unicode (AGL) → `(3, 1)` cmap; else name → Mac OS Roman
 ///    code → `(1, 0)` cmap; else the `post` table.
-/// 2. With a glyph name, on a **name-keyed** program (bare CFF,
+/// 3. With a glyph name, on a **name-keyed** program (bare CFF,
 ///    Type 1, and every bundled substitute) — the name directly.
-/// 3. Without a name, or when 1/2 failed — Branch B / the program's
-///    own built-in encoding, keyed by the raw code.
-/// 4. Nothing → `None`, painted as `.notdef` and counted (§9.6.6.2:
+/// 4. Without a name, or when 2/3 failed — Branch B, for the
+///    nonsymbolic fonts that did not take it at rung 1.
+/// 5. Nothing → `None`, painted as `.notdef` and counted (§9.6.6.2:
 ///    "if an encoding maps to a character name that does not exist in
 ///    the Type 1 font program, the `.notdef` glyph shall be
 ///    substituted").
-fn resolve_gids(program: &FontProgram<'_>, names: &[Option<String>]) -> [Option<u32>; 256] {
+///
+/// # ★★ Why rung 1 exists: Branch A silently returns the WRONG glyph
+///
+/// §9.6.6.4 says that when the `Symbolic` flag is set, **the `/Encoding`
+/// entry "is ignored"** and the code is looked up in the program's own
+/// cmap. This function used to run Branch A first whenever a glyph name
+/// was present, symbolic or not — and a symbolic font may perfectly well
+/// carry an `/Encoding` with `/Differences`, which the standard calls a
+/// *"should not"* and which real producers emit constantly.
+///
+/// The failure is not a missing glyph. It is a **present, valid, wrong**
+/// one, and that is what makes it worth this much comment.
+///
+/// Branch A's second chain is *"name → back to a code via the standard
+/// Mac OS Roman encoding → glyph via the `(1, 0)` subtable"*. That step is
+/// only sound because platform 1, encoding 0 **means** Mac OS Roman. In a
+/// **subsetted symbolic** font it does not: the subsetter writes a private
+/// `(1, 0)` table whose codes are 1, 2, 3… in the order the glyphs were
+/// used. Looking up a Mac OS Roman code in that table does not miss — it
+/// hits a different glyph.
+///
+/// Measured on a 2013 SolidWorks drawing (`WSQMXO+TT19Et00`, symbolic,
+/// `WinAnsiEncoding` + `Differences`, `(1,0)` + `(3,0)` cmaps, no `(3,1)`):
+///
+/// | code | `/Differences` | Branch B (correct) | Branch A chain 2 (shipped) |
+/// |---|---|---|---|
+/// | 3 | `/three` | GID 22 `three` | Mac code 51 → GID 56 **`U`** |
+/// | 4 | `/four` | GID 23 `four` | Mac code 52 → GID 57 **`V`** |
+/// | 6 | `/six` | GID 25 `six` | Mac code 54 → GID 35 **`at`** |
+/// | 8 | `/one` | GID 20 `one` | Mac code 49 → GID 48 **`M`** |
+/// | 10 | `/two` | GID 21 `two` | Mac code 50 → GID 52 **`Q`** |
+/// | 2 | `/nine` | GID 28 `nine` | Mac code 57 → **`.notdef`** |
+///
+/// So `59 3/4"` painted as `@ U / M@`-shaped nonsense while **text
+/// extraction was correct** — extraction reads the `/Differences` names,
+/// which were right all along. A file that renders as garbage but copies
+/// as clean text is the signature of this bug, and it is worth knowing
+/// because the two halves disagreeing points straight at the glyph ladder
+/// rather than at the encoding.
+///
+/// # Why "first", and not "only"
+///
+/// The standard says *ignored*; this says *tried first*, then the name
+/// chains as a fallback. Deliberately more permissive than the text, and
+/// matching Acrobat, which renders this file correctly:
+///
+/// - the two flags *"shall not both be set or both be clear"* and real
+///   files break that constantly, so `Symbolic` is not a reliable enough
+///   signal to make the name chains **unreachable**;
+/// - a symbolic font whose built-in cmap does not cover a code has
+///   nothing to lose by then trying the name — Branch B returning `None`
+///   costs nothing and the alternative is a guaranteed `.notdef`.
+///
+/// The gate is `symbolic && embedded`. **Embedded is load-bearing**: for a
+/// substituted face the "program's built-in encoding" is the *substitute's*
+/// encoding, which has no relationship to the document's codes, so taking
+/// it first would break every non-embedded symbolic font. That is the same
+/// distinction `encoding_table` already draws one function above.
+fn resolve_gids(
+    program: &FontProgram<'_>,
+    names: &[Option<String>],
+    flags: u32,
+    embedded: bool,
+) -> [Option<u32>; 256] {
     // Reverse Mac OS Roman table for Branch A's second chain, built
     // once per font rather than once per code.
     let mac: HashMap<&'static str, u8> = (0..=255u8)
         .filter_map(|c| coredata::encoding_glyph_name(BaseEncoding::MacRoman, c).map(|n| (n, c)))
         .collect();
 
+    // §9.6.6.4: with `Symbolic` set, the `/Encoding` entry is ignored and
+    // the program's own cmap owns the code.
+    //
+    // ★ THE `embedded` HALF IS UNPROVEN BY TEST, AND SAYS SO. Ablating it
+    // leaves `tests/symbolic_truetype_glyphs.rs` green, and the reason is
+    // structural rather than a missing fixture: a failed Branch B costs
+    // nothing here, because it falls straight through to the name chains
+    // below. For it to bite, a SUBSTITUTE face would have to answer
+    // `glyph_for_builtin_code` — and that method reads the `(3,0)` and
+    // `(1,0)` subtables, which a normal text face does not carry.
+    //
+    // It is kept because it is the correct statement of the rule (a
+    // substitute's built-in encoding has no relationship to this document's
+    // codes, which is the same distinction `encoding_table` draws one
+    // function above), and because a future face that DID carry a `(1,0)`
+    // table would otherwise silently start resolving raw codes against it.
+    // It is labelled because a guard no test can fail is indistinguishable
+    // from a guard that does nothing, and the next reader should not have
+    // to re-run the ablation to learn which this is.
+    //
+    // The other two halves ARE proven: ablating `FLAG_SYMBOLIC` reddens the
+    // nonsymbolic mirror, and ablating the whole thing reddens the symbolic
+    // case.
+    let builtin_first = flags & FLAG_SYMBOLIC != 0 && embedded;
+
     let num_glyphs = program.num_glyphs();
     let mut out = [None; 256];
     for (code, slot) in out.iter_mut().enumerate() {
         let code8 = u8::try_from(code).unwrap_or(0);
         let name = names.get(code).and_then(Option::as_deref);
-        let gid = name
-            .and_then(|n| {
-                coredata::glyph_name_to_unicode(n)
-                    .and_then(|ch| program.glyph_for_char(ch))
-                    .or_else(|| {
-                        mac.get(n)
-                            .copied()
-                            .and_then(|mc| program.glyph_for_mac_code(mc))
-                    })
-                    .or_else(|| program.glyph_for_name(n))
+        let gid = builtin_first
+            .then(|| program.glyph_for_builtin_code(code8))
+            .flatten()
+            // GID 0 here would fall through to the name chains rather than
+            // ending the ladder, which is what the outer filter below can
+            // no longer do for this rung alone.
+            .filter(|&g| g != 0)
+            .or_else(|| {
+                name.and_then(|n| {
+                    coredata::glyph_name_to_unicode(n)
+                        .and_then(|ch| program.glyph_for_char(ch))
+                        .or_else(|| {
+                            mac.get(n)
+                                .copied()
+                                .and_then(|mc| program.glyph_for_mac_code(mc))
+                        })
+                        .or_else(|| program.glyph_for_name(n))
+                })
             })
             .or_else(|| program.glyph_for_builtin_code(code8))
             // GID 0 IS `.notdef` — treat "resolved to notdef" the same

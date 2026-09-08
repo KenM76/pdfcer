@@ -171,4 +171,37 @@ python tools/gen-text-run-fixtures.py         # runs-inherited, runs-tj-array,
                                               # runs-two-explicit, runs-single
 python tools/gen-rotated-text-fixtures.py     # rotated-text, rotated-text-abutting,
                                               # rotated-text-columns
+python tools/gen-symbolic-truetype-fixtures.py # symbolic-truetype-private-cmap,
+                                              # nonsymbolic-truetype-private-cmap,
+                                              # symbolic-truetype-not-embedded,
+                                              # nonsymbolic-truetype-not-embedded
 ```
+
+## The four `*symbolic-truetype-*` files (2026-09-08)
+
+ISO 32000-1 §9.6.6.4's Branch A / Branch B split, which hinges on the font
+descriptor's `Symbolic` flag. All four are **synthetic** — the TrueType
+program is built from scratch by `fontTools` in the generator, so nothing
+here derives from any real-world document.
+
+`symbolic-truetype-private-cmap.pdf` and `nonsymbolic-truetype-private-cmap.pdf`
+are a **mirror pair over identical font bytes**: same program, same content
+stream, same `/Differences [1 /A /B /C]`, differing only in `/Flags` (4 vs 32).
+Their correct answers are opposite — the symbolic one must resolve codes 1–3
+through the program's own cmap (painting the LOW band), the nonsymbolic one
+through the glyph names and thence Mac OS Roman codes 65–67 (painting the
+HIGH band).
+
+★ **The pair is the point.** Either file alone shows that one branch works and
+cannot show that the *flag* is what selected it; a renderer that ignored the
+flag entirely would satisfy one and fail only the other.
+
+The font's `(1,0)` cmap is deliberately populated **twice** — at the private
+codes 1–3 *and* at the colliding Mac codes 65–67, mapping to different glyphs
+— because without that collision the buggy path merely *fails* and falls
+through to the correct one, and the fixture would pass against the defect it
+was written for. The generator re-reads its own saved bytes and asserts the
+collision survived.
+
+The two `*-not-embedded.pdf` files are the same text with no font program at
+all, as an A/B pair for the "and embedded" half of the rule.
