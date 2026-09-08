@@ -117,7 +117,9 @@ pub use reflow::{
     ReflowEngine, ReflowError, ReflowLine, ReflowPreview, ReflowRequest,
     reflow_recognition_options,
 };
-pub use reflow_apply::{ReflowApplyError, ReflowApplyReport, ReflowOutcome, apply_reflow};
+pub use reflow_apply::{
+    ReflowApplyError, ReflowApplyReport, ReflowDecline, ReflowOutcome, apply_reflow,
+};
 pub use synth::{
     BOLD_STROKE_RATIO, OBLIQUE_TAN, StyleSynthesis, SynthesisOffer, SynthesisPath,
     bold_stroke_width, detect as detect_style_synthesis,

@@ -10406,12 +10406,13 @@ impl EditSession {
             .skip(1)
             .any(|id| matches!(self.value(*id), Some(Object::Stream(s)) if s.data_span.len > 0))
         {
-            return Err(RErr::Unsupported(
-                "text was added to this page this session (in a new content stream); reflow \
-                 re-emits the page's first content stream only and committing would drop the \
-                 added run, so save and reopen before reflowing this page"
-                    .to_owned(),
-            ));
+            // `Pass 251.0`'s guard, given its own variant at `pdfcer-gui`'s
+            // request (2026-09-07): it is the ONLY reflow refusal an operator
+            // can act on, and while it sat as one of ten sentences inside
+            // `Unsupported(String)` no shell could offer the remedy without
+            // matching on pdfcer's prose. The sentence is unchanged and now
+            // lives on the variant.
+            return Err(RErr::PageEditedThisSession);
         }
 
         let plan = plan_reflow_from_doc(&self.view(), page_index, block_index, req)?;

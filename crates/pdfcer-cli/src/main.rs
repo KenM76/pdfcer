@@ -24347,14 +24347,32 @@ fn cmd_reflow(
         Ok(o) => o,
         Err(err) => {
             eprintln!("pdfcer: reflow refused: {err}");
+            // Rule 4: the invocation IS the commit here, so what pdfcer knows
+            // about the operator's options is printed on the way past rather
+            // than being available to ask for. `is_recoverable()` is the
+            // engine's own answer -- not this shell's reading of the sentence
+            // above, which is exactly the coupling `pdfcer-gui` refused.
+            if err.is_recoverable() {
+                eprintln!(
+                    "pdfcer: this one you CAN clear -- save the document and reopen it, then reflow. \
+                     Every other reason reflow declines is a property of how the page was drawn."
+                );
+            }
             // A refusal is a clean named non-zero; a save/runtime failure is a
             // distinct class. The `_` arm keeps this exhaustive as
             // `ReflowApplyError` grows (it is `#[non_exhaustive]`).
+            //
+            // ★ `PageEditedThisSession` is listed EXPLICITLY rather than left
+            // to the `_` arm, which would have called it a RUNTIME_ERROR. It
+            // is a refusal -- the cleanest, most recoverable one there is --
+            // and a new variant silently inheriting the catch-all is how a
+            // correct engine change becomes a wrong exit code.
             return match err {
                 ReflowApplyError::Refused(_)
                 | ReflowApplyError::Preview(_)
                 | ReflowApplyError::NoProvenance
                 | ReflowApplyError::Unsupported(_)
+                | ReflowApplyError::PageEditedThisSession
                 | ReflowApplyError::PageIndex(_)
                 | ReflowApplyError::Encrypted => exit::EDIT_REFUSED,
                 ReflowApplyError::Write(_) => exit::SAVE_REFUSED,

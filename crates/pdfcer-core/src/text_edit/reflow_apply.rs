@@ -222,8 +222,40 @@ pub enum ReflowApplyError {
     /// The block is real but this cut cannot reflow-apply it: a named
     /// condition (rotated/skewed text, a shared or non-contiguous text
     /// object, a form-XObject block, non-zero Tc/Tw under justify, …).
+    ///
+    /// **Every one of these is permanent for this document as it stands** —
+    /// see [`Self::PageEditedThisSession`], which was carved out of this
+    /// variant precisely because it is *not*.
     #[error("this block cannot be reflow-applied in this cut: {0}")]
     Unsupported(String),
+    /// Text was added to this page **in this session**, in a new content
+    /// stream, and reflow re-emits the page's first content stream only —
+    /// so committing would drop the added run (`Pass 251.0`'s guard).
+    ///
+    /// # ★★ This is the ONLY reflow refusal the operator can act on
+    ///
+    /// **Save the document and reopen it, then reflow — it works.** Every
+    /// other reason reflow declines is a property of how the page was drawn
+    /// and no operator action changes it.
+    ///
+    /// Carved out of [`Self::Unsupported`] at `pdfcer-gui`'s request
+    /// (2026-09-07). Their finding: `Unsupported(String)` carried **ten**
+    /// distinct refusals, **one** of them recoverable and **the commonest**
+    /// — it fires whenever text has been added to the page this session,
+    /// which during live editing is most of the time. A shell with no
+    /// discriminant can only print the weakest sentence true of all ten, so
+    /// the operator was being denied a remedy that existed.
+    ///
+    /// **They refused to match on the prose, and were right to.** A shell
+    /// branching on `starts_with("text was added")` would break silently on
+    /// the next typo fix and would be re-deriving pdfcer's control flow from
+    /// pdfcer's sentences. A sentence is not an API; this variant is.
+    #[error(
+        "text was added to this page this session (in a new content stream); reflow re-emits \
+         the page's first content stream only and committing would drop the added run, so save \
+         and reopen before reflowing this page"
+    )]
+    PageEditedThisSession,
     /// The document is encrypted (out of scope for text editing).
     #[error("the document is encrypted; reflow of encrypted files is out of scope")]
     Encrypted,
@@ -239,6 +271,112 @@ pub enum ReflowApplyError {
     /// The incremental save failed.
     #[error("save failed: {0}")]
     Write(#[from] EditError),
+}
+
+/// **What an operator can do about a declined reflow** — the stable
+/// discriminant a shell switches on instead of reading pdfcer's prose.
+///
+/// # Why this exists rather than a fifth [`super::RefusalKind`]
+///
+/// `pdfcer-gui` asked for a discriminant and named
+/// [`super::RefusalClass`]/[`super::RefusalKind`] as the precedent, since
+/// pdfcer had already built exactly that for `EditError` and `AddTextError`
+/// (`Pass 249.0`). The shape is right; **the vocabulary is not.** Those four
+/// buckets answer *"what kind of thing went wrong"* — font, structure,
+/// not-found, other — and **every reflow refusal lands in one bucket under
+/// them**, so the question the shell actually needs answered would still be
+/// unanswerable.
+///
+/// ★★ **And `RefusalKind` could not simply grow a fifth variant**, because
+/// the reply that shipped it made a written promise on the request channel:
+/// it is deliberately **not** `#[non_exhaustive]` so a consumer's `match` is
+/// compiler-proved complete, and *"growing the enum is a deliberate breaking
+/// change with a note on this channel — **it will not happen because we
+/// learned a new refusal**."* Adding a variant here because reflow turned
+/// out to have a recoverable case is precisely the thing that promise
+/// forbids. So reflow gets its own discriminant, and the older one keeps its
+/// guarantee.
+///
+/// # The distinction it draws, which is the only one that matters
+///
+/// **Can the operator do something, or not.** Nine of reflow's ten refusals
+/// are properties of how the page was drawn — no action changes them. One is
+/// a session artefact that a save-and-reopen clears.
+///
+/// # Exhaustive on purpose, same as `RefusalKind`
+///
+/// Not `#[non_exhaustive]`: a caller's `match` is compiler-proved complete,
+/// and a future refusal joins an existing arm rather than appearing as a
+/// silent fall-through. Growing it would be a deliberate breaking change
+/// announced on the channel — the same contract, made the same way.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReflowDecline {
+    /// **The operator can fix this: save and reopen, then reflow.**
+    /// [`ReflowApplyError::PageEditedThisSession`] and nothing else.
+    RetryAfterSaveAndReopen,
+    /// The document's structure forbids it — encryption, or a save that the
+    /// edit gates refused. No reflow of this document until that changes.
+    StructureForbids,
+    /// The request named something absent: a page index out of range, or a
+    /// page extracted without provenance so the glyphs cannot be traced back
+    /// to their show operators. A **caller** error, not an operator one.
+    NotFound,
+    /// This block cannot be reflowed as this page is drawn — rotated or
+    /// skewed text, a shared or non-contiguous text object, a form-XObject
+    /// block, a missing or unresolvable font resource, a degenerate CTM, a
+    /// page with no `/Contents`. **Permanent for this document**; the
+    /// operator did nothing wrong and can do nothing about it.
+    NotReflowable,
+}
+
+impl ReflowApplyError {
+    /// Which [`ReflowDecline`] this refusal is — **the seam to switch on**.
+    ///
+    /// Match this, never [`std::fmt::Display`] output. pdfcer's sentences are
+    /// implementer-voiced diagnostics and are reworded whenever they are
+    /// wrong; this value is a contract.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use pdfcer_core::text_edit::{ReflowApplyError, ReflowDecline};
+    ///
+    /// let e = ReflowApplyError::PageEditedThisSession;
+    /// assert_eq!(e.decline(), ReflowDecline::RetryAfterSaveAndReopen);
+    /// assert!(e.is_recoverable());
+    ///
+    /// let e = ReflowApplyError::Encrypted;
+    /// assert!(!e.is_recoverable());
+    /// ```
+    #[must_use]
+    pub fn decline(&self) -> ReflowDecline {
+        match self {
+            Self::PageEditedThisSession => ReflowDecline::RetryAfterSaveAndReopen,
+            Self::Encrypted | Self::Write(_) => ReflowDecline::StructureForbids,
+            Self::PageIndex(_) | Self::NoProvenance => ReflowDecline::NotFound,
+            // Everything else is a property of the page as drawn. `Refused`
+            // is the font-invariant gate, `Unsupported` the nine merged
+            // conditions, and the three parse/walk failures describe a
+            // document this cut cannot process either way.
+            Self::Unsupported(_)
+            | Self::Refused(_)
+            | Self::Preview(_)
+            | Self::Extract(_)
+            | Self::Content(_)
+            | Self::PageTree(_) => ReflowDecline::NotReflowable,
+        }
+    }
+
+    /// Whether the operator can clear this by saving and reopening.
+    ///
+    /// Derived from [`Self::decline`] rather than matched independently —
+    /// two readers of one fact is the `R243` shape, and a shell that trusted
+    /// a `is_recoverable()` disagreeing with `decline()` would offer a remedy
+    /// that does not work.
+    #[must_use]
+    pub fn is_recoverable(&self) -> bool {
+        matches!(self.decline(), ReflowDecline::RetryAfterSaveAndReopen)
+    }
 }
 
 /// The result of planning a reflow WITHOUT committing it: the fully-spliced

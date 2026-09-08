@@ -4379,6 +4379,52 @@ reworded at will). The mapping lives in `text_edit::refusal_kind` next to the
 errors so it moves with them. Trait `RefusalClass` lets a funnel take
 `&impl RefusalClass` and treat both error types uniformly.
 
+### 6.10 `ReflowDecline` — can the operator DO anything about it (2026-09-07)
+
+```rust
+use pdfcer_core::text_edit::{ReflowApplyError, ReflowDecline};
+
+match err.decline() {
+    ReflowDecline::RetryAfterSaveAndReopen => "Save and reopen, then reflow.",
+    ReflowDecline::StructureForbids        => "This document is protected.",
+    ReflowDecline::NotFound                => "pdfcer couldn't find what was named.",
+    ReflowDecline::NotReflowable           => "This paragraph can't be re-wrapped.",
+}
+// or, for the one question most shells actually ask:
+if err.is_recoverable() { /* offer the remedy */ }
+```
+
+**Why a SECOND discriminant, and not a fifth `RefusalKind` variant.**
+`pdfcer-gui` reported (2026-09-07) that `ReflowApplyError::Unsupported(String)`
+carried **ten distinct refusals**, **one** of them recoverable and **the
+commonest** — `Pass 251.0`'s guard, which fires whenever text was added to the
+page this session and clears on save-and-reopen. With no discriminant the only
+honest sentence a shell can print is the weakest one true of all ten, so the
+operator was denied a remedy that existed. They named §6.9 as the precedent and
+they were right about the shape.
+
+They were **not** right that §6.9's vocabulary fits, and neither was I until I
+checked: its four buckets answer *"what kind of thing went wrong"*, and **every
+reflow refusal lands in one bucket under them** — so the question would still
+be unanswerable. ★★ And §6.9 **could not simply grow a fifth variant**: the
+paragraph directly above commits, in writing and on the request channel, that
+*"growing the enum is a deliberate breaking change … not a side effect of the
+engine learning a new refusal."* Adding one because reflow turned out to have a
+recoverable case is exactly what that forbids. So reflow gets its own
+discriminant and §6.9 keeps its guarantee.
+
+`ReflowApplyError::PageEditedThisSession` was carved out of `Unsupported` in
+the same change — the sentence is unchanged and now lives on a variant, so
+nothing needs to match on prose. The other nine stay merged; the requester said
+they would word them identically anyway.
+
+`ReflowDecline` is **exhaustive on purpose**, same contract as `RefusalKind`:
+your `match` is compiler-proved complete, and a future refusal joins an
+existing arm rather than appearing as a silent fall-through. `is_recoverable()`
+is derived from `decline()` in one place rather than matched independently —
+two readers of one fact is the `R243` shape, and a shell trusting a
+disagreeing `is_recoverable()` would offer a remedy that does not work.
+
 ---
 
 ## 7. Object allocation and byte staging

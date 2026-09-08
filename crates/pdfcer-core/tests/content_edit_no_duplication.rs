@@ -116,12 +116,32 @@ fn reflow_refuses_after_text_was_added_rather_than_deleting_it() {
     // Reflow plans from the base (which lacks KEEPME); before Pass 251.0 it
     // committed and silently emptied the appended stream, deleting KEEPME.
     // It must now refuse by name instead.
-    match s.reflow_block(0, 0, &ReflowRequest::new().with_wrap_width(400.0)) {
-        Err(ReflowApplyError::Unsupported(msg)) => {
-            assert!(msg.contains("added"), "refusal names the added run: {msg}");
-        }
-        other => panic!("expected an Unsupported refusal, got {other:?}"),
-    }
+    //
+    // ★ The expected variant CHANGED on 2026-09-07 and the claim did not.
+    // This asserted `Unsupported(String)` with a message containing "added",
+    // which was the only handle that existed — `pdfcer-gui` then reported
+    // that `Unsupported` carried TEN refusals, of which this is the only one
+    // an operator can clear, and no shell could tell them so without matching
+    // on pdfcer's prose. The guard now has its own variant. The substance
+    // below (KEEPME survives) is untouched; only the name it refuses by got
+    // better, and this test is the record that it is the SAME refusal.
+    let err = match s.reflow_block(0, 0, &ReflowRequest::new().with_wrap_width(400.0)) {
+        Err(e @ ReflowApplyError::PageEditedThisSession) => e,
+        Err(ReflowApplyError::Unsupported(msg)) => panic!(
+            "the guard regressed to the undiscriminated variant, which is the exact defect \
+             pdfcer-gui reported: {msg}"
+        ),
+        other => panic!("expected the PageEditedThisSession refusal, got {other:?}"),
+    };
+    assert!(
+        err.is_recoverable(),
+        "this is the ONE reflow refusal the operator can clear by saving and reopening; if it \
+         stops reporting itself as recoverable the remedy becomes unreachable again"
+    );
+    assert!(
+        err.to_string().contains("added"),
+        "the refusal must still name the added run: {err}"
+    );
 
     // And KEEPME is still there — nothing was deleted.
     let (bytes, _) = s.to_full_bytes(&SaveOptions::default()).expect("save");
