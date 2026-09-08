@@ -300,7 +300,34 @@ scan() {
                 # no legitimate run of three spaces before ANY character, so
                 # in prose mode the trailing class should be read as
                 # "anything that starts a word", not as a list.
-                if (prose && code ~ /[A-Za-z0-9,.:;)}]   +[-A-Za-z0-9{\/"]/) hit = 1
+                # ★★ FOURTH MISS, 2026-09-08, AND THE REPAIR IS TO DO WHAT THE
+                # PARAGRAPH ABOVE ALREADY SAID.
+                #
+                # It concluded: "in prose mode the trailing class should be
+                # read as ANYTHING THAT STARTS A WORD, not as a list" — and
+                # then implemented a list. The next miss was
+                #
+                #     ...Table 233 three values          (0 left, 1 centred...
+                #
+                # shipped into a `#[error(...)]` an operator reads, where the
+                # character after the run is an OPENING PARENTHESIS: the most
+                # ordinary way an English sentence introduces a gloss, and
+                # absent from the list for no reason anybody chose.
+                #
+                # So the class is now the negation it should always have been.
+                # In PROSE mode only: a run of three spaces before ANYTHING
+                # that is not another space. Prose has no legitimate use for
+                # one, which is the whole premise of the gate.
+                #
+                # ⇢ Scoped to prose deliberately. Measured tree-wide with the
+                # widening applied to EVERY literal: 20 findings, and all but
+                # one are deliberately-aligned report columns in `println!`
+                # diagnostics — exactly the false-positive class prose mode
+                # was introduced to exclude. Inside prose mode: 1 finding, the
+                # defect. (The one real non-prose instance,
+                # `tests/dimension_roundtrip.rs`, is recorded in the filing
+                # rather than silently swept in with a gate change.)
+                if (prose && code ~ /[A-Za-z0-9,.:;)}]   +[^ ]/) hit = 1
                 if (hit) {
                     print "  " FILENAME ":" FNR ": a run of spaces baked into a string literal"
                     print "      " substr(body, 1, 100)

@@ -6830,7 +6830,7 @@ pub enum EditError {
     /// something else with. The same posture the check-style parser takes
     /// on an unknown name.
     #[error(
-        "quadding {given} is not one of ISO 32000-1 12.7.4.3 Table 233's three values          (0 left, 1 centred, 2 right); nothing was changed"
+        "quadding {given} is not one of ISO 32000-1 12.7.4.3 Table 233's three values (0 left, 1 centred, 2 right); nothing was changed"
     )]
     QuaddingInvalid {
         /// What the caller asked for.
