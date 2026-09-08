@@ -112,6 +112,316 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★★ 476th filing, 2026-09-08 — `Pass 271.0` MINTED AND SHIPPED IN ONE
+FILING (`56fee79`): A SYMBOLIC TrueType PICKS GLYPHS BY **CODE**, pdfcer WAS
+PICKING BY **NAME**, AND THE FAILURE WAS NOT A MISSING GLYPH BUT A PRESENT,
+VALID, ***WRONG*** ONE — `59 3/4"` PAINTED AS `@ U / M@`, 961 GLYPHS TO
+`.notdef` ON ONE PAGE, GEOMETRY PERFECT THROUGHOUT. ★★★★ THE OPERATOR'S SECOND
+MESSAGE LOCATED IT IN ONE STEP: *"when I go to edit the text the text in the
+editor box shows correctly"* — **EXTRACTION RIGHT + RENDERING WRONG IS A
+DIAGNOSTIC SIGNATURE**, AND IT POINTS AT THE GLYPH LADDER RATHER THAN AT THE
+ENCODING. ★★★ DECISION `143` MINTED: pdfcer IS DELIBERATELY **MORE PERMISSIVE
+THAN §9.6.6.4's "IGNORED"**, MATCHING ACROBAT, BECAUSE THE STANDARD'S OWN
+SIGNAL (`Symbolic`/`Nonsymbolic` *"shall not both be set or both be clear"*) IS
+BROKEN BY REAL FILES CONSTANTLY. ★★ `R247` CONSIDERED AND **DECLINED** — THE
+FIXTURE FINDING IS `R225`'s TENTH INSTANCE AND A NEW **MEDIUM**, NOT A NEW
+CAUSE. ★ AND THE `personal_rag/pdf` LESSON THIS FILING WRITES CLOSES A GAP THE
+**SPEC CORPUS ITSELF NAMED**: `iso32000__s__9.6.6.md:252-255` HAS POINTED AT
+`C:\personal_rag\pdf\` FOR THIS EXACT FAULT LINE, AND NOTHING WAS THERE.
+`v0.49.0` STILL BUMPED AND NOT RELEASED; THIS IS ITS HEADLINE.**
+
+**Sourcing (hard rule 8), stated up front.** A `Bash` tool was available and
+was used. `git show --stat --format=%B 56fee79` for the commit message and
+diffstat; `git log --oneline -12` and `git log … -- crates/pdfcer-render/src/text.rs`
+for position and provenance; `python tools/check-commits-filed.py` and
+`python tools/check-ledger-numbers.py` for the ledgers; `Read`/`Grep` on live
+source (`crates/pdfcer-render/src/text.rs`,
+`crates/pdfcer-render/tests/symbolic_truetype_glyphs.rs`,
+`fixtures/synthetic/text/PROVENANCE.md`), on the fixture directory (`ls -la`)
+and on `D:\Dev\Rag-Specialized\PDF_Spec\` for every claim below that is not
+labelled *relayed*. **The test and gate results in *Verification* are RELAYED
+from the commit message, not re-run here**, and are labelled as such. **Backup
+currency was not checked and is not asserted.**
+
+**Hard rule 8, checked rather than inferred:** `git log --oneline -12` puts
+`HEAD` at **`d135561`** (the 475th filing's addendum), with `56fee79` — the
+subject of this filing — **one commit below it**, and `8de7e35` (the 475th
+filing) below that. `python tools/check-commits-filed.py` names **exactly one**
+unfiled code commit, `56fee79`, which is what this filing discharges.
+`python tools/check-ledger-numbers.py` reports **clean** with live ceilings
+**Pass `270.2` · rules `R246` · decisions `142` · filings `475`**.
+
+---
+
+### `Pass 271.0` (`56fee79`, 2026-09-08 11:22:20 −0400) — A SYMBOLIC TrueType PICKS GLYPHS BY CODE, AND pdfcer WAS PICKING BY NAME
+
+**Minted and shipped in this filing.** Operator-reported mid-session on a real
+2013 SolidWorks drawing; no prior Backlog entry, no prior ID. **Filed as a new
+family `271` rather than under an origin family**, because `resolve_gids` has
+no Pass of its own: `git log -S resolve_gids -- crates/pdfcer-render/src/text.rs`
+returns the initial import `d8b3903` and nothing else, so the
+file-under-the-function's-origin precedent (456th filing, four applications)
+has no family to point at. **Pass family ceiling `270` → `271`; next free
+`272`.**
+
+#### 1. The report, and why the second message was worth more than the first
+
+> *"Text on this sheet is scrambled in pdfcer, but appears fine in acrobat
+> reader"*
+
+…then, minutes later:
+
+> *"when I go to edit the text the text in the editor box shows correctly."*
+
+**The pair is the diagnosis.** Extraction reads `/Differences` **names**;
+rendering resolves **glyphs**. Correct text in the editor box with garbage on
+the canvas says the encoding was read correctly and the *glyph ladder* is where
+the two paths diverge — which is a one-step localisation, and it is the half of
+this Pass most likely to be needed again. **Filed to `C:\personal_rag\pdf\` as
+a named diagnostic signature** (see *RAG escalation*), because a future
+instance will arrive as *"the text is scrambled"* and nothing else.
+
+#### 2. What the page looked like, measured
+
+| figure | value |
+|---|---|
+| glyphs falling to `.notdef`, page 1, **before** | **961** |
+| glyphs falling to `.notdef`, page 1, **after** | **0** |
+| geometry (advances, placement, `Tm`) | correct **throughout**, before and after |
+
+`59 3/4"` painted as `@ U / M@`-shaped nonsense. **The geometry being perfect
+is what makes it read as *scrambled* rather than *broken*** — every glyph was
+in the right place, and the wrong one.
+
+#### 3. The rule, and the third path pdfcer took
+
+ISO 32000-1 **§9.6.6.4** splits simple-TrueType glyph selection in two, on the
+font descriptor's `Symbolic` flag (Table 123 bit 3, value `4`; `Nonsymbolic` is
+bit 6, value `32` — confirmed against `crates/pdfcer-render/src/text.rs:116`,
+`const FLAG_SYMBOLIC: u32 = 1 << 2`):
+
+| branch | condition | chain |
+|---|---|---|
+| **A** | nonsymbolic, `/Encoding` present | code → glyph **name** → Unicode (AGL) → `(3,1)` cmap; **else** name → a **Mac OS Roman code** → `(1,0)` cmap; **else** the `post` table |
+| **B** | `Symbolic` set — *"the `Encoding` entry is ignored"* | the **raw code**, straight into the program's own cmap |
+
+`resolve_gids` ran **Branch A first whenever a glyph name was present**,
+symbolic or not.
+
+**★★ WHY IT DREW A WRONG GLYPH RATHER THAN NOTHING — THE PART WORTH
+PRESERVING.** Branch A's second chain is *entitled* to assume platform 1 /
+encoding 0 **means** Mac OS Roman, because that is what those numbers denote. A
+subsetter emitting a **symbolic** font does not honour that: it writes a
+**private** `(1,0)` table whose codes are `1, 2, 3 …` **in the order the glyphs
+were used**. So the Mac-code lookup **does not miss** — it returns a valid GID
+for an unrelated glyph.
+
+Measured on the operator's file (`WSQMXO+TT19Et00`, symbolic,
+`WinAnsiEncoding` + `/Differences`, `(1,0)` + `(3,0)` cmaps, **no `(3,1)`**):
+
+| code | `/Differences` | Branch B (correct) | Branch A chain 2 (what shipped) |
+|---|---|---|---|
+| 3 | `/three` | GID 22 `three` | Mac 51 → GID 56 **`U`** |
+| 4 | `/four` | GID 23 `four` | Mac 52 → GID 57 **`V`** |
+| 6 | `/six` | GID 25 `six` | Mac 54 → GID 35 **`at`** |
+| 8 | `/one` | GID 20 `one` | Mac 49 → GID 48 **`M`** |
+| 10 | `/two` | GID 21 `two` | Mac 50 → GID 52 **`Q`** |
+| 2 | `/nine` | GID 28 `nine` | Mac 57 → **`.notdef`** |
+
+**Every one of those letters is visible in the "before" render.** Six codes
+tabulated of the page's full code set; the `.notdef` total for the page is the
+961 above, so the table is a sample of the mechanism, not the census.
+
+**★ BOTH SPEC BRANCHES WOULD HAVE BEEN RIGHT.** The font's own cmap agreed with
+`/Differences` **exactly** — code 1 → GID 24 `five`, code 2 → GID 28 `nine`. It
+is not that the standard is ambiguous here and pdfcer picked the losing reading;
+**pdfcer took a third path that is neither branch**, by running one branch's
+second chain under the other branch's precondition.
+
+#### 4. The fix — and the deliberate over-permission (decision `143`)
+
+**Symbolic AND embedded → the program's own built-in encoding FIRST, the name
+chains as a fallback.** One new rung at the top of the ladder;
+`resolve_gids` gains `flags: u32` and `embedded: bool` and the gate is
+`flags & FLAG_SYMBOLIC != 0 && embedded`.
+
+**"First", not "only" — which is more permissive than the standard's
+*ignored*, and matches Acrobat.** Filed as **decision `143`**
+(`ARCHITECTURE.md` §12); the argument in one line is that the two flags *"shall
+not both be set or both be clear"* and real files break that constantly, so
+`Symbolic` is not a reliable enough signal to make the name chains
+**unreachable**, and a symbolic font whose built-in cmap misses a code loses
+**nothing** by then trying the name — Branch B returning `None` costs nothing
+and the alternative is a guaranteed `.notdef`.
+
+**Sourced from the spec corpus, which names this fault line by name** —
+`D:\Dev\Rag-Specialized\PDF_Spec\iso32000\iso32000__s__9.6.6.md:252-255`,
+read at filing time:
+
+> *"**`Differences` on a symbolic embedded TrueType is 'should not' but
+> ubiquitous.** §9.6.6.4 Branch B says the `Encoding` entry is *ignored* when
+> `Symbolic` is set. Readers differ here; Acrobat is more permissive than the
+> text. This is a known interop fault line → `C:\personal_rag\pdf\`."*
+
+★ **That pointer was live and the destination was empty.** The spec corpus has
+been telling readers to look in the empirical RAG for this exact fault line,
+and no lesson existed there until this filing wrote one. **A cross-reference is
+only as good as the file it points at**, and nothing in either tree can go red
+when the target is missing.
+
+#### 5. The fixtures, and why the obvious one is worse than useless
+
+Four new synthetic fixtures, **TrueType built from scratch by `fontTools`** in
+`tools/gen-symbolic-truetype-fixtures.py` (359 lines). **Nothing derives from
+the operator's file, which is proprietary and stays out of the repository**
+(project rule 7 / `LEGAL.md` §5). Verified present at filing time by `ls -la
+fixtures/synthetic/text/`, all four dated 2026-09-08 11:19:
+
+| fixture | bytes | role |
+|---|---|---|
+| `symbolic-truetype-private-cmap.pdf` | 2 199 | the defect's own case |
+| `nonsymbolic-truetype-private-cmap.pdf` | 2 200 | the **mirror**, identical font bytes, `/Flags 32` |
+| `symbolic-truetype-not-embedded.pdf` | 981 | A/B pair for the `embedded` half |
+| `nonsymbolic-truetype-not-embedded.pdf` | 982 | ″ |
+
+**★ THE OBVIOUS FIXTURE DOES NOT CATCH THIS.** A symbolic font with private
+codes and nothing else **passes against the very bug it was written for**:
+under the defect, Branch A's chains all simply *fail*, and the ladder falls
+through to Branch B anyway. So the font's `(1,0)` cmap is populated **twice** —
+at the private codes `1–3` **and** at the colliding Mac codes `65–67`
+(`A`/`B`/`C`) — mapping to **different** glyphs, which turns the wrong rung
+from a miss into a hit. Both outcomes paint real ink; only **where** differs
+(low band vs high band), so the assertion needs no knowledge of glyph identity,
+hinting or antialiasing. **The generator re-reads its own saved bytes and
+asserts the collision survived.**
+
+**★★ AND A MIRROR PAIR OVER IDENTICAL FONT BYTES** — same program, same content
+stream, same `/Differences [1 /A /B /C]`, `/Flags 32` instead of `4` — where
+the correct answer **inverts** to the high band. Either file alone shows that
+*a* branch works and **cannot show that the FLAG is what selected it**; a
+renderer ignoring the flag would satisfy one and fail only the other.
+
+**Both findings are filed as `R225`'s TENTH INSTANCE**, in *Standing rules*
+above — **a mint was considered and declined**, see §7.
+
+#### 6. Sabotage — three ways, and the third ships LABELLED
+
+| sabotage | result |
+|---|---|
+| Branch A first always (**the shipped defect**) | **RED** |
+| ignore the `Symbolic` flag, Branch B always | **RED** (the mirror) |
+| drop the **`embedded`** half of the gate | **STILL GREEN** |
+
+**★ The third is shipped labelled as unproven, in place** — a comment block at
+`crates/pdfcer-render/src/text.rs:1213-1229` states the ablation result and its
+cause. **The cause is structural, not a missing fixture:** a failed Branch B
+falls straight through to the name chains at no cost, and for the guard to bite
+at all a **substitute** face would have to carry a `(3,0)`/`(1,0)` subtable,
+which a normal text face does not. **Kept** because it is the correct statement
+of the rule (a substitute's built-in encoding has no relationship to *this*
+document's codes — the same distinction `encoding_table` draws one function
+above) and a future face that *did* carry one would otherwise silently start
+resolving raw codes against it. **Labelled** because *a guard no test can fail
+is indistinguishable from a guard that does nothing*, and the next reader
+should not have to re-run the ablation to learn which this is.
+
+This is the project's established third answer to an un-redenable guard —
+**flag in place rather than delete** — the same disposition the 463rd filing
+reached for three of its five `crates/` survivors.
+
+#### 7. Verification (RELAYED from the commit message, not re-run here)
+
+- `symbolic_truetype_glyphs` — **4 tests**, confirmed by name against live
+  source (`a_symbolic_truetype_selects_glyphs_by_raw_code_not_by_glyph_name`,
+  `every_code_resolves_to_a_real_glyph`,
+  `a_non_embedded_symbolic_font_still_uses_its_differences`,
+  `a_nonsymbolic_twin_of_the_same_font_resolves_by_name_instead`).
+- **The ENTIRE `pdfcer-render` suite re-run target by target — 47 targets, 0
+  failures**, including `type3_fonts`, `cidfont_nocmap_render`,
+  `nonstd14_widths`, `synthetic_style_render`, `preview_equals_saved`,
+  `export_svg`.
+- `cargo clippy --all-targets --all-features -D warnings` clean; `cargo fmt`
+  clean.
+- **GUI-core separation:** no `Cargo.toml` touched — the diffstat is
+  `crates/pdfcer-render/src/text.rs` (+133/−17), one new test file (+233), one
+  new generator (+359), `PROVENANCE.md` (+33) and four binary fixtures;
+  **8 files, +741/−17**. No `cargo tree` check owed.
+- **Round-trip:** a render-path change; no writer touched, no save-path
+  behaviour altered.
+
+#### 8. `R247` CONSIDERED AND DECLINED
+
+The dispatch asked whether the fixture-design finding — *a fixture for a
+wrong-value defect must make the wrong path **reachable**, or the defect's own
+failure mode makes the test vacuous* — earns a rule. **It does not, and the
+reason is the family's own organising distinction.** `R225` already asks
+*"on THIS fixture, what would the wrong implementation produce?"*; this
+finding **supplies one specific answer** to that question — *"the same thing,
+because it fell through to the right answer"* — which is a new **medium** for
+`R225`'s cause, not a second cause. The `R224` (empty subject set) / `R225`
+(non-discriminating subject set) / `R221` (masked instrument) family is split
+on **cause**, and a mint here would be split on **shape**, which would make the
+family unusable as a diagnostic fork.
+
+**The project's two-occurrence bar is not reached either** — this is `n = 1`
+for the fallback-ladder medium, and the 2026-08-05 ruling forbids elevating per
+occurrence in any case. **Ceiling stays `R246`, next free `R247`.** The trigger
+for a future mint, named so it can fire: **a second instance where the
+defective path's own failure is what reaches the correct one** — that is the
+property that makes the defect self-concealing, and if it recurs in a different
+subsystem it is a cause worth its own number.
+
+#### 9. `docs/FEATURES.md`
+
+**One row corrected, no row added, no box moved.** This is a defect fix inside
+an existing capability (*Fonts & rendering* → *"Rasterize vector paths, text
+and images"*), and there is **no new CLI verb** and no `pdfcer-gui` change, so
+rounding any box up would be unsubstantiable. The row gains a clause naming
+§9.6.6.4's two branches and the `symbolic && embedded` gate — see the
+*RAG escalation and documents touched* list below.
+
+#### 10. RAG escalation and documents touched
+
+- **`C:\personal_rag\pdf\lesson_20260908_symbolic_truetype_subset_private_1_0_cmap_renders_wrong_glyphs_while_extraction_is_clean.md`** —
+  the producer-behaviour finding (SolidWorks 2013's subset shape) **and the
+  diagnostic signature**. Subject `index.md` and master
+  `C:\personal_rag\index.md` updated in the same filing.
+- **`D:/dev/rag/rust/a_sabotage_can_only_be_as_discriminating_as_the_fixture_it_runs_on.md`** —
+  dated footer, not a new file (hard rule 4): the fallback-ladder medium and
+  the flag-mirror-pair remedy.
+- **`docs/ARCHITECTURE.md` §12 — decision `143`.**
+- **`docs/ROADMAP.md`** — this entry, plus `R225`'s tenth-instance note.
+- **`docs/FEATURES.md`** — one row's wording.
+- **`docs/SESSION_LOG.md`** — the 476th filing entry.
+- **NOT written:** anything in `D:\Dev\Rag-Specialized\PDF_Spec\`. The corpus
+  is already correct on this clause and already carries the pointer; hard rule
+  6 puts it out of this role's reach regardless.
+
+#### 11. Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `270` (highest ID `270.2`) | **`271`** (highest ID `271.0`), next free `272` |
+| Standing rules | `R246` | **`R246` — unchanged**, `R247` considered and declined; `R225` gains instance 10 |
+| Decision records | `142` | **`143`**, next free `144` |
+| `SESSION_LOG` filings | `475` | **`476`**, next free `477` |
+| Open operator questions | unchanged | unchanged |
+
+**Release state, measured (hard rule 8).** `git describe --tags --abbrev=0` →
+**`v0.48.0`**, so the `0.49.0` bump chore (`14ee766`) is **committed and NOT
+released**. `git rev-parse origin/main` → **`14ee766`** and
+`git rev-list --count origin/main..HEAD` → **10**, so `main` is **ten commits
+ahead of `origin`** — **7 code + 3 librarian filings = 10**, the code half
+being `c56f63e`, `caf4c1d`, `70e8f53`, `73da5e1`, `44a2485`, `6eec0a6` and
+`56fee79`, **five of which carry a Pass** (`270.0`, `264.1`, `270.1`, `270.2`,
+`271.0`; the other two are test/doc-comment corrections). **`Pass 271.0` is the headline of the
+pending `v0.49.0` release.** Pushing `main` is standing-authorized (rule 8,
+decision 090) and releasing is standing-authorized (decision 121); **neither is
+this role's act** — reported here so the engineer does not have to re-derive
+it.
+
+---
+
 **★★★★★ 475th filing, 2026-09-08 — THREE PASSES FILED, ALL THREE ALREADY
 HAD IDs: `Pass 270.1` (`44a2485`, the `CLIP_VERSION` gate the 474th filing
 minted six hours earlier), `Pass 264.1` (`70e8f53`, `/BM` preserved) AND
@@ -158253,6 +158563,61 @@ same cause (hashes exist only at commit time), two different failure modes.
   applying the same rule). **No `ARCHITECTURE.md` body-section
   counterpart** — this is a test-methodology finding, not a crate boundary,
   invariant or library choice.
+
+  **★★ DATED INSTANCE NOTE — 2026-09-08 (476th filing), `Pass 271.0`
+  (`56fee79`): INSTANCE 10, AND A NEW MEDIUM — A ***FALLBACK LADDER*** MAKES
+  THE DEFECT SELF-CONCEALING, BECAUSE THE WRONG RUNG'S FAILURE IS THE THING
+  THAT REACHES THE RIGHT ONE. NO RE-MINT; NO NEW CAUSE; CEILING STAYS `R246`,
+  NEXT FREE `R247`.**
+
+  **A mint was CONSIDERED for this and DECLINED** — see the `Pass 271.0`
+  *Shipped* entry above for the argument. Briefly: the finding's own
+  one-sentence form — *"a fixture for a wrong-VALUE defect must make the wrong
+  path REACHABLE, or the defect's own failure mode makes the test vacuous"* —
+  is `R225`'s founding question (*"on THIS fixture, what would the wrong
+  implementation produce?"*) with **one specific answer substituted for the
+  general one**: *"the same thing, because it FELL THROUGH to the right
+  answer."* That is a new **medium**, not a new **cause**, which is the
+  distinction the `R224`/`R225`/`R221` family is already organised on.
+
+  **What happened.** `resolve_gids` is a ladder: symbolic-first (Branch B) →
+  name→Unicode→`(3,1)` → name→Mac-code→`(1,0)` → `post` → built-in code. The
+  shipped defect ran the **name** rungs before the **symbolic** one. The
+  obvious fixture — a symbolic embedded TrueType with a private `(1,0)` cmap
+  keyed `1..N` and nothing else — **passes against that defect**, because every
+  name rung simply *misses* and the ladder arrives at Branch B anyway. The
+  correct answer and the wrong implementation's answer coincide **not because
+  the fixture is degenerate in its domain data, but because the wrong rung
+  RETURNS NOTHING and control reaches the right one for free.**
+
+  **The remedy, and it is the transferable half.** Make the wrong rung **hit**
+  rather than miss. The generator populates the font's `(1,0)` cmap **twice** —
+  at the private codes `1–3` *and* at the colliding Mac OS Roman codes `65–67`
+  (`A`/`B`/`C`) — mapping to **different glyphs**, so Branch A's second chain
+  returns a *valid, wrong* GID instead of `None`. Both outcomes paint real ink;
+  only **where** differs (a low band vs a high band), so the assertion needs no
+  knowledge of glyph identity, hinting or antialiasing. The generator re-reads
+  its own saved bytes and asserts the collision survived — an `R224`-shaped
+  guard against the fixture's discriminating property being silently dropped by
+  the font compiler.
+
+  **★ AND THE SECOND HALF, WHICH IS ABOUT THE *SELECTOR* RATHER THAN THE
+  ANSWER: ONE FIXTURE CANNOT SHOW THAT A FLAG SELECTED A BRANCH.** The Pass
+  ships a **mirror pair over identical font bytes** — same program, same
+  content stream, same `/Differences [1 /A /B /C]`, `/Flags 32` (Nonsymbolic)
+  instead of `4` (Symbolic) — whose correct answers **invert**. Either file
+  alone shows *a* branch works; a renderer that ignored `Symbolic` entirely
+  would satisfy one and fail only the other. **Generalised:** where the code
+  under test **branches on an input flag**, a single fixture tests the branch
+  it lands in and says nothing about the *predicate*; the discriminating unit
+  is a **pair differing only in the flag**, over otherwise byte-identical
+  inputs. This is the same species as instance 4b (assert the coordinates, not
+  the length) — *the observable must have as many degrees of freedom as the
+  thing being pinned* — pointed at a boolean rather than at a transform.
+
+  **Instance count now 10** (9 inside pdfcer + 1 relayed from a consumer).
+  Cross-project half filed as a dated footer, not a new file, to
+  `D:/dev/rag/rust/a_sabotage_can_only_be_as_discriminating_as_the_fixture_it_runs_on.md`.
 
 - **R226 — A DEFERRED GATE MUST BE RE-RUN WITH THE FLAG THAT RESOLVES THE
   DEFERRAL BEFORE THE SESSION ENDS, OR THE DEFERRAL NEVER RESOLVES.** Minted

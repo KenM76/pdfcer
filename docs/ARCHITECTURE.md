@@ -22295,6 +22295,14 @@ crate-boundary or invariant change. Full build record: `ROADMAP.md`'s
 
 ### 2026-08-12 (hundred-and-twentieth filing, same commits) — decision 051: the symbolic-font guard is against the MAPPING (§9.6.6.4 Branch B), not against symbolic fonts as a class — narrowed from a first draft that refused 214 of the corpus's fonts
 
+**★ DATED CROSS-REFERENCE, 2026-09-08 (476th filing) — SEE ALSO DECISION `143`,
+WHICH IS NOT AN AMENDMENT.** `143` rules on the same clause (§9.6.6.4) from the
+**rendering** side — which glyph a code selects once a program *is* present —
+where this entry rules on the **embedding** side, whether a *missing* symbolic
+font may be substituted. Neither changes the other; they are recorded as a pair
+because both decline to treat `Symbolic` as a class boundary, for the same
+underlying reason: **the flag describes a mapping, not a kind of font.**
+
 **The over-broad first reading, and why it was wrong.** A first draft
 refused any symbolic font outright, reasoning that a symbolic font's
 codes have no name-based encoding to check a substitute donor against.
@@ -33075,3 +33083,143 @@ one, is written this filing too:**
 correction must reach every corpus this project READS*; see `ROADMAP.md`
 *Standing rules*) — next free `R247`. **Pass ceiling `270.1` → `270.2`**, next
 free family `271.x`.
+
+### 2026-09-08 (476th filing, `56fee79`) — decision 143: **WHERE THE STANDARD'S OWN SELECTOR IS UNRELIABLE IN PRACTICE, pdfcer TAKES THE SPEC-MANDATED BRANCH *FIRST* RATHER THAN *ONLY* — A LADDER, NOT A SWITCH. ISO 32000-1 §9.6.6.4 SAYS THE `/Encoding` ENTRY IS *"IGNORED"* ON A SYMBOLIC FONT; pdfcer STILL FALLS BACK TO IT, MATCHING ACROBAT**
+
+**Origin.** `Pass 271.0` (`56fee79`), from an operator report on a real 2013
+SolidWorks drawing: *"Text on this sheet is scrambled in pdfcer, but appears
+fine in acrobat reader."* Not a scoping decision — a ruling forced by the fix.
+
+---
+
+#### 1. The clause, and what pdfcer actually does
+
+§9.6.6.4 splits simple-TrueType glyph selection on the font descriptor's
+`Symbolic` flag (Table 123 bit 3, value `4`):
+
+| branch | condition | chain |
+|---|---|---|
+| **A** | nonsymbolic, `/Encoding` present | code → glyph **name** → Unicode (AGL) → `(3,1)`; else name → **Mac OS Roman code** → `(1,0)`; else `post` |
+| **B** | `Symbolic` set — *"the `Encoding` entry is ignored"* | the **raw code**, into the program's own cmap |
+
+pdfcer's ladder, after this Pass:
+
+```
+1. symbolic && embedded  ->  program's built-in encoding, raw code   (Branch B)
+2. name -> Unicode -> (3,1)                                          (Branch A)
+3. name -> Mac OS Roman code -> (1,0)                                (Branch A)
+4. name -> post                                                      (Branch A)
+5. raw code -> built-in encoding                                     (Branch B)
+6. None -> .notdef, counted
+```
+
+**Rung 1 is new. Rungs 2–4 remaining reachable BELOW it is the decision.** A
+literal reading of *"ignored"* would make them unreachable for a symbolic font.
+
+#### 2. The warrant — the standard's own selector is not trustworthy
+
+§9.8.2 Table 123 states that `Symbolic` (bit 3) and `Nonsymbolic` (bit 6)
+*"shall not both be set or both be clear"*. **Real producers break that
+constantly**, which makes `Symbolic` a signal that is usually right and
+sometimes meaningless. Two consequences, and they point opposite ways:
+
+- **Honouring it is mandatory** — the measured defect below shows what
+  ignoring it costs.
+- **Honouring it *exclusively* is not safe** — a font mislabelled `Symbolic`
+  whose real encoding is its `/Differences` would render as `.notdef`
+  throughout, and pdfcer would have no route left.
+
+⇒ **Take the branch the flag names, and keep the other branch as a fallback.**
+The asymmetry that makes this free rather than a compromise: **Branch B
+returning `None` costs nothing** — there is no wrong answer to discard, only a
+miss — so trying it first can never *lose* information, and falling through
+after it can only *add* a candidate where the alternative is a guaranteed
+`.notdef`.
+
+**This is the same posture Acrobat takes**, and the spec corpus records the
+divergence as a known interop fault line rather than as pdfcer's invention:
+`D:\Dev\Rag-Specialized\PDF_Spec\iso32000\iso32000__s__9.6.6.md:252-255` —
+*"`Differences` on a symbolic embedded TrueType is 'should not' but ubiquitous
+… Readers differ here; Acrobat is more permissive than the text."*
+
+#### 3. Why this is a decision and not just a bug fix
+
+**Because the fix could have been narrower and was deliberately not.** The
+defect — Branch A running *before* Branch B on a symbolic font — is repaired
+completely by rung 1 alone. Making rungs 2–4 unreachable for symbolic fonts
+would be **more faithful to the clause's text** and is what a spec-literal
+implementation does. pdfcer **declines that**, and the declining is the part a
+future reader needs, because a later maintainer reading §9.6.6.4 will see the
+word *ignored* and read the fallback as a bug.
+
+**The generalised form, which is what earns the number:** *where a
+standard-mandated selector is itself unreliable in real files, implement the
+mandated branch as the FIRST rung of a ladder rather than as the ONLY arm of a
+switch — provided the mandated branch's failure mode is a **miss** rather than
+a **wrong answer**.* That proviso is load-bearing and is what stops this
+generalising into "be permissive everywhere": a fallback after a branch that
+can return a **confidently wrong** value would compound the error instead of
+recovering from it. **That is precisely the failure this Pass fixed, in the
+other direction** — Branch A's chain 2 was reached first and returned a valid,
+wrong glyph, so falling through past it was never an option.
+
+#### 4. The gate is `symbolic && embedded`, and the `embedded` half is UNPROVEN — labelled, not deleted
+
+A **substituted** face's "built-in encoding" is the *substitute's*, with no
+relationship to the document's codes, so taking it first would break every
+non-embedded symbolic font. That is the same distinction `encoding_table`
+already draws one function above.
+
+**Ablating `embedded` leaves the suite GREEN**, and the reason is structural
+rather than a missing fixture: a failed Branch B falls straight through to the
+name chains at no cost, and for the guard to bite, a substitute face would have
+to carry a `(3,0)`/`(1,0)` subtable, which a normal text face does not.
+**Shipped labelled as unproven in place** (`crates/pdfcer-render/src/text.rs`,
+the `builtin_first` comment block) rather than deleted, because it is the
+correct statement of the rule and a future face that *did* carry one would
+otherwise silently start resolving raw codes against it — *a guard no test can
+fail is indistinguishable from a guard that does nothing, and the next reader
+should not have to re-run the ablation to learn which this is.* Same
+disposition as the 463rd filing's three flagged-in-place `crates/` survivors.
+
+#### 5. Relation to decision 051
+
+Decision **051** (*"the symbolic-font guard is against the §9.6.6.4 Branch B
+MAPPING, not against symbolic fonts as a class"*) is about **font embedding** —
+whether a missing symbolic font may be *substituted*. **143 is about
+rendering** — which glyph a code selects once a program is present. They cite
+the same clause and do not overlap; neither amends the other. Read together
+they say the project has twice declined to treat `Symbolic` as a class
+boundary, and twice for the same underlying reason: **the flag describes a
+mapping, not a kind of font.**
+
+#### 6. Measured consequence
+
+On the reporting file (`WSQMXO+TT19Et00`, symbolic, `WinAnsiEncoding` +
+`/Differences`, `(1,0)` + `(3,0)`, no `(3,1)`): **`.notdef` glyphs on page 1
+went 961 → 0**, and Branch A chain 2 had been returning valid unrelated glyphs
+for the rest — code 3 `/three` → GID 56 `U`, code 8 `/one` → GID 48 `M`, code
+10 `/two` → GID 52 `Q`. **Both spec branches would have been correct**; pdfcer
+had been taking a third path that was neither. Full table in `ROADMAP.md`'s
+`Pass 271.0` entry.
+
+#### 7. Body-section effect and invariants
+
+**§4 (core API surface) unchanged** — `resolve_gids` is private to
+`pdfcer-render`; its signature gained `flags: u32, embedded: bool` with no
+public item added or altered. **No crate boundary moved and no dependency
+changed**, so the §3 GUI-core-separation invariant is unaffected and no
+`cargo tree` check is owed. **§5 round-trip is untouched** — this is a render
+path; no writer, no save mode.
+
+**Cross-project record:**
+`C:\personal_rag\pdf\lesson_20260908_symbolic_truetype_subset_private_1_0_cmap_renders_wrong_glyphs_while_extraction_is_clean.md`
+— **written this filing, not owed**, and it closes a pointer the spec corpus
+has carried unresolved (§9.6.6.4's *"known interop fault line →
+`C:\personal_rag\pdf\`"* named a destination that did not exist).
+
+**Decision ceiling: `142` → `143`**, next free `144`. **Standing rules ceiling
+`R246` — UNCHANGED**; `R247` considered and **declined** (the fixture finding
+is `R225`'s tenth instance and a new medium, not a new cause — see
+`ROADMAP.md` *Standing rules*), next free `R247`. **Pass ceiling `270.2` →
+`271.0`**, next free family `272.x`.
