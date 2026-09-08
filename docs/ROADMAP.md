@@ -112,6 +112,132 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★ 470th filing, 2026-09-08 — `v0.46.0` RELEASED (covering `Pass 262.0`–
+`262.2`/`263.0`, the 469th filing's own subject), AND `Pass 265.0` MINTED AND
+SHIPPED IN THE SAME FILING — THREE FORM-FIELD PROPERTIES THAT WERE READABLE
+AND UNWRITABLE (`4319279`).**
+
+**Sourcing (hard rule 8).** No shell tool, the sixth time today. Release
+facts below (Part A) are **relayed** — this role could not run `git`, `gh`,
+`sha256sum` or inspect OneDrive/disk directly. `Pass 265.0`'s facts (Part B)
+are **verified directly** against live source: `crates/pdfcer-core/src/
+edit.rs` (`FieldEdit::{quadding, default_value}: Option<Option<_>>`,
+`with_default_value`/`clearing_default_value` at `:19381`/`:19389`,
+`default_value` doc note at `:15492`), `crates/pdfcer-cli/src/main.rs`
+(`edit-field --quadding/--clear-quadding/--default-value/
+--clear-default-value/--no-export`, wired `:30640`–`:30654`, `clear_quadding`
+`conflicts_with = "quadding"` at `:5832`), and both new test files by direct
+`Grep "#\[test\]"`: `field_properties.rs` **7**, `pdfcer-cli/tests/
+edit_field.rs` **7** — both matching the dispatch exactly. Also confirmed:
+`docs/core-api/02-editing-and-saving.md:4135` already reads *"126 variants
+at `Pass 265.0`"* and `index.md:17` "all 211 public verbs" — the engineer's
+own citation of this Pass ID **predates this filing and matches it**; no
+correction owed. `EditError::QuaddingInvalid` and `FieldFlags::NO_EXPORT`
+confirmed present in `edit.rs`/`forms.rs` by grep, not read in full.
+
+---
+
+### PART A — `v0.46.0` RELEASED
+
+Tag `v0.46.0` at `0591f1a`, covering `Pass 262.0`–`262.2` and `Pass 263.0`
+(shipped at the 469th filing, `fad0d2d`/`dabdfa6`/`1ebad1e`) — that filing's
+own ledger had left this release owed (*"`712c698` staged and about to be
+pushed/released as `v0.46.0`, filed separately when it ships"*); this is
+that filing.
+
+- **CI green at the tagged commit**, run `34188234475`, read from GitHub.
+  Rebuilt after tagging so the banner names the release: `revision: v0.46.0`,
+  built `2026-09-08T05:04:55Z`.
+- **Zip** `pdfcer-0.46.0-windows-x64.zip`, **18,924,702 bytes**, SHA-256
+  **`30932d3c095c3349ce646504933fc24a68e5e59e1d912d5b2536380150d57f2b`**.
+- **Portable folder** `D:\builds\pdfcer-20260908-0114-0591f1a` — **8 files,
+  34,750,580 bytes** (`pdfcer.exe` 22,215,168; two `.rten` weights; their
+  `PROVENANCE.md`; four doc/licence files) — same file count and model split
+  as `v0.45.0`/`v0.44.1`, no new model.
+- **GitHub release** created, zip + `.sha256` uploaded; **the published
+  asset was downloaded back and re-hashed — matches.**
+- **OneDrive.** Slot **`pdfcer1`**; `pdfcer2` keeps `0.45.0` as the
+  fall-back-to version — same alternating scheme as every release since
+  `Pass 166.0`/`R229`.
+- **`tools/verify-release.py v0.46.0` — nine of nine, clean tree.**
+- **Fresh-folder smoke test reproduced the FEATURES, not only the banner**:
+  all six check-box/radio glyph styles (`Pass 263.0`) authored successfully
+  from the copied binary; the `/MK` colour round trip (`Pass 262.2`)
+  returned `background=1,0,0 border_color=none`; the widget-flags refusal
+  fired with its named reason; locking a `/Stamp` then moving it produced
+  the Table 165 refusal quoting the clause (`Pass 262.0`).
+
+`docs/FEATURES.md` — **no capability box moves for a release**, per the
+465th filing's own precedent (a release ships bytes, not new reachability);
+checked, not touched.
+
+### PART B — `Pass 265.0` MINTED AND SHIPPED — three form-field properties
+that were readable and unwritable
+
+**Origin.** The operator's *"then the rest of the form fields"*, following
+the 469th filing's own field-property audit: every property the read model
+exposes with **no writer anywhere in the crate**. These three sit on
+Acrobat's own field-properties surface and are the ones an operator actually
+reaches for:
+
+- **`/Q`** (Table 233) — `Field::quadding` readable, nothing wrote it.
+- **`/DV`** (Table 228) — `Field::default_value` readable, nothing wrote it.
+- **`Ff` bit 3 NoExport** (Table 226) — `FieldFlags::NO_EXPORT` defined and
+  referenced nowhere else in the workspace.
+
+★ **`/DV` is the one worth the paragraph.** `reset_form` reads it and
+removes `/V` where there is none — so with no writer, **a reset could only
+ever restore defaults some OTHER application had authored.** A form pdfcer
+built from scratch reset every field to EMPTY whatever its author intended.
+Its type follows `/V`: a NAME for a `/Btn`, a text string elsewhere.
+
+`/Q` and `/DV` are `Option<Option<T>>` — absent, set, or **removed**. Table
+233 defaults `/Q` to left, so `Some(Some(0))` and `Some(None)` **render
+identically** and are different facts about the file.
+
+New `EditError::QuaddingInvalid` — a value outside `0..=2` is **refused, not
+clamped**, validated before anything is written.
+
+**CLI**: `edit-field --quadding / --clear-quadding / --default-value /
+--clear-default-value / --no-export`, with each `--clear-*` flag conflicting
+with its own setter at the clap level so the contradiction cannot be typed
+(verified: `clear_quadding` carries `conflicts_with = "quadding"`).
+
+**Sabotages, both caught** (relayed): clearing `/Q` made to write `0`
+instead of removing the key (the one a weaker test misses — both render
+left, only the raw dictionary distinguishes them); NoExport written at the
+Required bit.
+
+**Tests (relayed except the two counts marked verified above, all 0
+failed — NOT a full workspace run):** `field_properties` **7** (verified);
+`pdfcer-core --lib` 2039; `form_field_editing` 19, `form_field_authoring` 40,
+`form_radio_groups` 21, `form_push_buttons` 14, `form_field_merge` 36,
+`form_field_hierarchy` 36, `form_field_clipboard` 24, `form_choice_indices`
+10, `check_styles` 5, `annot_gates` 4, `widget_resize_appearance` 9;
+`pdfcer-cli edit_field` **7** (verified).
+
+**`docs/FEATURES.md`** — new *Forms* row added (below): core `[x]`, cli
+`[x]`, gui `[ ]`.
+
+**Backlog residue, not built this session, filed as `Pass 266.0`** — still
+unwritable: `/DA` (font, size, colour — the biggest remaining gap, needs
+`/DR` handling), `/TM`, `/AA`, `/CO`, and the `FileSelect` /
+`DoNotScroll` / `DoNotSpellCheck` / `CommitOnSelChange` flags.
+
+#### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass IDs | ceiling `263.0`; family `264.x` fully spent (`264.0`–`264.5`, Backlog); next free family `265.x` | **`Pass 265.0` MINTED AND SHIPPED** (`4319279`), matching the engineer's own pre-filing citation in `docs/core-api`. `Pass 266.0` MINTED into Backlog for the residue. Ceiling **`266.0`**, next free family `267.x` |
+| Standing rules | ceiling `R245`, next free `R246` | **unchanged — no mint this filing** |
+| Decisions | ceiling `140`, next free `141` | **unchanged — no crate boundary, library choice or invariant redefinition** |
+| SESSION_LOG filings | `469` | **`470`** |
+| `docs/FEATURES.md` | rows `:293`/`:295` as of the 469th filing; no row for `/Q`/`/DV`/NoExport writers | one new *Implemented* row (Forms), one new *Planned* row (`Pass 266.0`) |
+| Unreleased | `fad0d2d`/`dabdfa6`/`1ebad1e` + `712c698` (chore 0.46.0) + 469th filing's own librarian commit, staged for `v0.46.0` | **`v0.46.0` RELEASED** (Part A, above). `4319279` (`Pass 265.0`) is now the new unreleased tip |
+| Requests in `open/` | not independently re-verified this filing (no shell) | unchanged — not re-measured |
+
+---
+
 **★★★★★ 469th filing, 2026-09-08 — `Pass 262.0`–`262.2` FIX THREE
 FAMILY-WIDE ANNOTATION-GATE DEFECTS (`fad0d2d`) AND `Pass 263.0` DRAWS SIX
 CHECK-BOX/RADIO GLYPH STYLES AS VECTOR ARTWORK, DELIBERATELY EXCEEDING

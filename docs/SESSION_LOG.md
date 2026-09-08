@@ -97049,3 +97049,69 @@ verified against disk.
   be drawn in six shapes (a tick, an X, a star, a filled circle, a filled
   square, or a diamond), and they're drawn so they show correctly even
   where Acrobat's own font-dependent tick sometimes doesn't.
+
+## 2026-09-08 (470th filing) — `v0.46.0` released, and three more form-field properties (quadding, default value, NoExport) go from readable to writable
+
+**★ Filing-count note.** Last header was the 469th (same date, check-box
+glyph styles + annotation-gate fixes). No shell available to this role;
+filing counter taken from `ROADMAP.md`'s own ledger ("SESSION_LOG filings
+`469`, next `470`").
+
+**Shipped:**
+- **`v0.46.0` RELEASED** — tag `0591f1a`, covering `Pass 262.0`–`262.2`/
+  `263.0` (the 469th filing's own subject, left owed as "staged and about
+  to be pushed/released" in that filing's own ledger). CI green
+  (`34188234475`), zip 18,924,702 bytes re-hashed clean off GitHub,
+  portable folder 8 files/34,750,580 bytes, OneDrive slot `pdfcer1`
+  (`pdfcer2` keeps `0.45.0`), `verify-release.py` nine of nine. Fresh-folder
+  smoke test reproduced the actual shipped features — all six check-box
+  styles, the `/MK` colour round trip, the widget-flags refusal, the
+  Locked-annotation move refusal — not just the version banner.
+- `Pass 265.0` (`4319279`) — three form-field properties that were
+  readable and unwritable, all on Acrobat's own field-properties surface:
+  `/Q` quadding (`with_quadding`/`clearing_quadding`, refused outside
+  `0..=2` rather than clamped), `/DV` default value
+  (`with_default_value`/`clearing_default_value` — without a writer,
+  `reset_form` could only ever restore some OTHER application's defaults;
+  a form pdfcer authored from scratch reset every field to EMPTY), and
+  `Ff` bit 3 NoExport (`with_no_export`, previously defined and referenced
+  nowhere else in the workspace). `/Q`/`/DV` are set-or-removed, not
+  set-or-default (`Option<Option<T>>`); `--clear-quadding`/
+  `--clear-default-value` conflict with their own setters at the clap
+  level so the contradiction cannot be typed. New
+  `EditError::QuaddingInvalid`. CLI: `edit-field --quadding/
+  --clear-quadding/--default-value/--clear-default-value/--no-export`.
+  Two sabotages caught: clearing `/Q` writing `0` instead of removing the
+  key; NoExport written at the Required bit.
+
+**Decisions made this session:**
+- None — no crate boundary, library choice or invariant redefinition
+  this filing on either part.
+
+**Findings + decisions:**
+- Verified directly against live source (not relayed): `FieldEdit`'s
+  `quadding`/`default_value` fields, the `with_*`/`clearing_*` methods in
+  `edit.rs`, the five new CLI flags wired in `main.rs:30640`–`30654`, and
+  both new test files' counts (`field_properties.rs` 7,
+  `pdfcer-cli/tests/edit_field.rs` 7) — all matched the dispatch. Also
+  confirmed `docs/core-api/02-editing-and-saving.md` already cited
+  `Pass 265.0` ("126 variants at Pass 265.0") **before** this filing
+  minted it — the engineer's own pre-filing citation and the ID minted
+  here agree, no correction owed.
+
+**Still in flight:**
+- `Pass 266.0` (Backlog, minted this filing) — the residue of the field-
+  property audit: `/DA` (font/size/colour, needs `/DR` handling), `/TM`,
+  `/AA`, `/CO`, and the `FileSelect`/`DoNotScroll`/`DoNotSpellCheck`/
+  `CommitOnSelChange` flags. Not started.
+- Backup bundle currency, disk/`target/` size, exact push state: not
+  re-measured this filing — no shell tool available to this role.
+
+**For next session:**
+- **Operator:** you asked for regular releases through the night so
+  there'd be something to test by 06:15 — `v0.46.0` is on OneDrive now,
+  and it includes the check-box glyph styles, the annotation-lock fix,
+  and (as of this filing) the ability to set a field's text alignment,
+  its reset-to value, and whether it's excluded from form submission.
+- **Engineer:** `Pass 266.0`'s five remaining unwritable field properties
+  are queued in Backlog; `/DA` is flagged as the biggest of the five.
