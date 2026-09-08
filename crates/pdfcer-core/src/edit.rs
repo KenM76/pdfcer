@@ -4320,6 +4320,62 @@ fn spec_vertex_count(spec: &MarkupSpec) -> usize {
     }
 }
 
+/// Put the file's own `/BM` back after a regeneration has merged pdfcer's
+/// authored keys over it.
+///
+/// # Why `/BM` is not pdfcer's to overwrite, and not pdfcer's to delete
+///
+/// `/BM` on an **annotation dictionary** (as opposed to in a graphics state)
+/// is the blend mode a conformant reader uses when compositing that
+/// annotation's appearance onto the page. It is not decoration and it is not
+/// a hint: it changes the pixels.
+///
+/// It is easy to believe otherwise, because ISO 32000-2 as printed lists
+/// `BM` among the keys a reader *"shall ignore … when rendering the
+/// appearance dictionary"*. **The PDF Association errata (issue #56, closed
+/// 2021-07-09, label `ISO approved`) REMOVED `BM` from that list** while
+/// adding `MK` to it — see
+/// `iso32000__s__12.5.6.19.md` §4.3 in the spec corpus. So the printed
+/// standard and the standard-as-corrected disagree about this exact key, and
+/// the corrected reading is the operative one: `/BM` is honoured.
+///
+/// # What this function decides
+///
+/// **The file's `/BM` wins over pdfcer's.** pdfcer authors `/BM /Multiply`
+/// for a `/Highlight` (so overlapping highlights do not darken), and that is
+/// the right *default for a highlight pdfcer is creating from nothing*. It is
+/// not a licence to retype an existing annotation's blend mode during an
+/// unrelated restyle — an operator who set `/Darken` in Acrobat and then
+/// changed the colour in pdfcer did not ask for `/Multiply`.
+///
+/// A file with no `/BM` keeps whatever the authoring path supplied, which
+/// preserves the highlight default exactly as before.
+///
+/// # The two routes had drifted, and neither looked wrong on its own reading
+///
+/// - **resize** merged authored keys over a clone of the file's dictionary
+///   and never cleared `/BM`, so a foreign blend mode survived — by
+///   accident rather than by decision, and only until an authored `/BM`
+///   could overwrite it. (Measured: it survives. See the note at that
+///   branch for why its collision case is unreachable today.)
+/// - **restyle / reshape** — this caller — listed `/BM` among the keys it
+///   cleared before merging, so a foreign blend mode was **deleted
+///   outright**, silently, with no [`DroppedProperty`] to report it.
+///   Deleting a key that changes how an annotation composites is a
+///   rendering change wearing a normalisation's clothes.
+///
+/// A guard applied to one member of a family and not the rest is invisible
+/// precisely because the guarded member looks correct.
+///
+/// Nothing is disclosed here because nothing is lost. Rule 4 cuts both ways —
+/// reporting a loss that did not happen trains the operator to discount the
+/// reports that matter.
+fn preserve_blend_mode(before: &Dict, updated: &mut Dict) {
+    if let Some(bm) = before.get(b"BM") {
+        updated.insert(Name::from(b"BM"), bm.clone());
+    }
+}
+
 fn dropped_properties<G: ObjectGraph + ?Sized>(
     graph: &G,
     annot: &Dict,
@@ -27016,8 +27072,28 @@ impl EditSession {
                     ObjId::new(self.alloc_number()?, 0)
                 }
             };
+            // ★ UNPROVEN BY TEST, AND SAID SO ON PURPOSE. This is the
+            // `ResizedAppearance::Rebuilt` branch — reached only when the
+            // appearance on disk is one pdfcer itself drew. The only subtype
+            // whose authored dictionary carries `/BM` is `/Highlight`, and a
+            // highlight pdfcer drew necessarily already carries pdfcer's own
+            // `/BM /Multiply`, so the collision this line prevents cannot be
+            // constructed through pdfcer's API: an ablation that made this
+            // branch DELETE `/BM` outright left every test green.
+            //
+            // It is kept because the branch is reachable by a file pdfcer did
+            // not write end to end (another editor changing `/BM` on an
+            // appearance pdfcer had drawn), and one key is cheaper than the
+            // argument. It is labelled because a guard that no test can fail
+            // is indistinguishable from a guard that does nothing, and the
+            // next reader deserves to know which this is without re-running
+            // the ablation.
+            let blend_before = updated.get(b"BM").cloned();
             for (key, value) in authored.annot.0.iter() {
                 updated.insert(key.clone(), value.clone());
+            }
+            if let Some(bm) = blend_before {
+                updated.insert(Name::from(b"BM"), bm);
             }
             let mut ap = Dict::new();
             ap.insert(Name::from(b"N"), Object::Reference(ap_id));
@@ -29609,6 +29685,10 @@ impl EditSession {
         // Build the replacement annotation dictionary: start from what the
         // file has (so every key this verb does not own survives), then
         // overwrite exactly the keys `build_appearance` owns.
+        //
+        // ★ `/BM` IS NOT ON THE REMOVAL LIST, and it used to be. See
+        // `preserve_blend_mode` for why deleting it was a silent rendering
+        // change rather than the harmless normalisation it looked like.
         let mut updated = current.clone();
         for key in [
             &b"Rect"[..],
@@ -29620,7 +29700,6 @@ impl EditSession {
             b"Vertices",
             b"InkList",
             b"QuadPoints",
-            b"BM",
         ] {
             updated.remove(key);
         }
@@ -29629,6 +29708,7 @@ impl EditSession {
             // and cheaper than special-casing them out.
             updated.insert(key.clone(), value.clone());
         }
+        preserve_blend_mode(current, &mut updated);
         let mut ap = Dict::new();
         ap.insert(Name::from(b"N"), Object::Reference(new_ap_id));
         updated.insert(Name::from(b"AP"), Object::Dict(ap));

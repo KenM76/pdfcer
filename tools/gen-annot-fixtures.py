@@ -253,6 +253,71 @@ def main() -> int:
         {4: b"<< /Type /Annot /Subtype /Circle /Rect [40 40 160 160] /IC [1 0 0] >>"},
     )
 
+    # -- /BM, a blend mode pdfce would never author (Pass 264.x) --------
+    # A `/Square` carrying `/BM /Darken`. `/Darken` is chosen precisely
+    # because no pdfce authoring path writes it: pdfce writes `/BM
+    # /Multiply` and only for a `/Highlight`, so a regeneration that
+    # "preserved" the blend mode by re-deriving its own default would keep
+    # a `/Multiply` fixture green while this one goes red.
+    #
+    # /BM on an annotation dictionary is honoured when compositing the
+    # appearance onto the page. ISO 32000-2 AS PRINTED lists it among the
+    # keys a reader ignores; the PDF Association errata (issue #56, ISO
+    # approved 2021-07-09) REMOVED it from that list. The corrected reading
+    # is operative, which is what makes deleting this key a rendering
+    # change rather than a normalisation.
+    files["blend-mode-square.pdf"] = one_page(
+        "/Annots [4 0 R]",
+        {
+            4: (
+                b"<< /Type /Annot /Subtype /Square /Rect [100 100 200 160] "
+                b"/BM /Darken /BS << /W 2 /S /S >> /C [0 0 1] "
+                b"/AP << /N 5 0 R >> >>"
+            ),
+            5: fill_ap((0, 0, 100, 60)),
+        },
+    )
+
+    # The same `/BM /Darken`, on a subtype that HAS VERTICES. A `/Square`
+    # cannot reach `reshape_annotation` at all -- reshape edits a vertex
+    # list and a rectangle has none -- so without this file the reshape
+    # route through the shared regeneration body is untested, which is
+    # precisely how one member of a family keeps a bug the others lost.
+    # ★ The case the PRESERVATION RULE exists for, as opposed to the
+    # DELETION BUG. A `/Highlight` is the one subtype pdfce itself authors
+    # `/BM` on (it writes `/Multiply` so overlapping highlights do not
+    # darken), so it is the only subtype where the file's value and pdfce's
+    # authored value can COLLIDE. On every other subtype the authored dict
+    # simply has no `/BM`, and merely not deleting the key is enough.
+    #
+    # Written after a sabotage run proved the point: removing the
+    # preservation call left all four other tests GREEN, because none of
+    # them exercised a collision. A guard whose removal changes nothing is
+    # not a guard, it is decoration -- this fixture is what makes it real.
+    files["blend-mode-highlight.pdf"] = one_page(
+        "/Annots [4 0 R]",
+        {
+            4: (
+                b"<< /Type /Annot /Subtype /Highlight /Rect [100 100 200 130] "
+                b"/QuadPoints [100 130 200 130 100 100 200 100] "
+                b"/BM /Darken /C [1 1 0] /AP << /N 5 0 R >> >>"
+            ),
+            5: fill_ap((0, 0, 100, 30)),
+        },
+    )
+
+    files["blend-mode-polygon.pdf"] = one_page(
+        "/Annots [4 0 R]",
+        {
+            4: (
+                b"<< /Type /Annot /Subtype /Polygon /Rect [100 100 200 200] "
+                b"/Vertices [100 100 200 100 200 200] /BM /Darken "
+                b"/BS << /W 2 /S /S >> /C [0 0 1] /AP << /N 5 0 R >> >>"
+            ),
+            5: fill_ap((0, 0, 100, 100)),
+        },
+    )
+
     # `Pass 155.1`. A /PolyLine carrying /Vertices and NO /AP -- the only
     # shape that reaches `rotate_annotation`'s GEOMETRY derivation, where the
     # new /Rect is bounded from the rotated vertices plus the allowance the
