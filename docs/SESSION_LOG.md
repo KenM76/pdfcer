@@ -97269,3 +97269,173 @@ or invariant redefinition this filing.
   `pdfcer-gui`. Field-property audit residue is now down to `/AA` and
   `/CO`, both structural rather than simple properties. `Pass 267.0`
   remains queued in Backlog.
+
+## 2026-09-08 (474th filing) — a pasted markup is finally the mark that was copied (`Pass 270.0`), `v0.49.0` is bumped but **NOT released** with CI red on `origin/main`, and the sweep found a defect the fix itself shipped (`Pass 270.1`)
+
+**Sourcing note, because this filing's dispatch was wrong about it.** The
+dispatch opened *"you have no shell"*. **A `Bash` tool was available and was
+used**, so every figure here is measured with its command named rather than
+relayed: `git show --stat --format=%B` (all three commit messages),
+`git log origin/main..HEAD` (push state), `gh run list` (CI verdict),
+`tools/check-ledger-numbers.py` + `tools/check-commits-filed.py` (ledgers),
+`bash tools/run-gates.sh --list` (gate set), `Grep`/`Read` (every code claim).
+**One finding is explicitly NOT executed** and is labelled so below.
+
+**Shipped:**
+- **`Pass 270.0`** (`caf4c1d`) — **a pasted markup is the mark that was
+  copied.** `ClipAnnotation::Markup` carried a `MarkupSpec` and nothing else,
+  and a spec describes the *shape*, so four operator-visible properties dropped
+  silently on every copy-paste: `/BS` `/S`+`/D` (a dashed revision cloud came
+  back **solid**), `/CA` (a 50 %-opacity highlight came back **opaque**),
+  `/Contents` (**blank**) and `/T` (**unsigned**). Fixed with a sibling
+  `MarkupCarry` + `encode_carry`/`decode_carry`, applied at paste through the
+  **same `MarkupOptions` authoring uses**. 3 new tests, **sabotaged four times
+  — once per property individually**. Closes the clipboard half of `Pass 264.2`
+  and the **value** half of the unscoped clipboard-fidelity Backlog entry.
+- **`c56f63e`** — one `clippy::type_complexity` on `Pass 269.0`'s test table,
+  now a named `FlagCase` alias. **No new Pass ID** — a follow-on to
+  `Pass 269.0`, same precedent as `1ebad1e` under `Pass 262.1`.
+- **`14ee766`** — `chore: 0.49.0`, version bump + three lockfiles only.
+
+**★★ NOT shipped, and this is the headline for the operator: `v0.49.0` is NOT
+released.** No tag exists (`git tag --list "v0.4*"` tops out at `v0.48.0`),
+nothing packaged, nothing on OneDrive. **`origin/main` is `14ee766` and its CI
+is RED** (run `34230418986`, failed on clippy — the verdict read from GitHub,
+not inferred). The commits that fix it are **unpushed**.
+
+> **★ RE-MEASURED 13:59Z, MID-FILING.** This read *"the **two** commits …
+> `c56f63e` and `caf4c1d`"*; by the time the gates were run
+> `git log origin/main..HEAD` returned **three**, the addition being
+> **`70e8f53`** (09:55:10 −0400) — the engineer's `/BM` fix, i.e. **`Pass
+> 264.1`**, one of the residue items listed under *Still in flight* below. It
+> is the deferred tip; the **475th** filing owes it, not this one. Corrected
+> from `git log origin/main..HEAD` re-run at 13:59Z, not inferred.
+
+**Decisions made this session:**
+- **Decision `141`** (`ARCHITECTURE.md` §12) — **author-time options travel in a
+  sibling type beside a spec, never inside it.** A "spec" is what *rebuild*
+  verbs regenerate from, so the membership test is not *"does this belong to
+  the object?"* but ***"may a reshape or a restyle change this?"*** — and
+  everything failing that test goes in a sibling that **every carrier of the
+  spec must carry too**. Minted on three grounds: it **supersedes a plan
+  already written into the Backlog** (*"carry BOTH representations and choose
+  by transform"* — struck, and the two-representation clip must **not** be
+  built); it is a **breaking** public-API change (`ClipAnnotation::Markup`
+  arity; enum-level `#[non_exhaustive]` does not protect a variant's arity);
+  and the sibling **will grow** — `Pass 264.1`/`264.3`/`264.4` (`/BM`, `/BE`,
+  `/OC`) all face the same question and this answers them in advance.
+
+**Findings + decisions:**
+- **The defect rule 4 cannot catch, and the reason is transferable.** Nothing
+  disclosed the four lost properties and **nothing could have**: from the
+  paste's point of view it was authoring a *fresh* mark, which has nothing to
+  report losing. Rule 4 governs what pdfcer **inferred**; pdfcer inferred
+  nothing here, it failed to **carry what it was given**. ⇒ **A
+  "fuzzy-never-sneaky" audit that only looks for inferences will not find this
+  class.**
+- **`R209` grows CLAUSE (f)** — *a gate that RAN and reported PASS about a
+  narrower **target set** than CI's.* `cargo clippy -- -D warnings` lints
+  **library targets only**; CI runs `--workspace --all-targets --all-features`,
+  which additionally lints every integration test, and the defect was in one.
+  ★ **Why a clause and not a dated instance:** clauses (a)–(e) all treat a gate
+  as **atomic**, and (e)'s sharpest line is *"a sweep that omits a gate is
+  indistinguishable from a green one."* **This gate was not omitted — it ran,
+  reported, and its PASS was TRUE, of a smaller question.** A skipped gate
+  produces **no** evidence; a narrowed gate produces **positive** evidence for
+  a proposition nobody stated. **Mint of `R246` declined**, argued: `R209`'s
+  founding sentence already contains it, only the *kind* of set differs.
+- **The remedy is stronger than `R209`'s founding text assumed, and invisible
+  to grep.** `bash tools/run-gates.sh --list` prints **29 commands** (1
+  pre-flight + 26 + 2 filing gates) plus **2 named skips**; `ls tools/check-*`
+  returns **23** scripts; the full clippy line is **command 6 of 29**. And
+  `run-gates.sh` builds its list **at run time** from
+  `check-ci-parity.py --list`, so **it cannot drift from CI's flags**. ★ Yet
+  `grep -n clippy tools/run-gates.sh` returns **nothing** — the string is not
+  in the file, so the obvious check answers *no* when the truth is *yes, with
+  CI's exact flags*.
+- **`R245` gains a fourth dated instance** — the family was **five**
+  appearance-regeneration routes and `Pass 258.0` guarded **four**. ★ **The
+  survivor was hidden by a closed-set sentence**: *"all four … (restyle,
+  resize, reshape, author)"* invites a reader to verify its **members** and
+  never its **cardinality**. No amendment; the rule already says *"write the
+  test over the FAMILY"*, and a family-wide test would have gone red.
+- **★★★ THE SWEEP FOUND A DEFECT `caf4c1d` ITSELF SHIPPED — `Pass 270.1`,
+  minted into Backlog, OWED BEFORE THE `v0.49.0` TAG.** `ObjectClip::to_bytes`
+  now writes **two** positional COS objects per markup and `from_bytes` reads
+  the second **unconditionally**, but **`CLIP_VERSION` was not bumped** and
+  `ObjectClip::needed_version` was not touched. Annotations have been in the
+  file format since version 2, so **a clip written by `v0.48.0` or earlier
+  carries ONE object per markup and the new reader takes a second** —
+  consuming the next record's bytes and misaligning the parse. **It is
+  silent**, because `decode_carry` deliberately cannot fail. **Violates
+  decision `105` by name**, whose own text says *"a second key added later
+  cannot be wired into the writer while missing the decider."* ★ **Why that
+  safeguard failed, which is the transferable half: decision `105` reasons
+  about droppable dictionary KEYS; this added a non-droppable POSITIONAL
+  FIELD**, and `needed_version` has no clause a positional change could trip.
+  **Untested in both directions** — no test constructs an older-version clip,
+  and `markup_clip_carry.rs` contains no `to_bytes`/`from_bytes` at all, so the
+  byte-format change shipped with **no test of its own**. **Reasoned from live
+  source, NOT reproduced by execution** — cheap to confirm, and the engineer
+  should.
+- **A second `FEATURES.md` survivor the dispatch did not report.** The *"Copy
+  and paste almost any annotation"* row read *"and still drops `/CA`, `/T` and
+  `/Contents` on those kinds"* — false as of `caf4c1d`. Found by reading for
+  the **claim** rather than grepping the phrase supplied; hard rule 11's thesis
+  again.
+- **The dispatch asked for the `FEATURES.md` correction in a form the project's
+  own rules forbid.** It said to preserve the superseded wording *"per `R216`"*;
+  **`R216` says the opposite** — preserved wrong wording belongs in the
+  **append-only** record, and an overwritten document *"carries a pointer, or
+  nothing"*. `FEATURES.md`'s own header independently forbids it: *"When a row
+  changes, **replace** the sentence — never append a note to it."* ⇒ The old
+  wording is preserved once, dated, in `ROADMAP.md`; `FEATURES.md` carries the
+  truth plus a one-sentence pointer.
+- **`14ee766`'s *"No breaking change"* is stale for the release it names.**
+  `caf4c1d` landed after it inside the same unreleased window and widened a
+  public variant's arity. ★ **The version NUMBER is correct** — under Cargo's
+  0.x semver `0.48.0` → `0.49.0` **is** the breaking slot — so nothing needs
+  re-numbering; only the prose is incomplete, and a commit message is immutable,
+  which is what this record is for.
+- **Stray UNTRACKED probe files in `crates/` will fail the release**, and the
+  class recurs faster than a filing takes: `bm_probe.rs` at the start of this
+  filing, **gone by 13:59Z** (deleted, not committed — it is absent from
+  `70e8f53`'s stat), with `?? crates/pdfcer-core/tests/locked_contents.rs`
+  there in its place. `tools/verify-release.py` fails *"working tree clean"* on
+  **any** `git status --porcelain` output, **untracked included**. Sweep before
+  tagging; the filename will have moved again.
+
+**Still in flight:**
+- **`Pass 270.1`** — the missing `CLIP_VERSION` bump. **Fix before tagging.**
+- **`Pass 264.2`** — narrowed, still open: `read_border_dash` is `pub(crate)`
+  (verified), so a shell still cannot read the dash pdfcer now preserves in
+  five routes.
+- The unscoped clipboard-fidelity entry — narrowed to **`/IRT` remap only**.
+- **`Pass 267.0`** (Backlog, 471st filing) — the non-prose baked gap at
+  `dimension_roundtrip.rs:1152` — still not built.
+- `Pass 264.0`/`264.3`/`264.4`/`264.5` — markup-family residue still
+  untouched: `/RC`+`/DS` desync, `/BE` write-once, `/OC` read-without-write,
+  `LockedContents` enforced nowhere. ★ **`Pass 264.1` (`/BM`) is NO LONGER in
+  this list** — `70e8f53` (09:55 −0400, *"an annotation's blend mode is the
+  file's, and restyle was deleting it"*) landed **during** this filing and is
+  its **deferred tip**. It is **not filed here** and the **475th filing owes
+  it**, including whether its `/BM` handling honours decision `141`.
+  `locked_contents.rs` sitting untracked says `264.5` is in progress too.
+
+**For next session:**
+- **Operator:** **`v0.49.0` is not released.** The public repo's `main` is
+  sitting at a red CI; pushing the two local commits fixes that. Copy-paste of
+  a marked-up comment now keeps its dashes, its transparency, its text and your
+  name on it — that was silently losing all four.
+- **Engineer, in order:** (1) **fix `Pass 270.1` before tagging** — Ken's rule
+  is fix-on-discovery, and the ID exists only because this role cannot edit
+  `crates/`; (2) sweep `git status` for untracked probe
+  files before tagging (`locked_contents.rs` is the current one) or
+  `verify-release.py` will fail; (3) push (standing-authorized, rule 8) and read
+  CI's colour from GitHub; (4) correct
+  `docs/core-api/02-editing-and-saving.md:900-905` — *"There is no second byte
+  format"* and the version-1-compatibility promise are both now misleading;
+  (5) `crates/pdfcer-core/src/vector/clip.rs:305-306` carries **two** doc
+  summary lines on the changed variant (the old one was not removed);
+  (6) the cross-project RAG file for decision `141` is **owed, not written**:
+  `D:/dev/rag/rust/a_spec_is_what_a_rebuild_regenerates_from_so_author_time_options_get_a_sibling_type.md`.

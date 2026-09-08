@@ -32698,3 +32698,170 @@ n=1, see above). **Pass ceiling `259.0` → `260.0`** (this Pass) **→
 `261.6`** (seven Backlog sub-IDs minted the same filing for an unrelated
 Acrobat-comment-type catalogue — see `ROADMAP.md` *Backlog*), next free
 family `262.x`.
+
+### 2026-09-08 (474th filing, `caf4c1d`) — decision 141: **AUTHOR-TIME OPTIONS TRAVEL IN A SIBLING TYPE BESIDE A SPEC, NEVER INSIDE IT. A "SPEC" IS WHAT REBUILD VERBS REGENERATE FROM, SO ANYTHING A REBUILD MUST NOT BE ABLE TO CHANGE IS DISQUALIFIED FROM LIVING IN IT — AND ANY CARRIER OF A SPEC MUST CARRY THE SIBLING TOO. FIRST INSTANCE: `annot_author::MarkupCarry` BESIDE `MarkupSpec`, AND `ClipAnnotation::Markup` WIDENED TO CARRY BOTH (`Pass 270.0`)**
+
+**(librarian filing, 474th. The engineer left the judgement explicitly —
+*"a decision record IF you judge the 'carry beside the spec, never in it'
+choice to be one … Your call."* Minted on three grounds, stated below. This
+dispatch **had a shell**, contrary to its own opening premise, so every fact
+here is measured with the command named, not relayed.)**
+
+**The decision, in one line.** *A spec is the input a REBUILD regenerates
+from; therefore the test for spec membership is not "does this belong to the
+object?" but **"may a reshape or a restyle change this?"** — and everything
+that fails that test travels in a sibling type that every carrier of the spec
+must carry alongside it.*
+
+**Why this is decision-shaped and not merely a tidy refactor — three
+grounds, and the first is the one that made it mandatory.**
+
+1. **It SUPERSEDES A PLAN ALREADY WRITTEN INTO THE BACKLOG.** `ROADMAP.md`'s
+   *"lossless markup/annotation clipboard-copy fidelity"* entry recorded the
+   engineer's own next step, deliberately filed *"here rather than left in a
+   commit message"*: **"carry BOTH representations and choose by transform"** —
+   the raw dictionary for a pure translation, the spec when it must rotate or
+   scale. **That is not what shipped**, and a superseded plan sitting
+   unmarked in the Backlog is precisely what a future session picks up and
+   builds. Recorded so it cannot be.
+2. **It is a public-API shape change with a breaking edge.**
+   `ClipAnnotation::Markup` went from `Box<MarkupSpec>` to
+   `(Box<MarkupSpec>, Box<MarkupCarry>)`. The enum carries `#[non_exhaustive]`
+   at **enum** level, which stops downstream exhaustive matching and **does
+   not** protect a variant's arity — verified by reading
+   `crates/pdfcer-core/src/vector/clip.rs:304`. Any consumer writing
+   `ClipAnnotation::Markup(spec)` breaks. (The version number is correct:
+   under Cargo's 0.x semver `0.48.0` → `0.49.0` **is** the breaking slot.)
+3. **The sibling will GROW, and the rule decides where the next three go.**
+   `Pass 264.1` (`/BM`), `264.3` (`/BE`) and `264.4` (`/OC`) are all
+   markup properties lost or unwritable at the time of this decision, and every
+   one of them presents the same "spec or sibling?" question. **This decision
+   answers all three in advance**, which is the difference between a rule and a
+   one-off. ★ **Already exercised once, within the hour:** `70e8f53`
+   (2026-09-08 09:55 −0400) fixes `/BM` — *"an annotation's blend mode is the
+   file's, and restyle was deleting it"* — and is the **deferred tip**, filed
+   by the 475th filing, not this one. Whether it placed `/BM` in the spec or
+   beside it is **not assessed here**; the next filing owes that reading
+   against this decision.
+
+**What was decided, and each clause's warrant.**
+
+1. **The four properties are not in the spec, and keeping them out is the
+   right call rather than the legacy one.** `/BS` `/S`+`/D` (dash), `/CA`
+   (opacity), `/Contents` (note) and `/T` (author) are **author-time
+   options** living in `MarkupOptions`; `MarkupSpec` describes the **shape**.
+   `reshape_annotation` and `set_markup_style` both **rebuild from the
+   spec** — so had the four been moved in, a reshape would have acquired the
+   power to change an author's name and a restyle the power to rewrite a
+   comment. ⇒ **The disqualifying test is the rebuild, not the ownership.**
+   The properties belong to the annotation in every ordinary sense; that is
+   not the question the spec answers.
+2. **The cost of that correctness was paid silently by every carrier of a
+   spec, and the clipboard was one.** `ClipAnnotation::Markup` held a spec
+   and nothing else, so it was **structurally incapable** of carrying the
+   four and the paste was structurally incapable of noticing. Four
+   operator-visible properties dropped on every copy-paste: a dashed
+   revision cloud came back solid, a 50 %-opacity highlight opaque, a comment
+   blank and unsigned. ⇒ **A rebuild-safety decision taken in one type
+   created a silent-loss defect in a different one, and nothing connected
+   them.** That is the general hazard this decision names.
+3. **The remedy is a SIBLING, not a widened spec and not a second
+   representation.** `annot_author::MarkupCarry` — `#[non_exhaustive]`, four
+   `Option` fields (`dash`, `opacity`, `contents`, `author`) — with
+   `encode_carry`/`decode_carry` beside the existing `encode_spec`/
+   `decode_spec`. VERIFIED at `crates/pdfcer-core/src/annot_author.rs`
+   (`MarkupCarry` at `:3325`, `encode_carry` at `:1209`, `decode_carry` at
+   `:1240` — all read directly); `pub mod annot_author` at `crates/pdfcer-core/src/lib.rs:75`, so
+   all three are public API.
+4. **★ The paste applies the carry through the SAME `MarkupOptions`
+   authoring uses** — `add_markup_with`, not `add_markup`
+   (`crates/pdfcer-core/src/edit.rs:12225`). **One code path**, so a
+   pasted mark and a freshly-authored one **cannot disagree about how a dash
+   is written.** This is the clause that makes the design self-enforcing
+   rather than merely tidy: a future change to how a dash is emitted cannot
+   fix authoring and miss pasting, because there is no second emitter to
+   miss. Same family as decision `140`'s `is_recoverable()` being **derived
+   from** `decline()` rather than stored beside it.
+5. **`None` MEANS ABSENT, NOT DEFAULT — and this is a correctness clause,
+   not a style one.** A plain square must come back plain. An implementation
+   that filled every absent field with a default would **pass a round-trip
+   test** while quietly adding `/CA`, `/Contents` and `/T` to every unadorned
+   mark anybody copied — **changing the bytes of files where nothing was
+   asked for**, which is a round-trip/minimal-diff violation (project rule 3,
+   `ARCHITECTURE.md` §5). There is a dedicated test for exactly this, because
+   the round-trip test alone cannot see it.
+6. **`decode_carry` DELIBERATELY CANNOT FAIL**, returning
+   `MarkupCarry::default()` for anything unreadable. Refusing a whole paste
+   over a garbled optional property would lose the **geometry** too, and
+   trading a lost dash for a lost annotation is worse than the defect being
+   fixed. **Accepted cost, stated rather than discovered later:** absent and
+   garbled are indistinguishable afterwards.
+
+**The distinguishing test, for the next property that asks.**
+
+> **Ask: may `reshape_annotation` or `set_markup_style` change this value as
+> a side effect of doing its own job?**
+> **Yes** → it is geometry or style; it belongs in `MarkupSpec`.
+> **No** → it is an author-time option; it belongs in `MarkupCarry`, **and
+> every carrier of the spec must be widened to carry it in the same
+> commit.**
+
+**The forbidden refactor, named because it will look like a simplification.**
+Folding `MarkupCarry`'s fields into `MarkupSpec` "so there is one type to
+pass around". It compiles, it deletes a parameter, and it hands every rebuild
+verb the power to rewrite an author, a comment and an opacity that nobody
+asked it to touch. **The two types are separate because two different verbs
+must have different powers over them**, which is not visible at the call
+site.
+
+**Proof.** `crates/pdfcer-core/tests/markup_clip_carry.rs` — **3** `#[test]`
+(counted directly by grep, not relayed), asserted on the **PASTED annotation
+read back out of the session**, not on the clip: *a clip that carries a value
+and a paste that drops it would satisfy any clipboard-only assertion.*
+**Sabotaged four times, once per carried property individually** — dropping
+the dash, the opacity, the note or the author each turns the round-trip test
+red; verified per instance, not per class. Green alongside (relayed from the
+commit message): `annotation_clip_serialisation` 13, `markup_border_style` 15,
+`form_field_clipboard` 24, `field_properties` 9.
+
+**★★ WHAT THIS DECISION DID **NOT** COVER, AND THE GAP COST A DEFECT IN THE
+SAME COMMIT.** Clause 4's *"every carrier of the spec must carry the
+sibling"* was honoured for the **in-memory** carrier (`ClipAnnotation`) and
+for the **byte** carrier's writer and reader — but **not for the byte
+carrier's VERSION.** `ObjectClip::to_bytes` now writes a second positional
+COS object per markup and `from_bytes` reads it unconditionally, while
+`CLIP_VERSION` (`vector/clip.rs:88`) and `ObjectClip::needed_version`
+(`:799`) were left untouched. **This violates decision `105` by name** —
+whose own text says *"a second key added later cannot be wired into the
+writer while missing the decider"* — and the reason the safeguard failed is
+that **decision `105` reasons about droppable dictionary KEYS while this
+added a non-droppable POSITIONAL FIELD.** Filed as **`Pass 270.1`**
+(`ROADMAP.md` *Backlog*), owed **before** `v0.49.0` is tagged. ⇒ **A future
+application of this decision must ask not only "which carriers?" but "does
+any carrier declare a VERSION, and does the sibling change it?"**
+
+**Body sections updated in this filing:** **§5** is untouched (the
+minimal-diff invariant is applied here, not redefined). **§12** carries this
+entry. No crate boundary moved; `cargo tree` invariant unaffected — no
+dependency changed.
+
+**Origin.** No external request: found by the engineer while auditing the
+markup family, and filed against the Backlog entry the 317th filing opened
+from `pdfceGUI`'s clipboard-fidelity question. **Not released** — `v0.49.0`
+is bumped (`14ee766`) and **not tagged**; `origin/main` sits at `14ee766`
+with **CI red** (run `34230418986`), and `c56f63e`/`caf4c1d` are unpushed
+(`git log origin/main..HEAD`).
+
+**Cross-project record owed, not yet written:**
+`D:/dev/rag/rust/a_spec_is_what_a_rebuild_regenerates_from_so_author_time_options_get_a_sibling_type.md`
+— the generalised form for any Rust project whose "spec"/"builder input"
+type is also the input to a regeneration verb. Flagged to the engineer rather
+than written this filing; it is the direct sibling of decision `140`'s
+`an_enum_with_a_non_growth_promise_gets_a_sibling_type_not_a_widened_variant_set.md`.
+
+**Decision ceiling: `140` → `141`**, next free `142`. **Standing rules
+ceiling `R245` — UNCHANGED**, next free `R246` (`R209` grew clause (f) and
+`R245` gained a dated instance; both mints declined with an argument — see
+`ROADMAP.md` *Standing rules*). **Pass ceiling `269.0` → `270.0`** (this
+Pass) **→ `270.1`** (one Backlog sub-ID minted the same filing for the
+missing `CLIP_VERSION` bump), next free family `271.x`.
