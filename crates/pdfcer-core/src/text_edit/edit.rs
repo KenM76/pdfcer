@@ -2031,12 +2031,39 @@ pub(crate) fn plan_edit_target(
                     trigger: RInvTrigger::TargetAbsent,
                     character: Some(u),
                     base_font: font.base_font.clone(),
+                    // ★ THE SAME REMEDY THE SIBLING REFUSAL NAMES, because an
+                    // operator experiences these two as one thing.
+                    //
+                    // This is the embedded-SUBSET floor; `InverseEncoding`'s
+                    // `TargetAbsent` fires when the font has no glyph at all.
+                    // Different causes, identical symptom — *"I typed a
+                    // character and it would not take"* — so a remedy offered
+                    // by one and withheld by the other is a coin toss from
+                    // outside. Improving one and not the other is `R245`'s
+                    // shape, and it was found by a test that happened to pick
+                    // a fixture reaching this branch instead of that one.
+                    //
+                    // Pointing only at FF-C was accurate and useless: it names
+                    // an unshipped subsystem rather than the route that works
+                    // today.
                     message: format!(
                         "R-INV-1 (embedded-subset floor): character U+{:04X} '{}' maps to code {} \
                          which font '{}' (an embedded SUBSET) does not already carry on this page; \
-                         embedding a new glyph is deferred to FF-C (font subsetting). This is \
-                         exactly Acrobat's 'embedded-but-not-local' floor.",
-                        u as u32, u, code, font.base_font
+                         embedding a new glyph into that subset is deferred to FF-C (font \
+                         subsetting). This is exactly Acrobat's 'embedded-but-not-local' floor.{}",
+                        u as u32,
+                        u,
+                        code,
+                        font.base_font,
+                        match crate::text_edit::encoding::std14_faces_covering(u).as_slice() {
+                            [] => String::new(),
+                            faces => format!(
+                                " To make this edit now, switch the run to a font that carries \
+                                 '{u}' -- `format_text` with `set_font` will add one, and these \
+                                 standard-14 faces have it: {}.",
+                                faces.join(", ")
+                            ),
+                        }
                     ),
                 }));
             }

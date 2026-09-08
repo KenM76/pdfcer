@@ -339,7 +339,25 @@ impl CompositeEncoding {
                     message: format!(
                         "this font has no glyph for {ch:?}, and pdfcer cannot add one to a font \
                          that is already embedded. Keep this edit to characters the font \
-                         already uses, or choose a font that covers it."
+                         already uses, or switch this run to a font that covers it{}",
+                        // ★ NAMING THE REMEDY, not just gesturing at it. The
+                        // sentence used to end "or choose a font that covers
+                        // it" -- true, and unusable, because the operator
+                        // cannot tell which font that would be and the whole
+                        // reason they are here is that they could not.
+                        //
+                        // These faces need no embedding and no permission
+                        // (§9.6.2.2), and `set_font` ADDS the resource to a
+                        // page that lacks it, so the sentence names a route
+                        // that is known to work rather than a hope.
+                        match std14_faces_covering(ch).as_slice() {
+                            [] => ".".to_owned(),
+                            faces => format!(
+                                " -- `format_text` with `set_font` will add one, and these \
+                                 standard-14 faces have it: {}.",
+                                faces.join(", ")
+                            ),
+                        }
                     ),
                 });
             };
@@ -368,6 +386,59 @@ impl CompositeEncoding {
     pub fn covers(&self, ch: char) -> bool {
         self.reverse.contains_key(&ch)
     }
+}
+
+/// The standard-14 faces whose built-in encoding can show `ch`, by
+/// `/BaseFont` name (`Pass 274.0`).
+///
+/// # Why a refusal needs this
+///
+/// `R71` refuses a keystroke whose glyph the run's embedded **subset** lacks,
+/// and points the operator at *"choose a font that covers it"*. That sentence
+/// is correct and, on its own, **unusable**: it names no font, and the whole
+/// difficulty is that the operator cannot tell which would work.
+///
+/// ★ The gap is discoverability, not capability. The remedy already shipped —
+/// `format_text`'s `set_font` will **author** a standard-14 resource on a page
+/// that lacks one, which needs no embedding and no permission — but nothing
+/// connected the refusal to it. Measured on a real drawing: the two-command
+/// sequence works today, and nothing in the refusal says so.
+///
+/// # Why the standard 14 specifically, and nothing else
+///
+/// They are the faces pdfcer can promise. A standard-14 resource can be added
+/// to any page with no font program, no `fsType` question and no licensing
+/// question (§9.6.2.2). Any other face still requires embedding, which is a
+/// separate decision with its own gate (`FF-C`), so listing one here would be
+/// pointing at a door that may not open.
+///
+/// Deliberately **not** a list of the page's own fonts: those are exactly the
+/// fonts that just failed, or are subsets of the same drawing and equally
+/// likely to lack the character. A caller that wants the full per-run survey
+/// has [`preview_font_resources`](crate::edit::EditSession::preview_font_resources).
+///
+/// # Coverage is computed, never assumed
+///
+/// Each face's own built-in encoding is scanned code by code and each glyph
+/// name resolved to Unicode, so the answer comes from the same tables the
+/// encoder uses rather than from a remembered claim about what "Helvetica
+/// has". `Symbol` and `ZapfDingbats` therefore drop out of the list for
+/// ordinary text without being special-cased — their built-in encodings simply
+/// do not map to it.
+#[must_use]
+pub fn std14_faces_covering(ch: char) -> Vec<&'static str> {
+    crate::fontdata::Std14::ALL
+        .iter()
+        .filter(|&&face| {
+            let enc = crate::fontdata::std14_builtin_encoding(face);
+            (0..=u8::MAX).any(|code| {
+                crate::fontdata::encoding_glyph_name(enc, code)
+                    .and_then(crate::fontdata::glyph_name_to_unicode)
+                    .is_some_and(|c| c == ch)
+            })
+        })
+        .map(|&face| crate::fontdata::std14_base_font_name(face))
+        .collect()
 }
 
 /// The inverse encoding map for one **simple** font.
