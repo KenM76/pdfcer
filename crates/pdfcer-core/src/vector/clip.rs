@@ -85,7 +85,28 @@ use super::geometry::{Bounds, Matrix};
 /// protecting a field almost no clip contains — see
 /// [`ObjectClip::needed_version`] and the identical argument on the
 /// ce-dimension sidecar's `SIDECAR_VERSION`.
-pub const CLIP_VERSION: u32 = 3;
+/// `4` (`Pass 270.1`, the markup author-time carry) follows exactly the same
+/// rule and exists because `Pass 270.0` broke it: that Pass appended a second
+/// positional COS object per markup annotation and **left this constant at
+/// `3`**, so a reader from this build took a second object out of a payload an
+/// older build had written with one — desynchronising every following
+/// annotation in the clip, silently, because `decode_carry` cannot fail.
+///
+/// ★ **Decision 105 was written to prevent precisely this and did not fire**,
+/// which is worth more than the fix. 105 reasons about *droppable dictionary
+/// keys*: a key a reader can miss without losing its place. A positional
+/// field has no such property — miss it and the parse is off by one object
+/// for the rest of the payload. The rule was right; its stated scope did not
+/// reach the change that needed it.
+pub const CLIP_VERSION: u32 = 4;
+
+/// The version a clip that carries no markup author-time properties, and no
+/// ce-dimension text override, is written at.
+///
+/// See [`CLIP_VERSION`] — this is the `3`-shaped constant for the `4` bump,
+/// kept separate from [`CLIP_VERSION_PRE_LABEL_OVERRIDE`] because the two
+/// features are independent: a clip may need one, the other, both or neither.
+pub const CLIP_VERSION_PRE_MARKUP_CARRY: u32 = 3;
 
 /// The version a clip that uses no post-`2` feature is written at.
 pub const CLIP_VERSION_PRE_LABEL_OVERRIDE: u32 = 2;
@@ -302,7 +323,6 @@ impl RawAnnotation {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ClipAnnotation {
-    /// A markup annotation, as the spec `add_markup` authors from.
     /// A markup pdfcer MODELS, carried as its spec **plus the properties
     /// that live beside the spec rather than inside it**.
     ///
@@ -785,31 +805,50 @@ impl ObjectClip {
     /// The lowest clip-format version that fully represents this clip's
     /// annotations (`Pass 175.0`).
     ///
-    /// [`CLIP_VERSION`] when some ce dimension carries a text override,
-    /// otherwise [`CLIP_VERSION_PRE_LABEL_OVERRIDE`]. See [`CLIP_VERSION`]'s
-    /// note for why this is content-dependent rather than a constant: the
-    /// operator runs two builds side by side out of two folders and copies in
-    /// one to paste in the other, so a blanket bump would break every paste
-    /// between them in exchange for protecting a field almost no clip has.
+    /// The highest version any single annotation in the clip requires:
+    /// [`CLIP_VERSION`] if some markup carries an author-time property,
+    /// else [`CLIP_VERSION_PRE_MARKUP_CARRY`] if some ce dimension carries a
+    /// text override, else [`CLIP_VERSION_PRE_LABEL_OVERRIDE`].
+    ///
+    /// See [`CLIP_VERSION`]'s note for why this is content-dependent rather
+    /// than a constant: the operator runs two builds side by side out of two
+    /// folders and copies in one to paste in the other, so a blanket bump
+    /// would break every paste between them in exchange for protecting a
+    /// field almost no clip has.
     ///
     /// A clip whose `version` field says `2` therefore round-trips to
     /// byte-identical output through an older build, which is the property
     /// that makes the two folders keep working.
+    ///
+    /// ★ The ordering is a **maximum, not a chain of alternatives**, and the
+    /// two features are independent — a clip can contain a dashed square and
+    /// a dimension with an overridden label. Written as a max so that adding
+    /// a third feature cannot accidentally make one of the first two
+    /// unreachable, which an `else if` ladder invites.
     #[must_use]
     pub fn needed_version(annotations: &[ClipAnnotation]) -> u32 {
-        if annotations.iter().any(|a| {
-            matches!(
-                a,
+        let mut version = CLIP_VERSION_PRE_LABEL_OVERRIDE;
+        for a in annotations {
+            let needed = match a {
+                // An EMPTY carry needs nothing: the common markup — a plain
+                // square with no dash, opacity, note or author — still writes
+                // at 2 and still pastes into the other folder's build. Only a
+                // clip that would actually LOSE something demands the reader
+                // that can carry it.
+                ClipAnnotation::Markup(_, carry)
+                    if **carry != crate::annot_author::MarkupCarry::default() =>
+                {
+                    CLIP_VERSION
+                }
                 ClipAnnotation::Dimension {
                     label_override: Some(_),
                     ..
-                }
-            )
-        }) {
-            CLIP_VERSION
-        } else {
-            CLIP_VERSION_PRE_LABEL_OVERRIDE
+                } => CLIP_VERSION_PRE_MARKUP_CARRY,
+                _ => CLIP_VERSION_PRE_LABEL_OVERRIDE,
+            };
+            version = version.max(needed);
         }
+        version
     }
 
     #[must_use]
@@ -896,7 +935,21 @@ impl ObjectClip {
                     put_cos(&mut out, &crate::annot_author::encode_spec(spec));
                     // The author-time properties, as a SECOND object rather
                     // than extra keys in the spec's -- see `MarkupCarry`.
-                    put_cos(&mut out, &crate::annot_author::encode_carry(carry));
+                    //
+                    // ★ VERSION-GATED, and it was not when it shipped. An
+                    // unconditional second object is invisible to a writer
+                    // and fatal to a reader: an older build wrote one object
+                    // here, so a newer reader taking two walks off the end of
+                    // this annotation and into the next one, mis-parsing every
+                    // annotation that follows. Nothing detects it, because
+                    // `decode_carry` cannot fail by design.
+                    //
+                    // `needed_version` only reaches 4 when some markup has a
+                    // property to carry, so an ordinary clip is still written
+                    // at 2 and still pastes into the other folder's build.
+                    if self.version >= CLIP_VERSION {
+                        put_cos(&mut out, &crate::annot_author::encode_carry(carry));
+                    }
                 }
                 ClipAnnotation::Dimension {
                     group_name,
@@ -931,7 +984,7 @@ impl ObjectClip {
                     // make a v2 clip and a v3 clip indistinguishable to a
                     // reader that got the version wrong — the presence byte
                     // is cheap; a shifted positional format is not.
-                    if self.version >= CLIP_VERSION {
+                    if self.version >= CLIP_VERSION_PRE_MARKUP_CARRY {
                         match label_override {
                             Some(text) => {
                                 out.push(1);
@@ -1080,10 +1133,23 @@ impl ObjectClip {
                     0 => {
                         let spec = crate::annot_author::decode_spec(&r.cos()?)
                             .map_err(|e| ClipError::Content(e.to_string()))?;
-                        // Read in the order written. `decode_carry` cannot
-                        // fail -- a garbled optional property reads as absent
-                        // rather than losing the geometry with it.
-                        let carry = crate::annot_author::decode_carry(&r.cos()?);
+                        // Read in the order written, and ONLY when the payload
+                        // says it is there. A version-2 or version-3 clip --
+                        // anything written before `Pass 270.0`, and anything
+                        // written since by a clip with nothing to carry -- has
+                        // one object here, not two.
+                        //
+                        // `decode_carry` cannot fail, which is right for a
+                        // garbled optional property (losing the geometry with
+                        // it would be worse) and is exactly why the version
+                        // check has to be here: an unconditional read of a
+                        // second object could not report going wrong, it would
+                        // just quietly consume the next annotation's tag byte.
+                        let carry = if version >= CLIP_VERSION {
+                            crate::annot_author::decode_carry(&r.cos()?)
+                        } else {
+                            crate::annot_author::MarkupCarry::default()
+                        };
                         ClipAnnotation::Markup(Box::new(spec), Box::new(carry))
                     }
                     1 => {
@@ -1107,7 +1173,7 @@ impl ObjectClip {
                         // carry no override; version 3 onwards do. Read
                         // conditionally rather than refusing, exactly as the
                         // annotation block itself is above.
-                        let label_override = if version >= CLIP_VERSION {
+                        let label_override = if version >= CLIP_VERSION_PRE_MARKUP_CARRY {
                             if r.take(1)?.first().copied().unwrap_or(0) == 1 {
                                 Some(String::from_utf8_lossy(&r.bytes()?).into_owned())
                             } else {

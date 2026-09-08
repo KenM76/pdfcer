@@ -907,6 +907,32 @@ The two exceptions are `transform_objects` / `transform_preview`
 > ★ **A version-1 payload still reads**, carrying its content and no
 > annotations, so a clip written by an older build is not refused.
 >
+> ★★ **THE VERSION IS CONTENT-DEPENDENT, AND A SHELL MUST NOT ASSUME IT IS
+> `CLIP_VERSION`.** `ObjectClip::needed_version` returns the *lowest* version
+> that fully represents the clip's annotations: `2` for ordinary content, `3`
+> (`CLIP_VERSION_PRE_MARKUP_CARRY`) when a ce dimension carries a text
+> override, `4` (`CLIP_VERSION`, `Pass 270.1`) when a markup carries an
+> author-time property — its dash, opacity, note or author. The reason is the
+> operator's: he runs two builds side by side out of two folders and copies in
+> one to paste in the other, so writing the newest version unconditionally
+> would break every paste between them to protect a field most clips do not
+> have.
+>
+> ★★★ **`Pass 270.0` broke this and `Pass 270.1` fixed it — the failure mode
+> is worth knowing, because it is the one this format makes easy.** `270.0`
+> appended a **second positional COS object** per markup annotation (the
+> author-time carry) and did not move `CLIP_VERSION`. A reader from that build
+> handed an older payload took a second object that was not there — actually
+> consuming the *next* annotation's tag byte and spec, and mis-parsing every
+> annotation after it. Silently, because `decode_carry` cannot fail by design.
+>
+> The general rule for anything appended here: **a positional field is not a
+> droppable key.** A reader that misses an optional dictionary key still knows
+> where it is; a reader that takes, or fails to take, a positional object is
+> off by one for the rest of the payload. Every append needs a version and a
+> gate on both sides, and `tests/clip_version_gating.rs` is the shape of test
+> that proves one.
+>
 > ★★ **A ce dimension carries its group's SCALE, number format and drafting
 > standard, and its own style overrides** (`Pass 173.1`).
 >
@@ -4134,7 +4160,20 @@ borrow it (`tests/image_placement.rs:238-247`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs:2300`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**127 variants** at `Pass 268.0`, counted at depth 1 inside `pub enum EditError`.
+**128 variants** at `Pass 270.2`, counted at depth 1 inside `pub enum EditError`.
+
+`Pass 270.2` added `AnnotationContentsLocked` — **Table 165 bit 10,
+`LockedContents`**, raised by `set_markup_note` / `clear_markup_note` when the
+annotation's contents are locked. ★ **It is deliberately NOT
+`AnnotationLocked`, and a shell must not treat the two as one refusal:** bit 8
+`Locked` forbids deletion, position, size and properties *while permitting the
+comment edit*; bit 10 forbids *the comment edit* while permitting deletion,
+moving and restyling. They are close to complements. Collapsing them refuses a
+permitted edit on one document and permits a forbidden one on another. The
+recovery also differs — `LockedContents` explicitly allows property changes, so
+`set_annotation_flags` can clear it, whereas `Locked` blocks its own remedy and
+the message says so.
+
 The two added since `Pass 255.0` are `StylePropertyNotApplicable` (a
 `MarkupStyle` property set on a subtype that has none -- a `width` or `dash`
 on a text markup, `endings` on anything but a `/Line`; it was a **silent
