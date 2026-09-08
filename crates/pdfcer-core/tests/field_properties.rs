@@ -272,3 +272,81 @@ fn setting_no_export_leaves_the_other_flags_alone() {
     );
     assert!(f.flags.0 & forms::FieldFlags::NO_EXPORT != 0);
 }
+
+// ---------------------------------------------------------------------------
+// The four advisory flags and /TM — the residue, 2026-09-08
+// ---------------------------------------------------------------------------
+
+/// The four remaining `Ff` bits, each of which the read model exposed with no
+/// writer — and three of which had **zero references** anywhere outside
+/// `forms.rs`.
+///
+/// Table-driven and asserted on the READ model rather than the raw integer,
+/// so a bit written at the wrong position fails here. That is the only
+/// interesting way any of these can be wrong: each is a single bit with no
+/// behaviour of pdfcer's own attached, so "does it round-trip at the right
+/// position" is the whole contract.
+#[test]
+fn the_four_advisory_flags_round_trip_at_their_table_228_positions() {
+    let cases: [(&str, fn(FieldEdit, bool) -> FieldEdit, u32); 4] = [
+        (
+            "FileSelect",
+            FieldEdit::with_file_select,
+            forms::FieldFlags::FILE_SELECT,
+        ),
+        (
+            "DoNotSpellCheck",
+            FieldEdit::with_no_spell_check,
+            forms::FieldFlags::DO_NOT_SPELL_CHECK,
+        ),
+        (
+            "DoNotScroll",
+            FieldEdit::with_no_scroll,
+            forms::FieldFlags::DO_NOT_SCROLL,
+        ),
+        (
+            "CommitOnSelChange",
+            FieldEdit::with_commit_on_sel_change,
+            forms::FieldFlags::COMMIT_ON_SEL_CHANGE,
+        ),
+    ];
+    for (name, set, bit) in cases {
+        let mut s = with_text_field();
+        assert!(
+            field(&s).flags.0 & bit == 0,
+            "{name}: a fresh field should not carry it"
+        );
+        s.edit_field("t", &set(FieldEdit::new(), true))
+            .unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        assert!(
+            field(&s).flags.0 & bit != 0,
+            "{name} did not take — check the bit position against Table 228/230"
+        );
+        s.edit_field("t", &set(FieldEdit::new(), false))
+            .unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        assert!(field(&s).flags.0 & bit == 0, "{name} did not clear");
+    }
+}
+
+/// `/TM` is written and removed, and removing it is not the same as writing
+/// an empty string.
+///
+/// It is what an EXPORT keys on, so a wrong value here changes the payload a
+/// consumer receives while changing nothing visible on the page — the class
+/// of defect nobody notices by looking.
+#[test]
+fn the_mapping_name_is_written_and_removed() {
+    let mut s = with_text_field();
+    assert!(raw(&s, b"TM").is_none(), "setup: no /TM yet");
+
+    s.edit_field("t", &FieldEdit::new().with_mapping_name("total_due"))
+        .expect("set /TM");
+    assert!(raw(&s, b"TM").is_some(), "/TM must be written");
+
+    s.edit_field("t", &FieldEdit::new().clearing_mapping_name())
+        .expect("clear /TM");
+    assert!(
+        raw(&s, b"TM").is_none(),
+        "clearing must REMOVE /TM so the export reverts to the field's own name, not write an empty one that exports as a blank key"
+    );
+}

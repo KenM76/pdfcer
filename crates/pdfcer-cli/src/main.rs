@@ -5851,6 +5851,35 @@ enum Command {
         /// the page. `list-fields` prints the whole Ff word.
         #[arg(long)]
         no_export: Option<bool>,
+        /// `Ff` bit 21 — FileSelect: the value is a FILE PATH to submit, not
+        /// literal text.
+        ///
+        /// ⚠️ A file-select field is a submit hazard — a form carrying one can
+        /// send a local file when activated.
+        #[arg(long)]
+        file_select: Option<bool>,
+        /// `Ff` bit 23 — DoNotSpellCheck. Advisory to the reader; pdfcer
+        /// neither spell-checks nor draws differently for it.
+        #[arg(long)]
+        no_spell_check: Option<bool>,
+        /// `Ff` bit 24 — DoNotScroll: text overflowing the box is CLIPPED
+        /// rather than scrolled. Worth setting on a box sized deliberately.
+        #[arg(long)]
+        no_scroll: Option<bool>,
+        /// `Ff` bit 27 — CommitOnSelChange: a choice field commits the moment
+        /// the selection changes, not on losing focus.
+        #[arg(long)]
+        commit_on_sel_change: Option<bool>,
+        /// `/TM` — the mapping name used when EXPORTING form data, in place
+        /// of the field's own name.
+        ///
+        /// Changes the exported payload without changing anything visible on
+        /// the page, which is what makes it worth stating in the report.
+        #[arg(long)]
+        mapping_name: Option<String>,
+        /// REMOVE `/TM`, so an export reverts to the field's own name.
+        #[arg(long, conflicts_with = "mapping_name")]
+        clear_mapping_name: bool,
         /// `/DA` font — the face the field's VALUE is drawn in. One of the
         /// standard 14: helvetica, helvetica-bold, helvetica-oblique,
         /// helvetica-bold-oblique, times, times-bold, times-italic,
@@ -10679,6 +10708,12 @@ fn run() -> ExitCode {
             default_value,
             clear_default_value,
             no_export,
+            file_select,
+            no_spell_check,
+            no_scroll,
+            commit_on_sel_change,
+            mapping_name,
+            clear_mapping_name,
             font,
             font_resource,
             font_size,
@@ -10706,6 +10741,12 @@ fn run() -> ExitCode {
             default_value: default_value.as_deref(),
             clear_default_value,
             no_export,
+            file_select,
+            no_spell_check,
+            no_scroll,
+            commit_on_sel_change,
+            mapping_name: mapping_name.as_deref(),
+            clear_mapping_name,
             font: font.as_deref(),
             font_resource: font_resource.as_deref(),
             font_size,
@@ -30653,6 +30694,18 @@ struct EditFieldArgs<'a> {
     clear_default_value: bool,
     /// `Ff` bit 3, NoExport.
     no_export: Option<bool>,
+    /// `Ff` bit 21, FileSelect.
+    file_select: Option<bool>,
+    /// `Ff` bit 23, DoNotSpellCheck.
+    no_spell_check: Option<bool>,
+    /// `Ff` bit 24, DoNotScroll.
+    no_scroll: Option<bool>,
+    /// `Ff` bit 27, CommitOnSelChange.
+    commit_on_sel_change: Option<bool>,
+    /// `/TM`, the export mapping name.
+    mapping_name: Option<&'a str>,
+    /// Remove `/TM`.
+    clear_mapping_name: bool,
     /// A standard-14 face name for `/DA`.
     font: Option<&'a str>,
     /// A `/DR` `/Font` resource key for `/DA`.
@@ -30752,6 +30805,24 @@ fn cmd_edit_field(args: &EditFieldArgs<'_>) -> u8 {
     }
     if let Some(v) = args.no_export {
         edit = edit.with_no_export(v);
+    }
+    if let Some(v) = args.file_select {
+        edit = edit.with_file_select(v);
+    }
+    if let Some(v) = args.no_spell_check {
+        edit = edit.with_no_spell_check(v);
+    }
+    if let Some(v) = args.no_scroll {
+        edit = edit.with_no_scroll(v);
+    }
+    if let Some(v) = args.commit_on_sel_change {
+        edit = edit.with_commit_on_sel_change(v);
+    }
+    if let Some(v) = args.mapping_name {
+        edit = edit.with_mapping_name(v);
+    }
+    if args.clear_mapping_name {
+        edit = edit.clearing_mapping_name();
     }
 
     // `/DA`. All three parts travel together because the string carries all

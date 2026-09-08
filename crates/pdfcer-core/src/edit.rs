@@ -19243,6 +19243,52 @@ pub struct FieldEdit {
     /// verify by looking at the page. `list-fields` prints the whole `Ff`
     /// word, which is where it becomes checkable.
     pub no_export: Option<bool>,
+    /// `Ff` bit 21 — **FileSelect**: the text field's value is a **file
+    /// path** to be submitted, not literal text (§12.7.4.3 Table 228).
+    ///
+    /// Read-without-write until now: `FieldFlags::FILE_SELECT` was consulted
+    /// only to REFUSE a comb and to disclose a submit hazard, and nothing
+    /// could set it.
+    ///
+    /// ⚠️ A file-select field is a **submit hazard** — activating a form that
+    /// contains one can send a local file. pdfcer discloses that where it
+    /// already did; setting the flag does not change what a submit does, it
+    /// changes what the field IS.
+    pub file_select: Option<bool>,
+    /// `Ff` bit 23 — **DoNotSpellCheck** (Table 228 for `/Tx`, Table 230 for
+    /// an editable `/Ch`).
+    ///
+    /// Its own read-model doc said *"nothing in pdfcer consumes this flag
+    /// yet"*. Nothing wrote it either. Advisory to the reader; pdfcer neither
+    /// spell-checks nor renders differently for it.
+    pub no_spell_check: Option<bool>,
+    /// `Ff` bit 24 — **DoNotScroll**: text that overflows the box is
+    /// **clipped rather than scrolled** (Table 228).
+    ///
+    /// Had **zero references** outside the read model. Advisory to the
+    /// reader, and worth setting on a field whose box was sized deliberately.
+    pub no_scroll: Option<bool>,
+    /// `Ff` bit 27 — **CommitOnSelChange**: a choice field commits its value
+    /// the moment the selection changes, rather than on losing focus
+    /// (Table 230).
+    ///
+    /// Also had zero references outside the read model. Meaningful only on a
+    /// `/Ch`; harmless elsewhere, and pdfcer does not gate it by type because
+    /// Table 230 does not make it invalid to carry — the same posture the
+    /// other advisory flags take.
+    pub commit_on_sel_change: Option<bool>,
+    /// `/TM` — the field's **mapping name**: the name used when exporting
+    /// form data, in place of the fully-qualified field name (§12.7.4.1
+    /// Table 226).
+    ///
+    /// `Some(None)` removes it, so the export reverts to the field's own
+    /// name. Read-without-write until now.
+    ///
+    /// ★ It is what an export actually keys on, so a form whose field names
+    /// are structural (`section2.row[3].qty`) can present stable, meaningful
+    /// keys to whatever consumes the data — and changing it changes the
+    /// exported payload without changing anything visible on the page.
+    pub mapping_name: Option<Option<String>>,
     /// `/DA` — the font, size and colour the field's **variable text** is
     /// drawn in (§12.7.3.3).
     ///
@@ -19547,6 +19593,48 @@ impl FieldEdit {
     #[must_use]
     pub fn with_appearance(mut self, appearance: FieldAppearance) -> Self {
         self.appearance = Some(appearance);
+        self
+    }
+
+    /// Set or clear `Ff` bit 21 — FileSelect.
+    #[must_use]
+    pub fn with_file_select(mut self, on: bool) -> Self {
+        self.file_select = Some(on);
+        self
+    }
+
+    /// Set or clear `Ff` bit 23 — DoNotSpellCheck.
+    #[must_use]
+    pub fn with_no_spell_check(mut self, on: bool) -> Self {
+        self.no_spell_check = Some(on);
+        self
+    }
+
+    /// Set or clear `Ff` bit 24 — DoNotScroll.
+    #[must_use]
+    pub fn with_no_scroll(mut self, on: bool) -> Self {
+        self.no_scroll = Some(on);
+        self
+    }
+
+    /// Set or clear `Ff` bit 27 — CommitOnSelChange.
+    #[must_use]
+    pub fn with_commit_on_sel_change(mut self, on: bool) -> Self {
+        self.commit_on_sel_change = Some(on);
+        self
+    }
+
+    /// Set `/TM`, the mapping name used when exporting form data.
+    #[must_use]
+    pub fn with_mapping_name(mut self, name: impl Into<String>) -> Self {
+        self.mapping_name = Some(Some(name.into()));
+        self
+    }
+
+    /// REMOVE `/TM`, so an export reverts to the field's own name.
+    #[must_use]
+    pub fn clearing_mapping_name(mut self) -> Self {
+        self.mapping_name = Some(None);
         self
     }
 }
@@ -23041,6 +23129,13 @@ impl EditSession {
         for (touched, bit) in [
             (edit.required, forms::FieldFlags::REQUIRED),
             (edit.no_export, forms::FieldFlags::NO_EXPORT),
+            (edit.file_select, forms::FieldFlags::FILE_SELECT),
+            (edit.no_spell_check, forms::FieldFlags::DO_NOT_SPELL_CHECK),
+            (edit.no_scroll, forms::FieldFlags::DO_NOT_SCROLL),
+            (
+                edit.commit_on_sel_change,
+                forms::FieldFlags::COMMIT_ON_SEL_CHANGE,
+            ),
             (edit.read_only, forms::FieldFlags::READ_ONLY),
             (edit.multiline, forms::FieldFlags::MULTILINE),
             (edit.password, forms::FieldFlags::PASSWORD),
@@ -23188,6 +23283,17 @@ impl EditSession {
                     key, app.size, app.color,
                 )),
             );
+        }
+        // `/TM` (Table 226). `Some(None)` removes it, reverting an export to
+        // the field's own name.
+        match &edit.mapping_name {
+            Some(Some(v)) => {
+                dict.insert(Name::from(b"TM"), Object::String(encode_text_string(v)));
+            }
+            Some(None) => {
+                dict.remove(b"TM");
+            }
+            None => {}
         }
         match &edit.default_value {
             Some(Some(v)) => {
