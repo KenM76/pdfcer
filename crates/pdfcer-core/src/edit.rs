@@ -27871,54 +27871,6 @@ impl EditSession {
         })
     }
 
-    /// Open or close an annotation's pop-up window — `/Open` on the
-    /// annotation **and on its `/Popup` companion**, as one undo entry.
-    ///
-    /// # ★ pdfcer wrote this key from `Pass 6.2` and could read neither copy
-    ///
-    /// `annot_author::sticky_note` sets `/Open` on the note and again on the
-    /// pop-up it creates. Nothing read either back, so a round trip through
-    /// pdfcer's own model lost the state, and `pdfcer-gui` — building a
-    /// canvas note pop-up because the operator reported he *"could add a
-    /// yellow sticky note but ... couldn't figure out how to read it"* —
-    /// resorted to parsing the dictionary through `ObjectGraph::value`.
-    /// They reported that workaround rather than keeping it (decision 058).
-    /// [`crate::annot::Annotation::open`] is the read half; this is the write.
-    ///
-    /// # Why BOTH objects, and why that is not redundancy
-    ///
-    /// Table 170 gives geometric markup **no `/Open` of its own**: a
-    /// `/Square`'s window state exists only on its companion. A `/Text` has
-    /// one on itself, and `sticky_note` writes both. So "the state" is a
-    /// property of the PAIR, and a verb that set one of them would leave
-    /// the two disagreeing on exactly the subtype the operator uses most.
-    /// Both are written when both exist; whichever exists is written when
-    /// only one does; and [`AnnotationOpenChange`] reports which.
-    ///
-    /// # What it does NOT do
-    ///
-    /// It does not create a `/Popup`. An annotation without one has no
-    /// window to open, and manufacturing the companion — with a `/Rect` the
-    /// caller did not choose — is authoring, not a state change. Such a
-    /// call succeeds, writes the annotation's own `/Open` if the subtype
-    /// takes one, and says `popup_written: false`.
-    ///
-    /// # Errors
-    ///
-    /// - [`EditError::NotADictionary`] — `annot_id` is not an annotation.
-    /// - [`EditError::AnnotationNotFound`] — no such annotation on any page.
-    /// - [`EditError::DocumentEncrypted`] and the certification gate, as for
-    ///   [`Self::set_markup_note`].
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use pdfcer_core::{document::Document, edit::EditSession, object::ObjId};
-    /// # fn f(session: &mut EditSession, note: ObjId) -> Result<(), Box<dyn std::error::Error>> {
-    /// let change = session.set_annotation_open(note, true)?;
-    /// assert!(change.annotation_written || change.popup_written);
-    /// # Ok(()) }
-    /// ```
     /// Set an annotation's **`/F` display flags** (ISO 32000-1 §12.5.3
     /// Table 165) — the write half of [`crate::annot::AnnotFlags`].
     ///
@@ -28017,6 +27969,54 @@ impl EditSession {
         })
     }
 
+    /// Open or close an annotation's pop-up window — `/Open` on the
+    /// annotation **and on its `/Popup` companion**, as one undo entry.
+    ///
+    /// # ★ pdfcer wrote this key from `Pass 6.2` and could read neither copy
+    ///
+    /// `annot_author::sticky_note` sets `/Open` on the note and again on the
+    /// pop-up it creates. Nothing read either back, so a round trip through
+    /// pdfcer's own model lost the state, and `pdfcer-gui` — building a
+    /// canvas note pop-up because the operator reported he *"could add a
+    /// yellow sticky note but ... couldn't figure out how to read it"* —
+    /// resorted to parsing the dictionary through `ObjectGraph::value`.
+    /// They reported that workaround rather than keeping it (decision 058).
+    /// [`crate::annot::Annotation::open`] is the read half; this is the write.
+    ///
+    /// # Why BOTH objects, and why that is not redundancy
+    ///
+    /// Table 170 gives geometric markup **no `/Open` of its own**: a
+    /// `/Square`'s window state exists only on its companion. A `/Text` has
+    /// one on itself, and `sticky_note` writes both. So "the state" is a
+    /// property of the PAIR, and a verb that set one of them would leave
+    /// the two disagreeing on exactly the subtype the operator uses most.
+    /// Both are written when both exist; whichever exists is written when
+    /// only one does; and [`AnnotationOpenChange`] reports which.
+    ///
+    /// # What it does NOT do
+    ///
+    /// It does not create a `/Popup`. An annotation without one has no
+    /// window to open, and manufacturing the companion — with a `/Rect` the
+    /// caller did not choose — is authoring, not a state change. Such a
+    /// call succeeds, writes the annotation's own `/Open` if the subtype
+    /// takes one, and says `popup_written: false`.
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::NotADictionary`] — `annot_id` is not an annotation.
+    /// - [`EditError::AnnotationNotFound`] — no such annotation on any page.
+    /// - [`EditError::DocumentEncrypted`] and the certification gate, as for
+    ///   [`Self::set_markup_note`].
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use pdfcer_core::{document::Document, edit::EditSession, object::ObjId};
+    /// # fn f(session: &mut EditSession, note: ObjId) -> Result<(), Box<dyn std::error::Error>> {
+    /// let change = session.set_annotation_open(note, true)?;
+    /// assert!(change.annotation_written || change.popup_written);
+    /// # Ok(()) }
+    /// ```
     pub fn set_annotation_open(
         &mut self,
         annot_id: ObjId,

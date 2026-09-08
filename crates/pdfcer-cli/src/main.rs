@@ -4988,6 +4988,79 @@ enum Command {
         mode: SaveMode,
     },
 
+    /// **Set an annotation's display flags** (`/F`, ISO 32000-1 §12.5.3
+    /// Table 165) — hide it, stop it printing, or LOCK it.
+    ///
+    /// # The whole word, not one bit at a time
+    ///
+    /// Table 165's bits interact: `--no-view` with `--print` means *prints
+    /// but is not on screen*, which an operator reaches deliberately. So this
+    /// takes the complete set and writes it, rather than toggling one bit and
+    /// leaving the rest — a sequence of individually-sensible toggles can
+    /// build a state nobody intended. `list-annotations` prints the current
+    /// word as `flags=0x…`; pass the flags you want the annotation to END
+    /// with.
+    ///
+    /// # Locked, and why you can still unlock
+    ///
+    /// `--locked` is the flag Table 165 bit 8 defines: pdfcer's own move,
+    /// resize, rotate and restyle verbs refuse a Locked annotation. Clearing
+    /// it here is deliberately allowed — a lock you could only undo in
+    /// another application would be a one-way door.
+    ///
+    /// **`--locked-contents` is a DIFFERENT flag** (bit 10) and guards the
+    /// annotation's text, not its geometry. It does not stop a move.
+    ///
+    /// # Refuses a form widget by name
+    ///
+    /// A widget's visibility belongs to `edit-widget --visibility`, whose
+    /// four combinations cannot express a contradictory pair. Two writers of
+    /// one key with different vocabularies is how a field ends up in a state
+    /// its own editor cannot describe.
+    SetAnnotationFlags {
+        /// Input PDF.
+        input: PathBuf,
+        /// Page, 1-BASED — the `page=` value `list-annotations` prints.
+        #[arg(long)]
+        page: usize,
+        /// Index within that page's `/Annots`, 0-BASED — the `index=` value
+        /// `list-annotations` prints.
+        #[arg(long)]
+        index: usize,
+        /// Bit 1 — the annotation is not displayed or printed at all.
+        #[arg(long)]
+        invisible: bool,
+        /// Bit 2 — hidden: not displayed, not printed, not interactive.
+        #[arg(long)]
+        hidden: bool,
+        /// Bit 3 — print the annotation. Most authored markup wants this.
+        #[arg(long)]
+        print: bool,
+        /// Bit 4 — do not scale the annotation with the page zoom.
+        #[arg(long)]
+        no_zoom: bool,
+        /// Bit 5 — do not rotate the annotation with the page.
+        #[arg(long)]
+        no_rotate: bool,
+        /// Bit 6 — do not display on screen (may still print).
+        #[arg(long)]
+        no_view: bool,
+        /// Bit 8 — LOCKED: pdfcer's move, resize, rotate and restyle verbs
+        /// refuse it. Omit the flag to clear the lock.
+        #[arg(long)]
+        locked: bool,
+        /// Bit 10 — LockedContents: guards the text, NOT the geometry. Does
+        /// not stop a move.
+        #[arg(long)]
+        locked_contents: bool,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
+
     /// Restyle an EXISTING markup annotation in place (ISO 32000-1
     /// §12.5.6), keeping its object identity.
     ///
@@ -10296,6 +10369,43 @@ fn run() -> ExitCode {
             output,
             mode,
         } => cmd_set_annotation_open(&input, page, index, open, &output, mode),
+        Command::SetAnnotationFlags {
+            input,
+            page,
+            index,
+            invisible,
+            hidden,
+            print,
+            no_zoom,
+            no_rotate,
+            no_view,
+            locked,
+            locked_contents,
+            output,
+            mode,
+        } => {
+            // The whole word, assembled from the flags the operator passed.
+            // Table 165's bit VALUES live on `AnnotFlags`; this shell does not
+            // restate them, so a bit cannot be numbered differently here than
+            // in the engine.
+            use pdfcer_core::annot::AnnotFlags as F;
+            let mut w = 0u32;
+            for (on, bit) in [
+                (invisible, F::INVISIBLE),
+                (hidden, F::HIDDEN),
+                (print, F::PRINT),
+                (no_zoom, F::NO_ZOOM),
+                (no_rotate, F::NO_ROTATE),
+                (no_view, F::NO_VIEW),
+                (locked, F::LOCKED),
+                (locked_contents, F::LOCKED_CONTENTS),
+            ] {
+                if on {
+                    w |= bit;
+                }
+            }
+            cmd_set_annotation_flags(&input, (page, index), F(w), &output, mode)
+        }
         Command::SetMarkupStyle {
             input,
             page,
@@ -30292,7 +30402,7 @@ fn cmd_add_check_box(args: &AddCheckBoxArgs<'_>) -> u8 {
     if let Some(name) = args.check_style {
         let Some(style) = pdfcer_core::annot_author::CheckStyle::parse(name) else {
             eprintln!(
-                "pdfcer: --check-style {name:?} -- known: check, cross, star, circle, square,                  diamond (Acrobat's six)"
+                "pdfcer: --check-style {name:?} -- known: check, cross, star, circle, square, diamond (Acrobat's six)"
             );
             return exit::RUNTIME_ERROR;
         };
@@ -30666,7 +30776,7 @@ fn cmd_edit_widget(args: &EditWidgetArgs<'_>) -> u8 {
         let Some(raw) = raw else { continue };
         let Some(colour) = parse_mk_colour(raw) else {
             eprintln!(
-                "pdfcer: {which} {raw:?} -- expected `none` (Table 189's empty array, which STATES                  no colour), or 1 (gray), 3 (RGB) or 4 (CMYK) comma-separated components in 0-1"
+                "pdfcer: {which} {raw:?} -- expected `none` (Table 189's empty array, which STATES no colour), or 1 (gray), 3 (RGB) or 4 (CMYK) comma-separated components in 0-1"
             );
             return exit::RUNTIME_ERROR;
         };
@@ -32131,6 +32241,155 @@ fn cmd_set_annotation_open(
 /Popup companion, so it has no window to open. Not a refusal -- there was nowhere to put the \
 state, and no undo entry was pushed.",
             change.subtype
+        );
+    }
+    finish_edit(input, &saved)
+}
+
+/// `set-annotation-flags` — write an annotation's `/F` display flags
+/// (ISO 32000-1 §12.5.3 Table 165).
+///
+/// # Why the whole word rather than per-bit toggles
+///
+/// Table 165's bits interact — `NoView` with `Print` means *prints but is not
+/// on screen* — so the CLI takes the complete set the operator wants the
+/// annotation to END with. A toggle-one-bit interface lets a sequence of
+/// individually-sensible invocations build a state nobody chose, and on a
+/// batch tool that sequence is a shell script nobody reads back.
+///
+/// # Rule 4 — the invocation IS the commit here
+///
+/// The before/after words are printed unasked, because `/F` is invisible: an
+/// operator who hides an annotation sees nothing change and has no other way
+/// to confirm it happened. The refusal for a widget names the verb that does
+/// own a widget's visibility.
+fn cmd_set_annotation_flags(
+    input: &Path,
+    at: (usize, usize),
+    flags: pdfcer_core::annot::AnnotFlags,
+    output: &Path,
+    mode: SaveMode,
+) -> u8 {
+    let (page, index) = at;
+    if page == 0 {
+        eprintln!(
+            "pdfcer: {}: --page is 1-based; 0 is not a page",
+            input.display()
+        );
+        return exit::RUNTIME_ERROR;
+    }
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+
+    let annot_id = {
+        let slots = match session.page_slots() {
+            Ok(s) => s,
+            Err(err) => {
+                eprintln!("pdfcer: {}: {err}", input.display());
+                return exit::RUNTIME_ERROR;
+            }
+        };
+        let Some(slot) = slots.get(page - 1) else {
+            eprintln!(
+                "pdfcer: {}: no page {page} — the document has {} page(s)",
+                input.display(),
+                slots.len()
+            );
+            return exit::RUNTIME_ERROR;
+        };
+        let annots = pdfcer_core::annot::page_annotations(&session.graph(), slot.id);
+        let Some(annot) = annots.get(index) else {
+            eprintln!(
+                "pdfcer: {}: page {page} has {} annotation(s); no index {index}",
+                input.display(),
+                annots.len()
+            );
+            return exit::RUNTIME_ERROR;
+        };
+        let Some(id) = annot.id else {
+            eprintln!(
+                "pdfcer: {}: page {page} index {index} is a direct dictionary inside /Annots, not an indirect object — it has no identity to edit",
+                input.display()
+            );
+            return exit::EDIT_REFUSED;
+        };
+        id
+    };
+
+    let out = match session.set_annotation_flags(annot_id, flags) {
+        Ok(o) => o,
+        Err(err) => return report_edit_error(input, &err),
+    };
+
+    let saved = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        false,
+    ) {
+        Ok(o) => o,
+        Err(code) => return code,
+    };
+
+    println!(
+        "set-annotation-flags {} page={page} index={index} -> {}",
+        input.display(),
+        output.display()
+    );
+    println!(
+        "  subtype={} flags=0x{:X}->0x{:X}",
+        out.subtype, out.before.0, out.after.0
+    );
+    // Rule 4: `/F` is INVISIBLE. An operator who hides an annotation sees
+    // nothing change, so what pdfcer did is stated rather than left to be
+    // inferred from a file that now looks emptier.
+    let named = |f: pdfcer_core::annot::AnnotFlags| {
+        let mut v: Vec<&str> = Vec::new();
+        if f.invisible() {
+            v.push("invisible");
+        }
+        if f.hidden() {
+            v.push("hidden");
+        }
+        if f.print() {
+            v.push("print");
+        }
+        if f.no_zoom() {
+            v.push("no-zoom");
+        }
+        if f.no_rotate() {
+            v.push("no-rotate");
+        }
+        if f.no_view() {
+            v.push("no-view");
+        }
+        if f.locked() {
+            v.push("locked");
+        }
+        if f.locked_contents() {
+            v.push("locked-contents");
+        }
+        if v.is_empty() {
+            "none".to_owned()
+        } else {
+            v.join(",")
+        }
+    };
+    println!("  set={}", named(out.after));
+    if out.after.locked() && !out.before.locked() {
+        eprintln!(
+            "pdfcer: {}: this annotation is now LOCKED — pdfcer's move, resize, rotate and restyle verbs will refuse it until the flag is cleared. Re-run without --locked to unlock.",
+            input.display()
+        );
+    }
+    if out.after.hidden() || out.after.invisible() {
+        eprintln!(
+            "pdfcer: {}: this annotation is now HIDDEN — it will not appear on screen or in print, and nothing on the page will show that it is there.",
+            input.display()
         );
     }
     finish_edit(input, &saved)

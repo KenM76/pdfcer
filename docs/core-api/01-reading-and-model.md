@@ -2417,11 +2417,55 @@ from `/Rect`, which §12.5.2 forces upright and is therefore wrong on every
 turned annotation. `None` for no `/Rect`, no reachable appearance stream, no
 readable `/BBox`, or a degenerate transformed box (step (b) singular).
 
+**`/F` IS NOW WRITABLE (2026-09-08).** `AnnotFlags` carried eight read
+accessors and no writer — `EditSession::set_annotation_flags` is the other
+half. Until it existed an operator could see a markup was hidden and not
+un-hide it, and **could not lock anything**, so pdfcer's own Locked gate was
+unreachable from pdfcer. ★ Four transform verbs (`move_annotation`,
+`resize_annotation`, `rotate_annotation`, `set_annotation_rotation`) **also
+ignored the Locked flag until that date**, while `set_markup_style`,
+`reshape_annotation` and the deletion guards honoured it — so a Locked markup
+could not be recoloured and could be dragged anywhere, which is inverted from
+Table 165 bit 8's own words (*"including position and size"*). Both halves
+fixed together. `LockedContents` (bit 10) deliberately still does **not**
+block a transform: it guards the text.
+
+**Five verbs documented `EditError::DocumentEncrypted` and none enforced it**
+until the same date — `rotate_annotation`, `set_annotation_rotation`,
+`resize_annotation`, `move_annotation`, `set_markup_note`. They do now, and
+the guard is placed **before** subtype routing, so an encrypted document is
+named as such rather than being answered with *"use rotate_widget instead"*.
+
 Methods: `is_widget()` `:450`, `is_group_subordinate()` `:468`,
 `effective_reply_type()` `:485`, `subtype_label()` `:495`,
 `appearance_rotation_degrees()`.
 `AnnotFlags(pub u32)` `:132`, `Appearance` `:253`, `ReplyType` `:432`.
 `page_annotations_with` `:567` takes a `MissingAppearanceState` policy.
+
+**`forms::Widget` — the `/MK` colour pair, both directions (2026-09-08).**
+`::background` (`/MK` `/BG`) and the NEW `::border_color` (`/MK` `/BC`), each
+`Option<MkColor>` with the three-state contract: `None` = key absent,
+`Some(MkColor::None)` = Table 189's empty array *stating* no colour,
+DeviceCMYK never pre-converted. ★ Until this date **read and write sat on
+opposite keys of one dictionary**: pdfcer WROTE `/BC` (hard-coded black, never
+settable) and never read it, READ `/BG` and never wrote it, so neither
+round-tripped. Write side: `WidgetEdit::{background, border_color}` and
+`MkColor::to_array()`, the exact inverse of `from_array`. CLI: `edit-widget
+--background/--border-color`, and `list-fields --widgets` prints both.
+⚠️ **pdfcer's own renderer does not paint `/MK` colours** (R43,
+named-not-painted) — the value is in the file for viewers that honour it.
+
+**`annot_author::CheckStyle` (2026-09-08).** Six check-box/radio glyphs —
+`Check` `Cross` `Star` `Circle` `Square` `Diamond`, default `Check` — with
+`mk_caption_char()` / `from_mk_caption_char()` / `parse()` / `as_str()` /
+`all()`. The `/MK` `/CA` characters (`4 8 H l n u`) come from Adobe's own
+`ZapfDingbats.afm` and the Adobe Glyph List. ★★ pdfcer **draws each as vector
+artwork** rather than selecting a ZapfDingbats font as Acrobat does — Acrobat
+and Reader have a recurring bug failing to resolve that font, which leaves the
+box blank; paths need none. `/MK` `/CA` is written anyway, both for interop
+and because pdfcer's own resize recovers the style from it.
+`from_mk_caption_char` returns `None` for an unrecognised character rather
+than defaulting, because Table 189 constrains `/CA` not at all.
 `need_appearances(&graph)` `:1553` checks `/AcroForm /NeedAppearances`.
 `MAX_ANNOTS_PER_PAGE` = 1,000,000 — `:117`.
 
