@@ -1544,6 +1544,11 @@ pub(crate) fn plan_format_anywhere(
         replace: String::new(),
         pinned_span: req.pinned_span,
         target: req.target,
+        // `FormatRequest` has no spanning-from-pin concept: a restyle is
+        // confined to the operator the pin names, which is what it has
+        // always meant. Spelled out rather than defaulted so a reader does
+        // not have to go and check (`Pass 272.0`).
+        span_from_pin: false,
     };
     let candidates = crate::text_edit::edit::edit_candidates(doc, page, &locate)
         .map_err(FormatError::from_edit)?;
@@ -1697,6 +1702,8 @@ pub(crate) fn plan_format_target(
         // is never consulted on this path (`Pass 119.0`). Spelled out rather
         // than defaulted so a reader does not have to check.
         target: EditTarget::Auto,
+        // Same reasoning: a restyle stays inside the pinned operator.
+        span_from_pin: false,
     };
     let anchor_index = find_anchor(&recs, &locate).map_err(FormatError::from_edit)?;
     let (a_start, a_end, anchor) = match recs.get(anchor_index) {
@@ -3392,6 +3399,8 @@ pub(crate) fn preview_style_resolution(
         replace: String::new(),
         pinned_span,
         target: EditTarget::Auto,
+        // This path calls `find_anchor` directly, which never reads the flag.
+        span_from_pin: false,
     };
     let anchor_index = find_anchor(&recs, &locate).map_err(FormatError::from_edit)?;
     let anchor = match recs.get(anchor_index) {
@@ -4069,6 +4078,8 @@ pub(crate) fn preview_font_resources_for(
         replace: String::new(),
         pinned_span,
         target: EditTarget::Auto,
+        // This path calls `find_anchor` directly, which never reads the flag.
+        span_from_pin: false,
     };
     let anchor_index = find_anchor(&recs, &locate).map_err(FormatError::from_edit)?;
     let anchor = match recs.get(anchor_index) {

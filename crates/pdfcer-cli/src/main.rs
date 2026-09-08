@@ -6544,6 +6544,24 @@ enum Command {
         /// extent it took.
         #[arg(long = "pin-span", value_name = "START:LEN")]
         pin_span: Option<String>,
+        /// Let `--find` BEGIN at `--pin-span` and run on across the following
+        /// operators, instead of having to lie inside the pinned one.
+        ///
+        /// This is the flag for text that **repeats on the page**. `--find`
+        /// alone edits whichever occurrence comes first; `--pin-span` alone
+        /// confines the match to one operator, and a producer that emits one
+        /// glyph per operator will not have the whole run in any single one.
+        /// Together, with this flag, they say *"this occurrence, and keep
+        /// going"*.
+        ///
+        /// A bill-of-materials quantity column is the worst case: on one real
+        /// 36-sheet drawing set, 122 runs on the BOM sheet have text that
+        /// repeats, and `1` appears 108 times.
+        ///
+        /// Refused unless `--pin-span` is given, since it has nothing to
+        /// start from otherwise.
+        #[arg(long = "span-from-pin", requires = "pin_span")]
+        span_from_pin: bool,
         /// Replacement text (re-encoded into the run's font).
         #[arg(long)]
         replace: String,
@@ -10953,6 +10971,7 @@ fn run() -> ExitCode {
             output,
             pin,
             pin_span,
+            span_from_pin,
             font_dirs,
             target,
         } => cmd_edit_text(&EditTextArgs {
@@ -10961,6 +10980,7 @@ fn run() -> ExitCode {
             page,
             find: &find,
             pin_span: pin_span.as_deref(),
+            span_from_pin,
             replace: &replace,
             pin,
             font_dirs: &font_dirs,
@@ -23655,6 +23675,10 @@ struct EditTextArgs<'a> {
     /// `--pin-span START:LEN`, unparsed. Parsed inside `cmd_edit_text` so a
     /// malformed span fails before any file is opened.
     pin_span: Option<&'a str>,
+    /// `--span-from-pin`: let `find` BEGIN at the pinned operator and run on,
+    /// rather than being confined to it (`Pass 272.0`). Clap already refuses
+    /// it without a pin, so the handler does not re-check.
+    span_from_pin: bool,
     replace: &'a str,
     pin: bool,
     font_dirs: &'a [PathBuf],
@@ -23739,6 +23763,10 @@ fn cmd_edit_text(args: &EditTextArgs<'_>) -> u8 {
         EditRequest::find_replace(args.page - 1, args.find, args.replace).with_target(target);
     if let Some(span) = pin_span {
         req.pinned_span = Some(span);
+        // Only meaningful with a pin, and clap already refuses the flag
+        // without one (`requires = "pin_span"`), so this cannot silently
+        // set a flag the resolver would then ignore.
+        req.span_from_pin = args.span_from_pin;
     }
     let opts = EditOptions::default().with_disposition(if args.pin {
         FollowerDisposition::Pin

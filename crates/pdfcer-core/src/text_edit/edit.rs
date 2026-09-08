@@ -362,6 +362,43 @@ pub struct EditRequest {
     /// construction and what a shell should keep using unless it has a
     /// specific reason not to.
     pub target: EditTarget,
+    /// Let the match **begin** at [`Self::pinned_span`] and run on across
+    /// following spannable operators, instead of being confined to the
+    /// pinned one (`Pass 272.0`).
+    ///
+    /// # What problem this exists for
+    ///
+    /// A pin and a `find` answer two different questions, and until this flag
+    /// a caller could only ask one of them at a time:
+    ///
+    /// - **`find` alone** says *what* to edit and lets pdfcer scan for it —
+    ///   which, when the text repeats on the page, silently edits **whichever
+    ///   occurrence comes first**.
+    /// - **a pin alone** says *where*, exactly — but confines the match to
+    ///   that one operator, and a producer that emits one glyph per operator
+    ///   will not have the whole run in any single one.
+    ///
+    /// A click-driven shell has exactly the information the second lacks. It
+    /// knows which operator the operator touched; it just had no way to say
+    /// *"start here, and keep going"*.
+    ///
+    /// ★ **Measured, on the reporting shell's own file** (a 36-sheet
+    /// SolidWorks set): on the bill-of-materials sheet, **122 runs** have text
+    /// that repeats on the page — `"1"` appears **108 times**. A quantity
+    /// column is close to the worst case for a page-scoped `find`, and the
+    /// operator's report was *"it only sometimes works"* — which is him
+    /// landing, or not, on a cell that happens to be a single operator or
+    /// happens to be unique.
+    ///
+    /// # Deliberately opt-in
+    ///
+    /// Setting a pin **without** this flag still means what it always meant:
+    /// the match must lie inside the pinned operator. Widening that silently
+    /// would change what every existing caller's refusal means, and the
+    /// consuming shell asked for it to be explicit for exactly that reason.
+    ///
+    /// See [`Self::spanning_from`].
+    pub span_from_pin: bool,
 }
 
 impl EditRequest {
@@ -375,6 +412,9 @@ impl EditRequest {
             replace: replace.to_owned(),
             pinned_span: None,
             target: EditTarget::Auto,
+            // Meaningless without a pin, and `false` is what every caller
+            // written before `Pass 272.0` gets by construction.
+            span_from_pin: false,
         }
     }
 
@@ -442,6 +482,61 @@ impl EditRequest {
     #[must_use]
     pub fn whole_operator(page_index: usize, span: ByteSpan, replace: &str) -> Self {
         Self::find_replace(page_index, "", replace).pinned(span)
+    }
+
+    /// Replace `find` in a run that **begins at** the operator `span` names
+    /// and may continue across following operators (`Pass 272.0`).
+    ///
+    /// The disambiguating form of [`Self::find_replace`]: `find` says *what*,
+    /// the pin says *which one*. Use it whenever the text may repeat on the
+    /// page and the caller already knows which occurrence it means — a click,
+    /// a hit test, a
+    /// [`GlyphProvenance::operator_span`](crate::text_extract::GlyphProvenance::operator_span).
+    ///
+    /// # Why it is not just `find_replace` with a pin
+    ///
+    /// Because that combination already means something else, and quietly
+    /// changing it would rewrite what every existing caller's refusal means.
+    /// A plain pin **confines** the match to one operator. This one lets it
+    /// **start** there.
+    ///
+    /// # What is unchanged, and this is the whole safety argument
+    ///
+    /// The span search itself is the same one [`Self::find_replace`] already
+    /// uses, with the same guards — same `spannable` test, same `same_line`
+    /// tolerance for `Td`/`Tm`, same trim-to-the-operators-the-match-touches
+    /// rule, and the same requirement that the match **start inside the
+    /// anchor operator's own text**. The only thing this changes is *where
+    /// the search starts*: at the pinned operator instead of at the first
+    /// operator on the page.
+    ///
+    /// So a span is still never longer than it needs to be, and a pinned
+    /// request still names exactly one operator — it names where the run
+    /// *begins*, which is what a click knows.
+    ///
+    /// # Errors, when used
+    ///
+    /// [`EditError::PinnedSpanNotFound`] if the span names no operator, and
+    /// [`EditError::NoMatch`] if `find` does not begin inside it. Note the
+    /// second is a **real** refusal here rather than a fallback: without this
+    /// constructor, the same request resolved to byte 0 of the pinned
+    /// operator and failed further downstream with a less useful message.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::text_edit::EditRequest;
+    /// # fn f(span: pdfcer_core::span::ByteSpan) {
+    /// let req = EditRequest::spanning_from(0, span, "12345", "67890");
+    /// assert_eq!(req.pinned_span, Some(span));
+    /// assert!(req.span_from_pin);
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn spanning_from(page_index: usize, span: ByteSpan, find: &str, replace: &str) -> Self {
+        let mut req = Self::find_replace(page_index, find, replace).pinned(span);
+        req.span_from_pin = true;
+        req
     }
 
     /// Pin the target show operator by byte span, returning `self`.
@@ -2598,6 +2693,10 @@ fn spannable(a: &ShowData, b: &ShowData) -> bool {
 /// from that later `i`, so spans are never longer than they need to be. A
 /// pinned request never spans: the pin names one operator.
 pub(crate) fn find_anchor_span(recs: &[OpRec], req: &EditRequest) -> Result<Anchor, EditError> {
+    // Where the span search starts. `None` means "scan the page", which is
+    // what an unpinned request has always done.
+    let mut span_from: Option<usize> = None;
+
     match find_anchor(recs, req) {
         Ok(i) => {
             let Some(OpRec {
@@ -2607,18 +2706,53 @@ pub(crate) fn find_anchor_span(recs: &[OpRec], req: &EditRequest) -> Result<Anch
                 return Err(EditError::NoMatch(req.find.clone()));
             };
             let find = effective_find(s, &req.find, req.pinned_span);
-            let pos = s.text.find(find).unwrap_or(0);
-            return Ok(Anchor {
-                first: i,
-                last: i,
-                pos,
-                end: pos + find.len(),
-            });
+            // ★ THIS USED TO BE `.unwrap_or(0)`, AND THAT WAS A SILENT WRONG
+            // ANSWER (`Pass 272.0`).
+            //
+            // `find_anchor` returns `Ok(i)` for a resolvable pin WITHOUT ever
+            // consulting `find` -- read it: the pinned arm returns as soon as
+            // the span names the operator. So a pinned request whose `find`
+            // spans several operators arrives here with `find` absent from
+            // this operator's own text, `find()` returns `None`, and the old
+            // fallback silently claimed the match began at byte 0.
+            //
+            // That is an anchor pointing at bytes nobody asked about. It
+            // failed downstream with a `NoMatch` that blamed the TEXT, which
+            // is how the reporting shell came to locate the defect one guard
+            // too late: the `Err(e) if pinned_span.is_some()` arm below is
+            // only reached when the pin does NOT resolve, and theirs always
+            // did. Measured, three ways -- a resolving pin with an in-operator
+            // find succeeds, a bogus pin gives `PinnedSpanNotFound`, and the
+            // spanning case gives `NoMatch`.
+            match s.text.find(find) {
+                Some(pos) => {
+                    return Ok(Anchor {
+                        first: i,
+                        last: i,
+                        pos,
+                        end: pos + find.len(),
+                    });
+                }
+                // The match is not inside the pinned operator. With
+                // `spanning_from` that is the interesting case and the search
+                // restarts here; without it the request is refused, by name,
+                // instead of resolving to a position it invented.
+                None if req.span_from_pin => span_from = Some(i),
+                None => return Err(EditError::NoMatch(req.find.clone())),
+            }
         }
         Err(e) if req.pinned_span.is_some() || req.find.is_empty() => return Err(e),
         Err(_) => {}
     }
     for (i, r) in recs.iter().enumerate() {
+        // A pinned spanning search considers exactly one starting operator:
+        // the one the caller pointed at. Every other guard in this loop is
+        // unchanged, which is the whole safety argument -- the span is still
+        // trimmed to the operators the match touches, still confined to one
+        // text object, and must still BEGIN inside the anchor.
+        if span_from.is_some_and(|from| from != i) {
+            continue;
+        }
         let Rec::Show(head) = &r.rec else { continue };
         if !matches!(head.op, ShowOp::Tj | ShowOp::TJ) {
             continue;

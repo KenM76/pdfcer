@@ -516,6 +516,65 @@ session.edit_text(&req, &EditOptions::default())?;
 CLI: `format-text --pin-span START:LEN` with an empty (or omitted) `--find`.
 Get the numbers from `extract-text --json --spans`.
 
+#### `EditRequest::spanning_from` — when the text REPEATS on the page
+
+`Pass 272.0`. The disambiguating form: **`find` says *what*, the pin says
+*which one*.**
+
+```rust
+let span = model.provenance(gref)?.operator_span;
+let req  = EditRequest::spanning_from(page_index, span, "12 3/4", "13 1/4");
+session.edit_text(&req, &EditOptions::default())?;
+```
+
+**Reach for it whenever the run you are editing may not be unique on the
+page** — a bill-of-materials quantity column, a revision block, a repeated
+callout. Until this existed there were only two spellings and neither could
+express that case:
+
+| you have | you could say | and |
+|---|---|---|
+| the text | `find_replace` | pdfcer picks an occurrence for you |
+| the operator | `pinned` / `whole_operator` | the match must lie **inside** that one operator |
+| **both** | — | **there was no spelling** |
+
+A click-driven shell has exactly what the first lacks. `spanning_from` lets
+the match **begin** at the pinned operator and run on across the following
+spannable ones — same `spannable` test, same `same_line` tolerance, same
+trim-to-the-operators-the-match-touches rule as the ordinary span search. The
+only thing that differs is where the search starts.
+
+> ### ★ Two things measured while building this, both of which change advice
+>
+> **1. `find_replace` does not edit "the first occurrence."** The locator tries
+> a single-operator match across the whole page *before* trying a spanning
+> one, so a **single-operator** occurrence anywhere beats a **spanning** one
+> above it. Consequence for a shell: a spanning run is **unreachable by `find`
+> alone** whenever a single-operator twin exists anywhere on the page. If you
+> have a pin, use it.
+>
+> **2. A plain pin plus a non-matching `find` used to resolve to byte 0.**
+> `find_anchor` returns the pinned operator without consulting `find` at all,
+> and the caller then fell back to position 0 when the text was not in it —
+> an anchor pointing at bytes nobody asked about, which failed further down
+> with a message blaming the *text*. **That is now a named refusal**
+> (`EditError::NoMatch`) at the point it is detected. Behaviour for existing
+> callers is unchanged in kind — a plain pin still confines the match to one
+> operator — but the refusal is deliberate rather than accidental, and it
+> arrives earlier.
+>
+> Keeping the plain-pin meaning was a deliberate choice, asked for by
+> `pdfcer-gui`: silently widening `pinned` would have changed what every
+> existing caller's refusal means. Hence a separate constructor and an
+> explicit `EditRequest::span_from_pin` flag.
+
+**Errors:** `EditError::PinnedSpanNotFound` if the span names no operator —
+distinct from `NoMatch`, and the distinction matters: the first means the pin
+is wrong, the second means the pin is fine and the text does not begin there.
+
+CLI: `edit-text --pin-span START:LEN --span-from-pin --find TEXT --replace TEXT`.
+The flag is refused without a pin, since it has nothing to start from.
+
 #### `preview_font_resources` — read this before wiring a font or style control
 
 `Pass 142.1`. A `&self` query that answers, for **one located run**, which of
