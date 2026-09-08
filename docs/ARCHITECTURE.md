@@ -33223,3 +33223,189 @@ has carried unresolved (§9.6.6.4's *"known interop fault line →
 is `R225`'s tenth instance and a new medium, not a new cause — see
 `ROADMAP.md` *Standing rules*), next free `R247`. **Pass ceiling `270.2` →
 `271.0`**, next free family `272.x`.
+
+---
+
+### 2026-09-08 (477th filing, `757386d`) — decision 144: **A LOCATOR WITH TWO INDEPENDENT AXES MUST BE ABLE TO EXPRESS BOTH. WHERE AN API FORCES A CALLER TO CHOOSE BETWEEN *WHAT* AND *WHICH ONE*, SOME TARGETS BECOME ***UNREACHABLE*** RATHER THAN MERELY AWKWARD — AND THE NEW POWER ARRIVES AS A SEPARATE CONSTRUCTOR, NEVER AS A SILENT WIDENING OF THE EXISTING ONE**
+
+**Origin.** `Pass 272.0` (`757386d`), from `pdfcer-gui`'s
+`request_a_spanning_find_cannot_be_anchored_at_a_pinned_operator.md`. Not a
+scoping decision — a ruling forced by the shape of the gap, and by a second
+measurement taken while closing it.
+
+---
+
+#### 1. The two axes, and why "awkward" was the wrong word for it
+
+`EditSession::edit_text` locates its target from an `EditRequest`. Two
+independent pieces of information can identify a run, and until this Pass a
+caller could supply either but never both:
+
+| axis | field | answers | what it cannot do |
+|---|---|---|---|
+| **WHAT** | `find: String` | *which text* | pick between identical texts — pdfcer chooses |
+| **WHICH ONE** | `pinned_span: Option<ByteSpan>` | *which show operator* | describe a run that spans more than one operator, because the pin confines the match **inside** the pinned operator |
+
+A producer that emits **one glyph per show operator** — routine in CAD output
+— puts every multi-character run in the intersection of those two failures:
+the pin cannot hold the run, and the `find` cannot say which one.
+
+**★ The word "awkward" is what this decision rejects.** A missing convenience
+leaves the target reachable by a longer route. **This left it reachable by no
+route at all**, and the proof is measurement §3 below: the alternative
+spelling (`find` alone, pin dropped) does not merely risk the wrong
+occurrence — on a page carrying a single-operator twin it can never reach the
+spanning one, at any distance, in any direction.
+
+⇒ **The ruling.** *Where a locator carries two orthogonal axes, the API owes a
+spelling that supplies both. Absence of that spelling is a **reachability**
+defect, not an ergonomics one, and must be triaged as such.*
+
+#### 2. The new spelling, and why it is a separate constructor
+
+```rust
+pub fn spanning_from(page_index: usize, span: ByteSpan, find: &str, replace: &str) -> Self
+pub span_from_pin: bool                     // explicit, defaults false
+```
+
+Three lines of implementation (`find_replace(...).pinned(span)` with the flag
+set) and **no new search logic** — the span search is the existing one with
+every guard intact: the same `spannable` test, the same `same_line` `Td`/`Tm`
+tolerance, the same trim-to-the-operators-the-match-touches rule, the same
+requirement that the match **begin** inside the anchor. **Only the starting
+operator differs.**
+
+**The cheaper design was available and was declined.** Widening `pinned` to
+mean *"start here"* needs no new symbol at all. It was rejected on the
+requesting shell's own argument, adopted here as the general form:
+
+> **A silent widening of an existing constructor changes what every existing
+> caller's REFUSAL means.** Callers who never asked for the new behaviour are
+> the ones who pay: their `NoMatch` stops meaning *"the text is not in that
+> operator"* and starts meaning *"the text is not in that operator or any
+> operator after it"*, and no compiler, test or type signature marks the
+> change. **A widened meaning is a breaking change with no diff.**
+
+⇒ **Corollary, and it generalises past this API:** *a capability that
+relaxes a constraint gets a new name; only a capability that TIGHTENS one may
+be added in place, because tightening turns silent wrong answers into
+refusals, and relaxing turns refusals into silent answers.* `Pass 272.0` did
+both — it added the relaxation under a new name **and** tightened the existing
+path (§4) — which is why the pair is instructive.
+
+#### 3. The measurement that changes the advice, not just the diagnosis
+
+**`find_replace` does NOT edit "the first occurrence."** `find_anchor` tries a
+**single-operator** match across the **whole page** *before* the spanning
+search runs at all.
+
+> **A single-operator occurrence anywhere on the page beats a spanning one
+> above it.**
+
+⇒ **a spanning run is unreachable by `find` alone whenever a single-operator
+twin exists anywhere on that page.**
+
+**This contradicted the request's framing and the engineer's own first draft
+of the test**, and it surfaced only because the fixture carries both shapes:
+the test failed on an assertion written from the wrong model. It is recorded
+in §12 rather than only in the Pass entry because it is a **standing property
+of the locator's contract** that every shell must design against, and because
+it is the fact that upgrades §1 from *inconvenient* to *unreachable*.
+
+**Documented for consumers** in `docs/core-api/02-editing-and-saving.md`,
+§*`EditRequest::spanning_from` — when the text REPEATS on the page*.
+
+#### 4. `unwrap_or(0)` on a locator is not a default — it is a wrong answer wearing a right answer's shape
+
+The pinned path computed its anchor with
+`let pos = s.text.find(find).unwrap_or(0);`. When the search missed, the
+fallback **claimed the match began at byte 0 of the pinned operator** — an
+anchor pointing at bytes nobody asked about, which then failed downstream with
+a message blaming the **text**.
+
+**The operation failed either way; that is not the cost.** The cost is that
+**the failure was reported against the wrong subject**, and a diagnosis
+performed on that report lands one layer away from the cause. The requesting
+shell located the fault at a guard **one arm too late** — an
+`Err(e) if req.pinned_span.is_some()` arm that is **unreachable for a pin that
+resolves**, because `find_anchor` returns `Ok(i)` for a pinned request without
+consulting `find` at all. Their reasoning was correct; their evidence was
+manufactured by this line.
+
+Measured three ways before anything changed:
+
+| request | result | what it proves |
+|---|---|---|
+| pin + `find` inside that operator | succeeds | the pin resolves |
+| bogus pin | `PinnedSpanNotFound` | that arm fires only here |
+| pin + spanning `find` | `NoMatch` | the failure is elsewhere |
+
+⇒ **Now a named refusal at the point of detection** (`EditError::NoMatch`),
+with `PinnedSpanNotFound` kept distinct: **the first means the pin is wrong,
+the second means the pin is fine and the text does not begin there.** A shell
+switching on refusal kind needs exactly that fork, and conflating them is what
+sent the report to the wrong guard.
+
+**The generalised rule:** *a locator may not synthesise a position. Where it
+cannot locate, it refuses — and it refuses at the site of the failed lookup,
+because a refusal raised later carries the wrong subject.* This is the
+`.unwrap_or(0)` shape specifically: an `Option` returned by a **search** is
+not the same kind of `Option` as one returned by a **lookup with a natural
+identity element**, and `unwrap_or` cannot tell them apart.
+
+#### 5. Body-section effect and invariants
+
+**§4 (core API surface) — CHANGED.** `EditRequest` gains one public associated
+function (`spanning_from`) and one public struct field (`span_from_pin: bool`),
+both documented. Recorded here explicitly because §4 drifting behind the
+shipped core surface is a failure this project has already had, and a new
+public item is the exact event that causes it.
+
+**§3 GUI-core separation — unaffected**, and **no `cargo tree` check is owed**:
+no `Cargo.toml` was touched. **§5 round-trip / minimal-diff — unaffected**:
+this changes *which* bytes an edit targets, never *how many* are rewritten.
+The spanning contract's existing behaviour — the replacement lands in the
+operator holding the match end, earlier matched operators are emptied to
+`() Tj` — is unchanged and is **not** new here; it is noted because it is the
+trap that makes a naive byte assertion fail against a correct edit.
+
+**Rule 4 (fuzzy, never sneaky) — nothing owed, and the reason is worth
+stating.** `spanning_from` performs **no inference**. The caller supplies both
+axes; pdfcer chooses nothing. The verb that *does* infer — `find_replace`
+picking an occurrence — is the one this decision makes avoidable, so the net
+effect is **less** unreported inference, not more.
+
+#### 6. Relation to earlier decisions
+
+- **Decision 094** (the `operator_span`-slice invariant, published guarantee,
+  0 exceptions in 29,246 groups over 4,289 files) is what makes a pin a
+  **trustworthy** locator in the first place. 144 spends that guarantee: it is
+  only safe to let a caller start a span search at a pin because the pin is
+  known to name a real operator boundary.
+- **`Pass 152.0`'s finding** — that `EditRequest::whole_operator` existed as
+  behaviour for three Passes with *"no symbol to grep"*, and the consuming
+  shell filed a defect saying the verb could not be reached — is the same
+  class of failure at the **documentation** layer that this decision addresses
+  at the **API** layer. In both, the capability's absence was a *naming*
+  absence. `R220`(f) covers the documentation half; this covers the case where
+  the capability genuinely was not there.
+- **No decision is amended or superseded.** 144 stands beside 094 and does not
+  touch it.
+
+#### 7. Scope, so it is not over-read
+
+This is **not** a licence to add a constructor per argument combination.
+The obligation fires when **(a)** two axes are genuinely orthogonal — neither
+derivable from the other — and **(b)** their combination identifies targets
+that **no** existing spelling reaches. An argument that merely *shortens* an
+existing route is ergonomics and does not qualify. The `nth: usize`
+occurrence-index the request explicitly did **not** ask for is the worked
+counter-example: it would be a third spelling of the *same* axis (WHICH ONE),
+computed by the caller over extracted text to address operator text, and the
+requesting shell declined it on exactly that ground.
+
+**Decision ceiling: `143` → `144`**, next free `145`. **Standing rules ceiling
+`R246` — UNCHANGED**; `R247` considered and **declined** (the assertion-site
+vacuity is `R225`'s eleventh instance plus a dated widening clause, not a new
+cause — see `ROADMAP.md` *Standing rules*), next free `R247`. **Pass ceiling
+`271.0` → `272.0`**, next free family `273.x`.

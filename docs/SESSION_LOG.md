@@ -97838,3 +97838,237 @@ not asserted.**
 4. **Consider telling `pdfcer-gui`** about the diagnostic signature — *renders
    as garbage, extracts as clean text ⇒ glyph ladder* — since that project is
    where operator reports of this shape arrive first.
+
+## 2026-09-08 (477th filing) — `v0.49.0` released; `Pass 272.0` gives a `find` and a pin a way to be asked together — and the inbound request that motivated it had **retracted its own motivating case 92 minutes earlier**
+
+**Sourcing (hard rule 8).** A `Bash` tool was available and was used. Every
+figure in *Released* was re-measured here (`sha256sum`, `du -sb`,
+`find … | wc -l`, `cat` on both OneDrive `VERSION.txt`, `gh release view`,
+`gh run list`, `git describe`/`rev-parse`/`rev-list`/`status`), not relayed.
+Test counts, gate results and sabotage outcomes are **relayed** from the
+commit messages and labelled as such below. Backup currency was not checked
+and is not asserted.
+
+**Shipped:**
+- **`v0.49.0` RELEASED.** Tag at **`b208dc6`**, CI **green** at the tagged
+  commit (run **`34250815619`**, `conclusion: success`). Zip
+  `pdfcer-v0.49.0-windows-x64.zip`, **18,981,765 bytes**, SHA-256
+  **`b9a16f3b4ce4d5f750c506b7ed61d3cf750ee7148c5a3fd3c46815fe154605d8`** —
+  read three independent ways (engineer's figure, local `sha256sum`, and
+  GitHub's own `digest` field on the published asset), all equal. Portable
+  folder `D:\builds\pdfcer-20260908-1249-b208dc6`, **8 files, 34,809,444
+  bytes** (`pdfcer.exe` 22,274,048 B = 64.0 %). OneDrive slot **`pdfcer2`**
+  (`deployed: 2026-09-08T16:51:20Z`); **`pdfcer1` retains `0.48.0`**.
+  `verify-release.py v0.49.0` nine of nine, clean tree (relayed).
+  ★ **CI had been RED immediately before** — run `34230418986` at `14ee766`
+  failed on **`cargo clippy -D warnings`**, 1 of 10 jobs, every other job
+  green. Both runs named so the pair can be checked rather than remembered.
+- **`b208dc6` filed, no Pass and none owed** — `check-string-gaps.sh` was
+  blind to a baked-space run followed by a **digit**, because prose mode's
+  trailing class is `[^ ]` and the non-prose one is `[A-Za-z]`. **An
+  `assert!` message was not being read as prose.** Fourth time this gate has
+  missed by admitting only the spelling somebody had already seen, and **its
+  own header predicted this instance in advance, twice**. Widening measured
+  before changing anything: general class tree-wide **14 → 26 findings**, of
+  which **11 of the 12 new were DXF group-code strings** whose fixed-width
+  padding *is* the wire format; scoped to assertions instead, **4 findings**
+  — **3.0× narrower, 91.7 % false-positive rate avoided**. Three real
+  (`dimension_roundtrip.rs:1152`, `rotated_text.rs:676`,
+  `grey_overprint.rs:536`), one exempted in place with its reason
+  (`dxf_export.rs:285`). Also repairs the two heredoc-eaten continuations in
+  `symbolic_truetype_glyphs.rs` — `Pass 271.0`'s own file, same day.
+- **`Pass 272.0`** (`757386d`) — **`EditRequest::spanning_from(page, span,
+  find, replace)` + an explicit `span_from_pin` flag**, and CLI `edit-text
+  --span-from-pin` (clap `requires = "pin_span"`, so a caller who forgot the
+  pin is told about the *argument*, not about the *document*). A `find` says
+  **what**; a pin says **which one**; there had been no spelling for both.
+  Every guard is the existing span search's — same `spannable` test, same
+  `same_line` `Td`/`Tm` tolerance, same trim rule, same requirement that the
+  match **begin** inside the anchor. **Only the starting operator differs.**
+  Deliberately opt-in and a **separate constructor**, at `pdfcer-gui`'s
+  explicit request: silently widening `pinned` would change what every
+  existing caller's refusal means.
+
+**Decisions made this session:**
+- **Decision `144` minted** — *a locator with two independent axes must be
+  able to express both; where an API forces a choice between **what** and
+  **which one**, some targets become **unreachable** rather than merely
+  awkward — and the new power arrives as a separate constructor, never as a
+  silent widening.* Corollary recorded: **a capability that RELAXES a
+  constraint gets a new name; only one that TIGHTENS may be added in place**,
+  because tightening turns silent wrong answers into refusals and relaxing
+  turns refusals into silent answers. `Pass 272.0` did both, which is why the
+  pair is instructive. Cross-referenced to decision **094** (the
+  `operator_span`-slice guarantee, 0 exceptions in 29,246 groups over 4,289
+  files) as the thing that makes a pin trustworthy enough to start a search
+  from; nothing amended or superseded.
+- **`R247` considered and DECLINED**; **`R225` gains instance 11 and a dated
+  widening clause.** See *Findings* — the warrant was the strongest this
+  family has produced and the decline is argued, on coverage rather than on
+  count.
+- **`Pass 272.0` is the ID the commit claimed, and it was free** —
+  `check-ledger-numbers.py` already listed `272` under *CLAIMED BUT NOT YET
+  HEADED* from the commit's own two pre-filing citations
+  (`docs/core-api/02-editing-and-saving.md:521`,
+  `tools/gen-span-from-pin-fixtures.py:6`). No correction owed.
+
+**Findings + decisions:**
+- **★★★★★ THE INBOUND REQUEST RETRACTED ITS OWN MOTIVATING CASE 92 MINUTES
+  BEFORE THE COMMIT THAT QUOTES IT.**
+  `request_a_spanning_find_cannot_be_anchored_at_a_pinned_operator.md` carries
+  a boxed same-day amendment, `mtime` **12:05:12 −0400**; the commit is
+  **13:36:45** and the reply **13:37:21**. The requester's own words: the BOM
+  report *"was our third wrong diagnosis"* — the real cause was
+  **subset-embedded fonts carrying 46 of 95 printable ASCII characters (48.4
+  %), with every lowercase letter absent**; Ken was typing letters the font
+  does not have, and `UnsupportedFont` was correct. **They then measured the
+  population of this refusal on all four sheets and the intersection is
+  ZERO**: a run must both repeat on the page *and* span several show
+  operators, and over **1,644 runs** there are **443 repeats (26.9 %)**, **24
+  multi-operator (1.5 %)** and **0 of 1,644 that are both**. They also ran
+  **31 real edits on page 3 — 30 accepted, 1 refused (96.8 %)**, the refusal
+  being the documented synthesised-spaces case. Priority medium → **LOW**.
+  ⇒ **The Pass is correct and its stated motivation is not.** Both halves
+  hold. The capability is real, precisely located, and granted in the
+  requester's preferred form; the *story* attached to it is refuted by a
+  measurement its own author published first.
+- **Survivor sweep for that claim (hard rule 11, searched for the CLAIM):
+  7 sites read, 4 refuted.** Refuted and **in `crates/`, so reported not
+  edited**: `edit.rs:388–391`, `tests/span_from_pin.rs:23–28`,
+  `tests/span_from_pin_flag.rs:131`. Refuted and **outside the repository**:
+  the outbound reply's *"'it only sometimes works' is exactly what that
+  distribution produces"*. **Surviving and CORRECT, reported so the next sweep
+  does not "fix" them**: `gen-span-from-pin-fixtures.py:23–26` and
+  `main.rs:6557–6559` (counts only, no causal claim) and
+  `02-editing-and-saving.md:528–531` (generic shape advice).
+- **★★ The mechanism is NOT carelessness, and that is the transferable half.**
+  A file-based cross-project channel has **no notification and no version
+  token**, so a same-day amendment to an open request is invisible to a reader
+  who has already read it. The reply's `Re:` line proves it twice, because it
+  cites a filename that **also changed** and no longer exists. **Remedy, one
+  line, unconditional: `stat` the inbound request immediately before writing
+  the reply and compare its `mtime` to when you read it.** Not a gate —
+  nothing here can observe a file in another tree — a habit, same species as
+  hard rules 8/10/11. Recorded at n=1 and deliberately not minted.
+- **★★ A commit corrected a claim in `docs/` and restated it in two rustdocs
+  it wrote in the same commit.** `Pass 272.0`'s own Correction 2 establishes
+  that **`find_replace` does NOT edit "the first occurrence"** — `find_anchor`
+  tries a single-operator match across the **whole page** before the spanning
+  search, so a single-operator occurrence anywhere beats a spanning one above
+  it, and **a spanning run is unreachable by `find` alone whenever a
+  single-operator twin exists anywhere on the page**. The correction landed in
+  `docs/core-api/02-editing-and-saving.md:549–553` and the test module —
+  while `edit.rs:374–376` (*"silently edits whichever occurrence comes
+  first"*) and `main.rs:6550–6551` (the same, in `--help`) kept the refuted
+  model. **Same commit, same author, same working hour, two trees.** This is
+  hard rule 10's founding geometry at a shorter separation: a correction
+  propagates to the document you are correcting. Cheap remedy: **when a Pass's
+  own work refutes a claim the Pass also states, sweep before writing the
+  commit message, not after** — by then the rustdoc is in the diff and reads
+  as finished.
+- **★ `unwrap_or(0)` on a locator is a wrong answer wearing a right answer's
+  shape.** The real fault was `s.text.find(find).unwrap_or(0)`, which claimed
+  the match began at **byte 0** of the pinned operator and failed downstream
+  blaming the **text** — which is why the requester located the fault one
+  guard too late, at an `Err(e) if req.pinned_span.is_some()` arm that is
+  **unreachable for a pin that resolves**. Measured three ways before any code
+  changed (pin + in-operator find → succeeds; bogus pin → `PinnedSpanNotFound`;
+  pin + spanning find → `NoMatch`). Now a named refusal at the point of
+  detection. **The operation failed either way; the cost was that the failure
+  was reported against the wrong subject.**
+- **★★ `R225`'s own remedy was applied CORRECTLY and the sabotage STAYED
+  GREEN** — instance 11, and the reason for the widening clause. The
+  scan-from-operator-0 sabotage was green **twice**: first until a **third**
+  occurrence existed (fixture problem, `R225`'s ordinary remedy, applied), then
+  **again** because the assertions asked *"does `(MNOP) Tj` appear
+  somewhere?"* and *"how many operators survive?"*. Both vacuous for **two
+  independent reasons**: the **incremental save keeps the base revision**, so a
+  correct output is *guaranteed* to contain the searched-for token (the mirror
+  of the already-filed absence-assertion lesson, and the reason that lesson did
+  not cover it); and **both outcomes replace exactly one spanning pair with one
+  operator**, so an operator count cannot separate them. **Only naming the LINE
+  by its `Td` discriminates.** Widening clause: *applying `R225` to the FIXTURE
+  does not discharge `R225` — ask the founding question a second time, of the
+  ASSERTION.*
+- **The 476th filing's named trigger did NOT fire.** That trigger was *"a
+  second instance where the defective path's own failure is what reaches the
+  correct one"* — a fallback ladder. Today's sabotage **coincides** rather than
+  falls through. `n` stays 1 for that medium; the trigger remains armed. A
+  **new** trigger is named instead: a second instance where `R225`'s fixture
+  remedy is applied correctly and the sabotage survives **on the assertion's
+  shape alone**.
+- **★ The ledger-anchor fix from the 476th filing is confirmed working.** That
+  filing repaired `check-ledger-numbers.py`'s literal `Pass ` anchor and left
+  `270.2` recorded as still uncounted. **It is now counted** — the gate's
+  *CLAIMED BUT NOT YET HEADED* list contains no `270` and its heading ceiling
+  reads `271`, which it could only reach by seeing `ROADMAP.md`'s `Pass 270.2`
+  heading. **The residue is closed and this is the check that closes it.**
+- **★ The dispatch's commit count was one short, and the reason generalises.**
+  `check-commits-filed.py` names **`b208dc6`**, not `757386d` (which it reports
+  separately as `DEFERRED` — a commit cannot cite its own hash). **Two commits
+  are filed here.** `git log --oneline origin/main..HEAD` returns only
+  `757386d` because `origin/main..HEAD` is a **push** boundary, not a
+  **filing** boundary, and the two stopped coinciding the moment the release
+  was pushed. A session that reads the range instead of the gate will now
+  systematically miss every commit between the last filing and the release tag.
+- **Fixture-provenance debt, measured.** `span-from-pin.pdf` is not in
+  `fixtures/synthetic/text/PROVENANCE.md` — and **21 of 38 files (55.3 %)** in
+  that directory are not, including four `composite-*.pdf`, five
+  `cidfonttype2-*.pdf` and eight `subset-fstype-*.ttf`. **Pre-existing debt,
+  not introduced here**, but project rule 7 / `LEGAL.md` §5 make this a
+  licensing statement rather than a tidiness one. Flagged, not fixed.
+- **`docs/FEATURES.md`: one row ADDED** — *Edit a SPECIFIC occurrence of
+  repeated text* — **`[x]` core · `[x]` cli · `[ ]` gui · `[x]` Acrobat**.
+  The `gui` `[ ]` is deliberate and is a *stronger* `[ ]` than usual: the
+  consuming project asked for this API by name, in its preferred shape, and
+  has not wired it. `R151`'s signal working as intended. Acrobat `[x]` cited
+  to `Acrobat_Features/text_edit__in_place_editing_mechanism.md:38–41`
+  (*"editing scope is per-identified-run"* — click-anchored by construction),
+  labelled **moderate confidence** because that entry describes the mechanism,
+  not this disambiguation case.
+- **Verification, relayed.** `span_from_pin` 7, `span_from_pin_flag` 3,
+  `whole_operator_pin` 10, `edit_text` 6; the whole `pdfcer-core` integration
+  suite **3,650 tests over 132 targets = 27.7 per target** and the whole
+  `pdfcer-cli` suite **445 over 43 = 10.3 per target**, **0 failures**. `fmt`
+  clean, `clippy --all-targets --all-features -D warnings` clean, all document
+  gates PASS. **Sabotage four ways, all RED** — ignore the flag; scan the page
+  instead of starting at the pin; restore `unwrap_or(0)`; **and the CLI never
+  passing the flag through**, which is the *wiring* sabotage a core-only suite
+  structurally cannot run.
+
+**Still in flight:**
+- **Five items reported to the engineer as owed** (`ROADMAP.md`, `Pass 272.0`
+  *owed work*): two `crates/` survivors of the *"first occurrence"* claim
+  (one of them `--help` text an operator reads); three `crates/` survivors of
+  the retracted motivation (the **counts are true; the causal sentence is
+  not** — minimal repair is to keep the numbers and delete the *"which is him
+  landing, or not…"* clause); the outbound reply's two defects (nonexistent
+  `Re:` filename, and the refuted *"exactly what that distribution
+  produces"*); the 21-file `PROVENANCE.md` backfill; and the
+  `origin/main..HEAD`-is-not-a-filing-boundary hazard.
+- **`main` is one commit ahead of the release** — `757386d`, this filing's
+  Pass. Pushing is standing-authorized (rule 8, decision 090) and releasing is
+  standing-authorized (decision 121); **neither is this role's act**.
+- **`R246`'s remaining out-of-repository survivors** — unchanged from the 476th
+  filing, still unverified here (`PDF_Spec/iso32000/iso32000__s__12.5.3.md:54`
+  and the two `Acrobat_Features` sites).
+- **`Pass 264.1`'s copy-paste residue** still needs scoping (one `MarkupCarry`
+  field, most likely), unchanged since the 475th filing.
+
+**For next session:**
+1. **Discharge the five owed items above**, starting with the two `--help`/
+   rustdoc survivors of the *"first occurrence"* claim — one of them is
+   operator-facing.
+2. **Correct the outbound reply** (`reply_2026-09-08-span-from-pin-SHIPPED-and-two-corrections.md`):
+   the `Re:` line names a file that does not exist, and the *"Your
+   measurements were right"* section restates an inference the requester
+   retracted. **Not this role's file to edit.**
+3. **Adopt the `stat`-before-reply habit** on the cross-project channel, and
+   consider telling `pdfcer-gui` that their amendment did not reach the commit
+   — the channel weakness is mutual and they are the other half of it.
+4. **Decide whether `Pass 272.0`'s LOW priority changes anything downstream.**
+   The requester offered to have the queue space back (*"If you would rather
+   have the queue space back, close it and we will refile when we have a
+   document that needs it"*). It shipped anyway, and that was the right call
+   for an API-shaped gap — but the offer is on the record and worth answering.
+5. **`Pass 264.1`'s copy-paste residue** — still the oldest unscoped item.
