@@ -97115,3 +97115,54 @@ filing counter taken from `ROADMAP.md`'s own ledger ("SESSION_LOG filings
   its reset-to value, and whether it's excluded from form submission.
 - **Engineer:** `Pass 266.0`'s five remaining unwritable field properties
   are queued in Backlog; `/DA` is flagged as the biggest of the five.
+
+## 2026-09-08 (471st filing) — `v0.47.0` version bump, and a gap gate that documented its own fix without applying it
+
+**★ Time-critical, deliberately short.** Operator wants a release by
+06:15; this filing was the last thing blocking the push. No shell
+available to this role — everything below is **relayed as supplied by the
+engineer**, per the dispatch's own explicit instruction not to re-verify
+against source this time.
+
+**Shipped:**
+- `23c5f64` — `chore: 0.47.0`. Version bump only (MINOR, for `Pass 265.0`'s
+  already-shipped public surface), lockfiles refreshed. **Not yet
+  released** — tag/CI/zip/OneDrive are the next act, outside this filing.
+- `f2b545c` — `check-string-gaps` itself PASSed a baked gap (lost
+  backslash line-continuation, ten literal spaces) in a shipped,
+  operator-facing error message, found by the `v0.47.0` fresh-folder smoke
+  test in the binary itself. Fourth instance of the class this session.
+  Root cause: the gate's prose-mode trailing character class was a
+  hand-written list missing an opening parenthesis — and the gate's own
+  code comment, written after its *third* miss earlier the same session,
+  had already stated the correct general rule and simply wasn't
+  implemented that way. Fixed by implementing the rule the comment
+  already specified. Measured before widening: 20 literals flagged
+  total, 19 deliberately-aligned `println!` report columns, 1 the actual
+  defect; proved by re-introducing and re-fixing the defect at its named
+  site.
+
+**Findings + decisions:**
+- Dated instance note added to `R243` (`ROADMAP.md`, Standing rules) — a
+  comment specifying correct behaviour with an implementation beside it
+  that doesn't enact it is `R243`'s shape ("a documented obligation is
+  not a control") one layer down from its founding two-call-sites
+  instance. No new rule minted at this n.
+- One further non-prose baked gap surfaced by the same measurement,
+  deliberately left unfixed and filed instead: `crates/pdfcer-core/tests/
+  dimension_roundtrip.rs:1152`, not operator-facing.
+
+**Still in flight:**
+- `Pass 267.0` (Backlog, minted this filing) — fix the test-assertion
+  baked gap above.
+- `v0.47.0` release proper (tag, CI, zip, OneDrive deploy, smoke test) —
+  next act, not this filing's.
+- Backup bundle currency, disk/`target/` size, exact push state: not
+  re-measured — no shell tool available to this role.
+
+**For next session:**
+- **Operator:** `v0.47.0` version bump is committed; the release itself
+  (tag/build/OneDrive) is the next step, expected before your 06:15
+  deadline.
+- **Engineer:** `Pass 267.0` (small, non-operator-facing) is queued in
+  Backlog whenever convenient; not urgent.

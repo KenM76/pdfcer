@@ -112,6 +112,113 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★★ 471st filing, 2026-09-08 — `v0.47.0` VERSION BUMP (`23c5f64`), AND
+A BAKED GAP SHIPPED INTO AN OPERATOR-FACING MESSAGE THAT `check-string-gaps`
+ITSELF WAS SUPPOSED TO CATCH, FIXED BY IMPLEMENTING THE GATE'S OWN
+ALREADY-WRITTEN RULE (`f2b545c`). DATED INSTANCE NOTE ADDED TO `R243`.**
+
+**Sourcing (hard rule 8), stated up front because this filing is
+deliberately small.** Time-critical: operator wants a release in hand by
+06:15, this filing was the last thing blocking the push, and this role has
+no shell **again**. Everything below is **relayed as supplied by the
+engineer, not independently re-verified against live source this filing**
+— explicitly authorized by the dispatch itself ("do not re-verify things
+against source this time; take the below as relayed and say so").
+
+**`23c5f64` — `chore: 0.47.0`, version bump only, not yet released.**
+MINOR bump for the new public surface `Pass 265.0` already shipped at the
+470th filing (`FieldEdit::{quadding, default_value, no_export}` + builders,
+`EditError::QuaddingInvalid`, five new `edit-field` CLI flags) — no
+breaking change. Lockfiles refreshed for root, fuzz, and
+`tools/content-identity`. **This commit is the version bump, not the
+release** — tag/CI/zip/OneDrive steps are the next act, outside this
+filing's scope, and this entry does not claim them.
+
+**`f2b545c` — the defect and its repair.**
+
+A baked gap shipped into an operator-facing message, found by the
+fresh-folder smoke test for `v0.47.0` in the **shipped binary itself**, not
+in a test:
+
+> `quadding 7 is not one of ISO 32000-1 12.7.4.3 Table 233's three values`
+> `          (0 left, 1 centred, 2 right)`
+
+Ten literal spaces, from a backslash line-continuation the shell ate.
+Relayed as **the fourth instance of that class tonight** (this session,
+this role has no independent tally).
+
+★★ **`check-string-gaps` itself reported PASS on it.** Its prose-mode
+trailing character class was a literal list — `[-A-Za-z0-9{/"]` — and the
+character immediately after the gapped run is an **opening parenthesis**:
+one of the most ordinary ways an English sentence introduces a gloss,
+simply absent from the list for no reason anyone had chosen.
+
+★★★ **The repair is to implement what the gate's own comment already
+said.** That comment, written after the gate's *third* miss earlier this
+session, concluded: *"in prose mode the trailing class should be read as
+ANYTHING THAT STARTS A WORD, not as a list."* The code then implemented a
+list. The fix makes the trailing-class test the negation the comment
+already specified, rather than adding one more character to the
+enumeration.
+
+**Measured before widening**, per that gate's own stated discipline:
+applied to every literal the gate finds, the widened rule flags **20**
+instances; **19** of the **20** are deliberately column-aligned `println!`
+report output — the exact false-positive class prose mode exists to
+exclude — and **1** of the **20** is the defect. Scoped to prose only: **1**
+match, the defect. Proved by re-introducing the defect at its named site
+(`edit.rs:6833`) and confirming the gate goes red, then restoring it and
+confirming green; the gate's own self-test also passes.
+
+★ **One further real, non-prose instance surfaced by the same
+measurement and deliberately NOT folded into this fix:**
+`crates/pdfcer-core/tests/dimension_roundtrip.rs:1152` bakes a gap into a
+test assertion message. Not operator-facing, so out of scope for this
+fix — filed below as `Pass 267.0`, Backlog, rather than lost.
+
+**The transferable finding, and this gate has now taught it four times:
+the trailing class only ever admitted the spelling of the gap somebody had
+already seen.** Three prior repairs each enumerated from the instance in
+hand and each left the next spelling out. Judged against the dispatch's
+own framing — sharper than "gates under-report" because the gate's author
+had already **written** the general rule in a comment and simply not
+implemented it — this is recorded as a **dated instance note on `R243`**
+below, not a new rule: `R243`'s shape ("a documented obligation … is not a
+control … the agreement goes in one function they both call, not in a
+warning") covers a *comment* specifying correct behaviour that the
+*implementation* beside it does not enact, exactly as it covered two call
+sites failing to agree in the founding instance. No new rule minted at
+this n.
+
+**Session-log-worthy fact, relayed:** the `v0.47.0` fresh-folder smoke
+test found this defect in the **shipped binary**, not in a unit test —
+the argument for smoke-testing the actual features rather than the
+version banner, and (per the dispatch) this has now paid for itself twice
+in two releases.
+
+**`docs/FEATURES.md`** — no row change; this filing is a gate/message fix
+and a version bump, not a new or changed capability.
+
+#### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass IDs | ceiling `266.0`; next free family `267.x` | **`Pass 267.0` MINTED into Backlog** — the non-prose baked gap at `dimension_roundtrip.rs:1152`, not built this filing. Ceiling **`267.0`**, next free family `268.x` |
+| Standing rules | ceiling `R245`, next free `R246` | **unchanged — dated instance note added to `R243` instead of a new mint**, reasoning above |
+| Decisions | ceiling `140`, next free `141` | **unchanged** — no crate boundary, library choice or invariant redefinition this filing |
+| SESSION_LOG filings | `470` | **`471`** |
+| `docs/FEATURES.md` | rows as of the 470th filing | **unchanged — no capability changed** |
+| Unreleased | `4319279` (`Pass 265.0`) was the unreleased tip as of the 470th filing | plus `23c5f64` (`chore: 0.47.0`) and `f2b545c` (this fix) and this filing's own librarian commit — **not yet released**; tag/CI/zip/OneDrive steps are the next act, outside this filing |
+| Requests in `open/` | not independently re-verified this filing (no shell) | unchanged — not re-measured |
+
+**Backlog addition, filed this session:**
+- **`Pass 267.0`** — non-prose baked gap in a test assertion message at
+  `crates/pdfcer-core/tests/dimension_roundtrip.rs:1152`, surfaced by the
+  `check-string-gaps` measurement above; not operator-facing, small fix,
+  not built this filing.
+
+---
+
 **★★★★ 470th filing, 2026-09-08 — `v0.46.0` RELEASED (covering `Pass 262.0`–
 `262.2`/`263.0`, the 469th filing's own subject), AND `Pass 265.0` MINTED AND
 SHIPPED IN THE SAME FILING — THREE FORM-FIELD PROPERTIES THAT WERE READABLE
@@ -158928,6 +159035,23 @@ ceiling `114` → `115`** (`iccce` enters as a git dependency pinned to tag
   **Standing rules ceiling `R242` → `R243`; next free `R244`.** Decision
   ceiling **`139` unchanged**, next free `140` (`140` considered and declined
   this filing — see the 462nd's ledger).
+
+  **★ DATED INSTANCE NOTE, 2026-09-08 (471st filing) — `check-string-gaps`
+  itself.** Fourth miss of the same class in one session: a baked gap
+  (lost backslash line-continuation, ten literal spaces) shipped into an
+  operator-facing error message and the gate meant to catch it reported
+  PASS, because its prose-mode trailing character class was a hand-written
+  list that did not include the character actually following the gap (an
+  opening parenthesis). **The gate's own comment, written after its third
+  miss earlier the same session, already stated the general rule** —
+  *"in prose mode the trailing class should be read as anything that
+  starts a word, not as a list"* — **and the code beside it implemented a
+  list anyway.** This is `R243`'s shape one layer down: not two call
+  sites failing to agree on an obligation, but a comment specifying
+  correct behaviour and an implementation next to it that does not enact
+  it. Repaired by making the trailing-class test the negation the comment
+  already specified. No new rule minted at this n — folded here as the
+  closer match. Full account: this filing's own Shipped entry, above.
 
 - **`R209` — DATED INSTANCE NOTE, 2026-09-07 (462nd filing): THE DOC-SPLICE
   GATE'S DENOMINATOR IS `pub`, AND THE FOURTH INSTANCE LANDED ON TWO PRIVATE
