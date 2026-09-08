@@ -28571,6 +28571,32 @@ free 072.**
   **Decision ceiling moves 104 → 105; next free 106.** **No standing rule
   minted; `R234` stands, next free `R235`.**
 
+  > **★★★★ FORWARD POINTER, ADDED 2026-09-08 (475th filing, `44a2485`) —
+  > EXTENDED BY DECISION `142`, AND THE EXTENSION EXISTS BECAUSE THIS ENTRY'S
+  > STATED SCOPE IS EXACTLY WHY ITS OWN SAFEGUARD DID NOT FIRE.** The
+  > paragraph above promises that `ObjectClip::needed_version` means *"a
+  > second key added later cannot be wired into the writer while missing the
+  > decider."* **On 2026-09-08 a second field was wired into the writer and
+  > the decider was missed** (`caf4c1d`, `Pass 270.0`) — because what was
+  > added was a **positional COS object**, not a **droppable dictionary key**,
+  > and this entry reasons throughout about the latter. **An older reader
+  > skips an unknown key by name; it cannot skip a positional record**, so the
+  > failure is not a lost preference but a **silent desynchronised parse**.
+  > ⇒ **This entry's own discriminator — *"bump when the older build's loss
+  > CHANGES WHAT THE DOCUMENT ASSERTS"* — does not merely rank the case
+  > wrongly: it has NO INPUT**, because a misread loses nothing, it misreads
+  > everything after. **Decision `142` supplies the missing scope** (a
+  > positional change is a *mandatory* version event, gated on both sides,
+  > with the decider written as a **fold** rather than a ladder), and records
+  > that this entry's reserved rule number **`R235` was long since spent on
+  > unrelated work** — do not go looking for it here.
+  >
+  > **★ The content-dependent ruling above is UNTOUCHED and was HONOURED on
+  > its second independent encounter:** `CLIP_VERSION` went 3 → 4 as a **gate,
+  > not a blanket bump**, a plain clip still declares 2, and the two-folders
+  > property this entry exists to protect survived the fix. **What changed is
+  > the trigger for bumping, not the shape of the bump.**
+
 - **2026-08-30 — Decision `106`: BOLD IS RESOLVED BY AN AUTOMATIC FALLBACK
   LADDER, NOT BY AN OPERATOR CHOOSING BETWEEN TWO VERBS. THE OPERATOR RULED
   THAT A REAL BOLD FACE IS USED WHEN ONE IS AVAILABLE AND SYNTHESIS TAKES OVER
@@ -32865,3 +32891,187 @@ ceiling `R245` — UNCHANGED**, next free `R246` (`R209` grew clause (f) and
 `ROADMAP.md` *Standing rules*). **Pass ceiling `269.0` → `270.0`** (this
 Pass) **→ `270.1`** (one Backlog sub-ID minted the same filing for the
 missing `CLIP_VERSION` bump), next free family `271.x`.
+### 2026-09-08 (475th filing, `44a2485`) — decision 142: **A POSITIONAL FIELD IN A VERSIONED BINARY FORMAT IS NOT A DROPPABLE KEY. IT NEEDS A GATE ON *BOTH* SIDES, AND THE VERSION DECIDER MUST BE A FOLD OVER INDEPENDENT REQUIREMENTS RATHER THAN A LADDER. EXTENDS DECISION `105`, WHOSE STATED SCOPE — DROPPABLE DICTIONARY KEYS — IS EXACTLY WHY ITS SAFEGUARD DID NOT FIRE**
+
+**Origin.** `Pass 270.1` (`44a2485`), discharging a defect the 474th filing's
+own hard-rule-11 sweep found in the commit it was filing (`caf4c1d`,
+`Pass 270.0`). **Found and fixed between the commit and the tag** — no release
+carried it. Not an external request.
+
+**★ THIS IS AN EXTENSION OF DECISION `105`, NOT AN UNRELATED NUMBER, AND IT IS
+FILED AS A NEW ENTRY BECAUSE THIS LOG IS APPEND-ONLY.** Decision `105`'s own
+entry gains a dated forward pointer to this one. Read them together: `105`
+answers *when to bump*; `142` answers *what a bump has to gate, and where the
+decider must live, when the format is positional rather than keyed*.
+
+---
+
+#### 1. What happened
+
+`Pass 270.0` made `ObjectClip::to_bytes` write a **second positional COS
+object** per markup annotation (a `MarkupCarry` beside the `MarkupSpec`,
+decision `141`) and made `from_bytes` read it **unconditionally** — and left
+`CLIP_VERSION` at `3`.
+
+A reader from that build, handed a payload an older build wrote, **took an
+object that was not there.** What it actually consumed was the *next*
+annotation's tag byte and spec, **misaligning the parse for every annotation
+after it.** Silently: `decode_carry` cannot fail by design, because refusing a
+whole paste over a garbled optional property would lose the geometry with it.
+**Both of those decisions are individually correct; their interaction is the
+defect.** ⇒ **A guard that cannot report going wrong must not be reachable by
+accident.**
+
+#### 2. Why decision `105`'s safeguard did not fire — the transferable half
+
+Decision `105` says, in its own words, that the clip's version *"is made by a
+function, `ObjectClip::needed_version(&[ClipAnnotation]) -> u32`, rather than
+by a branch at the write site — so there is **one** place that answers 'what
+version is this content?', and **a second key added later cannot be wired into
+the writer while missing the decider**."*
+
+**A second field was wired into the writer and the decider was missed. The
+rule was right; its stated SCOPE did not reach the change that needed it.**
+
+| | droppable dictionary key | positional field |
+|---|---|---|
+| older reader meeting an unknown one | **skips it by name** and carries on | **cannot skip it** — no name, no length |
+| older reader missing an expected one | reads a shorter dict; correct | **takes the next record's bytes** |
+| failure mode | a **lost preference** | a **desynchronised parse** — silent, and unbounded past the first record |
+| does `105`'s discriminator apply? | yes — *"bump when the loss changes what the document asserts"* | **NO — a desynchronisation is not a loss at all**, so neither branch of the discriminator ranks it |
+
+That last row is the point. **`105`'s discriminator is a function of *what is
+lost*, and a positional misread loses nothing — it misreads everything after.**
+The discriminator is not merely hard to apply here; **it has no input.**
+
+⇒ **Decision 142's rule.** For a positional binary format the version is **not
+optional and the discriminator does not run**: any change to the **number or
+order of positional records** is a **mandatory** version event, gated on
+**both** the writer and the reader, and the reader's gate is the half that
+makes an older payload readable at all.
+
+#### 3. The three mechanism rulings
+
+**(a) The version decider is a FOLD, not a LADDER.** `needed_version` returns
+the **maximum** version any single element requires:
+
+```
+4  if any markup carries an author-time property (MarkupCarry)
+3  if any ce dimension carries a text override
+2  otherwise
+```
+
+**Written as a max, deliberately, not as an `else if` chain**, because the
+features are **independent** — one clip can hold a dashed square **and** a ce
+dimension with an overridden label — and **a ladder makes one of them
+unreachable the moment a third is added.** ★ The general statement: *a version
+requirement is a property of a SET of independent features, so its decider is a
+fold over that set. The ladder shape silently converts it into a priority list,
+and the conversion is invisible at the call site.*
+
+**(b) A comparison against a version constant must name the EPOCH, not the
+CEILING.** Two pre-existing gates read `if self.version >= CLIP_VERSION` and
+`if version >= CLIP_VERSION`. **They were the version-3 label-override gates.**
+Bumping the constant to `4` would have **silently re-pointed both at 4** and
+broken the ce-dimension text override — **a defect introduced by a change that
+never touched those lines.** Both now name `CLIP_VERSION_PRE_MARKUP_CARRY`,
+which is what they always meant. ⇒ **A comparison written against a mutable
+constant is a comparison against whatever that constant becomes.** Decision
+`105` created `CLIP_VERSION_PRE_LABEL_OVERRIDE` for exactly this reason and
+then **used it at one of the two sites** — so this is not a new insight, it is
+`105`'s own mechanism applied completely. **Every `>=` against a version
+constant names a named epoch, or it is a latent defect awaiting the next bump.**
+
+**(c) The gate is on BOTH sides, and the reader's half is the load-bearing
+one.** A writer-only gate makes new clips well-formed and leaves the new reader
+still mis-parsing every old clip — which is precisely the shipped defect. A
+reader-only gate leaves new clips undeclared and breaks the *other* build. Both
+halves, tested in **both directions**.
+
+#### 4. Decision `105`'s content-dependent-version ruling is HONOURED, on its second independent encounter
+
+`CLIP_VERSION` rises 3 → 4 and `needed_version` emits `4` **only for a clip
+that actually carries the field**; a plain clip still declares **2**. The
+operator runs two builds out of two folders and copies in one to paste in the
+other; **a blanket bump breaks every paste between them from the day it ships,
+to protect a field most clips do not have.** That argument was written onto
+`CLIP_VERSION` for the version-3 bump and applies here unchanged.
+
+**★ MINT OF A STANDING RULE FOR `105`'s PRINCIPLE: STILL DECLINED, AND THE
+DECLINE IS ARGUED RATHER THAN INHERITED.** Decision `105` declined a rule,
+reserved **`R235`** as the number it would take, and named its own trigger:
+*"the next FORMAT in this project that gains an optional key whose loss changes
+what a document asserts — a third, independent encounter."* `Pass 270.1` is a
+**second independent encounter with the SAME format**, not a third format.
+**The trigger says *format*, and this role does not get to loosen a decline
+written by the same role in order to reach a mint.**
+
+**★★ AND THE RESERVED NUMBER NO LONGER MEANS WHAT `105` MEANT BY IT.** `R235`
+was spent on unrelated work long before this filing (the standing-rule ceiling
+was `R245` on the day `142` was minted, and is `R246` after it). **A reader
+arriving at decision `105` and looking up `R235` will find a rule about
+something else.** Recorded here so that search ends at this paragraph rather
+than at a false match — and it is a small instance of this project's recurring
+shape: **an obligation stayed correct while a fact inside its own statement
+went stale**, which is what librarian hard rule 8's 2026-08-07 amendment
+records about itself.
+
+#### 5. What this costs, stated so it is not discovered as a surprise
+
+Decision `105` already recorded that a content-dependent version makes the
+writer *"look at the content before it can state its version"*, and that
+**omitting the obligation produces a merely over-versioned file, which no test
+fails on.** **142 adds the sharper cost:** for a **positional** format,
+omitting the obligation produces a file that is **mis-parsed** — and **no
+same-version round-trip test can see it.** The round trip is the test everyone
+writes; it is green in both the correct and the defective implementation,
+because both halves move together.
+
+⇒ **The only test that can see this defect constructs a payload at the OTHER
+version.** `clip_version_gating.rs` does it by driving **this build's own
+writer at version 2** — reproducing the old format rather than reasoning about
+it — and uses **two** annotations, because with one an over-consuming reader
+merely runs out of bytes and could plausibly error, while with two it eats the
+second annotation's tag and spec, **which is the silent wrong answer rather
+than the loud failure.** ★ *Choose the fixture that produces the QUIET symptom;
+the loud one would have been caught anyway.*
+
+#### 6. Public-surface consequence
+
+`CLIP_VERSION_PRE_LABEL_OVERRIDE` and `CLIP_VERSION_PRE_MARKUP_CARRY` are now
+**exported from `pdfcer_core::vector`**. A shell reasoning about cross-build
+compatibility **could not name the versions it needed to reason about** — the
+epochs existed as private constants, so the only way to ask *"will the other
+folder's build read this?"* was to hard-code a number. **An epoch a consumer
+must reason about is public, or the consumer re-derives it wrongly.**
+
+#### 7. Scope, so this is not over-read
+
+This governs **pdfcer's own private binary formats** — currently the
+`ObjectClip` clipboard file, and the `/PieceInfo` ce-dimension sidecar if it
+ever becomes positional (today it is keyed, and therefore under decision `105`
+unchanged). **It says nothing about PDF itself**, whose object model is keyed
+and whose forward-compatibility story is §7.3.10's ignore-unknown-keys rule.
+**And it does not reopen decision `141`** — a sibling type beside a spec is
+still the right shape; this is about how that sibling **travels in a byte
+stream**, a different question `141` correctly did not answer.
+
+**Body sections updated in this filing:** **§5** untouched — the round-trip
+invariant is *applied* here, not redefined: a plain clip still serialises to the
+bytes it always did, which is exactly the property a blanket bump would have
+broken. **§12** carries this entry and the dated forward pointer on decision
+`105`. No crate boundary moved and no dependency changed, so the `cargo tree`
+GUI-core-separation invariant is unaffected.
+
+**Cross-project record:**
+`D:/dev/rag/rust/a_positional_field_in_a_versioned_binary_format_is_not_a_droppable_key.md`
+— **written this filing, not owed.** ★ **And decision `141`'s own owed RAG
+file, flagged by the 474th filing and still unwritten at the start of this
+one, is written this filing too:**
+`D:/dev/rag/rust/a_spec_is_what_a_rebuild_regenerates_from_so_author_time_options_get_a_sibling_type.md`.
+
+**Decision ceiling: `141` → `142`**, next free `143`. **Standing rules ceiling
+`R245` → `R246`** — `R246` minted this filing for an unrelated finding (*a
+correction must reach every corpus this project READS*; see `ROADMAP.md`
+*Standing rules*) — next free `R247`. **Pass ceiling `270.1` → `270.2`**, next
+free family `271.x`.

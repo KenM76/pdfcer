@@ -97439,3 +97439,201 @@ not inferred). The commits that fix it are **unpushed**.
   summary lines on the changed variant (the old one was not removed);
   (6) the cross-project RAG file for decision `141` is **owed, not written**:
   `D:/dev/rag/rust/a_spec_is_what_a_rebuild_regenerates_from_so_author_time_options_get_a_sibling_type.md`.
+## 2026-09-08 (475th filing) — three Passes filed, all three already had IDs; and a constant corrected three days ago came back this morning, from a corpus this project only reads — `R246` minted
+
+**Sourcing (hard rule 8).** A `Bash` tool was available and was used. `git
+show --stat --format=%B` for all three commit messages; `git log --oneline`,
+`git remote -v`, `git rev-parse origin/main`, `git status --short` for git
+state; `python tools/check-commits-filed.py` and `check-ledger-numbers.py` for
+the ledgers; `Grep`/`Read` on live source, on `docs/`, and on both
+`D:\Dev\Rag-Specialized\` corpora for every code and corpus claim. **The
+`run-gates.sh` result below is RELAYED from the dispatch, not re-run here.**
+**Backup currency was not checked and is not asserted.**
+
+**Shipped:**
+- **`Pass 264.1`** (`70e8f53`) — **an annotation's blend mode is the file's.**
+  `/BM` was deleted outright by restyle and reshape and preserved by resize
+  *by accident*; a shared `preserve_blend_mode` now gives one answer in one
+  place — the file's value wins over pdfcer's. **The operative reading is the
+  CORRECTED standard:** ISO 32000-2 as printed lists `BM` among the keys a
+  reader ignores; the PDF Association errata (issue #56, ISO approved
+  2021-07-09) **removed it**, so `/BM` changes pixels. 3 fixtures, 7 tests.
+- **`Pass 270.1`** (`44a2485`) — **the clipboard format's missing version
+  gate**, minted by the 474th filing's own sweep six hours earlier and
+  discharged **before the tag**. `CLIP_VERSION` 3 → 4 behind a named
+  `CLIP_VERSION_PRE_MARKUP_CARRY = 3`; `needed_version` returns the **maximum**
+  version any single annotation requires (a fold, not a ladder); gate on
+  **both** sides; **two pre-existing `>= CLIP_VERSION` comparisons re-pointed**
+  at the named epoch, which a blanket bump would have silently broken. 5
+  tests, sabotaged three ways.
+- **`Pass 270.2`** (`73da5e1`) — **`LockedContents` (Table 165 bit 10, value
+  512) is enforced at last**, on `set_markup_note` and `clear_markup_note` and
+  nothing else. `EditError::AnnotationContentsLocked` is a **new variant, not a
+  reuse of `AnnotationLocked`** — the two flags are close to complements and
+  one shared refusal would refuse a permitted edit on one document and permit a
+  forbidden one on another. 6 core tests asserting **in both directions**, 3
+  CLI tests **through the binary** (exit 9, flag named, way out named, no
+  output file left behind, a move still works). `EditError` is now **128
+  variants** — counted independently here by a depth-1 walk of the enum,
+  agreeing with `docs/core-api`.
+
+**★★ Still NOT released.** `v0.49.0` is **bumped (`14ee766`) and not tagged**;
+`git tag --list` has no `v0.49.0`; `origin/main` is still **`14ee766` with CI
+red**; **six** code commits are unpushed. **`git status --short` is EMPTY** —
+the untracked-probe hazard the 474th filing flagged as a release blocker is
+**cleared**, `locked_contents.rs` having been committed rather than left stray.
+
+**Gate state (relayed):** `bash tools/run-gates.sh` completed with **1 of 29
+failing** — `check-commits-filed.py`, naming `44a2485` and `73da5e1`. Everything
+else PASS, including a full `cargo test --workspace` with **zero** test failures
+and zero starvation errors, `cargo clippy --workspace --all-targets
+--all-features -- -D warnings`, `cargo fmt --check`, the wasm32 check, the
+no-network check, and all 21 document/filing gates. **This filing clears the one
+red.**
+
+**Decisions made this session:**
+- **Decision `142`** (`ARCHITECTURE.md` §12) — **a positional field in a
+  versioned binary format is not a droppable key.** It needs a gate on **both**
+  sides, and the version decider must be a **fold** over independent
+  requirements rather than a ladder. Filed as an **extension of decision
+  `105`**, whose entry gains a dated forward pointer. ★ **The reason `105`'s
+  own safeguard did not fire is the whole finding:** `105` reasons about
+  droppable dictionary keys, whose loss is a *lost preference*; a positional
+  record cannot be skipped, so its misread is a *silent desynchronised parse*
+  — and **`105`'s discriminator (*"bump when the loss changes what the document
+  asserts"*) has NO INPUT here**, because a misread loses nothing, it misreads
+  everything after. `105`'s content-dependent ruling itself is **untouched and
+  was honoured**: a gate, not a blanket bump, so the operator's two builds keep
+  pasting to each other.
+- **`105`'s reserved rule number is dead and is recorded as such.** `105`
+  declined a mint and reserved `R235`; **`R235` was spent on unrelated work
+  long ago**, so a reader following that pointer lands on a rule about
+  something else. Named in `142` so the search ends there.
+
+**Findings + decisions:**
+- **★★★★★ A CONSTANT CORRECTED ON 2026-09-05 CAME BACK ON 2026-09-08, AND THE
+  REINFECTION VECTOR IS A CORPUS THIS PROJECT ONLY READS — `R246` IS MINTED.**
+  `/F` `LockedContents` is **bit 10, value 512** (Table 165 is 1-based
+  low-order-first, so bit *N* = 2^(N−1)). The **code has always been right**
+  (`AnnotFlags::LOCKED_CONTENTS = 1 << 9`). The 435th filing corrected a
+  `1024` on 2026-09-05 and swept `docs/`. **`1024` is back, twice, in
+  `crates/pdfcer-core/tests/locked_contents.rs:5` and `:22`, committed this
+  morning** — and it did **not** come from the commit's author: `git show
+  --format=%B 73da5e1 | grep 1024` returns nothing, while the dispatch's
+  parenthetical *"(bit 10, value 1024, PDF 1.7)"* is **word for word**
+  `Acrobat_Features/markup__vertex_editing_and_reshape.md:190`. **Five
+  survivors in total; three of them outside this repository**, including
+  `PDF_Spec/iso32000/iso32000__s__12.5.3.md:54` — **the root**, the Table 165
+  row rule 1 directs every author to check against.
+- **★★★★ THE ROOT SURVIVOR CONTAINS ITS OWN REFUTATION TWO LINES ABOVE
+  ITSELF.** `iso32000__s__12.5.3.md:38-39` states *"So bit N has integer value
+  2^(N-1)"*, and the table below runs **1, 2, 4, 8, 16, 32, 64, 128, 256,
+  1024** — **nine rows double, the tenth quadruples.** No measurement was
+  needed, only reading the table against the sentence printed above it. Hard
+  rule 10's founding shape (`mask.fill_path`, 217 µs vs 8.3 µs, 217 lines
+  apart) **occurring in a reference corpus rather than in a filing.**
+- **★ Why a reference RAG is the worst place for a wrong figure**, and the
+  argument that carried the mint: project rule 1 forbids implementing
+  spec-governed behaviour from recall and **directs every author to the spec
+  RAG instead**. That discipline is right and is not in question. Its
+  consequence is that **a figure there is trusted harder than a figure in the
+  code, by construction** — so a wrong one is re-copied *confidently, by the
+  most disciplined author*, and arrives wearing a citation. **A correction that
+  stops at the repository boundary has a half-life measured in days.**
+- **`R209` clause (f), second instance, same day, different gate.**
+  `check-commits-filed.py` ran, reported, and named exactly two unfiled
+  commits — **not `70e8f53`, which had genuinely never been filed.** Its join
+  is *"does this hash appear?"*; `70e8f53` appeared **seven** times, every one
+  an owed-work or status mention, **three of which say in their own text that
+  the 475th filing owes it.** ⇒ **A gate whose PASS is true of a weaker
+  question than the one being asked.** ★ **No gate change proposed** — the
+  weakness is disclosed in the gate's own docstring under *KNOWN WEAKNESS,
+  stated rather than discovered later*, with its own live example, and the
+  residual was deliberately left to a librarian reading. **A gate that
+  documents the question it cannot answer converts clause (f)'s failure into an
+  ordinary handoff.**
+- **★★ TWO OF THE 474th FILING'S SIX FINDINGS WERE WRONG, AND THE ENGINEER ASKED
+  FOR THAT TO BE RECORDED RATHER THAN BURIED.** *"There is no second byte
+  format"* is **still true** (`encode_carry` returns a COS `Object` through the
+  same `put_cos`/`write_object` pair), and the **version-1 compatibility promise
+  still holds**. ⇒ **The 474th filing's *For next session* item (4) is
+  WITHDRAWN in full**, and `Pass 270.1`'s acceptance criterion (d) is
+  **withdrawn rather than discharged**. **4 correct of 6 filed = 67 %** —
+  denominator recorded per hard rule 10 so a future session can compare rather
+  than recall. ★ **Both wrong findings were explicitly labelled
+  reasoned-not-executed**, which is what made them safe to hand over; an
+  unlabelled reasoned finding is indistinguishable from a measured one.
+- **`Pass 264.5`'s scope statement was WRONG and the shipping commit narrowed
+  it correctly.** The Backlog entry said no verb changing *"contents (colour,
+  text, style)"* checked the flag. **Colour and style are not contents** —
+  Table 165 bit 10 *"does not restrict deletion or other property changes"* —
+  so a gate on `set_markup_style` would have been **a new defect shipped in the
+  name of closing a gap.** `73da5e1` gates **two** verbs, not five, and asserts
+  the permissions in **both directions** so a mis-wired flag goes red (proven:
+  wiring it to `locked()` turns 4 tests red, including the mirror).
+- **A doc comment can be FALSE WITHOUT EVER HAVING BEEN TRUE, and the standard
+  repair would have made things worse.** `set-annotation-flags --help` has said
+  since it shipped that `--locked-contents` *"guards the text, NOT the geometry.
+  Does not stop a move."* In clap-derive that `///` **is** shipped UI (`R230`'s
+  premise), so it was a published behavioural claim with no code behind its
+  first half. **It was accurate about the standard the whole time**, so
+  deleting half a sentence would have **retracted a correct description of a
+  flag pdfcer already stored, printed and let an operator set.** `73da5e1` made
+  the sentence true instead. **Dated onto `R93`; mint DECLINED at n = 1, with
+  `R247` NAMED as the trigger for a second instance and explicitly NOT
+  claimed.**
+- **`R245`, fifth dated instance — and the first where the enumeration was
+  wrong about its MEMBERS as well as its cardinality.** The `/BM` row said
+  *"every appearance-regeneration route (restyle, resize, reshape, author)"*;
+  **resize preserved `/BM`**, and copy-paste (a fifth route) still drops it.
+  The fourth instance, one filing earlier, was cardinality alone.
+- **`Pass 270.0`'s own `FEATURES.md` row was stale within hours.** It carried
+  `cli ◐` and *"fix owed before `v0.49.0`"* — true when written, false once
+  `44a2485` landed. Corrected to `cli [x]` in this filing; found by re-reading
+  the row for its **claim**, not by grepping the Pass ID.
+
+**Still in flight:**
+- **`Pass 264.1` residue, deliberately NOT given a Pass ID** — `/BM` does not
+  survive **copy-paste**, the fifth regeneration route: the clipboard carries
+  `MarkupSpec` + `MarkupCarry` and `/BM` is in neither. The answer is
+  presumably *another `MarkupCarry` field* (decision `141`), which is why it is
+  recorded rather than left to be re-derived. Needs the engineer's scoping.
+- **`Pass 264.0` / `264.2` / `264.3` / `264.4`** — markup-family residue still
+  untouched: `/RC`+`/DS` desync, the missing public `/BS` dash accessor,
+  `/BE` write-once, `/OC` read-without-write.
+- **`Pass 267.0`** (Backlog, 471st filing) — the non-prose baked gap at
+  `dimension_roundtrip.rs:1152`.
+- The unscoped clipboard-fidelity entry — narrowed to **`/IRT` remap only**.
+
+**For next session:**
+- **Operator:** **`v0.49.0` is still not released**, and the public repo's
+  `main` is still sitting at a red CI. Three fixes landed since: a mark's
+  blend mode survives editing again; copy-paste between your two build folders
+  can no longer garble a clip; and an annotation you locked the *text* of now
+  actually refuses a text edit — while still letting you move and restyle it,
+  which is what that lock is supposed to mean.
+- **Engineer, in order:**
+  1. **`crates/pdfcer-core/tests/locked_contents.rs:5` and `:22` — `1024` →
+     `512`.** Doc comments only; the code uses `AnnotFlags::LOCKED_CONTENTS`
+     correctly throughout, so there is **no behavioural change** — but that
+     file's header is what the next reader opens to learn what the flag *is*.
+  2. **Dispatch `pdfcer-spec-librarian`** for
+     `PDF_Spec/iso32000/iso32000__s__12.5.3.md:54` (the root), and
+     **`pdfcer-acrobat-librarian`** for `Acrobat_Features/index.md:2605` and
+     `markup__vertex_editing_and_reshape.md:190`. **Hard rule 6 — those
+     corpora are not this role's to write**, and that is the reason the rule
+     exists rather than an inconvenience.
+  3. **Push** (standing-authorized, rule 8) and **read CI's colour from
+     GitHub**, not from the local sweep.
+  4. **Then release** (standing-authorized, decision 121): green
+     `tools/run-gates.sh`, fresh-folder smoke test, `verify-release.py`, tag,
+     package, GitHub release with the zip (decision 127), OneDrive.
+  5. **`Pass 264.1`'s copy-paste residue** needs scoping — one `MarkupCarry`
+     field, most likely, and it closes the fifth route.
+- **Do NOT re-flag** `docs/core-api/02-editing-and-saving.md:900-905` (both
+  sentences hold — the 474th filing's item (4) is withdrawn), the deliberate
+  *"value 512, not 1024"* inoculation at `:1615`, the struck-through
+  `~~value 1024~~` at `ROADMAP.md:8827` (`R216` requires it to stay legible),
+  or `FEATURES.md`'s *"Locked (128) refuses, LockedContents (512) does not"* on
+  the vertex row — that one is **still true**, because bit 10 permits a
+  reshape.
