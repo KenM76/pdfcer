@@ -749,11 +749,63 @@ pub fn build_variable_text(
     let w = bbox.width();
     let h = bbox.height();
 
-    // Encode to WinAnsi FIRST — the auto-fit below needs the actual bytes to
-    // measure, and encoding is what decides how wide they are. (`?` for an
-    // unencodable char is a different width from the char it replaces, so
-    // measuring before encoding would fit the wrong string.)
-    let (bytes, unencodable_chars) = encode_winansi(text);
+    // ★★ LINE BREAKS ARE STRUCTURE, AND THEY ARE TAKEN OUT BEFORE THE
+    // ENCODER EVER SEES THEM.
+    //
+    // `encode_winansi` maps a character with no WinAnsi code to `?` and counts
+    // it — right, on its own terms. But `winansi_code` returns `None` for the
+    // C0 controls (its fast path is `' '..='~'`, its slow path `0x80..=0xFF`),
+    // so **U+000A was an unencodable character**. Encoding first therefore
+    // destroyed the separator before anything could split on it:
+    //
+    //     "FIRST\nSECOND" --encode-> "FIRST?SECOND" --wrap-> ONE line
+    //
+    // The operator's report was exactly that: *"making new lines by pressing
+    // enter just has the items show up as one line with a `?` for each new
+    // line instead."*
+    //
+    // ★ BOTH BRANCHES WERE AFFECTED, which the report did not expect and the
+    // test measured. The single-line branch flattens `\n`/`\r` to spaces and
+    // is correct *given real newline bytes* — it never received any either.
+    //
+    // Fixed by splitting the &str, not by teaching the encoder about control
+    // codes: a newline is not a glyph, and making `winansi_code` return one
+    // would offer `glyph_width` the advance of a line feed.
+    //
+    // Encoding still happens before measuring, which is what the original
+    // ordering was protecting: `?` is a different width from the character it
+    // replaces, so a fit computed on unencoded text would fit the wrong
+    // string. That reasoning is about the ENCODE/MEASURE order and is
+    // untouched; only the newline is removed first.
+    let mut unencodable_chars = 0usize;
+    let paragraphs: Vec<Vec<u8>> = if multiline {
+        text.split('\n')
+            .map(|para| {
+                // `\r` stripped HERE rather than per-paragraph inside
+                // `wrap_lines`, because that filter has to travel with the
+                // split or a CRLF becomes `?` at the end of every line.
+                let para: String = para.chars().filter(|&c| c != '\r').collect();
+                let (b, miss) = encode_winansi(&para);
+                unencodable_chars += miss;
+                b
+            })
+            .collect()
+    } else {
+        // A field that cannot wrap has nowhere to put a second line, so a
+        // space is the honest rendering — the behaviour this branch always
+        // intended, now applied to the text instead of to bytes that no
+        // longer contained a newline.
+        let flat: String = text
+            .chars()
+            .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
+            .collect();
+        let (b, miss) = encode_winansi(&flat);
+        unencodable_chars += miss;
+        vec![b]
+    };
+    // The single-line measuring string. Only the `!multiline` branch reads
+    // it, and there it is the whole (flattened) text.
+    let bytes: Vec<u8> = paragraphs.first().cloned().unwrap_or_default();
 
     // VT1: size 0 ⇒ auto-size, disclosed.
     let (size, applied_autosize, applied_autosize_bound) = if parsed.font_size == 0.0 {
@@ -780,7 +832,7 @@ pub fn build_variable_text(
         (parsed.font_size, None, None)
     };
     let max_width = (w - 2.0 * TEXT_PAD).max(0.0);
-    let lines = wrap_lines(font, size, &bytes, max_width, multiline);
+    let lines = wrap_lines(font, size, &paragraphs, max_width, multiline);
 
     // Vertical metrics: ascent from the face descriptor (Base-14, GUI-free).
     let ascent = f64::from(fontdata::std14_descriptor(font).ascender) / 1000.0 * size;
@@ -949,20 +1001,22 @@ fn measure(font: Std14, size: f64, bytes: &[u8]) -> f64 {
 fn wrap_lines(
     font: Std14,
     size: f64,
-    bytes: &[u8],
+    paragraphs: &[Vec<u8>],
     max_width: f64,
     multiline: bool,
 ) -> Vec<Vec<u8>> {
     if !multiline {
-        let line: Vec<u8> = bytes
-            .iter()
-            .map(|&b| if b == b'\n' || b == b'\r' { b' ' } else { b })
-            .collect();
-        return vec![line];
+        // Already flattened to spaces by the caller, which is where the
+        // newline is now taken out -- see the note there. One paragraph by
+        // construction.
+        return vec![paragraphs.first().cloned().unwrap_or_default()];
     }
     let mut lines: Vec<Vec<u8>> = Vec::new();
-    for para in bytes.split(|&b| b == b'\n') {
-        let para: Vec<u8> = para.iter().copied().filter(|&b| b != b'\r').collect();
+    for para in paragraphs {
+        // ★ `\n` split and `\r` stripped UPSTREAM, before encoding. They used
+        // to be handled here, which was too late: the encoder has no WinAnsi
+        // code for either and had already turned them into `?`.
+        let para: Vec<u8> = para.clone();
         // Non-empty, space-delimited words (runs of spaces collapse, exactly
         // as the previous inline loop's `if word.is_empty() { continue }`).
         let words: Vec<&[u8]> = para
