@@ -112,6 +112,132 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★★ 473rd filing, 2026-09-08 — `v0.48.0` RELEASED (`f33c826`, covering
+`Pass 268.0`), AND `Pass 269.0` MINTED AND SHIPPED (`2d0d1ac`) — THE LAST
+FIVE FIELD PROPERTIES: FOUR ADVISORY FLAGS AND `/TM`.**
+
+**Sourcing (hard rule 8), stated up front because it splits by part again.**
+This role has **no shell tool.** **Part A (the release) is relayed as
+supplied by the engineer** — tag, CI run, zip hash, OneDrive slot and the
+fresh-folder byte-level smoke test could not be independently re-run or
+re-hashed from here. **Part B (`Pass 269.0`) was checked directly against
+live source with `Read`/`Grep`**: `FieldEdit::{file_select, no_spell_check,
+no_scroll, commit_on_sel_change, mapping_name}` and their `with_*`/
+`clearing_mapping_name` builders at `crates/pdfcer-core/src/edit.rs:19257`–
+`19291`/`19601`–`19636`; the five CLI flags at `crates/pdfcer-cli/src/
+main.rs:5852`–`5882` (`#[arg(long)]`, clap's kebab-case derivation gives
+`--file-select`/`--no-spell-check`/`--no-scroll`/`--commit-on-sel-change`/
+`--mapping-name`/`--clear-mapping-name`, matching the dispatch exactly);
+`field_properties.rs` counted **9** `#[test]` by direct grep, matching "9
+(was 7)". **What is NOT checked:** the commit hashes themselves (no `git
+show`), and the "third consecutive commit" tally for `check-string-gaps`'
+latest catch, both relayed.
+
+---
+
+### PART A — `v0.48.0` RELEASED
+
+Tag `v0.48.0` at `f33c826`, covering `Pass 268.0` (`/DA`, shipped and filed
+at the 472nd filing). **CI green at the tagged commit**, run `34220100340`,
+read from GitHub. Rebuilt after tagging so the banner names it: `revision:
+v0.48.0`, built `2026-09-08T11:34:42Z`.
+
+- **Zip** `pdfcer-0.48.0-windows-x64.zip`, **18,944,432 bytes**, SHA-256
+  **`3d9bc3d21f31f648f7d00ed586242c95fa03dbbc4e3abf60f2550843fe34afc9`**.
+- **Portable folder** `D:\builds\pdfcer-20260908-0743-f33c826` — **8 files,
+  34,805,450 bytes**.
+- **Published asset downloaded back and re-hashed — matches.**
+- **OneDrive.** Slot **`pdfcer1`**; `pdfcer2` keeps `0.47.0` — same
+  alternating scheme as every release since `Pass 166.0`/`R229`.
+- **`tools/verify-release.py v0.48.0` — nine of nine, clean tree.**
+- ★ **Smoke-tested at BYTE level, not by exit code.** Setting a field to
+  Courier-Bold 12 pt blue produced `/CoBo 12 Tf` and `0 0 1 rg` in the
+  drawn appearance stream, read out of the saved file — and both refusals
+  (unknown face, unknown resource key) fired as documented. Recorded
+  because it is the right standard for this feature specifically: its
+  whole failure mode is the file and the pixels disagreeing, so only
+  checking the file's own bytes settles it.
+
+---
+
+### PART B — `Pass 269.0` MINTED AND SHIPPED — the last five field properties
+
+`2d0d1ac — feat(forms): the last five field properties -- four advisory
+flags and /TM`, plus `bc37e95 — docs(core-api): the last five field
+properties`.
+
+**`Pass 269.0` matches the engineer's own pre-filing citation in
+`docs/core-api`** (`02-editing-and-saving.md:1607`) — no correction owed.
+The ledger's next-free family was `269.x` as of the 472nd filing; the mint
+lands on the family's own first ID, not a collision.
+
+**The feature.** Five properties, closing the field-property audit's
+residue (`Pass 266.0`): `Ff` bits 21 **FileSelect**, 23
+**DoNotSpellCheck**, 24 **DoNotScroll**, 27 **CommitOnSelChange**, and
+**`/TM`** the export mapping name.
+
+★ **Three of the four flags had ZERO references outside `forms.rs`**
+before this — defined, documented, and touched by nothing.
+`DoNotSpellCheck`'s own doc said so in as many words: *"nothing in pdfcer
+consumes this flag yet."* `FileSelect` was consulted only to refuse a comb
+and disclose a submit hazard, never to be set.
+
+★★ **`/TM` is the property with consequences nobody sees by looking.** It
+is what a form export keys on, so a field with structural naming
+(`section2.row[3].qty`) can present a stable key to whatever consumes the
+export — and getting it wrong changes the exported payload while changing
+nothing on the page. `Some(None)` removes it, deliberately not the same
+fact as an empty string, which would export as a blank key.
+
+**FileSelect carries a disclosure, not a refusal.** A file-select field is
+a submit hazard because *activating* a form containing one can send a
+local file — but setting the flag does not change what a submit does, it
+changes what the field *is*. The honest place for it is the flag's own
+documentation plus the existing submit-hazard scan, not a new refusal.
+
+**Sabotage caught in review, not shipped:** DoNotScroll was first written
+at the spell-check bit; the corrected test message names the table to
+check.
+
+**Tests:** `field_properties` **9** (was 7) — table-driven deliberately,
+since each flag is a single bit with no other pdfcer behaviour attached.
+**Verified present by direct grep**, matching.
+
+★ **`check-string-gaps` caught a gap in this commit's own test assertion
+— relayed as the THIRD consecutive commit since the widening.** Not
+independently tallied from here; recorded as a measurement of how often
+this shell eats a continuation backslash, worth a line regardless of the
+exact count.
+
+#### `docs/FEATURES.md`
+
+One new *Implemented* row (Forms) for the five properties: core `[x]`,
+cli `[x]`, gui `[ ]`. The *Planned* row this collides with (`Pass 266.0`
+residue) had its `/TM` + four-flags scope struck with a pointer to the new
+row, joining the `/DA` strike already made at the 472nd filing —
+**remaining scope is `/AA` and `/CO` only.**
+
+**Checked the dispatch's summary claim against the row before writing it,
+as asked:** *"every field property the 2026-09-08 form audit listed as
+readable-and-unwritable is now writable, except `/AA` and `/CO`, which are
+structural rather than properties"* — matches the *Planned* row's own
+residue list (`/TM`, `/AA`, `/CO`, four flags) after this Pass's strikes.
+True, not overstated.
+
+#### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass IDs | ceiling `268.0`; next free family `269.x` | **`Pass 269.0` MINTED AND SHIPPED** (`2d0d1ac`), matching the engineer's own pre-filing citation in `docs/core-api`. Ceiling **`269.0`**, next free family `270.x` |
+| Standing rules | ceiling `R245`, next free `R246` | **unchanged** — no new pattern this filing |
+| Decisions | ceiling `140`, next free `141` | **unchanged** — no crate boundary, library choice or invariant redefinition |
+| SESSION_LOG filings | `472` | **`473`** |
+| `docs/FEATURES.md` | one new row for `/DA` (472nd filing); *Planned* residue read `/TM`, `/AA`, `/CO`, four flags | one new *Implemented* row (`/TM` + four flags); *Planned* residue struck to `/AA`, `/CO` only |
+| Unreleased | `220065a` (`Pass 268.0`), staged for `v0.48.0` | **`v0.48.0` RELEASED** (Part A). `2d0d1ac`/`bc37e95` (`Pass 269.0`) is now the new unreleased tip, pending `v0.49.0` |
+| Requests in `open/` | not independently re-verified this filing (no shell) | unchanged — not re-measured |
+
+---
+
 **★★★★★ 472nd filing, 2026-09-08 — `v0.47.0` RELEASED (`e7479a2`, covering
 `Pass 265.0` and the `check-string-gaps` widening), AND `Pass 268.0` MINTED
 AND SHIPPED (`220065a`) — `/DA`, THE LAST AND LARGEST OF THE FOUR

@@ -97222,3 +97222,50 @@ or invariant redefinition this filing.
 - **Engineer:** `Pass 268.0` has `gui [ ]` — not yet wired into
   `pdfcer-gui`, same as its `Pass 265.0`/`263.0` siblings; `Pass 266.0`'s
   narrowed residue and `Pass 267.0` remain queued in Backlog.
+
+## 2026-09-08 (473rd filing) — `v0.48.0` released, and the last five field properties (four advisory flags, `/TM`) become writable — `Pass 269.0`
+
+**Shipped:**
+- `v0.48.0` released — tag `f33c826`, CI green (run `34220100340`), zip
+  `pdfcer-0.48.0-windows-x64.zip` (18,944,432 bytes, SHA-256
+  `3d9bc3d21f31f648f7d00ed586242c95fa03dbbc4e3abf60f2550843fe34afc9`),
+  OneDrive slot `pdfcer1`, `verify-release.py` nine of nine. Covers `Pass
+  268.0` (`/DA`) from the 472nd filing. Smoke-tested at byte level: a
+  Courier-Bold 12 pt blue field produced `/CoBo 12 Tf` and `0 0 1 rg` in
+  the saved appearance stream.
+- `Pass 269.0` (`2d0d1ac` + `bc37e95`) — the last five field properties:
+  `Ff` bits FileSelect, DoNotSpellCheck, DoNotScroll, CommitOnSelChange,
+  and `/TM` (the export mapping name). Closes `Pass 266.0`'s residue
+  except `/AA` and `/CO`, which are structural rather than properties.
+
+**Decisions made this session:** none — no crate boundary, library choice
+or invariant redefinition this filing.
+
+**Findings + decisions:**
+- Three of the four flags had zero references outside `forms.rs` before
+  this Pass — defined, documented, touched by nothing.
+  `DoNotSpellCheck`'s own doc said as much: *"nothing in pdfcer consumes
+  this flag yet."*
+- `/TM` is the property whose consequences are invisible on the page —
+  it changes what a form export keys on, not anything drawn.
+- FileSelect is disclosed rather than refused: setting it changes what
+  the field *is*, not what a submit *does*; the submit-hazard scan
+  already covers the actual hazard.
+- Sabotage caught in review: DoNotScroll was first written at the
+  spell-check bit.
+- `check-string-gaps` caught another gap in this commit's own test
+  assertion, relayed as the third consecutive commit since the widening.
+
+**Still in flight:**
+- `Pass 267.0` (Backlog, from the 471st filing) — the non-prose baked gap
+  at `dimension_roundtrip.rs:1152` — still not built.
+- `v0.49.0` — next release, expected to cover `Pass 269.0`; not yet cut.
+
+**For next session:**
+- **Operator:** `v0.48.0` is released and on OneDrive slot `pdfcer1`.
+  `Pass 269.0` shipped after the tag, so it is not in `v0.48.0` — it
+  lands in `v0.49.0`.
+- **Engineer:** `Pass 269.0` has `gui [ ]` — not yet wired into
+  `pdfcer-gui`. Field-property audit residue is now down to `/AA` and
+  `/CO`, both structural rather than simple properties. `Pass 267.0`
+  remains queued in Backlog.
