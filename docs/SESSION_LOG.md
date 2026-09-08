@@ -97166,3 +97166,59 @@ against source this time.
   deadline.
 - **Engineer:** `Pass 267.0` (small, non-operator-facing) is queued in
   Backlog whenever convenient; not urgent.
+
+## 2026-09-08 (472nd filing) — `v0.47.0` released, and `/DA` (font, size, colour) becomes writable at last — `Pass 268.0`
+
+**Shipped:**
+- `v0.47.0` released — tag `e7479a2`, CI green (run `34211401441`), zip
+  `pdfcer-0.47.0-windows-x64.zip` (18,928,722 bytes, SHA-256
+  `55ac423c2d0f2d90f903f72d1fd55409451aefe8f220fb078931830543556b8c`),
+  OneDrive slot `pdfcer2`, `verify-release.py` nine of nine. Covers `Pass
+  265.0` and the `check-string-gaps` widening from the 470th/471st
+  filings.
+- `Pass 268.0` (`220065a`) — `Field::default_appearance` (`/DA`) is now
+  writable: font, size and colour, via `FieldFont::Standard` (pdfcer
+  authors the resource under Acrobat's own short keys) or
+  `FieldFont::Resource` (checked against `/AcroForm` `/DR` `/Font`,
+  refused by name and lists what is available otherwise). The last of the
+  four properties named in `Pass 266.0`'s residue that were readable and
+  unwritable.
+
+**Decisions made this session:** none — no crate boundary, library choice
+or invariant redefinition this filing.
+
+**Findings + decisions:**
+- Three things a test caught that review did not, on `Pass 268.0`:
+  `#[non_exhaustive]` had left `FieldFont::Resource` unconstructable
+  outside the crate (only the out-of-crate integration test failed to
+  compile); refusing every inline `/AcroForm` was too brittle for pdfcer's
+  own commonest authored-document shape; and the appearance regenerator
+  preferred the field's **pre-command** `/DA` snapshot, so a redraw showed
+  the old font — fixed by making the snapshot itself truthful rather than
+  adding a second precedence rule to the regenerator. Same shape as the
+  `/MK /R` fix before `Pass 177.0`.
+- `check-string-gaps`, widened one filing earlier (471st, `f2b545c`),
+  caught a ten-space gap in `Pass 268.0`'s own new error message before
+  the push — paid for itself on the very next commit written after the
+  widening.
+- `docs/core-api`'s own pre-filing citation of `Pass 268.0` (`02-editing-
+  and-saving.md:4136`, *"127 variants at `Pass 268.0`"*) matched the
+  ledger's next-free family exactly — no correction owed, same outcome as
+  the 470th filing's check of the `Pass 265.0` citation.
+
+**Still in flight:**
+- `Pass 266.0` (Backlog) — narrowed: `/DA` struck from its scope
+  (shipped separately as `Pass 268.0`); `/TM`, `/AA`, `/CO`, and the
+  `FileSelect`/`DoNotScroll`/`DoNotSpellCheck`/`CommitOnSelChange` flags
+  remain.
+- `Pass 267.0` (Backlog, from the 471st filing) — the non-prose baked gap
+  at `dimension_roundtrip.rs:1152` — still not built.
+- `v0.48.0` — next release, expected to cover `Pass 268.0`; not yet cut.
+
+**For next session:**
+- **Operator:** `v0.47.0` is released and on OneDrive slot `pdfcer2`.
+  `Pass 268.0` (`/DA`) shipped after the tag, so it is not in `v0.47.0` —
+  it lands in `v0.48.0`.
+- **Engineer:** `Pass 268.0` has `gui [ ]` — not yet wired into
+  `pdfcer-gui`, same as its `Pass 265.0`/`263.0` siblings; `Pass 266.0`'s
+  narrowed residue and `Pass 267.0` remain queued in Backlog.

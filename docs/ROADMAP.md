@@ -112,6 +112,143 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★★ 472nd filing, 2026-09-08 — `v0.47.0` RELEASED (`e7479a2`, covering
+`Pass 265.0` and the `check-string-gaps` widening), AND `Pass 268.0` MINTED
+AND SHIPPED (`220065a`) — `/DA`, THE LAST AND LARGEST OF THE FOUR
+READABLE-AND-UNWRITABLE FIELD PROPERTIES, IS NOW WRITABLE.**
+
+**Sourcing (hard rule 8), stated up front because it splits by part.** This
+role has **no shell tool — the eighth filing in a row to note the limit.**
+**Part A (the release) is relayed as supplied by the engineer** — tag, CI
+run, zip hash, OneDrive slot and the fresh-folder smoke test could not be
+independently re-run or re-hashed from here. **Part B (`Pass 268.0`) was
+checked directly against live source with `Read`/`Grep`**, the substitute
+this role has used since the 68th filing for current-tree claims: `enum
+FieldFont` and `fn with_appearance` at `crates/pdfcer-core/src/edit.rs:18987`/
+`:19548`, `EditError::FieldFontNotInResources` at `:6838` (declared) and
+`:22965` (raised), `#[non_exhaustive]` present on the struct family at that
+site, `--font`/`--font-resource`/`--font-size`/`--font-color` wired at
+`crates/pdfcer-cli/src/main.rs:5862`/`30607`/`30763`/`30773`, and
+`crates/pdfcer-core/tests/field_appearance.rs` counted **6** `#[test]` by
+direct grep — matching the dispatch exactly. `docs/core-api/
+02-editing-and-saving.md:4136` already reads *"**127 variants** at `Pass
+268.0`"* — the engineer's own citation **predates this filing and matches
+the ID minted below**; no correction owed, same outcome as the 470th
+filing's check of the `Pass 265.0` citation. **What is NOT checked**: the
+commit hash `220065a` itself (no `git show` available), and the "2039 core
++ ten form suites, 0 failed" test-run figure, both relayed.
+
+---
+
+### PART A — `v0.47.0` RELEASED
+
+Tag `v0.47.0` at `e7479a2`, covering `Pass 265.0` (three form-field
+properties, shipped and filed at the 470th filing) and the
+`check-string-gaps` gate widening (filed at the 471st filing). **CI green
+at the tagged commit**, run `34211401441`, read from GitHub. Rebuilt after
+tagging so the banner names the release: `revision: v0.47.0`, built
+`2026-09-08T09:58:18Z`.
+
+- **Zip** `pdfcer-0.47.0-windows-x64.zip`, **18,928,722 bytes**, SHA-256
+  **`55ac423c2d0f2d90f903f72d1fd55409451aefe8f220fb078931830543556b8c`**.
+- **Portable folder** `D:\builds\pdfcer-20260908-0606-e7479a2` — **8 files,
+  34,767,668 bytes**.
+- **GitHub release** created, zip + `.sha256` uploaded; **the published
+  asset was downloaded back and re-hashed — matches.**
+- **OneDrive.** Slot **`pdfcer2`**; `pdfcer1` keeps `0.46.0` as the
+  fall-back-to version — same alternating scheme as every release since
+  `Pass 166.0`/`R229`.
+- **`tools/verify-release.py v0.47.0` — nine of nine, clean tree.**
+- **Fresh-folder smoke test reproduced the FEATURES**: justification,
+  default value and NoExport applied from the copied binary; the
+  **reset-restores-the-default round trip** (`reset field="t" from="typed"
+  to="factory" source=default`); and the **corrected refusal message** —
+  the same baked-gap fix `f2b545c` shipped at the 471st filing, now proven
+  in the released binary rather than only in a test.
+
+---
+
+### PART B — `Pass 268.0` MINTED AND SHIPPED — `/DA`, at last
+
+`220065a — feat(forms): /DA -- a field's font, size and colour, at last
+settable`.
+
+**`Pass 268.0` matches the engineer's own pre-filing citation in
+`docs/core-api` — no correction owed**, per the sourcing note above. The
+ledger's next-free family was `268.x` as of the 471st filing; the mint
+lands on the family's own first ID, not a collision.
+
+**The feature.** The last and largest of the four readable-and-unwritable
+field properties. `Field::default_appearance` (`/DA`) has been readable
+since the forms layer shipped and nothing wrote it; every field pdfcer
+authored was hard-coded **`/Helv 0 Tf 0 g`** — black, auto-sized
+Helvetica, regardless of caller intent.
+
+`/DA` names a font by a resource key that must resolve in `/AcroForm`
+`/DR` `/Font`, and a key that does not resolve does not fail loudly. The
+API splits by what pdfcer can promise: `FieldFont::Standard` (pdfcer
+authors the resource under Acrobat's own short keys) versus
+`FieldFont::Resource` (pdfcer only checks, **refuses by name, and lists
+what is available**, `EditError::FieldFontNotInResources`).
+
+**Three things the test caught that review did not:**
+
+1. **`#[non_exhaustive]` had left the new `Resource` variant
+   unconstructable from outside the crate**, so an out-of-crate consumer
+   had no route to it at all. An in-crate test would not have noticed —
+   only the out-of-crate integration test failed to *compile*. This is the
+   established `D:/dev/rag/rust/` finding *"an out-of-crate test is the
+   only test that stands where the consumer stands"* (first recorded at
+   the 272nd filing's ledger, `n = 1` there), recurring in a new carrier —
+   not re-minted here, since it already has a home.
+2. **Refusing an inline `/AcroForm` was too brittle** — that shape is what
+   pdfcer's own field authoring produces on a document with no prior form,
+   so the verb failed on the commonest document pdfcer itself creates.
+3. **The redraw used the OLD face, twice.** The `field` snapshot is read
+   **before** the command's writes, and the regenerator prefers the
+   field's own `/DA` — so `/DA` said Courier 18 while the pixels still
+   said Helvetica auto, the same disagreement `/MK /R` had before `Pass
+   177.0`. Fixed by making the **snapshot** truthful rather than teaching
+   the regenerator a second precedence rule. A first attempt offered the
+   regenerator only the new font and broke every redraw with
+   `FontUnresolved("Helv")` — reverted in favour of the snapshot fix.
+
+**A stated limit, not a hidden one:** a `Resource` face is one pdfcer
+cannot measure, so auto-size metrics fall back to Helvetica while the name
+written is the caller's.
+
+**★ `check-string-gaps`**, widened an hour earlier in the same session
+(471st filing, `f2b545c`), **caught a ten-space gap in this very commit's
+new error message before the push** — the widened gate paying for itself
+on the very next commit written after it, exactly as its own finding
+predicted.
+
+**Tests (relayed, not independently re-run):** `field_appearance` **6**
+new — **verified present by direct grep on `crates/pdfcer-core/tests/
+field_appearance.rs`, matching**; `pdfcer-core --lib` **2039** plus ten
+form suites, all 0 failed — **not** a full workspace run.
+
+**`docs/FEATURES.md`** — one new *Implemented* row (Forms, `:295`): core
+`[x]`, cli `[x]`, gui `[ ]`. **Reconciled the *Planned* row it collides
+with** (`:455`, `Pass 266.0` residue): `/DA` struck from that row's list
+with a pointer to the new *Implemented* row, rather than left to disagree
+with it — the row's remaining scope is now `/TM`, `/AA`, `/CO`, and the
+four flags only.
+
+#### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass IDs | ceiling `267.0`; next free family `268.x` | **`Pass 268.0` MINTED AND SHIPPED** (`220065a`), matching the engineer's own pre-filing citation in `docs/core-api`. Ceiling **`268.0`**, next free family `269.x` |
+| Standing rules | ceiling `R245`, next free `R246` | **unchanged** — the three findings above recur an established pattern (out-of-crate-test / snapshot-truthfulness), no new mint |
+| Decisions | ceiling `140`, next free `141` | **unchanged** — no crate boundary, library choice or invariant redefinition this filing |
+| SESSION_LOG filings | `471` | **`472`** |
+| `docs/FEATURES.md` | rows `:294`/`:454` (pre-edit numbering) as of the 471st filing; no row for `/DA` | one new *Implemented* row (Forms, `/DA`), one *Planned* row corrected (`/DA` struck, pointer added) |
+| Unreleased | `23c5f64` (chore 0.47.0) + `f2b545c` (gap fix) + 471st filing's own librarian commit, staged for `v0.47.0` | **`v0.47.0` RELEASED** (Part A). `220065a` (`Pass 268.0`) is now the new unreleased tip, pending `v0.48.0` |
+| Requests in `open/` | not independently re-verified this filing (no shell) | unchanged — not re-measured |
+
+---
+
 **★★★★★ 471st filing, 2026-09-08 — `v0.47.0` VERSION BUMP (`23c5f64`), AND
 A BAKED GAP SHIPPED INTO AN OPERATOR-FACING MESSAGE THAT `check-string-gaps`
 ITSELF WAS SUPPOSED TO CATCH, FIXED BY IMPLEMENTING THE GATE'S OWN
