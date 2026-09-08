@@ -631,6 +631,23 @@ line number.**
    change**, the code uses `AnnotFlags::LOCKED_CONTENTS` correctly throughout
    (verified: every construction in that file goes through the constant, not a
    literal).
+
+   > **★★ DISCHARGED 2026-09-08 by `6eec0a6`** — *"fix(test):
+   > LockedContents is 512, and I reinfected the repo from a RAG hours after
+   > it was swept"*. Filed here as an addendum to this same 475th filing
+   > rather than as a 476th, because it is this filing's own follow-through:
+   > the commit landed **after** this filing was written and **before** the
+   > filing commit `8de7e35`, so no `docs/` entry could cite its hash at
+   > write time. Both doc-comment lines now say **512**, and — the part worth
+   > carrying — **the corrected comment states the arithmetic (`bit N has
+   > value 2^(N-1)`) rather than only the number**, so the next reader can
+   > check it without leaving the file. That is the repair `R246`'s root
+   > survivor needed and did not have: `iso32000__s__12.5.3.md` printed the
+   > rule two lines above a table that violated it, and a number with its
+   > derivation beside it refutes itself the way hard rule 10 requires.
+   > **No behavioural change** — confirmed by the engineer, `1 << 9`
+   > throughout. **Items 2 and 3 below remain OPEN**; the engineer reports
+   > both librarians dispatched separately, per hard rule 6.
 2. **Dispatch `pdfcer-spec-librarian`** for
    `PDF_Spec/iso32000/iso32000__s__12.5.3.md:54`. **Hard rule 6 — that corpus
    is not this role's to write**, and this is the reason that rule exists
@@ -749,7 +766,7 @@ four-route enumeration was wrong in **membership** as well as
 | SESSION_LOG filings | `474` | **`475`** |
 | `docs/FEATURES.md` | 3 *Planned* rows (`Pass 264.1` `/BM`, `Pass 264.5` `LockedContents`, `Pass 270.1` the version bump); the `Pass 270.0` row at `cli ◐` | **3 rows leave *Planned*** — 2 become **new *Implemented* rows** (`/BM` preserved, `LockedContents` enforced), **1 deleted outright** (`Pass 270.1` was a defect row, not a capability). **1 row amended: the `Pass 270.0` row, `cli ◐` → `cli [x]`**, its *"fix owed before `v0.49.0`"* sentence replaced — **it went stale within hours of being written**, and was found by re-reading the row for its **claim**, not by grepping the Pass ID. **No box rounded up**; the two new rows are `core [x] / cli [x] / gui [ ]` on the `Pass 258.0` precedent (a preservation property reached through existing CLI verbs), and the `/BM` row's Acrobat `[x]` is sourced to `Acrobat_Features/markup__appearance_stream_generation.md` while the `LockedContents` row's is labelled **spec-derived, moderate confidence** in the row itself |
 | Unreleased | `14ee766` + `c56f63e` + `caf4c1d` | **plus `70e8f53`, `44a2485`, `73da5e1` and this filing's own commit.** `v0.49.0` **still bumped, still NOT tagged**; `origin/main` still `14ee766` with **CI RED**; **six** code commits unpushed |
-| Commits filed | 2 in no filing (`73da5e1`, `44a2485`) — and `70e8f53` counted as filed **only** by the gate's documented known weakness | **all three filed by hash here and in `SESSION_LOG.md`**, `70e8f53` on its merits rather than on a passing mention |
+| Commits filed | 2 in no filing (`73da5e1`, `44a2485`) — and `70e8f53` counted as filed **only** by the gate's documented known weakness | **all three filed by hash here and in `SESSION_LOG.md`**, `70e8f53` on its merits rather than on a passing mention. **★ Plus `6eec0a6`, filed by this same entry as an ADDENDUM** — it landed after this filing was written and before the filing commit `8de7e35`, so it could not be cited at write time; it discharges Part E's owed-work item 1 and is `R246`'s first (partial) discharge |
 | Working tree | `?? crates/pdfcer-core/tests/locked_contents.rs` at the 474th filing | **`git status --short` EMPTY** — the release blocker is cleared |
 
 ---
@@ -161078,6 +161095,27 @@ ceiling `114` → `115`** (`iccce` enters as a git dependency pinned to tag
   survivors, the provenance chain, and the owed dispatches. The general half
   is filed cross-project at
   `D:/dev/rag/rust/a_correction_that_stops_at_the_repository_boundary_reinfects_from_the_reference_corpus.md`.
+
+  > **★★ FIRST DISCHARGE, PARTIAL — 2026-09-08, `6eec0a6` (addendum to the
+  > 475th filing).** **2 of 5 survivors closed; 3 remain open.** The two
+  > **inside** this repository — `crates/pdfcer-core/tests/locked_contents.rs`
+  > `:5` and `:22` — now read **512**, and the corrected comment **states the
+  > arithmetic (`bit N has value 2^(N-1)`) rather than only the number**, so
+  > the value carries its own check. **No behavioural change**
+  > (`AnnotFlags::LOCKED_CONTENTS = 1 << 9`, unchanged; every construction in
+  > that file goes through the constant).
+  >
+  > **The three still open are exactly the ones this rule was minted about** —
+  > `PDF_Spec/iso32000/iso32000__s__12.5.3.md:54` (the root),
+  > `Acrobat_Features/markup__vertex_editing_and_reshape.md:190`,
+  > `Acrobat_Features/index.md:2605` — all **outside** this repository and
+  > **not this role's to edit** (clause 3 / hard rule 6). The engineer reports
+  > `pdfcer-spec-librarian` and `pdfcer-acrobat-librarian` dispatched
+  > separately. ⇒ **Until those three land, the reinfection vector is still
+  > live**: a future dispatch reading either corpus will copy `1024` again,
+  > exactly as `73da5e1`'s did. **Fixing the repository half is the half that
+  > does NOT stop recurrence** — which is the whole content of `R246`, and the
+  > reason this discharge is recorded as *partial* rather than as done.
 
   **Standing rules ceiling `R245` → `R246`; next free `R247`.** ★ **`R247` is
   NAMED but NOT CLAIMED** for a second, unrelated trigger recorded the same

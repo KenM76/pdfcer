@@ -97637,3 +97637,57 @@ red.**
   or `FEATURES.md`'s *"Locked (128) refuses, LockedContents (512) does not"* on
   the vertex row — that one is **still true**, because bit 10 permits a
   reshape.
+
+---
+
+**★★ AMENDMENT FOOTER, 2026-09-08 — `6eec0a6` FILED INTO THIS ENTRY RATHER
+THAN INTO A 476th, BECAUSE IT IS THIS FILING'S OWN FOLLOW-THROUGH.**
+
+**Sourcing (hard rule 8).** A `Bash` tool was available and was used:
+`git show --stat --format=%B 6eec0a6` for the commit's content and message,
+`git log --oneline` for its position relative to `8de7e35`. The
+`check-commits-filed.py` figure below is **relayed from the engineer's
+dispatch, not re-run here**, and is labelled as such. **Backup currency was
+not checked and is not asserted.**
+
+**What it is.** `6eec0a6` — *"fix(test): LockedContents is 512, and I
+reinfected the repo from a RAG hours after it was swept"* — discharges **item
+1** of this entry's *For next session* engineer list, above:
+`crates/pdfcer-core/tests/locked_contents.rs:5` and `:22`, `1024` → `512`.
+Two doc-comment lines, `+4 −2`, one file. **No behavioural change**, confirmed
+independently in the commit message: `AnnotFlags::LOCKED_CONTENTS` is
+`1 << 9` and every construction in that test uses the constant, so only the
+prose was ever wrong.
+
+**Why it needed an addendum rather than a new filing.** It landed **after**
+this filing was written and **before** the filing commit `8de7e35`, so no
+`docs/` entry could cite its hash at write time. `check-commits-filed.py`
+consequently reported exactly one unfiled commit — **`6eec0a6`** — which is
+the ordinary, expected shape of a same-session follow-on correction and **not**
+another instance of `R209` clause (f): the gate asked its real question and
+got the right answer. Filing it here keeps the correction attached to the
+finding that produced it, which is where a future reader of `R246` will look.
+
+**★ The repair is better than the one that was asked for, and the improvement
+is the transferable part.** The dispatch owed a number swap. What shipped
+states the **arithmetic** — *bit N has value 2^(N-1)* — beside the number, so
+the value carries its own check and the next reader can verify it without
+leaving the file. That is precisely the property the root survivor lacks:
+`iso32000__s__12.5.3.md` prints that same rule **two lines above** a table
+that violates it, and nine filings' worth of readers walked past. **A figure
+written next to its derivation refutes itself; a figure written alone is
+believed.** Hard rule 10's convention (file a total beside its per-item form)
+pointed at a bit value rather than a benchmark.
+
+**Ledger effect.** `R246`'s **first discharge, PARTIAL — 2 of 5 survivors
+closed, 3 still open**, all three outside this repository and named in Part E
+items 2–3 (`PDF_Spec/iso32000/iso32000__s__12.5.3.md:54`,
+`Acrobat_Features/markup__vertex_editing_and_reshape.md:190`,
+`Acrobat_Features/index.md:2605`). The engineer reports
+`pdfcer-spec-librarian` and `pdfcer-acrobat-librarian` dispatched separately,
+per hard rule 6. **The reinfection vector remains live until those three
+land** — fixing the repository half is the half that does not stop recurrence,
+which is the entire content of `R246`. No Pass ID, no rule and no decision
+number moves: `6eec0a6` is a follow-on correction to `Pass 270.2`
+(`73da5e1`), not new work. Ceilings unchanged — Pass `270.2`, rule `R246`,
+decision `142`.

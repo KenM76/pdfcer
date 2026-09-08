@@ -6517,3 +6517,115 @@ usually there, not in the clause that names them.**
   The two long *quotations* of 2.0's corrected text come from the **free**
   `pdf-issues.pdfa.org` `<ins>`/`<del>` page, not from the licensed PDF — **the standard
   route for quoting a licensed clause: quote its erratum instead.**
+
+---
+
+## 73. The **ONE-WRONG-VALUE + SELF-CONSISTENCY-SWEEP** dispatch — *"line 54 says 1024, it is 512; now check the whole column, not just the row I reported"* (2026-09-08, `iso32000__s__12.5.3.md`)
+
+**Shape.** `pdfce-engineer` reported a single wrong cell, **named the tell that proves it
+without a source** (the column doubles nine times then quadruples), and **explicitly
+refused to let the fix stop at the reported row**: *"a column that has one arithmetic
+slip is a column that may have two, and I have only measured the one."* Also carried a
+blast-radius report — the value had **reinfected `pdfce` twice**. Deliverable was 4
+parts: fix, whole-column check, an in-file self-check, and the dated record.
+
+### 73a. ★★★ THE WRONG VALUE WAS **DERIVED**, AND THE SOURCE HAD NOTHING TO DISAGREE WITH
+
+**ISO 32000-1 Table 165 has THREE columns — `Bit position` | `Name` | `Meaning` — and
+prints NO integer values at all** (verified, `_sources\PDF32000_2008.pdf` dump pp.
+391–392). The corpus file's `Value` column was **computed by its own author** from
+§12.5.3's `2^(N-1)` rule. ⇒ **re-reading the primary source could never have caught
+this**, because the primary source is silent on the axis that was wrong. Every
+quotation in the file was and is correct; only the arithmetic was wrong.
+
+**⇒ NEW LIABILITY CLASS, and it is corpus-wide: a column this corpus DERIVES is a
+column this corpus OWNS.** It is not covered by "cite your source", not covered by
+"quote verbatim", and not covered by an errata scan. **Whenever a file adds a computed
+column, label it `DERIVED, NOT QUOTED` and state the invariant it must satisfy, in the
+file.** Done here: a blockquoted SELF-CHECK (*"must read 1,2,4,…,512 — each cell twice
+its predecessor, ten rows, last value 512"*) sits directly above the table.
+
+**The failure was not that nobody checked — it was that nobody ran the FILE'S OWN RULE
+on the FILE'S OWN TABLE.** The verbatim 1-based bit rule sat **ten lines above** the
+table that violated it. Same shape as 72b (a cross-reference nobody followed) and 65g
+(a sibling holding the answer): **the corpus keeps stranding a fact one screen away
+from the place that needed it.** Fifth instance.
+
+### 73b. ★★★ THE SWEEP: 112 ASSERTIONS, EXACTLY ONE WRONG — AND A NAIVE CHECKER FLAGS THE **CORRECT** FILE
+
+Built a mechanical checker (scratchpad `bitsweep4.py` / `prosesweep.py`). **83 table
+rows across 14 tables in 9 files** (header-anchored: a `Bit`-ish column + a
+`Value`/`Mask`/`Hex`/`Integer`-ish column) **+ 29 prose assertions** (`bit N (value V)`,
+`bit N = V`, `bit N ⇒ V`). **Result: 1 mismatch, the reported one.** Clean: all 18 rows
+of `iso32000__ref__field_flags.md`, 14 of `12.7.5.2`, 9 of `9.8`, 18 across `12.7.4`'s
+four tables, 4 of `12.7.3.3`, plus `12.3.3`, `12.7.2`, `12.7.3`, `12.7.5`.
+
+**★★ THE CORPUS HOLDS THREE BIT-NUMBERING CONVENTIONS AND ONLY ONE IS `2^(N-1)`:**
+
+| Source family | Convention | Example |
+|---|---|---|
+| **ISO 32000** | **1-based**, `value = 2^(N-1)` | `Hidden` bit 2 = 2; `LockedContents` bit 10 = **512** |
+| **OpenType / Microsoft** | **0-based**, `mask = 2^N` | `fsType` bit 8 = `0x0100`; the spec says *"bit 0 is permanently reserved"* |
+| **observed bitfields** (not a spec table) | bits named **by their mask** | `security__ppklite_addressbook.md`: *"bit 64 (0x40)"*, *"bit 16384 (0x4000)"* |
+
+A `2^(N-1)` sweep reports `fonts\font__opentype_os2_fstype.md` as **two errors and it is
+right as written**. ⇒ **the invariant is per-SOURCE, not corpus-wide — establish which
+convention a table uses BEFORE grading it**, or the sweep manufactures false
+corrections. Same family as 68b (the same sweep gives opposite answers per family).
+
+### 73c. ★★ TWO CHECKER BUGS, BOTH OF WHICH PRODUCED CONFIDENT FALSE POSITIVES
+
+1. **`re.search(r"\d+", "0x0100")` matches the leading `0`** ⇒ every hex-valued row read
+   as `bit N -> 0` and every hex table reported 100 % wrong. **Try the `0x` pattern
+   FIRST, always.** This fired on `9.8` (9 rows) and `fsType` (2) simultaneously — an
+   all-rows-wrong result is the tell that the PARSER is broken, not the data.
+2. **A too-strict header matcher silently SKIPPED tables.** `Value (hex)` and
+   ``Value (`2^(bit−1)`)`` did not match an exact-string list, so two of the largest
+   tables in the corpus were never checked and the first run looked complete. **Match
+   headers by PREFIX, and print the per-table row count so a table that contributed 0
+   rows is visible.**
+
+⇒ **Generalise: a sweep's own NEGATIVE result is a claim about the sweep.** Print
+`rows checked` per table and eyeball it before reporting "clean". The first run said
+"29 rows checked, 1 mismatch"; the correct figure was **83**, and only the row count
+revealed the gap.
+
+### 73d. ★★ WHY A ONE-CELL SLIP EARNED A FULL BUILD-LOG ENTRY — THE TRUST ASYMMETRY
+
+`pdfce` project rule 1 forbids implementing spec-governed behaviour from training-data
+memory and points the engineer **here first**. ⇒ **this corpus is trusted HARDER than
+the code that consumes it**, so a wrong value here does not merely fail to help — it
+**overrides a correct memory**. Measured: `pdfce`'s own `AnnotFlags::LOCKED_CONTENTS =
+1 << 9` was never wrong, a `pdfce`-side sweep three days earlier had already fixed
+`pdfce`'s `docs/`, **and the value came straight back in from this corpus** into two
+committed doc comments via a sibling RAG. `pdfce` minted **R246** (*a correction is not
+complete until it reaches every corpus the project READS, not merely every tree it
+writes*).
+
+**The reciprocal obligation on THIS corpus, and it is the durable lesson: accuracy here
+is not symmetric with accuracy elsewhere.** A downstream reader is instructed not to
+second-guess these files. **Cheap self-validating structure (a stated invariant beside a
+derived column) is worth more per token than any amount of additional prose**, because
+it is the only defence that works when the reader has been told to trust you.
+
+### 73e. Filing shape — a pure CORRECTION: 2 files, 0 new files, 0 count cells
+
+- **0 new corpus files.** Recounted anyway: **186 total / 183 content**, and every
+  per-prefix `ls` matched the prefix-table cells exactly — **second consecutive session
+  with no stale cell** (after five straight stale ones). Worth recording as much as drift.
+- `iso32000/iso32000__s__12.5.3.md`: 5 hunks / 79 lines — frontmatter `updated:` +
+  keywords; the `DERIVED, NOT QUOTED` + `SELF-CHECK` block under the `/F` prose; the row
+  itself; a **`#### CORRECTION 2026-09-08`** block under the table (wrong row retained in
+  a blockquote, per item 3); the gotchas bullet; a `related_files` cross-reference
+  recording that the deletion-semantics file was checked and is clean.
+- `index.md`: Status build-log entry (4 findings) + the manifest-row note + **3 search
+  recipes, all RUN and non-empty**. **No count cell touched, no `LEGAL_NOTE.md` edit** —
+  no new source was staged (the verification used an already-registered one).
+- ★★ **`iso32000__s__12.5.3.md` IS CRLF — the THIRD such file**, after `LEGAL_NOTE.md`
+  and `iso32000__s__12.5.6.md`. `file <path>` before editing is now simply the habit;
+  assume nothing. Patched with `open(...,"rb")` + explicit `\r\n` in every match string,
+  and verified after with `CRLF count == total LF count` (551/551) and a **hunk count of
+  5, not whole-file**.
+- Placement check per 71f: the `####` inserted under `### Table 165` is deeper than the
+  following `###`, so nothing was orphaned — **re-printed the heading map anyway** and
+  confirmed it.
