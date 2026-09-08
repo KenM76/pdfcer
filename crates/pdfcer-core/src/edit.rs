@@ -6820,6 +6820,28 @@ pub enum EditError {
         /// Which of the two situations it was, in the operator's terms.
         why: &'static str,
     },
+    /// [`FieldEdit::appearance`] named a [`FieldFont::Resource`] that is not
+    /// in the `/AcroForm` `/DR` `/Font` dictionary.
+    ///
+    /// # Refused rather than written and hoped for
+    ///
+    /// `/DA` names a font by a resource key (§12.7.3.3). A key that does not
+    /// resolve does not fail loudly — the reader substitutes, and the field
+    /// draws in a face nobody chose while looking entirely normal. pdfcer
+    /// will not author that.
+    ///
+    /// Use [`FieldFont::Standard`] for one of the standard 14, which pdfcer
+    /// authors into `/DR` itself and therefore cannot get wrong.
+    #[error(
+        "no font resource named {name:?} in the AcroForm /DR /Font dictionary, so a /DA naming it would resolve to nothing and the field would draw in a substituted face; nothing was changed. Available: {available}"
+    )]
+    FieldFontNotInResources {
+        /// The key that was asked for.
+        name: String,
+        /// The keys that ARE there, so the message is actionable rather than
+        /// merely correct.
+        available: String,
+    },
     /// [`FieldEdit::quadding`] was given a value ISO 32000-1 §12.7.4.3
     /// Table 233 does not define.
     ///
@@ -18947,6 +18969,109 @@ pub struct FieldGroupDeletion {
     pub nodes: Vec<String>,
 }
 
+/// Which font a field's variable text is drawn in (`/DA`, ISO 32000-1
+/// §12.7.3.3), for [`FieldAppearance`].
+///
+/// # Why two variants rather than a font name string
+///
+/// `/DA` names a font by a **resource key**, and that key has to resolve in
+/// the `/AcroForm` `/DR` `/Font` dictionary or the field draws with whatever
+/// the reader falls back to — which is not an error anyone sees, just text in
+/// the wrong face. A bare `Vec<u8>` API would let a caller write a `/DA` that
+/// names nothing, and nothing would say so.
+///
+/// So the two cases are separated: one pdfcer can GUARANTEE by authoring the
+/// resource, and one it can only CHECK.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum FieldFont {
+    /// One of the standard 14 (§9.6.2.2). pdfcer **ensures the resource
+    /// exists** in `/AcroForm` `/DR` `/Font`, authoring the program-free
+    /// dictionary §9.6.2.1 permits if it is not already there, and uses the
+    /// conventional short key — `Helv`, `TiRo`, `Cour`, `ZaDb`, `Symb` — that
+    /// Acrobat writes and every reader expects.
+    ///
+    /// This variant cannot fail for want of a resource, which is why it is
+    /// the one a shell should offer by default.
+    Standard(crate::fontdata::Std14),
+    /// A resource key **already present** in `/AcroForm` `/DR` `/Font` — an
+    /// embedded face the document's own author put there.
+    ///
+    /// ⚠️ **Refused by name if it is not there**
+    /// ([`EditError::FieldFontNotInResources`]). pdfcer will not author a
+    /// `/DA` naming a font that does not resolve: the field would render in a
+    /// substituted face, look plausible, and be wrong in a way the operator
+    /// has no way to see.
+    Resource(Vec<u8>),
+}
+
+/// How a field's **variable text** is drawn — the `/DA` string (ISO 32000-1
+/// §12.7.3.3, Table 224/228).
+///
+/// # `size` of `0.0` means AUTO, and that is the standard's own convention
+///
+/// §12.7.3.3: a size of zero tells the reader to choose one that fits the
+/// box. pdfcer honours it the same way its filler already does, so a field
+/// set to `0.0` re-fits as its value changes rather than clipping. Acrobat
+/// spells this "Auto" and it is the default for a new text field.
+///
+/// # Colour is the TEXT colour, not the box
+///
+/// `/DA`'s colour operator sets the **non-stroking** colour used for the
+/// value's glyphs. The box's own fill and border are `/MK` `/BG` and `/BC`
+/// ([`WidgetEdit::background`], [`WidgetEdit::border_color`]) — a different
+/// dictionary, set by a different verb, and conflating them is the single
+/// most likely way to produce a field that looks nothing like intended.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct FieldAppearance {
+    /// The face.
+    pub font: FieldFont,
+    /// Points; `0.0` is Table 224's **auto-size**.
+    pub size: f64,
+    /// The colour of the drawn text.
+    pub color: crate::vartext::TextColor,
+}
+
+impl FieldAppearance {
+    /// A `/DA` in one of the standard 14, at `size` points (`0.0` = auto),
+    /// in `color`.
+    #[must_use]
+    pub fn standard(
+        font: crate::fontdata::Std14,
+        size: f64,
+        color: crate::vartext::TextColor,
+    ) -> Self {
+        Self {
+            font: FieldFont::Standard(font),
+            size,
+            color,
+        }
+    }
+
+    /// A `/DA` naming a font resource **already in** `/AcroForm` `/DR`
+    /// `/Font`, at `size` points (`0.0` = auto), in `color`.
+    ///
+    /// ⚠️ Refused with [`EditError::FieldFontNotInResources`] if the key is
+    /// not there — see [`FieldFont::Resource`].
+    ///
+    /// # ★ Why this constructor exists at all
+    ///
+    /// [`FieldAppearance`] is `#[non_exhaustive]`, so a caller **outside this
+    /// crate cannot build one with a struct literal** — and this variant had
+    /// no other route. An in-crate test would never have noticed: it can use
+    /// the literal freely. The out-of-crate integration test could not
+    /// compile, which is the only place that constraint is felt.
+    #[must_use]
+    pub fn resource(name: impl Into<Vec<u8>>, size: f64, color: crate::vartext::TextColor) -> Self {
+        Self {
+            font: FieldFont::Resource(name.into()),
+            size,
+            color,
+        }
+    }
+}
+
 /// A **partial update to an existing field's field-scope properties**
 /// (`Pass 134.0`).
 ///
@@ -19118,6 +19243,26 @@ pub struct FieldEdit {
     /// verify by looking at the page. `list-fields` prints the whole `Ff`
     /// word, which is where it becomes checkable.
     pub no_export: Option<bool>,
+    /// `/DA` — the font, size and colour the field's **variable text** is
+    /// drawn in (§12.7.3.3).
+    ///
+    /// # The last of the four, and the one that needed `/DR`
+    ///
+    /// `Field::default_appearance` has been readable since the forms layer
+    /// shipped and **nothing could write it**; worse, the value pdfcer wrote
+    /// at creation was **hard-coded** `/Helv 0 Tf 0 g`, so every field pdfcer
+    /// authored was black Helvetica auto-sized and there was no way to say
+    /// otherwise. Acrobat exposes all three on a field's Appearance tab.
+    ///
+    /// This one lagged the other three because it is the only one that needs
+    /// a **resource** to exist: `/DA` names a font by a key that must resolve
+    /// in `/AcroForm` `/DR` `/Font`. [`FieldFont::Standard`] makes pdfcer
+    /// author it; [`FieldFont::Resource`] makes pdfcer check it and refuse.
+    ///
+    /// Setting this **regenerates the appearance**, because the baked stream
+    /// carries the old face at the old size — writing `/DA` alone would leave
+    /// the field claiming one thing and drawing another.
+    pub appearance: Option<FieldAppearance>,
 }
 
 /// A **partial update to one widget's** properties (`Pass 134.0`) — the
@@ -19395,6 +19540,13 @@ impl FieldEdit {
     #[must_use]
     pub fn with_no_export(mut self, on: bool) -> Self {
         self.no_export = Some(on);
+        self
+    }
+
+    /// Set `/DA` — the font, size and colour of the field's variable text.
+    #[must_use]
+    pub fn with_appearance(mut self, appearance: FieldAppearance) -> Self {
+        self.appearance = Some(appearance);
         self
     }
 }
@@ -22086,6 +22238,13 @@ impl EditSession {
         flags: forms::FieldFlags,
         objects: &mut Vec<ObjectWrite>,
         pending: &PendingWidgetEdit,
+        // ★ The `/DA` the CALLER is writing in this same command, when it is
+        // writing one. The `field` snapshot was read before that write, so
+        // without this the regenerator redraws from the OLD appearance and
+        // the field ends up claiming one face while drawing another -- the
+        // exact disagreement `/MK /R` had before rotation became
+        // write-plus-regenerate. Found by the test, not by review.
+        appearance: Option<&FieldAppearance>,
     ) -> Result<bool, EditError> {
         let (display, multiline) = match field.field_type {
             Some(forms::FieldType::Text) => match &field.value {
@@ -22125,15 +22284,59 @@ impl EditSession {
             }
             _ => return Ok(false),
         };
-        let default_da = crate::vartext::default_appearance_string(
-            b"Helv",
-            0.0,
-            crate::vartext::TextColor::Gray(0.0),
-        );
-        let fonts = [crate::vartext::FontResource {
+        // The face this redraw measures and draws with. An `appearance`
+        // supplied by the caller wins, because it is being written in this
+        // same command; otherwise the historic Helvetica default stands, so
+        // every existing caller is byte-for-byte unchanged.
+        let (da_key, da_font, da_size, da_colour) = match appearance {
+            Some(app) => {
+                let key = match &app.font {
+                    FieldFont::Standard(f) => Self::std14_resource_key(*f).to_vec(),
+                    FieldFont::Resource(name) => name.clone(),
+                };
+                // A `Resource` face is one pdfcer did not author and cannot
+                // measure, so the metrics fall back to Helvetica while the
+                // NAME written is the caller's. That is a real limit and it
+                // is stated rather than hidden: an embedded face with wider
+                // glyphs will auto-size slightly differently from what a
+                // reader finally draws.
+                let metrics = match &app.font {
+                    FieldFont::Standard(f) => *f,
+                    FieldFont::Resource(_) => crate::fontdata::Std14::Helvetica,
+                };
+                (key, metrics, app.size, app.color)
+            }
+            None => (
+                b"Helv".to_vec(),
+                crate::fontdata::Std14::Helvetica,
+                0.0,
+                crate::vartext::TextColor::Gray(0.0),
+            ),
+        };
+        let default_da = crate::vartext::default_appearance_string(&da_key, da_size, da_colour);
+        // ★ BOTH keys, and the second one is not belt-and-braces.
+        //
+        // `regen_field_appearance` resolves the font named by the /DA it is
+        // actually drawing, and that /DA may be the FIELD'S OWN -- every field
+        // pdfcer ever authored carries `/Helv`. Offering only the new key made
+        // the whole redraw fail with `FontUnresolved("Helv")` on the first
+        // test that changed a face, because the field's existing /DA still
+        // named Helvetica.
+        //
+        // So the list describes what `/DR` `/Font` will CONTAIN after this
+        // command: Helvetica, which `ensure_default_resources` guarantees, plus
+        // whatever the caller asked for. Deduped, so asking for Helvetica does
+        // not offer it twice.
+        let mut fonts = vec![crate::vartext::FontResource {
             name: b"Helv".to_vec(),
             font: crate::fontdata::Std14::Helvetica,
         }];
+        if da_key != b"Helv" {
+            fonts.push(crate::vartext::FontResource {
+                name: da_key.clone(),
+                font: da_font,
+            });
+        }
         let mut applied_autosize = None;
         let mut applied_autosize_bound = None;
         let mut da_colour_unmodelled = false;
@@ -22326,6 +22529,8 @@ impl EditSession {
                 rotation: Some(quarter),
                 ..PendingWidgetEdit::default()
             },
+            // A rotation changes no /DA, so the field's own stays in force.
+            None,
         )?;
         if !appearance_regenerated {
             appearance_stale = Some(
@@ -22616,8 +22821,13 @@ impl EditSession {
         let mut appearance_stale = None;
         let needs_regen = resized || edit.border.is_some() || edit.caption.is_some();
         let appearance_regenerated = if needs_regen {
-            let done =
-                self.regen_after_property_change(&field, field.flags, &mut objects, &pending)?;
+            let done = self.regen_after_property_change(
+                &field,
+                field.flags,
+                &mut objects,
+                &pending,
+                None,
+            )?;
             if !done {
                 // Nothing here is pdfcer's to rebuild: a signature field, or a
                 // button carrying another producer's artwork. Whether that is
@@ -22734,6 +22944,37 @@ impl EditSession {
         {
             return Err(EditError::QuaddingInvalid { given: q });
         }
+
+        // `/DA` — resolve the font key and VALIDATE before anything is
+        // written. A `Resource` naming a key that is not in `/DR` `/Font` is
+        // refused: a `/DA` that does not resolve draws in a substituted face,
+        // looks entirely normal, and is wrong in a way the operator cannot
+        // see. `Standard` cannot fail here -- pdfcer authors the resource
+        // below -- which is why it is the variant a shell should default to.
+        let da_font_key: Option<Vec<u8>> = match &edit.appearance {
+            None => None,
+            Some(app) => Some(match &app.font {
+                FieldFont::Standard(f) => Self::std14_resource_key(*f).to_vec(),
+                FieldFont::Resource(name) => {
+                    let present: Vec<String> = self
+                        .acroform_dr_font_keys()
+                        .iter()
+                        .map(|k| String::from_utf8_lossy(k).into_owned())
+                        .collect();
+                    if !present.iter().any(|k| k.as_bytes() == name.as_slice()) {
+                        return Err(EditError::FieldFontNotInResources {
+                            name: String::from_utf8_lossy(name).into_owned(),
+                            available: if present.is_empty() {
+                                "none -- the AcroForm has no /DR /Font dictionary".to_owned()
+                            } else {
+                                present.join(", ")
+                            },
+                        });
+                    }
+                    name.clone()
+                }
+            }),
+        };
 
         let ft = field.field_type;
         let is_text = ft == Some(forms::FieldType::Text);
@@ -22938,6 +23179,16 @@ impl EditSession {
         // an on-state or `/Off` -- and a text string everywhere else.
         // Writing a string onto a check box would produce a default no
         // reader could match against an appearance state.
+        // `/DA` (§12.7.3.3). The key was resolved and validated above, before
+        // anything was written.
+        if let (Some(app), Some(key)) = (&edit.appearance, &da_font_key) {
+            dict.insert(
+                Name::from(b"DA"),
+                Object::String(crate::vartext::default_appearance_string(
+                    key, app.size, app.color,
+                )),
+            );
+        }
         match &edit.default_value {
             Some(Some(v)) => {
                 let value = if ft == Some(forms::FieldType::Button) {
@@ -22953,11 +23204,27 @@ impl EditSession {
             None => {}
         }
 
+        // A standard-14 `/DA` needs its resource in `/AcroForm` `/DR` `/Font`,
+        // and `edit_field` does not otherwise touch the `/AcroForm` -- so
+        // without this the `/DA` would name a key that resolves to nothing.
+        // Returns None when the face is already there, which keeps a repeated
+        // set from putting the /AcroForm in the dirty set a second time.
+        let acroform_write = match &edit.appearance {
+            Some(FieldAppearance {
+                font: FieldFont::Standard(f),
+                ..
+            }) => self.acroform_ensure_font_write(*f)?,
+            _ => None,
+        };
+
         let mut objects = vec![ObjectWrite {
             id: field.id,
             before: self.state.get(&field.id).cloned(),
             after: Some(Object::Dict(dict)),
         }];
+        if let Some(w) = acroform_write {
+            objects.push(w);
+        }
 
         // The appearance depends on `multiline` and `comb` for a text field
         // and on `combo` for a choice field, so a change to any of them makes
@@ -22968,13 +23235,39 @@ impl EditSession {
             || edit.comb.is_some()
             || edit.combo.is_some()
             || edit.max_len.is_some()
+            // `/DA` changes the FACE and the SIZE the value is drawn at, so
+            // the baked stream is wrong the moment it changes. Writing the
+            // key alone would leave the field claiming one appearance and
+            // drawing another -- the same disagreement `/MK /R` had before
+            // `Pass 177.0` made rotation write-plus-regenerate.
+            || edit.appearance.is_some()
             || options_after.is_some();
         let appearance_regenerated = if layout_changed {
+            // ★ The snapshot is made TRUTHFUL rather than overridden.
+            //
+            // `field` was read before this command's writes, so its
+            // `default_appearance` still holds the OLD /DA -- and the
+            // regenerator prefers the field's own /DA over the fallback it is
+            // handed. Passing the new appearance alongside a stale snapshot
+            // left the redraw drawing the old face while the dictionary
+            // claimed the new one: the exact disagreement this feature exists
+            // to avoid, and the test caught it twice before this line.
+            //
+            // Updating the copy is better than teaching the regenerator a
+            // second precedence rule. There is then ONE answer to "what /DA
+            // does this field have", and it is the one being written.
+            let mut field = field.clone();
+            if let (Some(app), Some(key)) = (&edit.appearance, &da_font_key) {
+                field.default_appearance = Some(crate::vartext::default_appearance_string(
+                    key, app.size, app.color,
+                ));
+            }
             self.regen_after_property_change(
                 &field,
                 flags,
                 &mut objects,
                 &PendingWidgetEdit::default(),
+                edit.appearance.as_ref(),
             )?
         } else {
             false
@@ -24275,6 +24568,82 @@ impl EditSession {
     // commit. That is what lets `adopt_preview` share `adopt_plan` with
     // `adopt_widget` outright instead of duplicating sixty lines of guards,
     // which is the cost `pdfcer-gui` asked about when requesting the preview.
+    /// An [`ObjectWrite`] adding `font` to `/AcroForm` `/DR` `/Font`, or
+    /// `None` when it is already there and nothing needs writing.
+    ///
+    /// # Why `edit_field` needs this and field AUTHORING did not
+    ///
+    /// Authoring goes through [`Self::acroform_register_write`], which already
+    /// touches the `/AcroForm` to append `/Fields` and calls
+    /// [`Self::ensure_default_resources`] on the way past. `edit_field` does
+    /// not touch the `/AcroForm` at all — it edits one field dictionary — so
+    /// a `/DA` naming a face nobody had authored would resolve to nothing.
+    ///
+    /// ★ Returns `None` for "already present" rather than an empty write, so
+    /// setting `/DA` twice does not put the `/AcroForm` in the dirty set the
+    /// second time. The incremental save is a diff against the base
+    /// (`ARCHITECTURE.md` §11.1), and an object rewritten to its own bytes
+    /// still lands in the saved revision.
+    fn acroform_ensure_font_write(
+        &self,
+        font: crate::fontdata::Std14,
+    ) -> Result<Option<ObjectWrite>, EditError> {
+        let key = Self::std14_resource_key(font);
+        if self.acroform_dr_font_keys().iter().any(|k| k == key) {
+            return Ok(None);
+        }
+        let graph = self.graph();
+        let catalog_id = graph.catalog_id().ok_or(EditError::NotADictionary {
+            id: ObjId::new(0, 0),
+            key: "Root",
+        })?;
+        let catalog = graph
+            .resolved(catalog_id)
+            .as_dict()
+            .ok_or(EditError::NotADictionary {
+                id: catalog_id,
+                key: "Root",
+            })?
+            .clone();
+        // BOTH /AcroForm shapes, mirroring `acroform_register_write`. The
+        // inline one is not exotic -- it is what pdfcer's OWN field authoring
+        // produces on a document that had no form -- so refusing it would
+        // make this verb fail on the commonest document pdfcer creates. Found
+        // by the test, which used exactly that fixture.
+        match catalog.get(b"AcroForm").cloned() {
+            Some(Object::Reference(af_id)) => {
+                let mut af = graph
+                    .resolved(af_id)
+                    .as_dict()
+                    .ok_or(EditError::NotADictionary {
+                        id: af_id,
+                        key: "AcroForm",
+                    })?
+                    .clone();
+                Self::ensure_default_resources(&mut af, &[font]);
+                Ok(Some(ObjectWrite {
+                    id: af_id,
+                    before: self.state.get(&af_id).cloned(),
+                    after: Some(Object::Dict(af)),
+                }))
+            }
+            other => {
+                let mut af = match other {
+                    Some(Object::Dict(d)) => d,
+                    _ => Dict::new(),
+                };
+                Self::ensure_default_resources(&mut af, &[font]);
+                let mut cat = catalog;
+                cat.insert(Name::from(b"AcroForm"), Object::Dict(af));
+                Ok(Some(ObjectWrite {
+                    id: catalog_id,
+                    before: self.state.get(&catalog_id).cloned(),
+                    after: Some(Object::Dict(cat)),
+                }))
+            }
+        }
+    }
+
     fn acroform_register_write(&self, field_id: ObjId) -> Result<ObjectWrite, EditError> {
         let graph = self.graph();
         let catalog_id = graph.catalog_id().ok_or(EditError::NotADictionary {
@@ -24309,7 +24678,7 @@ impl EditSession {
                 };
                 fields.push(Object::Reference(field_id));
                 af.insert(Name::from(b"Fields"), Object::Array(fields));
-                Self::ensure_default_resources(&mut af);
+                Self::ensure_default_resources(&mut af, &[]);
                 let before = self.state.get(&af_id).cloned();
                 Ok(ObjectWrite {
                     id: af_id,
@@ -24330,7 +24699,7 @@ impl EditSession {
                 };
                 fields.push(Object::Reference(field_id));
                 af.insert(Name::from(b"Fields"), Object::Array(fields));
-                Self::ensure_default_resources(&mut af);
+                Self::ensure_default_resources(&mut af, &[]);
                 cat.insert(Name::from(b"AcroForm"), Object::Dict(af));
                 let before = self.state.get(&catalog_id).cloned();
                 Ok(ObjectWrite {
@@ -24347,7 +24716,64 @@ impl EditSession {
     ///
     /// Only ADDS what is missing — an existing `/DR` or `/DA` belongs to the
     /// document's own author and is left exactly as found.
-    fn ensure_default_resources(af: &mut Dict) {
+    /// The conventional `/AcroForm` `/DR` `/Font` key for a standard-14 face.
+    ///
+    /// These four-letter keys are Acrobat's own and are what every reader
+    /// expects to find — `Helv`, `TiRo`, `Cour`, `Symb`, `ZaDb`. pdfcer uses
+    /// them rather than inventing keys so a field it authors is editable in
+    /// Acrobat afterwards, and so a document that already carries `Helv` gets
+    /// its existing resource reused instead of a duplicate.
+    ///
+    /// The bold/italic members of each family share their family's key with a
+    /// suffix, matching what Acrobat writes.
+    /// The keys in `/AcroForm` `/DR` `/Font`, for validating a
+    /// [`FieldFont::Resource`] and for naming the alternatives in the refusal.
+    ///
+    /// Empty when there is no `/AcroForm`, no `/DR` or no `/Font` — all three
+    /// mean the same thing to a caller asking *"can I name this font?"*, and
+    /// the refusal says which it was in words rather than returning three
+    /// indistinguishable empties.
+    fn acroform_dr_font_keys(&self) -> Vec<Vec<u8>> {
+        let g = self.graph();
+        let Some(Object::Dict(af)) = g
+            .trailer_entry(b"Root")
+            .map(|o| g.resolve(o))
+            .and_then(Object::as_dict)
+            .and_then(|root| root.get(b"AcroForm"))
+            .map(|o| g.resolve(o).clone())
+        else {
+            return Vec::new();
+        };
+        let Some(Object::Dict(dr)) = af.get(b"DR").map(|o| g.resolve(o).clone()) else {
+            return Vec::new();
+        };
+        let Some(Object::Dict(fonts)) = dr.get(b"Font").map(|o| g.resolve(o).clone()) else {
+            return Vec::new();
+        };
+        fonts.0.iter().map(|(k, _)| k.as_bytes().to_vec()).collect()
+    }
+
+    fn std14_resource_key(font: crate::fontdata::Std14) -> &'static [u8] {
+        use crate::fontdata::Std14 as F;
+        match font {
+            F::Helvetica => b"Helv",
+            F::HelveticaBold => b"HeBo",
+            F::HelveticaOblique => b"HeOb",
+            F::HelveticaBoldOblique => b"HeBO",
+            F::TimesRoman => b"TiRo",
+            F::TimesBold => b"TiBo",
+            F::TimesItalic => b"TiIt",
+            F::TimesBoldItalic => b"TiBI",
+            F::Courier => b"Cour",
+            F::CourierBold => b"CoBo",
+            F::CourierOblique => b"CoOb",
+            F::CourierBoldOblique => b"CoBO",
+            F::Symbol => b"Symb",
+            F::ZapfDingbats => b"ZaDb",
+        }
+    }
+
+    fn ensure_default_resources(af: &mut Dict, also: &[crate::fontdata::Std14]) {
         if af.get(b"DA").is_none() {
             af.insert(
                 Name::from(b"DA"),
@@ -24373,6 +24799,20 @@ impl EditSession {
                     crate::fontdata::Std14::Helvetica,
                 )),
             );
+        }
+        // ★ Any ADDITIONAL standard-14 face a `/DA` now names. Added here
+        // rather than at the write site so there is ONE place that decides
+        // what `/DR` `/Font` contains -- two would eventually disagree about
+        // whether a key was already present, and the loser writes a `/DA`
+        // naming a resource the other one did not author.
+        for extra in also {
+            let key = Self::std14_resource_key(*extra);
+            if fonts.get(key).is_none() {
+                fonts.insert(
+                    Name::from(key),
+                    Object::Dict(crate::vartext::standard14_font_dict(*extra)),
+                );
+            }
         }
         dr.insert(Name::from(b"Font"), Object::Dict(fonts));
         af.insert(Name::from(b"DR"), Object::Dict(dr));
@@ -43901,7 +44341,7 @@ impl EditSession {
                 fields.push(Object::Reference(root));
                 af.insert(Name::from(b"Fields"), Object::Array(fields));
             }
-            Self::ensure_default_resources(af);
+            Self::ensure_default_resources(af, &[]);
             if let Some((font_name, font_id)) = &install {
                 let mut dr = match af.get(b"DR") {
                     Some(Object::Dict(d)) => d.clone(),

@@ -5851,6 +5851,41 @@ enum Command {
         /// the page. `list-fields` prints the whole Ff word.
         #[arg(long)]
         no_export: Option<bool>,
+        /// `/DA` font — the face the field's VALUE is drawn in. One of the
+        /// standard 14: helvetica, helvetica-bold, helvetica-oblique,
+        /// helvetica-bold-oblique, times, times-bold, times-italic,
+        /// times-bold-italic, courier, courier-bold, courier-oblique,
+        /// courier-bold-oblique, symbol, zapf-dingbats.
+        ///
+        /// pdfcer adds the font to the form's default resources, so the name
+        /// always resolves. To use a face the document already embeds, pass
+        /// its resource key with `--font-resource` instead.
+        ///
+        /// Requires `--font-size`. Changing any of the three redraws the
+        /// field, so the text you see matches what the file says.
+        #[arg(long, value_name = "NAME")]
+        font: Option<String>,
+        /// `/DA` font, named by a resource key ALREADY in the form's `/DR`
+        /// `/Font` — an embedded face the document's own author put there.
+        ///
+        /// REFUSED if the key is not there, listing what is. pdfcer will not
+        /// write a `/DA` naming a font that does not resolve: the field would
+        /// draw in a substituted face, look normal, and be wrong.
+        #[arg(long, value_name = "KEY", conflicts_with = "font")]
+        font_resource: Option<String>,
+        /// `/DA` size in points. `0` means AUTO — the reader fits the text to
+        /// the box, which is what Acrobat calls Auto and what a new text
+        /// field defaults to.
+        #[arg(long, value_name = "PT")]
+        font_size: Option<f64>,
+        /// `/DA` text colour: one number for gray, three for RGB, four for
+        /// CMYK, comma separated, each 0-1. Defaults to black.
+        ///
+        /// This is the colour of the VALUE's glyphs. The box's own fill and
+        /// border are `edit-widget --background` and `--border-color`, a
+        /// different dictionary entirely.
+        #[arg(long, value_name = "G|R,G,B|C,M,Y,K")]
+        font_color: Option<String>,
         /// Replace a choice field's option list. Repeatable, in order.
         /// `Label` for a plain option, or `export=Label` when the submitted
         /// value differs from what the operator sees.
@@ -10644,6 +10679,10 @@ fn run() -> ExitCode {
             default_value,
             clear_default_value,
             no_export,
+            font,
+            font_resource,
+            font_size,
+            font_color,
             output,
             mode,
         } => cmd_edit_field(&EditFieldArgs {
@@ -10667,6 +10706,10 @@ fn run() -> ExitCode {
             default_value: default_value.as_deref(),
             clear_default_value,
             no_export,
+            font: font.as_deref(),
+            font_resource: font_resource.as_deref(),
+            font_size,
+            font_color: font_color.as_deref(),
             options: &options,
             output: &output,
             mode,
@@ -30534,6 +30577,56 @@ fn cmd_add_check_box(args: &AddCheckBoxArgs<'_>) -> u8 {
 /// `too_many_arguments` is right here: eighteen positional parameters, most
 /// of them `Option<bool>`, is a call site where two can be swapped without
 /// the compiler noticing.
+/// Parse a standard-14 face name for `--font`.
+///
+/// The names are pdfcer's own spelling, hyphenated and lower-case, rather
+/// than the PostScript `BaseFont` names (`Helvetica-BoldOblique`) -- a
+/// command line is typed by a person, and the PostScript names are
+/// case-sensitive in a way that produces a refusal for a shift key.
+fn parse_std14(name: &str) -> Option<pdfcer_core::fontdata::Std14> {
+    use pdfcer_core::fontdata::Std14 as F;
+    Some(match name.to_ascii_lowercase().as_str() {
+        "helvetica" | "helv" => F::Helvetica,
+        "helvetica-bold" => F::HelveticaBold,
+        "helvetica-oblique" | "helvetica-italic" => F::HelveticaOblique,
+        "helvetica-bold-oblique" | "helvetica-bold-italic" => F::HelveticaBoldOblique,
+        "times" | "times-roman" => F::TimesRoman,
+        "times-bold" => F::TimesBold,
+        "times-italic" | "times-oblique" => F::TimesItalic,
+        "times-bold-italic" | "times-bold-oblique" => F::TimesBoldItalic,
+        "courier" => F::Courier,
+        "courier-bold" => F::CourierBold,
+        "courier-oblique" | "courier-italic" => F::CourierOblique,
+        "courier-bold-oblique" | "courier-bold-italic" => F::CourierBoldOblique,
+        "symbol" => F::Symbol,
+        "zapf-dingbats" | "zapfdingbats" | "dingbats" => F::ZapfDingbats,
+        _ => return None,
+    })
+}
+
+/// Parse a `--font-color` argument: 1, 3 or 4 comma-separated components.
+///
+/// Unlike `/MK` colours there is no `none` here -- a `/DA` always states a
+/// colour, and Table 224 gives no spelling for "no colour" in a text-drawing
+/// operator. Black is the default when the flag is omitted.
+fn parse_text_colour(raw: &str) -> Option<pdfcer_core::vartext::TextColor> {
+    use pdfcer_core::vartext::TextColor as C;
+    let parts: Vec<f64> = raw
+        .split(',')
+        .map(|p| p.trim().parse::<f64>())
+        .collect::<Result<_, _>>()
+        .ok()?;
+    if !parts.iter().all(|v| v.is_finite()) {
+        return None;
+    }
+    match parts.as_slice() {
+        [g] => Some(C::Gray(*g)),
+        [r, g, b] => Some(C::Rgb(*r, *g, *b)),
+        [c, m, y, k] => Some(C::Cmyk(*c, *m, *y, *k)),
+        _ => None,
+    }
+}
+
 struct EditFieldArgs<'a> {
     input: &'a Path,
     name: &'a str,
@@ -30560,6 +30653,14 @@ struct EditFieldArgs<'a> {
     clear_default_value: bool,
     /// `Ff` bit 3, NoExport.
     no_export: Option<bool>,
+    /// A standard-14 face name for `/DA`.
+    font: Option<&'a str>,
+    /// A `/DR` `/Font` resource key for `/DA`.
+    font_resource: Option<&'a str>,
+    /// `/DA` size in points; 0 = auto.
+    font_size: Option<f64>,
+    /// `/DA` text colour, 1/3/4 components.
+    font_color: Option<&'a str>,
     options: &'a [String],
     output: &'a Path,
     mode: SaveMode,
@@ -30651,6 +30752,44 @@ fn cmd_edit_field(args: &EditFieldArgs<'_>) -> u8 {
     }
     if let Some(v) = args.no_export {
         edit = edit.with_no_export(v);
+    }
+
+    // `/DA`. All three parts travel together because the string carries all
+    // three -- writing a size without a face would mean inventing the face,
+    // which is the substitution this project refuses elsewhere.
+    if args.font.is_some() || args.font_resource.is_some() {
+        let Some(size) = args.font_size else {
+            eprintln!(
+                "pdfcer: --font/--font-resource needs --font-size (0 means auto-size, which is what a new text field uses)"
+            );
+            return exit::RUNTIME_ERROR;
+        };
+        let colour = match args.font_color {
+            None => pdfcer_core::vartext::TextColor::Gray(0.0),
+            Some(raw) => match parse_text_colour(raw) {
+                Some(c) => c,
+                None => {
+                    eprintln!(
+                        "pdfcer: --font-color {raw:?} -- expected 1 (gray), 3 (RGB) or 4 (CMYK) comma-separated components in 0-1"
+                    );
+                    return exit::RUNTIME_ERROR;
+                }
+            },
+        };
+        let appearance = if let Some(name) = args.font {
+            let Some(face) = parse_std14(name) else {
+                eprintln!(
+                    "pdfcer: --font {name:?} -- known: helvetica, helvetica-bold, helvetica-oblique, helvetica-bold-oblique, times, times-bold, times-italic, times-bold-italic, courier, courier-bold, courier-oblique, courier-bold-oblique, symbol, zapf-dingbats"
+                );
+                return exit::RUNTIME_ERROR;
+            };
+            pdfcer_core::edit::FieldAppearance::standard(face, size, colour)
+        } else {
+            // Unwrap-free: the branch is guarded by the `is_some()` above.
+            let key = args.font_resource.unwrap_or_default();
+            pdfcer_core::edit::FieldAppearance::resource(key.as_bytes().to_vec(), size, colour)
+        };
+        edit = edit.with_appearance(appearance);
     }
     if !args.options.is_empty() {
         let parsed: Vec<pdfcer_core::edit::ChoiceOption> = args
