@@ -229,7 +229,35 @@ scan() {
                 # aligned report column. Measured tree-wide before widening:
                 # 1 finding, the defect.
                 cli = index(code, "\"pdfcer: ")
-                prose = (in_error || was_error || cli)
+                # ★ AN ASSERTION MESSAGE IS PROSE TOO — widened 2026-09-08
+                # after this gate reported PASS on a test message carrying ten
+                # baked spaces, on the same commit where it had just CAUGHT a
+                # sibling line in the same file. The difference between the two
+                # was the character after the gap: a letter in the one it
+                # caught, a DIGIT in the one it missed, because the non-prose
+                # trailing class is `[A-Za-z]` while the prose one is `[^ ]`.
+                #
+                # Same structural argument as `#[error(...)]` and the CLI
+                # prefix: an assertion message is a sentence a human reads at
+                # the moment a test fails, never an aligned report column. It
+                # is also the place a lost continuation is LEAST likely to be
+                # noticed, because it is only ever read when something else is
+                # already wrong.
+                #
+                # Deliberately narrower than "widen the trailing class
+                # tree-wide". Measured before changing anything: widening the
+                # general class to admit digits took the tree from 14 findings
+                # to 26, and ELEVEN of the twelve new ones were DXF group-code
+                # strings (`" 70\n     1\n"`), whose fixed-width padding is
+                # required by the format. Scoped to assertions instead: 2
+                # findings, both real -- the line in this very file, and a lost
+                # continuation in `rotated_text.rs` that had been shipped for
+                # weeks. Fix the class, not the spelling that failed.
+                opens_assert = (index(code, "assert!(") || index(code, "assert_eq!(") || index(code, "assert_ne!("))
+                assertion = (opens_assert || in_assert)
+                if (opens_assert) in_assert = 1
+                prose = (in_error || was_error || cli || assertion)
+                if (in_assert && index(code, ");")) in_assert = 0
                 if (in_error && index(code, ")]")) in_error = 0
 
                 # ★ THE DISPLACED ESCAPE — added 2026-08-26 after this gate

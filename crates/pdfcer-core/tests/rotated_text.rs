@@ -673,7 +673,8 @@ fn the_editable_model_clusters_a_rotated_line_as_one_line() {
             (8, (-1.0, 0.0)),
             (8, (0.0, -1.0)),
         ],
-        "four lines, one per block. Before Pass 139.2 this was SIXTEEN — the          90 and 270 degree blocks were split into one line per letter"
+        "four lines, one per block. Before Pass 139.2 this was SIXTEEN — the \
+         90 and 270 degree blocks were split into one line per letter"
     );
 
     // ★ And every line's box must CONTAIN every glyph cell in it.

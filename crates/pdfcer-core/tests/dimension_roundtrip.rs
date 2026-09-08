@@ -1149,7 +1149,8 @@ fn a_placed_circular_ce_dimension_can_be_switched_to_diameter_after_the_fact() {
     };
     assert!(
         (number(&after_label) - 2.0 * number(&before_label)).abs() < 1e-6,
-        "the diameter reading must be exactly twice the radius one          (radius {before_label:?} -> diameter {after_label:?})"
+        "the diameter reading must be exactly twice the radius one \
+         (radius {before_label:?} -> diameter {after_label:?})"
     );
 
     let model = s.dimension_model();

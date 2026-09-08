@@ -282,6 +282,10 @@ fn a_closed_rectangle_is_one_polyline_with_the_close_flag() {
     // Group code 90 is the vertex count. `re` gives four corners; a fifth
     // would be the repeated-first-vertex mistake.
     assert!(
+        // string-gap-exempt: DXF group codes are FIXED-WIDTH by the format —
+        // ` 90` is a right-aligned group code and `       4` its right-aligned
+        // integer value. The padding is the wire format, not a lost line
+        // continuation, and rejoining it would break the assertion.
         dxf.contains(" 90\n       4"),
         "four vertices, with closure as a flag rather than a fifth point:\n{dxf}",
     );

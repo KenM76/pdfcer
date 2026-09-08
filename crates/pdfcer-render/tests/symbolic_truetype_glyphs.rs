@@ -191,15 +191,20 @@ fn a_non_embedded_symbolic_font_still_uses_its_differences() {
 
     assert!(
         non_ink > 0,
-        "the nonsymbolic control painted nothing, so this comparison proves          nothing about the symbolic case (sym={sym_ink}, non={non_ink})"
+        "the nonsymbolic control painted nothing, so this comparison proves \
+         nothing about the symbolic case (sym={sym_ink}, non={non_ink})"
     );
     assert_eq!(
         sym_ink, non_ink,
-        "the symbolic and nonsymbolic twins of the same text must paint the          same glyphs when NEITHER embeds a program -- a difference means the          symbolic one went to the substitute face's own cmap with raw codes          1..3, which are control positions (sym={sym_ink}, non={non_ink})"
+        "the symbolic and nonsymbolic twins of the same text must paint the \
+         same glyphs when NEITHER embeds a program -- a difference means the \
+         symbolic one went to the substitute face's own cmap with raw codes \
+         1..3, which are control positions (sym={sym_ink}, non={non_ink})"
     );
     assert_eq!(
         sym.diagnostics.glyphs_notdef, 0,
-        "codes 1..3 name /A /B /C through /Differences and a substitute face          has those glyphs; a notdef means the name chain never ran"
+        "codes 1..3 name /A /B /C through /Differences and a substitute face \
+         has those glyphs; a notdef means the name chain never ran"
     );
 }
 
@@ -224,10 +229,14 @@ fn a_nonsymbolic_twin_of_the_same_font_resolves_by_name_instead() {
 
     assert!(
         high > 0,
-        "a NONSYMBOLIC font's /Differences is authoritative -- the name chain          must reach the Mac-code glyphs (low={low}, high={high})"
+        "a NONSYMBOLIC font's /Differences is authoritative -- the name chain \
+         must reach the Mac-code glyphs (low={low}, high={high})"
     );
     assert_eq!(
         low, 0,
-        "ink in the symbolic branch's band on a NONSYMBOLIC font: the raw-code          lookup is being applied where the glyph name should win, which would          break every nonsymbolic embedded font whose built-in cmap disagrees          with its /Differences (low={low}, high={high})"
+        "ink in the symbolic branch's band on a NONSYMBOLIC font: the raw-code \
+         lookup is being applied where the glyph name should win, which would \
+         break every nonsymbolic embedded font whose built-in cmap disagrees \
+         with its /Differences (low={low}, high={high})"
     );
 }

@@ -533,7 +533,8 @@ fn all_process_spaces_reaches_rgb_and_the_narrower_scopes_do_not() {
     let (r1, _, _) = mark(&all);
     assert!(
         r1 < r0,
-        "preserving the backdrop's cyan must DARKEN the red, not lighten it:          {:?} -> {:?}",
+        "preserving the backdrop's cyan must DARKEN the red, not lighten it: \
+         {:?} -> {:?}",
         mark(&grey_only),
         mark(&all)
     );
