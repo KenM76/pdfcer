@@ -7147,6 +7147,52 @@ pub enum EditError {
         /// find on the page.
         subtype: String,
     },
+    /// The annotation carries **Table 165 bit 10, `LockedContents`**, and
+    /// the verb was asked to change its contents.
+    ///
+    /// Table 165's own words: *"If set, do not allow the contents of the
+    /// annotation to be modified."* Followed immediately by the sentence
+    /// that makes this a **separate** error from
+    /// [`Self::AnnotationLocked`] rather than a spelling of it: it *"does
+    /// not restrict deletion or other property changes."*
+    ///
+    /// # The two flags are near-opposites, and collapsing them is the
+    /// tempting mistake
+    ///
+    /// | flag | bit | forbids | permits |
+    /// |---|---|---|---|
+    /// | `Locked` | 8 | deletion, position, size, properties | **editing the comment text** |
+    /// | `LockedContents` | 10 | **editing the comment text** | deletion, moving, restyling |
+    ///
+    /// An implementation that raised one error for both would refuse a
+    /// legitimate edit in one direction and permit a forbidden one in the
+    /// other, on the same document, and neither would look wrong from
+    /// inside the verb that did it. The read model has carried
+    /// [`crate::annot::AnnotFlags::locked_contents`] since annotations
+    /// shipped; **nothing consulted it** until this variant existed, which
+    /// is what a flag with no display consequence looks like when it is
+    /// unenforced — every document behaves identically except the ones
+    /// where it matters.
+    ///
+    /// # Recovery
+    ///
+    /// Clear the flag first. That is a *property* change, which
+    /// `LockedContents` explicitly does **not** restrict — so unlike
+    /// [`Self::AnnotationLocked`], the remedy here is reachable inside
+    /// pdfcer: [`EditSession::set_annotation_flags`].
+    #[error(
+        "annotation {id} ({subtype}) has the LockedContents flag set (ISO 32000-1 12.5.3 \
+         Table 165 bit 10), which says its contents shall not be modified; clear the flag \
+         with set_annotation_flags first — note this is NOT the Locked flag, which instead \
+         forbids deletion and geometry changes and would still permit this edit"
+    )]
+    AnnotationContentsLocked {
+        /// The annotation that was asked for.
+        id: ObjId,
+        /// Its `/Subtype`, so the message names something the operator can
+        /// find on the page.
+        subtype: String,
+    },
     /// A reshape verb was given a vertex index the annotation does not
     /// have (`Pass 255.0`).
     ///
@@ -28197,8 +28243,11 @@ impl EditSession {
     ///
     /// [`EditError::DocumentEncrypted`], the certification gate, a
     /// non-existent or non-annotation target, a ce dimension or widget
-    /// (refused by name — both have verbs that own their text), and
-    /// [`EditError::MarkupDateMalformed`] if `/M` is not a §7.9.4 date.
+    /// (refused by name — both have verbs that own their text),
+    /// [`EditError::AnnotationContentsLocked`] if the annotation carries
+    /// Table 165 bit 10 (**not** bit 8 — `Locked` permits this edit and
+    /// forbids the geometry ones), and [`EditError::MarkupDateMalformed`]
+    /// if `/M` is not a §7.9.4 date.
     pub fn set_markup_note(
         &mut self,
         annot_id: ObjId,
@@ -28991,6 +29040,29 @@ impl EditSession {
                 subtype: "form widget".to_owned(),
                 use_instead: "edit_field(fqn, &FieldEdit::new().with_tooltip(..))",
                 why: "a widget's /Contents is its field's tooltip (§12.5.6.19), which belongs to the FIELD and may be shared by several widgets",
+            });
+        }
+
+        // ★ Table 165 bit 10, `LockedContents`: *"do not allow the contents
+        // of the annotation to be modified."* This verb writes `/Contents`
+        // and `/T` — it IS the contents edit the clause names, and it is the
+        // only verb in the crate that is.
+        //
+        // NOT `Locked` (bit 8). The two flags forbid near-opposite things and
+        // Table 165 says so in the same breath: bit 10 *"does not restrict
+        // deletion or other property changes"*, and bit 8 restricts exactly
+        // those while saying nothing about the comment text. A verb that
+        // checked the wrong one would refuse a permitted edit on one document
+        // and permit a forbidden one on another, looking correct in both.
+        //
+        // `AnnotFlags::locked_contents` had existed since annotations shipped
+        // and NOTHING CONSULTED IT. That is what an unenforced flag with no
+        // display consequence looks like: every file behaves identically
+        // except the ones where it matters, so nothing ever surfaced it.
+        if target.flags.locked_contents() {
+            return Err(EditError::AnnotationContentsLocked {
+                id: annot_id,
+                subtype: subtype.clone(),
             });
         }
 
