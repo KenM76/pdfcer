@@ -117,7 +117,9 @@ FAMILY-WIDE ANNOTATION-GATE DEFECTS (`fad0d2d`) AND `Pass 263.0` DRAWS SIX
 CHECK-BOX/RADIO GLYPH STYLES AS VECTOR ARTWORK, DELIBERATELY EXCEEDING
 ACROBAT'S OWN FONT-DEPENDENT APPROACH (`dabdfa6`). `R245` MINTED FOR THE
 SHARED SHAPE OF ALL THREE DEFECTS; A DATED INSTANCE NOTE ADDED TO `R243`
-FOR THE DOC-COMMENT HALF OF THE FIRST ONE.**
+FOR THE DOC-COMMENT HALF OF THE FIRST ONE. ★ AMENDED SAME DAY —
+`PASS 262.1`'S FLAGGED CLI GAP CLOSES (`1ebad1e`), CAUGHT UNFILED BY
+`check-commits-filed.py` AT PUSH TIME.**
 
 **Sourcing (hard rule 8).** This dispatch supplied Read/Write/Edit/Glob/
 Grep/WebSearch/WebFetch — **no shell tool**, the fifth time today. **Facts
@@ -187,6 +189,29 @@ changed, including clearing Locked** — a lock undoable only outside the
 verb that set it would be a one-way door. New `AnnotationFlagsChange`
 outcome + `SetAnnotationFlags` command kind. **No CLI subcommand yet** —
 confirmed absent directly, a real gap under rule 11, not rounded up.
+
+**★ AMENDED same day (469th filing) — this flagged CLI gap is now CLOSED,
+`1ebad1e`.** The sentence above said *"No CLI subcommand yet … a real gap
+under rule 11, not rounded up"*; that was true when written and is now
+stale in the direction of the gap having closed, not widened. `pdfcer
+set-annotation-flags --page N --index N [--print] [--locked] …` takes the
+**whole flag word**, matching the engine verb's own reason for that shape
+— the bit VALUES are read from `AnnotFlags` rather than restated in the
+CLI layer, so a bit cannot end up numbered differently in the two places.
+Rule 4 bites here specifically because `/F` is **invisible** — an operator
+who hides an annotation sees nothing change on screen and has no other way
+to confirm it happened — so the CLI prints the before/after flag words
+unasked, and names two consequences by name: a newly-Locked annotation
+will now be refused by move/resize/rotate/restyle (with how to undo it),
+and a newly-Hidden one leaves nothing on the page to show it is still
+there. **Verified end to end through the binary, not only by unit test**:
+locking a stamp and then attempting to move it produced the Table 165
+refusal quoting the clause. `docs/core-api/` gained the verb's own row,
+the `/F`-is-now-writable note (carrying both Defect-1/Defect-2 gate
+fixes), the `/MK` colour pair in both directions, and `CheckStyle` — counts
+now **211 verbs**, 2,998 and 4,803 lines, `check-core-api-verbs` PASS. No
+new Pass ID — this is `Pass 262.1` itself, the flagged gap closing, not a
+sibling.
 
 **`Pass 262.2` — `/MK` widget colours, read and write were on opposite
 keys.** pdfcer had **written** `/BC` since field authoring shipped (hard-
@@ -273,13 +298,33 @@ stayed one.
 
 | ledger | before | after |
 |---|---|---|
-| Pass IDs | ceiling `260.0`; family `261.x` fully spent (`261.0`–`261.6`, Backlog); next free family `262.x` | **`Pass 262.0`–`262.2` and `263.0` MINTED AND SHIPPED IN ONE FILING** (`fad0d2d`, `dabdfa6`). Ceiling **`263.0`**, next free family `264.x` — **immediately spent the same filing** by the six Backlog sub-IDs above (`264.0`–`264.5`); true next free family after this filing is `265.x` |
+| Pass IDs | ceiling `260.0`; family `261.x` fully spent (`261.0`–`261.6`, Backlog); next free family `262.x` | **`Pass 262.0`–`262.2` and `263.0` MINTED AND SHIPPED IN ONE FILING** (`fad0d2d`, `dabdfa6`). Ceiling **`263.0`**, next free family `264.x` — **immediately spent the same filing** by the six Backlog sub-IDs above (`264.0`–`264.5`); true next free family after this filing is `265.x`. **Amended same day: `Pass 262.1`'s flagged CLI gap CLOSED (`1ebad1e`) — no new ID, same Pass** |
 | Standing rules | ceiling `R244`, next free `R245` | **`R245` MINTED** — a guard/key/disclosure applied to some of a family of sibling verbs and not the rest is untested until a test iterates the whole family. Ceiling **`R245`**, next free `R246`. Plus a **dated instance note on `R243`** for the doc-comment half of Defect 1 |
 | Decisions | ceiling `140`, next free `141` | **UNCHANGED** — no crate boundary, library choice or invariant redefinition this filing |
 | SESSION_LOG filings | `468` (last entry) | **`469`** |
-| `docs/FEATURES.md` | rows `:291`/`:295`/`:296` as of the 468th filing; no row for check-box styles or `set_annotation_flags` | two new *Implemented* rows, three rows amended, six new *Planned* rows (`Pass 264.0`–`264.5`) — all listed above |
-| Unreleased | `75793b5` + this role's 468th-filing commit (deliberately unreleased, `v0.45.0` stands) | plus `fad0d2d`, `dabdfa6` and this filing's own librarian commit — none released; `v0.45.0` still stands |
+| `docs/FEATURES.md` | rows `:291`/`:295`/`:296` as of the 468th filing; no row for check-box styles or `set_annotation_flags` | two new *Implemented* rows, three rows amended, six new *Planned* rows (`Pass 264.0`–`264.5`) — all listed above. **Amended same day: row `:276` (`set_annotation_flags`) `cli [ ]` → `cli [x]`, `1ebad1e`** |
+| Unreleased | `75793b5` + this role's 468th-filing commit (deliberately unreleased, `v0.45.0` stands) | plus `fad0d2d`, `dabdfa6` and this filing's own librarian commit — none released; `v0.45.0` still stands. **Amended same day: plus `1ebad1e` and this amendment's own librarian commit; `712c698` (`chore: 0.46.0`) staged and about to be pushed/released as `v0.46.0`, filed separately when it ships** |
 | Requests in `open/` | not independently re-verified this filing (no shell) | unchanged — not re-measured |
+
+**★ Amendment, same day — `1ebad1e` (`Pass 262.1`'s CLI half) was unfiled,
+caught by `tools/check-commits-filed.py` at push time.** It landed between
+the two commits this filing originally covered and this filing's own
+librarian commit, so it was neither the tip nor already covered — exactly
+the shape decision 121's release gate exists to catch. **Not treated as a
+new instance of `R209` or `R243`**: both the doc-comment gate
+(`check-public-fns-documented`, `set_annotation_flags` is `pub`, in its
+denominator) and the string-gap gate (`check-string-gaps`, twice) caught
+real defects in this same batch **before** commit, and the commits-filed
+gate caught the filing gap **before** push — three gates working exactly
+as designed, not a new failure mode. Judgment call made and recorded per
+the engineer's own invitation to make one: **no dated instance note
+added** to either rule. The backslash/backtick-eaten-by-shell instances
+(relayed by the engineer, not independently re-derived by this role this
+filing) are the same family of well-documented shell-mangling hazard
+already carrying cross-project RAG findings under `D:/dev/rag/rust/`
+(recorded at n >= 7 as of an earlier filing) — a further corroborating
+instance of an already-named mechanism, caught by the same gate class
+that caught the prior seven, does not earn its own note.
 
 **★★★★ 468th filing, 2026-09-07 — REFLOW'S TEN REFUSAL CAUSES ARE NOW A
 NAMED, RECOVERABLE DISCRIMINANT (`Pass 260.0`, `75793b5`), AND `RefusalKind`

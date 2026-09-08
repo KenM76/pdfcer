@@ -96947,7 +96947,17 @@ verified against disk.
   half of eight pre-existing read-only `/F` flag accessors. Whole-word API
   by design (Table 165's bits interact); refuses a `/Widget`; a Locked
   annotation's own flags can still be changed via this verb, including
-  clearing Locked. No CLI subcommand yet.
+  clearing Locked. **★ AMENDED same day: CLI half shipped `1ebad1e`** —
+  `set-annotation-flags --page N --index N [--print] [--locked] …`, bit
+  values read from `AnnotFlags` rather than restated in the shell; prints
+  before/after flag words unasked because `/F` is invisible on screen, and
+  names the Locked/Hidden consequences by name. Verified end to end
+  through the binary: locking a stamp then attempting to move it produced
+  the Table 165 refusal. `docs/core-api/` updated in the same commit
+  (211 verbs, 2,998/4,803 lines, `check-core-api-verbs` PASS). This commit
+  landed unfiled between the two commits above and this entry's own
+  librarian commit — caught by `tools/check-commits-filed.py` at push
+  time, not by this role.
 - `Pass 262.2` (`fad0d2d`) — `/MK` widget colours: pdfcer wrote `/BC` and
   never read it, read `/BG` (since `Pass 249.1`) and never wrote it.
   Neither direction round-tripped. Both directions now exist for both
@@ -97001,6 +97011,21 @@ verified against disk.
   `set-annotation-flags` CLI subcommand exists anywhere in `main.rs`,
   confirming the dispatch's own claim of a real CLI gap.
 
+**Findings + decisions (amendment, same day):**
+- Three gates caught three defects in the CLI-shipping batch that no
+  person caught first: `check-public-fns-documented` caught a doc-block
+  splice on `set_annotation_flags`'s neighbour; `check-string-gaps`
+  caught two backslash-continuation losses in operator-facing error
+  strings; `tools/check-commits-filed.py` caught `1ebad1e` itself landing
+  unfiled. **Judgment call, at the engineer's own invitation: no dated
+  instance note added to `R209` or `R243` for any of the three** — the
+  doc-splice gate worked correctly because the function was `pub` (in its
+  denominator, unlike the private-fn instance `R209` carries a note for),
+  and the backslash losses are a further corroborating instance of an
+  already-well-documented shell-mangling hazard (multiple existing
+  `D:/dev/rag/rust/` findings) rather than a new mechanism. Recorded here
+  as evidence the gates are correctly placed, not as a gap.
+
 **Still in flight:**
 - `Pass 264.0`–`264.5` — all six **NOT STARTED**.
 - A repo hook reportedly prevented a `git checkout` inside a command chain
@@ -97011,10 +97036,13 @@ verified against disk.
   not re-measured this filing — no shell tool available to this role.
 
 **For next session:**
-- **Engineer:** decide whether `set_annotation_flags` gets a CLI
-  subcommand this session or stays a documented core-only gap for now;
-  push `fad0d2d`/`dabdfa6` and this filing's librarian commit under the
-  standing push authorization (decision 090) when convenient.
+- **Engineer:** ~~decide whether `set_annotation_flags` gets a CLI
+  subcommand this session or stays a documented core-only gap for now~~ —
+  **done, same day, `1ebad1e`.** `v0.46.0` (`712c698`) is being cut
+  immediately after this amendment under the standing release
+  authorization (decision 121); push `fad0d2d`/`dabdfa6`/`1ebad1e`/`712c698`
+  and both librarian commits under the standing push authorization
+  (decision 090).
 - **Operator:** the two annotation bugs you'd have hit — a Locked markup
   that could still be dragged, and five error messages promising a refusal
   that never happened — are fixed. Check boxes and radio buttons can now
