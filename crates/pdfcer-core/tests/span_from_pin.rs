@@ -20,12 +20,23 @@
 //! A click-driven shell has exactly what the first lacks: it knows which
 //! operator was touched. It had no way to say so.
 //!
-//! ★ Reported by `pdfcer-gui` against a real 36-sheet SolidWorks set, and it
-//! explains an operator report that reads like flakiness — *"it only sometimes
-//! works"*. On the bill-of-materials sheet **122 runs** have text that repeats
-//! and `"1"` appears **108 times**; whether an edit worked depended on whether
-//! he happened to click a cell that was a single operator, or whose text was
-//! unique on the sheet.
+//! ## ★★ There is no known file on which this bites, and that is deliberate
+//!
+//! Requested by `pdfcer-gui` citing a bill-of-materials sheet an operator could
+//! not edit. **They retracted that motivation the same day, before this
+//! shipped.** The real cause was subset-embedded fonts carrying 46 of 95
+//! printable ASCII characters with every lowercase letter absent — he was
+//! typing letters the font does not have, and `UnsupportedFont` was right.
+//!
+//! They then measured this verb's actual population on all four of his sheets.
+//! A run must **both** repeat on the page **and** span more than one show
+//! operator: 57–133 of the first, 4–11 of the second, **intersection zero**.
+//!
+//! The gap is still real — it is a property of the API, not of one drawing —
+//! and the tests below are synthetic for exactly that reason. But this file
+//! does not claim it explains anybody's report, because it does not, and a
+//! retracted measurement left standing is what a later reader would cite as
+//! evidence.
 //!
 //! ## ★★ The reported location was one guard too late, and the truth is worse
 //!

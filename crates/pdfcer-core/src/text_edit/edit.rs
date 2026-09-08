@@ -371,9 +371,12 @@ pub struct EditRequest {
     /// A pin and a `find` answer two different questions, and until this flag
     /// a caller could only ask one of them at a time:
     ///
-    /// - **`find` alone** says *what* to edit and lets pdfcer scan for it —
-    ///   which, when the text repeats on the page, silently edits **whichever
-    ///   occurrence comes first**.
+    /// - **`find` alone** says *what* to edit and lets pdfcer pick an
+    ///   occurrence. ★ And **not** "the first one": `find_anchor` tries a
+    ///   single-operator match across the *whole page* before the spanning
+    ///   search runs, so a single-operator occurrence anywhere beats a
+    ///   spanning one above it — which makes a spanning run **unreachable**
+    ///   by `find` alone whenever a single-operator twin exists at all.
     /// - **a pin alone** says *where*, exactly — but confines the match to
     ///   that one operator, and a producer that emits one glyph per operator
     ///   will not have the whole run in any single one.
@@ -382,13 +385,26 @@ pub struct EditRequest {
     /// knows which operator the operator touched; it just had no way to say
     /// *"start here, and keep going"*.
     ///
-    /// ★ **Measured, on the reporting shell's own file** (a 36-sheet
-    /// SolidWorks set): on the bill-of-materials sheet, **122 runs** have text
-    /// that repeats on the page — `"1"` appears **108 times**. A quantity
-    /// column is close to the worst case for a page-scoped `find`, and the
-    /// operator's report was *"it only sometimes works"* — which is him
-    /// landing, or not, on a cell that happens to be a single operator or
-    /// happens to be unique.
+    /// ★★ **THIS PASS HAS NO KNOWN FILE ON WHICH IT BITES, AND THAT IS
+    /// RECORDED RATHER THAN QUIETLY DROPPED.**
+    ///
+    /// It was requested citing a bill-of-materials sheet an operator could not
+    /// edit. The requester **retracted that motivation the same day**, before
+    /// this shipped: the real cause was that his drawing's fonts are
+    /// subset-embedded and carry **46 of 95 printable ASCII characters with
+    /// every lowercase letter absent** — he was typing letters the font does
+    /// not have, and `UnsupportedFont` was correct.
+    ///
+    /// They then measured the population this verb addresses across all four
+    /// of his sheets. A run must **both** repeat on the page **and** span more
+    /// than one show operator: 57–133 of the first, 4–11 of the second, and
+    /// **the intersection is ZERO**.
+    ///
+    /// So the gap is real and precisely located — it is a property of the API,
+    /// not of one drawing — but the numbers that motivated it did not describe
+    /// it. Kept because someone will hit it; documented this way because a
+    /// motivating measurement that turned out to be empty is exactly the thing
+    /// a later reader would otherwise cite as evidence.
     ///
     /// # Deliberately opt-in
     ///

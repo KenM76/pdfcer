@@ -6548,15 +6548,13 @@ enum Command {
         /// operators, instead of having to lie inside the pinned one.
         ///
         /// This is the flag for text that **repeats on the page**. `--find`
-        /// alone edits whichever occurrence comes first; `--pin-span` alone
-        /// confines the match to one operator, and a producer that emits one
-        /// glyph per operator will not have the whole run in any single one.
-        /// Together, with this flag, they say *"this occurrence, and keep
-        /// going"*.
-        ///
-        /// A bill-of-materials quantity column is the worst case: on one real
-        /// 36-sheet drawing set, 122 runs on the BOM sheet have text that
-        /// repeats, and `1` appears 108 times.
+        /// alone lets pdfcer pick an occurrence — and not necessarily the
+        /// first: it prefers a match inside a SINGLE operator anywhere on the
+        /// page over one that spans operators above it, so a spanning run can
+        /// be unreachable by `--find` alone. `--pin-span` alone confines the
+        /// match to one operator, and a producer that emits one glyph per
+        /// operator will not have the whole run in any single one. Together,
+        /// with this flag, they say *"this occurrence, and keep going"*.
         ///
         /// Refused unless `--pin-span` is given, since it has nothing to
         /// start from otherwise.
