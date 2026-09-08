@@ -288,7 +288,15 @@ fn setting_no_export_leaves_the_other_flags_alone() {
 /// position" is the whole contract.
 #[test]
 fn the_four_advisory_flags_round_trip_at_their_table_228_positions() {
-    let cases: [(&str, fn(FieldEdit, bool) -> FieldEdit, u32); 4] = [
+    /// One advisory-flag case: the Table 228 name, the builder that sets it,
+    /// and the bit it must land on.
+    ///
+    /// Named rather than written inline because `clippy::type_complexity`
+    /// rejects the inline form under `-D warnings`, and a name is the better
+    /// shape anyway — the tuple's three slots are not self-describing.
+    type FlagCase = (&'static str, fn(FieldEdit, bool) -> FieldEdit, u32);
+
+    let cases: [FlagCase; 4] = [
         (
             "FileSelect",
             FieldEdit::with_file_select,
