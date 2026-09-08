@@ -2,7 +2,9 @@
 //!
 //! ## The flag that was read and never consulted
 //!
-//! ISO 32000-1 §12.5.3 Table 165 bit 10, `LockedContents` (value 1024,
+//! ISO 32000-1 §12.5.3 Table 165 bit 10, `LockedContents` (value **512** --
+//! bit N has value 2^(N-1), and 1024 is the wrong answer this project has now
+//! had to correct twice; the code has always been right, `1 << 9`,
 //! PDF 1.7): *"If set, do not allow the contents of the annotation to be
 //! modified."* Followed immediately by the sentence that makes it a separate
 //! gate rather than a synonym: it *"does not restrict deletion or other
@@ -19,7 +21,7 @@
 //! | flag | bit | value | forbids | permits |
 //! |---|---|---|---|---|
 //! | `Locked` | 8 | 128 | deletion, position, size, properties | **editing the comment text** |
-//! | `LockedContents` | 10 | 1024 | **editing the comment text** | deletion, moving, restyling |
+//! | `LockedContents` | 10 | 512 | **editing the comment text** | deletion, moving, restyling |
 //!
 //! They are close to complements. An implementation that raised one refusal
 //! for both would **refuse a permitted edit** on one document and **permit a
