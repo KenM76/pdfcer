@@ -1,0 +1,33 @@
+%PDF-1.7
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 200 200] /Resources << >> >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /Annots [4 0 R] >>
+endobj
+4 0 obj
+<< /Type /Annot /Subtype /FreeText /Rect [100 100 300 160] /Contents (the plain words) /DA (/Helv 12 Tf 0 g) /RC (<?xml version="1.0"?><body><p>THE RICH WORDS</p></body>) /DS (font: 12pt Helvetica) /AP << /N 5 0 R >> >>
+endobj
+5 0 obj
+<< /Type /XObject /Subtype /Form /BBox [0 0 200 60] /Resources << >> /Length 24 >>
+stream
+0 0 0 rg 0 0 200 60 re f
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000162 00000 n 
+0000000225 00000 n 
+0000000460 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+600
+%%EOF

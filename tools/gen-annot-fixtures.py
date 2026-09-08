@@ -253,6 +253,73 @@ def main() -> int:
         {4: b"<< /Type /Annot /Subtype /Circle /Rect [40 40 160 160] /IC [1 0 0] >>"},
     )
 
+    # -- /RC + /DS, the rich-text twin of /Contents (Pass 273.0) --------
+    #
+    # PDF stores a comment TWICE: `/Contents` is the plain string and `/RC`
+    # is a rich-text version of the same comment (12.7.3.4). 12.5.6.2 pairs
+    # them in as many words -- "Contents (or RC and DS)".
+    #
+    # pdfce writes `/Contents` and cannot author rich text, so an edit used
+    # to leave the two DISAGREEING. That is not lost content, it is WRONG
+    # content, and which one an operator sees depends on their reader.
+    #
+    # Two subtypes, because the consequence differs and only one of them
+    # carries `/DS` at all:
+    #   Square    Table 170 -- /RC is the POP-UP text. No /DS row exists.
+    #   FreeText  Table 174 -- /RC GENERATES THE APPEARANCE, and /DS is the
+    #             default style string. 12.7.3.4 NOTE 1 says every other
+    #             markup subtype "does not use a default style string".
+    #
+    # The rich text deliberately says something DIFFERENT from `/Contents`,
+    # so a test can tell "the stale value survived" from "the new value was
+    # copied into it" -- identical strings could not.
+    files["rich-text-square.pdf"] = one_page(
+        "/Annots [4 0 R]",
+        {
+            4: (
+                b"<< /Type /Annot /Subtype /Square /Rect [100 100 200 160] "
+                b"/Contents (the plain words) "
+                b"/RC (<?xml version=\"1.0\"?><body><p>THE RICH WORDS</p></body>) "
+                b"/C [0 0 1] /AP << /N 5 0 R >> >>"
+            ),
+            5: fill_ap((0, 0, 100, 60)),
+        },
+    )
+    # A `/Square` that NON-CONFORMANTLY carries `/DS`. Table 170 has no such
+    # row and 12.7.3.4 NOTE 1 says this subtype does not use one -- but real
+    # producers emit keys the standard does not define for a subtype, and
+    # pdfce's round-trip invariant says a key it does not own is not its to
+    # delete.
+    #
+    # ★ Without this file, "only FreeText loses /DS" is UNTESTABLE: a
+    # sabotage that dropped /DS on every subtype stayed green, because the
+    # ordinary Square has no /DS to lose and the removal reported nothing.
+    files["rich-text-square-stray-ds.pdf"] = one_page(
+        "/Annots [4 0 R]",
+        {
+            4: (
+                b"<< /Type /Annot /Subtype /Square /Rect [100 100 200 160] "
+                b"/Contents (the plain words) "
+                b"/RC (<?xml version=\"1.0\"?><body><p>THE RICH WORDS</p></body>) "
+                b"/DS (font: 12pt Helvetica) /C [0 0 1] /AP << /N 5 0 R >> >>"
+            ),
+            5: fill_ap((0, 0, 100, 60)),
+        },
+    )
+
+    files["rich-text-freetext.pdf"] = one_page(
+        "/Annots [4 0 R]",
+        {
+            4: (
+                b"<< /Type /Annot /Subtype /FreeText /Rect [100 100 300 160] "
+                b"/Contents (the plain words) /DA (/Helv 12 Tf 0 g) "
+                b"/RC (<?xml version=\"1.0\"?><body><p>THE RICH WORDS</p></body>) "
+                b"/DS (font: 12pt Helvetica) /AP << /N 5 0 R >> >>"
+            ),
+            5: fill_ap((0, 0, 200, 60)),
+        },
+    )
+
     # -- /BM, a blend mode pdfce would never author (Pass 264.x) --------
     # A `/Square` carrying `/BM /Darken`. `/Darken` is chosen precisely
     # because no pdfce authoring path writes it: pdfce writes `/BM

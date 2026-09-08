@@ -32098,6 +32098,19 @@ fn cmd_set_markup_note(
             "unchanged (this subtype does not paint its /Contents)"
         }
     );
+    // ★ Rule 11 again, and this one is a DROP the operator did not ask for.
+    // A stale `/RC` would have left the pop-up -- or, on a `/FreeText`, the
+    // page itself -- showing the OLD comment while `/Contents` held the new
+    // one. pdfcer cannot author rich text, so it removes the copy it can no
+    // longer keep true, and says which keys went.
+    if !change.rich_text_dropped.is_empty() {
+        println!(
+            "  rich_text_dropped={} (this annotation carried a rich-text copy of the same comment; \
+             pdfcer cannot author rich text, so it removed the copy rather than leave it saying \
+             the old words)",
+            change.rich_text_dropped.join(",")
+        );
+    }
     finish_edit(input, &saved)
 }
 

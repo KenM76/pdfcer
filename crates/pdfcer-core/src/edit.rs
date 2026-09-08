@@ -17898,6 +17898,47 @@ pub struct MarkupNoteChange {
     /// Rule 4 — the operator is told off-canvas which half moved, rather
     /// than discovering it by reading the page.
     pub appearance_rebaked: bool,
+    /// The **rich-text** keys this edit had to drop: `RC`, and on a
+    /// `/FreeText` also `DS` (`Pass 273.0`). Empty is the ordinary case.
+    ///
+    /// # ★★ Why dropping them is better than keeping them
+    ///
+    /// PDF stores a comment twice over. `/Contents` is the plain string;
+    /// **`/RC` is a rich-text version of the same comment** (§12.7.3.4, the
+    /// same grammar as a form field's `/RV`), and §12.5.6.2 pairs them
+    /// explicitly in its group-attribute list — *"`Contents` **or** (`RC` and
+    /// `DS`)"*.
+    ///
+    /// pdfcer writes `/Contents` and cannot author rich text. So before this
+    /// Pass, editing a note left the two **disagreeing**: `/Contents` held the
+    /// new words and `/RC` still held the old ones.
+    ///
+    /// That is worse than losing content — it is **wrong** content, stated
+    /// confidently, and which one an operator sees depends on their reader:
+    ///
+    /// - On any markup annotation, Table 170 says `/RC` is the text *"displayed
+    ///   in the pop-up window when the annotation is opened"* — so the pop-up
+    ///   showed the old comment.
+    /// - On a `/FreeText`, Table 174 says `/RC` is *"used to generate the
+    ///   appearance"* — so **the page itself** could show the old words.
+    ///
+    /// Measured on both subtypes before the fix: `/Contents` updated, `/RC`
+    /// stale, and the report said nothing.
+    ///
+    /// # Why removed rather than regenerated
+    ///
+    /// Synthesising `/RC` from the plain text would invent formatting the
+    /// operator never chose. An absent key is the unambiguous way to say
+    /// *"this annotation has no rich version"*, and §12.7.3.4 gives no
+    /// meaning to an empty one — the same reasoning the forms side already
+    /// uses when a plain `/V` replaces a rich `/RV`.
+    ///
+    /// `/DS` goes with `/RC` **only on `/FreeText`**, because §12.7.3.4
+    /// NOTE 1 is explicit that other markup subtypes *"do not use a default
+    /// style string"* — Table 170 has no `/DS` row at all. Writing or
+    /// removing one elsewhere would assert a key the standard does not define
+    /// for that subtype.
+    pub rich_text_dropped: Vec<String>,
 }
 
 /// What a page's `/Tabs` entry (ISO 32000-1 §7.7.3.3 Table 30, values in
@@ -29109,6 +29150,43 @@ impl EditSession {
             }
         }
 
+        // ★★ THE RICH-TEXT TWIN, WHICH USED TO BE LEFT SAYING THE OLD WORDS.
+        //
+        // `/RC` is a rich-text version of THIS SAME COMMENT (§12.7.3.4), and
+        // §12.5.6.2 pairs the two in as many words: "Contents (or RC and DS)".
+        // pdfcer writes `/Contents` and cannot author rich text, so leaving
+        // `/RC` behind left the annotation carrying two different comments and
+        // told nobody.
+        //
+        // Not a lost value -- a WRONG one, and which the operator sees depends
+        // on their reader: Table 170 makes `/RC` the pop-up text on any markup
+        // annotation, and Table 174 makes it APPEARANCE-BEARING on a
+        // `/FreeText`, where the page itself can show the stale words.
+        //
+        // Removed rather than regenerated: synthesising `/RC` from plain text
+        // would invent formatting nobody chose, and §12.7.3.4 gives no meaning
+        // to an empty rich value. This is the same trade the forms side
+        // already makes when a plain `/V` replaces a rich `/RV`, with the same
+        // reasoning written at that site -- the guard existed for fields and
+        // not for annotations, which is the shape `R245` names.
+        //
+        // `/DS` only on `/FreeText`: §12.7.3.4 NOTE 1 says other markup
+        // subtypes "do not use a default style string", and Table 170 has no
+        // `/DS` row, so touching one elsewhere would assert a key the standard
+        // does not define there.
+        let mut rich_text_dropped = Vec::new();
+        {
+            let mut drop_keys: Vec<&[u8]> = vec![b"RC"];
+            if target.subtype == b"FreeText" {
+                drop_keys.push(b"DS");
+            }
+            for key in drop_keys {
+                if updated.remove(key).is_some() {
+                    rich_text_dropped.push(String::from_utf8_lossy(key).into_owned());
+                }
+            }
+        }
+
         // ★ A `/FreeText`'s `/Contents` IS its painted words, so the
         // dictionary edit above is only half the act. Re-bake the
         // appearance from the new text — in the SAME command, so the two
@@ -29164,6 +29242,7 @@ impl EditSession {
             replaced_author,
             keys_written,
             appearance_rebaked,
+            rich_text_dropped,
         })
     }
 
