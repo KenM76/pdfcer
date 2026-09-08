@@ -524,6 +524,13 @@ pub enum CommandKind {
     /// that labels its undo stack would otherwise tell the operator the
     /// wrong one.
     SetAnnotationOpen,
+    /// [`EditSession::set_annotation_flags`] rewrote an annotation's `/F`
+    /// display flags (Table 165).
+    ///
+    /// Its own variant for `SetAnnotationOpen`'s reason: undoing this
+    /// restores VISIBILITY, and a shell labelling its undo stack must not
+    /// call that "note" or "window state".
+    SetAnnotationFlags,
     /// [`EditSession::set_text_annot_style`] changed a text-bearing
     /// annotation's icon or colour and re-baked its appearance.
     SetTextAnnotStyle,
@@ -16293,6 +16300,29 @@ pub struct TextAnnotStyleChange {
     pub appearance_was_foreign: bool,
 }
 
+/// What [`EditSession::set_annotation_flags`] changed (ISO 32000-1 §12.5.3
+/// Table 165).
+///
+/// Carries **before and after as whole flag words** rather than a list of
+/// what moved. The bits interact — `NoView` with `Print` means *prints but is
+/// not on screen* — so a per-bit diff would describe the edit and not the
+/// resulting state, and the resulting state is what an operator is looking
+/// at. A caller wanting the diff XORs the two.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct AnnotationFlagsChange {
+    /// The `/Subtype`, so a message names something findable on the page.
+    pub subtype: String,
+    /// The complete `/F` word before the call. An absent `/F` reads as `0`,
+    /// which is Table 165's own default and not an invention.
+    pub before: crate::annot::AnnotFlags,
+    /// The complete `/F` word after it — exactly what was asked for; this
+    /// verb neither masks nor validates bits it does not model, because
+    /// Table 165 leaves bits 12+ reserved and a producer may legitimately
+    /// carry one pdfcer has no name for.
+    pub after: crate::annot::AnnotFlags,
+}
+
 /// What [`EditSession::set_annotation_open`] did.
 ///
 /// Two booleans rather than one, because `/Open` lives on up to two objects
@@ -19033,6 +19063,45 @@ pub struct WidgetEdit {
     /// caption is drawn into its plate, so writing `/MK` `/CA` alone left the
     /// button showing its previous word.
     pub caption: Option<String>,
+    /// `/MK` `/BG` — the widget's **background (fill) colour** (Table 189).
+    ///
+    /// `Some(MkColor::None)` writes the empty array, which Table 189 defines
+    /// as *"no colour"* and which is **not** the same as removing the key —
+    /// the same three-state contract [`crate::forms::Widget::background`]
+    /// reads back, so a value survives a round trip unchanged.
+    ///
+    /// On a check box or radio button this is the fill behind the tick, which
+    /// is the property an operator reaches for most often after the box
+    /// itself.
+    pub background: Option<crate::forms::MkColor>,
+    /// `/MK` `/BC` — the widget's **border colour** (Table 189).
+    ///
+    /// # ★★ Both of these existed on ONE side each until 2026-09-07
+    ///
+    /// pdfcer **wrote** `/BC` at field creation — hard-coded black — and never
+    /// read it; it **read** `/BG` and never wrote it. Read and write sat on
+    /// opposite keys of the same dictionary, so a shell could see a background
+    /// colour it could not change and change a border colour it could not see.
+    /// Neither key round-tripped. These two fields and
+    /// [`crate::forms::Widget::border_color`] close it in both directions.
+    ///
+    /// ★ **Not `/BS`.** [`Self::border`] is the border's *style and width*
+    /// (Table 166); this is its *colour* (Table 189). Different dictionaries,
+    /// independently present, and a caller that conflates them draws the wrong
+    /// box.
+    ///
+    /// # The honest limit, unchanged and restated because it still applies
+    ///
+    /// **pdfcer's own renderer does not paint `/MK` colours.** R43 makes
+    /// `/MK`-without-`/AP` the canonical named-not-painted case, and painting
+    /// them would mean changing the shared appearance builder that fill also
+    /// uses — every refilled field in every document would gain a border it
+    /// never had — or building a second generator, which `R92` forbids. So
+    /// this writes a value that conforming viewers honour and pdfcer itself
+    /// displays no differently. That was already true of the hard-coded black;
+    /// making it settable does not make it more true, and the alternative is a
+    /// file less complete than Acrobat's for no gain.
+    pub border_color: Option<crate::forms::MkColor>,
     /// **How the resize treats things that are not the box** — the same three
     /// answers [`ResizeOptions`] carries, for the same reasons, spelled
     /// identically (`Pass 187.0`).
@@ -19226,6 +19295,27 @@ impl WidgetEdit {
     #[must_use]
     pub fn with_caption(mut self, caption: impl Into<String>) -> Self {
         self.caption = Some(caption.into());
+        self
+    }
+
+    /// Set `/MK` `/BG` — the widget's background (fill) colour.
+    ///
+    /// Pass [`crate::forms::MkColor::None`] to write Table 189's empty array,
+    /// which states *no colour* and is not the same as the key being absent.
+    #[must_use]
+    pub fn with_background(mut self, colour: crate::forms::MkColor) -> Self {
+        self.background = Some(colour);
+        self
+    }
+
+    /// Set `/MK` `/BC` — the widget's border colour.
+    ///
+    /// Not the border's *style or width*, which is [`Self::with_border`]
+    /// (`/BS`, Table 166). The two are independent dictionaries and a widget
+    /// may carry either without the other.
+    #[must_use]
+    pub fn with_border_color(mut self, colour: crate::forms::MkColor) -> Self {
+        self.border_color = Some(colour);
         self
     }
 
@@ -22284,25 +22374,43 @@ impl EditSession {
         if let Some(visibility) = edit.visibility {
             updated.insert(Name::from(b"F"), Object::Integer(visibility.flags()));
         }
-        if let Some(caption) = &edit.caption {
-            // `/MK` is a dictionary of appearance characteristics (Table 189)
-            // and the caption is one entry in it. PRESERVED-AND-PATCHED
-            // rather than replaced: `/MK` also carries `/BC`, `/BG`, `/R` and
-            // six more that pdfcer does not model (R43), and writing a fresh
-            // dictionary would silently delete an operator's border colour
-            // because pdfcer has no field for it.
+        // `/MK` is ONE dictionary of appearance characteristics (Table 189)
+        // and this verb can now touch three of its entries. They are applied
+        // in a single preserve-and-patch block rather than three, which is
+        // the `R243` shape: three blocks each reading `/MK`, each deciding
+        // independently whether the result is empty enough to remove, is
+        // three chances to disagree about one dictionary — and the one that
+        // ran last would win silently.
+        //
+        // PRESERVED-AND-PATCHED, not replaced: `/MK` also carries `/R` and
+        // six entries pdfcer does not model (R43), and writing a fresh
+        // dictionary would silently delete an operator's rotation or their
+        // alternate caption.
+        if edit.caption.is_some() || edit.background.is_some() || edit.border_color.is_some() {
             let mut mk = updated
                 .get(b"MK")
                 .and_then(Object::as_dict)
                 .cloned()
                 .unwrap_or_default();
-            if caption.is_empty() {
-                mk.remove(b"CA");
-            } else {
-                mk.insert(
-                    Name::from(b"CA"),
-                    Object::String(encode_text_string(caption)),
-                );
+            if let Some(caption) = &edit.caption {
+                if caption.is_empty() {
+                    mk.remove(b"CA");
+                } else {
+                    mk.insert(
+                        Name::from(b"CA"),
+                        Object::String(encode_text_string(caption)),
+                    );
+                }
+            }
+            // `MkColor::None` writes the EMPTY ARRAY -- Table 189's own
+            // spelling of "no colour" -- and is deliberately not the same as
+            // removing the key. `to_array` is the exact inverse of the
+            // `from_array` the read model uses, so a value round-trips.
+            if let Some(bg) = edit.background {
+                mk.insert(Name::from(b"BG"), bg.to_array());
+            }
+            if let Some(bc) = edit.border_color {
+                mk.insert(Name::from(b"BC"), bc.to_array());
             }
             if mk.is_empty() {
                 updated.remove(b"MK");
@@ -25085,6 +25193,34 @@ impl EditSession {
 
         let (target, _all) = self.locate_annotation(annot_id)?;
         let subtype = target.subtype_label();
+        // ★ Guard 1 (X10): ENCRYPTION, checked FIRST — before any subtype
+        // routing — because it is a DOCUMENT-level fact. On an encrypted file
+        // nothing can be edited, so answering a widget with "use rotate_widget
+        // instead" would send the operator to a verb that fails the same way.
+        // The refusal the caller can act on comes first.
+        //
+        // DOCUMENTED BY THIS VERB SINCE IT SHIPPED AND NEVER ENFORCED until
+        // 2026-09-07: the `# Errors` list promised `DocumentEncrypted` and no
+        // code path could produce it. An audit found the same hole in five
+        // verbs at once, so this is a class fix. Spelled inline to match the
+        // 64 other sites rather than introduce a second idiom for five.
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+        // ★ §12.5.3 Table 165 bit 8, and this verb is squarely inside the
+        // clause's own words: *"do not allow the annotation to be deleted or
+        // its properties (INCLUDING POSITION AND SIZE) to be modified"*.
+        // Position and size are exactly what the transform verbs change, and
+        // until 2026-09-07 all four of them ignored the flag while
+        // `set_markup_style`, `reshape_annotation` and the deletion guards
+        // honoured it — so a Locked markup could not be restyled and could be
+        // dragged anywhere. Found by an audit of the family, fixed as a class.
+        if target.flags.locked() {
+            return Err(EditError::AnnotationLocked {
+                id: annot_id,
+                subtype: String::from_utf8_lossy(&target.subtype).into_owned(),
+            });
+        }
 
         if matches!(
             self.delegated_route_for(annot_id, &target),
@@ -25437,6 +25573,35 @@ impl EditSession {
     ) -> Result<AnnotationRotate, EditError> {
         let (target, _all) = self.locate_annotation(annot_id)?;
         let subtype = target.subtype_label();
+        // ★ §12.5.3 Table 165 bit 8, and this verb is squarely inside the
+        // clause's own words: *"do not allow the annotation to be deleted or
+        // its properties (INCLUDING POSITION AND SIZE) to be modified"*.
+        // Position and size are exactly what the transform verbs change, and
+        // until 2026-09-07 all four of them ignored the flag while
+        // `set_markup_style`, `reshape_annotation` and the deletion guards
+        // honoured it — so a Locked markup could not be restyled and could be
+        // dragged anywhere. Found by an audit of the family, fixed as a class.
+        if target.flags.locked() {
+            return Err(EditError::AnnotationLocked {
+                id: annot_id,
+                subtype: String::from_utf8_lossy(&target.subtype).into_owned(),
+            });
+        }
+
+        // ★ Guard 1 (X10): ENCRYPTION, checked FIRST — before any subtype
+        // routing — because it is a DOCUMENT-level fact. On an encrypted file
+        // nothing can be edited, so answering a widget with "use rotate_widget
+        // instead" would send the operator to a verb that fails the same way.
+        // The refusal the caller can act on comes first.
+        //
+        // DOCUMENTED BY THIS VERB SINCE IT SHIPPED AND NEVER ENFORCED until
+        // 2026-09-07: the `# Errors` list promised `DocumentEncrypted` and no
+        // code path could produce it. An audit found the same hole in five
+        // verbs at once, so this is a class fix. Spelled inline to match the
+        // 64 other sites rather than introduce a second idiom for five.
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
 
         if !degrees.is_finite() {
             return Err(EditError::ResizeFactorInvalid {
@@ -25742,6 +25907,34 @@ impl EditSession {
     ) -> Result<AnnotationResize, EditError> {
         let (target, _all) = self.locate_annotation(annot_id)?;
         let subtype = target.subtype_label();
+        // ★ Guard 1 (X10): ENCRYPTION, checked FIRST — before any subtype
+        // routing — because it is a DOCUMENT-level fact. On an encrypted file
+        // nothing can be edited, so answering a widget with "use rotate_widget
+        // instead" would send the operator to a verb that fails the same way.
+        // The refusal the caller can act on comes first.
+        //
+        // DOCUMENTED BY THIS VERB SINCE IT SHIPPED AND NEVER ENFORCED until
+        // 2026-09-07: the `# Errors` list promised `DocumentEncrypted` and no
+        // code path could produce it. An audit found the same hole in five
+        // verbs at once, so this is a class fix. Spelled inline to match the
+        // 64 other sites rather than introduce a second idiom for five.
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+        // ★ §12.5.3 Table 165 bit 8, and this verb is squarely inside the
+        // clause's own words: *"do not allow the annotation to be deleted or
+        // its properties (INCLUDING POSITION AND SIZE) to be modified"*.
+        // Position and size are exactly what the transform verbs change, and
+        // until 2026-09-07 all four of them ignored the flag while
+        // `set_markup_style`, `reshape_annotation` and the deletion guards
+        // honoured it — so a Locked markup could not be restyled and could be
+        // dragged anywhere. Found by an audit of the family, fixed as a class.
+        if target.flags.locked() {
+            return Err(EditError::AnnotationLocked {
+                id: annot_id,
+                subtype: String::from_utf8_lossy(&target.subtype).into_owned(),
+            });
+        }
 
         // Same routing as `move_annotation`, and refusals for the same reason:
         // both destinations do strictly more than this verb would.
@@ -26676,6 +26869,41 @@ impl EditSession {
         // established and for the same reason.
         let (target, _all) = self.locate_annotation(annot_id)?;
         let subtype = target.subtype_label();
+        // ★ §12.5.3 Table 165 bit 8, and this verb is squarely inside the
+        // clause's own words: *"do not allow the annotation to be deleted or
+        // its properties (INCLUDING POSITION AND SIZE) to be modified"*.
+        // Position and size are exactly what the transform verbs change, and
+        // until 2026-09-07 all four of them ignored the flag while
+        // `set_markup_style`, `reshape_annotation` and the deletion guards
+        // honoured it. Found by an audit of the family, fixed as a class.
+        if target.flags.locked() {
+            return Err(EditError::AnnotationLocked {
+                id: annot_id,
+                subtype: String::from_utf8_lossy(&target.subtype).into_owned(),
+            });
+        }
+        // ★ Guard 1 (X10): ENCRYPTION, checked FIRST — before any subtype
+        // routing — because it is a DOCUMENT-level fact. On an encrypted file
+        // nothing can be edited, so answering a widget with "use rotate_widget
+        // instead" would send the operator to a verb that fails the same way.
+        // The refusal the caller can act on comes first.
+        //
+        // DOCUMENTED BY THIS VERB SINCE IT SHIPPED AND NEVER ENFORCED until
+        // 2026-09-07: the `# Errors` list promised `DocumentEncrypted` and no
+        // code path could produce it. An audit found the same hole in five
+        // verbs at once, so this is a class fix. Spelled inline to match the
+        // 64 other sites rather than introduce a second idiom for five.
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+        // ★ §12.5.3 Table 165 bit 8, and this verb is squarely inside the
+        // clause's own words: *"do not allow the annotation to be deleted or
+        // its properties (INCLUDING POSITION AND SIZE) to be modified"*.
+        // Position and size are exactly what the transform verbs change, and
+        // until 2026-09-07 all four of them ignored the flag while
+        // `set_markup_style`, `reshape_annotation` and the deletion guards
+        // honoured it — so a Locked markup could not be restyled and could be
+        // dragged anywhere. Found by an audit of the family, fixed as a class.
 
         // Route the two that already have richer verbs. Refused, not
         // delegated: `move_dimension` re-measures and `move_widget` reports
@@ -27643,6 +27871,104 @@ impl EditSession {
     /// assert!(change.annotation_written || change.popup_written);
     /// # Ok(()) }
     /// ```
+    /// Set an annotation's **`/F` display flags** (ISO 32000-1 §12.5.3
+    /// Table 165) — the write half of [`crate::annot::AnnotFlags`].
+    ///
+    /// # ★★ Why this exists: eight read accessors and no writer
+    ///
+    /// `AnnotFlags` has modelled `hidden`, `no_view`, `print`, `invisible`,
+    /// `no_zoom`, `no_rotate`, `locked` and `locked_contents` since the read
+    /// model shipped, `list-annotations` prints the raw word, and **nothing
+    /// could change any of them**. So an operator could see that a markup was
+    /// hidden and not un-hide it, could see it would not print and not make it
+    /// print, and — sharpest — could not LOCK anything, which made pdfcer's
+    /// own Locked gate unreachable from pdfcer.
+    ///
+    /// Found by an audit of the annotation family (2026-09-07) that also
+    /// found four transform verbs ignoring the Locked flag they were supposed
+    /// to honour. Both halves of that are fixed together, because a gate
+    /// nobody can set and a gate nobody checks fail in the same direction.
+    ///
+    /// # The whole word, deliberately
+    ///
+    /// This takes the complete flag set rather than per-bit setters. `/F` is
+    /// one integer and Table 165's bits interact — `NoView` and `Print`
+    /// together mean *prints but is not on screen*, a combination an operator
+    /// reaches deliberately — so a per-bit API would let a caller build a
+    /// state by a sequence of writes each of which is individually sensible
+    /// and whose result is not. Read [`crate::annot::Annotation::flags`],
+    /// modify, write back.
+    ///
+    /// # Refusals
+    ///
+    /// Encryption and the annotation-aware certification gate, as every
+    /// annotation verb takes them. **A widget is refused by name** — a
+    /// widget's visibility is `edit_widget`'s [`Visibility`], which writes the
+    /// same key through a four-combination type that cannot express a
+    /// contradictory pair, and two writers of one key with different
+    /// vocabularies is how a form field ends up in a state its own editor
+    /// cannot describe.
+    ///
+    /// ★ **A Locked annotation may still have its flags changed, including to
+    /// clear Locked itself.** That is deliberate and it is the only escape
+    /// hatch: Table 165's bit 8 restricts *"the annotation"*, and a lock that
+    /// could not be undone through the same API that set it would make the
+    /// flag a one-way door. The clause is about protecting content from
+    /// casual edits, not about sealing a file.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::DocumentEncrypted`], the certification gate,
+    /// [`EditError::AnnotationNotFound`], [`EditError::NotADictionary`], and
+    /// [`EditError::AnnotationMoveWrongVerb`] for a `/Widget`.
+    pub fn set_annotation_flags(
+        &mut self,
+        annot_id: ObjId,
+        flags: crate::annot::AnnotFlags,
+    ) -> Result<AnnotationFlagsChange, EditError> {
+        let (target, _all) = self.locate_annotation(annot_id)?;
+        let subtype = target.subtype_label();
+
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+        if target.subtype == b"Widget" {
+            return Err(EditError::AnnotationMoveWrongVerb {
+                subtype: "form widget".to_owned(),
+                use_instead: "edit_widget",
+                why: "a widget's /F is written through edit_widget's Visibility, a four-combination type that cannot express a contradictory pair; two writers of one key with different vocabularies is how a field reaches a state its own editor cannot describe",
+            });
+        }
+        self.check_certification_for_annotation()?;
+
+        let Some(Object::Dict(dict)) = self.value(annot_id) else {
+            return Err(EditError::NotADictionary {
+                id: annot_id,
+                key: "F",
+            });
+        };
+        let mut updated = dict.clone();
+        let before = target.flags;
+        updated.insert(Name::from(b"F"), Object::Integer(i64::from(flags.0)));
+
+        self.commit(Command {
+            kind: CommandKind::SetAnnotationFlags,
+            objects: vec![ObjectWrite {
+                id: annot_id,
+                before: self.state.get(&annot_id).cloned(),
+                after: Some(Object::Dict(updated)),
+            }],
+            removals: Vec::new(),
+            trailer: None,
+        });
+
+        Ok(AnnotationFlagsChange {
+            subtype,
+            before,
+            after: flags,
+        })
+    }
+
     pub fn set_annotation_open(
         &mut self,
         annot_id: ObjId,
@@ -27754,6 +28080,21 @@ impl EditSession {
     ) -> Result<MarkupNoteChange, EditError> {
         let (target, _all) = self.locate_annotation(annot_id)?;
         let subtype = target.subtype_label();
+
+        // ★ Guard 1 (X10): ENCRYPTION, checked FIRST — before any subtype
+        // routing — because it is a DOCUMENT-level fact. On an encrypted file
+        // nothing can be edited, so answering a widget with "use rotate_widget
+        // instead" would send the operator to a verb that fails the same way.
+        // The refusal the caller can act on comes first.
+        //
+        // DOCUMENTED BY THIS VERB SINCE IT SHIPPED AND NEVER ENFORCED until
+        // 2026-09-07: the `# Errors` list promised `DocumentEncrypted` and no
+        // code path could produce it. An audit found the same hole in five
+        // verbs at once, so this is a class fix. Spelled inline to match the
+        // 64 other sites rather than introduce a second idiom for five.
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
 
         // Same two refusals as the transform verbs, and for the same reason:
         // both destinations own their own text and doing less under this name

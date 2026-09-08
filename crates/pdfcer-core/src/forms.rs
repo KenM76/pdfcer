@@ -426,6 +426,28 @@ impl MkColor {
             _ => None,
         }
     }
+
+    /// Write this colour back as an `/MK` colour array — the exact inverse of
+    /// [`Self::from_array`].
+    ///
+    /// [`Self::None`] produces the **empty array**, which Table 189 defines as
+    /// *"no colour"*. That is deliberately not the same as removing the key,
+    /// and it is why this returns an array rather than an `Option`: a caller
+    /// wanting the key GONE removes it; a caller wanting it to say *no colour*
+    /// writes this.
+    ///
+    /// Round-trips exactly, DeviceCMYK included — it is never converted, on
+    /// the same reasoning that keeps [`Self::from_array`] from flattening it.
+    #[must_use]
+    pub fn to_array(self) -> Object {
+        let n = |v: f32| Object::Real(f64::from(v));
+        Object::Array(match self {
+            Self::None => Vec::new(),
+            Self::Gray(g) => vec![n(g)],
+            Self::Rgb(r, g, b) => vec![n(r), n(g), n(b)],
+            Self::Cmyk(c, m, y, k) => vec![n(c), n(m), n(y), n(k)],
+        })
+    }
 }
 
 /// One widget annotation of a field (ISO 32000-1 §12.5.6.19), modelled for
@@ -517,6 +539,26 @@ pub struct Widget {
     /// distinguishes. No default is substituted (`None` is a fact, not a value —
     /// see [`Self::border`]), and DeviceCMYK is never pre-converted to RGB.
     pub background: Option<MkColor>,
+    /// `/MK` `/BC` — the widget's **border colour** (Table 189).
+    ///
+    /// Same three-state contract as [`Self::background`]: `None` means the
+    /// key is absent, `Some(MkColor::None)` is an empty array explicitly
+    /// stating *no colour*, and DeviceCMYK is never pre-converted.
+    ///
+    /// # ★ Read only from 2026-09-07, and the gap it closes is instructive
+    ///
+    /// pdfcer had **written** this key since field authoring shipped — a
+    /// hard-coded black — and never read it. It had **read** `/BG` and never
+    /// written it. Read and write sat on opposite keys of the same
+    /// dictionary, so neither round-tripped: a shell could not learn the
+    /// border colour it was looking at, and could not change the background
+    /// colour it could see.
+    ///
+    /// ★★ **This is NOT the same as [`Self::border`]**, which is `/BS` —
+    /// the border's *style and width*. A widget can carry a border colour and
+    /// no border style, or the reverse; Table 189 and Table 166 are different
+    /// dictionaries and a caller that conflates them will draw the wrong box.
+    pub border_color: Option<MkColor>,
     /// `/MK` `/R` — the widget's **rotation**, in degrees **counterclockwise**
     /// relative to the page (ISO 32000-1 §12.5.6.19 Table 189 / ISO 32000-2
     /// Table 192), **as the file states it**. `None` when the file is silent
@@ -1607,6 +1649,16 @@ fn model_widget<G: ObjectGraph + ?Sized>(
         .as_ref()
         .and_then(|mk| mk.get(b"BG").map(|o| graph.resolve(o)))
         .and_then(MkColor::from_array);
+    // `/MK` `/BC` (Table 189). Read as of 2026-09-07, and the reason is the
+    // asymmetry itself: pdfcer has WRITTEN `/BC` since field creation shipped
+    // -- hard-coded black -- and never read it back, while it READ `/BG` and
+    // never wrote it. Read and write sat on opposite keys of one dictionary,
+    // so neither could be round-tripped and a shell could show a border
+    // colour it had no way to learn. Both directions now exist for both keys.
+    let border_color = mk
+        .as_ref()
+        .and_then(|mk| mk.get(b"BC").map(|o| graph.resolve(o)))
+        .and_then(MkColor::from_array);
     // `/MK` `/R` (Table 189 / 2.0 Table 192), `Pass 177.0`. Read now that
     // something CONSUMES it -- `EditSession::rotate_widget` writes it, and a
     // property pdfcer can write and cannot read is exactly the asymmetry
@@ -1637,6 +1689,7 @@ fn model_widget<G: ObjectGraph + ?Sized>(
         page,
         caption,
         background,
+        border_color,
         rotation,
         border,
         visibility: visibility_of(annot_flags),

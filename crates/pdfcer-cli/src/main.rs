@@ -5788,6 +5788,27 @@ enum Command {
         /// would leave the button showing its previous word.
         #[arg(long)]
         caption: Option<String>,
+        /// `/MK` `/BG` -- the widget's BACKGROUND (fill) colour. On a check
+        /// box or radio button this is the fill behind the tick.
+        ///
+        /// Accepts `none` (Table 189's empty array, which STATES no colour and
+        /// is not the same as the key being absent), one number for
+        /// DeviceGray, three for DeviceRGB or four for DeviceCMYK, comma
+        /// separated, each 0-1. CMYK is written as CMYK, never converted.
+        ///
+        /// NOTE: pdfcer's own renderer does not paint `/MK` colours -- R43
+        /// makes `/MK`-without-`/AP` the named-not-painted case. The value is
+        /// in the file for viewers that honour it.
+        #[arg(long, value_name = "none|G|R,G,B|C,M,Y,K")]
+        background: Option<String>,
+        /// `/MK` `/BC` -- the widget's BORDER COLOUR. Same spelling as
+        /// `--background`.
+        ///
+        /// Not `--border-style` or `--border-width`, which are `/BS`
+        /// (Table 166) -- the border's style and width. Different
+        /// dictionaries; a widget may carry either without the other.
+        #[arg(long, value_name = "none|G|R,G,B|C,M,Y,K")]
+        border_color: Option<String>,
 
         /// Scale `/BS /W` with the geometry. Off by default -- a line weight
         /// is a drafting convention, not a length in the scaled space.
@@ -10488,6 +10509,8 @@ fn run() -> ExitCode {
             border_width,
             visibility,
             caption,
+            background,
+            border_color,
             scale_stroke_width,
             keep_rect_differences,
             allow_appearance_distortion,
@@ -10502,6 +10525,8 @@ fn run() -> ExitCode {
             border_width,
             visibility: visibility.as_deref(),
             caption: caption.as_deref(),
+            background: background.as_deref(),
+            border_color: border_color.as_deref(),
             resize: pdfcer_core::edit::ResizeOptions::new()
                 .with_scale_stroke_width(scale_stroke_width)
                 .with_keep_rect_differences(keep_rect_differences)
@@ -20770,12 +20795,32 @@ widgets={} ap={} fillable={} readonly={} aa={} caption={caption} rich={rich}",
                 // write that invention back on the first press. The same distinction
                 // `border` makes one column to the left.
                 let rotation = w.rotation.map_or_else(|| "-".to_owned(), |d| d.to_string());
+                // `/MK` `/BG` and `/BC` (Table 189). `-` is the key ABSENT;
+                // `none` is the empty array, which the standard defines as
+                // stating no colour. Different facts about the file, kept
+                // apart by the read model, so kept apart here too — the same
+                // distinction `border` and `rotation` already make.
+                //
+                // ★ `background` had been readable since `Pass 249.1` and was
+                // never printed, while `docs/FEATURES.md` claimed `cli [x]`
+                // for it. This line is what makes that tick true.
+                let mk_colour = |c: Option<pdfcer_core::forms::MkColor>| match c {
+                    None => "-".to_owned(),
+                    Some(pdfcer_core::forms::MkColor::None) => "none".to_owned(),
+                    Some(pdfcer_core::forms::MkColor::Gray(g)) => format!("{g}"),
+                    Some(pdfcer_core::forms::MkColor::Rgb(r, g, b)) => format!("{r},{g},{b}"),
+                    Some(pdfcer_core::forms::MkColor::Cmyk(c, m, y, k)) => {
+                        format!("{c},{m},{y},{k}")
+                    }
+                };
                 println!(
                     "  widget {i} obj={} rect={rect} border={border} rotation={rotation} \
-visibility={visibility} flags=0x{:X} state={state} merged={}",
+visibility={visibility} flags=0x{:X} state={state} merged={} background={} border_color={}",
                     w.id.num,
                     w.annot_flags.0,
                     u32::from(w.merged),
+                    mk_colour(w.background),
+                    mk_colour(w.border_color),
                 );
             }
         }
@@ -30456,6 +30501,43 @@ fn cmd_edit_field(args: &EditFieldArgs<'_>) -> u8 {
 }
 
 /// Everything `edit-widget` takes. Same reasoning as [`EditFieldArgs`].
+/// Parse an `/MK` colour argument into a [`pdfcer_core::forms::MkColor`].
+///
+/// Accepts `none` -> `MkColor::None`, which writes Table 189's **empty
+/// array**. That is the standard's own spelling of *"no colour"* and is
+/// deliberately NOT the same as the key being absent, so the CLI has to be
+/// able to say it -- otherwise an operator could set a colour and never clear
+/// it back to the state the file distinguishes.
+///
+/// Otherwise 1, 3 or 4 comma-separated numbers, matching Table 189's own
+/// component counts: DeviceGray, DeviceRGB, DeviceCMYK. CMYK is passed
+/// through as CMYK and never converted, because the count IS the colour
+/// space (the same argument `Annotation::color` makes for raw components).
+///
+/// `None` on any other shape -- an unparseable component, or a count of 2 or
+/// 5+, which Table 189 does not define. Refused rather than rounded to the
+/// nearest legal count.
+fn parse_mk_colour(raw: &str) -> Option<pdfcer_core::forms::MkColor> {
+    use pdfcer_core::forms::MkColor;
+    if raw.eq_ignore_ascii_case("none") {
+        return Some(MkColor::None);
+    }
+    let parts: Vec<f32> = raw
+        .split(',')
+        .map(|p| p.trim().parse::<f32>())
+        .collect::<Result<_, _>>()
+        .ok()?;
+    if !parts.iter().all(|v| v.is_finite()) {
+        return None;
+    }
+    match parts.as_slice() {
+        [g] => Some(MkColor::Gray(*g)),
+        [r, g, b] => Some(MkColor::Rgb(*r, *g, *b)),
+        [c, m, y, k] => Some(MkColor::Cmyk(*c, *m, *y, *k)),
+        _ => None,
+    }
+}
+
 struct EditWidgetArgs<'a> {
     input: &'a Path,
     name: &'a str,
@@ -30465,6 +30547,10 @@ struct EditWidgetArgs<'a> {
     border_width: Option<f64>,
     visibility: Option<&'a str>,
     caption: Option<&'a str>,
+    /// `/MK` `/BG`, as `none` or 1/3/4 comma-separated components.
+    background: Option<&'a str>,
+    /// `/MK` `/BC`, same spelling as `background`.
+    border_color: Option<&'a str>,
     /// How the resize treats stroke width, `/RD` and an appearance pdfcer
     /// cannot rebuild (`Pass 187.0`) — the same three answers
     /// `resize-annotation` takes.
@@ -30541,6 +30627,23 @@ fn cmd_edit_widget(args: &EditWidgetArgs<'_>) -> u8 {
     }
     if let Some(c) = args.caption {
         edit = edit.with_caption(c);
+    }
+    for (raw, which) in [
+        (args.background, "--background"),
+        (args.border_color, "--border-color"),
+    ] {
+        let Some(raw) = raw else { continue };
+        let Some(colour) = parse_mk_colour(raw) else {
+            eprintln!(
+                "pdfcer: {which} {raw:?} -- expected `none` (Table 189's empty array, which STATES                  no colour), or 1 (gray), 3 (RGB) or 4 (CMYK) comma-separated components in 0-1"
+            );
+            return exit::RUNTIME_ERROR;
+        };
+        edit = if which == "--background" {
+            edit.with_background(colour)
+        } else {
+            edit.with_border_color(colour)
+        };
     }
     edit = edit.with_resize(args.resize);
 
