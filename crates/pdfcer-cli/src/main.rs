@@ -5816,6 +5816,41 @@ enum Command {
         /// the order in which they occur".
         #[arg(long)]
         sort: Option<bool>,
+        /// `/Q` — how the field's text is justified: 0 left, 1 centred,
+        /// 2 right (ISO 32000-1 §12.7.4.3 Table 233).
+        ///
+        /// A value outside 0-2 is REFUSED, not clamped: Table 233 defines
+        /// exactly three, and clamping 7 to 2 would silently right-align a
+        /// field you meant to do something else with.
+        #[arg(long, value_name = "0|1|2")]
+        quadding: Option<i64>,
+        /// REMOVE `/Q`, which Table 233 defines as left-justified.
+        ///
+        /// Not the same as `--quadding 0`: that STATES left, this says the
+        /// file is silent. Both render left; only one survives a round trip
+        /// as what it was.
+        #[arg(long, conflicts_with = "quadding")]
+        clear_quadding: bool,
+        /// `/DV` — the default value `reset-form` restores.
+        ///
+        /// Until now `/DV` was readable and unwritable, so a reset could only
+        /// restore defaults some OTHER application had authored: a form
+        /// pdfcer built reset every field to empty whatever the author
+        /// intended.
+        #[arg(long)]
+        default_value: Option<String>,
+        /// REMOVE `/DV`, so a reset CLEARS this field instead of restoring a
+        /// value.
+        #[arg(long, conflicts_with = "default_value")]
+        clear_default_value: bool,
+        /// `Ff` bit 3 — NoExport: this field's value is NOT submitted by a
+        /// SubmitForm action (§12.7.4.1 Table 226).
+        ///
+        /// Changes what a submit SENDS, not what the operator sees, so it is
+        /// the kind of property you set once and cannot verify by looking at
+        /// the page. `list-fields` prints the whole Ff word.
+        #[arg(long)]
+        no_export: Option<bool>,
         /// Replace a choice field's option list. Repeatable, in order.
         /// `Label` for a plain option, or `export=Label` when the submitted
         /// value differs from what the operator sees.
@@ -10604,6 +10639,11 @@ fn run() -> ExitCode {
             multi_select,
             sort,
             options,
+            quadding,
+            clear_quadding,
+            default_value,
+            clear_default_value,
+            no_export,
             output,
             mode,
         } => cmd_edit_field(&EditFieldArgs {
@@ -10622,6 +10662,11 @@ fn run() -> ExitCode {
             editable,
             multi_select,
             sort,
+            quadding,
+            clear_quadding,
+            default_value: default_value.as_deref(),
+            clear_default_value,
+            no_export,
             options: &options,
             output: &output,
             mode,
@@ -30505,6 +30550,16 @@ struct EditFieldArgs<'a> {
     editable: Option<bool>,
     multi_select: Option<bool>,
     sort: Option<bool>,
+    /// `/Q` justification, 0-2; validated in the engine.
+    quadding: Option<i64>,
+    /// Remove `/Q` entirely.
+    clear_quadding: bool,
+    /// `/DV`, the value a reset restores.
+    default_value: Option<&'a str>,
+    /// Remove `/DV`, so a reset clears the field.
+    clear_default_value: bool,
+    /// `Ff` bit 3, NoExport.
+    no_export: Option<bool>,
     options: &'a [String],
     output: &'a Path,
     mode: SaveMode,
@@ -30581,6 +30636,21 @@ fn cmd_edit_field(args: &EditFieldArgs<'_>) -> u8 {
     }
     if let Some(v) = args.sort {
         edit = edit.with_sort(v);
+    }
+    if let Some(q) = args.quadding {
+        edit = edit.with_quadding(q);
+    }
+    if args.clear_quadding {
+        edit = edit.clearing_quadding();
+    }
+    if let Some(v) = args.default_value {
+        edit = edit.with_default_value(v);
+    }
+    if args.clear_default_value {
+        edit = edit.clearing_default_value();
+    }
+    if let Some(v) = args.no_export {
+        edit = edit.with_no_export(v);
     }
     if !args.options.is_empty() {
         let parsed: Vec<pdfcer_core::edit::ChoiceOption> = args

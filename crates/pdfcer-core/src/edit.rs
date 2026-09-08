@@ -6820,6 +6820,22 @@ pub enum EditError {
         /// Which of the two situations it was, in the operator's terms.
         why: &'static str,
     },
+    /// [`FieldEdit::quadding`] was given a value ISO 32000-1 §12.7.4.3
+    /// Table 233 does not define.
+    ///
+    /// Table 233 defines exactly three: `0` left-justified, `1` centred,
+    /// `2` right-justified. **Refused rather than clamped** — a fourth
+    /// value is not a justification pdfcer can name, and clamping `7` to
+    /// `2` would silently right-align a field the caller meant to do
+    /// something else with. The same posture the check-style parser takes
+    /// on an unknown name.
+    #[error(
+        "quadding {given} is not one of ISO 32000-1 12.7.4.3 Table 233's three values          (0 left, 1 centred, 2 right); nothing was changed"
+    )]
+    QuaddingInvalid {
+        /// What the caller asked for.
+        given: i64,
+    },
     /// A markup annotation was authored with geometry that names no point
     /// (an empty `/InkList`, an empty vertex list, or no quads). Refused
     /// rather than emit an empty appearance for a non-empty subtype, which
@@ -19043,6 +19059,65 @@ pub struct FieldEdit {
     /// with one more in it, which is also exactly what a properties pane
     /// holds.
     pub options: Option<Vec<ChoiceOption>>,
+    /// `/Q` — the **quadding**, i.e. how the field's text is justified
+    /// within its box (ISO 32000-1 §12.7.4.3 Table 233): `0` left, `1`
+    /// centred, `2` right.
+    ///
+    /// `Some(None)` REMOVES the key, which Table 233 defines as left —
+    /// distinct from writing `Some(Some(0))`, which states left explicitly.
+    /// The same three-state shape [`Self::max_len`] uses, and for the same
+    /// reason: absent and explicitly-default are different facts about a
+    /// file and a round trip must preserve which one it met.
+    ///
+    /// # Read-without-write until 2026-09-08
+    ///
+    /// `forms::Field::quadding` has been readable since the forms layer
+    /// shipped and **nothing could write it** — a shell could show that a
+    /// field was centred and offer no way to left-align it. Acrobat exposes
+    /// this on every text and choice field.
+    ///
+    /// ★ Values outside `0..=2` are **refused by name**
+    /// ([`EditError::QuaddingInvalid`]) rather than clamped: Table 233
+    /// defines exactly three, a fourth is not a justification pdfcer can
+    /// name, and clamping 7 to 2 would silently right-align a field the
+    /// caller meant to do something else with.
+    pub quadding: Option<Option<i64>>,
+    /// `/DV` — the field's **default value**, the one
+    /// [`EditSession::reset_form`] restores.
+    ///
+    /// `Some(None)` removes it, which makes a reset CLEAR the field
+    /// (`reset_form` already reads `/DV` and removes `/V` where there is
+    /// none). `Some(Some(text))` sets it.
+    ///
+    /// # Why this matters more than it looks
+    ///
+    /// `/DV` was readable and unwritable, so **`reset_form` could only ever
+    /// restore defaults some other application had authored**. A form pdfcer
+    /// built from scratch reset every field to empty regardless of what the
+    /// author intended, and there was no way to say otherwise.
+    ///
+    /// Written as a text string for `/Tx` and `/Ch`, and as a **name** for a
+    /// `/Btn` — Table 228's `/DV` takes the same type as `/V`, which is a
+    /// name for a button (its on-state or `/Off`) and a string elsewhere.
+    /// Writing a string onto a check box would produce a default no reader
+    /// could match against an appearance state.
+    pub default_value: Option<Option<String>>,
+    /// `Ff` bit 3 — **NoExport**: the field's value is not submitted by a
+    /// `SubmitForm` action (§12.7.4.1 Table 226).
+    ///
+    /// # It was defined and referenced nowhere
+    ///
+    /// `FieldFlags::NO_EXPORT` existed in the read model and **appeared in
+    /// no spec, no `FieldEdit`, and no CLI** — a flag pdfcer could see and
+    /// nothing could set. Acrobat exposes it on the General tab beside
+    /// ReadOnly and Required, which pdfcer has had since field editing
+    /// shipped.
+    ///
+    /// ★ It changes what a **submit** sends, not what the operator sees, so
+    /// it is exactly the kind of property a form author sets once and cannot
+    /// verify by looking at the page. `list-fields` prints the whole `Ff`
+    /// word, which is where it becomes checkable.
+    pub no_export: Option<bool>,
 }
 
 /// A **partial update to one widget's** properties (`Pass 134.0`) — the
@@ -19278,6 +19353,48 @@ impl FieldEdit {
     #[must_use]
     pub fn with_options(mut self, options: Vec<ChoiceOption>) -> Self {
         self.options = Some(options);
+        self
+    }
+
+    /// Set `/Q` — 0 left, 1 centred, 2 right (Table 233).
+    ///
+    /// Validated at APPLY time, not here, so the refusal carries the field
+    /// name and arrives through the same `Result` as every other refusal.
+    #[must_use]
+    pub fn with_quadding(mut self, q: i64) -> Self {
+        self.quadding = Some(Some(q));
+        self
+    }
+
+    /// REMOVE `/Q`, which Table 233 defines as left-justified.
+    ///
+    /// Distinct from `with_quadding(0)`: that states left explicitly, this
+    /// says the file is silent. A round trip must preserve which it met.
+    #[must_use]
+    pub fn clearing_quadding(mut self) -> Self {
+        self.quadding = Some(None);
+        self
+    }
+
+    /// Set `/DV`, the value [`EditSession::reset_form`] restores.
+    #[must_use]
+    pub fn with_default_value(mut self, v: impl Into<String>) -> Self {
+        self.default_value = Some(Some(v.into()));
+        self
+    }
+
+    /// REMOVE `/DV`, so a reset CLEARS the field rather than restoring a
+    /// value.
+    #[must_use]
+    pub fn clearing_default_value(mut self) -> Self {
+        self.default_value = Some(None);
+        self
+    }
+
+    /// Set or clear `Ff` bit 3 — NoExport (§12.7.4.1 Table 226).
+    #[must_use]
+    pub fn with_no_export(mut self, on: bool) -> Self {
+        self.no_export = Some(on);
         self
     }
 }
@@ -22608,6 +22725,16 @@ impl EditSession {
             });
         }
 
+        // Table 233 defines exactly three justifications. Refused rather than
+        // clamped: a fourth is not one pdfcer can name, and clamping 7 to 2
+        // would silently right-align a field the caller meant otherwise.
+        // Checked BEFORE anything is written, so a bad value changes nothing.
+        if let Some(Some(q)) = edit.quadding
+            && !(0..=2).contains(&q)
+        {
+            return Err(EditError::QuaddingInvalid { given: q });
+        }
+
         let ft = field.field_type;
         let is_text = ft == Some(forms::FieldType::Text);
         let is_choice = ft == Some(forms::FieldType::Choice);
@@ -22672,6 +22799,7 @@ impl EditSession {
         let mut flags = field.flags;
         for (touched, bit) in [
             (edit.required, forms::FieldFlags::REQUIRED),
+            (edit.no_export, forms::FieldFlags::NO_EXPORT),
             (edit.read_only, forms::FieldFlags::READ_ONLY),
             (edit.multiline, forms::FieldFlags::MULTILINE),
             (edit.password, forms::FieldFlags::PASSWORD),
@@ -22793,6 +22921,36 @@ impl EditSession {
         }
         if let Some(options) = &options_after {
             dict.insert(Name::from(b"Opt"), choice_opt_array(options));
+        }
+        // `/Q` (Table 233). `Some(None)` REMOVES the key, which the table
+        // defines as left -- not the same fact as an explicit 0, and a round
+        // trip must preserve which one it met.
+        match edit.quadding {
+            Some(Some(q)) => {
+                dict.insert(Name::from(b"Q"), Object::Integer(q));
+            }
+            Some(None) => {
+                dict.remove(b"Q");
+            }
+            None => {}
+        }
+        // `/DV` (Table 228). Its TYPE follows `/V`: a NAME for a button --
+        // an on-state or `/Off` -- and a text string everywhere else.
+        // Writing a string onto a check box would produce a default no
+        // reader could match against an appearance state.
+        match &edit.default_value {
+            Some(Some(v)) => {
+                let value = if ft == Some(forms::FieldType::Button) {
+                    Object::Name(Name::from(v.as_bytes()))
+                } else {
+                    Object::String(encode_text_string(v))
+                };
+                dict.insert(Name::from(b"DV"), value);
+            }
+            Some(None) => {
+                dict.remove(b"DV");
+            }
+            None => {}
         }
 
         let mut objects = vec![ObjectWrite {
