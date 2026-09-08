@@ -7141,6 +7141,47 @@ binding engineering discipline, not a style preference — see
 discipline" for the enforcement mechanics (`cargo fmt --check` and
 `cargo clippy -- -D warnings` clean before any Pass ships).
 
+### 8.1 A closed, stability-promised discriminant is not a shortcut for a new question
+
+*(Added 2026-09-07, 468th filing, `Pass 260.0` / `75793b5`. Created by
+**decision 140**, §12.)*
+
+**The rule.** When an existing public discriminant enum carries a written
+stability contract that its variant SET will not grow (buckets closed,
+what falls into them open — the inverse of the usual `#[non_exhaustive]`
+default, adopted deliberately per `text_edit::RefusalKind`, `Pass 249.0`),
+that enum is not the vehicle for a new, orthogonal classification question,
+even when it is the closest-shaped precedent in the crate. **A new sibling
+type is minted instead**, with a bridging method
+(`ErrorType::decline() -> SiblingEnum`) rather than a widened match arm.
+
+**Why the enum looks reusable when it is not.** The stability posture is a
+*written promise*, not a structural fact a reader can infer from the type
+alone — `RefusalKind` is an ordinary-looking public enum with no
+`#[non_exhaustive]` and four variants; nothing about its shape signals
+"do not add a fifth." The promise lives in a doc comment and a design note
+in its shipping Pass. **A closed-set discriminant's non-growth contract
+must be stated at the type's own definition**, or every future author who
+reaches for it as precedent has to re-derive, from a different question,
+that widening is off the table.
+
+**The distinguishing test, applied going forward.** Same question, new
+instance of an existing bucket → fine, that is what the promise permits.
+Different question that merely wants the same closed-set SHAPE → mint a
+sibling enum. `ReflowDecline` (`RetryAfterSaveAndReopen` /
+`StructureForbids` / `NotFound` / `NotReflowable`) answers *"is this
+refusal recoverable, and how"* — a question `RefusalKind`'s four buckets
+(what kind of thing went wrong) do not ask and every reflow refusal would
+have landed in exactly one of regardless. `ReflowApplyError::decline()`
+bridges the two; `is_recoverable()` is derived FROM `decline()`, never
+stored independently, so the two questions cannot answer inconsistently
+about the same error.
+
+**Forbidden refactor:** adding a variant to `RefusalKind` to express
+recoverability. Permitted: a new `ReflowApplyError` variant that maps into
+an *existing* `ReflowDecline` bucket via `decline()`'s match arms — that is
+exactly the "buckets closed, contents open" shape both enums now share.
+
 ## 9. Open-source dependencies & attribution
 
 pdfcer builds on the existing Rust/OSS ecosystem rather than
@@ -32534,3 +32575,126 @@ sense as *Shipped*). `grep -in "state_model\|StateModel\|review status"` over
 request being invisible to an audit that reads only `open/`), next free
 `R243`. **Pass ceiling `258.3` — UNCHANGED.** **Open operator questions: none
 minted — next free `(ce)`.**
+
+### 2026-09-07 (468th filing, `75793b5`) — decision 140: **AN ENUM WITH A WRITTEN NON-GROWTH PROMISE GETS A NEW SIBLING TYPE FOR AN ORTHOGONAL QUESTION, NOT A WIDENED VARIANT SET, EVEN WHEN IT IS THE CLOSEST-SHAPED PRECEDENT IN THE CRATE. FIRST INSTANCE: `text_edit::ReflowDecline` MODELS RECOVERABILITY SEPARATELY FROM `text_edit::RefusalKind` (`Pass 249.0`), WHICH IS NOT WIDENED**
+
+**(librarian filing, 468th. The engineer flagged this as decision-shaped in
+the dispatch — *"I lean yes... but decisions are yours to mint"* — and it is
+minted on that judgement. Every fact below is either verified directly by
+this role via `Grep`/`Read` on live source — no shell tool this dispatch —
+or explicitly relayed from the engineer's own test/gate run.)**
+
+**The decision, in one line.** *A closed-set discriminant's non-growth
+promise binds against ANY new concern, not only new instances of its
+existing one — the remedy for a new concern that wants the same shape is a
+sibling type, not a widened bucket set.*
+
+**What was decided, and each clause's warrant.**
+
+1. **`ReflowApplyError::Unsupported(String)` had carried ten distinct
+   refusal causes in one opaque string**, one of them — text added to the
+   page this session, `Pass 251.0`'s guard — recoverable by a save and
+   reopen, and the commonest cause reported. A shell with no discriminant
+   can only print the weakest sentence true of all ten, so the operator was
+   denied a remedy pdfcer already knew about. VERIFIED: `PageEditedThisSession`
+   is now its own `ReflowApplyError` variant, carved out with its sentence
+   byte-identical (`crates/pdfcer-core/src/text_edit/reflow_apply.rs:258`).
+2. **`RefusalKind`/`RefusalClass` (`Pass 249.0`) was the right SHAPE and the
+   requester's own named precedent, and is the WRONG VOCABULARY** —
+   `UnsupportedFont` / `StructureFrozen` / `NotFound` / `Other` answer *what
+   kind of thing went wrong*, and every one of the ten reflow refusals maps
+   to exactly one of those buckets regardless of recoverability. Widening
+   `RefusalKind` to express recoverability would have looked like an
+   answer, compiled, and told the caller nothing new.
+3. **`RefusalKind` could not grow a fifth bucket for this**, because its own
+   shipping Pass states a written stability contract — buckets are closed,
+   deliberately not `#[non_exhaustive]`, so a consumer's exhaustive `match`
+   is compiler-proved complete, and growing the set is a breaking change
+   the design explicitly rules out (a fifth-bucket proposal was already
+   declined once, `docs/ROADMAP.md`, 443rd filing). A recoverable reflow
+   case is not an exception to that promise; it is exactly the kind of
+   "we learned something new" pressure the promise exists to refuse.
+4. **A sibling type was minted instead**: `ReflowDecline`
+   (`RetryAfterSaveAndReopen` | `StructureForbids` | `NotFound` |
+   `NotReflowable`), bridged from `ReflowApplyError` by `.decline()`
+   (`reflow_apply.rs:352`), with `.is_recoverable()` (`:377`) **derived
+   FROM** `.decline()` rather than stored independently — verified directly:
+   `is_recoverable()`'s body is `matches!(self.decline(), ReflowDecline::RetryAfterSaveAndReopen)`,
+   so the two questions cannot answer inconsistently about the same error
+   by construction.
+5. **A silent-inheritance bug was caught and fixed on the way past.**
+   `pdfcer-cli`'s `cmd_reflow` exit-code match ended in a bare `_` arm
+   before this Pass; a new variant would have inherited `RUNTIME_ERROR`
+   silently, and the most recoverable refusal in the set would have exited
+   as if something had crashed. VERIFIED directly at
+   `crates/pdfcer-cli/src/main.rs:24370-24383`: `PageEditedThisSession` is
+   now listed explicitly (`exit::EDIT_REFUSED`), with a doc comment naming
+   the hazard by name — *"a new variant silently inheriting the catch-all
+   is how a correct engine change becomes a wrong exit code."* The CLI also
+   prints a distinct remedy sentence when `is_recoverable()` is true
+   (`main.rs:24355-24360`), sourced from the engine's own answer rather than
+   the shell's reading of the error's `Display` text.
+
+**Proof.** `crates/pdfcer-core/tests/reflow_decline.rs` — **5** tests
+(counted directly via `Grep "#\[test\]"`, not relayed). One existing test
+(`content_edit_no_duplication::reflow_refuses_after_text_was_added_rather_than_deleting_it`)
+changed its EXPECTATION, not its claim: it asserted `Unsupported(String)`
+containing `"added"` (the only handle available when `Pass 251.0` shipped)
+and now additionally asserts `is_recoverable()` — the original string
+assertion is untouched. Sabotage reverted the guard to
+`Unsupported(String)`; the construction-site test failed and named the
+defect, the other four in the new file stayed green.
+
+**Tests run this Pass (relayed, not independently re-run by this role — no
+`cargo` execution available):** `pdfcer-core --lib` 2,039; `reflow_decline`
+5; `content_edit_no_duplication` 3; `add_text` 18; `session_overlay_skew`
+10; `text_edit` 5; `pdfcer-cli --bin` 20; `reflow` 5;
+`inspect_reflow_preview` 11; `font_licence_notice` 3; `edit_text` 6 — **all
+0 failed.** This is **not** a full `cargo test --workspace` run; recorded as
+what was run, per hard rule 8.
+
+**Gates (relayed):** `fmt`, `clippy -p pdfcer-core -p pdfcer-cli
+--all-targets -D warnings`, `check-core-api-verbs` (`docs/core-api/index.md`
+bumped to a stated 4,802 lines / 152 clauses — **not independently
+re-measured this filing**, and flagged as such given `Pass 259.0`'s
+same-session finding that this document tree's own line citations are
+unreliable), `check-public-fns-documented`, `check-outcome-disclosed`,
+`check-clap-help`, `check-cli-help-leads`, `check-control-bytes`,
+`check-cited-verbs-exist`, `check-ledger-numbers`,
+`check-suite-name-absent` — all reported **PASS**.
+
+**What this decision does NOT decide.** Whether `pdfcer-gui` consumes
+`is_recoverable()`/`decline()` — not yet built, `FEATURES.md` row amended
+`core [x]` · `cli [x]` · `gui [ ]`; whether `docs/core-api` needs its own
+`ReflowDecline` section (owed, not confirmed done — `reflow_apply.rs` has
+no `core-api` cross-reference in its doc comments as of this filing,
+verified by grep); whether the same audit ("does an existing discriminant's
+stability contract get checked before reuse") should become a standing
+rule — considered and **declined at n=1**, same warrant this role has used
+before: one founding instance, however clean, does not by itself outrun a
+documented pattern already written into `RefusalKind`'s own shipping
+record and now restated here and in the cross-project RAG.
+
+**Origin.** `open/request_reflow_unsupported_is_ten_causes_in_one_string.md`
+(`pdfcer-gui`, 2026-09-07, against `v0.45.0` at `527b1523`). `R242` checked
+before scoping — grep of `ROADMAP.md` for the request filename returned
+zero hits; not previously scoped, `Pass 260.0` minted fresh. Reply written:
+`open/reply_2026-09-07-reflow-decline-SHIPPED.md`. **Not released** —
+`v0.45.0` stands; rides the next cut.
+
+**Body sections updated in this filing:** **§8.1** (new) — the API-design
+pattern this decision establishes, in the same fixed-shape convention
+§4.2's subsections use (rule stated, warrant, distinguishing test, forbidden
+refactor).
+
+**Cross-project record:**
+`D:/dev/rag/rust/an_enum_with_a_non_growth_promise_gets_a_sibling_type_not_a_widened_variant_set.md`
+— the generalised form for any Rust project reaching for an existing
+discriminant enum as a shortcut for a new classification question.
+
+**Decision ceiling: `139` → `140`**, next free `141`. **Standing rules
+ceiling `R244` — UNCHANGED**, next free `R245` (considered and declined at
+n=1, see above). **Pass ceiling `259.0` → `260.0`** (this Pass) **→
+`261.6`** (seven Backlog sub-IDs minted the same filing for an unrelated
+Acrobat-comment-type catalogue — see `ROADMAP.md` *Backlog*), next free
+family `262.x`.

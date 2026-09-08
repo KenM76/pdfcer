@@ -96794,3 +96794,230 @@ both commits rather than becoming a 467th filing.
   pdfcer's own test coverage that a released build had not yet hit. Not
   anything you would see. The rotation fix itself (`v0.45.0`) is unchanged
   and already on your OneDrive.
+
+## 2026-09-07 (468th filing) — reflow's ten refusal causes become a named, recoverable discriminant, and the requester's own precedent enum was correctly refused as the vehicle because it carries a written promise not to grow — decision 140 minted
+
+**★ Filing-count note, checked rather than assumed.** The dispatch for this
+filing stated "should be the 468th filing." Grepping `SESSION_LOG.md`'s own
+headers, the last one is the 466th (2026-09-07, rotation readers). But
+`ROADMAP.md`'s *Backlog* already carries a **467th-filing** entry
+(`Pass 259.0`, `docs/core-api/` line-citation integrity, filed but NOT
+STARTED) that has no `SESSION_LOG.md` counterpart — consistent with this
+role's own mode-1 protocol ("roadmap update — new request" does not
+mandate a `SESSION_LOG.md` append, only "pass shipped" does). So the
+filing counter is a single sequence across ALL invocation modes regardless
+of which documents a given filing touches, and **468 is correct** — not an
+error to flag as debt, just a discrepancy worth writing down since two
+independently-checkable documents briefly looked like they disagreed.
+
+**Shipped:**
+- `Pass 260.0` (`75793b5`) — `ReflowApplyError::PageEditedThisSession`
+  carved out of `Unsupported(String)`; new `ReflowDecline` enum
+  (`RetryAfterSaveAndReopen` / `StructureForbids` / `NotFound` /
+  `NotReflowable`); `.decline()` and `.is_recoverable()` (the latter
+  derived from the former). `pdfcer-cli`'s `cmd_reflow` exit-code match
+  now lists `PageEditedThisSession` explicitly rather than falling into a
+  bare `_` → `RUNTIME_ERROR`, and prints a distinct remedy sentence when
+  the refusal is recoverable. All verified directly against live source
+  (`crates/pdfcer-core/src/text_edit/reflow_apply.rs`,
+  `crates/pdfcer-cli/src/main.rs:24293-24384`), not relayed.
+
+**Decisions made this session:**
+- **`decision 140` minted** (`ARCHITECTURE.md` §12, new §8.1 body section):
+  a discriminant enum with a WRITTEN, shipped non-growth promise
+  (`RefusalKind`/`RefusalClass`, `Pass 249.0` — deliberately not
+  `#[non_exhaustive]`, "buckets do not churn") is the wrong vehicle for a
+  NEW classification question, even when the requester names it as
+  precedent and even when it is the closest-shaped type in the crate.
+  `ReflowDecline` answers *"is this recoverable"*, a different question
+  from `RefusalKind`'s *"what kind of thing went wrong"* — every one of
+  reflow's ten refusals would have landed in exactly one `RefusalKind`
+  bucket regardless of recoverability, so widening it would have compiled
+  and told the caller nothing. A sibling type, bridged by one method, was
+  minted instead. Standing rule considered and **declined at n=1** — the
+  pattern is already written down at `RefusalKind`'s own definition and in
+  the new §8.1; one clean founding instance doesn't yet outrun that.
+- Cross-project record written the same filing:
+  `D:/dev/rag/rust/an_enum_with_a_non_growth_promise_gets_a_sibling_type_not_a_widened_variant_set.md`
+  — the distinguishing test (same question/new instance → widen the
+  existing bucket set; different question/same shape → sibling type) for
+  any Rust project reaching for an existing discriminant as a shortcut.
+
+**Findings + decisions:**
+- **Origin:**
+  `open/request_reflow_unsupported_is_ten_causes_in_one_string.md`
+  (`pdfcer-gui`, against `v0.45.0`). `R242` checked before scoping — grep
+  of `ROADMAP.md` for the request filename returned zero hits, so
+  `Pass 260.0` is a fresh mint, not a duplicate of anything already scoped.
+  Reply written: `open/reply_2026-09-07-reflow-decline-SHIPPED.md`.
+- **A CLI bug caught on the way past, not manufactured for the filing**:
+  the pre-existing `_` catch-all in `cmd_reflow`'s exit-code match would
+  have silently classed any new `ReflowApplyError` variant —
+  `PageEditedThisSession` included — as `RUNTIME_ERROR`. Same shape this
+  role has flagged before: a new thing silently joining a catch-all.
+- **Sourcing (hard rule 8).** This dispatch supplied Read/Write/Edit/Glob/
+  Grep/WebSearch/WebFetch — no shell tool. Verified directly by this role
+  via `Grep`/`Read` on live source: the `ReflowDecline` enum and its two
+  methods, the CLI's explicit match arms and remedy string, the 5-test
+  count in `crates/pdfcer-core/tests/reflow_decline.rs`
+  (`Grep "#\[test\]"`). Relayed, not independently re-run: the full
+  workspace/per-crate test-suite pass counts, the gate list, and the
+  `docs/core-api/index.md` 4,802-line/152-clause figure — flagged
+  explicitly given `Pass 259.0`'s own same-session finding that this
+  document tree's line citations are systemically unreliable (0 of 6
+  correct in a strict sample).
+- **`docs/FEATURES.md` amended, not a new row** — the *Text* → "Reflow
+  within a block" row's refusal sentence rewritten to state the refusal is
+  now a named, recoverable discriminant. `core [x]` · `cli [x]` unchanged;
+  a caveat clause added noting `pdfcer-gui` has not yet consumed
+  `decline()`/`is_recoverable()` specifically, distinct from the row's
+  overall (already-`[x]`) `gui` box for reflow reachability itself.
+- **Second, unrelated matter in the same dispatch — the Acrobat
+  comment-type parity catalogue.** The operator directly challenged a
+  prior claim by this role that several annotation subtypes "can't be
+  created," made by reading two enums in `annot_author.rs` instead of
+  `docs/FEATURES.md` itself — a repeat, in miniature, of the exact
+  cross-RAG-visibility failure this role's own 466th-filing entry named
+  two paragraphs above (a deliverable filed in its producing tree and
+  never referenced from the consuming one). `pdfcer-acrobat-librarian`
+  dispatched (rule 12); catalogued all seven comment types into
+  `D:\Dev\Rag-Specialized\Acrobat_Features\`. **Four scoped to build in
+  order** (`Pass 261.0` `/FileAttachment`, `261.1` `/Caret`, `261.2`
+  `/Sound`, `261.3` `/Screen`) and **three refused by name with reasons
+  recorded rather than left silent**: `Pass 261.4` `/Movie` (Acrobat
+  itself abandoned it — the XFA-deprecation shape, not a pdfcer scope
+  call); `Pass 261.5` `/Watermark`-as-annotation (Acrobat's own watermark
+  tool never authors that annotation subtype at all — it paints page
+  content into a layer named "Watermark"; a real watermark feature is
+  page-content work, wrongly filed under annotations if scoped here);
+  `Pass 261.6` `/3D`/`/Projection` authoring (genuinely current in
+  Acrobat, unlike `/Movie` — refused on proportionality/scope, U3D/PRC
+  parsing, not abandonment; read/round-trip recommended, unmeasured).
+  Filed to `ROADMAP.md` *Backlog* with the RAG filenames cited in each
+  entry, and to `docs/FEATURES.md`'s *Planned* section (7 new rows), so
+  the cross-RAG link exists on the pdfcer side this time.
+
+**Still in flight:**
+- `docs/core-api/`'s own `ReflowDecline` documentation — `reflow_apply.rs`
+  carries no `core-api` cross-reference as of this filing (checked
+  directly, zero hits). Owed to the engineer.
+- `pdfcer-gui` consumption of `decline()`/`is_recoverable()` — not yet
+  built, tracked by the amended `FEATURES.md` row.
+- `Pass 259.0` (`docs/core-api/` line-citation integrity, 941 citations,
+  0 of 6 correct in the strict sample) sits in *Backlog*, **NOT STARTED**,
+  with no remedy chosen — the scoping Pass owes the choice among fix/drop/
+  gate, per its own acceptance criteria.
+- Backup bundle currency, disk/`target/` size, exact push state: not
+  re-measured this filing — no shell tool available to this role.
+
+**For next session:**
+- **Engineer:** push `75793b5` and this filing's librarian commit under
+  the standing push authorization (decision 090) when convenient. Decide
+  `docs/core-api/`'s `ReflowDecline` documentation gap. When ready, scope
+  `Pass 261.0` (`/FileAttachment`) first — cheapest of the four queued
+  builds and the one the operator's own challenge was aimed at.
+- **Operator:** the reflow error message you'd see from a failed
+  `pdfcer reflow` now tells you, specifically, when the fix is "save and
+  reopen, then try again" versus when it isn't — that's this filing's
+  user-visible change, and it ships in the next release rather than this
+  one. Separately, the four annotation types you asked about
+  (`/FileAttachment`, `/Caret`, `/Sound`, `/Screen`) are now queued to
+  build in that order; three others (`/Movie`, `/Watermark`-as-annotation,
+  `/3D`/`/Projection` authoring) are recorded as deliberately not being
+  built, with the reason for each.
+
+## 2026-09-08 (469th filing) — three family-wide annotation-gate bugs fixed as a class, six check-box/radio glyph styles ship (drawn, not font-set), and `R245` is minted for the shared shape of all three defects
+
+**★ Filing-count note.** Last `SESSION_LOG.md` header was the 468th
+(2026-09-07, reflow decline). No shell available to this role, so the
+filing counter is taken from `ROADMAP.md`'s own ledger table (last entry:
+"SESSION_LOG filings `468`, next `469`") rather than independently
+verified against disk.
+
+**Shipped:**
+- `Pass 262.0` (`fad0d2d`) — two family-wide annotation-gate defects fixed:
+  five verbs (`rotate_annotation`, `set_annotation_rotation`,
+  `resize_annotation`, `move_annotation`, `set_markup_note`) documented an
+  `EditError::DocumentEncrypted` refusal they never made; the
+  move/resize/rotate transform trio plus `set_markup_note` did not honour
+  the `Locked` flag (§12.5.3 Table 165 bit 8), so a Locked markup could be
+  dragged anywhere. `LockedContents` (bit 10) correctly still does not
+  block a transform.
+- `Pass 262.1` (`fad0d2d`) — new verb `set_annotation_flags`, the write
+  half of eight pre-existing read-only `/F` flag accessors. Whole-word API
+  by design (Table 165's bits interact); refuses a `/Widget`; a Locked
+  annotation's own flags can still be changed via this verb, including
+  clearing Locked. No CLI subcommand yet.
+- `Pass 262.2` (`fad0d2d`) — `/MK` widget colours: pdfcer wrote `/BC` and
+  never read it, read `/BG` (since `Pass 249.1`) and never wrote it.
+  Neither direction round-tripped. Both directions now exist for both
+  keys; `list-fields --widgets` prints both; CLI `edit-widget
+  --background/--border-color`.
+- `Pass 263.0` (`dabdfa6`) — six check-box/radio-button glyph styles
+  (`Check`/`Cross`/`Star`/`Circle`/`Square`/`Diamond`), drawn as **vector
+  artwork** rather than a `Tf`'d ZapfDingbats glyph — a deliberate exceed
+  of Acrobat, whose own box depends on resolving that font at display
+  time, a resolution Acrobat/Reader have a recurring bug failing. CLI
+  `add-check-box --check-style`.
+
+**Decisions made this session:**
+- **`R245` minted** (`ROADMAP.md`, *Standing rules*): a guard, dictionary-
+  key direction, or disclosure added to one member of a family of
+  otherwise-parallel verbs is not shipped until a test iterates the WHOLE
+  family — three independent instances (the encryption guard, the Locked
+  flag, the `/MK` colour round trip) all failed the identical way in one
+  audit dispatch. Distinguished from `R235` (a refusal that cannot be
+  EXPRESSED at all) and the `R204`/`R143`/`R144`/`R147` family (a guard
+  STALING as the world widens after it was written) — here the guard was
+  incomplete from day one, not eroded by later growth.
+- **Dated instance note added to `R243`** — the five verbs' false
+  `# Errors` promise is `R243`'s own mechanism (prose asserting a property
+  instead of code enforcing it) one layer down, in a doc comment on the
+  function's own contract rather than a warning to a future caller. Not
+  folded into `R243`'s text because the remedy differs: there is no
+  function to extract, only a guard call to add at all five sites.
+
+**Findings + decisions:**
+- Five of the report's own claimed `FEATURES.md` corrections were checked
+  against live `FEATURES.md` text rather than accepted verbatim: rows
+  `:291`/`:295`/`:296` amended, two new *Implemented* rows added, and the
+  fifth claim (some row implying the transform verbs already honoured
+  Locked or refused on encryption) checked and found to have **no such
+  row** — nothing to correct there, reported as clean rather than silently
+  skipped.
+- Six residue findings from the same audit — `/RC`/`/DS` desync, `/BM`
+  dropped with no disclosure, `/BS` dash unreadable-and-lost-by-clipboard,
+  `/BE` write-once, `/OC` read-without-write, `LockedContents` enforced
+  nowhere — filed as `Pass 264.0`–`264.5` in *Backlog*, with matching
+  *Planned* rows in `FEATURES.md`, per the engineer's own list.
+- Six facts verified directly against live source this filing (`Grep`/
+  `Read`, not relayed): the `CheckStyle` enum and its six variants,
+  `set_annotation_flags`'s existence, the Locked-flag guard's inline
+  presence (with its shared comment) at three transform sites,
+  `forms::Widget::border_color`'s existence, the CLI's
+  `--background`/`--border-color`/`--check-style` flags, and the two new
+  test files' counts (`check_styles.rs` 5, `annot_gates.rs` 4) — all
+  matched the dispatch's own claims. Also verified directly: no
+  `set-annotation-flags` CLI subcommand exists anywhere in `main.rs`,
+  confirming the dispatch's own claim of a real CLI gap.
+
+**Still in flight:**
+- `Pass 264.0`–`264.5` — all six **NOT STARTED**.
+- A repo hook reportedly prevented a `git checkout` inside a command chain
+  from destroying uncommitted work while restoring a sabotage — relayed,
+  not independently verified (no shell available to this role this
+  filing).
+- Backup bundle currency, disk/`target/` size, exact push/release state:
+  not re-measured this filing — no shell tool available to this role.
+
+**For next session:**
+- **Engineer:** decide whether `set_annotation_flags` gets a CLI
+  subcommand this session or stays a documented core-only gap for now;
+  push `fad0d2d`/`dabdfa6` and this filing's librarian commit under the
+  standing push authorization (decision 090) when convenient.
+- **Operator:** the two annotation bugs you'd have hit — a Locked markup
+  that could still be dragged, and five error messages promising a refusal
+  that never happened — are fixed. Check boxes and radio buttons can now
+  be drawn in six shapes (a tick, an X, a star, a filled circle, a filled
+  square, or a diamond), and they're drawn so they show correctly even
+  where Acrobat's own font-dependent tick sometimes doesn't.
