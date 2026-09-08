@@ -26951,20 +26951,50 @@ impl EditSession {
         // is the defect `Pass 258.0` closed in `set_markup_style` and which
         // would simply have moved here.
         let resize_dash = annot_author::read_border_dash(&self.graph(), dict);
+        // ★★ TWO AUTHORING FAMILIES, AND THIS TEST KNEW ONE OF THEM.
+        //
+        // `spec_from_dict` reads the MARKUP family -- `/Square`, `/Circle`,
+        // `/Line`, `/Polygon`, `/Ink`, text markup. A `/FreeText` is authored
+        // by `add_text_annotation` through an entirely different builder, so
+        // the comparison could not reproduce it, concluded FOREIGN, and
+        // refused with *"pdfcer did not draw it"* -- about an appearance
+        // pdfcer had drawn seconds earlier, in the same session.
+        //
+        // Reported with the control that makes it a defect rather than a
+        // limitation: a `/Square` authored by the sibling verb in the same
+        // session resizes fine. Two pdfcer-authored annotations differing only
+        // in which verb drew them.
+        //
+        // ★ `measure_free_text_multiline` is the right test and it already
+        // existed -- its own documentation says so: *"A third re-baker that
+        // calls this cannot repeat it; one that does not call it will fail the
+        // same way."* `resize_annotation` is that third re-baker. It bakes the
+        // spec BOTH ways and compares against the bytes on disk, which is what
+        // makes it an authorship test rather than a guess: `/FreeText` has no
+        // multiline key (§12.5.6.6 -- `/Ff` is a form-field entry and this is
+        // not a field), so the layout is recovered by the match itself.
+        //
+        // `Some(_)` therefore means BOTH "pdfcer drew it" and "here is the
+        // layout it used". `None` means genuinely foreign, and the refusal
+        // stands.
+        let free_text_multiline = annot_author::text_spec_from_dict(&self.graph(), dict)
+            .ok()
+            .and_then(|spec| self.measure_free_text_multiline(dict, &spec));
         let ap_is_pdfces = has_ap
-            && annot_author::spec_from_dict(&self.graph(), dict).is_ok_and(|original| {
-                self.appearance_matches(
-                    dict,
-                    &annot_author::build_appearance_opts(
-                        &original,
-                        &annot_author::AppearanceOptions {
-                            quad_order: self.quad_point_order,
-                            dash: resize_dash.clone(),
-                        },
+            && (free_text_multiline.is_some()
+                || annot_author::spec_from_dict(&self.graph(), dict).is_ok_and(|original| {
+                    self.appearance_matches(
+                        dict,
+                        &annot_author::build_appearance_opts(
+                            &original,
+                            &annot_author::AppearanceOptions {
+                                quad_order: self.quad_point_order,
+                                dash: resize_dash.clone(),
+                            },
+                        )
+                        .ap_content,
                     )
-                    .ap_content,
-                )
-            });
+                }));
 
         // ★★ Carrying a foreign appearance is not automatically a distortion —
         // it is a distortion only when the placement matrix would CONTRADICT
@@ -27130,14 +27160,40 @@ impl EditSession {
         // the placement matrix happens to produce.
         let mut objects = Vec::new();
         if matches!(appearance, ResizedAppearance::Rebuilt) {
-            let spec = annot_author::spec_from_dict(&self.graph(), &updated)?;
-            let authored = annot_author::build_appearance_opts(
-                &spec,
-                &annot_author::AppearanceOptions {
-                    quad_order: self.quad_point_order,
-                    dash: resize_dash.clone(),
-                },
-            );
+            // ★ Re-author through the SAME family that drew it. `updated`
+            // already carries the scaled `/Rect`, so both builders lay the
+            // content out at the new size rather than scaling a picture.
+            //
+            // `free_text_multiline` is `Some` exactly when the byte comparison
+            // above identified this as a pdfcer-drawn `/FreeText`, and it
+            // carries the layout that comparison recovered -- so the box is
+            // re-wrapped the way it was wrapped, instead of silently
+            // un-wrapping, which is the defect that helper was written for.
+            // The two builders return different types carrying the same four
+            // parts, so the parts are taken here rather than a conversion
+            // being invented for one use.
+            let (authored_annot, authored_ap_dict, authored_ap_content) = match free_text_multiline
+            {
+                Some(multiline) => {
+                    let mut spec = annot_author::text_spec_from_dict(&self.graph(), &updated)?;
+                    if let annot_author::TextAnnotSpec::FreeText { multiline: m, .. } = &mut spec {
+                        *m = multiline;
+                    }
+                    let a = annot_author::build_text_annotation(&spec)?;
+                    (a.annot, a.ap_dict, a.ap_content)
+                }
+                None => {
+                    let spec = annot_author::spec_from_dict(&self.graph(), &updated)?;
+                    let a = annot_author::build_appearance_opts(
+                        &spec,
+                        &annot_author::AppearanceOptions {
+                            quad_order: self.quad_point_order,
+                            dash: resize_dash.clone(),
+                        },
+                    );
+                    (a.annot, a.ap_dict, a.ap_content)
+                }
+            };
             // Where the rebuilt appearance may go. `appearance_slot` is the
             // SHIPPED answer to this question — it refuses to rewrite a stream
             // another annotation also references, which a resize would
@@ -27176,7 +27232,7 @@ impl EditSession {
             // next reader deserves to know which this is without re-running
             // the ablation.
             let blend_before = updated.get(b"BM").cloned();
-            for (key, value) in authored.annot.0.iter() {
+            for (key, value) in authored_annot.0.iter() {
                 updated.insert(key.clone(), value.clone());
             }
             if let Some(bm) = blend_before {
@@ -27186,12 +27242,12 @@ impl EditSession {
             ap.insert(Name::from(b"N"), Object::Reference(ap_id));
             updated.insert(Name::from(b"AP"), Object::Dict(ap));
 
-            let mut ap_dict = authored.ap_dict;
+            let mut ap_dict = authored_ap_dict;
             ap_dict.insert(
                 Name::from(b"Length"),
-                Object::Integer(i64::try_from(authored.ap_content.len()).unwrap_or(i64::MAX)),
+                Object::Integer(i64::try_from(authored_ap_content.len()).unwrap_or(i64::MAX)),
             );
-            let ap_span = self.stage_bytes(&authored.ap_content);
+            let ap_span = self.stage_bytes(&authored_ap_content);
             objects.push(ObjectWrite {
                 id: ap_id,
                 before: self.state.get(&ap_id).cloned(),
