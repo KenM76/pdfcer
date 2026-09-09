@@ -4,6 +4,89 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-09 (484th filing)
+
+**Shipped:**
+- Pass 283.0 (`dce2223`) — a PDF with structural errors now opens instead
+  of refusing: six defect classes (duplicate dictionary key, missing/
+  unusable `/Length`, missing `endobj`, an unparseable object, an xref/body
+  id disagreement, an unreadable object stream) are each recorded as a
+  `LoadAnomaly` — what pdfcer decided, and what it discarded — with a new
+  CLI `--on-malformed keep-last|keep-first|refuse` letting the operator
+  take the other decision. Prompted by the operator's own file (a real
+  drawing Acrobat opens and pdfcer refused, on a duplicate `/PageMode`
+  key) and his own ruling that this must generalize to "all defects where
+  it is possible to continue and open the file" — not a one-defect patch.
+
+**Decisions made this session:**
+- **Decision 145** (`ARCHITECTURE.md` §12, body section §10.5): a
+  structural defect that leaves the object graph AMBIGUOUS rather than
+  UNDEFINABLE is opened under a disclosed, overridable default; only a
+  defect requiring pdfcer to INVENT a reading (no `/Root`; encryption with
+  no working password) stays fatal. Argued as an extension of `R27`'s
+  fail-clean kernel from the decoder layer to the loader layer, not a
+  relaxation of it — `R27` was always about silence, never about refusal.
+- **Standing rule `R248` minted**, argued rather than deferred, directly
+  from the operator's own general-scope ruling (matching this project's
+  `R35`/`R58`/`R67` precedent for minting from a decisive ruling rather
+  than waiting for a second occurrence). Numbered past the still
+  reserved-but-unclaimed `R247` deliberately, to avoid entangling this
+  claim with that unrelated, unreconciled reservation (two other
+  candidate triggers, neither decided).
+
+**Findings + decisions:**
+- **An analogy dressed as a citation, caught before shipping.** The first
+  draft justified keeping the LAST value on a duplicate key by citing
+  §7.5.6 (incremental-update object ordering) — an ordering the standard
+  makes meaningful, borrowed to justify a decision about §7.3.7's
+  dictionary-entry order, which the standard's own preceding sentence says
+  "shall be ignored." `pdfcer-spec-librarian`'s answer corrected it before
+  the code shipped: the real support is observed behaviour (qpdf, pdf.js,
+  pdfium all keep-last, none refuses), not an internal spec analogy. Filed
+  as a new `D:\dev\rag\rust\` methodology finding — close in spirit to
+  `R246`'s reference-corpus reinfection finding, but about analogical
+  reasoning rather than a stale figure.
+- **A flag named for one member of the class it governed.** The first cut
+  called the new CLI flag `--duplicate-keys` while its `strict` value also
+  silently disabled two unrelated recoveries (`/Length`, `endobj`).
+  Renamed to `--on-malformed` before shipping. Filed as a second new
+  `D:\dev\rag\rust\` methodology finding.
+- **A PDF-domain empirical finding, filed to `C:\personal_rag\pdf\`
+  rather than duplicated into the spec RAG:** real-world readers (qpdf,
+  pdf.js, pdfium) converge on keep-last for duplicate dictionary keys,
+  where ISO 32000 itself leaves reader behaviour explicitly out of scope
+  (pdf-issues #199). The spec-text half (the `shall not`, the erratum
+  #3 precedent) is `pdfcer-spec-librarian`'s territory and is already
+  filed there (new `iso32000__s__7.3.7.md`, supersession redirect,
+  register entries `DK-A1`/`DK-A2`).
+- `docs/FEATURES.md` gains a **new** row under *Document & pages*, kept
+  deliberately separate from the existing xref-recovery row (different
+  mechanism: object-level ambiguity resolution with disclosure/override,
+  vs. xref-table rebuild-by-scan) — `[x]` core, `[x]` cli, `[ ]` gui,
+  `[x]` Acrobat, with the exceed named explicitly: Acrobat opens such
+  files too but does not disclose which value it kept or offer the
+  alternative.
+
+**Still in flight:**
+- Items 4, 5, 9 (`n=3`, `R247` reservation unreconciled), 10, 11, 13b, 14,
+  16, 17 all carried forward unchanged from the 483rd filing — this Pass
+  originated from a fresh operator report, not from a prior owed item, and
+  discharged none of them.
+- Whether `dce2223` has been pushed or released is not asserted here (no
+  shell) — the engineer should check directly.
+
+**For next session:**
+- The `R247` reservation is now flanked on both sides by unrelated,
+  already-decided-past-it work (`R246` below it, `R248` above it) — worth
+  resolving soon so the numbering gap does not become confusing in its own
+  right.
+- Owed items 16 and 17 (orphan `/Info`-shaped object; per-glyph
+  absence-proof joining) remain queued, unstarted.
+- Item 13b's measured blocker is now on record in `ROADMAP.md`: a stamp's
+  label size (`(h * 0.42).clamp(8.0, 28.0)`) is derived at bake time and
+  stored nowhere, so a re-bake has nothing to recompute from without a new
+  stored field.
+
 ## 2026-09-09 (483rd filing)
 
 **Shipped:**

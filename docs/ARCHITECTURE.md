@@ -7890,6 +7890,95 @@ arc.**
   schedules a target's compilation, not its execution, and a future reader must
   not read *"a target exists"* as *"the class is covered"*.
 
+### 10.5 A structural defect that leaves the object graph AMBIGUOUS, not UNDEFINABLE, is opened under a disclosed, overridable policy — never refused outright (decision 145 — SHIPPED, `Pass 283.0`, standing rule `R248`)
+
+*(Added 2026-09-09.)* Two operator rulings, verbatim, given after a real
+drawing Acrobat opens and pdfcer refused:
+
+> "We should be making pdfcer so that it opens pdfs that have errors, and
+> have a way that it manages those errors such that they aren't fatal, and
+> if the user can intervene in a decision that should always be an option
+> along with them not having to intervene."
+>
+> "We should be doing this for all defects where it is possible to continue
+> and open the file."
+
+This is a posture for every future defect class the loader meets, not a fix
+for the two defects present in the one file that surfaced it.
+
+**The boundary, stated once so it is not re-litigated per defect.** A defect
+is in scope when the object graph is left **AMBIGUOUS** — a choice between
+two or more readings the file itself supplies (which value of a duplicated
+key, where a stream really ends, where an object really terminates, what an
+unreadable reference should resolve to). It is **not** in scope, and stays
+fatal, when continuing would require pdfcer to **invent** a reading the file
+supplies none of at all: no `/Root` is the pinned example (a test holds this
+line so a future widening of the policy cannot cross it by accident), and
+encryption with no working password is the second, because asking for the
+password **is** the intervention.
+
+**The mechanism (`Pass 283.0`).** `LoadOptions` carries one named policy per
+defect class (`DuplicateKeyPolicy`, `StreamLengthPolicy`, `TerminatorPolicy`,
+`UnreadableObjectPolicy`), each defaulting to whichever reading keeps the
+file open. `Document::load_anomalies() -> &[LoadAnomaly]` reports every
+decision actually taken, carrying **both** the value kept and the value
+discarded — a count would say only that pdfcer chose; the pair is what lets
+a shell show what it chose *between*. The CLI exposes one global override,
+`--on-malformed keep-last|keep-first|refuse`. Taking the other reading means
+**re-loading** under the other policy, not patching the result: the
+discarded value was never built into the document, so there is nothing in
+memory to edit.
+
+**The unifying justification is the standard's own, not a tolerance pdfcer
+invented.** §7.3.10: an indirect reference to an undefined object "shall not
+be considered an error by a conforming reader; it shall be treated as a
+reference to the null object." An object whose bytes will not parse is
+undefined as far as every consumer is concerned, so omitting it produces a
+document ISO 32000 **describes**, not one pdfcer fabricated.
+
+**Relation to `R27` — extends its kernel, does not relax it.** `R27`, read
+from *Standing rules*, is "unsupported codec sub-features fail clean and are
+counted BY NAME" — a decoder-level rule whose actual target was always
+*silence*, not refusal (a prior filing corrected a citation that had
+misread it as a no-clamp/no-substitution rule generally; it is narrower —
+see `ROADMAP.md`). This decision carries that same kernel — fail by name,
+never substitute a guessed value silently — up one layer, from decoder to
+loader, and adds the piece `R27` had no occasion to need: an operator-facing
+override, because a loader's ambiguity is frequently something the operator
+can genuinely arbitrate in a way a codec's missing sub-feature is not. **A
+counted, disclosed, overridable decision is not silence.**
+
+⇒ **Standing rule `R248`** (Standing Rules ceiling was `R246`; `R247` is
+reserved-but-unclaimed for two unrelated triggers as of the 483rd
+`ROADMAP.md` filing and is left untouched — `R248` is minted past it
+deliberately rather than entangling with that reconciliation): *a newly
+discovered structural defect is triaged against this posture before it is
+fixed as a one-off refusal — if the file supplies two or more readings,
+pdfcer picks one under a named default, discloses what it picked and what it
+discarded, and lets the operator take the other reading; only a defect that
+would require inventing a reading the file supplies none of stays fatal.*
+
+**Body-section effects.** §5 (round-trip/minimal-diff) — **unaffected**: a
+load-time policy decision changes what the in-memory object graph *is*, not
+how a later save diffs against a base revision; no writer path was touched
+and no new forced-full-rewrite sibling was created (contrast §5.10, where
+recovery *does* force one — this mechanism does not). §3 (GUI-core
+separation) — unaffected, no `Cargo.toml` touched. `docs/core-api/` owes the
+new `Document`/`LoadOptions`/`LoadAnomaly` surface per the engineer's
+always-rule; check that document directly for exact signatures rather than
+this section.
+
+**Scope, so it is not over-read.** The parser's own default
+(`DuplicateKeyPolicy::default()`) stays `Refuse` — every caller that builds
+a `Parser` directly (fuzz targets, the recovery confirmation pass) keeps the
+behaviour it was written against. Only the **loader** opts in to leniency;
+the parser does not opt in on its callers' behalf. `LoadOptions::default()`
+is hand-written rather than derived, specifically so this asymmetry cannot
+silently drift back into agreement.
+
+Full record: §12's 2026-09-09 entry, decision 145; standing rule `R248`;
+`ROADMAP.md` *Shipped*, `Pass 283.0`.
+
 ## 11. Undo/redo architecture
 
 Identified as a real design gap 2026-07-23: the UI standing rule
@@ -33450,3 +33539,152 @@ requesting shell declined it on exactly that ground.
 vacuity is `R225`'s eleventh instance plus a dated widening clause, not a new
 cause — see `ROADMAP.md` *Standing rules*), next free `R247`. **Pass ceiling
 `271.0` → `272.0`**, next free family `273.x`.
+
+### 2026-09-09 (484th filing, `dce2223`) — decision 145: **A STRUCTURAL DEFECT THAT LEAVES THE OBJECT GRAPH AMBIGUOUS, NOT UNDEFINABLE, IS OPENED — pdfcer PICKS A READING UNDER A NAMED DEFAULT, DISCLOSES WHAT IT PICKED AND DISCARDED, AND LETS THE OPERATOR TAKE THE OTHER ONE. EXTENDS `R27`'S FAIL-CLEAN KERNEL FROM THE DECODER LAYER TO THE LOADER LAYER; ONLY A DEFECT REQUIRING pdfcer TO INVENT A READING THE FILE SUPPLIES NONE OF STAYS FATAL**
+
+**Origin.** `Pass 283.0` (`dce2223`), from the operator's own report — a real
+drawing, `A-726 BASKET ATTACHMENT_REV 5.pdf`, that Acrobat opens and pdfcer
+refused on a duplicate `/PageMode` key — followed by two rulings that widen
+the fix into a posture, both quoted in full in §10.5 above and not repeated
+here.
+
+---
+
+#### 1. Why this is a decision and not just a bug fix
+
+Fixing the file's own duplicate key would have refused one object later, on
+its `/Metadata` stream's missing `/Length` — **the file had two independent
+defects, and clearing one exposed the other.** That fact is what forces the
+answer to be a *policy for the loader* rather than a *patch for a defect*:
+any fix scoped to one defect class leaves the next class refusing exactly as
+before, and the operator's second ruling ("for all defects where it is
+possible to continue") says explicitly that this is not acceptable practice
+going forward.
+
+#### 2. What the spec actually says about the motivating defect, and where my own first draft got it wrong
+
+Dispatched to `pdfcer-spec-librarian` rather than reasoned from memory,
+because a duplicate-key ruling is exactly the kind of thing training data
+gets confidently wrong.
+
+- **It is a `shall not`, not merely a `should`**, identical in body text
+  across both ISO 32000 editions: *"Multiple entries in the same dictionary
+  shall not have the same key."* The "Adobe over-enforced a should"
+  hypothesis is refuted — the PDF Association records the 1.7 `Note:`/should
+  and the ISO `shall not` as having "the same technical meaning."
+- **It binds the FILE, not the reader.** §2.1/2.3 make conformance a
+  property of files and writers; §1 excludes validation methods from scope
+  entirely. ISO 32000 obliges pdfcer neither to render such a file nor to
+  refuse it.
+- **Reader behaviour is acknowledged out of scope, not merely silent** —
+  pdf-issues #199 (open since 2022): "as soon as a PDF violates a mandated
+  'shall' requirement... then how that PDF is to be interpreted is beyond
+  the scope of ISO 32000."
+
+**★ My own first justification for keeping the LAST value was wrong, and is
+corrected in the shipped code, not left standing.** The first draft argued
+from §7.5.6 — "every other override-by-repetition in PDF is last-wins" —
+which is an **analogy dressed as a citation**: §7.5.6 orders objects across
+*incremental updates*, an ordering the standard makes meaningful by
+construction, while §7.3.7's own preceding sentence says a *dictionary's
+entry order* "shall be ignored." Borrowing authority from an ordering rule
+to justify a decision about a structure the standard explicitly says has no
+order is exactly backwards. The real support, substituted before shipping,
+is **observed behaviour**: qpdf, pdf.js and pdfium all keep the last
+occurrence and none refuses — qpdf even warns in the terms pdfcer now uses.
+Worth its own line: ISO's one *resolved* duplicate-key erratum (#3, inline
+images) picks its winner by **content** and rejects first/last positional
+logic **by name** — so the original citation would have borrowed authority
+from a clause that says the opposite about this exact structure. Filed as a
+`D:\dev\rag\rust\` methodology finding (see Ledger below) because the
+failure mode — a real citation, wrong clause, opposite meaning — generalises
+past PDF entirely.
+
+**The empirical, cross-implementation half of this — that real readers
+converge on keep-last where the standard leaves the question open — is a
+PDF-domain finding, not a spec-text one, and is filed to
+`C:\personal_rag\pdf\` rather than duplicated into the spec RAG** (see
+Ledger).
+
+#### 3. The mechanism, and the two shell surfaces
+
+```
+Document::load_anomalies() -> &[LoadAnomaly]
+Document::from_bytes_with_options(bytes, password, LoadOptions)
+LoadOptions::new() | ::strict() | ::with_duplicate_keys(..)
+CLI: --on-malformed keep-last|keep-first|refuse   (global)
+```
+
+`LoadAnomaly::DuplicateDictKey` carries **both** values, not a count — a
+count says pdfcer chose; only the pair lets a shell show what it chose
+*between*, and without that the intervention promised by the operator's
+first ruling is theoretical rather than real. The other variants carry the
+object and a **reason**, because "object 4 could not be read" is a fact and
+"...because X" is something an operator can act on. Taking the alternative
+is done by **re-loading** under the other policy, never by patching the
+built document — the discarded reading was never constructed, so there is
+nothing in memory to edit toward it.
+
+**The flag's own name was corrected before shipping, for the same reason as
+§2's citation.** The first cut called it `--duplicate-keys`, while its
+`strict` value also silently disabled two unrelated recoveries (`/Length`,
+`endobj`) — a flag named for one member of the class it actually governs.
+Renamed to `--on-malformed` before shipping, and the CLI's own remedy
+sentence (which used to hard-code "re-run with keep-first" regardless of
+which policy was already active) now names the policy **not** currently in
+force, so the advice cannot be wrong the moment the operator has already
+taken it.
+
+#### 4. What stays fatal, and why that is not strictness reasserting itself
+
+A file with no `/Root`: there is no document to show, and continuing would
+mean pdfcer **inventing** a catalog — the one thing nothing in this Pass
+does. A test pins this line so a future session widening the policy further
+has a recorded boundary to check against rather than a feeling. Encryption
+without a working password stays fatal too, because asking for the password
+**is** the intervention this decision otherwise automates away.
+
+#### 5. The `R27` relation, and the standing-rule question
+
+Argued in full in §10.5 above: `R27`'s actual kernel — fail by name, never
+substitute a guessed value silently — is extended from the decoder layer
+(where it was minted) to the loader layer (where it had never been stated),
+and the operator-facing override is new because a loader's ambiguity is
+often genuinely arbitrable by the operator in a way a codec's missing
+sub-feature is not. **This is an extension, not a relaxation**: `R27` was
+never "refuse on any defect," so a counted, disclosed, overridable decision
+does not weaken it.
+
+**On minting a standing rule for this posture — argued, not deferred.** For:
+the operator's second ruling is explicitly general ("for all defects..."),
+which is exactly the shape that produced `R35`/`R58`/`R67` (this project's
+own precedent for minting a rule directly from a single decisive ruling
+rather than waiting for a second occurrence) — a future engineer meeting a
+seventh defect class needs a rule to triage against, not a re-read of this
+one Pass's narrative. Against: the two-occurrence bar this project applies
+to *emergent, discovered* patterns does not literally apply to an
+*operator-issued* posture, so there is a genuine question of whether this
+belongs as a decision-only ruling (as `R27` originally was, before this
+extension). **Minted anyway** — `R248` — because the shape matches the
+project's forced-full-rewrite-sibling precedent (a ruling with a stated
+general scope, not a one-off fix) more closely than it matches the
+emergent-pattern family `R221`/`R224`/`R225` govern. Numbered past the
+reserved-but-unclaimed `R247` deliberately, so this claim does not entangle
+with that unrelated, still-unreconciled reservation (see `ROADMAP.md`
+*Standing rules*).
+
+#### 6. Verification (relayed from the shipping commit's own message)
+
+`malformed_opens` 12 (new), `pdf15_streams` 18, `document` 46, full
+workspace suite green; `cargo fmt` clean; `cargo clippy --all-targets
+--all-features -- -D warnings` clean; `tools/run-gates.sh` PASS on all 29.
+R34: the corpus round-trip harness re-run — 237/241 loadable, no
+shortfalls, identical to before this Pass. Four sabotages, all red. Four
+existing tests that asserted the old refusals were **amended, not
+deleted** — each keeps its original assertion as its second half under
+`LoadOptions::strict()`.
+
+**Decision ceiling: `144` → `145`**, next free `146`. **Standing rules
+ceiling `R246` → `R248`** (`R247` UNCHANGED, still reserved-but-unclaimed —
+see `ROADMAP.md` *Standing rules*), next free `R249`. **Pass ceiling
+`282.0` → `283.0`**, next free family `284.x`.
