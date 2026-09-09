@@ -347,6 +347,22 @@ pub struct RedactionReport {
     pub objects_promoted: u64,
     /// `/Info` string entries scrubbed of redacted text.
     pub info_strings_scrubbed: u64,
+    /// String entries the whole-file residual sweep removed, across every
+    /// dictionary in the file (`Pass 284.0`).
+    ///
+    /// ★ Counted separately from [`Self::info_strings_scrubbed`] rather than
+    /// folded into it, because they answer different questions. That field
+    /// says what the **trailer's `/Info`** carried; this one says what the
+    /// rest of the file carried — a superseded `/Info`-shaped dictionary, a
+    /// thread information dictionary (Table 160: its `/I` *"shall conform to
+    /// the syntax for the document information dictionary"*), or any other
+    /// dictionary whose strings quoted redacted text. A single total would
+    /// hide the fact that the second number is the one nobody expected to be
+    /// non-zero.
+    pub residual_sweep_entries_scrubbed: u64,
+    /// Objects the residual sweep modified — dictionaries whose strings were
+    /// removed, plus XMP packets blanked wherever they were attached.
+    pub residual_sweep_objects_scrubbed: u64,
     /// Distinct fonts whose advance widths were estimated (no `/Widths`,
     /// not standard-14) — affects only advance-preservation cosmetics,
     /// never the removal itself. Disclosed.
@@ -2067,6 +2083,19 @@ pub fn apply_redactions(
     );
     carrier_detect_disclose(doc, form_intersect_any, images_seen, &mut report);
 
+    // ★ LAST of the scrubbing carriers, and the order is load-bearing: this
+    // one reads each object's EFFECTIVE value, so it must run after every
+    // carrier that can replace one. Running it earlier would make it re-report
+    // content the `/Info` and XMP passes were about to remove.
+    carrier_residual_sweep(
+        doc,
+        &redacted_text,
+        &mut staging,
+        base_len,
+        &mut dirty,
+        &mut report,
+    );
+
     // --- container decomposition (§7.5.7 Strategy B) ---
     decompose_containers(doc, &mut dirty, &mut report);
 
@@ -2766,6 +2795,279 @@ fn carrier_xmp(
         }),
     );
     report.add_carrier("xmp", true, CarrierAction::Scrubbed);
+}
+
+/// Carrier: **every remaining object in the file**, swept by evidence rather
+/// than by position in the document graph (`Pass 284.0`).
+///
+/// # The defect this closes
+///
+/// Every other carrier pass in this module finds its target by **navigating
+/// the document graph** — the trailer's `/Info`, the catalog's `/Metadata`,
+/// the page tree's content streams. [`crate::writer::save_full`] emits objects
+/// by **enumerating the cross-reference table**
+/// (`doc.xref().iter()`). **Those are different sets**, and every object in
+/// the difference was re-emitted verbatim into a redacted file without ever
+/// having been offered to a carrier.
+///
+/// Measured on the operator's own drawing set (57 files,
+/// `examples/unreachable_census.rs`): **12 files carry objects the graph never
+/// reaches, and 7 of those objects could carry drawn text.** A superseded
+/// content stream, an `/Info`-shaped dictionary the trailer no longer names, a
+/// second XMP packet — all re-emitted intact while the report said `scrubbed`.
+///
+/// # ★★ Why this sweep does NOT compute reachability
+///
+/// It would be natural to define the gap as "objects the graph does not
+/// reach" and act on those. **This function deliberately does not**, for two
+/// reasons, and the second is the load-bearing one.
+///
+/// **1. The obligation is not scoped by reachability.** §12.5.6.23 is an
+/// outcome test on the saved artifact — *"they shall remove all traces of the
+/// specified content"* — and it scopes carriers by *"all content that can
+/// exist in a PDF document"*. Nothing in it mentions the object graph. A sweep
+/// scoped by **evidence** discharges the clause as written; a sweep scoped by
+/// reachability answers a question the clause never asked.
+///
+/// **2. Reachability in PDF is a trap, and getting it wrong destroys data
+/// silently.** Three object classes are unreferenced **by design**:
+///
+/// * object streams — reached by a **type-2 xref entry**, never by a
+///   `243 0 R` (§7.5.7 says so in terms);
+/// * cross-reference streams — reached from `startxref`/`/Prev` by **byte
+///   offset**;
+/// * the linearization dictionary — Annex F.3.3: *"There shall be no
+///   references to this dictionary anywhere in the document."*
+///
+/// And a mistake cannot announce itself: §7.3.10 makes a reference to a
+/// missing object *"not … an error"*, resolving to null. So an over-broad
+/// reachability sweep produces a **valid file with quietly missing
+/// semantics** — an outline, a structure tree, or every compressed object in
+/// the document, gone, with nothing to notice.
+///
+/// ★ That is not a theoretical risk. `examples/unreachable_census.rs` — this
+/// project's own probe, written the same hour by the same engineer who had
+/// just read the clause — **made that exact error twice**, first counting
+/// every object stream as an orphan and then every cross-reference stream.
+/// Both were caught by measurement, not by review. **Hinging a destructive
+/// act on a computation that failed twice in one hour is not a trade this
+/// module will make**, when the clause does not require the computation at
+/// all.
+///
+/// # What it does, by object shape
+///
+/// | shape | action | why |
+/// |---|---|---|
+/// | any dictionary's string entry | **scrubbed** (entry removed) | §14.3.3: any key outside Table 317 *"shall be a text string"*, so a key list is structurally incomplete — custom keys are where producers park matter IDs and client names |
+/// | a stream declaring `/Type /Metadata` | **scrubbed** (blanked, re-emitted raw) | §14.3.2 NOTE 3 says an XMP packet is designed to be found *"by simple scanning rather than requiring the document file to be parsed"* — reachability is irrelevant to its exposure **by design** |
+/// | any other stream carrying evidence | **disclosed, not scrubbed** | blanking bytes inside a font programme or an image would corrupt content on a coincidence; the honest answer is to name the object |
+///
+/// ★ **Scrubbing every dictionary's strings also closes two carriers nobody
+/// filed.** A **thread information dictionary** (a thread's `/I`) *"shall
+/// conform to the syntax for the document information dictionary"* (Table 160)
+/// — it is live, reachable, unambiguously metadata by the standard's own
+/// words, and [`carrier_info`] never looked at it. Likewise an XMP packet
+/// attached to a *component* rather than to the catalog (§14.3.2 route B) and
+/// one inside a marked-content property list (route C). An evidence sweep
+/// covers all three without knowing they exist, which is the whole argument
+/// for sweeping rather than enumerating.
+fn carrier_residual_sweep(
+    doc: &Document,
+    redacted: &[String],
+    staging: &mut Vec<u8>,
+    base_len: usize,
+    dirty: &mut crate::writer::DirtySet,
+    report: &mut RedactionReport,
+) {
+    // ★ TWO DIFFERENT EMPTY ANSWERS, and collapsing them was a real defect.
+    //
+    // `redacted` empty means NO TEXT WAS REDACTED AT ALL — an image-only or
+    // vector-only redaction. There is nothing for a text sweep to look for,
+    // so the honest report is "not applicable", not "a residual you must
+    // check by hand". The first cut of this function returned
+    // `DisclosedNotScrubbed` for both cases and turned two passing
+    // image-redaction tests red, each asserting `!has_disclosed_residuals()`
+    // — correctly, because there was no residual.
+    if redacted.is_empty() {
+        report.add_carrier("residual_sweep", false, CarrierAction::Absent);
+        return;
+    }
+
+    let evidence = redaction_evidence(redacted);
+    if evidence.is_empty() {
+        // Text WAS redacted, but no piece is long enough to distinguish a
+        // quotation from a coincidence. Consistent with `carrier_info`, and a
+        // genuine residual: pdfcer cannot sweep, and says so.
+        report.add_carrier("residual_sweep", true, CarrierAction::DisclosedNotScrubbed);
+        report.note(format!(
+            "redaction: the whole-file residual sweep did NOT run — every redacted piece is \
+             shorter than {MIN_MATCH_LEN} characters, so sweeping every object for them would \
+             edit on a coincidence; review the file by hand"
+        ));
+        return;
+    }
+
+    // Snapshot the ids first: the loop replaces objects through `dirty`, and
+    // borrowing the document across that is neither possible nor wanted — the
+    // sweep must see each object's state as the earlier carriers left it.
+    let ids: Vec<ObjId> = doc.objects().map(|io| io.id).collect();
+
+    let mut dicts_scrubbed = 0u64;
+    let mut entries_scrubbed = 0u64;
+    let mut metadata_scrubbed = 0u64;
+    let mut disclosed: Vec<String> = Vec::new();
+
+    for id in ids {
+        if dirty.is_deleted(id) {
+            continue;
+        }
+        // The EFFECTIVE value: what the file will actually carry. An object an
+        // earlier carrier already scrubbed must be seen in its scrubbed state,
+        // or this sweep would re-report content that is already gone.
+        let effective = dirty
+            .replacement(id)
+            .cloned()
+            .or_else(|| doc.get(id).map(|io| io.value.clone()));
+        let Some(effective) = effective else { continue };
+
+        match effective {
+            Object::Dict(dict) => {
+                let mut updated = dict.clone();
+                let removed = scrub_dict_strings(&dict, &mut updated, &evidence);
+                if removed > 0 {
+                    entries_scrubbed += removed;
+                    dicts_scrubbed += 1;
+                    dirty.replace(id, Object::Dict(updated));
+                }
+            }
+            Object::Stream(stream) => {
+                // The stream's own dictionary is a dictionary like any other.
+                let mut dict = stream.dict.clone();
+                let removed = scrub_dict_strings(&stream.dict, &mut dict, &evidence);
+
+                // ★ A STAGED SPAN DOES NOT INDEX THE BASE BUFFER. `stage`
+                // allocates at `base_len + staging.len()`, so a stream an
+                // earlier carrier already replaced — or that the content
+                // surgery rewrote — has a span past the end of `doc.bytes()`.
+                // Slicing the base with it reads the wrong bytes or nothing,
+                // which made this sweep report residuals on two existing
+                // fixtures whose content streams had just been redacted
+                // correctly. The effective value must be read from the
+                // effective buffer.
+                let span = stream.data_span;
+                let raw: &[u8] = if span.start >= base_len {
+                    staging
+                        .get(span.start - base_len..span.start - base_len + span.len)
+                        .unwrap_or(&[])
+                } else {
+                    span.slice(doc.bytes()).unwrap_or(&[])
+                };
+                let decoded = crate::filters::decode_stream(&stream.dict, raw)
+                    .unwrap_or_else(|_| raw.to_vec());
+                let carries = evidence.iter().any(|t| bytes_contain_text(&decoded, t));
+
+                let is_metadata = matches!(
+                    stream.dict.get(b"Type"),
+                    Some(Object::Name(n)) if n.as_bytes() == b"Metadata"
+                );
+
+                if carries && is_metadata {
+                    // Same treatment `carrier_xmp` gives the catalog's packet,
+                    // applied wherever the packet sits.
+                    let mut scrubbed = decoded;
+                    for t in &evidence {
+                        replace_all_bytes(&mut scrubbed, t.as_bytes(), b'X');
+                        replace_all_bytes(&mut scrubbed, &utf16be(t), b'X');
+                    }
+                    dict.remove(b"Filter");
+                    dict.remove(b"DecodeParms");
+                    dict.insert(
+                        Name::from(b"Length"),
+                        Object::Integer(i64::try_from(scrubbed.len()).unwrap_or(i64::MAX)),
+                    );
+                    let span = stage(staging, base_len, &scrubbed);
+                    dirty.replace(
+                        id,
+                        Object::Stream(Stream {
+                            dict,
+                            data_span: span,
+                        }),
+                    );
+                    metadata_scrubbed += 1;
+                    if removed > 0 {
+                        entries_scrubbed += removed;
+                    }
+                } else if carries {
+                    // Not a metadata packet: blanking arbitrary stream bytes
+                    // would corrupt a font programme or an image on a
+                    // coincidental match. Name it instead.
+                    disclosed.push(format!("{} {}", id.num, id.generation));
+                    if removed > 0 {
+                        entries_scrubbed += removed;
+                        dicts_scrubbed += 1;
+                        dirty.replace(
+                            id,
+                            Object::Stream(Stream {
+                                dict,
+                                data_span: stream.data_span,
+                            }),
+                        );
+                    }
+                } else if removed > 0 {
+                    entries_scrubbed += removed;
+                    dicts_scrubbed += 1;
+                    dirty.replace(
+                        id,
+                        Object::Stream(Stream {
+                            dict,
+                            data_span: stream.data_span,
+                        }),
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+
+    report.residual_sweep_entries_scrubbed = entries_scrubbed;
+    report.residual_sweep_objects_scrubbed = dicts_scrubbed + metadata_scrubbed;
+
+    if !disclosed.is_empty() {
+        report.add_carrier("residual_sweep", true, CarrierAction::DisclosedNotScrubbed);
+        report.note(format!(
+            "redaction: {} stream object(s) still carry redacted text and were NOT scrubbed \
+             because blanking arbitrary stream bytes would corrupt a font or an image on a \
+             coincidental match — object(s) {}; these are unreachable or superseded content, \
+             so review or remove them by hand",
+            disclosed.len(),
+            disclosed.join(", ")
+        ));
+    } else if entries_scrubbed > 0 || metadata_scrubbed > 0 {
+        report.add_carrier("residual_sweep", true, CarrierAction::Scrubbed);
+    } else {
+        report.add_carrier("residual_sweep", true, CarrierAction::CheckedClean);
+    }
+}
+
+/// Remove from `updated` every string-valued entry of `dict` that carries
+/// redaction evidence. Returns how many entries were removed.
+///
+/// Split out because both the dictionary arm and the stream arm of
+/// [`carrier_residual_sweep`] need it, and a stream's dictionary is a
+/// dictionary — a second copy of this loop is exactly the shape (`R245`) this
+/// project keeps writing down.
+fn scrub_dict_strings(dict: &Dict, updated: &mut Dict, evidence: &[String]) -> u64 {
+    let keys: Vec<Name> = dict.iter().map(|(k, _)| k.clone()).collect();
+    let mut removed = 0u64;
+    for key in keys {
+        if let Some(Object::String(bytes)) = dict.get(key.as_bytes())
+            && evidence.iter().any(|t| bytes_contain_text(bytes, t))
+        {
+            updated.remove(key.as_bytes());
+            removed += 1;
+        }
+    }
+    removed
 }
 
 /// Carriers pdfcer **detects but does not scrub** this build — disclosed as

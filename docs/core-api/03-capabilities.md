@@ -1668,7 +1668,8 @@ internally (`redact.rs:1220-1224`).
 `RedactionReport` (`redact.rs:290`): `pages_redacted`, `marks_applied`,
 `glyphs_removed`, `show_operators_edited`, `content_streams_rewritten`,
 `annotations_removed`, `containers_decomposed`, `objects_promoted`,
-`info_strings_scrubbed`, `estimated_width_fonts`, `overlay_text_burned`,
+`info_strings_scrubbed`, **`residual_sweep_entries_scrubbed`,
+`residual_sweep_objects_scrubbed`** (`Pass 284.0`), `estimated_width_fonts`, `overlay_text_burned`,
 `overlay_ro_not_drawn`, `overlay_transparent`, **`images_cleared`,
 `images_removed`, `images_cloned_shared`, `images_overcovered`,
 `vector_paths_intersecting`, `marks_retained`** (all `Pass 245.0`),
@@ -1677,14 +1678,74 @@ internally (`redact.rs:1220-1224`).
 `carriers: Vec<CarrierStatus>`, `redacted_text`, `notes`; plus
 `has_disclosed_residuals()` (`redact.rs:343`).
 `CarrierStatus { carrier, present, action }` (`redact.rs:242`) with
-`CarrierAction::{Absent, Scrubbed, DroppedByRewrite, DisclosedNotScrubbed}`
+`CarrierAction::{Absent, Scrubbed, DroppedByRewrite, DisclosedNotScrubbed, CheckedClean}`
 (`redact.rs:256`) and `as_str()` (`:274`) yielding
-`"DISCLOSED_NOT_SCRUBBED"`. The thirteen carriers: `info`, `xmp`, **`images`**,
+`"DISCLOSED_NOT_SCRUBBED"`. The fourteen carriers: `info`, `xmp`, **`images`**,
 `xfa`, `struct_tree`, `attachments`, `ocg`, `thumbnails`, `object_streams`,
 `prior_revisions`, `overlapping_annotations`, **`vector_paths`**,
 **`shadings`** (`sh` paints whose clip box meets a region — a shading fills
 its whole clip (§8.7.4.5.1) and is not cut this build, so each is a
 `DisclosedNotScrubbed` residual; `Pass 246.1`).
+
+**★★ The whole-file residual sweep (`Pass 284.0`) — the fourteenth carrier,
+`residual_sweep`.** Every carrier above finds its target by **navigating the
+document graph**; `writer::save_full` emits objects by **enumerating the
+cross-reference table** (`doc.xref().iter()`). Those are different sets, and
+every object in the difference was re-emitted **verbatim** into a redacted
+file, never offered to a carrier — while the report said
+`info action=scrubbed`. Measured on the operator's own drawing set
+(`examples/unreachable_census.rs`, 57 files): **12 files carry objects the
+graph never reaches; 7 of those objects could carry drawn text.**
+
+The sweep runs **last** among the scrubbing carriers — deliberately, because
+it reads each object's *effective* value (the dirty-set replacement where one
+exists), so it must see what the `/Info` and XMP passes already removed.
+
+| shape | action | sourced reason |
+|---|---|---|
+| any dictionary's string entry | **scrubbed** (entry removed) | §14.3.3: a key outside Table 317 *"shall be a text string"*, so a fixed key list is structurally incomplete |
+| a stream declaring `/Type /Metadata` | **scrubbed** (blanked, re-emitted raw) | §14.3.2 NOTE 3: an XMP packet is designed to be found *"by simple scanning rather than requiring the document file to be parsed"* — reachability is irrelevant to its exposure **by design** |
+| any other stream carrying evidence | **`DisclosedNotScrubbed`, naming the object** | blanking bytes inside a font programme or an image would corrupt content on a coincidental match |
+
+New counters: `residual_sweep_entries_scrubbed`, `residual_sweep_objects_scrubbed`
+— **counted apart from `info_strings_scrubbed` on purpose**, because a single
+total would hide that the second number is the one nobody expected to be
+non-zero.
+
+★ **It also closes three carriers nobody had filed**, without knowing they
+exist — which is the whole argument for sweeping rather than enumerating:
+a **thread information dictionary** (a thread's `/I`, whose contents
+*"shall conform to the syntax for the document information dictionary"*,
+Table 160 — live, reachable, and never examined by `carrier_info`), an XMP
+packet attached to a **component** rather than the catalog (§14.3.2 route B),
+and one inside a **marked-content property list** (route C).
+
+★★ **Why it sweeps by EVIDENCE and never computes reachability.** §12.5.6.23
+is an outcome test on the saved artifact — *"they shall remove all traces of
+the specified content"* — scoped by *"all content that can exist in a PDF
+document"*. It never mentions the object graph. And reachability is a trap:
+object streams are reached by a **type-2 xref entry** (§7.5.7), cross-reference
+streams by **byte offset**, and the linearization dictionary is unreferenced by
+a `shall` (Annex F.3.3) — while §7.3.10 makes a wrong drop **silent**, because
+a reference to a missing object is *"not … an error"*. An over-broad sweep
+would yield a valid file with an outline, a structure tree, or every compressed
+object quietly gone. `examples/unreachable_census.rs` **made that exact error
+twice within an hour of the clause being read**, so the remedy does not depend
+on the computation that failed.
+
+⚠️ **Two empty answers are distinguished, and collapsing them was a real
+defect.** `redacted_text` empty means *no text was redacted at all* (an
+image-only or vector-only redaction) → `CarrierAction::Absent`. Text redacted
+but every piece shorter than `MIN_MATCH_LEN` → `DisclosedNotScrubbed`, because
+pdfcer cannot sweep safely and says so. The first cut returned the second for
+both and turned two passing image-redaction tests red — correctly, because an
+image-only redaction leaves no text residual.
+
+⚠️ **Still owed, and stated rather than implied:** a non-metadata stream
+carrying redacted text is *named*, not removed. Deciding whether pdfcer should
+also blank an abandoned **content** stream — it can tell which content streams
+its own surgery rewrote, so the knowledge exists without a reachability walk —
+is deliberately left to its own Pass.
 
 **Images (`Pass 245.0`, `redact_image.rs`).** A raster image a region
 touches — image XObject or inline, any codec pdfcer decodes (raw, DCT, CCITT,
