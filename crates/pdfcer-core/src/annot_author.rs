@@ -3131,9 +3131,31 @@ pub enum TextAnnotSpec {
     /// `/Text` (§12.5.6.4) — a "sticky note": a small marker on the page
     /// whose `/Contents` opens in a `/Popup`.
     Sticky {
-        /// The annotation rectangle (the marker is fixed-size —
-        /// NoZoom/NoRotate — so only its lower-left corner matters in
-        /// practice; the width/height give the marker its size).
+        /// The annotation rectangle.
+        ///
+        /// ★ **CORRECTED — this doc comment named the wrong corner, and said
+        /// two things that cannot both be true.** It read: *"the marker is
+        /// fixed-size — NoZoom/NoRotate — so only its lower-left corner
+        /// matters in practice; the width/height give the marker its size"*.
+        /// Under `NoZoom` the width and height do **not** give the marker its
+        /// size in a conforming reader, and §12.5.3 states the anchor
+        /// explicitly: *"the annotation's position shall be determined by the
+        /// coordinates of the **upper-left corner** of its annotation
+        /// rectangle"*. A shell that grew this rectangle downward from a fixed
+        /// lower-left — which the old sentence invites — would move the marker.
+        ///
+        /// What is true: a `/Text` annotation "shall behave as if the NoZoom
+        /// and NoRotate flags were set" (§12.5.6.4), so a conforming reader
+        /// draws the icon at a fixed size, anchored at `/Rect`'s **upper-left**
+        /// corner. The width and height still matter to pdfcer, because the
+        /// authored appearance stream's `/BBox` is `[0 0 W H]` and
+        /// `pdfcer_render::annot` currently defers the `NoZoom` placement
+        /// adjustment (a documented Pass 6.0 deferral) — so pdfcer's own raster
+        /// scales the marker where Acrobat's would not.
+        ///
+        /// [`EditSession::resize_annotation`](crate::edit::EditSession::resize_annotation)
+        /// refuses this subtype for exactly this reason; position is changed
+        /// with `move_annotation`.
         rect: Rect,
         /// The predefined icon name (default `Note`).
         icon: StickyIcon,

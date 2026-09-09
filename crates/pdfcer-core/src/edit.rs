@@ -5501,6 +5501,64 @@ pub enum EditError {
         /// resize exact rather than merely permitted.
         why: &'static str,
     },
+    /// [`EditSession::resize_annotation`] was asked to resize an annotation
+    /// whose appearance is a **fixed-size marker** (`Pass 277.0`).
+    ///
+    /// # Why this is a refusal about the KIND, not about the artwork
+    ///
+    /// [`EditError::ResizeAppearanceNotRebuildable`] says *"pdfcer did not
+    /// draw it"*. On a `/Text` sticky note pdfcer usually **did** draw it —
+    /// often seconds earlier, in the same session — so that sentence was a
+    /// **false factual claim** about provenance, standing in for a true fact
+    /// about the subtype that nothing was saying.
+    ///
+    /// A `/Text` annotation "shall behave as if the `NoZoom` and `NoRotate`
+    /// flags were set" (§12.5.6.4), and §12.5.3 spells out what `NoZoom`
+    /// means: *"do not scale the annotation's appearance to match the
+    /// magnification of the page"*, with the position taken from the
+    /// **upper-left corner** of `/Rect`. A conforming reader therefore draws
+    /// the marker at a fixed size and uses `/Rect` only to anchor it. Scaling
+    /// that rectangle changes a number the reader does not read as a size.
+    ///
+    /// The same reasoning covers **any** annotation whose `/F` sets `NoZoom`
+    /// (Table 165 bit 4), which is why this is tested as a class and not as a
+    /// `/Text` special case: the subtype rule and the flag say the same thing
+    /// about the same rectangle.
+    ///
+    /// # Why there is no override
+    ///
+    /// [`ResizeOptions::allow_appearance_distortion`] would be the wrong
+    /// consent to take here. It means *"I accept a distorted appearance"*, and
+    /// a conforming reader does not distort this one — it **ignores** the new
+    /// size. An option whose name describes an outcome that will not happen is
+    /// worse than no option.
+    ///
+    /// # ★ pdfcer's own renderer currently disagrees, and says so
+    ///
+    /// `pdfcer_render::annot` defers the `NoZoom`/`NoRotate` placement
+    /// adjustment (a documented Pass 6.0 deferral, reported as a render note)
+    /// and places these annotations by the base §12.5.5 algorithm — so in
+    /// pdfcer's own raster a resized sticky **does** change size, while
+    /// Acrobat's would not. Two readers disagreeing about what the file means
+    /// is the strongest argument for refusing to write it, not a reason to
+    /// permit it.
+    ///
+    /// Position is the property this annotation does have:
+    /// [`EditSession::move_annotation`] is the verb for it.
+    #[error(
+        "this {subtype}'s appearance is a fixed-size marker, so it has no size to scale -- {why}. \
+         Its /Rect anchors the marker; move_annotation is the verb that changes where it sits. \
+         Nothing was resized."
+    )]
+    ResizeFixedSizeMarker {
+        /// The `/Subtype`, for a message that names what the operator selected.
+        subtype: String,
+        /// Which rule makes this one fixed-size — the subtype's own (`/Text`)
+        /// or this annotation's `NoZoom` flag. Named rather than folded into
+        /// one sentence because a caller that wants to *clear* the flag can
+        /// act on the second and not on the first.
+        why: &'static str,
+    },
     /// The object named in a page's `/Annots` is a **structural object**, not
     /// an annotation (`Pass 190.1`).
     ///
@@ -26829,6 +26887,13 @@ impl EditSession {
     /// or non-annotation target, an annotation with no `/Rect`, a widget or ce
     /// dimension (both refused by name — they have verbs that do more), a
     /// non-finite or zero factor, and the un-rebuildable appearance above.
+    ///
+    /// Also [`EditError::ResizeFixedSizeMarker`], for a `/Text` sticky note or
+    /// any annotation whose `/F` sets `NoZoom`: a conforming reader draws
+    /// those unscaled and reads `/Rect` as an anchor rather than as a size, so
+    /// there is nothing for a factor to scale. That one has **no override** —
+    /// see the variant for why `allow_appearance_distortion` would be the
+    /// wrong consent to take.
     pub fn resize_annotation(
         &mut self,
         annot_id: ObjId,
@@ -26885,6 +26950,51 @@ impl EditSession {
                 subtype: "form widget".to_owned(),
                 use_instead: "edit_widget(fqn, index, &WidgetEdit::new().with_rect(..))",
                 why: "a widget belongs to a field, and that verb rebuilds its appearance into the new box as part of the same command",
+            });
+        }
+
+        // ★★ A FIXED-SIZE MARKER HAS NO SIZE TO SCALE, and until this guard
+        // existed it was told so in a sentence that was FALSE.
+        //
+        // A `/Text` sticky reached the appearance test below, failed it (its
+        // appearance comes from a third builder, not the markup family), and
+        // was refused with *"pdfcer did not draw it, so pdfcer will not redraw
+        // it"* — about a marker pdfcer had drawn seconds earlier. The
+        // consuming shell reported it with the observation that makes it worth
+        // a guard rather than a reworded string: **the wrong sentence is what
+        // told them their grips were wrong.** They had offered eight resize
+        // handles on a sticky for the life of the feature, because the refusal
+        // read as a fact about the FILE ("some other producer drew this") when
+        // the true fact is about the KIND ("this thing does not have a size").
+        //
+        // §12.5.6.4: a `/Text` annotation "shall behave as if the NoZoom and
+        // NoRotate flags were set", and §12.5.3's NoZoom rule is "do not scale
+        // the annotation's appearance to match the magnification of the page",
+        // positioned from the UPPER-LEFT corner of `/Rect`. So a conforming
+        // reader reads `/Rect` as an anchor, not as a size.
+        //
+        // Tested as a CLASS — the subtype rule OR the flag — because they are
+        // the same statement about the same rectangle, and a guard that knew
+        // only `/Text` would refuse a NoZoom sticky while resizing a NoZoom
+        // stamp into a rectangle no reader honours. That is `R245`'s shape
+        // (a guard on one route and not on its twin), declined in advance.
+        //
+        // Placed with the other TARGET-kind refusals and ahead of the factor
+        // validation, matching the order this verb already uses: what the
+        // annotation IS is a more fundamental answer than what the arguments
+        // were.
+        if target.subtype == b"Text" || target.flags.no_zoom() {
+            return Err(EditError::ResizeFixedSizeMarker {
+                subtype: String::from_utf8_lossy(&target.subtype).into_owned(),
+                why: if target.subtype == b"Text" {
+                    "ISO 32000-1 12.5.6.4 -- a /Text annotation always behaves as if NoZoom and \
+                     NoRotate were set, so a conforming reader draws its icon unscaled and takes \
+                     its position from the UPPER-LEFT corner of /Rect (12.5.3)"
+                } else {
+                    "its /F sets NoZoom (12.5.3 Table 165 bit 4), so a conforming reader draws \
+                     its appearance unscaled and takes its position from the UPPER-LEFT corner \
+                     of /Rect"
+                },
             });
         }
 

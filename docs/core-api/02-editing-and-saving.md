@@ -1879,6 +1879,33 @@ pdfcer's answer, in three branches, reported as `AnnotationResize::appearance`:
 | foreign `/AP`, **uniform** scale, `scale_stroke_width` **on** | `CarriedUniform` | The matrix scales the stroke by exactly the requested factor. Carrying it **is** the requested result — no flag needed. |
 | foreign `/AP`, anything else | **refused** | `ResizeAppearanceNotRebuildable { subtype, uniform, why }`, unless `allow_appearance_distortion` → `CarriedUniform` / `CarriedDistorted`. |
 
+##### A fixed-size marker is refused BEFORE any of that, and there is no override
+
+A `/Text` sticky note, **or any annotation whose `/F` sets `NoZoom`**, is
+refused up front with `EditError::ResizeFixedSizeMarker { subtype, why }`.
+
+§12.5.6.4 — a `/Text` annotation "shall behave as if the `NoZoom` and
+`NoRotate` flags were set"; §12.5.3 — `NoZoom` means "do not scale the
+annotation's appearance to match the magnification of the page", positioned
+from the **upper-left corner** of `/Rect`. A conforming reader therefore reads
+`/Rect` as an **anchor**, not as a size, and a scale factor has nothing to act
+on. `move_annotation` is the verb that changes where such an annotation sits.
+
+★ **This refusal replaced a true policy stated in a false sentence.** A sticky
+used to reach the provenance test above and be refused with *"pdfcer did not
+draw it"* — about a marker pdfcer had drawn seconds earlier through a different
+builder. The consuming shell had shipped **eight resize grips** on stickies for
+the life of the feature, because the refusal read as a fact about the *file*
+rather than about the *kind*.
+
+`allow_appearance_distortion` deliberately does **not** unlock it: that option
+means *"I accept a distorted appearance"*, and a conforming reader does not
+distort this one — it ignores the new size. Note that `pdfcer-render` currently
+**defers** the `NoZoom`/`NoRotate` placement adjustment (a documented Pass 6.0
+deferral, reported as a render note), so pdfcer's own raster *does* scale such a
+marker where Acrobat's would not. Two readers disagreeing about what the file
+means is the argument for refusing to write it.
+
 ★ **"Did pdfcer draw this?" is not `spec_from_dict(..).is_ok()`.** That question
 is *can pdfcer parse a spec out of this dictionary*, which succeeds for an
 Acrobat-drawn `/Square` too — its `/Rect`, `/C`, `/IC` and `/BS` all read fine.
@@ -4219,7 +4246,7 @@ borrow it (`tests/image_placement.rs:238-247`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs:2300`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**128 variants** at `Pass 270.2`, counted at depth 1 inside `pub enum EditError`.
+**129 variants** at `Pass 277.0`, counted at depth 1 inside `pub enum EditError`.
 
 `Pass 270.2` added `AnnotationContentsLocked` — **Table 165 bit 10,
 `LockedContents`**, raised by `set_markup_note` / `clear_markup_note` when the
