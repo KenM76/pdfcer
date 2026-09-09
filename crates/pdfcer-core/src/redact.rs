@@ -293,6 +293,18 @@ pub enum CarrierAction {
     /// un-redacted residual to verify manually. The cardinal-rule-honest
     /// outcome for a carrier this build cannot fully redact.
     DisclosedNotScrubbed,
+    /// **Present, checked, and found to carry nothing redacted**
+    /// (`Pass 282.0`).
+    ///
+    /// Distinct from [`Self::Scrubbed`], whose documentation says pdfcer
+    /// *removed* something — a claim that reads false when there was nothing
+    /// to remove — and distinct from [`Self::Absent`], which the `/Info`
+    /// carrier used to report in this case even though the dictionary was
+    /// right there. Three different facts about a carrier, and a shell that
+    /// tells an operator "nothing to do" when the truth is "checked, clean"
+    /// has taken away the one thing that distinguishes a diligence sweep from
+    /// a no-op.
+    CheckedClean,
 }
 
 impl CarrierAction {
@@ -304,6 +316,7 @@ impl CarrierAction {
             Self::Scrubbed => "scrubbed",
             Self::DroppedByRewrite => "dropped_by_rewrite",
             Self::DisclosedNotScrubbed => "DISCLOSED_NOT_SCRUBBED",
+            Self::CheckedClean => "checked_clean",
         }
     }
 }
@@ -2556,9 +2569,84 @@ fn rewrite_page_dict(
     Some((updated, thumb))
 }
 
-/// Carrier: `/Info` — remove any string entry whose bytes contain a
-/// redacted string (over-scrub: drop the whole entry). The scrub rides the
-/// forced full rewrite, so the old `/Info` object's bytes do not survive.
+/// The shortest piece of redacted text that is EVIDENCE a metadata string
+/// quotes redacted content, rather than a coincidence (`Pass 282.0`).
+///
+/// # Why a floor exists at all, in both directions
+///
+/// `carrier_info` decides whether an `/Info` entry duplicates content the
+/// operator just destroyed. With no floor it answers that question with
+/// whatever granularity the *producer* happened to use for its show
+/// operators — and `redacted_text` is exactly that granular (see its field
+/// documentation). On a producer that draws **one glyph per show operator**,
+/// the redacted pieces are single characters, and "does `/Keywords` contain
+/// `3`?" is true of almost every document ever written. The scrub would empty
+/// the dictionary on a coincidence.
+///
+/// The consuming shell hit the same wall from the other side: its independent
+/// absence proof greps the output for each redacted piece, and on that
+/// producer it was *"not finding leaked text; it is finding the alphabet"*.
+/// It floors at **4**, and this constant matches deliberately — two
+/// independent checks over the same field that disagreed about what counts as
+/// evidence would be worse than either floor alone.
+const MIN_MATCH_LEN: usize = 4;
+
+/// The pieces of redacted text long enough to be evidence, whole strings and
+/// whitespace-delimited tokens alike (`Pass 282.0`).
+///
+/// # Why tokens and not only whole runs
+///
+/// The pre-`Pass 282.0` rule dropped an `/Info` entry that **contained** a
+/// redacted run, and that test is one-directional: a redacted run **longer**
+/// than the metadata string can never be contained in it. Measured on a real
+/// file — a page run of several words was redacted, six `/Info` entries were
+/// scrubbed, and `/Keywords` kept a string sharing the redacted word while the
+/// carrier line read `scrubbed`. **The report claimed a clean carrier that was
+/// not clean**, which is the failure mode this whole report exists to prevent.
+///
+/// Tokenising both sides fixes the direction: `/Keywords` shares the word, the
+/// word is over the floor, the entry goes.
+fn redaction_evidence(redacted: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for text in redacted {
+        let whole = text.trim();
+        if whole.chars().count() >= MIN_MATCH_LEN && !out.iter().any(|s| s == whole) {
+            out.push(whole.to_owned());
+        }
+        for token in text.split_whitespace() {
+            // Punctuation is stripped from the ends only: an interior hyphen or
+            // slash is part of the token a reader would grep for (a part number,
+            // a URL), while a trailing comma is not.
+            let token = token.trim_matches(|c: char| !c.is_alphanumeric());
+            if token.chars().count() >= MIN_MATCH_LEN && !out.iter().any(|s| s == token) {
+                out.push(token.to_owned());
+            }
+        }
+    }
+    out
+}
+
+/// Carrier: `/Info` — remove any string entry that quotes redacted content
+/// (over-scrub: drop the whole entry). The scrub rides the forced full
+/// rewrite, so the old `/Info` object's bytes do not survive.
+///
+/// # ★★ What "quotes redacted content" means, and why it was wrong
+///
+/// It used to mean *"the entry's bytes contain a redacted run"*. That is
+/// one-directional and producer-dependent — see [`redaction_evidence`] for the
+/// measurement that showed it reporting `scrubbed` about an entry it had left
+/// alone. It now means *"the entry's bytes contain a redacted run **or any
+/// word of one**, at least [`MIN_MATCH_LEN`] characters long"*.
+///
+/// # When there is no evidence at all
+///
+/// A redaction whose every piece is below the floor — which is what a
+/// per-glyph producer yields today — gives this carrier **nothing it can check
+/// without guessing**. That is reported as
+/// [`CarrierAction::DisclosedNotScrubbed`] with a note, never as `Scrubbed`
+/// and never as `Absent`: the dictionary is present, it was not scrubbed, and
+/// the operator is the one who has to look. Answering "scrubbed" there would
+/// be the same false clean this Pass exists to remove.
 fn carrier_info(
     doc: &Document,
     redacted: &[String],
@@ -2577,12 +2665,26 @@ fn carrier_info(
         report.add_carrier("info", false, CarrierAction::Absent);
         return;
     };
+
+    let evidence = redaction_evidence(redacted);
+    if evidence.is_empty() {
+        // Nothing long enough to distinguish a quotation from a coincidence.
+        report.add_carrier("info", true, CarrierAction::DisclosedNotScrubbed);
+        report.notes.push(format!(
+            "redaction: /Info present and NOT scrubbed — every redacted piece is shorter than \
+             {MIN_MATCH_LEN} characters (this producer draws few glyphs per show operator), so \
+             matching metadata against them would drop entries on a coincidence rather than on \
+             evidence; review /Title, /Subject, /Keywords and /Author by hand"
+        ));
+        return;
+    }
+
     let mut updated = info.clone();
     let mut changed = 0u64;
     let keys: Vec<Name> = info.iter().map(|(k, _)| k.clone()).collect();
     for key in keys {
         if let Some(Object::String(bytes)) = info.get(key.as_bytes())
-            && redacted.iter().any(|t| bytes_contain_text(bytes, t))
+            && evidence.iter().any(|t| bytes_contain_text(bytes, t))
         {
             updated.remove(key.as_bytes());
             changed += 1;
@@ -2593,7 +2695,10 @@ fn carrier_info(
         dirty.replace(info_id, Object::Dict(updated));
         report.add_carrier("info", true, CarrierAction::Scrubbed);
     } else {
-        report.add_carrier("info", true, CarrierAction::Absent);
+        // Present, checked against real evidence, and genuinely clean. NOT the
+        // same fact as "absent", which is what this branch used to report even
+        // though the dictionary was right there.
+        report.add_carrier("info", true, CarrierAction::CheckedClean);
     }
 }
 
@@ -3160,10 +3265,20 @@ mod tests {
 
     /// Mark "SECRET" by search, save, reload — the state apply operates on.
     fn mark_and_save(input: &[u8]) -> Vec<u8> {
+        mark_and_save_text(input, "SECRET")
+    }
+
+    /// [`mark_and_save`] for a fixture whose page says something else
+    /// (`Pass 282.0`).
+    ///
+    /// Split out rather than parameterising the original because "SECRET" is
+    /// load-bearing in a dozen existing assertions and threading a literal
+    /// through every call site would have been a bigger diff than the Pass.
+    fn mark_and_save_text(input: &[u8], needle: &str) -> Vec<u8> {
         let doc = Document::from_bytes(input.to_vec()).unwrap();
         let mut session = EditSession::new(doc);
-        let ids = session.mark_redactions_by_search("SECRET", false).unwrap();
-        assert!(!ids.is_empty(), "search should have found SECRET");
+        let ids = session.mark_redactions_by_search(needle, false).unwrap();
+        assert!(!ids.is_empty(), "search should have found {needle}");
         let (bytes, _) = session
             .to_incremental_bytes(&SaveOptions::identity())
             .unwrap();
@@ -4033,6 +4148,171 @@ mod tests {
                 .carriers
                 .iter()
                 .any(|c| c.carrier == "info" && c.action == CarrierAction::Scrubbed)
+        );
+    }
+
+    /// ★★★ A METADATA STRING SHORTER THAN THE REDACTED RUN. The old rule could
+    /// not see this, and reported `scrubbed` anyway (`Pass 282.0`).
+    ///
+    /// The page run is `PROJECT ORION BUDGET`; `/Keywords` is just `ORION`.
+    /// The pre-282 test was *"does the entry contain a redacted run?"* — and
+    /// `ORION` does not contain `PROJECT ORION BUDGET`, so the entry survived
+    /// while the carrier line said the carrier was clean.
+    ///
+    /// Direction is the whole bug: containment only ever finds metadata that
+    /// quotes the run **whole or longer**, and metadata is almost always
+    /// shorter than the sentence it summarises.
+    #[test]
+    fn an_info_entry_shorter_than_the_redacted_run_is_scrubbed() {
+        let content = b"BT /F1 24 Tf 20 100 Td (PROJECT ORION BUDGET) Tj ET";
+        let stream = format!(
+            "<< /Length {} >>\nstream\n{}\nendstream",
+            content.len(),
+            std::str::from_utf8(content).unwrap()
+        );
+        let pdf = assemble(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 200] \
+                 /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+                &stream,
+                "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+                "<< /Keywords (ORION) /Author (Nobody) >>",
+            ],
+            "/Info 6 0 R",
+        );
+        // ★★ MARKED BY RECTANGLE, NOT BY SEARCH, AND THAT IS THE WHOLE TEST.
+        //
+        // The first version searched for "ORION", so the removed run WAS
+        // "ORION" — which `/Keywords (ORION)` contains, so the old containment
+        // rule matched and a sabotage of the token split stayed GREEN. A
+        // fixture that cannot exhibit the defect its test names is this
+        // project's most-recorded way to ship one.
+        //
+        // A rectangle over the whole line removes "PROJECT ORION BUDGET", which
+        // `/Keywords (ORION)` does NOT contain. Only the token rule can see it.
+        let marked = mark_rects(pdf, &[[10.0, 90.0, 390.0, 140.0]]);
+        let doc = Document::from_bytes(marked).unwrap();
+        let (out, report) = apply_redactions(&doc, &SaveOptions::identity()).unwrap();
+        assert!(
+            report
+                .redacted_text
+                .iter()
+                .any(|t| t.contains("PROJECT") && t.contains("BUDGET")),
+            "the fixture must remove a run LONGER than the metadata string, or it measures containment rather than tokens: {:?}",
+            report.redacted_text
+        );
+        assert!(
+            !contains(&out, b"ORION"),
+            "the /Keywords entry shares a word with the redacted run and must go"
+        );
+        assert!(report.info_strings_scrubbed >= 1, "{report:?}");
+        // The unrelated entry still survives — the scrub is over-eager by
+        // design, not indiscriminate.
+        assert!(contains(&out, b"Nobody"));
+    }
+
+    /// ★★ A ONE-CHARACTER REDACTION SCRUBS NOTHING, AND SAYS SO.
+    ///
+    /// With no floor, *"does `/Keywords` contain `X`?"* is true of almost every
+    /// document, and the scrub empties the dictionary on a coincidence. That is
+    /// not hypothetical: a producer that draws one glyph per show operator
+    /// makes **every** redacted piece one character long, and the consuming
+    /// project's independent absence proof hit the same wall — *"not finding
+    /// leaked text; it is finding the alphabet"*.
+    ///
+    /// The honest outcome is `DISCLOSED_NOT_SCRUBBED`: the dictionary is
+    /// present, it was not scrubbed, and the operator is the one who has to
+    /// look. Reporting `scrubbed` (or, as the code did before, `absent`) claims
+    /// a clean carrier nobody checked.
+    #[test]
+    fn a_redaction_too_short_to_be_evidence_discloses_instead_of_guessing() {
+        let content = b"BT /F1 24 Tf 20 100 Td (X) Tj ET";
+        let stream = format!(
+            "<< /Length {} >>\nstream\n{}\nendstream",
+            content.len(),
+            std::str::from_utf8(content).unwrap()
+        );
+        let pdf = assemble(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 200] \
+                 /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+                &stream,
+                "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+                "<< /Title (Annual Report) /Author (Nobody) >>",
+            ],
+            "/Info 6 0 R",
+        );
+        let marked = mark_and_save_text(&pdf, "X");
+        let doc = Document::from_bytes(marked).unwrap();
+        let (out, report) = apply_redactions(&doc, &SaveOptions::identity()).unwrap();
+
+        assert_eq!(
+            report.info_strings_scrubbed, 0,
+            "one character is not evidence: {report:?}"
+        );
+        assert!(
+            contains(&out, b"Annual Report"),
+            "the title shares no word with the redacted text and must survive"
+        );
+        assert!(
+            report.carriers.iter().any(|c| c.carrier == "info"
+                && c.present
+                && c.action == CarrierAction::DisclosedNotScrubbed),
+            "an unverifiable carrier is disclosed, never reported clean: {:?}",
+            report.carriers
+        );
+        assert!(
+            report
+                .notes
+                .iter()
+                .any(|n| n.contains("/Info present and NOT scrubbed")),
+            "the operator is told what to review by hand: {:?}",
+            report.notes
+        );
+    }
+
+    /// A present, checked, genuinely clean `/Info` is `checked_clean` — not
+    /// `absent`, which is what this branch reported before `Pass 282.0`.
+    ///
+    /// ★ Three different facts, and the old code collapsed two of them: *there
+    /// is no such dictionary*, *there is one and it carries nothing redacted*,
+    /// and *there is one and pdfcer removed something from it*. A shell that
+    /// tells an operator "nothing to do" when the truth is "checked, clean"
+    /// has erased the difference between a diligence sweep and a no-op.
+    #[test]
+    fn a_clean_info_is_reported_checked_not_absent() {
+        let content = b"BT /F1 24 Tf 20 100 Td (PROJECT ORION BUDGET) Tj ET";
+        let stream = format!(
+            "<< /Length {} >>\nstream\n{}\nendstream",
+            content.len(),
+            std::str::from_utf8(content).unwrap()
+        );
+        let pdf = assemble(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 200] \
+                 /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+                &stream,
+                "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+                "<< /Author (Nobody) /Creator (Something Else Entirely) >>",
+            ],
+            "/Info 6 0 R",
+        );
+        let marked = mark_and_save_text(&pdf, "ORION");
+        let doc = Document::from_bytes(marked).unwrap();
+        let (_out, report) = apply_redactions(&doc, &SaveOptions::identity()).unwrap();
+        assert_eq!(report.info_strings_scrubbed, 0);
+        assert!(
+            report.carriers.iter().any(|c| c.carrier == "info"
+                && c.present
+                && c.action == CarrierAction::CheckedClean),
+            "present and clean is its own answer: {:?}",
+            report.carriers
         );
     }
 
