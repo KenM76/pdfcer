@@ -112,6 +112,235 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★ 480th filing, 2026-09-09 — `Pass 279.0` SHIPPED, DISCHARGING THE
+479th FILING'S OWED ITEM 8: THE FONT REFUSAL'S NAMED REMEDY COULD LEAD IN
+A CIRCLE, AND THE EXISTING TEST COULD NOT HAVE CAUGHT IT. ★★ TWO
+METHODOLOGY FINDINGS FILED TO `D:\dev\rag\rust\` AS DATED FOOTERS —
+`R225`'S FAMILY GAINS A 14th INSTANCE, THE FIRST OF THE DAY ON A
+PRE-EXISTING TEST RATHER THAN A DELIBERATE SABOTAGE, AND THE
+NON-UNIQUE-STRING SABOTAGE CAUSE GAINS A FRESH INSTANCE. ★ `R221` GAINS
+CONTENT BUT NOT A RECONCILED ORDINAL — FLAGGED AS OWED RATHER THAN
+GUESSED.**
+
+**Sourcing (hard rule 8), stated up front — NO SHELL THIS SESSION.** As
+with the 479th and 478th filings, this filing had `Read`/`Grep`/`Glob`
+only. The commit hash, timestamp, file list, test counts and diffstat
+below are **relayed** from the dispatching engineer's own
+commit-message export, handed over as a scratchpad file — labelled as
+such, not independently re-run. **Backup currency, working-tree state,
+remote/push state and CI colour are NOT asserted** — none were
+checked; if any of them matter, the engineer should check
+`D:\Dev\pdfcer` directly. The Pass-ID mint and the `docs/FEATURES.md`
+cross-reference ARE independently verified here, by `Grep`/`Read`
+against the live documents.
+
+---
+
+### `Pass 279.0` (`5b8ec61`, 2026-09-09 06:41:18 −0400) — THE NAMED REMEDY COULD LEAD IN A CIRCLE, AND THE EXISTING TEST COULD NOT HAVE CAUGHT IT
+
+**Minted in this filing.** `Grep` against `ROADMAP.md` and
+`docs/FEATURES.md` for `Pass 27[9]` found no prior claim, consistent
+with the 479th filing's own recorded ledger position (ceiling `278`,
+next free `279`). Pass family ceiling `278` → **`279`**; next free
+`280`.
+
+**What this discharges.** The 479th filing's owed item 8 — *"the
+`format_text --set-font` subset-resolution question, promised to the
+requesting project and not yet measured"* — and, by the same
+measurement, `pdfcer-gui`'s own flagged risk from this morning's
+exchange: *"a face could be listed as covering a character that the
+run's encoding then cannot reach. We have not seen that happen and are
+not claiming it."* It happens, and it is the FIRST name on the list.
+
+**Measured, on `fixtures/synthetic/textedit/subset_missing.pdf`**
+(font `ABCDEF+Helvetica`):
+
+```
+edit-text   --find cat --replace dog          REFUSED, names Helvetica FIRST
+format-text --find cat --set-font Helvetica   -> exit 0, "ABCDEF+Helvetica->ABCDEF+Helvetica"
+edit-text   --find cat --replace dog          REFUSED, WORD FOR WORD
+format-text --find cat --set-font Times-Roman -> "ABCDEF+Helvetica->Times-Roman"
+edit-text   --find cat --replace dog          SUCCEEDS
+```
+
+The remedy the refusal named FIRST was a no-op that reported success;
+the one that worked was further down the same list.
+
+**The cause — a page-blind answer to a page-dependent question.**
+`std14_faces_covering` (`Pass 274.0`) scans each standard-14 face's OWN
+built-in encoding — a fact about the face. But `plan_font` calls
+`resolve_target_resource` first, which matches a selector against the
+page's `/Font` resources by key, by exact `/BaseFont`, AND by
+subset-stemmed `/BaseFont` — so "Helvetica" resolves to
+`ABCDEF+Helvetica`, the very subset that just refused the character,
+and `set_font` only authors a fresh standard-14 resource when nothing
+on the page claims the name.
+
+**The fix — ask the accepting code (`R221`), do not describe it.**
+`format::std14_faces_reachable` runs every candidate through the SAME
+resolution `set_font` itself uses, and where that lands on an existing
+page resource, through `accept_font_target` — the one acceptance test.
+Resolves to nothing: keep it, `set_font` will author it and it covers
+the character by construction. Resolves to a resource: keep it only if
+THAT resource can show the character. The cheap-looking alternative —
+"drop any name the page already carries" — is wrong in the other
+direction, proven by a sabotage: a page font that DOES cover the
+character is a perfectly good remedy, and dropping it hides a working
+answer.
+
+**The existing test was correct, ran green, and could not have
+failed.** `refusal_names_a_font.rs`'s `the_named_font_actually_works`
+already runs the full three-step loop (refuse, take the FIRST named
+face verbatim, switch, repeat the edit) — it did not catch this
+because its fixture's font is `AAAAAA+pdfcerSymbolicPrivate`, whose
+subset stem matches no standard-14 name, so the collision is
+structurally impossible on that fixture. Same shape as `Pass 278.0`'s
+surviving sabotage six hours earlier (a fixture that removed the
+*last* list element): a test whose FIXTURE cannot exhibit the defect
+its NAME claims to cover — on an ordinary end-to-end test rather than
+a deliberate sabotage this time. RAG dated footer below.
+
+**Tests.** Two new, in `refusal_names_a_font.rs` (3 → 5):
+`the_named_face_is_not_shadowed_by_the_pages_own_subset` (the loop,
+plus a direct assertion the named face is not `Helvetica`) and
+`only_the_shadowed_name_is_dropped` (asserts the WHOLE list:
+`Helvetica` gone, `Helvetica-Bold`/`-Oblique`/`Times-Roman`/`Courier`
+kept — the loop alone reads only the first name, so a fix that emptied
+the list would satisfy it). `encoding::faces_clause` now produces the
+shared sentence tail both refusal sites embed, so a narrowing that has
+to find the clause it is replacing finds ONE producer, not two
+spellings that drift.
+
+**Sabotage, both directions, RED:** always accept a page-resolved name
+(2 red); drop every candidate that resolves to nothing (3 red). **The
+first attempt at the second sabotage stayed green because it
+missed** — `s.replace("None => true", ..., 1)` hit a DIFFERENT match
+arm earlier in the same file, indistinguishable from a genuine
+survival until the diff was re-read against the target function by
+name. RAG dated footer below (second finding this Pass).
+
+**Files touched.** `crates/pdfcer-core/src/text_edit/format.rs` (new
+`std14_faces_reachable`),
+`crates/pdfcer-core/src/text_edit/encoding.rs` (new `faces_clause`,
+shared by both refusal sites), `crates/pdfcer-core/src/text_edit/edit.rs`
+(the subset-floor refusal site),
+`crates/pdfcer-cli/tests/refusal_names_a_font.rs` (5 tests, was 3).
+
+**Verification (relayed).** `refusal_names_a_font` 5 (was 3), plus the
+workspace suite. `cargo fmt` clean; `cargo clippy --all-targets
+--all-features -- -D warnings` clean; `tools/run-gates.sh` PASS on all
+29 commands.
+
+**`docs/FEATURES.md`.** This is a **correction to an existing
+capability, not a new row.** Row 198 (`Pass 274.0`'s
+font-coverage-refusal-names-a-remedy row) amended in place: the named
+faces are now computed against the page's own resolution, not each
+face's built-in encoding alone — a face the page shadows with a
+non-covering subset is excluded. `core`/`cli` boxes unchanged
+(`[x]`/`[x]`, no flag added); `gui`/`Acrobat` unchanged (`[ ]`/`[ ]`).
+
+**`R221` gains content, not a reconciled ordinal.** The commit calls
+this *"R221's third recorded instance, and the first where the
+parallel description was in prose rather than in code."* The second
+half is genuinely new — every prior `R221` instance this project has
+recorded was two pieces of CODE drifting; this is a prose refusal
+message standing in as the parallel description. **The ordinal is NOT
+independently reconciled here.** `Grep` against `docs/ROADMAP.md`'s
+own Standing Rules `R221` entry shows numbered instances already well
+past three (up to at least a sixth, with the entry's own history
+acknowledging past mis-tracking — see the 300th filing's
+self-correction, *"instance 5 filed here for the first time despite a
+prior filing saying it already was"*). Rather than guess a number,
+this is filed as owed work below: reconcile `R221`'s true current
+instance count before adding a dated note to its Standing Rules body.
+
+**`R225`'s family gains a 14th instance, of a NEW kind — a correct,
+green, pre-existing END-TO-END TEST, not a deliberate sabotage.**
+`refusal_names_a_font.rs`'s three-step loop was written correctly and
+ran green for weeks; it could not have exhibited today's defect
+because its fixture's subset stem cannot collide with a standard-14
+name. This is the SECOND such instance TODAY (after `Pass 278.0`'s
+sabotage survival, instance 12) and the first to occur on an ordinary
+regression test rather than a deliberate sabotage-check. Dated footer
+added to
+`D:\dev\rag\rust\a_sabotage_can_only_be_as_discriminating_as_the_fixture_it_runs_on.md`
+(instance 14).
+
+**A fresh dated instance of the "non-unique-string sabotage" cause**,
+filed as a dated footer to
+`D:\dev\rag\rust\a_sabotage_that_does_not_compile_or_change_behavior_measures_nothing_verify_the_mutation_before_trusting_the_catch.md`
+(that file's cause 4, *"anchored to a non-unique string, landed in the
+wrong function"*) — the first attempt's `s.replace` matched an
+earlier, unrelated `None => true` arm in the same file. Remedy
+applied: locate the FUNCTION first, then the string inside it, and
+re-read the diff before believing a red-or-green result.
+
+**Channel state.** A fourth reply went out today,
+`reply_2026-09-09-your-coverage-flag-was-REAL-and-it-was-the-first-name-on-the-list.md`,
+confirming `pdfcer-gui`'s flagged risk and asking whether their own
+Properties panel independently reproduces the shadowing rule.
+Existence **not independently confirmed by `Glob` this filing** —
+relayed only (unlike the 479th filing's three replies, which were
+`Glob`-confirmed). Still open: `pdfcer-gui`'s standing ask for a verb
+answering *"which characters can this run accept?"* before the first
+keystroke, offered twice, not yet answered.
+
+---
+
+### Part — owed work, carried forward and new
+
+**Carried forward, unchanged:**
+
+4. `fixtures/synthetic/text/PROVENANCE.md` backfill — 21 of 38 files
+   undocumented (477th filing).
+5. `origin/main..HEAD` is no longer a filing boundary once a release
+   has been pushed — read `tools/check-commits-filed.py`'s own output,
+   not the range.
+9. The "alternate route" sabotage cause is at `n=2`, not yet promoted
+   to a numbered standing rule; `R247` reservation unreconciled.
+
+**Discharged this filing:**
+
+8. **The `format_text --set-font` subset-resolution question** —
+   measured. `Pass 279.0` fixes the defect it predicted.
+
+**New, from this filing:**
+
+10. **`R221`'s true current instance count needs reconciliation before
+    this filing's finding can be added to its Standing Rules body as a
+    numbered instance.** The commit calls it "third"; the Standing
+    Rules entry already shows numbers well past three, and the entry's
+    own history records at least one prior mis-tracking of this exact
+    count (300th filing). Flagged rather than guessed at, per hard
+    rule 10.
+11. **`pdfcer-gui`'s fourth outbound reply is asserted by the
+    dispatching engineer, not independently confirmed by `Glob` this
+    filing** — confirm its existence next filing, per the discipline
+    the 479th filing's items 6-7 established.
+12. **`pdfcer-gui`'s standing ask for a pre-keystroke "which characters
+    can this run accept?" verb** remains open, offered twice by the
+    engineer, unanswered.
+
+---
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `278` (highest ID `278.0`), next free `279` | **`279`** (highest ID `279.0`), next free `280`. `Pass 279.0` MINTED AND SHIPPED in this filing |
+| Standing rules | `R246` | **unchanged, numerically** — `R221` gains content (a prose-based parallel description) but no reconciled ordinal (owed item 10); `R225`'s family gains a 14th instance (a non-sabotage, pre-existing-test instance) |
+| Decision records | `144` | **unchanged** — no new decision this filing |
+| `SESSION_LOG` filings | `479` | **`480`** |
+| `docs/FEATURES.md` | 1 new *Implemented* row (Ink editing); 1 row amended (`/Rect`-resize/`/Text` residue) | **1 row amended in place** (`Pass 274.0`'s font-coverage-refusal row, corrected by `Pass 279.0`) |
+| Owed-survivor / open-reply ledger | items 4-5 open; 6-7 discharged; 8-9 new | **item 8 DISCHARGED**; **items 4, 5, 9 still open, unchanged**; **items 10-12 NEW** |
+
+**Release state — NOT checked this filing (no shell).** Whether
+`5b8ec61` (or any prior unreleased commit) has been pushed or released
+is not asserted here — the engineer should check `git rev-parse
+origin/main` / `git describe --tags --abbrev=0` directly.
+
+---
+
 **★★★★★ 479th filing, 2026-09-09 — TWO PASSES MINTED AND SHIPPED (`277.0`,
 `278.0`), BOTH CLOSING INBOUND REQUESTS FROM `pdfcer-gui`: A STICKY NOTE
 REFUSED A RESIZE BY CLAIMING pdfcer HAD NOT DRAWN IT — THE SAME FALSE

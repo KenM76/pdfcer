@@ -4,6 +4,61 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-09 (480th filing)
+
+**Shipped:**
+- Pass 279.0 (`5b8ec61`) — a font-coverage refusal's named remedy could
+  lead in a circle: `format-text --set-font Helvetica` on
+  `ABCDEF+Helvetica` resolved back to the very subset that had just
+  refused the character, reported success, and changed nothing, so the
+  repeated edit refused word-for-word. Fixed by running every candidate
+  face through the same resolution and acceptance path `set_font`
+  itself uses (`R221`), rather than describing it separately. Discharges
+  the 479th filing's owed item 8.
+
+**Decisions made this session:**
+- No new decision minted (`ARCHITECTURE.md` §12 untouched).
+- Declined to guess a reconciled instance ordinal for `R221` — the
+  commit calls this "the third recorded instance," but `docs/ROADMAP.md`'s
+  own Standing Rules `R221` entry already shows numbers well past three,
+  with a documented history of prior mis-tracking (300th filing). Filed
+  as owed work rather than asserted.
+
+**Findings + decisions:**
+- Two dated footers written to `D:\dev\rag\rust\`: a 14th instance of
+  the sabotage/fixture-discrimination family — the first of the day on
+  an *ordinary, pre-existing, correct* regression test rather than a
+  deliberate sabotage, because the test's fixture could not collide
+  with the defect's precondition — and a fresh instance of the
+  non-unique-string sabotage-anchor cause, where a generic Rust idiom
+  (`None => true`) matched an unrelated match arm before the intended
+  one.
+- The named-remedy-leads-in-a-circle defect is exactly the risk
+  `pdfcer-gui` flagged this morning in the abstract ("we have not seen
+  that happen and are not claiming it") — it happens, and it is the
+  first name on the list. Confirmed and replied to.
+
+**Still in flight:**
+- `R221`'s true current instance count is unreconciled — needs research
+  before a dated note can be added to its Standing Rules body.
+- `pdfcer-gui`'s fourth outbound reply is relayed, not independently
+  `Glob`-confirmed this filing (unlike the 479th filing's three).
+- `pdfcer-gui`'s standing ask for a pre-keystroke "which characters can
+  this run accept?" verb remains open, offered twice, unanswered.
+- Items 4, 5 and 9 (PROVENANCE.md backfill, the `origin/main..HEAD`
+  filing-boundary note, and the "alternate route" `R247` reservation)
+  carried forward unchanged.
+- Whether `5b8ec61` has been pushed or released is not asserted — no
+  shell this filing.
+
+**For next session:**
+- Confirm `pdfcer-gui`'s fourth reply by `Glob` against
+  `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`.
+- Reconcile `R221`'s instance count before its Standing Rules body gains
+  another dated note.
+- Resolve the `R247` reservation and mint (or fold) the "alternate
+  route" cause properly (carried from the 479th filing).
+
 ## 2026-09-09 (479th filing)
 
 **Shipped:**
