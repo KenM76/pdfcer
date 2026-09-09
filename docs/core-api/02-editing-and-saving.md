@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 219 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 220 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 219 public `EditSession` methods
+## 1. Verb index — all 220 public `EditSession` methods
 
-**Count: 219.** Established by brace-matched extraction of the five
+**Count: 220.** Established by brace-matched extraction of the five
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed.
@@ -388,6 +388,7 @@ need their own policy).
 | Ask what synthetic bold/italic *would* do | `preview_style_resolution(&self, page_index, find, pinned_span, want) -> Result<StyleResolution, FormatError>` | 7388 | Pure query. **Decides where a style button routes** — see below; an empty `find` is not a wildcard here. |
 | Ask which fonts `set_font` would ACCEPT for a run | `preview_font_resources(&self, page_index, find, pinned_span) -> Result<FontPreflight, FormatError>` | 7459 | Pure query. **Per RUN, not per page** — see below. `FontPreflight` now also carries `standard_14: Vec<Std14Entry>` (every standard-14 face coverage-tested for the same text, `presence` = `OnPage { resource }` / `WouldBeAdded`) and `candidate: None` (`Pass 142.2`). |
 | Ask which fonts can hold the text ABOUT TO BE TYPED | `preview_font_resources_for(&self, page_index, find, pinned_span, candidate: &str) -> Result<FontPreflight, FormatError>` | edit.rs | **`Pass 142.2`**, pdfcer-gui request 2026-09-05. `find`/`pinned_span` locate the run; every `FontAcceptance` — page faces AND the standard 14 — is computed against `candidate` through the same gate `set_font` applies (embedded-subset floor included), so `Refused { character }` names the first character a face cannot hold. `candidate == ""` behaves exactly as `preview_font_resources`. CLI: `font-preflight --candidate TEXT`. |
+| **Ask which characters this run will accept, before the first keystroke** | `run_repertoire(&self, page_index, find, pinned_span) -> Result<RunRepertoire, FormatError>` | edit.rs | **`Pass 280.0`**, pdfcer-gui request 2026-09-09. A character in `accepted` is one `edit_text` will not refuse for that run — decided by calling the accepting code, not by describing it (`R221`). Strict: an embedded subset is narrowed to the codes this page carries. A run with no usable encoding is an EMPTY answer with a `reason`, not an `Err`, so an editor can decline to open. **Not** `preview_font_resources_for` per keystroke — that walks the whole page content stream per call. CLI: `run-repertoire [--list]`. See below. |
 | Re-wrap a recognised paragraph | `reflow_block(&mut self, page_index, block_index, &ReflowRequest) -> Result<ReflowApplyReport, ReflowApplyError>` | 4297 | One undo entry. **Planned against the SESSION VIEW** since `Pass 257.0` — composes with an earlier `edit_text`/`format_text` on the same page and with structural page edits (T-14 records the refusals that stood before). Still refuses (not silently deletes) a page carrying a run appended this session (`Pass 251.0`): the plan re-emits the first content object only and the sweep would drop the extra. |
 | Add a new text run at coordinates | `add_text(&mut self, &AddTextRequest) -> Result<AddTextReport, AddTextError>` | 4365 | Appends a new content stream; originals stay byte-verbatim. |
 | Add an invisible OCR text layer to one or more pages | `add_ocr_layer(&mut self, &[OcrPageLayer<'_>], &OcrLayerOptions) -> Result<Vec<OcrLayerReport>, OcrLayerError>` | 7313 | **ONE undo entry for the whole run**, however many pages. Reads the SESSION graph, not the base. |
@@ -1757,6 +1758,70 @@ always errors.
 > Undo kind: `CommandKind::ReshapeInk { edit, stroke }` — it names the stroke, because an
 > undo label that said "reshape" without saying which stroke would describe a different
 > gesture from the one the operator made. CLI: `pdfcer ink-edit --op …`.
+
+> #### ★★ `run_repertoire` — ask the alphabet BEFORE the first keystroke (`Pass 280.0`)
+>
+> ```rust
+> let rep = session.run_repertoire(page_index, find, pinned_span)?;  // -> RunRepertoire
+> if !rep.is_editable() { /* decline to open: rep.reason says why */ }
+> if rep.accepts(c) { /* the key is live */ }
+> ```
+>
+> **The guarantee, and it is the whole point:** a character in
+> `RunRepertoire::accepted` is one `edit_text` **will not refuse for that run**.
+> That holds by construction, not by assertion — acceptance is decided by
+> calling the accepting code (`encode_char` / `encode_str`) plus the same
+> subset-floor test the edit path applies, in the same order, with the same
+> `prefer` seed. A second description of those rules would drift, which is
+> `R221` and is exactly what `Pass 279.0` spent a Pass repairing one level up.
+>
+> **Do not call `preview_font_resources_for` per keystroke instead.** It answers
+> a different question (*which FACE could hold this text*) and answers it by
+> building a fresh walk over **every operation in the page's content stream**,
+> re-locating the run and scanning every font resource. Ask it once when the
+> caret lands; ask `run_repertoire` once per run and keep the set.
+>
+> | field | what it is for |
+> |---|---|
+> | `accepted: BTreeSet<char>` | materialised, so it can be printed, diffed and used to grey a keyboard |
+> | `accepts(ch) -> bool` | the predicate form |
+> | `is_editable() -> bool` | `false` ⇒ decline to open the editor at all |
+> | `reason: Option<String>` | why an empty answer is empty — a missing `/ToUnicode`, an un-invertible map, or "every character is produced by more than one code" |
+> | `embedded_subset: bool` | whether the answer is narrowed by the **file** (`R-INV-1`) rather than by the face — the difference between *"this font cannot"* and *"this file cannot, yet"*, and only the second has `format_text` + `set_font` as a remedy |
+> | `base_font`, `resource` | the name to show beside a greyed key, and the resource `set_font` would replace |
+> | `text` | the run the query RESOLVED — an empty `find` with a `pinned_span` means the whole operator, so a caller reads back which run was answered rather than assuming (same field, same reason, as `FontPreflight::text`) |
+> | `candidates_tested` | how many characters were **asked about**; `candidates_tested - accepted.len()` is how many the accepting code refused |
+>
+> **It is strict.** The repertoire comes from the run's own resource, so an
+> embedded subset is narrowed to the codes this page already carries — not
+> widened to what the face could draw. Computing it from a `/BaseFont` name
+> instead is the mistake `Pass 279.0` fixed one level up, and the consuming
+> shell asked for strictness by name.
+>
+> **A run with no usable encoding is an empty answer, not an `Err`** — an editor
+> should decline to open rather than open and refuse every key. A run that
+> cannot be **located** is still an `Err`, because that is a different fact.
+>
+> ★ **Measured, not assumed: acceptance is per character.** A word of accepted
+> characters is accepted, in any order — `R-INV-5`'s tie-break seed grows as a
+> word is encoded, and it changes *which code* a character gets, never
+> *whether* it is accepted. `crates/pdfcer-core/tests/run_repertoire.rs` drives
+> **every character of the repertoire** rather than a sample, in both
+> directions.
+>
+> ★ **An honest limit, found by a sabotage that survived:** on the simple-font
+> path the `encode_char` call is not currently *discriminating* — every
+> candidate comes from the font's own inverse map, and for such a character
+> that function can only refuse under `R-INV-8` (a scalar above the BMP, which
+> no glyph name in this corpus produces). The load-bearing filter there is the
+> subset floor. The call stays because it yields the code the floor needs and
+> because it is the single source of truth if the rules widen. The composite
+> branch's floor **is** discriminating and is measured
+> (`cidfonttype2-subset-floor.pdf`: three addressed, two carried).
+>
+> CLI: `pdfcer run-repertoire --find TEXT [--pin-span START:LEN] [--list]`,
+> printing **code points** rather than raw characters — a set containing a
+> space, a comma or a quote cannot be printed unambiguously otherwise.
 | **Write a note onto an existing annotation** | `set_markup_note(&mut self, annot_id: ObjId, note: &MarkupNote) -> Result<MarkupNoteChange, EditError>` | 18327 | `Pass 154.0`. `/Contents`, and `/T`/`/M` only if the note carries them — a partial note does **not** clear the author. Reports the text it REPLACED. **`Pass 258.1`:** on a `/FreeText` it now also RE-BAKES `/AP` from the new words, in the same command (one undo entry) — that subtype's `/Contents` *is* what its appearance paints, so the edit used to leave the page showing the old text. `MarkupNoteChange::appearance_rebaked` says whether it moved; `false` on a sticky/stamp (their notes are not painted) and on a `/FreeText` whose appearance pdfcer did not author, which is left alone rather than replaced. |
 | **Open or close an annotation's pop-up window** | `set_annotation_open(&mut self, annot_id: ObjId, open: bool) -> Result<AnnotationOpenChange, EditError>` | 26205 | `Pass 253.3`. Writes `/Open` on the annotation **and its `/Popup` companion**, one undo entry — Table 170 gives geometric markup no `/Open` of its own, so a square's window state lives only on the companion and writing one of the two would leave them disagreeing. Does **not** create a `/Popup`: an annotation without one has no window, and choosing its `/Rect` would be authoring. That case is a reported no-op (`annotation_written`/`popup_written` both `false`, no undo entry), NOT a refusal, so a shell may pass a mixed selection without filtering by subtype. Read half: `Annotation::open`, an `Option<bool>` because absent and explicitly-`false` are different facts. |
 | **Set an annotation's `/F` display flags** | `set_annotation_flags(&mut self, annot_id: ObjId, flags: AnnotFlags) -> Result<AnnotationFlagsChange, EditError>` | edit.rs | **`Pass 262.0`, 2026-09-08.** The WRITE half of `AnnotFlags`, which had **eight read accessors and no writer** — an operator could see a markup was hidden and not un-hide it, could see it would not print and not make it print, and **could not LOCK anything**, so pdfcer's own Locked gate was unreachable from pdfcer. Takes the **whole word**, not per-bit setters: Table 165's bits interact (`NoView` + `Print` = *prints but is not on screen*, a combination reached deliberately), so a per-bit API lets a caller build a state by a sequence of individually-sensible writes whose result is not. Read `Annotation::flags`, modify, write back. ⚠️ **Refuses a `/Widget` by name** — a widget's `/F` is `edit_widget`'s `Visibility`, a four-combination type that cannot express a contradictory pair, and two writers of one key with different vocabularies is how a field reaches a state its own editor cannot describe. ★ **A Locked annotation CAN still have its flags changed, including clearing Locked** — a lock undoable only outside the API that set it would be a one-way door; Table 165 protects content from casual edits, it does not seal a file. |

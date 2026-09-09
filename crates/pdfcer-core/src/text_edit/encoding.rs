@@ -386,6 +386,27 @@ impl CompositeEncoding {
     pub fn covers(&self, ch: char) -> bool {
         self.reverse.contains_key(&ch)
     }
+
+    /// Every character this font's resolved encoding can *address* — the
+    /// candidate domain a repertoire query walks (`Pass 280.0`).
+    ///
+    /// # Why a candidate list and not the answer
+    ///
+    /// A character being in the encoding is **necessary and not sufficient**:
+    /// it can still be refused as ambiguous (`R-INV-4`, two codes mean it), as
+    /// a ligature-only scalar (`R-INV-6`), or by the embedded-subset floor
+    /// (`R-INV-1`), which is a fact about the PAGE and not about the font.
+    /// So this returns what to *ask about*, and
+    /// [`crate::edit::EditSession::run_repertoire`] asks
+    /// [`Self::encode_char`] — the accepting code — about each one.
+    ///
+    /// That split is deliberate (`R221`): a repertoire that decided acceptance
+    /// itself would be a second description of the refusal rules, and the two
+    /// would drift exactly as `Pass 279.0`'s prose did.
+    #[must_use]
+    pub fn candidate_chars(&self) -> Vec<char> {
+        self.reverse.keys().copied().collect()
+    }
 }
 
 /// The standard-14 faces whose built-in encoding can show `ch`, by
@@ -647,6 +668,27 @@ impl InverseEncoding {
                 ))
             }
         }
+    }
+
+    /// Every character this font's resolved encoding can *address* — the
+    /// candidate domain a repertoire query walks (`Pass 280.0`).
+    ///
+    /// # Why a candidate list and not the answer
+    ///
+    /// A character being in the encoding is **necessary and not sufficient**:
+    /// it can still be refused as ambiguous (`R-INV-4`, two codes mean it), as
+    /// a ligature-only scalar (`R-INV-6`), or by the embedded-subset floor
+    /// (`R-INV-1`), which is a fact about the PAGE and not about the font.
+    /// So this returns what to *ask about*, and
+    /// [`crate::edit::EditSession::run_repertoire`] asks
+    /// [`Self::encode_char`] — the accepting code — about each one.
+    ///
+    /// That split is deliberate (`R221`): a repertoire that decided acceptance
+    /// itself would be a second description of the refusal rules, and the two
+    /// would drift exactly as `Pass 279.0`'s prose did.
+    #[must_use]
+    pub fn candidate_chars(&self) -> Vec<char> {
+        self.reverse.keys().copied().collect()
     }
 
     /// Encode a whole target string, or return the first hard [`Refusal`].

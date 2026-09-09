@@ -3824,6 +3824,92 @@ pub struct FontResourceEntry {
     pub real_italic: Option<FontSibling>,
 }
 
+/// The characters one located run will accept — the answer to *"which keys can
+/// the operator press?"*, asked before the first keystroke (`Pass 280.0`).
+///
+/// See [`crate::edit::EditSession::run_repertoire`] for why this exists and
+/// what it guarantees. The short form: **a character in [`Self::accepted`] is
+/// one `edit_text` will not refuse for this run**, and that holds by
+/// construction because the same accepting code decided both.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct RunRepertoire {
+    /// The run's `/BaseFont`, subset prefix and all — the name to show beside
+    /// a greyed key so the operator knows *which* font is the constraint.
+    pub base_font: String,
+    /// The run's own `/Font` resource key (`/F1`), which is what
+    /// `format_text`'s `set_font` would be replacing.
+    pub resource: String,
+    /// The run's text as the query RESOLVED it — not the caller's `find`.
+    ///
+    /// Normally the `find` that was passed in. On a **pinned** request with an
+    /// empty `find` it is the whole pinned show operator's text, so a caller
+    /// can read back exactly which run was answered about rather than assume.
+    /// Same field, same reason, as [`FontPreflight::text`].
+    ///
+    /// ★ This field exists because a gate demanded it and the gate was right.
+    /// `route_enumeration.rs` enumerates every function that locates an anchor
+    /// and requires it to resolve the find through `effective_find` — *"an
+    /// empty one reaches whatever they do with it, which is how three separate
+    /// Passes each fixed one route and left another"*. `run_repertoire` was a
+    /// fourth such route within an hour of being written. Resolving it and
+    /// **reporting** it is the honest discharge; an exemption would have been
+    /// the other kind.
+    pub text: String,
+    /// Every character this run accepts.
+    ///
+    /// Materialised rather than left as a predicate at the requester's
+    /// option — *"a materialised set is fine too"* — because a set can be
+    /// printed, diffed and used to grey a keyboard, and a predicate cannot.
+    pub accepted: BTreeSet<char>,
+    /// Whether the run's font is an embedded **subset**, and so whether
+    /// [`Self::accepted`] is narrowed by the `R-INV-1` floor (the codes this
+    /// page already carries) rather than by the font program alone.
+    ///
+    /// Worth surfacing: it is the difference between *"this face cannot draw
+    /// that character"* and *"this FILE cannot, yet"*, and only the second has
+    /// `format_text` + `set_font` as a remedy.
+    pub embedded_subset: bool,
+    /// How many characters were **asked about** — the size of the candidate
+    /// domain, not of the answer.
+    ///
+    /// `candidates_tested - accepted.len()` is the number the accepting code
+    /// refused: ambiguous mappings (`R-INV-4`), ligature-only scalars
+    /// (`R-INV-6`), and codes the subset does not carry (`R-INV-1`). A caller
+    /// that wants to explain *why* a key is greyed asks `edit_text` for the
+    /// one character; the refusal names its own trigger.
+    pub candidates_tested: usize,
+    /// Why the repertoire is empty, when it is empty for a reason other than
+    /// "this font addresses nothing".
+    ///
+    /// `Some(_)` means the run has **no usable encoding at all** — an editor
+    /// should decline to open on it rather than open and refuse every key,
+    /// which is the behaviour the requesting shell asked for by name. `None`
+    /// with an empty set would mean the font genuinely addresses nothing.
+    pub reason: Option<String>,
+}
+
+impl RunRepertoire {
+    /// Whether this run accepts `ch`.
+    ///
+    /// The predicate form the requester asked for. Equivalent to
+    /// `self.accepted.contains(&ch)`, and named because a call site reading
+    /// `rep.accepts(c)` says what it means where a set lookup does not.
+    #[must_use]
+    pub fn accepts(&self, ch: char) -> bool {
+        self.accepted.contains(&ch)
+    }
+
+    /// Whether the run has a usable encoding at all.
+    ///
+    /// `false` means an editor should decline to open: every key would be
+    /// refused, and [`Self::reason`] says why.
+    #[must_use]
+    pub fn is_editable(&self) -> bool {
+        self.reason.is_none() && !self.accepted.is_empty()
+    }
+}
+
 /// What a page's font resources would do for one run, asked **without**
 /// attempting anything (`Pass 142.1`).
 ///
@@ -5265,6 +5351,250 @@ fn disclosure_tagged(mcid: i64) -> String {
          is a CONFIRMED trigger of Acrobat's tag-tree-corruption defect; pdfcer DISCLOSES this \
          staleness rather than silently corrupting the accessibility tree (R72)."
     )
+}
+
+/// Which characters one located text run will accept, asked **before** the
+/// first keystroke instead of refused after the last (`Pass 280.0`).
+///
+/// # The operator problem this exists for
+///
+/// `pdfcer-gui`, verbatim: *"the refusal arrives **at commit**, so he types a
+/// whole word and then loses it. The alphabet is knowable before the first
+/// keystroke and we do not use it that way yet."*
+///
+/// Everything needed to answer was already computed — by the refusal, one
+/// keystroke too late.
+///
+/// # Why this is not `preview_font_resources_for` called per keystroke
+///
+/// That verb answers a different question (*which FACE could hold this text*)
+/// and answers it by building a fresh [`Walk`] over **every operation in the
+/// page's content stream**, re-locating the run, and scanning every font
+/// resource. Per keystroke that is a whole-page content walk per character
+/// typed, on pages the consuming shell has measured at 129,758 objects. It is
+/// the right verb for the moment the caret lands, and the wrong one for the
+/// keystroke path.
+///
+/// This one is asked **once per pinned run** and its answer is a set the
+/// caller keeps for the life of the edit.
+///
+/// # The contract, in the requester's words
+///
+/// > *"a character the query accepts, `encode_str` must not refuse for that
+/// > run."*
+///
+/// True **by construction rather than by assertion**: acceptance is decided by
+/// calling [`InverseEncoding::encode_char`] / [`CompositeEncoding::encode_str`]
+/// — the accepting code itself — plus the same `carried_codes` subset floor
+/// the edit path applies, in the same order, seeded with the same `prefer`
+/// set. Deciding it any other way would be a second description of the refusal
+/// rules, which is `R221`, and `Pass 279.0` shipped one Pass earlier precisely
+/// because such a description had drifted.
+///
+/// # Strict, deliberately
+///
+/// The repertoire is computed from **the run's own font resource**, so an
+/// embedded subset inherits the `R-INV-1` floor — a code the subset does not
+/// already carry on this page is not in the repertoire, even though the face
+/// has the glyph. Consulting a standard-14 table by `/BaseFont` name instead is
+/// exactly the mistake `Pass 279.0` fixed one level up.
+///
+/// # A run with no usable encoding answers NOTHING, and is not an error
+///
+/// The requester asked for this by name, so that an editor can decline to open
+/// rather than open and refuse every key: an un-invertible font yields an empty
+/// [`RunRepertoire`] with [`RunRepertoire::reason`] set. A run that cannot be
+/// **located** is still an `Err` — that is a different fact, and an editor
+/// should not open on it either.
+pub(crate) fn run_repertoire(
+    doc: &DocumentView<'_>,
+    page: &crate::page_tree::Page,
+    stream: &ContentStream,
+    find: &str,
+    pinned_span: Option<ByteSpan>,
+) -> Result<RunRepertoire, FormatError> {
+    use crate::text_edit::encoding::{CharEncoding, CompositeEncoding};
+
+    let mut walk = Walk::new(doc, &page.resources);
+    for op in stream.operations() {
+        walk.operation(&op, &stream.buf);
+    }
+    let recs = walk.recs;
+
+    // The same location the edit path performs, with the same request shape,
+    // so "the run" means the same run in both.
+    let locate = EditRequest {
+        page_index: 0,
+        find: find.to_owned(),
+        replace: String::new(),
+        pinned_span,
+        target: EditTarget::Auto,
+        span_from_pin: false,
+    };
+    let anchor_index = find_anchor(&recs, &locate).map_err(FormatError::from_edit)?;
+    let anchor = match recs.get(anchor_index) {
+        Some(OpRec {
+            rec: Rec::Show(s), ..
+        }) => s,
+        _ => return Err(FormatError::NoMatch(find.to_owned())),
+    };
+
+    let orig_dict =
+        resolve_font_dict(doc, &page.resources, &anchor.font_name).ok_or_else(|| {
+            FormatError::Unsupported(
+            "the run's font resource is unresolvable (outlined/vector art has no font to format)"
+                .to_owned(),
+        )
+        })?;
+    let font = ExtractFont::resolve(doc, orig_dict);
+    let base_font = font.base_font.clone();
+    let resource = String::from_utf8_lossy(&anchor.font_name).into_owned();
+    // ★ RESOLVED, not the caller's string: an empty `find` on a pinned
+    // request means the whole pinned operator. `route_enumeration.rs` requires
+    // every anchor-locating function to go through this, and it caught this
+    // one within an hour of it being written.
+    let text = crate::text_edit::edit::effective_find(anchor, find, pinned_span).to_owned();
+
+    let empty = |reason: &str| RunRepertoire {
+        base_font: base_font.clone(),
+        resource: resource.clone(),
+        text: text.clone(),
+        accepted: BTreeSet::new(),
+        embedded_subset: false,
+        candidates_tested: 0,
+        reason: Some(reason.to_owned()),
+    };
+
+    // The subset floor is a fact about the PAGE, not about the face: a code
+    // the subset does not already carry cannot be shown here whatever the
+    // font program contains.
+    let class = match classify_font(doc, orig_dict, &font) {
+        Ok(c) => c,
+        // `classify_font`'s refusals (composite-unsupported, symbolic with no
+        // /Encoding, /ToUnicode-only) are exactly the "this editor should not
+        // open" cases, and the requester asked for them as an empty answer
+        // rather than an error.
+        Err(e) => return Ok(empty(&e.to_string())),
+    };
+    let embedded_subset = class.embedded && class.subset;
+    let carried = if embedded_subset {
+        carried_codes(&recs, &anchor.font_name)
+    } else {
+        BTreeSet::new()
+    };
+
+    let mut accepted: BTreeSet<char> = BTreeSet::new();
+    let mut candidates_tested = 0usize;
+
+    if font.is_simple() {
+        let Some(glyph_names) = font.glyph_names() else {
+            return Ok(empty("the run's font has no invertible encoding"));
+        };
+        let inverse = InverseEncoding::build(&font.base_font, glyph_names);
+        // ★ THE SAME SEED THE EDIT PATH USES. `prefer` is the R-INV-5
+        // tie-break (codes already shown in this run); it decides WHICH code a
+        // character gets, never WHETHER it is accepted — which is why a
+        // per-character answer is sound for a whole word, and why a test drives
+        // every character of the repertoire rather than sampling.
+        let prefer: BTreeSet<u8> = anchor
+            .slots
+            .iter()
+            .filter_map(|s| u8::try_from(s.code).ok())
+            .collect();
+        // ★★ HONEST LIMIT, MEASURED BY A SABOTAGE THAT SURVIVED: on the simple
+        // path this call is **not currently discriminating**. Every candidate
+        // comes from `reverse.keys()`, and for such a character `encode_char`
+        // can only refuse under R-INV-8 (a scalar above the BMP, which no
+        // glyph name in this corpus produces) -- the ambiguity case returns
+        // `Chosen`, and the ligature-only and R-INV-7 cases apply to
+        // characters that are NOT candidates. Replacing the `Refuse` arm with
+        // code 0 left all ten tests green, because the subset floor then
+        // removed the same character for its own, different reason.
+        //
+        // It is called anyway, and that is deliberate rather than lazy:
+        //
+        //   1. it is where the CODE comes from, which the floor below needs;
+        //   2. `R221` -- it is THE accepting code. If its rules ever widen,
+        //      this query widens with them instead of drifting, which is the
+        //      failure `Pass 279.0` spent a Pass repairing one level up.
+        //
+        // The composite branch below is different: its floor IS discriminating
+        // and `cidfonttype2-subset-floor.pdf` measures it (3 addressed, 2
+        // carried).
+        for ch in inverse.candidate_chars() {
+            candidates_tested += 1;
+            let code = match inverse.encode_char(ch, &prefer) {
+                CharEncoding::Code(c) | CharEncoding::Chosen { code: c, .. } => c,
+                CharEncoding::Refuse(_) => continue,
+            };
+            if embedded_subset && !carried.contains(&u32::from(code)) {
+                continue;
+            }
+            accepted.insert(ch);
+        }
+    } else {
+        let Some(cmap) = font.to_unicode_cmap() else {
+            return Ok(empty("the run's composite font has no /ToUnicode"));
+        };
+        let Ok(composite) = CompositeEncoding::build(&font.base_font, cmap) else {
+            return Ok(empty("the run's composite font map cannot be inverted"));
+        };
+        for ch in composite.candidate_chars() {
+            candidates_tested += 1;
+            let mut one = String::new();
+            one.push(ch);
+            let Ok(enc) = composite.encode_str(&one) else {
+                continue;
+            };
+            // A composite run's floor is the same question asked of CIDs.
+            if embedded_subset
+                && enc
+                    .cids
+                    .iter()
+                    .any(|&cid| !carried.contains(&u32::from(cid)))
+            {
+                continue;
+            }
+            accepted.insert(ch);
+        }
+    }
+
+    let mut reason: Option<String> = None;
+    // ★ AN EMPTY ANSWER STILL OWES A REASON, and this branch is why.
+    //
+    // `cidfonttype2-noninjective-tounicode.pdf` returned an empty repertoire
+    // with `reason: None` — behaviourally right (`is_editable()` was already
+    // false) and unhelpful: the shell could tell the operator nothing except
+    // that every key was dead. The font is not empty at all; every character
+    // it addresses is produced by MORE THAN ONE code, so none of them can be
+    // edited unambiguously (`R-INV-4`).
+    //
+    // `None` is now reserved for what the documentation says it means: a font
+    // that genuinely addresses nothing.
+    if accepted.is_empty() && reason.is_none() {
+        reason = Some(if candidates_tested == 0 {
+            "this font addresses no character unambiguously — every entry in its map is \
+             produced by more than one code (R-INV-4), so pdfcer cannot tell which code \
+             means which character"
+                .to_owned()
+        } else {
+            format!(
+                "none of the {candidates_tested} character(s) this font addresses can be \
+                 shown by this run — an embedded subset carries only the codes already \
+                 drawn on this page (R-INV-1)"
+            )
+        });
+    }
+
+    Ok(RunRepertoire {
+        base_font,
+        resource,
+        text,
+        accepted,
+        embedded_subset,
+        candidates_tested,
+        reason,
+    })
 }
 
 #[cfg(test)]

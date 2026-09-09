@@ -168,6 +168,14 @@ OUTCOME_STRUCTS: list[tuple[str, str]] = [
     # would have stayed green if all three had been dropped on the floor.
     ("crates/pdfcer-core/src/text_edit/edit.rs", "EditReport"),
     ("crates/pdfcer-core/src/text_edit/format.rs", "FormatReport"),
+    # `Pass 280.0`, registered in the SAME commit that added the struct. It is a
+    # QUERY result rather than an edit outcome, and it earns the list for the
+    # same reason the edit outcomes do: `reason` is the only thing that
+    # distinguishes "this run accepts nothing" from "this run cannot be edited
+    # at all", and a shell that dropped it would grey every key with no
+    # explanation. `text` is here because the query RESOLVES an empty find and
+    # a caller that never reads it back is guessing which run was answered.
+    ("crates/pdfcer-core/src/text_edit/format.rs", "RunRepertoire"),
     # The plain-text import. Registered in the SAME commit that added the
     # struct, because this gate is opt-in by construction and "clean" otherwise
     # means "clean about the structs I was told about".

@@ -11099,6 +11099,91 @@ impl EditSession {
         )
     }
 
+    /// Which characters a located text run will accept — asked **before** the
+    /// first keystroke rather than refused after the last (`Pass 280.0`,
+    /// `pdfcer-gui` request 2026-09-09).
+    ///
+    /// # The operator problem
+    ///
+    /// The requesting shell, verbatim: *"the refusal arrives **at commit**, so
+    /// he types a whole word and then loses it. The alphabet is knowable
+    /// before the first keystroke and we do not use it that way yet."*
+    /// Everything needed to answer was already being computed — by the
+    /// refusal, one keystroke too late.
+    ///
+    /// # Not [`Self::preview_font_resources_for`] per keystroke
+    ///
+    /// That verb answers *which FACE could hold this text*, and answers it by
+    /// walking **every operation in the page's content stream**, re-locating
+    /// the run and scanning every font resource. Per keystroke that is a
+    /// whole-page walk per character typed. Ask it once when the caret lands;
+    /// ask this one once per run and keep the set.
+    ///
+    /// # The guarantee
+    ///
+    /// **A character in [`RunRepertoire::accepted`] is one
+    /// [`Self::edit_text`] will not refuse for this run** — by construction,
+    /// not by assertion: acceptance is decided by calling the accepting code
+    /// (`encode_char` / `encode_str`) plus the same subset-floor test the edit
+    /// path applies, in the same order, with the same `prefer` seed. A second
+    /// description of those rules would drift, which is `R221` and is exactly
+    /// what `Pass 279.0` had to repair one Pass earlier.
+    ///
+    /// It is **strict**: the repertoire comes from the run's own resource, so
+    /// an embedded subset is narrowed to the codes this page already carries
+    /// (`R-INV-1`), not widened to what the face could draw.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::text_edit::FormatError::Encrypted`],
+    /// [`crate::text_edit::FormatError::PageIndex`], a page with no
+    /// `/Contents`, and the location failures — a `find` that matches nothing,
+    /// an ambiguous match, an unresolvable font resource.
+    ///
+    /// A run whose font has **no usable encoding** is *not* an error: it
+    /// returns an empty repertoire with [`RunRepertoire::reason`] set, so an
+    /// editor can decline to open rather than open and refuse every key. The
+    /// requesting shell asked for that distinction by name.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use pdfcer_core::{document::Document, edit::EditSession};
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let session = EditSession::new(Document::load(std::path::Path::new("drawing.pdf"))?);
+    /// let rep = session.run_repertoire(0, "PART NO", None)?;
+    /// if rep.is_editable() {
+    ///     // Grey every key this run would refuse, before the operator presses one.
+    ///     let live: Vec<char> = ('a'..='z').filter(|c| rep.accepts(*c)).collect();
+    ///     println!("{} of 26 lowercase letters are typeable here", live.len());
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn run_repertoire(
+        &self,
+        page_index: usize,
+        find: &str,
+        pinned_span: Option<crate::span::ByteSpan>,
+    ) -> Result<crate::text_edit::RunRepertoire, crate::text_edit::FormatError> {
+        use crate::text_edit::FormatError as FmtError;
+
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(FmtError::Encrypted);
+        }
+        let pages = self.pages()?;
+        let page = pages
+            .get(page_index)
+            .ok_or(FmtError::PageIndex(page_index))?;
+        if page.contents.is_empty() {
+            return Err(FmtError::Unsupported(
+                "the page has no /Contents to edit".to_owned(),
+            ));
+        }
+        let stream = self.current_page_content(page).map_err(FmtError::Content)?;
+        crate::text_edit::format::run_repertoire(&self.view(), page, &stream, find, pinned_span)
+    }
+
     /// Apply one within-block reflow (Pass 15.1) as a single undo-able
     /// command — the session-integrated sibling of the free-function
     /// [`apply_reflow`](crate::text_edit::apply_reflow), reusing the shared

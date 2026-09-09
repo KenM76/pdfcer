@@ -7714,6 +7714,43 @@ enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// **Which characters can this run accept?** (`Pass 280.0`) — asked
+    /// before an edit is attempted, not after it is refused.
+    ///
+    /// Locates one text run the same way `edit-text` does (`--find`, or
+    /// `--pin-span` for a specific show operator) and prints the set of
+    /// characters that run will take. **A character in the set is one
+    /// `edit-text` will not refuse for that run** — the query asks the same
+    /// accepting code the refusal does, so the two cannot disagree.
+    ///
+    /// It is computed from the run's OWN font resource, so an embedded subset
+    /// is narrowed to the codes this page already carries (`R-INV-1`) rather
+    /// than widened to whatever the face could draw. That distinction is the
+    /// difference between *"this font cannot draw that character"* and *"this
+    /// FILE cannot, yet"* — and only the second has `format-text --set-font`
+    /// as a remedy.
+    ///
+    /// A run whose font has **no usable encoding** is not an error: the set is
+    /// empty and `reason=` says why, so a script can skip the run rather than
+    /// attempt an edit that cannot succeed.
+    RunRepertoire {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page the run is on.
+        #[arg(long, default_value_t = 1)]
+        page: usize,
+        /// Text identifying the run, as `edit-text --find` takes it. Empty
+        /// with `--pin-span` means the whole pinned operator.
+        #[arg(long, default_value = "")]
+        find: String,
+        /// Pin the run to one show operator by content-stream byte span,
+        /// `START:LEN` — the same spelling `edit-text --pin-span` takes.
+        #[arg(long)]
+        pin_span: Option<String>,
+        /// Print every accepted character rather than a summary count.
+        #[arg(long)]
+        list: bool,
+    },
     /// **Place a ce dimension** (Pass 27.1): set how far its dimension line
     /// stands off the geometry and where its value sits along that line.
     ///
@@ -9944,6 +9981,13 @@ fn run() -> ExitCode {
             candidate.as_deref(),
             json,
         ),
+        Command::RunRepertoire {
+            input,
+            page,
+            find,
+            pin_span,
+            list,
+        } => cmd_run_repertoire(&input, page, &find, pin_span.as_deref(), list),
         Command::ListSignatures { input } => cmd_list_signatures(&input),
         Command::VerifySignatures {
             input,
@@ -27351,6 +27395,114 @@ fn extraction_json(input: &Path, extracted: &pdfcer_core::text_extract::Extracte
     });
     out.push_str("}\n");
     out
+}
+
+/// `run-repertoire` (`Pass 280.0`): which characters one located run accepts.
+///
+/// The scriptable form of the question a GUI asks to grey a key before the
+/// operator presses it. The CLI has no session and no undo, so the invocation
+/// IS the answer — and the answer is the same one `edit-text` would enforce,
+/// because the query asks the accepting code rather than describing it.
+///
+/// `--list` prints the characters; without it the line carries the counts,
+/// which is what a script branching on "can I edit this run at all?" needs.
+fn cmd_run_repertoire(
+    input: &Path,
+    page: usize,
+    find: &str,
+    pin_span: Option<&str>,
+    list: bool,
+) -> u8 {
+    if page == 0 {
+        eprintln!("pdfcer: --page is 1-based; 0 is not a valid page number");
+        return exit::EDIT_REFUSED;
+    }
+    let pin = match pin_span {
+        Some(spec) => match parse_pin_span(spec) {
+            Ok(span) => Some(span),
+            Err(msg) => {
+                eprintln!("pdfcer: {msg}");
+                return exit::EDIT_REFUSED;
+            }
+        },
+        None => None,
+    };
+    // Same boundary refusal `font-preflight` applies, and for the same reason:
+    // core would answer about whichever run it located first, which is not a
+    // question anybody meant to ask. Naming the FLAG is something core cannot
+    // do.
+    if find.is_empty() && pin.is_none() {
+        eprintln!(
+            "pdfcer: run-repertoire needs --find TEXT, or --pin-span START:LEN with an \
+             empty --find to mean the whole pinned show operator"
+        );
+        return exit::EDIT_REFUSED;
+    }
+    let doc = match open_document(input) {
+        Ok(doc) => doc,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit_code_for_doc(&err);
+        }
+    };
+    let session = pdfcer_core::edit::EditSession::new(doc);
+    let rep = match session.run_repertoire(page - 1, find, pin) {
+        Ok(rep) => rep,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit::EDIT_REFUSED;
+        }
+    };
+
+    // The disclosure first, because it is the half that cannot be seen in a
+    // count: an empty set with a reason is a run an editor should decline to
+    // open, and it reads identically to "this font has nothing" without it.
+    if let Some(reason) = &rep.reason {
+        eprintln!(
+            "pdfcer: {}: this run accepts NOTHING -- {reason}",
+            input.display()
+        );
+    }
+    if rep.embedded_subset {
+        eprintln!(
+            "pdfcer: {}: its font is an embedded SUBSET, so the answer is what this FILE carries, not what the face could draw. `format-text --set-font` is the remedy for a character it lacks.",
+            input.display()
+        );
+    }
+
+    let chars = if list {
+        // ★ CODE POINTS, NOT THE CHARACTERS THEMSELVES, and the first cut
+        // printed the characters. `sanitize_token` maps a space to `_`, so
+        // the set {space} and the set {underscore} printed IDENTICALLY -- and
+        // a set containing a comma, a quote or a newline is worse. A shell
+        // uses the API; a script uses this line, and it must be unambiguous.
+        let list: Vec<String> = rep
+            .accepted
+            .iter()
+            .map(|ch| format!("U+{:04X}", *ch as u32))
+            .collect();
+        format!(" accepted_chars={}", list.join(","))
+    } else {
+        String::new()
+    };
+    println!(
+        "run-repertoire {} page={} run={} font={} resource={} accepted={} tested={} refused={} subset={} editable={}{}",
+        input.display(),
+        page,
+        // The RESOLVED run text, not what was typed: an empty --find with a
+        // --pin-span means the whole operator, and a caller reading this line
+        // should not have to guess which run was answered about.
+        sanitize_token(&rep.text),
+        sanitize_token(&rep.base_font),
+        sanitize_token(&rep.resource),
+        rep.accepted.len(),
+        rep.candidates_tested,
+        rep.candidates_tested.saturating_sub(rep.accepted.len()),
+        u8::from(rep.embedded_subset),
+        u8::from(rep.is_editable()),
+        chars,
+    );
+    exit::SUCCESS
 }
 
 /// `font-preflight` — which of a page's font resources `--set-font` would
