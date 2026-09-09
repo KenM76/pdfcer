@@ -4,6 +4,72 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-09 (488th filing)
+
+**Shipped:**
+- Pass 286.0 (`369d4de`, pushed to `origin/main` per the dispatch — not
+  independently verified, no shell this filing) — closes owed item 17: a
+  per-glyph producer's redacted text is no longer single characters.
+  `RedactionReport::redacted_text` is now grouped per `/Redact` mark, not
+  per show operator — `Surgeon::glyph` returns the region index a glyph
+  landed in (was a bare `bool`), and `box_marks` folds a mark's characters
+  into one string. `SW41177-obselete.pdf` (GPL Ghostscript 8.15) drew one
+  glyph per show operator, so marking `3.5 TYP` used to yield
+  `["3", ".", "5", " ", "T", "Y", "P"]` and a consuming absence proof
+  refused a correct redaction on finding `"3"` on every page. Now yields
+  `["3.5 TYP"]`.
+
+**Decisions made this session:**
+- None minted. Not a crate-boundary/library/invariant change — a bug fix
+  in a shared field's granularity.
+
+**Findings + decisions:**
+- **The three-consumer analysis.** `redacted_text` has three readers (the
+  absence proof, `carrier_info`, `residual_sweep`'s `redaction_evidence`)
+  and joining characters into per-mark strings is safe for all three only
+  because it strictly LENGTHENS entries — never shortens them — so every
+  reader's match floor (`MIN_MATCH_LEN` = 4 characters) is cleared more
+  reliably, not less. A change that split entries instead would not carry
+  the same guarantee, and that asymmetry is the only reason a field with
+  three readers could be changed in one Pass. Flagged as a trap in the
+  handoff before the Pass was built; resolved in the safe direction.
+- **Nothing new was inferred to make the fix** — `Surgeon::glyph` already
+  computed which region a glyph landed in; it was discarding that as a
+  bare `bool` one line before the caller needed it.
+- **A kept, justified, unread field was deleted, not excused.** The old
+  per-operator `removed_text: Vec<String>` field was first kept beside the
+  new map with a doc comment calling it "the honest raw record"; `clippy`
+  flagged it as unread and it was deleted. Recorded as a recurring
+  self-deception shape: an unread field with a justification attached is
+  not a record, it is dead weight with an excuse.
+- **The fixture is the finding, again.** A producer drawing the run in a
+  single `Tj` cannot distinguish old grouping from new (both report
+  `["3.5 TYP"]`), so a test written on an ordinary producer would have
+  been green before and after this Pass, measuring nothing. The new
+  fixture emits one `Tm … (c) Tj` per character.
+- `docs/FEATURES.md`'s *Apply redaction* row amended in place: owed item
+  17's sentence replaced with the fix and the per-mark grouping named.
+- `C:\personal_rag\pdf\`: a second dated footer added to the existing
+  2026-09-09 lesson on this producer (the "joining half" is no longer
+  unbuilt); subject-index and master-index bullets corrected in place.
+
+**Still in flight:**
+- Owed items 4, 5, 9 (`n=3`, `R247` reservation unreconciled), 10, 11,
+  13b, 14 all carried forward. Item 17 discharged this filing.
+- **`R247` reservation flagged for a FOURTH consecutive filing** (475th,
+  483rd, 486th, 487th, now 488th) — still unreconciled, two candidates
+  contesting the slot (a second `///`-guarantee-with-no-enforcing-code
+  instance; the "alternate route" sabotage-fixture cause at `n=3`). `R248`
+  and `R249` were both minted past it deliberately. Nobody has yet sat
+  down with time to resolve it.
+- Whether `369d4de` has been pushed or released is relayed from the
+  dispatch only, not independently checked — the engineer should verify
+  directly.
+
+**For next session:**
+- Resolve the `R247` reservation — this is now a fourth consecutive
+  filing carrying the flag forward unresolved, the longest it has run.
+
 ## 2026-09-09 (487th filing)
 
 **Shipped:**

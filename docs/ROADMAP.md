@@ -112,6 +112,187 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★★ 488th filing, 2026-09-09 — `Pass 286.0` SHIPPED: OWED ITEM 17
+CLOSED — `redacted_text` IS GROUPED PER `/Redact` MARK, NOT PER SHOW
+OPERATOR, SO A PER-GLYPH PRODUCER'S ABSENCE PROOF STOPS FINDING THE
+ALPHABET. ★★★ NOTHING NEW WAS INFERRED — THE ATTRIBUTION ALREADY EXISTED
+AND WAS BEING DISCARDED ONE LINE BEFORE IT WAS NEEDED. ★★ THREE
+CONSUMERS READ THE SAME FIELD; JOINING IS SAFE FOR ALL THREE ONLY
+BECAUSE IT STRICTLY LENGTHENS ENTRIES, NEVER SHORTENS THEM. ★ A KEPT,
+JUSTIFIED, UNREAD FIELD WAS DELETED RATHER THAN EXCUSED.**
+
+**Sourcing (hard rule 8), stated up front — NO SHELL THIS FILING.**
+`Read`/`Grep`/`Glob` only. The commit hash (`369d4de`), test-count delta
+and gate results below are **relayed** from the dispatching engineer's
+own filing message, labelled as such rather than independently re-run.
+**Backup currency, working-tree state, remote/push state and CI colour
+are NOT asserted** — the dispatch states the commit is pushed to
+`origin/main`; that is relayed, not independently checked.
+**Independently verified here, by `Grep`/`Read` against the live
+tree:** `crates/pdfcer-core/src/redact.rs` carries `box_marks` (region
+index → the contributing `/Redact` annotation), `Surgeon::glyph`'s
+`(f64, Option<usize>)` return (a region index, not a bare `bool`,
+`redact.rs:1077`), and the per-mark join into
+`RedactionReport::redacted_text` (`redact.rs:1955-1977`); the old
+per-operator `removed_text: Vec<String>` field is gone from both
+`Surgeon` and `SurgeryResult` — only past-tense doc-comment references
+to it remain (`redact.rs:508`); `crates/pdfcer-core/tests/
+redacted_text_granularity.rs` exists with four `#[test]` functions —
+`a_per_glyph_producer_yields_one_entry_per_mark`,
+`the_entry_clears_the_four_character_verification_floor`,
+`the_joined_entry_describes_a_removal_that_actually_happened` (the
+control), `two_marks_produce_two_entries_and_do_not_merge`;
+`docs/core-api/03-capabilities.md` §4.1 already carries the `Pass
+286.0` citation, the "grouped PER MARK, not per show operator"
+statement, the derivation from `Surgeon::glyph`/`box_marks`, and the
+three-consumer safety argument with its stated asymmetry warning —
+matching the dispatch's own description rather than invented for this
+filing.
+
+---
+
+### `Pass 286.0` (`369d4de`, 2026-09-09) — THE PROOF WAS NOT FINDING LEAKED TEXT; IT WAS FINDING THE ALPHABET
+
+**What it closes.** The `pdfcer-gui` request
+`request_redacted_text_carries_single_characters_on_a_per_glyph_producer_so_the_absence_proof_is_blind.md`
+— `ROADMAP.md` owed item 17, open since `Pass 282.0`/`284.0`, confirmed
+at the source and replied to but not built until now.
+
+**The defect.** `SW41177-obselete.pdf` (GPL Ghostscript 8.15, 24 pages)
+draws one glyph per show operator. Marking `3.5 TYP` gave
+`redacted_text = ["3", ".", "5", " ", "T", "Y", "P"]`. The consuming
+shell's absence proof greps the output for each entry, finds `"3"` on
+all 24 pages — every engineering drawing has a 3 on it — and refuses a
+correct redaction. Reported by the operator as *"found 35 piece(s) of
+the supposedly-removed text still in it."* **The proof was not finding
+leaked text; it was finding the alphabet.**
+
+**The fix.** One entry per `/Redact` annotation, carrying the
+concatenation of what that mark removed: `["3.5 TYP"]`.
+
+**★★★ Nothing new is inferred — the attribution already existed and was
+being discarded one line before it was needed.** `Surgeon::glyph`
+returned a bare `bool`; it now returns the **index** of the region the
+glyph landed in (`position` instead of `any`, identical predicate).
+Removed characters accumulate per region, and `box_marks` (region
+index → the annotation that contributed it, already built for other
+reasons) folds several quads of one mark into one string.
+
+**★★ The three-consumer analysis — the reusable part.** `redacted_text`
+is read by (1) the consuming shell's absence proof, (2) `carrier_info`,
+(3) `residual_sweep` (`Pass 284.0`) — the last two via
+`redaction_evidence`. **Joining is safe for all three because it only
+ever makes entries LONGER**: longer strings match more precisely and
+clear `MIN_MATCH_LEN` (the 4-character floor single glyphs could never
+reach — why `carrier_info` reported `DISCLOSED_NOT_SCRUBBED` on exactly
+these files). **A change that SPLIT entries would not be safe**, and
+that asymmetry is the only reason a field with three readers could be
+changed in one Pass. This trap was flagged in the engineer's own
+handoff before the Pass was built and resolved in the safe direction —
+worth recording as the check being worth doing, not as a non-event.
+The warning is now in the field's own doc comment and in
+`docs/core-api/03-capabilities.md` §4.1, not left to be re-derived.
+
+**★ A field deleted rather than kept.** The per-operator
+`removed_text: Vec<String>` field is gone from both `Surgeon` and
+`SurgeryResult`. The engineer's first cut kept it beside the new map
+with a doc comment calling it "the honest raw record"; `clippy` pointed
+out nothing reads it. An unread field with a justification attached is
+not a record — it is dead weight with an excuse. Filed as a personal
+lesson below, not as a project standing rule — this is a single,
+non-recurring instance, not (yet) a pattern this project has hit twice.
+
+**Tests.** New `crates/pdfcer-core/tests/redacted_text_granularity.rs`
+(4 tests). **The fixture is the finding**: a producer that draws the
+run in a single `Tj` cannot distinguish old grouping from new — both
+report `["3.5 TYP"]` — so a test written on an ordinary producer would
+have been green before this Pass and green after it, measuring
+nothing. The fixture instead emits one `Tm … (c) Tj` per character.
+Includes a control (`the_joined_entry_describes_a_removal_that_actually_happened`
+— the report cannot be its own witness) and a two-mark test (a
+single-mark fixture cannot tell per-mark grouping from per-page
+grouping). Sabotage: restoring the per-operator push sends three tests
+red; the control stays correctly green.
+
+**Gates (relayed).** `tools/run-gates.sh` PASS 29/29; `cargo test
+--workspace` green; `cargo fmt --check` and `cargo clippy --all-targets
+--all-features -- -D warnings` clean. `check-core-api-verbs.py` caught
+a stale `docs/core-api/index.md` line count — the **fourth** time in
+one day this gate has caught stale doc counts, worth a line on its own
+per the same observation `Pass 285.0` recorded about it.
+
+**Operational notes (relayed, not independently checked).** The sweep
+was killed for low memory when run in the background — "foreground
+survives where background dies" confirmed again, per the standing
+handoff note. `target/` had reached 178 GB on a 95%-full disk;
+`rm -rf target/debug/incremental` reclaimed 12 GB after both safety
+checks (`git ls-files target` → 0 entries; `git check-ignore -q target`
+→ pass).
+
+**`docs/FEATURES.md`.** *Redaction & security*'s *Apply redaction* row
+amended in place: owed item 17's sentence replaced with the fix and the
+per-mark grouping named — see Ledger.
+
+**`C:\personal_rag\pdf\`.** A dated footer added to the existing
+2026-09-09 lesson on this producer (below), rather than a new lesson —
+this is the same finding's resolution, not a new one. Both the subject
+index and the master index bullets updated in place (they had said
+"joining half still unbuilt").
+
+---
+
+### Part — owed work, carried forward and discharged
+
+**Carried forward, unchanged:** items 4, 5, 9 (`n=3`, `R247` reservation
+unreconciled), 10, 11, 13b, 14.
+
+**Discharged this filing:**
+
+17. **`request_redacted_text_carries_single_characters_on_a_per_glyph_producer_so_the_absence_proof_is_blind.md`**
+    (`Pass 282.0`/`284.0`). `Pass 286.0`'s per-mark grouping of
+    `redacted_text` is the fix — see the Pass entry above.
+
+**New, from this filing:** none.
+
+---
+
+### ★★★★ `R247` RESERVATION — FLAGGED FOR A FOURTH CONSECUTIVE FILING, STILL UNRECONCILED
+
+This filing adds no new candidate and reconciles nothing — it is a
+visible re-flag, at the engineer's explicit request, because the
+reservation has now survived four filings running (475th, 483rd, 486th,
+487th, and now 488th) without anyone with time sitting down to resolve
+it. **The two standing candidates, unchanged:** (1) a second instance of
+a `///` doc comment publishing a behavioural guarantee no code enforced
+(distinct from one that merely went stale); (2) the "alternate route"
+sabotage-fixture cause, now at `n=3` within `R225`'s family. `R248` and
+`R249` were both minted **past** `R247` rather than adding a third
+contender to an already-unreconciled slot — whoever reconciles `R247`
+should treat both as already spoken for. **Ceiling stays `R249`, next
+free `R250`; `R247` itself untouched.**
+
+---
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `285` (highest ID `285.0`), next free `286` | **`286`** (highest ID `286.0`), next free family `287` |
+| Standing rules | `R249` MINTED (486th filing); `R247` reserved-but-unclaimed | **UNCHANGED** — no new rule, no new instance; `R247` reservation re-flagged for a fourth consecutive filing (see box above), ceiling stays `R249`, next free `R250` |
+| Decision records | `146` | **unchanged** — a bug fix in a shared field's granularity, not a crate-boundary/library/invariant redefinition |
+| `SESSION_LOG` filings | `487` | **`488`** |
+| `docs/FEATURES.md` | *Apply redaction* row named owed item 17 open | **row amended**: item 17 closed, per-mark grouping named |
+| Owed-survivor / open-reply ledger | items 4, 5, 9 (`n=3`), 10, 11, 13b, 14, 17 open | **item 17 CLOSED; items 4, 5, 9 (`n=3`), 10, 11, 13b, 14 unchanged; no new items** |
+| `C:\personal_rag\pdf\` | 1 lesson (`lesson_20260909_ghostscript_8_emits_one_glyph_per_show_operator…`) with a footer saying the joining half was unbuilt | **unchanged file count — a second dated footer appended** to the same lesson; subject-index and master-index bullets both corrected in place (no longer say "unbuilt") |
+
+**Release state — NOT checked this filing (no shell).** Whether
+`369d4de` has actually reached `origin/main`, and whether a release has
+been cut since, is **relayed** from the dispatch, not independently
+verified — the engineer should confirm with `git rev-parse
+origin/main` / `git describe --tags --abbrev=0` directly.
+
+---
+
 **★★★★ 487th filing, 2026-09-09 — `Pass 285.0` SHIPPED: OWED ITEM 18 CLOSED —
 AN ABANDONED CONTENT STREAM'S DRAWN TEXT IS BLANKED, SPAN-SCOPED TO THE
 SHOW-OPERATOR OPERANDS SO A RESOURCE NAME IS NEVER COLLATERAL DAMAGE. ★★★ A
