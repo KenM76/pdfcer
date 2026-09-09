@@ -408,6 +408,63 @@ impl Document {
         Self::from_bytes_with_password(std::fs::read(path)?, password)
     }
 
+    /// Load a document from disk under explicit [`LoadOptions`] — the
+    /// path-shaped twin of [`Document::from_bytes_with_options`].
+    ///
+    /// # Why this exists as well as the bytes form
+    ///
+    /// `Pass 283.0` gave the loader a tolerant posture and gave the operator
+    /// the other choice, but shipped the choice on the **bytes** entry point
+    /// only. Every shell that opens a document opens a **file** — the GUI's
+    /// open-file action, the CLI's path argument — so taking the alternative
+    /// reading meant re-implementing [`Document::load`]'s `std::fs::read`
+    /// at each call site. An intervention route the intended caller can only
+    /// reach by rewriting the route beside it is not offered, it is merely
+    /// present.
+    ///
+    /// The operator's ruling this discharges: *"if the user can intervene in
+    /// a decision that should always be an option along with them not having
+    /// to intervene."* Re-loading the same path under
+    /// [`LoadOptions::new().with_duplicate_keys(DuplicateKeyPolicy::KeepFirst)`]
+    /// is the whole intervention; see [`Document::load_anomalies`] for how a
+    /// shell learns there was a decision to intervene in.
+    ///
+    /// [`LoadOptions::new().with_duplicate_keys(DuplicateKeyPolicy::KeepFirst)`]: LoadOptions::with_duplicate_keys
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use std::path::Path;
+    /// use pdfcer_core::document::{Document, LoadOptions};
+    /// use pdfcer_core::parser::DuplicateKeyPolicy;
+    ///
+    /// let path = Path::new("drawing.pdf");
+    /// let doc = Document::load(path)?;
+    /// if !doc.load_anomalies().is_empty() {
+    ///     // Offer the operator the other reading; nothing forces them to take it.
+    ///     let other = Document::load_with_options(
+    ///         path,
+    ///         None,
+    ///         LoadOptions::new().with_duplicate_keys(DuplicateKeyPolicy::KeepFirst),
+    ///     )?;
+    ///     let _ = other;
+    /// }
+    /// # Ok::<(), pdfcer_core::document::DocError>(())
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// [`DocError`] — as [`Document::load_with_password`]. Under
+    /// [`LoadOptions::strict()`] this refuses every malformation `Pass 283.0`
+    /// taught the loader to decide.
+    pub fn load_with_options(
+        path: &Path,
+        password: Option<&[u8]>,
+        options: LoadOptions,
+    ) -> Result<Self, DocError> {
+        Self::from_bytes_with_options(std::fs::read(path)?, password, options)
+    }
+
     /// Load a document from bytes (takes ownership — the buffer is
     /// retained for the document's lifetime; see module docs).
     ///

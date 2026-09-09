@@ -341,3 +341,60 @@ fn a_file_with_no_catalog_is_still_refused() {
         "there is nothing to open, and inventing a catalog is not continuing"
     );
 }
+
+// ------------------------------ 5. the intervention is reachable BY PATH too
+
+/// ★★ THE INTERVENTION MUST BE REACHABLE THE WAY SHELLS ACTUALLY OPEN FILES.
+///
+/// `Pass 283.0` shipped the alternative reading on the **bytes** entry point
+/// only, and every shell opens a **path** — the GUI's open-file action, the
+/// CLI's path argument. Taking the other value therefore meant re-implementing
+/// `Document::load`'s `std::fs::read` at the call site. That is the shape of a
+/// guard present on one route and absent on its twin (**R245**), applied to an
+/// affordance rather than a check: the route the intended caller uses did not
+/// have it.
+///
+/// This test opens the SAME path twice and gets the two different readings, so
+/// it fails if `load_with_options` ever silently degrades to `load`.
+#[test]
+fn the_other_reading_is_reachable_from_a_path() {
+    let path = std::env::temp_dir().join("pdfcer-malformed-opens-by-path.pdf");
+    std::fs::write(&path, pdf_with_duplicate_page_mode()).expect("fixture written");
+
+    let mode = |d: &Document| -> Vec<u8> {
+        let Object::Name(n) = d.catalog().unwrap().get(b"PageMode").unwrap() else {
+            panic!("not a name")
+        };
+        n.as_bytes().to_vec()
+    };
+
+    let last = Document::load(&path).expect("the default posture opens it");
+    assert_eq!(mode(&last), b"UseOutlines");
+    assert!(!last.load_anomalies().is_empty(), "and says it decided");
+
+    let first = Document::load_with_options(
+        &path,
+        None,
+        LoadOptions::new().with_duplicate_keys(DuplicateKeyPolicy::KeepFirst),
+    )
+    .expect("and the same path opens under the other policy");
+    assert_eq!(mode(&first), b"UseOC");
+
+    let _ = std::fs::remove_file(&path);
+}
+
+/// And `strict()` reaches the path route as well — a conformance checker that
+/// takes a filename is exactly the caller `strict()` was kept for, and it would
+/// have had to read the bytes itself.
+#[test]
+fn strict_is_reachable_from_a_path() {
+    let path = std::env::temp_dir().join("pdfcer-malformed-opens-by-path-strict.pdf");
+    std::fs::write(&path, pdf_with_duplicate_page_mode()).expect("fixture written");
+
+    assert!(
+        Document::load_with_options(&path, None, LoadOptions::strict()).is_err(),
+        "strict refuses the same file the default posture opens"
+    );
+
+    let _ = std::fs::remove_file(&path);
+}

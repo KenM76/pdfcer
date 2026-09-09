@@ -879,12 +879,7 @@ fn resolve_cli_password(
 fn open_document(
     path: &Path,
 ) -> Result<pdfcer_core::document::Document, pdfcer_core::document::DocError> {
-    let bytes = std::fs::read(path).map_err(pdfcer_core::document::DocError::Io)?;
-    pdfcer_core::document::Document::from_bytes_with_options(
-        bytes,
-        cli_password(),
-        cli_load_options(),
-    )
+    pdfcer_core::document::Document::load_with_options(path, cli_password(), cli_load_options())
 }
 
 /// Parse a document from bytes, supplying the CLI password if one was given.

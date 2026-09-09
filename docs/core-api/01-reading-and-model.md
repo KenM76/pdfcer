@@ -92,7 +92,7 @@ builds `--no-default-features`, so both configurations compile.
 | Know whether the open document was encrypted, and how | `Document::encryption() -> Option<&DocumentEncryption>` — `document.rs:755` | §3.5 |
 | Read the author's declared permission bits | `enc.config.permissions()` — `crypto/standard.rs:795`, then `Permissions::granted(bit)` — `standard.rs:317` | §3.5 |
 | Detect that the file was structurally damaged and rebuilt | `Document::loaded_via_recovery() -> bool` — `document.rs:1065`; detail via `Document::recovery()` — `document.rs:1057` | §3.6 |
-| **Open a file that contradicts itself, and see what pdfcer decided** | `Document::from_bytes` (tolerant by default) + `Document::load_anomalies() -> &[LoadAnomaly]`; take the other value with `Document::from_bytes_with_options` + `LoadOptions` | §3.6b |
+| **Open a file that contradicts itself, and see what pdfcer decided** | `Document::from_bytes` (tolerant by default) + `Document::load_anomalies() -> &[LoadAnomaly]`; take the other value with `Document::from_bytes_with_options` or `Document::load_with_options` + `LoadOptions` | §3.6b |
 | Warn that saving will destroy Fast Web View | `Document::linearization()` — `document.rs:1076`, then `Linearization::save_invalidates_fast_web_view()` — `linearization.rs:110` | §3.7 |
 | Detect an ISO 32000-2 §7.6.7 encrypted-payload wrapper | `wrapper::detect(&graph) -> WrapperInfo` — `wrapper.rs:90`; message via `WrapperInfo::message()` — `wrapper.rs:141` | §3.8 |
 | Get the effective PDF version (header + catalog `/Version`) | `Document::version()` — `document.rs:932` | §3.2 |
@@ -470,7 +470,18 @@ authorises.
 | open a damaged file (the default) | `Document::from_bytes` |
 | see what pdfcer decided | `Document::load_anomalies() -> &[LoadAnomaly]` |
 | take the other value | `Document::from_bytes_with_options` + `LoadOptions::with_duplicate_keys` |
+| …from a **path**, which is how shells open files | `Document::load_with_options(path, password, options)` |
 | refuse malformed files instead | `LoadOptions::strict()` |
+
+★ **Both entry points carry the options, and the second one is why.** `Pass
+283.0` shipped the alternative reading on the **bytes** form only, and every
+shell opens a **path** — the GUI's open-file action, `pdfcer`'s path argument.
+Reaching the intervention therefore meant re-implementing `Document::load`'s
+`std::fs::read` at each call site. That is **R245**'s shape — a facility
+present on one route and absent on its twin — applied to an *affordance*
+rather than a guard: the route the intended caller actually uses did not have
+it. An intervention only reachable by rewriting the route beside it is
+present, not offered.
 
 ★ **`LoadAnomaly::DuplicateDictKey` carries BOTH values, not a count.** A count
 says pdfcer chose; only the pair lets a shell show the operator what it chose
