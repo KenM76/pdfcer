@@ -112,6 +112,202 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★ 487th filing, 2026-09-09 — `Pass 285.0` SHIPPED: OWED ITEM 18 CLOSED —
+AN ABANDONED CONTENT STREAM'S DRAWN TEXT IS BLANKED, SPAN-SCOPED TO THE
+SHOW-OPERATOR OPERANDS SO A RESOURCE NAME IS NEVER COLLATERAL DAMAGE. ★★★ A
+SCOPE-WIDENING SABOTAGE SURVIVED ALL EIGHT TESTS BY LANDING ON THE ONE
+FIXTURE WHERE THE SAFE AND THE UNSAFE IMPLEMENTATION AGREE — AND THE DEFECT
+IT WOULD HAVE SHIPPED IS THE EXACT ONE THE FUNCTION'S OWN DOC COMMENT NAMES
+AS IMPOSSIBLE. ★★ `R225` GAINS A 16TH INSTANCE, AT A NEW SEVERITY, NO
+RE-MINT. ★ A TEST WAS AMENDED RATHER THAN DELETED, AND ITS HONEST HALF WAS
+PRESERVED AS A NEW, SEPARATE CONTROL.**
+
+**Sourcing (hard rule 8), stated up front — NO SHELL THIS FILING.**
+`Read`/`Grep`/`Glob` only. The commit hash (`1366138`), test-count delta and
+gate results below are **relayed** from the dispatching engineer's own
+filing message, labelled as such rather than independently re-run. **Backup
+currency, working-tree state, remote/push state and CI colour are NOT
+asserted** — the dispatch states the commit is pushed to `origin/main`;
+that is relayed, not independently checked. **Independently verified here,
+by `Grep`/`Read` against the live tree:**
+`crates/pdfcer-core/src/redact.rs` carries the new
+`residual_content_streams_blanked` counter field, the `blank_show_strings`
+function and its doc comment (naming `/CONFIDENTIALIm Do` →
+`/XXXXXXXXXXXXIm Do` as the failure the span-scoping prevents, and the
+subset-font/glyph-code limit as deliberately uncaught), and the call site
+inside `residual_sweep` that invokes it via
+`crate::content::ContentStream::parse`; `crates/pdfcer-core/tests/
+redaction_residual_sweep.rs` contains eight `#[test]` functions including
+`an_abandoned_content_streams_drawn_text_is_blanked` (with the old,
+struck-through assertions from `Pass 284.0` kept legible in place) and the
+new `a_stream_that_cannot_be_blanked_is_still_named` control;
+`docs/core-api/03-capabilities.md` already carries the `Pass 285.0`
+citation, the by-shape action-table row for "an abandoned content stream",
+the span-scoping safety argument and the `residual_content_streams_blanked`
+counter, matching the dispatch's own description rather than invented for
+this filing.
+
+---
+
+### `Pass 285.0` (`1366138`, 2026-09-09) — THE SAFE SPAN AND THE WHOLE BUFFER AGREE EXACTLY WHEN THE ONLY THING TO DISAGREE ABOUT ISN'T THERE
+
+**What it is, in one line.** `Pass 284.0` named an abandoned content
+stream's drawn text without removing it (owed item 16); `Pass 285.0` blanks
+it — `crate::content::ContentStream::parse` both **locates** the stream (a
+font programme or an image does not parse as one, so no `/Subtype`
+sniffing and no list of types to keep in step with reality) and **scopes**
+the edit to the operand spans of `Tj`/`TJ`/`'`/`"` only (§9.4.3), never the
+whole buffer. The edit is length-preserving, so no re-serialization is
+needed and every other span into the buffer stays valid.
+
+**★★★ The near-miss, in full, because it is a new KIND within this
+project's own sabotage-discipline family.** A sabotage that widened the
+blank from "the show-operator spans" to "every byte-occurrence of the
+evidence in the whole buffer" — i.e. the obvious-looking, wrong
+implementation — **left all eight tests green.** The fixture's word
+appeared only inside a string operand consumed by a show operator, which is
+the one place the safe implementation and the unsafe one **agree**: both
+blank it, so the test cannot see the difference. Outside that string, the
+unsafe implementation also blanks the resource name `/CONFIDENTIALIm`,
+turning `/CONFIDENTIALIm Do` into `/XXXXXXXXXXXXIm Do` — a name that
+resolves to nothing, which **silently stops an image from drawing**.
+Content destroyed to fix a leak is precisely the trade this module's own
+doc comment says it refuses everywhere else, and **the doc comment had
+already been written to promise the sabotage could not happen** before the
+sabotage was tried.
+
+This is why the finding is filed as an **escalation** of standing rule
+`R225`'s family rather than merely another occurrence: every prior instance
+in that family is a test measuring less than its own **name** claimed. This
+is the first where the survived sabotage would have shipped a defect the
+project's own **documentation** claimed was impossible — a stronger failure,
+because a doc comment is what a future reader trusts *instead of*
+re-deriving the property from the code, and this one would have been wrong
+in exactly the place a reader would stop checking.
+
+**The fix.** The fixture was widened, not the assertion — no assertion over
+the existing fixture's bytes can tell "blanked only the string" from
+"blanked everything," because they are byte-identical on it. The abandoned
+stream's content now reads `q /CONFIDENTIALIm Do Q BT … (CONFIDENTIAL
+stream orphan) Tj ET`, carrying the word in **both** a resource name and a
+string, and `an_abandoned_content_streams_drawn_text_is_blanked` now asserts
+the resource name **survives** redaction. Re-run against the widened
+fixture, the whole-buffer sabotage goes red.
+
+**Test amended, not deleted — its honest half kept as a new control.**
+`Pass 284.0`'s `an_unreachable_content_stream_is_named_not_silently_left`
+asserted the stream's content was *disclosed, not removed* — correct then,
+wrong now that it is removed. Renamed to
+`an_abandoned_content_streams_drawn_text_is_blanked`, with the superseded
+assertions kept struck through in place rather than deleted, per this
+project's established discipline. The honest half it used to carry — that
+**something** genuinely un-blankable is still named, never silently
+dropped — is preserved as its own new test,
+`a_stream_that_cannot_be_blanked_is_still_named`, over a fixture whose word
+sits somewhere `blank_show_strings` structurally cannot reach (a string
+literal no show operator consumes). Without that control, a future
+`blank_show_strings` that quietly gave up would pass every other assertion
+and the disclosure `Pass 284.0` shipped would have been deleted by accident
+rather than by decision.
+
+**What still declines and discloses — the same floor the whole sweep
+already has, not a new gap.** A stream that does not parse as a content
+stream at all, and text drawn through a subset font whose operand bytes are
+glyph codes rather than characters (closing that means the glyph machinery
+the *live* content path already uses — a different Pass). The carrier line
+now names which of the two applies rather than asserting one reason for
+both.
+
+**Counts.** New `RedactionReport::residual_content_streams_blanked`,
+counted apart from `residual_sweep_objects_scrubbed` because it is the only
+member of the sweep that **edits drawing instructions** rather than
+removing a metadata string. Tests in `redaction_residual_sweep.rs`: 7 → 8.
+
+**Docs.** `docs/core-api/03-capabilities.md` gains the by-shape action-table
+row for an abandoned content stream (*"blanked in the string operands of
+`Tj`/`TJ`/`'`/`"` only"*), the span-scoping safety argument (verified
+above), and the new counter; `docs/core-api/index.md`'s line count for that
+file corrected again — the third time in one day `check-core-api-verbs.py`
+has caught stale doc counts, worth a line on its own: this gate is
+repeatedly the one that catches doc drift, not a decorative check.
+
+**Gates (relayed).** `tools/run-gates.sh` PASS 29/29; `cargo test
+--workspace` green; `cargo fmt --check` and `cargo clippy --all-targets
+--all-features -- -D warnings` clean.
+
+**`docs/FEATURES.md`.** *Redaction & security*'s *Apply redaction* row
+amended in place: owed item 18's sentence replaced with the fix, the new
+counter named, and the two remaining declining cases (non-parsing stream;
+glyph-code text on a subset font) named in its place — see Ledger.
+
+---
+
+### On `R225`: instance 16, at a new severity — dated instance, no re-mint
+
+**Judgment, since the engineer offered none and asked this filing to
+make the call.** Not minted, and not amended in its *founding* text either
+— the mechanism is the rule's own **"scope or filtering"** degenerate-value
+row (*"an input where all candidate scopes agree" → "widening the scope
+moves nothing"*), already on record since the rule's mint. What is
+genuinely new is a **severity clause**, not a new cause or a new kind of
+coincidence: this is the family's first instance where the property a
+sabotage would have violated is one the code's own **doc comment** states
+explicitly, rather than one only a test's **name** implies. That is worth
+recording — a doc comment is exactly the thing this project's
+documentation-first discipline (`CLAUDE.md` rule 6) tells a future reader to
+trust *instead of* re-deriving the property — but it does not change the
+diagnosis or the remedy `R225` already prescribes (widen the fixture, not
+the assertion), so it does not clear this project's own bar for a rule
+amendment any more than instances 4b, 5, 10 or 12 did when each added a new
+kind of coincidence without a new cause. **Filed as the 16th dated instance
+to `D:\dev\rag\rust\a_sabotage_can_only_be_as_discriminating_as_the_fixture_it_runs_on.md`**
+(full text there), with the same summary echoed into that file's own
+`D:\dev\rag\rust\index.md` bullet. **`R225`'s ceiling is unchanged; `R249`
+remains this project's ceiling and `R247` remains reserved-but-unclaimed,
+untouched by this filing** — the escalation is a RAG-file severity note, not
+a project-rule trigger, so it does not touch either standing-rule ledger
+position.
+
+---
+
+### Part — owed work, carried forward and discharged
+
+**Carried forward, unchanged:** items 4, 5, 9 (`n=3`, `R247` reservation
+unreconciled), 10, 11, 13b, 14, 17.
+
+**Discharged this filing:**
+
+18. **A non-metadata content stream carrying redacted text, named by
+    `residual_sweep` but not removed** (`Pass 284.0`). `Pass 285.0`'s
+    `blank_show_strings` is the fix — see the Pass entry above. The two
+    declining cases named there (a stream that does not parse; glyph-code
+    text on a subset font) are the sweep's existing floor, not a new owed
+    item.
+
+**New, from this filing:** none.
+
+---
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `284` (highest ID `284.0`), next free `285` | **`285`** (highest ID `285.0`), next free family `286` |
+| Standing rules | `R249` MINTED (486th filing); `R247` reserved-but-unclaimed | **UNCHANGED, numerically** — `R225` gains a 16th instance (severity escalation: a doc-comment-stated guarantee, not only a test name); ceiling stays `R249`, next free `R250`; `R247` still untouched |
+| Decision records | `146` | **unchanged** — a test/fixture-discipline fix and a redaction-carrier completion, not a crate-boundary/library/invariant redefinition |
+| `SESSION_LOG` filings | `486` | **`487`** |
+| `docs/FEATURES.md` | *Apply redaction* row named owed item 18 open | **row amended**: item 18 closed, the two remaining declining cases named in its place |
+| Owed-survivor / open-reply ledger | items 4, 5, 9 (`n=3`), 10, 11, 13b, 14, 17, 18 open | **item 18 CLOSED; items 4, 5, 9 (`n=3`), 10, 11, 13b, 14, 17 unchanged; no new items** |
+| `D:\dev\rag\rust\` | 344 files | **unchanged — dated footer (instance 16) appended to an EXISTING file**, `index.md` bullet extended in the same edit; no new file |
+
+**Release state — NOT checked this filing (no shell).** Whether `1366138`
+has actually reached `origin/main`, and whether a release has been cut
+since, is **relayed** from the dispatch, not independently verified — the
+engineer should confirm with `git rev-parse origin/main` / `git describe
+--tags --abbrev=0` directly.
+
+---
+
 **★★★★★ 486th filing, 2026-09-09 — `Pass 284.0` SHIPPED: A DESTRUCTIVE SWEEP
 IS SCOPED BY THE EVIDENCE THE OBLIGATION NAMES, NEVER BY COMPUTED
 REACHABILITY — FOURTEENTH REDACTION CARRIER `residual_sweep` CLOSES OWED

@@ -4,6 +4,81 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-09 (487th filing)
+
+**Shipped:**
+- Pass 285.0 (`1366138`, pushed to `origin/main` per the dispatch — not
+  independently verified, no shell this filing) — closes owed item 18
+  (`Pass 284.0`): an abandoned content stream's drawn text is now blanked,
+  not merely named. `blank_show_strings` parses the stream and touches only
+  the operand spans of `Tj`/`TJ`/`'`/`"`, never the whole buffer, so a
+  resource name sharing bytes with the redacted evidence is never
+  corrupted into one that resolves to nothing. New counter
+  `residual_content_streams_blanked`. Still declines and discloses (the
+  sweep's existing floor): a non-parsing stream, and glyph-code text on a
+  subset font.
+
+**Decisions made this session:**
+- None minted. `R225` gains a 16th dated instance (severity escalation,
+  not a new cause) to its RAG file; `R249`/`R247` untouched.
+
+**Findings + decisions:**
+- **A scope-widening sabotage survived all eight tests in
+  `redaction_residual_sweep.rs`.** The wrong implementation (blank every
+  byte-occurrence of the evidence in the whole buffer, not only the
+  show-operator spans) agreed exactly with the correct one on the shipped
+  fixture, because the fixture's only occurrence of the word was inside a
+  string operand — the one place both implementations blank. Outside that
+  string the wrong implementation also corrupts resource names, which is
+  precisely the failure the function's own doc comment names as the
+  reason for the narrower scope. Fixed by widening the fixture (the word
+  now also appears in a resource name) rather than by strengthening the
+  assertion, which could not have discriminated on the old fixture no
+  matter how it was written.
+- **Escalation recorded explicitly, at the engineer's request**: every
+  prior instance of this project's `R225` sabotage-fixture family is a
+  test measuring less than its own *name* claimed. This is the first
+  where the survived sabotage would have shipped a defect the project's
+  own *documentation* claimed was impossible — judged a severity clause
+  on the existing "scope or filtering" degenerate-value row, not a new
+  cause and not a rule amendment. Filed as the RAG file's 16th dated
+  instance; no mint, `R225`'s founding text unchanged, `R249` remains the
+  standing-rule ceiling and `R247` remains reserved-but-unclaimed.
+- **Test amended, not deleted, honest half preserved as a new control**:
+  `Pass 284.0`'s `an_unreachable_content_stream_is_named_not_silently_left`
+  became `an_abandoned_content_streams_drawn_text_is_blanked` (old
+  assertions kept struck through in place); the disclosure half it used
+  to carry survives as a new, separate test,
+  `a_stream_that_cannot_be_blanked_is_still_named`, over a fixture the
+  blanking function structurally cannot reach — without it, a future
+  silent regression in the disclosure would pass unnoticed.
+- `docs/FEATURES.md`'s *Apply redaction* row amended in place: owed item
+  18's sentence replaced with the fix, the new counter named, and the two
+  remaining declining cases named where item 18 used to be.
+- `D:\dev\rag\rust\a_sabotage_can_only_be_as_discriminating_as_the_fixture_it_runs_on.md`
+  gains a 16th dated footer (the escalation above); its `index.md` bullet
+  extended in the same edit, along with a compact catch-up note for
+  instances 12–15 which the index bullet had fallen behind on.
+
+**Still in flight:**
+- Owed items 4, 5, 9 (`n=3`, `R247` reservation unreconciled), 10, 11,
+  13b, 14, 17 all carried forward. Item 18 discharged this filing.
+- The `R247` reservation is still unreconciled — flagged again, three
+  filings running now.
+- Whether `1366138` has been pushed or released is relayed from the
+  dispatch only, not independently checked — the engineer should verify
+  directly.
+
+**For next session:**
+- Resolve the `R247` reservation before a fourth unrelated candidate
+  makes the gap harder to reconcile — this is now the third consecutive
+  filing carrying that flag forward unresolved.
+- `D:\dev\rag\rust\index.md`'s summary bullet for the sabotage-fixture
+  file had drifted behind its own source file (missing instances 12–15
+  before this filing added a catch-up note) — worth a proper backfill
+  next time an `D:\dev\rag\rust\` index-check runs, rather than leaving
+  the catch-up note as the permanent form.
+
 ## 2026-09-09 (486th filing)
 
 **Shipped:**
