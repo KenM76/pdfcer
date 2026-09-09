@@ -524,7 +524,17 @@ one thing that reads a rustdoc example as code.
     neither started** (2026-09-09): a hybrid-reference file's
     `/XRefStm` (§7.5.8.4) refuses a full rewrite by name, and redaction
     requires a full rewrite under `R35` — so redaction is unreachable on
-    such a file, measured on the operator's own SolidWorks sheet, asked
+    such a file, measured on the operator's own `SW41177 MATERIAL
+    REQUIREMENTS.pdf` — **★ CORRECTED 2026-09-09 (483rd filing): this
+    line said "SolidWorks sheet"; the file is Excel-365-exported
+    (`/Producer`/`/Creator` both `Microsoft® Excel® for Microsoft 365`),
+    sitting inside a SolidWorks drawing set alongside two other sheets
+    genuinely produced by `SOLIDWORKS PDF Publisher` (2022, 2024) that
+    are NOT hybrid and rewrite cleanly — the producer is the signal for
+    which sheets take the hybrid-only path. See
+    `C:\personal_rag\pdf\lesson_20260909_excel_365_exports_hybrid_reference_pdfs_that_refuse_a_full_rewrite.md`.
+    The heading above at `Pass 281.0` already says "SolidWorks-drawing-set
+    file," which is true and needed no correction.** — asked
     three times; and `resize_annotation` refuses a pdfcer-authored
     `/Stamp` as foreign — the third authoring family its appearance test
     does not recognise, same shape as `Pass 276.0`'s `/FreeText` fix,

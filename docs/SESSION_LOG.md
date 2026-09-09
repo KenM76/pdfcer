@@ -90,6 +90,27 @@ the affected entry. Maintained by `pdfce-librarian`.
 - Reconcile `R221`'s instance count (item 10, long-carried).
 - Watch for a third instance of the file-channel-blindness cause.
 
+**★ Amendment, 2026-09-09 (483rd filing):** `ROADMAP.md`'s owed-item-13
+text (mirrored into this entry's own **Shipped** bullet above, which was
+already correctly worded) said the hybrid file was "measured on the
+operator's own SolidWorks sheet." That is wrong about the producer: the
+file is `SW41177 MATERIAL REQUIREMENTS.pdf`, exported by
+`Microsoft® Excel® for Microsoft 365` (`/Producer` and `/Creator` both),
+sitting inside a SolidWorks drawing set alongside two genuinely
+SolidWorks-exported sheets (`SOLIDWORKS PDF Publisher`, 2022/2024) that
+are **not** hybrid and rewrite cleanly — recorded the same day in
+`C:\personal_rag\pdf\lesson_20260909_excel_365_exports_hybrid_reference_pdfs_that_refuse_a_full_rewrite.md`.
+**Mechanism, not just the fix:** an inbound request's description of a
+file ("SolidWorks-exported") is a claim, not a fact, and this project's
+own empirical corpus already held the measured answer one grep away —
+the error propagated from the dispatch that filed owed item 13, which
+repeated the request's wording without checking it. `ROADMAP.md` line
+~527 corrected in place with this same dated note; this entry's own
+Shipped bullet needed no change. The `Pass 281.0` commit message
+(`1177221`) also says "the operator's own SolidWorks drawing" and is
+published history that cannot be corrected — read it with this
+amendment attached.
+
 ## 2026-09-09 (481st filing)
 
 **Shipped:**
