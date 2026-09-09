@@ -4,6 +4,110 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-09 (479th filing)
+
+**Shipped:**
+- Pass 277.0 (`fccd6cd`) — a sticky note (`/Text`) no longer refuses a
+  resize by falsely claiming pdfcer had not drawn it; the refusal is
+  now permanent and correctly argued (§12.5.6.4 + §12.5.3: a `/Text`
+  annotation behaves as `NoZoom`/`NoRotate`, so `/Rect` is an anchor,
+  not a size, and no scale factor has anything to act on), refused as
+  a class (the `/Text` rule OR a `NoZoom` flag on any subtype), with
+  no override. pdfcer's own `TextAnnotSpec::Sticky` doc comment named
+  the wrong anchor corner (lower-left; spec says upper-left) and is
+  corrected in place.
+- Pass 278.0 (`c8a6697`) — a freehand `/Ink` stroke's nodes are
+  editable now, per point (`move_ink_point`/`insert_ink_point`/
+  `remove_ink_point`) and per whole stroke (`replace_ink_stroke`/
+  `move_ink_stroke`/`remove_ink_stroke`), overturning a refusal that
+  had argued from Acrobat's own lack of per-point ink editing at any
+  version — a decision, not a not-yet, per the requester's own
+  framing, overturned under the standing "parity is the floor, not
+  the ceiling" ruling. `reshape_annotation` still refuses `/Ink` (its
+  single-index shape cannot address a stroke) but now names these
+  verbs. pdfcer's own polyline-only authoring (`m`/`l`, no curve
+  operators) makes the point-drag preview exact, not approximate —
+  §12.5.6.13 leaves the join style implementation-dependent, so both
+  readings conform.
+
+**Decisions made this session:**
+- No new decision minted (`ARCHITECTURE.md` §12 untouched). Neither
+  Pass redraws a crate boundary, picks a library, or redefines an
+  invariant; `Pass 278.0` overturns a capability ruling made inside a
+  Pass, not an architectural decision.
+- A standing-rule candidate ("a refusal must name the property that
+  makes the operation impossible, not the nearest fact that happens
+  to be true") was considered for `Pass 277.0` and **declined at
+  n=1**, consistent with this project's practice of waiting for a
+  genuine second instance before minting.
+- A second candidate was drafted and then **corrected before filing**:
+  what first looked like a novel n=1 shape (an alternate,
+  independently-justified guard masking the removal of the guard
+  under test, `Pass 277.0`) turned out on checking to be the
+  **second** instance of an "alternate route" sabotage-survival cause
+  already recorded in `D:\dev\rag\rust\` from `Pass 155.1`
+  (2026-09-07) — there between two derivation rules, here between two
+  refusal guards. Now at `n=2`, this project's own stated minting
+  threshold, but not minted this filing: the next free standing-rule
+  number (`R247`) is already reserved for an unrelated trigger, and
+  resolving that reservation needs more time than this filing had.
+  Filed as owed work.
+
+**Findings + decisions:**
+- Two PDF-domain lessons written to `C:\personal_rag\pdf\`, checked
+  against the index first and confirmed not already covered:
+  `/InkList`'s join style is implementation-dependent (§12.5.6.13),
+  and a `NoZoom` annotation's anchor is `/Rect`'s upper-left corner,
+  not lower-left (§12.5.3) — the second lesson exists because pdfcer's
+  own doc comment had this backwards.
+- `R225` (sabotage survives on a non-discriminating fixture) gains a
+  twelfth dated instance from `Pass 278.0`: removing the *last*
+  element of a list made `.get(i)` return `None` under both the
+  correct and the sabotaged code, so a naive report's default answer
+  happened to be right by accident. Re-pointed at index 0 instead.
+  New degenerate-value-table row: the last index of a collection is a
+  degenerate fixture choice for any bounds-checked/`Option`-returning
+  access.
+- The consuming shell's own question on `Pass 278.0` — *"is this a
+  decision or a not-yet, because from here they look identical?"* —
+  is recorded as a suggested convention for `docs/core-api/`'s
+  refusal documentation (engineer-owned, not edited here), not minted
+  as a standing rule.
+- Reply debt discharged and independently confirmed: the 478th
+  filing's owed item 7 (three unconfirmed outbound replies) and this
+  filing's own three replies are the same three files, confirmed to
+  exist by `Glob` directly against
+  `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\` rather than
+  relayed.
+
+**Still in flight:**
+- The `format_text --set-font` subset-resolution question promised to
+  the requesting project is still unmeasured: whether `set_font`
+  resolves to an existing subset-embedded resource sharing the target
+  `/BaseFont` before authoring a fresh standard-14 one. If it does,
+  `Pass 274.0`'s font-remedy refusal can name a face that then fails
+  the `R-INV-1` subset floor. One fixture, one test; flagged, not
+  built.
+- The "alternate route" sabotage cause's proper standing-rule number
+  is unresolved (see *Decisions*, above) — needs the `R247`
+  reservation checked before minting.
+- 477th filing's owed items 4 (21 of 38 `fixtures/synthetic/text/`
+  files undocumented in `PROVENANCE.md`) and 5 (`origin/main..HEAD` is
+  not a filing boundary once a release has been pushed) remain open,
+  carried forward unchanged.
+- Whether `fccd6cd`/`c8a6697` have been pushed or released is **not
+  asserted** — this filing had no shell. Check
+  `git rev-parse origin/main` / `git describe --tags --abbrev=0`
+  directly.
+
+**For next session:**
+- Resolve the `R247` reservation and mint (or fold) the "alternate
+  route" cause properly.
+- Build the `format_text --set-font` subset-resolution measurement
+  (owed item 8, `docs/ROADMAP.md`).
+- Backfill `fixtures/synthetic/text/PROVENANCE.md` (477th filing's
+  item 4, still open).
+
 ## 2026-09-08 (478th filing)
 
 **Shipped:**

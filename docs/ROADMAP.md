@@ -112,6 +112,452 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★★ 479th filing, 2026-09-09 — TWO PASSES MINTED AND SHIPPED (`277.0`,
+`278.0`), BOTH CLOSING INBOUND REQUESTS FROM `pdfcer-gui`: A STICKY NOTE
+REFUSED A RESIZE BY CLAIMING pdfcer HAD NOT DRAWN IT — THE SAME FALSE
+SENTENCE `Pass 276.0` FIXED ON `/FreeText` AND LEFT ON `/Text` — AND THE
+FREEHAND TOOL'S NODES ARE EDITABLE NOW, OVERTURNING A REFUSAL THAT HAD
+ARGUED FROM ACROBAT PARITY. ★★★ pdfcer'S OWN DOC COMMENT NAMED THE WRONG
+CORNER OF A STICKY'S ANCHOR. ★★ ONE STANDING-RULE CANDIDATE DECLINED AT
+`n=1` (A REFUSAL NAMING THE WRONG SUBJECT); A SECOND CANDIDATE TURNED OUT,
+ON CHECKING, TO BE THE SECOND INSTANCE OF AN ALREADY-RECORDED CAUSE — SEE
+THE CORRECTION UNDER `Pass 277.0` BELOW. ★ TWO PDF-DOMAIN LESSONS WRITTEN
+TO `personal_rag/pdf`; `R225` GAINS A TWELFTH INSTANCE.**
+
+**Sourcing (hard rule 8), stated up front — NO SHELL THIS SESSION.** This
+filing had `Read`/`Grep`/`Glob` only; no `Bash` tool was available. Every
+commit hash, timestamp, file list, test count and diffstat below is
+**relayed** from a `git show`-style export the dispatching engineer
+captured and handed over as a scratchpad file — labelled as such, not
+independently re-run. **Backup currency, working-tree state, remote/push
+state and CI colour are NOT asserted** — none were checked; if any of them
+matter, the engineer should check `D:\Dev\pdfcer` directly. The Pass-ID
+mint, the ledger-position check, and the `docs/FEATURES.md` cross-
+references ARE independently verified here by `Grep`/`Read` against the
+live documents. **One claim in this filing IS independently checked
+rather than relayed**: the existence of the three outbound reply files
+(below), confirmed by `Glob` directly against the reply directory — a
+tool available without a shell.
+
+**Filing order.** Presented newest-commit-first, matching this project's
+*Shipped* convention; **Pass IDs are minted in commit order** — `fccd6cd`
+(05:22:19 −0400) → `277.0`, `c8a6697` (06:18:59 −0400) → `278.0`.
+
+---
+
+### `Pass 278.0` (`c8a6697`, 2026-09-09 06:18:59 −0400) — THE FREEHAND TOOL'S NODES ARE EDITABLE NOW, AND THE OLD REFUSAL ARGUED FROM ACROBAT
+
+**Minted in this filing.** `Grep` against `ROADMAP.md` and
+`docs/FEATURES.md` for `Pass 27[7-9]` found no prior claim, consistent
+with the 478th filing's own recorded ledger position (ceiling `276`, next
+free `277`). Pass family ceiling `277` (this filing's own `277.0`, minted
+below) → **`278`**; next free `279`.
+
+**The report, verbatim.** Operator: *"Also the draw a line that follows
+the pointer tool — I can't edit the nodes that make it."*
+
+**★★ The refusal was real, stated, and argued from Acrobat — and the
+requester asked the right question first.** `reshape_annotation` refused
+`/Ink` by name: *"an `/InkList` stroke is a recorded pen trace, and
+Acrobat has never offered per-point ink editing at any version — move,
+resize or delete the whole annotation instead."* Before asking for it to
+change, the consuming shell asked: **"is this a DECISION or a NOT-YET,
+because from here they look identical?"** It was a decision, made against
+Acrobat's own behaviour. It is overturned here, and the fact it rested on
+is still true and unweakened — **parity with Acrobat is this project's
+floor, not its ceiling** (standing operator ruling, `MEMORY.md`
+`exceed-the-parity-reference-when-you-can`). Every other markup the
+operator can draw — polygon, polyline, line, cloud — he can already
+nudge; the one he draws fastest and least precisely was the one he
+could not.
+
+**New verbs, not a widened `VertexEdit`.** `/InkList` (12.5.6.13, Table
+182) is a list OF stroke point lists, so a point in it needs a `(stroke,
+point)` address, and the existing `VertexEdit` carries one index only.
+Widening it would have made every existing `/Polygon` caller's index mean
+"the stroke index is `None`" — a sentence about `/Ink` appearing in code
+with nothing to do with it. It is also a **relaxation** of a refusal,
+which decision 144's corollary says earns a new name of its own: tightening
+turns a silent wrong answer into a refusal; relaxing turns a refusal into
+a silent answer, and a caller relying on the old refusal has no way to
+notice the change underneath it.
+
+  ```
+  reshape_ink(annot, &InkEdit, modified)      all six edits, stamps /M
+  reshape_ink_preview(annot, &InkEdit)        every guard, nothing staged
+  move_ink_point / insert_ink_point / remove_ink_point
+  replace_ink_stroke / move_ink_stroke / remove_ink_stroke
+  ```
+
+**Two grains, and the second is the requester's own reasoning.** *"A
+stroke that arrived from another producer may not be simplified, and
+per-point anchors on a 400-point stroke are unusable as a UI regardless of
+what the engine offers."* So the stroke-level verbs (`replace_ink_stroke`
+/ `move_ink_stroke` / `remove_ink_stroke`) exist beside the point-level
+ones: a shell can offer "reshape this whole stroke" without pretending 400
+anchors are a usable control. Anchor density and decimation are the
+shell's problem, not this crate's.
+
+**★ One of the requester's three objections is false, measured.** They
+expected the `/AP` to be a smoothed curve, so a point drag would move "a
+length of curve on both sides" and a preview would be approximate.
+`annot_author::ink` emits `m`/`l` — a **polyline**. §12.5.6.13 leaves the
+join **"implementation-dependent"** ("straight lines or curves"), so both
+readings conform and pdfcer takes the straight-line one: a drag moves
+exactly the two segments either side, and a polyline preview is
+**exact**. Pinned by a test, because splining the strokes later would
+silently make every shell's preview wrong without any spec violation
+occurring. **PDF-domain lesson written** — see below.
+
+**The disclosure that matters, answered by the preview.** The geometry
+moves, so carrying the old appearance is impossible — it would paint the
+stroke where it no longer is. On a stroke pdfcer did not draw, re-baking
+**replaces** that producer's artwork with pdfcer's polyline rendering and
+visibly straightens a smoothed curve. `InkForecast::appearance_was_pdfces`
+says so, and `reshape_ink_preview` answers it **before** the first drag,
+not after. Registered in `check-outcome-disclosed`'s `OUTCOME_STRUCTS` in
+this commit.
+
+**Refusals, each its own variant.** `InkStrokeIndexOutOfRange` /
+`InkPointIndexOutOfRange` (two index spaces, two different questions — one
+message would send a caller to audit the wrong list); `InkStrokeWouldBreachPointFloor`
+(one point is not a path; names `RemoveStroke`); `InkWouldBeEmpty` (names
+`delete_annotation`, a different act); `InkVerbOnNonInk`. `reshape_annotation`
+still refuses `/Ink` — a caller there has an unaddressable index, not a
+missing feature — and its refusal now **names** the new verbs. This is
+`Pass 274.0`'s "a capability nobody can find is not shipped" lesson,
+applied a second time in as many days, to a different subsystem.
+
+**★ `InkWouldBeEmpty` counts what would REMAIN AND BE DRAWABLE, not
+`strokes.len() > 1`.** A file carrying one path beside a one-point stroke
+passes the naive test and would leave an `/Ink` that draws nothing. That
+claim has a fixture: a hand-written PDF pdfcer's own authoring verbs
+cannot produce.
+
+**CLI.** `ink-edit --op move-point|insert-point|remove-point|replace-stroke|
+move-stroke|remove-stroke`, with `--stroke`/`--point`/`--dx`/`--dy`/`--at`/
+`--points` and `--dry-run` through the same preview.
+
+**Tests.** `crates/pdfcer-core/tests/ink_reshape.rs` (23) and
+`crates/pdfcer-cli/tests/ink_edit.rs` (11) through the binary — a flag
+`clap` parses and the dispatch drops passes all 23 core tests without
+proving the wiring. Both index flags are asserted by running the same
+edit twice with the index changed and requiring the outputs to differ.
+
+**★★ A sabotage survived, and fixing the test is the finding — R225's
+family, twelfth instance.** Dropping the "stroke removed means zero
+points, not whatever slid into the slot" branch stayed **green**, because
+the test removed the **last** stroke — where `next.get(i)` is `None` and
+the naive code answers `0` by accident, a coincidence in the fixture's own
+index arithmetic rather than in its domain content. Re-pointed at stroke
+`0` instead, so the second stroke slides into index `0` and the naive
+report would name **its** length — a plausible number about the wrong
+subject. **This is `R225`'s established family (a fixture where the
+correct answer and a plausible wrong answer coincide), not `R225`'s
+still-unfired "assertion's shape alone" trigger** — the remedy here is
+`R225`'s own: change the input, re-point the fixture off the boundary the
+`.get()` call treats specially. Dated instance note added below;
+cross-project half filed as a dated footer to
+`D:/dev/rag/rust/a_sabotage_can_only_be_as_discriminating_as_the_fixture_it_runs_on.md`.
+Sabotage, five ways, now all RED: ignore the stroke index (6 red); drop the
+point floor (2); count `strokes.len() - 1` instead of what remains drawable
+(1, and only the hand-written fixture sees it); report the slid-in
+stroke's length (1, after the fix above); measure appearance provenance
+against the NEW geometry instead of the old (1) — the ordering trap
+`resize_annotation` already documents.
+
+**★ clippy found a real one.** `apply_ink_edit` indexed
+`strokes[stroke_index]` three times, its safety a property of `ink_plan`
+twenty lines away. The bounds check now lives in the function that needs
+it — a later refactor moving the counts would otherwise have turned a
+refusal into a panic.
+
+**Verification (relayed).** `ink_reshape` 23, `ink_edit` 11,
+`annot_reshape`, `annot_resize`, and `cargo test --workspace` (with
+`--test-threads=2`) **5,199 passed, 0 failed**. `fmt` clean; `clippy
+--all-targets --all-features -D warnings` clean; `tools/run-gates.sh`
+**PASS on all 29 commands** (the two deliberate skips, `cargo about` and
+the `--all-features` test variant, as always).
+
+**`docs/core-api`** (engineer-owned, not edited here): the verbs, the two
+grains, the polyline reading, the disclosure and every refusal are in
+`02-editing-and-saving.md`; the `/Ink` matrix row no longer reads as a
+capability statement; stated counts moved to **219 verbs** and **134
+`EditError` variants** in both that file and `index.md`.
+
+**`docs/FEATURES.md`.** New row under *Implemented → Annotations &
+markup*: **Edit a freehand `/Ink` stroke — per point and per whole
+stroke** — `core [x]` · `cli [x]` · `gui [ ]` · `Acrobat [ ]` (verified
+absence — Acrobat has never offered per-point ink editing at any version,
+so this is a deliberate **exceed**, not a parity fill). Row text below.
+
+---
+
+### `Pass 277.0` (`fccd6cd`, 2026-09-09 05:22:19 −0400) — A STICKY NOTE REFUSED A RESIZE BY CLAIMING pdfcer HAD NOT DRAWN IT
+
+**Minted in this filing.** Pass family ceiling `276` → `277`.
+
+**Reported by the consuming shell against `00ddbb1`** — the commit that
+fixed this same false sentence on `/FreeText` (`Pass 276.0`) and left it
+standing on `/Text`.
+
+| authored by | subtype | before `00ddbb1` | after |
+|---|---|---|---|
+| `add_markup` | `/Square` | accepted | accepted |
+| `add_text_annotation` | `/FreeText` | REFUSED | accepted |
+| `add_text_annotation` | `/Text` | REFUSED | REFUSED, correctly, and now for the right reason |
+
+**Their words, kept verbatim because they state the requirement
+precisely:** *"We are not asking for `/Text` to become resizable. We are
+asking for it to decline as WHAT IT IS."*
+
+**The policy was right and the sentence was false.** A sticky reached the
+provenance test — rebuild from the unmodified spec, compare bytes — failed
+it because its appearance comes from a third builder (an icon, not the
+markup or text-annotation builders), and was refused with *"pdfcer did
+not draw it, so pdfcer will not redraw it"* about a marker pdfcer had
+drawn seconds earlier in the same session.
+
+**★★ The cost was not the wrong sentence. It was the model the sentence
+taught.** The reporting shell had shipped **eight resize grips** on
+stickies for the life of the feature. Nobody questioned them, because the
+refusal read as a fact about the **file** ("some other producer drew
+this") rather than about the **kind** ("this thing does not have a
+size"). Their own sentence, worth carrying forward: *"a refusal that had
+said 'a sticky's marker is a fixed size' would have been read as a design
+fact and fixed on our side months ago."* A refusal that names the wrong
+subject does not merely fail to help — it teaches the caller a false
+model, and the caller builds UI on it. No gate in either project could
+detect that; only a human finding a sentence strange.
+
+**★★ Standing-rule candidate, considered and DECLINED at `n=1`.** *"A
+refusal must name the property that makes the operation impossible, not
+the nearest fact that happens to be true."* This is a real, distinct
+failure shape — not `R245`'s (a guard/key/disclosure applied to some of a
+family of routes and not the rest), and not simply the discoverability
+shape `Pass 274.0` and `Pass 278.0` both name ("a capability nobody can
+find is not shipped") — this is a refusal that is **internally accurate
+about the wrong entity**. This project's own practice, applied
+consistently across `R244`/`R247`'s declines, is to wait for a genuine
+second, independently-arising instance before minting rather than
+elevating on the strength of one occurrence's cost. **Declined here on
+that basis, not on the shape's importance** — flagged so the next
+occurrence is recognised rather than treated as novel.
+
+**What the spec actually says.** §12.5.6.4 — a `/Text` annotation "shall
+behave as if the `NoZoom` and `NoRotate` flags were set". §12.5.3 —
+`NoZoom` means "do not scale the annotation's appearance to match the
+magnification of the page", with the position taken from the
+**upper-left** corner of `/Rect`. A conforming reader therefore reads
+`/Rect` as an **anchor**, not as a size, and a scale factor has nothing to
+act on.
+
+**Refused as a class: the `/Text` rule OR the `NoZoom` flag.** Both say
+the same thing about the same rectangle. A guard that knew only `/Text`
+would refuse a `NoZoom` sticky and resize a `NoZoom` **stamp** into a
+rectangle no conforming reader honours — `R245`'s own shape (a guard on
+one route and absent on its twin), declined in advance here rather than
+found later. `why` is a separate field from the refusal sentence, because
+the two are not interchangeable: a caller can clear a flag and cannot
+change a subtype's rule.
+
+**No override, deliberately.** `allow_appearance_distortion` means "I
+accept a distorted appearance", and a conforming reader does not distort
+this one — it **ignores** the new size. An option whose name describes an
+outcome that will not happen is worse than no option.
+
+**★★★ And pdfcer's own doc comment named the wrong corner.** The shell
+quoted `TextAnnotSpec::Sticky`'s rect doc back at us as its source, and
+that comment was wrong in a way that can **move** a sticky: *"the marker
+is fixed-size — `NoZoom`/`NoRotate` — so only its **lower-left** corner
+matters in practice; the width/height give the marker its size."* §12.5.3
+says **upper-left**, verbatim, and the comment's own second clause
+contradicts its first. A shell that grows the box upward from a fixed
+lower-left — which that sentence invites — moves the marker. Corrected in
+place with the old text struck through, so a reader who remembers it can
+see that it moved. **PDF-domain lesson written** — see below.
+
+**Two readers disagree, and the variant says so.** `pdfcer_render::annot`
+defers the `NoZoom`/`NoRotate` placement adjustment (a documented Pass 6.0
+deferral, reported as a render note), so in pdfcer's own raster a resized
+sticky **does** change size while Acrobat's would not. That is the
+strongest argument for refusing to write the file, not for permitting it
+— and it is documented at the variant so nobody hits pdfcer's own raster,
+concludes the resize "works", and files this again.
+
+**Tests.** `crates/pdfcer-core/tests/sticky_resize_refusal.rs`, 8. Two
+controls (an ordinary `/Square` and a `/FreeText` must both still resize
+— a blanket breakage would make every refusal assertion pass for the
+wrong reason, and the `/FreeText` control pins `Pass 276.0`'s fix against
+a guard that refused the whole authoring family). A set-flag/clear-flag
+pair, so the class half is measured on the **flag**, not on the fixture.
+
+**★ One test is in its current form because a sabotage survived the
+first one.** "A refusal writes nothing", measured on the sticky, stayed
+green with the guard moved to **after** the write — a sticky never
+reaches the write anyway, because the provenance refusal also returns
+early. It was measuring "some refusal returns early" while its name
+claimed "this guard returns early": an alternate, also-correct guard
+supplying the same answer. Re-pointed at a `NoZoom` `/Square` — which
+pdfcer **can** resize, so it has something to lose — it goes red.
+
+**★★ Not a new shape — SECOND INSTANCE of the "alternate route" cause
+already on file, and this filing's own earlier framing (a first draft of
+this entry) mis-identified it as `n=1`. Corrected in place before
+filing.** `D:/dev/rag/rust/a_sabotage_can_only_be_as_discriminating_as_the_fixture_it_runs_on.md`
+already records an "alternate route" cause at its **first** instance
+(`Pass 155.1`, `98d0abb`, 2026-09-07): *"disabling/breaking rule A on a
+fixture that also satisfies rule B's precondition silently reroutes to
+B, which produces an equally correct answer."* There, A and B were two
+**derivation rules**; here, A and B are two **refusal guards**
+(provenance-based and flag-based) independently reaching "refuse" for
+the same input — the same mechanism, a different shape of branch. Dated
+footer added to that file, widening the row's stated scope from
+"derivation rule" to any branch whose outcome the assertion checks.
+
+**Worth flagging rather than deciding here.** This cause is now at two
+independent occurrences — this project's own stated minting threshold
+for a new standing rule (`R221` was minted at exactly `n=2`). **Not
+minted in this filing**: `R247`, the next free number, is already
+reserved for an unrelated, also-unclaimed trigger (a `clap`-derive
+doc-guarantee pattern, named 2026-09-08, 475th filing, Part F item 3),
+and deciding whether "alternate route" claims `R247` or a later number
+needs more research into that reservation than this filing budgeted.
+Flagged as owed work (item 9, below) for a session with time to resolve
+the numbering rather than guess at it.
+
+Sabotage, three ways, all RED: drop the flag half (2 red); drop the
+subtype half, which falls through to the old provenance refusal (3 red);
+move the guard to after the write (3 red, including the re-pointed one).
+
+**Verification (relayed).** `sticky_resize_refusal` 8, `resize_text_annot`
+5, `annot_resize`, `annot_gates`. `tools/run-gates.sh` green on 28 of 29,
+the 29th (`check-string-gaps`) failing on a lost line continuation in this
+commit's own test file — fixed and re-run to PASS on its own; the sweep
+otherwise ran on this tree, the only later change being one assertion
+message's whitespace.
+
+**`docs/core-api`** (engineer-owned): the rule, the two `why` values, the
+no-override reasoning and the renderer disagreement are in
+`02-editing-and-saving.md`; `EditError`'s stated count is **129** in both
+that file and `index.md`, with the line and clause figures re-derived.
+
+**`docs/FEATURES.md`.** Amended the *Resize anything carrying a `/Rect`*
+row (*Implemented → Annotations & markup*) in place — the row's
+`core`/`cli`/`gui` boxes stay `[x]` (other subtypes still resize) — to
+record that `/Text` resize refusal is now **permanent by policy, not
+owed**: deliberate, no override, argued from §12.5.6.4 + §12.5.3, not a
+gap awaiting a fourth builder's treatment. Owed-work item 6 (below) is
+discharged by this change of status, not by building anything.
+
+---
+
+### Findings + methodology, this filing
+
+**Two PDF-domain lessons written to `C:\personal_rag\pdf\`**, checked
+against the index first and found **not already covered**:
+
+1. §12.5.6.13's `/InkList` join is **implementation-dependent** ("straight
+   lines or curves") — pdfcer's polyline rendering and a smoothing
+   producer's curved rendering both conform, so a shell's polyline preview
+   is exact against pdfcer's own output and only approximate against a
+   file a smoothing producer authored.
+2. §12.5.3's `NoZoom` anchor is the annotation's `/Rect` **upper-left**
+   corner — and pdfcer's own `TextAnnotSpec::Sticky` doc comment named the
+   lower-left for months, in a way that would have moved a sticky had a
+   shell trusted it and grown the box upward from a fixed corner.
+
+**Channel-practice observation, recorded rather than minted.** The
+requester's question — *"is this a decision or a not-yet, because from
+here they look identical?"* — is a genuinely useful distinction for
+`docs/core-api/`'s refusal documentation to make explicit (a refusal
+argued from a design ruling vs. a refusal that is merely unbuilt yet
+read the same from outside). **Not mine to edit** (`docs/core-api` is
+engineer-owned); flagged as a suggested convention for that document
+rather than filed as a standing rule, since this is a documentation
+practice, not a recurring engineering-failure shape.
+
+**`R225`, twelfth instance.** `Pass 278.0`'s stroke-removal sabotage
+(above) is filed as a dated instance note below, in *Standing rules*.
+
+**No new decision minted (`ARCHITECTURE.md` §12 untouched).** Neither
+Pass redraws a crate boundary, picks a library, or redefines an
+invariant; `Pass 278.0` overturns a **capability ruling** made inside a
+Pass, not an architectural decision, and the operator's own standing
+"parity is the floor" ruling already covers the overturn.
+
+**Reply debt discharged, independently confirmed.** The 478th filing's
+owed item 7 (three unconfirmed outbound replies) and this filing's own
+new replies are **the same three files, checked by `Glob` directly**
+against `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\` rather than
+relayed:
+`reply_2026-09-09-enter-key-and-font-names-SHIPPED-and-your-coverage-flag-is-being-measured.md`,
+`reply_2026-09-09-the-sticky-declines-as-what-it-is-and-your-doc-comment-named-the-wrong-corner.md`,
+`reply_2026-09-09-ink-nodes-are-editable-SHIPPED-and-one-of-your-three-objections-is-false.md`
+— all three **confirmed to exist** on disk. Owed item 7 is **discharged**.
+
+---
+
+### Part — owed work, carried forward and new
+
+**Carried forward, unchanged (477th filing items 4–5; not re-verified
+this filing, no shell):**
+
+4. `fixtures/synthetic/text/PROVENANCE.md` backfill — 21 of 38 files
+   undocumented there as of the 477th filing's direct check.
+5. `origin/main..HEAD` is no longer a filing boundary once a release has
+   been pushed — read `tools/check-commits-filed.py`'s own output, not
+   the range.
+
+**Discharged this filing:**
+
+6. **`/Text` resize** — closed by `Pass 277.0`, but as a **permanent
+   policy**, not as a build. See that entry above.
+7. **Three outbound replies** — confirmed to exist by `Glob`. See
+   *Findings*, above.
+
+**New, from this filing:**
+
+8. **The `format_text --set-font` subset-resolution question, promised to
+   the requesting project and not yet measured.** Whether `set_font`
+   resolves to an **existing subset-embedded resource sharing the target
+   `/BaseFont`** rather than always authoring a fresh standard-14
+   resource. If it does, `Pass 274.0`'s font-remedy refusal can name a
+   face that then **fails the `R-INV-1` subset floor** — i.e. the message
+   would be wrong in exactly the case it exists to help with. One fixture
+   (a page whose subset-embedded font shares a name with a standard-14
+   face) and one test. Flagged, not built.
+9. **The "alternate route" sabotage cause is at `n=2`** (`Pass 155.1`,
+   2026-09-07; `Pass 277.0`, 2026-09-09) — this project's own stated
+   minting threshold — **and is not yet promoted to a numbered standing
+   rule**, because the next free number (`R247`) is already reserved for
+   an unrelated trigger. Owed: reconcile the `R247` reservation (does
+   "alternate route" wait for `R248`, or does the reserved trigger
+   forfeit `R247` on some rule this filing did not look up?) and mint
+   properly, rather than guessing at a number.
+
+---
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `276` (highest ID `276.0`), next free `277` | **`278`** (highest ID `278.0`), next free `279`. `Pass 277.0`–`278.0` MINTED AND SHIPPED in this filing |
+| Standing rules | `R246` | **unchanged, numerically** — `R225` gains a twelfth dated instance (fixture's tail-index degeneracy); the "alternate route" cause (rust RAG) reaches `n=2` and is flagged as owed for a proper mint, rather than guessed onto `R247` (already reserved for a different trigger) |
+| Decision records | `144` | **unchanged** — no new decision this filing |
+| `SESSION_LOG` filings | `478` | **`479`** |
+| `docs/FEATURES.md` | 1 row amended (`/Rect`-resize, `/Text` residue noted as owed); no Ink-editing row | **1 new *Implemented* row** (Ink point/stroke editing); **1 row amended in place** (`/Rect`-resize, `/Text` residue reclassified permanent-by-policy); **2 rows checked and left untouched** (vertices row's Ink refusal note, sticky icon/colour row — neither needed a change) |
+| Owed-survivor / open-reply ledger | items 4–5 open; item 6 (`/Text` resize) and 7 (three replies) new from the 478th filing | **items 4–5 still open, unchanged**; **items 6–7 DISCHARGED**; **items 8–9 NEW** |
+
+**Release state — NOT checked this filing (no shell).** The 478th filing
+recorded five commits landed since the last confirmed release tag
+(`v0.49.0`); **two more have landed since** (`fccd6cd`, `c8a6697`).
+Whether any of them have been pushed or released is **not asserted
+here** — the engineer should check `git rev-parse origin/main` /
+`git describe --tags --abbrev=0` directly.
+
+---
+
 **★★★★ 478th filing, 2026-09-08 — FOUR PASSES MINTED AND SHIPPED IN ONE
 FILING (`273.0`–`276.0`) PLUS A CORRECTION (`0edd650`) THAT DISCHARGES THE
 477th FILING'S OWED ITEMS 1–3: A RESIZE TOLD THE OPERATOR "pdfcer DID NOT
@@ -159949,6 +160395,41 @@ same cause (hashes exist only at commit time), two different failure modes.
   Cross-project halves filed as dated footers, not new files (hard rule 4), to
   `D:/dev/rag/rust/a_sabotage_can_only_be_as_discriminating_as_the_fixture_it_runs_on.md`
   and to the `personal_rag/pdf` incremental-save lesson named above.
+
+  **★ DATED INSTANCE NOTE — 2026-09-09 (479th filing), `Pass 278.0`
+  (`c8a6697`): INSTANCE 12, A BOUNDARY-INDEX COINCIDENCE — REMOVING THE
+  *LAST* ELEMENT OF A LIST MADE `.get(i)` RETURN `None`, AND A NAIVE
+  REPORT ANSWERED `0` BY ACCIDENT. NO RE-MINT; NO NEW CAUSE; CEILING STAYS
+  `R246`, NEXT FREE `R247`.**
+
+  A test asserting *"stroke removed means zero points remain at that
+  index, not whatever slid into the slot"* stayed green under a sabotage
+  that dropped that branch entirely, because the fixture removed the
+  **last** stroke in the list: `next.get(i)` for the removed index is
+  `None` under both the correct and the sabotaged code, so the naive
+  report's default of `0` happened to be right anyway. Re-pointed at
+  stroke `0` instead of the last one, so the **second** stroke slides into
+  index `0` and a naive report would name **its** length — a plausible,
+  wrong number about the wrong stroke. Sabotage then goes red.
+
+  **Filed here rather than under the still-unfired "assertion's shape
+  alone" trigger** (this section, 2026-08-28 note): the coincidence is in
+  the **fixture's domain data** (which index the removal happened to
+  land on), exactly `R225`'s founding question — *"on THIS fixture, what
+  would the wrong implementation produce?"* — with the answer once again
+  *"the same one, because of where in the list I chose to remove from."*
+  A **new** row for the degenerate-value table, alongside 4b's
+  symmetry-axis and 7/8's authoring-default: **the last index of a
+  collection is a degenerate value for any `.get`/bounds-checked access,
+  because "out of range" and "the removed tail" report identically.**
+  Removing from the middle or the head of a list under test is the
+  general-purpose fix; removing the tail is the one choice that cannot
+  discriminate a dropped remove-effects branch from a correct one.
+
+  **Instance count now 12** (11 inside pdfcer + 1 relayed from a
+  consumer). Cross-project half filed as a dated footer, not a new file
+  (hard rule 4), to
+  `D:/dev/rag/rust/a_sabotage_can_only_be_as_discriminating_as_the_fixture_it_runs_on.md`.
 
 - **R226 — A DEFERRED GATE MUST BE RE-RUN WITH THE FLAG THAT RESOLVES THE
   DEFERRAL BEFORE THE SESSION ENDS, OR THE DEFERRAL NEVER RESOLVES.** Minted
