@@ -112,6 +112,122 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★★ 489th filing, 2026-09-09 — `R247` RESOLVED BY DIRECT ENGINEER RULING
+AFTER FOUR CONSECUTIVE FILINGS UNRECONCILED: A DOC COMMENT PUBLISHING A
+BEHAVIOURAL GUARANTEE NO CODE ENFORCES CLAIMS THE NUMBER; THE "ALTERNATE
+ROUTE" SABOTAGE-FIXTURE CAUSE IS WITHDRAWN, NOT DEFERRED — IT IS ALREADY
+SERVED BY `R225`'S OWN FAMILY. ★★★ NO CODE SHIPPED THIS FILING — A LIBRARIAN
+RECONCILIATION, DISPATCHED AND RULED ON BY THE ENGINEER DIRECTLY, NOT A
+PASS.**
+
+**Sourcing (hard rule 8), stated up front — NO SHELL THIS FILING.**
+`Read`/`Grep`/`Glob` only. This filing makes no claim about backup currency,
+working-tree state, remote/push state or CI colour — none of that changed as
+a result of it. The ruling itself, the two candidates, their instance
+counts, and the specific commits named below (`1366138`, `369d4de`) are
+**relayed** from the engineer's dispatch, cross-checked here only against
+what was already independently verified in the 487th and 488th filings'
+own entries (both state their sourcing there) — not re-verified against the
+live tree a second time in this filing, since nothing in the tree changed.
+
+---
+
+### `R247` — resolution, not a Pass
+
+**The ruling, verbatim in substance.** The engineer read this reservation's
+four-filing flag, named it "my call," and resolved it directly rather than
+asking this role to adjudicate — consistent with librarian hard rule 6's
+sibling boundary (a role does not decide what is inside another role's
+authority) applied here to the engineer's own authority over standing-rule
+numbering, which no prior filing had exercised unilaterally. **Candidate 1
+(a `///` doc comment publishing a behavioural guarantee no code enforced)
+claims `R247`. Candidate 2 (the "alternate route" sabotage-fixture cause,
+`n=3`) is withdrawn.**
+
+**Why withdrawal, not a second number.** Candidate 2's three occurrences
+(`Pass 155.1`, `Pass 277.0`, and the `Pass 282.0` fixture finding) were
+already being filed correctly as dated instances of `R225`'s own family —
+that family exists precisely for "a test measured less than it claimed."
+A candidate already served by an existing rule's filing discipline does not
+need a number; it needs that discipline to keep being applied, which the
+483rd filing was already doing. A second number for the same family would
+have handed a future reader two rules to reconcile at the exact moment —
+mid-defect — they are least equipped to do it.
+
+**Why candidate 1 earns the number, and why now.** It stopped being
+hypothetical the same day it was raised. `Pass 285.0`'s `blank_show_strings`
+carried a doc comment stating a safety property outright; nothing measured
+it; a scope-widening sabotage survived all eight tests by landing on the one
+fixture where the safe and unsafe implementations agree, and the defect it
+would have shipped is exactly the one the doc comment named as impossible.
+Full account: the `Pass 285.0` Shipped entry, above (487th filing), and
+`R225`'s 16th-instance note directly below it — not restated here.
+
+**The distinction from `R225` that justifies a separate number.** `R225` is
+about a *test* whose *name* over-claims. `R247` is about a *doc comment*
+that publishes a guarantee to *callers*, unenforced. A future reader
+re-derives behaviour from a test only once they distrust it; they trust a
+doc comment **instead of** re-deriving — the entire point of this project's
+documentation-first discipline (`CLAUDE.md` rule 6). That makes the
+doc-comment case strictly more dangerous, and merging it into `R225` would
+have buried the distinction.
+
+**Full text, instances, and numbering mechanics** are filed under *Standing
+rules* (`R247`'s own entry), not repeated here — including the second,
+lesser instance (`Pass 286.0`'s "honest raw record" comment, caught by
+`clippy` rather than by a person) and the confirmation that `R248`/`R249`,
+both minted past this reservation while it stood, are unaffected and
+unrenumbered.
+
+**What changed, concretely, in this filing.** The `R247` bullet in *Standing
+rules*, added between `R246` and `R248`. Dated forward-pointer notes added
+— not rewrites — at the three places a reader would land expecting the old
+"reserved-but-unclaimed" status: the `R246` entry's own note about the
+reservation, the `R248` entry's "numbered past `R247`" paragraph and its
+closing ceiling line, and `R249`'s closing ceiling line. The 488th filing's
+own reservation box (this file, immediately below) gets one forward-pointer
+line appended for the same reason — its narrative text is untouched, per
+this project's append-only-history discipline.
+
+---
+
+### Part — owed work, carried forward and discharged
+
+**Carried forward, unchanged:** items 4, 5, 10, 11, 13b, 14.
+
+**Discharged this filing:**
+
+9. **The `R247` reservation, contested between two candidates.** Resolved
+   above: candidate 1 claims `R247`; candidate 2 is withdrawn into `R225`'s
+   family. Not "reconciled pending a number" — settled, with no residual
+   ambiguity carried forward.
+
+**New, from this filing:** none.
+
+---
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `286` (highest ID `286.0`), next free family `287` | **unchanged — no Pass shipped this filing** |
+| Standing rules | `R249` MINTED (486th filing); `R247` reserved-but-unclaimed, contested | **`R247` CLAIMED** (candidate 1: unenforced doc-comment guarantee); candidate 2 withdrawn into `R225`'s family. Ceiling **unchanged at `R249`**, next free `R250` — `R247` fills a slot already reserved for it, not a new ceiling position |
+| Decision records | `146` | **unchanged** — a standing-rule numbering resolution is a librarian/engineer process decision, not a crate-boundary/library/invariant redefinition; no `ARCHITECTURE.md` §12 entry, consistent with `R225`'s and `R246`'s own precedent (neither carries a §12 decision either) |
+| `SESSION_LOG` filings | `488` | **`489`** |
+| `docs/FEATURES.md` | unchanged | **unchanged — this filing touches no capability row** |
+| Owed-survivor / open-reply ledger | items 4, 5, 9 (`n=3`, `R247` reservation unreconciled), 10, 11, 13b, 14 open | **item 9 CLOSED (resolved, not deferred); items 4, 5, 10, 11, 13b, 14 unchanged; no new items** |
+| `D:\dev\rag\rust\` | 344 files | **345** — new file
+`a_doc_comment_stating_a_behavioural_guarantee_is_unenforced_until_a_test_would_fail_without_it.md`,
+filed separately from the sabotage-fixture file per the "why this is a
+mint" distinction in `R247`'s own text; `index.md` bullet added in the same
+edit |
+
+**Release state — NOT checked this filing (no shell).** Nothing in this
+filing changes working-tree, push, or release state; the engineer should
+confirm current state directly if it matters for the next act.
+
+---
+
 **★★★★★ 488th filing, 2026-09-09 — `Pass 286.0` SHIPPED: OWED ITEM 17
 CLOSED — `redacted_text` IS GROUPED PER `/Redact` MARK, NOT PER SHOW
 OPERATOR, SO A PER-GLYPH PRODUCER'S ABSENCE PROOF STOPS FINDING THE
@@ -244,7 +360,8 @@ index and the master index bullets updated in place (they had said
 ### Part — owed work, carried forward and discharged
 
 **Carried forward, unchanged:** items 4, 5, 9 (`n=3`, `R247` reservation
-unreconciled), 10, 11, 13b, 14.
+unreconciled — ★ RESOLVED 2026-09-09, 489th filing, see above), 10, 11,
+13b, 14.
 
 **Discharged this filing:**
 
@@ -271,6 +388,11 @@ contender to an already-unreconciled slot — whoever reconciles `R247`
 should treat both as already spoken for. **Ceiling stays `R249`, next
 free `R250`; `R247` itself untouched.**
 
+> **★ RESOLVED 2026-09-09 (489th filing) — see the entry above this one.**
+> The engineer ruled directly: candidate (1) claims `R247`; candidate (2) is
+> **withdrawn**, its instances staying inside `R225`'s family rather than
+> gaining a number. Four consecutive filings of this box end here.
+
 ---
 
 ### Ledger
@@ -282,7 +404,7 @@ free `R250`; `R247` itself untouched.**
 | Decision records | `146` | **unchanged** — a bug fix in a shared field's granularity, not a crate-boundary/library/invariant redefinition |
 | `SESSION_LOG` filings | `487` | **`488`** |
 | `docs/FEATURES.md` | *Apply redaction* row named owed item 17 open | **row amended**: item 17 closed, per-mark grouping named |
-| Owed-survivor / open-reply ledger | items 4, 5, 9 (`n=3`), 10, 11, 13b, 14, 17 open | **item 17 CLOSED; items 4, 5, 9 (`n=3`), 10, 11, 13b, 14 unchanged; no new items** |
+| Owed-survivor / open-reply ledger | items 4, 5, 9 (`n=3`), 10, 11, 13b, 14, 17 open | **item 17 CLOSED; items 4, 5, 9 (`n=3`), 10, 11, 13b, 14 unchanged; no new items** (★ item 9 itself CLOSED one filing later — 489th, above) |
 | `C:\personal_rag\pdf\` | 1 lesson (`lesson_20260909_ghostscript_8_emits_one_glyph_per_show_operator…`) with a footer saying the joining half was unbuilt | **unchanged file count — a second dated footer appended** to the same lesson; subject-index and master-index bullets both corrected in place (no longer say "unbuilt") |
 
 **Release state — NOT checked this filing (no shell).** Whether
@@ -165366,6 +165488,114 @@ ceiling `114` → `115`** (`iccce` enters as a git dependency pinned to tag
   stale. See the 475th filing's Part F item 3; **the ceiling does not move for
   it.**
 
+  > **★ RESOLVED 2026-09-09 (489th filing), by engineer ruling.** `R247` is
+  > now **claimed** — see the `R247` entry immediately below. The reservation
+  > this note describes stood for fourteen filings (475th through 488th). The
+  > second candidate that had also been contending for the same number (the
+  > "alternate route" sabotage-fixture cause) was **withdrawn**, not given a
+  > number of its own — see `R247`'s own text for the reasoning.
+
+- **R247 — A DOC COMMENT STATING A BEHAVIOURAL GUARANTEE ("ONLY X IS TOUCHED",
+  "NEVER Y", "ALWAYS Z", "CANNOT CORRUPT W") IS AN UNENFORCED CLAIM UNTIL A
+  TEST EXISTS THAT WOULD FAIL IF IT WERE VIOLATED.** Reserved 2026-09-08
+  (475th filing, at that filing's `n = 1`), flagged unclaimed across four
+  consecutive filings (483rd, 486th, 487th, 488th), **claimed 2026-09-09
+  (489th filing) by direct engineer ruling** — the operator's own dispatch
+  named the two standing candidates, ruled which one takes the number, and
+  supplied the founding text; this filing records the ruling rather than
+  re-deriving it.
+
+  **Text.** *A doc comment that states a behavioural guarantee — "only X is
+  touched", "never Y", "always Z", "cannot corrupt W" — is an **unenforced
+  claim** until a test exists that would fail if it were violated. Before
+  writing such a sentence, either point at the test that measures it or write
+  that test in the same change. Prefer stating the guarantee in the test's
+  own name so the two cannot drift. A doc comment is what the next reader
+  trusts **instead of** re-deriving the behaviour, so an unenforced guarantee
+  there is strictly worse than the same over-claim in a test name.*
+
+  **Why this is a mint and not a dated instance of `R225`, stated because the
+  fork is expected to be re-litigated.** `R225` (*a sabotage is only as
+  discriminating as the fixture it runs on*) is about a **test** whose own
+  **name** over-claims relative to what it measures — the failure is found by
+  distrusting the test and re-deriving behaviour from the code. `R247` is
+  about a **doc comment** that publishes a guarantee to *callers*, with
+  nothing enforcing it at all — the failure is found by a reader who does the
+  opposite of `R225`'s remedy: they **trust the comment instead of
+  re-deriving**, because that is the entire purpose documentation-first
+  discipline (`CLAUDE.md` rule 6) gives it. A future reader re-derives
+  behaviour from a test only once they already distrust it; they trust a doc
+  comment **in place of** re-deriving. That makes the doc-comment case the
+  more dangerous of the two, and folding it into `R225` would bury the
+  distinction the moment it mattered.
+
+  **Founding instance — `Pass 285.0` (`1366138`, 2026-09-09), already
+  recorded as `R225`'s 16th (severity-escalation) instance, and this is why
+  it is the founding instance here too.** `blank_show_strings`'s doc comment
+  stated its safety property outright — that only the operand spans of
+  `Tj`/`TJ`/`'`/`"` are touched, never the surrounding buffer. Nothing
+  measured that claim. A sabotage widening the blanked region to the whole
+  buffer left all eight tests green, because the fixture's evidence word
+  existed only inside a string operand — the one place the safe and unsafe
+  implementations **agree**. Outside that string, the unsafe implementation
+  also blanked the resource name `/CONFIDENTIALIm`, turning
+  `/CONFIDENTIALIm Do` into `/XXXXXXXXXXXXIm Do` — a name resolving to
+  nothing, silently stopping an image from drawing. Had it shipped: content
+  destroyed to fix a leak, under a doc comment promising exactly that could
+  not happen. See the `Pass 285.0` Shipped entry and `R225`'s 16th-instance
+  note, above, for the full account — not restated here to avoid two
+  divergent tellings of one fact.
+
+  **Second, lesser instance — `Pass 286.0` (`369d4de`, 2026-09-09), the cheap
+  end of the range, caught by `clippy` rather than by a person.** A doc
+  comment on the retained per-operator `removed_text` field called it "the
+  honest raw record" — a justification, not a guarantee about content
+  safety, so this instance is milder than the founding one. But the shape is
+  the same mechanism: a comment made a decision look deliberate when nothing
+  backed it. `clippy` flagged the field as unread; it was deleted rather than
+  excused. Recorded here to show the rule catches small, low-severity cases
+  as well as safety-critical ones, and that the cheap instance can be caught
+  by tooling rather than a person reading carefully.
+
+  **Candidate 2 WITHDRAWN, not deferred, not merged, not given its own
+  number.** The "alternate route" sabotage-fixture cause (three occurrences
+  as of the 483rd filing: `Pass 155.1`, `Pass 277.0`, and the `Pass 282.0`
+  fixture finding) is **already served by `R225`'s own family** — that
+  family exists precisely for "a test measured less than it claimed", and
+  the newest instance was correctly filed as `R225`'s 15th there, not left
+  waiting on this reservation. A candidate whose instances are already being
+  filed correctly under an existing rule does not need a number of its own;
+  it needs the filing discipline that has already been applying to keep
+  applying. Minting a second number for the same family would hand a future
+  reader two rules to reconcile at the moment they are least equipped to —
+  mid-defect, deciding where a new instance belongs. **Going forward,
+  "alternate route" instances are dated footers on
+  `D:\dev\rag\rust\a_sabotage_can_only_be_as_discriminating_as_the_fixture_it_runs_on.md`
+  under `R225`, exactly as the 483rd filing was already doing; this
+  withdrawal makes that the settled answer rather than a placeholder pending
+  reconciliation.**
+
+  **Numbering.** `R247` claims the number reserved for it 2026-09-08 (475th
+  filing). `R248` and `R249`, both minted past the reservation while it stood
+  (484th and 486th filings respectively), are **unaffected and unrenumbered**
+  — both filings said explicitly that whoever reconciled `R247` should treat
+  them as already spoken for, and this filing does exactly that. **Ceiling
+  stays `R249`; next free `R250`.** No ledger position moves as a result of
+  this mint — it fills a slot that was already reserved for it, rather than
+  extending the ceiling.
+
+  **Relation to `personal_rag`/librarian hard rule 11.** Distinct from that
+  rule's disclosure-text sweep (which is about a *note* being true of
+  *current behaviour*) — `R247` is about a *guarantee* being backed by a
+  *test*, checkable independent of whether behaviour has since changed. Kin
+  in spirit (both are about a claim a reader trusts instead of re-deriving),
+  not in mechanism.
+
+  **Cross-project derivation.** Filed as its own file, not a section of the
+  sabotage-fixture file, because the two are found and repaired differently
+  (see the "why this is a mint" note above):
+  `D:\dev\rag\rust\a_doc_comment_stating_a_behavioural_guarantee_is_unenforced_until_a_test_would_fail_without_it.md`.
+
 - **R248 — A STRUCTURAL DEFECT THAT LEAVES THE OBJECT GRAPH AMBIGUOUS, NOT
   UNDEFINABLE, IS OPENED — pdfcer PICKS A READING UNDER A NAMED DEFAULT,
   DISCLOSES WHAT IT PICKED AND WHAT IT DISCARDED, AND LETS THE OPERATOR TAKE
@@ -165413,13 +165643,19 @@ ceiling `114` → `115`** (`iccce` enters as a git dependency pinned to tag
   contender to an already-unreconciled slot. Whoever reconciles `R247`
   should treat `R248` as already spoken for.
 
+  > **★ `R247` RESOLVED 2026-09-09 (489th filing).** The doc-guarantee
+  > candidate claimed the number; the "alternate route" cause was withdrawn
+  > and stays inside `R225`'s family. `R248` is confirmed unaffected, exactly
+  > as anticipated above — see `R247`'s own entry, above.
+
   **Mechanism this rule is checked against:** `LoadOptions`,
   `Document::load_anomalies()`, `LoadAnomaly` (`crates/pdfcer-core/src/
   document.rs`), CLI `--on-malformed keep-last|keep-first|refuse`. See
   `ROADMAP.md` *Shipped*, `Pass 283.0`, for the full acceptance record.
 
-  **Standing rules ceiling `R246` → `R248`** (`R247` UNCHANGED, still
-  reserved-but-unclaimed); **next free `R249`.**
+  **Standing rules ceiling `R246` → `R248`** (~~`R247` UNCHANGED, still
+  reserved-but-unclaimed~~ **`R247` claimed 2026-09-09, 489th filing — see
+  its own entry above**); **next free `R249`.**
 
 - **R249 — A DESTRUCTIVE SWEEP OBLIGED BY AN OUTCOME-SHAPED REQUIREMENT
   ("REMOVE ALL TRACES OF X") IS SCOPED BY THE EVIDENCE THE REQUIREMENT
@@ -165496,8 +165732,9 @@ ceiling `114` → `115`** (`iccce` enters as a git dependency pinned to tag
   See `ROADMAP.md` *Shipped*, `Pass 284.0`, for the full acceptance
   record; `ARCHITECTURE.md` §5.9 for the body-section update.
 
-  **Standing rules ceiling `R248` → `R249`** (`R247` UNCHANGED, still
-  reserved-but-unclaimed); **next free `R250`.**
+  **Standing rules ceiling `R248` → `R249`** (~~`R247` UNCHANGED, still
+  reserved-but-unclaimed~~ **`R247` claimed 2026-09-09, 489th filing — see
+  its own entry above**); **next free `R250`.**
 
 ## Update protocol
 

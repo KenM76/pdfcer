@@ -205,12 +205,18 @@ belongs with item 1 below, not on its own.
   is already past three, and the 480th filing flagged the discrepancy rather
   than guessing. Reconcile it in a session with budget. **Do not copy an ordinal
   from a commit message.**
-- **★★ `R247` is reserved-but-unclaimed and now FLANKED BY THREE minted
-  neighbours** — `R246`, `R248`, `R249` — having been flagged for three
-  consecutive filings. Every mint since has been numbered deliberately *past*
-  it to avoid entangling with the unresolved reservation, which works and
-  compounds. **Resolve it before a fourth candidate lands**; it needs a session
-  with time, not a drive-by.
+- **~~`R247` is reserved-but-unclaimed~~ — RESOLVED 2026-09-09 (489th filing).**
+  It went to **a doc comment publishing a behavioural guarantee no test
+  enforces**; the competing "alternate route" candidate was **withdrawn, not
+  deferred**, because its instances were already being filed correctly inside
+  `R225`'s family and a second number would have meant two rules to reconcile.
+  Founding instance: `Pass 285.0`'s `blank_show_strings` span-scoping comment.
+  Ceiling stays `R249`, next free `R250`; nothing renumbered.
+  ★ **The lesson is in how long it took, not in the answer.** It sat through
+  four filings because each one correctly declined to guess and each mint went
+  *past* it — a discipline that works and compounds into a worse tangle. **A
+  reservation nobody has authority to settle is not waiting for information; it
+  is waiting for a decision.** Make it, or withdraw the slot.
 - **`tools/check-requests-scoped.py`** — owed by `R242`, still unbuilt.
 - **`check-public-fns-documented.py`'s denominator is `pub`**, so it cannot see
   the doc-splice defect on private functions. Staged fix, its own change.

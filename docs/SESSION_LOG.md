@@ -4,6 +4,63 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-09 (489th filing)
+
+**Shipped:**
+- Nothing — a librarian reconciliation filing, dispatched and ruled on by
+  the engineer directly.
+
+**Decisions made this session:**
+- The engineer resolved the `R247` reservation directly (his own explicit
+  call, not derived by this role): standing rule `R247` — *a doc comment
+  stating a behavioural guarantee is an unenforced claim until a test
+  exists that would fail if it were violated* — claims the number. The
+  competing "alternate route" sabotage-fixture cause (`n=3`) is
+  **withdrawn**, not deferred and not given its own number: its instances
+  are already correctly filed inside `R225`'s own family, and a second
+  number for one family would only hand a future reader two rules to
+  reconcile mid-defect.
+- No `ARCHITECTURE.md` §12 decision minted — a standing-rule numbering
+  resolution is a librarian/engineer process call, not a crate-boundary/
+  library/invariant redefinition, consistent with `R225`'s and `R246`'s own
+  precedent (neither carries a §12 decision either).
+
+**Findings + decisions:**
+- `R247`'s founding instance is `Pass 285.0`'s `blank_show_strings` doc
+  comment (already on record as `R225`'s 16th instance): a stated
+  span-scoping safety guarantee that a scope-widening sabotage would have
+  violated, caught only because the fixture was widened to separate the
+  two implementations' output.
+- `R247`'s second, lesser instance is `Pass 286.0`'s "the honest raw
+  record" doc comment on a dead field, caught by `clippy` rather than a
+  person — recorded to show the rule catches low-severity cases too.
+- The two rules are distinguished on the record rather than merged:
+  `R225` is a **test** whose own name over-claims relative to its fixture;
+  `R247` is a **doc comment** publishing a guarantee no test enforces at
+  all. A reader re-derives behaviour from a test only once they distrust
+  it; they trust a doc comment *instead of* re-deriving — the entire point
+  of documentation-first discipline — which makes the doc-comment case the
+  more dangerous of the two.
+- Cross-project derivation filed as its own new file (not a section of the
+  existing sabotage-fixture file), because the two findings are found and
+  repaired differently:
+  `D:\dev\rag\rust\a_doc_comment_stating_a_behavioural_guarantee_is_unenforced_until_a_test_would_fail_without_it.md`.
+  Dated footer also added to the existing sabotage-fixture file pointing
+  forward to it, so a reader who lands there via the 16th-instance note
+  does not read `R247` as still unclaimed.
+
+**Still in flight:**
+- Owed items 4, 5, 10, 11, 13b, 14 all carried forward, unchanged. Item 9
+  (the `R247` reservation) is CLOSED this filing — resolved, not deferred.
+- `docs/NEXT_SESSION.md`'s own OWED bullet on `R247` is now stale (it still
+  reads "reserved-but-unclaimed... resolve it before a fourth candidate
+  lands") — flagged for the engineer to update directly; that file is
+  engineer-owned and was not edited here.
+
+**For next session:**
+- Nothing `R247`-specific remains. Next items are whatever `NEXT_SESSION.md`
+  and the carried-forward owed list (above) already name.
+
 ## 2026-09-09 (488th filing)
 
 **Shipped:**
