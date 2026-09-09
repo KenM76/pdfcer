@@ -4570,6 +4570,87 @@ fn resolve_target_resource<'a>(
     None
 }
 
+/// The standard-14 faces that would ACTUALLY work as a remedy **on this page**
+/// (`Pass 279.0`).
+///
+/// # The defect this exists for, measured
+///
+/// `Pass 274.0` made a refusal name faces the operator could switch to:
+/// *"`format_text` with `set_font` will add one, and these standard-14 faces
+/// have it: Helvetica, …"*. The list came from
+/// [`crate::text_edit::encoding::std14_faces_covering`], which scans each
+/// face's own built-in encoding — a **page-blind** answer.
+///
+/// [`plan_font`] does not work that way. It calls
+/// [`resolve_target_resource`] **first**, which matches a selector against the
+/// page's `/Font` resources by resource key, by exact `/BaseFont`, **and by
+/// subset-stemmed `/BaseFont`**. So on a page whose only font is
+/// `ABCDEF+Helvetica`, asking for `Helvetica` resolves to *that subset* — the
+/// very resource that just refused the character — and `set_font` becomes a
+/// no-op. Only when nothing on the page claims the name does it author a fresh
+/// standard-14 resource.
+///
+/// Measured on `fixtures/synthetic/textedit/subset_missing.pdf`, whose font is
+/// `ABCDEF+Helvetica` and which does not carry `'d'`:
+///
+/// ```text
+/// edit-text   --find cat --replace dog   -> refused, names Helvetica FIRST
+/// format-text --find cat --set-font Helvetica
+///                        -> "succeeds": ABCDEF+Helvetica->ABCDEF+Helvetica
+/// edit-text   --find cat --replace dog   -> refused, WORD FOR WORD
+/// format-text --find cat --set-font Times-Roman  -> ABCDEF+Helvetica->Times-Roman
+/// edit-text   --find cat --replace dog   -> SUCCEEDS
+/// ```
+///
+/// ⇒ The remedy the refusal named led in a circle, and the one that worked was
+/// further down the same list. The consuming shell flagged the risk in the
+/// abstract (*"a face could be listed as covering a character that the run's
+/// encoding then cannot reach"*); this is that risk, realised, in the list's
+/// most prominent position.
+///
+/// # How it is fixed, and why not by pattern-matching
+///
+/// Each candidate is put through the **resolution `set_font` itself uses** and,
+/// when that lands on an existing resource, through
+/// [`accept_font_target`] — the one acceptance test (`R221`). A candidate that
+/// resolves to nothing is kept: `set_font` will author a fresh standard-14
+/// resource, which carries the character by construction, since that is why the
+/// face was a candidate at all.
+///
+/// The tempting cheap fix — "drop any name the page already carries" — is
+/// **wrong in the other direction**: a page font that *does* cover the
+/// character is a perfectly good remedy, and dropping it would hide a working
+/// answer. Ask the accepting code; do not guess from the shape of the name.
+///
+/// # Cost
+///
+/// One `accept_font_target` per candidate that collides with a page resource,
+/// which is at most fourteen and in practice zero or one — and it runs only on
+/// a refusal path, where the alternative is an operator following a message
+/// that does not work.
+pub(crate) fn std14_faces_reachable(
+    doc: &DocumentView<'_>,
+    resources: &Dict,
+    recs: &[OpRec],
+    ch: char,
+) -> Vec<&'static str> {
+    let mut probe = String::new();
+    probe.push(ch);
+    crate::text_edit::encoding::std14_faces_covering(ch)
+        .into_iter()
+        .filter(|name| match resolve_target_resource(doc, resources, name) {
+            // Nothing on the page claims this name, so `set_font` authors a
+            // fresh standard-14 resource. It covers the character by
+            // construction — that is what put the face on the candidate list.
+            None => true,
+            // The page already claims it, so `set_font` will RE-USE that
+            // resource. The promise is true only if THAT resource can show the
+            // character, which is a question only the acceptance test answers.
+            Some((key, dict)) => accept_font_target(doc, recs, &key, dict, &probe).is_ok(),
+        })
+        .collect()
+}
+
 // ===================================================================
 // Segment splitting + operator emission
 // ===================================================================

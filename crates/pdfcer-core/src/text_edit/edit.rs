@@ -2055,13 +2055,37 @@ pub(crate) fn plan_edit_target(
                         u,
                         code,
                         font.base_font,
-                        match crate::text_edit::encoding::std14_faces_covering(u).as_slice() {
-                            [] => String::new(),
-                            faces => format!(
-                                " To make this edit now, switch the run to a font that carries \
-                                 '{u}' -- `format_text` with `set_font` will add one, and these \
-                                 standard-14 faces have it: {}.",
-                                faces.join(", ")
+                        // ★★ PAGE-AWARE SINCE `Pass 279.0`, and the naive
+                        // list was WRONG IN ITS FIRST POSITION on the very
+                        // fixture this refusal exists for.
+                        //
+                        // `set_font` resolves a selector against the page
+                        // FIRST (`resolve_target_resource`), matching a
+                        // subset-stemmed `/BaseFont` — so on a page whose font
+                        // is `ABCDEF+Helvetica`, asking for "Helvetica" re-uses
+                        // that very subset and the edit fails again,
+                        // identically. Measured on `subset_missing.pdf`:
+                        // `--set-font Helvetica` reported
+                        // `ABCDEF+Helvetica->ABCDEF+Helvetica` and the
+                        // follow-up edit refused word for word, while
+                        // `Times-Roman` worked.
+                        //
+                        // So each candidate is now asked of the ACCEPTING code
+                        // on THIS page (`R221`), not of the standard-14
+                        // encoding tables in isolation.
+                        match crate::text_edit::encoding::faces_clause(
+                            &crate::text_edit::format::std14_faces_reachable(
+                                doc,
+                                &target.resources,
+                                &recs,
+                                u,
+                            ),
+                        )
+                        .as_str()
+                        {
+                            "" => String::new(),
+                            clause => format!(
+                                " To make this edit now, switch the run to a font that carries '{u}' -- `format_text` with `set_font` will add one, and {clause}"
                             ),
                         }
                     ),

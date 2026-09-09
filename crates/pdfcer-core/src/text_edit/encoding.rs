@@ -350,13 +350,13 @@ impl CompositeEncoding {
                         // (§9.6.2.2), and `set_font` ADDS the resource to a
                         // page that lacks it, so the sentence names a route
                         // that is known to work rather than a hope.
-                        match std14_faces_covering(ch).as_slice() {
-                            [] => ".".to_owned(),
-                            faces => format!(
-                                " -- `format_text` with `set_font` will add one, and these \
-                                 standard-14 faces have it: {}.",
-                                faces.join(", ")
-                            ),
+                        match faces_clause(&std14_faces_covering(ch)).as_str() {
+                            "" => ".".to_owned(),
+                            clause => {
+                                format!(
+                                    " -- `format_text` with `set_font` will add one, and {clause}"
+                                )
+                            }
                         }
                     ),
                 });
@@ -439,6 +439,29 @@ pub fn std14_faces_covering(ch: char) -> Vec<&'static str> {
         })
         .map(|&face| crate::fontdata::std14_base_font_name(face))
         .collect()
+}
+
+/// The shared tail of every "switch to a font that covers it" refusal
+/// (`Pass 279.0`) — *"these standard-14 faces have it: …"*, or empty when
+/// nothing covers the character.
+///
+/// # Why this is a function and not two format strings
+///
+/// `Pass 274.0` wrote the sentence at **two** refusal sites, and
+/// `Pass 279.0` then had to NARROW it at both — because a face on that list
+/// can be unreachable on a particular page (see
+/// [`crate::text_edit::format::std14_faces_reachable`]). A narrowing that has
+/// to find the clause it is replacing needs the clause to be generated from
+/// one place, or it becomes string surgery against two spellings that can
+/// drift apart. `R221`'s rule applied to prose: **one producer, asked**, never
+/// two descriptions kept in step by hand.
+#[must_use]
+pub fn faces_clause(faces: &[&str]) -> String {
+    if faces.is_empty() {
+        String::new()
+    } else {
+        format!("these standard-14 faces have it: {}.", faces.join(", "))
+    }
 }
 
 /// The inverse encoding map for one **simple** font.

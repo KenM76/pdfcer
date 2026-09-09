@@ -152,6 +152,162 @@ fn the_named_font_actually_works() {
     );
 }
 
+/// A fixture whose font's subset stem IS a standard-14 name — `ABCDEF+Helvetica`.
+///
+/// ★ This is the fixture the test above could not have used, and its absence is
+/// why `Pass 279.0` existed. `symbolic-truetype-private-cmap.pdf`'s font is
+/// `AAAAAA+pdfcerSymbolicPrivate`, whose stem matches no standard-14 name, so
+/// the collision this file tests is **structurally impossible** there. The
+/// three-step loop above was correct, ran green, and could not fail.
+fn shadowing_fixture() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/synthetic/textedit/subset_missing.pdf")
+}
+
+/// ★★★ THE NAMED FACE MUST NOT BE ONE THE PAGE ALREADY SHADOWS.
+///
+/// `set_font` resolves a selector against the page's own resources **first**,
+/// matching a subset-stemmed `/BaseFont` — so on this page asking for
+/// `Helvetica` re-uses `ABCDEF+Helvetica`, the very subset that refused the
+/// character, and the whole remedy is a no-op that reports success.
+///
+/// Measured before the fix: the refusal named `Helvetica` **first**,
+/// `--set-font Helvetica` printed `ABCDEF+Helvetica->ABCDEF+Helvetica` and
+/// exited 0, and the repeated edit refused **word for word**.
+///
+/// The same three-step loop as `the_named_font_actually_works`, on the fixture
+/// that can exhibit the defect. That duplication is the point: one loop, two
+/// pages, and only one of them could ever have gone red.
+#[test]
+fn the_named_face_is_not_shadowed_by_the_pages_own_subset() {
+    let src = shadowing_fixture();
+
+    let out = run(&[
+        "edit-text",
+        src.to_str().unwrap(),
+        "--page",
+        "1",
+        "--find",
+        "cat",
+        "--replace",
+        "dog",
+        "-o",
+        temp_path("shadow_refused").to_str().unwrap(),
+    ]);
+    assert_eq!(
+        out.status.code(),
+        Some(EDIT_REFUSED),
+        "this subset does not carry 'd': {}",
+        stderr(&out)
+    );
+    let msg = stderr(&out);
+    assert!(msg.contains("faces have it: "), "{msg}");
+
+    let named = msg
+        .rsplit("faces have it: ")
+        .next()
+        .and_then(|tail| tail.split(',').next())
+        .map(|s| s.trim().trim_end_matches('.').to_owned())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| panic!("the refusal named no font at all: {msg}"));
+
+    // The direct statement of the defect, beside the loop that proves it.
+    // Asserting only the loop would leave a future reader unable to see WHICH
+    // face was wrong, and asserting only this would not prove the survivor
+    // works.
+    assert_ne!(
+        named, "Helvetica",
+        "the page's own font is ABCDEF+Helvetica, so `set_font Helvetica` \
+         re-uses that subset and changes nothing: {msg}"
+    );
+
+    let switched = temp_path("shadow_switched");
+    let out = run(&[
+        "format-text",
+        src.to_str().unwrap(),
+        "--page",
+        "1",
+        "--find",
+        "cat",
+        "--set-font",
+        &named,
+        "-o",
+        switched.to_str().unwrap(),
+    ]);
+    assert!(
+        out.status.success(),
+        "set-font must accept the name the refusal printed ({named:?}): {}",
+        stderr(&out)
+    );
+
+    let edited = temp_path("shadow_edited");
+    let out = run(&[
+        "edit-text",
+        switched.to_str().unwrap(),
+        "--page",
+        "1",
+        "--find",
+        "cat",
+        "--replace",
+        "dog",
+        "-o",
+        edited.to_str().unwrap(),
+    ]);
+    assert!(
+        out.status.success(),
+        "★ doing what the refusal said must get the operator unstuck, and on \
+         this page it led in a circle until Pass 279.0: {}",
+        stderr(&out)
+    );
+}
+
+/// The filter removes a face for the RIGHT reason, and keeps the rest.
+///
+/// A fix that emptied the list, or that dropped every name the page's font
+/// family resembles, would satisfy the loop above by accident — the loop only
+/// ever reads the FIRST name. Here the whole list is inspected: `Helvetica` is
+/// gone because the page shadows it, and the three other Helvetica faces
+/// survive because their names do not match the subset's stem and `set_font`
+/// will author them fresh.
+#[test]
+fn only_the_shadowed_name_is_dropped() {
+    let out = run(&[
+        "edit-text",
+        shadowing_fixture().to_str().unwrap(),
+        "--page",
+        "1",
+        "--find",
+        "cat",
+        "--replace",
+        "dog",
+        "-o",
+        temp_path("shadow_list").to_str().unwrap(),
+    ]);
+    let msg = stderr(&out);
+    let list = msg
+        .rsplit("faces have it: ")
+        .next()
+        .expect("a face list")
+        .trim_end()
+        .trim_end_matches('.');
+    let faces: Vec<&str> = list.split(", ").map(str::trim).collect();
+    assert!(
+        !faces.contains(&"Helvetica"),
+        "shadowed by ABCDEF+Helvetica: {list}"
+    );
+    for kept in [
+        "Helvetica-Bold",
+        "Helvetica-Oblique",
+        "Times-Roman",
+        "Courier",
+    ] {
+        assert!(
+            faces.contains(&kept),
+            "{kept} does not collide with the page's subset stem and must survive: {list}"
+        );
+    }
+}
+
 /// The refusal does not name a font when none would help.
 ///
 /// A list that always appeared would be decoration, and worse than nothing —
