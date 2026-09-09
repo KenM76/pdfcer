@@ -4,256 +4,179 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-09-07, immediately after releasing `v0.45.0`.
+**Written:** 2026-09-09, after `Pass 280.0`.
 
 ---
 
 ## STATE
 
-**Released: `v0.45.0`** at `654b150` — GitHub release with the `windows-x64`
-zip + `.sha256`, OneDrive slot **`pdfcer2`** (`pdfcer1` keeps `0.44.1` as the
-previous version), `verify-release.py v0.45.0` **nine of nine on a clean
-tree**, and the published asset **downloaded back from GitHub and re-hashed**
-(`69e0071d…`, matches — the link works).
+Workspace version `0.49.0`. **Last release is still `v0.45.0`** (2026-09-07) —
+everything since is pushed-or-pushable but unreleased. Releasing is
+standing-authorized (decision 121); nobody has needed it yet, and the consuming
+project reads `docs/core-api/` from the repo rather than from a tarball.
 
-Workspace version **`0.45.0`**. Ledger: filings **467**, Pass ceiling
-**`259.0`**, decisions **139**, rules **R244**.
+**Four Passes shipped today**, each closing an inbound request from
+`pdfcer-gui`:
 
-**Working tree clean, nothing unpushed** as of the last loop tick.
+| Pass | commit | what |
+|---|---|---|
+| `277.0` | `fccd6cd` | a sticky note refused a resize by claiming pdfcer had not drawn it |
+| `278.0` | `c8a6697` | freehand `/Ink` strokes became editable, per point and per stroke |
+| `279.0` | `5b8ec61` | the font refusal named a face that led in a circle |
+| `280.0` | `26ef381` | `run_repertoire` — the alphabet, asked before the first keystroke |
 
-**★ THREE COMMITS SHIPPED AFTER THE RELEASE AND ARE DELIBERATELY NOT IN IT** —
-`a4939fa` (doc signposting), `f244932` (clockwise tests), `ce8231c` (the 466th
-filing). **Do not read "unreleased commits" as an oversight**: none changes a
-shipped user-facing string — the clap `--help` surface is untouched — and
-`docs/core-api/` is read from the repo rather than from a release tarball, so
-**pushing is the delivery**. `v0.45.0` stands as current.
+Plus three librarian filings (478th `ac0fcb2`, 479th `7890800`, 480th
+`6384587`); the 481st (for `280.0`) is being written as this file is saved.
 
-### What shipped
-
-`Pass 155.1` + `Pass 155.2`, together, because they interlock — and the first
-is a defect **the operator reported himself**.
-
-**`155.1`** — `rotate_annotation` was not composable. `/Rect` was derived from
-the previous `/Rect`, so each turn after the first bounded an already-enlarged
-box while `/Matrix` only accumulated the angle, and §12.5.5 step (c) scaled
-the **artwork** up to fill the surplus. Four 15° turns drew 1.93× wider than
-one 60° turn. Now derived from the artwork via three rules, each **named in
-the outcome** (`RectDerivation`): `Artwork` and `Geometry` compose;
-`PreviousRect` does not and says so.
-
-**`155.2`** — the angle could be written and never read.
-`Annotation::appearance_matrix` + `appearance_rotation_degrees()`,
-`annot::rotation_degrees()` (the one function the reader and writer share, per
-`R243`), `EditSession::set_annotation_rotation` (absolute, idempotent,
-refuses rather than assuming zero), and **`pdfcer_render::annot::
-appearance_placement()`** made public — which deletes four copies of §12.5.5
-from `pdfcer-gui`.
-
-CLI: `rotate-annotation --absolute`, `rect_derived=` on the report.
+`tools/run-gates.sh` **PASS on all 29 commands** as of `26ef381`.
+`cargo test --workspace` 5,013+ passing, 0 failures.
 
 ---
 
-## ★ THE QUEUE — EMPTY OF REQUESTS. The operator's own ordered plan is next.
+## ★ THE QUEUE — TWO REQUESTS, READ AND QUEUED, NEITHER STARTED
 
-**Both channels checked by diff at session start and again at the end.**
-`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\` has **no unanswered
-`request_*`**; the two that were open are answered by
-`reply_2026-09-07-rotation-composes-now-and-the-angle-is-readable-SHIPPED.md`.
-Per `R242` they do **not** leave `open/` on being answered — do not read their
-presence as outstanding work; **grep `ROADMAP.md` for the filename first**.
-`D:\Dev\FeatureRequests\pdfcer-gui\` unchanged since 2026-09-03.
+Both arrived 2026-09-09 while `Pass 280.0` was being built. **Both channels
+checked by diff at session end.** Take them in this order:
 
-So the top of the next session is the operator's earlier ordered plan
-(2026-09-06), untouched:
+### 1. `request_a_hybrid_reference_file_cannot_be_redacted_because_its_full_rewrite_is_refused.md`
 
-1. **`Pass 142.0`** — the embedded-donor half of FF-C: `format-text
-   --set-font` to a face neither on the page nor standard-14, subsetting and
-   embedding a donor supplied via `--font-dir`. Entry ~`docs/ROADMAP.md`
-   line 116195. `add_text --embed-font` already does the subset+embed for NEW
-   text; the missing piece is binding it from `plan_font` when
-   `resolve_target_resource` and `std14_by_base_font` both miss. Coverage gate
-   `accept_font_target` (`R221`) must run against the DONOR's cmap.
-2. **Resize page contents** — a new Pass family, IDs not yet minted. Dispatch
-   `pdfcer-acrobat-librarian` FIRST (rule 12). Operator's words: *"add a resize
-   page contents with all the usual options (scale to fit without distortions,
-   to fill page without distortion, to fill page with distortion, set custom
-   size, etc)."*
-3. **`Pass 259.0`** — the `docs/core-api/` line-citation class (minted
-   2026-09-07, *Backlog*, NOT STARTED). Three candidate remedies are in the
-   entry and it deliberately picks none: fix the numbers, drop them for symbol
-   names, or build `tools/check-doc-line-citations.py` and fix to green. My
-   leaning is recorded there and is **not** binding. Cheap first stage if you
-   take the gate: past-EOF only, which needs no judgement to detect.
-4. **`Pass 10.11`** — finish B-T timestamps (RFC 3161 token as the
-   `id-aa-timeStampToken` unsigned attribute; `SignRequest.reserve` grows; the
-   TSA round trip is the CLI's under decision 061; flip
-   `apply::check_seed_value`'s refusal of a required `/TimeStamp`).
+**Highest severity in the queue, and not because it is hard.** A full rewrite of
+a hybrid-reference file (`/XRefStm`, §7.5.8.4) is refused by name. Redaction
+**must** be a full rewrite (`R35` — an incremental save leaves the un-redacted
+content in a prior revision), so **redaction is unreachable on such files**. The
+refusal's own remedy — *"use incremental save"* — is the one thing the redaction
+pipeline is forbidden to take.
+
+Measured by them on the operator's own file: `SW41177 MATERIAL
+REQUIREMENTS.pdf`, 34,971 bytes, SolidWorks-exported. His other two sheets from
+the same drawing set rewrite fine. He has asked three times.
+
+The ask: read the classic table and the `/XRefStm` stream as one object set (the
+reader already does, or the file would not open) and write a **single**
+conforming revision with no hybrid remnant. Their own argument for why that is
+allowed: the hybrid form exists for pre-1.5 readers, and `SaveReport.delinearized`
+already records a comparable structural change. **Check the spec RAG on
+§7.5.8.4 before accepting that reasoning** — it is plausible and it is theirs,
+not mine.
+
+### 2. `request_resize_annotation_refuses_a_pdfcer_authored_stamp_as_foreign.md`
+
+`/Stamp` is the **third** authoring family `resize_annotation`'s appearance test
+does not know — the markup family, then `/FreeText` (`Pass 276.0`), now stamps.
+Unlike the sticky (`Pass 277.0`, refused deliberately: a `/Text` has no size), a
+**stamp genuinely has a size** and Acrobat resizes its own. Operator's words:
+*"there's still no way to edit the size of a placed stamp."*
+
+Straightforward: re-bake through the stamp builder at the new `/Rect`, exactly as
+`Pass 276.0` did for `/FreeText`; a foreign stamp keeps today's refusal, which is
+true for it. ★ **Look for a fourth family while you are in there** — three
+have now been found one at a time, which is `R245`'s shape at n=3.
+
+### After those, the operator's own ordered plan (2026-09-06) is still untouched
+
+`Pass 142.0` (embedded-donor `format-text --set-font`), resize-page-contents
+(dispatch `pdfcer-acrobat-librarian` first, rule 12), `Pass 259.0` (the
+`docs/core-api/` line-citation class), `Pass 10.11` (B-T timestamps).
 
 ---
 
-## OWED, and small
+## OWED
 
-- ~~**`docs/core-api/03-capabilities.md:1181`** cites `StickyIcon` at
-  `annot_author.rs:1022`; it is at `2837`. Whole-document line-citation drift,
-  pre-existing, still not fixed.~~
-  **★★ MEASURED 2026-09-07 AND PROMOTED OUT OF "small" — it is `Pass 259.0`,
-  and it was understated by about three orders of magnitude.** The struck
-  wording is kept because *how* it was understated is the lesson: it describes
-  **one** citation, because one is what somebody happened to notice. **Nobody
-  had measured the class.**
-  There are **941** line citations across the three `docs/core-api/`
-  documents (460 file-qualified, 481 bare) and **no gate resolves a single
-  one** — `check-cited-commits-exist` checks hashes, `check-cited-verbs-exist`
-  checks that a verb exists, neither opens a file at a line. A strict sample
-  scored **0 of 6 correct**; a 40-item random sample of file-qualified
-  citations found **3 pointing PAST THE END of the file they name** and 11
-  more on unrelated code, against a *generous* pass test.
-  **I deliberately did NOT fix the nine in that paragraph.** Fixing 9 of 941
-  and retiring the flag would leave 932 wrong while making the document look
-  *more* trustworthy — **a partial fix to a class is how an owed item stops
-  being owed without stopping being true.**
-- **`tools/check-requests-scoped.py`** — owed by `R242`. A citation-link check,
-  never a content check. Still unbuilt.
+- **`R221`'s recorded instance count is wrong and I made it worse.** `Pass 279.0`'s
+  commit message says "third recorded instance"; the Standing Rules entry is
+  already past three, and the 480th filing flagged the discrepancy rather than
+  guessing. Reconcile it in a session with budget for it. Do not copy the
+  ordinal from a commit message.
+- **`tools/check-requests-scoped.py`** — owed by `R242`, still unbuilt.
 - **`check-public-fns-documented.py`'s denominator is `pub`**, so it cannot see
-  the doc-splice defect on PRIVATE functions. The fix is a **staged**
-  denominator (it is red at baseline over private items), and that is its own
-  change, not a rider on a release.
-- **Backup bundle is ~144 commits behind `HEAD`.** Refresh when convenient.
+  the doc-splice defect on private functions. Staged fix, its own change.
+- **21 of 38 files in `fixtures/synthetic/text/PROVENANCE.md` are unrecorded**
+  (55.3 %). Pre-existing; `LEGAL.md` §5 makes it a licensing statement, not
+  tidiness.
+- **Backup bundle is well over 150 commits behind `HEAD`.**
 
 ---
 
-## BUILD ENVIRONMENT — READ BEFORE ANY RELEASE BUILD
+## ★★ WHAT THIS SESSION GOT WRONG — the three worth carrying
 
-★★ **`target/` reached 128 GB on a disk at 92 % full, and that is the best
-current explanation for the watchdog kills.** `rm -rf
-target/debug/incremental` reclaimed **26 GB** (109 G free of 954 G,
-`target/` 102 G). `target/` is gitignored and `git ls-files target` returns 0
-— both were checked BEFORE the delete, and that check is not optional.
+### A correct test, on a fixture that could not fail. TWICE, six hours apart.
 
-- **Foreground survives where background dies.** The low-memory watchdog killed
-  three commands this session — a full `cargo test --workspace`, its waiter,
-  and a **background** release build — and the release build then completed
-  **in the foreground** at the *same* `CARGO_BUILD_JOBS=1`. This is now a
-  two-session pattern. Do the expensive build in the foreground.
-- **A full `cargo test --workspace` still cannot be completed here**, even at
-  `CARGO_BUILD_JOBS=1` with `--no-run` first. What worked: `--no-run` to build
-  (background, ~15 min, survived), then **per-target foreground runs** at
-  `--test-threads=2`. All ~2,700 tests passed that way. **Do not record a
-  chunked run as "full suite green"** — say what was run.
-- Release build: **5 min warm, 9½ min after a tag** (the tag forces a rebuild
-  of `pdfcer-render` + `pdfcer-cli` for the banner).
-- `du -sh target/` at session start, every session.
+- `Pass 278.0`: a sabotage survived because the test removed the **last** ink
+  stroke, where the naive code answers `0` by accident. Re-pointed at stroke 0 —
+  where the surviving stroke slides into the index — it goes red.
+- `Pass 279.0`: `refusal_names_a_font.rs` already ran the complete
+  refuse → take the named face → switch → re-edit loop. Correct, green, and
+  **structurally incapable** of catching the shadowing bug, because its
+  fixture's font is `AAAAAA+pdfcerSymbolicPrivate` and no standard-14 name
+  matches that stem.
 
-## Release procedure (worked five times on 2026-09-06/07)
+**The question to ask of any test you inherit: which fixture could ever have
+made this go red?** Both were found by sabotage; neither would have been found
+by reading.
 
-bump `Cargo.toml` (+ `cargo metadata` for the root and fuzz lockfiles;
-`tools/content-identity/Cargo.lock` needs it WITHOUT `--offline`) → chore
-commit → **librarian filing for every unfiled code commit** (the push hook
-allows only the TIP unfiled) → push → **poll CI green from GitHub, never
-assume** → `git tag -a vX -m … <sha>` → **rebuild** so the banner names the tag
-→ `tools/package-portable.py --no-build --note "…"` → fresh-folder smoke test →
-zip + sha256 via Python `zipfile` → `git push origin vX` → `gh release create`
-→ `tools/deploy-onedrive.py` → `tools/verify-release.py vX` → **download the
-published asset back and re-hash it** → librarian release filing → refresh
-this file.
+### An enumerating gate caught a NEW route within the hour — and that is the contrast
 
-★ **Make the smoke test reproduce the fix, not merely launch the binary.**
-This release's smoke test ran the operator's own reproduction in the shipped
-exe in a fresh folder and got identical rectangles from both routes. That is
-worth more than `--version` printing.
+`route_enumeration.rs` scans for every function that locates a text anchor and
+demands it resolve the find. `Pass 280.0`'s new verb was a fourth such route and
+the gate named it by function, before any consumer saw it. **A fixture-bound
+test cannot catch a new case; an enumerating gate catches a new route.** Prefer
+the latter when a family keeps growing.
 
-★ **The byte arithmetic closes, and checking it is cheap.** The portable
-folder's files must sum to the reported total, and OneDrive's must equal that
-minus `BUILD-INFO.txt` plus `VERSION.txt`. Both closed exactly here. The exe
-grew 2,204,672 B over `v0.44.1`.
+### I told another project they had not answered — 67 minutes after they had
 
----
+Second instance in two days of the same file-channel blindness: no notification,
+no version token, so a reader who has already looked is blind to anything that
+arrives after. The remedy was **already written down** and not applied.
 
-## ★★ WHAT THIS SESSION GOT WRONG
+⇒ **`stat` the inbound directory immediately before writing any reply**, not
+only at session start. It cost nothing today because the correction went out on
+the same channel within minutes — and it is how the 477th filing's retracted
+motivation happened too.
 
-### I relayed a tool's WORDING instead of the SET it counted
+### Smaller, and all recurrences
 
-`package-portable.py` prints `staged 3 model file(s)` and counts everything
-under `models/` — **including `PROVENANCE.md`, which is not a model.** I put
-"three OCR model files" in a librarian dispatch. There are **two** `.rten`
-weights plus one documentation file, 8 files total.
-
-**The librarian caught it inside the hour, and how it caught it is the lesson:
-it did the arithmetic, found it one short against the previous release's
-itemized list, and left it as an OPEN QUESTION rather than guessing "9".** Its
-guess about the cause was wrong; raising it was right. Same family as *"a gate
-that under-reports looks green"* — a summary line named a different set than
-its noun implied.
-
-### A sabotage survived because a DIFFERENT correct rule absorbed it
-
-Disabling the artwork rectangle rule left the requester's A/B test **green** —
-the test shape carries `/Vertices` and fell through to the geometry rule,
-which composes too. The test was measuring *"some rule composes"* while its
-name claimed the artwork one. **This is a fourth cause for a surviving
-sabotage**, beside vacuous assertion / guarantee enforced elsewhere / null
-mutation: an alternate, also-correct path supplying the same answer. Fix: pin
-the ROUTE, not only the outcome. Filed to `D:\dev\rag\rust\`.
-
-### A test expectation was wrong about the FIXTURE, not the code
-
-I asserted a placed appearance edge would be "genuinely off-axis" under a
-rotating `/Matrix`. It failed. The fixture's matrix is a **quarter** turn, and
-a quarter turn is axis-aligned by definition — the code was right. Replaced
-with a bearing check that is correct at any angle *and* cross-checks the two
-halves of `Pass 155.2` against each other.
-
-### I asserted something about our own test coverage without measuring it — and it was true
-
-Writing back to `pdfcer-gui` about their signed-`atan2` defect, I said *"a
-rotation test that only ever turns one way is testing half the number line"*
-and added, as a courtesy, *"ours had the same hole"*.
-
-**Then I checked.** Across both rotation test files — sixteen tests — **every
-angle was positive**: 15, 22, 30, 37.5, 45, 60. Zero negative. A sign error
-was invisible to all of them, exactly as it was to their 3,860.
-
-★ **The mechanism is worth more than the fix, and it is reusable: writing a
-claim about my own work into a document meant for somebody else made the claim
-CHECKABLE.** It was courteous, unverified, and correct. Two clockwise tests
-now exist; sabotaged with the *real* bug (`.rem_euclid(360.0)`) they both
-fail and **the other seventeen stay green**.
-
-### Two readers, two conventions, and neither named the other (`R244`)
-
-`annot::rotation_degrees` returns `(−180, 180]`; `WidgetRotation::was`/`::now`
-are `[0, 360)`. Both documented correctly **at their own definitions**;
-neither mentioned the other, and that gap cost `pdfcer-gui` a defect within an
-hour. Both now cross-reference. `R244` was minted for the general shape —
-**correctness is a property of a document, usability is a property of the
-graph between documents, and every gate here checks only the former.**
-
-### Prose through the Bash tool broke twice, again
-
-Two heredocs carrying commit messages died on `unexpected EOF`. **Write the
-file with the Write tool and `git commit -F` it.** This is already a standing
-memory and it still cost two cycles.
+- **The doc-comment splice orphaned a doc block AGAIN** (`candidate_chars`
+  inserted above `encode_str`). Anchor on the DOC BLOCK, not the item.
+- **A sabotage aimed by string hit the wrong match arm** and stayed green,
+  reading exactly like a surviving sabotage. Aim by *function* first, then by
+  string inside it, and re-read the diff before believing the result.
+- **A rustdoc example did not compile** (`Document::load` takes `&Path`). Only
+  the doctest pass reads an example as code; `cargo check` never will.
+- **Prose through the Bash tool broke twice more** — a python heredoc with a
+  trailing `\` inside a single-quoted string, and a wrapped string literal that
+  lost its continuation. Write the file with the Write tool; splice by line
+  index.
 
 ---
 
-## Standing habits
+## Standing habits (unchanged, and all of them earned their place again today)
 
-- **Check BOTH FeatureRequests channels every session, by DIFF** — and grep
-  ROADMAP for each request's filename before scoping it (`R242`).
-- **Write a reply for every request you close.**
-- Announce every new public TYPE/SIGNATURE on the channel by name.
-- Anchor a doc-comment splice on the DOC BLOCK, not the item.
-- Batch releases: build everything pending, then ONE release.
-- **Sabotage every new test — and check what the sabotage FELL THROUGH TO.**
-- **Sabotage with the REAL bug where one exists**, not a mutation you invented
-  — and note which OTHER tests stayed green, because that number is the
-  measure of how blind the suite was.
-- **A courtesy claim in a reply is still a claim.** If you write "ours has the
-  same problem" to another project, measure it before you send it; twice now
-  that sentence has been true.
+- Check BOTH FeatureRequests channels **by diff**, at session start **and before
+  every reply**.
+- Write a reply for every request you close; correct a reply that turns out
+  false, on the same channel, promptly.
+- Sabotage every new test — and check what the sabotage **fell through to**.
+- When a sabotage survives, ask whether the FIXTURE could ever have failed
+  before you conclude the code is fine.
 - Register any new report struct in `check-outcome-disclosed`'s
   `OUTCOME_STRUCTS` in the SAME commit; the gate is opt-in and prints "clean"
   about what it was not told.
 - Update `docs/core-api/` in the same Pass that changes a `pub` item, and bump
   **every** stated count (verbs, `EditError` variants, per-file line/clause
   figures in `index.md`).
+- A filing commit never carries code.
+
+---
+
+## BUILD ENVIRONMENT
+
+`target/` was **187 GB** at session end on a disk at **96 % full**, and
+`rm -rf target/debug/incremental` reclaimed **24 GB** (now 164 G, disk 94 %,
+65 G free). Both checks were run before the delete and both must be:
+`git ls-files target` returns 0 and `git check-ignore -q target` passes.
+`du -sh target/` every session — this is the second consecutive session where
+the same 24–26 GB had rebuilt.
+
+**Foreground survives where background dies.** `tools/run-gates.sh` takes well
+over ten minutes; run it in the background and poll, but run the expensive
+`cargo test --workspace` in the **foreground** with `--test-threads=2`.
