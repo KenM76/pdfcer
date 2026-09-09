@@ -9926,7 +9926,9 @@ impl EditSession {
     ///
     /// # Errors
     ///
-    /// [`WriteError`], notably a refusal for a hybrid-reference input.
+    /// [`WriteError`]. A hybrid-reference input is **rewritten as a hybrid**
+    /// since `Pass 281.0`; it refuses only when its `/XRefStm` could not be
+    /// parsed, because then which objects are hidden is unknown.
     pub fn to_full_bytes(
         &self,
         options: &SaveOptions,

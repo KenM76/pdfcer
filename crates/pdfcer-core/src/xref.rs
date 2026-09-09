@@ -140,7 +140,7 @@
 //! refuses them (fail-clean) — tolerance is a later, corpus-evidenced
 //! addition recorded in `C:\personal_rag\pdf\` first.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use crate::filters::{self, FilterError};
 use crate::object::{Dict, ObjId, Object};
@@ -464,6 +464,75 @@ pub struct LoadedXref {
     /// the operator never touched and which may not even parse. See
     /// [`crate::document::Document::suppressed_object_count`].
     pub suppressed_by_size: usize,
+    /// The object numbers whose winning cross-reference entry came from a
+    /// hybrid file's `/XRefStm` stream rather than from any classic table
+    /// (§7.5.8.4) — the file's **hidden** objects (`Pass 281.0`).
+    ///
+    /// # Why this has to be retained rather than re-derived
+    ///
+    /// §7.5.8.4 describes a three-part unit a writer "creates … at the same
+    /// time": a main classic table where the hidden objects are **free with
+    /// generation 65535**, an update section, and a cross-reference stream
+    /// that gives their real locations. To *rewrite* such a file, a writer
+    /// must know which objects belong on which side.
+    ///
+    /// The alternative — re-deriving hiddenness from §7.5.8.4's recursive
+    /// visibility rule ("the root … shall not be hidden, nor any object that
+    /// is visible from the root") — answers a **different question**. That
+    /// rule says what a producer is *allowed* to hide; this set records what
+    /// this file *did* hide. A file may legally hide less than it could, and a
+    /// rewrite that re-derived the maximum would move objects the operator
+    /// never touched from one side of the partition to the other, which is
+    /// precisely the "plausible, working, wrong file" `R33` exists to prevent.
+    ///
+    /// Empty for every non-hybrid file, and empty for a hybrid file whose
+    /// `/XRefStm` did not parse — the writer distinguishes those two cases,
+    /// because the second one means the partition is **unknown** rather than
+    /// absent.
+    pub hidden_objects: BTreeSet<u32>,
+    /// Whether the newest section named an `/XRefStm` that pdfcer could not
+    /// parse (`Pass 281.0`).
+    ///
+    /// A broken `/XRefStm` is deliberately **not fatal** to loading — the
+    /// module docs explain why (§7.5.8.4 guarantees the visible graph is
+    /// resolvable without it), and every hidden object is optional by
+    /// construction. It *is* fatal to a full rewrite: the file says it hides
+    /// objects, pdfcer cannot say which, and emitting either partition would
+    /// be a guess. [`crate::writer::WriteError::HybridFullRewrite`] keeps that
+    /// case.
+    pub hybrid_stream_unreadable: bool,
+}
+
+/// Which objects a hybrid-reference file hides, and whether pdfcer could tell
+/// (`Pass 281.0`).
+///
+/// Travels from [`load_xref_chain`] to the writer as one value because the two
+/// facts are only meaningful together: an empty `hidden` set means *"nothing is
+/// hidden"* when `stream_unreadable` is `false`, and *"something is hidden and
+/// pdfcer cannot say what"* when it is `true`. Those two demand opposite
+/// behaviour from a full rewrite — proceed, and refuse — so a caller handed
+/// only the set would have to guess.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct HybridPartition {
+    /// Object numbers whose winning entry came from the `/XRefStm` stream —
+    /// see [`LoadedXref::hidden_objects`].
+    pub hidden: BTreeSet<u32>,
+    /// Whether an `/XRefStm` was named and could not be parsed — see
+    /// [`LoadedXref::hybrid_stream_unreadable`].
+    pub stream_unreadable: bool,
+}
+
+impl HybridPartition {
+    /// Whether a full rewrite can reproduce this file's §7.5.8.4 partition.
+    ///
+    /// `false` for a file that says it hides objects and whose stream pdfcer
+    /// could not read: emitting either side of the partition would be a guess,
+    /// and a wrong guess produces a file that opens and is missing an outline
+    /// tree or a structure tree with nothing to say so.
+    #[must_use]
+    pub fn is_reproducible(&self) -> bool {
+        !self.stream_unreadable
+    }
 }
 
 /// Locate `startxref` (§7.5.5) and load the full cross-reference chain
@@ -485,6 +554,8 @@ pub fn load_xref_chain(buf: &[u8]) -> Result<LoadedXref, XrefError> {
     let mut newest_shape: Option<SectionShape> = None;
     let mut visited: Vec<usize> = Vec::new();
     let mut next_offset = Some(first_offset);
+    let mut hidden_objects: BTreeSet<u32> = BTreeSet::new();
+    let mut hybrid_stream_unreadable = false;
 
     while let Some(offset) = next_offset {
         if visited.contains(&offset) || visited.len() >= MAX_XREF_SECTIONS {
@@ -507,8 +578,31 @@ pub fn load_xref_chain(buf: &[u8]) -> Result<LoadedXref, XrefError> {
             && visited.len() < MAX_XREF_SECTIONS
         {
             visited.push(stm_offset);
-            if let Ok(hidden) = parse_xref_stream_section(buf, stm_offset, table.entries.len()) {
-                merge_first_wins(&mut table, hidden.entries);
+            match parse_xref_stream_section(buf, stm_offset, table.entries.len()) {
+                Ok(hidden) => {
+                    // ★ WHICH numbers this stream ESTABLISHED, not which it
+                    // mentioned. `merge_first_wins` is first-wins, so a number
+                    // a newer classic table already defined is not hidden even
+                    // though the stream names it — and the writer needs the
+                    // set that would be LOST if the stream were dropped, which
+                    // is exactly the set that was inserted here.
+                    let before: Vec<u32> = hidden.entries.iter().map(|(n, _)| *n).collect();
+                    let already: BTreeSet<u32> = before
+                        .iter()
+                        .copied()
+                        .filter(|n| table.entries.contains_key(n))
+                        .collect();
+                    merge_first_wins(&mut table, hidden.entries);
+                    for num in before {
+                        if !already.contains(&num) {
+                            hidden_objects.insert(num);
+                        }
+                    }
+                }
+                // Non-fatal to LOADING (see the module docs) and fatal to a
+                // full rewrite: the file says it hides objects and pdfcer
+                // cannot say which.
+                Err(_) => hybrid_stream_unreadable = true,
             }
         }
 
@@ -568,6 +662,14 @@ pub fn load_xref_chain(buf: &[u8]) -> Result<LoadedXref, XrefError> {
     }
     let suppressed_by_size = before_filter.saturating_sub(table.entries.len());
 
+    // Computed BEFORE `table` moves into the struct, and filtered by the same
+    // `/Size` rule that just ran: a hidden object above `/Size` is invisible to
+    // a reader and must not be re-emitted as though it were there.
+    let hidden_objects: BTreeSet<u32> = hidden_objects
+        .into_iter()
+        .filter(|n| table_has(&table, *n))
+        .collect();
+
     Ok(LoadedXref {
         table,
         trailer,
@@ -575,7 +677,28 @@ pub fn load_xref_chain(buf: &[u8]) -> Result<LoadedXref, XrefError> {
         suppressed_by_size,
         startxref: first_offset as u64,
         newest_shape,
+        hidden_objects,
+        hybrid_stream_unreadable,
     })
+}
+
+impl LoadedXref {
+    /// This file's §7.5.8.4 partition, as one value for the writer
+    /// (`Pass 281.0`).
+    #[must_use]
+    pub fn hybrid_partition(&self) -> HybridPartition {
+        HybridPartition {
+            hidden: self.hidden_objects.clone(),
+            stream_unreadable: self.hybrid_stream_unreadable,
+        }
+    }
+}
+
+/// Whether the merged table still holds an entry for `num` after the
+/// `/Size` filter — the predicate that keeps a hidden object above `/Size`
+/// out of the writer's partition (`Pass 281.0`).
+fn table_has(table: &XrefTable, num: u32) -> bool {
+    table.entries.contains_key(&num)
 }
 
 /// Merge one section's entries into `table` **first-wins**: an entry

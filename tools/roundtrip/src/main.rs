@@ -947,10 +947,43 @@ fn first_object_not_verbatim(before: &Document, after: &Document) -> Option<ObjI
     None
 }
 
-/// Whether `id` is the object that *is* the base file's newest
-/// cross-reference section (§7.5.8.1) rather than document content.
+/// Whether `id` is the object that *is* this file's cross-reference section,
+/// and therefore legitimately differs after a save.
+///
+/// ★★ **A HYBRID FILE HAS ONE TOO, and this function did not know it**
+/// (`Pass 281.0`). It matched only `SectionShape::Stream`, which was complete
+/// while a full rewrite of a hybrid file was refused outright — the case could
+/// not arise. The moment that refusal was narrowed, all twelve hybrid files in
+/// the corpus reported `GraphChanged` on their cross-reference stream object:
+/// **a harness blind spot reported as a writer defect**, and the numbers it
+/// named (2408, 147, 140, 122, …) matched the stream object of each file
+/// one-to-one.
+///
+/// The lesson is the general one this project keeps meeting from the other
+/// side: a check that enumerates *the cases that can occur today* goes silently
+/// incomplete the day a new one can. Here the incompleteness surfaced as twelve
+/// loud false positives rather than a silent pass, which is the good direction
+/// — but only because the corpus contained hybrid files at all.
+///
+/// A hybrid's stream object is found the way a reader finds it: the object
+/// whose cross-reference entry gives the offset the trailer's `/XRefStm` names
+/// (§7.5.8.4 Table 19).
 fn is_section_object(doc: &Document, id: ObjId) -> bool {
-    matches!(doc.section_shape(), SectionShape::Stream { id: sid, .. } if sid == id)
+    match doc.section_shape() {
+        SectionShape::Stream { id: sid, .. } => sid == id,
+        SectionShape::Classic {
+            xref_stm: Some(off),
+        } => doc.xref().iter().any(|(num, entry)| {
+            num == id.num
+                && matches!(entry, pdfcer_core::xref::XrefEntry::InUse { offset, .. } if offset == off)
+        }),
+        SectionShape::Classic { xref_stm: None } => false,
+        // `SectionShape` is `#[non_exhaustive]` to this out-of-tree tool. A
+        // future form is not a section object it knows how to identify, and
+        // answering `true` would silently exempt an object from the graph
+        // comparison — the one thing this harness exists to perform.
+        _ => false,
+    }
 }
 
 /// Rasterize page 1 at [`RASTER_SCALE`], or `None` if it does not

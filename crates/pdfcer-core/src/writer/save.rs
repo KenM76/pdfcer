@@ -147,10 +147,25 @@
 //! zero promotions, and the only thing that changes is the container's
 //! own offset in its type-1 entry.
 //!
-//! ### Hybrid-reference files are refused, by name
+//! ### Hybrid-reference files are REWRITTEN, in their own form
 //!
-//! See [`WriteError::HybridFullRewrite`]. Incremental save of a hybrid
-//! file works and is the supported path.
+//! ~~"Hybrid-reference files are refused, by name."~~ True until
+//! `Pass 281.0`, and struck rather than deleted because a reader who
+//! remembers it needs to see that it moved.
+//!
+//! A full rewrite of a §7.5.8.4 file emits the three-part unit the clause
+//! describes: a main classic table where the file's **hidden** objects are free
+//! with generation 65535, the cross-reference stream that gives their real
+//! locations, and an update section whose trailer names it through `/XRefStm`.
+//! Which objects are hidden is not re-derived — the loader retains it
+//! (`Document::hybrid_partition`), because §7.5.8.4's visibility rule says what
+//! a producer *may* hide and this writer must reproduce what the file *did*
+//! hide.
+//!
+//! [`WriteError::HybridFullRewrite`] survives for the one case that is still a
+//! guess: an `/XRefStm` pdfcer could not parse. Incremental save of a hybrid
+//! file is unchanged (form A, a classic update section carrying `/XRefStm`
+//! forward).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -551,9 +566,10 @@ pub fn save_incremental(
 ///
 /// # Errors
 ///
-/// [`WriteError`] — notably [`WriteError::HybridFullRewrite`] for a
-/// §7.5.8.4 hybrid-reference input, which is refused by name rather
-/// than normalized away.
+/// [`WriteError`] — notably [`WriteError::HybridFullRewrite`], which since
+/// `Pass 281.0` fires only for a §7.5.8.4 hybrid-reference input whose
+/// `/XRefStm` pdfcer could not parse. A hybrid file whose partition is known is
+/// rewritten **as a hybrid**, never normalized away.
 pub fn save_full(
     doc: &Document,
     dirty: &DirtySet,
@@ -574,13 +590,25 @@ pub fn save_full(
     // staging`. `base` alone (zero-copy) when nothing was authored.
     let combined = dirty.combined_source(base);
 
-    // A hybrid file is a three-part unit §7.5.8.4 says a writer creates
-    // "at the same time"; rebuilding it from a merged view is Pass 3.2
-    // work, and flattening it would destroy the pre-1.5 view (R33).
-    if matches!(
-        doc.section_shape(),
-        SectionShape::Classic { xref_stm: Some(_) }
-    ) {
+    // ★★ A HYBRID FILE IS NOW REWRITTEN, NOT REFUSED (`Pass 281.0`). The
+    // refusal here used to be unconditional, with the reasoning that
+    // "rebuilding the three-part unit from a merged view is Pass 3.2 work".
+    // The merged view is not the obstacle it was taken to be — the LOADER now
+    // retains which objects the `/XRefStm` established
+    // (`Document::hybrid_partition`), which is the one fact the merge
+    // destroyed — and `write_hybrid_tail` emits the unit §7.5.8.4 describes.
+    //
+    // What still refuses: a file that SAYS it hides objects and whose stream
+    // pdfcer could not parse. There the partition is unknown rather than
+    // absent, and either half would be a guess.
+    //
+    // ★ Why this mattered beyond tidiness: redaction is forced to a full
+    // rewrite by `R35` — an incremental save leaves the un-redacted bytes in a
+    // prior revision — so this refusal made REDACTION UNREACHABLE on every
+    // hybrid file, and the refusal's own advice ("use incremental save") was
+    // the one thing a redaction may not do. Reported by `pdfcer-gui` on the
+    // operator's own SolidWorks drawing, which he had asked about three times.
+    if doc.is_hybrid() && !doc.hybrid_partition().is_reproducible() {
         return Err(WriteError::HybridFullRewrite);
     }
 
@@ -624,9 +652,19 @@ pub fn save_full(
     // The object number the new cross-reference stream will occupy, if
     // the base file uses that form. Its old definition is NOT re-emitted
     // as a body object — it *is* the section.
+    //
+    // ★ A HYBRID FILE HAS ONE TOO (`Pass 281.0`), and it is found the same way
+    // a reader finds it: the object whose entry gives the offset the trailer's
+    // `/XRefStm` names. Reusing that number rather than allocating a fresh one
+    // keeps the rewritten file's object numbering as close to the input's as
+    // this Pass can — and a fresh number would raise `/Size` on a file where
+    // nothing was added.
     let xref_stream_id = match doc.section_shape() {
         SectionShape::Stream { id, .. } => Some(id),
-        _ => None,
+        SectionShape::Classic {
+            xref_stm: Some(off),
+        } => hybrid_stream_object(doc, off),
+        SectionShape::Classic { xref_stm: None } => None,
     };
     let base_widths = match doc.section_shape() {
         SectionShape::Stream { widths, .. } => widths,
@@ -878,12 +916,36 @@ pub fn save_full(
     }
 
     let section_offset = out.len() as u64;
-    match xref_stream_id {
-        None => {
+    // Three tails, and which one runs is decided by the INPUT's form (R33) —
+    // never by preference. A hybrid input is the only one that emits more than
+    // one section, because §7.5.8.4 forbids `/XRefStm` in a main section and a
+    // single-section file has only a main one.
+    let hybrid_rewritten = doc.is_hybrid();
+    match (hybrid_rewritten, xref_stream_id) {
+        (true, Some(stm_id)) => {
+            write_hybrid_tail(
+                &mut out,
+                &HybridTail {
+                    entries: &entries,
+                    hidden: &doc.hybrid_partition().hidden,
+                    stm_id,
+                    trailer: &trailer,
+                    base_widths,
+                    entry_eol,
+                    trailing: options.trailing_eol,
+                },
+            )?;
+        }
+        // A hybrid whose stream object could not be located is refused above;
+        // reaching here would mean that guard and this match disagree, and
+        // emitting a NON-hybrid file for a hybrid input is exactly the silent
+        // normalization R33 forbids. Refuse rather than "fall back".
+        (true, None) => return Err(WriteError::HybridFullRewrite),
+        (false, None) => {
             xref_out::write_classic_table(&mut out, &entries, entry_eol)?;
             xref_out::write_classic_tail(&mut out, &trailer, section_offset, options.trailing_eol);
         }
-        Some(id) => {
+        (false, Some(id)) => {
             entries.insert(
                 id.num,
                 XrefEntry::InUse {
@@ -1230,6 +1292,176 @@ fn full_reencode(
         objects_deleted: deleted,
     };
     Ok((out, report))
+}
+
+/// The cross-reference **stream object** of a hybrid-reference file, found the
+/// way a reader finds it (`Pass 281.0`).
+///
+/// The trailer's `/XRefStm` gives a byte offset (§7.5.8.4 Table 19); the object
+/// living at that offset is the stream. It is named by the update section's own
+/// classic table — §7.5.8.3 requires an entry for it to exist "in a
+/// cross-reference table (in hybrid-reference files)" — so a lookup by offset
+/// over the merged table finds it.
+///
+/// `None` when nothing in the table claims that offset: the file names a stream
+/// pdfcer's table does not account for, and inventing a number for it would be
+/// a guess. The caller refuses instead.
+fn hybrid_stream_object(doc: &Document, xref_stm_offset: u64) -> Option<ObjId> {
+    doc.xref().iter().find_map(|(num, entry)| match entry {
+        XrefEntry::InUse { offset, generation } if offset == xref_stm_offset => {
+            Some(ObjId::new(num, generation))
+        }
+        _ => None,
+    })
+}
+
+/// The inputs [`write_hybrid_tail`] needs, bundled so the seam stays inside
+/// clippy's seven-argument limit — and, more usefully, so the three-part unit's
+/// ingredients are named in one place rather than spread over a call.
+#[derive(Clone, Copy)]
+struct HybridTail<'a> {
+    /// The finished entry map for the whole file, before concealment.
+    entries: &'a BTreeMap<u32, XrefEntry>,
+    /// The object numbers this file hides — see `Document::hybrid_partition`.
+    hidden: &'a BTreeSet<u32>,
+    /// The object number the cross-reference stream occupies.
+    stm_id: ObjId,
+    /// The trailer both sections are built from.
+    trailer: &'a Dict,
+    /// The `/W` widths to fit the stream's rows into.
+    base_widths: [usize; 3],
+    /// `EOL-A1`, resolved against the file being saved.
+    entry_eol: crate::settings::XrefEntryEol,
+    /// `EOL-A2`, the file's last byte.
+    trailing: crate::settings::TrailingEol,
+}
+
+/// Emit the §7.5.8.4 three-part unit that makes a rewritten file
+/// **hybrid-reference** again (`Pass 281.0`).
+///
+/// # What a hybrid file physically is, and why one section cannot be one
+///
+/// §7.5.8.4 is explicit: *"the `XRefStm` entry shall **not** be used in the
+/// trailer dictionary of the main cross-reference section but only in an
+/// update cross-reference section."* A hybrid file therefore has **at least
+/// two** sections by construction, and a full rewrite that emitted a single
+/// section could not be hybrid whatever else it did. That is the fact the
+/// refusal this replaces was really about — not, as its comment claimed, that
+/// rebuilding the unit was impossible.
+///
+/// So the emitted tail is, in order:
+///
+/// ```text
+/// <main classic table>     every object 0..=highest; the HIDDEN ones and the
+///                          stream object itself marked free, generation 65535
+/// trailer << … >>          no /XRefStm, no /Prev — this IS the main section
+/// startxref <main_at> %%EOF
+/// <the cross-reference stream object>   real entries for the hidden objects
+/// <update classic table>   one entry: the stream object, at its real offset
+/// trailer << … /XRefStm <stm_at> /Prev <main_at> >>
+/// startxref <upd_at> %%EOF
+/// ```
+///
+/// # Why the hidden objects are marked free with generation 65535
+///
+/// That is the concealment mechanism itself, quoted from §7.5.8.4: *"The free
+/// entry shall have a next-generation number of 65535 so that the object
+/// number shall not be reused."* A pre-1.5 reader resolves such a reference to
+/// null (§7.3.10) and renders the file without the optional structure; a 1.5+
+/// reader finds the object through `/XRefStm` first, because §7.5.8.4's search
+/// order consults the stream **before** `/Prev`.
+///
+/// # Why the stream object is free in the main table too
+///
+/// It is not part of the pre-1.5 view — a pre-1.5 reader has no business
+/// resolving a reference to a cross-reference stream — and §7.5.8.3 says an
+/// entry for it *"shall exist in … a cross-reference table (in
+/// hybrid-reference files)"*, which is the **update** table below. Marking it
+/// in-use in both would be two answers to one question.
+///
+/// # Completeness
+///
+/// §7.5.8.4: *"to allow random access, a main cross-reference section shall
+/// contain entries for **all** objects numbered 0 through `Size` − 1."* The
+/// main table therefore covers `0..=highest` with no holes — the same
+/// obligation the non-hybrid path already meets, applied to the same entry map
+/// before the hidden objects are masked out of it.
+fn write_hybrid_tail(out: &mut Vec<u8>, plan: &HybridTail<'_>) -> Result<(), WriteError> {
+    let HybridTail {
+        entries,
+        hidden,
+        stm_id,
+        trailer,
+        base_widths,
+        entry_eol,
+        trailing,
+    } = *plan;
+    // ---- the main section: the visible view, and only it.
+    let mut main_entries = entries.clone();
+    let concealed = XrefEntry::Free {
+        next_free: 0,
+        generation: 65_535,
+    };
+    for num in hidden {
+        main_entries.insert(*num, concealed);
+    }
+    main_entries.insert(stm_id.num, concealed);
+
+    let main_at = out.len() as u64;
+    xref_out::write_classic_table(out, &main_entries, entry_eol)?;
+    let mut main_trailer = trailer.clone();
+    main_trailer.0.retain(|(k, _)| {
+        // The main section names neither companion: `/XRefStm` is forbidden
+        // here by §7.5.8.4, and there is no earlier section for `/Prev`.
+        //
+        // ★ MEASURED REDUNDANT FOR `/XRefStm`, AND KEPT. The caller already
+        // strips that key before building this trailer ("a single section has
+        // no predecessor and no hybrid companion"), so a sabotage that removes
+        // it here stays GREEN — a guarantee enforced elsewhere, which is one of
+        // this project's three recorded reasons a sabotage survives.
+        //
+        // It stays because §7.5.8.4's requirement is owed BY THIS FUNCTION: the
+        // caller's strip exists for the single-section case and would be
+        // perfectly reasonable to change, at which point the clause would be
+        // violated forty lines from the code that knows about it. `/Prev` is
+        // NOT redundant — nothing else removes it — and the two are stripped
+        // together because they are one rule about one section.
+        !matches!(k.as_bytes(), b"XRefStm" | b"Prev")
+    });
+    xref_out::write_classic_tail(out, &main_trailer, main_at, trailing);
+
+    // ---- the cross-reference stream: the hidden view, and only it.
+    let hidden_entries: BTreeMap<u32, XrefEntry> = hidden
+        .iter()
+        .filter_map(|num| entries.get(num).map(|e| (*num, *e)))
+        .collect();
+    let stm_at = out.len() as u64;
+    let widths = xref_out::Widths::fit(&hidden_entries, base_widths);
+    let stream = xref_out::build_xref_stream(stm_id, &hidden_entries, widths, &main_trailer)?;
+    out.extend_from_slice(&stream.bytes);
+
+    // ---- the update section: one real entry, for the stream object.
+    let mut upd_entries: BTreeMap<u32, XrefEntry> = BTreeMap::new();
+    upd_entries.insert(
+        stm_id.num,
+        XrefEntry::InUse {
+            offset: stm_at,
+            generation: stm_id.generation,
+        },
+    );
+    let upd_at = out.len() as u64;
+    xref_out::write_classic_table(out, &upd_entries, entry_eol)?;
+    let mut upd_trailer = main_trailer;
+    upd_trailer.insert(
+        Name::from(b"XRefStm"),
+        Object::Integer(i64::try_from(stm_at).unwrap_or(0)),
+    );
+    upd_trailer.insert(
+        Name::from(b"Prev"),
+        Object::Integer(i64::try_from(main_at).unwrap_or(0)),
+    );
+    xref_out::write_classic_tail(out, &upd_trailer, upd_at, trailing);
+    Ok(())
 }
 
 /// Give every deleted object a conforming type-0 entry and splice them

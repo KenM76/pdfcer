@@ -720,13 +720,234 @@ fn hybrid_append_is_form_a_and_carries_xrefstm_forward() {
     assert!(back.get(ObjId::new(4, 0)).is_some());
 }
 
+/// ★ The loader now RETAINS which objects the `/XRefStm` hides (`Pass 281.0`).
+///
+/// Object 4 (the outline tree) exists only in the cross-reference stream; the
+/// main classic table marks it free with generation 65535, which is §7.5.8.4's
+/// concealment mechanism. Objects 1 and 2 are in the classic table and are not
+/// hidden, and object 5 — the stream itself — is named by the update section's
+/// classic table, so it is not hidden either.
+///
+/// Without this the writer cannot rebuild the partition, and "which objects
+/// were hidden" is not re-derivable after the merge: `merge_first_wins`
+/// produces one flat table by design.
 #[test]
-fn hybrid_full_rewrite_is_refused_by_name_not_normalized() {
-    // R33 + R27's fail-clean posture applied to the writer (decision
-    // 007 W11). Flattening a hybrid to a single section would silently
-    // destroy its pre-1.5 readability — a plausible, working, WRONG
-    // file. Refuse, name it, count it.
+fn the_loader_retains_which_objects_the_xrefstm_hides() {
     let doc = Document::from_bytes(build_hybrid_pdf()).unwrap();
+    let part = doc.hybrid_partition();
+    assert!(part.is_reproducible(), "the fixture's stream parses");
+    assert_eq!(
+        part.hidden.iter().copied().collect::<Vec<u32>>(),
+        vec![4],
+        "only the outline object is reachable solely through /XRefStm"
+    );
+}
+
+/// A non-hybrid file hides nothing, and says so with an EMPTY partition rather
+/// than an absent one.
+///
+/// The control: without it, a partition that was always empty would satisfy
+/// every assertion about non-hybrid files and quietly break the hybrid path.
+#[test]
+fn a_non_hybrid_file_has_an_empty_reproducible_partition() {
+    let doc = Document::from_bytes(build_classic_pdf(&[], false)).unwrap();
+    let part = doc.hybrid_partition();
+    assert!(part.hidden.is_empty());
+    assert!(part.is_reproducible());
+    assert!(!doc.is_hybrid());
+}
+
+/// ★★★ A HYBRID FILE IS REWRITTEN, NOT REFUSED (`Pass 281.0`).
+///
+/// This test replaces `hybrid_full_rewrite_is_refused_by_name_not_normalized`,
+/// which asserted the opposite and was **right for its time**: the refusal it
+/// pinned was correct while the loader threw away which objects the `/XRefStm`
+/// hid. `Document::hybrid_partition` retains that now, so the three-part unit
+/// §7.5.8.4 describes can be rebuilt instead of declined.
+///
+/// The old test's reasoning is kept because it is still the guard: *"flattening
+/// a hybrid to a single section would silently destroy its pre-1.5 readability
+/// — a plausible, working, WRONG file"*. The Pass does not flatten. It emits a
+/// main section that hides exactly what the input hid, and an update section
+/// that reveals it through `/XRefStm`.
+#[test]
+fn a_hybrid_full_rewrite_stays_hybrid_and_hides_the_same_objects() {
+    let doc = Document::from_bytes(build_hybrid_pdf()).unwrap();
+    let hidden_before = doc.hybrid_partition().hidden.clone();
+    let (out, _report) = save_full(&doc, &DirtySet::empty(), &SaveOptions::identity()).unwrap();
+
+    let back = Document::from_bytes(out).unwrap();
+    assert!(back.is_hybrid(), "the hybrid property was lost on rewrite");
+    assert_eq!(
+        back.hybrid_partition().hidden,
+        hidden_before,
+        "the rewrite must hide exactly what the input hid — not more (objects \
+         the operator never touched would vanish from a pre-1.5 view) and not \
+         less (the concealment the producer chose would be undone)"
+    );
+    // The hidden object is still reachable to a 1.5+ reader.
+    assert!(
+        back.get(ObjId::new(4, 0)).is_some(),
+        "the outline object must survive the rewrite"
+    );
+    // And every visible object is still visible.
+    assert!(back.get(ObjId::new(1, 0)).is_some());
+    assert!(back.get(ObjId::new(2, 0)).is_some());
+}
+
+/// ★★ THE PRE-1.5 VIEW, asserted on the BYTES rather than through pdfcer.
+///
+/// The whole point of §7.5.8.4 is what an *old* reader sees, and pdfcer is not
+/// an old reader — asking it to load the file cannot measure this. So the main
+/// table is read directly: object 4 must carry a **free** entry with generation
+/// **65535**, which is the concealment mechanism the clause names, and a
+/// pre-1.5 reader resolves that reference to null (§7.3.10).
+///
+/// Without this assertion, a rewrite that put object 4 in the main table
+/// **in use** would pass every other test here — the file would load, the
+/// object would resolve, and the concealment would be silently gone.
+#[test]
+fn the_main_table_conceals_the_hidden_object_from_a_pre_1_5_reader() {
+    let doc = Document::from_bytes(build_hybrid_pdf()).unwrap();
+    let (out, _) = save_full(&doc, &DirtySet::empty(), &SaveOptions::identity()).unwrap();
+    let text = String::from_utf8_lossy(&out);
+
+    // The MAIN table is the first `xref` in the output.
+    let main = text.find("xref").expect("a main table");
+    let main_end = text[main..].find("trailer").expect("a main trailer") + main;
+    let main_table = &text[main..main_end];
+
+    // Six 20-byte entries, one per object number 0..=5 (§7.5.8.4: the main
+    // section "shall contain entries for all objects numbered 0 through
+    // Size - 1").
+    let entries: Vec<&str> = main_table
+        .lines()
+        .filter(|l| {
+            l.ends_with(" n\r") || l.ends_with(" f\r") || l.ends_with(" n") || l.ends_with(" f")
+        })
+        .collect();
+    assert_eq!(entries.len(), 6, "main table: {main_table:?}");
+
+    assert!(
+        entries[4].contains("65535 f"),
+        "object 4 is hidden, so the MAIN table must show it free with \
+         generation 65535 — that is how a pre-1.5 reader is kept from it: {:?}",
+        entries[4]
+    );
+    assert!(
+        entries[5].contains("65535 f"),
+        "the cross-reference STREAM object is not part of the pre-1.5 view \
+         either; the update table names it: {:?}",
+        entries[5]
+    );
+    assert!(
+        entries[1].contains(" n"),
+        "the catalog is visible and must stay visible: {:?}",
+        entries[1]
+    );
+}
+
+/// §7.5.8.4: `/XRefStm` "shall not be used in the trailer dictionary of the
+/// main cross-reference section but only in an update cross-reference
+/// section."
+///
+/// ★ This is the clause that makes a single-section hybrid **impossible**, and
+/// therefore the real reason a full rewrite of a hybrid file has to emit two
+/// sections rather than one. The old refusal's stated reason — that rebuilding
+/// the unit was future work — was true but secondary.
+///
+/// ★★ HONEST NOTE: the `/XRefStm` half of this does **not** currently
+/// discriminate. `save_full` strips that key from the trailer before
+/// `write_hybrid_tail` sees it, so sabotaging the strip inside that function
+/// leaves this test green — a guarantee enforced elsewhere. The assertion is
+/// kept because it measures the OUTPUT, which is what a reader meets: if the
+/// caller's strip ever moves or changes, this is what goes red. The `/Prev`
+/// half discriminates today.
+#[test]
+fn the_main_trailer_carries_no_xrefstm_and_the_update_trailer_does() {
+    let doc = Document::from_bytes(build_hybrid_pdf()).unwrap();
+    let (out, _) = save_full(&doc, &DirtySet::empty(), &SaveOptions::identity()).unwrap();
+    let text = String::from_utf8_lossy(&out);
+
+    let first = text.find("trailer").expect("a main trailer");
+    let second = text[first + 7..]
+        .find("trailer")
+        .map(|i| i + first + 7)
+        .expect("an update trailer");
+
+    let main_trailer = &text[first..second];
+    assert!(
+        !main_trailer.contains("XRefStm"),
+        "§7.5.8.4 forbids it here: {main_trailer:?}"
+    );
+    assert!(
+        !main_trailer.contains("/Prev"),
+        "the main section has no predecessor: {main_trailer:?}"
+    );
+
+    let upd_trailer = &text[second..];
+    assert!(upd_trailer.contains("/XRefStm"), "{upd_trailer:?}");
+    assert!(
+        upd_trailer.contains("/Prev"),
+        "the update section must chain back to the main one: {upd_trailer:?}"
+    );
+}
+
+/// ★★★ THE REASON THIS PASS EXISTS: redaction is reachable on a hybrid file.
+///
+/// `R35` forces a redaction to a full rewrite — an incremental save leaves the
+/// un-redacted bytes in a prior revision — so a refused full rewrite made
+/// redaction **unreachable**, and the refusal's own advice ("use incremental
+/// save") was the one thing a redaction may not take. Reported against the
+/// operator's own SolidWorks drawing.
+///
+/// Measured here at the writer level rather than through the redaction verb,
+/// because it is the WRITER that refused; the redactor never got a choice.
+#[test]
+fn a_hybrid_file_can_now_be_fully_rewritten_which_is_what_redaction_needs() {
+    let doc = Document::from_bytes(build_hybrid_pdf()).unwrap();
+    assert!(doc.is_hybrid());
+    let r = save_full(&doc, &DirtySet::empty(), &SaveOptions::identity());
+    assert!(
+        r.is_ok(),
+        "a full rewrite is what R35 forces a redaction to use: {:?}",
+        r.err()
+    );
+}
+
+/// The refusal SURVIVES for the case pdfcer genuinely cannot reproduce.
+///
+/// A file whose trailer names an `/XRefStm` that does not parse says it hides
+/// objects and gives no way to learn which. Emitting either partition would be
+/// a guess, and a wrong guess produces a file that opens with an outline or a
+/// structure tree silently missing.
+///
+/// ★ The fixture corrupts the stream's `/Length` so the stream is unreadable
+/// while the offset still points at an object header — the loader's own
+/// "broken /XRefStm is not fatal" path, which is exactly the state that must
+/// now be fatal to a REWRITE.
+#[test]
+fn a_hybrid_whose_stream_cannot_be_read_is_still_refused_by_name() {
+    let mut bytes = build_hybrid_pdf();
+    // Break the stream by widening its `/W` row to 27 bytes over 7 bytes of
+    // data, so no whole row can be read.
+    //
+    // ★ The corruption is EXACTLY THE SAME LENGTH as what it replaces, and
+    // that is not fastidiousness: every offset in this file — `startxref`,
+    // `/XRefStm`, `/Prev` — is a byte position. A one-byte shift makes the
+    // whole chain unparseable, the loader falls back to rebuild-by-scan, and
+    // the document is no longer hybrid at all. The test would then pass while
+    // measuring a completely different failure.
+    let text = String::from_utf8_lossy(&bytes).into_owned();
+    let at = text.find("/W [1 4 2]").expect("the stream's /W array");
+    bytes.splice(at..at + "/W [1 4 2]".len(), b"/W [9 9 9]".iter().copied());
+
+    let doc = Document::from_bytes(bytes).unwrap();
+    assert!(doc.is_hybrid(), "the trailer still names an /XRefStm");
+    assert!(
+        !doc.hybrid_partition().is_reproducible(),
+        "pdfcer could not read the stream, so it cannot say what is hidden"
+    );
     let err = save_full(&doc, &DirtySet::empty(), &SaveOptions::identity()).unwrap_err();
     assert!(matches!(err, WriteError::HybridFullRewrite));
     assert!(err.to_string().contains("hybrid"));

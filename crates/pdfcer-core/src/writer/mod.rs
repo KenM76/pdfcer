@@ -697,24 +697,52 @@ pub enum WriteError {
     )]
     RedactionPending,
     /// A full rewrite was requested for a **hybrid-reference** file
-    /// (§7.5.8.4).
+    /// (§7.5.8.4) whose `/XRefStm` pdfcer could not parse (`Pass 281.0`).
     ///
-    /// A hybrid file is a three-part unit — main classic table, update
-    /// classic table, and a cross-reference stream carrying the hidden
-    /// objects — that §7.5.8.4 says a writer *"creates … at the same
-    /// time"*. Rebuilding that unit from a merged view requires
-    /// re-deriving which objects were hidden and re-checking §7.5.8.4's
-    /// recursive visibility rule, which is Pass 3.2 work at the
-    /// earliest. Normalizing the file to a single non-hybrid section
-    /// instead would destroy its pre-1.5 readability, which R33 forbids
-    /// outright.
+    /// # ★★ NARROWED. This used to fire for EVERY hybrid file.
     ///
-    /// So: refuse, by name, and count it. Incremental save of a hybrid
-    /// file **is** supported — as a classic update section carrying
-    /// `/XRefStm` forward (§7.5.8.4 form A).
+    /// The original reasoning is kept verbatim, because it is instructive about
+    /// how a refusal outlives its cause:
+    ///
+    /// > ~~"Rebuilding that unit from a merged view requires re-deriving which
+    /// > objects were hidden and re-checking §7.5.8.4's recursive visibility
+    /// > rule, which is Pass 3.2 work at the earliest. Normalizing the file to
+    /// > a single non-hybrid section instead would destroy its pre-1.5
+    /// > readability, which R33 forbids outright."~~
+    ///
+    /// Both halves were true and the conclusion did not follow. **The merged
+    /// view was the obstacle, and the merge is pdfcer's own**: the loader now
+    /// retains which objects the `/XRefStm` established
+    /// ([`crate::document::Document::hybrid_partition`]), which is the single
+    /// fact `merge_first_wins` destroyed. Nothing has to be re-derived — and
+    /// re-deriving would have been *wrong*, because §7.5.8.4's visibility rule
+    /// says what a producer **may** hide while a rewrite must reproduce what
+    /// this file **did** hide.
+    ///
+    /// Nor is the file normalized: `save_full` emits the same three-part unit —
+    /// main table with the hidden objects free at generation 65535, the stream,
+    /// and an update section naming it — so the pre-1.5 view survives and `R33`
+    /// is honoured rather than waived.
+    ///
+    /// # What it cost while it stood
+    ///
+    /// `R35` forces a redaction to a full rewrite — an incremental save leaves
+    /// the un-redacted bytes in a prior revision — so this refusal made
+    /// **redaction unreachable on every hybrid file**, and the remedy it named
+    /// ("use incremental save") was the one thing a redaction may not take.
+    /// Reported by `pdfcer-gui` on the operator's own SolidWorks drawing, which
+    /// he had asked about three times.
+    ///
+    /// # What still refuses
+    ///
+    /// A file whose trailer names an `/XRefStm` that does not parse. The file
+    /// says it hides objects; pdfcer cannot say which; either partition would
+    /// be a guess, and a wrong guess yields a file that opens with an outline
+    /// or a structure tree silently missing. A broken `/XRefStm` is
+    /// deliberately non-fatal to *loading* (§7.5.8.4 guarantees the visible
+    /// graph resolves without it) and is fatal to a *rewrite*.
     #[error(
-        "full rewrite of a hybrid-reference file (§7.5.8.4) is not supported; \
-         use incremental save, which appends a conforming classic update section"
+        "full rewrite of a hybrid-reference file (§7.5.8.4) whose /XRefStm could not be parsed is not supported: the file hides objects and pdfcer cannot tell which, so either partition would be a guess -- use incremental save, which appends a conforming classic update section and carries the stream forward untouched"
     )]
     HybridFullRewrite,
     /// A full rewrite was asked to build a cross-reference table up to an

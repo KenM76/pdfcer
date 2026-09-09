@@ -299,6 +299,10 @@ pub struct Document {
     highest_object_number: u32,
     /// How many cross-reference entries `/Size` suppressed.
     suppressed_by_size: usize,
+    /// Which objects a hybrid-reference file hides, and whether pdfcer could
+    /// tell (`Pass 281.0`). Default (empty, readable) for every non-hybrid
+    /// file and for a recovered base, where the concept does not apply.
+    hybrid: crate::xref::HybridPartition,
     /// `Some` when this document was loaded via **cross-reference
     /// recovery** (decision 013): the stored xref could not be parsed and
     /// the table was rebuilt by scanning. The writer reads this to force a
@@ -432,6 +436,7 @@ impl Document {
     pub(crate) fn from_cos_bytes(buf: Vec<u8>, markers: &[&[u8]]) -> Result<Self, DocError> {
         let header_version = crate::probe_cos_header(&buf, markers).map_err(DocError::Header)?;
         let loaded = xref::load_xref_chain(&buf).map_err(DocError::Xref)?;
+        let hybrid = loaded.hybrid_partition();
         Self::assemble(
             buf,
             header_version,
@@ -441,6 +446,7 @@ impl Document {
             loaded.newest_shape,
             loaded.highest_object_number,
             loaded.suppressed_by_size,
+            hybrid,
             None,
             None,
         )
@@ -462,18 +468,22 @@ impl Document {
         match crate::probe_header(&buf) {
             // Header OK: try the strict §7.5.5 cross-reference load.
             Ok(header_version) => match xref::load_xref_chain(&buf) {
-                Ok(loaded) => Self::assemble(
-                    buf,
-                    header_version,
-                    loaded.table,
-                    loaded.trailer,
-                    loaded.startxref,
-                    loaded.newest_shape,
-                    loaded.highest_object_number,
-                    loaded.suppressed_by_size,
-                    None,
-                    password,
-                ),
+                Ok(loaded) => {
+                    let hybrid = loaded.hybrid_partition();
+                    Self::assemble(
+                        buf,
+                        header_version,
+                        loaded.table,
+                        loaded.trailer,
+                        loaded.startxref,
+                        loaded.newest_shape,
+                        loaded.highest_object_number,
+                        loaded.suppressed_by_size,
+                        hybrid,
+                        None,
+                        password,
+                    )
+                }
                 // The strict path failed. Decision 013: attempt
                 // rebuild-by-scan recovery, but ONLY on the specific
                 // failure kinds that mean the cross-reference machinery is
@@ -527,6 +537,7 @@ impl Document {
         section_shape: SectionShape,
         highest_object_number: u32,
         suppressed_by_size: usize,
+        hybrid: crate::xref::HybridPartition,
         recovery: Option<RecoveryReport>,
         password: Option<&[u8]>,
     ) -> Result<Self, DocError> {
@@ -618,6 +629,7 @@ impl Document {
             linearization,
             highest_object_number,
             suppressed_by_size,
+            hybrid,
             recovery,
             encryption,
         })
@@ -860,6 +872,12 @@ impl Document {
             SectionShape::Classic { xref_stm: None },
             rec.highest_object_number,
             0,
+            // A recovered base is rebuilt by scanning object headers, and the
+            // scan sees every object equally — the §7.5.8.4 partition is not
+            // recoverable from it, and `SectionShape::Classic { xref_stm: None }`
+            // above already says the output is not hybrid. Default, not a
+            // guess.
+            crate::xref::HybridPartition::default(),
             Some(rec.report),
             // The recovery path never carries a password: `recover` refuses an
             // encrypted file outright (`RecoverError::Encrypted`), because
@@ -1114,6 +1132,34 @@ impl Document {
             self.section_shape,
             SectionShape::Classic { xref_stm: Some(_) }
         )
+    }
+
+    /// This file's §7.5.8.4 partition — which objects it **hides** behind
+    /// `/XRefStm`, and whether pdfcer could read the stream that says so
+    /// (`Pass 281.0`).
+    ///
+    /// # Why a writer needs it, and why re-deriving it would be wrong
+    ///
+    /// §7.5.8.4 describes a three-part unit a writer creates "at the same
+    /// time": a main classic table marking the hidden objects **free with
+    /// generation 65535**, an update section, and a cross-reference stream
+    /// giving their real locations. Rewriting such a file means rebuilding
+    /// that unit, which means knowing which side each object belongs on.
+    ///
+    /// §7.5.8.4's visibility rule answers a **different question** — what a
+    /// producer is *permitted* to hide. This answers what this file *did*
+    /// hide. A file may legally hide less than it could, and a rewrite that
+    /// re-derived the maximum would move objects the operator never touched,
+    /// which is exactly the "plausible, working, wrong file" `R33` guards
+    /// against.
+    ///
+    /// Empty and readable for every non-hybrid file. See
+    /// [`crate::xref::HybridPartition::is_reproducible`] for the case that
+    /// still refuses: a file that says it hides objects and whose stream
+    /// pdfcer could not parse.
+    #[must_use]
+    pub const fn hybrid_partition(&self) -> &crate::xref::HybridPartition {
+        &self.hybrid
     }
 
     /// The cross-reference **recovery** record, or `None` for a cleanly
