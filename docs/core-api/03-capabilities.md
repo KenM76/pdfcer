@@ -1600,6 +1600,38 @@ grep"* (`redact.rs:317-319`). The proof itself is implemented in the **GUI
 crate**:
 
 `pdfce@cce414e:crates/pdfce-gui/src/redact_apply.rs`
+★★ **`redacted_text` is grouped PER MARK, not per show operator (`Pass 286.0`).**
+One entry per `/Redact` annotation, carrying the concatenation of what that mark
+removed — `["3.5 TYP"]`, never `["3", ".", "5", " ", "T", "Y", "P"]`.
+
+**Why it changed.** A producer that draws **one glyph per show operator** (GPL
+Ghostscript 8.15 does; the operator has such files) made the old per-operator
+grouping emit single characters. A proof that greps the output for `"3"` finds
+it on every page of an engineering drawing and refuses a correct redaction —
+reported as *"found 35 piece(s) of the supposedly-removed text still in it"*.
+**The proof was not finding leaked text; it was finding the alphabet.**
+
+**How the grouping is derived, without inferring anything new.**
+`Surgeon::glyph` returns the **index of the region** a glyph landed in rather
+than a bare `bool`; removed characters accumulate per region; `box_marks`
+(region index → the `/Redact` annotation that contributed it, already built for
+other reasons) folds several quads of one mark into one string. The attribution
+already existed and was being discarded one line before it was needed.
+
+⚠️ **THREE consumers read this field, and they are not independent** — the
+consuming shell's absence proof, `carrier_info`, and `residual_sweep` (the
+latter two through `redaction_evidence`). **Joining is safe for all three
+because it only ever makes entries longer**: longer strings match more
+precisely and clear `MIN_MATCH_LEN`, the 4-character floor that single glyphs
+could never reach — which is why `carrier_info` reported
+`DISCLOSED_NOT_SCRUBBED` on exactly these files.
+
+★ **A change that SPLIT entries would not be safe**, and that asymmetry is the
+only reason a field with three readers could be changed in one Pass. Anyone
+revisiting the granularity should check it against the sweep as well as the
+proof: a change that helps the proof and quietly narrows the sweep would
+re-open the leak `Pass 284.0` closed.
+
 
 | item | line |
 |---|---|

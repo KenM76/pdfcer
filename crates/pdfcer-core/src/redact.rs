@@ -84,7 +84,7 @@
 //! - `iso32000__s__9.4.md` — the §9.4.4 advance formula this module's
 //!   surgery is built on.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::content::{ContentStream, ContentTokenKind};
 use crate::document::Document;
@@ -503,7 +503,22 @@ struct Surgeon<'a> {
     font: Option<ExtractFont>,
     // outputs
     edits: Vec<Edit>,
-    removed_text: Vec<String>,
+    /// Removed text accumulated per REGION index (`Pass 286.0`).
+    ///
+    /// ★ This **replaced** a `removed_text: Vec<String>` that pushed one entry
+    /// per rewritten show operator. That is the wrong unit on a producer which
+    /// draws one glyph per `Tj`: the report then carried single characters,
+    /// and a consumer grepping the output for them found the alphabet rather
+    /// than a leak. Keying by the region a glyph landed in lets the caller
+    /// (which holds `box_marks`, region index → mark id) join them into the
+    /// words each MARK covered.
+    ///
+    /// The per-operator vector was **deleted rather than kept beside this
+    /// one**. Nothing published it once the report stopped reading it, and an
+    /// unread field with a comment calling it "the raw record" is not a
+    /// record — it is dead weight with a justification attached. `clippy`
+    /// said so first.
+    removed_by_region: BTreeMap<usize, String>,
     glyphs_removed: u64,
     ops_edited: u64,
     form_intersect: bool,
@@ -567,7 +582,9 @@ struct Edit {
 struct SurgeryResult {
     /// The rewritten (redacted + overlay-baked) content bytes.
     content: Vec<u8>,
-    removed_text: Vec<String>,
+    /// Removed text keyed by region index — see
+    /// [`Surgeon::removed_by_region`].
+    removed_by_region: BTreeMap<usize, String>,
     glyphs_removed: u64,
     ops_edited: u64,
     /// A form XObject intersects a region — disclosed, not refused.
@@ -601,7 +618,7 @@ impl<'a> Surgeon<'a> {
             ts_stack: Vec::new(),
             font: None,
             edits: Vec::new(),
-            removed_text: Vec::new(),
+            removed_by_region: BTreeMap::new(),
             glyphs_removed: 0,
             ops_edited: 0,
             form_intersect: false,
@@ -1057,9 +1074,9 @@ impl<'a> Surgeon<'a> {
 
     /// The horizontal advance `tx` for one code (text-line units, §9.4.4),
     /// and whether the glyph's box intersects a region.
-    fn glyph(&self, code: u32, word_spacing: bool) -> (f64, bool) {
+    fn glyph(&self, code: u32, word_spacing: bool) -> (f64, Option<usize>) {
         let Some(font) = &self.font else {
-            return (0.0, false);
+            return (0.0, None);
         };
         let w0 = f64::from(font.width(code));
         let tw = if word_spacing { self.tw } else { 0.0 };
@@ -1087,10 +1104,15 @@ impl<'a> Surgeon<'a> {
             trm.apply(w0, GLYPH_BOX_ASCENT),
         ];
         let (min_x, min_y, max_x, max_y) = aabb(&corners);
+        // ★ `Pass 286.0`: the INDEX of the first region this glyph lands in,
+        // not merely whether it lands in one. The index is what lets removed
+        // text be grouped per MARK instead of per show operator -- see
+        // `Surgeon::removed_by_region`. `position` rather than `any` is the
+        // whole change; the predicate is identical.
         let hit = self
             .regions
             .iter()
-            .any(|r| r.intersects(min_x, min_y, max_x, max_y));
+            .position(|r| r.intersects(min_x, min_y, max_x, max_y));
         (tx, hit)
     }
 
@@ -1206,7 +1228,7 @@ impl<'a> Surgeon<'a> {
         for code in &codes {
             let (tx, hit) = self.glyph(code.value, code.word_spacing_applies);
             self.tm = Mat::translate(tx, 0.0).mul(self.tm);
-            if hit {
+            if hit.is_some() {
                 any = true;
             }
             hits.push((tx, hit, code.value));
@@ -1221,11 +1243,10 @@ impl<'a> Surgeon<'a> {
         let mut elems: Vec<TjElem> = Vec::new();
         let mut seg_bytes: Vec<u8> = Vec::new();
         let mut removed_tx = 0.0f64;
-        let mut removed_text = String::new();
         for (i, (tx, hit, code_val)) in hits.iter().enumerate() {
             let byte_start = i * bpc;
             let seg = string.get(byte_start..byte_start + bpc).unwrap_or(&[]);
-            if *hit {
+            if let Some(region) = *hit {
                 // flush any pending surviving segment
                 if !seg_bytes.is_empty() {
                     elems.push(TjElem::Str(std::mem::take(&mut seg_bytes)));
@@ -1240,7 +1261,17 @@ impl<'a> Surgeon<'a> {
                 // sentinel is fixed to the length-preserving, visible one
                 // so the record cannot understate the removal.
                 let (chars, _) = font.to_unicode(*code_val, UnmappableCode::ReplacementChar);
-                removed_text.push_str(&chars);
+                // ★ `Pass 286.0`: ALSO accumulate against the region this
+                // glyph landed in, so the report can carry the words a mark
+                // covered rather than one entry per show operator. A producer
+                // that draws one glyph per `Tj` -- GPL Ghostscript 8.15 does,
+                // and the operator has such files -- otherwise yields
+                // `["3", ".", "5", " ", "T", "Y", "P"]`, and a consumer
+                // grepping the output for "3" finds the alphabet.
+                self.removed_by_region
+                    .entry(region)
+                    .or_default()
+                    .push_str(&chars);
                 self.glyphs_removed += 1;
             } else {
                 // flush any pending removed run as a compensating advance
@@ -1264,9 +1295,6 @@ impl<'a> Surgeon<'a> {
                 self.tf_size,
                 self.th,
             )));
-        }
-        if !removed_text.is_empty() {
-            self.removed_text.push(removed_text);
         }
         self.ops_edited += 1;
         Some(elems)
@@ -1393,7 +1421,7 @@ fn redact_page_content(
     }
     SurgeryResult {
         content,
-        removed_text: surgeon.removed_text,
+        removed_by_region: surgeon.removed_by_region,
         glyphs_removed: surgeon.glyphs_removed,
         ops_edited: surgeon.ops_edited,
         form_intersect: surgeon.form_intersect,
@@ -1921,8 +1949,31 @@ pub fn apply_redactions(
         estimated_fonts.extend(result.estimated_fonts);
         report.glyphs_removed += result.glyphs_removed;
         report.show_operators_edited += result.ops_edited;
-        for t in result.removed_text {
-            if !report.redacted_text.contains(&t) {
+        // ★★ `Pass 286.0`: publish the text a MARK covered, not the text one
+        // show operator carried.
+        //
+        // `red.box_marks` maps region index -> the `/Redact` annotation that
+        // contributed that region, so several quads of one mark fold into one
+        // string. A producer drawing one glyph per `Tj` used to yield
+        // `["3", ".", "5", " ", "T", "Y", "P"]`; it now yields `["3.5 TYP"]`.
+        //
+        // ⚠ THREE CONSUMERS read this field and they are not independent:
+        // the consuming shell's absence proof greps the output for each
+        // entry; `carrier_info` and `residual_sweep` both derive matching
+        // evidence from it (`redaction_evidence`). Joining makes every one of
+        // them STRICTLY better -- longer strings match more precisely and
+        // clear the 4-character floor that single glyphs never could -- which
+        // is why this is safe to change under all three at once. A change
+        // that SPLIT entries would not be.
+        let mut per_mark: BTreeMap<ObjId, String> = BTreeMap::new();
+        for (region, text) in result.removed_by_region {
+            let Some(mark) = red.box_marks.get(region) else {
+                continue;
+            };
+            per_mark.entry(*mark).or_default().push_str(&text);
+        }
+        for (_, t) in per_mark {
+            if !t.is_empty() && !report.redacted_text.contains(&t) {
                 report.redacted_text.push(t);
             }
         }
