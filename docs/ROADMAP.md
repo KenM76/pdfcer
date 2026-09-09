@@ -112,6 +112,237 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★ 483rd filing, 2026-09-09 — `Pass 282.0` SHIPPED, DISCHARGING THE
+482nd FILING'S OWED ITEM 15: THE REDACTION-DILIGENCE GAP MEASURED THERE IN
+`carrier_info` IS NOW FIXED. ★★★ TWO OPPOSITE DEFECTS — A ONE-DIRECTIONAL
+MATCH AND NO LENGTH FLOOR — BOTH REPORTED `scrubbed`; FIXING EITHER ALONE
+WOULD HAVE MADE THE OTHER WORSE. ★★ A THIRD FACT, `CarrierAction::CheckedClean`,
+REPLACES A COLLAPSE WHERE A PRESENT, CLEAN `/Info` READ IDENTICALLY TO NO
+`/Info` AT ALL. ★ THE THIRD OCCURRENCE IN ONE DAY OF THE "ALTERNATE ROUTE"
+SABOTAGE-FIXTURE CAUSE — NOT MINTED, OWED ITEM 9 STRENGTHENED TO n=3. A
+DIFFERENT, NEW REDACTION-DILIGENCE GAP MEASURED AND NOT FIXED, RECORDED
+PROMINENTLY BELOW.**
+
+**Sourcing (hard rule 8), stated up front — NO SHELL THIS FILING.**
+`Read`/`Grep`/`Glob` only. The commit hash, timestamp, file list, test
+counts and sabotage results below are **relayed** from the dispatching
+engineer's own commit-message export (`msg-282-filed.txt`), handed over
+as a scratchpad file — labelled as such, not independently re-run.
+**Backup currency, working-tree state, remote/push state and CI colour
+are NOT asserted** — none were checked; if any of them matter, the
+engineer should check `D:\Dev\pdfcer` directly. The Pass-ID (`282.0`,
+matching the 482nd filing's own recorded ledger position — next free
+`282`) and the `docs/FEATURES.md` cross-reference (the *Apply
+redaction* row) ARE independently verified here, by `Grep`/`Read`
+against the live documents.
+
+**★ Source note (scrub).** The file that surfaced this defect is from
+the **private corpus** — named here only as that, per explicit
+instruction; its suite name, filenames and patch IDs are withheld.
+
+---
+
+### `Pass 282.0` (`a83c6e6`, 2026-09-09) — THE REDACTION REPORT SAID A METADATA CARRIER WAS CLEAN WHEN IT HAD NOT LOOKED AT IT PROPERLY
+
+**What it is, in one line.** `redact::carrier_info` — the function
+deciding whether an `/Info` entry duplicates content a redaction just
+removed — had two opposite defects, and reported `scrubbed` for both.
+`crates/pdfcer-core/src/redact.rs` only.
+
+**Found how.** Smoke-testing `Pass 281.0` on a file from the private
+corpus: the `/Info` carrier line read `scrubbed` on a file whose
+`/Keywords` still carried a word from the redacted run.
+
+**The two defects, both silent.**
+1. **One-directional match.** The old rule dropped an `/Info` entry
+   whose bytes *contain* a redacted run — so a run *longer* than the
+   metadata string could never match. Metadata is almost always
+   shorter than the sentence it summarises, making this the common
+   case, not the corner: redact "PROJECT ORION BUDGET" and
+   `/Keywords (ORION)` survived, unreported.
+2. **No floor.** `redacted_text` is as granular as the producer's own
+   show operators; on a producer drawing one glyph per operator, every
+   redacted piece is one character, and "does `/Keywords` contain `3`?"
+   is true of nearly every document ever written. Unfloored, the scrub
+   could empty the dictionary on a coincidence.
+
+The two are opposite failures of one missing idea — what counts as
+evidence that a metadata string quotes redacted content — and fixing
+either alone would have made the other worse: joining redacted runs
+into words (which the consuming project asked for, separately, earlier
+the same session) would have widened defect 1; a floor alone would
+have left defect 1 untouched.
+
+**The fix: tokens over a floor.** New `redaction_evidence` takes whole
+redacted runs **and** their whitespace-delimited tokens, keeping those
+of at least `MIN_MATCH_LEN = 4` characters. An `/Info` entry containing
+any of them is dropped (over-scrub, as before). **The floor is 4
+specifically to match the consuming project's own `MIN_VERIFIABLE_LEN`**
+— two independent checks over the same field disagreeing about what
+counts as evidence would produce a file one project calls scrubbed and
+the other calls unverified.
+
+**When there is no evidence at all.** A redaction whose every piece is
+under the floor now reports `CarrierAction::DisclosedNotScrubbed` with
+a note naming what to review by hand — never `scrubbed`, and never
+`Absent`.
+
+**A third fact the old code could not express.** New
+`CarrierAction::CheckedClean` (the enum is `#[non_exhaustive]`). The
+old code reported a present, checked, genuinely clean `/Info` as
+`Absent` — the same value it returns for a document with no `/Info` at
+all. Three distinct facts, two of them collapsed: no such dictionary ·
+one exists and carries nothing redacted · one exists and pdfcer removed
+something from it. Reporting "nothing to do" when the truth is
+"checked, clean" erased the difference between a diligence sweep and a
+no-op.
+
+**Tests.** `redact.rs` +3 (57 total, was 54): an `/Info` entry shorter
+than the redacted run is scrubbed; a redaction too short to be evidence
+discloses instead of guessing; a present, clean `/Info` reports
+`checked_clean`, not `absent`. New `mark_and_save_text` test helper.
+
+**★ Third instance in one session of a test whose fixture could not
+exhibit the defect its name claimed — specifically the THIRD occurrence
+of the "alternate route" sabotage cause**
+(`D:\dev\rag\rust\a_sabotage_can_only_be_as_discriminating_as_the_fixture_it_runs_on.md`,
+instances 9 and 13). The first version of the first test marked by
+*search* for `ORION` — so the removed run *was* `ORION`, which
+`/Keywords (ORION)` contains outright. The *old, unchanged* whole-run
+containment rule decided the case on its own; disabling the *new*
+token-split logic changed nothing, because the alternate route
+(containment) was still there to catch it. Re-pointed at a rectangle
+over the whole line, the removed run is `PROJECT ORION BUDGET` —
+containment cannot match it, only the token rule can. The repaired
+test now asserts its own precondition (that the removed run is longer
+than the metadata string) so it cannot silently regress into measuring
+containment again.
+
+Sabotage, three ways, all RED after the fixture repair: drop the token
+split; drop the floor; report `Absent` instead of `CheckedClean`.
+
+**★★ On minting a standing rule for "alternate route," now at its third
+occurrence in one calendar day** (`Pass 155.1`, 2026-09-07; `Pass
+277.0`, 479th filing; this Pass) — **declined here, argued rather than
+deferred by default.** The project's own precedent (`R221`) minted at
+exactly two occurrences, a bar this cause has now passed by one; that
+is real pressure toward minting. Against it: (1) every prior
+mint/decline decision for this family was made by the engineer inside
+a Pass entry with reasoned argument, not by this role mid-roadmap-
+filing, and there is no reason to break that division of labour now;
+(2) the next free number, `R247`, is **already contested** — reserved-
+but-unclaimed for an unrelated `clap`-derive doc-guarantee trigger
+(475th filing) — and minting "alternate route" onto or past it without
+reconciling that reservation would compound one ambiguity with another
+rather than resolve either; (3) the RAG file's dated-footer mechanism
+is already capturing every occurrence at low cost, so there is no
+information loss in waiting one more filing for a session with time to
+reconcile both candidates properly. **Recommendation for the next
+session with time:** resolve the `R247` reservation conflict directly
+— decide which trigger (if either) claims it, mint plainly, and only
+then fold "alternate route"'s three occurrences in as that rule's
+instance history rather than as further dated footers on `R225`'s
+file.
+
+A new dated footer (instance 15) was written to the RAG file recording
+this occurrence and the argument above.
+
+**Verification (relayed).** `redact` 57 (was 54); `cargo test
+--workspace` green; `fmt` clean; `clippy --all-targets --all-features
+-- -D warnings` clean; `tools/run-gates.sh` PASS on all 29.
+
+**★ OWED, MEASURED HERE, NOT FIXED — a DIFFERENT redaction-diligence
+gap, found on the same file.** The file that started this still has
+one survivor. Its `/Keywords` lives in an `/Info`-**shaped object the
+trailer does not point at** — object 140, superseded by object 145 —
+still listed in the cross-reference table and therefore **re-emitted
+verbatim** by the forced full rewrite. `carrier_info` scrubs the
+trailer's `/Info`; nothing scrubs an orphan. **No report line is
+false**: `prior_revisions action=dropped_by_rewrite` is true and
+accurate — it describes superseded *byte ranges*, not objects the xref
+table still *names*. The content is nonetheless still there. Wants its
+own Pass, and a look at what §12.5.6.23's "all content" obliges of an
+object the xref still lists but the trailer no longer reaches. New
+owed item 16, below.
+
+**`docs/FEATURES.md`:** the *Apply redaction* row (*Redaction &
+security*) amended in place with this fix and the still-open
+orphan-object gap — see Ledger.
+
+---
+
+### Part — owed work, carried forward and new
+
+**Carried forward, unchanged:**
+
+4. `fixtures/synthetic/text/PROVENANCE.md` backfill — 21 of 38 files
+   undocumented (477th filing).
+5. `origin/main..HEAD` is no longer a filing boundary once a release
+   has been pushed — read `tools/check-commits-filed.py`'s own output,
+   not the range.
+10. `R221`'s true current instance count needs reconciliation before
+    any filing's finding can be added to its Standing Rules body as a
+    numbered instance.
+11. `pdfcer-gui`'s fourth outbound reply (from the 479th filing) is
+    still asserted, not independently `Glob`-confirmed.
+13b. `resize_annotation` refuses a pdfcer-authored `/Stamp` as foreign
+    (`request_resize_annotation_refuses_a_pdfcer_authored_stamp_as_foreign.md`)
+    — queued, unstarted.
+14. The second instance of the file-channel-blindness cause (481st
+    filing) — flagged for the engineer, not minted; watch for a third
+    instance before it earns a standing rule.
+
+**Strengthened this filing:**
+
+9. The "alternate route" sabotage cause — was `n=2`, not yet promoted
+   to a numbered standing rule; `R247` reservation unreconciled. **Now
+   `n=3`** (this Pass's own sabotage-fixture finding above is the third
+   occurrence in one calendar day). Still not minted — see the Pass
+   entry's argument above. Flagged more urgently for the next session
+   with time to reconcile the `R247` reservation.
+
+**Discharged this filing:**
+
+15. **The redaction-diligence gap in `carrier_info`** (measured, not
+    fixed, at the 482nd filing) — `Pass 282.0` is the fix.
+
+**New, from this filing:**
+
+16. **Orphan `/Info`-shaped object, superseded but still cross-
+    reference-table-listed, is re-emitted verbatim by a forced full
+    rewrite and scrubbed by no carrier.** See the Pass entry's "OWED,
+    MEASURED HERE" note above. Wants its own Pass and a reading of
+    §12.5.6.23's "all content" against an object the xref still names
+    but the trailer no longer reaches.
+17. **`request_redacted_text_carries_single_characters_on_a_per_glyph_producer_so_the_absence_proof_is_blind.md`**
+    — confirmed at the source, replied to, **not built** (the "joining"
+    half: a per-glyph producer's redacted runs are single characters,
+    so an absence-proof mechanism needs them joined into words before
+    it can prove anything meaningful — distinct from this Pass's
+    `carrier_info` fix, which is about `/Info` evidence, not the
+    absence proof). Queued, unstarted.
+
+---
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `281` (highest ID `281.0`), next free `282` | **`282`** (highest ID `282.0`), next free `283`. `Pass 282.0` SHIPPED in this filing |
+| Standing rules | `R246` | **unchanged, numerically** — `R225`'s family gains a 15th instance (dated footer, "alternate route" cause, third occurrence); `R247` remains reserved-but-unclaimed, contested between two candidate triggers |
+| Decision records | `144` | **unchanged** — a bug fix and a numeric-constant alignment with a consuming project, not a crate-boundary/library/invariant redefinition |
+| `SESSION_LOG` filings | `482` | **`483`** |
+| `docs/FEATURES.md` | *Apply redaction* row notes hybrid-reference support | **same row amended again in place** — notes the `/Info` carrier's fixed diligence check and the still-open orphan-object gap |
+| Owed-survivor / open-reply ledger | items 4, 5, 9 (`n=2`), 10, 11, 13b, 14 open; item 15 open | **item 15 DISCHARGED**; item 9 strengthened to `n=3`; **items 16, 17 NEW** |
+| `D:\dev\rag\rust\` | 14 recorded instances | **+1 dated footer** (instance 15) on the existing sabotage-fixture file — no new file |
+
+**Release state — NOT checked this filing (no shell).** Whether
+`a83c6e6` has been pushed or released is not asserted here — the
+engineer should check `git rev-parse origin/main` / `git describe
+--tags --abbrev=0` directly.
+
+---
+
 **★★★★ 482nd filing, 2026-09-09 — `Pass 281.0` SHIPPED, DISCHARGING THE
 481st FILING'S OWED ITEM 13 (THE HYBRID-REFERENCE HALF): A
 HYBRID-REFERENCE FILE (§7.5.8.4) CAN NOW BE FULLY REWRITTEN, SO

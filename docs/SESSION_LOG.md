@@ -4,6 +4,96 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-09 (483rd filing)
+
+**Shipped:**
+- Pass 282.0 (`a83c6e6`) — `redact::carrier_info` (the `/Info`
+  metadata-carrier redaction-diligence check) had two opposite
+  defects, both reporting `scrubbed`: a one-directional match (a
+  redacted run *longer* than the `/Info` string could never match) and
+  no length floor (a single-character redacted piece on a per-glyph
+  producer matched almost any string). Found while smoke-testing Pass
+  281.0 on a file from the private corpus. Fixed by `redaction_evidence`
+  matching whole runs **and** their whitespace-delimited tokens at a
+  4-character floor, and a new `CarrierAction::CheckedClean` that
+  distinguishes a present-and-clean `/Info` from no `/Info` at all
+  (previously both reported `Absent`). Discharges the 482nd filing's
+  owed item 15.
+
+**Decisions made this session:**
+- No new decision minted (`ARCHITECTURE.md` §12 untouched) — a bug fix
+  and a numeric-constant alignment with a consuming project, not a
+  crate-boundary/library/invariant redefinition.
+- Declined to mint a standing rule for the "alternate route"
+  sabotage-fixture cause, despite it reaching its third occurrence in
+  one calendar day (past this project's own `n=2` minting precedent).
+  Argued in the roadmap entry: mint/decline decisions for this family
+  belong to the engineer inside the finding Pass, not to a
+  roadmap-filing pass; the next free rule number (`R247`) is already
+  contested by an unrelated trigger and should be reconciled before a
+  second cause is folded in; the RAG file's dated-footer mechanism
+  already captures every occurrence at low cost. Flagged for the next
+  session with time to reconcile `R247`.
+
+**Findings + decisions:**
+- The floor (`MIN_MATCH_LEN = 4`) was chosen to match the consuming
+  project's own `MIN_VERIFIABLE_LEN`, deliberately — two independent
+  redaction-evidence checks disagreeing on the floor would produce a
+  file one project calls scrubbed and the other calls unverified.
+- Third instance in one session (and third occurrence specifically of
+  the "alternate route" sabotage cause) of a test whose fixture could
+  not exhibit the defect its name claimed: the first version marked by
+  search for a single word contained outright by the metadata string,
+  so the *old, unchanged* containment rule decided the case
+  regardless of the new token-split logic under test. Repaired by
+  redacting a multi-word region instead. New dated footer (instance
+  15) in `D:\dev\rag\rust\a_sabotage_can_only_be_as_discriminating_as_the_fixture_it_runs_on.md`.
+- **★ A different, new redaction-diligence gap measured and NOT
+  fixed:** the file that started this still has one survivor — its
+  `/Keywords` lives in an `/Info`-shaped object (140) superseded by
+  another (145) that the current trailer now names, but object 140 is
+  still listed in the cross-reference table and is therefore
+  re-emitted verbatim by the forced full rewrite. `carrier_info` only
+  inspects the trailer's own `/Info`; no carrier covers an orphan.
+  `prior_revisions action=dropped_by_rewrite` remains true and
+  accurate — it is about superseded byte ranges, not objects the xref
+  table still names. New PDF-domain lesson,
+  `C:\personal_rag\pdf\lesson_20260909_a_superseded_info_shaped_object_still_xref_listed_survives_a_full_rewrite_untouched_by_a_trailer_scoped_scrub.md`.
+  Filed as owed item 16; wants its own Pass and a reading of
+  §12.5.6.23's "all content" against an xref-listed, trailer-orphaned
+  object.
+- The length-floor idea behind this Pass's fix is the same one named
+  in the same-day Ghostscript lesson
+  (`lesson_20260909_ghostscript_8_emits_one_glyph_per_show_operator_so_string_level_checks_see_single_characters.md`)
+  for the GUI's content-stream absence proof; applied here to a second,
+  independent consumer. That lesson's "joining" half (words from
+  adjacent single-glyph shows) remains unbuilt — dated footer added,
+  filed as new owed item 17
+  (`request_redacted_text_carries_single_characters_on_a_per_glyph_producer_so_the_absence_proof_is_blind.md`,
+  confirmed at the source, replied to, not built).
+
+**Still in flight:**
+- Items 4, 5, 10, 11, 13b, 14 carried forward unchanged.
+- Item 9 (the "alternate route" sabotage cause) strengthened from
+  `n=2` to `n=3`; still not minted, `R247` reservation still
+  unreconciled.
+- Item 15 (the `carrier_info` diligence gap) discharged by this Pass.
+- Items 16 and 17 (new): the orphan `/Info`-shaped object, and the
+  per-glyph absence-proof "joining" request, both above.
+- Whether `a83c6e6` has been pushed or released is not asserted here
+  (no shell) — the engineer should check directly.
+
+**For next session:**
+- Resolve the `R247` reservation conflict (the "alternate route"
+  sabotage cause, now at `n=3`, vs. the unrelated `clap`-derive
+  doc-guarantee trigger named 2026-09-08) with time to reconcile both
+  properly, rather than guessing one onto the number.
+- Owed item 16 (orphan `/Info`-shaped object surviving a full rewrite)
+  is redaction-area and reachable on a real file — worth scoping into
+  its own Pass before the next redaction-adjacent change.
+- Owed item 17 (per-glyph absence-proof joining) has been open since
+  earlier the same day; still unbuilt.
+
 ## 2026-09-09 (482nd filing)
 
 **Shipped:**
