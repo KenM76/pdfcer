@@ -112,6 +112,503 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★ 478th filing, 2026-09-08 — FOUR PASSES MINTED AND SHIPPED IN ONE
+FILING (`273.0`–`276.0`) PLUS A CORRECTION (`0edd650`) THAT DISCHARGES THE
+477th FILING'S OWED ITEMS 1–3: A RESIZE TOLD THE OPERATOR "pdfcer DID NOT
+DRAW IT" ABOUT AN APPEARANCE pdfcer DREW SECONDS EARLIER, PRESSING ENTER IN
+A TEXT BOX PRODUCED A `?`, A FONT REFUSAL NOW NAMES THE FACES THAT WOULD
+WORK, AND A COMMENT EDIT STOPPED LEAVING A STALE, CONTRADICTING `/RC` COPY
+BEHIND. ★★★ `R245`'S SHAPE RECURS IN THREE OF THE FOUR. ★★ NO NEW STANDING
+RULE, NO NEW DECISION — ARGUED, NOT DEFAULTED. ★ AND THE PDF-DOMAIN FINDING
+THIS FILING WOULD HAVE WRITTEN TO `personal_rag/pdf` WAS ALREADY THERE.**
+
+**Sourcing (hard rule 8), stated up front — NO SHELL THIS SESSION.** This
+filing had `Read`/`Grep`/`Glob` only; no `Bash` tool was available. Every
+commit hash, timestamp, file list and diffstat below is **relayed** from a
+`git show --stat --format=%B` export the dispatching engineer captured and
+handed over as a scratchpad file — it is not independently re-run here, and
+is labelled as such. **Backup currency, working-tree state, remote/push
+state and CI colour are NOT asserted** — none were checked, per hard rule 8;
+if any of them matter, the engineer should check `D:\Dev\pdfcer` directly.
+The Pass-ID mint, the ledger-position check (Pass/rule/decision/filing
+ceilings) and the `docs/FEATURES.md`/`ROADMAP.md` cross-references ARE
+independently verified here, by `Grep` against the live documents, because
+those are inside this role's reach without a shell.
+
+**Filing order, and why it is not simply reverse-chronological by mint.**
+The five commits are read and filed in the order the dispatch handed them
+over — newest commit first for the *Shipped* narrative (matching this
+project's convention), but **Pass IDs are minted in COMMIT order**
+(`890d5df` 14:30 → `273.0`, `3340247` 15:18 → `274.0`, `b924c01` 16:33 →
+`275.0`, `00ddbb1` 18:07 → `276.0`), because that is the order the work
+actually happened in and the numbers should read as a timeline, not as a
+presentation order. `0edd650` (14:04, earliest of the five) carries no Pass
+ID — it is a correction to `Pass 272.0`, filed last in this entry because it
+closes out the *prior* filing's business rather than opening this one's.
+
+---
+
+### `Pass 276.0` (`00ddbb1`, 2026-09-08 18:07:24 −0400) — A RESIZE SAID "pdfcer DID NOT DRAW IT" ABOUT AN APPEARANCE pdfcer DREW SECONDS EARLIER
+
+**Minted in this filing.** `check-ledger-numbers.py` was not run with a
+shell this session; the mint is checked instead by `Grep`ing `ROADMAP.md`
+and `docs/FEATURES.md` for `Pass 27[3-9]` and finding no prior claim —
+**consistent with, not independently re-derived from, the 477th filing's own
+recorded ledger position** (`Pass 272.0` highest, next free `273`). Pass
+family ceiling `272` → **`276`** across this filing's four mints; next free
+`277`.
+
+**The report, and why a control made it a defect rather than a
+limitation.** Operator: *"when will being able to drag on the canvas be
+able to resize the Text Box and Stamp."* One fresh session per attempt, on
+annotations pdfcer itself had just authored: `add_markup` (`/Square`) —
+resize **accepted**; `add_text_annotation` (`/FreeText`) and
+`add_text_annotation` (`/Text`) — resize **REFUSED**, both with "pdfcer did
+not draw it, so pdfcer will not redraw it." Without the `/Square` control
+the finding reads as "text boxes cannot be resized" — a confident sentence
+about the wrong subject. With it: two pdfcer-authored annotations differ,
+and the only difference is **which verb authored them**.
+
+**The cause.** `resize_annotation` decides authorship honestly — rebuild
+the appearance from the unmodified spec through `spec_from_dict` →
+`build_appearance_opts` and compare BYTES, because only an appearance
+pdfcer would draw again is pdfcer's to redraw. But that rebuild path is the
+**markup** family's own; `/FreeText` is authored by a different verb
+through a different builder, so the comparison could not reproduce it,
+concluded FOREIGN, and refused — a refusal making a **false factual claim**
+about who drew the appearance, sharper than the usual instance of this
+shape.
+
+**★ The right test already existed, and its own doc comment predicted this
+exact failure.** `measure_free_text_multiline` bakes the spec both ways and
+compares against the bytes on disk; its doc comment reads, verbatim: *"ONE
+helper, called by BOTH re-bakers, and that is the fix … A third re-baker
+that calls this cannot repeat it; one that does not call it will fail the
+same way."* `resize_annotation` is that third re-baker. It did not call it.
+The comment was written about `set_text_annot_style` repeating
+`set_markup_note`'s omission — and the same omission happened a **third**
+time in a verb nobody was looking at.
+
+**What shipped.** Authorship detection also accepts a pdfcer-drawn text
+annotation; the rebuild re-authors through the SAME family that drew it,
+using the measured layout (`Some(_)` means both "pdfcer drew it" and "here
+is the layout it used" — `/FreeText` has no multiline key of its own,
+12.5.6.6, so the byte match is what recovers it), so a wrapped box stays
+wrapped rather than un-wrapping at the new size. **Not a loosening**: a
+genuinely foreign appearance is still refused, pinned by
+`rect-differences-square.pdf`.
+
+**Tests.** `resize_text_annot.rs`, 5 — including the reporter's own control
+(a `/Square` must still resize) and the foreign-appearance guard. The
+multiline test exists because a sabotage survived once: ablating the
+measured layout stayed green against every other test here, because their
+fixtures were single-line and the spec-from-dict default is single-line
+too, so ignoring the measurement produced a valid-looking single-line box
+and nothing noticed — un-wrapping a text box on resize is precisely the
+defect the helper was written for. Sabotage, three ways, all RED:
+authorship forgets the text-annot family; rebuild always uses the markup
+builder; rebuild ignores the measured layout.
+
+**Verification (relayed).** `resize_text_annot` 5, plus the whole
+`pdfcer-core` integration suite (136 targets, 3671 tests). `fmt` clean;
+`clippy --all-targets --all-features -D warnings` clean; string-gaps /
+core-api-verbs / outcome-disclosed PASS.
+
+**Owed, not done, and deliberately left rather than guessed at.** `/Text`
+(sticky note) resize is STILL REFUSED — the second subtype the operator
+named, the second row of his own report table. Its appearance is an ICON
+from a **third** builder and needs the same treatment plus its own
+measurement. Carried to *Part — owed work*, below, and to `docs/FEATURES.md`.
+
+**`docs/FEATURES.md`.** Amended the existing *Resize anything carrying a
+`/Rect`* row (*Implemented → Annotations & markup*) in place, rather than
+adding a new row — the row's `core`/`cli`/`gui` boxes were already `[x]`
+from other subtypes and stay `[x]`; the amendment records that the claim
+was **not actually true for `/FreeText`** before this Pass (an over-claim
+this fix retires) and that `/Text` remains refused. No box moved.
+
+---
+
+### `Pass 275.0` (`b924c01`, 2026-09-08 16:33:08 −0400) — PRESSING ENTER IN A TEXT BOX GAVE A `?` INSTEAD OF A NEW LINE
+
+**Minted in this filing** (see the mint note under `Pass 276.0` above for
+method). Pass family ceiling `274` → `275`.
+
+**Report, verbatim:** *"when I use the 'Text box' Markup tool, making new
+lines by pressing enter just has the items show up as one line with a ? for
+each new line instead."*
+
+**Two individually correct functions, composed in the wrong order.**
+`wrap_lines` splits paragraphs on `\n` exactly right. `encode_winansi` is
+also right on its own terms — a character with no WinAnsi code becomes `?`,
+counted and disclosed rather than silently dropped. But `winansi_code`
+returns `None` for U+000A (its fast path is `' '..='~'`, its slow path
+0x80..=0xFF — nothing covers the C0 controls), and encoding ran **first**:
+`"FIRST\nSECOND"` → encode → `"FIRST?SECOND"` → wrap → **one** line. The
+separator was destroyed before the split ever saw it, so the multiline
+branch was **unreachable** for any text an operator typed a newline into —
+which is every text box with more than one line.
+
+**★ The report was wrong about one thing, which the test measured.** It
+said the single-line branch "already does the right thing." That branch
+flattens `\n`/`\r` to spaces and IS correct — **given real newline bytes**.
+It never received any either (same encode-first ordering), so it also
+produced a `?`. The test failed on all four newline cases, not the three
+the report predicted; a fix aimed only where the report pointed would have
+left half the defect in place.
+
+**The fix.** Take the line break out as STRUCTURE before the encoder sees
+it, rather than teaching the encoder about control codes (which would offer
+`glyph_width` the advance of a line feed and make a control code look like
+a glyph code to every other caller): multiline splits on `\n` first, strips
+`\r` per paragraph, then encodes each paragraph; single-line flattens
+`\n`/`\r` to spaces in the text, then encodes once. `wrap_lines` now takes
+paragraphs, not a byte slice, and no longer splits. Encoding still happens
+before measuring width — that ordering protects a real property (`?` is a
+different width from the character it replaces, so fitting unencoded text
+would fit the wrong string) and is untouched; only the newline moves ahead
+of it.
+
+**A disclosure that fired and misled, now silent for the right reason.**
+The substituted-character count used to include the newline, so an
+operator who pressed Enter was told "1 character was substituted" — true,
+and pointed at the wrong problem (a repertoire gap, not a line break).
+Newlines are no longer offered to the encoder, so they are no longer
+counted; a genuinely unencodable character (CJK into a WinAnsi-only font)
+is still substituted and still counted — the fix is not a blanket
+loosening.
+
+**Why nothing caught it earlier.** `wrap_lines`' own tests build byte
+slices directly and therefore already contain real `0x0A`; the fault lived
+in the COMPOSITION of two individually-tested-correct functions, the same
+shape as the same day's `unwrap_or(0)` finding — **the defect is one call
+earlier than the symptom.**
+
+**Tests.** `freetext_newline.rs`, 5, measured on the SAVED bytes (the
+operator was reporting what he saw on reopen, not the session overlay).
+Two exist because the author was wrong once each: the single-line case was
+written expecting a pass and failed, and `two_newlines_make_a_blank_line`
+expected two show operators where the correct answer is three (a blank
+paragraph emits an empty `() Tj` and still advances the baseline). Sabotage,
+three ways, all RED: encode the whole text first again; drop the `\r` strip
+from the split; stop flattening on the single-line branch.
+
+**Verification (relayed).** `freetext_newline` 5, `pdfcer-core` integration
+suite (135 targets, 3667 tests), lib suite (2039 tests). `fmt` clean;
+`clippy --all-targets --all-features -D warnings` clean; string-gaps /
+outcome-disclosed PASS. Measurement worth keeping: `add_text` (the
+page-content route) handled the same string perfectly throughout — only the
+**annotation** route was affected, and a probe aimed at the wrong verb would
+have reported "cannot reproduce" with total confidence.
+
+**`docs/FEATURES.md`.** New *Implemented → Annotations & markup* row:
+core `[x]`, cli `[x]`, gui `[ ]` (not yet independently confirmed in
+`pdfcer-gui`, whose "Text box" Markup tool is what the operator reported
+against), Acrobat `?`.
+
+---
+
+### `Pass 274.0` (`3340247`, 2026-09-08 15:18:55 −0400) — A FONT REFUSAL NOW NAMES FONTS THAT WOULD WORK, AND THE ROUTE IT NAMES ALREADY SHIPPED
+
+**Minted in this filing.** Pass family ceiling `273` → `274`.
+
+**The gap was discoverability, not capability.** The operator could not
+type a lowercase letter into his CAD drawing; pdfcer refused, correctly,
+ending on "or choose a font that covers it" — true, and unusable on its own,
+because it names no font and the whole reason he is reading it is that he
+cannot tell which font would work. The remedy already shipped:
+`format_text`'s `set_font` authors a standard-14 resource on a page that
+lacks one (no embedding, no `fsType`, no licensing question, §9.6.2.2).
+Measured on his own 36-sheet drawing: `format-text --set-font Helvetica`
+succeeds and discloses the added resource; `edit-text --replace "initials"`
+then succeeds. Two commands, working the whole time, connected to nothing —
+this project's own named shape: a capability nobody can find is not shipped,
+and no gate detects it, because the code is right, the test is green and
+the sentence is true.
+
+**What the message says now.** *"…or switch this run to a font that covers
+it — `format_text` with `set_font` will add one, and these standard-14
+faces have it: Helvetica, Helvetica-Bold, … Courier-BoldOblique."* Computed,
+never assumed: each face's own built-in encoding is scanned code by code
+and each glyph name resolved to Unicode, from the same tables the encoder
+uses — Symbol and ZapfDingbats drop out for ordinary text without being
+special-cased, and a character no face covers gets no list at all rather
+than a suggestion that would fail the same way. Deliberately the standard
+14, not the page's own fonts (already failed, or equally likely to lack the
+character) and not a face outside the standard 14 (still needs embedding).
+
+**★★ Two refusals, one operator experience, and the first pass fixed only
+one.** `TargetAbsent` (the font has no glyph for the character at all) and
+the `R-INV-1` subset floor (it has one, but this SUBSET does not carry the
+code) present as the **identical** symptom — "I typed a character and it
+would not take" — so a remedy offered by one and withheld by the other is a
+coin toss from outside. `R245`'s shape, caught **inside** the Pass that
+created it: the end-to-end test happened to reach the branch not yet
+touched. Both refusals now carry the remedy; an ablation of either turns a
+different test red.
+
+**Measurements that correct the request that motivated this Pass.** The
+requesting project had reported "subset fonts carrying 46 of 95 printable
+ASCII, every lowercase letter absent." Measured on the same file: four of
+the six fonts carry 72/95 (missing exactly `h j l q z Z`); two carry 38/95
+and 24/95 (missing all lowercase). **Those are precisely the letters the
+drawing never used** — a subset can draw exactly what the document already
+contains, so the edits that fail are the ones introducing a NOVEL
+character, which is why the defect presented as intermittent rather than
+total.
+
+**Acrobat, for contrast — parity deliberately NOT taken.** Acrobat never
+consults the subset's glyph coverage; its gate is "is a font of this name
+installed on the OS?", stated at maximum strength in Adobe's own font
+policy — applying "even if a font is already fully embedded in a file." All
+six faces on the operator's drawing are stock Windows faces, so Acrobat
+would silently succeed on every edit pdfcer refuses. pdfcer does **not**
+adopt that: it works by trusting an installed face without checking it
+against the embedded subset, and the corpus records four resulting
+wrong-result classes (version-mismatch gibberish, jumbled letters,
+characters vanishing after edit-save-reopen). `R71` stands.
+
+**Tests.** `crates/pdfcer-core/tests/refusal_names_a_font.rs` (5) on the
+coverage computation, `crates/pdfcer-cli/tests/refusal_names_a_font.rs` (3)
+through the BINARY — the CLI test takes the first face the refusal itself
+printed, verbatim, and feeds it to `set_font`, so a message naming a face
+`set_font` does not accept fails here rather than reading plausibly forever.
+One test exists because the author was wrong once: `omega` was written into
+the "no face covers this" expectation on the assumption the standard 14 are
+all Latin; Symbol carries the Greek alphabet. Sabotage: emptying the font
+list at either refusal site turns a different test red.
+
+**Verification (relayed).** `refusal_names_a_font` 5 + 3, `rich_text_staleness`
+7, `edit_text` 6, `format_text` 17, `pdfcer-core` integration suite (134
+targets, 3662 tests). `fmt` clean; `clippy --all-targets --all-features -D
+warnings` clean; string-gaps / core-api-verbs / public-fns-documented PASS.
+
+**`personal_rag/pdf` — already covered, nothing new written.** The
+72/95-missing-exactly-`h j l q z Z` measurement, the "a subset draws exactly
+what the document already contains" generalisation, and the Acrobat-does-not
+-check-subset-coverage contrast are **already on disk** in
+`C:\personal_rag\pdf\lesson_20260908_cad_subset_fonts_carry_no_lowercase_so_text_editing_looks_flaky.md`
+(written the same day, ahead of this filing). Grepped before writing
+anything, per hard rule 4 (don't duplicate); no new lesson filed. **The
+`docs/FEATURES.md`/`docs/ocr-engine-survey.md` two-numbers-disagree note the
+dispatch flagged is the same reconciliation this lesson's own "what this
+lesson got wrong twice" section already performs** — no separate correction
+owed.
+
+**`docs/FEATURES.md`.** New *Implemented → Text* row, placed beside the
+existing family-restyle row: core `[x]`, cli `[x]`, gui `[ ]`, **Acrobat
+`[ ]` — deliberately not matched**, with the `R71` reasoning and a pointer to
+the personal_rag lesson written directly into the row (so a reader does not
+have to reconstruct why Acrobat's column reads `[ ]` for a thing Acrobat
+technically never refuses at all).
+
+---
+
+### `Pass 273.0` (`890d5df`, 2026-09-08 14:30:15 −0400) — EDITING A COMMENT LEFT A SECOND, CONTRADICTING COPY OF THE OLD COMMENT IN THE FILE
+
+**Minted in this filing.** Pass family ceiling `272` → `273`.
+
+**PDF stores a comment twice.** `/Contents` is the plain string; `/RC` is a
+rich-text version of the SAME comment (12.7.3.4, the same grammar as a form
+field's `/RV`), and 12.5.6.2 pairs them explicitly ("Contents (or RC and
+DS)"). pdfcer writes `/Contents` and cannot author rich text, so editing a
+note left the two DISAGREEING: `/Contents` held the new words, `/RC` still
+held the old ones, and the report said nothing.
+
+**Not lost content — wrong content**, and which one an operator sees
+depends on their reader: on any markup (Table 170) `/RC` is the text
+"displayed in the pop-up window", so the pop-up showed the OLD comment; on
+a `/FreeText` (Table 174) `/RC` is "used to generate the appearance", so THE
+PAGE ITSELF could show the old words. Measured on both subtypes through the
+release binary before the fix — on a `/FreeText` the existing report even
+said "appearance=left alone", true, and (with a stale `/RC` alongside it)
+actively misleading about why.
+
+**Removed, not regenerated.** Synthesising `/RC` from plain text would
+invent formatting nobody chose, and 12.7.3.4 gives no meaning to an empty
+rich value — an absent key is the unambiguous way to say "this annotation
+has no rich version." `/DS` goes with it ONLY on `/FreeText`: 12.7.3.4 NOTE
+1 is explicit that other markup subtypes "do not use a default style
+string", and Table 170 has no `/DS` row at all.
+
+**★ The forms side already did exactly this**, and the reasoning was
+written down at that site: replacing a rich `/RV` with a plain `/V` removes
+`/RV` AND `/DS` because "clearing bit 26 alone would leave a stale `/RV`
+sitting in the dictionary, which is exactly the state a future reader could
+resurrect the old text from." The guard existed for fields and not for
+annotations — `R245`'s shape again, and, per the commit's own count, **the
+fifth instance this week** (relayed from the commit message, not
+independently recounted against every prior filing here).
+
+**Disclosed**, because pdfcer chose to drop a key the operator did not ask
+about: new `MarkupNoteChange::rich_text_dropped`, printed by the CLI (rule
+11 — the invocation is the commit).
+
+**A stray `/DS` on a `/Square` is left alone.** Real producers emit keys
+the standard does not define for a subtype; pdfcer neither writes nor
+removes one there — the round-trip invariant says a key it does not own is
+re-emitted untouched. This needed its own fixture: a sabotage that dropped
+`/DS` unconditionally stayed green against every other test, because the
+ordinary `/Square` fixture has no `/DS` to lose, so an over-eager removal
+reported nothing and looked identical to correct behaviour. Three fixtures:
+a `/Square` with `/RC`, a `/FreeText` with `/RC` + `/DS`, and a `/Square`
+carrying a stray `/DS` — the rich text deliberately says something
+different from `/Contents`, because identical strings could not distinguish
+"the stale value survived" from "the new value was copied into it."
+
+**Tests.** Sabotage, three ways, all RED: never drop `/RC`; drop `/DS` on
+every subtype; drop but do not disclose.
+
+**Verification (relayed).** `rich_text_staleness` 7, `markup_note` 10,
+`locked_contents` 6, `annot_gates` 4. `fmt` clean; `clippy --all-targets
+--all-features -D warnings` clean; string-gaps / outcome-disclosed /
+core-api-verbs PASS. Verified end to end through the release binary: the
+stale rich text is gone and the drop is printed.
+
+**`docs/FEATURES.md` and this file's own Backlog.** New *Implemented →
+Annotations & markup* row (core `[x]`, cli `[x]`, gui `[ ]`, Acrobat `?`);
+the existing `/RC`/`/DS` *Planned* row (`Pass 264.0`) is NARROWED in place
+rather than closed — the write-side desync is fixed, a public READ
+accessor for `/RC` (and for `/DS` outside `/FreeText`) is still absent. See
+the dated narrowing at `Pass 264.0`'s own *Backlog* entry, below.
+
+---
+
+### `0edd650` (2026-09-08 14:04:47 −0400) — A CORRECTION TO `Pass 272.0`, DISCHARGING THE 477th FILING'S OWED ITEMS 1–3
+
+**No Pass ID, and none is owed** — this is a documentation correction to
+work already shipped and filed (`Pass 272.0`, `757386d`), the same species
+as prior no-Pass-ID gate/doc corrections in this ledger.
+
+**What it discharges.** The 477th filing's *Part I* recorded three owed
+items against `Pass 272.0`'s own commit: (1) two `crates/` survivors of a
+"first occurrence" claim `find_replace` does not actually make (`edit.rs`,
+`main.rs` `--help` text), (2) three `crates/` survivors of a motivating
+operator case the requesting project had itself **retracted 92 minutes
+before** the commit that quoted it as standing (`edit.rs`, two test-module
+doc comments), and (3) two defects in the outbound reply (a `Re:` line
+naming a nonexistent file, and a sentence the requester's own amendment
+refutes). All three are closed by this commit — the counts in (2) are kept
+(they were measured and true), only the retracted causal sentence is
+removed.
+
+**Also fixes a correction that did not propagate — the same shape again.**
+`Pass 272.0` corrected "`find_replace` edits the first occurrence" in
+`docs/core-api` and then **restated it verbatim** in two rustdocs it wrote
+in the same commit, one of them the operator-facing `--help`. Same author,
+same hour, two trees. Both now carry the measured behaviour.
+
+**Green (relayed).** `span_from_pin` 7, `span_from_pin_flag` 3, `markup_note`
+10. `fmt` clean; `clippy --all-targets --all-features -D warnings` clean;
+string-gaps / clap-help / outcome-disclosed PASS.
+
+**`docs/FEATURES.md`.** No row touched — this commit corrects prose about
+an already-shipped capability's behaviour, not the capability's shape.
+
+---
+
+### Standing rules — dated instances, no new mint
+
+**`R245`, further dated instances.** Three of this filing's four Passes
+independently reproduce `R245`'s shape (a guard/key/disclosure applied to
+some of a family of parallel routes and not the rest, untested until a test
+iterates the whole family): `890d5df` (the forms-side stale-`/RV`/`/DS`
+guard, never carried to the annotation side — the commit's own count is
+"the fifth instance this week", relayed here rather than independently
+re-tallied against every prior filing), `3340247` (the font-remedy message
+shipped on `TargetAbsent` and not on the `R-INV-1` subset floor, caught
+inside the same Pass that created the gap), and — by this role's own
+reading, not the commit's stated words — `00ddbb1` (the shared
+multiline-measurement helper `measure_free_text_multiline` applied to two
+re-bakers and not the third, its own doc comment having predicted exactly
+this). **No amendment to `R245`'s text; the shape is unchanged, only the
+count of instances grows.**
+
+**Two candidate NEW rules, considered and DECLINED.** `b924c01`'s framing
+("two individually correct functions composed in the wrong order… the
+defect is one call earlier than the symptom") and `00ddbb1`'s framing ("a
+third re-baker repeats an omission its own sibling's doc comment predicted
+in writing") were both weighed against minting a new standing rule or a
+`D:\dev\rag\rust\` finding. **Declined on the same warrant in both cases:
+neither hinges on a Rust language feature, a crate API, or a toolchain
+behaviour** — `D:\dev\rag\rust\` is scoped to findings that generalise to
+*any Rust project* (Cargo, the compiler, a crate's documented-vs-actual
+behaviour), and composition-order bugs / doc-comment-predicted omissions
+are language-agnostic software-engineering observations that would recur
+identically in any language. `00ddbb1`'s instance is better carried as an
+`R245` dated instance (above) than as a freestanding rule, because it is
+the *same* family-completeness failure `R245` already names, not a new
+cause. `b924c01`'s instance has no existing project rule to attach to and
+is recorded here, in this filing's prose, as the place a future session
+would look for it — **not minted**, because n=1 for this specific shape
+("ordering of two correct functions") within this project's own ledger,
+and the project's practice (see `R244`, `R247`'s declines) is to wait for a
+second independent instance before minting on a composition-order class
+this narrow.
+
+**No new decision.** All four Passes are bugfixes or a discoverability
+improvement over already-shipped capability; none redraws a crate boundary,
+picks a library, or redefines an invariant `ARCHITECTURE.md` §12 tracks.
+`R71` (Acrobat's font-trust model not adopted) is **reaffirmed**, not
+created, by `3340247`.
+
+---
+
+### Part — owed work, carried forward and new
+
+**Carried forward from the 477th filing (items 1–3 discharged above;
+4–5 remain open, unchanged, not re-verified this filing):**
+
+4. `fixtures/synthetic/text/PROVENANCE.md` backfill — 21 of 38 files
+   (55.3%) in `fixtures/synthetic/text/` undocumented there as of the 477th
+   filing's direct check. Engineering work, not a filing; flagged, not
+   fixed.
+5. `origin/main..HEAD` is no longer a filing boundary once a release has
+   been pushed — read `tools/check-commits-filed.py`'s own output, not the
+   range, when reconciling what needs filing.
+
+**New, from this filing:**
+
+6. **`/Text` (sticky note) resize is still refused** (`Pass 276.0`'s own
+   owed note, above) — the second subtype the operator named, needing the
+   third builder's appearance measured and the same authorship-detection
+   treatment applied. No fixture, no test, no ID beyond `Pass 276.0` itself
+   yet — left deliberately rather than guessed at.
+7. **No reply has been written for the inbound requests these four Passes
+   close.** `request_encode_winansi_turns_a_newline_into_a_question_mark_before_wrap_lines_can_split_on_it.md`
+   and
+   `request_resize_annotation_says_pdfcer_did_not_draw_a_freetext_pdfcer_drew_seconds_earlier.md`
+   are both still unanswered in
+   `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`, as is
+   `note_our_two_font_coverage_numbers_disagree_and_the_difference_is_the_finding.md`
+   — the dispatch reported these as being written this session; **not
+   independently confirmed here** (no shell, and outside this role's
+   directory reach for a `.md` existence check without one). Carried as
+   owed in case they are not.
+
+---
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `272` (highest ID `272.0`), next free `273` | **`276`** (highest ID `276.0`), next free `277`. `Pass 273.0`–`276.0` all MINTED AND SHIPPED in this filing |
+| Standing rules | `R246` | **unchanged** — `R245` gains further dated instances (see above); a new rule for the `b924c01`/`00ddbb1` composition-order shape considered and **declined at low n** |
+| Decision records | `144` | **unchanged** — no new decision this filing |
+| `SESSION_LOG` filings | `477` | **`478`** |
+| `docs/FEATURES.md` | 1 *Planned* row at `/RC`/`/DS` (`Pass 264.0`); no rows for the font-remedy message, the newline fix, or the resize widening | **4 rows touched**: 2 *Implemented* rows amended in place (font-family-restyle row gains a pointer; the `/Rect`-resize row corrects an over-claim and records the `/Text` residue), **3 new *Implemented* rows** (font-remedy message, newline fix, `/RC` staleness fix), **1 *Planned* row narrowed** (`/RC`/`/DS`, write half struck, read half remains). No box rounded up. |
+| Owed-survivor / open-reply ledger | 477th filing's items 4–5 open; items 1–3 open | **items 1–3 DISCHARGED** (`0edd650`); items 4–5 **still open, unchanged**; **item 6 NEW** (`/Text` resize); **item 7 NEW** (three unconfirmed outbound replies) |
+
+**Release state — NOT checked this filing (no shell).** The 477th filing
+recorded `main` one commit ahead of the release tag (`757386d`/`Pass 272.0`)
+at the time of its own writing. **Five more commits have landed since**
+(`890d5df`, `3340247`, `b924c01`, `00ddbb1`, `0edd650`); whether any of them
+have been pushed or released is **not asserted here** — the engineer should
+check `git rev-parse origin/main` / `git describe --tags --abbrev=0`
+directly rather than infer a count from this entry.
+
+---
+
 **★★★★★ 477th filing, 2026-09-08 — `v0.49.0` RELEASED (`b208dc6`), AND
 `Pass 272.0` MINTED AND SHIPPED (`757386d`): A `find` SAYS ***WHAT***, A PIN
 SAYS ***WHICH ONE***, THE COMBINATION HAD NO SPELLING, AND THE OLD ONE
@@ -778,6 +1275,11 @@ different subsystem it earns its own number.
 ---
 
 ### PART I — owed work reported to the engineer
+
+**★ DISCHARGED 2026-09-08 (478th filing) — items 1–3 below are CLOSED by
+`0edd650`.** Kept legible rather than deleted (append-only): both `crates/`
+survivor sets were corrected in place, and the outbound reply's two defects
+were fixed in the same commit. See the 478th filing's own entry for `0edd650`.
 
 1. **Two `crates/` survivors of the *"first occurrence"* claim** — `edit.rs:374–376`
    and `main.rs:6550–6551` (Part E). The second is `--help` text an operator reads.
@@ -132514,14 +133016,30 @@ nothing gets forgotten, not as a commitment to build in this order.
 > and left the choice of scoping to the librarian. `docs/FEATURES.md`: six
 > new *Planned* rows.
 
-### `Pass 264.0` — `/RC`/`/DS` absent on read, silently desynchronised by `set_markup_note` — filed 2026-09-08 (469th filing), **NOT STARTED**
+### `Pass 264.0` — `/RC`/`/DS` absent on read, silently desynchronised by `set_markup_note` — filed 2026-09-08 (469th filing)
 
-**Gap.** A markup annotation's `/RC` (rich content) and `/DS` (default
+**★ NARROWED 2026-09-08 (478th filing) — the desync half SHIPPED as `Pass 273.0`
+(`890d5df`), see *Shipped*.** `set_markup_note` now REMOVES a stale `/RC` (and,
+`/FreeText` only, its paired `/DS`) rather than leaving it disagreeing with the
+just-edited `/Contents`, and discloses the drop
+(`MarkupNoteChange::rich_text_dropped`). A stray `/DS` on a subtype that never
+uses one is left alone, per round-trip. **This is `R245`'s shape again — the
+guard the forms side already carried (clearing a rich `/RV` also clears `/DS`)
+had never been applied to annotations — and `890d5df`'s own message counts it
+as the fifth instance this week (relayed, not independently recounted here).**
+
+**Residue, still NOT STARTED.** Neither key is modelled on **read** at all —
+no public accessor for `/RC`'s content, nor for `/DS` outside `/FreeText`
+(§12.5.6.2 Table 170's optional entries, present when a producer authored a
+styled note). That is the entirety of what remains open under this ID.
+
+**Gap** (original wording, kept for history — see the narrowing above for what
+is now true). ~~A markup annotation's `/RC` (rich content) and `/DS` (default
 style) strings (§12.5.6.2 Table 170's optional entries, present when a
 producer authored a styled note) are not modelled on read at all, and
 `set_markup_note`'s plain-text edit does not touch either — so a note with
 a rich-text twin drifts the moment its plain `/Contents` is edited, with
-nothing disclosing that the two now disagree.
+nothing disclosing that the two now disagree.~~
 
 **Source.** Markup-family audit, `fad0d2d`'s dispatch (2026-09-08).
 

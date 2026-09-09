@@ -4,6 +4,92 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-08 (478th filing)
+
+**Shipped:**
+- Pass 273.0 (`890d5df`) — editing a comment no longer leaves a stale,
+  contradicting `/RC` copy behind; the drop is disclosed
+  (`MarkupNoteChange::rich_text_dropped`).
+- Pass 274.0 (`3340247`) — a font-coverage refusal now names the
+  standard-14 faces that would take the character, computed from each
+  face's own encoding table; covers both `TargetAbsent` and the
+  `R-INV-1` subset-floor refusal.
+- Pass 275.0 (`b924c01`) — pressing Enter in a text-box annotation makes
+  a new line instead of a `?`; `encode_winansi` and `wrap_lines` were
+  each correct alone and wrong in composition (encode ran before the
+  newline split, destroying the separator).
+- Pass 276.0 (`00ddbb1`) — resize now recognises a pdfcer-authored
+  `/FreeText` as pdfcer's own to redraw; it used to be refused as
+  foreign because the authorship check rebuilt through the markup
+  family only. `/Text` (sticky note) resize remains refused — owed.
+- `0edd650` (no Pass ID; correction to `Pass 272.0`) — discharges the
+  477th filing's owed items 1–3: two stale `crates/` doc survivors of a
+  "first occurrence" claim, three survivors of a motivating case the
+  requesting project had itself retracted before the commit that quoted
+  it, and two defects in the outbound reply.
+
+**Decisions made this session:**
+- No new decision minted. All four Passes are bugfixes or a
+  discoverability improvement over already-shipped capability; none
+  redraws a crate boundary, picks a library, or redefines an invariant.
+  `R71` (pdfcer does not adopt Acrobat's install-name-only font-trust
+  model) is reaffirmed by `Pass 274.0`, not newly decided.
+- A new standing rule was considered for `b924c01`'s "two individually
+  correct functions composed in the wrong order, defect one call earlier
+  than the symptom" shape and for `00ddbb1`'s "third re-baker repeats an
+  omission its own sibling's doc comment predicted" shape. **Declined**:
+  neither hinges on a Rust-ecosystem specifics (no crate/toolchain
+  behaviour involved), so `D:\dev\rag\rust\` was judged the wrong home;
+  `00ddbb1`'s instance is instead carried as a dated `R245` instance
+  (below), and `b924c01`'s is recorded in `ROADMAP.md`'s prose rather
+  than minted, at n=1 for that specific shape.
+
+**Findings + decisions:**
+- `R245`'s shape (a guard/key/disclosure applied to some of a family of
+  parallel routes and not the rest) recurred in three of this filing's
+  four Passes: the forms-side stale-`/RV`/`/DS` guard never carried to
+  annotations (`890d5df`, self-reported as the fifth instance this
+  week); the font-remedy message shipped on one of two refusal causes
+  and not the other, caught inside the same Pass that created the gap
+  (`3340247`); and the shared multiline-measurement helper applied to
+  two re-bakers and not a third (`00ddbb1`, by this role's own reading).
+- `3340247`'s PDF-domain empirical finding — a subset-embedded font can
+  draw exactly what the document already contains, so edits fail only
+  on a NOVEL character, measured at 72/95 (missing exactly `h j l q z
+  Z`) rather than the originally reported "46 of 95, no lowercase at
+  all" — was checked against `C:\personal_rag\pdf\` before writing
+  anything and found **already on disk**
+  (`lesson_20260908_cad_subset_fonts_carry_no_lowercase_so_text_editing_looks_flaky.md`,
+  same day, ahead of this filing). No duplicate lesson written.
+- `docs/FEATURES.md`'s `/RC`/`/DS` *Planned* row (`Pass 264.0`) is
+  narrowed, not closed: the write-side desync is fixed by `Pass 273.0`;
+  a public READ accessor for `/RC` (and for `/DS` outside `/FreeText`)
+  is still absent. Same narrowing applied to `ROADMAP.md`'s own
+  `Pass 264.0` Backlog entry.
+
+**Still in flight:**
+- `/Text` (sticky note) resize is still refused — needs its icon
+  builder's appearance measured and the same authorship-detection
+  treatment `Pass 276.0` gave `/FreeText`. No fixture, no test yet.
+- The 477th filing's owed items 4 (21 of 38 files in
+  `fixtures/synthetic/text/` undocumented in `PROVENANCE.md`) and 5
+  (`origin/main..HEAD` is not a filing boundary once a release has been
+  pushed) remain open, carried forward unchanged.
+- Whether `890d5df`/`3340247`/`b924c01`/`00ddbb1`/`0edd650` have been
+  pushed or released is **not asserted** — this filing had no shell.
+  Check `git rev-parse origin/main` / `git describe --tags --abbrev=0`
+  directly.
+
+**For next session:**
+- Confirm (or write, if the dispatch's claim does not hold up) the three
+  outbound replies the dispatch said it was writing this session:
+  `reply` to the newline request, `reply` to the resize-refusal request,
+  and the font-coverage-numbers-disagree note — all under
+  `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`.
+- `/Text` resize (item 6 above) is the natural next Pass in this same
+  family — same shape as `Pass 276.0`, third builder instead of the
+  second.
+
 ## 2026-07-23 — project bootstrap
 
 **Shipped:**
