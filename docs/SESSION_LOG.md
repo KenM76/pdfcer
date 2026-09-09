@@ -4,6 +4,92 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-09 (482nd filing)
+
+**Shipped:**
+- Pass 281.0 (`1177221`) — a hybrid-reference file (ISO 32000-1
+  §7.5.8.4, classic xref table + `/XRefStm`) can now be fully rewritten,
+  so redaction — which is forced to a full rewrite by `R35` — finally
+  reaches it. The old refusal's own named remedy ("use incremental
+  save") was the one thing a redaction is forbidden to take, so
+  redaction was unreachable on every such file. Reported by
+  `pdfcer-gui` against the operator's own SolidWorks-drawing-set file,
+  asked about three times; discharges the 481st filing's owed item 13
+  (hybrid half).
+
+**Decisions made this session:**
+- No new decision minted (`ARCHITECTURE.md` §12 untouched). This was an
+  engineering fix and a correction to a refusal's own stated
+  reasoning, not a crate-boundary/library/invariant redefinition.
+- `R33` ("the writer never normalizes") gains a dated clarifying note
+  in the Standing Rules body: it is UPHELD, not waived, by this Pass —
+  the rewrite reproduces the file's own two-part partition rather than
+  collapsing it to one section.
+
+**Findings + decisions:**
+- The old refusal's doc comment gave two true reasons and reached a
+  false conclusion: the "merged view" it said would need re-deriving
+  was pdfcer's OWN load-time merge (`merge_first_wins`), discarding a
+  fact (which objects the `/XRefStm` established) that only needed to
+  be *retained*, not re-derived. Re-deriving would in fact have been
+  wrong — §7.5.8.4 states what a producer MAY hide, not what this file
+  DID hide.
+- A corpus-harness check (`tools/roundtrip`'s `is_section_object`) was
+  complete on the day it was written only because the hybrid case
+  could not arise; the moment the writer stopped refusing it, every
+  hybrid file's xref-stream object was misreported as an unexplained
+  change. Confirmed by probing stream-object numbers before fixing.
+  Generalizable — new file in `D:\dev\rag\rust\`
+  (`an_enumerating_check_complete_today_goes_silently_incomplete_the_day_a_refused_case_becomes_possible.md`).
+- A test fixture corrupting an offset-bearing structure (the broken
+  `/XRefStm`'s `/W` array) must corrupt to the SAME total width — the
+  first attempt widened `/Length` too, shifted every byte offset,
+  triggered the loader's rebuild-by-scan fallback, and silently tested
+  a different failure. PDF-domain finding — new lesson in
+  `C:\personal_rag\pdf\`
+  (`lesson_20260909_same_length_corruption_is_the_only_honest_way_to_corrupt_an_offset_bearing_fixture.md`);
+  the earlier same-day lesson recording the refusal
+  (`lesson_20260909_excel_365_exports_hybrid_reference_pdfs_that_refuse_a_full_rewrite.md`)
+  corrected in place with a dated footer, not deleted.
+- Corpus measured before/after on the private corpus (name withheld
+  per the operator's standing ruling): full-rewrite per-object-verbatim
+  225/237 → 237/237; hybrid refusals 12/237 → 0/237; mutation-gate
+  denominator 225 → 237; raster oracle 456/456 → 468/468. No
+  shortfalls either direction. End-to-end proof through the binary on
+  a real hybrid file: `redact-apply` went from refusing verbatim to
+  `pages_redacted=4 marks_applied=12 glyphs_removed=170`.
+- **★ Redaction diligence gap measured, NOT fixed this Pass:**
+  `redact::carrier_info` drops an `/Info` string containing a redacted
+  run only when the run is no LONGER than the string; a longer run is
+  not detected, yet the carrier report still says `action=scrubbed`.
+  Observed live on the smoke-test file (`/Keywords` kept a string
+  sharing the redacted word while the report read "scrubbed").
+  Pre-existing; this Pass makes it reachable on more files. Filed as
+  owed item 15, flagged for priority attention as a redaction-area
+  finding.
+
+**Still in flight:**
+- Items 4, 5, 9, 10, 11 carried forward unchanged.
+- Item 14 (second instance of the file-channel-blindness cause,
+  flagged not minted) carried forward unchanged.
+- Owed item 13 split: the hybrid half (13a) is discharged by this
+  Pass — a reply closing the request to `pdfcer-gui` is owed but not
+  written by this filing (no shell); the `/Stamp`-resize half (13b)
+  remains queued and unstarted.
+- Item 15 (new): the `carrier_info` redaction diligence gap above.
+- Whether `1177221` (or `26ef381`) has been pushed or released is not
+  asserted — no shell this filing.
+
+**For next session:**
+- Send the reply to `pdfcer-gui` closing the hybrid-reference request.
+- Scope `resize_annotation`'s `/Stamp`-as-foreign refusal (item 13b)
+  into a Pass.
+- Fix the `carrier_info` redaction diligence gap (item 15) — a
+  correctness gap in the redaction area, not merely a report-wording
+  issue.
+- Reconcile `R221`'s instance count (item 10, long-carried).
+- Watch for a third instance of the file-channel-blindness cause.
+
 ## 2026-09-09 (481st filing)
 
 **Shipped:**

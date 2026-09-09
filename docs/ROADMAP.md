@@ -112,6 +112,237 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★ 482nd filing, 2026-09-09 — `Pass 281.0` SHIPPED, DISCHARGING THE
+481st FILING'S OWED ITEM 13 (THE HYBRID-REFERENCE HALF): A
+HYBRID-REFERENCE FILE (§7.5.8.4) CAN NOW BE FULLY REWRITTEN, SO
+REDACTION FINALLY REACHES IT. ★★★ THE OLD REFUSAL'S OWN NAMED REMEDY —
+"USE INCREMENTAL SAVE" — WAS THE ONE THING A REDACTION MAY NOT TAKE
+(`R35`); REDACTION WAS UNREACHABLE ON EVERY SUCH FILE. ★★ `R33` IS
+UPHELD, NOT WAIVED: THE REWRITE REPRODUCES THE FILE'S OWN PARTITION
+RATHER THAN NORMALIZING IT — DATED NOTE ADDED TO THE STANDING RULES
+BODY. ★ A CORPUS-HARNESS CHECK THAT WAS COMPLETE PRECISELY BECAUSE THE
+CASE COULD NOT ARISE WENT SILENTLY INCOMPLETE THE MOMENT IT COULD —
+CAUGHT, FIXED, NEW RAG FILE. A REDACTION-DILIGENCE GAP IN
+`carrier_info` WAS MEASURED, NOT FIXED, AND IS RECORDED PROMINENTLY
+BELOW.**
+
+**Sourcing (hard rule 8), stated up front — NO SHELL THIS SESSION.** As
+with the 481st and prior filings, this filing had `Read`/`Grep`/`Glob`
+only. The commit hash, timestamp, file list, test counts, corpus
+figures and end-to-end trace below are **relayed** from the
+dispatching engineer's own commit-message export
+(`msg-281-filed.txt`), handed over as a scratchpad file — labelled as
+such, not independently re-run. **Backup currency, working-tree state,
+remote/push state and CI colour are NOT asserted** — none were
+checked; if any of them matter, the engineer should check
+`D:\Dev\pdfcer` directly. The Pass-ID (`281.0`, following the 481st
+filing's own recorded ledger position — next free `281`) and the
+`docs/FEATURES.md` cross-reference ARE independently verified here, by
+`Grep`/`Read` against the live documents.
+
+---
+
+### `Pass 281.0` (`1177221`, 2026-09-09) — A HYBRID-REFERENCE FILE CAN BE FULLY REWRITTEN, SO IT CAN FINALLY BE REDACTED
+
+**What it is, in one line.** `pdfcer-core`'s writer now performs a full
+rewrite of an ISO 32000-1 §7.5.8.4 hybrid-reference file by
+reproducing its own classic-table-plus-`/XRefStm` partition, instead
+of refusing by name. Discharges the 481st filing's owed item 13 (the
+hybrid half) — reported by `pdfcer-gui` against the operator's own
+SolidWorks-drawing-set file, asked about three times.
+
+**Why this mattered more than an ordinary writer gap.** Redaction is
+forced to a full rewrite under `R35` — an incremental save leaves the
+un-redacted bytes in a prior revision by construction, so incremental
+is not a lesser option for a removal, it is a leak. The old refusal's
+own remedy text said *"use incremental save"* — the one thing a caller
+performing a redaction is forbidden to take. Redaction was
+**unreachable** on every hybrid-reference file, and the message read
+as "we can't do it" rather than "we haven't yet."
+
+**The obstacle the old refusal named was true, and its conclusion was
+still wrong.** Its doc comment argued two things, both individually
+correct: rebuilding the unit from a merged view would require
+re-deriving which objects the file hides (real, deferred work); and
+normalizing to a single non-hybrid section would destroy pre-1.5
+readability, forbidden outright by `R33`. What the comment never
+noticed: **the merged view was pdfcer's OWN merge.** `merge_first_wins`
+flattens the classic table and the `/XRefStm` into one map at load;
+the fix is for the loader to also **retain** which object numbers the
+stream established (new `Document::hybrid_partition`) — the one fact
+the merge was discarding. Nothing is re-derived, because nothing needs
+to be: **re-deriving would itself have been wrong.** §7.5.8.4's
+recursive visibility rule states what a producer *may* hide, not what
+this file *did* hide, and a file may legally hide less than the
+maximum — re-deriving the ceiling would move objects the operator
+never touched out of the pre-1.5 view, which is exactly the
+"plausible, working, wrong file" `R33` exists to prevent.
+
+**`R33` is UPHELD here, not waived — worth stating in so many words**,
+because a future reader who remembers "hybrid full rewrite is refused,
+because R33" needs to land on this entry, not on the old sentence
+(dated note added to R33's Standing Rules body, see below). The
+rewrite is not a normalization: `write_hybrid_tail` emits the
+three-part unit §7.5.8.4 itself describes (main classic table over
+every object, the hidden ones and the stream object marked free at
+generation 65535; a main trailer with no `/XRefStm` and no `/Prev`;
+the real xref stream for the hidden objects; an update classic table
+naming only the stream object; an update trailer carrying `/XRefStm`
+and `/Prev`). §7.5.8.4's own text is the reason a single section can
+never be hybrid — *"the XRefStm entry shall not be used in the
+trailer dictionary of the main cross-reference section but only in an
+update cross-reference section"* — which the old comment never cited.
+
+**What still refuses, by design.** A file whose trailer names an
+`/XRefStm` that does not parse. A broken `/XRefStm` is deliberately
+non-fatal to *loading* (the file falls back to the classic view) and
+is now fatal to a *rewrite* — pdfcer cannot say which objects the
+stream was hiding, and a wrong guess produces a file with an outline
+or structure tree silently missing. Loading and rewriting are
+different questions about the same defect.
+
+**Corpus harness, before and after — measured, not assumed (`R34`).**
+Rebuilt from `HEAD` in a throwaway worktree rather than trusted from
+memory, over the private corpus (241 files, 237 loadable):
+full-rewrite per-object-verbatim went **225/237 → 237/237**; hybrid
+full-rewrite refusals **12/237 → 0/237**; the mutation gate's
+denominator (edit → save → undo → byte-identical) **225 → 237**; the
+raster oracle **456/456 → 468/468** identical/compared; **no
+shortfalls either direction**. The `objects re-serialized 99 (MUST be
+0)` census line is **unchanged** across both builds — it read as a
+regression until measured against the baseline, and the baseline is
+what settled it rather than an argument from plausibility.
+
+**A harness check that was complete precisely because a case could not
+arise went silently incomplete the moment it could.** The first corpus
+run reported 12 shortfalls — one per hybrid file. `tools/roundtrip`'s
+`is_section_object` recognised only `SectionShape::Stream`, which was
+a *complete* enumeration exactly as long as a hybrid full rewrite was
+refused. The instant it wasn't, every hybrid file's cross-reference
+stream object was reported as a writer defect — confirmed rather than
+assumed, by probing each file's stream object number and matching all
+twelve one-to-one. Fixed by teaching the harness both shapes.
+Generalizable finding, new file in `D:\dev\rag\rust\` (see Ledger).
+
+**End-to-end, through the binary, on a real hybrid file.**
+`redact-mark` (12 marks) → `redact-apply` refused verbatim as
+previously reported on the pre-Pass binary; on the post-Pass binary it
+succeeded: `pages_redacted=4 marks_applied=12 glyphs_removed=170
+show_operators_edited=44`, the prior revision dropped by the rewrite,
+and the covered glyphs absent from the saved bytes.
+
+**Tests.** `writer_roundtrip.rs` +6 (28 total, was 22): partition
+retained and empty on a non-hybrid control; rewrite stays hybrid and
+hides exactly what the input hid; the main table conceals hidden
+objects at generation 65535, asserted on the bytes (pdfcer is not a
+pre-1.5 reader and cannot check that view by loading); main trailer
+carries no `/XRefStm`, update trailer does; a full rewrite of a hybrid
+file succeeds at all; a broken-`/XRefStm` file still refuses by name.
+**The broken-stream fixture corrupts `/W [1 4 2]` → `[9 9 9]`, same
+length** — the first attempt widened `/Length` instead, which shifted
+every byte offset, sent the loader into rebuild-by-scan, and produced
+a file that was not hybrid at all: a test that would have passed while
+measuring a completely different failure. PDF-domain finding, dated
+footer + new lesson in `C:\personal_rag\pdf\` (see Ledger).
+
+Sabotage, five ways: don't conceal the hidden objects (red); emit no
+stream (red); don't record the hidden set (red ×2); treat an
+unreadable stream as reproducible (red); leave `/XRefStm` in the main
+trailer (**survived** — the caller already strips that key; documented
+as a guarantee enforced elsewhere, kept rather than forced).
+
+**Verification (relayed).** `cargo test --workspace` green; `fmt`
+clean; `clippy --all-targets --all-features -- -D warnings` clean;
+`tools/run-gates.sh` PASS on all 29 commands.
+
+**★ OWED, MEASURED HERE, NOT FIXED — redaction diligence gap.**
+`redact::carrier_info` drops an `/Info` string that *contains* a
+redacted run, so a redacted run *longer* than the metadata string
+cannot match — and the carrier report line reads `info
+action=scrubbed` regardless of whether the match actually fired. On
+the smoke-test file, six `/Info` entries were scrubbed while
+`/Keywords` **kept a string sharing the redacted word**, and the
+carrier line still said `scrubbed`. Pre-existing and independent of
+this Pass; this Pass makes it reachable on more files by making
+redaction reachable on more files. This is redaction — the hard-rule
+area — so it is recorded prominently rather than folded into ordinary
+owed work.
+
+**`docs/FEATURES.md`:** the *Apply redaction* row (*Redaction &
+security*) amended in place — see Ledger.
+
+**`C:\personal_rag\pdf\`:** the 2026-09-09 lesson recording the
+refusal (`lesson_20260909_excel_365_exports_hybrid_reference_pdfs_that_refuse_a_full_rewrite.md`)
+is corrected in place with a dated footer, not deleted — the
+producer, the file and the recognition recipe are all still true;
+only its "Remedy / status" section was stale.
+
+---
+
+### Part — owed work, carried forward and new
+
+**Carried forward, unchanged:**
+
+4. `fixtures/synthetic/text/PROVENANCE.md` backfill — 21 of 38 files
+   undocumented (477th filing).
+5. `origin/main..HEAD` is no longer a filing boundary once a release
+   has been pushed — read `tools/check-commits-filed.py`'s own output,
+   not the range.
+9. The "alternate route" sabotage cause is at `n=2`, not yet promoted
+   to a numbered standing rule; `R247` reservation unreconciled.
+10. `R221`'s true current instance count needs reconciliation before
+    any filing's finding can be added to its Standing Rules body as a
+    numbered instance.
+11. `pdfcer-gui`'s fourth outbound reply (from the 479th filing) is
+    still asserted, not independently `Glob`-confirmed.
+14. The second instance of the file-channel-blindness cause (481st
+    filing) — flagged for the engineer, not minted; watch for a third
+    instance before it earns a standing rule.
+
+**Discharged this filing:**
+
+13a. **The hybrid-reference half of item 13** — `Pass 281.0` is the
+    answer. A reply closing the request to `pdfcer-gui` is owed but
+    not written by this filing (no shell; drafting/sending the reply
+    is the engineer's act, not the librarian's).
+
+**Still open, renamed from item 13:**
+
+13b. `resize_annotation` refuses a pdfcer-authored `/Stamp` as foreign
+    — the third authoring family its appearance test does not
+    recognise, after `/FreeText` and `/Text`. Queued, unstarted.
+
+**New, from this filing:**
+
+15. **Redaction diligence gap in `carrier_info`** (measured this Pass,
+    not fixed) — a redacted run longer than the `/Info` string it
+    appears in is not detected as scrubbed, though the report claims
+    it was. See the Pass entry above. Redaction-area; flagged for
+    priority attention per the project's own hard-rule discipline
+    around removal correctness.
+
+---
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `280` (highest ID `280.0`), next free `281` | **`281`** (highest ID `281.0`), next free `282`. `Pass 281.0` MINTED AND SHIPPED in this filing |
+| Standing rules | `R246` | **unchanged, numerically** — `R33` gains a dated clarifying note (upheld for hybrid files, not waived); no new rule number |
+| Decision records | `144` | **unchanged** — no new architectural decision this filing (a writer capability fix and a correction to a refusal's own stated reasoning, not a crate-boundary/library/invariant redefinition) |
+| `SESSION_LOG` filings | `481` | **`482`** |
+| `docs/FEATURES.md` | 1 new row (`Pass 280.0`, run-repertoire) | **1 row amended in place** — the *Apply redaction* row (*Redaction & security*) now notes hybrid-reference (`/XRefStm`) files round-trip and redact |
+| `C:\personal_rag\pdf\` | 1 lesson recording the refusal | **same lesson, dated footer** correcting status to fixed; **+1 new lesson** — same-length corruption for offset-bearing fixtures |
+| `D:\dev\rag\rust\` | — | **+1 new file** — an enumerating check complete today can go silently incomplete the day a new case becomes reachable |
+| Owed-survivor / open-reply ledger | items 4, 5, 9, 10, 11, 14 open; item 13 (both halves) open | **item 13a DISCHARGED**; item 13b (renamed) still open, unchanged; **item 15 NEW** |
+
+**Release state — NOT checked this filing (no shell).** Whether
+`1177221` (or `26ef381`) has been pushed or released is not asserted
+here — the engineer should check `git rev-parse origin/main` /
+`git describe --tags --abbrev=0` directly.
+
+---
+
 **★★★★ 481st filing, 2026-09-09 — `Pass 280.0` SHIPPED, DISCHARGING THE
 480th FILING'S OWED ITEM 12: `pdfcer-gui`'S STANDING ASK FOR A
 PRE-KEYSTROKE "WHICH CHARACTERS CAN THIS RUN ACCEPT?" VERB. ★★★ AN
@@ -146711,6 +146942,17 @@ not a judgment call:**
     strings are never reformatted on a passthrough object.
     Normalization produces a plausible, working, wrong file — the
     hardest defect class to notice.
+    **Note (2026-09-09, `Pass 281.0`) — R33 UPHELD for hybrid-reference
+    files, not waived.** A full rewrite of an §7.5.8.4 hybrid-reference
+    file (classic table + `/XRefStm`) reproduces that file's OWN
+    partition — which numbers the stream established — rather than
+    collapsing it to one non-hybrid section. That is not an exception
+    to R33; it is R33 applied to a file whose "newest section" is a
+    two-part unit. The refusal this replaced had cited R33 as the
+    reason it could not do more; the merged view it worried about was
+    pdfcer's own load-time merge, not something the rule required. A
+    reader who recalls "hybrid full rewrite is refused, because R33"
+    should land here, not on the superseded sentence.
   - **R34 — The round-trip gate guards every writer Pass.** Any Pass
     touching the writer re-runs the corpus round-trip harness.
     Regressions block the Pass. The invariant stops depending on

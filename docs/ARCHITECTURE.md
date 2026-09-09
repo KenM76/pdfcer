@@ -5795,14 +5795,42 @@ already used, and never chooses:
   2026-08-09 decision-log entry (the `8672cbc`/`365856f` pair) for the
   full mechanism and the evidence-tier argument for the default change.
 
-**A full rewrite of a hybrid file is refused by name** rather than
+~~**A full rewrite of a hybrid file is refused by name** rather than
 flattened. §7.5.8.4 describes a hybrid as a three-part unit a writer
 creates *"at the same time"*; rebuilding it from a merged view requires
 re-deriving the hidden-object set and re-checking the clause's
 recursive visibility rule. Normalizing it to a single section instead
 would silently destroy the file's pre-1.5 readability. Refusing is the
 R27 fail-clean posture applied to the write side: name it, count it,
-do not guess.
+do not guess.~~
+
+**★ SUPERSEDED 2026-09-09, `Pass 281.0` (`1177221`) — a full rewrite of
+a hybrid file is now PERFORMED, not refused; R33 is UPHELD, not
+waived.** The struck paragraph is kept legible because a reader who
+remembers "hybrid full rewrite is refused" needs to see that it moved,
+not wonder whether they misremembered it. What changed: the loader now
+**retains** which object numbers the `/XRefStm` established
+(`Document::hybrid_partition`) instead of discarding that fact into
+`merge_first_wins`'s single flattened map — the one thing the old
+paragraph's "merged view" problem actually depended on. Nothing is
+**re-derived**: re-deriving the hidden-object set from §7.5.8.4's
+recursive visibility rule would answer what a producer *may* hide, not
+what this file *did* hide, and a file may legally hide less than the
+maximum — re-deriving the ceiling would be the normalization this
+section forbids, wearing a different disguise. `write_hybrid_tail`
+reproduces the three-part unit §7.5.8.4 itself describes (main classic
+table with the hidden objects and the stream object marked free at
+generation 65535, a main trailer with no `/XRefStm`/`/Prev`, the real
+xref stream, an update classic table naming only the stream object, an
+update trailer carrying `/XRefStm` and `/Prev`) — the file is not
+flattened and its pre-1.5 readability is not destroyed. **What still
+refuses, and for the reason the old paragraph actually needed:** a
+file whose `/XRefStm` itself does not parse. There, pdfcer genuinely
+cannot say which objects the stream was hiding, and the R27 fail-clean
+posture — name it, count it, do not guess — still applies, now to a
+narrower case. See `docs/ROADMAP.md`'s `Pass 281.0` Shipped entry for
+the corpus evidence (225/237 → 237/237 full-rewrite verbatim) and the
+Standing Rules `R33` dated note.
 
 #### ★ 5.6.1 THE ONE DELIBERATE EXCEPTION — a full rewrite DROPS bytes before `%PDF-` (added 2026-08-07, `fa4f83c`)
 
@@ -6159,6 +6187,19 @@ under-scrubbing.** That failure direction is correct and is not a
 defect. It does mean R58's remedy is *unavailable* on that file class,
 and any future scrub Pass told to "ride the forced full rewrite" will
 meet it as a surprise.
+
+**★ CORRECTED 2026-09-09, `Pass 281.0` (`1177221`) — the paragraph
+above was an accurate measurement of the working tree at `6c5124c` and
+is left standing as the historical record of that audit; it no longer
+describes current behaviour.** `WriteError::HybridFullRewrite` and the
+`{ xref_stm: Some(_) }` refusal it names are gone from
+`save.rs`'s general case — a hybrid-reference file now **fully
+rewrites and redacts** (see §5.6.1's own dated correction, above,
+which is the authoritative current text). The narrower successor
+refusal — a hybrid file whose `/XRefStm` does not itself parse — still
+errors rather than under-scrubs, so the sentence "redaction on a
+hybrid file ERRORS rather than under-scrubbing" is now true of a
+strict subset of hybrid files, not all of them.
 
 **Obligation 1's wording is deliberately NOT rewritten here.** The fix
 is `ROADMAP.md`'s **`Pass 73.0`** (*Next up*), whose criterion 6
