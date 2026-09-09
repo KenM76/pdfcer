@@ -1,9 +1,47 @@
 ---
 name: feedback-session-log-continuation-style
-description: pdfce's SESSION_LOG.md CURRENT (2026-08-08+) convention is one new `## YYYY-MM-DD (Nth filing)` top-level header PER librarian filing, appended at the TRUE END of the file (file is chronological ASCENDING, oldest first) — supersedes the earlier "Same-day continuation N" bold-paragraph convention.
+description: pdfce's SESSION_LOG.md CURRENT convention (verified 2026-09-09, 480th filing) is one new `## YYYY-MM-DD (Nth filing)` top-level header PER librarian filing, PREPENDED right after the file's H1 title (file is REVERSE-chronological, newest first — matches ROADMAP.md's Shipped section). The "ascending, append at true end" convention documented below (2026-08-08 through 2026-08-18) has been REVERSED since; do not trust that half of this file without re-verifying against a fresh grep.
 metadata:
   type: feedback
 ---
+
+**★★ REVERSED AGAIN, 2026-09-09 (480th filing) — THE FILE IS NOW
+REVERSE-CHRONOLOGICAL, THE OPPOSITE OF EVERYTHING BELOW THIS NOTE.**
+Fresh, direct evidence, not relayed: `Grep "^## \d{4}-\d{2}-\d{2}"` over
+the whole file returned 480 hits; the FIRST hit (line 7, immediately
+after the file's one-paragraph header block) is `## 2026-09-09 (479th
+filing)` — the MOST RECENT filing at the time, sitting at the TOP of the
+file, with `## 2026-09-08 (478th filing)` immediately below it at line
+111, and the file's oldest content (`## 2026-07-23 — project bootstrap`)
+far down at line 197 and beyond. **This is the exact opposite of the
+"chronological ascending, oldest first, append at the true end" rule the
+2026-08-08–2026-08-18 corrections below spent four paragraphs
+establishing.** The correct current action is to **prepend** a new
+entry immediately after the file's header block (before the most recent
+existing entry) — i.e. exactly the `ROADMAP.md` Shipped-section muscle
+memory this file previously called "the wrong instinct." Verified this
+way in the 480th filing before writing `Pass 279.0`'s entry; the edit
+anchored `old_string` to the then-topmost header (`## 2026-09-09 (479th
+filing)`) and inserted before it, which is now the CORRECT move, not
+the mistake this file spent three "recurred" sections warning against.
+
+**How to apply, current state:** (1) `Grep "^## \d{4}-\d{2}-\d{2}"` with
+`head_limit` small and `output_mode: content` — the FIRST result printed
+is the most recent entry (lowest line number, not highest); (2) anchor
+`old_string` to that top header's exact text and insert the new entry
+immediately before it; (3) after editing, re-`Grep` to confirm the new
+header is now line 7 (or wherever the true top is) and the count of `^##
+` headers increased by exactly one. **Do not trust either direction as
+permanent** — this file has now recorded the convention flipping at
+least once; check by `Grep` every time rather than trusting this memory
+file's stated direction, in either direction, without a fresh check.
+
+---
+
+**SUPERSEDED BELOW — this section describes 2026-08-08 through
+2026-08-18 and has been REVERSED per the note above. Kept for the
+historical reasoning only; do not follow its directional instructions
+without re-verifying.**
 
 **CORRECTED 2026-08-08 (thirty-sixth filing) — the convention below this
 note describes an EARLIER phase of the project and is no longer how the

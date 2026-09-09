@@ -4,6 +4,57 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-09 (485th filing)
+
+**Shipped:**
+- Pass 283.1 (`d8fcb68`) — addendum to Pass 283.0: the disclosed,
+  overridable malformed-PDF policy reached only
+  `Document::from_bytes_with_options`; every real shell opens a **file**,
+  not bytes. New `Document::load_with_options(path, password, options)`,
+  and `pdfcer`'s own `open_document` now uses it instead of duplicating
+  `Document::load`'s `std::fs::read`. The CLI's `--on-malformed` override
+  is now reachable from a real invocation, not only from the bytes-based
+  test harness.
+
+**Decisions made this session:**
+- None minted. This is a completeness fix inside decision 145's own
+  mechanism (`ARCHITECTURE.md` §10.5, §12), addended in place rather than
+  re-argued.
+
+**Findings + decisions:**
+- Sixth dated instance of standing rule `R245` (`ROADMAP.md` *Standing
+  rules*): the rule's shape (a guard/key/disclosure shipped on one member
+  of a parallel family, untested on the rest) recurs over a family of TWO
+  ENTRY POINTS rather than verbs, and the withheld item is an *affordance*
+  rather than a restriction — `docs/core-api/01-reading-and-model.md`
+  §3.6b already names this explicitly. No amendment to `R245`'s text; the
+  fix (a test that opens the same path twice, once directly and once
+  through `load_with_options`) is exactly the family-wide test the rule
+  asks for.
+- Also `R151`-adjacent, noted rather than merged: the affordance had test
+  callers all along, just not its intended production caller — `R151`'s
+  canonical shape is zero callers, so this stays a distinct observation
+  under `R245` rather than folding into `R151`'s text.
+- Filed as a dated footer on the existing `D:\dev\rag\rust\` finding
+  (`a_guard_or_key_added_to_one_sibling_verb_is_untested_until_a_family_wide_test_exists.md`),
+  not a new file — the underlying mechanism is unchanged, only the family
+  shape. `index.md` line updated in the same edit.
+- `docs/FEATURES.md` row 169 (*Document & pages*) sentence amended to name
+  `Pass 283.1`'s fix; no checkbox moved — the row was already correctly
+  ticked for the capability, which now, post-fix, actually reaches a real
+  invocation rather than only the bytes-based test harness.
+
+**Still in flight:**
+- Owed items 4, 5, 9 (`n=3`, `R247` reservation unreconciled), 10, 11, 13b,
+  14, 16, 17 all carried forward unchanged.
+- Whether `d8fcb68` has been pushed or released is not asserted here (no
+  shell) — the engineer should check directly.
+
+**For next session:**
+- Same open items as the 484th filing's own "For next session" entry —
+  nothing new surfaced by this addendum beyond the `R245` instance
+  captured above.
+
 ## 2026-09-09 (484th filing)
 
 **Shipped:**

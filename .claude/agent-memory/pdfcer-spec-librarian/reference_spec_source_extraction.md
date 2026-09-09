@@ -84,6 +84,8 @@ and `pdfminer` installed. Extraction recipe that works:
      It prints the same `<del>`/`<ins>` edits, is **free**, and lets the erratum
      be described in a file whose licensed half must stay unquotable.
 
+3a-zero. **★ `C:\tmp` ITSELF CAN BE GONE, AND THE FAILURE READS LIKE A SOURCE PROBLEM.** 2026-09-09: **both** cached dumps were missing **and the directory did not exist**, so the dump script died with a bare `FileNotFoundError` naming `C:/tmp/iso32000_dump.txt` — which looks like a missing *input*. It is the *output* path. **`mkdir -p /c/tmp` before every dump.** Re-dumping both costs ~3 min total (1.7 = 756 pp; 2.0 = 1023 pp). **Free integrity check: the 2.0 dump must come out at exactly 2 695 377 B** — the size recorded in item 3-ISO2. If it does not, the staged PDF changed.
+
 3a. **CHECK `C:\tmp\iso32000_dump.txt` BEFORE RE-DUMPING.** The full 756-page
    `pypdf` dump persists across sessions (2 124 253 B, 37 491 lines, written
    2026-07-31; still present and correct 2026-08-07). Verify with
@@ -121,6 +123,8 @@ and `pdfminer` installed. Extraction recipe that works:
    **The semantic tell (works without a second dump):** a row that references a sibling
    key the table it is supposedly in does not have (`/URLType` cites *"the `Ff`
    attribute's `URL` bit"*; Table 236 has no `Ff`) belongs to a different table.
+
+4j-bis. **★★ SEARCH `pdf-issues` BY CLAUSE NUMBER, AND FETCH `/comments` SEPARATELY — the answer is usually in the thread, not the body.** 2026-09-09, §7.3.7: `q=repo:pdf-association/pdf-issues+%227.3.7%22` returned **13** issues (a key-name search lands in the wrong neighbourhood); the decisive material was **comment 1 of 10** on issue #199, and the API's issue object **does not include comments** — `curl .../issues/<N>/comments` is a second call. **Grade the commenter**: `petervwyatt` is the PDF Association CTO who runs the ISO errata project, so his statement of a scope boundary is tier (c) evidence, not a forum opinion. **A `Parked` label may be REMOVED later** — #199's thread says it will be parked and today it carries only `bug`; read the LABELS, not the promise in the thread.
 
 4j. **THE `pdf-issues` GITHUB **API** IS A FREE, QUOTABLE ERRATA + GAP SOURCE, and it
    does two things the rendered errata pages cannot.** (a) `curl -s
@@ -579,6 +583,7 @@ and `pdfminer` installed. Extraction recipe that works:
   get a paywalled standard's **scope in ISO's own words**. **The iTeh free-preview route (4h) does NOT cover
   every standard** — a filename web search for `cdn.standards.iteh.ai/samples/63033/...` returned nothing and
   the catalogue page links no sample, so ISO 18619 stays unobtained.
+- **★★ PDF ASSOCIATION EDITORIAL ARTICLES ARE A REAL SOURCE FOR *HOW TO READ* THE STANDARD** — `https://pdfa.org/how-to-read-iso-publications-about-pdf/` (Peter Wyatt), origin **403s**, **works via `r.jina.ai`** (13 371 B, 2026-09-09). It explains `shall`/`should`/`may`/`can` per ISO/IEC Directives Part 2, the informative-vs-normative rule (all NOTEs and EXAMPLEs are informative), the **file-format-requirement vs software-requirement** distinction, and — the payload — it **quotes the Adobe-to-ISO wording conversions verbatim**, including *“No two entries in the same dictionary **should** have the same key”* → *“Multiple entries in the same dictionary **shall not** have the same key”* with the statement that *“these two sentences have the same technical meaning”*. **Reach for it whenever a dispatch asks whether a `shall` was strengthened from a `should`.** It points at a further Adobe “ISO-ese” mapping document at `https://pdfa.org/resource/iso-32000-1-pdf-1-7/`. `license_basis: free_secondary_paraphrase`.
 - **Adobe font technical notes** live at
   `https://adobe-type-tools.github.io/font-tech-notes/pdfs/<NNNN>.<Name>.pdf`
   (e.g. `5004.AFM_Spec.pdf`). **All `partners.adobe.com` TN URLs are dead.**

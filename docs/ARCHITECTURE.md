@@ -7976,8 +7976,20 @@ the parser does not opt in on its callers' behalf. `LoadOptions::default()`
 is hand-written rather than derived, specifically so this asymmetry cannot
 silently drift back into agreement.
 
-Full record: §12's 2026-09-09 entry, decision 145; standing rule `R248`;
-`ROADMAP.md` *Shipped*, `Pass 283.0`.
+**Addendum, 2026-09-09 (`Pass 283.1`, `d8fcb68`).** The mechanism above
+shipped its operator-facing override on the bytes entry point only;
+`Document::load_with_options(path, password, options)` is new, and
+`pdfcer`'s own file-based `open_document` now goes through it. No decision
+or body-section change — the boundary, mechanism and `R248` text above are
+all unaffected; only the reach of the existing mechanism changed. Filed as
+`R245`'s sixth dated instance (`ROADMAP.md` *Standing rules*) rather than a
+new rule: a facility present on one of two parallel entry points and absent
+from its twin — the same shape `R245` already names for a guard, now shown
+for an affordance.
+
+Full record: §12's 2026-09-09 entry, decision 145 (addended for
+`Pass 283.1`); standing rule `R248`; `ROADMAP.md` *Shipped*,
+`Pass 283.0`/`283.1`.
 
 ## 11. Undo/redo architecture
 
@@ -33688,3 +33700,18 @@ deleted** — each keeps its original assertion as its second half under
 ceiling `R246` → `R248`** (`R247` UNCHANGED, still reserved-but-unclaimed —
 see `ROADMAP.md` *Standing rules*), next free `R249`. **Pass ceiling
 `282.0` → `283.0`**, next free family `284.x`.
+
+---
+
+**Addendum, 2026-09-09 (`Pass 283.1`, `d8fcb68`).** Completes the wiring
+decision 145 specified: the override reached only
+`Document::from_bytes_with_options`; `Document::load_with_options(path,
+password, options)` is new and `pdfcer`'s `open_document` now uses it
+instead of duplicating `Document::load`'s own `std::fs::read`. **No new
+decision** — the boundary and mechanism above are unchanged, only their
+reach. Filed as `R245`'s sixth dated instance (`ROADMAP.md` *Standing
+rules*: a facility present on one of two parallel entry points and absent
+from its twin — `R245`'s guard shape, shown here for an affordance instead),
+not a new standing rule. **Decision ceiling unchanged at `145`, next free
+`146`. Standing rules ceiling unchanged at `R248`, next free `R249`. Pass
+ceiling `283.0` → `283.1`, next free family unchanged, `284.x`.**

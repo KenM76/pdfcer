@@ -6629,3 +6629,167 @@ it is the only defence that works when the reader has been told to trust you.
 - Placement check per 71f: the `####` inserted under `### Table 165` is deeper than the
   following `###`, so nothing was orphaned — **re-printed the heading map anyway** and
   confirmed it.
+
+---
+
+## 74. A LIVE OPERATOR-REPORTED REFUSAL: *"is clause C a `shall` or a `should` — pdfcer is refusing a file Acrobat opens"* (2026-09-09, duplicate dictionary keys, §7.3.7)
+
+Dispatch shape: **one narrow modality question, a concrete failing file, and four numbered
+sub-questions in stated priority order.** Deliverable was a new clause file
+(`iso32000__s__7.3.7.md`), a register entry, and a one-line answer to each sub-question.
+**The highest-stakes dispatch shape yet seen — a spec answer with a document hostage to it.**
+
+### 74a. THE MODALITY QUESTION AND THE OBLIGATION QUESTION ARE DIFFERENT QUESTIONS, AND THE DISPATCH FUSED THEM
+
+The dispatch framed a binary: *"If §7.3.7 is a `should`, pdfcer is over-enforcing… if it
+is a `shall`, the refusal may be right."* **Both horns were wrong; the answer is on a
+third axis.**
+
+- It **is** a `shall not`. Body text, not a NOTE. **Word-for-word identical in ISO
+  32000-1:2008 and ISO 32000-2:2020**, untouched by the errata.
+- **AND the refusal is still not required**, because the `shall` binds the **FILE**.
+  ISO 32000-1 **§2.1** (*"Conforming PDF files shall adhere to…"*), **§2.3** (writers),
+  and decisively **§2.2**: *"The rendering of **conforming files** shall be performed as
+  defined by ISO 32000-1."* Clause 1 Scope then excludes *"methods for validating the
+  conformance of PDF files or readers"* outright.
+
+⇒ **ALWAYS ANSWER TWO QUESTIONS WHERE A DISPATCH ASKS ONE: (i) what is the modality?
+(ii) WHO is the requirement addressed to?** A `shall` on a file says nothing about a
+reader. Generalises to **every `shall` in ISO 32000**; now a trigger row in `index.md` in
+its own right. Same family as 65a (split the obligation from the output) — but sharper:
+this split is by **PARTY**, not by sentence.
+
+### 74b. THE CONFORMANCE CLAUSE IS THE MOST UNDER-READ CLAUSE IN THE STANDARD
+
+Before this session no corpus file had ingested **ISO 32000-1 clause 2** or **ISO 32000-2
+clause 6**. They are three pages and they are the interpretive key to every other clause.
+ISO 32000-2 §6.3.1 scopes a *PDF processor* to a file *"which conforms to this document"*
+and carries a NOTE retiring the term outright: *"the notion of a 'conforming reader' is
+not useful for this document."* **Read clause 2 / clause 6 whenever a dispatch asks
+whether a reader MUST do something.**
+
+### 74c. A `should` → `shall` HISTORY CAN BE SOURCED, AND IT CLOSED SUB-QUESTION 1 OUTRIGHT
+
+The PDF Association's free article **"How to read ISO publications about PDF"**
+(`https://pdfa.org/how-to-read-iso-publications-about-pdf/`; origin 403s — **fetch via
+`r.jina.ai`**, extraction 4d) uses **this exact sentence** as its worked example of
+Adobe-`should` → ISO-`shall`:
+
+- Adobe PDF Reference 1.7: *"**Note:** No two entries in the same dictionary **should**
+  have the same key"*
+- ISO 32000-1: *"Multiple entries in the same dictionary **shall not** have the same key."*
+- The article: *"these two sentences have the same technical meaning"*, and the `Note:`
+  was dropped *"because this is actually a normative statement."*
+
+⇒ **the promotion was a STYLE conversion, not a strengthening**, so *"pdfcer is
+over-enforcing a `should`"* was **refuted from a source rather than argued**. **When a
+dispatch asks "is this a `shall` or a `should`", check whether the transition is
+DOCUMENTED** — for ISO 32000-1 there is a whole Adobe "ISO-ese" mapping document behind
+this article. The same article states the scope limit in the body's own words: the
+standards *"do not include information on error handling, file recovery, user interface
+design, or robust parsing"*.
+
+### 74d. AN OPEN `pdf-issues` ISSUE CARRIED THE ANSWER IN THE MAINTAINER'S OWN WORDS
+
+**#199 "Dictionary entries with null values"** — `open`, label `bug`, unresolved since
+2022-07-14, routed to ISO TC 171 SC 2 WG 8 "Securing PDF" with #194/#201/#202/#208/#209.
+`petervwyatt` (PDF Association CTO; runs the ISO errata project), on the record:
+
+> *"as soon as a PDF violates a mandated 'shall' requirement (such as 2 keys in a
+> dictionary with the same name) then **how that PDF is to be interpreted is beyond the
+> scope of ISO 32000**."*
+
+and *"…and certainly **not under error recovery conditions**. We do also very much
+appreciate that the majority of PDF processors will support such PDFs, even without an
+official position!"*
+
+⇒ **Extends 70g.** An OPEN issue beats a self-measured silence; an open issue **whose
+thread contains the committee's reasoning** is stronger still, and it is `free_primary`
+to quote (public GitHub, the body's own repository). Two mechanics that mattered:
+**search `pdf-issues` by CLAUSE NUMBER (`q=repo:…+"7.3.7"`) as well as by key name** —
+the clause search returned 13 issues where a key-name search lands in the wrong
+neighbourhood; and **fetch `/issues/N/comments` separately** — the API's issue body does
+not include them and the answer was comment 1 of 10.
+
+### 74e. THE NEIGHBOURING SENTENCE KILLED THE OBVIOUS DEFAULT'S JUSTIFICATION
+
+The engineer's shipped rationale for keep-last was *"every other override-by-repetition
+in PDF is last-wins"*, citing §7.5.6, `Tf` and `/Prev`. §7.5.6 **does** carry a real
+reader-directed `shall` (*"the most recent copy of each object shall be the one
+accessed"*). **But the sentence IMMEDIATELY BEFORE the duplicate-key rule is
+`"That ordering shall be ignored."`** — so a positional rule reads an order the same
+clause says to ignore. **And ISO has already ruled on this axis**: erratum **#3**
+(`ISO approved`) resolved the inline-image "both abbreviated and full key" case with
+*"the abbreviated key name shall take precedence"* — **content-based** — and the
+submission rejected first/last logic **by name**, citing that very sentence.
+
+⇒ **the verdict SURVIVED (keep-last is still right) but its REASONING died.** The real
+support is tier (c): **qpdf / pdf.js / pdfium, unanimous last-wins, zero refuse**, all
+permissively licensed. **Read the sentence before and the sentence after the rule — a
+default's justification is wrong more often than the default is.** Same shape as 66g/67g
+(amend when the outcome survives and the reasoning dies), applied to code that had not
+shipped yet.
+
+### 74f. GRADE THE GRANULARITY SEPARATELY, AND IT IS ONE-SIDED
+
+The dispatch asked it as a secondary. It deserved a verdict: **§7.3.7 is violated by ONE
+ENTRY in ONE DICTIONARY, and nothing in the standard escalates a dictionary-level defect
+to the object or the document.** ⇒ **"refuse the whole document" is not the strict
+reading — it is the strict reading PLUS TWO UNSTATED ESCALATIONS.** Whenever a dispatch
+asks *"should I refuse?"*, also ask **"at what granularity does the violated clause
+actually bite?"** The answer is usually far narrower than the code's blast radius.
+
+### 74g. QUANTIFY THE COST OF REFUSING, FROM THE SPEC, IN THE FILE
+
+The doubled key was the catalog's `/PageMode`. **Table 28: Optional, default `UseNone`,
+and both `/UseOC` and `/UseOutlines` legal** ⇒ the cost of guessing wrong is **which side
+panel opens**. Cost of refusing: the whole 46 KB document. **That asymmetry is measurable
+from the standard alone and it is what makes the recommendation defensible** — and it
+would have been the *opposite* recommendation had the doubled key been `/Length` or
+`/Encrypt`. **Grade blast radius PER KEY, never globally**, and say so in the register row.
+
+### 74h. THE DISPATCH'S PREMISE ABOUT pdfcer's CODE WAS ALREADY STALE — CHECK ANYWAY, AND SAY SO
+
+*"pdfcer currently treats a duplicate key as a fatal parse error"* was **false at the
+time I read the tree**: `crates/pdfcer-core/src/parser.rs` (dirty, uncommitted) already
+carried `DuplicateKeyPolicy::{Refuse,KeepLast,KeepFirst}`, `DuplicateKeyRecord` and
+`LoadAnomaly::DuplicateDictKey`, referencing `Pass 283.0`. The engineer was writing the
+fix **concurrently with dispatching me.** ⇒ **`grep` the caller's crate for the type name
+before echoing a dispatch's claim about the code** (69d, again) — and when the fix
+already exists, **the deliverable becomes VALIDATING ITS DOC COMMENTS' SPEC CLAIMS**,
+which is where 74e landed.
+
+### 74i. Filing shape — 1 new file, 4 edits, 2 stale count cells, 0 sources staged
+
+- **NEW** `iso32000/iso32000__s__7.3.7.md`, 12 sections. A dedicated subclause file was
+  right even though `iso32000__s__7.3.md` claims §7.3.7 in its frontmatter:
+  **`7.3.4`/`7.3.5`/`7.3.8`/`7.3.10` already exist as siblings of `7.3.md`**, so the
+  pattern was established, not invented.
+- `iso32000__s__7.3.md`: `updated:` + a `clause:` supersession flag + `related_files` +
+  a **redirect blockquote spliced at the TOP of the `### Dictionary (§7.3.7)` section**
+  (66g) + an annotation on the one-line summary itself. **The old one-liner was accurate
+  and insufficient** — it stated the `shall not` without stating who it binds, which is
+  exactly what invited the over-enforcement.
+- `iso32000__ref__ambiguity_settings_register.md`: **§5.23 `DK-A1`**, **§5.24 `DK-A2`**,
+  four **`DK-N1`–`DK-N4`** rows in §6, and `DK-A1` inserted into **§3.1 P0 as rank 0** —
+  the only row in the register that has already cost an operator a whole document.
+- `index.md`: manifest row, **2 trigger rows** (one the generalised *"does any `shall`
+  oblige a READER?"* row), 3 ambiguity rows, **4 search recipes, all RUN and non-empty**,
+  and the count cells.
+- **TWO COUNT CELLS WERE STALE BEFORE I TOUCHED THEM, in two different files**, both left
+  legible with a dated note rather than silently fixed: `index.md` said `iso32000__s__`
+  **104** when disk held **105** (`12.5.6.3.md`, written 2026-09-06, no recount); the
+  register's **§2** said Bucket 1 = **20** when its own **§5 heading** already said **22**
+  (`RINT-A1`/`RINT-A3` added 2026-09-01, never carried into §2). **A count in a summary
+  table is a DERIVED value (73a) — it cannot be validated by re-reading the source, only
+  by recounting.**
+- **No source staged** — every fetch (errata pages, GitHub API, the pdfa.org article,
+  three reader sources) went to the scratchpad. **Both cached dumps were MISSING and
+  `C:\tmp` itself did not exist**; re-created both (`iso32000_dump.txt`, 756 pp;
+  `iso32000_2_dump.txt`, 2 695 377 B / 1023 pp — byte-identical to the size recorded in
+  the extraction memory, which is a free integrity check). **`mkdir -p /c/tmp` first:**
+  the dump script fails with a bare `FileNotFoundError` on the OUTPUT path, which reads
+  like a source problem and is not.
+- Blockquote licence audit run mechanically (70f) and **recorded in the file as §10.1**:
+  the two longest blocks are `free_primary` ISO 32000-1; **every
+  `licensed_primary_private_rag` block is a single sentence, longest 24 words.**

@@ -112,6 +112,153 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★ 485th filing, 2026-09-09 — `Pass 283.1` SHIPPED: THE INTERVENTION
+`Pass 283.0` PROMISED WAS ONLY REACHABLE FROM BYTES; EVERY REAL SHELL OPENS A
+PATH. ★★★ `R245`'S SHAPE FOUND A SIXTH TIME, WIDENED FROM A GUARD TO AN
+AFFORDANCE — NO NEW RULE MINTED. ★★ AN `R151`-ADJACENT READING TOO: THE
+AFFORDANCE HAD CALLERS ALL ALONG, JUST NOT ITS INTENDED ONE.**
+
+**Sourcing (hard rule 8), stated up front — NO SHELL THIS FILING.**
+`Read`/`Grep`/`Glob` only. The commit hash, test-count delta and gate results
+below are **relayed** from the dispatching engineer's own filing message,
+labelled as such rather than independently re-run. **Backup currency,
+working-tree state, remote/push state and CI colour are NOT asserted** — the
+engineer should check `D:\Dev\pdfcer` directly. **Independently verified
+here, by `Grep`/`Read` against the live tree:**
+`crates/pdfcer-cli/src/main.rs:879–882` — `open_document` now calls
+`Document::load_with_options(path, cli_password(), cli_load_options())`, not
+plain `Document::load`; `docs/core-api/01-reading-and-model.md` §3.6b already
+carries the `R245`/"affordance rather than a guard" framing verbatim,
+matching the dispatch; the `Pass 283.0` `docs/FEATURES.md` row (line 169,
+*Document & pages*) and the decision-145 §12 entry, both confirmed still at
+their 484th-filing state before this filing's own edits.
+
+---
+
+### `Pass 283.1` (`d8fcb68`, 2026-09-09) — THE OPERATOR'S INTERVENTION IS REACHABLE FROM A PATH, WHICH IS HOW EVERY SHELL OPENS A FILE
+
+**What it is, in one line.** `Pass 283.0` shipped the disclosed, overridable
+malformed-PDF policy on `Document::from_bytes_with_options` only;
+`Document::load_with_options(path, password, options)` is new, and
+`pdfcer`'s own `open_document` now goes through it instead of duplicating
+`Document::load`'s `std::fs::read` — `crates/pdfcer-core/src/document.rs`,
+`crates/pdfcer-cli/src/main.rs`.
+
+**Found how — CORRECTED BY THE ENGINEER AFTER THE FILING WAS DRAFTED.** Not
+a defect report, and **not** noticed by tracing the CLI's own
+`--on-malformed` flag. It was found by **grepping the CONSUMING project's
+tree** (`D:\Dev\pdfcer-gui`) for its actual load call site, which returned
+`Document::load` / `Document::load_with_password` and nothing else.
+
+★ **The distinction is the whole lesson and is worth keeping exact.**
+Tracing pdfcer's own flag would **NOT** have found this: `pdfcer`'s
+`open_document` already reached the override through the bytes form and was
+therefore already correct. Only the OTHER project's call sites showed the
+affordance was unreachable. The question that works is not *"does the API
+have a way?"* — it did — but *"can the intended caller reach it without
+duplicating the function beside it?"*
+
+`pdfcer-gui`'s open-file action and `pdfcer`'s path
+argument both open a **file**, and `Document::load` (the file-path entry
+point) had no parameter through which `LoadOptions` could arrive — the
+override built by `Pass 283.0` existed and was fully tested, but only
+through the bytes entry point beside it. Reaching it from a real invocation
+meant re-reading the file by hand at the call site, which nobody had done.
+
+**Why this is `R245`'s shape, and why it is filed as a dated instance rather
+than a new rule.** `R245` (*Standing rules* below, minted 469th filing) says
+a guard, key or disclosure added to one member of a family of parallel
+VERBS is unshipped until a test iterates the whole family. This is the same
+failure over a family of two **entry points** — `from_bytes_with_options`
+and `load` — with the withheld item an **affordance** rather than a
+restriction: §3.6b already says so verbatim, in the engineer's own doc
+update, not invented for this filing. `R245`'s own text already generalises
+past "verbs" ("a family of parallel [X]"), and its remedy is unchanged: the
+new tests write a fixture to a real path and open **that same path twice**,
+so they fail the moment `load_with_options` silently degrades to `load` —
+exactly the family-wide test the rule asks for. **No amendment to `R245`'s
+text; sixth dated instance appended** (see *Standing rules* below).
+
+**Also worth naming, not promoted to a shared rule.** The withheld affordance
+was not uncalled in the `R151` sense (zero callers) — it had test callers
+throughout. It was uncalled by its *intended production* caller. That is
+close enough to `R151`'s family to note and not close enough to merge:
+`R151`'s fix is "give the capability a shell"; this Pass's fix is "give the
+SIBLING entry point the same capability" — a different repair, so recorded
+as an `R245` instance with an `R151`-adjacent remark rather than folded into
+either rule's text.
+
+**Tests (relayed).** `crates/pdfcer-core/tests/malformed_opens.rs` 12 → 14.
+Both new tests write the fixture to disk and open the same path twice — once
+directly and once through `load_with_options` — asserting the anomaly list
+agrees. Sabotage: making `load_with_options` ignore its `options` argument
+and delegate to `load_with_password` turns both new tests red and leaves the
+other twelve green, so they measure the options value reaching the loader
+and nothing else.
+
+**Docs.** `docs/core-api/01-reading-and-model.md` §3.6b gains the
+path-entry-point row and the `R245` framing (verified above); the capability
+map near line 95 names both entry points; `docs/core-api/index.md`'s stated
+line count for that file was corrected 3,077 → 3,088, caught by
+`tools/check-core-api-verbs.py` going red on the stale count — worth
+recording as a gate doing its job, not a loose end.
+
+**Gates (relayed).** `tools/run-gates.sh` PASS, 29 commands including both
+filing gates; `cargo fmt` and `cargo clippy --all-targets --all-features --
+-D warnings` clean.
+
+**`docs/FEATURES.md`.** No box change — row 169 (*Document & pages*, "Open a
+PDF that contradicts itself...") was already `[x]` core / `[x]` cli /
+`[ ]` gui / `[x]` Acrobat, and that tick was not wrong, only incomplete in
+what it implied: the CLI's disclosure half worked from `Pass 283.0` on
+(`LoadOptions::default()` is already lenient, so plain `Document::load` was
+already recording anomalies); what did not work through a real path was the
+**override** half. The row's own sentence is amended in place to name the
+fix, per the maintenance contract's "never tick a box you cannot
+substantiate" — the substantiating fact changed, so the sentence carrying it
+does too.
+
+**`ARCHITECTURE.md`.** No new decision — this is a completeness fix inside
+decision 145's own mechanism, not a crate boundary, library choice or
+invariant redefinition. §10.5 and the decision-145 §12 entry both gain a
+short addendum note pointing at `Pass 283.1` and the `R245` dated instance,
+so the body and the log stay in agreement.
+
+---
+
+### Part — owed work, carried forward and new
+
+**Carried forward, unchanged (from the 484th filing):** items 4, 5, 9
+(`n=3`, `R247` reservation unreconciled), 10, 11, 13b, 14, 16, 17 — this Pass
+is the engineer's own follow-through on `Pass 283.0`, not a prior filing's
+owed item, and discharged none of them.
+
+**Discharged this filing:** none.
+
+**New, from this filing:** none — the `R245` sixth instance is filed as a
+dated addition to an existing rule, not a new owed item.
+
+---
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `283` (highest ID `283.0`), next free `284` | **`283`** (highest ID now `283.1`), next free family unchanged, `284` |
+| Standing rules | `R248` MINTED (484th filing); `R247` reserved-but-unclaimed | **UNCHANGED — `R245` gains a SIXTH dated instance** (entry-point pair, not a verb family; an affordance, not a guard); ceiling still `R248`, next free `R249`; `R247` still untouched |
+| Decision records | `145` | **UNCHANGED — `146` still next free.** This Pass is filed as an addendum to decision 145's own mechanism, not a new decision |
+| `SESSION_LOG` filings | `484` | **`485`** |
+| `docs/FEATURES.md` | row 169 unchanged since `Pass 283.0` | **row 169's sentence amended** to name `Pass 283.1`'s fix; no box moved |
+| Owed-survivor / open-reply ledger | items 4, 5, 9 (`n=3`), 10, 11, 13b, 14, 16, 17 open | **unchanged** |
+| `D:\dev\rag\rust\` | 342 files | **unchanged — dated footer appended to an EXISTING file** (`a_guard_or_key_added_to_one_sibling_verb_is_untested_until_a_family_wide_test_exists.md`), no new file |
+| `C:\personal_rag\pdf\` | 227 lesson files | **unchanged — this finding is API/testing methodology, not PDF-domain empirical, so it stays in `D:\dev\rag\rust\`** |
+
+**Release state — NOT checked this filing (no shell).** Whether `d8fcb68`
+has been pushed or released is not asserted here — the engineer should check
+`git rev-parse origin/main` / `git describe --tags --abbrev=0` directly.
+
+---
+
 **★★★★★ 484th filing, 2026-09-09 — `Pass 283.0` SHIPPED: A PDF WITH ERRORS
 OPENS NOW, pdfcer SAYS WHAT IT DECIDED, AND THE OPERATOR CAN TAKE THE OTHER
 DECISION. ★★★★ TWO OPERATOR RULINGS, BOTH GENERAL, MINTED AS DECISION 145
@@ -164407,6 +164554,62 @@ ceiling `114` → `115`** (`iccce` enters as a git dependency pinned to tag
   > already says write the test over the FAMILY**, and a family-wide test
   > would have shown resize green and the other two red on day one, which
   > is the fact the enumeration hid. **Ceiling unaffected: `R245`.**
+
+  > **★★ SIXTH DATED INSTANCE, 2026-09-09, 485th filing (`d8fcb68`, `Pass
+  > 283.1`) — THE FAMILY WAS TWO ENTRY POINTS, NOT VERBS, AND THE WITHHELD
+  > ITEM WAS AN AFFORDANCE, NOT A GUARD.**
+  >
+  > **The family.** `Pass 283.0` (decision 145, `R248`) gave the loader a
+  > disclosed, overridable policy for six defect classes, wired through
+  > `LoadOptions` — but only on the **bytes** entry point,
+  > `Document::from_bytes_with_options`. Every real shell opens a **path**:
+  > `pdfcer-gui`'s open-file action and `pdfcer`'s own path argument both
+  > called plain `Document::load`, which had no parameter through which
+  > `LoadOptions` could arrive at all. The CLI's `--on-malformed` override
+  > was accepted and threaded into a `LoadOptions` value that then had
+  > nowhere to go for a real invocation — reaching it required
+  > re-implementing `Document::load`'s own `std::fs::read` at the call
+  > site, the exact shape this rule already names for a missing guard, now
+  > shown for a missing affordance.
+  >
+  > **Widened, not amended.** `R245`'s own text already reads "a family of
+  > parallel [X]" rather than "a family of parallel verbs" specifically —
+  > this instance is the first to cash that generality in on something
+  > other than a verb, and the withheld item is a **capability** rather
+  > than a **restriction**, the mirror image of all five prior instances.
+  > `docs/core-api/01-reading-and-model.md` §3.6b names it explicitly:
+  > "`R245`'s shape... applied to an affordance rather than a guard." No
+  > amendment to `R245`'s own text — the remedy is unchanged: the fix
+  > (`Document::load_with_options`) is covered by two new tests that each
+  > write the fixture to a real path and open **that same path twice**, so
+  > they fail the moment `load_with_options` silently degrades to plain
+  > `load`, exactly the family-wide test this rule has always asked for.
+  >
+  > **Adjacent to `R151`, not merged into it.** The withheld affordance was
+  > not uncalled in `R151`'s canonical sense (zero callers) — the bytes
+  > entry point had test callers throughout this whole gap. It was
+  > uncalled by its *intended production* caller. `R151`'s remedy is "give
+  > the capability a shell"; this Pass's remedy is "give the capability's
+  > *sibling entry point* the same capability" — a different repair, so
+  > recorded as an `R245` instance with an `R151`-adjacent note rather than
+  > folded into either rule's text.
+  >
+  > **Found how, worth stating because it generalises.** Not a defect
+  > report — a check of where the CLI's own new flag actually reached,
+  > rather than asking whether the API "had a way." Grep every other
+  > constructor/loader reaching the same underlying operation before
+  > calling a new-parameter capability shipped; a parallel convenience
+  > entry point is exactly where the new parameter has no way to arrive,
+  > and it is very often the one real callers actually use. Cross-project
+  > derivation appended as a dated footer to the founding file rather than
+  > a new one:
+  > `D:/dev/rag/rust/a_guard_or_key_added_to_one_sibling_verb_is_untested_until_a_family_wide_test_exists.md`.
+  >
+  > **Ceiling unaffected: `R245`.** Project standing-rules ceiling stays
+  > `R248` (unchanged from the 484th filing), next free `R249`; `R247`
+  > untouched. No new decision minted in `ARCHITECTURE.md` §12 — this is a
+  > completeness fix inside decision 145's own mechanism, addended in
+  > place (§10.5 and the §12 entry both gain a short addendum note).
 
 - **R246 — A CORRECTION IS NOT COMPLETE UNTIL IT REACHES EVERY CORPUS THIS
   PROJECT *READS*, NOT MERELY EVERY TREE IT *WRITES*. A REFERENCE RAG IS A
