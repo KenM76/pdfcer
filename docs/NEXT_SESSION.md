@@ -33,7 +33,38 @@ Plus three librarian filings (478th `ac0fcb2`, 479th `7890800`, 480th
 
 ---
 
-## ★ THE QUEUE — TWO REQUESTS, READ AND QUEUED, NEITHER STARTED
+## ★ THE QUEUE — updated 2026-09-09 after `Pass 281.0`
+
+**`Pass 281.0` (`1177221`) closed the hybrid/redaction blocker** — a full
+rewrite of a §7.5.8.4 hybrid file now emits the three-part unit instead of
+refusing, so `redact-apply` reaches such files. Verified end to end through the
+binary and against the corpus harness (225/237 → 237/237 per-object verbatim,
+no shortfalls either way).
+
+**Two requests remain, both from `pdfcer-gui`, in this order:**
+
+1. **`request_redacted_text_carries_single_characters_on_a_per_glyph_producer_so_the_absence_proof_is_blind.md`**
+   — CONFIRMED at the source and replied to; not built. `redacted_text` is
+   accumulated **per show operator**, so a per-glyph producer yields single
+   characters and their absence proof greps for the alphabet. ★ **It is the same
+   bug as the `carrier_info` gap below**: that field has a second consumer inside
+   the engine, and the two want opposite granularities — joining runs (what they
+   asked for) makes the `/Info` under-match *worse*. Ship both halves in one
+   Pass: per-mark joined text, plus a `carrier_info` match rule that does not
+   depend on granularity, plus the granularity stated in the report.
+2. **`request_resize_annotation_refuses_a_pdfcer_authored_stamp_as_foreign.md`**
+   — `/Stamp` is the **third** authoring family `resize_annotation`'s appearance
+   test does not know. Same shape as `Pass 276.0`'s `/FreeText`. ★ Look for a
+   fourth while you are there — three found one at a time is `R245` at n=3.
+
+**★ The redaction-diligence gap, owed and unbuilt:** `redact::carrier_info`
+drops an `/Info` string that CONTAINS a redacted run, so a run longer than the
+metadata string cannot match — and the carrier line reports `scrubbed` either
+way. Measured during `Pass 281.0`'s smoke test. This is the hard-rule area.
+
+---
+
+## ~~THE QUEUE — TWO REQUESTS, READ AND QUEUED, NEITHER STARTED~~ (superseded above)
 
 Both arrived 2026-09-09 while `Pass 280.0` was being built. **Both channels
 checked by diff at session end.** Take them in this order:
