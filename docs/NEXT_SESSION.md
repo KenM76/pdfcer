@@ -33,6 +33,37 @@ Plus three librarian filings (478th `ac0fcb2`, 479th `7890800`, 480th
 
 ---
 
+## ★★ READ DECISION 145 BEFORE ANY READER WORK
+
+`Pass 283.0` turned two mid-session operator rulings into a **posture change
+for the whole reader**, and the Pass is the small half of it:
+
+> *"We should be making pdfcer so that it opens pdfs that have errors, and have
+> a way that it manages those errors such that they aren't fatal, and if the
+> user can intervene in a decision that should always be an option along with
+> them not having to intervene."*
+>
+> *"We should be doing this for all defects where it is possible to continue and
+> open the file."*
+
+**Fail-clean never meant refuse** — it meant never silently do the wrong thing,
+and a counted, disclosed, overridable decision is not silent. Six malformation
+classes now open instead of costing the document, every decision is recorded
+with what it chose *between*, and `--on-malformed` takes the other one.
+
+★ **The next reader defect you meet is governed by this, not by taste.** The
+question is no longer "is this file conforming?" but "can pdfcer continue
+without inventing anything?" — and §7.3.10's undefined-object rule is usually
+the answer. The one line that stays fatal is a file with no `/Root`, because
+continuing there would mean fabricating a catalog; a test pins it.
+
+**Where to look for the next candidates:** anywhere the reader still returns a
+hard error for a *part* of a file — `pages()`, the font loaders, the content
+interpreter, the annotation walkers. Each wants the same treatment: continue,
+record, offer the choice if one exists.
+
+---
+
 ## ★ THE QUEUE — updated 2026-09-09 after `Pass 281.0`
 
 **`Pass 281.0` (`1177221`) closed the hybrid/redaction blocker** — a full
