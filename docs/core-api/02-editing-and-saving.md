@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 211 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 219 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 211 public `EditSession` methods
+## 1. Verb index — all 219 public `EditSession` methods
 
-**Count: 211.** Established by brace-matched extraction of the five
+**Count: 219.** Established by brace-matched extraction of the five
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed.
@@ -1660,13 +1660,15 @@ always errors.
 > | `/Polygon` (incl. cloud `/BE`) | ✓ | ✓ | ✓ | 3 | `Annotation::vertices` |
 > | `/PolyLine` | ✓ | ✓ | ✓ | 2 | `Annotation::vertices` |
 > | `/Line` (incl. arrows) | ✓ index 0/1 | refused | refused | — | `Annotation::line` |
-> | `/Ink` | refused | refused | refused | — | `Annotation::ink_list` (read-only) |
+> | `/Ink` | refused *here* | refused *here* | refused *here* | 2 per stroke | `Annotation::ink_list` — **editable via `reshape_ink`, see below** |
 > | `/Square`, `/Circle`, text markup | refused | refused | refused | — | — (`/Rect` / `/QuadPoints`) |
 >
 > Every "refused" is **`EditError::GeometryNotReshapable { edit, reason, .. }`** with a
-> one-sentence `reason` you may show verbatim — never a silent no-op. Ink is refused on
-> purpose: Acrobat has never offered per-point ink editing at any version, so
-> whole-annotation `move_annotation` / `resize_annotation` is the model. Polygon/PolyLine
+> one-sentence `reason` you may show verbatim — never a silent no-op. **Ink's refusal is
+> an ADDRESSING one since `Pass 278.0`** — the capability ships under `reshape_ink`, and
+> the reason string names it. (It used to read *"Acrobat has never offered per-point ink
+> editing at any version, so whole-annotation move/resize is the model"*; true, and
+> superseded — parity is the floor, not the ceiling.) Polygon/PolyLine
 > **insert and remove exceed current Acrobat DC** (drag-existing-point only since Acrobat
 > XI) deliberately.
 >
@@ -1684,6 +1686,77 @@ always errors.
 > (`AnnotationIsCeDimension`); its own `move_dimension_vertex` re-measures.
 >
 > Undo kind: `CommandKind::ReshapeAnnotation { edit }`. CLI: `pdfcer annotation-vertex`.
+>
+> #### ★★ `/Ink` IS editable since `Pass 278.0` — by `(stroke, point)`, under its own verbs
+>
+> The row above still says "refused", and it stays true **of that verb**: the refusal is
+> now about **addressing**, not about capability. `/InkList` (§12.5.6.13, Table 182) is a
+> list **of** stroke point lists, so a point in it needs two indices and `VertexEdit`
+> carries one. `reshape_annotation`'s refusal names the verbs below.
+>
+> ```rust
+> session.move_ink_point(annot, stroke, point, dx, dy)?;      // drag one anchor
+> session.insert_ink_point(annot, stroke, after, at)?;        // last index EXTENDS
+> session.remove_ink_point(annot, stroke, point)?;            // floor: 2 per stroke
+> session.replace_ink_stroke(annot, stroke, points)?;         // redraw one stroke
+> session.move_ink_stroke(annot, stroke, dx, dy)?;            // nudge one stroke
+> session.remove_ink_stroke(annot, stroke)?;                  // drop one stroke
+> session.reshape_ink(annot, &InkEdit::…, modified)?;         // all six, plus /M
+> session.reshape_ink_preview(annot, &InkEdit::…)?;           // same guards, no write
+> ```
+>
+> | verb | what it does |
+> |---|---|
+> | `reshape_ink(&mut self, annot_id, edit: &InkEdit, modified: Option<&str>) -> Result<InkReshape, EditError>` | all six edits, and the only one that stamps `/M` |
+> | `reshape_ink_preview(&self, annot_id, edit: &InkEdit) -> Result<InkForecast, EditError>` | every guard, nothing staged — the same code up to the write |
+> | `move_ink_point(&mut self, annot_id, stroke, point, dx, dy)` | drag one anchor |
+> | `insert_ink_point(&mut self, annot_id, stroke, after, at: Point)` | the last index EXTENDS the stroke |
+> | `remove_ink_point(&mut self, annot_id, stroke, point)` | floor: two points per stroke |
+> | `replace_ink_stroke(&mut self, annot_id, stroke, points: Vec<(f64, f64)>)` | the operator redrew, or the shell simplified, one stroke |
+> | `move_ink_stroke(&mut self, annot_id, stroke, dx, dy)` | nudge ONE stroke (`move_annotation` moves them all) |
+> | `remove_ink_stroke(&mut self, annot_id, stroke)` | drop one stroke |
+>
+> **Why the previous refusal is gone.** It was argued from Acrobat — *"Acrobat has never
+> offered per-point ink editing at any version"* — which is still true and is not the
+> answer. Parity with Acrobat is this project's **floor**, not its ceiling, and the
+> operator asked for it by name: every other markup he can draw he can nudge, and the one
+> he draws fastest and least precisely was the one he could not.
+>
+> **Why stroke-level verbs exist beside point-level ones.** A freehand stroke that arrived
+> from another producer may carry hundreds of points, and per-point anchors on a 400-point
+> stroke are unusable as a UI whatever the engine offers. `replace_ink_stroke` /
+> `move_ink_stroke` let a shell offer "reshape this stroke" without pretending 400 anchors
+> are a control. Anchor density and decimation are the shell's business.
+>
+> **★ pdfcer draws an `/InkList` as a POLYLINE.** §12.5.6.13 leaves the join
+> "implementation-dependent" — *"straight lines or curves"* — and pdfcer takes the
+> straight-line reading, so **a point drag moves exactly the two segments either side of
+> it** and a polyline preview is exact rather than approximate. A pinned test
+> (`a_point_move_changes_exactly_two_segments`) keeps it that way, because splining the
+> strokes later would silently make every shell's preview wrong.
+>
+> **The one disclosure a shell must not drop:** `InkForecast::appearance_was_pdfces`. The
+> geometry moves, so carrying the old appearance is impossible; on a stroke pdfcer did not
+> draw, re-baking **replaces that producer's artwork with pdfcer's polyline rendering** and
+> visibly straightens a smoothed curve. The **preview** answers this, so the warning can be
+> shown before the first drag rather than after it.
+>
+> Refusals, each its own variant so a caller knows which list to audit:
+> `InkStrokeIndexOutOfRange` / `InkPointIndexOutOfRange` (two index spaces, two questions),
+> `InkStrokeWouldBreachPointFloor` (one point is not a path — the message names
+> `RemoveStroke`), `InkWouldBeEmpty` (an `/Ink` with nothing drawable is not a shape —
+> `delete_annotation` removes the annotation, its comment and its reply thread),
+> `InkVerbOnNonInk`, plus `AnnotationVertexNotPlaceable` and the `Locked` gate.
+> `InkWouldBeEmpty` counts what would **remain and be drawable**, not `strokes.len() > 1`:
+> a file carrying one path beside a one-point stroke passes the naive test and leaves an
+> annotation that draws nothing.
+>
+> `/Rect` is **derived, never preserved** — a point dragged outside the old box would
+> otherwise be clipped by §12.5.5's placement.
+>
+> Undo kind: `CommandKind::ReshapeInk { edit, stroke }` — it names the stroke, because an
+> undo label that said "reshape" without saying which stroke would describe a different
+> gesture from the one the operator made. CLI: `pdfcer ink-edit --op …`.
 | **Write a note onto an existing annotation** | `set_markup_note(&mut self, annot_id: ObjId, note: &MarkupNote) -> Result<MarkupNoteChange, EditError>` | 18327 | `Pass 154.0`. `/Contents`, and `/T`/`/M` only if the note carries them — a partial note does **not** clear the author. Reports the text it REPLACED. **`Pass 258.1`:** on a `/FreeText` it now also RE-BAKES `/AP` from the new words, in the same command (one undo entry) — that subtype's `/Contents` *is* what its appearance paints, so the edit used to leave the page showing the old text. `MarkupNoteChange::appearance_rebaked` says whether it moved; `false` on a sticky/stamp (their notes are not painted) and on a `/FreeText` whose appearance pdfcer did not author, which is left alone rather than replaced. |
 | **Open or close an annotation's pop-up window** | `set_annotation_open(&mut self, annot_id: ObjId, open: bool) -> Result<AnnotationOpenChange, EditError>` | 26205 | `Pass 253.3`. Writes `/Open` on the annotation **and its `/Popup` companion**, one undo entry — Table 170 gives geometric markup no `/Open` of its own, so a square's window state lives only on the companion and writing one of the two would leave them disagreeing. Does **not** create a `/Popup`: an annotation without one has no window, and choosing its `/Rect` would be authoring. That case is a reported no-op (`annotation_written`/`popup_written` both `false`, no undo entry), NOT a refusal, so a shell may pass a mixed selection without filtering by subtype. Read half: `Annotation::open`, an `Option<bool>` because absent and explicitly-`false` are different facts. |
 | **Set an annotation's `/F` display flags** | `set_annotation_flags(&mut self, annot_id: ObjId, flags: AnnotFlags) -> Result<AnnotationFlagsChange, EditError>` | edit.rs | **`Pass 262.0`, 2026-09-08.** The WRITE half of `AnnotFlags`, which had **eight read accessors and no writer** — an operator could see a markup was hidden and not un-hide it, could see it would not print and not make it print, and **could not LOCK anything**, so pdfcer's own Locked gate was unreachable from pdfcer. Takes the **whole word**, not per-bit setters: Table 165's bits interact (`NoView` + `Print` = *prints but is not on screen*, a combination reached deliberately), so a per-bit API lets a caller build a state by a sequence of individually-sensible writes whose result is not. Read `Annotation::flags`, modify, write back. ⚠️ **Refuses a `/Widget` by name** — a widget's `/F` is `edit_widget`'s `Visibility`, a four-combination type that cannot express a contradictory pair, and two writers of one key with different vocabularies is how a field reaches a state its own editor cannot describe. ★ **A Locked annotation CAN still have its flags changed, including clearing Locked** — a lock undoable only outside the API that set it would be a one-way door; Table 165 protects content from casual edits, it does not seal a file. |
@@ -4246,7 +4319,7 @@ borrow it (`tests/image_placement.rs:238-247`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs:2300`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**129 variants** at `Pass 277.0`, counted at depth 1 inside `pub enum EditError`.
+**134 variants** at `Pass 278.0`, counted at depth 1 inside `pub enum EditError`.
 
 `Pass 270.2` added `AnnotationContentsLocked` — **Table 165 bit 10,
 `LockedContents`**, raised by `set_markup_note` / `clear_markup_note` when the

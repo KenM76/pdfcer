@@ -148,6 +148,15 @@ OUTCOME_STRUCTS: list[tuple[str, str]] = [
     # silently enlarges the object on every use -- which is the exact defect
     # this Pass fixed, re-introduced one level up.
     ("crates/pdfcer-core/src/edit.rs", "AnnotationRotate"),
+    # `Pass 278.0`, registered in the SAME commit that added the structs.
+    # `InkForecast::appearance_was_pdfces` is the field that earns the entry:
+    # it is the ONLY warning that an ink edit is about to replace another
+    # producer's smoothed artwork with pdfcer's polyline rendering, and it is
+    # answered by the PREVIEW so a shell can say it before the drag rather
+    # than after. A reader that dropped it would straighten somebody's
+    # drawing silently.
+    ("crates/pdfcer-core/src/edit.rs", "InkForecast"),
+    ("crates/pdfcer-core/src/edit.rs", "InkReshape"),
     ("crates/pdfcer-core/src/edit.rs", "TextAnnotStyleChange"),
     ("crates/pdfcer-core/src/edit.rs", "ReplyAdded"),
     ("crates/pdfcer-core/src/edit.rs", "ReviewStateAdded"),

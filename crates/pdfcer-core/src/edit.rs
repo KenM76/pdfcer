@@ -332,6 +332,20 @@ pub enum CommandKind {
         /// Which of the three vertex operations it was.
         edit: VertexEditKind,
     },
+    /// One `/Ink` stroke, or one point inside one stroke, was edited and the
+    /// annotation's appearance re-baked from the new `/InkList`
+    /// (`Pass 278.0`, `pdfcer-gui` request 2026-09-08).
+    ///
+    /// Distinct from [`Self::ReshapeAnnotation`] because an `/InkList` is a
+    /// list **of** lists: an undo label that said "reshape" without saying
+    /// which stroke would be describing a different gesture from the one the
+    /// operator made.
+    ReshapeInk {
+        /// Which of the six ink operations it was.
+        edit: InkEditKind,
+        /// Which stroke of the `/InkList` it touched.
+        stroke: usize,
+    },
     /// A signature field with its (still zero-filled) signature dictionary
     /// was staged by [`EditSession::sign`] (`Pass 10.9`). The command exists
     /// so the session's history stays truthful about the objects it holds;
@@ -3788,6 +3802,188 @@ impl VertexEdit {
     }
 }
 
+/// An edit to one `/Ink` annotation's `/InkList` (`Pass 278.0`).
+///
+/// # Why `/Ink` has its own edit type instead of joining [`VertexEdit`]
+///
+/// `/InkList` (§12.5.6.13, Table 182) is an array **of** arrays — one point
+/// list per stroke — so a point inside it needs **two** indices, and
+/// [`VertexEdit`] carries one. Widening `VertexEdit` with an optional stroke
+/// would have made every existing `/Polygon` caller's index mean "the stroke
+/// index is `None`", which is a sentence about `/Ink` appearing in code that
+/// has nothing to do with it.
+///
+/// It is also a **relaxation**: `reshape_annotation` refused `/Ink` by name,
+/// and decision 144's corollary is that a capability which relaxes a
+/// constraint gets a **new name** while only one that tightens may be added in
+/// place. Tightening turns silent wrong answers into refusals; relaxing turns
+/// refusals into silent answers, and a caller that was relying on the refusal
+/// has no way to notice.
+///
+/// # Why there are stroke operations and not only point operations
+///
+/// The requesting shell asked for this and gave the reason: *"a stroke that
+/// arrived from another producer may not be simplified, and per-point anchors
+/// on a 400-point stroke are unusable as a UI regardless of what the engine
+/// offers."* [`Self::ReplaceStroke`] and [`Self::MoveStroke`] let a front end
+/// offer "reshape this stroke" or "nudge this stroke" without pretending 400
+/// anchors are a control. What anchors it draws, and how it decimates them, is
+/// its problem and not this crate's.
+///
+/// Not `Copy`: [`Self::ReplaceStroke`] owns its point list.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub enum InkEdit {
+    /// Move point `point` of stroke `stroke` by a page-space `(dx, dy)`.
+    MovePoint {
+        /// Which stroke of the `/InkList`.
+        stroke: usize,
+        /// Which point within that stroke.
+        point: usize,
+        /// Page-space x displacement, points.
+        dx: f64,
+        /// Page-space y displacement, points.
+        dy: f64,
+    },
+    /// Insert a new point immediately after `after`, at page-space `at`.
+    ///
+    /// `after == len - 1` extends the stroke past its current end, which is
+    /// the "keep drawing where I stopped" gesture. An ink stroke is open by
+    /// definition, so unlike a `/Polygon` there is no closing segment to
+    /// split.
+    InsertPoint {
+        /// Which stroke.
+        stroke: usize,
+        /// The index of the first point of the segment being split.
+        after: usize,
+        /// Where the new point goes, page space, points.
+        at: Point,
+    },
+    /// Remove point `point` from stroke `stroke`.
+    ///
+    /// Refused at a floor of two: a one-point stroke has no segment to draw,
+    /// and §12.5.6.13's "points along the path … connected by straight lines
+    /// or curves" describes a path, not a dot. Use [`Self::RemoveStroke`] to
+    /// get rid of the whole stroke — a verb that says what it does rather than
+    /// a remove that silently becomes one.
+    RemovePoint {
+        /// Which stroke.
+        stroke: usize,
+        /// Which point within it.
+        point: usize,
+    },
+    /// Replace one stroke's entire point list.
+    ///
+    /// The shape a front end uses after letting the operator redraw a stroke,
+    /// or after simplifying one. The other strokes are untouched, which is
+    /// what makes this different from deleting the annotation and authoring a
+    /// new one: `/C`, `/CA`, `/BS`, `/T`, `/Popup`, the object id and every
+    /// key pdfcer does not own all survive.
+    ReplaceStroke {
+        /// Which stroke.
+        stroke: usize,
+        /// Its new points, in order. At least two.
+        points: Vec<(f64, f64)>,
+    },
+    /// Translate every point of one stroke by `(dx, dy)`.
+    ///
+    /// Distinct from [`EditSession::move_annotation`], which moves **all** the
+    /// strokes because it moves the whole annotation.
+    MoveStroke {
+        /// Which stroke.
+        stroke: usize,
+        /// Page-space x displacement, points.
+        dx: f64,
+        /// Page-space y displacement, points.
+        dy: f64,
+    },
+    /// Remove a whole stroke from the `/InkList`.
+    ///
+    /// Refused when it is the last one: an `/Ink` with an empty `/InkList`
+    /// draws nothing and is not a shape the standard describes. Deleting the
+    /// annotation is [`EditSession::delete_annotation`], and it is a different
+    /// promise to the operator — it takes the comment, the reply thread and
+    /// the pop-up with it.
+    RemoveStroke {
+        /// Which stroke.
+        stroke: usize,
+    },
+}
+
+/// Which of the six [`InkEdit`] operations an undo entry performed
+/// (`Pass 278.0`) — [`InkEdit`] with the payload removed.
+///
+/// Exists for the reason [`VertexEditKind`] does: [`CommandKind`] is `Eq`,
+/// and [`InkEdit`] carries `f64` displacements and an owned point list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum InkEditKind {
+    /// One point of one stroke was moved.
+    PointMoved,
+    /// A point was inserted into a stroke.
+    PointInserted,
+    /// A point was removed from a stroke.
+    PointRemoved,
+    /// A stroke's whole point list was replaced.
+    StrokeReplaced,
+    /// A whole stroke was translated.
+    StrokeMoved,
+    /// A whole stroke was removed from the `/InkList`.
+    StrokeRemoved,
+}
+
+impl InkEdit {
+    /// Which of the six this is, without its payload — what rides in the
+    /// undo log.
+    #[must_use]
+    pub const fn kind(&self) -> InkEditKind {
+        match self {
+            Self::MovePoint { .. } => InkEditKind::PointMoved,
+            Self::InsertPoint { .. } => InkEditKind::PointInserted,
+            Self::RemovePoint { .. } => InkEditKind::PointRemoved,
+            Self::ReplaceStroke { .. } => InkEditKind::StrokeReplaced,
+            Self::MoveStroke { .. } => InkEditKind::StrokeMoved,
+            Self::RemoveStroke { .. } => InkEditKind::StrokeRemoved,
+        }
+    }
+
+    /// Which stroke of the `/InkList` this edit names.
+    ///
+    /// Every variant names exactly one, which is what makes an undo label able
+    /// to say *which* stroke without the payload.
+    #[must_use]
+    pub const fn stroke(&self) -> usize {
+        match self {
+            Self::MovePoint { stroke, .. }
+            | Self::InsertPoint { stroke, .. }
+            | Self::RemovePoint { stroke, .. }
+            | Self::ReplaceStroke { stroke, .. }
+            | Self::MoveStroke { stroke, .. }
+            | Self::RemoveStroke { stroke } => *stroke,
+        }
+    }
+}
+
+impl InkEditKind {
+    /// The operation as the stable lowercase token a message or a CLI prints.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::PointMoved => "move-point", // ui-text-exempt: stable output token
+            Self::PointInserted => "insert-point", // ui-text-exempt: stable output token
+            Self::PointRemoved => "remove-point", // ui-text-exempt: stable output token
+            Self::StrokeReplaced => "replace-stroke", // ui-text-exempt: stable output token
+            Self::StrokeMoved => "move-stroke", // ui-text-exempt: stable output token
+            Self::StrokeRemoved => "remove-stroke", // ui-text-exempt: stable output token
+        }
+    }
+
+    /// Whether this edit changes the number of strokes in the `/InkList`.
+    #[must_use]
+    pub const fn changes_stroke_count(self) -> bool {
+        matches!(self, Self::StrokeRemoved)
+    }
+}
 /// What a vertex edit did — or, from [`EditSession::vertex_edit_preview`],
 /// what it would do (`Pass 107.0`).
 ///
@@ -4175,6 +4371,149 @@ struct ReshapePlan {
     forecast: ReshapeForecast,
 }
 
+/// The pure half of an ink reshape. See [`EditSession::ink_plan`].
+struct InkPlan {
+    /// The annotation dictionary as the session currently has it.
+    current: Dict,
+    /// The bake of the EDITED spec — dictionary keys, stream, `/Rect`.
+    authored: annot_author::AuthoredAppearance,
+    /// What to tell the caller.
+    forecast: InkForecast,
+}
+
+/// Apply one [`InkEdit`] to a stroke list, with every geometry guard.
+///
+/// Split out of [`EditSession::ink_plan`] for the reason `reshape_spec` is
+/// split out of `reshape_plan`: the guards are the interesting part, they are
+/// pure, and a pure function is the one a test can drive exhaustively without
+/// building a document.
+///
+/// The stroke index is already known to exist — [`EditSession::ink_plan`]
+/// checks it, because it needs the before-counts anyway and a report is worth
+/// more than a second bounds check.
+fn apply_ink_edit(
+    strokes: &mut Vec<Vec<(f64, f64)>>,
+    edit: &InkEdit,
+    id: ObjId,
+) -> Result<(), EditError> {
+    /// The fewest points that still describe a path (§12.5.6.13).
+    const POINT_FLOOR: usize = 2;
+
+    let stroke_index = edit.stroke();
+    let placeable = |(x, y): (f64, f64)| -> Result<(f64, f64), EditError> {
+        if x.is_finite() && y.is_finite() {
+            Ok((x, y))
+        } else {
+            Err(EditError::AnnotationVertexNotPlaceable { id, x, y })
+        }
+    };
+    let out_of_range = |index: usize, count: usize| EditError::InkPointIndexOutOfRange {
+        id,
+        stroke: stroke_index,
+        index,
+        count,
+    };
+    // ★ THE STROKE BOUNDS CHECK LIVES HERE, not only in the caller, and
+    // clippy's `indexing_slicing` is what said so. `ink_plan` checks it too
+    // (it needs the before-counts anyway), and the first draft of this
+    // function LEANED on that — three `strokes[stroke_index]` indexings whose
+    // safety was a property of a different function twenty lines away. That is
+    // exactly the shape a later refactor breaks silently: move the counts, and
+    // a bad index stops being a refusal and becomes a panic.
+    let stroke_count = strokes.len();
+    if stroke_index >= stroke_count {
+        return Err(EditError::InkStrokeIndexOutOfRange {
+            id,
+            index: stroke_index,
+            count: stroke_count,
+        });
+    }
+    let missing = || EditError::InkStrokeIndexOutOfRange {
+        id,
+        index: stroke_index,
+        count: stroke_count,
+    };
+
+    match edit {
+        InkEdit::MovePoint { point, dx, dy, .. } => {
+            let stroke = strokes.get_mut(stroke_index).ok_or_else(missing)?;
+            let count = stroke.len();
+            let Some(p) = stroke.get_mut(*point) else {
+                return Err(out_of_range(*point, count));
+            };
+            *p = placeable((p.0 + dx, p.1 + dy))?;
+        }
+        InkEdit::InsertPoint { after, at, .. } => {
+            let stroke = strokes.get_mut(stroke_index).ok_or_else(missing)?;
+            let count = stroke.len();
+            if *after >= count {
+                return Err(out_of_range(*after, count));
+            }
+            let at = placeable((at.x, at.y))?;
+            stroke.insert(after + 1, at);
+        }
+        InkEdit::RemovePoint { point, .. } => {
+            let stroke = strokes.get_mut(stroke_index).ok_or_else(missing)?;
+            let count = stroke.len();
+            if *point >= count {
+                return Err(out_of_range(*point, count));
+            }
+            // The floor is checked AFTER the index, deliberately: a caller who
+            // named a point that does not exist has a different mistake from
+            // one who named the second of two, and being told about the floor
+            // would send them looking at the wrong thing.
+            if count <= POINT_FLOOR {
+                return Err(EditError::InkStrokeWouldBreachPointFloor {
+                    id,
+                    stroke: stroke_index,
+                    count,
+                });
+            }
+            stroke.remove(*point);
+        }
+        InkEdit::ReplaceStroke { points, .. } => {
+            if points.len() < POINT_FLOOR {
+                // Replacing a stroke with one point (or none) is the same
+                // degenerate result as removing points down to it, reported by
+                // the same name so a caller does not have to learn two.
+                return Err(EditError::InkStrokeWouldBreachPointFloor {
+                    id,
+                    stroke: stroke_index,
+                    count: points.len(),
+                });
+            }
+            let mut replacement = Vec::with_capacity(points.len());
+            for p in points {
+                replacement.push(placeable(*p)?);
+            }
+            *strokes.get_mut(stroke_index).ok_or_else(missing)? = replacement;
+        }
+        InkEdit::MoveStroke { dx, dy, .. } => {
+            let stroke = strokes.get_mut(stroke_index).ok_or_else(missing)?;
+            for p in stroke.iter_mut() {
+                *p = placeable((p.0 + dx, p.1 + dy))?;
+            }
+        }
+        InkEdit::RemoveStroke { .. } => {
+            // ★ Counted on what would REMAIN, not on `strokes.len() > 1`. A
+            // list holding one drawable stroke beside a malformed one-point
+            // stroke would pass the naive test and leave an /Ink that draws
+            // nothing — the exact state this refusal exists to prevent,
+            // reachable only through a file pdfcer did not author.
+            let remaining = strokes
+                .iter()
+                .enumerate()
+                .filter(|(i, s)| *i != stroke_index && s.len() >= POINT_FLOOR)
+                .count();
+            if remaining == 0 {
+                return Err(EditError::InkWouldBeEmpty { id, strokes: 0 });
+            }
+            strokes.remove(stroke_index);
+        }
+    }
+    Ok(())
+}
+
 /// The two object writes of a markup regeneration, staged but not yet
 /// committed. See [`EditSession::regenerate_markup_appearance`].
 struct RegeneratedMarkup {
@@ -4252,10 +4591,27 @@ fn reshape_spec(
             };
         }
         MarkupSpec::Ink { .. } => {
+            // ★ THIS REFUSAL USED TO BE THE ANSWER; IT IS NOW A SIGNPOST. It
+            // read: "per-point ink editing is refused by name: an /InkList
+            // stroke is a recorded pen trace, and Acrobat has never offered
+            // per-point ink editing at any version -- move, resize or delete
+            // the whole annotation instead."
+            //
+            // The Acrobat fact is still true and is no longer the answer:
+            // parity is this project's FLOOR, not its ceiling, and the
+            // operator asked for the capability by name. `Pass 278.0` ships it
+            // under its own verbs, because an /InkList is a list OF lists and
+            // `VertexEdit` carries one index.
+            //
+            // The refusal STAYS here — a caller at this verb has an
+            // unaddressable index, not a missing feature — and it names where
+            // to go. That is the whole difference between a limitation and a
+            // signpost, and the difference `Pass 274.0` was about.
             return Err(refuse(
-                "per-point ink editing is refused by name: an /InkList stroke is a recorded pen \
-                 trace, and Acrobat has never offered per-point ink editing at any version — \
-                 move, resize or delete the whole annotation instead",
+                "an /InkList is a list OF strokes, so a point in it needs a (stroke, point) \
+                 address and this verb carries one index — use reshape_ink, or its named \
+                 wrappers move_ink_point / insert_ink_point / remove_ink_point, or \
+                 replace_ink_stroke to swap a whole stroke's point list",
             ));
         }
         MarkupSpec::Square { .. } | MarkupSpec::Circle { .. } => {
@@ -5274,6 +5630,95 @@ pub struct AnnotationReshape {
     pub mod_date_written: bool,
 }
 
+/// What an [`InkEdit`] would do to one `/Ink` annotation — the answer
+/// [`EditSession::reshape_ink_preview`] returns, and the measured half of
+/// [`InkReshape`] (`Pass 278.0`).
+///
+/// # This is the rule-4 disclosure for a gesture that changes artwork
+///
+/// An ink reshape re-bakes the appearance from the new `/InkList`, and on a
+/// stroke pdfcer did not draw that **replaces another producer's artwork with
+/// pdfcer's rendering of it**. The geometry the operator dragged has changed,
+/// so carrying the old appearance is not an option — it would paint the stroke
+/// where it no longer is. What is not optional is *saying so*, which is
+/// [`Self::appearance_was_pdfces`], answered by the **preview** so a front end
+/// can say it before the drag rather than after.
+///
+/// ★ **pdfcer draws an `/InkList` as a polyline, not as a smoothed curve.**
+/// §12.5.6.13 says the points "shall be connected by straight lines or curves
+/// in an implementation-dependent way", so both readings conform, and pdfcer
+/// takes the straight-line one — which means a point drag moves exactly the
+/// two segments either side of it, and a front end that previews with a
+/// polyline is exactly right rather than approximately right. On a stroke
+/// whose original appearance was smoothed by another producer, re-baking
+/// visibly straightens it, and `appearance_was_pdfces` is `false` exactly
+/// there.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
+pub struct InkForecast {
+    /// The annotation's object id — unchanged by every one of these edits.
+    pub annot_id: ObjId,
+    /// Which operation this is.
+    pub edit: InkEditKind,
+    /// Which stroke of the `/InkList` it touches.
+    pub stroke: usize,
+    /// How many strokes the `/InkList` holds before.
+    pub strokes_before: usize,
+    /// How many it holds after. Differs only for
+    /// [`InkEditKind::StrokeRemoved`].
+    pub strokes_after: usize,
+    /// How many points the touched stroke holds before.
+    pub stroke_points_before: usize,
+    /// How many it holds after — `0` for [`InkEditKind::StrokeRemoved`],
+    /// because the stroke is gone rather than empty.
+    pub stroke_points_after: usize,
+    /// Total points across every stroke, before.
+    pub points_before: usize,
+    /// Total points across every stroke, after.
+    pub points_after: usize,
+    /// The `/Rect` before.
+    pub rect_before: Option<page_tree::Rect>,
+    /// The `/Rect` after, recomputed from the new geometry plus half the
+    /// stroke width. An ink `/Rect` is **derived, never preserved**: a stroke
+    /// dragged outside the old box would otherwise be clipped by §12.5.5's
+    /// placement, and a shell that re-uses the old rectangle to decide what to
+    /// repaint would leave a trail.
+    pub rect_after: page_tree::Rect,
+    /// Whether the appearance on disk is one **pdfcer** would have drawn from
+    /// the unmodified geometry.
+    ///
+    /// `false` means the artwork is another producer's and the edit will
+    /// replace it with pdfcer's polyline rendering. Reported separately from
+    /// [`InkReshape::dropped`] because it is the fact an operator would want
+    /// in one sentence, and because a front end may want to say it once, up
+    /// front, on a document it did not author.
+    pub appearance_was_pdfces: bool,
+}
+
+/// What [`EditSession::reshape_ink`] did (`Pass 278.0`).
+///
+/// Everything the preview could already answer is in [`Self::forecast`]; the
+/// three fields beside it are the ones only a write can know.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct InkReshape {
+    /// The counts, the rectangles and the appearance provenance — identical to
+    /// what [`EditSession::reshape_ink_preview`] returned for the same edit,
+    /// which is what makes a preview trustworthy rather than merely
+    /// available.
+    pub forecast: InkForecast,
+    /// How the appearance stream was written — the same three cases as a
+    /// restyle.
+    pub appearance: AppearanceWrite,
+    /// Properties the regenerated appearance does not reproduce, as
+    /// [`EditSession::set_markup_style`] reports them.
+    pub dropped: Vec<DroppedProperty>,
+    /// Whether `/M` was rewritten. `true` only when the caller supplied a
+    /// date: pdfcer reads no clock, so the six convenience wrappers leave
+    /// `/M` exactly as it was and say so here.
+    pub mod_date_written: bool,
+}
+
 /// What to encrypt with, for [`EditSession::set_encryption`] /
 /// [`EditSession::set_permissions`] (`Pass 5.4`).
 ///
@@ -5558,6 +6003,94 @@ pub enum EditError {
         /// one sentence because a caller that wants to *clear* the flag can
         /// act on the second and not on the first.
         why: &'static str,
+    },
+    /// An [`InkEdit`] named a stroke the `/InkList` does not have
+    /// (`Pass 278.0`).
+    ///
+    /// Separate from [`EditError::AnnotationVertexIndexOutOfRange`] because an
+    /// `/InkList` has **two** index spaces, and answering "index 4 is out of
+    /// range, there are 2" without saying *which* range would send a caller to
+    /// audit the wrong list.
+    #[error("annotation {id} has {count} ink stroke(s); stroke {index} does not exist")]
+    InkStrokeIndexOutOfRange {
+        /// The annotation.
+        id: ObjId,
+        /// The stroke index asked for.
+        index: usize,
+        /// How many strokes the `/InkList` holds.
+        count: usize,
+    },
+    /// An [`InkEdit`] named a point that stroke does not have (`Pass 278.0`).
+    #[error(
+        "stroke {stroke} of annotation {id} has {count} point(s); point {index} does not exist"
+    )]
+    InkPointIndexOutOfRange {
+        /// The annotation.
+        id: ObjId,
+        /// Which stroke — the index space that *was* valid, named so the
+        /// caller can see the refusal is about the inner list.
+        stroke: usize,
+        /// The point index asked for.
+        index: usize,
+        /// How many points that stroke holds.
+        count: usize,
+    },
+    /// Removing a point would leave a stroke with fewer than two
+    /// (`Pass 278.0`).
+    ///
+    /// §12.5.6.13 describes `/InkList`'s inner arrays as "points along the
+    /// path", connected "by straight lines or curves". One point is not a
+    /// path, and a one-point stroke draws nothing in pdfcer's renderer while
+    /// drawing a dot in some others — a shape whose appearance depends on the
+    /// reader is exactly what a writer should not author.
+    ///
+    /// [`InkEdit::RemoveStroke`] is the verb for getting rid of the stroke,
+    /// and it is named rather than implied: a remove that silently became a
+    /// stroke deletion would delete more than the operator pointed at.
+    #[error(
+        "stroke {stroke} of annotation {id} has {count} point(s); removing one would leave a stroke with fewer than two, which is not a path -- use InkEdit::RemoveStroke to remove the whole stroke"
+    )]
+    InkStrokeWouldBreachPointFloor {
+        /// The annotation.
+        id: ObjId,
+        /// Which stroke.
+        stroke: usize,
+        /// How many points it holds now.
+        count: usize,
+    },
+    /// [`InkEdit::RemoveStroke`] or [`InkEdit::ReplaceStroke`] would have left
+    /// the `/InkList` empty or the stroke degenerate (`Pass 278.0`).
+    ///
+    /// An `/Ink` with no strokes paints nothing and describes nothing; the
+    /// annotation still exists, still holds a `/Contents` and still appears in
+    /// a comment list, so the file would carry an invisible comment anchored
+    /// nowhere. Deleting the annotation is
+    /// [`EditSession::delete_annotation`] — a different promise, because it
+    /// takes the comment and the reply thread with it.
+    #[error(
+        "annotation {id} would be left with {strokes} ink stroke(s) of at least two points; an /Ink with nothing to draw is not a shape -- delete_annotation removes the annotation itself"
+    )]
+    InkWouldBeEmpty {
+        /// The annotation.
+        id: ObjId,
+        /// How many usable strokes would remain.
+        strokes: usize,
+    },
+    /// An ink verb was given an annotation that is not an `/Ink`
+    /// (`Pass 278.0`).
+    ///
+    /// Named rather than folded into a generic "wrong subtype", because the
+    /// two families are addressed differently — one index for a `/Polygon`'s
+    /// vertices, two for an `/InkList`'s point — and a caller that reached
+    /// here has picked the wrong index space, not merely the wrong verb.
+    #[error(
+        "annotation {id} is a {subtype}, not an /Ink -- an /InkList is addressed by (stroke, point) and a /Polygon or /PolyLine by a single vertex index; reshape_annotation is the verb for those, and a /Square or /Circle is defined by its /Rect"
+    )]
+    InkVerbOnNonInk {
+        /// The annotation.
+        id: ObjId,
+        /// Its `/Subtype`.
+        subtype: String,
     },
     /// The object named in a page's `/Annots` is a **structural object**, not
     /// an annotation (`Pass 190.1`).
@@ -7303,12 +7836,18 @@ pub enum EditError {
     /// silence — *"a shell that must guess which subtypes have editable
     /// geometry will guess wrong on the next one you add."* The cases:
     ///
-    /// - **`/Ink`, any edit.** An `/InkList` stroke is a recorded pen
-    ///   trace, and Acrobat has never offered per-point ink editing at any
-    ///   version through any interface short of scripting-array
-    ///   replacement — whole-annotation move/resize/delete only. pdfcer
-    ///   matches that model on purpose and says so. The strokes are still
-    ///   *readable* (`Annotation::ink_list`), so a shell can show them.
+    /// - **`/Ink`, any edit — an ADDRESSING refusal since `Pass 278.0`, not
+    ///   a capability one.** An `/InkList` is a list **of** stroke point
+    ///   lists (§12.5.6.13), so a point in it needs a `(stroke, point)`
+    ///   address and [`VertexEdit`] carries one index. The capability
+    ///   itself ships: [`EditSession::reshape_ink`] and its six named
+    ///   wrappers, which this refusal names.
+    ///
+    ///   ★ It used to say something else, and the something else was
+    ///   *"Acrobat has never offered per-point ink editing at any version
+    ///   … pdfcer matches that model on purpose"*. True, and superseded:
+    ///   **parity with Acrobat is this project's floor, not its ceiling**,
+    ///   and the operator asked for the capability by name.
     /// - **`/Line`, insert or remove.** A Line has exactly two endpoints
     ///   (§12.5.6.7 `/L`); a three-point open path *is* a `/PolyLine`, not
     ///   a Line with an extra vertex. Moving either endpoint is supported.
@@ -29688,7 +30227,7 @@ impl EditSession {
     /// | `/Polygon` (plain or cloudy `/BE`) | yes | yes | yes | 3 |
     /// | `/PolyLine` | yes | yes | yes | 2 |
     /// | `/Line` (incl. arrows) | yes (index 0/1) | refused | refused | — |
-    /// | `/Ink` | refused | refused | refused | — |
+    /// | `/Ink` | refused *here* | refused *here* | refused *here* | — (see [`EditSession::reshape_ink`], which does all three by `(stroke, point)`) |
     /// | `/Square`, `/Circle`, text markup | refused | refused | refused | — |
     ///
     /// **Polygon/PolyLine insert and remove EXCEED current Acrobat DC by
@@ -29865,7 +30404,9 @@ impl EditSession {
     /// index is `after + 1`. `/M` is left as it was.
     ///
     /// Refused by name on a `/Line` (two endpoints by definition) and on
-    /// `/Ink`. See [`EditSession::reshape_annotation`].
+    /// `/Ink` — the latter is an addressing refusal that names
+    /// [`EditSession::insert_ink_point`]. See
+    /// [`EditSession::reshape_annotation`].
     pub fn insert_annotation_vertex(
         &mut self,
         annot_id: ObjId,
@@ -29878,7 +30419,9 @@ impl EditSession {
     /// Remove vertex `index` from a `/Polygon` (floor 3) or `/PolyLine`
     /// (floor 2) (`Pass 255.0`). `/M` is left as it was.
     ///
-    /// Refused by name at the floor, on a `/Line`, and on `/Ink`. See
+    /// Refused by name at the floor, on a `/Line`, and on `/Ink` — the last
+    /// of those is an addressing refusal that names
+    /// [`EditSession::remove_ink_point`]. See
     /// [`EditSession::reshape_annotation`].
     pub fn remove_annotation_vertex(
         &mut self,
@@ -29886,6 +30429,362 @@ impl EditSession {
         index: usize,
     ) -> Result<AnnotationReshape, EditError> {
         self.reshape_annotation(annot_id, VertexEdit::Remove { index }, None)
+    }
+
+    /// Edit one `/Ink` annotation's `/InkList` and re-bake its appearance
+    /// (`Pass 278.0`, `pdfcer-gui` request 2026-09-08).
+    ///
+    /// # Why this exists, when `reshape_annotation` refused `/Ink` by name
+    ///
+    /// The refusal it replaces was argued from Acrobat: *"an `/InkList` stroke
+    /// is a recorded pen trace, and Acrobat has never offered per-point ink
+    /// editing at any version"*. That is still true, and it is no longer the
+    /// answer. **Parity with Acrobat is this project's floor, not its
+    /// ceiling**, and the operator asked for the capability by name — *"the
+    /// draw a line that follows the pointer tool — I can't edit the nodes that
+    /// make it"* — after noticing that every other markup he can draw
+    /// (polygon, polyline, line, cloud) he can nudge, and the one he draws
+    /// fastest and least precisely is the one he cannot.
+    ///
+    /// [`Self::reshape_annotation`] still refuses `/Ink`, and now names this
+    /// verb instead of naming a limitation.
+    ///
+    /// # The appearance is re-baked, and on foreign artwork that is a change
+    ///
+    /// The geometry moved, so the old appearance paints the stroke where it no
+    /// longer is; carrying it is not an option. On a stroke pdfcer did not
+    /// draw, re-baking replaces another producer's artwork with pdfcer's
+    /// rendering — the same trade [`Self::set_markup_style`] and
+    /// [`Self::reshape_annotation`] already make, disclosed the same way:
+    /// [`InkForecast::appearance_was_pdfces`] is `false` and
+    /// [`InkReshape::dropped`] names what was not reproduced.
+    ///
+    /// ★ pdfcer draws an `/InkList` as a **polyline**. §12.5.6.13 leaves the
+    /// join "implementation-dependent" — "straight lines or curves" — so a
+    /// point drag moves exactly the two segments either side of it and a front
+    /// end's polyline preview is exact. A producer that smoothed its curve
+    /// will see the stroke straighten; that is what `appearance_was_pdfces`
+    /// exists to announce **before** it happens, through
+    /// [`Self::reshape_ink_preview`].
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::InkVerbOnNonInk`] — the annotation is not an `/Ink`.
+    /// - [`EditError::InkStrokeIndexOutOfRange`],
+    ///   [`EditError::InkPointIndexOutOfRange`] — the two index spaces,
+    ///   reported separately so a caller knows which list to audit.
+    /// - [`EditError::InkStrokeWouldBreachPointFloor`] — a point remove that
+    ///   would leave fewer than two points in a stroke.
+    /// - [`EditError::InkWouldBeEmpty`] — a stroke remove or replace that
+    ///   would leave the annotation with nothing to draw.
+    /// - [`EditError::AnnotationVertexNotPlaceable`] — a non-finite result.
+    /// - [`EditError::AnnotationLocked`] — §12.5.3 Table 165 bit 8 names
+    ///   "position and size", which is exactly what this changes.
+    /// - [`EditError::DocumentEncrypted`],
+    ///   [`EditError::CertificationForbidsChange`],
+    ///   [`EditError::ObjectCreationWouldExposeHiddenObjects`],
+    ///   [`EditError::ObjectNumbersExhausted`], [`EditError::NotADictionary`],
+    ///   [`EditError::MarkupSpec`] — as for [`Self::reshape_annotation`].
+    pub fn reshape_ink(
+        &mut self,
+        annot_id: ObjId,
+        edit: &InkEdit,
+        modified: Option<&str>,
+    ) -> Result<InkReshape, EditError> {
+        let plan = self.ink_plan(annot_id, edit)?;
+        let dash = annot_author::read_border_dash(&self.graph(), &plan.current);
+        let was_pdfces = plan.forecast.appearance_was_pdfces;
+        let mut regen =
+            self.regenerate_markup_appearance(annot_id, &plan.current, plan.authored)?;
+        if let Some(m) = modified {
+            regen
+                .updated
+                .insert(Name::from(b"M"), Object::String(m.as_bytes().to_vec()));
+        }
+        let f = plan.forecast;
+        let report = InkReshape {
+            forecast: InkForecast {
+                // The bake and the write agree on the rectangle; taking it
+                // from the write is what `reshape_annotation` does, so that a
+                // future divergence surfaces in the REPORT rather than only in
+                // the file.
+                rect_after: regen.rect_after,
+                ..f
+            },
+            appearance: regen.appearance,
+            dropped: dropped_properties(&self.graph(), &plan.current, was_pdfces, dash.is_some()),
+            mod_date_written: modified.is_some(),
+        };
+        self.commit_regenerated_markup(
+            annot_id,
+            regen,
+            CommandKind::ReshapeInk {
+                edit: f.edit,
+                stroke: f.stroke,
+            },
+        );
+        Ok(report)
+    }
+
+    /// What [`Self::reshape_ink`] would do, without doing it — every guard and
+    /// every refusal, through the same code, and nothing staged
+    /// (`Pass 278.0`).
+    ///
+    /// The preflight a shell uses to decide whether an anchor is draggable,
+    /// and — because [`InkForecast::appearance_was_pdfces`] is answered here —
+    /// whether to tell the operator that his first drag will straighten a
+    /// smoothed stroke somebody else drew.
+    ///
+    /// # Errors
+    ///
+    /// Exactly those of [`Self::reshape_ink`] except the object-allocation
+    /// ones, which only a write can hit.
+    pub fn reshape_ink_preview(
+        &self,
+        annot_id: ObjId,
+        edit: &InkEdit,
+    ) -> Result<InkForecast, EditError> {
+        self.ink_plan(annot_id, edit).map(|p| p.forecast)
+    }
+
+    /// Move point `point` of ink stroke `stroke` by `(dx, dy)` — the
+    /// drag-an-anchor gesture (`Pass 278.0`). `/M` is left as it was.
+    ///
+    /// # Errors
+    ///
+    /// Those of [`Self::reshape_ink`].
+    pub fn move_ink_point(
+        &mut self,
+        annot_id: ObjId,
+        stroke: usize,
+        point: usize,
+        dx: f64,
+        dy: f64,
+    ) -> Result<InkReshape, EditError> {
+        self.reshape_ink(
+            annot_id,
+            &InkEdit::MovePoint {
+                stroke,
+                point,
+                dx,
+                dy,
+            },
+            None,
+        )
+    }
+
+    /// Insert a point into ink stroke `stroke`, immediately **after** point
+    /// `after` (`Pass 278.0`). `/M` is left as it was.
+    ///
+    /// # Errors
+    ///
+    /// Those of [`Self::reshape_ink`].
+    pub fn insert_ink_point(
+        &mut self,
+        annot_id: ObjId,
+        stroke: usize,
+        after: usize,
+        at: Point,
+    ) -> Result<InkReshape, EditError> {
+        self.reshape_ink(annot_id, &InkEdit::InsertPoint { stroke, after, at }, None)
+    }
+
+    /// Remove point `point` from ink stroke `stroke` (`Pass 278.0`). Refused
+    /// at a floor of two points; `/M` is left as it was.
+    ///
+    /// # Errors
+    ///
+    /// Those of [`Self::reshape_ink`].
+    pub fn remove_ink_point(
+        &mut self,
+        annot_id: ObjId,
+        stroke: usize,
+        point: usize,
+    ) -> Result<InkReshape, EditError> {
+        self.reshape_ink(annot_id, &InkEdit::RemovePoint { stroke, point }, None)
+    }
+
+    /// Replace ink stroke `stroke`'s whole point list (`Pass 278.0`).
+    ///
+    /// The verb for "the operator redrew this stroke" and for "we simplified
+    /// it": every other stroke, and every key of the annotation this verb does
+    /// not own, is untouched. `/M` is left as it was.
+    ///
+    /// # Errors
+    ///
+    /// Those of [`Self::reshape_ink`].
+    pub fn replace_ink_stroke(
+        &mut self,
+        annot_id: ObjId,
+        stroke: usize,
+        points: Vec<(f64, f64)>,
+    ) -> Result<InkReshape, EditError> {
+        self.reshape_ink(annot_id, &InkEdit::ReplaceStroke { stroke, points }, None)
+    }
+
+    /// Translate every point of ink stroke `stroke` by `(dx, dy)`
+    /// (`Pass 278.0`).
+    ///
+    /// [`Self::move_annotation`] moves the whole annotation — every stroke.
+    /// This moves one. `/M` is left as it was.
+    ///
+    /// # Errors
+    ///
+    /// Those of [`Self::reshape_ink`].
+    pub fn move_ink_stroke(
+        &mut self,
+        annot_id: ObjId,
+        stroke: usize,
+        dx: f64,
+        dy: f64,
+    ) -> Result<InkReshape, EditError> {
+        self.reshape_ink(annot_id, &InkEdit::MoveStroke { stroke, dx, dy }, None)
+    }
+
+    /// Remove ink stroke `stroke` from the `/InkList` (`Pass 278.0`).
+    ///
+    /// Refused when it is the last usable stroke —
+    /// [`EditError::InkWouldBeEmpty`]; [`Self::delete_annotation`] is the verb
+    /// for the annotation itself. `/M` is left as it was.
+    ///
+    /// # Errors
+    ///
+    /// Those of [`Self::reshape_ink`].
+    pub fn remove_ink_stroke(
+        &mut self,
+        annot_id: ObjId,
+        stroke: usize,
+    ) -> Result<InkReshape, EditError> {
+        self.reshape_ink(annot_id, &InkEdit::RemoveStroke { stroke }, None)
+    }
+
+    /// The pure half of an ink reshape: every gate, the `/InkList` edit and
+    /// the bake — nothing staged, nothing allocated.
+    ///
+    /// Shared by [`EditSession::reshape_ink`] and
+    /// [`EditSession::reshape_ink_preview`] so the preview cannot drift from
+    /// the verb: they are the same function up to the write. Same discipline
+    /// as [`EditSession::reshape_plan`], and the same reason — a preview that
+    /// is a second implementation of the guards is a preview that will one day
+    /// enable a control the verb refuses.
+    fn ink_plan(&self, annot_id: ObjId, edit: &InkEdit) -> Result<InkPlan, EditError> {
+        // Document gates before annotation gates — same order and same
+        // reasoning as `reshape_plan`.
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+        self.check_certification_for_annotation()?;
+
+        let (target, _all) = self.locate_annotation(annot_id)?;
+        let subtype = String::from_utf8_lossy(&target.subtype).into_owned();
+
+        let Some(Object::Dict(current)) = self.value(annot_id) else {
+            return Err(EditError::NotADictionary {
+                id: annot_id,
+                key: "Subtype",
+            });
+        };
+        let current = current.clone();
+
+        // Table 165 bit 8, Locked — "position and size". LockedContents is
+        // deliberately NOT consulted: it guards the comment text, not the
+        // geometry. Same split `reshape_plan` documents.
+        if target.flags.locked() {
+            return Err(EditError::AnnotationLocked {
+                id: annot_id,
+                subtype: subtype.clone(),
+            });
+        }
+
+        let original = annot_author::spec_from_dict(&self.graph(), &current)?;
+        let MarkupSpec::Ink {
+            strokes,
+            color,
+            width,
+        } = &original
+        else {
+            return Err(EditError::InkVerbOnNonInk {
+                id: annot_id,
+                subtype,
+            });
+        };
+
+        let strokes_before = strokes.len();
+        let points_before: usize = strokes.iter().map(Vec::len).sum();
+        let stroke_index = edit.stroke();
+        let Some(touched) = strokes.get(stroke_index) else {
+            return Err(EditError::InkStrokeIndexOutOfRange {
+                id: annot_id,
+                index: stroke_index,
+                count: strokes_before,
+            });
+        };
+        let stroke_points_before = touched.len();
+
+        let mut next = strokes.clone();
+        apply_ink_edit(&mut next, edit, annot_id)?;
+
+        let dash = annot_author::read_border_dash(&self.graph(), &current);
+        // Was the appearance on disk one pdfcer would have drawn from the
+        // UNMODIFIED geometry? Measured here, against `original`, because
+        // comparing a rebuild of the NEW geometry with the OLD bytes would
+        // disagree every time and report every stroke as foreign. The same
+        // ordering trap `resize_annotation` documents at length.
+        let appearance_was_pdfces = self.appearance_matches(
+            &current,
+            &annot_author::build_appearance_opts(
+                &original,
+                &annot_author::AppearanceOptions {
+                    quad_order: self.quad_point_order,
+                    dash: dash.clone(),
+                },
+            )
+            .ap_content,
+        );
+
+        let reshaped = MarkupSpec::Ink {
+            strokes: next,
+            color: *color,
+            width: *width,
+        };
+        let authored = annot_author::build_appearance_opts(
+            &reshaped,
+            &annot_author::AppearanceOptions {
+                quad_order: self.quad_point_order,
+                dash,
+            },
+        );
+        let MarkupSpec::Ink { strokes: next, .. } = &reshaped else {
+            unreachable!("constructed as Ink two statements ago")
+        };
+
+        let forecast = InkForecast {
+            annot_id,
+            edit: edit.kind(),
+            stroke: stroke_index,
+            strokes_before,
+            strokes_after: next.len(),
+            stroke_points_before,
+            // ★ NOT `next[stroke_index].len()`. After a stroke removal that
+            // index addresses the stroke that MOVED DOWN into the slot, so the
+            // report would name a length belonging to a stroke the operator
+            // did not touch — a plausible number about the wrong subject.
+            stroke_points_after: if edit.kind().changes_stroke_count() {
+                0
+            } else {
+                next.get(stroke_index).map_or(0, Vec::len)
+            },
+            points_before,
+            points_after: next.iter().map(Vec::len).sum(),
+            rect_before: target.rect,
+            rect_after: authored.rect,
+            appearance_was_pdfces,
+        };
+        Ok(InkPlan {
+            current,
+            authored,
+            forecast,
+        })
     }
 
     /// The pure half of a reshape: every gate, the geometry edit, and the

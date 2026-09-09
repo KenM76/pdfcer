@@ -7630,6 +7630,90 @@ enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// **Edit a freehand `/Ink` stroke** (`Pass 278.0`) — move, insert or
+    /// remove one point, or replace, move or remove a whole stroke.
+    ///
+    /// An `/InkList` (§12.5.6.13) is a list **of** strokes, so a point in it
+    /// is addressed by `--stroke` and `--point`, not by one index — which is
+    /// why `annotation-vertex` refuses `/Ink` and sends you here. Read the
+    /// current strokes from `list-annotations`, which prints `ink=` per
+    /// annotation. Both indices are 0-based.
+    ///
+    /// The `/InkList`, the `/Rect` and the appearance stream are all rebuilt
+    /// from the new geometry by the same bake `annotate` authors ink with.
+    /// pdfcer draws a stroke as a POLYLINE — §12.5.6.13 leaves the join
+    /// "implementation-dependent" — so a point move changes where two
+    /// segments go and nothing else. On a stroke pdfcer did not draw, the
+    /// re-bake REPLACES the other producer's artwork with pdfcer's rendering,
+    /// which straightens a smoothed curve; the command says so on stderr
+    /// before it saves.
+    ///
+    /// Refused by name, never silently: a stroke or point index that names
+    /// nothing (reported separately, because the two index spaces are
+    /// different questions); a point removal that would leave a stroke with
+    /// fewer than two points — one point is not a path, so use
+    /// `--op remove-stroke`; a stroke removal that would leave the annotation
+    /// with nothing drawable — `delete-annotation` removes the annotation
+    /// itself, along with its comment and reply thread; a non-finite result;
+    /// an annotation that is not an `/Ink`; and the Locked flag. The
+    /// LockedContents flag does NOT block a reshape — it guards the note
+    /// text, not the geometry.
+    ///
+    /// `--dry-run` answers exactly what the real invocation would, through
+    /// the same guards, and writes nothing.
+    InkEdit {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page the annotation is on.
+        #[arg(long, default_value_t = 1)]
+        page: usize,
+        /// Which annotation, numbered from 0 in `list-annotations` order.
+        #[arg(long, default_value_t = 0)]
+        annot: usize,
+        /// What to do.
+        #[arg(long, value_enum)]
+        op: InkOpArg,
+        /// Which stroke of the `/InkList`, 0-based.
+        #[arg(long, default_value_t = 0)]
+        stroke: usize,
+        /// Which point within that stroke, 0-based. For `insert-point`, the
+        /// point the new one goes AFTER — the last index extends the stroke.
+        #[arg(long, default_value_t = 0)]
+        point: usize,
+        /// Horizontal shift in points, positive to the right
+        /// (`move-point` / `move-stroke`).
+        #[arg(long, default_value_t = 0.0, allow_hyphen_values = true)]
+        dx: f64,
+        /// Vertical shift in points, positive UP
+        /// (`move-point` / `move-stroke`).
+        #[arg(long, default_value_t = 0.0, allow_hyphen_values = true)]
+        dy: f64,
+        /// Where the new point goes (`insert-point` only), as `x,y` in points.
+        #[arg(long, allow_hyphen_values = true)]
+        at: Option<String>,
+        /// The stroke's new points (`replace-stroke` only), as
+        /// `x,y;x,y;…` in points. At least two.
+        #[arg(long, allow_hyphen_values = true)]
+        points: Option<String>,
+        /// A `/M` modification date to stamp, verbatim (e.g.
+        /// `D:20260909120000Z`). pdfcer reads no clock; without this the
+        /// annotation's `/M` is left exactly as it was.
+        #[arg(long)]
+        modified: Option<String>,
+        /// Report what would happen and write nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Output path (required unless `--dry-run`).
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// How to save: incremental (default) or full rewrite.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// After saving, undo in memory and check the base bytes are
+        /// untouched.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// **Place a ce dimension** (Pass 27.1): set how far its dimension line
     /// stands off the geometry and where its value sits along that line.
     ///
@@ -11312,6 +11396,39 @@ fn run() -> ExitCode {
             dx,
             dy,
             at: at.as_deref(),
+            modified: modified.as_deref(),
+            dry_run,
+            output: output.as_deref(),
+            mode,
+            verify_undo,
+        }),
+        Command::InkEdit {
+            input,
+            page,
+            annot,
+            op,
+            stroke,
+            point,
+            dx,
+            dy,
+            at,
+            points,
+            modified,
+            dry_run,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_ink_edit(&InkEditArgs {
+            input: &input,
+            page,
+            annot,
+            op,
+            stroke,
+            point,
+            dx,
+            dy,
+            at: at.as_deref(),
+            points: points.as_deref(),
             modified: modified.as_deref(),
             dry_run,
             output: output.as_deref(),
@@ -30083,6 +30200,297 @@ fn cmd_annotation_vertex(args: &AnnotationVertexArgs<'_>) -> u8 {
         rect_token(&r.rect_after),
         r.dropped.len(),
         u8::from(r.measure_not_recomputed),
+        u8::from(r.mod_date_written),
+        args.mode.name(),
+        output.display(),
+        outcome.changed,
+        rep.objects_written,
+        rep.bytes_appended,
+        rep.bytes_written,
+        u32::from(outcome.undo_verified),
+        u32::from(outcome.undo_identical),
+    );
+    exit::SUCCESS
+}
+
+/// Which ink edit `ink-edit` performs (`Pass 278.0`).
+///
+/// Six, not three, because an `/InkList` has two grains: a shell with a
+/// 400-point stroke cannot offer per-point anchors and needs the stroke-level
+/// verbs — the requesting project's own reasoning.
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+enum InkOpArg {
+    /// Move `--point` of `--stroke` by `--dx`/`--dy`.
+    MovePoint,
+    /// Insert a point at `--at`, immediately after `--point`.
+    InsertPoint,
+    /// Remove `--point` from `--stroke`. Floor: two points per stroke.
+    RemovePoint,
+    /// Replace `--stroke`'s whole point list with `--points`.
+    ReplaceStroke,
+    /// Translate every point of `--stroke` by `--dx`/`--dy`.
+    MoveStroke,
+    /// Remove `--stroke` from the `/InkList`.
+    RemoveStroke,
+}
+
+/// Arguments of `ink-edit`, bundled so [`cmd_ink_edit`] stays inside
+/// clippy's seven-argument limit.
+struct InkEditArgs<'a> {
+    input: &'a Path,
+    page: usize,
+    annot: usize,
+    op: InkOpArg,
+    stroke: usize,
+    point: usize,
+    dx: f64,
+    dy: f64,
+    at: Option<&'a str>,
+    points: Option<&'a str>,
+    modified: Option<&'a str>,
+    dry_run: bool,
+    output: Option<&'a Path>,
+    mode: SaveMode,
+    verify_undo: bool,
+}
+
+/// `ink-edit` (`Pass 278.0`): one point or one whole stroke of an `/Ink`
+/// annotation, through `EditSession::reshape_ink`.
+///
+/// The CLI has no session and no undo, so the invocation IS the commit and
+/// every disclosure rides out with it (project rules 4 and 11): the stroke
+/// and point counts before and after, the recomputed `/Rect`, how the
+/// appearance stream was written, anything the re-bake dropped, and — the
+/// one that matters most because the operator cannot see it coming —
+/// whether the artwork being replaced was pdfcer's own.
+///
+/// `--dry-run` goes through `reshape_ink_preview`, which is the same code up
+/// to the write, so a scripted preflight and the real thing cannot disagree.
+fn cmd_ink_edit(args: &InkEditArgs<'_>) -> u8 {
+    use pdfcer_core::edit::{AppearanceWrite, InkEdit};
+
+    if args.page == 0 {
+        eprintln!(
+            "pdfcer: {}: --page is 1-based; 0 is not a page",
+            args.input.display()
+        );
+        return exit::RUNTIME_ERROR;
+    }
+    let edit = match args.op {
+        InkOpArg::MovePoint => InkEdit::MovePoint {
+            stroke: args.stroke,
+            point: args.point,
+            dx: args.dx,
+            dy: args.dy,
+        },
+        InkOpArg::InsertPoint => {
+            let Some(text) = args.at else {
+                eprintln!(
+                    "pdfcer: {}: --op insert-point needs --at x,y (where the new point goes)",
+                    args.input.display()
+                );
+                return exit::EDIT_REFUSED;
+            };
+            let Some(at) = parse_dim_points(text).and_then(|pts| pts.first().copied()) else {
+                eprintln!(
+                    "pdfcer: {}: --at must be `x,y` in points",
+                    args.input.display()
+                );
+                return exit::EDIT_REFUSED;
+            };
+            InkEdit::InsertPoint {
+                stroke: args.stroke,
+                after: args.point,
+                at,
+            }
+        }
+        InkOpArg::RemovePoint => InkEdit::RemovePoint {
+            stroke: args.stroke,
+            point: args.point,
+        },
+        InkOpArg::ReplaceStroke => {
+            let Some(text) = args.points else {
+                eprintln!(
+                    "pdfcer: {}: --op replace-stroke needs --points x,y;x,y (at least two)",
+                    args.input.display()
+                );
+                return exit::EDIT_REFUSED;
+            };
+            let Some(pts) = parse_dim_points(text) else {
+                eprintln!(
+                    "pdfcer: {}: --points must be `x,y;x,y;…` in points",
+                    args.input.display()
+                );
+                return exit::EDIT_REFUSED;
+            };
+            InkEdit::ReplaceStroke {
+                stroke: args.stroke,
+                points: pts.iter().map(|p| (p.x, p.y)).collect(),
+            }
+        }
+        InkOpArg::MoveStroke => InkEdit::MoveStroke {
+            stroke: args.stroke,
+            dx: args.dx,
+            dy: args.dy,
+        },
+        InkOpArg::RemoveStroke => InkEdit::RemoveStroke {
+            stroke: args.stroke,
+        },
+    };
+
+    let (source, mut session) = match open_for_edit(args.input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+
+    // Resolve (page, index) to an object id — the same addressing
+    // `annotation-vertex` and `move-annotation` use, so an operator lists
+    // once and edits many.
+    let annot_id = {
+        let slots = match session.page_slots() {
+            Ok(slots) => slots,
+            Err(err) => {
+                eprintln!("pdfcer: {}: {err}", args.input.display());
+                return exit::RUNTIME_ERROR;
+            }
+        };
+        let Some(slot) = slots.get(args.page - 1) else {
+            eprintln!(
+                "pdfcer: {}: no page {} — the document has {} page(s)",
+                args.input.display(),
+                args.page,
+                slots.len()
+            );
+            return exit::RUNTIME_ERROR;
+        };
+        let annots = pdfcer_core::annot::page_annotations(&session.graph(), slot.id);
+        let Some(annot) = annots.get(args.annot) else {
+            eprintln!(
+                "pdfcer: {}: page {} has no annotation at index {} — it has {} (indices 0..{})",
+                args.input.display(),
+                args.page,
+                args.annot,
+                annots.len(),
+                annots.len().saturating_sub(1)
+            );
+            return exit::RUNTIME_ERROR;
+        };
+        let Some(id) = annot.id else {
+            eprintln!(
+                "pdfcer: {}: page {} index {} is a direct dictionary inside /Annots, not an indirect object — it has no identity to reshape",
+                args.input.display(),
+                args.page,
+                args.annot
+            );
+            return exit::EDIT_REFUSED;
+        };
+        id
+    };
+
+    let rect_token =
+        |r: &pdfcer_core::page_tree::Rect| format!("{},{},{},{}", r.llx, r.lly, r.urx, r.ury);
+
+    if args.dry_run {
+        let f = match session.reshape_ink_preview(annot_id, &edit) {
+            Ok(f) => f,
+            Err(err) => return report_edit_error(args.input, &err),
+        };
+        if !f.appearance_was_pdfces {
+            eprintln!(
+                "pdfcer: {}: pdfcer did NOT draw this ink's appearance — the edit would REPLACE that artwork with pdfcer's own polyline rendering of the /InkList, which straightens a smoothed stroke. The geometry is moving, so carrying the old appearance is not an option.",
+                args.input.display()
+            );
+        }
+        println!(
+            "ink-edit {} page={} annot={} op={} stroke={} dry_run=1 strokes_before={} strokes_after={} stroke_points_before={} stroke_points_after={} points_before={} points_after={} rect_before={} rect_after={} appearance_was_ours={}",
+            args.input.display(),
+            args.page,
+            args.annot,
+            f.edit.as_str(),
+            f.stroke,
+            f.strokes_before,
+            f.strokes_after,
+            f.stroke_points_before,
+            f.stroke_points_after,
+            f.points_before,
+            f.points_after,
+            f.rect_before
+                .as_ref()
+                .map_or_else(|| "none".to_owned(), rect_token),
+            rect_token(&f.rect_after),
+            u8::from(f.appearance_was_pdfces),
+        );
+        return exit::SUCCESS;
+    }
+
+    let Some(output) = args.output else {
+        eprintln!(
+            "pdfcer: {}: --output is required unless --dry-run is passed",
+            args.input.display()
+        );
+        return exit::EDIT_REFUSED;
+    };
+
+    let r = match session.reshape_ink(annot_id, &edit, args.modified) {
+        Ok(r) => r,
+        Err(err) => return report_edit_error(args.input, &err),
+    };
+
+    // Disclosures, invisible-first: whose artwork this was cannot be seen in
+    // the result, the dropped properties can.
+    if !r.forecast.appearance_was_pdfces {
+        eprintln!(
+            "pdfcer: {}: pdfcer did NOT draw this ink's appearance — it has been REPLACED with pdfcer's own polyline rendering of the /InkList. A smoothed stroke is now straight between its points.",
+            args.input.display()
+        );
+    }
+    for d in &r.dropped {
+        eprintln!(
+            "pdfcer: {}: the regenerated appearance does not reproduce: {d:?}",
+            args.input.display()
+        );
+    }
+
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        output,
+        args.mode,
+        ProducerArg::Preserve,
+        args.verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let ap = match r.appearance {
+        AppearanceWrite::InPlace(_) => "in-place",
+        AppearanceWrite::Created(_) => "created",
+        AppearanceWrite::CopiedOnWrite { .. } => "copied",
+        // `AppearanceWrite` is #[non_exhaustive]; a future variant must print
+        // SOMETHING rather than fail to compile a shell.
+        _ => "other",
+    };
+    let f = &r.forecast;
+    let rep = &outcome.report;
+    println!(
+        "ink-edit {} page={} annot={} op={} stroke={} strokes_before={} strokes_after={} stroke_points_before={} stroke_points_after={} points_before={} points_after={} rect_before={} rect_after={} appearance={ap} appearance_was_ours={} dropped={} m_written={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        args.input.display(),
+        args.page,
+        args.annot,
+        f.edit.as_str(),
+        f.stroke,
+        f.strokes_before,
+        f.strokes_after,
+        f.stroke_points_before,
+        f.stroke_points_after,
+        f.points_before,
+        f.points_after,
+        f.rect_before
+            .as_ref()
+            .map_or_else(|| "none".to_owned(), rect_token),
+        rect_token(&f.rect_after),
+        u8::from(f.appearance_was_pdfces),
+        r.dropped.len(),
         u8::from(r.mod_date_written),
         args.mode.name(),
         output.display(),
