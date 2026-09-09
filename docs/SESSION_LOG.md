@@ -4,6 +4,92 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-09 (486th filing)
+
+**Shipped:**
+- Pass 284.0 (`ea4acb3`, pushed to `origin/main` per the dispatch — not
+  independently verified, no shell this filing) — the queue's head owed
+  item ("an orphaned `/Info`-shaped object survives a redaction") turned
+  out to be one instance of a class: every redaction carrier finds its
+  target by navigating the document graph, while the writer emits objects
+  by enumerating the cross-reference table, and every object in the
+  difference was re-emitted verbatim into a redacted file, never offered
+  to a carrier. New fourteenth carrier `residual_sweep` closes it,
+  scoping the sweep to the xref table's own listing rather than to a
+  computed reachability walk. Closes owed item 16; also closes three
+  carriers nobody had filed (a thread's own information dictionary, and
+  two further XMP routes, §14.3.2 B/C) as a byproduct of sweeping instead
+  of enumerating. New owed item 18: a non-metadata content stream
+  carrying redacted text is named, not removed.
+
+**Decisions made this session:**
+- **Decision 146** (`ARCHITECTURE.md` §12, body §5.9): a destructive
+  sweep obliged by an outcome-shaped requirement ("remove all traces of
+  X") is scoped by the evidence the requirement itself names, never by a
+  computed reachability walk — because reachability computations on a
+  graph-shaped format fail silently rather than loudly, and the census
+  probe built to measure this very fix reproduced that failure shape
+  twice within the hour it was written.
+- **Standing rule `R249` minted** from the engineer's own generalisation,
+  which was offered unnumbered and left for this filing to judge. Minted
+  past the still-reserved-but-unclaimed `R247`, same precedent `R248`
+  itself set one filing ago. Full text in `ROADMAP.md` *Standing rules*.
+
+**Findings + decisions:**
+- **A census probe made the exact mistake it was written to catch,
+  twice, within an hour** — `examples/unreachable_census.rs`, written
+  immediately after reading §12.5.6.23, first counted every object
+  stream as an orphan, then every cross-reference stream, before landing
+  on the correct figure. Both wrong numbers (21% and an intermediate
+  figure) were caught only by measurement, never by re-reading the
+  clause — the final reported figure moved 21% → 12%. Recorded because a
+  filing that keeps only the final 12% loses the lesson that a careful,
+  purpose-built reachability computation, written by someone who had just
+  argued against trusting reachability computations, made the trap-shaped
+  error anyway.
+- **Two implementation bugs in the new sweep, both caught by tests
+  written for earlier Passes**, an argument against deleting a test whose
+  subject you are changing: a staged span not indexing the base buffer
+  (`stage()` allocates at `base_len + staging.len()`, so slicing the
+  original bytes with a replaced stream's span read the wrong region);
+  and two different empty answers collapsed into one report value ("no
+  text redacted at all" vs. "text redacted but all of it below the match
+  floor" both reported the same way in the first cut).
+- **A PDF-domain empirical finding**, filed to `C:\personal_rag\pdf\`:
+  measured over the operator's own 57-file drawing set, 12 files (21%)
+  carry objects the cross-reference table lists but the document graph
+  never reaches, 20 such objects total, 7 of which could carry drawn
+  text — merge outputs are the worst offenders. Distinct from the spec
+  text half (§14.3, filed by `pdfcer-spec-librarian`).
+- **Two new `D:\dev\rag\rust\` findings**: the staged-span base-offset
+  indexing bug (generalises to any base-plus-staging-buffer pattern), and
+  the census-probe-reproduces-the-trap-it-measures finding (generalises
+  as a caution about trusting a freshly-written verification computation
+  more than the mechanism it is checking, when both share a structural
+  blind spot).
+- `docs/FEATURES.md`'s *Apply redaction* row amended in place: owed item
+  16's sentence replaced with the fix (fourteenth carrier, two new
+  counters, the three incidentally-closed carriers, the evidence-not-
+  reachability argument in brief), and the new non-metadata-stream gap
+  named where item 16 used to be.
+
+**Still in flight:**
+- Owed items 4, 5, 9 (`n=3`, `R247` reservation unreconciled), 10, 11,
+  13b, 14, 17, 18 (new this filing) all carried forward.
+- The `R247` reservation is now flanked by three unrelated, already-
+  decided-past-it rules (`R248`, `R249`) — worth resolving soon so the
+  numbering gap does not become confusing in its own right.
+- Whether `ea4acb3` has been pushed or released is relayed from the
+  dispatch only, not independently checked — the engineer should verify
+  directly.
+
+**For next session:**
+- Item 18 (non-metadata content stream carrying redacted text, named not
+  removed) is queued, unstarted — a destructive act on a new object
+  class, deliberately not folded into `Pass 284.0`.
+- Resolve the `R247` reservation before a fourth unrelated candidate
+  makes the gap harder to reconcile.
+
 ## 2026-09-09 (485th filing)
 
 **Shipped:**

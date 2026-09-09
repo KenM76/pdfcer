@@ -112,6 +112,244 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★★ 486th filing, 2026-09-09 — `Pass 284.0` SHIPPED: A DESTRUCTIVE SWEEP
+IS SCOPED BY THE EVIDENCE THE OBLIGATION NAMES, NEVER BY COMPUTED
+REACHABILITY — FOURTEENTH REDACTION CARRIER `residual_sweep` CLOSES OWED
+ITEM 16 AND THREE CARRIERS NOBODY HAD FILED. ★★★★ DECISION 146 MINTED;
+STANDING RULE `R249` MINTED FROM IT, PAST THE STILL-RESERVED `R247`. ★★★
+THE CENSUS PROBE WRITTEN TO MEASURE THE FIX MADE THE FIX'S OWN MISTAKE
+TWICE, CAUGHT ONLY BY MEASUREMENT. ★★ TWO BUGS IN THE NEW SWEEP ITSELF,
+BOTH CAUGHT BY TESTS WRITTEN FOR EARLIER PASSES.**
+
+**Sourcing (hard rule 8), stated up front — NO SHELL THIS FILING.**
+`Read`/`Grep`/`Glob` only. The commit hash, test-count delta and gate
+results below are **relayed** from the dispatching engineer's own filing
+message, labelled as such rather than independently re-run. **Backup
+currency, working-tree state, remote/push state and CI colour are NOT
+asserted** — the dispatch states `ea4acb3` is pushed to `origin/main`; that
+is relayed, not independently checked. **Independently verified here, by
+`Grep`/`Read` against the live tree:** `crates/pdfcer-core/src/redact.rs`
+carries the `residual_sweep` function and the `stage`/`base_len` code the
+dispatch describes (`:2122–2123`, `:2949`); `crates/pdfcer-core/tests/
+redaction_residual_sweep.rs` exists; `crates/pdfcer-core/examples/
+orphan_info_probe.rs` and `examples/unreachable_census.rs` both exist;
+`docs/core-api/03-capabilities.md` already carries the fourteen-carrier
+table, the "sweeps by evidence, never reachability" argument, the two
+counter names, and the "two empty answers" distinction — all matching the
+dispatch's own description, not invented for this filing; `CarrierAction`
+now lists `CheckedClean` in its documented variant set (confirming the
+Pass 282.0 gap the dispatch names is closed in the same edit).
+
+---
+
+### `Pass 284.0` (`ea4acb3`, 2026-09-09) — THE QUEUE'S HEAD ITEM WAS ONE INSTANCE OF A CLASS, AND THE CLASS IS THE PASS
+
+**What it is, in one line.** Every carrier in `redact` found its target by
+**navigating the document graph** (the trailer's `/Info`, the catalog's
+`/Metadata`, the page tree's content streams); `writer::save_full` emits
+objects by **enumerating the cross-reference table**
+(`doc.xref().iter()`, `save.rs:696`). Those are different sets, and every
+object in the difference was re-emitted **verbatim** into a redacted file,
+never offered to a carrier. New fourteenth carrier `residual_sweep`
+closes it — `crates/pdfcer-core/src/redact.rs`.
+
+**★★ The line worth keeping above the rest.** `prior_revisions
+action=dropped_by_rewrite` was **true**, and `info action=scrubbed` was
+**true** (of the dictionary the trailer points at) — the report was
+**accurate line by line while the redacted words were still in the
+file.** No line was false; the coverage was incomplete. That combination
+is why this is a posture change to what "all content" means for a saved
+artifact, not a patch to `carrier_info`.
+
+**★★★ The design decision — the sweep is scoped by EVIDENCE and never
+computes reachability.** Two reasons: (1) §12.5.6.23 is an outcome test on
+the saved artifact — *"they shall remove all traces of the specified
+content"*, scoped by *"all content that can exist in a PDF document"* —
+and never mentions the object graph; (2) reachability is a trap and a
+wrong drop is **silent**: object streams are reached by a type-2 xref
+entry (§7.5.7), cross-reference streams by byte offset, the
+linearization dictionary is unreferenced by a `shall` (Annex F.3.3), and
+§7.3.10 makes a reference to a missing object *"not … an error"* — so an
+over-broad sweep yields a **valid** file with an outline, a structure
+tree, or every compressed object quietly gone.
+
+**★★★ Empirically confirmed, not merely argued — the census probe written
+to MEASURE the fix made the fix's OWN mistake, twice, within the hour.**
+`crates/pdfcer-core/examples/unreachable_census.rs`, written by the
+engineer immediately after reading §12.5.6.23, first counted every
+object stream as an orphan, then every cross-reference stream, before
+landing on the right figure. **Both errors were caught by measurement,
+never by reading** — the reported figure moved **21% → 12%** as a result.
+Recorded here so a future filing that quotes only the final 12% does not
+lose the lesson that the wrong numbers came first and were structurally
+the same mistake the design argument above exists to prevent.
+
+**Measured** (`unreachable_census.rs`, the operator's own 57-file drawing
+set): **12 of 57 files carry objects the graph never reaches, 20 such
+objects total, 7 of which could carry drawn text.** Merge outputs are the
+worst offenders.
+
+**Two bugs found in the new sweep itself, both by tests written for
+earlier Passes** — an argument against deleting a test whose subject you
+are changing:
+
+1. A **staged span does not index the base buffer** — `stage()` allocates
+   at `base_len + staging.len()` (`redact.rs:2122–2123`), so slicing
+   `doc.bytes()` with a replaced stream's span read the wrong bytes.
+2. **Two different empty answers were collapsed.** `redacted_text` empty
+   (no text redacted at all — an image-only or vector-only redaction)
+   must report `Absent`; evidence empty (text redacted, every piece under
+   `MIN_MATCH_LEN`) must report `DisclosedNotScrubbed`. The first cut
+   returned the second for both, turning two passing image-redaction
+   tests red — correctly.
+
+**Three carriers closed that nobody had filed**, closed **without the
+code knowing they exist** — the direct argument for sweeping over
+enumerating, and the same species as the `route_enumeration.rs` finding
+already on record: a **thread information dictionary** (a thread's `/I`;
+Table 160 says its contents *"shall conform to the syntax for the
+document information dictionary"* — live, reachable, never examined by
+`carrier_info`), XMP attached to a **component** (§14.3.2 route B), and
+XMP in a **marked-content property list** (route C). `carrier_xmp` reads
+route A of four.
+
+**Tests.** New `crates/pdfcer-core/tests/redaction_residual_sweep.rs`
+(7), including two controls (the trailer's own `/Info` still scrubbed; a
+clean file reports `CheckedClean`). Three sabotages, all red — the "read
+the original value instead of the effective one" sabotage was caught by
+the **clean-file control**, exactly what a control is for.
+
+**Docs.** `docs/core-api/03-capabilities.md` gains the fourteenth
+carrier, the by-shape action table (dictionary string entry → scrubbed;
+`/Type /Metadata` stream → blanked; any other evidence-carrying stream →
+`DisclosedNotScrubbed`, naming the object rather than risking a
+coincidental-match corruption), the two new counters
+(`residual_sweep_entries_scrubbed`, `residual_sweep_objects_scrubbed`),
+the two-empty-answers rule, and the owed non-metadata-stream half below.
+`CarrierAction`'s documented variant list gains `CheckedClean`, which
+`Pass 282.0` added and never recorded there. `docs/core-api/index.md`
+counts updated (caught by `tools/check-core-api-verbs.py` going red —
+second time in one day that gate earned its place).
+
+**Owed, stated in the commit, not implied.** A **non-metadata content
+stream** carrying redacted text (one pdfcer's own surgery abandoned, e.g.
+an emptied form XObject) is **named by `residual_sweep`, not removed**.
+pdfcer knows which content streams its own surgery rewrote, so blanking
+one needs no reachability walk — but it is a destructive act on a new
+class and gets its own Pass. New owed item 18, below.
+
+**Gates (relayed).** `tools/run-gates.sh` PASS 29/29 including both
+filing gates; `cargo test --workspace` green; `cargo fmt --check` and
+`cargo clippy --all-targets --all-features -- -D warnings` clean.
+
+**Spec sourcing.** The corpus was extended for this Pass by
+`pdfcer-spec-librarian`: two new files including `iso32000__s__14.3.md`
+(closes a GAP the redaction sweep had carried since 2026-07-31) and
+`iso32000__ref__unreferenced_objects.md`.
+
+**`docs/FEATURES.md`.** *Redaction & security*'s *Apply redaction* row
+amended in place: owed item 16's sentence replaced with the fix, the new
+counters and carrier count named, and the new owed non-metadata-stream
+gap stated in the same edit it replaced the old one — see Ledger.
+
+---
+
+### Decision 146 and standing rule `R249`
+
+**Decision 146** (`ARCHITECTURE.md` §12, body section §5.9): a destructive
+sweep obliged by an outcome test (here, §12.5.6.23's *"remove all traces
+… that can exist in a PDF document"*) is scoped by the **evidence the
+obligation names** — here, the cross-reference table's own listing —
+never by a **computed reachability walk**, because reachability
+computations fail **silently** on this format (object streams, xref
+streams, the linearization dictionary — see the Pass entry's argument
+above) and the census probe built to measure this very fix reproduced
+that silent-failure shape twice in one hour, empirically confirming the
+argument rather than merely illustrating it.
+
+**On minting a standing rule — accepted, argued from the engineer's own
+brief.** The engineer named the generalisation explicitly (*"when a
+destructive act could be scoped by a computation that fails silently,
+scope it by the evidence the obligation actually names instead"*),
+claimed no number, and left `R247` reserved-but-unclaimed and `R248` as
+the ceiling for this filing to judge. **Minted as `R249`, past `R247`
+deliberately** — same precedent `R248` itself set one filing ago: a third,
+unrelated candidate does not entangle with an already-contested slot, and
+`R247`'s reconciliation is unaffected by this claim. The bar this project
+applies to *emergent* patterns (two occurrences before minting) does not
+transfer cleanly to a *design principle stated and demonstrated in the
+same Pass* — this is closer in shape to `R35`/`R58`/`R67`/`R248` (a
+generalisable rule minted from one decisive instance with its own stated
+scope) than to the `R221`/`R224`/`R225` emergent family, and is minted on
+that precedent.
+
+**Text.** ⇒ **`R249`** — *before scoping any destructive sweep to
+satisfy an outcome-shaped obligation ("remove all X", "no trace of Y
+survives"), identify the evidence the obligation itself names and scope
+the sweep to that evidence directly. Do not substitute a computed
+reachability/liveness walk as a proxy for that evidence — a reachability
+computation on a graph-shaped format (PDF's object graph, a filesystem
+tree, a GC root set) has failure modes that drop content silently rather
+than refuse loudly, and a sweep scoped by the wrong proxy can pass its
+own tests while leaving the obligation unmet.* Close kin to the
+already-recorded `a_guard_built_from_the_structure_it_protects_omits_what_reaches_it.md`
+(`D:\dev\rag\rust\`) — that finding is about a **guard** built from a
+*reader's* walk; `R249` is about a **destructive sweep** built from a
+*writer's/emitter's* enumeration — same family of error (deriving a
+protected/covered set from a traversal rather than from the obligation's
+own definition), different act (protect vs. destroy) and different
+project.
+
+**Standing rules ceiling `R248` → `R249`** (`R247` UNCHANGED, still
+reserved-but-unclaimed, untouched by this filing); **next free `R250`.**
+Full text filed under *Standing rules*, below.
+
+---
+
+### Part — owed work, carried forward and new
+
+**Carried forward, unchanged:** items 4, 5, 9 (`n=3`, `R247` reservation
+unreconciled), 10, 11, 13b, 14, 17 — this Pass discharged item 16 only.
+
+**Discharged this filing:**
+
+16. **Orphan `/Info`-shaped object, superseded but still cross-reference-
+    table-listed, re-emitted verbatim by a forced full rewrite and scrubbed
+    by no carrier.** `Pass 284.0`'s `residual_sweep` is the fix — see the
+    Pass entry above.
+
+**New, from this filing:**
+
+18. **A non-metadata content stream carrying redacted text — one
+    pdfcer's own surgery abandoned — is named by `residual_sweep`, not
+    removed.** Blanking it needs no reachability walk (pdfcer already
+    knows which content streams its own surgery rewrote), but it is a
+    destructive act on a new class of object and wants its own Pass, per
+    the commit's own stated omission.
+
+---
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `283` (highest ID `283.1`), next free `284` | **`284`** (highest ID `284.0`), next free family `285` |
+| Standing rules | `R248` MINTED (484th filing); `R247` reserved-but-unclaimed | **`R249` MINTED** (this filing, decision 146); `R247` UNCHANGED, still reserved-but-unclaimed; ceiling `R249`, next free `R250` |
+| Decision records | `145` | **`146`** MINTED, next free `147` |
+| `SESSION_LOG` filings | `485` | **`486`** |
+| `docs/FEATURES.md` | *Apply redaction* row named owed item 16 open | **row amended**: item 16 closed, new non-metadata-stream gap named in its place (owed item 18) |
+| Owed-survivor / open-reply ledger | items 4, 5, 9 (`n=3`), 10, 11, 13b, 14, 16, 17 open | **item 16 CLOSED; item 18 NEW; items 4, 5, 9 (`n=3`), 10, 11, 13b, 14, 17 unchanged** |
+| `C:\personal_rag\pdf\` | 227 lesson files | **228** — new empirical finding: 12 of 57 real drawing files (the operator's own set) carry xref-listed-but-unreachable objects, 7 carrying drawn text; merge outputs worst |
+| `D:\dev\rag\rust\` | 342 files | **344** — two new methodology findings (staged-span base-offset indexing; a census probe reproducing the exact silent-failure shape it was written to measure) |
+
+**Release state — NOT checked this filing (no shell).** Whether `ea4acb3`
+has actually reached `origin/main`, and whether a release has been cut
+since, is **relayed** from the dispatch, not independently verified — the
+engineer should confirm with `git rev-parse origin/main` /
+`git describe --tags --abbrev=0` directly.
+
+---
+
 **★★★★ 485th filing, 2026-09-09 — `Pass 283.1` SHIPPED: THE INTERVENTION
 `Pass 283.0` PROMISED WAS ONLY REACHABLE FROM BYTES; EVERY REAL SHELL OPENS A
 PATH. ★★★ `R245`'S SHAPE FOUND A SIXTH TIME, WIDENED FROM A GUARD TO AN
@@ -164805,6 +165043,84 @@ ceiling `114` → `115`** (`iccce` enters as a git dependency pinned to tag
 
   **Standing rules ceiling `R246` → `R248`** (`R247` UNCHANGED, still
   reserved-but-unclaimed); **next free `R249`.**
+
+- **R249 — A DESTRUCTIVE SWEEP OBLIGED BY AN OUTCOME-SHAPED REQUIREMENT
+  ("REMOVE ALL TRACES OF X") IS SCOPED BY THE EVIDENCE THE REQUIREMENT
+  ITSELF NAMES, NEVER BY A COMPUTED REACHABILITY OR LIVENESS WALK.** Minted
+  2026-09-09 (486th filing, `Pass 284.0`, decision 146), from the
+  engineer's own generalisation of a defect just fixed, claimed with no
+  number and left for this filing to judge.
+
+  **The shape.** A structural correctness obligation is written against
+  the *content of the saved artifact* (§12.5.6.23: *"they shall remove all
+  traces of the specified content"*, scoped by *"all content that can
+  exist in a PDF document"*) and never mentions the object graph at all.
+  Implementing it by walking the graph — "find everything reachable from
+  the trailer/catalog, sweep those" — silently substitutes a **different**
+  set for the one the obligation names, because a writer emits objects by
+  **enumerating** a structure (here, the cross-reference table) that the
+  graph walk never visits in full. The two sets are not equal on any file
+  carrying a superseded-but-listed object, and the gap is invisible to
+  every existing report line: each carrier can be accurate about what it
+  checked while the artifact still fails the obligation, because nothing
+  checked the objects outside the walk at all.
+
+  **Why the fix is "scope by evidence," not "walk harder."** A wider or
+  more careful reachability computation is still a reachability
+  computation, and this project has direct, repeated, EMPIRICAL evidence
+  that such computations fail **silently** on a graph-shaped format:
+  object streams are reached by a type-2 xref entry (§7.5.7), cross-
+  reference streams by byte offset rather than a named key, the
+  linearization dictionary is unreferenced by a `shall` (Annex F.3.3), and
+  §7.3.10 makes a reference to a missing object *"not … an error"* — so an
+  over-broad or under-broad sweep produces a **valid file**, not a loud
+  failure. **The census probe (`examples/unreachable_census.rs`) built to
+  MEASURE `Pass 284.0`'s own fix reproduced this exact class of error
+  twice within the hour** (first over-counting object streams as orphans,
+  then cross-reference streams, before landing on the true figure) —
+  written by the same engineer who had just finished arguing the case
+  above. That a fresh, careful, purpose-built reachability computation
+  made the mistake anyway is the empirical argument for the rule, not
+  merely an illustration of it: **the remedy does not depend on getting
+  the computation right**, because the whole point is to not need the
+  computation at all. The fix is to scope the sweep to whatever the
+  obligation's own text names as its evidence (here: the cross-reference
+  table's listing, walked directly, not derived from a graph traversal)
+  and never treat "reachable from the root" as a stand-in for it.
+
+  **Distinct from, but kin to, `a_guard_built_from_the_structure_it_protects_omits_what_reaches_it.md`**
+  (`D:\dev\rag\rust\`, pdfce 349th filing) — that finding is about a
+  **protective guard** built from a *reader's* walk (a set of objects a
+  deletion must not remove, derived by walking the very structure being
+  protected, which by construction omits the structure's own entry
+  point). `R249` is the same family of error — deriving a scoped set from
+  a *traversal* of a structure rather than from the *obligation's own
+  definition* of that set — applied to a **destructive sweep** instead of
+  a protective guard, in a different project. Recorded as kin, not merged:
+  the repair differs (a guard needs its missing entry point added back in;
+  a sweep needs to stop deriving its set from a traversal at all and read
+  the obligation's own evidence source directly).
+
+  **Application test, for the next sweep that asks.** Before writing a
+  sweep meant to satisfy an "all X" / "no trace of Y" obligation: (1) find
+  the exact clause or requirement stating the obligation and identify what
+  it names as the scope of "all" — a structure the format defines
+  directly (a table, a list, a byte range), not a property computed over
+  the format (reachability, liveness, connectivity); (2) if the obligation
+  names a structure directly, scope the sweep to that structure's own
+  enumeration; (3) if a reachability computation seems unavoidable, treat
+  every one of its silent-failure branches (unreferenced-by-design
+  structures, indirection schemes the walk does not follow, "missing
+  reference is not an error" clauses) as a named risk in the sweep's own
+  documentation, not as an edge case to revisit later.
+
+  **Mechanism this rule is checked against:** `redact::residual_sweep`
+  (`crates/pdfcer-core/src/redact.rs`), the fourteenth redaction carrier.
+  See `ROADMAP.md` *Shipped*, `Pass 284.0`, for the full acceptance
+  record; `ARCHITECTURE.md` §5.9 for the body-section update.
+
+  **Standing rules ceiling `R248` → `R249`** (`R247` UNCHANGED, still
+  reserved-but-unclaimed); **next free `R250`.**
 
 ## Update protocol
 

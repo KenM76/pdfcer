@@ -6208,6 +6208,24 @@ real mechanism to describe, and whose criterion 2 requires that
 mechanism to carry a **greppable identifier** — so the next audit of
 R58 is answerable by `grep`, which this one was not.
 
+**Addendum, 2026-09-09 (`Pass 284.0`, `ea4acb3`, decision 146).** R58's
+obligation 3 ("owe an absence test") is sharpened by this Pass, not
+revised: the absence test proves removed content is gone from objects a
+carrier *examined*, and this Pass establishes that the set of objects
+worth examining is **every object the cross-reference table lists**, not
+every object the document graph *reaches* from the trailer/catalog. New
+fourteenth carrier `redact::residual_sweep` sweeps the difference between
+those two sets directly, scoped by the xref table's own enumeration
+rather than by a computed reachability walk — reachability computations
+on this format fail *silently*, not loudly (object streams reached by a
+type-2 xref entry, cross-reference streams by byte offset, the
+linearization dictionary unreferenced by a `shall`), which is the
+argument decision 146 makes in full. No change to R58's core mechanism
+(force full rewrite, decompose containers) — this closes a gap in *what
+gets swept*, not in *how a rewrite is forced*. Full record: §12's
+2026-09-09 entry, decision 146; standing rule `R249`; `ROADMAP.md`
+*Shipped*, `Pass 284.0`.
+
 ### 5.10 A cross-reference-recovered document forces a full rewrite (R67 — third sibling of §5.2/R35 and §5.9/R58)
 
 *(Added 2026-07-31, decision 013. **FLIPPED TO SHIPPED/ACTIVE 2026-08-01**
@@ -33715,3 +33733,154 @@ from its twin — `R245`'s guard shape, shown here for an affordance instead),
 not a new standing rule. **Decision ceiling unchanged at `145`, next free
 `146`. Standing rules ceiling unchanged at `R248`, next free `R249`. Pass
 ceiling `283.0` → `283.1`, next free family unchanged, `284.x`.**
+
+### 2026-09-09 (486th filing, `ea4acb3`) — decision 146: **A DESTRUCTIVE SWEEP OBLIGED BY AN OUTCOME-SHAPED REQUIREMENT ("REMOVE ALL TRACES OF X") IS SCOPED BY THE EVIDENCE THE REQUIREMENT ITSELF NAMES, NEVER BY A COMPUTED REACHABILITY OR LIVENESS WALK. THE PROOF IS EMPIRICAL, NOT ONLY ARGUED: THE CENSUS PROBE BUILT TO MEASURE THIS FIX REPRODUCED THE SAME SILENT-FAILURE SHAPE TWICE WHILE MEASURING IT**
+
+**Origin.** `Pass 284.0` (`ea4acb3`), the queue's own owed item 16
+("orphaned `/Info`-shaped object survives a redaction," recorded at the
+482nd filing) — dispatched as one instance and returned as the whole
+class: `redact`'s carriers find their target by navigating the document
+graph, `writer::save_full` emits objects by enumerating the cross-
+reference table, and every object in the difference between those two
+sets was re-emitted verbatim into a redacted file, offered to no carrier.
+
+---
+
+#### 1. Why the fourteenth carrier is a decision and not a bug fix
+
+Patching `carrier_info` a second time (it was already patched once, at
+`Pass 282.0`) would have closed exactly the one object shape the
+motivating file happened to carry — an `/Info`-shaped dictionary. It
+would not have closed a thread's own information dictionary, an XMP
+packet on a component or on a marked-content property list, or any
+future carrier-shaped object nobody has written a check for yet. The
+generalisation the fourteenth carrier makes is not "check one more
+shape" but "stop finding shapes by enumeration and start finding them by
+sweeping the file's own listing of what it contains" — a change to
+*what "all content" means for a saved artifact*, not an addition to a
+list of known shapes.
+
+#### 2. The line that makes this a posture change rather than a patch
+
+`RedactionReport` never lied. `prior_revisions action=dropped_by_rewrite`
+was true of the byte ranges a forced full rewrite actually drops.
+`info action=scrubbed` was true of the `/Info` dictionary the trailer
+points at. **Every report line was accurate, and the redacted words were
+still in the file.** A carrier-by-carrier model of correctness — "did
+each named carrier do its job" — cannot see this class of gap by
+construction, because the gap lives entirely in objects no carrier was
+ever pointed at. The fix has to change what scopes the sweep, not what
+any one carrier does once scoped.
+
+#### 3. The mechanism, and why it is scoped by evidence rather than reachability
+
+```
+redact::residual_sweep            (crates/pdfcer-core/src/redact.rs)
+  scope: doc.xref().iter()        — the cross-reference table's own listing
+  NOT:   a graph walk from trailer/catalog outward
+```
+
+Two independent reasons, both load-bearing:
+
+1. **The clause obliging this is written against the artifact's content,
+   not against the graph.** §12.5.6.23: *"they shall remove all traces of
+   the specified content"*, scoped by *"all content that can exist in a
+   PDF document."* It never mentions reachability, the catalog, or the
+   trailer. Scoping the sweep to a graph walk substitutes a set the
+   clause never named for the one it did.
+2. **Reachability computations on this format fail silently, not
+   loudly**, and this project has now measured that twice in one Pass:
+   object streams are reached by a **type-2 xref entry** (§7.5.7), cross-
+   reference streams by **byte offset**, the linearization dictionary is
+   unreferenced by a **`shall`** (Annex F.3.3), and §7.3.10 makes a
+   reference to a missing object *"not … an error."* An over-broad or
+   under-broad graph walk does not error out — it produces a **valid**
+   file missing an outline, a structure tree, or a whole object stream,
+   and nothing downstream notices.
+
+**★★★ The second reason is not merely argued in this decision — it is
+demonstrated, in the same Pass, by the tool built to verify the fix.**
+`crates/pdfcer-core/examples/unreachable_census.rs`, written by the
+engineer in the same hour as reading §12.5.6.23, first counted every
+object stream in the corpus as an "orphan," then — after noticing that
+was wrong — counted every cross-reference stream as one too, before
+arriving at the correct figure. **The reported measurement moved from
+21% of files down to the true 12% across two intermediate, both-wrong
+counts, each one exactly the shape of silent reachability failure named
+in reason 2 above, produced by someone who had just finished writing
+that argument.** This is the strongest form of evidence available for
+"do not trust a reachability computation, however careful, as a proxy for
+the evidence a correctness obligation actually names" — it did not need
+a second, unrelated incident to prove the point; the same incident proved
+it twice, days apart within the hour, against itself.
+
+**The action table**, by shape, is in `docs/core-api/03-capabilities.md`
+— read there for the exact per-shape behaviour (dictionary string entry:
+scrubbed; `/Type /Metadata` stream: blanked whole; any other evidence-
+carrying stream: `DisclosedNotScrubbed`, named rather than risked, since
+blanking bytes inside a font programme or image on a coincidental match
+would corrupt content pdfcer never meant to touch).
+
+#### 4. What this closed without being asked to
+
+Because the sweep is scoped by evidence rather than by an enumerated list
+of known carrier shapes, it closed **three carriers nobody had written a
+check for**: a thread's own information dictionary (Table 160: its
+contents *"shall conform to the syntax for the document information
+dictionary,"* live and reachable, never examined by `carrier_info`
+because nothing routed it there), and two further XMP attachment routes
+(§14.3.2 B and C — `carrier_xmp` only reads route A, the catalog's own
+`/Metadata`). This is the direct, positive argument for evidence-scoping
+over enumeration: a carrier that has to be told a shape exists can only
+ever cover the shapes someone thought of; a sweep scoped to what the file
+itself lists does not need to be told.
+
+#### 5. What stays owed, by design, not by oversight
+
+A **non-metadata content stream** carrying redacted text — one pdfcer's
+own earlier surgery abandoned, e.g. an emptied form XObject — is **named
+by `residual_sweep`, not blanked**. This is deliberate: pdfcer already
+knows, from its own edit history, which content streams its own surgery
+rewrote, so closing this needs no reachability walk and no new design
+argument — but it is a destructive act on a class of object
+(page-content-shaped bytes, not metadata) this decision did not reason
+about, and is filed as its own Pass rather than folded in under this
+decision's authority. `ROADMAP.md` owed item 18.
+
+#### 6. Relation to `R58`/§5.9, and the standing-rule question
+
+§5.9 (`R58`) already establishes that every removal/scrub operation
+forces a full rewrite and must decompose every object-stream container
+holding a scrubbed object — the mechanism this decision's sweep runs
+inside of. This decision does not revise that mechanism; it revises
+**what counts as a target for it**, and is filed as a short addendum to
+§5.9 rather than a new body section, since no crate boundary, library
+choice, or writer-mode invariant changed.
+
+**On minting a standing rule — accepted, from the engineer's own
+argument, offered unnumbered.** The engineer stated the generalisation
+explicitly and by design left the number unclaimed — `R247` reserved-but-
+unclaimed, `R248` the ceiling — for this filing to judge rather than
+pre-empting it. **Minted as `R249`,** on the same precedent `R248` itself
+used one filing prior: a third, unrelated candidate claims the next free
+number rather than entangling with an already-contested reservation. The
+two-occurrence bar this project applies to *emergent* patterns
+(`R221`/`R224`/`R225`) does not transfer cleanly here either — but unlike
+`R248`, which rested on an operator's single decisive ruling, `R249`
+rests on a design argument **empirically corroborated twice within the
+Pass that produced it**, which this filing judges a stronger warrant for
+minting from `n=1` than a ruling alone, not merely an equal one. Full
+rule text: `ROADMAP.md` *Standing rules*.
+
+#### 7. Verification (relayed from the shipping commit's own message)
+
+New `crates/pdfcer-core/tests/redaction_residual_sweep.rs`, 7 tests
+including two controls (trailer's own `/Info` still scrubbed; a clean
+file reports `CheckedClean`); three sabotages, all red. `tools/
+run-gates.sh` PASS on all 29; `cargo test --workspace` green; `cargo fmt`
+and `cargo clippy --all-targets --all-features -- -D warnings` clean.
+
+**Decision ceiling: `145` → `146`**, next free `147`. **Standing rules
+ceiling `R248` → `R249`** (`R247` UNCHANGED, still reserved-but-
+unclaimed), next free `R250`. **Pass ceiling `283.1` → `284.0`**, next
+free family `285.x`.

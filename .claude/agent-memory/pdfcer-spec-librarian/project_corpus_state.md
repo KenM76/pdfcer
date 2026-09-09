@@ -6793,3 +6793,228 @@ which is where 74e landed.
 - Blockquote licence audit run mechanically (70f) and **recorded in the file as §10.1**:
   the two longest blocks are `free_primary` ISO 32000-1; **every
   `licensed_primary_private_rag` block is a single sentence, longest 24 words.**
+
+## 75. ★★ THE **"HERE IS A LEAK I MEASURED — TELL ME WHAT THE STANDARD OBLIGES BEFORE I CHOOSE"** dispatch, five questions, three named candidate designs (2026-09-09, orphaned `/Info` surviving a redaction → `iso32000__s__14.3.md` + `iso32000__ref__unreferenced_objects.md`)
+
+**Shape.** The engineer had *already* measured the defect (a doc-info-shaped object,
+xref-listed, not named by the trailer's `/Info`, re-emitted verbatim into a redacted
+output), had *already* named the three candidate fixes (**scrub / drop / disclose and
+leave**), and asked only for the spec position — explicitly *"Report findings only — I
+will make the design call."* Plus: *"say so plainly — silence is a usable answer here and
+I would rather have it than a stretch."* And it cited the §7.3.7 duplicate-key finding by
+name as the precision bar (item 74).
+
+### 75a. ★★★ THE HEADLINE WAS IN Q3, THE **CLASSIFICATION** QUESTION — AND THE ANSWER WAS A **SECOND CARRIER OF THE SAME SYNTAX**
+
+Q3 asked: *"Is there anything making the trailer's `/Info` the ONLY document-information
+dictionary, such that a second one is by definition not document metadata? Or does the
+standard contemplate multiple?"* The engineer clearly expected the first — it makes the
+orphan safely re-classifiable as garbage.
+
+**It is the opposite, and it is a `shall`.** ISO 32000-1 **Table 160** (= 2.0 Table 162),
+thread dictionary `/I` row: *"A **thread information dictionary** containing information
+about the thread, such as its **title, author, and creation date**. The contents of this
+dictionary **shall conform to the syntax for the document information dictionary**."*
+Corroborated from a second, independent place — **Annex E**: *"New keys for the document
+information dictionary … **or a thread information dictionary** (in the `I` entry of a
+thread dictionary) shall not be registered"* — the standard treats them as **peer
+dictionary types sharing one key namespace**. 2.0 §14.3.3 states it outright.
+
+⇒ **"A second `/Title`+`/Author` dictionary is by definition not metadata" is FALSE**, and
+the *deliverable this produced* was better than the answer asked for: **a thread `/I` is a
+LIVE, REACHABLE, spec-blessed metadata carrier that pdfcer's `redact::carrier_info` does
+not scrub** — a second leak of the same shape, and unlike the orphan it is unambiguously
+in scope. **Verified in the code**: `grep -rn 'Threads' --include=*.rs crates/` → one hit,
+in `pageops/assemble.rs`, unrelated.
+
+**The generalisable move:** when asked *"is carrier X unique?"*, do not answer from X's own
+clause — **grep the whole document for the phrase that DEFINES X's syntax.** `"syntax for
+the document information dictionary"` found the second carrier in one command. A clause
+defining a type says nothing about who else may instantiate it.
+
+### 75b. ★★★ THE STANDARD **NEVER DESCRIBES A FULL REWRITE** — and that kills the invariant the dispatch was leaning on
+
+`rewrit*` in the file-structure clauses = **1 hit per edition**, and both are the same
+sentence, phrased as the thing incremental update *avoids*: *"can be updated incrementally
+**without rewriting the entire file**"* (§7.5.6). There is **no Save-As clause**, no
+"full save" clause, no clause saying what a writer rebuilding a file from its object graph
+must include or may omit. **The only procedurally specified write operation in ISO 32000
+is the incremental update.**
+
+⇒ **R33 (byte-identical re-emission) is a pdfcer invariant, not a spec requirement** — and
+more importantly, **R33 does not reach the question at all.** R33 says *objects pdfcer
+emits and did not touch are emitted unchanged*. It does **not** say *every object the
+input's xref named must be in the output set.* **Two different rules, and the dispatch's
+framing ("pdfcer re-emits every object the cross-reference table names … that is R33")
+fused them.** Saying so was worth more than any clause citation, because it dissolves the
+apparent conflict between R33 and dropping the orphan.
+
+### 75c. ★★ THE STANDARD **MANDATES** AN UNREFERENCED OBJECT — so "xref-listed but unreferenced" is never evidence of damage
+
+Two places, both quotable `free_primary`:
+
+- **§7.5.7** (object streams): an `/ObjStm` shall have an xref entry *"**although there
+  might not be any references to it** (of the form `243 0 R`)"* — present in both
+  editions. ⇒ **the most common compressed PDF on earth is full of them.**
+- **Annex F.3.3** (linearization parameter dictionary): *"**There shall be no references to
+  this dictionary anywhere in the document**; however, the first-page cross-reference table
+  shall contain a normal entry for it."* — **a `shall` REQUIRING the exact state under
+  discussion.**
+
+⇒ **`UO-A1`: a `/Root`-only reachability walk deletes every object stream and the
+linearization dictionary.** Reachability must be (trailer closure) ∪ (every `/ObjStm`
+named by a type-2 xref entry) ∪ (the linearization dictionary). That is a **correctness
+requirement, not a setting**, and it is the trap a "just GC it" design walks into.
+
+### 75d. ★★ THE FOUR-BUCKET GRADING IS THE DELIVERABLE — build the VERDICT TABLE first, prose second
+
+The dispatch asked for (a) `shall` / (b) permitted / (c) out-of-scope / (d) practice, and
+naming the bucket per proposition is what made the answer usable. **Ten rows.** The
+non-obvious ones:
+
+- *"a writer **may** drop it"* → **(b) permitted**, because §7.5.4's *"When an indirect
+  object is **deleted**, its cross-reference entry **shall** be marked free…"* is fully
+  normative about **HOW** and states **NO precondition on WHEN**. **A mechanism with an
+  unspecified trigger is a permission, not a silence** — grade it that way.
+- *"a writer **must** drop it"* → **(c) NO SUCH CLAUSE**: `garbage` = 0 hits in **both**
+  editions; `unreferenced`/`unused object` = 0. The 5 `"not referenced"` hits per edition
+  are **all Annex F placement statements**, not validity statements — **check what the
+  near-miss hits actually say before reporting a count.**
+- *"during an incremental update a writer **shall not** remove the bytes"* → **(a) `shall`**
+  (§7.5.6: *"Deleted objects shall be left unchanged in the file"*). **The clause-level
+  proof of R35, and the mechanism that CREATED the orphan** (§7.5.6 NOTE 3).
+
+### 75e. ★★ THE ONE CLAUSE THAT ACTUALLY DECIDES IT IS NOT IN THE FILE-STRUCTURE CLAUSES AT ALL
+
+Q2 was framed as a §7.5 question. **§7.5 answers "may I?" and never answers "must I?"** The
+only obligation in play is §12.5.6.23's *"they shall **remove all traces** of the specified
+content"* + *"diligent in their consideration of **all content that can exist in a PDF
+document**"* — an **outcome test on the saved bytes**, and its carrier scoping phrase is
+the broadest in the clause. **Nothing scopes it to reachable content**; Table 192's
+`QuadPoints`/`Rect` scoping picks *which content*, not *which carriers to search*.
+
+⇒ **Of scrub / drop / disclose-and-leave, all three produce a CONFORMING FILE, and exactly
+one is in tension with a `shall`.** That sentence is the whole answer, and it only exists
+because the buckets were kept separate.
+
+**★ And the modality/addressee split from item 74 applies AGAIN, running the OTHER WAY:**
+§7.3.7's duplicate-key `shall not` binds the **file** and not the reader; §12.5.6.23's
+`shall` binds the **processor** and not the artifact. ⇒ **an output retaining the orphan is
+NOT non-conforming; it is a file whose PRODUCER did not do what the clause says.** Always
+ask *which party* before reporting how strong.
+
+### 75f. ★★ THE TWO CARRIERS ARE **ASYMMETRIC**, AND THE ASYMMETRY DECIDES WHETHER ONE RULE COVERS BOTH
+
+Q4 asked whether the same rule should cover orphaned XMP. **It must, and the reason is a
+1.7 NOTE:** §14.3.2 NOTE 3 says XMP *"includes a method to embed XML data within non-XML
+data files in a platform-independent format that **can be easily located and accessed by
+simple scanning rather than requiring the document file to be parsed**."*
+
+⇒ **For XMP, reachability is irrelevant to exposure BY DESIGN, and the standard says so.**
+"Unreferenced ⇒ unread" is true of conforming readers and false of `strings`, XMP
+scanners, desktop indexers and every repair parser that rebuilds the xref by scanning for
+`N M obj`. Compounding: PDF/A-1 §6.7.2 **forbids a `Filter`** on the catalog's metadata
+stream ⇒ **a PDF/A-1 file's XMP is plain scannable text by conformance requirement.**
+⇒ **The XMP carrier forces the stricter rule; "disclose and leave" is arguable for `/Info`
+and indefensible for XMP.**
+
+### 75g. ★★★ THE COMMITTEE'S OWN WORDS EXISTED, AND THE SEARCH TERM WAS **`unused objects`** — not `orphan`, not `unreferenced`
+
+`pdf-issues` API searches: `unreferenced` → **0**, `orphan` → 3 (all off-topic), `12.5.6.23`
+→ 0. **`unused objects` → 6, including the two that are exactly on point.** **Try the
+phrase an IMPLEMENTER would type, not the phrase the corpus uses.**
+
+- **#216** *"Invalid Filter data in unused stream objects"* — **CLOSED, label `ISO
+  approved`.** Reporter's premise, unchallenged: *"the spec does not … prohibit a file from
+  containing objects that are never used anywhere."* **Rosenthol** (Adobe; in-thread: 20
+  years responsible for the spec's content): *"Since such an object wouldn't be referenced,
+  thus not read, **it doesn't matter what you do with it**"* / *"If the object isn't used,
+  then it doesn't matter."* **Valvekens**: *"there's **no prohibition on 'garbage' data**
+  in between PDF objects"* and *"any data that doesn't have an xref pointing to it is
+  functionally not a PDF object, but **there's definitely no language in the standard to
+  back that up**."* **Wyatt** on the resolution: *"this would then be a (reasonable) **file
+  format requirement, not a processor requirement**."* Approved fix: append to §7.4.1
+  *"All stream data shall follow the appropriate format(s) as described below."*
+- **#217** *"Data syntax for unused streams with respect to `Type`"* — **OPEN**, label
+  `bug`, **parked in ISO WG8 "Secure PDF"** since 2022-10. Whether an unreferenced object's
+  self-declared `/Type` binds it is an **acknowledged, unresolved ambiguity**.
+
+**★ THE TRAP IN CITING #216, and it must be stated whenever it is quoted:** *"it doesn't
+matter"* is a claim about **conformance and processing**. Redaction's threat model is
+**neither**. **"No conforming reader will read it" and "nobody will read it" are different
+claims, and only the first is sourced.**
+
+**Also load-bearing:** #217 cannot even classify the measured object — **Table 317 defines
+NO `/Type` entry**; the document information dictionary is the rare PDF dictionary with no
+type key at all. Its only classification is by the entry that names it, and nothing names
+it.
+
+### 75h. ★ GRADE THE **SUBSET** STANDARDS THE SAME WAY — and PDF/A-4's `shall not` stops at the same boundary the base standard does
+
+**PDF/A-4 §6.1.3** (veraPDF profile, `free_secondary_paraphrase`): *"The **`Info` key shall
+not be present in the trailer dictionary** … unless there exists a `PieceInfo` entry in the
+document catalog dictionary"* + *"If a document information dictionary is present, it shall
+only contain a `ModDate` entry."* ★ **It binds the trailer's KEY, not the presence of a
+doc-info-shaped object** ⇒ **a PDF/A-4 file containing an orphaned one does not violate
+6.1.3.** The subset standard reaches the same boundary and stops in the same place — worth
+saying explicitly, because the intuition is that a strict profile would close it.
+
+**And PDF/A-1 §6.7.3 supplies the "cover both carriers" argument as a `shall`:** eight rules,
+one per `/Info` entry, each requiring equivalence with a named XMP property
+(`Keywords`↔`pdf:Keywords`, `Title`↔`dc:title['x-default']`, …). **Scrubbing one carrier
+without the other breaks PDF/A-1 conformance.** Sourced, not an aesthetic preference.
+
+**Negative, measured:** `unreferenced`/`unused`/`orphan`/`redact`/`sanitiz` = **0 hits
+across all 18 staged veraPDF profiles** (PDF/A-1/2/3/4, PDF/UA-1/2, WTPDF, WCAG).
+
+### 75i. ★★ `saniti[sz]` = **0 HITS IN BOTH EDITIONS** — and the vendor convention is LOOSER than ISO, not stricter
+
+Q5 asked whether the standard draws Acrobat's Redact-vs-Sanitize line. **It has no
+"sanitisation" concept at all** (0 / 756 pp, 0 / 1023 pp). The free PDF Association
+material — *"Is the Information You Just Redacted Really Gone?"*, **Member News**, and
+**carrying an explicit disclaimer that it does not reflect PDF Association positions**
+(item 68i: quote the disclaimer beside the quotation) — frames sanitisation as *"an
+**optional 3rd step**"* after redaction.
+
+⇒ **The finding is a DIVERGENCE worth recording deliberately: the vendor convention puts
+metadata OUTSIDE redaction; ISO 32000-1 §12.5.6.23 puts it INSIDE** (its diligence `shall`
+**names XMP explicitly** in 1.7). **pdfcer following ISO over the product convention is
+spec-grounded, not a preference** — which is exactly the "exceed the parity reference"
+call, made from a citation.
+
+### 75j. ★ THE 2.0 DELTA ON THE DISPATCHED CLAUSE, WHICH NOBODY ASKED FOR AND WHICH CHANGES A CITATION
+
+1.7's diligence sentence ends *"… including XML Forms Architecture (XFA) content and
+Extensible Metadata Platform (XMP) content."* **2.0's ends at "all content that can exist
+in a PDF document" — the enumeration is DELETED** (almost certainly because XFA is itself
+deprecated in 2.0 and the pair could not be split).
+
+**Apply 65g/66f: a 1→0 phrase count proves the SENTENCE was deleted, never that the RULE
+was.** The governing phrase is the *broader* one and survives verbatim. ⇒ **cite 1.7 when
+you need XMP named by the redaction clause.** Also found in the same pass: 2.0 narrows the
+addressee to **"interactive PDF processors"** (a CLI loophole — name it so nobody cites 2.0
+for a weaker CLI), and 2.0 adds a **`/Subtype /Redaction` artifact** for the overlay
+marking, with an **internal inconsistency between two printings of the artifact `Subtype`
+row** (`Pagination` vs `Pagination or Inline`) filed `NEEDS VERIFICATION`.
+
+### 75k. Filing shape — 2 new files, 3 edits, 4 count cells, 0 sources staged
+
+- **NEW** `iso32000__s__14.3.md` (closes a GAP the redaction file had carried **since
+  2026-07-31**) and `iso32000__ref__unreferenced_objects.md`.
+- **EDIT** `iso32000__s__12.5.6.23.md` (→ carrier table gains **thread `/I`** and
+  **orphaned carriers** rows; `/Info` row's GAP pointer closed; new **§7 PDF 2.0 delta**),
+  `iso32000__ref__redaction_removal.md` (§6 checklist gains the same two, and the `/Info`
+  row now says **scrub every string-valued entry** — custom keys are explicitly permitted,
+  so a fixed-key list is structurally incomplete), `index.md`.
+- **FOUR count cells**, all recounted from disk, and **two were already stale**:
+  `iso32000__s__*` **102 → 107** (last verified 2026-08-30), `iso32000__ref__*` **27 → 28**,
+  total **187 → 189**. Struck-through, not overwritten.
+- **All six new search recipes RUN and non-empty** before filing (12 / 14 / 14 / 5 / 18 /
+  15 hits).
+- **Dispatch premise verified in the code** (74h/69d): `carrier_info` reads
+  `doc.trailer().get(b"Info")` — true as stated; `carrier_xmp` reads **only** the catalog's
+  `/Metadata` (route A of four); `/Threads` appears nowhere in the redaction path. The
+  engineer's `examples/orphan_info_probe.rs` already existed — **the measurement was real,
+  which is why the dispatch's premises all survived.**
+- **No source staged**; both cached dumps were present from item 74's session, and the 2.0
+  dump matched its recorded byte count (free integrity check).
