@@ -41,7 +41,23 @@ refusing, so `redact-apply` reaches such files. Verified end to end through the
 binary and against the corpus harness (225/237 → 237/237 per-object verbatim,
 no shortfalls either way).
 
-**Two requests remain, both from `pdfcer-gui`, in this order:**
+**Updated again after `Pass 282.0`** — the `/Info` half of the redaction
+diligence gap is fixed (word-matching over a length floor, and an honest
+`DISCLOSED_NOT_SCRUBBED` when nothing clears the bar). Two requests remain,
+plus one new finding that outranks both:
+
+★ **START HERE: an orphaned metadata object survives a redaction.** On the file
+that motivated `Pass 281.0`, an `/Info`-**shaped** object the trailer does not
+point at (superseded by a later one, still listed in the cross-reference table)
+is re-emitted verbatim by the forced full rewrite with its `/Keywords` intact.
+`carrier_info` scrubs the trailer's `/Info`; **nothing scrubs an orphan**.
+`prior_revisions action=dropped_by_rewrite` is **true** — it is about superseded
+byte ranges, not about objects the xref still names — so **no report line is
+false and the content is still there**, which is the worst combination. Consult
+the spec RAG on what §12.5.6.23's "all content" obliges before choosing between
+scrub, drop, or disclose.
+
+**Then, both from `pdfcer-gui`, in this order:**
 
 1. **`request_redacted_text_carries_single_characters_on_a_per_glyph_producer_so_the_absence_proof_is_blind.md`**
    — CONFIRMED at the source and replied to; not built. `redacted_text` is
@@ -53,9 +69,25 @@ no shortfalls either way).
    Pass: per-mark joined text, plus a `carrier_info` match rule that does not
    depend on granularity, plus the granularity stated in the report.
 2. **`request_resize_annotation_refuses_a_pdfcer_authored_stamp_as_foreign.md`**
-   — `/Stamp` is the **third** authoring family `resize_annotation`'s appearance
-   test does not know. Same shape as `Pass 276.0`'s `/FreeText`. ★ Look for a
-   fourth while you are there — three found one at a time is `R245` at n=3.
+   — **amended twice and RE-ESCALATED**, in the operator's words: *"if I drew
+   the stamp too small for the text to fit, resizing just stretches the entire
+   object … I should be able to … edit just the box size without affecting the
+   text."* Their shell shipped a stopgap (uniform carry), which is why he can
+   resize at all and why he then hit its ceiling within the hour.
+
+   ★★ **MEASURED, and it changes the design:** a stamp's label size is
+   `(h * 0.42).clamp(8.0, 28.0)` — **derived from the box height, stored
+   nowhere.** So the obvious fix ("re-bake like `Pass 276.0` did for
+   `/FreeText`") recomputes the size from the new height and **scales the text
+   with the box**, which is exactly what he is trying to escape. The size must
+   first become something a re-bake can *keep*: recover it from the baked `/AP`
+   (the `Pass 276.0` both-ways byte-comparison trick, which is how `/FreeText`
+   recovers `multiline`) **and** add an explicit `StampStyle` so it is settable.
+   Recovery alone leaves him unable to change it; a stored property alone
+   silently breaks every stamp already in a document.
+
+   ★ Look for a **fourth** authoring family while you are there — three found
+   one at a time is `R245` at n=3, and the enumeration is the defect.
 
 **★ The redaction-diligence gap, owed and unbuilt:** `redact::carrier_info`
 drops an `/Info` string that CONTAINS a redacted run, so a run longer than the
