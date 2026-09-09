@@ -112,6 +112,262 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★ 481st filing, 2026-09-09 — `Pass 280.0` SHIPPED, DISCHARGING THE
+480th FILING'S OWED ITEM 12: `pdfcer-gui`'S STANDING ASK FOR A
+PRE-KEYSTROKE "WHICH CHARACTERS CAN THIS RUN ACCEPT?" VERB. ★★★ AN
+EXISTING GATE (`route_enumeration.rs`) CAUGHT THIS PASS'S NEW VERB AS A
+FOURTH ROUTE WITHIN THE HOUR OF IT BEING WRITTEN — DISCHARGED BY
+RESOLVING AND REPORTING, NOT BY EXEMPTION. ★★ A SABOTAGE SURVIVED FOR AN
+HONEST REASON, DOCUMENTED RATHER THAN DELETED OR FORCED RED — NEW RAG
+FILE WRITTEN. ★ `R221` GAINS ANOTHER INSTANCE; ITS TRUE ORDINAL REMAINS
+UNRECONCILED (480th FILING'S OWED ITEM 10, STILL OPEN, NOT TOUCHED
+HERE). TWO NEW INBOUND REQUESTS LOGGED, NEITHER STARTED; A SECOND
+INSTANCE OF THE FILE-CHANNEL-BLINDNESS CAUSE FLAGGED.**
+
+**Sourcing (hard rule 8), stated up front — NO SHELL THIS SESSION.** As
+with the 480th, 479th and 478th filings, this filing had
+`Read`/`Grep`/`Glob` only. The commit hash, timestamp, file list, test
+counts and diffstat below are **relayed** from the dispatching
+engineer's own commit-message export, handed over as a scratchpad file
+— labelled as such, not independently re-run. **Backup currency,
+working-tree state, remote/push state and CI colour are NOT
+asserted** — none were checked; if any of them matter, the engineer
+should check `D:\Dev\pdfcer` directly. The Pass-ID mint (no prior
+`Pass 280` reference found by `Grep` against `ROADMAP.md` or
+`docs/FEATURES.md`, consistent with the 480th filing's own recorded
+ledger position — ceiling `279`, next free `280`) and the
+`docs/FEATURES.md` cross-reference ARE independently verified here, by
+`Grep`/`Read` against the live documents.
+
+---
+
+### `Pass 280.0` (`26ef381`, 2026-09-09 08:05:32 −0400) — THE ALPHABET IS KNOWABLE BEFORE THE FIRST KEYSTROKE, SO ASK IT INSTEAD OF REFUSING AT THE END
+
+**Minted in this filing.** Pass family ceiling `279` → **`280`**; next
+free `281`.
+
+**What it is, in one line.** A verb that answers *"which characters
+will this run accept?"* **before** the first keystroke, so a shell can
+grey a key instead of losing a whole typed word at commit —
+
+```
+EditSession::run_repertoire(page_index, find, pinned_span) -> RunRepertoire
+```
+
+**What this discharges.** `pdfcer-gui` filed the request an hour after
+the engineer offered to scope it, and its own sentence names the
+defect: *"the refusal arrives AT COMMIT, so he types a whole word and
+then loses it. The alphabet is knowable before the first keystroke and
+we do not use it that way yet."* This is also the 480th filing's owed
+item 12 — the standing ask, offered twice, now answered.
+
+**The contract holds by construction, not by description (`R221`,
+another instance).** *"A character the query accepts, `encode_str` must
+not refuse for that run."* Acceptance is decided by CALLING the
+accepting code — `encode_char`/`encode_str`, plus the same
+`carried_codes` subset floor the edit path applies, in the same order,
+with the same R-INV-5 `prefer` seed — never by a parallel description of
+it. **`R221` gains content but not a reconciled ordinal here either** —
+the 480th filing already flagged its true instance count as owed
+(item 10, unchanged, still open); this filing does not guess a number
+and does not touch the Standing Rules body. This is recorded as
+*another* instance, not a numbered one.
+
+**Strictness and honesty, both asked for by the requester.** The
+repertoire comes from the run's OWN resource, so an embedded subset is
+narrowed to the codes this page already carries (R-INV-1), never
+widened to what the face could draw — computing it from a `/BaseFont`
+name alone is precisely the mistake `Pass 279.0` fixed one level up,
+one commit earlier the same morning. An empty answer carries a stated
+`reason` rather than an error ("so the editor can decline to open
+rather than open and refuse every key"); a run that cannot be LOCATED at
+all is still an `Err`, a different fact. A first cut returned an empty
+set with `reason=None` for a font where every character is produced by
+more than one code (R-INV-4) — behaviourally right, and useless to a
+shell that can say nothing except "every key is dead." `None` is now
+reserved for what the documentation says it means.
+
+**Per-keystroke `preview_font_resources_for` is explicitly NOT the
+intended use** — that verb rebuilds a whole-page `Walk` and re-locates
+the run per call, measured at 129,758 objects on a real CAD sheet.
+`run_repertoire` is the once-when-the-caret-lands verb; the per-keystroke
+question is answered by consulting its already-computed set, not by
+calling either verb again per character.
+
+**★★★ An existing gate caught this Pass as a fourth route, within the
+hour — and this time the route was BRAND NEW code, not rediscovered old
+code.** `route_enumeration.rs` enumerates every function that locates an
+anchor and requires it to resolve the `find` through `effective_find`;
+`run_repertoire` was exactly that shape, written the same session, and
+the gate failed before the Pass was even committed. **Discharged
+honestly rather than by exemption**: the query now resolves the find AND
+REPORTS which run was resolved (`RunRepertoire::text`), the same field
+`FontPreflight::text` already carries for the same reason, so a caller
+reads back what was actually answered instead of assuming agreement. An
+exemption would have left a route for the next person to rediscover.
+Dated footer + a table row added to
+`D:\dev\rag\rust\a_behaviour_test_over_an_enumerated_list_cannot_fail_on_a_route_added_later_but_a_source_scan_can.md`
+(fourth measured instance; first on code written the same session as the
+gate catching it).
+
+**★★ An honest limit, found by a sabotage that survived.** On the
+SIMPLE-font path, the `encode_char` call is not currently
+DISCRIMINATING: every candidate comes from the font's own inverse map,
+so the call can only refuse under one rule no fixture in this corpus can
+reach (R-INV-8, a scalar above the BMP). Replacing its `Refuse` arm with
+code 0 left every test green — the subset floor removed the same
+character for its own, different reason. **The call is kept anyway and
+documented, not deleted and not forced red**: it yields the code the
+floor needs, and it is THE accepting code, so if its rules widen this
+query widens with them instead of drifting. The composite branch's
+equivalent floor IS discriminating (`cidfonttype2-subset-floor.pdf`:
+three characters addressed, two carried; disabling the floor takes it to
+three), so this is a fact about one branch's input set, not about the
+call being pointless. Recorded at the call site and in `docs/core-api`.
+**New RAG file** at
+`D:\dev\rag\rust\a_sabotaged_call_can_survive_for_an_honest_reason_document_it_as_a_third_option.md`
+— a survived sabotage has a third disposition beside "delete it" and
+"strengthen the test until it's red": document why it stays, when the
+call is the canonical accepting function rather than a parallel
+description of one.
+
+**Tests.** `crates/pdfcer-core/tests/run_repertoire.rs` (12): the
+equivalence in both directions over the whole character set, the
+per-character property (order-independent acceptance, tested against
+R-INV-5's tie-break seed growing as a word is encoded), subset
+narrowing, the composite branch under the same contract, the
+empty-with-reason cases, and a full-embedded-font control so no
+assertion can pass merely because the repertoire is always small.
+`crates/pdfcer-cli/tests/run_repertoire.rs` (5), through the binary: ask,
+then edit with a named character and an unnamed one, and require both
+answers to agree. One test failure caught a boundary gap: the composite
+equivalence test used `find=""`, which `run_repertoire` accepts (it
+locates the first run, matching its sibling preview verb) and
+`edit_text` refuses by name — the CLI now refuses an unpinned empty
+`--find` at the boundary, naming the flag, the same line font-preflight
+already holds. The `--list` output is code points (not
+`sanitize_token`'ed characters) after a first cut printed a space and an
+underscore identically.
+
+**Sabotage.** Simple floor (5 red), composite floor (1 red, only the
+`cidfonttype2` fixture sees it), Err-instead-of-empty (1 red), `--list`
+dropped in CLI dispatch (2 red). Two mutations of the
+`encode_char`/`encode_str` calls survived — the honest limit above, not
+an untested path.
+
+**Files touched.** `crates/pdfcer-core/src/edit.rs` (new public verb
+`run_repertoire`), `crates/pdfcer-core/src/text_edit/format.rs` (new
+`RunRepertoire` struct + implementation), `crates/pdfcer-core/src/text_edit/encoding.rs`
+(new `candidate_chars` on both encoders; `faces_clause` carried from
+`Pass 279.0`), `crates/pdfcer-core/src/text_edit/mod.rs` (re-export),
+`crates/pdfcer-cli/src/main.rs` (new `run-repertoire` subcommand), two
+new test files, `docs/core-api/*`, `tools/check-outcome-disclosed.py`
+(registered `RunRepertoire` in `OUTCOME_STRUCTS`, 28 structs, 217 fields
+— a query result earns the list for the same reason an edit outcome
+does: `reason` is the only thing separating "this run accepts nothing"
+from "this run cannot be edited at all").
+
+**Verification (relayed).** `run_repertoire` 12 (core) + 5 (CLI, through
+the binary); `route_enumeration` 4; `cargo test --workspace` 5,013+
+passing, 0 failures; `cargo fmt` clean; `cargo clippy --all-targets
+--all-features -- -D warnings` clean; `tools/run-gates.sh` PASS on all
+29 commands.
+
+**`docs/FEATURES.md`.** New row under *Text*: *Ask which characters a
+text run will accept, before typing* — `[x]` core, `[x]` cli, `[ ]` gui,
+`[ ]` Acrobat (Acrobat has no equivalent query; it also refuses only at
+commit).
+
+**Two smaller doc-tooling catches worth carrying, not RAG-worthy on
+their own weight but real time cost.** A doc-comment splice landed above
+`pub fn encode_str` and left it undocumented while `candidate_chars`
+carried two blocks — `check-public-fns-documented` caught it, and the
+fix is to anchor on the doc BLOCK, not the item, when splicing. A
+runnable rustdoc example did not compile (`Document::load` takes
+`&Path`) — caught only by `cargo test --workspace`'s doctest pass, the
+one thing that reads a rustdoc example as code.
+
+**Owed items, new this filing:**
+
+13. **Two new inbound requests from `pdfcer-gui`, read and queued,
+    neither started** (2026-09-09): a hybrid-reference file's
+    `/XRefStm` (§7.5.8.4) refuses a full rewrite by name, and redaction
+    requires a full rewrite under `R35` — so redaction is unreachable on
+    such a file, measured on the operator's own SolidWorks sheet, asked
+    three times; and `resize_annotation` refuses a pdfcer-authored
+    `/Stamp` as foreign — the third authoring family its appearance test
+    does not recognise, same shape as `Pass 276.0`'s `/FreeText` fix,
+    and unlike a sticky note a stamp genuinely has a resizable extent.
+14. **A second instance, in two days, of the file-channel-blindness
+    cause first recorded at `n=1`** (see the 2026-09-08 span-from-pin
+    finding, `ROADMAP.md` line ~1768 above, and
+    the `stat`-before-replying remedy it names). Today's reply asserted
+    that two requests "have not been answered" when they had in fact
+    been answered 67 minutes earlier — the same cause (a file-based
+    channel with no notification and no version token), the same
+    written-down remedy, not applied. **Not minted here.** The project's
+    own bar is n=2 for a standing rule; this filing records the count
+    rather than minting, because the disposition (mint vs. keep
+    recording) reads as an engineering judgment call on the correction
+    itself, which the engineer, not this filing, is best placed to make
+    when writing that correction. Flagged for the engineer's attention.
+
+**Channel state.** Six replies went out today; the most recent
+(`reply_2026-09-09-run-repertoire-SHIPPED-with-the-equivalence-and-one-honest-limit.md`)
+is missing its commit hash, to be filled in by the engineer, not this
+filing.
+
+---
+
+### Part — owed work, carried forward and new
+
+**Carried forward, unchanged:**
+
+4. `fixtures/synthetic/text/PROVENANCE.md` backfill — 21 of 38 files
+   undocumented (477th filing).
+5. `origin/main..HEAD` is no longer a filing boundary once a release
+   has been pushed — read `tools/check-commits-filed.py`'s own output,
+   not the range.
+9. The "alternate route" sabotage cause is at `n=2`, not yet promoted
+   to a numbered standing rule; `R247` reservation unreconciled.
+10. **`R221`'s true current instance count needs reconciliation** before
+    any filing's finding can be added to its Standing Rules body as a
+    numbered instance (480th filing; unchanged, not attempted here).
+11. **`pdfcer-gui`'s fourth outbound reply** (from the 479th filing) is
+    still asserted, not independently `Glob`-confirmed.
+
+**Discharged this filing:**
+
+12. **`pdfcer-gui`'s standing ask for a pre-keystroke "which characters
+    can this run accept?" verb** — `Pass 280.0` is the answer.
+
+**New, from this filing:**
+
+13. Two inbound requests from `pdfcer-gui`, logged above, neither
+    started.
+14. A second instance of the file-channel-blindness cause, flagged for
+    the engineer, not minted here.
+
+---
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `279` (highest ID `279.0`), next free `280` | **`280`** (highest ID `280.0`), next free `281`. `Pass 280.0` MINTED AND SHIPPED in this filing |
+| Standing rules | `R246` | **unchanged, numerically** — `R221` gains another instance (call the accepting code, not a parallel description) but no reconciled ordinal (item 10 still owed) |
+| Decision records | `144` | **unchanged** — no new decision this filing |
+| `SESSION_LOG` filings | `480` | **`481`** |
+| `docs/FEATURES.md` | 1 row amended in place (`Pass 274.0`'s font-coverage-refusal row, corrected by `Pass 279.0`) | **1 new row** — *Ask which characters a text run will accept, before typing* (`Pass 280.0`) |
+| Owed-survivor / open-reply ledger | items 4, 5, 9 open; 10-12 new | **item 12 DISCHARGED**; **items 4, 5, 9, 10, 11 still open, unchanged**; **items 13-14 NEW** |
+
+**Release state — NOT checked this filing (no shell).** Whether
+`26ef381` (or any prior unreleased commit) has been pushed or released
+is not asserted here — the engineer should check `git rev-parse
+origin/main` / `git describe --tags --abbrev=0` directly.
+
+---
+
 **★★★ 480th filing, 2026-09-09 — `Pass 279.0` SHIPPED, DISCHARGING THE
 479th FILING'S OWED ITEM 8: THE FONT REFUSAL'S NAMED REMEDY COULD LEAD IN
 A CIRCLE, AND THE EXISTING TEST COULD NOT HAVE CAUGHT IT. ★★ TWO

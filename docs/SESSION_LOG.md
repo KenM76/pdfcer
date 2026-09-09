@@ -4,6 +4,67 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-09 (481st filing)
+
+**Shipped:**
+- Pass 280.0 (`26ef381`) — a verb that answers "which characters will
+  this text run accept?" before the first keystroke
+  (`EditSession::run_repertoire`, `pdfcer run-repertoire`), so a shell
+  can grey a key instead of a caller typing a whole word and losing it
+  at commit. Acceptance is decided by calling the same accepting code
+  `edit_text` calls (`R221`), never a parallel description of it.
+  Discharges the 480th filing's owed item 12 — `pdfcer-gui`'s standing
+  ask, offered twice.
+
+**Decisions made this session:**
+- No new decision minted (`ARCHITECTURE.md` §12 untouched).
+- Declined to mint a standing rule for the file-channel-blindness cause
+  at its second recorded instance (see below) — flagged for the
+  engineer's judgment rather than decided here.
+
+**Findings + decisions:**
+- An existing gate (`route_enumeration.rs`) caught this Pass's brand
+  new verb as a fourth route needing find-resolution, within the hour
+  of the verb being written — the first instance of this gate catching
+  code that postdates it rather than rediscovering old code. Discharged
+  by resolving the find and reporting which run was resolved
+  (`RunRepertoire::text`), not by exemption. Dated footer + table row
+  added to `D:\dev\rag\rust\a_behaviour_test_over_an_enumerated_list_cannot_fail_on_a_route_added_later_but_a_source_scan_can.md`.
+- A sabotage of the `encode_char` call on the simple-font branch
+  survived for a checked, honest reason (every candidate on that branch
+  can only be refused under one rule no fixture reaches) rather than
+  because the call is dead — documented at the call site and in
+  `docs/core-api` instead of deleted or forced red. New RAG file:
+  `D:\dev\rag\rust\a_sabotaged_call_can_survive_for_an_honest_reason_document_it_as_a_third_option.md`.
+- `R221` gains another instance; its true current instance count
+  remains unreconciled (480th filing's owed item 10, untouched here).
+
+**Still in flight:**
+- Items 4, 5, 9, 10, 11 carried forward unchanged (see `ROADMAP.md`'s
+  owed-work ledger).
+- Two new inbound requests from `pdfcer-gui`, read and queued, neither
+  started: a hybrid-reference file's forced full-rewrite refusal makes
+  redaction unreachable on such files; `resize_annotation` refuses a
+  pdfcer-authored `/Stamp` as foreign (third such family, after
+  `/FreeText` and `/Text`).
+- A second instance, in two days, of the file-channel-blindness cause
+  (a reply asserted two requests were unanswered when they had been
+  answered 67 minutes earlier) — flagged, not minted; the
+  `stat`-before-replying remedy was already written down and not
+  applied twice now.
+- Whether `26ef381` has been pushed or released is not asserted — no
+  shell this filing.
+
+**For next session:**
+- Confirm `pdfcer-gui`'s fourth outbound reply by `Glob` (carried from
+  the 480th filing).
+- Reconcile `R221`'s instance count before its Standing Rules body
+  gains another dated note.
+- Scope the two new `pdfcer-gui` requests (hybrid-reference redaction,
+  `/Stamp` resize) into Passes.
+- Watch for a third instance of the file-channel-blindness cause before
+  deciding whether it earns a standing rule.
+
 ## 2026-09-09 (480th filing)
 
 **Shipped:**
