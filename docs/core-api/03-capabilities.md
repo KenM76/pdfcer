@@ -1669,6 +1669,7 @@ internally (`redact.rs:1220-1224`).
 `glyphs_removed`, `show_operators_edited`, `content_streams_rewritten`,
 `annotations_removed`, `containers_decomposed`, `objects_promoted`,
 `info_strings_scrubbed`, **`residual_sweep_entries_scrubbed`,
+`residual_content_streams_blanked`,
 `residual_sweep_objects_scrubbed`** (`Pass 284.0`), `estimated_width_fonts`, `overlay_text_burned`,
 `overlay_ro_not_drawn`, `overlay_transparent`, **`images_cleared`,
 `images_removed`, `images_cloned_shared`, `images_overcovered`,
@@ -1705,9 +1706,13 @@ exists), so it must see what the `/Info` and XMP passes already removed.
 |---|---|---|
 | any dictionary's string entry | **scrubbed** (entry removed) | §14.3.3: a key outside Table 317 *"shall be a text string"*, so a fixed key list is structurally incomplete |
 | a stream declaring `/Type /Metadata` | **scrubbed** (blanked, re-emitted raw) | §14.3.2 NOTE 3: an XMP packet is designed to be found *"by simple scanning rather than requiring the document file to be parsed"* — reachability is irrelevant to its exposure **by design** |
-| any other stream carrying evidence | **`DisclosedNotScrubbed`, naming the object** | blanking bytes inside a font programme or an image would corrupt content on a coincidental match |
+| an abandoned **content stream** | **blanked** in the string operands of `Tj`/`TJ`/`'`/`"` only (`Pass 285.0`) | §9.4.3; parsing the buffer is also the discriminator — a font programme or an image does not parse as a content stream |
+| anything else carrying evidence | **`DisclosedNotScrubbed`, naming the object** | pdfcer can see the word but cannot prove it is drawn text; blanking on that basis would corrupt content on a coincidence |
 
-New counters: `residual_sweep_entries_scrubbed`, `residual_sweep_objects_scrubbed`
+New counters: `residual_sweep_entries_scrubbed`, `residual_sweep_objects_scrubbed`,
+`residual_content_streams_blanked` (`Pass 285.0`, counted apart because it is the
+only member of the sweep that **edits drawing instructions** rather than removing
+a metadata string)
 — **counted apart from `info_strings_scrubbed` on purpose**, because a single
 total would hide that the second number is the one nobody expected to be
 non-zero.
@@ -1741,11 +1746,9 @@ pdfcer cannot sweep safely and says so. The first cut returned the second for
 both and turned two passing image-redaction tests red — correctly, because an
 image-only redaction leaves no text residual.
 
-⚠️ **Still owed, and stated rather than implied:** a non-metadata stream
-carrying redacted text is *named*, not removed. Deciding whether pdfcer should
-also blank an abandoned **content** stream — it can tell which content streams
-its own surgery rewrote, so the knowledge exists without a reachability walk —
-is deliberately left to its own Pass.
+★★ **`Pass 285.0` closed the owed half, and the SPAN SCOPING is the whole safety property.** Only the spans of operands belonging to text-showing operators are touched, so a resource name such as `/CONFIDENTIALIm Do` is never rewritten into one that resolves to nothing — which would silently stop an image drawing, destroying content to fix a leak. The edit is length-preserving, so every other span into the buffer stays valid.
+
+⚠️ **What still declines and discloses:** a stream that does not parse as a content stream, and text drawn through a subset font whose operand bytes are glyph codes rather than characters. That is the same floor the rest of the sweep has; closing it means the glyph machinery the *live* content path already uses.
 
 **Images (`Pass 245.0`, `redact_image.rs`).** A raster image a region
 touches — image XObject or inline, any codec pdfcer decodes (raw, DCT, CCITT,

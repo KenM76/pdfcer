@@ -1,4 +1,4 @@
-//! `Pass 284.0` — redaction sweeps the FILE, not the document graph.
+//! `Pass 284.0`/`285.0` — redaction sweeps the FILE, not the document graph.
 //!
 //! # The defect these tests pin
 //!
@@ -30,13 +30,30 @@
 //! of the clause being read. So the remedy does not depend on the computation
 //! that failed: it looks for the redacted words, wherever they are.
 //!
-//! # What is deliberately NOT done, and is disclosed instead
+//! # `Pass 285.0` — the abandoned content stream, and what still is not done
 //!
-//! A stream that is not an XMP packet but still carries redacted text is
-//! **named, not blanked** — writing over bytes inside a font programme or an
-//! image on a coincidental match would corrupt content to fix a leak. Test
-//! `an_unreachable_content_stream_is_named_not_silently_left` pins that this
-//! is a *disclosure* and not silence.
+//! `Pass 284.0` **named** a non-metadata stream carrying redacted text rather
+//! than editing it, because blanking arbitrary bytes would corrupt a font
+//! programme or an image on a coincidental match. `Pass 285.0` found the
+//! discriminator that makes the edit safe: **parse the buffer as a content
+//! stream and blank only the spans of operands belonging to `Tj`/`TJ`/`'`/`"`
+//! (§9.4.3).** Parsing is also the discriminator — a font or an image does not
+//! parse as a content stream — and the edit is length-preserving.
+//!
+//! ★★ **A sabotage survived the first cut of these tests and is why the
+//! fixture looks the way it does.** Replacing the operand span with the whole
+//! buffer left all eight green, because the fixture put the redacted word only
+//! inside a string. The orphan stream now also carries it in a **resource
+//! name** (`/CONFIDENTIALIm Do`), which a whole-buffer blank would rewrite
+//! into a name resolving to nothing — silently stopping an image from drawing.
+//! `an_abandoned_content_streams_drawn_text_is_blanked` asserts that name
+//! survives.
+//!
+//! **Still declined, and still disclosed:** a stream that does not parse as a
+//! content stream, and text drawn through a subset font whose operand bytes
+//! are glyph codes rather than characters.
+//! `a_stream_that_cannot_be_blanked_is_still_named` pins that the honest half
+//! of `Pass 284.0` survives exactly where it is still correct.
 
 use pdfcer_core::document::Document;
 use pdfcer_core::redact::{CarrierAction, RedactionReport};
@@ -48,7 +65,14 @@ use pdfcer_core::writer::SaveOptions;
 /// no reference in the file.
 fn pdf_with_orphans() -> Vec<u8> {
     let content = "BT /F1 24 Tf 40 200 Td (CONFIDENTIAL) Tj ET";
-    let orphan_stream = "BT /F1 24 Tf 40 100 Td (CONFIDENTIAL stream orphan) Tj ET";
+    // ★ The resource name carries the redacted word TOO, deliberately. It is
+    // what makes a whole-buffer blank distinguishable from a span-scoped one:
+    // a sweep that overwrote every occurrence would rewrite this name into
+    // one that resolves to nothing, silently stopping an image from drawing.
+    // A sabotage that did exactly that survived the first cut of these tests,
+    // because the fixture put the word only inside the string.
+    let orphan_stream =
+        "q /CONFIDENTIALIm Do Q BT /F1 24 Tf 40 100 Td (CONFIDENTIAL stream orphan) Tj ET";
     let xmp = "<?xpacket begin='' ?><x:xmpmeta><dc:title>CONFIDENTIAL xmp orphan</dc:title>\
 </x:xmpmeta><?xpacket end='w'?>";
 
@@ -123,6 +147,53 @@ fn pdf_with_orphans() -> Vec<u8> {
     buf
 }
 
+/// The orphan fixture plus object 10: a stream carrying the redacted word in a
+/// string literal that **no text-showing operator consumes**.
+///
+/// This is the shape `blank_show_strings` must decline — it can see the word
+/// but cannot prove the bytes are drawn text, and blanking on that basis is
+/// the coincidence-corrupts-content trade the sweep refuses.
+fn pdf_with_unblankable_stream() -> Vec<u8> {
+    let base = pdf_with_orphans();
+    let text = String::from_utf8(base).expect("the fixture is ASCII");
+
+    let blob = "(CONFIDENTIAL not drawn) 0 0 0 rg";
+    let obj = format!(
+        "10 0 obj\n<< /Length {} >>\nstream\n{blob}\nendstream\nendobj\n",
+        blob.len()
+    );
+
+    // Splice the object in before the xref and rebuild the table, so the
+    // fixture stays offset-consistent rather than relying on recovery.
+    let head = text
+        .split_once("xref\n")
+        .map(|(h, _)| h.to_string())
+        .expect("the fixture has a classic table");
+    let mut buf = head;
+    let obj_at = buf.len();
+    buf.push_str(&obj);
+
+    // Re-derive every object's offset from the spliced body.
+    let xref_at = buf.len();
+    let mut lines = String::from("xref\n0 11\n0000000000 65535 f \n");
+    for n in 1..=10u32 {
+        let needle = format!("\n{n} 0 obj\n");
+        let off = if n == 10 {
+            obj_at
+        } else {
+            buf.find(&needle)
+                .map(|i| i + 1)
+                .unwrap_or_else(|| panic!("object {n} is in the spliced body"))
+        };
+        lines.push_str(&format!("{off:010} 00000 n \n"));
+    }
+    buf.push_str(&lines);
+    buf.push_str(&format!(
+        "trailer\n<< /Size 11 /Root 1 0 R /Info 5 0 R >>\nstartxref\n{xref_at}\n%%EOF\n"
+    ));
+    buf.into_bytes()
+}
+
 /// Redact `CONFIDENTIAL` from the orphan fixture and return the saved bytes
 /// plus the report.
 fn redact_orphan_fixture() -> (Vec<u8>, RedactionReport) {
@@ -193,32 +264,94 @@ fn an_orphaned_xmp_packet_is_scrubbed_wherever_it_is_attached() {
     );
 }
 
-// ------------------------------------- 2. what is disclosed instead of done
+// -------------------------------- 2. the abandoned content stream (`Pass 285.0`)
 
-/// A stream that is not a metadata packet is **named**, not blanked — and not
-/// silently left either.
+/// ★★★ An abandoned content stream's drawn text is **blanked**, not merely
+/// named.
 ///
-/// This is the honest half: pdfcer will not write over bytes inside what might
-/// be a font programme or an image on a coincidental match, so it says which
-/// object still carries the text and lets the operator decide.
+/// # This test was AMENDED, not replaced, and the old assertion is below
+///
+/// At `Pass 284.0` this test asserted the opposite — that the stream was still
+/// present and the sweep reported `DisclosedNotScrubbed` naming object `8 0`.
+/// That was **right for its Pass**: blanking arbitrary stream bytes on a
+/// coincidental match would corrupt a font programme or an image, and naming
+/// the object was the honest answer available at the time.
+///
+/// `Pass 285.0` found the discriminator that makes blanking safe, so the
+/// disclosure is no longer the best pdfcer can do. Both halves are kept: this
+/// one pins that the text is **gone**, and
+/// `a_stream_that_cannot_be_blanked_is_still_named` pins that the old
+/// behaviour survives exactly where it is still correct.
+///
+/// ★ **The discriminator is parsing itself.** A font programme or an image
+/// does not parse as a content stream, so the same call that locates the
+/// strings proves the object is one — no `/Subtype` sniffing and no list of
+/// types to keep in step with reality. And only the spans of operands
+/// belonging to `Tj`/`TJ`/`'`/`"` are touched, so a resource name such as
+/// `/CONFIDENTIAL Do` is never rewritten into one that resolves to nothing.
 #[test]
-fn an_unreachable_content_stream_is_named_not_silently_left() {
+fn an_abandoned_content_streams_drawn_text_is_blanked() {
     let (bytes, report) = redact_orphan_fixture();
 
-    // Still present — deliberately.
-    assert!(contains(&bytes, b"CONFIDENTIAL stream"));
+    assert!(
+        !contains(&bytes, b"CONFIDENTIAL stream"),
+        "an abandoned content stream still draws the redacted word"
+    );
+    assert_eq!(
+        report.residual_content_streams_blanked, 1,
+        "and the edit is counted apart from the metadata scrubs"
+    );
 
-    // And therefore it must be disclosed, by object number.
+    // ★★ THE ASSERTION THAT MAKES SPAN-SCOPING MEASURABLE, and it exists
+    // because a sabotage survived without it.
+    //
+    // Replacing the operand span with the WHOLE BUFFER — blanking every
+    // occurrence of the evidence rather than only the show operator's
+    // operands — left all eight tests green, because the fixture put the word
+    // only inside the string. The resource name `/CONFIDENTIALIm` was added
+    // for exactly this: a whole-buffer blank rewrites it to `/XXXXXXXXXXXXIm`,
+    // which resolves to nothing and silently stops the image drawing —
+    // content destroyed to fix a leak, the trade this sweep refuses
+    // everywhere else.
+    assert!(
+        contains(&bytes, b"/CONFIDENTIALIm"),
+        "the resource NAME must survive — only the show operator's string \
+         operands may be blanked, or a redaction quietly breaks the page"
+    );
+
+    // ~~The `Pass 284.0` assertion, kept legible:~~
+    // ~~assert!(contains(&bytes, b"CONFIDENTIAL stream"));~~
+    // ~~assert_eq!(carrier(&report, "residual_sweep"),~~
+    // ~~          Some(CarrierAction::DisclosedNotScrubbed));~~
+}
+
+/// ★ THE CONTROL FOR THE BLANKING: a stream carrying the redacted word that
+/// **cannot** be blanked safely is still named.
+///
+/// Without this, a `blank_show_strings` that gave up silently — returning
+/// `None` and skipping the disclosure — would pass every other assertion in
+/// this file, and the honest half of `Pass 284.0` would have been deleted by
+/// accident rather than by decision.
+///
+/// The fixture's object 10 carries the word inside a string literal that **no
+/// show operator consumes**, which is the shape of a leak pdfcer can see and
+/// must not guess about.
+#[test]
+fn a_stream_that_cannot_be_blanked_is_still_named() {
+    let doc = Document::from_bytes(pdf_with_unblankable_stream()).expect("the fixture loads");
+    let mut session = pdfcer_core::edit::EditSession::new(doc);
+    session
+        .mark_redactions_by_search("CONFIDENTIAL", false)
+        .expect("mark");
+    let report = session.apply_redactions().expect("apply");
+
     assert_eq!(
         carrier(&report, "residual_sweep"),
-        Some(CarrierAction::DisclosedNotScrubbed)
+        Some(CarrierAction::DisclosedNotScrubbed),
+        "a stream pdfcer cannot blank must still be disclosed"
     );
     assert!(
-        report.has_disclosed_residuals(),
-        "a residual pdfcer left must set the residual flag"
-    );
-    assert!(
-        report.notes.iter().any(|n| n.contains("8 0")),
+        report.notes.iter().any(|n| n.contains("10 0")),
         "the note must NAME the object, not merely say one exists: {:?}",
         report.notes
     );

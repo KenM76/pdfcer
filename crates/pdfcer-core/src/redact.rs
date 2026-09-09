@@ -361,8 +361,18 @@ pub struct RedactionReport {
     /// non-zero.
     pub residual_sweep_entries_scrubbed: u64,
     /// Objects the residual sweep modified — dictionaries whose strings were
-    /// removed, plus XMP packets blanked wherever they were attached.
+    /// removed, plus XMP packets blanked wherever they were attached, plus
+    /// content streams whose show-operator strings were blanked.
     pub residual_sweep_objects_scrubbed: u64,
+    /// Abandoned content streams whose text-showing operands were blanked
+    /// (`Pass 285.0`).
+    ///
+    /// ★ Counted apart from the total because it is the only member of the
+    /// sweep that **edits drawing instructions**. The others remove a
+    /// metadata string; this one changes what a page would paint if anything
+    /// still pointed at it. A shell disclosing "pdfcer edited N objects"
+    /// should be able to say how many of them were content.
+    pub residual_content_streams_blanked: u64,
     /// Distinct fonts whose advance widths were estimated (no `/Widths`,
     /// not standard-14) — affects only advance-preservation cosmetics,
     /// never the removal itself. Disclosed.
@@ -2915,6 +2925,7 @@ fn carrier_residual_sweep(
     let mut dicts_scrubbed = 0u64;
     let mut entries_scrubbed = 0u64;
     let mut metadata_scrubbed = 0u64;
+    let mut content_streams_blanked = 0u64;
     let mut disclosed: Vec<String> = Vec::new();
 
     for id in ids {
@@ -2998,20 +3009,46 @@ fn carrier_residual_sweep(
                         entries_scrubbed += removed;
                     }
                 } else if carries {
-                    // Not a metadata packet: blanking arbitrary stream bytes
-                    // would corrupt a font programme or an image on a
-                    // coincidental match. Name it instead.
-                    disclosed.push(format!("{} {}", id.num, id.generation));
-                    if removed > 0 {
-                        entries_scrubbed += removed;
-                        dicts_scrubbed += 1;
+                    // Not a metadata packet. `Pass 285.0`: try to blank the
+                    // evidence inside the string operands of text-showing
+                    // operators. Parsing is the discriminator -- a font
+                    // programme or an image does not parse as a content
+                    // stream, so this cannot touch one, and the edit is
+                    // length-preserving so the stream stays valid.
+                    if let Some(blanked) = blank_show_strings(&decoded, &evidence) {
+                        dict.remove(b"Filter");
+                        dict.remove(b"DecodeParms");
+                        dict.insert(
+                            Name::from(b"Length"),
+                            Object::Integer(i64::try_from(blanked.len()).unwrap_or(i64::MAX)),
+                        );
+                        let new_span = stage(staging, base_len, &blanked);
                         dirty.replace(
                             id,
                             Object::Stream(Stream {
                                 dict,
-                                data_span: stream.data_span,
+                                data_span: new_span,
                             }),
                         );
+                        content_streams_blanked += 1;
+                        entries_scrubbed += removed;
+                    } else {
+                        // It did not parse as a content stream, or the
+                        // evidence is not in a show operator's operand (a
+                        // subset font's glyph codes are not its characters).
+                        // Blanking blind would corrupt content to fix a leak.
+                        disclosed.push(format!("{} {}", id.num, id.generation));
+                        if removed > 0 {
+                            entries_scrubbed += removed;
+                            dicts_scrubbed += 1;
+                            dirty.replace(
+                                id,
+                                Object::Stream(Stream {
+                                    dict,
+                                    data_span: stream.data_span,
+                                }),
+                            );
+                        }
                     }
                 } else if removed > 0 {
                     entries_scrubbed += removed;
@@ -3030,23 +3067,91 @@ fn carrier_residual_sweep(
     }
 
     report.residual_sweep_entries_scrubbed = entries_scrubbed;
-    report.residual_sweep_objects_scrubbed = dicts_scrubbed + metadata_scrubbed;
+    report.residual_sweep_objects_scrubbed =
+        dicts_scrubbed + metadata_scrubbed + content_streams_blanked;
+    report.residual_content_streams_blanked = content_streams_blanked;
 
     if !disclosed.is_empty() {
         report.add_carrier("residual_sweep", true, CarrierAction::DisclosedNotScrubbed);
         report.note(format!(
             "redaction: {} stream object(s) still carry redacted text and were NOT scrubbed \
-             because blanking arbitrary stream bytes would corrupt a font or an image on a \
-             coincidental match — object(s) {}; these are unreachable or superseded content, \
-             so review or remove them by hand",
+             because either it does not parse as a content stream (a font programme or an image, \
+             where blanking on a coincidence would corrupt content), or its text is drawn through a \
+             subset font whose operand bytes are glyph codes, not characters — object(s) {}; review or remove them by hand",
             disclosed.len(),
             disclosed.join(", ")
         ));
-    } else if entries_scrubbed > 0 || metadata_scrubbed > 0 {
+    } else if entries_scrubbed > 0 || metadata_scrubbed > 0 || content_streams_blanked > 0 {
         report.add_carrier("residual_sweep", true, CarrierAction::Scrubbed);
     } else {
         report.add_carrier("residual_sweep", true, CarrierAction::CheckedClean);
     }
+}
+
+/// Blank redaction evidence inside the **string operands of text-showing
+/// operators** in a decoded content stream (`Pass 285.0`).
+///
+/// Returns the edited buffer when anything changed, `None` otherwise.
+///
+/// # Why this is span-scoped rather than a byte-level replace
+///
+/// The obvious implementation blanks every occurrence of the evidence in the
+/// decoded bytes. It is wrong in a way that only shows up on somebody's file:
+/// a resource name is a token too. A stream containing `/CONFIDENTIAL Do`
+/// would become `/XXXXXXXXXXXX Do`, which resolves to nothing and silently
+/// stops drawing an image — content destroyed to fix a leak, which is the
+/// trade this module refuses everywhere else.
+///
+/// So the buffer is **parsed** ([`crate::content::ContentStream::parse`]) and
+/// only the spans of operands belonging to `Tj`, `TJ`, `'` and `"` (§9.4.3)
+/// are touched. Two consequences worth stating:
+///
+/// * **Parsing is also the discriminator.** A font programme or an image does
+///   not parse as a content stream, so the same call that finds the strings
+///   proves the object is one — no `/Subtype` sniffing, no heuristic about
+///   printable runs, and no list of types to keep in step with reality.
+/// * **The edit is length-preserving**, so every other span into the buffer
+///   stays valid and the stream needs no re-serialization.
+///
+/// # What it deliberately does not catch
+///
+/// Text drawn through a subset font with a custom encoding, where the operand
+/// bytes are glyph codes rather than the characters. That is the same floor
+/// the rest of the sweep has, it is disclosed by the carrier line rather than
+/// papered over, and closing it means the full glyph machinery the *live*
+/// content path already uses — a different Pass from this one.
+fn blank_show_strings(decoded: &[u8], evidence: &[String]) -> Option<Vec<u8>> {
+    let parsed = crate::content::ContentStream::parse(decoded.to_vec()).ok()?;
+    let mut out = parsed.buf.clone();
+    let mut changed = false;
+
+    for op in parsed.operations() {
+        let Some(name) = op.operator_name(&parsed.buf) else {
+            continue;
+        };
+        if !matches!(name, b"Tj" | b"TJ" | b"'" | b"\"") {
+            continue;
+        }
+        for operand in op.operands {
+            let span = operand.span;
+            let Some(end) = span.start.checked_add(span.len) else {
+                continue;
+            };
+            let Some(slice) = out.get_mut(span.start..end) else {
+                continue;
+            };
+            for t in evidence {
+                if replace_all_bytes(slice, t.as_bytes(), b'X') {
+                    changed = true;
+                }
+                if replace_all_bytes(slice, &utf16be(t), b'X') {
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    changed.then_some(out)
 }
 
 /// Remove from `updated` every string-valued entry of `dict` that carries
