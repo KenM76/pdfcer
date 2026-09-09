@@ -4,7 +4,7 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-09-09, after `Pass 283.1`.
+**Written:** 2026-09-09, after `Pass 285.0`.
 
 ---
 
@@ -16,11 +16,11 @@ everything since is pushed but unreleased. Releasing is standing-authorized
 `docs/core-api/` from the repo rather than from a tarball. **If you have budget
 for a release, cutting one is overdue rather than forbidden.**
 
-**`main` is pushed through `d8fcb68`.** `tools/run-gates.sh` **PASS, 29/29**,
+**`main` is pushed through `a2adb54`.** `tools/run-gates.sh` **PASS, 29/29**,
 including both filing gates. `cargo test --workspace` green.
 
-**Seven Passes shipped today**, each closing an inbound request or an operator
-report:
+**Nine Passes shipped today**, each closing an inbound request, an operator
+report, or a defect found while shipping one of the others:
 
 | Pass | commit | what |
 |---|---|---|
@@ -32,13 +32,19 @@ report:
 | `282.0` | — | the `/Info` half of the redaction-diligence gap |
 | `283.0` | `dce2223` | **a PDF with errors OPENS** — decision 145, rule `R248` |
 | `283.1` | `d8fcb68` | that intervention, reachable from a **path** |
+| `284.0` | `ea4acb3` | **redaction sweeps the FILE, not the graph** — decision 146, rule `R249` |
+| `285.0` | `1366138` | an abandoned content stream's drawn text is blanked |
+
+Filings: 485th `6b10e92`, 486th `5bf8704`, 487th `a2adb54`.
 
 ---
 
-## ★★ READ DECISION 145 BEFORE ANY READER WORK
+## ★★ TWO POSTURE CHANGES LANDED TODAY. READ BOTH BEFORE TOUCHING THEIR AREAS
 
-`Pass 283.0` turned two mid-session operator rulings into a **posture change for
-the whole reader**, and the Pass is the small half of it:
+### Decision 145 — a damaged file OPENS (reader)
+
+`Pass 283.0` turned two mid-session operator rulings into a posture change for
+the whole reader:
 
 > *"We should be making pdfcer so that it opens pdfs that have errors, and have
 > a way that it manages those errors such that they aren't fatal, and if the
@@ -60,67 +66,109 @@ without inventing anything?"* — and §7.3.10's undefined-object rule is usuall
 the answer. The one line that stays fatal is a file with no `/Root`, because
 continuing there would mean fabricating a catalog; a test pins it.
 
-**Where to look for the next candidates:** anywhere the reader still returns a
-hard error for a *part* of a file — `pages()`, the font loaders, the content
-interpreter, the annotation walkers. Each wants the same treatment: continue,
-record, offer the choice if one exists.
+**Where to look next:** anywhere the reader still returns a hard error for a
+*part* of a file — `pages()`, the font loaders, the content interpreter, the
+annotation walkers.
+
+### Decision 146 and `R249` — evidence, never reachability (writer/redaction)
+
+`Pass 284.0` found that every redaction carrier located its target by
+**navigating the document graph** while the writer emits objects by
+**enumerating the cross-reference table**. Everything in the difference was
+copied through verbatim — while `info action=scrubbed` and
+`prior_revisions action=dropped_by_rewrite` were both **true**. No false line,
+content still present.
+
+**`R249`, and it generalises well past redaction:** *before scoping any
+destructive sweep to satisfy an outcome-shaped obligation ("remove all X"),
+scope it to the evidence the obligation itself names. Do not substitute a
+computed reachability or liveness walk as a proxy* — such a walk on a
+graph-shaped format **drops content silently rather than refusing loudly**
+(§7.3.10 makes a dangling reference *"not … an error"*).
+
+★ **The warrant is empirical.** The census probe built to *measure* the fix
+reproduced the exact failure it was written to catch — **twice** — and my
+reported impact figure moved 21% → 12% as a result. Three object classes are
+unreferenced **by design**: object streams (type-2 xref entries),
+cross-reference streams (byte offset), and the linearization dictionary
+(Annex F.3.3).
 
 ---
 
-## ★★★ THE FINDING FROM `283.1`, AND IT IS A HABIT, NOT A BUG
+## ★★★ THE THREE HABITS THIS SESSION KEPT PROVING, IN ORDER OF WHAT THEY COST
 
-`Pass 283.0` was complete, correct, tested, documented — and its **intervention
-was unreachable by the only shell that needed it.** The alternative reading
-shipped on `Document::from_bytes_with_options`; `pdfcer-gui` opens files with
-`Document::load`. Taking the other value meant re-implementing `std::fs::read`
-at the call site. `Pass 283.1` added `Document::load_with_options`.
+### 1. Grep the CONSUMING project before calling a Pass done (`283.1`)
 
-★ **This is `R245`'s shape applied to an AFFORDANCE rather than a GUARD** — a
-facility present on one route and absent on its twin. `R245` was written about a
-*check* that fired on one path and not the other; this second form is **harder to
-see, because nothing is wrong on the route you are reading.**
-`from_bytes_with_options` is faultless in isolation. The defect only exists from
-the caller's side.
+`Pass 283.0` was complete, correct, tested and documented — and its
+intervention was **unreachable by the only shell that needed it**. The
+alternative reading shipped on `Document::from_bytes_with_options`;
+`pdfcer-gui` opens files with `Document::load`.
 
-⇒ **The habit that found it, and the one to keep:** when you ship a capability
-for a named consumer, **grep that consumer's tree for its actual call site**
-before calling the Pass done. Do not ask "does the API have a way?" — it did.
-Ask "can the caller reach it without duplicating the function beside it?" An
-intervention only reachable by rewriting the route next to it is **present, not
-offered**, and the operator's ruling says *"if the user can intervene … that
-should always be an option."*
+★ `R245`'s shape applied to an **affordance** rather than a **guard** — harder
+to see, because *nothing is wrong on the route you are reading*. Do not ask
+"does the API have a way?" Ask **"can the intended caller reach it without
+duplicating the function beside it?"**
 
-The librarian was asked to decide whether this claims a standing-rule number or
-appends to `R245`'s family; **nothing in the code or docs claims a new number** —
-`docs/core-api/01-reading-and-model.md` §3.6b cites `R245` by name. Check what
-was recorded before citing it yourself.
+### 2. A sabotage is only as discriminating as its fixture (`285.0` — the near-miss)
+
+Blanking the **whole buffer** instead of only the show operators' operand spans
+**left all eight tests green**. The fixture had put the redacted word only
+inside a string.
+
+★★ **The defect that would have shipped:** `q /CONFIDENTIALIm Do Q` rewritten
+to `q /XXXXXXXXXXXXIm Do Q` — a resource name resolving to nothing, an image
+silently not drawn. **Content destroyed to fix a leak, under a doc comment
+that explicitly promised the opposite.**
+
+★ Recorded as `R225`'s **16th** instance, with the severity escalation stated:
+every prior instance was *"the test measured less than its NAME claimed"*; this
+was *"less than the DOCUMENTATION claimed"*, which is strictly worse — a doc
+comment is what a future reader trusts **instead of** re-deriving.
+
+Third instance this session, after `278.0`'s last-ink-stroke and `279.0`'s
+`refusal_names_a_font.rs`. **Ask of any test you inherit: which fixture could
+ever have made this go red?**
+
+### 3. Dispatch the spec librarian BEFORE reasoning from a clause, not after
+
+`Pass 283.0`'s first draft justified keep-last from §7.5.6's incremental-update
+ordering — an analogy in costume; §7.3.7's own preceding sentence says entry
+order *"shall be ignored"*. `Pass 284.0`'s answer arrived with the `UO-A1`
+reachability trap, three unfiled carriers (thread `/I` dictionaries, XMP routes
+B and C) and the finding that `carrier_xmp` reads **route A of four**. Neither
+would have come from reading the code.
 
 ---
 
 ## ★ THE QUEUE
 
-★ **START HERE: an orphaned metadata object survives a redaction.** On the file
-that motivated `Pass 281.0`, an `/Info`-**shaped** object the trailer does not
-point at (superseded by a later one, still listed in the cross-reference table)
-is re-emitted verbatim by the forced full rewrite with its `/Keywords` intact.
-`carrier_info` scrubs the trailer's `/Info`; **nothing scrubs an orphan.**
-`prior_revisions action=dropped_by_rewrite` is **true** — it is about superseded
-byte ranges, not about objects the xref still names — so **no report line is
-false and the content is still there**, which is the worst combination. Consult
-the spec RAG on what §12.5.6.23's "all content" obliges before choosing between
-scrub, drop, or disclose.
+★ **The item that headed this queue all session — the orphaned metadata object
+surviving redaction — is CLOSED** (`Pass 284.0` + `285.0`). It was one instance
+of a class; the class is closed too. What remains of it is the sweep's existing
+floor, not a new gap: **a stream that does not parse as a content stream**, and
+**text drawn through a subset font whose operand bytes are glyph codes rather
+than characters**. Closing the second needs the glyph machinery the *live*
+content path already uses, and it is the same floor `redacted_text` has — so it
+belongs with item 1 below, not on its own.
 
-**Then, both from `pdfcer-gui`, in this order:**
+**Both remaining items are from `pdfcer-gui`. Take them in this order:**
 
 1. **`request_redacted_text_carries_single_characters_on_a_per_glyph_producer_so_the_absence_proof_is_blind.md`**
    — CONFIRMED at the source and replied to; not built. `redacted_text` is
    accumulated **per show operator**, so a per-glyph producer yields single
-   characters and their absence proof greps for the alphabet. ★ **It is the same
-   bug as the `carrier_info` gap**: that field has a second consumer inside the
-   engine, and the two want opposite granularities — joining runs (what they
-   asked for) makes the `/Info` under-match *worse*. Ship both halves in one
-   Pass: per-mark joined text, plus a `carrier_info` match rule that does not
-   depend on granularity, plus the granularity stated in the report.
+   characters and their absence proof greps for the alphabet.
+
+   ★ **It is the same bug as the `carrier_info` gap was**: that field has a
+   second consumer inside the engine, and the two want opposite granularities —
+   joining runs (what they asked for) makes metadata under-matching *worse*.
+   Ship both halves in one Pass: per-mark joined text, plus a match rule that
+   does not depend on granularity, plus the granularity stated in the report.
+
+   ★★ **And it now has a third consumer**: `residual_sweep`'s
+   `redaction_evidence` (`Pass 284.0`). Whatever granularity you choose, check
+   it against the sweep as well — a change that helps the absence proof and
+   quietly narrows the sweep would re-open a leak this session just closed.
+   **That is the thing to be careful about in this Pass.**
 
 2. **`request_resize_annotation_refuses_a_pdfcer_authored_stamp_as_foreign.md`**
    — **amended twice and RE-ESCALATED**, in the operator's words: *"if I drew
@@ -149,7 +197,6 @@ scrub, drop, or disclose.
 (dispatch `pdfcer-acrobat-librarian` first, rule 12), `Pass 259.0` (the
 `docs/core-api/` line-citation class), `Pass 10.11` (B-T timestamps).
 
----
 
 ## OWED
 
@@ -158,9 +205,11 @@ scrub, drop, or disclose.
   is already past three, and the 480th filing flagged the discrepancy rather
   than guessing. Reconcile it in a session with budget. **Do not copy an ordinal
   from a commit message.**
-- **`R247` is reserved-but-unclaimed and contested** between two unrelated
-  triggers. `R248` was deliberately minted *past* it. `283.1` produced a third
-  candidate (the affordance/guard widening). Resolving `R247` needs a session
+- **★★ `R247` is reserved-but-unclaimed and now FLANKED BY THREE minted
+  neighbours** — `R246`, `R248`, `R249` — having been flagged for three
+  consecutive filings. Every mint since has been numbered deliberately *past*
+  it to avoid entangling with the unresolved reservation, which works and
+  compounds. **Resolve it before a fourth candidate lands**; it needs a session
   with time, not a drive-by.
 - **`tools/check-requests-scoped.py`** — owed by `R242`, still unbuilt.
 - **`check-public-fns-documented.py`'s denominator is `pub`**, so it cannot see
@@ -172,15 +221,17 @@ scrub, drop, or disclose.
 
 ---
 
-## ★★ WHAT THIS SESSION GOT WRONG — the four worth carrying
+## ★★ WHAT THIS SESSION GOT WRONG — the rest of it
 
-### A capability that shipped complete and unreachable
+The three that generalise are above, under **THE THREE HABITS**. These are
+the remainder, kept because each is a concrete instance a future session can
+recognise.
 
-See `283.1` above. **The new one, and the most general.** Every other item here
-is about a test or a tool; this one is about believing a Pass was finished
-because the *API* was finished.
+### A correct test, on a fixture that could not fail. FOUR times.
 
-### A correct test, on a fixture that could not fail. THREE times.
+The fourth (`Pass 285.0`, the whole-buffer blank) is above and is the worst
+of them — it broke a promise the DOC COMMENT made, not merely one the test
+name made. The other three:
 
 - `Pass 277.0`: *"a refusal writes nothing"* measured on a sticky stayed green
   with the guard moved after the write — a sticky never reaches the write
@@ -193,7 +244,7 @@ because the *API* was finished.
   is `AAAAAA+pdfcerSymbolicPrivate` and no standard-14 name matches that stem.
 
 **The question to ask of any test you inherit: which fixture could ever have
-made this go red?** All three were found by sabotage; none by reading.
+made this go red?** All four were found by sabotage; none by reading.
 
 ### An enumerating gate caught a NEW route within the hour — that is the contrast
 
@@ -227,11 +278,20 @@ pdfium all keep-last).
   BLOCK, not the item.
 - **A rustdoc example did not compile** (`Document::load` takes `&Path`). Only
   the doctest pass reads an example as code.
-- **Prose through the Bash tool broke repeatedly** — heredoc backticks command-
-  substituted, `\` inside single-quoted python strings, and **a multi-line
-  `str.replace` that silently matched zero times because the file is CRLF and my
-  pattern was LF.** Write the payload with the Write tool and splice by line
-  index, or join patterns with an explicit `\r\n`.
+- **Prose through the Bash tool broke repeatedly, and once it reached a pushed
+  commit.** Heredoc backticks command-substituted; `\` inside single-quoted
+  python strings; **a multi-line `str.replace` that silently matched zero times
+  because the file is CRLF and my pattern was LF**; and — the one that got
+  away — **`git commit -m "…"` with backticked code in the message ate two
+  fragments**, including the worked example that was the whole point of the
+  paragraph. It was already pushed, and rewriting published history is not
+  authorised, so it stands as written.
+  ⇒ **NEVER pass a commit message inline. Always `git commit -F <file>`, with
+  the file written by the Write tool.** Every other message this session did
+  exactly that and survived; the one that did not is the one that lost content.
+  The archive escaped only because `ROADMAP.md` and `03-capabilities.md`
+  carried the same example independently — redundancy did the work that
+  discipline should have.
 
 ---
 
