@@ -558,6 +558,11 @@ fn confirm_candidates(
             // nothing — the defect the veraPDF gate found on qpdf's
             // `bad6.pdf`. See `TerminatorPolicy`.
             TerminatorPolicy::RecoverAtNextHeader,
+            // Recovery confirms candidate objects found by scanning; a
+            // duplicate key must not disqualify one, for the same reason the
+            // two policies above are lenient here — an object this step
+            // rejects is an object the document loses.
+            crate::parser::DuplicateKeyPolicy::KeepLast,
         ) {
             Ok(pair) => pair,
             Err(_) => continue, // false positive / unparseable — drop

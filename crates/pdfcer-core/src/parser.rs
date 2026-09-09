@@ -102,8 +102,37 @@ pub enum ParseErrorKind {
     /// shall be a name").
     #[error("dictionary key is not a name")]
     DictKeyNotName,
-    /// The same key appeared twice in one dictionary (§7.3.7 "shall
-    /// not"; reader behaviour undefined — Pass 1 is strict).
+    /// The same key appeared twice in one dictionary (§7.3.7).
+    ///
+    /// # What the standard actually says, sourced (`Pass 283.0`)
+    ///
+    /// §7.3.7 body text, its own sentence and **not** a NOTE, identical in
+    /// ISO 32000-1 and ISO 32000-2: *"Multiple entries in the same dictionary
+    /// shall not have the same key."* (Adobe's PDF Reference 1.7 phrased it as
+    /// a `should` inside a `Note:`; the PDF Association records the change as
+    /// stylistic — the two *"have the same technical meaning"*.)
+    ///
+    /// ★★ **It is a `shall not` and it binds the FILE, not the reader.** §2.1
+    /// makes conformance a property of files, §2.3 passes it to writers, and
+    /// clause 1 excludes *"methods for validating the conformance of PDF files
+    /// or readers"* outright. A duplicate-key file is not a conforming file,
+    /// so ISO 32000 **neither obliges pdfcer to render it nor obliges pdfcer
+    /// to refuse it**. ISO 32000-2 §6.3 retires the term outright: *"the
+    /// notion of a 'conforming reader' is not useful for this document."*
+    ///
+    /// Reader behaviour for the malformed case is **not merely unstated but
+    /// acknowledged as out of scope** — `pdf-issues` #199, open since 2022:
+    /// *"as soon as a PDF violates a mandated 'shall' requirement (such as 2
+    /// keys in a dictionary with the same name) then how that PDF is to be
+    /// interpreted is beyond the scope of ISO 32000."*
+    ///
+    /// ⇒ Which is why the winner is a **policy** pdfcer picks and discloses
+    /// ([`DuplicateKeyPolicy`]) rather than a rule it obeys. This error is
+    /// what [`DuplicateKeyPolicy::Refuse`] produces, and that policy is no
+    /// longer the document loader's default: refusing the whole document over
+    /// one entry is the strict reading **plus two unstated escalations** —
+    /// dictionary to object, object to document — neither of which §7.3.7
+    /// authorises.
     #[error("duplicate dictionary key")]
     DuplicateDictKey,
     /// Container nesting exceeded [`MAX_NESTING_DEPTH`] (pdfcer guard).
@@ -205,6 +234,106 @@ pub enum StreamLengthPolicy {
     RecoverFromEndstream,
 }
 
+/// One duplicate-key decision: the key, the value kept, the value discarded
+/// (`Pass 283.0`).
+///
+/// Both values travel because a shell offering the operator the alternative
+/// has to be able to show it. See [`crate::document::LoadAnomaly`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct DuplicateKeyRecord {
+    /// The repeated key, without its leading solidus — `PageMode`.
+    pub key: Vec<u8>,
+    /// The value pdfcer kept, under the policy in force.
+    pub kept: Object,
+    /// The value pdfcer discarded.
+    pub discarded: Object,
+}
+
+/// What to do when one dictionary names the same key twice (§7.3.7).
+///
+/// # The file that forced this, and why the strict answer was too expensive
+///
+/// An operator's 46 KB drawing opens in Acrobat and was **refused whole** by
+/// pdfcer: its document catalog carries `/PageMode` twice, with **different
+/// values** —
+///
+/// ```text
+/// … /PageMode /UseOC /PageLayout /SinglePage /PageLabels << … >>
+///   /PageMode /UseOutlines /Outlines 58 0 R /Metadata 59 0 R >>
+/// ```
+///
+/// One repeated key in one object cost the whole document, on a file every
+/// other reader opens without comment. That is the wrong trade for a malformed
+/// **entry** in an otherwise sound file: pdfcer's fail-clean posture is about
+/// never silently doing the wrong thing, and a counted, disclosed choice is
+/// not silent.
+///
+/// # Why this is a POLICY and not simply a relaxation
+///
+/// The spec's own rule and pdfcer's obligation are different questions. The
+/// rule is recorded at [`ParseErrorKind::DuplicateDictKey`]; what a reader may
+/// do about a violation is not stated, which makes the winner **pdfcer's
+/// choice to make and to disclose** — this project's standing shape for a spec
+/// ambiguity (a setting, a documented default, never a silent decision).
+///
+/// [`Self::Refuse`] stays the type's `Default` so every caller that did not
+/// ask — fuzz targets, the recovery confirmation pass, any future one — keeps
+/// the strict behaviour it was written against. The **document loader** opts
+/// in; the parser does not opt in for it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DuplicateKeyPolicy {
+    /// Refuse the object with [`ParseErrorKind::DuplicateDictKey`].
+    ///
+    /// The default, and the right answer for a caller whose job is to decide
+    /// whether a file is well-formed rather than to open it.
+    #[default]
+    Refuse,
+    /// Keep the **last** occurrence, and count it.
+    ///
+    /// # Why last rather than first
+    ///
+    /// Nothing in the standard prescribes either — see
+    /// [`ParseErrorKind::DuplicateDictKey`] for the sourcing — so this is
+    /// pdfcer's choice, and it is made on **observed reader behaviour**:
+    /// `qpdf`, `pdf.js` and `pdfium` all keep the last occurrence, and none of
+    /// the three refuses the file. `qpdf` even says so out loud — *"dictionary
+    /// has duplicated key `<key>`; last occurrence overrides earlier ones"* —
+    /// which is the same disclosure pdfcer now makes.
+    ///
+    /// ★★ **CORRECTED BEFORE SHIPPING.** This paragraph first argued from
+    /// §7.5.6 — *"every other override-by-repetition in PDF is last-wins; an
+    /// incremental update's newer definition supersedes the older one"* — and
+    /// that is an **analogy dressed as a citation**. §7.5.6 orders objects
+    /// across incremental updates, an ordering the standard deliberately makes
+    /// meaningful; §7.3.7's own preceding sentence says the ordering of a
+    /// dictionary's entries **"shall be ignored"**. Citing it here would have
+    /// borrowed authority from a clause that says the opposite thing about
+    /// this exact structure.
+    ///
+    /// The distinction is not pedantry: ISO's one resolved duplicate-key
+    /// erratum (#3, inline images) picked the winner by **content**, and its
+    /// submission rejected first/last positional logic **by name**, for
+    /// precisely that reason.
+    ///
+    /// ★ The alternative is defensible and is not silently unavailable: a
+    /// caller wanting the first value has [`Self::KeepFirst`], and every
+    /// decision is recorded with BOTH values so a shell can offer the operator
+    /// the swap. What is NOT on offer is pdfcer choosing quietly.
+    KeepLast,
+    /// Keep the **first** occurrence, and count it.
+    ///
+    /// The other half of the operator's choice. A shell that shows *"this file
+    /// names `/PageMode` twice — `UseOC` or `UseOutlines`?"* re-loads under
+    /// this policy when the operator picks the earlier value; nothing else in
+    /// the document changes.
+    ///
+    /// Not the default only because [`Self::KeepLast`] matches every other
+    /// override-by-repetition in PDF; on the evidence available neither is
+    /// wrong, which is exactly why both ship.
+    KeepFirst,
+}
+
 /// What to do when an indirect object's `endobj` keyword is missing.
 ///
 /// §7.3.10 requires a definition to be `N G obj … endobj`, so a body that
@@ -278,6 +407,17 @@ pub struct Parser<'a> {
     /// How many definitions this parser accepted without an `endobj`. Only
     /// ever non-zero under [`TerminatorPolicy::RecoverAtNextHeader`].
     missing_endobj_recovered: usize,
+    /// Strictness for a dictionary that names one key twice (§7.3.7). Strict
+    /// unless a caller opted in via [`Parser::with_duplicate_key_policy`].
+    duplicate_key_policy: DuplicateKeyPolicy,
+    /// Every duplicate key this parser resolved rather than refused, with
+    /// BOTH values.
+    ///
+    /// ★ A list, not a count, and that is the operator ruling: *"if the user
+    /// can intervene in a decision that should always be an option"*. A count
+    /// says pdfcer chose; only the pair says what it chose BETWEEN, which is
+    /// what a shell needs to offer the swap.
+    duplicate_keys: Vec<DuplicateKeyRecord>,
 }
 
 impl<'a> Parser<'a> {
@@ -292,6 +432,8 @@ impl<'a> Parser<'a> {
             stream_lengths_recovered: 0,
             terminator_policy: TerminatorPolicy::Strict,
             missing_endobj_recovered: 0,
+            duplicate_key_policy: DuplicateKeyPolicy::Refuse,
+            duplicate_keys: Vec::new(),
         }
     }
 
@@ -335,6 +477,42 @@ impl<'a> Parser<'a> {
     #[must_use]
     pub const fn missing_endobj_recovered(&self) -> usize {
         self.missing_endobj_recovered
+    }
+
+    /// Choose what happens when a dictionary names one key twice (§7.3.7).
+    ///
+    /// [`DuplicateKeyPolicy::Refuse`] unless a caller asks otherwise — see
+    /// that type for why the document loader opts in and the parser does not
+    /// opt in for it.
+    #[must_use]
+    pub const fn with_duplicate_key_policy(mut self, policy: DuplicateKeyPolicy) -> Self {
+        self.duplicate_key_policy = policy;
+        self
+    }
+
+    /// How many duplicate dictionary keys this parser resolved instead of
+    /// refusing.
+    ///
+    /// Always `0` under [`DuplicateKeyPolicy::Refuse`], so a non-zero value is
+    /// proof the file contradicted itself — which is why it is carried out to
+    /// the operator rather than absorbed (R20, fuzzy-never-sneaky). The value
+    /// pdfcer kept is the LAST one; the earlier one is gone from the loaded
+    /// document and would not survive a save.
+    #[must_use]
+    pub fn duplicate_keys_resolved(&self) -> usize {
+        self.duplicate_keys.len()
+    }
+
+    /// Every duplicate key this parser resolved, with the value kept and the
+    /// value discarded.
+    ///
+    /// Empty under [`DuplicateKeyPolicy::Refuse`]. The caller tags each with
+    /// the object it came from and carries it out as a
+    /// [`crate::document::LoadAnomaly`], which is what makes the operator's
+    /// choice offerable rather than theoretical.
+    #[must_use]
+    pub fn duplicate_keys(&self) -> &[DuplicateKeyRecord] {
+        &self.duplicate_keys
     }
 
     /// Current absolute offset for diagnostics: the start of the oldest
@@ -522,14 +700,54 @@ impl<'a> Parser<'a> {
             match tok.kind {
                 TokenKind::DictClose => return Ok(dict),
                 TokenKind::Name(key) => {
-                    if dict.0.iter().any(|(k, _)| k.as_bytes() == key) {
+                    let existing = dict.0.iter().position(|(k, _)| k.as_bytes() == key);
+                    if existing.is_some() && self.duplicate_key_policy == DuplicateKeyPolicy::Refuse
+                    {
                         return Err(ParseError::new(
                             tok.span.start,
                             ParseErrorKind::DuplicateDictKey,
                         ));
                     }
+                    // The value is parsed either way: a duplicate key's value
+                    // still occupies bytes, and skipping the parse would leave
+                    // the token stream pointing into the middle of it.
                     let value = self.parse_value(depth + 1)?;
-                    dict.0.push((Name(key), value));
+                    match existing
+                        .filter(|_| self.duplicate_key_policy != DuplicateKeyPolicy::KeepFirst)
+                    {
+                        // ★ REPLACED IN PLACE, not pushed and shadowed. `Dict`
+                        // is an ordered Vec whose lookup takes the FIRST match,
+                        // so appending a second entry would keep the earlier
+                        // value winning while the later one sat in the file's
+                        // serialisation — a document that reads one way and
+                        // round-trips another. Overwriting the slot keeps the
+                        // key in its original position, which is also what a
+                        // minimal-diff re-emission wants.
+                        Some(at) => {
+                            if let Some(slot) = dict.0.get_mut(at) {
+                                self.duplicate_keys.push(DuplicateKeyRecord {
+                                    key: key.clone(),
+                                    kept: value.clone(),
+                                    discarded: std::mem::replace(&mut slot.1, value),
+                                });
+                            }
+                        }
+                        // Either a first occurrence (push it) or a later one
+                        // under `KeepFirst` (drop it on the floor — the value
+                        // was still parsed, because its bytes are in the way
+                        // either way).
+                        None => {
+                            if let Some(at) = existing {
+                                self.duplicate_keys.push(DuplicateKeyRecord {
+                                    key: key.clone(),
+                                    kept: dict.0.get(at).map_or(Object::Null, |(_, v)| v.clone()),
+                                    discarded: value,
+                                });
+                            } else {
+                                dict.0.push((Name(key), value));
+                            }
+                        }
+                    }
                 }
                 _ => {
                     return Err(ParseError::new(

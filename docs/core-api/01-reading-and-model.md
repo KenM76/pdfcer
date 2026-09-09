@@ -92,6 +92,7 @@ builds `--no-default-features`, so both configurations compile.
 | Know whether the open document was encrypted, and how | `Document::encryption() -> Option<&DocumentEncryption>` — `document.rs:755` | §3.5 |
 | Read the author's declared permission bits | `enc.config.permissions()` — `crypto/standard.rs:795`, then `Permissions::granted(bit)` — `standard.rs:317` | §3.5 |
 | Detect that the file was structurally damaged and rebuilt | `Document::loaded_via_recovery() -> bool` — `document.rs:1065`; detail via `Document::recovery()` — `document.rs:1057` | §3.6 |
+| **Open a file that contradicts itself, and see what pdfcer decided** | `Document::from_bytes` (tolerant by default) + `Document::load_anomalies() -> &[LoadAnomaly]`; take the other value with `Document::from_bytes_with_options` + `LoadOptions` | §3.6b |
 | Warn that saving will destroy Fast Web View | `Document::linearization()` — `document.rs:1076`, then `Linearization::save_invalidates_fast_web_view()` — `linearization.rs:110` | §3.7 |
 | Detect an ISO 32000-2 §7.6.7 encrypted-payload wrapper | `wrapper::detect(&graph) -> WrapperInfo` — `wrapper.rs:90`; message via `WrapperInfo::message()` — `wrapper.rs:141` | §3.8 |
 | Get the effective PDF version (header + catalog `/Version`) | `Document::version()` — `document.rs:932` | §3.2 |
@@ -410,6 +411,84 @@ refusal.
 `RecoveryReport` is a *counted* disclosure by design (project rule 4,
 "fuzzy, never sneaky"): show the counts, do not summarise them to "the file
 was repaired".
+
+
+### 3.6b A file that contradicts itself OPENS, and says what pdfcer decided (`Pass 283.0`)
+
+**The operator ruling this implements**, verbatim:
+
+> *"We should be making pdfcer so that it opens pdfs that have errors, and have
+> a way that it manages those errors such that they aren't fatal, and if the
+> user can intervene in a decision that should always be an option along with
+> them not having to intervene."*
+
+Three obligations, and the API carries all three:
+
+```rust
+let doc = Document::from_bytes(bytes)?;              // 1. NOT FATAL
+for a in doc.load_anomalies() {                      // 2. what was decided
+    // LoadAnomaly::DuplicateDictKey { object, key, kept, discarded }
+    // LoadAnomaly::StreamLengthRecovered { object }
+    // LoadAnomaly::MissingEndobjRecovered { object }
+}
+// 3. the operator takes the other value — re-load, do not patch
+let other = Document::from_bytes_with_options(
+    bytes,
+    None,
+    LoadOptions::new().with_duplicate_keys(DuplicateKeyPolicy::KeepFirst),
+)?;
+```
+
+**What changed.** Three malformations that used to cost the whole document are
+now decided and recorded: a dictionary naming one key twice (§7.3.7), a stream
+whose `/Length` is absent or unusable (§7.3.8.2), and an object with no
+`endobj` (§7.3.10). Each was already recoverable — the last two by policies
+that existed and were reachable only from the cross-reference-recovery path.
+
+**Why a policy and not a fix.** §7.3.7 *is* a genuine `shall not` — *"Multiple
+entries in the same dictionary shall not have the same key"*, identical in both
+editions — but it binds the **file**. §2.1/§2.3 make conformance a property of
+files and writers; clause 1 excludes validation methods. ISO 32000 therefore
+neither obliges pdfcer to render such a file nor obliges it to refuse, and
+`pdf-issues` #199 (open since 2022) says so directly: *"beyond the scope of
+ISO 32000."* Which value wins is pdfcer's to choose **and to disclose**.
+
+**Keep-last, on evidence.** qpdf, pdf.js and pdfium all keep the last
+occurrence; none refuses. qpdf even warns in the same terms pdfcer now does.
+★ This is **not** argued from §7.5.6's incremental-update ordering — that
+ordering the standard makes meaningful, where §7.3.7's preceding sentence says
+the ordering of a dictionary's entries *"shall be ignored"*. ISO's one resolved
+duplicate-key erratum (#3, inline images) picked its winner by **content** and
+rejected positional logic by name.
+
+**Refusing the whole document was the strict reading plus two unstated
+escalations** — dictionary → object → document — neither of which §7.3.7
+authorises.
+
+| you want | call |
+|---|---|
+| open a damaged file (the default) | `Document::from_bytes` |
+| see what pdfcer decided | `Document::load_anomalies() -> &[LoadAnomaly]` |
+| take the other value | `Document::from_bytes_with_options` + `LoadOptions::with_duplicate_keys` |
+| refuse malformed files instead | `LoadOptions::strict()` |
+
+★ **`LoadAnomaly::DuplicateDictKey` carries BOTH values, not a count.** A count
+says pdfcer chose; only the pair lets a shell show the operator what it chose
+between. Without that the intervention is theoretical.
+
+★ **The alternative is taken by RE-LOADING, not by patching.** A decision made
+during parsing is not a value that can be edited afterwards — the discarded one
+was never built into the document. Carrying both would make every dictionary
+lookup ambiguous for the life of the session to serve a case that is one
+re-read away.
+
+★ **`LoadOptions::default()` is NOT the derived default.**
+`DuplicateKeyPolicy::default()` is `Refuse` — right for a parser, wrong for a
+loader. The parser stays strict for every caller that constructs one directly
+(fuzz targets, the recovery confirmation pass); the **loader** opts in.
+
+CLI: `pdfcer --on-malformed keep-last|keep-first|refuse`, and `inspect` prints
+every decision.
 
 ### 3.7 Linearization
 

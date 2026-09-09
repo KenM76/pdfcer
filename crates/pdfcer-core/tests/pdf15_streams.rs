@@ -38,7 +38,7 @@
 
 use std::io::Write as _;
 
-use pdfcer_core::document::{DocError, Document};
+use pdfcer_core::document::{DocError, Document, LoadAnomaly, LoadOptions};
 use pdfcer_core::object::{ObjId, Object, Provenance};
 use pdfcer_core::xref::{self, XrefEntry, XrefErrorKind};
 
@@ -561,16 +561,32 @@ fn container_disagreeing_with_the_xref_is_refused() {
     // container's pair table stores object 9 there. Strict: refuse and
     // name both, rather than trusting one silently.
     let container = objstm_body(&[(9, "(mislabelled)")], "");
-    let err = Document::from_bytes(build_xref_stream_pdf(
-        &[
-            (1, "<< /Type /Catalog /Pages 2 0 R >>"),
-            (2, "<< /Type /Pages /Kids [] /Count 0 >>"),
-            (3, &container),
-        ],
-        &[(4, 3, 0)],
-        [1, 4, 2],
-        false,
-    ))
+    let err = {
+        // ★ AMENDED BY `Pass 283.0`: the default now OPENS the file and
+        // records the loss, because one unreadable object is one UNDEFINED
+        // object (§7.3.10) rather than an unreadable file. The strict
+        // refusal below is this test's original assertion, unchanged.
+        let bytes = build_xref_stream_pdf(
+            &[
+                (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+                (2, "<< /Type /Pages /Kids [] /Count 0 >>"),
+                (3, &container),
+            ],
+            &[(4, 3, 0)],
+            [1, 4, 2],
+            false,
+        );
+        let doc = Document::from_bytes(bytes.clone())
+            .expect("the document opens without the object it could not read");
+        assert!(
+            doc.load_anomalies()
+                .iter()
+                .any(|a| matches!(a, LoadAnomaly::ObjectUnreadable { .. })),
+            "the loss is named: {:?}",
+            doc.load_anomalies()
+        );
+        Document::from_bytes_with_options(bytes, None, LoadOptions::strict())
+    }
     .unwrap_err();
     assert!(
         matches!(
@@ -587,16 +603,32 @@ fn container_disagreeing_with_the_xref_is_refused() {
 
 #[test]
 fn type2_entry_naming_a_missing_container_is_refused() {
-    let err = Document::from_bytes(build_xref_stream_pdf(
-        &[
-            (1, "<< /Type /Catalog /Pages 2 0 R >>"),
-            (2, "<< /Type /Pages /Kids [] /Count 0 >>"),
-        ],
-        // Container 3 is never defined.
-        &[(4, 3, 0)],
-        [1, 4, 2],
-        false,
-    ))
+    let err = {
+        // ★ AMENDED BY `Pass 283.0`: the default now OPENS the file and
+        // records the loss, because one unreadable object is one UNDEFINED
+        // object (§7.3.10) rather than an unreadable file. The strict
+        // refusal below is this test's original assertion, unchanged.
+        let bytes = build_xref_stream_pdf(
+            &[
+                (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+                (2, "<< /Type /Pages /Kids [] /Count 0 >>"),
+            ],
+            // Container 3 is never defined.
+            &[(4, 3, 0)],
+            [1, 4, 2],
+            false,
+        );
+        let doc = Document::from_bytes(bytes.clone())
+            .expect("the document opens without the object it could not read");
+        assert!(
+            doc.load_anomalies()
+                .iter()
+                .any(|a| matches!(a, LoadAnomaly::ObjectUnreadable { .. })),
+            "the loss is named: {:?}",
+            doc.load_anomalies()
+        );
+        Document::from_bytes_with_options(bytes, None, LoadOptions::strict())
+    }
     .unwrap_err();
     assert!(
         matches!(err, DocError::ObjectStreamMissing { num: 4, .. }),
@@ -607,16 +639,32 @@ fn type2_entry_naming_a_missing_container_is_refused() {
 #[test]
 fn out_of_range_index_into_a_container_is_refused() {
     let container = objstm_body(&[(4, "(only one)")], "");
-    let err = Document::from_bytes(build_xref_stream_pdf(
-        &[
-            (1, "<< /Type /Catalog /Pages 2 0 R >>"),
-            (2, "<< /Type /Pages /Kids [] /Count 0 >>"),
-            (3, &container),
-        ],
-        &[(4, 3, 7)],
-        [1, 4, 2],
-        false,
-    ))
+    let err = {
+        // ★ AMENDED BY `Pass 283.0`: the default now OPENS the file and
+        // records the loss, because one unreadable object is one UNDEFINED
+        // object (§7.3.10) rather than an unreadable file. The strict
+        // refusal below is this test's original assertion, unchanged.
+        let bytes = build_xref_stream_pdf(
+            &[
+                (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+                (2, "<< /Type /Pages /Kids [] /Count 0 >>"),
+                (3, &container),
+            ],
+            &[(4, 3, 7)],
+            [1, 4, 2],
+            false,
+        );
+        let doc = Document::from_bytes(bytes.clone())
+            .expect("the document opens without the object it could not read");
+        assert!(
+            doc.load_anomalies()
+                .iter()
+                .any(|a| matches!(a, LoadAnomaly::ObjectUnreadable { .. })),
+            "the loss is named: {:?}",
+            doc.load_anomalies()
+        );
+        Document::from_bytes_with_options(bytes, None, LoadOptions::strict())
+    }
     .unwrap_err();
     assert!(
         matches!(err, DocError::ObjectStream { .. }),

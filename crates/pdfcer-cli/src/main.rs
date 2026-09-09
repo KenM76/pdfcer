@@ -725,6 +725,15 @@ struct Cli {
     #[arg(long, global = true, value_name = "PASSWORD")]
     open_password: Option<String>,
 
+    /// What to do with a file that contradicts itself or omits something the
+    /// standard requires.
+    ///
+    /// A malformed file OPENS by default rather than being refused, and
+    /// `inspect` prints every decision pdfcer made. Use this to take the other
+    /// decision where there is one, or `refuse` to fail as pdfcer did before.
+    #[arg(long, global = true, value_enum, default_value_t = OnMalformedArg::KeepLast)]
+    on_malformed: OnMalformedArg,
+
     /// Read the PDF password from a file, or from standard input with `-`.
     ///
     /// The first line is used, with a trailing newline (and CR) stripped; a
@@ -760,6 +769,57 @@ struct Cli {
 /// "no password supplied" and therefore cannot produce a wrong decryption —
 /// it can only produce a `PasswordRequired` the operator will understand.
 static CLI_PASSWORD: std::sync::OnceLock<Option<Vec<u8>>> = std::sync::OnceLock::new();
+/// What pdfcer does with a file that contradicts itself or omits something the
+/// standard requires (`Pass 283.0`).
+///
+/// ★ NAMED FOR THE CLASS, NOT FOR ONE MEMBER. The first cut called this
+/// `--duplicate-keys`, and `strict` also turned off two unrelated recoveries —
+/// a flag whose name understates what it governs, which is how an operator
+/// ends up surprised by a setting they thought they understood.
+#[derive(Debug, Clone, Copy, Default, clap::ValueEnum)]
+enum OnMalformedArg {
+    /// Open the file, and where one dictionary names a key twice keep the
+    /// LAST value. The default — every other override-by-repetition in PDF is
+    /// last-wins.
+    #[default]
+    KeepLast,
+    /// Open the file, and keep the FIRST value for a duplicated key.
+    KeepFirst,
+    /// Refuse the file, as pdfcer did before `Pass 283.0` — a duplicated key,
+    /// a missing `/Length` and a missing `endobj` are all fatal again. For a
+    /// caller whose job is to say whether a file is well-formed.
+    Refuse,
+}
+
+impl OnMalformedArg {
+    /// The core-side options this argument selects.
+    fn to_load_options(self) -> pdfcer_core::document::LoadOptions {
+        use pdfcer_core::parser::DuplicateKeyPolicy;
+        match self {
+            Self::KeepLast => pdfcer_core::document::LoadOptions::new(),
+            Self::KeepFirst => pdfcer_core::document::LoadOptions::new()
+                .with_duplicate_keys(DuplicateKeyPolicy::KeepFirst),
+            Self::Refuse => pdfcer_core::document::LoadOptions::strict(),
+        }
+    }
+}
+
+/// The load options every subcommand's document open uses, set once from the
+/// global flag before dispatch.
+///
+/// Same shape as [`CLI_PASSWORD`] and for the same reason: threading an
+/// argument through ninety subcommands to serve one flag would be a bigger
+/// change than the feature.
+static CLI_LOAD_OPTIONS: std::sync::OnceLock<pdfcer_core::document::LoadOptions> =
+    std::sync::OnceLock::new();
+
+/// The load options in force, defaulting to the tolerant ones.
+fn cli_load_options() -> pdfcer_core::document::LoadOptions {
+    CLI_LOAD_OPTIONS
+        .get()
+        .copied()
+        .unwrap_or_else(pdfcer_core::document::LoadOptions::new)
+}
 
 /// The password for opening encrypted documents, or `None` if none was given.
 ///
@@ -819,7 +879,12 @@ fn resolve_cli_password(
 fn open_document(
     path: &Path,
 ) -> Result<pdfcer_core::document::Document, pdfcer_core::document::DocError> {
-    pdfcer_core::document::Document::load_with_password(path, cli_password())
+    let bytes = std::fs::read(path).map_err(pdfcer_core::document::DocError::Io)?;
+    pdfcer_core::document::Document::from_bytes_with_options(
+        bytes,
+        cli_password(),
+        cli_load_options(),
+    )
 }
 
 /// Parse a document from bytes, supplying the CLI password if one was given.
@@ -829,7 +894,11 @@ fn open_document(
 fn open_document_bytes(
     bytes: Vec<u8>,
 ) -> Result<pdfcer_core::document::Document, pdfcer_core::document::DocError> {
-    pdfcer_core::document::Document::from_bytes_with_password(bytes, cli_password())
+    pdfcer_core::document::Document::from_bytes_with_options(
+        bytes,
+        cli_password(),
+        cli_load_options(),
+    )
 }
 
 /// The planned subcommand surface. Only [`Command::Inspect`] is implemented
@@ -9686,6 +9755,8 @@ fn run() -> ExitCode {
         }
     }
 
+    let _ = CLI_LOAD_OPTIONS.set(cli.on_malformed.to_load_options());
+
     let code = match cli.command {
         Command::Inspect {
             file,
@@ -12161,6 +12232,10 @@ fn cmd_inspect(file: &Path) -> u8 {
         // probe line, unchanged.
         (Ok(version), _) => {
             println!("{}: PDF {version}", file.display());
+            // What pdfcer DECIDED, before anything it merely observed.
+            if let Some(doc) = full {
+                disclose_load_anomalies(file, doc);
+            }
             // ★ The header probe succeeding is NOT the same as the document
             // being readable, and `inspect` used to say only the former.
             //
@@ -12304,6 +12379,105 @@ fn disclose_repaired_contents(file: &Path, doc: &pdfcer_core::document::Document
         file.display(),
         damaged.len(),
     );
+}
+
+/// Print what pdfcer DECIDED about a file that contradicted itself
+/// (`Pass 283.0`).
+///
+/// # Why this prints on a successful open
+///
+/// The operator's ruling: a file with errors must open, the errors must be
+/// managed rather than fatal, and *"if the user can intervene in a decision
+/// that should always be an option along with them not having to intervene."*
+///
+/// This is the "always an option" half at the CLI. The invocation IS the
+/// commit here (project rule 11 — no session, no undo), so the disclosure
+/// rides out with the result rather than waiting to be asked for: an operator
+/// who never reads it still got a working document, and one who does can
+/// re-run with `--duplicate-keys first` and compare.
+///
+/// Silent for a file that says nothing twice, which is nearly all of them.
+fn disclose_load_anomalies(file: &Path, doc: &pdfcer_core::document::Document) {
+    use pdfcer_core::document::LoadAnomaly;
+
+    let anomalies = doc.load_anomalies();
+    if anomalies.is_empty() {
+        return;
+    }
+    eprintln!(
+        "pdfcer: {}: this file contradicts itself in {} place(s); pdfcer decided rather than refusing, and here is what it decided:",
+        file.display(),
+        anomalies.len()
+    );
+    for a in anomalies {
+        match a {
+            LoadAnomaly::DuplicateDictKey {
+                object,
+                key,
+                kept,
+                discarded,
+            } => {
+                // ★ The advice names the policy NOT in force. The first cut
+                // always said "first", which is wrong advice the moment the
+                // operator has already taken it — a remedy sentence is a claim
+                // about what to do next, and one that is false half the time
+                // teaches the reader to ignore all of them.
+                let other = match cli_load_options().duplicate_keys {
+                    pdfcer_core::parser::DuplicateKeyPolicy::KeepFirst => "keep-last",
+                    _ => "keep-first",
+                };
+                eprintln!(
+                    "  duplicate_dict_key object={} key=/{} kept={} discarded={} -- re-run with --on-malformed {other} to take the other one",
+                    object.map_or_else(|| "trailer".to_owned(), |id| id.to_string()),
+                    sanitize_token(&String::from_utf8_lossy(key)),
+                    sanitize_token(&object_summary(kept)),
+                    sanitize_token(&object_summary(discarded)),
+                );
+            }
+            LoadAnomaly::StreamLengthRecovered { object } => {
+                eprintln!(
+                    "  stream_length_recovered object={object} -- its /Length was missing or unusable and the data extent was re-derived by scanning to `endstream`; there is no second reading to choose from"
+                );
+            }
+            LoadAnomaly::MissingEndobjRecovered { object } => {
+                eprintln!(
+                    "  missing_endobj_recovered object={object} -- the definition had no `endobj` and was ended at the next object header"
+                );
+            }
+            // `LoadAnomaly` is #[non_exhaustive]; a future kind must SAY
+            // something rather than vanish, which is the whole point of the
+            // list.
+            other => eprintln!(
+                "  {} -- this build of pdfcer-cli does not describe this kind in detail",
+                other.kind()
+            ),
+        }
+    }
+}
+
+/// A one-line rendering of an object for a disclosure line.
+///
+/// Deliberately shallow: a duplicate key's two values are usually names or
+/// numbers, and a caller who needs the full value has the API. A nested
+/// dictionary prints as its shape rather than its contents, because a
+/// disclosure line that wraps is a disclosure line nobody reads.
+fn object_summary(value: &pdfcer_core::object::Object) -> String {
+    use pdfcer_core::object::Object;
+    match value {
+        Object::Name(n) => format!("/{}", String::from_utf8_lossy(n.as_bytes())),
+        Object::Integer(i) => i.to_string(),
+        Object::Real(r) => r.to_string(),
+        Object::Boolean(b) => b.to_string(),
+        Object::Null => "null".to_owned(),
+        Object::String(s) => format!("({})", String::from_utf8_lossy(s)),
+        Object::Reference(id) => format!("{id} R"),
+        Object::Array(items) => format!("[{} item(s)]", items.len()),
+        Object::Dict(d) => format!("<<{} key(s)>>", d.iter().count()),
+        Object::Stream(_) => "<<stream>>".to_owned(),
+        // `Object` is #[non_exhaustive] to this crate; a future kind gets a
+        // shape rather than a panic or a silent blank.
+        _ => "<unrecognised object kind>".to_owned(),
+    }
 }
 
 /// Print the honest cross-reference-recovery disclosure (decision 013,

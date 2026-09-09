@@ -303,6 +303,9 @@ pub struct Document {
     /// tell (`Pass 281.0`). Default (empty, readable) for every non-hybrid
     /// file and for a recovered base, where the concept does not apply.
     hybrid: crate::xref::HybridPartition,
+    /// Every contradiction pdfcer met while loading and decided rather than
+    /// refused (`Pass 283.0`). Empty for a file that says nothing twice.
+    anomalies: Vec<LoadAnomaly>,
     /// `Some` when this document was loaded via **cross-reference
     /// recovery** (decision 013): the stored xref could not be parsed and
     /// the table was rebuilt by scanning. The writer reads this to force a
@@ -449,6 +452,7 @@ impl Document {
             hybrid,
             None,
             None,
+            LoadOptions::default(),
         )
     }
 
@@ -463,6 +467,26 @@ impl Document {
     pub fn from_bytes_with_password(
         buf: Vec<u8>,
         password: Option<&[u8]>,
+    ) -> Result<Self, DocError> {
+        Self::from_bytes_with_options(buf, password, LoadOptions::default())
+    }
+
+    /// Load a document, choosing how its self-contradictions are decided
+    /// (`Pass 283.0`).
+    ///
+    /// The intervention half of the operator's ruling: a shell that has shown
+    /// the operator what pdfcer chose (via [`Document::load_anomalies`]) and
+    /// been told to take the other value re-loads the same bytes through here.
+    /// Everything else is identical to [`Document::from_bytes_with_password`],
+    /// which is this with the defaults.
+    ///
+    /// # Errors
+    ///
+    /// [`DocError`] — see [`Document::load_with_password`].
+    pub fn from_bytes_with_options(
+        buf: Vec<u8>,
+        password: Option<&[u8]>,
+        options: LoadOptions,
     ) -> Result<Self, DocError> {
         // 1. Header (§7.5.2 via the Pass 0 probe).
         match crate::probe_header(&buf) {
@@ -482,6 +506,7 @@ impl Document {
                         hybrid,
                         None,
                         password,
+                        options,
                     )
                 }
                 // The strict path failed. Decision 013: attempt
@@ -540,6 +565,7 @@ impl Document {
         hybrid: crate::xref::HybridPartition,
         recovery: Option<RecoveryReport>,
         password: Option<&[u8]>,
+        options: LoadOptions,
     ) -> Result<Self, DocError> {
         // Phase 1. Eagerly parse every file-level in-use object. Strict on
         // the clean path; on the recovery path the SAME `/Length`-vs-
@@ -548,10 +574,28 @@ impl Document {
         // rejected on re-parse and cost the whole document (the exact
         // failure this policy exists to close). Free entries resolve to
         // null, not to bytes; type-2 entries wait for phase 2 (module docs).
+        // ★★ THE CLEAN PATH IS LENIENT TOO SINCE `Pass 283.0`, and the
+        // comment above used to say the opposite.
+        //
+        // `RecoverFromEndstream` re-derives an extent ONLY when the stored
+        // `/Length` cannot be used — absent, non-integer, unresolvable, past
+        // the end of the buffer, or not landing on `endstream`. A usable
+        // `/Length` is still believed, so this changes behaviour for exactly
+        // one class of file: the ones that previously FAILED.
+        //
+        // The operator's ruling: *"we should be making pdfcer so that it opens
+        // pdfs that have errors, and have a way that it manages those errors
+        // such that they aren't fatal."* Losing a 46 KB drawing over a
+        // `/Metadata` stream that omits `/Length` — which is what happened, on
+        // the very next object after the duplicate key that motivated this
+        // Pass — is the failure that ruling names.
+        //
+        // Every recovery is recorded as a `LoadAnomaly` and disclosed. A
+        // caller that wants the old refusal has `LoadOptions`.
         let length_policy = if recovery.is_some() {
             StreamLengthPolicy::RecoverFromEndstream
         } else {
-            StreamLengthPolicy::Strict
+            options.stream_lengths
         };
         // The missing-`endobj` leniency travels with the length leniency,
         // and for exactly the same stated reason: an object `recover`'s
@@ -560,23 +604,88 @@ impl Document {
         let terminator_policy = if recovery.is_some() {
             TerminatorPolicy::RecoverAtNextHeader
         } else {
-            TerminatorPolicy::Strict
+            options.terminators
         };
+        let mut anomalies: Vec<LoadAnomaly> = Vec::new();
         let mut objects: HashMap<ObjId, IndirectObject> = HashMap::new();
         let mut compressed: Vec<(u32, u32, u32)> = Vec::new();
         for (num, entry) in table.iter() {
             match entry {
                 XrefEntry::InUse { offset, generation } => {
                     let id = ObjId::new(num, generation);
-                    let (io, _repairs) =
-                        parse_object_at(&buf, &table, offset, length_policy, terminator_policy)
-                            .map_err(|source| DocError::BadObject { id, offset, source })?;
+                    let parsed = parse_object_at(
+                        &buf,
+                        &table,
+                        offset,
+                        length_policy,
+                        terminator_policy,
+                        // ★ THE LOADER OPTS IN; the parser's own default stays
+                        // strict. A duplicate key is a malformed ENTRY in an
+                        // otherwise sound file, and refusing the object cost an
+                        // operator a whole 46 KB drawing every other reader
+                        // opens. Which value wins is the caller's to override
+                        // (`LoadOptions`), and either way it is recorded.
+                        options.duplicate_keys,
+                    );
+                    // ★★ ONE UNREADABLE OBJECT NO LONGER COSTS THE DOCUMENT.
+                    //
+                    // §7.3.10 already says what a reference to an object that
+                    // is not there means: it "shall be treated as a reference
+                    // to the null object", and "shall not be considered an
+                    // error". An object whose bytes will not parse IS
+                    // undefined as far as every consumer is concerned, so
+                    // omitting it produces a document the standard describes
+                    // rather than one pdfcer invented.
+                    //
+                    // Under `strict` this is still the refusal it always was.
+                    let (io, repairs) = match parsed {
+                        Ok(pair) => pair,
+                        Err(source) => {
+                            if options.unreadable_objects == UnreadableObjectPolicy::Refuse {
+                                return Err(DocError::BadObject { id, offset, source });
+                            }
+                            anomalies.push(LoadAnomaly::ObjectUnreadable {
+                                object: id,
+                                reason: source.to_string(),
+                            });
+                            continue;
+                        }
+                    };
+                    if repairs.stream_lengths > 0 {
+                        anomalies.push(LoadAnomaly::StreamLengthRecovered { object: id });
+                    }
+                    if repairs.missing_endobj > 0 {
+                        anomalies.push(LoadAnomaly::MissingEndobjRecovered { object: id });
+                    }
+                    anomalies.extend(repairs.duplicate_keys.into_iter().map(|rec| {
+                        LoadAnomaly::DuplicateDictKey {
+                            object: Some(id),
+                            key: rec.key,
+                            kept: rec.kept,
+                            discarded: rec.discarded,
+                        }
+                    }));
                     if io.id != id {
-                        return Err(DocError::ObjectIdMismatch {
-                            expected: id,
-                            found: io.id,
-                            offset,
+                        // The table and the body disagree about which object
+                        // lives here. Neither is more authoritative than the
+                        // other, so pdfcer does not pick: the object the table
+                        // promised is treated as undefined (§7.3.10), which is
+                        // the same answer as "the table pointed at nothing".
+                        if options.unreadable_objects == UnreadableObjectPolicy::Refuse {
+                            return Err(DocError::ObjectIdMismatch {
+                                expected: id,
+                                found: io.id,
+                                offset,
+                            });
+                        }
+                        anomalies.push(LoadAnomaly::ObjectUnreadable {
+                            object: id,
+                            reason: format!(
+                                "the cross-reference table points at offset {offset}, where the file declares {} instead",
+                                io.id
+                            ),
                         });
+                        continue;
                     }
                     objects.insert(id, io);
                 }
@@ -609,7 +718,13 @@ impl Document {
         // that a file with several broken containers always reports the
         // same one (`iter()` over a HashMap is not ordered).
         compressed.sort_unstable();
-        Self::load_compressed(&buf, &compressed, &mut objects)?;
+        Self::load_compressed(
+            &buf,
+            &compressed,
+            &mut objects,
+            options.unreadable_objects,
+            &mut anomalies,
+        )?;
 
         // Annex F detection runs on the raw buffer and needs no xref
         // (F.3.3: the parameter dictionary's values are all direct and
@@ -630,6 +745,7 @@ impl Document {
             highest_object_number,
             suppressed_by_size,
             hybrid,
+            anomalies,
             recovery,
             encryption,
         })
@@ -886,6 +1002,7 @@ impl Document {
             // threading a password here would be dead weight that read as
             // support.
             None,
+            LoadOptions::default(),
         )
     }
 
@@ -905,8 +1022,30 @@ impl Document {
         buf: &[u8],
         compressed: &[(u32, u32, u32)],
         objects: &mut HashMap<ObjId, IndirectObject>,
+        policy: UnreadableObjectPolicy,
+        anomalies: &mut Vec<LoadAnomaly>,
     ) -> Result<(), DocError> {
         let mut cache: HashMap<u32, ObjectStream> = HashMap::new();
+
+        // ★★ A COMPRESSED OBJECT THAT CANNOT BE READ IS UNDEFINED, NOT FATAL
+        // — the same §7.3.10 reading the file-level loop applies, and for the
+        // same reason: five of this function's refusals were "one object is
+        // broken, so you get no document."
+        //
+        // Each is recorded with the object it cost and why. Under `strict`
+        // every one is still the error it was.
+        macro_rules! give_up_on {
+            ($num:expr, $reason:expr, $err:expr) => {{
+                if policy == UnreadableObjectPolicy::Refuse {
+                    return Err($err);
+                }
+                anomalies.push(LoadAnomaly::ObjectUnreadable {
+                    object: ObjId::new($num, 0),
+                    reason: $reason,
+                });
+                continue;
+            }};
+        }
 
         for &(num, stream_num, index) in compressed {
             // §7.5.7: "The generation number of an object stream and of
@@ -916,36 +1055,70 @@ impl Document {
             let objstm = match cache.entry(stream_num) {
                 Entry::Occupied(slot) => slot.into_mut(),
                 Entry::Vacant(slot) => {
-                    let io = objects
-                        .get(&container)
-                        .ok_or(DocError::ObjectStreamMissing { container, num })?;
-                    let Object::Stream(stream) = &io.value else {
-                        return Err(DocError::ObjectStream {
-                            container,
-                            source: ObjStmError::NotAStream,
-                        });
+                    let Some(io) = objects.get(&container) else {
+                        give_up_on!(
+                            num,
+                            format!("its object stream {container} is not in the file"),
+                            DocError::ObjectStreamMissing { container, num }
+                        )
                     };
-                    let raw = stream.data_span.slice(buf).ok_or(DocError::ObjectStream {
-                        container,
-                        source: ObjStmError::DataOutOfRange,
-                    })?;
-                    let parsed = ObjectStream::parse(&stream.dict, raw)
-                        .map_err(|source| DocError::ObjectStream { container, source })?;
-                    slot.insert(parsed)
+                    let Object::Stream(stream) = &io.value else {
+                        give_up_on!(
+                            num,
+                            format!(
+                                "object {container} is named as its container but is not a stream"
+                            ),
+                            DocError::ObjectStream {
+                                container,
+                                source: ObjStmError::NotAStream,
+                            }
+                        )
+                    };
+                    let Some(raw) = stream.data_span.slice(buf) else {
+                        give_up_on!(
+                            num,
+                            format!("its object stream {container} declares data outside the file"),
+                            DocError::ObjectStream {
+                                container,
+                                source: ObjStmError::DataOutOfRange,
+                            }
+                        )
+                    };
+                    match ObjectStream::parse(&stream.dict, raw) {
+                        Ok(parsed) => slot.insert(parsed),
+                        Err(source) => give_up_on!(
+                            num,
+                            format!("its object stream {container} could not be decoded: {source}"),
+                            DocError::ObjectStream { container, source }
+                        ),
+                    }
                 }
             };
 
             let idx = usize::try_from(index).unwrap_or(usize::MAX);
-            let (found, value) = objstm
-                .object_at(idx)
-                .map_err(|source| DocError::ObjectStream { container, source })?;
+            let (found, value) = match objstm.object_at(idx) {
+                Ok(pair) => pair,
+                Err(source) => give_up_on!(
+                    num,
+                    format!(
+                        "index {index} of object stream {container} could not be read: {source}"
+                    ),
+                    DocError::ObjectStream { container, source }
+                ),
+            };
             if found != num {
-                return Err(DocError::ObjectStreamIdMismatch {
-                    container,
-                    index,
-                    expected: num,
-                    found,
-                });
+                give_up_on!(
+                    num,
+                    format!(
+                        "object stream {container} stores object {found} at index {index}, where the cross-reference table promised {num}"
+                    ),
+                    DocError::ObjectStreamIdMismatch {
+                        container,
+                        index,
+                        expected: num,
+                        found,
+                    }
+                )
             }
 
             let id = ObjId::new(num, 0);
@@ -1132,6 +1305,33 @@ impl Document {
             self.section_shape,
             SectionShape::Classic { xref_stm: Some(_) }
         )
+    }
+
+    /// Every contradiction this file contained that pdfcer **decided rather
+    /// than refused** (`Pass 283.0`).
+    ///
+    /// # The three obligations this satisfies at once
+    ///
+    /// The operator's ruling: *"we should be making pdfcer so that it opens
+    /// pdfs that have errors, and have a way that it manages those errors such
+    /// that they aren't fatal, and if the user can intervene in a decision that
+    /// should always be an option along with them not having to intervene."*
+    ///
+    /// - **Not fatal** — the document is loaded; this list is a report about
+    ///   it, not a gate in front of it.
+    /// - **Intervention possible** — each entry names what pdfcer chose *and
+    ///   what it chose between*, which is what a shell needs to offer the
+    ///   alternative. Re-load through [`Document::from_bytes_with_options`]
+    ///   with the other policy to take it.
+    /// - **Intervention optional** — a caller that never reads this gets a
+    ///   working document with pdfcer's documented default.
+    ///
+    /// Empty for a file that contains no contradiction, which is the
+    /// overwhelming majority. A non-empty list is not a warning that anything
+    /// is *wrong with pdfcer's output* — it is the file saying two things.
+    #[must_use]
+    pub fn load_anomalies(&self) -> &[LoadAnomaly] {
+        &self.anomalies
     }
 
     /// This file's §7.5.8.4 partition — which objects it **hides** behind
@@ -1421,6 +1621,7 @@ pub(crate) fn parse_object_at(
     offset: u64,
     policy: StreamLengthPolicy,
     terminator: TerminatorPolicy,
+    duplicates: crate::parser::DuplicateKeyPolicy,
 ) -> Result<(IndirectObject, ParseRepairs), ParseError> {
     let offset = usize::try_from(offset).unwrap_or(usize::MAX);
     let mut resolve_length = |id: ObjId| -> Option<i64> {
@@ -1443,15 +1644,259 @@ pub(crate) fn parse_object_at(
     };
     let mut parser = Parser::at(buf, offset)
         .with_stream_length_policy(policy)
-        .with_terminator_policy(terminator);
+        .with_terminator_policy(terminator)
+        .with_duplicate_key_policy(duplicates);
     let io = parser.parse_indirect_object(&mut resolve_length)?;
     Ok((
         io,
         ParseRepairs {
+            duplicate_keys: parser.duplicate_keys().to_vec(),
             stream_lengths: parser.stream_lengths_recovered(),
             missing_endobj: parser.missing_endobj_recovered(),
         },
     ))
+}
+
+/// How to load a document that contradicts itself (`Pass 283.0`).
+///
+/// # Why this type exists rather than a global setting
+///
+/// The operator's ruling has two halves that pull in opposite directions:
+/// a file with errors must open **without intervention**, and intervening must
+/// **always be possible**. A default plus this struct is how both hold at once
+/// — [`Default`] is what every existing caller already gets, and a shell that
+/// wants to offer the operator a choice re-loads the same bytes with a
+/// different policy and shows the difference.
+///
+/// Re-loading rather than patching in place is deliberate: a decision made
+/// during parsing is not a value that can be edited afterwards, because the
+/// discarded one was never built into the document. Carrying both would make
+/// every dictionary lookup ambiguous for the life of the session to serve a
+/// case that is one keystroke away from being re-read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct LoadOptions {
+    /// Which value wins when one dictionary names a key twice (§7.3.7).
+    ///
+    /// Defaults to [`crate::parser::DuplicateKeyPolicy::KeepLast`] — see that
+    /// type for why last, and [`Document::load_anomalies`] for how a caller
+    /// learns a choice was made at all.
+    pub duplicate_keys: crate::parser::DuplicateKeyPolicy,
+    /// What to do when a stream's `/Length` cannot be used (§7.3.8.2).
+    ///
+    /// Defaults to [`StreamLengthPolicy::RecoverFromEndstream`], which only
+    /// acts when the stored value is unusable. Set
+    /// [`StreamLengthPolicy::Strict`] to refuse such a file instead.
+    pub stream_lengths: StreamLengthPolicy,
+    /// What to do when an indirect object's `endobj` is missing (§7.3.10).
+    ///
+    /// Defaults to [`TerminatorPolicy::RecoverAtNextHeader`].
+    pub terminators: TerminatorPolicy,
+    /// What to do when one object cannot be loaded at all.
+    ///
+    /// Defaults to [`UnreadableObjectPolicy::TreatAsUndefined`] — §7.3.10's
+    /// own answer for an object that is not there.
+    pub unreadable_objects: UnreadableObjectPolicy,
+}
+
+/// What to do when one indirect object cannot be loaded (`Pass 283.0`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum UnreadableObjectPolicy {
+    /// Load the document without it, and record a
+    /// [`LoadAnomaly::ObjectUnreadable`].
+    ///
+    /// §7.3.10: an indirect reference to an undefined object *"shall not be
+    /// considered an error by a conforming reader; it shall be treated as a
+    /// reference to the null object."* An object whose bytes will not parse is
+    /// undefined as far as every consumer is concerned, so this is the
+    /// standard's own answer applied to the state the file is in — not a
+    /// repair, and nothing invented.
+    #[default]
+    TreatAsUndefined,
+    /// Refuse the document, as pdfcer did before `Pass 283.0`.
+    Refuse,
+}
+
+impl Default for LoadOptions {
+    /// ★ NOT the derived default. `DuplicateKeyPolicy`'s own `Default` is
+    /// `Refuse`, which is right for a parser and wrong for a loader: deriving
+    /// here would make `LoadOptions::default()` refuse the very files this
+    /// Pass exists to open, and the two types would silently disagree about
+    /// what "default" means.
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl LoadOptions {
+    /// The defaults: open the file, decide the contradictions, report them.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            duplicate_keys: crate::parser::DuplicateKeyPolicy::KeepLast,
+            stream_lengths: StreamLengthPolicy::RecoverFromEndstream,
+            terminators: TerminatorPolicy::RecoverAtNextHeader,
+            unreadable_objects: UnreadableObjectPolicy::TreatAsUndefined,
+        }
+    }
+
+    /// Refuse every malformation instead of deciding it — the pre-`Pass 283.0`
+    /// behaviour, kept reachable.
+    ///
+    /// For a caller whose job is to say whether a file is well-formed rather
+    /// than to open it: a conformance checker, a fuzz harness, a gate.
+    #[must_use]
+    pub const fn strict() -> Self {
+        Self {
+            duplicate_keys: crate::parser::DuplicateKeyPolicy::Refuse,
+            stream_lengths: StreamLengthPolicy::Strict,
+            terminators: TerminatorPolicy::Strict,
+            unreadable_objects: UnreadableObjectPolicy::Refuse,
+        }
+    }
+
+    /// Take the OTHER value for every duplicated key — the operator's
+    /// intervention, applied by re-loading the same bytes.
+    #[must_use]
+    pub const fn with_duplicate_keys(mut self, policy: crate::parser::DuplicateKeyPolicy) -> Self {
+        self.duplicate_keys = policy;
+        self
+    }
+}
+
+/// One thing the file said that contradicted itself, and what pdfcer decided
+/// about it (`Pass 283.0`).
+///
+/// # The operator ruling this exists to satisfy
+///
+/// > *"We should be making pdfcer so that it opens pdfs that have errors, and
+/// > have a way that it manages those errors such that they aren't fatal, and
+/// > if the user can intervene in a decision that should always be an option
+/// > along with them not having to intervene."*
+///
+/// Three obligations in one sentence, and this type carries all three:
+///
+/// 1. **Not fatal** — the document loads.
+/// 2. **Intervention is possible** — the record names the object, the key, the
+///    value kept and the value discarded, which is everything a shell needs to
+///    offer the operator the other choice and re-load with it
+///    ([`crate::parser::DuplicateKeyPolicy`]).
+/// 3. **Intervention is not required** — pdfcer already picked, the default is
+///    documented, and a caller that never reads this list gets a working
+///    document.
+///
+/// It is a *disclosure*, not a prompt: project rule 4 as narrowed by decision
+/// 059 — the inferred value is live document state, and what pdfcer guessed is
+/// reported off to the side rather than gating the open.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub enum LoadAnomaly {
+    /// One dictionary named the same key twice (§7.3.7) and pdfcer kept one of
+    /// the values.
+    ///
+    /// ★ Both values are carried, not just the winner. A count would say *that*
+    /// pdfcer chose; a shell offering the operator the choice needs to show
+    /// **what it chose between**, and a report that cannot answer "what was the
+    /// other one?" makes the intervention theoretical.
+    DuplicateDictKey {
+        /// The object whose dictionary contradicted itself. `None` when the
+        /// dictionary is the trailer, which is not an indirect object.
+        object: Option<ObjId>,
+        /// The repeated key, e.g. `PageMode`.
+        key: Vec<u8>,
+        /// The value pdfcer KEPT — the last occurrence under the default
+        /// policy.
+        kept: Object,
+        /// The value pdfcer DISCARDED. A caller offering the choice presents
+        /// this as the alternative; a caller re-loading under
+        /// [`crate::parser::DuplicateKeyPolicy::KeepFirst`] gets it instead.
+        discarded: Object,
+    },
+    /// A stream's `/Length` was absent, non-integer, unresolvable or simply
+    /// wrong, and pdfcer re-derived the data extent by scanning to
+    /// `endstream` (§7.3.8.1).
+    ///
+    /// `/Length` is REQUIRED by §7.3.8.2 Table 5, so this is a `shall`
+    /// violation — and one every reader recovers from, because the keyword
+    /// that ends the data is right there in the file. Refusing costs the whole
+    /// document to preserve a number the file itself contradicts.
+    ///
+    /// ★ There is no operator choice to offer here, and that is not an
+    /// oversight: the alternative to the scanned extent is **no object at
+    /// all**. The record exists so the operator learns the file is damaged,
+    /// not so a decision can be re-taken.
+    StreamLengthRecovered {
+        /// The object whose stream extent was re-derived.
+        object: ObjId,
+    },
+    /// An indirect object's `endobj` keyword was missing and pdfcer accepted
+    /// the definition anyway, ending it at the next object header (§7.3.10).
+    ///
+    /// Same shape as [`Self::StreamLengthRecovered`]: a required keyword the
+    /// file omits, an unambiguous end, and no second reading to choose
+    /// between.
+    MissingEndobjRecovered {
+        /// The object accepted without its terminator.
+        object: ObjId,
+    },
+    /// One object could not be loaded at all, and the document was loaded
+    /// **without it**.
+    ///
+    /// # ★★ Why this is continuing rather than guessing
+    ///
+    /// §7.3.10 already defines what a reference to an object that is not
+    /// there means: *"An indirect reference to an undefined object shall not
+    /// be considered an error by a conforming reader; it shall be treated as
+    /// a reference to the null object."* An object whose bytes will not parse
+    /// **is** an undefined object as far as every consumer is concerned — so
+    /// omitting it is not a liberty pdfcer takes, it is the behaviour the
+    /// standard prescribes for the state the file is in.
+    ///
+    /// That is the whole difference between this and a repair: nothing is
+    /// invented, and the resulting document is one the standard describes.
+    ///
+    /// # What it replaces
+    ///
+    /// `DocError::BadObject`, `ObjectIdMismatch`, `ObjectStreamMissing`,
+    /// `ObjectStream` and `ObjectStreamIdMismatch` — five ways one bad object
+    /// used to cost the whole document. They survive as errors under
+    /// [`LoadOptions::strict`].
+    ///
+    /// ★ There is no alternative to offer here either. The choice is between
+    /// this object and no document, and `reason` is carried so the operator
+    /// can see WHICH object and WHY rather than being told a count.
+    ObjectUnreadable {
+        /// The object that could not be loaded.
+        object: ObjId,
+        /// Why, in the loader's own words — the error that would have been
+        /// returned.
+        reason: String,
+    },
+}
+
+impl LoadAnomaly {
+    /// The object this anomaly is about, when it has one.
+    #[must_use]
+    pub const fn object(&self) -> Option<ObjId> {
+        match self {
+            Self::DuplicateDictKey { object, .. } => *object,
+            Self::StreamLengthRecovered { object }
+            | Self::MissingEndobjRecovered { object }
+            | Self::ObjectUnreadable { object, .. } => Some(*object),
+        }
+    }
+
+    /// A short stable token for machine-readable output.
+    #[must_use]
+    pub const fn kind(&self) -> &'static str {
+        match self {
+            Self::DuplicateDictKey { .. } => "duplicate_dict_key",
+            Self::StreamLengthRecovered { .. } => "stream_length_recovered",
+            Self::MissingEndobjRecovered { .. } => "missing_endobj_recovered",
+            Self::ObjectUnreadable { .. } => "object_unreadable",
+        }
+    }
 }
 
 /// How much repair a single object's parse needed.
@@ -1462,8 +1907,18 @@ pub(crate) fn parse_object_at(
 /// non-zero total is proof the file was damaged — which is why these are
 /// carried out to the recovery report and disclosed (R20,
 /// fuzzy-never-sneaky) instead of being absorbed silently.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct ParseRepairs {
+    /// Dictionary keys that appeared twice and were resolved to the LAST
+    /// value rather than refusing the object
+    /// ([`crate::parser::DuplicateKeyPolicy::KeepLast`], `Pass 283.0`).
+    ///
+    /// Unlike its two siblings this one is **non-zero on the clean path**,
+    /// because the clean loader opts into the tolerant policy — the whole
+    /// point of the Pass was that a file every other reader opens must not
+    /// cost pdfcer the whole document. It is still a repair and still
+    /// disclosed.
+    pub duplicate_keys: Vec<crate::parser::DuplicateKeyRecord>,
     /// Stream extents re-derived from `endstream` because `/Length` was
     /// unusable ([`StreamLengthPolicy::RecoverFromEndstream`]).
     pub stream_lengths: usize,
@@ -1621,21 +2076,48 @@ mod tests {
         assert_eq!(doc.version().to_string(), "1.6");
     }
 
+    /// ★★ AMENDED BY `Pass 283.0`, and the old assertion is kept as the second
+    /// half rather than deleted.
+    ///
+    /// This test was right for its time: it asserted that a cross-reference
+    /// entry pointing at the wrong object refuses the whole document, *"rather
+    /// than guessing which is right"*. pdfcer still does not guess — what
+    /// changed is that not-guessing no longer means not-opening. The object
+    /// the table promised is treated as **undefined** (§7.3.10), which is the
+    /// standard's own answer for an object that is not there, and the operator
+    /// is told which one was lost.
+    ///
+    /// The strict refusal survives by name under [`LoadOptions::strict`], and
+    /// the second half of this test is the old one unchanged.
     #[test]
-    fn object_id_mismatch_is_strict_error() {
-        // Corrupt the xref so object 2's entry points at object 1's
-        // offset — the strict loader must refuse, naming both ids.
+    fn an_object_id_mismatch_is_recorded_by_default_and_refused_under_strict() {
+        // Corrupt the xref so object 2's entry points at object 1's offset.
         let bytes = minimal_doc();
         let text = String::from_utf8(bytes.clone()).unwrap();
         let obj1_off = text.find("1 0 obj").unwrap();
-        // xref entry lines: find object 2's and overwrite its offset
-        // with object 1's.
         let obj2_off = text.find("2 0 obj").unwrap();
         let entry = format!("{obj2_off:010} 00000 n");
         let entry_pos = text.find(&entry).unwrap();
         let mut corrupted = bytes;
         corrupted[entry_pos..entry_pos + 10].copy_from_slice(format!("{obj1_off:010}").as_bytes());
-        let err = Document::from_bytes(corrupted).unwrap_err();
+
+        // Default: the document opens, object 2 is absent, and the loss is
+        // named.
+        let doc = Document::from_bytes(corrupted.clone())
+            .expect("a table/body disagreement about ONE object is not an unreadable file");
+        assert!(doc.get(ObjId::new(2, 0)).is_none());
+        assert!(
+            doc.load_anomalies().iter().any(|a| matches!(
+                a,
+                LoadAnomaly::ObjectUnreadable { object, .. } if *object == ObjId::new(2, 0)
+            )),
+            "{:?}",
+            doc.load_anomalies()
+        );
+
+        // Strict: the original assertion, unchanged.
+        let err =
+            Document::from_bytes_with_options(corrupted, None, LoadOptions::strict()).unwrap_err();
         assert!(matches!(err, DocError::ObjectIdMismatch { .. }));
     }
 
