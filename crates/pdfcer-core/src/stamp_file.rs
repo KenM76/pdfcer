@@ -92,6 +92,46 @@ pub struct StampCollection {
     pub category: Option<String>,
     /// The stamps, in the order the name tree lists them.
     pub stamps: Vec<StampEntry>,
+    /// Why the document's page tree could not be walked, when it could not
+    /// (`Pass 290.1`).
+    ///
+    /// # ★★ The bit that used to be thrown away, and what it cost
+    ///
+    /// [`read`] resolves each stamp's named page to a page INDEX by matching
+    /// the name-tree target against the document's own page list. When
+    /// [`crate::page_tree::pages`] fails, that list is empty — and so every
+    /// [`StampEntry::page_index`] comes back `None`, which already means
+    /// something else and something specific: *"this name points at a page
+    /// the document does not have."*
+    ///
+    /// Two opposite facts therefore arrived in one value:
+    ///
+    /// | what happened | what the caller saw |
+    /// |---|---|
+    /// | the collection names a page that is genuinely absent | `page_index: None` |
+    /// | the PAGE TREE could not be read at all | `page_index: None` |
+    ///
+    /// The first is a fact about the stamps; the second says nothing about
+    /// them. Reported as the first, it tells an operator his signature
+    /// stamps are corrupt when they are fine — which is exactly what
+    /// `pdfcer stamp-list` printed on the operator's own Acrobat-written
+    /// file (`page=MISSING`, twice, on two perfectly good stamps).
+    ///
+    /// `Some(_)` means: **read nothing into any `page_index`**. Every one of
+    /// them is `None` for a reason that has nothing to do with the stamps.
+    /// The string is the [`crate::page_tree::PageTreeError`]'s own
+    /// `Display`, so a shell can show the real cause instead of inventing a
+    /// plausible one.
+    ///
+    /// # Why the names still come back
+    ///
+    /// [`read`] deliberately does not become a `Result` over this. The name
+    /// tree parsed; the display names are real and are worth showing. What
+    /// failed is a *different* structure in the same file, and the honest
+    /// shape is "here is what I read, and here is the part I could not" —
+    /// the same shape `Page::contents_unresolved` and
+    /// `Page::resources_defaulted` take.
+    pub page_tree_error: Option<String>,
 }
 
 impl StampCollection {
@@ -125,6 +165,7 @@ pub fn read(doc: &Document) -> StampCollection {
         });
 
     let mut stamps = Vec::new();
+    let mut page_tree_error: Option<String> = None;
     if let Ok(catalog) = doc.catalog()
         && let Some(names) = catalog
             .get(b"Names")
@@ -135,13 +176,32 @@ pub fn read(doc: &Document) -> StampCollection {
             .map(|o| doc.resolve(o))
             .and_then(Object::as_dict)
     {
-        let page_ids: Vec<_> = crate::page_tree::pages(doc)
-            .map(|ps| ps.iter().map(|p| p.id).collect())
-            .unwrap_or_default();
-        collect(doc, pages, &page_ids, &mut stamps, 0);
+        // ★ The error is KEPT, not swallowed (`Pass 290.1`). An empty
+        // `page_ids` makes every `position(…)` return `None`, and `None`
+        // already means "this name points outside the document" — so the
+        // old `unwrap_or_default()` wrote a stamp-shaped claim onto a
+        // page-tree-shaped failure. See `StampCollection::page_tree_error`.
+        match crate::page_tree::pages(doc) {
+            Ok(ps) => {
+                let page_ids: Vec<_> = ps.iter().map(|p| p.id).collect();
+                collect(doc, pages, &page_ids, &mut stamps, 0);
+            }
+            Err(e) => {
+                page_tree_error = Some(e.to_string());
+                // Still collect: the names, display titles and dynamic flags
+                // are all read from the name tree and are unaffected by
+                // whatever is wrong with the page tree. Only `page_index`
+                // is unanswerable, and the field above says so.
+                collect(doc, pages, &[], &mut stamps, 0);
+            }
+        }
     }
 
-    StampCollection { category, stamps }
+    StampCollection {
+        category,
+        stamps,
+        page_tree_error,
+    }
 }
 
 /// Walk one node of the `/Pages` name tree, following `/Kids` (§7.9.6).

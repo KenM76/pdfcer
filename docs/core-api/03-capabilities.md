@@ -3260,9 +3260,20 @@ may show holes there).
 `pdfcer_core::stamp_file` — `read(&Document) -> StampCollection`,
 `name_stamp_pages(&mut EditSession, &[(String, String)]) -> Result<CollectionWritten, EditError>`,
 `stamp_name_string(internal, display)`. Types: `StampCollection { category:
-Option<String>, stamps: Vec<StampEntry> }` + `is_stamp_file()`, `StampEntry {
-internal, display, dynamic, page_index }`, `CollectionWritten { stamps_named,
-skipped }`. Session verb: `EditSession::set_named_pages(Vec<Object>)`.
+Option<String>, stamps: Vec<StampEntry>, page_tree_error: Option<String> }` +
+`is_stamp_file()`, `StampEntry { internal, display, dynamic, page_index }`,
+`CollectionWritten { stamps_named, skipped }`.
+
+★★ **`page_tree_error` decides what `page_index: None` MEANS** (`Pass
+290.1`). `None` on an entry means *the collection names a page this document
+does not have* — a broken collection. But when the page tree itself will not
+walk, `read` can build no page list, so **every** entry comes back `None` for a
+reason that has nothing to do with the stamps. `page_tree_error: Some(why)`
+says that happened: **read nothing into any `page_index`**, and show `why`
+instead of a per-stamp complaint. On the operator's own Acrobat-written
+signature file, `stamp-list` printed `page=MISSING` on two stamps that were
+perfectly fine; it now prints `page=UNKNOWN` and names the real cause on
+stderr. Session verb: `EditSession::set_named_pages(Vec<Object>)`.
 CLI: `pdfcer stamp-list <file>`, `pdfcer stamp-pack <file> --category NAME
 --stamp "Internal=Display" ... -o <out>`.
 

@@ -41854,12 +41854,32 @@ fn cmd_stamp_list(input: &Path) -> u8 {
         collection.category.as_deref().unwrap_or("(untitled)"),
         collection.stamps.len()
     );
+    // ★ `page=MISSING` is a claim about the STAMP, so it must not be printed
+    // when the reason every index is absent is that the PAGE TREE would not
+    // walk (`Pass 290.1`). Said wrongly, it tells an operator his signature
+    // stamps are corrupt when the only damaged thing in the file is a page
+    // he never sees.
+    let page_tree_unreadable = collection.page_tree_error.is_some();
+    if let Some(why) = &collection.page_tree_error {
+        eprintln!(
+            "pdfcer: {}: the page tree would not walk ({why}), so NO stamp below can be \
+             resolved to a page. `page=UNKNOWN` means pdfcer could not look — it is NOT a \
+             claim that the stamp names a page the file does not have.",
+            input.display()
+        );
+    }
     for s in &collection.stamps {
         let page = s.page_index.map_or_else(
-            // A name pointing at a page the file does not have. Named rather
-            // than hidden: it is exactly the defect `stamp-pack` refuses to
-            // create.
-            || "page=MISSING".to_owned(),
+            || {
+                if page_tree_unreadable {
+                    "page=UNKNOWN".to_owned()
+                } else {
+                    // A name pointing at a page the file does not have. Named
+                    // rather than hidden: it is exactly the defect
+                    // `stamp-pack` refuses to create.
+                    "page=MISSING".to_owned()
+                }
+            },
             |i| format!("page={}", i + 1),
         );
         println!(

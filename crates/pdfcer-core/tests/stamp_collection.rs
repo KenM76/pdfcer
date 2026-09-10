@@ -324,3 +324,92 @@ fn an_existing_names_dictionary_keeps_its_other_trees() {
     );
     assert!(text.contains("/Pages"), "and /Pages must have been added");
 }
+
+// ------------------------------- 4. an unreadable page tree is not a stamp fact
+
+/// ★★ A PAGE-TREE failure must not be reported as "every stamp points at
+/// nothing" (`Pass 290.1`).
+///
+/// `StampEntry::page_index` is `None` for a defined reason — *the named page
+/// is not one of the document's own* — and `read` used to write that meaning
+/// onto a completely different event by `unwrap_or_default()`-ing the page
+/// walk. On the operator's own Acrobat-written signature file both of his
+/// stamps printed `page=MISSING` when neither was missing; what had actually
+/// happened was a refusal three modules away.
+///
+/// The fixture damages the page tree by making the `/Pages` node its own kid
+/// — a cycle, which is structural damage with no second reading — while
+/// leaving the `/Names` tree perfect. So the names MUST still be read, and
+/// the reason the indices are absent must be carried in the one place a
+/// caller can tell the two cases apart.
+#[test]
+fn an_unwalkable_page_tree_is_not_reported_as_missing_stamps() {
+    let bytes = {
+        // Two objects only: a catalog whose /Names /Pages tree names two
+        // stamps, and a /Pages node that lists itself in /Kids.
+        let bodies: Vec<(u32, String)> = vec![
+            (
+                1,
+                "<< /Type /Catalog /Pages 2 0 R /Names << /Pages << /Names \
+                 [(KMApproved=Approved) 3 0 R (#KMDynamic=Dynamic) 4 0 R] >> >> >>"
+                    .to_string(),
+            ),
+            (2, "<< /Type /Pages /Kids [2 0 R] /Count 1 >>".to_string()),
+        ];
+        let mut buf = b"%PDF-1.7\n".to_vec();
+        let mut offsets: Vec<(u32, usize)> = Vec::new();
+        for (num, body) in &bodies {
+            offsets.push((*num, buf.len()));
+            buf.extend_from_slice(format!("{num} 0 obj\n{body}\nendobj\n").as_bytes());
+        }
+        let xref_at = buf.len();
+        buf.extend_from_slice(b"xref\n0 3\n0000000000 65535 f \n");
+        for (_, off) in &offsets {
+            buf.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+        }
+        buf.extend_from_slice(
+            format!("trailer\n<< /Size 3 /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n").as_bytes(),
+        );
+        buf
+    };
+
+    let doc =
+        Document::from_bytes(bytes).expect("the file itself loads — only the page tree is damaged");
+    let collection = stamp_file::read(&doc);
+
+    // The names survive: nothing is wrong with the name tree.
+    assert_eq!(collection.stamps.len(), 2, "the name tree still parses");
+    assert_eq!(collection.stamps[0].display, "Approved");
+    assert!(collection.stamps[1].dynamic, "the # prefix still reads");
+
+    // And the reason the indices are absent is carried, not guessed at.
+    assert!(
+        collection.page_tree_error.is_some(),
+        "a page-tree failure must be reported, not laundered into page_index: None"
+    );
+    assert!(
+        collection.stamps.iter().all(|s| s.page_index.is_none()),
+        "no index is knowable when the page list could not be built"
+    );
+    let why = collection.page_tree_error.as_deref().unwrap_or_default();
+    assert!(
+        why.contains("cycle"),
+        "the message must name the real cause, got {why:?}"
+    );
+}
+
+/// The twin: a well-formed page tree leaves `page_tree_error` `None`, so
+/// `Some(_)` keeps meaning something. Without this a build that set the field
+/// unconditionally would pass the test above and make every collection look
+/// damaged.
+#[test]
+fn a_readable_page_tree_reports_no_error() {
+    let doc = Document::from_bytes(authored_collection()).expect("loads");
+    let collection = stamp_file::read(&doc);
+    assert_eq!(collection.stamps.len(), 3);
+    assert!(collection.page_tree_error.is_none());
+    assert!(
+        collection.stamps.iter().all(|s| s.page_index.is_some()),
+        "every stamp resolves to a page in a well-formed collection"
+    );
+}
