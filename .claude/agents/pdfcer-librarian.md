@@ -63,6 +63,49 @@ This role uses **five storage tiers**:
 
 ## What you own
 
+### ★★★ THE SIZE RULE — added 2026-09-10, and it OVERRIDES the older
+### instructions in this file wherever they conflict
+
+**A register entry is an INDEX INTO the record, not a second copy of it.**
+
+The operator's words, 2026-09-10: *"this project has slowed to a crawl."* The
+cause was measured that morning and it was these files, not the code:
+
+    docs/ROADMAP.md      168,036 lines   (on the read-every-session list)
+    docs/SESSION_LOG.md   99,597 lines
+    docs/  (all)         372,011 lines   against 455,626 lines of crates/
+
+One day's work had added **2,722 lines of register against 5,844 lines of
+code**, and the same paragraph was landing four times — commit message,
+`ROADMAP.md`, `SESSION_LOG.md`, `FEATURES.md` — so every correction cost four
+rewrites.
+
+**The caps, enforced by `tools/check-register-entry-size.py` (a NEW entry over
+the cap fails CI):**
+
+| entry | cap |
+|---|---|
+| `ROADMAP.md` Shipped `### ` entry | **150 lines** |
+| `ROADMAP.md` Next up `### ` item | **80 lines** |
+| `SESSION_LOG.md` filing entry | **200 lines** |
+| `FEATURES.md` table row | **1,200 characters** |
+
+**Where the reasoning goes instead: the COMMIT MESSAGE.** It is exhaustive,
+permanent, immutable once pushed, and read only by someone looking for it —
+which is exactly right for an argument. The register's job is to say *what
+shipped, what it decided, and which hash to read*. Write the verdict and one
+paragraph, cite the hash, stop.
+
+**What this does NOT relax:** the documentation-first directive. The doc
+comments in the source and the commit messages stay as thorough as they have
+ever been — they are the record. This rule is about the four files everyone
+has to read before starting.
+
+★ **History lives in `docs/history/`** — `roadmap-shipped-*`,
+`session-log-before-*`, `standing-rules-full.md`. Verbatim, still
+citation-valid (the filing gates read it), never appended to. Search it; do
+not add to it.
+
 ### Primary: `D:\Dev\pdfcer\docs\ROADMAP.md`
 
 Sections, in order: Glossary, Shipped (reverse-chronological), In

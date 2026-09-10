@@ -193,7 +193,16 @@ if hasattr(sys.stderr, "reconfigure"):
 
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-RECORD = [ROOT / "docs" / "ROADMAP.md", ROOT / "docs" / "SESSION_LOG.md"]
+# ★ The record is TWO live files plus the archive (2026-09-10). `ROADMAP.md`
+# had reached 168,036 lines and `SESSION_LOG.md` 99,597, both on the
+# read-every-session list, so their history moved to `docs/history/`.
+#
+# A citation is no less a citation for living in the archive: this gate reads
+# every `.md` under `docs/history/` too, or it would start reporting filed work
+# as unfiled the moment an entry aged out of the live file.
+RECORD = [ROOT / "docs" / "ROADMAP.md", ROOT / "docs" / "SESSION_LOG.md"] + sorted(
+    (ROOT / "docs" / "history").glob("*.md")
+)
 BASELINE = ROOT / "tools" / "commits-filed-baseline.txt"
 
 # Paths whose change makes a commit "engineering work the record narrates".

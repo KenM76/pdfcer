@@ -346,15 +346,35 @@ def collect_passes(lines: list[str], secs):
     return found
 
 
+def rule_source() -> list[str]:
+    """The lines a standing rule is DEFINED in.
+
+    ★★ Since 2026-09-10 that is `docs/history/standing-rules-full.md`, not
+    `ROADMAP.md`. The section had reached 18,051 lines for 231 rules in a file
+    read every session, so the full text moved to the archive and `ROADMAP.md`
+    kept a one-line index — deliberately written as ``- `R123` — …`` rather
+    than ``- **R123 — …``, so the index is not a second definition of every
+    rule.
+
+    Why this is its own function rather than "read the concatenation": the
+    archived SHIPPED entries quote a rule in full at mint time, in the same
+    bullet shape. Reading the whole stream saw those as second definitions and
+    reported four duplicates that have been in the record, harmlessly, for
+    weeks. **A definition site is a place, not a pattern.**
+    """
+    archive = os.path.join("docs", "history", "standing-rules-full.md")
+    if os.path.exists(archive):
+        return read_lines(archive)
+    return read_lines(ROADMAP)
+
+
 def collect_rules(lines: list[str]):
     """Map rule number -> [(line, title)] for definition-shaped items."""
+    lines = rule_source()
     start = next(
         (n for n, ln in enumerate(lines) if ln.startswith("## Standing rules")),
-        None,
+        0,
     )
-    if start is None:
-        print("ERROR: no '## Standing rules' section in ROADMAP.", file=sys.stderr)
-        raise SystemExit(2)
 
     found = defaultdict(list)
     for offset, ln in enumerate(lines[start:]):
@@ -783,6 +803,16 @@ def main() -> int:
     _self_check()
     stats = "--stats" in sys.argv
     lines = read_lines(ROADMAP)
+    # ★ The Shipped history and the full standing-rule text moved to
+    # `docs/history/` on 2026-09-10 (`ROADMAP.md` was 168,036 lines, on the
+    # read-every-session list). The LEDGER is still one ledger: a Pass ID or a
+    # rule number is taken wherever it was recorded, so the archive is read
+    # here too. Without this the counts collapse and the tool's own vacuous-
+    # pass guard fires -- which is exactly what it did when the split landed.
+    for extra in sorted(os.path.join("docs", "history", f) for f in
+                        os.listdir(os.path.join("docs", "history"))
+                        if f.endswith(".md")):
+        lines += read_lines(extra)
     secs = section_index(lines)
 
     passes = collect_passes(lines, secs)
@@ -951,7 +981,18 @@ def main() -> int:
         )
     # Filing ordinals. Reported beside the other ledgers because they are
     # used the same way — as identifiers in prose across every document.
+    # ★ The log is TWO files since 2026-09-10: entries before 2026-09-09 moved
+    # to `docs/history/session-log-before-2026-09-09.md` (the live file was
+    # 99,597 lines and its newest entry is on the read-every-session list).
+    # The ORDINAL sequence spans both, so both are read -- otherwise every
+    # archived filing reports as "an ordinal with no heading", which is 478
+    # lines of noise about a record that is perfectly intact.
     ord_lines = read_lines(SESSION_LOG)
+    _sl_archive = os.path.join(
+        "docs", "history", "session-log-before-2026-09-09.md"
+    )
+    if os.path.exists(_sl_archive):
+        ord_lines += read_lines(_sl_archive)
     ordinals, unparsed_ordinals = collect_filing_ordinals("\n".join(ord_lines))
     # ★ A PARSE GAP IS A FAILURE, NOT A NOTE (changed 2026-08-11).
     #

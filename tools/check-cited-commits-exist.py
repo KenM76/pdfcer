@@ -229,11 +229,41 @@ def main() -> int:
         # sits within `EXPLAINED_WINDOW` lines of the replacement hash, the
         # document has already recorded the amend and is CORRECT as written.
         if replacement:
+            # ★★ "SAME FILE" MEANS "SAME REGISTER" SINCE 2026-09-10.
+            #
+            # `ROADMAP.md` and `SESSION_LOG.md` were split that day: their
+            # history moved to `docs/history/` because the live files had
+            # reached 168,036 and 99,597 lines and are on the
+            # read-every-session list. The split moved four stale citations
+            # away from the correction notes that explain them, and this gate
+            # went red on documents nobody had touched -- correctly, on its own
+            # terms, and for a reason that is an artefact of the move rather
+            # than a defect in the record.
+            #
+            # A register and its archive are ONE document with a page break in
+            # it: a reader who meets a stale hash greps the pair, exactly as
+            # the comment above describes them grepping one file. So the
+            # explanation may live in either half.
+            def _register_of(rel: str) -> str:
+                if rel.startswith("docs/history/roadmap") or rel == "docs/ROADMAP.md":
+                    return "roadmap"
+                if rel.startswith("docs/history/session-log") or rel == "docs/SESSION_LOG.md":
+                    return "session-log"
+                if rel.startswith("docs/history/standing-rules"):
+                    return "roadmap"
+                return rel
+
+            explained_registers = {
+                _register_of(rel)
+                for rel, ls in lines_of.items()
+                if any(replacement in line for line in ls)
+            }
             unexplained = sorted(
                 {
                     rel
                     for rel, _ in hits
                     if not any(replacement in line for line in lines_of.get(rel, []))
+                    and _register_of(rel) not in explained_registers
                 }
             )
             if not unexplained:

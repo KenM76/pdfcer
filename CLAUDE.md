@@ -31,6 +31,31 @@ substantive.
 
 ## Read first
 
+★★★ **The read list is `docs/NEXT_SESSION.md` FIRST, then only what the task
+needs.** Amended 2026-09-10, after the operator said the project *"has slowed
+to a crawl"* and the cause measured out as these files: `ROADMAP.md` at
+168,036 lines, `SESSION_LOG.md` at 99,597, **372,011 lines of docs against
+455,626 lines of code**. History has since moved to `docs/history/` and
+`tools/check-register-entry-size.py` caps new entries, but the older habit —
+read ten documents before writing a line — is what the list below used to
+encourage. It no longer does.
+
+- **`docs/NEXT_SESSION.md`** — the engineer's handoff. **Read it first, every
+  session.** State, what is in flight, what is owed, what to distrust.
+- **`docs/ROADMAP.md`** — *Next up* and *Backlog* when you need the queue;
+  the *Standing rules* index (one line per rule) when a rule is in play.
+  **Shipped history is in `docs/history/` — grep it, do not read it.**
+- **`docs/ARCHITECTURE.md`** — the invariants (§3, §5) before touching crate
+  boundaries or the writer; §12's decisions when one is cited at you. It is
+  34,340 lines: **grep for the section, do not read the file.**
+- The rest, **when the task touches them**: `FEATURES.md` (what can pdfcer
+  do?), `SESSION_LOG.md`'s newest entry, `LEGAL.md` (licensing, spec
+  sourcing, test-corpus rules), `docs/core-api/` (the consuming project's
+  contract).
+
+The original list follows, kept because each entry still says what its file
+is FOR — read it as a directory, not as an assignment:
+
 - **`docs/ARCHITECTURE.md`** — crate layout, core data model, the two
   load-bearing invariants (GUI-core separation, round-trip/minimal-diff
   editing), packaging strategy. Read every session.

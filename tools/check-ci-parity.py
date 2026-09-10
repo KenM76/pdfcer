@@ -108,6 +108,9 @@ LOCAL = {
     "tools/check-clap-help.py": "python tools/check-clap-help.py",
     "tools/check-cited-verbs-exist.py": "python tools/check-cited-verbs-exist.py",
     "tools/check-ledger-numbers.py": "python tools/check-ledger-numbers.py",
+    "tools/check-register-entry-size.py": (
+        "python tools/check-register-entry-size.py --stats"
+    ),
     "tools/check-metrics-line-contract.py": "python tools/check-metrics-line-contract.py",
     "tools/check-one-commit-per-command.py": "python tools/check-one-commit-per-command.py",
     "tools/check-cli-help-leads.py": "python tools/check-cli-help-leads.py",

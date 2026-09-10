@@ -1,0 +1,138 @@
+# Register entries already over the cap when check-register-entry-size.py was written (2026-09-10).
+# DEBT, not an allowlist. The intended direction is DOWN.
+docs/FEATURES.md:**"Line weights off" hairline display mode** — `RenderOptions::stroke_
+docs/FEATURES.md:**A `/Text` sticky note or `/Stamp` naming a standard icon, with no `/
+docs/FEATURES.md:**A font-coverage refusal names a working remedy instead of ending on
+docs/FEATURES.md:**A page missing `/Resources` — on itself and every ancestor, or resol
+docs/FEATURES.md:**A pasted markup is the mark that was copied — dash, opacity, note an
+docs/FEATURES.md:**A placed stamp's label size can now be read back, and changed by a r
+docs/FEATURES.md:**A stamp's label size is a property, not a derivative of the box it w
+docs/FEATURES.md:**An annotation's blend mode is the file's — `/BM` survives restyle, r
+docs/FEATURES.md:**Apply a redaction as a SAVE-COMMITTED edit, not an immediate file wr
+docs/FEATURES.md:**Ask which characters a text run will accept, BEFORE the first keystr
+docs/FEATURES.md:**Border line style — preserve, author and clear a dashed markup borde
+docs/FEATURES.md:**Build provenance stamp** — `pdfcer --version` states the UTC build t
+docs/FEATURES.md:**Certifying (author) signature** — `SignRequest::certify: Option<MdpP
+docs/FEATURES.md:**Choose how much memory pdfcer may spend blending a page in print col
+docs/FEATURES.md:**Choose whether a grey fill knocks a spot backdrop out or preserves i
+docs/FEATURES.md:**Choose which device colorant set pdfcer renders against, when a `Sep
+docs/FEATURES.md:**Copy and paste almost any annotation, with its appearance intact** —
+docs/FEATURES.md:**Copy, CUT and paste a form field** — `cut_field` returns a `FieldCut
+docs/FEATURES.md:**Edit a SPECIFIC occurrence of repeated text** — `EditRequest::spanni
+docs/FEATURES.md:**Edit a freehand `/Ink` stroke — per point and per whole stroke** (`P
+docs/FEATURES.md:**Edit geometry INSIDE a form XObject** — `move_node_in_form`, `move_n
+docs/FEATURES.md:**Give a push button a declared action (`/A`)** — `set_button_action`
+docs/FEATURES.md:**Honour `LockedContents` (Table 165 bit 10, value 512) — an annotatio
+docs/FEATURES.md:**Import a plain-text file INTO a PDF as pages** — the other half of "
+docs/FEATURES.md:**Make a run bold (or italic) without choosing between two verbs** — `
+docs/FEATURES.md:**Opt-in sub-pixel culling — `render-page --fast-subpixel`, `RenderOpt
+docs/FEATURES.md:**Override a ce dimension's printed text, or clear the override and ge
+docs/FEATURES.md:**Probe the ink at a pixel** — report the four CMYK colorant tints AND
+docs/FEATURES.md:**Read a push button's declared action** — `EditSession::button_action
+docs/FEATURES.md:**Read an annotation's rotation, set it absolutely, and get the appear
+docs/FEATURES.md:**Read and author Acrobat-compatible custom stamp collections — there
+docs/FEATURES.md:**Read and edit a markup shape's vertices** — `Annotation::vertices` (
+docs/FEATURES.md:**Rename a bookmark, or delete one and its subtree** — `set_outline_ti
+docs/FEATURES.md:**Reorder and re-parent a bookmark** — `move_outline_item(item_id, Out
+docs/FEATURES.md:**Resize anything carrying a `/Rect`** — `resize_annotation(annot_id,
+docs/FEATURES.md:**Reusable parsed page handle (display list)** — record a page once, t
+docs/FEATURES.md:**Rotate a widget** — `rotate_widget(fqn, index, degrees)` / `rotate-w
+docs/FEATURES.md:**Rotate anything carrying a `/Rect`** — `rotate_annotation(annot_id,
+docs/FEATURES.md:**Sign a document (APPROVAL signature, PAdES B-B)** — `EditSession::si
+docs/FEATURES.md:**Sign into a pre-placed empty signature field** — `SignRequest::field
+docs/FEATURES.md:**Subtractive (colorant) compositing buffer** — a page whose group dec
+docs/FEATURES.md:**Tell which layer (optional-content group) a selected page object is
+docs/FEATURES.md:**Typing a literal newline into a text-box annotation makes a new line
+docs/FEATURES.md:**Undo-preserving DEFERRED redaction — a redaction STAGED at Save that
+docs/FEATURES.md:**Vector-path redaction — painted paths are CUT at the region boundary
+docs/FEATURES.md:**Verify a signature's integrity and coverage** — `signature::verify_a
+docs/FEATURES.md:**Write a field's `/DA` — font, size and colour, at last** — the last
+docs/FEATURES.md:**Write, correct or clear a note on an annotation that already exists*
+docs/FEATURES.md:Apply redaction — true removal, forced full rewrite, in all three. **I
+docs/FEATURES.md:Ask which faces a run can actually be changed to — `EditSession::previ
+docs/FEATURES.md:Blend modes — the eleven separable modes (Multiply, Screen, Overlay, D
+docs/FEATURES.md:Colour spaces and PDF functions — all four function types, spot colour
+docs/FEATURES.md:Copy, **cut** and paste a selection, within a document or across docum
+docs/FEATURES.md:Delete a field, a single widget, or a grouping node and its subtree —
+docs/FEATURES.md:Groups carrying scale, number format (decimal/fraction) and ANSI/ISO d
+docs/FEATURES.md:Merge several files into one — three verbs share this neighbourhood: `
+docs/FEATURES.md:Move **and resize** a widget — a pure translation carries the artwork
+docs/FEATURES.md:OCR — recognise a scanned page and write the invisible sandwich layer
+docs/FEATURES.md:Overprint (`/OP`, `/op`, `/OPM`) tracked and disclosed — Table 58's ru
+docs/FEATURES.md:Overprint SIMULATION — ISO 32000-1 §11.7.4.3 Table 149's `CompatibleOv
+docs/FEATURES.md:Paint mesh shadings — types 4 (free-form Gouraud triangles), 5 (lattic
+docs/FEATURES.md:Per-colorant (n-channel) compositing buffer — **one plate per SPOT col
+docs/FEATURES.md:Per-standard render presets (`Pass 128.1`) — a settings vector for eac
+docs/FEATURES.md:Rasterize an arbitrary page **region**, so magnification is bounded by
+docs/FEATURES.md:Reach inside a form XObject for hit-testing — click and marquee alike
+docs/FEATURES.md:Read a widget's border, visibility and both `/MK` colours — `forms::Wi
+docs/FEATURES.md:Restyle a placed markup annotation — colour, interior fill, line width
+docs/FEATURES.md:Restyle or edit a run a caller has already **located**, without descri
+docs/FEATURES.md:Soft masks from `ExtGState /SMask` — `/Alpha` and `/Luminosity` mask g
+docs/FEATURES.md:Text formatting on **existing** text — size and colour always; char an
+docs/FEATURES.md:Transparency GROUP compositing — pdfcer owns the arithmetic (`pdfcer-r
+docs/FEATURES.md:True in-place page insertion, so Insert edits the open document — `Edi
+docs/FEATURES.md:Type 3 font rendering — vector glyph procedures (`d0`/`d1` state machi
+docs/FEATURES.md:`/Separation`/`/DeviceN`/`Lab`/`CalGray`/`CalRGB` colour spaces on ima
+docs/ROADMAP.md:### Decision 008 sequence — Annotations & markup, sliced (2026-08-01)
+docs/ROADMAP.md:### Pass 1.1 — Corpus validation & hardening
+docs/ROADMAP.md:### Pass 3.0 — Identity writer + round-trip proof harness
+docs/ROADMAP.md:### Pass 32.0 — Per-RUN text deletion: deleting a label must not delete 236 of its neighbours (core + CLI + GUI)
+docs/ROADMAP.md:### Pass 34.1 — Tool options live in a docked sidebar tab beside page navigation (GUI)
+docs/ROADMAP.md:### Pass 46.0–46.1 — ★★ OPERATOR REQUEST 2026-08-07 — ***"form fields and everything else should be draggable and resize
+docs/ROADMAP.md:### Pass 52.0–52.3 — PDF → DXF export, so SOLIDWORKS can import pdfce output without an Acrobat Pro licence at all — ope
+docs/ROADMAP.md:### Pass 67.0 — font reporting (phase A) + embedded-font removal (phase B) — operator request 2026-08-11, verbatim: *"so
+docs/ROADMAP.md:### Pass 69.0 — ★★ OPERATOR REQUEST 2026-08-12 — **ce-dimension STYLE + TOLERANCE, with a group default and a per-ce-dim
+docs/ROADMAP.md:### Pass 69.1 — **ce-dimension TOLERANCE** — the second half of the operator's 2026-08-12 request, split out 2026-08-13
+docs/ROADMAP.md:### Pass 71.0 — **OCR**, promoted from the Backlog bucket 2026-08-12 (hundred-and-twenty-sixth filing) on the operator's
+docs/ROADMAP.md:### Pass 73.1 — **two DEFECTS in `pdfce-core`'s edit surface, both found by the same API-mapping pass: the ONE non-atomi
+docs/ROADMAP.md:### `Pass 10.7` — **PKCS#12 IMPORT + THE `Signer` SEAM — `Pkcs12Signer`: parse a `.pfx`/`.p12` (RFC 7292), VERIFY THE MA
+docs/ROADMAP.md:### `Pass 10.8` — **BUILD THE CMS `SignedData` — CAdES, PAdES B-B: `version 1`, detached `id-data`, signed attributes co
+docs/ROADMAP.md:### `Pass 10.9` — **THE PDF-LEVEL SIGNING WRITE — an `EditSession` signing verb + `pdfcer sign`: a `/FT /Sig` field with
+docs/ROADMAP.md:### `Pass 142.2` — ★★★ **THE FONT PRE-FLIGHT TESTS THE TEXT ABOUT TO BE TYPED, NOT ONLY THE TEXT THAT IS THERE — a CANDI
+docs/ROADMAP.md:### `Pass 179.0` — **BOLD BECOMES AUTOMATIC: A FALLBACK LADDER THAT BINDS A REAL FACE WHEN ONE EXISTS AND SYNTHESISES WH
+docs/ROADMAP.md:### `Pass 256.0` — ★★★★ **EDIT TEXT ACROSS SHOW OPERATORS — a `find` may span CONSECUTIVE show operators of one text obj
+docs/ROADMAP.md:### `Pass 257.0` — ★★★★ **SESSION VERBS PLAN AGAINST THE SESSION GRAPH, NOT THE BASE REVISION — `edit_text`, `format_tex
+docs/ROADMAP.md:### `Pass 277.0` (`fccd6cd`, 2026-09-09 05:22:19 −0400) — A STICKY NOTE REFUSED A RESIZE BY CLAIMING pdfcer HAD NOT DRAW
+docs/ROADMAP.md:### `Pass 279.0` (`5b8ec61`, 2026-09-09 06:41:18 −0400) — THE NAMED REMEDY COULD LEAD IN A CIRCLE, AND THE EXISTING TEST
+docs/ROADMAP.md:### `Pass 280.0` (`26ef381`, 2026-09-09 08:05:32 −0400) — THE ALPHABET IS KNOWABLE BEFORE THE FIRST KEYSTROKE, SO ASK IT
+docs/ROADMAP.md:### `Pass 283.0` (`dce2223`, 2026-09-09) — A PDF WITH ERRORS OPENS NOW, pdfcer SAYS WHAT IT DECIDED, AND THE OPERATOR CA
+docs/ROADMAP.md:### `Pass 293.0` (`56c5e55`, 2026-09-10) — a custom stamp can be placed, as vector
+docs/ROADMAP.md:### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWN
+docs/ROADMAP.md:### ~~Pass 81.0~~ — **SHIPPED 2026-08-14, commit `a84bdc3`, WHILE THIS VERY FILING WAS BEING WRITTEN. See the `Pass 81.0
+docs/ROADMAP.md:### ~~Pass 81.1~~ — **SHIPPED 2026-08-27, commit `4eaea20`. See the `Pass 81.1` entry at the top of *Shipped*.** Retaine
+docs/ROADMAP.md:### ~~`Pass 142.1`~~ — **SHIPPED 2026-08-27, commit `2e6235c`. See the combined `Pass 142.1` + `144.0` + `145.0` entry a
+docs/ROADMAP.md:### ~~`Pass 144.0`~~ — **SHIPPED 2026-08-27, commit `cfa2c44`. See the combined `Pass 142.1` + `144.0` + `145.0` entry a
+docs/ROADMAP.md:### ~~`Pass 145.0`~~ — **SHIPPED 2026-08-27, commit `0c48bbf`. See the combined `Pass 142.1` + `144.0` + `145.0` entry a
+docs/ROADMAP.md:### ~~`Pass 185.0`~~ — **THE CI JOB NAMED FOR ONE OF ITS NINETEEN STEPS: SPLIT IT, OR RENAME IT TO WHAT IT HAS BECOME**
+docs/ROADMAP.md:### ~~`Pass 199.0`~~ — **`PCS 16.1` FAILS 15 OF 16 CELLS, AND THE BLEND ARITHMETIC IS CORRECT — THE sRGB→CMYK CONVERSION
+docs/ROADMAP.md:### ~~★★★★★ OPERATOR PRIORITY RULING 2026-08-27~~ — **DISCHARGED 2026-08-27 (297th filing). ALL THREE CHANNEL ITEMS SHIP
+docs/ROADMAP.md:### ~~★★★★★ THE 08:31 INBOUND — A `pdfceGUI` REQUEST ARRIVED BETWEEN THE 305th FILING'S CHANNEL CHECK AND `Pass 143.0`'s
+docs/ROADMAP.md:### ~~★★★★★ THE 21:54 INBOUND — A FOURTH `pdfceGUI` REQUEST ARRIVED AFTER THE 296th FILING'S CHANNEL CHECK AND BEFORE TH
+docs/ROADMAP.md:### ~~★★★★★ TWO MORE `pdfceGUI` FILES ARRIVED AT 22:50 AND 22:57 — **ONE OF THEM IS A LIVE DEFECT REPORT AGAINST `Pass 1
+docs/ROADMAP.md:### ~~★★★★★ `preview_style_resolution` STILL PASSES THE CALLER'S `find` STRAIGHT THROUGH — **`Pass 147.0` FIXED ONE OF T
+docs/ROADMAP.md:### ~~⚠ OWED TOOLING~~ — a render-profiling harness that SURVIVES the session — **★★ CLOSED 2026-08-07 (twenty-first fil
+docs/ROADMAP.md:### ★ Icon set — ScripTree-style SVG icons for all GUI features (operator priority #2, set 2026-08-01, SHIPPED 2026-08-0
+docs/ROADMAP.md:### ★ NEXT MAJOR FOCUS — Pass 14.x: Acrobat text-handling parity (decision 014, DECIDED 2026-07-31)
+docs/ROADMAP.md:### ★ Pass 15.x — FF-A: within-block offline reflow (decision 015, DECIDED 2026-08-01)
+docs/ROADMAP.md:### ★ Pass 16.x — FF-D: add NEW page text as real page content (decision 016, DECIDED 2026-08-01)
+docs/ROADMAP.md:### ★ Pass 18.x — Tabbed dock, layer/object tree, selection legibility, Measure ▾ affordance fix (decision 017 + Amendme
+docs/ROADMAP.md:### ★ Pass 19.x — FF-H: direct text-state formatting (`Tc`/`Tz` + free-form `Ts` + synthetic bold/italic + `Tw`), decisi
+docs/ROADMAP.md:### ★ Pass 21.x — FF-C: font subsetting and glyph embedding (decision 021, 2026-08-03, DECIDED — **21.0 SHIPPED 2026-08-
+docs/ROADMAP.md:### ★ Pass 24.0–24.5 — Ribbon command surface + the end of the floating Accept/Reject box (decision 024, filed 2026-08-0
+docs/ROADMAP.md:### ★ Pass 26.0–26.2 — The unified level ladder (decision 025, filed 2026-08-04; **26.0 SHIPPED `c62c4d0` and 26.1 SHIPP
+docs/ROADMAP.md:### ★ Pass 33.0 — Reflow's AUTO-DETECTED wrap width inherits the damage a prior `edit-text` did to the block's bbox, and
+docs/ROADMAP.md:### ★ Pass 38.1–38.5 — the shell redesign (five operator-confirmed UI properties; spec `docs/ui_specs/shell-redesign.md`
+docs/ROADMAP.md:### ★ RENDER PERFORMANCE — the remaining ~10 s, and the ORDER is the finding (no Pass ID minted; **ITEM 1 IS A DEAD END
+docs/ROADMAP.md:### ★ Rich-text fill: should `pdfce-core` refuse too, so `pdfce-cli fill-field` gets the same guard? — UNDECIDED, filed
+docs/ROADMAP.md:### ★ `docs/ARCHITECTURE.md` §4 is THREE FILINGS BEHIND the shipped core surface — scheduled here rather than left to ha
+docs/ROADMAP.md:### ★★★★ Pass 73.0 — HIGH PRIORITY — **`R58` says its own enforcement lives "in the writer, not left to each scrub Pass
+docs/ROADMAP.md:### ★★★★ Pass 85.0–85.5 — **THE PRINT-CONFORMANCE SUITE GAP INVENTORY** — six render-fidelity gaps, ALL MEASURED (not es
+docs/ROADMAP.md:### ★★★★ TWO CHANNEL ITEMS ARE OWED AND NAMED IN NO PDFCE DOCUMENT — a `pdfceGUI` REQUEST unanswered since 17:35, and an
+docs/ROADMAP.md:### ★★★★★ OWED TO THE NEXT SESSION — the 187th filing's sweep, and **the session's last**. Same rule as the box above: R
+docs/ROADMAP.md:### ★★★★★ OWED TO THE NEXT SESSION — the 189th filing's sweep, items **16–22** plus the **claim sweep 23–28**. Same rule
+docs/ROADMAP.md:### ★★★★★ OWED TO THE NEXT SESSION — the 190th filing's sweep, items **29–33**, plus the ITEM-BY-ITEM DISPOSITION of 16
+docs/ROADMAP.md:### ★★★★★ Pass 72.0 — HIGH PRIORITY — **the redaction TRUE-REMOVAL PROOF has no home in `pdfce-core`: it lives in `crate
+docs/ROADMAP.md:### ★★★★★ THE `iccce` INBOX — **2 requests OWED AND STILL UNREAD, oldest 2026-08-17 — of 16 FILES in `open\`, not 2** —
+docs/ROADMAP.md:### ★★★★★ THE `pdfceGUI` INBOX — **1 request GENUINELY OPEN of 2 files in `open\`, and 1 REPLY IS OWED** — the twin stan
+docs/ROADMAP.md:### ★★★★★★ THE SUITE STANDING BOARD — **26 pass AT MINIMUM, of 51 patches** (harness-reported `24 / 11 / 16`, UNCHANGED

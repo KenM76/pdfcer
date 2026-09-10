@@ -85,6 +85,10 @@ if hasattr(sys.stdout, "reconfigure"):
 
 
 ROADMAP = Path(__file__).resolve().parent.parent / "docs" / "ROADMAP.md"
+# ★ Plus the archive (2026-09-10): the Shipped history moved to
+# `docs/history/` when `ROADMAP.md` reached 168,036 lines. A Pass filed before
+# the split is still filed, and this gate has to be able to see it.
+HISTORY = sorted((Path(__file__).resolve().parent.parent / "docs" / "history").glob("*.md"))
 
 # `Pass 26.2`, `Pass 9c`, `Pass 12.M2` — the same shape the sibling checker
 # accepts, kept in step deliberately so the two cannot disagree about what a
@@ -168,6 +172,8 @@ def main() -> int:
     raw = git("log", rng, "--abbrev=7", "--format=%h\x1f%s")
 
     roadmap = ROADMAP.read_text(encoding="utf-8", errors="replace")
+    for extra in HISTORY:
+        roadmap += "\n" + extra.read_text(encoding="utf-8", errors="replace")
 
     claimed: list[tuple[str, str, str]] = []
     for line in raw.splitlines():

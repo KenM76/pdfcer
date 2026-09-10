@@ -315,7 +315,7 @@ jobs:
   # and the COUNT is the part that decays, so the count is the part a gate
   # can falsify.
   audits:
-    name: repository audits (19 checks)
+    name: repository audits (20 checks)
     runs-on: ubuntu-latest
     steps:
       # ★ FULL HISTORY REQUIRED, and its absence was SILENT.
@@ -431,6 +431,15 @@ jobs:
       # same number.
       - name: check the ledger numbers have no duplicates
         run: python tools/check-ledger-numbers.py
+
+      # The registers are read every session, and on 2026-09-10 they had
+      # reached 372,011 lines against 455,626 lines of crates/ -- with one
+      # day's work adding 2,722 lines of bookkeeping against 5,844 of code.
+      # The history was archived to docs/history/ the same day; this gate is
+      # what stops the live files refilling. A NEW entry over the cap fails;
+      # the pre-existing ones are carried in a baseline that is DEBT.
+      - name: check no register entry has grown into an essay
+        run: python tools/check-register-entry-size.py --stats
 
       # Operator ruling 2026-08-25: the licensed print-conformance suite pdfcer
       # measures itself against is not named anywhere in this PUBLIC repository
