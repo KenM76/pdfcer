@@ -24,8 +24,10 @@ headers or refuse it cleanly.
 | `crlf-shifted-lengths.pdf` | whole-file LF→CRLF conversion of a valid file: offsets shift AND every `/Length` goes stale | `NotAnXrefSection` | OPENS; all 4 objects recovered; `stream_lengths_recovered` = 1; text extractable |
 | `dangling-contents.pdf` | **xref is VALID**; page's `/Contents 4 0 R` names an object the table marks free | none — loads on the strict path | one page, `contents` empty, `contents_unresolved` = 1 |
 | `dangling-contents-array.pdf` | **xref is VALID**; `/Contents [4 0 R 5 0 R 6 0 R]` with object 5 free | none — loads on the strict path | `contents` = `[4 0 R, 6 0 R]` in order, `contents_unresolved` = 1 |
+| `page-tree-cycle.pdf` | **xref is VALID**; the `/Pages` node lists ITSELF in `/Kids` | none — loads on the strict path | `pages()` returns `PageTreeError::Cycle`; a page-surveying consumer reports the scan failure instead of an empty answer (`Pass 290.0`) |
 
-The last three cover the `/Contents` failure class a 4,012-file corpus
+`crlf-shifted-lengths.pdf`, `dangling-contents.pdf` and
+`dangling-contents-array.pdf` cover the `/Contents` failure class a 4,012-file corpus
 census surfaced (341 files, 8.5%, unopenable with "page /Contents is
 neither a stream nor an array of streams"):
 
@@ -118,3 +120,24 @@ In a `verapdf-parse-gate` sweep this file therefore reports as
 A regression that restored preamble preservation flips it to a
 regression, which is why the fixture lives on disk rather than only
 inside the test that builds one inline.
+
+## `page-tree-cycle.pdf` — why a CYCLE, and why it was added late
+
+Added 2026-09-10 (`Pass 290.0`). Two tests — `fontinfo`'s
+`an_unwalkable_page_tree_is_reported_not_rendered_as_no_fonts` and the CLI's
+`an_unwalkable_page_tree_is_flagged_rather_than_reported_as_empty` — needed a
+document whose PAGE TREE will not walk, and both used
+`fixtures/synthetic/minimal.pdf`, whose page merely lacks `/Resources`.
+
+`Pass 290.0` turned that absence into a disclosed default (ISO 32000-1
+§7.7.3.3 Table 30 names the empty dictionary itself as the value for "the
+page requires no resources"), because refusing it cost the whole document —
+including, in the Acrobat stamp file that motivated the Pass, two perfectly
+well-formed pages. Both tests went red, correctly: **they had been reaching a
+real assertion through a defect**, and the tell was that fixing a bug turned
+an unrelated test red.
+
+A cycle has no second reading to soften. §7.7.3.2 describes a tree; a node
+that is its own descendant makes the walk non-terminating rather than
+ambiguous. The fixture is deliberately NOT xref-damaged so that "cannot
+enumerate pages" is tested apart from "cannot open the file".

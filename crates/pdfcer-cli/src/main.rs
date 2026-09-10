@@ -180,7 +180,7 @@
 //!               cmyk_native_image_pixels=<n> rendering_intents_set=<n>
 //!               icc_managed_paints=<n> icc_unmanaged_paints=<n>
 //!               overprint_process_images_unsupported=<n> \
-//!               annots_icon_painted=<n>
+//!               annots_icon_painted=<n> page_resources_defaulted=<0|1>
 //! ```
 //!
 //! ★ **`render-page` prints a SECOND line when `--probe-ink X,Y` is
@@ -320,6 +320,7 @@
 //! | `annots_painted` | `annotations_painted` | "how many of them actually reached the raster?" (a §12.5.5 placement succeeded. Read against `annots`; the shortfall is apportioned across `annots_no_ap`, `annots_hidden`, `annots_state_missing` and `annots_degenerate`, plus scope withholdings this line does not carry — see the note on `annotations_out_of_scope` below the table) |
 //! | `annots_no_ap` | (sum of `annotations_without_ap`) | "how many annotations have NO usable appearance at all — no `/AP`, no `/N`, or an `/N` that is neither stream nor subdictionary?" (a SUM, because the field is a per-`/Subtype` `BTreeMap` and this line's contract is `key=<integer>`; the per-subtype breakdown goes to stderr where a new key cannot break a parser. This is a fact about the FILE and stays true whether or not the annotation was drawn — read it with `annots_icon_painted`, and see that row for why the two are separate) |
 //! | `annots_icon_painted` | `annotations_icon_painted` | "how many of the `annots_no_ap` did the operator nevertheless SEE?" (`Pass 289.0`. An annotation that **names a standard icon** — `/Text` §12.5.6.4, `/Stamp` §12.5.6.12 — is drawn from pdfcer's own artwork, because both tables put that duty on the reader with a `shall`: *"Conforming readers shall provide predefined icon appearances…"*. **`R43` is narrowed, not repealed**: a `/Square` or `/Line` with no `/AP` would need INVENTED GEOMETRY and is still left blank, because §12.5.6.8 addresses *the annotation*, not the reader. The file supplied the NAME; the picture is pdfcer's own, per `LEGAL.md` §4, and stderr says so per annotation) |
+//! | `page_resources_defaulted` | `page_resources_defaulted` | "was this page's `/Resources` on neither the page nor any ancestor, so every name on it was looked up in an empty dictionary pdfcer supplied?" (`Pass 290.0`. §7.7.3.3 Table 30 calls the entry *required; inheritable* and §7.7.3.4 says a value *shall* be supplied in an ancestor node — but Acrobat writes pages that satisfy neither, and refusing them used to cost the WHOLE document, well-formed pages included. `1` on a page WITH content is the single cause behind an otherwise unexplained pile of `unsupported=` / `cs_unresolved=` / unpainted forms; `1` on a page with no `/Contents` is usually inert — but not by construction: §7.8.3 lets a form XObject, including an annotation's `/AP` stream, inherit the page's resource dictionary, which is exactly the stamp-page shape that motivated the Pass) |
 //! | `annots_hidden` | `annotations_hidden` | "how many annotations did the DOCUMENT suppress?" (§12.5.3 Table 165's Hidden and NoView flags — a census of pdfcer obeying the file, not a shortfall, honoured AND counted under R50 because content the operator cannot see is still disclosed) |
 //! | `annots_state_missing` | `annotations_appearance_state_missing` | "how many annotations carry a state subdictionary whose state could not be selected?" (§12.5.5 NOTE 3 — `/AS` absent against a multi-entry subdictionary, or naming a state that is not in it. Displayed as NOTHING, never guessed: a checkbox that should read "on" reads as blank, and this is the only thing that says why) |
 //! | `annots_widget` | `annotations_widget` | "how much of this page's annotation load is FORM FIELDS?" (§12.5.6.19 — census, a subset of `annots`. Widgets are ~88 % of organic annotations, so their share is what drives forms prioritisation rather than anything about this page's correctness) |
@@ -14103,7 +14104,7 @@ blend_space_subtractive={} blend_space_from_output_intent={} blends_in_wrong_spa
 cmyk_buffer={} cmyk_buffer_refused={} cmyk_bridged_pixels={} \
 cmyk_groups_approximated={} cmyk_unbridged_images={} cmyk_native_image_pixels={} rendering_intents_set={} \
 icc_managed_paints={} icc_unmanaged_paints={} \
-overprint_process_images_unsupported={} annots_icon_painted={}",
+overprint_process_images_unsupported={} annots_icon_painted={} page_resources_defaulted={}",
         d.glyphs_substituted,
         d.glyphs_notdef,
         d.fonts_unsupported,
@@ -14480,6 +14481,13 @@ overprint_process_images_unsupported={} annots_icon_painted={}",
         // have broken every positional parser downstream. Readability of the
         // line is not worth a published contract.
         d.annotations_icon_painted,
+        // Appended under the same contract, `Pass 290.0`: this page's
+        // `/Resources` was on neither the page nor any ancestor, so pdfcer
+        // supplied the empty dictionary every name on the page was looked up
+        // in. 1 explains an otherwise unexplained pile of `unsupported=`,
+        // `cs_unresolved=` and unpainted forms; on a page with no content it
+        // is simply a true fact about a file Acrobat writes.
+        usize::from(d.page_resources_defaulted),
     )
 }
 
@@ -27367,7 +27375,7 @@ sourced_pct={:.1} spaces_derived={} lines_derived={} \
 actual_text={} artifacts={} reversed={} identity_no_tounicode={} \
 ucs2_missing={} predefined_cmaps_missing={} tagged={} suspects={} \
 struct_tree={} forms={} rtl_runs={} invisible={} unreadable_pages={} \
-contents_unresolved={} type3_no_tounicode={}",
+contents_unresolved={} type3_no_tounicode={} pages_resources_defaulted={}",
         input.display(),
         extracted.pages.len(),
         extracted.plain_text().chars().count(),
@@ -27404,6 +27412,13 @@ contents_unresolved={} type3_no_tounicode={}",
         // above, and the reason a document can render text this command
         // cannot extract.
         d.type3_fonts_without_to_unicode,
+        // `Pass 290.0`, appended per the same rule: pages whose `/Resources`
+        // was on neither the page nor any ancestor. Text extraction is
+        // font-driven, so such a page has no `/Font` to resolve `Tf`
+        // against — this is the single cause behind what would otherwise
+        // read as a scatter of per-face failures, and the reason a page that
+        // visibly holds text can extract as nothing.
+        d.pages_resources_defaulted,
     );
     if output.is_some() || json {
         // stdout is free (the payload went to a file), or the payload is

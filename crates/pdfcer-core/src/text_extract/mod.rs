@@ -1063,6 +1063,25 @@ pub struct TextDiagnostics {
     /// `chars=0` deserves to know the difference between a page that holds
     /// no text and a page whose text went missing with its stream.
     pub contents_unresolved: u64,
+    /// Extracted pages whose `/Resources` was on neither the page nor any
+    /// ancestor, so every font, XObject and colour-space name in their
+    /// content resolved against the **empty** dictionary pdfcer supplied
+    /// (mirrors [`crate::page_tree::Page::resources_defaulted`], counted).
+    ///
+    /// It matters more here than almost anywhere: text extraction is
+    /// font-driven, and a page with no resource dictionary has no `/Font`
+    /// entry, so its `Tf` names nothing, its widths are estimated and its
+    /// `/ToUnicode` is unavailable. A non-zero value is the reason a page
+    /// that plainly holds text extracted badly or not at all — and, unlike
+    /// the per-font counters, it names a single cause instead of a symptom
+    /// per face.
+    ///
+    /// It is a page COUNT, not a claim of damage — a page with no
+    /// `/Contents` is counted here too, and such a page has no text of its
+    /// own to lose. Read it with `chars`. (Not "harmless" by construction,
+    /// though: §7.8.3 lets a form XObject inherit the page's resource
+    /// dictionary, so text drawn through one can still lose its font.)
+    pub pages_resources_defaulted: u64,
     /// Distinct fonts for which advance widths had to be estimated (no
     /// `/Widths`, not a standard-14 face; the real metrics live in the
     /// font program, which `pdfcer-core` cannot read — R21). Affects
@@ -1106,6 +1125,7 @@ impl TextDiagnostics {
         self.form_depth_overflows += other.form_depth_overflows;
         self.pages_unreadable += other.pages_unreadable;
         self.contents_unresolved += other.contents_unresolved;
+        self.pages_resources_defaulted += other.pages_resources_defaulted;
         self.fonts_with_estimated_widths += other.fonts_with_estimated_widths;
         for note in &other.notes {
             self.note(note.clone());
@@ -1621,6 +1641,21 @@ pub fn extract_page_view(
              to an absent object is the null object; Table 30: absent /Contents = empty page)",
             page_index + 1,
             page.contents_unresolved
+        ));
+    }
+    // Same carry-in as `contents_unresolved` above, for the same reason: the
+    // walk cannot observe an absence that happened before it started. A page
+    // with no resource dictionary looked up every name in an empty one, so a
+    // sparse or empty extraction has a single named cause rather than one
+    // unexplained font failure per face (`Pass 290.0`).
+    if page.resources_defaulted {
+        diagnostics.pages_resources_defaulted += 1;
+        diagnostics.note(format!(
+            "text: page {} has no /Resources on itself or any ancestor \u{2014} pdfcer supplied \
+             an empty resource dictionary, so any font, XObject or colour space this page \
+             names could not be found (ISO 32000-1 \u{a7}7.7.3.3 Table 30: required, \
+             inheritable; \u{a7}7.7.3.4: a value shall be supplied in an ancestor node)",
+            page_index + 1
         ));
     }
     let runs = layout::assemble(items, options, &mut diagnostics);

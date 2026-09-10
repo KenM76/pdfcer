@@ -123,9 +123,74 @@ pub struct Page {
     /// The page object's identity (pages are always reached through
     /// indirect `Kids` references, so this is always known).
     pub id: ObjId,
-    /// Resolved `Resources` (§7.8.3) — own, inherited, or the page's
-    /// explicit empty dictionary.
+    /// Resolved `Resources` (§7.8.3) — own, inherited, the page's
+    /// explicit empty dictionary, or (when the attribute is on neither the
+    /// page nor any ancestor) the empty dictionary pdfcer supplied, which
+    /// [`Self::resources_defaulted`] discloses.
     pub resources: Dict,
+    /// `true` when `/Resources` was on **neither the page nor any
+    /// ancestor**, and this page's [`Self::resources`] is therefore the
+    /// empty dictionary pdfcer supplied rather than one the file wrote.
+    ///
+    /// # Why this is a disclosure rather than a refusal
+    ///
+    /// §7.7.3.3 Table 30 lists `/Resources` as *required; inheritable*, and
+    /// §7.7.3.4 says a value "shall be supplied in an ancestor node" when a
+    /// page has none of its own. A file that satisfies neither is
+    /// non-conforming — but non-conforming is not the same as unreadable,
+    /// and until `Pass 290.0` this attribute alone cost the operator every
+    /// page of the document, including the well-formed ones, because the
+    /// walk returns one `Result` for the whole page tree.
+    ///
+    /// Two files make the case concretely:
+    ///
+    ///   * **Acrobat writes pages like this.** A user-created stamp
+    ///     collection under `%APPDATA%\Adobe\Acrobat\DC\Stamps\` holds a
+    ///     blank spacer page with no `/Contents` and no `/Resources`
+    ///     between two complete stamp pages. The file is what Acrobat uses
+    ///     to sign a document; every reader opens it; pdfcer refused all
+    ///     three pages.
+    ///   * **`fixtures/synthetic/minimal.pdf` — pdfcer's own smallest legal
+    ///     fixture — has no `/Resources`**, so the project shipped a page
+    ///     tree walk that could not read its own minimal file.
+    ///
+    /// # What is and is not claimed when this is `true`
+    ///
+    /// Nothing is invented, and the value is the standard's own: Table 30's
+    /// `/Resources` row says "If the page requires no resources, the value
+    /// of this entry shall be an empty dictionary". A name looked up in the
+    /// dictionary pdfcer supplies fails exactly as it fails in an explicit
+    /// `<< >>` that any file could have written legally — and those failures
+    /// are already counted, one by one, by the renderer
+    /// (`fonts_unsupported`, `cs_unresolved`, unpainted forms) and by the
+    /// extractor. **This flag is the single cause behind them.**
+    ///
+    /// ⚠ It is NOT a claim that the page was harmless. In particular, do not
+    /// reason that a page with no `/Contents` can name nothing: §7.8.3's
+    /// third bullet lets form XObjects and Type 3 fonts omit their own
+    /// `/Resources` and inherit the page's, and ISO 32000-2's erratum
+    /// extends that to **annotation appearance streams**. A page whose only
+    /// marks are annotation `/AP` forms — the shape that motivated this
+    /// Pass — is therefore a page that can genuinely need the dictionary it
+    /// does not have.
+    ///
+    /// # And the file is definitely non-conforming
+    ///
+    /// ISO considered conditioning the requirement on `/Contents` and
+    /// decided against it (`pdf-issues` #81, ISO approved), adding a NOTE to
+    /// ISO 32000-2's `/Contents` row: a `/Resources` dictionary must still
+    /// be present, directly or by inheritance. pdfcer says so rather than
+    /// pretending otherwise — it just does not make the operator pay for it
+    /// with the document. §2.2 scopes a reader's rendering duty to
+    /// *conforming* files and §1 excludes conformance validation from the
+    /// standard's scope, so refusal was never owed; it was chosen.
+    ///
+    /// # For a shell
+    ///
+    /// Report it off-canvas (project rule 4): the page renders normally,
+    /// and the fact that pdfcer supplied the dictionary belongs in a status
+    /// line or a report, never as a mark on the page.
+    pub resources_defaulted: bool,
     /// Resolved `MediaBox`, normalized (§7.9.5).
     pub media_box: Rect,
     /// Resolved `CropBox`, normalized; defaults to `media_box`.
@@ -222,11 +287,35 @@ pub enum PageTreeError {
     /// More than [`MAX_PAGES`] leaves (pdfcer guard).
     #[error("page tree exceeds MAX_PAGES ({MAX_PAGES})")]
     TooManyPages,
-    /// A required inheritable attribute (`Resources` or `MediaBox`)
-    /// resolved nowhere on the path to the root (§7.7.3.4: "a value
-    /// shall be supplied in an ancestor node").
+    /// A required inheritable attribute resolved nowhere on the path to
+    /// the root (§7.7.3.4: "a value shall be supplied in an ancestor
+    /// node").
+    ///
+    /// ★ **`MediaBox` only, since `Pass 290.0`.** `Resources` used to
+    /// produce this too, and it was the wrong severity for the wrong
+    /// attribute: an absent resource dictionary means "no named resource is
+    /// available", which is a statement the empty dictionary makes exactly,
+    /// whereas an absent `MediaBox` means the page has **no geometry** and
+    /// any value pdfcer chose (Letter? A4? the previous page's?) would be
+    /// invented. Continuing requires inventing nothing; that is the line
+    /// decision 145 draws, and `MediaBox` is on the other side of it. See
+    /// [`Page::resources_defaulted`].
     #[error("required page attribute {0} missing on page and all ancestors")]
     MissingRequired(&'static str),
+    /// `/Resources` was present but resolved to something that is **not a
+    /// dictionary** — a number, a name, an array, a string or a stream.
+    ///
+    /// Deliberately narrower than "the attribute is unusable": an absent
+    /// `/Resources`, and one whose reference dangles (§7.3.10 makes that
+    /// the null object; §7.3.9 makes null "equivalent to omitting the
+    /// entry"), are **not** this error. Those degrade to the empty
+    /// dictionary and are disclosed through [`Page::resources_defaulted`].
+    /// This variant is reserved for a value with no spec-sanctioned
+    /// reading, which is a real structural defect and must not be laundered
+    /// into a page that merely renders emptier — the same split
+    /// [`Self::BadContents`] makes, for the same reason.
+    #[error("page /Resources is not a dictionary")]
+    BadResources,
     /// A rectangle entry wasn't an array of four numbers.
     #[error("malformed rectangle in page attribute {0}")]
     BadRectangle(&'static str),
@@ -633,17 +722,92 @@ fn resolve_page<G: ObjectGraph + ?Sized>(
     page: &Dict,
     inherited: &Inherited<'_>,
 ) -> Result<Page, PageTreeError> {
-    // Resources: own → ancestor; required. NOTE the empty-vs-absent
-    // distinction is preserved automatically here: a page with
-    // `/Resources << >>` has an OWN entry (empty dict), which wins
-    // over any ancestor value.
-    let resources = page
+    // Resources: own → ancestor; §7.7.3.3 Table 30 calls it "required;
+    // inheritable". NOTE the empty-vs-absent distinction is preserved
+    // automatically here: a page with `/Resources << >>` has an OWN entry
+    // (empty dict), which wins over any ancestor value.
+    //
+    // ★★ ABSENT EVERYWHERE IS THE EMPTY RESOURCE DICTIONARY, NOT A REFUSAL.
+    //
+    // This used to be `.ok_or(MissingRequired("Resources"))?` — and the `?`
+    // is on a walk that returns `Result<Vec<Page>, _>` for the WHOLE
+    // document, so one page missing the attribute cost every other page in
+    // the file. Two facts settle which reading is right:
+    //
+    //   * **Acrobat writes such pages.** A user-authored stamp collection in
+    //     Acrobat's own preferences folder carries a blank spacer page with
+    //     no `/Contents` and no `/Resources`, alongside two complete pages;
+    //     pdfcer refused all three. The reference implementation opens it,
+    //     and it is the file an operator signs drawings with.
+    //   * **pdfcer's own `fixtures/synthetic/minimal.pdf` has no
+    //     `/Resources` either**, so this walk could not render the smallest
+    //     legal file the project ships. `plan_paste_at` had already grown a
+    //     hand-written bypass around this exact refusal for annotation-only
+    //     pastes — a guard a caller has to route around is the defect, not
+    //     the caller.
+    //
+    // ★ THE FILE IS CERTAINLY NON-CONFORMING, AND THAT STRENGTHENS THE CASE
+    // RATHER THAN WEAKENING IT. ISO considered conditioning `/Resources` on
+    // `/Contents` and decided AGAINST it: `pdf-issues` #81 ("Are Page node
+    // Resources required even if Contents is not present?", ISO approved,
+    // Feb 2022 submission) resolved by appending a NOTE to ISO 32000-2's
+    // `/Contents` row — "If the Contents key is not present, a Resources
+    // dictionary must still be present, either directly or through
+    // inheritance, in the pages tree." So this is not a grey area pdfcer
+    // gets to read generously.
+    //
+    // It is a conformance judgement, not a behaviour: §2.1 binds the FILE,
+    // §2.3 the WRITER, and §2.2 scopes the reader's rendering duty to
+    // "conforming files" — while §1 Scope excludes "methods for validating
+    // the conformance of PDF files or readers" outright. Nothing in ISO
+    // 32000 says what a reader does with a file that violates a `shall`.
+    // Refusing is therefore a choice pdfcer made, never one it was owed, and
+    // the erratum's own motivation was "some issues with some PDF parsers
+    // not liking no Contents keys" — the reader is the known failure mode.
+    //
+    // Nothing is invented by defaulting, and the standard supplies the value:
+    // Table 30's own `/Resources` row says "If the page requires no
+    // resources, the value of this entry shall be an empty dictionary". A
+    // name looked up in the dictionary pdfcer supplies therefore fails
+    // exactly as it fails in an explicit `<< >>` a file could have written
+    // legally — the renderer and the extractor count those failures already.
+    // Refusing the document instead is the "fail-clean never meant refuse"
+    // mistake decision 145 corrected one attribute along, and it escalates a
+    // ONE-PAGE, ONE-ATTRIBUTE defect to the whole file, which §7.7.3.4 never
+    // asks for.
+    //
+    // ⚠ Do NOT rebuild this argument on "a page with no `/Contents` can
+    // never name a resource" — that reading is false and the spec librarian
+    // caught it here. §7.8.3's third bullet: files written to earlier PDF
+    // versions "may have omitted the Resources entry in all form XObjects
+    // and Type 3 fonts used on a page", and those resources "shall be
+    // inherited from the resource dictionary of the page on which they are
+    // used" — which ISO 32000-2's erratum extends explicitly to annotation
+    // appearance streams. A page whose only marks are annotation `/AP`
+    // forms is exactly the shape that motivated this Pass, so the
+    // contentless case is not self-evidently harmless; it is merely one
+    // more failed lookup, disclosed like the rest.
+    //
+    // The disclosure is [`Page::resources_defaulted`] — R20 /
+    // fuzzy-never-sneaky: the operator learns the page was incomplete, and
+    // does not lose the file to learn it.
+    //
+    // The absent/null vs wrong-type split is the same one `/Contents` makes
+    // below, for the same reason. A reference to an object the file does not
+    // contain IS the null object (§7.3.10), and a null value is "equivalent
+    // to omitting the entry" (§7.3.9), so both degrade. A number, a name, an
+    // array or a stream has no spec-sanctioned reading and still fails the
+    // page — laundering those into an empty dictionary would hide a real
+    // structural defect behind a page that merely renders emptier.
+    let (resources, resources_defaulted) = match page
         .get(b"Resources")
         .or(inherited.resources)
         .map(|o| doc.resolve(o))
-        .and_then(Object::as_dict)
-        .cloned()
-        .ok_or(PageTreeError::MissingRequired("Resources"))?;
+    {
+        Some(Object::Dict(d)) => (d.clone(), false),
+        None | Some(Object::Null) => (Dict::new(), true),
+        Some(_) => return Err(PageTreeError::BadResources),
+    };
 
     let media_box = page
         .get(b"MediaBox")
@@ -712,6 +876,7 @@ fn resolve_page<G: ObjectGraph + ?Sized>(
     Ok(Page {
         id,
         resources,
+        resources_defaulted,
         media_box,
         crop_box,
         rotate,
@@ -1014,6 +1179,132 @@ mod tests {
         ]);
         let pages = pages(&doc).unwrap();
         assert!(pages[0].resources.is_empty());
+        // An explicit `<< >>` is the file's own statement, not pdfcer's.
+        // The two must stay distinguishable or the disclosure would accuse
+        // a well-formed file of being incomplete.
+        assert!(!pages[0].resources_defaulted);
+    }
+
+    /// The Acrobat shape, and the regression this Pass exists for: a
+    /// three-page file whose FIRST page is a blank spacer with no
+    /// `/Contents` and no `/Resources`, and whose other two are complete.
+    ///
+    /// Before `Pass 290.0` `pages()` returned `Err(MissingRequired)` for the
+    /// whole document, so one degenerate page cost the operator two perfect
+    /// ones — in a real file (`%APPDATA%\Adobe\Acrobat\DC\Stamps\…`, his
+    /// signature stamps) that every other reader opens.
+    ///
+    /// ★ The assertions are deliberately three: that the walk SUCCEEDS,
+    /// that the two good pages keep the resources the file gave them, and
+    /// that the flag is `true` on exactly the page that lacked the
+    /// attribute. Testing only the first would pass on a build that
+    /// defaulted every page's resources to empty.
+    #[test]
+    fn a_resourceless_page_does_not_cost_its_siblings() {
+        let doc = build_pdf(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+            (
+                2,
+                "<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 \
+                 /MediaBox [0 0 612 792] >>",
+            ),
+            // The spacer: no /Contents, so no resource can ever be named.
+            (3, "<< /Type /Page /Parent 2 0 R >>"),
+            (
+                4,
+                "<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 9 0 R >> >> >>",
+            ),
+            (
+                5,
+                "<< /Type /Page /Parent 2 0 R /Resources << /XObject << /Im0 9 0 R >> >> >>",
+            ),
+        ]);
+        let pages = pages(&doc).unwrap();
+        assert_eq!(pages.len(), 3);
+        assert!(pages[0].resources_defaulted);
+        assert!(pages[0].resources.is_empty());
+        assert!(!pages[1].resources_defaulted);
+        assert!(pages[1].resources.contains_key(b"Font"));
+        assert!(!pages[2].resources_defaulted);
+        assert!(pages[2].resources.contains_key(b"XObject"));
+    }
+
+    /// Defaulting must not shadow inheritance. A page with no `/Resources`
+    /// of its own whose ANCESTOR has one still inherits it, and reports
+    /// nothing — this is the ordinary well-formed shape, and a build that
+    /// defaulted before consulting the ancestor would silently strip every
+    /// font from every page of a file that inherits its resources (the
+    /// §7.7.3.4 pattern, which is common).
+    #[test]
+    fn an_inherited_resource_dictionary_is_not_a_default() {
+        let doc = build_pdf(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+            (
+                2,
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 10 10] \
+                 /Resources << /Font << /F1 9 0 R >> >> >>",
+            ),
+            (3, "<< /Type /Page /Parent 2 0 R >>"),
+        ]);
+        let pages = pages(&doc).unwrap();
+        assert!(!pages[0].resources_defaulted);
+        assert!(pages[0].resources.contains_key(b"Font"));
+    }
+
+    /// A `/Resources` whose reference names an object the file does not
+    /// contain degrades exactly like an absent one: §7.3.10 makes such a
+    /// reference the null object and §7.3.9 makes a null value equivalent
+    /// to omitting the entry, so there is no third reading to invent.
+    #[test]
+    fn a_dangling_resources_reference_degrades_like_an_absent_one() {
+        let doc = build_pdf(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+            (
+                2,
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 10 10] >>",
+            ),
+            (3, "<< /Type /Page /Parent 2 0 R /Resources 99 0 R >>"),
+        ]);
+        let pages = pages(&doc).unwrap();
+        assert!(pages[0].resources_defaulted);
+        assert!(pages[0].resources.is_empty());
+    }
+
+    /// …but a `/Resources` that is present and is NOT a dictionary still
+    /// fails the page. There is no spec-sanctioned reading of `/Resources 42`,
+    /// and laundering it into an empty dictionary would hide a real
+    /// structural defect behind a page that merely renders emptier — the
+    /// same split `/Contents` makes between a dangling reference and a value
+    /// of the wrong type.
+    #[test]
+    fn a_resources_entry_of_the_wrong_type_still_fails_the_page() {
+        let doc = build_pdf(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+            (
+                2,
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 10 10] >>",
+            ),
+            (3, "<< /Type /Page /Parent 2 0 R /Resources 42 >>"),
+        ]);
+        assert_eq!(pages(&doc).unwrap_err(), PageTreeError::BadResources);
+    }
+
+    /// `MediaBox` did NOT move with `Resources`, and the difference is the
+    /// whole boundary decision 145 draws: an empty resource dictionary says
+    /// what the file says, while any media box pdfcer picked would be a size
+    /// nobody wrote. A future session tempted to "finish the job" by
+    /// defaulting this one to Letter should read this test as the answer.
+    #[test]
+    fn a_missing_media_box_is_still_fatal_to_the_page() {
+        let doc = build_pdf(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+            (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+            (3, "<< /Type /Page /Parent 2 0 R >>"),
+        ]);
+        assert_eq!(
+            pages(&doc).unwrap_err(),
+            PageTreeError::MissingRequired("MediaBox")
+        );
     }
 
     #[test]

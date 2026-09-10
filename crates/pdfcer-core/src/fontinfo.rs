@@ -3055,17 +3055,38 @@ mod tests {
 
     /// ★ An empty list and an unsearchable document must not look alike.
     ///
-    /// `minimal.pdf`'s page has no `/Resources`, which Table 30 marks
-    /// Required, so [`crate::page_tree::pages_in`] refuses the whole walk.
-    /// The inventory still returns — refusing the report over one damaged
-    /// page tree would cost the operator the AcroForm sweep too — but it
-    /// **says** the page scan failed. Without that flag, "this document has
-    /// no fonts" and "pdfcer could not look" would print identically, which
-    /// is the exact shape of confident-but-blind reporting this module's
-    /// coverage discipline exists to prevent.
+    /// The inventory still returns when the page tree cannot be walked —
+    /// refusing the report over one damaged page tree would cost the
+    /// operator the AcroForm sweep too — but it **says** the page scan
+    /// failed. Without that flag, "this document has no fonts" and "pdfcer
+    /// could not look" would print identically, which is the exact shape of
+    /// confident-but-blind reporting this module's coverage discipline
+    /// exists to prevent.
+    ///
+    /// ★★ THE FIXTURE CHANGED IN `Pass 290.0`, AND WHY IS THE INTERESTING
+    /// PART. This test used to open `fixtures/synthetic/minimal.pdf`,
+    /// because that file's page has no `/Resources` and the walk refused
+    /// the whole document over it. That refusal was the defect `Pass 290.0`
+    /// removed — an absent resource dictionary now defaults to the empty
+    /// one and is disclosed through `Page::resources_defaulted` — so the
+    /// fixture stopped being unwalkable and this test went red at exactly
+    /// the moment it should have.
+    ///
+    /// The assertion is unchanged and still correct; only the way the file
+    /// is made unwalkable moved, to a page-tree **cycle**, which is
+    /// structural damage with no reading at all. Note the class of hazard:
+    /// a test can be right about the thing it names while depending on a
+    /// DEFECT to reach it (`R225`), and the tell is that fixing a bug turns
+    /// an unrelated test red.
     #[test]
     fn an_unwalkable_page_tree_is_reported_not_rendered_as_no_fonts() {
-        let doc = open(include_bytes!("../../../fixtures/synthetic/minimal.pdf"));
+        // `/Kids` points back at the node itself: §7.7.3.2's tree is
+        // acyclic by construction, so this is damage the walk must refuse
+        // rather than resolve.
+        let doc = open(&pdf_with_objects(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+            (2, "<< /Type /Pages /Kids [2 0 R] /Count 1 >>"),
+        ]));
         let inv = inv_of(&doc);
         assert!(inv.fonts.is_empty());
         assert!(
@@ -3073,6 +3094,39 @@ mod tests {
             "an empty list from an unwalkable page tree must be flagged, not presented as an answer"
         );
         assert!(!inv.diagnostics.is_clean());
+    }
+
+    /// Assemble a tiny well-formed PDF around the given object bodies, with
+    /// a correct cross-reference table — the same builder shape
+    /// `page_tree`'s tests use, kept local so this module's tests stay
+    /// self-contained.
+    fn pdf_with_objects(objects: &[(u32, &str)]) -> Vec<u8> {
+        let mut buf = b"%PDF-1.4\n".to_vec();
+        let mut offsets: Vec<(u32, usize)> = Vec::new();
+        for (num, body) in objects {
+            offsets.push((*num, buf.len()));
+            buf.extend_from_slice(format!("{num} 0 obj\n{body}\nendobj\n").as_bytes());
+        }
+        let xref_at = buf.len();
+        let max_num = objects.iter().map(|(n, _)| *n).max().unwrap_or(0);
+        buf.extend_from_slice(format!("xref\n0 {}\n", max_num + 1).as_bytes());
+        buf.extend_from_slice(b"0000000000 65535 f\r\n");
+        for num in 1..=max_num {
+            match offsets.iter().find(|(n, _)| *n == num) {
+                Some((_, off)) => {
+                    buf.extend_from_slice(format!("{off:010} 00000 n\r\n").as_bytes());
+                }
+                None => buf.extend_from_slice(b"0000000000 65535 f\r\n"),
+            }
+        }
+        buf.extend_from_slice(
+            format!(
+                "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n",
+                max_num + 1
+            )
+            .as_bytes(),
+        );
+        buf
     }
 
     /// Verdict tokens are stable and distinct — a corpus sweep buckets on

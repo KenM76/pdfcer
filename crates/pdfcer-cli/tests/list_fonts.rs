@@ -292,9 +292,16 @@ fn by_size_sorts_largest_first() {
 /// An unwalkable page tree is **reported**, not rendered as "no fonts".
 /// Without the flag, "this document has no fonts" and "pdfcer could not
 /// look" print identically, which is confident-but-blind reporting.
+///
+/// ★ The fixture moved in `Pass 290.0`, from `minimal.pdf` to a page tree
+/// that names ITSELF in `/Kids`. `minimal.pdf` was unwalkable only because
+/// its page has no `/Resources`, and that refusal was the defect the Pass
+/// removed — so this test had been reaching a correct assertion through a
+/// bug, and went red when the bug did. A cycle is damage with no second
+/// reading, which is what a fixture for "unwalkable" has to be.
 #[test]
 fn an_unwalkable_page_tree_is_flagged_rather_than_reported_as_empty() {
-    let (stdout, stderr) = run("minimal.pdf", &[]);
+    let (stdout, stderr) = run("xref-recover/page-tree-cycle.pdf", &[]);
     assert!(stdout.contains("fonts=0"), "{stdout}");
     assert!(stdout.contains("PAGE_SCAN_FAILED"), "{stdout}");
     assert!(

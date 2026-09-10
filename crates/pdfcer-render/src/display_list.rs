@@ -951,6 +951,11 @@ fn record_impl(
                 ..Diagnostics::default()
             }
         };
+        // Set on BOTH branches, unlike `contents_streams_unresolved` above:
+        // the page-tree walk decides this whether or not page content is
+        // painted, so a scope that suppresses content has no excuse for
+        // dropping a fact it already holds.
+        diagnostics.page_resources_defaulted = page.resources_defaulted;
         crate::annot::survey_page_annotations(
             doc,
             page,

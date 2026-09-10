@@ -373,6 +373,51 @@ def fx_dangling_contents():
     return bytes(buf)
 
 
+def fx_page_tree_cycle():
+    """A file with a PERFECTLY VALID cross-reference table whose page tree
+    node lists ITSELF in `/Kids`.
+
+    ★ Why this fixture exists, and what it replaced. Two tests needed a
+    document whose PAGE TREE cannot be walked, and both used
+    `fixtures/synthetic/minimal.pdf` — whose page merely had no
+    `/Resources`. `Pass 290.0` made that a disclosed default instead of a
+    refusal (Table 30's own "if the page requires no resources, the value
+    of this entry shall be an empty dictionary"), so those tests went red:
+    they had been reaching a real assertion through a DEFECT.
+
+    A cycle has no such second reading. §7.7.3.2 describes a tree, and a
+    node that is its own descendant makes the walk non-terminating rather
+    than ambiguous — there is nothing for a future Pass to soften, which is
+    exactly the property a fixture for "unwalkable" needs.
+
+    Deliberately NOT xref-damaged: the document must LOAD cleanly and fail
+    only at the page walk, so a consumer's "I could not enumerate pages" is
+    tested apart from "I could not open the file".
+
+    Expected: OPENS on the strict path; `pages()` returns
+    `PageTreeError::Cycle`; consumers that survey pages report the scan
+    failure rather than an empty answer.
+    """
+    objs = {
+        1: b"<< /Type /Catalog /Pages 2 0 R >>",
+        # /Kids names the node itself. /Count is a lie, and that is fine —
+        # the walk follows Kids, not Count (§7.7.3.2 makes Count the number
+        # of LEAF nodes, and a damaged file's Count is not evidence).
+        2: b"<< /Type /Pages /Kids [2 0 R] /Count 1 >>",
+    }
+    buf, off = emit_bodies(objs)
+    size = 3
+    xref_at = len(buf)
+    x = bytearray(b"xref\n0 %d\n" % size)
+    x += b"0000000000 65535 f \n"
+    for num in (1, 2):
+        x += b"%010d 00000 n \n" % off[num]
+    buf += x
+    buf += classic_trailer(size)
+    buf += b"startxref\n%d\n%%%%EOF\n" % xref_at
+    return bytes(buf)
+
+
 def fx_dangling_contents_array():
     """As `fx_dangling_contents`, but `/Contents` is an ARRAY whose middle
     element is the dangling one, flanked by two real streams.
@@ -458,6 +503,7 @@ FIXTURES = {
     "header-preamble.pdf": fx_header_preamble,
     "unrecoverable-no-catalog.pdf": fx_unrecoverable_no_catalog,
     "missing-endobj-page-tree.pdf": fx_missing_endobj_on_page_tree,
+    "page-tree-cycle.pdf": fx_page_tree_cycle,
 }
 
 

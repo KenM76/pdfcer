@@ -563,6 +563,12 @@ fn renders_a_single_page_to_png_with_the_stable_stdout_line() {
             // Appended by `Pass 289.0` -- new keys go at the END, never
             // beside their relatives, because this list IS the contract.
             "annots_icon_painted",
+            // Appended by `Pass 290.0`, same rule: whether this page's
+            // `/Resources` was supplied by pdfcer because the file had none
+            // on the page or any ancestor. `0|1` rather than a count -- it
+            // is one fact about one page dictionary -- but it still parses
+            // as an integer, which is all the contract promises.
+            "page_resources_defaulted",
         ],
         "metrics key order is part of the stable contract"
     );

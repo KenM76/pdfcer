@@ -101,9 +101,9 @@ builds `--no-default-features`, so both configurations compile.
 | Get the document catalog | `ObjectGraph::catalog_dict() -> Option<&Dict>` — `graph.rs:187` (or `Document::catalog() -> Result` — `document.rs:982`) | §5 |
 | Iterate every object in the file | `Document::objects()` — `document.rs:997`; count via `object_count()` — `document.rs:992` | §4 |
 | Read a dictionary key (null-collapsing, per spec) | `Dict::get(&[u8]) -> Option<&Object>` — `object.rs:157` | §4.2 |
-| Get a page list with inheritance resolved | `page_tree::pages(&Document) -> Result<Vec<Page>, _>` — `page_tree.rs:228` | §6 |
-| Do the same over an edit session or any graph | `page_tree::pages_in::<G: ObjectGraph>(&G)` — `page_tree.rs:245` | §6 |
-| Get a page's MediaBox / CropBox / rotation | `Page::media_box`, `::crop_box`, `::rotate` — `page_tree.rs:111,115,118` | §6 |
+| Get a page list with inheritance resolved | `page_tree::pages(&Document) -> Result<Vec<Page>, _>` — `page_tree.rs:372` | §6 |
+| Do the same over an edit session or any graph | `page_tree::pages_in::<G: ObjectGraph>(&G)` — `page_tree.rs:389` | §6 |
+| Get a page's MediaBox / CropBox / rotation | `Page::media_box`, `::crop_box`, `::rotate` — `page_tree.rs:195,198,201` | §6 |
 | Build a read view to pass to render/vector/content | `Document::view() -> DocumentView<'_>` — `document.rs:910` | §5.2 |
 | Decode + tokenize a page's content streams | `ContentStream::from_page(&DocumentView, &Page)` — `content.rs:208` | §7 |
 | Walk content-stream operators semantically | `ContentStream::operations()` — `content.rs:296`; name via `Operation::operator_name(buf)` — `content.rs:137` | §7 |
@@ -192,7 +192,7 @@ Two coordinate subtleties inside user space itself:
 
 ### 2.2 Page rotation is NOT applied to geometry
 
-`Page::rotate` (`page_tree.rs:117`) is a display instruction — 0/90/180/270
+`Page::rotate` (`page_tree.rs:201`) is a display instruction — 0/90/180/270
 clockwise. Every geometry value core hands you (`media_box`, `TextRun::bbox`,
 `Bounds`, `Point`, snap candidates, hit-test input) is in **unrotated** page
 space. Your canvas applies the rotation. Passing a rotation-adjusted point
@@ -793,35 +793,37 @@ base-vs-session distinction is a decided design, not a transitional state.
 ```rust
 use pdfcer_core::page_tree::{self, Page, Rect, PageTreeError};
 
-let pages: Vec<Page> = page_tree::pages(&doc)?;        // page_tree.rs:228
+let pages: Vec<Page> = page_tree::pages(&doc)?;        // page_tree.rs:372
 // Generic over any graph — use for an EditSession:
-let pages = page_tree::pages_in(&session)?;            // page_tree.rs:245
+let pages = page_tree::pages_in(&session)?;            // page_tree.rs:389
 ```
 
 **★ `pages(&doc)` is the base revision, not the edited state.**
-`page_tree.rs:218-221` flags this with a warning marker: anything that must
+`page_tree.rs:362-365` flags this with a warning marker: anything that must
 see unsaved structural edits calls `EditSession::pages()` (`edit.rs:4016`),
 which walks the overlay through the same code. After a page delete, a base
 walk still returns the deleted page.
 
-Also available: `page_slots(&G) -> Vec<PageSlot>` (`page_tree.rs:362`) with
-`PageSlot` (`:283`) and `InheritedRaw` (`:306`) — the unresolved view, for
+Also available: `page_slots(&G) -> Vec<PageSlot>` (`page_tree.rs:506`) with
+`PageSlot` (`:427`) and `InheritedRaw` (`:450`) — the unresolved view, for
 writers that need to know where an attribute physically lives. A read-only
 GUI wants `pages`/`pages_in`.
 
-### 6.2 `Page` — `page_tree.rs:103`
+### 6.2 `Page` — `page_tree.rs:122`
 
 | Field | Type | Line | Notes |
 |---|---|---|---|
-| `id` | `ObjId` | `:106` | always known (pages are reached via indirect `Kids`) |
-| `resources` | `Dict` | `:109` | resolved: own, inherited, or explicit empty |
-| `media_box` | `Rect` | `:111` | normalised, user space, points |
-| `crop_box` | `Rect` | `:114` | defaults to `media_box`; **this is what you clip display to** (Table 30) |
-| `rotate` | `u16` | `:117` | 0/90/180/270 clockwise, display only — see §2.2 |
-| `contents` | `Vec<ObjId>` | `:122` | in order; concatenate. Empty = empty page, **not** an error |
-| `contents_unresolved` | `usize` | `:147` | **see below** |
+| `id` | `ObjId` | `:125` | always known (pages are reached via indirect `Kids`) |
+| `resources` | `Dict` | `:130` | resolved: own, inherited, explicit empty, or **defaulted** — see the next row |
+| `resources_defaulted` | `bool` | `:193` | **see below** (`Pass 290.0`) |
+| `media_box` | `Rect` | `:195` | normalised, user space, points |
+| `crop_box` | `Rect` | `:198` | defaults to `media_box`; **this is what you clip display to** (Table 30) |
+| `rotate` | `u16` | `:201` | 0/90/180/270 clockwise, display only — see §2.2 |
+| `contents` | `Vec<ObjId>` | `:206` | in order; concatenate. Empty = empty page, **not** an error |
+| `contents_unresolved` | `usize` | `:231` | **see below** |
+| `contents_flattened` | `usize` | `:267` | nested `/Contents` arrays flattened on the way in (damage a pre-`Pass 111.0` pdfcer wrote) |
 
-**★ `contents_unresolved` is a count you must surface.** `page_tree.rs:123-146`:
+**★ `contents_unresolved` is a count you must surface.** `page_tree.rs:207-230`:
 a `/Contents` element naming an object not in the file degrades to nothing
 (§7.3.10 makes a dangling reference the null object; Table 30 makes absent
 `/Contents` an empty page). Non-zero means *"content the page asked for
@@ -835,6 +837,33 @@ Note the boundary: an element of the wrong *type* (a number, a dict, a
 non-reference) is still a hard `PageTreeError::BadContents`. Only
 resolves-to-null degrades.
 
+**★★ `resources_defaulted` is the same obligation one attribute along
+(`Pass 290.0`).** `true` means `/Resources` was on neither the page nor any
+ancestor, so `resources` is an empty dictionary **pdfcer supplied**. Until
+`Pass 290.0` that case returned `MissingRequired("Resources")` — and because
+the walk returns one `Result` for the whole tree, one such page cost the
+caller EVERY page of the document. Acrobat writes such pages (a blank spacer
+in a user-created stamp collection), and so did `fixtures/synthetic/minimal.pdf`.
+
+What to do with it: report it off-canvas, never as a mark on the page (rule
+4). When the flag is `true` and the page has content, expect a page-wide
+scatter of resource-name failures — `fonts_unsupported`, `cs_unresolved`,
+unpainted form XObjects — all with this one cause. Do **not** tell the
+operator a contentless page is automatically harmless: §7.8.3 lets a form
+XObject, including an annotation `/AP` stream (per ISO 32000-2's erratum),
+inherit the page's resource dictionary.
+
+The file is genuinely non-conforming — ISO considered conditioning
+`/Resources` on `/Contents` and decided against it (`pdf-issues` #81, ISO
+approved) — so say so if you are validating. Just do not charge the operator
+the document for it: §2.2 scopes a reader's rendering duty to *conforming*
+files and §1 puts conformance validation outside the standard's scope, so
+refusal was a choice, never an obligation.
+
+Same boundary as `/Contents`: a `/Resources` that is present and is not a
+dictionary is a hard `PageTreeError::BadResources`. Absent, or a reference
+that dangles (§7.3.10 + §7.3.9), degrades.
+
 ### 6.3 `Rect` — `page_tree.rs:63`
 
 `{llx, lly, urx, ury}: f64`, **always normalised** (min,min)→(max,max)
@@ -842,15 +871,22 @@ because §7.9.5 allows the corners in either order. Construct via
 `Rect::from_corners(x1,y1,x2,y2)` (`:78`). `width()` `:88` and `height()`
 `:98` are non-negative by construction.
 
-### 6.4 `PageTreeError` — `page_tree.rs:153`, `#[non_exhaustive]`
+### 6.4 `PageTreeError` — `page_tree.rs:273`, `#[non_exhaustive]`
 
-`NoPageTreeRoot` `:156` · `BadKid(ObjId)` `:159` · `Cycle(ObjId)` `:162` ·
-`TooDeep` `:165` · `TooManyPages` `:168` · `MissingRequired(&'static str)`
-`:173` · `BadRectangle(&'static str)` `:176` · `BadRotate(i64)` `:179` ·
-`BadContents` `:196`.
+`NoPageTreeRoot` `:276` · `BadKid(ObjId)` `:280` · `Cycle(ObjId)` `:283` ·
+`TooDeep` `:286` · `TooManyPages` `:289` · `MissingRequired(&'static str)`
+`:304` · `BadResources` `:318` · `BadRectangle(&'static str)` `:321` ·
+`BadRotate(i64)` `:324` · `BadContents` `:339`. **Ten variants.**
+
+★ `MissingRequired` means `MediaBox` and nothing else since `Pass 290.0`.
+An absent `/Resources` no longer fails the page — see `resources_defaulted`
+below — because Table 30 itself names the empty dictionary as the value for
+*"the page requires no resources"*, while no clause anywhere names a default
+media box. `BadResources` is the narrow survivor: `/Resources` present and
+not a dictionary.
 
 A well-formed empty tree (`/Count 0`, empty `Kids`) returns an **empty
-vec, not an error** (`page_tree.rs:226-227`).
+vec, not an error** (`page_tree.rs:370-371`).
 
 ### 6.5 Worked sequence — page list for a thumbnail rail
 

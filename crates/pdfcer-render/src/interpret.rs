@@ -219,6 +219,30 @@ pub struct Diagnostics {
     /// named reason (§7.3.10 + Table 30 — a dangling reference is the null
     /// object, and an absent `Contents` is an empty page).
     pub contents_streams_unresolved: usize,
+    /// `true` when this page's `/Resources` was on neither the page nor any
+    /// ancestor, so the dictionary every name in the content stream was
+    /// looked up in is the **empty** one pdfcer supplied
+    /// ([`pdfcer_core::page_tree::Page::resources_defaulted`]).
+    ///
+    /// Like [`Self::contents_streams_unresolved`] this is decided before
+    /// interpretation and copied in by the render entry point — it is a
+    /// property of the page dictionary, not of any operator. Unlike it, it
+    /// is set **whatever the scope**, because the page-tree walk establishes
+    /// it whether or not page content is painted: pdfcer did look, and it
+    /// looked in the only place the answer lives.
+    ///
+    /// What it explains, and why a count would not: when this is `true` and
+    /// the page has content, every resource-name lookup on the page fails at
+    /// once — `fonts_unsupported`, `cs_unresolved`, an unpainted XObject —
+    /// and each of those counts reports a *symptom*. This flag is the single
+    /// *cause*, and without it an operator reads a page-wide failure as a
+    /// pile of unrelated ones. A page with no `/Contents` is **not**
+    /// automatically the harmless case, despite Table 30's "the page shall
+    /// be empty": §7.8.3 lets a form XObject — including an annotation's
+    /// `/AP` stream, per ISO 32000-2's erratum — inherit the page's resource
+    /// dictionary, so a page whose only marks are annotations can genuinely
+    /// need what it does not have (`Pass 290.0`).
+    pub page_resources_defaulted: bool,
     /// Operators recognized but not yet implemented (XObjects,
     /// shading, marked content, Type 3 glyph procedures, and `Tr`'s
     /// clipping modes 4–7), with occurrence counts folded into one

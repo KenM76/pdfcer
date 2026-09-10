@@ -736,6 +736,12 @@ fn render_impl(
             }
         };
 
+        // Set on BOTH branches, unlike `contents_streams_unresolved` above:
+        // the page-tree walk decides this whether or not page content is
+        // painted, so a scope that suppresses content has no excuse for
+        // dropping a fact it already holds.
+        diagnostics.page_resources_defaulted = page.resources_defaulted;
+
         // Pass 6.0: survey the page's annotations (ISO 32000-1 §12.5;
         // docs/decisions/008) and paint their appearances OVER the page content
         // (their natural z-order). The survey always COUNTS; painting is gated
