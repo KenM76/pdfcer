@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-10 (498th filing) — the queue was a fifth finished work, and the rules now say who enforces them
+
+**Shipped:** `93b7bbf` — 19 of `ROADMAP.md`'s 99 *Next up* items described a
+Pass that had already shipped; moved verbatim to
+`docs/history/roadmap-nextup-already-shipped.md`. `ROADMAP.md` 30,324 →
+26,542; queue 99 → 80 items; register-size debt 136 → 117. Found by script
+(a Next-up `Pass N.M` matched against every Shipped heading carrying a hash),
+so it will find the next batch too.
+
+Plus the rule-enforcement column (`8e426e9`): `tools/annotate-rule-gates.py` marks every
+standing rule whose own text names a script in `tools/`. **44 of 187 do.** The
+header records the other 143 as a backlog and explicitly declines to call them
+judgment calls, which is a reading nobody has done.
+
+**Owed:** `Backlog` (9,566 lines) is the remaining bulk and needs editorial
+judgment. The 143 unenforced rules want a per-rule verdict: gate it, or bin
+it.
+
 ## 2026-09-10 (497th filing) — the registers were the bottleneck
 
 **Shipped:** `a12dca6`, `233a9ef` — the register trim. `ROADMAP.md`
