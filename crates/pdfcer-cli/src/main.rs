@@ -3311,8 +3311,17 @@ enum Command {
         category: String,
         /// One per page, in page order, as `Internal=Display` or just
         /// `Display`. Repeat the flag.
-        #[arg(long = "stamp", required = true)]
+        #[arg(long = "stamp", required_unless_present = "stamps_from")]
         stamps: Vec<String>,
+        /// Read the names from a text file instead — one per line, in page
+        /// order, same `Internal=Display` or `Display` form. Blank lines and
+        /// lines beginning `#` are skipped.
+        ///
+        /// For a downloaded artwork sheet this is the only practical route:
+        /// they run to a hundred pages or more, and repeating `--stamp` that
+        /// many times is not a command anybody types twice.
+        #[arg(long, conflicts_with = "stamps")]
+        stamps_from: Option<PathBuf>,
         /// Where to write the collection.
         #[arg(long, short)]
         output: PathBuf,
@@ -10264,8 +10273,9 @@ fn run() -> ExitCode {
             input,
             category,
             stamps,
+            stamps_from,
             output,
-        } => cmd_stamp_pack(&input, &category, &stamps, &output),
+        } => cmd_stamp_pack(&input, &category, &stamps, stamps_from.as_deref(), &output),
         Command::RenderPage {
             input,
             page,
@@ -41822,7 +41832,40 @@ fn cmd_stamp_list(input: &Path) -> u8 {
 }
 
 /// `stamp-pack` — name a PDF's pages as stamps (`Pass 288.0`).
-fn cmd_stamp_pack(input: &Path, category: &str, stamps: &[String], output: &Path) -> u8 {
+fn cmd_stamp_pack(
+    input: &Path,
+    category: &str,
+    stamps: &[String],
+    stamps_from: Option<&Path>,
+    output: &Path,
+) -> u8 {
+    // The name list, from `--stamps-from` when given. Blank lines and `#`
+    // comments are skipped so a downloaded artwork sheet's name list can carry
+    // section headings the way a human would write one.
+    let from_file: Vec<String> = match stamps_from {
+        Some(path) => match std::fs::read_to_string(path) {
+            Ok(text) => text
+                .lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty() && !l.starts_with('#'))
+                .map(str::to_owned)
+                .collect(),
+            Err(err) => {
+                eprintln!("pdfcer: stamp-pack: {}: {err}", path.display());
+                return exit::RUNTIME_ERROR;
+            }
+        },
+        None => Vec::new(),
+    };
+    let stamps: &[String] = if stamps_from.is_some() {
+        &from_file
+    } else {
+        stamps
+    };
+    if stamps.is_empty() {
+        eprintln!("pdfcer: stamp-pack: no stamp names given -- the name list is empty.");
+        return exit::RUNTIME_ERROR;
+    }
     let doc = match open_document(input) {
         Ok(doc) => doc,
         Err(err) => {
