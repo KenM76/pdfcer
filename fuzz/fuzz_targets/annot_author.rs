@@ -26,7 +26,8 @@
 use libfuzzer_sys::fuzz_target;
 use pdfcer_core::annot::page_annotations;
 use pdfcer_core::annot_author::{
-    Color, LineEnding, MarkupSpec, Quad, StampName, StickyIcon, TextAnnotSpec, TextMarkupKind,
+    Color, LineEnding, MarkupSpec, Quad, StampFit, StampName, StampStyle, StickyIcon,
+    TextAnnotSpec, TextMarkupKind,
 };
 use pdfcer_core::content::ContentStream;
 use pdfcer_core::document::Document;
@@ -301,6 +302,17 @@ fn text_spec(c: &mut Cursor<'_>, data: &[u8]) -> TextAnnotSpec {
                 None
             },
             color,
+            // ★ Driven by the fuzz input rather than pinned to the default:
+            // `Pass 287.0` added three fit policies and an arbitrary font
+            // size, and a target that always passed `default()` would leave
+            // the two new branches — and every degenerate size — unexercised.
+            // A new field satisfied by `..Default::default()` is a new field
+            // nothing fuzzes.
+            style: StampStyle::points(f64::from(c.byte()) / 4.0).with_fit(match c.byte() % 3 {
+                0 => StampFit::GrowToText,
+                1 => StampFit::ShrinkToBox,
+                _ => StampFit::ClipToBox,
+            }),
         },
     }
 }

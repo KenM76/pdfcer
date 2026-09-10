@@ -990,11 +990,97 @@ pub fn text_spec_from_dict<G: ObjectGraph + ?Sized>(
             // three subtypes the stamp is the one already correct.
             label: None,
             color: read_color(graph, annot, b"C").unwrap_or(Color::Gray(0.0)),
+            // ★★ `Pass 287.0`: recover the label size the stamp was authored
+            // with, so a re-bake KEEPS it instead of re-deriving it from the
+            // new box — which is the whole defect.
+            //
+            // `/DA` first (what pdfcer now writes), then the baked `/AP`'s own
+            // `Tf` operand for a stamp authored before this Pass. The second
+            // is why the recovery is worth having at all: without it every
+            // stamp already in a document would silently change size the first
+            // time it was touched, and "a stored property alone silently
+            // breaks every stamp already in a document" is precisely the trap
+            // this Pass exists to avoid.
+            //
+            // `fit` is deliberately NOT recovered — nothing in the file
+            // records an intent, and guessing one from the current geometry
+            // would invent a decision the author never made. A re-bake
+            // therefore uses the caller's policy with the author's SIZE.
+            style: StampStyle {
+                font_size: recover_stamp_font_size(graph, annot),
+                ..StampStyle::default()
+            },
         }),
         _ => Err(SpecReadError::UnsupportedSubtype {
             subtype: String::from_utf8_lossy(&subtype).into_owned(),
         }),
     }
+}
+
+/// The label size a `/Stamp` was authored with, recovered from the file
+/// (`Pass 287.0`).
+///
+/// Two sources, in order:
+///
+/// 1. **`/DA`** — what pdfcer writes from this Pass on. One string, parsed for
+///    its `Tf` size operand.
+/// 2. **The baked `/AP` `/N` stream's own `Tf`** — for a stamp authored before
+///    this Pass, which has no `/DA` at all.
+///
+/// Returns `None` when neither yields a usable positive size, which sends the
+/// caller back to the derived-from-height formula — the honest answer when the
+/// file genuinely does not say.
+///
+/// # ★★ Why source 2 is not optional
+///
+/// Every stamp already in every document was authored without a `/DA`. If
+/// recovery read only `/DA`, the first re-bake of an existing stamp would fall
+/// back to the default size and **silently change its appearance** — a stored
+/// property alone breaks every stamp already in a document, which is exactly
+/// the failure this Pass was opened to prevent rather than to cause.
+///
+/// The same both-ways trick `Pass 276.0` used to recover a `/FreeText`'s
+/// `multiline` flag from its baked appearance: the appearance is not just a
+/// picture, it is a record of the parameters that drew it, and a `Tf` operand
+/// is that record written in the open.
+fn recover_stamp_font_size<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict) -> Option<f64> {
+    // 1. `/DA`, the string the standard defines for exactly this (§12.7.3.3).
+    if let Some(Object::String(da)) = annot.get(b"DA").map(|o| graph.resolve(o))
+        && let Some(size) = tf_size_in(da)
+    {
+        return Some(size);
+    }
+
+    // ★ Source 2 — the baked `/AP` — CANNOT run here, and the reason is
+    // structural rather than an omission. `ObjectGraph` exposes `value`,
+    // `trailer_entry` and `resolve` and deliberately nothing else: it is the
+    // read-only view a spec reader gets, and stream BYTES are not part of it.
+    // The fallback therefore lives in `stamp_font_size_from_appearance`,
+    // which takes a `&Document` and runs on the re-bake path where one is
+    // always in hand. Splitting it is the honest shape; widening the trait to
+    // reach one number would have been the other kind of fix.
+    None
+}
+
+/// The size operand of the FIRST `Tf` in a `/DA` string or a content stream
+/// (`Pass 287.0`).
+///
+/// Deliberately naive token scanning rather than a content parse: a `/DA` is
+/// not a content stream at all (§12.7.3.3 calls it a sequence of operators),
+/// and a stamp's appearance contains exactly one `Tf`, so "first" is "the
+/// one".
+///
+/// ★ Crate-visible and single. `edit.rs` needs the same answer when it
+/// recovers a stamp's parameters from its appearance, and two copies of a
+/// token scan is two chances to disagree about what a file says — the
+/// duplication shape this project keeps recording.
+pub(crate) fn tf_size_in(bytes: &[u8]) -> Option<f64> {
+    let text = std::str::from_utf8(bytes).ok()?;
+    let tokens: Vec<&str> = text.split_ascii_whitespace().collect();
+    let at = tokens.iter().position(|t| *t == "Tf")?;
+    // `/Font size Tf` — the size is the token immediately before `Tf`.
+    let size: f64 = tokens.get(at.checked_sub(1)?)?.parse().ok()?;
+    (size > 0.0).then_some(size)
 }
 
 /// A `/Name`-valued key, as raw bytes.
@@ -3178,7 +3264,161 @@ pub enum TextAnnotSpec {
         label: Option<String>,
         /// The frame + text colour.
         color: Color,
+        /// How the label is sized, and what happens when it does not fit
+        /// (`Pass 287.0`). [`StampStyle::default()`] is the safe choice.
+        style: StampStyle,
     },
+}
+
+/// How a stamp's label is sized, and what happens when it does not fit the
+/// drawn box (`Pass 287.0`).
+///
+/// # The operator report this exists to answer
+///
+/// > *"I have to draw the size of the stamp before it gets applied and if I
+/// > don't make it long enough to hold all the text it just cuts off and I
+/// > have no way to fix it after because if I stretch the box out the text
+/// > stretches with it."*
+///
+/// Two defects in one sentence, and they compound into a trap:
+///
+/// 1. **The label was clipped.** It is laid into a band exactly as wide as the
+///    box and the `/BBox` clips overflow (`vartext.rs`, §12.7.3.3) — right for
+///    a form field, whose box is a *field boundary*, and wrong for a stamp,
+///    whose box is a *drawing gesture*.
+/// 2. **The repair scaled the text.** The size was
+///    `(rect_height * 0.42).clamp(8.0, 28.0)` — derived from the box and
+///    stored nowhere — so widening the box to reveal the clipped text
+///    enlarged the text by the same act.
+///
+/// Either alone is an annoyance. Together the first mistake is unfixable,
+/// which is why this is a `StampStyle` and not a bug fix.
+///
+/// # ★★ There is nothing to copy: Acrobat has no answer either
+///
+/// Sourced before choosing (`pdfcer-acrobat-librarian`,
+/// `Acrobat_Features/markup__stamp_text_size_and_resize_behavior.md`):
+/// **ISO 32000-1 §12.5.6.12's `/Stamp` table defines exactly one subtype key,
+/// `/Name`.** There is no `/DA` on a `/Stamp`, no font entry, nothing. `/DA`
+/// belongs to `/FreeText` (§12.5.6.19) and to variable-text form fields
+/// (§12.7.3.3). Acrobat's own stamps have no regeneration-on-resize hook, so
+/// the spec-general fallback — geometric scale-to-fit — means **Acrobat very
+/// likely stretches its stamp text on resize exactly as pdfcer did.**
+///
+/// So this is not a parity gap being closed. It is a place the standard left
+/// empty, and pdfcer's answer is its own — which is why the reasoning is
+/// written down here rather than cited.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
+pub struct StampStyle {
+    /// The label's font size in points, or `None` to derive it from the box
+    /// height as builds before `Pass 287.0` did.
+    ///
+    /// ★ **`None` is not "unset", it is a named legacy behaviour**, and it is
+    /// kept reachable so a caller reproducing an older document's appearance
+    /// can ask for it by name instead of by accident.
+    pub font_size: Option<f64>,
+    /// What to do when the label does not fit the drawn box.
+    pub fit: StampFit,
+}
+
+impl StampStyle {
+    /// A style with an explicit label size, growing the box to fit it.
+    ///
+    /// ★ Constructors exist because [`StampStyle`] is `#[non_exhaustive]` and
+    /// therefore cannot be built by struct literal outside this crate — the
+    /// consuming shell has to be able to say what it wants without waiting for
+    /// a field to be added. A `#[non_exhaustive]` type with no way to
+    /// construct it is a type nobody can use.
+    #[must_use]
+    pub const fn points(size: f64) -> Self {
+        Self {
+            font_size: Some(size),
+            fit: StampFit::GrowToText,
+        }
+    }
+
+    /// The pre-`Pass 287.0` behaviour, by name: size derived from the box
+    /// height, overflow clipped.
+    ///
+    /// For reproducing an existing document's appearance. See
+    /// [`StampFit::ClipToBox`] for why this is reachable but not the default.
+    #[must_use]
+    pub const fn legacy_derived() -> Self {
+        Self {
+            font_size: None,
+            fit: StampFit::ClipToBox,
+        }
+    }
+
+    /// The same style with a different fit policy.
+    #[must_use]
+    pub const fn with_fit(mut self, fit: StampFit) -> Self {
+        self.fit = fit;
+        self
+    }
+
+    /// The same style with a different label size; `None` derives it from the
+    /// box height as builds before `Pass 287.0` did.
+    #[must_use]
+    pub const fn with_font_size(mut self, size: Option<f64>) -> Self {
+        self.font_size = size;
+        self
+    }
+}
+
+impl Default for StampStyle {
+    /// The default is **an explicit 12 pt label that grows the box to fit**.
+    ///
+    /// ★ Deliberately NOT the derived size. A default that derives from the
+    /// box reproduces the trap for every caller who does not know to opt out,
+    /// and the operator's report is what a trap looks like from outside. A
+    /// caller wanting the old behaviour asks for `font_size: None`.
+    fn default() -> Self {
+        Self {
+            font_size: Some(DEFAULT_STAMP_FONT_SIZE),
+            fit: StampFit::GrowToText,
+        }
+    }
+}
+
+/// The default stamp label size in points.
+///
+/// Chosen to sit in the middle of the old derived range
+/// (`(h * 0.42).clamp(8.0, 28.0)`), so a stamp authored at the default looks
+/// like one authored the old way on a typical box, and no document changes
+/// appearance for a reason nobody asked for.
+pub const DEFAULT_STAMP_FONT_SIZE: f64 = 12.0;
+
+/// What a stamp does when its label is wider than the box it was drawn in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum StampFit {
+    /// **Widen the `/Rect` so the whole label fits. The default.**
+    ///
+    /// The drawn box becomes a *position and a minimum size* rather than a
+    /// cage. This is the direct answer to *"I have to draw the size before it
+    /// gets applied"*: draw roughly, and the stamp takes the width it needs.
+    ///
+    /// The box is only ever grown, never shrunk — a caller who drew a
+    /// deliberately large stamp keeps it.
+    #[default]
+    GrowToText,
+    /// Shrink the label until it fits the drawn box.
+    ///
+    /// For a caller who has a fixed space to fill — a form's stamp field, a
+    /// title block — and would rather have small text than a wider annotation.
+    /// The size actually used is reported, because a silently shrunk label is
+    /// an inference (project rule 4).
+    ShrinkToBox,
+    /// Keep both the size and the box, and let the `/BBox` clip the overflow.
+    ///
+    /// ★ **This is the pre-`Pass 287.0` behaviour, kept reachable and named
+    /// honestly.** It is the one the operator reported, so it is not the
+    /// default and never will be — but a caller reproducing an existing
+    /// document's appearance byte-for-byte needs it, and a behaviour that can
+    /// only be obtained by accident is worse than one that can be requested.
+    ClipToBox,
 }
 
 /// The result of authoring one text-bearing annotation: everything
@@ -3254,7 +3494,8 @@ pub fn build_text_annotation(spec: &TextAnnotSpec) -> Result<AuthoredTextAnnot, 
             name,
             label,
             color,
-        } => stamp(*rect, *name, label.as_deref(), *color),
+            style,
+        } => stamp(*rect, *name, label.as_deref(), *color, *style),
     }
 }
 
@@ -4181,6 +4422,78 @@ fn sticky_note(
     }
 }
 
+/// The smallest a [`StampFit::ShrinkToBox`] label may become.
+///
+/// Below this a label stops being readable and starts being a smudge, and a
+/// stamp nobody can read has not been fitted — it has been hidden. A caller
+/// who genuinely wants smaller sets `font_size` explicitly, which is not
+/// clamped, because then it is a decision rather than a side effect.
+const MIN_STAMP_FONT_SIZE: f64 = 4.0;
+
+/// Breathing room between a stamp's label and its frame, in points.
+const STAMP_LABEL_PADDING: f64 = 4.0;
+
+/// Decide a stamp's label size and final rectangle **before anything is
+/// painted** (`Pass 287.0`).
+///
+/// Returns `(size, rect, width)`. The rect differs from the one passed in only
+/// under [`StampFit::GrowToText`], and then only ever wider.
+///
+/// # Why this is a function and not four lines inline
+///
+/// Because two callers must agree: [`stamp`] uses it when authoring, and the
+/// re-bake path uses it when an existing stamp is resized. A stamp whose
+/// authoring and re-sizing disagreed about how wide it should be would drift a
+/// little every time it was touched — the shape `R245` is about, applied to a
+/// computation rather than to a guard.
+fn fit_stamp_label(rect: Rect, frame_w: f64, label: &str, style: StampStyle) -> (f64, Rect, f64) {
+    let w = rect.width();
+    let h = rect.height();
+
+    // ★ The size is a PROPERTY, not a function of the box. It was
+    // `(h * 0.42).clamp(8.0, 28.0)` — derived from the box height and stored
+    // nowhere — which is why widening a stamp to reveal clipped text enlarged
+    // the text by the same act. `None` still asks for that formula BY NAME,
+    // so an older document's appearance stays reproducible.
+    let size = match style.font_size {
+        Some(explicit) => explicit,
+        None => (h * 0.42).clamp(8.0, 28.0),
+    };
+
+    // The same measurement the layout will use, so the fit decision and the
+    // layout cannot disagree about whether the label fits.
+    let label_w = vartext::text_width(Std14::HelveticaBold, size, label);
+    let inner_w = (w - 2.0 * frame_w - STAMP_LABEL_PADDING).max(0.0);
+
+    if label_w <= inner_w {
+        return (size, rect, w);
+    }
+
+    match style.fit {
+        // Widen the box so the drawn rectangle is a POSITION AND A MINIMUM
+        // rather than a cage. Only ever grown: a caller who deliberately drew
+        // a large stamp keeps it.
+        StampFit::GrowToText => {
+            let needed = label_w + 2.0 * frame_w + STAMP_LABEL_PADDING;
+            let grown = Rect {
+                llx: rect.llx,
+                lly: rect.lly,
+                urx: rect.llx + needed,
+                ury: rect.ury,
+            };
+            (size, grown, needed)
+        }
+        // Scale down by exactly the overflow ratio, floored so a very long
+        // label becomes small rather than invisible.
+        StampFit::ShrinkToBox if label_w > 0.0 => {
+            let shrunk = (size * inner_w / label_w).max(MIN_STAMP_FONT_SIZE);
+            (shrunk, rect, w)
+        }
+        // `ClipToBox`, and the degenerate zero-width label.
+        _ => (size, rect, w),
+    }
+}
+
 /// Stamp (§12.5.6.12): pdfcer's own framed-text look — a bordered box with
 /// the label centred via the §12.7.3.3 pipeline. NOT Acrobat stamp
 /// artwork (LEGAL §4).
@@ -4189,16 +4502,24 @@ fn stamp(
     name: StampName,
     label: Option<&str>,
     color: Color,
+    style: StampStyle,
 ) -> Result<AuthoredTextAnnot, VarTextError> {
     let rect = positive_rect(rect);
-    let w = rect.width();
     let h = rect.height();
     let label = label
         .map(str::to_owned)
         .unwrap_or_else(|| name.default_label());
 
-    // Frame: a stroked rounded rectangle in the stamp colour.
     let frame_w = (h * 0.06).max(1.5);
+
+    // ★★ `Pass 287.0`: SIZE AND BOX ARE DECIDED BEFORE ANYTHING IS DRAWN.
+    //
+    // The frame used to be stroked first, from the drawn `w`. Growing the box
+    // afterwards would have left the frame at the old width — the fit policy
+    // must therefore run ahead of every paint, not between them.
+    let (size, rect, w) = fit_stamp_label(rect, frame_w, &label, style);
+
+    // Frame: a stroked rounded rectangle in the stamp colour.
     let mut b = ContentBuilder::new();
     color.apply_stroke(&mut b);
     b.set_line_width(frame_w);
@@ -4215,12 +4536,11 @@ fn stamp(
     // The label: a single centred line, auto-fit to the box, translated to
     // the vertical centre of the frame. Reuses the FreeText/widget text
     // pipeline (the whole point of sharing it).
-    let size = (h * 0.42).clamp(8.0, 28.0);
-    let da = vartext::default_appearance_string(TEXT_FONT_RESOURCE, size, TextColor::from(color));
     let resources = [FontResource {
         name: TEXT_FONT_RESOURCE.to_vec(),
         font: Std14::HelveticaBold,
     }];
+    let da = vartext::default_appearance_string(TEXT_FONT_RESOURCE, size, TextColor::from(color));
     let band_h = vartext::text_band_height(Std14::HelveticaBold, size);
     let band = Rect {
         llx: 0.0,
@@ -4246,6 +4566,29 @@ fn stamp(
         Name::from(b"Name"),
         Object::Name(Name(name.name().to_vec())),
     );
+
+    // ★★★ `Pass 287.0`: THE LABEL SIZE IS STORED, and `/DA` is where.
+    //
+    // §12.5.6.12's `/Stamp` table defines exactly one subtype key, `/Name`.
+    // There is no font entry, no `/DA`, nothing — sourced before choosing
+    // (`Acrobat_Features/markup__stamp_text_size_and_resize_behavior.md`), and
+    // Acrobat has no answer either, so there is nothing to copy and the choice
+    // is pdfcer's to make and to justify.
+    //
+    // `/DA` is chosen because it is **the string the standard already defines
+    // for this exact question** — "the default appearance … used in formatting
+    // the text" (§12.7.3.3) — on `/FreeText` (§12.5.6.19), the annotation type
+    // with the identical problem and pdfcer's own precedent for solving it. It
+    // is one line, human-inspectable in a text editor, and a reader that does
+    // not expect it on a `/Stamp` ignores an unknown key harmlessly.
+    //
+    // ★ `/PieceInfo` (§14.5) was the considered alternative and was REJECTED.
+    // It is the correct home for *private* data, and Acrobat does use it for
+    // watermarks — but a font size is not private, it is the answer to "how
+    // big is this text", and burying a legible answer in an application-keyed
+    // sidecar makes every other tool unable to read what pdfcer could simply
+    // have written in the open.
+    annot.insert(Name::from(b"DA"), Object::String(da.clone()));
 
     Ok(AuthoredTextAnnot {
         annot,
@@ -4735,6 +5078,7 @@ mod tests {
             name: StampName::Draft,
             label: None,
             color: Color::Rgb(0.8, 0.1, 0.1),
+            style: StampStyle::default(),
         })
         .unwrap();
         assert_eq!(
@@ -4795,6 +5139,7 @@ mod tests {
                 name: StampName::Confidential,
                 label: None,
                 color: Color::Rgb(0.8, 0.0, 0.0),
+                style: StampStyle::default(),
             },
             TextAnnotSpec::Sticky {
                 rect: rect(0.0, 0.0, 20.0, 20.0),

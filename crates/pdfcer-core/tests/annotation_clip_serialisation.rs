@@ -44,7 +44,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pdfcer_core::annot_author::{
-    Color, LineEnding, MarkupSpec, Quad, TextMarkupKind, build_appearance, decode_spec,
+    Color, LineEnding, MarkupSpec, Quad, StampStyle, TextMarkupKind, build_appearance, decode_spec,
     encode_spec, spec_from_dict,
 };
 use pdfcer_core::document::Document;
@@ -564,6 +564,7 @@ fn a_stamp_survives_a_copy_and_a_paste() {
             name: StampName::Draft,
             label: Some("SUPERSEDED".to_owned()),
             color: Color::Rgb(0.8, 0.0, 0.0),
+            style: StampStyle::default(),
         },
     )
     .expect("author a stamp");

@@ -16,7 +16,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pdfcer_core::annot_author::{Color, MarkupSpec, StampName, TextAnnotSpec};
+use pdfcer_core::annot_author::{Color, MarkupSpec, StampName, StampStyle, TextAnnotSpec};
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::EditSession;
 use pdfcer_core::fontdata::Std14;
@@ -298,6 +298,7 @@ fn authored_stamp_paints_framed_label_after_reload() {
         name: StampName::Draft,
         label: None,
         color: Color::Rgb(0.8, 0.1, 0.1),
+        style: StampStyle::default(),
     });
     let on = render_page_with(
         &reloaded,

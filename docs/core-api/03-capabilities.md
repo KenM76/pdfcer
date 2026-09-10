@@ -1195,6 +1195,68 @@ document — that is what makes rule-4 disclosure cheap here.
 `TextMarkupKind` `:179`, `LineEnding` `:299`, `StickyIcon` `:1022`,
 `StampName` `:1060` (14 names).
 
+★★ **A stamp's label size is a PROPERTY, and the box follows the text
+(`Pass 287.0`).** `TextAnnotSpec::Stamp` gained `style: StampStyle`;
+`StampStyle::{points, legacy_derived, with_fit, with_font_size}` construct it
+(it is `#[non_exhaustive]`, so a struct literal is not available outside the
+crate). `StampFit::{GrowToText, ShrinkToBox, ClipToBox}`;
+`DEFAULT_STAMP_FONT_SIZE` = 12 pt. CLI: `--stamp-font-size`, `--stamp-fit
+grow|shrink|clip`.
+
+**The operator report:** *"I have to draw the size of the stamp before it gets
+applied and if I don't make it long enough to hold all the text it just cuts
+off and I have no way to fix it after because if I stretch the box out the text
+stretches with it."* Two defects that compound into a trap — the label was
+clipped to the `/BBox` (§12.7.3.3, right for a form field whose box is a
+*field boundary*, wrong for a stamp whose box is a *drawing gesture*), and the
+repair scaled the text because the size was `(rect_height * 0.42)`, derived
+from the box and stored nowhere.
+
+| policy | box | text |
+|---|---|---|
+| `GrowToText` (**default**) | **widened to fit**, never shrunk | kept |
+| `ShrinkToBox` | kept | shrunk by the overflow ratio, floored at 4 pt |
+| `ClipToBox` | kept | kept, label clipped — the reported behaviour, kept reachable by name |
+
+★★ **Storage: `/DA` on the `/Stamp`, and there was nothing to copy.**
+§12.5.6.12's `/Stamp` table defines exactly **one** subtype key, `/Name` — no
+`/DA`, no font entry (sourced: `Acrobat_Features/markup__stamp_text_size_and_
+resize_behavior.md`). Acrobat has no answer either and, having no
+regeneration-on-resize hook, very likely stretches its own stamp text on resize
+exactly as pdfcer did. `/DA` is chosen because it is **the string the standard
+already defines for this question** (§12.7.3.3) on `/FreeText` — the annotation
+with the identical problem. `/PieceInfo` (§14.5) was considered and **rejected**:
+a font size is not private data, and burying a legible answer in an
+application-keyed sidecar makes every other tool unable to read what pdfcer
+could simply write in the open.
+
+★★★ **A stamp's custom LABEL is stored nowhere either, and that is why resize
+called pdfcer's own stamps foreign.** `/Contents` is a comment *about* a stamp,
+not its words, so `text_spec_from_dict` returns `label: None` and a rebuild
+produces the stamp name's **default** label. The authorship byte-comparison
+then compared `DRAFT` against `APPROVED FOR CONSTRUCTION` and concluded a
+stranger had drawn it. **The test was correct; the spec it tested against was
+lossy.** Both values are now recovered from the appearance itself
+(`EditSession::recover_stamp_parameters` — size from `/DA` or the baked `Tf`,
+label from the `Tj` operand) and fed back in before the comparison. This is the
+same both-ways trick `Pass 276.0` used for `/FreeText`'s `multiline`: an
+appearance stream is not only a picture, it is a record of the parameters that
+drew it.
+
+★ **`resize_annotation` gained a THIRD authorship arm.** It knew `/FreeText`
+(via `text_spec_from_dict`) and markup (via `spec_from_dict`); a `/Stamp` is
+text-bearing, so `spec_from_dict` could not describe it and the comparison
+never ran — `R245`'s shape on a family of three routes. A pdfcer-drawn stamp
+now re-bakes at its authored size in its new box.
+
+⚠️ **Recovery covers stamps authored before this Pass**, which is the point: a
+stored property alone would silently change the appearance of every stamp
+already in a document the first time it was touched.
+
+⚠️ **`fit` is deliberately NOT recovered.** Nothing in the file records an
+intent, and inferring one from the current geometry would invent a decision the
+author never made. A re-bake uses the caller's policy with the author's *size*.
+
 `AnnotationDeletion` (`edit.rs:5936`) reports `subtype`, `route`
 (`AnnotationDeletionRoute::{General, RedactionMark, Dimension}`,
 `edit.rs:5908`), `popup_removed`, `parent_popup_cleared`,

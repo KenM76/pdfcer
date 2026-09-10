@@ -3236,11 +3236,17 @@ fn apply_text_annot_style(
             name,
             label,
             color,
+            style: stamp_style,
         } => TextAnnotSpec::Stamp {
             rect,
             name,
             label,
             color: style.color.unwrap_or(color),
+            // The stamp's own sizing survives a colour restyle untouched:
+            // this verb is about colour, and a restyle that quietly resized
+            // the label would be the same class of surprise the Pass exists
+            // to remove.
+            style: stamp_style,
         },
         // A `/FreeText`'s `/C` is its FRAME colour, and the spec models it
         // as `Option<Color>` because a frameless text box is a real thing.
@@ -27716,8 +27722,37 @@ impl EditSession {
         let free_text_multiline = annot_author::text_spec_from_dict(&self.graph(), dict)
             .ok()
             .and_then(|spec| self.measure_free_text_multiline(dict, &spec));
+        // ★★ `Pass 287.0`: THE THIRD AUTHORSHIP ARM, and its absence is why a
+        // pdfcer-drawn stamp was refused as foreign.
+        //
+        // The test below knew two families: `/FreeText` (via
+        // `text_spec_from_dict`) and markup (via `spec_from_dict`). A
+        // `/Stamp` is text-bearing, so `spec_from_dict` cannot describe it and
+        // the byte comparison never ran — pdfcer had drawn the appearance and
+        // then failed to recognise its own work. `R245`'s shape once more: a
+        // capability present on two routes of a family of three.
+        //
+        // ★ The recovered label and size are fed BACK IN before the
+        // comparison. Without that the rebuild uses the stamp name's default
+        // label and the derived size, and a custom-labelled stamp compares
+        // unequal to itself — the authorship test would be correct while the
+        // spec it tested against was lossy.
+        let stamp_recovered = if has_ap && subtype == "Stamp" {
+            self.recover_stamp_parameters(dict)
+        } else {
+            None
+        };
+        let stamp_rebuildable = stamp_recovered.as_ref().is_some_and(|(label, size)| {
+            annot_author::text_spec_from_dict(&self.graph(), dict).is_ok_and(|mut original| {
+                apply_stamp_parameters(&mut original, label, *size);
+                annot_author::build_text_annotation(&original)
+                    .is_ok_and(|a| self.appearance_matches(dict, &a.ap_content))
+            })
+        });
+
         let ap_is_pdfces = has_ap
             && (free_text_multiline.is_some()
+                || stamp_rebuildable
                 || annot_author::spec_from_dict(&self.graph(), dict).is_ok_and(|original| {
                     self.appearance_matches(
                         dict,
@@ -27914,6 +27949,27 @@ impl EditSession {
                     let mut spec = annot_author::text_spec_from_dict(&self.graph(), &updated)?;
                     if let annot_author::TextAnnotSpec::FreeText { multiline: m, .. } = &mut spec {
                         *m = multiline;
+                    }
+                    let a = annot_author::build_text_annotation(&spec)?;
+                    (a.annot, a.ap_dict, a.ap_content)
+                }
+                // ★★★ A pdfcer-drawn `/Stamp` re-bakes at the size it was
+                // AUTHORED with, in the box it now has.
+                //
+                // `updated` carries the new `/Rect` and the ORIGINAL `/DA`,
+                // which a resize does not touch — so `text_spec_from_dict`
+                // recovers the authored label size and the builder lays it out
+                // at that size in the larger box. The text stays put and the
+                // frame follows the box, which is the operator's whole ask:
+                // *"if I stretch the box out the text stretches with it."*
+                //
+                // The fit policy is `GrowToText` by default, so a box widened
+                // past the label simply holds it, and a box narrowed below it
+                // grows back rather than clipping.
+                None if stamp_rebuildable => {
+                    let mut spec = annot_author::text_spec_from_dict(&self.graph(), &updated)?;
+                    if let Some((label, size)) = &stamp_recovered {
+                        apply_stamp_parameters(&mut spec, label, *size);
                     }
                     let a = annot_author::build_text_annotation(&spec)?;
                     (a.annot, a.ap_dict, a.ap_content)
@@ -31270,6 +31326,66 @@ impl EditSession {
     /// Uses the same base/staging split [`EditSession::view`] uses rather
     /// than [`EditSession::authored_source`], which memcpys the whole file
     /// per call.
+    /// The label and font size a pdfcer-drawn `/Stamp` was authored with,
+    /// read back out of its own baked appearance (`Pass 287.0`).
+    ///
+    /// Returns `None` when the annotation has no readable appearance, which
+    /// means "not a stamp pdfcer can re-author" and sends the caller to the
+    /// carry-or-refuse paths.
+    ///
+    /// # ★★ Why BOTH values have to come from the appearance
+    ///
+    /// A stamp stores **neither** in a way `text_spec_from_dict` can see:
+    ///
+    /// * the **size** now goes to `/DA` (`Pass 287.0`), but every stamp
+    ///   authored before this Pass has none;
+    /// * the **label** is stored nowhere at all. `/Contents` is a comment
+    ///   *about* the stamp, not its words — `stamp()` never writes it, and
+    ///   `pdfcer-gui` asked explicitly that a note not drive a stamp's face.
+    ///   So `text_spec_from_dict` returns `label: None`, which rebuilds as the
+    ///   stamp name's DEFAULT label.
+    ///
+    /// ★ That second gap is why a custom-labelled stamp was refused as
+    /// foreign: pdfcer rebuilt it as `DRAFT`, compared the bytes against
+    /// `APPROVED FOR CONSTRUCTION`, and concluded it had not drawn it. **The
+    /// authorship test was correct; the spec it tested against was lossy.**
+    ///
+    /// The appearance is not only a picture — it is a record of the
+    /// parameters that drew it, and both values are in it in the open: the
+    /// size as a `Tf` operand, the label as the string a `Tj` shows. Reading
+    /// them back is the same move `measure_free_text_multiline` makes for a
+    /// `/FreeText`'s wrap setting.
+    fn recover_stamp_parameters(&self, annot: &Dict) -> Option<(String, f64)> {
+        let ap_id = Self::existing_appearance_id(annot)?;
+        let Some(Object::Stream(stream)) = self.value(ap_id) else {
+            return None;
+        };
+        let raw = StreamSource::Split {
+            base: self.base.bytes(),
+            staged: &self.staging,
+        }
+        .slice(stream.data_span)?;
+        let decoded =
+            crate::filters::decode_stream(&stream.dict, raw).unwrap_or_else(|_| raw.to_vec());
+        let text = String::from_utf8_lossy(&decoded).into_owned();
+
+        // The size: `/DA` first (what this Pass writes), else the baked `Tf`.
+        let size = annot
+            .get(b"DA")
+            .map(|o| self.graph().resolve(o).clone())
+            .and_then(|o| match o {
+                Object::String(da) => tf_size_of(&String::from_utf8_lossy(&da)),
+                _ => None,
+            })
+            .or_else(|| tf_size_of(&text))?;
+
+        // The label: the operand of the appearance's one text-showing
+        // operator. A stamp draws exactly one line, so "the first" is "the".
+        let label = tj_string_of(&text)?;
+
+        Some((label, size))
+    }
+
     fn appearance_matches(&self, annot: &Dict, expected: &[u8]) -> bool {
         let Some(ap_id) = Self::existing_appearance_id(annot) else {
             return false;
@@ -52853,4 +52969,64 @@ fn translate_flat(items: &[Object], dx: f64, dy: f64) -> Vec<Object> {
             None => o.clone(),
         })
         .collect()
+}
+
+/// Put a recovered label and font size back into a `/Stamp` spec
+/// (`Pass 287.0`).
+///
+/// A free function rather than two copies inline because the authorship test
+/// and the re-bake must apply **exactly the same** parameters: a test that
+/// compared against one spec while the rebuild used another would report
+/// "pdfcer drew this" and then draw something else.
+fn apply_stamp_parameters(spec: &mut annot_author::TextAnnotSpec, label: &str, size: f64) {
+    if let annot_author::TextAnnotSpec::Stamp {
+        label: spec_label,
+        style,
+        ..
+    } = spec
+    {
+        *spec_label = Some(label.to_owned());
+        *style = style.with_font_size(Some(size));
+    }
+}
+
+/// The operand of the first `Tf`, delegating to the one implementation.
+///
+/// A thin `&str` wrapper over [`annot_author::tf_size_in`] so this file's two
+/// call sites read naturally; the parsing itself lives in exactly one place —
+/// two copies of a token scan is two chances to disagree about what a file
+/// says.
+fn tf_size_of(text: &str) -> Option<f64> {
+    annot_author::tf_size_in(text.as_bytes())
+}
+
+/// The literal string a content stream's first `Tj` shows, unescaped.
+///
+/// A stamp's appearance draws one centred line through the §12.7.3.3
+/// pipeline, so the first `(...) Tj` carries its whole label.
+fn tj_string_of(text: &str) -> Option<String> {
+    let at = text.find(") Tj")?;
+    let open = text[..at].rfind('(')?;
+    let raw = &text[open + 1..at];
+
+    // Undo the three escapes the writer emits (§7.3.4.2). Anything else is
+    // passed through, because inventing an unescaping rule the writer does
+    // not use is how a round-trip starts drifting.
+    let mut out = String::with_capacity(raw.len());
+    let mut chars = raw.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            match chars.next() {
+                Some(esc @ ('(' | ')' | '\\')) => out.push(esc),
+                Some(other) => {
+                    out.push('\\');
+                    out.push(other);
+                }
+                None => out.push('\\'),
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    Some(out)
 }

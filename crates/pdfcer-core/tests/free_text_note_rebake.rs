@@ -47,7 +47,9 @@
 //! answers — the same trick `set_markup_style` uses, with one more degree of
 //! freedom.
 
-use pdfcer_core::annot_author::{Color, StampName, StickyIcon, TextAnnotSpec, text_spec_from_dict};
+use pdfcer_core::annot_author::{
+    Color, StampName, StampStyle, StickyIcon, TextAnnotSpec, text_spec_from_dict,
+};
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::{EditError, EditSession, MarkupNote, MarkupOptions};
 use pdfcer_core::graph::ObjectGraph;
@@ -306,6 +308,7 @@ fn a_stamps_note_does_not_become_its_label() {
                 name: StampName::Approved,
                 label: None,
                 color: Color::Gray(0.0),
+                style: StampStyle::default(),
             },
         )
         .expect("place a stamp");

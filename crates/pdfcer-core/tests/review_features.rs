@@ -49,7 +49,7 @@
 //! rather than being normalised to `Note` on the way past.
 
 use pdfcer_core::annot::{Annotation, page_annotations};
-use pdfcer_core::annot_author::{Color, MarkupSpec, StickyIcon, TextAnnotSpec};
+use pdfcer_core::annot_author::{Color, MarkupSpec, StampStyle, StickyIcon, TextAnnotSpec};
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::{EditError, EditSession, MarkupNote, TextAnnotStyle};
 use pdfcer_core::object::ObjId;
@@ -305,6 +305,7 @@ fn an_icon_on_a_stamp_is_refused_by_name() {
                 name: pdfcer_core::annot_author::StampName::Approved,
                 label: None,
                 color: Color::Gray(0.0),
+                style: StampStyle::default(),
             },
         )
         .expect("place a stamp");

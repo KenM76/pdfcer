@@ -969,6 +969,20 @@ fn glyph_width(font: Std14, code: u8) -> u16 {
         .unwrap_or(0)
 }
 
+/// How wide `text` will be, in points, when drawn in `font` at `size`
+/// (`Pass 287.0`).
+///
+/// The public face of [`measure`], encoding through the same
+/// [`encode_winansi`] the layout uses — so a caller deciding whether text
+/// fits and the layout that draws it cannot disagree about how wide it is.
+/// Two independent width formulas is the shape that produces a box which is
+/// "definitely wide enough" and still clips.
+#[must_use]
+pub fn text_width(font: Std14, size: f64, text: &str) -> f64 {
+    let (bytes, _unencodable) = encode_winansi(text);
+    measure(font, size, &bytes)
+}
+
 /// Measure a run of `WinAnsi` bytes in text-space points at `size`
 /// (§9.4.4: advance = Σ width/1000 × size, before Tc/Tw/Th, which this
 /// generator leaves at their defaults).

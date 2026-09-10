@@ -1375,6 +1375,15 @@ enum Command {
         /// `confidential`, `final`, `experimental`, `expired`, …).
         #[arg(long, value_enum, default_value_t = StampArg::Draft)]
         stamp_name: StampArg,
+        /// Stamp label size in points (default 12). Omit `--stamp-fit` and a
+        /// label wider than `--rect` WIDENS the stamp rather than being cut.
+        #[arg(long)]
+        stamp_font_size: Option<f64>,
+        /// What a stamp does when its label does not fit `--rect`:
+        /// `grow` (default — widen the stamp), `shrink` (smaller text, same
+        /// box), `clip` (cut the label; the pre-`Pass 287.0` behaviour).
+        #[arg(long, value_enum, default_value_t = StampFitArg::Grow)]
+        stamp_fit: StampFitArg,
         /// Stroke/mark colour as `RRGGBB` hex. Default is per-subtype
         /// (yellow for highlight, red otherwise).
         #[arg(long)]
@@ -9693,6 +9702,30 @@ enum StampArg {
     ForPublicRelease,
 }
 
+/// `--stamp-fit`: what a stamp does when its label will not fit `--rect`
+/// (`Pass 287.0`).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
+enum StampFitArg {
+    /// Widen the stamp so the whole label fits. The default.
+    Grow,
+    /// Keep the drawn box and shrink the text into it.
+    Shrink,
+    /// Keep both and let the label be cut — the pre-`Pass 287.0` behaviour,
+    /// kept reachable so an existing document's look can be reproduced.
+    Clip,
+}
+
+impl StampFitArg {
+    fn to_fit(self) -> pdfcer_core::annot_author::StampFit {
+        use pdfcer_core::annot_author::StampFit;
+        match self {
+            Self::Grow => StampFit::GrowToText,
+            Self::Shrink => StampFit::ShrinkToBox,
+            Self::Clip => StampFit::ClipToBox,
+        }
+    }
+}
+
 impl StampArg {
     fn to_stamp_name(self) -> pdfcer_core::annot_author::StampName {
         use pdfcer_core::annot_author::StampName as S;
@@ -12013,6 +12046,8 @@ fn run() -> ExitCode {
             multiline,
             icon,
             stamp_name,
+            stamp_font_size,
+            stamp_fit,
             output,
             mode,
             verify_undo,
@@ -12041,6 +12076,8 @@ fn run() -> ExitCode {
             multiline,
             icon,
             stamp_name,
+            stamp_font_size,
+            stamp_fit,
             output: &output,
             mode,
             verify_undo,
@@ -23669,6 +23706,8 @@ struct AnnotateArgs<'a> {
     multiline: bool,
     icon: IconArg,
     stamp_name: StampArg,
+    stamp_font_size: Option<f64>,
+    stamp_fit: StampFitArg,
     output: &'a Path,
     mode: SaveMode,
     verify_undo: bool,
@@ -27013,6 +27052,14 @@ fn build_text_annot_spec(
                 name: args.stamp_name.to_stamp_name(),
                 label: args.text.map(str::to_owned),
                 color,
+                // ★ `--rect` is a POSITION AND A MINIMUM under the default
+                // `grow` fit, not a cage: a label too long for it widens the
+                // stamp instead of being silently cut off.
+                style: pdfcer_core::annot_author::StampStyle::points(
+                    args.stamp_font_size
+                        .unwrap_or(pdfcer_core::annot_author::DEFAULT_STAMP_FONT_SIZE),
+                )
+                .with_fit(args.stamp_fit.to_fit()),
             })
         }
         // The geometric subtypes never reach here (is_text_bearing gates).
