@@ -33884,3 +33884,78 @@ and `cargo clippy --all-targets --all-features -- -D warnings` clean.
 ceiling `R248` → `R249`** (`R247` UNCHANGED, still reserved-but-
 unclaimed), next free `R250`. **Pass ceiling `283.1` → `284.0`**, next
 free family `285.x`.
+
+---
+
+### 2026-09-09 (490th filing, `1bbb7c1`) — decision 147: **WHERE THE SPEC DEFINES NO KEY FOR A SUBTYPE'S DERIVED PARAMETER, PDFCER BORROWS THE KEY THE STANDARD ALREADY DEFINES FOR THE IDENTICAL PROBLEM ON A SIBLING SUBTYPE, NEVER A PRIVATE SIDECAR — `/DA` ON `/Stamp`, SOURCED FROM §12.7.3.3'S `/FreeText` ENTRY, NOT `/PieceInfo`. A FIT POLICY IS SETTABLE BUT NEVER RECOVERED: NO STORED KEY RECORDS AN AUTHOR'S INTENT, AND A GEOMETRIC GUESS WOULD INVENT ONE NOBODY MADE**
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** The commit hash and
+technical detail below are relayed from the dispatching engineer's own
+message; independently corroborated against `docs/core-api/
+03-capabilities.md:1198-1258`, which already carries the `Pass 287.0`
+citation, the `StampStyle`/`StampFit`/`DEFAULT_STAMP_FONT_SIZE` names,
+and this decision's `/DA`-over-`/PieceInfo` reasoning, matching the
+dispatch's own description rather than invented for this entry.
+
+**Origin.** `Pass 287.0` (`1bbb7c1`), the operator's report that a
+stamp drawn too small for its text has no way to be fixed afterward —
+stretching the box stretches the text with it.
+
+**The choice, and why it is a decision rather than an implementation
+detail.** §12.5.6.12's `/Stamp` table defines exactly one subtype key,
+`/Name` — no font, no size. Two storage options existed: invent an
+application-private `/PieceInfo` (§14.5) entry, or reuse `/DA` — the
+key §12.7.3.3 already defines for the **identical** problem (a
+variable-text appearance that must survive a later resize) on
+`/FreeText`. Dispatched to `pdfcer-acrobat-librarian` before choosing
+(`Acrobat_Features/markup__stamp_text_size_and_resize_behavior.md`,
+`markup__custom_stamp_file_format.md`): the standard has no `/Stamp`
+answer, and Acrobat has no documented answer either — having no
+regeneration-on-resize hook, it very likely stretches its own stamp
+text on resize exactly as pdfcer did before this Pass. **This is not a
+parity gap; it is a place the standard left empty.** `/DA` wins: a font
+size is not private data, and burying a legible answer in an
+application-keyed sidecar makes every other conforming tool unable to
+read what pdfcer could simply write in the open. This generalises
+decision 141's framing (author-time options travel beside a spec,
+never invented as private) one step further: where the *spec itself*
+already has a slot for the same problem on a related object, filling
+that slot beats inventing a new one, private or not.
+
+**The second, independent ruling: `fit` is a caller-time policy, never
+a recovered one.** `StampStyle`'s `points`/`legacy_derived`/`with_fit`/
+`with_font_size` recover a stamp's authored **size** and **label** from
+the baked appearance (`EditSession::recover_stamp_parameters`) for
+every stamp that predates this Pass — necessary, because a stored
+property with no recovery path would silently change the rendered size
+of every stamp already in every document the first time it was
+touched. But `StampFit` (`GrowToText`/`ShrinkToBox`/`ClipToBox`) is
+**not** recovered, by design: nothing in a `/Stamp` dictionary records
+which policy its author intended, and inferring one from the box's
+current proportions relative to the text would invent an intent the
+author never stated — the same "don't guess a decision nobody made"
+posture as the ce-dimension resize refusal (decision 096), applied to
+a property rather than to a whole verb.
+
+**Consequence for `resize_annotation`'s authorship check.** Recovering
+the label closed a standing defect rather than only enabling the new
+feature: `/Contents` on a `/Stamp` is a *comment about* the stamp, not
+its words, so the authorship rebuild used to reproduce only the stamp
+name's **default** label, compare it against the operator's actual
+custom text, and refuse the operator's own stamp as foreign — the
+long-open `request_resize_annotation_refuses_a_pdfcer_authored_stamp_
+as_foreign.md`. **The test was correct; the spec it tested against was
+lossy.** `resize_annotation` now carries a **third** authorship arm
+(markup, `/FreeText`, and now `/Stamp`) — `R245`'s shape on a family of
+three routes, closed rather than merely enumerated again.
+
+**Body section.** `docs/ARCHITECTURE.md` §4 is retired (decision 102)
+in favour of `docs/core-api/`; the current surface is documented at
+`docs/core-api/03-capabilities.md:1198-1258`, already carrying
+`StampStyle`/`StampFit`/`DEFAULT_STAMP_FONT_SIZE` and this decision's
+reasoning as of `Pass 287.0`'s own commit — no separate body-section
+edit needed here.
+
+**Decision ceiling: `146` → `147`**, next free `148`. Standing rules,
+Pass and other ceilings unchanged by this entry — see `ROADMAP.md`'s
+own Ledger for this filing.

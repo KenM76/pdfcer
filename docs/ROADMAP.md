@@ -112,6 +112,236 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★★ 490th filing, 2026-09-10 — `Pass 287.0` SHIPPED: A STAMP'S LABEL
+SIZE IS A PROPERTY, NOT A DERIVATIVE OF THE BOX — AND THE BOX FOLLOWS THE
+TEXT BY DEFAULT. ★★★ A STAMP'S CUSTOM LABEL WAS STORED NOWHERE, WHICH IS
+WHY `resize_annotation` CALLED PDFCER'S OWN STAMPS FOREIGN — NOW RECOVERED
+FROM THE APPEARANCE, THE SAME BOTH-WAYS TRICK `Pass 276.0` USED FOR
+`/FreeText`'s `multiline`. ★★★ DECISION `147` MINTED. ★★ `R225` GAINS A
+17TH INSTANCE: A SABOTAGE-CAUGHT FIXTURE THAT VARIED ONLY ONE OF TWO
+INDEPENDENT AXES. ★★ ALSO FILED: CHORE COMMIT `e774a41`. ★★ `v0.50.0`
+RELEASED (RELAYED, NO SHELL THIS FILING).**
+
+**Sourcing (hard rule 8), stated up front — NO SHELL THIS FILING.**
+`Read`/`Grep`/`Glob` only. The commit hashes (`1bbb7c1`, `e774a41`), test
+counts, gate results, and every release figure below (tag, zip/hash,
+OneDrive slots, `verify-release.py` result, smoke test, `target/` reclaim
+figures) are **relayed** from the dispatching engineer's own filing
+message, labelled as such rather than independently re-run. **Backup
+currency, working-tree state, remote/push state and CI colour are NOT
+asserted** — the dispatch states both commits are committed but **not yet
+pushed**, and pushing is explicitly left to the engineer after this
+filing, not performed by this role. **Independently verified here, by
+`Grep`/`Read` against the live tree:** `docs/core-api/03-capabilities.md:
+1198-1258` already carries the `Pass 287.0` citation, the
+`StampStyle`/`StampFit`/`DEFAULT_STAMP_FONT_SIZE` names, the CLI flags,
+the `/DA`-over-`/PieceInfo` sourcing argument, and the label-recovery /
+third-authorship-arm findings — matching the dispatch's own description
+rather than invented for this filing; `docs/NEXT_SESSION.md:173-192`
+carries the pre-Pass request text and the "measured, and it changes the
+design" note the dispatch quotes; `ROADMAP.md` had **no existing
+`Pass 287` entry** (grepped before filing, per this role's own standing
+practice against ID collisions) — clean to file at `287.0`.
+
+---
+
+### `Pass 287.0` (`1bbb7c1`, 2026-09-09, committed — not yet pushed) — A STAMP'S BOX FOLLOWS ITS TEXT
+
+**The operator report, verbatim:** *"I have to draw the size of the
+stamp before it gets applied and if I don't make it long enough to hold
+all the text it just cuts off and I have no way to fix it after because
+if I stretch the box out the text stretches with it."*
+
+**Two defects that compound into a trap, which is why this shipped as a
+`StampStyle` rather than a bug fix.** The label was **clipped** to the
+`/BBox` (§12.7.3.3 — right for a form field whose box is a *field
+boundary*, wrong for a stamp whose box is a *drawing gesture*), and the
+repair **scaled the text**, because the size was `(rect_height *
+0.42).clamp(8, 28)` — derived from the box and stored nowhere. Either
+alone is an annoyance; together the first mistake is unfixable, because
+the only escape (resizing the box) is the exact action that re-triggers
+the second.
+
+**Shipped:** `TextAnnotSpec::Stamp` gains `style: StampStyle`
+(`points`/`legacy_derived`/`with_fit`/`with_font_size` constructors,
+`#[non_exhaustive]`); `StampFit::{GrowToText` (**default**: box widens to
+fit, never shrinks) `, ShrinkToBox` (text shrinks, floored at 4 pt)
+`, ClipToBox}` (the previously-only behaviour, kept reachable by name);
+`DEFAULT_STAMP_FONT_SIZE = 12.0`; CLI `--stamp-font-size` /
+`--stamp-fit grow|shrink|clip`.
+
+**★★ Storage is `/DA`, and the sourcing is the point — decision `147`.**
+Dispatched to `pdfcer-acrobat-librarian` **before** choosing: §12.5.6.12's
+`/Stamp` table defines exactly **one** subtype key, `/Name` — no `/DA`, no
+font entry — and Acrobat has no answer either (no regeneration-on-resize
+hook, so it very likely stretches its own stamp text exactly as pdfcer
+did). **This is not a parity gap; it is a place the standard left
+empty.** `/DA` was chosen because it is the string the standard already
+defines for this exact question (§12.7.3.3) on `/FreeText`, the
+annotation with the identical problem. `/PieceInfo` (§14.5) was
+considered and **rejected**: a font size is not private data, and burying
+a legible answer in an application-keyed sidecar makes every other tool
+unable to read what pdfcer could write in the open. New RAG files at
+`D:\Dev\Rag-Specialized\Acrobat_Features\
+markup__stamp_text_size_and_resize_behavior.md` and
+`markup__custom_stamp_file_format.md` (`pdfcer-acrobat-librarian`'s
+territory, not filed here).
+
+**★★★ The second finding, which the first uncovered: a stamp's custom
+LABEL is stored nowhere either.** `/Contents` is a comment *about* a
+stamp, not its words, so `text_spec_from_dict` returned `label: None` and
+a rebuild produced the stamp *name's* default label. The authorship
+byte-comparison then compared `DRAFT` against `APPROVED FOR
+CONSTRUCTION` and concluded a stranger had drawn it — **that is why
+`resize_annotation` refused pdfcer's own stamps as foreign**, the
+long-open `request_resize_annotation_refuses_a_pdfcer_authored_stamp_
+as_foreign.md`, which had been read (by everyone, this role included) as
+a geometry defect. **The test was correct; the spec it tested against
+was lossy.** That shape — an authorship test only as good as the spec it
+round-trips through — is close kin to `R245` without being the same
+rule; recorded here as an observation, not minted.
+
+Both values are now recovered from the appearance itself
+(`EditSession::recover_stamp_parameters` — size from `/DA` or the baked
+`Tf`, label from the `Tj` operand), the same both-ways trick `Pass 276.0`
+used for `/FreeText`'s `multiline`. **Recovery is not optional**: every
+stamp already in every document has no `/DA`, so a stored property alone
+would silently change all of them on first touch. `resize_annotation`
+also gained a **third authorship arm** (it knew `/FreeText` and markup; a
+`/Stamp` is text-bearing so `spec_from_dict` could not describe it) —
+`R245`'s shape on a family of three routes, closed rather than merely
+enumerated again.
+
+**⚠ `fit` is deliberately NOT recovered** — nothing in the file records
+an intent, and inferring one from geometry would invent a decision the
+author never made.
+
+**★★ A sabotage caught a fake test — `R225`'s 17th dated instance, not
+`R247`'s.** Reverting the size to the derived formula left
+`stretching_a_stamp_keeps_its_text_size` **green**, because the fixture
+scaled only **width**, while the old formula keyed on **height alone** —
+the two implementations agree on every axis the fixture actually varied.
+This is not a doc-comment-unenforced-guarantee case (`R247`'s shape); it
+is a fixture that could not discriminate two implementations on the one
+axis they disagree on — squarely `R225`'s family, a new kind of
+coincidence ("a claim about invariance across two independent axes,
+tested by varying only one — and the untested axis is where the wrong
+implementation's dependency lives"). Fixed by scaling both axes in the
+fixture. Full dated footer:
+`D:\dev\rag\rust\a_sabotage_can_only_be_as_discriminating_as_the_fixture_it_runs_on.md`
+(instance 17).
+
+**Also:** a dead function deleted rather than kept
+(`stamp_font_size_from_appearance`, superseded) — **the second time this
+session** clippy found a function kept alive only by its own doc comment
+(the first: `Pass 286.0`'s "the honest raw record" field, filed at the
+488th filing); `tf_size_in` is now one shared implementation rather than
+two token scanners that could disagree. The fuzz target now drives the
+new `style` field from fuzz input rather than `..Default::default()`, on
+the reasoning that a new field satisfied only by its default is a new
+field nothing fuzzes.
+
+**Tests (relayed).** `crates/pdfcer-core/tests/stamp_text_size.rs`, 8
+tests, including the operator's workflow end to end read back through a
+save-and-reopen. **Gates (relayed).** `tools/run-gates.sh` PASS 29/29;
+workspace suite green; `cargo fmt --check` and `cargo clippy
+--all-targets --all-features -- -D warnings` clean.
+
+**`docs/FEATURES.md`.** A new row added under *Author text-bearing
+annotations* naming `StampStyle`/`StampFit`/the CLI flags/`/DA` storage/
+recovery/the `fit`-not-recovered ruling; the *Resize anything carrying a
+`/Rect`* row's ending amended in place to record the third authorship arm
+— see Ledger.
+
+---
+
+### `e774a41` — filed alongside `Pass 287.0`, same push gate
+
+*"chore: lockfile version bumps and the acrobat librarian's stamp
+findings."* Carries the `v0.50.0`-window lockfile bumps and
+`pdfcer-acrobat-librarian`'s agent-memory notes (the two new RAG files
+named above). No Pass ID owed — touches no public surface, ships no
+capability.
+
+---
+
+### `v0.50.0` — RELEASED (relayed, no shell this filing)
+
+Cut this session from `e774a41`: **ten Passes since `v0.49.0`**
+(`277.0` → `286.0`), tagged, pushed, GitHub release published with zip +
+sha256 marked latest, OneDrive slot `pdfcer1` (alternating scheme —
+`0.49.0` preserved on `pdfcer2`, per `R229`), `verify-release.py` clean
+on every check, fresh-folder smoke test run (runs, inspects, renders).
+Releasing is standing-authorized (decision 121); **not this role's act**,
+recorded here as relayed, not independently verified — the next session
+with a shell should confirm `git describe --tags --abbrev=0` /
+`gh release view v0.50.0` directly before relying on this entry for
+anything more than a record.
+
+**Also in this window: 159 GB reclaimed from `target/`** —
+`target/debug/deps` alone had grown to **154 GB** on a disk at **90%**
+full, ten Passes (four calendar days) after the previous prune
+(2026-09-06). Dated footer added to
+`D:\dev\rag\rust\cargo_target_dir_debug_deps_grows_without_bound_and_
+fills_the_disk_195gb_test_binaries.md` — a **recurrence**, corroborating
+the existing rule ("prune on a `du` threshold, not a calendar") rather
+than adding a new one.
+
+**★ A stale fact corrected in passing.** The engineer's own handoff this
+filing states its prior handoff said *"last release is v0.45.0"*, which
+was already wrong by 2026-09-08 when `v0.49.0` shipped — carried forward
+uncorrected for roughly a day. Worth naming rather than silently letting
+this filing's own release figures supersede it: an engineer-owned
+handoff file is exactly the kind of document `R203`'s "no falsifier"
+observation was minted about (a claim about state outside this role's
+own build), pointed at a sibling document instead of a `FEATURES.md`
+row.
+
+---
+
+### Part — owed work, carried forward and discharged
+
+**Carried forward, unchanged:** items 4, 5, 10, 11, 13b, 14.
+
+**Discharged this filing (outside the numbered owed-item ledger — this
+was `docs/NEXT_SESSION.md`'s queue item 2, not a numbered `ROADMAP.md`
+owed item):**
+
+- **`request_resize_annotation_refuses_a_pdfcer_authored_stamp_as_foreign.md`**
+  — `Pass 287.0`'s label recovery + third authorship arm is the fix; see
+  the Pass entry above. `docs/NEXT_SESSION.md`'s own queue is
+  engineer-owned and was not edited here — flagged for the engineer to
+  remove item 2 and re-assess its "look for a fourth authoring family"
+  note (this filing does not know, from the dispatch, whether a fourth
+  family was searched for and not found, or simply not searched, and
+  does not assert either).
+
+**New, from this filing:** none.
+
+---
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `286` (highest ID `286.0`), next free `287` | **`287`** (highest ID `287.0`), next free family `288` |
+| Standing rules | `R249` (486th filing); `R247` CLAIMED (489th filing) | **UNCHANGED** — `R225` gains a 17th instance (dated footer, no re-mint); ceiling stays `R249`, next free `R250` |
+| Decision records | `146` | **`147` MINTED** — `/DA`-over-`/PieceInfo` storage choice + the `fit`-not-recovered ruling (`ARCHITECTURE.md` §12) |
+| `SESSION_LOG` filings | `489` | **`490`** |
+| `docs/FEATURES.md` | *Author text-bearing annotations* row present, no stamp-sizing row; *Resize* row's ending silent on `/Stamp` | **new row added** under *Author text-bearing annotations* (`StampStyle`/`StampFit`); *Resize* row's ending amended to record the third authorship arm |
+| `D:\dev\rag\rust\` | `a_sabotage_can_only_…` at 16 recorded instances; `cargo_target_dir_debug_deps_…` with no dated footer | **`a_sabotage_can_only_…` +1 dated footer (instance 17)**; **`cargo_target_dir_debug_deps_…` +1 dated footer** (recurrence). No new file either place. |
+| `docs/NEXT_SESSION.md` | queue item 2 open (stamp-resize-refuses-as-foreign) | **flagged closed for the engineer to remove** — not edited here (engineer-owned) |
+| Owed-survivor / open-reply ledger | items 4, 5, 10, 11, 13b, 14 open | **unchanged — none of these were touched this filing**; the discharged item above is `docs/NEXT_SESSION.md`'s own queue, a separate list |
+
+**Release state — RELAYED, not independently checked (no shell this
+filing).** Whether `v0.50.0`'s tag has actually reached `origin/main`,
+whether `1bbb7c1`/`e774a41` have been pushed, and current CI colour are
+all as reported by the dispatch — the engineer should confirm with
+`git describe --tags --abbrev=0` / `git status --short` / `gh run list`
+directly before treating this entry as a check rather than a record.
+
+---
+
 **★★★★★ 489th filing, 2026-09-09 — `R247` RESOLVED BY DIRECT ENGINEER RULING
 AFTER FOUR CONSECUTIVE FILINGS UNRECONCILED: A DOC COMMENT PUBLISHING A
 BEHAVIOURAL GUARANTEE NO CODE ENFORCES CLAIMS THE NUMBER; THE "ALTERNATE

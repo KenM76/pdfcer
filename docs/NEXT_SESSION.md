@@ -170,26 +170,28 @@ belongs with item 1 below, not on its own.
    quietly narrows the sweep would re-open a leak this session just closed.
    **That is the thing to be careful about in this Pass.**
 
-2. **`request_resize_annotation_refuses_a_pdfcer_authored_stamp_as_foreign.md`**
-   — **amended twice and RE-ESCALATED**, in the operator's words: *"if I drew
-   the stamp too small for the text to fit, resizing just stretches the entire
-   object … I should be able to … edit just the box size without affecting the
-   text."* Their shell shipped a stopgap (uniform carry), which is why he can
-   resize at all and why he hit its ceiling within the hour.
+2. ~~**`request_resize_annotation_refuses_a_pdfcer_authored_stamp_as_foreign.md`**~~
+   — **CLOSED by `Pass 287.0` (`1bbb7c1`), and it was never the bug everyone
+   read it as.**
 
-   ★★ **MEASURED, and it changes the design:** a stamp's label size is
-   `(h * 0.42).clamp(8.0, 28.0)` — **derived from the box height, stored
-   nowhere.** So the obvious fix ("re-bake like `Pass 276.0` did for
-   `/FreeText`") recomputes the size from the new height and **scales the text
-   with the box**, which is exactly what he is trying to escape. The size must
-   first become something a re-bake can *keep*: recover it from the baked `/AP`
-   (the `Pass 276.0` both-ways byte-comparison trick, which is how `/FreeText`
-   recovers `multiline`) **and** add an explicit `StampStyle` so it is settable.
-   Recovery alone leaves him unable to change it; a stored property alone
-   silently breaks every stamp already in a document.
+   It was filed and queued as a *geometry* problem — resize refuses a stamp,
+   and separately stretches its text. The measured cause of the refusal is
+   neither: **a stamp's custom label is stored nowhere in the file.**
+   `text_spec_from_dict` returns `label: None`, so the authorship
+   byte-comparison rebuilt the stamp as its NAME's default label, compared
+   `DRAFT` against `APPROVED FOR CONSTRUCTION`, and concluded a stranger had
+   drawn it. **The test was correct; the spec it round-tripped through was
+   lossy.**
 
-   ★ Look for a **fourth** authoring family while you are there — three found
-   one at a time is `R245` at n=3, and the enumeration is the defect.
+   ★ **Carry that shape, not the fix:** *an authorship test is only as good
+   as the spec it round-trips through.* Close kin to `R245` without being it.
+   Both label and size are now recovered from the appearance itself, so
+   stamps already in documents work too.
+
+   Also shipped: `StampStyle`/`StampFit` (the box grows to the text by
+   default), `/DA` as the size's home (decision 147), and a **third
+   authorship arm** in `resize_annotation` — it knew `/FreeText` and markup
+   and not stamps, which is `R245` on a family of three routes.
 
 ### After those, the operator's own ordered plan (2026-09-06) is still untouched
 

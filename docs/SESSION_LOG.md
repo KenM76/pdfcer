@@ -4,6 +4,102 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-10 (490th filing)
+
+**Shipped:**
+- Pass 287.0 (`1bbb7c1`, committed, not yet pushed) — a stamp's text
+  size is now a property (`StampStyle`/`StampFit`, `/DA` storage,
+  `--stamp-font-size`/`--stamp-fit`), the box follows the text by
+  default, and both size and a custom label are recovered from every
+  pre-existing stamp's baked appearance — which also closes a standing
+  defect where `resize_annotation` refused pdfcer's own stamps as
+  foreign.
+- Chore commit `e774a41` (lockfile bumps + `pdfcer-acrobat-librarian`
+  agent-memory notes) — filed alongside Pass 287.0, same push gate.
+- `v0.50.0` released (relayed from the dispatch — no shell this
+  filing): ten Passes since `v0.49.0` (`277.0`→`286.0`), tagged,
+  pushed, GitHub release published latest with zip+sha256,
+  `verify-release.py` clean on every check, fresh-folder smoke test
+  run, OneDrive slot `pdfcer1` (alternating scheme, `0.49.0` preserved
+  on `pdfcer2`). 159 GB reclaimed from `target/` in the same window
+  (154 GB of it in `target/debug/deps` alone, on a disk at 90% full).
+
+**Decisions made this session:**
+- Decision **147** minted (`ARCHITECTURE.md` §12): where the spec
+  defines no key for a subtype's derived parameter, pdfcer borrows the
+  key the standard already defines for the identical problem on a
+  sibling subtype rather than inventing a private sidecar — `/DA` on
+  `/Stamp`, sourced from §12.7.3.3's `/FreeText` entry, not
+  `/PieceInfo`. Sourced via `pdfcer-acrobat-librarian` before the
+  choice was made. A `StampFit` policy is settable but deliberately
+  never recovered from an existing file — nothing stored records an
+  author's intent, and inferring one from geometry would invent a
+  decision nobody made.
+- No new standing rule minted. The Pass's fake-test finding (reverting
+  the fix left `stretching_a_stamp_keeps_its_text_size` green because
+  the fixture stretched only width, and the old formula depended only
+  on height) is filed as `R225`'s **17th** dated instance, not a new
+  rule or an `R247` instance — it is a fixture that could not
+  discriminate two implementations on the axis they actually disagree
+  on, squarely `R225`'s family, not a doc comment (`R247`'s shape).
+
+**Findings + decisions:**
+- **Two compounding defects, which is why this shipped as a
+  `StampStyle`, not a one-line bug fix.** A stamp's label was clipped
+  to `/BBox` (right for a form field's box, wrong for a stamp's
+  drawing gesture), and the repair scaled the text because the font
+  size was `(rect_height * 0.42).clamp(8, 28)`, derived from the box
+  and stored nowhere. Either alone is an annoyance; together the first
+  mistake is unfixable — you cannot escape the clip by resizing,
+  because resizing rescales the text with it.
+- **The more valuable finding is the second one the first uncovered: a
+  stamp's custom label was stored nowhere either.** `/Contents` is a
+  comment *about* a stamp, not its words, so a rebuild always produced
+  the stamp name's default label — which is why `resize_annotation`
+  refused pdfcer's own stamps as foreign. The long-open
+  `request_resize_annotation_refuses_a_pdfcer_authored_stamp_as_foreign.md`
+  had been read as a geometry bug; it was a spec-completeness gap. The
+  authorship test was correct; the spec it tested against was lossy.
+- Both values are now recovered from the appearance itself
+  (`EditSession::recover_stamp_parameters`) — the same both-ways trick
+  `Pass 276.0` used for `/FreeText`'s `multiline`. Recovery is
+  mandatory, not optional: every stamp already in every document has
+  no `/DA`, so a stored property alone would silently change all of
+  them on first touch.
+- `resize_annotation` gained a **third** authorship arm (markup,
+  `/FreeText`, now `/Stamp`) — `R245`'s shape on a family of three
+  routes, closed rather than merely counted again.
+- A dead function (`stamp_font_size_from_appearance`, superseded) was
+  deleted rather than kept with a justifying comment — the second time
+  this session clippy caught a function kept alive only by its own
+  doc comment (the first was `Pass 286.0`'s "the honest raw record"
+  field, filed at the 488th filing). `tf_size_in` unified into one
+  shared implementation instead of two token scanners that could
+  disagree.
+- The fuzz target now drives the new `style` field from fuzz input
+  rather than `..Default::default()`, on the reasoning that a new
+  field satisfied only by its default is a new field nothing fuzzes.
+
+**Still in flight:**
+- Owed items 4, 5, 10, 11, 13b, 14 all carried forward, unchanged.
+- `docs/NEXT_SESSION.md`'s queue item 2 (the stamp-resize request) is
+  now closed by `Pass 287.0` — flagged for the engineer to update
+  directly; that file is engineer-owned and was not edited here.
+  Its "look for a fourth authoring family" note is answered as far as
+  this filing can tell (three families now recognised, closed) but
+  whether a fourth was actually searched for and not found, versus
+  simply not searched, was not stated in the dispatch and is not
+  asserted here either way.
+- `e774a41` and `1bbb7c1` are committed but **not pushed** as of this
+  filing (per the dispatch); pushing both, and confirming
+  `v0.50.0`'s tag/push/release state independently, needs a shell —
+  not available to this role this filing.
+
+**For next session:**
+- Push `e774a41` and `1bbb7c1`; the operator's own ordered plan
+  (`Pass 142.0`, resize-page-contents, `Pass 259.0`, `Pass 10.11`) is
+  otherwise untouched, per `docs/NEXT_SESSION.md`.
+
 ## 2026-09-09 (489th filing)
 
 **Shipped:**
