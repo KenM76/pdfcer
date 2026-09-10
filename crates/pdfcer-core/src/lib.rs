@@ -138,6 +138,9 @@ pub mod sign;
 pub mod signature;
 pub mod signature_verify;
 pub mod span;
+/// Acrobat-compatible stamp collection files -- one file per category,
+/// one page per stamp, names in the catalog's `/Names` -> `/Pages` tree.
+pub mod stamp_file;
 pub mod structure;
 pub mod text_edit;
 pub mod text_extract;

@@ -3254,3 +3254,71 @@ may show holes there).
 | Print | `pdfcer-print` | x | x | x |
 | **Imposition** (N-up / booklet / poster) | `pdfcer_print::imposition` | — | x | **[ ]** |
 | Rasterise a page | `pdfcer-render` | x | — | x |
+
+## 12. Stamp collection files — Acrobat-compatible custom stamps (`Pass 288.0`)
+
+`pdfcer_core::stamp_file` — `read(&Document) -> StampCollection`,
+`name_stamp_pages(&mut EditSession, &[(String, String)]) -> Result<CollectionWritten, EditError>`,
+`stamp_name_string(internal, display)`. Types: `StampCollection { category:
+Option<String>, stamps: Vec<StampEntry> }` + `is_stamp_file()`, `StampEntry {
+internal, display, dynamic, page_index }`, `CollectionWritten { stamps_named,
+skipped }`. Session verb: `EditSession::set_named_pages(Vec<Object>)`.
+CLI: `pdfcer stamp-list <file>`, `pdfcer stamp-pack <file> --category NAME
+--stamp "Internal=Display" ... -o <out>`.
+
+**The format.** A stamp collection is an ordinary PDF — **one file per
+category, one page per stamp**:
+
+| what | where |
+|---|---|
+| category name | the file's `/Info` `/Title` |
+| each stamp's names | catalog `/Names` → `/Pages` name tree (§7.7.4 Table 31), one string `internal=display` |
+| dynamic marker | internal name begins `#` |
+| dynamic machinery | AcroForm calculation scripts on the stamp's own page |
+
+There is **no interchange format**: "export" is handing someone the PDF.
+
+★★ **Every claim above is MEASURED in Adobe's own shipped files, not sourced
+from the internet.** The feature-parity research reached this shape from
+convergent community sources and **flagged two gaps by name** — where the
+category name is stored (`/Title`? the filename? an Acrobat preference?) and
+whether the `#` convention was real. Compatibility work built on secondary
+sourcing is how a shipped feature silently fails to interoperate, so both were
+closed by reading `…/Acrobat DC/Acrobat/plug_ins/Annotations/Stamps/ENU/`:
+
+```text
+StandardBusiness.pdf   /Info /Title (Standard Business)
+                       catalog /Names << /Pages 239 0 R >>
+                       239 0 obj << /Names [ (SBApproved=Approved) 244 0 R … ] >>
+Dynamic.pdf            /Info /Title (Dynamic)
+                       /Names [ (#DApproved=Approved) 29 0 R … ]
+                       /AcroForm << /CO […] /Fields […] >>
+```
+
+★ **`/PieceInfo` is a red herring** — it appears in those files carrying
+`/Illustrator` authoring data, nothing to do with stamps.
+
+★★ **The name tree is written in LEXICOGRAPHIC order, not page order.**
+§7.9.6 requires it and Adobe obeys it: `SBApproved` names page 0 while
+`SBCompleted` names page 4, so page order is demonstrably *not* tree order. A
+writer that emitted page order would produce a tree a conforming reader may
+binary-search wrongly.
+
+⚠️ **A `/Names` dictionary that already exists keeps its other trees.**
+`Dynamic.pdf` carries `/JavaScript` beside `/Pages`; replacing the dictionary
+wholesale would silently delete the document-level JavaScript its dynamic
+stamps need.
+
+⚠️ **A stamp naming a page the document does not have is SKIPPED and named in
+`CollectionWritten::skipped`**, never written — a name tree pointing at nothing
+is a stamp that appears in a picker and then draws no page.
+
+⚠️ **Dynamic stamps are read and reported, never authored.** Their text comes
+from AcroForm calculation JavaScript; placing one draws the design-time text.
+`StampEntry::dynamic` says which is which so a caller is never surprised.
+
+★ **`name_stamp_pages` does not draw the stamps.** A stamp's artwork *is a
+page*, and pdfcer already has every verb for authoring pages; a function that
+also drew artwork would be a second, worse page-authoring API existing only
+here. The caller builds the pages — imported, drawn, or an existing
+document's — and this names them.

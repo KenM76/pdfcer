@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 220 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 221 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 220 public `EditSession` methods
+## 1. Verb index — all 221 public `EditSession` methods
 
-**Count: 220.** Established by brace-matched extraction of the five
+**Count: 221.** Established by brace-matched extraction of the five
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed.
@@ -169,6 +169,7 @@ clear the undo stack or the dirty set, and none write to disk. **Detail: §5.5.*
 | I want to… | Call | Line | Returns |
 |---|---|---|---|
 | Set or clear `/Title`, `/Author`, … | `set_info_field(&mut self, field: InfoField, value: Option<&str>) -> Result<(), EditError>` | 3689 | `Some` sets, `None` **removes the key**. Creates `/Info` if absent. **A no-op records no command.** |
+| Name the pages, making a stamp collection | `set_named_pages(&mut self, names: Vec<Object>) -> Result<(), EditError>` | 9158 | Writes the catalog's `/Names` → `/Pages` name tree (§7.7.4 Table 31) — the structure that makes a PDF an **Acrobat-compatible stamp collection** (`Pass 288.0`, §12 of `03-capabilities.md`). `names` is the flattened tree, **already sorted lexicographically** (§7.9.6 requires it; Adobe's own files obey it, so page order is *not* tree order). ⚠️ **Preserves an existing `/Names` dictionary's other trees** — `Dynamic.pdf` carries `/JavaScript` beside `/Pages`, and replacing the dictionary wholesale would delete the document-level JavaScript its dynamic stamps need. Refuses on an encrypted document. Prefer `stamp_file::name_stamp_pages`, which sorts and validates page indices for you. |
 | Read a field's raw bytes | `info_bytes(&self, field: InfoField) -> Option<Vec<u8>>` | 3788 | Reflects unsaved edits. |
 | Read a field as text | `info_text(&self, field: InfoField) -> Option<InfoText>` | 3807 | `InfoText{ text, exact }`. `exact == false` ⇒ **do not write it back** unless the operator changed it. |
 

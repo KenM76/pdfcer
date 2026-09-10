@@ -3284,6 +3284,39 @@ enum Command {
         #[arg(long)]
         dump_image: Option<PathBuf>,
     },
+    /// **List the stamps in an Acrobat-compatible stamp collection**
+    /// (`Pass 288.0`).
+    ///
+    /// A stamp collection is an ordinary PDF: one file per category, one page
+    /// per stamp, names in the catalog's `/Names` -> `/Pages` tree as
+    /// `internal=display`. Reads Acrobat's own shipped collections and
+    /// pdfcer's alike.
+    StampList {
+        /// The stamp collection PDF.
+        input: PathBuf,
+    },
+    /// **Name a PDF's pages as stamps, making it a collection Acrobat can
+    /// read** (`Pass 288.0`).
+    ///
+    /// Page 1 becomes the first `--stamp`, page 2 the second, and so on. A
+    /// `--stamp` past the last page is skipped and reported rather than
+    /// written, because a name pointing at no page is a stamp that appears in
+    /// a picker and then draws nothing.
+    StampPack {
+        /// The PDF whose pages are the stamp artwork.
+        input: PathBuf,
+        /// The category name, written to `/Info` `/Title` — the heading a
+        /// picker groups these stamps under.
+        #[arg(long)]
+        category: String,
+        /// One per page, in page order, as `Internal=Display` or just
+        /// `Display`. Repeat the flag.
+        #[arg(long = "stamp", required = true)]
+        stamps: Vec<String>,
+        /// Where to write the collection.
+        #[arg(long, short)]
+        output: PathBuf,
+    },
     /// **Rasterise one page to a PNG** (ISO 32000-1 §8, §9).
     ///
     /// Interprets the page's content stream and writes the result at the
@@ -10226,6 +10259,13 @@ fn run() -> ExitCode {
             words,
             dump_image.as_deref(),
         ),
+        Command::StampList { input } => cmd_stamp_list(&input),
+        Command::StampPack {
+            input,
+            category,
+            stamps,
+            output,
+        } => cmd_stamp_pack(&input, &category, &stamps, &output),
         Command::RenderPage {
             input,
             page,
@@ -41721,6 +41761,122 @@ fn cmd_import_structure(
         eprintln!(
             "pdfcer: note: a full rewrite DESTROYS every existing digital signature (ISO 32000-1 section 12.8.1). The default incremental mode does not"
         );
+    }
+    exit::SUCCESS
+}
+
+/// `stamp-list` — print the stamps in a collection file (`Pass 288.0`).
+///
+/// Reads Acrobat's own shipped collections and pdfcer's alike; the format is
+/// the same file, and pdfcer has no private variant of it.
+fn cmd_stamp_list(input: &Path) -> u8 {
+    let doc = match open_document(input) {
+        Ok(doc) => doc,
+        Err(err) => {
+            eprintln!("pdfcer: stamp-list: {}: {err}", input.display());
+            return exit::RUNTIME_ERROR;
+        }
+    };
+    let collection = pdfcer_core::stamp_file::read(&doc);
+
+    if !collection.is_stamp_file() {
+        // ★ Not an error. "This PDF is not a stamp collection" is a fact about
+        // the file, and a caller scripting over a folder should be able to ask
+        // without handling a failure for every ordinary document.
+        println!(
+            "{}: not a stamp collection (no /Names /Pages name tree)",
+            input.display()
+        );
+        return exit::SUCCESS;
+    }
+
+    println!(
+        "{}: category={} stamps={}",
+        input.display(),
+        collection.category.as_deref().unwrap_or("(untitled)"),
+        collection.stamps.len()
+    );
+    for s in &collection.stamps {
+        let page = s.page_index.map_or_else(
+            // A name pointing at a page the file does not have. Named rather
+            // than hidden: it is exactly the defect `stamp-pack` refuses to
+            // create.
+            || "page=MISSING".to_owned(),
+            |i| format!("page={}", i + 1),
+        );
+        println!(
+            "  {:<28} display={:<26} {page}{}",
+            s.internal,
+            s.display,
+            if s.dynamic { " DYNAMIC" } else { "" }
+        );
+    }
+    if collection.stamps.iter().any(|s| s.dynamic) {
+        println!(
+            "note: a DYNAMIC stamp's text is recomputed by Acrobat when it is placed, from \
+             AcroForm calculation scripts. pdfcer reads and reports these; it does not author \
+             them, and placing one draws the design-time text."
+        );
+    }
+    exit::SUCCESS
+}
+
+/// `stamp-pack` — name a PDF's pages as stamps (`Pass 288.0`).
+fn cmd_stamp_pack(input: &Path, category: &str, stamps: &[String], output: &Path) -> u8 {
+    let doc = match open_document(input) {
+        Ok(doc) => doc,
+        Err(err) => {
+            eprintln!("pdfcer: stamp-pack: {}: {err}", input.display());
+            return exit::RUNTIME_ERROR;
+        }
+    };
+    let mut session = pdfcer_core::edit::EditSession::new(doc);
+
+    // `Internal=Display`, or just `Display` — in which case the internal name
+    // is the display name with spaces removed, which is the shape Adobe's own
+    // files use (`SBForPublicRelease` / `For Public Release`).
+    let parsed: Vec<(String, String)> = stamps
+        .iter()
+        .map(|s| match s.split_once('=') {
+            Some((i, d)) => (i.to_owned(), d.to_owned()),
+            None => (s.replace(' ', ""), s.clone()),
+        })
+        .collect();
+
+    let written = match pdfcer_core::stamp_file::name_stamp_pages(&mut session, &parsed) {
+        Ok(w) => w,
+        Err(err) => {
+            eprintln!("pdfcer: stamp-pack: naming the stamp pages: {err}");
+            return exit::RUNTIME_ERROR;
+        }
+    };
+
+    if let Err(err) = session.set_info_field(pdfcer_core::edit::InfoField::Title, Some(category)) {
+        eprintln!("pdfcer: stamp-pack: setting the category name: {err}");
+        return exit::RUNTIME_ERROR;
+    }
+
+    let bytes = match session.to_full_bytes(&pdfcer_core::writer::SaveOptions::default()) {
+        Ok((bytes, _)) => bytes,
+        Err(err) => {
+            eprintln!("pdfcer: stamp-pack: saving the collection: {err}");
+            return exit::RUNTIME_ERROR;
+        }
+    };
+    if let Err(err) = std::fs::write(output, bytes) {
+        eprintln!("pdfcer: stamp-pack: {}: {err}", output.display());
+        return exit::RUNTIME_ERROR;
+    }
+
+    println!(
+        "{}: category={category} stamps_named={}",
+        output.display(),
+        written.stamps_named
+    );
+    for skipped in &written.skipped {
+        // Disclosed, never silent: this stamp named a page the document does
+        // not have, so it was NOT written.
+        println!("  SKIPPED {skipped} -- the document has no such page");
     }
     exit::SUCCESS
 }

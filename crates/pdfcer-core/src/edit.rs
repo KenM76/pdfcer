@@ -287,6 +287,9 @@ pub enum CommandKind {
         /// How many pages arrived.
         count: usize,
     },
+    /// The catalog's `/Names` → `/Pages` name tree was written, making the
+    /// document a stamp collection (`Pass 288.0`).
+    SetNamedPages,
     /// A document-information field was given a value.
     SetInfoField(InfoField),
     /// A document-information field was removed.
@@ -9128,6 +9131,82 @@ impl EditSession {
     }
 
     // -- edits ---------------------------------------------------------
+
+    /// Write the document catalog's `/Names` → `/Pages` name tree, making this
+    /// document a stamp collection Acrobat will recognise (`Pass 288.0`).
+    ///
+    /// `names` is the flattened tree: alternating name string and the page
+    /// reference it names, **already sorted by name** — §7.9.6 requires
+    /// lexicographic order, and a conforming reader may binary-search it.
+    ///
+    /// The category name is the file's `/Info` `/Title`; set it with
+    /// [`EditSession::set_info_field`]. The two are separate verbs because
+    /// `/Title` is an ordinary metadata edit that this one has no business
+    /// owning.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::DocumentEncrypted`] on an encrypted document;
+    /// [`EditError::NotADictionary`] if the catalog is missing or malformed.
+    ///
+    /// # ★ What it preserves, and why that matters here specifically
+    ///
+    /// A `/Names` dictionary that already exists keeps its other trees.
+    /// Acrobat's own `Dynamic.pdf` carries a `/Names` dictionary holding
+    /// BOTH a `/JavaScript` tree and a `/Pages` tree — replacing the
+    /// dictionary wholesale would silently delete the document-level
+    /// JavaScript that makes its dynamic stamps work.
+    pub fn set_named_pages(&mut self, names: Vec<Object>) -> Result<(), EditError> {
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+
+        let catalog_id = self.graph().catalog_id().ok_or(EditError::NotADictionary {
+            id: ObjId::new(0, 0),
+            key: "Root",
+        })?;
+        let Some(Object::Dict(catalog)) = self.value(catalog_id) else {
+            return Err(EditError::NotADictionary {
+                id: catalog_id,
+                key: "Root",
+            });
+        };
+        let catalog = catalog.clone();
+
+        // The name-tree node: one flat `/Names` array. Acrobat's own files use
+        // a single node for a dozen stamps, and §7.9.6's `/Kids` split exists
+        // for trees far larger than any stamp collection will be.
+        let mut tree = Dict::new();
+        tree.insert(Name::from(b"Names"), Object::Array(names));
+        let tree_num = self.alloc_number()?;
+        let tree_id = ObjId::new(tree_num, 0);
+
+        let mut names_dict = self.deref_dict(catalog.get(b"Names")).unwrap_or_default();
+        names_dict.insert(Name::from(b"Pages"), Object::Reference(tree_id));
+
+        let mut updated = catalog.clone();
+        updated.insert(Name::from(b"Names"), Object::Dict(names_dict));
+
+        let before_catalog = self.state.get(&catalog_id).cloned();
+        self.commit(Command {
+            kind: CommandKind::SetNamedPages,
+            objects: vec![
+                ObjectWrite {
+                    id: tree_id,
+                    before: None,
+                    after: Some(Object::Dict(tree)),
+                },
+                ObjectWrite {
+                    id: catalog_id,
+                    before: before_catalog,
+                    after: Some(Object::Dict(updated)),
+                },
+            ],
+            removals: Vec::new(),
+            trailer: None,
+        });
+        Ok(())
+    }
 
     /// Set or clear one document-information field (§14.3.3).
     ///
