@@ -3924,3 +3924,165 @@ mod tests {
         }
     }
 }
+/// What a placed `/Stamp` was drawn with, recovered from the annotation
+/// (`Pass 292.0`) -- see [`EditSession::stamp_label_parameters`].
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct StampLabelParameters {
+    /// The words on the stamp's face, read from its appearance stream.
+    ///
+    /// Not `/Contents`. A stamp's `/Contents` is a comment ABOUT the stamp
+    /// and pdfcer never writes the label there -- the face is in the picture,
+    /// as the operand of the one text-showing operator a stamp draws.
+    pub label: String,
+    /// The label's font size in points.
+    pub size: f64,
+    /// Where [`Self::size`] came from -- read this before presenting the
+    /// number as the author's stated intent.
+    pub size_source: StampSizeSource,
+}
+
+/// Where a recovered stamp label size came from (`Pass 292.0`).
+///
+/// The three cases are kept apart because a panel owes different things to
+/// each, and an `Option<f64>` cannot tell the last two apart at all.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum StampSizeSource {
+    /// The annotation's `/DA` stated the size and it parsed -- the author's
+    /// own answer, and what `Pass 287.0` writes.
+    DeclaredInDa,
+    /// There is no `/DA`, so the size was read back from the `Tf` operand in
+    /// the baked appearance.
+    ///
+    /// Not an anomaly and owes no warning: every stamp authored before
+    /// `Pass 287.0` is in this state, and so is anything another producer
+    /// wrote. The number is exactly what is on the page.
+    RecoveredFromAppearance,
+    /// A `/DA` is present and pdfcer could **not** read a size out of it, so
+    /// [`StampLabelParameters::size`] came from the baked appearance instead.
+    ///
+    /// The file contradicts itself: it declares a default appearance that
+    /// does not say how big the text is. The drawn size is still recoverable,
+    /// which is why this is a disclosure rather than a `None` -- but a caller
+    /// that writes a new size here is overwriting a string it could not
+    /// parse, and an operator is entitled to know that before it happens.
+    DaUnreadable,
+}
+
+/// What a placed `/Stamp` was drawn with, read back out of the annotation
+/// (`Pass 292.0`).
+///
+/// # Why the appearance and not a key
+///
+/// A stamp stores **neither** value where a reader would look first. The
+/// label is stored nowhere at all — `/Contents` is a comment ABOUT the stamp,
+/// never its words — and the size only reached `/DA` in `Pass 287.0`, so every
+/// stamp older than that has none. Both are, however, in the picture: the size
+/// as a `Tf` operand, the label as the string a `Tj` shows. The appearance is
+/// not only a picture; it is a record of the parameters that drew it.
+///
+/// # `None` means "not a stamp pdfcer can describe"
+///
+/// No readable appearance, or an appearance that shows no text. Acrobat's own
+/// custom stamps are artwork rather than a laid-out label and answer `None`
+/// here — the honest answer to *"what size is this stamp's text"*, not a
+/// failure.
+pub fn stamp_label_parameters_in<G: crate::graph::ObjectGraph + ?Sized>(
+    graph: &G,
+    source: crate::view::StreamSource<'_>,
+    annot: &Dict,
+) -> Option<StampLabelParameters> {
+    let ap_id = normal_appearance_id(graph, annot)?;
+    let Some(Object::Stream(stream)) = graph.value(ap_id) else {
+        return None;
+    };
+    let raw = source.slice(stream.data_span)?;
+    let decoded = crate::filters::decode_stream(&stream.dict, raw).unwrap_or_else(|_| raw.to_vec());
+    let text = String::from_utf8_lossy(&decoded).into_owned();
+
+    // The size: `/DA` first (what `Pass 287.0` writes), else the baked `Tf`.
+    //
+    // ★ The THREE outcomes are kept apart rather than collapsed into an
+    // `Option`, because the consuming shell named the exact confusion: "the
+    // author stated no size" and "the author stated a size we could not parse"
+    // look identical through an `Option` and mean opposite things to a panel —
+    // the first opens on a recovered value with nothing owed, the second is an
+    // anomaly the operator should hear about.
+    let da = annot
+        .get(b"DA")
+        .map(|o| graph.resolve(o).clone())
+        .and_then(|o| match o {
+            Object::String(da) => Some(da),
+            _ => None,
+        });
+    let baked = crate::annot_author::tf_size_in(text.as_bytes());
+    let (size, size_source) = match da {
+        Some(da) => match crate::annot_author::tf_size_in(&da) {
+            Some(size) => (size, StampSizeSource::DeclaredInDa),
+            // A `/DA` that is there and yields no `Tf` size. The picture still
+            // knows what it was drawn at, so the answer is recoverable — but
+            // the file contradicts itself and says so.
+            None => (baked?, StampSizeSource::DaUnreadable),
+        },
+        // No `/DA` at all: every stamp authored before `Pass 287.0`, and
+        // everything another producer wrote. Not an anomaly — a document that
+        // predates the key.
+        None => (baked?, StampSizeSource::RecoveredFromAppearance),
+    };
+
+    // The label: the operand of the appearance's one text-showing operator. A
+    // stamp draws exactly one line, so "the first" is "the".
+    let label = first_shown_string(&text)?;
+
+    Some(StampLabelParameters {
+        label,
+        size,
+        size_source,
+    })
+}
+
+/// The `/AP` `/N` stream's id, when the annotation has a single-state normal
+/// appearance (`Pass 292.0`).
+///
+/// A state SUBDICTIONARY (`/N << /Off 1 0 R /Yes 2 0 R >>`) answers `None`:
+/// that is a check box or a radio button, never a stamp, and picking one of
+/// its states here would be choosing an appearance nobody asked for.
+fn normal_appearance_id<G: crate::graph::ObjectGraph + ?Sized>(
+    graph: &G,
+    annot: &Dict,
+) -> Option<ObjId> {
+    let ap = annot.get(b"AP").map(|o| graph.resolve(o))?.as_dict()?;
+    ap.get(b"N")?.as_reference()
+}
+
+/// The literal string a content stream's first `Tj` shows, unescaped
+/// (`Pass 292.0`, moved here with the parse it belongs to).
+fn first_shown_string(text: &str) -> Option<String> {
+    let at = text.find(") Tj")?;
+    let open = text[..at].rfind('(')?;
+    let raw = &text[open + 1..at];
+
+    // Undo the three escapes the writer emits (§7.3.4.2). Anything else is
+    // passed through, because inventing an unescaping rule the writer does not
+    // use is how a round-trip starts drifting.
+    let mut out = String::with_capacity(raw.len());
+    let mut chars = raw.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            match chars.next() {
+                Some('(') => out.push('('),
+                Some(')') => out.push(')'),
+                Some('\\') => out.push('\\'),
+                Some(other) => {
+                    out.push('\\');
+                    out.push(other);
+                }
+                None => out.push('\\'),
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    Some(out)
+}

@@ -4972,6 +4972,23 @@ enum Command {
         /// would mean inventing a fallback.
         #[arg(long, value_name = "RRGGBB")]
         color: Option<String>,
+        /// **Label size in points** for a `/Stamp` or `/FreeText`
+        /// (`Pass 292.0`).
+        ///
+        /// Refused by name on a `/Text` sticky note, which draws an icon and
+        /// has no label to size. A stamp's new size is written to `/DA` and
+        /// its appearance re-baked, so the size survives a later resize.
+        #[arg(long, value_name = "POINTS")]
+        font_size: Option<f64>,
+        /// What a stamp does when the RESIZED label no longer fits its box:
+        /// `grow` (default — widen the box), `shrink` (smaller text, same
+        /// box), `clip` (cut the label).
+        ///
+        /// Only meaningful with `--font-size`, and refused without it. The
+        /// author's original fit intent is NOT recorded anywhere in a PDF,
+        /// so this is your choice rather than a recovered one.
+        #[arg(long, value_enum)]
+        stamp_fit: Option<StampFitArg>,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,
@@ -10719,9 +10736,21 @@ fn run() -> ExitCode {
             index,
             icon,
             color,
+            font_size,
+            stamp_fit,
             output,
             mode,
-        } => cmd_set_text_annot_style(&input, page, index, icon, color.as_deref(), &output, mode),
+        } => cmd_set_text_annot_style(
+            &input,
+            page,
+            index,
+            icon,
+            color.as_deref(),
+            font_size,
+            stamp_fit,
+            &output,
+            mode,
+        ),
         Command::SetReviewState {
             input,
             page,
@@ -16173,9 +16202,48 @@ fn cmd_list_annotations(input: &Path, pages_spec: &str) -> u8 {
                 || "none".to_owned(),
                 |strokes| strokes.iter().map(|s| pts(s)).collect::<Vec<_>>().join("|"),
             );
+            // `Pass 292.0`: what a placed STAMP was drawn with. Appended to
+            // the line, never inserted, per the stable-line contract.
+            //
+            // `none` for every other subtype and for a stamp whose appearance
+            // pdfcer cannot describe -- Acrobat's custom stamps are artwork
+            // rather than a laid-out label, and `none` is the honest answer to
+            // "what size is this stamp's text", not a failure. The SOURCE is
+            // printed beside the number because "the author stated 12pt" and
+            // "pdfcer read 12pt off the picture" are different facts, and
+            // "the author stated something unreadable" is a third.
+            let stamp_params = annot
+                .id
+                .and_then(|id| pdfcer_core::graph::ObjectGraph::value(&doc, id))
+                .and_then(pdfcer_core::object::Object::as_dict)
+                .and_then(|d| {
+                    pdfcer_core::annot::stamp_label_parameters_in(
+                        &doc,
+                        pdfcer_core::view::StreamSource::Contiguous(doc.bytes()),
+                        d,
+                    )
+                });
+            let (stamp_label, stamp_size, stamp_size_from) = match &stamp_params {
+                Some(p) => (
+                    quoted_token(&p.label),
+                    format!("{:.2}", p.size),
+                    match p.size_source {
+                        pdfcer_core::annot::StampSizeSource::DeclaredInDa => "da",
+                        pdfcer_core::annot::StampSizeSource::RecoveredFromAppearance => {
+                            "appearance"
+                        }
+                        pdfcer_core::annot::StampSizeSource::DaUnreadable => "da-unreadable",
+                        // `#[non_exhaustive]`: a new source must print
+                        // SOMETHING rather than fail to compile a shell.
+                        _ => "other",
+                    }
+                    .to_owned(),
+                ),
+                None => ("none".to_owned(), "none".to_owned(), "none".to_owned()),
+            };
             println!(
                 "annot page={} index={array_index} subtype={subtype} rect={rect} \
-flags=0x{:X} widget={} disposition={disposition} ap={ap_shape} action={} author={} note={} modified={} open={} color={} icon={} vertices={vertices} line={line} ink={ink}",
+flags=0x{:X} widget={} disposition={disposition} ap={ap_shape} action={} author={} note={} modified={} open={} color={} icon={} vertices={vertices} line={line} ink={ink} stamp_label={stamp_label} stamp_size={stamp_size} stamp_size_from={stamp_size_from}",
                 page_index + 1,
                 annot.flags.0,
                 usize::from(annot.is_widget()),
@@ -33124,17 +33192,40 @@ fn resolve_annotation(
 }
 
 /// Implement `pdfcer set-text-annot-style`.
+// One argument per flag the subcommand accepts, which is how every other
+// command function in this file is shaped; bundling them into a struct would
+// hide the mapping the `Command` match relies on.
+#[allow(clippy::too_many_arguments)]
 fn cmd_set_text_annot_style(
     input: &Path,
     page: usize,
     index: usize,
     icon: Option<StickyIconArg>,
     color: Option<&str>,
+    font_size: Option<f64>,
+    stamp_fit: Option<StampFitArg>,
     output: &Path,
     mode: SaveMode,
 ) -> u8 {
-    if icon.is_none() && color.is_none() {
-        eprintln!("pdfcer: nothing to change: pass --icon, --color, or both");
+    if icon.is_none() && color.is_none() && font_size.is_none() {
+        eprintln!("pdfcer: nothing to change: pass --icon, --color, --font-size, or several");
+        return exit::EDIT_REFUSED;
+    }
+    // `--stamp-fit` alone changes nothing: it says what to do about a box when
+    // a NEW size no longer fits it, and without a new size there is no re-fit
+    // to police. Said rather than ignored (`Pass 292.0`).
+    if stamp_fit.is_some() && font_size.is_none() {
+        eprintln!(
+            "pdfcer: --stamp-fit only applies with --font-size: it decides what happens to the \
+             box when the RESIZED label no longer fits it"
+        );
+        return exit::EDIT_REFUSED;
+    }
+    // `is_sign_positive` + `is_normal` rather than `!(s > 0.0)`: a NaN is
+    // neither greater nor not-greater than zero, and clippy is right that the
+    // negated comparison hides that.
+    if font_size.is_some_and(|s| !s.is_finite() || s <= 0.0) {
+        eprintln!("pdfcer: --font-size must be a positive number of points");
         return exit::EDIT_REFUSED;
     }
     let parsed_color = match color.map(parse_color) {
@@ -33158,6 +33249,8 @@ fn cmd_set_text_annot_style(
     let style = pdfcer_core::edit::TextAnnotStyle {
         icon: icon.map(StickyIconArg::to_core),
         color: parsed_color,
+        font_size,
+        stamp_fit: stamp_fit.map(StampFitArg::to_fit),
     };
     let change = match session.set_text_annot_style(annot_id, &style) {
         Ok(c) => c,
@@ -33184,12 +33277,33 @@ fn cmd_set_text_annot_style(
         input.display(),
         output.display()
     );
+    // What the re-bake DECIDED, before the machine-readable line (rule 11).
+    if let Some(fit) = change.stamp_label_fit
+        && fit.is_inference()
+    {
+        report_stamp_label_fit(input, fit);
+    }
+    if change.appearance_was_foreign {
+        eprintln!(
+            "pdfcer: {}: the previous appearance was NOT one pdfcer would have drawn, and \
+             re-baking has replaced it. A stamp whose label pdfcer cannot read back is artwork \
+             (Acrobat's custom stamps are), and the restyle could not leave it in place: the \
+             change is invisible unless /AP moves.",
+            input.display()
+        );
+    }
     println!(
-        "  obj={} subtype={} icon_written={} color_written={} was_foreign={} appearance={}",
+        "  obj={} subtype={} icon_written={} color_written={} font_size_written={} \
+rect={:.2},{:.2},{:.2},{:.2} was_foreign={} appearance={}",
         change.annot_id.num,
         change.subtype,
         u32::from(change.icon_written),
         u32::from(change.color_written),
+        u32::from(change.font_size_written),
+        change.rect_after.llx,
+        change.rect_after.lly,
+        change.rect_after.urx,
+        change.rect_after.ury,
         u32::from(change.appearance_was_foreign),
         match change.appearance {
             pdfcer_core::edit::AppearanceWrite::InPlace(_) => "in-place",
@@ -41931,46 +42045,10 @@ fn cmd_stamp_list(input: &Path) -> u8 {
 /// nothing to report. Printing it would be telling the operator their own
 /// instruction back, which is the nagging rule 4 exists to prevent.
 fn report_text_annot_inferences(input: &Path, o: &pdfcer_core::edit::TextAnnotOutcome) {
-    use pdfcer_core::annot_author::StampLabelFit;
-
     if let Some(fit) = o.stamp_label_fit
         && fit.is_inference()
     {
-        match fit {
-            StampLabelFit::BoxGrown { width, .. } => eprintln!(
-                "pdfcer: {}: the stamp box was WIDENED to {width:.1}pt to hold the label \
-                 (fit=grow). The rectangle written is not the one you gave.",
-                input.display()
-            ),
-            StampLabelFit::LabelShrunk { size, requested } => eprintln!(
-                "pdfcer: {}: the stamp label was SHRUNK to {size:.1}pt (you asked for \
-                 {requested:.1}pt) so it would fit the box (fit=shrink). The size on the page \
-                 is pdfcer's, not yours.",
-                input.display()
-            ),
-            StampLabelFit::LabelClipped {
-                hidden_chars,
-                overflow,
-                ..
-            } => eprintln!(
-                "pdfcer: {}: the stamp label does NOT fit its box and was CLIPPED \
-                 (fit=clip): {hidden_chars} character(s) are not fully on the page, and the \
-                 label is {overflow:.1}pt wider than the space available.",
-                input.display()
-            ),
-            // `AsRequested` is unreachable behind `is_inference`, and the
-            // wildcard is forced: `StampLabelFit` is `#[non_exhaustive]`, so
-            // a match in a DOWNSTREAM crate cannot be exhaustive however
-            // carefully it is written.
-            //
-            // ⚠ That means a future variant lands here silently rather than
-            // as a compile error, so the guard is the thing to keep honest:
-            // `is_inference()` is `!matches!(self, AsRequested)`, i.e. every
-            // new variant counts as an inference by default and will reach
-            // this arm -- reported by NOTHING. If you add a variant, add its
-            // sentence here in the same commit.
-            _ => {}
-        }
+        report_stamp_label_fit(input, fit);
     }
     if let Some(size) = o.applied_autosize {
         eprintln!(
@@ -41986,6 +42064,54 @@ fn report_text_annot_inferences(input: &Path, o: &pdfcer_core::edit::TextAnnotOu
             input.display(),
             o.unencodable_chars
         );
+    }
+}
+
+/// The one sentence for one [`StampLabelFit`], shared by the authoring verb
+/// and the restyle verb (`Pass 292.0`).
+///
+/// Shared deliberately rather than written twice: both verbs run the SAME fit
+/// computation, so two sentences describing it would be two chances to
+/// describe it differently -- and the operator would learn that a stamp
+/// behaves differently when it is placed than when it is resized, which is
+/// not true.
+///
+/// The caller checks `is_inference()`; this function says nothing for
+/// `AsRequested` even if called.
+fn report_stamp_label_fit(input: &Path, fit: pdfcer_core::annot_author::StampLabelFit) {
+    use pdfcer_core::annot_author::StampLabelFit;
+    match fit {
+        StampLabelFit::BoxGrown { width, .. } => eprintln!(
+            "pdfcer: {}: the stamp box was WIDENED to {width:.1}pt to hold the label \
+             (fit=grow). The rectangle written is not the one you gave.",
+            input.display()
+        ),
+        StampLabelFit::LabelShrunk { size, requested } => eprintln!(
+            "pdfcer: {}: the stamp label was SHRUNK to {size:.1}pt (you asked for \
+             {requested:.1}pt) so it would fit the box (fit=shrink). The size on the page \
+             is pdfcer's, not yours.",
+            input.display()
+        ),
+        StampLabelFit::LabelClipped {
+            hidden_chars,
+            overflow,
+            ..
+        } => eprintln!(
+            "pdfcer: {}: the stamp label does NOT fit its box and was CLIPPED \
+             (fit=clip): {hidden_chars} character(s) are not fully on the page, and the \
+             label is {overflow:.1}pt wider than the space available.",
+            input.display()
+        ),
+        // `AsRequested` decided nothing, and the wildcard is forced:
+        // `StampLabelFit` is `#[non_exhaustive]`, so a match in a downstream
+        // crate cannot be exhaustive however carefully it is written.
+        //
+        // A future variant therefore lands here SILENTLY rather than as a
+        // compile error, while `is_inference()` (which is
+        // `!matches!(self, AsRequested)`) will have already decided it is
+        // worth reporting. If you add a variant, add its sentence here in the
+        // same commit.
+        _ => {}
     }
 }
 

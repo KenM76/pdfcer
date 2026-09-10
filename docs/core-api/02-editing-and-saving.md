@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 222 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 223 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 222 public `EditSession` methods
+## 1. Verb index — all 223 public `EditSession` methods
 
-**Count: 222.** Established by brace-matched extraction of the five
+**Count: 223.** Established by brace-matched extraction of the five
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed.
@@ -1573,6 +1573,7 @@ always errors.
 | Author a geometric markup **with options** | `add_markup_with(&mut self, page_index, spec: &MarkupSpec, options: &MarkupOptions) -> Result<ObjId, EditError>` | — | `Pass 81.1` + `Pass 150.0`. `MarkupOptions` now carries `opacity: Option<f64>` (§12.5.2 Table 164 `/CA`) **and `note: Option<MarkupNote>`** (`/Contents` + `/T` + `/M`). **One verb, one undo entry** — see the two notes below. |
 | Author a text-bearing annotation | `add_text_annotation(&mut self, page_index, spec: &TextAnnotSpec) -> Result<ObjId, EditError>` | 12034 | FreeText / Text+`/Popup` / Stamp. Exactly `add_text_annotation_with(.., &MarkupOptions::default())`. |
 | Author a text-bearing annotation **at an opacity** | `add_text_annotation_with(&mut self, page_index, spec: &TextAnnotSpec, options: &MarkupOptions) -> Result<ObjId, EditError>` | — | `Pass 81.1`. The twin of the above, shipped in the same Pass because Table 164 is the **markup-annotation** entry list and a sticky note is a markup annotation. `/CA` goes on the parent, never on its `/Popup`. |
+| Read a placed stamp's label + size | `stamp_label_parameters(&self, annot_id: ObjId) -> Result<Option<StampLabelParameters>, EditError>` | — | `Pass 292.0`. `None` = not a stamp pdfcer can describe (Acrobat's custom stamps are artwork). **Read `size_source` before presenting the number**: `DeclaredInDa` / `RecoveredFromAppearance` / `DaUnreadable` are three different facts. Read-only twin for callers with no session: `annot::stamp_label_parameters_in`. |
 | Author a text-bearing annotation **and hear what was decided** | `add_text_annotation_reporting(&mut self, page_index, spec: &TextAnnotSpec, options: &MarkupOptions) -> Result<TextAnnotOutcome, EditError>` | — | `Pass 291.0`. Identical work, guards and single undo entry; returns `TextAnnotOutcome { annot_id, rect, stamp_label_fit, applied_autosize, unencodable_chars }` instead of only the id. **The only route to a stamp's fit outcome** — `rect` is also the *post-fit* rectangle, which `GrowToText` widens. Added rather than substituted: widening the two verbs above would break every existing call site to serve callers that want the disclosure. See §12 of `03-capabilities.md` for `StampLabelFit`. |
 | Author a `/Redact` mark (non-destructive) | `add_redaction(&mut self, page_index, spec: &RedactSpec) -> Result<ObjId, EditError>` | 10480 | A **mark**. Nothing is removed yet. |
 | Un-mark a redaction | `delete_redaction_mark(&mut self, annot_id) -> Result<(), EditError>` | 10617 | Refuses any non-`/Redact` annotation. ⚠️ **Also refuses with `FieldObjectIsInPageTree` since `Pass 191.1`** when `annot_id` is a page or page-tree node. `delete_annotation` guarded before *routing* here — but this is a public verb the GUI and the CLI call **directly**, and that route bypassed the guard entirely: **a guard installed on one route is not a guard on the verb**, so it now lives inside this one. ✅ **Its `/AP` `/N` is COLLATERAL and is FILTERED, not refused** — a malformed appearance must not make the mark permanently undeletable, so the call still returns `Ok` and simply does not free the wrong-kinded pointee. **Do not write an error path for that half.** §6.8. |

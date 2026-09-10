@@ -1248,6 +1248,62 @@ The CLI prints all three inference cases on **stderr** (rule 11 — the
 invocation is the commit, so the only moment to say it is on the way past) and
 prints nothing for `AsRequested`.
 
+★★ **A PLACED stamp's label size can now be read AND written — `Pass 292.0`.**
+`Pass 287.0` gave the operator the size when placing a stamp and nothing
+afterwards: a stamp already on the page had a size no caller could see and no
+verb could change. Both halves ship together, because either alone is a surface
+nobody can build (a read with no write is a number that cannot be acted on; a
+write with no read is a control that opens on a guess).
+
+| half | API |
+|---|---|
+| **read** | `annot::stamp_label_parameters_in(&graph, StreamSource, &Dict) -> Option<StampLabelParameters>` — read-only, no session needed; `EditSession::stamp_label_parameters(annot_id) -> Result<Option<_>, EditError>` delegates to it |
+| **write** | `TextAnnotStyle::font_size: Option<f64>` (+ `stamp_fit: Option<StampFit>`) through `set_text_annot_style` |
+| **CLI** | `list-annotations` appends `stamp_label=`, `stamp_size=`, `stamp_size_from=`; `set-text-annot-style --font-size POINTS [--stamp-fit grow\|shrink\|clip]` |
+
+`StampLabelParameters { label, size, size_source }`. **The provenance is the
+part not to skip** — `StampSizeSource` has three values and an `Option<f64>`
+cannot express the last two:
+
+| `size_source` | meaning | what a panel owes |
+|---|---|---|
+| `DeclaredInDa` | the author stated it in `/DA` | nothing; it is their number |
+| `RecoveredFromAppearance` | there is no `/DA`; the size was read off the baked `Tf` | nothing — every pre-`Pass 287.0` stamp and every other producer's is here |
+| `DaUnreadable` | ⚠ a `/DA` IS present and yields no size; the number came from the picture | say so: the file contradicts itself, and writing a new size overwrites a string pdfcer could not parse |
+
+`None` (rather than an error) means *not a stamp pdfcer can describe* —
+Acrobat's custom stamps are artwork, not a laid-out label, and that is the
+honest answer to "what size is this stamp's text".
+
+**Where both values actually live.** The label is stored **nowhere** as a key —
+`/Contents` is a comment ABOUT the stamp and must never drive its face — and
+the size only reached `/DA` in `Pass 287.0`. Both are recovered from the
+appearance stream, which is not only a picture but a record of the parameters
+that drew it: the size as a `Tf` operand, the label as the string the one `Tj`
+shows.
+
+★★★ **A live defect fell out of this, and it is the reason to read this
+paragraph.** `set_text_annot_style` re-bakes from a spec read back out of the
+file, and `text_spec_from_dict` reports `label: None` for a stamp — which
+rebuilds as *the stamp name's default label*. So changing the **colour** of a
+stamp reading `APPROVED FOR CONSTRUCTION` produced one reading `DRAFT`.
+Measured on a real file. `R245`'s exact shape: `resize_annotation` already
+called the recovery, this verb re-bakes the same family and did not.
+
+**A resize re-fits the box.** Writing `/DA` without touching `/Rect` would
+re-open the clipped-stamp trap through a route `Pass 287.0` never covered, so
+the re-bake runs the same fit policy the authoring path runs —
+`TextAnnotStyle::stamp_fit`, defaulting to `GrowToText` — and
+`TextAnnotStyleChange` reports `rect_after` and `stamp_label_fit`. The fit
+policy is a **caller's choice, never a recovered one**: nothing in a PDF
+records the author's fit intent, and guessing from current geometry would
+invent a decision nobody made.
+
+**`TextAnnotStyleChange` also grew `font_size_written`**, and its
+`appearance_was_foreign` now covers a `/Stamp` whose label pdfcer could not
+read back — the verb cannot decline (R43 makes the change invisible unless
+`/AP` moves), so it proceeds and says it replaced artwork.
+
 ★★ **Storage: `/DA` on the `/Stamp`, and there was nothing to copy.**
 §12.5.6.12's `/Stamp` table defines exactly **one** subtype key, `/Name` — no
 `/DA`, no font entry (sourced: `Acrobat_Features/markup__stamp_text_size_and_

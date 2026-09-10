@@ -126,6 +126,10 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use crate::annot::AnnotFlags;
 use crate::annot_author::{self, MarkupSpec, TextAnnotSpec};
+// `Pass 292.0`: the stamp-parameter types live in `annot`, where the parse
+// they describe lives, and are re-exported here because `EditSession` is where
+// a caller meets them.
+pub use crate::annot::{StampLabelParameters, StampSizeSource};
 use crate::dimension::{
     AUTHORED_ANNOT_KEYS, AUTHORED_MEASURE_KEY, DEFAULT_GROUP_ID, DimStandard, DimensionId,
     DimensionKind, DimensionModel, DimensionStyle, GroupId, NumberFormat, ScaleState, Unit,
@@ -3245,11 +3249,19 @@ fn apply_text_annot_style(
             name,
             label,
             color: style.color.unwrap_or(color),
-            // The stamp's own sizing survives a colour restyle untouched:
-            // this verb is about colour, and a restyle that quietly resized
-            // the label would be the same class of surprise the Pass exists
-            // to remove.
-            style: stamp_style,
+            // ★ The stamp's own sizing survives a colour restyle untouched —
+            // a restyle that quietly resized the label would be the same
+            // class of surprise `Pass 287.0` exists to remove. `Pass 292.0`
+            // adds the OTHER half: when the caller asks for a size, it is
+            // applied here, and the fit policy comes with it because a new
+            // size can stop fitting the old box.
+            style: match style.font_size {
+                Some(size) => {
+                    let fit = style.stamp_fit.unwrap_or_default();
+                    stamp_style.with_font_size(Some(size)).with_fit(fit)
+                }
+                None => stamp_style,
+            },
         },
         // A `/FreeText`'s `/C` is its FRAME colour, and the spec models it
         // as `Option<Color>` because a frameless text box is a real thing.
@@ -17129,6 +17141,50 @@ pub struct TextAnnotStyle {
     /// [`crate::annot::Annotation::color`] distinguishes an absent `/C`
     /// from an explicitly empty one.
     pub color: Option<annot_author::Color>,
+    /// A new label size in points, for a `/Stamp` or a `/FreeText`
+    /// (`Pass 292.0`).
+    ///
+    /// # The gap this closes
+    ///
+    /// `Pass 287.0` made a stamp's label size a property and let an operator
+    /// choose it **when placing the stamp**. Afterwards there was no verb at
+    /// all — not a refusal, nothing to call — so a stamp already on the page
+    /// had a size that could be neither read nor changed. The consuming shell
+    /// declined to work around it by deleting and re-authoring the
+    /// annotation, and was right to: that changes the object id, drops any
+    /// reply thread hanging off it, and turns one undo step into two.
+    ///
+    /// # Refused by name on a sticky note
+    ///
+    /// A `/Text` annotation draws an ICON, not text, so there is no label to
+    /// size — [`EditError::StylePropertyNotApplicable`], the same treatment
+    /// [`Self::icon`] gets on the other two subtypes and for the same reason
+    /// (`Pass 258.0`: a silently swallowed request is worse than a named
+    /// refusal).
+    ///
+    /// # What it does to the box
+    ///
+    /// Re-sizing a label can make it stop fitting the rectangle it is in, so
+    /// the re-bake runs the SAME fit policy the authoring path runs (see
+    /// [`Self::stamp_fit`]) and reports the outcome in
+    /// [`TextAnnotStyleChange::stamp_label_fit`]. Writing `/DA` without
+    /// touching `/Rect` would re-open the clipped-stamp trap `Pass 287.0`
+    /// closed, through a different route.
+    pub font_size: Option<f64>,
+    /// Which fit policy the re-bake uses when a resized label no longer fits
+    /// its box (`Pass 292.0`). Ignored unless [`Self::font_size`] is set, and
+    /// meaningless on a `/FreeText`.
+    ///
+    /// `None` means [`crate::annot_author::StampFit::GrowToText`], the
+    /// authoring default — the box widens and the operator can SEE that it
+    /// did, which is the least surprising thing to do to a rectangle nobody
+    /// asked to change.
+    ///
+    /// It is a caller's choice rather than a recovered one because **nothing
+    /// in the file records the author's fit intent**, and a guess from the
+    /// current geometry would invent a decision nobody made. Same reason
+    /// `text_spec_from_dict` does not recover it.
+    pub stamp_fit: Option<annot_author::StampFit>,
 }
 
 /// A review status a state annotation can carry (§12.5.6.3, Table 171;
@@ -17266,7 +17322,11 @@ pub struct ReplyAdded {
 }
 
 /// What [`EditSession::set_text_annot_style`] did.
-#[derive(Debug, Clone, PartialEq, Eq)]
+// `Eq` is gone as of `Pass 292.0`: this struct now carries a `Rect` and a
+// `StampLabelFit`, both of which hold `f64`. `PartialEq` is the honest bound
+// for a type with floating-point fields, and nothing compared these for total
+// equality.
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct TextAnnotStyleChange {
     /// The annotation restyled.
@@ -17277,6 +17337,25 @@ pub struct TextAnnotStyleChange {
     pub icon_written: bool,
     /// Whether `/C` was rewritten.
     pub color_written: bool,
+    /// Whether a new label size was written (`Pass 292.0`) — `/DA` on a
+    /// `/Stamp`, the `Tf` operand on a `/FreeText`.
+    pub font_size_written: bool,
+    /// The `/Rect` **after** the re-bake.
+    ///
+    /// ★ Not always the rectangle the annotation had. A stamp whose label was
+    /// enlarged past its box widens under
+    /// [`crate::annot_author::StampFit::GrowToText`] (the default), so a
+    /// caller that keeps its own copy of the geometry must take this one.
+    /// Read it with [`Self::stamp_label_fit`], which says WHY it moved.
+    pub rect_after: crate::page_tree::Rect,
+    /// What the fit policy did to a stamp's label during this re-bake;
+    /// `None` for every other subtype (`Pass 292.0`).
+    ///
+    /// Gate any disclosure on
+    /// [`crate::annot_author::StampLabelFit::is_inference`] — a label that
+    /// fitted at the size the caller asked for decided nothing, and saying so
+    /// would report the operator's own instruction back at them.
+    pub stamp_label_fit: Option<annot_author::StampLabelFit>,
     /// How the regenerated appearance was written — the same three-way
     /// answer [`AppearanceWrite`] gives every other regenerating verb, so a
     /// shell can tell an in-place rewrite from a copy-on-write that left
@@ -17300,8 +17379,19 @@ pub struct TextAnnotStyleChange {
     /// asked to change the colour and R43 means the change is invisible
     /// unless `/AP` moves. So it proceeds and says so.
     ///
-    /// `false` for every subtype but `/FreeText`, which are the ones whose
-    /// appearance is icon- or face-driven rather than laid out.
+    /// ★★ **Also `true` for a `/Stamp` whose appearance pdfcer could not
+    /// read back (`Pass 292.0`).** The measurement is different but the fact
+    /// is the same one: a stamp whose label cannot be recovered from its own
+    /// appearance is a stamp pdfcer did not draw — Acrobat's custom stamps
+    /// are artwork, not a laid-out label — and this verb has just replaced
+    /// that artwork with pdfcer's plainer rendering.
+    ///
+    /// It cannot decline, for the reason the `/FreeText` case gives: the
+    /// operator asked for a colour or a size, and R43 makes the change
+    /// invisible unless `/AP` moves. So it proceeds and says so, and a shell
+    /// that offers an undo is offering the right thing.
+    ///
+    /// `false` for a `/Text` sticky note, whose appearance is icon-driven.
     pub appearance_was_foreign: bool,
 }
 
@@ -29695,6 +29785,18 @@ impl EditSession {
                 property: "a sticky-note icon",
             });
         }
+        // ★ The mirror refusal (`Pass 292.0`). A `/Text` draws an ICON: there
+        // is no label to size, so a font size is as inapplicable here as an
+        // icon is on a stamp. Refused by name rather than swallowed, which is
+        // the whole posture `Pass 258.0` established — a control that appears
+        // to work and changes nothing is worse than one that says why.
+        if style.font_size.is_some() && target.subtype == b"Text" {
+            return Err(EditError::StylePropertyNotApplicable {
+                id: annot_id,
+                subtype: subtype.clone(),
+                property: "a label font size",
+            });
+        }
 
         let Some(Object::Dict(current)) = self.value(annot_id) else {
             return Err(EditError::NotADictionary {
@@ -29704,7 +29806,41 @@ impl EditSession {
         };
         let current = current.clone();
 
-        let original = annot_author::text_spec_from_dict(&self.graph(), &current)?;
+        let mut original = annot_author::text_spec_from_dict(&self.graph(), &current)?;
+
+        // ★★★ THE STAMP'S OWN WORDS, RECOVERED BEFORE THE RE-BAKE
+        // (`Pass 292.0`) — and the defect this fixes was live, not
+        // theoretical.
+        //
+        // `text_spec_from_dict` returns `label: None` for a `/Stamp`, by
+        // design: a stamp's `/Contents` is a comment ABOUT the stamp and must
+        // not drive its face. But `None` rebuilds as the stamp NAME's default
+        // label, so re-baking a stamp from that spec replaces its face. An
+        // operator who changed the colour of a stamp reading
+        // `APPROVED FOR CONSTRUCTION` got one reading `DRAFT` — measured on a
+        // real file, from a control captioned "colour".
+        //
+        // ★ `R245` again, and it is the exact shape: the recovery EXISTS and
+        // the resize route already calls it (`resize_annotation`, via
+        // `recover_stamp_parameters` + `apply_stamp_parameters`). This verb
+        // re-bakes the same annotation family and did not. A capability
+        // present on one route of two.
+        //
+        // `None` means the appearance is not one pdfcer can describe —
+        // Acrobat's custom stamps are artwork, not a laid-out label — and is
+        // reported through `stamp_appearance_was_foreign` rather than
+        // silently accepted, because the re-bake below is about to replace
+        // that artwork with pdfcer's plainer rendering.
+        let stamp_recovered = if target.subtype == b"Stamp" {
+            self.recover_stamp_parameters(&current)
+        } else {
+            None
+        };
+        if let Some((label, size)) = &stamp_recovered {
+            apply_stamp_parameters(&mut original, label, *size);
+        }
+        let stamp_appearance_was_foreign =
+            target.subtype == b"Stamp" && stamp_recovered.is_none() && current.contains_key(b"AP");
 
         // ★ MEASURE `multiline` BEFORE RE-BAKING. The reader cannot report
         // it (§12.5.6.6 gives the subtype no such key) and always says
@@ -29724,6 +29860,14 @@ impl EditSession {
 
         let amended = apply_text_annot_style(original, style, measured_multiline);
         let authored = annot_author::build_text_annotation(&amended)?;
+        // The fit outcome of THIS re-bake (`Pass 292.0`). A size change can
+        // make a label stop fitting the box it is in, and the answer to
+        // "what happened to my rectangle" has to come from the same
+        // computation that moved it — never from a caller re-deriving the
+        // fit rule, which would be a second implementation drifting from the
+        // first.
+        let stamp_label_fit = authored.stamp_label_fit;
+        let rect_after = authored.rect;
 
         let regen = self.regenerate_markup_appearance(
             annot_id,
@@ -29743,8 +29887,11 @@ impl EditSession {
             subtype,
             icon_written: style.icon.is_some(),
             color_written: style.color.is_some(),
+            font_size_written: style.font_size.is_some(),
+            rect_after,
+            stamp_label_fit,
             appearance,
-            appearance_was_foreign: foreign_appearance,
+            appearance_was_foreign: foreign_appearance || stamp_appearance_was_foreign,
         })
     }
 
@@ -31478,34 +31625,71 @@ impl EditSession {
     /// them back is the same move `measure_free_text_multiline` makes for a
     /// `/FreeText`'s wrap setting.
     fn recover_stamp_parameters(&self, annot: &Dict) -> Option<(String, f64)> {
-        let ap_id = Self::existing_appearance_id(annot)?;
-        let Some(Object::Stream(stream)) = self.value(ap_id) else {
-            return None;
-        };
-        let raw = StreamSource::Split {
-            base: self.base.bytes(),
-            staged: &self.staging,
+        self.stamp_parameters_of(annot).map(|p| (p.label, p.size))
+    }
+
+    /// The full recovery, including **where the size came from**
+    /// (`Pass 292.0`).
+    ///
+    /// Delegates to [`crate::annot::stamp_label_parameters_in`], which is the
+    /// ONE implementation: a read-only caller (`list-annotations`) reaches the
+    /// same parse through a plain document's bytes, and two copies of a parse
+    /// are two chances to disagree about what a stamp says.
+    fn stamp_parameters_of(&self, annot: &Dict) -> Option<StampLabelParameters> {
+        crate::annot::stamp_label_parameters_in(
+            &self.graph(),
+            StreamSource::Split {
+                base: self.base.bytes(),
+                staged: &self.staging,
+            },
+            annot,
+        )
+    }
+
+    /// What a placed `/Stamp` was drawn with -- its label and its label size,
+    /// read back out of the annotation itself (`Pass 292.0`).
+    ///
+    /// # Why this is public, and what it is for
+    ///
+    /// `Pass 287.0` made a stamp's label size a stored property and gave the
+    /// operator a control over it **at authoring time**. It gave them nothing
+    /// afterwards: a stamp already on the page had a size no caller could
+    /// read, so a properties panel had nothing to open on. The parser existed
+    /// and was private -- the consuming shell measured that and asked for
+    /// exactly this.
+    ///
+    /// # What `None` means
+    ///
+    /// The annotation is not a `/Stamp`, has no readable appearance stream,
+    /// or its appearance shows no text -- i.e. **this is not a stamp pdfcer
+    /// can describe**. Acrobat's own custom stamps are artwork rather than a
+    /// laid-out label and answer `None` here: that is the honest answer to
+    /// *"what size is this stamp's text"*, not a failure.
+    ///
+    /// # The provenance is the part not to skip
+    ///
+    /// [`StampLabelParameters::size_source`] separates *the author stated it*
+    /// from *pdfcer read it off the picture* from *the author stated
+    /// something unreadable*. A control that opened on the number alone would
+    /// present all three as the same fact.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::AnnotationNotFound`] when `annot_id` is not an annotation
+    /// on any page of this session.
+    pub fn stamp_label_parameters(
+        &self,
+        annot_id: ObjId,
+    ) -> Result<Option<StampLabelParameters>, EditError> {
+        let (target, _all) = self.locate_annotation(annot_id)?;
+        if target.subtype != b"Stamp" {
+            return Ok(None);
         }
-        .slice(stream.data_span)?;
-        let decoded =
-            crate::filters::decode_stream(&stream.dict, raw).unwrap_or_else(|_| raw.to_vec());
-        let text = String::from_utf8_lossy(&decoded).into_owned();
-
-        // The size: `/DA` first (what this Pass writes), else the baked `Tf`.
-        let size = annot
-            .get(b"DA")
-            .map(|o| self.graph().resolve(o).clone())
-            .and_then(|o| match o {
-                Object::String(da) => tf_size_of(&String::from_utf8_lossy(&da)),
-                _ => None,
-            })
-            .or_else(|| tf_size_of(&text))?;
-
-        // The label: the operand of the appearance's one text-showing
-        // operator. A stamp draws exactly one line, so "the first" is "the".
-        let label = tj_string_of(&text)?;
-
-        Some((label, size))
+        let Some(Object::Dict(dict)) = self.value(annot_id) else {
+            return Ok(None);
+        };
+        let dict = dict.clone();
+        Ok(self.stamp_parameters_of(&dict))
     }
 
     fn appearance_matches(&self, annot: &Dict, expected: &[u8]) -> bool {
@@ -53169,45 +53353,4 @@ fn apply_stamp_parameters(spec: &mut annot_author::TextAnnotSpec, label: &str, s
         *spec_label = Some(label.to_owned());
         *style = style.with_font_size(Some(size));
     }
-}
-
-/// The operand of the first `Tf`, delegating to the one implementation.
-///
-/// A thin `&str` wrapper over [`annot_author::tf_size_in`] so this file's two
-/// call sites read naturally; the parsing itself lives in exactly one place —
-/// two copies of a token scan is two chances to disagree about what a file
-/// says.
-fn tf_size_of(text: &str) -> Option<f64> {
-    annot_author::tf_size_in(text.as_bytes())
-}
-
-/// The literal string a content stream's first `Tj` shows, unescaped.
-///
-/// A stamp's appearance draws one centred line through the §12.7.3.3
-/// pipeline, so the first `(...) Tj` carries its whole label.
-fn tj_string_of(text: &str) -> Option<String> {
-    let at = text.find(") Tj")?;
-    let open = text[..at].rfind('(')?;
-    let raw = &text[open + 1..at];
-
-    // Undo the three escapes the writer emits (§7.3.4.2). Anything else is
-    // passed through, because inventing an unescaping rule the writer does
-    // not use is how a round-trip starts drifting.
-    let mut out = String::with_capacity(raw.len());
-    let mut chars = raw.chars();
-    while let Some(c) = chars.next() {
-        if c == '\\' {
-            match chars.next() {
-                Some(esc @ ('(' | ')' | '\\')) => out.push(esc),
-                Some(other) => {
-                    out.push('\\');
-                    out.push(other);
-                }
-                None => out.push('\\'),
-            }
-        } else {
-            out.push(c);
-        }
-    }
-    Some(out)
 }
