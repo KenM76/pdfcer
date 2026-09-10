@@ -4,6 +4,199 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-10 (496th filing)
+
+**Shipped:**
+- Pass 293.0 (`56c5e55`) — a custom stamp can now be PLACED: one page's
+  artwork onto another, as vector. `Pass 288.0` gave pdfcer stamp
+  COLLECTIONS (container, names, category) but nothing could draw one
+  page onto another, so pdfcer could read the operator's own signature
+  stamps and could not stamp anything with them. New
+  `EditSession::place_page_artwork(&source_view, source_page, page_index,
+  rect) -> Result<PlacedArtwork, EditError>` imports the source page's
+  content and resources as a **form XObject** behind a `/Stamp`
+  annotation's `/AP /N`. New CLI verb `place-stamp <in> --from
+  <collection.pdf> (--stamp NAME | --stamp-page N) --page N (--at X,Y |
+  --rect x0,y0,x1,y1) -o <out>`. Closes the last of the five
+  `pdfcer-gui` requests filed 2026-09-10.
+  **Why a form XObject, not a raster**: what Acrobat writes, and
+  architecturally forced by §12.5.5 + §8.10 — keeps the artwork vector,
+  keeps it selectable/movable/deletable, never touches the page's own
+  content stream (R47). A raster alternative (render the stamp page,
+  place via `add_image`) was considered and rejected: not
+  Acrobat-compatible, inflates a 5.6 MB CAD drawing per stamp, does not
+  survive zooming, picks a resolution nobody asked for — the consuming
+  shell had already declined the same alternative for the same reasons
+  (reported through the existing decision-058 channel).
+  **Disclosures on `PlacedArtwork`** (project rule 4, since the CLI
+  invocation is the commit): `scale_x`/`scale_y`/`distorted` (§12.5.5
+  maps `/BBox` onto `/Rect` with independent factors — the stretch is
+  normative behaviour, not a pdfcer shortcut); `objects_imported`;
+  `resources_renamed` (always `0` by construction, per §8.10, reported
+  anyway); `source_annotations_ignored`; `source_widgets_ignored` (the
+  dynamic-stamp caveat — a dynamic stamp places its design-time text,
+  correct as a picture, wrong as a promise); `transparency_group_carried`.
+  No `/Name` is written (Table 181 leaves it optional); whether Acrobat
+  records one for a custom stamp is an open gap, flagged by name (`R250`).
+  New `EditError::SourcePageOutOfRange` (135 variants now).
+  Verified on the operator's own
+  `%APPDATA%\Adobe\Acrobat\DC\Stamps\YTV_yyfVN1TzJ0_6oei-GB.pdf` — both
+  signatures place and render, the same file `Pass 290.0` had to fix
+  page-tree-resource handling for just to open. Nine new tests in
+  `crates/pdfcer-core/tests/place_artwork.rs`, including an R47
+  byte-comparison with an explicit fixture-can-fail assertion (`R225`);
+  sabotaged twice, each turning exactly the expected test red.
+  `cargo test --workspace`: **5,309 pass over 9 new tests this Pass
+  (5,300 prior + 9)**; fmt/clippy `--all-features` clean;
+  `check-core-api-verbs` PASS at **224 verbs (223 prior + 1)**.
+  `FEATURES.md` gains a new row in the same filing — `core [x] / cli [x]
+  / gui [ ]` — the requesting shell asked for the core API only.
+
+**Decisions made this session:**
+- None. The form-XObject-behind-an-annotation shape is §12.5.5/§8.10,
+  already established elsewhere in `ARCHITECTURE.md` (annotation
+  appearance placement); the rejected-raster-alternative rationale is
+  reported through the existing decision-058 channel (the external
+  `pdfce-gui` consumer had already declined the same alternative for the
+  same reasons) rather than argued fresh here. No new crate boundary,
+  library choice or invariant.
+
+**Findings + decisions:**
+- **A `pdfcer-acrobat-librarian` dispatch this session corrected a
+  standing project premise.** Acrobat **Reader** — not only Pro — can
+  place an existing custom stamp; it can only NOT author a new stamp
+  category. The project memory that reads "Acrobat Reader is available;
+  Pro is not" had been carried as implying no stamp-placement artifact
+  is obtainable in this environment, and that inference does not follow
+  from the fact. One Reader-placed-and-saved PDF would settle the
+  `/Name` round-trip gap flagged above, open since `Pass 288.0`. New
+  corpus file:
+  `Acrobat_Features/markup__custom_stamp_placement_and_appearance_authoring.md`;
+  `markup__stamp_text_size_and_resize_behavior.md` upgraded (d)→(a) in
+  place — §12.5.5's anisotropic stretch turned an inference into a
+  documented fact. This project's own memory entry on the Reader/Pro
+  split is corrected accordingly (see this filing's memory update).
+- **An empirical PDF-domain finding**, written to `C:\personal_rag\pdf\`:
+  the operator's own Acrobat-authored stamp collection contains a page
+  whose only content is a `/DCTDecode` RGB image with a **black
+  background and no `/SMask`** — a faithful placement puts a black box
+  on the page. pdfcer reproduces it exactly (pixel-identical against a
+  direct render of the source page), so a future "the stamp looks wrong"
+  report would be about the source file, not pdfcer. New lesson:
+  `lesson_20260910_stamp_collection_page_with_black_background_dct_image_and_no_smask_places_as_a_black_box.md`,
+  indexed in both `pdf\index.md` and the master `personal_rag\index.md`.
+
+**Still in flight:**
+- All five `pdfcer-gui` requests filed 2026-09-10 are now closed
+  (`place_page_artwork` was the last).
+- Owed items 4, 5, 10, 11, 13b, 14, 18 all carried forward, unchanged —
+  this Pass does not touch the owed ledger.
+- The `/Name`-on-a-custom-stamp round-trip gap (`R250`) is still open,
+  but is now potentially answerable via an Acrobat-Reader-placed
+  artifact — see the finding above.
+
+**For next session:**
+- If an Acrobat-Reader-placed custom stamp PDF becomes available, check
+  it for a `/Name` entry to close the `R250` gap.
+- This filing had no shell; all commit-message detail beyond what
+  `Read`/`Grep`/`Glob` could confirm against the live tree (byte-level
+  test/verb counts, the two sabotage mechanisms, the exact new-test
+  count) is relayed, not independently verified — see `ROADMAP.md`'s
+  sourcing paragraph for `Pass 293.0` for the full list.
+
+## 2026-09-10 (495th filing)
+
+**Shipped:**
+- Pass 291.0 (`0173a95`) — a shrunk or clipped stamp label now says so.
+  `Pass 287.0` gave `StampFit` three values (`GrowToText`/`ShrinkToBox`/
+  `ClipToBox`) but the consuming shell could offer only one of them,
+  because the other two decide something the operator did not ask for
+  with no channel back to report it. The disclosure channel that should
+  have carried this, `AuthoredTextAnnot::applied_autosize`, is `None` for
+  every stamp, always — it signals variable-text auto-size (`/DA 0 Tf`),
+  and a stamp's fitted size is written as an explicit `/DA` size, so the
+  field never fires for the case it was needed for. New
+  `AuthoredTextAnnot::stamp_label_fit: Option<StampLabelFit>`, an enum
+  (`AsRequested`/`BoxGrown`/`LabelShrunk`/`LabelClipped`,
+  `#[non_exhaustive]`) rather than a bare size, since the same number
+  means opposite things depending on whether it was requested or forced.
+  New `EditSession::add_text_annotation_reporting` returns
+  `TextAnnotOutcome`, added alongside the existing verb rather than
+  widening its return type. CLI prints all three inference cases,
+  nothing for `AsRequested`. Five new tests, `cargo test --workspace`:
+  5,292 pass.
+- Pass 292.0 (`c11c1aa`) — a placed stamp's label size can now be read and
+  written. New read half: `annot::stamp_label_parameters_in` /
+  `EditSession::stamp_label_parameters`, returning `{label, size,
+  size_source}` with `size_source` one of `DeclaredInDa` /
+  `RecoveredFromAppearance` / `DaUnreadable`. New write half:
+  `TextAnnotStyle::font_size` (+ `stamp_fit`) on `set_text_annot_style`,
+  refused by name on `/Text`. **A live data-loss defect was found and
+  fixed on the way in**: the restyle route rebuilds a stamp's appearance
+  from a spec read back out of the file, and `text_spec_from_dict`
+  deliberately reports `label: None` for a `/Stamp` (correct in
+  isolation — `/Contents` must not drive the face) — but the restyle's
+  rebuild read that `None` as "no custom label" instead of calling the
+  same recovery `resize_annotation` already used, so changing a stamp's
+  COLOUR silently replaced its own custom text with the stamp name's
+  default. Fixed by calling the shared recovery from both routes. CLI
+  `set-text-annot-style --font-size POINTS [--stamp-fit grow|shrink|clip]`;
+  `list-annotations` gains `stamp_label=`/`stamp_size=`/
+  `stamp_size_from=`. Eight new tests, `cargo test --workspace`: 5,300
+  pass; fmt/clippy clean; `check-core-api-verbs` PASS at 223 verbs.
+- Both close two of the three `pdfcer-gui`-channel requests still open as
+  of the 494th filing (the shrink/clip-fit disclosure gap and the
+  placed-stamp label size read/write gap); a reply is on file
+  (`reply_2026-09-10-stamp-label-size-both-halves-and-the-fit-disclosure-
+  SHIPPED.md`, relayed — not independently confirmed present, outside
+  this session's accessible directories).
+
+**Decisions made this session:**
+- None. Both Passes add API surface inside decision 147's existing
+  `/DA`-storage reading for a stamp's label — no new crate boundary,
+  library choice or invariant.
+
+**Findings + decisions:**
+- **`R245` gains a seventh dated instance, in two parts.** Part (a):
+  `TextAnnotOutcome::applied_autosize` was wired for one member of a
+  size-inference family (`/FreeText` auto-size) and silently `None` for
+  a sibling added later (`/Stamp` fit) — the rule arriving
+  *retroactively*, through a later Pass growing a new family member onto
+  an existing disclosure surface without re-checking coverage, rather
+  than being incomplete from day one. Part (b): the stamp-label recovery
+  was called by one of two rebuild routes and not its sibling — the
+  founding shape exactly, and the more serious of the two instances,
+  since the gap silently destroyed operator data rather than merely
+  under-reporting. Named `R245` by the engineer's own commit message.
+  No amendment to the rule's text; ceiling unaffected, `R245`, next free
+  `R246`.
+- **A related design principle flagged at n=1, not minted**: the
+  requester's own framing for `Pass 292.0` — "a read with no write, and a
+  write with no read, are both unbuildable surfaces, so an inspect/modify
+  pair for the same property ships together" — is a real stated
+  discipline for this Pass but not yet an independently-observed
+  cross-Pass pattern. Worth a standing rule at a second, independently-
+  arrived-at instance.
+- This filing had no shell; all commit-message detail beyond what
+  `Read`/`Grep` could confirm against the live tree (see `ROADMAP.md`'s
+  sourcing paragraph for the full list) is relayed, not independently
+  verified.
+
+**Still in flight:**
+- Owed items 4, 5, 10, 11, 13b, 14, 18 all carried forward, unchanged —
+  neither Pass this filing touches the owed ledger.
+- Only **one** of the five `pdfcer-gui` requests filed 2026-09-10 remains
+  open and unscoped: `place_page_artwork` (no verb draws one page's
+  artwork onto another page as a form XObject); the requester ranked it
+  lowest, and its `as_annotation` shaping question is undecided.
+- The two flagged `personal_rag/pdf` findings from the 494th filing
+  (Acrobat's own spacer-page habit; the population-scale empirical claim)
+  are still unwritten — carried forward again.
+
+**For next session:**
+- Scope `place_page_artwork` into a Pass ID.
+- Write the two flagged `personal_rag/pdf` findings.
+
 ## 2026-09-10 (494th filing)
 
 **Shipped:**

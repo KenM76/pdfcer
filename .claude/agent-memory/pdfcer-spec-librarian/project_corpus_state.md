@@ -7215,3 +7215,119 @@ write; ~22% are CRLF and the set grows."
   -layout` on the two staged PDFs, ~5 s each. **No source staged; no new licence tier.**
 - **veraPDF profiles supplied the PDF/A answer** for free (69f route): `PDFA-1B` §6.9,
   `PDFA-2B`/`PDFA-4` §6.3.3, extracted by regexing `<rule>` blocks for `AP` + `appearance`.
+
+---
+
+## 77. ★★ THE **"A REQUIRED KEY IS MISSING AND THE FILE STILL WORKS EVERYWHERE ELSE"** dispatch — *"Acrobat's own stamp file has a page with no `/Contents` and no `/Resources`; pdfcer refuses the WHOLE document"* (2026-09-10, §7.7.3.3/§7.7.3.4 → `iso32000__ref__page_required_attributes_absent.md`)
+
+Same family as **74** and **76** (a live refusal / a live blank render), but the
+question was sharper: not *"is this clause a `shall`?"* — the dispatch already
+knew it was — but *"is the requirement CONDITIONED on another key?"*
+
+### 77a. ★★★ THE COMMITTEE MAY HAVE ALREADY DEBATED THE DISPATCH'S EXACT SENTENCE — SEARCH `pdf-issues` BY THE **QUESTION**, NOT ONLY BY CLAUSE OR KEY
+
+Extends **74d** (search by clause number) and **70g** (an OPEN issue beats a
+self-measured silence). Here the winning query was neither: a **title search**
+(`repo:pdf-association/pdf-issues+Resources+in:title`, 6 results) returned
+**#81 — "Are Page node Resources required even if Contents is not present?"**,
+which is the dispatch's second question **verbatim**, opened by the errata
+project's own maintainer, `ISO approved`, milestone *ISO Submission Feb 2022*.
+
+**The disposition was the opposite of the intuitive one.** The issue *proposed*
+conditioning (*"Required only when Contents key is present"*) and was resolved
+**against** it, publishing an erratum NOTE on ISO 32000-2 Table 31's **`Contents`**
+row saying `/Resources` must still be present directly or by inheritance. ⇒ a
+`measured` corpus silence would have been the WEAKEST available answer; the
+committee had already ruled, in public, five years ago.
+
+**Mechanics that mattered:** `in:title` beat a full-text search (which drowns in
+example PDFs); `/comments` fetched separately again (74d) — the erratum text and
+both load-bearing quotations were comments 1 and 8 of 10; and the **erratum
+rendering** at `pdf-issues.pdfa.org/32000-2-2020/clause07.html` gave the final
+approved wording, which the GitHub thread does **not** (the thread ends with
+*"ISO prefer '… would be present' instead of required"* — and the published NOTE
+says **"must still be present"**. **The thread is the reasoning; the errata page
+is the text. Quote the errata page.**)
+
+### 77b. ★★★ THE ERRATUM LANDED ON THE **OTHER KEY'S** ROW — a table-row sweep keyed on `/Resources` would have missed it
+
+The question is about `/Resources`. The NOTE was added to the **`Contents`** row.
+Reason: the trigger condition (*"if the `Contents` key is not present"*) belongs
+where the reader is already looking. ⇒ **when a rule relates key A to key B,
+grep BOTH rows, and grep the errata for BOTH — the amendment lands wherever the
+reader will be, not wherever the constrained key is defined.** Same family as
+**76a** (the deciding sentence was in the common-entries table) and **72b**
+(follow every table cross-reference).
+
+### 77c. ★★★ THE JUSTIFICATION DIED AND THE DECISION LIVED — for the THIRD time (66g, 74e, now this)
+
+pdfcer's uncommitted fix carried the argument *"a page with no `/Contents`… can
+never ask for [a resource]."* **False.** §7.8.3 bullet 3 makes the **page's**
+resource dictionary the fallback for legacy form XObjects and Type 3 fonts
+*"used on a page"*, and an annotation's `/AP` normal appearance **is** a form
+XObject — the ISO 32000-2 erratum names *"annotation appearance streams"*
+explicitly. Rosenthol said exactly this in #81's **first reply**, in 2021.
+
+The empty-dictionary default still stands, on a **different** and unconditional
+reason: `<< >>` is the value the standard itself names for *"the page requires no
+resources"*, so a failed lookup against it is the same failed lookup an explicit
+`<< >>` produces. ⇒ **when a dispatch's code is already right, the deliverable is
+the JUSTIFICATION AUDIT** (74h), and expect to kill one argument per audit.
+
+### 77d. ★★ THE **INVENTION LINE** — the principled reason two "Required; inheritable" keys get different treatment
+
+`/Resources` and `/MediaBox` are both `(Required; inheritable)` with identical
+§7.7.3.4 wording, and the right behaviour differs:
+
+- absent `/Resources` → **the standard names a value for "nothing here"**
+  (*"shall be an empty dictionary"*) ⇒ defaulting **invents nothing**;
+- absent `/MediaBox` → **no `Default value:` anywhere**, `measured` 0 hits in
+  both editions for any sentence about its absence ⇒ any default is invented
+  (register `PB-A5`, which already existed and which this session confirmed).
+
+⇒ **grade a "may I default this?" question by asking whether the STANDARD has
+already named the fallback value**, not by how bad the failure looks. pdfcer's
+engineer had drawn the same line independently (decision 145 / `Pass 290.0`);
+the corpus confirmed it rather than corrected it.
+
+### 77e. ★ THE TWO-QUESTION SPLIT (74a) NOW HAS A THIRD LEG: **the conformance VERDICT is separable from the reader BEHAVIOUR**
+
+74a split *modality* from *addressee*. This dispatch needed one more: the file is
+**certainly** non-conforming (77a), **and** refusal is **certainly** unsupported
+(§2.1/§2.2/§2.3 + §1 Scope). Those are not in tension — a certainly-non-conforming
+file is *precisely* the population §2.2 declines to legislate for. **Deliver three
+rows: writer obligation / conformance judgement / reader behaviour.** Fusing any
+two produces either "so we must refuse" or "so the file is fine", both wrong.
+
+### 77f. ★ A `measured` NEGATIVE STILL EARNED ITS KEEP even though the committee had ruled
+
+The whole-document co-occurrence sweep (**20** sentences in 1.7, **19** in 2.0
+containing `Resources` **and** `Contents`/`content stream`/`page contents`, all
+read) is what makes *"nothing conditions the requirement"* a measurement rather
+than a failure to find. It also surfaced §7.8.3's association rule, which runs
+the **other** way (what a resource dictionary is *for*, not when the key must
+exist) — the clause most likely to be mis-cited as an exemption. **Run the sweep
+even when an authority already answers, because the sweep names the clause your
+reader will misuse.**
+
+### 77g. ★ THE PDF/A + PDF/UA ANSWER WAS FREE AND WAS **THREE DIFFERENT SHAPES**
+
+69f route again (veraPDF profiles, CC BY 4.0, staged). Regexing `<rule>` blocks
+gave: **PDF/A-1 — the string `Resources` appears 0 times**; **PDF/A-2/-3/-4
+§6.2.2-2** — a rule that exists but is **conditioned on a content stream that
+*references* something**, and whose test (`inheritedResourceNames == ''`)
+constrains **inheritance**, not presence; **PDF/UA-1/-2 — no `PDPage` rule
+mentioning `Resources` at all** (only `/Tabs`). ⇒ *"the subset standards add
+nothing"* was true but for **three different reasons**; state each (63e).
+
+### 77h. Filing shape — 1 new file, 3 edits, 1 count cell, 0 sources staged
+
+`iso32000__ref__page_required_attributes_absent.md` (new, `spec: multi`, four
+licence tiers, ends with a `FLAT-GREPPABLE QUOTATION INDEX` — **14/14 quotations
+passed the flat-grep check on the first run**, the first clean pass since the
+standard fix was adopted). Edits: `iso32000__s__7.7.3.md` (**CRLF** — detected
+per-file, `## ABSENT-ATTRIBUTE DIRECTION` section, heading map re-printed clean),
+the ambiguity register (`PR-N1`/`PR-N2`, bucket 2 **50 → 52**), and `index.md`
+(prefix cell `iso32000__ref__*` **29 → 30** recounted from disk, manifest row,
+**three** trigger rows, one 5-command search recipe — all five run non-empty).
+Both edition dumps were already cached in `/tmp` from items 74–76.
