@@ -8,6 +8,46 @@ doc). It is replaced each session with the current handoff.
 
 ---
 
+## ★★★ READ THIS PARAGRAPH FIRST — THE DOCS MOVED, 2026-09-10
+
+The operator said the project *"has slowed to a crawl"* and the cause measured
+out as these files: **372,011 lines of `docs/` against 455,626 of `crates/`**,
+with one day's work adding **2,722 register lines against 5,844 code lines**.
+
+| register | was | is |
+|---|---|---|
+| `ROADMAP.md` | 168,036 | **26,542** |
+| `SESSION_LOG.md` | 99,597 | **1,464** |
+| `ARCHITECTURE.md` | 34,341 | **10,317** |
+
+**History moved verbatim to `docs/history/` — grep it, never append to it.**
+Shipped entries, session-log entries, the 18,051-line standing-rule text,
+§12's pre-September decisions, and 19 queue items whose Pass had already
+shipped.
+
+**Four things changed about how you work here:**
+
+1. **This file is the first read**, then only what the task needs. `CLAUDE.md`
+   says so now.
+2. **`tools/check-register-entry-size.py` fails CI** on a Shipped entry over
+   150 lines, a Next-up item over 80, a `SESSION_LOG` filing over 200, a
+   `FEATURES` row over 1,200 characters. 117 pre-existing entries are carried
+   as DEBT; the direction is down.
+3. **The reasoning goes in the COMMIT MESSAGE.** The register says what
+   shipped, what it decided, and which hash to read. This does not relax
+   documentation-first: source doc comments and commit messages stay as
+   thorough as ever.
+4. **A filing need not be a subagent dispatch.** The 497th and 498th filings
+   were written by the engineer in under five minutes each, inside the caps.
+   Dispatch the librarian when the filing needs a cross-document sweep; write
+   it yourself when it does not.
+
+★ `ROADMAP.md`'s rule index now marks **44 of 187** rules with the script that
+enforces them. The other 143 are followed by eyeball, and that is the next
+piece of work the operator named: *"script it or bin it."*
+
+---
+
 ## STATE
 
 Workspace version `0.50.0`; the last release is **`v0.50.0`** (2026-09-10,
