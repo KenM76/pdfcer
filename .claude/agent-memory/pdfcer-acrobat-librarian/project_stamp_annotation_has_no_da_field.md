@@ -48,3 +48,27 @@ AcroForm calculation-script fields, no special stamp-field type. Full
 writeup: `markup__custom_stamp_file_format.md` (same directory).
 See also [[project_bucket_building_pattern]] for how this session's
 two-file addition fits the RAG's usual extension-session shape.
+
+**UPGRADED 2026-09-10 (follow-up, same day) — the `/PieceInfo`
+negative above is now MEASURED, not just searched-for-and-not-found.**
+A follow-up dispatch read Acrobat DC's own shipped
+`StandardBusiness.pdf`/`Dynamic.pdf` stamp collection files directly
+(licensed local install,
+`C:\Program Files\Adobe\Acrobat DC\Acrobat\plug_ins\Annotations\Stamps\ENU\`).
+`StandardBusiness.pdf` DOES carry `/PieceInfo` (12×) but it is
+Illustrator authoring metadata, unrelated to stamp identity/naming —
+confirms the "don't assume Stamp inherits Watermark's `/PieceInfo`
+convention" line above by direct observation rather than absence of
+evidence. Same pass also **closed** two GAPs `markup__custom_stamp_file_format.md`
+had flagged `(c)`: category name = the file's `/Info`/`/Title` (not
+filename, not a preferences mapping), and the `#`-prefix dynamic
+convention is confirmed on every entry of Acrobat's own Dynamic
+category. New structural fact not previously recorded anywhere: the
+page-template names live in a catalog `/Names`→`/Pages` **name tree**
+(ISO 32000-1 §7.7.4 Table 31), in **required lexicographic key order**
+(§7.9.6), inside a `/Names` dict shared with unrelated keys like
+`/JavaScript` — a reimplementer must not wholesale-replace that
+dictionary or emit entries in page order. The round-trip `/Name`
+GAP (does a *placed* stamp annotation retain a link back to its
+source stamp) is explicitly **still open** — this follow-up inspected
+collection files only, never a placed-and-saved annotation.
