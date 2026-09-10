@@ -116,6 +116,52 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `a12dca6` + `233a9ef` (2026-09-10) — the registers were the bottleneck, and a gate so they stop growing
+
+**Operator, 2026-09-10:** *"this project has slowed to a crawl and it takes
+ages to progress forward."* Measured before touching anything: **372,011 lines
+of `docs/` against 455,626 lines of `crates/`**, with that day's work adding
+**2,722 lines of register against 5,844 lines of code** — and `ROADMAP.md`'s
+live sections beginning at line 124,143 of a file on the read-every-session
+list.
+
+| register | before | after |
+|---|---|---|
+| `ROADMAP.md` | 168,036 | **30,277** |
+| `SESSION_LOG.md` | 99,597 | **1,446** |
+| `ARCHITECTURE.md` | 34,341 | **10,317** |
+
+History moved **verbatim** to `docs/history/` (five files, ~260,000 lines):
+Shipped before 2026-09-09, session-log entries before 2026-09-09, the 18,051-
+line standing-rules text, §12's decisions before 2026-09-01, and the RETIRED
+§4.1 — whose own heading told readers to read `docs/core-api/` instead.
+`ROADMAP.md` keeps a one-line index per rule; `ARCHITECTURE.md` keeps one per
+archived decision.
+
+★★ **The gate is the point, not the archive** — an archive with no cap refills.
+`tools/check-register-entry-size.py` caps a Shipped entry at 150 lines, a
+Next-up item at 80, a `SESSION_LOG` filing at 200, a `FEATURES` row at 1,200
+characters. 136 pre-existing entries are carried in a baseline that is **DEBT**,
+printed every run. In CI as `audits` check 20, and therefore in `run-gates.sh`.
+
+**Where the reasoning goes instead: the commit message** — exhaustive,
+permanent, and read only by someone looking for it. Documentation-first is
+untouched; the cut is in the files everyone must read *first*.
+
+Three gates followed the content, and one found a real consequence:
+`check-commits-filed` / `check-passes-filed` / `check-ledger-numbers` read
+`docs/history/` (a citation is no less a citation for being archived);
+`check-ledger-numbers` reads standing rules from **the archive only**, because
+archived Shipped entries quote a rule at mint time in the same bullet shape —
+**a definition site is a place, not a pattern**; and
+`check-cited-commits-exist` now treats a register and its archive as **one
+document with a page break in it**, after the split separated six stale hashes
+from the correction notes that explain them.
+
+Also amended: `CLAUDE.md`'s read-first list (`NEXT_SESSION.md` first, the rest
+when the task touches them) and `pdfcer-librarian.md`, which gains the size
+rule at the top and is told it overrides the older guidance in that file.
+
 **★★★★★ 496th filing, 2026-09-10 — `Pass 293.0` SHIPPED: A CUSTOM STAMP
 CAN NOW BE PLACED — ONE PAGE'S ARTWORK ONTO ANOTHER, AS VECTOR, THROUGH A
 FORM XOBJECT BEHIND A `/Stamp` ANNOTATION. CLOSES THE LAST OF THE FIVE

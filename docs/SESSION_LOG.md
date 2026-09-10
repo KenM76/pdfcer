@@ -4,6 +4,29 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-10 (497th filing) — the registers were the bottleneck
+
+**Shipped:** `a12dca6`, `233a9ef` — the register trim. `ROADMAP.md`
+168,036 → 30,277 lines, `SESSION_LOG.md` 99,597 → 1,446,
+`ARCHITECTURE.md` 34,341 → 10,317; history moved verbatim to
+`docs/history/`. New gate `tools/check-register-entry-size.py` caps
+new entries (150/80/200 lines, 1,200 chars) with 136 pre-existing
+entries carried as DEBT. Three filing gates taught to read the
+archive. Full reasoning: the two commit messages.
+
+**Why:** the operator said the project *"has slowed to a crawl"*, and
+the measurement agreed — 372,011 lines of docs against 455,626 of
+code, 2,722 register lines written that day against 5,844 code lines,
+the same paragraph landing four times.
+
+**Owed:** `ROADMAP.md`'s *Next up* (12,900 lines) and *Backlog* (9,566)
+are the remaining bulk and need editorial judgment, not a script. The
+136-entry baseline should shrink. The 231 standing rules still have no
+"what enforces this" column — the operator's *"script it or bin it"*
+applies there next.
+
+**Note the shape of this entry:** it is 20 lines. That is the point.
+
 ## 2026-09-10 (496th filing)
 
 **Shipped:**
