@@ -84,15 +84,7 @@ docs/ROADMAP.md:### Pass 52.0–52.3 — PDF → DXF export, so SOLIDWORKS can i
 docs/ROADMAP.md:### Pass 67.0 — font reporting (phase A) + embedded-font removal (phase B) — operator request 2026-08-11, verbatim: *"so
 docs/ROADMAP.md:### Pass 69.0 — ★★ OPERATOR REQUEST 2026-08-12 — **ce-dimension STYLE + TOLERANCE, with a group default and a per-ce-dim
 docs/ROADMAP.md:### Pass 69.1 — **ce-dimension TOLERANCE** — the second half of the operator's 2026-08-12 request, split out 2026-08-13
-docs/ROADMAP.md:### Pass 71.0 — **OCR**, promoted from the Backlog bucket 2026-08-12 (hundred-and-twenty-sixth filing) on the operator's
 docs/ROADMAP.md:### Pass 73.1 — **two DEFECTS in `pdfce-core`'s edit surface, both found by the same API-mapping pass: the ONE non-atomi
-docs/ROADMAP.md:### `Pass 10.7` — **PKCS#12 IMPORT + THE `Signer` SEAM — `Pkcs12Signer`: parse a `.pfx`/`.p12` (RFC 7292), VERIFY THE MA
-docs/ROADMAP.md:### `Pass 10.8` — **BUILD THE CMS `SignedData` — CAdES, PAdES B-B: `version 1`, detached `id-data`, signed attributes co
-docs/ROADMAP.md:### `Pass 10.9` — **THE PDF-LEVEL SIGNING WRITE — an `EditSession` signing verb + `pdfcer sign`: a `/FT /Sig` field with
-docs/ROADMAP.md:### `Pass 142.2` — ★★★ **THE FONT PRE-FLIGHT TESTS THE TEXT ABOUT TO BE TYPED, NOT ONLY THE TEXT THAT IS THERE — a CANDI
-docs/ROADMAP.md:### `Pass 179.0` — **BOLD BECOMES AUTOMATIC: A FALLBACK LADDER THAT BINDS A REAL FACE WHEN ONE EXISTS AND SYNTHESISES WH
-docs/ROADMAP.md:### `Pass 256.0` — ★★★★ **EDIT TEXT ACROSS SHOW OPERATORS — a `find` may span CONSECUTIVE show operators of one text obj
-docs/ROADMAP.md:### `Pass 257.0` — ★★★★ **SESSION VERBS PLAN AGAINST THE SESSION GRAPH, NOT THE BASE REVISION — `edit_text`, `format_tex
 docs/ROADMAP.md:### `Pass 277.0` (`fccd6cd`, 2026-09-09 05:22:19 −0400) — A STICKY NOTE REFUSED A RESIZE BY CLAIMING pdfcer HAD NOT DRAW
 docs/ROADMAP.md:### `Pass 279.0` (`5b8ec61`, 2026-09-09 06:41:18 −0400) — THE NAMED REMEDY COULD LEAD IN A CIRCLE, AND THE EXISTING TEST
 docs/ROADMAP.md:### `Pass 280.0` (`26ef381`, 2026-09-09 08:05:32 −0400) — THE ALPHABET IS KNOWABLE BEFORE THE FIRST KEYSTROKE, SO ASK IT
@@ -100,17 +92,7 @@ docs/ROADMAP.md:### `Pass 283.0` (`dce2223`, 2026-09-09) — A PDF WITH ERRORS O
 docs/ROADMAP.md:### `Pass 293.0` (`56c5e55`, 2026-09-10) — a custom stamp can be placed, as vector
 docs/ROADMAP.md:### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWN
 docs/ROADMAP.md:### ~~Pass 81.0~~ — **SHIPPED 2026-08-14, commit `a84bdc3`, WHILE THIS VERY FILING WAS BEING WRITTEN. See the `Pass 81.0
-docs/ROADMAP.md:### ~~Pass 81.1~~ — **SHIPPED 2026-08-27, commit `4eaea20`. See the `Pass 81.1` entry at the top of *Shipped*.** Retaine
-docs/ROADMAP.md:### ~~`Pass 142.1`~~ — **SHIPPED 2026-08-27, commit `2e6235c`. See the combined `Pass 142.1` + `144.0` + `145.0` entry a
-docs/ROADMAP.md:### ~~`Pass 144.0`~~ — **SHIPPED 2026-08-27, commit `cfa2c44`. See the combined `Pass 142.1` + `144.0` + `145.0` entry a
-docs/ROADMAP.md:### ~~`Pass 145.0`~~ — **SHIPPED 2026-08-27, commit `0c48bbf`. See the combined `Pass 142.1` + `144.0` + `145.0` entry a
-docs/ROADMAP.md:### ~~`Pass 185.0`~~ — **THE CI JOB NAMED FOR ONE OF ITS NINETEEN STEPS: SPLIT IT, OR RENAME IT TO WHAT IT HAS BECOME**
-docs/ROADMAP.md:### ~~`Pass 199.0`~~ — **`PCS 16.1` FAILS 15 OF 16 CELLS, AND THE BLEND ARITHMETIC IS CORRECT — THE sRGB→CMYK CONVERSION
 docs/ROADMAP.md:### ~~★★★★★ OPERATOR PRIORITY RULING 2026-08-27~~ — **DISCHARGED 2026-08-27 (297th filing). ALL THREE CHANNEL ITEMS SHIP
-docs/ROADMAP.md:### ~~★★★★★ THE 08:31 INBOUND — A `pdfceGUI` REQUEST ARRIVED BETWEEN THE 305th FILING'S CHANNEL CHECK AND `Pass 143.0`'s
-docs/ROADMAP.md:### ~~★★★★★ THE 21:54 INBOUND — A FOURTH `pdfceGUI` REQUEST ARRIVED AFTER THE 296th FILING'S CHANNEL CHECK AND BEFORE TH
-docs/ROADMAP.md:### ~~★★★★★ TWO MORE `pdfceGUI` FILES ARRIVED AT 22:50 AND 22:57 — **ONE OF THEM IS A LIVE DEFECT REPORT AGAINST `Pass 1
-docs/ROADMAP.md:### ~~★★★★★ `preview_style_resolution` STILL PASSES THE CALLER'S `find` STRAIGHT THROUGH — **`Pass 147.0` FIXED ONE OF T
 docs/ROADMAP.md:### ~~⚠ OWED TOOLING~~ — a render-profiling harness that SURVIVES the session — **★★ CLOSED 2026-08-07 (twenty-first fil
 docs/ROADMAP.md:### ★ Icon set — ScripTree-style SVG icons for all GUI features (operator priority #2, set 2026-08-01, SHIPPED 2026-08-0
 docs/ROADMAP.md:### ★ NEXT MAJOR FOCUS — Pass 14.x: Acrobat text-handling parity (decision 014, DECIDED 2026-07-31)
@@ -135,4 +117,3 @@ docs/ROADMAP.md:### ★★★★★ OWED TO THE NEXT SESSION — the 190th filin
 docs/ROADMAP.md:### ★★★★★ Pass 72.0 — HIGH PRIORITY — **the redaction TRUE-REMOVAL PROOF has no home in `pdfce-core`: it lives in `crate
 docs/ROADMAP.md:### ★★★★★ THE `iccce` INBOX — **2 requests OWED AND STILL UNREAD, oldest 2026-08-17 — of 16 FILES in `open\`, not 2** —
 docs/ROADMAP.md:### ★★★★★ THE `pdfceGUI` INBOX — **1 request GENUINELY OPEN of 2 files in `open\`, and 1 REPLY IS OWED** — the twin stan
-docs/ROADMAP.md:### ★★★★★★ THE SUITE STANDING BOARD — **26 pass AT MINIMUM, of 51 patches** (harness-reported `24 / 11 / 16`, UNCHANGED
