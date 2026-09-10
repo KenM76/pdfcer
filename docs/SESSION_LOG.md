@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-10 (499th filing) — `v0.51.0` released
+
+**Released:** tag at `1ccd31e`, CI **green** at the tagged commit. Zip
+`pdfcer-v0.51.0-windows-x64.zip`, **19,117,523 bytes**, SHA-256
+`b8e5741075e17c6c02b159249fb4de77a84d50df2d51f5f6251386a21274ed48`.
+Portable folder `D:/builds/pdfcer-20260910-1611-1ccd31e`, 8 files,
+35,300,188 bytes. OneDrive slot **`pdfcer2`**; `pdfcer1` keeps `0.50.0`
+as the previous version. `verify-release.py` **nine of nine**.
+`run-gates.sh` PASS, 30 commands.
+
+**Contents:** six Passes — `290.0`/`290.1`, `291.0`, `292.0`, `293.0`,
+plus `289.0`. Headline for an operator: a PDF Acrobat wrote could not
+be opened, and now it can.
+
+★ **Two builds were discarded before one was shippable**, both caught by
+the binary's own version banner reading `-dirty`: the first was built
+before the version bump was committed, the second while `fuzz/Cargo.lock`
+— its own cargo workspace, its own lockfile — still carried `0.50.0`.
+A release binary that says *"this is not the commit it names"* is not a
+release binary. The banner did the work no checklist item would have.
+
 ## 2026-09-10 (498th filing) — the queue was a fifth finished work, and the rules now say who enforces them
 
 **Shipped:** `93b7bbf` — 19 of `ROADMAP.md`'s 99 *Next up* items described a
