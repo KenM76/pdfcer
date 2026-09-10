@@ -4,23 +4,25 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-09-09, after `Pass 285.0`.
+**Written:** 2026-09-10, after `Pass 288.0`.
 
 ---
 
 ## STATE
 
-Workspace version `0.49.0`. **Last release is still `v0.45.0`** (2026-09-07) —
-everything since is pushed but unreleased. Releasing is standing-authorized
-(decision 121); nobody has needed it yet, and the consuming project reads
-`docs/core-api/` from the repo rather than from a tarball. **If you have budget
-for a release, cutting one is overdue rather than forbidden.**
+Workspace version `0.50.0`. **`v0.50.0` is RELEASED** (2026-09-10) — tagged,
+both channels, `verify-release.py` clean on every check, fresh-folder smoke
+test run. OneDrive slot `pdfcer1`, with `0.49.0` preserved in `pdfcer2`.
 
-**`main` is pushed through `a2adb54`.** `tools/run-gates.sh` **PASS, 29/29**,
-including both filing gates. `cargo test --workspace` green.
+★ **The previous handoff said "last release is `v0.45.0`" and that was stale by
+four versions** — `v0.49.0` had shipped two days earlier. **Nothing checks this
+file's facts.** If you carry a release number forward, verify it with
+`gh release list` first; it costs one command and it was wrong for a day.
 
-**Nine Passes shipped today**, each closing an inbound request, an operator
-report, or a defect found while shipping one of the others:
+**`main` is pushed through `12fab12`.** `tools/run-gates.sh` **PASS, 29/29**.
+`cargo test --workspace` green. Clippy and fmt clean.
+
+**Twelve Passes shipped across this session:**
 
 | Pass | commit | what |
 |---|---|---|
@@ -32,66 +34,74 @@ report, or a defect found while shipping one of the others:
 | `282.0` | — | the `/Info` half of the redaction-diligence gap |
 | `283.0` | `dce2223` | **a PDF with errors OPENS** — decision 145, rule `R248` |
 | `283.1` | `d8fcb68` | that intervention, reachable from a **path** |
-| `284.0` | `ea4acb3` | **redaction sweeps the FILE, not the graph** — decision 146, rule `R249` |
+| `284.0` | `ea4acb3` | **redaction sweeps the FILE, not the graph** — decision 146, `R249` |
 | `285.0` | `1366138` | an abandoned content stream's drawn text is blanked |
+| `286.0` | `369d4de` | the redaction report carries the words a MARK covered |
+| `287.0` | `1bbb7c1` | **a stamp's label size is a property** — decision 147 |
+| `288.0` | `554897e` | **Acrobat-compatible stamp collections** — decision 148, `R250` |
 
-Filings: 485th `6b10e92`, 486th `5bf8704`, 487th `a2adb54`.
+Filings: 485th `6b10e92` … 491st `1bee454`. `R247` **claimed** (489th).
+Ledger: rules → `R250`, decisions → `148`, filings → `491`.
 
 ---
 
-## ★★ TWO POSTURE CHANGES LANDED TODAY. READ BOTH BEFORE TOUCHING THEIR AREAS
+## ★★ WHAT THIS SESSION ESTABLISHED THAT OUTLIVES ITS PASSES
+
+Four postures landed. Read the ones that touch your area **before** working in
+it, because each replaced a default that used to look reasonable.
 
 ### Decision 145 — a damaged file OPENS (reader)
 
-`Pass 283.0` turned two mid-session operator rulings into a posture change for
-the whole reader:
+Six malformation classes now open instead of costing the document; every
+decision is recorded with what it chose *between*; `--on-malformed` takes the
+other one. **Fail-clean never meant refuse.** The question is no longer *"is
+this file conforming?"* but *"can pdfcer continue without inventing anything?"*
+— and §7.3.10's undefined-object rule is usually the answer. Only a missing
+`/Root` stays fatal, because continuing would mean fabricating a catalog.
 
-> *"We should be making pdfcer so that it opens pdfs that have errors, and have
-> a way that it manages those errors such that they aren't fatal, and if the
-> user can intervene in a decision that should always be an option along with
-> them not having to intervene."*
->
-> *"We should be doing this for all defects where it is possible to continue and
-> open the file."*
+### Decision 146 + `R249` — evidence, never reachability (writer/redaction)
 
-**Fail-clean never meant refuse** — it meant never silently do the wrong thing,
-and a counted, disclosed, overridable decision is not silent. Six malformation
-classes now open instead of costing the document; every decision is recorded
-with what it chose *between*; `--on-malformed` and `LoadOptions` take the other
-one.
+Carriers were found by **navigating the graph** while the writer emits by
+**enumerating the xref**. Everything in the difference was copied through
+verbatim while the report said `scrubbed`.
 
-★ **The next reader defect you meet is governed by this, not by taste.** The
-question is no longer *"is this file conforming?"* but *"can pdfcer continue
-without inventing anything?"* — and §7.3.10's undefined-object rule is usually
-the answer. The one line that stays fatal is a file with no `/Root`, because
-continuing there would mean fabricating a catalog; a test pins it.
+**`R249` generalises well past redaction:** *before scoping any destructive
+sweep to satisfy an outcome-shaped obligation, scope it to the evidence the
+obligation itself names — never to a computed reachability or liveness walk,
+which drops content **silently** rather than refusing loudly.* Three object
+classes are unreferenced **by design** (object streams via type-2 entries,
+xref streams via byte offset, the linearization dictionary by a `shall`).
 
-**Where to look next:** anywhere the reader still returns a hard error for a
-*part* of a file — `pages()`, the font loaders, the content interpreter, the
-annotation walkers.
+★ The warrant is empirical: the census probe built to *measure* the fix
+reproduced the exact failure it was written to catch, **twice**, moving my
+reported figure 21% → 12%.
 
-### Decision 146 and `R249` — evidence, never reachability (writer/redaction)
+### Decision 147 — borrow the sibling subtype's key, never a private sidecar
 
-`Pass 284.0` found that every redaction carrier located its target by
-**navigating the document graph** while the writer emits objects by
-**enumerating the cross-reference table**. Everything in the difference was
-copied through verbatim — while `info action=scrubbed` and
-`prior_revisions action=dropped_by_rewrite` were both **true**. No false line,
-content still present.
+Where the spec defines **no** key for a subtype's derived parameter, use the
+key the standard already defines for the **identical** problem on a sibling
+subtype. `/DA` on `/Stamp`, from §12.7.3.3's `/FreeText` entry — **not**
+`/PieceInfo`. A font size is not private data; burying a legible answer in an
+application-keyed sidecar makes every other tool unable to read what pdfcer
+could write in the open.
 
-**`R249`, and it generalises well past redaction:** *before scoping any
-destructive sweep to satisfy an outcome-shaped obligation ("remove all X"),
-scope it to the evidence the obligation itself names. Do not substitute a
-computed reachability or liveness walk as a proxy* — such a walk on a
-graph-shaped format **drops content silently rather than refusing loudly**
-(§7.3.10 makes a dangling reference *"not … an error"*).
+★ Its asymmetry is the reusable half: a **size** is recovered (from `/DA`, or
+the baked `Tf`); a **fit policy** is settable but **never** recovered, because
+no stored key records an author's intent and a geometric guess would invent one
+nobody made.
 
-★ **The warrant is empirical.** The census probe built to *measure* the fix
-reproduced the exact failure it was written to catch — **twice** — and my
-reported impact figure moved 21% → 12% as a result. Three object classes are
-unreferenced **by design**: object streams (type-2 xref entries),
-cross-reference streams (byte offset), and the linearization dictionary
-(Annex F.3.3).
+### Decision 148 + `R250` — a `(c)` label is a pointer, not a licence
+
+`pdfcer-acrobat-librarian` did its job exactly right: correct shape from
+convergent **community** sources, labelled `(c)`, two gaps flagged **by name**.
+**That labelling is what made verification cheap** — I knew precisely what to
+check. Adobe's own stamp files were on this machine and both answers were in
+them.
+
+⇒ **`R250`: a Feature-RAG finding labelled `(c)` is a pointer at what to verify
+against a primary artifact when one exists on disk — not a licence to build
+from unchecked.** Recorded as a habit too: Acrobat's install directory ships
+directly-readable primary assets.
 
 ---
 
@@ -140,65 +150,45 @@ would have come from reading the code.
 
 ---
 
-## ★ THE QUEUE
+## ★ THE QUEUE — EMPTY OF INBOUND WORK
 
-★ **The item that headed this queue all session — the orphaned metadata object
-surviving redaction — is CLOSED** (`Pass 284.0` + `285.0`). It was one instance
-of a class; the class is closed too. What remains of it is the sweep's existing
-floor, not a new gap: **a stream that does not parse as a content stream**, and
-**text drawn through a subset font whose operand bytes are glyph codes rather
-than characters**. Closing the second needs the glyph machinery the *live*
-content path already uses, and it is the same floor `redacted_text` has — so it
-belongs with item 1 below, not on its own.
+★★ **Every request from `pdfcer-gui` is closed, and so is every item this
+session's queue opened.** That has not been true before. The next session
+starts from the operator's own plan, not from a backlog.
 
-**Both remaining items are from `pdfcer-gui`. Take them in this order:**
+**Closed this session:** the sticky-resize refusal, `/Ink` node editing, the
+circular font advice, `run_repertoire`, hybrid-file redaction, the `/Info`
+scrub gap, the malformed-file posture, the whole-file redaction sweep, the
+abandoned content stream, `redacted_text` granularity, the stamp text size,
+and Acrobat-compatible stamp collections.
 
-1. **`request_redacted_text_carries_single_characters_on_a_per_glyph_producer_so_the_absence_proof_is_blind.md`**
-   — CONFIRMED at the source and replied to; not built. `redacted_text` is
-   accumulated **per show operator**, so a per-glyph producer yields single
-   characters and their absence proof greps for the alphabet.
-
-   ★ **It is the same bug as the `carrier_info` gap was**: that field has a
-   second consumer inside the engine, and the two want opposite granularities —
-   joining runs (what they asked for) makes metadata under-matching *worse*.
-   Ship both halves in one Pass: per-mark joined text, plus a match rule that
-   does not depend on granularity, plus the granularity stated in the report.
-
-   ★★ **And it now has a third consumer**: `residual_sweep`'s
-   `redaction_evidence` (`Pass 284.0`). Whatever granularity you choose, check
-   it against the sweep as well — a change that helps the absence proof and
-   quietly narrows the sweep would re-open a leak this session just closed.
-   **That is the thing to be careful about in this Pass.**
-
-2. ~~**`request_resize_annotation_refuses_a_pdfcer_authored_stamp_as_foreign.md`**~~
-   — **CLOSED by `Pass 287.0` (`1bbb7c1`), and it was never the bug everyone
-   read it as.**
-
-   It was filed and queued as a *geometry* problem — resize refuses a stamp,
-   and separately stretches its text. The measured cause of the refusal is
-   neither: **a stamp's custom label is stored nowhere in the file.**
-   `text_spec_from_dict` returns `label: None`, so the authorship
-   byte-comparison rebuilt the stamp as its NAME's default label, compared
-   `DRAFT` against `APPROVED FOR CONSTRUCTION`, and concluded a stranger had
-   drawn it. **The test was correct; the spec it round-tripped through was
-   lossy.**
-
-   ★ **Carry that shape, not the fix:** *an authorship test is only as good
-   as the spec it round-trips through.* Close kin to `R245` without being it.
-   Both label and size are now recovered from the appearance itself, so
-   stamps already in documents work too.
-
-   Also shipped: `StampStyle`/`StampFit` (the box grows to the text by
-   default), `/DA` as the size's home (decision 147), and a **third
-   authorship arm** in `resize_annotation` — it knew `/FreeText` and markup
-   and not stamps, which is `R245` on a family of three routes.
-
-### After those, the operator's own ordered plan (2026-09-06) is still untouched
+### The operator's own ordered plan (2026-09-06), now the front of the queue
 
 `Pass 142.0` (embedded-donor `format-text --set-font`), resize-page-contents
 (dispatch `pdfcer-acrobat-librarian` first, rule 12), `Pass 259.0` (the
 `docs/core-api/` line-citation class), `Pass 10.11` (B-T timestamps).
 
+### Two open questions worth settling when the right file exists
+
+1. **Does a PLACED stamp remember which stamp it came from?** The acrobat
+   librarian flagged this as the single highest-value gap in its stamp file
+   and it is **deliberately still open**: this session read collection *files*
+   only, never a placed-and-saved annotation. Settling it needs a PDF stamped
+   by Acrobat Pro, which is not on this machine (Reader only —
+   `acrobat-reader-is-available-pro-is-not`). ★ It was left `GAP` rather than
+   swept along with the two gaps that *were* closed, and that separation is
+   the point: proximity to an answer is not an answer.
+
+2. **Should the line-ending-agnostic edit helper become a real `tools/`
+   script?** A multi-line `str.replace` against a CRLF file with an LF pattern
+   matched **zero times, silently**, three separate times this session. I
+   wrote a helper that normalises to the file's own line ending and refuses
+   unless the pattern matches exactly once — but it lives in a job temp
+   directory and dies with it. The librarian recorded it as a suggestion, not
+   an owed item. **It is the durable fix for a failure that recurred three
+   times in one day**, which is the argument for promoting it.
+
+---
 
 ## OWED
 
@@ -213,7 +203,7 @@ belongs with item 1 below, not on its own.
   deferred**, because its instances were already being filed correctly inside
   `R225`'s family and a second number would have meant two rules to reconcile.
   Founding instance: `Pass 285.0`'s `blank_show_strings` span-scoping comment.
-  Ceiling stays `R249`, next free `R250`; nothing renumbered.
+  Ceiling was `R249` then; `R250` has since been minted (491st filing).
   ★ **The lesson is in how long it took, not in the answer.** It sat through
   four filings because each one correctly declined to guess and each mint went
   *past* it — a discipline that works and compounds into a worse tangle. **A
@@ -325,11 +315,22 @@ pdfium all keep-last).
 
 ## BUILD ENVIRONMENT
 
-`target/` was **187 GB** at the start of the previous session on a disk at 96 %
-full; `rm -rf target/debug/incremental` reclaimed **24 GB**. `du -sh target/`
-every session — the same 24–26 GB rebuilds each time. Both checks must be run
-before any delete: `git ls-files target` returns 0 and `git check-ignore -q
-target` passes.
+★★ **`target/debug/deps` GROWS WITHOUT BOUND — cargo never garbage-collects
+it.** It had reached **154 GB** (of a 168 GB `target/`) on a disk at **90 %**
+full. `rm -rf target/debug` reclaimed **159 GB** and took the disk to 73 %.
+Clearing `incremental` alone is not enough — that is only ~12 GB and it was the
+previous session's mistake.
+
+`du -sh target/debug/deps` every session. Both checks must be run before any
+delete: `git ls-files target` returns 0 and `git check-ignore -q target`
+passes. The cost of the delete is one full debug rebuild (~8 min), which is
+cheaper than the disk filling mid-Pass.
+
+★ **Low memory kills background tasks**, and it killed five this session. The
+machine has 16 GB shared with Dropbox, Everything, Defender and several Claude
+sessions; ~3 GB free is normal. Nothing is runaway — it is contention, and
+background watchers are the first thing sacrificed. **Check CI directly rather
+than leaving a poller running.**
 
 **Foreground survives where background dies.** `tools/run-gates.sh` takes well
 over ten minutes; run it in the background and poll, but run the expensive
