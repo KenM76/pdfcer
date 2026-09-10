@@ -251,6 +251,11 @@ def main() -> int:
                     return "session-log"
                 if rel.startswith("docs/history/standing-rules"):
                     return "roadmap"
+                if (
+                    rel.startswith("docs/history/architecture-decisions")
+                    or rel == "docs/ARCHITECTURE.md"
+                ):
+                    return "architecture"
                 return rel
 
             explained_registers = {

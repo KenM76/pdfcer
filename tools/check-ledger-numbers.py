@@ -613,18 +613,31 @@ def collect_decisions():
     # ...and the ones declared in ARCHITECTURE.md §12, which is where a
     # decision that never got its own file lives (034-036, 039, 040).
     arch = defaultdict(list)
-    for lineno, line in enumerate(read_lines(ARCHITECTURE), start=1):
-        stripped = line.strip()
-        m = ARCH_DECISION.match(stripped)
-        if m:
-            arch[int(m.group(1))].append(f"{ARCHITECTURE}:{lineno}")
-            continue
-        # Anything else that names a decision number at all. CEILING ONLY —
-        # see ARCH_DECISION_MENTION's note for why this cannot over-report a
-        # ceiling, and why it must not be narrowed back to a declaration shape
-        # the next time the prevailing spelling changes.
-        for mention in ARCH_DECISION_MENTION.finditer(stripped):
-            arch[int(mention.group(1))].append(f"{ARCHITECTURE}:{lineno} (mention)")
+    # ★ §12 is TWO files since 2026-09-10: decisions before 2026-09-01 moved to
+    # `docs/history/architecture-decisions-before-2026-09.md` (ARCHITECTURE.md
+    # was 34,340 lines, ~26,000 of them decision log). A decision number is
+    # SPOKEN FOR wherever it was declared, so the archive is scanned too --
+    # otherwise this tool would eventually hand out a number that decision 007
+    # has held since July.
+    _arch_files = [ARCHITECTURE]
+    _arch_archive = os.path.join(
+        "docs", "history", "architecture-decisions-before-2026-09.md"
+    )
+    if os.path.exists(_arch_archive):
+        _arch_files.append(_arch_archive)
+    for _af in _arch_files:
+        for lineno, line in enumerate(read_lines(_af), start=1):
+            stripped = line.strip()
+            m = ARCH_DECISION.match(stripped)
+            if m:
+                arch[int(m.group(1))].append(f"{_af}:{lineno}")
+                continue
+            # Anything else that names a decision number at all. CEILING ONLY —
+            # see ARCH_DECISION_MENTION's note for why this cannot over-report a
+            # ceiling, and why it must not be narrowed back to a declaration
+            # shape the next time the prevailing spelling changes.
+            for mention in ARCH_DECISION_MENTION.finditer(stripped):
+                arch[int(mention.group(1))].append(f"{_af}:{lineno} (mention)")
     return files, arch
 
 
