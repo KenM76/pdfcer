@@ -112,6 +112,187 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★★ 491st filing, 2026-09-10 — `Pass 288.0` SHIPPED: STAMP COLLECTIONS
+ARE NOW READABLE AND AUTHORABLE, ACROBAT-COMPATIBLE — AND "EXPORT" IS JUST
+HANDING SOMEONE THE PDF, BECAUSE THAT IS ACROBAT'S OWN ANSWER TOO. ★★★
+DECISION `148` MINTED (CATEGORY = `/Info /Title`, STAMP NAMES LIVE IN THE
+CATALOG'S `/Names`→`/Pages` NAME TREE, `#` PREFIX MARKS A DYNAMIC STAMP,
+LEXICOGRAPHIC TREE ORDER PER §7.9.6 — NOT PAGE ORDER). ★★★ STANDING RULE
+`R250` MINTED: A FEATURE-RAG FINDING LABELLED `(c)` CONVERGENT-SECONDARY IS A
+POINTER AT WHAT TO GO VERIFY AGAINST A PRIMARY ARTIFACT WHEN ONE IS ON DISK,
+NOT A LICENSE TO BUILD FROM IT UNCHECKED.**
+
+**Sourcing (hard rule 8), stated up front — NO SHELL THIS FILING.**
+`Read`/`Grep`/`Glob` only. The commit hash (`554897e`), test counts, gate
+results, file names, and every technical detail below (the format, the
+Adobe-file byte evidence, the spec-order finding) are **relayed** from the
+dispatching engineer's own filing message, labelled as such rather than
+independently re-run. Backup currency, working-tree state, remote/push state
+and CI colour are **not asserted beyond what the dispatch itself states** —
+the dispatch reports the commit as pushed to `origin/main`, but this role has
+no shell this filing to confirm `git log`/`git status`/`gh run list`
+directly; the engineer should verify before relying on this entry for
+anything more than a record. `ROADMAP.md` had **no existing `Pass 288`
+entry** (grepped before filing, per this role's own standing practice
+against ID collisions) — clean to file at `288.0`.
+
+---
+
+### `Pass 288.0` (`554897e`, 2026-09-10, pushed to `origin/main` per the dispatch) — CUSTOM STAMP COLLECTIONS, COMPATIBLE WITH ADOBE'S
+
+**The operator ask, verbatim:** *"if acrobat has a way of adding custom
+stamps or text, we need the same feature too with the same import/export to
+make the stamps as Adobe has and is compatible with adobe's."*
+
+**Shipped:** `pdfcer_core::stamp_file` (`read`, `name_stamp_pages`,
+`stamp_name_string`; `StampCollection`, `StampEntry`, `CollectionWritten`);
+`EditSession::set_named_pages` (**verb 221**); CLI `stamp-list` and
+`stamp-pack`.
+
+**The format, and the honest answer to "same import/export."** A stamp
+collection is an ordinary PDF — one file per category, one page per stamp.
+Category name = the file's `/Info` `/Title`. Each stamp's name lives in the
+document catalog's `/Names` → `/Pages` name tree, one entry per stamp,
+`internal=display` (e.g. `SBApproved=Approved`); a `#` prefix marks a
+**dynamic** stamp (AcroForm calculation JavaScript drives its text, not
+static page content). **There is no separate interchange format** —
+"export" is handing someone the resulting PDF file. Filed as a finding, not
+a shortfall: the operator asked for "the same import/export Adobe has," and
+Adobe's own answer to that question is the same thing.
+
+**★★★ The sourcing chain, and why decision `148` is worth its own entry.**
+`pdfcer-acrobat-librarian` reached the right shape from convergent
+**community** sources and correctly labelled the whole finding `(c)
+convergent-secondary`, flagging two gaps by name rather than guessing past
+them: where the category name is actually stored, and whether the `#`
+convention was real or a community myth. Both gaps were closed by **reading
+Adobe's own shipped stamp files on this machine**
+(`…\Acrobat DC\Acrobat\plug_ins\Annotations\Stamps\ENU\StandardBusiness.pdf`,
+`Dynamic.pdf`) rather than shipping from the secondary sources alone:
+`/Info /Title (Standard Business)`, `/Names [ (SBApproved=Approved) 244 0 R
+… ]`, and `(#DApproved=Approved)` paired with an `/AcroForm` carrying `/CO`
+and `/Fields`. `/PieceInfo` — the plausible wrong turn the secondary
+research had already considered and flagged — is a **red herring**: it
+appears in these files only where they also carry `/Illustrator` authoring
+data, never as the stamp-naming mechanism.
+
+**★★ A spec detail the primary read also settled: name-tree order is NOT
+page order.** §7.9.6 requires a name tree's `/Names` array in
+**lexicographic** order, and Adobe's own file proves a writer cannot assume
+page order will do: `SBApproved` names page 0, `SBCompleted` names page 4,
+alphabetically between the two. A writer emitting page order produces a tree
+a conforming reader may binary-search incorrectly. A test deliberately gives
+page 0 the alphabetically-**last** name so page-order emission fails it.
+
+**Disclosures rather than guesses.** A stamp naming a nonexistent page is
+skipped and **named** in `CollectionWritten::skipped`, never silently
+dropped. An existing `/Names` dictionary keeps its other trees untouched —
+`Dynamic.pdf` carries `/JavaScript` beside `/Pages`, and that tree survives.
+Dynamic stamps are read and reported but **never authored**: their text is
+AcroForm calculation JavaScript, not static content pdfcer can write.
+
+**Tests (relayed).** `crates/pdfcer-core/tests/stamp_collection.rs`, 8
+tests. Three read **Adobe's own files** directly rather than pdfcer's own
+output — a reader that only ever sees its own writer's output proves
+nothing — and skip with a printed note when Acrobat is absent from the
+machine running them. The authored-collection test asserts **raw bytes**
+rather than round-tripping back through pdfcer's own reader, on the
+reasoning that a writer and a reader which agree while both being wrong is
+exactly the failure mode this avoids. Sabotages both red. **Gates
+(relayed).** `tools/run-gates.sh` PASS 29/29; workspace suite green; `cargo
+fmt --check` and `cargo clippy --all-targets --all-features -- -D warnings`
+clean.
+
+**Also, relayed as findings rather than shipped capability:**
+- A doc-comment orphan, caught by clippy: splicing `set_named_pages` above
+  `set_info_field` stranded that function's doc block — the same shape as
+  earlier the same session (`Pass 287.0`'s dead-function finding, above).
+  Anchor edits on the doc block, not on the item, is the standing takeaway.
+- A CRLF/LF `str.replace` matched zero times silently for the **third** time
+  in one session, prompting a small line-ending-agnostic edit helper
+  (refuses unless its pattern matches exactly once) built in a temp
+  directory — **not added to the repo**. Flagged for the engineer to judge
+  whether it belongs in `tools/` as the durable fix for a recurring failure;
+  not acted on here (outside this role's remit) and not filed as a numbered
+  owed item, since it is a suggestion rather than a defect or a promise.
+
+**`docs/FEATURES.md`.** New row added under *Annotations & markup*, placed
+after the `Pass 278.0` ink-editing row and before the *Forms (AcroForm)*
+section header — see Ledger.
+
+---
+
+### Standing rule `R250` — minted, this role's own synthesis (the engineer
+offered the finding and explicitly left the number unclaimed for this
+filing to judge)
+
+**The shape.** A Feature-RAG entry labelled `(c) convergent-secondary`
+reached the correct capability shape from community sources and, correctly,
+flagged by name what it could not confirm rather than guessing past it.
+Treating that label as "good enough to ship" would have left two guesses
+standing exactly where a primary artifact — already present on the machine
+building the feature — could answer both directly. Reading it cost two file
+opens, not a research session, and the RAG's own confidence label is what
+pointed at precisely what still needed checking: the labelling was not
+overhead here, it was the map.
+
+**Text.** ⇒ **Before implementing a data-format or compatibility decision
+sourced from a Feature-RAG (or Spec-RAG) finding labelled anything short of
+directly-observed, check whether a primary artifact — a vendor-shipped
+file, an installed reference application's own resource, a reference
+document already on disk — plausibly exists locally, and read it before
+shipping.** A `(c)`-labelled finding is a pointer at what still needs
+verifying, not a license to build from it unchecked. When the primary
+artifact closes a gap the secondary sourcing flagged, report it back to that
+RAG's own owner for a confidence-label upgrade (`(c)` → `(b)` observed) —
+that is a call for the RAG's owner to make on its own corpus, not this
+role's to make unilaterally (hard rule 6's sibling-boundary discipline,
+applied here to a confidence label rather than to content).
+
+**Application test.** Before a Pass ships a decision sourced from a
+`(c)`-or-lower-confidence RAG finding: (1) ask whether a primary artifact
+plausibly exists on the machine already (an installed reference
+application, a vendor sample file, a bundled resource) rather than only in
+a library or online; (2) if one plausibly does, look before building; (3) if
+the look closes a gap, flag the sourcing RAG's owner to upgrade the label
+rather than leaving the corpus's stated confidence understated relative to
+what is now actually known.
+
+---
+
+### Part — owed work, carried forward and discharged
+
+**Carried forward, unchanged:** items 4, 5, 10, 11, 13b, 14.
+
+**Discharged this filing:** none.
+
+**New, from this filing:** none filed as a numbered owed item — the
+line-ending-agnostic edit-helper suggestion above is flagged for the
+engineer's judgment, not tracked here, since it is a suggestion rather than
+a defect or a promise.
+
+---
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `287` (highest ID `287.0`), next free `288` | **`288`** (highest ID `288.0`), next free family `289` |
+| Standing rules | `R249` (486th filing); `R247` CLAIMED (489th filing) | **`R250` MINTED** — a `(c)`-labelled RAG finding is a pointer at what to verify against a primary artifact, not a license to build from unchecked; ceiling **`R250`**, next free `R251` |
+| Decision records | `147` | **`148` MINTED** — stamp-collection format compatibility (category = `/Info /Title`, name-tree stamp naming, `#`-dynamic prefix, lexicographic order per §7.9.6; `/PieceInfo` rejected as a red herring) (`ARCHITECTURE.md` §12) |
+| `SESSION_LOG` filings | `490` | **`491`** |
+| `docs/FEATURES.md` | *Annotations & markup* has no stamp-collection row | **new row added**, after the `Pass 278.0` ink-editing row |
+| `D:\Dev\Rag-Specialized\Acrobat_Features\` | `markup__custom_stamp_file_format.md` labelled `(c) convergent-secondary`, two gaps flagged unconfirmed | **flagged for `pdfcer-acrobat-librarian`** to confirm and upgrade to `(b) observed` for the two now-closed gaps — not edited here (sibling-role territory, hard rule 6) |
+| Owed-survivor / open-reply ledger | items 4, 5, 10, 11, 13b, 14 open | **unchanged — none of these were touched this filing** |
+
+**Release state — not asserted beyond the dispatch's own claim (no shell
+this filing).** Whether `554897e` has actually reached `origin/main`, and
+current CI colour, are as reported by the dispatch — the engineer should
+confirm with `git log --oneline origin/main..HEAD` / `gh run list` directly
+before treating this entry as a check rather than a record.
+
+---
+
 **★★★★★ 490th filing, 2026-09-10 — `Pass 287.0` SHIPPED: A STAMP'S LABEL
 SIZE IS A PROPERTY, NOT A DERIVATIVE OF THE BOX — AND THE BOX FOLLOWS THE
 TEXT BY DEFAULT. ★★★ A STAMP'S CUSTOM LABEL WAS STORED NOWHERE, WHICH IS

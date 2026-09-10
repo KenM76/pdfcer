@@ -33959,3 +33959,80 @@ edit needed here.
 **Decision ceiling: `146` → `147`**, next free `148`. Standing rules,
 Pass and other ceilings unchanged by this entry — see `ROADMAP.md`'s
 own Ledger for this filing.
+
+---
+
+### 2026-09-10 (491st filing, `554897e`) — decision 148: **CUSTOM STAMP COLLECTIONS ARE PLAIN PDFS — CATEGORY IN `/Info` `/Title`, EACH STAMP NAMED IN THE CATALOG'S `/Names`→`/Pages` NAME TREE (LEXICOGRAPHIC PER §7.9.6, NOT PAGE ORDER), `#` MARKS A DYNAMIC STAMP. `/PieceInfo` REJECTED AS A RED HERRING. THERE IS NO SEPARATE INTERCHANGE FORMAT.**
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** The commit hash and
+technical detail below are relayed from the dispatching engineer's own
+message; not independently re-verified against a live Acrobat install
+by this role (the engineer reports reading the files directly).
+
+**Origin.** `Pass 288.0` (`554897e`), the operator's request that
+pdfcer's custom-stamp authoring be "compatible with Adobe's" and offer
+"the same import/export."
+
+**The choice, and why it is a decision rather than an implementation
+detail.** Two facts had to be established before any writer could be
+built: where a stamp collection's category name lives, and whether the
+community-reported `#`-prefix convention for dynamic stamps was real.
+`pdfcer-acrobat-librarian`'s Feature RAG had already reached the
+correct overall shape (one PDF per category, one page per stamp) from
+convergent community sources, but labelled the finding `(c)
+convergent-secondary` and flagged both specifics as unconfirmed rather
+than guessing. Both were resolved by reading Adobe's own shipped
+stamp files on this machine (`…\Acrobat DC\Acrobat\plug_ins\
+Annotations\Stamps\ENU\StandardBusiness.pdf`, `Dynamic.pdf`) directly:
+`/Info /Title (Standard Business)` names the category; each stamp's
+`internal=display` pair (e.g. `SBApproved=Approved`) lives in the
+catalog's `/Names` → `/Pages` name tree; a dynamic stamp's name carries
+a literal `#` prefix (`#DApproved=Approved`) and is paired with an
+`/AcroForm` `/CO`+`/Fields` pair that drives its text via calculation
+JavaScript rather than static content. `/PieceInfo` (§14.5) — the
+plausible alternative the secondary research had already flagged and
+which this Pass considered — was **rejected**: it appears in these
+files only where they separately carry `/Illustrator` authoring data,
+never as part of the stamp-naming mechanism itself. pdfcer's writer
+reproduces the confirmed shape exactly; it does not invent a private
+key where Adobe's own files show none is used.
+
+**The second, independent finding: name-tree order is spec-mandated,
+not producer's choice, and the primary read is what caught it.** §7.9.6
+requires a name tree's `/Names` array in lexicographic order. Adobe's
+own `StandardBusiness.pdf` proves a writer cannot substitute page
+order for it: `SBApproved` names page 0 and `SBCompleted` names page 4,
+which is alphabetical but not sequential by page. A writer that emitted
+entries in page order would produce a tree a conforming reader could
+binary-search incorrectly. `Pass 288.0`'s test suite deliberately gives
+page 0 the alphabetically-**last** stamp name specifically so a
+page-order-emitting implementation fails it — a fixture that could not
+tell the two orderings apart would not have caught this, in the same
+family of caution `R225` names elsewhere in this log.
+
+**Consequence: "same import/export" has an honest, and slightly
+deflating, answer.** There is no Adobe-defined interchange format
+separate from the collection PDF itself — "export" is handing someone
+the file. pdfcer's `stamp-pack`/`stamp-list` produce and read exactly
+that PDF, so pdfcer's stamp collections and Acrobat's are
+interchangeable in both directions by construction, not by a bespoke
+sidecar format neither product actually has.
+
+**Body section.** `docs/ARCHITECTURE.md` §4 is retired (decision 102)
+in favour of `docs/core-api/`; this decision's reasoning belongs beside
+`Pass 288.0`'s own commit and `docs/core-api/`'s stamp-collection
+entry rather than a separate body-section edit here — no crate
+boundary, library choice or writer-mode invariant changed, only a
+compatibility encoding.
+
+**On the sourcing-methodology finding, and why it is recorded as a
+standing rule rather than only here.** That a `(c)`-labelled Feature-RAG
+entry, correctly hedged, was closed by reading a primary artifact
+already present on the machine — rather than by further secondary
+research — is a generalisable engineering-discipline finding, not a
+pdfcer-specific one. Filed as standing rule `R250`; full text in
+`ROADMAP.md`'s *Standing rules* section, this filing's Shipped entry.
+
+**Decision ceiling: `147` → `148`**, next free `149`. **Standing rules
+ceiling `R249` → `R250`**, next free `R251`. **Pass ceiling `287.0` →
+`288.0`**, next free family `289.x`.

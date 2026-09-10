@@ -4,6 +4,74 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-10 (491st filing)
+
+**Shipped:**
+- Pass 288.0 (`554897e`, pushed to `origin/main` per the dispatch — not
+  independently verified, no shell this filing) — custom stamp
+  collections, readable and authorable, compatible with Adobe's:
+  `pdfcer_core::stamp_file`, `EditSession::set_named_pages` (verb 221),
+  CLI `stamp-list`/`stamp-pack`. A collection is an ordinary PDF, one
+  page per stamp; category = `/Info` `/Title`; stamp names live in the
+  catalog's `/Names`→`/Pages` name tree; `#` marks a dynamic stamp
+  (read, never authored). There is no separate interchange format —
+  "export" is handing someone the PDF, and that is Acrobat's own
+  answer too.
+
+**Decisions made this session:**
+- Decision **148** minted (`ARCHITECTURE.md` §12): the stamp-collection
+  format — category in `/Info` `/Title`, stamp names in the catalog's
+  name tree written in **lexicographic** order per §7.9.6 (not page
+  order — Adobe's own `StandardBusiness.pdf` proves the two differ),
+  `#` prefix for a dynamic stamp, `/PieceInfo` rejected as a red
+  herring (present only alongside `/Illustrator` data, never as the
+  naming mechanism).
+- Standing rule **R250** minted, this role's own synthesis of a finding
+  the engineer offered without a number: a Feature-RAG entry labelled
+  `(c)` convergent-secondary is a pointer at what to go verify against
+  a primary artifact when one is on disk (here, Adobe's own shipped
+  stamp files), not a license to build from unchecked. Full text:
+  `ROADMAP.md` *Standing rules*.
+
+**Findings + decisions:**
+- **The methodological point is the more durable finding.**
+  `pdfcer-acrobat-librarian` reached the correct capability shape from
+  convergent community sources and correctly flagged two gaps by name
+  (where the category name is stored; whether `#` was real) rather
+  than guessing. Both were closed by reading Adobe's own shipped stamp
+  files directly — two file opens, not a research session — which is
+  exactly what the RAG's own `(c)` label pointed at doing.
+- `pdfcer-acrobat-librarian`'s two RAG files
+  (`markup__stamp_text_size_and_resize_behavior.md`,
+  `markup__custom_stamp_file_format.md`) are flagged for that role to
+  consider upgrading the two now-closed gaps from `(c)` to `(b)
+  observed` — not this role's corpus to edit (hard rule 6's sibling
+  boundary, applied to a confidence label rather than content).
+- §7.9.6 name-tree order is lexicographic, not page order — Adobe's
+  own file proves it (`SBApproved` names page 0, `SBCompleted` names
+  page 4). A test deliberately gives page 0 the alphabetically-last
+  name so a page-order-emitting implementation fails it.
+- A doc-comment orphan (splicing `set_named_pages` above
+  `set_info_field` stranded its doc block) — the same shape as earlier
+  the same session (`Pass 287.0`).
+- A CRLF/LF `str.replace` matched zero times silently for the third
+  time this session; a small line-ending-agnostic edit helper was
+  built in a temp dir but **not added to the repo** — flagged for the
+  engineer to judge whether it belongs in `tools/`.
+
+**Still in flight:**
+- Owed items 4, 5, 10, 11, 13b, 14 all carried forward, unchanged.
+- Whether `554897e` has actually reached `origin/main`, and current CI
+  colour, are relayed from the dispatch only — not independently
+  confirmed, no shell this filing.
+
+**For next session:**
+- Confirm `554897e`'s push/CI state with a shell.
+- Flag `pdfcer-acrobat-librarian` for the `(c)`→`(b)` label-upgrade
+  consideration above.
+- Judge whether the line-ending-agnostic edit helper belongs in
+  `tools/`.
+
 ## 2026-09-10 (490th filing)
 
 **Shipped:**
