@@ -8009,6 +8009,105 @@ Full record: §12's 2026-09-09 entry, decision 145 (addended for
 `Pass 283.1`); standing rule `R248`; `ROADMAP.md` *Shipped*,
 `Pass 283.0`/`283.1`.
 
+### 10.6 A required page-tree attribute absent (or dangling) defaults to the value the STANDARD itself names for that key, when one exists — never to one pdfcer invented (decision 150 — SHIPPED, `Pass 290.0`)
+
+*(Added 2026-09-10.)* Two real files made the case. The operator's own
+Acrobat-written signature stamps (`%APPDATA%\Adobe\Acrobat\DC\Stamps\
+YTV_yyfVN1TzJ0_6oei-GB.pdf`) have a blank spacer page 1 with no
+`/Contents` and no `/Resources`; pages 2 and 3 hold his two signatures and
+are perfect. pdfcer refused all three, on every verb that walks the page
+tree, because `page_tree::resolve_page` treated an absent `/Resources` as
+`MissingRequired` and the `?` sits on a walk that returns ONE `Result` for
+the WHOLE page tree — one spacer page cost every other page in the file.
+`fixtures/synthetic/minimal.pdf`, pdfcer's own smallest legal fixture, has
+the identical shape, so this walk could not read the project's own minimal
+file either.
+
+**The distinction from decision 145/`R248`, stated once so it is not
+conflated.** Decision 145 covers a defect where the FILE supplies two or
+more readings and pdfcer picks one under a named default. Here the file
+supplies nothing at all — no `/Resources` key on the page or any ancestor,
+or a reference that dangles to the null object (§7.3.10/§7.3.9). The
+"other reading" is not lying in the file waiting to be chosen; it is named
+by the STANDARD itself, once, for exactly this key: Table 30's own
+`/Resources` row states *"If the page requires no resources, the value of
+this entry shall be an empty dictionary."* Applying that stated default is
+not a liberty pdfcer is taking — it is reading the row that already
+answers the question.
+
+**The boundary that keeps this from becoming a general "default anything
+missing" licence.** Only a key the standard **names** a default for is
+defaulted. `/MediaBox` has no such clause anywhere in the corpus — no
+default box exists to fall back to — so its absence is unchanged:
+`PageTreeError::MissingRequired("MediaBox")`, still fatal. A page whose
+resources are genuinely empty is a fact about the file; inventing a media
+box would not be.
+
+**Corrected mid-Pass, by the dispatched spec-librarian, before this
+shipped — worth recording because the correction replaced the argument,
+not merely its wording.** The first draft argued a page with no
+`/Contents` can never NAME a resource, so an empty resource dictionary
+could never be observably wrong. That is false: §7.8.3's third bullet lets
+a form XObject or a Type 3 font omit its own `/Resources` and inherit the
+page's, and the ISO 32000-2 erratum extends that inheritance to an
+ANNOTATION APPEARANCE STREAM — precisely the stamp-page shape that
+motivated this Pass. The decision to default survives; the reason first
+given for it does not. Dispatch the spec librarian **before** reasoning
+from a clause, not after.
+
+**Mechanism.** `page_tree::resolve_page` — an absent `/Resources` on the
+page and every ancestor, or an indirect reference resolving to null, no
+longer raises `MissingRequired`; it resolves to `Dict::new()` and sets
+`Page::resources_defaulted = true`. A `/Resources` present and not a
+dictionary is unaffected and is still refused, now by its own named
+variant, `PageTreeError::BadResources` — the same present-but-wrong /
+absent-and-degradable split the tree already makes for `/Contents`.
+`/MediaBox` is untouched by this mechanism.
+
+**Disclosure (decision 059/rule 4's discipline, applied at the loader
+layer, same posture as decision 145).** `Page::resources_defaulted` on the
+model; `pdfcer-render::Diagnostics::page_resources_defaulted` and
+`TextDiagnostics::pages_resources_defaulted` on the two consuming crates;
+`render-page`'s stable metrics line gains `page_resources_defaulted=<0|1>`
+and `extract-text`'s gains `pages_resources_defaulted=<n>`, both
+**appended**, never inserted, per the modules' own never-reorder
+contracts.
+
+⇒ No new standing rule minted. This is decision 145/`R248`'s fail-clean
+kernel — never refuse when a defensible, disclosed reading exists;
+disclose whichever one was taken — reaching a case that kernel had not yet
+covered: a reading supplied by the STANDARD rather than by the file. It is
+filed as its own decision rather than a dated `R248` instance because the
+discriminator it establishes — *does the standard's own text for THIS key
+name a default, checked key by key, never "is the omission plausible"* —
+is a reusable interpretive method future Passes will need against other
+required attributes, the same posture decision 149 took toward `R43`.
+
+**Body-section effects.** §3 (GUI-core separation) — unaffected, no
+`Cargo.toml` touched. §5 (round-trip/minimal-diff) — unaffected: this is a
+read-time resolution: a defaulted resource dictionary is not written back
+unless the operator otherwise edits the page. `docs/core-api/
+01-reading-and-model.md` already carries the `resources_defaulted`/
+`MissingRequired`-narrowed-to-`MediaBox` table update, done in the same
+Pass per the engineer's always-rule.
+
+**A test that leaned on the defect it was fixing, found twice in the same
+Pass — filed as `R225`'s 18th dated instance, a new sub-shape.** Two
+pre-existing tests obtained their "unwalkable page tree" fixture by
+depending on `minimal.pdf`'s now-fixed defect, and both went RED when the
+defect was fixed — not because either assertion was wrong, but because the
+mechanism producing their precondition was the bug under repair. Every
+prior `R225` instance is a test that measured LESS than its name or doc
+comment claimed; this is the inverse — a test that measured exactly what
+it claimed, reached through a defect rather than through the condition it
+named. Both were repointed at a fixture built to fail unwalkability a
+different way (`fixtures/synthetic/xref-recover/page-tree-cycle.pdf`, a
+`/Pages` node listing itself in its own `/Kids`). Full text:
+`ROADMAP.md`'s dated-instance note, this filing (494th).
+
+Full record: §12's 2026-09-10 entry, decision 150; `ROADMAP.md` *Shipped*,
+`Pass 290.0` (494th filing).
+
 ## 11. Undo/redo architecture
 
 Identified as a real design gap 2026-07-23: the UI standing rule
@@ -34127,3 +34226,115 @@ resolved by this decision.
 ceiling unchanged at `R250`**, next free `R251` — `R43` gains a narrowing
 note under its own existing number, no new rule minted. **Pass ceiling
 `288.1` → `289.0`**, next free family `290.x`.
+
+### 2026-09-10 (494th filing, `556878e`) — decision 150: **A REQUIRED PAGE-TREE ATTRIBUTE ABSENT (OR DANGLING) DEFAULTS TO THE VALUE THE STANDARD ITSELF NAMES FOR THAT KEY (TABLE 30'S `/Resources` ROW: THE EMPTY DICTIONARY), NEVER TO ONE PDFCER INVENTED. `/MediaBox` HAS NO SUCH CLAUSE AND STAYS FATAL. EXTENDS DECISION 145/`R248`'S KERNEL TO A READING SUPPLIED BY THE STANDARD RATHER THAN THE FILE.**
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `Read`/`Grep`/`Glob`
+only; this role has no shell in this invocation. The commit hash, the two
+motivating files, the mid-Pass correction and the exact test/gate counts
+are relayed from the dispatching engineer's message. **Independently
+verified here, by `Read`/`Grep` against the live tree**, not taken on the
+dispatch's word alone: `crates/pdfcer-core/src/page_tree.rs` carries
+`resources_defaulted: bool` on `Page` (line 193), `PageTreeError::
+BadResources` (line 318), the `MissingRequired`/`BadResources` split at the
+resolution site (lines 802–815), and a test named
+`a_resourceless_page_does_not_cost_its_siblings` (line 1203) among five new
+tests in that file; `docs/core-api/01-reading-and-model.md` already states
+the corrected `MissingRequired` scope (`MediaBox` only, line 881) and the
+`resources_defaulted` table row (line 818); `crates/pdfcer-core/src/
+stamp_file.rs` carries `page_tree_error: Option<String>` and
+`crates/pdfcer-cli/src/main.rs` prints `page=UNKNOWN` distinctly from
+`page=MISSING` (lines 41857–41880); `fixtures/synthetic/xref-recover/
+page-tree-cycle.pdf` exists. **Not independently re-verified this filing:**
+the exact test count (5 in `page_tree.rs`, 2 in `stamp_collection.rs`), the
+`cargo test --workspace` 5,285-pass figure, and `run-gates.sh`'s 28/29-then-
+29/29 sequence — these are relayed.
+
+**Origin.** Two files, neither exotic: the operator's own Acrobat-written
+signature stamp collection (`%APPDATA%\Adobe\Acrobat\DC\Stamps\
+YTV_yyfVN1TzJ0_6oei-GB.pdf`) has a blank spacer page 1 with no `/Contents`
+and no `/Resources`; pdfcer refused all three pages of the file, on every
+verb that walks the page tree. pdfcer's own `fixtures/synthetic/
+minimal.pdf` has the identical shape, so the project's own smallest legal
+fixture could not be read by this walk either.
+
+**The choice, and why it is a decision rather than a bug fix.**
+`page_tree::resolve_page` treated `/Resources` as required in the same
+sense `/MediaBox` is required — absent means `MissingRequired`, fatal for
+the whole tree because the walk returns one `Result` for every page. The
+two keys are not the same kind of "required": Table 30 states an explicit
+default for `/Resources` ("If the page requires no resources, the value of
+this entry shall be an empty dictionary"); no clause anywhere states a
+default `/MediaBox`. The fix generalises past this one key: **before
+refusing a page tree over an absent required attribute, check whether the
+standard itself names a default for that specific key. If it does, resolve
+to the default and disclose that a default was used. If it does not, the
+refusal stands.** `/MediaBox` is the pinned negative case — a test asserts
+it stays `MissingRequired`, so a future widening of this decision cannot
+cross that line by accident, the same discipline decision 145 used for its
+own `/Root` boundary.
+
+**Relation to decision 145/`R248` — extends the kernel, does not restate
+it.** Decision 145's mechanism picks between readings the FILE supplies.
+Here the file supplies none; the reading comes from the STANDARD, once,
+for a named key. The underlying kernel — never refuse when a defensible,
+disclosed reading exists; disclose what was chosen — is the same, and no
+new standing rule is minted for that reason: this is `R248`'s posture
+applied one layer further, not a new mechanism. What is new, and why this
+gets its own decision number rather than a dated `R248` instance, is the
+interpretive method: **does the standard's own text for THIS key name a
+default, checked key by key, never "is the file's omission plausible."**
+That method is reusable against future required-attribute questions the
+same way decision 149's grammatical-subject test is reusable against
+future `shall`-clause questions.
+
+**Corrected mid-Pass, by the dispatching spec-librarian, before code
+shipped.** The engineer's first justification argued a page with no
+`/Contents` cannot name a resource at all. False: §7.8.3's third bullet
+lets a form XObject or Type 3 font omit its own `/Resources` and inherit
+the page's, and the ISO 32000-2 erratum extends that inheritance to an
+annotation appearance stream — precisely the stamp-page shape that
+motivated the Pass. The decision survives; the reasoning was replaced
+before shipping, not after.
+
+**A test that leaned on the defect it was fixing, found twice in the same
+Pass — filed as `R225`'s 18th dated instance, a new sub-shape within the
+family.** Two existing tests (`fontinfo`'s
+`an_unwalkable_page_tree_is_reported_not_rendered_as_no_fonts` and the
+CLI's `an_unwalkable_page_tree_is_flagged_rather_than_reported_as_empty`)
+obtained their "unwalkable page tree" fixture by relying on `minimal.pdf`'s
+now-fixed defect, and both went RED when the defect was fixed — not
+because either assertion was ever wrong, but because the mechanism
+producing their precondition was the bug under repair. Every prior `R225`
+instance is a test that measured LESS than its name/doc-comment claimed;
+this is the inverse shape — a test that measured exactly what it claimed,
+reached through a defect rather than through the condition it named. Both
+were repointed at a new fixture built to fail unwalkability a different
+way (`fixtures/synthetic/xref-recover/page-tree-cycle.pdf`, a `/Pages`
+node listing itself in its own `/Kids`). Full text: see `ROADMAP.md`'s new
+dated-instance note, this filing.
+
+**Also filed the same push, no decision of its own: `Pass 290.1`
+(`bce4703`).** `stamp_file::read` built its page list via `page_tree::pages
+(doc).map(..).unwrap_or_default()`, so a page-tree walk failure produced an
+EMPTY page list — indistinguishable from "every stamp's name points at a
+page the document does not have," which `page_index: None` already means.
+On the operator's own Acrobat-written stamp file `pdfcer stamp-list`
+printed `page=MISSING` beside both of his real signatures. Fixed by adding
+`StampCollection::page_tree_error: Option<String>` rather than making
+`read` fallible (the consuming project's own preferred shape); the CLI
+prints `page=UNKNOWN` and names the cause on stderr. **Flagged, not
+minted, as a candidate finding at n=2**: a value computed and discarded
+via `.unwrap_or_default()`, whose ABSENCE is then read as a content fact,
+is the same shape `Pass 285.0`'s whole-buffer blank was. Not yet a standing
+rule — two instances, different subsystems — worth a mint if a third
+surfaces.
+
+**Body section.** New `ARCHITECTURE.md` §10.6, sibling to §10.5 (decision
+145). No `Cargo.toml` change (§3 unaffected); no writer-path change (§5
+unaffected — read-time resolution only).
+
+**Decision ceiling: `149` → `150`**, next free `151`. **Standing rules
+ceiling unchanged at `R250`**, next free `R251` — `R225` gains an 18th
+dated instance under its own existing number, no new rule minted. **Pass
+ceiling `289.0` → `290.1`**, next free family `291.x`.

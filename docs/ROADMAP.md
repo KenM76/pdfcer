@@ -112,6 +112,247 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★★ 494th filing, 2026-09-10 — `Pass 290.0` SHIPPED: A PAGE WITH NO
+`/Resources` OPENS NOW — ONE BLANK SPACER PAGE WAS COSTING THE WHOLE
+DOCUMENT, ON EVERY VERB THAT WALKS THE PAGE TREE. ★★★★ DECISION `150`
+MINTED (A REQUIRED PAGE-TREE ATTRIBUTE DEFAULTS TO THE VALUE THE STANDARD
+ITSELF NAMES FOR THAT KEY, WHEN ONE EXISTS — `/MediaBox` HAS NONE AND STAYS
+FATAL). ★★★ ALSO SHIPPED: `Pass 290.1` — A PAGE-TREE FAILURE STOPS BEING
+REPORTED AS "EVERY STAMP POINTS AT NOTHING." ★★ `R225` GAINS AN 18TH DATED
+INSTANCE, OF A NEW SUB-SHAPE (A TEST THAT MEASURED EXACTLY WHAT IT CLAIMED,
+REACHED THROUGH A DEFECT RATHER THAN THE CONDITION IT NAMED). ★ BOTH
+`pdfcer-gui`-CHANNEL REQUESTS THIS ANSWERS ARE NOW CLOSED WITH A REPLY ON
+FILE.**
+
+**Sourcing (hard rule 8), stated up front — NO SHELL THIS FILING.**
+`Read`/`Grep`/`Glob` only; this role has no shell in this invocation. Both
+commit hashes (`556878e`, `bce4703`), the byte-level detail (the operator's
+`YTV_yyfVN1TzJ0_6oei-GB.pdf` stamp-file shape, the mid-Pass spec-librarian
+correction, the exact test/gate counts, the `page=MISSING`→`page=UNKNOWN`
+before/after) are **relayed** from the dispatching engineer's own commit
+messages, quoted in full in the dispatch. **Independently verified here, by
+`Read`/`Grep` against the live tree**, not taken on the commit messages'
+word alone: `crates/pdfcer-core/src/page_tree.rs` carries `resources_
+defaulted: bool` on `Page` (line 193), `PageTreeError::BadResources` (line
+318), the `MissingRequired`/`BadResources` split at the resolution site
+(lines 802–815), and `#[test] fn a_resourceless_page_does_not_cost_its_
+siblings` (line 1203) among the file's tests; `docs/core-api/
+01-reading-and-model.md` already states the corrected `MissingRequired`
+scope (`MediaBox` only, line 881) and the `resources_defaulted` table row
+(line 818) — the engineer's always-rule discharged in the same Pass, as
+claimed; `crates/pdfcer-core/src/stamp_file.rs` carries `page_tree_error:
+Option<String>` on `StampCollection`, set from `page_tree::pages(doc)`'s
+`Err` arm rather than discarded; `crates/pdfcer-cli/src/main.rs` prints
+`page=UNKNOWN` distinctly from `page=MISSING` (lines 41857–41880);
+`fixtures/synthetic/xref-recover/page-tree-cycle.pdf` exists (a fresh
+fixture built for the two sabotaged tests, per the generator/PROVENANCE
+update the commit claims); `crates/pdfcer-cli/tests/list_fonts.rs` and
+`crates/pdfcer-core/src/fontinfo.rs` both reference the new fixture by
+name. `ROADMAP.md` had **no existing `Pass 290.0`/`290.1` entry**, no
+`Next up`/`Backlog` stub, and no prior mention of the resourceless-page
+defect anywhere in this file (grepped before filing) — clean to file.
+**Not independently re-verified this filing:** the exact test counts (5 in
+`page_tree.rs`, 2 in `stamp_collection.rs`), `cargo test --workspace`'s
+5,285-pass figure, and `run-gates.sh`'s 28/29-then-29/29 sequence — these
+are relayed from the commit messages, which themselves report the fmt
+failure was fixed before commit.
+
+---
+
+### `Pass 290.0` (`556878e`, 2026-09-10) — a page with no `/Resources` opens now
+
+**The report, and the cost of the bug.** `page_tree::resolve_page` treated
+an absent `/Resources` as `PageTreeError::MissingRequired("Resources")`,
+raised on a walk whose `?` returns ONE `Result` for the WHOLE page tree —
+so a single page missing the attribute refused every other page in the
+same file, on every verb that walks the tree (`render-page`,
+`extract-pages`, `set-page-size`, `extract-text`). Two files made the
+case, neither exotic: the operator's own `%APPDATA%\Adobe\Acrobat\DC\
+Stamps\YTV_yyfVN1TzJ0_6oei-GB.pdf` (Acrobat-written signature stamps —
+page 1 is a blank spacer with no `/Contents` and no `/Resources`; pages 2
+and 3 hold his two real signatures and are perfect) and pdfcer's own
+`fixtures/synthetic/minimal.pdf`, whose smallest legal shape has the
+identical gap — the project's own minimal fixture could not be read by its
+own page-tree walk.
+
+**★★★ A pre-existing bypass was the tell.** `edit.rs::plan_paste_at` had
+already grown a hand-written route around this exact refusal so an
+annotation-only paste could reach a page with no `/Resources`. A guard a
+caller has to route around, rather than pass through, is the guard's
+defect, not the caller's workaround.
+
+**What it does now, and why this is a spec reading, not a liberty.**
+Absent `/Resources` on the page and every ancestor — or a reference that
+dangles (§7.3.10's null-object rule; §7.3.9's equivalent for an omitted
+entry) — resolves to the **empty resource dictionary**, disclosed through
+the new `Page::resources_defaulted`. Table 30's own `/Resources` row names
+the value: *"If the page requires no resources, the value of this entry
+shall be an empty dictionary."* A `/Resources` present and not a
+dictionary is still refused — now by its own named variant,
+`PageTreeError::BadResources` — the same present-but-wrong /
+absent-and-degradable split the tree already applies to `/Contents`.
+
+**The file IS non-conforming, and that is established harder than
+expected, by the spec librarian.** ISO considered conditioning
+`/Resources` on `/Contents` and decided **against** it (`pdf-issues` #81,
+ISO approved, February 2022 submission), adding a NOTE to ISO 32000-2's
+own `/Contents` row instead. That strengthens the case for opening the
+file rather than weakening it: §2.2 scopes a reader's rendering duty to
+*conforming* files, and clause 1 puts conformance validation outside the
+standard's own scope, so nothing in ISO 32000 asks a reader to refuse. The
+erratum's own stated motivation: *"some issues with some PDF parsers not
+liking no Contents keys."*
+
+**★★ Corrected mid-Pass, before it shipped, by the same dispatch —
+recorded because the correction replaced the argument, not the wording.**
+The first draft argued *"a page with no `/Contents` can never name a
+resource."* **False.** §7.8.3's third bullet lets form XObjects and Type 3
+fonts omit their own `/Resources` and inherit the page's, and the ISO
+32000-2 erratum extends that inheritance to **annotation appearance
+streams** — precisely the stamp-page shape that motivated the Pass. The
+decision to default survives; the reason first given for it does not.
+Standing discipline reaffirmed: dispatch the spec librarian **before**
+reasoning from a clause, not after.
+
+**`/MediaBox` deliberately did NOT move, and a test says so by name.** No
+clause anywhere states a default media box, so an absent one stays exactly
+what it was: `PageTreeError::MissingRequired("MediaBox")`, fatal,
+unchanged. An empty resource dictionary states what the file states; any
+media box pdfcer invented would not. This is decision 145's own
+`/Root`-boundary discipline, reapplied: the pinned negative case exists so
+a future widening of this decision cannot cross it by accident.
+
+**Disclosure (rule 4, off-canvas).** `Page::resources_defaulted` on the
+model; `pdfcer-render::Diagnostics::page_resources_defaulted` (set on
+**both** scope branches) and `TextDiagnostics::pages_resources_defaulted`
+plus a per-page note on the two consuming crates. `render-page`'s stable
+metrics line gains `page_resources_defaulted=<0|1>`; `extract-text`'s
+gains `pages_resources_defaulted=<n>` — both **appended**, never inserted,
+per the never-reorder contract `check-metrics-line-contract.py` enforces.
+
+**A test was leaning on the defect it was fixing, TWICE — filed as `R225`'s
+18th dated instance, a new sub-shape within the family (full text below).**
+`fontinfo`'s `an_unwalkable_page_tree_is_reported_not_rendered_as_no_fonts`
+and the CLI's `an_unwalkable_page_tree_is_flagged_rather_than_reported_as_
+empty` both used `minimal.pdf` to obtain an unwalkable page tree, and both
+went **red** when the bug they silently depended on was fixed — not
+because either assertion was ever wrong, but because the mechanism
+producing their precondition WAS the bug under repair. Both now use a new
+fixture built to fail unwalkability a different way:
+`fixtures/synthetic/xref-recover/page-tree-cycle.pdf`, whose `/Pages` node
+lists **itself** in its own `/Kids` (generator + `PROVENANCE.md` updated).
+
+**Tests.** Five new tests in `page_tree.rs`, sabotaged three ways, each
+turning exactly the expected test red (relayed count and sabotage
+mechanism, independently confirmed present by name — see sourcing
+paragraph above). `cargo test --workspace`: 5,285 pass (relayed).
+`tools/run-gates.sh`: 28/29 with only `cargo fmt --check` red, fixed before
+commit and re-run clean (relayed).
+
+**`docs/FEATURES.md`.** New row added under *Document & pages* (see
+below) — a document that previously refused to open at all now opens, a
+genuinely new capability rather than a tweak to an existing ticked row.
+
+---
+
+### `Pass 290.1` (`bce4703`, 2026-09-10) — a page-tree failure stops being reported as "every stamp points at nothing"
+
+**The defect.** `stamp_file::read` built its page list with `page_tree::
+pages(doc).map(..).unwrap_or_default()`. When the walk failed, the list
+came back **empty** — indistinguishable from `page_index: None`'s existing
+meaning, *"this stamp's name points at a page the document does not
+have."* Two opposite facts collapsed into one value. On the operator's own
+Acrobat-written stamp file, `pdfcer stamp-list` printed `page=MISSING`
+beside **both** of his real signatures, when neither was missing — the
+page tree had simply failed to walk (the same `/Resources` defect
+`Pass 290.0` fixes, encountered here through the reading path rather than
+the rendering path).
+
+**The fix.** `StampCollection` gains `page_tree_error: Option<String>` —
+the consuming project's own preferred shape, including its own reasoning
+that `read` must **not** become a `Result` (a collection with a broken
+page tree still has readable names and dynamic flags; a hard error would
+throw those away too). `pdfcer stamp-list` now prints `page=UNKNOWN` in
+that case and names the real cause on stderr, distinct from `page=MISSING`
+by construction. `docs/core-api/03-capabilities.md` §12 updated in the
+same Pass.
+
+**★ The class, flagged at n=2, not minted.** A value computed and
+discarded via `.unwrap_or_default()`, whose **absence** is then read as a
+content fact, is the same shape `Pass 285.0`'s whole-buffer blank was (a
+different subsystem — redaction, not stamp reading). Not a standing rule
+yet; worth one if a third instance surfaces.
+
+**Tests.** Two new tests in `stamp_collection.rs` (relayed count).
+Sabotage (restore the discard) turns the first red and leaves the second
+green — the second test is the one asserting `page_tree_error` is `None`
+on an ordinary, walkable collection, so it correctly stays green under a
+sabotage that only affects the broken-tree path.
+
+**`docs/FEATURES.md`.** Amends the *Pass 288.0* stamp-collections row (see
+below) rather than adding a new one — this corrects a disclosure defect in
+an already-shipped capability, not a new capability.
+
+---
+
+### On `R225`: instance 18, a new sub-shape — dated instance, no re-mint
+
+**Filed against `R225`'s existing text**, ceiling unchanged. Every prior
+instance in this family is a test that measured **less** than its name or
+doc comment claimed. This is the inverse: `an_unwalkable_page_tree_is_
+reported_not_rendered_as_no_fonts` and `an_unwalkable_page_tree_is_
+flagged_rather_than_reported_as_empty` measured **exactly** what their
+names claimed — an unwalkable page tree really was reported, not silently
+rendered as empty. What was wrong was upstream of the assertion entirely:
+the fixture that produced "unwalkable" did so by relying on a defect
+(the `/Resources` `MissingRequired` refusal) that this same Pass removes.
+**The generalisable question is one word different from `R225`'s usual
+one:** not *"which fixture could ever have made this go red?"* but
+*"which fixture, if the BUG under repair were fixed, would make this go
+green when it should"* — read backwards, a correct test can depend on the
+very defect a later Pass is obligated to fix, and the tell is the same as
+`R225`'s ordinary shape: an unrelated-looking test goes red when a bug
+is fixed. Cross-referenced from decision `150`'s own record
+(`ARCHITECTURE.md` §12); no dated footer added to the `D:\dev\rag\rust\`
+sabotage-family files, because both instances here were found by fixing
+the defect deliberately, not by sabotage — a different discovery route
+than every prior `R225` instance, itself worth a line in that RAG file if
+a fourth instance of "correct test depends on a bug under repair" ever
+recurs.
+
+---
+
+### Part — owed work, carried forward, none discharged
+
+**Carried forward, unchanged:** items 4, 5, 10, 11, 13b, 14, 18.
+
+**Discharged this filing:** none.
+
+**Not opened as an owed item, closed on the channel instead:** both
+inbound `pdfcer-gui`-channel requests this Pass answers —
+`request_one_resourceless_page_makes_the_whole_document_unopenable_and_
+acrobat_writes_those.md` and `request_a_page_tree_failure_is_reported_as_
+every_stamp_pointing_at_nothing.md` — are recorded by the engineer as
+closed with a reply on file
+(`reply_2026-09-10-a-resourceless-page-no-longer-costs-the-document-
+SHIPPED.md`); channel state not independently `Glob`-confirmed this
+filing (no shell; relayed from the dispatch).
+
+---
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `289` (highest ID `289.0`), next free family `290` | **`290`** (highest ID **`290.1`**), next free family `291` |
+| Standing rules | `R250`, next free `R251` | **unchanged — `R225` gains an 18th dated instance (new sub-shape: a test that measured exactly what it named, reached through a defect rather than the condition it named). Ceiling unchanged `R250`, next free `R251`** |
+| Decision records | `149` | **`150`** — a required page-tree attribute defaults to the value the standard itself names for that key, when one exists; `/MediaBox` has none and stays fatal |
+| `SESSION_LOG` filings | `493` | **`494`** |
+| `docs/FEATURES.md` | no row for resourceless-page opening; `Pass 288.0`'s stamp-collections row silent on the `page=MISSING`/`page=UNKNOWN` distinction | **new row added** under *Document & pages*, core `[x]` cli `[x]` gui `[ ]`; **`Pass 288.0`'s row amended** with the `Pass 290.1` fix |
+| Owed-survivor / open-reply ledger | items 4, 5, 10, 11, 13b, 14, 18 open | **unchanged** — both inbound requests this Pass answers close via reply, not via the owed ledger |
+
+---
+
 **★★★★★ 493rd filing, 2026-09-10 — `Pass 289.0` SHIPPED: A `/Text` OR
 `/Stamp` ANNOTATION NAMING A STANDARD ICON, WITH NO `/AP`, IS NOW PAINTED —
 `R43` IS NARROWED, NOT REPEALED, BECAUSE THE STANDARD ADDRESSES THIS `shall`

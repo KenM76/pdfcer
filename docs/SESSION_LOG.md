@@ -4,6 +4,112 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-10 (494th filing)
+
+**Shipped:**
+- Pass 290.0 (`556878e`) — a page with no `/Resources` (on itself or any
+  ancestor, or resolving to a dangling reference) now opens as an empty
+  resource dictionary instead of refusing the whole page tree. Before this,
+  `page_tree::resolve_page`'s `?` sat on a walk returning ONE `Result` for
+  every page, so one blank spacer page cost the whole document on
+  `render-page`, `extract-pages`, `set-page-size` and `extract-text` alike.
+  Measured on the operator's own Acrobat-written signature-stamp collection
+  (`YTV_yyfVN1TzJ0_6oei-GB.pdf` — a blank spacer page 1, then two perfect
+  signature pages) and on pdfcer's own `fixtures/synthetic/minimal.pdf`,
+  which has the identical shape. Sourced from Table 30's own `/Resources`
+  row ("shall be an empty dictionary" when the page needs none) rather than
+  invented; `/MediaBox` deliberately does NOT get the same treatment (no
+  clause names a default box), pinned by a test. Disclosed via `Page::
+  resources_defaulted`, appended to `render-page`'s and `extract-text`'s
+  metrics lines. **Decision 150 minted** — extends decision 145/`R248`'s
+  fail-clean kernel to a case where the "other reading" comes from the
+  standard rather than from the file; new `ARCHITECTURE.md` §10.6.
+- Pass 290.1 (`bce4703`) — `stamp_file::read` used to build its page list
+  via `page_tree::pages(doc).map(..).unwrap_or_default()`, so a page-tree
+  failure produced an EMPTY list — indistinguishable from `page_index:
+  None`'s existing meaning ("this stamp's name points at a page that does
+  not exist"). On the operator's real stamp file `pdfcer stamp-list`
+  printed `page=MISSING` beside both of his genuine signatures.
+  `StampCollection::page_tree_error: Option<String>` now carries the real
+  cause; the CLI prints `page=UNKNOWN`, distinct from `page=MISSING`, and
+  names the cause on stderr.
+- Both close inbound `pdfcer-gui`-channel requests filed 2026-09-10
+  (`request_one_resourceless_page_makes_the_whole_document_unopenable_
+  and_acrobat_writes_those.md`,
+  `request_a_page_tree_failure_is_reported_as_every_stamp_pointing_at_
+  nothing.md`); a reply is on file
+  (`reply_2026-09-10-a-resourceless-page-no-longer-costs-the-document-
+  SHIPPED.md`). Channel state relayed, not independently `Glob`-confirmed
+  this filing (no shell in this invocation).
+
+**Decisions made this session:**
+- **Decision 150** — a required page-tree attribute that is absent (or
+  dangles) defaults to the value the standard itself names for that key,
+  when one exists (Table 30's `/Resources` row), rather than refusing the
+  page tree; a key with no stated default (`/MediaBox`) is unaffected and
+  stays fatal. `ARCHITECTURE.md` §12 + new §10.6, sibling to §10.5
+  (decision 145). Explicitly does NOT restate `R248` — the file supplies
+  no reading here at all; the standard does, once, for a named key — which
+  is why this is its own decision rather than a dated `R248` instance.
+
+**Findings + decisions:**
+- **A test that measured exactly what it claimed, reached through a
+  defect it was fixing, not through the condition it named — filed as
+  `R225`'s 18th dated instance, a new sub-shape.** `fontinfo`'s
+  `an_unwalkable_page_tree_is_reported_not_rendered_as_no_fonts` and the
+  CLI's `an_unwalkable_page_tree_is_flagged_rather_than_reported_as_empty`
+  both obtained "an unwalkable page tree" by relying on `minimal.pdf`'s
+  now-fixed `/Resources` defect, and both went RED when the defect was
+  fixed. Every prior `R225` instance is a test that measured LESS than its
+  name/doc comment claimed; this is the inverse. Both repointed at a new
+  fixture, `fixtures/synthetic/xref-recover/page-tree-cycle.pdf` (a
+  `/Pages` node listing itself in its own `/Kids`).
+- **A first-draft justification was replaced mid-Pass, not merely
+  reworded, by the dispatched spec librarian.** The claim "a page with no
+  `/Contents` can never name a resource" is false — §7.8.3's third bullet
+  lets a form XObject or Type 3 font inherit the page's `/Resources`, and
+  the ISO 32000-2 erratum extends that to annotation appearance streams,
+  which is exactly the stamp-page shape in play. The decision to default
+  survived; the reason given for it did not.
+- **A candidate finding at n=2, flagged rather than minted**: a value
+  computed and discarded via `.unwrap_or_default()`, whose ABSENCE is then
+  read as a content fact, is the same shape as `Pass 285.0`'s whole-buffer
+  blank (a different subsystem — redaction, not stamp reading). Worth a
+  standing rule if a third instance surfaces; not yet.
+- **`docs/NEXT_SESSION.md` is now stale** — it still states "the queue is
+  empty of inbound work" as of `Pass 288.0`; two more requests have since
+  arrived and closed. Flagged for the engineer, not edited (that file is
+  engineer-owned).
+- Spec-librarian corpus additions from this session (relayed, not
+  independently confirmed by this filing): `D:\Dev\Rag-Specialized\
+  PDF_Spec\iso32000\iso32000__ref__page_required_attributes_absent.md`,
+  amendments to `iso32000__s__7.7.3.md` and the ambiguity register
+  (`PR-N1`/`PR-N2`), noting `/MediaBox` absent is a separate case
+  (register `PB-A5`, not §7.7.3.4) — worth a `personal_rag/pdf` finding
+  for Acrobat's own habit of writing a contentless, resourceless spacer
+  page inside a user stamp collection, and for the PDF Association CTO's
+  quoted empirical population claim ("a lot of PDFs out there fail this
+  simple validation") — **not written this filing** (budget; flagged for
+  next librarian session, not forgotten).
+
+**Still in flight:**
+- Owed items 4, 5, 10, 11, 13b, 14, 18 all carried forward, unchanged.
+- Three of this morning's five `pdfcer-gui` requests remain open, in the
+  requester's stated priority: placed-stamp label size read/write gap,
+  the shrink/clip-fit disclosure gap (`applied_autosize` is `None` on
+  every stamp), and `place_page_artwork` (no verb draws one page's
+  artwork onto another). Not yet scoped to Pass IDs.
+- The candidate `personal_rag/pdf` findings named above (Acrobat's own
+  spacer-page habit; the population-scale empirical claim) are named but
+  not yet written — carry forward as a small owed task, not a numbered
+  owed-ledger item (a documentation debt, not a defect).
+
+**For next session:**
+- Scope the three remaining open `pdfcer-gui` requests into Pass IDs.
+- Write the two flagged `personal_rag/pdf` findings.
+- Treat `docs/NEXT_SESSION.md` as stale until the engineer refreshes it —
+  do not carry forward its "queue is empty" claim.
+
 ## 2026-09-10 (493rd filing)
 
 **Shipped:**
