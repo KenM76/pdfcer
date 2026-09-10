@@ -4,6 +4,72 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-10 (492nd filing)
+
+**Shipped:**
+- Pass 288.1 (`4b45a96`, committed, not yet pushed) — `stamp-pack` gains
+  `--stamps-from <FILE>`, a name-list file (one name per line, `#`
+  comments and blank lines skipped) so a 113-page stamp sheet doesn't need
+  113 repeated `--stamp` flags. Names are not auto-derived from the
+  artwork (the supplied sheets are pure vector, no text layer) — asking is
+  better than a picker full of `Stamp001`. Verified against two real
+  third-party files: a non-Adobe dynamic-stamp collection with generated
+  internal names, and a 113-page pure-vector sheet round-tripping through
+  `stamp-pack` → `stamp-list`.
+- `tools/edit-source.py` (`aeeecb5`, committed, not yet pushed — the
+  pre-push gate was blocking on this until it was filed) — a
+  line-ending-agnostic exact-replacement tool. A multi-line `str.replace`
+  against a CRLF file with an `\n`-typed pattern matches zero times
+  **silently**; this happened three times in one session despite an
+  existing written warning in `docs/NEXT_SESSION.md`. The tool refuses a
+  non-exactly-one match and writes nothing unless every replacement
+  succeeds; patterns are passed as file paths (not shell arguments) after
+  this project separately lost content out of a pushed commit message to
+  shell-argument mangling.
+
+**Decisions made this session:**
+- No new architectural decision — neither filed item touches
+  `pdfcer-core`/`pdfcer-render`'s public surface or the object model.
+  Decision ledger stays at `148`.
+
+**Findings + decisions:**
+- **A hazard written down and hit anyway is a missing tool, not a missing
+  warning.** Filed as a dated instance of `R243` (not a new mint) —
+  `R243`'s own text already covers "a documented obligation … is not a
+  control"; this instance is the same mechanism one layer out (a warning
+  failing to stop a repeated *manual* action, not two call sites failing
+  to agree on a value). The remedy differs from `R243`'s usual one
+  (extract into a shared function) because there is no function to
+  extract from a human/agent re-typing an edit by hand — the remedy here
+  is a tool that refuses the silent failure mode outright.
+- `R250` (minted last filing, 491st, in the Shipped-section banner only)
+  was owed its *Standing rules* master-list entry — discharged this
+  filing.
+- The CRLF/`str.replace` gotcha itself is flagged for
+  `troubleshooting-librarian` (`personal_rag/claude_code` or
+  `personal_rag/python`) rather than written by this role — it's a
+  general Python-scripting-under-Claude-Code finding, not PDF-domain and
+  not Rust/egui-ecosystem, so it sits outside every tier this role owns.
+
+**Still in flight:**
+- Owed items 4, 5, 10, 11, 13b, 14 all carried forward, unchanged.
+- Both `4b45a96` and `aeeecb5` are committed but not yet pushed; the
+  push is gated on this filing landing (per the coordinator's mid-dispatch
+  note) and was not performed by this role — no shell this filing to
+  confirm push/CI state either way.
+- The `Annotations_output.pdf` (PDFsharp) `/AP`-less annotation question
+  — whether `R43` is being applied outside its territory for a *named
+  standard icon* stamp with no `/AP` — is under investigation by the
+  engineer via `pdfcer-spec-librarian`, explicitly **not resolved**; do
+  not treat as closed.
+
+**For next session:**
+- Push `4b45a96` + `aeeecb5`, confirm CI colour with a shell.
+- Dispatch `troubleshooting-librarian` for the CRLF `str.replace` lesson,
+  if judged worth a personal_rag entry.
+- Follow up on the `Annotations_output.pdf` `/AP`-less-stamp investigation
+  once `pdfcer-spec-librarian` reports back.
+
 ## 2026-09-10 (491st filing)
 
 **Shipped:**

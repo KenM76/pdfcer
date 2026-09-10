@@ -112,6 +112,197 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★ 492nd filing, 2026-09-10 — `Pass 288.1` SHIPPED: `stamp-pack
+--stamps-from`, BECAUSE A REAL ARTWORK SHEET IS 113 PAGES. ★★ ALSO FILED:
+`tools/edit-source.py` — A HAZARD WRITTEN DOWN AND HIT THREE TIMES ANYWAY IS
+A MISSING TOOL, NOT A MISSING WARNING (FILED AS A DATED INSTANCE OF `R243`,
+NOT A NEW MINT). ★ `R250` (MINTED LAST FILING, SHIPPED-SECTION ONLY UNTIL
+NOW) GAINS ITS OWED *STANDING RULES* MASTER-LIST ENTRY.**
+
+**Sourcing (hard rule 8), stated up front — NO SHELL THIS FILING.**
+`Read`/`Grep`/`Glob` only. The commit hashes are as reported by the
+coordinator mid-dispatch: `aeeecb5` (`tools/edit-source.py`) and `4b45a96`
+(`Pass 288.1`, `stamp-pack --stamps-from`) — both **committed, not yet
+pushed**; the dispatch states a pre-push gate refuses `aeeecb5` until this
+filing lands, so both go out together once the engineer pushes. Push/CI
+state is **not asserted beyond that** — no shell this filing to confirm
+`git log`/`git status` directly. **Independently verified here, by
+`Grep`/`Read` against the live tree** rather than taken on the dispatch's
+word alone: `crates/pdfcer-cli/src/main.rs` carries `stamps_from: Option<PathBuf>`
+wired into `cmd_stamp_pack` (lines 3314–3324, 10276–10278, 41839–41860);
+`crates/pdfcer-cli/tests/stamp_pack.rs` exists with the three named tests
+(`a_name_list_file_drives_the_pack_and_skips_comments`,
+`the_repeated_flag_still_works_and_the_two_conflict`,
+`a_missing_name_list_is_an_error_not_an_empty_collection`); `tools/edit-source.py`
+exists and its docstring/`dominant_newline`/`normalise` functions match the
+dispatch's description verbatim. `ROADMAP.md` had **no existing `Pass 288.1`
+entry** and no `Next up`/`Backlog` stub for either item (grepped before
+filing) — clean to file.
+
+---
+
+### `Pass 288.1` (`4b45a96`, 2026-09-10, committed — not yet pushed) — `stamp-pack --stamps-from`
+
+**Why:** the operator supplied downloaded stamp sheets; the largest is
+**113 pages**, one stamp per page. Repeating `--stamp` 113 times is not a
+command anybody types twice.
+
+**Shipped:** `stamp-pack` gains `--stamps-from <FILE>`, a name-list file —
+one name per line, in page order; blank lines and `#`-comment lines
+skipped. Conflicts with (refused by `clap` before anything is written
+against) the repeated `--stamp` flag, which still works unchanged.
+
+**★ Names are not derived from the artwork, and that is stated rather than
+worked around.** The supplied stamps are **vector outlines with no text
+layer** (measured: `extract-text` returns nothing on every page sampled),
+so an auto-naming feature would have produced empty names silently. A
+picker full of `Stamp001` is not an improvement on asking.
+
+**★★ Verified against the operator's real third-party files, not only a
+fixture — the discipline `R250` names.**
+- `Exhibit-Stamp.pdf` — a real **non-Adobe** stamp collection reads
+  correctly: five dynamic stamps, category `Exhibit Stamp`, internal names
+  that are **generated IDs** (`#FJiz7wWHn_YK6bmv_fDQfD`) rather than
+  Adobe's readable `SBApproved` style. Independent confirmation that
+  `Pass 288.0`'s reader is not tuned to Adobe's own naming convention — a
+  second, differently-shaped producer.
+- `red_stamps_transparent_background_050720b.pdf` — 113 pages, 226
+  transparency groups, zero images: pure vector artwork. `stamp-pack` →
+  `stamp-list` round-trips it end to end.
+
+**Tests (verified above).** `crates/pdfcer-cli/tests/stamp_pack.rs`, 3
+tests — a **CLI** test rather than a core one, because the name-list
+parsing happens only in the CLI: a core test cannot see a comment line
+that was not skipped, a blank line that became an empty name, or a flag
+that parses and never reaches the core call. Every assertion re-reads
+through `stamp-list` rather than trusting the pack report. Controls:
+`--stamp` still works standalone; the two flags conflict; a missing list
+file is an error leaving **no** half-written collection. **Gates
+(relayed).** `tools/run-gates.sh` PASS 29/29; `cargo fmt --check` and
+`cargo clippy --all-targets --all-features -- -D warnings` clean.
+
+**`docs/FEATURES.md`.** No row change — `Pass 288.0`'s row (Annotations &
+markup, "Read and author Acrobat-compatible custom stamp collections")
+already carries `cli [x]`; `--stamps-from` is a convenience flag inside an
+already-shipped capability, not a new one.
+
+---
+
+#### Also filed, same push — `tools/edit-source.py`: a hazard written down three times, hit three times anyway
+
+**The defect this answers.** A multi-line `str.replace` against one of this
+project's files matches **zero times** when the pattern is typed with
+`\n` and the file is CRLF — and `str.replace` reports that by **doing
+nothing at all**. The edit appears applied; the next command fails
+somewhere unrelated. `docs/NEXT_SESSION.md` already carried a written
+warning about exactly this. **It happened three separate times in one
+session anyway.**
+
+**Filed as a dated instance of `R243`, not a new mint.** `R243`'s own text
+already covers this shape — *"a documented obligation on a future caller
+is not a control"* — and this instance restates it one layer further out:
+not two call sites failing to agree on a value, but a **warning** failing
+to prevent a **repeated manual action**. See the dated-instance note added
+to `R243`'s master-list entry, below, for the full reasoning on why the
+remedy differs (a tool that refuses a silent no-op, not code extraction —
+there is no shared function to extract from a human/agent re-typing a
+pattern by hand).
+
+**What the tool guarantees:** patterns normalised to the file's **own
+dominant line ending** (counted across the whole file, not sniffed from
+the first line — this project has files with mixed endings from LF blocks
+spliced into CRLF files); every replacement must match **exactly once**
+(zero and two are both refusals — "which of the two did you mean?" has no
+safe default); **nothing is written unless every replacement succeeds**,
+so a failed run leaves the file exactly as it found it.
+
+**★ Patterns are passed as file paths, not as text — the design is a
+direct response to a separate, already-suffered incident.** Passing prose
+through shell arguments is how backticks get command-substituted and
+backslashes eaten; this project **lost two code fragments out of a pushed
+commit message** to exactly that, and could not repair it because
+rewriting published history is not authorised (`CLAUDE.md` rule 8's
+`--force` carve-out).
+
+**Verified independently, by `Read`, this filing** (not merely relayed):
+docstring, `dominant_newline`, `normalise` match the dispatch's own
+description exactly (quoted above, in the sourcing paragraph).
+
+**Kept at the operator's request** — it had been living in a job temp
+directory and would have died with the session otherwise.
+
+**Flagged, not written here:** the underlying CRLF/`str.replace` gotcha is
+a general Python-scripting-under-Claude-Code finding, not PDF-domain — it
+belongs in `C:\personal_rag\claude_code\` or `C:\personal_rag\python\`,
+both `troubleshooting-librarian`'s territory (see `pdfcer-librarian.md`'s
+"Coordinating with other librarians" section). Flagged for a
+`troubleshooting-librarian` dispatch to consider a lesson there; not
+written into either subject by this role.
+
+---
+
+### `R243` — dated instance note, 2026-09-10 (492nd filing)
+
+**A WRITTEN WARNING FAILING TO PREVENT A REPEATED MANUAL ACTION IS THE
+SAME MECHANISM ONE LAYER OUT FROM TWO CALL SITES FAILING TO AGREE ON A
+VALUE.** `docs/NEXT_SESSION.md` carried a warning, written down, about
+multi-line `str.replace` silently no-op'ing on a CRLF file. It was hit
+**three separate times in one session** despite the warning being present
+the whole time — the same "documentation is retrieved by a query; a
+control is imposed without one" mechanism `R243`'s founding instance
+names, applied to a person/agent re-typing an edit pattern by hand rather
+than to a second function call site.
+
+**Not folded into `R243`'s own text, because the remedy differs** (same
+reasoning shape as the 469th-filing `# Errors` note above). `R243`'s
+remedy is *extract into one function both call sites use* — there is no
+function to extract here, because the two occasions are separated by
+elapsed time and a human/agent's own re-typing, not by two pieces of code
+that could share a computation. The remedy that actually closed this one
+is `tools/edit-source.py`: a tool that **refuses** the silent no-op rather
+than a sentence asking a future session to remember not to trigger it.
+
+**The generalisable half:** when a hazard has been written down and is
+struck a further time regardless, the next lever to reach for is not a
+more prominent warning — it is machinery that makes the failure mode
+impossible to pass through silently. See `D:\dev\rag\rust\` for whether
+this warrants its own ecosystem-wide finding (CRLF-vs-LF `str.replace`
+silent no-op is not Rust-specific, so not written there by this filing;
+flagged only).
+
+**Mechanism this note is checked against:** `tools/edit-source.py`
+(committed `aeeecb5`, not yet pushed), fixed the same session it names.
+
+---
+
+### Part — owed work, carried forward and discharged
+
+**Carried forward, unchanged:** items 4, 5, 10, 11, 13b, 14.
+
+**Discharged this filing:** `R250`'s master-list entry (owed from the
+491st filing — minted in the Shipped-section banner only, now also
+appended to the *Standing rules* section below).
+
+**New, from this filing:** none numbered — the `troubleshooting-librarian`
+flag above is a suggestion for another role's corpus, not an owed item on
+this project's own ledger.
+
+---
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `288` (highest ID `288.0`), next free family `289` | **`288`** (highest ID **`288.1`**), next free family `289` (unchanged — a sub-letter, not a new family) |
+| Standing rules | `R250` MINTED (491st filing, Shipped-section only) | **`R250`'s master-list entry added** to *Standing rules*, closing the owed survivor; **`R243` gains a dated instance** (CRLF `str.replace` silent no-op, hit 3x despite a written warning). Ceiling unchanged **`R250`**, next free `R251` |
+| Decision records | `148` | **unchanged — `148`**, next free `149`; neither filed item is an architectural decision |
+| `SESSION_LOG` filings | `491` | **`492`** |
+| `docs/FEATURES.md` | row 288 (stamp collections) `cli [x]` | **unchanged** — `--stamps-from` is a convenience flag inside the already-ticked box |
+| `C:\personal_rag\claude_code\` / `python\` | no lesson on CRLF `str.replace` silent no-op | **flagged for `troubleshooting-librarian`**, not written here (sibling-role territory) |
+| Owed-survivor / open-reply ledger | items 4, 5, 10, 11, 13b, 14 open; `R250` master-list entry owed | **`R250` master-list entry discharged this filing**; items 4, 5, 10, 11, 13b, 14 unchanged |
+
+---
+
 **★★★★★ 491st filing, 2026-09-10 — `Pass 288.0` SHIPPED: STAMP COLLECTIONS
 ARE NOW READABLE AND AUTHORABLE, ACROBAT-COMPATIBLE — AND "EXPORT" IS JUST
 HANDING SOMEONE THE PDF, BECAUSE THAT IS ACROBAT'S OWN ANSWER TOO. ★★★
@@ -165559,6 +165750,46 @@ ceiling `114` → `115`** (`iccce` enters as a git dependency pinned to tag
   than a second call site), and that shape is `R245`'s subject, below.
   Fixed same commit as `R245`'s founding instances (`fad0d2d`).
 
+- **`R243` — DATED INSTANCE NOTE, 2026-09-10 (492nd filing): A WRITTEN
+  WARNING FAILING TO PREVENT A REPEATED MANUAL ACTION IS THE SAME MECHANISM
+  ONE LAYER OUT FROM TWO CALL SITES FAILING TO AGREE ON A VALUE.**
+  `docs/NEXT_SESSION.md` carried a written warning that a multi-line
+  `str.replace` against one of this project's files silently matches zero
+  times when the pattern is typed with `\n` and the file is CRLF — the edit
+  appears applied, and the next command fails somewhere unrelated. **It was
+  hit three separate times in one session (2026-09-10) despite the warning
+  being present the whole time.** `R243`'s own mechanism — *"documentation
+  is retrieved by a query; a control is imposed without one"* — applies
+  unchanged: the person mid-edit is holding a different question ("what do
+  I need to change here?"), not the warning's question, and does not stop
+  to retrieve it.
+
+  **Not folded into `R243`'s own text, because the remedy differs again —
+  same reasoning shape as the 469th-filing note above, one layer further
+  out.** `R243`'s remedy is *extract into one function both call sites
+  use*. There is no function to extract here: the two occasions are
+  separated by elapsed time and a human/agent's own re-typing, not by two
+  pieces of code that could share a computation. The remedy that closed
+  this one is `tools/edit-source.py` (committed `aeeecb5`) — a tool that
+  **refuses** the silent no-op (patterns normalised to the file's own
+  dominant line ending; every replacement must match exactly once; nothing
+  is written unless every replacement succeeds) rather than a sentence
+  asking a future session to remember not to trigger it.
+
+  **The generalisable half, stated for the next hazard that recurs despite
+  being written down:** when a warning has been written and is struck a
+  further time regardless, the next lever is not a more prominent warning
+  — it is machinery that makes the failure mode impossible to pass through
+  silently. Not written as a `D:\dev\rag\rust\` finding this filing (the
+  CRLF-vs-LF `str.replace` no-op is a general Python-scripting hazard, not
+  Rust/egui-ecosystem-specific) — flagged for `troubleshooting-librarian`
+  instead (`personal_rag/claude_code` or `personal_rag/python`), per
+  `pdfcer-librarian.md`'s sibling-role coordination discipline.
+
+  **Mechanism this note is checked against:** `tools/edit-source.py`,
+  fixed the same session it names. See `ROADMAP.md` *Shipped*, `Pass
+  288.1`'s filing (492nd), for the full record.
+
 - **R245 — A GUARD, KEY OR DISCLOSURE ADDED TO ONE MEMBER OF A FAMILY OF
   PARALLEL VERBS IS NOT SHIPPED UNTIL A TEST ITERATES THE WHOLE FAMILY.
   WRITE THE TEST OVER THE FAMILY, NOT OVER THE INSTANCE.** Minted
@@ -166146,6 +166377,63 @@ ceiling `114` → `115`** (`iccce` enters as a git dependency pinned to tag
   **Standing rules ceiling `R248` → `R249`** (~~`R247` UNCHANGED, still
   reserved-but-unclaimed~~ **`R247` claimed 2026-09-09, 489th filing — see
   its own entry above**); **next free `R250`.**
+
+- **R250 — BEFORE IMPLEMENTING A DATA-FORMAT OR COMPATIBILITY DECISION
+  SOURCED FROM A FEATURE-RAG (OR SPEC-RAG) FINDING LABELLED ANYTHING SHORT
+  OF DIRECTLY-OBSERVED, CHECK WHETHER A PRIMARY ARTIFACT — A VENDOR-SHIPPED
+  FILE, AN INSTALLED REFERENCE APPLICATION'S OWN RESOURCE, A REFERENCE
+  DOCUMENT ALREADY ON DISK — PLAUSIBLY EXISTS LOCALLY, AND READ IT BEFORE
+  SHIPPING.** Minted 2026-09-10 (491st filing, `Pass 288.0`, decision 148),
+  this role's own synthesis of a finding the engineer offered without a
+  number. **Master-list entry added 2026-09-10 (492nd filing)** — the mint
+  itself landed in the Shipped-section banner at the 491st filing; this
+  entry was an owed survivor, discharged here.
+
+  **The shape.** `pdfcer-acrobat-librarian` reached the correct
+  stamp-collection capability shape from convergent **community** sources
+  and correctly labelled the whole finding `(c) convergent-secondary`,
+  flagging two gaps by name rather than guessing past them: where the
+  category name is actually stored, and whether the `#`-prefix
+  dynamic-stamp convention was real or a community myth. Treating a `(c)`
+  label as "good enough to ship" would have left both guesses standing
+  exactly where a primary artifact — Adobe's own shipped stamp files,
+  already present on the machine building the feature
+  (`…\Acrobat DC\Acrobat\plug_ins\Annotations\Stamps\ENU\StandardBusiness.pdf`,
+  `Dynamic.pdf`) — could answer both directly. Reading them cost two file
+  opens, not a research session, and the RAG's own confidence label is what
+  pointed at precisely what still needed checking: the labelling was not
+  overhead, it was the map.
+
+  **Text.** ⇒ Before implementing a data-format or compatibility decision
+  sourced from a Feature-RAG (or Spec-RAG) finding labelled anything short
+  of directly-observed, check whether a primary artifact plausibly exists
+  locally, and read it before shipping. A `(c)`-labelled finding is a
+  pointer at what still needs verifying, not a license to build from it
+  unchecked. When the primary artifact closes a gap the secondary sourcing
+  flagged, report it back to that RAG's own owner for a confidence-label
+  upgrade (`(c)` → `(b)` observed) — that is a call for the RAG's owner to
+  make on its own corpus, not this role's to make unilaterally (hard rule
+  6's sibling-boundary discipline, applied here to a confidence label
+  rather than to content).
+
+  **Application test.** Before a Pass ships a decision sourced from a
+  `(c)`-or-lower-confidence RAG finding: (1) ask whether a primary artifact
+  plausibly exists on the machine already (an installed reference
+  application, a vendor sample file, a bundled resource) rather than only
+  in a library or online; (2) if one plausibly does, look before building;
+  (3) if the look closes a gap, flag the sourcing RAG's owner to upgrade
+  the label rather than leaving the corpus's stated confidence understated
+  relative to what is now actually known.
+
+  **Mechanism this rule is checked against:** `pdfcer_core::stamp_file`,
+  decision 148. See `ROADMAP.md` *Shipped*, `Pass 288.0` (491st filing),
+  for the full acceptance record. `pdfcer-acrobat-librarian`'s
+  `markup__stamp_text_size_and_resize_behavior.md` and
+  `markup__custom_stamp_file_format.md` are flagged for a `(c)`→`(b)`
+  label-upgrade consideration on that role's own corpus — not edited here.
+
+  **Standing rules ceiling `R249` → `R250`; next free `R251`.** Decision
+  ceiling `147` → `148`, next free `149`.
 
 ## Update protocol
 
