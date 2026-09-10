@@ -3395,6 +3395,53 @@ Dynamic.pdf            /Info /Title (Dynamic)
 ★ **`/PieceInfo` is a red herring** — it appears in those files carrying
 `/Illustrator` authoring data, nothing to do with stamps.
 
+★★★ **PLACING one — `Pass 293.0`.** `Pass 288.0` delivered the container; a
+custom stamp's point is its **artwork**, which is a page, and nothing could
+draw one page onto another. So pdfcer could read the operator's own signature
+stamps and could not stamp anything with them.
+
+```rust
+let placed = session.place_page_artwork(&collection.view(), stamp_page, page_index, rect)?;
+```
+
+CLI: `pdfcer place-stamp <in> --from <collection.pdf> (--stamp NAME | --stamp-page N)
+--page N (--at X,Y | --rect x0,y0,x1,y1) -o <out>`. `--stamp` resolves through
+the collection's own name tree, so an operator addresses a stamp the way
+`stamp-list` prints it.
+
+**The shape, and why:** the artwork becomes a **form XObject**, and the
+placement is a `/Stamp` annotation whose `/AP` `/N` points at it — what
+Acrobat writes, architecturally forced by §12.5.5 + §8.10
+(`Acrobat_Features/markup__custom_stamp_placement_and_appearance_authoring.md`).
+It stays **vector**, stays selectable/movable/deletable, and **never touches
+the page's own content stream** (R47).
+
+★ The rejected alternative is recorded because it is the obvious one: render
+the stamp page and place a raster through `add_image`. Not Acrobat-compatible,
+inflates a CAD drawing per stamp, does not survive zooming, and picks a
+resolution nobody asked for.
+
+| `PlacedArtwork` field | what it discloses |
+|---|---|
+| `scale_x` / `scale_y` / `distorted` | §12.5.5 maps `/BBox` onto `/Rect` with **independent** factors, so a rectangle of the wrong proportions stretches the artwork. **That is normative behaviour, not a pdfcer shortcut** — Acrobat's drag-placement lands in the same algorithm. pdfcer's addition is saying so |
+| `objects_imported` | the artwork's resource closure copied in — a stamp page referencing a 4 MB font is what grew the file |
+| `resources_renamed` | **always 0**, by construction: §8.10 forbids promoting a form XObject's resource names into the host page, so collisions are structurally impossible |
+| `source_annotations_ignored` | annotations on the stamp page are not page content and do not travel |
+| `source_widgets_ignored` | ⚠ **the dynamic-stamp number** — Adobe's `Dynamic.pdf` stamps put their date/author text in AcroForm fields recomputed by JavaScript, so a dynamic stamp places its **design-time** text: correct as a picture, wrong as a promise |
+| `transparency_group_carried` | the page's `/Group` travelled (§8.10.2 Table 96 allows one on a form) |
+
+`--at X,Y` places at the artwork's own size — Acrobat's click-to-place — and
+reports `distorted=0` by construction. `--rect` fills a box.
+
+**No `/Name` is written**: §12.5.6.12's vocabulary is closed and imported
+artwork matches none of it; Table 181 makes the entry optional precisely so an
+annotation with its own appearance need not claim a name.
+⚠ **Whether Acrobat writes something there for a custom stamp — i.e. whether a
+placed stamp remembers which stamp it came from — is an open GAP**, named
+rather than guessed (R250). One artifact settles it: a PDF with a custom stamp
+placed and saved. Acrobat **Reader** can place an existing custom stamp, so it
+is obtainable without Pro.
+
 ★★ **The name tree is written in LEXICOGRAPHIC order, not page order.**
 §7.9.6 requires it and Adobe obeys it: `SBApproved` names page 0 while
 `SBCompleted` names page 4, so page order is demonstrably *not* tree order. A

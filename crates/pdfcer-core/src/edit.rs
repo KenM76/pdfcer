@@ -6226,6 +6226,20 @@ pub enum EditError {
         /// The first form that disagreed with it.
         other: ObjId,
     },
+    /// A **source** document's page index was out of range (`Pass 293.0`).
+    ///
+    /// Its own variant rather than [`Self::PageOutOfRange`], because the two
+    /// are different mistakes: one means "this document has no such page" and
+    /// the other means "the file you are placing FROM has no such page". A
+    /// shell shows them in different places, and a single variant would make
+    /// it guess which document the number belongs to.
+    #[error("source page index {index} is out of range (the source has {count} page(s))")]
+    SourcePageOutOfRange {
+        /// The 0-based index asked for.
+        index: usize,
+        /// How many pages the source actually has.
+        count: usize,
+    },
     /// The page index is past the end of the document.
     #[error("page index {index} is out of range (the document has {count} page(s))")]
     PageOutOfRange {
@@ -17393,6 +17407,83 @@ pub struct TextAnnotStyleChange {
     ///
     /// `false` for a `/Text` sticky note, whose appearance is icon-driven.
     pub appearance_was_foreign: bool,
+}
+
+/// What [`EditSession::place_page_artwork`] placed, and what it decided
+/// (`Pass 293.0`).
+///
+/// Every field but the two ids is a disclosure. A stamp placement makes four
+/// decisions the caller did not state — how the artwork was scaled into their
+/// rectangle, what was left behind on the source page, and how much of the
+/// document grew — and project rule 4 makes each of them reportable rather
+/// than discoverable.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
+pub struct PlacedArtwork {
+    /// The new `/Stamp` annotation.
+    pub annot_id: ObjId,
+    /// The form XObject its `/AP` `/N` points at — the imported artwork.
+    ///
+    /// Exposed because a caller placing the same stamp repeatedly will want
+    /// to know that each placement imports its own copy today. Sharing one
+    /// form between placements is a legal and obvious optimisation, and it is
+    /// deliberately NOT done yet: it would make deleting one stamp able to
+    /// break another, which is a bigger change than this Pass.
+    pub form_id: ObjId,
+    /// The `/Rect` written — §7.9.5-normalised, so a caller that passed
+    /// corners in the other order gets back the rectangle that was actually
+    /// stored.
+    pub rect: crate::page_tree::Rect,
+    /// The horizontal factor §12.5.5's appearance algorithm applies to the
+    /// artwork: `rect.width / bbox.width`.
+    pub scale_x: f64,
+    /// The vertical factor: `rect.height / bbox.height`.
+    pub scale_y: f64,
+    /// The two factors differ, so the artwork is **squashed or stretched**.
+    ///
+    /// ★ The disclosure that matters most here. The operator dragged a
+    /// rectangle; the stamp page is whatever size its author drew. Nothing
+    /// warns them that the aspect ratios disagreed, and a signature stamped
+    /// 30 % wider than it was drawn is a signature that does not look like
+    /// the operator's. A shell that offers a "keep the artwork's proportions"
+    /// control reads this to know when it mattered.
+    pub distorted: bool,
+    /// How many objects the import copied into this document — the artwork's
+    /// resource closure: fonts, images, colour spaces, nested forms.
+    ///
+    /// A stamp is usually small; a stamp page that references a 4 MB embedded
+    /// font is not, and an operator stamping a 5.6 MB drawing is entitled to
+    /// know which act grew the file.
+    pub objects_imported: usize,
+    /// How many resource names had to be renamed to avoid a collision with
+    /// the target page's: **always `0`**.
+    ///
+    /// Reported rather than omitted because "no renaming happened" and
+    /// "renaming is not reported" are different claims that an absent field
+    /// cannot distinguish. It is zero by construction, not by luck: a form
+    /// XObject carries its own `/Resources` (§8.10.2 Table 96), so the
+    /// imported artwork's names and the page's never meet.
+    pub resources_renamed: usize,
+    /// Annotations on the SOURCE page that were not carried.
+    ///
+    /// An annotation is not page content — it lives beside it — so the
+    /// artwork of a stamp page that carries comments arrives without them.
+    /// Counted, because a stamp designed with an annotation as part of its
+    /// look would arrive incomplete and nothing on the page would say why.
+    pub source_annotations_ignored: usize,
+    /// Form-field WIDGETS on the source page that were not carried.
+    ///
+    /// ⚠ This is the dynamic-stamp number. Adobe's `Dynamic.pdf` stamps put
+    /// their date and author text in AcroForm fields recomputed by
+    /// JavaScript at placement; pdfcer imports the artwork, not the machinery,
+    /// so a dynamic stamp places its **design-time** text — correct as a
+    /// picture, wrong as a promise. Non-zero here is the signal to say so.
+    pub source_widgets_ignored: usize,
+    /// The source page had a transparency `/Group` and it travelled with the
+    /// artwork (§8.10.2 Table 96 allows one on a form XObject).
+    ///
+    /// `false` means the page had none, not that one was dropped.
+    pub transparency_group_carried: bool,
 }
 
 /// What [`EditSession::set_annotation_flags`] changed (ISO 32000-1 §12.5.3
@@ -33283,6 +33374,318 @@ impl EditSession {
     ) -> Result<TextAnnotOutcome, EditError> {
         options.validate()?;
         self.add_text_annotation_inner(page_index, spec, options, None, &[])
+    }
+
+    /// Place one page's **artwork** onto a page of this document as a
+    /// `/Stamp` annotation whose appearance is that page, imported as a form
+    /// XObject (`Pass 293.0`).
+    ///
+    /// # The gap this closes
+    ///
+    /// `Pass 288.0` made stamp COLLECTIONS readable and authorable — the
+    /// container, the names, the category. A custom stamp's whole point is
+    /// its **artwork**, which is a page, and nothing could draw one page onto
+    /// another. So pdfcer could read the operator's own signature stamps and
+    /// author new collections Acrobat will load, and could not stamp anything
+    /// with them.
+    ///
+    /// # Why an annotation rather than page content
+    ///
+    /// This is what Acrobat does, and it is what an operator expects a stamp
+    /// to be: selectable, movable, deletable, flattenable, and — the part
+    /// that matters most on a drawing pdfcer must not silently alter —
+    /// **the page's own content stream is never touched** (R47).
+    ///
+    /// Placing artwork *as page content* is a different feature (a watermark
+    /// wants exactly that), and it is deliberately not this verb. The two
+    /// would share this mechanism, not this signature.
+    ///
+    /// # Why the artwork stays VECTOR
+    ///
+    /// The alternative was to render the source page and place a raster
+    /// through [`Self::add_image`]. That was considered and rejected by the
+    /// consuming shell before it was ever asked for, and the reasons are the
+    /// reasons this verb exists: a bitmap is not what Acrobat writes, so a
+    /// file round-tripped through pdfcer would be visibly worse in Acrobat
+    /// than one Acrobat made; the operator's documents are CAD drawings,
+    /// where a raster stamp is the one thing that does not survive zooming;
+    /// and a resolution would have been chosen for them, which is an
+    /// inference nobody asked for.
+    ///
+    /// # What is imported, and what is deliberately not
+    ///
+    /// **Imported:** the source page's content streams (decoded and
+    /// concatenated exactly as Table 30 concatenates them) and its resolved
+    /// `/Resources`, deep-copied at fresh object numbers through the same
+    /// importer `insert_pages` uses. Its `/Group` travels too when it has one
+    /// — §8.10.2 Table 96 puts `/Group` on a form XObject, so a page whose
+    /// transparency depends on its group keeps it.
+    ///
+    /// **Not imported:** the source page's ANNOTATIONS and form-field
+    /// widgets. They are not page content — they are objects that live beside
+    /// it — and Adobe's `Dynamic.pdf` stamps carry AcroForm calculation
+    /// machinery whose widgets would arrive as orphans in a document with no
+    /// form. Both are COUNTED in [`PlacedArtwork`] rather than dropped
+    /// silently.
+    ///
+    /// ⚠ **A dynamic stamp therefore places its DESIGN-TIME text.** Its words
+    /// come from JavaScript that Acrobat runs at placement, pdfcer does not
+    /// author calculation scripts, and the artwork is correct as a picture
+    /// and wrong as a promise. `stamp_file::StampEntry::dynamic` tells a
+    /// caller which stamps those are, before this verb is reached.
+    ///
+    /// # Resource-name collisions: there are none, by construction
+    ///
+    /// A form XObject carries **its own** `/Resources` (§8.10.2 Table 96), so
+    /// the imported artwork's `/F1` and the target page's `/F1` never meet.
+    /// Nothing is renamed, and [`PlacedArtwork::resources_renamed`] is `0`
+    /// permanently — reported rather than omitted, because "no renaming
+    /// happened" and "renaming is not reported" are different claims and a
+    /// caller cannot tell them apart from an absent field.
+    ///
+    /// # Scaling is the annotation appearance algorithm's, and it is disclosed
+    ///
+    /// The form's `/BBox` is the source page's **crop box** — what a reader
+    /// displays — with an identity `/Matrix`, and §12.5.5's appearance
+    /// algorithm maps that box onto `rect`. So the caller's rectangle decides
+    /// the size, exactly as dragging a stamp does in any reader.
+    ///
+    /// The consequence is reported rather than left to be discovered:
+    /// [`PlacedArtwork::scale_x`] and [`PlacedArtwork::scale_y`] are the
+    /// factors that mapping applies, and [`PlacedArtwork::distorted`] is true
+    /// when they differ — a stamp squashed to fit a rectangle of the wrong
+    /// aspect ratio is an inference about what the operator wanted, and
+    /// project rule 4 makes it disclosable rather than silent.
+    ///
+    /// ★ **The stretching itself is the STANDARD's behaviour, not pdfcer's
+    /// shortcut**, and that is worth stating because it looks like a defect:
+    /// §12.5.5's algorithm maps the transformed `/BBox` onto `/Rect` with
+    /// **independent** horizontal and vertical factors, so a non-matching
+    /// aspect ratio stretches anisotropically by definition. Acrobat's own
+    /// drag-placement lands in the same algorithm
+    /// (`Acrobat_Features/markup__custom_stamp_placement_and_appearance_authoring.md`).
+    /// pdfcer's addition is the disclosure, not the behaviour.
+    ///
+    /// # No `/Name`, and the gap that is deliberately still open
+    ///
+    /// §12.5.6.12's `/Name` is a closed vocabulary of standard stamp names
+    /// and this annotation's face is imported artwork matching none of them,
+    /// so pdfcer writes none: Table 181 marks the entry optional exactly so
+    /// an annotation carrying its own appearance need not claim a name it
+    /// does not have.
+    ///
+    /// ⚠ **Whether Acrobat writes something there for a CUSTOM stamp — and
+    /// so whether a placed stamp remembers which stamp it came from — is an
+    /// open GAP**, flagged by name rather than guessed at (R250). Settling it
+    /// needs one artifact nobody has yet produced: a PDF with a custom stamp
+    /// placed and saved. Acrobat **Reader** can place an existing custom
+    /// stamp, so the artifact is obtainable on this machine even though Pro
+    /// is not installed.
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::DocumentEncrypted`] and the annotation certification
+    ///   gate, exactly as every other annotation-authoring verb.
+    /// - [`EditError::PageOutOfRange`] — `page_index` is not a page of THIS
+    ///   document.
+    /// - [`EditError::SourcePageOutOfRange`] — `source_page` is not a page of
+    ///   the source. Its own variant rather than the one above, because "you
+    ///   asked for page 9 of a 3-page stamp file" and "you asked for page 9
+    ///   of a 3-page drawing" are different mistakes and a shell shows them
+    ///   in different places.
+    /// - [`EditError::PageTree`] — the source's page tree will not walk.
+    /// - [`EditError::VectorEditContent`] — the source page's content streams
+    ///   will not decode.
+    pub fn place_page_artwork(
+        &mut self,
+        source: &DocumentView<'_>,
+        source_page: usize,
+        page_index: usize,
+        rect: crate::page_tree::Rect,
+    ) -> Result<PlacedArtwork, EditError> {
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+        self.check_certification_for_annotation()?;
+
+        let slots = self.page_slots()?;
+        let page_id = slots
+            .get(page_index)
+            .ok_or(EditError::PageOutOfRange {
+                index: page_index,
+                count: slots.len(),
+            })?
+            .id;
+
+        // ---- the source page ------------------------------------------
+        let source_pages =
+            crate::page_tree::pages_in(source.graph()).map_err(EditError::PageTree)?;
+        let src = source_pages
+            .get(source_page)
+            .ok_or(EditError::SourcePageOutOfRange {
+                index: source_page,
+                count: source_pages.len(),
+            })?
+            .clone();
+
+        // The artwork itself: every content stream the page names, decoded
+        // and concatenated in order. `ContentStream::from_page` is the ONE
+        // implementation of that concatenation in this crate, including the
+        // §7.3.10 degradation for a stream the file does not contain.
+        let content = crate::content::ContentStream::from_page(source, &src)
+            .map_err(EditError::VectorEditContent)?;
+        let artwork = content.buf.clone();
+
+        // What is beside the artwork and is NOT coming with it. Counted
+        // before anything is written, so the disclosure is about the source
+        // rather than about what happened to survive the import.
+        let source_annots = crate::annot::page_annotations(source.graph(), src.id);
+        let source_widgets = source_annots.iter().filter(|a| a.is_widget()).count();
+        let source_annotations_ignored = source_annots.len() - source_widgets;
+
+        // ---- import the resources at fresh object numbers --------------
+        let mut mapping: BTreeMap<ObjId, ObjId> = BTreeMap::new();
+        let mut scratch: BTreeMap<ObjId, Object> = BTreeMap::new();
+        let resources = self.import_value(
+            source,
+            &Object::Dict(src.resources.clone()),
+            &mut mapping,
+            &mut scratch,
+        )?;
+        // §8.10.2 Table 96: a form XObject may carry `/Group`. A page whose
+        // transparency is defined against its own group renders differently
+        // without it, so it travels when it exists.
+        let carried_group;
+        let group = match source
+            .graph()
+            .value(src.id)
+            .and_then(Object::as_dict)
+            .and_then(|d| d.get(b"Group"))
+        {
+            Some(g) => {
+                let owned = g.clone();
+                carried_group = true;
+                Some(self.import_value(source, &owned, &mut mapping, &mut scratch)?)
+            }
+            None => {
+                carried_group = false;
+                None
+            }
+        };
+        let objects_imported = scratch.len();
+
+        // ---- the form XObject ------------------------------------------
+        let bbox = src.crop_box;
+        let form_id = ObjId::new(self.alloc_number()?, 0);
+        let annot_id = ObjId::new(self.alloc_number()?, 0);
+        let span = self.stage_bytes(&artwork);
+        let mut form = Dict::new();
+        form.insert(Name::from(b"Type"), Object::Name(Name::from(b"XObject")));
+        form.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Form")));
+        form.insert(
+            Name::from(b"BBox"),
+            Object::Array(vec![
+                Object::Real(bbox.llx),
+                Object::Real(bbox.lly),
+                Object::Real(bbox.urx),
+                Object::Real(bbox.ury),
+            ]),
+        );
+        form.insert(Name::from(b"Resources"), resources);
+        if let Some(group) = group {
+            form.insert(Name::from(b"Group"), group);
+        }
+        form.insert(
+            Name::from(b"Length"),
+            Object::Integer(i64::try_from(artwork.len()).unwrap_or(i64::MAX)),
+        );
+
+        // ---- the annotation --------------------------------------------
+        let rect = crate::page_tree::Rect::from_corners(rect.llx, rect.lly, rect.urx, rect.ury);
+        let mut annot = Dict::new();
+        annot.insert(Name::from(b"Type"), Object::Name(Name::from(b"Annot")));
+        annot.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Stamp")));
+        annot.insert(
+            Name::from(b"Rect"),
+            Object::Array(vec![
+                Object::Real(rect.llx),
+                Object::Real(rect.lly),
+                Object::Real(rect.urx),
+                Object::Real(rect.ury),
+            ]),
+        );
+        let mut ap = Dict::new();
+        ap.insert(Name::from(b"N"), Object::Reference(form_id));
+        annot.insert(Name::from(b"AP"), Object::Dict(ap));
+        annot.insert(
+            Name::from(b"F"),
+            Object::Integer(i64::from(crate::annot::AnnotFlags::PRINT)),
+        );
+
+        // ★ NO `/Name`. §12.5.6.12 makes `/Name` one of a closed vocabulary
+        // of STANDARD stamp names, and this annotation's face is imported
+        // artwork that matches none of them. Writing `/Draft` because the key
+        // looks required would make a reader that cannot find the `/AP` draw
+        // the wrong picture, and Table 181 marks the entry optional precisely
+        // so an annotation with its own appearance need not claim a name it
+        // does not have.
+
+        // ---- scaling disclosure (§12.5.5) -------------------------------
+        let (scale_x, scale_y) = if bbox.width() > 0.0 && bbox.height() > 0.0 {
+            (rect.width() / bbox.width(), rect.height() / bbox.height())
+        } else {
+            (1.0, 1.0)
+        };
+
+        let mut objects = vec![
+            ObjectWrite {
+                id: form_id,
+                before: None,
+                after: Some(Object::Stream(Stream {
+                    dict: form,
+                    data_span: span,
+                })),
+            },
+            ObjectWrite {
+                id: annot_id,
+                before: None,
+                after: Some(Object::Dict(annot)),
+            },
+        ];
+        // The imported resource closure, written in the same command so the
+        // whole placement is ONE undo entry (R49).
+        for (id, value) in scratch {
+            objects.push(ObjectWrite {
+                id,
+                before: None,
+                after: Some(value),
+            });
+        }
+        let mut annots_writes = self.annots_append(page_id, &[annot_id], &slots)?;
+        objects.append(&mut annots_writes);
+
+        self.commit(Command {
+            kind: CommandKind::AddAnnotation {
+                kind: AnnotKind::Stamp,
+            },
+            objects,
+            removals: Vec::new(),
+            trailer: None,
+        });
+
+        Ok(PlacedArtwork {
+            annot_id,
+            form_id,
+            rect,
+            scale_x,
+            scale_y,
+            distorted: (scale_x - scale_y).abs() > 1e-6,
+            objects_imported,
+            resources_renamed: 0,
+            source_annotations_ignored,
+            source_widgets_ignored: source_widgets,
+            transparency_group_carried: carried_group,
+        })
     }
 
     fn add_text_annotation_inner(

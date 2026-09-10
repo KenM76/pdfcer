@@ -1085,6 +1085,62 @@ enum Command {
         output: PathBuf,
     },
 
+    /// **Place a custom stamp's artwork on a page** — the placing half of
+    /// `Pass 288.0`'s stamp collections (`Pass 293.0`, §12.5.6.12).
+    ///
+    /// The stamp's page is imported as a form XObject and becomes a
+    /// `/Stamp` annotation's appearance, which is what Acrobat writes: the
+    /// artwork stays VECTOR, the page's own content stream is never
+    /// touched, and the result is selectable, movable and deletable like
+    /// any other annotation.
+    ///
+    /// Address the stamp either by its page in the collection
+    /// (`--stamp-page`) or by the internal name the collection's name tree
+    /// gives it (`--stamp`), which is what `stamp-list` prints.
+    ///
+    /// ⚠ A DYNAMIC stamp places its design-time text: its words come from
+    /// AcroForm JavaScript that pdfcer does not author. `stamp-list` marks
+    /// those, and this command says so when it places one.
+    PlaceStamp {
+        /// The document being stamped. Read, never modified.
+        input: PathBuf,
+        /// The stamp collection PDF to take the artwork from.
+        #[arg(long)]
+        from: PathBuf,
+        /// Which page of the collection holds the artwork, 1-based.
+        #[arg(long, conflicts_with = "stamp")]
+        stamp_page: Option<usize>,
+        /// The stamp's internal name, as `stamp-list` prints it (with or
+        /// without the leading `#` a dynamic stamp carries).
+        #[arg(long)]
+        stamp: Option<String>,
+        /// Which page of the input to stamp, 1-based.
+        #[arg(long)]
+        page: usize,
+        /// Where to put it: `x0,y0,x1,y1` in points, default user space.
+        ///
+        /// The artwork is scaled to fill this rectangle (§12.5.5), so a
+        /// rectangle whose proportions differ from the stamp's squashes it
+        /// — which the command reports rather than leaving you to notice.
+        /// §12.5.5's mapping is anisotropic by definition, so that is the
+        /// standard's behaviour rather than a pdfcer limit.
+        #[arg(long, conflicts_with = "at")]
+        rect: Option<String>,
+        /// Place at the stamp's OWN size, lower-left corner at `x,y`.
+        ///
+        /// Acrobat's click-to-place behaviour: the artwork arrives at the
+        /// size its author drew it, undistorted. Prefer this unless you have
+        /// a box the stamp must fill.
+        #[arg(long, value_name = "X,Y")]
+        at: Option<String>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
+
     /// Remove pages from a document.
     ///
     /// A page-tree splice: the pages leave the tree, ancestors' counts
@@ -9908,6 +9964,27 @@ fn run() -> ExitCode {
             pages,
             output,
         } => cmd_extract_pages(&input, &pages, &output),
+        Command::PlaceStamp {
+            input,
+            from,
+            stamp_page,
+            stamp,
+            page,
+            rect,
+            at,
+            output,
+            mode,
+        } => cmd_place_stamp(
+            &input,
+            &from,
+            stamp_page,
+            stamp.as_deref(),
+            page,
+            rect.as_deref(),
+            at.as_deref(),
+            &output,
+            mode,
+        ),
         Command::InsertPages {
             input,
             source,
@@ -40112,6 +40189,227 @@ fn cmd_merge(inputs: &[PathBuf], output: &Path, bookmarks: bool) -> u8 {
 ///
 /// Named here because the two verbs share a name and a reader arriving from
 /// either side will assume there is only one.
+/// Implement `pdfcer place-stamp` (`Pass 293.0`).
+///
+/// Two documents, one annotation: the collection supplies the artwork, the
+/// input supplies the page. Everything the engine decided on the way past is
+/// printed to stderr, because the CLI has no session in which to show it
+/// (rule 11) — the invocation IS the commit.
+// One argument per flag, as every other command function here is shaped.
+#[allow(clippy::too_many_arguments)]
+fn cmd_place_stamp(
+    input: &Path,
+    from: &Path,
+    stamp_page: Option<usize>,
+    stamp: Option<&str>,
+    page: usize,
+    rect: Option<&str>,
+    at: Option<&str>,
+    output: &Path,
+    mode: SaveMode,
+) -> u8 {
+    if stamp_page.is_none() && stamp.is_none() {
+        eprintln!("pdfcer: name the artwork with --stamp-page N or --stamp INTERNAL-NAME");
+        return exit::EDIT_REFUSED;
+    }
+    if rect.is_none() && at.is_none() {
+        eprintln!("pdfcer: say where: --at X,Y places at the stamp's own size, --rect fills a box");
+        return exit::EDIT_REFUSED;
+    }
+
+    let source_doc = match open_for_read(from) {
+        Ok(doc) => doc,
+        Err(code) => return code,
+    };
+
+    // Resolve `--stamp NAME` through the collection's own name tree, so the
+    // operator addresses a stamp the way `stamp-list` shows it rather than by
+    // counting pages. `#` is optional on the command line: it is a marker in
+    // the stored name, not part of what an operator would call the stamp.
+    let collection = pdfcer_core::stamp_file::read(&source_doc);
+    let (source_index, dynamic) = match (stamp_page, stamp) {
+        (Some(n), _) => (n.saturating_sub(1), false),
+        (None, Some(name)) => {
+            let wanted = name.trim_start_matches('#');
+            let Some(entry) = collection
+                .stamps
+                .iter()
+                .find(|e| e.internal.trim_start_matches('#') == wanted)
+            else {
+                eprintln!(
+                    "pdfcer: {}: no stamp named {name:?} in this collection ({} stamp(s): {})",
+                    from.display(),
+                    collection.stamps.len(),
+                    collection
+                        .stamps
+                        .iter()
+                        .map(|e| e.internal.clone())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                return exit::EDIT_REFUSED;
+            };
+            let Some(index) = entry.page_index else {
+                if let Some(why) = &collection.page_tree_error {
+                    eprintln!(
+                        "pdfcer: {}: that stamp's page cannot be resolved because the page tree \
+                         would not walk ({why})",
+                        from.display()
+                    );
+                } else {
+                    eprintln!(
+                        "pdfcer: {}: that stamp names a page the collection does not have",
+                        from.display()
+                    );
+                }
+                return exit::EDIT_REFUSED;
+            };
+            (index, entry.dynamic)
+        }
+        (None, None) => unreachable!("guarded above"),
+    };
+
+    // ★ `--at` is Acrobat's click-to-place: the artwork arrives at the size
+    // its author drew it. The size comes from the SOURCE page's crop box --
+    // the box a reader displays -- which is the same box the engine maps onto
+    // `/Rect`, so a `--at` placement reports `distorted=0` by construction.
+    let rect = match (rect, at) {
+        (Some(spec), _) => match rect_from(spec) {
+            Ok(r) => r,
+            Err(msg) => {
+                eprintln!("pdfcer: --rect: {msg}");
+                return exit::EDIT_REFUSED;
+            }
+        },
+        (None, Some(spec)) => {
+            let Some((x, y)) = spec.split_once(',') else {
+                eprintln!("pdfcer: --at: expected X,Y in points");
+                return exit::EDIT_REFUSED;
+            };
+            let (Ok(x), Ok(y)) = (x.trim().parse::<f64>(), y.trim().parse::<f64>()) else {
+                eprintln!("pdfcer: --at: expected two numbers, got {spec:?}");
+                return exit::EDIT_REFUSED;
+            };
+            let size = match pdfcer_core::page_tree::pages(&source_doc) {
+                Ok(pages) => match pages.get(source_index) {
+                    Some(page) => (page.crop_box.width(), page.crop_box.height()),
+                    None => {
+                        eprintln!(
+                            "pdfcer: {}: the collection has {} page(s), so page {} does not exist",
+                            from.display(),
+                            pages.len(),
+                            source_index + 1
+                        );
+                        return exit::EDIT_REFUSED;
+                    }
+                },
+                Err(err) => {
+                    eprintln!("pdfcer: {}: {err}", from.display());
+                    return exit::RUNTIME_ERROR;
+                }
+            };
+            pdfcer_core::page_tree::Rect::from_corners(x, y, x + size.0, y + size.1)
+        }
+        (None, None) => unreachable!("guarded above"),
+    };
+
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let placed = match session.place_page_artwork(
+        &source_doc.view(),
+        source_index,
+        page.saturating_sub(1),
+        rect,
+    ) {
+        Ok(placed) => placed,
+        Err(err) => return report_edit_error(input, &err),
+    };
+
+    // The disclosures, before the machine-readable line.
+    if placed.distorted {
+        eprintln!(
+            "pdfcer: {}: the artwork was SQUASHED to fill your rectangle - {:.3}x horizontally \
+             and {:.3}x vertically. The stamp does not have the proportions it was drawn with; \
+             a rectangle {:.1}x{:.1}pt would keep them.",
+            input.display(),
+            placed.scale_x,
+            placed.scale_y,
+            rect.width(),
+            // The height that would keep the artwork's own proportions:
+            // `rect.width * bbox.height / bbox.width`, expressed through the
+            // two scale factors, which are all this side has.
+            //   bbox.h / bbox.w == (rect.h / sy) / (rect.w / sx)
+            //   => suggested_h  == rect.h * sx / sy
+            rect.height() * placed.scale_x / placed.scale_y,
+        );
+    }
+    if dynamic {
+        eprintln!(
+            "pdfcer: {}: that is a DYNAMIC stamp. Its text is recomputed by Acrobat from form \
+             scripts at placement; pdfcer placed the artwork as drawn, so what is on the page is \
+             its DESIGN-TIME text.",
+            input.display()
+        );
+    }
+    if placed.source_widgets_ignored > 0 {
+        eprintln!(
+            "pdfcer: {}: {} form-field widget(s) on the stamp's page were NOT carried - only its \
+             artwork was imported. (This is how a dynamic stamp's live text is left behind.)",
+            input.display(),
+            placed.source_widgets_ignored
+        );
+    }
+    if placed.source_annotations_ignored > 0 {
+        eprintln!(
+            "pdfcer: {}: {} annotation(s) on the stamp's page were NOT carried - an annotation is \
+             not page content, so anything drawn as a comment on the stamp is missing from it.",
+            input.display(),
+            placed.source_annotations_ignored
+        );
+    }
+
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        false,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+
+    println!(
+        "place-stamp {} from {} stamp_page={} page={} -> {}; \
+obj={} form={} rect={:.2},{:.2},{:.2},{:.2} scale={:.3},{:.3} distorted={} objects_imported={} \
+resources_renamed={} annots_ignored={} widgets_ignored={} group_carried={} dynamic={}",
+        input.display(),
+        from.display(),
+        source_index + 1,
+        page,
+        output.display(),
+        placed.annot_id.num,
+        placed.form_id.num,
+        placed.rect.llx,
+        placed.rect.lly,
+        placed.rect.urx,
+        placed.rect.ury,
+        placed.scale_x,
+        placed.scale_y,
+        u32::from(placed.distorted),
+        placed.objects_imported,
+        placed.resources_renamed,
+        placed.source_annotations_ignored,
+        placed.source_widgets_ignored,
+        u32::from(placed.transparency_group_carried),
+        u32::from(dynamic),
+    );
+    finish_edit(input, &outcome)
+}
+
 fn cmd_insert_pages(
     input: &Path,
     source: &Path,
