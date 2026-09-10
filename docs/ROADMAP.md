@@ -25689,6 +25689,12 @@ not a judgment call:**
 - **Image-codec discipline R23–R28 (decision 005, 2026-07-30).**
 - **CMYK/JPEG-polarity discipline R29–R31 (decision 006, 2026-07-31).**
 - **Incremental-save-writer discipline R32–R41 (decision 007, 2026-07-31).**
+
+★★ **44 of 187 rules name a script that enforces them (`[gate: …]` below). The other 143 are followed by eyeball.**
+
+That second number is a **backlog, not a verdict** — a rule with no gate may be a genuine judgment call, and saying which is which is a reading nobody has done. What is certain is the failure mode: an unenforced rule is approximated, drifts, gets caught, and produces another paragraph about the drift. Operator, 2026-09-10: **script it or bin it.**
+
+The marks are derived, not maintained: a rule is marked when its own full text names a file in `tools/`. Re-run `tools/annotate-rule-gates.py` after adding a rule or a gate.
 - `R42` — Linearization is never repaired (rule renumbered 2026-07-31; librarian reconciliation note below).
 - **Annotation & markup discipline R43–R52 (decision 008, 2026-08-01).**
 - **Embedded-JavaScript posture R53–R57 (decision 009, 2026-07-31; IMPLEMENTED as `Pass 7.2`, 2026-08-10).**
@@ -25736,7 +25742,7 @@ not a judgment call:**
 - `R103` — A guard whose precondition is already refused by a coarser earlier gate is not built; the refinement is recorded as owed to the Pass that removes the coarser gate (decision 020 §3.6.2/§5,…
 - `R104` — `/Tabs` is a mode, not a snapshot (decision 020 §3.4.1/§5, filed as R101 in the decision document; 2026-08-03, Pass 20.x family, not yet built).
 - `R105` — Every field pdfce authors carries `/TU`, or an explicitly recorded operator declination (decision 020 §3.5.3/§5, filed as R102 in the decision document; 2026-08-03, Pass 20.x family, not…
-- `R106` — Every one of this project's numbered/lettered ledgers (Pass IDs, standing-rule `R`-numbers, decision numbers, Open-operator- question letters) has its NEXT free slot determined by reading…
+- `R106` — Every one of this project's numbered/lettered ledgers (Pass IDs, standing-rule `R`-numbers, decision numbers, Open-operator- question letters) has its NEXT free slot determined by reading…  **[gate: check-ledger-numbers.py]**
 - `R107` — FF-C only ever ADDS font resources; it never modifies an existing font program or font dictionary (decision 021, 2026-08-03; numbering corrected by the engineer before filing, confirmed b…
 - `R108` — Embedding is an explicit, per-action operator choice whose real outcome is computed before confirmation (decision 021, 2026-08-03; librarian-assigned number).
 - `R109` — Font-embedding permission is read from the donor face and disclosed; never assumed, never guessed (decision 021, 2026-08-03; librarian-assigned number).
@@ -25764,7 +25770,7 @@ not a judgment call:**
 - `R130` — A level ladder is walked by ONE state variable and ONE gesture pair; a second descent mechanism is a defect, not a feature (decision 025 §2, filed 2026-08-04, continuation 82; adopted at…
 - `R131` — A rung that has no members on this file is REPORTED, never silently skipped and never silently entered (decision 025 §1.3, continuation 82; adopted at filing).
 - `R132` — A finer selection level FILTERS the level below it; it never RENUMBERS it (decision 025 §3, continuation 82; adopted at filing).
-- `R133` — A checker that reports "the highest number written" must be run against the BRANCH, not against a working tree that can be behind (decision 025 §10 item 5, continuation 82; adopted at fil…
+- `R133` — A checker that reports "the highest number written" must be run against the BRANCH, not against a working tree that can be behind (decision 025 §10 item 5, continuation 82; adopted at fil…  **[gate: check-ledger-numbers.py]**
 - `R134` — A structural element pdfce SELECTS must record its own byte span where its ordinal is minted (decision 025 §5.2, continuation 82; adopted at filing, with a shipped deviation recorded below).
 - `R135` — A ce dimension's drawn dimension line is exactly as long as its printed value (decision 026 §2, continuation 82; adopted at filing).
 - `R136` — A preview and its commit compute from the SAME input; any divergence between what a tool draws and what it bakes is a defect, not an optimisation (decision 026 §1.2 as filed, GENERALISED…
@@ -25778,26 +25784,26 @@ not a judgment call:**
 - `R144` — Removing a refusal can remove an unrelated PROTECTION the refusal was incidentally providing (2026-08-05, continuation 83; librarian-assigned; safety rule, promoted from an instance).
 - `R145` — A planner that can produce operator-visible information RETURNS it; `Result<(), E>` is a shape that drops it by default (2026-08-05, continuation 83; librarian-assigned; API-design rule,…
 - `R146` — Shipping code without a same-session filing is a ledger defect, and the commit message is the only thing that makes it recoverable (2026-08-05, continuation 84; librarian-assigned; proces…
-- `R147` — When a refusal is removed, audit its CALLERS, not just its own module (2026-08-05, continuation 85; librarian-assigned; safety rule, promoted from R144's second instance).
-- `R148` — An auto-detected parameter measured from document geometry is not trustworthy once a prior edit in the same session could have moved that geometry (2026-08-05, continuation 86; librarian-…
-- `R149` — A manipulator that is not a LOCATION on the drawing must not be snapped to the drawing (2026-08-05, continuation 87; librarian-assigned; UX/correctness rule, promoted from Pass 26.1's han…
-- `R150` — When a substrate scaffolds a two-sided mechanism and ships one side live with the other as an empty stub, every later Pass that extends the LIVE side must state what the STUB side does fo…
-- `R151` — A core capability shipped with a documented, tested public entry point is not "done" until something calls it; audit the call graph, not just the implementation, before crediting a Pass (…
-- `R152` — A wired call site is necessary but not sufficient; the gesture that reaches a capability must also confirm its own outcome, on BOTH the success path and the miss path, or "unsupported" an…
-- `R153` — A shipped fuzz/test harness that enumerates a module's entry points goes stale silently every time the module grows; audit harness coverage against the module's CURRENT public surface, no…
-- `R154` — A decision record can specify a mechanism that does not compile, and nothing checks it until an implementer hits the wall (or silently does the coherent thing instead) (2026-08-05; librar…
-- `R155` — Before dispatching a fresh design/consultant task, check whether an existing decision record already answers the question; a specialist catching the overlap after dispatch is not the same…
-- `R156` — When auditing whether a capability reaches a shell, do not cross-check by grepping one shell's name in the other shell's source; audit the `Action` enum (or equivalent dispatch surface) a…
+- `R147` — When a refusal is removed, audit its CALLERS, not just its own module (2026-08-05, continuation 85; librarian-assigned; safety rule, promoted from R144's second instance).  **[gate: check-ledger-numbers.py]**
+- `R148` — An auto-detected parameter measured from document geometry is not trustworthy once a prior edit in the same session could have moved that geometry (2026-08-05, continuation 86; librarian-…  **[gate: check-ledger-numbers.py]**
+- `R149` — A manipulator that is not a LOCATION on the drawing must not be snapped to the drawing (2026-08-05, continuation 87; librarian-assigned; UX/correctness rule, promoted from Pass 26.1's han…  **[gate: check-ledger-numbers.py]**
+- `R150` — When a substrate scaffolds a two-sided mechanism and ships one side live with the other as an empty stub, every later Pass that extends the LIVE side must state what the STUB side does fo…  **[gate: check-ledger-numbers.py]**
+- `R151` — A core capability shipped with a documented, tested public entry point is not "done" until something calls it; audit the call graph, not just the implementation, before crediting a Pass (…  **[gate: check-ledger-numbers.py]**
+- `R152` — A wired call site is necessary but not sufficient; the gesture that reaches a capability must also confirm its own outcome, on BOTH the success path and the miss path, or "unsupported" an…  **[gate: check-ledger-numbers.py]**
+- `R153` — A shipped fuzz/test harness that enumerates a module's entry points goes stale silently every time the module grows; audit harness coverage against the module's CURRENT public surface, no…  **[gate: check-ledger-numbers.py]**
+- `R154` — A decision record can specify a mechanism that does not compile, and nothing checks it until an implementer hits the wall (or silently does the coherent thing instead) (2026-08-05; librar…  **[gate: check-ledger-numbers.py]**
+- `R155` — Before dispatching a fresh design/consultant task, check whether an existing decision record already answers the question; a specialist catching the overlap after dispatch is not the same…  **[gate: check-ledger-numbers.py]**
+- `R156` — When auditing whether a capability reaches a shell, do not cross-check by grepping one shell's name in the other shell's source; audit the `Action` enum (or equivalent dispatch surface) a…  **[gate: check-ledger-numbers.py]**
 - `R157` — Selection state is WATCHED; workflows are ENTERED.
 - `R158` — A missing glyph or icon is answered by AUTHORING ONE, never by rewording the feature (OPERATOR RULING, 2026-08-06, continuation 108; librarian-assigned number).
 - `R159` — A test that asserts through a LENIENT parser cannot see a file the parser silently repairs; a defect that lives in the BYTES must be asserted in the BYTES (methodology; no decision number…
 - `R160` — A long-running agent's findings must be DURABLE before its budget is spent, not delivered in a final report it may never write (process; no decision number; librarian-assigned; 2026-08-07…
 - `R161` — A new `pdfce-cli` verb takes its word order from the DOMAIN it joins, not from the CLI as a whole.
-- `R162` — An assertion that something is ABSENT proves nothing until the container has been shown CAPABLE OF HOLDING IT; establish the positive case over the same container first (methodology; no d…
+- `R162` — An assertion that something is ABSENT proves nothing until the container has been shown CAPABLE OF HOLDING IT; establish the positive case over the same container first (methodology; no d…  **[gate: check-ledger-numbers.py]**
 - `R163` — Prefer making the omission a COMPILE ERROR over writing a rule that asks a human to remember.
-- `R164` — A verdict whose value depends on anything other than its subject is not evidence about that subject.
+- `R164` — A verdict whose value depends on anything other than its subject is not evidence about that subject.  **[gate: verapdf-parse-gate.py]**
 - `R165` — Where a format spec leaves a question genuinely unresolved, emit the form under which the competing readings COINCIDE — not the form under which pdfce's own reading is correct (methodolog…
-- `R166` — A number whose instrument no longer exists is not evidence.
+- `R166` — A number whose instrument no longer exists is not evidence.  **[gate: check-ledger-numbers.py, verapdf-parse-gate.py]**
 - **The semantic alias.**
 - **The near-name sibling.**
 - **R87 asks *did I look in the right place, and is there a duller explanation?**
@@ -25809,8 +25815,8 @@ not a judgment call:**
 - `R170` — A bug found while doing something else gets fixed in the same session, not filed for later (operator ruling, 2026-08-08, given in the same breath as R169, verbatim: "fix the bug you found…
 - `R171` — A constant, default, or token that must agree with another place in the codebase is READ off the one place that owns it, never RESTATED at the second place (librarian-proposed, minted 202…
 - `R172` — Before driving the GUI observation/injection harness through a gesture class not already exercised THIS session, grep the relevant `D:\dev\rag\egui\` (or `D:\dev\rag\rust\`) file first; h…
-- `R173` — A gate that scans a growing history for coverage must size its window from what it needs to cover, never from a fixed count assumed once and never revisited; a commit-count window is a pr…
-- `R174` — A disclosure's wording is only tested by reading it AS its audience, not by confirming the code path that emits it fires (2026-08-09, `0466281`+`c58cca1`; librarian-minted).
+- `R173` — A gate that scans a growing history for coverage must size its window from what it needs to cover, never from a fixed count assumed once and never revisited; a commit-count window is a pr…  **[gate: check-commits-filed.py, check-passes-filed.py]**
+- `R174` — A disclosure's wording is only tested by reading it AS its audience, not by confirming the code path that emits it fires (2026-08-09, `0466281`+`c58cca1`; librarian-minted).  **[gate: check-commits-filed.py]**
 - `R175` — A document's claim about the state of the world (git remote, CI status, backup currency, "local only") is only as true as its last measurement, and goes stale the instant that state chang…
 - `R176` — A CI pipeline that RUNS is not evidence anyone LOOKED AT it; once a repository has live CI, a "tests pass" claim describes this session's own platform only unless the run history itself i…
 - `R177` — A green headless trace proves a control was CONSTRUCTED and RUN, never that it is VISIBLE inside its parent's on-screen bounds; layout/overflow/clipping defects have exactly one working o…
@@ -25818,18 +25824,18 @@ not a judgment call:**
 - `R179` — A loop that mutates a `&mut` receiver as it iterates must never propagate a per-item refusal with a bare `?`; every per-item failure needs a deliberately-chosen disposition (skip-and-coun…
 - `R180` — An accurate disclosure can be FALSIFIED by a later improvement to the very thing it describes, not only by having been wrong when written or never checked against the right instrument; li…
 - `R181` — A disclosure COUNT must be computed from the same predicate the write path it describes actually uses, never a proxy predicate that can diverge from it in either direction (2026-08-10, `c…
-- `R182` — Grep the relevant institutional memory (a `personal_rag` lesson, a cross-project RAG file, a standing rule) BEFORE making the change it would have prevented, not only before writing up th…
+- `R182` — Grep the relevant institutional memory (a `personal_rag` lesson, a cross-project RAG file, a standing rule) BEFORE making the change it would have prevented, not only before writing up th…  **[gate: check-ledger-numbers.py]**
 - `R183` — A verification filter that matches only your expectation cannot tell you your input was wrong; include the harness's own reject/warning channel in every `-Filter`, not just the traces und…
 - **A portable build lands in `D:\builds` at every milestone (operator request, 2026-08-10) — `tools/package-portable.py`, `9146b41`.**
-- `R184` — A call site inside the observation/diagnostic harness's own driver function satisfies "something calls this," never "an operator can reach this"; a reachability audit must positively EXCL…
+- `R184` — A call site inside the observation/diagnostic harness's own driver function satisfies "something calls this," never "an operator can reach this"; a reachability audit must positively EXCL…  **[gate: check-ledger-numbers.py]**
 - `R185` — A query/search string typed by the operator is matched LITERALLY by default; any pattern-language reinterpretation of the characters they typed (wildcards, regex, or similar) is opt-in vi…
 - `R186` — A guard keyed on a MARKER of a hazard fails OPEN, not closed, when the same hazard arrives without that marker — and open failure is SILENT, because nothing on screen tells the operator a…
-- `R187` — A guard added specifically to catch a hazard is proven by making the hazard OCCUR and watching the guard fire, not by reading its comparison; and two functions sharing a name across files…
+- `R187` — A guard added specifically to catch a hazard is proven by making the hazard OCCUR and watching the guard fire, not by reading its comparison; and two functions sharing a name across files…  **[gate: check-commits-filed.py, verify-release.py]**
 - `R188` — Reproducing a measurement by re-running the SAME pattern under a different counting mode is not independent verification; and a correct, independently-derived result is not entitled to le…
 - `R189` — An object-number allocator must enumerate every INDIRECT OBJECT SOURCE the writer itself can re-emit under its own number, not just the sources a naive reading of the file's declared cove…
 - `R190` — A mutually-exclusive selection `ArgGroup` with no default member must be `.required(true)`, or a valid parse can select nothing; a test suite that only ever exercises the group's "select…
 - `R191` — When a CLI omits a token to mean zero, the token's absence and the command's total failure are INDISTINGUISHABLE to a regex.
-- `R192` — A GATE STATES WHAT IT CANNOT SEE.
+- `R192` — A GATE STATES WHAT IT CANNOT SEE.  **[gate: check-commits-filed.py, check-fmt-excluded.py]**
 - **One failing instance**
 - **More telling than the count: the counter-instances OUTNUMBER the instance.**
 - **DECLINED ON THE COUNT, NOT ON THE MERITS.**
@@ -25839,53 +25845,53 @@ not a judgment call:**
 - **Two of the three were found by the operator, from outside, by hitting the consequence.**
 - **The strongest objection: this is a rule about how to write rules**
 - **A fourth instance would settle it.**
-- `R195` — A doc comment naming a deferral is a claim about the BACKLOG, not evidence the OPERATOR will be told (2026-08-17, hundred-and-fifty-third filing; librarian-minted).
-- `R196` — A sentence about a directory OUTSIDE this repository is unfalsifiable by every gate this project owns; list the out-of-tree request channels at the top of every session and again in every…
-- `R197` — A STATED derivation is not a MAINTAINED derivation.
-- `R198` — A LIBRARIAN FILING COMMIT TOUCHES `docs/` ONLY.
+- `R195` — A doc comment naming a deferral is a claim about the BACKLOG, not evidence the OPERATOR will be told (2026-08-17, hundred-and-fifty-third filing; librarian-minted).  **[gate: check-ledger-numbers.py]**
+- `R196` — A sentence about a directory OUTSIDE this repository is unfalsifiable by every gate this project owns; list the out-of-tree request channels at the top of every session and again in every…  **[gate: check-commits-filed.py, check-ledger-numbers.py]**
+- `R197` — A STATED derivation is not a MAINTAINED derivation.  **[gate: check-core-api-verbs.py]**
+- `R198` — A LIBRARIAN FILING COMMIT TOUCHES `docs/` ONLY.  **[gate: check-commits-filed.py, check-core-api-verbs.py]**
 - `R200` — AN INDEPENDENT READER USED AS A TEST ORACLE ONLY PROVES WHAT IT ACTUALLY TOUCHES.
 - `R201` — A LIBRARIAN DISPATCH IN FLIGHT IS NOT A COMMIT WINDOW.
 - `R202` — A SHARED CROSS-PROJECT ARTEFACT MUST STATE, IN ITS OWN TEXT, WHAT EACH SHARED COLUMN/SECTION MEANS AND WHICH SIDE IS AUTHORITATIVE FOR IT.
 - `R203` — A SHARED COLUMN CARRIES NO BARE VERDICT ABOUT THE OTHER PROJECT'S BUILD; EVERY ENTRY IS EITHER THE CHECKBOX ALONE OR A DATED CITATION TO A CONFIRMED SURFACE (2026-08-19; librarian-minted,…
 - `R204` — WIDENING THE WORLD PAST A REFUSAL IS THE SAME ACT AS REMOVING THE REFUSAL, AND OWES THE SAME AUDIT (2026-08-20; librarian-minted, two- hundredth filing; safety rule, second confirmed occu…
-- `R205` — A GATE'S BLIND SPOT IS FOUND BY AN INDEPENDENT FORECAST DISAGREEING WITH ITS OUTPUT, NEVER BY THE GATE ITSELF; WHEN THAT HAPPENS, FIX THE CLASS THE PATTERN MISSED, NOT THE SPELLING THAT F…
+- `R205` — A GATE'S BLIND SPOT IS FOUND BY AN INDEPENDENT FORECAST DISAGREEING WITH ITS OUTPUT, NEVER BY THE GATE ITSELF; WHEN THAT HAPPENS, FIX THE CLASS THE PATTERN MISSED, NOT THE SPELLING THAT F…  **[gate: check-commits-filed.py, check-ledger-numbers.py]**
 - `R206` — When a design question has two defensible behaviours and neither is dictated by the PDF standard, ship BOTH as configurable options and PICK THE DEFAULT from what a normal operator would…
-- `R199` — A RECORDED BLOCKER IS A DATED READING, NOT A STANDING FACT.
+- `R199` — A RECORDED BLOCKER IS A DATED READING, NOT A STANDING FACT.  **[gate: check-bypass-paths.sh, check-commits-filed.py]**
 - `R207` — CONTENT ROUTED THROUGH A SHELL COMMAND LINE OR STRING (A CI `run:` STEP, A `git commit -m` CALL, ANY INTERPOLATED PROSE) IS LIVE SHELL TEXT, NEVER INERT DATA; WRITE IT TO A FILE OR PASS I…
 - `R208` — A GRAPHICS-STATE FIELD WHOSE DEFAULT MATTERS MUST BE FINDABLE *FROM THE FIELD*.
-- `R209` — "ALL GATES GREEN" NAMES A SET, AND THE SET SOMEBODY RUNS IS NOT THE SET CI RUNS.
-- `R210` — A CONFORMANCE FIGURE IS FILED WITH THE *CRITERIA* THE HARNESS IMPLEMENTS, NOT ONLY ITS DENOMINATOR.
+- `R209` — "ALL GATES GREEN" NAMES A SET, AND THE SET SOMEBODY RUNS IS NOT THE SET CI RUNS.  **[gate: check-ci-parity.py, check-commits-filed.py]**
+- `R210` — A CONFORMANCE FIGURE IS FILED WITH THE *CRITERIA* THE HARNESS IMPLEMENTS, NOT ONLY ITS DENOMINATOR.  **[gate: check-string-gaps.sh, suite-check.py]**
 - `R211` — WHEN TWO CODE PATHS OWE EACH OTHER BYTE-IDENTICAL OUTPUT, THAT IS A *PRECISION* CONTRACT, NOT ONLY AN ARITHMETIC ONE: NARROW EXACTLY WHAT THE OTHER PATH NARROWS, KEEP FULL PRECISION ON TH…
-- `R212` — A CONTRACT WRITTEN DOWN IN TWO PLACES, ONE OF WHICH IS UNDER TEST, DRIFTS IN THE OTHER — ALWAYS, AND IN ONE DIRECTION: THE TEST *FORCES* ITS COPY TO BE UPDATED AND NOTHING FORCES THE PUBL…
+- `R212` — A CONTRACT WRITTEN DOWN IN TWO PLACES, ONE OF WHICH IS UNDER TEST, DRIFTS IN THE OTHER — ALWAYS, AND IN ONE DIRECTION: THE TEST *FORCES* ITS COPY TO BE UPDATED AND NOTHING FORCES THE PUBL…  **[gate: check-metrics-line-contract.py]**
 - `R213` — A MAGNITUDE CLAIM IS A CLAIM ABOUT *ONE* QUANTITY.
 - `R214` — A DOC COMMENT THAT POINTS AT ITS REFERENT BY *POSITION* — *"of those"*, *"the above"*, *"this slice"*, *"the next slice"*, *"the former"* — IS A DANGLING POINTER.
 - `R215` — AN ACCEPTANCE ORACLE WRITTEN BEFORE THE FIX, FROM THE BROKEN SYSTEM'S OWN OUTPUT, ATTRIBUTES THE WHOLE OBSERVABLE TO THE DEFECT IT IS HUNTING.
 - `R216` — PRESERVED WRONG WORDING AND EDIT HISTORY BELONG IN THE APPEND-ONLY RECORD.
-- `R217` — A GATE THAT REQUIRES A COMMIT TO CITE SOMETHING ONLY A *LATER* COMMIT CAN CREATE IS UNSATISFIABLE BY CONSTRUCTION FOR THAT COMMIT, NOT MERELY STRICT.
-- `R218` — A GATE WHOSE INPUT SET IS "WHAT IS ALREADY COMMITTED" CANNOT SEE THE COMMIT YOU ARE ABOUT TO MAKE.
+- `R217` — A GATE THAT REQUIRES A COMMIT TO CITE SOMETHING ONLY A *LATER* COMMIT CAN CREATE IS UNSATISFIABLE BY CONSTRUCTION FOR THAT COMMIT, NOT MERELY STRICT.  **[gate: check-commits-filed.py, check-passes-filed.py]**
+- `R218` — A GATE WHOSE INPUT SET IS "WHAT IS ALREADY COMMITTED" CANNOT SEE THE COMMIT YOU ARE ABOUT TO MAKE.  **[gate: check-suite-name-absent.py]**
 - `R219` — WHEN A PASS FIXES ONE OF SEVERAL ROUTES TO THE SAME BEHAVIOUR, ENUMERATE THE OTHER ROUTES IN THE SAME PASS AND SAY EXPLICITLY WHICH ARE LEFT.
-- `R220` — A CAPABILITY IS DOCUMENTED WHERE THE READER'S *QUESTION* LIVES, NOT ONLY WHERE ITS *MECHANISM* LIVES; AND A CLAIM THAT PDFCE HAS NO VERB FOR SOMETHING IS CHECKED AGAINST SOURCE BEFORE IT…
+- `R220` — A CAPABILITY IS DOCUMENTED WHERE THE READER'S *QUESTION* LIVES, NOT ONLY WHERE ITS *MECHANISM* LIVES; AND A CLAIM THAT PDFCE HAS NO VERB FOR SOMETHING IS CHECKED AGAINST SOURCE BEFORE IT…  **[gate: check-core-api-verbs.py, check-ledger-numbers.py]**
 - `R221` — A PREDICATE THAT DECIDES WHETHER A CAPABILITY APPLIES IS COMPUTED BY THE CODE THAT PROVIDES THE CAPABILITY — ASK THE REAL FUNCTION, NEVER PATTERN-MATCH A PARALLEL DESCRIPTION OF WHEN IT W…
-- `R222` — WHEN A DOC-COMMENT CLAIM IS CORRECTED, GREP THE FORMAT STRINGS FOR THE SAME CLAIM IN THE SAME CHANGE.
+- `R222` — WHEN A DOC-COMMENT CLAIM IS CORRECTED, GREP THE FORMAT STRINGS FOR THE SAME CLAIM IN THE SAME CHANGE.  **[gate: check-metrics-line-contract.py]**
 - `R223` — A DOC COMMENT'S CLAIM ABOUT ITS OWN *CALLERS* IS A MEASUREMENT, AND NOTHING RECOMPILES WHEN IT GOES STALE.
-- `R224` — THE UNIT OF A ROUTE ENUMERATION IS THE *OPERAND*, NEVER THE FUNCTION BEING FIXED; AND THE ONLY TEST THAT COVERS A ROUTE NOBODY HAS WRITTEN YET IS A SOURCE SCAN WITH NO TUNING PARAMETER.
-- `R225` — BEFORE TRUSTING A GREEN SABOTAGE RUN, ASK WHAT THE *FIXTURE* WOULD HAVE SHOWN.
-- `R226` — A DEFERRED GATE MUST BE RE-RUN WITH THE FLAG THAT RESOLVES THE DEFERRAL BEFORE THE SESSION ENDS, OR THE DEFERRAL NEVER RESOLVES.
-- `R227` — A SOURCE-SCANNING CHECK MUST READ TO A SYNTACTIC BOUNDARY, NEVER A FIXED WINDOW OR A BARE-ADJACENCY ASSUMPTION.
+- `R224` — THE UNIT OF A ROUTE ENUMERATION IS THE *OPERAND*, NEVER THE FUNCTION BEING FIXED; AND THE ONLY TEST THAT COVERS A ROUTE NOBODY HAS WRITTEN YET IS A SOURCE SCAN WITH NO TUNING PARAMETER.  **[gate: check-core-api-verbs.py, check-public-fns-documented.py]**
+- `R225` — BEFORE TRUSTING A GREEN SABOTAGE RUN, ASK WHAT THE *FIXTURE* WOULD HAVE SHOWN.  **[gate: gen-annot-fixtures.py]**
+- `R226` — A DEFERRED GATE MUST BE RE-RUN WITH THE FLAG THAT RESOLVES THE DEFERRAL BEFORE THE SESSION ENDS, OR THE DEFERRAL NEVER RESOLVES.  **[gate: check-passes-filed.py]**
+- `R227` — A SOURCE-SCANNING CHECK MUST READ TO A SYNTACTIC BOUNDARY, NEVER A FIXED WINDOW OR A BARE-ADJACENCY ASSUMPTION.  **[gate: check-cited-verbs-exist.py]**
 - `R228` — A CHARACTERIZATION OF A DOCUMENT'S CONTENTS IS ITSELF AN UNVERIFIED CLAIM, AND MUST BE CHECKED BY OPENING THE DOCUMENT BEFORE IT IS REPEATED.
-- `R229` — EVERY RELEASE PUBLISHES THE CLI TO ONEDRIVE, ALTERNATING TWO SLOTS, AND A RELEASE IS NOT VERIFIED UNTIL A *PREVIOUS* VERSION SURVIVES BESIDE THE CURRENT ONE.
-- `R230` — IN A `clap`-DERIVE COMMAND ENUM A `///` DOC COMMENT IS SHIPPED USER INTERFACE, AND ONLY ITS FIRST LINE IS THE SUMMARY.
+- `R229` — EVERY RELEASE PUBLISHES THE CLI TO ONEDRIVE, ALTERNATING TWO SLOTS, AND A RELEASE IS NOT VERIFIED UNTIL A *PREVIOUS* VERSION SURVIVES BESIDE THE CURRENT ONE.  **[gate: deploy-onedrive.py, verify-release.py]**
+- `R230` — IN A `clap`-DERIVE COMMAND ENUM A `///` DOC COMMENT IS SHIPPED USER INTERFACE, AND ONLY ITS FIRST LINE IS THE SUMMARY.  **[gate: check-ci-parity.py, check-cli-help-leads.py]**
 - `R231` — A VERB THAT OPERATES ON SOMETHING ATTACHED TO A PAGE MUST NOT INHERIT THE CONTENT PATH'S PRECONDITIONS.
-- `R232` — A FIGURE COPIED INTO A DOCUMENT NO GATE READS DRIFTS AT THE RATE ITS *SOURCE* CHANGES, NOT AT THE RATE ITS *COPY* IS ANNOTATED.
-- `R233` — AN AGGREGATE OVER A POPULATION IS A FIXTURE, AND ITS DISCRIMINATING POWER IS THE FRACTION OF THE POPULATION ON WHICH THE CORRECT AND THE NULL IMPLEMENTATION *DISAGREE* — NOT THE SIZE OF T…
+- `R232` — A FIGURE COPIED INTO A DOCUMENT NO GATE READS DRIFTS AT THE RATE ITS *SOURCE* CHANGES, NOT AT THE RATE ITS *COPY* IS ANNOTATED.  **[gate: check-core-api-verbs.py]**
+- `R233` — AN AGGREGATE OVER A POPULATION IS A FIXTURE, AND ITS DISCRIMINATING POWER IS THE FRACTION OF THE POPULATION ON WHICH THE CORRECT AND THE NULL IMPLEMENTATION *DISAGREE* — NOT THE SIZE OF T…  **[gate: cmyk-operand-census.py, flat-color-parity.py]**
 - `R234` — "THE STANDARD IS SILENT / AMBIGUOUS / DOES NOT SAY" IS A NEGATIVE CLAIM ABOUT A CORPUS, AND A NEGATIVE CLAIM CAN ONLY BE MADE BY SEARCHING THE CORPUS.
 - `R235` — A PURE-MODEL HELPER THAT ENFORCES A RULE BY RETURNING A *RESULT* HAS NO CHANNEL TO REFUSE, SO THE RULE IS INVISIBLE AT THE VERB THAT SHIPS THROUGH IT.
 - `R236` — A `debug_assert` POSTCONDITION OVER STATE DERIVED FROM UNTRUSTED INPUT IS A *TRIPWIRE FOR A FUZZER*, NOT A *GUARD FOR AN OPERATOR*.
 - `R237` — A MEMO'S KEY MUST BE THE WHOLE DEPENDENCY SET OF WHAT IT CACHES — AND WHERE THE INPUTS CANNOT NAME A DEPENDENCY, THE KEY IS TAKEN FROM THE WALK'S *OUTPUT*.
 - `R238` — AN ASSERTION'S COMPILE-TIME GATING IS NOT A SEVERITY ESTIMATE.
-- `R239` — PUBLISH THE COMMAND, NOT THE COUNT.
+- `R239` — PUBLISH THE COMMAND, NOT THE COUNT.  **[gate: check-bypass-paths.sh, check-core-api-verbs.py]**
 - `R240` — A CONVERSION IMPLEMENTED SEPARATELY ON THE FILL/VECTOR PATH AND ON THE IMAGE/PALETTE PATH WILL DIVERGE, AND A "ROUTE-TWIN" AGREEMENT FIXTURE — THE SAME AUTHORED VALUE THROUGH BOTH ROUTES…
-- `R241` — A REPOSITORY GATE IS BOUND TO THE PUSH BY A MECHANISM THE REPOSITORY CARRIES, NOT BY A HABIT THE OPERATOR RE-TYPES.
+- `R241` — A REPOSITORY GATE IS BOUND TO THE PUSH BY A MECHANISM THE REPOSITORY CARRIES, NOT BY A HABIT THE OPERATOR RE-TYPES.  **[gate: check-ci-parity.py, check-commits-filed.py]**
 - `R242` — A REQUEST DOES NOT LEAVE `open/` WHEN IT IS SCOPED; IT LEAVES WHEN IT IS ANSWERED.
 - `R243` — A DOCUMENTED OBLIGATION ON A FUTURE CALLER IS NOT A CONTROL.
 - **`R209` — DATED INSTANCE NOTE, 2026-09-07 (462nd filing): THE DOC-SPLICE GATE'S DENOMINATOR IS `pub`, AND THE FOURTH INSTANCE LANDED ON TWO PRIVATE FUNCTIONS.**
