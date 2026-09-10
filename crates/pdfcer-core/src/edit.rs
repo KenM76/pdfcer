@@ -16553,6 +16553,44 @@ pub struct FillOutcome {
     pub top_index: Option<i64>,
 }
 
+/// What [`EditSession::add_text_annotation_reporting`] authored, and what it
+/// DECIDED (`Pass 291.0`).
+///
+/// Every field but [`Self::annot_id`] is a disclosure: something the
+/// appearance generator worked out that the caller did not state. A shell
+/// that shows none of them is not wrong about the annotation — it is silent
+/// about the parts of it nobody asked for, which is what project rule 4 is
+/// about.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
+pub struct TextAnnotOutcome {
+    /// The new annotation object (the note itself, never its `/Popup`).
+    pub annot_id: ObjId,
+    /// The `/Rect` actually written — which is **not** always the rectangle
+    /// the caller passed: [`crate::annot_author::StampFit::GrowToText`]
+    /// widens it to hold the label.
+    pub rect: crate::page_tree::Rect,
+    /// What the stamp fit policy did to the label, for a `/Stamp`; `None`
+    /// for every other subtype.
+    ///
+    /// ★ Read [`crate::annot_author::StampLabelFit::is_inference`] rather
+    /// than the presence of the option: a `Some(AsRequested { .. })` means
+    /// the label fitted at the size that was asked for, and disclosing THAT
+    /// would be reporting the operator's own instruction back at them.
+    pub stamp_label_fit: Option<crate::annot_author::StampLabelFit>,
+    /// `Some(size)` when variable-text auto-size (VT1) chose the size — a
+    /// `/FreeText` whose `/DA` asked for `0 Tf`.
+    ///
+    /// ⚠ Always `None` for a `/Stamp`, and that is not a bug to fix here: a
+    /// stamp's fitted size is written as an explicit size, so the auto-size
+    /// machinery never engages. `stamp_label_fit` is the stamp's answer.
+    pub applied_autosize: Option<f64>,
+    /// How many characters had no `WinAnsi` code and were substituted with
+    /// `?` — the named Base-14-Latin limit, disclosed rather than silently
+    /// mangling the label.
+    pub unencodable_chars: usize,
+}
+
 /// What a [`regenerate_appearances`](EditSession::regenerate_appearances)
 /// operation did (Pass 7.1, R51).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -29565,16 +29603,21 @@ impl EditSession {
             open: false,
         };
 
-        let reply_id = self.add_text_annotation_inner(
-            page_index,
-            &spec,
-            &MarkupOptions {
-                note: Some(note.clone()),
-                ..Default::default()
-            },
-            Some(parent_id),
-            extra,
-        )?;
+        let reply_id = self
+            .add_text_annotation_inner(
+                page_index,
+                &spec,
+                &MarkupOptions {
+                    note: Some(note.clone()),
+                    ..Default::default()
+                },
+                Some(parent_id),
+                extra,
+            )?
+            // A reply is a sticky note, and a sticky note fits no label —
+            // `stamp_label_fit` is `None` here by construction, so there is
+            // nothing for this caller to carry.
+            .annot_id;
 
         let reply_has_popup = matches!(
             self.value(reply_id),
@@ -33014,6 +33057,48 @@ impl EditSession {
     ) -> Result<ObjId, EditError> {
         options.validate()?;
         self.add_text_annotation_inner(page_index, spec, options, None, &[])
+            .map(|o| o.annot_id)
+    }
+
+    /// Author a text-bearing annotation and **report what the generator
+    /// decided** (`Pass 291.0`).
+    ///
+    /// Identical work, identical guards, identical single undo entry as
+    /// [`Self::add_text_annotation_with`] — it returns a
+    /// [`TextAnnotOutcome`] instead of only the new object's id.
+    ///
+    /// # ★★ Why a third entry point rather than changing the other two
+    ///
+    /// `add_text_annotation` returning an `ObjId` is the shape forty call
+    /// sites already use, and widening it would be a breaking change for
+    /// every one of them to serve callers that want the disclosure. The
+    /// project has an existing answer to that trade — `add_image` returns an
+    /// outcome because it always had one — and this is the same answer,
+    /// added rather than substituted.
+    ///
+    /// # What only this route can tell you
+    ///
+    /// A stamp's label size is fitted before anything is painted
+    /// (`Pass 287.0`), and the fitted size is written to `/DA` as an
+    /// **explicit** size — which makes `applied_autosize` `None` on every
+    /// stamp, including the ones where a size was chosen for the operator.
+    /// [`TextAnnotOutcome::stamp_label_fit`] is the field that says so, and
+    /// a caller that intends to offer [`crate::annot_author::StampFit`]'s
+    /// shrink or clip policies needs it: those policies decide something the
+    /// operator did not ask for, and project rule 4 forbids doing that
+    /// silently.
+    ///
+    /// # Errors
+    ///
+    /// Exactly [`Self::add_text_annotation_with`]'s.
+    pub fn add_text_annotation_reporting(
+        &mut self,
+        page_index: usize,
+        spec: &TextAnnotSpec,
+        options: &MarkupOptions,
+    ) -> Result<TextAnnotOutcome, EditError> {
+        options.validate()?;
+        self.add_text_annotation_inner(page_index, spec, options, None, &[])
     }
 
     fn add_text_annotation_inner(
@@ -33033,7 +33118,7 @@ impl EditSession {
         // patch. `/State` + `/StateModel` are the reason it exists; see
         // `add_review_state`.
         extra: &[(Name, Object)],
-    ) -> Result<ObjId, EditError> {
+    ) -> Result<TextAnnotOutcome, EditError> {
         // Guards, identical order to add_markup (X10, X11, /Size) — and
         // identical GATE as of `Pass 38.5`: the annotation-aware one, since
         // a FreeText or Stamp is annotation creation, which §12.8.2.2
@@ -33086,6 +33171,17 @@ impl EditSession {
 
         // Generate the appearance + annotation dictionary (§12.7.3.3).
         let authored = annot_author::build_text_annotation(spec)?;
+        // ★ Captured BEFORE `authored` is taken apart below (`Pass 291.0`).
+        // These four facts are the whole disclosure this verb owes, and each
+        // one is a field the appearance generator decided rather than the
+        // caller: the post-fit rectangle, what the stamp fit policy did, an
+        // applied variable-text auto-size, and characters `WinAnsi` could not
+        // encode. They used to end here, because the verb returned an
+        // `ObjId` and nothing else.
+        let authored_rect = authored.rect;
+        let stamp_label_fit = authored.stamp_label_fit;
+        let applied_autosize = authored.applied_autosize;
+        let unencodable_chars = authored.unencodable_chars;
 
         // Allocate: appearance stream, annotation, and (if any) popup.
         let ap_id = ObjId::new(self.alloc_number()?, 0);
@@ -33204,7 +33300,13 @@ impl EditSession {
             removals: Vec::new(),
             trailer: None,
         });
-        Ok(annot_id)
+        Ok(TextAnnotOutcome {
+            annot_id,
+            rect: authored_rect,
+            stamp_label_fit,
+            applied_autosize,
+            unencodable_chars,
+        })
     }
 
     /// The `/P`-aware certification gate for **form fill** (§12.8 VALIDATION

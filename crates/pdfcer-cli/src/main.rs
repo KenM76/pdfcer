@@ -23897,11 +23897,19 @@ fn cmd_annotate(args: &AnnotateArgs<'_>) -> u8 {
         note,
         dash,
     };
+    // ★ `Pass 291.0`: the reporting route, because the CLI's whole disclosure
+    // mechanism is PRINTING (rule 11 -- the invocation is the commit, there is
+    // no session to hold a status line). `add_text_annotation_with` discards
+    // what the generator decided, and a stamp whose label was shrunk or
+    // clipped reached the operator as silence.
+    let mut authored_text: Option<pdfcer_core::edit::TextAnnotOutcome> = None;
     let add_result = if is_text_bearing(args.kind) {
         match build_text_annot_spec(args) {
             Ok(spec) => session
-                .add_text_annotation_with(index, &spec, &markup_options)
-                .map(|_| ()),
+                .add_text_annotation_reporting(index, &spec, &markup_options)
+                .map(|o| {
+                    authored_text = Some(o);
+                }),
             Err(msg) => {
                 eprintln!("pdfcer: {}: {msg}", input.display());
                 return exit::EDIT_REFUSED;
@@ -23920,6 +23928,13 @@ fn cmd_annotate(args: &AnnotateArgs<'_>) -> u8 {
     };
     if let Err(err) = add_result {
         return report_edit_error(input, &err);
+    }
+
+    // Printed BEFORE the save line, in the same order the operator reads:
+    // what pdfcer decided, then what it wrote. Nothing here is printed for an
+    // annotation pdfcer did not have to decide anything about.
+    if let Some(o) = &authored_text {
+        report_text_annot_inferences(input, o);
     }
 
     let outcome = match save_edited(
@@ -41897,6 +41912,81 @@ fn cmd_stamp_list(input: &Path) -> u8 {
         );
     }
     exit::SUCCESS
+}
+
+/// Print what the text-annotation generator DECIDED, when it decided
+/// anything (`Pass 291.0`, project rules 4 and 11).
+///
+/// # Why the CLI prints instead of showing
+///
+/// A GUI can put an inference in a status line the operator glances at. The
+/// CLI has no session: the invocation IS the commit, so the only moment this
+/// can be said is on the way past. Everything below goes to **stderr**, so a
+/// script parsing the stable stdout line is unaffected.
+///
+/// # What is deliberately NOT printed
+///
+/// [`pdfcer_core::annot_author::StampLabelFit::AsRequested`] -- the label fit
+/// at the size that was asked for, so nobody decided anything and there is
+/// nothing to report. Printing it would be telling the operator their own
+/// instruction back, which is the nagging rule 4 exists to prevent.
+fn report_text_annot_inferences(input: &Path, o: &pdfcer_core::edit::TextAnnotOutcome) {
+    use pdfcer_core::annot_author::StampLabelFit;
+
+    if let Some(fit) = o.stamp_label_fit
+        && fit.is_inference()
+    {
+        match fit {
+            StampLabelFit::BoxGrown { width, .. } => eprintln!(
+                "pdfcer: {}: the stamp box was WIDENED to {width:.1}pt to hold the label \
+                 (fit=grow). The rectangle written is not the one you gave.",
+                input.display()
+            ),
+            StampLabelFit::LabelShrunk { size, requested } => eprintln!(
+                "pdfcer: {}: the stamp label was SHRUNK to {size:.1}pt (you asked for \
+                 {requested:.1}pt) so it would fit the box (fit=shrink). The size on the page \
+                 is pdfcer's, not yours.",
+                input.display()
+            ),
+            StampLabelFit::LabelClipped {
+                hidden_chars,
+                overflow,
+                ..
+            } => eprintln!(
+                "pdfcer: {}: the stamp label does NOT fit its box and was CLIPPED \
+                 (fit=clip): {hidden_chars} character(s) are not fully on the page, and the \
+                 label is {overflow:.1}pt wider than the space available.",
+                input.display()
+            ),
+            // `AsRequested` is unreachable behind `is_inference`, and the
+            // wildcard is forced: `StampLabelFit` is `#[non_exhaustive]`, so
+            // a match in a DOWNSTREAM crate cannot be exhaustive however
+            // carefully it is written.
+            //
+            // ⚠ That means a future variant lands here silently rather than
+            // as a compile error, so the guard is the thing to keep honest:
+            // `is_inference()` is `!matches!(self, AsRequested)`, i.e. every
+            // new variant counts as an inference by default and will reach
+            // this arm -- reported by NOTHING. If you add a variant, add its
+            // sentence here in the same commit.
+            _ => {}
+        }
+    }
+    if let Some(size) = o.applied_autosize {
+        eprintln!(
+            "pdfcer: {}: the text was AUTO-SIZED to {size:.1}pt (the /DA asked for `0 Tf`, \
+             so a size was chosen for you).",
+            input.display()
+        );
+    }
+    if o.unencodable_chars > 0 {
+        eprintln!(
+            "pdfcer: {}: {} character(s) had no WinAnsi code and were written as `?` \
+             (a standard-14 face is Latin-only, ISO 32000-1 \u{a7}9.6.6.2).",
+            input.display(),
+            o.unencodable_chars
+        );
+    }
 }
 
 /// `stamp-pack` — name a PDF's pages as stamps (`Pass 288.0`).

@@ -3421,6 +3421,114 @@ pub enum StampFit {
     ClipToBox,
 }
 
+/// What a stamp's [`StampFit`] policy actually did to the label
+/// (`Pass 291.0`).
+///
+/// # Why an enum rather than an `Option<f64>`
+///
+/// A size alone cannot answer the question a disclosure has to answer:
+/// *did anybody decide this for me?* `Some(9.0)` is the same value whether
+/// the caller asked for 9 pt and it fit, or asked for 24 pt and the box
+/// forced 9 — and those owe **opposite** treatment. The first is the
+/// operator's own instruction being obeyed and deserves silence; the second
+/// is an inference and must be reported off-canvas (project rule 4).
+///
+/// So the variants are the FOUR outcomes, and the size rides along inside
+/// the ones where it was decided rather than requested.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
+pub enum StampLabelFit {
+    /// The label fitted the drawn box at the size that was asked for.
+    ///
+    /// Nothing was decided for anyone, so nothing is owed. Note that
+    /// "asked for" includes the derived default (`0.42 × box height`,
+    /// clamped) when the caller stated no size: that formula is documented,
+    /// reproducible and part of the request, not a guess made about it.
+    AsRequested {
+        /// The size drawn, for a panel that wants to seed a control.
+        size: f64,
+    },
+    /// The box was **widened** to hold the label
+    /// ([`StampFit::GrowToText`]).
+    ///
+    /// ★ This one is disclosed by the canvas itself — the operator drew a
+    /// rectangle and got a wider one, which is visible as itself and cannot
+    /// be quietly wrong. It is reported anyway because a caller that wants
+    /// to say so in a status line should not have to diff two rectangles to
+    /// discover it.
+    BoxGrown {
+        /// The size drawn (unchanged by growing).
+        size: f64,
+        /// The width the box was grown to, in points.
+        width: f64,
+    },
+    /// The label was **shrunk** to fit the box
+    /// ([`StampFit::ShrinkToBox`]).
+    ///
+    /// The size the operator sees is not the size anybody asked for. This
+    /// is the variant that made the policy unofferable while it went
+    /// unreported.
+    LabelShrunk {
+        /// The size actually drawn.
+        size: f64,
+        /// The size that was asked for — explicitly, or by the derived
+        /// default. `requested - size` is how much was taken away.
+        requested: f64,
+    },
+    /// The label did not fit and was **clipped** by the box
+    /// ([`StampFit::ClipToBox`]) — characters the operator typed are not
+    /// on the page.
+    ///
+    /// The label is drawn centred, so the overflow is split between both
+    /// ends: `hidden_chars` counts every character whose advance is not
+    /// **entirely** inside the inner box, which is the honest count for a
+    /// centred line (a character half outside is a character the operator
+    /// cannot read).
+    LabelClipped {
+        /// The size drawn — the size asked for, since clipping changes no
+        /// size.
+        size: f64,
+        /// How many characters are not fully inside the box.
+        hidden_chars: usize,
+        /// How much wider the label is than the space available, in points.
+        overflow: f64,
+    },
+}
+
+impl StampLabelFit {
+    /// The size actually drawn, whatever decided it.
+    #[must_use]
+    pub const fn size(&self) -> f64 {
+        match self {
+            Self::AsRequested { size }
+            | Self::BoxGrown { size, .. }
+            | Self::LabelShrunk { size, .. }
+            | Self::LabelClipped { size, .. } => *size,
+        }
+    }
+
+    /// Whether pdfcer decided something the caller did not ask for, and
+    /// therefore owes a disclosure.
+    ///
+    /// `false` for [`Self::AsRequested`] only. A caller can gate its whole
+    /// status-line sentence on this and be right every time.
+    #[must_use]
+    pub const fn is_inference(&self) -> bool {
+        !matches!(self, Self::AsRequested { .. })
+    }
+
+    /// A short stable token for machine-readable output.
+    #[must_use]
+    pub const fn token(&self) -> &'static str {
+        match self {
+            Self::AsRequested { .. } => "as_requested",
+            Self::BoxGrown { .. } => "box_grown",
+            Self::LabelShrunk { .. } => "label_shrunk",
+            Self::LabelClipped { .. } => "label_clipped",
+        }
+    }
+}
+
 /// The result of authoring one text-bearing annotation: everything
 /// [`crate::edit::EditSession`] needs to wire it, plus the disclosures
 /// (auto-size, unencodable chars) the front end surfaces.
@@ -3445,6 +3553,35 @@ pub struct AuthoredTextAnnot {
     pub popup: Option<Dict>,
     /// `Some(size)` when auto-size (VT1) chose the size — disclosed.
     pub applied_autosize: Option<f64>,
+    /// What [`StampFit`] did to this stamp's label, when this is a stamp
+    /// (`Pass 291.0`). `None` on every other annotation family.
+    ///
+    /// # ★★ Why this is NOT `applied_autosize`
+    ///
+    /// `applied_autosize` is the **variable-text** auto-size (VT1) and is
+    /// `None` whenever `/DA` names an explicit size. A stamp's fitted size
+    /// **is** written to `/DA` as an explicit size (`Pass 287.0`), so
+    /// `applied_autosize` is `None` on every stamp, always — including the
+    /// ones where a size was chosen for the operator rather than by them.
+    /// The number was computed, used, written to the file, and dropped on
+    /// the way back to the caller.
+    ///
+    /// The consuming shell measured this and reported the consequence: two
+    /// of `StampFit`'s three values were unofferable, because offering a
+    /// policy that shrinks or clips a label means being able to say that it
+    /// did. Its request explicitly preferred a **second field** over
+    /// widening `applied_autosize`'s meaning, and that is the right call —
+    /// the two answer different questions and a reader that conflated them
+    /// would report an author's own choice back at them, which is the
+    /// nagging rule 4 exists to prevent.
+    ///
+    /// # The distinction that makes it usable
+    ///
+    /// [`StampLabelFit::AsRequested`] means **nothing was decided for
+    /// anyone**: the label fit at the size that was asked for (explicitly,
+    /// or by the documented derived-from-height default). It owes no
+    /// disclosure. Every other variant is an inference and owes one.
+    pub stamp_label_fit: Option<StampLabelFit>,
     /// How many characters had no `WinAnsi` code and were substituted with
     /// `?` (a named Base-14-Latin limit).
     pub unencodable_chars: usize,
@@ -4333,6 +4470,10 @@ fn free_text(
         flags: AnnotFlags::PRINT,
         popup: None,
         applied_autosize: va.applied_autosize,
+        // `None`, not a variant: this is `/FreeText`, and `StampFit` is a
+        // stamp policy. A field that answered on an annotation the policy
+        // never touched would be a fact nobody measured.
+        stamp_label_fit: None,
         unencodable_chars: va.unencodable_chars,
     })
 }
@@ -4418,6 +4559,8 @@ fn sticky_note(
         flags: STICKY_FLAGS,
         popup: Some(popup),
         applied_autosize: None,
+        // A sticky note draws an icon, not a fitted label.
+        stamp_label_fit: None,
         unencodable_chars: 0,
     }
 }
@@ -4446,7 +4589,12 @@ const STAMP_LABEL_PADDING: f64 = 4.0;
 /// authoring and re-sizing disagreed about how wide it should be would drift a
 /// little every time it was touched — the shape `R245` is about, applied to a
 /// computation rather than to a guard.
-fn fit_stamp_label(rect: Rect, frame_w: f64, label: &str, style: StampStyle) -> (f64, Rect, f64) {
+fn fit_stamp_label(
+    rect: Rect,
+    frame_w: f64,
+    label: &str,
+    style: StampStyle,
+) -> (f64, Rect, f64, StampLabelFit) {
     let w = rect.width();
     let h = rect.height();
 
@@ -4466,7 +4614,12 @@ fn fit_stamp_label(rect: Rect, frame_w: f64, label: &str, style: StampStyle) -> 
     let inner_w = (w - 2.0 * frame_w - STAMP_LABEL_PADDING).max(0.0);
 
     if label_w <= inner_w {
-        return (size, rect, w);
+        // ★ The label fits at the size asked for, so NOTHING was decided for
+        // the caller and nothing is owed. This is the branch that has to stay
+        // distinguishable from the others (`Pass 291.0`): a disclosure that
+        // fires here would be pdfcer reporting the operator's own choice back
+        // at them.
+        return (size, rect, w, StampLabelFit::AsRequested { size });
     }
 
     match style.fit {
@@ -4481,17 +4634,79 @@ fn fit_stamp_label(rect: Rect, frame_w: f64, label: &str, style: StampStyle) -> 
                 urx: rect.llx + needed,
                 ury: rect.ury,
             };
-            (size, grown, needed)
+            (
+                size,
+                grown,
+                needed,
+                StampLabelFit::BoxGrown {
+                    size,
+                    width: needed,
+                },
+            )
         }
         // Scale down by exactly the overflow ratio, floored so a very long
         // label becomes small rather than invisible.
         StampFit::ShrinkToBox if label_w > 0.0 => {
             let shrunk = (size * inner_w / label_w).max(MIN_STAMP_FONT_SIZE);
-            (shrunk, rect, w)
+            (
+                shrunk,
+                rect,
+                w,
+                StampLabelFit::LabelShrunk {
+                    size: shrunk,
+                    requested: size,
+                },
+            )
         }
         // `ClipToBox`, and the degenerate zero-width label.
-        _ => (size, rect, w),
+        _ => (
+            size,
+            rect,
+            w,
+            StampLabelFit::LabelClipped {
+                size,
+                hidden_chars: clipped_char_count(label, size, inner_w),
+                overflow: label_w - inner_w,
+            },
+        ),
     }
+}
+
+/// How many of `label`'s characters are **not entirely inside** `inner_w`
+/// when the label is drawn centred at `size` (`Pass 291.0`).
+///
+/// # Why centred, and why "not entirely"
+///
+/// The stamp label is a single centred line, so a label wider than its box
+/// overflows at BOTH ends — counting from the right alone would report half
+/// the damage. The line's centre is the box's centre, so a character's span
+/// is measured from `-label_w / 2`, and the visible window is
+/// `[-inner_w / 2, inner_w / 2]`.
+///
+/// A character straddling the boundary is counted as hidden: half a glyph is
+/// not a character the operator can read, and a disclosure that rounded in
+/// the flattering direction would understate exactly the case that matters.
+///
+/// Returns 0 for a zero-width box or an empty label — there is nothing to
+/// claim in either case, and the caller's `overflow` figure carries the fact
+/// that the label did not fit.
+fn clipped_char_count(label: &str, size: f64, inner_w: f64) -> usize {
+    if inner_w <= 0.0 {
+        return label.chars().count();
+    }
+    let label_w = vartext::text_width(Std14::HelveticaBold, size, label);
+    let half_visible = inner_w / 2.0;
+    let mut x = -label_w / 2.0;
+    let mut hidden = 0;
+    for ch in label.chars() {
+        let mut buf = [0u8; 4];
+        let advance = vartext::text_width(Std14::HelveticaBold, size, ch.encode_utf8(&mut buf));
+        if x < -half_visible || x + advance > half_visible {
+            hidden += 1;
+        }
+        x += advance;
+    }
+    hidden
 }
 
 /// Stamp (§12.5.6.12): pdfcer's own framed-text look — a bordered box with
@@ -4517,7 +4732,7 @@ fn stamp(
     // The frame used to be stroked first, from the drawn `w`. Growing the box
     // afterwards would have left the frame at the old width — the fit policy
     // must therefore run ahead of every paint, not between them.
-    let (size, rect, w) = fit_stamp_label(rect, frame_w, &label, style);
+    let (size, rect, w, label_fit) = fit_stamp_label(rect, frame_w, &label, style);
 
     // Frame: a stroked rounded rectangle in the stamp colour.
     let mut b = ContentBuilder::new();
@@ -4598,6 +4813,15 @@ fn stamp(
         flags: AnnotFlags::PRINT,
         popup: None,
         applied_autosize: va.applied_autosize,
+        // ★ The fitted size, carried out instead of dropped (`Pass 291.0`).
+        // `va.applied_autosize` is `None` here BY CONSTRUCTION — the layout
+        // was handed an explicit size, the one `fit_stamp_label` computed
+        // above — so without this field a shrunk or clipped label reached
+        // the caller as silence. The form-field path solved the same problem
+        // forty lines away with an `.or(…)`; a stamp needs a distinct field
+        // rather than that trick, because the shell must be able to tell an
+        // inference from an instruction.
+        stamp_label_fit: Some(label_fit),
         unencodable_chars: va.unencodable_chars,
     })
 }

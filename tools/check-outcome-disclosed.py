@@ -148,6 +148,13 @@ OUTCOME_STRUCTS: list[tuple[str, str]] = [
     # silently enlarges the object on every use -- which is the exact defect
     # this Pass fixed, re-introduced one level up.
     ("crates/pdfcer-core/src/edit.rs", "AnnotationRotate"),
+    # `Pass 291.0`, registered in the SAME commit that added the struct -- the
+    # gate is opt-in, so an unregistered report type is one it prints "clean"
+    # about. `stamp_label_fit` is the field that most needs a reader: it is the
+    # ONLY place a shrunk or clipped stamp label is visible, because the fitted
+    # size is written to `/DA` as an explicit size and therefore leaves
+    # `applied_autosize` `None` on every stamp.
+    ("crates/pdfcer-core/src/edit.rs", "TextAnnotOutcome"),
     # `Pass 278.0`, registered in the SAME commit that added the structs.
     # `InkForecast::appearance_was_pdfces` is the field that earns the entry:
     # it is the ONLY warning that an ink edit is about to replace another

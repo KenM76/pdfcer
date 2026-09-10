@@ -1218,6 +1218,36 @@ from the box and stored nowhere.
 | `ShrinkToBox` | kept | shrunk by the overflow ratio, floored at 4 pt |
 | `ClipToBox` | kept | kept, label clipped — the reported behaviour, kept reachable by name |
 
+★★ **What the fit DID is reported — `Pass 291.0`, and this is what makes two
+of those three policies offerable.** `AuthoredTextAnnot::stamp_label_fit:
+Option<StampLabelFit>` (`None` on every non-stamp), and the session route
+`EditSession::add_text_annotation_reporting(page_index, spec, options) ->
+Result<TextAnnotOutcome, EditError>` — identical work, guards and single undo
+entry as `add_text_annotation_with`, returning the disclosures instead of only
+an `ObjId`.
+
+| `StampLabelFit` variant | carries | owes a disclosure? |
+|---|---|---|
+| `AsRequested { size }` | the size drawn | **no** — the label fit at the size asked for; saying so would report the operator's own instruction back at them |
+| `BoxGrown { size, width }` | the width grown to | yes (though the canvas shows it too) |
+| `LabelShrunk { size, requested }` | drawn **and** asked-for size | **yes** |
+| `LabelClipped { size, hidden_chars, overflow }` | characters not fully on the page, and by how many points | **yes** |
+
+Helpers: `is_inference()` (`false` for `AsRequested` only — gate the whole
+sentence on it), `size()`, `token()`.
+
+⚠ **`applied_autosize` is `None` on every stamp and always will be.** It is
+the *variable-text* auto-size, which never engages here: a stamp's fitted size
+is written to `/DA` as an **explicit** size, so the generator sees a stated
+size and reports no auto-size of its own. The number was computed, used,
+written to the file and then dropped on the way back to the caller — which is
+why the consuming shell could offer only `GrowToText` (visible on the canvas
+as itself) and had to decline the two policies that decide something.
+
+The CLI prints all three inference cases on **stderr** (rule 11 — the
+invocation is the commit, so the only moment to say it is on the way past) and
+prints nothing for `AsRequested`.
+
 ★★ **Storage: `/DA` on the `/Stamp`, and there was nothing to copy.**
 §12.5.6.12's `/Stamp` table defines exactly **one** subtype key, `/Name` — no
 `/DA`, no font entry (sourced: `Acrobat_Features/markup__stamp_text_size_and_

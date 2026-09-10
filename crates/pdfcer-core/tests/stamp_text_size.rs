@@ -361,3 +361,164 @@ fn stamp_tf_size(session: &pdfcer_core::edit::EditSession) -> f64 {
     }
     panic!("no /Stamp annotation with a baked appearance in the saved document");
 }
+
+// ------------- 5. `Pass 291.0` — the fit is REPORTED, not merely performed
+
+/// ★★★ A shrunk label says so. This is the disclosure that made two of the
+/// three policies offerable at all.
+///
+/// `applied_autosize` is `None` here and always will be — the stamp path
+/// hands the layout an EXPLICIT size (the one the fit computed), and
+/// `applied_autosize` reports only the variable-text auto-size. So the
+/// number was computed, used, written to `/DA`, and dropped on the way back
+/// to the caller. A shell that wanted to offer *shrink to fit* had to either
+/// stay silent about the size it produced, or re-implement pdfcer's fit
+/// formula in another crate and watch the two drift.
+#[test]
+fn a_shrunk_label_reports_the_size_it_was_shrunk_to() {
+    let a = build_text_annotation(&spec(
+        too_narrow(),
+        "APPROVED FOR CONSTRUCTION",
+        StampStyle::points(12.0).with_fit(StampFit::ShrinkToBox),
+    ))
+    .expect("builds");
+
+    let fit = a.stamp_label_fit.expect("a stamp reports its fit");
+    assert!(
+        fit.is_inference(),
+        "a size nobody asked for is an inference"
+    );
+    assert_eq!(fit.token(), "label_shrunk");
+    match fit {
+        pdfcer_core::annot_author::StampLabelFit::LabelShrunk { size, requested } => {
+            assert_eq!(requested, 12.0, "what was asked for");
+            assert!(size < 12.0, "what was drawn, got {size}");
+            // The reported size is the size on the page, not an
+            // approximation of it — the two must be the same number or the
+            // disclosure is a second implementation of the fit.
+            assert_eq!(size, baked_size(&a.ap_content));
+        }
+        other => panic!("expected LabelShrunk, got {other:?}"),
+    }
+    assert!(
+        a.applied_autosize.is_none(),
+        "the variable-text auto-size is NOT the stamp's answer and must stay None"
+    );
+}
+
+/// ★★ And a label that FITS says nothing. This is the half that makes the
+/// disclosure usable: `Some(_)` on its own means "a stamp", not "an
+/// inference", and a caller that reported every `Some` would tell the
+/// operator their own instruction back at them.
+#[test]
+fn a_label_that_fits_reports_no_inference() {
+    let roomy = Rect {
+        llx: 100.0,
+        lly: 100.0,
+        urx: 500.0,
+        ury: 130.0,
+    };
+    let a = build_text_annotation(&spec(roomy, "OK", StampStyle::points(12.0))).expect("builds");
+
+    let fit = a.stamp_label_fit.expect("a stamp reports its fit");
+    assert!(
+        !fit.is_inference(),
+        "nothing was decided for anyone, so nothing is owed"
+    );
+    assert_eq!(fit.token(), "as_requested");
+    assert_eq!(fit.size(), 12.0);
+    assert_eq!(a.rect.width(), roomy.width(), "and the box is untouched");
+}
+
+/// A clipped label reports HOW MUCH is missing — characters and points.
+///
+/// The label is drawn centred, so the overflow is split between both ends;
+/// the count is of characters not *entirely* inside the box, because half a
+/// glyph is not a character the operator can read.
+#[test]
+fn a_clipped_label_reports_what_is_not_on_the_page() {
+    let a = build_text_annotation(&spec(
+        too_narrow(),
+        "APPROVED FOR CONSTRUCTION",
+        StampStyle::points(12.0).with_fit(StampFit::ClipToBox),
+    ))
+    .expect("builds");
+
+    let fit = a.stamp_label_fit.expect("a stamp reports its fit");
+    assert!(fit.is_inference());
+    assert_eq!(fit.token(), "label_clipped");
+    match fit {
+        pdfcer_core::annot_author::StampLabelFit::LabelClipped {
+            size,
+            hidden_chars,
+            overflow,
+        } => {
+            assert_eq!(size, 12.0, "clipping changes no size");
+            assert!(overflow > 0.0, "the label is wider than the box");
+            let total = "APPROVED FOR CONSTRUCTION".chars().count();
+            assert!(
+                hidden_chars > 0 && hidden_chars < total,
+                "some but not all characters are hidden, got {hidden_chars} of {total}"
+            );
+        }
+        other => panic!("expected LabelClipped, got {other:?}"),
+    }
+}
+
+/// Growing is reported too, even though the operator can see it happen. A
+/// caller should not have to diff two rectangles to write one sentence.
+#[test]
+fn a_grown_box_reports_the_width_it_grew_to() {
+    let drawn = too_narrow();
+    let a = build_text_annotation(&spec(
+        drawn,
+        "APPROVED FOR CONSTRUCTION",
+        StampStyle::points(12.0).with_fit(StampFit::GrowToText),
+    ))
+    .expect("builds");
+
+    let fit = a.stamp_label_fit.expect("a stamp reports its fit");
+    assert_eq!(fit.token(), "box_grown");
+    match fit {
+        pdfcer_core::annot_author::StampLabelFit::BoxGrown { width, size } => {
+            assert_eq!(size, 12.0, "growing the box does not resize the label");
+            assert!(width > drawn.width());
+            // The reported width IS the written rectangle's width. Compared
+            // with a tolerance rather than exactly: the rect carries the
+            // grown edge as `llx + needed` and `width()` subtracts `llx`
+            // back off, so the two differ in the last ULP for a reason that
+            // has nothing to do with either being wrong.
+            assert!(
+                (width - a.rect.width()).abs() < 1e-9,
+                "reported {width} vs written {}",
+                a.rect.width()
+            );
+        }
+        other => panic!("expected BoxGrown, got {other:?}"),
+    }
+}
+
+/// A `/FreeText` reports `None` — `StampFit` is a stamp policy and a field
+/// that answered on an annotation it never touched would be a fact nobody
+/// measured.
+#[test]
+fn a_freetext_has_no_stamp_fit_to_report() {
+    let a = build_text_annotation(&TextAnnotSpec::FreeText {
+        rect: Rect {
+            llx: 100.0,
+            lly: 100.0,
+            urx: 300.0,
+            ury: 160.0,
+        },
+        text: "hello".to_owned(),
+        font: pdfcer_core::fontdata::Std14::Helvetica,
+        font_size: 12.0,
+        color: pdfcer_core::vartext::TextColor::Gray(0.0),
+        quadding: pdfcer_core::vartext::Quadding::Left,
+        multiline: false,
+        border: None,
+        border_width: 1.0,
+    })
+    .expect("builds");
+    assert!(a.stamp_label_fit.is_none());
+}
