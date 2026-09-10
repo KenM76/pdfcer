@@ -112,6 +112,225 @@ wherever it appears.*
 
 ## Shipped
 
+**★★★★★ 493rd filing, 2026-09-10 — `Pass 289.0` SHIPPED: A `/Text` OR
+`/Stamp` ANNOTATION NAMING A STANDARD ICON, WITH NO `/AP`, IS NOW PAINTED —
+`R43` IS NARROWED, NOT REPEALED, BECAUSE THE STANDARD ADDRESSES THIS `shall`
+TO THE READER, NOT TO THE ANNOTATION. ★★★ DECISION `149` MINTED (THE
+GRAMMATICAL SUBJECT OF A SPEC CLAUSE — "conforming readers shall" VS "the
+annotation shall" — IS THE DISCRIMINATOR FOR WHETHER A NO-`/AP` LOOK IS
+SYNTHESIS OR AN OBLIGATION). ★★ A CORPUS SENTENCE SOURCED ON 2026-07-31 SAT
+UNUSED UNTIL TODAY — SECOND RECORDED INSTANCE OF THIS FAILURE SHAPE, CROSS-
+REFERENCED AGAINST THE XFA FINDING IN `CLAUDE.md`. ★ OWED ITEM 18 OPENED:
+`decision 145`'S DISCLOSURE OBLIGATION HAS A GAP IN THE **RECOVERY** PATH
+(A DROPPED OBJECT IS SILENT AND MIS-DESCRIBED AS "NOT IN THE FILE").**
+
+**Sourcing (hard rule 8), stated up front — NO SHELL THIS FILING.**
+`Read`/`Grep`/`Glob` only; this role has no shell in this invocation. The
+commit hash (`9b7bc6c`) and every technical claim below — the byte-level
+`startxref` offset, the `annots=3 annots_painted=0 annots_no_ap=3` census,
+the six-test count, the sabotage-survival mechanism, the gate-fix cause —
+are **relayed** from the dispatching engineer's message, which itself
+reports dispatching `pdfcer-spec-librarian` before writing any code (per
+the message: "I dispatched `pdfcer-spec-librarian` before arguing rather
+than after"). **Independently verified here, by `Read`/`Grep` against the
+live tree**, not taken on the dispatch's word alone:
+`crates/pdfcer-render/src/annot.rs` carries `fn paint_named_icon` (line 684)
+called from inside the `Appearance::None` match arm of the same per-
+annotation loop `paint_appearance` is called from (lines 618–627), gated
+`in_scope` and incrementing `diag.annotations_icon_painted` only when the
+call returns `true`; the function's own doc comment (lines 639–679) quotes
+§12.5.6.4 Table 172 and §12.5.6.12 Table 181 verbatim and names the
+grammatical-subject discriminator against §12.5.6.8; `crates/pdfcer-cli/
+src/main.rs` prints `annots_icon_painted={}` on `render-page`'s metrics
+line (lines 14106, with the doc-comment table entry at line 183);
+`crates/pdfcer-render/tests/named_icon_without_ap.rs` exists.
+`ROADMAP.md` had no existing `Pass 289.0` entry, no `Next up`/`Backlog`
+stub, and no prior mention of `Annotations_output.pdf` or "named icon"
+anywhere in this file (grepped before filing) — clean to file. **Not
+independently re-verified this filing:** the exact test count (6), the
+sabotage-fixture mechanism, `run-gates.sh`'s 29/29, and the `startxref`
+byte offset in the operator's PDFsharp file — these are relayed.
+
+---
+
+### `Pass 289.0` (`9b7bc6c`, 2026-09-10) — a named standard icon is painted when the annotation carries no `/AP`
+
+**The report.** The operator's `Annotations_output.pdf` (produced by
+PDFsharp 1.3) *"appears blank in pdfcer-gui but shows in Acrobat Reader."*
+Measured: the page's entire visible content is three annotations — `/Text
+/Note`, `/Text /Help`, `/Stamp /TopSecret` — and **none carries an `/AP`**.
+`annots=3 annots_painted=0 annots_no_ap=3`. A blank page **by policy**
+(`R43`), not by defect.
+
+**★★★ `R43`'s SCOPE was wrong for these two subtypes, and the standard
+says so with a `shall` addressed to the reader.** §12.5.6.4 Table 172,
+verbatim: *"Conforming readers **shall** provide predefined icon
+appearances for at least the following standard names: Comment, Key, Note,
+Help, NewParagraph, Paragraph, Insert."* §12.5.6.12 Table 181 carries the
+identical formula for `/Stamp`'s fourteen names. §12.5.2's `/AP` row
+settles that `/AP` was never the only route: *"Individual annotation
+handlers **may ignore this entry and provide their own appearances**."*
+Drawing a named icon is not synthesis — it is the reader discharging a
+duty the standard itself assigned to it. Acrobat was not exceeding the
+spec; pdfcer's blank page was the divergence.
+
+**★ The discriminator is the GRAMMATICAL SUBJECT of the clause, and this
+is the most reusable half of the Pass.** The icon clauses (§12.5.6.4,
+§12.5.6.12) address *conforming readers*. §12.5.6.8's `/Square`/`/Circle`
+clause addresses *the annotation* (*"Square and circle annotations shall
+display…"*) — a duty on the object, which the object with no `/AP` cannot
+discharge, so nothing changes there. `/Line`, `/Ink`, `/Caret` carry no
+`shall` at all. A `/Square`'s look is derivable from what the file already
+carries (`/IC`, `/BS`, its own `/Rect`), so the standard assigns the duty
+to nobody; a `/Text /Note` carries a **name and nothing else**, so the
+standard must say who supplies the picture, and it says the reader does.
+
+**`R43` is NARROWED, not repealed.** A `/Square` or `/Line` with no `/AP`
+is still left blank, still disclosed under `R43`'s original text, and a
+test asserts it (the deliberate control in
+`named_icon_without_ap.rs`). The narrowing note is appended to `R43`'s own
+canonical entry below, so a future reader meets it there rather than only
+in this Pass's own prose.
+
+**★★ A sentence the corpus held all along — second recorded instance of
+this exact failure shape.** §12.5.2's *"may ignore this entry"* has been
+present in `iso32000__s__12.5.2.md` line 75 **since 2026-07-31**, filed in
+the same session that wrote `R43`'s own justification. It never
+propagated to the decision `R43` governs, for over five weeks and 492
+filings. This is the **same shape** as the XFA finding already recorded in
+`CLAUDE.md`'s "Outstanding open items" §XFA scope bullet — an answer
+sourced in one document while another document asserted, or implied, the
+opposite. **n=2** for a specific, costly failure mode: a corpus fact that
+exists and does not reach the decision it governs. Both instances are now
+cross-referenced from decision `149` (below) — worth a `pdfcer-spec-
+librarian` corpus-propagation pass if a third instance ever surfaces.
+
+**Disclosure (rule 4).** New counter `annots_icon_painted`, **appended**
+to `render-page`'s metrics line (not inserted — the module's own doc
+comment promises *"keys are appended, never reordered"*, and
+`tools/check-metrics-line-contract.py` asserts the whole key list). A
+per-annotation stderr note names subtype and icon on the way past. **The
+old note became false and was rewritten**, not left beside the new
+behaviour: it used to say these annotations were "NOT painted (pdfcer
+never synthesises a look)," and a note contradicting the pixels drawn
+beneath it would be worse than no note at all.
+
+**Tests.** `crates/pdfcer-render/tests/named_icon_without_ap.rs`, 6 tests
+(relayed count, not independently recounted this filing). **A sabotage
+survived on first attempt, and the fixture was why.** Deleting the
+subtype restriction (`subtype != "Text" && subtype != "Stamp"`) left all
+five *original* tests green, because the `/Square` control passed for the
+**wrong reason**: `text_spec_from_dict` cannot describe a `/Square`, so
+`paint_named_icon` bails one line later regardless of the restriction —
+**the guard was protected by a different guard, and nothing was actually
+measuring it.** A `/FreeText` fixture separates the two failure modes and
+goes red under the sabotage; it is the added sixth test. This is the
+**fourth** instance this session of "which fixture could ever have made
+this go red?" — the engineer's own running count, carried forward here
+rather than re-derived.
+
+**★ A metrics-line gate fixed at its cause, not patched at its symptom.**
+`check-metrics-line-contract.py` used to locate the format string by a
+hard-coded tail naming the **last** key in the list — meaning every append
+was a second, separate maintenance obligation, and the gate's own comment
+records that this constant *had already gone stale before*, failing with
+"substring not found" across several intervening Passes while nobody read
+the failure. The end of the format string is now found by scanning to its
+closing quote instead of naming a specific key. It caught a real omission
+immediately: the first draft of this Pass's published template was
+missing `annots_icon_painted`. Filed as an `R243` dated instance (the
+gate's *own* prior staleness, not the sabotage-fixture finding above,
+which stays its own instance) — worth noting as evidence that a gate which
+fails loudly and unread is exactly as unchecked as one that silently
+passes.
+
+**★ FOUND, MEASURED, NOT FIXED — carried forward as owed item 18, not
+folded into this Pass.** The same `Annotations_output.pdf`'s `startxref`
+points **134 bytes short of its own `xref` keyword** (a PDFsharp writer
+bug). pdfcer's recovery path opens the file and finds **10 of 11**
+objects; **object 5 — the page's content stream — is dropped with NO
+anomaly recorded.** Its Flate data is genuinely corrupt, so losing it is
+the correct outcome; **losing it silently is not**, and `decision 145`
+(`Pass 283.0`) exists specifically to close that gap at the loader layer.
+This is that gap, found in the **recovery** path rather than the loader
+path decision 145 already covers. The recovery note also states the
+object *"is NOT in the file,"* which is false — it is in the file, and is
+the thing recovery declined to keep. See owed item 18, below.
+
+**Gates (relayed).** `tools/run-gates.sh` PASS 29/29; workspace test suite
+green; `cargo fmt --check` and `cargo clippy --all-targets --all-features
+-- -D warnings` clean.
+
+**`docs/FEATURES.md`.** New row added under *Annotations & markup* (see
+below) — this is a genuinely new capability (pdfcer now paints pixels for
+an annotation class it previously always left blank), not a tweak to an
+existing ticked row.
+
+---
+
+### `R43` — narrowing note, 2026-09-10 (493rd filing, `Pass 289.0`, decision 149)
+
+**Appended directly to `R43`'s canonical entry** (below, in the decision-
+008 bundle) rather than only recorded here, so a future reader who greps
+`R43`'s own text meets the narrowing at its source. **No new rule number
+minted** — same convention as the 2026-08-07 reading amendment above:
+`R43`'s text is correct and unchanged for every subtype that carries no
+`shall` addressed to the reader; what changed is which subtypes that
+covers.
+
+**Text of the narrowing**, added as a dated sub-bullet under `R43` itself:
+*"An annotation whose subtype the standard obliges the READER (not the
+annotation) to provide a look for — `/Text` (§12.5.6.4 Table 172) and
+`/Stamp` (§12.5.6.12 Table 181), both with a `shall` addressed to
+'conforming readers' — is painted from pdfcer's own icon artwork when it
+carries no `/AP`. This is not synthesis; it is the reader discharging an
+obligation the standard assigned to it, per §12.5.2's 'individual
+annotation handlers may ignore this entry and provide their own
+appearances.' Every other subtype — `/Square`, `/Circle`, `/Line`, `/Ink`,
+`/Caret`, and `/FileAttachment`/`/Sound` (which carry the identical `shall`
+but for which pdfcer has no artwork yet) — stays governed by `R43`'s
+original text: rendered from `/AP` or not at all. The discriminator is the
+clause's grammatical subject, not the annotation's category."*
+
+**Mechanism this narrowing is checked against:** `crates/pdfcer-render/
+src/annot.rs::paint_named_icon`, `Pass 289.0`. Full reasoning: decision
+`149`, `ARCHITECTURE.md` §12.
+
+---
+
+### Part — owed work, carried forward and discharged
+
+**Carried forward, unchanged:** items 4, 5, 10, 11, 13b, 14.
+
+**New, this filing — item 18.** `decision 145`'s disclosure obligation
+("a structural defect that leaves the object graph ambiguous is opened
+under a disclosed, overridable policy — never refused outright, and never
+silently") has a gap in the **recovery** path specifically: a PDFsharp-
+written file with a `startxref` pointing 134 bytes short of its own `xref`
+keyword recovers 10 of 11 objects, and the 11th (the page's content
+stream, genuinely corrupt) is dropped with **no anomaly recorded** and is
+**mis-described** as "NOT in the file" when it is present and simply
+declined. Scope: the loader-layer half of decision 145 (`Pass 283.0`) is
+confirmed working; this is the sibling gap in the pre-loader recovery
+scan. No Pass ID assigned yet — flagged for the engineer to scope.
+
+**Discharged this filing:** none.
+
+---
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `288` (highest ID `288.1`), next free family `289` | **`289`** (highest ID **`289.0`**), next free family `290` |
+| Standing rules | `R250`, next free `R251` | **unchanged — `R43` gains a narrowing note (no new number), same convention as its 2026-08-07 reading amendment; `R243` gains a dated instance (metrics-line gate found stale by its own prior comment). Ceiling unchanged `R250`, next free `R251`** |
+| Decision records | `148` | **`149`** — the grammatical-subject discriminator for reader-obligation `shall` clauses |
+| `SESSION_LOG` filings | `492` | **`493`** |
+| `docs/FEATURES.md` | no row for named-icon-without-`/AP` rendering | **new row added** under *Annotations & markup*, core `[x]` cli `[x]` gui `[ ]` (git-pinned dependency not yet updated in the separate `pdfcer-gui` repo — see row for detail) |
+| Owed-survivor / open-reply ledger | items 4, 5, 10, 11, 13b, 14 open | **items 4, 5, 10, 11, 13b, 14 unchanged; new item 18 opened** (decision 145's recovery-path gap) |
+
+---
+
 **★★★ 492nd filing, 2026-09-10 — `Pass 288.1` SHIPPED: `stamp-pack
 --stamps-from`, BECAUSE A REAL ARTWORK SHEET IS 113 PAGES. ★★ ALSO FILED:
 `tools/edit-source.py` — A HAZARD WRITTEN DOWN AND HIT THREE TIMES ANYWAY IS
@@ -149067,6 +149286,45 @@ not a judgment call:**
     a look for an annotation that has no appearance stream during
     normal display. This is the display sibling of R29
     (render-what-the-file-says, never invent).
+
+    > **★★★ NARROWED 2026-09-10 (493rd filing, `Pass 289.0`, decision
+    > 149) — the rule's text above is correct and UNCHANGED for every
+    > subtype whose `shall` (if any) addresses the annotation, not the
+    > reader. It was being applied one subtype-class too wide.** An
+    > annotation whose subtype the standard obliges the **READER** to
+    > provide a look for — `/Text` (§12.5.6.4 Table 172: *"Conforming
+    > readers **shall** provide predefined icon appearances for at least
+    > … Comment, Key, Note, Help, NewParagraph, Paragraph, Insert"*) and
+    > `/Stamp` (§12.5.6.12 Table 181, the identical formula) — is now
+    > **painted from pdfcer's own icon artwork** when it carries no
+    > `/AP`. This is not synthesis; it is the reader discharging a duty
+    > the standard itself assigned to it, per §12.5.2: *"Individual
+    > annotation handlers **may ignore this entry and provide their own
+    > appearances**."*
+    >
+    > **The discriminator is the clause's grammatical subject, not the
+    > annotation's category.** §12.5.6.8's `/Square`/`/Circle` clause
+    > addresses *the annotation* (*"Square and circle annotations shall
+    > display…"*) — a duty on the object, silent about who acts if the
+    > object has no `/AP` — so `/Square`, `/Circle`, `/Line`, `/Ink` and
+    > `/Caret` stay governed by `R43`'s ORIGINAL, unchanged text:
+    > rendered from `/AP` or not at all, still left blank with no
+    > `/AP`, still disclosed the same way. `/FileAttachment` and
+    > `/Sound` carry the identical reader-`shall` but are **deliberately
+    > not yet included** — pdfcer has no artwork for them yet, and
+    > listing a subtype here with nothing to draw would report a paint
+    > that never happened.
+    >
+    > **Mechanism:** `crates/pdfcer-render/src/annot.rs::paint_named_icon`,
+    > called from the same per-annotation loop `paint_appearance` is
+    > called from, gated `in_scope`, counted separately
+    > (`annotations_icon_painted`, never folding into or replacing
+    > `annots_no_ap` — the file's shortfall is still a fact about the
+    > file). **No bytes change** — no clause asks a reader to
+    > materialise an `/AP` into the file, so round-trip rule 3 and `R44`
+    > are not in play; this is a pixels-only obligation. Full record:
+    > `ROADMAP.md` *Shipped*, `Pass 289.0` (493rd filing); decision
+    > `149`, `ARCHITECTURE.md` §12.
   - **R44 — A generated appearance written to the file is never
     rendered from a private buffer.** When pdfce AUTHORS an appearance
     (6.1/6.2 markup, 6.2 variable text, form-field appearances), the

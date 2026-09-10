@@ -34036,3 +34036,94 @@ pdfcer-specific one. Filed as standing rule `R250`; full text in
 **Decision ceiling: `147` → `148`**, next free `149`. **Standing rules
 ceiling `R249` → `R250`**, next free `R251`. **Pass ceiling `287.0` →
 `288.0`**, next free family `289.x`.
+
+### 2026-09-10 (493rd filing, `9b7bc6c`) — decision 149: **THE GRAMMATICAL SUBJECT OF A SPEC `shall` CLAUSE — "CONFORMING READERS SHALL…" VERSUS "THE ANNOTATION SHALL…" — IS THE DISCRIMINATOR FOR WHETHER A NO-`/AP` LOOK IS SYNTHESIS (FORBIDDEN BY `R43`) OR AN OBLIGATION (`R43` DOES NOT REACH IT). NARROWS `R43`, DOES NOT REPEAL IT.**
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `Read`/`Grep`/`Glob`
+only. The commit hash, the byte-level `startxref` offset, the exact test
+count and the sabotage-fixture mechanism are relayed from the dispatching
+engineer's message. Independently verified here against the live tree:
+`crates/pdfcer-render/src/annot.rs::paint_named_icon` exists, is called
+from the `Appearance::None` arm of the same per-annotation loop
+`paint_appearance` is called from, and its doc comment quotes §12.5.6.4
+Table 172 and §12.5.6.12 Table 181 verbatim; `annots_icon_painted` is
+printed on `render-page`'s metrics line in `crates/pdfcer-cli/src/main.rs`.
+
+**Origin.** The operator's `Annotations_output.pdf` (PDFsharp 1.3)
+rendered blank in pdfcer-gui despite showing content in Acrobat Reader.
+Measured: three annotations, `/Text /Note`, `/Text /Help`, `/Stamp
+/TopSecret`, none carrying an `/AP`. `R43` ("render from `/AP` or not at
+all") was working exactly as written — the question was whether it was
+being applied to a class of annotation the standard never assigned it to.
+
+**The choice, and why it is a decision rather than a bug fix.** `R43`
+(decision 008, 2026-08-01) was written as one blanket rule covering every
+annotation subtype with no `/AP`. The standard does not treat every
+subtype the same way. §12.5.6.4 Table 172 and §12.5.6.12 Table 181 place
+an explicit duty on **conforming readers** — not on the annotation, not on
+the document — to provide predefined icon appearances for named standard
+icons on `/Text` and `/Stamp` respectively. §12.5.6.8's square/circle
+clause, by contrast, places its `shall` on **the annotation itself**
+("Square and circle annotations shall display…"), which is silent about
+who acts when the annotation has no `/AP` to display from — there the
+original reading of `R43` (decline, disclose, stay blank) remains the only
+defensible one, because drawing *something* would require inventing
+geometry the file never supplied. `/Line`, `/Ink` and `/Caret` carry no
+`shall` of this kind at all and are likewise unaffected. **The
+generalisable rule extracted from this comparison: before treating a
+no-`/AP` annotation as ungoverned, read the clause's grammatical subject.
+"The reader shall" is an obligation on pdfcer; "the annotation shall" is
+a property of a well-formed file, silent about recovery, and stays inside
+`R43`'s original refusal.**
+
+**Why this is a decision and not merely an `R43` reading note.** It
+changes what pdfcer **draws**, for the first time since `R43` was
+written five weeks earlier — a rendering-policy change with no byte-level
+consequence (round-trip rule 3 and `R44` are not in play; nothing is
+written to the file) but a real pixel-level one, verified by the operator's
+own report. That combination — a durable, reusable interpretive method
+(read the grammatical subject) applied to reverse a five-week-old,
+previously-uncontested rendering default — is judged to clear the bar for
+a decision record rather than staying only a dated `R43` sub-note, even
+though the sub-note is also written (see `ROADMAP.md`'s `R43` entry,
+amended in the same filing).
+
+**A corpus-propagation finding, recorded here because it is the second
+instance.** §12.5.2's *"individual annotation handlers may ignore this
+entry and provide their own appearances"* has been present in
+`D:\Dev\Rag-Specialized\PDF_Spec\iso32000__s__12.5.2.md` line 75 since
+2026-07-31 — filed in the **same session** that wrote `R43`'s own
+justification. It never reached the decision it bore on, for over five
+weeks. This is the same shape as the XFA-deprecation finding recorded in
+`CLAUDE.md`'s "Outstanding open items" §XFA-scope bullet (answered
+2026-08-11): a fact was already sourced in one document while another
+document still treated the question as open, or in this case, treated the
+opposite reading as settled. **n=2** for this specific failure mode — a
+corpus fact that exists and does not reach the decision it governs. Not
+yet worth a standing rule of its own (two instances, five weeks apart,
+different corpora); worth a `pdfcer-spec-librarian` corpus-propagation
+sweep if a third instance surfaces.
+
+**Body section.** No `ARCHITECTURE.md` body-section edit — this is a
+rendering-policy narrowing inside `pdfcer-render`'s existing annotation-
+paint loop, not a crate-boundary, library-choice, or writer-mode-invariant
+change; §4 is retired in favour of `docs/core-api/` (decision 102) and
+nothing in that tree currently states `R43`'s scope canonically enough to
+need a parallel edit. The canonical, amendable text lives in `ROADMAP.md`'s
+`R43` entry itself, amended in the same filing (Standing rules discipline,
+not `ARCHITECTURE.md` body-section discipline).
+
+**A known gap, opened as its own item rather than folded in here.** The
+same `Annotations_output.pdf` also exposed a `startxref` pointing 134
+bytes short of its own `xref` keyword (a PDFsharp writer defect); pdfcer's
+recovery path drops the resulting unrecoverable object (a corrupted
+content stream) with no anomaly recorded and describes it as "not in the
+file" when it is present and simply declined. That is a gap in decision
+145's disclosure obligation, in the recovery path rather than the loader
+path decision 145 already covers — filed as `ROADMAP.md` owed item 18, not
+resolved by this decision.
+
+**Decision ceiling: `148` → `149`**, next free `150`. **Standing rules
+ceiling unchanged at `R250`**, next free `R251` — `R43` gains a narrowing
+note under its own existing number, no new rule minted. **Pass ceiling
+`288.1` → `289.0`**, next free family `290.x`.

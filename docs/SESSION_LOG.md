@@ -4,6 +4,79 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-10 (493rd filing)
+
+**Shipped:**
+- Pass 289.0 (`9b7bc6c`) — a `/Text` sticky note or `/Stamp` naming a
+  standard icon, with no `/AP`, is now painted from pdfcer's own icon
+  artwork rather than left blank. Triggered by the operator's
+  `Annotations_output.pdf` (PDFsharp 1.3): three annotations, no `/AP` on
+  any of them, `R43` correctly left the page blank while Acrobat Reader
+  showed content. §12.5.6.4 Table 172 and §12.5.6.12 Table 181 put a
+  `shall` on **conforming readers**, not on the annotation, to provide
+  predefined icon appearances — so drawing the icon discharges a duty the
+  standard assigned to pdfcer, not synthesis. `R43` is narrowed, not
+  repealed: `/Square`, `/Circle`, `/Line`, `/Ink`, `/Caret` stay governed
+  by its original text (their `shall`, where one exists, addresses the
+  annotation, not the reader). New counter `annots_icon_painted`,
+  appended to `render-page`'s metrics line; old "not painted" stderr note
+  rewritten rather than left to contradict the new pixels. 6 tests
+  (`crates/pdfcer-render/tests/named_icon_without_ap.rs`) — a sabotage of
+  the subtype restriction survived on the original 5 because a `/Square`
+  control failed for the wrong reason (a different guard caught it first);
+  a `/FreeText` fixture, the 6th test, separates the two failure modes.
+  `tools/run-gates.sh` PASS 29/29 (relayed, no shell this filing).
+
+**Decisions made this session:**
+- **Decision 149** — the grammatical subject of a spec `shall` clause
+  ("conforming readers shall…" vs "the annotation shall…") is the
+  discriminator for whether a no-`/AP` look is forbidden synthesis or an
+  obligation `R43` does not reach. `ARCHITECTURE.md` §12; `R43`'s own
+  `ROADMAP.md` entry carries a matching narrowing note. No body-section
+  edit — a rendering-policy change inside `pdfcer-render`'s existing
+  annotation-paint loop, not a crate-boundary or invariant change.
+
+**Findings + decisions:**
+- **A corpus sentence sourced 2026-07-31 sat unused until 2026-09-10.**
+  §12.5.2's "individual annotation handlers may ignore this entry and
+  provide their own appearances" was filed into the spec RAG the same
+  session `R43` was written, and never reached the decision it governed
+  for five weeks / 492 filings. Second recorded instance of this shape —
+  the first is the XFA-deprecation finding in `CLAUDE.md`'s Outstanding
+  open items. Cross-referenced from decision 149; not yet a standing rule
+  (n=2), flagged for `pdfcer-spec-librarian` if a third instance appears.
+- A metrics-line gate (`check-metrics-line-contract.py`) used to locate
+  the format string's end by naming the last key — a maintenance trap its
+  own comment says had already gone stale before, failing loudly and
+  unread across several Passes. Fixed to scan to the closing quote
+  instead; caught a real omission (`annots_icon_painted` missing from the
+  first draft of the published template) immediately. Filed as an `R243`
+  dated instance.
+
+**Still in flight:**
+- Owed item 18 opened: `decision 145`'s disclosure obligation has a gap
+  in the **recovery** path — the same `Annotations_output.pdf`'s
+  `startxref` points 134 bytes short of its own `xref` keyword, recovery
+  drops the resulting corrupted content-stream object with no anomaly
+  recorded, and mis-describes it as "not in the file" when it is present
+  and simply declined. Not scoped to a Pass yet.
+- Items 4, 5, 10, 11, 13b, 14 carried forward unchanged.
+- `docs/FEATURES.md`'s new row for this capability is `gui [ ]` — the fix
+  lives in the shared `pdfcer-render` annotation-paint loop, which
+  `pdfcer-gui`'s canvas calls directly, but that repo pins `pdfcer-render`
+  as a **git dependency** (`branch = "main"`, not a path dependency), so
+  it needs `cargo update -p pdfcer-render` in `D:\dev\pdfcer-gui` before
+  the fix is actually reachable there. Flagged, not performed by this
+  role.
+
+**For next session:**
+- Scope owed item 18 (decision-145 recovery-path gap) into a Pass.
+- Confirm `pdfcer-gui` has pulled the updated `pdfcer-render` revision
+  before treating the FEATURES row's `gui` box as answered either way.
+- Consider whether `/FileAttachment`/`/Sound` icon artwork is worth
+  building, now that the reader-`shall` pattern is established for them
+  too (currently deliberately excluded — no artwork exists).
+
 ## 2026-09-10 (492nd filing)
 
 **Shipped:**

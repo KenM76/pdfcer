@@ -7018,3 +7018,200 @@ row** (`Pagination` vs `Pagination or Inline`) filed `NEEDS VERIFICATION`.
   which is why the dispatch's premises all survived.**
 - **No source staged**; both cached dumps were present from item 74's session, and the 2.0
   dump matched its recorded byte count (free integrity check).
+
+## 76. ★★ THE **"IS MY STANDING RULE BEING APPLIED OUTSIDE ITS TERRITORY?"** dispatch — *"pdfcer renders a blank page under R43; is drawing a named standard icon SYNTHESIS at all, or honouring a value the file supplied?"* (2026-09-10, three no-`/AP` annotations from PDFsharp 1.3.1663 → `iso32000__ref__appearance_generation_obligation.md`)
+
+**Shape**: the operator does not doubt the *facts*, he doubts the **SCOPE** of a rule
+his own project wrote. He named the two candidate acts, proposed that they differ, and
+asked for clause text before arguing it. **Distinct from item 74** (there: is clause C a
+`shall`? → modality). **Here the clause is not in dispute — the question is whether ANY
+clause reaches the act at all, and whether the project's rule has a spec ancestor.**
+Related to 68a ("no clause reaches it" ⇏ "leave it unset") but inverted: **here a clause
+DID reach it, in the opposite direction from the rule.**
+
+**Verdict shipped: R43 has NO ISO 32000 support for ANY subtype, and is CONTRADICTED by
+a reader-addressed `shall` for four of them.** The dispatch's intuition was right in
+outcome and wrong in mechanism (76d).
+
+### 76a. ★★★ THE HEADLINE WAS IN THE **COMMON-ENTRIES** TABLE, NOT IN THE FEATURE'S OWN CLAUSE — AND THE CORPUS ALREADY HELD IT VERBATIM, UNUSED FOR SIX WEEKS
+
+The dispatch pointed at §12.5.6.4, §12.5.6.12 and §12.5.5. The deciding sentence was in
+**none of them**. It is ISO 32000-1 **Table 164's `/AP` row** — the *entries common to
+all annotation dictionaries* table:
+
+> "(Optional; PDF 1.2) An appearance dictionary … **Individual annotation handlers may
+> ignore this entry and provide their own appearances.**"
+
+Two facts in two sentences: `/AP` is `Optional` for every subtype, **and** a reader is
+expressly permitted to substitute its own artwork — **even when `/AP` IS present**, which
+a fortiori covers supplying one that is absent. **1 hit in 1.7, 0 in 2.0.**
+
+**★ AND `iso32000__s__12.5.2.md` LINE 75 HAD CARRIED IT VERBATIM SINCE 2026-07-31 — the
+same session that wrote R43's justification into `iso32000__s__12.5.6.md`.** Nothing was
+wrong; nothing contradicted anything; **the finding simply never propagated to the file
+that needed it.** Identical shape to the XFA-deprecation error in pdfcer's own
+`CLAUDE.md` ("the answer was already sourced in one document while another still asked
+the question").
+
+**⇒ THE RULE: when asked whether the corpus supports a project rule, GREP THE CORPUS FOR
+THE RULE'S SUBJECT-MATTER SENTENCE BEFORE READING ANY SOURCE.** Cost here: one `grep -rn
+"provide their own appearances"`, which would have returned the answer in ten seconds.
+**And: when a feature's constraint is missing from the feature's own clause, read the
+CONTAINER's common-entries table.** Same move as 69a (constraints on a container live in
+the clauses of everything that points into it), run in the other direction.
+
+### 76b. ★★★ MODALITY IS PER-SUBTYPE **AND** PER-EDITION — one sweep produced a 4×2 matrix, not an answer
+
+`Conforming readers shall provide predefined icon appearances` = **4 hits in 1.7, 0 in
+2.0.** Per the standing 1→0 caution I read all four 2.0 contexts instead of concluding
+deletion — and the rule had **split**:
+
+| Subtype | 1.7 | 2.0 |
+|---|---|---|
+| `/Text` (T172→T175) | `shall` | **`shall` SURVIVES** (addressee renamed *"Interactive PDF processors"*) |
+| `/Stamp` (T181→T184) | `shall` | **`should`** |
+| `/FileAttachment` (T184→T187) | `shall` | **`should`** |
+| `/Sound` (T185→T188) | `shall` | **`should`** (+ subtype deprecated) |
+
+**The operator's file needed exactly this granularity**: `/Text /Note` and `/Text /Help`
+are `shall`-covered in **both** editions; `/Stamp /TopSecret` is `shall` in 1.7 and
+`should` in 2.0. **A single "the standard requires icons" answer would have been wrong
+for three of four subtypes in the current edition.** Cf. 69e (a later PART widens a
+rule — answer PER PART); this is the same lesson on the EDITION axis, and the direction
+is **weakening**, which is the less expected one.
+
+### 76c. ★★ COUNT-AGREEMENT ACROSS FOUR DIFFERENT PHRASES PROVES A **CLOSED CLASS**
+
+`Conforming readers shall provide predefined icon appearances` = 4 ·
+`predefined icon appearances` = 4 · `The name of an icon that shall be used in displaying
+the annotation` = 4 · `Additional names may be supported as well` = 4.
+
+**Four independent phrasings all returning 4 ⇒ the icon class is EXACTLY four subtypes**,
+with no fifth carrier phrased differently. That is a **much stronger** result than
+enumerating the subtypes I expected and checking each — it closes the set. **Use
+converging counts of DIFFERENT phrases from the same boilerplate row to prove
+exhaustiveness.** (Generalises 59's semantic sweep.)
+
+### 76d. ★★★ THE ASYMMETRY WAS REAL BUT THE DISPATCH'S **MECHANISM** WAS WRONG — it is the GRAMMATICAL SUBJECT of the `shall`
+
+The dispatch proposed: *naming an icon = honouring a supplied value; inventing geometry =
+synthesis.* **Naming is not what makes the difference.** What makes it:
+
+| Class | Sentence | Subject |
+|---|---|---|
+| Icon (4 subtypes) | "**Conforming readers** shall provide predefined icon appearances…" | **the READER** |
+| `/Square`, `/Circle` | "**Square and circle annotations** shall display… a rectangle or an ellipse" | the **ARTIFACT** |
+| Text markup | "**Text markup annotations** shall appear as highlights…" | the **ARTIFACT** |
+| `/Line`, `/Ink`, `/Caret` | *"The purpose … is to display"* / *"represents"* / *"is"* | **NO `shall` AT ALL** |
+
+Deeper reason, and the one worth carrying: **for `/Square` everything needed is IN THE
+FILE (`Rect`, `/IC`, `/BS`, `/BE`, `/RD`) so the standard has nothing to allocate; for
+`/Text /Note` the file carries A NAME AND NOTHING ELSE, so the standard MUST say who
+supplies the picture — and says the reader `shall`.** **A standard allocates
+responsibility only where the data is absent.** That is the general tell for "is this act
+the reader's job?".
+
+**★ AND I REPORTED THE CAVEAT THAT WEAKENS MY OWN ANSWER**: `shall display` addressed to
+the artifact is still a `shall`, so **R43 is under-supported for the geometry class too**,
+just more weakly. Refusing to say *"the spec blesses R43 for geometry"* is what makes the
+icon finding trustworthy. Cf. 67c (a refutation can destroy your own support).
+
+### 76e. ★★ A **NOTE THAT PRESUPPOSES A PRACTICE** IS EVIDENCE — and it answered "is the clause silent?"
+
+Sub-question 3 asked for the verbatim sentence or a plain "silent". §12.5.5 states no rule
+for a missing `/AP` — but **NOTE 1 presupposes the practice as normal**:
+
+> "If a transparent annotation appearance is painted over **an annotation that is drawn
+> without using an appearance stream** … **such annotations are sometimes drawn by means
+> that do not conform to the PDF imaging model.**"
+
+Stated **without disapproval**, solely to warn the *blend* is implementation-dependent.
+**⇒ "the clause states no rule" and "the clause is silent on the practice" are DIFFERENT
+answers, and the second was false.** When grading a silence, **look for a clause that
+mentions the practice in passing while regulating something else** — that is a stronger
+signal than absence, and it is invisible to a keyword grep on the rule you expected.
+
+### 76f. ★★ SCOPE THE FALLBACK SENTENCE THE PROJECT IS LEANING ON — it answered a DIFFERENT question
+
+§12.5.5 NOTE 3's *"reasonable behavior (such as **displaying nothing**)"* is the sentence
+every "paint nothing" argument reaches for. **It is scoped to a dangling `/AS` inside a
+PRESENT appearance dictionary**, not to an absent `/AP`. Registered `AG-N3`; the corpus's
+own §12.5.5 file already flagged the neighbouring `/AS`-absent case as a NEGATIVE RESULT,
+so this is the third member of that family. **Also `AG-N4`: §12.5.5 is entirely
+subtype-agnostic — the icon/geometry asymmetry is INVISIBLE from the clause the dispatch
+expected it in.** A reader who looks for the distinction there finds nothing and wrongly
+concludes it does not exist.
+
+### 76g. ★★ "THE OBLIGATION IS ON **PIXELS**, NOT **OBJECTS**" — the distinction that dissolved a rule-3 conflict nobody had raised yet
+
+Measured: `generate an appearance` · `create an appearance stream` · `generate appearance
+streams` · `regenerate the appearance` · `shall generate` = **0 hits each**; the two
+`synthesize` hits are fonts and layout. **The standard NEVER asks a reader to materialise
+an `/AP` OBJECT for a markup annotation — it asks it to DISPLAY something.**
+
+⇒ honouring the icon `shall` **changes no bytes**, so it never touches pdfcer's rule 3
+(minimal-diff) and is **not** an R44 (authoring) question at all. **State this
+explicitly**: without it, an engineer reads "the spec requires an appearance" as "we must
+write `/AP` into the file", which is a much larger and differently-governed change. The
+one genuine construct-an-appearance `shall` is **variable text** (§12.7.3.3), scoped to
+form fields.
+
+### 76h. ★★ SAY PLAINLY THAT THE OTHER IMPLEMENTATION IS RIGHT — the dispatch pre-authorised the opposite and I did not take it
+
+The dispatch offered: *"'Acrobat does more than the spec obliges' is a legitimate finding
+and I would rather have it than a stretch."* **The honest answer was the reverse:** for
+`/Text`, Acrobat drawing an icon **IS the obliged behaviour in both editions**; pdfcer's
+blank page is the divergence. **Taking a generously-offered weaker conclusion when the
+evidence supports the stronger one is a failure, not modesty.**
+
+The finding that *did* survive on the Acrobat side, and it is the useful half: **what
+Acrobat exceeds is the ARTWORK.** The standard defines **no geometry, size, colour or
+`/Rect` relationship** for any of the 27 standard names ⇒ **the obligation is "provide an
+appearance for this name", never "provide THAT appearance"** — pdfcer's own icons satisfy
+it exactly as well, and must be pdfcer's own (`LEGAL.md` §4 trade dress). This
+**generalises `FA-A1`**, filed 2026-08-10 for the `/FileAttachment` quarter alone.
+
+### 76i. ★ TWO EDITION FACTS NOBODY ASKED FOR, BOTH LOAD-BEARING
+
+- **ISO 32000-2 REVERSED `/AP`'s optionality**: a writer `shall` include an appearance
+  dictionary; **every** annotation (incl. `/Widget`) `shall` have one — exceptions:
+  degenerate `/Rect` (value[1]==value[3] **and** value[2]==value[4]) and `/Subtype` ∈
+  {`Popup`, `Projection`, `Link`}. **`AG-2`: both sentences bind the WRITER and the FILE**
+  (item 74a's addressee rule, again) ⇒ a 1.x file with no `/AP` is **CONFORMING under 1.7**
+  and merely unaddressed by 2.0 — never grounds for a blank page. **Always establish which
+  edition governs the OPERATOR'S FILE** (PDFsharp 1.3 ⇒ 1.7 baseline).
+- **`AG-5`: 2.0's own inline `NOTE (2020)` says the rule was aligned TO PDF/A** ("changed
+  from *or* to *and* … to match requirements in other published ISO PDF standards (such as
+  PDF/A)"). **The base standard adopted the archival profile's rule**, which is why 2.0
+  Table 166 and PDF/A-2 §6.3.3 are near word-identical. Inverts the usual 68e assumption
+  that the subset standard derives from the base.
+- **`/NeedAppearances` is WIDGET-ONLY in both editions** (2 / 3 hits; deprecated in 2.0) ⇒
+  **cannot be cited either way** for a `/Text` or `/Stamp` icon. A clean sourced negative
+  for a sub-question that looked like it might matter.
+
+### 76j. Filing shape — 1 new file, 5 edits, 1 count cell, 0 sources staged
+
+`iso32000__ref__appearance_generation_obligation.md` (new); edits to
+`iso32000__s__12.5.2.md` (`/AP` row + 2.0 reversal note), `iso32000__s__12.5.5.md`
+(NOTE 1 section + `/AP`-absent edge row + scope correction), `iso32000__s__12.5.6.md`
+(**a SCOPE AMENDMENT banner at the top + four contested rows in the AP-vs-fallback map**),
+`iso32000__s__12.5.6.15.md` (`FA-A1` amended — 2.0 downgrade + "under R43" struck),
+`iso32000__ref__ambiguity_settings_register.md` (§9.x, `AG-A1`–`AG-A3`), `index.md`
+(count cell 28→29, manifest row, **6 new trigger rows**, ambiguity-section row).
+
+**★ THE FLAT-GREP CHECK FAILED AGAIN — 5 of 15 quotations returned 0** (item 72g, second
+occurrence). Cause both times: **inline `**` emphasis sitting INSIDE the quoted sentence**.
+Fix adopted and worth standardising: **a `## FLAT-GREPPABLE QUOTATION INDEX` section at
+the end of the file** holding unmarked, unwrapped copies of every load-bearing sentence,
+grouped by source clause. Preserves the emphasis in the body and makes the sentences
+findable. **Run the check BEFORE filing, not after.**
+
+**★ MEMORY CORRECTION MADE THIS SESSION: the standing caution said "THREE corpus files are
+CRLF". Measured: 43 of 192.** The named-three list was inviting exactly the shortcut it
+warned against. Corrected in `MEMORY.md` to "run `file` on every file you are about to
+write; ~22% are CRLF and the set grows."
+
+- **Both edition dumps were already cached** from item 74/75's sessions — `pdftotext
+  -layout` on the two staged PDFs, ~5 s each. **No source staged; no new licence tier.**
+- **veraPDF profiles supplied the PDF/A answer** for free (69f route): `PDFA-1B` §6.9,
+  `PDFA-2B`/`PDFA-4` §6.3.3, extracted by regexing `<rule>` blocks for `AP` + `appearance`.
