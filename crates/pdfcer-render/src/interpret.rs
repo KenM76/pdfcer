@@ -1548,6 +1548,15 @@ pub struct Diagnostics {
     /// subdictionary, or `/AS` naming an absent state (§12.5.5 NOTE 3).
     /// Displayed as nothing, never guessed.
     pub annotations_appearance_state_missing: usize,
+    /// Annotations with no `/AP` that pdfcer nevertheless drew, from its own
+    /// artwork for the standard icon their `/Name` selects (`Pass 289.0`).
+    ///
+    /// ★ Counted ALONGSIDE `annotations_without_ap`, not instead of it. That
+    /// map measures a fact about the **file** — these annotations really do
+    /// carry no appearance — and is the demand signal for the remaining
+    /// generation work. This counter measures what the **operator saw**.
+    /// Folding them together would make one of the two numbers a lie.
+    pub annotations_icon_painted: usize,
     /// Of [`Diagnostics::annotations_total`], those whose `/Subtype` is
     /// `Widget` (§12.5.6.19). A census signal — widgets are ~88 % of
     /// organic annotations, so their share drives forms prioritisation.

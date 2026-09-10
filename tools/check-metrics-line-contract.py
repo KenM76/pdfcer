@@ -162,14 +162,40 @@ def println_keys(src: str) -> list[str]:
     """
     try:
         i = src.index(PRINTLN_HEAD)
-        j = src.index(PRINTLN_TAIL, i)
     except ValueError as err:
         raise SystemExit(
             "check-metrics-line-contract: could not locate the render-page `println!` "
             f"format string ({err}). If it was legitimately reworded, update "
-            "PRINTLN_HEAD/PRINTLN_TAIL in this file — do not delete the check."
+            "PRINTLN_HEAD in this file — do not delete the check."
         ) from err
-    return PRINTLN_KEY.findall(src[i : j + len(PRINTLN_TAIL)])
+
+    # ★★ THE END IS FOUND, NOT NAMED — `Pass 289.0`.
+    #
+    # This used to index a hard-coded PRINTLN_TAIL naming the LAST key, which
+    # made every append to the line a maintenance obligation on whoever made
+    # it. This file's own history says how that went: the constant was not
+    # updated when `rendering_intents_set` was appended, so the gate could not
+    # find the format string AT ALL and exited "substring not found" across
+    # several Passes — failing loudly while nobody read it, which leaves the
+    # contract exactly as unchecked as a gate that silently passes.
+    #
+    # A hard-coded tail is `R243`'s shape: a documented obligation on a future
+    # caller is not a control. So the end of the string is located by SCANNING
+    # to its closing quote instead, and appending a key now costs nothing.
+    j = i + len(PRINTLN_HEAD)
+    while j < len(src):
+        if src[j] == "\\":
+            j += 2  # an escaped character, including \" and the line-continuation
+            continue
+        if src[j] == '"':
+            break
+        j += 1
+    else:
+        raise SystemExit(
+            "check-metrics-line-contract: the render-page format string never closes "
+            "— refusing rather than guessing where it ends."
+        )
+    return PRINTLN_KEY.findall(src[i:j])
 
 
 def undocumented_keys(src: str, emitted: list[str]) -> list[str]:

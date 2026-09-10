@@ -179,7 +179,8 @@
 //!               cmyk_groups_approximated=<n> cmyk_unbridged_images=<n> \
 //!               cmyk_native_image_pixels=<n> rendering_intents_set=<n>
 //!               icc_managed_paints=<n> icc_unmanaged_paints=<n>
-//!               overprint_process_images_unsupported=<n>
+//!               overprint_process_images_unsupported=<n> \
+//!               annots_icon_painted=<n>
 //! ```
 //!
 //! ★ **`render-page` prints a SECOND line when `--probe-ink X,Y` is
@@ -317,7 +318,8 @@
 //!
 //! | `annots` | `annotations_total` | "how many annotations does this page carry at all?" (census denominator, and it is taken under EVERY annotation scope — a narrowed or suppressed render still discloses what it is not showing. Meaningless alone: the gap between this and `annots_painted` is what the `/Annots` array asked for and did not get) |
 //! | `annots_painted` | `annotations_painted` | "how many of them actually reached the raster?" (a §12.5.5 placement succeeded. Read against `annots`; the shortfall is apportioned across `annots_no_ap`, `annots_hidden`, `annots_state_missing` and `annots_degenerate`, plus scope withholdings this line does not carry — see the note on `annotations_out_of_scope` below the table) |
-//! | `annots_no_ap` | (sum of `annotations_without_ap`) | "how many annotations have NO usable appearance at all — no `/AP`, no `/N`, or an `/N` that is neither stream nor subdictionary?" (a SUM, because the field is a per-`/Subtype` `BTreeMap` and this line's contract is `key=<integer>`; the per-subtype breakdown goes to stderr where a new key cannot break a parser. Under R43 these are named-not-painted and never synthesised, so the number is also the measured demand signal for the appearance-generation Passes) |
+//! | `annots_no_ap` | (sum of `annotations_without_ap`) | "how many annotations have NO usable appearance at all — no `/AP`, no `/N`, or an `/N` that is neither stream nor subdictionary?" (a SUM, because the field is a per-`/Subtype` `BTreeMap` and this line's contract is `key=<integer>`; the per-subtype breakdown goes to stderr where a new key cannot break a parser. This is a fact about the FILE and stays true whether or not the annotation was drawn — read it with `annots_icon_painted`, and see that row for why the two are separate) |
+//! | `annots_icon_painted` | `annotations_icon_painted` | "how many of the `annots_no_ap` did the operator nevertheless SEE?" (`Pass 289.0`. An annotation that **names a standard icon** — `/Text` §12.5.6.4, `/Stamp` §12.5.6.12 — is drawn from pdfcer's own artwork, because both tables put that duty on the reader with a `shall`: *"Conforming readers shall provide predefined icon appearances…"*. **`R43` is narrowed, not repealed**: a `/Square` or `/Line` with no `/AP` would need INVENTED GEOMETRY and is still left blank, because §12.5.6.8 addresses *the annotation*, not the reader. The file supplied the NAME; the picture is pdfcer's own, per `LEGAL.md` §4, and stderr says so per annotation) |
 //! | `annots_hidden` | `annotations_hidden` | "how many annotations did the DOCUMENT suppress?" (§12.5.3 Table 165's Hidden and NoView flags — a census of pdfcer obeying the file, not a shortfall, honoured AND counted under R50 because content the operator cannot see is still disclosed) |
 //! | `annots_state_missing` | `annotations_appearance_state_missing` | "how many annotations carry a state subdictionary whose state could not be selected?" (§12.5.5 NOTE 3 — `/AS` absent against a multi-entry subdictionary, or naming a state that is not in it. Displayed as NOTHING, never guessed: a checkbox that should read "on" reads as blank, and this is the only thing that says why) |
 //! | `annots_widget` | `annotations_widget` | "how much of this page's annotation load is FORM FIELDS?" (§12.5.6.19 — census, a subset of `annots`. Widgets are ~88 % of organic annotations, so their share is what drives forms prioritisation rather than anything about this page's correctness) |
@@ -14101,7 +14103,7 @@ blend_space_subtractive={} blend_space_from_output_intent={} blends_in_wrong_spa
 cmyk_buffer={} cmyk_buffer_refused={} cmyk_bridged_pixels={} \
 cmyk_groups_approximated={} cmyk_unbridged_images={} cmyk_native_image_pixels={} rendering_intents_set={} \
 icc_managed_paints={} icc_unmanaged_paints={} \
-overprint_process_images_unsupported={}",
+overprint_process_images_unsupported={} annots_icon_painted={}",
         d.glyphs_substituted,
         d.glyphs_notdef,
         d.fonts_unsupported,
@@ -14471,6 +14473,13 @@ overprint_process_images_unsupported={}",
         d.icc_unmanaged_paints,
         // `Pass 204.0`. Appended per the stable-line append-never-insert rule.
         d.overprint_process_images_unsupported,
+        // ★ APPENDED, not inserted beside its `annots_*` relatives. The
+        // module docs promise "keys are appended, never reordered", and a
+        // contract test asserts the whole list — inserting this next to
+        // `annots_no_ap`, where it reads better, broke that test and would
+        // have broken every positional parser downstream. Readability of the
+        // line is not worth a published contract.
+        d.annotations_icon_painted,
     )
 }
 
@@ -15649,20 +15658,44 @@ cyclic; their content is missing from the raster",
     }
     // --- Pass 6.0 annotation honesty (R43/R50/R27) -------------------
     if !d.annotations_without_ap.is_empty() {
-        // R43: these annotations have no usable /AP and pdfcer paints
-        // NOTHING for them (it never synthesises a look). The per-subtype
-        // breakdown is the actionable half — it names what kind of
-        // appearance generation a later Pass would need.
+        // ★ `Pass 289.0` REWROTE THIS NOTE, and the old one is worth naming:
+        // it said these were "NOT painted (pdfcer never synthesises a look)",
+        // which became FALSE the moment the icon class started drawing. A
+        // note that contradicts the line printed under it is worse than no
+        // note — the operator has to decide which of pdfcer's own statements
+        // to believe.
+        //
+        // The two numbers now answer two different questions and neither
+        // lies: how many annotations the FILE left without an appearance, and
+        // how many of those the operator nevertheless SAW.
         let named: Vec<String> = d
             .annotations_without_ap
             .iter()
             .map(|(subtype, count)| format!("{subtype} x{count}"))
             .collect();
+        let total: usize = d.annotations_without_ap.values().sum();
+        let drawn = d.annotations_icon_painted;
         eprintln!(
-            "pdfcer: note: {} annotation(s) have no usable appearance stream and were NOT \
-painted (pdfcer never synthesises a look): {}",
-            d.annotations_without_ap.values().sum::<usize>(),
-            named.join(", ")
+            "pdfcer: note: {total} annotation(s) carry no appearance stream: {}. {}",
+            named.join(", "),
+            if drawn == 0 {
+                "None was painted -- pdfcer draws a named standard icon (12.5.6.4/12.5.6.12) and \
+                 synthesises nothing else, so a /Square or /Line with no /AP is disclosed here \
+                 and left blank"
+                    .to_owned()
+            } else if drawn == total {
+                format!(
+                    "All {drawn} named a standard icon and were drawn from pdfcer's OWN artwork \
+                     -- the file supplied the NAME, not the picture (12.5.6.4/12.5.6.12 put that \
+                     duty on the reader)"
+                )
+            } else {
+                format!(
+                    "{drawn} named a standard icon and were drawn from pdfcer's OWN artwork; the \
+                     remaining {} would need geometry pdfcer will not invent and are left blank",
+                    total - drawn
+                )
+            }
         );
     }
     if d.annotations_appearance_state_missing > 0 {

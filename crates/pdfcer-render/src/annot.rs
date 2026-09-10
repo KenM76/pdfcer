@@ -604,13 +604,27 @@ pub(crate) fn survey_page_annotations(
                     );
                 }
             }
-            // R43 named-not-painted, counted by subtype — the measured
-            // demand signal for the later generation Passes.
+            // ★★ `Pass 289.0`: an annotation that NAMES A STANDARD ICON is
+            // now drawn from pdfcer's own artwork, because §12.5.6.4 Table
+            // 172 and §12.5.6.12 Table 181 put that duty on the READER with
+            // a `shall`. Everything else stays `R43` named-not-painted.
+            //
+            // The counter still increments either way: the annotation did
+            // have no `/AP`, and that is a fact about the FILE which the
+            // demand signal is measuring. `annotations_icon_painted` says
+            // how many of them were nevertheless drawn, so the two together
+            // answer "how many lacked an appearance" and "how many did the
+            // operator still see" without either number lying.
             Appearance::None => {
                 *diag
                     .annotations_without_ap
                     .entry(annot.subtype_label())
                     .or_insert(0) += 1;
+                if in_scope
+                    && paint_named_icon(doc, base_ctm, fonts, annot, diag, canvas, cancel, policy)
+                {
+                    diag.annotations_icon_painted += 1;
+                }
             }
             // §12.5.5 NOTE 3: an /AS that could not be resolved — display
             // nothing, counted separately (the annotation HAS appearances;
@@ -620,6 +634,157 @@ pub(crate) fn survey_page_annotations(
             }
         }
     }
+}
+
+/// Draw pdfcer's own artwork for an annotation that **names a standard icon**
+/// and carries no `/AP` (`Pass 289.0`).
+///
+/// Returns `true` when something was painted.
+///
+/// # ★★★ Why this is not a violation of `R43`, but a correction to its scope
+///
+/// `R43` says an annotation is rendered from its `/AP` or not at all, and
+/// nothing here synthesises an appearance. That rule is right for a `/Square`
+/// or a `/Line`, where a reader would have to **invent geometry** from `/IC`,
+/// `/BS` and friends.
+///
+/// It is wrong for the four subtypes that **name an icon**, and the standard
+/// says so with a `shall` addressed to the reader. §12.5.6.4 Table 172,
+/// verbatim:
+///
+/// > *"Conforming readers **shall** provide predefined icon appearances for at
+/// > least the following standard names: Comment, Key, Note, Help,
+/// > NewParagraph, Paragraph, Insert."*
+///
+/// §12.5.6.12 Table 181 carries the identical formula for `/Stamp`'s fourteen
+/// names. And §12.5.2's `/AP` row settles that `/AP` was never the only
+/// route: *"Individual annotation handlers **may ignore this entry and provide
+/// their own appearances**."*
+///
+/// ⇒ **Drawing a named icon is not synthesis — it is the reader discharging an
+/// obligation the standard assigned to it.** The grammatical subject is the
+/// discriminator: the icon clauses address *conforming readers*, while
+/// §12.5.6.8's square/circle clause addresses *the annotation* ("Square and
+/// circle annotations shall display…"). `R43` survives untouched for the
+/// second class.
+///
+/// ★ **The obligation is on PIXELS, not on objects.** No clause asks a reader
+/// to materialise an `/AP` into the file, so this changes no bytes: rule 3's
+/// round-trip invariant and `R44` are not in play.
+///
+/// ★ **What Acrobat exceeds is the ARTWORK, not the obligation.** The standard
+/// defines no geometry, size or colour for any of the 27 standard names — the
+/// duty is *"provide an appearance for this name"*, never *"provide THAT
+/// appearance"*. pdfcer draws its own (`LEGAL.md` §4), which discharges it
+/// exactly as well and is the only artwork this project may ship.
+// Same shape and the same reason as `paint_appearance` below: every argument
+// is placement input, and bundling them into a struct would name the bundle
+// after this one call site.
+#[allow(clippy::too_many_arguments)]
+fn paint_named_icon(
+    doc: &DocumentView<'_>,
+    base_ctm: Transform,
+    fonts: &FontEnvironment,
+    annot: &Annotation,
+    diag: &mut Diagnostics,
+    canvas: &mut Canvas<'_>,
+    cancel: Option<&crate::cancel::RenderCancel>,
+    policy: RenderPolicy,
+) -> bool {
+    // Only the icon class. `/FileAttachment` and `/Sound` carry the same
+    // `shall` and are deliberately NOT included yet: pdfcer has no artwork for
+    // them, and a subtype listed here with nothing to draw would report a
+    // paint that did not happen.
+    let subtype = annot.subtype_label();
+    if subtype != "Text" && subtype != "Stamp" {
+        return false;
+    }
+    let Some(rect) = annot.rect else {
+        return false;
+    };
+    // The icon the file asked for, for the disclosure below. `/Name` is
+    // optional on both subtypes (defaults: `Note`, `Draft`), so its absence is
+    // reported as `(default)` rather than as nothing.
+    let icon_name = annot
+        .id
+        .and_then(|id| doc.value(id))
+        .and_then(Object::as_dict)
+        .and_then(|d| d.get(b"Name").map(|o| doc.resolve(o)))
+        .and_then(|o| match o {
+            Object::Name(n) => Some(String::from_utf8_lossy(n.as_bytes()).into_owned()),
+            _ => None,
+        });
+
+    // Re-author from the annotation's own dictionary, so the icon drawn is the
+    // one the FILE named — `/Name`, `/C`, `/Open` and the rest all come from
+    // the annotation rather than from a default.
+    let Some(dict) = annot
+        .id
+        .and_then(|id| doc.value(id))
+        .and_then(Object::as_dict)
+    else {
+        return false;
+    };
+    let Ok(spec) = pdfcer_core::annot_author::text_spec_from_dict(doc, dict) else {
+        return false;
+    };
+    let Ok(authored) = pdfcer_core::annot_author::build_text_annotation(&spec) else {
+        return false;
+    };
+
+    // §12.5.5 placement, through the SAME steps `paint_appearance` uses. The
+    // authored `/BBox` is `[0 0 w h]` of the spec's own rect, so a stamp whose
+    // `/Rect` differs in aspect is fitted anisotropically exactly as a
+    // file-supplied appearance would be — one placement implementation, not
+    // two (`R245`).
+    let Some(bbox) = read_rect_numbers(doc, &authored.ap_dict, b"BBox") else {
+        return false;
+    };
+    let matrix = read_matrix(doc, &authored.ap_dict);
+    let Some(tbox) = transformed_appearance_box(bbox, matrix) else {
+        return false;
+    };
+    let placement = fit_matrix(tbox, rect).post_concat(base_ctm);
+
+    let Ok(content) = pdfcer_core::content::ContentStream::parse(authored.ap_content) else {
+        return false;
+    };
+    let resources = authored
+        .ap_dict
+        .get(b"Resources")
+        .map(|o| doc.resolve(o))
+        .and_then(Object::as_dict)
+        .cloned()
+        .unwrap_or_default();
+
+    let sub = crate::interpret::run_on(
+        doc,
+        &content,
+        &resources,
+        fonts,
+        GraphicsState::default_with_ctm(placement),
+        canvas,
+        cancel,
+        policy,
+        // pdfcer's own icon artwork is authored in DeviceRGB/DeviceGray, so
+        // the blend space is Additive by construction rather than read from
+        // the page — the artwork is ours and cannot be subtractive.
+        crate::compositor::BlendSpace::Additive,
+    );
+    diag.merge(sub);
+
+    // ★ Rule 4: pdfcer drew artwork the FILE DOES NOT CONTAIN. That is an
+    // inference — a correct and obligatory one (§12.5.6.4/§12.5.6.12 put the
+    // duty on the reader), but the operator must not have to deduce it from a
+    // counter. The note names the subtype and the icon so the disclosure is
+    // specific enough to act on: a stamp that looks wrong is answered by
+    // "that artwork is ours, the file supplied only the name".
+    diag.note_annotation(&format!(
+        "/{subtype} has no /AP and names icon /{icon} - drawn from pdfcer's OWN artwork \
+         (12.5.6.4/12.5.6.12 put that on the reader); the file supplied the NAME, not the picture",
+        icon = icon_name.unwrap_or_else(|| "(default)".to_owned()),
+    ));
+    true
 }
 
 /// Place and paint one annotation's selected normal appearance
