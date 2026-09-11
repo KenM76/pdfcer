@@ -3489,44 +3489,6 @@ fn probe_synthesis(
     }
 }
 
-/// Preview what `want` would resolve to for the run located by `find` /
-/// `pinned_span` on `page`, **without mutating anything**.
-///
-/// Side-effect-free by construction: it walks the already-decoded content
-/// stream, locates the anchor exactly as [`plan_format`] does, resolves the
-/// run's own font, then asks [`gate_synthesis`] up to three times. It writes
-/// nothing, plans nothing, and touches no session state.
-///
-/// # An empty `find` with a `pinned_span` means the whole operator
-///
-/// Resolved by the same [`effective_find`] call [`plan_format`] and
-/// [`preview_font_resources`] use — all three, plus `plan_edit`, are the
-/// complete set of entry points that take a `find` and an optional pin, and
-/// they must not be able to disagree. An empty `find` with **no** pin is
-/// refused by name.
-///
-/// Before `Pass 148.0` this one guessed: an empty `find` made the gate survey
-/// **zero characters**, every face passed, and the query answered
-/// `RealFaceResolves` naming a face that `set_font` would then refuse — a
-/// wrong **routing decision**, not merely a wrong list entry.
-///
-/// # What it deliberately does NOT model
-///
-/// A *pending* family change. The preview answers for the run **as it is
-/// now**, because the property surface applies one control family per commit:
-/// a font change is its own accepted edit, after which the caller rebuilds
-/// its model and this query answers against the new face. Threading an
-/// un-applied `set_font` through here would mean re-running [`plan_font`]'s
-/// re-encoding work every frame to answer a question the operator has not
-/// asked yet.
-///
-/// # Errors
-///
-/// The same location/resolution failures [`plan_format`] reports — no match,
-/// an unsupported anchor, an unresolvable font resource, a content-parse
-/// failure. [`FormatError::RealFaceAvailable`] is **never** returned: that
-/// outcome is the point of the query and comes back as
-/// [`StyleOutcome::RealFaceResolves`].
 /// Ask which RUNG the automatic style ladder would take for one run, and
 /// which face it would bind — without doing it (`Pass 295.0`).
 ///
@@ -3663,6 +3625,44 @@ pub(crate) fn preview_style_ladder(
     })
 }
 
+/// Preview what `want` would resolve to for the run located by `find` /
+/// `pinned_span` on `page`, **without mutating anything**.
+///
+/// Side-effect-free by construction: it walks the already-decoded content
+/// stream, locates the anchor exactly as [`plan_format`] does, resolves the
+/// run's own font, then asks [`gate_synthesis`] up to three times. It writes
+/// nothing, plans nothing, and touches no session state.
+///
+/// # An empty `find` with a `pinned_span` means the whole operator
+///
+/// Resolved by the same [`effective_find`] call [`plan_format`] and
+/// [`preview_font_resources`] use — all three, plus `plan_edit`, are the
+/// complete set of entry points that take a `find` and an optional pin, and
+/// they must not be able to disagree. An empty `find` with **no** pin is
+/// refused by name.
+///
+/// Before `Pass 148.0` this one guessed: an empty `find` made the gate survey
+/// **zero characters**, every face passed, and the query answered
+/// `RealFaceResolves` naming a face that `set_font` would then refuse — a
+/// wrong **routing decision**, not merely a wrong list entry.
+///
+/// # What it deliberately does NOT model
+///
+/// A *pending* family change. The preview answers for the run **as it is
+/// now**, because the property surface applies one control family per commit:
+/// a font change is its own accepted edit, after which the caller rebuilds
+/// its model and this query answers against the new face. Threading an
+/// un-applied `set_font` through here would mean re-running [`plan_font`]'s
+/// re-encoding work every frame to answer a question the operator has not
+/// asked yet.
+///
+/// # Errors
+///
+/// The same location/resolution failures [`plan_format`] reports — no match,
+/// an unsupported anchor, an unresolvable font resource, a content-parse
+/// failure. [`FormatError::RealFaceAvailable`] is **never** returned: that
+/// outcome is the point of the query and comes back as
+/// [`StyleOutcome::RealFaceResolves`].
 pub(crate) fn preview_style_resolution(
     doc: &DocumentView<'_>,
     page: &crate::page_tree::Page,

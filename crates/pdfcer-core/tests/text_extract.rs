@@ -1205,7 +1205,7 @@ fn a_pattern_driven_redaction_reports_the_text_it_could_not_read() {
     );
     assert_eq!(
         marked.diagnostics.type3_fonts_without_to_unicode, 2,
-        "the pattern route must report the same two unreadable fonts the literal route          reports; a shell reading zero here shows the operator the screen a CLEAN          document produces"
+        "the pattern route must report the same two unreadable fonts the literal route reports; a shell reading zero here shows the operator the screen a CLEAN          document produces"
     );
     assert!(marked.diagnostics.ladder_failures > 0);
 
@@ -1220,7 +1220,7 @@ fn a_pattern_driven_redaction_reports_the_text_it_could_not_read() {
     assert_eq!(
         ids.len(),
         marked.created.len(),
-        "the reporting verb and the plain verb must not be able to disagree about what          was marked"
+        "the reporting verb and the plain verb must not be able to disagree about what was marked"
     );
 }
 

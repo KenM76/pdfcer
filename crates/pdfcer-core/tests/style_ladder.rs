@@ -447,7 +447,7 @@ fn same_family_is_false_when_the_bound_face_is_another_family() {
     assert_eq!(
         l.same_family,
         Some(false),
-        "Helvetica -> Times-Bold is a DIFFERENT family, and the operator is          entitled to be told: {l:?}"
+        "Helvetica -> Times-Bold is a DIFFERENT family, and the operator is entitled to be told: {l:?}"
     );
 }
 
