@@ -4396,6 +4396,47 @@ recoverability. Permitted: a new `ReflowApplyError` variant that maps into
 an *existing* `ReflowDecline` bucket via `decline()`'s match arms — that is
 exactly the "buckets closed, contents open" shape both enums now share.
 
+### 8.2 A value the crate already computes does not earn `pub` by demand — it already earned it by existing
+
+*(Added 2026-09-11, 512th filing, `Pass 296.8` / `f392b19`. Created by
+**decision 153**, §12 — full derivation there.)*
+
+**The rule.** A value or mapping a crate already computes for its own use —
+a rendered disclosure sentence, a `Debug` derive, a metrics-line token — is
+not exempt from `pub` visibility merely because no external caller has
+asked for it yet. "Nothing has asked" inverts who can see the gap: the
+crate that owns the computation can see it exists; the caller that would
+want it cannot, because from outside the crate there is nothing to find.
+The caller reaches instead for whatever IS visible — `Debug`, or
+hand-parsing a prose sentence — and that reach becomes a de facto contract
+nobody chose, one that breaks the moment the withheld form drifts (a
+`Debug` derive carries no SemVer promise; a rendered sentence carries no
+format promise).
+
+**Why this is not `R151`.** `R151` audits whether a *published,
+documented, tested* entry point is *called* before crediting a Pass as
+done — a check on completion, aimed at a capability that already has a
+public shell. This rule is the mirror failure, one step earlier: a
+computation that was never given a public shell at all, on the reasoning
+that publishing ahead of a request is invention rather than service. That
+reasoning is correct for a genuinely new capability and wrong for a
+mapping the crate already relies on internally — the computation exists
+either way; the only open question is whether reaching it costs one `pub`
+or a redundant, drift-prone re-derivation on the other side of the
+boundary.
+
+**Forbidden:** `pub(crate) fn token(&self) -> &'static str` behind a `pub`
+enum, reasoned as "nothing has asked yet," when the same mapping already
+backs a `pub` metrics line inside the crate. **Permitted:** the identical
+signature, `pub`, the day the enum itself is published — the computation
+was never private information, only its reach was.
+
+**Standing rule `R254` minted**: a value a crate already computes for its
+own use does not earn `pub` by demand; it already earned it by existing.
+Keeping it `pub(crate)` "until something asks" assigns the discovery cost
+to the party that cannot see the gap, who then reaches for `Debug` or
+prose instead.
+
 ## 9. Open-source dependencies & attribution
 
 pdfcer builds on the existing Rust/OSS ecosystem rather than
@@ -10505,3 +10546,118 @@ only its reach into `Display` is removed.
 ceiling: `R252` → `R253`**, next free `R254`. **Pass ceiling `296.4` →
 `296.5`**, next free `296.6` (family `296` continues; next free new family
 still `297.x`).
+
+### 2026-09-11 (512th filing, `f392b19`) — decision 153: **A VALUE A CRATE ALREADY COMPUTES FOR ITS OWN USE DOES NOT EARN `pub` BY DEMAND — IT ALREADY EARNED IT BY EXISTING**
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `Read`/`Grep` against the
+live tree, plus `.git/HEAD`, `.git/refs/heads/main` and `.git/logs/HEAD`
+(readable as plain text) to confirm `main` sits at `f392b19` and that the
+reflog's own one-line message for it matches the dispatch's account. The
+commit message at `f392b19` is treated as authoritative per the dispatch
+instruction and was not read verbatim (no `git show` without a shell);
+everything below the origin paragraph is either independently verified
+against live source (cited inline) or explicitly marked relayed.
+**Independently verified:** `BlendSpaceFrom::token()` is `pub const fn` at
+`crates/pdfcer-render/src/interpret.rs:2165`, with a doc comment
+(2128–2164) naming `Pass 296.4`'s original `pub(crate)` choice, the
+consuming shell's `Debug`-derived `PageGroup`/`page_group` mismatch, and
+the refusal to hand-copy a `PageGroup => "page_group"` table on the
+consumer's own side (citing `R74`). `crates/pdfcer-render/tests/
+ink_answered_before_rendering.rs:74–97` pins all three tokens
+(`page_group`/`device_native`/`output_intent`) and separately asserts
+`token()`'s output differs from `format!("{:?}", …)` — the two-spellings
+failure mode is asserted against, not merely described.
+
+**Origin.** `Pass 296.4` made `BlendSpaceFrom` itself `pub` so a consuming
+shell could classify a page against it, and kept `token()` — the
+enum-to-machine-string mapping the crate's own metrics line already called
+— `pub(crate)`, reasoning that the metrics line's contract was its own and
+nothing had asked for the mapping directly. Within the hour the consuming
+shell reported the consequence: its diagnostic trace took the `Debug`
+derive and wrote `PageGroup` where `pdfcer`'s metrics line writes
+`page_group` — two stable spellings of one fact, across a boundary whose
+entire purpose is that both sides agree about it. The shell declined to
+hand-copy the mapping itself (`R74` — a hand-copied table in another crate
+is exactly the drift a shared function exists to prevent, and it goes
+stale silently) and filed instead.
+
+**The generalisation.** The engineer's own framing, checked rather than
+accepted: *"R151 licenses not inventing an API nobody wants; it does not
+license making an existing computation unreachable until someone asks."*
+Those are different claims, and only the second was ever wrong. `token()`
+was not a new capability invented speculatively — the mapping it returns
+already ran, unconditionally, on every call to `pdfcer`'s own metrics line.
+Keeping it `pub(crate)` did not avoid inventing anything; it duplicated an
+existing computation's *reach* while leaving its *substance* untouched,
+and put the cost of noticing the gap on the one party structurally unable
+to see the computation exists at all — a crate's own author can grep their
+own source for "nothing calls this yet"; a consumer cannot grep a private
+item they cannot name.
+
+**Checked against `R151` and declined to fold in.** `R151`'s mechanism is
+call-graph auditing: a *published* capability is not "done" until
+something calls it, so crediting a Pass requires checking the call graph,
+not just the implementation. `token()` had a caller throughout — the
+metrics line, inside the same crate — so it was never uncalled in `R151`'s
+sense; it was uncalled *from outside*, which `R151` does not speak to at
+all. Filed as a new rule rather than an `R151` amendment because amending
+`R151`'s text would be repairing a rule that was never broken — the fault
+was an inference drawn FROM it, not a defect IN it.
+
+**Checked against `R253`/decision 152 and declined to fold in.** `R253`
+says an error/diagnostic type's `Display` must not carry a field its own
+docs call non-contractual, because the safe rendering must be the one
+every caller gets, not one they opt into by reading the source — the fix
+there was to *remove* content from a safe default. This finding is the
+opposite direction: a safe, wanted, machine-parseable accessor was
+*withheld* entirely, and the caller fell back to an *unsafe* default
+(`Debug`) reachable only because nothing safer was public. Same session,
+same "safe default" vocabulary, opposite move — different mechanism, not
+merged.
+
+**Three instances, one session, and a note this discharges.** `Refusal::
+remedy_faces` (`Pass 296.1`) and `impl Display for Object`/`Name` (`Pass
+296.2`) share `token()`'s mechanism exactly — in both, the crate already
+computed the value (to build a sentence; via `Debug`) and kept the
+structured, machine-usable form unpublished until asked. This role flagged
+exactly that pair at the 509th filing (`ROADMAP.md`, *Standing rules*) as
+"the same OBSERVATION as `R251` … but not the same MECHANISM," declined to
+mint a rule then for want of a repair that would generalise, and named the
+open question: *"worth a future session's attention as a possible boundary
+worth naming properly, once a fix for one would plausibly have caught the
+others."* `Pass 296.8`'s fix — publish the computation instead of
+gatekeeping it behind demand — is that generalisable repair, so the
+boundary is named now under `R254`, with `token()` as its clearest
+instance because the cost of withholding it was measured in the same hour
+it shipped.
+
+**Checked and kept separate.** `PassedOver`'s missing re-export (`Pass
+295.1`, `R251`) compiled and clippy-passed clean inside its own crate and
+was never reasoned about at all — a pure compile-visibility accident, not
+a "wait for demand" choice, so it stays `R251`'s. `preview_style_ladder`
+(`Pass 295.0`) was built because a disclosure *gate* structurally could not
+see a rung, which is an observability gap in a consumer of the value, not
+a value the crate withheld from a would-be caller — closer to `R151`'s
+territory than to this one, and not merged either.
+
+**Standing rule `R254` minted**: a value a crate already computes for its
+own use does not earn `pub` by demand; it already earned it by existing.
+Keeping it `pub(crate)` "until something asks" assigns the discovery cost
+to the party that cannot see the gap, who then reaches for `Debug` or
+prose instead — not `R151`, which audits calls to an *already-published*
+capability, the opposite failure.
+
+**Body-section effects.** New `ARCHITECTURE.md` §8.2, sibling to §8.1
+(decision 140) in the "Code style & public API design" section — the
+natural home per `CLAUDE.md` rule 10's own pointer to §8 for anything
+touching `pdfcer-core`/`pdfcer-render`'s public surface. No `Cargo.toml`
+change; no writer-path change (§5 unaffected — read-time API surface
+only).
+
+**Decision ceiling: `152` → `153`**, next free `154`. **Standing rules
+ceiling: `R253` → `R254`**, next free `R255`. **Pass ceiling `296.5` →
+`296.8`** (296.6/296.7 not used by this role — no record of them found in
+`ROADMAP.md` or `SESSION_LOG.md` by grep before filing, and no collision at
+`296.8` either; if reserved elsewhere, outside this filing's visibility),
+next free `296.9` (family `296` continues; next free new family still
+`297.x`).
