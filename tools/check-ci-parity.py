@@ -105,6 +105,7 @@ LOCAL = {
     "tools/check-commits-filed.py": "python tools/check-commits-filed.py",
     "tools/check-bypass-paths.sh": "bash tools/check-bypass-paths.sh",
     "tools/check-core-api-verbs.py": "python tools/check-core-api-verbs.py",
+    "tools/check-reexport-closure.py": "python tools/check-reexport-closure.py --stats",
     "tools/check-clap-help.py": "python tools/check-clap-help.py",
     "tools/check-cited-verbs-exist.py": "python tools/check-cited-verbs-exist.py",
     "tools/check-ledger-numbers.py": "python tools/check-ledger-numbers.py",

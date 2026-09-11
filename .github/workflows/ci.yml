@@ -397,6 +397,15 @@ jobs:
       - name: check every public verb is documented and the counts agree
         run: python tools/check-core-api-verbs.py
 
+      # A re-exported struct whose own FIELD type is not re-exported compiles,
+      # passes clippy and passes every test -- inside the crate every path
+      # resolves. The consuming shell is the only place it is visible, as
+      # `error[E0432]: unresolved import`. `Pass 295.0` shipped exactly that
+      # (`StyleLadder::passed_over: Vec<PassedOver>`), and turning the fix into
+      # a gate found two more already live at HEAD.
+      - name: check a re-exported type's field types are re-exported too
+        run: python tools/check-reexport-closure.py --stats
+
       # clap derives every subcommand's `--help` from the doc comment on its
       # `Command` variant, so a variant with no doc ships a BLANK description
       # and nothing in the build notices -- not clippy, not missing_docs

@@ -77,7 +77,7 @@ pub mod synth;
 
 pub use addtext::{
     AddTextError, AddTextOutcome, AddTextReport, AddTextRequest, AddTextWrapPreview,
-    FontProvenance, NewTextColor, WrapPreviewLine, add_text, preview_wrap,
+    FontProvenance, NewTextColor, NewTextFace, WrapPreviewLine, add_text, preview_wrap,
 };
 pub use edit::{
     EditError, EditGlyphSource, EditOptions, EditOutcome, EditReport, EditRequest, EditTarget,
@@ -98,7 +98,7 @@ pub use encoding::{
 pub use format::{
     FillModel, FontAcceptance, FontPreflight, FontResourceEntry, FontSelector, FontSibling,
     FormatError, FormatOptions, FormatOutcome, FormatReport, FormatRequest, MetricSpec, NewFill,
-    RunRepertoire, SUBSCRIPT, SUPERSCRIPT, ScriptMetrics, ScriptPosition, Std14Entry,
+    PassedOver, RunRepertoire, SUBSCRIPT, SUPERSCRIPT, ScriptMetrics, ScriptPosition, Std14Entry,
     Std14Presence, StyleLadder, StyleOutcome, StyleResolution, StyleRung, set_format,
 };
 pub use forms::{

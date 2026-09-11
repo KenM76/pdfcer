@@ -73,10 +73,9 @@ pub use clip::{
 };
 pub(crate) use decompose::collect_form_leaves;
 #[allow(unused_imports)]
-pub use decompose::{};
 pub use decompose::{
     DecomposeDiagnostics, DevicePaintSpace, DocumentFonts, DocumentXObjects, FillRule,
-    FontResolver, ImageObject, ImageSource, MAX_FONT_NAME_BYTES, MAX_NODES, MAX_OBJECTS,
+    FontResolver, FormLeaf, ImageObject, ImageSource, MAX_FONT_NAME_BYTES, MAX_NODES, MAX_OBJECTS,
     MAX_TEXT_PREVIEW_CHARS, NoFonts, NoXObjects, PageObjects, PaintStyle, PathObject, PathPaint,
     RunPositioning, Segment, Subpath, TextBoundsBasis, TextFont, TextObject, TextPreview, TextRun,
     TokenRange, VectorObject, XObjectResolver, XObjectShape, decompose, decompose_page,
