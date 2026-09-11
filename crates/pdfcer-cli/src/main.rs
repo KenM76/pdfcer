@@ -1191,11 +1191,28 @@ enum Command {
     /// ⚠️ **Destructive and deliberate.** The removed content cannot be
     /// recovered from the output. Keep the input.
     RedactOffpage {
-        /// Input PDF.
-        input: PathBuf,
-        /// Output path.
-        #[arg(short, long)]
-        output: PathBuf,
+        /// PDFs and/or folders to clean.
+        #[arg(required = true)]
+        paths: Vec<PathBuf>,
+        /// Descend into subfolders.
+        #[arg(long, short)]
+        recursive: bool,
+        /// Output path, for a SINGLE input file.
+        #[arg(short, long, conflicts_with = "out_dir")]
+        output: Option<PathBuf>,
+        /// Output folder, for a batch. The input tree's shape is preserved
+        /// under it, so two drawings with the same file name in different
+        /// product folders cannot overwrite each other.
+        #[arg(long, conflicts_with = "output")]
+        out_dir: Option<PathBuf>,
+        /// Appended to each output's stem in a batch, before `.pdf`.
+        #[arg(long, default_value = "-offpage")]
+        suffix: String,
+        /// Overwrite an output that already exists. Without this, an existing
+        /// output is left alone and reported -- a re-run after a partial batch
+        /// resumes rather than redoing.
+        #[arg(long)]
+        force: bool,
         /// Ignored fringe in points, as `scan-offpage`.
         #[arg(long, default_value_t = pdfcer_core::offpage::DEFAULT_TOLERANCE_PT)]
         tolerance: f64,
@@ -10064,11 +10081,24 @@ fn run() -> ExitCode {
             files_only,
         ),
         Command::RedactOffpage {
-            input,
+            paths,
+            recursive,
             output,
+            out_dir,
+            suffix,
+            force,
             tolerance,
             dry_run,
-        } => cmd_redact_offpage(&input, &output, tolerance, dry_run),
+        } => cmd_redact_offpage_batch(
+            &paths,
+            recursive,
+            output.as_deref(),
+            out_dir.as_deref(),
+            &suffix,
+            force,
+            tolerance,
+            dry_run,
+        ),
         Command::InsertPages {
             input,
             source,
@@ -40688,6 +40718,135 @@ fn cmd_scan_offpage(
         return exit::RUNTIME_ERROR;
     }
     u8::from(affected_files > 0)
+}
+
+/// Drive `redact-offpage` over files and folders (`Pass 294.1`).
+///
+/// # Why the output policy is two flags and not one
+///
+/// `-o FILE` names one output and is refused for a batch, because a batch has
+/// no single output to name. `--out-dir DIR` takes a batch and **preserves the
+/// input tree's shape underneath it** -- `TR-0411/TR-0411.pdf` and
+/// `TR-0412/TR-0411.pdf` are different drawings with the same file name, and a
+/// flat output folder would silently make one of them the other. That is not a
+/// hypothetical: copying this very scan's findings to a test folder hit the
+/// collision on the first try.
+///
+/// An existing output is SKIPPED and counted, not overwritten, unless
+/// `--force`. A batch over hundreds of CAD sheets takes minutes per file; the
+/// useful behaviour after an interruption is to resume.
+// One argument per flag, as every other command function in this file.
+#[allow(clippy::too_many_arguments)]
+fn cmd_redact_offpage_batch(
+    paths: &[PathBuf],
+    recursive: bool,
+    output: Option<&Path>,
+    out_dir: Option<&Path>,
+    suffix: &str,
+    force: bool,
+    tolerance: f64,
+    dry_run: bool,
+) -> u8 {
+    let (files, problems) = collect_pdfs(paths, recursive);
+    for p in &problems {
+        eprintln!("pdfcer: {p}");
+    }
+    if files.is_empty() {
+        eprintln!("pdfcer: no PDFs found in {} path(s)", paths.len());
+        return exit::RUNTIME_ERROR;
+    }
+
+    // The single-file shape: one input, one named output. Unchanged behaviour.
+    if let Some(out) = output {
+        if files.len() > 1 {
+            eprintln!(
+                "pdfcer: -o names ONE output but {} input file(s) were found -- use --out-dir for a batch",
+                files.len()
+            );
+            return exit::EDIT_REFUSED;
+        }
+        return cmd_redact_offpage(&files[0], out, tolerance, dry_run);
+    }
+
+    let Some(dir) = out_dir else {
+        eprintln!(
+            "pdfcer: say where the output goes: -o FILE for one input, --out-dir DIR for a batch"
+        );
+        return exit::EDIT_REFUSED;
+    };
+
+    // The root each output's relative path is measured from: the folder the
+    // operator named, so `--out-dir` mirrors what they asked for rather than
+    // the drive root.
+    let roots: Vec<PathBuf> = paths
+        .iter()
+        .filter(|p| p.is_dir())
+        .map(std::path::PathBuf::from)
+        .collect();
+    let relative_of = |f: &Path| -> PathBuf {
+        for r in &roots {
+            if let Ok(rel) = f.strip_prefix(r) {
+                return rel.to_path_buf();
+            }
+        }
+        PathBuf::from(f.file_name().unwrap_or_default())
+    };
+
+    let mut cleaned = 0usize;
+    let mut skipped_clean = 0usize;
+    let mut skipped_exists = 0usize;
+    let mut failed = 0usize;
+
+    for f in &files {
+        let rel = relative_of(f);
+        let stem = rel
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("output")
+            .to_owned();
+        let target = dir
+            .join(rel.parent().unwrap_or(Path::new("")))
+            .join(format!("{stem}{suffix}.pdf"));
+
+        if target.exists() && !force && !dry_run {
+            skipped_exists += 1;
+            println!("skip (exists) {}", target.display());
+            continue;
+        }
+        if !dry_run
+            && let Some(parent) = target.parent()
+            && let Err(err) = std::fs::create_dir_all(parent)
+        {
+            eprintln!("pdfcer: {}: {err}", parent.display());
+            failed += 1;
+            continue;
+        }
+
+        match cmd_redact_offpage(f, &target, tolerance, dry_run) {
+            code if code == exit::SUCCESS => {
+                // `cmd_redact_offpage` writes nothing when a file has no
+                // off-page content, and says so. Count the two apart: "126
+                // files cleaned" and "126 files looked at" are different
+                // claims and the second one is not what was asked for.
+                if dry_run || target.exists() {
+                    cleaned += 1;
+                } else {
+                    skipped_clean += 1;
+                }
+            }
+            _ => failed += 1,
+        }
+    }
+
+    println!(
+        "redact-offpage BATCH files={} cleaned={cleaned} already_clean={skipped_clean} skipped_existing={skipped_exists} failed={failed} dry_run={} tolerance={tolerance}",
+        files.len(),
+        u32::from(dry_run),
+    );
+    if failed > 0 {
+        return exit::RUNTIME_ERROR;
+    }
+    exit::SUCCESS
 }
 
 /// Implement `pdfcer redact-offpage` (`Pass 294.0`).
