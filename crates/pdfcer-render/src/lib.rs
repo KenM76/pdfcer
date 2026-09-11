@@ -115,7 +115,7 @@ pub use font::{
     FallbackKey, FontData, FontEnvironment, GlyphSource, InkProbe, InkProbeSource, PageBackdrop,
     RenderOptions, RenderPolicy, StrokeDisplay,
 };
-pub use interpret::Diagnostics;
+pub use interpret::{BlendSpaceFrom, Diagnostics};
 pub use layer_state::LayerVisibility;
 pub use shading::{ColorRamp, Geometry, PaintRoute, Shading, ShadingDiagnostics, ShadingFunction};
 // `RenderedPage::pixmap` is a public field of a `tiny_skia` type, so this
@@ -331,6 +331,87 @@ pub const fn will_composite_in_cmyk(
         return false;
     }
     (width_px as u64) * (height_px as u64) <= max_cmyk_composite_pixels(max_bytes)
+}
+
+/// Whether a page will composite **in ink**, and where that answer came from
+/// (`Pass 296.4`).
+///
+/// Returned by [`page_composites_in_ink`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct PageInk {
+    /// `true` when the page group's blending colour space is subtractive —
+    /// `DeviceCMYK`, `Separation`, `DeviceN`, or a four-component `ICCBased`
+    /// resolved through its `/Alternate` (§11.3.4).
+    pub composites_in_ink: bool,
+    /// Which clause supplied the answer. **Disclosure, never behaviour** —
+    /// see [`BlendSpaceFrom`].
+    pub source: BlendSpaceFrom,
+}
+
+/// Ask whether a page composites in ink **before rendering it** (`Pass 296.4`).
+///
+/// # Why this exists
+///
+/// The consuming shell needs the answer to decide what to do, and the only
+/// way to get it was to render the page once and read
+/// [`Diagnostics::cmyk_buffer_engaged`] `||` `cmyk_buffer_refused` afterwards.
+/// That inference is sound — it is the union that means "this page wanted
+/// ink" — and it costs a full render to ask a question the page's own
+/// dictionary answers. `page_blend_space` had the answer and was
+/// `pub(crate)`.
+///
+/// # ★★ It is the SAME computation the renderer runs, not a second one
+///
+/// This calls `interpret::page_blend_space` with the policy out of the
+/// `options` you pass, so the answer is the one a render with those same
+/// options would reach. Asking with different options is asking a different
+/// question, and that is why `options` is a parameter rather than a default:
+/// `page_blend_space_source` is exactly the setting that can change it.
+///
+/// It also honours the annotation scope the same way the renderer does — a
+/// scope that paints no page content has no page group to have a blending
+/// space, and annotations composite in sRGB either way.
+///
+/// # ★ This is the SPACE question, not the BUDGET question
+///
+/// A page can declare `DeviceCMYK` and still be composited in sRGB, because
+/// the colorant buffer costs 20 bytes per pixel and a large page exceeds the
+/// ceiling — at which point the render **says so** (`cmyk_buffer_refused`)
+/// rather than pretending. [`will_composite_in_cmyk`] is that half, and it
+/// needs pixel dimensions this function deliberately does not take.
+///
+/// So: `page_composites_in_ink(..).composites_in_ink &&
+/// will_composite_in_cmyk(w, h, budget)` is "the buffer will actually be
+/// engaged". This function alone is "the page asked for ink", which is the
+/// one that survives a change of zoom.
+pub fn page_composites_in_ink(
+    doc: &DocumentView<'_>,
+    page: &Page,
+    options: &RenderOptions,
+) -> PageInk {
+    if !options.effective_annotation_scope().paints_page_content() {
+        return PageInk {
+            composites_in_ink: false,
+            source: BlendSpaceFrom::DeviceNative,
+        };
+    }
+    // The diagnostics this collects are the colour-resolution ones from
+    // reading the group's `/CS`; they belong to the render that will follow,
+    // not to the question, so they are dropped here rather than half-reported
+    // out of a call that painted nothing.
+    let mut diag = color::ColorDiagnostics::default();
+    let (space, source) = interpret::page_blend_space(
+        doc,
+        page.id,
+        &page.resources,
+        &mut diag,
+        options.policy().page_blend_space_source,
+    );
+    PageInk {
+        composites_in_ink: matches!(space, compositor::BlendSpace::Subtractive),
+        source,
+    }
 }
 
 /// Rasterization errors.

@@ -2112,7 +2112,7 @@ pub(crate) fn page_blend_space(
 /// so. Two files that render differently for this reason would otherwise be
 /// indistinguishable from a bug.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum BlendSpaceFrom {
+pub enum BlendSpaceFrom {
     /// The page group declared `/CS`. Table 147; nothing was inferred.
     PageGroup,
     /// Inherited from the output device, which for pdfcer is sRGB.
