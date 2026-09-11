@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-11 (504th filing) — the scan said "exit 1" and was read as "stops"
+
+**Shipped:** `8129dc1` — `scan-offpage`'s help, and the published
+`v0.52.0` notes, now say that every file and every page is scanned
+always, that an unreadable file is reported and the walk continues, and
+that the exit code is a verdict at the END of the run. The one-shot form
+is spelled out beside it.
+
+**Why:** the operator read *"Exits 1 when something is off-canvas"* as an
+early stop and asked how to make it scan to the end. The code was right,
+a test would have passed, and the defect was entirely in the sentence.
+
+★ **Nothing in this project's gates reads prose for what it will be
+UNDERSTOOD to mean.** Worth remembering the next time a release note
+describes an exit code.
+
 ## 2026-09-11 (503rd filing) — `v0.52.0` released, with the portable build
 
 **Released:** tag at `cb7727e`, CI **green** at the tagged commit. Zip
