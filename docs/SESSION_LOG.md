@@ -4,6 +4,53 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-11 (511th filing) — a diagnostic's excerpt is not its finding, and the tool that would have prevented the other defect already existed
+
+**Shipped:** `f16e266` + `5917ece` — not Passes. `tools/run-gates.sh`, run
+before pushing the day's `Pass 296.x` batch, came back red on three
+self-inflicted defects: `preview_style_resolution` lost its 38-line doc
+comment to a splice caused by `Pass 295.0`'s literal `str.replace` on the
+function signature; two string literals carried a baked-in double-space
+from a lost heredoc line-continuation; the `audits` CI job said
+`(20 checks)` while running 21 (`Pass 295.1` added a check without
+updating the count). `f16e266` fixed all three; `5917ece` fixed a second
+gap in the same literal that `check-string-gaps.sh`'s own ~100-character
+printed excerpt had hidden from the first fix.
+
+**Findings + decisions:**
+- No new architectural decision, no new standing rule minted.
+- `5917ece`'s cause is filed as a further instance of the existing
+  cross-project finding at
+  `C:\personal_rag\claude_code\lesson_20260807_truncated_read_of_wrapped_sentence.md`
+  (`LEGAL.md` §6.5.5) — a diagnostic tool's own truncated printed excerpt
+  is the same trap as a reader's own `head -5`, just moved to the tool's
+  side of the pipe. Flagged for `troubleshooting-librarian` to add the
+  dated instance there; not written directly, matching the 492nd
+  filing's handling of the CRLF `str.replace` hazard.
+- The doc-splice defect recurring after `tools/edit-source.py` shipped
+  (`aeeecb5`) is recorded as a working-method note, not stretched into an
+  `R243` instance — `R243`'s mechanism is a *documented* obligation
+  failing as a control, and here the *machinery* already existed; it
+  simply wasn't reached for on this edit.
+
+**`FEATURES.md`**: unchanged — no operator-visible capability touched.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hashes and
+the three-defect description relayed from the dispatching agent's
+account (`f16e266`/`5917ece` themselves unread here). Independently
+verified by `Grep`/`Read` against the live tree: the 38-line doc block is
+reattached at `crates/pdfcer-core/src/text_edit/format.rs:3651-3666`;
+`.github/workflows/ci.yml:318` reads `name: repository audits (21
+checks)`. Not independently verified: the two string-literal gap fixes
+(no shell to re-run `check-string-gaps.sh`).
+
+**Still in flight:** nothing new opened by this filing.
+
+**For next session:** consider adding "run `tools/run-gates.sh` before
+every push, not only before a release" to `docs/NEXT_SESSION.md` —
+flagged to the engineer; that file is engineer-owned and not edited
+here.
+
 ## 2026-09-11 (510th filing) — `Pass 296.0`'s own argument arrived from the other side
 
 **Shipped:** `Pass 296.5` (`4f6f5a5`) — `RenderError::RasterizerLimit`'s

@@ -116,6 +116,25 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `f16e266` + `5917ece` (2026-09-11) — pre-push gate sweep found three self-inflicted defects; the fix for one needed a second commit
+
+Not Passes — defect fixes found by `tools/run-gates.sh`, run before pushing the day's `Pass 296.x` batch. Filed under their own commit-hash heading, no Pass number assigned, per the existing `a12dca6`+`233a9ef` precedent above.
+
+**`f16e266`** fixed three red gates, all this project's own: (1) `preview_style_resolution`'s (`crates/pdfcer-core/src/text_edit/format.rs`) 38-line doc comment ended up detached — `Pass 295.0`'s literal `str.replace` on the function signature spliced the new `preview_style_ladder` function and *its* doc block between the old function and the doc comment that belonged to it. A doc comment attaches to whatever follows it, and something always follows it; `check-public-fns-documented.py` predicts this exact failure mode in its own output text, which is how it was found in one read. Moved back unedited. (2) Two string literals carried a baked-in run of spaces from a lost line-continuation backslash inside a python heredoc edit — one from `Pass 295.0`, one from the same day. (3) The CI `audits` job was named `(20 checks)` while running 21, because `check-reexport-closure.py` (`Pass 295.1`) was added earlier the same day without updating the count.
+
+**`5917ece`** fixed a second gap in the same literal that (2)'s fix missed: `check-string-gaps.sh` prints only the first ~100 characters of an offending literal, and the second gap sat past that cutoff — invisible in the tool's own printed excerpt, though the gate itself remained correctly red. Found by re-running the gate rather than trusting the text it had quoted.
+
+**Verified independently** (no shell this filing; `Grep`/`Read` against the live tree): the 38-line doc block is reattached to `preview_style_resolution` at `crates/pdfcer-core/src/text_edit/format.rs:3651-3666`; `.github/workflows/ci.yml:318` reads `name: repository audits (21 checks)`. The two string-literal gap fixes are relayed, not independently re-run through `check-string-gaps.sh` from here.
+
+**Findings, neither filed as a new rule:**
+- **A full `tools/run-gates.sh` sweep is the only thing that caught any of these**, and none would ever have failed a test or clippy — a doc block welded to the wrong function looks correct in a diff, because both functions have doc comments either side. Flagged to the engineer for `docs/NEXT_SESSION.md` (engineer-owned, not edited here): run the sweep before every push, not only before a release.
+- **`5917ece`'s cause is a further instance of the already-recorded truncated-read hazard** (`C:\personal_rag\claude_code\lesson_20260807_truncated_read_of_wrapped_sentence.md`, `LEGAL.md` §6.5.5) — a diagnostic tool's own display truncation is the same trap as a reader's own `head -5`, just moved to the tool's side of the pipe; that lesson's rule 5 ("before reporting a finding from truncated output, ask: could the next line have reversed this?") already covers it. Flagged for `troubleshooting-librarian` to add the dated instance there — not written here, matching the 492nd filing's handling of the CRLF `str.replace` hazard.
+- **The doc-splice defect recurring after `tools/edit-source.py` shipped** (`aeeecb5`, `Pass 288.1`) is recorded as a working-method note, not stretched into an `R243` dated instance — `R243`'s mechanism is a *documented* obligation failing as a control; here the *machinery* already existed and simply wasn't reached for this edit.
+
+**`FEATURES.md`**: no row changed — gate/tooling defect fixes, no operator-visible capability touched.
+
+---
+
 ### `Pass 296.5` (`4f6f5a5`, 2026-09-11) — a rasteriser panic's own text does not belong in what a caller sees by default
 
 `RenderError::RasterizerLimit`'s `#[error(...)]` format string (`Pass 296.0`) carried the rasteriser's raw panic text while its own doc comment told consumers not to match on that field — a consuming shell's generic arm routes an error's `Display` onto the page by design (the same argument `Object`'s own `Display`, `Pass 296.2`, was given from the writer's side), so the untouched default path painted `range start index 442613758592 out of range for slice of length 1088737` across an operator's site plan. The consumer had already written a named arm to avoid it and reported it as a **workaround, not a request** — decision 058 makes a workaround a finding about pdfcer's own boundary, not a favour done for it, so this is filed as a defect fixed here. `Display` now reads only `"the rasterizer cannot work at scale {scale}"`; `panic_message` is unchanged, still present, still documented as non-contractual, still reachable by a caller that names the field.
