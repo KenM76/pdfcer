@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-11 (506th filing) — `v0.53.0` released
+
+**Released:** tag at `8a65e3f`, CI green at the tagged commit. Zip
+`pdfcer-v0.53.0-windows-x64.zip`, **19,140,999 bytes**, SHA-256
+`bc2bff7aacf09e32d6d39d83a6d1454e5fcc62df0930d73d11bde5eda7e44fea`, on
+the release page with its checksum. Portable folder
+`builds/pdfcer-20260911-0859-8a65e3f` on D:. OneDrive slot **`pdfcer2`**;
+`pdfcer1` keeps `0.52.0`. `verify-release.py` nine of nine.
+
+**Contents:** `Pass 294.2` — the `TJ`-number corruption, both performance
+fixes, and the paint-nothing scan rule.
+
+★ The release notes say plainly that the corruption **affects ordinary
+redaction, not only the off-page command**: any document whose text uses
+`TJ` arrays could be damaged when the redacted text was numeric. A note
+that buried that under the new feature would be a note written for the
+feature rather than for the operator.
+
 ## 2026-09-11 (505th filing) — the precaution was corrupting the page it protected
 
 **Shipped:** `Pass 294.2` (`1230c1f`). Running `redact-offpage` over 176
