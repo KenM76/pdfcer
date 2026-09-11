@@ -964,9 +964,76 @@ pub struct StyleLadder {
     /// The axes that ended up synthesised (rung 4) — may be a strict subset
     /// of `requested` when a real face covered the other axis.
     pub synthesised: StyleSynthesis,
+    /// Whether [`Self::bound`] belongs to the run's OWN family
+    /// (`Pass 295.0`).
+    ///
+    /// `Some(true)` for `Helvetica` → `Helvetica-Bold`; `Some(false)` for
+    /// `Helvetica` → `Arial-BoldMT`, a different family that happened to
+    /// claim bold and cover the characters. `None` when no face was bound
+    /// (nothing to compare) — which is not the same as `Some(false)` and must
+    /// not be flattened into it.
+    ///
+    /// # ★★ Why this is a field and not a caller's comparison
+    ///
+    /// **To a draughtsman these are different events.** Taking the same
+    /// family's bold face is invisible; taking another family's changes the
+    /// look of a title block, and that is the one he wants to be told about.
+    ///
+    /// The consuming shell used to know, because it walked the page itself.
+    /// Adopting the ladder deleted that walk — the right trade — and took the
+    /// sentence with it: the better verb carried LESS information than the two
+    /// it replaced. It could not recover the answer either, because deciding
+    /// whether two `/BaseFont` names share a family means re-deriving this
+    /// module's `family_stem` (subset tag, `-`/`,` cut, case folding) in
+    /// another crate, which `R74` forbids precisely so the two cannot drift.
+    ///
+    /// So the engine answers it. One comparison, in the place that already
+    /// owns the rule.
+    pub same_family: Option<bool>,
     /// Real faces that CLAIMED the style but could not show the run's
     /// characters, in the order tried — the reason rung 1 did not bind.
-    pub passed_over: Vec<String>,
+    ///
+    /// ★ Typed since `Pass 295.0`. It used to be `Vec<String>` holding
+    /// `"<BaseFont> (<reason>)"`, and the consuming shell reported what that
+    /// cost: to say *"pdfcer tried `Times-Bold` and it has no `o`"* in its own
+    /// voice it would have had to split on `" ("` and strip a `")"` — a
+    /// locator for this crate's message format, living in a GUI, breaking
+    /// silently the first time a reason sentence gained a parenthesis.
+    ///
+    /// ★★ **It did not cost a workaround; it cost a feature.** A shell
+    /// disciplined about not re-deriving engine facts keeps quiet rather than
+    /// guess, so the sentence naming the passed-over face was never written
+    /// at all — the operator was told which rung bound, never which faces
+    /// were tried and rejected, which is the half he asks about.
+    pub passed_over: Vec<PassedOver>,
+}
+
+/// One real face that claimed the requested style and was rejected anyway
+/// (`Pass 295.0`).
+///
+/// The pieces are kept apart so a caller can phrase them: `base_font` is a
+/// name to show, `reason` is a sentence to quote, and `refusal` is the
+/// structured form when what stopped the face was a coverage refusal — which
+/// is the common case and the interesting one, because it carries the exact
+/// character that had no glyph.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct PassedOver {
+    /// The `/BaseFont` that claimed the style.
+    pub base_font: String,
+    /// Why it could not show the run, as an operator-facing sentence.
+    ///
+    /// Ready to quote, and deliberately the SAME words the refusal carries —
+    /// two phrasings of one fact is how a shell and an engine end up
+    /// disagreeing in front of an operator.
+    pub reason: String,
+    /// The coverage refusal, when that is what stopped this face.
+    ///
+    /// `None` when the face was rejected for another reason (it could not be
+    /// planned at all, say). A caller that wants the offending CHARACTER
+    /// rather than a sentence reads
+    /// [`Refusal::character`](crate::text_edit::Refusal::character) here.
+    pub refusal: Option<crate::text_edit::Refusal>,
 }
 
 /// Per-format options.
@@ -1223,15 +1290,36 @@ pub enum FormatError {
     /// authority. Nothing was applied. `--bold-synthetic` /
     /// `--italic-synthetic` is the explicit override.
     #[error(
-        "no real {style} face binds for '{run_font}' (rung 1: page faces{passed}; rung 2: no standard-14 sibling), and style_policy=refuse forbids an automatic synthetic fallback; pass --{flag}-synthetic to apply the stroke explicitly, or --set-font a face"
+        "no real {style} face binds for '{run_font}' ({rung_one}; rung 2: no standard-14 \
+         sibling), and style_policy=refuse forbids an automatic synthetic fallback; pass \
+         --{flag}-synthetic to apply the stroke explicitly, or --set-font a face"
     )]
     SynthesisRefusedByPosture {
         /// `bold` / `italic` / `bold italic`.
         style: &'static str,
         /// The run's face.
         run_font: String,
-        /// `": <face> could not show these characters"` or `""`.
-        passed: String,
+        /// The complete rung-1 clause — *"rung 1: no page face claims it"*, or
+        /// *"rung 1: page faces X, Y could not show the run"*.
+        ///
+        /// # ★ Why a whole clause and not the face list (`Pass 295.0`)
+        ///
+        /// This field used to be `passed`, a fragment interpolated directly
+        /// after the words `page faces`, and it was wrong twice over. With a
+        /// face it ran the words together — **`page facesHelvetica-Bold`**,
+        /// reported by the consuming shell; with none it produced
+        /// `page faces;`, which is not a sentence either.
+        ///
+        /// ★★ The missing space was the smaller half. `page faces X` reads as
+        /// *"X was used"*, and what it means is *"X was TRIED AND REJECTED"* —
+        /// the opposite. A message about a refusal that implies success is
+        /// worse than a message with a typo, and no amount of spacing fixes
+        /// it: the sentence had to change, so the field carries a sentence.
+        ///
+        /// `thiserror`'s format string cannot branch, so the branch lives
+        /// where the facts are — at the construction site, which knows
+        /// whether any face was tried.
+        rung_one: String,
         /// `bold` or `italic` — the flag to retry with.
         flag: &'static str,
     },
@@ -2065,20 +2153,35 @@ pub(crate) fn plan_format_target(
     // second ruling keeps that stance reachable). The EXPLICIT override is
     // not gated here — it is gated below, against a real face, as before.
     if !ladder_synthesis.is_none() && opts.style_policy == StylePolicy::Refuse {
-        let passed = ladder.as_ref().map_or(String::new(), |l| {
-            if l.passed_over.is_empty() {
-                String::new()
-            } else {
-                format!(
-                    ": {} could not show these characters",
-                    l.passed_over.join(", ")
-                )
-            }
-        });
+        // The rung-1 clause, whole (`Pass 295.0`). Built here because this is
+        // the only place that knows whether any page face was tried, and
+        // `thiserror`'s format string cannot ask.
+        //
+        // ★ "could not show the run" rather than "could not show these
+        // characters": the ladder rejects a face for not covering the run's
+        // text, and naming the run is what tells the operator which text to
+        // go and look at.
+        let rung_one = ladder.as_ref().map_or_else(
+            || "rung 1: no page face was examined".to_owned(),
+            |l| {
+                if l.passed_over.is_empty() {
+                    "rung 1: no page face claims it".to_owned()
+                } else {
+                    format!(
+                        "rung 1: page faces {} could not show the run",
+                        l.passed_over
+                            .iter()
+                            .map(|p| p.base_font.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                }
+            },
+        );
         return Err(FormatError::SynthesisRefusedByPosture {
             style: axes_label(ladder_synthesis),
             run_font: orig_font.base_font.clone(),
-            passed,
+            rung_one,
             flag: if ladder_synthesis.bold() {
                 "bold"
             } else {
@@ -2684,22 +2787,31 @@ fn plan_style_ladder(
         ));
     }
 
-    let mut passed_over: Vec<String> = Vec::new();
+    let mut passed_over: Vec<PassedOver> = Vec::new();
     // Bind `selector` through the ONE gate; a coverage refusal is a rung
     // miss, not an error.
-    let try_bind =
-        |selector: &str, passed_over: &mut Vec<String>| -> Result<Option<FontPlan>, FormatError> {
-            let mut probe = req.clone();
-            probe.set_font = Some(FontSelector::new(selector));
-            match plan_font(doc, resources, recs, &probe, find) {
-                Ok(plan) => Ok(plan),
-                Err(FormatError::CoverageFailure(r)) => {
-                    passed_over.push(format!("{} ({})", r.base_font, r.message));
-                    Ok(None)
-                }
-                Err(e) => Err(e),
+    let try_bind = |selector: &str,
+                    passed_over: &mut Vec<PassedOver>|
+     -> Result<Option<FontPlan>, FormatError> {
+        let mut probe = req.clone();
+        probe.set_font = Some(FontSelector::new(selector));
+        match plan_font(doc, resources, recs, &probe, find) {
+            Ok(plan) => Ok(plan),
+            Err(FormatError::CoverageFailure(r)) => {
+                // The refusal travels WHOLE (`Pass 295.0`): its message is
+                // the reason, and the structured form goes with it so a
+                // caller can name the character rather than re-read the
+                // sentence.
+                passed_over.push(PassedOver {
+                    base_font: r.base_font.clone(),
+                    reason: r.message.clone(),
+                    refusal: Some(r.clone()),
+                });
+                Ok(None)
             }
-        };
+            Err(e) => Err(e),
+        }
+    };
 
     // Already there? (asking for bold on Times-Bold, or on a run whose face
     // claims the style)
@@ -2712,6 +2824,9 @@ fn plan_style_ladder(
             Some(StyleLadder {
                 requested: style,
                 bound: None,
+                // Nothing was bound, so there is nothing to compare — and
+                // `None` says that rather than claiming a different family.
+                same_family: None,
                 rung: StyleRung::AlreadyStyled,
                 synthesised: StyleSynthesis::None,
                 passed_over,
@@ -2732,12 +2847,29 @@ fn plan_style_ladder(
             && ((style.bold() && c.claims_bold) || (style.italic() && c.claims_italic))
     }) {
         if let Err(e) = &c.accepted {
-            passed_over.push(format!("{} ({e})", c.base_font));
+            // ★ The survey's error is a `FormatError`, and when it IS a
+            // coverage refusal the `Refusal` is right there inside it --
+            // carry it rather than flattening it to its own `Display`.
+            //
+            // This is the case the consuming shell actually meets: a
+            // `Times-Bold` whose `o` is remapped is refused by the SURVEY, not
+            // by the bind attempt, so a `refusal: None` here would have left
+            // the new field empty on exactly the page that motivated it.
+            // Anything else keeps `None` rather than a fabricated refusal.
+            let refusal = match e {
+                FormatError::CoverageFailure(r) => Some(r.clone()),
+                _ => None,
+            };
+            passed_over.push(PassedOver {
+                base_font: c.base_font.clone(),
+                reason: e.to_string(),
+                refusal,
+            });
         }
     }
     let try_page_face = |look: StyleSynthesis,
                          rest: StyleSynthesis,
-                         passed_over: &mut Vec<String>|
+                         passed_over: &mut Vec<PassedOver>|
      -> Result<Option<(FontPlan, StyleSynthesis)>, FormatError> {
         let found = find_styled_face(&candidates, Some(&want), look, exclude)
             .or_else(|| find_styled_face(&candidates, None, look, exclude));
@@ -2752,6 +2884,7 @@ fn plan_style_ladder(
             Some(plan),
             Some(StyleLadder {
                 requested: style,
+                same_family: Some(family_stem(&bound) == family_stem(&orig_font.base_font)),
                 bound: Some(bound),
                 rung: StyleRung::RealFaceOnPage,
                 synthesised: rest,
@@ -2777,6 +2910,11 @@ fn plan_style_ladder(
                 Some(plan),
                 Some(StyleLadder {
                     requested: style,
+                    // Rung 2 binds the standard-14 SIBLING of the run's own
+                    // family by construction, so this is `true` whenever it
+                    // fires -- computed rather than asserted, so a future rung
+                    // that reuses this arm cannot quietly make it a lie.
+                    same_family: Some(family_stem(&bound) == family_stem(&orig_font.base_font)),
                     bound: Some(bound),
                     rung: StyleRung::StandardFourteenSibling,
                     synthesised: StyleSynthesis::None,
@@ -2800,6 +2938,7 @@ fn plan_style_ladder(
                     Some(plan),
                     Some(StyleLadder {
                         requested: style,
+                        same_family: Some(family_stem(&bound) == family_stem(&orig_font.base_font)),
                         bound: Some(bound),
                         rung: StyleRung::RealFaceOnPage,
                         synthesised: rest,
@@ -2816,6 +2955,8 @@ fn plan_style_ladder(
         None,
         Some(StyleLadder {
             requested: style,
+            // Synthesis binds no face, so there is no family to compare.
+            same_family: None,
             bound: None,
             rung: StyleRung::Synthetic,
             synthesised: style,
@@ -2842,9 +2983,18 @@ fn disclosure_style_ladder(l: &StyleLadder) -> String {
     let passed = if l.passed_over.is_empty() {
         String::new()
     } else {
+        // The engine's own sentence still reads the way it always did --
+        // `"<face> (<reason>)"` -- it is just composed HERE now rather than
+        // baked into the data (`Pass 295.0`). A caller that wants to phrase it
+        // differently reads the fields; a caller that wants pdfcer's wording
+        // reads this.
         format!(
             " Passed over (could not show these characters): {}.",
-            l.passed_over.join("; ")
+            l.passed_over
+                .iter()
+                .map(|p| format!("{} ({})", p.base_font, p.reason))
+                .collect::<Vec<_>>()
+                .join("; ")
         )
     };
     match (l.rung, &l.bound) {
@@ -3376,6 +3526,142 @@ fn probe_synthesis(
 /// failure. [`FormatError::RealFaceAvailable`] is **never** returned: that
 /// outcome is the point of the query and comes back as
 /// [`StyleOutcome::RealFaceResolves`].
+/// Ask which RUNG the automatic style ladder would take for one run, and
+/// which face it would bind — without doing it (`Pass 295.0`).
+///
+/// # ★★ Why this exists beside [`preview_style_resolution`]
+///
+/// That function previews the **R90 gate**, and since `Pass 179.0` the gate is
+/// no longer the same question as *"what will pressing Bold do?"*.
+/// `WouldSynthesize` means exactly *"no real face on this page claims that
+/// style and covers this run"* — which is true, and silent about rungs 2–4.
+/// Rung 2 binds the standard-14 sibling of the run's own family: it needs no
+/// font file and is **not on the page**, so the gate cannot see it.
+///
+/// The consuming shell reported the consequence: its tooltip predicted
+/// synthesis and its status line afterwards reported a real `Helvetica-Bold`.
+/// Two instruments the operator can consult, disagreeing by construction. It
+/// narrowed the tooltip to what the gate had actually measured — correct, and
+/// a worse tooltip.
+///
+/// ★ The alternatives it rejected are the reason this is a new entry point
+/// rather than advice. `preview_font_resources` walks every operation on the
+/// page (129,758 objects on the operator's benchmark sheet) — a fine answer
+/// for a dialog and not a hover instrument. Calling `format_text` and
+/// discarding the result is not a preview: it stages an edit. Predicting rung
+/// 2 in the shell means re-deriving `family_stem` and the standard-14 sibling
+/// table, which `R74` forbids precisely so they cannot drift.
+///
+/// # It is the SAME computation, not a second one
+///
+/// This runs `plan_style_ladder` — the function `format_text` runs — and
+/// applies the same `style_policy` refusal afterwards, so a preview and the
+/// commit that follows it are two readings of one answer rather than two
+/// answers that must be kept in agreement by hand. It plans; it stages,
+/// commits and caches nothing.
+///
+/// # Errors
+///
+/// The same anchor failures as [`preview_style_resolution`], plus
+/// [`FormatError::SynthesisRefusedByPosture`] when `opts` forbids synthesis
+/// and the ladder found no real face — **which is the honest preview of a
+/// commit that would refuse**, not a failure of the preview.
+pub(crate) fn preview_style_ladder(
+    doc: &DocumentView<'_>,
+    page: &crate::page_tree::Page,
+    stream: &ContentStream,
+    find: &str,
+    pinned_span: Option<ByteSpan>,
+    want: StyleSynthesis,
+    opts: &FormatOptions,
+) -> Result<StyleLadder, FormatError> {
+    let mut walk = Walk::new(doc, &page.resources);
+    for op in stream.operations() {
+        walk.operation(&op, &stream.buf);
+    }
+    let recs = walk.recs;
+
+    // Located exactly as `preview_style_resolution` locates it, including the
+    // page index spelled 0 for the same reason: `find_anchor` matches within
+    // THESE recs, which are already this page's.
+    let locate = EditRequest {
+        page_index: 0,
+        find: find.to_owned(),
+        replace: String::new(),
+        pinned_span,
+        target: EditTarget::Auto,
+        span_from_pin: false,
+    };
+    let anchor_index = find_anchor(&recs, &locate).map_err(FormatError::from_edit)?;
+    let anchor = match recs.get(anchor_index) {
+        Some(OpRec {
+            rec: Rec::Show(s), ..
+        }) => s,
+        _ => return Err(FormatError::NoMatch(find.to_owned())),
+    };
+
+    let orig_dict =
+        resolve_font_dict(doc, &page.resources, &anchor.font_name).ok_or_else(|| {
+            FormatError::Unsupported(
+            "the run's font resource is unresolvable (outlined/vector art has no font to format)"
+                .to_owned(),
+        )
+        })?;
+    let orig_font = ExtractFont::resolve(doc, orig_dict);
+    let resources = page_resources(page);
+
+    // The `effective_find` obligation every `find_anchor` call site owes
+    // (`route_enumeration.rs` asserts it): an unpinned empty `find` names the
+    // page's first show operator rather than nothing, and a ROUTING answer
+    // about an operator the caller never named is worse than an error.
+    let find = effective_find(anchor, find, pinned_span);
+    if find.is_empty() {
+        return Err(FormatError::from_edit(EditError::Unsupported(
+            "empty find text".to_owned(),
+        )));
+    }
+
+    let req = FormatRequest::new(0, find).style(want);
+    let (_plan, ladder, synthesis) =
+        plan_style_ladder(doc, resources, &recs, &req, find, anchor, &orig_font)?;
+
+    // The posture check `format_text` applies after planning, applied here for
+    // the same reason: a preview that answered "rung 4, synthetic" for a
+    // commit that would REFUSE is a preview of something that never happens.
+    if !synthesis.is_none() && opts.style_policy == StylePolicy::Refuse {
+        let rung_one = ladder.as_ref().map_or_else(
+            || "rung 1: no page face was examined".to_owned(),
+            |l| {
+                if l.passed_over.is_empty() {
+                    "rung 1: no page face claims it".to_owned()
+                } else {
+                    format!(
+                        "rung 1: page faces {} could not show the run",
+                        l.passed_over
+                            .iter()
+                            .map(|p| p.base_font.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                }
+            },
+        );
+        return Err(FormatError::SynthesisRefusedByPosture {
+            style: axes_label(synthesis),
+            run_font: orig_font.base_font.clone(),
+            rung_one,
+            flag: if synthesis.bold() { "bold" } else { "italic" },
+        });
+    }
+
+    ladder.ok_or_else(|| {
+        // `plan_style_ladder` answers `None` only when no style was asked for,
+        // and `want` is the caller's own argument -- so this is a caller
+        // mistake with a name, not an internal state to paper over.
+        FormatError::Unsupported("no style was requested: ask for bold, italic, or both".to_owned())
+    })
+}
+
 pub(crate) fn preview_style_resolution(
     doc: &DocumentView<'_>,
     page: &crate::page_tree::Page,

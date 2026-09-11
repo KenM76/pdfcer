@@ -152,6 +152,46 @@ pub struct Refusal {
 }
 
 impl Refusal {
+    /// Build a refusal from its parts (`Pass 295.0`).
+    ///
+    /// # ★★ Why this is public: a variant no consumer could construct
+    ///
+    /// `Refusal` is `#[non_exhaustive]`, which forbids the struct expression
+    /// from outside this crate **whatever the field visibility** — and every
+    /// other constructor was private. So
+    /// [`FormatError::CoverageFailure`](crate::text_edit::FormatError::CoverageFailure),
+    /// which wraps one, was unreachable from any consumer's test, by
+    /// construction and forever.
+    ///
+    /// That is not an abstract tidiness complaint, and the consuming shell
+    /// spelled out why: its `FormatError` → operator-sentence mapping ends in
+    /// a `_ =>` wildcard over a `#[non_exhaustive]` enum, so a variant that
+    /// stops being distinguished **falls into the generic sentence silently**
+    /// — nothing red, no warning. Its test walks the variants to defend
+    /// exactly that, and `CoverageFailure` was the one arm it could not
+    /// cover. It is also the arm that fires on the operator's real pages: a
+    /// `Times-Bold` whose `o` is remapped, which is the page that produced
+    /// `Pass 144.0`.
+    ///
+    /// ★ Publishing a constructor keeps `#[non_exhaustive]` doing its real
+    /// job — reserving the right to add a fifth field — while removing the
+    /// side effect nobody chose: making a public variant untestable. A type
+    /// a consumer cannot build is a type a consumer cannot defend against.
+    #[must_use]
+    pub fn new(
+        trigger: RInvTrigger,
+        character: Option<char>,
+        base_font: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            trigger,
+            character,
+            base_font: base_font.into(),
+            message: message.into(),
+        }
+    }
+
     /// Build a refusal for one character against one font.
     fn char_refusal(trigger: RInvTrigger, u: char, base_font: &str, why: &str) -> Self {
         Self {

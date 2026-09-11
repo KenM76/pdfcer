@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 224 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 225 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 224 public `EditSession` methods
+## 1. Verb index — all 225 public `EditSession` methods
 
-**Count: 224.** Established by brace-matched extraction of the five
+**Count: 225.** Established by brace-matched extraction of the five
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed.
@@ -1574,6 +1574,7 @@ always errors.
 | Author a text-bearing annotation | `add_text_annotation(&mut self, page_index, spec: &TextAnnotSpec) -> Result<ObjId, EditError>` | 12034 | FreeText / Text+`/Popup` / Stamp. Exactly `add_text_annotation_with(.., &MarkupOptions::default())`. |
 | Author a text-bearing annotation **at an opacity** | `add_text_annotation_with(&mut self, page_index, spec: &TextAnnotSpec, options: &MarkupOptions) -> Result<ObjId, EditError>` | — | `Pass 81.1`. The twin of the above, shipped in the same Pass because Table 164 is the **markup-annotation** entry list and a sticky note is a markup annotation. `/CA` goes on the parent, never on its `/Popup`. |
 | Place one page's artwork on a page | `place_page_artwork(&mut self, source: &DocumentView<'_>, source_page: usize, page_index: usize, rect: Rect) -> Result<PlacedArtwork, EditError>` | — | `Pass 293.0`. The artwork becomes a **form XObject** behind a `/Stamp` annotation's `/AP` `/N` — vector, selectable, and the target page's content stream is **never touched** (R47). One undo entry for the form, the annotation, the imported resource closure and the `/Annots` patch. Reports scaling (§12.5.5 stretches anisotropically — normative), what was left behind on the source page (annotations, **widgets — the dynamic-stamp number**), and how much the file grew. Refuses with `SourcePageOutOfRange` for the SOURCE's index, distinct from `PageOutOfRange`. |
+| Preview which style RUNG a run would take | `preview_style_ladder(&self, page_index, find, pinned_span, want: StyleSynthesis, options: &FormatOptions) -> Result<StyleLadder, FormatError>` | — | `Pass 295.0`. Read-only, cheap enough for a hover: runs the SAME planner `format_text` runs, stages nothing. **Not `preview_style_resolution`**, which previews the R90 gate — that answers *"no real face on this page claims the style"* and is blind to rung 2 (the standard-14 sibling needs no font file and is not on the page), so a tooltip built on it predicted synthesis while the commit bound a real `Helvetica-Bold`. Pass the options the commit will use: under `StylePolicy::Refuse` this returns `SynthesisRefusedByPosture`, which is the honest preview of a commit that would refuse. |
 | Read a placed stamp's label + size | `stamp_label_parameters(&self, annot_id: ObjId) -> Result<Option<StampLabelParameters>, EditError>` | — | `Pass 292.0`. `None` = not a stamp pdfcer can describe (Acrobat's custom stamps are artwork). **Read `size_source` before presenting the number**: `DeclaredInDa` / `RecoveredFromAppearance` / `DaUnreadable` are three different facts. Read-only twin for callers with no session: `annot::stamp_label_parameters_in`. |
 | Author a text-bearing annotation **and hear what was decided** | `add_text_annotation_reporting(&mut self, page_index, spec: &TextAnnotSpec, options: &MarkupOptions) -> Result<TextAnnotOutcome, EditError>` | — | `Pass 291.0`. Identical work, guards and single undo entry; returns `TextAnnotOutcome { annot_id, rect, stamp_label_fit, applied_autosize, unencodable_chars }` instead of only the id. **The only route to a stamp's fit outcome** — `rect` is also the *post-fit* rectangle, which `GrowToText` widens. Added rather than substituted: widening the two verbs above would break every existing call site to serve callers that want the disclosure. See §12 of `03-capabilities.md` for `StampLabelFit`. |
 | Author a `/Redact` mark (non-destructive) | `add_redaction(&mut self, page_index, spec: &RedactSpec) -> Result<ObjId, EditError>` | 10480 | A **mark**. Nothing is removed yet. |

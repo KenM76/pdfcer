@@ -11085,6 +11085,77 @@ impl EditSession {
         preview_style_resolution(&self.view(), page, &stream, find, pinned_span, want)
     }
 
+    /// Ask which RUNG the automatic style ladder would take for one run, and
+    /// which face it would bind — without doing it (`Pass 295.0`).
+    ///
+    /// `&self`, side-effect-free, and cheap enough to call from a hover: it
+    /// walks this page's content once and runs the same planner
+    /// [`Self::format_text`] runs. Nothing is staged, committed or cached.
+    ///
+    /// # ★★ Why this is not [`Self::preview_style_resolution`]
+    ///
+    /// That one previews the **R90 gate**, whose answer
+    /// (`StyleOutcome::WouldSynthesize`) means exactly *"no real face on this
+    /// page claims that style and covers this run"*. Since `Pass 179.0` that
+    /// is no longer the same question as *"what will pressing Bold do?"* —
+    /// **rung 2 binds the standard-14 sibling of the run's own family**, which
+    /// needs no font file and is not on the page, so the gate cannot see it
+    /// and neither could the preview.
+    ///
+    /// The consuming shell reported what that cost: its tooltip predicted
+    /// synthesis while the status line afterwards reported a real
+    /// `Helvetica-Bold`. Two instruments disagreeing by construction, on the
+    /// commonest page in the operator's working set — a CAD title block
+    /// carrying only `Helvetica`.
+    ///
+    /// # `options` is not optional
+    ///
+    /// [`StylePolicy::Refuse`](crate::text_edit::StylePolicy) changes the
+    /// answer: under it, a ladder that reaches synthesis is a **refusal**, and
+    /// this returns that refusal rather than predicting a synthesis that would
+    /// never happen. Pass the same [`FormatOptions`] the commit will use.
+    ///
+    /// # Errors
+    ///
+    /// [`FormatError::Encrypted`], [`FormatError::PageIndex`], the anchor
+    /// failures of [`Self::preview_style_resolution`], and
+    /// [`FormatError::SynthesisRefusedByPosture`] — the honest preview of a
+    /// commit that would refuse.
+    pub fn preview_style_ladder(
+        &self,
+        page_index: usize,
+        find: &str,
+        pinned_span: Option<crate::span::ByteSpan>,
+        want: crate::text_edit::StyleSynthesis,
+        options: &crate::text_edit::FormatOptions,
+    ) -> Result<crate::text_edit::StyleLadder, crate::text_edit::FormatError> {
+        use crate::text_edit::FormatError as FmtError;
+        use crate::text_edit::format::preview_style_ladder;
+
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(FmtError::Encrypted);
+        }
+        let pages = self.pages()?;
+        let page = pages
+            .get(page_index)
+            .ok_or(FmtError::PageIndex(page_index))?;
+        if page.contents.is_empty() {
+            return Err(FmtError::Unsupported(
+                "the page has no /Contents to edit".to_owned(),
+            ));
+        }
+        let stream = self.current_page_content(page).map_err(FmtError::Content)?;
+        preview_style_ladder(
+            &self.view(),
+            page,
+            &stream,
+            find,
+            pinned_span,
+            want,
+            options,
+        )
+    }
+
     /// Ask which of the page's font resources `set_font` would **accept**
     /// for one run, without attempting anything (`Pass 142.1`).
     ///
