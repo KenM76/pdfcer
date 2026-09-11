@@ -4,6 +4,33 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-10 (500th filing) — off-canvas content: found, and cut away
+
+**Shipped:** `Pass 294.0` (`04d0099`) — `pdfcer scan-offpage` (files, folders,
+`--recursive`) and `pdfcer redact-offpage`. Asked for as ASAP work.
+
+Content drawn outside the page box is still in the file: it prints on a
+larger sheet, survives a page-box change, and its text is extractable.
+The scan is a read-only census; the removal authors `/Redact` marks over
+the four bands around the page box and applies them, so a PARTIAL object
+is cut at the page edge by the same code that cuts it at the edge of an
+operator's redaction box. **"Outside the page" is a region like any
+other** — that observation is the whole Pass; no new geometry surgery
+was written.
+
+**Measured on `R:/Products`, 341 files:** 176 affected, 554 pages,
+471,840 fully-off objects, 1,152 partial, 0 unreadable. One sheet had
+15,927 fully-off objects — a second drawing at x = -600. The 176 are
+copied to the operator's test folder.
+
+**Verified end to end** on one: 234 paths dropped, 247 cut, 4,642
+off-page glyphs removed; the output re-scans clean and page 1 renders
+pixel-identical to the input.
+
+**Owed:** no `docs/core-api/` entry yet (the new module is `pdfcer-core`
+public surface); the full workspace suite was not re-run, deliberately,
+at the operator's request for speed.
+
 ## 2026-09-10 (499th filing) — `v0.51.0` released
 
 **Released:** tag at `1ccd31e`, CI **green** at the tagged commit. Zip
