@@ -4,6 +4,30 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-11 (507th filing) — five shell requests, answered in one Pass
+
+**Shipped:** `Pass 295.0` (`7160932`) — `preview_style_ladder` (read-only
+twin of the ladder: the R90 gate cannot see rung 2, so the shell's tooltip
+predicted synthesis while the commit bound a real `Helvetica-Bold`);
+`StyleLadder::same_family`; `passed_over` typed as `Vec<PassedOver>` with
+the `Refusal` carried through the survey path; `Refusal::new`, making
+`FormatError::CoverageFailure` constructible — a public variant that was
+untestable by construction; and `SynthesisRefusedByPosture`'s clause,
+which read *"X was used"* where it meant *"X was tried and rejected"*.
+
+★ **The shell's sentence worth keeping:** *"the missing shape did not
+cost a workaround, it cost a feature."* A consumer disciplined about not
+re-deriving engine facts stays silent rather than parse, so a prose-only
+field reads as *"this information is not available"* even though it was
+computed.
+
+★★ **`R225`, 19th instance, caught by sabotage:** the first
+`same_family` test passed a hard-coded `Some(true)` because its fixture
+only ever bound `Helvetica` → `Helvetica-Bold`. A cross-family fixture
+now exists and the same sabotage is red. It is the requesters' own
+`CoverageFailure` argument pointed the other way — **a case you cannot
+construct is a case you cannot defend.**
+
 ## 2026-09-11 (506th filing) — `v0.53.0` released
 
 **Released:** tag at `8a65e3f`, CI green at the tagged commit. Zip
