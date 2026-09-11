@@ -100,6 +100,131 @@ impl Name {
     }
 }
 
+impl fmt::Display for Name {
+    /// `/PageMode` — **with** the slash, non-graphic bytes `#`-escaped
+    /// (`Pass 296.2`).
+    ///
+    /// # Why the slash is part of the rendering
+    ///
+    /// Because `/` is how a name is spelled everywhere an operator can check
+    /// it: in the file's own bytes, in the standard's tables, and in every
+    /// message this crate already writes. A consumer rendering `PageMode` and
+    /// a consumer rendering `/PageMode` are describing the same value and
+    /// their users cannot tell. The engine has a view — the files it writes
+    /// carry the slash — and the consuming shell was, in its own words,
+    /// guessing it.
+    ///
+    /// # ★ Same bytes as `Debug`, deliberately
+    ///
+    /// `Debug` for [`Name`] already produced exactly this, so `Display`
+    /// delegates rather than defining a second spelling. Two renderings of one
+    /// name is precisely the drift this impl exists to stop, and it would be a
+    /// poor joke to introduce it here.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
+}
+
+impl fmt::Display for Object {
+    /// One unstyled line, sentence-sized: **scalars exact, containers named
+    /// rather than expanded** (`Pass 296.2`).
+    ///
+    /// | variant | renders as |
+    /// |---|---|
+    /// | `Null` | `null` |
+    /// | `Boolean` | `true` / `false` |
+    /// | `Integer` | `12` |
+    /// | `Real` | `1.5` |
+    /// | `String` | `(Hello)`, or `<0102FF>` when it is not printable text |
+    /// | `Name` | `/PageMode` |
+    /// | `Array` | `an array of 3 items` |
+    /// | `Dict` | `a dictionary of 14 entries` |
+    /// | `Stream` | `a stream of 14 entries` |
+    /// | `Reference` | `12 0 R` |
+    ///
+    /// # ★★ Why containers are NAMED and not expanded
+    ///
+    /// The request this answers put it better than a restatement would: the
+    /// pair being shown is `kept` versus `discarded` and the operator's
+    /// question is *"did pdfcer pick the right one?"*. **A graph dumped into a
+    /// status-bar sentence makes the readable case unreadable too** — one
+    /// enormous value destroys the line that the small value beside it was
+    /// going to fit on.
+    ///
+    /// So this is not a serialiser and must not become one. `Debug` remains
+    /// the full graph and has not changed; [`crate::writer`] remains the way
+    /// to produce bytes. This is the operator's sentence, and a caller that
+    /// wants a container's contents should ask for them.
+    ///
+    /// # Why the engine owns this at all
+    ///
+    /// Three things were diverging across consumers, none of which fails a
+    /// test: the slash on a name, whether a container expands, and — the one
+    /// that bites silently — the `#[non_exhaustive]` wildcard. A shell's
+    /// catch-all arm renders *"a value this build does not recognise"*, so
+    /// **adding a variant here would quietly make every shell say that about
+    /// it**. Owning `Display` means the arm is added in the same commit as the
+    /// variant, by the person who knows what it is.
+    ///
+    /// The precedent was already set by [`ObjId`], which is `Display` and
+    /// renders `12 0` — the form found in the bytes. The absence of the same
+    /// on `Object` read as an oversight because it was one.
+    ///
+    /// # Not in scope
+    ///
+    /// Localisation, wrapping, truncation, width awareness. Those belong to
+    /// whoever is drawing the line.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Null => f.write_str("null"),
+            Self::Boolean(b) => write!(f, "{b}"),
+            Self::Integer(i) => write!(f, "{i}"),
+            Self::Real(r) => write!(f, "{r}"),
+            // §7.3.4.2 vs §7.3.4.3: a PDF string is BYTES, and the two source
+            // spellings are a presentation choice the format itself makes on
+            // the same grounds used here -- printable text reads as text,
+            // anything else reads as hex. Rendering arbitrary bytes through
+            // `from_utf8_lossy` would put replacement characters in front of
+            // an operator and call it the value.
+            Self::String(bytes) => {
+                if bytes.iter().all(|&b| b.is_ascii_graphic() || b == b' ') {
+                    write!(f, "({})", String::from_utf8_lossy(bytes))
+                } else {
+                    f.write_str("<")?;
+                    for &b in bytes {
+                        write!(f, "{b:02X}")?;
+                    }
+                    f.write_str(">")
+                }
+            }
+            Self::Name(n) => write!(f, "{n}"),
+            Self::Array(items) => write!(f, "an array of {}", plural(items.len(), "item")),
+            Self::Dict(d) => write!(f, "a dictionary of {}", plural(d.len(), "entry")),
+            // The dictionary's size, not the data's: `data_span` is a span in
+            // a buffer this type does not hold, and a byte count nobody can
+            // check is worse than the count of the thing being compared.
+            Self::Stream(st) => write!(f, "a stream of {}", plural(st.dict.len(), "entry")),
+            Self::Reference(id) => write!(f, "{id} R"),
+        }
+    }
+}
+
+/// `1 entry` / `14 entries` — English pluralisation for the two container
+/// nouns [`Object`]'s `Display` uses.
+///
+/// Spelled out rather than pulled in, because the alternative is a dependency
+/// for two words, and `"1 entries"` in front of an operator is the kind of
+/// detail that makes a tool look careless about everything else.
+fn plural(n: usize, noun: &str) -> String {
+    if n == 1 {
+        format!("1 {noun}")
+    } else if noun == "entry" {
+        format!("{n} entries")
+    } else {
+        format!("{n} {noun}s")
+    }
+}
+
 impl fmt::Debug for Name {
     /// Debug form is `/Name` with non-ASCII bytes hex-escaped —
     /// mirrors how the name would be discussed, not its exact source
