@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 225 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 227 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 225 public `EditSession` methods
+## 1. Verb index — all 227 public `EditSession` methods
 
-**Count: 225.** Established by brace-matched extraction of the five
+**Count: 227.** Established by brace-matched extraction of the five
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed.
@@ -2232,6 +2232,8 @@ rather than pushed onto every consumer as an unconstructable type.
 | …with full options | `mark_redactions_by_search_with(&mut self, query, &TextSearchOptions) -> Result<Vec<ObjId>, EditError>` | 11556 | |
 | …**and hear what the scan could not read** | `search_and_mark_redactions(&mut self, query, &TextSearchOptions) -> Result<RedactionMarking, EditError>` | 16199 | ✅★★ **Use this for any operator-facing redaction.** `created.is_empty()` cannot distinguish “the term is absent” from “this document's text was never recoverable as Unicode” — and on a redaction path those demand opposite reactions. Read `diagnostics.ladder_failures`, `.type3_fonts_without_to_unicode`, `.identity_fonts_without_to_unicode`. `Pass 127.1`. |
 | …with an explicit mark appearance | `search_and_mark_redactions_styled(&mut self, query, &TextSearchOptions, &RedactAppearance)` | 16217 | Same, plus the fill / overlay text / quadding the operator chose. |
+| …**and hear what the scan could not read** (pattern) | `search_and_mark_redactions_by_pattern(&mut self, pattern, case_insensitive) -> Result<RedactionMarking, EditError>` | 3200 | ✅★★ **Use this for any operator-facing PATTERN redaction.** The pattern route is the MORE exposed of the two, not the less: what an operator reaches for wildcards for is the structured confidential material — account numbers, part numbers, phone numbers, revision stamps. `Pass 296.3`. |
+| …with an explicit mark appearance | `search_and_mark_redactions_by_pattern_styled(&mut self, pattern, case_insensitive, &RedactAppearance) -> Result<RedactionMarking, EditError>` | 900 | The verb the other three pattern entry points delegate to. `Pass 296.3`. |
 | Mark by simple pattern | `mark_redactions_by_pattern(&mut self, pattern, case_insensitive) -> Result<Vec<ObjId>, EditError>` | 11584 | `#` = ASCII digit, `?` = any char, everything else literal. `###-##-####` ⇒ SSN-shaped runs. |
 
 | Mark by search, choosing the mark's appearance | `mark_redactions_by_search_styled(&mut self, query: &str, options: &TextSearchOptions, appearance: &annot_author::RedactAppearance) -> Result<Vec<ObjId>, EditError>` | 13201 | Ids of the marks created. |

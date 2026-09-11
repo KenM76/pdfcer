@@ -32841,6 +32841,78 @@ impl EditSession {
         if pattern.is_empty() {
             return Ok(Vec::new());
         }
+        self.search_and_mark_redactions_by_pattern_styled(pattern, case_insensitive, appearance)
+            .map(|m| m.created)
+    }
+
+    /// [`EditSession::mark_redactions_by_pattern`] **plus what the extractor
+    /// could not read** — the annotations created and the extraction
+    /// diagnostics together, in one [`RedactionMarking`] (`Pass 296.3`).
+    ///
+    /// # ★★ USE THIS ONE FOR ANY OPERATOR-FACING PATTERN REDACTION
+    ///
+    /// The whole of
+    /// [`EditSession::search_and_mark_redactions`]'s argument applies here and
+    /// is not restated. What is worth adding is why the pattern route is
+    /// **more** exposed than the literal one rather than less, which is the
+    /// consuming shell's observation and it is right: what an operator reaches
+    /// for wildcards *for* is the structured confidential material — account
+    /// numbers, part numbers, phone numbers, revision stamps. That is the
+    /// population you least want to miss.
+    ///
+    /// # ★ How this was missing, because the shape recurs
+    ///
+    /// The diagnostics were computed inside the call the whole time.
+    /// `mark_redactions_by_pattern_styled` ended `.map(|m| m.created)`, and
+    /// the literal route had grown its `search_and_mark_*` pair while the
+    /// pattern route kept the older signature. Nothing was wrong with either
+    /// verb in isolation; the defect was that one of two symmetric routes
+    /// gained a safety disclosure and the other did not — `R245`'s shape, and
+    /// the second time it has been found on this pair.
+    ///
+    /// ★★ The consequence a shell reported, which is worse than silence: its
+    /// "unreadable fonts" count is a `usize`, so an absent diagnostic became
+    /// **zero**, and zero means *none* rather than *unknown*. A pattern
+    /// redaction over a document full of Identity-encoded fonts with no
+    /// `/ToUnicode` produced exactly the screen a clean document produces —
+    /// and, because the count is stored on the document, running a pattern
+    /// pass after a literal one **erased a true warning that was already on
+    /// screen.** The operator watched the disclosure disappear.
+    ///
+    /// # Errors
+    ///
+    /// As [`EditSession::mark_redactions_by_search`].
+    pub fn search_and_mark_redactions_by_pattern(
+        &mut self,
+        pattern: &str,
+        case_insensitive: bool,
+    ) -> Result<RedactionMarking, EditError> {
+        self.search_and_mark_redactions_by_pattern_styled(
+            pattern,
+            case_insensitive,
+            &crate::annot_author::RedactAppearance::default(),
+        )
+    }
+
+    /// [`EditSession::search_and_mark_redactions_by_pattern`] with an explicit
+    /// mark appearance.
+    ///
+    /// This is the verb the other three pattern entry points delegate to, so
+    /// the diagnostics are computed once and discarded only by callers that
+    /// asked for the `Vec<ObjId>` shape.
+    ///
+    /// # Errors
+    ///
+    /// As [`EditSession::mark_redactions_by_search`].
+    pub fn search_and_mark_redactions_by_pattern_styled(
+        &mut self,
+        pattern: &str,
+        case_insensitive: bool,
+        appearance: &crate::annot_author::RedactAppearance,
+    ) -> Result<RedactionMarking, EditError> {
+        if pattern.is_empty() {
+            return Ok(RedactionMarking::default());
+        }
         let p = pattern.to_string();
         // `None`: no whole-word option is exposed on the pattern verb.
         // Not an oversight — nothing calls for it yet, and R151 says an
@@ -32853,7 +32925,6 @@ impl EditSession {
             None,
             appearance,
         )
-        .map(|m| m.created)
     }
 
     /// Shared engine for search/pattern redaction: extract the document's

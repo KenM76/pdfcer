@@ -24324,8 +24324,22 @@ fn cmd_redact_mark(args: &RedactMarkArgs<'_>) -> u8 {
             Err(err) => return report_edit_error(args.input, &err),
         }
     } else if let Some(pattern) = args.pattern {
-        match session.mark_redactions_by_pattern_styled(pattern, args.ignore_case, &appearance) {
-            Ok(ids) => ids.len(),
+        // ★ The same disclosure as `--search`, which this branch did NOT make
+        // until `Pass 296.3`. The diagnostics were computed on this path all
+        // along and thrown away one `.map` short of the caller, so `pdfcer`
+        // itself was silent about unreadable text on a pattern redaction --
+        // rule 4's failure mode in pdfcer's own shell, on the route an
+        // operator reaches for wildcards to clean structured confidential
+        // material.
+        match session.search_and_mark_redactions_by_pattern_styled(
+            pattern,
+            args.ignore_case,
+            &appearance,
+        ) {
+            Ok(marked) => {
+                report_unsearchable_redaction(args.input, &marked.diagnostics);
+                marked.created.len()
+            }
             Err(err) => return report_edit_error(args.input, &err),
         }
     } else {

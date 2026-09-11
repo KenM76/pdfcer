@@ -372,6 +372,58 @@ fn a_search_driven_redaction_warns_about_unreadable_text() {
     let _ = std::fs::remove_file(&out_pdf);
 }
 
+/// `Pass 296.3` — `redact-mark --pattern` warns too, and until this Pass it
+/// did not.
+///
+/// # ★★ pdfcer's own shell was the one being silent
+///
+/// The request that produced this Pass was about a missing verb on the crate
+/// boundary. Wiring it exposed that `--pattern` here had the identical blind
+/// spot: the diagnostics were computed on this path all along and the branch
+/// simply never printed them, while the `--search` branch three lines above
+/// did. Rule 4's failure mode — an inference the operator cannot see by
+/// definition, undisclosed — in pdfcer's own command-line shell, on the route
+/// an operator reaches for wildcards to clean structured confidential
+/// material.
+///
+/// ★ Nothing could have caught it. Both branches compile, both exit 0, both
+/// author the right marks. The only difference is a sentence one of them does
+/// not say.
+#[test]
+fn a_pattern_driven_redaction_warns_about_unreadable_text() {
+    let f = type3_fixture("tounicode_gate.pdf");
+    let out_pdf = std::env::temp_dir().join("pdfcer-redact-pattern-disclosure-test.pdf");
+    let out = run(&[
+        "redact-mark",
+        &f.display().to_string(),
+        // `?` matches any single character: the same readable `HI!` run,
+        // reached through the pattern matcher.
+        "--pattern",
+        "HI?",
+        "--output",
+        &out_pdf.display().to_string(),
+    ]);
+    assert_eq!(code(&out), 0);
+
+    let s = stdout(&out);
+    assert!(
+        s.contains("marks_created=2"),
+        "the readable run is still marked: {s}"
+    );
+
+    let e = stderr(&out);
+    assert!(
+        e.contains("could not be mapped to Unicode"),
+        "the unreadable codes must be named on a SUCCESSFUL pattern run: {e}"
+    );
+    assert!(
+        e.contains("DO NOT treat this document as cleared"),
+        "and the conclusion the operator must not draw, said outright: {e}"
+    );
+
+    let _ = std::fs::remove_file(&out_pdf);
+}
+
 /// A fully readable document gets no redaction warning.
 ///
 /// The control. A warning printed on every run is a warning nobody reads, and

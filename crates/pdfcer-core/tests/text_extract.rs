@@ -1170,6 +1170,60 @@ fn a_search_reports_the_text_it_could_not_read() {
 /// more dangerous one, not the safer one — "2 marks authored" reads as
 /// success, and nothing in the count hints that a third occurrence sat in a
 /// font the scan could not read.
+/// `Pass 296.3` — the PATTERN route reports it too, and it is the route that
+/// needed it more.
+///
+/// # ★★ Why this is its own test and not an extra assertion above
+///
+/// Because the defect being closed was **exactly** the shared assumption that
+/// two symmetric routes behave alike. `search_and_mark_redactions` grew this
+/// disclosure in `Pass 127.1`; `mark_redactions_by_pattern_styled` ended
+/// `.map(|m| m.created)` and threw the identical diagnostics away, computed,
+/// one line short of the caller. A test that checked the literal route and
+/// assumed the pattern route followed is how it stayed that way for a fortnight.
+///
+/// ★ And the pattern route is the MORE exposed of the two, which is
+/// counter-intuitive enough to write down: what an operator reaches for
+/// wildcards for is the structured confidential material — account numbers,
+/// part numbers, phone numbers, revision stamps.
+#[test]
+fn a_pattern_driven_redaction_reports_the_text_it_could_not_read() {
+    use pdfcer_core::edit::EditSession;
+
+    let doc = Document::load(&type3_fixture("tounicode_gate.pdf")).expect("fixture loads");
+    let mut session = EditSession::new(doc);
+
+    // `?` matches any single character, so this is the readable `HI!` run
+    // reached through the pattern matcher rather than the literal one.
+    let marked = session
+        .search_and_mark_redactions_by_pattern("HI?", false)
+        .expect("marking runs");
+
+    assert!(
+        !marked.created.is_empty(),
+        "the readable run must still be marked -- the disclosure is additional, not a refusal"
+    );
+    assert_eq!(
+        marked.diagnostics.type3_fonts_without_to_unicode, 2,
+        "the pattern route must report the same two unreadable fonts the literal route          reports; a shell reading zero here shows the operator the screen a CLEAN          document produces"
+    );
+    assert!(marked.diagnostics.ladder_failures > 0);
+
+    // ★ The `Vec<ObjId>` sibling must still return exactly the same ids. It is
+    // now a delegation, and the point of the delegation is that the two cannot
+    // disagree about what was marked -- only about how much they tell you.
+    let doc2 = Document::load(&type3_fixture("tounicode_gate.pdf")).expect("fixture loads");
+    let mut session2 = EditSession::new(doc2);
+    let ids = session2
+        .mark_redactions_by_pattern("HI?", false)
+        .expect("marking runs");
+    assert_eq!(
+        ids.len(),
+        marked.created.len(),
+        "the reporting verb and the plain verb must not be able to disagree about what          was marked"
+    );
+}
+
 #[test]
 fn a_search_driven_redaction_reports_the_text_it_could_not_read() {
     use pdfcer_core::edit::{EditSession, TextSearchOptions};
