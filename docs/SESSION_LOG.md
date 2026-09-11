@@ -4,6 +4,30 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-11 (505th filing) — the precaution was corrupting the page it protected
+
+**Shipped:** `Pass 294.2` (`1230c1f`). Running `redact-offpage` over 176
+real drawings produced one file with **three pages neither pdfcer nor its
+renderer could read**, from clean input. Cause: the residual sweep filled
+matched bytes across a whole `TJ` operand, and `TJ` is an array of
+strings **and numbers** (§9.4.3) — a redacted DIMENSION is digits, so a
+kerning number became `-53XXXX00221014025`.
+
+★ The glyph surgery was correct throughout. The belt-and-braces pass was
+the one destroying content, which is why the new test reads the page
+BACK rather than trusting the report's counters — every one of them said
+success.
+
+Also: the off-page bands now carry the scan's tolerance (they cut what
+the scan called clean, and made every full-bleed image decode); the
+residual sweep no longer decodes image samples; the scan ignores objects
+that paint nothing. **>10 min → 0.74 s** on the file that exposed it,
+**3 → 0** unreadable pages across 174 outputs.
+
+**Owed:** 17 of 174 outputs still carry 23 off-page objects — fully-off
+images straddling two bands, where `wholly_covered` is per-region and
+the union is what matters. Disclosed by the scan, not silent.
+
 ## 2026-09-11 (504th filing) — the scan said "exit 1" and was read as "stops"
 
 **Shipped:** `8129dc1` — `scan-offpage`'s help, and the published
