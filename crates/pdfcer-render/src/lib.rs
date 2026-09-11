@@ -172,6 +172,58 @@ pub use pdfcer_core::{PdfError, PdfVersion};
 /// format, and it should be re-read whenever the use changes.
 pub const MAX_PIXMAP_EDGE: u32 = 16 * 1024;
 
+/// The deepest magnification a region render is **guaranteed** to survive
+/// (`Pass 296.0`).
+///
+/// # This is a FLOOR, not a ceiling — the distinction is the whole point
+///
+/// `pdfcer-render` does **not** refuse above this number. A render at
+/// 2,000,000× very often succeeds and returns correct pixels; several page
+/// geometries were measured doing exactly that. What this constant says is
+/// narrower and more useful: **below it, no rasteriser failure was observed on
+/// any geometry tested**, so a caller that wants a deterministic hand-off
+/// point — switch strategy, stop zooming, warn — has a number to use that was
+/// not made up.
+///
+/// Above it, the outcome is still defined: [`RenderError::RasterizerLimit`],
+/// a refusal, never a panic. So a caller may equally ignore this constant and
+/// treat the error as the signal. Both are supported; this exists because the
+/// consuming shell asked to know the boundary *before* calling rather than
+/// discover it by crashing into it.
+///
+/// # ★★ Why it is not the real boundary, and why it must not be presented as one
+///
+/// The real boundary was measured — `examples/region_panic_ceiling.rs`
+/// bisects the first panicking scale for six page geometries — and it does not
+/// behave like a property anybody can publish:
+///
+/// ```text
+/// E-size (3370 x 2384 pt)        284,964
+/// A3 landscape (1190 x 842 pt) 2,147,482
+/// A4 portrait  (595 x 842 pt)  2,147,482
+/// A1 landscape (2384 x 1684)   8,053,069
+/// A6 portrait  (298 x 420 pt)  8,053,069
+/// business card (144 x 252 pt) 8,053,069
+/// ```
+///
+/// Three distinct values, and they order with **nothing**: not page width,
+/// not area, not `page_edge × scale`. The largest sheet is the most fragile;
+/// an A1 sheet and a business card share a boundary that A4 does not reach.
+/// The limit is a property of `tiny_skia`'s fixed-point scan conversion
+/// interacting with the particular geometry being painted, and it is
+/// therefore **content-dependent** as well.
+///
+/// ★ A constant fitted to that table would be a guess wearing a
+/// measurement's clothes. This one is deliberately set **below the lowest
+/// value observed**, with margin, and claims only what that supports.
+///
+/// # Why a caller is unlikely to meet it
+///
+/// 250,000× is 25,000,000 %. The shell's own zoom-gallery check tops out at
+/// 3,099,514 % (≈ 31,000×), an order of magnitude below this, and at that
+/// magnification one page point already spans a screen.
+pub const MAX_GUARANTEED_REGION_SCALE: f32 = 250_000.0;
+
 /// Bytes of storage each pixel of the **subtractive compositing buffer**
 /// costs: four colorant planes plus alpha.
 ///
@@ -347,6 +399,57 @@ pub enum RenderError {
         /// The scale the list was recorded at.
         recorded_scale: f32,
     },
+    /// The rasteriser's own arithmetic gave out at this magnification, and
+    /// the render was **stopped and refused** rather than allowed to panic
+    /// (`Pass 296.0`).
+    ///
+    /// # What this actually means
+    ///
+    /// The pixmap was fine — its size is checked before anything is
+    /// allocated, and a region render asks for a viewport-sized buffer
+    /// however deep the zoom goes. What gave out is `tiny_skia`'s
+    /// fixed-point scan conversion, which turns device coordinates into a
+    /// 26.6 integer and cannot represent the ones a page's own geometry
+    /// reaches at extreme magnification. The symptom, reported from the
+    /// consuming shell on 2026-09-11, was a blit aimed at a scanline far
+    /// outside a perfectly ordinary buffer:
+    ///
+    /// ```text
+    /// range start index 442613758592 out of range for slice of length 1088737
+    /// ```
+    ///
+    /// # ★★ Why this is an ERROR and not a guard
+    ///
+    /// Because the boundary was **measured and found not to be a function of
+    /// anything publishable.** `examples/region_panic_ceiling.rs` bisects it
+    /// across six page geometries; the first panicking scale takes three
+    /// distinct values that do **not** order with page size, page area, or
+    /// device extent — an A1 sheet and a business card share one boundary
+    /// while A3 and A4 share a lower one. A constant fitted to that is an
+    /// invented number wearing a measurement's clothes, which is precisely
+    /// what the request that prompted this asked not to receive.
+    ///
+    /// So the guarantee is the refusal, which cannot be wrong because it is
+    /// the rasteriser's own failure caught and named, and the published
+    /// number ([`MAX_GUARANTEED_REGION_SCALE`]) is a **floor** a caller can
+    /// hand over at rather than a ceiling pdfcer enforces.
+    ///
+    /// # For the caller
+    ///
+    /// Treat it exactly as a refusal: keep the previous raster on screen and
+    /// disclose it off-canvas. Nothing is wrong with the document, and
+    /// retrying the same call will fail the same way — change the scale.
+    /// `panic_message` is carried for a log, never for a parser.
+    #[error("the rasterizer cannot work at scale {scale}: {panic_message}")]
+    RasterizerLimit {
+        /// The scale that was asked for.
+        scale: f32,
+        /// What the rasteriser said on its way down.
+        ///
+        /// Verbatim, for a trace line. **Not a contract**: it is a third
+        /// party's panic text and it will change when that crate changes.
+        panic_message: String,
+    },
 }
 
 /// A rendered page: pixels plus the honesty report.
@@ -501,7 +604,14 @@ pub fn render_page_with_view(
 /// # Errors
 ///
 /// [`RenderError::BadRasterSize`] if the region is empty or its raster exceeds
-/// [`MAX_PIXMAP_EDGE`]; otherwise as [`render_page`].
+/// [`MAX_PIXMAP_EDGE`].
+///
+/// [`RenderError::RasterizerLimit`] if the magnification defeats `tiny_skia`'s
+/// fixed-point scan conversion — a **refusal, not a panic**, since
+/// `Pass 296.0`. See [`MAX_GUARANTEED_REGION_SCALE`] for the scale below which
+/// this cannot happen, and why that number is a floor rather than the boundary.
+///
+/// Otherwise as [`render_page`].
 pub fn render_page_region(
     doc: &DocumentView<'_>,
     page: &Page,
@@ -521,6 +631,66 @@ pub fn render_page_region(
 /// translation on the base CTM — everything downstream is handed a CTM and a
 /// pixmap and neither knows nor cares which it got.
 fn render_impl(
+    doc: &DocumentView<'_>,
+    page: &Page,
+    scale: f32,
+    region: Option<pdfcer_core::page_tree::Rect>,
+    options: &RenderOptions,
+) -> Result<RenderedPage, RenderError> {
+    // ★★ The rasteriser's arithmetic is caught here, and this is the ONLY
+    // `catch_unwind` in the crate.
+    //
+    // A panic in a worker thread does not kill the process: the window stays
+    // up, the event loop keeps running, and every trace line a liveness check
+    // greps for has already been written. That failure shape -- a dead worker
+    // behind a live window -- is invisible from outside, which is how this
+    // survived until a shell grew a thread-panic guard and reported it.
+    //
+    // `AssertUnwindSafe` is honest rather than convenient: everything this
+    // closure builds (the pixmap, the interpreter state) is created inside it
+    // and dropped on the way out, so there is no half-mutated value for a
+    // caller to observe. `doc` and `options` are shared references the
+    // closure only reads.
+    //
+    // ★ The default panic hook is NOT silenced. The panic still prints and
+    // still carries its backtrace under `RUST_BACKTRACE`; this converts the
+    // OUTCOME into a refusal without deleting the diagnosis. A future reader
+    // tempted to add a hook here should remember that the point is to stop
+    // losing the worker, not to stop hearing about it.
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        render_impl_rasterize(doc, page, scale, region, options)
+    })) {
+        Ok(result) => result,
+        Err(payload) => Err(RenderError::RasterizerLimit {
+            scale,
+            panic_message: panic_text(&payload),
+        }),
+    }
+}
+
+/// The panic payload as a sentence, for a log line.
+///
+/// `catch_unwind` hands back `Box<dyn Any>`, which in practice holds a
+/// `&'static str` or a `String` and in principle holds neither — the third
+/// case is spelled out rather than papered over with an `unwrap`, because a
+/// panic while reporting a panic is the one way this guard could make things
+/// worse than the crash it replaced.
+fn panic_text(payload: &Box<dyn std::any::Any + Send>) -> String {
+    payload.downcast_ref::<&'static str>().map_or_else(
+        || {
+            payload.downcast_ref::<String>().map_or_else(
+                || "the rasterizer panicked with a payload that is not text".to_owned(),
+                Clone::clone,
+            )
+        },
+        |s| (*s).to_owned(),
+    )
+}
+
+/// [`render_impl`] without the panic guard — everything that actually
+/// rasterises. Split out solely so the guard has one thing to wrap; see
+/// [`render_impl`] for why the guard exists.
+fn render_impl_rasterize(
     doc: &DocumentView<'_>,
     page: &Page,
     scale: f32,
