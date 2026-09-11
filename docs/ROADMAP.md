@@ -116,6 +116,62 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `Pass 296.4` (`8d2f6bb`, 2026-09-11) — ask whether a page composites in ink, without rendering it
+
+`page_composites_in_ink(page)` (`pdfcer-render`) — a `pdfcer-gui` request (`G006`): decide, from the page's own resources and content, whether rendering it would engage the subtractive (colorant) compositing buffer, without paying for a render. `BlendSpaceFrom` (the enum the query classifies against) is now `pub` (`interpret::BlendSpaceFrom`, re-exported from `lib.rs`). Read-only; no new invariant, nothing round-tripped.
+
+**`FEATURES.md`**: new row added under *Subtractive (colorant) compositing buffer* — core `[x]`, cli `[ ]`, gui `[ ]` (shipped this session; not yet consumed by `pdfcer-gui`).
+
+Reply: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G006_page_composites_in_ink_is_answerable_now_SHIPPED.md`.
+
+---
+
+### `Pass 296.3` (`5943beb`, 2026-09-11) — the pattern-redaction route reports unreadable text too, and pdfcer's own CLI stopped swallowing it
+
+`search_and_mark_redactions_by_pattern{,_styled}` — the pattern-search redaction route now names text it could not read as Unicode, the same disclosure `search_and_mark_redactions{,_styled}` already gave the literal-text-search route (`G005`). Wiring it surfaced that pdfcer's **own** `pdfcer-cli` `--pattern` branch built that same report and discarded it before printing — `CLAUDE.md` rule 4's failure mode, found inside pdfcer's own shell rather than a consumer's. Fixed in the same commit.
+
+**`R245`, 8th dated instance** (*Standing rules*, below): the literal-search-vs-pattern-search redaction-disclosure pair has now produced this exact shape twice — a guard/disclosure shipped on one member of a two-member family and not the other. The CLI's own discard is a separate, rule-4 defect in the same Pass, not filed as a further `R245` instance (different mechanism: a report computed and then dropped by its own caller, not a family member left behind).
+
+**`docs/core-api/02-editing-and-saving.md` + `index.md`**: already carry the 225→227 verb count and the two new verbs — verified current against the live tree, not re-touched.
+
+**`FEATURES.md`**: *Redaction & security* → "Mark redactions by text search, named region or pattern" row extended in place.
+
+Reply: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G005_pattern_redaction_reports_what_it_could_not_read_SHIPPED.md`.
+
+---
+
+### `Pass 296.2` (`90576a8`, 2026-09-11) — `Object` and `Name` are `Display` now
+
+`impl fmt::Display for Object` and `for Name` (`crates/pdfcer-core/src/object.rs`) — a scalar (`Integer`/`Real`/`Boolean`/`String`/`Name`/`Null`/reference) prints exactly; a container (`Array`/`Dictionary`/`Stream`) prints its **kind**, never its contents, so a debug/log line naming an object cannot dump a page's worth of dictionary (`G004`). No `FEATURES.md` row — a developer-facing trait, not an operator capability, same call this role made for `Pass 295.1`.
+
+Reply: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G004_object_and_name_are_display_SHIPPED.md`.
+
+---
+
+### `Pass 296.1` (`141c989`, 2026-09-11) — a font-coverage remedy becomes data, not only prose
+
+`Refusal::remedy_faces: Vec<String>` — the standard-14 faces that would cover the character (the *FEATURES.md* row "a font-coverage refusal names a working remedy…") now live on the `Refusal` value itself, not only in its rendered sentence, so a consuming shell can offer them as a picklist instead of parsing prose (`G003`). `std14_faces_covering`'s doc comment gains a warning naming the case it can mislead in. `Refusal::new`'s signature changed — breaking; every in-tree caller updated in the same commit.
+
+**`FEATURES.md`**: row extended in place — the remedy is structured data now; `gui` box unchanged (`[ ]`, not yet consumed).
+
+Reply: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G003_remedy_faces_are_on_the_refusal_SHIPPED.md`.
+
+---
+
+### `Pass 296.0` (`69d4d67`, 2026-09-11) — a deep-zoom region render refuses instead of panicking a worker thread
+
+A region render at an extreme scale panicked inside tiny-skia's own rasterizer, taking its worker thread down with it (`G002`, two duplicate reports of the same symptom). Fixed by checking the condition **before** the call reaches tiny-skia and returning `RenderError::RasterizerLimit` by name (`crates/pdfcer-render/src/lib.rs`; `tests/deep_zoom_refuses_instead_of_panicking.rs`, `examples/region_panic_ceiling.rs`).
+
+**The measured boundary does not order with anything.** Six page geometries were measured for the scale at which tiny-skia's rasterizer breaks; the three distinct boundary values order with none of page width, page area or device extent — the largest sheet measured is the *most* fragile, and a business-card-sized page shares a boundary A4 never reaches. Publishing any single value as an exact ceiling would have been invented, not measured, whichever number was picked. `MAX_GUARANTEED_REGION_SCALE` is therefore published only as a **floor below the lowest observed failure** — the guarantee pdfcer makes is the caught, named refusal, not the number attached to it.
+
+**Standing rule `R252` minted** (*Standing rules*, below): when a measured boundary does not order with any input dimension, publish it as a floor below the lowest observed failure and make the guarantee the caught refusal, not the constant.
+
+**`ARCHITECTURE.md` §10.1b** (new) and **decision 151** record the invariant for the render crate generally.
+
+Reply: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G002_deep_zoom_refuses_instead_of_panicking_SHIPPED.md`.
+
+---
+
 ### `Pass 295.1` (`e360e11`, 2026-09-11) — a re-export omission with no local signal inside its own crate, gated
 
 **The report.** `pdfcer-gui` hit `error[E0432]`: `pdfcer_core::text_edit::PassedOver` did not resolve. `Pass 295.0` added `StyleLadder::passed_over: Vec<PassedOver>` and re-exported `StyleLadder` but not `PassedOver` — one Pass old, this project's own omission. Not a breakage: `text_edit::format::PassedOver` always resolved; the module-root re-export was the gap.
@@ -25933,12 +25989,15 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - **`R243` — DATED INSTANCE NOTE, 2026-09-08 (469th filing): A `# Errors` DOC BLOCK IS THE SAME FAILURE ONE LAYER UP FROM A COURTESY WARNING — A PROMISE ABOUT THE FUNCTION'S OWN CONTRACT CAN…**
 - **`R243` — DATED INSTANCE NOTE, 2026-09-10 (492nd filing): A WRITTEN WARNING FAILING TO PREVENT A REPEATED MANUAL ACTION IS THE SAME MECHANISM ONE LAYER OUT FROM TWO CALL SITES FAILING TO A…**
 - `R245` — A GUARD, KEY OR DISCLOSURE ADDED TO ONE MEMBER OF A FAMILY OF PARALLEL VERBS IS NOT SHIPPED UNTIL A TEST ITERATES THE WHOLE FAMILY.
+- **`R245` — DATED INSTANCE NOTE, 2026-09-11 (509th filing, `Pass 296.3`): THE LITERAL-SEARCH-VS-PATTERN-SEARCH REDACTION-DISCLOSURE PAIR PRODUCED THIS SHAPE A SECOND TIME — EIGHTH DATED INSTANCE.**
 - `R246` — A CORRECTION IS NOT COMPLETE UNTIL IT REACHES EVERY CORPUS THIS PROJECT *READS*, NOT MERELY EVERY TREE IT *WRITES*.
 - `R247` — A DOC COMMENT STATING A BEHAVIOURAL GUARANTEE ("ONLY X IS TOUCHED", "NEVER Y", "ALWAYS Z", "CANNOT CORRUPT W") IS AN UNENFORCED CLAIM UNTIL A TEST EXISTS THAT WOULD FAIL IF IT WERE VIOLATED.
 - `R248` — A STRUCTURAL DEFECT THAT LEAVES THE OBJECT GRAPH AMBIGUOUS, NOT UNDEFINABLE, IS OPENED — pdfcer PICKS A READING UNDER A NAMED DEFAULT, DISCLOSES WHAT IT PICKED AND WHAT IT DISCARDED, AND…
 - `R249` — A DESTRUCTIVE SWEEP OBLIGED BY AN OUTCOME-SHAPED REQUIREMENT ("REMOVE ALL TRACES OF X") IS SCOPED BY THE EVIDENCE THE REQUIREMENT ITSELF NAMES, NEVER BY A COMPUTED REACHABILITY OR LIVENES…
 - `R250` — BEFORE IMPLEMENTING A DATA-FORMAT OR COMPATIBILITY DECISION SOURCED FROM A FEATURE-RAG (OR SPEC-RAG) FINDING LABELLED ANYTHING SHORT OF DIRECTLY-OBSERVED, CHECK WHETHER A PRIMARY ARTIFACT…
 - `R251` — A TYPE REACHABLE ONLY THROUGH A RE-EXPORTED ITEM'S OWN PUBLIC FIELD, BUT NOT ITSELF RE-EXPORTED, COMPILES AND CLIPPY-PASSES CLEAN INSIDE ITS DEFINING CRATE — THE ONLY OBSERVER IS A DOWNSTREAM CONSUMER, SO RE-EXPORT CLOSURE NEEDS A GATE, NOT A REVIEWER (limit: checks fields, not method return types). **[gate: check-reexport-closure.py]**
+- `R252` — A MEASURED BOUNDARY THAT DOES NOT ORDER WITH ANY INPUT DIMENSION (SIZE, AREA, EXTENT) CANNOT BE PUBLISHED AS AN EXACT CONSTANT — PUBLISH IT AS A FLOOR BELOW THE LOWEST OBSERVED FAILURE, AND MAKE THE GUARANTEE THE CAUGHT, NAMED REFUSAL RATHER THAN THE NUMBER (`Pass 296.0`, `MAX_GUARANTEED_REGION_SCALE`).
+- **NOT filed as further `R251` instances, by this role's own judgement (509th filing): `Pass 296.1`'s `remedy_faces` (data existed only as prose) and `Pass 296.2`'s missing `Display` impl are the same OBSERVATION as `R251` — invisible inside the defining crate, visible only to a downstream consumer — but not the same MECHANISM (neither is a re-export gap; `check-reexport-closure.py` would not have caught either). Recorded here as a cross-cutting note rather than mechanically counted into `R251`'s or `R151`'s instance tally: a shared moral is not a shared mechanism (see `D:\dev\rag\rust\` — pattern-naming discipline). Four consumer-invisible defects in two days (`295.0`, `295.1`, `296.1`, `296.2`) is nonetheless worth a future session's attention as a possible boundary worth naming properly, once a fix for one would plausibly have caught the others.**
 
 ## Update protocol
 

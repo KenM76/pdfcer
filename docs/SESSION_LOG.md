@@ -4,6 +4,76 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-11 (509th filing) — five `pdfcer-gui` requests answered in five Passes; a measurement that refused to become a constant
+
+**Shipped**, all replying to `pdfcer-gui`'s inbound batch (`G002`–`G006`,
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`):
+- `Pass 296.0` (`69d4d67`) — a deep-zoom region render refuses
+  (`RenderError::RasterizerLimit`) instead of panicking a worker thread
+  inside tiny-skia. `MAX_GUARANTEED_REGION_SCALE` published as a **floor**,
+  not an exact ceiling — see finding below.
+- `Pass 296.1` (`141c989`) — `Refusal::remedy_faces: Vec<String>`, the
+  font-coverage remedy as data, not only prose; `std14_faces_covering`
+  gains a warning; `Refusal::new`'s signature changed.
+- `Pass 296.2` (`90576a8`) — `impl Display for Object`/`Name`: scalars
+  exact, containers named, never dumped.
+- `Pass 296.3` (`5943beb`) — `search_and_mark_redactions_by_pattern{,_styled}`
+  reports unreadable text, matching the literal-search route; pdfcer's own
+  `pdfcer-cli --pattern` branch had the identical silence and is fixed too.
+- `Pass 296.4` (`8d2f6bb`) — `page_composites_in_ink`: ask whether a page
+  composites in ink without rendering it; `BlendSpaceFrom` made `pub`.
+
+**Findings + decisions:**
+- **`Pass 296.0`, decision 151, `R252` minted**: measuring the panic
+  boundary across six page geometries found three values that order with
+  NOTHING — not width, area or device extent; the largest sheet is the
+  most fragile. Publishing one as an exact constant would have been an
+  invented number wearing a measurement's clothes. Shipped instead: the
+  constant as a floor below the lowest failure, and the guarantee as the
+  caught, named refusal itself — which cannot be wrong because it *is*
+  the failure, caught. `ARCHITECTURE.md` §10.7 records the invariant.
+- **`R245`, 8th dated instance** (`Pass 296.3`): the literal-search-vs-
+  pattern-search redaction-disclosure pair has now produced this exact
+  shape twice.
+- **Declined to file `Pass 296.1`/`296.2` as further `R251` instances.**
+  The dispatching engineer's own framing called this "R251's shape
+  recurring across all five" (four consumer-invisible defects in two
+  days: `295.0`, `295.1`, `296.1`, `296.2`). Checked against `R251`'s
+  actual mechanism (a re-export gap) and it doesn't match either of
+  these two — neither is a re-export gap, and `check-reexport-closure.py`
+  would not have caught either. Filed as a cross-cutting *observation*
+  in `ROADMAP.md`'s *Standing rules* instead of a mechanical instance
+  count, per this role's own prior "shared mechanism, not shared moral"
+  finding. Worth a proper mint if a fix for one would plausibly have
+  caught the others — not yet true here.
+
+**`FEATURES.md`** updated in this filing: font-coverage remedy row (data
+not prose), redaction pattern-route row (disclosure + CLI fix), region-
+render row (RasterizerLimit + floor), and a new row for
+`page_composites_in_ink` (core `[x]`, cli `[ ]`, gui `[ ]`).
+
+**Housekeeping:** `docs/core-api/02-editing-and-saving.md` + `index.md`
+were already updated (225→227 verbs) ahead of this filing — verified
+current against the live tree, not re-touched. No `docs/core-api/` entry
+was owed by this batch beyond that; the `offpage`-module entry owed since
+`Pass 294.0` is **not** touched by this filing and remains open (see the
+495th-and-earlier filings) — carried forward, not this session's to close.
+
+**Sourcing note (hard rule 8):** this role had no shell this filing.
+Commit hashes and reasoning are relayed from the dispatching engineer's
+own summary (explicitly framed as an index, not the record — the commit
+messages are authoritative and were not read directly here). Five claims
+were independently checked against the live tree by `Grep` instead:
+`RasterizerLimit`/`MAX_GUARANTEED_REGION_SCALE`, `remedy_faces`,
+`impl fmt::Display for Object`/`Name`, `search_and_mark_redactions_by_pattern`,
+and `page_composites_in_ink`/`pub enum BlendSpaceFrom` — all present as
+described. The six-geometry measurement, exact test counts and
+`run-gates.sh` result are relayed, not re-run.
+
+**For next session:** the `R251`-vs-`R151` boundary observation above is
+worth a look once a third or fourth instance shares an actual fix, not
+just a symptom.
+
 ## 2026-09-11 (508th filing) — a re-export gap with no local signal, gated; a missing Shipped row closed
 
 **Shipped:** `Pass 295.1` (`e360e11`) — `pdfcer_core::text_edit::PassedOver` was

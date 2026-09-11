@@ -5263,6 +5263,38 @@ different way (`fixtures/synthetic/xref-recover/page-tree-cycle.pdf`, a
 Full record: §12's 2026-09-10 entry, decision 150; `ROADMAP.md` *Shipped*,
 `Pass 290.0` (494th filing).
 
+### 10.7 A rasterizer's own ceiling is a measured floor, never a derived constant (decision 151 — SHIPPED, `Pass 296.0`)
+
+A region render at extreme zoom panicked inside tiny-skia's own rasterizer —
+a worker-thread crash, not a bounded refusal — and unlike every guard in
+§10.1 it is not adversarial-FILE input; it is the operator's own zoom
+control, the category §10.1a already carves out as uncapped-but-must-
+stay-fallible.
+
+**Measuring the boundary across six page geometries found no ordering
+variable.** The scale at which tiny-skia's rasterizer breaks does not
+correlate with page width, page area or device extent — the largest sheet
+measured failed at the *lowest* scale, and a business-card-sized page shared
+a boundary A4 never reached. A single named constant would therefore have
+been **invented**, not measured, whichever value was chosen — the failure
+mode §10.1a's discipline exists to prevent, one layer further out: there the
+risk was an uncapped bound with a fallible allocation behind it; here it is
+an exact-sounding number with no measurement behind it.
+
+**Mechanism.** `RenderError::RasterizerLimit` is returned once a region
+request crosses `MAX_GUARANTEED_REGION_SCALE`, checked before the call
+reaches tiny-skia (`crates/pdfcer-render/src/lib.rs`). **The constant is
+published as a floor below the lowest observed failure, never as the
+boundary itself** — the guarantee pdfcer makes is the caught, named
+refusal, not the number attached to it.
+
+⇒ **Standing rule `R252` minted**: when a measured boundary does not order
+with any input dimension, publish it as a floor below the lowest observed
+failure and make the guarantee the caught refusal, not the constant.
+
+Full record: §12's 2026-09-11 entry, decision 151; `ROADMAP.md` *Shipped*,
+`Pass 296.0` (509th filing).
+
 ## 11. Undo/redo architecture
 
 Identified as a real design gap 2026-07-23: the UI standing rule
@@ -10315,3 +10347,72 @@ unaffected — read-time resolution only).
 ceiling unchanged at `R250`**, next free `R251` — `R225` gains an 18th
 dated instance under its own existing number, no new rule minted. **Pass
 ceiling `289.0` → `290.1`**, next free family `291.x`.
+
+### 2026-09-11 (509th filing, `69d4d67`) — decision 151: **A REGION RENDER'S RASTERIZER CEILING IS PUBLISHED AS A MEASURED FLOOR, NEVER AS A DERIVED CONSTANT — THE BOUNDARY DOES NOT ORDER WITH ANY PAGE-GEOMETRY DIMENSION, SO `RenderError::RasterizerLimit` IS THE GUARANTEE, NOT `MAX_GUARANTEED_REGION_SCALE`'S VALUE**
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `Read`/`Grep` only. The
+five commit hashes, the six-geometry measurement and the exact per-Pass
+reasoning are relayed from the dispatching engineer's own summary, which
+states plainly that it is an index, not the record — the commit messages
+are authoritative and this role could not read them. **Independently
+verified against the live tree by `Grep`, not taken on the summary's word
+alone**: `RenderError::RasterizerLimit` and `MAX_GUARANTEED_REGION_SCALE`
+exist in `crates/pdfcer-render/src/lib.rs`, with a dedicated regression test
+(`tests/deep_zoom_refuses_instead_of_panicking.rs`) and measurement example
+(`examples/region_panic_ceiling.rs`). **Not independently re-verified**: the
+exact six measured geometries and their three boundary values, the workspace
+test count, and `run-gates.sh`'s result — these are relayed.
+
+**Origin.** Two duplicate inbound reports from `pdfcer-gui` (`G002`) named
+the same symptom: a region render at an extreme scale panicked inside
+tiny-skia's own rasterizer, taking its worker thread down rather than
+returning an error.
+
+**The choice, and why it is a decision rather than a bug fix.** The obvious
+fix — catch the panic, name a maximum scale, done — has a trap this project
+has been burned by before under a different name (`R213`, `Pass 74.x`'s
+region-render precision work): a quantity true of one measured case gets
+published as though it were true of all of them. Measuring the scale at
+which tiny-skia's rasterizer actually breaks, across six page geometries,
+found **three distinct boundary values that order with none of page width,
+page area or device extent** — the largest sheet measured is the *most*
+fragile, and a business-card-sized page shares a boundary A4 never reaches.
+Publishing any single value as an exact ceiling would therefore have been
+**invented**, not measured. The decision: publish `MAX_GUARANTEED_REGION_SCALE`
+only as a **floor below the lowest observed failure**, and make the actual
+guarantee the caught, named refusal (`RenderError::RasterizerLimit`) rather
+than the constant — the refusal cannot be wrong because it is the failure
+itself, caught and named, not a prediction of where the failure will occur.
+
+**Relation to §10.1a (decision 089) — same discipline, one layer further
+out.** §10.1a's obligation is: an operator-settable bound is safe only where
+the allocation behind it is fallible, because an infallible allocator aborts
+the process on a bound the machine cannot honour. This decision is the
+converse failure mode on the same class of quantity — a **derived** bound
+(not operator-set, but computed from measurement) that does not generalise
+across inputs. Both are instances of the same underlying rule: **a number
+attached to hardware/library behaviour that was not itself measured against
+the full input space is not a guarantee, it is a hope with a value attached.**
+No new decision was needed to state that rule generally; `R252` (below)
+states it as a standing rule for this specific shape (a measured boundary
+with no ordering variable) rather than widening decision 089 to cover it,
+because the mechanisms differ (allocator fallibility vs. published-constant
+honesty).
+
+**Standing rule `R252` minted**: when a measured boundary does not order
+with any input dimension (size, area, extent), publishing it as an exact
+constant is an invented number wearing a measurement's clothes — publish it
+as a floor below the lowest observed failure, and make the guarantee a
+caught, named refusal rather than the number.
+
+**Body-section effects.** New `ARCHITECTURE.md` §10.7, sibling to §10.6
+(decision 150). No `Cargo.toml` change (§3 unaffected); no writer-path
+change (§5 unaffected — this is render-time only, nothing is persisted).
+
+**Decision ceiling: `150` → `151`**, next free `152`. **Standing rules
+ceiling: `R250` → `R252`**, next free `R253` — `R251` also gains a dated
+observation this filing (`ROADMAP.md` *Standing rules*) that this role
+declined to file as a mechanical instance count; see that entry for the
+reasoning. `R245` gains its 8th dated instance under its own existing
+number, no new rule minted for that. **Pass ceiling `295.1` → `296.4`**,
+next free family `297.x`.
