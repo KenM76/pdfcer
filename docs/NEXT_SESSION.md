@@ -4,89 +4,211 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-09-10, after `Pass 293.0`.
+**Written:** 2026-09-11, after `Pass 296.8` and the 512th filing.
 
 ---
 
-## ★★★ READ THIS PARAGRAPH FIRST — THE DOCS MOVED, 2026-09-10
+## ★★★ READ THIS PARAGRAPH FIRST — RUN THE GATE SWEEP BEFORE YOU PUSH
 
-The operator said the project *"has slowed to a crawl"* and the cause measured
-out as these files: **372,011 lines of `docs/` against 455,626 of `crates/`**,
-with one day's work adding **2,722 register lines against 5,844 code lines**.
+`tools/run-gates.sh` was treated as a **release** gate. It is not; it is a
+**push** gate, and this session paid for the difference.
 
-| register | was | is |
+`main` had been **red on GitHub since 20:18Z**, from a commit pushed earlier
+the same day by a session that did not read CI's colour afterwards. The cause
+was a string literal with a baked-in run of spaces — a lost line-continuation
+backslash. Nothing about it could fail a test. Running the sweep before pushing
+found it, plus two more:
+
+| gate | what it found | how long it had been live |
 |---|---|---|
-| `ROADMAP.md` | 168,036 | **26,542** |
-| `SESSION_LOG.md` | 99,597 | **1,464** |
-| `ARCHITECTURE.md` | 34,341 | **10,317** |
+| `check-public-fns-documented.py` | `preview_style_resolution` had **no doc comment** — a splice welded its 38-line doc block onto the function inserted above it | 1 day |
+| `check-string-gaps.sh` | two literals with a lost backslash | 1 day / same day |
+| `check-ci-job-names.py` | the `audits` job said `(20 checks)` and ran 21 | same day |
 
-**History moved verbatim to `docs/history/` — grep it, never append to it.**
-Shipped entries, session-log entries, the 18,051-line standing-rule text,
-§12's pre-September decisions, and 19 queue items whose Pass had already
-shipped.
+**None would ever have failed a test, been caught by clippy, or looked wrong in
+a diff** — a doc block welded to the wrong function reads as correct, because
+both functions have docs.
 
-**Four things changed about how you work here:**
+So: **sweep, then push, then read CI's colour from GitHub.** Rule 8 already
+says to read the colour; it does not yet say to sweep, and that is the gap this
+paragraph exists to close.
 
-1. **This file is the first read**, then only what the task needs. `CLAUDE.md`
-   says so now.
-2. **`tools/check-register-entry-size.py` fails CI** on a Shipped entry over
-   150 lines, a Next-up item over 80, a `SESSION_LOG` filing over 200, a
-   `FEATURES` row over 1,200 characters. 117 pre-existing entries are carried
-   as DEBT; the direction is down.
-3. **The reasoning goes in the COMMIT MESSAGE.** The register says what
-   shipped, what it decided, and which hash to read. This does not relax
-   documentation-first: source doc comments and commit messages stay as
-   thorough as ever.
-4. **A filing need not be a subagent dispatch.** The 497th and 498th filings
-   were written by the engineer in under five minutes each, inside the caps.
-   Dispatch the librarian when the filing needs a cross-document sweep; write
-   it yourself when it does not.
+### How to run it on this machine, because the obvious way gets killed
 
-★ `ROADMAP.md`'s rule index now marks **44 of 187** rules with the script that
-enforces them. The other 143 are followed by eyeball, and that is the next
-piece of work the operator named: *"script it or bin it."*
+★★ **`run-gates.sh` and `cargo test --workspace --all-features` are both
+OOM-killed here**, repeatedly, including per-crate. Three watchers and two
+sweeps died this session. The working procedure:
+
+1. Run the **23 non-cargo gates in one loop** — they are seconds each. Get the
+   list from `python tools/check-ci-parity.py --list`.
+2. Run the **cargo gates one at a time, in the background, serially**:
+   `fmt --check`, `clippy --workspace --all-targets`, `clippy --all-features`,
+   `test --workspace`, `test -p pdfcer-core --no-default-features`,
+   `check --target wasm32-unknown-unknown`, `cd fuzz && cargo check --bins`.
+3. **Do not hold `gh run watch` open** — it is what died most often. Poll
+   `gh run list --branch main --limit 1` on a wakeup instead.
+
+★ `run-gates.sh` **buffers**, so a redirected log sits empty until it finishes.
+An empty output file is not a hung run. And its final line reports failures
+**while exiting 0** — read the `run-gates: FAILED — N of 31` line, never the
+exit code.
 
 ---
 
 ## STATE
 
-Workspace version `0.50.0`; the last release is **`v0.50.0`** (2026-09-10,
-morning). ★ Verify that with `gh release list` before repeating it — the
-previous handoff carried a release number that was four versions stale for a
-day, and nothing in this file checks itself.
+Workspace version `0.53.0`; the last release is **`v0.53.0`**. ★ Verify with
+`gh release list` before repeating it — a previous handoff carried a release
+number four versions stale for a day, and nothing in this file checks itself.
 
-**`main` is pushed through the `Pass 293.0` filing.** `tools/run-gates.sh`
-green (the only red this session was `cargo fmt --check` and a first
-`clippy --all-features` pass, both fixed before their commits).
-`cargo test --workspace` **5,309 pass**.
+**`main` is pushed through the 512th filing (`d2465f5`) and CI is GREEN**
+(run `34657680461`, 17m21s). Working tree clean, nothing unpushed.
 
-### Six Passes shipped, all from one morning's inbound batch
+### What shipped: one inbound batch, seven Passes, in one evening
+
+Every one answers a request from `pdfcer-gui`.
 
 | Pass | commit | what |
 |---|---|---|
-| `290.0` | `556878e` | **a page with no `/Resources` opens** — one blank spacer page was costing the whole document |
-| `290.1` | `bce4703` | a page-tree failure stops being reported as *"every stamp points at nothing"* |
-| `291.0` | `0173a95` | a shrunk or clipped stamp label **says so** — two of three fit policies were unofferable |
-| `292.0` | `c11c1aa` | a placed stamp's label size can be **read and written** — and a restyle stops eating the stamp's own words |
-| `293.0` | `56c5e55` | **a custom stamp can be PLACED** — one page's artwork onto another, as vector |
+| `296.0` | `69d4d67` | **a deep-zoom region render REFUSES instead of killing the worker** — `RenderError::RasterizerLimit`, the crate's only `catch_unwind` |
+| `296.1` | `141c989` | **a coverage refusal carries its remedy faces as DATA** — `Refusal::remedy_faces`, page-verified |
+| `296.2` | `90576a8` | **`Display for Object` and `for Name`** — scalars exact, containers named not expanded |
+| `296.3` | `5943beb` | **a PATTERN redaction reports the text it could not read** — and pdfcer's own CLI `--pattern` was silent too |
+| `296.4` | `8d2f6bb` | **`page_composites_in_ink`** — ask before rendering, not after |
+| `296.5` | `4f6f5a5` | the rasteriser's panic text out of the error MESSAGE |
+| `296.8` | `f392b19` | `BlendSpaceFrom::token()` public |
 
-Filings: 494th … 496th. Decision **150** minted (494th).
+Plus `f16e266` + `5917ece`, the pre-push gate fixes above (filed as fixes, not
+Passes — `ROADMAP.md` has a commit-hash-heading precedent for that).
+
+Filings 508–512. Decisions **151**, **152**, **153**; rules **R252**, **R253**,
+**R254** minted. `R245`'s 8th dated instance.
 
 ---
 
-## ★★★ THE QUEUE IS EMPTY — AND THAT SENTENCE WAS WRONG LAST TIME
+## ★★★ THE INBOUND QUEUE IS EMPTY — AND THAT SENTENCE HAS BEEN WRONG TWICE
 
-**Every one of the five requests `pdfcer-gui` filed on 2026-09-10 is closed**,
-with a reply written for each. Nothing of theirs is pending here.
+**Every `pdfcer-gui` request is answered, shipped and confirmed consumed**, and
+each consumption note is in the channel. Five `request_*` files remain in
+`open/` only because **archiving is the GUI side's step** — they close their own
+exchanges within minutes and write the `INDEX.md` rows themselves. Do not
+archive on their behalf; you will duplicate work in flight.
 
-★★ **The previous handoff said the same thing and was stale within hours.**
-Five requests landed at 06:53–07:00 while it still read *"the queue is empty of
-inbound work"*, and the first act of this session was discovering that by
-looking. **`ls -lt` the inbound directory before believing any sentence in this
-file** — including this one.
+★★ **Two previous handoffs said "the queue is empty" and were stale within
+hours.** `ls -lt` the inbound directory before believing any sentence in this
+file — including this one.
 
-Both channels: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\` (the live
-one) and `D:\Dev\FeatureRequests\pdfcer-gui\`.
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`
+
+### ★★ The channel now has a TOPIC KEY — use it
+
+Adopted 2026-09-11, recorded in that folder's `README.md`. Every file in one
+exchange carries the same key as a filename prefix: `reply_G042_…`,
+`done_G042_CONSUMED.md`. **`G###` is minted by pdfcer-gui, `E###` by this
+side** — two counters so a collision is impossible without coordination, which
+nothing in a folder outside git can provide. The key names the **exchange**,
+not the file: one defect filed twice gets one key.
+
+It exists so *a `reply_G*` with no `done_G*` is an answer nobody acted on* is
+checkable in four lines of shell. Their audit found five shipped fixes still
+described as broken — one **in the operator's manual** — for two to three days
+each.
+
+---
+
+## ★★ WHAT THIS SESSION ESTABLISHED THAT OUTLIVES ITS PASSES
+
+### R254 / decision 153 — a value the crate already computes does not earn `pub` by DEMAND
+
+It earned it by existing. Keeping it `pub(crate)` "until someone asks" hands
+the discovery cost to **the one party who structurally cannot see the gap**.
+
+★ I read `R151` ("an uncalled API is a cost") as licensing that, and it does
+not: R151 audits whether a *published* capability gets *called*. The librarian
+declined both homes I proposed and minted a new rule; it also cut my claimed
+five instances to **three** on mechanism. **A shared symptom is not a shared
+mechanism** — that scepticism was right three times running this session, and
+it is worth asking for explicitly in a dispatch.
+
+### R253 / decision 152 — the SAFE rendering must be the DEFAULT one
+
+`Pass 296.0` put a third-party panic string in an error's `Display` and told
+callers not to match on it. A consuming shell routes `Display` onto the page on
+purpose — so the default path would have painted
+`range start index 442613758592 out of range for slice of length 1088737`
+across a site plan. **A variant safe only for a consumer who writes a named arm
+is unsafe for every consumer who has not read its doc comment.**
+
+### A measurement that refused to become a constant
+
+`Pass 296.0`'s requester preferred a published max scale "because it names the
+number". `examples/region_panic_ceiling.rs` bisected six page geometries and
+got **three values ordering with nothing** — the largest sheet the most
+fragile, an A1 and a business card sharing a boundary A4 never reaches.
+
+⇒ **When the measurement does not support a constant, publishing one anyway is
+an invented number wearing a measurement's clothes.** The guarantee became the
+refusal; the constant is published only as a FLOOR below the lowest row,
+checked against the table at compile time (`const _: () = assert!(…)`).
+
+### A consumer's WORKAROUND is a defect report
+
+Twice in one evening, both under decision 058: the `search_text` double
+extraction (`296.3`) and the named arm hiding the panic text (`296.5`). **The
+shell filed rather than worked around six times in two days.** That frequency
+is evidence about where the boundary is drawn, not about them.
+
+### A diagnostic's EXCERPT is not its finding
+
+`5917ece` exists because I fixed the gap `check-string-gaps.sh` quoted and not
+the second one on the same line, past its ~100-character truncation.
+**Re-run the check; do not act on the printed excerpt.** (Already a
+cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_read_of_wrapped_sentence.md`.)
+
+---
+
+## HABITS
+
+- **`tools/edit-source.py` for every multi-line source edit.** I used ad-hoc
+  python heredocs instead and it cost two of the three gate defects above —
+  eaten backslashes and a doc-block splice. The machinery existed and was not
+  reached for.
+- **`git commit -F <file>`, never `-m`.** Unbroken.
+- **Sabotage every new test.** Every test this session was falsified before
+  being believed; two sabotages found that a single break turned *two* tests
+  red, which is what a contract pinned in two places should do.
+- **Never chain a reverting git verb.** A hook blocks it, correctly — run
+  `git checkout --`, `git reset`, `git restore` **alone**.
+
+---
+
+## OWED (carried forward, plus this session's)
+
+- **NEW — no `docs/core-api/` entry for the `offpage` module** (owed since
+  `Pass 294.0`; explicitly not closed by the 509th filing).
+- **NEW — 17 of 174 `redact-offpage` outputs still carry 23 off-page objects**
+  — fully-off images straddling two bands, where the covered-region test is
+  per-band and the union is what matters. Reported by `scan-offpage`, not
+  silently left.
+- **NEW — above ~1e8 scale a region render succeeds again** with an underflowed
+  page-space span. Nothing panics; whether those pixels mean anything is its
+  own measurement. Told the shell rather than letting them discover it.
+- **NEW — `check-reexport-closure.py` checks FIELDS, not method return types.**
+  A verb returning an un-re-exported type is the same class. Widen it against a
+  measurement, not a guess.
+- **`R221`'s recorded instance count is wrong** and a commit message made it
+  worse. **Do not copy an ordinal from a commit message.**
+- **`tools/check-requests-scoped.py`** — owed by `R242`, still unbuilt.
+- **`check-public-fns-documented.py`'s denominator is `pub`**, so it cannot see
+  the doc-splice defect on private functions — which is exactly what bit this
+  session. Staged fix, its own change.
+- **21 of 38 files in `fixtures/synthetic/text/PROVENANCE.md` are unrecorded.**
+  `LEGAL.md` §5 makes this a licensing statement.
+- **Backup bundle is well over 150 commits behind `HEAD`.**
+- **143 of 187 standing rules are unenforced** — the operator's own next piece
+  of work: *"script it or bin it."*
+- **`personal_rag/pdf` entry on the operator's stamp file** (black-background
+  `/DCTDecode` with no `/SMask`) — verify it landed from the 496th filing.
 
 ### The operator's own ordered plan, still the front of the queue
 
@@ -94,130 +216,20 @@ one) and `D:\Dev\FeatureRequests\pdfcer-gui\`.
 (dispatch `pdfcer-acrobat-librarian` first, rule 12), `Pass 259.0` (the
 `docs/core-api/` line-citation class), `Pass 10.11` (B-T timestamps).
 
-### One artifact would close a GAP that has been open since `Pass 288.0`
-
-★★ **Acrobat READER can place an existing custom stamp.** It cannot author new
-stamp *categories* — that is what the "Pro is not installed" note has always
-been about — but placement is available, and the operator's own collection is
-on disk. **One stamp placed in Reader and saved settles whether a placed stamp
-records which stamp it came from** (`/Name`? a private key? nothing?), which is
-the last unanswered question about Acrobat's stamp model. It needs a live GUI
-step, so it is the operator's minute, not an agent's.
-
-This corrected a premise the project had been carrying in memory
-(`acrobat-reader-is-available-pro-is-not` was being read as "no placement
-artifact is obtainable"). Note the shape: **a constraint nobody had re-tested
-became a reason not to look.**
-
 ---
 
-## ★★ WHAT THIS SESSION ESTABLISHED THAT OUTLIVES ITS PASSES
+## BUILD ENVIRONMENT
 
-### Decision 150 — a required attribute defaults to the value the STANDARD names
-
-Absent `/Resources` now resolves to the **empty dictionary** — because Table 30's
-own `/Resources` row says *"If the page requires no resources, the value of this
-entry shall be an empty dictionary."* The standard supplies the value; pdfcer
-invents nothing. `/MediaBox` deliberately did **not** move: no clause anywhere
-names a default media box, so any value would be invented. **The line is
-invention, not strictness**, and a test asserts the `/MediaBox` half by name.
-
-★ The file is **certainly non-conforming** — ISO considered conditioning
-`/Resources` on `/Contents` and decided AGAINST it (`pdf-issues` #81, ISO
-approved) — and that *strengthened* the case: §2.2 scopes a reader's rendering
-duty to *conforming* files and §1 puts conformance validation outside the
-standard's scope, so **nothing in ISO 32000 ever asked a reader to refuse.**
-
-### Two APIs that are unbuildable alone ship together
-
-`Pass 292.0`: a **read with no write** is a number nobody can act on; a **write
-with no read** is a control that opens on a guess and overwrites what was
-there. The consuming shell made that argument and declined to build either
-half. Where a property is inspectable *and* settable, ship the pair.
-
-### `R245` keeps arriving as "a capability present on one route of two"
-
-Three instances this session, and the worst **destroyed operator data
-silently**: `set_text_annot_style` re-baked a stamp without the label recovery
-that `resize_annotation` already called, so **changing a stamp's COLOUR
-replaced `APPROVED FOR CONSTRUCTION` with `DRAFT`.** Measured on a real file,
-from a control captioned "colour".
-
-⇒ **When you add a recovery, grep for every route that re-bakes the same
-object family.** The other two: `Pass 290.0`'s refusal that `plan_paste_at` had
-grown a hand-written bypass around, and `Pass 290.1`'s discarded error.
-
-### A test can reach a correct assertion THROUGH a defect
-
-`R225`'s 18th instance and a new sub-shape. Two tests asserted *"an unwalkable
-page tree is reported, not rendered as empty"* using
-`fixtures/synthetic/minimal.pdf` — which was unwalkable **only because of the
-bug `Pass 290.0` fixed**. Fixing it turned two unrelated, correct tests red.
-
-★ **The tell is an unrelated test going red when you fix a bug.** Both now use
-`fixtures/synthetic/xref-recover/page-tree-cycle.pdf`: a cycle is damage with
-no second reading, which is what a fixture for "unwalkable" has to be.
-
----
-
-## HABITS THAT PAID THIS SESSION
-
-- **`tools/edit-source.py`** (promoted from a temp directory last session) was
-  used for every multi-line source edit and refused a bad pattern once, out
-  loud, instead of matching zero times in silence. Use it.
-- **`git commit -F <file>`, never `-m`.** Unbroken this session.
-- **Dispatch the spec librarian BEFORE reasoning from a clause.** It corrected
-  a sentence in `Pass 290.0`'s doc comment *before it shipped*: "a page with no
-  `/Contents` can never name a resource" is FALSE — §7.8.3 lets a form XObject,
-  including an annotation `/AP` stream, inherit the page's resources, which is
-  exactly the stamp-page shape that motivated the Pass.
-- **Sabotage every new test.** Eleven sabotages this session, each turning
-  exactly the expected test red; one (`R47`'s byte comparison) gained an
-  explicit *"the fixture must not be empty"* assertion so it cannot pass
-  vacuously.
-- **Verify against the operator's real file**, not only fixtures. Every Pass
-  this session was checked against
-  `%APPDATA%\Adobe\Acrobat\DC\Stamps\YTV_yyfVN1TzJ0_6oei-GB.pdf`.
-
----
-
-## OWED (carried forward, plus one new)
-
-- **`R221`'s recorded instance count is wrong** and a commit message made it
-  worse (`Pass 279.0` says "third"; the Standing Rules entry is past three).
-  Reconcile in a session with budget. **Do not copy an ordinal from a commit
-  message.**
-- **`tools/check-requests-scoped.py`** — owed by `R242`, still unbuilt.
-- **`check-public-fns-documented.py`'s denominator is `pub`**, so it cannot see
-  the doc-splice defect on private functions. Staged fix, its own change.
-- **21 of 38 files in `fixtures/synthetic/text/PROVENANCE.md` are unrecorded**
-  (55.3 %). `LEGAL.md` §5 makes this a licensing statement, not tidiness.
-- **Backup bundle is well over 150 commits behind `HEAD`.**
-- **NEW — a `personal_rag/pdf` entry is owed** on the operator's own stamp
-  file: its "Savy" page is a single `/DCTDecode` RGB image with a **black
-  background and no `/SMask`**, so a faithful placement puts a black box on the
-  page. pdfcer reproduces it pixel-identically. A future session will otherwise
-  spend an hour deciding whether that is a rendering bug. (Handed to the
-  librarian in the 496th filing; verify it landed.)
-
----
-
-## BUILD ENVIRONMENT (unchanged, and all of it still true)
+★★ **This machine runs out of memory on whole-workspace cargo work.** See the
+procedure at the top; it is the single most time-costly thing about this
+session.
 
 ★★ **`target/debug/deps` grows without bound** — cargo never garbage-collects
-it. `du -sh target/debug/deps` every session; it was 36 GB at the start of this
-one. Before any delete, both checks: `git ls-files target` returns 0 and
+it. `du -sh target/debug/deps` every session; 36 GB at one recent measurement.
+Before any delete, both checks: `git ls-files target` returns 0 and
 `git check-ignore -q target` passes.
 
-★ **`run-gates.sh` buffers**, so a redirected log can sit unchanged for
-minutes and look hung when it is not. Poll for the final `run-gates:` line
-rather than watching the tail.
-
-★ **Foreground survives where background dies.** `cargo test --workspace
--- --test-threads=2` takes ~10 minutes; run it and wait rather than polling.
-
 ★ **A stale `types.py` in the job temp directory shadowed the standard
-library** and broke every `python` invocation whose script lived there, with an
-import traceback that names `enum`, not the shadowing file. If `python` starts
-failing on `import pathlib`, look for a stdlib name in the working directory
-before believing anything else.
+library** and broke every `python` invocation whose script lived there, with a
+traceback naming `enum`, not the shadowing file. If `python` starts failing on
+`import pathlib`, look for a stdlib name in the working directory first.
