@@ -72,6 +72,31 @@ fn the_pre_flight_answer_matches_what_the_render_does() {
 }
 
 #[test]
+fn the_provenance_has_one_machine_spelling_and_it_is_reachable() {
+    // ★★ `Pass 296.8`. `token()` was `pub(crate)` for an hour, and in that hour
+    // the consuming shell's trace took the `Debug` derive and wrote `PageGroup`
+    // where the metrics line writes `page_group` — two stable spellings of one
+    // fact, across a boundary whose purpose is that both sides agree.
+    //
+    // ★ This asserts the tokens are what they are, because publishing them made
+    // them a CONTRACT: a variant may be added, an existing spelling may not
+    // change without that being a breaking change. A log comparison is worth
+    // nothing if yesterday's log stops parsing.
+    assert_eq!(BlendSpaceFrom::PageGroup.token(), "page_group");
+    assert_eq!(BlendSpaceFrom::DeviceNative.token(), "device_native");
+    assert_eq!(BlendSpaceFrom::OutputIntent.token(), "output_intent");
+
+    // And the machine spelling must not be the Rust one — if these ever agree,
+    // a caller cannot tell which it is looking at, and the reason this function
+    // exists has gone.
+    assert_ne!(
+        BlendSpaceFrom::PageGroup.token(),
+        format!("{:?}", BlendSpaceFrom::PageGroup),
+        "the token is a machine spelling, distinct from the Debug derive"
+    );
+}
+
+#[test]
 fn the_answer_discloses_which_clause_supplied_it() {
     // Rule 4: a blending space is the extreme case of an invisible inference —
     // it changes every colour on the page and leaves no mark saying so. The

@@ -2125,8 +2125,44 @@ pub enum BlendSpaceFrom {
 }
 
 impl BlendSpaceFrom {
-    /// The token used on `pdfcer`'s metrics line.
-    pub(crate) const fn token(self) -> &'static str {
+    /// The **machine spelling** of this provenance — `page_group`,
+    /// `device_native`, `output_intent` (`Pass 296.8`).
+    ///
+    /// The same three tokens `pdfcer`'s metrics line prints, from the same
+    /// place, so a log written by the CLI and a log written by a consuming
+    /// shell compare directly.
+    ///
+    /// # ★★ It was `pub(crate)` until something asked, and that was the wrong
+    /// # default
+    ///
+    /// `Pass 296.4` made [`BlendSpaceFrom`] public and deliberately kept this
+    /// private, reasoning that the metrics line is a contract of its own and
+    /// nothing had asked. Within the hour the consuming shell reported the
+    /// consequence: its trace took the `Debug` derive and wrote `PageGroup`
+    /// where the metrics line writes `page_group` — **two stable spellings of
+    /// one fact, across a boundary whose whole purpose is that both sides
+    /// agree about it.**
+    ///
+    /// ★ It did not write its own `PageGroup => "page_group"` mapping, and was
+    /// right not to: a hand-copied table in another crate is exactly the drift
+    /// this function exists to prevent, and it goes stale silently the day a
+    /// fourth variant arrives (`R74`).
+    ///
+    /// # What publishing this commits to
+    ///
+    /// **These three strings are now a contract.** A variant may be added; an
+    /// existing token may not be respelled without it being a breaking change,
+    /// because a log comparison is only worth anything if yesterday's log
+    /// still parses. That is the same promise the metrics line already made,
+    /// and `tools/check-metrics-line-contract.py` is what holds it.
+    ///
+    /// # Not for an operator
+    ///
+    /// These are identifiers, not sentences. A shell's operator-facing wording
+    /// is its own — the consuming shell made exactly that distinction when it
+    /// asked, and it is the right one.
+    #[must_use]
+    pub const fn token(self) -> &'static str {
         match self {
             Self::PageGroup => "page_group",
             Self::DeviceNative => "device_native",
