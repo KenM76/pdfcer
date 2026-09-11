@@ -4,9 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-10 (502nd filing) — redact-offpage goes batch
+
+**Shipped:** `Pass 294.1` (`d41be61`) — `redact-offpage` takes files,
+folders and `--recursive`, matching the scan. `-o FILE` for one input;
+`--out-dir DIR` for a batch, **mirroring the input tree** rather than
+flattening, because two product folders can hold drawings with the same
+file name — a collision this feature's own test copy hit on the first
+try. An existing output is skipped and counted unless `--force`, so an
+interrupted batch resumes.
+
+**Owed:** still no `docs/core-api/` entry for the `offpage` module.
+
 ## 2026-09-10 (501st filing) — `v0.52.0` bumped for the off-canvas Pass
 
-**Shipped:** the version bump to `0.52.0` (`Cargo.toml` and `fuzz/`'s own
+**Shipped:** the version bump to `0.52.0` (`4d5b226`) — `Cargo.toml` and `fuzz/`'s own
 lockfile, which is a separate cargo workspace — `v0.51.0` learned that
 the hard way, from a release binary whose banner read `-dirty`).
 
