@@ -40911,7 +40911,7 @@ fn cmd_redact_offpage(input: &Path, output: &Path, tolerance: f64, dry_run: bool
     let mut partial = 0usize;
     let mut session = pdfcer_core::edit::EditSession::new(doc);
     for scan in &scans {
-        let bands = pdfcer_core::offpage::offpage_bands(scan);
+        let bands = pdfcer_core::offpage::offpage_bands(scan, tolerance);
         if bands.is_empty() {
             continue;
         }

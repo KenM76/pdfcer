@@ -1813,6 +1813,29 @@ pub fn apply_redactions(
         }
         let mut retain: BTreeSet<ObjId> = BTreeSet::new();
         for hit in &hits {
+            // ★★ SKIP THE DECODABILITY TEST FOR A PLACEMENT THAT COVERS NO
+            // SAMPLE CELL (`Pass 294.2`).
+            //
+            // `blocker` answers "can this image's samples be destroyed?" by
+            // DECODING it, and it is asked of every placement whose bounding
+            // box touches a region. The question is only worth asking when
+            // something will be done to the image -- and a placement that
+            // covers no cell is one the surgery skips.
+            //
+            // `Pass 294.0`'s off-page bands made this visible by ringing the
+            // page: every full-bleed image on a marked page grazes a band, so
+            // a 40-page scanned drawing decoded forty multi-megapixel images
+            // to conclude, forty times, that it had nothing to do. Measured at
+            // 59 s on the operator's own file; the placements were never
+            // touched afterwards.
+            //
+            // ★ Skipping the test cannot hide an undestroyable image: an image
+            // that covers no cell is not in the way of anything. `blocker`'s
+            // purpose is to retain a mark whose content SURVIVES, and no
+            // content survives here because none was going to be removed.
+            if !redact_image::placement_covers_cells(&view, hit, &red.boxes) {
+                continue;
+            }
             let Some(why) =
                 redact_image::blocker(doc, &view, &page.resources, &stream.buf, hit, &mut cache)
             else {
@@ -3024,8 +3047,39 @@ fn carrier_residual_sweep(
                 } else {
                     span.slice(doc.bytes()).unwrap_or(&[])
                 };
-                let decoded = crate::filters::decode_stream(&stream.dict, raw)
-                    .unwrap_or_else(|_| raw.to_vec());
+                // ★★ AN IMAGE'S SAMPLES ARE NOT SWEPT, AND THE DECODE IS
+                // SKIPPED WITH THEM (`Pass 294.2`).
+                //
+                // This sweep looks for a redacted STRING surviving somewhere
+                // else in the file, and acts on what it finds two ways: it
+                // scrubs a metadata packet, or it blanks the show-operator
+                // operands of a content stream. **An image XObject is neither.**
+                // Its samples hold pixels; `blank_show_strings` finds no show
+                // operator in them and returns `None`, so the only reachable
+                // outcome for an image was a DISCLOSED residual on a
+                // coincidental byte match -- bought with a full decode of
+                // every image in the document.
+                //
+                // On a 6.9 MB, 40-page scanned drawing that decode was the
+                // whole cost of the operation: about a minute, to find
+                // nothing actionable. Measured on the operator's file while he
+                // waited for a batch.
+                //
+                // ★ Nothing is lost. Text that is PICTURED in an image was
+                // never byte-matchable, and text stored as bytes among the
+                // samples is not recoverable text. The stream's DICTIONARY is
+                // still scrubbed above, which is where a string can legitimately
+                // hide -- that part is cheap and unconditional.
+                let is_image = matches!(
+                    stream.dict.get(b"Subtype"),
+                    Some(Object::Name(n)) if n.as_bytes() == b"Image"
+                );
+                let decoded = if is_image {
+                    Vec::new()
+                } else {
+                    crate::filters::decode_stream(&stream.dict, raw)
+                        .unwrap_or_else(|_| raw.to_vec())
+                };
                 let carries = evidence.iter().any(|t| bytes_contain_text(&decoded, t));
 
                 let is_metadata = matches!(
@@ -3171,6 +3225,98 @@ fn carrier_residual_sweep(
 /// the rest of the sweep has, it is disclosed by the carrier line rather than
 /// papered over, and closing it means the full glyph machinery the *live*
 /// content path already uses — a different Pass from this one.
+/// Replace every occurrence of `needle` that lies **inside a string token**
+/// of `operand`, keeping the token well-formed (`Pass 294.2`).
+///
+/// A show operand is one of:
+///
+/// * a literal string `(…)` — filled with `X`;
+/// * a hex string `<…>` — filled with `0`, because `X` is not a hexadecimal
+///   digit and the operand would stop parsing;
+/// * a `TJ` **array** `[ (…) -250 (…) ]` — whose numbers are kerning
+///   adjustments (§9.4.3) and must not be touched at all.
+///
+/// Returns whether anything changed. Length is preserved in every case, so
+/// spans, offsets and the enclosing stream's `/Length` all stay valid.
+///
+/// # Why a byte walk rather than a re-parse
+///
+/// The operand's bytes are being edited IN PLACE inside a buffer whose spans
+/// the caller still holds. Re-parsing to an object model and re-serialising
+/// would move every byte after the edit — which is precisely what the caller
+/// cannot afford, and is why this function is about syntax rather than
+/// values.
+fn blank_in_strings(operand: &mut [u8], needle: &[u8]) -> bool {
+    if needle.is_empty() {
+        return false;
+    }
+    // Pass 1: mark which bytes are inside a string token, and with what fill.
+    let mut fill: Vec<Option<u8>> = vec![None; operand.len()];
+    let mut i = 0usize;
+    while let Some(&byte) = operand.get(i) {
+        match byte {
+            b'(' => {
+                // §7.3.4.2: balanced parentheses, a backslash escapes the
+                // next byte (so an escaped paren is data, not nesting).
+                let mut depth = 1u32;
+                let mut j = i + 1;
+                while depth > 0 {
+                    let Some(&b) = operand.get(j) else { break };
+                    match b {
+                        b'\\' => j += 1,
+                        b'(' => depth += 1,
+                        b')' => depth -= 1,
+                        _ => {}
+                    }
+                    if depth > 0
+                        && let Some(slot) = fill.get_mut(j)
+                    {
+                        *slot = Some(b'X');
+                    }
+                    j += 1;
+                }
+                i = j;
+            }
+            b'<' => {
+                let mut j = i + 1;
+                while operand.get(j).is_some_and(|&b| b != b'>') {
+                    if let Some(slot) = fill.get_mut(j) {
+                        *slot = Some(b'0');
+                    }
+                    j += 1;
+                }
+                i = j + 1;
+            }
+            _ => i += 1,
+        }
+    }
+
+    // Pass 2: replace only where every byte of the match is fillable.
+    let mut changed = false;
+    if operand.len() < needle.len() {
+        return false;
+    }
+    let mut at = 0usize;
+    while at + needle.len() <= operand.len() {
+        let window = operand.get(at..at + needle.len());
+        let inside = fill
+            .get(at..at + needle.len())
+            .is_some_and(|f| f.iter().all(Option::is_some));
+        if inside && window == Some(needle) {
+            for k in at..at + needle.len() {
+                if let (Some(byte), Some(Some(f))) = (operand.get_mut(k), fill.get(k)) {
+                    *byte = *f;
+                }
+            }
+            changed = true;
+            at += needle.len();
+        } else {
+            at += 1;
+        }
+    }
+    changed
+}
+
 fn blank_show_strings(decoded: &[u8], evidence: &[String]) -> Option<Vec<u8>> {
     let parsed = crate::content::ContentStream::parse(decoded.to_vec()).ok()?;
     let mut out = parsed.buf.clone();
@@ -3191,11 +3337,42 @@ fn blank_show_strings(decoded: &[u8], evidence: &[String]) -> Option<Vec<u8>> {
             let Some(slice) = out.get_mut(span.start..end) else {
                 continue;
             };
+            // ★★★ ONLY THE STRING PARTS OF THE OPERAND MAY BE TOUCHED, AND
+            // NOT KNOWING THAT PRODUCED FILES pdfcer COULD NOT READ.
+            //
+            // This loop used to fill matched bytes with `X` across the WHOLE
+            // operand span. For `Tj` that is harmless -- the operand IS a
+            // string. For **`TJ` it is not**: §9.4.3's operand is an ARRAY of
+            // strings and NUMBERS, and the numbers are the kerning
+            // adjustments between them. Blanking inside one produces
+            //
+            //     [-53XXXX00221014025] TJ
+            //
+            // which is not a number, so the page stops parsing. Measured on a
+            // 56-page drawing whose input was clean and whose output had three
+            // unreadable pages (`Pass 294.2`); that array is the literal byte
+            // sequence the probe printed.
+            //
+            // A hex string has the same problem one level down: `X` is not a
+            // hexadecimal digit, so `<00260X2B>` is malformed too -- and a
+            // CID-keyed font makes hex strings ordinary rather than exotic.
+            //
+            // So the fill walks the operand and touches only what is inside a
+            // string token, with a filler that keeps that token well-formed:
+            // `X` inside a literal `(…)`, `0` inside a hex `<…>`. Numbers,
+            // brackets and whitespace are left exactly as they were.
+            //
+            // ★ The bug it replaces was in the RESIDUAL sweep -- the
+            // belt-and-braces pass that blanks copies of already-removed text
+            // surviving elsewhere. The surgery that removes the redacted
+            // glyphs was correct throughout. A safety net that corrupts the
+            // page it is protecting is worse than no net, because the damage
+            // arrives wearing the name of a precaution.
             for t in evidence {
-                if replace_all_bytes(slice, t.as_bytes(), b'X') {
+                if blank_in_strings(slice, t.as_bytes()) {
                     changed = true;
                 }
-                if replace_all_bytes(slice, &utf16be(t), b'X') {
+                if blank_in_strings(slice, &utf16be(t)) {
                     changed = true;
                 }
             }

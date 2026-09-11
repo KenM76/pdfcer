@@ -1029,6 +1029,18 @@ pub(crate) fn plan_page(
                 let Some(raw) = data.slice(content) else {
                     continue;
                 };
+                // The cell test BEFORE the decode (`Pass 294.2`) -- see
+                // `covers_any_cell`. A placement that only grazes a region's
+                // bounding box needs no surgery, and decoding it to find that
+                // out is the entire cost of a no-op.
+                if !covers_any_cell(
+                    hit.ctm,
+                    regions,
+                    dim_of(view, params, b"Width"),
+                    dim_of(view, params, b"Height"),
+                ) {
+                    continue;
+                }
                 let Ok(mut decoded) = decode(view, params, raw, true, resources) else {
                     continue; // the blocker pass already retained this mark
                 };
@@ -1086,6 +1098,20 @@ pub(crate) fn plan_page(
                     continue;
                 }
                 // Partial: a clone with this placement's cells cleared.
+                //
+                // ★ The cell test comes FIRST (`Pass 294.2`): `cache.get`
+                // decodes the whole image, and a placement that merely grazes
+                // a region covers no cell and needs no clone. With the
+                // off-page bands, which ring the page, this is the difference
+                // between half a second and ten minutes on a scanned drawing.
+                if !covers_any_cell(
+                    hit.ctm,
+                    regions,
+                    dim_of(view, &original_dict, b"Width"),
+                    dim_of(view, &original_dict, b"Height"),
+                ) {
+                    continue;
+                }
                 let Ok(mut decoded) = cache.get(doc, view, id, resources) else {
                     continue;
                 };
@@ -1160,6 +1186,84 @@ pub(crate) fn plan_page(
             ImageSource::XObject { id: None, .. } => {}
         }
     }
+}
+
+/// Whether this placement covers at least one sample cell of any region —
+/// the pre-decode question, asked from outside (`Pass 294.2`).
+///
+/// The public face of [`covers_any_cell`] for [`crate::redact`]'s blocker
+/// pass, which has an [`ImageHit`] rather than a ctm and a dictionary. See
+/// that function for why the question is worth asking before a decode.
+///
+/// An inline image whose parameters cannot be read, and an XObject that is not
+/// a stream, both answer `true`: unreadable means "decide the old way", never
+/// "skip it".
+pub(crate) fn placement_covers_cells(
+    view: &DocumentView<'_>,
+    hit: &ImageHit,
+    regions: &[RegionBox],
+) -> bool {
+    let dict = match &hit.source {
+        ImageSource::Inline { params, .. } => params.clone(),
+        ImageSource::XObject { id: Some(id), .. } => match view.graph().value(*id) {
+            Some(Object::Stream(s)) => s.dict.clone(),
+            _ => return true,
+        },
+        ImageSource::XObject { id: None, .. } => return true,
+    };
+    covers_any_cell(
+        hit.ctm,
+        regions,
+        dim_of(view, &dict, b"Width"),
+        dim_of(view, &dict, b"Height"),
+    )
+}
+
+/// One integer entry of an image dictionary, resolved, or `0`.
+///
+/// Feeds [`covers_any_cell`]'s `/Width` and `/Height`; `0` means "not
+/// readable", which that function treats as "decide the old way".
+fn dim_of(view: &DocumentView<'_>, dict: &Dict, key: &[u8]) -> u32 {
+    dict.get(key)
+        .map(|o| view.graph().resolve(o))
+        .and_then(Object::as_int)
+        .and_then(|v| u32::try_from(v).ok())
+        .unwrap_or(0)
+}
+
+/// Whether any region covers at least one SAMPLE CELL of an image with these
+/// declared dimensions — decided from the dictionary alone (`Pass 294.2`).
+///
+/// # ★★ Why this exists: a decode that was always going to be thrown away
+///
+/// [`plan_page`] decoded first and asked [`clear_regions`] second, and that
+/// function answers `None` for a placement which touches a region's bounding
+/// box but covers no cell. For such a placement the decode was pure waste —
+/// and a multi-megapixel scan is an expensive thing to waste.
+///
+/// It went unnoticed because an operator's redaction box is small and lands
+/// *inside* a page, so few placements merely graze it. `Pass 294.0`'s off-page
+/// bands are the opposite shape: they RING the page, so every full-bleed image
+/// on every marked page touches one. On a 6.9 MB, 40-page scanned drawing
+/// whose off-page content was a handful of paths, that was **more than ten
+/// minutes of decoding images that then needed no change at all** — measured,
+/// on the operator's own file, while he watched it.
+///
+/// The cell test needs the ctm, the regions and the image's `/Width` and
+/// `/Height`, all of which are in the dictionary. Nothing about the samples is
+/// consulted, so the check simply moves in front of the decode.
+///
+/// ★ Conservative by construction: unreadable dimensions answer `true` and the
+/// old path runs. A missing `/Width` must never become a reason to skip a
+/// redaction — this is an optimisation, and an optimisation that can decline
+/// to remove content is a correctness bug wearing a stopwatch.
+fn covers_any_cell(ctm: Mat, regions: &[RegionBox], width: u32, height: u32) -> bool {
+    if width == 0 || height == 0 {
+        return true;
+    }
+    regions
+        .iter()
+        .any(|r| covered_cells(ctm, *r, width, height).is_some())
 }
 
 /// Clear every region's cells in `decoded` to `set` (`None` = the image's

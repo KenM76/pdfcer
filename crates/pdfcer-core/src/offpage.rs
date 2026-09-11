@@ -206,6 +206,22 @@ pub fn scan_model(model: &PageObjects, page: &Page, page_index: usize, tolerance
             // pdfcer could not measure.
             continue;
         }
+        if !paints_anything(obj) {
+            // ★ An object that DRAWS NOTHING is not "content drawn outside the
+            // page", whatever its bounding box says (`Pass 294.2`).
+            //
+            // A text object's bbox comes from the text matrix, not from glyph
+            // ink -- so after redaction removes every glyph, the positioned
+            // but EMPTY `BT … ET` husk still measures the size the words used
+            // to occupy. Scanning `redact-offpage`'s own output reported that
+            // husk as a surviving off-page object, which reads as "the removal
+            // did not work" when the removal worked exactly.
+            //
+            // The test is per-RUN ink, not recovered text: a run whose glyphs
+            // have no `/ToUnicode` still paints, and calling it empty would
+            // hide real content from a scan whose entire job is to find it.
+            continue;
+        }
         let how = if disjoint(&grown, &bbox) {
             OffPage::Fully
         } else if contained(&grown, &bbox) {
@@ -287,11 +303,36 @@ pub fn scan_document(
 /// two bands overlap. Overlapping marks would be applied twice — harmless for
 /// paths, wasteful for images, and confusing in the report.
 #[must_use]
-pub fn offpage_bands(scan: &PageScan) -> Vec<Rect> {
+pub fn offpage_bands(scan: &PageScan, tolerance: f64) -> Vec<Rect> {
     if scan.objects.is_empty() || !is_finite(&scan.drawn) {
         return Vec::new();
     }
-    let p = scan.page_box;
+    // ★★ THE BANDS CARRY THE SAME TOLERANCE THE SCAN DOES, and leaving them
+    // out was both a CORRECTNESS bug and the feature's whole performance
+    // problem.
+    //
+    // Correctness: the scan ignores a fringe (a border stroked on the page
+    // boundary overhangs by half its line width). Bands drawn at the exact
+    // page box do NOT ignore it — so pdfcer would cut content the scan had
+    // just reported as clean. Two answers to one question, from one feature.
+    //
+    // Performance, which is how it was found: a full-bleed scanned drawing
+    // has an image reaching the page edge and a hair past it. Against exact
+    // bands that image INTERSECTS a region, so `redact_image` decodes a
+    // multi-megapixel scan, clears a sliver of cells and re-encodes it — per
+    // image, per page. On a 6.9 MB 40-page drawing whose off-page content is
+    // a handful of paths, that turned half a second into more than ten
+    // minutes, and the operator watched it happen.
+    //
+    // Inset by the tolerance and the sliver is inside the kept area, so the
+    // image is never touched: the work matches the finding.
+    let tol = tolerance.max(0.0);
+    let p = Rect {
+        llx: scan.page_box.llx - tol,
+        lly: scan.page_box.lly - tol,
+        urx: scan.page_box.urx + tol,
+        ury: scan.page_box.ury + tol,
+    };
     let outer = Rect {
         llx: p.llx.min(scan.drawn.min.x) - BAND_MARGIN,
         lly: p.lly.min(scan.drawn.min.y) - BAND_MARGIN,
@@ -333,6 +374,29 @@ pub fn offpage_bands(scan: &PageScan) -> Vec<Rect> {
         ury: p.ury,
     });
     bands
+}
+
+/// Whether this object puts ink on the page at all (`Pass 294.2`).
+///
+/// Paths and images are taken at their word — a path object exists because a
+/// painting operator was seen, and an image because one was drawn. **Text is
+/// the case that needs asking**: a `BT … ET` with every show operand emptied
+/// (which is what redaction leaves behind) is a positioned husk that paints
+/// nothing, while its object bbox — derived from the text matrix — still
+/// measures the space the words used to fill.
+///
+/// A run counts as ink when its own laid-out bounds have positive width. That
+/// is a statement about GLYPHS, not about recovered text: a run whose font has
+/// no `/ToUnicode` previews as nothing and still paints, and treating it as
+/// empty would hide exactly the content this module exists to find.
+fn paints_anything(obj: &VectorObject) -> bool {
+    let VectorObject::Text(t) = obj else {
+        return true;
+    };
+    t.runs.iter().any(|r| {
+        let b = r.bounds;
+        b.min.x.is_finite() && b.max.x.is_finite() && (b.max.x - b.min.x).abs() > f64::EPSILON
+    })
 }
 
 fn kind_of(obj: &VectorObject) -> &'static str {
@@ -421,7 +485,7 @@ mod tests {
                 text: None,
             }],
         };
-        let bands = offpage_bands(&scan);
+        let bands = offpage_bands(&scan, DEFAULT_TOLERANCE_PT);
         assert_eq!(bands.len(), 4);
         for (i, a) in bands.iter().enumerate() {
             for b in bands.iter().skip(i + 1) {
@@ -452,7 +516,7 @@ mod tests {
             drawn: bounds(10.0, 10.0, 90.0, 90.0),
             objects: Vec::new(),
         };
-        assert!(offpage_bands(&scan).is_empty());
+        assert!(offpage_bands(&scan, DEFAULT_TOLERANCE_PT).is_empty());
         assert!(scan.is_clean());
     }
 }
