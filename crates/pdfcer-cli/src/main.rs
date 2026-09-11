@@ -1153,8 +1153,17 @@ enum Command {
     /// Takes files, folders, or both. A folder is scanned one level deep
     /// unless `--recursive`.
     ///
-    /// Exit `0` when nothing is off-canvas, `1` when something is — so a
-    /// script can gate on it.
+    /// **Every file and every page is scanned, always.** Finding something
+    /// does not stop the scan, and neither does a file that will not open —
+    /// that one is reported and the walk continues.
+    ///
+    /// The EXIT CODE is `0` when nothing was found and `1` when something
+    /// was, so a script can branch on it (`if pdfcer scan-offpage … ; then`).
+    /// That is a verdict delivered at the END of the run, not an early stop.
+    ///
+    /// For one log of everything in one pass:
+    ///
+    ///     pdfcer scan-offpage <folder> --recursive --detail -o report.txt
     ScanOffpage {
         /// PDFs and/or folders to scan.
         #[arg(required = true)]
@@ -40711,6 +40720,11 @@ fn cmd_scan_offpage(
         }
     }
 
+    // ★ The exit code is a VERDICT ON THE WHOLE RUN, delivered here, after
+    // every file has been scanned. It is not an early stop, and the operator
+    // read it as one from the release notes -- which is a wording defect in
+    // the notes, fixed, and a reason to say it in the help text too.
+    //
     // Exit 1 when something was found, so a script can gate on it. An
     // unreadable file is a failure of a different kind and keeps its own
     // code.
