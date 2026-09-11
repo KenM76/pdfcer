@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-10 (501st filing) — `v0.52.0` bumped for the off-canvas Pass
+
+**Shipped:** the version bump to `0.52.0` (`Cargo.toml` and `fuzz/`'s own
+lockfile, which is a separate cargo workspace — `v0.51.0` learned that
+the hard way, from a release binary whose banner read `-dirty`).
+
+Carries `Pass 294.0`: `scan-offpage` and `redact-offpage`. Release notes
+lead with the measurement on the operator's own drawings — 176 of 341
+files draw outside the sheet.
+
 ## 2026-09-10 (500th filing) — off-canvas content: found, and cut away
 
 **Shipped:** `Pass 294.0` (`04d0099`) — `pdfcer scan-offpage` (files, folders,
