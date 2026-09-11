@@ -1141,6 +1141,69 @@ enum Command {
         mode: SaveMode,
     },
 
+    /// **Find content drawn outside the page** — off-canvas objects, per
+    /// file and per page (`Pass 294.0`).
+    ///
+    /// A page box (`/CropBox`, or `/MediaBox` when there is none) is what a
+    /// reader displays; a content stream may draw anywhere. Marks outside it
+    /// are still IN THE FILE: they print on a larger sheet, they survive a
+    /// page-box change, and text among them is still extractable and
+    /// searchable. Moving something off the sheet is not deleting it.
+    ///
+    /// Takes files, folders, or both. A folder is scanned one level deep
+    /// unless `--recursive`.
+    ///
+    /// Exit `0` when nothing is off-canvas, `1` when something is — so a
+    /// script can gate on it.
+    ScanOffpage {
+        /// PDFs and/or folders to scan.
+        #[arg(required = true)]
+        paths: Vec<PathBuf>,
+        /// Descend into subfolders.
+        #[arg(long, short)]
+        recursive: bool,
+        /// Ignored fringe in points. A border stroked exactly on the page
+        /// edge overhangs by half its line width; reporting that would bury
+        /// the real finding. Raising this does not find less — it looks less.
+        #[arg(long, default_value_t = pdfcer_core::offpage::DEFAULT_TOLERANCE_PT)]
+        tolerance: f64,
+        /// Write the report here instead of to the screen.
+        #[arg(long, short)]
+        output: Option<PathBuf>,
+        /// List every off-page object, not just the per-page counts.
+        #[arg(long)]
+        detail: bool,
+        /// Print one line per affected FILE and nothing else — the form to
+        /// pipe into a copy or a batch.
+        #[arg(long, conflicts_with = "detail")]
+        files_only: bool,
+    },
+
+    /// **Remove content drawn outside the page**, keeping the part that is on
+    /// it (`Pass 294.0`, §12.5.6.23).
+    ///
+    /// Objects wholly off the page are cut away; objects crossing the edge are
+    /// CUT AT THE EDGE, so what was on the sheet stays. That is redaction
+    /// machinery, not a clip: the off-page bytes are removed from the content
+    /// stream rather than hidden, which is the whole point — a clipped path is
+    /// a path whose data survives.
+    ///
+    /// ⚠️ **Destructive and deliberate.** The removed content cannot be
+    /// recovered from the output. Keep the input.
+    RedactOffpage {
+        /// Input PDF.
+        input: PathBuf,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Ignored fringe in points, as `scan-offpage`.
+        #[arg(long, default_value_t = pdfcer_core::offpage::DEFAULT_TOLERANCE_PT)]
+        tolerance: f64,
+        /// Report what would be removed and write nothing.
+        #[arg(long)]
+        dry_run: bool,
+    },
+
     /// Remove pages from a document.
     ///
     /// A page-tree splice: the pages leave the tree, ancestors' counts
@@ -9985,6 +10048,27 @@ fn run() -> ExitCode {
             &output,
             mode,
         ),
+        Command::ScanOffpage {
+            paths,
+            recursive,
+            tolerance,
+            output,
+            detail,
+            files_only,
+        } => cmd_scan_offpage(
+            &paths,
+            recursive,
+            tolerance,
+            output.as_deref(),
+            detail,
+            files_only,
+        ),
+        Command::RedactOffpage {
+            input,
+            output,
+            tolerance,
+            dry_run,
+        } => cmd_redact_offpage(&input, &output, tolerance, dry_run),
         Command::InsertPages {
             input,
             source,
@@ -40408,6 +40492,363 @@ resources_renamed={} annots_ignored={} widgets_ignored={} group_carried={} dynam
         u32::from(dynamic),
     );
     finish_edit(input, &outcome)
+}
+
+/// Collect the PDFs named by `paths` — files as themselves, folders one level
+/// deep or recursively (`Pass 294.0`).
+///
+/// Sorted, so two runs over the same tree produce diffable reports.
+fn collect_pdfs(paths: &[PathBuf], recursive: bool) -> (Vec<PathBuf>, Vec<String>) {
+    let mut out = Vec::new();
+    let mut problems = Vec::new();
+
+    fn is_pdf(p: &Path) -> bool {
+        p.extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| e.eq_ignore_ascii_case("pdf"))
+    }
+
+    fn walk(dir: &Path, recursive: bool, out: &mut Vec<PathBuf>, problems: &mut Vec<String>) {
+        let entries = match std::fs::read_dir(dir) {
+            Ok(e) => e,
+            Err(err) => {
+                problems.push(format!("{}: {err}", dir.display()));
+                return;
+            }
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if recursive {
+                    walk(&path, recursive, out, problems);
+                }
+            } else if is_pdf(&path) {
+                out.push(path);
+            }
+        }
+    }
+
+    for p in paths {
+        if p.is_dir() {
+            walk(p, recursive, &mut out, &mut problems);
+        } else if p.exists() {
+            out.push(p.clone());
+        } else {
+            problems.push(format!("{}: not found", p.display()));
+        }
+    }
+    out.sort();
+    (out, problems)
+}
+
+/// Implement `pdfcer scan-offpage` (`Pass 294.0`).
+fn cmd_scan_offpage(
+    paths: &[PathBuf],
+    recursive: bool,
+    tolerance: f64,
+    output: Option<&Path>,
+    detail: bool,
+    files_only: bool,
+) -> u8 {
+    let (files, problems) = collect_pdfs(paths, recursive);
+    for p in &problems {
+        eprintln!("pdfcer: {p}");
+    }
+    if files.is_empty() {
+        eprintln!("pdfcer: no PDFs found in {} path(s)", paths.len());
+        return exit::RUNTIME_ERROR;
+    }
+
+    let mut report = String::new();
+    let mut affected_files = 0usize;
+    let mut affected_pages = 0usize;
+    let mut unreadable_files = 0usize;
+    let mut fully = 0usize;
+    let mut partial = 0usize;
+
+    for path in &files {
+        let doc = match std::fs::read(path)
+            .map_err(|e| e.to_string())
+            .and_then(|b| pdfcer_core::document::Document::from_bytes(b).map_err(|e| e.to_string()))
+        {
+            Ok(d) => d,
+            Err(err) => {
+                // A file pdfcer cannot open is REPORTED, never counted clean:
+                // "nothing off-canvas" and "I could not look" are different
+                // answers and must not print the same way.
+                unreadable_files += 1;
+                eprintln!("pdfcer: {}: {err}", path.display());
+                continue;
+            }
+        };
+        let (scans, unreadable_pages) = match pdfcer_core::offpage::scan_document(&doc, tolerance) {
+            Ok(pair) => pair,
+            Err(err) => {
+                unreadable_files += 1;
+                eprintln!("pdfcer: {}: {err}", path.display());
+                continue;
+            }
+        };
+        for (index, why) in &unreadable_pages {
+            eprintln!(
+                "pdfcer: {}: page {} could not be read ({why}) — not scanned",
+                path.display(),
+                index + 1
+            );
+        }
+
+        let hits: Vec<_> = scans.iter().filter(|s| !s.is_clean()).collect();
+        if hits.is_empty() {
+            continue;
+        }
+        affected_files += 1;
+        if files_only {
+            report.push_str(&format!("{}\n", path.display()));
+            affected_pages += hits.len();
+            for h in &hits {
+                fully += h.fully_off();
+                partial += h.partial();
+            }
+            continue;
+        }
+        report.push_str(&format!("{}\n", path.display()));
+        for h in hits {
+            affected_pages += 1;
+            fully += h.fully_off();
+            partial += h.partial();
+            report.push_str(&format!(
+                "  page {} off_page={} fully_off={} partial={} page_box={:.1},{:.1},{:.1},{:.1} drawn={:.1},{:.1},{:.1},{:.1}\n",
+                h.page_index + 1,
+                h.objects.len(),
+                h.fully_off(),
+                h.partial(),
+                h.page_box.llx,
+                h.page_box.lly,
+                h.page_box.urx,
+                h.page_box.ury,
+                h.drawn.min.x,
+                h.drawn.min.y,
+                h.drawn.max.x,
+                h.drawn.max.y,
+            ));
+            if detail {
+                for o in &h.objects {
+                    let how = match o.how {
+                        pdfcer_core::offpage::OffPage::Fully => "fully-off",
+                        pdfcer_core::offpage::OffPage::Partial => "partial",
+                        _ => "other",
+                    };
+                    report.push_str(&format!(
+                        "      {how:<9} {:<5} bbox={:.1},{:.1},{:.1},{:.1}{}\n",
+                        o.kind,
+                        o.bbox.min.x,
+                        o.bbox.min.y,
+                        o.bbox.max.x,
+                        o.bbox.max.y,
+                        match &o.text {
+                            Some(t) => format!("  text={t:?}"),
+                            None => String::new(),
+                        }
+                    ));
+                }
+            }
+        }
+    }
+
+    let summary = format!(
+        "scan-offpage files={} affected_files={} affected_pages={} fully_off={} partial={} unreadable_files={} tolerance={tolerance}",
+        files.len(),
+        affected_files,
+        affected_pages,
+        fully,
+        partial,
+        unreadable_files,
+    );
+
+    match output {
+        Some(path) => {
+            let body = format!("{report}{summary}\n");
+            if let Err(err) = std::fs::write(path, body) {
+                eprintln!("pdfcer: {}: {err}", path.display());
+                return exit::IO_ERROR;
+            }
+            println!("{summary}");
+            println!("report written to {}", path.display());
+        }
+        None => {
+            print!("{report}");
+            println!("{summary}");
+        }
+    }
+
+    // Exit 1 when something was found, so a script can gate on it. An
+    // unreadable file is a failure of a different kind and keeps its own
+    // code.
+    if unreadable_files > 0 && affected_files == 0 {
+        return exit::RUNTIME_ERROR;
+    }
+    u8::from(affected_files > 0)
+}
+
+/// Implement `pdfcer redact-offpage` (`Pass 294.0`).
+///
+/// Two acts, in one command and in this order: author a `/Redact` mark over
+/// each band of off-page area, then apply them. Marking and applying are
+/// separate verbs in this CLI for a good reason (a mark removes nothing), and
+/// they are fused here because "delete what is off the page" is one thing an
+/// operator asks for, not two.
+fn cmd_redact_offpage(input: &Path, output: &Path, tolerance: f64, dry_run: bool) -> u8 {
+    use pdfcer_core::annot_author::{Quad, RedactSpec};
+    use pdfcer_core::redact;
+    use pdfcer_core::vartext::Quadding;
+    use pdfcer_core::writer::SaveOptions;
+
+    let source = match std::fs::read(input) {
+        Ok(b) => b,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit::IO_ERROR;
+        }
+    };
+    let doc = match open_document_bytes(source.clone()) {
+        Ok(d) => d,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit_code_for_doc(&err);
+        }
+    };
+    let (scans, unreadable) = match pdfcer_core::offpage::scan_document(&doc, tolerance) {
+        Ok(pair) => pair,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit::RUNTIME_ERROR;
+        }
+    };
+    for (index, why) in &unreadable {
+        eprintln!(
+            "pdfcer: {}: page {} could not be read ({why}) — its off-page content is NOT removed",
+            input.display(),
+            index + 1
+        );
+    }
+
+    let mut marks = 0usize;
+    let mut pages_marked = 0usize;
+    let mut fully = 0usize;
+    let mut partial = 0usize;
+    let mut session = pdfcer_core::edit::EditSession::new(doc);
+    for scan in &scans {
+        let bands = pdfcer_core::offpage::offpage_bands(scan);
+        if bands.is_empty() {
+            continue;
+        }
+        pages_marked += 1;
+        fully += scan.fully_off();
+        partial += scan.partial();
+        for band in bands {
+            let spec = RedactSpec {
+                quads: vec![Quad::from_rect(band)],
+                // No `/IC`: Table 192 makes an absent interior colour a
+                // TRANSPARENT region on apply. A black box drawn outside the
+                // page would be new content in the very area being emptied.
+                fill: None,
+                overlay_text: None,
+                quadding: Quadding::Left,
+            };
+            if dry_run {
+                marks += 1;
+                continue;
+            }
+            match session.add_redaction(scan.page_index, &spec) {
+                Ok(_) => marks += 1,
+                Err(err) => {
+                    eprintln!("pdfcer: {}: {err}", input.display());
+                    return exit::EDIT_REFUSED;
+                }
+            }
+        }
+    }
+
+    if pages_marked == 0 {
+        println!(
+            "redact-offpage {} -> nothing to do; no content is drawn outside the page (tolerance={tolerance})",
+            input.display()
+        );
+        return exit::SUCCESS;
+    }
+
+    if dry_run {
+        println!(
+            "redact-offpage {} DRY RUN pages={pages_marked} marks={marks} fully_off={fully} partial={partial} tolerance={tolerance}",
+            input.display()
+        );
+        println!("  nothing was written. Run without --dry-run to remove it.");
+        return exit::SUCCESS;
+    }
+
+    // The marks have to be IN a document before they can be applied: a
+    // `/Redact` annotation is file state, and `apply_redactions` reads a
+    // document rather than a session. So the marked revision is materialised
+    // in memory and re-opened -- no temporary file, and the intermediate is
+    // never written where anybody could mistake it for the output.
+    let marked = match session.to_full_bytes(&SaveOptions::default()) {
+        Ok((bytes, _)) => bytes,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit::SAVE_REFUSED;
+        }
+    };
+    let marked_doc = match open_document_bytes(marked) {
+        Ok(d) => d,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit_code_for_doc(&err);
+        }
+    };
+    let (bytes, report) = match redact::apply_redactions(&marked_doc, &SaveOptions::identity()) {
+        Ok(pair) => pair,
+        Err(err) => {
+            eprintln!("pdfcer: redaction refused: {err}");
+            return exit::EDIT_REFUSED;
+        }
+    };
+    if let Err(err) = std::fs::write(output, &bytes) {
+        eprintln!("pdfcer: {}: {err}", output.display());
+        return exit::IO_ERROR;
+    }
+
+    println!(
+        "redact-offpage {} -> {}; pages={pages_marked} marks={marks} fully_off={fully} partial={partial} out_bytes={} tolerance={tolerance}",
+        input.display(),
+        output.display(),
+        bytes.len(),
+    );
+    // The same figures `redact-apply` prints, because the surgery is the same
+    // surgery -- an operator comparing the two outputs should not have to
+    // translate between two vocabularies for one act.
+    println!(
+        "  pages_redacted={} marks_applied={} glyphs_removed={} shows_edited={} paths_cut={}",
+        report.pages_redacted,
+        report.marks_applied,
+        report.glyphs_removed,
+        report.show_operators_edited,
+        report.vector_paths_cut,
+    );
+    println!(
+        "  paths_dropped={} streams_rewritten={} images_cleared={} images_removed={} annotations_removed={}",
+        report.vector_paths_dropped,
+        report.content_streams_rewritten,
+        report.images_cleared,
+        report.images_removed,
+        report.annotations_removed,
+    );
+    if report.has_disclosed_residuals() {
+        eprintln!(
+            "pdfcer: {}: the redaction left DISCLOSED residuals -- see `redact-apply --help` for what each means",
+            output.display()
+        );
+    }
+    exit::SUCCESS
 }
 
 fn cmd_insert_pages(

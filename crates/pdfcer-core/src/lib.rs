@@ -122,6 +122,7 @@ pub mod objstm;
 /// layer over an untouched scan (ISO 32000-1 §9.3.6 mode 3). Engine-agnostic:
 /// the recogniser is a trait, so the engine choice stays a separate decision.
 pub mod ocr;
+pub mod offpage;
 pub mod outline;
 pub mod page_tree;
 pub mod pageops;
