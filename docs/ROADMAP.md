@@ -116,6 +116,40 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `Pass 295.1` (`e360e11`, 2026-09-11) — a re-export omission with no local signal inside its own crate, gated
+
+**The report.** `pdfcer-gui` hit `error[E0432]`: `pdfcer_core::text_edit::PassedOver` did not resolve. `Pass 295.0` added `StyleLadder::passed_over: Vec<PassedOver>` and re-exported `StyleLadder` but not `PassedOver` — one Pass old, this project's own omission. Not a breakage: `text_edit::format::PassedOver` always resolved; the module-root re-export was the gap.
+
+**Fixed, and turned into a gate.** New `tools/check-reexport-closure.py`: 196 re-exported types checked; fails when a re-exported type's own `pub` field type is defined in the same module and missing from that module's `pub use` list. Wired into CI's `audits` job (21 checks now) and registered in `check-ci-parity.py` so `run-gates.sh` picks it up.
+
+**The gate found two more live instances, reported by nobody:** `AddTextRequest::face: NewTextFace` and `PageObjects::leaves: Vec<FormLeaf>`. Both now re-exported. Also deleted a dead `pub use decompose::{};` in `vector/mod.rs`.
+
+Sabotage (R225): removing `PassedOver` from the export list turns the gate red naming the exact original defect; restoring turns it green.
+
+**Verified:** `cargo fmt --all --check` clean; `cargo clippy --workspace --all-targets -- -D warnings` exit 0; `check-core-api-verbs.py` PASS (225 verbs); `check-ci-parity.py` clean.
+
+Reply: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_2026-09-11-passed-over-is-re-exported-and-the-class-is-gated-SHIPPED.md`.
+
+**The finding — standing rule `R251` minted.** A type reachable only through a re-exported item's own public field, but not itself re-exported, compiles clean and passes clippy *inside its defining crate* — the only observer is a downstream consumer. Second instance in this project of a consuming-crate report exposing a defect no local signal could see (first: `R151`'s uncalled-capability family — a different mechanism, same shape of blindness). Stated limit: the gate checks fields, not method return types — a re-export gap reachable only through a return type is not yet caught.
+
+**No new architectural decision** — a surface/tooling fix within the existing crate-boundary contract, not a new invariant or library choice.
+
+**★★ Gap found while filing this Pass.** `Pass 295.0` (`7160932`) was recorded in `SESSION_LOG.md`'s 507th filing but never reached this file's Shipped section. Added directly below, same filing, so the contract and the log agree.
+
+---
+
+### `Pass 295.0` (`7160932`, 2026-09-11) — a read-only twin for a ladder rung the disclosure gate can't see
+
+**Gap.** `preview_style_ladder` — a read-only twin of the style ladder — because the R90 disclosure gate cannot see rung 2 (synthetic bold/italic), so a consuming shell's tooltip predicted synthesis while the commit bound a real `Helvetica-Bold`. Also shipped: `StyleLadder::same_family`; `passed_over` typed as `Vec<PassedOver>` with the `Refusal` carried through the survey path; `Refusal::new`, making `FormatError::CoverageFailure` constructible (a public variant that was untestable by construction); `SynthesisRefusedByPosture`'s clause corrected from "X was used" to "X was tried and rejected".
+
+**Finding kept:** *"the missing shape did not cost a workaround, it cost a feature"* — a consumer disciplined about not re-deriving engine facts stays silent rather than parse, so a prose-only field reads as unavailable even when it was computed.
+
+**`R225`, 19th instance, caught by sabotage:** the first `same_family` test passed a hard-coded `Some(true)` because its fixture only ever bound `Helvetica` → `Helvetica-Bold`; a cross-family fixture now exists and the same sabotage is red.
+
+Five inbound shell requests answered in this one Pass. (This entry filed retroactively at the `Pass 295.1` filing — see the note above it.)
+
+---
+
 ### `a12dca6` + `233a9ef` (2026-09-10) — the registers were the bottleneck, and a gate so they stop growing
 
 **Operator, 2026-09-10:** *"this project has slowed to a crawl and it takes
@@ -25904,6 +25938,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - `R248` — A STRUCTURAL DEFECT THAT LEAVES THE OBJECT GRAPH AMBIGUOUS, NOT UNDEFINABLE, IS OPENED — pdfcer PICKS A READING UNDER A NAMED DEFAULT, DISCLOSES WHAT IT PICKED AND WHAT IT DISCARDED, AND…
 - `R249` — A DESTRUCTIVE SWEEP OBLIGED BY AN OUTCOME-SHAPED REQUIREMENT ("REMOVE ALL TRACES OF X") IS SCOPED BY THE EVIDENCE THE REQUIREMENT ITSELF NAMES, NEVER BY A COMPUTED REACHABILITY OR LIVENES…
 - `R250` — BEFORE IMPLEMENTING A DATA-FORMAT OR COMPATIBILITY DECISION SOURCED FROM A FEATURE-RAG (OR SPEC-RAG) FINDING LABELLED ANYTHING SHORT OF DIRECTLY-OBSERVED, CHECK WHETHER A PRIMARY ARTIFACT…
+- `R251` — A TYPE REACHABLE ONLY THROUGH A RE-EXPORTED ITEM'S OWN PUBLIC FIELD, BUT NOT ITSELF RE-EXPORTED, COMPILES AND CLIPPY-PASSES CLEAN INSIDE ITS DEFINING CRATE — THE ONLY OBSERVER IS A DOWNSTREAM CONSUMER, SO RE-EXPORT CLOSURE NEEDS A GATE, NOT A REVIEWER (limit: checks fields, not method return types). **[gate: check-reexport-closure.py]**
 
 ## Update protocol
 

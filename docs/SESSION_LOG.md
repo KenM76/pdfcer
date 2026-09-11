@@ -4,6 +4,43 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-11 (508th filing) — a re-export gap with no local signal, gated; a missing Shipped row closed
+
+**Shipped:** `Pass 295.1` (`e360e11`) — `pdfcer_core::text_edit::PassedOver` was
+unreachable from a consuming crate (`error[E0432]`) because `Pass 295.0`
+re-exported `StyleLadder` but not the `PassedOver` type its own field names.
+Fixed, and turned into `tools/check-reexport-closure.py` (196 re-exported
+types checked; wired into CI's `audits` job and `check-ci-parity.py`), which
+found two more live instances nobody had reported: `AddTextRequest::face:
+NewTextFace`, `PageObjects::leaves: Vec<FormLeaf>`. Also removed a dead
+`pub use decompose::{};`.
+
+**Decisions made this session:** No new architectural decision — a
+surface/tooling fix within the existing crate-boundary contract. Standing
+rule `R251` minted: a type reachable only through a re-exported item's own
+public field, but not itself re-exported, compiles and clippy-passes clean
+*inside its defining crate* — the only observer is a downstream consumer.
+Stated limit: the gate checks fields, not method return types.
+
+**Findings + decisions:** Second instance in this project of a
+consuming-crate bug report exposing a defect with no local signal (first:
+`R151`'s uncalled-capability family — a different mechanism, same shape of
+blindness: nothing inside `pdfcer-core` itself can fail on it).
+
+**Still in flight:** Nothing new opened by this filing.
+
+**For next session:** None specific to this filing.
+
+**Housekeeping:** `Pass 295.0` (`7160932`) was recorded in the 507th filing
+below but never reached `ROADMAP.md`'s Shipped section — added there
+retroactively in this filing so the contract and the log agree. `FEATURES.md`
+unchanged: this is a surface/tooling fix, not a capability change, so no row
+qualifies.
+
+Verified: `cargo fmt --all --check` clean; `cargo clippy --workspace
+--all-targets -- -D warnings` exit 0; `check-core-api-verbs.py` PASS (225
+verbs); `check-ci-parity.py` clean.
+
 ## 2026-09-11 (507th filing) — five shell requests, answered in one Pass
 
 **Shipped:** `Pass 295.0` (`7160932`) — `preview_style_ladder` (read-only
