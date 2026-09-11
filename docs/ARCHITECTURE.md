@@ -5295,6 +5295,18 @@ failure and make the guarantee the caught refusal, not the constant.
 Full record: §12's 2026-09-11 entry, decision 151; `ROADMAP.md` *Shipped*,
 `Pass 296.0` (509th filing).
 
+**Amendment 2026-09-11 (decision 152, `Pass 296.5`, `4f6f5a5`).** `Display`'s
+format string originally embedded `panic_message` (a third-party crate's raw
+panic text) alongside `scale`, with a doc comment warning callers not to
+match on it — a caveat that did not stop a consuming shell's generic-arm
+rendering from printing it verbatim across an operator's page. `Display`
+now reads only `"the rasterizer cannot work at scale {scale}"`;
+`panic_message` is unchanged and still reachable by a caller that names the
+field. See §12's 2026-09-11 decision 152 for the general rule this produced
+(`R253`): an engine error's `Display` is the safe default, and a "do not
+rely on this" comment does not substitute for keeping unsafe content out of
+it.
+
 ## 11. Undo/redo architecture
 
 Identified as a real design gap 2026-07-23: the UI standing rule
@@ -10416,3 +10428,80 @@ declined to file as a mechanical instance count; see that entry for the
 reasoning. `R245` gains its 8th dated instance under its own existing
 number, no new rule minted for that. **Pass ceiling `295.1` → `296.4`**,
 next free family `297.x`.
+
+### 2026-09-11 (510th filing, `4f6f5a5`) — decision 152: **AN ENGINE ERROR TYPE'S `Display` IS THE CONSUMER'S SAFE DEFAULT — A DOC COMMENT WARNING NOT TO MATCH ON A FIELD DOES NOT MAKE THAT FIELD SAFE TO HAVE PRINTED FOR THE CALLER ANYWAY**
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `Read`/`Grep` only. The
+commit hash, the consuming shell's exact painted string, and the
+"second workaround-not-request in one day" comparison to `Pass 296.3` are
+relayed from the dispatching engineer's account — the commit message
+(`4f6f5a5`) is authoritative and was not read directly here. Independently
+verified against the live tree: `RenderError::RasterizerLimit`'s
+`#[error("the rasterizer cannot work at scale {scale}")]` now omits
+`panic_message` from the format string, and the field's own doc comment
+states it is "Deliberately absent from `Display`"
+(`crates/pdfcer-render/src/lib.rs:553-564`). **Not** independently
+re-verified: the consuming shell's own named-arm workaround, and the
+`search_text` double-extraction comparison from `Pass 296.3`.
+
+**Origin.** `Pass 296.0` (509th filing, decision 151, same type) gave
+`RenderError::RasterizerLimit` a `panic_message` field carrying a
+third-party crate's raw panic text, placed it inside the `#[error(...)]`
+format string, and told callers by doc comment not to match on it. A
+consuming shell's generic error-display arm — written deliberately, on the
+same reasoning `Object`'s own `Display` was given the same session
+(`Pass 296.2`): a structured diagnostic beats "an error occurred" — routes
+exactly that string onto the page. The untouched default path therefore
+painted a raw slice-index panic across an operator's site plan. The
+consumer had already written a named arm to avoid it and reported it as a
+workaround, not a request; decision 058 treats a workaround as a finding
+about pdfcer's own boundary, so this is filed as a defect fixed here, not a
+favour accepted from elsewhere.
+
+**The generalisation, arriving from the other side of `Pass 296.2`'s own
+argument.** `Pass 296.2` gave `Object` a `Display` because a consumer's
+catch-all arm decides what an operator sees, so the *engine* must own the
+default rendering — a container prints its kind, never its contents,
+because nothing else can be relied on to stop it. `Pass 296.0` shipped in
+the same batch with the identical catch-all-arm fact true of it, and chose
+the opposite default. **A variant that is safe only for a consumer who has
+read its own doc comment is unsafe for every consumer who has not**, and a
+"do not match on this" caveat is not a substitute for keeping the unsafe
+content out of `Display` in the first place. The fix moves `panic_message`
+out of `Display` while leaving the field itself untouched — a caller that
+wants the diagnosis still has it, deliberately, by naming the field.
+
+**Checked against, and declined to file as, `R251`.** `R251`'s mechanism is
+a re-export/reachability gap — a type visible only through a re-exported
+item's field, invisible to `cargo check`/clippy inside its own defining
+crate, so only a downstream build catches it. This defect compiled clean,
+clippy-passed clean, and was fully public and fully documented; nothing
+about it is a reachability gap. The shared property is only "invisible to
+the crate that shipped it, visible to a consumer" — the same distinction
+this role already drew for `Pass 296.1`/`296.2` at the 509th filing (a
+shared moral is not a shared mechanism). Filed as its own rule instead.
+
+**Standing rule `R253` minted**: an error/diagnostic type's `Display` impl
+is the safe default a caller who never reads its doc comment will see; a
+field the type's own documentation calls non-contractual or advises
+against matching on must not appear inside `Display` regardless — the safe
+rendering is the one every caller gets, not the one a caller opts into by
+reading the source.
+
+**Second instance of the same day's pattern.** Decision 058's "a workaround
+is a finding, not a favour" framing caught two defects in this one
+session's inbound batch — this one, and (per the engineer's account, not
+independently verified here) a `search_text` double-extraction surfaced
+during `Pass 296.3`'s CLI fix. Two in one day is a frequency worth a future
+session noticing if a third arrives.
+
+**Body-section effects.** `ARCHITECTURE.md` §10.7 (decision 151) gains a
+paragraph recording the `Display` fix on the same type it already
+documents. No `Cargo.toml` change; no writer-path change; `panic_message`'s
+field-level contract ("not a contract, third-party text") is unchanged —
+only its reach into `Display` is removed.
+
+**Decision ceiling: `151` → `152`**, next free `153`. **Standing rules
+ceiling: `R252` → `R253`**, next free `R254`. **Pass ceiling `296.4` →
+`296.5`**, next free `296.6` (family `296` continues; next free new family
+still `297.x`).

@@ -116,6 +116,18 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `Pass 296.5` (`4f6f5a5`, 2026-09-11) — a rasteriser panic's own text does not belong in what a caller sees by default
+
+`RenderError::RasterizerLimit`'s `#[error(...)]` format string (`Pass 296.0`) carried the rasteriser's raw panic text while its own doc comment told consumers not to match on that field — a consuming shell's generic arm routes an error's `Display` onto the page by design (the same argument `Object`'s own `Display`, `Pass 296.2`, was given from the writer's side), so the untouched default path painted `range start index 442613758592 out of range for slice of length 1088737` across an operator's site plan. The consumer had already written a named arm to avoid it and reported it as a **workaround, not a request** — decision 058 makes a workaround a finding about pdfcer's own boundary, not a favour done for it, so this is filed as a defect fixed here. `Display` now reads only `"the rasterizer cannot work at scale {scale}"`; `panic_message` is unchanged, still present, still documented as non-contractual, still reachable by a caller that names the field.
+
+**Declined as a further `R251` instance** — checked against `R251`'s own mechanism (a re-export gap invisible inside the defining crate, visible only to a downstream build) and this is a different failure: a runtime string embedded in a `Display` impl, nothing to do with compile-time reachability. Filed instead as **standing rule `R253`** (*Standing rules*, below): an error/diagnostic type's `Display` is the safe default a caller who never reads its doc comment will see, and a field the type's own documentation calls non-contractual does not thereby become safe to leave inside `Display`.
+
+**`ARCHITECTURE.md` §10.7** gains a paragraph; **decision 152** records the invariant generally — arriving from the other side of `Pass 296.2`'s own reasoning, shipped one session earlier in the same batch.
+
+**`FEATURES.md`**: no row changed — an error-message correctness fix inside `Pass 296.0`'s existing refusal, not a new or extended operator-visible capability.
+
+---
+
 ### `Pass 296.4` (`8d2f6bb`, 2026-09-11) — ask whether a page composites in ink, without rendering it
 
 `page_composites_in_ink(page)` (`pdfcer-render`) — a `pdfcer-gui` request (`G006`): decide, from the page's own resources and content, whether rendering it would engage the subtractive (colorant) compositing buffer, without paying for a render. `BlendSpaceFrom` (the enum the query classifies against) is now `pub` (`interpret::BlendSpaceFrom`, re-exported from `lib.rs`). Read-only; no new invariant, nothing round-tripped.
@@ -25997,6 +26009,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - `R250` — BEFORE IMPLEMENTING A DATA-FORMAT OR COMPATIBILITY DECISION SOURCED FROM A FEATURE-RAG (OR SPEC-RAG) FINDING LABELLED ANYTHING SHORT OF DIRECTLY-OBSERVED, CHECK WHETHER A PRIMARY ARTIFACT…
 - `R251` — A TYPE REACHABLE ONLY THROUGH A RE-EXPORTED ITEM'S OWN PUBLIC FIELD, BUT NOT ITSELF RE-EXPORTED, COMPILES AND CLIPPY-PASSES CLEAN INSIDE ITS DEFINING CRATE — THE ONLY OBSERVER IS A DOWNSTREAM CONSUMER, SO RE-EXPORT CLOSURE NEEDS A GATE, NOT A REVIEWER (limit: checks fields, not method return types). **[gate: check-reexport-closure.py]**
 - `R252` — A MEASURED BOUNDARY THAT DOES NOT ORDER WITH ANY INPUT DIMENSION (SIZE, AREA, EXTENT) CANNOT BE PUBLISHED AS AN EXACT CONSTANT — PUBLISH IT AS A FLOOR BELOW THE LOWEST OBSERVED FAILURE, AND MAKE THE GUARANTEE THE CAUGHT, NAMED REFUSAL RATHER THAN THE NUMBER (`Pass 296.0`, `MAX_GUARANTEED_REGION_SCALE`).
+- `R253` — AN ERROR/DIAGNOSTIC TYPE'S `Display` IS THE SAFE DEFAULT A CALLER WHO NEVER READS ITS DOC COMMENT WILL SEE; A FIELD THE TYPE'S OWN DOCUMENTATION CALLS NON-CONTRACTUAL OR WARNS AGAINST MATCHING ON DOES NOT THEREBY BECOME SAFE TO LEAVE INSIDE `Display` — THE SAFE RENDERING IS THE ONE EVERY CALLER GETS, NOT THE ONE A CALLER OPTS INTO BY READING THE SOURCE (`Pass 296.5`, `RenderError::RasterizerLimit`; arrived from the other side of `Pass 296.2`'s `Object`/`Name` `Display` reasoning, same session).
 - **NOT filed as further `R251` instances, by this role's own judgement (509th filing): `Pass 296.1`'s `remedy_faces` (data existed only as prose) and `Pass 296.2`'s missing `Display` impl are the same OBSERVATION as `R251` — invisible inside the defining crate, visible only to a downstream consumer — but not the same MECHANISM (neither is a re-export gap; `check-reexport-closure.py` would not have caught either). Recorded here as a cross-cutting note rather than mechanically counted into `R251`'s or `R151`'s instance tally: a shared moral is not a shared mechanism (see `D:\dev\rag\rust\` — pattern-naming discipline). Four consumer-invisible defects in two days (`295.0`, `295.1`, `296.1`, `296.2`) is nonetheless worth a future session's attention as a possible boundary worth naming properly, once a fix for one would plausibly have caught the others.**
 
 ## Update protocol

@@ -4,6 +4,57 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-11 (510th filing) — `Pass 296.0`'s own argument arrived from the other side
+
+**Shipped:** `Pass 296.5` (`4f6f5a5`) — `RenderError::RasterizerLimit`'s
+`Display` no longer embeds the rasteriser's raw third-party panic text.
+`Pass 296.0` had put it in the `#[error(...)]` format string with a doc
+comment telling callers not to match on it; a consuming shell's generic
+error-display arm — written deliberately so a structured diagnostic beats
+"an error occurred" — routed exactly that string onto an operator's page.
+The consumer had already written a named arm to avoid it and reported it
+as a workaround, not a request (decision 058: a workaround is a finding
+about pdfcer's own boundary, not a favour). `Display` now reads only the
+scale; `panic_message` is unchanged and still reachable by name.
+
+**Findings + decisions:**
+- **Decision 152 minted.** `Pass 296.2`, same session, gave `Object`/`Name`
+  a `Display` on exactly the reasoning that a consumer's catch-all arm
+  decides what an operator sees, so the engine must own the safe default.
+  `Pass 296.0` shipped with the identical fact true of it and chose the
+  opposite default. General rule: a variant safe only for a consumer who
+  has read its doc comment is unsafe for every consumer who has not — the
+  safe rendering must be the default one, not an opt-in via source-reading.
+- **`R253` minted** (not filed as a further `R251` instance — checked
+  against `R251`'s actual mechanism, a re-export/reachability gap, and this
+  is a different failure: a runtime string inside a `Display` impl, nothing
+  to do with compile-time reachability. Shared moral, not shared mechanism,
+  per this role's own standing discipline).
+- **Noted, not separately filed:** this is the second time in one day
+  decision 058's "workaround, not request" framing caught a real defect —
+  the other being a `search_text` double-extraction the engineer reports
+  surfacing during `Pass 296.3`'s CLI fix. Two in one day is a frequency
+  worth watching for a third.
+
+**`FEATURES.md`**: no row changed — error-message correctness inside an
+existing capability, not a new or extended one. Said explicitly rather than
+inventing a row.
+
+**Sourcing note (hard rule 8):** no shell this filing. Commit hash and
+reasoning relayed from the dispatching engineer's account (`4f6f5a5`
+itself unread here). Independently verified by `Grep`/`Read` against the
+live tree: `RenderError::RasterizerLimit`'s format string omits
+`panic_message`, and the field's doc comment states it is "Deliberately
+absent from `Display`" (`crates/pdfcer-render/src/lib.rs:553-564`). Not
+independently verified: the consuming shell's own named-arm workaround,
+and the `search_text` double-extraction claim from `Pass 296.3`.
+
+**Still in flight:** nothing new opened by this filing.
+
+**For next session:** if a third same-day "workaround, not request"
+defect turns up in a future batch, decision 058's framing is earning
+enough repeat hits to be worth a dedicated sweep, not just a note.
+
 ## 2026-09-11 (509th filing) — five `pdfcer-gui` requests answered in five Passes; a measurement that refused to become a constant
 
 **Shipped**, all replying to `pdfcer-gui`'s inbound batch (`G002`–`G006`,
