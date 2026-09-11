@@ -93,7 +93,7 @@ pub use refusal_kind::{RefusalClass, RefusalKind};
 // asymmetry with no reason behind it.
 pub use encoding::{
     CharEncoding, CompositeEncodeResult, CompositeEncoding, EncodeResult, InverseEncoding,
-    RInvTrigger, Refusal,
+    RInvTrigger, Refusal, faces_clause, std14_faces_covering,
 };
 pub use format::{
     FillModel, FontAcceptance, FontPreflight, FontResourceEntry, FontSelector, FontSibling,

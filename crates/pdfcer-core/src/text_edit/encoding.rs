@@ -149,6 +149,48 @@ pub struct Refusal {
     pub base_font: String,
     /// The full, operator-facing message (surfaced verbatim by UI/CLI).
     pub message: String,
+    /// The standard-14 faces this refusal offers as a way forward — the same
+    /// list [`Self::message`]'s tail names, structured (`Pass 296.1`).
+    ///
+    /// Empty when nothing covers the character, which is also when the
+    /// message's tail is absent: the field and the sentence are two renderings
+    /// of one computation, never two computations.
+    ///
+    /// # ★★ Why this is a field and not a caller's parse
+    ///
+    /// `Pass 274.0` made a coverage refusal end on a **working remedy**
+    /// instead of on "choose a font that covers it", and `Pass 279.0` made
+    /// that remedy **page-aware** because the naive list was wrong in its most
+    /// prominent position. Both improvements landed inside a prose sentence,
+    /// and the consuming shell reported the consequence: to say *"Times-Roman
+    /// has it"* in its own voice it would have had to split
+    /// [`Self::message`] on `"these standard-14 faces have it: "` and strip a
+    /// `.` — a locator for this crate's message format living in a GUI,
+    /// breaking silently the first time the clause is reworded.
+    ///
+    /// ★ So it showed nothing. Not a workaround — **the feature was simply
+    /// not surfaced**, on the one refusal an operator can act on, because a
+    /// shell disciplined about not re-deriving engine facts keeps quiet rather
+    /// than guess. A remedy computed correctly and then made unreachable is
+    /// the same as not computing it, from out there.
+    ///
+    /// # ★ How good this list is depends on where the refusal came from, and
+    /// # that is stated rather than left to be discovered
+    ///
+    /// Raised from a refusal site that has the PAGE in hand
+    /// (`text_edit::edit`'s embedded-subset floor), every name here has been
+    /// put through the acceptance test `set_font` itself uses on that page
+    /// (`R221`) — so it will not resolve back into the very subset that
+    /// refused. Raised from the pure-encoding layer, which by construction has
+    /// no page, it is the naive coverage list: correct about the FACE, silent
+    /// about whether the page already claims that name.
+    ///
+    /// Either way it matches the message exactly, so a caller showing this
+    /// field says precisely what pdfcer said — never more.
+    ///
+    /// `Vec<String>` rather than `Vec<&'static str>` so a future non-standard-14
+    /// remedy does not change the type, as the request asked.
+    pub remedy_faces: Vec<String>,
 }
 
 impl Refusal {
@@ -183,12 +225,14 @@ impl Refusal {
         character: Option<char>,
         base_font: impl Into<String>,
         message: impl Into<String>,
+        remedy_faces: Vec<String>,
     ) -> Self {
         Self {
             trigger,
             character,
             base_font: base_font.into(),
             message: message.into(),
+            remedy_faces,
         }
     }
 
@@ -198,6 +242,11 @@ impl Refusal {
             trigger,
             character: Some(u),
             base_font: base_font.to_owned(),
+            // No page, no resources, and `why` is a cause rather than a
+            // remedy: this constructor cannot name a face without inventing
+            // one. Empty is the honest answer, and it matches the message it
+            // builds, which offers no faces either.
+            remedy_faces: Vec::new(),
             message: format!(
                 "{}: character U+{:04X} '{}' {} in font '{}'",
                 trigger.id(),
@@ -365,6 +414,7 @@ impl CompositeEncoding {
                     trigger: RInvTrigger::Ambiguous,
                     character: Some(ch),
                     base_font: self.base_font.clone(),
+                    remedy_faces: Vec::new(),
                     message: format!(
                         "this font's character map gives {ch:?} to {} different codes ({list}), so there is no single code that means it and pdfcer will not guess; every other character of this font still edits — keep the edit to those, or choose a font that maps {ch:?} once.",
                         codes.len()
@@ -372,10 +422,17 @@ impl CompositeEncoding {
                 });
             }
             let Some(&code) = self.reverse.get(&ch) else {
+                // Computed once and spent on both the sentence and the field
+                // (`Pass 296.1`). ★ This layer has NO page -- it is the pure
+                // encoding inverse -- so this is the naive coverage list, and
+                // `Refusal::remedy_faces` says so rather than letting a caller
+                // assume the page-aware guarantee the editing layer gives.
+                let covering: Vec<&'static str> = std14_faces_covering(ch);
                 return Err(Refusal {
                     trigger: RInvTrigger::TargetAbsent,
                     character: Some(ch),
                     base_font: self.base_font.clone(),
+                    remedy_faces: covering.iter().map(|&f| f.to_owned()).collect(),
                     message: format!(
                         "this font has no glyph for {ch:?}, and pdfcer cannot add one to a font \
                          that is already embedded. Keep this edit to characters the font \
@@ -390,7 +447,7 @@ impl CompositeEncoding {
                         // (§9.6.2.2), and `set_font` ADDS the resource to a
                         // page that lacks it, so the sentence names a route
                         // that is known to work rather than a hope.
-                        match faces_clause(&std14_faces_covering(ch)).as_str() {
+                        match faces_clause(&covering).as_str() {
                             "" => ".".to_owned(),
                             clause => {
                                 format!(
@@ -410,6 +467,7 @@ impl CompositeEncoding {
                     trigger: RInvTrigger::TargetAbsent,
                     character: Some(ch),
                     base_font: self.base_font.clone(),
+                    remedy_faces: Vec::new(),
                     message: format!(
                         "this font maps {ch:?} to a glyph index pdfcer cannot write in this \
                          encoding."
@@ -486,6 +544,27 @@ impl CompositeEncoding {
 /// has". `Symbol` and `ZapfDingbats` therefore drop out of the list for
 /// ordinary text without being special-cased — their built-in encodings simply
 /// do not map to it.
+///
+/// # ★★ Warning — this list is NOT page-aware
+///
+/// A face named here can resolve straight back into the very subset that
+/// refused. `set_font` resolves a selector against the PAGE first, matching a
+/// subset-stemmed `/BaseFont`, so on a page whose font is `ABCDEF+Helvetica`,
+/// asking for `Helvetica` re-uses that subset and the edit fails again,
+/// identically. Measured on `subset_missing.pdf` (`Pass 279.0`):
+/// `--set-font Helvetica` reported `ABCDEF+Helvetica->ABCDEF+Helvetica` and the
+/// follow-up edit refused word for word, while `Times-Roman` worked — and
+/// `Helvetica` was this function's FIRST result.
+///
+/// [`crate::text_edit::format::std14_faces_reachable`] is the corrected
+/// computation: same candidates, each put through the acceptance test
+/// `set_font` itself uses on that page (`R221`).
+///
+/// ★ A consumer reading a refusal should not call either of these. The answer
+/// is already on the refusal, page-verified where a page was available:
+/// [`Refusal::remedy_faces`]. This function remains public because the
+/// coverage question — *"which standard-14 faces contain this character at
+/// all?"* — is legitimate on its own, with no page in the question.
 #[must_use]
 pub fn std14_faces_covering(ch: char) -> Vec<&'static str> {
     crate::fontdata::Std14::ALL
@@ -691,6 +770,7 @@ impl InverseEncoding {
                         trigger: RInvTrigger::CodeOccupied,
                         character: Some(u),
                         base_font: self.base_font.clone(),
+                        remedy_faces: Vec::new(),
                         message: format!(
                             "R-INV-7: character U+{:04X} '{}' has no code in font '{}'s encoding, \
                              and code {} (its standard slot) is already assigned to a different \

@@ -2027,10 +2027,24 @@ pub(crate) fn plan_edit_target(
         let carried = carried_codes(&recs, &anchor.font_name);
         for (u, &code) in req.replace.chars().zip(encoded.codes.iter()) {
             if !carried.contains(&code) {
+                // ★★ COMPUTED ONCE, spent TWICE (`Pass 296.1`). It used to be
+                // computed here and spent only on the sentence, which is how a
+                // page-aware remedy ended up reachable only by parsing prose.
+                // The structured field and the clause are now two renderings of
+                // this one value -- `R221`'s rule applied to an answer rather
+                // than to a producer: one computation, asked, never two kept in
+                // step by hand.
+                let reachable = crate::text_edit::format::std14_faces_reachable(
+                    doc,
+                    &target.resources,
+                    &recs,
+                    u,
+                );
                 return Err(EditError::Refused(Refusal {
                     trigger: RInvTrigger::TargetAbsent,
                     character: Some(u),
                     base_font: font.base_font.clone(),
+                    remedy_faces: reachable.iter().map(|&f| f.to_owned()).collect(),
                     // ★ THE SAME REMEDY THE SIBLING REFUSAL NAMES, because an
                     // operator experiences these two as one thing.
                     //
@@ -2073,16 +2087,7 @@ pub(crate) fn plan_edit_target(
                         // So each candidate is now asked of the ACCEPTING code
                         // on THIS page (`R221`), not of the standard-14
                         // encoding tables in isolation.
-                        match crate::text_edit::encoding::faces_clause(
-                            &crate::text_edit::format::std14_faces_reachable(
-                                doc,
-                                &target.resources,
-                                &recs,
-                                u,
-                            ),
-                        )
-                        .as_str()
-                        {
+                        match crate::text_edit::encoding::faces_clause(&reachable).as_str() {
                             "" => String::new(),
                             clause => format!(
                                 " To make this edit now, switch the run to a font that carries '{u}' -- `format_text` with `set_font` will add one, and {clause}"
@@ -3244,6 +3249,7 @@ pub(crate) fn classify_font(
                 trigger: RInvTrigger::Composite,
                 character: None,
                 base_font: font.base_font.clone(),
+                remedy_faces: Vec::new(),
                 message: format!(
                     "R-INV-4: font '{}' is a composite (Type 0 / CIDFont) run that pdfcer cannot edit in place. {why}",
                     font.base_font
@@ -3320,6 +3326,7 @@ pub(crate) fn classify_font(
             trigger: RInvTrigger::SymbolicNoEncoding,
             character: None,
             base_font: font.base_font.clone(),
+            remedy_faces: Vec::new(),
             message: format!(
                 "R-INV-2: font '{}' is symbolic with a built-in/custom cmap and no usable \
                  /Encoding (§9.6.6.4 Branch B ignores /Encoding); its code↔glyph relation lives \
@@ -3345,6 +3352,7 @@ pub(crate) fn classify_font(
             trigger: RInvTrigger::ToUnicodeOnly,
             character: None,
             base_font: font.base_font.clone(),
+            remedy_faces: Vec::new(),
             message: format!(
                 "R-INV-3: font '{}' relates codes to characters only through /ToUnicode, which is \
                  one-way and lossy (§0) and cannot be inverted; it has no authoritative /Encoding \

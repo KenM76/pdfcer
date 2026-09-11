@@ -2702,6 +2702,7 @@ fn accept_font_target(
                     trigger: RInvTrigger::TargetAbsent,
                     character: Some(u),
                     base_font: target.base_font.clone(),
+                    remedy_faces: Vec::new(),
                     message: format!(
                         "coverage failure: target font '{}' is an embedded SUBSET that does not \
                          already carry code {} for character U+{:04X} '{}'; embedding a new glyph \

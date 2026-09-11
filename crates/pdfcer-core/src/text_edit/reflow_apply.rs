@@ -954,6 +954,7 @@ fn refuse_if_composite(
             trigger: RInvTrigger::Composite,
             character: None,
             base_font: font.base_font.clone(),
+            remedy_faces: Vec::new(),
             message: format!(
                 "R-INV-4: font '{}' is a composite (Type 0 / CIDFont) run; within-block reflow of \
                  composite/CJK fonts is deferred (FF-E) — the word tokeniser assumes one byte per \

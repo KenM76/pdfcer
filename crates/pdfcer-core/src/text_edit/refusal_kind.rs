@@ -157,6 +157,10 @@ mod tests {
             character: None,
             base_font: "AAAAAA+JetBrainsMono-Regular".to_owned(),
             message: "symbolic with a built-in cmap and no usable /Encoding".to_owned(),
+            // A symbolic font with no usable encoding has no standard-14 way
+            // out, and the classification under test does not read this field
+            // anyway.
+            remedy_faces: Vec::new(),
         };
         assert_eq!(
             EditError::Refused(r).refusal_kind(),
