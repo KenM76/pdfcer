@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-11 (503rd filing) — `v0.52.0` released, with the portable build
+
+**Released:** tag at `cb7727e`, CI **green** at the tagged commit. Zip
+`pdfcer-v0.52.0-windows-x64.zip`, **19,139,784 bytes**, SHA-256
+`6ebe3671afb5b7700189292cc3c6c2e8a6d770a0f318a878e8eb2df0d1dd95eb`,
+published on the release page with its checksum file. Portable folder
+`builds/pdfcer-20260911-0005-cb7727e` on D:, 8 files, 35,384,512 bytes.
+OneDrive slot **`pdfcer1`**; `pdfcer2` keeps `0.51.0`.
+`verify-release.py` **nine of nine**.
+
+**Contents:** `Pass 294.0` and `294.1` — `scan-offpage` and
+`redact-offpage`, both taking files, folders and `--recursive`.
+
+★ A local `v0.52.0` tag from an interrupted first attempt pointed at the
+BUMP commit, one commit behind the batch feature. Caught by reading the
+tag before building, confirmed unpublished with `git ls-remote --tags`,
+then moved. **An unpushed tag is a local note; a pushed one is a
+published claim** — the check that separates them costs one command.
+
 ## 2026-09-10 (502nd filing) — redact-offpage goes batch
 
 **Shipped:** `Pass 294.1` (`d41be61`) — `redact-offpage` takes files,
