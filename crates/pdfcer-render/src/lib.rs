@@ -521,7 +521,36 @@ pub enum RenderError {
     /// disclose it off-canvas. Nothing is wrong with the document, and
     /// retrying the same call will fail the same way — change the scale.
     /// `panic_message` is carried for a log, never for a parser.
-    #[error("the rasterizer cannot work at scale {scale}: {panic_message}")]
+    ///
+    /// # ★★ The `Display` form deliberately OMITS `panic_message`
+    ///
+    /// It did not, for about an hour, and the consuming shell reported what
+    /// that cost — as a workaround it had written rather than as a request,
+    /// which under decision 058 makes it a finding about this boundary.
+    ///
+    /// Its generic arm routes an error's `Display` onto the page, on purpose:
+    /// *"requested raster size 115200x86400 exceeds MAX_PIXMAP_EDGE"* is worth
+    /// more to an operator than "an error occurred". With the panic text in
+    /// the message, the default path painted
+    ///
+    /// ```text
+    /// This page could not be drawn. the rasterizer cannot work at scale
+    /// 8053069: range start index 442613758592 out of range for slice of
+    /// length 1088737
+    /// ```
+    ///
+    /// across a site plan. **A string no program may parse is not a string an
+    /// operator should have to read off his drawing** — and this crate had
+    /// said, in the same breath, both "here it is in the message" and "do not
+    /// match on it".
+    ///
+    /// ★ The shape is the one `Object`'s `Display` was given a week's thought
+    /// over, arriving from the other side: **the safe rendering must be the
+    /// DEFAULT one.** A variant that is only safe for a consumer who writes a
+    /// named arm is a variant that is unsafe for every consumer who has not
+    /// read this doc comment. The field is still here, and a caller that wants
+    /// the diagnosis reads it deliberately.
+    #[error("the rasterizer cannot work at scale {scale}")]
     RasterizerLimit {
         /// The scale that was asked for.
         scale: f32,
@@ -529,6 +558,8 @@ pub enum RenderError {
         ///
         /// Verbatim, for a trace line. **Not a contract**: it is a third
         /// party's panic text and it will change when that crate changes.
+        /// Deliberately absent from [`Display`](std::fmt::Display) — see the
+        /// variant's own note.
         panic_message: String,
     },
 }

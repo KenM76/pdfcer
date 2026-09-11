@@ -79,6 +79,12 @@ fn e_size_sheet() -> Vec<u8> {
     pdf.into_bytes()
 }
 
+/// What a consumer's generic `Err(e) => show(e.to_string())` arm would put in
+/// front of an operator.
+fn outcome_message(e: &RenderError) -> String {
+    e.to_string()
+}
+
 /// The viewport-sized region a shell asks for at magnification `scale`:
 /// ~1100 × 990 device pixels however deep the zoom goes.
 fn viewport_region(scale: f32) -> Rect {
@@ -101,10 +107,37 @@ fn a_region_render_past_the_rasterizer_limit_returns_an_error() {
     );
 
     match outcome {
-        Err(RenderError::RasterizerLimit { scale, .. }) => {
+        Err(RenderError::RasterizerLimit {
+            scale,
+            ref panic_message,
+        }) => {
             assert!(
                 (scale - 1_000_000.0).abs() < f32::EPSILON,
                 "the refusal must name the scale it was asked for, got {scale}"
+            );
+
+            // ★★ The panic text must be REACHABLE and must NOT be in the
+            // message (`Pass 296.5`). A consuming shell routes an error's
+            // `Display` onto the page on purpose, because a structured
+            // diagnostic beats "an error occurred" -- so a third party's panic
+            // text in the message is a third party's panic text painted across
+            // a site plan. The safe rendering has to be the DEFAULT one, not
+            // the one reserved for a consumer who read the doc comment.
+            assert!(
+                !panic_message.is_empty(),
+                "the diagnosis must still be reachable for a log line"
+            );
+            let shown = outcome_message(&RenderError::RasterizerLimit {
+                scale,
+                panic_message: panic_message.clone(),
+            });
+            assert!(
+                !shown.contains("range start index") && !shown.contains(panic_message.as_str()),
+                "the operator-facing message must not carry the rasterizer's panic text: {shown}"
+            );
+            assert!(
+                shown.contains("1000000"),
+                "it must still name the scale, which is the actionable half: {shown}"
             );
         }
         // Not a failure to chase: a refusal is a refusal, and the geometry
