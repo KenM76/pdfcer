@@ -116,6 +116,42 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `4ba7202` (2026-09-12) — `FEATURES.md`'s off-page `gui` box ticked; closes a same-day mirror-vs-source contradiction
+
+Not a Pass — a one-line docs correction, reported by `pdfcer-gui` (`G012`, no ask attached). `FEATURES.md:331`'s `gui [ ]` note read *"no `pdfcer-gui` request in the channel for it yet"* — a claim about the shell, and it had gone stale: both halves (a per-page off-page census, and a button laying `/Redact` marks over the four bands) ship from their ribbon. Row now `[x]`, with their shape kept rather than flattened into a bare tick — it MARKS, deliberately, because that shell has exactly one control that destroys content and the operator's own Apply is what cuts; the batch/`--recursive` sweep stays CLI-only, by their choice, named rather than left as silent debt.
+
+**Closes a contradiction six hours old.** Answering `G008` earlier this session, `docs/core-api/03-capabilities.md`'s appendix was ticked to `x` for this same capability, with a freshly written authority note stating `FEATURES.md` wins whenever the two disagree — while `FEATURES.md` itself still read `[ ]`. The rule was right; the correction it described had not landed in the file the rule points at. **The missing other half, recorded here rather than only fixed:** a correction measured against source must land IN `FEATURES.md`, not merely send the reader there. Not minted as a numbered rule — one instance, restating an authority note already on the books rather than a new mechanism.
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `.git/refs/heads/main` reads `4ba7202906481b0265a2ab1aa61577c1536b0392`, matching `.git/logs/HEAD`'s final line. Independently verified against live source: `docs/FEATURES.md:331` reads `[x] | [x] | [x] | ?` with the ribbon/mark-not-remove sentence present.
+
+**`FEATURES.md`**: the row itself is the change — verified, not redone.
+
+---
+
+### `Pass 299.0` (`766c52a` + `7a0a9c2`, 2026-09-12) — the partial-name rule is now ASKABLE, and asking it found two of this crate's own bugs
+
+Reported by `pdfcer-gui` in two parts (`G010`, `G011`), both against the `Pass 298.0` guard shipped the day before.
+
+**`766c52a` — `FormAuthorError::PeriodInPartialName` renamed to `EmptyNameSegment` (BREAKING).** The variant's name, doc comment and module header all stated `DottedPartialName`'s rule (a `/T` containing a period); its `#[error]` message and its only raiser (`split_field_path`'s empty-segment check) had always enforced a different one — `"Text.2"` can never raise it, only `"a..b"`/`".x"` can. Not hypothetical: `rename_field`'s own `# Errors` promised this variant for a dotted name, forty lines above where the verb actually raises `DottedPartialName` — a consumer implementing the documented contract would miss every dotted rename and fall through to a raw `Display`. Renamed rather than re-documented, because the name was the third wrong thing and would still have lied; taken as breaking now because it costs nothing today (zero matches in `pdfcer-gui`, zero in `pdfcer-cli`, one test here) and will not later. New test `each_name_refusal_is_reached_only_by_its_own_rule` pins the mapping — an empty segment to `EmptyNameSegment`, a well-formed two-level path through `rename_field` to `DottedPartialName` — asserting each is absent from the other's arm.
+
+**`7a0a9c2` — `forms_author::validate_partial_name` is public.** The rule was enforced at three call sites (`reject_dotted_partial` for `adopt_widget`/`sign`, `rename_field`'s own destructure, `place_new_field_deferred` for the `add_*` family) and askable at none — the shell's own workaround was a second, hand-derived model (`!typed.is_empty() && !typed.contains('.')`) read out of a private function, the same failure shape as the `group_is_a_field` shim it had just deleted for the opposite reason. All three sites now route through one new `pub(crate) single_segment`, with `validate_partial_name` its public, document-free, verdict-only wrapper.
+
+**Consolidating the three sites surfaced a live divergence nobody had reported:** `reject_dotted_partial` tested `contains('.')` only, so `adopt_widget` and `sign` accepted `"a..b"` where `rename_field` refused it. Fixed by construction — all three now share `single_segment` — and pinned by `the_public_validator_agrees_with_the_verbs_that_enforce_it`, driving the same six strings through the validator and each verb and requiring agreement (asserting the validator alone would have been the weaker test: a validator that drifts from enforcement is worse than none).
+
+**Not a new rule (n=1).** "Make a rule askable, and enforcement sites converge, or reveal that they hadn't" is judged a good habit rather than a second instance of anything on the books — this session already declined three unifications on exactly the distinction that a shared symptom is not a shared mechanism (`R151`/`R251`/`R253` boundary checks, `Pass 296.8`'s filing). Flagged for a future session if it recurs.
+
+**First draft of the consolidation test was wrong, on-topic.** It paired the validator with `add_text_field`, which takes a fully-qualified *name* (`"Text.2"` is a legitimate two-level path there), not a *partial* one — failed immediately, one hour after `G010` was about exactly that distinction. Corrected to `rename_field`/`adopt_widget`/`sign`, the actual partial-name verbs; the mistake is recorded in the test rather than silently fixed.
+
+**Breaking-change bookkeeping.** No `CHANGELOG.md` exists in this project. Per the existing convention (`ARCHITECTURE.md`'s `ClipAnnotation::Markup` decision, §12), a breaking `pdfcer-core` API change is recorded in its own Shipped entry and absorbed by the next Cargo 0.x minor bump — the workspace's breaking slot. Not yet cut as of this filing (still `0.53.0`); the bump is the next release's job, not this one's.
+
+**Verified** (each check's own exit code, run alone, per the commits): `cargo fmt --all --check` 0, `cargo clippy --workspace --all-targets -- -D warnings` 0, `forms_author` + `edit` lib tests 0, `check-doc-block-spliced.py` 0.
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `.git/refs/heads/main` reads `4ba7202906481b0265a2ab1aa61577c1536b0392`; `.git/logs/HEAD`'s last three lines give the chain `766c52a5…`→`7a0a9c2e…`→`4ba72029…`, subjects matching the account above. Both commits are local, unpushed. Neither commit's own `COMMIT_EDITMSG` (only the tip's is retained) was read verbatim; the account above is taken from the two `pdfcer-engineer` reply files in the feature-request channel (`reply_G010_renamed_to_EmptyNameSegment_SHIPPED.md`, `reply_G011_validate_partial_name_is_public_SHIPPED.md`), cross-checked against live source rather than re-derived from the object store. **Independently verified against the live tree:** `FormAuthorError::EmptyNameSegment` at `crates/pdfcer-core/src/forms_author.rs:377` (no `PeriodInPartialName` remaining, confirmed by grep); `validate_partial_name`/`single_segment` at lines 465/475, doc comment naming `Pass 299.0` explicitly; `rename_field`'s use of `single_segment` at `crates/pdfcer-core/src/edit.rs:24753`.
+
+**`FEATURES.md`**: three existing rows extended in place, no checkbox change — *Rename a field* gains the rename+consolidation sentence; *Adopt an existing widget* and *Sign a document (APPROVAL, PAdES B-B)* each gain a clause on the `"a..b"` fix, beside their existing `Pass 298.0` sentence.
+
+---
+
 ### `f0d1dc7` (2026-09-12) — ten widget-adoption tests RUN now, closing 10 of the 26-test debt the entry below records
 
 Not a Pass — test-debt paydown, filed under its own commit-hash heading, same precedent as `2d2e217` immediately below and `f16e266`+`5917ece` above.

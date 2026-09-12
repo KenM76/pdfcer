@@ -4,6 +4,31 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-12 (520th filing) — the partial-name rule made askable, and asking it found two of this crate's own bugs
+
+**Shipped:**
+- `4ba7202` — `FEATURES.md:331`'s off-page `gui` box ticked (`G012`), closing a same-day contradiction where `03-capabilities.md`'s appendix had been ticked to `x` for the same capability while its own authority note said `FEATURES.md` wins on disagreement — and `FEATURES.md` still read `[ ]`.
+- `Pass 299.0` (`766c52a` + `7a0a9c2`) — `FormAuthorError::PeriodInPartialName` renamed to `EmptyNameSegment` (its actual trigger; **breaking**, taken because it costs nothing today) and `forms_author::validate_partial_name` made public, consolidating three private enforcement sites behind one predicate. Both from `pdfcer-gui` reports (`G010`, `G011`) against the `Pass 298.0` guard shipped the day before.
+
+**Decisions made this session:**
+- Renamed rather than re-documented `PeriodInPartialName` → `EmptyNameSegment`, because the doc comment was the third wrong thing and the name would still have lied; taken as a breaking `pdfcer-core` change now (zero matches in `pdfcer-gui`/`pdfcer-cli`) rather than deferred.
+- No `CHANGELOG.md` exists in this project. Per the existing convention (`ARCHITECTURE.md`'s `ClipAnnotation::Markup` decision, §12), a breaking API change is recorded in its own `ROADMAP.md` Shipped entry and absorbed by the next Cargo 0.x minor bump — the workspace's breaking slot, not yet cut (still `0.53.0`).
+
+**Findings + decisions:**
+- **Consolidating three enforcement sites behind one predicate surfaced a live divergence nobody had reported:** `reject_dotted_partial` tested `contains('.')` only, so `adopt_widget` and `sign` accepted `"a..b"` where `rename_field` refused it. Fixed by construction (all three now share `single_segment`) and pinned by a test that drives the same strings through the validator and every verb, requiring agreement.
+- **Judged not a new rule (n=1):** "make a rule askable, and enforcement sites converge or reveal they hadn't" — a good habit, not yet a second instance of anything already on the books. This session had already declined three unifications on the same distinction (a shared symptom is not a shared mechanism).
+- **First draft of the consolidation test was wrong, on-topic:** it paired the validator with `add_text_field`, which takes a fully-qualified *name* rather than a *partial* one — failed immediately, an hour after `G010` was about exactly that distinction. Recorded in the test rather than quietly fixed.
+- **The doc-block-splice gate caught its author within hours of shipping.** Inserting `validate_partial_name`/`single_segment` above `split_field_path` orphaned that function's doc block; `check-public-fns-documented.py` named it in one read, and it was reattached in the same commit. A further dated instance of the class `check-doc-block-spliced.py` (513th filing, `3334377`) exists to catch — this time working correctly on its own author within the same session.
+- **A correction measured against source has to land IN the file it corrects, not merely point a reader there.** `4ba7202`'s finding: an authority note in `03-capabilities.md` said `FEATURES.md` wins on disagreement, while the fix that prompted writing that note never touched `FEATURES.md` itself. Not minted as a rule — restates an authority note already on the books.
+
+**`FEATURES.md`**: `docs/FEATURES.md:331` (off-page) ticked `gui [x]`; three existing rows extended in place, no checkbox change — *Rename a field* (line 306), *Adopt an existing widget* (line 318), *Sign a document (APPROVAL, PAdES B-B)* (line 341) each gain a `Pass 299.0` clause.
+
+**Sourcing note (hard rule 8):** no shell this filing. `.git/refs/heads/main` reads `4ba7202906481b0265a2ab1aa61577c1536b0392`; `.git/logs/HEAD`'s last three lines give the chain `766c52a5…`→`7a0a9c2e…`→`4ba72029…`, all local and unpushed (no change to `.git/refs/remotes/origin/main` this filing). Only the tip's own `COMMIT_EDITMSG` was read verbatim; the account of `766c52a`/`7a0a9c2` is taken from the two `pdfcer-engineer` reply files in the feature-request channel (`reply_G010_renamed_to_EmptyNameSegment_SHIPPED.md`, `reply_G011_validate_partial_name_is_public_SHIPPED.md`), cross-checked against live source. Independently verified: `FormAuthorError::EmptyNameSegment` at `crates/pdfcer-core/src/forms_author.rs:377` (no `PeriodInPartialName` remaining); `validate_partial_name`/`single_segment` at lines 465/475, doc comment naming `Pass 299.0`; `rename_field`'s use of `single_segment` at `crates/pdfcer-core/src/edit.rs:24753`; `docs/FEATURES.md:331` reads `[x] | [x] | [x] | ?`.
+
+**Still in flight:** unchanged from the 519th filing — 16 corpus-gated tests remain (`merge_document` 8, `editable_roundtrip` 2, `insert_pages_preserves_undo` 1, `structure_inspect` 1, `widget_adoption` 4 declared), plus the backup-bundle and standing-rule-enforcement debt carried in `docs/NEXT_SESSION.md`.
+
+**For next session:** flagging for `docs/NEXT_SESSION.md` (engineer-owned, not edited here) — the inbound channel is otherwise answered as of this filing (`G010`, `G011`, `G012` all closed); nothing new queued by this filing.
+
 ## 2026-09-12 (519th filing) — ten widget-adoption tests run now, paying down 10 of the debt two filings back
 
 **Shipped:** `f0d1dc7` — `synthetic_orphaned_session()` byte-authors a source with four merged field-widgets (`/FT /Tx`×2, `/Btn`, `/Ch`) and two `/Parent`-ed bare kids in one radio group, inserted into a blank target exactly as `orphaned_session()` does. Ten `widget_adoption.rs` tests converted from the pdfbox-gated fixture to this synthetic one; the file now prints 4 declared skips, not 14. `tools/skippable-tests-baseline.txt` drops from 28 to 18 entries; of the 517th filing's 26-test debt (23 pdfbox / 3 qpdf), 16 remain, all outside this file.
