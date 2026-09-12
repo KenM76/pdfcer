@@ -8,6 +8,23 @@
 `pdfce-librarian` finalizes numbering)
 **Decision record number:** 020 (next sequential; 019 is the highest on disk)
 **Supersedes:** nothing. **Amends:** nothing.
+> ### ★ FORWARD POINTER 2026-09-12 — `PeriodInPartialName` no longer exists
+>
+> This record names `FormAuthorError::PeriodInPartialName` in several places as
+> the refusal for a **partial name containing a period**. That variant was
+> renamed to **`EmptyNameSegment`** in `Pass 299.0`, because its name and doc
+> comment stated a rule it never enforced: its only raiser fires on an EMPTY
+> segment (`a..b`, `.x`), and `"Text.2"` could never reach it. The
+> period-in-a-partial-name rule is **`DottedPartialName`**.
+>
+> ★★ This record is left unedited below, because it is a dated account of what
+> was decided on 2026-08-03 and the confusion is part of the account — the
+> history shows the same misreading happening once before, in `Pass 20.6`,
+> where reusing `PeriodInPartialName` for `A.B` produced *"contains an empty
+> name segment"*, **which `A.B` does not have**. That was fixed by adding
+> `DottedPartialName` and leaving the misleading name in place; the rename is
+> the fix that did not happen then.
+
 **AMENDED IN PLACE 2026-08-07** by an engineer ruling — **§0 below
 supersedes every `forms <verb>` CLI shape this document specifies.**
 Read §0 before acting on any CLI line in §6 or §11.

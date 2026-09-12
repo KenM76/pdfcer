@@ -953,8 +953,9 @@ count by exactly that many.
   attaches another widget to one field; a rename names an existing field
   *and* a new name, and silently fusing them *"would destroy an identity they
   never offered up."* Surface `FieldTypeCollision`, `NameIsGroupingNode`,
-  `FieldPathCrossesTerminal`, `RenameCollision`, `PeriodInPartialName`,
-  `EmptyName`, `PathTooDeep` (`forms_author.rs:145`) as operator-actionable
+  `FieldPathCrossesTerminal`, `RenameCollision`, `DottedPartialName`,
+  `EmptyNameSegment` (renamed from `PeriodInPartialName`, `Pass 299.0` — the
+  old name stated `DottedPartialName`'s rule), `EmptyName`, `PathTooDeep` (`forms_author.rs:145`) as operator-actionable
   refusals — each names the field and what is in the way.
 - ★★ **A dotted path may not nest under an existing TERMINAL field**, and this
   is the refusal to wire if you are wiring only one. `FieldPathCrossesTerminal
