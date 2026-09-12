@@ -396,6 +396,92 @@ pub enum FormAuthorError {
     },
 }
 
+/// The **partial-name rule**, askable without a document (`Pass 299.0`).
+///
+/// A partial name is a field's `/T`: the ONE segment it contributes to its
+/// fully-qualified name (§12.7.3.2). This answers whether a string is a legal
+/// one, using exactly the rule the authoring verbs enforce, with no
+/// `EditSession`, no graph, and nothing staged — so a shell can decide whether
+/// to enable a button **while the operator types**.
+///
+/// # ★★ Why this is public, and why it buys something on this side too
+///
+/// The rule was *enforced* at three call sites and *askable* at none:
+/// `reject_dotted_partial` for [`crate::edit::EditSession::adopt_widget`] and
+/// `sign`, the one-segment destructure inside
+/// [`crate::edit::EditSession::rename_field`], and
+/// `place_new_field_deferred` for the `add_*` family. That is the boundary
+/// drawn around the **verb** instead of around the **rule**.
+///
+/// The consuming shell reported the cost as a decision-058 workaround: its
+/// Rename box gated on `!typed.is_empty() && !typed.contains('.')` — a second
+/// model of this rule, in another repository, derived by reading a *private*
+/// function. Its own note on that line is the argument for fixing it here:
+/// the gate is what it could derive, **not what it knows the rule to be**, so
+/// a new clause would leave it greying the old set while the refusal arrives
+/// after the commit instead of on hover before it.
+///
+/// ★ That is not hypothetical for them. They had just deleted a different
+/// shim — `group_is_a_field` — which had drifted into refusing where this
+/// crate allows, "with a sentence claiming a field would be destroyed when
+/// none would be". Their conclusion, and it generalises: *a second model is
+/// wrong silently.*
+///
+/// ★★ And the internal half, which is the honest reason rather than the polite
+/// one: **three enforcement sites and one predicate means the three cannot
+/// drift from each other either.** That is the argument `rename_field`'s own
+/// comment already makes about routing itself through [`split_field_path`];
+/// this is the same argument one level out.
+///
+/// # What it does NOT answer
+///
+/// Anything needing the document: name collision, whether a path crosses an
+/// existing terminal, certification. Those need the graph and stay in the
+/// verb. This is the **string half** only.
+///
+/// # Errors
+///
+/// [`FormAuthorError::EmptyName`] for empty or whitespace-only;
+/// [`FormAuthorError::EmptyNameSegment`] for a leading, trailing or doubled
+/// period; [`FormAuthorError::DottedPartialName`] for a well-formed PATH
+/// supplied where one segment was required; [`FormAuthorError::PathTooDeep`]
+/// beyond [`MAX_FIELD_TREE_DEPTH`].
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_core::forms_author::{validate_partial_name, FormAuthorError};
+///
+/// assert!(validate_partial_name("Customer Name").is_ok());
+/// assert!(matches!(
+///     validate_partial_name("Text.2"),
+///     Err(FormAuthorError::DottedPartialName { .. })
+/// ));
+/// assert!(matches!(
+///     validate_partial_name("a..b"),
+///     Err(FormAuthorError::EmptyNameSegment { .. })
+/// ));
+/// ```
+pub fn validate_partial_name(partial: &str) -> Result<(), FormAuthorError> {
+    single_segment(partial).map(drop)
+}
+
+/// [`validate_partial_name`], returning the segment it validated.
+///
+/// The one implementation both the ask and the enforcement go through, so the
+/// predicate cannot have two readings. `rename_field` needs the VALUE, a
+/// caller greying a button needs only the verdict, and neither gets its own
+/// copy of "exactly one segment".
+pub(crate) fn single_segment(partial: &str) -> Result<String, FormAuthorError> {
+    let segments = split_field_path(partial)?;
+    let [only] = segments.as_slice() else {
+        return Err(FormAuthorError::DottedPartialName {
+            supplied: partial.to_owned(),
+        });
+    };
+    Ok(only.clone())
+}
+
 /// Split a fully-qualified name into its path segments (§12.7.3.2).
 ///
 /// The period is the separator and nothing escapes it, so this is a plain

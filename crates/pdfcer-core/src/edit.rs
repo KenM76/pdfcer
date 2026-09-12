@@ -24743,17 +24743,14 @@ impl EditSession {
         // the depth rule cannot drift between create and rename — and a
         // caller who passes a dotted name here gets the period refusal rather
         // than a silently re-parented field.
-        let segments = forms_author::split_field_path(new_partial)?;
-        // Destructured rather than length-checked-then-indexed: "exactly one
-        // segment" IS the requirement, and binding it that way removes the
-        // panic path instead of guarding it.
-        let [only_segment] = segments.as_slice() else {
-            return Err(FormAuthorError::DottedPartialName {
-                supplied: new_partial.to_owned(),
-            }
-            .into());
-        };
-        let only_segment = only_segment.clone();
+        // ★★ ONE PREDICATE (`Pass 299.0`). This destructured
+        // `split_field_path`'s result itself, which was correct and was a
+        // SECOND reading of "exactly one segment" -- the other two being
+        // `reject_dotted_partial` and, now, the public
+        // `validate_partial_name`. `single_segment` is that one reading,
+        // returning the value this verb needs and the verdict a caller
+        // greying a button needs, from the same code.
+        let only_segment = forms_author::single_segment(new_partial)?;
 
         // What does the OLD name denote? A grouping node is renameable too —
         // it is the case that moves a whole subtree — so this accepts both,
@@ -53983,11 +53980,9 @@ fn apply_stamp_parameters(spec: &mut annot_author::TextAnnotSpec, label: &str, s
 /// shell asked for that by name, and it is why the variant's own message was
 /// generalised to describe the FIELD rather than a rename.
 fn reject_dotted_partial(partial: &str) -> Result<(), EditError> {
-    if partial.contains('.') {
-        return Err(forms_author::FormAuthorError::DottedPartialName {
-            supplied: partial.to_owned(),
-        }
-        .into());
-    }
-    Ok(())
+    // ★ Delegates since `Pass 299.0`. It used to test `contains('.')` itself,
+    // which was the period rule and only the period rule -- so `adopt_widget`
+    // and `sign` accepted `"a..b"` where `rename_field` refused it. One
+    // predicate, three enforcement sites, and now an askable one too.
+    forms_author::validate_partial_name(partial).map_err(Into::into)
 }

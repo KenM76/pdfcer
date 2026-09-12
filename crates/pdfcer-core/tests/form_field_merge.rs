@@ -1341,3 +1341,51 @@ fn each_name_refusal_is_reached_only_by_its_own_rule() {
         "expected DottedPartialName -- the variant `rename_field` actually          raises -- got {err:?}",
     );
 }
+
+/// ★★★ The askable rule and the enforced rule are ONE rule (`Pass 299.0`).
+///
+/// `validate_partial_name` exists so a shell can grey a button while the
+/// operator types, instead of keeping its own copy of this rule. That is only
+/// worth anything if the answer it gives is the answer the verbs give — a
+/// validator that drifts from the enforcement is strictly worse than no
+/// validator, because a shell would enable a button for a name that is about
+/// to be refused.
+///
+/// So this drives the SAME strings through both and requires them to agree,
+/// rather than asserting the validator's behaviour on its own.
+///
+/// ★★ IT IS PAIRED WITH `rename_field`, NOT `add_text_field`, AND THE FIRST
+/// DRAFT GOT THAT WRONG — which is the distinction this whole exchange is
+/// about, arriving as a test failure.
+///
+/// `add_text_field` takes a **fully-qualified name**: `"Text.2"` is a
+/// perfectly legitimate two-level path there and it authors `Text` → `2`.
+/// `rename_field`, `adopt_widget` and `sign` take a **partial** name — the one
+/// segment a field contributes (§12.7.3.2) — and that is the rule
+/// `validate_partial_name` answers. Pairing the validator with a path-taking
+/// verb measured nothing and failed immediately, correctly.
+#[test]
+fn the_public_validator_agrees_with_the_verbs_that_enforce_it() {
+    for name in [
+        "Customer Name", // fine
+        "Text.2",        // a PATH, where one segment was required
+        "a..b",          // empty segment, doubled
+        ".Leading",      // empty segment, leading
+        "Trailing.",     // empty segment, trailing
+        "   ",           // whitespace-only
+    ] {
+        let asked = pdfcer_core::forms_author::validate_partial_name(name);
+
+        let mut s = blank();
+        s.add_text_field(&NewTextField::new(0, "Plain", r1()).declining_tooltip())
+            .expect("a plain name is authored");
+        let enforced = s.rename_field("Plain", name);
+
+        assert_eq!(
+            asked.is_ok(),
+            enforced.is_ok(),
+            "{name:?}: the validator says {asked:?} and the verb says {:?}",
+            enforced.err(),
+        );
+    }
+}
