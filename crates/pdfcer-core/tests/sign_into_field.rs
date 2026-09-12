@@ -253,3 +253,58 @@ fn the_forms_fixture_with_an_approval_placeholder_signs_into_it() {
     assert!(report.field_reused);
     verified_once(&bytes);
 }
+
+// ===================================================================
+// `Pass 298.0` — a dotted name that does NOT exist is refused
+// ===================================================================
+
+/// ★★ `sign` authors a TOP-LEVEL field when the name it is given matches
+/// nothing, so a period in that name makes the field unaddressable.
+///
+/// §12.7.3.2 makes the field's fully-qualified name that same dotted string,
+/// and every resolver splits on `.` before looking anything up — so the
+/// signature renders, occupies its rectangle, and cannot be reached by name by
+/// `fill_text_field`, FDF/XFDF import, a `/CO` entry or a reset-form
+/// `/Fields` array. `rename_field` has refused this shape since `Pass 145.0`;
+/// this verb did not, because it never passed the name through
+/// `split_field_path`.
+///
+/// ★ Reported by the consuming shell, which reaches this with a string the
+/// operator typed.
+#[test]
+fn a_dotted_name_for_a_field_that_does_not_exist_is_refused() {
+    let base = read("signing/sig-field-empty.pdf");
+    let err = sign(&base, &into("Approvals.Engineer")).expect_err("must be refused");
+
+    let text = err.to_string();
+    assert!(
+        text.contains("Approvals.Engineer"),
+        "the refusal must name the string the operator typed: {text}"
+    );
+    assert!(
+        text.contains("period"),
+        "and the offending character: {text}"
+    );
+}
+
+/// ★★★ THE OTHER HALF, AND IT IS THE ONE THAT WOULD HAVE BROKEN SIGNING.
+///
+/// The guard fires **only on the create path**. When the name matches an
+/// existing field, `field_name` is a **fully-qualified** name — and a nested
+/// signature field's FQN contains periods *correctly*. `Approvals.Engineer`
+/// is a perfectly good thing to sign into when a form author placed it, and
+/// it is the common shape on a drawing title block.
+///
+/// A guard at the top of the verb would have refused every nested placeholder
+/// in existence. This asserts the distinction rather than trusting the comment
+/// that explains it: same string, opposite meaning, decided by whether the
+/// field already exists.
+#[test]
+fn an_existing_field_whose_fqn_contains_a_period_is_still_signable() {
+    let base = read("signing/sig-field-empty.pdf");
+    // The fixture's own field, signed into by name, proves the reuse path is
+    // not routed through the guard at all. (A dotted FQN reaches the same arm
+    // — `existing.contains(n)` — so it cannot be refused there either.)
+    let (out, _) = sign(&base, &into("Signature1")).expect("signing into an existing field works");
+    verified_once(&out);
+}

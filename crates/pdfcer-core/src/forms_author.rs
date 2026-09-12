@@ -300,8 +300,33 @@ pub enum FormAuthorError {
     /// A rename changes what one node contributes to the path. Accepting a
     /// dotted name here would silently re-parent the field, which is a
     /// different operation and one this verb does not offer.
+    ///
+    /// # ★★ Raised by THREE verbs since `Pass 298.0`, and the wording had to
+    /// # stop naming one of them
+    ///
+    /// This message opened *"a rename sets the ONE segment…"* while only
+    /// [`EditSession::rename_field`] could raise it. The consuming shell then
+    /// found two more routes that write an operator-typed name straight into a
+    /// top-level `/T` without splitting it —
+    /// [`EditSession::adopt_widget`] and [`EditSession::sign`] — and asked for
+    /// **this** variant rather than a new one, so its own error mapping needs
+    /// no new arm.
+    ///
+    /// That was the right call and it made the old sentence wrong: an operator
+    /// who adopted a widget was about to be told what a rename does. The
+    /// wording now describes the FIELD rather than the verb, which is what was
+    /// actually true all along.
+    ///
+    /// ★ What the refusal prevents is not data loss — none of the three verbs
+    /// touches an existing field's `/Kids`, and a pre-existing `Text` survives
+    /// an adopt of `Text.2` intact. It is a field **nobody can address**:
+    /// §12.7.3.2 makes its FQN that same dotted string, but every resolver
+    /// splits on `.` first, looks for `2` inside a group `Text`, finds a
+    /// terminal, and stops. It renders, it accepts a click, and
+    /// `fill_text_field`, FDF/XFDF import, a `/CO` entry and a reset-form
+    /// `/Fields` array can none of them reach it.
     #[error(
-        "`{supplied}` is a path, not a partial name: a rename sets the ONE segment this field contributes, so it cannot contain a period"
+        "`{supplied}` is a path, not a partial name: a field's `/T` is the ONE segment it contributes to its fully-qualified name, so it cannot contain a period"
     )]
     DottedPartialName {
         /// What was supplied in place of a single segment.

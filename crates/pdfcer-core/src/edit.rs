@@ -21500,6 +21500,16 @@ impl EditSession {
     pub fn add_text_field(&mut self, spec: &NewTextField) -> Result<FieldAuthorOutcome, EditError> {
         // Checked BEFORE the preflight, so a refusal costs nothing and
         // nothing partial is staged.
+        //
+        // ★ NARROWED 2026-09-11: that sentence is true of THIS check and was
+        // being read as a property of the whole verb. The consuming shell
+        // measured the difference: by the time the later
+        // `place_new_field_deferred` guard refuses, `alloc_number` has already
+        // advanced twice and `stage_bytes` holds an unreferenced appearance.
+        // Neither reaches `state` or the saved file, so the refusal is still
+        // clean where it counts -- but "nothing partial is staged" is not
+        // literally true of every refusal this verb can make, and a claim a
+        // reader can falsify is worse than a narrower one.
         if let Some(reason) = spec.comb_conflict() {
             return Err(EditError::CombPreconditionUnmet {
                 name: spec.name.clone(),
@@ -41035,6 +41045,32 @@ impl EditSession {
             (None, _) => return Err(EditError::WidgetHasNoFieldIdentity { id: widget.num }),
         };
 
+        // ★★ A PERIOD HERE WOULD AUTHOR A FIELD NOBODY CAN ADDRESS
+        // (`Pass 298.0`). This verb registers at the `/Fields` root, so the
+        // name it is handed becomes a TOP-LEVEL `/T` verbatim -- and
+        // §12.7.3.2 then makes the field's fully-qualified name that same
+        // dotted string, which every resolver splits on `.` before looking
+        // anything up. `Text.2` sends `fill_text_field`, FDF/XFDF import, a
+        // `/CO` entry and a reset-form `/Fields` array all hunting for a `2`
+        // inside a group named `Text`, finding the real terminal `Text`, and
+        // stopping. The field renders and accepts a click and cannot be named.
+        //
+        // ★ The collision test immediately below does NOT catch it: it
+        // compares whole FQNs, and no existing field is called `Text.2`, so a
+        // dotted name passes it trivially. That is why this guard is its own
+        // check and not a tightening of that one.
+        //
+        // Reported by the consuming shell, which had verified that
+        // `place_new_field_deferred` really is the choke point for the six
+        // `add_*`/`paste` verbs and then asked the next question: is it the
+        // ONLY way a name reaches `/T`? It was not.
+        //
+        // NOT a silent repair -- no `.`-to-`_`, no dropping the prefix. The
+        // shell asked for that explicitly and it is right: a name the operator
+        // typed is a name he will look for again, and a field renamed behind
+        // his back is a field he reports as missing.
+        reject_dotted_partial(&final_name)?;
+
         // §12.7.3.1: the fully qualified name IS the identity. A top-level
         // field's FQN is just its `/T`, which is what a newly adopted widget
         // gets, so comparing against every existing FQN is the right test —
@@ -47477,6 +47513,25 @@ impl EditSession {
                         .map(|x| x.id)
                         .ok_or_else(|| SignApplyError::FieldNameTaken { name: n.clone() })?;
                     reuse = Some(self.reusable_sig_field(id, n, request)?);
+                } else {
+                    // ★★ ONLY ON THE CREATE PATH, and the distinction is the
+                    // whole reason this is not one guard at the top of the
+                    // verb (`Pass 298.0`).
+                    //
+                    // When the name matches an existing field, `request`
+                    // names a FULLY-QUALIFIED name, and a nested signature
+                    // field's FQN contains periods *correctly* --
+                    // `Approvals.Engineer` is a legitimate thing to sign into.
+                    // Refusing it here would break signing into any nested
+                    // placeholder a form author left, which is the common
+                    // shape on a drawing title block.
+                    //
+                    // When it does NOT match, this verb is about to author a
+                    // TOP-LEVEL field whose `/T` is this string verbatim --
+                    // and there the period makes it unaddressable. Same
+                    // string, opposite meaning, decided by whether the field
+                    // already exists.
+                    reject_dotted_partial(n).map_err(SignApplyError::Edit)?;
                 }
                 n.clone()
             }
@@ -53892,4 +53947,47 @@ fn apply_stamp_parameters(spec: &mut annot_author::TextAnnotSpec, label: &str, s
         *spec_label = Some(label.to_owned());
         *style = style.with_font_size(Some(size));
     }
+}
+
+/// Refuse a partial name containing a period (`Pass 298.0`).
+///
+/// One rule, one implementation, three callers — [`EditSession::rename_field`]
+/// has enforced it since `Pass 145.0`, and
+/// [`EditSession::adopt_widget`] and [`EditSession::sign`] join it here.
+///
+/// # ★★ Why these two needed their own guard rather than the existing choke point
+///
+/// The `add_*` and `paste_field` family all reach
+/// `place_new_field_deferred`, which splits the path and refuses there. These
+/// two do not go through it: they take an operator-typed name and write it
+/// into a **top-level `/T` verbatim**. The consuming shell verified that the
+/// choke point really is complete for the six verbs it covers, and then asked
+/// the next question — *is it the only way a name reaches `/T`?* It was not,
+/// and asking that question is the whole finding.
+///
+/// # What it prevents, which is NOT data loss
+///
+/// Neither verb appends to an existing field's `/Kids`; a pre-existing
+/// terminal `Text` survives an adopt of `Text.2` completely intact. What is
+/// produced instead is a field **nobody can address**: §12.7.3.2 makes its FQN
+/// that same dotted string, and every resolver splits on `.` first, hunts for
+/// a `2` inside a group `Text`, finds a terminal, and stops.
+///
+/// The whole-FQN collision test both verbs already run does not catch it —
+/// nothing existing is called `Text.2`, so a dotted name passes it trivially.
+///
+/// # Errors
+///
+/// [`forms_author::FormAuthorError::DottedPartialName`], reusing the variant
+/// `rename_field` raises so a consumer's error mapping needs no new arm — the
+/// shell asked for that by name, and it is why the variant's own message was
+/// generalised to describe the FIELD rather than a rename.
+fn reject_dotted_partial(partial: &str) -> Result<(), EditError> {
+    if partial.contains('.') {
+        return Err(forms_author::FormAuthorError::DottedPartialName {
+            supplied: partial.to_owned(),
+        }
+        .into());
+    }
+    Ok(())
 }

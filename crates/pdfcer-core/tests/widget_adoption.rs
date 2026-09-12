@@ -894,3 +894,148 @@ fn the_source_outline_flag_is_independent_of_the_page_label_one() {
 this flag's subject"
     );
 }
+
+// ===================================================================
+// `Pass 298.0` — a dotted partial name is refused here too
+// ===================================================================
+
+/// A one-page document carrying ONE widget that no `/AcroForm` registers —
+/// the exact state `adopt_widget` exists to resolve, built **synthetically**.
+///
+/// # ★★ Why this exists beside `orphaned_session()`
+///
+/// `orphaned_session()` needs `fixtures/external/pdfbox/…`, which is an
+/// optional corpus. When it is absent every test in this file prints `SKIP`
+/// and **passes** — sixteen of them, silently, which is how a sabotage of
+/// `Pass 298.0`'s guard came back green on a machine where the corpus was not
+/// checked out. A SKIP is not red, and nothing goes amber.
+///
+/// So the `Pass 298.0` tests use this instead. Rule 7 wants synthetic
+/// fixtures anyway; the point here is narrower and sharper — **a test that
+/// cannot run is not a test**, and the ones that defend a guard must not be
+/// the ones that skip.
+fn synthetic_orphan_widget() -> Document {
+    let objects: Vec<String> = vec![
+        "<< /Type /Catalog /Pages 2 0 R >>".into(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".into(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Annots [4 0 R]           /Resources << >> >>"
+            .into(),
+        // A widget with its own `/T` and `/FT`, and NOTHING pointing at it
+        // from a catalog `/AcroForm` -- which is what makes it orphaned.
+        "<< /Type /Annot /Subtype /Widget /FT /Tx /T (Text) /Rect [10 10 110 40] >>".into(),
+    ];
+    let mut pdf = String::from(
+        "%PDF-1.7
+",
+    );
+    let mut offsets = Vec::new();
+    for (i, o) in objects.iter().enumerate() {
+        offsets.push(pdf.len());
+        pdf.push_str(&format!(
+            "{} 0 obj
+{o}
+endobj
+",
+            i + 1
+        ));
+    }
+    let xref = pdf.len();
+    pdf.push_str(&format!(
+        "xref
+0 {}
+0000000000 65535 f 
+",
+        objects.len() + 1
+    ));
+    for off in &offsets {
+        pdf.push_str(&format!(
+            "{off:010} 00000 n 
+"
+        ));
+    }
+    pdf.push_str(&format!(
+        "trailer
+<< /Size {} /Root 1 0 R >>
+startxref
+{xref}
+%%EOF
+",
+        objects.len() + 1
+    ));
+    Document::from_bytes(pdf.into_bytes()).expect("synthetic fixture parses")
+}
+
+/// The synthetic fixture's single widget.
+fn synthetic_widget(session: &EditSession) -> ObjId {
+    let (named, bare) = widgets(session);
+    named
+        .first()
+        .or_else(|| bare.first())
+        .copied()
+        .expect("the synthetic fixture carries exactly one widget")
+}
+
+/// ★★ A dotted name authors a field NOBODY CAN ADDRESS, and the collision
+/// test this verb already runs cannot see it.
+///
+/// `adopt_widget` registers at the `/Fields` root, so the name it is handed
+/// becomes a **top-level `/T` verbatim**. §12.7.3.2 then makes the field's
+/// fully-qualified name that same dotted string — and every resolver splits on
+/// `.` first, hunts for a `2` inside a group `Text`, finds the real terminal
+/// `Text`, and stops. The field renders, accepts a click, and cannot be
+/// reached by `fill_text_field`, FDF/XFDF import, a `/CO` entry or a
+/// reset-form `/Fields` array.
+///
+/// ★ **It is not data loss**, and the distinction is worth keeping: nothing is
+/// appended to the existing field's `/Kids` and a pre-existing `Text` survives
+/// intact. The existing whole-FQN collision check passes a dotted name
+/// trivially, because nothing is named `Text.2` — which is exactly why this
+/// needed a guard of its own rather than a tightening of that one.
+///
+/// Reported by the consuming shell, which had verified that
+/// `place_new_field_deferred` really is the complete choke point for the six
+/// `add_*`/`paste` verbs, and then asked whether it was the ONLY way a name
+/// reaches `/T`.
+#[test]
+fn a_dotted_name_is_refused_rather_than_authored() {
+    let mut session = EditSession::new(synthetic_orphan_widget());
+    let widget = synthetic_widget(&session);
+
+    let err = session
+        .adopt_widget(widget, Some("Text.2"))
+        .expect_err("a dotted partial name must be refused, not authored");
+
+    let text = err.to_string();
+    assert!(
+        text.contains("Text.2"),
+        "the refusal must name the string the operator typed: {text}"
+    );
+    assert!(
+        text.contains("period"),
+        "and the offending character, or the operator cannot act on it: {text}"
+    );
+
+    // ★ The variant matters as much as the refusal. The consuming shell asked
+    // for `DottedPartialName` BY NAME so its error mapping needs no new arm;
+    // giving these verbs a variant of their own later would silently drop that
+    // shell back to a generic sentence. Asserted rather than trusted.
+    assert!(
+        matches!(err, EditError::FieldAuthoring(_)),
+        "expected a FieldAuthoring refusal, got {err:?}"
+    );
+}
+
+/// The other half: the guard must not refuse names that were always fine.
+///
+/// A guard that over-refuses is the worse failure here — it would break every
+/// ordinary adoption, and unlike the defect it replaces, an operator would
+/// notice immediately and lose trust in the verb rather than in one field.
+#[test]
+fn an_undotted_name_is_still_adopted() {
+    let mut session = EditSession::new(synthetic_orphan_widget());
+    let widget = synthetic_widget(&session);
+
+    session
+        .adopt_widget(widget, Some("AdoptedPlainName"))
+        .expect("an undotted name is still adopted");
+}
