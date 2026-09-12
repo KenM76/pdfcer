@@ -159,6 +159,117 @@ fn the_fixture_carries_both_widget_shapes_and_the_counts_agree() {
 // Adoption
 // ---------------------------------------------------------------------------
 
+/// An orphaned session built from a SYNTHETIC source, carrying both widget
+/// shapes — so the tests that exercise the VERB cannot decline to run.
+///
+/// # ★★★ Why this replaces `orphaned_session()` for most of this file
+///
+/// `orphaned_session()` needs `fixtures/external/pdfbox/…`. Measured
+/// 2026-09-12: that corpus is not tracked in git, no CI step fetches it, and
+/// **`fixtures/README.md` marks it "NOT blanket-safe … never bulk-import"**
+/// because its files may not be redistributable. `fixtures/fetch-corpora.sh`
+/// deliberately omits it. So there is **no licence-compliant route** by which
+/// those tests can ever run — here, in CI, or on a new machine — and they were
+/// printing `SKIP` and passing the whole time.
+///
+/// It was found when a `Pass 298.0` guard was sabotaged to prove its test
+/// could fail and the test **stayed green**.
+///
+/// ★ The file header argues that a hand-built fixture "would have exercised
+/// whichever shape the author thought of". That caution is right and this file
+/// already contains its own rebuttal: `a_widget_with_ft_but_no_t_is_still_
+/// unrecoverable` exists precisely because the real corpus **could not**
+/// distinguish `/FT` from `/T` — its bare radio kids carry neither — so a
+/// swapped key left the entire suite green. A corpus exercises the shapes it
+/// happens to contain; neither source is automatically the better one.
+///
+/// ★★ What this fixture does NOT replace: the census tests
+/// (`the_fixture_carries_both_widget_shapes_and_the_counts_agree`, the three
+/// preview tests) assert against the real AcroForm's own composition. Those
+/// stay on `orphaned_session()` and stay declared as skippable — converting
+/// them would mean asserting numbers about a document I invented, which
+/// measures the fixture rather than the verb.
+///
+/// The shapes here, chosen to match what the verb tests actually read:
+///
+/// - `TextField` — `/T` **and** `/FT /Tx`: a merged field-widget, adoptable;
+/// - a `/Parent`-ed kid with **no** `/T`: unrecoverable, the refusal case.
+fn synthetic_orphaned_session() -> (EditSession, usize, usize) {
+    let source = build(&[
+        (
+            1,
+            "<< /Type /Catalog /Pages 2 0 R \n              /AcroForm << /Fields [4 0 R 6 0 R 7 0 R 9 0 R 10 0 R] >> >>",
+        ),
+        (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+        (
+            3,
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300]               /Annots [4 0 R 5 0 R 7 0 R 8 0 R 9 0 R 10 0 R] /Resources << >> >>",
+        ),
+        (
+            4,
+            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (TextField)               /Rect [10 200 210 230] >>",
+        ),
+        (
+            5,
+            "<< /Type /Annot /Subtype /Widget /Parent 6 0 R /Rect [10 100 40 130] >>",
+        ),
+        // TWO of each shape, because several tests assert the premise. A
+        // radio group with two kids is also the shape that produces bare
+        // widgets in real files, so this is not an invented arrangement.
+        (6, "<< /FT /Btn /T (Radio) /Kids [5 0 R 8 0 R] >>"),
+        (
+            7,
+            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (SecondField)               /Rect [10 250 210 280] >>",
+        ),
+        (
+            8,
+            "<< /Type /Annot /Subtype /Widget /Parent 6 0 R /Rect [60 100 90 130] >>",
+        ),
+        // FOUR named widgets, and three different `/FT` values between them:
+        // `adopting_several_widgets_accumulates_rather_than_replacing`
+        // adopts four and names a checkbox, and a fixture that offered only
+        // text fields would let a `/FT`-specific defect through.
+        (
+            9,
+            "<< /Type /Annot /Subtype /Widget /FT /Btn /T (CheckBox1)               /Rect [10 50 40 80] >>",
+        ),
+        (
+            10,
+            "<< /Type /Annot /Subtype /Widget /FT /Ch /T (Dropdown)               /Rect [60 50 200 80] >>",
+        ),
+    ]);
+    let src = Document::from_bytes(source).expect("synthetic source parses");
+    let target =
+        Document::from_bytes(std::fs::read(BLANK).expect("blank target")).expect("target parses");
+    let mut session = EditSession::new(target);
+    let outcome = session
+        .insert_pages(&src.view(), &[0], InsertPosition::End)
+        .expect("insert must succeed");
+    (
+        session,
+        outcome.orphaned_widgets,
+        outcome.orphaned_widgets_unrecoverable,
+    )
+}
+
+/// The synthetic fixture carries exactly the two shapes the verb tests read.
+///
+/// Asserted rather than assumed: if a future edit to `synthetic_orphaned_
+/// session` changes its composition, every test built on it would start
+/// measuring something else quietly. This is the guard on the guard.
+#[test]
+fn the_synthetic_fixture_carries_one_of_each_shape() {
+    let (session, orphaned, unrecoverable) = synthetic_orphaned_session();
+    let (named, bare) = widgets(&session);
+    assert_eq!(named.len(), 4, "four merged field-widgets");
+    assert_eq!(bare.len(), 2, "two bare kids");
+    assert_eq!(orphaned, 6, "all six widgets arrive orphaned");
+    assert_eq!(
+        unrecoverable, 2,
+        "only those with no /T are unrecoverable -- /FT is inheritable, /T is not"
+    );
+}
+
 /// Would catch: adoption registering the field in the session but not in the
 /// saved bytes, or registering it under the wrong name.
 ///
@@ -167,10 +278,7 @@ fn the_fixture_carries_both_widget_shapes_and_the_counts_agree() {
 /// not in the file is the failure this verb is most likely to have.
 #[test]
 fn a_merged_field_widget_adopts_losslessly() {
-    let Some((mut session, ..)) = orphaned_session() else {
-        eprintln!("SKIP: the external pdfbox corpus is not present");
-        return;
-    };
+    let (mut session, ..) = synthetic_orphaned_session();
     let (named, _) = widgets(&session);
     let widget = named[0];
 
@@ -197,10 +305,7 @@ fn a_merged_field_widget_adopts_losslessly() {
 /// permitted difference is nothing at all when no rename was asked for.
 #[test]
 fn adoption_writes_no_geometry_appearance_or_value() {
-    let Some((mut session, ..)) = orphaned_session() else {
-        eprintln!("SKIP: the external pdfbox corpus is not present");
-        return;
-    };
+    let (mut session, ..) = synthetic_orphaned_session();
     let (named, _) = widgets(&session);
     let widget = named[0];
     let before = widget_dict(&session, widget);
@@ -219,10 +324,7 @@ fn adoption_writes_no_geometry_appearance_or_value() {
 /// shell told the operator.
 #[test]
 fn a_rename_is_both_written_and_reported() {
-    let Some((mut session, ..)) = orphaned_session() else {
-        eprintln!("SKIP: the external pdfbox corpus is not present");
-        return;
-    };
+    let (mut session, ..) = synthetic_orphaned_session();
     let (named, _) = widgets(&session);
     let out = session
         .adopt_widget(named[0], Some("Customer Name"))
@@ -241,10 +343,7 @@ fn a_rename_is_both_written_and_reported() {
 /// until the second call.
 #[test]
 fn adopting_several_widgets_accumulates_rather_than_replacing() {
-    let Some((mut session, ..)) = orphaned_session() else {
-        eprintln!("SKIP: the external pdfbox corpus is not present");
-        return;
-    };
+    let (mut session, ..) = synthetic_orphaned_session();
     let (named, _) = widgets(&session);
     for w in named.iter().take(4) {
         session.adopt_widget(*w, None).expect("must adopt");
@@ -268,10 +367,7 @@ fn adopting_several_widgets_accumulates_rather_than_replacing() {
 /// right and behaves wrong, which is the worst available outcome.
 #[test]
 fn a_bare_kid_widget_is_refused_rather_than_named() {
-    let Some((mut session, ..)) = orphaned_session() else {
-        eprintln!("SKIP: the external pdfbox corpus is not present");
-        return;
-    };
+    let (mut session, ..) = synthetic_orphaned_session();
     let (_, bare) = widgets(&session);
     assert_eq!(bare.len(), 2, "fixture premise");
     for w in &bare {
@@ -303,10 +399,7 @@ fn a_bare_kid_widget_is_refused_rather_than_named() {
 /// the right one.
 #[test]
 fn a_colliding_name_is_refused() {
-    let Some((mut session, ..)) = orphaned_session() else {
-        eprintln!("SKIP: the external pdfbox corpus is not present");
-        return;
-    };
+    let (mut session, ..) = synthetic_orphaned_session();
     let (named, _) = widgets(&session);
     session.adopt_widget(named[0], None).expect("first adopts");
 
@@ -325,10 +418,7 @@ fn a_colliding_name_is_refused() {
 /// produces a form that reports more fields than it has controls.
 #[test]
 fn adopting_the_same_widget_twice_is_refused() {
-    let Some((mut session, ..)) = orphaned_session() else {
-        eprintln!("SKIP: the external pdfbox corpus is not present");
-        return;
-    };
+    let (mut session, ..) = synthetic_orphaned_session();
     let (named, _) = widgets(&session);
     session.adopt_widget(named[0], None).expect("first adopts");
     match session.adopt_widget(named[0], None) {
@@ -343,10 +433,7 @@ fn adopting_the_same_widget_twice_is_refused() {
 /// call site distinguishes them from a widget.
 #[test]
 fn a_non_widget_is_refused() {
-    let Some((mut session, ..)) = orphaned_session() else {
-        eprintln!("SKIP: the external pdfbox corpus is not present");
-        return;
-    };
+    let (mut session, ..) = synthetic_orphaned_session();
     let page = session.page_slots().expect("pages")[0].id;
     match session.adopt_widget(page, Some("NotAField")) {
         Err(EditError::NotAWidget { id }) => assert_eq!(id, page.num),
@@ -367,10 +454,7 @@ fn a_non_widget_is_refused() {
 /// widget keeps a name the operator undid.
 #[test]
 fn undo_removes_the_registration_and_the_rename_together() {
-    let Some((mut session, ..)) = orphaned_session() else {
-        eprintln!("SKIP: the external pdfbox corpus is not present");
-        return;
-    };
+    let (mut session, ..) = synthetic_orphaned_session();
     let (named, _) = widgets(&session);
     let widget = named[0];
     let before = widget_dict(&session, widget);
@@ -829,10 +913,7 @@ fn the_preview_separates_the_two_widget_shapes_before_any_press() {
 /// measured.
 #[test]
 fn the_preview_doubles_as_the_refusal_predicate() {
-    let Some((mut session, ..)) = orphaned_session() else {
-        eprintln!("SKIP: the external pdfbox corpus is not present");
-        return;
-    };
+    let (mut session, ..) = synthetic_orphaned_session();
     let (named, bare) = widgets(&session);
 
     assert!(session.adopt_preview(named[0], None).err().is_none());
