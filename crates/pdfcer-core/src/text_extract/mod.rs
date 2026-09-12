@@ -1309,24 +1309,6 @@ impl ExtractOptions {
         self
     }
 
-    /// Set the three derived-segmentation ratios at once, consuming and
-    /// returning `self`.
-    ///
-    /// Grouped into one method deliberately: the three are a *tuning*,
-    /// not three independent knobs — raising the word-gap ratio without
-    /// considering the line-gap ratio produces a segmentation nobody
-    /// reasoned about. See the struct docs for why any value here is
-    /// arguable (S3/S4: no spec basis whatsoever).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use pdfcer_core::text_extract::ExtractOptions;
-    ///
-    /// // Less eager to break words apart, more eager to break lines.
-    /// let options = ExtractOptions::default().with_gap_ratios(0.35, 0.20, 0.50);
-    /// assert!((options.word_gap_ratio - 0.35).abs() < 1e-6);
-    /// ```
     /// Set only the word-gap ratio, leaving the line and backward-jump
     /// ratios at whatever they already are.
     ///
@@ -1352,6 +1334,24 @@ impl ExtractOptions {
         self
     }
 
+    /// Set the three derived-segmentation ratios at once, consuming and
+    /// returning `self`.
+    ///
+    /// Grouped into one method deliberately: the three are a *tuning*,
+    /// not three independent knobs — raising the word-gap ratio without
+    /// considering the line-gap ratio produces a segmentation nobody
+    /// reasoned about. See the struct docs for why any value here is
+    /// arguable (S3/S4: no spec basis whatsoever).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::text_extract::ExtractOptions;
+    ///
+    /// // Less eager to break words apart, more eager to break lines.
+    /// let options = ExtractOptions::default().with_gap_ratios(0.35, 0.20, 0.50);
+    /// assert!((options.word_gap_ratio - 0.35).abs() < 1e-6);
+    /// ```
     #[must_use]
     pub const fn with_gap_ratios(mut self, word: f32, line: f32, backward: f32) -> Self {
         self.word_gap_ratio = word;

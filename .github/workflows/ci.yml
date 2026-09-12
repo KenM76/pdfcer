@@ -315,7 +315,7 @@ jobs:
   # and the COUNT is the part that decays, so the count is the part a gate
   # can falsify.
   audits:
-    name: repository audits (21 checks)
+    name: repository audits (22 checks)
     runs-on: ubuntu-latest
     steps:
       # ★ FULL HISTORY REQUIRED, and its absence was SILENT.
@@ -396,6 +396,17 @@ jobs:
       # published figure nobody re-derives goes stale silently.
       - name: check every public verb is documented and the counts agree
         run: python tools/check-core-api-verbs.py
+
+      # `check-public-fns-documented.py` detects a doc block that went MISSING
+      # -- the neighbour left bare by an edit that landed between a block and
+      # its item. This detects the OTHER half: the block that absorbed it. Two
+      # of the same heading in one `///` run is two documents welded together,
+      # which is exact rather than heuristic because rustdoc gives a block at
+      # most one `# Errors`. It found four live splices at HEAD, and FIVE rows
+      # in the undocumented baseline that were misfiled text rather than
+      # missing text.
+      - name: check no doc block has absorbed its neighbour
+        run: python tools/check-doc-block-spliced.py --stats
 
       # A re-exported struct whose own FIELD type is not re-exported compiles,
       # passes clippy and passes every test -- inside the crate every path

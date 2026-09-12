@@ -13787,59 +13787,6 @@ impl EditSession {
         })
     }
 
-    /// **Delete one subpath** of the path object at paint-order `object_index`
-    /// on page `page_index`, as one undoable command (Pass 25.2).
-    ///
-    /// # Why this is not just `delete_object` with a smaller target
-    ///
-    /// A CAD producer commonly emits an entire drawing view as a single path
-    /// object — measured on a real SolidWorks export, one stroked path with
-    /// 1194 subpaths covering a whole isometric view. On such a file
-    /// [`EditSession::delete_object`] can only remove the entire view, and an
-    /// operator asking to delete "this line" means one of its subpaths. This
-    /// is that operation.
-    ///
-    /// `subpath_index` is into the object's subpaths in **decomposition
-    /// order** — the same order [`crate::vector::hit_test_subpaths`] returns
-    /// indices in, so a subpath picked by a click can be handed straight here.
-    /// The planner re-derives the subpaths from the operator bytes and refuses
-    /// if the counts disagree, so an index can never silently name a different
-    /// line from the one that was picked.
-    ///
-    /// Content-stream surgery via [`crate::vector::plan_delete_subpath`]: only
-    /// the edited stream is re-emitted; every other object in the file stays
-    /// byte-verbatim (R46/§5.7 named exception). Lands as one
-    /// [`CommandKind::DeleteSubpath`]; undo restores the byte-identical
-    /// pre-delete stream.
-    ///
-    /// **Deleting the only subpath deletes the object**, because a painting
-    /// operator with no path is not a smaller object — it is meaningless.
-    ///
-    /// # Errors
-    ///
-    /// [`EditError::VectorEdit`] wrapping
-    /// [`SubpathOutOfRange`](crate::vector::VectorEditError::SubpathOutOfRange),
-    /// [`ClippingPath`](crate::vector::VectorEditError::ClippingPath) (deleting
-    /// part of a clip would change what OTHER content is visible — refused
-    /// under rule 4), or
-    /// [`SubpathStructureMismatch`](crate::vector::VectorEditError::SubpathStructureMismatch);
-    /// [`EditError::VectorEdit`] with `NotAPath` for a text/image target; plus
-    /// [`EditError::PageOutOfRange`], [`EditError::VectorEditNoContents`],
-    /// [`EditError::VectorEditContent`],
-    /// [`EditError::DocumentEncrypted`], or
-    /// [`EditError::CertificationForbidsChange`]. Every refusal happens before
-    /// any mutation (rule 4).
-    ///
-    /// # Returns
-    ///
-    /// The operator-facing [disclosures](crate::vector::PlannedEdit::disclosures)
-    /// the surgery owes — **empty** unless it had to change the *form* of an
-    /// operator to express the request (expanding an `re` rectangle whose
-    /// corner was dragged out of square, materializing the `m` an
-    /// implicitly-started subpath never had). The caller must surface them:
-    /// the drawing is unchanged but the bytes are not recoverable by
-    /// reversing the gesture, and rule 4 forbids letting the operator find
-    /// that out from a diff.
     /// **Delete one anchor** of the path object at paint-order `object_index`
     /// on page `page_index`, as one undoable command (Pass 36.1).
     ///
@@ -13893,6 +13840,59 @@ impl EditSession {
         })
     }
 
+    /// **Delete one subpath** of the path object at paint-order `object_index`
+    /// on page `page_index`, as one undoable command (Pass 25.2).
+    ///
+    /// # Why this is not just `delete_object` with a smaller target
+    ///
+    /// A CAD producer commonly emits an entire drawing view as a single path
+    /// object — measured on a real SolidWorks export, one stroked path with
+    /// 1194 subpaths covering a whole isometric view. On such a file
+    /// [`EditSession::delete_object`] can only remove the entire view, and an
+    /// operator asking to delete "this line" means one of its subpaths. This
+    /// is that operation.
+    ///
+    /// `subpath_index` is into the object's subpaths in **decomposition
+    /// order** — the same order [`crate::vector::hit_test_subpaths`] returns
+    /// indices in, so a subpath picked by a click can be handed straight here.
+    /// The planner re-derives the subpaths from the operator bytes and refuses
+    /// if the counts disagree, so an index can never silently name a different
+    /// line from the one that was picked.
+    ///
+    /// Content-stream surgery via [`crate::vector::plan_delete_subpath`]: only
+    /// the edited stream is re-emitted; every other object in the file stays
+    /// byte-verbatim (R46/§5.7 named exception). Lands as one
+    /// [`CommandKind::DeleteSubpath`]; undo restores the byte-identical
+    /// pre-delete stream.
+    ///
+    /// **Deleting the only subpath deletes the object**, because a painting
+    /// operator with no path is not a smaller object — it is meaningless.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::VectorEdit`] wrapping
+    /// [`SubpathOutOfRange`](crate::vector::VectorEditError::SubpathOutOfRange),
+    /// [`ClippingPath`](crate::vector::VectorEditError::ClippingPath) (deleting
+    /// part of a clip would change what OTHER content is visible — refused
+    /// under rule 4), or
+    /// [`SubpathStructureMismatch`](crate::vector::VectorEditError::SubpathStructureMismatch);
+    /// [`EditError::VectorEdit`] with `NotAPath` for a text/image target; plus
+    /// [`EditError::PageOutOfRange`], [`EditError::VectorEditNoContents`],
+    /// [`EditError::VectorEditContent`],
+    /// [`EditError::DocumentEncrypted`], or
+    /// [`EditError::CertificationForbidsChange`]. Every refusal happens before
+    /// any mutation (rule 4).
+    ///
+    /// # Returns
+    ///
+    /// The operator-facing [disclosures](crate::vector::PlannedEdit::disclosures)
+    /// the surgery owes — **empty** unless it had to change the *form* of an
+    /// operator to express the request (expanding an `re` rectangle whose
+    /// corner was dragged out of square, materializing the `m` an
+    /// implicitly-started subpath never had). The caller must surface them:
+    /// the drawing is unchanged but the bytes are not recoverable by
+    /// reversing the gesture, and rule 4 forbids letting the operator find
+    /// that out from a diff.
     pub fn delete_subpath(
         &mut self,
         page_index: usize,
@@ -27635,209 +27635,6 @@ impl EditSession {
         self.rotate_annotation(annot_id, anchor, degrees - current)
     }
 
-    /// **Delete any annotation**, with every dependent object and reference
-    /// it leaves behind handled in the same undoable command (`Pass 38.5`).
-    ///
-    /// This is the general verb the four specialised ones
-    /// ([`Self::delete_redaction_mark`], [`Self::delete_dimension`],
-    /// [`Self::delete_field`], [`Self::delete_widget`]) were each carved out
-    /// of. Until it existed, an operator could *author* a highlight, a
-    /// square, a FreeText note or a stamp and had no way to remove one:
-    /// pdfcer's only deletion paths were the three that knew about their own
-    /// annotation kind, and every other subtype — including every annotation
-    /// pdfcer did not author — was permanent.
-    ///
-    /// # Routing, not absorbing (see [`AnnotationDeletionRoute`])
-    ///
-    /// Three kinds carry obligations a generic `/Annots` removal cannot know
-    /// about, so this verb dispatches to the verb that does:
-    ///
-    /// | Target | Route | Why it cannot be generic |
-    /// |---|---|---|
-    /// | `/Redact`, unapplied | [`Self::delete_redaction_mark`] | The undo sentence is *"I decided not to redact that"*, a different claim from *"delete annotation"* — that verb's own doc comment requires the distinction be kept. |
-    /// | ce dimension | [`Self::delete_dimension`] | A `/PieceInfo` sidecar record backs it; leaving it would keep a dimension the annotation no longer supports. |
-    /// | `/Widget` | **refused**, not routed | Widget-or-whole-field is the caller's choice, not a guess — see [`EditError::AnnotationIsWidget`]. |
-    ///
-    /// # First, the clause that reframes all three cascades
-    ///
-    /// **§7.3.10: *"An indirect reference to an undefined object shall not
-    /// be considered an error by a conforming reader; it shall be treated
-    /// as a reference to the null object."*** So a dangling `/IRT`,
-    /// `/Popup` or `/Parent` is **legal**, and none of what follows may be
-    /// justified as "otherwise the file is corrupt." It would not be. The
-    /// reasons below are narrower and better than that, and each is stated
-    /// at its real strength — which is the point of writing them down.
-    ///
-    /// # The three cascades
-    ///
-    /// 1. **`/Popup` companion — deleted.** §12.5.6.14 says a pop-up
-    ///    *"**shall not appear alone**"*, which is the `shall`; but the
-    ///    standard also makes Table 183's `/Parent` **Optional**, so it
-    ///    contradicts itself and this is an ambiguity, not a settled rule.
-    ///    **The deciding argument is §12.5.6.2 NOTE 2**, and it is a
-    ///    behavioural one: *"If an annotation has no parent, the `Contents`
-    ///    entry **shall** represent the text of the annotation, otherwise
-    ///    it shall be ignored by a conforming reader."* An orphaned pop-up
-    ///    therefore does not fall silent — **it starts displaying its own
-    ///    `/Contents`, which is a copy of the comment just deleted.** A
-    ///    deletion that made the deleted text reappear would be the worst
-    ///    possible outcome for this verb, so the pair goes together.
-    ///    Reported as [`AnnotationDeletion::popup_removed`] regardless: the
-    ///    operator named one object and two went.
-    /// 2. **`/IRT` referrers — kept, un-linked (`/IRT` **and** `/RT`), and
-    ///    counted.** The un-linking is **required**, and not for the reason
-    ///    it first appears: Table 170's `/IRT` row reads *"(**Required if
-    ///    an `RT` entry is present**, otherwise optional)"*, so an
-    ///    annotation left holding `/RT` with no `/IRT` is **missing a
-    ///    conditionally-required entry — the only actual conformance defect
-    ///    anywhere in this cascade.** Removing `/IRT` alone is equally
-    ///    wrong in the other direction: Table 170 gives `/RT` **default
-    ///    value `R`**, so stripping only `/IRT` would silently reclassify a
-    ///    `/Group` subordinate as a reply. **Both keys, or neither.**
-    ///
-    ///    What is *not* done — deleting the referrers, or re-parenting them
-    ///    to a surviving sibling — is `Pass 50.0`'s `/SeparationInfo`
-    ///    posture: **repair the structural invariant, refuse to guess the
-    ///    semantic one.** Deleting them would destroy text the operator did
-    ///    not name; re-parenting would invent a conversation. Deleting a
-    ///    whole thread is therefore N calls, and that is the honest cost.
-    /// 3. **`/AP` streams — deleted only when unshared.** See
-    ///    [`Self::appearance_streams_owned_by`].
-    ///
-    /// # What this verb does NOT do, named so it is not assumed
-    ///
-    /// - **It does not remove content from the file.** Per Annex H.7.3,
-    ///   *"although the two objects have been deleted, they are still
-    ///   present in the file"* — an incremental save appends a free-list
-    ///   entry, it does not overwrite bytes. **Deleting a comment is not
-    ///   redacting it**, and a caller whose operator might believe
-    ///   otherwise must say so. A full rewrite drops the bytes; the default
-    ///   save mode does not.
-    /// - **It does not chase `/S /Hide` actions.** §12.6.4.10 Table 210
-    ///   makes such an action's `/T` Required, and it may name this
-    ///   annotation. Left dangling — §7.3.10 makes that legal — and
-    ///   deliberately **not** reported, because finding them means walking
-    ///   every annotation's `/A` and `/AA`, every outline entry and every
-    ///   named JavaScript, which is a document-wide reference census this
-    ///   Pass does not build. Named here so the gap is a decision rather
-    ///   than an oversight.
-    /// - **It does not update `/StructParent` or the structure tree's
-    ///   `/OBJR` back-reference** (§14.7.4.3/.4). Same reasoning; tagged-PDF
-    ///   structure maintenance is its own unbuilt Pass.
-    ///
-    /// # Certification: this is the FIRST pdfcer operation `/P 3` permits
-    ///
-    /// Every other structural verb in this module takes
-    /// [`Self::check_certification`], which refuses on **any** enforced
-    /// `/Perms` `/DocMDP` regardless of `/P` — correct until now, because as
-    /// [`crate::signature::SignatureCensus::forbids_structural_change`]'s own
-    /// doc comment put it, *"no `P` value's permitted list contains any
-    /// operation pdfcer can currently perform."*
-    ///
-    /// Annotation deletion breaks that. §12.8.2.2 Table 254 `P = 3`:
-    /// *"Permitted changes shall be the same as for 2, as well as
-    /// **annotation creation, deletion, and modification**"*. So this verb
-    /// takes [`Self::check_certification_for_annotation`] — refusing at
-    /// `P = 1` and `P = 2`, permitting at `P = 3` — and a certified
-    /// comment-review document, which is exactly what `P = 3` is *for*,
-    /// stops being read-only for no reason.
-    ///
-    /// A delegated route runs the **destination verb's** gate, and the two
-    /// destinations now differ — correctly, and the difference is the
-    /// clause, not an accident:
-    ///
-    /// - [`Self::delete_redaction_mark`] takes the **annotation** gate, same
-    ///   as this verb. Removing an unapplied mark is annotation deletion and
-    ///   nothing else.
-    /// - [`Self::delete_dimension`] keeps the **strict** gate, because it
-    ///   also rewrites the catalog `/PieceInfo` sidecar — not an annotation
-    ///   change, and not in Table 254's `P = 3` list.
-    ///
-    /// So on a `/P 3` document, deleting a ce dimension is refused while
-    /// deleting every other annotation is allowed. That is the standard's
-    /// answer, not pdfcer's preference.
-    ///
-    /// # Errors
-    ///
-    /// [`EditError::AnnotationNotFound`] for an id on no page's `/Annots`
-    /// (including a stale id from an undone command);
-    /// [`EditError::AnnotationLocked`] (§12.5.3 Table 165 bit 8 — the only
-    /// refusal here the standard itself requires);
-    /// [`EditError::AnnotationIsTrapNet`];
-    /// [`EditError::AnnotationIsWidget`]; [`EditError::DocumentEncrypted`];
-    /// [`EditError::CertificationForbidsChange`] at `/P` 1 or 2 with
-    /// `/Perms` enforced; [`EditError::PageTree`]. Every refusal happens
-    /// before any mutation.
-    ///
-    /// ```
-    /// # use pdfcer_core::{document::Document, edit::EditSession, object::ObjId};
-    /// # fn demo(doc: Document, id: ObjId) -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut session = EditSession::new(doc);
-    /// let gone = session.delete_annotation(id)?;
-    /// if gone.replies_orphaned > 0 {
-    ///     // Rule 4: say it. These annotations still exist and are now
-    ///     // top-level comments, which is not what the operator asked for.
-    ///     eprintln!("{} repl(ies) are no longer part of a thread", gone.replies_orphaned);
-    /// }
-    /// # Ok(()) }
-    /// ```
-    /// Translate an annotation by `(dx, dy)` in default user space
-    /// (`Pass 149.0`) — the move verb that markup, links, redaction marks and
-    /// stamps did not have.
-    ///
-    /// # Why a `/Rect` translation is the whole mechanism, and is not a shortcut
-    ///
-    /// pdfcer authors every appearance with `/Matrix` identity, `BBox` equal to
-    /// the annotation's `/Rect`, and the artwork drawn in **absolute page
-    /// coordinates** (see `annot_author`'s "Placement discipline"). §12.5.5
-    /// then computes matrix **A** by mapping the `Matrix`-transformed `BBox`
-    /// onto `/Rect`. Move `/Rect` by `(dx, dy)` and **A** becomes a pure
-    /// translation by exactly `(dx, dy)`:
-    ///
-    /// - the painted artwork moves with it, 1:1;
-    /// - no aspect ratio changes, so §12.5.5's anisotropic-stretch trap is
-    ///   not merely avoided but unreachable;
-    /// - the appearance stream is **not rewritten**, so an `/AP` pdfcer did
-    ///   not author survives a move intact.
-    ///
-    /// That last point is why this verb does not regenerate: rebuilding the
-    /// appearance from pdfcer's own model would silently replace a foreign
-    /// tool's artwork with pdfcer's rendering of the same annotation. A move
-    /// is not a restyle.
-    ///
-    /// # What it therefore MUST also do, and what the row said was hard
-    ///
-    /// The painted result would be right and the **document** would be wrong.
-    /// An annotation's geometry keys — `/L`, `/Vertices`, `/InkList`,
-    /// `/QuadPoints`, `/CL` — hold absolute page coordinates too, and any
-    /// tool that regenerates an appearance reads *those*, not the `/AP`. Move
-    /// `/Rect` alone and the annotation renders in the new place until
-    /// somebody else's viewer regenerates it back into the old one.
-    ///
-    /// So every geometry key present is translated by the same vector, and
-    /// [`AnnotationMove::geometry_keys_moved`] names which were found.
-    ///
-    /// # Two things deliberately NOT translated, both disclosed
-    ///
-    /// - **`/RD`** — rect *differences* are four inset distances, not
-    ///   coordinates. Translating them would deform the annotation while
-    ///   claiming to have moved it.
-    /// - **`/Popup`** — a separate annotation with its own placement, which
-    ///   §12.5.6.14 leaves to the reader. Reported so a shell can choose to
-    ///   move it too.
-    ///
-    /// # Routing
-    ///
-    /// A ce dimension and a form widget already have move verbs with more to
-    /// do than this one — a ce dimension must re-measure, a widget belongs to
-    /// a field. Both are **refused by name** here rather than half-handled,
-    /// so there is never a second way to move them that does less.
-    ///
-    /// # Errors
-    ///
-    /// [`EditError::DocumentEncrypted`], the certification gate, a target
-    /// that is not an annotation, an annotation with no `/Rect` to move, and
-    /// the two routing refusals above.
     /// Scale an annotation about `anchor` by `(sx, sy)` (`Pass 151.0`) — the
     /// resize half of [`Self::move_annotation`].
     ///
@@ -29026,6 +28823,63 @@ impl EditSession {
         total
     }
 
+    /// Translate an annotation by `(dx, dy)` in default user space
+    /// (`Pass 149.0`) — the move verb that markup, links, redaction marks and
+    /// stamps did not have.
+    ///
+    /// # Why a `/Rect` translation is the whole mechanism, and is not a shortcut
+    ///
+    /// pdfcer authors every appearance with `/Matrix` identity, `BBox` equal to
+    /// the annotation's `/Rect`, and the artwork drawn in **absolute page
+    /// coordinates** (see `annot_author`'s "Placement discipline"). §12.5.5
+    /// then computes matrix **A** by mapping the `Matrix`-transformed `BBox`
+    /// onto `/Rect`. Move `/Rect` by `(dx, dy)` and **A** becomes a pure
+    /// translation by exactly `(dx, dy)`:
+    ///
+    /// - the painted artwork moves with it, 1:1;
+    /// - no aspect ratio changes, so §12.5.5's anisotropic-stretch trap is
+    ///   not merely avoided but unreachable;
+    /// - the appearance stream is **not rewritten**, so an `/AP` pdfcer did
+    ///   not author survives a move intact.
+    ///
+    /// That last point is why this verb does not regenerate: rebuilding the
+    /// appearance from pdfcer's own model would silently replace a foreign
+    /// tool's artwork with pdfcer's rendering of the same annotation. A move
+    /// is not a restyle.
+    ///
+    /// # What it therefore MUST also do, and what the row said was hard
+    ///
+    /// The painted result would be right and the **document** would be wrong.
+    /// An annotation's geometry keys — `/L`, `/Vertices`, `/InkList`,
+    /// `/QuadPoints`, `/CL` — hold absolute page coordinates too, and any
+    /// tool that regenerates an appearance reads *those*, not the `/AP`. Move
+    /// `/Rect` alone and the annotation renders in the new place until
+    /// somebody else's viewer regenerates it back into the old one.
+    ///
+    /// So every geometry key present is translated by the same vector, and
+    /// [`AnnotationMove::geometry_keys_moved`] names which were found.
+    ///
+    /// # Two things deliberately NOT translated, both disclosed
+    ///
+    /// - **`/RD`** — rect *differences* are four inset distances, not
+    ///   coordinates. Translating them would deform the annotation while
+    ///   claiming to have moved it.
+    /// - **`/Popup`** — a separate annotation with its own placement, which
+    ///   §12.5.6.14 leaves to the reader. Reported so a shell can choose to
+    ///   move it too.
+    ///
+    /// # Routing
+    ///
+    /// A ce dimension and a form widget already have move verbs with more to
+    /// do than this one — a ce dimension must re-measure, a widget belongs to
+    /// a field. Both are **refused by name** here rather than half-handled,
+    /// so there is never a second way to move them that does less.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::DocumentEncrypted`], the certification gate, a target
+    /// that is not an annotation, an annotation with no `/Rect` to move, and
+    /// the two routing refusals above.
     pub fn move_annotation(
         &mut self,
         annot_id: ObjId,
@@ -29198,6 +29052,152 @@ impl EditSession {
         })
     }
 
+    /// **Delete any annotation**, with every dependent object and reference
+    /// it leaves behind handled in the same undoable command (`Pass 38.5`).
+    ///
+    /// This is the general verb the four specialised ones
+    /// ([`Self::delete_redaction_mark`], [`Self::delete_dimension`],
+    /// [`Self::delete_field`], [`Self::delete_widget`]) were each carved out
+    /// of. Until it existed, an operator could *author* a highlight, a
+    /// square, a FreeText note or a stamp and had no way to remove one:
+    /// pdfcer's only deletion paths were the three that knew about their own
+    /// annotation kind, and every other subtype — including every annotation
+    /// pdfcer did not author — was permanent.
+    ///
+    /// # Routing, not absorbing (see [`AnnotationDeletionRoute`])
+    ///
+    /// Three kinds carry obligations a generic `/Annots` removal cannot know
+    /// about, so this verb dispatches to the verb that does:
+    ///
+    /// | Target | Route | Why it cannot be generic |
+    /// |---|---|---|
+    /// | `/Redact`, unapplied | [`Self::delete_redaction_mark`] | The undo sentence is *"I decided not to redact that"*, a different claim from *"delete annotation"* — that verb's own doc comment requires the distinction be kept. |
+    /// | ce dimension | [`Self::delete_dimension`] | A `/PieceInfo` sidecar record backs it; leaving it would keep a dimension the annotation no longer supports. |
+    /// | `/Widget` | **refused**, not routed | Widget-or-whole-field is the caller's choice, not a guess — see [`EditError::AnnotationIsWidget`]. |
+    ///
+    /// # First, the clause that reframes all three cascades
+    ///
+    /// **§7.3.10: *"An indirect reference to an undefined object shall not
+    /// be considered an error by a conforming reader; it shall be treated
+    /// as a reference to the null object."*** So a dangling `/IRT`,
+    /// `/Popup` or `/Parent` is **legal**, and none of what follows may be
+    /// justified as "otherwise the file is corrupt." It would not be. The
+    /// reasons below are narrower and better than that, and each is stated
+    /// at its real strength — which is the point of writing them down.
+    ///
+    /// # The three cascades
+    ///
+    /// 1. **`/Popup` companion — deleted.** §12.5.6.14 says a pop-up
+    ///    *"**shall not appear alone**"*, which is the `shall`; but the
+    ///    standard also makes Table 183's `/Parent` **Optional**, so it
+    ///    contradicts itself and this is an ambiguity, not a settled rule.
+    ///    **The deciding argument is §12.5.6.2 NOTE 2**, and it is a
+    ///    behavioural one: *"If an annotation has no parent, the `Contents`
+    ///    entry **shall** represent the text of the annotation, otherwise
+    ///    it shall be ignored by a conforming reader."* An orphaned pop-up
+    ///    therefore does not fall silent — **it starts displaying its own
+    ///    `/Contents`, which is a copy of the comment just deleted.** A
+    ///    deletion that made the deleted text reappear would be the worst
+    ///    possible outcome for this verb, so the pair goes together.
+    ///    Reported as [`AnnotationDeletion::popup_removed`] regardless: the
+    ///    operator named one object and two went.
+    /// 2. **`/IRT` referrers — kept, un-linked (`/IRT` **and** `/RT`), and
+    ///    counted.** The un-linking is **required**, and not for the reason
+    ///    it first appears: Table 170's `/IRT` row reads *"(**Required if
+    ///    an `RT` entry is present**, otherwise optional)"*, so an
+    ///    annotation left holding `/RT` with no `/IRT` is **missing a
+    ///    conditionally-required entry — the only actual conformance defect
+    ///    anywhere in this cascade.** Removing `/IRT` alone is equally
+    ///    wrong in the other direction: Table 170 gives `/RT` **default
+    ///    value `R`**, so stripping only `/IRT` would silently reclassify a
+    ///    `/Group` subordinate as a reply. **Both keys, or neither.**
+    ///
+    ///    What is *not* done — deleting the referrers, or re-parenting them
+    ///    to a surviving sibling — is `Pass 50.0`'s `/SeparationInfo`
+    ///    posture: **repair the structural invariant, refuse to guess the
+    ///    semantic one.** Deleting them would destroy text the operator did
+    ///    not name; re-parenting would invent a conversation. Deleting a
+    ///    whole thread is therefore N calls, and that is the honest cost.
+    /// 3. **`/AP` streams — deleted only when unshared.** See
+    ///    [`Self::appearance_streams_owned_by`].
+    ///
+    /// # What this verb does NOT do, named so it is not assumed
+    ///
+    /// - **It does not remove content from the file.** Per Annex H.7.3,
+    ///   *"although the two objects have been deleted, they are still
+    ///   present in the file"* — an incremental save appends a free-list
+    ///   entry, it does not overwrite bytes. **Deleting a comment is not
+    ///   redacting it**, and a caller whose operator might believe
+    ///   otherwise must say so. A full rewrite drops the bytes; the default
+    ///   save mode does not.
+    /// - **It does not chase `/S /Hide` actions.** §12.6.4.10 Table 210
+    ///   makes such an action's `/T` Required, and it may name this
+    ///   annotation. Left dangling — §7.3.10 makes that legal — and
+    ///   deliberately **not** reported, because finding them means walking
+    ///   every annotation's `/A` and `/AA`, every outline entry and every
+    ///   named JavaScript, which is a document-wide reference census this
+    ///   Pass does not build. Named here so the gap is a decision rather
+    ///   than an oversight.
+    /// - **It does not update `/StructParent` or the structure tree's
+    ///   `/OBJR` back-reference** (§14.7.4.3/.4). Same reasoning; tagged-PDF
+    ///   structure maintenance is its own unbuilt Pass.
+    ///
+    /// # Certification: this is the FIRST pdfcer operation `/P 3` permits
+    ///
+    /// Every other structural verb in this module takes
+    /// [`Self::check_certification`], which refuses on **any** enforced
+    /// `/Perms` `/DocMDP` regardless of `/P` — correct until now, because as
+    /// [`crate::signature::SignatureCensus::forbids_structural_change`]'s own
+    /// doc comment put it, *"no `P` value's permitted list contains any
+    /// operation pdfcer can currently perform."*
+    ///
+    /// Annotation deletion breaks that. §12.8.2.2 Table 254 `P = 3`:
+    /// *"Permitted changes shall be the same as for 2, as well as
+    /// **annotation creation, deletion, and modification**"*. So this verb
+    /// takes [`Self::check_certification_for_annotation`] — refusing at
+    /// `P = 1` and `P = 2`, permitting at `P = 3` — and a certified
+    /// comment-review document, which is exactly what `P = 3` is *for*,
+    /// stops being read-only for no reason.
+    ///
+    /// A delegated route runs the **destination verb's** gate, and the two
+    /// destinations now differ — correctly, and the difference is the
+    /// clause, not an accident:
+    ///
+    /// - [`Self::delete_redaction_mark`] takes the **annotation** gate, same
+    ///   as this verb. Removing an unapplied mark is annotation deletion and
+    ///   nothing else.
+    /// - [`Self::delete_dimension`] keeps the **strict** gate, because it
+    ///   also rewrites the catalog `/PieceInfo` sidecar — not an annotation
+    ///   change, and not in Table 254's `P = 3` list.
+    ///
+    /// So on a `/P 3` document, deleting a ce dimension is refused while
+    /// deleting every other annotation is allowed. That is the standard's
+    /// answer, not pdfcer's preference.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::AnnotationNotFound`] for an id on no page's `/Annots`
+    /// (including a stale id from an undone command);
+    /// [`EditError::AnnotationLocked`] (§12.5.3 Table 165 bit 8 — the only
+    /// refusal here the standard itself requires);
+    /// [`EditError::AnnotationIsTrapNet`];
+    /// [`EditError::AnnotationIsWidget`]; [`EditError::DocumentEncrypted`];
+    /// [`EditError::CertificationForbidsChange`] at `/P` 1 or 2 with
+    /// `/Perms` enforced; [`EditError::PageTree`]. Every refusal happens
+    /// before any mutation.
+    ///
+    /// ```
+    /// # use pdfcer_core::{document::Document, edit::EditSession, object::ObjId};
+    /// # fn demo(doc: Document, id: ObjId) -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut session = EditSession::new(doc);
+    /// let gone = session.delete_annotation(id)?;
+    /// if gone.replies_orphaned > 0 {
+    ///     // Rule 4: say it. These annotations still exist and are now
+    ///     // top-level comments, which is not what the operator asked for.
+    ///     eprintln!("{} repl(ies) are no longer part of a thread", gone.replies_orphaned);
+    /// }
+    /// # Ok(()) }
+    /// ```
     pub fn delete_annotation(&mut self, annot_id: ObjId) -> Result<AnnotationDeletion, EditError> {
         // ---- LOCATE first, so "not an annotation" is reported as such
         // rather than masked by a certification refusal the caller would
@@ -38492,12 +38492,6 @@ impl EditSession {
     /// [`DanglingReport::page_labels_stale`] — which is the parity-plus
     /// half: Acrobat leaves them stale *and silent*.
     ///
-    /// # Errors
-    ///
-    /// - [`EditError::CertificationForbidsChange`] — an enforced
-    ///   certification signature (§12.8.4).
-    /// - [`EditError::WouldRemoveEveryPage`] — §7.7.3.3 requires at least
-    ///   one page.
     /// ## Preseparated page sets are repaired, not just reported
     ///
     /// §14.11.4 lets one logical page be several page objects — one per

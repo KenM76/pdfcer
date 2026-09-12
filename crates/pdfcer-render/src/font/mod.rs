@@ -1229,25 +1229,6 @@ impl RenderOptions {
         self
     }
 
-    /// Set where a page's blending colour space comes from when its group
-    /// declares none (§11.4.7; spec ambiguity `PGB-A1`), returning `self`
-    /// for chaining.
-    ///
-    /// Same `#[non_exhaustive]` reasoning as [`Self::with_annotations`].
-    /// This is the seam the operator's persisted setting arrives through:
-    /// `RenderOptions::default().with_page_blend_space_source(settings.page_blend_space_source)`.
-    ///
-    /// # What it changes
-    ///
-    /// Whether a PDF/X file that declares no page group composites in ink
-    /// or on screen — and therefore whether **overprint can be represented
-    /// at all**, which in an additive space it cannot be (see
-    /// [`pdfcer_core::settings::PageBlendSpaceSource`]). On the suite PDF
-    /// Output Suite this moves 24 of 51 patches between the two paths.
-    ///
-    /// The choice is disclosed rather than silent: the resulting space's
-    /// provenance is reported as `blend_space_from` on
-    /// `pdfcer render-page`'s metrics line.
     /// Choose which colour spaces get `OPM 1`'s zero-tint rule, returning
     /// `self` for chaining (`Pass 143.0`).
     ///
@@ -1283,6 +1264,7 @@ impl RenderOptions {
     /// The choice is disclosed rather than silent: `pdfcer render-page`
     /// reports it on the metrics line.
     #[must_use]
+    #[must_use]
     pub fn with_overprint_zero_tint_scope(
         mut self,
         scope: pdfcer_core::settings::OverprintZeroTintScope,
@@ -1302,6 +1284,25 @@ impl RenderOptions {
         self
     }
 
+    /// Set where a page's blending colour space comes from when its group
+    /// declares none (§11.4.7; spec ambiguity `PGB-A1`), returning `self`
+    /// for chaining.
+    ///
+    /// Same `#[non_exhaustive]` reasoning as [`Self::with_annotations`].
+    /// This is the seam the operator's persisted setting arrives through:
+    /// `RenderOptions::default().with_page_blend_space_source(settings.page_blend_space_source)`.
+    ///
+    /// # What it changes
+    ///
+    /// Whether a PDF/X file that declares no page group composites in ink
+    /// or on screen — and therefore whether **overprint can be represented
+    /// at all**, which in an additive space it cannot be (see
+    /// [`pdfcer_core::settings::PageBlendSpaceSource`]). On the suite PDF
+    /// Output Suite this moves 24 of 51 patches between the two paths.
+    ///
+    /// The choice is disclosed rather than silent: the resulting space's
+    /// provenance is reported as `blend_space_from` on
+    /// `pdfcer render-page`'s metrics line.
     #[must_use]
     pub fn with_page_blend_space_source(
         mut self,
