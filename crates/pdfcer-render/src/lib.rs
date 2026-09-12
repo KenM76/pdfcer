@@ -2718,6 +2718,112 @@ mod tests {
     }
 
     #[test]
+    fn image_whose_unit_square_misses_the_canvas_is_culled_not_decoded() {
+        // ★★ `Pass 300.0` — the IMAGE half of the gate above, which
+        // shipped missing for as long as the form half existed.
+        //
+        // Deliberately written as a near-copy of
+        // `form_whose_bbox_misses_the_canvas_is_culled_not_executed`,
+        // because the two are the same claim about two shapes and a
+        // reader should be able to diff them. §8.10.1 makes a form's
+        // `/BBox` a clip; §8.9.5.2 puts an image in the unit square of
+        // image space. Either way the operator paints inside a known
+        // rectangle and nowhere else, so a rectangle that misses the
+        // canvas cannot tint a pixel and skipping the whole `Do` is
+        // EXACT rather than approximate.
+        //
+        // What the missing gate cost, measured on the operator's Toronto
+        // street map: rendering a 400 × 200 px region culled 6,145 of
+        // 6,174 forms and **1 of 1,183 images**, and peak memory was
+        // identical for that region and for the whole page — because
+        // every image in the document was still being decoded to paint a
+        // postage stamp.
+        //
+        // Three halves, and the third is the one that keeps this honest:
+        // a gate that culls EVERYTHING also passes the first two.
+        let img = image_dict("/ColorSpace /DeviceGray /BitsPerComponent 8");
+        let data: &[u8] = &[0x00, 0xFF, 0xFF, 0x40];
+
+        // (1) Off-canvas: culled, not rendered. The page is 100 × 100 and
+        // the unit square is mapped to 900..910, a page-width away.
+        let (doc, page) = doc_with_xobject("q 10 0 0 10 900 900 cm /X1 Do Q", &img, data);
+        let out = render_page(&doc, &page, 1.0).unwrap();
+        assert_eq!(out.diagnostics.images_culled, 1, "off-canvas image culled");
+        assert_eq!(
+            out.diagnostics.images_rendered, 0,
+            "a culled image is not a rendered image; conflating the two is \
+             how a render that skipped the decode reports as one that did it"
+        );
+
+        // (2) The byte-identity half, against the same page with the `Do`
+        // removed entirely. If the cull ever became approximate — a
+        // margin lost, the probe narrowed to f32 in the wrong place —
+        // this is the assertion that catches it.
+        let (doc2, page2) = doc_with_xobject("q 10 0 0 10 900 900 cm Q", &img, data);
+        let bare = render_page(&doc2, &page2, 1.0).unwrap();
+        assert_eq!(
+            out.pixmap.data(),
+            bare.pixmap.data(),
+            "culling must be invisible in the raster"
+        );
+
+        // (3) ★ THE NEGATIVE HALF. An image ON the canvas must still be
+        // drawn — without this, `images_culled += 1; return;` on every
+        // image would satisfy everything above while rendering a blank
+        // page, which is the shape of the failure this gate could
+        // plausibly have.
+        let (doc3, page3) = doc_with_xobject(&format!("q {FULL_PAGE_CM} /X1 Do Q"), &img, data);
+        let on = render_page(&doc3, &page3, 1.0).unwrap();
+        assert_eq!(
+            on.diagnostics.images_culled, 0,
+            "an image covering the whole page must NOT be culled"
+        );
+        assert_eq!(on.diagnostics.images_rendered, 1);
+        assert_eq!(
+            pixel(&on.pixmap, 25, 25),
+            (0, 0, 0),
+            "and it must actually have painted its samples"
+        );
+    }
+
+    #[test]
+    fn image_outside_the_clip_in_force_is_culled() {
+        // The clip half of the same gate (`Pass 300.0`). The image is
+        // comfortably ON the canvas, so only the `clip_bbox`
+        // intersection can reject it — this is the arm that a
+        // canvas-only test leaves unexercised, and the arm that pays on
+        // a zoomed region, where the viewport IS a clip.
+        //
+        // The soft-mask guard is why the intersection is conditional:
+        // while a mask is in force `clip_bbox` is not the whole truth
+        // about what can be painted, so the clip half is skipped and the
+        // canvas half — which needs no guard, since an image off the
+        // canvas paints nothing whatever the mask says — still applies.
+        let img = image_dict("/ColorSpace /DeviceGray /BitsPerComponent 8");
+        let data: &[u8] = &[0x00, 0xFF, 0xFF, 0x40];
+
+        let (doc, page) =
+            doc_with_xobject("q 0 0 10 10 re W n 20 0 0 20 60 60 cm /X1 Do Q", &img, data);
+        let out = render_page(&doc, &page, 1.0).unwrap();
+        assert_eq!(
+            out.diagnostics.images_culled, 1,
+            "an image at 60..80 under a 0..10 clip cannot paint a pixel"
+        );
+        assert_eq!(out.diagnostics.images_rendered, 0);
+
+        // The same image under a clip it OVERLAPS is rendered, so this
+        // is not simply asserting that any clip culls.
+        let (doc2, page2) = doc_with_xobject(
+            "q 50 50 40 40 re W n 20 0 0 20 60 60 cm /X1 Do Q",
+            &img,
+            data,
+        );
+        let on = render_page(&doc2, &page2, 1.0).unwrap();
+        assert_eq!(on.diagnostics.images_culled, 0);
+        assert_eq!(on.diagnostics.images_rendered, 1);
+    }
+
+    #[test]
     fn hairline_mode_thins_strokes_but_leaves_fills_untouched() {
         // Pass 254.0 — the CAD "line weights off" display mode. A fat stroke
         // must collapse to ~1 device pixel; a FILL must be byte-for-byte

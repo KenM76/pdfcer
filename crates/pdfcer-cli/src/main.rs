@@ -133,7 +133,8 @@
 //!               <exactly render-page's counters, below — one format string>
 //! render-page:  rendered <input> page <N> -> <output> <W>x<H>; \
 //!               substituted=<n> notdef=<n> unsupported=<n> unknown=<n> \
-//!               deferred=<n> images=<n> images_unsupported=<n> forms=<n> \
+//!               deferred=<n> images=<n> images_culled=<n> \
+//!               images_unsupported=<n> forms=<n> \
 //!               forms_culled=<n> subpixel_culled=<n> \
 //!               images_codec_unsupported=<n> \
 //!               codec_features=<n> codec_geometry_mismatch=<n> dct_cmyk=<n> \
@@ -276,6 +277,7 @@
 //! | `unknown` | `unknown_ops` | "were there operators pdfcer doesn't know?" |
 //! | `deferred` | `deferred_ops` | "were there operators pdfcer knows but hasn't implemented?" |
 //! | `images` | `images_rendered` | "how many sampled images were painted?" |
+//! | `images_culled` | `images_culled` | "how many were skipped because the image's unit square missed the viewport?" (§8.9.5.2 confines an image to `[0,1] × [0,1]` in image space, so one whose unit square lands off-canvas cannot tint a pixel — EXACT, always on, and the raster is byte-identical with or without it. The images half of the pair `forms_culled` is the forms half of — read the two TOGETHER, because it was the GAP between them, 6,145 forms culled against 1 image on the same 400 × 200 region, that showed the image path had no viewport gate at all) |
 //! | `images_unsupported` | `images_unsupported` | "how many images are simply MISSING from the raster?" |
 //! | `contents_unresolved` | `contents_streams_unresolved` | "how many of this page's `/Contents` streams are not in the file at all, so their marks are MISSING from the raster?" (§7.3.10 + Table 30 — legal, but the page is incomplete) |
 //! | `forms` | `forms_rendered` | "how many form XObjects were executed?" |
@@ -14302,7 +14304,8 @@ fn render_counters_line(
     let need_appearances = usize::from(pdfcer_core::annot::need_appearances(doc));
     format!(
         "substituted={} notdef={} unsupported={} unknown={} deferred={} \
-images={} images_unsupported={} forms={} forms_culled={} subpixel_culled={} \
+images={} images_culled={} images_unsupported={} forms={} forms_culled={} \
+subpixel_culled={} \
 images_codec_unsupported={} codec_features={} codec_geometry_mismatch={} \
 dct_cmyk={} lzw_anomalies={} dct_cmyk_unverifiable={} jpx_preblended={} \
 annots={} annots_painted={} annots_no_ap={} annots_hidden={} \
@@ -14340,6 +14343,7 @@ overprint_process_images_unsupported={} annots_icon_painted={} page_resources_de
         d.unknown_ops,
         d.deferred_ops,
         d.images_rendered,
+        d.images_culled,
         d.images_unsupported,
         d.forms_rendered,
         d.forms_culled,

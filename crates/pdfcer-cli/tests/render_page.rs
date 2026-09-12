@@ -298,6 +298,17 @@ fn renders_a_single_page_to_png_with_the_stable_stdout_line() {
             // Appended by the XObject/image slice. The contract permits
             // APPENDING keys; the five above never move.
             "images",
+            // `Pass 300.0`: the image viewport cull, beside `images` for
+            // exactly the reason `forms_culled` sits beside `forms` --
+            // "1,183 images drawn, 1 culled" only reads as a pair when the
+            // two are adjacent. Kept SEPARATE from `forms_culled` rather
+            // than summed into one cull counter because the GAP between
+            // them is the diagnostic: on the operator's Toronto street map
+            // a 400 x 200 region culled 6,145 of 6,174 forms and 1 of 1,183
+            // images, which is what showed the image path had no viewport
+            // gate at all. A combined counter would have averaged that
+            // signal away.
+            "images_culled",
             "images_unsupported",
             "forms",
             // `forms_culled` sits BESIDE `forms` rather than at the end

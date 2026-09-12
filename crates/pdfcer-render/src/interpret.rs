@@ -1439,6 +1439,27 @@ pub struct Diagnostics {
     /// asking why a render was slow — and the first is what pdfcer used to
     /// report while doing the second's work.
     pub forms_culled: usize,
+    /// `Do` invocations on an IMAGE skipped because its unit square
+    /// (§8.9.5.2), mapped through the CTM, lands entirely outside the canvas
+    /// or outside the clip in force (`Pass 300.0`).
+    ///
+    /// **Lossless**, on the same argument that makes
+    /// [`Diagnostics::forms_culled`] lossless: §8.9.5.2 confines an image to
+    /// `[0,1] × [0,1]` in image space, so an image whose unit square misses
+    /// the viewport cannot contribute a pixel.
+    ///
+    /// ★★ Counted — and counted SEPARATELY from the forms — because the gap
+    /// between the two numbers is what found this. On the operator's Toronto
+    /// street map, a 400 × 200 px region culled **6,145 of 6,174 forms** and
+    /// **1 of 1,183 images**: the form gate was working and images had no
+    /// gate at all. A single combined counter would have averaged that
+    /// signal away.
+    ///
+    /// ★ It is the decode that this saves, not the blit. The gate sits before
+    /// the sample bytes are touched, so a culled image costs no decode, no
+    /// colour-space resolution and no mask work — which is why peak memory
+    /// used to be identical for a viewport-sized region and the whole page.
+    pub images_culled: usize,
     /// `Do` invocations skipped because the form was smaller than
     /// [`SUBPIXEL_CULL_PX`] in both axes and
     /// [`RenderOptions::subpixel_culling`] was on.
@@ -1912,6 +1933,7 @@ polarity unverifiable (decision 006 R30)",
         }
         self.forms_rendered += other.forms_rendered;
         self.forms_culled += other.forms_culled;
+        self.images_culled += other.images_culled;
         self.subpixel_culled += other.subpixel_culled;
         self.strokes_hairlined += other.strokes_hairlined;
         self.xobject_depth_overflows += other.xobject_depth_overflows;
@@ -8200,6 +8222,75 @@ impl Interpreter<'_> {
         if self.oc_hidden() {
             return;
         }
+
+        // ★★★ THE SECOND GATE, AND IT SHIPPED MISSING TOO (`Pass 300.0`).
+        //
+        // The gate above asks *is this hidden?* and returns before the
+        // decode for exactly the right reason — "an image that is not drawn
+        // does not need to be decoded". It never asked the other question
+        // that has the same answer: **is this image anywhere near the
+        // canvas?**
+        //
+        // Measured on the operator's Toronto street map (8.3 MB, 25,246
+        // objects). Rendering a 400 × 200 px region of it:
+        //
+        //   forms  6,174 -> 113 rendered, 6,145 CULLED   (the form gate works)
+        //   images 1,183 -> 1,182 still decoded          (no gate at all)
+        //
+        // Every image in the document was decoded to paint a postage stamp,
+        // and peak memory was **identical** for a 400 × 200 region and the
+        // whole page — 307 MB either way, which is the signature of work that
+        // does not depend on the viewport.
+        //
+        // # Why this is LOSSLESS, and not a fidelity trade
+        //
+        // §8.9.5.2 puts an image in the **unit square** of image space: `Do`
+        // paints `[0,1] × [0,1]` under the CTM and nothing outside it. So an
+        // image whose unit square maps entirely off the canvas cannot tint a
+        // pixel, exactly as §8.10.1's `/BBox` makes the same true of a form.
+        // This is the form gate's own argument, applied to the shape images
+        // already have.
+        //
+        // Deliberately the SAME SHAPE as that gate rather than a second
+        // formulation — the one-pixel margin, the `f64` probe, and the
+        // soft-mask guard on the clip intersection are all load-bearing and
+        // all reasoned there:
+        //
+        // * the margin, because a shape whose edge lands on the boundary
+        //   still tints the boundary pixel through anti-aliasing, and being a
+        //   pixel too eager costs a seam at a tile edge;
+        // * the `f64` probe, because a probe disagreeing with the CTM the
+        //   image is actually painted under would cull one that renders;
+        // * the soft-mask guard, because `clip_bbox` is not the whole truth
+        //   while a mask is in force.
+        //
+        // The CANVAS half needs no guard at all: an image off the canvas
+        // paints nothing whatever the mask says.
+        {
+            let probe = self.gs.current.ctm64.to_f32();
+            let unit = tiny_skia::Rect::from_ltrb(0.0, 0.0, 1.0, 1.0);
+            if let Some(unit) = unit
+                && let Some(dev) = unit.transform(probe)
+            {
+                #[allow(clippy::cast_precision_loss)]
+                let (cw, ch) = (canvas.width() as f32, canvas.height() as f32);
+                let (mut l, mut t) = (dev.left() - 1.0, dev.top() - 1.0);
+                let (mut r, mut b) = (dev.right() + 1.0, dev.bottom() + 1.0);
+                if self.gs.current.soft_mask.is_none()
+                    && let Some((cl, ct, cr, cb)) = self.gs.current.clip_bbox
+                {
+                    l = l.max(cl);
+                    t = t.max(ct);
+                    r = r.min(cr);
+                    b = b.min(cb);
+                }
+                if r.min(cw) <= l.max(0.0) || b.min(ch) <= t.max(0.0) {
+                    self.diag.images_culled += 1;
+                    return;
+                }
+            }
+        }
+
         let doc = self.doc;
         let resources = self.resources;
         let fill = self.gs.current.fill_color;
