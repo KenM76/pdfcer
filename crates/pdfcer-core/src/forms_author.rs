@@ -62,9 +62,11 @@
 //! `--name a.b.c` means non-terminal `a`, non-terminal `a.b`, terminal `c`,
 //! reusing whichever of those already exist. §12.7.3.2 reserves the period
 //! (2Eh) as the path separator, so a partial name `/T` *containing* one has
-//! no unambiguous FQN — [`FormAuthorError::PeriodInPartialName`] refuses it,
+//! no unambiguous FQN — [`FormAuthorError::DottedPartialName`] refuses it,
 //! with no escape hatch, because an escape hatch would author exactly the
-//! ambiguity the spec exists to avoid.
+//! ambiguity the spec exists to avoid. (This header named
+//! `PeriodInPartialName` until 2026-09-12; that variant is the EMPTY-segment
+//! rule and never fired on this one. See its doc comment.)
 //!
 //! # What this module does NOT do
 //!
@@ -290,7 +292,7 @@ pub enum FormAuthorError {
     },
     /// A dotted PATH was supplied where a single partial name was required.
     ///
-    /// Distinct from [`Self::PeriodInPartialName`], and the distinction is
+    /// Distinct from [`Self::EmptyNameSegment`], and the distinction is
     /// the operator's next move. `A..B` is malformed — no reading of it is
     /// valid. `A.B` is a perfectly well-formed two-level path; it is simply
     /// not a **partial** name, which is one segment by §12.7.3.2's
@@ -332,15 +334,47 @@ pub enum FormAuthorError {
         /// What was supplied in place of a single segment.
         supplied: String,
     },
-    /// A path segment (a partial name `/T`) contains a period.
+    /// A path has an **empty segment** — a leading, trailing or doubled
+    /// period (`.x`, `x.`, `a..b`, `.`).
     ///
-    /// §12.7.3.2 reserves the period as the path separator, so a `/T`
-    /// containing one has no unambiguous FQN. There is deliberately no escape
-    /// hatch — one would author exactly the ambiguity the spec avoids.
+    /// §12.7.3.2 makes the period a level separator, so an empty segment is a
+    /// level with no name: there is nothing for it to denote and nothing an
+    /// FQN could be built from.
+    ///
+    /// # ★★ RENAMED 2026-09-12, and the old name is why
+    ///
+    /// It was `PeriodInPartialName`, and **its name and doc comment stated the
+    /// rule a DIFFERENT variant enforces**:
+    ///
+    /// > ~~"A path segment (a partial name `/T`) contains a period. §12.7.3.2
+    /// > reserves the period as the path separator, so a `/T` containing one
+    /// > has no unambiguous FQN. There is deliberately no escape hatch."~~
+    ///
+    /// That is [`Self::DottedPartialName`]'s rule. This variant's `#[error]`
+    /// message and its only raiser — `split_field_path`'s
+    /// `segments.iter().any(|s| s.trim().is_empty())` — have always been about
+    /// the **empty segment**. `"a..b"` and `".x"` raise it; **`"Text.2"` never
+    /// can**, because `split_field_path` returns two perfectly good segments
+    /// for it.
+    ///
+    /// ★★★ The cost was not hypothetical. `EditSession::rename_field`'s
+    /// `# Errors` promised THIS variant for a dotted name while the verb
+    /// forty lines below raised `DottedPartialName`. A consumer implementing
+    /// the documented error set would have matched this arm, missed **every
+    /// dotted rename an operator types**, and fallen through to showing the
+    /// raw `Display` where it had promised a worded sentence. The consuming
+    /// shell avoided it only by reading the source instead of the docs, and
+    /// reported it rather than working around it.
+    ///
+    /// ★ Renamed rather than re-documented because the doc was the third
+    /// thing to fix and the name would still have lied. It is a public
+    /// variant, so this is a breaking change — taken now because it is free
+    /// today (zero matches in `pdfcer-gui`, zero in `pdfcer-cli`, one test
+    /// here) and will not be later.
     #[error(
         "`{fqn}` contains an empty name segment; a period separates levels and cannot start, end, or double up"
     )]
-    PeriodInPartialName {
+    EmptyNameSegment {
         /// The fully-qualified name requested.
         fqn: String,
     },
@@ -373,7 +407,7 @@ pub enum FormAuthorError {
 /// # Errors
 ///
 /// [`FormAuthorError::EmptyName`] for an empty or whitespace-only name;
-/// [`FormAuthorError::PeriodInPartialName`] for any empty segment;
+/// [`FormAuthorError::EmptyNameSegment`] for any empty segment;
 /// [`FormAuthorError::PathTooDeep`] beyond [`MAX_FIELD_TREE_DEPTH`].
 pub fn split_field_path(fqn: &str) -> Result<Vec<String>, FormAuthorError> {
     if fqn.trim().is_empty() {
@@ -381,7 +415,7 @@ pub fn split_field_path(fqn: &str) -> Result<Vec<String>, FormAuthorError> {
     }
     let segments: Vec<String> = fqn.split('.').map(str::to_owned).collect();
     if segments.iter().any(|s| s.trim().is_empty()) {
-        return Err(FormAuthorError::PeriodInPartialName {
+        return Err(FormAuthorError::EmptyNameSegment {
             fqn: fqn.to_owned(),
         });
     }
@@ -778,7 +812,7 @@ mod tests {
             assert!(
                 matches!(
                     split_field_path(bad),
-                    Err(FormAuthorError::PeriodInPartialName { .. }),
+                    Err(FormAuthorError::EmptyNameSegment { .. }),
                 ),
                 "{bad} should be refused",
             );

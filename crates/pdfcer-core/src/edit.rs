@@ -24720,7 +24720,7 @@ impl EditSession {
     ///
     /// # Errors
     ///
-    /// [`crate::forms_author::FormAuthorError::PeriodInPartialName`] when
+    /// [`crate::forms_author::FormAuthorError::DottedPartialName`] when
     /// `new_partial` contains a period — §12.7.3.2 reserves it as the path
     /// separator, so a `/T` holding one has no unambiguous FQN, and there is
     /// no escape;

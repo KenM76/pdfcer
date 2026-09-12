@@ -724,7 +724,7 @@ fn an_empty_path_segment_is_refused_by_the_authoring_verbs() {
         assert!(
             matches!(
                 err,
-                EditError::FieldAuthoring(FormAuthorError::PeriodInPartialName { .. })
+                EditError::FieldAuthoring(FormAuthorError::EmptyNameSegment { .. })
                     | EditError::FieldNameEmpty
             ),
             "{bad}: expected a path refusal, got {err:?}",
@@ -1292,4 +1292,52 @@ fn a_dotted_path_into_vacant_space_still_creates_its_group() {
         .collect();
     names.sort_unstable();
     assert_eq!(names, ["Addr.City", "Addr.Zip"]);
+}
+
+/// ★★★ The two name refusals are reachable from the inputs their names claim,
+/// and NOT from each other's (`2026-09-12`).
+///
+/// `PeriodInPartialName` was named and documented for the DOTTED rule while
+/// its message and its only raiser enforced the EMPTY-SEGMENT rule — for long
+/// enough that `rename_field`'s own `# Errors` promised it for a dotted name
+/// the verb answers with `DottedPartialName`. A consumer implementing the
+/// documented error set would have missed **every dotted rename an operator
+/// types** and fallen back to showing a raw `Display`.
+///
+/// It was renamed to `EmptyNameSegment`, but a rename is not a guard. This is:
+/// **each input must reach its own variant and must not reach the other's.**
+/// No prose can drift past it, because it asserts the mapping rather than
+/// describing it.
+#[test]
+fn each_name_refusal_is_reached_only_by_its_own_rule() {
+    // Empty segments -- leading, trailing, doubled, and bare.
+    for bad in [".Leading", "Trailing.", "Doubled..Up"] {
+        let mut s = blank();
+        let err = s
+            .add_text_field(&NewTextField::new(0, bad, r1()).declining_tooltip())
+            .expect_err("an empty path segment must be refused");
+        assert!(
+            matches!(
+                err,
+                EditError::FieldAuthoring(FormAuthorError::EmptyNameSegment { .. })
+            ),
+            "{bad}: expected EmptyNameSegment, got {err:?}",
+        );
+    }
+
+    // A well-formed two-level path supplied where ONE segment was required.
+    // `rename_field` is the verb whose `# Errors` named the wrong variant.
+    let mut s = blank();
+    s.add_text_field(&NewTextField::new(0, "Plain", r1()).declining_tooltip())
+        .expect("a plain name is authored");
+    let err = s
+        .rename_field("Plain", "Text.2")
+        .expect_err("a dotted partial name must be refused");
+    assert!(
+        matches!(
+            err,
+            EditError::FieldAuthoring(FormAuthorError::DottedPartialName { .. })
+        ),
+        "expected DottedPartialName -- the variant `rename_field` actually          raises -- got {err:?}",
+    );
 }
