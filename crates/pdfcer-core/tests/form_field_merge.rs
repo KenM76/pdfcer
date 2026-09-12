@@ -1338,7 +1338,7 @@ fn each_name_refusal_is_reached_only_by_its_own_rule() {
             err,
             EditError::FieldAuthoring(FormAuthorError::DottedPartialName { .. })
         ),
-        "expected DottedPartialName -- the variant `rename_field` actually          raises -- got {err:?}",
+        "expected DottedPartialName -- the variant `rename_field` actually raises -- got {err:?}",
     );
 }
 
