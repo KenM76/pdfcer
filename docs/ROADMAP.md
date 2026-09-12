@@ -116,6 +116,48 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `82e988e` (2026-09-12) — the "`FEATURES.md` is authoritative" rule was missing its other half, and it bit within six hours
+
+Not a Pass — docs-only, filed under its own commit-hash heading, same precedent as `4ba7202` immediately below. Corrects `docs/core-api/03-capabilities.md`'s own authority note.
+
+**The bite.** `G008`'s answer put a paragraph under the capability appendix stating `FEATURES.md` wins whenever the two disagree — right, and incomplete. Six hours later: this table's off-canvas row said `x`, corrected against the consuming shell's own call sites and measured, while `FEATURES.md` still read `[ ]`. By the rule as published, the appendix was the wrong one; in fact `FEATURES.md` was the stale half, and the rule pointed the reader at the worse answer. (The `[ ]`→`[x]` fix itself is `4ba7202`, filed below — this commit adds the missing clause to the rule that should have caught it.)
+
+**The missing half, quoted rather than paraphrased** — `pdfcer-gui`, which keeps three documents quoting each other's counts and reports being bitten by this shape seven times, gave the general form better than this project had: *"A rule that names one file authoritative makes every correction to a mirror a half-finished correction. The mirror looks fixed, the rule points at the source, and the source is the thing nobody re-read. The failure is invisible precisely because the rule is correct."* Sent as agreement, not advice — the right register, since they have the scar and not a theory.
+
+**Change.** `docs/core-api/03-capabilities.md`'s authority note (§ near line 3467) now states the corollary directly: correcting a row in the mirror against a measurement is a HALF-FINISHED correction until the same correction lands in `FEATURES.md` itself. `index.md`'s line-count figure re-derived (3,636).
+
+**Judged: not a candidate for unification with `f756d60` below**, despite both being "a correct, local change whose consequence crossed a boundary nobody was watching." Per the standing pattern-naming discipline (`D:\dev\rag\rust\` — "would fixing one have prevented the other?") the answer is no: this is a document-mirror-staleness mechanism, `f756d60` is a disclosure-placement mechanism. Cousins, kept apart.
+
+**Verified** (each check's own exit code, run alone): `check-core-api-verbs.py` 0, `check-control-bytes.py` 0.
+
+**Sourcing (hard rule 8) — no shell this filing.** `.git/refs/heads/main` and `.git/logs/HEAD`'s final line both read `82e988eec3ed228c59d6d70336b98e5572b7d581`, one commit past `f756d60d3792d568a952d5849d698d4f7c09812c` (immediately below), which is one past `f8e54930…` (the 520th filing's own commit) — three local, unpushed commits at the tip. `.git/COMMIT_EDITMSG` (the tip's own, retained) carries this commit's message verbatim; the account above is taken from it. Independently verified against the live tree: `docs/core-api/03-capabilities.md:3467-3488` carries the authority note plus the "AND THE HALF THAT RULE IS MISSING" paragraph and the quoted block, matching.
+
+**`FEATURES.md`**: unchanged — this is a doc-internal consistency rule, not an operator-visible capability.
+
+---
+
+### `f756d60` (2026-09-12) — a guard's PLACEMENT decides which of a shell's surfaces has to explain it
+
+Not a Pass — docs-only, a doc comment added to `EditSession::adopt_preview` (`crates/pdfcer-core/src/edit.rs:40985-41007`). Reported by `pdfcer-gui` (`G011`).
+
+**The mechanism.** `adopt_preview` shares `adopt_widget`'s entire body (`adopt_plan`) with the writes dropped, so every refusal added to `adopt_plan` becomes a before-the-press (hover) signal for free — not an accident, the point of sharing one body. Consequence: the **placement** of a guard inside this crate decides **which of a shell's surfaces has to explain it** — a refusal inside the plan arrives in a hover before a click; the same refusal outside it arrives in a status line after one.
+
+**How it crossed unnoticed, in both directions.** `Pass 298.0` put `reject_dotted_partial` inside `adopt_plan` for reasons entirely internal to this crate — nobody on either side was deciding a disclosure surface, it fell out of code-sharing. Consequence: `pdfcer-gui`'s tab-order name-box control had been greying on a dotted name **since that day**, and neither side knew it. Their `G011` request stated that surface had no gate at all; the reply here **agreed with that premise and closed on it**. They measured it the next morning and corrected both sides.
+
+**It also landed badly for them.** Their hover had no wording for a refusal it did not know could arrive, so it fell into a catch-all reading "not one this panel expects" — the rule enforced correctly while the program told the operator it was confused. No shell code changed; nobody decided the placement.
+
+**Judged: kept apart from `82e988e` above** — see that entry's note; a shared moral ("a local correct change, boundary consequence") is not a shared mechanism here.
+
+**Reusable finding, filed separately to `D:\dev\rag\rust\`** (attributed to `pdfcer-gui`): consolidating a private predicate used at several call sites is what forces them to agree, and the thing that forces it is usually a request for a *public* function, not a test of the rule — see `Pass 299.0` (`766c52a`+`7a0a9c2`, filed 520th filing) for the worked instance this observation generalises from.
+
+**Verified**: rustdoc-only change; `cargo doc` builds clean, no test affected.
+
+**Sourcing (hard rule 8) — no shell this filing.** `.git/refs/heads/main` reads `82e988eec3ed228c59d6d70336b98e5572b7d581`; `.git/logs/HEAD`'s second-to-last line gives `f8e54930…`→`f756d60d3792d568a952d5849d698d4f7c09812c`, subject matching the account above — local, unpushed. Not the tip, so `.git/COMMIT_EDITMSG` does not carry it (only the tip's message is retained); the account is taken from the dispatch and independently verified against live source: `crates/pdfcer-core/src/edit.rs:40985-41007` carries the doc comment verbatim as quoted above, `reject_dotted_partial` confirmed at `edit.rs:54006` and its two call sites at `edit.rs:41093` and `edit.rs:47555`.
+
+**`FEATURES.md`**: unchanged — internal doc-comment finding, no operator-visible capability touched (the shell's own tooltip fix, if any, is theirs to file).
+
+---
+
 ### `4ba7202` (2026-09-12) — `FEATURES.md`'s off-page `gui` box ticked; closes a same-day mirror-vs-source contradiction
 
 Not a Pass — a one-line docs correction, reported by `pdfcer-gui` (`G012`, no ask attached). `FEATURES.md:331`'s `gui [ ]` note read *"no `pdfcer-gui` request in the channel for it yet"* — a claim about the shell, and it had gone stale: both halves (a per-page off-page census, and a button laying `/Redact` marks over the four bands) ship from their ribbon. Row now `[x]`, with their shape kept rather than flattened into a bare tick — it MARKS, deliberately, because that shell has exactly one control that destroys content and the operator's own Apply is what cuts; the batch/`--recursive` sweep stays CLI-only, by their choice, named rather than left as silent debt.

@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-12 (521st filing) — two docs-only corrections, both from `pdfcer-gui`'s consumption notes on the 520th filing's own work
+
+**Shipped:**
+- `f756d60` — doc comment on `EditSession::adopt_preview` (`edit.rs:40985-41007`): `adopt_preview` shares `adopt_plan`'s whole body with the writes dropped, so a guard's PLACEMENT inside this crate decides which of a shell's surfaces has to explain a refusal — inside the plan, a hover before a click; outside it, a status line after one. `pdfcer-gui`'s `G011` note reported this as a gap and got agreement from the earlier reply; they measured the next morning and found `Pass 298.0`'s `reject_dotted_partial` had been inside `adopt_plan` since the day it shipped, so their tab-order name box had been greying on a dotted name the whole time with no wording for why.
+- `82e988e` — `docs/core-api/03-capabilities.md`'s authority note (~line 3467, "`FEATURES.md` is authoritative") gains the clause it was missing: a correction landed in the mirror against a measurement is HALF-FINISHED until it lands in `FEATURES.md` too. Bit within six hours of being published (`G008`'s answer), on the exact row `4ba7202` (previous filing) fixed.
+
+**Decisions made this session:**
+- **Declined to unify the two findings under one named pattern.** Both are "a correct, local change whose consequence crossed a boundary nobody was watching," but the mechanisms differ — `f756d60` is disclosure-*placement* (which surface explains a refusal), `82e988e` is document-*mirror staleness* (a rule pointing at a source nobody re-read). Per the standing pattern-naming discipline ("would fixing one have prevented the other?") the answer is no, so they stay two entries rather than one rule.
+
+**Findings + decisions:**
+- **Reusable, attributed to `pdfcer-gui`, filed to `D:\dev\rag\rust\`:** a private predicate used at several call sites is several behaviours until something forces them to agree, and the thing that forces it is typically a request for a *public* function, not a test of the rule — `Pass 299.0` (`766c52a`+`7a0a9c2`, prior filing) is the worked instance. New file `D:\dev\rag\rust\a_private_predicate_with_several_callers_is_several_behaviours_until_a_public_wrapper_forces_them_to_agree.md`; `index.md` bulleted.
+- **Channel-register note, not filed as a rule.** `pdfcer-gui` sent its `82e988e`-prompting quote as agreement ("we have the scar too"), not as advice — it named a shared failure mode from its own history (three documents quoting each other's counts, bitten seven times) rather than proposing policy for this project. Recorded here as a property of the channel worth preserving, not a mechanism to formalise.
+- **Both corrections trace to the 520th filing's own work landing hours or days earlier** — `82e988e` bit the authority note the same session it was written; `f756d60` surfaced a guard that had been silently live since `Pass 298.0` (previous day). Neither is a new defect in shipped behaviour; both are the record catching up to what the code already did.
+
+**Still in flight:** unchanged from the 520th filing — 16 corpus-gated tests remain (`merge_document` 8, `editable_roundtrip` 2, `insert_pages_preserves_undo` 1, `structure_inspect` 1, `widget_adoption` 4 declared), plus the backup-bundle and standing-rule-enforcement debt carried in `docs/NEXT_SESSION.md`.
+
+**For next session:** `f756d60`'s finding names no owed pdfcer-core work — the guard is correct, only its documentation was missing. Whether the consuming shell wants a hover string for the newly-disclosed refusal is theirs to scope, not filed here. Push is pending on the operator's own go-ahead per this filing's dispatch instructions (three unpushed commits at `82e988e`: `f8e54930`, `f756d60`, `82e988e`).
+
+**Sourcing (hard rule 8) — no shell tool this filing.** `.git/refs/heads/main` and `.git/logs/HEAD`'s final line both read `82e988eec3ed228c59d6d70336b98e5572b7d581`; the two prior reflog lines give `f8e54930…`→`f756d60d3792d568a952d5849d698d4f7c09812c`→`82e988e…`, subjects matching both accounts. `.git/COMMIT_EDITMSG` (tip only) carries `82e988e`'s message verbatim; `f756d60`'s account is taken from live source (`edit.rs:40985-41007`, read directly) since its own message is not retained anywhere this role can reach without a shell. Push state relative to `origin/main` not independently re-derivable without a shell — not asserted.
+
 ## 2026-09-12 (520th filing) — the partial-name rule made askable, and asking it found two of this crate's own bugs
 
 **Shipped:**
