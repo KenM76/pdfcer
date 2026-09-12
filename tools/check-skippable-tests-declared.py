@@ -49,6 +49,30 @@ keep it tidy — it is to build the fixture synthetically in the test file, as
 `widget_adoption.rs`'s `synthetic_orphan_widget()` now does, so the test cannot
 decline to run.
 
+★★★ AND FOR MOST OF THESE, SYNTHETIC IS THE ONLY LICENCE-COMPLIANT FIX —
+MEASURED 2026-09-12, AFTER THIS GATE SHIPPED
+--------------------------------------------------------------------
+The first filing recorded "26 tests need synthetic fixtures" as a preference.
+It is a **requirement**, and the reason is in this project's own rules.
+
+    corpus            tests   status in fixtures/README.md
+    ---------------   -----   ----------------------------------------------
+    pdfbox               23   "**NOT blanket-safe** … may be copyrighted to
+                              third parties … license may not allow
+                              redistribution … never bulk-import"
+    qpdf                  3   not in fetch-corpora.sh at all
+
+`fixtures/fetch-corpora.sh` fetches veraPDF, pdf20examples and a corpora
+index. **It does not fetch pdfbox, and that is deliberate** — `LEGAL.md` §5
+and project rule 7 forbid a downloaded PDF of unknown provenance, and the
+PDFBox test files are exactly that per file.
+
+⇒ So there is **no documented, licence-compliant route** by which 23 of these
+26 tests can ever run — not here, not in CI, not on a new machine. They were
+written against files that happened to be on one machine at one time. "Fetch
+the corpus" is not the fix and must not be proposed as one; rewriting each
+against a synthetic fixture is the only door that is open.
+
 WHAT IT CANNOT SEE
 ==================
 
