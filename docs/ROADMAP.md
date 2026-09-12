@@ -116,6 +116,48 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `Pass 300.3` (`865ed7b`, 2026-09-12) — the token vector learns each stream's own density instead of doubling; the planned fix (shrink `ContentToken`) was superseded before it started
+
+The memory half of the Toronto-map arc (527th filing) named the fix as "shrink `ContentToken` from 64 bytes" — a breaking change to a type published in `docs/core-api/`, 64 workspace match sites, unknown numbers in `pdfcer-gui`. Measuring first said that names the wrong quantity:
+
+    peak after load             32.7 MB
+    peak after parse           301.7 MB
+      largest form   2,291,669 tokens = 139.9 MB used, 4,194,304 reserved = 256.0 MB (116.1 MB slack)
+      sum of ALL forms' tokens         = 241.9 MB   <- NOT the peak; every form drops before the next parses
+
+Only one form is ever live, so the peak is `32.7 + 256.0 + decoded buffer`, closing to within a megabyte. **It was one `Vec` rounding 2.29M up to the next power of two, not token volume.** Shrinking `ContentToken` would have fixed the smaller half of the wrong quantity, at the cost of an API break.
+
+**Adaptive per stream, because the operator asked for exactly that**: *"a way to make these as modifications that get adjusted dependent on what is most optimal for each file that is opened."* Below 4,096 tokens the vector still doubles (density from a handful of tokens is noise); above it, the final count is projected from `tokens × total_bytes ÷ consumed_bytes` and reserved exactly, with the safety margin GROWING (⅛, then ¼) each time a projection proves low. A reallocation holds both buffers at once, so the projection is made early — while the vector is still 256 KB and being wrong is cheap — and biased high on purpose.
+
+**Measured on seven files of deliberately different shapes** (slack before → after; worst reserved/used ratio before → after):
+
+    372 synthetic fixtures     0.2 MB (44.4%)  ->  0.2 MB (44.4%)   1.00 -> 1.00
+    Toronto street map       176.8 MB (73.1%)  -> 32.7 MB (13.5%)   1.83 -> 1.20
+    ncored CAD benchmark     103.9 MB (56.4%)  -> 45.2 MB (24.5%)   1.58 -> 1.36
+    Kubota concept            27.1 MB (47.7%)  ->  7.1 MB (12.5%)   2.00 -> 1.37
+    print-industry output suite         11.8 MB (70.3%)  ->  4.5 MB (26.7%)   1.97 -> 1.12
+    SW41177                   10.0 MB (30.4%)  ->  5.1 MB (15.5%)   2.00 -> 1.25
+    banana-at-scale            7.8 MB (36.6%)  ->  5.6 MB (26.6%)   1.95 -> 1.29
+    5518 construction pkg      2.8 MB (38.7%)  ->  2.6 MB (35.6%)   1.97 -> 1.46
+
+Every file improves, none regresses. Parse time improves too (a reallocation copies the whole vector): Toronto ~0.40 s → ~0.23 s, ncored 0.24 s → 0.17 s, each over three runs.
+
+**The corpus row is the one that earned its place.** The first draft set the minimum capacity to 64 "to save a series of small allocations" — reasoning with nothing behind it. The 372 synthetic fixtures, all small streams, priced it instantly: reserved went 0.7 MB → 1.6 MB, fixing 176 MB on the large file while making every small file worse — the exact failure this Pass set out to avoid. At 4 (what `Vec` would have done anyway) small streams are untouched. Filed as a sibling finding, not a further instance, of `D:\dev\rag\rust\a_plausible_explanation_that_predicts_the_right_order_of_magnitude_is_not_a_diagnosis.md` — that file is about diagnosing the wrong CAUSE; this one is about a correctly-diagnosed fix's own heuristic having no COUNTER-sample. New file: `D:\dev\rag\rust\a_heuristic_tuned_on_the_motivating_case_needs_a_counter_sample_before_it_ships.md`.
+
+**Still open, now correctly ranked**: shrinking `ContentToken` is worth a further ~70 MB on this file, remains a breaking change with a real cost for text-heavy content, and is the second step, not the first — nobody has to take it to get this win.
+
+**Verified.** All 364 synthetic fixtures render byte-identical. Workspace suite green (250 test binaries, 0 failed) plus 183 doc-tests. Clippy and fmt clean.
+
+**`FEATURES.md`**: unchanged — an internal allocation-strategy fix, invisible to any operator-facing capability, same disposition as `Pass 300.0`–`300.2`.
+
+**`ARCHITECTURE.md`**: decision **155** minted (§12) — size a growing buffer from the input's own measured density, and prove the heuristic against a counter-sample before trusting it, not only against the file that motivated it. No body section changed: this is an internal allocation strategy, not an API or documented-invariant change.
+
+**Correction to the 527th filing.** That filing's re-scoping note said *"the real memory work is shrinking `ContentToken`"* — stated as the fix, before it was measured. It was the SECOND step, not the first, and this Pass shipped the first without it. Kept legible rather than rewritten: ~~"the real memory work is shrinking `ContentToken`"~~ superseded by this entry; see the amendment on the 527th filing's own `SESSION_LOG.md` entry.
+
+**Sourcing (hard rule 8).** `.git/refs/heads/main` reads `865ed7b998a9bc4594430f3544badc9badbfff3c`; `.git/logs/HEAD`'s final line shows it one commit past `cd8dd37b61ddbd8b1fcf57d970496af4369617ea`, which `.git/refs/remotes/origin/main` also reads — `865ed7b` is local, unpushed. `.git/COMMIT_EDITMSG` carries the commit's own message, read directly. All figures above are from that message; the "250 test binaries, 0 failed, 183 doc-tests" verification was supplied by the dispatching engineer's report, not independently re-run or found in the commit message itself.
+
+---
+
 ### `Pass 300.2` (`6ff57ab`, 2026-09-12) — a transparency group composites over its own bbox: 783.54 s → 8.02 s at 4×, same pixels
 
 `composite_group_result` blended the WHOLE PAGE back into the canvas for every transparency group. The operator's Toronto street map has 6,174 of them on a 1224×792 page — ~6 billion pixel operations to paint 6,174 small pieces of a street map.
@@ -187,7 +229,7 @@ Answers finding (2) of the three-finding read-only investigation the operator as
 
 The gate sits before the sample bytes are touched: a culled image costs no decode, no colour-space resolution, no mask work.
 
-**★ WHAT THIS DOES NOT FIX — the investigation attributed the file's 307 MB peak to image decoding, and that attribution was WRONG.** Measured after this Pass landed: peak memory is UNCHANGED at 307 MB, and region time is unchanged at ~1.46 s. `extract-text`, which rasterises nothing at all, peaks at the identical 307 MB; a bare `inspect` load is 38.2 MB. The real cause, arithmetically: the file's form XObjects hold 20.0 MB of content parsing into 3,962,903 `ContentToken`s at 64 bytes each = 241.9 MB (one form alone is 2,291,669 tokens). The remedy is shrinking `ContentToken`, not culling images — findings (1) ("image decode cache") and (3) (the 55 s full-page render, actually caused by 6,174 transparency groups each allocating a full 1224×792 canvas at `canvas.rs:1626`, ~24 GB of allocate-and-zero, a TIME cost since each buffer frees before the next) both need re-scoping against what was measured here, not what the original investigation guessed. Neither is attempted in this Pass.
+**★ WHAT THIS DOES NOT FIX — the investigation attributed the file's 307 MB peak to image decoding, and that attribution was WRONG.** Measured after this Pass landed: peak memory is UNCHANGED at 307 MB, and region time is unchanged at ~1.46 s. `extract-text`, which rasterises nothing at all, peaks at the identical 307 MB; a bare `inspect` load is 38.2 MB. The real cause, arithmetically: the file's form XObjects hold 20.0 MB of content parsing into 3,962,903 `ContentToken`s at 64 bytes each = 241.9 MB (one form alone is 2,291,669 tokens). ~~The remedy is shrinking `ContentToken`, not culling images~~ — ★ CORRECTED 2026-09-12 (`Pass 300.3`, `865ed7b`): measuring first showed only one form is ever live at a time, so the 241.9 MB sum above was never the peak; the actual peak was one `Vec` rounding a 2.29M-token count up to the next power of two (116.1 MB slack on one buffer). The adaptive-capacity fix that closed it touches no `ContentToken` byte. Kept legible so a reader who remembers this line sees it moved, not misremembers it — see `Pass 300.3`'s own entry for the numbers. Finding (3) (the 55 s full-page render, actually caused by 6,174 transparency groups each allocating a full 1224×792 canvas at `canvas.rs:1626`, ~24 GB of allocate-and-zero, a TIME cost since each buffer frees before the next) was fixed the same evening by `Pass 300.2`. Neither is attempted in *this* Pass (300.0).
 
 **`images_culled` counted SEPARATELY from `forms_culled`**, beside `images` on the metrics line — for the reason `Pass 74.4` put `forms_culled` beside `forms`: the pair only reads as a pair when adjacent. Kept separate because the GAP between the two numbers is what found this: a single combined cull counter would have averaged the signal away. Checked against decision 115's `icc_managed_paints`/`icc_unmanaged_paints` pair (same discipline — a merged counter's value has more than one reading) and judged an INSTANCE of that discipline, not a new invariant; no new §12 decision minted. All four copies of the metrics-line contract (println, published template, per-key table, the test's key list) move together, enforced by `check-metrics-line-contract.py`.
 

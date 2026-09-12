@@ -10845,3 +10845,109 @@ filing" — there is no repeated gate action to name.
 **Decision ceiling: `153` → `154`**, next free `155`. **Standing rules
 ceiling unchanged at `R254`**, next free `R255`. **Pass ceiling unchanged**
 — `Pass 300.2` was already the ceiling as of the 528th filing.
+
+### 2026-09-12 (530th filing, `Pass 300.3`, `865ed7b`) — decision 155: A GROWING BUFFER IS SIZED FROM THE INPUT'S OWN MEASURED DENSITY, NOT A TUNED CONSTANT — AND THE HEURISTIC IS PROVED AGAINST A COUNTER-SAMPLE, NOT ONLY AGAINST THE FILE THAT MOTIVATED IT
+
+**Status: DECIDED.** `ContentStream::parse` (`crates/pdfcer-core/src/content.rs`)
+pushed one `ContentToken` per parse step into a plain `Vec`, relying on
+`Vec`'s default doubling growth. On the operator's Toronto street map, the
+largest single form XObject parses to 2,291,669 tokens; doubling growth
+reserves capacity for the next power of two, 4,194,304 — 256.0 MB against
+139.9 MB actually used, 116.1 MB of slack on one buffer that dominates the
+process's peak memory (only one form is ever live at a time; each is
+dropped as soon as it is interpreted).
+
+**What was ALMOST decided instead, and why measuring first mattered.** The
+527th filing's re-scoping note named the fix as "shrink `ContentToken` from
+64 bytes" — a breaking change to a type published in `docs/core-api/`, with
+64 match sites in this workspace and an unknown count in the separate
+`pdfcer-gui` project. Measured before committing to it: peak after load
+32.7 MB, peak after parsing every form (each dropped immediately) 301.7 MB;
+the peak decomposes as `32.7 + 256.0 (the one live form's reserved buffer)
++ the decoded buffer`, closing to within a megabyte. **The 241.9 MB "sum of
+ALL forms' tokens" the 527th filing's arithmetic produced was never the
+peak** — it summed a quantity where only one term is ever live. Shrinking
+`ContentToken` would have addressed the smaller half (~70 MB) of a
+quantity that was not the bottleneck, at the cost of an API break nobody
+needed to pay for this win.
+
+**The mechanism decided.** Below 4,096 tokens, the vector still grows by
+`Vec`'s own doubling — density measured from a handful of tokens is noise,
+and doubling is already correct there. Above that threshold, the final
+token count is projected from `tokens_parsed_so_far × total_stream_bytes ÷
+consumed_bytes`, and capacity is reserved for the projection directly,
+skipping the doubling ladder entirely. The safety margin added to the
+projection GROWS the more often a projection has already proven low for
+this stream — ⅛ on the first low projection, ¼ after — rather than being
+fixed once. The projection is deliberately made EARLY, while the vector is
+still small (256 KB) and a wrong guess is cheap to redo: a reallocation
+holds both the old and the new buffer at once, so reallocating a buffer
+that has already grown to 140 MB would transiently cost ~310 MB — worse
+than the slack being eliminated.
+
+**Why this is a density argument, not a size argument.** Bytes-per-token is
+a property of the CONTENT (mostly short operators vs. long strings vs. one
+`BI…EI` inline image), not of PDF as a format, and it varies by more than
+an order of magnitude across real files (measured: 5.05 B/token on the
+motivating file). `buf.len() / k` for any single constant `k` is
+wrong-by-orders-of-magnitude on some real shape; the divisor has to be
+measured from the stream actually being parsed.
+
+**The counter-sample requirement — the second, and more durable, half of
+this decision.** The first implementation set the vector's minimum initial
+capacity to 64 tokens, justified only as "saves a series of small
+allocations" — plausible, and completely unmeasured. The project's
+existing 372-fixture synthetic regression corpus, run as a matter of course
+rather than specifically to test this change, priced it immediately:
+reserved memory across those (almost entirely small-stream) fixtures rose
+from 0.7 MB to 1.6 MB in aggregate. **The same change that fixed 176 MB on
+one large file made every small file measurably worse — the precise
+failure this Pass existed to avoid.** Lowering the floor to 4 (what `Vec`'s
+own default growth would reserve unprompted below the threshold anyway,
+i.e. a provable no-op) left every small fixture untouched and kept the
+full win on the large file.
+
+**Decided as a reusable rule, not a one-off tuning fix**: any capacity,
+threshold or similar heuristic justified by unmeasured intuition about a
+motivating case must be run against an existing, UNRELATED regression
+population before it ships, diffing the quantity the change claims to
+improve (here, bytes reserved) — not only the quantity that must not
+regress (here, byte-identical rendered output). The motivating file cannot
+serve as its own counter-sample: by construction, it is the shape on which
+the heuristic's downside is invisible. Full derivation and the general
+form (distinguished from a *misdiagnosed cause*, which is a different,
+sibling failure already on file):
+`D:\dev\rag\rust\a_heuristic_tuned_on_the_motivating_case_needs_a_counter_sample_before_it_ships.md`.
+
+**Verified.** All 364 synthetic fixtures render byte-identical (capacity
+cannot change what is parsed, but the sweep is the evidence, not the
+argument alone). Measured on seven files of deliberately different shapes
+— slack before → after, worst reserved/used ratio before → after: 372
+synthetic fixtures 0.2 MB→0.2 MB (1.00→1.00); Toronto street map
+176.8 MB→32.7 MB (1.83→1.20); ncored CAD benchmark 103.9 MB→45.2 MB
+(1.58→1.36); Kubota concept 27.1 MB→7.1 MB (2.00→1.37); print-industry output suite
+11.8 MB→4.5 MB (1.97→1.12); SW41177 10.0 MB→5.1 MB (2.00→1.25);
+banana-at-scale 7.8 MB→5.6 MB (1.95→1.29); 5518 construction pkg
+2.8 MB→2.6 MB (1.97→1.46). Every file improves, none regresses. Parse time
+also improves (a reallocation copies the whole vector): Toronto
+~0.40 s → ~0.23 s, ncored 0.24 s → 0.17 s, each over three runs. Workspace
+suite, clippy, fmt clean.
+
+**No body section amended.** `ContentToken`'s layout is unchanged, no `pub`
+signature moved, and `docs/core-api/`'s description of the type (§1,
+`01-reading-and-model.md`) is still accurate — this decision governs an
+internal allocation strategy inside `ContentStream::parse`, not a
+documented invariant or API contract. §3/§7 have no existing body entry
+describing content-stream parsing internals to amend.
+
+**Still open**: shrinking `ContentToken` remains a live, separately-worth-
+doing option (~70 MB further on this file) and a breaking change with a
+real cost for text-heavy content generally. This decision does not rule it
+out — it ranks it correctly as the second step, contingent on nobody
+needing it to get this Pass's win, rather than as the first and only
+option considered.
+
+**Decision ceiling: `154` → `155`**, next free `156`. **Standing rules
+ceiling unchanged at `R254`**, next free `R255`. **Pass ceiling: `Pass
+300.2` → `Pass 300.3`**, next free `Pass 300.4` (or the next unrelated Pass
+family, per the operator's own ordered plan in `docs/NEXT_SESSION.md`).

@@ -4,7 +4,7 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-09-12, after `Pass 300.2` and the 529th filing.
+**Written:** 2026-09-12, after `Pass 300.3` and the 530th filing.
 
 ---
 
@@ -105,11 +105,11 @@ Workspace version `0.53.0`; the last release is **`v0.53.0`**. ★ Verify with
 `gh release list` before repeating it — a previous handoff carried a release
 number four versions stale for a day, and nothing in this file checks itself.
 
-**`main` is pushed through the 529th filing** — ★ read CI's colour from
+**`main` is pushed through the 530th filing** — ★ read CI's colour from
 GitHub yourself (`gh run list --branch main --limit 1`); this line records
 what was pushed, never what the server thought of it.
 
-### ★★★ THE TORONTO-MAP ARC IS CLOSED EXCEPT FOR THE MEMORY HALF
+### ★★★ THE TORONTO-MAP ARC IS CLOSED
 
 Three Passes, one evening, one request — the operator's *"Acrobat can read and
 zoom in on this pdf much much faster than we are capable of … the footprint in
@@ -121,6 +121,7 @@ without breaking the other things that our rendering engine does well"*.
 | `300.0` | an image whose unit square misses the viewport is skipped before the decode (§8.9.5.2), the twin of the form cull | **nothing on this file**, and that is the finding — 1,090 of 1,182 images culled and neither time nor RAM moved |
 | `300.1` | a discarded full-page scan per group, moved inside the `if` that reads it | 4% |
 | `300.2` | a transparency group composites over its own `/BBox`, not the whole page | **783 s → 8 s at 4×**, 54.6 s → 2.45 s at 1×, rasters hash-identical |
+| `300.3` | the token vector sizes itself from each stream's own measured density instead of doubling | Toronto slack **176.8 MB → 32.7 MB**, parse ~0.40 s → ~0.23 s; seven real files improved, none regressed |
 
 ★★ **READ `300.2`'s COMMIT (`6ff57ab`) BEFORE OPTIMISING ANYTHING IN THIS
 CRATE.** The slow path it fixed had been correctly *located* and wrongly
@@ -140,20 +141,53 @@ object. The real fix moves no coordinates at all.
 
 The general form is in `D:\dev\rag\rust\a_plausible_explanation_that_predicts_the_right_order_of_magnitude_is_not_a_diagnosis.md`.
 
-### ★★ WHAT IS STILL OWED: THE MEMORY HALF, AND IT IS NOT WHAT WAS FIRST SAID
+### ★★ THE MEMORY HALF IS DONE TOO — `Pass 300.3` — AND IT NEEDED NO API BREAK
 
-The investigation blamed image decoding for the 307 MB peak. It is not.
-`extract-text` rasterises nothing and peaks at the same 307 MB; a bare
-`inspect` load is 38 MB. Measured:
+★ **This section twice named a fix that turned out to be the wrong one, so
+read the correction before the conclusion.** It said, in order: the peak is
+image decoding (wrong — `extract-text` rasterises nothing and peaks the same);
+then ~~"the fix is **shrinking `ContentToken`**, in `pdfcer-core`. Unscoped, no
+Pass number, nobody has started it."~~ Also wrong, and expensively so: that is
+a breaking change to a type published in `docs/core-api/`, with 64 match sites
+here and unknown numbers in `pdfcer-gui`.
 
-* the file's form XObjects hold **20.0 MB** of content that parses to
-  **3,962,903 `ContentToken`s × 64 B = 242 MB**; one form alone is 2,291,669
-  tokens;
-* `ContentToken` = 64 B (`ContentTokenKind` 48 + span 16); `Object` alone is
-  40 B.
+What a measurement said instead:
 
-⇒ The fix is **shrinking `ContentToken`**, in `pdfcer-core`. Unscoped, no Pass
-number, nobody has started it. It is the last open item from this request.
+```text
+peak after start            4.6 MB
+peak after load            32.7 MB
+peak after parse          301.7 MB
+  largest form   2,291,669 tokens = 139.9 MB used
+                 4,194,304 reserved = 256.0 MB   (116.1 MB slack)
+  sum of ALL forms' tokens         = 241.9 MB
+```
+
+Every form is dropped as soon as it is interpreted, so **only one is ever
+live** — the peak is `32.7 + 256.0 + the decoded buffer`, closing to within a
+megabyte. The 241.9 MB sum this section used to quote is not the peak and
+never was. It was **one `Vec` rounding 2.29 M up to a power of two.**
+
+`Pass 300.3` (`865ed7b`) fixes it where it lives: the token vector measures
+the stream's own token density as it parses and reserves from that, rather
+than doubling. Toronto's slack 176.8 MB → 32.7 MB, parse ~0.40 s → ~0.23 s,
+seven real files of different shapes all improved and none regressed, 372
+synthetic fixtures byte-for-byte unaffected.
+
+★★ **THE GUARD THAT CAUGHT THE DRAFT, and the reason the harness covered
+small files at all.** The first version set the minimum capacity to 64 "to
+save a series of small allocations" — invented, unmeasured. The 372 synthetic
+fixtures are all small streams and priced it at once: reserved **0.7 MB →
+1.6 MB**. It fixed 176 MB on one large file and made every small file worse.
+A capacity heuristic is a claim about a POPULATION, and the population that
+matters is the one you did not tune on. General form in
+`D:\dev\rag\rust\a_heuristic_tuned_on_the_motivating_case_needs_a_counter_sample_before_it_ships.md`.
+
+⇒ **Still open, now correctly ranked and genuinely optional:** shrinking
+`ContentToken` (64 B = `ContentTokenKind` 48 + span 16; `Object` alone is
+40 B) is worth a further ~70 MB on this file. It remains a breaking change
+with a real cost for text-heavy content — every `TJ` array and inline dict
+becomes a heap allocation — and **nobody has to take it to get the win
+above.** Unscoped, no Pass number, operator's call.
 
 ### ★ HOW TO BENCHMARK HERE, because the obvious way cannot run
 
