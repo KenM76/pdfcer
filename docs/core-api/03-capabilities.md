@@ -3322,6 +3322,113 @@ may show holes there).
 
 ---
 
+## 13. Off-canvas content — find it, and cut it at the page edge (`Pass 294.0`)
+
+`core [x] · cli [x] · gui [ ]`
+
+`pdfcer_core::offpage` — `scan_page`, `scan_model`, `scan_document`,
+`offpage_bands`. Types: `PageScan { page_index, page_box, drawn, objects }`,
+`OffPageObject { kind, bbox, how, text }`, `OffPage::{Fully, Partial}`,
+`UnreadablePage = (usize, String)`. Constants: `DEFAULT_TOLERANCE_PT = 0.25`,
+`BAND_MARGIN = 1.0`.
+
+CLI: `pdfcer scan-offpage`, `pdfcer redact-offpage` — both take files, folders,
+or both, one level deep unless `--recursive`.
+
+### 13.1 ★★ The fact a shell needs first: moving something off the sheet is not deleting it
+
+A page box (`/CropBox`, or `/MediaBox` when there is none — Table 30 makes the
+crop box default to the media box) is what a reader **displays**. A content
+stream may draw anywhere. Marks outside the box are **still in the file**: they
+print on a larger sheet, they survive a page-box change, and **text among them
+is still extractable and still searchable**.
+
+Measured on the operator's own product library: **341 drawings, 176 affected,
+471,840 fully-off objects and 1,152 crossing the edge.** This is not an exotic
+case; it is what a CAD workflow leaves behind.
+
+⇒ **`OffPageObject::text` is carried for exactly this reason.** *"There are 4
+off-page objects"* invites a shrug; *"one of them reads `SUPERSEDED — DO NOT
+BUILD`"* does not. A shell that shows the count and drops the text has thrown
+away the half that changes a decision.
+
+### 13.2 "No findings" and "I could not look" must not print the same way
+
+`scan_page` returns `Result<PageScan, ContentError>` and `scan_document`
+returns `(Vec<PageScan>, Vec<UnreadablePage>)` — the unreadable pages come back
+**as a second list**, not silently dropped. `UnreadablePage` is a named type
+rather than a bare tuple because the pair *is* the distinction: a page number an
+operator can go and look at, and the reason pdfcer could not.
+
+★ A shell that reports `scans.len()` clean pages without also reporting
+`unreadable` tells an operator a document is clear when nobody looked at part of
+it. This is the same `usize`-means-zero-means-none trap that `Pass 296.3` closed
+on the redaction route.
+
+### 13.3 `tolerance` — why it is not zero, and why raising it is not "finding less"
+
+A hairline border stroked **exactly on** the page boundary overhangs by half its
+line width. At `tolerance = 0` every such drawing reports its own border and
+buries the real finding. `DEFAULT_TOLERANCE_PT` sits just above that overhang
+and well below anything an operator would call off the page.
+
+⚠ **The same tolerance must reach `offpage_bands`.** Passing the scan's
+tolerance to the scan and zero to the bands gives **two answers to one
+question** — pdfcer cuts content the scan just called clean. It was also the
+feature's entire performance problem: a full-bleed scan reaching the page edge
+*intersects* an exact band, so a multi-megapixel image is decoded and re-encoded
+to clear a sliver. **Ten minutes became one** on the file that exposed it
+(`Pass 294.1`).
+
+### 13.4 The bands, and what `redact-offpage` actually does
+
+`offpage_bands(&scan, tolerance) -> Vec<Rect>` returns four non-overlapping
+rectangles covering everything outside the page box, bounded by the drawn
+extent:
+
+```text
+       +---------------------------+   <- outer = drawn ∪ page box, padded
+       |            TOP            |
+       +------+-------------+------+
+       | LEFT |  page box   | RIGHT|
+       +------+-------------+------+
+       |          BOTTOM           |
+       +---------------------------+
+```
+
+Empty when nothing is drawn outside — four zero-area marks would be four
+annotations that do nothing.
+
+★★ **This is redaction machinery, not a clip.** An object crossing the edge is
+**cut at the edge**: the off-page bytes leave the content stream and the on-page
+part stays. A clipped path is a path whose data survives, which is the opposite
+of the guarantee here (§12.5.6.23, and `ARCHITECTURE.md` §5's one deliberate
+exception to minimal-diff).
+
+### 13.5 ★ Traps
+
+- **An empty text object is not content.** A redacted text run leaves a
+  positioned but empty `BT … ET` husk whose bounding box still measures where
+  the words were. Scanning a cleaned file used to report that husk as surviving
+  off-page content — which reads as *"the removal did not work"* when it worked
+  exactly. Objects that paint nothing are not counted, judged per run by glyph
+  ink rather than by recovered text, so a font with no `/ToUnicode` still counts.
+- **KNOWN LIMIT, stated rather than left to be discovered:** a fully-off image
+  that straddles **two** bands may survive, because the covered-region test is
+  per-band and the union is what matters. Measured: 17 of 174 cleaned files
+  carried 23 such objects between them. They are **reported by `scan-offpage`**,
+  not silently left.
+- **`scan-offpage`'s exit code is a verdict, not an early stop.** `0` when
+  nothing was found, `1` when something was, delivered at the END of the run.
+  Every file and every page is always scanned; a file that will not open is
+  reported and the walk continues. (This wording was itself a defect once — the
+  first release notes read as though the tool quit on its first finding.)
+- **`redact-offpage` is destructive and the input is not recoverable from the
+  output.** `--dry-run` reports and writes nothing; `--force` is required to
+  overwrite, so a re-run after a partial batch **resumes** rather than redoing.
+- **`--out-dir` preserves the input tree's shape**, so two drawings with the
+  same file name in different product folders cannot overwrite each other.
+
 ## Appendix — capability → primary module → `FEATURES.md` state
 
 | capability | primary path | core | cli | gui |
@@ -3340,6 +3447,7 @@ may show holes there).
 | Print | `pdfcer-print` | x | x | x |
 | **Imposition** (N-up / booklet / poster) | `pdfcer_print::imposition` | — | x | **[ ]** |
 | Rasterise a page | `pdfcer-render` | x | — | x |
+| **Off-canvas content** — scan & cut at the page edge | `pdfcer_core::offpage` | x | x | **[ ]** |
 
 ## 12. Stamp collection files — Acrobat-compatible custom stamps (`Pass 288.0`)
 
