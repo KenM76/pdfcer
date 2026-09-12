@@ -195,18 +195,104 @@ fn placement_bbox(ctm: Mat) -> (f64, f64, f64, f64) {
     ])
 }
 
-/// Is the whole placement inside ONE region? (The union of several regions
-/// is not tested — a placement covered only by the union is cleared cell
-/// by cell instead, which reaches the same samples.)
+/// Is the whole placement covered by the regions — by ONE of them, or by
+/// their UNION?
+///
+/// # ★★ The union half was missing, and it left content the scan still reports
+///
+/// This tested `any()` against a single region until `Pass 297.0`, with a note
+/// saying a placement covered only by the union "is cleared cell by cell
+/// instead, which reaches the same samples". **The samples half of that was
+/// true and the conclusion was wrong.**
+///
+/// Clearing reaches the samples; it does not remove the OBJECT. A fully
+/// off-page image blanked in place is still an image, still placed off the
+/// page, still carrying an off-page bounding box — so `scan-offpage` re-run on
+/// the cleaned file reports it, correctly, and the operator is told the
+/// removal did not work when the pixels are in fact gone.
+///
+/// Measured on the operator's own library: **17 of 174 cleaned drawings
+/// carried 23 such objects between them.** They are fully-off images that
+/// straddle two of the four off-page bands, which is the common geometry
+/// precisely because the bands ring the page — an image off the top-left
+/// corner is in neither the TOP band alone nor the LEFT band alone.
+///
+/// # How the union is tested
+///
+/// Coordinate compression, which is exact rather than approximate: cut the
+/// placement's AABB along every region edge that crosses it, and require every
+/// resulting sub-rectangle's centre to lie inside some region. With at most a
+/// handful of axis-aligned regions this is a few dozen point tests, run once
+/// per placement on a path that is already about to decode an image.
+///
+/// ★ The single-region case is kept as a fast path, not because it is faster
+/// in any way that matters, but because it is the case a reader checks first
+/// and it should be legible without following the compression.
 pub(crate) fn wholly_covered(ctm: Mat, regions: &[RegionBox]) -> bool {
     const EPS: f64 = 1e-6;
     let (min_x, min_y, max_x, max_y) = placement_bbox(ctm);
-    regions.iter().any(|r| {
+
+    let inside_one = |r: &RegionBox| {
         r.min_x - EPS <= min_x
             && max_x <= r.max_x + EPS
             && r.min_y - EPS <= min_y
             && max_y <= r.max_y + EPS
-    })
+    };
+    if regions.iter().any(inside_one) {
+        return true;
+    }
+
+    // A degenerate placement has no area to cover; treating it as covered
+    // would remove an object no region actually reaches.
+    if max_x - min_x <= EPS || max_y - min_y <= EPS {
+        return false;
+    }
+
+    let mut xs = vec![min_x, max_x];
+    let mut ys = vec![min_y, max_y];
+    for r in regions {
+        for v in [r.min_x, r.max_x] {
+            if v > min_x && v < max_x {
+                xs.push(v);
+            }
+        }
+        for v in [r.min_y, r.max_y] {
+            if v > min_y && v < max_y {
+                ys.push(v);
+            }
+        }
+    }
+    xs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal));
+    ys.sort_by(|a, b| a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal));
+
+    for w in xs.windows(2) {
+        let (Some(&x0), Some(&x1)) = (w.first(), w.get(1)) else {
+            continue;
+        };
+        if x1 - x0 <= EPS {
+            continue;
+        }
+        let cx = f64::midpoint(x0, x1);
+        for h in ys.windows(2) {
+            let (Some(&y0), Some(&y1)) = (h.first(), h.get(1)) else {
+                continue;
+            };
+            if y1 - y0 <= EPS {
+                continue;
+            }
+            let cy = f64::midpoint(y0, y1);
+            let covered = regions.iter().any(|r| {
+                r.min_x - EPS <= cx
+                    && cx <= r.max_x + EPS
+                    && r.min_y - EPS <= cy
+                    && cy <= r.max_y + EPS
+            });
+            if !covered {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 /// A rectangle of sample cells `[col0, col1) × [row0, row1)`, row 0 at the
@@ -1592,18 +1678,57 @@ mod tests {
     }
 
     #[test]
-    fn wholly_covered_needs_one_region_to_contain_the_placement() {
+    fn wholly_covered_accepts_one_region_or_the_union() {
         let ctm = scale(100.0, 50.0, 50.0, 100.0);
         assert!(wholly_covered(ctm, &[region(0.0, 0.0, 2000.0, 2000.0)]));
         assert!(!wholly_covered(ctm, &[region(60.0, 110.0, 120.0, 140.0)]));
-        // Two regions that together cover it do not count.
-        assert!(!wholly_covered(
+
+        // ★★ TWO REGIONS THAT TOGETHER COVER IT NOW COUNT (`Pass 297.0`).
+        //
+        // This assertion used to read `!wholly_covered(..)`, with the comment
+        // "Two regions that together cover it do not count." It was PINNING
+        // THE DEFECT: a fully off-page image straddling two of the four
+        // off-page bands was blanked in place rather than removed, so
+        // `scan-offpage` re-run on the cleaned file reported it and the
+        // operator was told the removal had not worked when the pixels were
+        // gone. 17 of 174 of the operator's drawings, 23 objects.
+        //
+        // ★ The tell that it was a defect and not a decision: the assertion
+        // and the doc comment agreed with each other and with the code, and
+        // neither agreed with what a re-scan of the OUTPUT said. A test that
+        // states the behaviour is not a test that states the behaviour is
+        // right.
+        assert!(wholly_covered(
             ctm,
             &[
                 region(0.0, 0.0, 100.0, 200.0),
                 region(100.0, 0.0, 200.0, 200.0)
             ]
         ));
+
+        // A gap in the union is still not coverage -- the compression must not
+        // be fooled by regions that merely surround the placement.
+        assert!(!wholly_covered(
+            ctm,
+            &[
+                region(0.0, 0.0, 100.0, 200.0),
+                region(140.0, 0.0, 200.0, 200.0)
+            ]
+        ));
+
+        // Four bands RINGING a hole do not cover the hole. This is the
+        // off-page band geometry exactly, and getting it wrong in the other
+        // direction would delete content that is ON the page.
+        let page = [
+            region(-500.0, 200.0, 700.0, 700.0), // top
+            region(-500.0, -500.0, 700.0, 0.0),  // bottom
+            region(-500.0, 0.0, 0.0, 200.0),     // left
+            region(200.0, 0.0, 700.0, 200.0),    // right
+        ];
+        assert!(
+            !wholly_covered(ctm, &page),
+            "a placement inside the ring is not covered by the ring"
+        );
     }
 
     #[test]
