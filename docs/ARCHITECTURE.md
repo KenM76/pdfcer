@@ -1245,7 +1245,91 @@ D:\Dev\pdfcer\
                                    for groups that DO buffer, and a
                                    misalignment bug would read as a
                                    visible rendering artefact rather than
-                                   fail silently. `groups_composited` and
+                                   fail silently.
+                                   **★★★ AMENDED 2026-09-12 (`Pass
+                                   300.2`, `6ff57ab`; §12 decision 154,
+                                   forward pointer from decision 068) —
+                                   THE BUFFER ITSELF IS UNCHANGED
+                                   (sub-decision 1 above still holds
+                                   exactly); WHAT CHANGED IS THE
+                                   COMPOSITE-BACK STEP.**
+                                   `composite_group_result`'s
+                                   `Pixmap::draw_pixmap` used to blend
+                                   the group's WHOLE page-sized buffer
+                                   back into the parent canvas on every
+                                   group — on the operator's Toronto
+                                   street map (6,174 groups, 1224×792) that
+                                   is ~6 billion pixel operations to paint
+                                   6,174 small pieces of a street map.
+                                   Outside a group's own `/BBox` the
+                                   buffer was never painted into, so its
+                                   alpha is zero there, and all sixteen of
+                                   Table 136's blend modes composite as
+                                   `B(Cb,Cs)` under source-over alpha and
+                                   return the backdrop UNCHANGED at
+                                   `αs = 0` — those pixels are arithmetic
+                                   whose answer is already in `dest`. The
+                                   composite-back now copies + draws only
+                                   the `/BBox` rectangle (`clone_rect` +
+                                   an offset `draw_pixmap`), using the
+                                   SAME rectangle the viewport cull
+                                   already computes rather than
+                                   re-deriving a second one — two
+                                   derivations of one rectangle can
+                                   disagree, and the composite's copy
+                                   being larger than the cull's is exactly
+                                   the silent pixel loss this guards
+                                   against. **No coordinate system
+                                   changes**: the group's contents still
+                                   paint under the page's own CTM exactly
+                                   as sub-decision 1 requires — this
+                                   touches only the return trip, not the
+                                   painting. The blend mode is matched
+                                   EXPLICITLY against the narrowable set
+                                   (tiny-skia also exposes `Clear`,
+                                   `Source`, `DestinationIn` and similar,
+                                   for which a transparent source does
+                                   NOT leave the backdrop alone — none is
+                                   reachable from a PDF `/BM`, and the
+                                   match is what keeps that true if one
+                                   ever is); a soft mask, a non-separable
+                                   mode, or a group covering more than
+                                   half the page takes the unnarrowed
+                                   path unchanged; knockout and CMYK
+                                   groups composite through
+                                   `crate::compositor`/`CmykBuffer`, not
+                                   `draw_pixmap`, so this Pass does not
+                                   touch them. **The premise is asserted,
+                                   not merely argued**:
+                                   `nothing_painted_outside`, a
+                                   `debug_assert!` after every group, ran
+                                   across all 409 render unit tests and
+                                   all 364 synthetic fixture renders and
+                                   never fired. **Measured**: scale 1.0
+                                   54.58 s → 2.45 s (raster hash
+                                   `b98327ee43aa5601`, identical); scale
+                                   4.0 **783.54 s → 8.02 s** (hash
+                                   `0587ca929c10693b`, identical) — the 4×
+                                   figure is the one that answers what the
+                                   operator actually reported ("Acrobat
+                                   can read and zoom in on this pdf much
+                                   much faster than we are capable of").
+                                   **Why a new decision number rather than
+                                   a further sub-decision on 068**:
+                                   decision 068's full text now lives in
+                                   `docs/history/architecture-decisions-before-2026-09.md`,
+                                   which this project's own convention
+                                   holds immutable — history is searched,
+                                   not appended to. Decision 154 is the
+                                   forward pointer; the mechanism it
+                                   records (narrow a full-canvas composite
+                                   to its provably-inert region, and prove
+                                   "provably" with a runtime assertion of
+                                   the exact predicate rather than trust
+                                   in the spec argument alone) is written
+                                   there as a reusable pattern, not just a
+                                   one-off fix.
+                                   `groups_composited` and
                                    `groups_knockout_approx` are counted
                                    AND PRINTED on `render-page`'s stable
                                    line; `groups_flattened` survives only
@@ -10661,3 +10745,103 @@ ceiling: `R253` → `R254`**, next free `R255`. **Pass ceiling `296.5` →
 `296.8` either; if reserved elsewhere, outside this filing's visibility),
 next free `296.9` (family `296` continues; next free new family still
 `297.x`).
+
+### 2026-09-12 (529th filing, `Pass 300.2`, `6ff57ab`) — decision 154: A FULL-CANVAS COMPOSITE IS NARROWED TO ITS OWN BBOX ONLY WHEN THE PREMISE IS ASSERTED AT RUNTIME, NOT MERELY ARGUED FROM THE SPEC — FORWARD POINTER FROM DECISION 068
+
+**Status: DECIDED.** `composite_group_result` (`crates/pdfcer-render/src/canvas.rs`)
+used to blend a transparency group's WHOLE page-sized buffer back into the
+parent canvas on every group. On the operator's Toronto street map
+(6,174 groups, 1224×792, 6,173 isolated) that is ~6 billion pixel operations
+to paint 6,174 small pieces of a street map. `Pass 300.2` narrows the
+composite-back step to the group's own `/BBox` rectangle. **Measured**:
+scale 1.0 `54.58 s → 2.45 s` (raster hash `b98327ee43aa5601`, identical);
+scale 4.0 **`783.54 s → 8.02 s`** (hash `0587ca929c10693b`, identical) — the
+4× figure is the one that answers the operator's own report, *"Acrobat can
+read and zoom in on this pdf much much faster than we are capable of."*
+
+**Forward pointer, not a fresh topic.** Decision 068 (2026-08-17, full text
+now in `docs/history/architecture-decisions-before-2026-09.md`, per this
+project's history discipline: searched, never appended to) chose a
+PAGE-sized paint buffer over a BBox-sized one specifically to avoid
+threading a second coordinate system through every paint site and the clip
+mask. **That reasoning is untouched by this decision.** `Pass 300.2` does
+not resize the buffer and does not translate a single coordinate — the
+group's contents still paint under the page's own CTM exactly as decision
+068 sub-decision 1 requires. What changed is the RETURN TRIP: how much of
+that page-sized buffer gets copied back, not how it was filled. See
+`ARCHITECTURE.md` §3's transparency-group body entry (the "Page-sized
+rather than BBox-sized, deliberately" passage) for the amendment note
+recording this inline, next to the decision it forward-points from.
+
+**Why it is exact, not merely fast.** Outside a group's `/BBox` the buffer
+was never painted into, so its alpha is zero there. All sixteen of
+Table 136's blend modes composite as `B(Cb,Cs)` under source-over alpha and
+return the backdrop unchanged at `αs = 0` — those pixels are arithmetic
+whose answer is already sitting in `dest`. Narrowing the copy changes
+nothing the spec assigns a value to.
+
+**The mechanism worth generalising — the actual content of this decision.**
+A spec argument for "these pixels can't have changed" is not, by itself, a
+safe basis for skipping the work that would have painted them: the argument
+can be right about the mode table and wrong about which pixels it applies
+to (an off-by-one on the bbox, a rounding direction, a rectangle computed
+twice and disagreeing with itself). So the premise is asserted at runtime,
+not merely trusted: `nothing_painted_outside`, a `debug_assert!` checked
+after every group, ran across all 409 render unit tests and all 364
+synthetic fixture renders and never fired. The bounds rectangle used is the
+SAME one the viewport cull already computes, hoisted rather than
+re-derived — two derivations of one rectangle can disagree, and the
+failure mode of the composite's copy being the larger of the two is exactly
+the silent pixel loss the assertion exists to catch. **Reusable statement**:
+when a performance narrowing rests on "the untouched region is provably a
+no-op," ship the proof as a debug-time assertion of the EXACT predicate
+the argument depends on, sourced from the same computation as any other
+consumer of that same rectangle — not as a comment citing the spec table.
+
+**What this decision deliberately does not extend to.** The blend mode is
+matched EXPLICITLY against the narrowable set — tiny-skia also exposes
+`Clear`, `Source`, `DestinationIn` and similar compositing operators, for
+which a transparent source does NOT leave the backdrop alone; none is
+reachable from a PDF `/BM` today, and the explicit match (rather than an
+`_ => narrow` default) is what keeps that true if one ever becomes
+reachable. A soft mask, a non-separable blend mode, or a group covering
+more than half the page takes the original, unnarrowed path. Knockout and
+CMYK groups composite through `crate::compositor`/`CmykBuffer`, not
+`draw_pixmap` — this decision does not reach them, and narrowing an
+unmeasured path would repeat the exact mistake this Pass exists to correct
+(see the methodology note below).
+
+**★ Methodology, recorded because it is the more expensive fact.** This is
+a THIRD independent misdiagnosis of the same root cause (a transparency
+group's full-page-sized buffer dominating this file's render cost) —
+`D:\dev\rag\rust\a_plausible_explanation_that_predicts_the_right_order_of_magnitude_is_not_a_diagnosis.md`
+(2026-08-21, per-pixel-merge-loop hypothesis) and
+`ablate_the_suspect_to_find_the_floor_before_optimizing_anything.md`
+(2026-08-07, clip-machinery hypothesis) already recorded two prior sessions
+naming a plausible-but-wrong mechanism for this exact code path, and the
+528th filing (`SESSION_LOG.md`, same date) found and named the pattern
+before this fix existed. This filing's own probe returned early from
+`composite_group_result` and timed the remainder directly rather than
+reading the code and reasoning from it: whole render 54.94 s; composite
+skipped 2.33 s; the per-group `Pixmap::new` that all three prior diagnoses
+named pooled instead, 53.18 s (i.e. essentially unchanged) — 52.6 of 54.9
+seconds was the composite-back call, and the allocation everyone had
+written down was 1.8 s of it. A dated fourth instance is left for a future
+filing to add to the rust-RAG file above if this shape recurs a fourth
+time; not added here since the pattern's mechanism (read-the-code-not-the-
+clock) is unchanged from the first two instances and this entry already
+names the third.
+
+**No new standing rule minted.** The runtime-assert-the-premise mechanism
+is closest to `R225`'s territory (gate/assertion sabotage-testing
+discipline) but audits a different thing — `R225` is about verifying a
+CHECK fires when it should; this decision is about verifying a
+PERFORMANCE NARROWING's safety premise holds, which is a correctness
+concern wearing a performance decision's clothes. Left as a decision-log
+entry rather than a rule because the reusable content is "how to safely
+ship this class of optimization," not "run this check before every
+filing" — there is no repeated gate action to name.
+
+**Decision ceiling: `153` → `154`**, next free `155`. **Standing rules
+ceiling unchanged at `R254`**, next free `R255`. **Pass ceiling unchanged**
+— `Pass 300.2` was already the ceiling as of the 528th filing.

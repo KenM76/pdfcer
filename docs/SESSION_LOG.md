@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-12 (529th filing) — a transparency group composites over its own bbox: 783.54 s → 8.02 s at 4×, same pixels
+
+**Shipped:**
+- `6ff57ab` (`Pass 300.2`) — `composite_group_result` blended the WHOLE PAGE back into the canvas for every transparency group. Narrowed to the group's own `/BBox`: `clone_rect` + an offset `draw_pixmap`, no coordinate translation, same page-sized paint buffer as always.
+
+**Decisions made this session:**
+- `ARCHITECTURE.md` §12 decision **154** minted — a forward pointer from decision 068 (whose page-sized-buffer reasoning is untouched: this Pass narrows the composite-BACK step only, not the paint buffer) recording the reusable mechanism: narrow a full-canvas composite to its provably-inert region, and prove "provably" with a `debug_assert!` of the exact predicate rather than trust in the spec table alone. §3's transparency-group body entry amended in place with the matching note.
+
+**Findings + decisions:**
+- **The measurement**: scale 1.0 `54.58 s → 2.45 s` (hash `b98327ee43aa5601`, identical); scale 4.0 **`783.54 s → 8.02 s`** (hash `0587ca929c10693b`, identical). The 4× figure answers the operator's own report — thirteen minutes to eight seconds.
+- **This is the confirmed third occurrence of one root cause independently misdiagnosed**, named by the 528th filing immediately below: a per-group full-page buffer allocation was named as the cost by three separate sessions over a month, and never was. This filing's probe returned early from `composite_group_result` and TIMED the rest rather than reading the code: whole render 54.94 s; composite skipped 2.33 s; the per-group `Pixmap::new` all three prior diagnoses named, pooled instead, 53.18 s (essentially unchanged). 52.6 of 54.9 seconds was the composite call; the allocation was 1.8 s of it.
+- **Correctness argument**: outside a group's `/BBox` the buffer is never painted into (alpha zero), and all sixteen of Table 136's blend modes composite as `B(Cb,Cs)` under source-over alpha, returning the backdrop unchanged at `αs = 0` — arithmetic whose answer is already in `dest`.
+- **Excluded on purpose, not by oversight**: tiny-skia's destructive Porter-Duff modes (`Clear`/`Source`/`DestinationIn`/similar) are matched out explicitly, not defaulted past; soft masks, non-separable modes, and groups covering more than half the page keep the original path; knockout/CMYK groups composite through `compositor`/`CmykBuffer`, never `draw_pixmap`, so this Pass never touches them.
+- **The safety net**: `nothing_painted_outside`, a `debug_assert!` after every group, checked across all 409 render unit tests and 364 synthetic fixture renders — never fired. Its rectangle is the SAME one the viewport cull already computes, hoisted rather than re-derived, so the composite's copy cannot silently be the larger of two disagreeing derivations.
+
+**Still in flight:** the memory-side fix (shrinking `ContentToken`, 64 B today) named by the 527th filing remains unscoped to a Pass ID; unrelated to this Pass.
+
+**For next session:** none — this closes the arc `Pass 300.0`/`300.1`/`300.2` opened this evening from the operator's Toronto-map investigation. `docs/NEXT_SESSION.md` is engineer-owned; flagged, not edited, that its "unstarted" note on per-bbox group buffers is now stale (the composite-back half shipped; only `ContentToken` shrinkage remains open).
+
+**Sourcing (hard rule 8) — no shell this filing.** `.git/refs/heads/main` reads `6ff57abee11832a56dc2b0bf0d6eb1dee5d204b2`, matching `.git/logs/HEAD`'s final reflog line, one commit past `a66dd5f7bf7d370dd26e2f1ddf56ae3025d428f1` (the 528th filing's own commit) — `.git/refs/remotes/origin/main` reads that same `a66dd5f`, confirming `6ff57ab` is local and unpushed. `.git/COMMIT_EDITMSG` (the tip's own message, retained) carries this commit's message in full, read directly, not relayed. All timing figures, hashes, and the 364/409 test counts are taken from the commit message as authoritative, not independently re-run this filing.
+
 ## 2026-09-12 (528th filing) — a discarded full-page scan per transparency group: 4%, and the 4% is the finding
 
 **Shipped:**

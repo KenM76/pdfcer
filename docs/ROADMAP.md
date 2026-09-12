@@ -116,6 +116,33 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `Pass 300.2` (`6ff57ab`, 2026-09-12) — a transparency group composites over its own bbox: 783.54 s → 8.02 s at 4×, same pixels
+
+`composite_group_result` blended the WHOLE PAGE back into the canvas for every transparency group. The operator's Toronto street map has 6,174 of them on a 1224×792 page — ~6 billion pixel operations to paint 6,174 small pieces of a street map.
+
+    scale 1.0   54.58 s  ->   2.45 s    hash b98327ee43aa5601 (identical)
+    scale 4.0  783.54 s  ->   8.02 s    hash 0587ca929c10693b (identical)
+
+The 4× number answers what the operator actually reported: *"Acrobat can read and zoom in on this pdf much much faster than we are capable of."* Thirteen minutes to eight seconds, bit-for-bit the same raster.
+
+**Measured before it was believed** — two earlier attempts this same session (`Pass 300.0`, `Pass 300.1`) named a cost by reading the source and were wrong both times. The probe returned early from this one function and timed the rest: whole render 54.94 s; composite skipped 2.33 s; the per-group `Pixmap::new` that all three prior diagnoses of this slow path had named pooled instead, 53.18 s — essentially unchanged. **52.6 of 54.9 seconds was this call; the allocation everyone had written down was 1.8 s.** See the 528th filing (`SESSION_LOG.md`) for the full history of this root cause being independently misdiagnosed three times over a month and fixed zero times before this Pass — this is that finding's first confirmed instance, appended as a dated third occurrence to `D:\dev\rag\rust\a_plausible_explanation_that_predicts_the_right_order_of_magnitude_is_not_a_diagnosis.md` rather than treated as new.
+
+**Why it is exact.** Outside a group's `/BBox` the buffer was never touched, so its alpha is zero there. All sixteen of Table 136's blend modes composite as `B(Cb,Cs)` under source-over alpha and return the backdrop unchanged at `αs = 0` — those pixels are arithmetic whose answer is already in `dest`.
+
+**What it deliberately does not do.** No coordinates move — the group buffer stays page-sized and the interior is untouched, no CTM translation, no clip-mask re-cropping; `clone_rect` + an offset `draw_pixmap` is the whole mechanism. The blend mode is matched explicitly (tiny-skia's `Clear`/`Source`/`DestinationIn` and similar are NOT safe to narrow this way; none is reachable from a PDF `/BM` today). A soft mask, a non-separable mode, or a group covering more than half the page takes the original path. Knockout and CMYK groups composite through `compositor`/`CmykBuffer`, not `draw_pixmap` — untouched.
+
+**The safety net.** Narrowing a composite onto a wrong rectangle loses pixels with no error anywhere, on one file, months later — so the premise is asserted, not just argued: `nothing_painted_outside`, a `debug_assert!` after every group, ran across all 409 render unit tests and all 364 synthetic fixture renders and never fired. The bounds rectangle is the SAME one the viewport cull computes, hoisted rather than re-derived.
+
+**Verified.** 364 synthetic fixtures byte-identical. Both Toronto rasters hash-identical at 1× and 4×. 409 render unit tests, workspace suite, clippy and fmt clean.
+
+**`FEATURES.md`**: unchanged — an internal render-time fix invisible to any operator-facing capability, same disposition as `Pass 300.0`/`300.1`.
+
+**`ARCHITECTURE.md`**: decision **154** minted (§12), a forward pointer from decision 068 (page-sized buffer choice, untouched by this Pass) recording the narrow-and-assert mechanism as reusable; §3's transparency-group body entry amended in place with the same note.
+
+**Sourcing (hard rule 8) — no shell this filing.** Verified via `Read` on `.git` internals: `.git/refs/heads/main` reads `6ff57abee11832a56dc2b0bf0d6eb1dee5d204b2`, matching `.git/logs/HEAD`'s final reflog line, one commit past `a66dd5f7bf7d370dd26e2f1ddf56ae3025d428f1` (the 528th filing's own commit) — `.git/refs/remotes/origin/main` reads that same `a66dd5f`, confirming `6ff57ab` is local and unpushed. `.git/COMMIT_EDITMSG` (the tip's own message, retained) carries this commit's message in full, read directly, not relayed. All timing figures, hashes, and the 364/409 test counts are taken from the commit message as authoritative, not independently re-run this filing.
+
+---
+
 ### `Pass 300.1` (`1295af1`, 2026-09-12) — a discarded full-page scan per transparency group: 4%, and the 4% is the finding
 
 `Canvas::group`'s `Paint` arm bound `backdrop_present` to a `let` above the `if` that reads it:
