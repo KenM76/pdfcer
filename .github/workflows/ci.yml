@@ -315,7 +315,7 @@ jobs:
   # and the COUNT is the part that decays, so the count is the part a gate
   # can falsify.
   audits:
-    name: repository audits (22 checks)
+    name: repository audits (23 checks)
     runs-on: ubuntu-latest
     steps:
       # ★ FULL HISTORY REQUIRED, and its absence was SILENT.
@@ -407,6 +407,16 @@ jobs:
       # missing text.
       - name: check no doc block has absorbed its neighbour
         run: python tools/check-doc-block-spliced.py --stats
+
+      # A test that returns early on a missing fixture PRINTS `SKIP` and
+      # PASSES -- cargo counts it as passed and nothing goes amber. Measured
+      # 2026-09-12: 26 such tests across five files, and because
+      # `fixtures/external/` is not tracked in git and no step fetches it,
+      # THEY HAVE NEVER RUN IN CI. Found when a sabotage of `Pass 298.0`'s
+      # guard came back green. This gate does not run the tests; it requires
+      # every skippable one to be declared, so a NEW one is a finding.
+      - name: check every skippable test is declared
+        run: python tools/check-skippable-tests-declared.py --stats
 
       # A re-exported struct whose own FIELD type is not re-exported compiles,
       # passes clippy and passes every test -- inside the crate every path
