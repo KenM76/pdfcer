@@ -22,6 +22,69 @@ use pdfcer_core::pageops::InsertPosition;
 
 /// Build a minimal multi-page PDF whose pages carry distinguishable
 /// content, so an inserted page can be told apart from a native one.
+/// A one-page document whose page carries two widgets, registered in an
+/// `/AcroForm` -- the minimum that makes `insert_pages` report orphaned
+/// widgets when the target has no field tree of its own.
+fn doc_with_one_form_page() -> Document {
+    let objects: Vec<(u32, &str)> = vec![
+        (
+            1,
+            "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R 5 0 R] >> >>",
+        ),
+        (
+            2,
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 200 200] /Resources << >> >>",
+        ),
+        (3, "<< /Type /Page /Parent 2 0 R /Annots [4 0 R 5 0 R] >>"),
+        (
+            4,
+            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (Name) /Rect [10 150 190 180] >>",
+        ),
+        (
+            5,
+            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (Address) /Rect [10 100 190 130] >>",
+        ),
+    ];
+    let mut out = String::from(
+        "%PDF-1.7
+",
+    );
+    let mut offsets: Vec<(u32, usize)> = Vec::new();
+    for (num, body) in &objects {
+        offsets.push((*num, out.len()));
+        out.push_str(&format!(
+            "{num} 0 obj
+{body}
+endobj
+"
+        ));
+    }
+    let xref_at = out.len();
+    out.push_str(&format!(
+        "xref
+0 {}
+0000000000 65535 f 
+",
+        objects.len() + 1
+    ));
+    for (_, off) in &offsets {
+        out.push_str(&format!(
+            "{off:010} 00000 n 
+"
+        ));
+    }
+    out.push_str(&format!(
+        "trailer
+<< /Size {} /Root 1 0 R >>
+startxref
+{xref_at}
+%%EOF
+",
+        objects.len() + 1
+    ));
+    Document::from_bytes(out.into_bytes()).expect("synthetic form page parses")
+}
+
 fn doc_with_pages(marker: &str, count: usize) -> Document {
     let mut objects: Vec<(u32, String)> = Vec::new();
     let kids: Vec<String> = (0..count).map(|i| format!("{} 0 R", 3 + i * 2)).collect();
@@ -302,14 +365,18 @@ fn the_saved_file_carries_the_inserted_page_and_reloads() {
 /// reachable the way this code assumes.
 #[test]
 fn inserting_a_form_page_reports_its_orphaned_widgets() {
-    let form = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
-        "../../fixtures/external/pdfbox/pdfbox/src/test/resources/input/compression/acroform.pdf",
-    );
-    if !form.exists() {
-        eprintln!("SKIP: the external pdfbox corpus is not present");
-        return;
-    }
-    let src = Document::load(&form).expect("the form fixture loads");
+    // ★★ Synthetic since 2026-09-12. This sourced from
+    // `fixtures/external/pdfbox/.../acroform.pdf` -- untracked, unfetched, and
+    // marked in `fixtures/README.md` as "NOT blanket-safe ... never
+    // bulk-import" -- so it printed `SKIP` and PASSED from the day it was
+    // written.
+    //
+    // ★ Nothing here needed a corpus. Read the assertions: a source with an
+    // AcroForm carrying at least one field, and widgets on the page it
+    // inserts. That is three objects. The stated dependency was on a FILE; the
+    // real dependency was on a PROPERTY, and the gap between those two is what
+    // kept this test from ever running.
+    let src = doc_with_one_form_page();
     let src_view = src.view();
     let src_fields = pdfcer_core::forms::parse_acroform(&src_view).map(|f| f.fields.len());
     assert!(

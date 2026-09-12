@@ -317,10 +317,14 @@ fn an_object_inside_an_object_stream_is_reachable_and_located() {
     let path = fixture("verapdf/object-streams.pdf");
     let doc = Document::load(&path).expect("the object-stream fixture is in-repo");
     let l = structure::layout(&doc);
-    if l.object_streams.is_empty() {
-        eprintln!("SKIP: this corpus file uses no object streams");
-        return;
-    }
+    // ★ Was a SKIP arm, which is why this test stayed on the baseline even
+    // after its fixture was replaced: the file is now chosen FOR this property
+    // and carries five object streams, so "none present" is a fixture defect
+    // rather than a reason to decline. Asserted, so it cannot go quiet again.
+    assert!(
+        !l.object_streams.is_empty(),
+        "premise: the fixture is chosen because it USES object streams"
+    );
     let inv = structure::inventory(&doc);
     let compressed = inv
         .objects

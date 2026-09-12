@@ -1,10 +1,8 @@
 # Tests that can decline to run, and therefore pass without
 # running. DEBT -- the direction is down. See
 # tools/check-skippable-tests-declared.py for why.
-crates/pdfcer-core/tests/insert_pages_preserves_undo.rs::inserting_a_form_page_reports_its_orphaned_widgets
 crates/pdfcer-core/tests/stamp_collection.rs::adobes_dynamic_stamps_are_recognised_as_dynamic
 crates/pdfcer-core/tests/stamp_collection.rs::adobes_own_stamp_files_are_read_correctly
-crates/pdfcer-core/tests/structure_inspect.rs::an_object_inside_an_object_stream_is_reachable_and_located
 crates/pdfcer-core/tests/widget_adoption.rs::the_fixture_carries_both_widget_shapes_and_the_counts_agree
 crates/pdfcer-core/tests/widget_adoption.rs::the_preview_and_the_call_always_agree
 crates/pdfcer-core/tests/widget_adoption.rs::the_preview_separates_the_two_widget_shapes_before_any_press
