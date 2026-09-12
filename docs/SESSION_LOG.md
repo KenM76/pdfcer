@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-12 (525th filing) — the last two of the 26-test skip debt's easy wins: a CC BY 4.0 veraPDF fixture, and a test that never needed a corpus at all
+
+**Shipped:**
+- `39759d2` — investigation, no code: the three remaining qpdf-gated skips (`editable_roundtrip.rs` ×2, `structure_inspect.rs` ×1) all need a document using object streams, which pdfcer's writer cannot produce (it only ever decompresses `/ObjStm`) and no synthetic fixture contains. Recorded the three measured facts in `docs/NEXT_SESSION.md` rather than hand-authoring a fixture under time pressure.
+- `d291a03` — the operator asked whether a suitable PDF could be found online, which changed the answer. `LEGAL.md` §5 already approves veraPDF's open corpus as a fixture source; took the smallest valid file containing an `/ObjStm` (11,516 bytes, CC BY 4.0, attributed in new `fixtures/verapdf/PROVENANCE.md`) for two of the three. The third (`an_encrypted_document_is_refused_rather_than_decrypted`) needed only *an* encrypted document — `fixtures/synthetic/encryption/` already had eight — and never needed a corpus. `tools/skippable-tests-baseline.txt`: 10 → 8 (26 when the gate shipped).
+
+**Decisions made this session:**
+- No new standing rule. Whether "a test's declared corpus dependency can be narrower than the property it actually needs" deserves a check is left at n=1, per the operator's own suggestion to re-ask it against the remaining 8 declared skips before hunting more fixtures — not named here.
+
+**Findings + decisions:**
+- **First category-(b) tracked fixture in the repo.** `fixtures/verapdf/object-streams.pdf` is CC BY 4.0 inside an MIT repository — permitted under `LEGAL.md` §5, dev-time only, never shipped (`tools/package-portable.py` ships no fixtures). Flagged for the operator (not edited): whether `LEGAL.md` should gain an explicit line recording that a non-MIT file now exists in the tree, since §5 approved the *source* but no prior filing had actually landed one.
+- **The PDF Association's own PDF 2.0 examples were checked first and had none** — worth recording that "the obvious cleanest source had nothing" before anyone looks there again.
+- **The shape of the two-commit pair**: an investigation that stops with three recorded facts, made cheap by one operator question. Left as an observation, not named as a pattern.
+
+**Still in flight:** `docs/NEXT_SESSION.md`'s OWED list still reads "10 tests silently SKIP" and still carries the now-resolved "budget it properly" paragraph for the qpdf-gated three — both stale as of `d291a03`, flagged for the engineer (engineer-owned file, not edited here). 8 skippable-test entries remain: 3 qpdf-gated (blocked, see above), 4 `widget_adoption` census/preview left deliberately, 1 other.
+
+**For next session:** the `docs/NEXT_SESSION.md` staleness flag above; whether the "declared dependency vs. actual dependency" check is worth running against the remaining 8 skips before any further fixture work.
+
+**Sourcing (hard rule 8) — no shell this filing.** `.git/refs/heads/main` reads `d291a03f4069f1af8e9519f92c21531216365296`; `.git/refs/remotes/origin/main` reads `cb5a0bec8aa4c696cddd139848d63b88e21de257` (the 524th filing's own commit), confirming both `39759d2` and `d291a03` are local and unpushed. `.git/logs/HEAD`'s final two reflog lines name both subjects verbatim. `.git/COMMIT_EDITMSG` (the tip's own message, retained) carries `d291a03`'s message in full, read directly. `39759d2`'s loose git object exists but is zlib-compressed and unreadable without a shell; its account above is reconstructed from `docs/NEXT_SESSION.md`'s live OWED-list text (the artifact that commit wrote) and from the operator's own relay, not from an independent read of the raw commit message — flagged as such rather than presented as a direct read. Independently verified against the live tree: `fixtures/verapdf/PROVENANCE.md` exists and states CC BY 4.0; `tools/skippable-tests-baseline.txt` counted directly at 8 entries (11 lines including its 3-line header comment).
+
 ## 2026-09-12 (524th filing) — eight more merge-document tests run now (18 → 10 skippable entries); a misaimed sabotage and a completion signal from `clippy::dead_code`
 
 **Shipped:**

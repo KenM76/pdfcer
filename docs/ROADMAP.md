@@ -116,6 +116,40 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `d291a03` (2026-09-12) — three more dead tests run: a CC BY 4.0 veraPDF fixture, and one test that never needed a corpus at all
+
+Not a Pass — test-debt paydown, filed under its own commit-hash heading, same precedent as `e41892a` below. Answers `39759d2` directly below: the operator asked whether a suitable PDF could be found online, which changed that entry's "stop" into this one.
+
+**Not a search — a documented decision.** `LEGAL.md` §5 already names "veraPDF's open corpus" as approved source (b) for `fixtures/`. The PDF Association's PDF 2.0 examples were checked first (7 files, cleanest provenance) — none use object streams, they are deliberately readable pedagogical files. veraPDF: 2,908 files, 78 with an `/ObjStm`; took the smallest **valid** one (11,516 bytes) — a `fail-` variant would have made the tests measure damage, and most of that corpus is deliberately malformed.
+
+**Licence, stated rather than assumed.** The veraPDF corpus is **CC BY 4.0**; redistribution is permitted with attribution, carried in new `fixtures/verapdf/PROVENANCE.md`. ⇒ This repository is MIT and that file is not — the **first category-(b) tracked fixture** (everything under `fixtures/synthetic/` is authored or modelled rather than copied). Dev-time only; `tools/package-portable.py` ships no fixtures. **Flagged for the operator**: whether `LEGAL.md` should gain an explicit line recording that a non-MIT file now lives in the tree — §5 already approves the source, but no prior entry had actually landed one. Not edited here; `LEGAL.md` is operator-governed.
+
+**One of the three never needed a corpus at all.** `an_encrypted_document_is_refused_rather_than_decrypted` needed *an encrypted document* — `fixtures/synthetic/encryption/` has held eight the whole time. Now uses `enc-emptyuser.pdf` (the empty-password variant; `enc-aes-128.pdf` answers `PasswordRequired` and would have reintroduced a skip arm) and asserts its own premise. This was a test written against whatever was on the author's disk, never revisited — not a fixture problem.
+
+**Debt:** `tools/skippable-tests-baseline.txt` 10 → 8 (26 when the gate shipped).
+
+**Judged, not minted.** Whether "a test's declared dependency (a specific corpus path) can be narrower than its actual dependency (a property already satisfied elsewhere)" deserves a standing check is left open at n=1 — worth re-asking against the remaining 8 declared skips before hunting further fixtures, per the operator's own suggestion, rather than naming a rule now.
+
+**`FEATURES.md`**: unchanged — internal test-harness debt, no operator-visible capability touched.
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `.git/refs/heads/main` reads `d291a03f4069f1af8e9519f92c21531216365296`, matching `.git/logs/HEAD`'s final reflog line; `.git/refs/remotes/origin/main` reads `cb5a0bec8aa4c696cddd139848d63b88e21de257` (the 524th filing's own commit), confirming `d291a03` and `39759d2` are both local and unpushed. `.git/COMMIT_EDITMSG` (the tip's own message, retained) carries `d291a03`'s message in full, quoted directly, not relayed. Loose objects for both hashes confirmed present at `.git/objects/d2/91a03f…` and `.git/objects/39/759d2c…`; the latter is zlib-compressed and not human-readable without a shell, so its full body is not independently re-derived here — the account above is taken from the operator's own relay of it, which matches `docs/NEXT_SESSION.md`'s OWED-list wording verbatim (written by the same commit per the reflog subject line).
+
+---
+
+### `39759d2` (2026-09-12) — why the next three skipping tests are blocked, recorded rather than forced
+
+Not a Pass — investigation with no code change, filed under its own commit-hash heading.
+
+**The question.** Whether the three remaining qpdf-gated skips (`editable_roundtrip.rs` ×2, `structure_inspect.rs` ×1) could be converted the same way the pdfbox-gated ones just were (`e41892a`, `f0d1dc7`). All three need a document that **uses object streams**.
+
+**Three measured facts, and the reason each blocks a same-session fix.** pdfcer's own writer only ever **DEcompresses** — every `/Type /ObjStm` is promoted to file level on save (`writer/save.rs:1018`), so the fixture cannot be produced by round-tripping through this crate, which was the obvious first idea. No fixture under `fixtures/synthetic/**/*.pdf` contains one either (checked every file for `/Type /ObjStm`; zero hits — `xref-recover/xref-stream-corrupt.pdf` mentions the term but is deliberately damaged, not a substitute). Hand-authoring one means an `/ObjStm` with `/N`/`/First` and its pair table **plus** a cross-reference **stream** carrying type-2 entries — exacting enough that a subtly wrong fixture would make the tests pass for the wrong reason, which is worse than the `SKIP` it would replace.
+
+**Stopped rather than started.** The three facts were recorded in `docs/NEXT_SESSION.md`'s OWED list instead of forcing a fixture into existence under time pressure. Resolved one commit later (`d291a03`, above) once the operator's question changed the constraint.
+
+**`FEATURES.md`**: unchanged.
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `.git/refs/heads/main` no longer names this commit directly (it names `d291a03`, one commit ahead) but `.git/logs/HEAD` carries this commit's reflog line (`cb5a0bec…→39759d2c…`) with its subject verbatim, and `d291a03`'s own entry above independently confirms `39759d2` sits between `cb5a0bec` (origin/main) and the current tip, so it is local and unpushed. `.git/COMMIT_EDITMSG` retains only the tip's message (`d291a03`'s), not this one's; this commit's loose object is zlib-compressed and unreadable without a shell. The account above is reconstructed from `docs/NEXT_SESSION.md`'s live OWED-list text (the artifact this commit wrote) rather than from the raw commit message, and from the operator's own relay — flagged as such rather than presented as a direct read.
+
 ### `e41892a` (2026-09-12) — eight `merge_document` tests RUN now; the pdfbox corpus path is gone from the file entirely
 
 Not a Pass — test-debt paydown, filed under its own commit-hash heading, same precedent as `f0d1dc7` below.
