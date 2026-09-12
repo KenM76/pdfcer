@@ -116,6 +116,32 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `3334377` + `4608f7e` (2026-09-11) — a doc-block splice detector, and a duplicate `#[must_use]` its own repair left behind
+
+Not Passes — tooling + a self-inflicted fix, same shape as the `f16e266`+`5917ece` precedent immediately below this entry.
+
+**`3334377`** ships `tools/check-doc-block-spliced.py`: one contiguous `///` run must not contain the same rustdoc heading (`# Errors`/`# Returns`/`# Examples`/`# Panics`/`# Safety`) twice — exact, not heuristic, because rustdoc convention gives a block at most one of each. Fenced code is skipped (a `/// # use …` inside \`\`\` is a doc-test line, not a heading). Wired into CI's `audits` job, now **22 checks** (confirmed live at `.github/workflows/ci.yml:318`).
+
+**The finding that produced it, per the commit:** a row in `tools/public-fns-undocumented-baseline.txt` can be hiding a **splice**, not recording an **omission**. `EditSession::delete_subpath` sat there as debt; its doc block was thirty lines up, welded onto `delete_node`, whose rustdoc opened *"Delete one subpath…"* — the text was never missing, only misfiled. Per the commit: four splices were live and five of 57 baseline rows turned out to be recoverable text this way, including `delete_annotation` and `move_annotation`, both stacked onto `resize_annotation` in a triple weld. **Baseline now 28 — confirmed independently** (`Grep` count of non-comment lines in `tools/public-fns-undocumented-baseline.txt`), as is `delete_subpath`'s repair: it carries its own doc block at `crates/pdfcer-core/src/edit.rs:13893-13896` now, not `delete_node`'s.
+
+**Measured and rejected, per the commit:** widening `check-public-fns-documented.py` to private functions would close its other blind spot, but **1,837** undocumented private functions outside test modules would be a baseline nobody reads. Confirmed live in the gate's own header (`tools/check-doc-block-spliced.py:16-19`).
+
+**`4608f7e`** (local only; blocked by the pre-push hook until `3334377` was filed) removes a duplicated `#[must_use]` that `3334377`'s own repair left behind — the splice had left the attribute on both halves, and reassembling put two on one function. It reached `origin` because clippy was run as `cargo clippy … | grep … | head`, and the exit code read afterward was the **pipeline's**, which is `head`'s, and `head` always exits 0 — not clippy's. Confirmed independently: no duplicated consecutive `#[must_use]` pair remains anywhere under `crates/` (`Grep` multiline scan, zero hits).
+
+**On the engineer's proposed shared mechanism — declined, filed apart.** The dispatch asked whether this is the same failure, a third time in one session, as `run-gates.sh` printing `FAILED — N of 31` while exiting 0, and `check-string-gaps.sh` truncating its own excerpt past a second defect on the same line. All three share a *description* — a glanced-at signal was not the real one — but not a *mechanism*, and this session has already declined three unifications on exactly that distinction (`R254`'s note, `R151`/`R251`/`R253` boundary-checks above):
+
+- `run-gates.sh` exits 0 **by the script's own design**, regardless of internal failure — a defect in a tool this project wrote, already known and already recorded (`docs/NEXT_SESSION.md`'s lead paragraph, filed before this pair). Not new here.
+- `check-string-gaps.sh` truncates its **printed excerpt**, not its verdict — the gate stays correctly red; only the diagnostic text hides the second gap. Already filed as a further instance of the truncated-read hazard at the `f16e266`+`5917ece` entry below.
+- The pipeline exit code is **not a defect in any tool this project wrote at all** — `head`/`grep` swallowing an upstream command's exit status absent `pipefail` is standard POSIX pipeline semantics, documented in the shell's own manual. Per the personal_rag/CLAUDE.md bar ("trivially derivable from canonical docs in under a minute"), this does not earn a RAG entry on its own account.
+
+No new standing rule minted for this pair. Recommended to the engineer, not filed here (`docs/NEXT_SESSION.md` is engineer-owned): check a command's own exit status directly (`${PIPESTATUS[0]}` or run it unpiped) rather than trusting a pipeline's, and consider whether `run-gates.sh`'s exit-0-on-failure is worth fixing outright rather than perpetuating as a read-the-text habit.
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** Verified via `Read`/`Grep` against `.git/refs/heads/main` (`4608f7e75d994865b57344bb475aa7fecdfbeaa5`), `.git/refs/remotes/origin/main` (`333437732840f74b67ad638ef16cae00387337af`), and `.git/logs/HEAD` (plain-text reflog, entry 323-324) — confirming `origin/main` sits at `3334377` (pushed), `main`/`HEAD` sits one commit further at `4608f7e` (local, unpushed), and the parent chain and commit-subject text match the dispatch's account exactly. The two commit messages are authoritative per instruction and were not re-read verbatim from the git object store. Independently verified against the live tree, not merely relayed: the doc-block-splice gate's existence, wiring and header text; the 28-row baseline count; `delete_subpath`'s repaired doc block; the CI job's `(22 checks)` label; the absence of any remaining duplicated `#[must_use]` pair.
+
+**`FEATURES.md`**: no row changed — both commits are internal tooling/hygiene, not an operator-visible capability.
+
+---
+
 ### `Pass 296.8` (`f392b19`, 2026-09-11) — a private mapping split from the public metrics line it was supposed to agree with
 
 `BlendSpaceFrom::token()` (`crates/pdfcer-render/src/interpret.rs`) is `pub` now. `Pass 296.4` made `BlendSpaceFrom` itself `pub` but kept this enum→string mapping `pub(crate)`, reasoning the metrics line's contract was its own and nothing had asked. Within the hour a consuming shell's diagnostic trace took the `Debug` derive instead and wrote `PageGroup` where the metrics line writes `page_group` — two stable spellings of one fact across a boundary whose purpose is that both sides agree. The shell declined to hand-copy the mapping (`R74`) and filed. `token()`'s three strings (`page_group`/`device_native`/`output_intent`) are now a published contract; a test pins them and separately asserts they differ from the `Debug` derive, so the two-spellings failure mode is asserted against, not just described.
