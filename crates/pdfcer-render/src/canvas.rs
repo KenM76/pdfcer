@@ -1632,8 +1632,52 @@ impl<'a> Canvas<'a> {
                 // branch: a backdrop that is transparent everywhere IS an
                 // isolated group's backdrop, so there is nothing to run
                 // twice and nothing to remove.
-                let backdrop_present = p.pixels().iter().any(|px| px.alpha() > 0);
-                if isolated || !backdrop_dependent || !backdrop_present {
+                //
+                // ★ EVALUATED LAZILY (`Pass 300.1`), and the honest size of
+                // that is 4%, not the order of magnitude it looks like.
+                //
+                // It used to be bound to a `let` above this `if`, so the scan
+                // ran on EVERY group. `||` short-circuits, so the value is
+                // only ever READ when the group is non-isolated AND its
+                // interior blends -- and the scan is over the WHOLE page
+                // pixmap, `width * height` pixels, per group. On the
+                // operator's Toronto street map at 1x that is 6,174 groups
+                // against a 1224 x 792 page, 6,173 of them isolated
+                // (`groups_special`), every one of which discarded the answer
+                // without reading it.
+                //
+                // ★★ MEASURED BEFORE IT WAS BELIEVED, and the number is the
+                // reason this comment is worth its length. A/B on that file,
+                // same binary, same machine:
+                //
+                //     scale 1.0   51.13 s  ->  49.23 s
+                //     scale 0.5   12.78 s  ->  12.78 s
+                //
+                // 4%. The scan is NOT the page's cost, because `any`
+                // short-circuits on the first marked pixel and a page being
+                // built up acquires one early. The prediction written here
+                // first said "~20x" and was wrong by two orders of magnitude;
+                // it is recorded rather than deleted because the same
+                // session had already been wrong once about where this
+                // file's time goes, in the same direction -- reasoning about
+                // an `O(page)` loop without timing it.
+                //
+                // WHERE THE TIME ACTUALLY IS, so the next reader does not
+                // re-derive it: time scales with page AREA (4x the pixels,
+                // 4x the seconds), and what is per-group and
+                // area-proportional is the `Pixmap::new` below plus the
+                // full-canvas `draw_pixmap` in `composite_group_result` --
+                // ~8 ms per group for ~2M pixel operations. Both are fixed
+                // only by giving the group a buffer the size of its own
+                // `/BBox` instead of the page's, which needs the interior's
+                // CTM and clip masks translated with it and is NOT done here.
+                //
+                // Nothing about the SEMANTICS changes -- the same predicate
+                // over the same pixels, asked only when the answer is used.
+                // That is why it needs no new test: any test that could see a
+                // difference would be asserting that a discarded value was
+                // computed.
+                if isolated || !backdrop_dependent || !p.pixels().iter().any(|px| px.alpha() > 0) {
                     composite_group_result(p, &iso, paint, mask);
                     return Some(GroupOutcome {
                         result,
