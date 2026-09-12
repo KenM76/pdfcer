@@ -116,6 +116,26 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `f0d1dc7` (2026-09-12) — ten widget-adoption tests RUN now, closing 10 of the 26-test debt the entry below records
+
+Not a Pass — test-debt paydown, filed under its own commit-hash heading, same precedent as `2d2e217` immediately below and `f16e266`+`5917ece` above.
+
+**The debt, and how much of it this closes.** The entry below measured `widget_adoption.rs` at 14 skips of 20 "passed" — tests that print `SKIP` because their fixture needs `fixtures/external/pdfbox/…`, absent on this machine and unfetchable under `fixtures/README.md`'s own licensing table (never bulk-import). This commit adds `synthetic_orphaned_session()`: a byte-authored source with four merged field-widgets (`/FT /Tx`×2, `/Btn`, `/Ch`) and two `/Parent`-ed bare kids sharing one radio group, adopted into a blank target exactly as `orphaned_session()` does — no external corpus needed. Ten tests converted; `widget_adoption.rs` now prints 4 declared skips, not 14. `tools/skippable-tests-baseline.txt` drops from 28 to 18 entries. Of the original 26-test debt (23 pdfbox / 3 qpdf), 16 remain — all outside this file.
+
+**The shapes were not guessed.** Four converted tests failed against the first cut of the fixture, each naming the premise it needed ("fixture premise", "all four must survive, got […]"). The fixture was grown to satisfy the assertions, not the other way round — the risk this kind of conversion runs, and the failures are the evidence it didn't happen here. `the_synthetic_fixture_carries_one_of_each_shape` now pins the fixture's own composition, so a later edit to it can't quietly change what every dependent test is measuring.
+
+**Sabotage proves it, and the number is the point.** Breaking `adopt_widget`'s rename report (`let renamed = false`) now turns three tests red. Before this commit it turned none, because none of them ran.
+
+**Four tests deliberately left on the real corpus, not converted.** `the_fixture_carries_both_widget_shapes_and_the_counts_agree` and the three preview tests assert against the REAL AcroForm's own composition; converting them would assert numbers about an invented document — measuring the fixture, not the verb. Stays a declared skip rather than a hollow pass. The file's own header argues a hand-built fixture "exercises whichever shape the author thought of" — true, and `a_widget_with_ft_but_no_t_is_still_unrecoverable` is the file's own rebuttal: the real corpus's bare radio kids carry neither `/FT` nor `/T`, so a key swap there left the whole suite green regardless of source. Neither fixture kind is automatically better; what matters is that one is present.
+
+**Verified** (each check's own exit code, run alone, per the commit): `cargo fmt --all --check` 0, `cargo clippy -p pdfcer-core --all-targets -- -D warnings` 0, `widget_adoption` 21/21 with 4 declared skips, `check-skippable-tests-declared.py` 0.
+
+**`FEATURES.md`**: unchanged — internal test-harness debt, no operator-visible capability touched.
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `.git/refs/heads/main` reads `f0d1dc7bdcf75985ac9bfce89ecd184392f290cc`; the loose object exists at `.git/objects/f0/d1dc7b…`, confirming it is a real, current commit — not taken on the dispatch's word. `.git/COMMIT_EDITMSG` carries this commit's message verbatim, matching the account above; not independently re-derived from the object store. Independently verified against the live tree: `crates/pdfcer-core/tests/widget_adoption.rs` carries `synthetic_orphaned_session` (line 197), `the_synthetic_fixture_carries_one_of_each_shape` (261), `adopting_several_widgets_accumulates_rather_than_replacing` (345) and `a_widget_with_ft_but_no_t_is_still_unrecoverable` (541); `tools/skippable-tests-baseline.txt` lists 18 entries total, 4 of them naming `widget_adoption.rs`, confirming both the 28→18 and 14→4 counts. Push state relative to `origin/main` not independently re-derived without a shell.
+
+---
+
 ### `2d2e217` (2026-09-12) — a test that can decline to run reports as a PASS: 26 of them have never executed anywhere
 
 Not a Pass — tooling, filed under its own commit-hash heading, same precedent as `3334377`+`4608f7e` and `f16e266`+`5917ece` below.

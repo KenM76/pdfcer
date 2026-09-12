@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-12 (519th filing) — ten widget-adoption tests run now, paying down 10 of the debt two filings back
+
+**Shipped:** `f0d1dc7` — `synthetic_orphaned_session()` byte-authors a source with four merged field-widgets (`/FT /Tx`×2, `/Btn`, `/Ch`) and two `/Parent`-ed bare kids in one radio group, inserted into a blank target exactly as `orphaned_session()` does. Ten `widget_adoption.rs` tests converted from the pdfbox-gated fixture to this synthetic one; the file now prints 4 declared skips, not 14. `tools/skippable-tests-baseline.txt` drops from 28 to 18 entries; of the 517th filing's 26-test debt (23 pdfbox / 3 qpdf), 16 remain, all outside this file.
+
+**Findings + decisions:**
+- **The shapes were not guessed.** Four tests failed on the first cut of the fixture, each naming the premise it needed; the fixture was grown to satisfy the assertions, not the reverse — the risk this conversion runs, and the failures are the evidence it didn't happen.
+- **Sabotage confirms it.** Breaking `adopt_widget`'s rename report now turns three tests red; before this commit it turned none, because none ran.
+- **Four tests deliberately NOT converted** — `the_fixture_carries_both_widget_shapes_and_the_counts_agree` and the three preview tests assert against the real AcroForm's own composition; converting them would measure an invented document rather than the verb, so they stay a declared skip.
+- **The file's own stated caution answered by the file itself:** its header argues a hand-built fixture "exercises whichever shape the author thought of" — true, and `a_widget_with_ft_but_no_t_is_still_unrecoverable` is the file's own rebuttal, since the real corpus's bare radio kids can't distinguish `/FT` from `/T` either. Neither fixture source is automatically better.
+
+**`FEATURES.md`**: unchanged — internal test-harness debt.
+
+**Sourcing note (hard rule 8):** no shell this filing. `.git/refs/heads/main` reads `f0d1dc7bdcf75985ac9bfce89ecd184392f290cc`; the loose object exists at `.git/objects/f0/d1dc7b…`, confirming it is current. `.git/COMMIT_EDITMSG` carries this commit's message verbatim, the source for the account above. Independently verified against the live tree: the four named functions in `crates/pdfcer-core/tests/widget_adoption.rs` (lines 197/261/345/541); `tools/skippable-tests-baseline.txt`'s 18 entries, 4 of them naming this file.
+
+**Still in flight:** 16 corpus-gated tests remain (the 517th filing's debt minus this paydown) — `merge_document` 8, `editable_roundtrip` 2, `insert_pages_preserves_undo` 1, `structure_inspect` 1, plus `widget_adoption`'s remaining 4 declared skips (not corpus-fixable; deliberately left on the real AcroForm).
+
+**For next session:** flagging for `docs/NEXT_SESSION.md` (engineer-owned, not edited here) — the OWED line there naming 26 corpus-gated tests should be corrected to 16, with `widget_adoption` struck as closed to the extent a synthetic fixture can close it.
+
 ## 2026-09-12 (517th filing) — a test that can decline to run reports as a PASS, and it had never run anywhere
 
 **Shipped:** `2d2e217` — `tools/check-skippable-tests-declared.py`, a gate requiring every occurrence of the skip idiom in `crates/*/tests/*.rs` to be declared in `tools/skippable-tests-baseline.txt` (28 sites). Found because `Pass 298.0`'s own guard was sabotaged (`R225` discipline) to prove its test could fail, and the test **stayed green**: its helper needed `fixtures/external/pdfbox/…`, absent on this machine, returned `None`, the test printed `SKIP`, and removing the guard entirely changed nothing.
