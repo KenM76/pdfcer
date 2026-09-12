@@ -4,7 +4,7 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-09-12, after `Pass 300.0` and the 527th filing.
+**Written:** 2026-09-12, after `Pass 300.2` and the 529th filing.
 
 ---
 
@@ -105,39 +105,76 @@ Workspace version `0.53.0`; the last release is **`v0.53.0`**. ★ Verify with
 `gh release list` before repeating it — a previous handoff carried a release
 number four versions stale for a day, and nothing in this file checks itself.
 
-**`main` is pushed through the 527th filing** — ★ read CI's colour from
+**`main` is pushed through the 529th filing** — ★ read CI's colour from
 GitHub yourself (`gh run list --branch main --limit 1`); this line records
 what was pushed, never what the server thought of it.
 
-### ★★★ THE LAST THING THAT HAPPENED, AND IT IS A CORRECTION, NOT A WIN
+### ★★★ THE TORONTO-MAP ARC IS CLOSED EXCEPT FOR THE MEMORY HALF
 
-The operator asked for a read-only investigation of his **Toronto street map**
-PDF — *"Acrobat can read and zoom in on this pdf much much faster than we are
-capable of … the footprint in ram for ours is enormous by comparison"* — then
-for the findings to be fixed *"without breaking the other things that our
-rendering engine does well"*.
+Three Passes, one evening, one request — the operator's *"Acrobat can read and
+zoom in on this pdf much much faster than we are capable of … the footprint in
+ram for ours is enormous by comparison"*, then *"can you fix those things
+without breaking the other things that our rendering engine does well"*.
 
-`Pass 300.0` (`8d78770`) shipped finding (2): an image whose unit square misses
-the viewport is skipped before the decode, the image twin of the form cull.
-It is correct, lossless and verified. **It also changed neither the time nor
-the memory on that file**, because the investigation had attributed both to
-the wrong cause. What the measurements actually say:
+| Pass | what | worth |
+|---|---|---|
+| `300.0` | an image whose unit square misses the viewport is skipped before the decode (§8.9.5.2), the twin of the form cull | **nothing on this file**, and that is the finding — 1,090 of 1,182 images culled and neither time nor RAM moved |
+| `300.1` | a discarded full-page scan per group, moved inside the `if` that reads it | 4% |
+| `300.2` | a transparency group composites over its own `/BBox`, not the whole page | **783 s → 8 s at 4×**, 54.6 s → 2.45 s at 1×, rasters hash-identical |
 
-| claim | measured |
-|---|---|
-| peak RAM is image decodes | **No.** `extract-text` rasterises nothing and peaks at the same **307 MB**; a bare `inspect` load is **38 MB** |
-| … so where is it? | the form XObjects hold 20.0 MB of content that parses to **3,962,903 `ContentToken`s × 64 B = 242 MB**; one form alone is 2,291,669 tokens |
-| the 55 s page render | **6,174 transparency groups, each allocating a full 1224×792 canvas** (3.88 MB) — ~24 GB of allocate-and-zero. Real, but a TIME cost: each buffer is freed before the next, so it never shows in peak RAM |
+★★ **READ `300.2`'s COMMIT (`6ff57ab`) BEFORE OPTIMISING ANYTHING IN THIS
+CRATE.** The slow path it fixed had been correctly *located* and wrongly
+*diagnosed* three times across a month, by three sessions, and fixed zero
+times. Every one of them named the per-group `Pixmap::new`. Timed:
 
-★ **So the two owed fixes are not the ones the investigation named.** The memory
-fix is **shrinking `ContentToken`** (64 B today: `ContentTokenKind` 48 + span
-16; `Object` alone is 40) — not an image-decode cache, which would have bought
-nothing here. The time fix is **sizing group buffers to their own bbox**
-(`crates/pdfcer-render/src/canvas.rs:1626` allocates at parent-canvas size).
-Both are unstarted and unnumbered on purpose; both touch load-bearing ground
-(the core object model, and isolated/knockout group correctness).
+    whole render                                 54.94 s
+    with the composite skipped                    2.33 s
+    with the allocation pooled instead           53.18 s
 
-★★ **AND THE METHODOLOGY LESSON, which cost the most time of anything here:**
+The allocation is 1.8 s. The `draw_pixmap` one line below it is 52.6.
+**Proximity in the source is not proximity in cost.** And the misdiagnosis is
+why it survived: the allocation is the half that *would* have needed the
+coordinate-system rewrite, so all three sessions correctly concluded the fix
+was invasive and correctly deferred it — sound reasoning from the wrong
+object. The real fix moves no coordinates at all.
+
+The general form is in `D:\dev\rag\rust\a_plausible_explanation_that_predicts_the_right_order_of_magnitude_is_not_a_diagnosis.md`.
+
+### ★★ WHAT IS STILL OWED: THE MEMORY HALF, AND IT IS NOT WHAT WAS FIRST SAID
+
+The investigation blamed image decoding for the 307 MB peak. It is not.
+`extract-text` rasterises nothing and peaks at the same 307 MB; a bare
+`inspect` load is 38 MB. Measured:
+
+* the file's form XObjects hold **20.0 MB** of content that parses to
+  **3,962,903 `ContentToken`s × 64 B = 242 MB**; one form alone is 2,291,669
+  tokens;
+* `ContentToken` = 64 B (`ContentTokenKind` 48 + span 16); `Object` alone is
+  40 B.
+
+⇒ The fix is **shrinking `ContentToken`**, in `pdfcer-core`. Unscoped, no Pass
+number, nobody has started it. It is the last open item from this request.
+
+### ★ HOW TO BENCHMARK HERE, because the obvious way cannot run
+
+**`pdfcer-cli` will not release-link on this machine** — four builds
+OOM-killed, including at `-j 2`. Take timings through a throwaway release test
+in `pdfcer-render` instead (`cargo test -p pdfcer-render --release --test
+<name> -- --nocapture`); it builds in a couple of minutes and can call
+`render_page` directly. Hash `out.pixmap.data()` in the same test and you get
+the A/B and the byte-identity proof from one run. Delete the file before
+committing.
+
+### ★★ TWO METHODOLOGY LESSONS FROM THIS ARC
+
+★ Two paragraphs that stood here were DELETED rather than struck, because they
+had become false: they described the group-buffer work as "unstarted" and
+named the per-group allocation as the time cost. `Pass 300.2` shipped the fix
+and measured the allocation at 1.8 s of 54.9 — see the table above. A handoff
+that contradicts itself is worse than one merely out of date, because the
+reader cannot tell which half is current.
+
+★★ **And the one that cost the most time in the arc:**
 the regression baseline built before touching the code rendered **114 fixtures
 and stopped at `fontinfo` alphabetically** — it did not contain `images`,
 `transparency`, `overprint` or `shading`, the four directories the change was
