@@ -116,6 +116,38 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `Pass 297.0` (`536ef3b`, 2026-09-11) — a fully off-page image straddling two bands is now REMOVED, not blanked in place
+
+`Pass 294.0` shipped with a known limit recorded rather than hidden: 17 of the operator's 174 cleaned drawings still carried 23 off-page objects. This Pass closes the larger half.
+
+**The defect.** `wholly_covered` (`crates/pdfcer-core/src/redact_image.rs`) tested whether a placement sat inside ONE region, with a note that a placement covered only by the UNION "is cleared cell by cell instead, which reaches the same samples." The samples half was true; the conclusion was wrong — clearing reaches the samples, not the OBJECT. A fully off-page image blanked in place is still an image, still off the page, still carrying an off-page bounding box, so `scan-offpage` re-run on the cleaned file reports it and the operator is told the removal failed when the pixels are gone. The geometry is the common case, not an edge case: the four off-page bands RING the page, so an image off a corner sits in two bands at once.
+
+**The fix.** `wholly_covered` now accepts one region OR their union, tested by coordinate compression: cut the placement's AABB along every region edge crossing it and require every resulting sub-rectangle's centre to lie inside some region — exact, not approximate, a few dozen point tests on a path already about to decode an image. The single-region case stays as a fast path for legibility.
+
+**Measured, before and after, on all 17 affected drawings re-cleaned from their originals under `R:/Products`:**
+
+    files  pages  fully_off  partial
+    17     20     11         12        (before, as shipped in Pass 294.0)
+     7      9      0         12        (after)
+
+Every fully-off residual is gone; ten of the seventeen files are now clean. **The remaining twelve are all `partial`** — objects crossing the page edge whose cut leaves a sliver against a 0.25 pt tolerance (`TS-0396` page 9 exceeds the box by ~1 pt) — a different sub-case, untouched, still owed. **The owed figure is now 12 objects, not 23** — stated here so a reader is not comparing against `Pass 294.0`'s stale count.
+
+**The test was pinning the defect.** `wholly_covered_needs_one_region_to_contain_the_placement` asserted `!wholly_covered(..)` for the union case, with a comment "two regions that together cover it do not count" — the assertion, the doc comment and the code all agreed with each other, and none agreed with what a re-scan of the OUTPUT said. Renamed to `wholly_covered_accepts_one_region_or_the_union` and inverted, plus two new assertions: a gap in the union is still not coverage, and four bands ringing a hole do not cover the hole (getting that wrong would delete on-page content).
+
+**`R225`, 20th dated instance** — a new sub-shape: most prior instances are a sabotage run passing against a fixture that happened to encode a wrong answer; here there was no sabotage step — the assertion, its own doc comment and the implementation all converged on the SAME wrong answer, and only an independent re-scan of the saved file's content (not the test) surfaced the disagreement. Distinct from the 18th instance (`minimal.pdf`): that test *leaned on* a defect elsewhere as an incidental precondition; this one *asserted* the defect directly, as its own stated expectation.
+
+**Not minted as a rule, flagged instead:** the way this was caught — re-scanning the saved output rather than trusting the operation's own counters — is the same mechanism as `Pass 294.2`'s `TJ`-corruption regression (505th filing, no rule was minted from it at the time). Two instances of "a verification path built from the same code it checks cannot see that code's own defect" now exist; left as a finding for the engineer's judgement rather than minted here.
+
+**Worth recording as practice paying off:** the 17/23 figure being written down as a known limit in `Pass 294.0`'s own filing, rather than left implicit, is why closing it was a measurement against a stated number rather than a fresh investigation.
+
+**Verified** (per the commit, each check's own exit code, run alone): `cargo fmt --all --check` 0, `cargo clippy --workspace --all-targets -- -D warnings` 0, `pdfcer-core` lib tests 0, `redaction_tj_numbers` 0, `check-doc-block-spliced.py` 0.
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `.git/refs/heads/main` reads `536ef3b77e27fa7a64b1fbaf8d27a83e089cb15f`; `.git/COMMIT_EDITMSG` (the tip's own message, verbatim) matches the account above. Independently verified against live source: `wholly_covered`'s coordinate-compression body and doc comment (`redact_image.rs:198-296`); the renamed/inverted test (`redact_image.rs:1680-1730`); `scan-offpage`/`redact-offpage` live in `crates/pdfcer-cli/src/main.rs`.
+
+**`FEATURES.md`**: no row existed for this capability at all until this filing — see the `Pass 294.0`+`294.1`+`294.2` backfill entry below, filed the same session, which adds it.
+
+---
+
 ### `e0019af` + `297dc19` (2026-09-11) — a mirror table disagreed with the thing it mirrors, and an accuracy-only doc comment was reassuring readers into the wrong conclusion
 
 Not Passes — two docs-only fixes, same shape as the `3334377`+`4608f7e` and `f16e266`+`5917ece` precedents below this entry.
@@ -292,6 +324,22 @@ Reply: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_2026-09-11-passe
 **`R225`, 19th instance, caught by sabotage:** the first `same_family` test passed a hard-coded `Some(true)` because its fixture only ever bound `Helvetica` → `Helvetica-Bold`; a cross-family fixture now exists and the same sabotage is red.
 
 Five inbound shell requests answered in this one Pass. (This entry filed retroactively at the `Pass 295.1` filing — see the note above it.)
+
+---
+
+### `Pass 294.0` + `294.1` + `294.2` (`04d0099`/`d41be61`/`1230c1f`, 2026-09-10/11) — off-canvas content: found, and cut away — BACKFILLED, gap found while filing `Pass 297.0`
+
+**Gap.** These three shipped (SESSION_LOG's 500th/502nd/505th filings) but never reached this file's Shipped section — the same class of gap `Pass 295.0` hit at the 507th filing. Added here retroactively so the contract and the log agree.
+
+**`Pass 294.0`** (`04d0099`) — `pdfcer scan-offpage` and `pdfcer redact-offpage` (files, folders, `--recursive`), asked for as ASAP work. Content drawn outside the page box is still in the file — it prints on a larger sheet, survives a page-box change, and its text is extractable. The scan is a read-only census; the removal authors `/Redact` marks over the four bands ringing the page box and applies them through the SAME code that cuts an operator's own redaction box at a page edge — "outside the page" is a region like any other, no new geometry surgery. Measured on `R:/Products`, 341 files: 176 affected, 554 pages, 471,840 fully-off objects, 1,152 partial, 0 unreadable.
+
+**`Pass 294.1`** (`d41be61`) — `redact-offpage` goes batch: `-o FILE` for one input, `--out-dir DIR` mirroring the input tree rather than flattening (two product folders can share a file name). An existing output is skipped and counted unless `--force`, so an interrupted batch resumes.
+
+**`Pass 294.2`** (`1230c1f`) — running the batch over 176 drawings produced one file with three pages neither pdfcer nor its renderer could read, from clean input. Cause: the residual sweep filled matched bytes across a whole `TJ` operand, and `TJ` mixes strings **and numbers** (§9.4.3) — a redacted dimension is digits, so a kerning number became `-53XXXX00221014025`. The glyph surgery was correct throughout; the belt-and-braces pass was what corrupted content, and **every one of its own counters reported success** — caught only because the regression test reads the saved page BACK rather than trusting the report. Fixed: off-page bands now carry the scan's own tolerance, the residual sweep no longer decodes image samples, the scan ignores objects that paint nothing. Result: >10 min → 0.74 s on the exposing file, 3 → 0 unreadable pages across 174 outputs. **Known limit recorded rather than hidden: 17 of 174 outputs still carried 23 off-page objects** (fully-off images straddling two bands) — closed to 12 by `Pass 297.0`, above.
+
+**`FEATURES.md`**: no row existed for this capability at all until this filing — added under *Redaction & security*, core/cli `[x]`, gui `[ ]`.
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** Facts relayed from `docs/SESSION_LOG.md`'s own 500th/502nd/505th filings (already-recorded history, not a live-tree claim). Independently verified against live source: `redact_image.rs`'s module doc comment names `Pass 294.0`/`294.2` and matches this account; `scan-offpage`/`redact-offpage` subcommands and their `Pass 294.0`/`294.1` doc-comment citations are live in `crates/pdfcer-cli/src/main.rs` (lines 1167, 1202, 10077, 10092, 40597, 40751, 40880).
 
 ---
 

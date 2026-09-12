@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-11 (515th filing) — a fully off-page image straddling two bands was blanked, not removed; and Pass 294 never reached ROADMAP.md
+
+**Shipped:** `Pass 297.0` (`536ef3b`) — closes the larger half of `Pass 294.0`'s recorded limit. `wholly_covered` (`redact_image.rs`) tested one region only; a placement covered by the UNION of two off-page bands (the common case — the bands ring the page) was cleared cell-by-cell instead of removed, so `scan-offpage` re-run on the cleaned file still reported it. Now tested by coordinate compression (cut the AABB along every region edge, require every sub-rectangle's centre inside some region). Measured on all 17 affected drawings, re-cleaned from source: 17 files/20 pages/11 fully-off/12 partial → 7 files/9 pages/0 fully-off/12 partial. **Owed figure corrected: 12 objects, not 23** — all `partial` (edge slivers), a distinct, untouched sub-case.
+
+**Gap found and closed the same filing:** `Pass 294.0`/`294.1`/`294.2` (`04d0099`/`d41be61`/`1230c1f`, 500th/502nd/505th filings) were recorded in `SESSION_LOG.md` but never reached `ROADMAP.md`'s Shipped section — the same class of gap `Pass 295.0` hit at the 507th filing. Backfilled retroactively. `FEATURES.md` also had no row at all for scan/redact-offpage until this filing — added.
+
+**Findings + decisions:**
+- **`R225`, 20th dated instance, new sub-shape.** `wholly_covered_needs_one_region_to_contain_the_placement` asserted the union case was NOT covered, with a matching doc comment — assertion, comment and code all agreed, and none agreed with a re-scan of the saved file's content. Distinguished from the 18th instance (`minimal.pdf`, 2026-09-10): that test *leaned on* a defect elsewhere as an incidental precondition; this one *asserted* the defect directly as its own stated expectation, corroborated in three places rather than one.
+- **Not minted as a rule: a second instance of "counters can all report success while the artifact is wrong."** `Pass 294.2`'s `TJ`-corruption regression (505th filing) was caught the same way — by reading the saved page back, not by trusting the report's own counters — and no standing rule was filed from it at the time. This is the second occurrence of the same mechanism (a verification path built from the same code it is meant to check cannot see that code's own defect). Flagged for the engineer's judgement rather than minted unilaterally — this role does not mint standing rules on its own authority.
+- Kept as a practice note: `Pass 294.0`'s 17/23 figure being written down as a known limit rather than left implicit is why closing it was a measurement against a stated number, not a fresh investigation.
+
+**`FEATURES.md`**: added the scan/redact-offpage row (*Redaction & security*), core/cli `[x]`, gui `[ ]`; owed figure stated as 12, not 23.
+
+**Sourcing note (hard rule 8):** no shell this filing. `.git/refs/heads/main` reads `536ef3b77e27fa7a64b1fbaf8d27a83e089cb15f`; `.git/COMMIT_EDITMSG` (the tip's own message) matches the account above verbatim — both read via `Read`, not a shell command. `Pass 294.x` facts relayed from `SESSION_LOG.md`'s own prior entries (history, not a live-tree claim). Independently verified against live source: `wholly_covered`'s coordinate-compression body and doc comment (`crates/pdfcer-core/src/redact_image.rs:198-296`); the renamed/inverted test (`redact_image.rs:1680-1730`); `scan-offpage`/`redact-offpage` subcommands live in `crates/pdfcer-cli/src/main.rs` (lines 1167, 1202, 10077, 10092, 40597-41008).
+
+**Still in flight:** the 12 remaining `partial` off-page residuals (edge-sliver sub-case) — untouched by this Pass, stated as owed.
+
+**For next session:** `docs/NEXT_SESSION.md`'s OWED list should have its off-page line's number corrected from "17 of 174 / 23 objects" to 12 (engineer-owned file, flagged not edited here).
+
 ## 2026-09-11 (514th filing) — a mirror table disagreed with the thing it mirrors, and an accuracy-only doc comment was reassuring readers into the wrong conclusion
 
 **Shipped:** `e0019af` + `297dc19` — not Passes, two docs-only fixes. `e0019af` corrects six rows of `docs/core-api/03-capabilities.md`'s Appendix (capability → module → `FEATURES.md` state): two contradicted `FEATURES.md` outright (forms flatten, move a widget — already `x`/`x`/`x` there, wrongly `[ ]` in the appendix), four more claimed `[ ]` for capabilities a consuming shell measurably calls; fixed, plus a glyph legend (`x`/`[ ]`/`⊘`/`—`) and a stated rule that `FEATURES.md` wins when the two disagree. `297dc19` adds a section to `cmyk_to_srgb`'s doc comment (`crates/pdfcer-core/src/color/mod.rs`) stating the conversion is lossy and one-way — its existing calibration/clamping/pdfium-agreement sections are all about accuracy, none about direction, "a reader who checks the accuracy is reassured into exactly the wrong conclusion." Rule: display-only conversion is fine, a control whose value is read back is not.
