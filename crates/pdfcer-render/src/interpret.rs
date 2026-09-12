@@ -7626,6 +7626,12 @@ impl Interpreter<'_> {
         // a pixel too eager costs a seam at a tile edge — the signature
         // artefact of a culling bug, and among the hardest to attribute
         // months later.
+        // ★ The SAME rectangle the cull below computes is also what the
+        // group composite is narrowed to (`Pass 300.2`), so it is hoisted
+        // out rather than recomputed: two derivations of one rectangle can
+        // disagree, and the failure mode of the composite's copy being the
+        // larger one is silent pixel loss.
+        let mut group_bounds: Option<tiny_skia::IntRect> = None;
         if let Some(bbox) = rect_entry(doc, &stream.dict, b"BBox")
             && bbox.width() > 0.0
             && bbox.height() > 0.0
@@ -7675,6 +7681,20 @@ impl Interpreter<'_> {
                 {
                     self.diag.subpixel_culled += 1;
                     return;
+                }
+                // Survived both culls, so the rectangle is real: snap it
+                // OUTWARD to whole pixels and clamp it to the canvas. The
+                // `±1` margin is already in `l/t/r/b` and the floor/ceil adds
+                // the rest -- every rounding here is deliberately in the
+                // direction of a LARGER rectangle, because too large costs
+                // some copied transparent pixels and too small drops content.
+                #[allow(clippy::cast_possible_truncation)]
+                {
+                    let x0 = l.max(0.0).floor() as i32;
+                    let y0 = t.max(0.0).floor() as i32;
+                    let x1 = r.min(cw).ceil() as i32;
+                    let y1 = b.min(ch).ceil() as i32;
+                    group_bounds = tiny_skia::IntRect::from_ltrb(x0, y0, x1, y1);
                 }
             }
         }
@@ -8071,6 +8091,7 @@ impl Interpreter<'_> {
                 group_flag(b"I"),
                 is_knockout,
                 group_mask.as_deref(),
+                group_bounds,
                 |sub| {
                     let nested = run_nested(
                         doc,

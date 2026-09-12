@@ -1477,6 +1477,7 @@ impl<'a> Canvas<'a> {
         isolated: bool,
         knockout: bool,
         mask: Option<&Mask>,
+        bounds: Option<tiny_skia::IntRect>,
         mut f: impl FnMut(&mut Canvas<'_>) -> (R, bool),
     ) -> Option<GroupOutcome<R>> {
         // §11.4.6 is orthogonal to §11.4.5 — *"isolated and knockout are
@@ -1504,6 +1505,12 @@ impl<'a> Canvas<'a> {
         if knockout && !matches!(self, Self::Record(_)) {
             return self.knockout_group(paint, isolated, mask, f);
         }
+        // ★ `bounds` is consumed by the `Paint` arm alone. The knockout and
+        // subtractive paths composite through `crate::compositor` and
+        // `CmykBuffer`, not through `draw_pixmap`, so the cost this bounds is
+        // not on those routes -- and narrowing a path whose arithmetic has
+        // not been measured would be the same guess this Pass exists to stop
+        // making.
         match self {
             Self::Cmyk(b) => {
                 // ★★ THE SECOND CONTENT WALK, `Pass 97.1g`.
@@ -1628,6 +1635,28 @@ impl<'a> Canvas<'a> {
                     let mut sub = Canvas::Paint(&mut iso);
                     f(&mut sub)
                 };
+                // ★★★ THE CLAIM `bounds` MAKES, CHECKED RATHER THAN TRUSTED.
+                //
+                // Everything below relies on the group having painted
+                // nothing outside `bounds`. That is sound by §8.10.1 -- the
+                // form's `/BBox` is a clip on its contents -- but "sound by
+                // the spec" is how content disappears from a raster when some
+                // other path forgets to apply the clip, and a composite
+                // narrowed on a wrong rectangle fails SILENTLY: the pixels
+                // are simply never carried across, on one file, with no error
+                // anywhere.
+                //
+                // So it is asserted in debug and test builds, where the whole
+                // 409-test render suite and the 364-fixture sweep run. In
+                // release it compiles to nothing and the spec argument
+                // stands on its own.
+                debug_assert!(
+                    nothing_painted_outside(&iso, bounds),
+                    "a transparency group painted outside the bounds its \
+                     composite was about to be narrowed to -- the /BBox clip \
+                     (§8.10.1) did not hold, and narrowing would silently \
+                     drop those pixels"
+                );
                 // §11.4.5's substitution, applied as a test rather than a
                 // branch: a backdrop that is transparent everywhere IS an
                 // isolated group's backdrop, so there is nothing to run
@@ -1678,7 +1707,7 @@ impl<'a> Canvas<'a> {
                 // difference would be asserting that a discarded value was
                 // computed.
                 if isolated || !backdrop_dependent || !p.pixels().iter().any(|px| px.alpha() > 0) {
-                    composite_group_result(p, &iso, paint, mask);
+                    composite_group_result(p, &iso, paint, mask, bounds);
                     return Some(GroupOutcome {
                         result,
                         backdrop_rerun: false,
@@ -2427,6 +2456,74 @@ fn layer_blend(paint: LayerPaint) -> crate::compositor::Blend {
     )
 }
 
+/// Does this blend mode return the backdrop unchanged where the source is
+/// fully transparent?
+///
+/// True for all sixteen of ISO 32000-1 Table 136's modes, which is every mode
+/// this crate constructs: each is `B(Cb, Cs)` composited with source-over
+/// alpha, and the union formula collapses to `Cb` at `αs = 0`.
+///
+/// It is a MATCH rather than a `true`, because `tiny_skia` also has the
+/// destructive Porter-Duff modes. `Clear` zeroes the destination, `Source`
+/// replaces it, `DestinationIn` erases it where the source is transparent --
+/// for any of those, skipping the pixels outside a group's bounds changes the
+/// raster. None is reachable from a PDF `/BM`; this function is what makes
+/// that a checked fact rather than a comment.
+const fn blend_leaves_backdrop_where_source_is_clear(mode: BlendMode) -> bool {
+    matches!(
+        mode,
+        BlendMode::SourceOver
+            | BlendMode::Multiply
+            | BlendMode::Screen
+            | BlendMode::Overlay
+            | BlendMode::Darken
+            | BlendMode::Lighten
+            | BlendMode::ColorDodge
+            | BlendMode::ColorBurn
+            | BlendMode::HardLight
+            | BlendMode::SoftLight
+            | BlendMode::Difference
+            | BlendMode::Exclusion
+            | BlendMode::Hue
+            | BlendMode::Saturation
+            | BlendMode::Color
+            | BlendMode::Luminosity
+    )
+}
+
+/// Is every pixel of `group` OUTSIDE `bounds` fully transparent?
+///
+/// The premise `composite_group_result`'s narrowed path rests on, written as
+/// a predicate so `debug_assert!` can check it on every render the test suite
+/// performs. `None` bounds means nothing was promised, so nothing is owed.
+///
+/// Cost is `O(page)`, which is why it is behind `debug_assert!` and not in
+/// the release path -- it is more expensive than the work it is guarding.
+#[cfg(debug_assertions)]
+fn nothing_painted_outside(group: &Pixmap, bounds: Option<tiny_skia::IntRect>) -> bool {
+    let Some(b) = bounds else {
+        return true;
+    };
+    let (w, h) = (group.width(), group.height());
+    let (x0, y0) = (b.x().max(0) as u32, b.y().max(0) as u32);
+    let (x1, y1) = (b.right().max(0) as u32, b.bottom().max(0) as u32);
+    let px = group.pixels();
+    (0..h).all(|y| {
+        let row = (y * w) as usize;
+        (0..w).all(|x| {
+            let inside = x >= x0 && x < x1.min(w) && y >= y0 && y < y1.min(h);
+            inside || px[row + x as usize].alpha() == 0
+        })
+    })
+}
+
+/// The release stand-in: the claim is not checked, and the spec argument in
+/// `composite_group_result` is what carries it.
+#[cfg(not(debug_assertions))]
+const fn nothing_painted_outside(_group: &Pixmap, _bounds: Option<tiny_skia::IntRect>) -> bool {
+    true
+}
+
 /// Composite an **isolated** group's result — the path this crate has
 /// always taken, kept byte-for-byte.
 ///
@@ -2445,7 +2542,70 @@ fn composite_group_result(
     group: &Pixmap,
     paint: LayerPaint,
     mask: Option<&Mask>,
+    bounds: Option<tiny_skia::IntRect>,
 ) {
+    // ★★★ THE 95%, AND IT IS THIS CALL (`Pass 300.2`).
+    //
+    // `draw_pixmap` below blends the WHOLE page for every transparency
+    // group. Probed on the operator's Toronto street map at 1x -- 6,174
+    // groups on a 1224 x 792 page -- by returning early from this function
+    // and timing the rest:
+    //
+    //     whole render                     54.94 s
+    //     with this composite skipped       2.33 s
+    //     with the per-group allocation pooled instead
+    //                                      53.18 s
+    //
+    // So the composite is **52.6 of 54.9 seconds** and the allocation this
+    // was assumed to be about is 1.8. That ordering was measured before it
+    // was believed, because two earlier attempts this session named a cost
+    // by reading the source and were wrong both times.
+    //
+    // # Why this is exact, and where it declines to be
+    //
+    // Outside the group's `/BBox` (§8.10.1 makes it a clip) the group buffer
+    // is untouched, so its alpha is zero there. Every blend mode this crate
+    // can produce is one of PDF Table 136's sixteen, and all sixteen
+    // composite as `B(Cb,Cs)` under source-over alpha -- at `αs = 0` each
+    // returns the backdrop unchanged. Blending those pixels is therefore
+    // arithmetic whose answer is already in `dest`.
+    //
+    // The mode is matched EXPLICITLY rather than assumed, and an unlisted
+    // one falls through to the full path. `tiny_skia` also offers the
+    // destructive Porter-Duff modes -- `Clear`, `Source`, `DestinationIn` --
+    // for which a transparent source does NOT leave the backdrop alone, and
+    // they would corrupt every pixel outside the rectangle. None is reachable
+    // today; the match is what keeps that true if one ever is.
+    //
+    // A soft mask or a non-separable mode also takes the full path: both are
+    // applied through a page-sized buffer here, and re-deriving them against
+    // an offset rectangle is a second piece of arithmetic to get wrong for a
+    // case neither common nor measured.
+    if mask.is_none()
+        && paint.nonseparable.is_none()
+        && blend_leaves_backdrop_where_source_is_clear(paint.blend)
+        && let Some(b) = bounds
+        && u64::from(b.width()) * u64::from(b.height()) * 2
+            < u64::from(dest.width()) * u64::from(dest.height())
+        && let Some(small) = group.clone_rect(b)
+    {
+        // The `* 2 <` above is the break-even guard: `clone_rect` copies the
+        // rectangle, so a group covering most of the page would pay a copy to
+        // save nothing. A page-filling group takes the path it always took.
+        dest.draw_pixmap(
+            b.x(),
+            b.y(),
+            small.as_ref(),
+            &PixmapPaint {
+                opacity: paint.opacity.clamp(0.0, 1.0),
+                blend_mode: paint.blend,
+                quality: FilterQuality::Nearest,
+            },
+            Transform::identity(),
+            None,
+        );
+        return;
+    }
     // §11.4.5 — the mask applies to the group's RESULT. Applied to a copy
     // rather than in place because `group` is also run 1's `α_gn` source
     // for the non-isolated path, and mutating it there would silently
