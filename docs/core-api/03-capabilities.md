@@ -3470,6 +3470,23 @@ heading is what tells a reader not to go and check. If the two differ,
 `FEATURES.md` is right and this table is stale — say so rather than reconciling
 in the reader's head.
 
+★★ **AND THE HALF THAT RULE IS MISSING, added 2026-09-12 after it bit within
+six hours:** correcting a row *here* against a measurement is a **half-finished
+correction** until the same correction lands in `FEATURES.md`. Six hours after
+the paragraph above was written, this table's off-canvas row said `x` — measured
+against the consuming shell's own call sites — while `FEATURES.md` still said
+`[ ]`. By the rule above, the appendix was wrong; in fact `FEATURES.md` was the
+stale one, and the rule was pointing the reader at the worse answer.
+
+⇒ The consuming shell, which keeps three documents that quote each other's
+counts and has been bitten by it seven times, put the general form better than
+this project had:
+
+> *A rule that names one file authoritative makes every correction to a mirror
+> a half-finished correction. The mirror looks fixed, the rule points at the
+> source, and the source is the thing nobody re-read. **The failure is
+> invisible precisely because the rule is correct.***
+
 > **Corrected 2026-09-11, and the correction is the reason the paragraphs above
 > exist.** Six rows were stale. Two contradicted `FEATURES.md` outright
 > (**flatten**, **move a widget** — both `[x]` there, both `[ ]` here). Four
