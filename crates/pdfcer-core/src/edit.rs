@@ -40981,6 +40981,30 @@ impl EditSession {
     /// share one body ([`Self::adopt_plan`]) rather than agreeing by
     /// inspection, so a preview that says "this will work" and a call that
     /// then refuses is not a state this code can reach.
+    ///
+    /// # ★★ A CONSEQUENCE WORTH KNOWING BEFORE YOU PLACE A GUARD
+    ///
+    /// **Every refusal added to [`Self::adopt_plan`] becomes a BEFORE-THE-PRESS
+    /// signal for free**, because this is that function with the writes
+    /// dropped. That is not a happy accident; it is the point of sharing one
+    /// body. But it means the *placement* of a guard inside this crate decides
+    /// **which of a shell's surfaces has to explain it** — a refusal in the
+    /// plan arrives in a hover before a click, and the same refusal outside it
+    /// arrives in a status bar after one.
+    ///
+    /// ★ Recorded because it crossed the boundary unnoticed, in both
+    /// directions, on 2026-09-12. `Pass 298.0` put `reject_dotted_partial`
+    /// inside `adopt_plan` for reasons entirely internal to this crate. The
+    /// consuming shell's tab-order name box **had been greying on a dotted
+    /// name since that day** — and neither side knew: their `G011` request
+    /// stated that surface had no gate, and my reply agreed with them. They
+    /// measured it afterwards and corrected us both.
+    ///
+    /// It also landed badly for them, which is the half that makes this worth
+    /// a paragraph rather than a footnote: their hover had no wording for a
+    /// refusal they did not know could arrive, so the rule was enforced
+    /// correctly while the program told the operator it was confused. **No
+    /// shell code changed and nobody decided it.**
     pub fn adopt_preview(
         &self,
         widget: ObjId,
