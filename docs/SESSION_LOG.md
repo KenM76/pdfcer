@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-12 (524th filing) — eight more merge-document tests run now (18 → 10 skippable entries); a misaimed sabotage and a completion signal from `clippy::dead_code`
+
+**Shipped:**
+- `e41892a` — `crates/pdfcer-core/tests/merge_document.rs`'s 8 pdfbox-corpus SKIPs are gone; a new `synthetic_acroform()` (12 fields / 13 widgets, one two-widget radio group, `/NeedAppearances`, `/SigFlags`) supplies what all eight actually read. File now runs 16/16, zero skips; the corpus-path const is deleted. `tools/skippable-tests-baseline.txt`: 18 → 10 (26 sites when the gate shipped).
+
+**Decisions made this session:**
+- No new standing rule. The misaimed first sabotage (broke `named_destinations_renamed`, an unrelated destinations test went red instead of `fields_renamed`) is `a_sabotage_that_does_not_compile_or_change_behavior…md`'s existing cause-5 family ("the sabotage fired and the wrong oracle answered") — a dated instance appended to that rust-RAG file, not a new pdfcer `R225`/`R255` instance (neither mechanism matches: this test genuinely ran).
+- Convertibility criterion — "are the asserted numbers a property of the FIXTURE or of the corpus?" — used a second time (first at `f0d1dc7`). Left as a decision heuristic, not minted; would need a third occurrence.
+
+**Findings + decisions:**
+- **New rust-RAG finding:** `clippy::dead_code` naming a corpus-path constant unused is a compiler-verified completion signal for a corpus-to-synthetic-fixture conversion, stronger than counting a diagnostic string (`SKIP`) by hand across test output. `D:\dev\rag\rust\a_dead_code_lint_is_a_compiler_verified_completion_signal_for_a_fixture_migration.md`, indexed.
+- **A commit-message arithmetic slip caught against the file it describes, not propagated.** `e41892a`'s own message says "the remaining debt is 8: three qpdf, four `widget_adoption`, and one other" (3+4+1=8) in the same paragraph as "18 → 10." `tools/skippable-tests-baseline.txt`, read directly, has 10 entries — 4 `widget_adoption`, 6 others (3 qpdf-gated, 3 not). "One other" should read "three others." Corrected in the `ROADMAP.md` entry rather than relayed as-is (hard rule 10 — a total and a per-item breakdown are the same fact in two forms, and this pair disagreed).
+- One test hard-codes the field name `TextField`/`TextField_2` because the test itself asserts that literal suffixing behaviour (`merging_a_document_into_itself_renames_every_collision`); the fixture was named to suit the assertion, not the reverse. Worth a sentence, not a rule.
+
+**Still in flight:** `docs/NEXT_SESSION.md`'s owed-list line ("16 tests silently SKIP … down from 26") is now stale — it predates both `f0d1dc7` (18) and this filing (10) — flagged for the engineer, not edited here (engineer-owned file). Remaining 10 skippable-test entries: 3 qpdf-gated, 4 `widget_adoption` census/preview left deliberately (assert the real AcroForm's own composition), 3 others.
+
+**For next session:** the `docs/NEXT_SESSION.md` stale-count flag above. Whether the fixture-subject-vs-corpus-setting criterion recurs a third time is worth watching before naming it.
+
+**Sourcing (hard rule 8) — no shell this filing.** `.git/refs/heads/main` reads `e41892ac703a0c13e201ee5175b518e34dcb5191`; `.git/refs/remotes/origin/main` reads `7254e93e2cc1b11682c160d83ff7834d41678ee0`, one commit behind — confirming `e41892a` is local and unpushed. `.git/logs/HEAD`'s final line names this commit's subject verbatim, matching the account above. `.git/COMMIT_EDITMSG` (the tip's own message, retained) carries `e41892a`'s full message, quoted directly rather than relayed. Independently verified against the live tree: `crates/pdfcer-core/tests/merge_document.rs:74` (`synthetic_acroform`), no remaining reference to `fixtures/external/pdfbox` in that file; `tools/skippable-tests-baseline.txt` counted directly at 10 lines.
+
 ## 2026-09-12 (523rd filing) — the last owed off-page residuals are a classification gap, not an incomplete cut; two register documents corrected
 
 **Shipped:**

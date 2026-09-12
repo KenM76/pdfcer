@@ -237,7 +237,8 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
   (`Pass 294.1`). **It wants a measurement — how many placements, how much
   decode — before any code.** Anyone hunting a cutting defect here will find
   nothing wrong; that is the trap this paragraph exists to spring.
-- **NEW — 16 tests silently SKIP and report as passed**, down from 26.
+- **10 tests silently SKIP and report as passed** — ~~26~~ → ~~16~~ → **10**,
+  two paydowns on 2026-09-12 (`f0d1dc7`, `e41892a`).
   `Pass 298.0`'s guard was sabotaged to prove its test could fail and the test
   **stayed green**. ★★ **The only fix is a synthetic fixture, and that is a
   constraint rather than a preference**: 13 of the 16 need
@@ -248,9 +249,22 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
   import a corpus `LEGAL.md` §5 rules out. `tools/check-skippable-tests-declared.py`
   keeps the count honest; `f0d1dc7` shows the pattern
   (`synthetic_orphaned_session()` in `widget_adoption.rs`, 14 skips → 4).
-  ★ Four of that file's remaining skips are deliberate: they assert the REAL
-  AcroForm's composition, and converting them would measure an invented
-  fixture rather than the verb. Do not "finish the job" on those.
+  ★ Four of the remaining ten are deliberate: `widget_adoption.rs`'s census
+  and preview tests assert the REAL AcroForm's composition, and converting
+  them would measure an invented fixture rather than the verb. Do not "finish
+  the job" on those.
+
+  ★★ **The criterion that decides convertibility**, from doing it twice: *are
+  the numbers the SUBJECT or the SETTING?* `merge_document.rs`'s "12 fields
+  over 13 widgets" is a property of the fixture — a synthetic source with the
+  same composition tests the same thing, so all eight converted. The preview
+  tests assert the corpus's own composition, which is the subject, so they
+  cannot.
+
+  ★ **`clippy::dead_code` proves a conversion is complete**, better than a
+  SKIP count: when the last test stops using it, the corpus path constant
+  becomes unused and the compiler names it. `merge_document.rs`'s `ACROFORM`
+  is gone for that reason.
 - **NEW — above ~1e8 scale a region render succeeds again** with an underflowed
   page-space span. Nothing panics; whether those pixels mean anything is its
   own measurement. Told the shell rather than letting them discover it.

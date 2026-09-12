@@ -116,6 +116,28 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `e41892a` (2026-09-12) — eight `merge_document` tests RUN now; the pdfbox corpus path is gone from the file entirely
+
+Not a Pass — test-debt paydown, filed under its own commit-hash heading, same precedent as `f0d1dc7` below.
+
+**The debt, and how much of it this closes.** `crates/pdfcer-core/tests/merge_document.rs` printed 8 SKIPs of 16 "passed" — every one sourced from `fixtures/external/pdfbox/…`, untracked, unfetched by `fetch-corpora.sh`, marked in `fixtures/README.md` as "NOT blanket-safe … never bulk-import." No licence-compliant route by which they could run anywhere. A new `synthetic_acroform()` (eleven merged field-widgets, a two-widget `/Parent`-ed radio group, `/NeedAppearances true`, `/SigFlags 3`) supplies what all eight actually read. **`tools/skippable-tests-baseline.txt`: 18 → 10 entries** (26 sites when the gate shipped; `f0d1dc7` below brought it 28→18). `merge_document.rs` now runs 16/16, zero skips. The `ACROFORM` corpus-path const is deleted — `clippy::dead_code` named it unused the moment the last test stopped touching it, a completion signal stronger than counting SKIPs by hand (new finding, `D:\dev\rag\rust\`, below).
+
+**The criterion that decided convertibility.** These eight assert "12 fields over 13 widgets" — a property of the FIXTURE, not the corpus, so a synthetic source with the same composition tests the same thing. `widget_adoption.rs`'s four remaining preview/census skips assert the REAL AcroForm's own composition instead; inventing that would measure the fixture, not the verb. Same distinction `f0d1dc7` used, now applied a second time. Not minted — a decision heuristic, not a defect class; flagged for a future filing if it recurs a third time.
+
+**A misaimed sabotage, and it is `a_sabotage_that_does_not_compile_or_change_behavior…`'s cause-5 family, not a new pdfcer rule.** The first sabotage attempt broke `named_destinations_renamed` instead of `fields_renamed`; an unrelated destinations test went red, proving *a* test could fail, not that the eight conversions could. Re-aimed at the counter the converted tests actually assert; three tests turned red as expected. Dated instance appended to the existing rust-RAG file rather than to `R225`/`R255` — neither pdfcer standing rule is the mechanism (R225 is a fixture that runs on a wrong value; R255 is a test that never runs at all; this is a real run, wrong assertion, cause 5's own shape).
+
+**Correction to the commit's own arithmetic, sourced against the file directly, not the message.** `e41892a`'s own message says "the remaining debt is 8: three qpdf sites, four `widget_adoption` … and one other" (3+4+1=8). `tools/skippable-tests-baseline.txt`, read directly, has **10** lines: 4 `widget_adoption`, and 6 others — `editable_roundtrip`×2, `stamp_collection`×2, `insert_pages_preserves_undo`×1, `structure_inspect`×1. Matches "18 → 10" stated in the same message paragraph; "one other" is the arithmetic slip (should read "three others"), recorded here rather than propagated.
+
+One test hard-codes the field name `TextField`/`TextField_2`; the fixture's first field is named to suit it (`merging_a_document_into_itself_renames_every_collision` asserts that literal suffixing behaviour) rather than the assertion rewritten to suit the fixture.
+
+**Verified** (each check's own exit code, run alone, per the commit): `cargo fmt --all --check` 0, `cargo clippy --workspace --all-targets -- -D warnings` 0, `merge_document` 16/16 zero skips, `check-string-gaps.sh` 0, `check-doc-block-spliced.py` 0, `check-skippable-tests-declared.py` 0.
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `.git/refs/heads/main` reads `e41892ac703a0c13e201ee5175b518e34dcb5191`; `.git/refs/remotes/origin/main` reads `7254e93e2cc1b11682c160d83ff7834d41678ee0` — one commit behind, confirming `e41892a` is local and unpushed. `.git/logs/HEAD`'s final line names this commit's subject verbatim. `.git/COMMIT_EDITMSG` (the tip's own message, retained) carries `e41892a`'s message in full, quoted directly above rather than relayed. Independently verified against the live tree: `crates/pdfcer-core/tests/merge_document.rs` carries `synthetic_acroform()` at line 74 and no reference anywhere to `fixtures/external/pdfbox`; `tools/skippable-tests-baseline.txt` counted directly at 10 lines, 4 naming `widget_adoption.rs`.
+
+**`FEATURES.md`**: unchanged — internal test-harness debt, no operator-visible capability touched.
+
+---
+
 ### `7a22c52` (2026-09-12) — the 12 remaining off-page residuals are correct behaviour being counted as a finding, not an incomplete cut
 
 Not a Pass — a doc-comment-only investigation, filed under its own commit-hash heading, same precedent as `2f67b63`/`82e988e`/`f756d60`/`4ba7202` below.
