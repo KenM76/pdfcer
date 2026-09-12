@@ -184,8 +184,9 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
 
 ## OWED (carried forward, plus this session's)
 
-- **NEW — no `docs/core-api/` entry for the `offpage` module** (owed since
-  `Pass 294.0`; explicitly not closed by the 509th filing).
+- ~~no `docs/core-api/` entry for the `offpage` module~~ — **CLOSED
+  2026-09-11**, `bfa981b`, as §13 of `03-capabilities.md`. Struck rather than
+  deleted so a reader who remembers it owed can see it moved.
 - **NEW — 17 of 174 `redact-offpage` outputs still carry 23 off-page objects**
   — fully-off images straddling two bands, where the covered-region test is
   per-band and the union is what matters. Reported by `scan-offpage`, not
