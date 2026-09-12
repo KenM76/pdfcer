@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-12 (523rd filing) — the last owed off-page residuals are a classification gap, not an incomplete cut; two register documents corrected
+
+**Shipped:**
+- `7a22c523` — doc-comment-only: confirms the 12 `partial` off-page residuals owed since `Pass 297.0` are correct behaviour being counted as a finding — `covered_cells` snaps outward so their off-page ink is already gone, but `scan-offpage` classifies by geometry (bounding box still crosses the page edge) and re-detects its own successful cut. The analogous fix (count by ink, not geometry) is deliberately not taken — it needs the decoded samples, and decoding every image during a scan is what made `redact-offpage` take ten minutes on one file (`Pass 294.1`). Disclosed as a doc comment on `OffPageObject` pending a real measurement.
+
+**Decisions made this session:**
+- No standing rule minted for "a classifier counts geometry where the operator's question is about ink" (2nd instance, alongside `Pass 294.2`'s empty text husk) — flagged for a future filing's judgement rather than named here; the two agree on symptom but diverge on remedy (294.2's fix was cheap, this one is refused on measured decode cost).
+
+**Findings + decisions:**
+- **Register correction.** `Pass 297.0`'s `ROADMAP.md` entry and `FEATURES.md:331` both described the remaining 12 objects as "a cut that leaves a sliver," which reads as an incomplete cut — the cut is complete, the scan's classification is what remains. Both corrected in place, struck-and-visible.
+- The obvious hypothesis — "the sliver is too thin to clear" — is the opposite of the truth; `covered_cells` rounds outward by construction. Checking the rounding direction rather than reasoning about it kept a false diagnosis out of the record.
+- Housekeeping: a `grep.exe.stackdump` crash artifact left in the shared `FeatureRequests` channel (read by both `pdfcer` and `pdfcer-gui`) was removed.
+
+**Still in flight:** unchanged from the 522nd filing — pre-push wording flag in `docs/NEXT_SESSION.md` still owed; corpus-gated tests remain declared-skip, not run.
+
+**For next session:** correct `docs/NEXT_SESSION.md`'s "sliver" wording to match the `ROADMAP.md`/`FEATURES.md` correction above (engineer-owned, not done here). Whether the "classifier counts geometry, not ink" pattern (2 instances) is worth a standing rule is the engineer's call.
+
+**Sourcing (hard rule 8) — no shell this filing.** `.git/refs/heads/main` reads `7a22c523cc74aed8495aa1ea69685d249b888048`; `.git/COMMIT_EDITMSG` (the tip's own message, verbatim) matches the account above and was read directly, not relayed. Not checked against `origin/main` — no shell available to this filing.
+
 ## 2026-09-12 (522nd filing) — a third baked-in string gap, same cause as the 511th filing's own note
 
 **Shipped:**

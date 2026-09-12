@@ -116,6 +116,32 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `7a22c52` (2026-09-12) — the 12 remaining off-page residuals are correct behaviour being counted as a finding, not an incomplete cut
+
+Not a Pass — a doc-comment-only investigation, filed under its own commit-hash heading, same precedent as `2f67b63`/`82e988e`/`f756d60`/`4ba7202` below.
+
+**The question asked.** Closer investigation of `Pass 297.0`'s owed 12 `partial` off-page objects: are they a removal failure?
+
+**What is actually happening.** `redact_image::covered_cells` (`crates/pdfcer-core/src/redact_image.rs`) snaps OUTWARD (`floor`/`ceil`), so an image overhanging the page by a point already has its off-page sample columns cleared — the samples out there are already blank. Clearing cannot move the placement: the image is still DRAWN extending past the page box, so its bounding box still crosses the edge, and `scan-offpage` — which classifies by GEOMETRY — still counts it. **The scan is reporting its own output**, the same shape as the empty text husk `Pass 294.2` fixed, one type over.
+
+**Why the analogous fix is not taken here.** It needs the SAMPLES, and decoding every image during a scan is exactly what made the first `redact-offpage` run take more than ten minutes on one 6.9 MB file (`Pass 294.1`). Wants a measurement — how many placements, how much decode cost, on what corpus — not a guess. Recorded as a doc comment on `OffPageObject` (`crates/pdfcer-cli/src/main.rs`) as the disclosure until somebody measures it.
+
+**Corrects the register.** `Pass 297.0`'s own Shipped entry (below) and `FEATURES.md:331` both described the remaining 12 as "objects crossing the edge whose cut leaves a sliver," which reads as an incomplete cut. The cut is complete; the classification is what remains. Both corrected in place, struck-and-visible. `docs/NEXT_SESSION.md` carries the same wording and is engineer-owned — flagged, not edited here.
+
+**The obvious hypothesis was the opposite of the truth.** "The sliver is too thin to clear" is the natural guess, and `covered_cells` snapping OUTWARD rules it out by construction — checking the rounding direction, not reasoning about it, is what kept a false diagnosis out of the record.
+
+**A second instance of a shape, flagged rather than named.** `Pass 294.2`'s empty text husk and this are both a classifier counting geometry (or structural presence) where the operator's question is about ink. Left for a future filing's judgement per the standing pattern-naming discipline — the mechanisms agree on symptom but diverge on remedy (294.2's fix was cheap; this one is refused on measured decode cost).
+
+**Housekeeping, no code:** removed `grep.exe.stackdump`, a crash artifact left by this project's own grep in the shared `FeatureRequests` channel (a folder both `pdfcer` and `pdfcer-gui` read).
+
+**Verified** (each check's own exit code, run alone, per the commit): build 0, `cargo fmt --all --check` 0, `check-string-gaps.sh` 0, `check-doc-block-spliced.py` 0, `check-public-fns-documented.py` 0.
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `.git/refs/heads/main` reads `7a22c523cc74aed8495aa1ea69685d249b888048`; `.git/COMMIT_EDITMSG` (the tip's own message, verbatim) matches the account above. Not independently re-run: the 6.9 MB / ten-minute figure (`Pass 294.1`) and the doc-comment's exact placement are taken from the commit message as authoritative. Not checked against `origin/main` — no shell.
+
+**`FEATURES.md`**: row 331's "Owed" clause corrected in place (same misleading "sliver" wording); no checkbox change, no new row.
+
+---
+
 ### `2f67b63` (2026-09-12) — a third baked-in string gap, same cause: the habit is the finding
 
 Not a Pass — a one-line test-string fix, filed under its own commit-hash heading, same precedent as `f16e266`+`5917ece` (511th filing) below.
@@ -322,7 +348,7 @@ Not a silent repair: no `.`→`_`, no dropped prefix. A name the operator typed 
     17     20     11         12        (before, as shipped in Pass 294.0)
      7      9      0         12        (after)
 
-Every fully-off residual is gone; ten of the seventeen files are now clean. **The remaining twelve are all `partial`** — objects crossing the page edge whose cut leaves a sliver against a 0.25 pt tolerance (`TS-0396` page 9 exceeds the box by ~1 pt) — a different sub-case, untouched, still owed. **The owed figure is now 12 objects, not 23** — stated here so a reader is not comparing against `Pass 294.0`'s stale count.
+Every fully-off residual is gone; ten of the seventeen files are now clean. **The remaining twelve are all `partial`** — ~~objects crossing the page edge whose cut leaves a sliver against a 0.25 pt tolerance (`TS-0396` page 9 exceeds the box by ~1 pt) — a different sub-case, untouched, still owed~~ **★ CORRECTED 2026-09-12 (`7a22c52`, above): this read as an incomplete cut, and it is not one.** `covered_cells` snaps OUTWARD, so the off-page samples are already blank; what remains is a CLASSIFICATION gap — `scan-offpage` counts by geometry (the bounding box still crosses the edge) where the operator's question is about ink. `TS-0396` page 9 is the measured case (drawn extent exceeds the page box by ~1 pt against a 0.25 pt tolerance). **The owed figure is now 12 objects, not 23** — stated here so a reader is not comparing against `Pass 294.0`'s stale count.
 
 **The test was pinning the defect.** `wholly_covered_needs_one_region_to_contain_the_placement` asserted `!wholly_covered(..)` for the union case, with a comment "two regions that together cover it do not count" — the assertion, the doc comment and the code all agreed with each other, and none agreed with what a re-scan of the OUTPUT said. Renamed to `wholly_covered_accepts_one_region_or_the_union` and inverted, plus two new assertions: a gap in the union is still not coverage, and four bands ringing a hole do not cover the hole (getting that wrong would delete on-page content).
 

@@ -220,9 +220,23 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
   objects**, all of the `partial` kind. `Pass 297.0` (`536ef3b`) closed the
   fully-off half by making `wholly_covered` test the UNION of the bands, not
   one band — measured before and after on the operator's own 17 affected
-  drawings. What remains is objects **crossing** the page edge whose cut leaves
-  a sliver: on `TS-0396` page 9 the drawn extent exceeds the page box by ~1 pt
-  against a 0.25 pt tolerance. Different cause, untouched.
+  drawings.
+
+  ★★★ **What remains is NOT a cut that leaves a sliver** — that was this file's
+  wording and it was wrong, corrected 2026-09-12 (`7a22c52`). The cut is
+  COMPLETE: `covered_cells` snaps **outward**, so an image overhanging by 1 pt
+  has its off-page sample columns cleared and the samples out there are blank.
+  What clearing cannot do is move the **placement**, so the bbox still crosses
+  the edge and `scan-offpage` — which classifies by GEOMETRY — still counts it.
+  **The scan is reporting its own output**, the same shape as the empty text
+  husk `Pass 294.2` fixed, one type over.
+
+  ⇒ The fix is to stop counting an image whose off-page cells carry no ink, and
+  it is **not** free: it needs the samples, and decoding every image during a
+  scan is what made `redact-offpage` take ten minutes on one file
+  (`Pass 294.1`). **It wants a measurement — how many placements, how much
+  decode — before any code.** Anyone hunting a cutting defect here will find
+  nothing wrong; that is the trap this paragraph exists to spring.
 - **NEW — 16 tests silently SKIP and report as passed**, down from 26.
   `Pass 298.0`'s guard was sabotaged to prove its test could fail and the test
   **stayed green**. ★★ **The only fix is a synthetic fixture, and that is a
