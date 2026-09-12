@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-12 (522nd filing) — a third baked-in string gap, same cause as the 511th filing's own note
+
+**Shipped:**
+- `2f67b63` — one-line fix: `check-string-gaps.sh` went red in CI on the previous push because a python heredoc ate a line-continuation backslash in `Pass 299.0`'s new test, leaving ten literal spaces mid-sentence in an assertion message.
+
+**Decisions made this session:**
+- No new rule minted. This is a dated recurrence of the working-method note already on record at the 511th filing (and `R243`'s 492nd-filing dated instance) — `tools/edit-source.py` exists for exactly this failure mode and was not reached for, three times in one session now.
+
+**Findings + decisions:**
+- **A gate run before the session's last edit is a gate that did not run.** `check-string-gaps.sh` was clean after the fix that closed the first two gaps (`f16e266`/`5917ece`), then more code was written and the gate was not re-run before pushing — which is exactly how the third instance of the identical defect reached CI. Flagged for `docs/NEXT_SESSION.md`'s pre-push wording (engineer-owned): it currently says sweep before pushing, not "after your last edit."
+
+**Still in flight:** unchanged from the 521st filing.
+
+**For next session:** the pre-push wording flag above, for the engineer to act on in `docs/NEXT_SESSION.md`.
+
+**Sourcing (hard rule 8) — no shell this filing.** `.git/refs/heads/main` reads `951eba3216765c10c2a74323a7051ba61700c254`; `.git/refs/remotes/origin/main` reads `f8e54930d7f0915b59657583a08ff79bb409cad4`, four commits behind — confirming `2f67b63` is local and unpushed, not taken on the dispatch's word. `.git/logs/HEAD`'s reflog line names `2f67b63`'s subject verbatim, matching the account above; `.git/COMMIT_EDITMSG` retains only the tip (`951eba3`) and does not carry this commit's own message. The ten-space/`Pass 299.0` diagnosis is taken from the dispatch as authoritative, not independently re-run through `check-string-gaps.sh` from here.
+
 ## 2026-09-12 (521st filing) — two docs-only corrections, both from `pdfcer-gui`'s consumption notes on the 520th filing's own work
 
 **Shipped:**

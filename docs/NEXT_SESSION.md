@@ -33,6 +33,14 @@ So: **sweep, then push, then read CI's colour from GitHub.** Rule 8 already
 says to read the colour; it does not yet say to sweep, and that is the gap this
 paragraph exists to close.
 
+★★ **AND SWEEP AFTER YOUR LAST EDIT, not merely before pushing** — added
+2026-09-12, after the distinction cost a red CI run. The first two string gaps
+were found by a sweep, fixed, and pushed. Then more code was written, the sweep
+was not re-run, and the third gap reached `origin` and turned CI red.
+**A gate run before your last edit is a gate that did not run.** The sweep is
+seconds; the discipline is running it against the tree you are actually
+pushing.
+
 ### How to run it on this machine, because the obvious way gets killed
 
 ★★ **`run-gates.sh` and `cargo test --workspace --all-features` are both

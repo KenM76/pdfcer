@@ -116,6 +116,22 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `2f67b63` (2026-09-12) — a third baked-in string gap, same cause: the habit is the finding
+
+Not a Pass — a one-line test-string fix, filed under its own commit-hash heading, same precedent as `f16e266`+`5917ece` (511th filing) below.
+
+**What happened.** `check-string-gaps.sh` went red in CI on the previous push: a python heredoc ate the trailing backslash of a line continuation in `Pass 299.0`'s new test, leaving ten literal spaces mid-sentence in an assertion message. One-line fix.
+
+**Third occurrence this session, same cause as the 511th filing's own working-method note** — `tools/edit-source.py` exists for exactly this and was not reached for. Not minted as a new rule; a dated instance appended to `R243`'s master-list entry below instead, per the 511th filing's own call that the machinery already existed and simply wasn't used.
+
+**The half worth keeping separately: a gate run before the session's LAST edit is a gate that did not run.** `check-string-gaps.sh` was clean after the fix that closed the first two gaps, then more code was written with no re-run before this push — which is how the third instance reached CI. Flagged for `docs/NEXT_SESSION.md`'s pre-push wording (engineer-owned, not edited here): it says sweep before pushing, not "after your last edit."
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `.git/refs/heads/main` reads `951eba3216765c10c2a74323a7051ba61700c254`; `.git/refs/remotes/origin/main` reads `f8e54930d7f0915b59657583a08ff79bb409cad4` — four commits behind (`f756d60`, `82e988e`, `2f67b63`, `951eba3`), confirming `2f67b63` is local and unpushed, not taken on the dispatch's word. `.git/logs/HEAD`'s own reflog line names this commit's subject verbatim ("fix(test): a third baked-in string gap, same cause, and the habit is the finding now"), matching the account above; `.git/COMMIT_EDITMSG` retains only the tip (`951eba3`, the 521st filing's own commit) and does not carry `2f67b63`'s message. The ten-space/`Pass 299.0` diagnosis and the gate's red-to-green result are taken from the dispatch as authoritative, not independently re-run.
+
+**`FEATURES.md`**: unchanged — a test-string correctness fix, no operator-visible capability touched.
+
+---
+
 ### `82e988e` (2026-09-12) — the "`FEATURES.md` is authoritative" rule was missing its other half, and it bit within six hours
 
 Not a Pass — docs-only, filed under its own commit-hash heading, same precedent as `4ba7202` immediately below. Corrects `docs/core-api/03-capabilities.md`'s own authority note.
@@ -26301,6 +26317,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - `R244` — TWO DEFINITIONS THAT ANSWER THE SAME SHAPED QUESTION IN DIFFERENT CONVENTIONS MUST NAME EACH OTHER AT THE POINT OF DEFINITION, NOT ONLY WHEN A CONSUMER TRIPS ON THE GAP.
 - **`R243` — DATED INSTANCE NOTE, 2026-09-08 (469th filing): A `# Errors` DOC BLOCK IS THE SAME FAILURE ONE LAYER UP FROM A COURTESY WARNING — A PROMISE ABOUT THE FUNCTION'S OWN CONTRACT CAN…**
 - **`R243` — DATED INSTANCE NOTE, 2026-09-10 (492nd filing): A WRITTEN WARNING FAILING TO PREVENT A REPEATED MANUAL ACTION IS THE SAME MECHANISM ONE LAYER OUT FROM TWO CALL SITES FAILING TO A…**
+- **`R243` — DATED INSTANCE NOTE, 2026-09-12 (522nd filing, `2f67b63`): A THIRD RECURRENCE OF THE SAME LINE-CONTINUATION-LOST-IN-A-PYTHON-HEREDOC DEFECT (511TH FILING'S `f16e266`+`5917ece`, ITSELF THE 492ND FILING'S SHAPE) WITH `tools/edit-source.py` ALREADY ON DISK AND STILL NOT REACHED FOR. NOT A NEW MECHANISM — RECORDED FOR THE RECURRENCE RATE, NOT A NEW FINDING.**
 - `R245` — A GUARD, KEY OR DISCLOSURE ADDED TO ONE MEMBER OF A FAMILY OF PARALLEL VERBS IS NOT SHIPPED UNTIL A TEST ITERATES THE WHOLE FAMILY.
 - **`R245` — DATED INSTANCE NOTE, 2026-09-11 (509th filing, `Pass 296.3`): THE LITERAL-SEARCH-VS-PATTERN-SEARCH REDACTION-DISCLOSURE PAIR PRODUCED THIS SHAPE A SECOND TIME — EIGHTH DATED INSTANCE.**
 - `R246` — A CORRECTION IS NOT COMPLETE UNTIL IT REACHES EVERY CORPUS THIS PROJECT *READS*, NOT MERELY EVERY TREE IT *WRITES*.
