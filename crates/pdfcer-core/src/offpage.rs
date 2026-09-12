@@ -99,6 +99,30 @@ pub enum OffPage {
     Partial,
 }
 
+/// ★★★ A `Partial` IMAGE SURVIVES A CLEAN BY DESIGN, AND THIS SCAN STILL
+/// REPORTS IT — measured 2026-09-12, recorded rather than fixed.
+///
+/// After `redact-offpage`, 12 objects across 7 of the operator's 174 drawings
+/// are still reported, all `Partial`. They are **not a removal failure.**
+///
+/// `redact_image::covered_cells` snaps **outward** (`floor`/`ceil`), so an
+/// image overhanging the page by 1 pt does have its off-page sample columns
+/// cleared. What clearing cannot do is move the placement: the image is still
+/// *drawn* extending past the page box, so its bounding box still crosses the
+/// edge and this scan — which classifies by GEOMETRY — still counts it.
+///
+/// ⇒ It is the same shape as the empty text husk `Pass 294.2` fixed, one type
+/// over: **the scan reporting its own output.** There the fix was to stop
+/// counting runs that paint nothing; the analogous rule here is to stop
+/// counting an image whose off-page cells carry no ink.
+///
+/// ★ That fix is deliberately NOT taken here, because it needs the samples,
+/// and decoding every image during a scan is precisely what made the first
+/// `redact-offpage` take ten minutes on one file (`Pass 294.1`). It wants a
+/// measurement — how many placements, how much decode — not a guess at
+/// 4 a.m. Until then the count is honest about the geometry and misleading
+/// about the ink, and this paragraph is the disclosure.
+///
 /// One object that is not wholly on its page.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
