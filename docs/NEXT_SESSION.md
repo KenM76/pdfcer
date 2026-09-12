@@ -208,10 +208,27 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
 - ~~no `docs/core-api/` entry for the `offpage` module~~ — **CLOSED
   2026-09-11**, `bfa981b`, as §13 of `03-capabilities.md`. Struck rather than
   deleted so a reader who remembers it owed can see it moved.
-- **NEW — 17 of 174 `redact-offpage` outputs still carry 23 off-page objects**
-  — fully-off images straddling two bands, where the covered-region test is
-  per-band and the union is what matters. Reported by `scan-offpage`, not
-  silently left.
+- **`redact-offpage` residuals: ~~17 files / 23 objects~~ → 7 files / 12
+  objects**, all of the `partial` kind. `Pass 297.0` (`536ef3b`) closed the
+  fully-off half by making `wholly_covered` test the UNION of the bands, not
+  one band — measured before and after on the operator's own 17 affected
+  drawings. What remains is objects **crossing** the page edge whose cut leaves
+  a sliver: on `TS-0396` page 9 the drawn extent exceeds the page box by ~1 pt
+  against a 0.25 pt tolerance. Different cause, untouched.
+- **NEW — 16 tests silently SKIP and report as passed**, down from 26.
+  `Pass 298.0`'s guard was sabotaged to prove its test could fail and the test
+  **stayed green**. ★★ **The only fix is a synthetic fixture, and that is a
+  constraint rather than a preference**: 13 of the 16 need
+  `fixtures/external/pdfbox`, which `fixtures/README.md` marks *"NOT
+  blanket-safe … never bulk-import"*, and `fetch-corpora.sh` deliberately omits
+  it; 3 need `qpdf`, never fetched either. **"Fetch the corpus in CI" is
+  REFUSED, not un-chosen** — it is the obvious two-line idea and it would bulk
+  import a corpus `LEGAL.md` §5 rules out. `tools/check-skippable-tests-declared.py`
+  keeps the count honest; `f0d1dc7` shows the pattern
+  (`synthetic_orphaned_session()` in `widget_adoption.rs`, 14 skips → 4).
+  ★ Four of that file's remaining skips are deliberate: they assert the REAL
+  AcroForm's composition, and converting them would measure an invented
+  fixture rather than the verb. Do not "finish the job" on those.
 - **NEW — above ~1e8 scale a region render succeeds again** with an underflowed
   page-space span. Nothing panics; whether those pixels mean anything is its
   own measurement. Told the shell rather than letting them discover it.
@@ -221,9 +238,16 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
 - **`R221`'s recorded instance count is wrong** and a commit message made it
   worse. **Do not copy an ordinal from a commit message.**
 - **`tools/check-requests-scoped.py`** — owed by `R242`, still unbuilt.
-- **`check-public-fns-documented.py`'s denominator is `pub`**, so it cannot see
-  the doc-splice defect on private functions — which is exactly what bit this
-  session. Staged fix, its own change.
+- ~~**`check-public-fns-documented.py`'s denominator is `pub`** … staged fix~~
+  — **MEASURED AND DECLINED 2026-09-11.** Widening it to private functions
+  would mean a **1,837-row** baseline outside test modules, which is an
+  instrument nobody reads. ★ My first measurement said 381 and was wrong —
+  an artifact of cutting each file at its first `#[cfg(test)]` line — and I
+  nearly shipped the widening on it. The answer instead is
+  `tools/check-doc-block-spliced.py`, which detects the splice directly (one
+  doc block containing the same heading twice) and needs no denominator at
+  all. It found **four live splices** and **five baseline rows that were
+  misfiled text rather than missing text**.
 - **21 of 38 files in `fixtures/synthetic/text/PROVENANCE.md` are unrecorded.**
   `LEGAL.md` §5 makes this a licensing statement.
 - **Backup bundle is well over 150 commits behind `HEAD`.**
