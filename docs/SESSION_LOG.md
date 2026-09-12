@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-12 (528th filing) — a discarded full-page scan per transparency group: 4%, and the 4% is the finding
+
+**Shipped:**
+- `1295af1` (`Pass 300.1`) — `Canvas::group`'s `Paint` arm computed `backdrop_present` (a full-page pixmap scan) on every transparency group and discarded it on 6,173 of 6,174 (`||` short-circuit skips it whenever the group is isolated). Moved the expression inside the `if`; semantics provably identical, only WHEN it runs changed.
+
+**Decisions made this session:** none new — judged an existing rust-RAG methodology finding recurring a third time, not a new pdfcer standing rule (see below).
+
+**Findings + decisions:**
+- **A doc-comment prediction was wrong by two orders of magnitude, and is kept visible on purpose.** "~20x" was written before measuring; the A/B (same binary, same machine, through a throwaway `pdfcer-render` release test) measured **4%** — scale 1.0 went 51.13 s → 49.23 s, scale 0.5 was unchanged at 12.78 s.
+- **Second same-session, same-direction misattribution.** `Pass 300.0` (previous entry) attributed 307 MB peak RAM to image decoding and was also wrong when measured. Both times an `O(page)`-sized operation, read off the code rather than timed, was assumed to be the hot cost.
+- **This is arguably a third occurrence of one specific root cause being independently rediscovered under a new wrong mechanism.** `D:\dev\rag\rust\a_plausible_explanation_that_predicts_the_right_order_of_magnitude_is_not_a_diagnosis.md` (2026-08-21, a per-pixel-merge-loop hypothesis) and `ablate_the_suspect_to_find_the_floor_before_optimizing_anything.md` (2026-08-07, a clip-machinery hypothesis) already record the same underlying fact about this codebase: a transparency group's full-page-sized buffer allocation dominates its render cost, not whatever loop looked suspicious that day. Appended a dated third instance to the first file rather than minting a new pdfcer standing rule — the methodology is already on the books twice.
+- **Where the time actually is, now recorded in the code comment**: render time scales with page area; `Pixmap::new` + the full-canvas `draw_pixmap` in `composite_group_result` are the per-group, area-proportional costs, ~8 ms/group across ~2M pixel operations × 6,174 groups on this file. The real fix — a per-`/BBox`-sized buffer per group — is unstarted, needing the interior's CTM and clip masks translated with it.
+- `pdfcer-cli` cannot be release-linked on this machine at all (four OOM-killed builds this session); the A/B was taken through a scratch `pdfcer-render` release test, deleted before the commit and not reproducible without rebuilding it.
+
+**Still in flight:** both real fixes from `Pass 300.0`/`Pass 300.1` combined — shrinking `ContentToken` (memory) and per-`/BBox` group buffers (time) — remain unscoped to a Pass ID.
+
+**For next session:** flag `docs/NEXT_SESSION.md` (engineer-owned) to add that this machine's cargo OOM now blocks release-linking `pdfcer-cli` outright, and that benchmarking should go through a `pdfcer-render` release test instead.
+
+**Sourcing (hard rule 8) — no shell this filing.** Verified via `Read` on `.git` internals: `.git/refs/heads/main` and `.git/logs/HEAD`'s final reflog line both read `1295af1a94a69c6a85259ad36a6363fec1081a8a`, one commit past `ac65d41db1ef06614c69761f36e1dea1b927f049` (the 527th filing's own commit) — `.git/refs/remotes/origin/main` reads that same `ac65d41`, confirming `1295af1` is local and unpushed. `.git/COMMIT_EDITMSG` (the tip's own message, retained) carries this commit's message in full, read directly, not relayed. The timing figures, the ~8 ms/group estimate and the 364-fixture/409-test verification are taken from the commit message as authoritative, not independently re-run this filing.
+
 ## 2026-09-12 (527th filing) — an image off the viewport is skipped now; the investigation that asked for it was wrong about why the file is expensive
 
 **Shipped:**

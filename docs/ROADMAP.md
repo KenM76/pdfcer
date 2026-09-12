@@ -116,6 +116,36 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `Pass 300.1` (`1295af1`, 2026-09-12) — a discarded full-page scan per transparency group: 4%, and the 4% is the finding
+
+`Canvas::group`'s `Paint` arm bound `backdrop_present` to a `let` above the `if` that reads it:
+
+    let backdrop_present = p.pixels().iter().any(|px| px.alpha() > 0);
+    if isolated || !backdrop_dependent || !backdrop_present { … }
+
+`||` short-circuits, so the value is only ever READ when the group is non-isolated AND its interior blends. On the operator's Toronto street map (6,174 groups, 1224×792, 6,173 isolated), the scan of the whole page pixmap was COMPUTED on every one of the 6,174 and DISCARDED on 6,173 — paid for and thrown away. Fix: move the expression inside the `if`, so it is asked only when the answer is used. Same predicate, same pixels, provably identical output; no test can distinguish the two builds without asserting a discarded value was computed at all.
+
+**★ THE NUMBER, MEASURED RATHER THAN PREDICTED.** The doc comment landing with the fix first said "~20x" — written before measuring, wrong by two orders of magnitude. A/B on the same file, same binary, same machine (through a throwaway `pdfcer-render` release test — `pdfcer-cli` OOM-killed four release-link attempts on this machine and would not build at all):
+
+    scale 1.0   51.13 s  ->  49.23 s
+    scale 0.5   12.78 s  ->  12.78 s
+
+**4%.** `any` short-circuits on the first marked pixel and a page under construction acquires one early, so an `O(page)` loop per group was never where this file's time goes. The wrong "~20x" prediction is kept visible in the shipped doc comment rather than deleted — it is the record of the error, not an embarrassment to round away.
+
+**★★ Second same-session, same-direction instance.** `Pass 300.0` immediately above attributed the file's 307 MB peak to image decoding and was also wrong — measured, not guessed, and corrected in that same entry. Both times an `O(page)`-sized operation, read off the code rather than timed, was taken for the hot cost. This is not a new finding: `D:\dev\rag\rust\a_plausible_explanation_that_predicts_the_right_order_of_magnitude_is_not_a_diagnosis.md` and `ablate_the_suspect_to_find_the_floor_before_optimizing_anything.md` already record the SAME root cause on this exact code (`Canvas::group`'s per-group, full-page-sized buffer) being independently misdiagnosed via a per-pixel-merge-loop hypothesis (2026-08-21) and a clip-machinery hypothesis, respectively — this is arguably a **third** occurrence of that specific root cause hiding behind a new plausible mechanism. Judged NOT to warrant a new pdfcer standing rule (the methodology is already on the books, twice, in the rust RAG); a dated third instance is appended there instead, in this filing.
+
+**Where the time actually is** (recorded in the doc comment so a future session doesn't re-derive it): render time scales with page AREA — 4× the pixels, 4× the seconds — and what is both per-group and area-proportional is `Pixmap::new(p.width(), p.height())` plus the full-canvas `draw_pixmap` inside `composite_group_result`, together ~8 ms/group across ~2M pixel operations, ×6,174 groups. The fix — size each group's buffer to its own `/BBox` rather than the page's, translating the interior's CTM and clip masks with it — needs the interior geometry threaded through and is **not attempted here**, deliberately, on a machine that had already OOM-killed four builds this session.
+
+**Verified.** All 364 synthetic fixtures re-rendered at scale 2 and byte-compared identical, against both the `Pass 300.0` baseline and the original pre-`300.0` baseline. 409 render unit tests green. `cargo fmt --check` / `cargo clippy -- -D warnings` clean.
+
+**Housekeeping.** The A/B harness (a scratch `pdfcer-render` release test) was deleted before the commit and is not reproducible without rebuilding it — `ablate_the_suspect_to_find_the_floor_before_optimizing_anything.md`'s own caution about harnesses that don't survive the session, now paid a second time in this project. `docs/NEXT_SESSION.md` already documents this machine's cargo OOM problem generally; flagged (not edited, engineer-owned file) that it should add: "and it now blocks release-linking `pdfcer-cli` outright — benchmark through a `pdfcer-render` release test instead."
+
+**`FEATURES.md`**: unchanged — an internal render-time fix invisible to any operator-facing capability.
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** Verified via `Read` on `.git` internals rather than asserted: `.git/refs/heads/main` and `.git/logs/HEAD`'s final reflog line both read `1295af1a94a69c6a85259ad36a6363fec1081a8a`, one commit past `ac65d41db1ef06614c69761f36e1dea1b927f049` (the 527th filing's own commit) — `.git/refs/remotes/origin/main` reads that same `ac65d41`, confirming `1295af1` is local and unpushed. `.git/COMMIT_EDITMSG` (the tip's own message, retained) carries this commit's message in full, read directly, not relayed. Not independently re-read from `crates/pdfcer-render/src/canvas.rs` this filing — the code excerpt, the four timing figures, the ~8 ms/group estimate, and the 364/409 test counts are taken from the commit message as authoritative.
+
+---
+
 ### `Pass 300.0` (`8d78770`, 2026-09-12) — an image off the viewport is skipped now; the investigation that asked for it was wrong about WHY the file is expensive
 
 Answers finding (2) of the three-finding read-only investigation the operator asked for on his own "Toronto street map" PDF (7.9 MB, 25,246 objects, vector-heavy with bitmaps): *"Acrobat can read and zoom in on this pdf much much faster than we are capable of… the footprint in ram for ours is enormous by comparison."* His follow-up — *"can you fix those things without breaking the other things"* — is answered for this one finding, chosen first because it is provably lossless.
