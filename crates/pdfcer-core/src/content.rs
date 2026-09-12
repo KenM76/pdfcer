@@ -318,8 +318,17 @@ impl ContentStream {
     /// [`ContentError`] — malformed syntax; offsets are into `buf`.
     pub fn parse(buf: Vec<u8>) -> Result<Self, ContentError> {
         let mut tokens = Vec::new();
+        // Sized from the stream's own measured density rather than by
+        // doubling -- see `TokenCapacity`, and the 116 MB of slack that
+        // motivated it.
+        let mut capacity = TokenCapacity::default();
+        let total = buf.len();
         let mut lexer = Lexer::new(&buf);
         while let Some(tok) = lexer.next_token()? {
+            // Exactly one token is pushed per iteration on every branch
+            // below, so one call here covers all of them. Putting it at the
+            // push sites instead would be six copies of one rule.
+            capacity.grow_if_full(&mut tokens, tok.span.start, total);
             match tok.kind {
                 TokenKind::Keyword => {
                     if tok.lexeme(&buf) == Some(b"BI") {
@@ -386,6 +395,129 @@ impl ContentStream {
                     })
                 }
             })
+    }
+}
+
+/// Grows a content stream's token vector using **this stream's own measured
+/// token density** instead of `Vec`'s doubling.
+///
+/// # The problem, measured rather than assumed
+///
+/// `Vec` grows by doubling, so a vector's final capacity is the next power of
+/// two at or above its length and the waste is up to 50 %. On the operator's
+/// Toronto street map that is not a rounding detail, it is the whole memory
+/// profile:
+///
+/// ```text
+/// peak after start           4.6 MB
+/// peak after load           32.7 MB
+/// peak after parse          301.7 MB
+///   largest form:  2,291,669 tokens = 139.9 MB used
+///                  4,194,304 reserved = 256.0 MB   (116.1 MB of slack)
+///   sum of ALL forms' tokens         = 241.9 MB
+/// ```
+///
+/// ★ Note which of those two numbers is the peak. The sum is 241.9 MB but
+/// every form is dropped as soon as it is interpreted, so only ONE is ever
+/// live — the 301.7 MB is `32.7 + 256.0 + the decoded buffer`, and it closes
+/// to within a megabyte. The peak was never token VOLUME, which is why the
+/// fix is here and not in `ContentToken`'s layout: shrinking the token is a
+/// breaking change to a published type that would have addressed the smaller
+/// half of the wrong quantity.
+///
+/// # Why a projection and not a constant
+///
+/// The obvious estimate is `buf.len() / 5` — measured density across this
+/// file is 5.05 bytes per token. It is also a trap, because density is a
+/// property of the CONTENT, not of PDF: a vector-heavy stream of `m`/`l`/`c`
+/// with short numeric operands runs about 5 bytes per token, while a stream
+/// that is mostly long strings, or one `BI … EI` inline image, can run
+/// hundreds. A fixed divisor tuned on a street map would over-reserve by
+/// orders of magnitude on a scanned page — winning on the file it was
+/// measured against and quietly costing everywhere else.
+///
+/// So the divisor is not fixed: it is **measured from the stream being
+/// parsed**, continuously, and used to project the final count.
+///
+/// # The algorithm
+///
+/// 1. **Below [`Self::MIN_SAMPLE`] tokens, double.** A density taken from a
+///    handful of tokens is noise. Doubling to 4,096 tokens wastes at most
+///    256 KB, which is the price of not projecting from nothing.
+/// 2. **At or above it, project**: `tokens_so_far × total_bytes ÷
+///    bytes_consumed`, plus a margin, and reserve that exactly.
+/// 3. **The margin GROWS each time a projection turns out low.** The first
+///    projection adds ⅛; every later one adds ¼. That is the adaptive half:
+///    a stream whose density is uniform is projected once and never
+///    reallocated, and a stream that fooled the first projection is assumed
+///    to be able to do it again.
+/// 4. **Never grow by less than 25 %**, whatever the projection says, so the
+///    amortised cost of `push` stays constant even if the projection is
+///    pathological.
+///
+/// ★★ WHY THE MARGIN MATTERS MORE THAN IT LOOKS. A reallocation holds the
+/// OLD buffer and the NEW one at the same time. Reallocating a 140 MB vector
+/// therefore costs ~310 MB transiently — worse than the slack being removed.
+/// So the projection is deliberately made EARLY, while the vector is still
+/// 256 KB and a mistake is cheap, and deliberately biased HIGH. An estimator
+/// that is exact on average but occasionally low at the end of a large parse
+/// would be worse than the doubling it replaces.
+#[derive(Debug, Default)]
+struct TokenCapacity {
+    /// How many times a projection has been made. Only the first is trusted
+    /// with the narrow margin; see step 3.
+    projections: u32,
+}
+
+impl TokenCapacity {
+    /// Tokens to accumulate before a density is worth believing.
+    const MIN_SAMPLE: usize = 4096;
+    /// Floor for the first allocation.
+    ///
+    /// ★ It is **4**, matching what `Vec` itself would have done, and the
+    /// first draft's 64 is why this constant has a comment. 64 was chosen to
+    /// "save a series of small allocations" — reasoning with nothing behind
+    /// it — and the corpus leg of the harness priced it: across the 372
+    /// synthetic fixtures, whose content streams are all small, reserved
+    /// memory went **0.7 MB -> 1.6 MB**. The change fixed a 176 MB problem on
+    /// one large file and made every small file worse, which is the exact
+    /// shape of failure this Pass set out to avoid.
+    ///
+    /// At 4, a stream below `MIN_SAMPLE` tokens grows through the same
+    /// sequence `Vec` would have used, so small streams are byte-for-byte
+    /// unaffected by this whole mechanism and only large ones are projected.
+    const MIN_CAPACITY: usize = 4;
+
+    /// Called before each push. Does nothing at all unless the vector is
+    /// exactly full, so the common case is one `len == capacity` comparison.
+    ///
+    /// * `consumed` — bytes of the content buffer already tokenized.
+    /// * `total` — the buffer's full length.
+    fn grow_if_full(&mut self, tokens: &mut Vec<ContentToken>, consumed: usize, total: usize) {
+        if tokens.len() < tokens.capacity() {
+            return;
+        }
+        let cap = tokens.capacity();
+        let floor = cap.saturating_add(cap / 4).max(Self::MIN_CAPACITY);
+        let target = if tokens.len() >= Self::MIN_SAMPLE && consumed > 0 && total > consumed {
+            // `u128` because `tokens.len() * total` overflows `usize` on a
+            // 32-bit target long before either factor is implausible, and a
+            // wrapped projection would reserve a nonsense capacity.
+            let projected = u128::from(tokens.len() as u64)
+                .saturating_mul(u128::from(total as u64))
+                / u128::from(consumed as u64);
+            let divisor = if self.projections == 0 { 8 } else { 4 };
+            let with_margin = projected.saturating_add(projected / divisor);
+            self.projections = self.projections.saturating_add(1);
+            usize::try_from(with_margin)
+                .unwrap_or(usize::MAX)
+                .max(floor)
+        } else {
+            cap.saturating_mul(2).max(Self::MIN_CAPACITY)
+        };
+        // `reserve_exact`, not `reserve`: `reserve` may round the request up
+        // by its own growth policy, which is the behaviour being replaced.
+        tokens.reserve_exact(target.saturating_sub(tokens.len()));
     }
 }
 
