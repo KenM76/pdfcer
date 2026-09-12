@@ -32,10 +32,11 @@ use pdfcer_core::object::{ObjId, Object};
 use pdfcer_core::pageops::InsertPosition;
 use pdfcer_core::writer::SaveOptions;
 
-const ACROFORM: &str = concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../fixtures/external/pdfbox/pdfbox/src/test/resources/input/compression/acroform.pdf"
-);
+// ★★ `ACROFORM` -- the pdfbox corpus path -- was here until 2026-09-12. It is
+// gone because nothing in this file needs it any more: all eight tests that
+// sourced from it now use `synthetic_acroform()`. `clippy::dead_code` naming
+// it unused is the proof the conversion is complete, and is a better signal
+// than counting SKIPs.
 const BLANK: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../fixtures/synthetic/outline/no-outline.pdf"
@@ -43,6 +44,84 @@ const BLANK: &str = concat!(
 
 fn doc(path: &str) -> Option<Document> {
     Document::from_bytes(std::fs::read(path).ok()?).ok()
+}
+
+/// A **synthetic** form source with the composition these merge tests assert:
+/// **12 fields over 13 widgets**, one of them a two-widget radio group, plus
+/// `/NeedAppearances` and `/SigFlags` so the tests that read them are not
+/// vacuous.
+///
+/// # ★★★ Why this replaces the pdfbox corpus for every test in this file
+///
+/// They all sourced from `fixtures/external/pdfbox/…`, which is **not tracked
+/// in git**, is **not fetched by `fixtures/fetch-corpora.sh`**, and which
+/// `fixtures/README.md` marks *"NOT blanket-safe … may be copyrighted to third
+/// parties … never bulk-import"*. So there was no licence-compliant route by
+/// which these eight tests could run — here, in CI, or on a new machine. They
+/// printed `SKIP` and **passed**, since they were written.
+///
+/// ★ The numbers they assert — 12 fields, 13 widgets, `GroupOption` with two —
+/// are a property of the FIXTURE, not of the corpus. A synthetic source with
+/// the same composition tests the same thing and states the shape outright
+/// instead of inheriting it from a file nobody here can open. That is the
+/// distinction that made these convertible where `widget_adoption.rs`'s
+/// preview tests were not: those assert the real AcroForm's own composition,
+/// and inventing it would measure the fixture rather than the verb.
+///
+/// The radio group is load-bearing: two widgets under one field is only
+/// reachable through `/Parent`, so it is the shape that proves re-parenting
+/// survived the merge.
+fn synthetic_acroform() -> Document {
+    let mut objects: Vec<(u32, String)> = vec![
+        (
+            1,
+            "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R 5 0 R 6 0 R 7 0 R 8 0 R 9 0 R 10 0 R 11 0 R 12 0 R 13 0 R 14 0 R 15 0 R] /NeedAppearances true /SigFlags 3 >> >>".to_owned(),
+        ),
+        (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned()),
+        (
+            3,
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> /Annots [4 0 R 5 0 R 6 0 R 7 0 R 8 0 R 9 0 R 10 0 R 11 0 R 12 0 R 13 0 R 14 0 R 16 0 R 17 0 R] >>".to_owned(),
+        ),
+    ];
+    // Eleven merged field-widgets: each IS its own field, one widget apiece.
+    for i in 0..11u32 {
+        let num = 4 + i;
+        let y = 700 - i * 50;
+        objects.push((
+            num,
+            format!(
+                // ★ The first is `TextField` because
+                // `merging_a_document_into_itself_renames_every_collision`
+                // asserts that name and its `_2` suffix by hand. Naming the
+                // fixture to suit the test, rather than rewriting the test to
+                // suit the fixture -- the assertion is about the SUFFIXING
+                // rule and should not have to change for a fixture swap.
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T ({}) /Rect [40 {y} 240 {}] >>",
+                if i == 0 {
+                    "TextField".to_owned()
+                } else {
+                    format!("Field{i}")
+                },
+                y + 30
+            ),
+        ));
+    }
+    // The twelfth field: a radio group whose two kids are bare widgets.
+    objects.push((
+        15,
+        "<< /FT /Btn /T (GroupOption) /Ff 32768 /Kids [16 0 R 17 0 R] >>".to_owned(),
+    ));
+    objects.push((
+        16,
+        "<< /Type /Annot /Subtype /Widget /Parent 15 0 R /Rect [300 700 330 730] >>".to_owned(),
+    ));
+    objects.push((
+        17,
+        "<< /Type /Annot /Subtype /Widget /Parent 15 0 R /Rect [350 700 380 730] >>".to_owned(),
+    ));
+
+    let borrowed: Vec<(u32, &str)> = objects.iter().map(|(n, b)| (*n, b.as_str())).collect();
+    Document::from_bytes(build(&borrowed)).expect("synthetic acroform parses")
 }
 
 fn blank_session() -> EditSession {
@@ -95,10 +174,7 @@ fn saved_field_widget_counts(session: &EditSession) -> Vec<(String, usize)> {
 /// type into.
 #[test]
 fn a_merged_form_arrives_fillable_not_as_orphaned_boxes() {
-    let Some(src) = doc(ACROFORM) else {
-        eprintln!("SKIP: the external pdfbox corpus is not present");
-        return;
-    };
+    let src = synthetic_acroform();
     let mut session = blank_session();
     assert!(
         saved_fields(&session).is_empty(),
@@ -140,10 +216,7 @@ fn a_merged_form_arrives_fillable_not_as_orphaned_boxes() {
 /// not having a session at all, and the one this verb could plausibly ship.
 #[test]
 fn one_undo_reverses_the_whole_merge_pages_and_fields_together() {
-    let Some(src) = doc(ACROFORM) else {
-        eprintln!("SKIP: the external pdfbox corpus is not present");
-        return;
-    };
+    let src = synthetic_acroform();
     let mut session = blank_session();
     let pages_before = session.page_slots().expect("pages").len();
     let bytes_before = session
@@ -197,10 +270,7 @@ fn one_undo_reverses_the_whole_merge_pages_and_fields_together() {
 /// is not, and refusing the whole merge over one name is worse than a suffix.
 #[test]
 fn merging_a_document_into_itself_renames_every_collision() {
-    let Some(src) = doc(ACROFORM) else {
-        eprintln!("SKIP: the external pdfbox corpus is not present");
-        return;
-    };
+    let src = synthetic_acroform();
     let mut session = blank_session();
     session
         .merge_document(&src.view(), InsertPosition::End)
@@ -251,10 +321,7 @@ fn merging_a_document_into_itself_renames_every_collision() {
 /// is not self-correcting.
 #[test]
 fn need_appearances_is_carried_as_a_logical_or() {
-    let Some(src) = doc(ACROFORM) else {
-        eprintln!("SKIP: the external pdfbox corpus is not present");
-        return;
-    };
+    let src = synthetic_acroform();
     let src_needs = src
         .catalog_id()
         .and_then(|id| src.get(id).map(|io| &io.value))
@@ -365,10 +432,7 @@ fn saved_annot_and_kid_ids(session: &EditSession) -> (Vec<ObjId>, Vec<ObjId>) {
 /// the pages reference, not equal-looking copies.
 #[test]
 fn the_fields_claim_the_same_widget_objects_the_pages_reference() {
-    let Some(src) = doc(ACROFORM) else {
-        eprintln!("SKIP: the external pdfbox corpus is not present");
-        return;
-    };
+    let src = synthetic_acroform();
     let mut session = blank_session();
     session
         .merge_document(&src.view(), InsertPosition::End)
@@ -415,10 +479,7 @@ them are orphans no field can reach"
 /// sets it.**
 #[test]
 fn every_merged_widget_points_back_at_its_field() {
-    let Some(src) = doc(ACROFORM) else {
-        eprintln!("SKIP: the external pdfbox corpus is not present");
-        return;
-    };
+    let src = synthetic_acroform();
     let mut session = blank_session();
     session
         .merge_document(&src.view(), InsertPosition::End)
@@ -481,10 +542,7 @@ two-widget radio group, or this test proves nothing"
 /// test green, because the behaviour is identical and only the name differs.
 #[test]
 fn the_undo_entry_says_merge_not_insert() {
-    let Some(src) = doc(ACROFORM) else {
-        eprintln!("SKIP: the external pdfbox corpus is not present");
-        return;
-    };
+    let src = synthetic_acroform();
     let mut session = blank_session();
     session
         .merge_document(&src.view(), InsertPosition::End)
@@ -622,10 +680,7 @@ arriving fields render from appearances their producer called stale"
 /// HAS signature fields, which is true.
 #[test]
 fn sig_flags_survive_a_merge() {
-    let Some(src) = doc(ACROFORM) else {
-        eprintln!("SKIP: the external pdfbox corpus is not present");
-        return;
-    };
+    let src = synthetic_acroform();
     let src_flags = pdfcer_core::forms::parse_acroform(&src)
         .map(|f| f.sig_flags)
         .unwrap_or(0);

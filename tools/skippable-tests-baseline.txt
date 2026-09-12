@@ -4,14 +4,6 @@
 crates/pdfcer-core/tests/editable_roundtrip.rs::an_encrypted_document_is_refused_rather_than_decrypted
 crates/pdfcer-core/tests/editable_roundtrip.rs::an_export_expands_object_streams
 crates/pdfcer-core/tests/insert_pages_preserves_undo.rs::inserting_a_form_page_reports_its_orphaned_widgets
-crates/pdfcer-core/tests/merge_document.rs::a_merged_form_arrives_fillable_not_as_orphaned_boxes
-crates/pdfcer-core/tests/merge_document.rs::every_merged_widget_points_back_at_its_field
-crates/pdfcer-core/tests/merge_document.rs::merging_a_document_into_itself_renames_every_collision
-crates/pdfcer-core/tests/merge_document.rs::need_appearances_is_carried_as_a_logical_or
-crates/pdfcer-core/tests/merge_document.rs::one_undo_reverses_the_whole_merge_pages_and_fields_together
-crates/pdfcer-core/tests/merge_document.rs::sig_flags_survive_a_merge
-crates/pdfcer-core/tests/merge_document.rs::the_fields_claim_the_same_widget_objects_the_pages_reference
-crates/pdfcer-core/tests/merge_document.rs::the_undo_entry_says_merge_not_insert
 crates/pdfcer-core/tests/stamp_collection.rs::adobes_dynamic_stamps_are_recognised_as_dynamic
 crates/pdfcer-core/tests/stamp_collection.rs::adobes_own_stamp_files_are_read_correctly
 crates/pdfcer-core/tests/structure_inspect.rs::an_object_inside_an_object_stream_is_reachable_and_located
