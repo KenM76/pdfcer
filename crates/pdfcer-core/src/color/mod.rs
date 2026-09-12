@@ -234,6 +234,45 @@ pub fn rgb_to_srgb(r: f32, g: f32, b: f32) -> [f32; 3] {
 /// thing exists for an untagged device colour, and §5 for the measured
 /// agreement with pdfium.
 ///
+/// # ★★ LOSSY AND ONE-WAY — do not feed the result to a control an operator
+/// # can read back
+///
+/// Four ink concentrations become three display channels. The mapping is
+/// **many-to-one**: distinct CMYK values share an sRGB result, the grid is
+/// interpolated rather than analytic, and there is deliberately no
+/// `srgb_to_cmyk` in this crate to go back with. Whatever you convert here,
+/// **the original operand is the only thing that still says what the file
+/// says.**
+///
+/// ⇒ The consequence for a shell, which is why this section exists: a colour
+/// swatch or picker showing a converted CMYK value is a control whose
+/// **readback is a conversion the operator never asked for**. Pick it up, put
+/// it down unchanged, and the file now says something different. So:
+///
+/// * **Display-only is fine** — a raster pixel, a preview, a tint on an
+///   editor's own chrome. Nothing is written back, and refusing the
+///   conversion there would not avoid a round trip, it would make the widget
+///   disagree with the page it is drawn on.
+/// * **A control whose value is read back is not** — show the CMYK operand,
+///   or disable the control, but do not let a converted value become the
+///   value.
+///
+/// ★ Recorded because the sections above **reassure a reader into exactly the
+/// wrong conclusion**: they document calibration, clamping and measured
+/// agreement with pdfium — all of which are about ACCURACY, and none about
+/// DIRECTION. A reader who checks the accuracy and is satisfied has checked
+/// the wrong property.
+///
+/// The consuming shell arrived at this rule independently, enforces it in
+/// three modules, and reported (decision 058) that **it was prose held by
+/// memory with no citation on this side** — nothing in the type system
+/// separates a CMYK value bound for a pixel from one bound for a readable
+/// control, because both are the same value. It considered asking for a
+/// `DisplayOnly` wrapper and rejected it on its own grounds: that is a
+/// property of the call site, not of the value, and a type encoding the
+/// caller's intention is a type the caller can lie to. So the answer is this
+/// paragraph rather than an API.
+///
 /// # Algorithm
 ///
 /// Locate the grid cell containing the point, then blend its 16 corner nodes
