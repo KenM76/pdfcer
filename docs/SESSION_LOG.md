@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-12 (527th filing) — an image off the viewport is skipped now; the investigation that asked for it was wrong about why the file is expensive
+
+**Shipped:**
+- `8d78770` (`Pass 300.0`) — an image `Do` whose unit square, mapped through the CTM, lands entirely outside the canvas/clip is now skipped before any sample byte is touched, the image-side twin of the `Pass 74.x` form-XObject cull (§8.9.5.2 vs §8.10.1). Measured on the operator's own "Toronto street map" PDF (7.9 MB, 25,246 objects): a 400×200 px region went from 1,182/1,183 images decoded to 92 decoded / 1,090 culled. `images_culled` reported beside `images` on the metrics line, kept as its own counter rather than folded into `forms_culled`.
+
+**Decisions made this session:**
+- No new `ARCHITECTURE.md` §12 decision. Checked the "keep the cull counter separate" reasoning against decision 115's `icc_managed_paints`/`icc_unmanaged_paints` pair and judged it an instance of that discipline (a merged counter loses information a reader needs), not a new invariant.
+
+**Findings + decisions:**
+- **The investigation that asked for this Pass was wrong about the memory number, and the correction matters more than the fix.** It attributed the file's 307 MB peak to image decoding. Measured after this Pass shipped: peak memory is UNCHANGED at 307 MB, and `extract-text` — which rasterises nothing — peaks at the identical 307 MB. The real cause is `ContentToken` volume: the file's form XObjects hold 20.0 MB of content parsing into 3,962,903 tokens at 64 bytes each = 241.9 MB (`ContentToken` = 64 B, `ContentTokenKind` = 48 B, `Object` = 40 B). One form alone is 2,291,669 tokens.
+- **The 55 s full-page render is a third, separate cause**: 6,174 transparency groups each allocating a full 1224×792 canvas (3.88 MB) — ~24 GB of allocate-and-zero, a TIME cost (each buffer frees before the next), not a memory one.
+- **Re-scoping for the next session picking this up**: the original investigation's finding (1) "image decode cache" is not the memory problem and should be re-aimed or dropped; the real memory work is shrinking `ContentToken`. Finding (3) stands, but as a time fix (size each transparency-group buffer to its own bounding box), not a memory fix. No new Pass ID minted for either — left for the engineer's scoping when picked up.
+- **Methodology lesson, cost real work this session.** The first regression baseline rendered 114 fixtures and stopped at `fontinfo` alphabetically, missing `images`, `transparency`, `overprint` and `shading` — exactly the directories the change touches. A baseline that omits the dirs a change touches certifies nothing. Real verification: stash/rebuild/re-render of all 364 synthetic fixtures, byte-compared identical.
+- `R225` gains a further instance: the gate was sabotaged three ways (never fires, always fires, clip intersection skipped), each turning a different assertion red.
+
+**Still in flight:** unchanged from the 526th filing below — the fixture-path-vs-guard-clause judgement call, and `docs/NEXT_SESSION.md`'s stale skip-count wording, both still owed to the engineer.
+
+**For next session:** shrink `ContentToken` (the actual memory fix); size transparency-group buffers to their own bbox (the actual 55 s fix) — neither scoped to a Pass ID yet.
+
+**Sourcing (hard rule 8) — no shell this filing.** `.git/refs/heads/main` reads `8d7877090ae23732d4a9acae31a17009977b3a4a`, matching `.git/logs/HEAD`'s final reflog line, one commit past `fcdfff4f9819816f234b74a0fd5320556bdf2d0b` — `.git/refs/remotes/origin/main` also reads `fcdfff4f9819816f234b74a0fd5320556bdf2d0b`, confirming `8d78770` is local and unpushed. `.git/COMMIT_EDITMSG` (the tip's own message, retained) carries this commit's message in full, read directly, not relayed. The 364-fixture/409-test verification figures and the `canvas.rs:1626` citation are taken from the commit message as authoritative, not independently re-run or re-read from source this filing.
+
 ## 2026-09-12 (526th filing) — the re-check the previous filing told itself to do, run within the hour, found a defect the previous filing itself had left
 
 **Shipped:**

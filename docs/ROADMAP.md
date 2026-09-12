@@ -116,6 +116,36 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `Pass 300.0` (`8d78770`, 2026-09-12) — an image off the viewport is skipped now; the investigation that asked for it was wrong about WHY the file is expensive
+
+Answers finding (2) of the three-finding read-only investigation the operator asked for on his own "Toronto street map" PDF (7.9 MB, 25,246 objects, vector-heavy with bitmaps): *"Acrobat can read and zoom in on this pdf much much faster than we are capable of… the footprint in ram for ours is enormous by comparison."* His follow-up — *"can you fix those things without breaking the other things"* — is answered for this one finding, chosen first because it is provably lossless.
+
+**The gap.** `do_form` has culled a form XObject whose transformed `/BBox` misses the canvas since `Pass 74.x` (§8.10.1 makes the box a clip, so such a form cannot paint a pixel). §8.9.5.2 says the identical thing about an image — `Do` paints only the unit square of image space and nothing outside it — and the image path never asked the question. Same shape as the form gate deliberately, not a second formulation (`f64` probe, ±1 px anti-aliasing margin, clip intersection guarded on the soft mask) — the two are one claim about two shapes and a reader should be able to diff them.
+
+**Measured**, rendering a 400×200 px region:
+
+    forms   6,174 ->   113 rendered,  6,145 culled   (Pass 74.x, unchanged)
+    images  1,183 -> 1,182 decoded,       0 culled   (before this Pass)
+    images  1,183 ->    92 decoded,   1,090 culled   (after)
+
+The gate sits before the sample bytes are touched: a culled image costs no decode, no colour-space resolution, no mask work.
+
+**★ WHAT THIS DOES NOT FIX — the investigation attributed the file's 307 MB peak to image decoding, and that attribution was WRONG.** Measured after this Pass landed: peak memory is UNCHANGED at 307 MB, and region time is unchanged at ~1.46 s. `extract-text`, which rasterises nothing at all, peaks at the identical 307 MB; a bare `inspect` load is 38.2 MB. The real cause, arithmetically: the file's form XObjects hold 20.0 MB of content parsing into 3,962,903 `ContentToken`s at 64 bytes each = 241.9 MB (one form alone is 2,291,669 tokens). The remedy is shrinking `ContentToken`, not culling images — findings (1) ("image decode cache") and (3) (the 55 s full-page render, actually caused by 6,174 transparency groups each allocating a full 1224×792 canvas at `canvas.rs:1626`, ~24 GB of allocate-and-zero, a TIME cost since each buffer frees before the next) both need re-scoping against what was measured here, not what the original investigation guessed. Neither is attempted in this Pass.
+
+**`images_culled` counted SEPARATELY from `forms_culled`**, beside `images` on the metrics line — for the reason `Pass 74.4` put `forms_culled` beside `forms`: the pair only reads as a pair when adjacent. Kept separate because the GAP between the two numbers is what found this: a single combined cull counter would have averaged the signal away. Checked against decision 115's `icc_managed_paints`/`icc_unmanaged_paints` pair (same discipline — a merged counter's value has more than one reading) and judged an INSTANCE of that discipline, not a new invariant; no new §12 decision minted. All four copies of the metrics-line contract (println, published template, per-key table, the test's key list) move together, enforced by `check-metrics-line-contract.py`.
+
+**Methodology finding.** The regression baseline first built rendered 114 fixtures and stopped at `fontinfo` alphabetically — it missed `images`, `transparency`, `overprint` and `shading`, exactly the directories the change touches. A baseline that omits the dirs a change touches certifies nothing. Real verification: all 364 synthetic fixtures rendered at scale 2 with the change stashed/unstashed, byte-compared identical.
+
+**`R225`, further instance.** The gate was sabotaged three ways — never fires, always fires, clip intersection skipped — each turning a different assertion red, the third failing ONLY the clip test.
+
+**Verified** (per the commit): workspace tests green; 409 render unit tests; 364/364 fixtures byte-identical stashed vs. unstashed.
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `.git/refs/heads/main` reads `8d7877090ae23732d4a9acae31a17009977b3a4a`, matching `.git/logs/HEAD`'s final reflog line, one commit past `fcdfff4` (the 526th filing's own commit, itself confirmed as `origin/main`'s current tip via `.git/refs/remotes/origin/main`) — `8d78770` is local, unpushed. `.git/COMMIT_EDITMSG` (the tip's own message, retained) carries this commit's message in full, read directly, not relayed. Independently verified against live source: `crates/pdfcer-render/src/interpret.rs`'s `do_form`/image-`Do` handling and `crates/pdfcer-cli/src/main.rs`'s `render-page` metrics line were not re-read line-by-line this filing (no line numbers cited above beyond `canvas.rs:1626`, taken from the commit message as authoritative); the 364-fixture and 409-test figures are taken from the commit message rather than re-run from here.
+
+**`FEATURES.md`**: new row added under *Fonts & rendering*, beside the existing form-cull row — `images_culled`, core `[x]` / cli `[x]` / gui `[ ]` / Acrobat `—`.
+
+---
+
 ### `05b3a80` (2026-09-12) — the re-check the previous entry told the next session to do, run immediately: two more, one of them stuck on a fixture from an hour earlier
 
 Not a Pass — test-debt paydown, filed under its own commit-hash heading, same precedent as `d291a03`/`e41892a` above. Answers `d291a03`'s own closing line directly: *"re-check the remaining declared skips for the same shape — a stated dependency on a corpus that is really a dependency on a property the repo already satisfies."*

@@ -4,7 +4,7 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-09-11, after `Pass 296.8` and the 512th filing.
+**Written:** 2026-09-12, after `Pass 300.0` and the 527th filing.
 
 ---
 
@@ -56,8 +56,23 @@ sweeps died this session. The working procedure:
 3. **Do not hold `gh run watch` open** — it is what died most often. Poll
    `gh run list --branch main --limit 1` on a wakeup instead.
 
-★ `run-gates.sh` **buffers**, so a redirected log sits empty until it finishes.
-An empty output file is not a hung run.
+★★ **THAT "IT BUFFERS" CLAIM WAS ALSO MINE, AND IT WAS ALSO FALSE.**
+The sentence here said:
+
+> ~~"`run-gates.sh` **buffers**, so a redirected log sits empty until it
+> finishes. An empty output file is not a hung run."~~
+
+It does not buffer. Redirected straight to a file it writes each `=== <cmd>`
+banner as it goes, and a sweep OOM-killed mid-`cargo test` on 2026-09-12 left
+24 lines of readable progress showing every gate that had already passed.
+What sat empty was `bash tools/run-gates.sh 2>&1 | tail -40` — **`tail` cannot
+emit a line until its input closes.**
+
+⇒ Note that this is the SAME ERROR as the exit-code one below, from the same
+pipeline, written into this file in the same session that corrected the other
+half of it. **Redirect to a file; do not pipe.** A pipeline changes both what
+you see and the status you read, and both failures look like a defect in the
+tool.
 
 ★★ **THE SENTENCE THAT WAS HERE WAS FALSE, AND CORRECTING IT IS THE POINT.**
 It said:
@@ -90,8 +105,46 @@ Workspace version `0.53.0`; the last release is **`v0.53.0`**. ★ Verify with
 `gh release list` before repeating it — a previous handoff carried a release
 number four versions stale for a day, and nothing in this file checks itself.
 
-**`main` is pushed through the 512th filing (`d2465f5`) and CI is GREEN**
-(run `34657680461`, 17m21s). Working tree clean, nothing unpushed.
+**`main` is pushed through the 527th filing** — ★ read CI's colour from
+GitHub yourself (`gh run list --branch main --limit 1`); this line records
+what was pushed, never what the server thought of it.
+
+### ★★★ THE LAST THING THAT HAPPENED, AND IT IS A CORRECTION, NOT A WIN
+
+The operator asked for a read-only investigation of his **Toronto street map**
+PDF — *"Acrobat can read and zoom in on this pdf much much faster than we are
+capable of … the footprint in ram for ours is enormous by comparison"* — then
+for the findings to be fixed *"without breaking the other things that our
+rendering engine does well"*.
+
+`Pass 300.0` (`8d78770`) shipped finding (2): an image whose unit square misses
+the viewport is skipped before the decode, the image twin of the form cull.
+It is correct, lossless and verified. **It also changed neither the time nor
+the memory on that file**, because the investigation had attributed both to
+the wrong cause. What the measurements actually say:
+
+| claim | measured |
+|---|---|
+| peak RAM is image decodes | **No.** `extract-text` rasterises nothing and peaks at the same **307 MB**; a bare `inspect` load is **38 MB** |
+| … so where is it? | the form XObjects hold 20.0 MB of content that parses to **3,962,903 `ContentToken`s × 64 B = 242 MB**; one form alone is 2,291,669 tokens |
+| the 55 s page render | **6,174 transparency groups, each allocating a full 1224×792 canvas** (3.88 MB) — ~24 GB of allocate-and-zero. Real, but a TIME cost: each buffer is freed before the next, so it never shows in peak RAM |
+
+★ **So the two owed fixes are not the ones the investigation named.** The memory
+fix is **shrinking `ContentToken`** (64 B today: `ContentTokenKind` 48 + span
+16; `Object` alone is 40) — not an image-decode cache, which would have bought
+nothing here. The time fix is **sizing group buffers to their own bbox**
+(`crates/pdfcer-render/src/canvas.rs:1626` allocates at parent-canvas size).
+Both are unstarted and unnumbered on purpose; both touch load-bearing ground
+(the core object model, and isolated/knockout group correctness).
+
+★★ **AND THE METHODOLOGY LESSON, which cost the most time of anything here:**
+the regression baseline built before touching the code rendered **114 fixtures
+and stopped at `fontinfo` alphabetically** — it did not contain `images`,
+`transparency`, `overprint` or `shading`, the four directories the change was
+most likely to break. It would have certified the change while testing none of
+it. **A baseline that omits the directories your change touches certifies
+nothing.** The real verification was a stash / rebuild / re-render of all 364
+synthetic fixtures, byte-compared: identical.
 
 ### What shipped: one inbound batch, seven Passes, in one evening
 
