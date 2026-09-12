@@ -1,0 +1,1 @@
+Superseded -- moved to C:\Users\Ken\AppData\Local\Temp\pdfcer-librarian-514th-commit-msg.txt (outside the repo, so it can't be swept into `git add -A`). Safe to delete this file.
