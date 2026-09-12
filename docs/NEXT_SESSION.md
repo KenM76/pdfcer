@@ -49,9 +49,30 @@ sweeps died this session. The working procedure:
    `gh run list --branch main --limit 1` on a wakeup instead.
 
 ★ `run-gates.sh` **buffers**, so a redirected log sits empty until it finishes.
-An empty output file is not a hung run. And its final line reports failures
-**while exiting 0** — read the `run-gates: FAILED — N of 31` line, never the
-exit code.
+An empty output file is not a hung run.
+
+★★ **THE SENTENCE THAT WAS HERE WAS FALSE, AND CORRECTING IT IS THE POINT.**
+It said:
+
+> ~~"its final line reports failures **while exiting 0** — read the
+> `run-gates: FAILED — N of 31` line, never the exit code."~~
+
+`tools/run-gates.sh` ends `exit 1` on any failure (line 246) and `exit 0` only
+on a clean sweep. It has always been correct. What reported 0 was **my own
+pipeline** — `bash tools/run-gates.sh 2>&1 | tail -40` exits with `tail`'s
+status, not the script's.
+
+⇒ **A wrapped command's exit code is the WRAPPER's.** Run a check alone and
+read its own status, or redirect to a file and grep the file — never both pipe
+it and trust the code. The same mistake pushed a lint failure to `origin` an
+hour later (`4608f7e`), from `cargo clippy … | grep … | head`.
+
+★ Note the shape, because this project has met it before and it is the
+expensive kind: **I attributed my own error to a defect in a tool, and wrote
+the false attribution into the document a session reads FIRST.** `CLAUDE.md`
+rule 8 records the same thing about "there is still no git remote configured" —
+a fact about the environment that nobody had measured, reading as reassurance
+for a day. `grep -n 'exit' tools/run-gates.sh` costs nothing.
 
 ---
 
