@@ -1,8 +1,6 @@
 # Tests that can decline to run, and therefore pass without
 # running. DEBT -- the direction is down. See
 # tools/check-skippable-tests-declared.py for why.
-crates/pdfcer-core/tests/editable_roundtrip.rs::an_encrypted_document_is_refused_rather_than_decrypted
-crates/pdfcer-core/tests/editable_roundtrip.rs::an_export_expands_object_streams
 crates/pdfcer-core/tests/insert_pages_preserves_undo.rs::inserting_a_form_page_reports_its_orphaned_widgets
 crates/pdfcer-core/tests/stamp_collection.rs::adobes_dynamic_stamps_are_recognised_as_dynamic
 crates/pdfcer-core/tests/stamp_collection.rs::adobes_own_stamp_files_are_read_correctly

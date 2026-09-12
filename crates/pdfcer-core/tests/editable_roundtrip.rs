@@ -78,11 +78,14 @@ fn an_export_is_a_valid_pdf_with_the_same_objects() {
 /// alarm. The skip prints, because a silent skip reads exactly like a pass.
 #[test]
 fn an_export_expands_object_streams() {
-    let path = fixture("external/qpdf/qpdf/qtest/qpdf/big-ostream.pdf");
-    let Ok(doc) = Document::load(&path) else {
-        eprintln!("SKIP: the external corpus is not present");
-        return;
-    };
+    // `fixtures/verapdf/object-streams.pdf` (2026-09-12) replaced
+    // `external/qpdf/.../big-ostream.pdf`, which was untracked, unfetched and
+    // not licence-cleared -- so this test printed `SKIP` and PASSED from the
+    // day it was written. See `fixtures/verapdf/PROVENANCE.md` for why a
+    // corpus file rather than a synthetic one: pdfcer's own writer only ever
+    // DEcompresses object streams, so it cannot produce the fixture.
+    let path = fixture("verapdf/object-streams.pdf");
+    let doc = Document::load(&path).expect("the object-stream fixture is in-repo");
     let before = pdfcer_core::structure::layout(&doc);
     assert!(
         !before.object_streams.is_empty(),
@@ -246,15 +249,20 @@ fn a_one_object_edit_appends_only_that_object() {
 /// Skipped when the fixture is absent rather than asserted vacuously.
 #[test]
 fn an_encrypted_document_is_refused_rather_than_decrypted() {
-    let path = fixture("external/qpdf/qpdf/qtest/qpdf/c-decrypt-with-user.pdf");
-    let Ok(doc) = Document::load(&path) else {
-        eprintln!("SKIP: the external corpus is not present, or this file needs a password");
-        return;
-    };
-    if doc.encryption().is_none() {
-        eprintln!("SKIP: this fixture did not load as an encrypted document");
-        return;
-    }
+    // ★ An IN-REPO synthetic encrypted fixture since 2026-09-12. This sourced
+    // from `external/qpdf/.../c-decrypt-with-user.pdf` and carried TWO skip
+    // arms -- corpus absent, and "did not load as encrypted" -- so it printed
+    // `SKIP` and PASSED from the day it was written. Nothing here needed a
+    // corpus: `fixtures/synthetic/encryption/` has held synthetic encrypted
+    // documents the whole time. `enc-emptyuser` is the variant with an EMPTY
+    // user password, so `Document::load` opens it without one -- `enc-aes-128`
+    // answers `PasswordRequired` and would have reintroduced a skip arm.
+    let path = fixture("synthetic/encryption/enc-emptyuser.pdf");
+    let doc = Document::load(&path).expect("the synthetic encrypted fixture is in-repo");
+    assert!(
+        doc.encryption().is_some(),
+        "premise: the fixture must load AS ENCRYPTED, or this test is vacuous"
+    );
     assert_eq!(
         editable::export(&doc).unwrap_err(),
         EditableError::Encrypted,

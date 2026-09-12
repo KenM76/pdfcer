@@ -308,11 +308,14 @@ fn an_object_inside_an_object_stream_is_reachable_and_located() {
     // Chosen by SCANNING the corpus with this very module rather than by
     // guessing: the first file tried carried no object streams at all, so the
     // test passed while asserting nothing. A skip reads exactly like a pass.
-    let path = fixture("external/qpdf/qpdf/qtest/qpdf/big-ostream.pdf");
-    let Ok(doc) = Document::load(&path) else {
-        eprintln!("SKIP: the external corpus is not present");
-        return;
-    };
+    // `fixtures/verapdf/object-streams.pdf` (2026-09-12) replaced
+    // `external/qpdf/.../big-ostream.pdf`, which was untracked, unfetched and
+    // not licence-cleared -- so this test printed `SKIP` and PASSED from the
+    // day it was written. See `fixtures/verapdf/PROVENANCE.md` for why a
+    // corpus file rather than a synthetic one: pdfcer's own writer only ever
+    // DEcompresses object streams, so it cannot produce the fixture.
+    let path = fixture("verapdf/object-streams.pdf");
+    let doc = Document::load(&path).expect("the object-stream fixture is in-repo");
     let l = structure::layout(&doc);
     if l.object_streams.is_empty() {
         eprintln!("SKIP: this corpus file uses no object streams");
