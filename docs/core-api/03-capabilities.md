@@ -3434,20 +3434,62 @@ exception to minimal-diff).
 | capability | primary path | core | cli | gui |
 |---|---|:--:|:--:|:--:|
 | ce dimensions (author, groups, scale, two-line) | `pdfcer_core::dimension` + `EditSession` | x | x | x |
-| ce-dimension **style cascade** | `dimension::{resolve_style, style_provenance}` | x | x | **[ ]** |
-| ce-dimension **tolerance** | `dimension::tolerance` | x | x | **[ ]** |
+| ce-dimension **style cascade** | `dimension::{resolve_style, style_provenance}` | x | x | x |
+| ce-dimension **tolerance** | `dimension::tolerance` | x | x | x |
 | Forms — fill / import / export / create / delete / rename / reset | `forms`, `forms_author`, `fdf`, `formcsv` + `EditSession` | x | x | x / ◐ |
-| Forms — **flatten** | `EditSession::flatten_fields` | x | x | **[ ]** |
-| Forms — **move a widget** | `EditSession::move_widget` | x | x | **[ ]** |
-| Forms — **script census** | `form_script::{inventory, recompute}` | x | x | **[ ]** |
+| Forms — **flatten** | `EditSession::flatten_fields` | x | x | x |
+| Forms — **move a widget** | `EditSession::move_widget` | x | x | x |
+| Forms — **script census** | `form_script::{inventory, recompute}` | x | x | x |
 | Annotations & markup | `annot`, `annot_author` + `EditSession` | x | x | x |
 | Redaction — mark & apply | `redact` + `EditSession`; **proof in `pdfce-gui`** | x | x | x |
 | Redaction — **unencrypted-wrapper warning** | `wrapper` | x | x | **[ ]** |
 | **OCR substrate** | `pdfcer_core::ocr` | **[ ]** | **[ ]** | **[ ]** |
 | Print | `pdfcer-print` | x | x | x |
-| **Imposition** (N-up / booklet / poster) | `pdfcer_print::imposition` | — | x | **[ ]** |
+| **Imposition** (N-up / booklet / poster) | `pdfcer_print::imposition` | — | x | ⊘ |
 | Rasterise a page | `pdfcer-render` | x | — | x |
-| **Off-canvas content** — scan & cut at the page edge | `pdfcer_core::offpage` | x | x | **[ ]** |
+
+### What the glyphs mean, and which document wins
+
+| glyph | meaning |
+|:--:|---|
+| `x` | **reachable** from that shell — a real call site, not a plan |
+| `[ ]` | not wired yet |
+| `⊘` | **declined**, deliberately, by that shell — not a gap |
+| `—` | the column does not apply |
+
+★★ **`x` means REACHABLE, exactly as `docs/FEATURES.md` means it — not
+"driven".** Those are different bars this project keeps apart on purpose, and
+`FEATURES.md` records the stricter one in prose where it has it (*"confirmed
+2026-08-19"*). A reader wanting "is it exercised by a harness that drives the
+real binary?" must read `FEATURES.md`'s own row, not this column.
+
+★ **`FEATURES.md` is authoritative here.** This appendix mirrors it, and a
+mirror that disagrees with its source is worse than no mirror, because the
+heading is what tells a reader not to go and check. If the two differ,
+`FEATURES.md` is right and this table is stale — say so rather than reconciling
+in the reader's head.
+
+> **Corrected 2026-09-11, and the correction is the reason the paragraphs above
+> exist.** Six rows were stale. Two contradicted `FEATURES.md` outright
+> (**flatten**, **move a widget** — both `[x]` there, both `[ ]` here). Four
+> more claimed `[ ]` for capabilities the consuming shell measurably calls:
+> the ce-dimension **style cascade** and **tolerance**, the forms **script
+> census**, and **off-canvas content** — which has a whole dialog
+> (`dialogs/offpage.rs`), a redaction route and an `UnreadablePage` disclosure.
+>
+> ★ **The off-canvas row was written on 2026-09-11 and was wrong the day it was
+> written**, by the same hand, hours earlier. A `[ ]` in a table headed
+> *"→ `FEATURES.md` state"* invites a future session to conclude nobody
+> consumes a module and price a change accordingly.
+>
+> Reported by `pdfcer-gui`, which checked **every** `gui [ ]` row rather than
+> only the failing ones and named the two that were correct — an audit that
+> only reports hits is not an audit. Its verification was per **receiver**, not
+> by bare name; re-checking it here by bare name found three of the four
+> "absent", because the call sites import through a grouped `use`. That trap
+> caught the reporter once on `page_objects` and caught the reader of the
+> report immediately.
+| **Off-canvas content** — scan & cut at the page edge | `pdfcer_core::offpage` | x | x | x |
 
 ## 12. Stamp collection files — Acrobat-compatible custom stamps (`Pass 288.0`)
 
