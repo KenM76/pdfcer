@@ -1264,7 +1264,6 @@ impl RenderOptions {
     /// The choice is disclosed rather than silent: `pdfcer render-page`
     /// reports it on the metrics line.
     #[must_use]
-    #[must_use]
     pub fn with_overprint_zero_tint_scope(
         mut self,
         scope: pdfcer_core::settings::OverprintZeroTintScope,
