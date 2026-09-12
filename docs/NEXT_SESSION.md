@@ -182,12 +182,39 @@ A capacity heuristic is a claim about a POPULATION, and the population that
 matters is the one you did not tune on. General form in
 `D:\dev\rag\rust\a_heuristic_tuned_on_the_motivating_case_needs_a_counter_sample_before_it_ships.md`.
 
-⇒ **Still open, now correctly ranked and genuinely optional:** shrinking
-`ContentToken` (64 B = `ContentTokenKind` 48 + span 16; `Object` alone is
-40 B) is worth a further ~70 MB on this file. It remains a breaking change
-with a real cost for text-heavy content — every `TJ` array and inline dict
-becomes a heap allocation — and **nobody has to take it to get the win
-above.** Unscoped, no Pass number, operator's call.
+### ★★★ SHRINKING `ContentToken` IS GATED ON KEN'S APPROVAL — DO NOT START IT
+
+**Operator instruction, 2026-09-12, verbatim:** *"Put the shrinking token type
+the list you use for this sort of thing and note that I must approve it being
+changed first."*
+
+It is a `ROADMAP.md` **Backlog** item and an **open operator question**. It is
+NOT owed work, it is NOT in flight, and a session that finds the measurements
+below compelling still may not begin it. **Default if unanswered: do not
+change it.**
+
+What it is: `ContentToken` is 64 B (`ContentTokenKind` 48 + `ByteSpan` 16),
+and `Object` alone is 40 B. Two independent levers — `ByteSpan` to two `u32`
+(64 → 56, capping a content buffer at 4 GB), and splitting the common numeric
+operand out while boxing the rare composite ones (64 → 32). Both reach 24 B.
+Worth roughly **70 MB more** on the Toronto map, on top of what `Pass 300.3`
+already recovered.
+
+Why it is gated, and every one of these is a reason on its own:
+
+* **It breaks a published API.** `ContentTokenKind` is `pub`,
+  `#[non_exhaustive]`, and specified in `docs/core-api/01-reading-and-model.md`
+  — the contract `pdfcer-gui` builds against. 64 match sites here (46 on
+  `Operand`), unknown numbers there.
+* **It may make text-heavy files SLOWER.** Boxing composites means one heap
+  allocation per `TJ` array and per inline dict. A vector-heavy map wins
+  outright; a text-heavy document may not, and **nobody has measured that.**
+  Given this arc's record, taking that measurement is a prerequisite and not a
+  formality.
+* **It touches the round-trip invariant** (rule 3, `ARCHITECTURE.md` §5):
+  token spans are what re-emit untouched objects byte-identically.
+* **It is not required for the win it was proposed for.** `Pass 300.3` closed
+  the memory problem without it.
 
 ### ★ HOW TO BENCHMARK HERE, because the obvious way cannot run
 

@@ -144,7 +144,7 @@ Every file improves, none regresses. Parse time improves too (a reallocation cop
 
 **The corpus row is the one that earned its place.** The first draft set the minimum capacity to 64 "to save a series of small allocations" — reasoning with nothing behind it. The 372 synthetic fixtures, all small streams, priced it instantly: reserved went 0.7 MB → 1.6 MB, fixing 176 MB on the large file while making every small file worse — the exact failure this Pass set out to avoid. At 4 (what `Vec` would have done anyway) small streams are untouched. Filed as a sibling finding, not a further instance, of `D:\dev\rag\rust\a_plausible_explanation_that_predicts_the_right_order_of_magnitude_is_not_a_diagnosis.md` — that file is about diagnosing the wrong CAUSE; this one is about a correctly-diagnosed fix's own heuristic having no COUNTER-sample. New file: `D:\dev\rag\rust\a_heuristic_tuned_on_the_motivating_case_needs_a_counter_sample_before_it_ships.md`.
 
-**Still open, now correctly ranked**: shrinking `ContentToken` is worth a further ~70 MB on this file, remains a breaking change with a real cost for text-heavy content, and is the second step, not the first — nobody has to take it to get this win.
+**Still open, now correctly ranked**: shrinking `ContentToken` is worth a further ~70 MB on this file, remains a breaking change with a real cost for text-heavy content, and is the second step, not the first — nobody has to take it to get this win. Filed in *Backlog* as the optional second step, **gated on operator approval** — see open operator question `(cd)`, below. Do not start it without an explicit go-ahead.
 
 **Verified.** All 364 synthetic fixtures render byte-identical. Workspace suite green (250 test binaries, 0 failed) plus 183 doc-tests. Clippy and fmt clean.
 
@@ -14020,6 +14020,46 @@ Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
 
+### Unscoped — Shrink `ContentToken` from 64 bytes (`ByteSpan` narrowing + operand boxing) — ★★ GATED ON OPERATOR APPROVAL, see open operator question `(cd)` below — DO NOT START WITHOUT AN EXPLICIT GO-AHEAD — filed 2026-09-12 (531st filing, `Pass 300.3`'s named optional follow-on), no Pass ID
+
+**The operator's own instruction, verbatim, is the entry: "note that I must
+approve it being changed first."** *Default if unanswered: do not change
+it.* `ContentToken` stays exactly as shipped — 64 bytes, `usize` spans,
+unboxed operands — until Ken says otherwise.
+
+`Pass 300.3` (`865ed7b`, *Shipped*, above) closed the memory problem this
+was proposed for by a different mechanism (an adaptive `Vec` capacity), so
+this is now a purely optional second step, not owed work. What it would
+still buy, measured on the operator's Toronto street map: a further
+**~70 MB** on top of what `Pass 300.3` already recovered (post-`300.3`
+peak parse memory ~185 MB; the largest single form holds 2,291,669 tokens
+= 139.9 MB at 64 bytes, so halving the token roughly halves that).
+
+**Two independent levers, together 64 → 24 bytes**: (a) narrow `ByteSpan`
+from two `usize` to two `u32` (64 → 56 bytes; caps a content buffer at
+4 GB); (b) split the common numeric operand into its own variant and box
+the rare composite ones (64 → 32 bytes).
+
+**Why it is gated, not just deferred:**
+1. **Published API break.** `ContentTokenKind` is `pub`, `#[non_exhaustive]`,
+   documented in `docs/core-api/01-reading-and-model.md`. 64 match sites in
+   this workspace (46 `Operand`, 13 `InlineImage`, 5 `Operator`), plus an
+   unknown number in `pdfcer-gui`.
+2. **Can make text-heavy files SLOWER.** Boxing composite operands adds a
+   heap allocation per `TJ` array and per inline dictionary — unmeasured,
+   and a vector-heavy file (like the one that motivated this) is not
+   evidence either way for a text-heavy one. Measuring that is a
+   prerequisite of taking this on, not a formality.
+3. **Touches the round-trip invariant** (`CLAUDE.md` rule 3,
+   `ARCHITECTURE.md` §5) — token spans are the mechanism that re-emits
+   untouched objects byte-identically. Not semantically risky, but owes
+   the same byte-identity proof the render work got.
+4. **No longer required for the win it was proposed for** — see above.
+
+**Source.** `Pass 300.3` (`865ed7b`, 2026-09-12, *Shipped*), whose
+"Still open, now correctly ranked" paragraph re-ranked this from "the fix"
+to "an optional second step" after measuring.
+
 > ★★ **SIX ITEMS ADDED 2026-09-08 (469th filing) — RESIDUE FROM THE
 > MARKUP-FAMILY AUDIT THAT SHIPPED `Pass 262.0`–`263.0`.** Same audit,
 > same session, different subsystem of the same `Annotation` model. None
@@ -23582,6 +23622,27 @@ name and say NOT BUILT YET) must be updated in the same Pass —
 shape, not the schedule.** No Pass ID assigned.
 
 ## Open operator questions (as of 2026-08-02 — answer any, all default to the stated fallback if not answered)
+
+**★★ NEW 2026-09-12 (531st filing) — ONE QUESTION, AND THE OPERATOR NAMED
+THE GATE HIMSELF BEFORE ANY CODE WAS WRITTEN. Operator-question ceiling
+moves `(cc)` → `(cd)`, next free `(ce)`:**
+
+- **(cd) `Pass 300.3`'s entry (*Shipped*, above) names a purely optional
+  further shrink of `ContentToken` from 64 to 24 bytes (`ByteSpan` narrowed
+  from `usize`/`usize` to `u32`/`u32`, plus boxing the rare composite
+  content-token operand variants), worth roughly a further 70 MB on the
+  operator's Toronto street map. It is a **published API break**:
+  `ContentTokenKind` is `pub`, `#[non_exhaustive]`, documented in
+  `docs/core-api/01-reading-and-model.md`, with 64 match sites in this
+  workspace alone plus an unknown number in `pdfcer-gui`. It can also make
+  text-heavy documents slower (a heap allocation per `TJ` array and per
+  inline dictionary), which is unmeasured. **Ken's own instruction,
+  verbatim: "note that I must approve it being changed first."** Filed as
+  the Backlog's unscoped `ContentToken`-shrink entry, above. **Do you want
+  this API break made?** *Default if unanswered:* **do not change
+  `ContentToken`.** It ships exactly as `Pass 300.3` left it — 64 bytes,
+  `usize` spans, unboxed operands — until you say otherwise; there is no
+  safe direction to guess here, so silence means "no."
 
 **★★ NEW 2026-09-03 (396th filing) — ONE QUESTION, TWENTY-TWO DAYS LATE:
 the spec-librarian escalated four licence readings to the operator on

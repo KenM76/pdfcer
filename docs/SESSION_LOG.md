@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-12 (531st filing) — `ContentToken`'s optional shrink filed to Backlog, gated on the operator's own stated approval requirement
+
+**Shipped:** nothing — a register-only filing, no commit.
+
+**Decisions made this session:**
+- Ken, verbatim: *"Put the shrinking token type the list you use for this sort of thing and note that I must approve it being changed first."* Filed as an unscoped, no-Pass-ID Backlog entry (`docs/ROADMAP.md`) plus open operator question **(cd)** (ceiling `(cc)` → `(cd)`, next free `(ce)`). Default if unanswered: do not change `ContentToken`.
+
+**Findings + decisions:**
+- Cross-referenced from `Pass 300.3`'s own *Shipped* entry ("Still open, now correctly ranked" paragraph), so a reader arriving from the shipped work lands on the approval gate rather than re-deriving that the shrink is optional.
+- No new Pass ID minted — an approval-gated idea does not get one until approved and scoped, per this role's own standing discipline for unscoped Backlog residue.
+
+**Still in flight:** the `ContentToken` shrink itself remains completely unstarted, pending Ken's answer to (cd).
+
+**For next session:** if Ken approves (cd), scope it into a real Pass (mint an ID, plan the 64-workspace-match-site + `pdfcer-gui` sweep, and measure the text-heavy-file cost before committing to boxing composite operands). If unanswered, leave `ContentToken` untouched — the default holds.
+
+**`FEATURES.md`**: untouched — no capability change.
+
 ## 2026-09-12 (530th filing) — the token vector learns each stream's own density instead of doubling; the memory half of the Toronto-map arc closes without breaking `ContentToken`
 
 **Shipped:**
