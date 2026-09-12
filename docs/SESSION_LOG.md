@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-12 (526th filing) — the re-check the previous filing told itself to do, run within the hour, found a defect the previous filing itself had left
+
+**Shipped:**
+- `05b3a80` — re-checked the remaining 8 declared skips for the same shape (`d291a03`'s own closing suggestion). Two converted: `structure_inspect::an_object_inside_an_object_stream_is_reachable_and_located` was still SKIPping despite `d291a03` repointing its fixture path an hour earlier, because a second guard clause (`if l.object_streams.is_empty() { … return; }`) further down the function was the real gate, not the path — converted to `assert!`. `insert_pages_preserves_undo::inserting_a_form_page_reports_its_orphaned_widgets` needed five hand-authored objects (`doc_with_one_form_page()`), no corpus. `tools/skippable-tests-baseline.txt`: 8 → 6 (26 when the gate shipped).
+
+**Decisions made this session:**
+- No new standing rule. Left open for the engineer's judgement: is "fixture path fixed, but a second guard clause below it still declines" a new failure shape, an `R255` instance (test never ran for want of a corpus), or just this entry — `R255`'s mechanism doesn't quite fit, since the corpus was *present* and the test still declined.
+
+**Findings + decisions:**
+- **The transferable half, flagged for judgement rather than named:** "converted the fixture dependency, left the decline in place" is a defect invisible from the diff of the fixture-path change alone — the guard clause sits elsewhere in the same function.
+- **The handoff note caught its own defect.** `d291a03`'s note said "before hunting any more fixtures, re-check the remaining declared skips" — writing that and then running it immediately, in the same session, is what surfaced a bug the note's own author had left an hour before. A delayed re-check would have carried the cost forward.
+- **The remaining 6 are two different kinds of debt, not one pile.** Four (`widget_adoption` census/preview) are corpus-composition tests deliberately left — converting them would measure an invented fixture. Two (`stamp_collection`) read Adobe's own installed stamp files from `%APPDATA%` — the operator's machine, not a corpus at all, so they can never run in CI on any other machine. Flagging this split for `docs/NEXT_SESSION.md` (engineer-owned) so the remaining six aren't treated as one homogeneous debt.
+
+**Still in flight:** `docs/NEXT_SESSION.md`'s OWED list still reads "8 tests silently SKIP" without the four/two split above — flagged for the engineer, not edited here.
+
+**For next session:** the `docs/NEXT_SESSION.md` split-and-count flag above; whether the fixture-path-vs-guard-clause shape found here deserves a standing rule, an `R255` instance, or neither.
+
+**Sourcing (hard rule 8) — no shell this filing.** `.git/refs/heads/main` reads `05b3a805f06f27a52ba742ea7308f8f3306a17eb`; `.git/logs/HEAD`'s final reflog line names this commit's subject verbatim, one step past `c37b63f` (the 525th filing's own commit). `.git/refs/remotes/origin/main` reads `c37b63fb2929d5f07729626b30f0d2175850f4f6`, one commit behind — confirming `05b3a80` is local and unpushed. `.git/COMMIT_EDITMSG` (the tip's own message, retained) carries this commit's message in full, read directly, not relayed. Independently verified against live source: `crates/pdfcer-core/tests/structure_inspect.rs:307-322` and `crates/pdfcer-core/tests/insert_pages_preserves_undo.rs:367-382` both match the commit message's account; `tools/skippable-tests-baseline.txt` counted directly at 6 entries (4 `widget_adoption`, 2 `stamp_collection`).
+
 ## 2026-09-12 (525th filing) — the last two of the 26-test skip debt's easy wins: a CC BY 4.0 veraPDF fixture, and a test that never needed a corpus at all
 
 **Shipped:**

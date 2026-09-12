@@ -116,6 +116,24 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `05b3a80` (2026-09-12) — the re-check the previous entry told the next session to do, run immediately: two more, one of them stuck on a fixture from an hour earlier
+
+Not a Pass — test-debt paydown, filed under its own commit-hash heading, same precedent as `d291a03`/`e41892a` above. Answers `d291a03`'s own closing line directly: *"re-check the remaining declared skips for the same shape — a stated dependency on a corpus that is really a dependency on a property the repo already satisfies."*
+
+**★★ The finding.** `structure_inspect::an_object_inside_an_object_stream_is_reachable_and_located` was **still skipping for want of the fixture `d291a03` had added one hour earlier.** That commit repointed the test's path to `fixtures/verapdf/object-streams.pdf`, but the test carried a SECOND arm underneath — `if l.object_streams.is_empty() { eprintln!("SKIP"); return; }` — and that arm, not the path, is what kept it on the baseline. Repointing a fixture path is the visible half of a conversion; a guard clause further down the same function is invisible from the diff and keeps the test dead anyway. Converted: the dependency is satisfied and the DECLINE is removed — an `assert!` now, and it cannot go quiet again.
+
+The second, `insert_pages_preserves_undo::inserting_a_form_page_reports_its_orphaned_widgets`, needed a source with an `/AcroForm` carrying a field plus widgets on the inserted page — five objects, authored inline as `doc_with_one_form_page()`.
+
+**Debt:** `tools/skippable-tests-baseline.txt` 8 → **6**, from 26 when the gate shipped, across four paydowns. Of the six remaining, **four** are `widget_adoption`'s census/preview tests (deliberately kept — they assert the real AcroForm's own composition) and **two** are `stamp_collection`'s, which read Adobe's own installed stamp files from `%APPDATA%\Adobe\...` — the operator's own machine, not a corpus, and a different question: those two can never run in CI on any other machine, which is not the corpus-licensing problem the other four paid down.
+
+**For judgement, not decided here:** whether "repointed a fixture but left a second guard clause" is a new failure shape, an instance of `R255` (test never ran for want of an absent corpus), or just a SESSION_LOG line — the corpus was *present* here and the test still declined, which is the part that doesn't fit `R255` cleanly.
+
+**`FEATURES.md`**: unchanged — internal test-harness debt, no operator-visible capability touched.
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `.git/refs/heads/main` reads `05b3a805f06f27a52ba742ea7308f8f3306a17eb`; `.git/logs/HEAD`'s final reflog line names this commit directly, one step past `c37b63f` (the 525th filing's own commit). `.git/refs/remotes/origin/main` reads `c37b63fb2929d5f07729626b30f0d2175850f4f6` — one commit behind, confirming `05b3a80` is local and unpushed. `.git/COMMIT_EDITMSG` (the tip's own message, retained) carries this commit's message in full, read directly, not relayed. Independently verified against live source: `crates/pdfcer-core/tests/structure_inspect.rs:307-322` and `crates/pdfcer-core/tests/insert_pages_preserves_undo.rs:367-382` both match the commit message's account; `tools/skippable-tests-baseline.txt` counted directly at 6 entries (4 `widget_adoption`, 2 `stamp_collection`).
+
+---
+
 ### `d291a03` (2026-09-12) — three more dead tests run: a CC BY 4.0 veraPDF fixture, and one test that never needed a corpus at all
 
 Not a Pass — test-debt paydown, filed under its own commit-hash heading, same precedent as `e41892a` below. Answers `39759d2` directly below: the operator asked whether a suitable PDF could be found online, which changed that entry's "stop" into this one.

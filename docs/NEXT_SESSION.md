@@ -237,8 +237,19 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
   (`Pass 294.1`). **It wants a measurement — how many placements, how much
   decode — before any code.** Anyone hunting a cutting defect here will find
   nothing wrong; that is the trap this paragraph exists to spring.
-- **8 tests silently SKIP and report as passed** — ~~26~~ → ~~16~~ → ~~10~~ →
-  **8**, three paydowns on 2026-09-12 (`f0d1dc7`, `e41892a`, `d291a03`).
+- **6 tests silently SKIP and report as passed** — ~~26~~ → ~~16~~ → ~~10~~ →
+  ~~8~~ → **6**, four paydowns on 2026-09-12 (`f0d1dc7`, `e41892a`, `d291a03`,
+  `05b3a80`).
+
+  ★★ **THE SIX ARE TWO DIFFERENT KINDS — do not read them as one pile:**
+  - **four** in `widget_adoption.rs` (the census and three preview tests) are
+    **deliberate**: they assert the REAL AcroForm's own composition, so
+    converting them would measure an invented fixture rather than the verb;
+  - **two** in `stamp_collection.rs` read **Adobe's own installed stamp files
+    from `%APPDATA%`** — the operator's machine, not a corpus. There may be no
+    other way to test "we read Adobe's real files", but it means those two
+    **can never run in CI on any machine**, which is a different problem from
+    the corpus one and wants its own answer.
   `Pass 298.0`'s guard was sabotaged to prove its test could fail and the test
   **stayed green**. ★★ **The only fix is a synthetic fixture, and that is a
   constraint rather than a preference**: 13 of the 16 need
@@ -288,9 +299,17 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
 
   ★ **And one of those three never needed a corpus at all.** It needed *an
   encrypted document*, and `fixtures/synthetic/encryption/` has held eight the
-  whole time. **Before hunting any more fixtures, re-check the remaining 8
-  declared skips for the same shape** — a stated dependency on a corpus that is
-  really a dependency on a property the repo already satisfies.
+  whole time. ~~Before hunting any more fixtures, re-check the remaining 8~~ —
+  **DONE the same hour** (`05b3a80`): two more converted, neither needing
+  anything new.
+
+  ★★★ **And the re-check found a defect the note itself had created.**
+  `structure_inspect`'s object-stream test was **still skipping for want of the
+  fixture added an hour earlier** — its path was repointed, but a SECOND guard
+  clause further down (`if l.object_streams.is_empty() { SKIP }`) was the real
+  gate. ⇒ **Repointing a fixture is the visible half; a decline further down is
+  invisible in the diff and keeps the test dead.** When you convert a test,
+  grep its whole body for the skip idiom, not just its path.
 - **NEW — above ~1e8 scale a region render succeeds again** with an underflowed
   page-space span. Nothing panics; whether those pixels mean anything is its
   own measurement. Told the shell rather than letting them discover it.
