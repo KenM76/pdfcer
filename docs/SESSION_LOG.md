@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-13 (536th filing) — `reply_*.md` citation audit: owed item 11 discharged, two fabricated filenames named, four citations found in the wrong channel
+
+**Shipped:** nothing — a librarian-only documentation correction, no code commit.
+
+**Decisions made this session:** none — a citation-hygiene finding, not a crate-boundary or invariant change. Declined to mint a standing rule for it (see Findings).
+
+**Findings + decisions:**
+- Owed item 11 (`pdfcer-gui`'s fourth outbound reply, open since the 479th filing) is **discharged**: `Glob`-confirms as `archive/2026-09-09-reply-your-coverage-flag-was-REAL-and-it-was-the-first-name-on-the-list.md`. The channel renames `reply_<subject>` → `<date>-reply-<subject>` on archiving; any future check must normalise (strip date, fold `reply_`/`reply-`, compare stems) before calling anything missing.
+- Two citations in this file, `reply_G010_renamed_to_EmptyNameSegment_SHIPPED.md` and `reply_G011_validate_partial_name_is_public_SHIPPED.md`, were never real filenames — they paraphrase the content of two real replies (`archive/2026-09-12-G010-period-in-partial-name-reply.md`, `…-G011-validate-partial-name-reply.md`). General shape: a citation describing a reply's content, rather than quoting its saved filename, reads as a filename and is not one.
+- Four more citations resolve fine but in `D:\Dev\FeatureRequests\iccce_FeatureRequests\` (the ICC-colour-management partner channel), not `pdfce_FeatureRequests`: `reply_the_49_rows_and_the_black_end_is_where_i_am_weaker.md`, `reply_capability_status.md`, `reply_the_profile_census_and_your_33_node_constant.md`, `reply_cmyk_buffer_destination_and_width.md`. Not a defect in the files — a defect in the citation's own channel ambiguity, since only one prior citation in this file gives the full path.
+- `reply_suite_render_harness.md` was a real, already-flagged stray duplicate (184th filing) and has since been deleted from `pdfce_FeatureRequests/open/` as recommended; its authoritative pair lives in `iccce_FeatureRequests/archive/`. `reply_insert_pages_orphaned_widgets.md` was a discharge-condition's planned filename, never written under that name — the actual reply landed as `2026-08-19-insert-pages-orphan-count-reply.md`, already on record two paragraphs later in the same `ROADMAP.md` entry.
+- **No standing rule minted.** A mechanical gate would need to know which of two external, ungoverned channels a bare `reply_*.md` belongs to — exactly the ambiguity in question. Flagged to the engineer as a citation habit (name the channel directory when it could be confused; quote the saved filename, never a paraphrase) rather than built as a control.
+
+**Still in flight:** nothing new.
+
+**For next session:** items 5, 13b, 14, 18 remain open, unchanged (see `docs/ROADMAP.md`'s owed-work ledger). Do not re-open item 11.
+
+**`FEATURES.md`**: unchanged — a citation-hygiene correction, no operator-facing capability.
+
+**Sourcing (hard rule 8) — no shell this filing.** Every resolution above was produced by `Glob`/`Grep` reads against the live channel directories (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\{open,archive}\`, `D:\Dev\FeatureRequests\iccce_FeatureRequests\{open,archive}\`) run this filing, not relayed or inferred from prose. Not checked: `origin/main` state, backup-bundle currency, CI colour — none are implicated by a docs-only correction.
+
 ## 2026-09-13 (535th filing) — `tools/check-requests-scoped.py` built, discharging the last item from the operator's "do everything but the token thing" batch; fourth `R243` dated instance, one level up from the first three
 
 **Shipped:**

@@ -115,6 +115,21 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### Librarian filing, 536th, 2026-09-13 — `reply_*.md` citation audit: owed item 11 discharged, two fabricated filenames corrected, four citations found in the wrong channel
+
+Not a Pass — a librarian-only correction, filed under its own heading (same convention as `408c93c`/`3d8c160`, below). Prompted by cross-checking every `reply_*.md` this file cites against `D:\Dev\FeatureRequests\pdfce_FeatureRequests\`.
+
+**Owed item 11 DISCHARGED.** `pdfcer-gui`'s fourth outbound reply (open since the 479th filing) `Glob`-confirms: `archive/2026-09-09-reply-your-coverage-flag-was-REAL-and-it-was-the-first-name-on-the-list.md`. The channel renames `reply_<subject>` → `<date>-reply-<subject>` on archiving; a literal-string check misses this and must normalise both sides (strip the leading date, fold `reply_`/`reply-`, compare stems) before calling anything missing.
+
+**Two fabricated filenames, corrected in place.** The `Pass 299.0` sourcing paragraph below (hard-rule-8 note) cites `reply_G010_renamed_to_EmptyNameSegment_SHIPPED.md` and `reply_G011_validate_partial_name_is_public_SHIPPED.md` — neither was ever a real filename; both are this file's own paraphrase of two actual replies, `archive/2026-09-12-G010-period-in-partial-name-reply.md` and `archive/2026-09-12-G011-validate-partial-name-reply.md` (plus an addendum, `…-reply-2.md`). Left as written (a citation-format finding, not a factual error — the exchanges themselves are real and correctly described) with this note as the correction record. **The general shape: a citation that describes a reply's CONTENT rather than quoting its saved FILENAME reads as a filename and is not one.**
+
+**Four more resolve — in a DIFFERENT channel.** `reply_the_49_rows_and_the_black_end_is_where_i_am_weaker.md`, `reply_capability_status.md`, `reply_the_profile_census_and_your_33_node_constant.md` and `reply_cmyk_buffer_destination_and_width.md` all exist, all in `D:\Dev\FeatureRequests\iccce_FeatureRequests\` (the partner-project channel for the ICC colour-management collaboration), not `pdfce_FeatureRequests`. Cited WITH that path once elsewhere in this file, bare everywhere else — not a defect in the files, a defect in the citation's own ambiguity. **`reply_suite_render_harness.md`** was a real, already-flagged stray duplicate (see this file's own 184th-filing note) and has since been deleted from `pdfce_FeatureRequests/open/` exactly as that note recommended; its authoritative pair lives in `iccce_FeatureRequests/archive/`. **`reply_insert_pages_orphaned_widgets.md`** was never a filename at all — a discharge-CONDITION naming pdfce's own planned reply before it was written; the actual reply that discharged it, `2026-08-19-insert-pages-orphan-count-reply.md`, is already on record two paragraphs later in the same entry.
+
+**No standing rule minted.** A mechanical gate here would need to know, for a bare `reply_*.md` citation, which of two external, ungoverned channels it belongs to — exactly the ambiguity in question, not a checkable property. The audit script used to confirm this filing is throwaway and uncommitted (`C:\Users\Ken\.claude\jobs\22ab8a13\tmp\replycheck.py`). Flagged for the engineer as a habit rather than built as a control: cite a channel file with its directory whenever `pdfce_FeatureRequests` vs `iccce_FeatureRequests` could be confused, and cite a reply's actual saved filename, never a paraphrase of what it says.
+
+**Part — owed work.** Discharged this filing: item 11. Carried forward, unchanged: items 5, 13b, 14, 18.
+
+---
 
 ### `3d8c160` (2026-09-13) — `check-requests-scoped.py`, owed by `R242` since 2026-09-06, now built
 

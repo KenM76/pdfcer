@@ -471,9 +471,38 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
   worse. **Do not copy an ordinal from a commit message.**
 - ~~**`tools/check-requests-scoped.py`** — owed by `R242`, still unbuilt.~~
   **BUILT 2026-09-13.** Red on one state only: a request scoped in
-  `ROADMAP.md` with no answer in the channel. Green at baseline (6 open,
-  6 answered). In CI it announces `SKIPPED` by name — the channel lives
+  `ROADMAP.md` with no answer in its channel. Green at baseline (10 open,
+  10 answered). In CI it announces `SKIPPED` per channel by name — they live
   outside the repo — rather than passing silently (`R255`).
+- ★★★ **NEW, AND READ IT BEFORE AUDITING ANYTHING IN `D:\Dev\FeatureRequests\`:
+  pdfcer answers TWO channels, not one.**
+  - `pdfce_FeatureRequests` — the `pdfcer-gui` shell (6 open requests);
+  - `iccce_FeatureRequests` — the ICC colour-management partner (4 open).
+
+  `ROADMAP.md` cites files from **both**, and cites most of them BARE (no
+  directory), so a scan scoped to one channel reports confident nonsense about
+  the other. This cost four successive wrong answers in one hour: an audit of
+  the register's reply citations reported 19 missing, then 15, then 10, and
+  the true number is **0**. Every correction found a new convention rather
+  than a real gap.
+
+  The three conventions that broke it, all of them legitimate:
+  1. `archive/` **prefixes with a date**: `reply_2026-09-09-x.md` in `open/`
+     becomes `2026-09-09-reply-x.md` once archived — the date moves to the
+     front and `reply_` becomes `reply-`.
+  2. **Archiving can RENAME the subject.** `reply_G010_renamed_to_...` is
+     filed as `2026-09-12-G010-period-in-partial-name-reply.md`. No
+     normalisation matches that; only reading the file does.
+  3. Some register citations **were never filenames** — a librarian paraphrase
+     of a reply's content, or a forward-looking name for a reply not yet
+     written, both of which read exactly like a path.
+
+  ⇒ **A citation of a file owned by another project is a citation of a name
+  that project may change.** Neither side is wrong: the register records the
+  name as filed, the channel renames on archive. No gate was minted for it —
+  nothing mechanical can tell which of two ungoverned directories a bare name
+  belongs to. The habit instead: **name the channel directory whenever the two
+  could be confused, and quote a reply's saved filename, never a paraphrase.**
 - ~~**`check-public-fns-documented.py`'s denominator is `pub`** … staged fix~~
   — **MEASURED AND DECLINED 2026-09-11.** Widening it to private functions
   would mean a **1,837-row** baseline outside test modules, which is an
