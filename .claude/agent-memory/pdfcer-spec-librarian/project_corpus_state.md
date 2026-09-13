@@ -7331,3 +7331,160 @@ the ambiguity register (`PR-N1`/`PR-N2`, bucket 2 **50 → 52**), and `index.md`
 (prefix cell `iso32000__ref__*` **29 → 30** recounted from disk, manifest row,
 **three** trigger rows, one 5-command search recipe — all five run non-empty).
 Both edition dumps were already cached in `/tmp` from items 74–76.
+
+---
+
+## 78. "IS KEY K CONSTRAINED TO A VOCABULARY?" — the answer lives in the SIBLING ROWS of K's own table, and the near-miss vocabulary is usually REAL (2026-09-13, ISO 32000 §12.9 `/U`)
+
+**Dispatch shape:** *"pdfcer is about to write literal `km` into files because one function
+supplies both the UI label and `/U`. Is `/U` constrained? If it is, we must split the UI
+label from the file-format string. We did NOT verify this — do not take our word."*
+Deliverable: `iso32000/iso32000__ref__number_format_unit_label.md` (+ `iso32000__s__12.9.md`
+amended in place, `index.md`). Verdict: **unconstrained free text; no split needed.**
+
+### 78a. ★★★ THE PROOF OF "NO VOCABULARY" IS AN **INTERNAL CONTROL IN THE SAME TABLE**, NOT A DOCUMENT-WIDE ABSENCE
+
+A document-wide sweep proves only that *you looked*. What makes the negative **safe** is
+that **the same table enumerates two OTHER keys and declines to enumerate this one.**
+ISO 32000-1 Table 263 (= 2.0 Table 268) uses the formula `Valid values shall be:` **exactly
+twice** — on `/F` and on `/O` — and never on `/U`. `shall be one of` = 0. And the clause
+fires `shall` **58 times (1.7) / 61 (2.0)** in ~17 kB, so the lone `should` on the `/U` row
+is a *choice inside a heavily normative clause*, not drafting fatigue.
+
+**Generalise: before writing "key K has no enumerated values", COUNT THE ENUMERATION FORMULA
+INSIDE K's OWN TABLE.** If a sibling row uses it, you have a control and the negative is
+strong. If no row in the table ever enumerates anything, you have only an absence, and the
+finding is weaker — say which of the two you measured.
+**The formulas to count** (ISO 32000 uses several, and they are not interchangeable):
+`Valid values shall be` · `shall be one of` · `The following are valid <X>` (this last one
+is what §12.10.2 uses for `/PDU` — a grep for only the first two would have MISSED the
+real vocabulary entirely).
+
+### 78b. ★★★ THE DISPATCH ASKED "is there an example list I might mistake for a vocabulary?" AND THERE WAS A **REAL ONE, CONTAINING THE EXACT UNIT BEING ADDED**
+
+ISO 32000-2 §12.10.2 Table 269's `/PDU` (Preferred Display Units) **is** a genuine
+enumerated unit vocabulary — six linear names, six area, two angular — and **`KM` and `MI`
+are both in it**, i.e. two of the three units pdfcer was adding. A sweep of "the measurement
+clauses" for *kilometre* finds it and nothing else. It does **not** reach `/U`, on **five
+independent axes**, and it is worth keeping the five because any one alone looks like
+hair-splitting:
+different **key** · different **dictionary** · different **`/Subtype`** (`GEO`, not `RL`) ·
+different **clause** (§12.10, not §12.9) · different **PDF object type** (a *name* `/KM`
+vs a *text string* `(km)`). Plus: `geospatial` = **0 hits in all of ISO 32000-1**, so for a
+1.7-targeted project the list does not exist at all.
+
+**Generalise: when a dispatch pre-flags "there might be a list I'd misread", assume the list
+EXISTS and go find it.** The valuable deliverable is not "there is no list" — it is
+**"here is the list you would have found, and here are the five reasons it is not yours."**
+An unlocated near-miss re-surfaces as a bug six months later.
+
+### 78c. ★★ A `should` THAT AN EDITION **DE-MODALISED** IS THE STRONGEST AVAILABLE PROOF THAT THE FAMILY IS ADVISORY
+
+ISO 32000-1 printed *"A number format dictionary specifying feet should precede one
+specifying inches"* as **EXAMPLE 1**. ISO 32000-2 prints the same sentence as **NOTE 3** and
+**rewrote the verb to "needs to precede"**. ISO drafting rules forbid recommendations inside
+a NOTE, so the editors *had* to strip the `should` when they moved it. That is the
+committee's own classification of the material, visible in a diff.
+
+Second, independent corroboration from a **different clause family**: ISO 32000-2
+§13.6.7.2 Table 325 (3D units dictionary, `/TU`//`/UU`//`/DU`) carries the **identical**
+"use a universally recognised abbreviation" recommendation as **NOTE 1 / NOTE 2 / NOTE 3** —
+informative by placement. Phrase counts: `universally recogni` = **5 in 2.0, 2 in 1.7**.
+
+**Generalise: to grade a `should`, (i) look for the same sentence in a NOTE elsewhere, and
+(ii) diff its MODALITY across editions.** Three of five occurrences being NOTE-placed is a
+far better answer than quoting ISO/IEC Directives Part 2 at the reader.
+
+### 78d. ★★ **THE CORPUS'S OWN COMPRESSION WAS THE LIKELIEST SOURCE OF THE FALSE BELIEF** — and it had INVENTED a six-member list
+
+`iso32000__s__12.9.md`'s Table 263 digest rendered the `/U` row as
+*"Unit label for display (e.g. `mi`, `ft`, `in`, `m`, `cm`, `mm`)."* **The standard's `/U`
+row carries no examples whatsoever.** `mi`/`ft`/`in` were imported from surrounding prose and
+EXAMPLE 2; `m`/`cm`/`mm` appear nowhere near the row in either edition. A compression that
+adds a list to the one row whose entire point is that it *has* no list is the exact defect
+the dispatch was guarding against — and the requesting team may well have read it here.
+
+This is **item 50 plus item 73a compounded**: not merely a lossy compression, but a
+compression that **manufactured content on an axis the source is silent about**. Fixed in
+place with a dated `★ CORRECTED` clause inside the cell, old text quoted.
+
+**Generalise: GREP YOUR OWN CORPUS FIRST when asked whether the spec constrains X — and read
+the hit ADVERSARIALLY, as a suspect rather than as an answer.** Ask specifically: *does this
+digest contain any item not present in the source row?* Examples, defaults and type names are
+where invention happens.
+
+### 78e. ★ "DOES IT DO ANYTHING BEYOND DISPLAY?" IS ANSWERED BY AN **EXHAUSTIVE SENTENCE SWEEP**, AND IT IS CHEAP
+
+Regex every sentence in the clause mentioning the key (`[^.]{0,90}\bU\b[^.]{0,90}\.` over a
+whitespace-normalised slice). Five hits, both editions, **all five string concatenation or
+placement** (algorithm steps c/d, `/PS`, `/SS`, `/O`). Nothing parses, matches or derives
+from it. ⇒ the key is an **opaque display token** and **all arithmetic lives in `/C`**.
+
+The consequence is the part worth reporting: **a wrong `/U` is SILENTLY wrong** — correct
+number, false label, undetectable by any reader. So the engineering advice inverts the
+dispatch's worry: the risk is not the label, it is the label drifting from its factor.
+Pair them from one source of truth.
+
+### 78f. ★ I PUT A WRONG NUMBER IN MY OWN DERIVED COLUMN — THIRD OCCURRENCE OF ITEM 73a, CAUGHT ONLY BY EXECUTING THE ARITHMETIC
+
+The file offers `C_first` baselines for the three new units. I wrote `mi` =
+`2.1919192e-7`; the true value is **`2.1920595e-7`** (`1/4561920`). The digits `1919192`
+are a plausible-looking repeating pattern — exactly the failure mode that "cite your source"
+cannot catch, because ISO 32000 prints no such number.
+**Caught by running `Fraction`-exact arithmetic over all three before filing.** `km` and `yd`
+were right.
+
+**Standing rule, now three-for-three: NEVER hand-compute a value into a corpus file. Run it,
+label the column `DERIVED, NOT QUOTED`, and print the INVARIANT beside it**
+(here: `C_first(unit) = (1/72) ÷ inches-per-unit`).
+
+### 78g. Two CITATION errors in the dispatch, in OPPOSITE directions — and a clause number that exists in NEITHER edition
+
+The dispatch cited *"ISO 32000-2 §12.9 Table 263"* and *"ISO 32000-1 §12.9 Tables 265–266"*.
+**Both halves wrong, and swapped**: 1.7's number format dictionary is **263**, 2.0's is
+**268**. 2.0's Table 263 is the **permissions** dictionary; 1.7's 265/266 are
+**requirement-handler** / **rendition**. And the corpus's own note implied a **§12.9.3**
+existed in 2.0 — **it does not exist in either edition** (2.0 has exactly §12.9.1 and
+§12.9.2; the geospatial material is the sibling clause **§12.10**).
+
+**Generalise (item 76 / 52 / 63c again): put an EDITION×TABLE MAP in §0 of any file whose
+subject is renumbered, and CHECK THE DISPATCH'S OWN CITATION before using it as a locator.**
+A crossed citation is not a typo — it means the requester was reading one edition's numbers
+against the other's text, and the conclusion they drew from it is suspect too.
+
+### 78h. The errata + conformance negatives, both with controls
+
+- **Errata: 3 channels, all clean.** (i) Annotation scan of the staged EC3 PDF over every
+  §12.9 page — **exactly one** non-`/Link`//`/Widget`//`/Popup` markup annot exists, Issue
+  **#655**, purely a placeholder-NOTE renumbering instruction. (ii)
+  `pdf-issues.pdfa.org/32000-2-2020/clause12.html` lists only #655 for §12.9 (plus the clause
+  retitle *Measurement properties → Measurement features*). (iii) GitHub API: `NumberFormat`
+  = **0 issues**.
+- **Conformance: 0 of 18 veraPDF profiles** mention `NumberFormat`//`Measure`//`Viewport`,
+  with `Annots` **4/18** and `Widget` **18/18** as positive controls. ⇒ measurement
+  properties are a **scope gap** in PDF/A + PDF/UA, not a scope exclusion.
+- **Corroboration, graded down:** `pdf-issues` **#487**, closed **`wontfix`**, in which the
+  ISO project co-editor hand-built micro-/nano-/pico-scale rectilinear `/Measure` files and
+  called the mechanism *"very possible... but not widely supported"*. **That is evidence
+  about a DEVICE and an editor's reading (item 68f), not a normative ruling** — record it as
+  corroboration, keep the primary basis on the table row. Its *"not widely supported"* half
+  is a `personal_rag/pdf` finding, not a spec finding; flagged as owed.
+
+### 78i. Filing shape — 1 new file, 1 amended in place, 1 index, 0 sources staged
+
+- New `iso32000/iso32000__ref__number_format_unit_label.md` (~27 kB). ID scheme `UL-0.x`
+  (read-first) / `UL-n.n` (supports) / `UL-Nn` (measured negatives) / `UL-An` (ambiguities).
+  `spec: multi`; **longest contiguous blockquote block = 1 line**, so the licence-tier
+  attribution audit (item 70f) is trivially satisfied — ISO 32000-2 appears as paraphrase
+  plus one sentence and one phrase.
+- `iso32000__s__12.9.md` **amended in place** (it **IS CRLF**; round-tripped with
+  `newline=''`): the `/U` cell rewritten with the verbatim row + a dated `★ CORRECTED`
+  clause quoting the old text; the clause-numbering note extended with the no-§12.9.3
+  correction + 2.0's full table map; a cross-reference bullet at the head of
+  `## Cross-references`; `keywords`/`related_files`/`updated:` bumped.
+- `index.md` (LF): prefix cell `iso32000__ref__*` **30 → 31 recounted from disk before
+  writing** (`find` total 191 → 192), a new trigger-topic block of **seven** rows, and a
+  6-command search recipe — **all five greps run non-empty after filing**.
+- The **heredoc broke again** on this file's punctuation. `Write` the patch script to
+  `C:\tmp\*.py`, then run it. Both edition dumps were already cached and the 2.0 dump
+  matched its recorded byte size exactly (2 695 377 B).

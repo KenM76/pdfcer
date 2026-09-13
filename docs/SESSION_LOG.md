@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-13 (532nd filing) — `Unit` gains km/yd/mi; `Unit::all()` widens to a slice; a proposed `/U`-vs-`/Measure` split declined on spec grounds
+
+**Shipped:**
+- `d4b5f00` (`Pass 301.0`) — `dimension::Unit` gains `Kilometer`, `Yard`, `Mile`; `Unit::all()` changes from `[Unit; 6]` to `&'static [Unit]` (now 9). Inbound from `pdfcer-gui` (`G013`): *"we need units (including km and miles) added as options to everything."*
+
+**Decisions made this session:**
+- `abbrev()`/`measure_u()` split **declined**: `pdfcer-spec-librarian` confirmed ISO 32000-1 §12.9 Table 263 (= ISO 32000-2 Table 268) defines `/U` as a label "for displaying the units... in a user interface" — one role, not two — and `/U` carries no arithmetic, so a wrong `/U` under a right `/C` would be undetectable by any reader or round trip. No `ARCHITECTURE.md` decision minted: a value-space widening on an existing type, not a crate-boundary or invariant change.
+
+**Findings + decisions:**
+- ISO 32000-2 §12.10.2 Table 269 `/PDU` **is** an enumerated vocabulary containing `KM`/`MI`, and does not govern `/U` (different key/dict/subtype/clause/type) — a trap the spec librarian flagged explicitly so it isn't "corrected" into the wrong table later. `/U` is a text string and therefore encrypted in an encrypted document.
+- A stray six-member `/U` example list in the spec corpus's own `iso32000__s__12.9.md` (not present in the standard) is plausibly where the requester's doubt originated — corrected this session.
+- **Widening `all()` to a slice removed a compile-time guard** (omitting a variant used to fail to compile at the array's own type) — replaced by an exhaustive-`match` test that fails to compile until a new variant is named, not a length assertion (which "fixes" itself by bumping a number). Filed as a candidate pattern, not a rule: this project's own two-occurrence bar means n=1 doesn't mint.
+- Yard added though only km/mi were named — "including" opens a list rather than closing one (the requester's reasoning, adopted). A draft mile-factor comment (`2.1919192e-7`) was wrong; checked value `2.1920595e-7` (`1/4,561,920`) — caught by doing the division, since ISO prints no such constant.
+
+**Still in flight:** nothing — this was a complete, one-commit inbound request.
+
+**For next session:** none owed by this Pass. The reply to `pdfcer-gui` is already filed at `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G013_..._SHIPPED.md` (their own channel to archive, not touched here).
+
+**`FEATURES.md`**: *ce dimensions* → new row, unit choice now nine units, citing `Pass 301.0`.
+
+**Sourcing (hard rule 8) — no shell this filing.** Verified independently against the live tree (`Read`/`Grep`): `crates/pdfcer-core/src/dimension/units.rs`'s 9-variant enum, its updated `abbrev`/`baseline_per_point`/`default_format`/`all`/`parse`/`token`, and its four new/changed tests all match the dispatch's account, including the corrected mile-factor comment. The commit hash `d4b5f00` and the test-count/clippy/sabotage verification were supplied by the dispatching engineer's report and not independently re-run or read from the commit message itself.
+
 ## 2026-09-12 (531st filing) — `ContentToken`'s optional shrink filed to Backlog, gated on the operator's own stated approval requirement
 
 **Shipped:** nothing — a register-only filing, no commit.

@@ -116,6 +116,28 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `Pass 301.0` (`d4b5f00`, 2026-09-13) — `Unit` gains kilometre, yard and mile; `Unit::all()` widens from a fixed array to a slice
+
+Inbound from `pdfcer-gui` (`G013`): *"Also we need units (including km and miles) added as options to everything."* Three new `Unit` variants (`Kilometer`, `Yard`, `Mile`) plus `Unit::all()`'s return type widened `[Unit; 6]` → `&'static [Unit]` (now 9 variants).
+
+**The spec question, sourced rather than assumed.** The requester proposed splitting `abbrev()` (screen label) from a new `measure_u()` (the `/Measure` dict's `/U` string), flagging it as unverified. `pdfcer-spec-librarian` sourced it; **declined**: ISO 32000-1 §12.9 Table 263 (crossed with ISO 32000-2's re-numbered Table 268) defines `/U` as a label "for displaying the units... **in a user interface**" — `/U` *is* the UI label, one role rather than two, and `/U` carries no arithmetic (every conversion runs on `/C`), so a wrong `/U` under a correct number would be undetectable by any reader, round trip, or corpus — the argument for a single source of truth. Also flagged for the record: ISO 32000-2 §12.10.2 Table 269 `/PDU` **is** a genuinely enumerated unit vocabulary containing `KM`/`MI`, but a different key/dictionary/subtype (`GEO` not `RL`)/clause/PDF-type — it does not govern `/U`. `/U` is a text string and therefore **encrypted** in an encrypted document; it must never be "optimised" into a name. `iso32000__s__12.9.md`'s own corpus entry carried a stray six-member `/U` example list not present in the standard — plausibly where the requester's doubt originated — corrected this session.
+
+**The guard the widening removed, and its replacement.** While `all()` returned `[Unit; 6]`, omitting a new variant from it failed to *compile* at the array's own type. The consuming project had already worked around the resulting inflexibility (`fn units() -> [Unit; 6] { Unit::all() }`, a decision-058 workaround, now deleted). Widening to a slice buys every caller compatibility and **removes that guard**; replaced by `all_contains_every_variant`, an exhaustive `match` over `Unit` that fails to *compile* — not merely to pass — until a new variant is named. A length assertion was considered and rejected: it goes red with a number to bump, the failure mode people fix by bumping the number rather than reading. **Filed as a candidate pattern, not a standing rule** (n=1, this project's own two-occurrence bar): an API widening that improves ergonomics can simultaneously delete a compile-time invariant guard. Watch for a second instance before minting.
+
+Yard was added though the operator named only km/mi — "including" opens a list rather than closing one (the requester's reasoning, adopted verbatim). `default_format` gives km/mi 4 places as the requester suggested; yard takes 3 places, which they did not raise — feet's 2 would resolve a yard (0.914 m) to 9 mm, the coarsest entry on a table otherwise sitting near 1 mm. A draft comment had the mile factor as `2.1919192e-7`; the checked value is `2.1920595e-7` (`1/4,561,920`) — ISO prints no such constant, so only the division itself can be trusted. `export::dxf::DxfUnits::for_unit` grew to cover the three new variants — a call site the requester's own enumeration could not have reached.
+
+**Verified**, per the dispatch: 2,053 core unit tests, 249 integration binaries, 0 failed; clippy/fmt/wasm/`clap`-help clean; `R225` sabotage — three independent breaks, each turning exactly one different test red.
+
+**`ARCHITECTURE.md`**: no decision minted — this is a value-space widening on an existing, documented type (`docs/core-api/`'s description of `Unit` already treats its member list as growing), not a crate-boundary or invariant change.
+
+**`FEATURES.md`**: *ce dimensions* → new row, "Unit choice for a ce-dimension group or per-dimension style override" (nine units, citing `Pass 301.0`).
+
+**Reply already filed by the requester's own convention**, not rewritten here: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G013_..._SHIPPED.md`. That channel archives its own exchanges; nothing there is touched by this filing.
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** Verified independently against the live tree via `Read`/`Grep`: `crates/pdfcer-core/src/dimension/units.rs` carries the 9-variant `Unit` enum, `abbrev`/`baseline_per_point`/`default_format`/`all`/`parse`/`token` all updated, and the four new/changed tests (`unit_parse_round_trips_its_token`'s `.iter().copied()` cast, `all_contains_every_variant`, `new_units_convert_by_their_definitions`, `every_unit_has_a_distinct_abbrev_except_the_two_that_are_both_feet`) match the dispatch's account exactly, including the corrected mile-factor comment and the doc-comment's own account of the spec sourcing. The commit hash `d4b5f00`, the test-count/clippy/sabotage verification, and the `export::dxf` call site are taken from the dispatching engineer's report and were not independently re-run or read from the commit message itself — no `git show` available without a shell this filing.
+
+---
+
 ### `Pass 300.3` (`865ed7b`, 2026-09-12) — the token vector learns each stream's own density instead of doubling; the planned fix (shrink `ContentToken`) was superseded before it started
 
 The memory half of the Toronto-map arc (527th filing) named the fix as "shrink `ContentToken` from 64 bytes" — a breaking change to a type published in `docs/core-api/`, 64 workspace match sites, unknown numbers in `pdfcer-gui`. Measuring first said that names the wrong quantity:
