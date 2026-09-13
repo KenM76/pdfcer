@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-13 (538th filing) — owed item 13b discharged: already shipped by `Pass 287.0`/`291.0`/`292.0`, and so was the ask that superseded its own withdrawal
+
+**Shipped:** nothing — a librarian-only correction to the owed ledger, no code commit.
+
+**Decisions made this session:** none — a stale-record correction, not a crate-boundary or invariant change.
+
+**Findings + decisions:**
+- Owed item 13b (*"`resize_annotation` refuses a pdfcer-authored `/Stamp` as foreign … a re-bake has no record of the original derivation to redo"*) was stale in full, confirmed by reading `crates/pdfcer-core/src/edit.rs` and `annot_author.rs` directly: `Pass 287.0` added the third authorship arm (`recover_stamp_parameters`/`apply_stamp_parameters`) and moved the label size into `/DA`; 13 tests in `tests/stamp_text_size.rs` cover it, all passing.
+- The companion request had **three states, not two**: defect → narrowed to a nice-to-have ("close it as you see fit") → **re-escalated to wanted** two hours later, in the operator's own words, once he'd used the fix that had just shipped. A dispatch proposing this discharge cited only the middle state and offered its residue for Backlog. Reading the archived request in full found the third state already fully shipped too — `Pass 287.0`'s `StampFit::GrowToText` grows the box while holding text size fixed (exactly the re-escalated ask), and `Pass 292.0`'s stamp-label recovery in `set_text_annot_style` made the "twin function" fallback unnecessary. Nothing filed to Backlog; there is no unshipped remainder.
+- **R243 dated instance, no new rule.** The stale blocker sentence was copied forward unchanged across roughly a dozen filings after `Pass 287.0` removed it — the same shape `R243` already names ("a documented obligation on a future caller is not a control") one level up, here applied to the register's own memory rather than to a code warning. Instance appended to `D:\dev\rag\rust\a_documented_obligation_on_a_future_caller_is_not_a_control.md`.
+
+**Still in flight:** nothing new.
+
+**For next session:** owed items 5, 14, 18 remain open, unchanged; item 13b is discharged.
+
+**Sourcing (hard rule 8) — no shell this session.** All claims verified via direct `Read`/`Grep` against the live tree (`edit.rs`, `annot_author.rs`, `tests/stamp_text_size.rs`, the archived request file in full) — none relayed from the dispatch that requested the discharge.
+
 ## 2026-09-13 (537th filing) — `42b44ab`: the gate shipped an hour ago could not see half the correspondence; R192's ninth instance
 
 **Shipped:**
