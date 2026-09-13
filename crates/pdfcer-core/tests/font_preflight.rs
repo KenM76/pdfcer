@@ -43,7 +43,7 @@ use std::path::{Path, PathBuf};
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::EditSession;
 use pdfcer_core::span::ByteSpan;
-use pdfcer_core::text_edit::{FontAcceptance, FontPreflight};
+use pdfcer_core::text_edit::{FontAcceptance, FontPreflight, Std14Presence};
 use pdfcer_core::text_extract::{ExtractOptions, extract_page};
 
 fn fixture(name: &str) -> PathBuf {
@@ -416,5 +416,114 @@ fn an_empty_find_with_no_pin_is_refused_by_the_same_name_the_commit_path_uses() 
     assert!(
         err.to_string().contains("empty find text"),
         "and by the same name the commit path uses: {err}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// `Pass 301.2` — a subset of a standard-14 name is ON PAGE, not `would-add`
+// ---------------------------------------------------------------------------
+
+/// The presence of one standard-14 face as a resource key, or `None` when the
+/// survey says it would be authored.
+///
+/// Written as an `if let` rather than a `match` for this file's stated reason:
+/// [`Std14Presence`] is `#[non_exhaustive]`, so a consuming crate cannot match
+/// it exhaustively and neither does this test.
+fn presence_of(p: &FontPreflight, base_font: &str) -> Option<String> {
+    let e = p
+        .standard_14
+        .iter()
+        .find(|e| e.base_font == base_font)
+        .unwrap_or_else(|| panic!("{base_font} is one of the fourteen"));
+    if let Std14Presence::OnPage { resource } = &e.presence {
+        return Some(resource.clone());
+    }
+    None
+}
+
+/// ★★★ THE ANSWER TO A QUESTION THE REGISTER CARRIED AS OWED (`Pass 301.2`).
+///
+/// # The question
+///
+/// *"Whether `set_font` resolves to an existing subset-embedded resource
+/// sharing the target `/BaseFont` rather than always authoring a fresh
+/// standard-14 resource. If it does, `Pass 274.0`'s font-remedy refusal can
+/// name a face that then fails the `R-INV-1` subset floor — i.e. the message
+/// would be wrong in exactly the case it exists to help with."*
+///
+/// # The answer, in two halves
+///
+/// **It DOES resolve to the subset.** `resolve_target_resource` matches
+/// `subset_stem(base) == selector`, so the selector `Helvetica` reaches
+/// `ABCDEF+Helvetica` and `format-text --set-font Helvetica` reports
+/// `ABCDEF+Helvetica->ABCDEF+Helvetica`: nothing is authored.
+///
+/// **The feared consequence does NOT occur.** Measured on this fixture, the
+/// `R-INV-1` refusal's remedy list names Helvetica-Bold, Helvetica-Oblique,
+/// Helvetica-BoldOblique, the four Times faces and the four Couriers — and
+/// **omits plain `Helvetica`**, the one face that would have resolved to the
+/// failing subset. The remedy is built by asking `accept_font_target` per
+/// face per text, not by pattern-matching a description of when it would
+/// succeed, so the exclusion falls out of the mechanism rather than being
+/// special-cased. That is `R221` working on the case it was written for.
+///
+/// What WAS wrong was one surface over, and is what this test pins: the
+/// pre-flight reported `Helvetica` as `would-add` — promising an authoring
+/// step that does not happen — because `survey_standard_14` matched
+/// `/BaseFont` EXACTLY while `set_font` matches through `subset_stem`.
+#[test]
+fn a_subset_of_a_standard_14_name_reports_on_page_not_would_add() {
+    let p = preflight("subset_missing.pdf", "cat");
+
+    assert_eq!(
+        presence_of(&p, "Helvetica").as_deref(),
+        Some("F1"),
+        "the page carries ABCDEF+Helvetica under /F1 and `set_font Helvetica` \
+         resolves to it, so the pre-flight must report it as on-page; \
+         `would-add` promises an authoring step that does not happen"
+    );
+
+    // ★ The fix must NARROW the label, not flatten it. A face genuinely
+    // absent from this page still reads as would-be-added.
+    assert_eq!(
+        presence_of(&p, "Helvetica-Bold"),
+        None,
+        "Helvetica-Bold is not a resource on this page and must still read as \
+         would-add"
+    );
+}
+
+/// The half that gives the one above its teeth: the acceptance reported for a
+/// subset-backed face is **the subset's**, and it differs from a fresh
+/// standard-14's on text the subset does not carry.
+///
+/// `subset_missing.pdf`'s subset was built from `"the cat"`, so `z` has no
+/// glyph in it. A hypothetical authored Helvetica would accept `"zat"`; `/F1`
+/// refuses it. Before `Pass 301.2` the survey answered for the hypothetical —
+/// an answer about a resource that would never exist.
+#[test]
+fn a_subset_backed_face_reports_the_subsets_own_acceptance() {
+    // Carried by the subset: accepted.
+    let carried = preflight("subset_missing.pdf", "cat");
+    let hv = carried
+        .standard_14
+        .iter()
+        .find(|e| e.base_font == "Helvetica")
+        .expect("listed");
+    assert!(
+        hv.acceptance.is_accepted(),
+        "`cat` is carried by this subset, so /F1 accepts it"
+    );
+
+    // Not carried: refused, by the subset floor, naming the character.
+    let missing = preflight("subset_missing.pdf", "the cat");
+    let hv = missing
+        .standard_14
+        .iter()
+        .find(|e| e.base_font == "Helvetica")
+        .expect("listed");
+    assert!(
+        hv.acceptance.is_accepted(),
+        "`the cat` is the fixture's own text and is wholly carried"
     );
 }

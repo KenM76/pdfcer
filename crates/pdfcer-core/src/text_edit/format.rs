@@ -3856,9 +3856,39 @@ fn survey_standard_14(
         .iter()
         .map(|&face| {
             let name = crate::fontdata::std14_base_font_name(face);
-            let on_page = page_fonts
-                .iter()
-                .find(|c| crate::fontdata::std14_by_base_font(&c.base_font) == Some(face));
+            // ★★★ THROUGH `subset_stem`, BECAUSE `set_font` RESOLVES THROUGH
+            // IT (`Pass 301.2`). This line used to test `c.base_font`
+            // directly, which is an EXACT match -- so a page carrying
+            // `ABCDEF+Helvetica` reported `Helvetica` as `WouldBeAdded` while
+            // `resolve_target_resource`, the function `set_font` actually
+            // uses, matches `subset_stem(base) == selector` and REUSES that
+            // resource.
+            //
+            // Measured on `fixtures/synthetic/textedit/subset_missing.pdf`
+            // before the fix:
+            //
+            //     font-preflight  ->  "Helvetica  ACCEPT  would-add"
+            //     format-text --set-font Helvetica
+            //                     ->  "set_font=ABCDEF+Helvetica->ABCDEF+Helvetica"
+            //
+            // Nothing was added. The report and the verb disagreed about what
+            // the verb would do, in one report that also printed
+            // `selector="Helvetica"` for that very resource two lines above.
+            //
+            // ★ This function's own doc comment asserts that "the answer here
+            // and the outcome of the later `set_font` cannot disagree". That
+            // sentence was FALSE for every page carrying a subset of a
+            // standard-14 name, and a doc comment stating an invariant its
+            // code does not hold is the harder defect of the two -- a reader
+            // checking the claim finds it written down and stops.
+            //
+            // This is `R221`: the accepting code is the authority, and a
+            // second place that decides the same thing by different means
+            // drifts. The two now resolve identically because they call the
+            // same helper.
+            let on_page = page_fonts.iter().find(|c| {
+                crate::fontdata::std14_by_base_font(subset_stem(&c.base_font)) == Some(face)
+            });
             match on_page {
                 Some(c) => Std14Entry {
                     base_font: name.to_owned(),
