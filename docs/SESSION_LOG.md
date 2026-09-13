@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-13 (543rd filing) — item 35 gets a standard to measure against, credited to `pdfcer-gui`; a general test-design finding graduates to `D:\dev\rag\rust\`
+
+**Shipped:** nothing — librarian-only, no code commit.
+
+**Decisions made this session:** attach `pdfcer-gui`'s two premise-assertion tests (for their object-recovery panel's control/damaged fixtures) and the three rules they drew from writing them, to owed item 35 as the standard the eventual survey measures against. The 196/44/152 detector figures from the 542nd filing are left exactly as filed — this addendum does not make them any more quotable, per the operator's explicit instruction.
+
+**Findings + decisions:**
+- The three rules: (1) two independent assertions when a fixture has two properties that can fail in opposite directions ("still recovered" vs. "still lossless"); (2) assert exact values, never a count, when the field's shape (a `Vec`, not a tally) implies which value matters; (3) a premise-assertion's failure message should name the downstream consequence ("the driven check is no longer measuring anything"), not restate the failed condition.
+- The cost argument for the item at all: a fixture that quietly stops meaning what a driven check assumes costs one second to catch as a unit failure, versus up to ninety minutes as a driven-check failure that wears the costume of an application defect and sends the debugger looking in the wrong file.
+- Judged general enough to graduate: written to `D:\dev\rag\rust\a_fixture_premise_test_needs_two_assertions_the_exact_values_and_a_consequence_named_message.md`, indexed in that tree's `index.md`, credited to `pdfcer-gui`.
+
+**Still in flight:** owed items 5, 14, 34 unchanged; item 35 widened (standard attached, size still unknown, still unscoped).
+
+**For next session:** unchanged from the 542nd filing — whoever takes item 35 reads the files against the three rules above, not the regex; expected output smaller than 152.
+
+**Sourcing (hard rule 8) — no shell this session.** The two tests' text and the three rules are taken from the dispatching engineer's relay of `pdfcer-gui`'s message, not independently checked against their test files or the channel directory from here.
+
 ## 2026-09-13 (542nd filing) — new owed item 35: the fixture-premise-assertion survey, opened with a caveat attached to its own measurement
 
 **Shipped:** nothing — librarian-only, no code commit. Answers the 541st filing's own "for next session" question (open the corpus-fixture-invariant survey as an owed item?) with yes.

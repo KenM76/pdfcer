@@ -115,6 +115,55 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### Librarian filing, 543rd, 2026-09-13 — item 35 gets a STANDARD to measure against, credited to `pdfcer-gui`; the 196/44/152 handcuff is untouched
+
+Not a Pass — no code commit. `pdfcer-gui` consumed the 542nd filing's reply with nothing owed either way, and separately wrote out, unprompted, the shape of the two premise-assertion tests they had already built against `Document::recovery()` for their own object-recovery panel's control and damaged fixtures. That shape is a better answer to "what does a good fixture-premise test look like" than item 35 had when it was opened, so it is attached to the item rather than left in the channel.
+
+**The two tests, both cheap unit tests opening the fixture through `pdfcer-core` and asserting on `Document::recovery()`, not on anything `pdfcer-gui` built:**
+
+| test | what it pins | the failure it prevents |
+|---|---|---|
+| `…control_fixture…really_recovers_and_drops_nothing` | `recovery()` is `Some` **and** `objects_dropped` is empty | the control silently stops being recovered — an xref gets added, or a future engine opens it without rebuilding — and the driven check downstream blames the panel for an absence the FILE caused |
+| `…recovery_fixture_drops_the_two_objects_it_was_built_to_drop` | the dropped IDs are exactly `[8, 9]` | the damaged fixture stops dropping anything, the panel correctly draws nothing, and the check stays green forever measuring nothing |
+
+**Three rules, drawn out by `pdfcer-gui`, now the standard item 35 measures against:**
+
+1. **Two assertions, not one, when the properties fail independently and in OPPOSITE directions.** "Still recovered" and "still lossless" are different properties of one file; a single combined assertion cannot say which one went, and can be satisfied by either failure mode.
+2. **Assert the exact values, not the count.** A count of two is satisfied by finding object 8 twice. *Which* object is the reason the field carries a `Vec` rather than a tally in the first place — a count assertion would contradict the reason the field has its shape.
+3. **The failure message names the downstream CONSEQUENCE, not the failed condition** — *"…so the driven check downstream is no longer measuring anything"*, not *"expected [8, 9]"*. The reader is usually not the fixture's author, and what they need is what stopped being true about the suite.
+
+**Their argument for paying the cost at all, preserved because it answers whether item 35 is worth anyone's time:** a fixture that has quietly stopped being what a driven check assumes costs **one second** to catch in a unit suite and **up to ninety minutes** in a driven sweep — and the sweep catches it **wearing the costume of an application defect**, sending whoever is on call looking in the wrong file.
+
+**What this changes about item 35's shape.** It is no longer "which files lack prose about their fixtures" — it is "which files depend on a fixture property that nothing asserts, judged against the three rules above." The 196/44/152 detector figures from the 542nd filing are **untouched by this addendum** and remain flagged exactly as filed there: a detector output, not a census, not more quotable for having a standard attached to it now.
+
+**Written to the cross-project RAG.** The three rules generalise beyond a PDF recovery panel — they're general test-design discipline for any fixture a driven check depends on — so they're also filed at `D:\dev\rag\rust\a_fixture_premise_test_needs_two_assertions_the_exact_values_and_a_consequence_named_message.md`, indexed in that tree's `index.md`, credited to `pdfcer-gui` via this exchange.
+
+**Nothing else owed.** No reply requested, none sent; `pdfcer-gui`'s own note said nothing was owed either way.
+
+### Part — owed work, discharged and new
+
+**Discharged this filing:** none.
+
+**Changed this filing:** item 35's *description* is widened (a standard to measure against, not a new size estimate) — still open, still unscoped, size still unknown.
+
+**Carried forward, unchanged:** items 5, 14, 34.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `302` (highest ID `302.1`), next free family `303` | **unchanged** |
+| Standing rules | `R256`, next free `R257` | **unchanged** |
+| Decision records | `156` | **unchanged** — attaching a test-design standard to an already-open survey item is not a crate-boundary or invariant change |
+| `SESSION_LOG` filings | `542` | **`543`** |
+| `docs/FEATURES.md` | — | **untouched** — internal test-discipline, no operator-facing capability |
+| `D:\dev\rag\rust\` | 168 findings | **169** — new file + index entry, both this filing |
+| Owed-survivor ledger | items 5, 14, 34, 35 open | **item 35 WIDENED (standard attached, size still unknown); items 5, 14, 34 unchanged** |
+
+**Sourcing (hard rule 8) — no shell this filing.** The two tests' exact text, the three rules, and the "nothing else owed" claim are all taken from the dispatching engineer's relay of `pdfcer-gui`'s own message, not independently re-checked against the channel directory or against `pdfcer-gui`'s own test files from here.
+
+---
+
 ### Librarian filing, 542nd, 2026-09-13 — new owed item 35: survey how many fixture-consuming tests assert the fixture's own premise; a detector run is not a coverage census and must not be quoted forward as one
 
 Not a Pass — no code commit. Answers the "for next session" question the 541st filing (`SESSION_LOG.md`) left open — *"consider whether a corpus-fixture-invariant survey belongs on the owed list"* — with a yes, and attaches a measurement that is deliberately labelled so it cannot outlive the method that produced it.
