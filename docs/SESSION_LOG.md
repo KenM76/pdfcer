@@ -4,6 +4,32 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-13 (534th filing) — `set_font` reuses an existing subset; the pre-flight promised to add one it would have reused; a text-fixture PROVENANCE backfill falsifies a legal-adjacent claim; `R221`'s instance ledger relocated out of ROADMAP prose
+
+**Shipped:**
+- `52a0ccd` (`Pass 301.2`) — measured owed item 8 in full: `set_font` DOES resolve to an existing subset-embedded resource sharing the target `/BaseFont` (via `resolve_target_resource`'s `subset_stem` match), and the feared consequence (a font-remedy refusal naming a face that then fails the subset floor) does NOT occur — the remedy list is built by asking the accepting code per face, so it already excludes the shadowed name. Fixed a real, adjacent defect: `survey_standard_14` (backing `font-preflight`) matched `/BaseFont` exactly instead of through `subset_stem`, so it reported a reused subset as "would-add."
+- `408c93c` — docs-only: backfilled `fixtures/synthetic/text/PROVENANCE.md` for all twelve previously-undocumented fixtures, discharging owed item 4.
+
+**Decisions made this session:**
+- No new `ARCHITECTURE.md` decision — both commits are correctness fixes/documentation to existing internal mechanisms, not crate-boundary or invariant changes.
+- `R221`'s instance-tracking mechanism changed: the ledger moves from inline ROADMAP prose (which had already produced a genuine numbering collision in the frozen historical record — two unrelated instances both labelled "fourth") to a single append-only RAG file, mirroring `R225`'s own successful discipline. Discharges owed item 10.
+
+**Findings + decisions:**
+- `Pass 301.2`'s doc-comment claim ("the answer here and the outcome of the later `set_font` cannot disagree") was false and unenforced — `R247`'s third dated instance, and simultaneously `R221`'s twelfth reconciled instance on the same line: one incident, two distinct reasons it went unnoticed.
+- The `fixtures/synthetic/text/PROVENANCE.md` backfill found a blanket claim ("no embedded font programs... no attribution is owed") that had quietly gone false as composite/subset fixtures were added beside the original six — ten of twenty-nine PDFs embed a `/FontFile2`. The `LEGAL.md` §5 classification itself was never at risk (every outline is drawn by a committed generator); this was a description that stopped being true, corrected in place per this project's history discipline.
+- Hard rule 10: the owed-item register's own figure was wrong. Item 4 said "21 of 38 files undocumented"; the file directly measured 39 entries / 29 PDFs / 12 undocumented — the register had been counting entries, not fixtures, and carrying the wrong total forward unverified since the 477th filing.
+- Owed item 9 was found to be **already resolved** (489th filing, 2026-09-09, direct engineer ruling) — the framing that prompted this filing's dispatch was stale, citing a superseded reservation. Corrected without reopening anything.
+- `tools/check-requests-scoped.py` (owed by `R242`) verified still unbuilt against the tree — restated as owed to the engineer, not built here (outside this role's remit).
+- New RAG file: `D:\dev\rag\rust\a_capability_predicate_that_restates_its_accepting_function_will_drift_ask_the_function_instead.md` — `R221`'s full mechanism plus a reconciled, best-effort 11-instance chronological ledger built from the frozen history file and the live ROADMAP, explaining the collision and adopting `R225`'s single-file dated-footer discipline going forward. Indexed in `D:\dev\rag\rust\index.md`. A twelfth instance (this session's own `Pass 301.2`) is appended within the same file.
+
+**Still in flight:** nothing new — both commits were complete, measured answers to pre-existing owed items.
+
+**For next session:** items 5, 11, 13b, 14, 18 remain open, unchanged by this filing (see `docs/ROADMAP.md`'s owed-work ledger). `check-requests-scoped.py` remains unbuilt.
+
+**`FEATURES.md`**: checked, no row changed — neither commit moves an operator-facing capability (a pre-flight correctness fix and a fixture-provenance backfill).
+
+**Sourcing (hard rule 8) — no shell this filing.** `.git/logs/HEAD` and `.git/COMMIT_EDITMSG` read directly (not relayed) to confirm `408c93c` is the current tip and `52a0ccd` is its immediate parent, and to quote `408c93c`'s own message verbatim. Independently verified against the live tree via `Read`/`Grep`: `crates/pdfcer-core/src/text_edit/format.rs`'s `survey_standard_14` (now routed through `subset_stem`, doc comment matching the account above), `crates/pdfcer-core/tests/font_preflight.rs`'s two new tests, and `fixtures/synthetic/text/PROVENANCE.md`'s struck correction paragraph. The test-count/clippy/sabotage verification figures for `Pass 301.2` and the exact fixture counts for `408c93c` are taken from the dispatching engineer's report as authoritative and were not independently re-run or recounted file-by-file. Not checked this filing: `origin/main` state, backup-bundle currency, CI colour — the engineer should check these directly if they matter for the next act.
+
 ## 2026-09-13 (533rd filing) — a completeness guard is lost three different ways: `CheckStyle`/`DocInfoField` widened like `Unit`, `PermissionBit` deliberately not, `SnapKind` gains a rank-uniqueness check it never had
 
 **Shipped:**

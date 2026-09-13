@@ -116,6 +116,80 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `408c93c` (2026-09-13) — the text PROVENANCE backfill, and it falsified a legal-adjacent claim on the way
+
+Not a Pass — docs-only, filed under its own commit-hash heading. Discharges owed item 4 (open since the 477th filing). All twelve undocumented fixtures in `fixtures/synthetic/text/` now have a `PROVENANCE.md` entry naming their generator and what each makes reachable. Every one is `LEGAL.md` §5 category (a) — confirmed by reading each generator's own header, not assumed from the directory name.
+
+**The correction the backfill forced.** `PROVENANCE.md` stated as a blanket fact: *"No embedded font programs, no third-party CMap resources, no corpus material — so no attribution is owed and none is claimed."* **Ten of the twenty-nine PDFs embed a `/FontFile2`.** True of the six original Pass-4 extraction files; false since composite/subset fixtures were added beside them. Struck rather than rewritten, so a reader who remembers the old sentence sees that it moved. The `LEGAL.md` §5 classification is unchanged and was never at risk — `gen-subset-font-fixtures.py` states in its own words that every outline is drawn by the committed generator, no byte from a real font. This is a description that quietly went false, not a licence problem; recorded at length because it sat in the file an audit would read first, and it would have been believed.
+
+**The register's own count was also wrong** (hard rule 10). Owed item 4 said "21 of 38 files undocumented." Measured directly against the file: **39 entries, 29 PDFs, 12 undocumented.** The 38/21 figures counted every entry rather than every fixture and were carried forward unverified across several filings — the identical shape as the PROVENANCE.md defect above, one directory over.
+
+**Also worth keeping**, from `subset-simple-embedded.pdf`'s generator: the corpus once had three files and none could fire either of two shipped refusals, found only when both refusals turned out to ask the operator to do something impossible. A refusal no fixture can trigger is a refusal whose wording nobody has ever read.
+
+**`FEATURES.md`**: unchanged — a fixture-provenance and description correction, no operator-facing capability touched.
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `.git/COMMIT_EDITMSG` (the tip's own message, retained) carries this commit's message in full, read directly, not relayed; `.git/logs/HEAD`'s final reflog line names `408c93c` as the tip, one step past `52a0ccd`. `.git/refs/remotes/origin/main` not read this filing (not needed to confirm the message). Independently verified against the live tree: `fixtures/synthetic/text/PROVENANCE.md` carries the "CORRECTED 2026-09-13" struck paragraph verbatim, matching the commit message's own quoted text. The 39-entries/29-PDFs/12-undocumented and ten-`/FontFile2` figures are taken from the commit message as authoritative and not independently recounted file-by-file this filing.
+
+---
+
+### `Pass 301.2` (`52a0ccd`, 2026-09-13) — `set_font` DOES reuse an existing subset; the pre-flight promised to add one it would have reused
+
+Measures owed item 8 in full, four filings after `Pass 279.0` (480th filing) partially answered a related shape and one filing after `Pass 301.1`. The original question: *"whether `set_font` resolves to an existing subset-embedded resource sharing the target `/BaseFont` rather than always authoring a fresh standard-14 resource, and if so, whether `Pass 274.0`'s font-remedy refusal can name a face that then fails the `R-INV-1` subset floor."*
+
+**The answer, in two halves.** **It DOES resolve to the subset** — `resolve_target_resource` matches `subset_stem(base) == selector`, so the selector `Helvetica` reaches `ABCDEF+Helvetica`, and `format-text --set-font Helvetica` reports `ABCDEF+Helvetica->ABCDEF+Helvetica`: nothing is authored. **The feared consequence does NOT occur** — measured on `fixtures/synthetic/textedit/subset_missing.pdf`, the `R-INV-1` refusal's remedy list names eleven faces (Helvetica-Bold/-Oblique/-BoldOblique, four Times, four Couriers) and **omits plain Helvetica**, the one face that would have resolved to the failing subset. The remedy list is built by asking `accept_font_target` per face per text, not by pattern-matching a description of when it would succeed, so the exclusion falls out of the mechanism rather than being special-cased — `R221` working on the exact case it was written for, and the third instance in two days of a claim's mechanism outliving the claim (see below).
+
+**What WAS wrong, one surface over.** `survey_standard_14` (the `font-preflight` CLI's backing function) matched `/BaseFont` **exactly**, while `set_font` matches through `subset_stem` — so `font-preflight` reported `Helvetica ACCEPT would-add` for a resource it would in fact reuse, in the same report that printed `selector="Helvetica"` for that resource two lines above. Fixed by routing `survey_standard_14` through the identical `subset_stem` match `resolve_target_resource` uses. Its own doc comment had asserted "the answer here and the outcome of the later `set_font` cannot disagree" — false for every page carrying a subset of a standard-14 name; a doc comment asserting an invariant its code did not hold, corrected in place per `R247`'s discipline (dated third instance appended to that rule's RAG file, not a new mint — see below).
+
+**Tests.** Two new in `crates/pdfcer-core/tests/font_preflight.rs`: `a_subset_of_a_standard_14_name_reports_on_page_not_would_add` (asserts `Helvetica` reads `OnPage` at its real resource key, and that a genuinely absent face like `Helvetica-Bold` still reads `would-add` — the fix must narrow the label, not flatten it) and `a_subset_backed_face_reports_the_subsets_own_acceptance` (the subset's own coverage, not a hypothetical fresh standard-14's).
+
+**`R221`.** Twelfth reconciled instance (see the new ledger file below) — a second description (`survey_standard_14`'s own `/BaseFont` match) of a question the accepting code (`resolve_target_resource`) already answers.
+
+**`R247`.** Dated third instance appended to `a_doc_comment_stating_a_behavioural_guarantee_is_unenforced_until_a_test_would_fail_without_it.md` — no re-mint, ceiling unchanged.
+
+**`R221` instance-tracking reconciled.** Owed item 10 (open since the 480th filing: "R221's true current instance count needs reconciliation") is discharged by moving the ledger out of ROADMAP prose entirely: `D:\dev\rag\rust\a_capability_predicate_that_restates_its_accepting_function_will_drift_ask_the_function_instead.md` (new) carries the full mechanism plus a best-effort reconciled chronological list of eleven instances, including the discovery that the FROZEN historical record (`docs/history/standing-rules-full.md`) itself contains a genuine collision — two unrelated instances both labelled "fourth" — which is why a sequence number kept failing here while `R225`'s own single-file dated-footer ledger never has. Going forward, instances are appended to that file, cited by date + Pass ID, never renumbered.
+
+**Verified** (relayed by the dispatching engineer, not independently re-run): 2,054 core lib tests, 149 core test binaries, 0 failed; `cargo fmt --check` / `cargo clippy --all-features -- -D warnings` clean. `R225`: reverting the one-line `subset_stem` resolution change turns the new `a_subset_of_a_standard_14_name_reports_on_page_not_would_add` test red and nothing else.
+
+**`FEATURES.md`**: checked, no row changed — `font-preflight`'s existing row already covers the standard-14 survey; this is a correctness fix to that survey's own resolution, not a new capability.
+
+**`ARCHITECTURE.md`**: no decision minted — a bug fix to an existing internal matching function, not a crate-boundary or invariant change.
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `.git/logs/HEAD` names `52a0ccd` as one commit before the tip (`408c93c`), reflog subject `"fix(core): the pre-flight promised to ADD a font it would have REUSED"`. Independently verified against the live tree via `Read`/`Grep`: `crates/pdfcer-core/src/text_edit/format.rs:3849-3916`'s `survey_standard_14` now matches through `subset_stem` with the doc comment quoted above present verbatim, and `crates/pdfcer-core/tests/font_preflight.rs:422-529` carries both new tests with the exact reasoning summarised above. The test-count/clippy/sabotage verification figures are taken from the dispatching engineer's report and were not independently re-run.
+
+---
+
+### Part — owed work, discharged and corrected
+
+**Discharged this filing:**
+
+4. `fixtures/synthetic/text/PROVENANCE.md` backfill — see `408c93c` above. Figure corrected to 39 entries / 29 PDFs / 12 undocumented (was misrecorded as "21 of 38" since the 477th filing).
+8. The `format_text --set-font` subset-resolution question — see `Pass 301.2` above. (`Pass 279.0`, 480th filing, had already fixed an adjacent defect on the same question; this filing supplies the measurement the original item asked for and finds a second, smaller defect one surface over.)
+10. `R221`'s instance-count reconciliation — discharged by relocating the ledger to `D:\dev\rag\rust\` (see `Pass 301.2` above), not by producing a single retroactive number for the ROADMAP prose that broke twice already.
+
+**Corrected, not newly discharged — owed item 9 was stale.** The dispatch that prompted this filing described item 9 as still open ("`R247` is already reserved for an unrelated trigger"). It is not: the **489th filing** (2026-09-09) resolved `R247` by direct engineer ruling — candidate 1 (an unenforced doc-comment guarantee) claimed `R247`; candidate 2 (the "alternate route" sabotage-fixture cause, `n=3`) was **withdrawn**, folded into `R225`'s own dated-instance family rather than minted separately, and item 9 was explicitly recorded as **closed, not deferred**. The ceiling has moved five times since (`R248`…`R256`, `Pass 301.1`, 533rd filing). Nothing further is owed here; the correction is recorded because the stale framing reached this filing intact rather than being checked against the document first — the exact discipline hard rule 8 asks for, pointed at a dispatch's own account rather than at git state.
+
+**Verified still true, no change made (not this role's tool to build):** `tools/check-requests-scoped.py`, owed by `R242` since its founding, still does not exist (`Glob`/`Grep` confirm no file, only references in `docs/NEXT_SESSION.md` and two history files). Restated as still owed to the engineer.
+
+**Carried forward, unchanged:** items 5, 11, 13b, 14, 18.
+
+---
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `301` (highest ID `301.1`), next free family `302` | **`301.2` MINTED AND SHIPPED** (highest ID now `301.2`), next free family still `302` |
+| Standing rules | `R256`, next free `R257` | **unchanged** — `R221` gains its 12th reconciled instance and a relocated ledger (dated footer, no re-mint); `R247` gains a third dated instance (dated footer, no re-mint) |
+| Decision records | `156` | **unchanged, `156`** — a bug fix to an existing matching function, not a crate-boundary/library/invariant change |
+| `SESSION_LOG` filings | `533` | **`534`** |
+| `docs/FEATURES.md` | unchanged | **unchanged — neither commit moves an operator-facing capability** |
+| Owed-survivor ledger | items 4, 5, 9 (stale), 10, 11, 13b, 14, 18 open | **items 4, 8 (already discharged pre-filing), 9, 10 CLOSED this filing; items 5, 11, 13b, 14, 18 unchanged; no new items** |
+| `D:\dev\rag\rust\` | 345 files (per the 533rd filing's own count trajectory) | **347** — `a_capability_predicate_that_restates_its_accepting_function_will_drift_ask_the_function_instead.md` (new) + a dated third instance appended to `a_doc_comment_stating_a_behavioural_guarantee_is_unenforced_until_a_test_would_fail_without_it.md`; `index.md` bullet added |
+
+**Release state — NOT checked this filing (no shell).** Whether `52a0ccd`/`408c93c` have been pushed or released is not asserted here — the engineer should check `git rev-parse origin/main` / `git describe --tags --abbrev=0` directly.
+
+---
+
 ### `Pass 301.1` (`d378417`, 2026-09-13) — three more `::all()` completeness accessors swept; `SnapKind` gains a rank-uniqueness guard it never had; a fourth accessor (`PermissionBit`) is left unchanged, on purpose
 
 `Pass 301.0`'s reply to `pdfcer-gui` (`G013`) noted in passing that widening `Unit::all()` to a slice had deleted a compile-time completeness guard. Within the hour, the consuming project found the identical shape in its own code — `text::scale::tests::every_unit_is_named_distinctly` carried a hand-written copy of `Unit`'s six variants inside the very test meant to catch an unnamed one — and named it, adopted verbatim: **"a completeness test that carries its own copy of the set is testing the copy."**
@@ -26633,6 +26707,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - `R219` — WHEN A PASS FIXES ONE OF SEVERAL ROUTES TO THE SAME BEHAVIOUR, ENUMERATE THE OTHER ROUTES IN THE SAME PASS AND SAY EXPLICITLY WHICH ARE LEFT.
 - `R220` — A CAPABILITY IS DOCUMENTED WHERE THE READER'S *QUESTION* LIVES, NOT ONLY WHERE ITS *MECHANISM* LIVES; AND A CLAIM THAT PDFCE HAS NO VERB FOR SOMETHING IS CHECKED AGAINST SOURCE BEFORE IT…  **[gate: check-core-api-verbs.py, check-ledger-numbers.py]**
 - `R221` — A PREDICATE THAT DECIDES WHETHER A CAPABILITY APPLIES IS COMPUTED BY THE CODE THAT PROVIDES THE CAPABILITY — ASK THE REAL FUNCTION, NEVER PATTERN-MATCH A PARALLEL DESCRIPTION OF WHEN IT W…
+- **`R221` — INSTANCE LEDGER RELOCATED, 2026-09-13 (534th filing, discharging owed item 10).** This rule's inline numbered instances, tracked in ROADMAP prose across dozens of filings, collided twice in the now-frozen `docs/history/standing-rules-full.md` (two unrelated instances both labelled "fourth"), and at least one later filing undercounted its own instance in a commit message as a result. The canonical, append-only instance ledger — 12 instances as of this filing, cited by date + Pass ID rather than by a sequence number — now lives at `D:\dev\rag\rust\a_capability_predicate_that_restates_its_accepting_function_will_drift_ask_the_function_instead.md`. Append future instances THERE; do not resume numbering in this file. Latest instance: `Pass 301.2` (`52a0ccd`), `survey_standard_14` vs. `resolve_target_resource`.
 - `R222` — WHEN A DOC-COMMENT CLAIM IS CORRECTED, GREP THE FORMAT STRINGS FOR THE SAME CLAIM IN THE SAME CHANGE.  **[gate: check-metrics-line-contract.py]**
 - `R223` — A DOC COMMENT'S CLAIM ABOUT ITS OWN *CALLERS* IS A MEASUREMENT, AND NOTHING RECOMPILES WHEN IT GOES STALE.
 - `R224` — THE UNIT OF A ROUTE ENUMERATION IS THE *OPERAND*, NEVER THE FUNCTION BEING FIXED; AND THE ONLY TEST THAT COVERS A ROUTE NOBODY HAS WRITTEN YET IS A SOURCE SCAN WITH NO TUNING PARAMETER.  **[gate: check-core-api-verbs.py, check-public-fns-documented.py]**
@@ -26664,6 +26739,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - **`R245` — DATED INSTANCE NOTE, 2026-09-11 (509th filing, `Pass 296.3`): THE LITERAL-SEARCH-VS-PATTERN-SEARCH REDACTION-DISCLOSURE PAIR PRODUCED THIS SHAPE A SECOND TIME — EIGHTH DATED INSTANCE.**
 - `R246` — A CORRECTION IS NOT COMPLETE UNTIL IT REACHES EVERY CORPUS THIS PROJECT *READS*, NOT MERELY EVERY TREE IT *WRITES*.
 - `R247` — A DOC COMMENT STATING A BEHAVIOURAL GUARANTEE ("ONLY X IS TOUCHED", "NEVER Y", "ALWAYS Z", "CANNOT CORRUPT W") IS AN UNENFORCED CLAIM UNTIL A TEST EXISTS THAT WOULD FAIL IF IT WERE VIOLATED.
+- **`R247` — DATED INSTANCE NOTE, 2026-09-13 (534th filing, THIRD INSTANCE, `Pass 301.2`, `52a0ccd`).** `survey_standard_14`'s own doc comment asserted "the answer here and the outcome of the later `set_font` cannot disagree" — unenforced, and false for every page carrying a subset of a standard-14 name. Also the twelfth reconciled `R221` instance on the same line (see `R221`'s own dated note, above) — the same incident satisfies both rules for two different reasons: `R221` explains why the two answers diverged, this rule explains why nobody noticed. Full account appended to `D:\dev\rag\rust\a_doc_comment_stating_a_behavioural_guarantee_is_unenforced_until_a_test_would_fail_without_it.md`. No re-mint; ceiling unchanged.
 - `R248` — A STRUCTURAL DEFECT THAT LEAVES THE OBJECT GRAPH AMBIGUOUS, NOT UNDEFINABLE, IS OPENED — pdfcer PICKS A READING UNDER A NAMED DEFAULT, DISCLOSES WHAT IT PICKED AND WHAT IT DISCARDED, AND…
 - `R249` — A DESTRUCTIVE SWEEP OBLIGED BY AN OUTCOME-SHAPED REQUIREMENT ("REMOVE ALL TRACES OF X") IS SCOPED BY THE EVIDENCE THE REQUIREMENT ITSELF NAMES, NEVER BY A COMPUTED REACHABILITY OR LIVENES…
 - `R250` — BEFORE IMPLEMENTING A DATA-FORMAT OR COMPATIBILITY DECISION SOURCED FROM A FEATURE-RAG (OR SPEC-RAG) FINDING LABELLED ANYTHING SHORT OF DIRECTLY-OBSERVED, CHECK WHETHER A PRIMARY ARTIFACT…
