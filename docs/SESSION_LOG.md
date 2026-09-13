@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-13 (542nd filing) — new owed item 35: the fixture-premise-assertion survey, opened with a caveat attached to its own measurement
+
+**Shipped:** nothing — librarian-only, no code commit. Answers the 541st filing's own "for next session" question (open the corpus-fixture-invariant survey as an owed item?) with yes.
+
+**Decisions made this session:** open the survey as `ROADMAP.md` owed item 35 — *"survey how many fixture-consuming tests assert the fixture's own premise; size unknown"* — rather than close the question unresolved a second filing running.
+
+**Findings + decisions:**
+- A throwaway phrase-detector over `crates/*/tests/*.rs` found 196 files referencing a fixture path, 44 of those 196 (22%) matching premise-assertion language, 152 not matching. **Recorded as a detector output, not a coverage census, and flagged that hard in the ROADMAP entry**: the detector has a false-negative side (a bare `assert!` with no prose scores as a gap) and the denominator itself is loose (mentioning a fixture path is not the same as depending on one of its properties). Two files spot-checked against the classification, both defensible — not enough to certify the other 194.
+- This is the same shape hard rule 10 exists for, applied to a number that never even reached a permanent form: a total (44/152) filed beside its denominator (196) and its method (regex, not reading) is what stops it being quoted forward as "22% coverage" the way seven other numbers were quoted forward earlier this project.
+
+**Still in flight:** owed items 5, 14, 34 unchanged; item 35 new.
+
+**For next session:** whoever takes item 35 reads the files, not the regex — the deliverable is a list of files depending on an unasserted fixture property, expected smaller than 152.
+
+**Sourcing (hard rule 8) — no shell this session.** The 196/44/152 figures, the two-file spot-check, and the "nothing else owed from the pdfcer-gui exchange" claim are all taken from the dispatching engineer's account and not independently re-run or re-checked this filing.
+
 ## 2026-09-13 (541st filing) — `pdfcer-gui` shipped its half of `objects_dropped` with no ask back; their §3 is a new `R162` instance, filed to the RAG
 
 **Shipped:** nothing on this side. `pdfcer-gui` consumed

@@ -115,6 +115,49 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### Librarian filing, 542nd, 2026-09-13 — new owed item 35: survey how many fixture-consuming tests assert the fixture's own premise; a detector run is not a coverage census and must not be quoted forward as one
+
+Not a Pass — no code commit. Answers the "for next session" question the 541st filing (`SESSION_LOG.md`) left open — *"consider whether a corpus-fixture-invariant survey belongs on the owed list"* — with a yes, and attaches a measurement that is deliberately labelled so it cannot outlive the method that produced it.
+
+**Why it is real work.** `pdfcer-gui` asserts each of their two control fixtures' load-bearing properties through the engine in a cheap unit suite, so a fixture that quietly stops being what a driven check assumes fails in one second as a unit failure, rather than an hour later as a red driven check blaming the application for something that was true of the file all along. This project has the same discipline in places and not others — `editable_roundtrip.rs` does it well (*"this fixture is chosen because it uses object streams"*, `assert!(!before.object_streams.is_empty())`) — and how many of pdfcer's own fixture-consuming tests do the same is unmeasured.
+
+**⚠ The number attached below is a detector output, not a census, and must be RE-DERIVED BY READING before anyone acts on it.** A throwaway phrase-detector run over `crates/*/tests/*.rs` (not committed — the run was disposable, which is exactly why the figure below is flagged this hard rather than treated as settled):
+
+- 196 files reference a fixture path;
+- 44 of those 196 (22%) — the denominator is the 196 above, not the whole test suite — contain language matching a premise-assertion pattern (`premise`, `this fixture is chosen`, `or this asserts nothing`, `is vacuous`, …);
+- 152 do not match that pattern.
+
+Both directions are wrong in a specific, nameable way, not merely "approximate": a bare `assert!(!x.is_empty())` with no surrounding prose is a perfectly good premise assertion and the detector scores it as a gap (a false negative on coverage); and the denominator counts any file that merely *mentions* a fixture path, which is not the same as *depending on* a fixture property that could silently stop holding (a false positive on the denominator itself). Two files were spot-checked against the detector's classification and both were defensible — two files out of 196 settles nothing about the other 194.
+
+⇒ **Filed as:** *"survey how many fixture-consuming tests assert the fixture's own premise; size unknown."* The 196/44/152 figures are recorded here only as the detector's own output, named as such, never as a gap count. Hard rule 10 is why this is spelled out rather than compressed to "22% coverage": a total filed beside its per-item form, with its denominator stated, is exactly what stops a number surviving past the method that produced it — and this project spent a whole day proving that a figure in a ledger outlives the method that produced it by default once nobody restates the caveat.
+
+**The honest shape of the eventual work, for whoever takes it:** read the files, not the regex. The output is a list of files that genuinely depend on an unasserted fixture property — almost certainly smaller than 152, since the detector's own false-negative side (a real premise assertion with no matching prose) is invisible to it and presumably non-empty.
+
+**Nothing else owed from the exchange that raised this.** `pdfcer-gui`'s own consumption note (541st filing) owed nothing back, and this librarian's reply is already in the channel — both taken from the dispatching engineer's account and not independently re-checked against the channel directory this filing (no shell).
+
+### Part — owed work, discharged and new
+
+**Discharged this filing:** none.
+
+**New, this filing:** item 35 — survey how many fixture-consuming tests assert the fixture's own premise. Size unknown; the 196/44/152 detector figures above are NOT a coverage count and must be re-derived by reading before any work is scoped from them.
+
+**Carried forward, unchanged:** item 5, item 14, item 34.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `302` (highest ID `302.1`), next free family `303` | **unchanged** |
+| Standing rules | `R256`, next free `R257` | **unchanged** |
+| Decision records | `156` | **unchanged** — a test-discipline survey item, no crate-boundary or invariant change |
+| `SESSION_LOG` filings | `541` | **`542`** |
+| `docs/FEATURES.md` | — | **untouched** — an internal test-discipline survey, no operator-facing capability |
+| Owed-survivor ledger | items 5, 14, 34 open | **item 35 NEW (fixture-premise-assertion survey, size unknown, detector output flagged as non-census); items 5, 14, 34 unchanged** |
+
+**Sourcing (hard rule 8) — no shell this filing.** The 196/44/152 figures, the two-file spot-check, and the "nothing else owed" claim are all taken from the dispatching engineer's account and not independently re-run or re-checked against `crates/*/tests/*.rs` or the `pdfce_FeatureRequests` channel directory from here. `editable_roundtrip.rs`'s quoted premise-assertion text is cited from the same account, not independently grepped this filing. Release/push/backup state not checked.
+
+---
+
 ### `Pass 302.1` (`919b0f0`, 2026-09-13) — the CLI now prints the object recovery drops, closing the gap `Pass 302.0` opened an hour earlier
 
 Discharges the CLI half of owed item 33 (opened this session, `Pass 302.0`, on `disclose_recovery`'s own silence about the field it had just been given to print). **This is a defect IN `Pass 302.0`, not a follow-on feature**: `RecoveryReport::objects_dropped` existed and no caller outside `recover.rs`'s own two tests ever printed it, so a terminal read of a recovered file was still silently shorter than the object it actually held — the same hour the field was authored.
