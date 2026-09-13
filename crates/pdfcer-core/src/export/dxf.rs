@@ -973,8 +973,17 @@ impl DxfUnits {
     pub const fn for_unit(unit: crate::dimension::Unit) -> Self {
         use crate::dimension::Unit;
         match unit {
-            Unit::Millimeter | Unit::Centimeter | Unit::Meter => Self::Millimetres,
-            Unit::Inch | Unit::DecimalFeet | Unit::FeetInches => Self::Inches,
+            // `G013`: kilometre joins the metric arm and yard/mile the
+            // imperial one. The mapping is by measurement SYSTEM, not by
+            // magnitude — `$INSUNITS` has codes for kilometres and miles, but
+            // this writer emits only the two below, and the numbers are
+            // carried exactly by the dimensionless scale either way.
+            Unit::Millimeter | Unit::Centimeter | Unit::Meter | Unit::Kilometer => {
+                Self::Millimetres
+            }
+            Unit::Inch | Unit::DecimalFeet | Unit::FeetInches | Unit::Yard | Unit::Mile => {
+                Self::Inches
+            }
         }
     }
 }

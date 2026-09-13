@@ -50,6 +50,8 @@ pub enum Unit {
     Centimeter,
     /// Metres.
     Meter,
+    /// Kilometres (`G013`, 2026-09-13).
+    Kilometer,
     /// Inches (decimal or fractional, per the group's [`NumberFormat`]).
     Inch,
     /// Decimal feet (e.g. `12.50 ft`).
@@ -57,21 +59,81 @@ pub enum Unit {
     /// Architectural feet-and-inches (e.g. `12'-6 1/2"`) — the top array unit
     /// is feet, the second is inches with a fractional denominator.
     FeetInches,
+    /// Yards (`G013`, 2026-09-13).
+    ///
+    /// ★ The operator asked for *"units (including km and miles)"*, and did
+    /// not name the yard. It is here because **"including" opens a list
+    /// rather than closing one**: the set with no hole in it for a site plan
+    /// is mm/cm/m/km and in/ft/yd/mi, three rungs each, and the yard is the
+    /// one imperial rung between the foot and the mile. Adding km and mi
+    /// without it would mean editing these six tables a third time.
+    Yard,
+    /// Miles (`G013`, 2026-09-13) — statute miles, 5 280 ft.
+    Mile,
 }
 
 impl Unit {
     /// The short unit label used in a decimal display and as the `/U` string
     /// of the *top* array element in the portable `/Measure` dict
-    /// (§12.9 Table 263 `/U`). `FeetInches` returns `ft` (its top array
-    /// element); its inch part carries its own `in` label.
+    /// (ISO 32000-1 §12.9 **Table 263** `/U`; ISO 32000-2 **Table 268**).
+    /// `FeetInches` returns `ft` (its top array element); its inch part
+    /// carries its own `in` label.
+    ///
+    /// # This is ONE function on purpose, and `G013` asked for two
+    ///
+    /// The `G013` request proposed splitting this into an `abbrev()` that is
+    /// UI copy and a `measure_u()` that is the file-format string, on the
+    /// grounds that *"one function serving both a screen label and a
+    /// persisted file field is a role collision waiting to be discovered by a
+    /// translation pass"*. That is a good instinct and it is **declined**,
+    /// because the spec says the two roles are the same role. Table 263,
+    /// verbatim:
+    ///
+    /// > **U** | *text string* | (Required) A text string specifying a label
+    /// > for displaying the units represented by this dictionary **in a user
+    /// > interface**; the label should use a universally recognized
+    /// > abbreviation.
+    ///
+    /// `/U` **is** the user-interface label. There is no second role to
+    /// separate, and two functions that could disagree would create the drift
+    /// rather than prevent it.
+    ///
+    /// ★★ AND THE DRIFT WOULD BE INVISIBLE. `/U` carries **no arithmetic** —
+    /// every conversion in §12.9 runs on `/C`. So a wrong `/U` is a correct
+    /// number under a false label: no reader can detect it, no round trip
+    /// disturbs it, and nothing in a test corpus goes red. That is the
+    /// argument for a single source of truth, and it is stronger than the
+    /// argument for splitting.
+    ///
+    /// # What the value space actually is
+    ///
+    /// **Unconstrained.** `/U` is a `text string` with no enumerated
+    /// vocabulary in either edition; the `should` above is the clause's only
+    /// non-`shall` on this entry, against 58 `shall`s. `km`, `yd` and `mi` are
+    /// therefore legal bytes, not a gamble.
+    ///
+    /// ⚠ **The trap next door, so nobody "corrects" this later.**
+    /// ISO 32000-2 §12.10.2 Table 269 `/PDU` **is** an enumerated unit
+    /// vocabulary, and it contains `KM` and `MI`. It does not reach here:
+    /// different key, dictionary, subtype (`GEO`, not `RL`), clause and PDF
+    /// type — `/PDU` takes a **name** (`/KM`), this takes a **text string**
+    /// (`(km)`). A sweep of the measurement clauses for "kilometre" finds
+    /// that table and nothing else, which is exactly how it gets mistaken for
+    /// this one.
+    ///
+    /// ⚠ Being a text string, `/U` **is encrypted** in an encrypted document
+    /// (§7.9.2.2). It must never be "optimised" into a name.
     #[must_use]
     pub const fn abbrev(self) -> &'static str {
         match self {
             Unit::Millimeter => "mm",
             Unit::Centimeter => "cm",
             Unit::Meter => "m",
+            Unit::Kilometer => "km",
             Unit::Inch => "in",
             Unit::DecimalFeet | Unit::FeetInches => "ft",
+            Unit::Yard => "yd",
+            Unit::Mile => "mi",
         }
     }
 
@@ -82,54 +144,136 @@ impl Unit {
     /// 1 in = 25.4 mm, 1 pt = 1/72 in). Used to give an explicit-1:1 group its
     /// effective scale ([`ScaleState::effective_scale`]) and to convert a
     /// ratio-path entry from its paper-unit basis.
+    ///
+    /// ★ The three `G013` factors are written as the exact integer ratios
+    /// they are, not as decimals, because each is an exact rational and a
+    /// transcribed decimal is a place for a typo nothing would catch: the
+    /// value feeds a *label*, and a wrong label over a right number is
+    /// invisible (see [`Unit::abbrev`]).
+    ///
+    /// * kilometre — `1 pt = 0.0254/1000 m`, i.e. `0.0000254 / 72`
+    /// * yard — 36 in to the yard, so `1 / (72 × 36)` = `1/2592`
+    /// * mile — 63 360 in to the statute mile, so `1 / (72 × 63_360)` =
+    ///   `1/4_561_920` ≈ `2.1920595e-7`. ⚠ Not `2.1919192e-7`, which is what
+    ///   this comment said in draft; ISO prints no such constant, so the only
+    ///   way to be sure is to do the division.
     #[must_use]
     pub fn baseline_per_point(self) -> f64 {
         match self {
             Unit::Millimeter => 25.4 / 72.0,
             Unit::Centimeter => 2.54 / 72.0,
             Unit::Meter => 0.0254 / 72.0,
+            Unit::Kilometer => 0.000_025_4 / 72.0,
             Unit::Inch => 1.0 / 72.0,
             Unit::DecimalFeet | Unit::FeetInches => 1.0 / 864.0,
+            Unit::Yard => 1.0 / 2_592.0,
+            Unit::Mile => 1.0 / 4_561_920.0,
         }
     }
 
-    /// A sensible default number format for this unit: 2 decimals for
-    /// mm/cm/in/decimal-ft, 3 for m (a metre is coarse per-unit), and nearest
-    /// 1/8" for feet-inches (architectural convention).
+    /// A sensible default number format for this unit.
+    ///
+    /// The rule the existing table already followed, now stated: **decimal
+    /// places rise as the unit coarsens**, so the *resolution on the page*
+    /// stays in a usable band instead of tracking the unit name. What each
+    /// choice actually resolves to:
+    ///
+    /// | unit | places | resolution |
+    /// |---|---|---|
+    /// | mm, cm | 2 | 0.01 mm, 0.1 mm |
+    /// | m | 3 | 1 mm |
+    /// | **km** | **4** | **0.1 m** |
+    /// | in, ft | 2 | 0.25 mm, 3 mm |
+    /// | **yd** | **3** | **0.9 mm** |
+    /// | **mi** | **4** | **0.16 m** |
+    /// | ft-in | nearest 1/8" | architectural convention |
+    ///
+    /// `G013` flagged this as *"the one number in this request we would not
+    /// want to guess at on your behalf"* and suggested 4 for both km and mi.
+    /// Adopted. **Yard takes 3, not 2**, which `G013` did not raise: a yard
+    /// is 0.914 m and a metre already takes 3, so giving it feet's 2 would
+    /// resolve to 9 mm — the coarsest number on this table, for a unit
+    /// sitting next to the finest.
     #[must_use]
     pub fn default_format(self) -> NumberFormat {
         match self {
-            Unit::Meter => NumberFormat::decimal(self, 3),
+            Unit::Meter | Unit::Yard => NumberFormat::decimal(self, 3),
+            Unit::Kilometer | Unit::Mile => NumberFormat::decimal(self, 4),
             Unit::FeetInches => NumberFormat::feet_inches(8, false),
             _ => NumberFormat::decimal(self, 2),
         }
     }
 
-    /// All six units, in a stable order — the GUI unit dropdown and the CLI
+    /// Every unit, in a stable order — the GUI unit dropdown and the CLI
     /// unit parser iterate this.
+    ///
+    /// # Why this returns a slice and not `[Unit; N]` (`G013`)
+    ///
+    /// It used to return `[Unit; 6]`, and **an accessor whose type encodes
+    /// the cardinality of a growing set makes every addition an API break for
+    /// every consumer, including ones that only ever iterate.** The consuming
+    /// project had already paid it: it carried
+    ///
+    /// ```text
+    /// fn units() -> [Unit; 6] { Unit::all() }   // pdfcer-gui, dialogs/scale.rs
+    /// ```
+    ///
+    /// — a local function whose return type restated a constant belonging to
+    /// this crate, written that way because there was no other way to name the
+    /// type. It was reported as a workaround under decision 058, and the
+    /// finding is the one that outlives the three units this Pass adds:
+    /// **six units looked like a closed set on the day that signature was
+    /// written, and were not.**
+    ///
+    /// ⚠ Changing the return type is itself a breaking change, and it is the
+    /// one the requester asked for by name — every call site that binds
+    /// `for u in Unit::all()` now yields `&Unit` rather than `Unit` and fails
+    /// to compile until it adds `.iter().copied()` or dereferences. That is a
+    /// LOUD break, once, in exchange for never breaking on a unit again.
+    ///
+    /// # Ordering
+    ///
+    /// Metric ascends, then imperial ascends, and neither run is interrupted —
+    /// a reader scanning the list is never asked to change system twice.
+    /// `ft-in` sits beside `ft` because it is a *presentation* of feet rather
+    /// than a step in magnitude. Every unit that existed before `G013` keeps
+    /// its relative position; the three new ones are inserted, not prepended.
+    ///
+    /// Nothing persists an index into this slice — [`Unit::token`] is the
+    /// stable serialisation — so the insertions are safe.
     #[must_use]
-    pub const fn all() -> [Unit; 6] {
-        [
+    pub const fn all() -> &'static [Unit] {
+        &[
             Unit::Millimeter,
             Unit::Centimeter,
             Unit::Meter,
+            Unit::Kilometer,
             Unit::Inch,
             Unit::DecimalFeet,
             Unit::FeetInches,
+            Unit::Yard,
+            Unit::Mile,
         ]
     }
 
     /// Parse a unit from a lowercase token (CLI/`ScripTree` friendly):
-    /// `mm|cm|m|in|ft|ft-in`. `None` on an unknown token.
+    /// `mm|cm|m|km|in|ft|ft-in|yd|mi`. `None` on an unknown token.
+    ///
+    /// The long spellings are accepted alongside the abbreviations because a
+    /// shell user types what they mean; `mile`/`miles` and `yard`/`yards`
+    /// follow `inch`/`feet`'s existing precedent.
     #[must_use]
     pub fn parse(s: &str) -> Option<Unit> {
         match s {
             "mm" => Some(Unit::Millimeter),
             "cm" => Some(Unit::Centimeter),
             "m" => Some(Unit::Meter),
+            "km" | "kilometer" | "kilometre" => Some(Unit::Kilometer),
             "in" | "inch" => Some(Unit::Inch),
             "ft" | "feet" | "decimal-ft" => Some(Unit::DecimalFeet),
             "ft-in" | "feet-inches" | "ftin" => Some(Unit::FeetInches),
+            "yd" | "yard" | "yards" => Some(Unit::Yard),
+            "mi" | "mile" | "miles" => Some(Unit::Mile),
             _ => None,
         }
     }
@@ -142,9 +286,12 @@ impl Unit {
             Unit::Millimeter => "mm",
             Unit::Centimeter => "cm",
             Unit::Meter => "m",
+            Unit::Kilometer => "km",
             Unit::Inch => "in",
             Unit::DecimalFeet => "ft",
             Unit::FeetInches => "ft-in",
+            Unit::Yard => "yd",
+            Unit::Mile => "mi",
         }
     }
 }
@@ -901,10 +1048,122 @@ mod tests {
 
     #[test]
     fn unit_parse_round_trips_its_token() {
-        for u in Unit::all() {
+        // `.iter().copied()` since `G013` turned `all()` into a slice. This
+        // line failing to compile is the intended cost of that change, paid
+        // once here and once in the consuming project.
+        for u in Unit::all().iter().copied() {
             assert_eq!(Unit::parse(u.token()), Some(u), "token {}", u.token());
         }
         assert!(Unit::parse("furlong").is_none());
+    }
+
+    /// ★★★ `all()` LISTS EVERY VARIANT — and this test fails to COMPILE if a
+    /// future unit is added without being listed.
+    ///
+    /// The `match` below is exhaustive over `Unit`, so adding a variant is a
+    /// compile error here until someone names it; naming it then asserts it
+    /// is in `all()`. A plain `assert_eq!(all().len(), 9)` would not do this
+    /// — it would go red with a number to bump, which is the kind of failure
+    /// people fix by bumping the number.
+    ///
+    /// Why it matters more now than it did before `G013`: while `all()`
+    /// returned `[Unit; 6]`, forgetting to add a new variant to it was a
+    /// compile error at the array's own type. Widening it to a slice bought
+    /// callers their compatibility and **took that guard away**, so it has to
+    /// be replaced rather than simply lost. `Unit` stays exhaustive (not
+    /// `#[non_exhaustive]`) at the consuming project's explicit request, for
+    /// the same reason: they want their own `match`es to break.
+    #[test]
+    fn all_contains_every_variant() {
+        for u in Unit::all().iter().copied() {
+            // Exhaustive on purpose — see this test's doc comment.
+            let named = match u {
+                Unit::Millimeter
+                | Unit::Centimeter
+                | Unit::Meter
+                | Unit::Kilometer
+                | Unit::Inch
+                | Unit::DecimalFeet
+                | Unit::FeetInches
+                | Unit::Yard
+                | Unit::Mile => u,
+            };
+            assert!(
+                Unit::all().contains(&named),
+                "{} is a Unit variant that all() does not list",
+                named.token()
+            );
+        }
+        assert_eq!(
+            Unit::all().len(),
+            9,
+            "all() must list each variant exactly once"
+        );
+    }
+
+    /// The `G013` units convert the way the definitions say, checked against
+    /// the metre rather than against a transcribed decimal.
+    ///
+    /// ★ A label is not checkable by any reader (see `Unit::abbrev`), so the
+    /// FACTOR is the only half a test can defend. 1 km = 1000 m, 1 mi =
+    /// 1609.344 m exactly (international mile), 1 yd = 0.9144 m exactly.
+    #[test]
+    fn new_units_convert_by_their_definitions() {
+        let m = Unit::Meter.baseline_per_point();
+        let rel = |a: f64, b: f64| (a - b).abs() / b;
+
+        assert!(
+            rel(Unit::Kilometer.baseline_per_point(), m / 1000.0) < 1e-12,
+            "a kilometre must be 1000 metres"
+        );
+        assert!(
+            rel(Unit::Mile.baseline_per_point(), m / 1609.344) < 1e-12,
+            "a statute mile must be 1609.344 m exactly"
+        );
+        assert!(
+            rel(Unit::Yard.baseline_per_point(), m / 0.9144) < 1e-12,
+            "a yard must be 0.9144 m exactly"
+        );
+
+        // And the imperial chain closes: 1760 yd to the mile, 3 ft to the yd.
+        assert!(
+            rel(
+                Unit::Mile.baseline_per_point() * 1760.0,
+                Unit::Yard.baseline_per_point()
+            ) < 1e-12,
+            "1760 yards to the mile"
+        );
+        assert!(
+            rel(
+                Unit::Yard.baseline_per_point() * 3.0,
+                Unit::DecimalFeet.baseline_per_point()
+            ) < 1e-12,
+            "3 feet to the yard"
+        );
+    }
+
+    /// Every unit's `/U` label is distinct, because `/U` carries no
+    /// arithmetic and a duplicate would be a silently wrong label on a
+    /// correct number (ISO 32000-1 §12.9 Table 263).
+    ///
+    /// `DecimalFeet` and `FeetInches` are the one deliberate pair: both are
+    /// feet, and the second's inch part carries its own label.
+    #[test]
+    fn every_unit_has_a_distinct_abbrev_except_the_two_that_are_both_feet() {
+        let mut seen: Vec<&'static str> = Vec::new();
+        for u in Unit::all().iter().copied() {
+            if u == Unit::FeetInches {
+                continue;
+            }
+            assert!(
+                !seen.contains(&u.abbrev()),
+                "{} duplicates the abbreviation {}",
+                u.token(),
+                u.abbrev()
+            );
+            seen.push(u.abbrev());
+        }
+        assert_eq!(Unit::DecimalFeet.abbrev(), Unit::FeetInches.abbrev());
     }
 
     #[test]

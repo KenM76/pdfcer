@@ -8184,7 +8184,7 @@ enum Command {
         /// The group name.
         #[arg(long)]
         name: String,
-        /// The display unit: `mm|cm|m|in|ft|ft-in`.
+        /// The display unit: `mm|cm|m|km|in|ft|ft-in|yd|mi`.
         #[arg(long, default_value = "mm")]
         unit: String,
         /// Output path.
@@ -8221,7 +8221,7 @@ enum Command {
         /// Direct-ratio path, e.g. `1:100` (paper:real; inch paper-unit basis).
         #[arg(long)]
         ratio: Option<String>,
-        /// Display unit: `mm|cm|m|in|ft|ft-in`.
+        /// Display unit: `mm|cm|m|km|in|ft|ft-in|yd|mi`.
         #[arg(long, default_value = "mm")]
         unit: String,
         /// Set an explicit 1:1 (full-size) scale instead of calibrating.
@@ -36946,7 +36946,7 @@ fn cmd_dimension_style(args: &DimensionStyleArgs<'_>) -> u8 {
     if let Some(token) = args.unit {
         let Some(unit) = pdfcer_core::dimension::Unit::parse(token) else {
             eprintln!(
-                "pdfcer: {}: unknown --unit `{token}` (mm|cm|m|in|ft|ft-in)",
+                "pdfcer: {}: unknown --unit `{token}` (mm|cm|m|km|in|ft|ft-in|yd|mi)",
                 args.input.display()
             );
             return exit::EDIT_REFUSED;
