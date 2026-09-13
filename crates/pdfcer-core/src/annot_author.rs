@@ -3862,9 +3862,16 @@ impl CheckStyle {
     }
 
     /// Every style, for a shell building a picker and for exhaustive tests.
+    ///
+    /// Returns a **slice**, not `[Self; 6]` (`Pass 301.1`). A seventh check
+    /// glyph is an ordinary thing to want, and while this returned a
+    /// fixed-size array every addition was an API break for every consumer —
+    /// including one that only iterates to build a picker, which is the use
+    /// this accessor exists for. See `Unit::all` for the finding this came
+    /// from.
     #[must_use]
-    pub const fn all() -> [Self; 6] {
-        [
+    pub const fn all() -> &'static [Self] {
+        &[
             Self::Check,
             Self::Cross,
             Self::Star,

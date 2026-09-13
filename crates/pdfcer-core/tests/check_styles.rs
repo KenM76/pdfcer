@@ -140,7 +140,7 @@ fn authored(style: CheckStyle, rect: Rect) -> EditSession {
 #[test]
 fn every_style_draws_different_artwork() {
     let mut seen: HashMap<Vec<u8>, CheckStyle> = HashMap::new();
-    for style in CheckStyle::all() {
+    for style in CheckStyle::all().iter().copied() {
         let s = authored(style, BOX);
         let content = on_state_bytes(&s);
         assert!(
@@ -224,7 +224,7 @@ fn the_style_survives_a_resize() {
 /// chose a tick when they chose something pdfcer cannot name.
 #[test]
 fn the_caption_character_round_trips_and_an_unknown_one_is_not_defaulted() {
-    for style in CheckStyle::all() {
+    for style in CheckStyle::all().iter().copied() {
         assert_eq!(
             CheckStyle::from_mk_caption_char(style.mk_caption_char()),
             Some(style),

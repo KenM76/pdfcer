@@ -340,6 +340,25 @@ pub enum PermissionBit {
 
 impl PermissionBit {
     /// Every permission, in Table 22 order.
+    ///
+    /// ★★ DELIBERATELY STILL `[Self; 8]`, while `Unit::all`,
+    /// `CheckStyle::all` and `DocInfoField::all` were all widened to slices in
+    /// `Pass 301.0`/`301.1`. Recorded here because a future sweep will find
+    /// this one and "finish the job".
+    ///
+    /// The finding those three came from is **not** "a fixed-size array is a
+    /// bad return type". It is: *an accessor whose type encodes the
+    /// cardinality of a set that is expected to GROW turns every addition into
+    /// an API break.* The load-bearing clause is the one about growth, and
+    /// this set does not have it — these eight are ISO 32000-1 Table 22's
+    /// permission bits, a closed enumeration in a published standard. A ninth
+    /// would be a new edition of the PDF specification, at which point an API
+    /// break is the least of the work.
+    ///
+    /// So the cardinality in this signature is **information**, not debt: it
+    /// tells a caller the set is closed, and `[PermissionBit; 8]` supports
+    /// array patterns and `const` sizing that a slice does not. Widening it
+    /// would trade a true fact for a false symmetry.
     #[must_use]
     pub const fn all() -> [Self; 8] {
         [

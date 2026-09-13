@@ -358,7 +358,7 @@ fn many_edits_all_undone_still_save_byte_identically() {
         s.rotate_page_by(page, 90).unwrap();
         s.rotate_page_by(page, 180).unwrap();
     }
-    for field in InfoField::all() {
+    for field in InfoField::all().iter().copied() {
         s.set_info_field(field, Some("x")).unwrap();
     }
     s.set_info_field(InfoField::Title, None).unwrap();
@@ -508,7 +508,7 @@ fn several_edits_to_one_object_produce_one_object_in_the_update() {
     // definition appended, not four.
     let base = classic_pdf(true, true);
     let mut s = session(&base);
-    for field in InfoField::all() {
+    for field in InfoField::all().iter().copied() {
         s.set_info_field(field, Some("value")).unwrap();
     }
     let (out, report) = s.to_incremental_bytes(&SaveOptions::identity()).unwrap();

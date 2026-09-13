@@ -226,6 +226,36 @@ impl SnapKind {
         }
     }
 
+    /// Every kind, in priority order (highest first) — the list
+    /// [`SnapKind::priority`] ranks, as data rather than as eight separate
+    /// integer literals a reader has to reassemble.
+    ///
+    /// ★ Added by `Pass 301.1` because the test that checks the priority
+    /// ORDER carried **its own hand-written copy** of these eight variants.
+    /// A ninth kind would have compiled (`priority` is an exhaustive match, so
+    /// that much was enforced) and the ordering test would have passed green
+    /// without ever looking at it — including if the new kind's rank
+    /// DUPLICATED an existing one, which makes the sort between those two
+    /// kinds depend on nothing but input order.
+    ///
+    /// The shape was reported from the consuming project, which found the
+    /// identical defect in its own completeness test within the hour of
+    /// `Pass 301.0` landing: **a completeness test that carries its own copy
+    /// of the set is testing the copy.**
+    #[must_use]
+    pub const fn all() -> &'static [SnapKind] {
+        &[
+            SnapKind::Node,
+            SnapKind::Endpoint,
+            SnapKind::Center,
+            SnapKind::Midpoint,
+            SnapKind::Intersection,
+            SnapKind::DerivedCenterline,
+            SnapKind::SegmentCenterline,
+            SnapKind::Axis,
+        ]
+    }
+
     /// Whether this kind is a **fuzzy inference about operator intent** that
     /// the GUI must render distinctly and gate behind an extra confirm
     /// (rule 4). Only [`Self::DerivedCenterline`] qualifies — every other kind
@@ -1041,22 +1071,67 @@ mod tests {
 
     #[test]
     fn priority_ranks_follow_decision_011_high_to_low() {
-        // The fixed order the whole engine sorts by.
-        let order = [
-            SnapKind::Node,
-            SnapKind::Endpoint,
-            SnapKind::Center,
-            SnapKind::Midpoint,
-            SnapKind::Intersection,
-            SnapKind::DerivedCenterline,
-            SnapKind::SegmentCenterline,
-            SnapKind::Axis,
-        ];
-        for w in order.windows(2) {
-            assert!(w[0].priority() < w[1].priority());
+        // ★ Reads `SnapKind::all()` rather than a copy of it (`Pass 301.1`).
+        // This list used to be written out here, which meant the test that
+        // exists to check the ORDER could not see a kind that was not in its
+        // own copy.
+        for w in SnapKind::all().windows(2) {
+            assert!(
+                w[0].priority() < w[1].priority(),
+                "{:?} must outrank {:?}",
+                w[0],
+                w[1]
+            );
         }
         assert!(SnapKind::DerivedCenterline.is_derived());
         assert!(!SnapKind::SegmentCenterline.is_derived());
+    }
+
+    /// ★★★ `all()` LISTS EVERY KIND, and this fails to COMPILE if one is
+    /// added without being listed.
+    ///
+    /// The exhaustive `match` is the guard; the assertions are what it
+    /// protects. Without it, `all()` is just a second copy of the set — the
+    /// exact defect this Pass removed from the test above.
+    #[test]
+    fn all_lists_every_kind_with_a_unique_contiguous_rank() {
+        for k in SnapKind::all().iter().copied() {
+            // Exhaustive on purpose: a new variant stops this compiling.
+            let named = match k {
+                SnapKind::Node
+                | SnapKind::Endpoint
+                | SnapKind::Center
+                | SnapKind::Midpoint
+                | SnapKind::Intersection
+                | SnapKind::DerivedCenterline
+                | SnapKind::SegmentCenterline
+                | SnapKind::Axis => k,
+            };
+            assert!(
+                SnapKind::all().contains(&named),
+                "{named:?} is a SnapKind that all() does not list"
+            );
+        }
+
+        // ★ The assertion the old test could not make, and the one that
+        // matters most: ranks are UNIQUE and contiguous from 0. Two kinds
+        // sharing a rank is not a cosmetic defect — `snap_candidates` sorts
+        // by rank then by distance, so a duplicate makes the winner between
+        // those two kinds depend on the order candidates happened to be
+        // generated in. That is a non-deterministic pick under the
+        // operator's cursor, and R19 forbids exactly that.
+        let ranks: Vec<u8> = SnapKind::all().iter().map(|k| k.priority()).collect();
+        let mut sorted = ranks.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(
+            sorted.len(),
+            SnapKind::all().len(),
+            "two SnapKinds share a priority rank: {ranks:?}"
+        );
+        #[allow(clippy::cast_possible_truncation)]
+        let expected: Vec<u8> = (0..SnapKind::all().len() as u8).collect();
+        assert_eq!(sorted, expected, "ranks must be contiguous from 0");
     }
 
     #[test]

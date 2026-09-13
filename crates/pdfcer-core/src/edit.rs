@@ -238,9 +238,17 @@ impl InfoField {
     /// Every editable field, in the order a properties panel should show
     /// them. Provided so a front end enumerates the real list instead of
     /// hard-coding one that drifts when a field is added.
+    ///
+    /// ★ Returns a **slice**, not `[Self; 4]` (`Pass 301.1`), and the doc
+    /// sentence above is why it had to change: this accessor's whole purpose
+    /// is that a front end not hard-code a list that drifts — and
+    /// `-> [Self; 4]` put the cardinality **into the signature**, so the
+    /// front end hard-coded it anyway, in a type, where it is harder to see.
+    /// §14.3.3 defines `/Creator`, `/Producer`, `/CreationDate` and
+    /// `/ModDate` besides these four, so this set is expected to grow.
     #[must_use]
-    pub const fn all() -> [Self; 4] {
-        [Self::Title, Self::Author, Self::Subject, Self::Keywords]
+    pub const fn all() -> &'static [Self] {
+        &[Self::Title, Self::Author, Self::Subject, Self::Keywords]
     }
 }
 
