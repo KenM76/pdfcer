@@ -191,6 +191,40 @@ pub enum TrailerSource {
     SynthesizedFromCatalog,
 }
 
+/// One object the scan found and recovery could not keep.
+///
+/// Reachable only through [`RecoveryReport::objects_dropped`]; see that
+/// field for why the reason travels with the number.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct DroppedObject {
+    /// The object number from the `N G obj` header the scan matched.
+    pub number: u32,
+    /// Why it could not be kept.
+    pub reason: DropReason,
+}
+
+/// Why a scanned object was not kept.
+///
+/// Deliberately an enum rather than a string: a shell must be able to tell a
+/// **false positive** (bytes that merely looked like a header — routine, not
+/// a loss) from a **real object that would not parse** (a loss the operator
+/// may need to act on). A single prose sentence reads the same for both and
+/// makes the routine case as alarming as the serious one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DropReason {
+    /// The bytes at that offset did not parse as an object under any of
+    /// recovery's lenient policies. Usually binary data inside a stream that
+    /// happens to spell `N G obj`; occasionally a genuinely corrupt object,
+    /// which is the case worth surfacing.
+    Unparseable,
+    /// It parsed, but the object number in the body disagreed with the one
+    /// the scan matched — the definition cannot be trusted to be what the
+    /// offset claimed.
+    IdMismatch,
+}
+
 /// The counted, disclosed record of a recovery (fuzzy-never-sneaky, R20).
 ///
 /// Stored on the recovered [`crate::document::Document`]; surfaced by the
@@ -232,6 +266,31 @@ pub struct RecoveryReport {
     /// whose catalog named an absent `/Pages` object got written — see
     /// [`crate::parser::TerminatorPolicy`]. Disclosed, never silent (R20).
     pub missing_endobj_recovered: usize,
+    /// Objects the scan FOUND — a well-formed `N G obj` header at a byte
+    /// offset — and recovery could not keep, with the reason for each.
+    ///
+    /// # Why this is a list and not a count (`decision 145`, owed item 18)
+    ///
+    /// `decision 145` obliges pdfcer to disclose what it dropped rather than
+    /// return a shorter document and no explanation. It closed that gap at
+    /// the **loader**; the recovery path had the same gap and was measured
+    /// having it on a real file: `Annotations_output.pdf`, whose `startxref`
+    /// points 134 bytes short of its own `xref` (a PDFsharp writer bug),
+    /// recovers **10 of 11** objects and drops object 5 — the page's content
+    /// stream — with nothing recorded anywhere.
+    ///
+    /// Losing that object is the CORRECT outcome: its Flate data is genuinely
+    /// corrupt and keeping it would hand a caller bytes that cannot be
+    /// decoded. **Losing it silently is not**, and the difference is the whole
+    /// of rule 4 — an inference pdfcer made (this candidate is not usable) is
+    /// disclosed, never silent.
+    ///
+    /// ★ A COUNT would not have been enough, and that is why this carries the
+    /// object number and the reason. The complaint that produced this item was
+    /// not "the number was wrong" — it was that a human holding a file with a
+    /// missing page could not find out WHICH object went or WHY. A bare
+    /// `dropped: 1` answers neither.
+    pub objects_dropped: Vec<DroppedObject>,
     /// Where the recovered trailer's keys came from.
     pub trailer_source: TrailerSource,
     /// Whether the `%PDF-` marker was not at byte 0 (offset-start /
@@ -359,7 +418,7 @@ struct Confirmed {
 pub fn recover(buf: &[u8], reason: RecoveryReason) -> Result<RecoveredXref, RecoverError> {
     // Phase 1: locate + confirm every file-level `N G obj` object.
     let candidates = scan_object_headers(buf);
-    let (confirmed, last_wins_collisions) = confirm_candidates(buf, &candidates)?;
+    let (confirmed, last_wins_collisions, objects_dropped) = confirm_candidates(buf, &candidates)?;
     if confirmed.is_empty() {
         return Err(RecoverError::NoObjects);
     }
@@ -415,6 +474,7 @@ pub fn recover(buf: &[u8], reason: RecoveryReason) -> Result<RecoveredXref, Reco
             offset_start,
             stream_lengths_recovered,
             missing_endobj_recovered,
+            objects_dropped,
         },
     })
 }
@@ -514,10 +574,20 @@ fn parse_header_backward(buf: &[u8], obj_start: usize) -> Option<Candidate> {
 ///
 /// Returns the confirmed objects keyed by number and the count of
 /// last-valid-wins collisions.
+/// What phase 1 hands on: the objects it kept, how many later definitions
+/// superseded earlier ones, and — since owed item 18 — the ones it could not
+/// keep, with the reason for each.
+///
+/// A named type rather than a bare tuple because clippy's `type_complexity`
+/// is right here: a three-element tuple of two collections and a count is a
+/// thing a reader has to decode at every call site, and adding the third
+/// element is what pushed it over.
+type ConfirmedCandidates = (HashMap<u32, Confirmed>, usize, Vec<DroppedObject>);
+
 fn confirm_candidates(
     buf: &[u8],
     candidates: &[Candidate],
-) -> Result<(HashMap<u32, Confirmed>, usize), RecoverError> {
+) -> Result<ConfirmedCandidates, RecoverError> {
     // Provisional last-wins offset table for indirect `/Length` resolution.
     // Candidates are in ascending file order, so a later insert supersedes.
     // Built ONCE (not per candidate — that would be O(n^2)).
@@ -535,6 +605,7 @@ fn confirm_candidates(
 
     let mut confirmed: HashMap<u32, Confirmed> = HashMap::new();
     let mut collisions = 0usize;
+    let mut dropped: Vec<DroppedObject> = Vec::new();
     for c in candidates {
         // RecoverFromEndstream, and ONLY here (plus the matching re-parse in
         // `document::assemble`): this is the single highest-yield leniency
@@ -565,9 +636,24 @@ fn confirm_candidates(
             crate::parser::DuplicateKeyPolicy::KeepLast,
         ) {
             Ok(pair) => pair,
-            Err(_) => continue, // false positive / unparseable — drop
+            Err(_) => {
+                // Dropped, and SAID SO (owed item 18). Overwhelmingly a
+                // binary-data false positive; occasionally a real object
+                // whose loss the operator needs to know about, and from the
+                // outside those two are the same event until the reason is
+                // carried out with the number.
+                dropped.push(DroppedObject {
+                    number: c.id.num,
+                    reason: DropReason::Unparseable,
+                });
+                continue;
+            }
         };
         if io.id != c.id {
+            dropped.push(DroppedObject {
+                number: c.id.num,
+                reason: DropReason::IdMismatch,
+            });
             continue; // scan/parse disagreement — drop
         }
         // Last-valid-wins: a later valid definition supersedes an earlier
@@ -591,7 +677,7 @@ fn confirm_candidates(
             return Err(RecoverError::TooManyEntries);
         }
     }
-    Ok((confirmed, collisions))
+    Ok((confirmed, collisions, dropped))
 }
 
 /// Phase 2: for every confirmed `/Type /ObjStm` container, synthesize a
@@ -1016,6 +1102,65 @@ mod tests {
         assert_eq!(
             detect_version(b"no header here"),
             PdfVersion { major: 1, minor: 7 }
+        );
+    }
+
+    /// ★★★ A SCANNED OBJECT THAT CANNOT BE KEPT IS NAMED (owed item 18).
+    ///
+    /// `decision 145` obliges pdfcer to disclose what it dropped. It closed
+    /// that at the LOADER; recovery had the same gap, measured on a real
+    /// file: `Annotations_output.pdf` recovers 10 of 11 objects and dropped
+    /// object 5 — the page's content stream — with **nothing recorded
+    /// anywhere**. Losing it was right; losing it in silence was not.
+    ///
+    /// Here object 3's body is `<< /Type` and stops — a header the scan
+    /// matches and the parser cannot finish, which is the `Unparseable` arm.
+    /// The document still loads on objects 1 and 2.
+    ///
+    /// ★ The assertion is on the NUMBER and the REASON, not on a count. The
+    /// complaint this item came from was not that a tally was wrong — it was
+    /// that a human holding a file with a missing page could not find out
+    /// WHICH object went or WHY, and `dropped: 1` answers neither.
+    #[test]
+    fn an_object_the_scan_found_and_could_not_parse_is_named_not_dropped_silently() {
+        let buf = b"%PDF-1.7\n\
+1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n\
+2 0 obj\n<< /Type /Pages /Count 0 /Kids [] >>\nendobj\n\
+3 0 obj\n<< /Type \n";
+        let out = recover(buf, RecoveryReason::StartxrefNotFound)
+            .expect("objects 1 and 2 are enough to recover a document");
+
+        assert_eq!(
+            out.report.objects_dropped.len(),
+            1,
+            "object 3 was found by the scan and could not be parsed; it must \
+             appear in the disclosure, not vanish"
+        );
+        let d = &out.report.objects_dropped[0];
+        assert_eq!(d.number, 3, "the disclosure must name WHICH object");
+        assert_eq!(
+            d.reason,
+            DropReason::Unparseable,
+            "and WHY — a false positive and a corrupt object are the same \
+             event from outside until the reason is carried with the number"
+        );
+
+        // The kept objects are unaffected: this discloses a loss, it does not
+        // cause one.
+        assert_eq!(out.report.file_level_objects, 2);
+    }
+
+    /// A clean recovery discloses NOTHING dropped — so the field above is a
+    /// signal rather than noise every recovery emits.
+    #[test]
+    fn a_recovery_that_keeps_everything_reports_no_drops() {
+        let buf = b"%PDF-1.7\n\
+1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n\
+2 0 obj\n<< /Type /Pages /Count 0 /Kids [] >>\nendobj\n";
+        let out = recover(buf, RecoveryReason::StartxrefNotFound).expect("recovers");
+        assert!(
+            out.report.objects_dropped.is_empty(),
+            "nothing was dropped, so nothing may be reported as dropped"
         );
     }
 
