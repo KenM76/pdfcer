@@ -10951,3 +10951,94 @@ option considered.
 ceiling unchanged at `R254`**, next free `R255`. **Pass ceiling: `Pass
 300.2` → `Pass 300.3`**, next free `Pass 300.4` (or the next unrelated Pass
 family, per the operator's own ordered plan in `docs/NEXT_SESSION.md`).
+
+### 2026-09-13 (533rd filing, `Pass 301.1`, `d378417`) — decision 156: A COMPLETENESS GUARD IS LOST THREE DIFFERENT WAYS — DELETED BY AN IMPROVEMENT, NEVER WORKING TO BEGIN WITH, OR COVERING COMPLETENESS WHILE LEAVING AN ORTHOGONAL PROPERTY UNCHECKED. `SnapKind::all()` INTRODUCED, WITH A RANK-UNIQUENESS ASSERTION IT NEVER HAD (`R19`)
+
+**Status: DECIDED / RECORDED.** `Pass 301.0`'s reply to `pdfcer-gui` noted, in
+passing, that widening `Unit::all()`'s return type from `[Unit; 6]` to
+`&'static [Unit]` deleted a compile-time completeness guard (an omitted
+variant used to fail to *compile*, not merely fail a test) and replaced it
+with an exhaustive-match test. Within the hour, `pdfcer-gui` reported the
+identical shape in its own code — `text::scale::tests::every_unit_is_named_distinctly`
+carried a hand-written six-variant copy of `Unit` inside the very test meant
+to catch an unnamed one — and named the finding, adopted here verbatim:
+**"a completeness test that carries its own copy of the set is testing the
+copy."** This Pass swept `pdfcer-core` for the shape and found three more
+instances that are not one shape.
+
+**Three distinct failure modes:**
+
+1. **Deleted by an improvement** (`Pass 301.0`'s `Unit`; this Pass's
+   `CheckStyle`, `DocInfoField`). A `[Self; N]` return type is, incidentally,
+   a compile-time completeness guard: the array's own type fails to compile
+   if `all()` omits a variant it should carry. Widening to `&'static [Self]`
+   for ergonomics — so a caller stops special-casing a growing length —
+   throws that guard away as a side effect. `DocInfoField::all()`'s own doc
+   comment stated its purpose as letting "a front end enumerate the real
+   list instead of hard-coding one that drifts when a field is added," while
+   its signature (`[Self; 4]`) put that same drifting cardinality **into the
+   type**, where it is harder to see than the array literal it replaced.
+2. **Never worked** (`pdfcer-gui`'s `every_unit_is_named_distinctly`). A
+   completeness test that constructs its own copy of the set under test,
+   rather than reading the set from the production accessor, asks "is every
+   member of MY list named?" — a member added to the real type and never
+   added to the test's copy cannot fail it, because it was never in the copy
+   to begin with. It looks like a guard and never was one.
+3. **Covers completeness, silent on ordering** (`SnapKind`, this Pass).
+   `SnapKind::priority()` was already an exhaustive `match`, so a ninth
+   variant would fail to compile there — genuine completeness coverage,
+   working as designed. Nothing checked that the assigned ranks were
+   *unique*. `snap_candidates` sorts candidates by rank then by distance, so
+   two kinds sharing a rank makes the winner between them depend on
+   generation order — a non-deterministic pick under the operator's cursor,
+   which `R19` forbids by name. The compiler's exhaustiveness check covered
+   one property of the data (every kind has *a* rank) and was silent on a
+   second, independent property (every rank is *unique*) that the
+   surrounding code's correctness actually depends on.
+
+**Fixed, all three.** `CheckStyle::all()` and `DocInfoField::all()` widen to
+`&'static [Self]`, each gaining an exhaustive-match completeness test in
+place of the deleted array guard (same shape as `Unit::all_contains_every_variant`).
+`SnapKind::all()` is new; both its ordering test and its (renamed)
+completeness test now read `SnapKind::all()` rather than carrying a
+hand-written list, and a new assertion sorts, dedups and checks the returned
+ranks against `0..len()` — contiguous and unique — behind the exhaustive
+match that already guaranteed every kind is present.
+
+**Deliberately NOT widened: `PermissionBit::all()`, still `[Self; 8]`.** The
+reasoning is written into the accessor's own doc comment and repeated in
+`R256`: these eight are ISO 32000-1 Table 22's permission bits, a closed
+enumeration in a *published standard* — a ninth would be a new edition of
+PDF itself, at which point an API break is the least of the work. The
+load-bearing clause in `R256` is *growth*: a fixed-size return type is debt
+only for a set this project expects to widen. Table 22 is not such a set,
+and its fixed cardinality is information a caller can use, not a hazard to
+remove.
+
+**Standing rule `R256` minted** for failure mode 1 (three within-project
+instances — `Unit`, `CheckStyle`, `DocInfoField` — clear this project's own
+two-occurrence bar for minting). Failure modes 2 and 3 are each recorded as
+candidate patterns at `n=1` within pdfcer's own visibility (mode 2 belongs to
+`pdfcer-gui`'s code, outside this crate's remit to mint against; mode 3 is
+`SnapKind` alone) — watched for a second instance rather than minted, per
+this project's standing discipline against naming a pattern from a shared
+symptom rather than a shared mechanism.
+
+**No body-section amendment.** No crate boundary, published-model guarantee,
+or invariant changed; §4.2/§8's descriptions of these types are unaffected by
+a return-type widening on an accessor already documented as "every X, for a
+shell building a picker."
+
+**Verified.** 2,054 core lib tests, 150 core test binaries, 409 render lib
+tests, 0 failed; workspace clippy `--all-targets` clean (compiles every test
+target in every crate); fmt clean. `R225` sabotage on `SnapKind`: planting a
+duplicate rank turns both the ordering test and the new completeness test
+red; removing it turns both green.
+
+**Full derivation, generalized past this project**:
+`D:\dev\rag\rust\a_completeness_guard_can_be_lost_three_different_ways.md`.
+
+**Decision ceiling: `155` → `156`**, next free `157`. **Standing rules
+ceiling: `R255` → `R256`**, next free `R257`. **Pass ceiling: `Pass 301.0` →
+`Pass 301.1`**, next free `Pass 301.2` (or the next unrelated Pass family,
+per the operator's own ordered plan in `docs/NEXT_SESSION.md`).

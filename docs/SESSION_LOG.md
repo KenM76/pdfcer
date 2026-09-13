@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-13 (533rd filing) — a completeness guard is lost three different ways: `CheckStyle`/`DocInfoField` widened like `Unit`, `PermissionBit` deliberately not, `SnapKind` gains a rank-uniqueness check it never had
+
+**Shipped:**
+- `d378417` (`Pass 301.1`) — sweep of `pdfcer-core` for `Pass 301.0`'s finding. `CheckStyle::all()` and `DocInfoField::all()` widen `[Self; N]` → `&'static [Self]`, each gaining an exhaustive-match completeness test in place of the deleted array guard. `SnapKind::all()` is new (it had none); its ordering test and completeness test now read it instead of carrying a hand-written copy, and a new assertion checks ranks are unique and contiguous from 0. `PermissionBit::all()` is left `[Self; 8]`, deliberately.
+
+**Decisions made this session:**
+- Decision 156 minted: a completeness guard is lost three distinct ways — deleted by an improvement (`Unit`, `CheckStyle`, `DocInfoField`), never worked because it tested its own copy of the set rather than the source (`pdfcer-gui`'s `every_unit_is_named_distinctly`), or covers completeness while leaving an orthogonal property unchecked (`SnapKind`'s ranks — exhaustive on *names*, silent on *uniqueness*, and `snap_candidates` sorting by rank then distance makes a collision a non-deterministic pick under the cursor, which `R19` forbids).
+- Standing rule `R256` minted for the first mode only (three within-project instances clear the two-occurrence bar). The other two modes are recorded as candidate patterns at `n=1`, not minted — a shared symptom is not a shared mechanism.
+
+**Findings + decisions:**
+- The trigger: `pdfcer-gui` read `Pass 301.0`'s reply, found the identical shape in its own code within the hour, and coined "a completeness test that carries its own copy of the set is testing the copy" — adopted verbatim into `R256`'s derivation and the new RAG file.
+- `PermissionBit::all()` is the load-bearing counter-example: eight bits are ISO 32000-1 Table 22's closed enumeration in a published standard, not a set this project expects to grow, so its fixed-size return type is information rather than debt. The reasoning is written into the accessor's own doc comment specifically so a future sweep finds the exception instead of "fixing" it.
+- New RAG file: `D:\dev\rag\rust\a_completeness_guard_can_be_lost_three_different_ways.md`, indexed in `D:\dev\rag\rust\index.md`. Distinct family from the same day's diagnosis/heuristic-tuning entries — this one is about guards, not diagnoses or tuned heuristics.
+
+**Still in flight:** nothing — this was a complete, one-commit sweep requested alongside `Pass 301.0`'s own reply.
+
+**For next session:** none owed by this Pass. A notice for `pdfcer-gui` is already filed in the shared channel (`notice_2026-09-13-three-more-all-accessors-are-slices-and-one-deliberately-is-not.md`); not archived here, that is the requester's own step.
+
+**`FEATURES.md`**: checked, no row changed — every touched accessor is an internal Rust return-type signature, no operator-facing capability moved.
+
+**Sourcing (hard rule 8) — no shell this filing.** Verified independently against the live tree (`Read`/`Grep`): `annot_author.rs`'s `CheckStyle::all`, `edit.rs`'s `DocInfoField::all`, `crypto/standard.rs`'s `PermissionBit::all` (still `[Self; 8]`, growth/closed-enumeration reasoning present in its own doc comment), and `vector/snap.rs`'s `SnapKind::all`/`priority` plus both tests all match the dispatch's account. Commit hash `d378417` and the test-count/clippy/sabotage verification were supplied by the dispatching engineer's report and not independently re-run.
+
 ## 2026-09-13 (532nd filing) — `Unit` gains km/yd/mi; `Unit::all()` widens to a slice; a proposed `/U`-vs-`/Measure` split declined on spec grounds
 
 **Shipped:**
