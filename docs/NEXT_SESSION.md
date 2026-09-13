@@ -469,7 +469,11 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
   measurement, not a guess.
 - **`R221`'s recorded instance count is wrong** and a commit message made it
   worse. **Do not copy an ordinal from a commit message.**
-- **`tools/check-requests-scoped.py`** — owed by `R242`, still unbuilt.
+- ~~**`tools/check-requests-scoped.py`** — owed by `R242`, still unbuilt.~~
+  **BUILT 2026-09-13.** Red on one state only: a request scoped in
+  `ROADMAP.md` with no answer in the channel. Green at baseline (6 open,
+  6 answered). In CI it announces `SKIPPED` by name — the channel lives
+  outside the repo — rather than passing silently (`R255`).
 - ~~**`check-public-fns-documented.py`'s denominator is `pub`** … staged fix~~
   — **MEASURED AND DECLINED 2026-09-11.** Widening it to private functions
   would mean a **1,837-row** baseline outside test modules, which is an
