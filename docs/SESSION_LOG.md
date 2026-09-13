@@ -4,6 +4,57 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-13 (541st filing) — `pdfcer-gui` shipped its half of `objects_dropped` with no ask back; their §3 is a new `R162` instance, filed to the RAG
+
+**Shipped:** nothing on this side. `pdfcer-gui` consumed
+`notice_2026-09-13-recovery-now-names-the-objects-it-dropped-and-your-banner-may-want-the-field.md`
+and wired `RecoveryReport::objects_dropped` into their Document-properties
+panel unassisted (`f37598b` on their side). They asked one question — should
+the CLI stderr sentence and the GUI panel sentence be worded identically —
+and answered it themselves in the channel, declined on `R221` grounds: two
+surfaces stating the same substance in different words is not the duplicate
+`R221` warns about, since stderr has no numbers beside it and the panel does.
+
+**Decisions made this session:** none.
+
+**Findings + decisions:**
+- **`R162` gains a corroborating instance**, filed in full to
+  `D:\dev\rag\rust\absence_assertion_must_first_prove_the_container_could_have_held_it.md`
+  (index updated in the same edit). The shape: a driven check asserting a
+  disclosure panel does NOT draw needs its control to be a **recovered file
+  with the two loss-causing traps removed**, not a sound file — a sound file
+  leaves three independent things unexercised at once (panel never opened,
+  document never recovered, block correctly empty) and "the block is absent"
+  is satisfied by all three. Generalises this file's existing remedy with one
+  refinement: the control must be a **minimal-diff sibling** of the positive
+  fixture, not merely "a different, empty-shaped" one. Cross-project, no
+  pdfcer commit — `pdfcer-gui` is a separate repository — so filed to the
+  ecosystem RAG rather than to `ROADMAP.md`'s ledger.
+- **Declined to merge with two other same-day "clean for the wrong reason"
+  instances** (`Pass 301.1`'s completeness test carrying its own copy of the
+  set it checked; `42b44ab`'s `R192` ninth instance), on the reporting
+  engineer's own recommendation and on this librarian's read that the three
+  have different mechanical causes (duplicated definition; unopened path;
+  chained-precondition fixture) — a shared symptom is not a shared mechanism.
+- **Flagged, not measured:** the correspondence notes pdfcer's own corpus
+  fixtures may have assumed properties (page/object counts, which objects a
+  redaction/recovery/scan path should touch) asserted nowhere — the same gap
+  their fixture-through-engine test closes on the GUI side. No count given;
+  worth a survey, not filed as an owed item on anyone's say-so but mine.
+
+**Still in flight:** owed items 5, 14, 34 unchanged from the 540th filing.
+
+**For next session:** consider whether a corpus-fixture-invariant survey
+(previous bullet) belongs on the owed list; nothing else new.
+
+**Sourcing (hard rule 8) — no shell this session.** `f37598b` is the GUI
+side's own stated commit, relayed and not independently confirmed (external
+repo, no shell access to it from here). Every quoted sentence and file path
+in this entry was read directly via `Read`/`Grep` from
+`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\done_recovery_dropped_objects_CONSUMED.md`
+and the paired `reply_2026-09-13-keep-your-wording-and-your-control-fixture-is-the-finding.md`,
+and from the two files this filing edited.
+
 ## 2026-09-13 (540th filing) — `Pass 302.1` (`919b0f0`): the CLI now prints the object recovery drops, closing the gap `Pass 302.0` opened an hour earlier
 
 **Shipped:** `Pass 302.1` — `disclose_recovery` (`main.rs`) now prints `RecoveryReport::objects_dropped` as two separate counted notes (`IdMismatch` vs `Unparseable`, never summed), discharging the CLI half of owed item 33. New out-of-process test file `crates/pdfcer-cli/tests/recovery_names_what_it_dropped.rs` asserts the dropped object's number and reason, plus a clean-recovery control that asserts nothing is printed when nothing was dropped.
