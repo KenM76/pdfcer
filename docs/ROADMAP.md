@@ -115,6 +115,55 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 302.0` (`acf9234`, 2026-09-13) — a scanned object recovery can't keep is named now, not just the loader's
+
+Discharges owed item 18 (decision 145's recovery-path sibling gap, opened 494th filing) — measured on `Annotations_output.pdf`, whose `startxref` points 134 bytes short of its own `xref` (a PDFsharp writer bug): recovery kept 10 of 11 objects and dropped object 5 — the page's content stream — with **nothing recorded** and a description calling it *"NOT in the file"* when it was present and simply declined. Losing it was correct (its Flate data is genuinely corrupt); losing it silently was the rule-4 breach decision 145 already closed at the loader and this Pass closes at recovery.
+
+**Mechanism.** `RecoveryReport` gains `objects_dropped: Vec<DroppedObject>` (`recover.rs:293`); `DroppedObject { number, reason }` (`:200`); `DropReason { Unparseable, IdMismatch }` (`:216`) — an enum, not a string, because a shell must tell a false positive (binary data spelling `N G obj`) from a real object that would not parse, and one prose sentence reads the same for both. `confirm_candidates` now returns the drops alongside the confirmed map and collision count through a named `ConfirmedCandidates` type (`:585`) rather than a bare 3-tuple — clippy's `type_complexity` was right that a third element made the tuple worth naming, and CI runs `-D warnings`.
+
+**Two design points worth keeping, both nearly lost.** A **list**, not a count: the complaint behind item 18 was never a wrong tally, it was that nobody could learn WHICH object went or WHY — `dropped: 1` answers neither. The **reason travels as an enum**, so the routine case (a binary false positive) doesn't read as alarming as the real one.
+
+**Tests.** `an_object_the_scan_found_and_could_not_parse_is_named_not_dropped_silently` (`recover.rs:1125`) and its control, `a_recovery_that_keeps_everything_reports_no_drops` (`:1156`) — the field is a signal, not noise every recovery emits.
+
+**★ Found on the way out, not claimed by the commit: the CLI does not print this field.** `disclose_recovery` (`main.rs:12805`) prints `reason`/`file_level_objects`/`objstm_objects`/`last_wins_collisions`/`trailer_source`/`offset_start`/`stream_lengths_recovered`/`missing_endobj_recovered` — every `RecoveryReport` field **except** the new `objects_dropped`. A workspace grep for `.objects_dropped` finds no call site outside `recover.rs`'s own two tests — `pdfcer-cli` has no consumer, and `pdfcer-gui` (external repo, not checked) is unknown. `RecoveryReport`'s own doc comment claims *"surfaced by the CLI... and the GUI"* and *"none is rounded away"* — both now false for this one field until the CLI is wired. **`R245`, 9th dated instance**: an affordance present on the library entry point (the report), absent from its consuming twin (the CLI's print function) — the same shape `Pass 283.1` named for `load_with_options`'s two entry points. **New owed item 33**, not folded into item 18: wire `disclose_recovery` (and, when reachable, `pdfcer-gui`) to print the dropped-object list. Item 18 itself is closed — the report no longer describes a present, declined object as absent, which is what decision 145 obliges.
+
+**`docs/FEATURES.md`.** *Document & pages* → *Recover a damaged cross-reference table...* row amended in place (see Ledger) — `core [x]`, `cli`/`gui` unticked for this specific sub-behaviour only, without touching the row's existing all-`[x]` state for the broader recovery capability.
+
+**`ARCHITECTURE.md` §10.5.** Addendum appended, same convention as the `Pass 283.1` addendum already in that section — no new decision; decision 145's kernel reaching a sibling code path (recovery, not the loader) that already carried its own pre-existing disclosure report (`R20`, decision 013).
+
+**Verified** (relayed by the dispatching engineer, not independently re-run): 2,056 core lib tests, 149 core test binaries, 0 failed; `cargo clippy --workspace --all-targets -- -D warnings` clean; fmt / public-fns-documented / re-export-closure / doc-block / string-gap gates pass. **`R225`**: restoring the bare `continue` (i.e. dropping the `dropped.push(...)` call) turns `an_object_the_scan_found_and_could_not_parse_is_named_not_dropped_silently` red and nothing else; the clean-recovery control test stays green — the field is a signal, not noise every recovery emits. `#[non_exhaustive]` on both new types verified to refuse external construction; the read path (`out.report.objects_dropped`) compiles from outside the crate.
+
+**Item-18 disambiguation, resolved.** Two different findings have carried the number 18 in this ledger. The earlier one (*"a non-metadata content stream carrying redacted text ... named by `residual_sweep`, not removed"*) was closed by **`Pass 285.0`** (`1366138`, 2026-09-09) — confirmed directly: `FEATURES.md`'s *Apply redaction* row states in its own text *"`ROADMAP.md` owed item 18 is CLOSED, `Pass 285.0`"*, and `1366138` is `Pass 285.0`'s commit per this file's own heading at that Pass. The number was then reused for decision 145's recovery-path gap, opened at the **494th filing** (2026-09-10) — that is the item this Pass discharges. Both readings independently confirmed against the live document text, not inferred.
+
+**Sourcing (hard rule 8) — no shell this filing.** Commit hash `acf9234` and the summary of its contents are taken from the dispatching engineer's account and not independently confirmed via `git log`/`git show` (no shell tool available this filing). Independently verified against the live tree via `Read`/`Grep`: `recover.rs` lines 190-293 (`DroppedObject`, `DropReason`, `RecoveryReport::objects_dropped` and their doc comments), `:585` (`ConfirmedCandidates`), `:645-655` (the two `dropped.push` call sites), `:1108-1165` (both tests, read in full); `main.rs:12805-12847` (`disclose_recovery`, confirmed it does not reference `objects_dropped`); a workspace-wide grep confirms `.objects_dropped` has no call site outside `recover.rs` itself. Test-count, clippy, gate and sabotage-verification figures are taken from the dispatching engineer's report and not independently re-run.
+
+---
+
+### Part — owed work, discharged and new
+
+**Discharged this filing:** item 18 (decision 145's recovery-path gap — see `Pass 302.0` above; the earlier, unrelated item 18 was already closed by `Pass 285.0`, confirmed above, not re-discharged here).
+
+**New, this filing:** item 33 — `disclose_recovery` (and `pdfcer-gui`, when reachable) does not print `RecoveryReport::objects_dropped`; `R245`'s 9th dated instance.
+
+**Judged, not acted on — items 5 and 14, per the engineer's own request.** Both independently re-read at their source in this file, not taken only from the engineer's characterization. **Item 5** (*"`origin/main..HEAD` is no longer a filing boundary once a release has been pushed — read `check-commits-filed.py`'s own output, not the range"*) is a standing methodological reminder, not undone work — agreed; it is not a defect owed to anyone. Whether it belongs in the numbered-work ledger at all versus a standing-rule-adjacent note is a structural call for the engineer, not made unilaterally here. **Item 14** (the file-channel-blindness cause, recorded at `n=2`, deliberately not minted, watching for a third) is exactly what hard rule 11's own threshold discipline asks for — correctly not work, correctly still flagged. Neither is renamed or removed this filing; both are named here so the ledger's own text carries the judgment, not only this reply.
+
+**Carried forward, unchanged:** item 5, item 14 (see judgment above).
+
+---
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `301` (highest ID `301.2`), next free family `302` | **`302`** (highest ID **`302.0`**), next free family `303` |
+| Standing rules | `R256`, next free `R257` | **unchanged** — `R245` gains a 9th dated instance (dated footer, no re-mint) |
+| Decision records | `156` | **unchanged, `156`** — extends decision 145's existing kernel to a sibling code path, no new decision |
+| `SESSION_LOG` filings | `538` | **`539`** |
+| `docs/FEATURES.md` | *Recover a damaged cross-reference table...* row silent on per-object drop disclosure | **row amended** — new disclosure named, `core [x]` / `cli [ ]` / `gui [ ]` for this specific sub-behaviour only |
+| Owed-survivor ledger | items 5, 14, 18 open | **item 18 CLOSED; item 33 NEW (`R245` 9th instance, CLI/GUI wiring); items 5, 14 unchanged, judged and left open** |
+
+---
+
 ### Librarian filing, 538th, 2026-09-13 — owed item 13b discharged: `Pass 287.0`/`291.0`/`292.0` already shipped both the withdrawn ask AND the one that superseded it
 
 Not a Pass — a librarian-only correction to the owed ledger, no code commit. A dispatch asked this item be discharged as "already shipped, blocker sentence stale" and offered its residue (the requester's own withdrawn nice-to-have) for Backlog. Checking the dispatch's own claims against live source before filing found the residue offer itself moot.

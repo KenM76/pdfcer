@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-13 (539th filing) — `Pass 302.0` (`acf9234`): recovery names the object it drops now, not just the loader; the CLI print path does not yet say so
+
+**Shipped:** `Pass 302.0` — `RecoveryReport::objects_dropped: Vec<DroppedObject>` (`DropReason::{Unparseable, IdMismatch}`) discharges owed item 18 (decision 145's recovery-path sibling gap): a scanned object recovery cannot keep (measured: the content stream of a PDFsharp-written file whose `startxref` undershoots its own `xref` by 134 bytes) is now named with a reason instead of vanishing with no record and a false "not in the file" description.
+
+**Decisions made this session:** none — no new decision number; extends decision 145's existing disclose-never-silent kernel to the recovery subsystem's own pre-existing report (`R20`, decision 013), addended into `ARCHITECTURE.md` §10.5 rather than minted separately.
+
+**Findings + decisions:**
+- **The CLI does not print the new field.** `disclose_recovery` (`main.rs`) prints every other `RecoveryReport` field and not this one; a workspace grep found no consumer of `.objects_dropped` outside `recover.rs`'s own two tests. `RecoveryReport`'s own doc comment claims the CLI/GUI surface every field — now false for this one until wired. Filed as `R245`'s 9th dated instance and a new owed item (33), separate from item 18, which is closed at the report/data level (what decision 145 actually obliges).
+- **Item-18 ambiguity resolved.** Two unrelated findings have carried the number 18 in this ledger: an earlier redaction gap, closed by `Pass 285.0` (`1366138`, confirmed via `FEATURES.md`'s own text), and this recovery-path gap, opened at the 494th filing. Both confirmed independently against the live document text.
+- **Items 5 and 14 judged, per the engineer's request.** Both re-read at their source: item 5 is a standing methodological reminder (not undone work); item 14 is a cause correctly held at `n=2`, not minted, watching for a third (hard rule 11's own threshold discipline working as intended). Neither removed from the ledger unilaterally; the judgment is recorded in `ROADMAP.md`.
+
+**Still in flight:** owed item 33 (CLI/GUI wiring for the new disclosure field) is new and unstarted.
+
+**For next session:** owed items 5, 14, 33 remain open; item 18 is discharged.
+
+**Sourcing (hard rule 8) — no shell this session.** Commit hash `acf9234` and its contents are taken from the dispatching engineer's account, not independently confirmed via `git log`/`git show`. Independently verified against the live tree via `Read`/`Grep`: `crates/pdfcer-core/src/recover.rs` (the new types, both tests, both `dropped.push` call sites), `crates/pdfcer-cli/src/main.rs`'s `disclose_recovery` (confirmed no reference to `objects_dropped`), and a workspace-wide grep for `.objects_dropped`.
+
 ## 2026-09-13 (538th filing) — owed item 13b discharged: already shipped by `Pass 287.0`/`291.0`/`292.0`, and so was the ask that superseded its own withdrawal
 
 **Shipped:** nothing — a librarian-only correction to the owed ledger, no code commit.

@@ -5285,9 +5285,27 @@ new rule: a facility present on one of two parallel entry points and absent
 from its twin — the same shape `R245` already names for a guard, now shown
 for an affordance.
 
+**Addendum, 2026-09-13 (`Pass 302.0`, `acf9234`).** The mechanism above
+covers the **loader** parsing a mostly-intact file; the **recovery**
+subsystem (`recover.rs`, rebuild-by-scan when the xref itself is
+unreadable) is a separate code path with its own pre-existing disclosure
+report, `RecoveryReport` (`R20`, decision 013), predating decision 145. It
+had the identical gap: a scanned object recovery could not keep was
+dropped with no record at all — measured on a PDFsharp-written file whose
+`startxref` undershoots its own `xref` by 134 bytes, dropping the page's
+content stream and describing it as *"NOT in the file"* when it was
+present and simply declined. `RecoveryReport::objects_dropped: Vec<DroppedObject>`
+(`DropReason::{Unparseable, IdMismatch}`) closes it. No new decision —
+the same disclose-never-silent kernel reaching a sibling subsystem the
+original mechanism did not touch. **Not fully closed operator-side**: the
+CLI's own print function (`disclose_recovery`) does not yet surface this
+field — tracked as `ROADMAP.md` owed item 33, `R245`'s 9th dated instance
+(an affordance present on the report entry point, absent from its
+consuming twin, the same shape named for `Pass 283.1` above).
+
 Full record: §12's 2026-09-09 entry, decision 145 (addended for
 `Pass 283.1`); standing rule `R248`; `ROADMAP.md` *Shipped*,
-`Pass 283.0`/`283.1`.
+`Pass 283.0`/`283.1`/`302.0`.
 
 ### 10.6 A required page-tree attribute absent (or dangling) defaults to the value the STANDARD itself names for that key, when one exists — never to one pdfcer invented (decision 150 — SHIPPED, `Pass 290.0`)
 
