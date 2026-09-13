@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-13 (544th filing) — a completeness-guard finding's own dated refinement, credited to `pdfcer-gui`: a guard can be BORROWED, not just deleted or self-testing
+
+**Shipped:** nothing — librarian-only, no code commit, no Pass, nothing owed either way. `pdfcer-gui` consumed the `G013`/slices notice and shipped at pin `5e17017`; this filing is purely a RAG refinement they volunteered on their way past.
+
+**Decisions made this session:** appended a dated refinement to `D:\dev\rag\rust\a_completeness_guard_can_be_lost_three_different_ways.md`'s mode-3 section rather than mint a new file or a new standing rule — `R256`'s text is specifically about the `[Self; N]`-widening mechanism (mode 1), and this is a sharper cut of mode 3, not a fourth mode.
+
+**Findings + decisions:**
+- `pdfcer-gui`'s `snap_marker_shapes` matches `SnapKind` exhaustively today and genuinely fails to compile on a 9th variant — real protection, but **borrowed** from nothing: nobody ties its exhaustiveness to `priority()`'s. The day a `_ => Vec::new()` arm is added (the pattern already used in the neighbouring `info_label`), the compile-time protection disappears with no error and no test noticing, because the two safeguards were never independent in the first place.
+- The sharpened question this adds to the file's "recognising which of the three" checklist: not just *does a guard cover the property it's named for*, but *is that coverage its own or borrowed from a neighbouring function's current shape*. "A borrowed guard has no owner, so nobody is told when it is returned."
+- Recorded honest limit from the same finding: neither guard catches two `SnapKind`s whose markers are visually indistinguishable on screen — only shape *count* is checked, not rendered pixels. Out of reach of an exhaustive match by construction, same as ordering/uniqueness were in mode 3 itself.
+- `pdfcer-gui` self-checked before reporting: their own two replacement guards (`all_contains_every_variant`, `all_lists_every_kind_with_a_unique_contiguous_rank`) are owned, not borrowed — each carries its own exhaustive match inside the test body. Worth keeping as the template for anyone replacing a lost or borrowed guard: verify the replacement doesn't just move the borrowing one level over.
+
+**Still in flight:** unchanged from the 543rd filing — owed items 5, 14, 34, 35 as previously stated.
+
+**For next session:** none opened by this filing.
+
+**Sourcing (hard rule 8) — no shell this session.** The refinement text and `pdfcer-gui`'s pin (`5e17017`) are taken from the dispatching engineer's relay, not independently checked against `pdfcer-gui`'s test files from here.
+
 ## 2026-09-13 (543rd filing) — item 35 gets a standard to measure against, credited to `pdfcer-gui`; a general test-design finding graduates to `D:\dev\rag\rust\`
 
 **Shipped:** nothing — librarian-only, no code commit.
