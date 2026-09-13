@@ -5303,9 +5303,20 @@ field — tracked as `ROADMAP.md` owed item 33, `R245`'s 9th dated instance
 (an affordance present on the report entry point, absent from its
 consuming twin, the same shape named for `Pass 283.1` above).
 
+**Addendum, 2026-09-13 (`Pass 302.1`, `919b0f0`).** CLI half closed within
+the hour: `disclose_recovery` now prints `objects_dropped` as two separate
+counted notes (`IdMismatch` vs `Unparseable`, never summed), verified by an
+out-of-process test asserting the dropped object's number and reason, not
+merely that a note appeared. `RecoveryReport`'s own doc comment had claimed
+this was already true ("surfaced by the CLI... none is rounded away") —
+false for this field until this Pass, filed as `R247`'s 4th dated instance.
+**Still open, cross-project**: whether `pdfcer-gui`'s own recovery banner
+wants this field — `ROADMAP.md` owed item 34, raised on the
+`pdfce_FeatureRequests` channel rather than assumed.
+
 Full record: §12's 2026-09-09 entry, decision 145 (addended for
 `Pass 283.1`); standing rule `R248`; `ROADMAP.md` *Shipped*,
-`Pass 283.0`/`283.1`/`302.0`.
+`Pass 283.0`/`283.1`/`302.0`/`302.1`.
 
 ### 10.6 A required page-tree attribute absent (or dangling) defaults to the value the STANDARD itself names for that key, when one exists — never to one pdfcer invented (decision 150 — SHIPPED, `Pass 290.0`)
 

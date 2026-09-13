@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-13 (540th filing) — `Pass 302.1` (`919b0f0`): the CLI now prints the object recovery drops, closing the gap `Pass 302.0` opened an hour earlier
+
+**Shipped:** `Pass 302.1` — `disclose_recovery` (`main.rs`) now prints `RecoveryReport::objects_dropped` as two separate counted notes (`IdMismatch` vs `Unparseable`, never summed), discharging the CLI half of owed item 33. New out-of-process test file `crates/pdfcer-cli/tests/recovery_names_what_it_dropped.rs` asserts the dropped object's number and reason, plus a clean-recovery control that asserts nothing is printed when nothing was dropped.
+
+**Decisions made this session:** none — a CLI wiring fix to `Pass 302.0`'s own report, addended into `ARCHITECTURE.md` §10.5 rather than minted separately.
+
+**Findings + decisions:**
+- **This is a defect in `Pass 302.0`, not a follow-on feature.** The report field existed and nothing outside `recover.rs`'s own two unit tests ever printed it, so a terminal read of a recovered file was still silently shorter than the object it actually held — the same hour the field was authored.
+- **`RecoveryReport`'s own doc comment already claimed the CLI/GUI surface every field ("none is rounded away") — false for this one field until now.** Filed as `R247`'s 4th dated instance.
+- **The prior filing's own ledger claim was wrong.** `Pass 302.0`'s Ledger row said "`R245` gains a 9th dated instance (dated footer, no re-mint)"; the footer had never actually been appended to *Standing rules*' master `R245` entry. Appended in this filing, one filing late — a register claim outliving the write that was supposed to make it true, recurring in the register's own bookkeeping about itself.
+- **Item 33 split, not closed outright.** Its CLI half is discharged; new owed item 34 carries the GUI half (`pdfcer-gui` is a separate, external repo, untouched this filing) — raised on the `pdfce_FeatureRequests` channel rather than assumed either way.
+
+**Still in flight:** owed item 34 (GUI wiring question, cross-project) is new and unstarted; items 5, 14 unchanged.
+
+**For next session:** owed items 5, 14, 34 remain open; item 33 is discharged (CLI half).
+
+**Sourcing (hard rule 8) — no shell this session.** Commit hash `919b0f0` and the test-count/clippy/sabotage figures are taken from the dispatching engineer's account, not independently confirmed via `git log`/`git show`. Independently verified against the live tree via `Read`/`Grep`: `crates/pdfcer-cli/src/main.rs:12805-12904` (`disclose_recovery`'s new block), `crates/pdfcer-core/src/recover.rs:228-235` (the doc comment, quoted verbatim) and `:196-226` (`DropReason`'s `#[non_exhaustive]`), `crates/pdfcer-cli/tests/recovery_names_what_it_dropped.rs` in full (both tests, both fixtures), and the *Standing rules* master `R245` entry (confirmed it read EIGHTH, not NINTH, before this session's own edit).
+
 ## 2026-09-13 (539th filing) — `Pass 302.0` (`acf9234`): recovery names the object it drops now, not just the loader; the CLI print path does not yet say so
 
 **Shipped:** `Pass 302.0` — `RecoveryReport::objects_dropped: Vec<DroppedObject>` (`DropReason::{Unparseable, IdMismatch}`) discharges owed item 18 (decision 145's recovery-path sibling gap): a scanned object recovery cannot keep (measured: the content stream of a PDFsharp-written file whose `startxref` undershoots its own `xref` by 134 bytes) is now named with a reason instead of vanishing with no record and a false "not in the file" description.

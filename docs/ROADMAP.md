@@ -115,6 +115,47 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 302.1` (`919b0f0`, 2026-09-13) — the CLI now prints the object recovery drops, closing the gap `Pass 302.0` opened an hour earlier
+
+Discharges the CLI half of owed item 33 (opened this session, `Pass 302.0`, on `disclose_recovery`'s own silence about the field it had just been given to print). **This is a defect IN `Pass 302.0`, not a follow-on feature**: `RecoveryReport::objects_dropped` existed and no caller outside `recover.rs`'s own two tests ever printed it, so a terminal read of a recovered file was still silently shorter than the object it actually held — the same hour the field was authored.
+
+**Mechanism.** `disclose_recovery` (`main.rs:12805`) now prints `objects_dropped` as two SEPARATE counted notes, never summed — `IdMismatch` (a definition contradicting the offset that found it; always worth attention) and `Unparseable`/`_` (binary data spelling `N G obj`; routine, and `_` on purpose since `DropReason` is `#[non_exhaustive]`, so a future reason lands in the conservative bucket rather than going unreported). Summing the two would make every ordinary recovery read as alarming as a real loss, training the reader to skip the note.
+
+**Tests are out-of-process by necessity** (`crates/pdfcer-cli/tests/recovery_names_what_it_dropped.rs`, new file). `recover.rs`'s unit tests prove the report carries the loss; they cannot prove an operator ever sees it, since that is a property of the binary's stderr. `the_cli_names_the_dropped_object_on_stderr` asserts on the dropped object's NUMBER and the WHY, not merely that a note appeared — "some note was printed" would pass on `dropped: 1`. `a_recovery_that_kept_everything_prints_no_drop_note` is the control.
+
+**★★ `RecoveryReport`'s own doc comment (`recover.rs:230`) already claimed "surfaced by the CLI... and the GUI... none is rounded away" — false for exactly the field the same commit that wrote the claim failed to wire, an hour earlier.** Filed as `R247`'s 4th dated instance (a doc comment stating a behavioural guarantee, unenforced until a test would fail without it) — the new tests are what make the CLI half of that guarantee checkable rather than merely asserted.
+
+**★ Correcting this filing's own predecessor, not just the code.** `Pass 302.0`'s own Ledger row claimed "`R245` gains a 9th dated instance (dated footer, no re-mint)" — verified against *Standing rules* below and the footer had never actually been appended; the master `R245` entry still read EIGHTH. Appended in this filing, one filing later than the ledger claimed. Worth naming: the exact shape this session flagged repeatedly — a register claim outliving the write that was supposed to make it true — recurring in the register's own bookkeeping about itself.
+
+**GUI still not wired — item 33 split, not closed outright.** `pdfcer-gui` is a separate project and untouched this filing; whether it needs a channel notice for this field is unresolved. Item 33's CLI half is discharged here. **New owed item 34**: raise `RecoveryReport::objects_dropped` on the `pdfce_FeatureRequests` channel so `pdfcer-gui` can judge whether its own recovery banner wants it, rather than assuming either way.
+
+**Verified** (relayed by the dispatching engineer, not independently re-run): 48 CLI test binaries, 0 failed; `cargo clippy --workspace --all-targets -- -D warnings` clean; fmt / clap-help / string-gap gates pass. `R225`: suppressing the new print block turns `the_cli_names_the_dropped_object_on_stderr` red and leaves the clean-recovery control test green.
+
+**`docs/FEATURES.md`.** *Recover a damaged cross-reference table...* row: `cli` box ticked (`[ ]` → `[x]`), prose amended to record the CLI wiring and narrow the remaining gap to `gui` only — see Ledger.
+
+**Sourcing (hard rule 8) — no shell this filing.** Commit hash `919b0f0` and the test-count/clippy/sabotage figures are taken from the dispatching engineer's account, not independently confirmed via `git log`/`git show`. Independently verified against the live tree via `Read`/`Grep`: `main.rs:12805-12904` (`disclose_recovery`'s new block, confirmed it references `report.objects_dropped`, splits `IdMismatch`/`Unparseable` into separate messages, and the `_` match arm), `recover.rs:228-235` (`RecoveryReport`'s doc comment, quoted above verbatim) and `:196-226` (`DropReason`'s `#[non_exhaustive]`), and `tests/recovery_names_what_it_dropped.rs` in full (both tests, both fixtures, read in full — confirms the number-and-reason assertions and the clean-recovery control). Also verified directly: the *Standing rules* master `R245` entry (below) read EIGHTH, not NINTH, before this filing's own edit.
+
+### Part — owed work, discharged and new
+
+**Discharged this filing:** item 33's CLI half — see `Pass 302.1` above.
+
+**New, this filing:** item 34 — `pdfcer-gui`'s own recovery surface has not been asked whether it wants `RecoveryReport::objects_dropped`; raise on the `pdfce_FeatureRequests` channel, not assumed either way.
+
+**Carried forward, unchanged:** item 5, item 14.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `302` (highest ID `302.0`), next free family `303` | **unchanged** — `302.1` is a sub-letter of an existing family, next free family still `303` |
+| Standing rules | `R256`, next free `R257` | **unchanged** — `R245`'s 9th dated instance actually appended this filing (the prior filing's own ledger claimed it, footer was missing); `R247` gains a 4th dated instance |
+| Decision records | `156` | **unchanged, `156`** — a CLI wiring fix to an existing report, no crate-boundary or invariant change |
+| `SESSION_LOG` filings | `539` | **`540`** |
+| `docs/FEATURES.md` | *Recover a damaged cross-reference table...* row: `core [x]` / `cli [ ]` / `gui [ ]` for the drop-disclosure sub-behaviour | **`cli [x]`**, prose amended; `gui [ ]` unchanged, now the row's only remaining gap for this sub-behaviour |
+| Owed-survivor ledger | items 5, 14, 33 open | **item 33 CLOSED (CLI half); item 34 NEW (GUI half, cross-project); items 5, 14 unchanged** |
+
+---
+
 ### `Pass 302.0` (`acf9234`, 2026-09-13) — a scanned object recovery can't keep is named now, not just the loader's
 
 Discharges owed item 18 (decision 145's recovery-path sibling gap, opened 494th filing) — measured on `Annotations_output.pdf`, whose `startxref` points 134 bytes short of its own `xref` (a PDFsharp writer bug): recovery kept 10 of 11 objects and dropped object 5 — the page's content stream — with **nothing recorded** and a description calling it *"NOT in the file"* when it was present and simply declined. Losing it was correct (its Flate data is genuinely corrupt); losing it silently was the rule-4 breach decision 145 already closed at the loader and this Pass closes at recovery.
@@ -26862,9 +26903,11 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - **`R243` — DATED INSTANCE NOTE, 2026-09-13 (535th filing, `3d8c160`): A FOURTH INSTANCE, ONE LEVEL UP FROM THE PRIOR THREE — THE DOCUMENTED OBLIGATION WAS `R242`'S OWN OWED-TOOL LINE, RESTATED AS OWED IN `docs/NEXT_SESSION.md` AND `docs/ROADMAP.md` FOR SEVEN DAYS (MINTED 2026-09-06 19:58, BUILT 2026-09-13) WHILE NOTHING BUT A WRITTEN REMINDER STOOD IN FOR THE CONTROL. `tools/check-requests-scoped.py` NOW IS THE CONTROL. SAME MECHANISM AS THE FOUNDING INSTANCE, APPLIED REFLEXIVELY TO A RULE ABOUT A RULE'S OWN ENFORCEMENT.**
 - `R245` — A GUARD, KEY OR DISCLOSURE ADDED TO ONE MEMBER OF A FAMILY OF PARALLEL VERBS IS NOT SHIPPED UNTIL A TEST ITERATES THE WHOLE FAMILY.
 - **`R245` — DATED INSTANCE NOTE, 2026-09-11 (509th filing, `Pass 296.3`): THE LITERAL-SEARCH-VS-PATTERN-SEARCH REDACTION-DISCLOSURE PAIR PRODUCED THIS SHAPE A SECOND TIME — EIGHTH DATED INSTANCE.**
+- **`R245` — DATED INSTANCE NOTE, 2026-09-13 (540th filing, `Pass 302.1`, `919b0f0`): NINTH DATED INSTANCE — `RecoveryReport::objects_dropped` (`Pass 302.0`) WAS AN AFFORDANCE ON THE REPORT ENTRY POINT WITH NO CONSUMER ON THE CLI'S OWN PRINT FUNCTION, THE SAME SHAPE `Pass 283.1` NAMED FOR `load_with_options`'S TWO ENTRY POINTS. ★ THIS FOOTER WAS CLAIMED BY THE 539TH FILING'S OWN LEDGER AND NOT ACTUALLY WRITTEN UNTIL NOW — A CLAIM OUTLIVING THE EDIT THAT WAS SUPPOSED TO MAKE IT TRUE, ONE FILING DEEP.**
 - `R246` — A CORRECTION IS NOT COMPLETE UNTIL IT REACHES EVERY CORPUS THIS PROJECT *READS*, NOT MERELY EVERY TREE IT *WRITES*.
 - `R247` — A DOC COMMENT STATING A BEHAVIOURAL GUARANTEE ("ONLY X IS TOUCHED", "NEVER Y", "ALWAYS Z", "CANNOT CORRUPT W") IS AN UNENFORCED CLAIM UNTIL A TEST EXISTS THAT WOULD FAIL IF IT WERE VIOLATED.
 - **`R247` — DATED INSTANCE NOTE, 2026-09-13 (534th filing, THIRD INSTANCE, `Pass 301.2`, `52a0ccd`).** `survey_standard_14`'s own doc comment asserted "the answer here and the outcome of the later `set_font` cannot disagree" — unenforced, and false for every page carrying a subset of a standard-14 name. Also the twelfth reconciled `R221` instance on the same line (see `R221`'s own dated note, above) — the same incident satisfies both rules for two different reasons: `R221` explains why the two answers diverged, this rule explains why nobody noticed. Full account appended to `D:\dev\rag\rust\a_doc_comment_stating_a_behavioural_guarantee_is_unenforced_until_a_test_would_fail_without_it.md`. No re-mint; ceiling unchanged.
+- **`R247` — DATED INSTANCE NOTE, 2026-09-13 (540th filing, FOURTH INSTANCE, `Pass 302.1`, `919b0f0`).** `RecoveryReport`'s own doc comment (`recover.rs:230`) claimed the CLI and GUI surface every field, "none is rounded away" — false for `objects_dropped` from the moment `Pass 302.0` added it until this Pass wired `disclose_recovery` and wrote the out-of-process test that makes the CLI half checkable. No re-mint; ceiling unchanged.
 - `R248` — A STRUCTURAL DEFECT THAT LEAVES THE OBJECT GRAPH AMBIGUOUS, NOT UNDEFINABLE, IS OPENED — pdfcer PICKS A READING UNDER A NAMED DEFAULT, DISCLOSES WHAT IT PICKED AND WHAT IT DISCARDED, AND…
 - `R249` — A DESTRUCTIVE SWEEP OBLIGED BY AN OUTCOME-SHAPED REQUIREMENT ("REMOVE ALL TRACES OF X") IS SCOPED BY THE EVIDENCE THE REQUIREMENT ITSELF NAMES, NEVER BY A COMPUTED REACHABILITY OR LIVENES…
 - `R250` — BEFORE IMPLEMENTING A DATA-FORMAT OR COMPATIBILITY DECISION SOURCED FROM A FEATURE-RAG (OR SPEC-RAG) FINDING LABELLED ANYTHING SHORT OF DIRECTLY-OBSERVED, CHECK WHETHER A PRIMARY ARTIFACT…
