@@ -12844,6 +12844,64 @@ fn disclose_recovery(file: &Path, report: &pdfcer_core::recover::RecoveryReport)
             report.missing_endobj_recovered
         );
     }
+
+    // ★★★ THE LOSS ITSELF, NAMED (owed item 33; the disclosure `Pass 302.0`
+    // recorded and nothing printed).
+    //
+    // `Pass 302.0` gave `RecoveryReport` an `objects_dropped` list so recovery
+    // would stop returning a shorter document with no explanation. It wired
+    // nothing to it: from a terminal the document was still silently shorter,
+    // which is the half of rule 4 that actually bites. This function prints
+    // every other field on that struct, and the struct's own doc comment says
+    // the CLI surfaces all of them and that "none is rounded away" -- a
+    // sentence that was false for exactly one field, the newest.
+    //
+    // ★ The two reasons are printed SEPARATELY rather than summed, because
+    // they are different news. `IdMismatch` means a definition contradicted
+    // the offset that found it -- always worth a human's attention. `Unparseable`
+    // is overwhelmingly binary data inside a stream that happens to spell
+    // `N G obj`, and is routine; a combined count would make every ordinary
+    // recovery look as alarming as a real loss, which is how a disclosure
+    // trains its reader to ignore it.
+    if !report.objects_dropped.is_empty() {
+        use pdfcer_core::recover::DropReason;
+        let mut unparseable: Vec<u32> = Vec::new();
+        let mut mismatched: Vec<u32> = Vec::new();
+        for d in &report.objects_dropped {
+            match d.reason {
+                DropReason::IdMismatch => mismatched.push(d.number),
+                // `_` rather than naming `Unparseable`: `DropReason` is
+                // `#[non_exhaustive]`, and a future reason must land in the
+                // conservative bucket rather than stop this compiling or,
+                // worse, go unreported.
+                _ => unparseable.push(d.number),
+            }
+        }
+        let list = |v: &[u32]| v.iter().map(u32::to_string).collect::<Vec<_>>().join(", ");
+        if !mismatched.is_empty() {
+            eprintln!(
+                "pdfcer: {}: NOTE: {} scanned object(s) were NOT kept because the \
+                 definition's own object number disagreed with the header that found \
+                 it: {}. A definition that contradicts its offset cannot be trusted to \
+                 be what the offset claimed, so it is dropped rather than guessed at.",
+                file.display(),
+                mismatched.len(),
+                list(&mismatched),
+            );
+        }
+        if !unparseable.is_empty() {
+            eprintln!(
+                "pdfcer: {}: NOTE: {} scanned object header(s) did not parse and were \
+                 NOT kept: {}. Most are binary data inside a stream that happens to \
+                 spell `N G obj` and cost nothing; a genuinely corrupt object looks the \
+                 same from here, so if a page is blank or missing, these numbers are \
+                 where it went.",
+                file.display(),
+                unparseable.len(),
+                list(&unparseable),
+            );
+        }
+    }
 }
 
 /// Upper bound on a single supplied font file, in bytes (pdfcer policy,
