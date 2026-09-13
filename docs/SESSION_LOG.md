@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-13 (535th filing) — `tools/check-requests-scoped.py` built, discharging the last item from the operator's "do everything but the token thing" batch; fourth `R243` dated instance, one level up from the first three
+
+**Shipped:**
+- `3d8c160` — `tools/check-requests-scoped.py`: red on exactly one state, a request scoped in `ROADMAP.md` with no answer in the channel; green otherwise (6 open, 6 answered, 0 scoped-unanswered at baseline). Registered in CI's `audits` job (23 → 24 checks) and `check-ci-parity.py`'s `LOCAL` table, so `run-gates.sh` picks it up automatically.
+- `873ff62` — engineer-owned, no separate filing: strikes the corresponding owed-tool line in `docs/NEXT_SESSION.md`, struck rather than deleted.
+
+**Decisions made this session:** none new — a control built to an already-minted rule (`R242`), not a crate-boundary or invariant change.
+
+**Findings + decisions:**
+- The rule chain is the point. `R242` (a request leaves `open/` when ANSWERED, not when SCOPED) is correct, and its correctness is what created the hazard this tool closes: a scoped request stays in the channel by design, so an audit reading `open/` counts it as outstanding. That produced two incidents in 35 hours (460th and 461st filings). `R242` was minted 2026-09-06 19:58; the tool was owed from that moment.
+- **It sat owed for seven days while the register carried a written instruction to remember** — which is `R243`'s own shape (a documented obligation on a future caller is not a control), applied reflexively to a rule about another rule's enforcement. Filed as `R243`'s fourth dated instance.
+- Design: matches on the exact request FILENAME (not a topic key — only one of six current requests carries a `G0NN` key); the channel lives outside the repository and is absent in CI, so the gate announces `SKIPPED — channel not present` by name rather than passing silently — `R255`'s shape, and it would otherwise have been this gate's own first defect.
+- This discharges the last of the owed items from the operator's *"yes do everything but the token thing that breaks builds"* batch — the 534th filing's own verification had restated it as still owed to the engineer; it is now built.
+
+**Still in flight:** nothing new — a complete, one-tool filing.
+
+**For next session:** items 5, 11, 13b, 14, 18 remain open, unchanged (see `docs/ROADMAP.md`'s owed-work ledger).
+
+**`FEATURES.md`**: unchanged — an internal CI/register control, no operator-facing capability.
+
+**Sourcing (hard rule 8) — no shell this filing.** `.git/logs/HEAD` and `.git/COMMIT_EDITMSG` read directly (not relayed) to confirm `3d8c160` sits one commit before the tip `873ff62` and to quote `873ff62`'s own message verbatim. Independently verified against the live tree via `Read`/`Grep`, not relayed: `tools/check-requests-scoped.py` read in full (exit-code contract, filename-match logic, `SKIPPED` announcement all present as described); `.github/workflows/ci.yml`'s `audits` job named `"repository audits (24 checks)"` and listing this script as a step; `tools/check-ci-parity.py`'s `LOCAL` table carrying it. The 460th/461st-filing incident-interval figures and the sabotage/verification transcript are taken from the dispatching engineer's account as authoritative and not independently re-run. Not checked this filing: `origin/main` state, backup-bundle currency, CI colour.
+
 ## 2026-09-13 (534th filing) — `set_font` reuses an existing subset; the pre-flight promised to add one it would have reused; a text-fixture PROVENANCE backfill falsifies a legal-adjacent claim; `R221`'s instance ledger relocated out of ROADMAP prose
 
 **Shipped:**

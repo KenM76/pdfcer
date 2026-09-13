@@ -116,6 +116,28 @@ wherever it appears.*
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
 
+### `3d8c160` (2026-09-13) — `check-requests-scoped.py`, owed by `R242` since 2026-09-06, now built
+
+Not a Pass — a tool addition, filed under its own commit-hash heading (same convention as `408c93c`, below). Discharges the owed-tool item last restated at the 534th filing ("Verified still true, no change made — not this role's tool to build").
+
+**What it decides.** Red on exactly one state: a request scoped in `ROADMAP.md` with no answer in the channel (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`). Not red on a request with no reply and no roadmap entry — that is new work, not an error. Not red on an answered request still sitting in `open/` — `R242` says that stays correctly until the far side archives it; archiving is the requester's own step. Green at baseline: 6 open requests, 6 answered, 0 scoped-unanswered.
+
+**Why it sat owed seven days, and the rule chain that makes the delay itself the finding.** `R242` (*a request leaves `open/` when it is ANSWERED, not when it is scoped*) is correct, and its correctness is exactly what creates the hazard: a scoped request stays in the channel by design, so an audit that reads `open/` counts it as outstanding. That produced two incidents inside 35 hours — the 460th filing (one feature filed under two Pass IDs, caught only at filing time) and the 461st (caught by hand, by grepping `ROADMAP.md` for the request's filename before writing the commit message). `R242` was minted 2026-09-06 19:58; this tool was owed from that moment. **It sat owed for seven days while the register carried a written instruction to remember** — which is `R243` exactly, one level up: a documented obligation on a future caller is not a control, even when the obligation is about another rule's own control. A fourth `R243` dated instance is appended below.
+
+**Two design points.** Matching is on the exact request FILENAME, not a topic key — only one of the six current requests carries a `G0NN` key, so key-matching would cover one request in six while looking thorough; every reply cites the request's filename in its body, verified against all six before relying on it. The channel lives outside the repository and is absent in CI, so the skip is **announced by name** on stdout (`SKIPPED — channel not present at <path>`) rather than returned silently — `R255`'s shape, and it would otherwise have been this gate's own first defect: a check that declines to run reporting identically to one that ran and passed.
+
+Registered in CI's `audits` job (23 → 24 checks, `check-ci-job-names.py` agrees) and classified `LOCAL` in `check-ci-parity.py`, so `tools/run-gates.sh` derives it automatically.
+
+**Verified.** Green at baseline (6 open, 6 answered, 0 scoped-unanswered). Sabotage (a request cited in `ROADMAP.md` with no reply) turns it red, naming the request; adding a citing reply turns it green. All 24 python gates plus the string-gap and control-byte scans pass.
+
+A follow-up commit (`873ff62`, engineer-owned, no separate filing) strikes the corresponding owed line in `docs/NEXT_SESSION.md`, leaving the struck text legible rather than deleting it.
+
+**`FEATURES.md`**: untouched — an internal CI/register control, no operator-facing capability.
+
+**Sourcing (hard rule 8) — NO SHELL THIS FILING.** `.git/logs/HEAD` names `3d8c160` as the commit two steps before the current tip (`873ff62`, one docs-only strike past it), reflog subjects `"tools: check-requests-scoped.py -- the control R242 has been asking for since 2026-09-06"` and `"docs: the handoff's unbuilt-tool line is struck -- check-requests-scoped.py exists"`; `.git/COMMIT_EDITMSG` (the tip's retained message) read directly and quoted above. Independently verified against the live tree via `Read`/`Grep`, not relayed: `tools/check-requests-scoped.py` read in full (the exit-code contract, the filename-match logic, the `R255`-shaped `SKIPPED` announcement are all present as described); `.github/workflows/ci.yml:317-318` names the `audits` job `"repository audits (24 checks)"` and lists `check-requests-scoped.py` as a step; `tools/check-ci-parity.py:111` carries it in the `LOCAL` table. The 460th/461st-filing incident-interval figures and the exact sabotage/verification transcript are taken from the dispatching engineer's account as authoritative and not independently re-run this filing.
+
+---
+
 ### `408c93c` (2026-09-13) — the text PROVENANCE backfill, and it falsified a legal-adjacent claim on the way
 
 Not a Pass — docs-only, filed under its own commit-hash heading. Discharges owed item 4 (open since the 477th filing). All twelve undocumented fixtures in `fixtures/synthetic/text/` now have a `PROVENANCE.md` entry naming their generator and what each makes reachable. Every one is `LEGAL.md` §5 category (a) — confirmed by reading each generator's own header, not assumed from the directory name.
@@ -168,7 +190,7 @@ Measures owed item 8 in full, four filings after `Pass 279.0` (480th filing) par
 
 **Corrected, not newly discharged — owed item 9 was stale.** The dispatch that prompted this filing described item 9 as still open ("`R247` is already reserved for an unrelated trigger"). It is not: the **489th filing** (2026-09-09) resolved `R247` by direct engineer ruling — candidate 1 (an unenforced doc-comment guarantee) claimed `R247`; candidate 2 (the "alternate route" sabotage-fixture cause, `n=3`) was **withdrawn**, folded into `R225`'s own dated-instance family rather than minted separately, and item 9 was explicitly recorded as **closed, not deferred**. The ceiling has moved five times since (`R248`…`R256`, `Pass 301.1`, 533rd filing). Nothing further is owed here; the correction is recorded because the stale framing reached this filing intact rather than being checked against the document first — the exact discipline hard rule 8 asks for, pointed at a dispatch's own account rather than at git state.
 
-**Verified still true, no change made (not this role's tool to build):** `tools/check-requests-scoped.py`, owed by `R242` since its founding, still does not exist (`Glob`/`Grep` confirm no file, only references in `docs/NEXT_SESSION.md` and two history files). Restated as still owed to the engineer.
+**Discharged, 535th filing:** `tools/check-requests-scoped.py` — see `3d8c160` above. Owed by `R242` since 2026-09-06 19:58, built same day as this filing; the seven-day gap between mint and build is itself recorded as an `R243` dated instance, below.
 
 **Carried forward, unchanged:** items 5, 11, 13b, 14, 18.
 
@@ -26735,6 +26757,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - **`R243` — DATED INSTANCE NOTE, 2026-09-08 (469th filing): A `# Errors` DOC BLOCK IS THE SAME FAILURE ONE LAYER UP FROM A COURTESY WARNING — A PROMISE ABOUT THE FUNCTION'S OWN CONTRACT CAN…**
 - **`R243` — DATED INSTANCE NOTE, 2026-09-10 (492nd filing): A WRITTEN WARNING FAILING TO PREVENT A REPEATED MANUAL ACTION IS THE SAME MECHANISM ONE LAYER OUT FROM TWO CALL SITES FAILING TO A…**
 - **`R243` — DATED INSTANCE NOTE, 2026-09-12 (522nd filing, `2f67b63`): A THIRD RECURRENCE OF THE SAME LINE-CONTINUATION-LOST-IN-A-PYTHON-HEREDOC DEFECT (511TH FILING'S `f16e266`+`5917ece`, ITSELF THE 492ND FILING'S SHAPE) WITH `tools/edit-source.py` ALREADY ON DISK AND STILL NOT REACHED FOR. NOT A NEW MECHANISM — RECORDED FOR THE RECURRENCE RATE, NOT A NEW FINDING.**
+- **`R243` — DATED INSTANCE NOTE, 2026-09-13 (535th filing, `3d8c160`): A FOURTH INSTANCE, ONE LEVEL UP FROM THE PRIOR THREE — THE DOCUMENTED OBLIGATION WAS `R242`'S OWN OWED-TOOL LINE, RESTATED AS OWED IN `docs/NEXT_SESSION.md` AND `docs/ROADMAP.md` FOR SEVEN DAYS (MINTED 2026-09-06 19:58, BUILT 2026-09-13) WHILE NOTHING BUT A WRITTEN REMINDER STOOD IN FOR THE CONTROL. `tools/check-requests-scoped.py` NOW IS THE CONTROL. SAME MECHANISM AS THE FOUNDING INSTANCE, APPLIED REFLEXIVELY TO A RULE ABOUT A RULE'S OWN ENFORCEMENT.**
 - `R245` — A GUARD, KEY OR DISCLOSURE ADDED TO ONE MEMBER OF A FAMILY OF PARALLEL VERBS IS NOT SHIPPED UNTIL A TEST ITERATES THE WHOLE FAMILY.
 - **`R245` — DATED INSTANCE NOTE, 2026-09-11 (509th filing, `Pass 296.3`): THE LITERAL-SEARCH-VS-PATTERN-SEARCH REDACTION-DISCLOSURE PAIR PRODUCED THIS SHAPE A SECOND TIME — EIGHTH DATED INSTANCE.**
 - `R246` — A CORRECTION IS NOT COMPLETE UNTIL IT REACHES EVERY CORPUS THIS PROJECT *READS*, NOT MERELY EVERY TREE IT *WRITES*.
