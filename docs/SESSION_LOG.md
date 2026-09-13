@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-13 (537th filing) — `42b44ab`: the gate shipped an hour ago could not see half the correspondence; R192's ninth instance
+
+**Shipped:**
+- `42b44ab` — `tools/check-requests-scoped.py` (built one commit earlier, `3d8c160`) gains an explicit two-channel list (`pdfce_FeatureRequests` + `iccce_FeatureRequests`) and a whole-filename answer regex, replacing a channel constant and a prefix-tuple matcher that both silently covered only the first channel.
+
+**Decisions made this session:** none new — a same-day fix to an existing gate, not a crate-boundary or invariant change.
+
+**Findings + decisions:**
+- The gate this filing fixes was itself found blind by the exact blind spot the 536th filing (immediately below) had just paid for: a reply-citation audit reported 19, then 15, then 10 replies "missing" from `ROADMAP.md`, and the true number was 0 — four of the ten were sitting, correctly answered, in `iccce_FeatureRequests`, a channel the audit never opened. The gate built an hour later to make that kind of audit mechanical inherited the identical omission.
+- **Filed as R192's ninth instance, not a new mint, and not R221.** `D:\dev\rag\rust\a_gate_states_what_it_cannot_see.md` already names this shape exactly — a tool's input set narrower than its obligation's subject set — across eight prior instances in this project; this is the ninth, and it is filed as **one** instance covering both manifestations (the audit and the gate), because both trace to the same uncatalogued fact (pdfcer answers two request channels, never enumerated as a pair anywhere) rather than two independent discoveries of the mechanism. `R221` was considered and declined: that rule's mechanism needs two descriptions of one question that can drift apart; here there was only ever one decider (first the audit, then the gate), and its domain was simply never written down as a set. Dated instance appended directly to the RAG file, per that rule's own single-file ledger discipline; `index.md` bullet updated in the same edit; no new standing-rule number.
+- The two fixes: an explicit `DEFAULT_CHANNELS` tuple (never a glob over the parent directory, which also holds unrelated projects' correspondence — widening the set stays a deliberate act), and a whole-filename regex answer matcher (`reply|done|notice|note`) replacing a prefix tuple that matched only `pdfce_`'s naming convention and not `iccce_`'s date-prefixed one. The prefix tuple's failure mode is the sharper of the two: it still printed "clean" for every request, because some other file happened to cite each one — a matcher wrong about HOW it found something reports success identically to one that is actually complete.
+- Judgment call, not acted on: the engineer's own follow-up commit (`29ba103`, docs-only) added a two-channel explanation to `docs/NEXT_SESSION.md`, which now duplicates this filing's own account. Left alone — `NEXT_SESSION.md` is engineer-owned and replaced each session, so it carries none of the drift risk a permanent register would.
+
+**Still in flight:** nothing new.
+
+**For next session:** items 5, 13b, 14, 18 remain open, unchanged (see `docs/ROADMAP.md`'s owed-work ledger).
+
+**`FEATURES.md`**: unchanged — an internal CI/register control, no operator-facing capability.
+
+**Sourcing (hard rule 8) — no shell this filing.** `.git/logs/HEAD` read directly (not relayed): `42b44ab` sits one commit after `873ff62` (the 535th filing's tip) and one before `29ba103` (the engineer's own follow-up docs commit). `42b44ab`'s own message is read from its reflog subject line; no retained `COMMIT_EDITMSG` for it (the tip's file now carries `29ba103`'s message). Independently verified against the live tree via `Read`: `tools/check-requests-scoped.py` in full, confirming the two-entry `DEFAULT_CHANNELS` tuple, the whole-filename `ANSWER_RE`, and the per-channel `SKIPPED` announcement all match the account above. Not checked this filing: `origin/main` state, backup-bundle currency, CI colour.
+
 ## 2026-09-13 (536th filing) — `reply_*.md` citation audit: owed item 11 discharged, two fabricated filenames named, four citations found in the wrong channel
 
 **Shipped:** nothing — a librarian-only documentation correction, no code commit.

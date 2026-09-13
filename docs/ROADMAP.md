@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `42b44ab` (2026-09-13) — the gate shipped an hour ago could not see half the correspondence; `check-requests-scoped.py` gains its own R192 instance before it shipped a second one
+
+Not a Pass — a same-day fix to `3d8c160` (the 535th filing), filed under its own commit-hash heading. Direct sequel to the 536th filing (below), which resolved the reply-citation audit's false "19/15/10 missing" by discovering four of them lived in `iccce_FeatureRequests` rather than `pdfce_FeatureRequests`. That discovery has a consequence: **the gate built an hour earlier knew only one channel too.**
+
+**The finding.** `check-requests-scoped.py`'s channel constant named `pdfce_FeatureRequests` alone. It would have reported "clean" about `iccce_FeatureRequests` forever — not because it checked the four open requests there and found them answered, but because it never opened the directory. A gate that scans one of two directories is not half a gate; it is a gate that reports "clean" about a place it never looked.
+
+**Two fixes.** (1) The channel set is now an explicit `DEFAULT_CHANNELS` tuple, not a glob over `D:/Dev/FeatureRequests/` — that parent also holds `ComBridge_`/`SWFormat_`/`ScripTree_FeatureRequests`, other projects' correspondence; adding a channel stays a deliberate act. (2) The answer matcher became a regex over the whole filename (`(reply|done|notice|note)`), not a prefix tuple — the two channels don't agree on naming (`pdfce_` uses `reply_G013_…`/`done_G013_CONSUMED.md`; `iccce_` uses `2026-08-21-reply-….md`/`note_boundary_….md`) and neither is wrong. The prefix tuple this replaced matched the first and silently missed the second, **and still reported every request answered** — some other file happened to cite each one — which is the sharper defect: a matcher wrong about HOW it found something still prints clean.
+
+**Verified.** Green at baseline across both channels (10 open, 10 answered, 0 scoped-unanswered). Sabotage: an unanswered scoped request goes red and names its channel; answering it with the date-prefixed `iccce_` form (the old matcher couldn't see this shape at all) turns it green; both default channels absent produces two named `SKIPPED` lines, not silence. All 24 python gates plus string-gap/control-byte scans pass.
+
+**Standing rule: an R192 instance, not a new mint, and not R221.** `D:\dev\rag\rust\a_gate_states_what_it_cannot_see.md` already names this exact shape — a tool's input set narrower than its obligation's subject set — across eight prior instances; this is its **ninth**, filed as *one* instance covering both manifestations (the reply-citation audit and this gate), because both trace to the same uncatalogued fact (pdfcer answers two channels, nowhere enumerated as a pair) rather than two independent discoveries of the mechanism. Declined `R221`: that rule needs two descriptions of one question that can drift apart from each other; this needed only one decider whose domain was never written down. Dated instance appended directly to the RAG file (that rule's own single-file discipline, same as `R225`); no new standing-rule number, ceiling unchanged.
+
+**`NEXT_SESSION.md` duplication — flagged, not resolved here.** The engineer's own follow-up commit (`29ba103`, docs-only, no separate filing) added a "there are two channels" section to the handoff. That is legitimate pre-session operational knowledge and this filing does not touch it, but the same three-conventions explanation now lives in two places (`NEXT_SESSION.md` and this ROADMAP entry). Judgment call, not acted on: `NEXT_SESSION.md` is engineer-owned and replaced each session, so nothing here is at risk of drifting the way a permanent register would; leaving both stands unless the engineer wants the ROADMAP copy trimmed to a pointer.
+
+**`FEATURES.md`**: untouched — an internal CI/register control, no operator-facing capability.
+
+**Owed work**: unchanged by this filing — items 5, 13b, 14, 18 carried forward (see the 536th filing's own list, immediately below).
+
+**Sourcing (hard rule 8) — no shell this filing.** `.git/logs/HEAD` names `42b44ab` as the commit immediately after `873ff62` (the 535th filing's tip) and immediately before `29ba103` (the engineer's own follow-up docs commit, not filed separately per its own convention). `.git/COMMIT_EDITMSG` at the current tip carries `29ba103`'s message, read directly; `42b44ab`'s own message (`"fix(tools): the gate I shipped an hour ago could not see half the correspondence"`) is read from the reflog subject line, not from a retained `COMMIT_EDITMSG`. Independently verified against the live tree via `Read`: `tools/check-requests-scoped.py` in full — `DEFAULT_CHANNELS` now a two-entry tuple, `ANSWER_RE` a whole-filename regex including `note`, the `SKIPPED — … not present` per-channel announcement, all matching the account above. Not checked this filing: `origin/main` state, backup-bundle currency, CI colour.
+
+---
+
 ### Librarian filing, 536th, 2026-09-13 — `reply_*.md` citation audit: owed item 11 discharged, two fabricated filenames corrected, four citations found in the wrong channel
 
 Not a Pass — a librarian-only correction, filed under its own heading (same convention as `408c93c`/`3d8c160`, below). Prompted by cross-checking every `reply_*.md` this file cites against `D:\Dev\FeatureRequests\pdfce_FeatureRequests\`.
