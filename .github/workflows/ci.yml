@@ -315,7 +315,7 @@ jobs:
   # and the COUNT is the part that decays, so the count is the part a gate
   # can falsify.
   audits:
-    name: repository audits (23 checks)
+    name: repository audits (24 checks)
     runs-on: ubuntu-latest
     steps:
       # ★ FULL HISTORY REQUIRED, and its absence was SILENT.
@@ -417,6 +417,21 @@ jobs:
       # every skippable one to be declared, so a NEW one is a finding.
       - name: check every skippable test is declared
         run: python tools/check-skippable-tests-declared.py --stats
+
+      # `R242` says a request leaves `open/` when it is ANSWERED, not when it
+      # is scoped -- which is right, and which means an audit reading `open/`
+      # counts a scoped request as outstanding. Twice in 34 hours a session
+      # did exactly that and dispatched shipped work as new, minting a second
+      # Pass ID for one feature (460th and 461st filings). This gate is the
+      # control `R243` says that written rule was not.
+      #
+      # ★ In CI the channel is ABSENT -- it lives outside the repository --
+      # so this step announces `SKIPPED` by name rather than passing silently
+      # (`R255`). It earns its place here anyway: the parity gate requires
+      # every sweep command to exist in the workflow, and the check is real
+      # on the machine where the channel does exist.
+      - name: check no answered request is re-dispatched as new
+        run: python tools/check-requests-scoped.py
 
       # A re-exported struct whose own FIELD type is not re-exported compiles,
       # passes clippy and passes every test -- inside the crate every path

@@ -108,6 +108,7 @@ LOCAL = {
     "tools/check-reexport-closure.py": "python tools/check-reexport-closure.py --stats",
     "tools/check-doc-block-spliced.py": "python tools/check-doc-block-spliced.py --stats",
     "tools/check-skippable-tests-declared.py": "python tools/check-skippable-tests-declared.py --stats",
+    "tools/check-requests-scoped.py": "python tools/check-requests-scoped.py",
     "tools/check-clap-help.py": "python tools/check-clap-help.py",
     "tools/check-cited-verbs-exist.py": "python tools/check-cited-verbs-exist.py",
     "tools/check-ledger-numbers.py": "python tools/check-ledger-numbers.py",
