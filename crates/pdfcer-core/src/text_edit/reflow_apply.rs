@@ -255,6 +255,31 @@ pub enum ReflowApplyError {
          the page's first content stream only and committing would drop the added run, so save \
          and reopen before reflowing this page"
     )]
+    /// ⚠ **NO LONGER PRODUCED BY ANY PATH, as of `G015` (2026-09-14), and
+    /// kept rather than removed so the decision to drop it is the consuming
+    /// project's rather than a side effect of this fix.**
+    ///
+    /// `reflow_block`'s guard returned this whenever the page carried a
+    /// non-empty extra `/Contents` stream. That was correct while the planner
+    /// read the BASE document — a run appended this session lived in an extra
+    /// the plan could not see, and the commit would have emptied it.
+    /// `Pass 257.0` made the planner read the SESSION's graph, from which
+    /// point the appended run is in the plan's source and survives; the guard
+    /// was removed once that was measured.
+    ///
+    /// **It was also firing on pages nobody had edited.** The condition tested
+    /// a structural property — *does `contents[1..]` hold a non-empty stream* —
+    /// which ISO 32000-1 §7.8.2 explicitly permits a producer to author, and
+    /// CAD exporters do routinely. A 36-sheet drawing set whose title sheet
+    /// carried eight producer-authored streams was refused with *"text was
+    /// added to this page this session"* on a freshly opened session, offering
+    /// a remedy ("save and reopen") that could not work because the streams are
+    /// in the file.
+    ///
+    /// ⇒ It is therefore still the variant [`ReflowApplyError::is_recoverable`]
+    /// reports as recoverable, and nothing constructs it. A shell may keep
+    /// handling it harmlessly, or drop that branch; removing it from this enum
+    /// is a breaking change and is deliberately not taken here.
     PageEditedThisSession,
     /// The document is encrypted (out of scope for text editing).
     #[error("the document is encrypted; reflow of encrypted files is out of scope")]

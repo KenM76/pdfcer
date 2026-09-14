@@ -105,49 +105,74 @@ fn each_further_edit_does_not_add_another_copy() {
     );
 }
 
+/// ★★★ TEXT ADDED THIS SESSION SURVIVES A REFLOW — which is what this test
+/// was always about, and it can now assert it directly.
+///
+/// # What this replaced, and why the replacement is stronger
+///
+/// This asserted `ReflowApplyError::PageEditedThisSession`: reflow REFUSED
+/// whenever the page carried a non-empty extra `/Contents` stream, because an
+/// appended run lives in one and `Pass 251.0`'s planner read the BASE
+/// document, which did not contain it. Committing would have emptied the extra
+/// and deleted the run. The refusal was the only protection available.
+///
+/// `Pass 257.0` made the planner read the SESSION's graph.
+/// `ContentStream::from_page` concatenates EVERY `/Contents` entry, and the
+/// plan replaces only the block's own show-operator spans within that
+/// concatenation — so the appended run is in the plan's source and is carried
+/// through. The extras are emptied because their content has already been
+/// folded into the first stream.
+///
+/// ⚠ The guard's comment asserted **"Still true after `Pass 257.0`"** and
+/// nothing re-measured it. It was false from that commit, and it cost the
+/// consuming project reflow on every producer-split page — a CAD sheet with
+/// eight producer-authored streams was refused with *"text was added to this
+/// page this session"* on a session that had edited nothing, and the remedy it
+/// offered ("save and reopen") could not work, because the streams are in the
+/// file (`G015`).
+///
+/// ★ THE NAME IS THE POINT. The old test was called
+/// `reflow_refuses_after_text_was_added_rather_than_deleting_it` — the refusal
+/// was never the goal, it was the means, and the clause after "rather than" is
+/// what actually mattered. Asserting the end instead of the means also makes
+/// this the thing that fails if a future change narrows the planner's source
+/// again: the guard would have to come back, and this test is what notices.
 #[test]
-fn reflow_refuses_after_text_was_added_rather_than_deleting_it() {
-    use pdfcer_core::text_edit::{ReflowApplyError, ReflowRequest};
+fn reflow_keeps_text_added_this_session() {
+    use pdfcer_core::text_edit::ReflowRequest;
 
-    let mut s = EditSession::new(plain());
+    // The REFLOW fixture, not `plain()`: on `plain.pdf` the appended run lands
+    // inside block 0's own box, making it a multi-font block, which reflow
+    // defers for an unrelated reason (`the block mixes more than one font
+    // resource`). That refusal is correct and is not what this test is about —
+    // using a page where the appended run forms its own block keeps the
+    // assertion pointed at the consolidation.
+    let doc = Document::load(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/synthetic/reflow/reflow.pdf"),
+    )
+    .expect("load reflow.pdf");
+    let mut s = EditSession::new(doc);
     s.add_text(&AddTextRequest::new(0, (100.0, 600.0), "KEEPME").with_size(12.0))
         .expect("add");
 
-    // Reflow plans from the base (which lacks KEEPME); before Pass 251.0 it
-    // committed and silently emptied the appended stream, deleting KEEPME.
-    // It must now refuse by name instead.
-    //
-    // ★ The expected variant CHANGED on 2026-09-07 and the claim did not.
-    // This asserted `Unsupported(String)` with a message containing "added",
-    // which was the only handle that existed — `pdfcer-gui` then reported
-    // that `Unsupported` carried TEN refusals, of which this is the only one
-    // an operator can clear, and no shell could tell them so without matching
-    // on pdfcer's prose. The guard now has its own variant. The substance
-    // below (KEEPME survives) is untouched; only the name it refuses by got
-    // better, and this test is the record that it is the SAME refusal.
-    let err = match s.reflow_block(0, 0, &ReflowRequest::new().with_wrap_width(400.0)) {
-        Err(e @ ReflowApplyError::PageEditedThisSession) => e,
-        Err(ReflowApplyError::Unsupported(msg)) => panic!(
-            "the guard regressed to the undiscriminated variant, which is the exact defect \
-             pdfcer-gui reported: {msg}"
-        ),
-        other => panic!("expected the PageEditedThisSession refusal, got {other:?}"),
-    };
+    let report = s
+        .reflow_block(0, 0, &ReflowRequest::new().with_wrap_width(400.0))
+        .expect("reflow must COMMIT now, not refuse — the appended run is in the plan's source");
+
     assert!(
-        err.is_recoverable(),
-        "this is the ONE reflow refusal the operator can clear by saving and reopening; if it \
-         stops reporting itself as recoverable the remedy becomes unreachable again"
-    );
-    assert!(
-        err.to_string().contains("added"),
-        "the refusal must still name the added run: {err}"
+        report.extra_objects_emptied >= 1,
+        "the extra stream must be consolidated, which is the step that used to be \
+         the hazard: {report:?}"
     );
 
-    // And KEEPME is still there — nothing was deleted.
-    let (bytes, _) = s.to_full_bytes(&SaveOptions::default()).expect("save");
+    let (bytes, _) = s
+        .to_full_bytes(&SaveOptions::identity())
+        .expect("save the reflowed document");
+    let text = page0_text(&bytes);
     assert_eq!(
-        count(&page0_text(&bytes), "KEEPME"),
+        count(&text, "KEEPME"),
         1,
-        "the added run survived"
+        "the run appended this session must survive the reflow exactly once — not \
+         deleted by the consolidation, and not duplicated by it: {text:?}"
     );
 }

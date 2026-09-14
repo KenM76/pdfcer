@@ -70,39 +70,52 @@ fn simple_variants() -> Vec<ReflowApplyError> {
     ]
 }
 
-/// ★★ Claim 1 — the recoverable refusal is reachable from the REAL guard.
+/// ★★★ Claim 1, INVERTED (`G015`) — adding text and then reflowing the same
+/// page now SUCCEEDS, and that is why the variant below has no construction
+/// site left.
 ///
-/// Adds text to a page and then reflows that page in the same session, which
-/// is exactly the situation `Pass 251.0` guards: reflow re-emits the page's
-/// first content stream only, and the added run lives in a second one.
+/// # What this asserted, and why the assertion flipped
 ///
-/// This is the assertion that would have caught the defect. Everything else
-/// in this file is arithmetic over the type; only this one proves the
-/// construction site actually produces the new variant.
+/// It proved `PageEditedThisSession` was reachable: *"only this one proves the
+/// construction site actually produces the new variant."* That was the right
+/// test for `Pass 251.0`'s guard, which refused whenever the page carried a
+/// non-empty extra `/Contents` stream — because the planner read the BASE
+/// document and could not see a run appended into an extra.
+///
+/// `Pass 257.0` made the planner read the SESSION's graph.
+/// `ContentStream::from_page` concatenates EVERY `/Contents` entry and the plan
+/// replaces only the block's own show-operator spans within it, so the appended
+/// run is in the plan's source and survives the consolidation. The guard was
+/// removed in `G015` after measuring exactly that — see
+/// `content_edit_no_duplication::reflow_keeps_text_added_this_session`, which
+/// asserts the run survives rather than that the attempt was refused.
+///
+/// ⚠ So this test now measures the opposite fact, and it is the one that
+/// matters: **the operation the refusal was protecting works.** If a future
+/// change narrows the planner's source again, this goes red first.
 #[test]
-fn adding_text_then_reflowing_the_same_page_names_the_recoverable_refusal() {
-    // The dedicated reflow fixture, so the block IS reflowable and the only
-    // thing standing in the way is the guard under test. Using a fixture that
-    // could not be reflowed anyway would make this pass for the wrong reason.
+fn adding_text_then_reflowing_the_same_page_now_succeeds() {
     let doc = Document::load(&fixture("reflow/reflow.pdf")).expect("the reflow fixture");
     let mut s = EditSession::new(doc);
 
-    // add_text lands in a NEW content stream, which is exactly what the
-    // `Pass 251.0` guard watches for.
-    s.add_text(&AddTextRequest::new(0, (72.0, 700.0), "guard trip"))
-        .expect(
-            "could not add text, so the guard cannot be tripped and this test measures nothing",
-        );
+    // (100, 600), not (72, 700): at the latter the run lands inside block 0's
+    // own box and the block becomes multi-font, which reflow defers for an
+    // unrelated reason. That refusal is correct and would make this test pass
+    // for the wrong reason — the run must form its own block.
+    s.add_text(&AddTextRequest::new(0, (100.0, 600.0), "guard trip"))
+        .expect("could not add text, so this test measures nothing");
 
     match s.reflow_block(0, 0, &ReflowRequest::new()) {
-        Err(ReflowApplyError::PageEditedThisSession) => {}
-        Err(ReflowApplyError::Unsupported(msg)) => {
-            panic!("the guard still returns Unsupported(String) -- this is the exact defect: {msg}")
-        }
+        Ok(_) => {}
+        Err(ReflowApplyError::PageEditedThisSession) => panic!(
+            "the `Pass 251.0` guard is back. If that was deliberate, the planner must have \
+             stopped reading the session's whole page — check that before restoring this \
+             test, because the guard and the narrow planner only make sense together."
+        ),
         other => panic!(
-            "expected PageEditedThisSession from the Pass 251.0 guard, got {other:?}. If the \
-             fixture has no reflowable block this test is measuring nothing and needs a \
-             different fixture, not a relaxed assertion."
+            "expected the reflow to commit, got {other:?}. A refusal for an UNRELATED reason \
+             (a multi-font block, a composite font) means the fixture changed and this test \
+             is measuring nothing — fix the fixture, not the assertion."
         ),
     }
 }

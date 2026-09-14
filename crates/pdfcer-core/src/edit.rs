@@ -11433,29 +11433,45 @@ impl EditSession {
         // content already edited) are gone; their tests now assert the reflow
         // composes.
 
-        // ★ A run appended this session lives in an EXTRA stream (contents[1..]),
-        // NOT in contents[0], so the guard above misses it. Reflow plans from the
-        // base — which does not contain the appended run — and committing that
-        // plan runs `text_edit_command`'s sweep, which empties every non-empty
-        // extra and would SILENTLY DELETE the added text. Refuse by name instead
-        // (pdfcer-gui bug, 2026-09-04; Pass 251.0). This is the "refuses a page
-        // carrying a non-empty appended stream" option the shell asked for.
-        // Still true after `Pass 257.0`: the plan re-emits contents[0] only,
-        // and the sweep is what would drop the extra stream's run.
-        if page
-            .contents
-            .iter()
-            .skip(1)
-            .any(|id| matches!(self.value(*id), Some(Object::Stream(s)) if s.data_span.len > 0))
-        {
-            // `Pass 251.0`'s guard, given its own variant at `pdfcer-gui`'s
-            // request (2026-09-07): it is the ONLY reflow refusal an operator
-            // can act on, and while it sat as one of ten sentences inside
-            // `Unsupported(String)` no shell could offer the remedy without
-            // matching on pdfcer's prose. The sentence is unchanged and now
-            // lives on the variant.
-            return Err(RErr::PageEditedThisSession);
-        }
+        // ★★★ THE `PageEditedThisSession` GUARD WAS REMOVED HERE (`G015`), and
+        // the sentence it replaced is worth keeping because it was TRUE when
+        // written and stopped being true without anyone noticing.
+        //
+        // It read: *a run appended this session lives in an EXTRA stream
+        // (contents[1..]), not in contents[0], so reflow plans from the base —
+        // which does not contain the appended run — and committing that plan
+        // runs the sweep, which empties every non-empty extra and would
+        // SILENTLY DELETE the added text.* Correct, in `Pass 251.0`, when the
+        // plan read the BASE document.
+        //
+        // `Pass 257.0` made the plan read the SESSION's graph. From that commit
+        // the appended run IS in the plan's source, because
+        // `ContentStream::from_page` concatenates EVERY `/Contents` entry and
+        // the planner replaces only the block's own show-operator spans inside
+        // that concatenation — everything else is carried through verbatim. The
+        // extras are then emptied because their content has already been folded
+        // into the first stream, which the report has always disclosed as
+        // *"multi-stream page: N additional /Contents stream(s) were collapsed
+        // into the first"*.
+        //
+        // ⚠ The comment that stood here asserted **"Still true after
+        // `Pass 257.0`"**. It was not, and nothing re-measured it.
+        //
+        // MEASURED BEFORE REMOVAL, with the guard suppressed: three separate
+        // appended runs survive a reflow, exactly once each, on a page whose
+        // extras were all session-authored. And on the operator's own eight-
+        // stream CAD sheet the guard was MASKING the real answer — with it
+        // gone, that block refuses as `R-INV-4` (a composite/CIDFont run, FF-E
+        // deferred), which is a true sentence about the font instead of a false
+        // one about what the operator did.
+        //
+        // ★ WHAT THIS COSTS, STATED SO IT IS NOT REDISCOVERED AS A REGRESSION:
+        // the protection is not weakened, because the thing it protected
+        // against cannot happen on this path any more. If a future change makes
+        // the planner read anything narrower than the session's whole page
+        // again, the guard must come back WITH IT — the test
+        // `reflow_keeps_text_added_this_session` is what will notice, and it
+        // asserts the surviving text rather than the refusal.
 
         let plan = plan_reflow_from_doc(&self.view(), page_index, block_index, req)?;
         let kind = CommandKind::ReflowBlock {
