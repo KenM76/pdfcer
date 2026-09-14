@@ -28,8 +28,10 @@ deliberately not a debug tool: Acrobat Pro has no real equivalent.
 ## Status: pre-1.0, under active development
 
 **Working today**, among other things: opening and rendering PDFs;
-page operations (merge, split, extract, insert, delete, reorder,
-rotate); text extraction and text editing with reflow; AcroForm field
+page operations (merge, extract, insert, delete, reorder, rotate;
+splitting is `pdfcer` only and splits every N pages, with no
+bookmark- or size-based criteria); text extraction and text editing
+with reflow; AcroForm field
 creation, editing, filling, flattening and FDF/XFDF import/export;
 markup annotations; redaction (mark, review and apply — either
 finalizing or undo-preserving); **OCR** — recognise a
