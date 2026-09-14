@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-14 (549th filing) — `Pass 303.0` (`G015`) removes a reflow guard that outlived the code change that made it wrong; `G016` catches the doc-comment half `G015` missed; a reply-after-commit gate blind spot recorded, not minted
+
+**Shipped:** `Pass 303.0` (`025d703d`) — `reflow_block` no longer refuses a page split into multiple producer-authored `/Contents` streams. Plus `3f416fbd` (`G016`, not a Pass) — `reflow_block`'s own rustdoc still promised the refusal `G015` had just removed.
+
+**Decisions made this session:** none new architecturally. Judgment call: the reply-after-commit gate blind spot (below) is recorded as a flagged finding, not minted as a standing rule — one instance in this project's own register, below the two-instance mint bar, and the reporting engineer explicitly declined to characterize it further.
+
+**Findings + decisions:**
+- `reflow_block`'s `ReflowApplyError::PageEditedThisSession` guard fired on any page carrying a non-empty extra `/Contents` stream, read as text the operator added this session and refused with a "save and reopen" remedy that could never work — ISO 32000-1 §7.8.2 permits the split and CAD exporters use it routinely. Correct at `Pass 251.0` (planner read the base document); false since `Pass 257.0` moved the planner onto the session view, where an appended run is already inside the plan's source and survives — the guard's own comment asserted "Still true after `Pass 257.0`" and nobody had re-measured it.
+- Measured before removal: three separate appended runs survive a reflow, each once. Measured after, on the operator's own eight-stream sheet: the block now refuses correctly as `R-INV-4` (composite/CIDFont, FF-E deferred) instead of falsely as "text was added this session." This replaces a false refusal with a true one; it does not give reflow on that specific block.
+- The `PageEditedThisSession` variant is kept, not removed — nothing constructs it any more, but deleting it is a breaking enum change left to `pdfcer-gui`'s own call.
+- `G016`: the same commit that removed the guard updated the variant's own doc comment and not `reflow_block`'s — two places stated one fact, one changed. Corrected in `3f416fbd`. `R247`'s 5th dated instance.
+- A delivery reached the channel as a commit before it reached it as a reply: `G015` shipped with no reply written, and `pdfcer-gui` found it via `git log` while checking something unrelated. `tools/check-requests-scoped.py` was green throughout — correctly, since it reds only on "scoped in `ROADMAP.md` AND unanswered," and a *worked-but-not-yet-answered* request is a third state indistinguishable from "untouched" to that gate. Its own header already states this limit and declines to widen the gate to match commits against topic keys. Not minted as a rule (see Decisions above).
+
+**Still in flight:** unchanged — owed items 5, 14, 34.
+
+**For next session:** none opened. Reply already sent (`reply_G015_and_G016_late_and_you_were_right_to_say_so_SHIPPED.md`).
+
+**Sourcing (hard rule 8) — no shell this filing.** Commit hashes, test counts and gate results taken from the requesting engineer's own report. Independently confirmed against the live tree via `Read`/`Grep`: `crates/pdfcer-core/src/edit.rs:11396-11499` (`reflow_block`'s corrected doc header and the removed-guard comment block), `crates/pdfcer-core/src/text_edit/reflow_apply.rs:203-283` (`ReflowApplyError::PageEditedThisSession`'s doc comment stating it is no longer constructed), the renamed tests in `content_edit_no_duplication.rs`/`reflow_decline.rs`, and `tools/check-requests-scoped.py`'s own header (confirms the gate's stated limit and the quoted line already on disk). Push/CI state not independently checked — no shell.
+
 ## 2026-09-14 (548th filing) — the "six missing RAG findings" from the 547th filing were a false positive; ledger denominator corrected, script recommended instead of hand-verification
 
 **Shipped:** nothing — librarian-only, no Pass. Closes the 547th filing's own flagged `D:\dev\rag\rust\` ledger discrepancy, dispatched as an index check.

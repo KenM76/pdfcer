@@ -115,6 +115,61 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 303.0` (`025d703d`, 2026-09-14) — G015: reflow no longer refuses a page split into multiple `/Contents` streams
+
+`reflow_block`'s `PageEditedThisSession` guard fired on any page carrying a non-empty extra content stream, read as text the operator added this session, refusing with a "save and reopen" remedy that could never work — ISO 32000-1 §7.8.2 permits the split and CAD exporters use it routinely. **Correct at `Pass 251.0`** (the planner read the base document, where an appended run really was invisible and a commit would have dropped it); **false since `Pass 257.0`** moved the planner onto the session view, where `ContentStream::from_page` concatenates every `/Contents` entry and the plan replaces only the block's own spans — an appended run is already in the plan's source and survives. The guard's own comment asserted "Still true after `Pass 257.0`"; nobody had re-measured it.
+
+Measured before removing anything: three separate appended runs survive a reflow, each exactly once. Measured after, on the operator's own eight-stream sheet: that block now refuses as `R-INV-4` (composite/CIDFont run, FF-E deferred) — a true sentence about the font, replacing a false one about the operator. **This does not give reflow on that block** — it replaces one refusal with a correct one, which was the requester's own first priority.
+
+`ReflowApplyError::PageEditedThisSession` is **kept, not removed** — nothing constructs it any more, but deleting the variant is a breaking enum change for any consumer already matching on it, and that call is `pdfcer-gui`'s, not this fix's. Two tests renamed for the end they now serve rather than the means: `reflow_refuses_after_text_was_added_rather_than_deleting_it` → `reflow_keeps_text_added_this_session`; `..._names_the_recoverable_refusal` → `adding_text_then_reflowing_the_same_page_now_succeeds`.
+
+Answers `request_G015_page_edited_this_session_fires_on_a_page_the_producer_authored_with_eight_streams.md` (`pdfce_FeatureRequests`) — reply sent late; see the 549th filing note below.
+
+**Verified:** 2,056 core lib tests, 149 core test binaries, 0 failed; `clippy --workspace --all-targets -- -D warnings` clean; fmt, doc-block and public-fns gates pass.
+
+**`docs/FEATURES.md`:** Text section, "Reflow within a block…" row corrected — see Ledger.
+
+**Sourcing (hard rule 8) — no shell this filing.** Commit hash, test counts and gate results taken from the requesting engineer's own report; independently confirmed against the live tree via `Read`/`Grep`: `edit.rs:11424-11499` (`reflow_block`, the removed-guard comment block and its measurement claims), `reflow_apply.rs:203-283` (`ReflowApplyError`, `PageEditedThisSession`'s doc comment stating it is "NO LONGER PRODUCED BY ANY PATH … kept rather than removed"), and the renamed tests in `content_edit_no_duplication.rs` / `reflow_decline.rs`.
+
+### `3f416fbd` (2026-09-14) — G016: `reflow_block`'s own rustdoc still promised the refusal `G015` had just removed
+
+Not a Pass. `025d703d` updated the removed variant's own doc comment and not the function's — two places stated one fact about the refusal, one place changed. `reflow_block`'s doc header and `# Errors` section still read "One refusal remains: a page carrying a non-empty content stream APPENDED this session" and still promised `Unsupported` for it; corrected to state the guard is gone and point at the variant's own note instead. Filed separately by the requester within the hour, and rightly — folded into `G015` it would have read as a detail of a closed item and been dropped in triage.
+
+**`R247`'s 5th dated instance** (master-list entry below) — a doc comment stating a behavioural guarantee that had gone stale, this time by omission (one of two doc sites was updated, not both) rather than by a code change nobody re-measured.
+
+Answers `request_G016_reflow_block_rustdoc_still_promises_the_refusal_G015_removed.md`.
+
+**Sourcing (hard rule 8) — no shell this filing.** Commit hash taken from the requesting engineer's report; independently confirmed against the live tree via `Read`: `edit.rs:11396-11423` carries the corrected doc header and `# Errors` note at HEAD.
+
+### Librarian filing, 549th, 2026-09-14 — a delivery reached the channel as a COMMIT before it reached it as a reply; `check-requests-scoped.py`'s own header already names the gap it has, no new rule minted
+
+Not a Pass. `G015` shipped with no reply written; `pdfcer-gui` discovered the delivery by reading this project's `git log` while checking something unrelated. `tools/check-requests-scoped.py` was green throughout — correctly, by its own rule: it reds only on *scoped in `ROADMAP.md` AND unanswered*, and `G015` was neither scoped nor answered — it was **worked**, a third state the gate cannot tell apart from "untouched." Its own header already states this directly (quoting `pdfcer-gui`'s "a delivery can reach you as a COMMIT before it reaches you as a reply") and explicitly declines to widen the gate to match commits against topic keys, calling that a softer, noisier predicate that would teach its reader to ignore it.
+
+**Not minted.** Adjacent to `R242` (which governs when a request may *leave* the channel) but a different mechanism — this is about a delivery never *entering* the channel at all. The requesting engineer flagged it as possibly a second instance of a gate-blind-spot shape found the day before, but explicitly declined to characterize it further ("do not mint on my say-so; I have misjudged instance-counting repeatedly"). At `n=1` in this project's own register, against this project's own two-instance mint bar, it stays a flagged finding rather than a rule — reconsider if a second independent instance surfaces here.
+
+**`docs/FEATURES.md`:** untouched by this note (see `Pass 303.0` above for the one row that changed).
+
+### Part — owed work, discharged and new
+
+**Discharged this filing:** none.
+
+**New, this filing:** none — the gate-blind-spot finding above is recorded, not opened as owed work; the reply is already sent (`reply_G015_and_G016_late_and_you_were_right_to_say_so_SHIPPED.md`).
+
+**Carried forward, unchanged:** items 5, 14, 34.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `302` (highest ID `302.1`), next free family `303` | **`303` used (`Pass 303.0`), next free family `304`** |
+| Standing rules | `R256`, next free `R257` | **unchanged** — `R247` gains a 5th dated instance (dated footer, no re-mint); gate-blind-spot finding recorded at `n=1`, not minted |
+| Decision records | `156` | **unchanged** — a bug fix removing a stale guard, no crate-boundary or invariant change |
+| `SESSION_LOG` filings | `548` | **`549`** |
+| `docs/FEATURES.md` | — | **Text section, "Reflow within a block…" row corrected** — the sole recoverable refusal it named (`PageEditedThisSession`) is no longer constructed by any path |
+| `D:\dev\rag\rust\` | 367 finding files | **unchanged** — no generalizable Rust/egui-ecosystem finding here; this is a pdfcer-internal engine defect |
+
+---
+
 ### Librarian filing, 548th, 2026-09-14 — the 547th filing's "six missing findings" hypothesis was WRONG: all six exist, indexed under an older bullet convention a single-pattern grep does not match; ledger corrected to a Glob-measured denominator
 
 Not a Pass — index-check dispatch, closing the 547th filing's own flag below.
@@ -27104,6 +27159,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - `R247` — A DOC COMMENT STATING A BEHAVIOURAL GUARANTEE ("ONLY X IS TOUCHED", "NEVER Y", "ALWAYS Z", "CANNOT CORRUPT W") IS AN UNENFORCED CLAIM UNTIL A TEST EXISTS THAT WOULD FAIL IF IT WERE VIOLATED.
 - **`R247` — DATED INSTANCE NOTE, 2026-09-13 (534th filing, THIRD INSTANCE, `Pass 301.2`, `52a0ccd`).** `survey_standard_14`'s own doc comment asserted "the answer here and the outcome of the later `set_font` cannot disagree" — unenforced, and false for every page carrying a subset of a standard-14 name. Also the twelfth reconciled `R221` instance on the same line (see `R221`'s own dated note, above) — the same incident satisfies both rules for two different reasons: `R221` explains why the two answers diverged, this rule explains why nobody noticed. Full account appended to `D:\dev\rag\rust\a_doc_comment_stating_a_behavioural_guarantee_is_unenforced_until_a_test_would_fail_without_it.md`. No re-mint; ceiling unchanged.
 - **`R247` — DATED INSTANCE NOTE, 2026-09-13 (540th filing, FOURTH INSTANCE, `Pass 302.1`, `919b0f0`).** `RecoveryReport`'s own doc comment (`recover.rs:230`) claimed the CLI and GUI surface every field, "none is rounded away" — false for `objects_dropped` from the moment `Pass 302.0` added it until this Pass wired `disclose_recovery` and wrote the out-of-process test that makes the CLI half checkable. No re-mint; ceiling unchanged.
+- **`R247` — DATED INSTANCE NOTE, 2026-09-14 (549th filing, FIFTH INSTANCE, `G016`, `3f416fbd`).** `reflow_block`'s own doc header and `# Errors` section still promised the `PageEditedThisSession` refusal `G015` (`025d703d`) had just removed — the guard's own variant documentation was updated in that commit, the function's was not. Same rule, this time stale by omission (one of two doc sites updated) rather than by an unmeasured code change. No re-mint; ceiling unchanged.
 - `R248` — A STRUCTURAL DEFECT THAT LEAVES THE OBJECT GRAPH AMBIGUOUS, NOT UNDEFINABLE, IS OPENED — pdfcer PICKS A READING UNDER A NAMED DEFAULT, DISCLOSES WHAT IT PICKED AND WHAT IT DISCARDED, AND…
 - `R249` — A DESTRUCTIVE SWEEP OBLIGED BY AN OUTCOME-SHAPED REQUIREMENT ("REMOVE ALL TRACES OF X") IS SCOPED BY THE EVIDENCE THE REQUIREMENT ITSELF NAMES, NEVER BY A COMPUTED REACHABILITY OR LIVENES…
 - `R250` — BEFORE IMPLEMENTING A DATA-FORMAT OR COMPATIBILITY DECISION SOURCED FROM A FEATURE-RAG (OR SPEC-RAG) FINDING LABELLED ANYTHING SHORT OF DIRECTLY-OBSERVED, CHECK WHETHER A PRIMARY ARTIFACT…
