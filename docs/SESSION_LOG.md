@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-14 (550th filing) — `pdfcer-gui` KEEPS `ReflowApplyError::PageEditedThisSession` (closes `G015`/`G016`); the construct-vs-receive distinction sharpens `naming_every_field_of_a_tracked_upstream_struct...md`
+
+**Shipped:** nothing — librarian-only, no Pass. Records `42b47f30`, a doc-comment-only commit in `pdfcer-core` (no code-behavior change): `pdfcer-gui` consumed `G016` and answered the question `G015` put to them — whether to delete the now-unconstructed `ReflowApplyError::PageEditedThisSession` variant from their exhaustive `match`.
+
+**Decisions made this session:** none new architecturally — this is `pdfcer-gui`'s own call about its own consuming code, not a `pdfcer-core` boundary redraw, so no `ARCHITECTURE.md` §12 entry. Appended a dated refinement instead to `D:\dev\rag\rust\naming_every_field_of_a_tracked_upstream_struct_makes_a_new_field_a_compile_error_instead_of_silence.md`, whose existing generalisation ("a loud break beats a quiet default at a boundary you are tracking") never said when the loud break stops being the right trade — this supplies the missing half.
+
+**Findings + decisions:**
+- `pdfcer-gui` kept the variant, reasoning entered directly into `pdfcer-core`'s own doc comment (`crates/pdfcer-core/src/text_edit/reflow_apply.rs:282-300`): (1) their `match` is compiler-proved exhaustive, so replacing the arm with `unreachable!()` would turn a *future* guard reinstatement into a panic on the one path whose job is failing safely; (2) removal's only benefit is a one-time compile break telling them something their own completeness gate already re-checks every commit; (3) `G013`'s struct-field-naming trade took the opposite call because that symbol was one they **construct** — this one they only **receive**.
+- Generalisation, credited to `pdfcer-gui`, verbatim from the doc comment: "a loud compile break is worth it for a symbol a consumer constructs, and is worse than a gate for one it only receives." Construction must be *told* about a shape change (a break is the only reliable channel); reception only needs to *know* the current shape, which a continuous gate verifies better than a one-time break.
+- Filed as a dated addendum to the existing `naming_every_field_of_a_tracked_upstream_struct...md`, not a new file or a standing rule: one instance on each side of the construct/receive distinction (`G013` construct-side, this `receive`-side) is thin for a mint, per the reporting engineer's own explicit caution against minting on their recommendation alone.
+
+**Still in flight:** unchanged — owed items 5, 14, 34.
+
+**For next session:** none opened. No reply owed — `pdfcer-gui`'s consumption note closes both `G015` and `G016` and asks nothing.
+
+**Sourcing (hard rule 8) — no shell this filing.** Doc-comment text and commit hash (`42b47f30`) taken from the requesting engineer's report. Independently confirmed against live source via `Read`/`Grep`: `crates/pdfcer-core/src/text_edit/reflow_apply.rs:258-301` and `:395-398` (the kept-variant doc comment and the still-live `match` arm consuming it) match the quoted reasoning verbatim. Push/CI state not independently checked — no shell.
+
 ## 2026-09-14 (549th filing) — `Pass 303.0` (`G015`) removes a reflow guard that outlived the code change that made it wrong; `G016` catches the doc-comment half `G015` missed; a reply-after-commit gate blind spot recorded, not minted
 
 **Shipped:** `Pass 303.0` (`025d703d`) — `reflow_block` no longer refuses a page split into multiple producer-authored `/Contents` streams. Plus `3f416fbd` (`G016`, not a Pass) — `reflow_block`'s own rustdoc still promised the refusal `G015` had just removed.
