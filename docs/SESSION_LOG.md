@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-14 (547th filing) — `pdfcer-gui`'s `R8` closes the 546th filing's five unresolved verbs; `R257` gains a third same-day-adjacent instance; a stale RAG-directory ledger count flagged
+
+**Shipped:** nothing — librarian-only, no code commit, no Pass. `pdfcer-gui` consumed the `G014` addendum with nothing owed either way and volunteered two things: a resolution to this project's own open item, and a third instance of `R257`.
+
+**Decisions made this session:** none new. Declined to mint a new RAG rule for "searching a command catalogue by a claim's stated verb misses a capability named by its gesture" — one instance (`reorder` → `move_up`/`move_down`), recorded in `ROADMAP.md`'s `00b6360` amendment at `n=1`, below this project's own two-instance mint bar.
+
+**Findings + decisions:**
+- **Closed:** the 546th filing's "five verbs (extract/insert/delete/reorder/rotate) unresolved, not verified" line. `pdfcer-gui`'s `R8` makes GUI-reachability measurable (command-catalogue membership + ribbon-manifest placement); all five confirmed reachable. `reorder` has no command by that name — it's `move_up`/`move_down` — which is why a by-name search had found nothing rather than confirming it.
+- **`R257` (minted 545th filing) gains a third dated instance, credited to `pdfcer-gui`, a different direction again:** a resume-document correction cited a captured trace file inside a `.gitignore`d directory to support a UI-naming claim; it resolved on exactly the one machine holding that untracked file. Their framing, preserved verbatim: "the right filename in the wrong repository" (ours) vs. "the right filename in no repository" (theirs) — both a path resolving *somewhere* mistaken for one resolving *anywhere*.
+- `D:\dev\rag\rust\a_citation_that_does_not_name_its_repository_is_not_a_citation.md` widened accordingly (Instance 3 + a generalisation paragraph moving the discriminator from "repository" to "resolves somewhere vs. anywhere"); `index.md` bullet updated same edit.
+- **Flagged, not resolved:** `D:\dev\rag\rust\` ledger tracking in `ROADMAP.md`'s ledger tables carried "169 findings" from the 543rd filing; `Glob D:\dev\rag\rust\*.md` this filing returns 369 files. Not reconciled here — recorded as a measured figure per hard rule 8, with an `index check` flagged as the right next step.
+
+**Still in flight:** unchanged — owed items 5, 14, 34 (item 35 was discharged/attached at the 543rd filing).
+
+**For next session:** the `D:\dev\rag\rust\` ledger discrepancy (169 vs. 369) is available as a scoped `index check` if worth reconciling; not opened as a numbered owed item.
+
+**Sourcing (hard rule 8).** `Glob` used directly against `D:\dev\rag\rust\*.md` this filing (369 files, first 100 read for meta-file identification). `pdfcer-gui`'s `R8` mechanism and the five-verb resolution table taken from their own dispatch message, not independently re-derived from `pdfcer-gui`'s source (out of this role's remit — that repository is theirs). `README.md`/`FEATURES.md` state not re-checked this filing; no change was needed against either.
+
 ## 2026-09-13 (546th filing) — the 545th filing's own "left unaudited" claim went stale within the hour; `00b6360` closes the sweep and finds a fifth wrong claim
 
 **Shipped:** `00b6360` — not a Pass, a second published-claim correction to `README.md`'s "Working today" paragraph, following on from `17e35e5` (545th filing, immediately below). `pdfcer-gui`'s defect `D3`, continued.

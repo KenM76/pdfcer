@@ -115,6 +115,41 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### Librarian filing, 547th, 2026-09-14 — the 546th filing's five unresolved verbs, closed by `pdfcer-gui`'s own `R8`; `R257` gains a third, same-day-adjacent instance
+
+Not a Pass — no code commit. `pdfcer-gui` consumed the `G014` addendum with nothing owed either way, and volunteered two things on their way past: a resolution to this project's own open item, and a third instance of a rule this project minted the day before.
+
+**Closed: the five verbs the 546th filing (`00b6360`) left "unresolved, not verified."** See the amendment appended to that entry, above the divider — `pdfcer-gui`'s `R8` (command-catalogue-membership + ribbon-manifest-placement) confirms all five, and the finding worth keeping is that `reorder` has no command by that name (it's `move_up`/`move_down`), which is why a by-name search had found nothing.
+
+**`R257` gains a third dated instance, different direction again, credited to `pdfcer-gui`.** A resume-document correction cited a captured trace file inside a `.gitignore`d directory to support a UI-naming claim; the citation resolved on exactly the machine holding that untracked file. Their own framing, preserved verbatim in the RAG file and in the standing-rule note below: *"the right filename in the wrong repository"* (ours) vs. *"the right filename in no repository"* (theirs) — both a path that resolves *somewhere* mistaken for one that resolves *anywhere*. The RAG file's own text is widened to say so; the file is not renamed (citations to it exist, and renaming a citation target is the exact failure the file is about).
+
+**Written to the cross-project RAG.** `D:\dev\rag\rust\a_citation_that_does_not_name_its_repository_is_not_a_citation.md` gains Instance 3 and a widened generalisation paragraph; `index.md` bullet updated in the same edit.
+
+**Not minted:** the verb-vocabulary limit ("searching a command catalogue by the claim's stated verb assumes shared vocabulary; `reorder` is carried by `move_up`/`move_down`") is recorded only in the `00b6360` amendment above, at `n=1`. No new RAG file, per this project's own two-instance mint bar.
+
+**Flagged, not resolved: the `D:\dev\rag\rust\` ledger count below was checked against disk rather than incremented from the prior filing's figure, and disagrees with it by more than 2×.** `Glob D:\dev\rag\rust\*.md` returns **369 files over that one pattern** — the prior filing's carried figure was **169**. This entry does not attempt to reconcile the gap (that is an *index check* task, not a by-the-way observation): the ledger's own running count may have been tracking a subset, may have been drifting uncorrected across many filings (each incrementing-by-one from an unverified base rather than recounting), or the two numbers may simply be measuring different things (findings-authored-via-this-role vs. every `.md` file the directory now holds, including any added by other consumers of the tree). Recorded here, per hard rule 8, as a measured figure with its method stated rather than folded silently into "unchanged"; a full `index check` dispatch is the right next step if this ledger line is to be trusted going forward.
+
+### Part — owed work, discharged and new
+
+**Discharged this filing:** the 546th filing's "five verbs unresolved" note (not a numbered owed item — recorded as resolved above and in the `00b6360` amendment).
+
+**Changed this filing:** none.
+
+**Carried forward, unchanged:** items 5, 14, 34.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `302` (highest ID `302.1`), next free family `303` | **unchanged** |
+| Standing rules | `R256`, next free `R257` | **unchanged** — `R257` gains a third dated instance (dated footer, no re-mint) |
+| Decision records | `156` | **unchanged** — a cross-project RAG correction and an item closure, no crate-boundary or invariant change |
+| `SESSION_LOG` filings | `546` | **`547`** |
+| `docs/FEATURES.md` | — | **untouched** — no capability changed; row 175's existing gap statement was already correct |
+| `D:\dev\rag\rust\` | 169 findings (carried, unverified) | **369 `.md` files measured on disk this filing** (`Glob D:\dev\rag\rust\*.md`, including 2 non-finding meta files: `index.md`, `rust-style-guide-and-api-guidelines.md`) — file COUNT for the citation-repository lesson is unchanged this filing (Instance 3 added in place, `index.md` bullet updated), but the ledger's carried "169" figure disagrees with the disk count by >2× and is flagged, not reconciled, above |
+
+---
+
 ### `00b6360` (2026-09-13) — the sweep `17e35e5` offered as separate work was performed minutes later; closes with a fifth wrong claim, not a clean audit
 
 Not a Pass — a second published-claim correction to `README.md`'s "Working today" paragraph, same commit-hash-heading precedent as `17e35e5` immediately below. `pdfcer-gui`'s defect `D3`, continued.
@@ -133,9 +168,9 @@ Not a Pass — a second published-claim correction to `README.md`'s "Working tod
 
 **`FEATURES.md`**: unchanged — row 175 already correctly stated the gap; only the README's prose was wrong.
 
----
+**★ AMENDMENT 2026-09-14 (547th filing), closes the "five verbs unresolved" line, credited to `pdfcer-gui`.** The paragraph above left extract/insert/delete/reorder/rotate **unresolved, not verified** for lack of a `FEATURES.md` row naming them individually. `pdfcer-gui` resolved all five with a stronger check than a row lookup would have given: their `R8` makes GUI-reachability measurable directly — a command is reachable exactly when its id is in the command catalogue AND the ribbon manifest places it (an unplaced or unregistered id is dropped at merge time). Checked: `pages.insert_from_file`, `pages.extract`, `pages.delete` (catalogued + placed); `pages.rotate_left`/`rotate_right` (catalogued + placed, 3 sites each); `pages.move_up`/`move_down` (catalogued + placed, 2 sites each, carrying the *reorder* verb). All five confirmed reachable; the README's page-operations list needs no change.
 
-### `17e35e5` (2026-09-13) — `README.md`'s "Working today" paragraph named two capabilities every other source in the project already disagreed with
+**The finding worth keeping is the miss, not the confirmation.** There is no command named `reorder` — the verb is carried by `move_up`/`move_down` and by drag reordering in the Pages panel. A by-name search for "reorder" over a command catalogue finds nothing and would have concluded wrongly, which is exactly why this line stayed unresolved rather than wrongly-verified in the first place. General limit worth carrying forward: resolving a capability claim by searching for its stated verb assumes the implementation shares the claim's vocabulary, and a capability named by its outcome (what the README says) rather than its gesture (what the code calls it) defeats a by-name search. Filed alongside `R257` in `D:\dev\rag\rust\` as a candidate addition, not yet written up as its own file — one instance, no mint. — `README.md`'s "Working today" paragraph named two capabilities every other source in the project already disagreed with
 
 Not a Pass — a published-claim correction to `README.md`, filed under its own commit-hash heading, same precedent as `f16e266`+`5917ece` (511th filing) and the other commit-hash entries below.
 
@@ -27058,6 +27093,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - **`R220` — DATED INSTANCE NOTE, 2026-09-11 (516th filing, THIRD AXIS): NOT "CORE HAS NO VERB," NOT "A SHELL HAS NO CALLER," BUT "A REQUEST DRAFT CITED A LIMITATION NOBODY RE-MEASURED." `pdfcer-gui` drafted (then withdrew) an ask for a coarse `EditError::kind()` discriminant on the strength of one sentence in its own funnel module claiming the generic error floor "has nothing to switch on" — true of the floor, false of a call site, since every `FormAuthorError` variant is already `pub`, un-`#[non_exhaustive]`, and exported. Same mechanism as the other two instances (a negative capability claim sent into a document, unchecked against source) on a third axis: the document was a REQUEST, not a register. Kept in the requester's own words: "a limitation sentence is a citation, and it goes stale faster than the code it describes."**
 - **`R221` — SHAPE NOTED, ORDINAL NOT RECONCILED (owed above), 2026-09-11 (516th filing).** `pdfcer-gui` deleted its own `group_is_a_field` pre-check for `sign` after finding it had become a SECOND, WRONG model of pdfcer's guard (refusing any name prefix in `AcroForm::fields`, where pdfcer refuses only a true terminal) — replaced by matching `FieldPathCrossesTerminal`'s own `terminal` field. Consumer-side instance of `R221`'s mechanism (ask the real predicate, never a parallel description of it); not counted into a numbered ordinal pending the reconciliation already owed.
 - `R257` — A CITATION THAT DOES NOT NAME ITS OWNING REPOSITORY/PROJECT IS NOT A CITATION, IN ANY CONTEXT WHERE MORE THAN ONE PROJECT CAN HOLD A FILE OF THAT NAME — IT IS A STRING THAT RESOLVES SOMEWHERE, AND IT RESOLVES SILENTLY TO A REAL, WRONG, LOCALLY-VALID TARGET RATHER THAN FAILING VISIBLY. `pdfcer-gui`'s defect `D3` cited `README.md:20-22` with no repository named and survived a month because both `pdfcer` and `pdfcer-gui` have a `README.md`; a 2026-09-13 session closed it as fixed by checking the wrong project's file — both "Bates/PDF/A are absent from `README.md`/`DEVELOPING.md`" and "the defect is resolved" were individually true statements about the wrong pair of files. Same-day second instance from a different direction: a possessive ("its own") in a cross-project RAG file credited a test to `pdfcer-gui` when it belonged to `pdfcer-core` (`D:\dev\rag\rust\a_completeness_guard_can_be_lost_three_different_ways.md`'s 2026-09-13 attribution correction). Fix: qualify any cross-repository citation with the repository name AT THE POINT OF CITATION — never rely on a bare filename, a bare line range, or a possessive to disambiguate which project is meant. Full derivation: `D:\dev\rag\rust\a_citation_that_does_not_name_its_repository_is_not_a_citation.md`.
+- **`R257` — DATED INSTANCE NOTE, THIRD DIRECTION, CREDITED TO `pdfcer-gui` (547th filing).** Not a multi-repo collision: a resume/hand-off document's own correction cited a captured-trace file inside a `.gitignore`d directory to support a claim about a ribbon region name — the citation resolved on exactly the one machine holding that untracked file and nowhere else. Re-pointed at tracked source. In the crediting project's own words: *"Same failure, third direction. Yours: the right filename in the wrong repository. Ours: the right filename in no repository. The common shape is a path that resolves somewhere being mistaken for a path that resolves anywhere."* The RAG file's own text is widened accordingly (repository-collision is now framed as one case of "resolves somewhere vs. resolves anywhere," not the whole rule) — three dated instances within roughly a day of the mint, from two projects, in three directions, is recorded there as evidence the boundary was drawn about right.
 
 ## Update protocol
 
