@@ -21,7 +21,8 @@ work today.
 It is a native desktop application — no web server, no browser runtime,
 no local network listener. It runs from a single folder, dependencies
 included, no installer. Alongside the GUI it ships **`pdfcer`**, a
-first-class scriptable command line with 139 subcommands, which is
+first-class scriptable command line with 149 working subcommands (plus
+three that announce themselves as not yet implemented), which is
 deliberately not a debug tool: Acrobat Pro has no real equivalent.
 
 ## Status: pre-1.0, under active development
@@ -31,10 +32,10 @@ page operations (merge, split, extract, insert, delete, reorder,
 rotate); text extraction and text editing with reflow; AcroForm field
 creation, editing, filling, flattening and FDF/XFDF import/export;
 markup annotations; redaction (mark, review and apply — either
-finalizing or undo-preserving); Bates numbering; **OCR** — recognise a
+finalizing or undo-preserving); **OCR** — recognise a
 scanned page and add an invisible, selectable text layer beneath it
 (the scan is never re-encoded), to a new file or into the open document;
-PDF/A validation and conversion; **digital-signature verification**
+**digital-signature verification**
 (integrity and
 byte-range coverage) and, opt-in, **trust evaluation** against an
 imported Acrobat/Reader trust store (certificate-chain linkage,
@@ -46,14 +47,18 @@ update so earlier signatures stay valid, and self-verified before the
 file is written;
 vector object and node editing; measurement and dimension authoring;
 image placement from PNG, JPEG, BMP and TIFF; printing, with page
-placement, orientation, duplex, copies and n-up/booklet/poster
-imposition; **opening password-protected documents** — RC4 40–128 bit,
+placement, orientation, duplex and copies — plus n-up, booklet and
+poster imposition **in `pdfcer` only**, which the GUI does not yet
+surface; **opening password-protected documents** — RC4 40–128 bit,
 AES-128 and AES-256 (both `/R 5` and `/R 6`), including the
 empty-user-password case that opens with no prompt at all; and
 **authoring encryption** (AES-256, `/R 6`), setting the eight permission
 bits, and removing encryption from an owner-authenticated document.
 
-**Not built yet**, among other things: JavaScript, XFA, signature
+**Not built yet**, among other things: Bates numbering; PDF/A
+conversion and conformance validation (`bates-stamp`, `to-pdfa` and
+`validate-pdfa` exist in `pdfcer --help` and each prints *"[not yet
+implemented]"*); JavaScript, XFA, signature
 timestamps and long-term validation (PAdES B-T/B-LT/B-LTA — the
 timestamp round trip is a shell's job), Windows-certificate-store and
 PKCS#11-token digital IDs (only a `.pfx` file signs today),
