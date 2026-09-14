@@ -59,6 +59,30 @@ is having planned something and never said so**, which is the exact half of
 The informational half is not decoration: it is what a session about to
 dispatch reads to discover that the thing in front of it is already done.
 
+WHAT IT CANNOT SEE, FOUND BY BEING IN THAT STATE THE DAY AFTER IT SHIPPED
+========================================================================
+**A request that has been WORKED but not answered is invisible to this gate.**
+Red fires only on *scoped in `ROADMAP.md` AND unanswered*. A request that is
+neither scoped nor answered reads as "not yet taken up" — which is also what a
+request nobody has opened reads as. The two are indistinguishable from here.
+
+That is not hypothetical. `G015` was fixed and committed (`025d703d`) with no
+reply written and no roadmap entry yet; the consuming project discovered the
+delivery by reading the engine's `git log` while checking something else, and
+said so:
+
+    A delivery can reach you as a COMMIT before it reaches you as a reply.
+
+This gate was green throughout, correctly by its own rule and uselessly in
+fact. Widening it would mean reading `git log` for commits citing a topic key,
+which is a different and much softer predicate than "a file cites this
+filename" — deliberately not attempted, because a fuzzy match here would fire
+on ordinary work and teach its reader to ignore it.
+
+⇒ So the habit stands where the gate cannot: **write the reply.** The gate
+catches the case where a plan exists and nobody was told; it cannot catch the
+case where the work is DONE and nobody was told.
+
 WHAT IT DELIBERATELY DOES NOT DO
 ================================
 * **It does not archive anything.** Moving a file out of `open/` is the

@@ -11393,19 +11393,34 @@ impl EditSession {
     /// and with structural page edits in the same session. Before 257.0 it
     /// planned against the base document and refused both cases by name.
     ///
-    /// One refusal remains: a page carrying a non-empty content stream
-    /// APPENDED this session (an `add_text` run) — the plan re-emits the
-    /// first content object only and committing sweeps the extras, which
-    /// would drop the run; that is refused by name (rule 4), never mis-spliced.
+    /// ★ **A page carrying extra content streams is no longer refused**
+    /// (`G015`, 2026-09-14). This paragraph used to say *"One refusal remains:
+    /// a page carrying a non-empty content stream APPENDED this session"* —
+    /// true of `Pass 251.0`, when the plan read the base document and could
+    /// not see such a run. Since `Pass 257.0` the plan reads the session view
+    /// and [`ContentStream::from_page`](crate::content::ContentStream::from_page)
+    /// concatenates EVERY `/Contents` entry, so an appended run is in the
+    /// plan's source and survives the consolidation; the extras are emptied
+    /// because their content has already been folded into the first, which the
+    /// report discloses.
+    ///
+    /// ⚠ The guard also could not tell an appended stream from one the
+    /// PRODUCER authored — §7.8.2 permits a page to be split across streams
+    /// and CAD exporters do it routinely — so it refused reflow outright on
+    /// those files, with a remedy ("save and reopen") that could not work
+    /// because the streams are in the file.
     ///
     /// # Errors
     ///
     /// The same [`ReflowApplyError`](crate::text_edit::ReflowApplyError) the
     /// free function raises — a named composite refusal, a
     /// rotated/shared/non-contiguous block, a missing-provenance or
-    /// bad-index/width error — plus an [`ReflowApplyError::Unsupported`] when
-    /// text was appended to the page this session. A refusal happens
-    /// BEFORE any mutation (rule 4): the session is left untouched.
+    /// bad-index/width error. A refusal happens BEFORE any mutation (rule 4):
+    /// the session is left untouched.
+    ///
+    /// ⇒ [`ReflowApplyError::PageEditedThisSession`] is **not among them** and
+    /// is no longer produced by any path; see that variant's own
+    /// documentation.
     pub fn reflow_block(
         &mut self,
         page_index: usize,
