@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-14 (548th filing) — the "six missing RAG findings" from the 547th filing were a false positive; ledger denominator corrected, script recommended instead of hand-verification
+
+**Shipped:** nothing — librarian-only, no Pass. Closes the 547th filing's own flagged `D:\dev\rag\rust\` ledger discrepancy, dispatched as an index check.
+
+**Decisions made this session:** none new architecturally. Judgment call: an index-completeness check for `D:\dev\rag\rust\`/`egui\` should NOT live in pdfcer's `tools/` — the tree is shared across projects, not part of this repo's build, and a CI gate coupling this repo to an external, machine-local path outside its control would be the wrong boundary. Recommended it live in `D:\dev\rag\` itself as a manual/periodic script, run as part of this role's own "index check" protocol rather than wired into any single project's CI.
+
+**Findings + decisions:**
+- Six filenames flagged as unindexed were checked by reading `index.md` directly at the cited line ranges. **All six were already indexed** — under an older `` - `file.md` `` prose-bullet convention this file used before it standardized on `- [Title](file.md) — hook`. A single-pattern grep (`^- \[`) undercounts by exactly the number of files still carrying the older style (9 found).
+- Had the six been written as new bullets, `index.md` would have gained six duplicate entries, one of them for a file (`a_sabotage_can_only_be_as_discriminating_as_the_fixture_it_runs_on.md`) whose existing entry already runs to 17 dated instances. Caught by reading before writing — the "grep before writing a lesson" discipline this role is bound to — and a reminder that a bullet-count mismatch is not itself proof of a missing entry.
+- Ledger corrected on the denominator only: `Glob D:\dev\rag\rust\*.md` = 369 files (confirmed twice), minus 2 named meta files = **367 finding files**. The prior "169" carried figure is superseded, not reconciled to a "true" index-entry count, because no reliable way to count index entries by hand exists while the file mixes bullet conventions.
+- `D:\dev\rag\egui\index.md` shows the same shape at a glance (203 bracket-bullets against roughly 215 candidate finding files) — flagged, not investigated, for the identical reason: hand-checking would risk the same false positive just avoided here.
+
+**Still in flight:** unchanged — owed items 5, 14, 34.
+
+**For next session:** if an index-completeness script for `D:\dev\rag\rust\`/`egui\` gets written (recommended location: `D:\dev\rag\`, not pdfcer's `tools/`), run it before ever again flagging a specific filename as "unindexed" by hand-grep.
+
+**Sourcing (hard rule 8).** `Glob D:\dev\rag\rust\*.md` run twice this filing, both returning 369. `Grep '^- \['` = 362, `Grep '^- '` = 382, `Grep` backtick-bullet pattern = 9 — all against `D:\dev\rag\rust\index.md` directly. Each of the six candidate files' existing index entries verified by direct `Read`/`Grep` at the line numbers cited above, not inferred from the count.
+
 ## 2026-09-14 (547th filing) — `pdfcer-gui`'s `R8` closes the 546th filing's five unresolved verbs; `R257` gains a third same-day-adjacent instance; a stale RAG-directory ledger count flagged
 
 **Shipped:** nothing — librarian-only, no code commit, no Pass. `pdfcer-gui` consumed the `G014` addendum with nothing owed either way and volunteered two things: a resolution to this project's own open item, and a third instance of `R257`.

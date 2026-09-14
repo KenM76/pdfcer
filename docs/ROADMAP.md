@@ -115,6 +115,31 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### Librarian filing, 548th, 2026-09-14 — the 547th filing's "six missing findings" hypothesis was WRONG: all six exist, indexed under an older bullet convention a single-pattern grep does not match; ledger corrected to a Glob-measured denominator
+
+Not a Pass — index-check dispatch, closing the 547th filing's own flag below.
+
+**What was checked.** Six filenames were named as candidates for missing `index.md` bullets (`a_copy_verb_is_judged_on_values_it_did_not_choose…`, `a_layer_boundary_phrased_as_ownership…`, `a_sabotage_can_only_be_as_discriminating…`, `an_ask_with_no_failing_artifact…`, `an_internal_looking_serialisation…`, `cargo_target_dir_debug_deps_grows_without_bound…`), on the strength of a `grep -cE '^- \['` count (362) against a ~366/367-finding disk count. **All six were found already indexed** — at `index.md` lines 4295, 4264, 4273, 4331/4435, 4459 and 4557 respectively — under the file's older `` - `file.md` `` prose-bullet convention, which a bracket-only grep does not match. Had the six been written as new bullets, `index.md` would have gained six duplicate entries for files already fully described — one of them (`a_sabotage_can_only_be_as_discriminating_as_the_fixture_it_runs_on.md`) already carrying 17 dated instances of its own.
+
+**Why bullet-counting is unreliable for this file.** `index.md` mixes at least two conventions across its growth history — `- [Title](file.md) — hook` (362 occurrences) and `` - `file.md` `` followed by unindented prose (9 occurrences found) — plus roughly a dozen `★`/amendment bullets that reference an *existing* entry rather than introduce a new file. A single-pattern grep undercounts by construction. **No reliable "which files are unindexed" answer was obtainable by hand this filing** — proving a *negative* (a filename mentioned nowhere in a 570 KB text) needs a full-file scan per candidate, which this role has no shell to script.
+
+**Ledger corrected, denominator only.** `Glob D:\dev\rag\rust\*.md` (run twice, agreeing): **369 files**, of which 2 are named meta files (`index.md`, `rust-style-guide-and-api-guidelines.md`) → **367 finding files**. The prior ledger's carried **"169"** was not a count of anything measured this session or the 547th — it is superseded by this figure, method stated, per hard rule 8. **Index-completeness itself (does every one of the 367 appear in `index.md`) is NOT verified**, and should not be asserted either way without a script.
+
+**Recommended, not built.** A small script belongs in `D:\dev\rag\` itself — not this repository's `tools/`, since the tree is shared across projects and is not part of pdfcer's build or CI — that extracts every `*.md` filename `index.md` references (whichever bullet convention), dedupes, and diffs both directions against `ls *.md` minus the named meta files. That is the only way to answer "is X indexed" without reading the whole file per candidate. `D:\dev\rag\egui\index.md` shows the same convention-mixing risk at a glance (203 bracket-bullets against ~215 candidate finding files) — flagged, not investigated further this filing, for the identical reason.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | unchanged | unchanged |
+| Standing rules | unchanged | unchanged |
+| Decision records | unchanged | unchanged |
+| `SESSION_LOG` filings | `547` | **`548`** |
+| `docs/FEATURES.md` | — | untouched |
+| `D:\dev\rag\rust\` | 169 findings (carried, wrong) | **367 finding files (369 total − 2 meta), Glob-measured; index-completeness unverified — needs a script, not a hand grep** |
+
+---
+
 ### Librarian filing, 547th, 2026-09-14 — the 546th filing's five unresolved verbs, closed by `pdfcer-gui`'s own `R8`; `R257` gains a third, same-day-adjacent instance
 
 Not a Pass — no code commit. `pdfcer-gui` consumed the `G014` addendum with nothing owed either way, and volunteered two things on their way past: a resolution to this project's own open item, and a third instance of a rule this project minted the day before.
