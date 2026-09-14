@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-13 (545th filing) — `README.md`'s "Working today" paragraph corrected; `R257` minted for the mechanism that let the underlying defect survive a month
+
+**Shipped:** `17e35e5` — not a Pass, a published-claim correction to `README.md`, filed under its own commit-hash heading (same precedent as `f16e266`+`5917ece`, 511th filing). `pdfcer-gui`'s defect `D3`.
+
+**Decisions made this session:** mint standing rule `R257` and write a new cross-project RAG file at `D:\dev\rag\rust\a_citation_that_does_not_name_its_repository_is_not_a_citation.md`, rather than leave the finding as a one-off correction — this project's own two-instance mint bar was cleared same-day, in two different directions, by the same mechanism.
+
+**Findings + decisions:**
+- `README.md` claimed **Bates numbering** and **PDF/A validation and conversion** as working, and listed imposition without its `pdfcer`-only qualifier. All three contradicted sources already in the repo: `docs/FEATURES.md` rows 513/515 (unticked on all three surfaces) and row 414/495 (imposition CLI-only, GUI gap separately recorded), plus `pdfcer --help` printing `[not yet implemented]` on exactly those three verbs. Verified directly against `FEATURES.md` and `--help`, not taken from the request.
+- A fourth, unrequested claim corrected the same edit: the README's subcommand count (139) was stale against the binary's 149 working + 3 stub commands.
+- **The history is the finding.** The defect record cited `README.md:20-22` with no repository named, and both `pdfcer` and `pdfcer-gui` have a `README.md`. A 2026-09-13 session closed the defect as resolved by checking `pdfcer-gui`'s files — every individual claim in that closure was true, and it was about the wrong repository. Same-day, opposite-direction instance in `D:\dev\rag\rust\a_completeness_guard_can_be_lost_three_different_ways.md`, where a possessive ("its own") credited `pdfcer-gui` with tests belonging to `pdfcer-core`.
+- **`R257` minted**: a citation lacking its owning repository is not ambiguous to its writer, only to a later reader — and it fails by resolving, silently, to a real wrong target rather than by breaking visibly. Full derivation graduated to the cross-project RAG (see above), indexed in that tree's `index.md`.
+- **Explicitly not audited:** the remaining ~17 claims in the same README paragraph. Not implied fixed or verified by this filing; offered as separate work.
+
+**Still in flight:** unchanged from the 544th filing — owed items 5, 14, 34, 35.
+
+**For next session:** none opened by this filing; a full README-claims sweep against `FEATURES.md` remains available but unscoped.
+
+**Sourcing (hard rule 8) — no shell this session.** `.git/packed-refs` reads `17e35e55886d3e50778b0c4d9bca506c9b8438be refs/heads/main`; `.git/COMMIT_EDITMSG` (verbatim) supplied the exact commit wording. Independently verified against live source via `Read`/`Grep`: `README.md` lines 24, 30, 58–61 carry the corrected text; `docs/FEATURES.md` lines 414, 495, 513, 515 match the cited rows. Not checked against `origin/main`.
+
 ## 2026-09-13 (544th filing) — a completeness-guard finding's own dated refinement, credited to `pdfcer-gui`: a guard can be BORROWED, not just deleted or self-testing
 
 **Shipped:** nothing — librarian-only, no code commit, no Pass, nothing owed either way. `pdfcer-gui` consumed the `G013`/slices notice and shipped at pin `5e17017`; this filing is purely a RAG refinement they volunteered on their way past.
