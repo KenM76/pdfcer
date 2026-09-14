@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-13 (546th filing) — the 545th filing's own "left unaudited" claim went stale within the hour; `00b6360` closes the sweep and finds a fifth wrong claim
+
+**Shipped:** `00b6360` — not a Pass, a second published-claim correction to `README.md`'s "Working today" paragraph, following on from `17e35e5` (545th filing, immediately below). `pdfcer-gui`'s defect `D3`, continued.
+
+**Decisions made this session:** none new. Whether a filing's "not yet audited, offered as separate work" line going false within the hour — with no shell available to catch the concurrent audit before publishing — earns its own standing rule is left to the engineer's judgement. It rhymes with the "a commit landed on `main` while this entry was being written" shape already on record twice in this file (two-hundred-and-sixteenth-filing box, and the `(ca)` operator-question entry's suite-name count), but those were both caught *before* publishing, with a shell in hand; this one was not, and is being corrected after the fact instead. Not filed as an `R257` instance — `R257`'s mechanism is a citation silently resolving to the wrong repository, which this is not — though the correcting engineer drew the parallel and it is recorded here so a future reader can judge for themself.
+
+**Findings + decisions:**
+- `17e35e5`'s (545th filing's) own "Explicitly not audited... offered as separate work" line was true when written and false minutes later: the same session took up the offer, unasked, in `00b6360`.
+- **Four claims spot-checked and left standing:** OCR (ticked core/cli/gui; a dev build without model files refuses precisely, and `package-portable.py` stages the models for what ships, so the ticked claim matches what actually ships); merge (`FEATURES.md` row 174, GUI ticked); whole-page cut/copy/paste (row 176, GUI ticked); signature verification, trust evaluation, signing, text extraction, and rotated-baseline text extraction (rows found, GUI ticked).
+- **One fifth wrong claim, the same shape as `17e35e5`'s original four:** `split` was listed among page operations ("merge, split, extract, insert, delete, reorder, rotate") as though GUI-reachable. `FEATURES.md` row 175 states, in bold, **"Not reachable in `pdfcer-gui`"** — unbuilt, sitting in *Planned*, not merely hard to find (R9's convention draws an unbuilt capability as nothing, not a disabled control). Also narrower than the bare verb implies: `EveryN` criterion only, no bookmark- or size-based split. Both facts folded into the README using `17e35e5`'s own convention.
+- **Five verbs the audit could not resolve either way:** extract, insert, delete, reorder, rotate. No `FEATURES.md` row was found naming these individually to confirm the GUI claim. Left standing in the README, unflagged — the audit found nothing wrong with them, but this entry records that as *unresolved*, not *verified*, so a later reader does not mistake silence for a check that happened.
+- **Flagged, not corrected here:** the engineer's own channel reply (`reply_G014_..._SHIPPED.md`) offered the full sweep as separate, unrequested work, then performed most of it before the offer could be taken up or declined. The offer and the action now disagree in the channel's own record. A short follow-up correcting the offer is recommended; sending it is the engineer's/operator's call, not this role's.
+
+**Still in flight:** unchanged from the 545th filing — owed items 5, 14, 34, 35.
+
+**For next session:** the five unresolved verbs (extract/insert/delete/reorder/rotate) remain available as a small, scoped follow-up if the README's remaining silence on them is ever worth closing; not opened as an owed item, since the current text is honest about not knowing rather than wrong.
+
+**Sourcing (hard rule 8) — no shell this filing.** Taken from the correcting engineer's own dispatch message, which states the four spot-checks, the `split` mechanism, the `FEATURES.md` row 175 citation, and the `EveryN`-only CLI behaviour; not independently re-verified against live source or `git log` from here.
+
 ## 2026-09-13 (545th filing) — `README.md`'s "Working today" paragraph corrected; `R257` minted for the mechanism that let the underlying defect survive a month
 
 **Shipped:** `17e35e5` — not a Pass, a published-claim correction to `README.md`, filed under its own commit-hash heading (same precedent as `f16e266`+`5917ece`, 511th filing). `pdfcer-gui`'s defect `D3`.
@@ -22,6 +41,8 @@ the affected entry. Maintained by `pdfce-librarian`.
 **For next session:** none opened by this filing; a full README-claims sweep against `FEATURES.md` remains available but unscoped.
 
 **Sourcing (hard rule 8) — no shell this session.** `.git/packed-refs` reads `17e35e55886d3e50778b0c4d9bca506c9b8438be refs/heads/main`; `.git/COMMIT_EDITMSG` (verbatim) supplied the exact commit wording. Independently verified against live source via `Read`/`Grep`: `README.md` lines 24, 30, 58–61 carry the corrected text; `docs/FEATURES.md` lines 414, 495, 513, 515 match the cited rows. Not checked against `origin/main`.
+
+**★ AMENDMENT 2026-09-13 (546th filing, `00b6360`).** The line above reading "Explicitly not audited... offered as separate work" went false minutes after this entry was written: the same session took up the offer, unasked, and found a fifth wrong claim (`split`, listed as though GUI-reachable; `FEATURES.md` row 175 says otherwise). See the 546th filing, immediately above, for the corrected accounting — five claims plus the subcommand count corrected, four spot-checked and left standing, five verbs (extract/insert/delete/reorder/rotate) still unresolved. Kept legible above rather than rewritten, per this project's history discipline.
 
 ## 2026-09-13 (544th filing) — a completeness-guard finding's own dated refinement, credited to `pdfcer-gui`: a guard can be BORROWED, not just deleted or self-testing
 

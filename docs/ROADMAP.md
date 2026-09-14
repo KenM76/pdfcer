@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `00b6360` (2026-09-13) — the sweep `17e35e5` offered as separate work was performed minutes later; closes with a fifth wrong claim, not a clean audit
+
+Not a Pass — a second published-claim correction to `README.md`'s "Working today" paragraph, same commit-hash-heading precedent as `17e35e5` immediately below. `pdfcer-gui`'s defect `D3`, continued.
+
+**What it corrected.** `17e35e5`'s own entry said the remaining ~17 claims in the paragraph were "explicitly NOT audited... offered as separate work." That offer was taken up within the hour, by the same session, unasked. The audit is a spot-check-plus-one-correction, not a clean pass:
+
+- **Four claims checked and left standing:** OCR (ticked core/cli/gui — a dev build without model files refuses precisely, and `package-portable.py` stages the models for what ships, so the ticked claim matches what actually ships); merge (`FEATURES.md` row 174, GUI ticked); whole-page cut/copy/paste (row 176, GUI ticked); signature verification, trust evaluation, signing, text extraction, and rotated-baseline text extraction (rows found, GUI ticked).
+- **One fifth wrong claim, the same shape as `17e35e5`'s original four:** `split` was listed among page operations ("merge, split, extract, insert, delete, reorder, rotate") as though GUI-reachable. `FEATURES.md` row 175 states, in bold, **"Not reachable in `pdfcer-gui`"** — unbuilt, sitting in *Planned*, not merely hard to find (R9's convention draws an unbuilt capability as nothing, not a disabled control). Also narrower than the bare verb implies: `EveryN` criterion only, no bookmark- or size-based split. Both facts folded into the README using `17e35e5`'s own convention.
+- **Five verbs the audit could not resolve either way:** extract, insert, delete, reorder, rotate. No `FEATURES.md` row was found naming these individually to confirm the GUI claim. Left standing in the README, unflagged — the audit found nothing wrong with them, but this entry records that as *unresolved*, not *verified*, so a later reader does not mistake silence for a check that happened.
+
+**The honest state, and the reason this is a new entry rather than a silent patch to `17e35e5`:** *five claims corrected plus the subcommand count, remainder spot-checked, five verbs unresolved* — not "verified." `17e35e5`'s own "explicitly not audited" line is now false; it carries a dated amendment pointing here rather than being rewritten (hard rule 1).
+
+**Channel note, flagged not acted on.** The engineer's own reply in `pdfce_FeatureRequests` (`reply_G014_..._SHIPPED.md`) offered this sweep as separate, unrequested work, then performed most of it before the offer could be taken up or declined. The offer and the action now disagree in the channel's own record. Whether to send a short correcting follow-up is the engineer's/operator's call, not filed by this role.
+
+**Sourcing (hard rule 8) — no shell this filing.** Taken from the correcting engineer's own dispatch message (the four spot-checks, the `split` mechanism, the `FEATURES.md` row 175 citation, the `EveryN`-only behaviour); not independently re-verified against live source or `git log` from here.
+
+**`FEATURES.md`**: unchanged — row 175 already correctly stated the gap; only the README's prose was wrong.
+
+---
+
 ### `17e35e5` (2026-09-13) — `README.md`'s "Working today" paragraph named two capabilities every other source in the project already disagreed with
 
 Not a Pass — a published-claim correction to `README.md`, filed under its own commit-hash heading, same precedent as `f16e266`+`5917ece` (511th filing) and the other commit-hash entries below.
@@ -134,6 +154,8 @@ A fourth, unrequested claim was corrected the same edit: the README's subcommand
 **Sourcing (hard rule 8) — no shell this filing.** `.git/packed-refs` reads `17e35e55886d3e50778b0c4d9bca506c9b8438be refs/heads/main`; `.git/COMMIT_EDITMSG` (the tip's own message, verbatim) matches the account above and supplied the exact wording quoted. No loose `refs/heads/main` file exists to cross-check against; not checked against `origin/main`.
 
 **`FEATURES.md`**: unchanged — confirmed correct all along, which is the point. No capability changed; only the published prose describing existing rows was wrong.
+
+**★ AMENDMENT 2026-09-13 (`00b6360`, filed immediately above).** The "Explicitly NOT audited" line above went false within the hour: the same session took up the offer, unasked, and found a fifth wrong claim (`split`, listed as though GUI-reachable; `FEATURES.md` row 175 says otherwise). See `00b6360` above for the corrected accounting — five claims plus the subcommand count corrected, four spot-checked and left standing, five verbs (extract/insert/delete/reorder/rotate) still unresolved. Kept legible here rather than rewritten, per this project's history discipline.
 
 ---
 
