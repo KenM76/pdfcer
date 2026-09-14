@@ -277,9 +277,27 @@ pub enum ReflowApplyError {
     /// in the file.
     ///
     /// ⇒ It is therefore still the variant [`ReflowApplyError::is_recoverable`]
-    /// reports as recoverable, and nothing constructs it. A shell may keep
-    /// handling it harmlessly, or drop that branch; removing it from this enum
-    /// is a breaking change and is deliberately not taken here.
+    /// reports as recoverable, and nothing constructs it.
+    ///
+    /// ★ **KEEPING IT IS A DECISION, NOT AN OMISSION** — `pdfcer-gui`'s, made
+    /// 2026-09-14 when asked directly whether it should go. Their reasons, so
+    /// nobody re-derives them:
+    ///
+    /// 1. Their `match` over the decline type is compiler-proved exhaustive.
+    ///    An `unreachable!()` in that arm would turn *a future engine
+    ///    reinstating the guard* into **a panic on a refusal path** — the one
+    ///    path whose whole purpose is to fail safely in front of an operator.
+    /// 2. The removal's only benefit is a compile break saying something they
+    ///    already re-measure every commit, and a break fires only on removal
+    ///    where their gate fires on any change.
+    /// 3. `G013` took the opposite trade because that symbol was one their
+    ///    shell **constructs**; this one it only **receives**.
+    ///
+    /// ⇒ That third clause is the general rule worth carrying: **a loud
+    /// compile break is worth it for a symbol a consumer constructs, and is
+    /// worse than a gate for one it only receives.** If the engine later wants
+    /// this gone for its own reasons, they will delete the arm in the same
+    /// commit that moves the pin.
     PageEditedThisSession,
     /// The document is encrypted (out of scope for text editing).
     #[error("the document is encrypted; reflow of encrypted files is out of scope")]
