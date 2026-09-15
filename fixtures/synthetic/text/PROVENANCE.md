@@ -150,6 +150,17 @@ Two more, added with the deletion verb itself:
 | `runs-two-explicit.pdf` | The **baseline** for a successful per-run delete. Two runs, each placed by its own `Tm`, so nothing is refused — removing either must leave the other byte-verbatim *including its own positioning operator*. Distinct from `runs-inherited.pdf` precisely because a test can assert what success looks like without first navigating the §9.4.2 guard. |
 | `runs-single.pdf` | Deleting the **only** run removes the whole `BT`…`ET` (a text object that shows nothing is not an object), **and leaves the unrelated path verbatim**. The path is the load-bearing part: without something else on the page, "the text object was removed" and "the content stream was emptied" produce identical assertions. |
 
+Three more, added with the **move** verb (`G017`). Moving a run is not the
+mirror of deleting one: a delete removes a byte span, while a move has to
+rewrite whichever operator placed the run — and that operator is a different
+one in each of these files, or absent.
+
+| File | Claim it makes falsifiable |
+|---|---|
+| `runs-td-relative.pdf` | The **relative** case. One opening `Tm`, then `40 0 Td` before each of the next two runs. A `Td`'s operands are TEXT space and translate the LINE matrix, so this shows two things `runs-two-explicit.pdf` structurally cannot: the delta has to cross `Tm` before it can be written, and the translation survives into every later `Td` — which is what makes compensating the NEXT run necessary rather than decorative. A move that adjusted the run and stopped there passes against a `Tm`-only fixture and slides the rest of the object here. |
+| `runs-tstar-leading.pdf` | The **opaque** case — `1 0 0 1 72 700 Tm`, `0 -20 TD`, then three runs separated by bare `T*`. Neither operator offers an operand pair a move may touch: `T*` carries none, and `TD`'s `ty` **is the leading** (Table 108 sets `TL` to `−ty` and then translates), so nudging it would silently re-space every later `T*` in the object — well-formed bytes, clean round-trip, text nobody selected two points further apart. So the move must INSERT a `Td` and disclose it, and this is the only fixture where that path runs. Also the fixture the no-renumbering assertion uses, because an insert is the only way a move could have renumbered. |
+| `runs-rotated-td.pdf` | That the drag crosses **both** transforms (§9.4.4). Under `0 1 -1 0 300 300 Tm` a page-space nudge of `(5, 0)` is `(0, −5)` in the run's text space, so the `Td` must become `40 -5`. An implementation that converted through the CTM only — correct on every axis-aligned fixture above — writes `45 0` and slides the text along its own baseline instead of across it. R162: without this file that defect cannot be made to fail. |
+
 ## Rotated text (`Pass 139.0` / `139.1` / `139.2`)
 
 Written by `tools/gen-rotated-text-fixtures.py`. Same `LEGAL.md` §5
@@ -191,7 +202,9 @@ the real file only **10 of 72 runs** held two glyphs.
 ```
 python tools/gen-scattered-text-fixtures.py   # scattered-text-one-object.pdf
 python tools/gen-text-run-fixtures.py         # runs-inherited, runs-tj-array,
-                                              # runs-two-explicit, runs-single
+                                              # runs-two-explicit, runs-single,
+                                              # runs-td-relative, runs-tstar-leading,
+                                              # runs-rotated-td
 python tools/gen-rotated-text-fixtures.py     # rotated-text, rotated-text-abutting,
                                               # rotated-text-columns
 python tools/gen-symbolic-truetype-fixtures.py # symbolic-truetype-private-cmap,

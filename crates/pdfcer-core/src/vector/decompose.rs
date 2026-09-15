@@ -874,6 +874,36 @@ pub struct TextRun {
     pub bytes: ByteSpan,
     /// Whether deleting what precedes this run would move it.
     pub positioned_by: RunPositioning,
+    /// The **text matrix in effect at this run's origin** — `Tm` as it stood
+    /// when the show operator was dispatched, before the string's own
+    /// advance (§9.4.2).
+    ///
+    /// # Why a run needs this and a subpath does not
+    ///
+    /// A path operator's operands are in USER space, so
+    /// [`plan_move_subpath`](crate::vector::edit::plan_move_subpath) converts
+    /// a page-space drag with one matrix — the object's
+    /// [`ctm`](TextObject::ctm) — and rewrites the numbers in place.
+    ///
+    /// Text has a second space in the way. `Td`'s operands are in TEXT space,
+    /// which reaches user space through `Tm` and only then reaches page space
+    /// through the CTM, so moving a run by a page-space delta needs BOTH
+    /// inverses. The CTM is on the object; the text matrix was computed
+    /// per run by the walker and discarded. Without it *"move this run one
+    /// point left"* is not expressible against this model at all — the same
+    /// relationship [`bytes`](Self::bytes) has to *"delete this run"*.
+    ///
+    /// # What is contractual
+    ///
+    /// All six coefficients, as the walker had them. For a run shown by `'`
+    /// or `"` that includes the line move those operators perform (Table
+    /// 109), because it is captured at layout time rather than at dispatch.
+    ///
+    /// **The linear part is what a move reads**; the translation is carried
+    /// because a consumer that wants the run's own origin should not have to
+    /// recover it from [`bounds`](Self::bounds), which is a glyph-ink hull
+    /// and not a pen position.
+    pub text_matrix: Matrix,
     /// Byte range of this run's decoded text within the enclosing
     /// [`TextObject::preview`] — read it through
     /// [`TextObject::run_text`], which handles the truncation case.
@@ -2324,6 +2354,18 @@ struct TextAccum {
     /// closes, because `decode_show_string` has already appended this
     /// run's characters to `preview` by the time `close_text_run` runs.
     current_run_text_start: usize,
+    /// The text matrix at the origin of the run currently being laid out,
+    /// latched by the FIRST `advance_show_string` of that run — becomes
+    /// [`TextRun::text_matrix`].
+    ///
+    /// `Option`, and set only when empty, because a `TJ` array calls
+    /// `advance_show_string` once per string element while remaining ONE
+    /// run: latching unconditionally would record the matrix of the array's
+    /// LAST element, which is the run's end rather than its origin.
+    ///
+    /// Captured at layout rather than at dispatch so that `'` and `"` are
+    /// recorded after their built-in line move, not before it.
+    current_run_matrix: Option<Matrix>,
     /// Whether a positioning operator has run since the last show operator
     /// closed — see [`RunPositioning`].
     ///
@@ -2392,6 +2434,7 @@ impl TextAccum {
             runs: Vec::new(),
             current_run_tokens: None,
             current_run_text_start: 0,
+            current_run_matrix: None,
             positioned_since_run: true,
             current_run: Bounds::EMPTY,
             runs_overflowed: false,
@@ -3378,6 +3421,7 @@ impl<'a> Decomposer<'a> {
         };
         t.positioned_since_run = false;
         let run_tokens = t.current_run_tokens.take();
+        let run_matrix = t.current_run_matrix.take();
         // Clamped to the preview's current length so a run that opened
         // AFTER the MAX_TEXT_PREVIEW_CHARS cap stopped appending yields an
         // empty range rather than a backwards one. `start > end` would
@@ -3407,7 +3451,9 @@ impl<'a> Decomposer<'a> {
         // costs a hit-test miss — while a run carrying the WRONG span would
         // let a later edit delete a different label and leave a file that
         // round-trips perfectly.
-        let (Some(tokens), Some(bytes)) = (run_tokens.and(tokens), bytes) else {
+        let (Some(tokens), Some(bytes), Some(text_matrix)) =
+            (run_tokens.and(tokens), bytes, run_matrix)
+        else {
             return;
         };
         t.runs.push(TextRun {
@@ -3417,6 +3463,7 @@ impl<'a> Decomposer<'a> {
             positioned_by,
             text_start,
             text_end,
+            text_matrix,
         });
     }
 
@@ -3470,6 +3517,13 @@ impl<'a> Decomposer<'a> {
         let Some(t) = self.text.as_mut() else {
             return;
         };
+        // The run's ORIGIN matrix — see `current_run_matrix`. Set before the
+        // font check so an unmetered run still records where it started, and
+        // only when empty so a `TJ` array's later elements do not overwrite
+        // the array's own origin with their own.
+        if t.current_run_matrix.is_none() {
+            t.current_run_matrix = Some(t.text_matrix);
+        }
         let Some(font) = usable else {
             // No width source for this run: its extent is unknowable here,
             // so only its start point is, and the em-box fallback covers it.

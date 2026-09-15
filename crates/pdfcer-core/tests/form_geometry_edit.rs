@@ -497,3 +497,168 @@ fn the_page_generation_still_holds_still_when_nothing_is_edited() {
         "decomposing the page is not an edit and must not move the generation"
     );
 }
+
+// ===========================================================================
+// `G017` — the text rung, and the three deletes the family was missing
+// ===========================================================================
+//
+// `pdfcer-core` shipped SIX `*_in_form` verbs and they were five moves plus
+// one whole-object delete. So inside a form the Part and Node rungs could
+// **move and not delete**, while the same rungs on page content could do
+// both — and there was no text verb of either kind.
+//
+// ★ On a SolidWorks set the title block IS a form, drawn on every sheet, so
+// the container `G017` is about is exactly the one where the asymmetry bit.
+// `forms-xobject/title-block-form.pdf` is the only fixture here with text
+// inside a form, and it carries the block's rules as a two-subpath polyline
+// so the node and subpath deletes have a real target too — every other
+// fixture in this directory draws rectangles, whose corners are not
+// node-editable at all.
+
+/// Each leaf's per-RUN page-space boxes, for the leaves that are text.
+fn text_run_boxes(s: &mut EditSession, page_index: usize) -> Vec<Vec<Bounds>> {
+    s.page_objects(page_index)
+        .unwrap()
+        .leaves
+        .iter()
+        .filter_map(|l| match &l.object {
+            VectorObject::Text(t) => Some(t.runs.iter().map(|r| r.bounds).collect()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// ★★★ One line of a title block moves, on every sheet the block is drawn on,
+/// and the other two lines do not.
+///
+/// Both halves matter and they pull in opposite directions. The form's stream
+/// is shared, so the edit REACHES every invocation — that is the answer to
+/// "why did sheet 2 change as well", and `invocations` is the number that
+/// says so before the operator scrolls. Within each invocation the edit must
+/// reach exactly one run, which is the whole point of a per-run verb.
+#[test]
+fn moving_one_run_inside_a_form_reaches_every_invocation_and_one_run() {
+    let mut s = session("forms-xobject/title-block-form.pdf");
+    let before = text_run_boxes(&mut s, 0);
+    assert_eq!(before.len(), 2, "one text object, two placements");
+    assert_eq!(before[0].len(), 3, "three lines in the block");
+
+    // Leaf 1 is the text of the first invocation (leaf 0 is its rules).
+    let out = s.move_text_run_in_form(0, 1, 1, 3.0, 0.0).unwrap();
+    assert_eq!(out.invocations, 2, "the title block is drawn twice");
+
+    let after = text_run_boxes(&mut s, 0);
+    for (inv, (b, a)) in before.iter().zip(after.iter()).enumerate() {
+        assert!(
+            approx(a[1].min.x, b[1].min.x + 3.0) && approx(a[1].min.y, b[1].min.y),
+            "invocation {inv}: the moved line must be 3pt right; {:?} -> {:?}",
+            b[1],
+            a[1],
+        );
+        for other in [0usize, 2] {
+            assert!(
+                approx(a[other].min.x, b[other].min.x) && approx(a[other].min.y, b[other].min.y),
+                "invocation {inv}: line {other} must not have moved; {:?} -> {:?}",
+                b[other],
+                a[other],
+            );
+        }
+    }
+}
+
+/// The delete twin, which had no verb at all until now: inside a form the
+/// Part rung could move and could not delete.
+#[test]
+fn deleting_one_run_inside_a_form_leaves_the_other_lines() {
+    let mut s = session("forms-xobject/title-block-form.pdf");
+    assert_eq!(text_run_boxes(&mut s, 0)[0].len(), 3);
+
+    let out = s.delete_text_run_in_form(0, 1, 2).unwrap();
+    assert_eq!(out.invocations, 2, "a delete reaches every invocation too");
+
+    let after = text_run_boxes(&mut s, 0);
+    for runs in &after {
+        assert_eq!(runs.len(), 2, "one line removed, two left: {runs:?}");
+    }
+}
+
+/// `delete_subpath_in_form` — the twin of `move_subpath_in_form`, which has
+/// existed since `Pass 188.0` while its delete had not.
+#[test]
+fn deleting_one_subpath_inside_a_form_leaves_the_other() {
+    let mut s = session("forms-xobject/title-block-form.pdf");
+    // Leaf 0 is the rules: one path object, two subpaths.
+    let before = leaf_boxes(&mut s, 0);
+    assert_eq!(before.len(), 4, "two objects, two placements");
+
+    s.delete_subpath_in_form(0, 0, 0)
+        .expect("the Part rung must be able to delete inside a form");
+
+    let after = leaf_boxes(&mut s, 0);
+    assert_eq!(
+        after.len(),
+        before.len(),
+        "one subpath of two leaves the path object standing",
+    );
+    assert!(
+        after[0].max.y - after[0].min.y < before[0].max.y - before[0].min.y,
+        "the surviving rule must be the shorter box; {:?} -> {:?}",
+        before[0],
+        after[0],
+    );
+}
+
+/// `delete_node_in_form` — the twin of `move_node_in_form`, same story.
+///
+/// The fixture's first rule is a three-anchor polyline precisely so this can
+/// remove its midpoint: a two-anchor line refuses with
+/// `NodeDeleteWouldEmptySubpath`, which would have made this test pass on a
+/// verb that never reached the planner at all.
+#[test]
+fn deleting_one_anchor_inside_a_form_shortens_its_subpath() {
+    /// Anchors on leaf 0 (the rules), summed over its subpaths.
+    fn anchors(s: &mut EditSession) -> usize {
+        match &s.page_objects(0).unwrap().leaves[0].object {
+            VectorObject::Path(p) => p
+                .page_subpaths()
+                .iter()
+                .map(|sp| sp.anchors().count())
+                .sum(),
+            other => panic!("leaf 0 must be the rules, got {other:?}"),
+        }
+    }
+
+    let mut s = session("forms-xobject/title-block-form.pdf");
+    let before = anchors(&mut s);
+
+    s.delete_node_in_form(0, 0, 1)
+        .expect("the Node rung must be able to delete inside a form");
+
+    let after = anchors(&mut s);
+    assert_eq!(
+        after,
+        before.saturating_sub(1),
+        "exactly one anchor must be gone; {before} -> {after}",
+    );
+}
+
+/// ★ And the text verbs refuse a PATH leaf by name rather than editing
+/// whatever is at that index.
+///
+/// The in-form verbs address leaves, and a leaf can be any object kind. A
+/// text verb pointed at the rules must say so — the page-side twin already
+/// does, and a form-side verb that silently returned `Ok` would be the worse
+/// half of an inconsistent family.
+#[test]
+fn the_in_form_text_verbs_refuse_a_path_leaf_by_name() {
+    let mut s = session("forms-xobject/title-block-form.pdf");
+    // Leaf 0 is the rules, not the text.
+    let err = s
+        .move_text_run_in_form(0, 0, 0, 1.0, 0.0)
+        .expect_err("leaf 0 is a path");
+    assert!(
+        err.to_string().contains("path"),
+        "the refusal must name the kind that WAS found: {err}",
+    );
+    assert!(!s.is_modified(), "a refused edit must change nothing");
+}

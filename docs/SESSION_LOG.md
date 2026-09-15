@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-14 (552nd filing) — `Pass 305.0` (`G017`, commit pending): `move_text_run` and its in-form twin complete the text-run family; three missing `*_in_form` deletes closed in the same Pass
+
+**Shipped:** `Pass 305.0` — not yet committed at filing time (operator instruction: fold into a later commit of their own). `move_text_run`/`move_text_run_in_form` give text runs the move verb every other part kind (subpath, node) already had. Three placement paths per run: rewrite a `Tm`'s `e`/`f`, rewrite a `Td`'s `tx`/`ty`, or INSERT a `Td` (disclosed) for `TD`/`T*`/`'`/`"`/implicit-`BT`-origin runs — `TD` is deliberately never treated as an ordinary relative pair, because Table 108 defines it as `−ty TL` then `tx ty Td`, so rewriting its `ty` would silently re-space every later `T*`. The successor run is compensated; `RunPositioning::Inherited` is refused on either side (`TextRunHasNoPositionOfItsOwn`/`MoveWouldMoveNextRun`), citing decision 027's posture rather than a new decision.
+
+Taken together with the request's second row: the `*_in_form` family had five moves and one delete, an asymmetry running the OPPOSITE way from page content — `R245`'s 10th dated instance. `delete_text_run_in_form`, `delete_subpath_in_form`, `delete_node_in_form` shipped alongside `move_text_run_in_form`. Ten `*_in_form` verbs now, not six.
+
+**Decisions made this session:** none new architecturally. The refuse-vs-compensate split cites existing decision 027 (refuse what has no good reading) rather than a new decision — no `ARCHITECTURE.md` §12 entry.
+
+**Findings + decisions:**
+- `TextRun` gained `text_matrix: Matrix` (the `Tm` at the run's origin) — a text drag crosses both the CTM and the run's own text matrix (§9.4.4), and a fix converting through the CTM only is wrong specifically on rotated text; pinned by new fixture `runs-rotated-td.pdf`.
+- New fixtures: `text/runs-td-relative.pdf`, `text/runs-tstar-leading.pdf`, `text/runs-rotated-td.pdf`, `forms-xobject/title-block-form.pdf` (first form fixture carrying text; first three-anchor polyline in that directory, needed because a rectangle's corners aren't node-editable).
+- One real defect found and fixed mid-work: a token-gap search used an off-by-one (`tokens.end + 1` against an exclusive bound), misclassifying some `Td`/`Tm` runs as opaque — geometry came out right, bytes came out long; caught only because byte-shape assertions ran beside the geometry ones.
+- Written to `C:\personal_rag\pdf\` as a new empirical finding (`lesson_20260914_td_conflates_leading_and_position_so_rewriting_its_ty_silently_respaces_every_later_tstar.md`) — a spec-trap-meets-real-producer shape (CAD title blocks routinely use `TD` between lines), not a Rust/egui-ecosystem one.
+- `docs/FEATURES.md`: new "Move one text run…" row; "Edit geometry INSIDE a form XObject" row corrected in three places (verb count, text-in-form editability, and the CLI-caller split re-measured against `crates/pdfcer-cli/src/main.rs` at six of ten lacking a caller, not four of six as previously stated).
+
+**Still in flight:** unchanged — owed items 5, 14, 34.
+
+**For next session:** none opened. Commit hash to follow once the operator folds this into their own commit.
+
+**Sourcing (hard rule 8) — no shell this filing; work not yet committed.** Full account taken from the requesting engineer's own reply document (`reply_G017_move_text_run_SHIPPED_with_its_in_form_twin_and_the_three_missing_deletes.md`). Independently confirmed against the live working tree via `Read`/`Grep`: `crates/pdfcer-core/src/edit.rs`, `crates/pdfcer-core/src/vector/edit.rs`, `crates/pdfcer-core/src/vector/decompose.rs`, the four named fixtures, and `crates/pdfcer-core/tests/text_run_move.rs` all present at HEAD. The FEATURES.md CLI-caller count was re-measured independently against `crates/pdfcer-cli/src/main.rs`, not copied from the reply's own arithmetic. Test/clippy/fmt results relayed from the requesting engineer's report, not independently re-run — no shell.
+
 ## 2026-09-14 (551st filing) — `Pass 304.0` (`2a862742`): one visual line spans across show operators again on a CAD file whose exporter restates `Tz` and nudges `Td`'s vertical between fragments
 
 **Shipped:** `Pass 304.0` (`2a862742`). Operator-direct request (no topic key — not a `pdfce_FeatureRequests`/`iccce_FeatureRequests` exchange). SolidWorks (and CAD exporters generally) can write one visual line of note text as several show operators, each restating `Tz` and nudging `Td`'s vertical component by a float round-trip between fragments. `text_edit/edit.rs`'s `spannable` compared `Tz` with `==` and required `Td`'s `ty` to be exactly `0.0`, so the span-editing route refused text crossing a fragment boundary on such a file.

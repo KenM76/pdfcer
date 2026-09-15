@@ -8855,15 +8855,89 @@ enum Command {
     TextRunDelete {
         /// Input PDF.
         input: PathBuf,
+        /// 0-based paint-order object index on the page.
+        ///
+        /// Pass exactly one of this and `--leaf`.
+        #[arg(long)]
+        object: Option<usize>,
+        /// 0-based index into this page's form leaves, to delete a run inside
+        /// a form XObject (`G017`).
+        ///
+        /// On a SolidWorks set the title block IS a form, drawn on every
+        /// sheet — so this is where most of a drawing's text actually lives,
+        /// and until now nothing inside one could be deleted at all. The
+        /// form's stream is SHARED: one delete removes the run from every
+        /// page the form is drawn on, and the reach is printed.
+        #[arg(long)]
+        leaf: Option<usize>,
         /// 1-based page number.
         #[arg(long, default_value_t = 1)]
         page: u32,
-        /// 0-based paint-order object index on the page.
-        #[arg(long)]
-        object: usize,
         /// 0-based show-operator index within that text object, content order.
         #[arg(long)]
         run: usize,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+    /// **Move ONE text run** — one show operator — inside a text object
+    /// (`G017`, ISO 32000-1 §9.4).
+    ///
+    /// The twin `text-run-delete` has implied since `Pass 32.0`, and the last
+    /// part kind in pdfcer to be missing one: a subpath and an anchor could
+    /// each already be moved and deleted, a text run could only be deleted.
+    ///
+    /// The operator's case: one `BT`...`ET` on a SolidWorks title block holds
+    /// every string in it — the sibling case measures at 237 dimension labels
+    /// in one text object — so nudging one line of a title block meant moving
+    /// the whole block or nothing.
+    ///
+    /// `--dx`/`--dy` are a PAGE-space displacement in points, exactly as for
+    /// `subpath-move`. `--run` is 0-based in content order, the same numbering
+    /// `object-list` reports as `runs=`.
+    ///
+    /// REFUSED, before any mutation, in two cases, both §9.4.2: when the run
+    /// itself has no position of its own (it starts where the previous string
+    /// left the pen, and that position is written nowhere in the file), and
+    /// when the run AFTER it does not (moving this one would drag that one
+    /// along). Both name the same remedy: move the whole text object.
+    ///
+    /// Where the producer wrote no operand that could be adjusted — a `TD`,
+    /// whose second operand IS the leading, or a bare `T*` — a positioning
+    /// operator is ADDED and the addition is disclosed on stderr. The text
+    /// goes exactly where asked either way; what differs is that the file now
+    /// records the position differently from the way its producer did.
+    TextRunMove {
+        /// Input PDF.
+        input: PathBuf,
+        /// 0-based paint-order object index on the page.
+        ///
+        /// Pass exactly one of this and `--leaf`.
+        #[arg(long)]
+        object: Option<usize>,
+        /// 0-based index into this page's form leaves, to move a run inside a
+        /// form XObject. The form's stream is SHARED — the run moves on every
+        /// page the form is drawn on, and the reach is printed.
+        #[arg(long)]
+        leaf: Option<usize>,
+        /// 1-based page number.
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        /// 0-based show-operator index within that text object, content order.
+        #[arg(long)]
+        run: usize,
+        /// Page-space horizontal displacement, in points.
+        #[arg(long, allow_negative_numbers = true)]
+        dx: f64,
+        /// Page-space vertical displacement, in points.
+        #[arg(long, allow_negative_numbers = true)]
+        dy: f64,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,
@@ -12154,11 +12228,44 @@ fn run() -> ExitCode {
             input,
             page,
             object,
+            leaf,
             run,
             output,
             mode,
             verify_undo,
-        } => cmd_text_run_delete(&input, page, object, run, &output, mode, verify_undo),
+        } => cmd_text_run_delete(&TextRunDeleteArgs {
+            input: &input,
+            page,
+            object,
+            leaf,
+            run,
+            output: &output,
+            mode,
+            verify_undo,
+        }),
+        Command::TextRunMove {
+            input,
+            page,
+            object,
+            leaf,
+            run,
+            dx,
+            dy,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_text_run_move(&TextRunMoveArgs {
+            input: &input,
+            page,
+            object,
+            leaf,
+            run,
+            dx,
+            dy,
+            output: &output,
+            mode,
+            verify_undo,
+        }),
         Command::SubpathDelete {
             input,
             page,
@@ -40058,8 +40165,25 @@ fn cmd_export_dxf(args: ExportDxfArgs<'_>) -> u8 {
     exit::SUCCESS
 }
 
+/// Grouped arguments for `text-run-delete` (`Pass 32.0`, `--leaf` added by
+/// `G017`).
+struct TextRunDeleteArgs<'a> {
+    input: &'a Path,
+    page: u32,
+    /// The page paint-order index, when addressing a page object.
+    object: Option<usize>,
+    /// The index into this page's form leaves, when addressing a text object
+    /// INSIDE a form XObject. Exactly one of this and `object` is set;
+    /// `object_or_leaf` enforces it.
+    leaf: Option<usize>,
+    run: usize,
+    output: &'a Path,
+    mode: SaveMode,
+    verify_undo: bool,
+}
+
 /// `text-run-delete` — remove one show operator from a text object
-/// (`Pass 32.0`).
+/// (`Pass 32.0`; reaches inside form XObjects since `G017`).
 ///
 /// ## Contract
 ///
@@ -40068,44 +40192,54 @@ fn cmd_export_dxf(args: ExportDxfArgs<'_>) -> u8 {
 /// - Refusals — an out-of-range run, and the §9.4.2 guard when the next run
 ///   inherits its position — go through [`report_edit_error`] before any
 ///   mutation. The guard's message names its own remedy.
-fn cmd_text_run_delete(
-    input: &Path,
-    page: u32,
-    object: usize,
-    run: usize,
-    output: &Path,
-    mode: SaveMode,
-    verify_undo: bool,
-) -> u8 {
-    let page_index = (page.max(1) - 1) as usize;
-    let (source, mut session) = match open_for_edit(input) {
+/// - With `--leaf`, the form's reach is printed by [`report_form_reach`]
+///   because the stream is shared and the delete lands on every page the form
+///   is drawn on.
+fn cmd_text_run_delete(args: &TextRunDeleteArgs<'_>) -> u8 {
+    let page_index = (args.page.max(1) - 1) as usize;
+    let target = match object_or_leaf(args.input, args.object, args.leaf) {
+        Ok(t) => t,
+        Err(code) => return code,
+    };
+    let (source, mut session) = match open_for_edit(args.input) {
         Ok(pair) => pair,
         Err(code) => return code,
     };
-    match session.delete_text_run(page_index, object, run) {
-        Err(err) => return report_edit_error(input, &err),
-        Ok(disclosures) => report_disclosures(&disclosures),
+    let result = match target {
+        GeometryTarget::Page(object) => session
+            .delete_text_run(page_index, object, args.run)
+            .map(|d| (d, None)),
+        GeometryTarget::Leaf(leaf) => session
+            .delete_text_run_in_form(page_index, leaf, args.run)
+            .map(|o| (o.disclosures.clone(), Some(o))),
+    };
+    match result {
+        Err(err) => return report_edit_error(args.input, &err),
+        Ok((disclosures, form)) => {
+            report_disclosures(&disclosures);
+            report_form_reach(form.as_ref());
+        }
     }
     let outcome = match save_edited(
         &mut session,
         &source,
-        output,
-        mode,
+        args.output,
+        args.mode,
         ProducerArg::Preserve,
-        verify_undo,
+        args.verify_undo,
     ) {
         Ok(outcome) => outcome,
         Err(code) => return code,
     };
     let r = &outcome.report;
     println!(
-        "text-run-delete {} page {} object={} run={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
-        input.display(),
-        page.max(1),
-        object,
-        run,
-        mode.name(),
-        output.display(),
+        "text-run-delete {} page {} {} run={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        args.input.display(),
+        args.page.max(1),
+        target_token(args.object, args.leaf),
+        args.run,
+        args.mode.name(),
+        args.output.display(),
         outcome.changed,
         r.objects_written,
         r.bytes_appended,
@@ -40113,7 +40247,97 @@ fn cmd_text_run_delete(
         u32::from(outcome.undo_verified),
         u32::from(outcome.undo_identical),
     );
-    finish_edit(input, &outcome)
+    finish_edit(args.input, &outcome)
+}
+
+/// Grouped arguments for `text-run-move` (`G017`).
+struct TextRunMoveArgs<'a> {
+    input: &'a Path,
+    page: u32,
+    /// The page paint-order index, when addressing a page object.
+    object: Option<usize>,
+    /// The index into this page's form leaves, when addressing a text object
+    /// INSIDE a form XObject.
+    leaf: Option<usize>,
+    run: usize,
+    dx: f64,
+    dy: f64,
+    output: &'a Path,
+    mode: SaveMode,
+    verify_undo: bool,
+}
+
+/// `text-run-move` — translate ONE show operator inside a text object
+/// (`G017`).
+///
+/// ## Contract
+///
+/// - One `text-run-move …` line with the usual save-report fields, then the
+///   exit code from [`finish_edit`].
+/// - The two §9.4.2 refusals — this run has no position of its own, or the
+///   run after it has none — go through [`report_edit_error`] before any
+///   mutation, with the same sentences the GUI shows. One core, one answer,
+///   whichever shell the operator came through.
+/// - Where a positioning operator had to be ADDED (a `TD`, whose second
+///   operand is the leading, or a bare `T*`), the disclosure goes to stderr
+///   via [`report_disclosures`] so stdout stays machine-parseable. Rule 4:
+///   the page is unchanged and the bytes are not, and the operator does not
+///   find that out from a diff.
+fn cmd_text_run_move(args: &TextRunMoveArgs<'_>) -> u8 {
+    let page_index = (args.page.max(1) - 1) as usize;
+    let target = match object_or_leaf(args.input, args.object, args.leaf) {
+        Ok(t) => t,
+        Err(code) => return code,
+    };
+    let (source, mut session) = match open_for_edit(args.input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let result = match target {
+        GeometryTarget::Page(object) => session
+            .move_text_run(page_index, object, args.run, args.dx, args.dy)
+            .map(|d| (d, None)),
+        GeometryTarget::Leaf(leaf) => session
+            .move_text_run_in_form(page_index, leaf, args.run, args.dx, args.dy)
+            .map(|o| (o.disclosures.clone(), Some(o))),
+    };
+    match result {
+        Err(err) => return report_edit_error(args.input, &err),
+        Ok((disclosures, form)) => {
+            report_disclosures(&disclosures);
+            report_form_reach(form.as_ref());
+        }
+    }
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        args.output,
+        args.mode,
+        ProducerArg::Preserve,
+        args.verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let r = &outcome.report;
+    println!(
+        "text-run-move {} page {} {} run={} dx={} dy={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        args.input.display(),
+        args.page.max(1),
+        target_token(args.object, args.leaf),
+        args.run,
+        args.dx,
+        args.dy,
+        args.mode.name(),
+        args.output.display(),
+        outcome.changed,
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+        u32::from(outcome.undo_verified),
+        u32::from(outcome.undo_identical),
+    );
+    finish_edit(args.input, &outcome)
 }
 
 /// `node-move` — move one anchor to a page-space point via surgery

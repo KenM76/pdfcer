@@ -89,6 +89,33 @@ is also exactly the situation that makes editing a leaf inside a shared form
 change **every** invocation — `ARCHITECTURE.md` §12 decision 076, which rules
 edit-in-place as the default and makes copy-on-write a separate verb.
 
+### ★★ `title-block-form.pdf` — the only fixture here with TEXT in a form
+
+Added with `G017`. Every other file in this directory draws rectangles, so a
+**text** verb scoped to forms could be written, could be "tested", and could
+not be exercised — and rectangles have another hole in them: their corners are
+not node-editable at all, so `delete_node_in_form` had no legal target either.
+
+The form holds a title block in miniature, invoked twice at different offsets:
+
+* the block's **rules** — one path object, two subpaths, five anchors
+  (`0 0 m 45 0 l 90 0 l 0 30 m 90 30 l S`). The first is a three-anchor
+  polyline on purpose: deleting a node out of a two-anchor line refuses with
+  `NodeDeleteWouldEmptySubpath`, which would have let the node-delete test pass
+  against a verb that never reached the planner;
+* its **text** — one `BT`…`ET`, three runs, in the two shapes a real title
+  block uses: an opening `Tm`, then a `Td` for each line beneath it. Nothing
+  inherits, so §9.4.2's refusals are out of the way and what is under test is
+  the form-space conversion itself;
+* a non-embedded Helvetica in the **form's own** `/Resources`, not the page's —
+  a form that borrowed the page's font would not prove the decomposer reaches
+  the right dictionary.
+
+⚠ **On a SolidWorks set the title block IS a form**, drawn on every sheet. The
+two invocations are what makes `FormSurgeryOutcome::invocations` assertable:
+one edit inside a shared stream changes every place it is drawn, and the count
+is what a shell must show before the operator discovers it by scrolling.
+
 ## How to regenerate
 
 ```

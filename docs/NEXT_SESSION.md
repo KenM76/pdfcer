@@ -5,6 +5,9 @@ detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
 **Written:** 2026-09-12, after `Pass 300.3` and the 530th filing.
+**Amended:** 2026-09-14, after `Pass 304.0` and `Pass 305.0` (`G017`) and
+the 552nd filing. See **SINCE THE LAST HANDOFF** at the top of STATE —
+everything below that block is carried forward unchanged and still true.
 
 ---
 
@@ -45,7 +48,23 @@ pushing.
 
 ★★ **`run-gates.sh` and `cargo test --workspace --all-features` are both
 OOM-killed here**, repeatedly, including per-crate. Three watchers and two
-sweeps died this session. The working procedure:
+sweeps died on 2026-09-12.
+
+⚠ **AMENDED 2026-09-14 — this is a TENDENCY, not a certainty, and reading it
+as a certainty costs a sweep you could have had.** On 2026-09-14 the plain
+`bash tools/run-gates.sh` ran **all 34 commands to completion** on this
+machine, as did `cargo test --workspace` (≈7 min, the `pdfcer-cli` integration
+binary alone 415 s) and `cargo clippy --workspace --all-targets -- -D warnings`.
+Nothing was killed. What is *reliably* fatal is still **release-linking
+`pdfcer-cli`**, which is a different act from testing it in debug.
+
+⇒ **Try the sweep. If it dies, fall back to the split procedure below** — do
+not start from the fallback on the strength of this paragraph, and do not
+delete the paragraph either, because the failures it records were real. A
+session that skips the sweep on the authority of a sentence written two days
+earlier is exactly the failure the paragraph above it is about.
+
+The fallback procedure, when it is needed:
 
 1. Run the **23 non-cargo gates in one loop** — they are seconds each. Get the
    list from `python tools/check-ci-parity.py --list`.
@@ -108,6 +127,50 @@ number four versions stale for a day, and nothing in this file checks itself.
 **`main` is pushed through the 530th filing** — ★ read CI's colour from
 GitHub yourself (`gh run list --branch main --limit 1`); this line records
 what was pushed, never what the server thought of it.
+
+### ★★ SINCE THE LAST HANDOFF — 2026-09-14
+
+Everything after this block is from 2026-09-12 and is carried forward
+unchanged. Three things happened since, in order:
+
+**1. `Pass 304.0` — a CAD note split across show operators is editable.**
+From the operator directly, in conversation, not from either request channel:
+*"Check if you can edit one of the notes with the numbers for the balloons"*,
+then *"Test it and if you can't edit it make it so a user can edit it as they
+would expect to."* It could not be. SolidWorks emits one visual line as several
+show operators and perturbs `Tz` and `Td`'s vertical by float round-trip noise
+between them; `spannable` compared `Tz` with `==` and `same_line` compared the
+baseline with `==`, so no route reached the text. Two measured tolerances, the
+vertical one **scaled by the text matrix's y-scale** — which is the half that
+was got wrong on the first cut, because the drift arrives pre-multiplied and a
+flat threshold fixes one note on a page and not the note beside it. All six
+balloon-bearing notes on his sheet now edit and survive save-and-reopen.
+
+⚠ **This one has NO topic key, deliberately.** An earlier draft labelled it
+`G017` in code comments and its commit message. **`G` is `pdfcer-gui`'s
+namespace** and they filed their own, unrelated `G017` the same morning. The
+commit was amended before it was pushed, so nothing in git carries it. *Do not
+mint a key in someone else's namespace for work that came from the operator.*
+
+**2. `Pass 305.0` — `G017`, `move_text_run` and the in-form family.** The
+request's own words: a text run could be deleted and not moved, while every
+other part kind had both halves. Shipped with its in-form twin **and** the
+three in-form deletes the request's second row found missing, which takes that
+family from six verbs to ten. Reply in `open/reply_G017_…`; the request is
+theirs to close with a `done_G017_…`.
+
+**3. `docs/core-api/` counts moved.** 227 → **232** public `EditSession`
+methods. `tools/check-core-api-verbs.py` caught it, as designed.
+
+★ **One defect worth carrying forward for its SHAPE**, found during `G017`:
+a token-gap search used `prev.tokens.end + 1`, but `TextRun::tokens.end` is
+EXCLUSIVE. That made a `Td` read as one-operand-malformed and a `Tm` as five,
+so both were classified "nothing to rewrite" and both were then moved by an
+INSERTED operator instead of a rewritten one. **The page came out right and the
+bytes came out long.** Every geometry assertion passed; only the byte-shape
+assertions failed. ⇒ *A geometry-only test suite cannot see a correct edit
+written the wrong way* — and on this project's round-trip/minimal-diff rule,
+the wrong way is a defect. Assert the bytes as well as the pixels.
 
 ### ★★★ THE TORONTO-MAP ARC IS CLOSED
 

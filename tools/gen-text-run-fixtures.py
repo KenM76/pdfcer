@@ -51,6 +51,47 @@ any fixture already in the corpus:
     on WHICH run it found by decoding, and so a byte span can be
     checked against a literal that appears exactly once in the stream.
 
+``text/runs-td-relative.pdf``
+    One ``BT``...``ET`` whose runs after the first are placed by ``Td``
+    rather than by ``Tm``: an opening ``Tm``, then ``40 0 Td`` before each
+    of the next two.
+
+    Pins the **relative** half of `G017`'s move. A `Td`'s operands are in
+    TEXT space and translate the LINE matrix, so moving the run it places
+    does two things `runs-two-explicit.pdf` cannot show: the delta has to
+    cross `Tm` before it can be written, and the translation survives into
+    every later `Td` in the object, which is what makes the compensation of
+    the NEXT run necessary rather than decorative. A move that adjusted the
+    run and not its successor passes against a `Tm`-only fixture and slides
+    the rest of the object here.
+
+``text/runs-tstar-leading.pdf``
+    ``1 0 0 1 72 700 Tm``, then ``0 -20 TD``, then three runs separated by
+    bare ``T*``.
+
+    Pins the **opaque** half. Neither `TD` nor `T*` offers an operand pair a
+    move can adjust in isolation:
+
+    * ``T*`` carries none at all;
+    * ``TD``'s ``ty`` IS the leading (Table 108 — it sets `TL` to `−ty` and
+      then translates), so nudging it would silently re-space **every later
+      `T*` in the object**. The bytes stay well-formed, the file round-trips,
+      and text nobody selected has moved. That is the class rule 4 exists
+      for, and it is why `TD` is classified opaque rather than relative.
+
+    So the move must INSERT a `Td` instead, and disclose that it did.
+
+``text/runs-rotated-td.pdf``
+    ``0 1 -1 0 300 300 Tm`` — a 90° text matrix — followed by a ``40 0 Td``
+    run.
+
+    Pins that the drag crosses **both** transforms (§9.4.4). A page-space
+    nudge of `(5, 0)` is `(0, −5)` in this run's text space, so the `Td`
+    must become ``40 -5 Td``. An implementation that converted through the
+    CTM only — correct on every axis-aligned fixture above — writes
+    ``45 0 Td`` and moves the text along its own baseline instead of across
+    it. R162: without this fixture that bug cannot be made to fail.
+
 ``text/runs-tj-array.pdf``
     One ``BT``...``ET`` whose single run is a ``TJ`` **array** with
     kerning numbers: ``[(A) -120 (B) -120 (C)] TJ``.
@@ -188,6 +229,39 @@ def runs_tj_array() -> bytes:
     )
 
 
+def runs_td_relative() -> bytes:
+    """Three runs: one ``Tm``, then two placed by ``Td``."""
+    return page(
+        b"BT\n/F1 10 Tf\n"
+        b"1 0 0 1 72 700 Tm\n(ALPHA) Tj\n"
+        b"40 0 Td\n(BETA) Tj\n"
+        b"40 0 Td\n(GAMMA) Tj\n"
+        b"ET\n"
+    )
+
+
+def runs_tstar_leading() -> bytes:
+    """Three runs placed by ``TD`` then bare ``T*`` — nothing adjustable."""
+    return page(
+        b"BT\n/F1 10 Tf\n"
+        b"1 0 0 1 72 700 Tm\n"
+        b"0 -20 TD\n(ALPHA) Tj\n"
+        b"T*\n(BETA) Tj\n"
+        b"T*\n(GAMMA) Tj\n"
+        b"ET\n"
+    )
+
+
+def runs_rotated_td() -> bytes:
+    """A 90° text matrix with a ``Td``-placed second run."""
+    return page(
+        b"BT\n/F1 10 Tf\n"
+        b"0 1 -1 0 300 300 Tm\n(ALPHA) Tj\n"
+        b"40 0 Td\n(BETA) Tj\n"
+        b"ET\n"
+    )
+
+
 def main() -> int:
     out_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else OUT
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -196,6 +270,9 @@ def main() -> int:
         ("runs-tj-array.pdf", runs_tj_array()),
         ("runs-two-explicit.pdf", runs_two_explicit()),
         ("runs-single.pdf", runs_single()),
+        ("runs-td-relative.pdf", runs_td_relative()),
+        ("runs-tstar-leading.pdf", runs_tstar_leading()),
+        ("runs-rotated-td.pdf", runs_rotated_td()),
     ):
         p = out_dir / name
         p.write_bytes(data)

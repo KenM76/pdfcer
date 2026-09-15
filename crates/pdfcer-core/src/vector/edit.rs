@@ -420,6 +420,63 @@ pub enum VectorEditError {
         /// The run whose deletion was refused.
         index: usize,
     },
+    /// The run asked to MOVE has no position of its own: it starts wherever
+    /// the run before it left the pen (§9.4.2,
+    /// [`RunPositioning::Inherited`](crate::vector::RunPositioning::Inherited)).
+    ///
+    /// # Why this cannot be repaired the way an implicit subpath start was
+    ///
+    /// [`plan_move_subpath`] materialises the `m` an implicitly-started
+    /// subpath never had, because the start point is *known* — the previous
+    /// subpath's own start, sitting in the file. A run's inherited origin is
+    /// not written anywhere: it is the previous string's advance, which
+    /// depends on that font's metrics for those exact codes at that exact
+    /// `Tf`/`Tc`/`Tw`/`Tz`. pdfcer can estimate it; being wrong by a
+    /// fraction of a point puts the run somewhere the producer did not.
+    ///
+    /// Writing a `Td` in front of it would be worse than an estimate: `Td`
+    /// resets the text matrix to the LINE matrix (Table 108), discarding the
+    /// very advance that positioned the run. The operator would see the run
+    /// jump to the start of its line.
+    ///
+    /// The remedy in the message is the one that always works and never
+    /// guesses: move the whole text object.
+    #[error(
+        "run {index} starts where the run before it ends rather than at a position of its own, \
+         so it cannot be moved by itself; move the whole text object instead"
+    )]
+    TextRunHasNoPositionOfItsOwn {
+        /// The run whose move was refused.
+        index: usize,
+    },
+    /// Moving this run would drag the run AFTER it along, because that one's
+    /// origin is [`Inherited`](crate::vector::RunPositioning::Inherited).
+    ///
+    /// The exact twin of [`Self::DeleteWouldMoveNextRun`], raised for the
+    /// exact same §9.4.2 fact, and deliberately a separate variant: the two
+    /// verbs offer different remedies, and one message serving both would
+    /// have to name neither. Delete's remedy is *do the later one first*;
+    /// move has no such reordering, so its remedy is the whole object.
+    #[error(
+        "moving run {index} would move the run after it, which starts where this one ends \
+         rather than at a position of its own; move the whole text object instead"
+    )]
+    MoveWouldMoveNextRun {
+        /// The run whose move was refused.
+        index: usize,
+    },
+    /// The run's own text matrix is singular, so a page-space drag has no
+    /// unambiguous text-space pre-image.
+    ///
+    /// Separate from [`Self::DegenerateCtm`] because a text move composes
+    /// TWO transforms — `Tm` then the CTM (§9.4.4) — and a refusal that
+    /// named only the CTM would send a reader to the wrong operator. A
+    /// `0 0 0 0 0 0 Tm` is a real thing producers emit.
+    #[error(
+        "the run's text matrix is singular (non-invertible), so a page-space drag cannot be \
+         mapped to its text space"
+    )]
+    DegenerateTextMatrix,
     /// A **multi-node** drag named no nodes at all.
     ///
     /// Refused rather than treated as a successful no-op: an empty move
@@ -1452,6 +1509,377 @@ pub fn plan_delete_text_run(
         content: splice(&content.buf, &mut edits),
         operators_touched: 1,
         disclosures: Vec::new(),
+    })
+}
+
+/// How a run's origin is written in the file, and therefore whether a move
+/// can be expressed by **rewriting operands** or has to **insert** an
+/// operator.
+///
+/// Named rather than inlined because the same three-way decision is made
+/// twice per move — once for the run being moved and once for the run after
+/// it, which has to be compensated in the opposite direction — and the two
+/// call sites must not drift apart (`R245`).
+enum RunPlacement<'a> {
+    /// `Tm a b c d e f` (Table 108): an **absolute** text matrix. Its `e`/`f`
+    /// are the run's origin in USER space, so a user-space delta is added to
+    /// them directly, and a run placed this way is unaffected by anything
+    /// that happened to the line matrix before it.
+    Absolute(OpItem<'a>, [f64; 6]),
+    /// `Td tx ty`: a translation of the **line** matrix. Its operands are in
+    /// TEXT space, so the delta has to cross `Tm` first.
+    Relative(OpItem<'a>, f64, f64),
+    /// `TD`, `T*`, `'`, `"`, or no positioning operator at all — nothing
+    /// whose operands can be adjusted without changing something else.
+    ///
+    /// `TD` is here and not under [`Self::Relative`] **on purpose**: it sets
+    /// the leading to `−ty` as well as translating (Table 108), so nudging
+    /// its `ty` would silently re-space every later `T*` in the object. That
+    /// is precisely the class of edit rule 4 exists to stop — correct bytes,
+    /// round-trips cleanly, moves text nobody selected.
+    Opaque,
+}
+
+/// The operator that placed run `run_index`, classified for editing.
+///
+/// Searches the token gap between the END of the previous run and the START
+/// of this one, because that is the only window a positioning operator for
+/// this run can occupy (§9.4.2: the latch the decomposer keeps for
+/// [`RunPositioning`] is set and cleared over exactly that span). The LAST
+/// one wins — a producer that writes `Tm` then `Td` meant the composition,
+/// and the composition's final act is what a move adjusts.
+///
+/// Returns [`RunPlacement::Opaque`] when the gap holds no positioning
+/// operator. For run 0 that means the run is placed by `BT`'s reset to the
+/// identity (§9.4.1) and an inserted `Td` is exactly right; for any later
+/// run it means the origin is inherited, which [`text_run_move_refusal`] has
+/// already refused before this is reached.
+fn run_placement<'a>(
+    content: &'a ContentStream,
+    obj: &TextObject,
+    run_index: usize,
+) -> RunPlacement<'a> {
+    let Some(run) = obj.runs.get(run_index) else {
+        return RunPlacement::Opaque;
+    };
+    // `TextRun::tokens.end` is EXCLUSIVE — the decomposer records it as the
+    // show operator's index PLUS ONE (and `span_of` subtracts that one back
+    // to find the last token). So the gap begins AT `end`, not after it.
+    // Adding one here skipped the first operand of the very operator this is
+    // looking for, which left a `Td` reading as one-operand malformed and a
+    // `Tm` as five — both classified opaque, both then correctly moved by an
+    // INSERTED operator instead of a rewritten one. The page came out right
+    // and the bytes came out long, which is the shape of defect that survives
+    // a geometry-only test suite.
+    let gap_start = match run_index.checked_sub(1).and_then(|p| obj.runs.get(p)) {
+        Some(prev) => prev.tokens.end,
+        None => obj.tokens.start,
+    };
+    let mut found = RunPlacement::Opaque;
+    for item in ops_in_range(content, gap_start, run.tokens.start) {
+        let Some(keyword) = item.keyword(&content.buf) else {
+            continue;
+        };
+        found = match keyword {
+            b"Tm" => match <[f64; 6]>::try_from(item.nums().as_slice()) {
+                Ok(m) => RunPlacement::Absolute(item, m),
+                // A `Tm` with the wrong arity is malformed content. Treated
+                // as opaque rather than refused: the insert path does not
+                // touch it and still produces a correct move.
+                Err(_) => RunPlacement::Opaque,
+            },
+            b"Td" => match item.nums().as_slice() {
+                &[tx, ty] => RunPlacement::Relative(item, tx, ty),
+                _ => RunPlacement::Opaque,
+            },
+            b"TD" | b"T*" => RunPlacement::Opaque,
+            // Not a positioning operator (`Tf`, `Tz`, `Tc`, a colour): it
+            // cannot place the run, so it must not clear what did.
+            _ => continue,
+        };
+    }
+    found
+}
+
+/// A page-space delta in the text space of `tm`.
+///
+/// Two inverses stand between a drag and a `Td` operand (§9.4.4): the CTM
+/// takes user space to page space, and `Tm` takes text space to user space.
+/// This is the second of them, applied to a **vector** — the linear part
+/// only, translation excluded, because a displacement has no origin.
+fn text_space_delta(tm: Matrix, d_user: Point) -> Result<Point, VectorEditError> {
+    let inv = tm.inverse().ok_or(VectorEditError::DegenerateTextMatrix)?;
+    let d = inv.map_vector(d_user);
+    if !d.is_finite() {
+        return Err(VectorEditError::DegenerateTextMatrix);
+    }
+    Ok(d)
+}
+
+/// The disclosure an inserted positioning operator owes the operator
+/// (rule 4).
+///
+/// The drawing is unchanged and the move is exact; what changed is the
+/// *form* of the content — an operator now exists that the producer never
+/// wrote — so dragging back by the same amount does not restore the original
+/// bytes. That is the same class [`plan_move_subpath`] discloses when it
+/// materialises an implicit `m`, and it is worded the same way: in terms of
+/// what the operator will find, not in terms of PDF operators.
+fn inserted_td_disclosure() -> String {
+    "This line of text had no position instruction that could be adjusted, so one has been \
+     added. The text is exactly where you put it; the file now records the position \
+     differently from the way the program that made it did."
+        .to_owned()
+}
+
+/// Whether moving run `run_index` of `obj` would be refused, and with what —
+/// **the pre-check `plan_move_text_run` itself runs**, exposed so a shell can
+/// put the remedy in front of the gesture instead of behind it.
+///
+/// # Why this is the planner's own guard and not a description of it
+///
+/// `R221` and `R243`: a front end that pre-checks against a *second*
+/// implementation of the same rule is a front end that will one day enable a
+/// control the engine refuses, or grey out one it would have allowed. There
+/// is one function; the planner calls it first and returns whatever it says,
+/// so the two cannot disagree.
+///
+/// `None` means the move will be planned. It does **not** promise the plan
+/// succeeds — a singular `Tm` or CTM is discovered during planning, not here,
+/// because it depends on the geometry rather than on the run's structure.
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_core::content::ContentStream;
+/// use pdfcer_core::vector::{decompose, NoXObjects, Matrix, VectorObject};
+/// use pdfcer_core::vector::edit::text_run_move_refusal;
+///
+/// // Two runs, each placed by its own `Tm`, so neither inherits.
+/// let src = b"BT /F1 10 Tf 1 0 0 1 10 700 Tm (A) Tj 1 0 0 1 10 680 Tm (B) Tj ET".to_vec();
+/// let cs = ContentStream::parse(src).unwrap();
+/// let model = decompose(&cs, Matrix::IDENTITY, &NoXObjects);
+/// # if let Some(VectorObject::Text(t)) = model.objects.first() {
+/// # if t.runs.len() == 2 {
+/// let VectorObject::Text(text) = &model.objects[0] else { unreachable!() };
+/// assert!(text_run_move_refusal(text, 0).is_none());
+/// assert!(text_run_move_refusal(text, 9).is_some()); // out of range
+/// # }}
+/// ```
+#[must_use]
+pub fn text_run_move_refusal(obj: &TextObject, run_index: usize) -> Option<VectorEditError> {
+    let count = obj.runs.len();
+    let Some(run) = obj.runs.get(run_index) else {
+        return Some(VectorEditError::TextRunOutOfRange {
+            index: run_index,
+            count,
+        });
+    };
+    if run.positioned_by == RunPositioning::Inherited {
+        return Some(VectorEditError::TextRunHasNoPositionOfItsOwn { index: run_index });
+    }
+    if obj
+        .runs
+        .get(run_index + 1)
+        .is_some_and(|next| next.positioned_by == RunPositioning::Inherited)
+    {
+        return Some(VectorEditError::MoveWouldMoveNextRun { index: run_index });
+    }
+    None
+}
+
+/// Plan the move of **one show operator** inside a text object by a
+/// page-space `(dx, dy)` — the twin [`plan_delete_text_run`] has implied
+/// since `Pass 32.0` (`G017`).
+///
+/// # The gap this closes
+///
+/// Every other part kind in this crate has both halves. A subpath can be
+/// moved ([`plan_move_subpath`]) and deleted ([`plan_delete_subpath`]); an
+/// anchor can be moved ([`plan_move_node`]) and deleted
+/// ([`plan_delete_node`]). A text run could only be deleted. The shell
+/// resolved a drag on one line of a title block, found no verb to call, and
+/// declined the gesture.
+///
+/// The operator's words, `OPERATOR_REQUESTS.md` O188: *"In text that is
+/// grouped together … such as in my title blocks, I would like a way to move
+/// the individual text blocks within it around."* One `BT`…`ET` on a
+/// SolidWorks title block holds every string in it, and
+/// [`hit_test_text_runs`](crate::vector::hit_test_text_runs) measures the
+/// sibling case at 237 labels in one text object — so on a drawing set the
+/// title block was the text he most wanted to nudge and the one thing on the
+/// page that could not be nudged.
+///
+/// ⚠ These are **pdf dimensions** (rule 15) — CAD-exported page content, not
+/// pdfcer's own ce dimensions. This verb repositions what the file already
+/// says; it does not re-measure anything.
+///
+/// # Why not `transform_objects`
+///
+/// Its mechanism is a `q … cm … Q` wrap, and `q`/`Q` are not admitted inside
+/// a text object (§8.2, Table 51). Splitting the `BT`…`ET` to wrap outside it
+/// would discard `Tm` (§9.4.1). So the mechanism has to be operand rewriting
+/// — the [`plan_move_subpath`] shape.
+///
+/// # The mechanism, in the order it decides things
+///
+/// 1. **The drag crosses two transforms, not one** (§9.4.4: `Trm = params ×
+///    Tm × CTM`). The page-space delta becomes a user-space delta through the
+///    object's [`ctm`](TextObject::ctm), and then a text-space delta through
+///    the run's own [`text_matrix`](crate::vector::TextRun::text_matrix).
+///    Both are linear inverses — a displacement has no origin.
+/// 2. **The run's own placement is adjusted.** A `Tm` has its `e`/`f`
+///    rewritten (user space, added directly); a `Td` has its two operands
+///    rewritten (text space). Anything else — `TD`, `T*`, `'`, `"`, or `BT`'s
+///    implicit identity — gets a `Td` INSERTED immediately before the show
+///    operator, which is safe for exactly these cases because every one of
+///    them leaves `Tm` equal to the line matrix at that point.
+/// 3. **The run AFTER it is put back.** Steps 1–2 translate the line matrix,
+///    and every later `Td`/`TD`/`T*` in the object is relative to it, so
+///    without this the whole rest of the text object would slide. A `Tm`
+///    successor needs nothing (it is absolute); a `Td` successor has the
+///    delta subtracted from its operands; anything else gets a compensating
+///    `Td` inserted after the moved run. The object's runs beyond the
+///    successor are then reached through an unchanged line matrix and keep
+///    their exact bytes.
+///
+/// Nothing renumbers: this is operand rewriting plus at most two inserted
+/// operators, so [`TextObject::runs`] indices mean the same thing before and
+/// after (`docs/core-api/02-editing-and-saving.md`).
+///
+/// # The two refusals, and why they are refusals
+///
+/// Both are [`text_run_move_refusal`]'s, raised before any byte is produced:
+/// [`VectorEditError::TextRunHasNoPositionOfItsOwn`] when the run itself
+/// inherits its origin, and [`VectorEditError::MoveWouldMoveNextRun`] when
+/// the run after it does. Decision 027's posture — refuse what has no good
+/// reading rather than guess at it — and the same §9.4.2 fact
+/// [`VectorEditError::DeleteWouldMoveNextRun`] already refuses on.
+///
+/// # Errors
+///
+/// [`VectorEditError::TextRunOutOfRange`],
+/// [`VectorEditError::TextRunHasNoPositionOfItsOwn`],
+/// [`VectorEditError::MoveWouldMoveNextRun`],
+/// [`VectorEditError::DegenerateCtm`],
+/// [`VectorEditError::DegenerateTextMatrix`].
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_core::content::ContentStream;
+/// use pdfcer_core::vector::{decompose, NoXObjects, Matrix, VectorObject};
+/// use pdfcer_core::vector::edit::plan_move_text_run;
+///
+/// let src = b"BT /F1 10 Tf 1 0 0 1 10 700 Tm (A) Tj 1 0 0 1 10 680 Tm (B) Tj ET".to_vec();
+/// let cs = ContentStream::parse(src).unwrap();
+/// let model = decompose(&cs, Matrix::IDENTITY, &NoXObjects);
+/// # if let Some(VectorObject::Text(t)) = model.objects.first() {
+/// # if t.runs.len() == 2 {
+/// let VectorObject::Text(text) = &model.objects[0] else { unreachable!() };
+/// let plan = plan_move_text_run(&cs, text, 0, 5.0, 0.0).unwrap();
+/// let out = String::from_utf8_lossy(&plan.content).into_owned();
+/// // The first run's own `Tm` moved; the second run's `Tm` is absolute and
+/// // therefore untouched.
+/// assert!(out.contains("15 700 Tm"));
+/// assert!(out.contains("10 680 Tm"));
+/// # }}
+/// ```
+pub fn plan_move_text_run(
+    content: &ContentStream,
+    obj: &TextObject,
+    run_index: usize,
+    dx: f64,
+    dy: f64,
+) -> Result<PlannedEdit, VectorEditError> {
+    // The pre-check IS the guard — see `text_run_move_refusal`.
+    if let Some(refusal) = text_run_move_refusal(obj, run_index) {
+        return Err(refusal);
+    }
+    let count = obj.runs.len();
+    let run = obj
+        .runs
+        .get(run_index)
+        .ok_or(VectorEditError::TextRunOutOfRange {
+            index: run_index,
+            count,
+        })?;
+
+    // Page space to user space: the LINEAR inverse, translation excluded —
+    // the same conversion `plan_move_subpath` makes, for the same reason.
+    let inv = obj.ctm.inverse().ok_or(VectorEditError::DegenerateCtm)?;
+    let d_user = inv.map_vector(Point::new(dx, dy));
+    if !d_user.is_finite() {
+        return Err(VectorEditError::DegenerateCtm);
+    }
+
+    let mut edits: Vec<(usize, usize, Vec<u8>)> = Vec::new();
+    let mut disclosures: Vec<String> = Vec::new();
+    let mut touched = 0usize;
+
+    // ---- 1. the run's own placement ------------------------------------
+    match run_placement(content, obj, run_index) {
+        RunPlacement::Absolute(item, m) => {
+            // `Tm`'s `e`/`f` ARE the user-space origin, so the user-space
+            // delta lands on them without a second conversion.
+            let moved = [m[0], m[1], m[2], m[3], m[4] + d_user.x, m[5] + d_user.y];
+            edits.push((item.byte_start(), item.byte_end(), emit_op(&moved, b"Tm")));
+        }
+        RunPlacement::Relative(item, tx, ty) => {
+            let d = text_space_delta(run.text_matrix, d_user)?;
+            edits.push((
+                item.byte_start(),
+                item.byte_end(),
+                emit_op(&[tx + d.x, ty + d.y], b"Td"),
+            ));
+        }
+        RunPlacement::Opaque => {
+            let d = text_space_delta(run.text_matrix, d_user)?;
+            let mut bytes = emit_op(&[d.x, d.y], b"Td");
+            bytes.push(b' ');
+            edits.push((run.bytes.start, run.bytes.start, bytes));
+            disclosures.push(inserted_td_disclosure());
+        }
+    }
+    touched += 1;
+
+    // ---- 2. put the run after it back ----------------------------------
+    //
+    // Step 1 translates the LINE matrix as well as the text matrix (Table
+    // 108: `Td` and `Tm` both set it), and every later `Td`/`TD`/`T*` in
+    // this object is relative to it. Without this the move would slide the
+    // whole remainder of the text object — the mirror image of the defect
+    // `DeleteWouldMoveNextRun` refuses on.
+    if let Some(next) = obj.runs.get(run_index + 1) {
+        match run_placement(content, obj, run_index + 1) {
+            // Absolute: it re-establishes both matrices from its own six
+            // operands, so nothing that happened before it survives. This is
+            // the common shape on CAD output and costs no bytes at all.
+            RunPlacement::Absolute(..) => {}
+            RunPlacement::Relative(item, tx, ty) => {
+                let d = text_space_delta(next.text_matrix, d_user)?;
+                edits.push((
+                    item.byte_start(),
+                    item.byte_end(),
+                    emit_op(&[tx - d.x, ty - d.y], b"Td"),
+                ));
+                touched += 1;
+            }
+            RunPlacement::Opaque => {
+                let d = text_space_delta(next.text_matrix, d_user)?;
+                let mut bytes = vec![b' '];
+                bytes.extend_from_slice(&emit_op(&[-d.x, -d.y], b"Td"));
+                edits.push((run.bytes.end(), run.bytes.end(), bytes));
+                disclosures.push(inserted_td_disclosure());
+                touched += 1;
+            }
+        }
+    }
+
+    Ok(PlannedEdit {
+        content: splice(&content.buf, &mut edits),
+        operators_touched: touched,
+        disclosures,
     })
 }
 

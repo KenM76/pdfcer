@@ -550,3 +550,262 @@ fn text_run_delete_on_the_last_run_removes_the_text_object() {
     );
     let _ = std::fs::remove_file(&out_path);
 }
+
+// ---------------------------------------------------------------------------
+// `text-run-move` — one line of a title block, not the block (`G017`)
+// ---------------------------------------------------------------------------
+
+fn forms_fixture(name: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/synthetic/forms-xobject")
+        .join(name)
+}
+
+/// **The verb, end to end.** One run moves; the object keeps its run count and
+/// its decoded text, because a move is not a delete and must not look like one
+/// to anything downstream.
+#[test]
+fn text_run_move_moves_one_run_and_keeps_the_rest() {
+    let src = text_fixture("runs-td-relative.pdf");
+    let before = stdout(&run("object-list", &[src.to_str().unwrap()]));
+    assert!(
+        before.contains("runs=3"),
+        "the fixture must start with three runs: {before}",
+    );
+
+    let out_path = temp_path("textrunmove");
+    let out = run(
+        "text-run-move",
+        &[
+            src.to_str().unwrap(),
+            "--object",
+            "0",
+            "--run",
+            "1",
+            "--dx",
+            "7",
+            "--dy",
+            "-3",
+            "-o",
+            out_path.to_str().unwrap(),
+            "--verify-undo",
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr),
+    );
+    let line = stdout(&out);
+    assert!(line.contains("object=0 run=1 dx=7 dy=-3"), "{line}");
+    assert!(
+        line.contains("undo_identical=1"),
+        "the move must undo byte-identically: {line}",
+    );
+
+    let after = stdout(&run("object-list", &[out_path.to_str().unwrap()]));
+    assert!(
+        after.contains("runs=3"),
+        "a move must not change the run count: {after}",
+    );
+    let _ = std::fs::remove_file(&out_path);
+}
+
+/// A negative delta parses rather than being taken for a flag — the same
+/// `allow_negative_numbers` trap every other move subcommand has.
+///
+/// `--dy -3` above already covers one; this pins `--dx` too, because the two
+/// are separate `#[arg]` attributes and only one of them being right is a real
+/// and silent way to ship half the fix.
+#[test]
+fn text_run_move_accepts_a_negative_dx() {
+    let out_path = temp_path("textrunmoveneg");
+    let out = run(
+        "text-run-move",
+        &[
+            text_fixture("runs-td-relative.pdf").to_str().unwrap(),
+            "--object",
+            "0",
+            "--run",
+            "1",
+            "--dx",
+            "-4.5",
+            "--dy",
+            "0",
+            "-o",
+            out_path.to_str().unwrap(),
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "a negative dx must parse: {}",
+        String::from_utf8_lossy(&out.stderr),
+    );
+    let _ = std::fs::remove_file(&out_path);
+}
+
+/// The §9.4.2 guard reaches the CLI with the same sentence the GUI shows, and
+/// with the refusal exit code rather than a generic failure.
+#[test]
+fn text_run_move_refuses_when_the_next_run_would_move() {
+    let out_path = temp_path("textrunmoverefuse");
+    let out = run(
+        "text-run-move",
+        &[
+            text_fixture("runs-inherited.pdf").to_str().unwrap(),
+            "--object",
+            "0",
+            "--run",
+            "0",
+            "--dx",
+            "5",
+            "--dy",
+            "0",
+            "-o",
+            out_path.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(out.status.code(), Some(EDIT_REFUSED), "{out:?}");
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("move the whole text object"),
+        "the remedy must reach the operator: {err}",
+    );
+    assert!(
+        !out_path.exists(),
+        "a refused edit must not have written a file",
+    );
+}
+
+/// An INSERTED positioning operator is disclosed on **stderr**, so stdout
+/// stays the machine-readable record (rule 4, and the CLI's half of it).
+#[test]
+fn text_run_move_discloses_a_materialised_position_on_stderr() {
+    let out_path = temp_path("textrunmovedisclose");
+    let out = run(
+        "text-run-move",
+        &[
+            text_fixture("runs-tstar-leading.pdf").to_str().unwrap(),
+            "--object",
+            "0",
+            "--run",
+            "0",
+            "--dx",
+            "5",
+            "--dy",
+            "0",
+            "-o",
+            out_path.to_str().unwrap(),
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr),
+    );
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("no position instruction"),
+        "the materialisation must be disclosed: {err}",
+    );
+    assert!(
+        !stdout(&out).contains("no position instruction"),
+        "…and NOT on stdout, which is the parseable record: {}",
+        stdout(&out),
+    );
+    let _ = std::fs::remove_file(&out_path);
+}
+
+/// `--leaf` reaches a run inside a form XObject, and the shared-stream reach
+/// is printed — the container that matters, since a SolidWorks title block IS
+/// a form.
+#[test]
+fn text_run_move_reaches_inside_a_form_and_reports_the_reach() {
+    let out_path = temp_path("textrunmoveleaf");
+    let out = run(
+        "text-run-move",
+        &[
+            forms_fixture("title-block-form.pdf").to_str().unwrap(),
+            "--leaf",
+            "1",
+            "--run",
+            "1",
+            "--dx",
+            "3",
+            "--dy",
+            "0",
+            "-o",
+            out_path.to_str().unwrap(),
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr),
+    );
+    let line = stdout(&out);
+    assert!(line.contains("leaf=1 run=1"), "{line}");
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains('2'),
+        "the form is drawn twice and the operator must be told: {err}",
+    );
+    let _ = std::fs::remove_file(&out_path);
+}
+
+/// `--object` and `--leaf` name different lists, so passing both is refused
+/// rather than resolved by precedence.
+#[test]
+fn text_run_move_refuses_object_and_leaf_together() {
+    let out_path = temp_path("textrunmoveboth");
+    let out = run(
+        "text-run-move",
+        &[
+            forms_fixture("title-block-form.pdf").to_str().unwrap(),
+            "--object",
+            "0",
+            "--leaf",
+            "1",
+            "--run",
+            "0",
+            "--dx",
+            "1",
+            "--dy",
+            "0",
+            "-o",
+            out_path.to_str().unwrap(),
+        ],
+    );
+    assert!(!out.status.success(), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("exactly one"),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr),
+    );
+}
+
+/// `text-run-delete --leaf` — the second row of `G017`: until now nothing
+/// inside a form could be deleted below whole-object granularity.
+#[test]
+fn text_run_delete_reaches_inside_a_form() {
+    let out_path = temp_path("textrundelleaf");
+    let out = run(
+        "text-run-delete",
+        &[
+            forms_fixture("title-block-form.pdf").to_str().unwrap(),
+            "--leaf",
+            "1",
+            "--run",
+            "2",
+            "-o",
+            out_path.to_str().unwrap(),
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr),
+    );
+    assert!(stdout(&out).contains("leaf=1 run=2"), "{}", stdout(&out));
+    let _ = std::fs::remove_file(&out_path);
+}

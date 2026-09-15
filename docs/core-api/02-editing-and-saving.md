@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 227 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 232 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,14 +69,16 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 227 public `EditSession` methods
+## 1. Verb index — all 232 public `EditSession` methods
 
-**Count: 227.** Established by brace-matched extraction of the five
+**Count: 232.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
-figure at 120 when `add_outline_item` landed.
+figure at 120 when `add_outline_item` landed, and caught it again at 227 when
+`G017` added five (`move_text_run`, `move_text_run_in_form`,
+`delete_text_run_in_form`, `delete_subpath_in_form`, `delete_node_in_form`).
 There are no `EditSession` methods in any other file
-(`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those five lines only).
+(`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
 > ### ★ THIS COUNT SAID 108 AND HAD DRIFTED BY EXACTLY EIGHT
 >
@@ -1085,12 +1087,23 @@ decomposes, edits, and decomposes again — this is not read off the planners):
 | family | mechanism | renumbers? |
 |---|---|---|
 | `move_object` · `move_objects` · `move_subpath` · `move_node` · `move_nodes` · `move_handle` | rewrites operator **operands** in place | **NO** |
+| `move_text_run` | rewrites operands, and where there are none to rewrite **inserts** a `Td` | **NO** — measured in `crates/pdfcer-core/tests/text_run_move.rs` |
 | `delete_object` · `delete_objects` · `delete_subpath` · `delete_node` · `delete_text_run` | excises byte **spans** | **YES** |
 
 **A move changes numbers inside existing operators**, so no operator is added
 or removed, the decomposition walks the same operators in the same order, and
 indices are stable. **Build move, resize and node editing on indices — a
 selection survives them unchanged.**
+
+★ **`move_text_run` is the one move that can add an operator, and it still
+does not renumber.** Where the producer wrote nothing adjustable — a `TD`,
+whose second operand *is* the leading, or a bare `T*` — it inserts a `Td`
+rather than nudging something that means two things at once. An inserted
+positioning operator is not a show operator, so `TextObject::runs` has the
+same length in the same order and **run N is still run N**. That is asserted,
+not asserted-about: `moving_a_run_renumbers_neither_the_objects_nor_the_runs`
+runs against the fixture that takes the insert path, because the fixture that
+only rewrites operands could not fail it.
 
 **For the delete family, remap:**
 
@@ -1133,6 +1146,8 @@ said nothing about identity across edits — this section is that gap closed.*
 | Delete one subpath | `delete_subpath(page_index, object_index, subpath_index)` | 4770 |
 | Delete one show operator (text run) | `delete_text_run(page_index, object_index, run_index)` | 4825 |
 | Move one subpath | `move_subpath(page_index, object_index, subpath_index, dx, dy)` | 4875 |
+| Move one show operator (text run) | `move_text_run(page_index, object_index, run_index, dx, dy)` | — |
+| Ask whether that move will be refused, and why | `vector::text_run_move_refusal(&TextObject, run_index) -> Option<VectorEditError>` | — |
 | Drag one anchor node | `move_node(page_index, object_index, node_index, to: Point)` | 4939 |
 | Drag a multi-node selection, ONE undo entry | `move_nodes(page_index, object_index, moves: &[(usize, Point)])` | 5001 |
 | Drag a Bézier control point | `move_handle(page_index, object_index, node_index, handle: Handle, to: Point)` | 5057 |
@@ -1157,7 +1172,7 @@ drawing has 129,758 and **10,256**; a 36-sheet SolidWorks set has 5,903 and
 and on the operator's own drawings everything was — which is why this had never
 been reported as a defect.
 
-Six verbs, addressed by an index into `PageObjects::leaves`:
+**Ten** verbs, addressed by an index into `PageObjects::leaves`:
 
 | I want to… | Call |
 |---|---|
@@ -1166,9 +1181,25 @@ Six verbs, addressed by an index into `PageObjects::leaves`:
 | Drag a Bézier handle | `move_handle_in_form(page_index, leaf_index, node_index, handle, to: Point)` |
 | Move one subpath | `move_subpath_in_form(page_index, leaf_index, subpath_index, dx, dy)` |
 | Move whole objects | `move_objects_in_form(page_index, leaf_indices: &[usize], dx, dy)` |
+| **Move one show operator (text run)** | `move_text_run_in_form(page_index, leaf_index, run_index, dx, dy)` |
 | Delete objects | `delete_objects_in_form(page_index, leaf_indices: &[usize])` |
+| **Delete one subpath** | `delete_subpath_in_form(page_index, leaf_index, subpath_index)` |
+| **Delete one anchor node** | `delete_node_in_form(page_index, leaf_index, node_index)` |
+| **Delete one show operator (text run)** | `delete_text_run_in_form(page_index, leaf_index, run_index)` |
 
-All six return `FormSurgeryOutcome` rather than `Vec<String>`, because there is
+★★ **The bottom four arrived together (`G017`), and the reason is the shape of
+what was missing.** The original six were *five moves plus one whole-object
+delete*, so inside a form the Part and Node rungs could **move and not
+delete**, while the same rungs on page content could do both — and text had
+neither half. An asymmetry in one direction is a gap; an asymmetry that runs
+the opposite way inside a different container is a trap, because the operator
+learns a rule on page content and it stops being true the moment the same
+content is inside a title block.
+
+⚠ **On a SolidWorks set the title block IS a form**, drawn on every sheet, so
+this is not an edge of the API — it is where most of a drawing's text lives.
+
+All ten return `FormSurgeryOutcome` rather than `Vec<String>`, because there is
 one more thing to say — see below.
 
 **Coordinates stay in PAGE space.** `to`, `dx` and `dy` mean exactly what they

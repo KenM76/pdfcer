@@ -264,6 +264,66 @@ def inherited_resources_shared_form() -> bytes:
     ])
 
 
+def title_block_form() -> bytes:
+    """★ A form XObject holding a TEXT object with three runs, drawn TWICE.
+
+    The only fixture in this directory with text inside a form, and the reason
+    it exists is `G017`: **on a SolidWorks set the title block IS a form**,
+    drawn on every sheet, and one ``BT``...``ET`` inside it holds every string
+    it shows. Every other fixture here is paths, so a text verb scoped to
+    forms could be shipped, could be "tested", and could not be exercised.
+
+    Three runs, deliberately in the two placement shapes a title block
+    actually uses -- an opening ``Tm``, then ``Td`` for each line beneath it:
+
+        run 0  ``(DWG 1234)``  Explicit, via ``Tm``
+        run 1  ``(REV A)``     Explicit, via ``Td``
+        run 2  ``(SHEET 1)``   Explicit, via ``Td``
+
+    Nothing inherits, so the move verb's §9.4.2 refusals are out of the way
+    and what is left under test is the form-space conversion itself.
+
+    It also carries the title block's RULES -- one path object holding two
+    subpaths (``0 0 m 45 0 l 90 0 l 0 30 m 90 30 l S``), four anchors between them.
+    That is not decoration: `G017`'s second row is that the in-form family
+    shipped five moves and one whole-object delete, so inside a form the Part
+    and Node rungs could move and could not delete. Closing that needs a form
+    fixture with a real polyline in it, and every other one in this directory
+    draws rectangles, whose corners are not node-editable at all.
+
+    Invoked twice at different offsets, because a form's stream is SHARED: one
+    edit inside it changes every place it is drawn, and ``invocations`` is the
+    count a shell has to show before the operator finds out by scrolling.
+    Non-embedded Helvetica (§9.6.2.2) in the FORM's own ``/Resources``, not the
+    page's -- a form that borrowed the page's font would not prove the
+    decomposer reaches the right dictionary.
+    """
+    form = (
+        b"0.5 w 0 0 0 RG\n"
+        b"0 0 m 45 0 l 90 0 l 0 30 m 90 30 l S\n"
+        b"BT\n/F1 6 Tf\n"
+        b"1 0 0 1 4 22 Tm\n(DWG 1234) Tj\n"
+        b"0 -8 Td\n(REV A) Tj\n"
+        b"0 -8 Td\n(SHEET 1) Tj\n"
+        b"ET\n"
+    )
+    page = b"q 1 0 0 1 20 150 cm /Fm0 Do Q\nq 1 0 0 1 20 20 cm /Fm0 Do Q\n"
+    return assemble([
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] "
+        b"/Resources << /XObject << /Fm0 5 0 R >> >> /Contents 4 0 R >>",
+        stream(b"", page),
+        stream(
+            b"/Type /XObject /Subtype /Form /BBox [0 0 90 30] "
+            b"/Resources << /Font << /F1 6 0 R >> >>",
+            form,
+        ),
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica "
+        b"/Encoding /WinAnsiEncoding >>",
+    ])
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     for name, data in {
@@ -274,6 +334,7 @@ def main() -> None:
         "scaled-form-placement.pdf": scaled_form_placement(),
         "shared-across-two-pages.pdf": shared_across_two_pages(),
         "inherited-resources-shared-form.pdf": inherited_resources_shared_form(),
+        "title-block-form.pdf": title_block_form(),
     }.items():
         (OUT / name).write_bytes(data)
         print(f"wrote {OUT / name}  ({len(data)} bytes)")

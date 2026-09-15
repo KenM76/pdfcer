@@ -85,8 +85,8 @@ pub use edit::{
     Handle, MixedSelection, PlannedEdit, SingularPolicy, TransformOptions, VectorEditError,
     anchor_count, plan_delete, plan_delete_many, plan_delete_node, plan_delete_subpath,
     plan_delete_text_run, plan_move, plan_move_handle, plan_move_many, plan_move_node,
-    plan_move_nodes, plan_move_subpath, plan_recolour, plan_transform_many,
-    remap_index_after_delete,
+    plan_move_nodes, plan_move_subpath, plan_move_text_run, plan_recolour, plan_transform_many,
+    remap_index_after_delete, text_run_move_refusal,
 };
 pub use geometry::{Bounds, Matrix, Point, Rgb, cubic_from_v, cubic_from_y, rect_corners};
 pub use hit::{

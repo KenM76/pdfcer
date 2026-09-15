@@ -964,6 +964,17 @@ pub enum CommandKind {
     /// construction operands were translated while the object's other
     /// subpaths kept their exact bytes. See [`EditSession::move_subpath`].
     MoveSubpath,
+    /// ONE show operator was moved inside a text object (`G017`): its
+    /// positioning operator's operands were translated — or a `Td` inserted
+    /// where there was none to translate — while every other run inside the
+    /// same `BT`…`ET` kept its exact bytes and its exact place.
+    ///
+    /// Its own kind rather than a reuse of [`Self::MoveObject`], for the
+    /// reason [`Self::DeleteTextRun`] is its own kind: *"moved one line of
+    /// the title block"* and *"moved the title block"* are different things
+    /// to read in a history, and on CAD output the second is what the first
+    /// used to do. See [`EditSession::move_text_run`].
+    MoveTextRun,
     /// ONE **anchor** was removed from a path object (Pass 36.1): the segment
     /// operator that produced it was excised (or, for a subpath's first
     /// anchor, its follower was promoted to the new `m`), joining its
@@ -14064,6 +14075,91 @@ impl EditSession {
         })
     }
 
+    /// **Move ONE text run** — one show operator — inside a text object by a
+    /// page-space `(dx, dy)`, leaving every other run inside the same
+    /// `BT`…`ET` byte-verbatim and in its original place (`G017`).
+    ///
+    /// The twin [`Self::delete_text_run`] has implied since `Pass 32.0`, and
+    /// the last part kind in the crate to be missing one: a subpath and an
+    /// anchor could each already be moved and deleted, a run could only be
+    /// deleted. A shell resolving a drag on one line of a title block had no
+    /// call to make and declined the gesture.
+    ///
+    /// `run_index` is into
+    /// [`TextObject::runs`](crate::vector::TextObject::runs) in content order
+    /// — the same numbering [`Self::delete_text_run`] and
+    /// [`hit_test_text_runs`](crate::vector::hit_test_text_runs) already use,
+    /// so no new index space. **Nothing renumbers**: the edit rewrites
+    /// operands and inserts at most two operators, so a run's index means the
+    /// same thing after the move as before it.
+    ///
+    /// `dx`/`dy` are **page-space**, exactly as for [`Self::move_subpath`] and
+    /// [`Self::move_node`]. The composition through the CTM *and* the text
+    /// matrix is this verb's, not the caller's.
+    ///
+    /// ⚠ The text on a CAD title block is **pdf dimensions** (rule 15) — page
+    /// content the exporter wrote. This moves it; it does not re-measure it,
+    /// and it is not related to pdfcer's own ce dimensions.
+    ///
+    /// # Pre-checking, so the remedy can precede the gesture
+    ///
+    /// [`text_run_move_refusal`](crate::vector::text_run_move_refusal) is the
+    /// guard this verb runs, exported. A shell calls it to grey a handle or
+    /// word a hint *before* the drag rather than after it — and because it is
+    /// the same function rather than a description of one, the two cannot
+    /// come to disagree (`R221`).
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::VectorEdit`] wrapping
+    /// [`TextRunOutOfRange`](crate::vector::VectorEditError::TextRunOutOfRange),
+    /// [`TextRunHasNoPositionOfItsOwn`](crate::vector::VectorEditError::TextRunHasNoPositionOfItsOwn)
+    /// (the run inherits its origin from the previous run's advance, §9.4.2,
+    /// so there is no coordinate to move),
+    /// [`MoveWouldMoveNextRun`](crate::vector::VectorEditError::MoveWouldMoveNextRun)
+    /// (the run AFTER it does, so moving this one would drag that one along —
+    /// the move-side twin of
+    /// [`DeleteWouldMoveNextRun`](crate::vector::VectorEditError::DeleteWouldMoveNextRun)),
+    /// [`DegenerateCtm`](crate::vector::VectorEditError::DegenerateCtm) or
+    /// [`DegenerateTextMatrix`](crate::vector::VectorEditError::DegenerateTextMatrix);
+    /// plus [`EditError::NotAPath`]'s text-object counterpart for a non-text
+    /// target, [`EditError::PageOutOfRange`],
+    /// [`EditError::VectorEditNoContents`], [`EditError::VectorEditContent`],
+    /// [`EditError::DocumentEncrypted`],
+    /// [`EditError::CertificationForbidsChange`]. Every refusal happens
+    /// before any mutation (rule 4).
+    ///
+    /// # Returns
+    ///
+    /// The operator-facing [disclosures](crate::vector::PlannedEdit::disclosures)
+    /// the surgery owes — **empty** when the run and its successor were both
+    /// placed by operands this could adjust, and otherwise one sentence per
+    /// inserted positioning operator. The caller must surface them: the page
+    /// looks identical and the bytes are not recoverable by dragging back,
+    /// which is exactly what rule 4 forbids finding out from a diff.
+    pub fn move_text_run(
+        &mut self,
+        page_index: usize,
+        object_index: usize,
+        run_index: usize,
+        dx: f64,
+        dy: f64,
+    ) -> Result<Vec<String>, EditError> {
+        self.vector_surgery(CommandKind::MoveTextRun, page_index, |stream, model| {
+            let count = model.objects.len();
+            let obj = model.objects.get(object_index).ok_or(
+                crate::vector::VectorEditError::ObjectOutOfRange {
+                    index: object_index,
+                    count,
+                },
+            )?;
+            let text = vector_object_as_text(obj, object_index)?;
+            Ok(crate::vector::plan_move_text_run(
+                stream, text, run_index, dx, dy,
+            )?)
+        })
+    }
+
     /// **Drag** the anchor node `node_index` of the path object at paint-order
     /// `object_index` on page `page_index` to the page-space point `to`, as
     /// one undoable command (decision 011 §2.5 operation 3).
@@ -14837,6 +14933,149 @@ impl EditSession {
         )
     }
 
+    /// **Move one text run inside a form XObject** — the form-scoped twin of
+    /// [`Self::move_text_run`] (`G017`).
+    ///
+    /// ★ **On a SolidWorks set the title block IS a form**, drawn on every
+    /// sheet, so the container the whole request is about is precisely the one
+    /// where a page-only verb would not reach. A page-scoped
+    /// [`Self::move_text_run`] alone would have answered the request
+    /// everywhere except where it was asked.
+    ///
+    /// Note what one call does: the form's stream is shared, so moving a run
+    /// in it moves that run on **every page the form is drawn on**.
+    /// [`FormSurgeryOutcome::invocations`] is the count that says how many,
+    /// and a shell should show it.
+    ///
+    /// `dx`/`dy` are a **page-space** delta.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::move_node_in_form`], plus every refusal
+    /// [`Self::move_text_run`] raises.
+    pub fn move_text_run_in_form(
+        &mut self,
+        page_index: usize,
+        leaf_index: usize,
+        run_index: usize,
+        dx: f64,
+        dy: f64,
+    ) -> Result<FormSurgeryOutcome, EditError> {
+        self.form_surgery_inner(
+            CommandKind::MoveTextRun,
+            page_index,
+            leaf_index,
+            |stream, model, object_index| {
+                let text = Self::leaf_as_text(model, object_index)?;
+                Ok(crate::vector::plan_move_text_run(
+                    stream, text, run_index, dx, dy,
+                )?)
+            },
+        )
+    }
+
+    /// **Delete one text run inside a form XObject** — the form-scoped twin of
+    /// [`Self::delete_text_run`] (`G017`, second row).
+    ///
+    /// # Why this arrives with a MOVE verb rather than with its own
+    ///
+    /// The crate shipped six `*_in_form` verbs and they were five moves plus
+    /// one whole-object delete, so inside a form the Part and Node rungs could
+    /// **move and not delete** while on the page they could do both. The shell
+    /// declined both gestures and pointed at the whole-shape escape.
+    ///
+    /// An asymmetry in one direction is a gap; an asymmetry that runs the
+    /// opposite way inside a different container is a trap, because the
+    /// operator learns a rule on page content and it stops being true when the
+    /// same content is inside a title block (`R245`).
+    ///
+    /// Deleting inside a shared form removes the run from **every page the
+    /// form is drawn on** — see [`Self::delete_objects_in_form`] for why that
+    /// is the one to put a count in front of.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::move_node_in_form`], plus every refusal
+    /// [`Self::delete_text_run`] raises.
+    pub fn delete_text_run_in_form(
+        &mut self,
+        page_index: usize,
+        leaf_index: usize,
+        run_index: usize,
+    ) -> Result<FormSurgeryOutcome, EditError> {
+        self.form_surgery_inner(
+            CommandKind::DeleteTextRun,
+            page_index,
+            leaf_index,
+            |stream, model, object_index| {
+                let text = Self::leaf_as_text(model, object_index)?;
+                Ok(crate::vector::plan_delete_text_run(
+                    stream, text, run_index,
+                )?)
+            },
+        )
+    }
+
+    /// **Delete one subpath inside a form XObject** — the form-scoped twin of
+    /// [`Self::delete_subpath`] (`G017`, second row).
+    ///
+    /// The delete half of [`Self::move_subpath_in_form`]; see
+    /// [`Self::delete_text_run_in_form`] for why the pair had to arrive
+    /// together.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::move_subpath_in_form`], with the subpath-delete refusals in
+    /// place of the move ones.
+    pub fn delete_subpath_in_form(
+        &mut self,
+        page_index: usize,
+        leaf_index: usize,
+        subpath_index: usize,
+    ) -> Result<FormSurgeryOutcome, EditError> {
+        self.form_surgery_inner(
+            CommandKind::DeleteSubpath,
+            page_index,
+            leaf_index,
+            |stream, model, object_index| {
+                let path = Self::leaf_as_path(model, object_index)?;
+                Ok(crate::vector::plan_delete_subpath(
+                    stream,
+                    path,
+                    subpath_index,
+                )?)
+            },
+        )
+    }
+
+    /// **Delete one anchor inside a form XObject** — the form-scoped twin of
+    /// [`Self::delete_node`] (`G017`, second row).
+    ///
+    /// The delete half of [`Self::move_node_in_form`]; see
+    /// [`Self::delete_text_run_in_form`] for why the pair had to arrive
+    /// together.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::move_node_in_form`], with the node-delete refusals in place
+    /// of the move ones.
+    pub fn delete_node_in_form(
+        &mut self,
+        page_index: usize,
+        leaf_index: usize,
+        node_index: usize,
+    ) -> Result<FormSurgeryOutcome, EditError> {
+        self.form_surgery_inner(
+            CommandKind::DeleteNode,
+            page_index,
+            leaf_index,
+            |stream, model, object_index| {
+                let path = Self::leaf_as_path(model, object_index)?;
+                Ok(crate::vector::plan_delete_node(stream, path, node_index)?)
+            },
+        )
+    }
+
     /// **Translate whole objects inside a form XObject** — the form-scoped
     /// twin of [`Self::move_objects`] (`Pass 188.0`).
     ///
@@ -14972,6 +15211,24 @@ impl EditSession {
             out.push(leaf.form_object_index);
         }
         Ok(out)
+    }
+
+    /// A leaf's object as a text object, or the planner's own refusal.
+    ///
+    /// The text-side twin of [`Self::leaf_as_path`], and separate for the same
+    /// reason: the index in the refusal is an **in-form** index.
+    fn leaf_as_text(
+        model: &crate::vector::PageObjects,
+        object_index: usize,
+    ) -> Result<&crate::vector::TextObject, crate::vector::VectorEditError> {
+        let count = model.objects.len();
+        let obj = model.objects.get(object_index).ok_or(
+            crate::vector::VectorEditError::ObjectOutOfRange {
+                index: object_index,
+                count,
+            },
+        )?;
+        vector_object_as_text(obj, object_index)
     }
 
     /// A leaf's object as a path, or the planner's own refusal.

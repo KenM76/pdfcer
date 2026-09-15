@@ -115,6 +115,53 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 305.0` (commit pending — not yet committed at filing time, 2026-09-14) — `G017`: `move_text_run`, its in-form twin, and the three missing `*_in_form` deletes
+
+`move_text_run`/`move_text_run_in_form` complete the text-run family — every other part kind (subpath, node) already had both a move and a delete verb; a text run could only be deleted, so `pdfcer-gui` resolved a drag on one line of a title block and found no verb to call. Three placement paths, decided per run: a `Tm`'s `e`/`f` is rewritten (user-space origin); a `Td`'s `tx`/`ty` is rewritten (text-space); for `TD`, `T*`, `'`, `"`, or `BT`'s implicit identity — none of which is a rewritable relative pair — a `Td` is INSERTED immediately before the run's show operator instead, and the insertion is disclosed (rule 4). `TD` is deliberately in the third group, not treated like `Td`: Table 108 defines it as `−ty TL` then `tx ty Td`, so nudging its `ty` as an ordinary relative offset would silently re-space every later `T*` in the object — a new empirical finding, `C:\personal_rag\pdf\lesson_20260914_td_conflates_leading_and_position_so_rewriting_its_ty_silently_respaces_every_later_tstar.md`.
+
+The run AFTER the moved one is compensated (both `Td` and `Tm` set the LINE matrix that every later relative operator hangs off), and `RunPositioning::Inherited` is refused on either side — `TextRunHasNoPositionOfItsOwn`/`MoveWouldMoveNextRun`, deliberately not reusing `DeleteWouldMoveNextRun`'s sentence for the identical fact, because delete's remedy ("do the later one first") never works for a move. Same posture as decision 027 (refuse what has no good reading; estimating a font's advance metrics to synthesise a position would be silently wrong sometimes) — cited, not re-opened, no new decision number. Exported pre-check `vector::text_run_move_refusal` is the planner's own guard (`R221`/`R243`), asserted byte-identical to the planner's own refusal sentence over a four-case fixture, not a second description of the rule.
+
+**Second row of the request taken together, not split.** The `*_in_form` family was five moves plus one whole-object delete — inside a form the subpath/node/text-run rungs could move and not delete, the OPPOSITE asymmetry from page content, which could do both (`R245`'s shape: a guard or verb reaching one member of a family reaches the family — 10th dated instance, *Standing rules* below). Four verbs added: `move_text_run_in_form`, `delete_text_run_in_form`, `delete_subpath_in_form`, `delete_node_in_form`. **Ten `*_in_form` verbs now, not six**, all returning `FormSurgeryOutcome`.
+
+Substrate: `TextRun` gained `text_matrix: Matrix` (the `Tm` in effect at the run's origin) — the decomposer computed it per run and discarded it. A drag on text crosses both the CTM and the run's own text matrix (§9.4.4's `Trm = params × Tm × CTM`); an implementation converting through the CTM only is correct on every axis-aligned fixture and wrong on a rotated one, pinned by the new `fixtures/synthetic/text/runs-rotated-td.pdf`.
+
+**CLI (rule 11):** `pdfcer text-run-move <in> [--object N | --leaf N] --run N --dx X --dy Y -o <out>`; `text-run-delete` gained `--leaf`.
+
+**New synthetic fixtures (rule 7):** `text/runs-td-relative.pdf`, `text/runs-tstar-leading.pdf`, `text/runs-rotated-td.pdf`, and `forms-xobject/title-block-form.pdf` — the first fixture in that directory carrying text inside a form, and the first three-anchor polyline there too (needed because a rectangle's corners are not node-editable, so `delete_node_in_form` had no legal target without it).
+
+Answers `request_G017_move_text_run_the_missing_twin_of_delete_text_run.md` (`pdfce_FeatureRequests`); reply `reply_G017_move_text_run_SHIPPED_with_its_in_form_twin_and_the_three_missing_deletes.md`.
+
+**Verified:** `cargo test --workspace` exit 0, zero failures; `cargo clippy --workspace --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean. `R225`: four sabotages, each turning a different test red (dropping successor compensation; converting through the CTM only; reclassifying `TD` as a relative pair; dropping the successor-inherits guard). **One real defect found and fixed during the work**: the token-gap search used `prev.tokens.end + 1`, but `TextRun::tokens.end` is EXCLUSIVE — a `Td`/`Tm` read as malformed by that off-by-one was classified opaque and moved by insertion instead of rewrite. The page rendered correctly and the bytes came out long; caught only because byte-shape assertions ran alongside the geometry ones.
+
+**Not built:** a `move_text_runs(first..=last)` range verb — the escape hatch from the `Inherited` refusal, for moving an inherited run together with its anchor, named but not built pending evidence the refusal is common on real files. `Tz`/`Tc` untouched — a move changes position only. `TextRun` was not made `#[non_exhaustive]` while adding a field to it; flagged to `pdfcer-gui` as the only consumer's call.
+
+**`docs/FEATURES.md`:** new "Move one text run…" row (Text section); "Edit geometry INSIDE a form XObject" row corrected in three places (ten verbs not six; text now editable in-form too; CLI-caller count re-measured at six of ten lacking one, not four of six) — see Ledger.
+
+Do **not** edit `docs/core-api/02-editing-and-saving.md` for this Pass — the requesting engineer already updated its renumbering table, verb table and in-form table themselves, citing `crates/pdfcer-core/tests/text_run_move.rs`.
+
+**Sourcing (hard rule 8) — no shell this filing, and the work is not yet committed.** Full account taken from the requesting engineer's own reply document. Independently confirmed against the live working tree via `Read`/`Grep`: `crates/pdfcer-core/src/edit.rs` (`move_text_run`, `move_text_run_in_form`, `delete_text_run_in_form`, `delete_subpath_in_form`, `delete_node_in_form`), `crates/pdfcer-core/src/vector/edit.rs` (`text_run_move_refusal`, `TextRunHasNoPositionOfItsOwn`, `MoveWouldMoveNextRun`, `plan_move_text_run`), `crates/pdfcer-core/src/vector/decompose.rs` (`TextRun::text_matrix`), the four named fixtures, and `crates/pdfcer-core/tests/text_run_move.rs` all present at HEAD of the working tree. **The FEATURES.md CLI-caller count was re-measured independently, not taken on the reply's own arithmetic** (`R221`'s discipline): `crates/pdfcer-cli/src/main.rs` calls exactly four of the ten `*_in_form` verbs. Test/clippy/fmt results relayed from the requesting engineer's report, not independently re-run (no shell) — and no commit hash exists yet: the operator asked that this not be committed, to be folded into a later commit of their own.
+
+### Part — owed work, discharged and new
+
+**Discharged this filing:** none.
+
+**New, this filing:** none.
+
+**Carried forward, unchanged:** items 5, 14, 34.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `304` (highest ID `304.0`), next free family `305` | **`305` used (`Pass 305.0`), next free family `306`** |
+| Standing rules | `R256`, next free `R257` | **unchanged** — `R245` gains a 10th dated instance (dated footer, no re-mint) |
+| Decision records | `156` | **unchanged** — cites existing decision 027 (refuse what has no good reading) for the refuse-vs-compensate split; no crate-boundary or invariant change, no new number |
+| `SESSION_LOG` filings | `551` | **`552`** |
+| `docs/FEATURES.md` | — | **new "Move one text run…" row (Text section); "Edit geometry INSIDE a form XObject" row corrected in three places** — see body above |
+| `C:\personal_rag\pdf\` | 232 lesson files | **233** — new empirical finding: `TD` sets leading then translates (Table 108), so rewriting its `ty` operand to reposition a run silently re-spaces every later `T*` in the same text object |
+
+---
+
 ### `Pass 304.0` (`2a862742`, 2026-09-14) — one visual line spans across show operators again, even when a CAD exporter restates `Tz` and nudges `Td`'s vertical between fragments
 
 SolidWorks (and CAD exporters generally) can write one visual line of note text as **several show operators**, each restating `Tz` and nudging `Td`'s vertical component by a float round-trip between fragments — the same producer-derived line, re-emitted through slightly different code paths. `text_edit/edit.rs`'s `spannable` compared horizontal scaling with `==` and the span walk required `Td`'s `ty` to be exactly `0.0`, so the span-editing route refused any text that crossed a fragment boundary on such a file, even though the fragments render as one obvious line.
@@ -27192,6 +27239,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - `R245` — A GUARD, KEY OR DISCLOSURE ADDED TO ONE MEMBER OF A FAMILY OF PARALLEL VERBS IS NOT SHIPPED UNTIL A TEST ITERATES THE WHOLE FAMILY.
 - **`R245` — DATED INSTANCE NOTE, 2026-09-11 (509th filing, `Pass 296.3`): THE LITERAL-SEARCH-VS-PATTERN-SEARCH REDACTION-DISCLOSURE PAIR PRODUCED THIS SHAPE A SECOND TIME — EIGHTH DATED INSTANCE.**
 - **`R245` — DATED INSTANCE NOTE, 2026-09-13 (540th filing, `Pass 302.1`, `919b0f0`): NINTH DATED INSTANCE — `RecoveryReport::objects_dropped` (`Pass 302.0`) WAS AN AFFORDANCE ON THE REPORT ENTRY POINT WITH NO CONSUMER ON THE CLI'S OWN PRINT FUNCTION, THE SAME SHAPE `Pass 283.1` NAMED FOR `load_with_options`'S TWO ENTRY POINTS. ★ THIS FOOTER WAS CLAIMED BY THE 539TH FILING'S OWN LEDGER AND NOT ACTUALLY WRITTEN UNTIL NOW — A CLAIM OUTLIVING THE EDIT THAT WAS SUPPOSED TO MAKE IT TRUE, ONE FILING DEEP.**
+- **`R245` — DATED INSTANCE NOTE, 2026-09-14 (552nd filing, `Pass 305.0`, `G017`): TENTH DATED INSTANCE, RUNNING THE OPPOSITE DIRECTION FROM THE NINTH — THE `*_in_form` FAMILY HAD FIVE MOVE VERBS AND ONLY ONE DELETE VERB, SO A SUBPATH/NODE/TEXT-RUN COULD BE MOVED BUT NOT DELETED INSIDE A FORM WHILE THE SAME KIND ON PAGE CONTENT COULD DO BOTH.** An asymmetry running the opposite way inside a different container is a trap, not merely a gap: the operator learns a rule on page content and it stops holding the moment the same content sits inside a title block. Closed by adding `delete_subpath_in_form`/`delete_node_in_form`/`delete_text_run_in_form` alongside the new `move_text_run_in_form`, all four in the same Pass rather than split across sessions.
 - `R246` — A CORRECTION IS NOT COMPLETE UNTIL IT REACHES EVERY CORPUS THIS PROJECT *READS*, NOT MERELY EVERY TREE IT *WRITES*.
 - `R247` — A DOC COMMENT STATING A BEHAVIOURAL GUARANTEE ("ONLY X IS TOUCHED", "NEVER Y", "ALWAYS Z", "CANNOT CORRUPT W") IS AN UNENFORCED CLAIM UNTIL A TEST EXISTS THAT WOULD FAIL IF IT WERE VIOLATED.
 - **`R247` — DATED INSTANCE NOTE, 2026-09-13 (534th filing, THIRD INSTANCE, `Pass 301.2`, `52a0ccd`).** `survey_standard_14`'s own doc comment asserted "the answer here and the outcome of the later `set_font` cannot disagree" — unenforced, and false for every page carrying a subset of a standard-14 name. Also the twelfth reconciled `R221` instance on the same line (see `R221`'s own dated note, above) — the same incident satisfies both rules for two different reasons: `R221` explains why the two answers diverged, this rule explains why nobody noticed. Full account appended to `D:\dev\rag\rust\a_doc_comment_stating_a_behavioural_guarantee_is_unenforced_until_a_test_would_fail_without_it.md`. No re-mint; ceiling unchanged.
