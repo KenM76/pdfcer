@@ -5,7 +5,7 @@ detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
 **Written:** 2026-09-12, after `Pass 300.3` and the 530th filing.
-**Amended:** 2026-09-15, after `Pass 306.0` and the 554th filing. See **SINCE THE LAST HANDOFF** at the top of STATE —
+**Amended:** 2026-09-15 (again), after `Pass 307.0`, `Pass 308.0` and `308.2`, and the 557th filing. See **SINCE THE LAST HANDOFF** at the top of STATE —
 everything below that block is carried forward unchanged and still true.
 
 ---
@@ -157,6 +157,110 @@ push, and the sweep would have caught it** — `run-gates.sh` reports this gate.
    intended direction is down. Both rows over cap on 2026-09-15 were trimmed
    by deleting reasoning that already lived in `ROADMAP.md` and the commit
    message — no fact was lost, which is the test for whether a trim is honest.
+
+### ★★★ SINCE THE LAST HANDOFF — 2026-09-15, later (`Pass 307.0`, `308.0`, `308.2`)
+
+Everything after this block is carried forward unchanged. Two requests arrived
+from `pdfcer-gui` within minutes of each other and both shipped the same
+session: `G019` (no derived tab order) and `G020` (`/MK` colours round-trip and
+are painted by nothing). Replies are in the channel's `open/`; `308.1` is the
+one piece still owed.
+
+**★★★ AND `main` WAS RED AGAIN, FOR THE THIRD TIME IN EIGHT DAYS, THE SAME
+WAY.** Red from `0b48b3e2` (the 555th filing, pushed 15:57Z) until `729cf6db`
+fixed it. The gate was `check-core-api-verbs.py`; the cause was
+`docs/core-api/index.md` still stating `03-capabilities.md`'s old line and
+clause counts after that commit grew the file. **Doc-only, no code, nothing
+about it looked like a risk** — which is now the third instance of exactly that
+sentence in this file. The librarian filed it as a dated instance of `R197`
+rather than minting a new rule, on the grounds that it is the same mechanism
+and not a new shape. ⇒ **The sweep is the control, and it works. It caught this
+one in the first minute of the session** — before any code had been written,
+because it was run before starting rather than before pushing.
+
+**`Pass 307.0` — `EditSession::page_tab_sequence`.** All six `/Tabs` states.
+`/R` and `/C` computed from `/Rect` with `/Rotate` applied and
+`/ViewerPreferences` `/Direction` honoured; `Absent` and an unknown name fall
+back to array order **as a disclosed convention**; `/S` returns an **empty**
+sequence rather than a guess. Plus `TabOrderBasis`, `TabExclusion`,
+`AnnotFlags::TOGGLE_NO_VIEW`, two settings (`widget_tab_tail`,
+`tab_row_tolerance`), the `pdfcer tab-order` subcommand, three synthetic
+fixtures, 23 core + 14 CLI tests. Decision **158**.
+
+★★ **THE REQUEST'S MEMBERSHIP RULE WAS HALF WRONG AND THE CORRECTION IS
+SOURCED.** `pdfcer-gui` asked for every annotation with the caller filtering,
+and argued it well: filtering before ordering changes which annotations fall
+into which row. Right about **subtypes**. Wrong about **flags** — §12.5.1 is
+silent, but §12.5.3 says a `Hidden` or `NoView` annotation shall not *"allow it
+to interact with the user"*, and tabbing is interaction. ⇒ *A clause being
+silent is not the standard being silent.* The exclusion was three clauses away
+from where everybody was looking, and the commissioned spec-corpus file found
+it by being asked "what excludes them?" rather than "does §12.5.1 exclude
+them?".
+
+★ **Two settings, because two things are genuinely open**, per Ken's standing
+"make spec ambiguity a setting" rule: `widget_tab_tail` (`TAB-A1` — ISO 32000-2
+contradicts itself about `/W`'s tail, measured unreported across three errata
+channels with positive controls) and `tab_row_tolerance` (1.0 pt — the standard
+states none, so the number is pdfcer's).
+
+**`Pass 308.0` + `308.2` — `/MK` `/BG` and `/BC` are baked into the `/AP`.**
+Read and write halves had both shipped; **nothing painted them**, so writing
+`/BG` changed the dictionary and nothing a person could see. R43 is why: pdfcer
+paints the baked `/AP` and never reconstructs from `/MK`. `WidgetChrome`
+threaded through all four builders, `needs_regen` gains both colours, and
+`AppearanceOutcome` gives the three states one value.
+
+★★★ **A MISMATCH THAT HAD BEEN HARMLESS FOR MONTHS BECAME LOAD-BEARING THE
+MOMENT SOMETHING READ IT.** Push-button creation wrote `/MK` `/BG` and `/BC` as
+**DeviceRGB triples** while the artwork painted **DeviceGray**. Same colour,
+different operator, completely inert — for as long as nothing derived one from
+the other. Make the builder read `/MK` and the ownership test (*"would pdfcer
+draw exactly these bytes?"*) answers **no, for a button pdfcer drew itself**.
+
+⇒ *Two representations of one fact can disagree indefinitely at no cost, and
+the cost arrives in full the moment a third thing starts deriving one from the
+other.* Note this is the **inverse** of `Pass 306.0`'s finding two entries
+below: there, a correct compensation hid the thing it compensated for; here
+nothing was compensating and nothing was looking. **Consequence to carry:** a
+push button created by an earlier build now reports `RecordedNotPainted`
+instead of redrawing. A disclosure, not damage; re-setting either colour
+rebuilds it.
+
+★ **The defaults were the load-bearing half, and they pull opposite ways.** A
+text field draws no box at all (an absent `/BG` that produced a white rectangle
+would repaint every text field in every document pdfcer touches); a push
+button's default is **not** "nothing" but the plate grey (a default of nothing
+would erase every plate). Both live inside the builder rather than at the call
+sites, and the test file asserts the **unchanged** half as hard as the changed
+half. ⇒ *Threading a new parameter through an existing builder owes a test that
+the parameter's ABSENCE is byte-identical to before.*
+
+★ **A precision defect a test assertion found and review would not have.**
+`MkColor` stores `f32`; `f64::from` widens the **binary** value, so `0.2` was
+about to be written into content streams as `0.20000000298023224`, once per
+component. Nothing renders differently. Fixed by round-tripping through `f32`'s
+shortest-round-trip `Display`.
+
+**Gate status: every gate run and green, and `run-gates.sh` was not needed.**
+What worked, and it is the split procedure below rather than the sweep: the 21
+non-cargo gates in one loop; `fmt --check`; `clippy --workspace --all-targets
+--all-features`; `test -p pdfcer-core --lib` (2,085) and `--test '*'` (150
+binaries); `test -p pdfcer-cli` (49 binaries); `test -p pdfcer-render -j 1` (53
+binaries — **`-j 1` is what made this one finish**, it was `LNK1102`-killed at
+the default `-j`); `test -p pdfcer-core --no-default-features` lib and doctests
+(187, `--test-threads=1`); wasm `check`; `fuzz check --bins`.
+
+★ **`LNK1102: out of memory` struck again and `-j 1` DID fix it this time** —
+which contradicts the 2026-09-12 note below saying `-j 1` did not help. Both
+observations are real; the difference is that the earlier one had a second
+cargo job live beside it. ⇒ *One cargo invocation at a time, and `-j 1` for the
+render crate.*
+
+**Still owed: `Pass 308.1`** — colour carried on the five `New*` creation
+specs. The operator asked for colour *"before or after placement"*; "after" is
+done, "before" is create-then-edit, which `pdfcer-gui` offered as acceptable
+and which is therefore a workaround rather than the answer.
 
 ### ★★★ SINCE THE LAST HANDOFF — 2026-09-15 (`Pass 306.0`)
 
