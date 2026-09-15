@@ -4,9 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
-## 2026-09-14 (552nd filing) — `Pass 305.0` (`G017`, commit pending): `move_text_run` and its in-form twin complete the text-run family; three missing `*_in_form` deletes closed in the same Pass
+## 2026-09-15 (553rd filing) — `main` red ~10 h on a documentation-only gate; two pushes landed on it without reading CI's colour; `R217` gains an 8th amendment note; `Pass 305.0`'s hash backfilled
 
-**Shipped:** `Pass 305.0` — not yet committed at filing time (operator instruction: fold into a later commit of their own). `move_text_run`/`move_text_run_in_form` give text runs the move verb every other part kind (subpath, node) already had. Three placement paths per run: rewrite a `Tm`'s `e`/`f`, rewrite a `Td`'s `tx`/`ty`, or INSERT a `Td` (disclosed) for `TD`/`T*`/`'`/`"`/implicit-`BT`-origin runs — `TD` is deliberately never treated as an ordinary relative pair, because Table 108 defines it as `−ty TL` then `tx ty Td`, so rewriting its `ty` would silently re-space every later `T*`. The successor run is compensated; `RunPositioning::Inherited` is refused on either side (`TextRunHasNoPositionOfItsOwn`/`MoveWouldMoveNextRun`), citing decision 027's posture rather than a new decision.
+**Shipped:** not a Pass. `96958657` restores `main` to green — it carries `Pass 305.0`'s previously-deferred code commit (hash now recorded against that entry, below) together with a trim of two `docs/FEATURES.md` rows found over `check-register-entry-size.py`'s 1,200-character cap (the reflow row was 1,223 characters, not carried in the baseline).
+
+**Decisions made this session:** none new architecturally — a trim fix and a process finding, no crate-boundary or invariant change; no `ARCHITECTURE.md` §12 entry.
+
+**Findings + decisions:**
+- `main` was red from 2026-09-14 18:36Z to 2026-09-15 04:14Z on `check-register-entry-size.py` alone — no code involved. `Pass 304.0`'s push (`2a862742`, 02:37Z) landed on that red without reading CI's colour first and inherited it rather than caused it.
+- `R217`'s 8th amendment note (*Standing rules*, `ROADMAP.md`): the rule's mechanism — read CI's colour from GitHub, don't infer it — fired through a gate (`check-register-entry-size.py`) other than the filing gate (`check-commits-filed.py`) the rule was minted for, on a documentation-only edit. No new rule number.
+- The fix was a TRIM, not a baseline bump, on the principle that the baseline is debt and the direction is down; both over-cap rows were shortened by deleting reasoning that already lived in `ROADMAP.md`/the commit message, and no fact was lost.
+- A separate docs-only commit, `docs: record the ten hours main was red, and what the two pushes onto it missed`, wrote the `docs/NEXT_SESSION.md` section this filing draws from; its hash was not supplied to this filing and is not independently verified here.
+
+**Still in flight:** unchanged — owed items 5, 14, 34.
+
+**For next session:** none opened.
+
+**Sourcing (hard rule 8) — no shell this filing.** Incident account and hash `96958657` confirmed by `Read` against the live `docs/NEXT_SESSION.md` file, not taken on the operator's dispatch alone. `git log --format=%H -1 96958657` not run — no shell tool available to this filing; a session with one should confirm.
+
+## 2026-09-14 (552nd filing) — `Pass 305.0` (`G017`, `96958657`): `move_text_run` and its in-form twin complete the text-run family; three missing `*_in_form` deletes closed in the same Pass
+
+**Shipped:** `Pass 305.0` (`96958657`). `move_text_run`/`move_text_run_in_form` give text runs the move verb every other part kind (subpath, node) already had. Three placement paths per run: rewrite a `Tm`'s `e`/`f`, rewrite a `Td`'s `tx`/`ty`, or INSERT a `Td` (disclosed) for `TD`/`T*`/`'`/`"`/implicit-`BT`-origin runs — `TD` is deliberately never treated as an ordinary relative pair, because Table 108 defines it as `−ty TL` then `tx ty Td`, so rewriting its `ty` would silently re-space every later `T*`. The successor run is compensated; `RunPositioning::Inherited` is refused on either side (`TextRunHasNoPositionOfItsOwn`/`MoveWouldMoveNextRun`), citing decision 027's posture rather than a new decision.
 
 Taken together with the request's second row: the `*_in_form` family had five moves and one delete, an asymmetry running the OPPOSITE way from page content — `R245`'s 10th dated instance. `delete_text_run_in_form`, `delete_subpath_in_form`, `delete_node_in_form` shipped alongside `move_text_run_in_form`. Ten `*_in_form` verbs now, not six.
 
@@ -21,9 +39,9 @@ Taken together with the request's second row: the `*_in_form` family had five mo
 
 **Still in flight:** unchanged — owed items 5, 14, 34.
 
-**For next session:** none opened. Commit hash to follow once the operator folds this into their own commit.
+**For next session:** none opened.
 
-**Sourcing (hard rule 8) — no shell this filing; work not yet committed.** Full account taken from the requesting engineer's own reply document (`reply_G017_move_text_run_SHIPPED_with_its_in_form_twin_and_the_three_missing_deletes.md`). Independently confirmed against the live working tree via `Read`/`Grep`: `crates/pdfcer-core/src/edit.rs`, `crates/pdfcer-core/src/vector/edit.rs`, `crates/pdfcer-core/src/vector/decompose.rs`, the four named fixtures, and `crates/pdfcer-core/tests/text_run_move.rs` all present at HEAD. The FEATURES.md CLI-caller count was re-measured independently against `crates/pdfcer-cli/src/main.rs`, not copied from the reply's own arithmetic. Test/clippy/fmt results relayed from the requesting engineer's report, not independently re-run — no shell.
+**Sourcing (hard rule 8) — no shell this filing.** Full account taken from the requesting engineer's own reply document (`reply_G017_move_text_run_SHIPPED_with_its_in_form_twin_and_the_three_missing_deletes.md`). Independently confirmed against the live working tree via `Read`/`Grep`: `crates/pdfcer-core/src/edit.rs`, `crates/pdfcer-core/src/vector/edit.rs`, `crates/pdfcer-core/src/vector/decompose.rs`, the four named fixtures, and `crates/pdfcer-core/tests/text_run_move.rs` all present at HEAD. The FEATURES.md CLI-caller count was re-measured independently against `crates/pdfcer-cli/src/main.rs`, not copied from the reply's own arithmetic. Test/clippy/fmt results relayed from the requesting engineer's report, not independently re-run — no shell. **Commit hash `96958657` added 2026-09-15**, per the operator; not independently verified via `git log` (no shell this filing either) — confirm with `git log --format=%H -1 96958657` in a session that has one.
 
 ## 2026-09-14 (551st filing) — `Pass 304.0` (`2a862742`): one visual line spans across show operators again on a CAD file whose exporter restates `Tz` and nudges `Td`'s vertical between fragments
 

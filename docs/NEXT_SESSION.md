@@ -128,6 +128,37 @@ number four versions stale for a day, and nothing in this file checks itself.
 GitHub yourself (`gh run list --branch main --limit 1`); this line records
 what was pushed, never what the server thought of it.
 
+### ★★★ `main` WAS RED FOR TEN HOURS AND TWO PUSHES LANDED ON IT
+
+Green again as of `96958657` (2026-09-15 04:14Z), and the whole of the fault
+is worth one paragraph because it is the exact failure the section at the top
+of this file was written to prevent.
+
+**What was red:** `check-register-entry-size.py`, on ONE row of
+`docs/FEATURES.md` — the reflow row, at 1,223 characters against a 1,200 cap,
+not carried in the baseline. Nothing to do with code. It went red on the push
+at 2026-09-14 18:36Z and stayed red.
+
+**What then happened:** the balloon-note fix (`Pass 304.0`) was pushed at
+02:37Z the next morning **without reading CI's colour**, so it inherited the
+red and added nothing to it. Rule 8 says to read the colour. The paragraph at
+the top of this file says to sweep before pushing. **Neither was done for that
+push, and the sweep would have caught it** — `run-gates.sh` reports this gate.
+
+⇒ Three things, in the order they matter:
+
+1. **A red `main` is not a property of your commit.** The run list is the only
+   place that says whose fault it is, and `gh run list --branch main --limit 3`
+   shows the two pushes before yours. Look at more than one row.
+2. **`check-register-entry-size.py` goes red on a doc edit with no code in
+   it**, which is exactly the class of change a session is least likely to
+   sweep after. A librarian filing that adds one clause to a FEATURES row can
+   turn `main` red, and nothing about it will look like a risk.
+3. **The fix is a trim, not a baseline entry.** The baseline is DEBT and the
+   intended direction is down. Both rows over cap on 2026-09-15 were trimmed
+   by deleting reasoning that already lived in `ROADMAP.md` and the commit
+   message — no fact was lost, which is the test for whether a trim is honest.
+
 ### ★★ SINCE THE LAST HANDOFF — 2026-09-14
 
 Everything after this block is from 2026-09-12 and is carried forward

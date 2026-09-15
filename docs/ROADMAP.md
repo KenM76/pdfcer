@@ -115,7 +115,40 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
-### `Pass 305.0` (commit pending — not yet committed at filing time, 2026-09-14) — `G017`: `move_text_run`, its in-form twin, and the three missing `*_in_form` deletes
+### `96958657` (2026-09-15) — `main` red ~10 h on a documentation-only gate; two pushes landed on it without reading CI's colour; `R217` gains an 8th amendment note
+
+Not a Pass. `check-register-entry-size.py` went red at 2026-09-14 18:36Z on one row of `docs/FEATURES.md` — the reflow row, 1,223 characters against the 1,200-character cap, not carried in the baseline; no code involved. `Pass 304.0`'s own push (`2a862742`, 02:37Z the next morning) landed on that red without reading CI's colour first, and inherited it rather than caused it. `96958657` (04:14Z) restores green — the same commit carries `Pass 305.0`'s previously-deferred code (hash added to that entry's header, above) together with a TRIM, not a baseline bump, of both rows found over cap: reasoning already stated in `ROADMAP.md`/the commit message was deleted, no fact lost.
+
+**`R217`'s 8th amendment note** (*Standing rules*, below): the rule's first seven notes are all about the FILING gate's (`check-commits-filed.py`) own answer going stale before a push. This is the same higher-level failure — push without reading CI's colour — reached through a DIFFERENT gate, on a documentation-only edit with no code in it. Worth naming on its own: a librarian filing that adds one clause to a `FEATURES.md` row can turn `main` red, and nothing about that class of change looks like a risk in the diff.
+
+Answers a direct operator follow-up (no topic key). Substance sourced from `docs/NEXT_SESSION.md`'s own "`main` WAS RED FOR TEN HOURS" section, read directly.
+
+**Sourcing (hard rule 8) — no shell this filing.** Incident account and hash `96958657` confirmed by `Read` against the live `docs/NEXT_SESSION.md` file, not taken on trust alone. `git log --format=%H -1 96958657` not run — no shell available to this filing.
+
+**Also recorded, not separately filed:** the follow-up commit `docs: record the ten hours main was red, and what the two pushes onto it missed` — its content is the `docs/NEXT_SESSION.md` section cited above, so this entry already covers its substance. Hash not supplied to this filing.
+
+### Part — owed work, discharged and new
+
+**Discharged this filing:** none.
+
+**New, this filing:** none — recorded as an `R217` amendment note, not opened as owed work.
+
+**Carried forward, unchanged:** items 5, 14, 34.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `305` (highest ID `305.0`), next free family `306` | **unchanged** |
+| Standing rules | `R256`, next free `R257` | **unchanged** — `R217` gains an 8th amendment note (dated footer, no re-mint) |
+| Decision records | `156` | **unchanged** |
+| `SESSION_LOG` filings | `552` | **`553`** |
+| `docs/FEATURES.md` | — | **untouched this filing** |
+| `C:\personal_rag\pdf\` | 233 lesson files | **unchanged** |
+
+---
+
+### `Pass 305.0` (`96958657`, 2026-09-14) — `G017`: `move_text_run`, its in-form twin, and the three missing `*_in_form` deletes
 
 `move_text_run`/`move_text_run_in_form` complete the text-run family — every other part kind (subpath, node) already had both a move and a delete verb; a text run could only be deleted, so `pdfcer-gui` resolved a drag on one line of a title block and found no verb to call. Three placement paths, decided per run: a `Tm`'s `e`/`f` is rewritten (user-space origin); a `Td`'s `tx`/`ty` is rewritten (text-space); for `TD`, `T*`, `'`, `"`, or `BT`'s implicit identity — none of which is a rewritable relative pair — a `Td` is INSERTED immediately before the run's show operator instead, and the insertion is disclosed (rule 4). `TD` is deliberately in the third group, not treated like `Td`: Table 108 defines it as `−ty TL` then `tx ty Td`, so nudging its `ty` as an ordinary relative offset would silently re-space every later `T*` in the object — a new empirical finding, `C:\personal_rag\pdf\lesson_20260914_td_conflates_leading_and_position_so_rewriting_its_ty_silently_respaces_every_later_tstar.md`.
 
@@ -139,7 +172,7 @@ Answers `request_G017_move_text_run_the_missing_twin_of_delete_text_run.md` (`pd
 
 Do **not** edit `docs/core-api/02-editing-and-saving.md` for this Pass — the requesting engineer already updated its renumbering table, verb table and in-form table themselves, citing `crates/pdfcer-core/tests/text_run_move.rs`.
 
-**Sourcing (hard rule 8) — no shell this filing, and the work is not yet committed.** Full account taken from the requesting engineer's own reply document. Independently confirmed against the live working tree via `Read`/`Grep`: `crates/pdfcer-core/src/edit.rs` (`move_text_run`, `move_text_run_in_form`, `delete_text_run_in_form`, `delete_subpath_in_form`, `delete_node_in_form`), `crates/pdfcer-core/src/vector/edit.rs` (`text_run_move_refusal`, `TextRunHasNoPositionOfItsOwn`, `MoveWouldMoveNextRun`, `plan_move_text_run`), `crates/pdfcer-core/src/vector/decompose.rs` (`TextRun::text_matrix`), the four named fixtures, and `crates/pdfcer-core/tests/text_run_move.rs` all present at HEAD of the working tree. **The FEATURES.md CLI-caller count was re-measured independently, not taken on the reply's own arithmetic** (`R221`'s discipline): `crates/pdfcer-cli/src/main.rs` calls exactly four of the ten `*_in_form` verbs. Test/clippy/fmt results relayed from the requesting engineer's report, not independently re-run (no shell) — and no commit hash exists yet: the operator asked that this not be committed, to be folded into a later commit of their own.
+**Sourcing (hard rule 8) — no shell this filing.** Full account taken from the requesting engineer's own reply document. Independently confirmed against the live working tree via `Read`/`Grep`: `crates/pdfcer-core/src/edit.rs` (`move_text_run`, `move_text_run_in_form`, `delete_text_run_in_form`, `delete_subpath_in_form`, `delete_node_in_form`), `crates/pdfcer-core/src/vector/edit.rs` (`text_run_move_refusal`, `TextRunHasNoPositionOfItsOwn`, `MoveWouldMoveNextRun`, `plan_move_text_run`), `crates/pdfcer-core/src/vector/decompose.rs` (`TextRun::text_matrix`), the four named fixtures, and `crates/pdfcer-core/tests/text_run_move.rs` all present at HEAD of the working tree. **The FEATURES.md CLI-caller count was re-measured independently, not taken on the reply's own arithmetic** (`R221`'s discipline): `crates/pdfcer-cli/src/main.rs` calls exactly four of the ten `*_in_form` verbs. Test/clippy/fmt results relayed from the requesting engineer's report, not independently re-run (no shell). **Commit hash added 2026-09-15:** `96958657`, per the operator; not independently verified via `git log` (still no shell this filing) — confirm with `git log --format=%H -1 96958657` in a session that has one.
 
 ### Part — owed work, discharged and new
 
@@ -27203,6 +27236,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - `R215` — AN ACCEPTANCE ORACLE WRITTEN BEFORE THE FIX, FROM THE BROKEN SYSTEM'S OWN OUTPUT, ATTRIBUTES THE WHOLE OBSERVABLE TO THE DEFECT IT IS HUNTING.
 - `R216` — PRESERVED WRONG WORDING AND EDIT HISTORY BELONG IN THE APPEND-ONLY RECORD.
 - `R217` — A GATE THAT REQUIRES A COMMIT TO CITE SOMETHING ONLY A *LATER* COMMIT CAN CREATE IS UNSATISFIABLE BY CONSTRUCTION FOR THAT COMMIT, NOT MERELY STRICT.  **[gate: check-commits-filed.py, check-passes-filed.py]**
+- **`R217` — EIGHTH AMENDMENT NOTE, 2026-09-15 (553rd filing, `96958657`): PUSHING WITHOUT READING CI'S COLOUR RECURRED THROUGH A DIFFERENT GATE (`check-register-entry-size.py`, NOT THE FILING GATE THIS RULE WAS MINTED FOR) AND ON A DOCUMENTATION-ONLY EDIT WITH NO CODE IN IT — EXACTLY THE CLASS OF CHANGE A SESSION IS LEAST LIKELY TO RE-SWEEP AFTER.** `main` was red 2026-09-14 18:36Z–2026-09-15 04:14Z on one over-cap `docs/FEATURES.md` row (1,223 chars against the 1,200-char cap); `Pass 304.0`'s push landed on that red without checking CI first, inheriting it rather than causing it. Fixed by `96958657`, a TRIM of the over-cap rows, not a baseline bump. No new rule number — this rule's mechanism ("read CI's colour from GitHub, don't infer it") is gate-agnostic, and this is the first instance firing through a gate other than the one `R217` was minted for. Full account: `docs/NEXT_SESSION.md`'s own "`main` WAS RED FOR TEN HOURS" section.
 - `R218` — A GATE WHOSE INPUT SET IS "WHAT IS ALREADY COMMITTED" CANNOT SEE THE COMMIT YOU ARE ABOUT TO MAKE.  **[gate: check-suite-name-absent.py]**
 - `R219` — WHEN A PASS FIXES ONE OF SEVERAL ROUTES TO THE SAME BEHAVIOUR, ENUMERATE THE OTHER ROUTES IN THE SAME PASS AND SAY EXPLICITLY WHICH ARE LEFT.
 - `R220` — A CAPABILITY IS DOCUMENTED WHERE THE READER'S *QUESTION* LIVES, NOT ONLY WHERE ITS *MECHANISM* LIVES; AND A CLAIM THAT PDFCE HAS NO VERB FOR SOMETHING IS CHECKED AGAINST SOURCE BEFORE IT…  **[gate: check-core-api-verbs.py, check-ledger-numbers.py]**
@@ -27239,7 +27273,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - `R245` — A GUARD, KEY OR DISCLOSURE ADDED TO ONE MEMBER OF A FAMILY OF PARALLEL VERBS IS NOT SHIPPED UNTIL A TEST ITERATES THE WHOLE FAMILY.
 - **`R245` — DATED INSTANCE NOTE, 2026-09-11 (509th filing, `Pass 296.3`): THE LITERAL-SEARCH-VS-PATTERN-SEARCH REDACTION-DISCLOSURE PAIR PRODUCED THIS SHAPE A SECOND TIME — EIGHTH DATED INSTANCE.**
 - **`R245` — DATED INSTANCE NOTE, 2026-09-13 (540th filing, `Pass 302.1`, `919b0f0`): NINTH DATED INSTANCE — `RecoveryReport::objects_dropped` (`Pass 302.0`) WAS AN AFFORDANCE ON THE REPORT ENTRY POINT WITH NO CONSUMER ON THE CLI'S OWN PRINT FUNCTION, THE SAME SHAPE `Pass 283.1` NAMED FOR `load_with_options`'S TWO ENTRY POINTS. ★ THIS FOOTER WAS CLAIMED BY THE 539TH FILING'S OWN LEDGER AND NOT ACTUALLY WRITTEN UNTIL NOW — A CLAIM OUTLIVING THE EDIT THAT WAS SUPPOSED TO MAKE IT TRUE, ONE FILING DEEP.**
-- **`R245` — DATED INSTANCE NOTE, 2026-09-14 (552nd filing, `Pass 305.0`, `G017`): TENTH DATED INSTANCE, RUNNING THE OPPOSITE DIRECTION FROM THE NINTH — THE `*_in_form` FAMILY HAD FIVE MOVE VERBS AND ONLY ONE DELETE VERB, SO A SUBPATH/NODE/TEXT-RUN COULD BE MOVED BUT NOT DELETED INSIDE A FORM WHILE THE SAME KIND ON PAGE CONTENT COULD DO BOTH.** An asymmetry running the opposite way inside a different container is a trap, not merely a gap: the operator learns a rule on page content and it stops holding the moment the same content sits inside a title block. Closed by adding `delete_subpath_in_form`/`delete_node_in_form`/`delete_text_run_in_form` alongside the new `move_text_run_in_form`, all four in the same Pass rather than split across sessions.
+- **`R245` — DATED INSTANCE NOTE, 2026-09-14 (552nd filing, `Pass 305.0`, `G017`, `96958657`): TENTH DATED INSTANCE, RUNNING THE OPPOSITE DIRECTION FROM THE NINTH — THE `*_in_form` FAMILY HAD FIVE MOVE VERBS AND ONLY ONE DELETE VERB, SO A SUBPATH/NODE/TEXT-RUN COULD BE MOVED BUT NOT DELETED INSIDE A FORM WHILE THE SAME KIND ON PAGE CONTENT COULD DO BOTH.** An asymmetry running the opposite way inside a different container is a trap, not merely a gap: the operator learns a rule on page content and it stops holding the moment the same content sits inside a title block. Closed by adding `delete_subpath_in_form`/`delete_node_in_form`/`delete_text_run_in_form` alongside the new `move_text_run_in_form`, all four in the same Pass rather than split across sessions.
 - `R246` — A CORRECTION IS NOT COMPLETE UNTIL IT REACHES EVERY CORPUS THIS PROJECT *READS*, NOT MERELY EVERY TREE IT *WRITES*.
 - `R247` — A DOC COMMENT STATING A BEHAVIOURAL GUARANTEE ("ONLY X IS TOUCHED", "NEVER Y", "ALWAYS Z", "CANNOT CORRUPT W") IS AN UNENFORCED CLAIM UNTIL A TEST EXISTS THAT WOULD FAIL IF IT WERE VIOLATED.
 - **`R247` — DATED INSTANCE NOTE, 2026-09-13 (534th filing, THIRD INSTANCE, `Pass 301.2`, `52a0ccd`).** `survey_standard_14`'s own doc comment asserted "the answer here and the outcome of the later `set_font` cannot disagree" — unenforced, and false for every page carrying a subset of a standard-14 name. Also the twelfth reconciled `R221` instance on the same line (see `R221`'s own dated note, above) — the same incident satisfies both rules for two different reasons: `R221` explains why the two answers diverged, this rule explains why nobody noticed. Full account appended to `D:\dev\rag\rust\a_doc_comment_stating_a_behavioural_guarantee_is_unenforced_until_a_test_would_fail_without_it.md`. No re-mint; ceiling unchanged.
