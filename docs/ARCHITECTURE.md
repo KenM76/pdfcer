@@ -11072,7 +11072,7 @@ ceiling: `R255` → `R256`**, next free `R257`. **Pass ceiling: `Pass 301.0` →
 `Pass 301.1`**, next free `Pass 301.2` (or the next unrelated Pass family,
 per the operator's own ordered plan in `docs/NEXT_SESSION.md`).
 
-### 2026-09-15 (554th filing, `Pass 306.0`, commit hash not supplied to this filing) — decision 157: A COST RECORDED AS A REASON NOT TO DO SOMETHING IS A CLAIM UNTIL IT IS PRICED — SPLITTING A TEXT OBJECT AT `BT`/`ET` COSTS ONE RESTATED `Tm`, NOT A REWRITTEN PREAMBLE, BECAUSE `BT`/`ET` RESET ONLY `Tm`/`Tlm` (§9.3/§9.4.1)
+### 2026-09-15 (554th filing, `Pass 306.0`, `3523a0e9`) — decision 157: A COST RECORDED AS A REASON NOT TO DO SOMETHING IS A CLAIM UNTIL IT IS PRICED — SPLITTING A TEXT OBJECT AT `BT`/`ET` COSTS ONE RESTATED `Tm`, NOT A REWRITTEN PREAMBLE, BECAUSE `BT`/`ET` RESET ONLY `Tm`/`Tlm` (§9.3/§9.4.1)
 
 **Status: DECIDED / RECORDED.** `Pass 306.0` shipped `EditSession::split_text_object`/`text_object_split_plan` — cutting one `BT`…`ET` into several by inserting `ET BT <the run's own six-coefficient Tm>` immediately before each cut's show operator, rewriting nothing else.
 
