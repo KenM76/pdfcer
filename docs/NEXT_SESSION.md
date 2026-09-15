@@ -166,7 +166,34 @@ session: `G019` (no derived tab order) and `G020` (`/MK` colours round-trip and
 are painted by nothing). Replies are in the channel's `open/`; `308.1` is the
 one piece still owed.
 
-**★★★ AND `main` WAS RED AGAIN, FOR THE THIRD TIME IN EIGHT DAYS, THE SAME
+**★★★ AND THEN I TURNED IT RED MYSELF, AND THE MECHANISM IS WORTH MORE THAN
+THE APOLOGY.** `bd8059f2` (`Pass 308.0`) failed CI on **`check-passes-filed.py`**
+— not for anything in it, but because `729cf6db` (`Pass 307.0`), one commit
+back, was still unfiled. Green again on the next commit, the filings.
+
+⇒ **The tip-deferral is the whole mechanism, and it is not a defect.** The gate
+exempts the tip on purpose — a commit cannot cite its own hash, so its filing is
+always a later commit. Which means a Pass commit's own CI run is **always green**
+and the **next** push is what tells you whether it was filed. Push two Pass
+commits back to back without the filing in between and the second one is
+**guaranteed** red, with a message naming the first.
+
+⇒ Three practical consequences, and the second is the one that bites:
+
+1. **File between Passes, not at the end of the session.** I dispatched the
+   librarian for `307.0` and pushed `308.0` before it returned.
+2. **A green run on a Pass commit proves nothing about that commit's filing.**
+   It is the one commit the gate is guaranteed not to check. Read the run
+   *after* it.
+3. The pre-push hook has the same deferral, so it will not stop you either — it
+   refused my *third* push, correctly, and by then CI had already gone red.
+
+★ Same session, same file, one paragraph apart: the block below is about a
+docs-only commit reddening `main` because nothing about it looked like a risk.
+This one is about a **code** commit reddening `main` for something that was not
+in it at all. **Neither is visible in the diff you are about to push.**
+
+**★★★ AND `main` WAS RED BEFORE THAT, FOR THE THIRD TIME IN EIGHT DAYS, THE SAME
 WAY.** Red from `0b48b3e2` (the 555th filing, pushed 15:57Z) until `729cf6db`
 fixed it. The gate was `check-core-api-verbs.py`; the cause was
 `docs/core-api/index.md` still stating `03-capabilities.md`'s old line and
