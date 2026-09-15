@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-14 (551st filing) — `Pass 304.0` (`2a862742`): one visual line spans across show operators again on a CAD file whose exporter restates `Tz` and nudges `Td`'s vertical between fragments
+
+**Shipped:** `Pass 304.0` (`2a862742`). Operator-direct request (no topic key — not a `pdfce_FeatureRequests`/`iccce_FeatureRequests` exchange). SolidWorks (and CAD exporters generally) can write one visual line of note text as several show operators, each restating `Tz` and nudging `Td`'s vertical component by a float round-trip between fragments. `text_edit/edit.rs`'s `spannable` compared `Tz` with `==` and required `Td`'s `ty` to be exactly `0.0`, so the span-editing route refused text crossing a fragment boundary on such a file.
+
+**Decisions made this session:** none new architecturally — a bug fix widening two measured comparison tolerances, no crate-boundary or invariant change; no `ARCHITECTURE.md` §12 entry.
+
+**Findings + decisions:**
+- Two named, measured tolerances: `SPAN_H_SCALE_TOLERANCE` (`0.001`, a ratio, on `Tz`) and `SPAN_LINE_DRIFT_TOLERANCE` (`0.01`, unscaled text units, on `Td`'s `ty`). Every other `spannable` comparison (font, size, MCID, char spacing, word spacing) stays exact.
+- The vertical tolerance is the one that was got wrong on the first cut: `Td` translates the line matrix, so the observed drift is the producer's raw noise multiplied by the text matrix's y-scale. A flat comparison fixed one note (`0.00057 × 13.2 = 0.0075`) and left the note beside it (`0.00661 × 13.2 = 0.087`) still refusing — same producer, same page, different font size. `same_line` now scales the tolerance by `hypot(a[2], a[3])`, falling back to `1.0` for a degenerate matrix.
+- Three regression tests pin it, including one confirming a real line break (`0 -1.72646 Td`, three orders of magnitude past the noise) still separates two lines.
+- On the operator's own 36-sheet drawing set, all six balloon-bearing notes are now editable and survive save-and-reopen — previously every one refused with "not found in an editable run" about text plainly on the page.
+- Written to `C:\personal_rag\pdf\` as a new empirical finding (`lesson_20260914_cad_exporters_restate_tz_and_perturb_tds_baseline_between_fragments_of_one_visual_line.md`) — a producer-divergence-from-spec shape, not a Rust/egui-ecosystem one.
+
+**Still in flight:** unchanged — owed items 5, 14, 34.
+
+**For next session:** none opened.
+
+**Sourcing (hard rule 8) — no shell this filing.** Commit hash and the full account above taken from the requesting engineer's report. Independently confirmed against live source via `Read`/`Grep`: `crates/pdfcer-core/src/text_edit/edit.rs` — `SPAN_H_SCALE_TOLERANCE`/`SPAN_LINE_DRIFT_TOLERANCE` constants and doc comments, `spannable`'s `Tz`-tolerance comparison, and `same_line`'s `hypot(a[2], a[3])`-scaled drift comparison all match the quoted reasoning verbatim. Push/CI state not independently checked — no shell.
+
 ## 2026-09-14 (550th filing) — `pdfcer-gui` KEEPS `ReflowApplyError::PageEditedThisSession` (closes `G015`/`G016`); the construct-vs-receive distinction sharpens `naming_every_field_of_a_tracked_upstream_struct...md`
 
 **Shipped:** nothing — librarian-only, no Pass. Records `42b47f30`, a doc-comment-only commit in `pdfcer-core` (no code-behavior change): `pdfcer-gui` consumed `G016` and answered the question `G015` put to them — whether to delete the now-unconstructed `ReflowApplyError::PageEditedThisSession` variant from their exhaustive `match`.

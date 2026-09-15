@@ -115,6 +115,22 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 304.0` (`2a862742`, 2026-09-14) — one visual line spans across show operators again, even when a CAD exporter restates `Tz` and nudges `Td`'s vertical between fragments
+
+SolidWorks (and CAD exporters generally) can write one visual line of note text as **several show operators**, each restating `Tz` and nudging `Td`'s vertical component by a float round-trip between fragments — the same producer-derived line, re-emitted through slightly different code paths. `text_edit/edit.rs`'s `spannable` compared horizontal scaling with `==` and the span walk required `Td`'s `ty` to be exactly `0.0`, so the span-editing route refused any text that crossed a fragment boundary on such a file, even though the fragments render as one obvious line.
+
+Two named, measured tolerances: `SPAN_H_SCALE_TOLERANCE` (`0.001`, a ratio, on `Tz`) and `SPAN_LINE_DRIFT_TOLERANCE` (`0.01`, unscaled text units, on `Td`'s `ty`). The second is the one that was got wrong on the first cut: `Td` translates the **line matrix**, so the drift that actually lands in the observable `ty` is the producer's raw noise multiplied by the text matrix's y-scale — a flat comparison fixed one note (drift `0.00057 × 13.2 = 0.0075`) and left the note beside it (drift `0.00661 × 13.2 = 0.087`) still refusing, same producer, same page. `same_line`'s baseline comparison now scales the tolerance by `hypot(a[2], a[3])` (the text matrix's y-scale component, `hypot` so rotated text keeps a meaningful scale rather than a near-zero one), falling back to `1.0` for a degenerate matrix. Every other comparison `spannable` makes — font, size, MCID, char spacing, word spacing — stays **exact**; only horizontal scale and vertical drift were measured to carry producer noise.
+
+Three regression tests pin the fix, including one asserting a real line break (`0 -1.72646 Td`, three orders of magnitude past the noise) still separates two lines rather than getting swallowed by the new tolerance.
+
+On the operator's own 36-sheet drawing set, all six balloon-bearing notes are now editable and survive save-and-reopen — previously every one of them refused with "not found in an editable run" about text plainly on the page.
+
+**No topic key** — this came from the operator directly in conversation, not from the `pdfce_FeatureRequests`/`iccce_FeatureRequests` channels, so it is not a `G###`/`E###` exchange.
+
+**`docs/FEATURES.md`:** the *Text* section's "Edit text across show operators" row gains a clause on the new tolerances — see Ledger.
+
+**Sourcing (hard rule 8) — no shell this filing.** Commit hash and the full account above taken from the requesting engineer's report; independently confirmed against the live tree via `Read`/`Grep`: `crates/pdfcer-core/src/text_edit/edit.rs` — `SPAN_H_SCALE_TOLERANCE`/`SPAN_LINE_DRIFT_TOLERANCE` constants and their doc comments, `spannable`'s `Tz`-tolerance comparison, and `same_line`'s `hypot(a[2], a[3])`-scaled drift comparison all match the quoted reasoning verbatim. Push/CI state not independently checked — no shell.
+
 ### `Pass 303.0` (`025d703d`, 2026-09-14) — G015: reflow no longer refuses a page split into multiple `/Contents` streams
 
 `reflow_block`'s `PageEditedThisSession` guard fired on any page carrying a non-empty extra content stream, read as text the operator added this session, refusing with a "save and reopen" remedy that could never work — ISO 32000-1 §7.8.2 permits the split and CAD exporters use it routinely. **Correct at `Pass 251.0`** (the planner read the base document, where an appended run really was invisible and a commit would have dropped it); **false since `Pass 257.0`** moved the planner onto the session view, where `ContentStream::from_page` concatenates every `/Contents` entry and the plan replaces only the block's own spans — an appended run is already in the plan's source and survives. The guard's own comment asserted "Still true after `Pass 257.0`"; nobody had re-measured it.
@@ -148,6 +164,27 @@ Not a Pass. `G015` shipped with no reply written; `pdfcer-gui` discovered the de
 **Not minted.** Adjacent to `R242` (which governs when a request may *leave* the channel) but a different mechanism — this is about a delivery never *entering* the channel at all. The requesting engineer flagged it as possibly a second instance of a gate-blind-spot shape found the day before, but explicitly declined to characterize it further ("do not mint on my say-so; I have misjudged instance-counting repeatedly"). At `n=1` in this project's own register, against this project's own two-instance mint bar, it stays a flagged finding rather than a rule — reconsider if a second independent instance surfaces here.
 
 **`docs/FEATURES.md`:** untouched by this note (see `Pass 303.0` above for the one row that changed).
+
+### Part — owed work, discharged and new
+
+**Discharged this filing:** none.
+
+**New, this filing:** none.
+
+**Carried forward, unchanged:** items 5, 14, 34.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `303` (highest ID `303.0`), next free family `304` | **`304` used (`Pass 304.0`), next free family `305`** |
+| Standing rules | `R256`, next free `R257` | **unchanged** — no rule instance; a bug fix, not a recurring pattern this project has named |
+| Decision records | `156` | **unchanged** — a bug fix widening two measured comparison tolerances, no crate-boundary or invariant change |
+| `SESSION_LOG` filings | `550` | **`551`** |
+| `docs/FEATURES.md` | — | **Text section, "Edit text across show operators" row gains a clause** — see body above |
+| `C:\personal_rag\pdf\` | 231 lesson files | **232** — new empirical finding: a CAD exporter restates `Tz` and nudges `Td`'s vertical between fragments of one visual line, measured magnitudes and the y-scale-dependent fix recorded |
+
+---
 
 ### Part — owed work, discharged and new
 
