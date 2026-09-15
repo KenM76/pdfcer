@@ -3049,6 +3049,93 @@ Rotation is a **widget** property, not a field one — `/MK` lives on the
 annotation, so a field with widgets on several pages can have each rotated
 differently. `siblings_untouched` reports how many were left alone.
 
+### ★★ `/MK` `/BG` and `/BC` are BAKED, and a colour-only edit now redraws (`Pass 308.0`, request `G020`)
+
+**The defect, because a shell may still be holding the old behaviour.**
+`Widget::background` read `/MK` `/BG`, `WidgetEdit::with_background` wrote it,
+the CLI shipped `--background` — and **no appearance builder took a colour**,
+while `edit_widget`'s `needs_regen` omitted both. A colour-only edit returned
+`appearance_regenerated: false` and changed the dictionary and nothing a person
+could see.
+
+That follows from **R43**, and R43 is not negotiable: *pdfcer paints the baked
+`/AP` and never reconstructs an appearance from `/MK` at display time*. `/MK` is
+the appearance **characteristics** dictionary — a record of what artwork should
+look like, for a producer regenerating it, not instructions a reader follows. A
+widget whose `/BG` says blue and whose `/AP` draws grey renders **grey**, here
+and everywhere. So the colour has to go into the stream.
+
+**What changed:**
+
+- `annot_author::WidgetChrome { background, border_color }` — both
+  `Option<MkColor>` — is taken by all four appearance builders.
+- `needs_regen` now includes `edit.background.is_some() || edit.border_color.is_some()`.
+  ⚠ **The two halves are inseparable**: the flag without the builders would
+  repaint in the hard-coded default and *discard* the operator's colour, which
+  is worse than the defect.
+- `WidgetEditOutcome::appearance: AppearanceOutcome` — three states in one value.
+
+**The defaults are the load-bearing part, and they pull in opposite directions:**
+
+| builder | absent `/BG` draws | absent `/BC` draws |
+|---|---|---|
+| check box | **nothing** | a black 1 pt border |
+| radio button | **nothing** | a black 1 pt ring |
+| push button | **the plate grey** — this one is not "nothing" | a black 1 pt keyline |
+| text / choice | **nothing, and no frame either** | nothing |
+
+A text field that gained a white rectangle from an absent `/BG` would repaint
+every text field in every document pdfcer touches; a push button that lost its
+plate from the same absent key would erase every button pdfcer ever drew. Both
+are avoided by the builder's own default rather than by a caller remembering.
+
+**`None` and `Some(MkColor::None)` are different, and both are reachable.**
+`None` = the widget states no such colour, so the default above stands.
+`Some(MkColor::None)` = Table 189's **empty array**, *"no colour"* — a push
+button with that value gets **no plate**, which an absent key cannot express.
+For `/BC` the two behave alike and deliberately so: a border's *width* lives in
+`/BS` `/W`, and letting an empty `/BC` mean "omit the stroke" would give two
+unrelated keys one meaning.
+
+**CMYK is painted, never converted** — a four-component `/BG` becomes a `k` / `K`
+operator (§8.6.4.4). pdfcer owns no rendering intent for a widget's chrome, and a
+silent conversion would be the substitution `Widget::border` refuses elsewhere.
+So a shell that cannot show a CMYK swatch should show the numbers, not a guess.
+
+**`/BC` is read as the control's INK, not only its outline.** A check box's tick
+and a radio button's dot take the border colour. `/MK` has no third colour
+meaning *the mark*, and a mark in the background colour is invisible against the
+box it sits in. **This is pdfcer's reading, not a clause.**
+
+**`AppearanceOutcome`** — prefer it to combining the two older fields, which are
+kept and unchanged:
+
+| variant | meaning | owes a message? |
+|---|---|---|
+| `NotNeeded` | nothing about the edit could change what is drawn (a pure move, a flag) | **no** |
+| `Regenerated` | the stream was rebuilt and reflects the edit | no |
+| `RecordedNotPainted(String)` | the edit changed something the artwork depends on and pdfcer could not redraw it — a signature field, artwork another producer drew, a field type pdfcer cannot author | **yes** — print the string |
+
+`appearance_regenerated: false` + `appearance_stale: None` used to mean *two*
+things: nothing needed doing, and something did and pdfcer could not. That
+second reading was the reality for every colour change for as long as
+`with_background` existed. `needs_disclosure()` is the one-call question.
+
+⚠ **One compatibility consequence, stated rather than discovered.** Push-button
+creation used to write `/MK` `/BG` and `/BC` as **DeviceRGB triples** while the
+artwork painted **DeviceGray** — the same colour, a different operator, and
+harmless for as long as nothing read one to produce the other. It now writes one
+component each. **A push button created by an earlier build still carries the
+triples**, so its artwork no longer matches what pdfcer would draw for those
+values, the ownership test reads it as foreign, and `edit_widget` reports
+`RecordedNotPainted` instead of redrawing. That is a disclosure, not damage —
+and re-setting either colour rebuilds the button.
+
+**Still owed (`Pass 308.1`): colour at CREATION.** None of the five `New*` specs
+carries a colour, so *"choose the colour before placing the field"* is
+create-then-edit today. `edit_widget` immediately after the add does exactly the
+right thing, and the two commands coalesce for undo.
+
 ### ⚡ `page_objects` — what it is worth, and the two things it does NOT fix
 
 Measured on a 5.6 MB / 129,758-object CAD drawing, release build

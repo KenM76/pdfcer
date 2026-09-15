@@ -18251,6 +18251,13 @@ struct PendingWidgetEdit {
     /// caption is baked into the artwork and an emptied one must be redrawn
     /// away rather than left on the plate.
     caption: Option<String>,
+    /// `/MK` `/BG` and `/BC` **as this command is about to write them** —
+    /// already merged over whatever the widget carried, so the regenerator
+    /// gets one resolved answer rather than a patch it has to apply itself.
+    ///
+    /// `None` = this command is not touching either colour, and the redraw
+    /// reads the widget's own. `Pass 308.0`.
+    chrome: Option<annot_author::WidgetChrome>,
 }
 
 impl PendingWidgetEdit {
@@ -18266,6 +18273,12 @@ impl PendingWidgetEdit {
     /// resized.
     fn rect_for(&self, id: ObjId) -> Option<page_tree::Rect> {
         self.id.filter(|p| *p == id).and(self.rect)
+    }
+
+    /// The staged `/MK` colours for `id`, scoped to that widget like every
+    /// other field here — a radio group's other buttons keep their own.
+    fn chrome_for(&self, id: ObjId) -> Option<annot_author::WidgetChrome> {
+        self.id.filter(|p| *p == id).and(self.chrome)
     }
 
     /// The staged caption for `id`.
@@ -21881,6 +21894,68 @@ pub struct WidgetRotation {
     pub siblings_untouched: usize,
 }
 
+/// What happened to a widget's **appearance stream** during an
+/// [`edit_widget`](EditSession::edit_widget) — the three outcomes, as one
+/// value (`Pass 308.1`, request `G020`).
+///
+/// # Why this exists when two fields already carried it
+///
+/// [`WidgetEditOutcome::appearance_regenerated`] and
+/// [`WidgetEditOutcome::appearance_stale`] together encode the same three
+/// states, and a caller that combines them correctly gets the same answer.
+/// The trouble is the combination: **`false` + `None` meant two things** —
+/// *nothing needed redrawing* and *something did and pdfcer could not*. The
+/// second reading was the reality for a colour change for the whole of the
+/// time `WidgetEdit::with_background` existed, because the colour never
+/// reached `needs_regen` at all.
+///
+/// `Pass 308.0` fixed that particular case, and this type is the guard
+/// against the next one. A shell that matches on an enum cannot silently
+/// acquire a fourth meaning for an existing value; a shell that reads a
+/// `bool` and a `None` can, and did.
+///
+/// Both original fields are kept and keep their meanings. This is an
+/// addition, not a replacement — `pdfcer-gui` and the CLI both read them.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum AppearanceOutcome {
+    /// Nothing about this edit could change what is drawn, so nothing was
+    /// redrawn. A pure move, a flag change, a `/TU` tooltip.
+    ///
+    /// **The artwork is correct as it stands** — this is not a limitation
+    /// and does not want an operator message.
+    ///
+    /// The default, so a `WidgetEditOutcome` built by a test or a future
+    /// caller that forgets this field claims nothing rather than claiming a
+    /// redraw that did not happen.
+    #[default]
+    NotNeeded,
+    /// The appearance stream was rebuilt and now reflects the edit.
+    Regenerated,
+    /// The edit changed something the artwork depends on, and pdfcer
+    /// **could not redraw it**. The value is written to the file and what
+    /// the operator sees has not changed.
+    ///
+    /// ★ **This is the state that owes a disclosure**, and the one the two
+    /// older fields could not name. The string is the same sentence
+    /// [`WidgetEditOutcome::appearance_stale`] carries — it says which of
+    /// the three reasons applies (a signature field, artwork another
+    /// producer drew, or a field type pdfcer cannot author) and, where the
+    /// geometry also moved, what a viewer will do with the old stream.
+    RecordedNotPainted(String),
+}
+
+impl AppearanceOutcome {
+    /// Whether an operator needs to be told something.
+    ///
+    /// True only for [`Self::RecordedNotPainted`]. Both other states are
+    /// outcomes a form behaves correctly under.
+    #[must_use]
+    pub const fn needs_disclosure(&self) -> bool {
+        matches!(self, Self::RecordedNotPainted(_))
+    }
+}
+
 /// What [`EditSession::edit_widget`] changed.
 #[derive(Debug, Clone, PartialEq, Default)]
 #[non_exhaustive]
@@ -21896,6 +21971,10 @@ pub struct WidgetEditOutcome {
     /// Whether the extent (not merely the position) changed — the condition
     /// under which the appearance must be rebuilt rather than carried.
     pub resized: bool,
+    /// Which of the three things happened to the appearance stream
+    /// ([`AppearanceOutcome`]) — **prefer this** to combining the two fields
+    /// below, which encode the same answer less safely.
+    pub appearance: AppearanceOutcome,
     /// Whether the appearance stream was rebuilt.
     ///
     /// ★ **Key your "the contents were redrawn" message off THIS, never off
@@ -22351,6 +22430,10 @@ impl EditSession {
             crate::vartext::Quadding::Left,
             spec.multiline,
             &resources,
+            // `Pass 308.0`: a created field states no `/MK` colour, so the
+            // builder draws what it always has — no box at all. Carrying a
+            // colour through creation is `Pass 308.1`.
+            annot_author::WidgetChrome::default(),
         )?;
 
         let ap_id = ObjId::new(self.alloc_number()?, 0);
@@ -23416,7 +23499,12 @@ impl EditSession {
         // VECTOR artwork, not a ZapfDingbats glyph — see
         // `build_check_box_appearances` for why the shared text generator
         // cannot draw a check mark.
-        let (off, on) = annot_author::build_check_box_appearances(w, h, spec.style);
+        // `Pass 308.0`: a created button states no `/MK` colour of its own,
+        // so each builder's own default stands — nothing behind a check box,
+        // the plate grey behind a push button. `Pass 308.1` carries a chosen
+        // colour through creation.
+        let chrome = annot_author::WidgetChrome::default();
+        let (off, on) = annot_author::build_check_box_appearances(w, h, spec.style, chrome);
         let off_id = ObjId::new(self.alloc_number()?, 0);
         let on_id = ObjId::new(self.alloc_number()?, 0);
 
@@ -23647,8 +23735,8 @@ impl EditSession {
             Some(forms::ButtonKind::Radio),
             &spec.tooltip,
         )?;
-
-        let (off, on) = annot_author::build_radio_button_appearances(w, h);
+        let chrome = annot_author::WidgetChrome::default();
+        let (off, on) = annot_author::build_radio_button_appearances(w, h, chrome);
         let off_id = ObjId::new(self.alloc_number()?, 0);
         let on_id = ObjId::new(self.alloc_number()?, 0);
 
@@ -24896,6 +24984,15 @@ impl EditSession {
         // six entries pdfcer does not model (R43), and writing a fresh
         // dictionary would silently delete an operator's rotation or their
         // alternate caption.
+        // The colours this command LEAVES the widget with: what the edit
+        // states, else what the widget already carried. Computed here rather
+        // than inside the `if` below because the regenerator needs it whether
+        // or not `/MK` is being written at all — a resize must redraw in the
+        // widget's existing colours, not in the builder's defaults.
+        let chrome_after = annot_author::WidgetChrome::new(
+            edit.background.or(widget.background),
+            edit.border_color.or(widget.border_color),
+        );
         if edit.caption.is_some() || edit.background.is_some() || edit.border_color.is_some() {
             let mut mk = updated
                 .get(b"MK")
@@ -24943,6 +25040,7 @@ impl EditSession {
             rotation: None,
             rect: rect_after,
             caption: edit.caption.clone(),
+            chrome: Some(chrome_after),
         };
 
         // ★ THREE THINGS INVALIDATE THE BAKED APPEARANCE, and the third was
@@ -24958,8 +25056,24 @@ impl EditSession {
         //     its old word. Same class of silent staleness as the other two,
         //     and found by enumerating this verb's routes rather than by a
         //     report.
+        //   * a BACKGROUND or BORDER-COLOUR change (`Pass 308.0`, request
+        //     `G020`) — the fourth and fifth cases of the same class as the
+        //     border and the caption, and they were missing for the whole of
+        //     the time `with_background` and `with_border_color` have
+        //     existed. `/MK` `/BG` is a record of what the artwork should
+        //     look like, not an instruction a reader follows, so writing it
+        //     and stopping changed the dictionary and nothing a person could
+        //     see. Note that the two halves of this fix are inseparable:
+        //     adding the flag here WITHOUT the builders reading the colour
+        //     would be strictly worse than the defect, because the redraw
+        //     would repaint in the hard-coded default and DISCARD what the
+        //     operator chose.
         let mut appearance_stale = None;
-        let needs_regen = resized || edit.border.is_some() || edit.caption.is_some();
+        let needs_regen = resized
+            || edit.border.is_some()
+            || edit.caption.is_some()
+            || edit.background.is_some()
+            || edit.border_color.is_some();
         let appearance_regenerated = if needs_regen {
             let done = self.regen_after_property_change(
                 &field,
@@ -24995,6 +25109,14 @@ impl EditSession {
             rect_before,
             rect_after,
             resized,
+            // The three states, from the two facts that produce them. Built
+            // here, once, so a caller never has to know that `false` plus
+            // `None` is two different answers.
+            appearance: match (appearance_regenerated, &appearance_stale) {
+                (true, _) => AppearanceOutcome::Regenerated,
+                (false, Some(why)) => AppearanceOutcome::RecordedNotPainted(why.clone()),
+                (false, None) => AppearanceOutcome::NotNeeded,
+            },
             appearance_regenerated,
             stroke_width,
             rect_differences_scaled,
@@ -26126,8 +26248,18 @@ impl EditSession {
             name: b"Helv".to_vec(),
             font: crate::fontdata::Std14::Helvetica,
         }];
-        let appearance =
-            annot_author::build_push_button_appearance(w, h, &spec.caption, &da, &resources)?;
+        let appearance = annot_author::build_push_button_appearance(
+            w,
+            h,
+            &spec.caption,
+            &da,
+            &resources,
+            // The plate grey this builder defaults to is the SAME
+            // constant the `/MK` `/BG` written below carries, so the
+            // dictionary and the artwork still agree at creation — they
+            // just no longer agree only by coincidence.
+            annot_author::WidgetChrome::default(),
+        )?;
 
         let ap_id = ObjId::new(self.alloc_number()?, 0);
         let ap_span = self.stage_bytes(&appearance.content);
@@ -26165,21 +26297,28 @@ impl EditSession {
             Name::from(b"CA"),
             Object::String(encode_text_string(&spec.caption)),
         );
-        mk.insert(
-            Name::from(b"BC"),
-            Object::Array(vec![
-                Object::Real(0.0),
-                Object::Real(0.0),
-                Object::Real(0.0),
-            ]),
-        );
+        // ★ ONE component, not three, and the change is deliberate
+        // (`Pass 308.0`). These two arrays used to be written as DeviceRGB
+        // triples while the artwork below painted DeviceGray -- `0.85 g` and
+        // `0.85 0.85 0.85 rg` are the same colour to look at and are NOT the
+        // same operator, and that went unnoticed for as long as nothing read
+        // one to produce the other.
+        //
+        // Now the builder paints from `/MK`, so the mismatch is load-bearing:
+        // the ownership test asks "would pdfcer draw exactly these bytes?",
+        // and a dictionary naming a space the artwork does not use answers no
+        // -- for a button pdfcer drew itself.
+        //
+        // ⚠ A push button created by an EARLIER build still carries the
+        // triples, so its artwork is now read as foreign and `edit_widget`
+        // reports `AppearanceOutcome::RecordedNotPainted` rather than
+        // redrawing it. That is a disclosure, not damage, and it is the
+        // honest answer: pdfcer cannot tell that stream apart from one
+        // another producer wrote. Re-setting either colour rebuilds it.
+        mk.insert(Name::from(b"BC"), Object::Array(vec![Object::Real(0.0)]));
         mk.insert(
             Name::from(b"BG"),
-            Object::Array(vec![
-                Object::Real(annot_author::PUSH_BUTTON_PLATE_GRAY),
-                Object::Real(annot_author::PUSH_BUTTON_PLATE_GRAY),
-                Object::Real(annot_author::PUSH_BUTTON_PLATE_GRAY),
-            ]),
+            Object::Array(vec![Object::Real(annot_author::PUSH_BUTTON_PLATE_GRAY)]),
         );
         d.insert(Name::from(b"MK"), Object::Dict(mk));
         let mut ap = Dict::new();
@@ -26364,6 +26503,7 @@ impl EditSession {
             crate::vartext::Quadding::Left,
             false,
             &resources,
+            annot_author::WidgetChrome::default(),
         )?;
 
         let ap_id = ObjId::new(self.alloc_number()?, 0);
@@ -37641,8 +37781,16 @@ impl EditSession {
             } else {
                 (rw, rh)
             };
-            let appearance =
-                annot_author::build_field_text_appearance(w, h, text, &da, quad, multiline, fonts)?;
+            // The staged colours if this command is writing any, else the
+            // widget's own — the same precedence `rot` above follows, and for
+            // the same reason: the `field.widgets` snapshot was read before
+            // this command's `/MK` write.
+            let chrome = pending
+                .chrome_for(widget.id)
+                .unwrap_or_else(|| Self::widget_chrome(widget));
+            let appearance = annot_author::build_field_text_appearance(
+                w, h, text, &da, quad, multiline, fonts, chrome,
+            )?;
             if appearance.applied_autosize.is_some() {
                 *applied_autosize = appearance.applied_autosize;
                 *applied_autosize_bound = appearance.applied_autosize_bound;
@@ -37934,7 +38082,13 @@ impl EditSession {
                 .caption_for(widget.id)
                 .map(str::to_owned)
                 .unwrap_or_else(|| plan.caption.clone());
-            let redrawn = self.build_button_states(field, kind, w, h, &caption)?;
+            // The staged colours if this command is writing any, else the
+            // widget's own — the same precedence the rect and the caption
+            // above follow.
+            let chrome = pending
+                .chrome_for(widget.id)
+                .unwrap_or_else(|| Self::widget_chrome(widget));
+            let redrawn = self.build_button_states(field, kind, w, h, &caption, chrome)?;
             for (id, content) in plan.slots.iter().zip(redrawn) {
                 let before = self.state.get(id).cloned();
                 let span = self.stage_bytes(&content.content);
@@ -37971,6 +38125,13 @@ impl EditSession {
         w: f64,
         h: f64,
     ) -> Result<Option<ButtonApPlan>, EditError> {
+        // ★ The ownership test draws with the widget's colours **as stored**,
+        // never with the ones this command is staging. It is asking "are
+        // these bytes pdfcer's own artwork?", and a comparison against a
+        // colour nobody has written yet answers "no" for every button whose
+        // colour is being changed — which would make a colour change the one
+        // edit that can never take. `Pass 308.0`.
+        let chrome = Self::widget_chrome(widget);
         let Some(Object::Dict(dict)) = self.value(widget.id) else {
             return Err(EditError::NotADictionary {
                 id: widget.id,
@@ -37997,7 +38158,7 @@ impl EditSession {
                 let Some(id) = n.as_reference() else {
                     return Ok(None);
                 };
-                let expected = self.build_button_states(field, kind, w, h, &caption)?;
+                let expected = self.build_button_states(field, kind, w, h, &caption, chrome)?;
                 let Some(first) = expected.first() else {
                     return Ok(None);
                 };
@@ -38033,7 +38194,7 @@ impl EditSession {
                 else {
                     return Ok(None);
                 };
-                let expected = self.build_button_states(field, kind, w, h, &caption)?;
+                let expected = self.build_button_states(field, kind, w, h, &caption, chrome)?;
                 let [off, on] = expected.as_slice() else {
                     return Ok(None);
                 };
@@ -38066,6 +38227,14 @@ impl EditSession {
         w: f64,
         h: f64,
         caption: &str,
+        // ★ The `/MK` colours to paint with, and WHICH ones depends on which
+        // pass is calling. `button_ap_plan`'s ownership test passes the
+        // widget's colours **as stored**, because it is asking "did pdfcer
+        // draw these bytes?" — a comparison against colours nobody has
+        // written yet would declare pdfcer's own artwork foreign. The redraw
+        // passes the colours the command is STAGING, for the same reason it
+        // passes the staged rect. `Pass 308.0`.
+        chrome: annot_author::WidgetChrome,
     ) -> Result<Vec<annot_author::CheckBoxStateAppearance>, EditError> {
         Ok(match kind {
             forms::ButtonKind::Check => {
@@ -38087,11 +38256,11 @@ impl EditSession {
                     .copied()
                     .and_then(annot_author::CheckStyle::from_mk_caption_char)
                     .unwrap_or_default();
-                let (off, on) = annot_author::build_check_box_appearances(w, h, style);
+                let (off, on) = annot_author::build_check_box_appearances(w, h, style, chrome);
                 vec![off, on]
             }
             forms::ButtonKind::Radio => {
-                let (off, on) = annot_author::build_radio_button_appearances(w, h);
+                let (off, on) = annot_author::build_radio_button_appearances(w, h, chrome);
                 vec![off, on]
             }
             forms::ButtonKind::Push => {
@@ -38110,13 +38279,26 @@ impl EditSession {
                     name: b"Helv".to_vec(),
                     font: crate::fontdata::Std14::Helvetica,
                 }];
-                let built = annot_author::build_push_button_appearance(w, h, caption, &da, &fonts)?;
+                let built =
+                    annot_author::build_push_button_appearance(w, h, caption, &da, &fonts, chrome)?;
                 vec![annot_author::CheckBoxStateAppearance {
                     ap_dict: built.ap_dict,
                     content: built.content,
                 }]
             }
         })
+    }
+
+    /// One widget's `/MK` `/BG` and `/BC` as the file states them
+    /// (§12.5.6.19 Table 189).
+    ///
+    /// A thin adapter over the two `forms::Widget` fields, and it exists as a
+    /// named function rather than a struct literal at each call site so the
+    /// ownership test and the redraw cannot drift into reading different
+    /// keys — the failure `build_button_states`'s own doc comment describes
+    /// for the artwork, applied to the colours that artwork is drawn in.
+    fn widget_chrome(widget: &forms::Widget) -> annot_author::WidgetChrome {
+        annot_author::WidgetChrome::new(widget.background, widget.border_color)
     }
 
     /// Whether the stream object `id` currently holds exactly `expected`.

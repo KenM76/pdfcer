@@ -72,6 +72,7 @@
 //!   pdfcer's chosen defaults are named at each constructor as pdfcer's own
 //!   contract, not a claimed Acrobat match.
 
+use crate::forms::MkColor;
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, Name, Object};
 use crate::page_tree::Rect;
@@ -3882,6 +3883,150 @@ impl CheckStyle {
     }
 }
 
+/// The two `/MK` colours a widget's appearance is **painted with** — `/BG`
+/// (background) and `/BC` (border), §12.5.6.19 Table 189.
+///
+/// # Why the colours reach the builder at all
+///
+/// **R43: pdfcer paints the baked `/AP`, and never reconstructs an
+/// appearance from `/MK` at display time.** `/MK` is the *"appearance
+/// characteristics dictionary"* — a record of what the artwork should look
+/// like, for a producer regenerating it. It is not drawing instructions a
+/// reader follows. So a widget whose `/BG` says blue and whose `/AP` draws
+/// grey **renders grey**, in pdfcer and in every other conforming reader.
+///
+/// Which is why writing `/MK` `/BG` and stopping is not a colour change at
+/// all: it is a record of an intention nothing acts on. The colour has to be
+/// **baked into the stream**, exactly as the border width and the push
+/// button's caption already are, and this type is how it gets there.
+///
+/// # `None` and `Some(MkColor::None)` are different, and both are real
+///
+/// `None` means the widget states **no such colour**, and the builder draws
+/// whatever it has always drawn — nothing for a text field's background, the
+/// plate grey for a push button, black for every border. That default is what
+/// keeps every appearance pdfcer has ever authored byte-identical.
+///
+/// `Some(MkColor::None)` is the **empty array** Table 189 defines as *"no
+/// colour"*. The widget states, positively, that it has no background — so a
+/// push button with that value gets no plate, which is a thing an operator
+/// can ask for and an absent key cannot express.
+///
+/// # CMYK is painted, not converted
+///
+/// A four-component `/BG` is emitted as a DeviceCMYK operator (`k` / `K`,
+/// §8.6.4.4) and not converted to RGB. pdfcer does not own a rendering
+/// intent for a widget's chrome, and a silent conversion would be exactly
+/// the substitution `Widget::border` refuses elsewhere — the operator's
+/// separation is what the file says, so it is what the stream says.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[non_exhaustive]
+pub struct WidgetChrome {
+    /// `/MK` `/BG`. `None` = the widget states none; the builder's own
+    /// default stands.
+    pub background: Option<MkColor>,
+    /// `/MK` `/BC`. `None` = the widget states none; the builder draws its
+    /// border in black, as it always has.
+    pub border_color: Option<MkColor>,
+}
+
+impl WidgetChrome {
+    /// Both colours as a widget states them.
+    #[must_use]
+    pub const fn new(background: Option<MkColor>, border_color: Option<MkColor>) -> Self {
+        Self {
+            background,
+            border_color,
+        }
+    }
+
+    /// The background to fill with, or `None` to fill nothing — resolving
+    /// `Some(MkColor::None)` (Table 189's *"no colour"*) to *draw nothing*
+    /// and an absent key to `fallback`.
+    fn fill(self, fallback: Option<MkColor>) -> Option<MkColor> {
+        match self.background {
+            Some(MkColor::None) => None,
+            Some(c) => Some(c),
+            None => fallback,
+        }
+    }
+
+    /// The border colour to stroke with. Black when the widget states none —
+    /// **and black when it states `no colour`**, which is the one place this
+    /// differs from [`Self::fill`].
+    ///
+    /// A border with no colour is not a border pdfcer can draw *invisibly*:
+    /// the border's WIDTH lives in `/BS`, and a widget that wanted no border
+    /// says so there, with `/W 0`. Treating an empty `/BC` as "omit the
+    /// stroke" would give two unrelated keys the same meaning and make
+    /// `/BS /W 3` with an empty `/BC` draw nothing — which is not what
+    /// either key says.
+    fn stroke(self) -> MkColor {
+        match self.border_color {
+            Some(MkColor::None) | None => MkColor::Gray(0.0),
+            Some(c) => c,
+        }
+    }
+}
+
+/// Widen an `/MK` component to the number the FILE said, not to the number
+/// the `f32` happens to be.
+///
+/// [`MkColor`] stores components as `f32`, so `f64::from` widens the binary
+/// value and `0.2` prints as `0.20000000298023224` — seventeen digits that
+/// assert a precision the producer never wrote, in a content stream, once per
+/// component. Round-tripping through `f32`'s shortest-round-trip `Display`
+/// restores `0.2`.
+///
+/// This matters beyond tidiness: rule 3 makes a re-emitted object's bytes
+/// part of the contract, and an appearance regenerated from a colour read out
+/// of the same file should come back with the same digits it went in with.
+fn mk_component(v: f32) -> f64 {
+    v.to_string().parse::<f64>().unwrap_or(f64::from(v))
+}
+
+/// Set the non-stroking colour from an [`MkColor`] (§8.6.8's `g`, `rg`, `k`).
+fn set_fill(b: &mut ContentBuilder, c: MkColor) {
+    match c {
+        // Unreachable through `WidgetChrome::fill`, which resolves "no
+        // colour" to *draw nothing* before reaching here. Handled rather
+        // than `unreachable!()` so a future caller cannot turn a missing
+        // match arm into a panic in an appearance builder.
+        MkColor::None => {}
+        MkColor::Gray(g) => b.set_fill_gray(mk_component(g)),
+        MkColor::Rgb(r, g, bl) => {
+            b.set_fill_rgb(mk_component(r), mk_component(g), mk_component(bl));
+        }
+        MkColor::Cmyk(c, m, y, k) => {
+            b.set_fill_cmyk(
+                mk_component(c),
+                mk_component(m),
+                mk_component(y),
+                mk_component(k),
+            );
+        }
+    }
+}
+
+/// Set the stroking colour from an [`MkColor`] (§8.6.8's `G`, `RG`, `K`).
+fn set_stroke(b: &mut ContentBuilder, c: MkColor) {
+    match c {
+        MkColor::None => {}
+        MkColor::Gray(g) => b.set_stroke_gray(mk_component(g)),
+        MkColor::Rgb(r, g, bl) => {
+            b.set_stroke_rgb(mk_component(r), mk_component(g), mk_component(bl));
+        }
+        MkColor::Cmyk(c, m, y, k) => {
+            b.set_stroke_cmyk(
+                mk_component(c),
+                mk_component(m),
+                mk_component(y),
+                mk_component(k),
+            );
+        }
+    }
+}
+
 /// Build a check box's **two** appearance states — on and off — as
 /// vector-drawn artwork (§12.7.4.2.3).
 ///
@@ -3927,6 +4072,7 @@ pub fn build_check_box_appearances(
     width: f64,
     height: f64,
     style: CheckStyle,
+    chrome: WidgetChrome,
 ) -> (CheckBoxStateAppearance, CheckBoxStateAppearance) {
     let (w, h) = (width.max(1.0), height.max(1.0));
     let rect = Rect {
@@ -3940,8 +4086,23 @@ pub fn build_check_box_appearances(
     // would have half its width clipped away by the form XObject.
     let inset = 0.5;
 
+    // The box, then its border. A check box has no background of its own
+    // historically, so an absent `/BG` fills nothing and the stream is
+    // byte-identical to every one pdfcer has authored (R34).
+    //
+    // The fill covers the WHOLE BBox while the stroke is inset by half its
+    // width: a fill is bounded by its path, a stroke straddles it. Filling
+    // the inset rectangle instead would leave a half-point of unpainted
+    // BBox outside the border, which reads as a hairline gap at high zoom.
+    let chrome_bg = chrome.fill(None);
+    let chrome_bc = chrome.stroke();
     let border = |b: &mut ContentBuilder| {
-        b.set_stroke_gray(0.0);
+        if let Some(bg) = chrome_bg {
+            set_fill(b, bg);
+            b.rect(0.0, 0.0, w, h);
+            b.paint(Paint::Fill);
+        }
+        set_stroke(b, chrome_bc);
         b.set_line_width(1.0);
         b.rect(inset, inset, w - 2.0 * inset, h - 2.0 * inset);
         b.paint(Paint::Stroke);
@@ -3963,8 +4124,14 @@ pub fn build_check_box_appearances(
     let m = (w.min(h)) * 0.25;
     let (cx, cy) = (w / 2.0, h / 2.0);
     let s = (w.min(h) - 2.0 * m) / 2.0;
-    on.set_stroke_gray(0.0);
-    on.set_fill_gray(0.0);
+    // The mark takes the BORDER colour, not the background — the same
+    // reading of `/BC` as "the control's ink" the radio button's dot uses,
+    // and for the same reason: `/MK` has no third colour meaning "the mark",
+    // and a tick in the background colour is invisible against the box it
+    // sits in. Absent `/BC` is black, so every existing check box is
+    // unchanged.
+    set_stroke(&mut on, chrome_bc);
+    set_fill(&mut on, chrome_bc);
     on.set_line_cap(LineCap::Round);
     on.set_line_join(LineJoin::Round);
     match style {
@@ -4104,6 +4271,7 @@ pub fn build_check_box_appearances(
 pub fn build_radio_button_appearances(
     width: f64,
     height: f64,
+    chrome: WidgetChrome,
 ) -> (CheckBoxStateAppearance, CheckBoxStateAppearance) {
     let (w, h) = (width.max(1.0), height.max(1.0));
     let rect = Rect {
@@ -4131,8 +4299,21 @@ pub fn build_radio_button_appearances(
         b.curve_to(cx + k, cy - r, cx + r, cy - k, cx + r, cy);
     }
 
+    // ★ A radio button's background is a DISC, not a rectangle. Filling the
+    // BBox would put a coloured square behind a round control, which is not
+    // what an operator choosing a background for a radio button is asking
+    // for and is not what any reader draws. The disc is filled to the ring's
+    // outer edge and the ring then strokes over it, so the two agree at the
+    // boundary rather than leaving a ragged edge between fill and stroke.
+    let chrome_bg = chrome.fill(None);
+    let chrome_bc = chrome.stroke();
     let ring = |b: &mut ContentBuilder| {
-        b.set_stroke_gray(0.0);
+        if let Some(bg) = chrome_bg {
+            set_fill(b, bg);
+            circle(b, cx, cy, r);
+            b.paint(Paint::Fill);
+        }
+        set_stroke(b, chrome_bc);
         b.set_line_width(1.0);
         circle(b, cx, cy, r);
         b.paint(Paint::Stroke);
@@ -4145,7 +4326,13 @@ pub fn build_radio_button_appearances(
     ring(&mut on);
     // The dot at half the ring's radius — the conventional proportion, and
     // large enough to stay visible when a form is printed at reduced scale.
-    on.set_fill_gray(0.0);
+    //
+    // It takes the BORDER colour, not the background: the dot and the ring
+    // are one control's ink, and a dot in the background colour would be
+    // invisible against the disc it sits on. `/MK` has no third colour to
+    // mean "the mark", so this is pdfcer reading `/BC` as the control's ink
+    // — stated here because it is a choice, not a clause.
+    set_fill(&mut on, chrome_bc);
     circle(&mut on, cx, cy, (r * 0.5).max(0.4));
     on.paint(Paint::Fill);
 
@@ -4238,12 +4425,14 @@ pub fn build_radio_button_appearances(
 /// Any [`VarTextError`] from the generator — a malformed `/DA`, a `/DA` font
 /// name absent from `resources`, or a symbolic font this Latin-only
 /// generator cannot lay out.
+#[allow(clippy::too_many_arguments)]
 pub fn build_push_button_appearance(
     width: f64,
     height: f64,
     caption: &str,
     da: &[u8],
     resources: &[FontResource],
+    chrome: WidgetChrome,
 ) -> Result<FieldAppearance, VarTextError> {
     // A widget /Rect can be degenerate; floor each axis at one point so the
     // /AP BBox stays a §12.5.5 positive result (WF4), matching
@@ -4263,12 +4452,26 @@ pub fn build_push_button_appearance(
     // circle. The half-unit inset keeps the 1.0-wide stroke inside the BBox:
     // a stroke straddles its path, so one drawn at the edge loses half its
     // width to the form XObject's clip.
+    //
+    // ★ This is the ONE builder whose default background is not "nothing".
+    // The plate grey is what a push button has always been drawn on, and
+    // `add_push_button` writes that same constant into `/MK` `/BG` at
+    // creation — so the dictionary and the artwork agreed BY CONSTRUCTION
+    // and diverged the moment anything changed one of them. Now the artwork
+    // reads the dictionary, and an absent `/BG` falls back to the constant,
+    // which keeps every button pdfcer has already authored byte-identical.
+    //
+    // `Some(MkColor::None)` — Table 189's empty array, *"no colour"* — gets
+    // no plate at all. That is a real thing to ask for (a transparent button
+    // over artwork) and an absent key cannot express it.
     let inset = 0.5;
     let mut plate = ContentBuilder::new();
-    plate.set_fill_gray(PUSH_BUTTON_PLATE_GRAY);
-    plate.rect(0.0, 0.0, w, h);
-    plate.paint(Paint::Fill);
-    plate.set_stroke_gray(0.0);
+    if let Some(bg) = chrome.fill(Some(MkColor::Gray(PUSH_BUTTON_PLATE_GRAY as f32))) {
+        set_fill(&mut plate, bg);
+        plate.rect(0.0, 0.0, w, h);
+        plate.paint(Paint::Fill);
+    }
+    set_stroke(&mut plate, chrome.stroke());
     plate.set_line_width(1.0);
     plate.rect(inset, inset, w - 2.0 * inset, h - 2.0 * inset);
     plate.paint(Paint::Stroke);
@@ -4374,6 +4577,7 @@ pub const PUSH_BUTTON_PLATE_GRAY: f64 = 0.85;
 /// Any [`VarTextError`] from the generator — a malformed `/DA`, a `/DA` font
 /// name absent from `resources`, or a symbolic font this Latin generator
 /// cannot lay out.
+#[allow(clippy::too_many_arguments)]
 pub fn build_field_text_appearance(
     width: f64,
     height: f64,
@@ -4382,6 +4586,7 @@ pub fn build_field_text_appearance(
     quad: Quadding,
     multiline: bool,
     resources: &[FontResource],
+    chrome: WidgetChrome,
 ) -> Result<FieldAppearance, VarTextError> {
     // A widget /Rect can be degenerate; the generator's clip and metrics need
     // a positive box, so floor each axis at one point (matching WF4's posture
@@ -4393,9 +4598,48 @@ pub fn build_field_text_appearance(
         ury: height.max(1.0),
     };
     let va = vartext::build_variable_text(bbox, text, da, quad, multiline, resources)?;
+
+    // ★ A TEXT FIELD DRAWS NO BOX BY DEFAULT, AND THAT MUST NOT CHANGE.
+    // This builder has never painted a background or a frame; the box an
+    // operator sees around a text field in most forms is the reader's own
+    // form-field highlight, not content. So an absent `/BG` and an absent
+    // `/BC` produce the variable-text stream unchanged, byte for byte — the
+    // alternative is every existing text field in every document pdfcer
+    // touches silently gaining a white rectangle and a black frame.
+    //
+    // Both are drawn BEFORE the text, and OUTSIDE it: `build_variable_text`
+    // emits its own `BT`…`ET` under a clip, and §8.2 Table 51 does not admit
+    // `q`/`Q` inside a text object, so anything painted after it would be
+    // inside that clip or malformed. Prepending is the only correct order
+    // and it is also the visually correct one — the box is behind the
+    // letters.
+    let mut content = Vec::new();
+    let bg = chrome.fill(None);
+    let has_border = chrome.border_color.is_some_and(|c| c != MkColor::None);
+    if bg.is_some() || has_border {
+        let mut box_art = ContentBuilder::new();
+        if let Some(bg) = bg {
+            set_fill(&mut box_art, bg);
+            box_art.rect(0.0, 0.0, bbox.urx, bbox.ury);
+            box_art.paint(Paint::Fill);
+        }
+        if has_border {
+            // Inset by half the stroke width, for the reason every other
+            // builder here insets: a stroke straddles its path, so one drawn
+            // on the BBox edge loses half its width to the form XObject clip.
+            let inset = 0.5;
+            set_stroke(&mut box_art, chrome.stroke());
+            box_art.set_line_width(1.0);
+            box_art.rect(inset, inset, bbox.urx - 2.0 * inset, bbox.ury - 2.0 * inset);
+            box_art.paint(Paint::Stroke);
+        }
+        content.extend_from_slice(&box_art.into_bytes());
+    }
+    content.extend_from_slice(&va.content);
+
     Ok(FieldAppearance {
         ap_dict: text_form_dict(bbox, va.resources),
-        content: va.content,
+        content,
         applied_autosize: va.applied_autosize,
         applied_autosize_bound: va.applied_autosize_bound,
         da_colour_unmodelled: va.da_colour_unmodelled,
