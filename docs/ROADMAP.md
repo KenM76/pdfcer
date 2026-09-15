@@ -127,7 +127,13 @@ Answers `pdfcer-gui`'s `G020` (O202: *"the forms objects have no way to edit the
 
 **A precision defect caught by a test assertion, not by review.** `MkColor` stores `f32`; `f64::from` widens it losslessly, and `f64`'s own shortest-round-trip `Display` was about to write `0.20000000298023224` into content streams per component — seventeen digits asserting a precision no producer wrote. Fixed by formatting at the ORIGINAL `f32` width, not the widened one. Third instance filed to the existing lesson: `D:\dev\rag\rust\shortest_roundtrip_float_format_needs_derived_value_rounding.md`.
 
-**Owed verification, not acted on — new owed item 36.** `docs/core-api/02-editing-and-saving.md`'s `rotate_widget` section cites PDF Association erratum #56 as adding `/MK` to §12.5.2's ignore-list. `pdfcer-gui`'s `G020` request said a session of theirs had read the same claim and could not source it, and deliberately rested nothing on it. The sentence is unchanged here — a sourced claim is not deleted because a third party could not find it — but the sourcing itself is now owed to `pdfcer-spec-librarian`, not assumed correct by continued citation.
+**Owed item 36 — OPENED AND CLOSED THE SAME DAY, 2026-09-15. Verdict: CORRECT AS WRITTEN.** `docs/core-api/02-editing-and-saving.md`'s `rotate_widget` section cites PDF Association erratum #56 as adding `/MK` to §12.5.2's ignore-list. `pdfcer-gui`'s `G020` request said a session of theirs had read the same claim, could not source it, and deliberately rested nothing on it. The sentence was left unchanged and the sourcing dispatched instead — a sourced claim is not deleted because a third party could not find it.
+
+`pdfcer-spec-librarian` verified it at evidence tier **(a)**, three independent channels with controls both ways: issue **#56** exists, is titled *"Clarify status of MK dictionary for widget annotations with AP appearance dictionary"*, closed **2021-07-09** with the single label `ISO approved`, and the rendered errata page carries the `/MK` insertion into §12.5.2's list. The *"TWG 2021-07-08"* half — the part that looked most likely to have been invented — is a **verbatim comment timestamp**. ISO 32000-1 has no such list at all, and its Table 164 states the **inverse** priority, so the claim rests on 2.0-plus-errata exactly as written. Filed at `iso32000__s__12.5.2.md` (`IGN-1`…`IGN-9`).
+
+★ **Two things fell out of it that the question did not ask for.** The erratum covers **the whole `/MK` key**, not `/R` — so `/BG` and `/BC` are equally out of scope when rendering the `/AP`, which means **`Pass 308.0`'s premise is corroborated by the corrected standard** and not merely consistent with R43. And the erratum **narrowed the lead-in** from *"without regard to any other keys and values in the annotation dictionary"* to *"When rendering the appearance dictionary"*, which is the sourcing for `rotate_widget` being write-**plus**-regenerate.
+
+★★ **And it exposed a wrong citation running the other way, in three of our own documents.** `/BM`'s REMOVAL from the same list was attributed to #56 in `FEATURES.md`, in this file, and in `docs/history/roadmap-shipped-2026-09-01..08.md`. It is **issues #23 and #34**. Four edits, three errata, one paragraph — and the ancestor was the spec corpus compressing them into *"the same edit removes `BM`"*, which three pdfcer documents then inherited. All three corrected, in place and dated. **The `/BM` engineering conclusion is untouched**: it really was removed by ISO-approved errata. ⇒ *A verification dispatched to confirm one citation found a different one wrong — which is the argument for dispatching it rather than re-reading our own sentence.*
 
 **Sourcing (hard rule 8) — no shell this filing.** Commit hash `bd8059f2`, its stated push status, and the docs/core-api verb-count claim are taken from the requesting engineer's own dispatch, not independently confirmed against `git log`/`git show` — no shell available to this filing. **Independently confirmed via `Read`/`Grep` against live source at HEAD:** `annot_author::WidgetChrome`/`RecordedNotPainted`/`AppearanceOutcome` exist in `crates/pdfcer-core/src/edit.rs` and `annot_author.rs`; `crates/pdfcer-core/tests/widget_colour_appearance.rs` exists and contains exactly 11 `#[test]` functions, matching the dispatch's count.
 
@@ -141,7 +147,7 @@ Answers `pdfcer-gui`'s `G020` (O202: *"the forms objects have no way to edit the
 | `SESSION_LOG` filings | `557` | **`558`** |
 | `docs/FEATURES.md` | Planned row (`Pass 308.0`–`308.2`): `core [ ] · cli [ ] · gui [ ]`; Forms field-property row said "recorded, not painted" | **Planned row: `core [x] · cli [x] · gui [ ]`, stays in *Planned* pending `Pass 308.1` + `pdfcer-gui` wiring; Forms field-property row updated to say "painted, `Pass 308.1` (creation-time) still owed"** |
 | `D:\dev\rag\rust\` | 371 finding files (373 total − 2 meta) | **373 finding files (375 total − 2 meta, Glob-measured after this filing's additions) — 2 new (`two_representations_of_one_fact_…`, `a_builder_parameter_threaded_through_…`), 1 existing file (`shortest_roundtrip_float_format_…`) gains a third dated instance, no new file for that one** |
-| Owed items | highest `35` | **`36`** — verify PDF Association erratum #56 actually adds `/MK` to §12.5.2's ignore-list (`docs/core-api/02-editing-and-saving.md`'s `rotate_widget` section); dispatch `pdfcer-spec-librarian` |
+| Owed items | highest `35` | **`36`** — opened and **closed** 2026-09-15. Erratum #56 verified **correct as written**, tier (a); three of our own documents found miscited on the neighbouring `/BM` edit and corrected |
 
 ---
 
@@ -14901,8 +14907,11 @@ nothing disclosing that the two now disagree.~~
 
 **What shipped.** `/BM` is preserved by restyle, reshape and resize; a shared
 `preserve_blend_mode` gives one answer in one place — **the file's value wins
-over pdfcer's** — and the PDF Association errata (issue #56, ISO approved
-2021-07-09) is the operative reading, against the printed ISO 32000-2 list.
+over pdfcer's** — and the PDF Association errata (issues **#23 and #34**, ISO
+approved) are the operative reading, against the printed ISO 32000-2 list.
+★ **The number was #56 here until 2026-09-15**, and #56 is a real erratum on
+the same paragraph — it is the one that ADDS `/MK` to the list. Four edits,
+three errata, one paragraph; the conclusion about `/BM` is untouched.
 Three fixtures, 7 tests, one guard shipped labelled unproven-by-test.
 
 ★ **This entry's own gap statement was wrong in two ways and the *Shipped*

@@ -27,6 +27,7 @@
 | **"is key K constrained to a VOCABULARY?" / "I am about to write a literal token into files"** | corpus **78** |
 | **"this ONE value is wrong — now check the whole column"** | corpus **73** |
 | **"is clause C advisory or mandatory?"** | corpus **65** |
+| **"verify a SHIPPED CITATION — a third party couldn't source our cited claim"** / an erratum's real number, text, status, date | corpus **80** + extraction **4v**/**4w** |
 | "close the exclusion banner" / "ingest C AND give me the step list" | corpus **70** + **58** |
 | "is the base standard silent on X?" and a later edition fixes it | corpus **70e** — check whether a PROFILE of the base edition also fixes it |
 | a PDF/UA or PDF/A conformance question | corpus **69e** (answer PER PART — a later part can WIDEN a rule) + **69f** (free-quotation route) |
@@ -68,7 +69,8 @@
 - **A clause number is not a key across editions; neither is a table number.** Put the map in the file's §0. Corpus **63c**, **52**, **62h**, **70i**; range-dependent shift **65f**.
 - **A one-way cross-reference is a DEFECT, not a contradiction** — check for the three enumeration formulas before calling it one. Corpus **79g**, **69c**.
 - **A test suite's expected results measure a DEVICE, not a rule** (check its LICENCE); a search-engine summary of a paywalled standard is a LEAD; a committee's free "application notes" can disclaim being normative. Corpus **68f**, **68g**, **68i**.
-- **An OPEN `pdf-issues` issue, and a `wontfix` CLOSED one, both beat a self-measured silence.** Search by KEY NAME and by the dispatch's QUESTION (`in:title`). Corpus **70g**, **77a**.
+- **An OPEN `pdf-issues` issue, and a `wontfix` CLOSED one, both beat a self-measured silence.** Search by KEY NAME and by the dispatch's QUESTION (`in:title`). Corpus **70g**, **77a**. **An OPEN issue that QUOTES an erratum is evidence FOR it — read its KEY LIST, not its title.** Corpus **80e**.
+- **★★ ONE PARAGRAPH CARRIES EDITS FROM SEVERAL ERRATA — attribute per edit (`data-issue` in the RAW HTML), never by paragraph.** A corpus one-liner saying "the same edit" seeded a wrong issue number in three downstream docs. And **"ISO approved" ≠ published**; **the odd-looking element of a citation is not the unsourced one.** Corpus **80a**/**80b**/**80d**; extraction **4v**/**4w**.
 - **A corpus sentence about what pdfcer IS is a DATED MEASUREMENT** — strike through with a dated correction, never delete; and re-measure the WHOLE "corrections owed" section, not only the rows you were told about. Corpus **67d**, **79j**.
 - **A shipped SETTING has a scope**; a register entry citing two tables jointly is a scope smell. Corpus **64e**, **61e**, **54**.
 - **A scope-exclusion banner is an untested claim about material its author deliberately did not read.** Corpus **58**.

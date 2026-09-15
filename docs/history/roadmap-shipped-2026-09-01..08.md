@@ -1604,8 +1604,11 @@ KEY, AND ONLY THE CORRECTED READING IS OPERATIVE.** ISO 32000-2 **as printed**
 lists `BM` among the keys a reader *"shall ignore … when rendering the
 appearance dictionary"*, in the company of `C`, `IC`, `Border`, `BS`, `CA` and
 `H` — a list that reads unambiguously as *metadata, safe to normalise away*.
-**The PDF Association errata (issue #56, closed 2021-07-09, label `ISO
-approved`) REMOVED `BM` from that list**, while adding `MK` to it. So `/BM` on
+**The PDF Association errata REMOVED `BM` from that list**, while a
+separate erratum added `MK` to it. ★ **The removal is issues #23 and #34, not
+#56** — corrected 2026-09-15; #56 is the one that adds `/MK`, and this sentence
+had both edits under the one number. The `/BM` conclusion is unaffected: it was
+removed by ISO-approved errata either way. So `/BM` on
 an annotation dictionary **is honoured** when compositing that annotation onto
 the page: it changes pixels. Sourced from the spec corpus
 (`iso32000__s__12.5.6.19.md` §4.3), **not from recall** — project rule 1

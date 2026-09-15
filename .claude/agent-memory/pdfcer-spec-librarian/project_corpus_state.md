@@ -7700,3 +7700,131 @@ added two corrections to that file's §9 and one request to re-verify it against
   (`"…allow it to` **`7 ReadOnly`** `interact with the user…"`), and one em-dash extracts as
   a replacement character. **Verify a miss on HALF the sentence before doubting the
   quotation**, and record the artifact in the file so the next run does not re-litigate it.
+
+
+---
+
+## 80. The **VERIFY-A-SHIPPED-CITATION** dispatch — *"a third party read our claim, could not source it, and rested nothing on it; ours is cited — which of us is right?"* (2026-09-15, PDF Association erratum **#56** / `/MK` on §12.5.2's ignore-list, `ROADMAP.md` owed item 36)
+
+Shape, and it is a **new** one: the dispatch does not doubt the *fact*, it doubts the
+*provenance*. A downstream project (`pdfcer-gui`, request `G020`) reported reading the same
+claim, failing to source it, and **withdrawing rather than leaning on it** — correct
+behaviour — while pdfcer's own document asserted it **with** a citation. The engineer
+deliberately did **not** edit the sentence first (*"deleting a sourced claim because a
+third party could not find it is the wrong direction"*) and asked for one of three verdicts:
+**correct as written / correct in substance but wrong in its citation / unsupported**.
+**Give exactly those three states back.** Verdict here: **correct as written**, and the
+value of the session was entirely in the **adjacent** defect it exposed.
+
+### 80a. ★★★ THE PART OF A CITATION THAT LOOKS INVENTED IS NOT THE PART THAT IS
+
+The dispatch flagged *"TWG 2021-07-08"* as *"the part most likely to have been invented
+around a real erratum"* — an unusual thing for a corpus to carry, therefore suspect. It
+is the **most** sourceable element in the sentence: the UTC timestamp
+(`2021-07-08T20:33:05Z`) of a GitHub comment whose text is quoted verbatim
+(*"PDF TWG: OK to ignore MK for Widget. Screen annots require AP therefore OK to
+ignore."*). **Oddness is not a confidence signal.** Grade every element on its own
+channel, and note that a date one day off another document's date can be two different
+real events (comment `2021-07-08` vs `closed_at 2021-07-09` — both correct).
+
+### 80b. ★★★ ONE PARAGRAPH, FOUR EDITS, **THREE DIFFERENT ERRATA** — READ THE PER-EDIT `data-issue` ATTRIBUTE, NEVER THE PARAGRAPH
+
+This is the finding to carry forward, and it is a **new extraction technique**
+(→ extraction item **4v**). `pdf-issues.pdfa.org/<std>/clause<NN>.html` tags **every**
+`<ins>`/`<del>` with `data-issue="N"` (or `"23,34"`) and `data-iso="approved"`. The
+§12.5.2 ignore-list paragraph carries:
+
+| Edit | Issue |
+|---|---|
+| `<ins>MK,</ins>` | **56** |
+| `<del>BM,</del>` | **23 + 34** |
+| lead-in rewrite | **23 + 34** |
+| new `NOTE 1` / `NOTE 2` renumber | **34** |
+
+**My own corpus had compressed this to *"the same edit removes `BM`"*** — same
+*paragraph*, different *erratum* — **and three `pdfcer` documents inherited it as
+*"issue #56 … removed it from that list"*.** Second confirmed instance of corpus item
+**50**'s pattern: *the corpus's own one-line compression is the ancestor of the
+downstream error.* **When two edits land in one paragraph, name the issue per edit or do
+not name one at all.**
+
+### 80c. ★★ THE THREE-CHANNEL PATTERN FOR AN ERRATUM, AND WHAT EACH CHANNEL UNIQUELY GIVES
+
+Re-usable, ~6 commands total:
+
+1. **GitHub API** — `repos/pdf-association/pdf-issues/issues/<N>` **plus a SEPARATE
+   `/comments` call** (the issue object does not embed them; item 4j-bis). Gives `state`,
+   `state_reason`, `labels`, `closed_at`, the submitter's statement of the ambiguity, and
+   the TWG resolution comment **with its timestamp**.
+2. **`pdf-issues.pdfa.org/<std>/clause<NN>.html`** — the only channel with **per-edit
+   attribution** (80b). Inspect the **RAW HTML** around the edit, not the flattened text;
+   flattening destroys `data-issue`.
+3. **The staged EC3 PDF's `/Annots` sweep** — the erratum as a `/Caret` whose `/T` is
+   `Issue #NN` and whose `/Contents` is the inserted text, plus the reply chain's
+   `/State`. **And `/QuadPoints` recovery (item 3-ISO2) PROVES WHICH GLYPH RUN A
+   `/StrikeOut` COVERS** — here it returned exactly `'BM, '` under the annot titled
+   `Issue #23 and #34`, which is what turned 80b from an inference into a measurement.
+
+**Controls both ways**, per 63d: positive `MK+dictionary` → 4 hits (incl. #56); negative
+`zzqqxxnotaterm` → 0.
+
+### 80d. ★★ `ISO approved` MEANS BOTH BODIES — BUT "APPROVED" IS NOT "PUBLISHED", AND THE RATIO IS THE TELL
+
+`pdf-association/pdf-issues` `README.md`, verbatim and free: an `ISO approved` erratum
+*"has been approved by **both** the PDF Association's appropriate TWG **and** the
+appropriate ISO working groups responsible for PDF"*. The errata index adds that closed
+errata are applied to *"the master documents that form the basis for **future
+editions**"*. Measured 2026-09-15: **311** issues labelled `ISO approved`, **9** labelled
+`ISO 32000-2 Amd1`. ⇒ absence from `Amd1` is **not** a demotion (Amd1 is a narrow formal
+amendment); the correct status phrase is **"ratified correction to the published text,
+not yet re-published"**, and a citing document should say *the corrected standard*.
+Corroborate the label against the staged PDF's reply chain (`Completed` = ISO-ratified,
+`Accepted` = TWG only; walk `/IRT`, take max `/M` — item 3-ISO2-ter).
+
+### 80e. ★★ AN **OPEN** ISSUE THAT QUOTES THE CORRECTED SENTENCE IS EVIDENCE **FOR** THE ERRATUM — CHECK WHICH KEYS IT DISPUTES
+
+`#587` (OPEN, 2025-07-28, `bug`) quotes the errata-corrected §12.5.2 sentence verbatim and
+argues §12.5.5's compositing sentence contradicts it. **Scope of the dispute: `CA` and
+`ca` only.** Two consequences, and both are deliverables: the erratum is real and in
+circulation (an outsider is reasoning from it), **and** annotation opacity-with-`/AP` is
+an **open, unresolved** ambiguity that must not be presented as settled by the same
+sentence that settles `MK`. **Always read an open issue's KEY LIST, not just its title.**
+
+### 80f. ★ A GRADED NEGATIVE IS STRONGER WHEN THE OLD EDITION SAYS THE **OPPOSITE**
+
+ISO 32000-1 has **0** occurrences of the ignore-list sentence (three phrasings measured
+whitespace-stripped) — but the better fact is its Table 164 `/AP` row: *"Individual
+annotation handlers **may ignore this entry** and provide their own appearances."*
+⇒ 1.7 lets a handler discard the `/AP` in favour of a generated appearance; 2.0 + errata
+**inverts the priority**. **Don't stop at a 0-count. Find the sentence the old edition put
+where the new one put its rule.**
+
+### 80g. ★ SCOPE A KEY-LIST INSERTION BY WHAT THE LIST IS A LIST **OF**
+
+The erratum inserts the token `MK,` into a list of **annotation-dictionary key names**.
+`/MK` is one such key; its sub-entries are not separately enumerated ⇒ **the whole
+appearance-characteristics dictionary** (`/R`, `/BG`, `/BC`, `/CA`–`/RC`–`/AC`, `/I`–`/RI`–`/IX`,
+`/IF`, `/TP`) is out of scope when rendering the `/AP`, not just the key that prompted the
+question. That **independently corroborated a Pass shipped the same day on other
+grounds** — say so explicitly; a project that reached the right answer from its own
+architecture rule benefits from knowing the standard agrees.
+
+### 80h. ★ AN ERRATUM CAN **NARROW** A SENTENCE, AND THE NARROWING IS OFTEN THE ENGINEERING PAYLOAD
+
+Struck: *"… without regard to any other keys and values in the annotation dictionary
+…"*. Inserted: *"**When rendering the appearance dictionary**, a PDF reader …"*. The
+duty moved from *the reader, generally* to *the AP-rendering path*, which is exactly what
+licenses a **regenerating** processor to keep consuming the ignored keys. **Diff the
+lead-in, not only the list** — a reader who only diffs the enumerated items records
+"`MK` in, `BM` out" and misses the clause that decides the implementation shape.
+
+### 80i. Filing shape (a re-dispatch that AMENDS rather than adds)
+
+**+0 files.** Amended `iso32000__s__12.5.2.md` (a dated `## UPDATE` section, keys
+`IGN-1`…`IGN-9`, filed in the **home clause of the paragraph** rather than in a new file,
+because four separate Passes lean on it) and `iso32000__s__12.5.6.19.md` (the wrong
+compression struck in place with a dated blockquote correction + a pointer; the errata
+re-verification appended to its §4.4). `index.md` touched 4 ways: build-log entry, the
+12.5.2 manifest row + its contents cell, three new trigger rows, four new search recipes
+(all run, all non-empty). Counts unchanged and recounted from disk first (193/107/32).
+**`docs/` corrections are REPORTED, not made** — they are `pdfcer-librarian`'s tree.
