@@ -2571,17 +2571,66 @@ fn same_line(anchor: &ShowData, follower: &[f64; 6]) -> bool {
         return false;
     }
     let a = &anchor.text_matrix;
-    // Exact equality is correct here rather than an epsilon compare: both
-    // sides are the producer's own operands, parsed from the same file and
-    // never arithmetic'd on. A same-line `Tm` written by a producer carries
-    // byte-identical scale and baseline operands to the one before it; a
-    // near-miss means the producer wrote a different number, which is a
-    // different line by the only evidence available.
-    a[0] == follower[0]
-        && a[1] == follower[1]
-        && a[2] == follower[2]
-        && a[3] == follower[3]
-        && a[5] == follower[5]
+    // ★★ SCALE AND ROTATION STAY EXACT; THE BASELINE GETS A TOLERANCE.
+    //
+    // This whole comparison used to be exact, and the reasoning written here
+    // was: *"both sides are the producer's own operands, parsed from the same
+    // file and never arithmetic'd on … a near-miss means the producer wrote a
+    // different number, which is a different line by the only evidence
+    // available."*
+    //
+    // That is sound for `a[0..3]` and it is kept for them — a different scale
+    // or rotation IS different text, whatever the magnitude.
+    //
+    // ⚠ It is FALSE for the baseline, `a[5]`, and a real CAD file is the
+    // evidence. SolidWorks advances along one visual line with a `Td` whose
+    // vertical is a float round-trip rather than zero:
+    //
+    // ```text
+    // 100.03006 Tz 8.95675 -0.00057 Td
+    // ```
+    //
+    // `Td` translates the line matrix, so `a[5]` moves by that 0.00057 and the
+    // exact compare says "different line" — for a displacement ~3,000× smaller
+    // than the same note's real line break (`0 -1.72646 Td`). The consequence
+    // was not cosmetic: a nine-fragment note could not be edited across its
+    // fragments by ANY route, so a balloon-reference list like `8 9 10 11`
+    // was uneditable in a drawing whose whole purpose is to be revised
+    // (operator-reported, 2026-09-14).
+    //
+    // The tolerance is the same one the span walk uses for `Td` itself, for
+    // the same reason and from the same measurement.
+    a[0] == follower[0] && a[1] == follower[1] && a[2] == follower[2] && a[3] == follower[3] && {
+        // ★ THE TOLERANCE IS SCALED, AND GETTING THAT WRONG IS WHY THE
+        // FIRST CUT FIXED ONE NOTE AND NOT THE ONE BESIDE IT.
+        //
+        // `SPAN_LINE_DRIFT_TOLERANCE` is in UNSCALED text units, the units
+        // `Td` takes. `a[5]` is not: `Td` translates the line matrix, so
+        // the drift arrives here multiplied by the matrix's y scale.
+        // Measured on the same drawing, two notes apart:
+        //
+        // ```text
+        // Td ty      y scale   a[5] drift
+        // -0.00057   13.228    0.0075     note #2 — passed a flat 0.01
+        // -0.00661   13.228    0.0870     note #3 — did NOT
+        // ```
+        //
+        // Both are the same producer artefact and both must span. A flat
+        // threshold could only have covered both by being loose enough to
+        // start swallowing real leading.
+        //
+        // `hypot(a[2], a[3])` rather than `a[3]` so rotated text — a title
+        // block's vertical annotation — keeps a meaningful scale instead of
+        // a near-zero one. A degenerate matrix falls back to 1.0 rather
+        // than collapsing the tolerance to nothing.
+        let y_scale = a[2].hypot(a[3]);
+        let scale = if y_scale.is_finite() && y_scale > f64::EPSILON {
+            y_scale
+        } else {
+            1.0
+        };
+        (a[5] - follower[5]).abs() <= SPAN_LINE_DRIFT_TOLERANCE * scale
+    }
 }
 
 /// Whether an error means "not in *this* buffer" rather than "not editable".
@@ -2732,10 +2781,48 @@ pub(crate) struct Anchor {
     pub(crate) end: usize,
 }
 
+/// How far two show operators' horizontal scaling (`Tz`, §9.3.4) may differ
+/// and still count as the same run — **as a ratio**, so `0.001` is 0.1 %.
+///
+/// # Why this is not exact equality, and what it was measured against
+///
+/// `spannable` compared `th()` with `==`, which is right in principle: a
+/// producer that meant a different scale wrote a different number. Real CAD
+/// output does not honour that. SolidWorks re-states `Tz` before every
+/// fragment of one visual line, with a rounding wobble in the fifth decimal:
+///
+/// ```text
+/// 100.00154 Tz   …SPACERS
+/// 100.03006 Tz   8
+/// 100.03026 Tz   (space)
+/// ```
+///
+/// That is **0.03 %**, and its visual effect is 0.03 % of an advance — far
+/// below a device pixel at any sane zoom. Meanwhile a deliberate `Tz` is
+/// condensed or expanded type: 80, 90, 120. The gap between the noise and any
+/// real intent is three orders of magnitude, which is what makes a threshold
+/// defensible rather than arbitrary.
+///
+/// `0.001` sits two orders above the observed wobble and two below the
+/// smallest deliberate change anyone writes.
+const SPAN_H_SCALE_TOLERANCE: f64 = 0.001;
+
+/// How far a `Td`'s vertical displacement may be from zero and still count as
+/// staying on the same line, in unscaled text-space units.
+///
+/// Same producer, same cause: `8.95675 -0.00057 Td` moves the pen **0.00057**
+/// down while advancing 8.96 across — a float round-trip, not a line break.
+/// The real line break in the same note is `0 -1.72646 Td`, three orders of
+/// magnitude larger.
+///
+/// `0.01` is below any leading a producer would write and above the noise.
+const SPAN_LINE_DRIFT_TOLERANCE: f64 = 0.01;
+
 /// Whether two show operators may be edited as ONE run (`Pass 256.0`'s
 /// grouping rule — pdfcer's own, documented here because Acrobat's is
 /// unpublished): same font RESOURCE NAME and size, same character/word
-/// spacing and horizontal scale, same marked-content sequence, both `Tj`
+/// spacing and marked-content sequence, horizontal scale within
+/// [`SPAN_H_SCALE_TOLERANCE`], both `Tj`
 /// or `TJ`, and the same text-space row — every text-matrix component but
 /// the x translation equal, which is what "same baseline" means once a
 /// producer's `Td` steps have been folded into the matrix.
@@ -2747,7 +2834,12 @@ fn spannable(a: &ShowData, b: &ShowData) -> bool {
         && a.mcid == b.mcid
         && a.tc() == b.tc()
         && a.tw() == b.tw()
-        && a.th() == b.th()
+        // `Tz` within tolerance rather than `==` — see
+        // `SPAN_H_SCALE_TOLERANCE`. Every other comparison here stays exact:
+        // a different font, size, MCID, char- or word-spacing is a different
+        // run by anyone's reading, and only the horizontal scale was measured
+        // carrying producer noise.
+        && (a.th() - b.th()).abs() <= SPAN_H_SCALE_TOLERANCE
         && matches!(a.op, ShowOp::Tj | ShowOp::TJ)
         && matches!(b.op, ShowOp::Tj | ShowOp::TJ)
         && same_line(a, &b.text_matrix)
@@ -2835,7 +2927,10 @@ pub(crate) fn find_anchor_span(recs: &[OpRec], req: &EditRequest) -> Result<Anch
         while let Some(next) = recs.get(j) {
             match &next.rec {
                 Rec::Ignore => {}
-                Rec::Td { ty, .. } if *ty == 0.0 => {}
+                // `|ty|` within tolerance rather than exactly zero — see
+                // `SPAN_LINE_DRIFT_TOLERANCE`. A producer that meant a new
+                // line writes a leading three orders of magnitude larger.
+                Rec::Td { ty, .. } if ty.abs() <= SPAN_LINE_DRIFT_TOLERANCE => {}
                 Rec::Tm(m) if same_line(head, m) => {}
                 Rec::Show(s) if spannable(head, s) => {
                     text.push_str(&s.text);
@@ -3898,6 +3993,112 @@ pub(crate) fn trust_disclosure(embedded: bool, base_font: &str) -> String {
 )]
 mod tests {
     use super::*;
+
+    /// A note split across show operators the way a real CAD exporter splits
+    /// one — re-stating `Tz` and nudging `Td`'s vertical by a float
+    /// round-trip between every fragment.
+    ///
+    /// # Why synthetic, and what the numbers are
+    ///
+    /// The evidence is the operator's own 36-sheet SOLIDWORKS drawing, which
+    /// cannot be committed (rule 7 — synthetic or rights-cleared only). The
+    /// NUMBERS are that file's, measured: `Tz` wobbling in the fifth decimal
+    /// around 100, and a `Td` vertical of `-0.00661` against a 13.22835 text
+    /// scale — the larger of the two drifts on that page, and the one a flat
+    /// tolerance missed.
+    fn wobbling_note() -> Vec<u8> {
+        helvetica_pdf(concat!(
+            "BT /F1 1 Tf 13.22835 0 0 13.22835 72 700 Tm\n",
+            "99.99553 Tz (#3 BOLT ITEM ) Tj\n",
+            "100.03006 Tz 7.15247 -0.00661 Td (14) Tj\n",
+            "99.97365 Tz 1.70167 0.00661 Td (  IN PLACE.) Tj\n",
+            "ET\n",
+        ))
+    }
+
+    /// ★★★ A BALLOON REFERENCE SPLIT ACROSS SHOW OPERATORS IS EDITABLE
+    /// (operator-reported, 2026-09-14).
+    ///
+    /// `ITEM 14` spans two fragments. Before this, NO route reached it — the
+    /// plain find refused and so did the pinned-span route — because
+    /// `spannable` compared `Tz` exactly and `same_line` compared the baseline
+    /// exactly, and this producer perturbs both between every fragment of one
+    /// visual line.
+    ///
+    /// An operator renumbering a balloon on a revision saw a note he could
+    /// read and could not change, refused with *"not found in an editable
+    /// run"* about text plainly on the page.
+    #[test]
+    fn a_reference_split_across_wobbling_fragments_is_editable() {
+        let doc = crate::document::Document::from_bytes(wobbling_note()).expect("loads");
+        let mut s = crate::edit::EditSession::new(doc);
+        let report = s
+            .edit_text(
+                &EditRequest::find_replace(0, "ITEM 14", "ITEM 16"),
+                &EditOptions::default(),
+            )
+            .expect("a reference split across fragments must be editable");
+        assert!(
+            report.operators_spanned >= 2,
+            "the edit must have SPANNED fragments — matching inside one means \
+             the fixture stopped reproducing the defect: {report:?}"
+        );
+    }
+
+    /// ★★ THE SCALING IS THE HALF THAT WAS GOT WRONG FIRST, so it is pinned
+    /// separately.
+    ///
+    /// `SPAN_LINE_DRIFT_TOLERANCE` is in unscaled text units; `a[5]` carries
+    /// the drift already multiplied by the matrix's y scale. The first cut
+    /// compared them directly, which fixed a note whose drift was
+    /// `0.00057 × 13.2 = 0.0075` and left the one beside it —
+    /// `0.00661 × 13.2 = 0.087` — still refusing. Same producer, same page,
+    /// one under a flat `0.01` and one over.
+    ///
+    /// The same content at a 1.0 text scale must behave identically, which it
+    /// cannot if the comparison is unscaled.
+    #[test]
+    fn the_drift_tolerance_scales_with_the_text_matrix() {
+        let bytes = helvetica_pdf(concat!(
+            "BT /F1 1 Tf 1 0 0 1 72 700 Tm\n",
+            "99.99553 Tz (#3 BOLT ITEM ) Tj\n",
+            "100.03006 Tz 7.15247 -0.00661 Td (14) Tj\n",
+            "ET\n",
+        ));
+        let doc = crate::document::Document::from_bytes(bytes).expect("loads");
+        let mut s = crate::edit::EditSession::new(doc);
+        s.edit_text(
+            &EditRequest::find_replace(0, "ITEM 14", "ITEM 16"),
+            &EditOptions::default(),
+        )
+        .expect("the same wobble at a 1.0 text scale must span too");
+    }
+
+    /// ★ AND THE TOLERANCE MUST NOT SWALLOW A REAL LINE BREAK — the assertion
+    /// that stops the two above from being bought with a loosened guard.
+    ///
+    /// The same note's genuine leading is `0 -1.72646 Td`, three orders of
+    /// magnitude beyond the drift. Two lines must stay two lines.
+    #[test]
+    fn a_real_line_break_still_separates_two_lines() {
+        let bytes = helvetica_pdf(concat!(
+            "BT /F1 1 Tf 13.22835 0 0 13.22835 72 700 Tm\n",
+            "99.99553 Tz (FIRST LINE) Tj\n",
+            "99.99553 Tz 0 -1.72646 Td (SECOND LINE) Tj\n",
+            "ET\n",
+        ));
+        let doc = crate::document::Document::from_bytes(bytes).expect("loads");
+        let mut s = crate::edit::EditSession::new(doc);
+        assert!(
+            s.edit_text(
+                &EditRequest::find_replace(0, "FIRST LINESECOND", "X"),
+                &EditOptions::default(),
+            )
+            .is_err(),
+            "a real line break must still end a span — if this succeeds the \
+             tolerance has grown past the leading it must never reach"
+        );
+    }
 
     /// A minimal one-page PDF with a Helvetica (WinAnsi, non-embedded) run.
     /// `content` is the page content stream; the font is object 5.
