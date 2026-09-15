@@ -1582,6 +1582,69 @@ pub enum QuadPointOrder {
     Counterclockwise,
 }
 
+/// What a `/Tabs /W` page's **second** pass visits — spec ambiguity
+/// **`TAB-A1`**, and the standard contradicts itself in body text.
+///
+/// # The ambiguity
+///
+/// ISO 32000-2 added `/Tabs /W` (widget order) and described it twice,
+/// differently, in two places that neither cite nor acknowledge each other:
+///
+/// | Locus | What pass 2 visits |
+/// |---|---|
+/// | §7.7.3.3 Table 31, the `Tabs` row | *"making two passes, the first only picking the widget annotations and the second picking all other annotations"* — governed by the same sentence's *"the same array ordering"* ⇒ **`/Annots` order** |
+/// | §12.5.1, the `W` bullet | *"…followed by other annotation types **in row order**"*, cross-referencing the `R` description explicitly ⇒ **row order, geometric** |
+///
+/// Both are body text; neither is a NOTE. They give different sequences for
+/// the same file whenever two non-widget annotations' array order differs
+/// from their row order — the common case, since `/Annots` is append-ordered
+/// by creation and rows are geometric.
+///
+/// The spec corpus measured the errata channels on 2026-09-02 (the PDF
+/// Association's per-clause errata for clauses 7 and 12, the errata
+/// annotations inside the sponsored ISO 32000-2 PDF, and the
+/// `pdf-association/pdf-issues` tracker, each with a positive control) and
+/// found **the contradiction unreported and uncorrected**. It is not a
+/// reading pdfcer can resolve by looking harder.
+///
+/// # Why this is a setting
+///
+/// The 2026-08-08 operator directive this module exists to serve: *"where
+/// standards are ambiguous those should become settings that the user can
+/// choose direction one, with the initial installed default as the best
+/// guess of what is usually followed."* Whichever side pdfcer took, the
+/// other is defensible, and a page exists for which the choice changes the
+/// answer.
+///
+/// **The choice is disclosed either way.** Whatever this is set to,
+/// [`crate::edit::TabSequence::notes`] names the reading that was applied
+/// and says the standard contradicts itself — a `/W` page is never reported
+/// as though its tail were settled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum WidgetTabTail {
+    /// Table 31's reading: the non-widget tail follows in `/Annots` order.
+    ///
+    /// **The shipped default**, for three reasons in rank order. `/W`'s
+    /// stated purpose in the 2.0 Introduction is *more control over forms
+    /// tab ordering*, and a pass 2 that reverts to geometry re-introduces
+    /// the thing `/A` and `/W` were added to escape. Table 31 is the
+    /// **definitional** locus — it defines `/A` in the same breath, and its
+    /// *"the same array ordering"* binds both passes in one clause. And
+    /// `/A` and `/W` are the two array-order values; reading `/W` as
+    /// half-geometric makes it a hybrid nobody asked for.
+    #[default]
+    ArrayOrder,
+    /// §12.5.1's reading: the non-widget tail follows in **row order**,
+    /// computed the same way [`crate::edit::TabOrderBasis::ComputedRowOrder`]
+    /// computes it.
+    ///
+    /// For a consumer that implements §12.5.1's bullet literally, or an
+    /// operator who has measured what their readers actually do and found
+    /// this to be it.
+    RowOrder,
+}
+
 /// Which of §7.5.4's three permitted two-byte terminators ends a classic
 /// cross-reference **entry** (spec ambiguity `EOL-A1`).
 ///
@@ -1889,11 +1952,20 @@ pub struct Settings {
     /// `/AS` (`AS-A1`, §12.5.5). RENDER radius only — pdfcer never writes
     /// an `/AS` to repair the file.
     pub missing_as: MissingAppearanceState,
-    /// The two-byte terminator on a classic cross-reference entry
-    /// (`EOL-A1`, §7.5.4). **BYTES radius.**
     /// `/QuadPoints` corner order for authored text markup — ambiguity
     /// `QP-A1`. Key `quad_point_order`.
     pub quad_point_order: QuadPointOrder,
+    /// What a `/Tabs /W` page's second pass visits — ambiguity `TAB-A1`
+    /// (§7.7.3.3 Table 31 against §12.5.1). Key `widget_tab_tail`.
+    pub widget_tab_tail: WidgetTabTail,
+    /// How far apart two annotations' leading edges may be and still be
+    /// treated as one row (or column) when a page's `/Tabs` is `/R` or
+    /// `/C`, in points. §12.5.1 states no such test at all; this is
+    /// pdfcer's, and every sequence it produces says so. Key
+    /// `tab_row_tolerance`.
+    pub tab_row_tolerance: f64,
+    /// The two-byte terminator on a classic cross-reference entry
+    /// (`EOL-A1`, §7.5.4). **BYTES radius.**
     pub xref_entry_eol: XrefEntryEol,
     /// Whether a byte follows the final `%%EOF` (`EOL-A2`, §7.5.5).
     /// **BYTES radius** — one byte.
@@ -1961,6 +2033,8 @@ impl Default for Settings {
             actual_text: crate::text_extract::ExtractOptions::default().actual_text,
             missing_as: MissingAppearanceState::default(),
             quad_point_order: QuadPointOrder::default(),
+            widget_tab_tail: WidgetTabTail::default(),
+            tab_row_tolerance: DEFAULT_TAB_ROW_TOLERANCE,
             xref_entry_eol: crate::writer::SaveOptions::default().xref_entry_eol,
             trailing_eol: crate::writer::SaveOptions::default().trailing_eol,
         }
@@ -2133,6 +2207,36 @@ pub const MIN_PARALLEL_EPSILON_DEGREES: f64 = 0.0;
 /// rather than a restated literal.
 pub const MAX_PARALLEL_EPSILON_DEGREES: f64 = 45.0;
 
+/// The shipped `tab_row_tolerance`, in points.
+///
+/// **One point.** §12.5.1 states no tolerance, and no source found for
+/// Acrobat states one either — what the reference implementation's community
+/// documents instead is a workaround: align a row's fields to the same top
+/// edge *before* relying on row order. That is evidence the tolerance there
+/// is tight, not evidence of its value. So pdfcer takes the tightest number
+/// that still absorbs what a form author cannot avoid: a point is below the
+/// difference a reader could see between two fields, and above the
+/// coordinate rounding a producer writing two or three decimal places
+/// introduces.
+///
+/// Public so a front end can label its control with THIS number rather than
+/// a restated literal that drifts from it.
+pub const DEFAULT_TAB_ROW_TOLERANCE: f64 = 1.0;
+/// Lowest accepted `tab_row_tolerance`.
+///
+/// Zero is allowed and means *identical leading edges only* — the strict
+/// reading, and a legitimate choice for a form whose fields were placed by a
+/// tool that aligns them exactly. A negative value is not a stricter zero;
+/// it is a rule under which no two annotations are ever in the same row.
+pub const MIN_TAB_ROW_TOLERANCE: f64 = 0.0;
+/// Highest accepted `tab_row_tolerance`.
+///
+/// 72 points is one inch. Past that a "row" is deeper than any plausible run
+/// of form fields, and the grouping stops being a tolerance on *same row*
+/// and becomes a statement that the page has one row. Public for the same
+/// reason as [`DEFAULT_TAB_ROW_TOLERANCE`].
+pub const MAX_TAB_ROW_TOLERANCE: f64 = 72.0;
+
 /// The settings-file token for a separation policy.
 ///
 /// Defined once and used by both [`Settings::apply`] (to say what it fell
@@ -2257,6 +2361,14 @@ const fn quad_point_order_token(order: QuadPointOrder) -> &'static str {
     match order {
         QuadPointOrder::ReadingOrder => "reading_order",
         QuadPointOrder::Counterclockwise => "counterclockwise",
+    }
+}
+
+/// The settings-file token for a [`WidgetTabTail`].
+const fn widget_tab_tail_token(tail: WidgetTabTail) -> &'static str {
+    match tail {
+        WidgetTabTail::ArrayOrder => "array_order",
+        WidgetTabTail::RowOrder => "row_order",
     }
 }
 const fn xref_entry_eol_token(eol: XrefEntryEol) -> &'static str {
@@ -2576,6 +2688,36 @@ impl Settings {
                     value: value.to_owned(),
                     line,
                     using: missing_as_token(Self::default().missing_as).to_owned(),
+                }),
+            },
+            "widget_tab_tail" => match value {
+                "array_order" => self.widget_tab_tail = WidgetTabTail::ArrayOrder,
+                "row_order" => self.widget_tab_tail = WidgetTabTail::RowOrder,
+                _ => notes.push(SettingNote::BadValue {
+                    key: key.to_owned(),
+                    value: value.to_owned(),
+                    line,
+                    using: widget_tab_tail_token(self.widget_tab_tail).to_owned(),
+                }),
+            },
+            "tab_row_tolerance" => match value.parse::<f64>() {
+                Ok(parsed) if parsed.is_finite() => {
+                    let clamped = parsed.clamp(MIN_TAB_ROW_TOLERANCE, MAX_TAB_ROW_TOLERANCE);
+                    if (clamped - parsed).abs() > f64::EPSILON {
+                        notes.push(SettingNote::Clamped {
+                            key: key.to_owned(),
+                            value: value.to_owned(),
+                            line,
+                            using: clamped.to_string(),
+                        });
+                    }
+                    self.tab_row_tolerance = clamped;
+                }
+                _ => notes.push(SettingNote::BadValue {
+                    key: key.to_owned(),
+                    value: value.to_owned(),
+                    line,
+                    using: Self::default().tab_row_tolerance.to_string(),
                 }),
             },
             "quad_point_order" => match value {
@@ -3053,6 +3195,34 @@ impl Settings {
             "quad_point_order = {}\n",
             quad_point_order_token(self.quad_point_order)
         );
+
+        out.push_str(
+            "# A page can declare that its annotations are tabbed through in widget\n\
+             # order (/Tabs /W): the form fields first, in the order the page lists\n\
+             # them, then everything else. PDF 2.0 says two different things about\n\
+             # that second group -- its table says they follow in the same list\n\
+             # order, its prose says they follow in row order -- and nobody has\n\
+             # filed an erratum. pdfcer says which reading it used either way.\n\
+             #   array_order = the table's reading (default). Keeps /W a pure\n\
+             #                 list-order value, which is what it was added for.\n\
+             #   row_order   = the prose's reading. Sorts the tail by position.\n",
+        );
+        let _ = writeln!(
+            out,
+            "widget_tab_tail = {}\n",
+            widget_tab_tail_token(self.widget_tab_tail)
+        );
+
+        out.push_str(
+            "# How far apart, in points, two annotations' leading edges may be and\n\
+             # still count as the same row (or column) on a page that declares row\n\
+             # or column tab order. The standard says rows exist and never says how\n\
+             # to find them, so this number is pdfcer's -- it is disclosed with\n\
+             # every order pdfcer reports. Small is the safer direction: form\n\
+             # authoring tools align a row's fields exactly, and a generous value\n\
+             # merges two close rows into one.\n",
+        );
+        let _ = writeln!(out, "tab_row_tolerance = {}\n", self.tab_row_tolerance);
         out.push_str(
             "# Whether a saved file ends with a line break after its final end-of-file\n\
              # marker. The standard requires every line to be terminated AND says the\n\
@@ -3610,6 +3780,12 @@ mod tests {
             actual_text: ActualTextPrecedence::Glyphs,
             missing_as: MissingAppearanceState::FirstEntry,
             quad_point_order: QuadPointOrder::Counterclockwise,
+            // NOT the default (`ArrayOrder`), same reason as every other
+            // non-default above.
+            widget_tab_tail: WidgetTabTail::RowOrder,
+            // NOT the default (1.0), and deliberately fractional so the
+            // round trip proves the number survives rather than a token.
+            tab_row_tolerance: 2.5,
             xref_entry_eol: XrefEntryEol::CrLf,
             trailing_eol: TrailingEol::None,
             // NOT the default (`None`), and deliberately a value that is a

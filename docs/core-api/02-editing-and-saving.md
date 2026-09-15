@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 234 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 239 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 234 public `EditSession` methods
+## 1. Verb index — all 239 public `EditSession` methods
 
-**Count: 234.** Established by brace-matched extraction of the six
+**Count: 239.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -1687,6 +1687,9 @@ always errors.
 | **Set** an annotation's rotation ABSOLUTELY | `set_annotation_rotation(&mut self, annot_id, anchor: (f64, f64), degrees: f64) -> Result<AnnotationRotate, EditError>` | edit.rs | **`Pass 155.2`, `pdfcer-gui` request 2026-09-07.** `degrees` is measured anticlockwise **from the annotation's authored orientation** — the same zero `Annotation::appearance_rotation_degrees` reports against, because both go through `annot::rotation_degrees`. Reads the current angle out of the file and applies the difference, so it is **idempotent**: setting 45 twice moves nothing the second time. This is what a typed properties field needs; `rotate_annotation` stays the drag-grip delta. Returns that verb's outcome unchanged, so `AnnotationRotate::degrees` is **the delta applied, not the absolute target**. ⚠️ **Refuses `AnnotationRotationUnreadable`** when the current angle cannot be read (no appearance stream — §12.5.2 requires `/Rect` upright, so there is nowhere to record one — or a `/Matrix` carrying a shear or a mirror, which is not an angle). It refuses rather than assuming zero: an operator typing 45 on an object already at 30 would silently get 75. **`rotate_annotation` still works on both**, because a delta needs no starting angle. |
 | Preview an annotation deletion | `annotation_deletion_preview(&self, annot_id) -> Result<AnnotationDeletion, EditError>` | 11316 | Pure `&self` query. |
 | **Reorder** a page's annotations — the tab order | `reorder_annotations(&mut self, page_index: usize, new_order: &[ObjId]) -> Result<AnnotsReorder, EditError>` | — | `Pass 237.0`. Permutes the page's `/Annots` array, **moving references and nothing else** — no annotation dictionary is read or written, so every widget keeps its id, its field, its `/Parent` chain and its `/AA`. ONE undo entry. `new_order` is the page's indirect entries **by id**, each once; refuses `AnnotsNotAPermutation` (naming missing / unknown / repeated ids), `AnnotsDuplicateReference`, `TrapNetMustStayLast`, `AnnotStatesMismatch`. Honours the three `shall`s a permutation can break (TrapNet-last, `/AnnotStates`, `/GoToE` `/A`). **Reads `/Tabs`, never writes it** — see below. |
+| **Ask what order a reader tabs a page in** | `page_tab_sequence(&self, page_index: usize) -> Result<TabSequence, EditError>` | edit.rs | **`Pass 307.0`, `pdfcer-gui` request `G019`.** Pure `&self` query — nothing written, nothing staged, no command recorded. Answers all six `/Tabs` states: `/A` and `/W` are read off the array, `/R` and `/C` are **computed from `/Rect` geometry** with `/Rotate` applied and `/ViewerPreferences` `/Direction` honoured, `Absent` and an unknown name fall back to array order **as a disclosed convention**, and `/S` returns an **empty** sequence rather than a guess. `TabSequence::notes` is the rule-4 disclosure, ready to print verbatim. Refuses `PageOutOfRange`, `AnnotsNotAnArray`. **See the box below — the `derived` bool cannot say everything `basis` can.** |
+| Choose which reading of `/Tabs /W`'s contested tail to apply | `set_widget_tab_tail(&mut self, tail: WidgetTabTail)` / `widget_tab_tail(&self) -> WidgetTabTail` | edit.rs | `Pass 307.0`. Spec ambiguity `TAB-A1`: ISO 32000-2 Table 31 says the non-widget tail follows in `/Annots` order, §12.5.1 says row order, and the contradiction is unreported in the errata. Default `WidgetTabTail::ArrayOrder` (Table 31's). **Setting it never suppresses the disclosure** — a `/W` page's notes name the contradiction and the reading applied either way. Settings key `widget_tab_tail`; the shell reads the store and hands it over, as with `quad_point_order`. |
+| Set the row/column grouping tolerance | `set_tab_row_tolerance(&mut self, points: f64)` / `tab_row_tolerance(&self) -> f64` | edit.rs | `Pass 307.0`. In points; clamped to `MIN_TAB_ROW_TOLERANCE`..=`MAX_TAB_ROW_TOLERANCE` (0..=72), and a non-finite value is **ignored** rather than stored — a `NaN` here would make no two annotations ever share a row. Default `DEFAULT_TAB_ROW_TOLERANCE` = **1.0**. Adjustable because §12.5.1 states no tolerance at all: the number is pdfcer's, so an operator whose forms disagree with it needs somewhere to say so. Settings key `tab_row_tolerance`. |
 
 > #### ★★ `Pass 155.1` — the rectangle is derived from the ARTWORK, and which rule was used is REPORTED
 >
@@ -2318,6 +2321,84 @@ rather than pushed onto every consumer as an unconstructable type.
 >
 > **The CLI twin** is `pdfcer reorder-annotations --page N --order 2,0,1`,
 > taking `list-annotations` indices and mapping them to ids on the way in.
+
+> #### ★★ `page_tab_sequence` — the order itself, and why `basis` is the field to read (`Pass 307.0`, request `G019`)
+>
+> `reorder_annotations` above tells you **whether** array order governs
+> tabbing. It cannot tell you what the order *is* when it does not, and for
+> four of the six `/Tabs` states it does not. This verb answers that, and it
+> lives here rather than in a shell for one reason: **row and column order
+> are document semantics.** If a GUI sorts rectangles itself, `pdfcer` the
+> CLI and that GUI can disagree about which field is second on the same
+> page, and neither can be checked against the other.
+>
+> **`TabSequence`** (`#[non_exhaustive]`):
+>
+> | field | what it means for the operator |
+> |---|---|
+> | `order: Vec<ObjId>` | every annotation a reader **visits**, in visit order. Empty under `NotDerivedStructure` — and empty, unremarkably, for a page with no annotations; `basis` is what tells those apart |
+> | `stated: PageTabs` | the page's **own** `/Tabs`, verbatim. `/Tabs` is **not inheritable** (§7.7.3.3 — only `/Resources`, `/MediaBox`, `/CropBox` and `/Rotate` are), so an ancestor's value states nothing about this page and is not consulted |
+> | `basis: TabOrderBasis` | **the field to write an operator message from** — see below |
+> | `derived: bool` | a convenience over `basis.is_computed()`. It is `false` both for an order **read from the file** and for one pdfcer **could not produce**, so it cannot carry a disclosure on its own |
+> | `rotate: u16` | the display rotation applied before any geometry was compared, `0`/`90`/`180`/`270`. ⚠ `/Rotate` is *"a multiple of 90"*, **not** one of those four literals — `-90` and `450` conform and are normalised here |
+> | `right_to_left: bool` | `/ViewerPreferences` `/Direction` `/R2L` (§12.2). §12.5.1 makes the direction within a row a `shall` determined by that entry, so this is conformance, not preference. **Content is never inspected** — a page of Hebrew with no `/Direction` reads left-to-right |
+> | `pinned: usize` | `/Annots` entries that are direct dictionaries (Table 164 permits them). No identity to be named by, so they cannot be in `order`. **Non-zero means the sequence is incomplete, not merely shorter** |
+> | `excluded: Vec<(ObjId, TabExclusion)>` | what a reader does **not** tab to, and why. Not a subset of `order` — `order.len() + excluded.len() + pinned` is the whole array |
+> | `notes: Vec<String>` | operator-readable sentences, in the order the inferences were made. **Print them verbatim, off-canvas.** Empty under exactly one basis |
+>
+> **`TabOrderBasis`, and why a `bool` is not enough.** `StatedArrayOrder`
+> (`/A` — the file says so, nothing inferred, **no notes and no warning**);
+> `StatedWidgetOrder` (`/W` — widgets stated, tail contested by `TAB-A1`);
+> `ComputedRowOrder` / `ComputedColumnOrder` (`/R`, `/C` — **pdfcer worked
+> this out from geometry**); `ArrayOrderByConvention` (`/Tabs` absent or an
+> unknown name — the array order used as a reader convention, which is
+> pdfcer choosing, because `TAB-N1` measured that neither edition
+> acknowledges a tab order exists at all in that case); `NotDerivedStructure`
+> (`/S` — pdfcer has no structure-tree walker and **returns nothing rather
+> than falling back**, because a fall back would be indistinguishable from
+> an answer).
+>
+> **What the standard defines, and what is pdfcer's.** Defined and followed:
+> the four bullets' intent, `/Direction` (whose **`Default value: L2R`** is
+> printed in Table 150/147 — so left-to-right is the standard's default, not
+> a pdfcer choice), and `/Rotate` (§12.5.1 evaluates in displayed
+> orientation; §12.5.3 says `/Rect` describes *"the unscaled, unrotated user
+> space"*, so the geometry is rotated before it is grouped). **Not defined
+> anywhere, therefore pdfcer's and disclosed as such:** §12.5.1 names no
+> corner, no grouping test, no tolerance and no tie-break. pdfcer sorts on
+> the rectangle's leading corner as displayed — the upper-left in the
+> ordinary case, which is both what Adobe's own description of the two modes
+> anchors on and the only reference point ISO 32000 ever designates for an
+> annotation's position (§12.5.3, **scoped to `NoZoom`/`NoRotate`**, so a
+> precedent and not a rule) — groups on the **row's first member** rather
+> than on each neighbour, and breaks ties on the other axis then on `/Annots`
+> index.
+>
+> **Every annotation, and then four kinds that are not.** The sequence covers
+> `/Link`s and markup as well as widgets, because §12.5.1 excludes no
+> subtype and because filtering before ordering changes which annotations
+> fall into which row. But `Hidden` (`/F` bit 2) and `NoView` (bit 6) are
+> **excluded, and that is sourced**: §12.5.3 says such an annotation shall
+> not *"allow it to interact with the user"*, and tabbing is interaction.
+> `/TrapNet` and `/Popup` are excluded as **pdfcer's reading** — see
+> `TabExclusion`, which distinguishes the two tiers so a shell can cite the
+> first and hedge the second. ★ One carve-out: `NoView` **plus**
+> `ToggleNoView` (bit 9) **stays**, because ISO 32000-2 defines that bit as
+> inverting `NoView` for *annotation selection*, and tabbing to an
+> annotation is what selects it.
+>
+> ★ **One step this verb cannot take for you.** The widgets of one radio
+> group are several annotations and **one** tab stop — Acrobat moves between
+> them with the arrow keys and past the group with Tab. That is a grouping of
+> *fields*, not of annotations; collapse it with `forms::Field::widgets`
+> after reading the sequence. A same-purpose run of check boxes, by contrast,
+> is one tab stop **each**.
+>
+> **The CLI twin** is `pdfcer tab-order <in> [--pages …] [--row-tolerance …]`,
+> which prints a `page-order` line per page, a `tab` line per visit, a
+> `skipped` line per exclusion, and the notes **on stdout** — because under a
+> computed basis the order is an inference, and a script that keeps stdout
+> and discards stderr must still be told so.
 
 ### 1.16 Search-driven redaction marking (5)
 

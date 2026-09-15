@@ -194,6 +194,20 @@ impl AnnotFlags {
     /// modification of other annotation properties"*. Reading it as a
     /// blanket lock would refuse a reshape the standard permits; ignoring
     /// `Locked` would perform one it forbids. Two flags, two gates.
+    /// Bit 9 (value 256) — **ToggleNoView**: invert [`Self::NO_VIEW`]'s
+    /// meaning for certain events.
+    ///
+    /// ISO 32000-2 §12.5.3 Table 167 replaces 1.7's vague *"for certain
+    /// events"* with a named pair — *"annotation selection and mouse
+    /// hovering"* — and **annotation selection is what tabbing to an
+    /// annotation does**. That is why this bit is modelled at all: it is the
+    /// one pattern under which a `NoView` annotation still belongs in a tab
+    /// sequence, because being tabbed to is precisely the event that reveals
+    /// it. See [`crate::edit::TabExclusion::NoView`].
+    ///
+    /// **No display consequence on its own** — pdfcer paints from `/AP`
+    /// (R43) and has no hover or selection state to invert against.
+    pub const TOGGLE_NO_VIEW: u32 = 1 << 8;
     pub const LOCKED_CONTENTS: u32 = 1 << 9;
 
     /// Whether the Hidden flag (Table 165 bit 2) is set.
@@ -206,6 +220,12 @@ impl AnnotFlags {
     #[must_use]
     pub const fn no_view(self) -> bool {
         self.0 & Self::NO_VIEW != 0
+    }
+
+    /// Whether bit 9 [`Self::TOGGLE_NO_VIEW`] is set.
+    #[must_use]
+    pub const fn toggle_no_view(self) -> bool {
+        self.0 & Self::TOGGLE_NO_VIEW != 0
     }
 
     /// Whether the Print flag (Table 165 bit 3) is set (for the future

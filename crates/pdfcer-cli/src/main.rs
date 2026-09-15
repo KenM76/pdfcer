@@ -4031,6 +4031,74 @@ enum Command {
         pages: String,
     },
 
+    /// **Print the order a reader tabs through a page's annotations**
+    /// (ISO 32000-1 §12.5.1; ISO 32000-2 §12.5.1 for `/A` and `/W`).
+    ///
+    /// `list-annotations` says what is on the page and where. This says
+    /// **what order a reader visits it in** — which is a different
+    /// question with a different answer, because a page can declare that
+    /// its tab order comes from geometry or from its structure tree, in
+    /// which case the order `/Annots` lists is not the order anything is
+    /// visited in.
+    ///
+    /// One `page-order` line per page, then one `tab` line per annotation
+    /// in visit order, then a `skipped` line for each annotation a reader
+    /// does not tab to, then a `note` line for everything pdfcer had to
+    /// infer. Read-only; nothing is modified.
+    ///
+    /// # The `basis` column is the one to read
+    ///
+    /// It says where the order came from, and the six answers are not
+    /// interchangeable:
+    ///
+    /// - `stated-array` — `/Tabs /A`: the file states this order outright.
+    ///   Nothing was inferred, and there are no `note` lines.
+    /// - `stated-widget` — `/Tabs /W`: form fields in array order first.
+    ///   What follows them is **contested inside ISO 32000-2 itself**; the
+    ///   `note` line names which reading was applied and the
+    ///   `widget_tab_tail` setting chooses it.
+    /// - `row` / `column` — `/Tabs /R` or `/C`: **computed from where the
+    ///   annotations sit on the page**, because the file says to derive it
+    ///   and does not list it. The standard defines no grouping rule, so
+    ///   the `note` line states pdfcer's.
+    /// - `array-convention` — `/Tabs` absent, or a value outside the
+    ///   standard's closed set. The file states no order at all; this is
+    ///   the array order used as a convention, and the `note` line says so.
+    /// - `not-derived` — `/Tabs /S`: the order lives in the document's
+    ///   structure tree, which pdfcer does not read. **No `tab` lines are
+    ///   printed for that page**, deliberately: a fall back to array order
+    ///   would be indistinguishable from an answer.
+    ///
+    /// `derived=1` marks the three bases pdfcer computed rather than read.
+    /// It cannot tell `stated-array` from `not-derived` — both are `0` —
+    /// which is what `basis` is for.
+    ///
+    /// # What is skipped, and why it is printed rather than dropped
+    ///
+    /// `why=hidden` and `why=no-view` are read off §12.5.3, which says such
+    /// an annotation shall not *"interact with the user"*; `why=trap-net`
+    /// and `why=popup` are pdfcer's reading, argued in the core docs. A
+    /// `NoView` annotation that also sets `ToggleNoView` stays in the
+    /// sequence — under ISO 32000-2 that bit makes it appear *when
+    /// selected*, and tabbing to it is what selects it.
+    ///
+    /// # Exit codes
+    ///
+    /// `0` success; `3`/`4` unreadable / not-a-PDF; `1` for a structural
+    /// failure or an out-of-range `--pages` selection.
+    TabOrder {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based pages to report: `all`, `3`, `1-4`, `5,1-2`.
+        #[arg(long, default_value = "all")]
+        pages: String,
+        /// Row/column grouping tolerance in points, overriding the
+        /// `tab_row_tolerance` setting for this run. The standard defines
+        /// none; see the setting's own comment in `settings.txt`.
+        #[arg(long)]
+        row_tolerance: Option<f64>,
+    },
+
     /// **List every clickable link and where it goes** (ISO 32000-1
     /// §12.5.6.5, Table 173).
     ///
@@ -10779,6 +10847,11 @@ fn run() -> ExitCode {
             hide_layers: &hide_layers,
         }),
         Command::ListAnnotations { input, pages } => cmd_list_annotations(&input, &pages),
+        Command::TabOrder {
+            input,
+            pages,
+            row_tolerance,
+        } => cmd_tab_order(&input, &pages, row_tolerance),
         Command::ListLinks { input, pages } => cmd_list_links(&input, &pages),
         Command::DumpObject {
             input,
@@ -16804,6 +16877,194 @@ flags=0x{:X} widget={} disposition={disposition} ap={ap_shape} action={} author=
         "list-annotations {} pages={}; annots={total} paint_ready={paint_ready} no_ap={no_ap} \
 state_missing={state_missing} suppressed={suppressed} popup={popup} widget={widget} \
 with_note={with_note} with_author={with_author} need_appearances={need_appearances}",
+        input.display(),
+        selected.len(),
+    );
+    exit::SUCCESS
+}
+
+/// `tab-order`: print the order a reader visits each selected page's
+/// annotations in (ISO 32000-1 §12.5.1).
+///
+/// ## Stable line format
+///
+/// ```text
+/// page-order page=<P> tabs=<R|C|S|A|W|absent|/Name> basis=<...> derived=<0|1> \
+///            rotate=<0|90|180|270> direction=<l2r|r2l> visited=<n> skipped=<n> pinned=<n>
+/// tab page=<P> visit=<1-based> obj=<num> subtype=<Name|none> rect=<llx,lly,urx,ury|none> field=<"…"|none>
+/// skipped page=<P> obj=<num> subtype=<Name|none> why=<hidden|no-view|trap-net|popup>
+/// note page=<P> text=<"…">
+/// tab-order <path> pages=<n>; visited=<n> skipped=<n> pinned=<n> derived_pages=<n> not_derived_pages=<n>
+/// ```
+///
+/// Every field is on one line and space-free, like every other inventory
+/// command here, so `cut`/`awk` keep working.
+///
+/// ## Why `note` lines are on stdout and not stderr
+///
+/// They are not diagnostics. Under `basis=row`, `basis=column` and
+/// `basis=array-convention` the sequence above them is **pdfcer's
+/// inference**, and rule 4 makes disclosing that part of the answer rather
+/// than commentary on it. A script that pipes stdout to a file and discards
+/// stderr would otherwise keep the order and lose the fact that pdfcer
+/// worked it out — which is precisely the silence the rule forbids. `pdfcer`
+/// has no session and no undo, so printing on the way past is the whole of
+/// its disclosure (project rule 11).
+///
+/// ## Exit codes
+///
+/// `0` success; `3`/`4` unreadable / not-a-PDF; `1` for a structural failure
+/// or an out-of-range `--pages` selection.
+fn cmd_tab_order(input: &Path, pages_spec: &str, row_tolerance: Option<f64>) -> u8 {
+    let doc = match open_document(input) {
+        Ok(doc) => doc,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit_code_for_doc(&err);
+        }
+    };
+    let pages = match pdfcer_core::page_tree::pages(&doc) {
+        Ok(pages) => pages,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit::RUNTIME_ERROR;
+        }
+    };
+    let selected = match parse_pages(pages_spec, pages.len()) {
+        Ok(sel) => sel,
+        Err(msg) => {
+            eprintln!("pdfcer: {}: {msg}", input.display());
+            return exit::RUNTIME_ERROR;
+        }
+    };
+
+    let mut session = pdfcer_core::edit::EditSession::new(doc);
+    // The two ambiguity settings this command depends on, read in the SHELL
+    // and handed to the session -- core never opens a settings file (R83,
+    // and the same convention `--unmappable-code` and `quad_point_order`
+    // follow). `--row-tolerance` overrides the store for this run only.
+    let (settings, settings_report) =
+        pdfcer_core::settings::Settings::load(pdfcer_core::settings::resolve_store());
+    report_settings(&settings_report);
+    session.set_widget_tab_tail(settings.widget_tab_tail);
+    session.set_tab_row_tolerance(row_tolerance.unwrap_or(settings.tab_row_tolerance));
+
+    let (mut visited, mut skipped, mut pinned) = (0usize, 0usize, 0usize);
+    let (mut derived_pages, mut not_derived_pages) = (0usize, 0usize);
+
+    for &page_index in &selected {
+        let seq = match session.page_tab_sequence(page_index) {
+            Ok(seq) => seq,
+            Err(err) => {
+                eprintln!("pdfcer: {}: {err}", input.display());
+                return exit::RUNTIME_ERROR;
+            }
+        };
+        let page = page_index + 1;
+        let tabs = match &seq.stated {
+            pdfcer_core::edit::PageTabs::Absent => "absent".to_owned(),
+            pdfcer_core::edit::PageTabs::Row => "R".to_owned(),
+            pdfcer_core::edit::PageTabs::Column => "C".to_owned(),
+            pdfcer_core::edit::PageTabs::Structure => "S".to_owned(),
+            pdfcer_core::edit::PageTabs::ArrayOrder => "A".to_owned(),
+            pdfcer_core::edit::PageTabs::WidgetOrder => "W".to_owned(),
+            // Verbatim, and sanitised only so the line stays splittable --
+            // a disclosure that names the value the file carries can be
+            // checked against the file; "unknown" cannot.
+            pdfcer_core::edit::PageTabs::Other(name) => format!("/{}", sanitize_token(name)),
+            // `PageTabs` is #[non_exhaustive]. A value a future core knows
+            // and this build does not prints as `unrecognised` rather than
+            // as one of the names above — a wrong name here would be read
+            // as a fact about the file.
+            _ => "unrecognised".to_owned(),
+        };
+        let basis = match seq.basis {
+            pdfcer_core::edit::TabOrderBasis::StatedArrayOrder => "stated-array",
+            pdfcer_core::edit::TabOrderBasis::StatedWidgetOrder => "stated-widget",
+            pdfcer_core::edit::TabOrderBasis::ComputedRowOrder => "row",
+            pdfcer_core::edit::TabOrderBasis::ComputedColumnOrder => "column",
+            pdfcer_core::edit::TabOrderBasis::ArrayOrderByConvention => "array-convention",
+            pdfcer_core::edit::TabOrderBasis::NotDerivedStructure => "not-derived",
+            _ => "unrecognised",
+        };
+        if matches!(
+            seq.basis,
+            pdfcer_core::edit::TabOrderBasis::NotDerivedStructure
+        ) {
+            not_derived_pages += 1;
+        } else if seq.derived {
+            derived_pages += 1;
+        }
+        println!(
+            "page-order page={page} tabs={tabs} basis={basis} derived={} rotate={} \
+direction={} visited={} skipped={} pinned={}",
+            u8::from(seq.derived),
+            seq.rotate,
+            if seq.right_to_left { "r2l" } else { "l2r" },
+            seq.order.len(),
+            seq.excluded.len(),
+            seq.pinned,
+        );
+
+        let describe = |id: pdfcer_core::object::ObjId| {
+            let dict = session
+                .value(id)
+                .and_then(pdfcer_core::object::Object::as_dict);
+            let subtype = dict
+                .and_then(|d| d.get(b"Subtype"))
+                .and_then(pdfcer_core::object::Object::as_name)
+                .map_or_else(
+                    || "none".to_owned(),
+                    |n| sanitize_token(&String::from_utf8_lossy(n.as_bytes())),
+                );
+            let rect = dict
+                .and_then(|d| d.get(b"Rect"))
+                .and_then(pdfcer_core::object::Object::as_array)
+                .map(|a| {
+                    a.iter()
+                        .filter_map(pdfcer_core::object::Object::as_number)
+                        .map(|v| format!("{v}"))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                })
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| "none".to_owned());
+            (subtype, rect)
+        };
+
+        for (n, &id) in seq.order.iter().enumerate() {
+            visited += 1;
+            let (subtype, rect) = describe(id);
+            println!(
+                "tab page={page} visit={} obj={} subtype={subtype} rect={rect}",
+                n + 1,
+                id.num,
+            );
+        }
+        for &(id, why) in &seq.excluded {
+            skipped += 1;
+            let (subtype, _) = describe(id);
+            let reason = match why {
+                pdfcer_core::edit::TabExclusion::Hidden => "hidden",
+                pdfcer_core::edit::TabExclusion::NoView => "no-view",
+                pdfcer_core::edit::TabExclusion::TrapNet => "trap-net",
+                pdfcer_core::edit::TabExclusion::Popup => "popup",
+                _ => "unrecognised",
+            };
+            println!(
+                "skipped page={page} obj={} subtype={subtype} why={reason}",
+                id.num
+            );
+        }
+        pinned += seq.pinned;
+        for note in &seq.notes {
+            println!("note page={page} text={}", quoted_token(note));
+        }
+    }
+
+    println!(
+        "tab-order {} pages={}; visited={visited} skipped={skipped} pinned={pinned} \
+derived_pages={derived_pages} not_derived_pages={not_derived_pages}",
         input.display(),
         selected.len(),
     );

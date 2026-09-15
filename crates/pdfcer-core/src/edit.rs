@@ -148,7 +148,9 @@ use crate::page_tree::{self, Page, PageSlot, PageTreeError};
 use crate::pageops::references::{DanglingReport, census_dangling};
 use crate::pageops::separation::{SeparationImpact, SeparationPolicy, SeparationSplitRefused};
 use crate::pageops::{self};
-use crate::settings::QuadPointOrder;
+use crate::settings::{
+    MAX_TAB_ROW_TOLERANCE, MIN_TAB_ROW_TOLERANCE, QuadPointOrder, WidgetTabTail,
+};
 use crate::signature::{SaveMode, SignatureCensus, SignatureImpact, census, impact_of};
 
 /// A pre-placed empty signature field the request asked to sign INTO
@@ -8712,6 +8714,20 @@ pub struct EditSession {
     /// pdf.js emit and expect — so a caller that never sets it authors exactly
     /// what every previous pdfcer build authored.
     quad_point_order: QuadPointOrder,
+    /// Which reading of `/Tabs /W`'s contested second pass
+    /// [`EditSession::page_tab_sequence`] applies — spec ambiguity `TAB-A1`.
+    ///
+    /// Set by the shell from the settings store, like every other ambiguity
+    /// setting; core never reads a settings file (see
+    /// [`Self::set_quad_point_order`] for why). Defaults to
+    /// [`WidgetTabTail::ArrayOrder`], Table 31's reading.
+    widget_tab_tail: WidgetTabTail,
+    /// How far apart two annotations' leading edges may be and still be one
+    /// row (or column) under `/Tabs /R` or `/C`, in points.
+    ///
+    /// §12.5.1 defines no such test; this number is pdfcer's, and every
+    /// sequence [`EditSession::page_tab_sequence`] returns discloses it.
+    tab_row_tolerance: f64,
     /// The most recent page decode + decomposition, keyed by the content
     /// object and **the staged span its bytes occupy** (`Pass 181.0`).
     ///
@@ -8853,6 +8869,8 @@ impl EditSession {
             undo: Vec::new(),
             redo: Vec::new(),
             quad_point_order: QuadPointOrder::default(),
+            widget_tab_tail: WidgetTabTail::default(),
+            tab_row_tolerance: crate::settings::DEFAULT_TAB_ROW_TOLERANCE,
             page_objects_cache: None,
             redacted: false,
             redaction_pending: false,
@@ -8903,6 +8921,54 @@ impl EditSession {
     /// call is already rewriting the keys authoring owns.
     pub const fn set_quad_point_order(&mut self, order: QuadPointOrder) {
         self.quad_point_order = order;
+    }
+
+    /// Choose which reading of `/Tabs /W`'s second pass
+    /// [`Self::page_tab_sequence`] applies — spec ambiguity `TAB-A1`.
+    ///
+    /// ISO 32000-2 describes that pass twice and differently: Table 31 says
+    /// the non-widget tail follows in `/Annots` order, §12.5.1 says it
+    /// follows in row order. See [`WidgetTabTail`] for the measurement of
+    /// the errata channels and why the default is Table 31's.
+    ///
+    /// **Setting this never suppresses the disclosure.** A `/W` page's
+    /// [`TabSequence::notes`] names the contradiction and the reading
+    /// applied whichever way this is set — the operator is choosing a
+    /// reading, not choosing to stop being told there are two.
+    pub const fn set_widget_tab_tail(&mut self, tail: WidgetTabTail) {
+        self.widget_tab_tail = tail;
+    }
+
+    /// Which reading of `/Tabs /W`'s second pass this session applies.
+    #[must_use]
+    pub const fn widget_tab_tail(&self) -> WidgetTabTail {
+        self.widget_tab_tail
+    }
+
+    /// Set how far apart two annotations' leading edges may be and still
+    /// count as one row (or column) under `/Tabs /R` or `/C`, in points.
+    ///
+    /// Clamped to [`MIN_TAB_ROW_TOLERANCE`]..=[`MAX_TAB_ROW_TOLERANCE`]; a
+    /// non-finite value leaves the current tolerance alone rather than
+    /// poisoning every subsequent comparison with a `NaN` that makes no two
+    /// annotations ever share a row.
+    ///
+    /// §12.5.1 states no tolerance at all, which is why this is adjustable
+    /// rather than a constant: the number is pdfcer's, so an operator whose
+    /// forms disagree with it needs somewhere to say so. Whatever it is set
+    /// to is named in the [`TabSequence::notes`] of every row- or
+    /// column-ordered page.
+    pub const fn set_tab_row_tolerance(&mut self, points: f64) {
+        if points.is_finite() {
+            self.tab_row_tolerance = points.clamp(MIN_TAB_ROW_TOLERANCE, MAX_TAB_ROW_TOLERANCE);
+        }
+    }
+
+    /// The row/column grouping tolerance this session derives tab order
+    /// with, in points.
+    #[must_use]
+    pub const fn tab_row_tolerance(&self) -> f64 {
+        self.tab_row_tolerance
     }
 
     /// The `/QuadPoints` corner order this session is authoring in.
@@ -19585,6 +19651,259 @@ pub enum ArrayOrderGoverns {
     Everything,
 }
 
+/// Why an annotation on the page is not in its [`TabSequence::order`].
+///
+/// Tab navigation reaches things an operator can act on. Four kinds of
+/// annotation cannot be acted on, and the standard's authority for saying so
+/// differs sharply between them — which is why this is an enum and not a
+/// count. A shell writing an operator message can cite the first two; it
+/// must present the last two as pdfcer's reading.
+///
+/// **`ReadOnly` is deliberately absent.** §12.5.3 Table 165 bit 7 says
+/// `ReadOnly` *"shall be ignored for widget annotations; its function is
+/// subsumed by the ReadOnly flag of the associated form field"*, so whether
+/// a read-only **field** is tabbable is a `/Ff` question about the field,
+/// not an `/F` question about the annotation. pdfcer does not answer it
+/// here, and a caller that wants to skip read-only fields does it on the
+/// field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum TabExclusion {
+    /// `/F` bit 2, **Hidden** — §12.5.3 Table 165 (1.7) / Table 167 (2.0):
+    /// *"do not display or print the annotation **or allow it to interact
+    /// with the user**, regardless of its annotation type"*.
+    ///
+    /// **Sourced, not chosen.** The clause is an unqualified imperative
+    /// addressed to the processor, and keyboard tab navigation is user
+    /// interaction. §12.5.1 says nothing about this; cite §12.5.3.
+    Hidden,
+    /// `/F` bit 6, **NoView**, with `ToggleNoView` (bit 9) clear —
+    /// §12.5.3: *"do not display the annotation on the screen **or allow it
+    /// to interact with the user**"*.
+    ///
+    /// **Sourced, with one carve-out that is also sourced.** ISO 32000-2
+    /// Table 167 defines `ToggleNoView` as inverting `NoView` *"for
+    /// annotation selection and mouse hovering"*, and tabbing to an
+    /// annotation **selects** it — so a `NoView + ToggleNoView` annotation
+    /// is designed to appear at exactly the moment a tab reaches it, and
+    /// stays in the sequence. (ISO 32000-1 says only *"for certain
+    /// events"*, which would not support the carve-out on its own; the
+    /// carve-out rests on 2.0's explicit list.)
+    NoView,
+    /// `/Subtype /TrapNet` — a two-clause derivation, and pdfcer's reading.
+    ///
+    /// §14.11.6.2 requires a trap network's `/F` to be *"present, with the
+    /// Print and ReadOnly flags set and all others clear"* — a `shall`. And
+    /// `ReadOnly`'s head sentence in §12.5.3 is *"do not allow the
+    /// annotation to interact with the user"*. So a conforming trap network
+    /// is always read-only, and a read-only annotation is not interacted
+    /// with.
+    ///
+    /// **Weaker than [`Self::Hidden`], and the difference is worth keeping:**
+    /// `ReadOnly`'s next sentence narrows its illustration to the mouse and
+    /// drops to `should`, so excluding *keyboard* interaction is an
+    /// inference from the head sentence rather than a stated rule. A trap
+    /// network is prepress output for a RIP; nothing about it is for a
+    /// person to tab to.
+    TrapNet,
+    /// `/Subtype /Popup` — **pdfcer's choice**, and nothing in the standard
+    /// excludes it by name.
+    ///
+    /// The argument, from §12.5.6.14's own `shall`s: a popup *"shall have no
+    /// appearance stream or associated actions of its own"*, so tabbing to
+    /// one can trigger nothing and there is nothing to focus; it *"shall not
+    /// appear alone"* but belongs to a parent markup annotation that is
+    /// itself in the sequence, so giving it a position visits one logical
+    /// object twice; and `/Open` defaults to `false`, so the common case is
+    /// a popup that is not on screen at all. An off-screen thing that is
+    /// nonetheless tabbed to is the invisible-inference failure rule 4
+    /// exists to prevent.
+    Popup,
+}
+
+/// Which rule produced a [`TabSequence`] — the honest answer to *"where did
+/// this order come from?"*, and the field a disclosure should be written
+/// from.
+///
+/// [`TabSequence::derived`] is a convenience over this and cannot say as
+/// much: `false` is the right answer both for a sequence pdfcer **read out
+/// of the file** and for one it **could not produce at all**, and a
+/// disclosure that conflates those two tells the operator nothing. This is
+/// the same reason [`PageTabs::array_order_governs`] returns
+/// [`ArrayOrderGoverns`] rather than a `bool`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum TabOrderBasis {
+    /// `/Tabs /A`: the `/Annots` array order **is** the tab order, and the
+    /// file says so (ISO 32000-2 §12.5.1, `A` bullet). Nothing is inferred.
+    StatedArrayOrder,
+    /// `/Tabs /W`: widgets in `/Annots` order, then everything else.
+    ///
+    /// The first pass is stated. **What the second pass visits is
+    /// contested inside ISO 32000-2 itself** — Table 31 says the same array
+    /// ordering, §12.5.1 says row order (spec corpus `TAB-A1`) — so the
+    /// tail is governed by [`crate::settings::WidgetTabTail`] and disclosed
+    /// in [`TabSequence::notes`], never silently chosen.
+    StatedWidgetOrder,
+    /// `/Tabs /R`: rows, computed from `/Rect` geometry.
+    ComputedRowOrder,
+    /// `/Tabs /C`: columns, computed from `/Rect` geometry.
+    ComputedColumnOrder,
+    /// `/Tabs` absent, or a name outside Table 30/31's closed set.
+    ///
+    /// The `/Annots` array order, used as a **reader convention** rather
+    /// than as anything the file states. Neither edition names a fallback
+    /// — neither even acknowledges that a tab order exists in this case
+    /// (spec corpus `TAB-N1`) — so this basis is pdfcer choosing, and
+    /// [`TabSequence::notes`] says so in words.
+    ArrayOrderByConvention,
+    /// `/Tabs /S`: structure order, which pdfcer cannot compute.
+    ///
+    /// [`TabSequence::order`] is **empty**, and that emptiness is the
+    /// point: a silent fall back to `/Annots` order would hand the caller a
+    /// sequence indistinguishable from a real one. §12.5.1 puts the visit
+    /// order in the structure tree (§14.7); pdfcer has no structure-tree
+    /// walker, and inventing one branch of it would be worse than saying so.
+    NotDerivedStructure,
+}
+
+impl TabOrderBasis {
+    /// Whether pdfcer **computed** this sequence rather than reading it out
+    /// of the file — the value behind [`TabSequence::derived`].
+    ///
+    /// [`Self::NotDerivedStructure`] answers `false` because nothing was
+    /// computed; [`Self::StatedArrayOrder`] answers `false` because nothing
+    /// needed to be. Use the variant itself to tell those apart.
+    #[must_use]
+    pub const fn is_computed(self) -> bool {
+        matches!(
+            self,
+            Self::ComputedRowOrder | Self::ComputedColumnOrder | Self::ArrayOrderByConvention
+        )
+    }
+}
+
+/// The order in which a reader visits one page's annotations, and
+/// everything pdfcer had to infer to say so (ISO 32000-1 §12.5.1;
+/// ISO 32000-2 §12.5.1 adds `/A` and `/W`).
+///
+/// # What this type is for
+///
+/// [`PageTabs`] answers *"what does the file say?"* and
+/// [`PageTabs::array_order_governs`] answers *"how much of the order does
+/// `/Annots` govern?"* — both honestly, and neither is a sequence. A shell
+/// that wants to move focus from one field to the next needs the sequence,
+/// and deriving it from geometry in the shell would let `pdfcer` the CLI
+/// and a GUI disagree about which field is second on the same page. The
+/// rules are the standard's; the answer belongs in one place.
+///
+/// # Every annotation a reader visits, not only the widgets
+///
+/// [`Self::order`] covers every annotation the page's `/Annots` reaches
+/// **that a reader tabs to**. §12.5.1 defines the order over the page's
+/// annotations and excludes no *subtype*, so a `/Link` and a `/Text` note
+/// take their places among the form fields. A caller that tabs only through
+/// form fields filters afterwards; filtering first and ordering second is a
+/// different — and wrong — answer under `/R` and `/C`, because removing a
+/// non-widget from the input changes which annotations fall into which row,
+/// and under [`crate::settings::WidgetTabTail::RowOrder`] it changes the
+/// tail outright.
+///
+/// What a reader does **not** tab to is in [`Self::excluded`] with its
+/// reason, so the two together are still the whole array.
+///
+/// # Nothing here is written to the file
+///
+/// This is a read-only derivation. It never writes `/Tabs`, never permutes
+/// `/Annots`, and records no command — see
+/// [`reorder_annotations`](EditSession::reorder_annotations) for the
+/// permuting verb, and the reasoning in its docs for why pdfcer declines to
+/// write `/Tabs` as a side effect of anything.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct TabSequence {
+    /// Every annotation on the page, in visit order.
+    ///
+    /// **Empty when [`Self::basis`] is
+    /// [`TabOrderBasis::NotDerivedStructure`]** — see that variant. Empty
+    /// also, and unremarkably, for a page with no annotations.
+    ///
+    /// Entries are the objects `/Annots` reaches by **indirect reference**.
+    /// A dictionary written directly into the array (Table 164 permits it)
+    /// has no identity to be named by and is counted in [`Self::pinned`]
+    /// instead — it is still tabbed to by a reader, and pdfcer cannot say
+    /// where in this list it belongs, which is exactly the kind of gap
+    /// rule 4 requires be stated rather than rounded off.
+    pub order: Vec<ObjId>,
+    /// What the page's own `/Tabs` entry says, verbatim.
+    ///
+    /// Read from the **page dictionary only**. `/Tabs` is **not
+    /// inheritable** — §7.7.3.3's *"attributes that are not explicitly
+    /// identified in the table as inheritable shall not be inherited"*, and
+    /// the four inheritable page attributes are `/Resources`, `/MediaBox`,
+    /// `/CropBox` and `/Rotate` — so an ancestor `/Pages` node carrying
+    /// `/Tabs` states nothing about this page.
+    pub stated: PageTabs,
+    /// Which rule produced [`Self::order`]. The precise answer; prefer it
+    /// to [`Self::derived`] for anything the operator will read.
+    pub basis: TabOrderBasis,
+    /// `true` when pdfcer **computed** the order rather than reading it out
+    /// of the file — [`TabOrderBasis::is_computed`].
+    ///
+    /// Provided because it is the coarse question a caller usually has
+    /// (*"is this an inference I owe the operator a disclosure about?"*).
+    /// It cannot distinguish *read from the file* from *not derived at
+    /// all*; [`Self::basis`] can.
+    pub derived: bool,
+    /// The page rotation applied before any geometry was compared, in
+    /// degrees clockwise (`0`, `90`, `180`, `270`).
+    ///
+    /// §12.5.1 closes its `/R` / `/C` / `/S` descriptions with *"these
+    /// descriptions assume the page is being viewed in the orientation
+    /// specified by the `Rotate` entry"*, so a row on a `/Rotate 90` page
+    /// runs down the unrotated page. `0` under every basis that compares no
+    /// geometry.
+    pub rotate: u16,
+    /// `true` when the document's `/ViewerPreferences` `/Direction` is
+    /// `/R2L`, so rows were walked right-to-left and columns ordered
+    /// right-to-left (§12.5.1 makes the direction a `shall`, determined by
+    /// §12.2's entry).
+    ///
+    /// `false` under every basis that compares no geometry, and for the far
+    /// more common `/L2R`.
+    pub right_to_left: bool,
+    /// `/Annots` entries that are not indirect references, and so cannot
+    /// appear in [`Self::order`].
+    ///
+    /// Non-zero means the sequence is **incomplete**, not merely shorter:
+    /// a reader tabs to these annotations and pdfcer cannot say where.
+    pub pinned: usize,
+    /// Annotations on the page that a reader does not tab to, and why.
+    ///
+    /// Not a subset of [`Self::order`] — these are the annotations left
+    /// **out** of it, so `order.len() + excluded.len() + pinned` is the
+    /// page's whole `/Annots` array. A caller that needs the full set (to
+    /// draw every annotation, say) has it here rather than having to re-read
+    /// the array and re-derive which ones were dropped.
+    ///
+    /// They take no part in forming rows or columns either: an annotation a
+    /// reader never visits cannot be *in* a row of ones it does, and letting
+    /// an invisible rectangle decide where two visible rows divide would be
+    /// an inference with nothing on screen to check it against.
+    ///
+    /// Order follows `/Annots`, not the visit order — there is no visit
+    /// order for these.
+    pub excluded: Vec<(ObjId, TabExclusion)>,
+    /// The rule-4 disclosure, as operator-readable sentences.
+    ///
+    /// One per inference or gap, in the order they were made, ready to be
+    /// printed verbatim off-canvas. Empty only when nothing was inferred —
+    /// which happens for exactly one basis,
+    /// [`TabOrderBasis::StatedArrayOrder`] on a page whose every entry is a
+    /// reference.
+    pub notes: Vec<String>,
+}
+
 /// What a [`reorder_annotations`](EditSession::reorder_annotations) call
 /// moved, what it left where it was, and what the page says about tabbing.
 ///
@@ -28728,6 +29047,647 @@ impl EditSession {
             stroke_width,
             rect_differences_scaled,
         })
+    }
+
+    /// The order in which a reader visits this page's annotations
+    /// (ISO 32000-1 §12.5.1; ISO 32000-2 §12.5.1 for `/A` and `/W`).
+    ///
+    /// Read-only. Nothing is written, nothing is staged, no command is
+    /// recorded. See [`TabSequence`] for what comes back and
+    /// [`TabOrderBasis`] for which of the six `/Tabs` states produced it.
+    ///
+    /// # What the standard defines, and what it leaves to pdfcer
+    ///
+    /// **Defined, and followed here:** `/A` visits every annotation in
+    /// `/Annots` order; `/W` visits widgets in `/Annots` order first; `/R`
+    /// visits *"rows running horizontally across the page"*, starting with
+    /// *"the first annotation in the topmost row"*; `/C` visits *"columns
+    /// running vertically up and down the page"*, starting with *"the one at
+    /// the top of the first column"*; the direction within a row and the
+    /// sequence of columns are determined by `/Direction` in the viewer
+    /// preferences dictionary (§12.2), whose **`Default value: L2R`** is
+    /// printed in Table 150 (1.7) / Table 147 (2.0) — so left-to-right is
+    /// the standard's own default and not pdfcer choosing one; and those
+    /// descriptions *"assume the page is being viewed in the orientation
+    /// specified by the `Rotate` entry"*, while §12.5.3 says `/Rect`
+    /// *"continues to describe the annotation's relationship with the
+    /// unscaled, unrotated user space"* — which together are why the
+    /// geometry is rotated before it is grouped.
+    ///
+    /// ⚠ The `/Direction` dependency is a `shall` in ISO 32000-1 for both
+    /// bullets. **ISO 32000-2 de-modalised it for `/R` only** (*"is defined
+    /// by"*) and left `/C`'s *"shall be ordered by"* untouched. Do not
+    /// record that 2.0 softened it, unqualified; it softened half of it.
+    ///
+    /// **Left open, and therefore pdfcer's own rule** — §12.5.1 names no
+    /// corner, no grouping test, no tolerance and no tie-break, so what
+    /// follows is a choice, disclosed in [`TabSequence::notes`] and not
+    /// presented as a reading:
+    ///
+    /// 1. **The sort key is the rectangle's leading corner in the displayed
+    ///    orientation** — its top edge for the down axis, its left edge for
+    ///    the across axis (its *right* edge under `/R2L`). That is the
+    ///    upper-left corner in the ordinary case, and it is the least
+    ///    invented part of the geometry: Adobe's own description of both
+    ///    modes anchors there (*"tabs from the upper left field"*), and the
+    ///    upper-left corner of `/Rect` is the **only** reference point
+    ///    either edition ever designates for an annotation's position
+    ///    (§12.5.3). ★ That designation is **scoped to `NoZoom`/`NoRotate`**
+    ///    in all three places it appears, so it is a precedent and not a
+    ///    general rule — do not cite it as one.
+    /// 2. **Two annotations share a row when their top edges are within
+    ///    [`Self::tab_row_tolerance`] of the row's FIRST member** — not of
+    ///    each other. See [`Self::group_and_order`] for why anchored rather
+    ///    than chained.
+    /// 3. **Ties break on the other axis, then on `/Annots` index.**
+    ///
+    /// # `/Rect` is normalised first
+    ///
+    /// §7.9.5 lets a producer write the corners in either order, so every
+    /// rectangle goes through [`page_tree::Rect::from_corners`] before
+    /// anything is compared. A `/Rect` of `[500 700 100 600]` sorts where it
+    /// is drawn, not where its first coordinate pair says.
+    ///
+    /// # Every annotation a reader visits, not only the widgets
+    ///
+    /// §12.5.1 defines the order over the page's annotations and **does not
+    /// exclude the non-widgets**, so neither does this: a `/Link` and a
+    /// `/Text` note take their places in the rows alongside the form fields.
+    /// A caller that wants only the tabbable fields filters a list it has;
+    /// it cannot un-filter one it does not. Filtering before ordering would
+    /// also change the answer under `/R` and `/C`, because which annotations
+    /// fall into which row depends on which annotations are being grouped.
+    ///
+    /// Four kinds are nonetheless **left out of [`TabSequence::order`] and
+    /// reported in [`TabSequence::excluded`]** — `Hidden`, `NoView` without
+    /// `ToggleNoView`, `/TrapNet` and `/Popup`. That is not a filter over
+    /// the tab order; it is the tab order. §12.5.3 says a `Hidden`
+    /// annotation shall not *"interact with the user"*, and tabbing to one
+    /// is interacting with it. [`TabExclusion`] carries each rule's source
+    /// and its strength, because two of the four are read off a clause and
+    /// two are pdfcer's reading. They take no part in forming rows either.
+    ///
+    /// ★ **A caller building focus navigation owes one more step this verb
+    /// cannot take for it:** the widgets of one radio group are several
+    /// annotations and **one** tab stop — Acrobat moves between them with
+    /// the arrow keys and past the whole group with Tab. That is a grouping
+    /// of *fields*, not of annotations; [`Self::field_at`] and
+    /// [`forms::Field::widgets`] are what collapse it.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::PageOutOfRange`] for an index past the end of the page
+    /// tree, and [`EditError::AnnotsNotAnArray`] for an `/Annots` that
+    /// resolves to something other than an array. A malformed *entry* inside
+    /// a well-formed array is never an error — it is counted in
+    /// [`TabSequence::pinned`], or sorted last and disclosed, but the call
+    /// still answers.
+    pub fn page_tab_sequence(&self, page_index: usize) -> Result<TabSequence, EditError> {
+        let slots = self.page_slots()?;
+        let slot = slots.get(page_index).ok_or(EditError::PageOutOfRange {
+            index: page_index,
+            count: slots.len(),
+        })?;
+        let page_id = slot.id;
+        let Some(Object::Dict(page)) = self.value(page_id) else {
+            return Err(EditError::NotADictionary {
+                id: page_id,
+                key: "Annots",
+            });
+        };
+        let page = page.clone();
+
+        // `/Tabs` is NOT inheritable (§7.7.3.3: "attributes that are not
+        // explicitly identified in the table as inheritable shall not be
+        // inherited"; the four that are, are /Resources, /MediaBox,
+        // /CropBox and /Rotate). So this reads the PAGE's own entry and
+        // never walks ancestors — an ancestor's /Tabs states nothing about
+        // this page. `page_uses_structure_tab_order` DOES walk the chain,
+        // for a different purpose and deliberately over-warning; see its
+        // docs, and do not make this agree with it.
+        let stated = PageTabs::from_entry(page.get(b"Tabs"));
+
+        let entries: Vec<Object> = match page.get(b"Annots") {
+            None => Vec::new(),
+            Some(Object::Array(arr)) => arr.clone(),
+            Some(Object::Reference(array_id)) => match self.value(*array_id) {
+                Some(Object::Array(arr)) => arr.clone(),
+                // A dangling reference resolves to null (§7.3.10): no
+                // annotations, not a malformed array.
+                None | Some(Object::Null) => Vec::new(),
+                Some(_) => return Err(EditError::AnnotsNotAnArray { page: page_id }),
+            },
+            Some(_) => return Err(EditError::AnnotsNotAnArray { page: page_id }),
+        };
+        // A dictionary written directly into the array is legal (Table 164)
+        // and rare. It is a real annotation a reader tabs to, with no
+        // identity to name it by, so it is disclosed rather than quietly
+        // dropped from the count.
+        let all: Vec<ObjId> = entries.iter().filter_map(Object::as_reference).collect();
+        let pinned = entries.len() - all.len();
+
+        // Four kinds of annotation a reader does not tab to (§12.5.3, and
+        // see `TabExclusion` for which of the four the standard says so
+        // about and which are pdfcer reading it). They are removed BEFORE
+        // any geometry is compared: one of them sitting between two rows
+        // would otherwise decide where the rows divide, and there would be
+        // nothing on screen to check that decision against.
+        let mut excluded: Vec<(ObjId, TabExclusion)> = Vec::new();
+        let mut array: Vec<ObjId> = Vec::with_capacity(all.len());
+        for id in all {
+            match self.tab_exclusion(id) {
+                Some(why) => excluded.push((id, why)),
+                None => array.push(id),
+            }
+        }
+
+        let mut notes: Vec<String> = Vec::new();
+        if pinned > 0 {
+            notes.push(format!(
+                "{written} of this page's {total} written straight into /Annots instead of as a reference, so there is no identity to name it by and it is missing from this sequence. A reader still tabs to it; pdfcer cannot say where.",
+                written = Self::plural(pinned, "annotation is", "annotations are"),
+                total = Self::plural(entries.len(), "annotation is", "annotations are")
+            ));
+        }
+
+        if !excluded.is_empty() {
+            let count =
+                |want: TabExclusion| excluded.iter().filter(|(_, why)| *why == want).count();
+            let mut parts: Vec<String> = Vec::new();
+            for (n, one, many) in [
+                (count(TabExclusion::Hidden), "hidden", "hidden"),
+                (
+                    count(TabExclusion::NoView),
+                    "not shown on screen",
+                    "not shown on screen",
+                ),
+                (
+                    count(TabExclusion::TrapNet),
+                    "prepress trap network",
+                    "prepress trap networks",
+                ),
+                (
+                    count(TabExclusion::Popup),
+                    "pop-up note belonging to another annotation",
+                    "pop-up notes belonging to another annotation",
+                ),
+            ] {
+                if n > 0 {
+                    parts.push(Self::plural(n, one, many));
+                }
+            }
+            notes.push(format!(
+                "{} on this page {} left out of the sequence because a reader does not tab to {}: {}. They are listed separately, and they took no part in working out the order of the rest.",
+                Self::plural(excluded.len(), "annotation", "annotations"),
+                if excluded.len() == 1 { "is" } else { "are" },
+                if excluded.len() == 1 { "it" } else { "them" },
+                parts.join(", "),
+            ));
+        }
+
+        let (order, basis, rotate, right_to_left) = match &stated {
+            PageTabs::ArrayOrder => (array, TabOrderBasis::StatedArrayOrder, 0, false),
+
+            PageTabs::Structure => {
+                notes.push(
+                    "This page states structure order (/Tabs /S): a reader visits its annotations in the order they appear in the document's structure tree. pdfcer does not read the structure tree, so it cannot tell you that order and is not guessing at one. An annotation that is not in the tree has no defined tab position at all under /S — the standard considered the question and handed it to the reader — so it is not \"last\", it is undefined. A page with some annotations in the tree and some outside it therefore has no fully defined order even for a reader that does walk the tree."
+                        .to_owned(),
+                );
+                (Vec::new(), TabOrderBasis::NotDerivedStructure, 0, false)
+            }
+
+            PageTabs::Row | PageTabs::Column => {
+                let row = matches!(stated, PageTabs::Row);
+                let rotate = self.effective_rotate(&page, slot);
+                let r2l = self.reads_right_to_left();
+                let keyed = self.display_keys(&array, rotate, r2l);
+                let no_rect = keyed.iter().filter(|k| k.is_none()).count();
+                let ordered = Self::group_and_order(&keyed, row, self.tab_row_tolerance)
+                    .into_iter()
+                    .filter_map(|i| array.get(i).copied())
+                    .collect();
+                notes.push(format!(
+                    "This page states {word} order (/Tabs /{letter}), so the order reported for it was computed from where the annotations sit on the page — the file does not list one. The standard does not say how {plural} are formed; pdfcer sorts on each rectangle's {corner} corner as displayed, and treats an annotation whose {edge} edge is within {tol} of the {word}'s first member as part of that {word}.",
+                    word = if row { "row" } else { "column" },
+                    letter = if row { "R" } else { "C" },
+                    plural = if row { "rows" } else { "columns" },
+                    corner = if r2l { "upper-right" } else { "upper-left" },
+                    edge = if row { "top" } else if r2l { "right" } else { "left" },
+                    tol = if (self.tab_row_tolerance - 1.0).abs() < f64::EPSILON {
+                        "1 point".to_owned()
+                    } else {
+                        format!("{} points", self.tab_row_tolerance)
+                    },
+                ));
+                if rotate != 0 {
+                    notes.push(format!(
+                        "The page is rotated {rotate} degrees for display, and the order follows what is on screen rather than the unrotated coordinates."
+                    ));
+                }
+                if r2l {
+                    notes.push(
+                        "This document's viewer preferences set /Direction /R2L, so rows run right to left and columns are ordered right to left."
+                            .to_owned(),
+                    );
+                }
+                let fixed_print = array
+                    .iter()
+                    .filter(|&&id| self.is_fixed_print_watermark(id))
+                    .count();
+                if fixed_print > 0 {
+                    // §12.5.6.22: a /Watermark carrying /FixedPrint has its
+                    // rectangle transformed by that dictionary's /Matrix and
+                    // the result used "in place of the annotation rectangle".
+                    // pdfcer sorts on the raw /Rect, so its position here is
+                    // the one the file states rather than the one a reader
+                    // computes — the single case in which those differ, and
+                    // therefore the one that has to be said out loud.
+                    notes.push(format!(
+                        "{} on this page {} a /FixedPrint matrix, which moves where a reader actually puts them. pdfcer ordered them by the rectangle the file states, not the moved one.",
+                        Self::plural(fixed_print, "watermark annotation", "watermark annotations"),
+                        if fixed_print == 1 { "carries" } else { "carry" },
+                    ));
+                }
+                if no_rect > 0 {
+                    notes.push(format!(
+                        "{} on this page {} no readable /Rect, which Table 164 requires. There is no position to order by, so they were put last.",
+                        Self::plural(no_rect, "annotation", "annotations"),
+                        if no_rect == 1 { "has" } else { "have" },
+                    ));
+                }
+                let basis = if row {
+                    TabOrderBasis::ComputedRowOrder
+                } else {
+                    TabOrderBasis::ComputedColumnOrder
+                };
+                (ordered, basis, rotate, r2l)
+            }
+
+            PageTabs::WidgetOrder => {
+                let (widgets, rest): (Vec<ObjId>, Vec<ObjId>) =
+                    array.iter().partition(|&&id| self.is_widget_annotation(id));
+                let tail_is_row = self.widget_tab_tail == WidgetTabTail::RowOrder;
+                let (rotate, r2l, tail) = if tail_is_row {
+                    let rotate = self.effective_rotate(&page, slot);
+                    let r2l = self.reads_right_to_left();
+                    let keyed = self.display_keys(&rest, rotate, r2l);
+                    let tail = Self::group_and_order(&keyed, true, self.tab_row_tolerance)
+                        .into_iter()
+                        .filter_map(|i| rest.get(i).copied())
+                        .collect();
+                    (rotate, r2l, tail)
+                } else {
+                    (0, false, rest)
+                };
+                notes.push(format!(
+                    "This page states widget order (/Tabs /W): its {fields} form fields are visited in the order /Annots lists them, then its {others} other annotations. ISO 32000-2 contradicts itself about that second group — Table 31 says they follow in the same array order, clause 12.5.1 says they follow in row order — and the contradiction is unreported and uncorrected in the errata. pdfcer applied {applied} here.",
+                    fields = widgets.len(),
+                    others = tail.len(),
+                    applied = if tail_is_row {
+                        "clause 12.5.1's reading (row order)"
+                    } else {
+                        "Table 31's reading (array order)"
+                    },
+                ));
+                let mut order = widgets;
+                order.extend(tail);
+                (order, TabOrderBasis::StatedWidgetOrder, rotate, r2l)
+            }
+
+            PageTabs::Absent => {
+                notes.push(
+                    "This page states no tab order: it carries no /Tabs entry, and the standard does not say what a reader should do then — it does not acknowledge that a tab order exists at all in that case. The order reported for it is the order /Annots lists the annotations in, which is what readers tend to use. That is a convention, not something the file says."
+                        .to_owned(),
+                );
+                (array, TabOrderBasis::ArrayOrderByConvention, 0, false)
+            }
+
+            PageTabs::Other(name) => {
+                notes.push(format!(
+                    "This page's /Tabs entry is /{name}, which is not one of the values the standard permits (R, C and S, plus A and W from PDF 2.0). That is a defect in whatever produced the file. The order reported for it is the order /Annots lists the annotations in, which is what readers tend to use when they cannot act on a /Tabs value."
+                ));
+                (array, TabOrderBasis::ArrayOrderByConvention, 0, false)
+            }
+        };
+
+        Ok(TabSequence {
+            order,
+            stated,
+            basis,
+            derived: basis.is_computed(),
+            rotate,
+            right_to_left,
+            pinned,
+            excluded,
+            notes,
+        })
+    }
+
+    /// The rotation a page is displayed at, in degrees clockwise, normalised
+    /// to `0`/`90`/`180`/`270`.
+    ///
+    /// `/Rotate` is one of §7.7.3.3's four inheritable page attributes, so
+    /// the page's own entry wins and an ancestor's is used when it has none.
+    /// ★ *"A multiple of 90"* is **not** the set `{0, 90, 180, 270}`:
+    /// `-90` and `450` are conforming values, and a reader that matches on
+    /// the four literals silently treats them as unrotated. Hence the
+    /// `% 90` test and the `rem_euclid`, in that order.
+    ///
+    /// A value that is not a multiple of 90 is malformed and the standard
+    /// states no recovery; treating it as `0` keeps a tab order available on
+    /// a broken file rather than refusing one, which is the same
+    /// tolerate-and-model policy [`page_tree`] applies to every other
+    /// malformed page attribute.
+    fn effective_rotate(&self, page: &Dict, slot: &PageSlot) -> u16 {
+        let graph = self.graph();
+        let raw = page
+            .get(b"Rotate")
+            .or(slot.inherited.rotate.as_ref())
+            .map(|o| graph.resolve(o));
+        match raw {
+            Some(Object::Integer(v)) if v % 90 == 0 => {
+                u16::try_from(v.rem_euclid(360)).unwrap_or(0)
+            }
+            _ => 0,
+        }
+    }
+
+    /// `"1 thing"` / `"2 things"` — for the disclosure sentences, which an
+    /// operator reads rather than parses.
+    ///
+    /// Trivial, and it exists as a function because these notes are the
+    /// whole of rule 4's discharge here: a sentence that says *"1 rows"* is
+    /// read as machine output and skimmed past, which is the one thing a
+    /// disclosure cannot afford to be.
+    fn plural(n: usize, one: &str, many: &str) -> String {
+        if n == 1 {
+            format!("{n} {one}")
+        } else {
+            format!("{n} {many}")
+        }
+    }
+
+    /// Whether the document's viewer preferences ask for right-to-left
+    /// reading (§12.2, `/ViewerPreferences` `/Direction` `/R2L`).
+    ///
+    /// §12.5.1 makes this a `shall`: the direction within a `/R` row and the
+    /// sequence of `/C` columns *"shall be determined by the `Direction`
+    /// entry in the viewer preferences dictionary"*. Absent or anything
+    /// other than `/R2L` is left-to-right, which is `/Direction`'s own
+    /// default.
+    ///
+    /// **Content is never inspected.** A page of Hebrew or Arabic text with
+    /// no `/Direction` reads left-to-right here, deliberately: the standard
+    /// names one lever and it is a document-level declaration, not a guess
+    /// from the glyphs. Acrobat behaves the same way as far as any source
+    /// records.
+    fn reads_right_to_left(&self) -> bool {
+        let graph = self.graph();
+        graph
+            .catalog_dict()
+            .and_then(|c| c.get(b"ViewerPreferences"))
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_dict)
+            .and_then(|d| d.get(b"Direction"))
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_name)
+            .is_some_and(|n| n.as_bytes() == b"R2L")
+    }
+
+    /// Whether `id` is a `/Watermark` carrying a `/FixedPrint` dictionary
+    /// — §12.5.6.22, the one annotation whose displayed rectangle is **not**
+    /// its `/Rect`.
+    ///
+    /// The clause is a `shall`: the rectangle is translated to the origin,
+    /// transformed by `/FixedPrint`'s `/Matrix`, and the smallest upright
+    /// rectangle around the result *"shall be used in place of the
+    /// annotation rectangle"*. pdfcer does not apply that here — a watermark
+    /// is decoration and is a vanishingly rare thing to tab to — so the fact
+    /// is **disclosed** instead, which is the same posture rule 4 takes
+    /// everywhere else: do the simple thing and say that you did.
+    fn is_fixed_print_watermark(&self, id: ObjId) -> bool {
+        let graph = self.graph();
+        let Some(dict) = graph
+            .value(id)
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_dict)
+        else {
+            return false;
+        };
+        dict.get(b"Subtype")
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_name)
+            .is_some_and(|n| n.as_bytes() == b"Watermark")
+            && dict.contains_key(b"FixedPrint")
+    }
+
+    /// Why a reader would not tab to `id`, or `None` if it would.
+    ///
+    /// See [`TabExclusion`] for each rule's source and its strength. The
+    /// order of the tests is not significant — no annotation can be two of
+    /// these at once in a conforming file, and on a malformed one the first
+    /// match is as good an answer as any.
+    fn tab_exclusion(&self, id: ObjId) -> Option<TabExclusion> {
+        let graph = self.graph();
+        let dict = graph
+            .value(id)
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_dict)?;
+        let subtype = dict
+            .get(b"Subtype")
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_name)
+            .map(|n| n.as_bytes().to_vec())
+            .unwrap_or_default();
+        if subtype == b"TrapNet" {
+            return Some(TabExclusion::TrapNet);
+        }
+        if subtype == b"Popup" {
+            return Some(TabExclusion::Popup);
+        }
+        let flags = AnnotFlags(
+            dict.get(b"F")
+                .map(|o| graph.resolve(o))
+                .and_then(Object::as_int)
+                .and_then(|v| u32::try_from(v).ok())
+                .unwrap_or(0),
+        );
+        if flags.hidden() {
+            return Some(TabExclusion::Hidden);
+        }
+        // ToggleNoView inverts NoView "for annotation selection and mouse
+        // hovering" (2.0 Table 167), and tabbing to an annotation selects
+        // it — so this pattern is one that appears BECAUSE it was tabbed to.
+        if flags.no_view() && !flags.toggle_no_view() {
+            return Some(TabExclusion::NoView);
+        }
+        None
+    }
+
+    /// Whether `id` is a `/Subtype /Widget` annotation — the first pass of
+    /// `/Tabs /W`.
+    fn is_widget_annotation(&self, id: ObjId) -> bool {
+        let graph = self.graph();
+        graph
+            .value(id)
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_dict)
+            .and_then(|d| d.get(b"Subtype"))
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_name)
+            .is_some_and(|n| n.as_bytes() == b"Widget")
+    }
+
+    /// Each annotation's sort keys in the **displayed** orientation:
+    /// `(down, across)`, both increasing in the direction a reader moves.
+    ///
+    /// `None` for an annotation with no readable `/Rect`. Table 164 makes
+    /// `/Rect` Required, so that is a malformed annotation rather than a
+    /// case the standard describes; [`EditSession::page_tab_sequence`] sorts
+    /// those last and discloses them instead of inventing a position.
+    ///
+    /// # The transform
+    ///
+    /// `/Rotate` is a clockwise **display** rotation (§7.7.3.3), so a point
+    /// `(x, y)` in user space lands at `(across, down)`:
+    ///
+    /// | `/Rotate` | across | down |
+    /// |---|---|---|
+    /// | 0 | `x` | `-y` |
+    /// | 90 | `y` | `x` |
+    /// | 180 | `-x` | `y` |
+    /// | 270 | `-y` | `-x` |
+    ///
+    /// At 0 the page's y-UP user space is flipped to a y-DOWN screen axis,
+    /// which is the whole of why `down` is `-y` there. At 90 the user-space
+    /// `+y` axis has been turned to point right and `+x` to point down, and
+    /// so on round.
+    ///
+    /// The returned `across` is the rectangle's **leading** edge — its left
+    /// edge under `/L2R`, its right edge under `/R2L` — and `down` is its
+    /// top edge, both after the transform. That is the upper-left corner in
+    /// the ordinary case, which is what Adobe's own description of row and
+    /// column order anchors on (*"tabs from the upper left field"*).
+    fn display_keys(&self, ids: &[ObjId], rotate: u16, r2l: bool) -> Vec<Option<(f64, f64)>> {
+        let graph = self.graph();
+        ids.iter()
+            .map(|&id| {
+                let rect = graph
+                    .value(id)
+                    .map(|o| graph.resolve(o))
+                    .and_then(Object::as_dict)
+                    .and_then(|d| d.get(b"Rect"))
+                    .map(|o| graph.resolve(o))
+                    .and_then(Object::as_array)
+                    .and_then(|arr| {
+                        let n: Vec<f64> = arr
+                            .iter()
+                            .map(|o| graph.resolve(o))
+                            .filter_map(Object::as_number)
+                            .collect();
+                        // Exactly four numbers, or no geometry at all. A
+                        // /Rect of three entries is not a rectangle with a
+                        // missing side; it is a malformed annotation, and
+                        // inventing the fourth coordinate would place it
+                        // somewhere the file never said.
+                        let [x1, y1, x2, y2] = <[f64; 4]>::try_from(n).ok()?;
+                        // §7.9.5 permits either corner order.
+                        Some(page_tree::Rect::from_corners(x1, y1, x2, y2))
+                    })?;
+                // The displayed across-interval and the displayed top edge.
+                let (a0, a1, down) = match rotate {
+                    90 => (rect.lly, rect.ury, rect.llx),
+                    180 => (-rect.urx, -rect.llx, rect.lly),
+                    270 => (-rect.ury, -rect.lly, -rect.urx),
+                    _ => (rect.llx, rect.urx, -rect.ury),
+                };
+                Some((down, if r2l { -a1 } else { a0 }))
+            })
+            .collect()
+    }
+
+    /// Group annotations into rows (or columns) and lay them out in visit
+    /// order, returning positions into `keyed`.
+    ///
+    /// `row` selects which axis groups: rows group on `down` and scan by
+    /// `across`; columns group on `across` and scan by `down`. Everything
+    /// else about the two is identical, which is why they share one
+    /// function — §12.5.1's `/C` bullet is its `/R` bullet with the axes
+    /// exchanged.
+    ///
+    /// # The grouping rule is pdfcer's, and it is anchored, not chained
+    ///
+    /// §12.5.1 says *"rows running horizontally across the page"* and stops.
+    /// It names no test for whether two annotations are in the same row, and
+    /// no source found for Acrobat names one either — practitioners are told
+    /// to align the tops of a row exactly before relying on row order, which
+    /// is evidence that the tolerance in the reference implementation is
+    /// small, not evidence of what it is.
+    ///
+    /// So: an annotation joins the current row while its top edge is within
+    /// `tolerance` of the top edge of that row's **first** member. Comparing
+    /// against each neighbour instead would chain — twenty fields each two
+    /// points below the last would become one row on a one-point tolerance —
+    /// and a row's depth would be unbounded. Anchoring bounds it at the
+    /// tolerance, which is the property that makes the rule explainable to
+    /// an operator in one sentence.
+    ///
+    /// Ties break on the other axis and then on position in `/Annots`, so
+    /// the result is total and stable: two annotations with identical
+    /// rectangles come out in the order the file lists them.
+    ///
+    /// Annotations with no key (`None` — no readable `/Rect`) are appended
+    /// last, in array order. They have no geometry to be placed by, and
+    /// putting them first would push malformed input in front of the
+    /// operator's actual form.
+    fn group_and_order(keyed: &[Option<(f64, f64)>], row: bool, tolerance: f64) -> Vec<usize> {
+        // `(group_axis, scan_axis, array_index)` — the two axes swapped for
+        // column order, so the sort and the grouping below read identically
+        // for both modes.
+        let mut placed: Vec<(f64, f64, usize)> = keyed
+            .iter()
+            .enumerate()
+            .filter_map(|(i, k)| {
+                k.map(|(down, across)| {
+                    if row {
+                        (down, across, i)
+                    } else {
+                        (across, down, i)
+                    }
+                })
+            })
+            .collect();
+        placed.sort_by(|a, b| {
+            a.0.total_cmp(&b.0)
+                .then_with(|| a.1.total_cmp(&b.1))
+                .then_with(|| a.2.cmp(&b.2))
+        });
+
+        let mut out: Vec<usize> = Vec::with_capacity(keyed.len());
+        let mut group: Vec<(f64, f64, usize)> = Vec::new();
+        let mut anchor = f64::NAN;
+        let flush = |group: &mut Vec<(f64, f64, usize)>, out: &mut Vec<usize>| {
+            group.sort_by(|a, b| a.1.total_cmp(&b.1).then_with(|| a.2.cmp(&b.2)));
+            out.extend(group.drain(..).map(|(_, _, i)| i));
+        };
+        for item in placed {
+            if group.is_empty() {
+                anchor = item.0;
+            } else if item.0 - anchor > tolerance {
+                flush(&mut group, &mut out);
+                anchor = item.0;
+            }
+            group.push(item);
+        }
+        flush(&mut group, &mut out);
+
+        out.extend(
+            keyed
+                .iter()
+                .enumerate()
+                .filter_map(|(i, k)| k.is_none().then_some(i)),
+        );
+        out
     }
 
     /// Put a page's annotations — its `/Annots` array — in a new order,
@@ -51829,6 +52789,552 @@ endstream",
             other => panic!("annots {other:?}"),
         };
         arr.iter().map(Object::as_reference).collect()
+    }
+
+    // ---- `page_tab_sequence` (`Pass 307.0`, request `G019`) -------------
+    //
+    // The fixture is a 2x2 grid whose /Annots order is NONE of the answers,
+    // which is the property that makes these tests mean anything: a verb
+    // that quietly returned the array would pass a row test built on a
+    // fixture listed in row order.
+    //
+    //   4: top-left      5: top-right          /Annots = [7 5 6 4]
+    //   6: bottom-left   7: bottom-right
+    //
+    // row order    -> 4 5 6 7        column order -> 4 6 5 7
+    // rows R2L     -> 5 4 7 6        rows at /Rotate 90 -> 6 4 7 5
+
+    fn tab_fixture(page_extra: &str, trailer_extra: &str) -> Vec<u8> {
+        build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                &format!(
+                    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << >> \
+                     /Annots [7 0 R 5 0 R 6 0 R 4 0 R] {page_extra} >>"
+                ),
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (tl) /Rect [10 200 60 220] >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (tr) /Rect [100 200 150 220] >>",
+                "<< /Type /Annot /Subtype /Link /Rect [10 100 60 120] >>",
+                "<< /Type /Annot /Subtype /Text /Rect [100 100 150 120] >>",
+            ],
+            trailer_extra,
+        )
+    }
+
+    fn tab_order(page_extra: &str) -> TabSequence {
+        session(tab_fixture(page_extra, ""))
+            .page_tab_sequence(0)
+            .unwrap()
+    }
+
+    fn ids(ns: &[u32]) -> Vec<ObjId> {
+        ns.iter().copied().map(id).collect()
+    }
+
+    #[test]
+    fn page_tab_sequence_reads_the_array_verbatim_under_tabs_a() {
+        let seq = tab_order("/Tabs /A");
+        assert_eq!(seq.order, ids(&[7, 5, 6, 4]));
+        assert_eq!(seq.basis, TabOrderBasis::StatedArrayOrder);
+        assert!(!seq.derived, "/A is read, not computed");
+        assert_eq!(seq.stated, PageTabs::ArrayOrder);
+        // The one basis that owes no disclosure: nothing was inferred.
+        assert!(seq.notes.is_empty(), "{:?}", seq.notes);
+        assert_eq!(seq.pinned, 0);
+    }
+
+    #[test]
+    fn page_tab_sequence_declines_structure_order_rather_than_guessing_it() {
+        let seq = tab_order("/Tabs /S");
+        // EMPTY, deliberately. A fall back to /Annots order here would hand
+        // the caller a sequence indistinguishable from a real one.
+        assert!(seq.order.is_empty());
+        assert_eq!(seq.basis, TabOrderBasis::NotDerivedStructure);
+        assert!(!seq.derived);
+        let note = seq.notes.join(" ");
+        assert!(note.contains("structure tree"), "{note}");
+        // The sharper half: an untagged annotation is UNDEFINED, not last.
+        assert!(note.contains("not \"last\""), "{note}");
+    }
+
+    #[test]
+    fn page_tab_sequence_walks_rows_across_and_columns_down() {
+        let rows = tab_order("/Tabs /R");
+        assert_eq!(rows.order, ids(&[4, 5, 6, 7]));
+        assert_eq!(rows.basis, TabOrderBasis::ComputedRowOrder);
+        assert!(rows.derived);
+        assert_eq!(rows.rotate, 0);
+        assert!(!rows.right_to_left);
+
+        let cols = tab_order("/Tabs /C");
+        assert_eq!(cols.order, ids(&[4, 6, 5, 7]));
+        assert_eq!(cols.basis, TabOrderBasis::ComputedColumnOrder);
+        assert!(cols.derived);
+
+        // Both computed bases disclose that they were computed, and name the
+        // tolerance — the number is pdfcer's, so it is never implicit.
+        for seq in [&rows, &cols] {
+            let note = seq.notes.join(" ");
+            assert!(note.contains("computed from where"), "{note}");
+            assert!(note.contains("within 1 point of"), "{note}");
+        }
+    }
+
+    #[test]
+    fn page_tab_sequence_orders_by_what_is_on_screen_not_by_user_space() {
+        // /Rotate 90 turns the page clockwise for display, so the column
+        // that was on the LEFT is now the row along the TOP: 6 then 4.
+        let seq = tab_order("/Tabs /R /Rotate 90");
+        assert_eq!(seq.order, ids(&[6, 4, 7, 5]));
+        assert_eq!(seq.rotate, 90);
+        assert!(seq.notes.join(" ").contains("rotated 90 degrees"));
+
+        // Unrotated, the same fixture answers differently — which is the
+        // whole point of §12.5.1's "assume the page is being viewed in the
+        // orientation specified by the Rotate entry".
+        assert_eq!(tab_order("/Tabs /R").order, ids(&[4, 5, 6, 7]));
+    }
+
+    #[test]
+    fn page_tab_sequence_normalises_a_rotate_the_four_literals_would_miss() {
+        // §7.7.3.3 says "a multiple of 90", not "one of 0/90/180/270".
+        // -90 is conforming and means 270; a reader matching on the four
+        // literals would treat it as unrotated and be silently wrong.
+        for (written, want) in [("-90", 270u16), ("450", 90), ("360", 0)] {
+            let seq = tab_order(&format!("/Tabs /R /Rotate {written}"));
+            assert_eq!(seq.rotate, want, "/Rotate {written}");
+        }
+        assert_eq!(tab_order("/Tabs /R /Rotate -90").order, ids(&[5, 7, 4, 6]));
+    }
+
+    #[test]
+    fn page_tab_sequence_discloses_a_fixed_print_watermark() {
+        // §12.5.6.22 is the one clause that moves an annotation off its
+        // /Rect. pdfcer orders by /Rect anyway and says so.
+        let bytes = build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << >>                  /Annots [4 0 R 5 0 R] /Tabs /R >>",
+                "<< /Type /Annot /Subtype /Watermark /Rect [10 200 60 220]                  /FixedPrint << /Type /FixedPrint /Matrix [1 0 0 1 50 50] >> >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (b) /Rect [10 100 60 120] >>",
+            ],
+            "",
+        );
+        let seq = session(bytes).page_tab_sequence(0).unwrap();
+        assert_eq!(seq.order, ids(&[4, 5]));
+        assert!(
+            seq.notes.join(" ").contains("/FixedPrint matrix"),
+            "{:?}",
+            seq.notes
+        );
+    }
+
+    #[test]
+    fn page_tab_sequence_inherits_rotate_from_an_ancestor() {
+        // /Rotate is one of §7.7.3.3's four inheritable attributes, so a
+        // page with none of its own is displayed at its parent's.
+        let bytes = build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 /Rotate 90 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << >> \
+                 /Annots [7 0 R 5 0 R 6 0 R 4 0 R] /Tabs /R >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (tl) /Rect [10 200 60 220] >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (tr) /Rect [100 200 150 220] >>",
+                "<< /Type /Annot /Subtype /Link /Rect [10 100 60 120] >>",
+                "<< /Type /Annot /Subtype /Text /Rect [100 100 150 120] >>",
+            ],
+            "",
+        );
+        let seq = session(bytes).page_tab_sequence(0).unwrap();
+        assert_eq!(seq.rotate, 90);
+        assert_eq!(seq.order, ids(&[6, 4, 7, 5]));
+    }
+
+    #[test]
+    fn page_tab_sequence_runs_rows_right_to_left_when_the_file_asks() {
+        // §12.5.1 makes the direction within a row a `shall`, determined by
+        // /Direction in the viewer preferences (§12.2).
+        let bytes = build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R /ViewerPreferences << /Direction /R2L >> >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << >> \
+                 /Annots [7 0 R 5 0 R 6 0 R 4 0 R] /Tabs /R >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (tl) /Rect [10 200 60 220] >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (tr) /Rect [100 200 150 220] >>",
+                "<< /Type /Annot /Subtype /Link /Rect [10 100 60 120] >>",
+                "<< /Type /Annot /Subtype /Text /Rect [100 100 150 120] >>",
+            ],
+            "",
+        );
+        let seq = session(bytes).page_tab_sequence(0).unwrap();
+        assert!(seq.right_to_left);
+        assert_eq!(seq.order, ids(&[5, 4, 7, 6]));
+        assert!(seq.notes.join(" ").contains("/Direction /R2L"));
+    }
+
+    #[test]
+    fn page_tab_sequence_reads_direction_from_the_file_and_never_from_content() {
+        // The absence of /Direction is left-to-right, whatever the page
+        // says. pdfcer has one lever here and it is the declared one.
+        assert!(!tab_order("/Tabs /R").right_to_left);
+        let bytes = build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R /ViewerPreferences << /Direction /L2R >> >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << >> \
+                 /Annots [7 0 R 5 0 R 6 0 R 4 0 R] /Tabs /R >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (tl) /Rect [10 200 60 220] >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (tr) /Rect [100 200 150 220] >>",
+                "<< /Type /Annot /Subtype /Link /Rect [10 100 60 120] >>",
+                "<< /Type /Annot /Subtype /Text /Rect [100 100 150 120] >>",
+            ],
+            "",
+        );
+        let seq = session(bytes).page_tab_sequence(0).unwrap();
+        assert!(!seq.right_to_left);
+        assert_eq!(seq.order, ids(&[4, 5, 6, 7]));
+    }
+
+    #[test]
+    fn page_tab_sequence_puts_widgets_first_under_w_and_discloses_tab_a1() {
+        // Default: Table 31's reading — the tail follows in /Annots order.
+        let seq = tab_order("/Tabs /W");
+        assert_eq!(seq.order, ids(&[5, 4, 7, 6]));
+        assert_eq!(seq.basis, TabOrderBasis::StatedWidgetOrder);
+        let note = seq.notes.join(" ");
+        assert!(note.contains("contradicts itself"), "{note}");
+        assert!(note.contains("Table 31's reading"), "{note}");
+
+        // §12.5.1's reading sorts that same tail by row instead. The two
+        // non-widgets share the bottom row, so row order reads them left to
+        // right — 6 then 7, the reverse of the array. The two readings
+        // genuinely disagree on this file, which is what makes it a fair
+        // test of the setting rather than a test that it compiles.
+        let mut s = session(tab_fixture("/Tabs /W", ""));
+        s.set_widget_tab_tail(WidgetTabTail::RowOrder);
+        let seq = s.page_tab_sequence(0).unwrap();
+        assert_eq!(seq.order, ids(&[5, 4, 6, 7]));
+        assert!(
+            seq.notes.join(" ").contains("clause 12.5.1's reading"),
+            "the reading applied is named either way"
+        );
+    }
+
+    #[test]
+    fn page_tab_sequence_falls_back_to_the_array_and_says_it_is_a_convention() {
+        for (extra, fragment) in [
+            ("", "does not acknowledge that a tab order exists"),
+            ("/Tabs /Q", "not one of the values the standard permits"),
+        ] {
+            let seq = tab_order(extra);
+            assert_eq!(seq.order, ids(&[7, 5, 6, 4]), "{extra}");
+            assert_eq!(seq.basis, TabOrderBasis::ArrayOrderByConvention, "{extra}");
+            // `derived` is TRUE here: pdfcer chose this order, the file did
+            // not state it. That is the distinction the flag exists for.
+            assert!(seq.derived, "{extra}");
+            let note = seq.notes.join(" ");
+            assert!(note.contains(fragment), "{extra}: {note}");
+        }
+        // An unknown value is reported verbatim, never as "something else".
+        assert!(tab_order("/Tabs /Q").notes.join(" ").contains("/Q"));
+    }
+
+    #[test]
+    fn page_tab_sequence_anchors_a_row_rather_than_chaining_down_the_page() {
+        // Five annotations, each 0.8 pt below the last — inside a 1 pt
+        // tolerance pairwise, 3.2 pt from top to bottom. Chaining off each
+        // neighbour would call all five one row; anchoring on the row's
+        // first member bounds a row's depth at the tolerance.
+        let bytes = build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << >> \
+                 /Annots [4 0 R 5 0 R 6 0 R 7 0 R 8 0 R] /Tabs /R >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (a) /Rect [200 200 210 210] >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (b) /Rect [180 199.2 190 209.2] >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (c) /Rect [160 198.4 170 208.4] >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (d) /Rect [140 197.6 150 207.6] >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (e) /Rect [120 196.8 130 206.8] >>",
+            ],
+            "",
+        );
+        let seq = session(bytes).page_tab_sequence(0).unwrap();
+        // Rows are {4,5} (tops 210 and 209.2, 0.8 apart), then {6,7} (208.4
+        // and 207.6), then {8}. Within each, left to right.
+        assert_eq!(seq.order, ids(&[5, 4, 7, 6, 8]));
+    }
+
+    #[test]
+    fn page_tab_sequence_normalises_a_rect_written_corner_first() {
+        // §7.9.5 permits either corner order. The top-left annotation's
+        // /Rect is written upper-right first here; it must still sort where
+        // it is drawn.
+        let bytes = build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << >> \
+                 /Annots [7 0 R 5 0 R 6 0 R 4 0 R] /Tabs /R >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (tl) /Rect [60 220 10 200] >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (tr) /Rect [100 200 150 220] >>",
+                "<< /Type /Annot /Subtype /Link /Rect [10 100 60 120] >>",
+                "<< /Type /Annot /Subtype /Text /Rect [100 100 150 120] >>",
+            ],
+            "",
+        );
+        assert_eq!(
+            session(bytes).page_tab_sequence(0).unwrap().order,
+            ids(&[4, 5, 6, 7])
+        );
+    }
+
+    #[test]
+    fn page_tab_sequence_sorts_a_rectless_annotation_last_and_discloses_it() {
+        let bytes = build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << >> \
+                 /Annots [4 0 R 5 0 R] /Tabs /R >>",
+                // Table 164 makes /Rect Required. Malformed, so it has no
+                // position — and is placed last rather than at the origin,
+                // which is where a defaulted rectangle would have put it.
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (norect) >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (b) /Rect [10 10 20 20] >>",
+            ],
+            "",
+        );
+        let seq = session(bytes).page_tab_sequence(0).unwrap();
+        assert_eq!(seq.order, ids(&[5, 4]));
+        assert!(seq.notes.join(" ").contains("no readable /Rect"));
+    }
+
+    #[test]
+    fn page_tab_sequence_discloses_an_entry_written_straight_into_annots() {
+        // Table 164 permits a direct dictionary. It has no identity to be
+        // named by, so it cannot be in `order` — and a reader still tabs to
+        // it, so saying nothing would be the rule-4 failure.
+        let bytes = build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << >> \
+                 /Annots [4 0 R << /Type /Annot /Subtype /Text /Rect [0 0 5 5] >>] /Tabs /A >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (a) /Rect [10 10 20 20] >>",
+            ],
+            "",
+        );
+        let seq = session(bytes).page_tab_sequence(0).unwrap();
+        assert_eq!(seq.order, ids(&[4]));
+        assert_eq!(seq.pinned, 1);
+        assert!(seq.notes.join(" ").contains("cannot say where"));
+    }
+
+    #[test]
+    fn page_tab_sequence_does_not_inherit_tabs_from_an_ancestor() {
+        // §7.7.3.3: only /Resources, /MediaBox, /CropBox and /Rotate are
+        // inheritable. A /Pages node carrying /Tabs states nothing about
+        // its kids, and reporting the ancestor's value as the page's would
+        // be asserting something the file does not say.
+        let bytes = build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 /Tabs /A >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << >> \
+                 /Annots [7 0 R 5 0 R 6 0 R 4 0 R] >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (tl) /Rect [10 200 60 220] >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (tr) /Rect [100 200 150 220] >>",
+                "<< /Type /Annot /Subtype /Link /Rect [10 100 60 120] >>",
+                "<< /Type /Annot /Subtype /Text /Rect [100 100 150 120] >>",
+            ],
+            "",
+        );
+        let seq = session(bytes).page_tab_sequence(0).unwrap();
+        assert_eq!(seq.stated, PageTabs::Absent);
+        assert_eq!(seq.basis, TabOrderBasis::ArrayOrderByConvention);
+    }
+
+    #[test]
+    fn page_tab_sequence_covers_every_annotation_a_reader_actually_visits() {
+        // §12.5.1 defines the order over the page's annotations and excludes
+        // nothing — but §12.5.3 says a Hidden or NoView annotation shall not
+        // "interact with the user", and tabbing is interaction. So the
+        // sequence is the VISIT order, and what a reader never reaches is
+        // reported beside it rather than dropped silently.
+        let bytes = build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << >>                  /Annots [4 0 R 5 0 R 6 0 R 7 0 R 8 0 R] /Tabs /A >>",
+                // /F 2 = Hidden (bit 2). Sourced exclusion.
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (h) /Rect [10 10 20 20] /F 2 >>",
+                // /F 32 = NoView (bit 6). Sourced exclusion.
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (nv) /Rect [30 10 40 20] /F 32 >>",
+                // /F 288 = NoView + ToggleNoView (bit 9). STAYS: 2.0 says
+                // ToggleNoView inverts NoView for annotation selection, and
+                // tabbing selects.
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (tnv) /Rect [50 10 60 20] /F 288 >>",
+                "<< /Type /Annot /Subtype /Popup /Rect [70 10 80 20] >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (ok) /Rect [90 10 100 20] >>",
+            ],
+            "",
+        );
+        let seq = session(bytes).page_tab_sequence(0).unwrap();
+        assert_eq!(seq.order, ids(&[6, 8]));
+        assert_eq!(
+            seq.excluded,
+            vec![
+                (id(4), TabExclusion::Hidden),
+                (id(5), TabExclusion::NoView),
+                (id(7), TabExclusion::Popup),
+            ]
+        );
+        // order + excluded + pinned is the whole array — nothing vanishes.
+        assert_eq!(seq.order.len() + seq.excluded.len() + seq.pinned, 5);
+        let note = seq.notes.join(" ");
+        assert!(note.contains("1 hidden"), "{note}");
+        assert!(note.contains("1 not shown on screen"), "{note}");
+        assert!(note.contains("pop-up note"), "{note}");
+    }
+
+    #[test]
+    fn page_tab_sequence_excludes_a_trap_network_and_keeps_a_read_only_widget() {
+        let bytes = build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << >>                  /Annots [4 0 R 5 0 R] /Tabs /A >>",
+                // §12.5.3 bit 7 ReadOnly "shall be ignored for widget
+                // annotations" — whether a read-only FIELD is tabbable is a
+                // /Ff question, and pdfcer does not answer it here.
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (ro) /Rect [10 10 20 20] /F 64 >>",
+                // §14.11.6.2 requires Print+ReadOnly on a trap network.
+                "<< /Type /Annot /Subtype /TrapNet /Rect [30 10 40 20] /F 68 >>",
+            ],
+            "",
+        );
+        let seq = session(bytes).page_tab_sequence(0).unwrap();
+        assert_eq!(seq.order, ids(&[4]));
+        assert_eq!(seq.excluded, vec![(id(5), TabExclusion::TrapNet)]);
+    }
+
+    #[test]
+    fn page_tab_sequence_keeps_an_excluded_annotation_out_of_the_row_grouping() {
+        // The hidden annotation sits between the two visible rows. If it
+        // took part in grouping, its top edge would anchor a row that
+        // swallowed the lower one — a division decided by a rectangle
+        // nothing on screen shows.
+        let bytes = build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << >>                  /Annots [4 0 R 5 0 R 6 0 R] /Tabs /R >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (a) /Rect [100 200 110 210] >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (hid) /Rect [50 199.5 60 209.5] /F 2 >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (b) /Rect [10 199 20 209] >>",
+            ],
+            "",
+        );
+        let mut s = session(bytes);
+        s.set_tab_row_tolerance(0.6);
+        let seq = s.page_tab_sequence(0).unwrap();
+        // Tops 210 and 209 are 1.0 apart — two rows at a 0.6 tolerance. The
+        // hidden one at 209.5 is within 0.6 of BOTH and would have chained
+        // them into one row had it been counted.
+        assert_eq!(seq.order, ids(&[4, 6]));
+        assert_eq!(seq.excluded, vec![(id(5), TabExclusion::Hidden)]);
+    }
+
+    #[test]
+    fn page_tab_sequence_changes_nothing_and_records_no_command() {
+        let s = session(tab_fixture("/Tabs /R", ""));
+        let before = annots_of(&s, id(3));
+        let seq = s.page_tab_sequence(0).unwrap();
+        assert_eq!(seq.order, ids(&[4, 5, 6, 7]));
+        assert_eq!(annots_of(&s, id(3)), before, "/Annots is read, never moved");
+        assert!(!s.is_modified(), "a derivation is not an edit");
+    }
+
+    #[test]
+    fn page_tab_sequence_refuses_a_page_that_is_not_there() {
+        let s = session(tab_fixture("/Tabs /R", ""));
+        assert!(matches!(
+            s.page_tab_sequence(7),
+            Err(EditError::PageOutOfRange { index: 7, count: 1 })
+        ));
+    }
+
+    #[test]
+    fn page_tab_sequence_tolerance_is_adjustable_and_named_in_the_disclosure() {
+        // Two annotations 2 pt apart vertically: one row at a 3 pt
+        // tolerance, two rows at the shipped 1 pt.
+        let bytes = build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << >> \
+                 /Annots [4 0 R 5 0 R] /Tabs /R >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (a) /Rect [100 200 110 210] >>",
+                "<< /Type /Annot /Subtype /Widget /FT /Tx /T (b) /Rect [10 198 20 208] >>",
+            ],
+            "",
+        );
+        let mut s = session(bytes);
+        // Tight: 4 is the higher, so it is its own row and comes first.
+        assert_eq!(s.page_tab_sequence(0).unwrap().order, ids(&[4, 5]));
+        s.set_tab_row_tolerance(3.0);
+        // Loose: one row, read left to right, so 5 comes first.
+        let seq = s.page_tab_sequence(0).unwrap();
+        assert_eq!(seq.order, ids(&[5, 4]));
+        assert!(
+            seq.notes.join(" ").contains("within 3 points of"),
+            "{:?}",
+            seq.notes
+        );
+
+        // Out of range is clamped, and a non-finite value is ignored rather
+        // than poisoning every later comparison with a NaN.
+        s.set_tab_row_tolerance(-5.0);
+        assert!((s.tab_row_tolerance() - MIN_TAB_ROW_TOLERANCE).abs() < f64::EPSILON);
+        s.set_tab_row_tolerance(1_000.0);
+        assert!((s.tab_row_tolerance() - MAX_TAB_ROW_TOLERANCE).abs() < f64::EPSILON);
+        s.set_tab_row_tolerance(f64::NAN);
+        assert!((s.tab_row_tolerance() - MAX_TAB_ROW_TOLERANCE).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn page_tab_sequence_on_a_page_with_no_annotations() {
+        let bytes = build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << >> /Tabs /R >>",
+            ],
+            "",
+        );
+        let seq = session(bytes).page_tab_sequence(0).unwrap();
+        assert!(seq.order.is_empty());
+        assert_eq!(seq.pinned, 0);
+        // Still discloses the basis: "no annotations" and "pdfcer could not
+        // work it out" must not look alike to a caller.
+        assert_eq!(seq.basis, TabOrderBasis::ComputedRowOrder);
+    }
+
+    #[test]
+    fn tab_order_basis_tells_read_apart_from_not_derived() {
+        // Both answer `derived == false`, which is exactly why the enum
+        // exists and why a caller writing an operator message uses it.
+        assert!(!TabOrderBasis::StatedArrayOrder.is_computed());
+        assert!(!TabOrderBasis::NotDerivedStructure.is_computed());
+        assert!(!TabOrderBasis::StatedWidgetOrder.is_computed());
+        assert!(TabOrderBasis::ComputedRowOrder.is_computed());
+        assert!(TabOrderBasis::ComputedColumnOrder.is_computed());
+        assert!(TabOrderBasis::ArrayOrderByConvention.is_computed());
     }
 
     #[test]
