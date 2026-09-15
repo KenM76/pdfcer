@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-15 (554th filing) — `Pass 306.0`: `split_text_object` cuts one `BT`…`ET` into several; a same-session defect fix stops a same-baseline re-anchor being dragged as a follower; stale `next free R257` ledger figure corrected
+
+**Shipped:** `Pass 306.0` (no commit hash supplied to this filing) — `split_text_object`/`text_object_split_plan`, CLI `text-object-split --granularity run|line`. Cuts a `BT`…`ET` by inserting `ET BT <run's own Tm>` before each cut; nothing else moves, because `BT`/`ET` reset only `Tm`/`Tlm`. Also shipped, no Pass ID: a fix to `text_edit::edit::reposition_followers`, which treated a same-baseline re-anchor placed BEHIND the edited run (a SolidWorks note's bullet, written after its text and to the left) as that line's tail and dragged it sideways.
+
+**Decisions made this session:** decision 157 (`ARCHITECTURE.md` §12) — a cost recorded in three sites of this crate as a reason not to split a text object was never priced; `BT`/`ET` reset only `Tm`/`Tlm`, so the split costs one restated operator, no preamble, no `restore_ops`.
+
+**Findings + decisions:**
+- The follower-repositioning defect survived because the walk COMPENSATED the next line — everything downstream of the damage stayed exactly where the producer put it, so only a byte-level assertion on the moved operator catches it, not a geometry-only one.
+- `same_line` answers "same baseline?"; its caller had been reading that as "is the continuation of the line?" — a predicate named for a cheap geometric fact was asked an expensive ordering question it was never built to answer.
+- Third instance of the doc-comment-concatenation shape (enum variant, struct field, now a bare private function): `same_line`'s doc comment had welded onto `reposition_followers`; `check-public-fns-documented.py` cannot see this form, since it only covers `pub` items.
+- A written claim ("the split renders bit-identically") was tested and was FALSE for a deep `Td` chain: `pdfcer-render`'s text matrix is f32 where its CTM is already f64 (decisions 081/151) — flagged to `ROADMAP.md` *Backlog* as its own item, not fixed this Pass. Differing pixels were scattered over the WHOLE sheet, not localised at the cut, which is what said "precision", not "structural error."
+- **Ledger correction (hard rule 8):** the "next free `R257`" figure carried in every ledger table's *before* column since at least the 519th filing was stale — `R257` was minted at the 547th filing and has two dated instances since. Corrected to `R257` used, next free `R258`, measured by grepping this file's own *Standing rules* section rather than trusting the carried figure.
+- Written to `C:\personal_rag\pdf\`: a numbered-note producer (SolidWorks) writes its bullet after its text, to the left, on the same baseline — same-baseline is not the same fact as line-continuation order. Written to `D:\dev\rag\rust\`: the f32/f64 text-matrix asymmetry (new file, cross-referenced against the existing CTM-precision finding), a dated addendum to the doc-comment-concatenation file (function form), and a new file on the same-baseline-vs-continuation predicate shape.
+
+**Still in flight:** unchanged — owed items 5, 14, 34.
+
+**For next session:** the `pdfcer-render` f32 text-matrix Backlog item (above) is unscoped and unclaimed.
+
+**Sourcing (hard rule 8) — no shell this filing.** Account taken from the requesting engineer's own conversational report, itself sourced from the operator's direct diagnosis on his own working file (`SW41177.pdf`). Independently confirmed against live source via `Read`/`Grep`: `crates/pdfcer-core/src/text_edit/edit.rs` (`FOLLOWER_ORIGIN_EPSILON`, `re_anchors_before_anchor`, both named tests), `crates/pdfcer-core/src/vector/edit.rs`/`edit.rs`/`vector/mod.rs`/`tests/text_object_split.rs` (all five new error variants, `split_text_object`), and `crates/pdfcer-cli/src/main.rs` (`text-object-split`, its doc comments already citing `Pass 306.0`). No commit hash supplied; push/CI state not checked — no shell available to this filing.
+
 ## 2026-09-15 (553rd filing) — `main` red ~10 h on a documentation-only gate; two pushes landed on it without reading CI's colour; `R217` gains an 8th amendment note; `Pass 305.0`'s hash backfilled
 
 **Shipped:** not a Pass. `96958657` restores `main` to green — it carries `Pass 305.0`'s previously-deferred code commit (hash now recorded against that entry, below) together with a trim of two `docs/FEATURES.md` rows found over `check-register-entry-size.py`'s 1,200-character cap (the reflow row was 1,223 characters, not carried in the baseline).

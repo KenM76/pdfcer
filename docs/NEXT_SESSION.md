@@ -5,8 +5,7 @@ detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
 **Written:** 2026-09-12, after `Pass 300.3` and the 530th filing.
-**Amended:** 2026-09-14, after `Pass 304.0` and `Pass 305.0` (`G017`) and
-the 552nd filing. See **SINCE THE LAST HANDOFF** at the top of STATE —
+**Amended:** 2026-09-15, after `Pass 306.0` and the 554th filing. See **SINCE THE LAST HANDOFF** at the top of STATE —
 everything below that block is carried forward unchanged and still true.
 
 ---
@@ -158,6 +157,188 @@ push, and the sweep would have caught it** — `run-gates.sh` reports this gate.
    intended direction is down. Both rows over cap on 2026-09-15 were trimmed
    by deleting reasoning that already lived in `ROADMAP.md` and the commit
    message — no fact was lost, which is the test for whether a trim is honest.
+
+### ★★★ SINCE THE LAST HANDOFF — 2026-09-15 (`Pass 306.0`)
+
+Everything after the 2026-09-14 block below is carried forward unchanged. Two
+things shipped in one session, both from one message the operator sent in
+conversation — not through either request channel:
+
+> *"I am now able to edit the text on sw41177. When I edit the line #3 after I
+> am done the whole line shifts position. I also can't move this line to
+> position. I assume this is due to all the text of all the lines being part of
+> a larger block. Since we've got the reflow text figured out maybe we can add
+> a tool to make each reflowed area its own text object so each line can be
+> moved and manipulated on its own."*
+
+He reported a symptom and proposed an architecture. They turned out to be two
+independent things, and **both were real** — the symptom was a defect his
+proposal would not have fixed, and the proposal was a capability the defect had
+nothing to do with. Shipping only one of them would have looked like a fix and
+left the other live.
+
+**1. The defect: a same-baseline re-anchor BEHIND the edit was treated as the
+line's tail.** `same_line` answers *"same baseline?"* and `reposition_followers`
+was reading it as *"the rest of the line?"*. Those come apart when a producer
+writes a line's pieces out of visual order, and SolidWorks does — the note's
+TEXT first, its BULLET second, to the LEFT, on the same row:
+
+```text
+100.00423 Tz 5.66931 -1 Td  <TOLERANCE :->Tj     ← the anchor
+ 99.94655 Tz -5.66931 0 Td  <3.>Tj               ← same row, 28 pt LEFT
+ 99.82585 Tz 5.66931 -1 Td  <X/XX: …>Tj          ← the next line
+```
+
+Shortening the anchor rewrote `-5.66931 0 Td` → `-9.9185 0 Td`, moving the
+bullet 21 pt left, and compensated the line below so **everything downstream
+stayed exactly where the producer put it**. Fixed with
+`re_anchors_before_anchor` + `FOLLOWER_ORIGIN_EPSILON`; the same edit now
+reports `followers_repositioned = 0` and both `Td` operators are byte-identical
+to the input.
+
+★★ **THE COMPENSATION IS WHY IT SURVIVED, and that is the lesson to carry.**
+Because the walk put the next line back, the damage was confined to one glyph
+pair the operator had not selected. A render diff shows almost nothing; a
+geometry assertion on the block passes; the byte diff is small and plausible;
+the file round-trips perfectly. ⇒ *A correct compensation can hide the thing it
+is compensating for.* The inverse of `Pass 305.0`'s finding two days earlier
+(bytes wrong, pixels right) — here the **bytes look reasonable and one small
+piece of geometry is wrong**. Neither is visible to the other's test.
+
+⚠ **The guard's first cut was wrong in a way only the existing suite caught**:
+it measured from the ANCHOR, but on a `Pass 256.0` span the anchor is the
+**last** operator of the run, so a per-glyph producer's three-operator span read
+its own interior steps as "behind the edit" and respaced nothing.
+`text_edit_span.rs::a_growing_replacement_respaces_the_followers_and_keeps_the_next_line_put`
+failed in the sweep and nowhere earlier. The reference is now the **first**
+edited operator. ⇒ *A guard added to a single-item code path needs asking what
+the multi-item path calls "the item".*
+
+★ Fixed in passing, same file: **`same_line`'s doc comment had been welded onto
+`reposition_followers`**, and `same_line` itself had none. This is a second live
+instance of the exact failure this file records for `preview_style_resolution`,
+and it was invisible for the same reason — both functions read as documented.
+**`check-public-fns-documented.py` covers only `pub` fns, so the private half of
+this failure mode has no gate at all.**
+
+**2. `Pass 306.0` — `split_text_object`, the tool he asked for.** At each cut,
+`ET BT <the run's own six-coefficient Tm>` is inserted before the run's show
+operator and **nothing else changes** — every original operator keeps its bytes,
+its order and its paint position. `--granularity run|line`, or explicit
+`--before N`. After a split each piece is an ordinary text object: move it,
+recolour it, delete it, reflow it. Verified on his file through the CLI:
+`cuts=17 … undo_verified=1 undo_identical=1`.
+
+★★★ **THREE SITES IN THIS CRATE HAD RECORDED THE COST AS A BLOCKER AND NOBODY
+HAD PRICED IT.** `plan_move_text_run`'s docs, `text_edit/format.rs` and
+`text_edit/reflow_apply.rs` all say, in nearly the same words, *"`q`/`Q` are not
+admitted inside `BT`…`ET` (§8.2 Table 51), and splitting the `BT`…`ET` would
+discard `Tm` (§9.4.1)"*. The sentence is **true and it is not an obstacle**:
+`Tm` costs one operator to restate and the run already carries its own matrix.
+What makes it cheap is the other half of §9.3/§9.4.1 — `BT` resets ONLY
+`Tm`/`Tlm`; `Tf`, `Tc`, `Tw`, `Tz`, `TL`, `Ts`, `Tr`, colour and the CTM are
+graphics state that `ET`/`BT` do not touch. So there is **no preamble to emit
+and no `restore_ops` to compute** (contrast `reflow_apply`, which rebuilds a
+text object and therefore owes R88's restore). Decision **157**.
+
+**It also unblocks reflow on CAD output.** `reflow_apply` refuses a block that
+shares a `BT`…`ET` with other content, which on a SolidWorks sheet is every
+block. Split first and that refusal goes away — worth remembering before
+anyone re-scopes reflow as "deferred for interleaved blocks".
+
+★★★ **I WROTE A CLAIM INTO THE DOCUMENTATION AND THEN THE MEASUREMENT REFUTED
+IT.** The doc comment said *"the rendering is unchanged, and that is testable
+rather than asserted: split, render, compare — the rasters must hash equal."*
+Measured on `SW41177.pdf` page 1, splitting before ONE run of the 237-run label
+object and re-rendering the whole page:
+
+| scale | differing px | worst delta | where |
+|---|---|---|---|
+| 1× | 11 of 1.9 M | 16/255 | scattered over the WHOLE sheet |
+| 2× | 71 of 7.8 M | 64/255 | scattered over the WHOLE sheet |
+| 4× | 301 of 31 M | 64/255 | scattered over the WHOLE sheet |
+
+**Scattered over the whole sheet is the diagnostic**, and it is what turned a
+worrying result into an explained one: a structurally wrong cut puts its
+differing pixels AT the cut, and these bound the whole object. Nor is it a moved
+glyph — the count tracks rendered AREA while the worst delta stays at one
+antialiasing step. Cause: `pdfcer-render` keeps `Tm`/`Tlm` as
+`tiny_skia::Transform`, **f32**, so a deep `Td` chain accumulates a rounding per
+step; the absolute `Tm` the split emits is that chain summed in **f64**. The
+glyphs land ~one f32 ulp CLOSER to what the file says.
+
+⚠ Two things follow, and the second is a trap:
+
+1. **Chain DEPTH predicts the drift, not the number of cuts.** The 18-run notes
+   object split by `Line` — 17 cuts, more than the single-cut probe — is
+   **bit-identical**, because its chains are three steps deep. Seven single-cut
+   probes across the 237-run object: five bit-identical, two not.
+2. **`pdfcer-render`'s f32 text matrix is a finding about the RENDER crate.**
+   That crate already has `gstate::Mat64` and already uses it for the CTM for
+   exactly this cancellation reason; the text matrix never got the same
+   treatment. It is a `ROADMAP.md` Backlog item now. **Do NOT "fix" the drift by
+   making the split emit a deliberately less accurate matrix** — the split is
+   the more correct of the two.
+
+⇒ And the methodology point, which this file already carries twice in other
+clothes: **the claim went into the docs before the measurement, and the
+measurement said no.** The doc comment now carries the numbers AND states that
+bit-identity was claimed first and was wrong — a reader who finds only the
+corrected claim cannot tell it was ever in doubt.
+
+**Filing:** 554th, decision **157**, `FEATURES.md` row added. The librarian also
+found the *"next free `R257`"* ceiling had been carried **stale across roughly a
+dozen filings** — `R257` was minted at the 547th — and corrected it to `R258`.
+★ Note the shape: a counter nothing checks drifts silently, exactly like the
+`docs/core-api/` verb count did before `check-core-api-verbs.py` existed.
+
+**Gate status at the end of this session: every gate run and green**, but
+**not by `tools/run-gates.sh`** — it was OOM-killed twice, and the second time
+took five watcher jobs down with it. What worked, and what a future session
+should copy:
+
+| gate | result |
+|---|---|
+| the 26 non-cargo gates, in one loop | all clean |
+| `fmt --check`, `clippy --workspace --all-targets`, same `--all-features`, wasm `check`, `fuzz check --bins` | all clean |
+| `test -p pdfcer-core --no-default-features` | 151 binaries, 0 failures |
+| `test -p pdfcer-core --no-default-features --doc -- --test-threads=1` | 187 doctests |
+| the 18 core suites that touch text editing / reflow / vector edits | 148 tests |
+| `test -p pdfcer-render` | 753 tests |
+| `test -p pdfcer-cli` | 479 tests |
+
+★★ **THE OOM IS IN LINKING, NOT COMPILING, AND THAT CHANGES THE REMEDY.** The
+handoff's existing advice — fall back to the split procedure, drop to `-j 1` —
+did **not** help: `-j 1` was killed at the same phase as `-j 8`. What every
+killed run has in common is `link.exe` on many test binaries at once, and the
+failure is always `STATUS_DLL_INIT_FAILED` (`0xc0000142`), which **reads like a
+broken toolchain** — rustc even suggests repairing Visual Studio — and is not.
+
+⇒ Three things that actually worked:
+
+1. **Run ONE cargo invocation at a time and nothing else beside it.** Every
+   kill here happened while a second job was live; the machine had 4–6 GB free
+   at the time, so this is a spike, not exhaustion.
+2. **Run the doctest phase separately, `--test-threads=1`.** `cargo test -p
+   pdfcer-core --no-default-features` died in doctests three times and passed
+   187 of them in 156 s once split out. A doctest links its own binary, so the
+   doctest phase is the densest linking in the whole sweep.
+3. **Go per crate.** `--workspace` never completed; the three crates run
+   individually all did, on the first try each.
+
+⚠ **`CARGO_PROFILE_*_DEBUG=0` is a TRAP here** — it does cut linker memory, and
+it also invalidates the whole dependency graph, so it starts a from-scratch
+rebuild of `iccce`, `skrifa` and everything else. Strictly worse than the
+problem. Reverted immediately; noted so nobody re-derives it.
+
+★ And the reason this section is long: the top of this file says a gate run
+before your last edit is a gate that did not run, and **that discipline held
+here** — the full sweep caught a regression in
+`text_edit_span::a_growing_replacement_respaces_the_followers_and_keeps_the_next_line_put`
+that none of the targeted suites reached, the fix went in, and then the sweep
+would not run again. Getting the coverage anyway took the table above. *A gate
+runner that cannot finish on the machine it runs on is not a green sweep, and
+saying "the sweep failed" would have been a lie in the other direction.*
 
 ### ★★ SINCE THE LAST HANDOFF — 2026-09-14
 

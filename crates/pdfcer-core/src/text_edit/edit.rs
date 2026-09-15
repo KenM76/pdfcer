@@ -2414,24 +2414,81 @@ pub(crate) fn plan_edit_anywhere(
     Err(first_locational.unwrap_or_else(|| EditError::NoMatch(req.find.clone())))
 }
 
-/// Whether a following absolute `Tm` continues the anchor's line, and is
-/// therefore a *follower* the reflow must shift by `ΔA` (`Pass 121.1`).
+/// How far left of the anchor's own origin a same-baseline re-anchor may sit
+/// and still count as this line's tail: **nothing**, up to a rounding guard.
 ///
-/// True only when the two matrices differ in `e` — the horizontal translation
-/// — **and nothing else**. Same `a`/`b`/`c`/`d` means same orientation and
-/// scale; same `f` means same baseline. A `Tm` that changes any of those is
-/// re-anchoring somewhere new, which ends the line.
+/// The unit is text space, the same unit `Tm`'s `e` is written in, so this is
+/// a tenth of one text-space unit — under a twentieth of a point at the 5 pt
+/// title-block type this guard was measured on, and far below any real
+/// leftward re-anchor (the SolidWorks note bullet below jumps `-5.66931`).
+/// It exists only so a producer that re-states the *same* origin with f32
+/// round-trip noise is not read as jumping backwards.
+const FOLLOWER_ORIGIN_EPSILON: f64 = 0.1;
+
+/// Whether the positioning operator at `index` lands the pen **before**
+/// `left_bound` on the line — in which case it is not this line's tail, and
+/// the follower walk must stop rather than shift it.
 ///
-/// # Why an unknown anchor matrix answers `false`
+/// ★ `left_bound` is the origin of the **first** edited show operator, not the
+/// anchor's. On a `Pass 256.0` span the anchor is the **last** operator of the
+/// run, so measuring from it puts the span's own interior `Td` steps "behind"
+/// the edit and stops the walk before it starts. Caught by
+/// `text_edit_span.rs::a_growing_replacement_respaces_the_followers_and_keeps_the_next_line_put`
+/// on the first cut of this guard — a per-glyph producer's three-operator span
+/// respaced nothing at all. The first operator is also the semantically right
+/// reference: *the rest of the line* is what lies right of where the edited
+/// text STARTS.
 ///
-/// [`ShowData::matrix_known`] is false when the walk could not track `Tm`
-/// across the operators before the anchor. Without it there is no way to tell
-/// a same-line follower from a new line, and the two answers are not equally
-/// wrong: leaving a follower where the producer put it shows up as text that
-/// may overlap — visible, and recoverable by undo — while shifting one that
-/// should not move silently relocates content the operator was not editing.
-/// So an unknown matrix shifts nothing, and `FollowerDisposition::Pin`
-/// remains available for a caller that wants the tail explicitly held.
+/// # The defect this closes, measured on a real file
+///
+/// [`same_line`] answers *"same baseline?"*, and the walk in
+/// [`reposition_followers`] was treating that as *"the rest of the line?"*.
+/// Those come apart the moment a producer writes a line's pieces out of
+/// visual order, and SolidWorks does exactly that for a numbered note: the
+/// note's **text** is emitted first and its **bullet** second, to the LEFT,
+/// on the same baseline —
+///
+/// ```text
+/// 100.00423 Tz 5.66931 -1 Td  <TOLERANCE :->Tj     ← the anchor
+///  99.94655 Tz -5.66931 0 Td  <3.>Tj               ← same row, 28 pt LEFT
+///  99.82585 Tz 5.66931 -1 Td  <X/XX: …>Tj          ← the next line
+/// ```
+///
+/// Shortening `TOLERANCE :-` by `ΔA` then moved the `3.` bullet by `ΔA` as
+/// well (and compensated the line after it, so the damage was confined to the
+/// one glyph pair the operator had not touched). Reported as *"when I edit
+/// line #3, after I am done the whole line shifts position"* — the bullet is
+/// the part of the line the eye tracks.
+///
+/// # Why the origin is read off the show operator, not computed here
+///
+/// A `Td`'s operands are relative to the line matrix, which this walk does not
+/// track — it rewrites operands by delta precisely so it never has to. The
+/// [`Walk`] already resolved an absolute [`ShowData::text_matrix`] for every
+/// show operator, so the honest answer is one lookup forward rather than a
+/// second matrix machine. When the matrix could not be tracked
+/// ([`ShowData::matrix_known`] false) this answers `false` — *do not stop* —
+/// which leaves the pre-existing behaviour in place for that case rather than
+/// letting a new guard silently suppress reflow on files it was never measured
+/// against.
+fn re_anchors_before_anchor(recs: &[OpRec], index: usize, left_bound: f64) -> bool {
+    for r in recs.iter().skip(index + 1) {
+        match &r.rec {
+            // Nothing between the step and the string it positions.
+            Rec::Show(s) => {
+                return s.matrix_known && s.text_matrix[4] < left_bound - FOLLOWER_ORIGIN_EPSILON;
+            }
+            // A second positioning operator before any string: this step's
+            // landing point is overwritten and was never shown at, so it
+            // cannot be judged. The next step gets asked on its own turn.
+            Rec::Tm(_) | Rec::Td { .. } => return false,
+            Rec::EndText | Rec::Boundary => return false,
+            Rec::Ignore => {}
+        }
+    }
+    false
+}
+
 /// Re-space the operators that follow an edit on the same line
 /// (`Pass 256.0` generalisation of the `Tm`-only follower loop).
 ///
@@ -2477,6 +2534,17 @@ fn reposition_followers(recs: &[OpRec], anchor: &ShowData, op_deltas: &[(usize, 
         .take_while(|r| !matches!(r.rec, Rec::EndText))
         .any(|r| matches!(r.rec, Rec::Td { .. }));
 
+    // Where the EDIT starts on the line — the ordering reference for
+    // `re_anchors_before_anchor`. The first edited operator, not the anchor:
+    // on a span the anchor is the LAST of them. Falls back to the anchor when
+    // the first record is not a show operator with a tracked matrix, which
+    // keeps the guard inert rather than letting it stop a walk it cannot
+    // judge.
+    let left_bound = match recs.get(first_idx).map(|r| &r.rec) {
+        Some(Rec::Show(s)) if s.matrix_known => s.text_matrix[4],
+        _ => anchor.text_matrix[4],
+    };
+
     let mut edits = Vec::new();
     let mut followers = 0u64;
     let mut cum = 0.0f64;
@@ -2493,6 +2561,13 @@ fn reposition_followers(recs: &[OpRec], anchor: &ShowData, op_deltas: &[(usize, 
                 if !same_line(anchor, m) {
                     break;
                 }
+                // Same baseline is NOT the same as "after this on the line".
+                // A producer may re-anchor BACKWARDS on the same row; that is
+                // a different piece of text, not this line's tail. See
+                // `re_anchors_before_anchor`.
+                if m[4] < left_bound - FOLLOWER_ORIGIN_EPSILON {
+                    break;
+                }
                 edits.push((
                     r.start,
                     r.end,
@@ -2502,6 +2577,14 @@ fn reposition_followers(recs: &[OpRec], anchor: &ShowData, op_deltas: &[(usize, 
                 followers += 1;
             }
             Rec::Td { tx, ty, leading } if td_safe => {
+                // Same guard as the `Tm` arm, asked of the position this step
+                // actually lands the pen at. A `Td`'s operands are relative to
+                // a line matrix this loop does not track, so the origin is read
+                // off the show operator the step positions — which the walk
+                // already resolved into an absolute `Tm`.
+                if re_anchors_before_anchor(recs, i, left_bound) {
+                    break;
+                }
                 let op: &[u8] = if *leading { b" TD" } else { b" Td" };
                 // Glyph widths arrive as f32, so a delta of "one 28.8 pt
                 // glyph" is 28.80000114…; rounding the rewritten operand
@@ -2566,6 +2649,30 @@ fn round4(v: f64) -> f64 {
     if r == 0.0 { 0.0 } else { r }
 }
 
+/// Whether a following absolute `Tm` sits on the anchor's line (`Pass 121.1`).
+///
+/// True only when the two matrices differ in `e` — the horizontal translation
+/// — **and nothing else**. Same `a`/`b`/`c`/`d` means same orientation and
+/// scale; same `f` means same baseline. A `Tm` that changes any of those is
+/// re-anchoring somewhere new, which ends the line.
+///
+/// ★ **Same line is not the same question as "after this on the line"**, and
+/// reading it as the second was a shipped defect —
+/// [`re_anchors_before_anchor`] is the ordering half, and
+/// [`reposition_followers`] must ask both. This predicate is deliberately
+/// left as the cheap geometric one: the span search
+/// ([`find_anchor_span`]) wants *same row* with no ordering claim attached.
+///
+/// # Why an unknown anchor matrix answers `false`
+///
+/// [`ShowData::matrix_known`] is false when the walk could not track `Tm`
+/// across the operators before the anchor. Without it there is no way to tell
+/// a same-line follower from a new line, and the two answers are not equally
+/// wrong: leaving a follower where the producer put it shows up as text that
+/// may overlap — visible, and recoverable by undo — while shifting one that
+/// should not move silently relocates content the operator was not editing.
+/// So an unknown matrix shifts nothing, and `FollowerDisposition::Pin`
+/// remains available for a caller that wants the tail explicitly held.
 fn same_line(anchor: &ShowData, follower: &[f64; 6]) -> bool {
     if !anchor.matrix_known {
         return false;
@@ -4203,6 +4310,76 @@ mod tests {
         let text = extract_first_page_text(&out.bytes);
         assert!(text.contains("Hi"));
         assert!(text.contains("World"));
+    }
+
+    /// ★★ A RE-ANCHOR **BACKWARDS** ON THE SAME BASELINE IS NOT THIS LINE'S
+    /// TAIL, AND MUST NOT SHIFT (`Pass 306.0`).
+    ///
+    /// `same_line` answers *"same baseline?"* and the follower walk was
+    /// reading that as *"the rest of the line?"*. Those come apart the moment
+    /// a producer writes a line's pieces out of visual order, and SolidWorks
+    /// does exactly that for a numbered note — the note's TEXT first, its
+    /// BULLET second, to the left, on the same baseline:
+    ///
+    /// ```text
+    /// 100.00423 Tz 5.66931 -1 Td  <TOLERANCE :->Tj     ← the anchor
+    ///  99.94655 Tz -5.66931 0 Td  <3.>Tj               ← same row, 28 pt LEFT
+    ///  99.82585 Tz 5.66931 -1 Td  <X/XX: …>Tj          ← the next line
+    /// ```
+    ///
+    /// Shortening the anchor moved the bullet by `ΔA` — content the operator
+    /// had not touched — and compensated the line below it, so the file
+    /// round-tripped perfectly and the page was wrong. Operator-reported
+    /// 2026-09-15: *"when I edit the line #3, after I am done the whole line
+    /// shifts position"*; the bullet is the part of the line the eye tracks.
+    ///
+    /// The fixture below is that shape in miniature, and the assertion is the
+    /// strong one — the backwards-anchored run's operands survive **verbatim**,
+    /// not merely "close".
+    #[test]
+    fn a_backwards_re_anchor_on_the_same_baseline_is_not_a_follower() {
+        let src = helvetica_pdf(
+            "BT /F1 12 Tf 200 700 Td (TOLERANCE) Tj -60 0 Td (3.) Tj 60 -14 Td (X/XX) Tj ET\n",
+        );
+        let doc = Document::from_bytes(src).unwrap();
+        let out = edit_text(
+            &doc,
+            &EditRequest::find_replace(0, "TOLERANCE", "TOL"),
+            &EditOptions::default(),
+        )
+        .unwrap();
+        assert!(out.report.advance_delta < 0.0, "shorter run ⇒ negative ΔA");
+        assert_eq!(
+            out.report.followers_repositioned, 0,
+            "nothing on this line follows the anchor"
+        );
+        // The bullet's own step, and the next line's, are byte-verbatim. This
+        // is the assertion that would have caught the defect: a geometry check
+        // on the bullet would ALSO have caught it, but a check on the rendered
+        // page would not have — the compensation kept everything downstream in
+        // place, so only the one glyph pair moved.
+        let body = String::from_utf8_lossy(&out.bytes).into_owned();
+        assert!(body.contains("-60 0 Td"), "bullet step unchanged: {body}");
+        assert!(body.contains("60 -14 Td"), "next line unchanged");
+    }
+
+    /// ★ The same guard must not suppress a REAL tail — the forward case still
+    /// reflows, which is what stops the fix above from being an over-broad
+    /// "never move a `Td` follower".
+    #[test]
+    fn a_forward_re_anchor_on_the_same_baseline_still_reflows() {
+        let src = helvetica_pdf("BT /F1 12 Tf 100 700 Td (Hello ) Tj 60 0 Td (World) Tj ET\n");
+        let doc = Document::from_bytes(src).unwrap();
+        let out = edit_text(
+            &doc,
+            &EditRequest::find_replace(0, "Hello", "Hi"),
+            &EditOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            out.report.followers_repositioned, 1,
+            "the tail of the line is a follower and moves"
+        );
     }
 
     /// ★★ A `Tm` ON A DIFFERENT BASELINE IS A NEW LINE, AND MUST NOT SHIFT

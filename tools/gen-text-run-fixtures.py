@@ -262,6 +262,55 @@ def runs_rotated_td() -> bytes:
     )
 
 
+def runs_quote_show() -> bytes:
+    """Three runs, the last two shown by ``'`` — move-then-show (`Pass 306.0`).
+
+    ``'`` is "the same effect as: ``T*``, then ``string Tj``" (Table 109): it
+    moves to the next line and THEN shows. A `TextRun`'s recorded
+    ``text_matrix`` is captured at layout time, i.e. AFTER that move — so a
+    verb that re-states the matrix and then lets the operator run performs the
+    move **twice**, and the text lands one leading too low in a file that is
+    well-formed and round-trips.
+
+    Pins `text_split_refusal`'s `SplitAtLineShowOperator`. Without this
+    fixture the refusal is unreachable from the corpus, and an implementation
+    that simply omitted the check would pass every other test here.
+    """
+    return page(
+        b"BT\n/F1 10 Tf\n20 TL\n"
+        b"1 0 0 1 72 700 Tm\n(ALPHA) Tj\n"
+        b"(BETA) '\n"
+        b"(GAMMA) '\n"
+        b"ET\n"
+    )
+
+
+def runs_marked_content() -> bytes:
+    """Two runs with the second inside a ``BDC``...``EMC`` opened in the same
+    text object (`Pass 306.0`).
+
+    §14.6: a marked-content sequence and a text object shall nest properly. A
+    verb that inserts ``ET`` ... ``BT`` between the ``BDC`` and its ``EMC``
+    produces ``BDC ... ET BT ... EMC`` — overlapping rather than nested, which
+    is malformed in the way a tagged-PDF consumer notices and a viewer does
+    not. That combination (invisible to rendering, visible to accessibility
+    tooling) is exactly the class rule 4 exists for, so the split refuses.
+
+    Pins `text_split_refusal`'s `SplitInsideMarkedContent`. The `BDC` is
+    opened AFTER run 0 deliberately: a sequence that wrapped the whole object
+    would leave no legal cut at all and could not tell a correct guard from an
+    over-broad one.
+    """
+    return page(
+        b"BT\n/F1 10 Tf\n"
+        b"1 0 0 1 72 700 Tm\n(ALPHA) Tj\n"
+        b"/Span << /MCID 0 >> BDC\n"
+        b"1 0 0 1 72 680 Tm\n(BETA) Tj\n"
+        b"EMC\n"
+        b"ET\n"
+    )
+
+
 def main() -> int:
     out_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else OUT
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -273,6 +322,8 @@ def main() -> int:
         ("runs-td-relative.pdf", runs_td_relative()),
         ("runs-tstar-leading.pdf", runs_tstar_leading()),
         ("runs-rotated-td.pdf", runs_rotated_td()),
+        ("runs-quote-show.pdf", runs_quote_show()),
+        ("runs-marked-content.pdf", runs_marked_content()),
     ):
         p = out_dir / name
         p.write_bytes(data)

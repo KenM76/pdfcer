@@ -975,6 +975,16 @@ pub enum CommandKind {
     /// to read in a history, and on CAD output the second is what the first
     /// used to do. See [`EditSession::move_text_run`].
     MoveTextRun,
+    /// One `BT`…`ET` **text object was cut into several**, so each piece can
+    /// be moved and styled on its own (`Pass 306.0`).
+    ///
+    /// Its own kind, for the reason [`Self::DeleteTextRun`] and
+    /// [`Self::MoveTextRun`] are theirs: what the operator did is *structural*
+    /// and reversible only as a unit. A history reading "moved text" over a
+    /// gesture that turned one object into forty would describe neither the
+    /// act nor what Undo will take back. See
+    /// [`EditSession::split_text_object`].
+    SplitTextObject,
     /// ONE **anchor** was removed from a path object (Pass 36.1): the segment
     /// operator that produced it was excised (or, for a subpath's first
     /// anchor, its follower was promoted to the new `m`), joining its
@@ -14017,6 +14027,184 @@ impl EditSession {
                 stream, text, run_index,
             )?)
         })
+    }
+
+    /// **Cut the text object at `object_index` into several**, so each piece
+    /// can be moved, styled and edited without disturbing its neighbours
+    /// (`Pass 306.0`).
+    ///
+    /// `before_runs` names the runs to start a new text object AT, indexed
+    /// into [`TextObject::runs`](crate::vector::TextObject::runs) in content
+    /// order — the same numbering [`Self::move_text_run`],
+    /// [`Self::delete_text_run`] and
+    /// [`hit_test_text_runs`](crate::vector::hit_test_text_runs) use.
+    /// [`Self::text_object_split_plan`] computes that list for the two bulk
+    /// granularities; a shell with its own selection passes its own indices.
+    ///
+    /// # Why a shell needs this at all
+    ///
+    /// A CAD exporter may put every string on a sheet inside ONE `BT`…`ET`,
+    /// and SolidWorks does — one absolute `Tm` followed by a chain of relative
+    /// `Td` steps covering the whole page. Two things follow, and an operator
+    /// meets both within a minute of trying to edit such a drawing:
+    ///
+    /// * **A line is not addressable.** The object is the whole sheet and a
+    ///   run is one show operator, so between them there is no handle for
+    ///   *"move this line"* — which is the gesture a title block invites.
+    /// * **Neighbours are coupled.** `Td` is relative, so any verb that
+    ///   adjusts one step perturbs every step after it;
+    ///   [`Self::move_text_run`] compensates the successor for exactly this
+    ///   reason, and refuses outright when the successor has no position of
+    ///   its own.
+    ///
+    /// Splitting removes the coupling instead of compensating for it. After a
+    /// split each piece is an ordinary text object: move it with
+    /// [`Self::move_objects`], recolour it, delete it, or reflow it — and note
+    /// that reflow in particular was *blocked* on this, since
+    /// `reflow_apply` refuses a block that shares a `BT`…`ET` with other
+    /// content.
+    ///
+    /// # The mechanism, in one line
+    ///
+    /// `ET BT <the run's own six-coefficient Tm>` is inserted before each named
+    /// run and **nothing else changes** —  every original operator keeps its
+    /// bytes, its order and its paint position. It is correct because `BT`
+    /// resets only the text and line matrices (§9.4.1 Table 107), and every
+    /// other thing a text object depends on (`Tf`, `Tc`, `Tw`, `Tz`, `TL`,
+    /// `Ts`, `Tr`, colour, the CTM) is graphics state that `ET`/`BT` do not
+    /// touch (§9.3). Full reasoning, including why this succeeds where three
+    /// earlier sites in the crate recorded "splitting the `BT`…`ET` would
+    /// discard `Tm`" as a reason not to, is on
+    /// [`plan_split_text_object`](crate::vector::plan_split_text_object).
+    ///
+    /// # ★ Indices after this object SHIFT
+    ///
+    /// A split at `n` points leaves the original at `object_index`, puts the
+    /// new pieces at `object_index + 1 ..= object_index + n`, and renumbers
+    /// every later object on the page by `+n`. This is the delete family's
+    /// renumbering in reverse, and a shell holding a selection across the call
+    /// must re-resolve it — there is no `remap` helper for the split direction
+    /// because, unlike a delete, the arithmetic is unconditional: any index
+    /// `> object_index` gains `n`.
+    ///
+    /// ⚠ The text on a CAD drawing is **pdf dimensions** (rule 15) — page
+    /// content the exporter wrote. This re-frames how it is stored; it does
+    /// not re-measure it, and it is unrelated to pdfcer's own ce dimensions.
+    ///
+    /// # Pre-checking, so the remedy can precede the gesture
+    ///
+    /// [`text_split_refusal`](crate::vector::text_split_refusal) is the guard
+    /// this verb runs, exported, so a shell can grey the command or word a
+    /// hint *before* the operator commits — and because it is the same
+    /// function rather than a description of one, the two cannot come to
+    /// disagree (`R221`).
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::VectorEdit`] wrapping
+    /// [`EmptySplit`](crate::vector::VectorEditError::EmptySplit),
+    /// [`TextRunOutOfRange`](crate::vector::VectorEditError::TextRunOutOfRange),
+    /// [`SplitAtObjectStart`](crate::vector::VectorEditError::SplitAtObjectStart),
+    /// [`SplitRunInheritsPosition`](crate::vector::VectorEditError::SplitRunInheritsPosition),
+    /// [`SplitAtLineShowOperator`](crate::vector::VectorEditError::SplitAtLineShowOperator)
+    /// or
+    /// [`SplitInsideMarkedContent`](crate::vector::VectorEditError::SplitInsideMarkedContent);
+    /// plus [`EditError::NotAPath`]'s text-object counterpart for a non-text
+    /// target, [`EditError::PageOutOfRange`],
+    /// [`EditError::VectorEditNoContents`], [`EditError::VectorEditContent`],
+    /// [`EditError::DocumentEncrypted`],
+    /// [`EditError::CertificationForbidsChange`]. The whole split is refused
+    /// rather than part of it, and every refusal happens before any mutation
+    /// (rule 4).
+    ///
+    /// # Returns
+    ///
+    /// The operator-facing
+    /// [disclosures](crate::vector::PlannedEdit::disclosures) — **empty**, for
+    /// a real reason rather than an oversight: this surgery changes no
+    /// operator's form and infers nothing about the content. Where an
+    /// inference *is* made it is made by
+    /// [`Self::text_object_split_plan`] one call earlier, which is where its
+    /// disclosure lives.
+    pub fn split_text_object(
+        &mut self,
+        page_index: usize,
+        object_index: usize,
+        before_runs: &[usize],
+    ) -> Result<Vec<String>, EditError> {
+        self.vector_surgery(CommandKind::SplitTextObject, page_index, |stream, model| {
+            let count = model.objects.len();
+            let obj = model.objects.get(object_index).ok_or(
+                crate::vector::VectorEditError::ObjectOutOfRange {
+                    index: object_index,
+                    count,
+                },
+            )?;
+            let text = vector_object_as_text(obj, object_index)?;
+            Ok(crate::vector::plan_split_text_object(
+                stream,
+                text,
+                before_runs,
+            )?)
+        })
+    }
+
+    /// Where a bulk [`Self::split_text_object`] would cut, and what pdfcer
+    /// inferred to get there — computed without mutating anything
+    /// (`Pass 306.0`).
+    ///
+    /// Returns the ascending run indices to pass to
+    /// [`Self::split_text_object`], paired with the disclosures the
+    /// granularity owes.
+    ///
+    /// # Why the disclosure lives HERE and not on the surgery
+    ///
+    /// [`SplitGranularity::Line`](crate::vector::SplitGranularity::Line) is an
+    /// **inference**: an untagged content stream does not say where its lines
+    /// are (§14.8), so pdfcer decides, from consecutive runs' baselines, which
+    /// runs the producer meant as one line. Rule 4 requires that be disclosed
+    /// off-canvas and never silently. It is disclosed at the point the guess
+    /// is made, so a shell that shows the operator a preview before committing
+    /// has the sentence to show; the surgery itself guesses nothing and
+    /// therefore discloses nothing.
+    ///
+    /// [`SplitGranularity::Run`](crate::vector::SplitGranularity::Run) infers
+    /// nothing — one show operator, one object — and returns no disclosure.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::PageOutOfRange`], [`EditError::VectorEditNoContents`],
+    /// [`EditError::VectorEditContent`], or [`EditError::VectorEdit`] wrapping
+    /// [`ObjectOutOfRange`](crate::vector::VectorEditError::ObjectOutOfRange)
+    /// / the non-text-target refusal. Nothing is mutated on any path.
+    pub fn text_object_split_plan(
+        &mut self,
+        page_index: usize,
+        object_index: usize,
+        granularity: crate::vector::SplitGranularity,
+    ) -> Result<(Vec<usize>, Vec<String>), EditError> {
+        let model = self.page_objects(page_index)?;
+        let count = model.objects.len();
+        let obj = model.objects.get(object_index).ok_or(
+            crate::vector::VectorEditError::ObjectOutOfRange {
+                index: object_index,
+                count,
+            },
+        )?;
+        let text = vector_object_as_text(obj, object_index)?;
+        let points = crate::vector::text_object_split_points(text, granularity);
+        let mut disclosures = Vec::new();
+        if matches!(granularity, crate::vector::SplitGranularity::Line) {
+            disclosures.push(format!(
+                "split: pdfcer inferred {} line break(s) among this text object's {} show \
+                 operator(s) by comparing baselines — the file does not record where its lines \
+                 are (ISO 32000-1 14.8). Consecutive operators on one baseline were kept in one \
+                 piece; every baseline change starts a new one.",
+                points.len(),
+                text.runs.len()
+            ));
+        }
+        Ok((points, disclosures))
     }
 
     /// **Move one subpath** of the path object at paint-order `object_index`

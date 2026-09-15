@@ -8948,6 +8948,75 @@ enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// **Cut one text object into several** so each line can be moved and
+    /// styled on its own (`Pass 306.0`, ISO 32000-1 §9.4).
+    ///
+    /// A CAD exporter may put every string on a sheet inside ONE `BT`...`ET`,
+    /// and SolidWorks does — a measured drawing has one absolute `Tm` followed
+    /// by a chain of relative `Td` steps covering the whole page. Two things
+    /// follow. A *line* is not addressable at all: the object is the whole
+    /// sheet and a run is one show operator, with no handle between them. And
+    /// neighbours are coupled, because `Td` is relative — which is why
+    /// `text-run-move` has to compensate the run after the one it moves, and
+    /// refuses outright when that one has no position of its own.
+    ///
+    /// This removes the coupling instead of compensating for it. After a split
+    /// each piece is an ordinary text object: move it with `object-move`,
+    /// recolour it, delete it, or reflow it.
+    ///
+    /// Choose the cuts one of two ways:
+    ///
+    /// - `--granularity run` — one new text object per show operator.
+    /// - `--granularity line` — a new object wherever the baseline changes
+    ///   between consecutive show operators. This is an INFERENCE (the file
+    ///   does not record where its lines are, §14.8) and is disclosed on
+    ///   stderr with the count.
+    /// - `--before N` (repeatable) — cut before exactly these runs, 0-based in
+    ///   content order, the same numbering `object-list` reports as `runs=`.
+    ///   Overrides `--granularity`.
+    ///
+    /// The mechanism inserts `ET BT <the run's own Tm>` before each named run
+    /// and changes nothing else — every original operator keeps its bytes, its
+    /// order and its paint position, so the page renders identically.
+    ///
+    /// REFUSED, before any mutation: a cut before run 0 (it divides nothing);
+    /// a cut before a run with no position of its own (§9.4.2 — it starts
+    /// where the previous string left the pen, so there is no origin to
+    /// re-state); a cut before a run shown by `'` or `"` (those move the line
+    /// and then show, and the injected `Tm` would apply that move twice); and
+    /// a cut inside a marked-content sequence opened within the same text
+    /// object (§14.6 requires the two nest). The whole split is refused rather
+    /// than part of it.
+    ///
+    /// ★ Object indices after the split target SHIFT by the number of cuts.
+    TextObjectSplit {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number.
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        /// 0-based paint-order object index on the page.
+        #[arg(long)]
+        object: usize,
+        /// Where to cut, when `--before` is not given.
+        #[arg(long, value_enum, default_value_t = SplitGranularityArg::Line)]
+        granularity: SplitGranularityArg,
+        /// Cut before this 0-based run; repeatable. Overrides `--granularity`.
+        #[arg(long)]
+        before: Vec<usize>,
+        /// Print the cut points and the disclosure, and write nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Output path. Required unless `--dry-run`.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// **Delete one subpath** of a path object (Pass 25.2): remove a single
     /// subpath's construction operators via surgery (R46/§5.7), leaving the
     /// object's other subpaths byte-verbatim.
@@ -9812,6 +9881,40 @@ enum SaveMode {
     /// signature**, and it is refused outright for a hybrid-reference
     /// file (§7.5.8.4).
     Full,
+}
+
+/// `text-object-split`'s `--granularity`, the CLI face of
+/// [`pdfcer_core::vector::SplitGranularity`].
+///
+/// A separate enum rather than a re-export because clap needs `ValueEnum`, and
+/// deriving it on the core type would put a shell concern in `pdfcer-core` —
+/// the one thing `ARCHITECTURE.md` §3 does not allow.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+enum SplitGranularityArg {
+    /// One new text object per show operator.
+    Run,
+    /// A new text object wherever the baseline changes between consecutive
+    /// show operators. An inference (ISO 32000-1 §14.8), disclosed on stderr.
+    Line,
+}
+
+impl SplitGranularityArg {
+    /// The core enum this names.
+    const fn to_core(self) -> pdfcer_core::vector::SplitGranularity {
+        match self {
+            Self::Run => pdfcer_core::vector::SplitGranularity::Run,
+            Self::Line => pdfcer_core::vector::SplitGranularity::Line,
+        }
+    }
+
+    /// The `granularity=` token on the stdout line — part of the stable output
+    /// contract.
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Run => "run",
+            Self::Line => "line",
+        }
+    }
 }
 
 impl SaveMode {
@@ -12263,6 +12366,27 @@ fn run() -> ExitCode {
             dx,
             dy,
             output: &output,
+            mode,
+            verify_undo,
+        }),
+        Command::TextObjectSplit {
+            input,
+            page,
+            object,
+            granularity,
+            before,
+            dry_run,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_text_object_split(&TextObjectSplitArgs {
+            input: &input,
+            page,
+            object,
+            granularity,
+            before: &before,
+            dry_run,
+            output: output.as_deref(),
             mode,
             verify_undo,
         }),
@@ -40240,6 +40364,118 @@ fn cmd_text_run_delete(args: &TextRunDeleteArgs<'_>) -> u8 {
         args.run,
         args.mode.name(),
         args.output.display(),
+        outcome.changed,
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+        u32::from(outcome.undo_verified),
+        u32::from(outcome.undo_identical),
+    );
+    finish_edit(args.input, &outcome)
+}
+
+/// Grouped arguments for `text-object-split` (`Pass 306.0`).
+struct TextObjectSplitArgs<'a> {
+    input: &'a Path,
+    page: u32,
+    object: usize,
+    granularity: SplitGranularityArg,
+    /// Explicit cut points; overrides `granularity` when non-empty.
+    before: &'a [usize],
+    dry_run: bool,
+    output: Option<&'a Path>,
+    mode: SaveMode,
+    verify_undo: bool,
+}
+
+/// `text-object-split` — cut one `BT`…`ET` into several (`Pass 306.0`).
+///
+/// ## Contract
+///
+/// - `--dry-run` prints one `text-object-split-plan …` line naming the cut
+///   points and writes nothing. That is the honest shape for the `line`
+///   granularity, which infers where the lines are: the operator can see the
+///   cuts before committing to them.
+/// - Otherwise one `text-object-split …` line with the usual save-report
+///   fields, then the exit code from [`finish_edit`].
+/// - The `line` granularity's inference disclosure goes to **stderr** via
+///   [`report_disclosures`], so stdout stays machine-parseable — rule 4's
+///   "report separately", in the shell where the invocation IS the commit
+///   (rule 11: there is no session to disclose into, so pdfcer prints on the
+///   way past).
+/// - Every §9.4.2/§14.6 refusal goes through [`report_edit_error`] before any
+///   mutation, with the same sentences the GUI shows. One core, one answer.
+fn cmd_text_object_split(args: &TextObjectSplitArgs<'_>) -> u8 {
+    let page_index = (args.page.max(1) - 1) as usize;
+    let (source, mut session) = match open_for_edit(args.input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+
+    // Explicit cuts win over a granularity, and skip the inference entirely —
+    // so they also carry no disclosure, because nothing was guessed.
+    let (points, disclosures): (Vec<usize>, Vec<String>) = if args.before.is_empty() {
+        match session.text_object_split_plan(page_index, args.object, args.granularity.to_core()) {
+            Ok(pair) => pair,
+            Err(err) => return report_edit_error(args.input, &err),
+        }
+    } else {
+        (args.before.to_vec(), Vec::new())
+    };
+    report_disclosures(&disclosures);
+
+    if args.dry_run {
+        println!(
+            "text-object-split-plan {} page {} object={} granularity={} cuts={} runs_before={:?}",
+            args.input.display(),
+            args.page.max(1),
+            args.object,
+            if args.before.is_empty() {
+                args.granularity.name()
+            } else {
+                "explicit"
+            },
+            points.len(),
+            points,
+        );
+        return 0;
+    }
+
+    let Some(output) = args.output else {
+        eprintln!("pdfcer: text-object-split needs --output unless --dry-run is given");
+        return 2;
+    };
+
+    match session.split_text_object(page_index, args.object, &points) {
+        Err(err) => return report_edit_error(args.input, &err),
+        Ok(d) => report_disclosures(&d),
+    }
+
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        output,
+        args.mode,
+        ProducerArg::Preserve,
+        args.verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let r = &outcome.report;
+    println!(
+        "text-object-split {} page {} object={} granularity={} cuts={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        args.input.display(),
+        args.page.max(1),
+        args.object,
+        if args.before.is_empty() {
+            args.granularity.name()
+        } else {
+            "explicit"
+        },
+        points.len(),
+        args.mode.name(),
+        output.display(),
         outcome.changed,
         r.objects_written,
         r.bytes_appended,

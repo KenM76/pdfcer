@@ -486,6 +486,70 @@ pub enum VectorEditError {
     /// empty.
     #[error("a multi-node move must name at least one node")]
     EmptyMove,
+    /// A **split** named no cut points at all.
+    ///
+    /// The twin of [`Self::EmptyMove`], refused for the same reason: a
+    /// successful no-op would put an entry on the undo stack that undoes
+    /// nothing, and a shell looping over an empty selection would be told
+    /// "split" rather than discovering its selection was empty.
+    #[error("a text-object split must name at least one run to cut before")]
+    EmptySplit,
+    /// A split was requested before run 0 — the object's own first run.
+    ///
+    /// There is nothing on the near side of that cut. Refused rather than
+    /// silently dropped so a shell that computed its cut list wrongly finds
+    /// out, instead of getting a split that quietly has one fewer piece than
+    /// it asked for.
+    #[error("a split before the object's first run divides nothing")]
+    SplitAtObjectStart,
+    /// A split was requested before a run whose origin is
+    /// [`Inherited`](crate::vector::RunPositioning::Inherited).
+    ///
+    /// §9.4.2: such a run starts wherever the previous show operator's advance
+    /// left the pen, so it has no coordinates anywhere in the file. A split
+    /// re-states the cut run's origin as an absolute `Tm` after a `BT` reset,
+    /// and there is no honest value to write. The same fact
+    /// [`Self::DeleteWouldMoveNextRun`] and [`Self::MoveWouldMoveNextRun`]
+    /// refuse on; the remedy is the same too — cut before an earlier run that
+    /// does own its position, or move the whole text object.
+    #[error(
+        "run {index} starts where the run before it ends rather than at a position of its own, \
+         so a new text object cannot be started at it; cut before an earlier run instead"
+    )]
+    SplitRunInheritsPosition {
+        /// The run the cut was requested before.
+        index: usize,
+    },
+    /// A split was requested before a run shown by `'` or `"`.
+    ///
+    /// Those operators move to the next line and THEN show (Table 109), and
+    /// the run's recorded text matrix is captured after that move. An injected
+    /// `Tm` carrying it, followed by the operator itself, would perform the
+    /// move twice — content silently one leading lower than the operator asked
+    /// for, in a file that round-trips perfectly.
+    #[error(
+        "run {index} is shown by `'` or `\"`, which moves to the next line before showing, \
+         so a new text object cannot be started at it without applying that move twice"
+    )]
+    SplitAtLineShowOperator {
+        /// The run the cut was requested before.
+        index: usize,
+    },
+    /// A split point falls inside a marked-content sequence that was opened
+    /// inside this text object and is still open.
+    ///
+    /// §14.6: a marked-content sequence and a text object shall nest properly.
+    /// Inserting `ET` … `BT` between a `BDC` and its `EMC` makes them overlap
+    /// instead, which is malformed content — and malformed in the way a
+    /// tagged-PDF consumer notices and a viewer does not.
+    #[error(
+        "run {index} is inside a marked-content sequence opened within this text object; \
+         splitting there would make the two overlap rather than nest (ISO 32000-1 14.6)"
+    )]
+    SplitInsideMarkedContent {
+        /// The run the cut was requested before.
+        index: usize,
+    },
 }
 
 /// The result of a successful surgery plan: the **new decoded content
@@ -1508,6 +1572,430 @@ pub fn plan_delete_text_run(
     Ok(PlannedEdit {
         content: splice(&content.buf, &mut edits),
         operators_touched: 1,
+        disclosures: Vec::new(),
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Splitting one text object into several (`Pass 306.0`)
+// ---------------------------------------------------------------------------
+
+/// How far two runs' baselines may differ and still be called one line, in
+/// the same **unscaled** text units `Td` takes.
+///
+/// The same constant, from the same measurement, as
+/// `text_edit::edit::SPAN_LINE_DRIFT_TOLERANCE`, and scaled the same way at
+/// the point of use: a producer advances along one visual line with a `Td`
+/// whose vertical is float round-trip noise rather than zero, and that noise
+/// reaches the text matrix already multiplied by the matrix's y-scale. A flat
+/// threshold covers one note on a sheet and not the note beside it.
+///
+/// Deliberately **not** re-exported from `text_edit` — that module's copy is
+/// `pub(crate)` to a different subsystem and answers a different question
+/// (may these two show operators be treated as ONE editable run?). This one
+/// answers *may these two runs stay in one text object?*. They agree today
+/// because they are measuring the same producer artefact; tying them together
+/// would make a future change to either silently retune the other.
+const SPLIT_LINE_DRIFT_TOLERANCE: f64 = 0.01;
+
+/// Where [`text_object_split_points`] puts the cuts.
+///
+/// Both variants describe the same mechanism — see [`plan_split_text_object`]
+/// — and differ only in which runs they name. A caller that has its own idea
+/// (a marquee selection, a click on one label) does not need this type at all
+/// and passes run indices to [`plan_split_text_object`] directly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum SplitGranularity {
+    /// One new text object per show operator — maximum granularity.
+    ///
+    /// On the measured SolidWorks sheet this turns the single object that
+    /// carries every dimension label into one object per label, which is what
+    /// makes each label independently movable.
+    Run,
+    /// A new text object wherever the baseline changes between one run and
+    /// the next **in stream order**.
+    ///
+    /// ★ Stream order, not a global grouping by baseline, and the difference
+    /// is the whole reason this variant is usable on CAD output. A drawing has
+    /// dozens of unrelated labels sharing a y-coordinate across the width of
+    /// the sheet; grouping by baseline alone would weld them into one object
+    /// and make them move together. Consecutive runs on one baseline are the
+    /// pieces a producer wrote as one line.
+    ///
+    /// This is an **inference** (rule 4) — the file does not say where its
+    /// lines are (§14.8) — so a split made this way is reported with the cut
+    /// count and the evidence, off-canvas, by the session wrapper.
+    Line,
+}
+
+/// Whether two runs sit on one line for [`SplitGranularity::Line`]'s purposes.
+///
+/// Orientation and scale are compared **exactly** and the baseline with a
+/// scaled tolerance — the same split, for the same reason, that
+/// `text_edit::edit::same_line` makes: a different scale or rotation is
+/// different text whatever the magnitude, while a baseline that differs in the
+/// fourth decimal is one line written by a producer with float round-trip
+/// noise in its `Td` verticals.
+fn runs_share_a_line(a: &Matrix, b: &Matrix) -> bool {
+    if !(a.a == b.a && a.b == b.b && a.c == b.c && a.d == b.d) {
+        return false;
+    }
+    // `hypot(c, d)` rather than `d` so rotated text — a title block's vertical
+    // annotation — keeps a meaningful scale instead of a near-zero one; a
+    // degenerate matrix falls back to 1.0 rather than collapsing the tolerance
+    // to nothing.
+    let y_scale = a.c.hypot(a.d);
+    let scale = if y_scale.is_finite() && y_scale > f64::EPSILON {
+        y_scale
+    } else {
+        1.0
+    };
+    (a.f - b.f).abs() <= SPLIT_LINE_DRIFT_TOLERANCE * scale
+}
+
+/// The run indices a bulk split of `obj` would cut **before**, at the
+/// requested granularity — ascending, never containing 0.
+///
+/// Exported so a shell can show the operator what a split would produce, and
+/// grey the command out when it would produce nothing, without planning the
+/// edit (R221: one function, not a preview that can drift from the act).
+/// Every returned index still goes through [`text_split_refusal`] inside
+/// [`plan_split_text_object`]; this function reports where the cuts *want* to
+/// be, not which of them are legal.
+///
+/// Run 0 is never a split point: cutting before the object's first run
+/// divides nothing and would leave an empty `BT`…`ET` behind.
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_core::content::ContentStream;
+/// use pdfcer_core::vector::{decompose, NoXObjects, Matrix, VectorObject};
+/// use pdfcer_core::vector::edit::{SplitGranularity, text_object_split_points};
+///
+/// // Two runs on two baselines: one line break, therefore one cut.
+/// let src = b"BT /F1 10 Tf 1 0 0 1 10 700 Tm (A) Tj 1 0 0 1 10 680 Tm (B) Tj ET".to_vec();
+/// let cs = ContentStream::parse(src).unwrap();
+/// let model = decompose(&cs, Matrix::IDENTITY, &NoXObjects);
+/// # if let Some(VectorObject::Text(t)) = model.objects.first() {
+/// # if t.runs.len() == 2 {
+/// let VectorObject::Text(text) = &model.objects[0] else { unreachable!() };
+/// assert_eq!(text_object_split_points(text, SplitGranularity::Line), vec![1]);
+/// assert_eq!(text_object_split_points(text, SplitGranularity::Run), vec![1]);
+/// # }}
+/// ```
+#[must_use]
+pub fn text_object_split_points(obj: &TextObject, granularity: SplitGranularity) -> Vec<usize> {
+    let mut out = Vec::new();
+    for index in 1..obj.runs.len() {
+        let keep_together = match granularity {
+            SplitGranularity::Run => false,
+            SplitGranularity::Line => {
+                let (Some(prev), Some(this)) = (obj.runs.get(index - 1), obj.runs.get(index))
+                else {
+                    continue;
+                };
+                runs_share_a_line(&prev.text_matrix, &this.text_matrix)
+            }
+        };
+        if !keep_together {
+            out.push(index);
+        }
+    }
+    out
+}
+
+/// Why a split before run `index` would be refused, or `None` when it is
+/// legal — the pre-check a shell calls to decide whether to offer the command,
+/// and the same check [`plan_split_text_object`] runs before producing a byte
+/// (R221, the [`text_run_move_refusal`] shape).
+///
+/// # The four refusals, and why each is a refusal rather than a guess
+///
+/// 1. [`VectorEditError::SplitAtObjectStart`] — run 0. Cutting before the
+///    first run divides nothing and leaves an empty `BT`…`ET`.
+/// 2. [`VectorEditError::SplitRunInheritsPosition`] — the run's origin is
+///    [`Inherited`](crate::vector::RunPositioning::Inherited), i.e. it is
+///    wherever the previous show operator's advance left the pen (§9.4.2).
+///    The mechanism's whole premise is that the run's own
+///    [`text_matrix`](crate::vector::TextRun::text_matrix) can be re-stated as
+///    an absolute `Tm` after a `BT` reset. That is true when the run stands on
+///    its own coordinates and **false here**: `Tm` and the line matrix are
+///    equal only when a positioning operator set them (Table 108), and an
+///    inherited run has had neither set since the previous string advanced
+///    one of them. The same §9.4.2 fact
+///    [`VectorEditError::DeleteWouldMoveNextRun`] and
+///    [`VectorEditError::MoveWouldMoveNextRun`] already refuse on.
+/// 3. [`VectorEditError::SplitAtLineShowOperator`] — the run is shown by `'`
+///    or `"`, which **move the line and then show** (Table 109). Its recorded
+///    text matrix is captured after that move, so an injected `Tm` carrying it
+///    followed by the operator itself would perform the move twice.
+/// 4. [`VectorEditError::SplitInsideMarkedContent`] — a `BMC`/`BDC` opened
+///    inside this text object is still open at the cut. A marked-content
+///    sequence and a text object must nest properly (§14.6), and an inserted
+///    `ET`…`BT` between `BDC` and its `EMC` does not.
+///
+/// Returns [`VectorEditError::TextRunOutOfRange`] as a refusal *value* (not a
+/// panic) when `index` names no run.
+#[must_use]
+pub fn text_split_refusal(
+    content: &ContentStream,
+    obj: &TextObject,
+    index: usize,
+) -> Option<VectorEditError> {
+    let count = obj.runs.len();
+    let Some(run) = obj.runs.get(index) else {
+        return Some(VectorEditError::TextRunOutOfRange { index, count });
+    };
+    if index == 0 {
+        return Some(VectorEditError::SplitAtObjectStart);
+    }
+    if run.positioned_by == RunPositioning::Inherited {
+        return Some(VectorEditError::SplitRunInheritsPosition { index });
+    }
+
+    // The run's OWN operator: `'` and `"` carry a line move (Table 109) that
+    // an injected `Tm` would double.
+    if ops_in_range(content, run.tokens.start, run.tokens.end)
+        .iter()
+        .any(|item| {
+            // ui-text-exempt: PDF operator keywords, §9.4.3 Table 109.
+            matches!(item.keyword(&content.buf), Some(b"'") | Some(b"\""))
+        })
+    {
+        return Some(VectorEditError::SplitAtLineShowOperator { index });
+    }
+
+    // Marked-content nesting depth at the cut, counted from the object's `BT`.
+    let mut depth = 0i32;
+    for item in ops_in_range(content, obj.tokens.start, run.tokens.start) {
+        match item.keyword(&content.buf) {
+            // ui-text-exempt: PDF operator keywords, §14.6 Table 320.
+            Some(b"BMC" | b"BDC") => depth += 1,
+            Some(b"EMC") => depth -= 1,
+            _ => {}
+        }
+    }
+    if depth > 0 {
+        return Some(VectorEditError::SplitInsideMarkedContent { index });
+    }
+    None
+}
+
+/// **Cut one text object into several**, so each piece can be moved, styled
+/// and edited without disturbing its neighbours.
+///
+/// # The problem this exists for, from the file that produced it
+///
+/// A CAD exporter is free to put every string on a sheet inside **one**
+/// `BT`…`ET`, and SolidWorks does. On the measured drawing the page's entire
+/// set of pdf dimensions (rule 15 — the file's own labels, not pdfcer's ce
+/// dimensions) is one text object placed by a single absolute `Tm` followed by
+/// a chain of relative `Td` steps, and the general notes are another:
+///
+/// ```text
+/// BT
+///   100.00179 Tz 5 0 0 5 1135.69287 84.61102 Tm  <INTERPRET THIS DRAWING…>Tj
+///    99.94655 Tz -5.66931 0 Td                   <1.>Tj
+///   100.00528 Tz  5.66931 -1 Td                  <SPECIFICATIONS NO. B78.2>Tj
+///   …
+/// ET
+/// ```
+///
+/// Everything in there shares one line-matrix chain, and that has two
+/// consequences the operator meets immediately. A `Td` is relative, so any
+/// verb that adjusts one perturbs every step after it — which is why
+/// [`plan_move_text_run`] has to compensate the next run, and why it refuses
+/// outright when the next run has no position of its own. And there is no
+/// object boundary at all around a *line*, so "move this line" names nothing
+/// the model can address: the whole sheet is one object, and one show operator
+/// is less than a line.
+///
+/// The operator's words, 2026-09-15: *"I assume this is due to all the text of
+/// all the lines being part of a larger block. Since we've got the reflow text
+/// figured out maybe we can add a tool to make each reflowed area its own text
+/// object so each line can be moved and manipulated on its own."*
+///
+/// # The mechanism, and why it is this one
+///
+/// At each cut, insert exactly
+///
+/// ```text
+/// ET BT <a b c d e f> Tm
+/// ```
+///
+/// immediately before the run's show operator, with the six coefficients taken
+/// from the run's own [`text_matrix`](crate::vector::TextRun::text_matrix).
+/// **Nothing else is moved and nothing else is rewritten.**
+///
+/// It works because of a division in §9.3/§9.4.1 that is easy to miss:
+///
+/// * `BT` resets **only** the text matrix and the line matrix to the identity
+///   (§9.4.1 Table 107). The injected `Tm` restores the first exactly, and the
+///   second to the same value — which is the *right* value, because a run whose
+///   position is [`Explicit`](crate::vector::RunPositioning::Explicit) was
+///   placed by an operator (`Tm`, `Td`, `TD`, `T*`) that sets `Tm` and `Tlm`
+///   **equal** (Table 108). Every relative step later in the piece therefore
+///   derives from the same line matrix it derived from before, and keeps its
+///   exact bytes.
+/// * Everything else a text object depends on — `Tf` and its size, `Tc`, `Tw`,
+///   `Tz`, `TL`, `Ts`, `Tr`, the fill and stroke colour, the CTM — is
+///   **graphics state** (§9.3), which `ET` and `BT` do not touch. So the split
+///   needs no state capture, no preamble, and no restore. Compare
+///   `text_edit::reflow_apply`, which rebuilds a text object from scratch and
+///   therefore has to compute `restore_ops` by value (R88); this verb keeps
+///   the producer's own operators, so there is nothing to restore.
+///
+/// That is what makes this different from every earlier attempt in this crate
+/// to reach outside a text object. [`plan_move_text_run`]'s documentation, and
+/// `text_edit::format`'s and `reflow_apply`'s, all record the same rejected
+/// alternative: *`q`/`Q` are not admitted inside `BT`…`ET` (§8.2 Table 51),
+/// and splitting the `BT`…`ET` to use them would discard `Tm` (§9.4.1)*. The
+/// second half of that sentence is true, and is exactly the thing this verb
+/// pays for — with one `Tm` per cut, priced in bytes rather than worked
+/// around.
+///
+/// # What it costs and what it does not
+///
+/// * **Paint order is unchanged.** Every operator stays at its own byte offset
+///   in its own order; the only additions are the three-operator preludes.
+///   Nothing is relocated, so nothing can be re-stacked.
+/// * **★ The rendering is unchanged to within sub-pixel antialiasing, NOT
+///   always bit-identical**, and the difference is measured rather than
+///   waved at — see the section below, because the first draft of this
+///   documentation claimed bit-identity and the measurement refuted it.
+/// * **Object indices after `object_index` shift.** A split into `n+1` pieces
+///   leaves the original at `object_index`, puts the new pieces at
+///   `object_index + 1 ..= object_index + n`, and renumbers every later object
+///   on the page by `+n`. The delete family's problem in reverse
+///   (`docs/core-api/02-editing-and-saving.md`).
+/// * **It is not free in bytes**, and on a full-granularity split of a large
+///   CAD text object it is not close to free: roughly forty bytes per cut.
+///   Minimal-diff (rule 3) governs objects the operator did not touch; this is
+///   one they did.
+///
+/// # ★★ The sub-pixel drift, measured — and why it is a FEATURE of the fix
+///
+/// The claim "the rendering is unchanged" was written here first and then
+/// tested, and the test said otherwise. On the operator's SolidWorks sheet
+/// (`SW41177.pdf`, page 1, the 237-run dimension-label object), splitting
+/// before **one** run and re-rendering the whole page:
+///
+/// ```text
+/// scale   differing px   worst channel delta   where
+///   1x          11              16 / 255       scattered over the whole sheet
+///   2x          71              64 / 255       scattered over the whole sheet
+///   4x         301              64 / 255       scattered over the whole sheet
+/// ```
+///
+/// ★ **Scattered over the whole sheet is the diagnostic.** Had the cut been
+/// structurally wrong the differing pixels would sit AT the cut, and they do
+/// not — the bounding box of the difference is the bounding box of the object.
+/// Nor is it a moved glyph: the count tracks the rendered AREA (it grows with
+/// scale, ~×6 then ~×4) while the worst delta stays at one antialiasing step.
+///
+/// The cause is precision, and it runs the *right* way. `pdfcer-render` keeps
+/// `Tm`/`Tlm` as `tiny_skia::Transform`, i.e. **f32**
+/// (`pdfcer_render::text::TextObject`), so a chain of a hundred relative `Td`
+/// steps accumulates a hundred f32 roundings. The absolute `Tm` this verb
+/// emits is that chain summed in **f64** and written at full precision. The
+/// glyphs land closer to where the file says than they did before the split —
+/// by about one f32 ulp, ~3 × 10⁻⁵ pt at these coordinates, which is enough to
+/// cross a 1/256 antialiasing threshold on a few edge pixels and nothing more.
+///
+/// ⚠ Two consequences worth carrying, because neither is obvious:
+///
+/// 1. **Depth of the chain is what predicts the drift, not the size of the
+///    cut.** Splitting the 18-run notes object on this same page by
+///    [`SplitGranularity::Line`] — 17 cuts, more than the single cut above —
+///    renders **bit-identical, 0 pixels differing**, because its chains are
+///    three steps deep. Seven single-cut probes across the 237-run object:
+///    five bit-identical, two not.
+/// 2. **The f32 text matrix is a real finding about `pdfcer-render`, not about
+///    this verb.** The render crate already has `gstate::Mat64` and already
+///    uses it for the CTM, for exactly this cancellation reason; the TEXT
+///    matrix never got the same treatment. Whoever picks that up should expect
+///    this verb's output to become bit-identical as a side effect — and should
+///    NOT "fix" the drift here by emitting a deliberately less accurate matrix.
+///
+/// # Errors
+///
+/// Every [`text_split_refusal`] for any named run —
+/// [`VectorEditError::TextRunOutOfRange`],
+/// [`VectorEditError::SplitAtObjectStart`],
+/// [`VectorEditError::SplitRunInheritsPosition`],
+/// [`VectorEditError::SplitAtLineShowOperator`],
+/// [`VectorEditError::SplitInsideMarkedContent`] — plus
+/// [`VectorEditError::EmptySplit`] when `before_runs` names nothing. Every
+/// refusal happens before any byte is produced (rule 4), and the whole split
+/// is refused rather than part of it: a half-applied cut list is worse than
+/// none, because the operator cannot tell which cuts landed without reading
+/// the bytes.
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_core::content::ContentStream;
+/// use pdfcer_core::vector::{decompose, NoXObjects, Matrix, VectorObject};
+/// use pdfcer_core::vector::edit::plan_split_text_object;
+///
+/// let src = b"BT /F1 10 Tf 1 0 0 1 10 700 Tm (A) Tj 1 0 0 1 10 680 Tm (B) Tj ET".to_vec();
+/// let cs = ContentStream::parse(src).unwrap();
+/// let model = decompose(&cs, Matrix::IDENTITY, &NoXObjects);
+/// # if let Some(VectorObject::Text(t)) = model.objects.first() {
+/// # if t.runs.len() == 2 {
+/// let VectorObject::Text(text) = &model.objects[0] else { unreachable!() };
+/// let plan = plan_split_text_object(&cs, text, &[1]).unwrap();
+/// let out = String::from_utf8_lossy(&plan.content).into_owned();
+/// // One `BT`…`ET` became two, and the second states its own origin.
+/// assert_eq!(out.matches("BT").count(), 2);
+/// assert_eq!(out.matches("ET").count(), 2);
+/// assert!(out.contains("1 0 0 1 10 680 Tm"));
+/// # }}
+/// ```
+pub fn plan_split_text_object(
+    content: &ContentStream,
+    obj: &TextObject,
+    before_runs: &[usize],
+) -> Result<PlannedEdit, VectorEditError> {
+    if before_runs.is_empty() {
+        return Err(VectorEditError::EmptySplit);
+    }
+    // De-duplicate and order: a shell that collected indices from a selection
+    // may hand them over twice or out of order, and neither is worth refusing
+    // — but cutting the same point twice would emit an empty text object, which
+    // is.
+    let points: BTreeSet<usize> = before_runs.iter().copied().collect();
+
+    for &index in &points {
+        if let Some(refusal) = text_split_refusal(content, obj, index) {
+            return Err(refusal);
+        }
+    }
+
+    let mut edits: Vec<(usize, usize, Vec<u8>)> = Vec::new();
+    for &index in &points {
+        let run = obj
+            .runs
+            .get(index)
+            .ok_or(VectorEditError::TextRunOutOfRange {
+                index,
+                count: obj.runs.len(),
+            })?;
+        let m = run.text_matrix;
+        let mut bytes = Vec::new();
+        // ui-text-exempt: PDF operator keywords, §9.4.1.
+        bytes.extend_from_slice(b"ET\nBT\n");
+        bytes.extend_from_slice(&emit_op(&[m.a, m.b, m.c, m.d, m.e, m.f], b"Tm"));
+        bytes.push(b'\n');
+        edits.push((run.bytes.start, run.bytes.start, bytes));
+    }
+
+    let touched = edits.len();
+    Ok(PlannedEdit {
+        content: splice(&content.buf, &mut edits),
+        operators_touched: touched,
         disclosures: Vec::new(),
     })
 }

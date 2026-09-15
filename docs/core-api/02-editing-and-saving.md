@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 232 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 234 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,14 +69,16 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 232 public `EditSession` methods
+## 1. Verb index — all 234 public `EditSession` methods
 
-**Count: 232.** Established by brace-matched extraction of the six
+**Count: 234.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
 `G017` added five (`move_text_run`, `move_text_run_in_form`,
-`delete_text_run_in_form`, `delete_subpath_in_form`, `delete_node_in_form`).
+`delete_text_run_in_form`, `delete_subpath_in_form`, `delete_node_in_form`),
+and again at 232 when `Pass 306.0` added two (`split_text_object`,
+`text_object_split_plan`).
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -1148,6 +1150,9 @@ said nothing about identity across edits — this section is that gap closed.*
 | Move one subpath | `move_subpath(page_index, object_index, subpath_index, dx, dy)` | 4875 |
 | Move one show operator (text run) | `move_text_run(page_index, object_index, run_index, dx, dy)` | — |
 | Ask whether that move will be refused, and why | `vector::text_run_move_refusal(&TextObject, run_index) -> Option<VectorEditError>` | — |
+| **Cut one text object into several** | `split_text_object(page_index, object_index, before_runs: &[usize])` | — |
+| Ask where a bulk split would cut, and what was inferred | `text_object_split_plan(page_index, object_index, granularity) -> (Vec<usize>, Vec<String>)` | — |
+| Ask whether one cut will be refused, and why | `vector::text_split_refusal(&ContentStream, &TextObject, index) -> Option<VectorEditError>` | — |
 | Drag one anchor node | `move_node(page_index, object_index, node_index, to: Point)` | 4939 |
 | Drag a multi-node selection, ONE undo entry | `move_nodes(page_index, object_index, moves: &[(usize, Point)])` | 5001 |
 | Drag a Bézier control point | `move_handle(page_index, object_index, node_index, handle: Handle, to: Point)` | 5057 |
@@ -1156,6 +1161,65 @@ said nothing about identity across edits — this section is that gap closed.*
 iterations because each call re-splices the content stream, and N calls are N
 undo entries. Use `move_objects` / `delete_objects` / `move_nodes`
 (`edit.rs:4600-4620`).
+
+#### ★ 1.10.0 `split_text_object` — when "move this line" names nothing (`Pass 306.0`)
+
+A CAD exporter may put every string on a sheet inside ONE `BT`…`ET`. The
+operator's SolidWorks drawing does: its whole set of dimension labels is one
+text object placed by a single absolute `Tm` and then a chain of ~236 relative
+`Td` steps, and its general notes are a second such object. Two consequences,
+and a shell meets both immediately:
+
+* **A line is not addressable.** The object is the whole sheet; a run is one
+  show operator. Between them there is no handle, so the gesture a title block
+  invites — *drag this line* — resolves to nothing callable.
+* **Neighbours are coupled.** `Td` translates the LINE matrix, so a verb that
+  adjusts one step perturbs every step after it. `move_text_run` compensates
+  the successor for exactly this reason and refuses outright when the successor
+  has no position of its own.
+
+`split_text_object` removes the coupling rather than compensating for it. After
+a split each piece is an ordinary text object: `move_objects` it, recolour it,
+delete it, or reflow it — and reflow in particular was *blocked* on this, since
+`reflow_block` refuses a block that shares a `BT`…`ET` with other content.
+
+**Mechanism:** `ET BT <the run's own six-coefficient Tm>` is inserted before
+each named run and **nothing else changes**. Correct because `BT` resets only
+`Tm`/`Tlm` (§9.4.1 Table 107) — and an `Explicit` run was placed by an operator
+that sets those two equal (Table 108) — while `Tf`, `Tc`, `Tw`, `Tz`, `TL`,
+`Ts`, `Tr`, colour and the CTM are graphics state `ET`/`BT` do not touch
+(§9.3). No preamble, no restore.
+
+**Choosing the cuts.** `text_object_split_plan` returns them for
+`SplitGranularity::Run` (one object per show operator) or
+`SplitGranularity::Line` (a new object wherever the baseline changes between
+consecutive operators, in stream order). `Line` is an **inference** — an
+untagged stream does not record where its lines are (§14.8) — so the plan call
+returns the disclosure sentence with it. A shell with its own selection skips
+the plan and passes run indices straight to `split_text_object`.
+
+**★ Indices after `object_index` SHIFT.** A split at `n` points leaves the
+original at `object_index`, puts the new pieces at `object_index + 1 ..=
+object_index + n`, and renumbers every later object on the page by `+n`. Unlike
+a delete there is no `remap` helper, because the arithmetic is unconditional:
+any index `> object_index` gains `n`. Re-resolve a held selection across the
+call.
+
+**Refusals**, all before any mutation and each naming its own reason:
+`SplitAtObjectStart` (a cut before run 0 divides nothing),
+`SplitRunInheritsPosition` (§9.4.2 — the run has no origin to restate),
+`SplitAtLineShowOperator` (`'`/`"` move then show, so an injected `Tm` would
+move twice), `SplitInsideMarkedContent` (§14.6 — `BDC … ET BT … EMC` overlaps
+rather than nests), `TextRunOutOfRange`, `EmptySplit`. One bad index refuses
+the **whole** list, not the good half of it.
+
+⚠ **The rendering is preserved to within sub-pixel antialiasing, not always
+bit-identically.** Restating a deep relative chain as an absolute matrix is
+*more* accurate than the chain (`pdfcer-render` keeps `Tm` in f32), so a few
+edge pixels can cross an antialiasing threshold. Measured on the operator's
+sheet: a `Line` split of the 18-run notes object is bit-identical; one cut into
+the 237-run label object moves 11 pixels of 1.9 M at 1×, worst delta 16/255.
+Full numbers and the diagnosis in `plan_split_text_object`'s documentation.
 
 #### ★★★ 1.10.1 Editing INSIDE a form XObject — `Pass 188.0`
 
