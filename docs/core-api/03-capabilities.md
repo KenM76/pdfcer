@@ -110,12 +110,49 @@ new shell exists to build. Those rows are flagged as **opportunities**.
 
 `core [x] · cli [x] · gui [x]` for authoring, groups, scale, radius/diameter
 toggle, reposition, layer toggle, delete, and the two-line gesture.
-**`core [x] · cli [x] · gui [ ]`** for the **style cascade** and for
-**tolerance** — `FEATURES.md:103-104`. Those two rows are the single largest
-ready-made opportunity in this document: the model and the CLI do all of it,
-and `docs/ui_specs/tool-options-dock-and-ce-dimension-properties.md`
-**Amendment B (2026-08-13)** is a written, current design for the missing
-panel. Read it before designing anything; do not re-derive it.
+`core [x] · cli [x] · gui [x]` for the **style cascade** and for
+**tolerance** as well — `FEATURES.md:248` (style cascade) and
+`FEATURES.md:250` (tolerance).
+
+> ★★ **Corrected 2026-09-15 (G018), and the correction is the same failure the
+> 2026-09-11 audit in §11 diagnosed — landed on the table and never on the
+> prose.** This paragraph read:
+>
+> > ~~"**`core [x] · cli [x] · gui [ ]`** for the **style cascade** and for
+> > **tolerance** — `FEATURES.md:103-104`. Those two rows are the single
+> > largest ready-made opportunity in this document…"~~
+>
+> Two things were wrong. **(1)** Both are **shipped in `pdfcer-gui`**:
+> tolerance and tolerance decimals are two of the eleven overridable
+> properties in the Properties-panel editor, each with an override checkbox
+> and a sentence naming the tier in force; the dimension-group window sets the
+> middle tier's five defaults. The `[ ]` on `FEATURES.md:250` is the
+> **fourth** column — **Acrobat** — not `gui`, which is the third and is
+> ticked. **(2)** The line citation was stale: `FEATURES.md:103-104` is now
+> inside an overprint/PCS paragraph; the rows are at `:248` and `:250`.
+> Reported by `pdfcer-gui` (`DESIGNS.md` §15, O183 ce-dimension survey),
+> measured against this tree.
+>
+> ★ **One claim in that report does not survive checking, and it is recorded
+> rather than quietly dropped.** G018 §3 says the style cascade "no longer has
+> a row of its own" and asks whether it should be separately trackable. **It
+> does have one** — `FEATURES.md:248`, *"ce-dimension style — a per-group
+> default with a per-ce-dimension override, independently per property"*, with
+> its own `gui [x]` and its own prose. The report read `:250`'s *"inheriting
+> through the style cascade like any other property"* (tolerance's row,
+> pointing **at** the cascade) as the cascade's only mention. So **no
+> `FEATURES.md` change is owed**, and the two rows this paragraph names are two
+> real rows. The reporter's own trap, one row up.
+>
+> ★ **Note the shape, because §11 already named it and this paragraph still
+> got missed:** a four-column table read as three columns fails *silently* —
+> every tick is real, the misread is in which header the last one belongs to.
+> **Count the columns before quoting a row.**
+
+`docs/ui_specs/tool-options-dock-and-ce-dimension-properties.md`
+**Amendment B (2026-08-13)** remains the written, current design for that
+panel — now a description of what shipped rather than of a gap. Read it before
+designing anything in this area; do not re-derive it.
 
 **ui_specs to read**
 
@@ -322,7 +359,8 @@ fn two_line_preview(
 ```
 
 **(c) Render the inherited-vs-overridden state of one ce dimension's style
-— the `gui [ ]` panel.**
+— the Properties panel.** (Shipped in `pdfcer-gui`; this is the recipe a *new*
+shell needs to rebuild it, not a gap. See the G018 correction in §1.)
 
 ```rust
 use pdfcer_core::dimension::{StyleOverrides, StyleSource, resolve_style, style_provenance};
@@ -399,7 +437,8 @@ obligations:
    override impossible (`snap.rs:248-258`).
 
 6. **Which tier supplied each style value, and what a group edit will move.**
-   See trap (a) below. This is the whole point of the `gui [ ]` panel.
+   See trap (a) below. This is the whole point of the style Properties
+   panel — shipped in `pdfcer-gui`, and the thing any new shell owes.
 
 **Refusals must be surfaced by name, never swallowed.**
 `TwoLineRefusal::Collinear` and `::Degenerate` carry `thiserror` messages
