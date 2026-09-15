@@ -115,6 +115,90 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 308.0` + `Pass 308.2` (`bd8059f2`, 2026-09-15) — `/MK` `/BG`/`/BC` are baked into the `/AP` the four widget builders draw, not merely round-tripped; a third `WidgetEditOutcome::appearance` state names the case where they couldn't be
+
+Answers `pdfcer-gui`'s `G020` (O202: *"the forms objects have no way to edit their colour before or after placement"*) — the first two of its three Passes. **`Pass 308.1` (carry the colour at field-CREATION time) is still owed and stays in *Next up***; say so wherever this entry is cited, because a reader who sees "G020 shipped" will otherwise assume the operator's *"before placement"* half is done — it is not, a created field's colour lands via create-then-edit today.
+
+**What shipped.** `annot_author::WidgetChrome` threaded through all four appearance builders (check box, radio, push button, text/choice); `edit_widget`'s `needs_regen` now covers both colour fields; `PendingWidgetEdit` carries the staged chrome so a redraw uses the command's colours while the ownership test — *would pdfcer draw exactly these bytes, from what `/MK` says now?* — uses the widget's stored ones. New `AppearanceOutcome` (`NotNeeded` / `Regenerated` / `RecordedNotPainted(String)`) on `WidgetEditOutcome::appearance` — `308.2`'s third state, built together with `308.0` rather than folded in after. `AnnotFlags` untouched. Eleven new tests (`crates/pdfcer-core/tests/widget_colour_appearance.rs`) assert the operators actually written into the appearance stream, not the model. `docs/core-api/02-editing-and-saving.md` gained a section; verb count unchanged (no new `EditSession` method).
+
+**A pre-existing mismatch became load-bearing, not a regression.** Push-button creation had written `/MK` `/BG`/`/BC` as DeviceRGB triples while the same plate was always painted DeviceGray — the same colour, a different encoding, harmless for as long as nothing compared them. `308.0`'s ownership test does compare them, so a push button drawn by an *earlier* pdfcer now reports `RecordedNotPainted` rather than being silently repainted; re-setting either colour rebuilds it correctly. General finding, not a project decision: `D:\dev\rag\rust\two_representations_of_one_fact_can_disagree_until_a_third_thing_derives_one_from_the_other.md`.
+
+**Two defaults, opposite directions, same commit.** A text field draws no box on `None` (a white-rectangle default would repaint every existing text field); a push button's `None` still draws the existing plate grey (a nothing-default would erase every plate pdfcer ever drew). Both traps sit inside the builder; the test file asserts the unchanged half as hard as the changed half. Filed as a general finding + testing discipline, not a project rule: `D:\dev\rag\rust\a_builder_parameter_threaded_through_an_existing_call_site_owes_an_absence_is_unchanged_test.md`.
+
+**A precision defect caught by a test assertion, not by review.** `MkColor` stores `f32`; `f64::from` widens it losslessly, and `f64`'s own shortest-round-trip `Display` was about to write `0.20000000298023224` into content streams per component — seventeen digits asserting a precision no producer wrote. Fixed by formatting at the ORIGINAL `f32` width, not the widened one. Third instance filed to the existing lesson: `D:\dev\rag\rust\shortest_roundtrip_float_format_needs_derived_value_rounding.md`.
+
+**Owed verification, not acted on — new owed item 36.** `docs/core-api/02-editing-and-saving.md`'s `rotate_widget` section cites PDF Association erratum #56 as adding `/MK` to §12.5.2's ignore-list. `pdfcer-gui`'s `G020` request said a session of theirs had read the same claim and could not source it, and deliberately rested nothing on it. The sentence is unchanged here — a sourced claim is not deleted because a third party could not find it — but the sourcing itself is now owed to `pdfcer-spec-librarian`, not assumed correct by continued citation.
+
+**Sourcing (hard rule 8) — no shell this filing.** Commit hash `bd8059f2`, its stated push status, and the docs/core-api verb-count claim are taken from the requesting engineer's own dispatch, not independently confirmed against `git log`/`git show` — no shell available to this filing. **Independently confirmed via `Read`/`Grep` against live source at HEAD:** `annot_author::WidgetChrome`/`RecordedNotPainted`/`AppearanceOutcome` exist in `crates/pdfcer-core/src/edit.rs` and `annot_author.rs`; `crates/pdfcer-core/tests/widget_colour_appearance.rs` exists and contains exactly 11 `#[test]` functions, matching the dispatch's count.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `307` shipped; `308`–`308.2` claimed, unshipped — next free family `309` | **`Pass 308.0`/`308.2` SHIPPED; `Pass 308.1` still claimed in *Next up* — next free family `309` unchanged** |
+| Standing rules | `R197` gains a dated instance (557th filing) | **unchanged — no rule minted; two n=1 findings sent to `D:\dev\rag\rust\` instead of a project rule, per the project's own mint-at-n≥2 practice** |
+| Decision records | `158` | **unchanged — a bug fix + two appearance-builder defaults + a formatting-precision fix, not a crate-boundary/library/invariant decision** |
+| `SESSION_LOG` filings | `557` | **`558`** |
+| `docs/FEATURES.md` | Planned row (`Pass 308.0`–`308.2`): `core [ ] · cli [ ] · gui [ ]`; Forms field-property row said "recorded, not painted" | **Planned row: `core [x] · cli [x] · gui [ ]`, stays in *Planned* pending `Pass 308.1` + `pdfcer-gui` wiring; Forms field-property row updated to say "painted, `Pass 308.1` (creation-time) still owed"** |
+| `D:\dev\rag\rust\` | 371 finding files (373 total − 2 meta) | **373 finding files (375 total − 2 meta, Glob-measured after this filing's additions) — 2 new (`two_representations_of_one_fact_…`, `a_builder_parameter_threaded_through_…`), 1 existing file (`shortest_roundtrip_float_format_…`) gains a third dated instance, no new file for that one** |
+| Owed items | highest `35` | **`36`** — verify PDF Association erratum #56 actually adds `/MK` to §12.5.2's ignore-list (`docs/core-api/02-editing-and-saving.md`'s `rotate_widget` section); dispatch `pdfcer-spec-librarian` |
+
+---
+
+### `Pass 307.0` (2026-09-15, `729cf6db`) — `EditSession::page_tab_sequence`: a computed VISIT order for all six `/Tabs` states
+
+Answers `pdfcer-gui`'s `request_G019_no_derived_tab_order_for_Tabs_R_C_or_S.md` (O204: tabbing a form reached the shell's own menus instead of the page's widgets). `EditSession::page_tab_sequence(page_index) -> TabSequence { order, stated, derived, notes }`: `/A`/`/W` read off `/Annots`; `/R`/`/C` derive from `/Rect` geometry with `/Rotate` and `/ViewerPreferences /Direction` applied (`TabOrderBasis`, six variants); `/S` derives from the structure tree or returns an EMPTY `order` with a note, never a silent `/Annots` fallback; `Absent`/unknown `Other` resolve to `/Annots` order, disclosed by name (rule 4). Non-widget annotations are included, filtered after sorting. CLI `pdfcer tab-order`. New: `TabOrderBasis` (6 variants), `TabExclusion` (4), `AnnotFlags::TOGGLE_NO_VIEW`, settings `widget_tab_tail`/`tab_row_tolerance` + `EditSession` accessors. Three synthetic fixtures (`fixtures/synthetic/tab-order/`, `tools/gen-tab-order-fixtures.py` + `PROVENANCE.md`). 23 core unit tests, 14 CLI black-box tests. `docs/core-api/02-editing-and-saving.md`: three new contract rows + a detail box; verb count 234 → 239 (per the dispatch, not independently re-run this filing — no shell).
+
+**Spec sourcing.** §12.5.1 defines no geometry, tolerance or tie-break for a derived tab-visit order at all — settled by `pdfcer-spec-librarian`'s new `iso32000__ref__tab_order_derivation.md` (`TABD-*` namespace), a graded negative result with three controls behind it. pdfcer's `/R`/`/C` grouping rule is therefore an invention, and every `TabSequence` it returns discloses that in `notes` rather than presenting it as read off the file.
+
+**Decision 158** (`ARCHITECTURE.md` §12): the tab-visit sequence's MEMBERSHIP rule follows §12.5.3's interaction bar, not the request's unqualified "every annotation, filtered by the caller" — `Hidden`/`NoView` bearers are excluded (sourced: §12.5.3 says such an annotation "shall not… allow it to interact with the user," and tabbing is interaction), `TrapNet`/`Popup` are excluded on pdfcer's own reading, and `NoView` **plus** `ToggleNoView` is NOT excluded (ISO 32000-2 defines that bit as inverting `NoView` for annotation *selection*, which is what tabbing does).
+
+**Also this filing:** `R197` gains a dated instance — see *Standing rules*. A doc-comment-concatenation addendum (struct-field form, `settings/mod.rs`'s `quad_point_order`/`xref_entry_eol`, missed by `check-doc-block-spliced.py` too) filed to `D:\dev\rag\rust\doc_comments_concatenate_silently_so_a_moved_variant_orphans_two.md`.
+
+**`docs/FEATURES.md`:** the *Planned* row for this capability ticks `core`/`cli` — see Ledger; stays in *Planned* pending `pdfcer-gui` wiring.
+
+**Sourcing (hard rule 8) — no shell this filing.** Account taken from the requesting engineer's own dispatch report of shipped work. Not independently re-verified against live `crates/pdfcer-core/` source, commit contents, or gate results — no shell available to this filing; a session with one should confirm `729cf6db` and its stated test counts before treating them as ground truth.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `307` and `308` claimed (`Pass 307.0`; `Pass 308.0`–`308.2`), both filed to *Next up*, neither shipped — next free family `309` | **`Pass 307.0` SHIPPED; `308`–`308.2` still claimed, unshipped — next free family `309` unchanged** |
+| Standing rules | `R257` used, next free `R258` | **unchanged — `R197` gains a dated instance (dated footer, no re-mint)** |
+| Decision records | `157` | **`158`** — a tab-visit sequence's membership rule follows §12.5.3's interaction bar, not the request's unqualified "every annotation" |
+| `SESSION_LOG` filings | `556` | **`557`** |
+| `docs/FEATURES.md` | Planned row: `core [ ] · cli [ ] · gui [ ]` | **`core [x] · cli [x] · gui [ ]`, row stays in *Planned*** |
+| `D:\dev\rag\rust\` | 371 finding files (373 total − 2 meta) | **unchanged — existing file gains a 5th dated addendum, no new file** |
+
+---
+
+### Librarian filing, 556th, 2026-09-15 — two inbound `pdfcer-gui` requests filed to *Next up*: `G019` (a computed tab-visit order for `/Tabs` `/R`/`/C`/`/S`/`Absent`) and `G020` (paint `/MK` `/BG`/`/BC` into the appearance, split into three Passes)
+
+Not a Pass — a filing dispatch. Two requests arrived in `pdfce_FeatureRequests/open/` on 2026-09-15 against `pdfcer-core` at `0b48b3e2`/v0.53.0, both read in full before filing.
+
+**`Pass 307.0`** answers `request_G019_no_derived_tab_order_for_Tabs_R_C_or_S.md` (O204: *"when I press tab while in a form I end up tabbing through the menus instead of the form items"*). `PageTabs` classifies all six `/Tabs` states and `array_order_governs` correctly answers `Nothing` for `/R`/`/C`/`/S`/`Absent`/`Other`, but nothing anywhere computes the VISIT order those four/five states name. `EditSession::page_tab_sequence(page_index) -> TabSequence { order, stated, derived, notes }` is the requested call: `/R`/`/C` need a grouping tolerance and `/Rotate` applied first; `/S` needs the structure tree the crate already walks for `page_uses_structure_tab_order`, or an honest `derived: false` rather than a silent `/Annots` fallback; `Absent`/`Other` resolve to `/Annots` order, disclosed by name (rule 4). One call, all six states — the request is explicit that scoping to `/R` alone would leave three more branches unanswered.
+
+**`Pass 308.0`–`308.2`** answer `request_G020_MK_BG_and_BC_are_round_tripped_but_never_painted.md` (O202: *"the forms objects have no way to edit their colour before or after placement"*). `/MK` `/BG`/`/BC` read and write both shipped (`Pass 249.1`, `Pass 262.2`); nothing paints either, so a colour-only `edit_widget` reports `appearance_regenerated: false` and cannot distinguish that from "nothing needed doing." Split three ways, on the requester's own suggested seams: `308.0` bakes the colour into the four appearance builders and wires `needs_regen` (the two must ship together — wiring `needs_regen` without the builders would repaint in the wrong colour and discard the operator's choice); `308.1` carries the colour at field-creation time; `308.2` adds a third `WidgetEditOutcome` state for *recorded, not painted*, flagged as possibly foldable into `308.0` once its CMYK answer is fixed.
+
+**Both requests invoke decision 058** — a shell that reports a workaround rather than filing a request is treated as a finding about pdfcer's own crate boundary, not a favour asked. `G020`'s framing is the sharper of the two, naming rule 4's own one-line test directly: painting `/MK` at display time without baking it into `/AP` would make a screenshot of the editing canvas differ from a screenshot of the same document saved and reopened, which is what rule 4 forbids. `G019`'s placement echoes `array_order_governs`'s own precedent — row/column/structure order is document semantics, not presentation, so a shell-side sort would let `pdfcer` and `pdfcer-gui` silently disagree about which field is second on the same page.
+
+No architectural decision made this filing — each request asks for a fix already decided (R43 for `G020`; the engine-not-shell placement for `G019`), not a new one — so no new decision-record number.
+
+**Sourcing (hard rule 8) — no shell this filing.** Both request files read in full via `Read`. Every file:line citation in the two new *Next up* entries is copied verbatim from the requesting engineer's own grep/read results in those files, not independently re-verified against live `crates/pdfcer-core/` source (no shell available to this filing) — a session with one should confirm the cited lines are still current before treating them as ground truth.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `306` (highest ID `306.0`), next free family `307` | **`307` and `308` claimed** (`Pass 307.0`; `Pass 308.0`–`308.2`), both filed to *Next up*, **neither shipped** — next free family `309` |
+| Standing rules | `R257` used, next free `R258` | **unchanged** |
+| Decision records | `157` | **unchanged** — both requests cite existing decisions (058, and R43), no new one |
+| `SESSION_LOG` filings | `555` | **`556`** |
+| `docs/FEATURES.md` | — | **two new *Planned* rows** (tab-visit sequence; `/MK` background/border paint) **and one *Implemented* row corrected** (the field-properties row's background/border-colour clause now states it is recorded, not painted) — see body above |
+| `C:\personal_rag\pdf\` | 234 lesson files | **unchanged** |
+
+---
+
 ### `Pass 306.0` (2026-09-15, `3523a0e9`) — `split_text_object`: cut one `BT`…`ET` into several; plus a same-session, no-Pass-ID fix to a follower-repositioning defect that shifted an edited line's own bullet
 
 Operator-direct request (no topic key), in conversation, diagnosing "I edit line #3, the whole line shifts position" on `SW41177.pdf`. Two shipped items came out of it.
@@ -5803,6 +5887,10 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **19 items removed 2026-09-10** because the Pass they describe had already shipped — see [`history/roadmap-nextup-already-shipped.md`](history/roadmap-nextup-already-shipped.md).
 > A queue that keeps finished work reads as longer than it is.
+
+### Pass 308.1 — Carry background/border colour at field-CREATION time, not only post-placement edit — same request (`G020`, O202) — **UNSTARTED**
+
+~~DEPENDS ON `Pass 308.0`~~ — `Pass 308.0` and `Pass 308.2` **SHIPPED** `bd8059f2` (2026-09-15, see *Shipped*, top); the dependency is discharged and this is the only remaining piece of `G020`. None of the five creation specs (`NewTextField:1607`, `NewChoiceField:2612`, and the other three) has a colour field; the operator asked for colour *"before placement,"* which is a single-verb ask. The request accepts create-then-edit-and-coalesce internally if that is cheaper to build — the acceptance is the operator-visible behaviour, not the internal route. **This is the entirety of what remains owed on `G020`** — say so wherever `308.0`/`308.2` are cited as shipped, since a reader who sees "G020 shipped" would otherwise assume the operator's *"before placement"* half is done.
 
 ### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), ~~**NOT STARTED**~~ **SHIPPED `743830d` — see top of *Shipped***
 
@@ -27349,6 +27437,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - **`R220` — DATED INSTANCE NOTE, 2026-09-11 (516th filing, THIRD AXIS): NOT "CORE HAS NO VERB," NOT "A SHELL HAS NO CALLER," BUT "A REQUEST DRAFT CITED A LIMITATION NOBODY RE-MEASURED." `pdfcer-gui` drafted (then withdrew) an ask for a coarse `EditError::kind()` discriminant on the strength of one sentence in its own funnel module claiming the generic error floor "has nothing to switch on" — true of the floor, false of a call site, since every `FormAuthorError` variant is already `pub`, un-`#[non_exhaustive]`, and exported. Same mechanism as the other two instances (a negative capability claim sent into a document, unchecked against source) on a third axis: the document was a REQUEST, not a register. Kept in the requester's own words: "a limitation sentence is a citation, and it goes stale faster than the code it describes."**
 - **`R221` — SHAPE NOTED, ORDINAL NOT RECONCILED (owed above), 2026-09-11 (516th filing).** `pdfcer-gui` deleted its own `group_is_a_field` pre-check for `sign` after finding it had become a SECOND, WRONG model of pdfcer's guard (refusing any name prefix in `AcroForm::fields`, where pdfcer refuses only a true terminal) — replaced by matching `FieldPathCrossesTerminal`'s own `terminal` field. Consumer-side instance of `R221`'s mechanism (ask the real predicate, never a parallel description of it); not counted into a numbered ordinal pending the reconciliation already owed.
 - `R257` — A CITATION THAT DOES NOT NAME ITS OWNING REPOSITORY/PROJECT IS NOT A CITATION, IN ANY CONTEXT WHERE MORE THAN ONE PROJECT CAN HOLD A FILE OF THAT NAME — IT IS A STRING THAT RESOLVES SOMEWHERE, AND IT RESOLVES SILENTLY TO A REAL, WRONG, LOCALLY-VALID TARGET RATHER THAN FAILING VISIBLY. `pdfcer-gui`'s defect `D3` cited `README.md:20-22` with no repository named and survived a month because both `pdfcer` and `pdfcer-gui` have a `README.md`; a 2026-09-13 session closed it as fixed by checking the wrong project's file — both "Bates/PDF/A are absent from `README.md`/`DEVELOPING.md`" and "the defect is resolved" were individually true statements about the wrong pair of files. Same-day second instance from a different direction: a possessive ("its own") in a cross-project RAG file credited a test to `pdfcer-gui` when it belonged to `pdfcer-core` (`D:\dev\rag\rust\a_completeness_guard_can_be_lost_three_different_ways.md`'s 2026-09-13 attribution correction). Fix: qualify any cross-repository citation with the repository name AT THE POINT OF CITATION — never rely on a bare filename, a bare line range, or a possessive to disambiguate which project is meant. Full derivation: `D:\dev\rag\rust\a_citation_that_does_not_name_its_repository_is_not_a_citation.md`.
+- **`R197` — DATED INSTANCE NOTE, 2026-09-15 (557th filing, `729cf6db`).** `docs/core-api/index.md` restated `03-capabilities.md`'s line-count and clause-count citations, and they went stale the moment `0b48b3e2`/`2c199faa` (555th filing, `G018`) grew that file — `main` read red on `check-core-api-verbs.py` from that push until this filing's fix re-derived both figures. Not a new failure mode: the gate caught the drift on the first push after it happened, which is the control working as designed, not a gap in it.
 - **`R257` — DATED INSTANCE NOTE, THIRD DIRECTION, CREDITED TO `pdfcer-gui` (547th filing).** Not a multi-repo collision: a resume/hand-off document's own correction cited a captured-trace file inside a `.gitignore`d directory to support a claim about a ribbon region name — the citation resolved on exactly the one machine holding that untracked file and nowhere else. Re-pointed at tracked source. In the crediting project's own words: *"Same failure, third direction. Yours: the right filename in the wrong repository. Ours: the right filename in no repository. The common shape is a path that resolves somewhere being mistaken for a path that resolves anywhere."* The RAG file's own text is widened accordingly (repository-collision is now framed as one case of "resolves somewhere vs. resolves anywhere," not the whole rule) — three dated instances within roughly a day of the mint, from two projects, in three directions, is recorded there as evidence the boundary was drawn about right.
 
 ## Update protocol

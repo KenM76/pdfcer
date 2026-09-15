@@ -7488,3 +7488,215 @@ against the other's text, and the conclusion they drew from it is suspect too.
 - The **heredoc broke again** on this file's punctuation. `Write` the patch script to
   `C:\tmp\*.py`, then run it. Both edition dumps were already cached and the 2.0 dump
   matched its recorded byte size exactly (2 695 377 B).
+
+---
+
+## 79. "pdfcer must IMPLEMENT the rule, not just classify it — does the standard DEFINE the arithmetic?" (2026-09-15, `/Tabs /R` `/C` `/S` derivation)
+
+**Dispatch shape, and it is NEW to this list: the project has been CLASSIFYING a key for
+weeks and is now about to COMPUTE from it.** `PageTabs` already told callers *which* tab
+order a page names; the Pass in flight derives the actual sequence. Six numbered questions,
+then a **mid-task re-scope** after the coordinator read the existing corpus file himself and
+cut four of them.
+
+### 79a. ★★ THE HEADLINE IS THE DIFFERENCE BETWEEN A NAMED RULE AND A COMPUTABLE ONE
+
+ISO 32000-1 §12.5.1 fires `shall` four times in the `/R` bullet and **defines no geometry**.
+Verbatim (`free_primary`): *"Annotations shall be visited in rows running horizontally
+across the page… The first annotation that shall be visited is the first annotation in the
+topmost row. When the end of a row is encountered, the first annotation in the next row
+shall be visited."* **No corner of `/Rect` is named. No grouping predicate. No tolerance. No
+tie-break. `"the next row"` is never defined** — only *"the topmost row"* is first.
+
+**This is a THIRD kind of negative, distinct from the two this list already carries.** Not a
+silence about a fact (item 63a) and not two readings of a sentence (item 64) — **a rule
+whose vocabulary is stated and whose arithmetic is absent.** Grade it the same way, but the
+controls are different:
+
+1. **The same clause FAMILY carries a lettered algorithm.** §12.5.5's *"Algorithm:
+   Appearance streams"* has three labelled steps, each with a `shall`. §12.5.1 has none.
+   **When a standard can write an algorithm two clauses away and does not, the absence is
+   conspicuous.**
+2. **Count the vocabulary it would have used.** `tolerance` = 30 (1.7) / 31 (2.0)
+   document-wide, **zero inside §12.5**.
+3. **Check whether the later edition TOUCHED the clause.** 2.0 added two bullets, rewrote
+   the framing sentence, de-modalised one sentence — **and left the geometry alone.** A
+   revision that edits around a gap and does not fill it is stronger evidence than a
+   never-revisited one.
+4. **Every geometric phrase occurred EXACTLY ONCE**, inside its own bullet — a clean
+   one-hit-per-phrase table is what makes "nothing elaborates this" a measurement.
+
+### 79b. ★★ SPLIT THE INVENTED PART FROM THE SOURCED PART — THEY WERE ABOUT TO BE DISCLOSED AS ONE
+
+The dispatch said pdfcer *"will sort left-to-right and must document that as a choice, not a
+reading."* **Half wrong, and the correction was the most useful thing delivered.**
+§12.5.1 delegates the direction to `/ViewerPreferences` `/Direction`, whose row prints
+**`Default value: L2R`**. So **left-to-right-when-absent is the STANDARD'S default**, not
+pdfcer's pick; what is invented is only the GROUPING.
+
+**Generalise: when a dispatch offers to label something an invention, check whether a
+DELEGATED-TO clause supplies it.** A rule that says *"X shall be determined by entry E"* is
+not silent about X — it has moved the answer to E's table row, including E's **default**.
+**Go read E's row before accepting the invention framing.** Same move as item 68e (when the
+subset standard has a gap, read the base standard's mechanism), one level down.
+
+### 79c. ★★ A FRAMING SENTENCE CAN BE ACTIONABLE ONLY WHEN YOU FIND ITS OTHER HALF
+
+§12.5.1 ends *"These descriptions assume the page is being viewed in the orientation
+specified by the `Rotate` entry"* — which by itself tells an implementer nothing, because it
+does not say what frame `/Rect` is in. **The other half is in §12.5.3**, in the paragraph
+under the flags table (`free_primary`): *"it shall not actually change the annotation's Rect
+entry, which continues to describe the annotation's relationship with the unscaled,
+unrotated user space."* **Two clauses, two sentences, one derivation: rotate before
+grouping.** Neither sentence is usable alone.
+
+**The heuristic: a scoping sentence ("these descriptions assume…") is half of a pair. Go
+find the sentence that says which frame the DATA is in.** Item 76a's shape — the deciding
+sentence is not in the feature's clause — reappearing on a geometry question.
+
+### 79d. ★ A NEGATIVE ABOUT A KEY'S GUARANTEES IS PROVEN BY AN INTERNAL CONTROL IN ANOTHER TABLE
+
+*"Is `/Rect` guaranteed normalised?"* is not answered by re-reading `/Rect`'s row — the row
+is silent, and silence is what needed grading. **It is answered by finding the ONE place the
+standard DOES require a normalised rectangle**: the viewport dictionary's `/BBox`, *"shall be
+specified in normalized form; that is, lower-left followed by upper-right"* — **exactly 1
+occurrence per edition, document-wide, and it is not `/Rect`**. Item 78a's internal-control
+move, applied across tables rather than across sibling rows of one table.
+
+Corollary worth carrying: **2.0 DELETED 1.7's normalisation NOTE** (*"Applications … should
+be prepared to normalize such rectangles"*) and replaced it with *"Rectangles can have a
+width of zero or height of zero."* **The deleted text was a NOTE; the RULE (any two
+diagonally opposite corners) survives verbatim in both.** The 1→0 caution applies and the
+answer is "an advisory was removed", not "the rule changed". And the replacement NOTE
+**adds a degenerate case** the implementation must survive.
+
+### 79e. ★★ "THE CLAUSE EXCLUDES NOTHING" AND "THE STANDARD EXCLUDES NOTHING" ARE DIFFERENT ANSWERS
+
+The dispatch's hypothesis — *"§12.5.1 is silent on hidden/`NoView`/`Popup`/`TrapNet` and the
+exclusion would be pdfcer's choice"* — is **HALF REFUTED, and the half that survives matters
+more than the half that dies.**
+
+- §12.5.1 **is** silent. True.
+- **§12.5.3 is not.** `Hidden` (bit 2) and `NoView` (bit 6) each carry, verbatim
+  (`free_primary`), *"or allow it to interact with the user"* — an unqualified imperative to
+  the processor. **Tabbing is user interaction.** So excluding them is a READING of §12.5.3,
+  not a preference.
+- `/TrapNet` falls out by a **two-clause `shall`**: §14.11.6.2 requires its `F` entry *"with
+  the Print and ReadOnly flags set and all others clear"*, and `ReadOnly` says *"do not allow
+  the annotation to interact with the user"*.
+- `/Popup` is excluded **only by argument** — but a good one, four legs, each a `shall`
+  (*"It shall have no appearance stream or associated actions of its own"*, *"shall not
+  appear alone"*, `/Open` defaults `false`).
+
+**⇒ Deliver a MEMBERSHIP MATRIX with a SOURCE-STRENGTH column, not a list.** Three tiers —
+sourced / derived-two-clause / argued — because the project has to disclose which it used.
+
+**And find the flag that flips your own rule.** 2.0's `ToggleNoView` row names *"annotation
+**selection**"* as a triggering event (1.7 says only *"for certain events"*). Tabbing IS
+selection ⇒ a `NoView`+`ToggleNoView` annotation should STAY in the sequence. **One bit
+pattern inverts the exclusion you just sourced; a version-gated carve-out.**
+
+### 79f. ★ MODALITY IS PER-BULLET, NOT PER-CLAUSE — the `/R` vs `/C` split
+
+2.0 de-modalised `/R`'s direction sentence (`shall be determined by` → `is defined by`) and
+**left `/C`'s `shall be ordered by` untouched**, in the same bullet list, in the same
+revision. Measured 1/0 and 1/1. **A sentence like "2.0 softened the `/Direction` dependency"
+is TRUE for `/R` and FALSE for `/C`.** Item 76b (modality is per-subtype and per-edition),
+now also **per-bullet**. The same edition made the identical de-modalisation in §12.5.3's
+position sentence and in §12.5.1's `/S` delegation — **three instances of one editorial move
+in one clause family**, which is how you tell an editorial pass from a substantive change.
+
+### 79g. ★ WHEN THE CROSS-REFERENCE IS ONE-WAY, THAT IS THE DEFECT — and it is NOT a contradiction
+
+§12.5.1 cites §12.2 twice with a `shall`. §12.2's `/Direction` row says the entry *"has no
+direct effect on the document's contents or page numbering but may be used to determine the
+relative positioning of pages when displayed side by side or printed n-up"* — and **never
+cites §12.5.1**. **Resist calling this a contradiction** (item 69c's shape is real but this
+is not it): tab order is neither *"contents"* nor *"page numbering"*, and *"may be used to…"*
+carries **none of the three enumeration formulas** this corpus tracks, so it is a
+non-exhaustive gloss. **File it as a TENSION with the resolution stated, bucket 3.**
+
+**And ask what else reading the key commits you to.** `/Direction`'s own stated use is page
+placement in a spread — so honouring it for tab order creates a **future** obligation to
+honour it in any n-up/facing-pages view. Say that in the file; it is cheap now and expensive
+to discover later.
+
+### 79h. ★ ONE `shall` EXCEPTION CAN OVERTURN THE GEOMETRY ANSWER — go looking for it
+
+*"Can the `/AP` `/Matrix` displace `/Rect` as the footprint?"* answers **no** from §12.5.5 —
+the algorithm *fits* the transformed appearance box **into** `/Rect`. **But there is exactly
+one carve-out and it is a `shall`:** §12.5.6.22, a `/Watermark` with `/FixedPrint`, whose
+`/Rect` *"shall be translated to the origin and transformed by the Matrix entry of its
+FixedPrint dictionary"* and whose transformed rectangle *"shall be used in place of the
+annotation rectangle"*. **Sweep the annotation-type clauses for `Rect` + `shall` before
+writing "the geometry is always `/Rect`".** (Bonus: 1.7's cross-reference to *"steps 2 and
+3"* is dangling — 1.7 labels its algorithm `a) b) c)` and 2.0 renumbered to `1. 2. 3.`)
+
+### 79i. ★ TWO CLAUSES CAN BOTH BE "THE ORDER" AND ONLY ONE IS CITED
+
+`/Tabs /S` says *"in the order in which they appear in the structure tree (see 14.7)"*.
+**§14.7 defines no traversal order in either edition** (swept the whole clause for `order`;
+hits are the independence statement, the `/Suspects` cross-reference, an explicit *no order
+is defined* for `/A` attribute arrays, and user-property importance). The only definition of
+logical structure/content order is **§14.8.2.3.1 (1.7) / §14.8.2.5.1 (2.0)** — which 2.0
+**promoted to a `shall` and re-scoped from the page's hierarchy to the document's**.
+**Follow the cross-reference, find it empty, then go find the clause that actually has the
+answer and say the citation is misrouted.**
+
+Membership mechanics worth keeping: an annotation is in the tree iff a structure element's
+`/K` holds an **object reference dictionary** (`/Type /OBJR`, `/Obj` = the annotation,
+optional `/Pg`). `/StructParent` (**singular**, on the annotation) is the **back**-pointer
+into `/ParentTree` and **carries no position**; `/StructParents` (**plural**, on the page or
+an XObject) keys **MCIDs, not annotations**. **Three keys routinely conflated; only `/OBJR`
+carries order.**
+
+**And the answer that survives implementing the walker:** §12.5.1 says an annotation not in
+the tree has its order *"determined in a manner of the conforming reader's choosing"* —
+**an explicit DELEGATION, which is a stronger negative than a silence**, and it means
+shipping a structure-tree walker does **not** make `/S` fully determined. Say so in the
+"not derived" note **now**, so a later Pass does not ship the walker and claim the order is
+the standard's.
+
+### 79j. Mid-task re-scope by the coordinator — how it went, and what to do with it
+
+He read the existing corpus file while I worked and **cut four of six questions**, then
+added two corrections to that file's §9 and one request to re-verify it against the tree.
+**All of it was right and all of it saved work.** Two lessons:
+
+- **A dispatch's "the corpus does not carry this" is a hypothesis about the corpus too.**
+  He measured it (`grep -rn "L2R\|R2L"` over the whole tree = 0 hits) and handed me the
+  measurement. **When a dispatch includes a corpus measurement, verify it and then TRUST
+  it** — it is the cheapest possible scoping.
+- **§9 of the sibling file was stale in FIVE places, not the three he named.** `TAB-C1`
+  (wrong clause id) and `TAB-C2` (unsourced `ROADMAP.md` claim) were **also** fixed, and
+  `TAB-C5`'s three unimplemented `shall`s are **all three now implemented**. **A
+  "corrections owed to the project" section is a DATED MEASUREMENT (item 67d) and decays
+  fast — re-measure the whole section, not only the rows you were told about.** Kept
+  legible with a dated `★★ UPDATE` box at the TOP of the section (item 66g), never deleted.
+- **The crate rename `pdfce-core` → `pdfcer-core` has NOT propagated** through older corpus
+  files' `pdfce_relevance:` frontmatter or their §9-style sections. Noted, not swept —
+  a sweep is its own dispatch.
+
+### 79k. Filing shape — 1 new file, 3 amended, 1 index, 1 register intake, 0 sources staged
+
+- New `iso32000/iso32000__ref__tab_order_derivation.md` (~83 kB). ID scheme `TABD-R1`/`C1`
+  (the two bullets) / `TABD-N*` (negatives) / `TABD-D*` (direction) / `TABD-T*` (rotate) /
+  `TABD-B*` (which box) / `TABD-S*` (structure) / `TABD-M*` (membership) / `TABD-A*`
+  (ambiguities). **Namespace deliberately disjoint from the sibling's `TAB-*`** and stated
+  as such in both files' §0 — two files on one feature need a collision-free grep.
+- `iso32000__ref__annots_array_order.md` **(CRLF — round-tripped)**: §0 gained a 5th line
+  pointing at the sibling, §9 gained the dated update box, §10 gained the cross-reference.
+- `iso32000__s__14.7.md`: its **scope-exclusion banner PARTIALLY CLOSED** — §14.7.4.3 and
+  the annotation half of §14.7.4.4 are now ingested (item 58's shape, closing rather than
+  inheriting an untested exclusion).
+- `index.md`: prefix cell `iso32000__ref__*` **31 → 32 recounted from disk first**
+  (`find` total 192 → 193), one new file row, **six** new trigger-topic rows, an 8-command
+  search recipe — **every recipe run non-empty after filing**.
+- Register: intake `TABD-A1` (bucket 1, a real setting — the grouping rule) + `TABD-A2`
+  (bucket 3, the one-way cross-reference).
+- **Flat-grep index: 61 quotations, 61/61 found in this file, 58/61 found verbatim in a
+  staged dump.** The three misses are **`pdftotext -layout` artifacts, not wording errors** —
+  the table's KEY column is interleaved into the middle of the VALUE column's sentence
+  (`"…allow it to` **`7 ReadOnly`** `interact with the user…"`), and one em-dash extracts as
+  a replacement character. **Verify a miss on HALF the sentence before doubting the
+  quotation**, and record the artifact in the file so the next run does not re-litigate it.

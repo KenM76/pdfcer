@@ -1,90 +1,85 @@
-# Memory index — pdfce-spec-librarian
+# Memory index — pdfcer-spec-librarian
 
-- [Spec source extraction toolchain](reference_spec_source_extraction.md) — how to GET a spec and get text out of it: 20 numbered routes (4a–4u), verified free URLs, paywall workarounds, errata-scan recipes. Read before any acquisition or extraction.
-- [PDF_Spec corpus conventions + dispatch-shape playbook](project_corpus_state.md) — 78 numbered items, one per past dispatch. **Find the item matching your dispatch's SHAPE and read it first.** Naming, banners, grading vocabulary, negative-result evidencing, index-filing mechanics.
-- [Font + spec-data licensing patterns](project_embeddable_data_licensing.md) — what may cross into pdfce's MIT tree; data-vs-document, widths-vs-shapes, availability ≠ redistribution licence.
+- [Spec source extraction toolchain](reference_spec_source_extraction.md) — how to GET a spec and get text out of it: 21 routes (4a–4u), verified free URLs, paywall workarounds, errata recipes.
+- [PDF_Spec corpus conventions + dispatch-shape playbook](project_corpus_state.md) — 79 items, one per past dispatch. **Find the item matching your dispatch's SHAPE and read it before working.**
+- [Font + spec-data licensing patterns](project_embeddable_data_licensing.md) — what may cross into pdfcer's MIT tree; data-vs-document, availability ≠ redistribution licence.
 
-## Where to look, by what you were asked to do
-
-Each row names corpus items in `project_corpus_state.md`. Read the item, not just the row.
+## Routing — find your dispatch's shape, then READ THE NAMED ITEM (the detail is there, not here)
 
 | Dispatch shape | Read |
 |---|---|
-| "get me spec S" / a URL 403s / text extracts wrong | extraction 4a–4u; **4s** (a standard's SECRETARIAT publishes free commentary — read its non-normative disclaimer), **4t** (a national-adoption catalogue page is NOT a new channel), **4d** (`r.jina.ai`), **4h** (iTeh ISO previews), **4m-i** (Wayback `if_/`), **4m-ii** (etsi.org UA gate) |
-| a table extracts misaligned, split, or fused | extraction **4i** (caption-index-then-slice), **4c-bis** (per-page `pdfminer` layout pass) |
-| a phrase/term count is going into a file | extraction **4b** — whitespace-stripped counting; a raw `grep -c` on a multi-word phrase is a LOWER BOUND |
-| **a TABLE's labels extract but its VALUES are blank** | extraction **4r** — **symbol font (`CambriaMath`), NOT a deletion**; "the row was deleted" is the false conclusion |
-| a formula, figure or annex looks empty or scrambled | extraction **4a**/**4a-bis**/**4a-sexies** (glyph x-positions), **4c**/**4f** (the figure is a raster) |
-| "is this amended? is there an erratum?" | extraction **4j**/**4k**/**4n**; corpus **63d** (three channels + a positive control) |
-| **"what makes the OTHER implementation right? — here are its pixels"** | corpus **66**+**67**. **66a: THE ORACLE IS A HYPOTHESIS — ask what MODE it was in, name the one-minute falsification. 67a: THE LADDER IS THREE RUNGS — EXISTENCE → DEFINITION → USE; the 4th mechanism is usually a `shall` one clause-family UPSTREAM. 67e: "BOTH CONFORM" IS A REAL VERDICT. 66e: if the rule is determinate but the pixels disagree, the answer IS a ranked list of ways the rule was not REACHED.** |
-| **"I ran your falsifications and all of them failed"** | corpus **67**. **67b: GRADE THE REFUTATIONS — a run whose POSITIVE CONTROL also did not move is INCONCLUSIVE; check the metric can register the flip at all. 67c: a refutation can destroy YOUR OWN support. 67d: grep your `related_files` for the MECHANISM's vocabulary. 67f: the deliverable may be a TEST-DESIGN correction.** |
-| **"which of these two readings is right? — I narrowed it to one clause"** | corpus **64**. **64a: transcribe the clause's EXAMPLEs and summary TABLE — an omitted EXAMPLE is what makes a determinate clause look ambiguous. 64e: grep the ambiguity register FIRST. 64c: also answer whether the rule is even REACHED.** |
-| **"should the CONFORMANCE PRESET pin this axis?" / "does standard S constrain X?"** | corpus **68**. **68a: "NO CLAUSE REACHES IT" ⇏ "LEAVE IT UNSET". 68b: the same sweep gives OPPOSITE answers per family — grade silence by SCOPE EXCLUSION vs gap. 68c: conformance answer and recommendation are TWO deliverables — never fuse the tiers. 68d: RE-SCOPE your own register, don't retract. 68e: when the subset standard has a GAP, read the BASE standard's MECHANISM.** |
-| **"verify or REFUTE each premise" / "I am about to add a verb that mutates array A"** | corpus **69**. **69a: THE HEADLINE IS IN THE OPEN-ENDED QUESTION — grep the KEY NAME document-wide; constraints on a container live in the clauses of everything that POINTS INTO it. 69b: look for "in the same order as" and for a STORED INDEX. 69d: GREP THE CALLER'S CRATE FOR THE VERB NAME — "about to add" was false. 69c: an edition can contradict ITSELF.** |
-| **"ingest the clause my corpus only SUMMARISED" / a DOWNSTREAM PROJECT filed it** | corpus **72**. **72a: READ THE CLAUSE'S LAST SENTENCE AS CAREFULLY AS ITS FIRST. 72b: FOLLOW EVERY TABLE CROSS-REFERENCE and confirm the cited table holds the named key. 72c: check whether a STAGED SOURCE is an instance of the feature. 72f: the constraints live in the rows of A, B, C. 72g: FLAT-GREP EVERY QUOTATION you expect to be searched — 3 were line-wrapped and returned 0.** |
-| **"here is a MEASUREMENT that contradicts one sentence — correct it"** | corpus **71**. **71a: THE WRONG HALF IS USUALLY THE *CONSEQUENCE*, NOT THE OBLIGATION — split into one ID per party. 71b: ask what the STRICT alternative does to the ATTACK case. 71d: grep the file stating the same fact from the OTHER side. 71e: verify the dispatch's own measurement.** |
-| **★★ "pdfcer REFUSES a file Acrobat opens — is clause C a `shall` or a `should`?"** | corpus **74**. **74a: MODALITY AND ADDRESSEE ARE TWO QUESTIONS — a `shall` can be real AND bind the FILE, not the reader; read ISO 32000-1 clause 2 / ISO 32000-2 clause 6 (§2.2: "the rendering of CONFORMING FILES shall be performed as defined"; clause 1 excludes conformance VALIDATION from scope). 74c: the `should`→`shall` history may be DOCUMENTED (pdfa.org ISO-ese article, via `r.jina.ai`). 74d: search `pdf-issues` by CLAUSE NUMBER and fetch `/comments` SEPARATELY. 74e: read the sentence BEFORE and AFTER the rule — it killed the default's justification while the default survived. 74f: grade the REFUSAL GRANULARITY separately; it is one-sided. 74g: quantify the cost of refusing from the spec.** |
-| **★★ "is my STANDING RULE applied outside its territory?" / "the OTHER reader draws it and we render nothing"** | corpus **76**. **76a: THE DECIDING SENTENCE MAY BE IN THE *COMMON-ENTRIES* TABLE, NOT THE FEATURE'S CLAUSE — and GREP YOUR OWN CORPUS FIRST; it had held Table 164's *"annotation handlers may ignore this entry and provide their own appearances"* verbatim for six weeks, unused. 76b: MODALITY IS PER-SUBTYPE **AND** PER-EDITION — the `shall` survived for `/Text` and became `should` for three others in 2.0. 76c: FOUR DIFFERENT PHRASES ALL COUNTING 4 PROVES A CLOSED CLASS. 76d: THE ASYMMETRY IS THE GRAMMATICAL SUBJECT — reader-addressed vs artifact-addressed vs no `shall` at all; a standard allocates responsibility only where the DATA IS ABSENT. 76g: "the obligation is on PIXELS, not OBJECTS" dissolves the rule-3/authoring conflict. 76h: SAY PLAINLY WHEN THE OTHER IMPLEMENTATION IS RIGHT — a generously-offered weaker conclusion is not modesty.** |
-| **★★ "a REQUIRED key is missing and every other reader opens the file" / "is requirement A conditioned on key B?"** | corpus **77**. **77a: SEARCH `pdf-issues` BY THE DISPATCH'S QUESTION (`in:title`) — #81 IS this question, `ISO approved`, and it was resolved AGAINST the conditioning; the THREAD is the reasoning, the ERRATA PAGE is the text. 77b: the erratum landed on the OTHER key's table row. 77c: the justification died and the decision lived (3rd time). 77d: THE INVENTION LINE — may I default this? only if the STANDARD names the fallback value (`/Resources` = `<< >>` yes; `/MediaBox` = no). 77e: deliver THREE rows — writer obligation / conformance verdict / reader behaviour. 77g: the subset-standard answer was three different shapes.** |
-| **★★ "a REDACTED object SURVIVED — what does the standard OBLIGE?" / "is carrier X unique?" / "may a writer DROP an unreferenced object?"** | corpus **75**. **75a: GREP THE WHOLE DOCUMENT FOR THE PHRASE THAT DEFINES THE CARRIER'S SYNTAX — a thread's `/I` ‘shall conform to the syntax for the document information dictionary’, so `/Info` is NOT unique and the second carrier is LIVE. 75b: THE STANDARD NEVER DESCRIBES A FULL REWRITE (`rewrit*` = 1 hit/edition, negative) ⇒ R33 does not reach whether an object is in the OUTPUT SET. 75c: the standard MANDATES an unreferenced object (Annex F.3.3) ⇒ a `/Root`-only GC deletes live data. 75d: a MECHANISM WITH AN UNSPECIFIED TRIGGER IS A PERMISSION, not a silence. 75e: the deciding clause was in §12.5.6.23, not §7.5 — and its `shall` binds the PROCESSOR, not the artifact. 75g: search `pdf-issues` for `unused objects`, NOT `orphan`. 75i: `saniti[sz]` = 0 hits both editions.** |
-| **★★ "is key K constrained to a VOCABULARY?" / "I am about to write a literal token into files"** | corpus **78**. **78a: THE PROOF IS AN INTERNAL CONTROL IN K’S OWN TABLE — count the enumeration formula on the SIBLING rows (`Valid values shall be` = 2 in §12.9, on `/F` and `/O`, never on `/U`); and count ALL THREE formulas, because `The following are valid <X>` is the one §12.10.2 uses. 78b: ASSUME THE NEAR-MISS VOCABULARY EXISTS AND GO FIND IT — `/PDU` (2.0 §12.10.2 Table 269) IS real and contains `KM` and `MI`; deliver the FIVE axes on which it is not yours. 78c: a `should` an edition DE-MODALISED into a NOTE is the strongest advisory proof. 78d: GREP YOUR OWN CORPUS ADVERSARIALLY — its digest had INVENTED a six-member example list on the very row whose point is that it has none. 78e: an exhaustive sentence sweep settles "display-only". 78g: the dispatch’s two table numbers were CROSSED BETWEEN EDITIONS.**
-| **★ "this ONE value is wrong — now check the whole column"** | corpus **73**. **73a: A DERIVED COLUMN IS A LIABILITY CLASS OF ITS OWN — re-reading the source cannot catch it, because the source is SILENT on that axis; label it `DERIVED, NOT QUOTED` and put the INVARIANT beside it. 73b: establish the BIT-NUMBERING CONVENTION per SOURCE before grading (ISO=1-based, OpenType=0-based, observed bitfields named by MASK). 73c: an all-rows-wrong result means the PARSER is broken; print `rows checked` per table or a skipped table looks clean. 73d: this corpus is trusted HARDER than the code, so self-validating structure beats prose.** |
-| a PDF/UA or PDF/A conformance question | corpus **69e** (**a later PART can WIDEN a rule — UA-1 permits `/Tabs /S` only, UA-2 permits `A`/`W`/`S`; answer PER PART**) + **69f** (free-quotation route: veraPDF profile → Matterhorn → WTPDF, all CC-BY; WTPDF's clause numbers MATCH ISO 14289-2's) |
-| "does feature F apply inside context C?" | corpus **64d** — C's own clause, a whole-document co-occurrence count, and **C's entry-RESET list read as a CLOSED set** |
-| "the spec is silent on X" | corpus **62c** (an erratum can answer it), **63a** (grade the silence by counting the sentence elsewhere), **63b** (grep the feature name document-wide) |
+| get me spec S / a URL 403s / text extracts wrong | extraction **4a–4u**; esp. **4d** `r.jina.ai`, **4h** iTeh previews, **4m-i** Wayback `if_/`, **4s** secretariat commentary, **4t** national-adoption pages |
+| a table extracts misaligned / values blank / a figure looks empty | extraction **4i**, **4c-bis**, **4r** (symbol font, NOT a deletion), **4a**/**4c**/**4f** |
+| a phrase or term COUNT is going into a file | extraction **4b** — whitespace-stripped; a raw `grep -c` on a multi-word phrase is a LOWER BOUND |
+| is this amended? is there an erratum? | extraction **4j**/**4k**/**4n**; corpus **63d** (three channels + a positive control) |
+| **"pdfcer must IMPLEMENT the rule, not just classify it — is the geometry/arithmetic defined?"** | corpus **79** |
+| **"what makes the OTHER implementation right? — here are its pixels"** | corpus **66** + **67** |
+| **"I ran your falsifications and they all failed"** | corpus **67** |
+| **"which of these two readings is right? — I narrowed it to one clause"** | corpus **64** |
+| **"should the CONFORMANCE PRESET pin this axis?" / "does standard S constrain X?"** | corpus **68** |
+| **"verify or REFUTE each premise" / "I am about to add a verb that mutates array A"** | corpus **69** |
+| **"ingest the clause my corpus only SUMMARISED" / a downstream project filed it** | corpus **72** |
+| **"here is a MEASUREMENT that contradicts one sentence — correct it"** | corpus **71** |
+| **"pdfcer REFUSES a file Acrobat opens — is clause C a `shall` or a `should`?"** | corpus **74** |
+| **"is my STANDING RULE applied outside its territory?" / "the other reader draws it, we render nothing"** | corpus **76** |
+| **"a REQUIRED key is missing and every reader opens the file" / "is requirement A conditioned on key B?"** | corpus **77** |
+| **"a REDACTED object SURVIVED" / "is carrier X unique?" / "may a writer DROP an unreferenced object?"** | corpus **75** |
+| **"is key K constrained to a VOCABULARY?" / "I am about to write a literal token into files"** | corpus **78** |
+| **"this ONE value is wrong — now check the whole column"** | corpus **73** |
+| **"is clause C advisory or mandatory?"** | corpus **65** |
+| "close the exclusion banner" / "ingest C AND give me the step list" | corpus **70** + **58** |
+| "is the base standard silent on X?" and a later edition fixes it | corpus **70e** — check whether a PROFILE of the base edition also fixes it |
+| a PDF/UA or PDF/A conformance question | corpus **69e** (answer PER PART — a later part can WIDEN a rule) + **69f** (free-quotation route) |
+| "does feature F apply inside context C?" | corpus **64d** |
+| "the spec is silent on X" | corpus **62c**, **63a**, **63b** |
+| "where can X be set / which carrier wins?" | corpus **65d**, **65e** |
+| "enumerate every X" / build a census | corpus **59**, **63e** |
+| verify or refute the dispatch's own premise (incl. claims about pdfcer's code) | corpus **62**, **55**, **61f** |
 | ingest clause C in full before a Pass is written from it | corpus **63**, **58** |
-| **"is clause C advisory or mandatory?"** | corpus **65**. **65a: SPLIT the obligation from the output — build an `M1`…`Mn` ladder, one row per SENTENCE. 65b: FOLLOW THE DELEGATION OUT OF PDF. 65c: an erratum may have DELETED the permissive sentence — search errata by FEATURE PHRASE.** |
-| "where can X be set / which carrier wins?" | corpus **65d** (count the CONCEPT phrase document-wide — the clause's carrier list is a hypothesis), **65e** (grep `Restrictions on the entries in a <type>`) |
-| "enumerate every X" / build a census | corpus **59** (semantic sweep beats key-name sweep), **63e** (state each predicate separately) |
-| verify or refute the dispatch's own premise | corpus **62**, **55**, **61f** — everything a dispatch asserts is a hypothesis, incl. claims about pdfce's own code |
-| **"close the exclusion banner" / "ingest C AND give me the step list"** | corpus **70**+**58**. **70a: the dispatch's named traps are a HYPOTHESIS SET — grade each. 70c: for a verify capability the deliverable is an OUTCOME MODEL of independent axes, not a pipeline; an unchecked axis is EMITTED as `not_evaluated`. 70d: "shall conform to RFC N" ⇒ FETCH RFC N (`rfc-editor.org/rfc/rfcN.txt`, `free_primary`). 70f: SPLIT A FILE ALONG THE LICENCE TIER, NOT THE TOPIC.** |
-| **"is the base standard silent on X?" — and a later edition fixes it** | corpus **70e**. **CHECK WHETHER A *PROFILE* OF THE BASE EDITION ALSO FIXES IT** — ETSI EN 319 142-1 §5.5 supplied a bullet ISO 32000-1 §7.6.1 omits, a `free_primary` statement about the *1.7* baseline that a 2.0 citation can never be. |
-| licensing: may this text/data cross into pdfce or a public repo? | `project_embeddable_data_licensing.md`; corpus **45**, **60**; extraction **4m-iii**/**4m-iv** |
-| a corpus file and another document disagree | corpus **50** — the corpus's own one-line compression is usually the ancestor; quote the row, never compress it |
-| filing mechanics / `index.md` upkeep | corpus **61h**, **63j**, **73e**. **Recount `ls <subdir>/<prefix>*.md \| wc -l` before touching a count cell. Run every search recipe you add.** |
+| licensing: may this text/data cross into pdfcer or a public repo? | `project_embeddable_data_licensing.md`; corpus **45**, **60**; extraction **4m-iii**/**4m-iv** |
+| a corpus file and another document disagree | corpus **50** — the corpus's own one-line compression is usually the ancestor |
+| filing mechanics / `index.md` upkeep | corpus **61h**, **63j**, **73e**, **79k** |
 
-## Standing cautions
+## Standing cautions — headlines only; the evidence is in the cited item
 
-**Mechanics of editing this corpus**
+**Mechanics**
 
-- **Use `Write` for corpus files and multi-line scripts, then run them** — Bash heredocs break on spec punctuation at file size.
-- **★ CORRECTED 2026-09-10: ~~THREE corpus files are CRLF~~ — MEASURED 43 OF 192 (~22%), and the set GROWS as files are added.** The old named-three list (`LEGAL_NOTE.md`, `12.5.6.md`, `12.5.3.md`) invited exactly the shortcut it warned against; `12.5.2.md` was CRLF and not on it. **Never rely on a list — run `file <path>` on every file you are about to write, or better, detect per-file in the patch script (`b'\r\n' in raw`) and round-trip.** A Python patch needs `newline=""`/`"rb"` **and** CRLF in the match strings. **Check the diff hunk count after**: a whole-file diff on a one-line edit is the tell. Corpus **71f**, **72g**, **73e**.
-- **`assert s.count(old) == 1` before every `str.replace`** — a silent no-op replace is how the index drifts. Use typographic quotes inside triple-quoted markdown payloads. Corpus **70j**.
-- **After inserting a heading inside a clause, re-print the heading map** (`grep -n "^## \|^### "`) — an insert can orphan the parent's remaining bullets. Corpus **71f**.
-- **A staged SOURCE costs TWO registrations** (`LEGAL_NOTE.md`'s table **and** `index.md`'s `_sources\` inventory); a new licence *tier* costs three. Corpus **68h**, **57.10**.
-- **Strip HTML tags before grepping an errata clause page**, and run a positive control — a raw `grep -o` returned **0 for a string that was present**. Corpus **69i**.
+- **`Write` the patch script, then run it** — Bash heredocs break on spec punctuation at file size.
+- **~22% of corpus files are CRLF and the set GROWS. Never rely on a list** — detect per file (`b'\r\n' in raw`), round-trip, and check the diff hunk count after. Corpus **71f**, **72g**, **73e**.
+- **`assert s.count(old) == 1` before every `str.replace`.** Corpus **70j**.
+- **Re-print the heading map after inserting a heading inside a clause.** Corpus **71f**.
+- **A staged SOURCE costs TWO registrations** (`LEGAL_NOTE.md` + `index.md`); a new licence tier costs three. Corpus **68h**, **57.10**.
+- **Strip HTML tags before grepping an errata page, and run a positive control.** Corpus **69i**.
+- **Recount `ls <subdir>/<prefix>*.md | wc -l` before touching an index count cell. Run every search recipe you add.**
 
 **Reasoning traps**
 
-- **★★ A DERIVED value is not protected by "cite your source" — the source is silent on it. NOW THREE OCCURRENCES; NEVER HAND-COMPUTE ONE INTO A FILE.** 2026-09-13: I wrote `mi` = `2.1919192e-7` into a new file’s `C_first` column; the true value is **`2.1920595e-7`** (`1/4561920`) — a plausible-looking repeating-digit fabrication, caught only by running `Fraction`-exact arithmetic before filing. Corpus **78f**. ISO 32000-1 Table 165 prints no integers at all; the corpus's `Value` column was computed, and bit 10 read `1024` (`2^10`) instead of **512** (`2^(10-1)`) for six weeks, ten lines below the file's own verbatim 1-based rule. **Label derived columns and state their invariant in the file.** Corpus **73a**.
-- **Bit-numbering convention is per-SOURCE:** ISO 32000 = 1-based (`2^(N-1)`); OpenType = 0-based (`2^N`); observed bitfields get named by their mask. A naive checker flags the correct file. Corpus **73b**.
-- **`X is required` ⇏ `a non-X encoding is rejected`** whenever the CONSUMER does not validate canonicity. MEASURED: an out-of-order `signedAttrs` `SET OF` signed over exactly those bytes is ACCEPTED by OpenSSL 1.1.1s and pdfce; the DER-sort rule is a **BUILDER** obligation. **And the leniency is the SAFER rule** — reordering *after* signing IS rejected, which a re-canonicalising verifier would normalise away. Corpus **71a**/**71b**.
-- **A 1→0 phrase count proves the SENTENCE was deleted, never that the RULE was.** Before writing "nothing replaces it", grep the CONCEPT in the target edition. Corpus **65g**, **66f**, **70b**.
-- **A deleted TABLE whose rule survives verbatim in prose is a RESTATEMENT removed.** Say which of the two you measured. Corpus **66f**.
-- **★ "UNREFERENCED" IS NOT A PDF CONCEPT.** `garbage`/`unreferenced`/`unused object` = **0 hits in BOTH editions**; §7.5.7 calls an unreferenced object stream normal and **Annex F.3.3 `shall`-REQUIRES** an unreferenced linearization dictionary; §7.3.10 makes the reverse legal too. **PDF has no reachability invariant in either direction.** Corpus **75c**.
-- **★★ A `shall` BINDS A PARTY. Ask WHO before asking HOW STRONG.** ISO 32000-1 §2.1/§2.3 address the FILE and the WRITER; §2.2 scopes the READER's duty to *conforming files*; clause 1 excludes conformance validation. ⇒ **`the standard says shall not` ⇏ `a reader must refuse`.** The errata maintainer, in OPEN issue #199: *"how that PDF is to be interpreted is beyond the scope of ISO 32000."* Corpus **74a**/**74b**/**74d**.
-- **★ A NOTE THAT PRESUPPOSES A PRACTICE IS EVIDENCE FOR IT.** §12.5.5 NOTE 1 regulates blending over *"an annotation that is **drawn without using an appearance stream**"* and calls such drawing ordinary — so *"the clause states no rule"* and *"the clause is silent on the practice"* are DIFFERENT answers, and the second was false. **And SCOPE the fallback sentence a project leans on**: NOTE 3's *"displaying nothing"* answers a dangling `/AS`, never a missing `/AP`. Corpus **76e**/**76f**.
-- **A critical NOTE is not a prohibition** — the `shall` governs; the NOTE says which permitted branch the standard prefers. Corpus **67e**.
-- **A test suite's expected results measure a DEVICE, not a rule.** Check the suite's LICENCE before citing it as more than argument. Corpus **68f**.
-- **A search-engine SUMMARY of a paywalled standard is a lead, not a source.** File `NEEDS VERIFICATION`, name the ancestor you *can* cite. Corpus **68g**.
-- **A committee's own free "application notes" can read like a standard and disclaim being one** — quote the disclaimer beside the quotation, and check it is about YOUR axis. Corpus **68i**.
-- **An OPEN pdf-issues issue, and a `wontfix` CLOSED one, are both stronger than a self-measured silence.** Search the API by KEY NAME. Corpus **70g**.
-- **Grade a "no default stated" silence** by counting `Default value:` document-wide AND checking whether the later edition REWROTE the sentence. Corpus **69g**.
-- **A corpus sentence about what pdfce IS is a DATED MEASUREMENT.** Strike-through with a dated correction; never delete. Corpus **67d**.
-- **A shipped SETTING has a scope** (model / edition / device class), and a shared code path leaks it. A register entry citing two tables jointly is a scope smell. Corpus **64e**, **61e**, **54**.
+- **★★ NEVER HAND-COMPUTE A DERIVED VALUE INTO A FILE — three occurrences now.** "Cite your source" does not protect it; the source is silent on that axis. Label derived columns and state their invariant. Corpus **73a**, **78f**.
+- **Bit-numbering is per SOURCE**: ISO 32000 = 1-based (`2^(N-1)`); OpenType = 0-based. Corpus **73b**.
+- **★★ A `shall` BINDS A PARTY — ask WHO before HOW STRONG.** ISO 32000-1 §2.1/§2.3 bind the FILE and WRITER; §2.2 scopes the READER's duty to *conforming files*; clause 1 excludes conformance validation. `shall not` ⇏ a reader must refuse. Corpus **74a**/**74b**/**74d**.
+- **★ "the CLAUSE excludes/states nothing" ⇏ "the STANDARD does".** Corpus **79e**, **76e**.
+- **★ "X shall be determined by entry E" is NOT silence about X** — read E's table row, including its `Default value:`. Corpus **79b**.
+- **A 1→0 phrase count proves the SENTENCE was deleted, never that the RULE was.** Corpus **65g**, **66f**, **70b**, **79d**.
+- **A NOTE THAT PRESUPPOSES A PRACTICE IS EVIDENCE FOR IT**; and SCOPE the fallback sentence a project leans on. Corpus **76e**/**76f**.
+- **A critical NOTE is not a prohibition.** Corpus **67e**.
+- **"UNREFERENCED" IS NOT A PDF CONCEPT** — 0 hits both editions; Annex F.3.3 `shall`-REQUIRES an unreferenced object. Corpus **75c**.
+- **`X is required` ⇏ `a non-X encoding is rejected`** when the consumer does not validate canonicity — and the leniency is often SAFER. Corpus **71a**/**71b**.
+- **Modality is per-SUBTYPE, per-EDITION and per-BULLET.** Corpus **76b**, **79f**.
+- **A clause number is not a key across editions; neither is a table number.** Put the map in the file's §0. Corpus **63c**, **52**, **62h**, **70i**; range-dependent shift **65f**.
+- **A one-way cross-reference is a DEFECT, not a contradiction** — check for the three enumeration formulas before calling it one. Corpus **79g**, **69c**.
+- **A test suite's expected results measure a DEVICE, not a rule** (check its LICENCE); a search-engine summary of a paywalled standard is a LEAD; a committee's free "application notes" can disclaim being normative. Corpus **68f**, **68g**, **68i**.
+- **An OPEN `pdf-issues` issue, and a `wontfix` CLOSED one, both beat a self-measured silence.** Search by KEY NAME and by the dispatch's QUESTION (`in:title`). Corpus **70g**, **77a**.
+- **A corpus sentence about what pdfcer IS is a DATED MEASUREMENT** — strike through with a dated correction, never delete; and re-measure the WHOLE "corrections owed" section, not only the rows you were told about. Corpus **67d**, **79j**.
+- **A shipped SETTING has a scope**; a register entry citing two tables jointly is a scope smell. Corpus **64e**, **61e**, **54**.
 - **A scope-exclusion banner is an untested claim about material its author deliberately did not read.** Corpus **58**.
-- **A "no free route exists" negative has a scope: the method you tried, not the resource.** It can expire in a day. Corpus **57**; extraction **4g** vs **4h**.
-- **A clause number is not a key across editions; neither is a table number.** 1.7 §12.6.4.10 = Hide, 2.0 §12.6.4.10 = Movie. Clause 12.8 collides on BOTH axes — put the map in the file's §0. Corpus **63c**, **52**, **62h**, **70i**.
-- **A cross-edition table shift proven over a RANGE is a measurement with a DOMAIN**: `−1` through Table 70, `−2` by Table 89 and 145 — the offset GROWS. Corpus **65f**.
-- **A clause's EXAMPLEs are normative-adjacent**; 2.0 can WEAKEN an example by swapping one word — grep the discriminating TOKEN, not the sentence. Corpus **64a**/**64b**.
-- **A `text string` type is not finished at the syntax**: strings are ENCRYPTED and names are not (§7.6); §7.9.2 encoding makes raw-byte comparison wrong; no `shall be one of` ⇒ an unlisted value is *unhandled*, not *illegal*, so an `Other(Vec<u8>)` escape is spec-grounded. Corpus **72e**.
-- **When a dispatch APOLOGISES for a scope cut, check whether the standard ENDORSES it** — promoting the cut to a spec-correct decision beat the negative result. Corpus **72d**.
-- **A KEY-NAME sweep of a container is the whole job when a verb MUTATES that container.** Corpus **69a**/**69b**.
-- **The ASN.1 layer is a corpus dependency and it is FREE**: ITU-T X.690 (02/2021) = ISO/IEC 8825-1:2021, staged, no TIES gate. **§11.6 = `SET OF` ascending-octet order; §10 (DER) imports clause 11; §10.3 is a DECOY** (orders a SET by TAG). Cite X.690 whenever a file says *"DER requires…"*. Extraction **4u**; corpus **71c**.
+- **A "no free route exists" negative has a scope: the METHOD you tried.** Corpus **57**.
+- **A clause's EXAMPLEs are normative-adjacent** — grep the discriminating TOKEN. Corpus **64a**/**64b**.
+- **The ASN.1 layer is a corpus dependency and it is FREE** — ITU-T X.690 staged; §11.6 is the `SET OF` order rule, §10.3 is a DECOY. Extraction **4u**; corpus **71c**.
 
 **Filing judgment**
 
-- **A re-dispatch of an ALREADY-ANSWERED question is still worth real work if it carries a new measurement — PROMOTE the existing entry, don't write a parallel one.** A promotion costs 4–7 edits and **zero recounts**. **When a verdict's OUTCOME survives but its REASONING dies, AMEND — and splice the redirect into the TOP of the superseded section, not only the bottom.** Corpus **66b**, **66g**, **67g**.
-- **Audit blockquote-block LENGTH mechanically before filing a `spec: multi` file**, then attribute every block ≥6 lines to its source tier. Corpus **70f**.
-- **★ THE FLAT-GREP CHECK HAS NOW FAILED TWICE (72g, 76j) — 5 of 15 quotations returned 0.** Cause both times: **inline `**` emphasis INSIDE the quoted sentence**. **Standard fix: end the file with a `## FLAT-GREPPABLE QUOTATION INDEX` holding unmarked copies grouped by source clause**, and run the check BEFORE filing.
-- **★ THIS MEMORY DIRECTORY IS INSIDE THE PUBLIC `KenM76/pdfce` REPO, so the corpus's tier rules bind what you write HERE.** `licensed_primary_private_rag` (ISO 32000-2) and `free_iso_preview_primary` (iTeh extracts) are **clause-reference-and-paraphrase only in memory**; the verbatim wording lives in `D:\Dev\Rag-Specialized\PDF_Spec\`, outside the repo. `free_primary` (ISO 32000-1, ITU-T, ETSI, W3C, Adobe) and `free_secondary_paraphrase` may be quoted here. **Items 57.2/57.3 predate this note and DO carry short ISO 15930 preview quotations — flagged; scrub on the next maintenance pass.** Corpus **66c**, **68**.
+- **A re-dispatch of an answered question is worth real work if it carries a new measurement — PROMOTE the existing entry, don't write a parallel one. When the OUTCOME survives but the REASONING dies, AMEND, and splice the redirect into the TOP of the superseded section.** Corpus **66b**, **66g**, **67g**.
+- **Audit blockquote-block LENGTH mechanically before filing a `spec: multi` file.** Corpus **70f**.
+- **★ THE FLAT-GREP CHECK HAS FAILED THREE TIMES (72g, 76j, 79k).** Standard fix: end every file with a `## FLAT-GREPPABLE QUOTATION INDEX` of unmarked copies, and run the check BEFORE filing. Two causes: inline `**` inside a quoted sentence, and `pdftotext -layout` interleaving a table's KEY column into the VALUE column — **verify a miss on HALF the sentence before doubting the quotation.**
+- **★ THIS MEMORY DIRECTORY IS INSIDE THE PUBLIC `KenM76/pdfcer` REPO.** `licensed_primary_private_rag` (ISO 32000-2) and `free_iso_preview_primary` (iTeh) are **clause-reference-and-paraphrase only here**; the verbatim wording stays in `D:\Dev\Rag-Specialized\PDF_Spec\`. `free_primary` (ISO 32000-1, ITU-T, ETSI, W3C, Adobe) and `free_secondary_paraphrase` may be quoted. **Items 57.2/57.3 predate this note and carry short ISO 15930 preview quotations — scrub on the next maintenance pass.** Corpus **66c**, **68**.
+- **The crate rename `pdfce-core` → `pdfcer-core` has NOT propagated** through older files' `pdfcer_relevance:` frontmatter. Its own dispatch. Corpus **79j**.
