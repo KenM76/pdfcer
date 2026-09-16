@@ -607,6 +607,15 @@ pub enum CommandKind {
         /// `true` when the action was REMOVED, leaving the button inert.
         removed: bool,
     },
+    /// A field's `/AA` format, validate or calculate script was set or
+    /// cleared (`Pass 308.6`). ONE undoable command, `/CO` included. See
+    /// [`EditSession::set_field_format`].
+    SetFieldScript {
+        /// Which `/AA` key, as a stable token.
+        trigger: &'static str,
+        /// `true` when the entry was REMOVED rather than written.
+        removed: bool,
+    },
     /// A check-box or radio-button field's state was selected (Pass 7,
     /// §12.7.4.2.3): the field's `/V` and the widgets' `/AS` set together,
     /// with no appearance regeneration (state selection, not generation).
@@ -6659,6 +6668,71 @@ pub enum EditError {
     ButtonActionWrongFieldType {
         /// The fully-qualified field name.
         name: String,
+    },
+    /// A field kind Acrobat does not offer this script tab for
+    /// (`Pass 308.6`, request `G024`).
+    ///
+    /// # ★ pdfcer is AUTHORING this rule, not restating one
+    ///
+    /// ISO 32000-1 constrains neither: §12.7.4 gives every field type an
+    /// `/AA`, and the standard has nothing to say about which *helper* may sit
+    /// on which *kind*. The constraint is Acrobat's product behaviour, sourced
+    /// to `Acrobat_Features/forms__format_validate_calculate_tab_availability.md`,
+    /// and the consuming shell asked to be refused rather than trusted to know
+    /// which of eight kinds each tab applies to.
+    ///
+    /// Text and **combo** choice fields carry all three. A **list box** carries
+    /// none — which is the one worth saying out loud, because it is a `/Ch`
+    /// like the combo box and the guess everyone makes is that it behaves the
+    /// same.
+    #[error(
+        "{name} is {article} {kind}, and Acrobat does not offer a {trigger} script for that kind of field -- only text fields and combo (drop-down) choice fields carry format, validate and calculate scripts. A list box carries none of the three; it has a selection-change filter instead"
+    )]
+    FieldScriptWrongFieldType {
+        /// The fully-qualified field name.
+        name: String,
+        /// `"a"` or `"an"`, so the sentence reads.
+        article: &'static str,
+        /// The kind in the operator's words -- "list box", "check box".
+        kind: &'static str,
+        /// Which tab was asked for: `format`, `validate` or `calculate`.
+        trigger: &'static str,
+    },
+    /// A calculation operand naming a field that is not there, or is not a
+    /// terminal field (`Pass 308.6`).
+    ///
+    /// Refused at author time because the alternative is a calculation that
+    /// silently contributes zero — a total that is wrong and looks exactly
+    /// like a total that is right. The same posture
+    /// [`Self::ButtonActionHideTargetNotTerminal`] takes for a hide target,
+    /// and for the same reason: a grouping node is not a value.
+    #[error(
+        "the calculation for {name} names {operand:?}, which {why}. Every operand must be a terminal field that holds a value -- a calculation that names something else contributes zero to the total and reports nothing"
+    )]
+    FieldScriptOperandUnusable {
+        /// The fully-qualified name of the field being given a calculation.
+        name: String,
+        /// The operand as written, lossily decoded for the message only.
+        operand: String,
+        /// `"is not a field in this document"` / `"is a grouping node, not a
+        /// terminal field"`.
+        why: &'static str,
+    },
+    /// A helper that cannot be written back as script text (`Pass 308.6`).
+    ///
+    /// The only reachable case today is an
+    /// [`AdvisoryHelper::Keystroke`](crate::form_script::AdvisoryHelper::Keystroke)
+    /// handed to the validate verb: the classifier keeps such a helper's NAME
+    /// and discards its arguments, so re-emitting it would drop the filter
+    /// while reporting success. See
+    /// [`form_script::emit`](crate::form_script::emit).
+    #[error("pdfcer cannot write that script for {name}: {why}")]
+    FieldScriptNotEmittable {
+        /// The fully-qualified field name.
+        name: String,
+        /// The refusal, from
+        /// [`NotEmittable::describe`](crate::form_script::emit::NotEmittable::describe).
+        why: &'static str,
     },
     /// A `/SubmitForm` or `/URI` destination pdfcer will not author
     /// (`Pass 183.0`).
@@ -19621,6 +19695,88 @@ pub struct HideDisclosure {
     /// names the button does nothing, and that is exactly the kind of silence
     /// an operator discovers by clicking.
     pub targets_without_widgets: Vec<String>,
+}
+
+/// What one `/AA` script verb did, and everything about it the operator must
+/// be told (`Pass 308.6`, request `G024`).
+///
+/// # Why this returns a struct rather than `()`
+///
+/// Three of these are facts pdfcer knows and the operator cannot see: that a
+/// script was **displaced**, that a keystroke filter was written **beside**
+/// the format they asked for, and that the document's calculation ORDER
+/// changed. None is an error; none is discoverable from the result of a
+/// successful call. That combination is what a disclosure is for (rule 4).
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct FieldScriptChange {
+    /// The fully-qualified field name, echoed.
+    pub name: String,
+    /// Which `/AA` key was written, as
+    /// [`Trigger::token`](crate::form_script::Trigger::token).
+    pub trigger: &'static str,
+    /// What was there before, classified — `None` when the entry was absent.
+    ///
+    /// ★ **The disclosure that matters most.** A field whose `/F` is
+    /// [`ScriptClass::Custom`](crate::form_script::ScriptClass::Custom) is
+    /// carrying a script pdfcer cannot describe, and an operator who opened a
+    /// dialog to change the decimal places has not asked to delete somebody
+    /// else's code. pdfcer does not refuse — the operator may genuinely mean
+    /// it — but it says what it displaced, so a shell can ask first.
+    pub replaced: Option<crate::form_script::ScriptClass>,
+    /// What is there now. `None` when the entry was cleared.
+    pub applied: Option<crate::form_script::ScriptClass>,
+    /// Whether the paired `AF*_Keystroke` filter in `/AA` `/K` was written or
+    /// removed alongside a format.
+    ///
+    /// Acrobat's Format tab emits **two** scripts; a file with one and not the
+    /// other is not one Acrobat authored. See
+    /// [`emit::keystroke_twin`](crate::form_script::emit::keystroke_twin).
+    pub keystroke_paired: bool,
+    /// What happened to the AcroForm `/CO` calculation-order array, when the
+    /// verb touched it.
+    pub calculation_order: Option<CalcOrderChange>,
+}
+
+/// What a calculation edit did to the document's `/CO` array (§12.7.3).
+///
+/// # Why `/CO` is part of this verb and not a separate one
+///
+/// A calculate action that is not in `/CO` is a calculation Acrobat will not
+/// run, or will run in the wrong order. Writing `/AA` `/C` and stopping would
+/// produce a field that looks calculated in every inspector and computes
+/// nothing — the exact shape of defect `Pass 308.4` and `Pass 308.5` closed on
+/// other keys, which is why it is not being left for a later request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct CalcOrderChange {
+    /// The field's 0-based position in `/CO` after the edit, when it is in it.
+    pub position: Option<usize>,
+    /// How many entries `/CO` holds afterwards.
+    pub entries: usize,
+    /// Whether the document had no `/CO` before and now has one.
+    ///
+    /// Worth disclosing because it changes a document-wide property: a form
+    /// with no calculation order acquires one, and every later calculation is
+    /// ordered relative to this field.
+    pub array_created: bool,
+    /// Whether `/CO` was removed entirely, because clearing this calculation
+    /// emptied it.
+    ///
+    /// pdfcer does not leave an empty `/CO` behind — the delete path has never
+    /// *created* one (its prune is an `and_then` over the original), and a
+    /// document that never had the array should not keep an empty one it
+    /// gained and lost.
+    pub array_removed: bool,
+    /// ★ **The order is APPEND, and Acrobat's own is not reproducible.**
+    ///
+    /// `Acrobat_Features/forms__calculation_validation_javascript.md` records
+    /// that Acrobat silently reorders `/CO` on edit and advises re-checking
+    /// before distributing — there is no documented rule to match. So pdfcer
+    /// appends deterministically and says so, which is a divergence upward
+    /// rather than a parity gap. If this field must compute before another,
+    /// reorder deliberately.
+    pub appended_at_end: bool,
 }
 
 /// What [`EditSession::set_button_action`] did (`Pass 182.0`).
@@ -36935,6 +37091,440 @@ impl EditSession {
         };
         let name = String::from_utf8_lossy(subtype.as_bytes()).into_owned();
         Ok(read_button_action(&g, action, &name))
+    }
+
+    /// Set or clear a field's **format** script — `/AA` `/F`, plus the paired
+    /// `AF*_Keystroke` filter in `/AA` `/K` (`Pass 308.6`, request `G024`).
+    ///
+    /// `None` clears both. The helper is one of
+    /// [`FormatHelper`](crate::form_script::FormatHelper)'s six variants —
+    /// **there is no `&str`-taking route into `/AA`**, and that is the
+    /// property rather than a limitation: an operator cannot ask pdfcer for a
+    /// script pdfcer cannot also read back and describe.
+    ///
+    /// # ★ The pair is written here, not left to the caller
+    ///
+    /// Acrobat's Format tab emits two scripts — the display formatter into
+    /// `/F` and an input filter of the same family into `/K`, carrying the
+    /// same arguments. A file with one and not the other is not one Acrobat
+    /// authored, and the next person to open its Format dialog sees a format
+    /// with no input filter. That is a property of what a conforming producer
+    /// owes, not a choice a shell should have to know about, so it lives here.
+    /// [`FieldScriptChange::keystroke_paired`] says it happened.
+    ///
+    /// # ★★ A format NEVER touches `/V`
+    ///
+    /// `AFNumber_Format` makes `1234.56` read as `$1,234.56`; the stored value
+    /// is still `1234.56`. [`form_script::format`](crate::form_script::format)
+    /// is display-only by design and this verb is a new chance to break that,
+    /// so it writes `/AA` and nothing else. A shell showing a formatted value
+    /// owes the operator the stored one beside it whenever they differ — the
+    /// *"inference the operator cannot see"* half of rule 4.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::FieldScriptWrongFieldType`] for any kind but a text field
+    /// or a **combo** choice field; plus the encryption and certification
+    /// guards.
+    pub fn set_field_format(
+        &mut self,
+        fqn: &str,
+        helper: Option<crate::form_script::FormatHelper>,
+    ) -> Result<FieldScriptChange, EditError> {
+        self.set_field_script(
+            fqn,
+            crate::form_script::Trigger::Format,
+            helper.map(crate::form_script::ScriptClass::Format),
+        )
+    }
+
+    /// Set or clear a field's **validate** script — `/AA` `/V` (`Pass 308.6`).
+    ///
+    /// The only authorable validation is
+    /// [`AdvisoryHelper::RangeValidate`](crate::form_script::AdvisoryHelper::RangeValidate).
+    ///
+    /// # ★ pdfcer writes a constraint it will not ENFORCE, deliberately
+    ///
+    /// Decision 009 §6 classifies validation as advisory: pdfcer's fills are
+    /// operator-reviewed, so a range is **disclosed**, never used to reject
+    /// input. Writing one is therefore authoring a constraint for *other*
+    /// readers — which is exactly what an operator building a form for
+    /// distribution is asking for, and is not a promise pdfcer itself starts
+    /// keeping.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::FieldScriptNotEmittable`] for
+    /// [`AdvisoryHelper::Keystroke`](crate::form_script::AdvisoryHelper::Keystroke):
+    /// the classifier keeps such a helper's name and discards its arguments,
+    /// so re-emitting it would drop the filter while reporting success. Set the
+    /// format instead, which writes the matching filter as a pair. Plus
+    /// [`EditError::FieldScriptWrongFieldType`] and the usual guards.
+    pub fn set_field_validation(
+        &mut self,
+        fqn: &str,
+        helper: Option<crate::form_script::AdvisoryHelper>,
+    ) -> Result<FieldScriptChange, EditError> {
+        self.set_field_script(
+            fqn,
+            crate::form_script::Trigger::Validate,
+            helper.map(crate::form_script::ScriptClass::Advisory),
+        )
+    }
+
+    /// Set or clear a field's **calculate** script — `/AA` `/C`, **and its
+    /// entry in the AcroForm `/CO` calculation order** (`Pass 308.6`).
+    ///
+    /// # ★ `/CO` is part of this verb, not a later one
+    ///
+    /// A calculate action absent from `/CO` is a calculation Acrobat will not
+    /// run, or will run in the wrong order. Writing `/AA` `/C` alone would
+    /// produce a field that looks calculated in every inspector and computes
+    /// nothing — the same shape of defect `Pass 308.4` and `Pass 308.5` closed
+    /// on `/Q` and `/MK` `/R`, and not one to ship a third time on purpose.
+    /// Set appends and clear prunes; [`CalcOrderChange`] reports both, plus
+    /// whether the array was created or removed.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::FieldScriptOperandUnusable`] when an operand names no
+    /// field, or names a grouping node — refused at author time because a
+    /// calculation that names something else contributes zero, and a total
+    /// missing an operand is wrong rather than approximate. Plus
+    /// [`EditError::FieldScriptWrongFieldType`] and the usual guards.
+    pub fn set_field_calculation(
+        &mut self,
+        fqn: &str,
+        helper: Option<crate::form_script::CalcHelper>,
+    ) -> Result<FieldScriptChange, EditError> {
+        self.set_field_script(
+            fqn,
+            crate::form_script::Trigger::Calculate,
+            helper.map(crate::form_script::ScriptClass::Calculate),
+        )
+    }
+
+    /// The one implementation behind the three `set_field_*` verbs.
+    ///
+    /// One function rather than three, on R92's reasoning: the preflight, the
+    /// `/AA` patch, the displaced-script disclosure and the commit are
+    /// identical for all three triggers, and three copies would be three
+    /// chances for one of them to stop refusing something the others refuse.
+    /// What differs — the keystroke pair, the `/CO` entry — is switched on the
+    /// trigger in one place each, where the difference is visible.
+    fn set_field_script(
+        &mut self,
+        fqn: &str,
+        trigger: crate::form_script::Trigger,
+        class: Option<crate::form_script::ScriptClass>,
+    ) -> Result<FieldScriptChange, EditError> {
+        use crate::form_script::{ScriptClass, Trigger, emit};
+
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(EditError::DocumentEncrypted);
+        }
+        self.check_certification()?;
+
+        // Emitted BEFORE anything is resolved, so an unwritable helper costs
+        // nothing. The only reachable case is a `Keystroke` handed to the
+        // validate verb -- see `form_script::emit`.
+        let js = match &class {
+            Some(c) => Some(
+                emit::emit(c).map_err(|why| EditError::FieldScriptNotEmittable {
+                    name: fqn.to_owned(),
+                    why: why.describe(),
+                })?,
+            ),
+            None => None,
+        };
+
+        let Some(form) = forms::parse_acroform(&self.graph()) else {
+            return Err(EditError::FieldNotFound {
+                name: fqn.to_owned(),
+            });
+        };
+        let Some(field) = form
+            .fields
+            .iter()
+            .find(|f| f.fully_qualified_name == fqn)
+            .cloned()
+        else {
+            return Err(EditError::FieldNotFound {
+                name: fqn.to_owned(),
+            });
+        };
+
+        // ★ The KIND gate. pdfcer is authoring this rule rather than restating
+        // one -- ISO 32000-1 gives every field type an `/AA` and says nothing
+        // about which helper may sit on which kind. The constraint is
+        // Acrobat's, sourced to
+        // `Acrobat_Features/forms__format_validate_calculate_tab_availability.md`.
+        //
+        // A LIST BOX is the one worth reading twice: it is a `/Ch` exactly as
+        // a combo box is, and it carries NONE of the three.
+        if let Some((article, kind)) = Self::script_tab_refusal(&field) {
+            return Err(EditError::FieldScriptWrongFieldType {
+                name: fqn.to_owned(),
+                article,
+                kind,
+                trigger: trigger.token(),
+            });
+        }
+
+        // Every operand must name a terminal field. Checked before any write,
+        // so a bad calculation changes nothing.
+        if let Some(ScriptClass::Calculate(crate::form_script::CalcHelper::Simple {
+            operands,
+            ..
+        })) = &class
+        {
+            for operand in operands {
+                let name = String::from_utf8_lossy(operand).into_owned();
+                let why = match form
+                    .fields
+                    .iter()
+                    .find(|f| f.fully_qualified_name.as_bytes() == operand.as_slice())
+                {
+                    None => Some("is not a field in this document"),
+                    Some(f) if f.field_type.is_none() => {
+                        Some("is a grouping node, not a terminal field")
+                    }
+                    Some(_) => None,
+                };
+                if let Some(why) = why {
+                    return Err(EditError::FieldScriptOperandUnusable {
+                        name: fqn.to_owned(),
+                        operand: name,
+                        why,
+                    });
+                }
+            }
+        }
+
+        // `/AA` lives on the FIELD dictionary (§12.7.4 Table 228), not on the
+        // widget -- which is where `set_button_action`'s `/A` goes, and the
+        // difference is real for a Shape-B field whose widgets are separate
+        // objects. `form_script::inventory` reads it off the field, so this
+        // writes where that reads.
+        let Some(Object::Dict(dict)) = self.value(field.id) else {
+            return Err(EditError::NotADictionary {
+                id: field.id,
+                key: "AA",
+            });
+        };
+        let mut updated = dict.clone();
+        let mut aa = updated
+            .get(b"AA")
+            .map(|o| self.graph().resolve(o).clone())
+            .and_then(|o| o.as_dict().cloned())
+            .unwrap_or_default();
+
+        // What is being displaced, classified rather than merely noted: a
+        // shell asking "replace this?" needs to know whether it is about to
+        // delete somebody's unreadable code or pdfcer's own last answer.
+        let replaced = self.classify_aa_entry(&aa, trigger);
+
+        match &js {
+            Some(text) => {
+                aa.insert(
+                    Name::from(trigger.key()),
+                    Object::Dict(Self::javascript_action(text)),
+                );
+            }
+            None => {
+                aa.remove(trigger.key());
+            }
+        }
+
+        // The keystroke pair, written and removed with the format it belongs
+        // to. See `set_field_format`.
+        let keystroke_paired = trigger == Trigger::Format;
+        if keystroke_paired {
+            match &class {
+                Some(ScriptClass::Format(f)) => {
+                    aa.insert(
+                        Name::from(Trigger::Keystroke.key()),
+                        Object::Dict(Self::javascript_action(&emit::keystroke_twin(f))),
+                    );
+                }
+                _ => {
+                    aa.remove(Trigger::Keystroke.key());
+                }
+            }
+        }
+
+        // An `/AA` with nothing left in it goes with the last entry -- a field
+        // that never had one should not keep an empty dictionary it gained and
+        // lost (R33, and the same rule `/MK` follows since `Pass 308.1`).
+        if aa.is_empty() {
+            updated.remove(b"AA");
+        } else {
+            updated.insert(Name::from(b"AA"), Object::Dict(aa));
+        }
+
+        let mut objects = vec![ObjectWrite {
+            id: field.id,
+            before: self.state.get(&field.id).cloned(),
+            after: Some(Object::Dict(updated)),
+        }];
+
+        let calculation_order = if trigger == Trigger::Calculate {
+            Some(self.patch_calculation_order(field.id, class.is_some(), &mut objects)?)
+        } else {
+            None
+        };
+
+        self.commit(Command {
+            kind: CommandKind::SetFieldScript {
+                trigger: trigger.token(),
+                removed: class.is_none(),
+            },
+            objects,
+            removals: Vec::new(),
+            trailer: None,
+        });
+
+        Ok(FieldScriptChange {
+            name: fqn.to_owned(),
+            trigger: trigger.token(),
+            replaced,
+            applied: class,
+            keystroke_paired,
+            calculation_order,
+        })
+    }
+
+    /// A `/S /JavaScript` action dictionary carrying `js` (§12.6.4.16).
+    ///
+    /// The `/JS` value is a **literal string of raw bytes**, which is the form
+    /// `form_script::inventory` reads back as
+    /// `ScriptSource::LiteralString`. Deliberately NOT through
+    /// `encode_text_string`: a UTF-16BE BOM is not valid script text, and the
+    /// classifier would see a `Custom` script where pdfcer had just written a
+    /// helper it knows.
+    fn javascript_action(js: &[u8]) -> Dict {
+        let mut d = Dict::new();
+        d.insert(Name::from(b"Type"), Object::Name(Name::from(b"Action")));
+        d.insert(Name::from(b"S"), Object::Name(Name::from(b"JavaScript")));
+        d.insert(Name::from(b"JS"), Object::String(js.to_vec()));
+        d
+    }
+
+    /// Classify whatever `/AA` entry `trigger` already holds, for the
+    /// displaced-script disclosure.
+    ///
+    /// `None` for an absent entry and for one that is not a `/S /JavaScript`
+    /// action at all — a `/SubmitForm` on `/K` is a real and common thing, and
+    /// reporting it as a displaced *script* would be wrong about what it is.
+    fn classify_aa_entry(
+        &self,
+        aa: &Dict,
+        trigger: crate::form_script::Trigger,
+    ) -> Option<crate::form_script::ScriptClass> {
+        let graph = self.graph();
+        let action = aa.get(trigger.key()).map(|o| graph.resolve(o))?.as_dict()?;
+        if action.get(b"S").and_then(Object::as_name)?.as_bytes() != b"JavaScript" {
+            return None;
+        }
+        // The literal-string form only. A `/JS` stream is legal (§12.6.4.16)
+        // and is read elsewhere; here an unreadable prior entry is reported as
+        // `Custom`, which is the honest answer for "something was there and
+        // pdfcer will not claim to know what".
+        let js = match action.get(b"JS").map(|o| graph.resolve(o)) {
+            Some(Object::String(bytes)) => bytes.clone(),
+            Some(_) => return Some(crate::form_script::ScriptClass::Custom),
+            None => return None,
+        };
+        Some(crate::form_script::classify(&js, trigger))
+    }
+
+    /// Append to or prune from the AcroForm `/CO` array, returning what
+    /// happened.
+    ///
+    /// Mirrors the two existing sites — the paste path's append and the delete
+    /// path's prune — through `acroform_write`, so there is one whole-dict
+    /// write to the AcroForm per command. Two would not compose: the second's
+    /// `before` is built from the pre-command dictionary, so it would discard
+    /// the first.
+    fn patch_calculation_order(
+        &self,
+        field_id: ObjId,
+        setting: bool,
+        objects: &mut Vec<ObjectWrite>,
+    ) -> Result<CalcOrderChange, EditError> {
+        let mut out = CalcOrderChange {
+            position: None,
+            entries: 0,
+            array_created: false,
+            array_removed: false,
+            appended_at_end: false,
+        };
+        let write = self.acroform_write(&mut |af| {
+            let existing: Option<Vec<Object>> = match af.get(b"CO") {
+                Some(Object::Array(a)) => Some(a.clone()),
+                _ => None,
+            };
+            let had = existing.is_some();
+            let mut co = existing.unwrap_or_default();
+            // Idempotent in both directions: a field already in `/CO` is not
+            // added twice, and one that is not in it is not "removed".
+            let at = co.iter().position(|o| o.as_reference() == Some(field_id));
+            if setting {
+                if at.is_none() {
+                    co.push(Object::Reference(field_id));
+                    out.appended_at_end = true;
+                    out.array_created = !had;
+                }
+            } else if let Some(i) = at {
+                co.remove(i);
+            }
+            out.position = co.iter().position(|o| o.as_reference() == Some(field_id));
+            out.entries = co.len();
+            if co.is_empty() {
+                out.array_removed = had;
+                af.remove(b"CO");
+            } else {
+                af.insert(Name::from(b"CO"), Object::Array(co));
+            }
+        })?;
+        objects.push(write);
+        Ok(out)
+    }
+
+    /// Whether this field's KIND bars it from carrying a format, validate or
+    /// calculate script — and the words to say so with.
+    ///
+    /// `None` means it may. Text fields and **combo** choice fields carry all
+    /// three; everything else carries none. Sourced to
+    /// `Acrobat_Features/forms__format_validate_calculate_tab_availability.md`.
+    ///
+    /// ⚠ **Two capabilities Acrobat exposes under other names are refused
+    /// here, knowingly.** A signature field's Format slot survives as its
+    /// *Signed* script — *"run this when signed"*, a different verb wearing the
+    /// same dictionary key — and a barcode's Calculate slot survives as its
+    /// Value script. pdfcer models neither, so refusing is honest today; if
+    /// either is asked for it is a new verb, not a widened gate.
+    fn script_tab_refusal(field: &forms::Field) -> Option<(&'static str, &'static str)> {
+        match field.field_type {
+            Some(forms::FieldType::Text) => None,
+            Some(forms::FieldType::Choice) => {
+                if field.flags.has(forms::FieldFlags::COMBO) {
+                    None
+                } else {
+                    // ★ Not a guess, and the guess everyone makes is the
+                    // opposite: a list box is a `/Ch` exactly as a combo box
+                    // is, and Acrobat offers it none of the three.
+                    Some(("a", "list box"))
+                }
+            }
+            Some(forms::FieldType::Button) => Some(match field.button_kind {
+                Some(forms::ButtonKind::Check) => ("a", "check box"),
+                Some(forms::ButtonKind::Radio) => ("a", "radio button"),
+                _ => ("a", "push button"),
+            }),
+            Some(forms::FieldType::Signature) => Some(("a", "signature field")),
+            None => Some(("a", "grouping node, not a terminal field")),
+        }
     }
 
     /// **Give a push button an action, or take one away** — as one undoable

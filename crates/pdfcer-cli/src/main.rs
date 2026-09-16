@@ -5635,6 +5635,82 @@ enum Command {
         verify_undo: bool,
     },
 
+    /// Set or clear a field's **format**, **validate** or **calculate**
+    /// script -- `/AA` `/F`, `/V`, `/C` (`Pass 308.6`).
+    ///
+    /// ONE of `--format-*`, `--validate-range` or `--calculate` per run, or
+    /// `--clear` with `--trigger` to remove one.
+    ///
+    /// ★ There is NO way to pass arbitrary JavaScript, and that is the point:
+    /// pdfcer authors only the helper calls it can also read back and
+    /// describe. A script it cannot classify is a script it will not write.
+    ///
+    /// Only TEXT fields and COMBO (drop-down) choice fields carry these. A
+    /// list box carries none of the three -- it is a `/Ch` like a combo box
+    /// and Acrobat treats it differently.
+    SetFieldScript {
+        /// Input PDF.
+        input: PathBuf,
+        /// The field's fully-qualified name, as `list-fields` reports it.
+        #[arg(long)]
+        name: String,
+        /// Number format: decimals,separator,negative,currency-style,symbol,prepend.
+        ///
+        /// Six values, comma separated, matching `AFNumber_Format`'s own
+        /// argument order -- e.g. `2,0,0,0,$,true` for two decimals with a
+        /// leading dollar sign. Writes the paired keystroke filter too.
+        #[arg(long, value_name = "N,S,N,C,SYM,BOOL")]
+        format_number: Option<String>,
+        /// Percent format: decimals,separator.
+        #[arg(long, value_name = "N,S")]
+        format_percent: Option<String>,
+        /// Date format by Acrobat's predefined index.
+        #[arg(long, value_name = "INDEX")]
+        format_date: Option<i64>,
+        /// Date format by an explicit format string, e.g. `yyyy-mm-dd`.
+        #[arg(long, value_name = "FORMAT")]
+        format_date_string: Option<String>,
+        /// Time format by Acrobat's predefined index.
+        #[arg(long, value_name = "INDEX")]
+        format_time: Option<i64>,
+        /// Special format selector -- zip, zip+4, phone, social-security.
+        #[arg(long, value_name = "SELECTOR")]
+        format_special: Option<i64>,
+        /// Validate against a numeric range: `MIN..MAX`, `MIN..` or `..MAX`.
+        ///
+        /// ★ pdfcer DISCLOSES a range and never enforces it -- its fills are
+        /// operator-reviewed (decision 009 §6). Writing one authors a
+        /// constraint for other readers, which is what building a form for
+        /// distribution means; it is not a promise pdfcer starts keeping.
+        #[arg(long, value_name = "MIN..MAX")]
+        validate_range: Option<String>,
+        /// Calculate: `OP:field,field,...` where OP is SUM, AVG, PRD, MIN or
+        /// MAX -- case sensitive, as Acrobat writes them.
+        ///
+        /// Also registers the field in the form's `/CO` calculation order,
+        /// appended at the end. A calculation absent from `/CO` is one Acrobat
+        /// will not run.
+        #[arg(long, value_name = "OP:FIELDS")]
+        calculate: Option<String>,
+        /// REMOVE the script named by `--trigger`.
+        #[arg(long, requires = "trigger")]
+        clear: bool,
+        /// Which script `--clear` removes: format, validate or calculate.
+        ///
+        /// Clearing a format removes its paired keystroke filter too.
+        #[arg(long, value_name = "format|validate|calculate")]
+        trigger: Option<String>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Re-open the saved file and verify the undo entry round-trips.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+
     /// **Move a markup, link, redaction-mark, stamp or note annotation** by a
     /// delta in points (`Pass 149.0`).
     ///
@@ -11430,6 +11506,39 @@ fn run() -> ExitCode {
             output,
             mode,
         } => cmd_move_widget(&input, &name, index, dx, dy, &output, mode),
+        Command::SetFieldScript {
+            input,
+            name,
+            format_number,
+            format_percent,
+            format_date,
+            format_date_string,
+            format_time,
+            format_special,
+            validate_range,
+            calculate,
+            clear,
+            trigger,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_set_field_script(&SetFieldScriptArgs {
+            input: &input,
+            name: &name,
+            format_number: format_number.as_deref(),
+            format_percent: format_percent.as_deref(),
+            format_date,
+            format_date_string: format_date_string.as_deref(),
+            format_time,
+            format_special,
+            validate_range: validate_range.as_deref(),
+            calculate: calculate.as_deref(),
+            clear,
+            trigger: trigger.as_deref(),
+            output: &output,
+            mode,
+            verify_undo,
+        }),
         Command::SetButtonAction {
             input,
             name,
@@ -32924,6 +33033,274 @@ fn parse_mk_colour(raw: &str) -> Option<pdfcer_core::forms::MkColor> {
         [c, m, y, k] => Some(MkColor::Cmyk(*c, *m, *y, *k)),
         _ => None,
     }
+}
+
+/// Borrowed argument bundle for [`cmd_set_field_script`] (clippy arg-count).
+struct SetFieldScriptArgs<'a> {
+    input: &'a Path,
+    name: &'a str,
+    format_number: Option<&'a str>,
+    format_percent: Option<&'a str>,
+    format_date: Option<i64>,
+    format_date_string: Option<&'a str>,
+    format_time: Option<i64>,
+    format_special: Option<i64>,
+    validate_range: Option<&'a str>,
+    calculate: Option<&'a str>,
+    clear: bool,
+    trigger: Option<&'a str>,
+    output: &'a Path,
+    mode: SaveMode,
+    verify_undo: bool,
+}
+
+/// `set-field-script` -- author a field's `/AA` format, validate or calculate
+/// entry (`Pass 308.6`, request `G024`).
+///
+/// ## Contract
+///
+/// - Emits one `set-field-script ...` line carrying `trigger=`, `applied=`,
+///   `replaced=`, `keystroke=` and, for a calculation, `co_position=` /
+///   `co_entries=`, then defers the exit code to [`finish_edit`].
+/// - **`replaced=` is the line that matters.** It names what was displaced, so
+///   a script pdfcer could not describe is not overwritten silently. `-` means
+///   the trigger was empty.
+/// - Exactly one helper argument per run, or `--clear --trigger`. More than
+///   one is refused rather than prioritised: there is no sensible precedence
+///   between two formats, and picking one would write a script the operator
+///   did not choose.
+fn cmd_set_field_script(args: &SetFieldScriptArgs<'_>) -> u8 {
+    use pdfcer_core::form_script::{AdvisoryHelper, FormatHelper};
+
+    // Count the helper arguments before anything opens the file, so a
+    // contradictory command line costs nothing.
+    let chosen = usize::from(args.format_number.is_some())
+        + usize::from(args.format_percent.is_some())
+        + usize::from(args.format_date.is_some())
+        + usize::from(args.format_date_string.is_some())
+        + usize::from(args.format_time.is_some())
+        + usize::from(args.format_special.is_some())
+        + usize::from(args.validate_range.is_some())
+        + usize::from(args.calculate.is_some())
+        + usize::from(args.clear);
+    if chosen != 1 {
+        eprintln!(
+            "pdfcer: set-field-script takes exactly one of --format-number, --format-percent, --format-date, --format-date-string, --format-time, --format-special, --validate-range, --calculate, or --clear --trigger <t>; {chosen} were given"
+        );
+        return exit::RUNTIME_ERROR;
+    }
+
+    let format = if let Some(raw) = args.format_number {
+        match parse_number_format(raw) {
+            Some(f) => Some(f),
+            None => {
+                eprintln!(
+                    "pdfcer: --format-number {raw:?} -- expected six comma-separated values: decimals,separator,negative,currency-style,symbol,prepend (e.g. 2,0,0,0,$,true)"
+                );
+                return exit::RUNTIME_ERROR;
+            }
+        }
+    } else if let Some(raw) = args.format_percent {
+        let parts: Vec<&str> = raw.split(',').collect();
+        match parts.as_slice() {
+            [d, sep] => match (d.trim().parse(), sep.trim().parse()) {
+                (Ok(decimals), Ok(separator_style)) => Some(FormatHelper::Percent {
+                    decimals,
+                    separator_style,
+                }),
+                _ => None,
+            },
+            _ => None,
+        }
+        .or_else(|| {
+            eprintln!("pdfcer: --format-percent {raw:?} -- expected decimals,separator");
+            None
+        })
+    } else {
+        args.format_date
+            .map(|index| FormatHelper::Date { index })
+            .or_else(|| {
+                args.format_date_string.map(|f| FormatHelper::DateEx {
+                    format: f.as_bytes().to_vec(),
+                })
+            })
+            .or_else(|| args.format_time.map(|index| FormatHelper::Time { index }))
+            .or_else(|| {
+                args.format_special
+                    .map(|selector| FormatHelper::Special { selector })
+            })
+    };
+    if format.is_none() && (args.format_percent.is_some() || args.format_number.is_some()) {
+        return exit::RUNTIME_ERROR;
+    }
+
+    let validate = match args.validate_range {
+        None => None,
+        Some(raw) => match parse_range(raw) {
+            Some((lower, upper)) => Some(AdvisoryHelper::RangeValidate { lower, upper }),
+            None => {
+                eprintln!(
+                    "pdfcer: --validate-range {raw:?} -- expected MIN..MAX, MIN.. or ..MAX, with numbers on the bounds that are present"
+                );
+                return exit::RUNTIME_ERROR;
+            }
+        },
+    };
+
+    let calculate = match args.calculate {
+        None => None,
+        Some(raw) => match parse_calculation(raw) {
+            Some(c) => Some(c),
+            None => {
+                eprintln!(
+                    "pdfcer: --calculate {raw:?} -- expected OP:field,field where OP is SUM, AVG, PRD, MIN or MAX (case sensitive, as Acrobat writes them)"
+                );
+                return exit::RUNTIME_ERROR;
+            }
+        },
+    };
+
+    let cleared = match (args.clear, args.trigger) {
+        (true, Some(t)) => match t {
+            "format" | "validate" | "calculate" => Some(t),
+            _ => {
+                eprintln!("pdfcer: --trigger {t:?} -- known: format, validate, calculate");
+                return exit::RUNTIME_ERROR;
+            }
+        },
+        _ => None,
+    };
+
+    let (source, mut session) = match open_for_edit(args.input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+
+    let outcome = match (format, validate, calculate, cleared) {
+        (Some(f), ..) => session.set_field_format(args.name, Some(f)),
+        (_, Some(v), ..) => session.set_field_validation(args.name, Some(v)),
+        (_, _, Some(c), _) => session.set_field_calculation(args.name, Some(c)),
+        (_, _, _, Some("format")) => session.set_field_format(args.name, None),
+        (_, _, _, Some("validate")) => session.set_field_validation(args.name, None),
+        (_, _, _, Some(_)) => session.set_field_calculation(args.name, None),
+        // Unreachable: the count above admits exactly one, and every one of
+        // them lands in a branch. Stated as a refusal rather than a panic --
+        // this crate does not panic on a code path an operator can reach.
+        (None, None, None, None) => {
+            eprintln!("pdfcer: set-field-script: nothing to do");
+            return exit::RUNTIME_ERROR;
+        }
+    };
+    let change = match outcome {
+        Ok(c) => c,
+        Err(err) => return report_edit_error(args.input, &err),
+    };
+
+    let saved = match save_edited(
+        &mut session,
+        &source,
+        args.output,
+        args.mode,
+        ProducerArg::Preserve,
+        args.verify_undo,
+    ) {
+        Ok(o) => o,
+        Err(code) => return code,
+    };
+    let r = &saved.report;
+    let token = |c: Option<&pdfcer_core::form_script::ScriptClass>| {
+        c.map_or_else(|| "-".to_owned(), |c| c.token().to_owned())
+    };
+    let (co_position, co_entries) = change.calculation_order.map_or_else(
+        || ("-".to_owned(), "-".to_owned()),
+        |o| {
+            (
+                o.position.map_or_else(|| "-".to_owned(), |p| p.to_string()),
+                o.entries.to_string(),
+            )
+        },
+    );
+    println!(
+        "set-field-script {} name={:?} trigger={} applied={} replaced={} keystroke={} co_position={co_position} co_entries={co_entries} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        args.input.display(),
+        args.name,
+        change.trigger,
+        token(change.applied.as_ref()),
+        token(change.replaced.as_ref()),
+        u32::from(change.keystroke_paired),
+        args.mode.name(),
+        args.output.display(),
+        saved.changed,
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+        u32::from(saved.undo_verified),
+        u32::from(saved.undo_identical),
+    );
+    finish_edit(args.input, &saved)
+}
+
+/// `decimals,separator,negative,currency-style,symbol,prepend`.
+///
+/// Six values in `AFNumber_Format`'s own argument order, so an operator who
+/// has the Acrobat call in front of them can transcribe it left to right.
+fn parse_number_format(raw: &str) -> Option<pdfcer_core::form_script::FormatHelper> {
+    let parts: Vec<&str> = raw.split(',').collect();
+    let [d, sep, neg, curr, symbol, prepend] = parts.as_slice() else {
+        return None;
+    };
+    Some(pdfcer_core::form_script::FormatHelper::Number {
+        decimals: d.trim().parse().ok()?,
+        separator_style: sep.trim().parse().ok()?,
+        negative_style: neg.trim().parse().ok()?,
+        currency_style: curr.trim().parse().ok()?,
+        // NOT trimmed: a currency symbol may legitimately be or contain a
+        // space, and trimming one would write a symbol the operator did not
+        // ask for.
+        currency: (*symbol).as_bytes().to_vec(),
+        prepend_currency: match prepend.trim() {
+            "true" | "1" => true,
+            "false" | "0" => false,
+            _ => return None,
+        },
+    })
+}
+
+/// `MIN..MAX`, `MIN..` or `..MAX`.
+///
+/// An absent bound is `None`, which writes `false` into `AFRange_Validate`'s
+/// enable flag -- the standard spelling for "this bound is not in force", and
+/// not the same as a bound of zero.
+fn parse_range(raw: &str) -> Option<(Option<f64>, Option<f64>)> {
+    let (lo, hi) = raw.split_once("..")?;
+    let parse = |s: &str| -> Option<Option<f64>> {
+        let s = s.trim();
+        if s.is_empty() {
+            Some(None)
+        } else {
+            s.parse().ok().map(Some)
+        }
+    };
+    let lower = parse(lo)?;
+    let upper = parse(hi)?;
+    Some((lower, upper))
+}
+
+/// `OP:field,field,...`.
+///
+/// The operation code is matched EXACTLY -- `SimpleOp::from_code` is case
+/// sensitive because Acrobat writes `"SUM"`, and accepting `"sum"` here would
+/// let the CLI author a call pdfcer's own classifier reads as `Custom`.
+fn parse_calculation(raw: &str) -> Option<pdfcer_core::form_script::CalcHelper> {
+    let (op, fields) = raw.split_once(':')?;
+    let op = pdfcer_core::form_script::SimpleOp::from_code(op.trim().as_bytes())?;
+    let operands = fields
+        .split(',')
+        .map(str::trim)
+        .filter(|f| !f.is_empty())
+        .map(|f| f.as_bytes().to_vec())
+        .collect();
+    Some(pdfcer_core::form_script::CalcHelper::Simple { op, operands })
 }
 
 /// Everything `edit-widget` takes. Same reasoning as [`EditFieldArgs`].

@@ -71,6 +71,7 @@
 pub mod calc;
 pub mod datetime;
 pub mod disclose;
+pub mod emit;
 pub mod format;
 pub mod inventory;
 pub mod recompute;
@@ -483,9 +484,21 @@ fn classify_advisory(call: &Call, trigger: Trigger) -> ScriptClass {
     // is computed from the match, so a loose match here cannot produce a
     // wrong value — only a slightly over-broad disclosure, which is the
     // harmless direction.
+    //
+    // ★ `_KeystrokeEx` IS PART OF THE FAMILY AND WAS MISSING (`Pass 308.6`).
+    // Acrobat pairs `AFDate_FormatEx(cFormat)` with
+    // `AFDate_KeystrokeEx(cFormat)`, and `ends_with("_Keystroke")` does not
+    // match it — so a real Acrobat-authored explicit-date field classified
+    // `Custom` on its `/K` trigger and lost its disclosure. Found by writing
+    // the EMITTER: the twin pdfcer generated for `AFDate_FormatEx` was one its
+    // own reader would not take back.
+    //
+    // ⇒ *An inverse is a test of the original.* Nothing else had exercised
+    // this name, because the read side only ever met the names real files
+    // happened to carry and the fixtures were written from the same list.
     if trigger == Trigger::Keystroke
         && call.name.starts_with("AF")
-        && call.name.ends_with("_Keystroke")
+        && (call.name.ends_with("_Keystroke") || call.name.ends_with("_KeystrokeEx"))
     {
         return ScriptClass::Advisory(AdvisoryHelper::Keystroke {
             name: call.name.clone(),

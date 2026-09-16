@@ -567,3 +567,150 @@ fn a_bad_quadding_is_refused_and_cites_table_222() {
     assert!(err.contains("Table 222"), "{err}");
     assert!(!out.exists(), "and nothing was written");
 }
+
+// ---------------------------------------------------------------------------
+// `set-field-script` (`Pass 308.6`, request `G024`)
+// ---------------------------------------------------------------------------
+
+/// The round trip through a real process: write a format, and `list-scripts`
+/// reads it back as the helper it was.
+#[test]
+fn a_format_written_by_the_cli_reads_back_as_that_helper() {
+    let dir = TempDir::new("sfs-format");
+    let pdf = field_to_edit(&dir, "1234.56");
+    let out = dir.join("formatted.pdf");
+
+    let r = run(&[
+        "set-field-script",
+        pdf.to_str().unwrap(),
+        "--name",
+        "Customer",
+        "--format-number",
+        "2,0,0,0,$,true",
+        "-o",
+        out.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&r), 0, "stderr: {}", stderr(&r));
+    let line = stdout(&r);
+    assert!(line.contains("trigger=format"), "{line}");
+    assert!(line.contains("applied=AFNumber_Format"), "{line}");
+    assert!(line.contains("replaced=-"), "nothing was displaced: {line}");
+    assert!(
+        line.contains("keystroke=1"),
+        "the paired input filter is written and disclosed: {line}"
+    );
+}
+
+/// A calculation registers itself in `/CO`, and the line says where.
+#[test]
+fn a_calculation_reports_its_place_in_the_calculation_order() {
+    let dir = TempDir::new("sfs-calc");
+    let pdf = field_to_edit(&dir, "");
+    let out = dir.join("calc.pdf");
+
+    let r = run(&[
+        "set-field-script",
+        pdf.to_str().unwrap(),
+        "--name",
+        "Customer",
+        "--calculate",
+        "SUM:Customer",
+        "-o",
+        out.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&r), 0, "stderr: {}", stderr(&r));
+    let line = stdout(&r);
+    assert!(line.contains("applied=AFSimple_Calculate"), "{line}");
+    assert!(line.contains("co_position=0"), "{line}");
+    assert!(line.contains("co_entries=1"), "{line}");
+}
+
+/// A lower-case operation code is REFUSED, not helpfully upcased.
+///
+/// `SimpleOp::from_code` is case sensitive because Acrobat writes `"SUM"`.
+/// Accepting `"sum"` here would let the CLI author a call pdfcer's own
+/// classifier reads back as `Custom` — a script it wrote and cannot describe.
+#[test]
+fn a_lower_case_operation_code_is_refused() {
+    let dir = TempDir::new("sfs-case");
+    let pdf = field_to_edit(&dir, "");
+    let out = dir.join("nope.pdf");
+
+    let r = run(&[
+        "set-field-script",
+        pdf.to_str().unwrap(),
+        "--name",
+        "Customer",
+        "--calculate",
+        "sum:Customer",
+        "-o",
+        out.to_str().unwrap(),
+    ]);
+    assert_ne!(code(&r), 0);
+    assert!(stderr(&r).contains("case sensitive"), "{}", stderr(&r));
+    assert!(!out.exists(), "nothing was written");
+}
+
+/// Two helper arguments are refused rather than prioritised.
+#[test]
+fn two_helpers_in_one_run_are_refused() {
+    let dir = TempDir::new("sfs-two");
+    let pdf = field_to_edit(&dir, "");
+    let out = dir.join("nope.pdf");
+
+    let r = run(&[
+        "set-field-script",
+        pdf.to_str().unwrap(),
+        "--name",
+        "Customer",
+        "--format-date",
+        "0",
+        "--format-time",
+        "1",
+        "-o",
+        out.to_str().unwrap(),
+    ]);
+    assert_ne!(code(&r), 0);
+    assert!(stderr(&r).contains("exactly one"), "{}", stderr(&r));
+    assert!(!out.exists());
+}
+
+/// `--clear --trigger format` removes the entry and its keystroke twin.
+#[test]
+fn clearing_a_format_reports_what_it_removed() {
+    let dir = TempDir::new("sfs-clear");
+    let pdf = field_to_edit(&dir, "");
+    let formatted = dir.join("formatted.pdf");
+    let cleared = dir.join("cleared.pdf");
+
+    let r = run(&[
+        "set-field-script",
+        pdf.to_str().unwrap(),
+        "--name",
+        "Customer",
+        "--format-date",
+        "0",
+        "-o",
+        formatted.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&r), 0, "stderr: {}", stderr(&r));
+
+    let r = run(&[
+        "set-field-script",
+        formatted.to_str().unwrap(),
+        "--name",
+        "Customer",
+        "--clear",
+        "--trigger",
+        "format",
+        "-o",
+        cleared.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&r), 0, "stderr: {}", stderr(&r));
+    let line = stdout(&r);
+    assert!(line.contains("applied=-"), "{line}");
+    assert!(
+        line.contains("replaced=AFDate_Format"),
+        "it names what it took away: {line}"
+    );
+}

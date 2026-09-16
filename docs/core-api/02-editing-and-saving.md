@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 239 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 242 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,16 +69,17 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 239 public `EditSession` methods
+## 1. Verb index — all 242 public `EditSession` methods
 
-**Count: 239.** Established by brace-matched extraction of the six
+**Count: 242.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
 `G017` added five (`move_text_run`, `move_text_run_in_form`,
 `delete_text_run_in_form`, `delete_subpath_in_form`, `delete_node_in_form`),
 and again at 232 when `Pass 306.0` added two (`split_text_object`,
-`text_object_split_plan`).
+`text_object_split_plan`), and again at 239 when `G024` added three
+(`set_field_format`, `set_field_validation`, `set_field_calculation`).
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -1394,6 +1395,9 @@ only creation verb whose successful result is a control that does not work"*
 | **Give a push button an action** | `set_button_action(&mut self, fqn, action: Option<ButtonAction>) -> Result<ButtonActionChange, EditError>` | 24148 | ✅ **`ResetForm`** (`Pass 182.0`) **+ `SubmitForm` / `GoToPage` / `Named` / `Uri`** (`Pass 183.0`, second operator ruling the same day). **`/JavaScript` and `/Launch` are refused permanently.** `None` removes any action, including one pdfcer would never author — `ButtonActionChange::replaced` NAMES it, so a form editor knows it destroyed a script. A submit fills `ButtonActionChange::submit` with what the button *would* send — read §1.12b before wiring one. Refuses a non-push-button, a reset/submit target that does not exist, an undecidable destination, a Table 237 flag gate, and a page index past the end — all before writing. |
 | **Recolour page objects** | `set_object_paint(&mut self, page, objects, fill: Option<Rgb>, stroke: Option<Rgb>) -> Result<PaintOutcome, EditError>` | 10850 | **`Pass 219.0`, at pdfcer-gui's request.** The first colour verb for PAGE CONTENT — every previous one coloured an annotation, a ce dimension, a redaction mark or a text run, so a line or a CAD stroke was movable and deletable but not recolourable. `fill` and `stroke` are INDEPENDENT; `None` leaves that channel alone, and passing neither is a no-op that still reports what it WOULD refuse, so a shell can drive the control's enabled state without making an edit. ★★ **REFUSES a spot ink by name rather than converting it.** An object whose paint is in a space pdfcer does not decode (`/Separation`, `/DeviceN`, `/ICCBased`, `/Indexed`, `/Lab`) is left alone and listed in `PaintOutcome::refused` with its `cs` resource name — writing `DeviceRGB` over a named ink looks right on screen and destroys the printing plate, invisibly. Patterns refuse separately (§8.7.3 — a pattern has no colour at all). Refusal is per CHANNEL: recolouring the fill of an object whose stroke is a spot ink is legitimate and is not blocked. ★ The refusal is DATA, not an error — the call succeeds and reports 'nine of twelve changed'. Implemented by wrapping each object's own bytes in `q <colour> … Q` rather than rewriting the operand it inherits: one `0 0 1 RG` commonly governs every stroke on a sheet, so rewriting it would recolour a thousand objects when the operator selected one. Every other byte stays verbatim. One undoable command. **The READER is `page_objects`** — `PathObject::fill_paint`/`stroke_paint` carry the honest answer including `PathPaint::Other`, so no separate colour reader ships; open the swatch on `PathPaint::rgb()` and show the ink's name when that is `None`. |
 | **Read what a push button DOES** | `button_action(&self, fqn) -> Result<ButtonActionState, EditError>` | 26337 | **`Pass 212.0`, added at pdfcer-gui's request.** The read half of `set_button_action`, which shipped write-only -- so the control that SETS an action could not show what it was SET TO. Returns four states, not three: `None` (no `/A`), `Known(ButtonAction)` (modelled, and writable back unchanged), `Unmodelled(String)` (a subtype pdfcer AUTHORS but did not decode this instance of -- today `GoTo` and `SubmitForm`, or a malformed one), and `Foreign(String)` (a subtype pdfcer recognises and will NOT author -- `JavaScript`, `Launch`, `GoToR`, `Movie`). ★★ **`Unmodelled` and `Foreign` differ in whether a control should OFFER TO REPLACE**, which is the decision the operator is actually being asked to make -- a three-state shape would have had to call an unread `SubmitForm` 'Foreign' and tell the shell pdfcer will not touch an action it writes happily. Answers for the field's FIRST widget: §12.7.3.1 lets one field own widgets on several pages and nothing requires their `/A` entries to agree, so this picks rather than reconciles, and says so. Refused on the same footing as the writer -- a non-push-button is `ButtonActionWrongFieldType`, so a shell cannot learn through the reader about a field it would be refused permission to change. |
+| **Set a field's FORMAT script** | `set_field_format(&mut self, fqn, helper: Option<FormatHelper>) -> Result<FieldScriptChange, EditError>` | 37085 | **`Pass 308.6`**, request `G024`. Writes `/AA` `/F` **and the paired `AF*_Keystroke` filter into `/AA` `/K`** — Acrobat's Format tab emits both, and a file with one is not one Acrobat authored. `None` clears both. Six `FormatHelper` variants; **no `&str` route**, so arbitrary JavaScript stays unrepresentable. Never touches `/V`: a format is display-only and a writer is a new chance to break that. Refuses any kind but a text field or a **combo** choice field — a LIST BOX carries none of the three. `FieldScriptChange::replaced` classifies what was displaced. |
+| **Set a field's VALIDATE script** | `set_field_validation(&mut self, fqn, helper: Option<AdvisoryHelper>) -> Result<FieldScriptChange, EditError>` | 37135 | **`Pass 308.6`.** Writes `/AA` `/V`. Only `AdvisoryHelper::RangeValidate` is authorable — a `Keystroke` is **refused by name**, because the classifier keeps such a helper's name and discards its arguments, so re-emitting one would drop the filter while reporting success. ★ pdfcer writes a constraint it will not ENFORCE (decision 009 §6 makes validation advisory): it is authoring a rule for other readers, not starting to keep one. |
+| **Set a field's CALCULATE script** | `set_field_calculation(&mut self, fqn, helper: Option<CalcHelper>) -> Result<FieldScriptChange, EditError>` | 37180 | **`Pass 308.6`.** Writes `/AA` `/C` **and the AcroForm `/CO` entry**, in ONE undoable command — a calculate action absent from `/CO` is one Acrobat will not run, a field that looks calculated everywhere and computes nothing. Set appends, clear prunes, and an emptied `/CO` is removed rather than left behind. `CalcOrderChange` reports position, count, and array created/removed. Appended at the end and disclosed; Acrobat's own ordering is documented as silently reordered, so there is no rule to match. Refuses an operand that names no field or names a grouping node, before writing anything. |
 | **Fold N commands into one undo entry** | `coalesce_last(&mut self, count, kind: CommandKind) -> bool` | 12892 | **`Pass 212.0`, made public at pdfcer-gui's request.** Was private; `cut_field` already used it internally (`copy_field` + `delete_field` + `coalesce_last`). A shell gesture that needs TWO verbs -- place a button, then give it an action -- otherwise costs TWO undos, so `Ctrl+Z` leaves an inert button on the page. ★ **Check the return.** `false` means every change was applied and only the GROUPING failed (the stack was shorter than `count`); disclose that the gesture takes more than one undo rather than retrying. `count` counts commands YOU just pushed, most recent first -- overcounting folds an unrelated earlier edit in, and nothing guards that. Fold immediately, before anything else can push a command. `0` and `1` are no-ops returning `true`. |
 | **Rotate one widget** | `rotate_widget(&mut self, fqn, index, degrees: i64) -> Result<WidgetRotation, EditError>` | 16588 | ✅ **`/MK /R` + a REDRAWN appearance** (`Pass 177.0`). ⚠️ **COUNTERCLOCKWISE** — the page's `/Rotate` is the clockwise one. Multiples of 90 only, reduced into `[0, 360)` and the reduction reported. **`/Rect` does not move**; the appearance is redrawn into a `w`/`h`-swapped `/BBox` and stood upright by `/Matrix`. Rotating to `0` **removes** the key. Refuses a non-multiple of 90 with `WidgetRotationNotQuarterTurn`. |
 | Read an existing field's copyable properties | `field_defaults(&self, source: &str) -> Result<FieldDefaults, EditError>` | 9211 | For `--defaults-from` / "copy style from". |
@@ -3292,6 +3296,80 @@ recorded the wrong answer for check boxes and radios. It now names the
 **property** that decides — whether the artwork is pdfcer's own — rather than a
 list of kinds, because the list is what went stale and the property cannot.
 
+### ★ Authoring a field's `/AA` scripts — three verbs (`Pass 308.6`, request `G024`)
+
+```rust
+set_field_format(&mut self, fqn: &str, helper: Option<FormatHelper>)   -> Result<FieldScriptChange, EditError>
+set_field_validation(&mut self, fqn: &str, helper: Option<AdvisoryHelper>) -> Result<FieldScriptChange, EditError>
+set_field_calculation(&mut self, fqn: &str, helper: Option<CalcHelper>)    -> Result<FieldScriptChange, EditError>
+```
+
+`form_script` had a **parser** for a closed set of Acrobat helper calls and no
+**emitter**, so `/AA` was a one-way door: a paste could carry one, a delete
+could strip one, nothing could author one. `form_script::emit` is the inverse,
+over the same whitelist, and these three verbs put it on a field.
+
+**There is no `&str`-taking route into `/AA`, and that is the property.** The
+input is a typed helper from the whitelist `classify` recognises, so arbitrary
+JavaScript stays unrepresentable — an operator cannot ask pdfcer for a script
+pdfcer cannot also read back and describe.
+
+**Three things are written that nobody asks for by name**, each because a
+conforming producer owes it:
+
+1. **A format writes its keystroke twin** into `/AA` `/K`, carrying the same
+   arguments. Acrobat's Format tab emits two scripts; a file with one and not
+   the other is not one Acrobat authored. `keystroke_paired` says so, and
+   clearing the format takes the twin with it.
+2. **A calculation writes its `/CO` entry** and clearing prunes it.
+   `CalcOrderChange` reports position, count, and whether the array was created
+   or removed. Appended at the end and disclosed — Acrobat's own `/CO` ordering
+   is documented as *"silently reorders on edit, re-check before
+   distributing"*, so there is no rule to match and a deterministic append is a
+   divergence upward.
+3. **An emptied `/AA` is removed**, not left as an empty dictionary.
+
+**`replaced` is the disclosure that matters.** It classifies what was there
+before, so a shell can ask before displacing a `Custom` script nobody can
+describe. pdfcer does not refuse — the operator may mean it — but it never
+happens silently.
+
+**The kind gate is pdfcer authoring a rule, not restating one.** ISO 32000-1
+gives every field type an `/AA` and says nothing about which helper may sit on
+which kind; the constraint is Acrobat's, sourced to
+`Acrobat_Features/forms__format_validate_calculate_tab_availability.md`. **Text
+fields and COMBO choice fields carry all three; a LIST BOX carries none** —
+worth reading twice, because it is a `/Ch` exactly as a combo box is.
+`EditError::FieldScriptWrongFieldType` names the kind and the tab. Two
+capabilities Acrobat exposes under other names are refused knowingly: a
+signature field's *Signed* script and a barcode's *Value* script are different
+verbs wearing the same dictionary keys, and pdfcer models neither.
+
+**Two helpers refuse to be written**, both in `form_script::emit::NotEmittable`:
+`ScriptClass::Custom` holds no parameters, and `AdvisoryHelper::Keystroke`
+keeps only the helper's NAME — the classifier matches the family by name shape
+and never reads the arguments, so re-emitting one would drop the filter while
+reporting success. ⇒ *A type that captures a value for DISCLOSURE is not
+automatically a type that can reconstruct it.*
+
+**⚠ A read-side hole the emitter found.** The keystroke family matcher tested
+`ends_with("_Keystroke")` and so missed `AFDate_KeystrokeEx`, the twin of
+`AFDate_FormatEx` — a real Acrobat-authored explicit-date field lost its `/K`
+disclosure, and pdfcer's own generated twin was one its reader would not take
+back. Widened. ⇒ *An inverse is a test of the original*: nothing had exercised
+that name because the read side only met the names real files happened to
+carry, and the fixtures were written from the same list.
+
+**A format never touches `/V`.** `AFNumber_Format` makes `1234.56` read as
+`$1,234.56` and the stored value is still `1234.56`; a shell showing a
+formatted value owes the operator the stored one beside it whenever they
+differ.
+
+**CLI:** `pdfcer set-field-script --format-number/-percent/-date/-date-string/-time/-special`,
+`--validate-range MIN..MAX`, `--calculate OP:fields`, `--clear --trigger`.
+Exactly one per run, refused rather than prioritised. The operation code is
+matched case-sensitively, as Acrobat writes it.
+
 ### ⚡ `page_objects` — what it is worth, and the two things it does NOT fix
 
 Measured on a 5.6 MB / 129,758-object CAD drawing, release build
@@ -4810,7 +4888,7 @@ borrow it (`tests/image_placement.rs:238-247`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs:2300`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**135 variants** at `Pass 293.0`, counted at depth 1 inside `pub enum EditError`.
+**138 variants** at `Pass 293.0`, counted at depth 1 inside `pub enum EditError`.
 (`SourcePageOutOfRange` is the newest: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 
