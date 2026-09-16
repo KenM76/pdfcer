@@ -115,6 +115,49 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 308.6` (`d2fa7352`, 2026-09-16) — the scripts pdfcer already classifies can now be WRITTEN; `AdvisoryHelper::Keystroke` refused as unemittable; `G024` closed
+
+New Pass, minted this filing — `308` now runs `.0`–`.6`; next free family still `309`. Answers `pdfcer-gui`'s `G024`: *"the scripts you already classify cannot be written."* Request + reply archived as `2026-09-16-G024-the-scripts-you-already-classify-cannot-be-written-{request,reply}.md`; `INDEX.md` row added (see Ledger).
+
+**What shipped.** New module `crates/pdfcer-core/src/form_script/emit.rs` — the inverse of `classify`, over the same whitelist: `emit(&ScriptClass) -> Result<Vec<u8>, NotEmittable>` plus `keystroke_twin(&FormatHelper)`. Three new public `EditSession` verbs — `set_field_format`, `set_field_validation`, `set_field_calculation`, each `Option<Helper>` (`None` clears) — plus `FieldScriptChange`, `CalcOrderChange`, three new `EditError` variants (`FieldScriptWrongFieldType`, `FieldScriptOperandUnusable`, `FieldScriptNotEmittable`), `CommandKind::SetFieldScript`, CLI `set-field-script`. A format writes its `AF*_Keystroke` twin into `/AA /K` unasked, because a conforming producer owes it; a calculation writes its `/CO` entry in the SAME undoable command, because a calculate action absent from the calculation order is a field that looks calculated and computes nothing — `Pass 308.4`/`308.5`'s shape a third time. Verb count 239 → 242, `EditError` 135 → 138.
+
+**★★ Writing the inverse found a live reader bug, on the first round-trip run.** `AFDate_FormatEx` pairs with `AFDate_KeystrokeEx`; the classifier matched the keystroke family with `ends_with("_Keystroke")`, which never matches that name — so a real Acrobat-authored explicit-date field lost its `/K` disclosure (classified `Custom`), and the twin pdfcer generated was one its own reader would not take back. Fixed in the same commit. ⇒ *An inverse is a test of the original.* Nothing had exercised that name because the read side only ever met the names real files happened to carry, and the fixtures were written from the same list as the code — parser and fixtures agreed with each other and both were short of reality.
+
+**★★ A second finding, about a TYPE.** The request assumed `set_field_validation(Option<AdvisoryHelper>)` was writable in full. Half of it is not: `AdvisoryHelper::Keystroke` captures only the helper's NAME — its arguments are never read, because the classifier matches the family by name shape precisely because nothing is computed from the match. Re-emitting one would destroy the input filter it names while reporting success — `G022`/`G023`'s shape a third time, from the inside. Refused by name via `NotEmittable::KeystrokeArgumentsNotCaptured`. ⇒ *A type that captures a value for DISCLOSURE is not automatically a type that can reconstruct it* — it looked writable because it sits in an enum whose other variant is.
+
+**Sourcing (hard rule 12).** `pdfcer-acrobat-librarian` dispatched — the codebase had no statement of which field kinds carry which script tab, and inventing the rule was not an option. New file `D:\Dev\Rag-Specialized\Acrobat_Features\forms__format_validate_calculate_tab_availability.md` (24th `forms__*` file, index updated): text and combo choice fields carry all three tabs; a **list box carries none**, despite being a `/Ch` exactly as a combo box is — recorded as reasoned inference, not confirmed. A signature field's *Signed* script and a barcode's *Value* script are refused by name, out of scope.
+
+**Known gap, filed rather than half-fixed.** The existing paste path's `/CO` append (`edit.rs` ~`:49158`) matches only a **direct** `Object::Array`, so an indirect `/CO` reference is silently replaced by a fresh one-entry array; the new verb inherits this through the same `acroform_write` seam. Filed as a new Backlog entry (below) rather than fixed here — a real latent data-loss bug in a shipped path, not merely a limitation of the new one.
+
+**Tests.** 8 emitter round-trip tests (`crates/pdfcer-core/src/form_script/emit.rs`), 18 core (`crates/pdfcer-core/tests/field_script_authoring.rs`), 5 CLI (`crates/pdfcer-cli/tests/edit_field.rs`).
+
+**Gate status.** `fmt --check`, `clippy --workspace --all-targets --all-features -D warnings`, core `--lib` (2,093), core `--test '*' -j 1`, `pdfcer-cli -j 1`, `--no-default-features`, wasm `check`, `fuzz check --bins`, and all 24 non-cargo gates — all green via the split procedure. `run-gates.sh` not attempted; the machine was under disk/memory pressure all session (since resolved — 121 GB reclaimed from `target/` and 19,200 orphaned test folders left by killed runs).
+
+**Docs already updated by the engineer (cited, not redone).** `docs/core-api/02-editing-and-saving.md` gained three verb-index rows and a new section; counts moved to **242 verbs / 138 `EditError` variants** in all four places the gate checks (file now 5,575 lines / 184 clauses cited); `docs/core-api/index.md`'s row already matches (independently confirmed).
+
+**`docs/FEATURES.md`.** New row added under *Forms (AcroForm)*, `core [x] · cli [x] · gui [ ]`: writing a field's Format/Validate/Calculate script.
+
+**No decision-log entry** — a new writable capability plus a refusal in an existing type, not a crate-boundary/library/invariant call.
+
+**Cross-project findings, two new files.** `D:\dev\rag\rust\an_inverse_function_is_a_test_of_the_original_a_whitelist_that_is_both_parser_and_oracle_cannot_find_its_own_gaps.md` and `D:\dev\rag\rust\a_type_that_captures_a_value_only_for_disclosure_cannot_be_assumed_reconstructible_for_writing_it_back.md`.
+
+**Sourcing (hard rule 8).** No shell tool this filing, but `.git/COMMIT_EDITMSG` (HEAD's full message) and `.git/logs/HEAD` (the reflog) were read directly — confirming HEAD is `d2fa7352` with this exact title/body, preceded by `c33fdf46` (the combined `308.4`/`308.5` filing). **Independently confirmed via `Read`/`Grep` against live source at HEAD:** `enum NotEmittable`, `fn emit`, `KeystrokeArgumentsNotCaptured`, `fn set_field_format`/`set_field_validation`/`set_field_calculation`, `struct FieldScriptChange`/`CalcOrderChange` all present in `crates/pdfcer-core/src/{form_script/emit.rs,edit.rs}`; `emit.rs` contains exactly 8 `#[test]` functions, `field_script_authoring.rs` exactly 18; `set-field-script`/`SetFieldScript`/the three new `EditError` variants present in `crates/pdfcer-cli/src/main.rs`; `docs/core-api/index.md`'s count row reads 242 verbs / 138 variants / 5,575 lines / 184 clauses, matching the commit's own claim; the Acrobat RAG file and its index entry both confirmed present.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `Pass 308.0`–`308.5` shipped — next free family `309` | **`Pass 308.6` SHIPPED (new, minted this filing) — `G024` closed; family now runs `.0`–`.6`; next free family `309` unchanged** |
+| Standing rules | `R257` used, next free `R258` | unchanged — no rule minted (two n=1 mechanisms, sent to `D:\dev\rag\rust\` instead) |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `562` | **`563`** |
+| `docs/FEATURES.md` | Forms section had no row for writing Format/Validate/Calculate scripts (line 318's row covers recognise + recompute only) | **new row added, `core [x] · cli [x] · gui [ ]`** |
+| `D:\dev\rag\rust\` | 375 finding files (377 total − 2 meta) | **377 finding files (379 total − 2 meta) — 2 new files this Pass** |
+| `D:\Dev\Rag-Specialized\Acrobat_Features\` | 23 `forms__*` files | **24 `forms__*` files (dispatched, not authored by this role)** |
+| `D:\Dev\FeatureRequests\pdfce_FeatureRequests\` | `INDEX.md` had no `G024` row | **row added, newest-first, above the `G023` row** |
+
+---
+
 ### `Pass 308.5` (`20e539a2`, 2026-09-16) — a `/Btn` rotation is now BAKED, not merely declared; the staleness disclosure named the wrong set; `G023` closed
 
 New Pass, minted this filing — `308` now runs `.0`–`.5` (`.4` ships in the same session, below); next free family still `309`. Answers `pdfcer-gui`'s `G023`, relaying an operator report: *"the rotate buttons don't work for check boxes."* Request + reply archived as `2026-09-16-G023-a-button-rotation-is-written-and-reports-success-and-never-turns-{request,reply}.md`; `INDEX.md` row added (see Ledger).
@@ -14978,6 +15021,14 @@ nothing gets forgotten, not as a commitment to build in this order.
 `Pass 308.4` (`/Q`) and `Pass 308.5` (button rotation) are the same defect found on two different keys, six hours apart: a property is validated, written to the dictionary, and never reaches the baked appearance — while the outcome reports success. `pdfcer-gui` did this audit for `FieldEdit` and found `/Q`; nobody has done it for `WidgetEdit`, and the button-rotation hole was exactly what it would have found.
 
 **Scope:** enumerate every settable property on both edit types and check, for each, that the regeneration function it feeds actually has that property in its parameter list (or its live snapshot read) — not merely that regeneration is *called*. See `D:\dev\rag\rust\a_regeneration_success_flag_that_reads_fewer_staged_inputs_than_it_writes_still_reports_full_success.md` for the full mechanism and how to test for it (an end-to-end stream-bytes assertion, not a writer test and a painter test run separately).
+
+★ **Widened 2026-09-16 (563rd filing, `Pass 308.6`), on the engineer's own recommendation.** `Pass 308.6` found a THIRD instance of the sibling shape — `AdvisoryHelper::Keystroke` reads correctly (for disclosure) and cannot be written back or written through, because its arguments were never captured — after `/Q` (`308.4`) and `/MK /R` on buttons (`308.5`). Widen this audit's question from *"does regeneration read every staged edit?"* to the more general *"for any modelled value: can it be written back, and does the writer read what it needs to reconstruct it?"* — the same failure shape (a value good enough for one direction assumed good enough for the other) recurs across regeneration paths and value-capturing types alike.
+
+### Unscoped — An INDIRECT `/CO` reference is silently replaced by a fresh array on append, losing whatever else referenced it — filed 2026-09-16 (563rd filing, `Pass 308.6`), no Pass ID
+
+The existing field-paste path's `/CO` append (`crates/pdfcer-core/src/edit.rs` ~`:49158`) matches only a **direct** `Object::Array` at `/AcroForm` `/CO`; an **indirect** reference (a `/CO` entry stored as its own object, potentially referenced from elsewhere) is silently replaced by a fresh one-entry array rather than dereferenced and appended in place. `Pass 308.6`'s new `set_field_calculation` verb inherits the same defect through the shared `acroform_write` seam, and was shipped without fixing it — this is a **real latent data-loss bug in a shipped path** (the paste verb), not a limitation of the new one.
+
+**Scope:** fix both call sites together — dereference an indirect `/CO` before appending, in the paste path and in `set_field_calculation`'s shared helper — plus a regression fixture with `/CO` stored indirectly.
 
 ### Unscoped — Carry `pdfcer-render`'s TEXT matrix (`Tm`/`Tlm`) in f64, matching what its CTM already does — filed 2026-09-15 (554th filing, `Pass 306.0`'s named remainder), no Pass ID
 
