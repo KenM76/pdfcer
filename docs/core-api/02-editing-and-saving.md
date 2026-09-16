@@ -3203,6 +3203,43 @@ survives a `without_background()`.
 leaves the key present, `unset` takes the key away. The creation verbs have no
 `unset`, because there is nothing yet to remove.
 
+### ★ `/Q` now REDRAWS, and clearing it means INHERIT (`Pass 308.4`, request `G022`)
+
+`FieldEdit::quadding` had been settable since `43192792` and was **excluded
+from the regeneration gate** the whole time. Justification is painted into the
+appearance stream — `vartext::align_x` places each line by its AFM width — and
+pdfcer paints the baked `/AP` rather than re-deriving alignment at view time.
+So a `/Q` edit wrote a number and moved no pixels, and
+`FieldEditOutcome::appearance_regenerated` came back `false` with no variant
+available to say *recorded, not painted*.
+
+`edit_field` now rebuilds on a `/Q` change. Two things a consumer should know:
+
+**The redraw uses the `/Q` being written, not the snapshot's.**
+`regen_field_appearance` reads `field.quadding` off a snapshot taken before the
+command staged its writes, so gating alone would have re-baked the OLD
+justification and reported `appearance_regenerated: true` while doing it. The
+snapshot is repaired in place, exactly as `/Rect` (`Pass 187.0`) and `/DA`
+already are — **the third instance of that pattern**, and the second found by a
+reader rather than by a test.
+
+**⚠ `clearing_quadding()` means *inherit*, not *left*.** `/Q` is inheritable
+(§12.7.3.2), resolved own → ancestors → `/AcroForm` → `0`. A field under a
+parent carrying `/Q 1` goes back to **centred** when its own key is removed.
+`EditSession::inherited_quadding` resolves it, and the read model
+(`forms::Field::quadding`) has always agreed — the two now cannot disagree. If
+your UI labels the clear action, *"inherit"* is the honest word; *"left"* is
+only correct when nothing above the field states one.
+
+**Citation corrected.** `/Q` is **§12.7.3.3 Table 222** (PDF 2.0 Table 228), not
+§12.7.4.3 Table 233 — that is the signature-field `/Lock` dictionary. The wrong
+number was in the operator-facing refusal text, so anyone chasing
+`EditError::QuaddingInvalid` into the standard landed in the wrong clause.
+`vartext.rs` had it right all along; `edit.rs` and the CLI help did not.
+
+**CLI:** `edit-field --quadding 0|1|2` and `--clear-quadding`, both reporting
+`regenerated=1`.
+
 ### ⚡ `page_objects` — what it is worth, and the two things it does NOT fix
 
 Measured on a 5.6 MB / 129,758-object CAD drawing, release build

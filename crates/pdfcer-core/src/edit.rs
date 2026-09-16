@@ -7761,16 +7761,16 @@ pub enum EditError {
         available: String,
     },
     /// [`FieldEdit::quadding`] was given a value ISO 32000-1 §12.7.4.3
-    /// Table 233 does not define.
+    /// Table 222 does not define.
     ///
-    /// Table 233 defines exactly three: `0` left-justified, `1` centred,
+    /// Table 222 defines exactly three: `0` left-justified, `1` centred,
     /// `2` right-justified. **Refused rather than clamped** — a fourth
     /// value is not a justification pdfcer can name, and clamping `7` to
     /// `2` would silently right-align a field the caller meant to do
     /// something else with. The same posture the check-style parser takes
     /// on an unknown name.
     #[error(
-        "quadding {given} is not one of ISO 32000-1 12.7.4.3 Table 233's three values (0 left, 1 centred, 2 right); nothing was changed"
+        "quadding {given} is not one of ISO 32000-1 12.7.3.3 Table 222's three values (0 left, 1 centred, 2 right); nothing was changed"
     )]
     QuaddingInvalid {
         /// What the caller asked for.
@@ -21445,14 +21445,21 @@ pub struct FieldEdit {
     /// holds.
     pub options: Option<Vec<ChoiceOption>>,
     /// `/Q` — the **quadding**, i.e. how the field's text is justified
-    /// within its box (ISO 32000-1 §12.7.4.3 Table 233): `0` left, `1`
-    /// centred, `2` right.
+    /// within its box (ISO 32000-1 §12.7.3.3 Table 222; PDF 2.0 Table 228):
+    /// `0` left, `1` centred, `2` right.
     ///
-    /// `Some(None)` REMOVES the key, which Table 233 defines as left —
-    /// distinct from writing `Some(Some(0))`, which states left explicitly.
-    /// The same three-state shape [`Self::max_len`] uses, and for the same
-    /// reason: absent and explicitly-default are different facts about a
-    /// file and a round trip must preserve which one it met.
+    /// `Some(None)` REMOVES the key — distinct from writing `Some(Some(0))`,
+    /// which states left explicitly. The same three-state shape
+    /// [`Self::max_len`] uses, and for the same reason: absent and
+    /// explicitly-default are different facts about a file and a round trip
+    /// must preserve which one it met.
+    ///
+    /// ⚠ **Removing it does not mean LEFT, it means INHERIT.** `/Q` is
+    /// inheritable (§12.7.3.2), resolved own → ancestors → `/AcroForm` → `0`,
+    /// so a field under a parent carrying `/Q 1` goes back to **centred**.
+    /// Table 222's default of left applies only when nothing above it states
+    /// one. [`EditSession::inherited_quadding`] is what the redraw resolves it
+    /// through.
     ///
     /// # Read-without-write until 2026-09-08
     ///
@@ -21462,7 +21469,7 @@ pub struct FieldEdit {
     /// this on every text and choice field.
     ///
     /// ★ Values outside `0..=2` are **refused by name**
-    /// ([`EditError::QuaddingInvalid`]) rather than clamped: Table 233
+    /// ([`EditError::QuaddingInvalid`]) rather than clamped: Table 222
     /// defines exactly three, a fourth is not a justification pdfcer can
     /// name, and clamping 7 to 2 would silently right-align a field the
     /// caller meant to do something else with.
@@ -21817,7 +21824,7 @@ impl FieldEdit {
         self
     }
 
-    /// Set `/Q` — 0 left, 1 centred, 2 right (Table 233).
+    /// Set `/Q` — 0 left, 1 centred, 2 right (§12.7.3.3 Table 222).
     ///
     /// Validated at APPLY time, not here, so the refusal carries the field
     /// name and arrives through the same `Result` as every other refusal.
@@ -21827,7 +21834,9 @@ impl FieldEdit {
         self
     }
 
-    /// REMOVE `/Q`, which Table 233 defines as left-justified.
+    /// REMOVE `/Q`, so the field INHERITS one again (§12.7.3.2) — its
+    /// nearest ancestor's, else the `/AcroForm`'s, else Table 222's default of
+    /// left. Not the same as setting `0`.
     ///
     /// Distinct from `with_quadding(0)`: that states left explicitly, this
     /// says the file is silent. A round trip must preserve which it met.
@@ -25508,7 +25517,7 @@ impl EditSession {
             });
         }
 
-        // Table 233 defines exactly three justifications. Refused rather than
+        // Table 222 defines exactly three justifications. Refused rather than
         // clamped: a fourth is not one pdfcer can name, and clamping 7 to 2
         // would silently right-align a field the caller meant otherwise.
         // Checked BEFORE anything is written, so a bad value changes nothing.
@@ -25743,9 +25752,10 @@ impl EditSession {
         if let Some(options) = &options_after {
             dict.insert(Name::from(b"Opt"), choice_opt_array(options));
         }
-        // `/Q` (Table 233). `Some(None)` REMOVES the key, which the table
-        // defines as left -- not the same fact as an explicit 0, and a round
-        // trip must preserve which one it met.
+        // `/Q` (§12.7.3.3 Table 222). `Some(None)` REMOVES the key, which is
+        // not the same fact as an explicit 0 -- and removing it means the
+        // field INHERITS one again (§12.7.3.2), not that it becomes left. A
+        // round trip must preserve which of the three it met.
         match edit.quadding {
             Some(Some(q)) => {
                 dict.insert(Name::from(b"Q"), Object::Integer(q));
@@ -25832,6 +25842,19 @@ impl EditSession {
             // drawing another -- the same disagreement `/MK /R` had before
             // `Pass 177.0` made rotation write-plus-regenerate.
             || edit.appearance.is_some()
+            // ★ `/Q` (`Pass 308.4`, request `G022`). Justification is drawn
+            // INTO the stream -- `vartext::align_x` places each line by its
+            // AFM width -- and pdfcer paints the baked `/AP` rather than
+            // re-deriving alignment at view time (R43). So a `/Q` written
+            // without a rebuild is a number that changes and no pixels that
+            // do, until something unrelated happens to force one.
+            //
+            // It had been settable since `43192792` and excluded from this
+            // gate the whole time. The regenerator implements all three arms
+            // and is tested on them; only the dispatch was missing, which is
+            // why no test caught it: every `/Q` test drove the builder
+            // directly and every `edit_field` test asserted the dictionary.
+            || edit.quadding.is_some()
             || options_after.is_some();
         let appearance_regenerated = if layout_changed {
             // ★ The snapshot is made TRUTHFUL rather than overridden.
@@ -25852,6 +25875,28 @@ impl EditSession {
                 field.default_appearance = Some(crate::vartext::default_appearance_string(
                     key, app.size, app.color,
                 ));
+            }
+            // ★★ THE SAME REPAIR FOR `/Q`, AND THE THIRD INSTANCE OF ONE
+            // PATTERN (`Pass 308.4`). `/Rect` needed it (`Pass 187.0`), `/DA`
+            // needed it above, and `regen_field_appearance` reads
+            // `field.quadding` off this snapshot exactly as it reads the
+            // other two -- so gating on `edit.quadding` WITHOUT this line
+            // would re-bake the OLD justification while the dictionary
+            // carried the new one, and report `appearance_regenerated: true`
+            // while doing it. A rebuild that changes no pixels, with a green
+            // flag in front of it, is worse than the gap it replaced.
+            //
+            // ⚠ `/Q` IS INHERITABLE (§12.7.3.2; `forms.rs` resolves
+            // own -> ancestors -> `/AcroForm` -> 0), so CLEARING it does not
+            // mean *left*, it means *inherit again*. Resolving it to
+            // `Quadding::default()` would left-align a field sitting under a
+            // parent that says centred -- reintroducing this very defect on
+            // the branch that looks too simple to get wrong.
+            if let Some(q) = edit.quadding {
+                field.quadding = match q {
+                    Some(code) => crate::vartext::Quadding::from_code(code),
+                    None => self.inherited_quadding(field.id),
+                };
             }
             self.regen_after_property_change(
                 &field,
@@ -25882,6 +25927,65 @@ impl EditSession {
             tooltip_removed,
             sort_claim_unmet,
         })
+    }
+
+    /// The `/Q` a field would resolve to with **no `/Q` of its own** — its
+    /// nearest ancestor's, else the `/AcroForm`'s, else Table 222's default
+    /// of left (`Pass 308.4`).
+    ///
+    /// # Why removing a key is not the same as setting it to zero
+    ///
+    /// `/Q` is inheritable (§12.7.3.2), and [`forms::parse_acroform`] resolves
+    /// it own → ancestors → `/AcroForm` → `0`. So
+    /// [`FieldEdit::clearing_quadding`] means *inherit again*, and a field
+    /// under a parent carrying `/Q 1` goes back to **centred**, not to left.
+    ///
+    /// This mirrors that walk rather than re-running the whole form parse: the
+    /// parse builds every field in the document to answer one question about
+    /// one of them, and this is called on the regeneration path of a single
+    /// edit. The precedence is duplicated, which is a cost — if either changes,
+    /// both must. It is named and documented here so the duplication is
+    /// findable rather than incidental.
+    ///
+    /// The field's own `/Q` is deliberately **not** consulted: the caller is
+    /// asking what happens once it is gone.
+    fn inherited_quadding(&self, field_id: ObjId) -> crate::vartext::Quadding {
+        let graph = self.graph();
+        let mut current = graph
+            .resolved(field_id)
+            .as_dict()
+            .and_then(|d| d.get(b"Parent").and_then(Object::as_reference));
+        // Bounded by the object count, so a `/Parent` cycle in a malformed
+        // file cannot spin here, and it reuses `forms`' own cap so the two
+        // walks agree on how deep a field tree is allowed to be.
+        for _ in 0..forms::MAX_FIELD_TREE_DEPTH {
+            let Some(id) = current else { break };
+            let Some(dict) = graph.resolved(id).as_dict() else {
+                break;
+            };
+            if let Some(q) = dict
+                .get(b"Q")
+                .map(|o| graph.resolve(o))
+                .and_then(Object::as_int)
+            {
+                return crate::vartext::Quadding::from_code(q);
+            }
+            current = dict.get(b"Parent").and_then(Object::as_reference);
+        }
+        self.acroform_quadding()
+    }
+
+    /// The `/AcroForm` `/Q`, or Table 222's default of left when it has none.
+    fn acroform_quadding(&self) -> crate::vartext::Quadding {
+        let graph = self.graph();
+        let q = self
+            .acroform_id()
+            .and_then(|id| graph.resolved(id).as_dict().cloned())
+            .and_then(|d| d.get(b"Q").map(|o| graph.resolve(o).clone()))
+            .as_ref()
+            .and_then(Object::as_int)
+            .unwrap_or(0);
+        crate::vartext::Quadding::from_code(q)
     }
 
     /// Whether the field's STORED value still fits the field the edit is

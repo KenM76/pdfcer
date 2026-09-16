@@ -6218,18 +6218,24 @@ enum Command {
         #[arg(long)]
         sort: Option<bool>,
         /// `/Q` — how the field's text is justified: 0 left, 1 centred,
-        /// 2 right (ISO 32000-1 §12.7.4.3 Table 233).
+        /// 2 right (ISO 32000-1 §12.7.3.3 Table 222).
         ///
-        /// A value outside 0-2 is REFUSED, not clamped: Table 233 defines
+        /// A value outside 0-2 is REFUSED, not clamped: Table 222 defines
         /// exactly three, and clamping 7 to 2 would silently right-align a
         /// field you meant to do something else with.
+        ///
+        /// The appearance is REDRAWN, not merely recorded -- justification is
+        /// painted into the stream, so writing the key alone would change a
+        /// number and no pixels.
         #[arg(long, value_name = "0|1|2")]
         quadding: Option<i64>,
-        /// REMOVE `/Q`, which Table 233 defines as left-justified.
+        /// REMOVE `/Q`, so the field INHERITS a justification again.
         ///
         /// Not the same as `--quadding 0`: that STATES left, this says the
-        /// file is silent. Both render left; only one survives a round trip
-        /// as what it was.
+        /// field is silent and takes whatever its parent or the form's
+        /// /AcroForm says (§12.7.3.2), falling back to left only when nothing
+        /// above it states one. Under a parent carrying `/Q 1` this gives you
+        /// CENTRED, not left.
         #[arg(long, conflicts_with = "quadding")]
         clear_quadding: bool,
         /// `/DV` — the default value `reset-form` restores.

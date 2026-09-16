@@ -467,3 +467,103 @@ fn a_malformed_rect_is_refused_rather_than_ignored() {
         stderr(&r)
     );
 }
+
+// ---------------------------------------------------------------------------
+// `--quadding` REDRAWS, it does not merely record (`Pass 308.4`, `G022`)
+// ---------------------------------------------------------------------------
+
+/// `regenerated=1` is the operator-visible half of the fix.
+///
+/// It reported `0` for the whole life of the property, which was at least
+/// honest — and left a caller with a number that changed and no pixels that
+/// did. The CLI is where that shows without a viewer.
+#[test]
+fn setting_the_quadding_reports_a_regenerated_appearance() {
+    let dir = TempDir::new("edit-field-q");
+    let pdf = field_to_edit(&dir, "AV");
+    let out = dir.join("edited.pdf");
+
+    let r = run(&[
+        "edit-field",
+        pdf.to_str().unwrap(),
+        "--name",
+        "Customer",
+        "--quadding",
+        "2",
+        "-o",
+        out.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&r), 0, "stderr: {}", stderr(&r));
+    assert!(
+        stdout(&r).contains("regenerated=1"),
+        "justification is painted into the stream, so a /Q change must \
+         rebuild it: {}",
+        stdout(&r)
+    );
+}
+
+/// Clearing redraws too — it is a justification change like any other.
+#[test]
+fn clearing_the_quadding_reports_a_regenerated_appearance() {
+    let dir = TempDir::new("edit-field-qclear");
+    let pdf = field_to_edit(&dir, "AV");
+    let centred = dir.join("centred.pdf");
+    let cleared = dir.join("cleared.pdf");
+
+    let r = run(&[
+        "edit-field",
+        pdf.to_str().unwrap(),
+        "--name",
+        "Customer",
+        "--quadding",
+        "1",
+        "-o",
+        centred.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&r), 0, "stderr: {}", stderr(&r));
+
+    let r = run(&[
+        "edit-field",
+        centred.to_str().unwrap(),
+        "--name",
+        "Customer",
+        "--clear-quadding",
+        "-o",
+        cleared.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&r), 0, "stderr: {}", stderr(&r));
+    assert!(stdout(&r).contains("regenerated=1"), "{}", stdout(&r));
+}
+
+/// The refusal names the RIGHT table.
+///
+/// It cited "§12.7.4.3 Table 233" — which is the signature-field `/Lock`
+/// dictionary, not quadding. `/Q` is §12.7.3.3 Table 222, as `vartext.rs`
+/// said all along. An operator chasing a refusal into the standard would have
+/// landed in the wrong clause.
+#[test]
+fn a_bad_quadding_is_refused_and_cites_table_222() {
+    let dir = TempDir::new("edit-field-qbad");
+    let pdf = field_to_edit(&dir, "AV");
+    let out = dir.join("edited.pdf");
+
+    let r = run(&[
+        "edit-field",
+        pdf.to_str().unwrap(),
+        "--name",
+        "Customer",
+        "--quadding",
+        "7",
+        "-o",
+        out.to_str().unwrap(),
+    ]);
+    assert_ne!(
+        code(&r),
+        0,
+        "a fourth justification is not one pdfcer can name"
+    );
+    let err = stderr(&r);
+    assert!(err.contains("12.7.3.3"), "{err}");
+    assert!(err.contains("Table 222"), "{err}");
+    assert!(!out.exists(), "and nothing was written");
+}
