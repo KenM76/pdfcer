@@ -19697,6 +19697,55 @@ pub struct HideDisclosure {
     pub targets_without_widgets: Vec<String>,
 }
 
+/// The order [`EditSession::add_choice_field`] and [`EditSession::edit_field`]
+/// put an `/Opt` list into when asked to sort it (`Pass 308.8`, request
+/// `G026`).
+///
+/// # ★ Exported because a shell had copied it
+///
+/// The comparator was a private `sort_by` inside `add_choice_field`, and
+/// `edit_field`'s `sort_claim_unmet` gate tested the result with
+/// `<[String]>::is_sorted`. Those agree — both are byte-lexicographic over the
+/// decoded display string — **because they happen to be the same comparator,
+/// not because anything held them together.** `pdfcer-gui` needed to sort a
+/// list before sending it and had no choice but to copy the line.
+///
+/// ⇒ *Two independent implementations of one ordering will agree until one of
+/// them is improved.* Make the placement sort case-insensitive, or
+/// locale-aware, or fall back to `export` when `display` is empty, and the two
+/// inside the engine move together while every copy outside it does not — at
+/// which point a shell sorts a list, sends it, and is immediately told the
+/// file claims something untrue about a list pdfcer itself would have sorted
+/// the same way. No test on either side could catch that, because each side
+/// stays internally consistent.
+///
+/// So the ordering is one exported function. A caller that sorts with this
+/// cannot disagree with the gate that checks it.
+///
+/// # What the order IS, and why it is not more clever
+///
+/// Byte-lexicographic over the **display** string — `String`'s own `Ord`,
+/// which is what `is_sorted` has always tested. Not case-insensitive, not
+/// locale-aware: §12.7.4.4 says a reader *"shall display the options in the
+/// order in which they occur in the Opt array"* and says nothing about how a
+/// writer chooses that order, so any cleverness here would be pdfcer inventing
+/// a collation and then having to keep it stable forever. If that changes it
+/// changes **here**, once, and every caller moves with it.
+#[must_use]
+pub fn choice_option_order(a: &ChoiceOption, b: &ChoiceOption) -> std::cmp::Ordering {
+    a.display.cmp(&b.display)
+}
+
+/// Sort an `/Opt` list into [`choice_option_order`].
+///
+/// The convenience half of the export: a shell wanting to show the sorted
+/// order before committing calls this rather than reimplementing the
+/// comparator. Stable, so options sharing a display string keep the order the
+/// caller gave them.
+pub fn sort_choice_options(options: &mut [ChoiceOption]) {
+    options.sort_by(choice_option_order);
+}
+
 /// What one `/AA` script verb did, and everything about it the operator must
 /// be told (`Pass 308.6`, request `G024`).
 ///
@@ -21617,6 +21666,16 @@ pub struct FieldEdit {
     pub multi_select: Option<bool>,
     /// `/Ff` bit 20 (`/Ch` only) — records that the WRITER sorted `/Opt`.
     ///
+    /// ★ **Unlike [`NewChoiceField::sorted`], which SORTS THE ARRAY.** Same
+    /// word, two builders, and until `Pass 308.8` two different meanings —
+    /// which cost a consuming shell an hour and produced request `G026`. They
+    /// agree now in the case that matters: setting this **together with
+    /// [`Self::options`]** sorts the supplied list, exactly as placement does,
+    /// and reports it in [`FieldEditOutcome::options_sorted`].
+    ///
+    /// Setting it ALONE still reorders nothing, and the paragraph below is why
+    /// — that was always the case it was written about.
+    ///
     /// Table 230 is explicit that this is *"intended for use by writers, not
     /// by readers"* and that conforming readers *"shall display the options
     /// in the order in which they occur in the `Opt` array"*. So setting it
@@ -22321,6 +22380,17 @@ pub struct FieldEditOutcome {
     /// silently reorder a list whose order the standard makes significant —
     /// so it says so instead.
     pub sort_claim_unmet: bool,
+    /// Whether pdfcer REORDERED the `/Opt` list this edit supplied, because
+    /// the edit set [`FieldEdit::sort`] in the same command (`Pass 308.8`).
+    ///
+    /// A reorder is the one thing this verb does that the caller cannot see by
+    /// looking at what it sent, so it is stated rather than left to be
+    /// discovered — the same reason [`Self::sort_claim_unmet`] exists for the
+    /// combination that is NOT sorted.
+    ///
+    /// `false` when the list was already in order, when no list was supplied,
+    /// or when the edit did not set the flag: in all three cases nothing moved.
+    pub options_sorted: bool,
 }
 
 /// What [`EditSession::rotate_widget`] did (`Pass 177.0`).
@@ -25901,8 +25971,49 @@ impl EditSession {
             });
         }
 
+        // ---- the /Opt list this edit will write ------------------------
+        let mut options_after = edit.options.clone();
+        // ★★ SORT WHEN THE LIST AND THE CLAIM ARRIVE IN THE SAME EDIT
+        // (`Pass 308.8`, request `G026`).
+        //
+        // `FieldEdit::sort` has always been, correctly, a provenance claim
+        // that reorders nothing: Table 230 calls bit 20 *"intended for use by
+        // writers, not by readers"*, and silently reordering an operator's
+        // existing list because they ticked a box would be exactly the quiet
+        // mutation this project refuses. That argument is about bit 20 set ON
+        // ITS OWN, over a list the caller did not touch, and it is untouched.
+        //
+        // This is the other case. The caller has handed over a COMPLETE
+        // REPLACEMENT list in the same command as the claim, so there is no
+        // pre-existing order to destroy and nothing is being inferred — which
+        // is the same situation `add_choice_field` is in at placement, where
+        // `sorted(true)` has always sorted the array. Refusing to sort here
+        // produced the one shape nobody wants: a shell sorts the list itself,
+        // sends it, and pdfcer answers `sort_claim_unmet` about a list it
+        // would have sorted identically.
+        //
+        // ⇒ *The same word now means the same thing on both builders*, which
+        // is what `G026` was about; and `options_sorted` says it happened, so
+        // a reorder pdfcer performed is never something the caller has to
+        // notice by comparing what it sent with what came back (rule 4).
+        let options_sorted = if edit.sort == Some(true)
+            && let Some(list) = options_after.as_mut()
+        {
+            let before = list.clone();
+            sort_choice_options(list);
+            *list != before
+        } else {
+            false
+        };
+        // `Pass 308.7`: the same refusal `add_choice_field` has always made.
+        // Checked here, on the list in hand, BEFORE anything is written -- so
+        // a duplicate already sitting in the file does not make an unrelated
+        // edit to the same field impossible.
+        if let Some(options) = &options_after {
+            Self::refuse_duplicate_exports(options)?;
+        }
+
         // ---- rule 4: does the stored value still fit? -----------------
-        let options_after = edit.options.clone();
         let value_no_longer_fits =
             Self::value_fit_complaint(&field, max_len_after, options_after.as_deref());
 
@@ -26137,6 +26248,7 @@ impl EditSession {
             value_no_longer_fits,
             tooltip_removed,
             sort_claim_unmet,
+            options_sorted,
         })
     }
 
@@ -26197,6 +26309,45 @@ impl EditSession {
             .and_then(Object::as_int)
             .unwrap_or(0);
         crate::vartext::Quadding::from_code(q)
+    }
+
+    /// Refuse an `/Opt` list in which two options share an export value
+    /// (`Pass 308.7`, request `G025`).
+    ///
+    /// # ★ This lives HERE because it is a property of `/Opt`, not of a verb
+    ///
+    /// It was eight lines inside `add_choice_field`, and its own comment made
+    /// the argument for moving it: *"a duplicate export is unselectable,
+    /// because the fill verb resolves to the first match."* That is a
+    /// statement about **the written file**, not about how the field came to
+    /// be written — so a guard reachable from only one of the two doors that
+    /// write `/Opt` was in the wrong place from the start.
+    ///
+    /// `pdfcer-gui` found it from the sharp end: placement is reached once per
+    /// field, `edit_field` every time anybody adjusts an existing one, so the
+    /// unguarded door was carrying the overwhelming majority of `/Opt` writes.
+    /// The operator's only evidence was that one row of their own list would
+    /// not stick — which reads as a pdfcer bug rather than as a property of
+    /// the file they had authored.
+    ///
+    /// # Only the list being WRITTEN, never one already in the file
+    ///
+    /// A document opened with a duplicate already in it is not refused an
+    /// unrelated edit to the same field. That is the same call
+    /// [`EditError::ChoiceSortClaimUnmet`]'s Table 230 gate makes for a
+    /// nonconforming bit-19 file: pdfcer reports what it found and lets the
+    /// operator fix it, rather than making a document it did not author
+    /// uneditable. Checking the list in hand gives exactly that, for free.
+    fn refuse_duplicate_exports(options: &[ChoiceOption]) -> Result<(), EditError> {
+        let mut seen = std::collections::BTreeSet::new();
+        for opt in options {
+            if !seen.insert(opt.export.as_str()) {
+                return Err(EditError::ChoiceOptionDuplicate {
+                    value: opt.export.clone(),
+                });
+            }
+        }
+        Ok(())
     }
 
     /// Whether the field's STORED value still fits the field the edit is
@@ -27086,14 +27237,11 @@ impl EditSession {
         // A duplicate export is unselectable, because the fill verb resolves
         // to the first match. Checked before any write so the refusal is
         // total rather than partial.
-        let mut seen = std::collections::BTreeSet::new();
-        for opt in &spec.options {
-            if !seen.insert(opt.export.as_str()) {
-                return Err(EditError::ChoiceOptionDuplicate {
-                    value: opt.export.clone(),
-                });
-            }
-        }
+        //
+        // `Pass 308.7` moved the check itself to `refuse_duplicate_exports`,
+        // which `edit_field` now shares: the reason above is a property of the
+        // written file, so a guard on one of the two doors was never enough.
+        Self::refuse_duplicate_exports(&spec.options)?;
         let (w, h) = (spec.rect.urx - spec.rect.llx, spec.rect.ury - spec.rect.lly);
         let (page_id, slots, path, disclosures) = self.field_authoring_preflight(
             &spec.name,
@@ -27109,7 +27257,7 @@ impl EditSession {
         // array", so the flag alone changes nothing an operator can see.
         let mut options = spec.options.clone();
         if spec.sort {
-            options.sort_by(|a, b| a.display.cmp(&b.display));
+            sort_choice_options(&mut options);
         }
 
         let da = crate::vartext::default_appearance_string(

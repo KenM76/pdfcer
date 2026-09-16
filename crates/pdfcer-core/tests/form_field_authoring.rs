@@ -17,7 +17,7 @@
 
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::{
-    ChoiceOption, EditError, EditSession, NewCheckBox, NewChoiceField, NewPushButton,
+    ChoiceOption, EditError, EditSession, FieldEdit, NewCheckBox, NewChoiceField, NewPushButton,
     NewRadioButton, NewTextField,
 };
 use pdfcer_core::forms::{self, ButtonKind, FieldFlags, FieldType, FieldValue};
@@ -751,6 +751,103 @@ fn a_duplicate_export_value_is_refused() {
     assert!(matches!(err, EditError::ChoiceOptionDuplicate { .. }));
 }
 
+/// ★ AND THE SAME REFUSAL FROM THE OTHER DOOR (`Pass 308.7`, request `G025`).
+///
+/// The guard lived inside `add_choice_field` alone, and its own comment was
+/// the argument against that: *"a duplicate export is unselectable, because
+/// the fill verb resolves to the first match"* — a statement about the written
+/// FILE, not about how the field came to be written.
+///
+/// `edit_field` is the door that matters. Placement is reached once per field;
+/// editing is reached every time anybody adjusts an existing one, so the
+/// unguarded verb was carrying the overwhelming majority of `/Opt` writes. The
+/// operator's only evidence was that one row of their own list would not
+/// stick, which reads as a pdfcer bug rather than as a property of the file
+/// they had just authored.
+#[test]
+fn a_duplicate_export_value_is_refused_by_edit_field_too() {
+    let mut s = session("dimension/plain-base.pdf");
+    s.add_choice_field(
+        &NewChoiceField::new(
+            0,
+            "Country",
+            rect(),
+            vec![ChoiceOption::new("CA", "Canada")],
+        )
+        .declining_tooltip(),
+    )
+    .unwrap();
+
+    let err = s
+        .edit_field(
+            "Country",
+            &FieldEdit::new().with_options(vec![
+                ChoiceOption::new("CA", "Canada"),
+                ChoiceOption::new("CA", "Canada (again)"),
+            ]),
+        )
+        .expect_err("must refuse from this door as well");
+    assert!(matches!(err, EditError::ChoiceOptionDuplicate { .. }));
+
+    // And nothing was written: the refusal is total, as the placement verb's
+    // comment has always claimed for itself.
+    let field = field_named(&s, "Country").expect("the field");
+    assert_eq!(field.options.len(), 1, "the original list stands");
+}
+
+/// A duplicate ALREADY in the file does not make the field uneditable.
+///
+/// ★ The judgement `pdfcer-gui` handed over, and their guess was right. This
+/// is the same call `ChoiceSortClaimUnmet`'s Table 230 gate makes for a
+/// nonconforming bit-19 file: pdfcer reports what it found and lets the
+/// operator fix it, rather than making a document it did not author
+/// uneditable. Checking only the list being WRITTEN gives exactly that, and
+/// gives it for free.
+///
+/// The duplicate is put into the file by PATCHING THE SAVED BYTES, because the
+/// authoring verb has always refused one — a foreign producer is the only way
+/// such a file can exist, and that is exactly the file under test.
+#[test]
+fn a_pre_existing_duplicate_does_not_block_an_unrelated_edit() {
+    let mut s = session("dimension/plain-base.pdf");
+    s.add_choice_field(
+        &NewChoiceField::new(
+            0,
+            "Country",
+            rect(),
+            vec![
+                ChoiceOption::new("CA", "Canada"),
+                ChoiceOption::new("MX", "Mexico"),
+            ],
+        )
+        .declining_tooltip(),
+    )
+    .unwrap();
+    let (bytes, _) = s
+        .to_full_bytes(&pdfcer_core::writer::SaveOptions::default())
+        .unwrap();
+
+    // `(MX)` -> `(CA)`, making the second option a duplicate of the first.
+    let needle = b"(MX)";
+    let at = bytes
+        .windows(needle.len())
+        .position(|w| w == needle)
+        .expect("the export is in the saved bytes");
+    let mut patched = bytes.clone();
+    patched[at..at + needle.len()].copy_from_slice(b"(CA)");
+
+    let mut reopened = EditSession::new(Document::from_bytes(patched).unwrap());
+    let opts = field_named(&reopened, "Country")
+        .expect("the field")
+        .options;
+    assert_eq!(opts.len(), 2, "two options, both exporting CA");
+
+    // An edit that does not touch `/Opt` goes through untroubled.
+    reopened
+        .edit_field("Country", &FieldEdit::new().with_read_only(true))
+        .expect("a pre-existing duplicate is the file's problem, not this edit's");
+}
+
 /// One undo removes the whole choice field, byte-identically.
 #[test]
 fn one_undo_removes_the_entire_choice_field() {
@@ -1221,4 +1318,172 @@ fn every_authored_field_type_is_marked_printable() {
              screen and absent from the paper"
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// `sort` means the same thing on both builders (`Pass 308.8`, request `G026`)
+// ---------------------------------------------------------------------------
+
+/// ★ THE ASYMMETRY THAT PRODUCED THE REQUEST. `NewChoiceField::sorted(true)`
+/// sorted the array; `FieldEdit::with_sort(true)` set a flag and sorted
+/// nothing. Same word, same crate, same field type, opposite meanings — and
+/// both were defensible on their own terms, which is why it took a consuming
+/// shell an hour to work out that neither was wrong.
+///
+/// They agree now in the case that matters: a list supplied in the SAME edit
+/// as the claim is sorted, exactly as placement does it.
+#[test]
+fn a_list_supplied_with_the_sort_claim_is_sorted() {
+    let mut s = session("dimension/plain-base.pdf");
+    s.add_choice_field(
+        &NewChoiceField::new(
+            0,
+            "Country",
+            rect(),
+            vec![ChoiceOption::new("CA", "Canada")],
+        )
+        .declining_tooltip(),
+    )
+    .unwrap();
+
+    let out = s
+        .edit_field(
+            "Country",
+            &FieldEdit::new()
+                .with_options(vec![
+                    ChoiceOption::new("MX", "Mexico"),
+                    ChoiceOption::new("CA", "Canada"),
+                ])
+                .with_sort(true),
+        )
+        .unwrap();
+
+    assert!(out.options_sorted, "the reorder is disclosed, not silent");
+    assert!(
+        !out.sort_claim_unmet,
+        "and the file no longer claims something untrue about a list pdfcer \
+         itself just sorted"
+    );
+    let opts = field_named(&s, "Country").expect("the field").options;
+    let display: Vec<String> = opts
+        .iter()
+        .map(|o| String::from_utf8_lossy(&o.display).into_owned())
+        .collect();
+    assert_eq!(display, vec!["Canada".to_owned(), "Mexico".to_owned()]);
+}
+
+/// Setting the flag ALONE still reorders nothing, and still discloses.
+///
+/// This is the case `FieldEdit::sort`'s own argument was written about and it
+/// is untouched: bit 20 over a list the caller did not supply is a provenance
+/// claim, and silently reordering an operator's existing list because they
+/// ticked a box would be the quiet mutation this project refuses.
+#[test]
+fn the_sort_flag_alone_reorders_nothing_and_says_the_claim_is_unmet() {
+    let mut s = session("dimension/plain-base.pdf");
+    s.add_choice_field(
+        &NewChoiceField::new(
+            0,
+            "Country",
+            rect(),
+            vec![
+                ChoiceOption::new("MX", "Mexico"),
+                ChoiceOption::new("CA", "Canada"),
+            ],
+        )
+        .declining_tooltip(),
+    )
+    .unwrap();
+
+    let out = s
+        .edit_field("Country", &FieldEdit::new().with_sort(true))
+        .unwrap();
+
+    assert!(
+        !out.options_sorted,
+        "no list was supplied, so nothing moved"
+    );
+    assert!(
+        out.sort_claim_unmet,
+        "and the disclosure keeps its job unchanged"
+    );
+    let opts = field_named(&s, "Country").expect("the field").options;
+    assert_eq!(
+        String::from_utf8_lossy(&opts[0].display),
+        "Mexico",
+        "the operator's order stands"
+    );
+}
+
+/// A list that is already in order reports no reorder.
+#[test]
+fn an_already_sorted_list_is_not_reported_as_reordered() {
+    let mut s = session("dimension/plain-base.pdf");
+    s.add_choice_field(
+        &NewChoiceField::new(
+            0,
+            "Country",
+            rect(),
+            vec![ChoiceOption::new("CA", "Canada")],
+        )
+        .declining_tooltip(),
+    )
+    .unwrap();
+
+    let out = s
+        .edit_field(
+            "Country",
+            &FieldEdit::new()
+                .with_options(vec![
+                    ChoiceOption::new("CA", "Canada"),
+                    ChoiceOption::new("MX", "Mexico"),
+                ])
+                .with_sort(true),
+        )
+        .unwrap();
+    assert!(!out.options_sorted, "nothing moved, so nothing is claimed");
+    assert!(!out.sort_claim_unmet);
+}
+
+/// ★ The exported comparator IS the one the gate checks against.
+///
+/// The whole point of exporting it: a caller that sorts with
+/// `sort_choice_options` cannot disagree with `sort_claim_unmet`, because the
+/// two are now one definition rather than two that happen to match. A shell
+/// had copied the private line, and a copy agrees only until the original is
+/// improved.
+#[test]
+fn the_exported_sort_satisfies_the_engines_own_sorted_test() {
+    let mut s = session("dimension/plain-base.pdf");
+    s.add_choice_field(
+        &NewChoiceField::new(
+            0,
+            "Country",
+            rect(),
+            vec![ChoiceOption::new("CA", "Canada")],
+        )
+        .declining_tooltip(),
+    )
+    .unwrap();
+
+    let mut list = vec![
+        ChoiceOption::new("ZW", "Zimbabwe"),
+        ChoiceOption::new("AF", "Afghanistan"),
+        ChoiceOption::new("MX", "Mexico"),
+    ];
+    pdfcer_core::edit::sort_choice_options(&mut list);
+
+    // Sorted by the caller, sent WITHOUT the sort flag's help — the engine's
+    // own gate must be satisfied by the exported order alone.
+    let out = s
+        .edit_field(
+            "Country",
+            &FieldEdit::new().with_options(list).with_sort(true),
+        )
+        .unwrap();
+    assert!(
+        !out.options_sorted,
+        "the caller's order already matched, so the engine moved nothing"
+    );
+    assert!(!out.sort_claim_unmet, "and the gate agrees it is sorted");
 }
