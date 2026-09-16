@@ -115,6 +115,84 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 308.5` (`20e539a2`, 2026-09-16) — a `/Btn` rotation is now BAKED, not merely declared; the staleness disclosure named the wrong set; `G023` closed
+
+New Pass, minted this filing — `308` now runs `.0`–`.5` (`.4` ships in the same session, below); next free family still `309`. Answers `pdfcer-gui`'s `G023`, relaying an operator report: *"the rotate buttons don't work for check boxes."* Request + reply archived as `2026-09-16-G023-a-button-rotation-is-written-and-reports-success-and-never-turns-{request,reply}.md`; `INDEX.md` row added (see Ledger).
+
+**The defect.** `rotate_widget` writes `/MK /R` for every field kind and always calls the button regeneration path. That path DID run — but `build_button_states`, the one function that paints a button's plate, took the staged rect, caption and colours and had **no angle parameter at all**. So a button pdfcer had drawn was recognised, redrawn from unchanged inputs, rewritten byte-identical, and returned `Ok(true)` — `appearance_regenerated: true`, therefore `appearance_stale: None`, therefore the shell reported "turned to 90°" and nothing moved.
+
+**What shipped.** `build_button_states` now takes the quarter turn, authors into an `h`×`w`-swapped `/BBox` for 90/270, and emits `quarter_turn_matrix` — the same construction `regen_field_appearance` already uses, same §12.5.5 reason. `annot_author`'s identity-matrix module invariant is untouched: the builders still take a plain box; the turn is applied in the one function that defines what pdfcer draws for a button. The four "as-stored vs as-staged" properties (rect, caption, colours, angle) are now bundled into one private `ButtonLook` — forced by clippy's argument-count lint, and the right shape anyway: an ownership test must read them STORED while the redraw reads them STAGED, and getting that split backwards is the same bug wearing two faces (declare pdfcer's own artwork foreign, or rewrite identical bytes and report success).
+
+**★★ Where the turn actually lives — the requester's own prediction was right, for the wrong reason.** They warned that `Circle`/`Square`/`Cross` are rotationally symmetric, so a naive bytes-changed assertion would fail on a correct fix. Conclusion right, cause wrong — two of this Pass's own first-draft tests failed against a working fix before this was understood. The content stream is **never** drawn turned: it is drawn upright into a box and `/Matrix` turns the XObject. So the authored bytes change only when the box changes SIZE — 90/270 **and** `w ≠ h`. At 180° every style in every box is byte-identical; a square `Check` box is byte-identical at 90°, an oblong `Circle` box is not — the opposite of the style-keyed prediction in both directions. Asserting `/Matrix` is what actually proves a turn.
+
+**Second defect, same request.** `appearance_stale`'s explanatory sentence enumerated stale cases BY NAME — "a push button's caption artwork" first — rather than by the property that actually decides (is the artwork pdfcer's own?). That sentence takes the regenerated path and never applies to a pdfcer-drawn button, while a foreign CHECK BOX got no mention at all; `pdfcer-gui` had built a capability inventory from the wording and recorded the wrong answer for check boxes and radios. Now names the deciding property. Their framing, quoted in the code: a refusal sentence is a disclosure, and a disclosure that enumerates the wrong set is a defect in whoever believes it.
+
+**Consequence, disclosed rather than hidden.** A widget rotated by an earlier pdfcer build now reads as foreign (its artwork was authored unswapped while `/MK /R` said 90) and `rotate_widget` discloses rather than redraws; rotating again from this build corrects it — same shape as `Pass 308.0`'s push-button colour consequence.
+
+**Tests.** 9 core (`crates/pdfcer-core/tests/button_rotation_bakes.rs`); two sabotage runs confirmed the gap is real (redraw ignoring the staged angle: 9 of 9 fail; ownership test ignoring the stored angle: exactly the two double-rotation tests fail). `pdfcer-cli/tests/rotate_widget.rs`'s foreign-case test extended to pin the corrected sentence (asserts it no longer says "push button"); its own doc comment — which had described the old behaviour as the design — corrected with the prior wording kept legible.
+
+**Docs already updated by the engineer (cited, not redone).** `docs/core-api/02-editing-and-saving.md` gained *"★ A `/Btn` rotation is BAKED now, and the staleness sentence named the wrong set"* (line 3243); file 5,445 → 5,497 lines, 182 → 183 clauses; `docs/core-api/index.md`'s row already matches (independently confirmed).
+
+**`docs/FEATURES.md`.** Rotate-a-widget row's "where pdfcer did not draw the appearance" sentence corrected — no longer names "a push button's caption artwork" as a stale case, names the deciding property instead, and records that a pdfcer-drawn button redraws as of this Pass.
+
+**No decision-log entry** — a redraw-completeness bug fix plus a disclosure-wording correction, not a crate-boundary/library/invariant call.
+
+**Cross-project finding.** New file `D:\dev\rag\rust\a_regeneration_success_flag_that_reads_fewer_staged_inputs_than_it_writes_still_reports_full_success.md`, covering this Pass AND `Pass 308.4` below as two instances of one mechanism found six hours apart — a regeneration success boolean answers "did I produce bytes," never "did those bytes reflect every staged input." The disclosure-enumeration finding above is folded into the same file as a second section, per the project's practice of not minting a standing rule for a shared moral at n=1 without an independent mechanism.
+
+**Sourcing (hard rule 8).** No shell tool this filing, but `.git/COMMIT_EDITMSG` (HEAD's full message) and `.git/logs/HEAD` (the reflog) were read directly — confirming HEAD is `20e539a2` with this exact title and body, and confirming the commit sequence `5d43d2ea` (`Pass 308.3`'s filing) → `503ad9d4` (`Pass 308.4`) → `20e539a2` (this Pass). **Independently confirmed via `Read`/`Grep` against live source at HEAD:** `struct ButtonLook`, `fn build_button_states`, `quarter_turn_matrix` all present in `crates/pdfcer-core/src/edit.rs`; `button_rotation_bakes.rs` contains exactly 9 `#[test]` functions; `docs/core-api/02-editing-and-saving.md:3243` carries the cited heading; `docs/core-api/index.md`'s count row already reads 5,497 lines / 183 clauses, matching.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `Pass 308.0`–`308.4` shipped (`.4` this same filing session, below) — next free family `309` | **`Pass 308.5` SHIPPED (new, minted this filing) — `G023` closed; family now runs `.0`–`.5`; next free family `309` unchanged** |
+| Standing rules | `R257` used, next free `R258` | unchanged — no rule minted (n=1 mechanism, sent to `D:\dev\rag\rust\` instead, per this project's mint-at-n≥2 practice) |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `561` | **`562`** |
+| `docs/FEATURES.md` | Rotate-a-widget row named "a push button's caption artwork" as a stale-redraw case, backwards since this Pass | **corrected to name the deciding property; records that a pdfcer-drawn button redraws (`Pass 308.5`)** |
+| `D:\dev\rag\rust\` | 374 finding files (376 total − 2 meta, after `Pass 308.4`'s addition below) | **375 finding files (377 total − 2 meta) — 1 new file this Pass, SHARED with `Pass 308.4`'s entry (one mechanism, two instances)** |
+| `D:\Dev\FeatureRequests\pdfce_FeatureRequests\` | `INDEX.md` had no `G023` row | **row added, newest-first, above the `G022` row** |
+
+---
+
+### `Pass 308.4` (`503ad9d4`, 2026-09-16) — `/Q` now REDRAWS, not merely records; clearing it means INHERIT, not left-align; `G022` closed
+
+New Pass, minted this filing — `308` now runs `.0`–`.4`; next free family still `309`. Answers `pdfcer-gui`'s `G022`: *"quadding is written but never redrawn."* Request + reply archived as `2026-09-16-G022-quadding-is-written-but-never-redrawn-{request,reply}.md`; `INDEX.md` row added (see Ledger).
+
+**The defect.** `edit_field`'s `layout_changed` gate — the check deciding whether to invoke the shared §12.7.3.3 appearance engine — never checked `edit.quadding.is_some()`, so a quadding-only edit never redrew at all (`appearance_regenerated: false`, at least honestly reported, but with no variant able to say *recorded, not painted*). Gating alone would not have been sufficient: `regen_field_appearance` reads `field.quadding` off a snapshot taken BEFORE the current command's own writes land, so a naive gate fix would have re-baked the OLD justification while reporting `appearance_regenerated: true`.
+
+**What shipped.** The gate now includes quadding, and the appearance engine reads the just-staged value rather than the pre-command snapshot. **`/Q` is INHERITABLE** (§12.7.3.2: own → ancestors → `/AcroForm` → default), a fact neither the original request nor this Pass's first draft had — so `clearing_quadding()` means *inherit again*, not *left-align*. Resolving a removal to `Quadding::default()` would left-align a field under a parent that states centred, reintroducing the defect on the branch that looks too simple to get wrong. New private `EditSession::inherited_quadding`, which **duplicates `forms.rs`'s own precedence walk** — a real, documented cost, noted at the function so the duplication is findable rather than incidental.
+
+**★★ The testing finding.** The naturally-suggested test — compare rendered x-offsets between two quaddings — **passed against the deliberately-broken (stale-snapshot) build**: with a one-step-stale read, both edits in the comparison render one step behind, and the ORDER of the two resulting offsets survives the shift intact. ⇒ *An off-by-one that shifts every sample preserves every comparison BETWEEN samples.* Replaced with a width-free, absolute assertion — subtract the pad and the measured centre offset, and the residual is exactly half the box width minus half the string's own width, whatever that width is — pinning each arm to geometry rather than to a neighbouring sample. Confirmed by sabotage: the relative test stayed green against the reverted fix; the absolute one did not.
+
+**Citation corrected, eight places.** `/Q` is §12.7.3.**3** Table **222** (PDF 2.0 Table 228) — not §12.7.**4**.3 Table **233**, which is the signature-field `/Lock` dictionary, a real table about something else, which is how the miscitation survived unnoticed. Fixed in `EditError::QuaddingInvalid`'s operator-facing message and both CLI help texts; verified against `D:\Dev\Rag-Specialized\PDF_Spec\` before changing anything.
+
+**Tests.** 8 core (`crates/pdfcer-core/tests/quadding_redraws.rs`, every one reading the rendered STREAM, not the dictionary — one test deliberately asserts the dictionary only and is labelled unable to see this class of bug, so nobody mistakes it for coverage), 3 CLI (`crates/pdfcer-cli/tests/edit_field.rs`).
+
+**Docs already updated by the engineer (cited, not redone).** `docs/core-api/02-editing-and-saving.md` gained *"★ `/Q` now REDRAWS, and clearing it means INHERIT"* (line 3206); file 5,408 → 5,445 lines, 182 → 183 clauses; `docs/core-api/index.md`'s row already matches (independently confirmed).
+
+**`docs/FEATURES.md`.** Field-property row (line 313) gained a clause stating `--quadding`/`--clear-quadding` now redraw rather than merely record, and that clearing re-resolves through inheritance; re-measured under the 1,200-character cap after editing (confirmed under cap by grep, not assumed).
+
+**No decision-log entry** — a redraw-completeness bug fix plus a citation correction, not a crate-boundary/library/invariant call.
+
+**Cross-project findings, two files.** `D:\dev\rag\rust\a_regeneration_success_flag_that_reads_fewer_staged_inputs_than_it_writes_still_reports_full_success.md` (new — shared with `Pass 308.5` above, one mechanism found twice in one session). `D:\dev\rag\rust\a_relative_comparison_between_samples_cannot_catch_an_offset_that_shifts_every_sample_by_the_same_amount.md` (new — the testing finding above, stated as a general rule: before trusting an A-vs-B test of a value suspected stale-by-N-steps, ask whether a uniform displacement of every sample would still read as correct).
+
+**Sourcing (hard rule 8).** No shell tool this filing. `.git/logs/HEAD` (the reflog) was read directly, confirming `503ad9d4`'s exact commit subject and its position in the sequence `5d43d2ea` → `503ad9d4` → `20e539a2`. Its full commit body could **not** be read the same way `Pass 308.5`'s was — it is not `HEAD`, and its loose git object (`.git/objects/50/3ad9d4…`) is zlib-compressed, unreadable by a text-reading tool — so the reasoning above is taken from the dispatching engineer's own report. **Independently confirmed via `Read`/`Grep` against live source at HEAD:** `fn inherited_quadding`, `EditError::QuaddingInvalid` present in `crates/pdfcer-core/src/edit.rs`, with the corrected `§12.7.3.3 Table 222` citation (not `§12.7.4.3 Table 233`) confirmed by direct read; `quadding_redraws.rs` contains exactly 8 `#[test]` functions; `docs/core-api/02-editing-and-saving.md:3206` carries the cited heading; `docs/core-api/index.md`'s count row already reads 5,445 lines at the point this Pass claims, consistent with `Pass 308.5` moving it on to 5,497.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `Pass 308.0`–`308.3` shipped — next free family `309` | **`Pass 308.4` SHIPPED (new, minted this filing) — `G022` closed; family now runs `.0`–`.4`; next free family `309` unchanged** |
+| Standing rules | `R257` used, next free `R258` | unchanged — no rule minted (n=1 mechanism, sent to `D:\dev\rag\rust\` instead) |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `560` | **`561`** |
+| `docs/FEATURES.md` | Field-property row (line 313) described `/Q` as writable, silent on whether it redraws | **clause added: `--quadding`/`--clear-quadding` now redraw, and clearing re-resolves through inheritance** |
+| `D:\dev\rag\rust\` | 373 finding files (375 total − 2 meta) | **374 finding files (376 total − 2 meta) — 2 new files this Pass; one of the two is SHARED with `Pass 308.5`'s entry above, so the running total after both Passes is 375 finding files (377 total)** |
+| `D:\Dev\FeatureRequests\pdfce_FeatureRequests\` | `INDEX.md` had no `G022` row | **row added, newest-first, above the `G021` row** |
+
+---
+
 ### `Pass 308.3` (`20bfb259`, 2026-09-15) — colour REMOVAL: `MkColorEdit::{Set, Remove}` replaces the overloaded `Option<MkColor>`; `--background unset`/`--border-color unset`; `G021` closed
 
 New Pass, minted this filing — `308` now runs `.0`, `.1`, `.2`, `.3`; next free family still `309`. Answers `pdfcer-gui`'s `G021` (a follow-up to `G020`'s O202, arriving minutes after the `Pass 308.1` delivery notice, drawn while wiring O202's after-placement swatches): *"a `/MK` colour can be set and changed, but never removed."* Request + reply archived as `2026-09-15-G021-there-is-no-way-to-remove-an-MK-colour-once-set-{request,reply}.md`; `INDEX.md` row added (see Ledger).
@@ -14894,6 +14972,12 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### Unscoped — Audit every `FieldEdit`/`WidgetEdit` property: does its regeneration path actually READ it? — filed 2026-09-16 (562nd filing, `pdfcer-gui`'s own recommendation after `G022`/`G023`), no Pass ID
+
+`Pass 308.4` (`/Q`) and `Pass 308.5` (button rotation) are the same defect found on two different keys, six hours apart: a property is validated, written to the dictionary, and never reaches the baked appearance — while the outcome reports success. `pdfcer-gui` did this audit for `FieldEdit` and found `/Q`; nobody has done it for `WidgetEdit`, and the button-rotation hole was exactly what it would have found.
+
+**Scope:** enumerate every settable property on both edit types and check, for each, that the regeneration function it feeds actually has that property in its parameter list (or its live snapshot read) — not merely that regeneration is *called*. See `D:\dev\rag\rust\a_regeneration_success_flag_that_reads_fewer_staged_inputs_than_it_writes_still_reports_full_success.md` for the full mechanism and how to test for it (an end-to-end stream-bytes assertion, not a writer test and a painter test run separately).
 
 ### Unscoped — Carry `pdfcer-render`'s TEXT matrix (`Tm`/`Tlm`) in f64, matching what its CTM already does — filed 2026-09-15 (554th filing, `Pass 306.0`'s named remainder), no Pass ID
 
