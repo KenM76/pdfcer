@@ -115,6 +115,38 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 308.9` (`22bdf80c`, 2026-09-16) — the duplicate rule is public too; `G027` closed
+
+New Pass, minted this filing — `308` now runs `.0`–`.9`; next free family still `309`. Answers `pdfcer-gui`'s `G027`, filed within two hours of `G026`'s delivery: *"this is `G026` with the nouns changed."* Request + reply archived as `2026-09-16-G027-opt-duplicate-rule-is-still-private-{request,reply}.md`; `INDEX.md` row added (see Ledger).
+
+**What shipped.** `pub fn duplicate_choice_export(options: &[ChoiceOption]) -> Option<&str>` in `edit`, beside `choice_option_order`/`sort_choice_options`. `refuse_duplicate_exports` (private, from `Pass 308.7`) is now a two-line wrapper over it. Returns the offending VALUE, not a `bool`, on the requester's argument: *"a refusal that names nothing is, to the person holding the mouse, barely distinguishable from nothing happening."* Their alternative — the `EditError` carrying its own operator sentence — was declined: a sentence is a second *description* of the rule and can drift from it; a predicate cannot.
+
+★★ **The finding, escalated per the requester's own flag.** `Pass 308.8` (`G026`, one commit earlier, same file) exported the `/Opt` ordering and its own doc comment argued the GENERAL case: *"two independent implementations of one rule agree until one of them is improved, and no test on either side can catch the drift because each stays internally consistent."* `Pass 308.7` (`G025`), shipped in the same commit, put the `/Opt` duplicate refusal on both writing verbs and left it private — the identical shape the just-written sentence predicted, one function away, in the same file. ⇒ *A finding accepted in one place is not thereby applied everywhere it holds.* New file `D:\dev\rag\rust\a_finding_accepted_in_one_place_is_not_thereby_applied_everywhere_it_holds.md`, cross-linked from `308.8`'s own RAG entry as its missing second half.
+
+**Tests.** Three, one pinning something nobody asked about: two options may share a **display** string, and only `export` is the identity — a form legitimately offers "Other" twice under different codes, and refusing that would be pdfcer inventing a constraint the standard does not have.
+
+**Docs.** `docs/FEATURES.md`'s field-property row (line 312) updated: the duplicate-export rule is now public, so a shell can ask before sending rather than carrying its own copy.
+
+**No decision-log entry** — a private function made public plus a doc-comment cross-link, not a crate-boundary/library/invariant call.
+
+**Gate status.** `fmt --check`, `clippy --workspace --all-targets --all-features -D warnings`, core `--lib`, core `--test '*' -j 1`, `pdfcer-cli -j 1`, `--no-default-features`, wasm `check`, `fuzz check --bins`, all 24 non-cargo gates — green, split procedure.
+
+**Sourcing (hard rule 8).** No shell tool this filing — `.git/COMMIT_EDITMSG` (HEAD's full message) and `.git/refs/heads/main` read directly, confirming HEAD is `22bdf80c...` with this exact title/body. **Independently confirmed via `Read`/`Grep` against live source at HEAD:** `pub fn duplicate_choice_export` and `fn refuse_duplicate_exports` (now a wrapper citing `Pass 308.9`) both present in `crates/pdfcer-core/src/edit.rs`; ~~four candidate test functions found by name-grep … which one pre-dates this Pass is not independently distinguished this filing~~ — **RESOLVED by the engineer on receipt: `git show 22bdf80c` names exactly the three this Pass added (`the_exported_predicate_names_what_the_verb_refuses`, `a_list_with_no_repeat_passes_the_predicate_and_the_verb`, `a_repeated_display_string_is_not_a_duplicate`), and the commit's count was right.** ★ The caveat was honest and the method was the problem: a **name-grep** for a feature's vocabulary cannot separate what a commit ADDED from what was already there, because the older tests are about the same feature and are named accordingly. A diff can, and costs nothing. The same caveat on the `308.7`/`308.8` entry is resolvable the same way and should be, rather than carried. Both archived request/reply files confirmed present in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\archive\`.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `Pass 308.0`–`308.8` shipped — next free family `309` | **`Pass 308.9` SHIPPED (new, minted this filing) — `G027` closed; family now runs `.0`–`.9`; next free family `309` unchanged** |
+| Standing rules | `R257` used, next free `R258` | unchanged — no rule minted (generalisable finding sent to `D:\dev\rag\rust\` instead) |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `565` | **`566`** |
+| `docs/FEATURES.md` | Field-property row (line 312) silent on whether the duplicate-export rule is callable from outside | **row updated: the rule is now public (`duplicate_choice_export`)** |
+| `D:\dev\rag\rust\` | 378 finding files (380 total − 2 meta) | **379 finding files (381 total − 2 meta) — 1 new file this filing, plus a cross-link added to `308.8`'s file** |
+| `D:\Dev\FeatureRequests\pdfce_FeatureRequests\` | `INDEX.md` had no `G027` row | **row added, newest-first, above the `G026` row** |
+
+---
+
 ### `Pass 308.7` + `Pass 308.8` (`56351185`, 2026-09-16) — one guard, one comparator, one meaning; `G025`/`G026` closed
 
 New Passes, minted this filing — `308` now runs `.0`–`.8`; next free family still `309`. **One commit, two Pass IDs, deliberate**: the two fixes interleave inside `edit_field` and could not be separated cleanly (`check-passes-filed.py` treats multi-claim as a note, not a failure). Answers two `pdfcer-gui` reports about the same verb, minutes apart, both about a rule that existed in one place and was needed in two: `G025` (a duplicate `/Opt` export written by `edit_field`) and `G026` (`sorted` and `with_sort` meaning opposite things). Requests + replies archived as `2026-09-16-G025-edit-field-writes-a-duplicate-Opt-export-{request,reply}.md` and `2026-09-16-G026-the-word-sort-means-two-different-things-{request,reply}.md`; `INDEX.md` rows added (see Ledger).
@@ -125,7 +157,7 @@ New Passes, minted this filing — `308` now runs `.0`–`.8`; next free family 
 
 ★★ **The generalisable finding, escalated per the requester's own flag.** New file `D:\dev\rag\rust\a_private_comparator_copied_by_a_caller_is_a_second_implementation_that_can_only_diverge.md` — a sibling of `two_representations_of_one_fact_can_disagree_until_a_third_thing_derives_one_from_the_other.md` (that one: a VALUE written twice by two writers; this one: a RULE copied once across a crate boundary because the API gave the caller no other door) and of `a_conversion_reimplemented_on_a_second_code_path_diverges...md` (two paths inside one codebase, vs. this one crossing a crate boundary).
 
-**Tests.** 6 new (commit-cited). Grep of `crates/pdfcer-core/tests/form_field_authoring.rs` finds 7 functions matching the feature names (`sorting_reorders_the_options_rather_than_only_flagging_them`, `a_duplicate_export_value_is_refused{,_by_edit_field_too}`, `a_list_supplied_with_the_sort_claim_is_sorted`, `the_sort_flag_alone_reorders_nothing_and_says_the_claim_is_unmet`, `an_already_sorted_list_is_not_reported_as_reordered`, `the_exported_sort_satisfies_the_engines_own_sorted_test`) — one likely pre-dates this Pass; not independently distinguished this filing. Sabotage verified for `308.7`: deleting the new `edit_field` guard fails exactly the one test written for it.
+**Tests.** 6 new, and the commit's count was right — ~~one likely pre-dates this Pass; not independently distinguished this filing~~ **RESOLVED by the engineer on receipt.** `git show 56351185` names them exactly: `a_duplicate_export_value_is_refused_by_edit_field_too`, `a_pre_existing_duplicate_does_not_block_an_unrelated_edit` (`308.7`), `a_list_supplied_with_the_sort_claim_is_sorted`, `the_sort_flag_alone_reorders_nothing_and_says_the_claim_is_unmet`, `an_already_sorted_list_is_not_reported_as_reordered`, `the_exported_sort_satisfies_the_engines_own_sorted_test` (`308.8`). The pre-existing one was `a_duplicate_export_value_is_refused`, which the name-grep could not separate because it is about the same feature and is named accordingly. Sabotage verified for `308.7`: deleting the new `edit_field` guard fails exactly the one test written for it.
 
 **Docs.** `docs/core-api/` verb count and `EditError` count are **unchanged** — confirmed by grep: `choice_option_order`/`sort_choice_options` are free functions in the `edit` module, not inside `impl EditSession` (so not counted `EditSession` verbs), and no new `EditError` variant was added (`ChoiceOptionDuplicate` reused). `docs/FEATURES.md`'s field-property row (line 312) updated: option-list editing now refuses duplicate exports from both doors, and honours a sort claim supplied together with the full replacement list.
 

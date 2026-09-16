@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-16 (566th filing) — `Pass 308.9` (`22bdf80c`): the duplicate rule is public too; `G027` closed
+
+**Shipped:** `Pass 308.9` (`22bdf80c`), new Pass minted this filing (family now `308.0`–`308.9`, next free family `309` unchanged). Answers `pdfcer-gui`'s `G027`, filed within two hours of `G026`'s delivery: *"this is `G026` with the nouns changed."* `pub fn duplicate_choice_export(options: &[ChoiceOption]) -> Option<&str>` added to `edit`, beside `choice_option_order`/`sort_choice_options`; `Pass 308.7`'s private `refuse_duplicate_exports` is now a two-line wrapper over it. Returns the offending VALUE rather than a `bool`.
+
+**Decisions made this session:** none — a private function made public plus a doc-comment cross-link, not a crate-boundary/library/invariant call. No `ARCHITECTURE.md` §12 entry.
+
+**Findings + decisions:**
+- **★★ The finding, escalated per the requester's own flag.** `Pass 308.8` (`G026`, one commit earlier, same file) exported the `/Opt` ordering and its own doc comment argued the GENERAL case — two independent implementations of one rule agree until one of them is improved, and no test on either side can catch the drift. `Pass 308.7` (`G025`), shipped in the same commit, put the `/Opt` duplicate refusal on both writing verbs and left it private — the identical shape the just-written sentence predicted, one function away, in the same file. ⇒ *A finding accepted in one place is not thereby applied everywhere it holds.* New file `D:\dev\rag\rust\a_finding_accepted_in_one_place_is_not_thereby_applied_everywhere_it_holds.md`, cross-linked from `308.8`'s own RAG entry as its missing second half.
+- **Design decision recorded from the requester's own words:** (b) — an `EditError` carrying its own operator sentence — was declined as the weaker fix: a sentence is a second description of the rule and can drift from it; a predicate cannot.
+- **A test pins something nobody asked about:** two options may share a DISPLAY string, and only `export` is the identity — refusing a repeated display would be pdfcer inventing a constraint the standard does not have.
+- `docs/ROADMAP.md`: new `Pass 308.9` Shipped entry added at top, above `Pass 308.7`/`308.8`'s.
+- `docs/FEATURES.md`: field-property row (line 312) updated — the duplicate-export rule is now public.
+- `D:\Dev\FeatureRequests\pdfce_FeatureRequests\INDEX.md` gained one row, `G027`, newest-first, above the `G026` row.
+
+**Still in flight:** owed items unchanged from the 565th filing below (the `/CO` indirect-array Backlog item, the widened `FieldEdit`/`WidgetEdit`-audit Backlog item).
+
+**For next session:** nothing new opened by this filing; the request closed same-day.
+
+**Sourcing (hard rule 8).** No shell tool this filing. `.git/COMMIT_EDITMSG` (HEAD's full message) and `.git/refs/heads/main` read directly, confirming HEAD is `22bdf80c...` with this exact title/body. **Independently confirmed via `Read`/`Grep` against live source at HEAD:** `pub fn duplicate_choice_export` and `fn refuse_duplicate_exports` both present in `crates/pdfcer-core/src/edit.rs`; both archived request/reply files confirmed present.
+
 ## 2026-09-16 (564th and 565th filings, one commit) — `Pass 308.7` + `Pass 308.8` (`56351185`): one guard, one comparator, one meaning; `G025`/`G026` closed
 
 **Shipped:** `Pass 308.7` + `Pass 308.8` (`56351185`), new Passes minted this filing (family now `308.0`–`308.8`, next free family `309` unchanged). **One commit, two Pass IDs, deliberate** — the two fixes interleave inside `edit_field`; `check-passes-filed.py` treats a multi-claim commit as a note, not a failure. Two `pdfcer-gui` reports about the same verb, minutes apart, both about a rule that existed in one place and was needed in two.
