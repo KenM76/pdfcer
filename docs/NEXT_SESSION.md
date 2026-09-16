@@ -5,7 +5,7 @@ detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
 **Written:** 2026-09-12, after `Pass 300.3` and the 530th filing.
-**Amended:** 2026-09-15 (again), after `Pass 307.0`, `Pass 308.0`/`308.2` and `Pass 308.1` — with which **`G020` is fully closed** — and the 557th filing. See **SINCE THE LAST HANDOFF** at the top of STATE —
+**Amended:** 2026-09-15 (again), after `Pass 307.0`, `Pass 308.0`/`308.2`, `Pass 308.1` — with which **`G020` is fully closed** — and `Pass 308.3` answering the new `G021`. Filings to the 560th. See **SINCE THE LAST HANDOFF** at the top of STATE —
 everything below that block is carried forward unchanged and still true.
 
 ---
@@ -327,12 +327,104 @@ button and push button are byte-identical in both halves.
 scan.** Unspliced in the same commit. The gate's coverage is narrower than its
 name suggests; a CLI splice is found only by reading.
 
-★ **`run-gates.sh` ran all 34 commands to completion again**, nothing
-OOM-killed — the second consecutive clean full sweep on this machine, so treat
-the fallback procedure above as the exception it now is. One failure,
-`cargo fmt --all --check`, on the new test file alone; the 24 non-cargo gates
-and fmt were re-run **after** the last edit, which is the discipline the top of
-this file asks for.
+### ★★★ AND `G021` ARRIVED MINUTES AFTER THAT NOTICE — `Pass 308.3`, `20bfb259`
+
+`pdfcer-gui`, wiring the swatches `308.0` unblocked: *"a `/MK` colour can be
+set and changed, but never removed."* Correct, and **the bug was in a TYPE.**
+
+`WidgetEdit`'s two colour fields were `Option<MkColor>` — and that `Option`
+already meant *this edit does not mention the key*. So `Some(MkColor::None)`
+was Table 189's empty array and **absent had no spelling at all**. The key has
+three reachable states, the READ model
+(`forms::Widget::background`) always distinguished all three, and the write
+model could reach two. Nobody wrote a wrong line: *the type could not express
+the state, so the state was silently unreachable.*
+
+⇒ **When a read model distinguishes N states and the write model is an
+`Option`, check that N ≤ 2 before believing the round trip is closed.** This is
+the **third** defect on these same two keys — `/BG` was readable-and-unwritable
+and `/BC` writable-and-unreadable until `Pass 249.1`/`262.2` closed them. Those
+fixes closed the KEYS. Nobody checked the STATE SPACE.
+
+★ **On a push button it is a different RENDERING, not a different byte**:
+absent means the plate grey, `[]` means no plate, so an operator who chose *no
+background* could not get the plate back. `/BC` is currently only a byte
+(absent and empty both stroke black) and stops being one the moment any default
+there is not black.
+
+`MkColorEdit { Set(MkColor), Remove }` names the three states.
+`with_background` / `with_border_color` keep their signatures and every call
+site; `without_background` / `without_border_color` are new; `resolved()` is
+the single reader shared by the dictionary writer and the regenerator, so they
+cannot drift. CLI: `edit-widget --background unset`, deliberately a different
+word from `none`.
+
+★ **The requester's preferred option was DECLINED with reasons, and the reason
+generalises.** They asked for `with_background(Option<MkColor>)` on read/write
+symmetry. That makes the field `Option<Option<MkColor>>` — **the same mistake
+one layer deeper**, three states carried by two anonymous wrappers where the
+reader must know which `None` is which. A named enum instead. The reply offers
+a thin `with_background_state(Option<MkColor>)` wrapper **if** their
+copy-chrome pattern recurs; that is a conditional offer, not a commitment, so
+do not ship it unprompted.
+
+★★ **AND THE CHANNEL FINDING, which is worth more than the code one.** They
+had a working workaround — write `/MK` directly, around `EditSession` — and
+**refused it**, reporting the refusal per decision 058: it would have bypassed
+the undo stack, the appearance regenerator and the R33 minimal-diff writer.
+Verbatim: *"The boundary is drawn in the right place; it is just missing a
+verb."*
+
+⇒ *A missing verb at a well-drawn boundary is a CHEAP bug. A boundary crossed
+to work around a missing verb is an expensive one, and it does not look like a
+bug at all* — it looks like working code, and the unenforced invariants surface
+much later as "undo behaves oddly on one property". **Second instance in two
+days** (`G017` was the first shape of it). When a shell reports a missing verb
+instead of routing around one, that report is worth answering the same day.
+
+★ **A stale claim retired, and its twin found by the librarian's sweep.**
+`WidgetEdit::border_color`'s doc still carried the long "honest limit"
+paragraph — pdfcer does not paint `/MK`, painting it would need a second
+generator against R92 — which `Pass 308.0` had falsified that morning by doing
+it with neither. Retired in the Pass commit; the librarian's sweep then found
+the **same claim surviving** in `docs/core-api/01-reading-and-model.md`, and
+flagged rather than edited it because that file is the engineer's. Closed on
+receipt, in the filing commit. ⇒ *A claim copied into two documents is retired
+from one of them; grep for the SENTENCE, not the file you remember writing it
+in.*
+
+★★ **AND THE SENTENCE I WROTE HERE AN HOUR LATER WAS WRONG, WHICH IS WHY IT
+IS STRUCK RATHER THAN EDITED.** It said:
+
+> ~~"`run-gates.sh` ran all 34 commands to completion again, nothing
+> OOM-killed — the second consecutive clean full sweep on this machine, so
+> treat the fallback procedure above as the exception it now is."~~
+
+Two clean sweeps in a row, and I generalised from two. **The THIRD sweep the
+same evening stalled** — parked in `cargo test --workspace`'s compile phase
+with no progress line for many minutes while the machine was under memory
+pressure (the harness killed several background waiters for the same reason).
+Killed, and the **split procedure below carried it to green without trouble**.
+
+⇒ **The honest statement is a COIN FLIP, and the split procedure is the
+dependable path.** Try the sweep — it is one command and it sometimes works —
+but budget for it stalling and do not plan a session around it. Note the
+failure MODE is not always a kill: it can simply stop making progress, which
+looks like a slow compile until you check the clock. `stat` the log; if its
+mtime is minutes old while `rustc` processes are alive, it is stuck.
+
+⇒ **And note the shape, because it is this file's recurring one.** The
+paragraph above this block corrects "it buffers"; the one above that corrects
+"it exits 0"; `CLAUDE.md` rule 8 corrects "there is no git remote". Every one
+is **a confident environmental claim generalised from too few observations and
+written into the document a session reads FIRST.** Two data points are not a
+trend. The sweep-tendency paragraph at the top of this file gets this right —
+it says *tendency*, tells you to try anyway, and refuses to delete the
+evidence on either side. Match that register when you amend it.
+
+One `Pass 308.1` failure worth keeping: `cargo fmt --all --check`, on the new
+test file alone. The 24 non-cargo gates and fmt were re-run **after** the last
+edit, which is the discipline the top of this file asks for.
 
 ### ★★★ SINCE THE LAST HANDOFF — 2026-09-15 (`Pass 306.0`)
 

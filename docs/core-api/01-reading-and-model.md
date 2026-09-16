@@ -2575,11 +2575,20 @@ Methods: `is_widget()` `:450`, `is_group_subordinate()` `:468`,
 DeviceCMYK never pre-converted. ★ Until this date **read and write sat on
 opposite keys of one dictionary**: pdfcer WROTE `/BC` (hard-coded black, never
 settable) and never read it, READ `/BG` and never wrote it, so neither
-round-tripped. Write side: `WidgetEdit::{background, border_color}` and
-`MkColor::to_array()`, the exact inverse of `from_array`. CLI: `edit-widget
---background/--border-color`, and `list-fields --widgets` prints both.
-⚠️ **pdfcer's own renderer does not paint `/MK` colours** (R43,
-named-not-painted) — the value is in the file for viewers that honour it.
+round-tripped. Write side: `WidgetEdit::{background, border_color}`, now
+`Option<MkColorEdit>` so a key can be REMOVED as well as set (`Pass 308.3`),
+and `MkColor::to_array()`, the exact inverse of `from_array`. CLI:
+`edit-widget --background/--border-color`, taking `none` (the empty array) and
+`unset` (remove the key) as different words, plus the same two flags on all
+five `add-*` verbs (`Pass 308.1`); `list-fields --widgets` prints both.
+★ **RETIRED 2026-09-15.** This paragraph ended:
+~~"⚠️ pdfcer's own renderer does not paint `/MK` colours (R43,
+named-not-painted) — the value is in the file for viewers that honour it."~~
+`Pass 308.0` bakes both colours into the `/AP`, so pdfcer paints them like
+anything else and a colour-only edit redraws. R43 still holds in general —
+pdfcer does not reconstruct an appearance from `/MK` at DISPLAY time; what
+changed is that the appearance BUILDER now takes the colour, per call site, so
+a fill is untouched.
 
 **`annot_author::CheckStyle` (2026-09-08).** Six check-box/radio glyphs —
 `Check` `Cross` `Star` `Circle` `Square` `Diamond`, default `Check` — with
