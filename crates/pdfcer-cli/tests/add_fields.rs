@@ -155,6 +155,13 @@ fn list_fields(path: &Path) -> String {
     stdout(&out)
 }
 
+/// `list-fields --widgets` output, which carries the per-widget `/MK` line.
+fn list_widgets(path: &Path) -> String {
+    let out = run(&["list-fields", &path.display().to_string(), "--widgets"]);
+    assert_eq!(code(&out), 0, "list-fields failed: {}", stderr(&out));
+    stdout(&out)
+}
+
 // ---------------------------------------------------------------------------
 // add-check-box
 // ---------------------------------------------------------------------------
@@ -1537,5 +1544,163 @@ fn a_field_name_containing_a_space_round_trips_from_list_fields_to_a_write_verb(
         list_fields(&renamed).contains("name=\"Home Phone_2\""),
         "{}",
         list_fields(&renamed)
+    );
+}
+
+// ---------------------------------------------------------------------------
+// `--background` / `--border-color` at CREATION time (`Pass 308.1`)
+// ---------------------------------------------------------------------------
+
+/// The colour reaches the file in one command, and the verb says what it used.
+///
+/// `edit-widget --background` could already do this AFTER placement; the
+/// operator asked for *"before or after"*, and before was create-then-edit.
+#[test]
+fn add_text_field_takes_a_colour_before_placement() {
+    let (dir, input) = TempDir::seeded("tfcolour");
+    let output = dir.join("out.pdf");
+    let out = run(&[
+        "add-text-field",
+        &input.display().to_string(),
+        "--name",
+        "Name",
+        "--page",
+        "1",
+        "--rect",
+        "20,20,120,44",
+        "--no-tooltip",
+        "--background",
+        "0.9,0.95,1",
+        "--border-color",
+        "0,0,0.5",
+        "-o",
+        &output.display().to_string(),
+    ]);
+    assert_eq!(code(&out), 0, "{}", stderr(&out));
+    let line = stdout(&out);
+    assert!(
+        line.contains("background=0.9,0.95,1"),
+        "the verb discloses what it used: {line}"
+    );
+    assert!(line.contains("border_color=0,0,0.5"), "{line}");
+
+    // And `list-fields` reads the same two values back, in the same spelling
+    // — so a value printed by one verb can be passed to the other.
+    let listed = list_widgets(&output);
+    assert!(listed.contains("background=0.9,0.95,1"), "{listed}");
+    assert!(listed.contains("border_color=0,0,0.5"), "{listed}");
+}
+
+/// Every creation verb takes the pair, spelled identically.
+///
+/// Five verbs with five spellings is how `--border-color` and `--bordercolor`
+/// end up in the same tool. One test over all five is cheaper than noticing
+/// later.
+#[test]
+fn every_field_creation_verb_takes_the_same_two_colour_flags() {
+    for (verb, extra) in [
+        ("add-text-field", vec![]),
+        ("add-check-box", vec!["--on-state", "Yes"]),
+        ("add-radio-button", vec!["--export-value", "A"]),
+        ("add-choice-field", vec!["--option", "Canada"]),
+        ("add-push-button", vec!["--caption", "Submit"]),
+    ] {
+        let (dir, input) = TempDir::seeded("allcolour");
+        let output = dir.join("out.pdf");
+        let mut args = vec![
+            verb,
+            &input.display().to_string(),
+            "--name",
+            "F",
+            "--page",
+            "1",
+            "--rect",
+            "20,20,120,44",
+            "--no-tooltip",
+            "--background",
+            "0.5",
+            "--border-color",
+            "none",
+            "-o",
+            &output.display().to_string(),
+        ]
+        .iter()
+        .map(|s| (*s).to_owned())
+        .collect::<Vec<_>>();
+        args.extend(extra.iter().map(|s| (*s).to_owned()));
+        let borrowed: Vec<&str> = args.iter().map(String::as_str).collect();
+        let out = run(&borrowed);
+        assert_eq!(code(&out), 0, "{verb}: {}", stderr(&out));
+        let line = stdout(&out);
+        assert!(line.contains("background=0.5"), "{verb}: {line}");
+        assert!(
+            line.contains("border_color=none"),
+            "{verb} must accept Table 189's empty array by name: {line}"
+        );
+    }
+}
+
+/// A mistyped colour is REFUSED, by name, before anything is written.
+///
+/// Rounding `0.5,0.5` to the nearest legal component count would produce a
+/// colour the operator did not ask for in a file they cannot tell apart from
+/// the one they wanted.
+#[test]
+fn a_creation_colour_with_no_legal_component_count_is_refused() {
+    let (dir, input) = TempDir::seeded("badcolour");
+    let output = dir.join("out.pdf");
+    let out = run(&[
+        "add-text-field",
+        &input.display().to_string(),
+        "--name",
+        "Name",
+        "--page",
+        "1",
+        "--rect",
+        "20,20,120,44",
+        "--no-tooltip",
+        "--background",
+        "0.5,0.5",
+        "-o",
+        &output.display().to_string(),
+    ]);
+    assert_ne!(code(&out), 0, "a two-component colour is not a colour");
+    let err = stderr(&out);
+    assert!(err.contains("--background"), "named by flag: {err}");
+    assert!(
+        !output.exists(),
+        "and nothing was written — a refusal that still leaves a \
+         plausible-looking artefact is the worst outcome"
+    );
+}
+
+/// Stating no colour leaves the field exactly as every earlier build wrote it.
+///
+/// The `/MK` `/BC [0 0 0]` a created text field used to carry claimed a black
+/// frame its `/AP` never drew; `list-fields` reported it as `border_color=0,0,0`
+/// and a resize would have materialised it. `-` is now the honest answer.
+#[test]
+fn a_text_field_created_with_no_colour_reports_neither() {
+    let (dir, input) = TempDir::seeded("nocolour");
+    let output = dir.join("out.pdf");
+    let out = run(&[
+        "add-text-field",
+        &input.display().to_string(),
+        "--name",
+        "Name",
+        "--page",
+        "1",
+        "--rect",
+        "20,20,120,44",
+        "--no-tooltip",
+        "-o",
+        &output.display().to_string(),
+    ]);
+    assert_eq!(code(&out), 0, "{}", stderr(&out));
+    assert!(stdout(&out).contains("background=- border_color=-"));
+    let listed = list_widgets(&output);
+    assert!(
+        listed.contains("background=- border_color=-"),
+        "no phantom border colour survives: {listed}"
     );
 }

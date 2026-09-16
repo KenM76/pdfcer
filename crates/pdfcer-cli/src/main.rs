@@ -4436,6 +4436,23 @@ enum Command {
         /// Border width in points. Zero means no border.
         #[arg(long, default_value_t = 1.0)]
         border_width: f64,
+        /// `/MK` `/BG` -- the widget's BACKGROUND (fill) colour, PAINTED
+        /// into the appearance at creation, not merely recorded.
+        ///
+        /// Accepts `none` (Table 189's empty array, which STATES no colour
+        /// and is not the same as the key being absent), one number for
+        /// DeviceGray, three for DeviceRGB or four for DeviceCMYK, comma
+        /// separated, each 0-1. CMYK is written as CMYK, never converted.
+        #[arg(long, value_name = "none|G|R,G,B|C,M,Y,K")]
+        background: Option<String>,
+        /// `/MK` `/BC` -- the widget's BORDER COLOUR, painted into the
+        /// appearance at creation. Same spelling as `--background`; `none`
+        /// leaves a text or choice field with no frame.
+        ///
+        /// Not `--border` or `--border-width`, which are `/BS` (Table 166) --
+        /// the border's style and width. Different dictionaries.
+        #[arg(long, value_name = "none|G|R,G,B|C,M,Y,K")]
+        border_color: Option<String>,
         /// Where the widget is visible (§12.5.3 Table 165).
         #[arg(long, value_enum, default_value_t = VisibilityArg::Visible)]
         visibility: VisibilityArg,
@@ -4847,6 +4864,23 @@ enum Command {
         /// Border width in points. Zero means no border.
         #[arg(long, default_value_t = 1.0)]
         border_width: f64,
+        /// `/MK` `/BG` -- the widget's BACKGROUND (fill) colour, PAINTED
+        /// into the appearance at creation, not merely recorded.
+        ///
+        /// Accepts `none` (Table 189's empty array, which STATES no colour
+        /// and is not the same as the key being absent), one number for
+        /// DeviceGray, three for DeviceRGB or four for DeviceCMYK, comma
+        /// separated, each 0-1. CMYK is written as CMYK, never converted.
+        #[arg(long, value_name = "none|G|R,G,B|C,M,Y,K")]
+        background: Option<String>,
+        /// `/MK` `/BC` -- the widget's BORDER COLOUR, painted into the
+        /// appearance at creation. Same spelling as `--background`; `none`
+        /// leaves a text or choice field with no frame.
+        ///
+        /// Not `--border` or `--border-width`, which are `/BS` (Table 166) --
+        /// the border's style and width. Different dictionaries.
+        #[arg(long, value_name = "none|G|R,G,B|C,M,Y,K")]
+        border_color: Option<String>,
         /// Where the widget is visible (§12.5.3 Table 165).
         #[arg(long, value_enum, default_value_t = VisibilityArg::Visible)]
         visibility: VisibilityArg,
@@ -4979,6 +5013,23 @@ enum Command {
         /// Border width in points. Zero means no border.
         #[arg(long, default_value_t = 1.0)]
         border_width: f64,
+        /// `/MK` `/BG` -- the widget's BACKGROUND (fill) colour, PAINTED
+        /// into the appearance at creation, not merely recorded.
+        ///
+        /// Accepts `none` (Table 189's empty array, which STATES no colour
+        /// and is not the same as the key being absent), one number for
+        /// DeviceGray, three for DeviceRGB or four for DeviceCMYK, comma
+        /// separated, each 0-1. CMYK is written as CMYK, never converted.
+        #[arg(long, value_name = "none|G|R,G,B|C,M,Y,K")]
+        background: Option<String>,
+        /// `/MK` `/BC` -- the widget's BORDER COLOUR, painted into the
+        /// appearance at creation. Same spelling as `--background`; `none`
+        /// leaves a text or choice field with no frame.
+        ///
+        /// Not `--border` or `--border-width`, which are `/BS` (Table 166) --
+        /// the border's style and width. Different dictionaries.
+        #[arg(long, value_name = "none|G|R,G,B|C,M,Y,K")]
+        border_color: Option<String>,
         /// Where the widget is visible (§12.5.3 Table 165).
         #[arg(long, value_enum, default_value_t = VisibilityArg::Visible)]
         visibility: VisibilityArg,
@@ -6472,6 +6523,23 @@ enum Command {
         /// Border width in points. Zero means no border.
         #[arg(long, default_value_t = 1.0)]
         border_width: f64,
+        /// `/MK` `/BG` -- the widget's BACKGROUND (fill) colour, PAINTED
+        /// into the appearance at creation, not merely recorded.
+        ///
+        /// Accepts `none` (Table 189's empty array, which STATES no colour
+        /// and is not the same as the key being absent), one number for
+        /// DeviceGray, three for DeviceRGB or four for DeviceCMYK, comma
+        /// separated, each 0-1. CMYK is written as CMYK, never converted.
+        #[arg(long, value_name = "none|G|R,G,B|C,M,Y,K")]
+        background: Option<String>,
+        /// `/MK` `/BC` -- the widget's BORDER COLOUR, painted into the
+        /// appearance at creation. Same spelling as `--background`; `none`
+        /// leaves a text or choice field with no frame.
+        ///
+        /// Not `--border` or `--border-width`, which are `/BS` (Table 166) --
+        /// the border's style and width. Different dictionaries.
+        #[arg(long, value_name = "none|G|R,G,B|C,M,Y,K")]
+        border_color: Option<String>,
         /// Where the widget is visible (§12.5.3 Table 165).
         #[arg(long, value_enum, default_value_t = VisibilityArg::Visible)]
         visibility: VisibilityArg,
@@ -6589,6 +6657,23 @@ enum Command {
         /// Border width in points. Zero means no border.
         #[arg(long, default_value_t = 1.0)]
         border_width: f64,
+        /// `/MK` `/BG` -- the widget's BACKGROUND (fill) colour, PAINTED
+        /// into the appearance at creation, not merely recorded.
+        ///
+        /// Accepts `none` (Table 189's empty array, which STATES no colour
+        /// and is not the same as the key being absent), one number for
+        /// DeviceGray, three for DeviceRGB or four for DeviceCMYK, comma
+        /// separated, each 0-1. CMYK is written as CMYK, never converted.
+        #[arg(long, value_name = "none|G|R,G,B|C,M,Y,K")]
+        background: Option<String>,
+        /// `/MK` `/BC` -- the widget's BORDER COLOUR, painted into the
+        /// appearance at creation. Same spelling as `--background`; `none`
+        /// leaves a text or choice field with no frame.
+        ///
+        /// Not `--border` or `--border-width`, which are `/BS` (Table 166) --
+        /// the border's style and width. Different dictionaries.
+        #[arg(long, value_name = "none|G|R,G,B|C,M,Y,K")]
+        border_color: Option<String>,
         /// Where the widget is visible (§12.5.3 Table 165).
         #[arg(long, value_enum, default_value_t = VisibilityArg::Visible)]
         visibility: VisibilityArg,
@@ -10909,6 +10994,8 @@ fn run() -> ExitCode {
             comb,
             border,
             border_width,
+            background,
+            border_color,
             visibility,
             output,
             mode,
@@ -10930,6 +11017,8 @@ fn run() -> ExitCode {
             comb,
             border,
             border_width,
+            background: background.as_deref(),
+            border_color: border_color.as_deref(),
             visibility,
             output: &output,
             mode,
@@ -11074,6 +11163,8 @@ fn run() -> ExitCode {
             verify_undo,
             border,
             border_width,
+            background,
+            border_color,
             visibility,
             check_style,
         } => cmd_add_check_box(&AddCheckBoxArgs {
@@ -11093,6 +11184,8 @@ fn run() -> ExitCode {
             verify_undo,
             border,
             border_width,
+            background: background.as_deref(),
+            border_color: border_color.as_deref(),
             visibility,
             check_style: check_style.as_deref(),
         }),
@@ -11115,6 +11208,8 @@ fn run() -> ExitCode {
             verify_undo,
             border,
             border_width,
+            background,
+            border_color,
             visibility,
         } => cmd_add_radio_button(&AddRadioButtonArgs {
             input: &input,
@@ -11135,6 +11230,8 @@ fn run() -> ExitCode {
             verify_undo,
             border,
             border_width,
+            background: background.as_deref(),
+            border_color: border_color.as_deref(),
             visibility,
         }),
         Command::DeleteField {
@@ -11589,6 +11686,8 @@ fn run() -> ExitCode {
             verify_undo,
             border,
             border_width,
+            background,
+            border_color,
             visibility,
         } => cmd_add_push_button(&AddPushButtonArgs {
             input: &input,
@@ -11605,6 +11704,8 @@ fn run() -> ExitCode {
             verify_undo,
             border,
             border_width,
+            background: background.as_deref(),
+            border_color: border_color.as_deref(),
             visibility,
         }),
         Command::AddChoiceField {
@@ -11627,6 +11728,8 @@ fn run() -> ExitCode {
             verify_undo,
             border,
             border_width,
+            background,
+            border_color,
             visibility,
         } => cmd_add_choice_field(&AddChoiceFieldArgs {
             input: &input,
@@ -11648,6 +11751,8 @@ fn run() -> ExitCode {
             verify_undo,
             border,
             border_width,
+            background: background.as_deref(),
+            border_color: border_color.as_deref(),
             visibility,
         }),
         Command::Recompute {
@@ -22357,23 +22462,14 @@ widgets={} ap={} fillable={} readonly={} aa={} caption={caption} rich={rich}",
                 // ★ `background` had been readable since `Pass 249.1` and was
                 // never printed, while `docs/FEATURES.md` claimed `cli [x]`
                 // for it. This line is what makes that tick true.
-                let mk_colour = |c: Option<pdfcer_core::forms::MkColor>| match c {
-                    None => "-".to_owned(),
-                    Some(pdfcer_core::forms::MkColor::None) => "none".to_owned(),
-                    Some(pdfcer_core::forms::MkColor::Gray(g)) => format!("{g}"),
-                    Some(pdfcer_core::forms::MkColor::Rgb(r, g, b)) => format!("{r},{g},{b}"),
-                    Some(pdfcer_core::forms::MkColor::Cmyk(c, m, y, k)) => {
-                        format!("{c},{m},{y},{k}")
-                    }
-                };
                 println!(
                     "  widget {i} obj={} rect={rect} border={border} rotation={rotation} \
 visibility={visibility} flags=0x{:X} state={state} merged={} background={} border_color={}",
                     w.id.num,
                     w.annot_flags.0,
                     u32::from(w.merged),
-                    mk_colour(w.background),
-                    mk_colour(w.border_color),
+                    mk_colour_token(w.background),
+                    mk_colour_token(w.border_color),
                 );
             }
         }
@@ -32118,6 +32214,8 @@ struct AddTextFieldArgs<'a> {
     comb: bool,
     border: BorderArg,
     border_width: f64,
+    background: Option<&'a str>,
+    border_color: Option<&'a str>,
     visibility: VisibilityArg,
     output: &'a Path,
     mode: SaveMode,
@@ -32145,6 +32243,8 @@ struct AddCheckBoxArgs<'a> {
     verify_undo: bool,
     border: BorderArg,
     border_width: f64,
+    background: Option<&'a str>,
+    border_color: Option<&'a str>,
     visibility: VisibilityArg,
 }
 
@@ -32169,6 +32269,8 @@ struct AddChoiceFieldArgs<'a> {
     verify_undo: bool,
     border: BorderArg,
     border_width: f64,
+    background: Option<&'a str>,
+    border_color: Option<&'a str>,
     visibility: VisibilityArg,
 }
 
@@ -32188,6 +32290,8 @@ struct AddPushButtonArgs<'a> {
     verify_undo: bool,
     border: BorderArg,
     border_width: f64,
+    background: Option<&'a str>,
+    border_color: Option<&'a str>,
     visibility: VisibilityArg,
 }
 
@@ -32211,6 +32315,8 @@ struct AddRadioButtonArgs<'a> {
     verify_undo: bool,
     border: BorderArg,
     border_width: f64,
+    background: Option<&'a str>,
+    border_color: Option<&'a str>,
     visibility: VisibilityArg,
 }
 
@@ -32276,6 +32382,20 @@ fn cmd_add_check_box(args: &AddCheckBoxArgs<'_>) -> u8 {
         .with_border(args.border.into(), args.border_width)
         .with_visibility(args.visibility.into());
 
+    // `Pass 308.1`: the colours land on the SPEC, so the `/MK` dictionary and
+    // the `/AP` artwork are written from one value. Parsed before anything is
+    // staged, so a mistyped colour costs nothing.
+    let chrome = match parse_creation_chrome(args.background, args.border_color) {
+        Ok(c) => c,
+        Err(code) => return code,
+    };
+    if let Some(c) = chrome.background {
+        spec = spec.with_background(c);
+    }
+    if let Some(c) = chrome.border_color {
+        spec = spec.with_border_color(c);
+    }
+
     // The tick style. Refused by name on an unknown word rather than silently
     // defaulting to a check: an operator who typed `--check-style tik` wants
     // to be told, not to get a tick and believe it worked.
@@ -32338,7 +32458,7 @@ fn cmd_add_check_box(args: &AddCheckBoxArgs<'_>) -> u8 {
     };
     let r = &outcome.report;
     println!(
-        "add-check-box {} name={:?} page={} rect={},{},{},{} on_state={:?} checked={} field={} {} merged={} tagged={} struct_tabs={} tooltip_declined={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        "add-check-box {} name={:?} page={} rect={},{},{},{} on_state={:?} checked={} field={} {} merged={} tagged={} struct_tabs={} tooltip_declined={} background={} border_color={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
         args.input.display(),
         args.name,
         args.page,
@@ -32354,6 +32474,8 @@ fn cmd_add_check_box(args: &AddCheckBoxArgs<'_>) -> u8 {
         u32::from(authored.disclosures.tagged_document),
         u32::from(authored.disclosures.structure_tab_order),
         u32::from(authored.disclosures.tooltip_declined),
+        mk_colour_token(spec.chrome.background),
+        mk_colour_token(spec.chrome.border_color),
         args.mode.name(),
         args.output.display(),
         outcome.changed,
@@ -32672,7 +32794,74 @@ fn cmd_edit_field(args: &EditFieldArgs<'_>) -> u8 {
     finish_edit(args.input, &saved)
 }
 
-/// Everything `edit-widget` takes. Same reasoning as [`EditFieldArgs`].
+/// One `/MK` colour as the CLI spells it on an output line.
+///
+/// `-` for a key the widget does not carry, `none` for Table 189's empty
+/// array, else the components. The exact inverse of [`parse_mk_colour`]'s
+/// accepted spellings, so a value printed by `list-fields` can be passed
+/// straight back to `--background`.
+///
+/// A free function rather than a closure in `list-fields` because the five
+/// field-creation verbs print the same two tokens: two spellings of one
+/// colour is how `background=0.85` and `background=0.85,0.85,0.85` end up in
+/// the same output stream.
+fn mk_colour_token(c: Option<pdfcer_core::forms::MkColor>) -> String {
+    use pdfcer_core::forms::MkColor;
+    match c {
+        None => "-".to_owned(),
+        Some(MkColor::None) => "none".to_owned(),
+        Some(MkColor::Gray(g)) => format!("{g}"),
+        Some(MkColor::Rgb(r, g, b)) => format!("{r},{g},{b}"),
+        Some(MkColor::Cmyk(c, m, y, k)) => format!("{c},{m},{y},{k}"),
+    }
+}
+
+/// Parse `--background` and `--border-color` for a field-creation verb
+/// (`Pass 308.1`).
+///
+/// One function for all five verbs, so a mistyped colour is refused in the
+/// same words whichever field was being created. `None` for an argument the
+/// operator did not pass, which leaves that half of the spec's creation floor
+/// standing -- the floor is a real colour that gets both written and painted,
+/// not an absence.
+///
+/// # Errors
+///
+/// The process exit code to return, after printing the refusal. Never
+/// partially applied: both are parsed before either is used.
+fn parse_creation_chrome(
+    background: Option<&str>,
+    border_color: Option<&str>,
+) -> Result<CreationChrome, u8> {
+    fn one(flag: &str, raw: Option<&str>) -> Result<Option<pdfcer_core::forms::MkColor>, u8> {
+        match raw {
+            None => Ok(None),
+            Some(raw) => match parse_mk_colour(raw) {
+                Some(c) => Ok(Some(c)),
+                None => {
+                    eprintln!(
+                        "pdfcer: {flag} {raw:?} -- expected `none` (Table 189's empty array), or 1 (gray), 3 (RGB) or 4 (CMYK) comma-separated components in 0-1"
+                    );
+                    Err(exit::RUNTIME_ERROR)
+                }
+            },
+        }
+    }
+    Ok(CreationChrome {
+        background: one("--background", background)?,
+        border_color: one("--border-color", border_color)?,
+    })
+}
+
+/// The two `/MK` colours a field-creation verb was asked for, each `None`
+/// when the operator did not name it.
+struct CreationChrome {
+    /// `/MK` `/BG`.
+    background: Option<pdfcer_core::forms::MkColor>,
+    /// `/MK` `/BC`.
+    border_color: Option<pdfcer_core::forms::MkColor>,
+}
+
 /// Parse an `/MK` colour argument into a [`pdfcer_core::forms::MkColor`].
 ///
 /// Accepts `none` -> `MkColor::None`, which writes Table 189's **empty
@@ -32710,6 +32899,7 @@ fn parse_mk_colour(raw: &str) -> Option<pdfcer_core::forms::MkColor> {
     }
 }
 
+/// Everything `edit-widget` takes. Same reasoning as [`EditFieldArgs`].
 struct EditWidgetArgs<'a> {
     input: &'a Path,
     name: &'a str,
@@ -35937,6 +36127,20 @@ fn cmd_add_radio_button(args: &AddRadioButtonArgs<'_>) -> u8 {
             .with_flags(args.read_only, args.required)
             .with_border(args.border.into(), args.border_width)
             .with_visibility(args.visibility.into());
+
+    // `Pass 308.1`: the colours land on the SPEC, so the `/MK` dictionary and
+    // the `/AP` artwork are written from one value. Parsed before anything is
+    // staged, so a mistyped colour costs nothing.
+    let chrome = match parse_creation_chrome(args.background, args.border_color) {
+        Ok(c) => c,
+        Err(code) => return code,
+    };
+    if let Some(c) = chrome.background {
+        spec = spec.with_background(c);
+    }
+    if let Some(c) = chrome.border_color {
+        spec = spec.with_border_color(c);
+    }
     // R105, exactly as the sibling verbs: `clap`'s `conflicts_with` rules out
     // BOTH being passed, so only "neither" can reach here, and it is refused
     // rather than defaulted.
@@ -35987,7 +36191,7 @@ fn cmd_add_radio_button(args: &AddRadioButtonArgs<'_>) -> u8 {
     };
     let r = &outcome.report;
     println!(
-        "add-radio-button {} name={:?} page={} rect={},{},{},{} export_value={:?} selected={} field={} {} merged={} tagged={} struct_tabs={} tooltip_declined={} flags_ignored={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        "add-radio-button {} name={:?} page={} rect={},{},{},{} export_value={:?} selected={} field={} {} merged={} tagged={} struct_tabs={} tooltip_declined={} background={} border_color={} flags_ignored={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
         args.input.display(),
         args.name,
         args.page,
@@ -36003,6 +36207,8 @@ fn cmd_add_radio_button(args: &AddRadioButtonArgs<'_>) -> u8 {
         u32::from(authored.disclosures.tagged_document),
         u32::from(authored.disclosures.structure_tab_order),
         u32::from(authored.disclosures.tooltip_declined),
+        mk_colour_token(spec.chrome.background),
+        mk_colour_token(spec.chrome.border_color),
         u32::from(authored.disclosures.group_flags_ignored),
         args.mode.name(),
         args.output.display(),
@@ -36056,6 +36262,20 @@ fn cmd_add_choice_field(args: &AddChoiceFieldArgs<'_>) -> u8 {
         .with_flags(args.read_only, args.required)
         .with_border(args.border.into(), args.border_width)
         .with_visibility(args.visibility.into());
+
+    // `Pass 308.1`: the colours land on the SPEC, so the `/MK` dictionary and
+    // the `/AP` artwork are written from one value. Parsed before anything is
+    // staged, so a mistyped colour costs nothing.
+    let chrome = match parse_creation_chrome(args.background, args.border_color) {
+        Ok(c) => c,
+        Err(code) => return code,
+    };
+    if let Some(c) = chrome.background {
+        spec = spec.with_background(c);
+    }
+    if let Some(c) = chrome.border_color {
+        spec = spec.with_border_color(c);
+    }
     if args.combo {
         spec = spec.as_combo(args.editable);
     } else {
@@ -36117,7 +36337,7 @@ fn cmd_add_choice_field(args: &AddChoiceFieldArgs<'_>) -> u8 {
     };
     let r = &outcome.report;
     println!(
-        "add-choice-field {} name={:?} page={} rect={},{},{},{} options={} no_options={} combo={} editable={} multi_select={} sort={} field={} {} merged={} tagged={} struct_tabs={} tooltip_declined={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        "add-choice-field {} name={:?} page={} rect={},{},{},{} options={} no_options={} combo={} editable={} multi_select={} sort={} field={} {} merged={} tagged={} struct_tabs={} tooltip_declined={} background={} border_color={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
         args.input.display(),
         args.name,
         args.page,
@@ -36141,6 +36361,8 @@ fn cmd_add_choice_field(args: &AddChoiceFieldArgs<'_>) -> u8 {
         u32::from(authored.disclosures.tagged_document),
         u32::from(authored.disclosures.structure_tab_order),
         u32::from(authored.disclosures.tooltip_declined),
+        mk_colour_token(spec.chrome.background),
+        mk_colour_token(spec.chrome.border_color),
         args.mode.name(),
         args.output.display(),
         outcome.changed,
@@ -36184,6 +36406,20 @@ fn cmd_add_push_button(args: &AddPushButtonArgs<'_>) -> u8 {
         .with_flags(args.read_only)
         .with_border(args.border.into(), args.border_width)
         .with_visibility(args.visibility.into());
+
+    // `Pass 308.1`: the colours land on the SPEC, so the `/MK` dictionary and
+    // the `/AP` artwork are written from one value. Parsed before anything is
+    // staged, so a mistyped colour costs nothing.
+    let chrome = match parse_creation_chrome(args.background, args.border_color) {
+        Ok(c) => c,
+        Err(code) => return code,
+    };
+    if let Some(c) = chrome.background {
+        spec = spec.with_background(c);
+    }
+    if let Some(c) = chrome.border_color {
+        spec = spec.with_border_color(c);
+    }
     // R105: exactly one of the two must have been chosen. `clap`'s
     // `conflicts_with` rules out BOTH; only "neither" can reach here, and it
     // is refused rather than defaulted.
@@ -36234,7 +36470,7 @@ fn cmd_add_push_button(args: &AddPushButtonArgs<'_>) -> u8 {
     };
     let r = &outcome.report;
     println!(
-        "add-push-button {} name={:?} page={} rect={},{},{},{} caption={:?} no_caption={} inert={} read_only={} field={} {} merged={} tagged={} struct_tabs={} tooltip_declined={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        "add-push-button {} name={:?} page={} rect={},{},{},{} caption={:?} no_caption={} inert={} read_only={} field={} {} merged={} tagged={} struct_tabs={} tooltip_declined={} background={} border_color={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
         args.input.display(),
         args.name,
         args.page,
@@ -36256,6 +36492,8 @@ fn cmd_add_push_button(args: &AddPushButtonArgs<'_>) -> u8 {
         u32::from(authored.disclosures.tagged_document),
         u32::from(authored.disclosures.structure_tab_order),
         u32::from(authored.disclosures.tooltip_declined),
+        mk_colour_token(spec.chrome.background),
+        mk_colour_token(spec.chrome.border_color),
         args.mode.name(),
         args.output.display(),
         outcome.changed,
@@ -36803,6 +37041,20 @@ fn cmd_add_text_field(args: &AddTextFieldArgs<'_>) -> u8 {
         .with_border(args.border.into(), args.border_width)
         .with_visibility(args.visibility.into())
         .with_flags(args.multiline, args.read_only, args.required);
+
+    // `Pass 308.1`: the colours land on the SPEC, so the `/MK` dictionary and
+    // the `/AP` artwork are written from one value. Parsed before anything is
+    // staged, so a mistyped colour costs nothing.
+    let chrome = match parse_creation_chrome(args.background, args.border_color) {
+        Ok(c) => c,
+        Err(code) => return code,
+    };
+    if let Some(c) = chrome.background {
+        spec = spec.with_background(c);
+    }
+    if let Some(c) = chrome.border_color {
+        spec = spec.with_border_color(c);
+    }
     if let Some(v) = args.value {
         spec = spec.with_value(v);
     }
@@ -36859,7 +37111,7 @@ fn cmd_add_text_field(args: &AddTextFieldArgs<'_>) -> u8 {
     };
     let r = &outcome.report;
     println!(
-        "add-text-field {} name={:?} page={} rect={},{},{},{} field={} {} merged={} tagged={} struct_tabs={} tooltip_declined={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        "add-text-field {} name={:?} page={} rect={},{},{},{} field={} {} merged={} tagged={} struct_tabs={} tooltip_declined={} background={} border_color={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
         args.input.display(),
         args.name,
         args.page,
@@ -36873,6 +37125,8 @@ fn cmd_add_text_field(args: &AddTextFieldArgs<'_>) -> u8 {
         u32::from(authored.disclosures.tagged_document),
         u32::from(authored.disclosures.structure_tab_order),
         u32::from(authored.disclosures.tooltip_declined),
+        mk_colour_token(spec.chrome.background),
+        mk_colour_token(spec.chrome.border_color),
         args.mode.name(),
         args.output.display(),
         outcome.changed,

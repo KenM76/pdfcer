@@ -1652,6 +1652,78 @@ pub struct NewTextField {
     pub border: BorderSpec,
     /// `/F` — where the widget is visible (§12.5.3 Table 165).
     pub visibility: Visibility,
+    /// `/MK` `/BG` and `/BC` — the colours the widget is BOTH described and
+    /// PAINTED in. Defaults to [`creation_chrome`], which states neither, so
+    /// a text field created with no opinion still draws no box.
+    ///
+    /// Set with [`NewTextField::with_background`] and
+    /// [`NewTextField::with_border_color`]. See [`creation_chrome`] for why
+    /// one value feeds the dictionary and the artwork.
+    pub chrome: annot_author::WidgetChrome,
+}
+
+/// The `/MK` colours a newly authored widget is both DESCRIBED and PAINTED
+/// in. For every field type but the push button that is **nothing**, and
+/// saying nothing is the point.
+///
+/// # One value, two consumers, and that is the whole point
+///
+/// `/MK` states a widget's colours and the `/AP` stream paints them, and
+/// pdfcer writes both at creation. Handing the same [`WidgetChrome`] to the
+/// dictionary and to the appearance builder is what keeps them from
+/// disagreeing — the failure `Pass 308.0` found in the push button, where the
+/// dictionary said DeviceRGB and the artwork drew DeviceGray for months at no
+/// cost, and the cost arrived in full the moment the builder started reading
+/// the dictionary.
+///
+/// # What `None` buys, and the phantom border it retires
+///
+/// A `None` component writes NO key and leaves the builder's own default
+/// standing: no fill anywhere, and a black stroke for the controls that have
+/// always had one (check box, radio button). Every appearance pdfcer has
+/// authored is byte-identical.
+///
+/// It also removes a key that was a **lie**. `add_text_field` and
+/// `add_choice_field` wrote `/MK` `/BC [0 0 0]` while passing the builder
+/// nothing, so the dictionary claimed a black frame the `/AP` did not draw.
+/// Harmless while nothing read it — and `Pass 308.0` made something read it:
+/// `edit_widget` regenerates from `/MK`, so the first RESIZE of a created
+/// text field would have made a frame appear out of nowhere. The honest fix
+/// is to stop claiming it, not to start drawing it; *"a text field draws no
+/// box by default"* is a stated invariant of
+/// [`annot_author::build_field_text_appearance`], and an operator who wants a
+/// frame now has [`NewTextField::with_border_color`] to ask for one.
+///
+/// Note the shape, because `Pass 308.0` met the other half of it: **two
+/// representations of one fact can disagree indefinitely at no cost, and the
+/// cost arrives in full the moment a third thing derives one from the other.**
+const fn creation_chrome() -> annot_author::WidgetChrome {
+    annot_author::WidgetChrome::new(None, None)
+}
+
+const fn push_button_creation_chrome() -> annot_author::WidgetChrome {
+    annot_author::WidgetChrome::new(
+        #[allow(clippy::cast_possible_truncation)]
+        Some(forms::MkColor::Gray(
+            annot_author::PUSH_BUTTON_PLATE_GRAY as f32,
+        )),
+        Some(forms::MkColor::Gray(0.0)),
+    )
+}
+
+/// Write a widget's chrome into its `/MK` dictionary (Table 189).
+///
+/// Preserve-and-patch: only the two keys pdfcer models are touched, so a
+/// `/CA` written beside them survives. A `None` component writes no key at
+/// all — the widget states nothing, which is not the same as
+/// [`forms::MkColor::None`]'s empty array.
+fn insert_mk_chrome(mk: &mut Dict, chrome: annot_author::WidgetChrome) {
+    if let Some(bg) = chrome.background {
+        mk.insert(Name::from(b"BG"), bg.to_array());
+    }
+    if let Some(bc) = chrome.border_color {
+        mk.insert(Name::from(b"BC"), bc.to_array());
+    }
 }
 
 /// Whether the operator has decided about `/TU`, the accessibility name
@@ -1995,6 +2067,7 @@ impl NewTextField {
             // opinion is byte-identical to one authored before this existed.
             border: BorderSpec::default(),
             visibility: Visibility::default(),
+            chrome: creation_chrome(),
         }
     }
 
@@ -2002,6 +2075,27 @@ impl NewTextField {
     #[must_use]
     pub const fn with_border(mut self, style: BorderStyle, width: f64) -> Self {
         self.border = BorderSpec { style, width };
+        self
+    }
+
+    /// Set `/MK` `/BG`, the fill behind the value (§12.5.6.19 Table 189).
+    ///
+    /// [`forms::MkColor::None`] is the empty array — *"no colour"* — and is
+    /// the default here; a text field has never drawn a fill.
+    #[must_use]
+    pub const fn with_background(mut self, background: forms::MkColor) -> Self {
+        self.chrome.background = Some(background);
+        self
+    }
+
+    /// Set `/MK` `/BC`, the colour of the frame around the box.
+    ///
+    /// Not `/BS` ([`Self::with_border`]), which is the frame's STYLE and
+    /// WIDTH — different dictionaries, and a widget may carry either without
+    /// the other. [`forms::MkColor::None`] suppresses the frame.
+    #[must_use]
+    pub const fn with_border_color(mut self, border_color: forms::MkColor) -> Self {
+        self.chrome.border_color = Some(border_color);
         self
     }
 
@@ -2186,6 +2280,11 @@ pub struct NewCheckBox {
     /// `/MK` `/CA` — see the type for why both, and why not a ZapfDingbats
     /// `Tf`.
     pub style: crate::annot_author::CheckStyle,
+    /// `/MK` `/BG` and `/BC` — the colours the widget is BOTH described and
+    /// PAINTED in. Defaults to [`creation_chrome`].
+    ///
+    /// Set with [`NewCheckBox::with_background`] and [`NewCheckBox::with_border_color`].
+    pub chrome: annot_author::WidgetChrome,
 }
 
 /// The facts about an existing radio group that a joining member is checked
@@ -2284,6 +2383,11 @@ pub struct NewRadioButton {
     /// silently overriding a caller's explicit choice is the substitution
     /// this project refuses elsewhere.
     pub style: crate::annot_author::CheckStyle,
+    /// `/MK` `/BG` and `/BC` — the colours the widget is BOTH described and
+    /// PAINTED in. Defaults to [`creation_chrome`].
+    ///
+    /// Set with [`NewRadioButton::with_background`] and [`NewRadioButton::with_border_color`].
+    pub chrome: annot_author::WidgetChrome,
 }
 
 impl NewRadioButton {
@@ -2334,7 +2438,30 @@ impl NewRadioButton {
             // properties existed.
             border: BorderSpec::default(),
             visibility: Visibility::default(),
+            chrome: creation_chrome(),
         }
+    }
+
+    /// Set `/MK` `/BG`, the disc behind the dot (§12.5.6.19 Table 189).
+    ///
+    /// [`forms::MkColor::None`] is Table 189's empty array — *"no colour"* —
+    /// and is not the same as the key being absent.
+    #[must_use]
+    pub const fn with_background(mut self, background: forms::MkColor) -> Self {
+        self.chrome.background = Some(background);
+        self
+    }
+
+    /// Set `/MK` `/BC`, the colour of the frame pdfcer draws around the
+    /// control — and, for the mark inside it, the ink that mark is drawn in.
+    ///
+    /// Not `/BS` ([`Self::with_border`]), which is the frame's STYLE and
+    /// WIDTH. Different dictionaries; a widget may carry either without the
+    /// other.
+    #[must_use]
+    pub const fn with_border_color(mut self, border_color: forms::MkColor) -> Self {
+        self.chrome.border_color = Some(border_color);
+        self
     }
 
     /// Make this member the group's initial selection.
@@ -2463,7 +2590,30 @@ impl NewCheckBox {
             // properties existed.
             border: BorderSpec::default(),
             visibility: Visibility::default(),
+            chrome: creation_chrome(),
         }
+    }
+
+    /// Set `/MK` `/BG`, the fill behind the tick (§12.5.6.19 Table 189).
+    ///
+    /// [`forms::MkColor::None`] is Table 189's empty array — *"no colour"* —
+    /// and is not the same as the key being absent.
+    #[must_use]
+    pub const fn with_background(mut self, background: forms::MkColor) -> Self {
+        self.chrome.background = Some(background);
+        self
+    }
+
+    /// Set `/MK` `/BC`, the colour of the frame pdfcer draws around the
+    /// control — and, for the mark inside it, the ink that mark is drawn in.
+    ///
+    /// Not `/BS` ([`Self::with_border`]), which is the frame's STYLE and
+    /// WIDTH. Different dictionaries; a widget may carry either without the
+    /// other.
+    #[must_use]
+    pub const fn with_border_color(mut self, border_color: forms::MkColor) -> Self {
+        self.chrome.border_color = Some(border_color);
+        self
     }
 
     /// Override the on-state name (the exported value).
@@ -2657,6 +2807,11 @@ pub struct NewChoiceField {
     pub border: BorderSpec,
     /// `/F` — where the widget is visible (§12.5.3 Table 165).
     pub visibility: Visibility,
+    /// `/MK` `/BG` and `/BC` — the colours the widget is BOTH described and
+    /// PAINTED in. Defaults to [`creation_chrome`].
+    ///
+    /// Set with [`NewChoiceField::with_background`] and [`NewChoiceField::with_border_color`].
+    pub chrome: annot_author::WidgetChrome,
 }
 
 impl NewChoiceField {
@@ -2735,7 +2890,30 @@ impl NewChoiceField {
             // properties existed.
             border: BorderSpec::default(),
             visibility: Visibility::default(),
+            chrome: creation_chrome(),
         }
+    }
+
+    /// Set `/MK` `/BG`, the fill behind the value (§12.5.6.19 Table 189).
+    ///
+    /// [`forms::MkColor::None`] is Table 189's empty array — *"no colour"* —
+    /// and is not the same as the key being absent.
+    #[must_use]
+    pub const fn with_background(mut self, background: forms::MkColor) -> Self {
+        self.chrome.background = Some(background);
+        self
+    }
+
+    /// Set `/MK` `/BC`, the colour of the frame pdfcer draws around the
+    /// control — and, for the mark inside it, the ink that mark is drawn in.
+    ///
+    /// Not `/BS` ([`Self::with_border`]), which is the frame's STYLE and
+    /// WIDTH. Different dictionaries; a widget may carry either without the
+    /// other.
+    #[must_use]
+    pub const fn with_border_color(mut self, border_color: forms::MkColor) -> Self {
+        self.chrome.border_color = Some(border_color);
+        self
     }
 
     /// Make this a drop-down (combo box), optionally free-text editable.
@@ -2920,6 +3098,11 @@ pub struct NewPushButton {
     pub border: BorderSpec,
     /// `/F` â€” where the widget is visible (Â§12.5.3 Table 165).
     pub visibility: Visibility,
+    /// `/MK` `/BG` and `/BC` — the colours the widget is BOTH described and
+    /// PAINTED in. Defaults to [`push_button_creation_chrome`].
+    ///
+    /// Set with [`NewPushButton::with_background`] and [`NewPushButton::with_border_color`].
+    pub chrome: annot_author::WidgetChrome,
 }
 
 impl NewPushButton {
@@ -2987,7 +3170,29 @@ impl NewPushButton {
             // properties existed.
             border: BorderSpec::default(),
             visibility: Visibility::default(),
+            chrome: push_button_creation_chrome(),
         }
+    }
+
+    /// Set `/MK` `/BG`, the plate grey behind the caption (§12.5.6.19 Table 189).
+    ///
+    /// [`forms::MkColor::None`] is Table 189's empty array — *"no colour"* —
+    /// and is not the same as the key being absent.
+    #[must_use]
+    pub const fn with_background(mut self, background: forms::MkColor) -> Self {
+        self.chrome.background = Some(background);
+        self
+    }
+
+    /// Set `/MK` `/BC`, the button's keyline.
+    ///
+    /// Not `/BS` ([`Self::with_border`]), which is the frame's STYLE and
+    /// WIDTH. Different dictionaries; a widget may carry either without the
+    /// other.
+    #[must_use]
+    pub const fn with_border_color(mut self, border_color: forms::MkColor) -> Self {
+        self.chrome.border_color = Some(border_color);
+        self
     }
 
     /// Set `/TU`, the accessibility name.
@@ -22430,10 +22635,11 @@ impl EditSession {
             crate::vartext::Quadding::Left,
             spec.multiline,
             &resources,
-            // `Pass 308.0`: a created field states no `/MK` colour, so the
-            // builder draws what it always has — no box at all. Carrying a
-            // colour through creation is `Pass 308.1`.
-            annot_author::WidgetChrome::default(),
+            // `Pass 308.1`: the SAME chrome the `/MK` dictionary below is
+            // written from, so the two cannot disagree. Defaults to stating
+            // neither colour, which keeps a created text field's appearance
+            // byte-identical — see `creation_chrome`.
+            spec.chrome,
         )?;
 
         let ap_id = ObjId::new(self.alloc_number()?, 0);
@@ -22471,15 +22677,10 @@ impl EditSession {
             ap.insert(Name::from(b"N"), Object::Reference(ap_id));
             w.insert(Name::from(b"AP"), Object::Dict(ap));
             let mut mk = Dict::new();
-            mk.insert(
-                Name::from(b"BC"),
-                Object::Array(vec![
-                    Object::Real(0.0),
-                    Object::Real(0.0),
-                    Object::Real(0.0),
-                ]),
-            );
-            w.insert(Name::from(b"MK"), Object::Dict(mk));
+            insert_mk_chrome(&mut mk, spec.chrome);
+            if !mk.is_empty() {
+                w.insert(Name::from(b"MK"), Object::Dict(mk));
+            }
             w.insert(Name::from(b"BS"), Object::Dict(border_dict(spec.border)));
             w.insert(Name::from(b"F"), Object::Integer(spec.visibility.flags()));
 
@@ -22563,33 +22764,16 @@ impl EditSession {
         if let Some(tu) = spec.tooltip.text() {
             d.insert(Name::from(b"TU"), Object::String(encode_text_string(tu)));
         }
-        // `/MK` with a black border colour and no fill — Acrobat's documented
-        // creation floor.
-        //
-        // HONEST LIMIT, verified by rendering: **pdfcer does not paint this.**
-        // R43 makes `/MK`-without-`/AP` the canonical named-not-painted case
-        // and pdfcer declines to build the dynamic appearance at display time,
-        // so the border is present in the FILE for viewers that honour `/MK`
-        // and is invisible in pdfcer's own renderer. A created field therefore
-        // shows its value but no box around it here.
-        //
-        // Writing it anyway is still right: the alternative is a file that is
-        // less complete than Acrobat's for no gain. Painting the border into
-        // the `/AP` instead would mean either changing the SHARED appearance
-        // builder — which fill also uses, so every refilled field in every
-        // document would gain a border it never had — or building a second
-        // appearance generator, which is exactly what R92 forbids. Neither is
-        // a slice-1 trade.
+        // `/MK` from the chrome the appearance above was PAINTED with — one
+        // value, both consumers, so the dictionary cannot claim a colour the
+        // stream does not use. An operator who states neither gets no `/MK`
+        // at all rather than the phantom `/BC [0 0 0]` this used to write;
+        // `creation_chrome` carries that reasoning in full.
         let mut mk = Dict::new();
-        mk.insert(
-            Name::from(b"BC"),
-            Object::Array(vec![
-                Object::Real(0.0),
-                Object::Real(0.0),
-                Object::Real(0.0),
-            ]),
-        );
-        d.insert(Name::from(b"MK"), Object::Dict(mk));
+        insert_mk_chrome(&mut mk, spec.chrome);
+        if !mk.is_empty() {
+            d.insert(Name::from(b"MK"), Object::Dict(mk));
+        }
         // `/BS` — §12.5.4 Table 166. Written unconditionally, including for
         // the default: an explicit solid one-point border and an absent
         // `/BS` render identically, but only the explicit one survives an
@@ -23499,11 +23683,9 @@ impl EditSession {
         // VECTOR artwork, not a ZapfDingbats glyph — see
         // `build_check_box_appearances` for why the shared text generator
         // cannot draw a check mark.
-        // `Pass 308.0`: a created button states no `/MK` colour of its own,
-        // so each builder's own default stands — nothing behind a check box,
-        // the plate grey behind a push button. `Pass 308.1` carries a chosen
-        // colour through creation.
-        let chrome = annot_author::WidgetChrome::default();
+        // `Pass 308.1`: the SAME chrome the `/MK` dictionary below is written
+        // from, so the two cannot disagree. See `creation_chrome`.
+        let chrome = spec.chrome;
         let (off, on) = annot_author::build_check_box_appearances(w, h, spec.style, chrome);
         let off_id = ObjId::new(self.alloc_number()?, 0);
         let on_id = ObjId::new(self.alloc_number()?, 0);
@@ -23569,8 +23751,8 @@ impl EditSession {
         // the style from exactly this key — would redraw a tick the first
         // time the field was resized.
         //
-        // PRESERVE-AND-PATCH, because the creation path above already put a
-        // hard-coded `/BC` in here and a fresh dictionary would drop it.
+        // PRESERVE-AND-PATCH, because `/MK` carries more than one thing —
+        // the glyph choice here and the chrome colours beside it.
         {
             let mut mk = d
                 .get(b"MK")
@@ -23581,6 +23763,11 @@ impl EditSession {
                 Name::from(b"CA"),
                 Object::String(vec![spec.style.mk_caption_char()]),
             );
+            // `Pass 308.1`: the colours the artwork above was drawn in, and
+            // no key at all when the operator named none — which is what a
+            // check box has always written, and what keeps its `/MK` to the
+            // `/CA` above.
+            insert_mk_chrome(&mut mk, chrome);
             d.insert(Name::from(b"MK"), Object::Dict(mk));
         }
 
@@ -23735,7 +23922,8 @@ impl EditSession {
             Some(forms::ButtonKind::Radio),
             &spec.tooltip,
         )?;
-        let chrome = annot_author::WidgetChrome::default();
+        // `Pass 308.1`: the same chrome the `/MK` below is written from.
+        let chrome = spec.chrome;
         let (off, on) = annot_author::build_radio_button_appearances(w, h, chrome);
         let off_id = ObjId::new(self.alloc_number()?, 0);
         let on_id = ObjId::new(self.alloc_number()?, 0);
@@ -23776,6 +23964,19 @@ impl EditSession {
         let mut ap = Dict::new();
         ap.insert(Name::from(b"N"), Object::Dict(n));
         d.insert(Name::from(b"AP"), Object::Dict(ap));
+        // `Pass 308.1`: `/MK` stating the colours the ring and dot above were
+        // drawn in — and NOTHING when the operator named none, which is what
+        // a radio button has always written. Placed before the branch because
+        // a member joining an existing group carries the same widget
+        // dictionary a first member does: the group's `/V` is shared, its
+        // look is per widget.
+        {
+            let mut mk = Dict::new();
+            insert_mk_chrome(&mut mk, chrome);
+            if !mk.is_empty() {
+                d.insert(Name::from(b"MK"), Object::Dict(mk));
+            }
+        }
 
         let mut objects = vec![
             ObjectWrite {
@@ -26254,11 +26455,11 @@ impl EditSession {
             &spec.caption,
             &da,
             &resources,
-            // The plate grey this builder defaults to is the SAME
-            // constant the `/MK` `/BG` written below carries, so the
-            // dictionary and the artwork still agree at creation — they
-            // just no longer agree only by coincidence.
-            annot_author::WidgetChrome::default(),
+            // `Pass 308.1`: the SAME value the `/MK` written below carries —
+            // no longer the builder's fallback happening to equal it. The
+            // agreement is now by construction rather than by coincidence,
+            // which is the whole of what `Pass 308.0` found wrong here.
+            spec.chrome,
         )?;
 
         let ap_id = ObjId::new(self.alloc_number()?, 0);
@@ -26315,11 +26516,12 @@ impl EditSession {
         // redrawing it. That is a disclosure, not damage, and it is the
         // honest answer: pdfcer cannot tell that stream apart from one
         // another producer wrote. Re-setting either colour rebuilds it.
-        mk.insert(Name::from(b"BC"), Object::Array(vec![Object::Real(0.0)]));
-        mk.insert(
-            Name::from(b"BG"),
-            Object::Array(vec![Object::Real(annot_author::PUSH_BUTTON_PLATE_GRAY)]),
-        );
+        //
+        // `Pass 308.1` moved the two literals into `spec.chrome`, whose
+        // default is `push_button_creation_chrome` — the same constants, now
+        // reached through the one value the builder was also handed, so an
+        // operator's `--background` lands in both places or in neither.
+        insert_mk_chrome(&mut mk, spec.chrome);
         d.insert(Name::from(b"MK"), Object::Dict(mk));
         let mut ap = Dict::new();
         ap.insert(Name::from(b"N"), Object::Reference(ap_id));
@@ -26503,7 +26705,8 @@ impl EditSession {
             crate::vartext::Quadding::Left,
             false,
             &resources,
-            annot_author::WidgetChrome::default(),
+            // `Pass 308.1`: the same chrome the `/MK` below is written from.
+            spec.chrome,
         )?;
 
         let ap_id = ObjId::new(self.alloc_number()?, 0);
@@ -26533,16 +26736,14 @@ impl EditSession {
         // one would be, rather than uniformly verbose.
         d.insert(Name::from(b"Opt"), choice_opt_array(&options));
         // NO `/V`: §12.7.4.4 defaults it to null (nothing selected).
+        // `/MK` from the chrome the appearance above was painted with, and
+        // omitted entirely when the operator stated no colour — the same
+        // retirement of the phantom `/BC [0 0 0]` `add_text_field` makes.
         let mut mk = Dict::new();
-        mk.insert(
-            Name::from(b"BC"),
-            Object::Array(vec![
-                Object::Real(0.0),
-                Object::Real(0.0),
-                Object::Real(0.0),
-            ]),
-        );
-        d.insert(Name::from(b"MK"), Object::Dict(mk));
+        insert_mk_chrome(&mut mk, spec.chrome);
+        if !mk.is_empty() {
+            d.insert(Name::from(b"MK"), Object::Dict(mk));
+        }
         let mut ap = Dict::new();
         ap.insert(Name::from(b"N"), Object::Reference(ap_id));
         d.insert(Name::from(b"AP"), Object::Dict(ap));

@@ -3131,10 +3131,38 @@ values, the ownership test reads it as foreign, and `edit_widget` reports
 `RecordedNotPainted` instead of redrawing. That is a disclosure, not damage —
 and re-setting either colour rebuilds the button.
 
-**Still owed (`Pass 308.1`): colour at CREATION.** None of the five `New*` specs
-carries a colour, so *"choose the colour before placing the field"* is
-create-then-edit today. `edit_widget` immediately after the add does exactly the
-right thing, and the two commands coalesce for undo.
+### ★ Colour at CREATION, on all five `New*` specs (`Pass 308.1`, same request)
+
+`NewTextField`, `NewCheckBox`, `NewRadioButton`, `NewChoiceField` and
+`NewPushButton` each carry a `chrome: WidgetChrome` and take
+`.with_background(MkColor)` / `.with_border_color(MkColor)`. *"Choose the
+colour before placing the field"* is now one command and one undo entry; the
+create-then-edit route still works and is no longer the only one.
+
+**One value reaches both the dictionary and the artwork.** The spec's chrome is
+handed to the appearance builder AND written into `/MK`, so a created widget
+cannot describe a colour its `/AP` does not paint — which is the failure
+`Pass 308.0` found in the push button.
+
+**★ A key that used to be a lie is gone.** `add_text_field` and
+`add_choice_field` wrote `/MK` `/BC [0 0 0]` while handing the builder nothing:
+the dictionary claimed a black frame the `/AP` never drew. Inert until
+`Pass 308.0` made `edit_widget` regenerate FROM `/MK` — at which point the
+first **resize** of a created text field would have materialised a frame
+nobody asked for. Stating no colour now writes no key, so:
+
+* a created text or choice field reports `background: None, border_color: None`
+  where it used to report `Some(Rgb(0,0,0))` for the border, and carries no
+  `/MK` at all when nothing else needs one;
+* its appearance is byte-identical to every earlier build's — *"a text field
+  draws no box by default"* is unchanged, and an operator who wants a frame now
+  asks for one;
+* a check box and a radio button are unchanged in both halves (they always
+  stroked black and wrote no `/BC`), and a push button still gets its plate.
+
+**CLI:** `--background` and `--border-color` on all five `add-*` verbs, spelled
+exactly as `edit-widget`'s, and each verb's output line now carries
+`background=` and `border_color=` in `list-fields --widgets` spelling.
 
 ### ⚡ `page_objects` — what it is worth, and the two things it does NOT fix
 
