@@ -115,9 +115,44 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 308.1` (`86ede66b`, 2026-09-15) — colour at field-CREATION time on all five `New*` widget specs; `G020` fully closed
+
+Answers the last owed third of `pdfcer-gui`'s `G020` (O202: *"the forms objects have no way to edit their colour before or after placement"*) — `Pass 308.0`/`Pass 308.2` (`bd8059f2`, same day, below) shipped the edit-time half; this Pass carries colour through creation. **`G020` is now fully closed** — every "`Pass 308.1` still owed" clause elsewhere in this file and in `docs/FEATURES.md` no longer applies.
+
+**What shipped.** `pub chrome: annot_author::WidgetChrome` plus `const fn with_background(MkColor)` / `with_border_color(MkColor)` on all five creation specs (`NewTextField`, `NewCheckBox`, `NewRadioButton`, `NewChoiceField`, `NewPushButton`). New private `edit.rs` helpers `creation_chrome()` (states neither colour) and `push_button_creation_chrome()` (the existing plate-grey/black-keyline constants); `insert_mk_chrome(&mut Dict, WidgetChrome)`. Every `add_*` verb hands one `WidgetChrome` to both the appearance builder and `/MK`, create and merge branches alike — the single-value discipline `Pass 308.0`'s own finding argued for. CLI: `--background`/`--border-color` on all five `add-*` verbs, spelled like `edit-widget`'s (`none | G | R,G,B | C,M,Y,K`); `list-fields --widgets` gains `background=`/`border_color=`. Shared `parse_creation_chrome`/`CreationChrome`/`mk_colour_token` (the last promoted out of a `list-fields` closure) so one colour has one spelling across the tool.
+
+**A `/MK` key that was a lie.** `add_text_field`/`add_choice_field` always wrote `/MK /BC [0 0 0]` while the appearance builder drew nothing — inert until `Pass 308.0` made `edit_widget` regenerate FROM `/MK`, which would have materialised a frame on a widget's first resize that had never been in the document. Fixed by no longer claiming the colour, not by drawing it: *"a text field draws no box by default, and that must not change"* is a stated invariant of `build_field_text_appearance`, and painting the declared frame would have repainted every pdfcer-created text field for a change nobody asked for. The Acrobat creation-floor alternative (paint the thin solid border) was considered and rejected on that ground — recorded as the road not taken. General finding, the inverse of `Pass 308.0`'s: filed as a second instance on `D:\dev\rag\rust\two_representations_of_one_fact_can_disagree_until_a_third_thing_derives_one_from_the_other.md` — both defects trace to writing a dictionary and a stream from two literals instead of one value.
+
+⚠ **Operator-visible reporting change, notified to `pdfcer-gui`.** A pdfcer-created text/choice field now reports `border_color: None` (was `Some(Rgb(0,0,0))`), carries no `/MK` at all absent an explicit colour, and `list-fields --widgets` shows `background=- border_color=-`. Check box/radio/push button are byte-identical in both halves.
+
+**Also this commit.** `EditWidgetArgs`'s doc comment had been spliced onto `parse_mk_colour`'s in `crates/pdfcer-cli/src/main.rs` — `check-doc-block-spliced.py`'s exact failure signature, in a file that gate doesn't scan. Unspliced; the gate-coverage gap is noted, not closed.
+
+**Tests.** `crates/pdfcer-core/tests/widget_colour_at_creation.rs` — 16 tests asserting stream operators (R159), including byte-identity of the unchanged half. `crates/pdfcer-cli/tests/add_fields.rs` — 4 more, including one running all five verbs through the same two flags so they can't drift into five spellings.
+
+**Gates.** Full `tools/run-gates.sh` (34 commands) run to completion; one failure (`cargo fmt --all --check`, new test file only), fixed and re-verified along with all 24 non-cargo gates after the last edit.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md`'s "still owed (`Pass 308.1`)" paragraph replaced by a "Colour at CREATION" section (5,341 → 5,369 lines; `docs/core-api/index.md`'s count row already matches — independently confirmed). Delivery notice at `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-09-15-G020-colour-at-creation-is-done.md` — an `INDEX.md` row is owed to `pdfcer-gui`'s own tree, not this project's.
+
+**No decision-log entry** — a bug fix (the phantom `/MK` key) plus a builder-parameter threading, not a crate-boundary/library/invariant call; same call as `Pass 308.0`/`Pass 308.2`.
+
+**Sourcing (hard rule 8) — no shell this filing.** Commit hash, gate run, and docs line counts taken from the requesting engineer's own dispatch. **Independently confirmed via `Read`/`Grep` against live source at HEAD:** `WidgetChrome::with_background`/`with_border_color`, `creation_chrome`, `push_button_creation_chrome`, `insert_mk_chrome` all present in `crates/pdfcer-core/src/edit.rs`; `widget_colour_at_creation.rs` exists with exactly 16 `#[test]` functions; `add_fields.rs` contains the background/border-color flag tests; `parse_creation_chrome`/`CreationChrome`/`mk_colour_token` present in `crates/pdfcer-cli/src/main.rs`; `docs/core-api/index.md`'s `02-editing-and-saving.md` row already reads 5,369 lines, matching.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `Pass 308.0`/`Pass 308.2` shipped; `Pass 308.1` claimed, unshipped — next free family `309` | **`Pass 308.1` SHIPPED — `G020` fully closed; next free family `309` unchanged** |
+| Standing rules | `R257` used, next free `R258` | unchanged — no rule minted |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `558` | **`559`** |
+| `docs/FEATURES.md` | Field-property row (line 312): "creation-time colour still owed (`Pass 308.1`)"; `/MK` painting row (line 463): stays *Planned* pending `308.1` + gui | **Field-property row: creation-time clause removed, `G020` closed; `/MK` painting row: stays *Planned*, pending `pdfcer-gui` wiring ONLY** |
+| `D:\dev\rag\rust\` | 373 finding files (375 total − 2 meta) | **unchanged — existing file (`two_representations_of_one_fact_…`) gains a second, inverse-direction instance; no new file** |
+
+---
+
 ### `Pass 308.0` + `Pass 308.2` (`bd8059f2`, 2026-09-15) — `/MK` `/BG`/`/BC` are baked into the `/AP` the four widget builders draw, not merely round-tripped; a third `WidgetEditOutcome::appearance` state names the case where they couldn't be
 
-Answers `pdfcer-gui`'s `G020` (O202: *"the forms objects have no way to edit their colour before or after placement"*) — the first two of its three Passes. **`Pass 308.1` (carry the colour at field-CREATION time) is still owed and stays in *Next up***; say so wherever this entry is cited, because a reader who sees "G020 shipped" will otherwise assume the operator's *"before placement"* half is done — it is not, a created field's colour lands via create-then-edit today.
+Answers `pdfcer-gui`'s `G020` (O202: *"the forms objects have no way to edit their colour before or after placement"*) — the first two of its three Passes. ~~**`Pass 308.1` (carry the colour at field-CREATION time) is still owed and stays in *Next up***; say so wherever this entry is cited, because a reader who sees "G020 shipped" will otherwise assume the operator's *"before placement"* half is done — it is not, a created field's colour lands via create-then-edit today.~~ **★ CORRECTED 2026-09-15 (same day) — `Pass 308.1` SHIPPED, `86ede66b` (see *Shipped*, top). `G020` is now FULLY CLOSED; the struck sentence no longer applies wherever this entry is cited.**
 
 **What shipped.** `annot_author::WidgetChrome` threaded through all four appearance builders (check box, radio, push button, text/choice); `edit_widget`'s `needs_regen` now covers both colour fields; `PendingWidgetEdit` carries the staged chrome so a redraw uses the command's colours while the ownership test — *would pdfcer draw exactly these bytes, from what `/MK` says now?* — uses the widget's stored ones. New `AppearanceOutcome` (`NotNeeded` / `Regenerated` / `RecordedNotPainted(String)`) on `WidgetEditOutcome::appearance` — `308.2`'s third state, built together with `308.0` rather than folded in after. `AnnotFlags` untouched. Eleven new tests (`crates/pdfcer-core/tests/widget_colour_appearance.rs`) assert the operators actually written into the appearance stream, not the model. `docs/core-api/02-editing-and-saving.md` gained a section; verb count unchanged (no new `EditSession` method).
 
@@ -141,11 +176,11 @@ Answers `pdfcer-gui`'s `G020` (O202: *"the forms objects have no way to edit the
 
 | ledger | before | after |
 |---|---|---|
-| Pass families | `307` shipped; `308`–`308.2` claimed, unshipped — next free family `309` | **`Pass 308.0`/`308.2` SHIPPED; `Pass 308.1` still claimed in *Next up* — next free family `309` unchanged** |
+| Pass families | `307` shipped; `308`–`308.2` claimed, unshipped — next free family `309` | **`Pass 308.0`/`308.2` SHIPPED; ~~`Pass 308.1` still claimed in *Next up*~~ — ★ CORRECTED 2026-09-15: `308.1` SHIPPED same day, `G020` fully closed — next free family `309` unchanged** |
 | Standing rules | `R197` gains a dated instance (557th filing) | **unchanged — no rule minted; two n=1 findings sent to `D:\dev\rag\rust\` instead of a project rule, per the project's own mint-at-n≥2 practice** |
 | Decision records | `158` | **unchanged — a bug fix + two appearance-builder defaults + a formatting-precision fix, not a crate-boundary/library/invariant decision** |
 | `SESSION_LOG` filings | `557` | **`558`** |
-| `docs/FEATURES.md` | Planned row (`Pass 308.0`–`308.2`): `core [ ] · cli [ ] · gui [ ]`; Forms field-property row said "recorded, not painted" | **Planned row: `core [x] · cli [x] · gui [ ]`, stays in *Planned* pending `Pass 308.1` + `pdfcer-gui` wiring; Forms field-property row updated to say "painted, `Pass 308.1` (creation-time) still owed"** |
+| `docs/FEATURES.md` | Planned row (`Pass 308.0`–`308.2`): `core [ ] · cli [ ] · gui [ ]`; Forms field-property row said "recorded, not painted" | **Planned row: `core [x] · cli [x] · gui [ ]`, stays in *Planned* pending `Pass 308.1` + `pdfcer-gui` wiring; Forms field-property row updated to say "painted, `Pass 308.1` (creation-time) still owed" — ★ CORRECTED 2026-09-15: `308.1` shipped same day, row now pending `pdfcer-gui` wiring ONLY, see `Pass 308.1`'s own entry above** |
 | `D:\dev\rag\rust\` | 371 finding files (373 total − 2 meta) | **373 finding files (375 total − 2 meta, Glob-measured after this filing's additions) — 2 new (`two_representations_of_one_fact_…`, `a_builder_parameter_threaded_through_…`), 1 existing file (`shortest_roundtrip_float_format_…`) gains a third dated instance, no new file for that one** |
 | Owed items | highest `35` | **`36`** — opened and **closed** 2026-09-15. Erratum #56 verified **correct as written**, tier (a); three of our own documents found miscited on the neighbouring `/BM` edit and corrected |
 
@@ -5893,10 +5928,6 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **19 items removed 2026-09-10** because the Pass they describe had already shipped — see [`history/roadmap-nextup-already-shipped.md`](history/roadmap-nextup-already-shipped.md).
 > A queue that keeps finished work reads as longer than it is.
-
-### Pass 308.1 — Carry background/border colour at field-CREATION time, not only post-placement edit — same request (`G020`, O202) — **UNSTARTED**
-
-~~DEPENDS ON `Pass 308.0`~~ — `Pass 308.0` and `Pass 308.2` **SHIPPED** `bd8059f2` (2026-09-15, see *Shipped*, top); the dependency is discharged and this is the only remaining piece of `G020`. None of the five creation specs (`NewTextField:1607`, `NewChoiceField:2612`, and the other three) has a colour field; the operator asked for colour *"before placement,"* which is a single-verb ask. The request accepts create-then-edit-and-coalesce internally if that is cheaper to build — the acceptance is the operator-visible behaviour, not the internal route. **This is the entirety of what remains owed on `G020`** — say so wherever `308.0`/`308.2` are cited as shipped, since a reader who sees "G020 shipped" would otherwise assume the operator's *"before placement"* half is done.
 
 ### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), ~~**NOT STARTED**~~ **SHIPPED `743830d` — see top of *Shipped***
 

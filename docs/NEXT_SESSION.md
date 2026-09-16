@@ -5,7 +5,7 @@ detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
 **Written:** 2026-09-12, after `Pass 300.3` and the 530th filing.
-**Amended:** 2026-09-15 (again), after `Pass 307.0`, `Pass 308.0` and `308.2`, and the 557th filing. See **SINCE THE LAST HANDOFF** at the top of STATE —
+**Amended:** 2026-09-15 (again), after `Pass 307.0`, `Pass 308.0`/`308.2` and `Pass 308.1` — with which **`G020` is fully closed** — and the 557th filing. See **SINCE THE LAST HANDOFF** at the top of STATE —
 everything below that block is carried forward unchanged and still true.
 
 ---
@@ -284,10 +284,55 @@ observations are real; the difference is that the earlier one had a second
 cargo job live beside it. ⇒ *One cargo invocation at a time, and `-j 1` for the
 render crate.*
 
-**Still owed: `Pass 308.1`** — colour carried on the five `New*` creation
-specs. The operator asked for colour *"before or after placement"*; "after" is
-done, "before" is create-then-edit, which `pdfcer-gui` offered as acceptable
-and which is therefore a workaround rather than the answer.
+~~**Still owed: `Pass 308.1`**~~ — **SHIPPED `86ede66b`, same day. `G020` is
+fully closed.** All five `New*` specs carry `chrome: WidgetChrome` with
+`with_background` / `with_border_color`; the CLI gains `--background` and
+`--border-color` on all five `add-*` verbs, spelled as `edit-widget`'s. The
+dictionary and the artwork are written from ONE value, in the create branch and
+the merge branch alike.
+
+★★ **AND THE FIX WAS A KEY REMOVED, NOT A KEY ADDED, WHICH IS THE PART TO
+CARRY.** `add_text_field` and `add_choice_field` had always written `/MK`
+`/BC [0 0 0]` while handing the appearance builder nothing — the dictionary
+claimed a black frame the `/AP` never drew. Inert for months. **`Pass 308.0`
+made `edit_widget` regenerate FROM `/MK`**, so the first *resize* of a
+pdfcer-created text field would have materialised a frame that had never been
+in the document. Nothing in `308.0` looked wrong; it simply started reading a
+key that had never been true.
+
+⇒ *Stop claiming it, do not start drawing it.* Painting the declared frame was
+the other available fix and was rejected: *"a text field draws no box by
+default"* is a stated invariant of the shared builder that FILL also uses, and
+adopting Acrobat's floor would have repainted every newly created text field
+for a change `G020` never asked for. Recorded as a road not taken, because the
+fork will be met again.
+
+⇒ **The rule, and note it is the INVERSE of `308.0`'s two entries above:** two
+representations of one fact can disagree indefinitely at no cost, and the cost
+arrives in full the moment a third thing starts deriving one from the other.
+`308.0` met it from the paint side (DeviceRGB in `/MK`, DeviceGray in the
+stream); this met it from the record side (a key describing artwork nobody drew).
+**Both came from the same act — writing a dictionary and a stream from two
+literals instead of one value.** If you are about to write a `/MK` entry and a
+content-stream operator in the same function, that is the moment.
+
+⚠ **Reporting change `pdfcer-gui` was told about:** a created text or choice
+field now reports `border_color: None` where it reported `Some(Rgb(0,0,0))`,
+and carries no `/MK` at all when no colour was asked for. Check box, radio
+button and push button are byte-identical in both halves.
+
+★ **A spliced doc block was found in `pdfcer-cli/src/main.rs`** —
+`EditWidgetArgs`'s comment welded onto `parse_mk_colour`'s, the exact failure
+`check-doc-block-spliced.py` exists for, **in a crate that gate does not
+scan.** Unspliced in the same commit. The gate's coverage is narrower than its
+name suggests; a CLI splice is found only by reading.
+
+★ **`run-gates.sh` ran all 34 commands to completion again**, nothing
+OOM-killed — the second consecutive clean full sweep on this machine, so treat
+the fallback procedure above as the exception it now is. One failure,
+`cargo fmt --all --check`, on the new test file alone; the 24 non-cargo gates
+and fmt were re-run **after** the last edit, which is the discipline the top of
+this file asks for.
 
 ### ★★★ SINCE THE LAST HANDOFF — 2026-09-15 (`Pass 306.0`)
 
