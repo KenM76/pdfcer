@@ -3164,6 +3164,45 @@ nobody asked for. Stating no colour now writes no key, so:
 exactly as `edit-widget`'s, and each verb's output line now carries
 `background=` and `border_color=` in `list-fields --widgets` spelling.
 
+### ★ Removing an `/MK` colour — `MkColorEdit`, and why the setters changed shape (`Pass 308.3`, request `G021`)
+
+`WidgetEdit::background` and `::border_color` are now
+`Option<MkColorEdit>`, where `MkColorEdit` is `Set(MkColor) | Remove`.
+`with_background(MkColor)` and `with_border_color(MkColor)` are **unchanged at
+every call site** — they wrap in `Set` — and two verbs are added:
+`without_background()` and `without_border_color()`.
+
+**The key has three reachable states and only two had a spelling.** The read
+model always distinguished all three — `Widget::background` is `None` for an
+absent key and `Some(MkColor::None)` for the empty array — but the setters
+wrapped in one `Option` whose `None` already meant *this edit does not mention
+the key*. So `Some(MkColor::None)` was the empty array and **absent had no
+spelling at all**: every transition back into it was unreachable, and the state
+a widget starts in was a one-way door out of.
+
+**On a push button that is a different rendering, not a different byte.** No
+`/BG` means the plate grey; `/BG []` means no plate. An operator who chose *no
+background* and changed their mind could not get the plate back, because "the
+plate" is what *absent* means. For `/BC` it is currently only a byte — absent
+and empty both stroke black in `WidgetChrome::stroke` — and it stops being only
+a byte the moment any default there is not black.
+
+**R33 is the other half.** An operator undoing a colour *as an edit* rather
+than as an undo-stack pop — a later session, a different document — was leaving
+an `/MK` entry in a dictionary that had none. A removal that empties `/MK`
+removes the dictionary with it, so the widget is restored rather than left
+holding an empty dict.
+
+**A removal regenerates the appearance** (it is in `needs_regen` as before) and
+the builder falls back to its own default, which is exactly how the plate comes
+back. `/MK`'s other entries are preserved — a check box's `/CA` tick style
+survives a `without_background()`.
+
+**CLI:** `edit-widget --background unset` / `--border-color unset`. `none` and
+`unset` are deliberately two words: `none` writes Table 189's empty array and
+leaves the key present, `unset` takes the key away. The creation verbs have no
+`unset`, because there is nothing yet to remove.
+
 ### ⚡ `page_objects` — what it is worth, and the two things it does NOT fix
 
 Measured on a 5.6 MB / 129,758-object CAD drawing, release build

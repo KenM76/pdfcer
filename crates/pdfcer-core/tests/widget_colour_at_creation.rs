@@ -44,8 +44,8 @@
 
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::{
-    AppearanceOutcome, ChoiceOption, EditSession, NewCheckBox, NewChoiceField, NewPushButton,
-    NewRadioButton, NewTextField, WidgetEdit,
+    AppearanceOutcome, ChoiceOption, EditSession, MkColorEdit, NewCheckBox, NewChoiceField,
+    NewPushButton, NewRadioButton, NewTextField, WidgetEdit,
 };
 use pdfcer_core::forms::{self, MkColor};
 use pdfcer_core::graph::ObjectGraph;
@@ -532,4 +532,192 @@ fn a_second_widget_merged_into_one_field_carries_its_own_colour() {
         Some(MkColor::Rgb(1.0, 0.9, 0.0))
     );
     assert!(ap_text_of(&s, "Ref", 1).contains("1 0.9 0 rg"));
+}
+
+// -------------------------------------------------------------------------
+// ★ Absent is no longer a one-way door (`Pass 308.3`, request `G021`)
+// -------------------------------------------------------------------------
+//
+// `WidgetEdit` wrapped its two colour setters in one `Option` whose `None`
+// already meant *this edit does not mention the key*, so `Some(MkColor::None)`
+// was the empty array and **absent had no spelling at all**. Every transition
+// back INTO absent was unreachable.
+//
+// On a push button that is a different RENDERING, not a different byte: absent
+// means the plate grey, the empty array means no plate. An operator who chose
+// *no background* could not get the plate back.
+
+#[test]
+fn a_push_button_stripped_of_its_plate_can_get_it_back() {
+    let mut s = session();
+    s.add_push_button(&NewPushButton::new(0, "Go", rect(), "Submit").declining_tooltip())
+        .unwrap();
+    assert!(
+        ap_text(&s, "Go").contains("0.85 g"),
+        "the plate to begin with"
+    );
+
+    // Table 189's empty array: no plate, positively stated.
+    s.edit_widget("Go", 0, &WidgetEdit::new().with_background(MkColor::None))
+        .unwrap();
+    assert!(!ap_text(&s, "Go").contains("0.85 g"), "the plate is gone");
+    assert_eq!(
+        field_named(&s, "Go").widgets[0].background,
+        Some(MkColor::None)
+    );
+
+    // And back — which had no spelling at all before this Pass.
+    let out = s
+        .edit_widget("Go", 0, &WidgetEdit::new().without_background())
+        .unwrap();
+    assert_eq!(out.appearance, AppearanceOutcome::Regenerated);
+    assert!(
+        ap_text(&s, "Go").contains("0.85 g"),
+        "an ABSENT /BG is what 'the plate grey' means, so removing the key \
+         restores it: {}",
+        ap_text(&s, "Go")
+    );
+    assert_eq!(
+        field_named(&s, "Go").widgets[0].background,
+        None,
+        "and the key is gone, not set to the constant — a widget pdfcer \
+         never logically touched comes back byte-identical (R33)"
+    );
+}
+
+#[test]
+fn removing_the_last_mk_entry_removes_the_dictionary_with_it() {
+    // A text field created with no colour carries no `/MK` at all. Colour it,
+    // then take both colours away: the widget must be back where it started,
+    // not left holding an empty dictionary it never had.
+    let mut s = session();
+    s.add_text_field(&NewTextField::new(0, "Name", rect()).declining_tooltip())
+        .unwrap();
+    assert!(!has_mk(&s, "Name"), "nothing to begin with");
+
+    s.edit_widget(
+        "Name",
+        0,
+        &WidgetEdit::new()
+            .with_background(MkColor::Gray(0.95))
+            .with_border_color(MkColor::Gray(0.0)),
+    )
+    .unwrap();
+    assert!(has_mk(&s, "Name"));
+    assert!(ap_text(&s, "Name").contains("0.95 g"));
+
+    s.edit_widget(
+        "Name",
+        0,
+        &WidgetEdit::new()
+            .without_background()
+            .without_border_color(),
+    )
+    .unwrap();
+    assert!(
+        !has_mk(&s, "Name"),
+        "an /MK with nothing left in it is removed, not written empty"
+    );
+    let art = ap_text(&s, "Name");
+    assert!(!art.contains("\nf\n"), "nothing is filled again: {art}");
+    assert!(!art.contains("\nS\n"), "and nothing is stroked: {art}");
+}
+
+#[test]
+fn a_removal_leaves_the_other_mk_entries_alone() {
+    // `/MK` carries more than the two colours — a check box's tick style lives
+    // in `/CA`, and a removal that replaced the dictionary would silently
+    // delete it. Preserve-and-patch, asserted rather than assumed.
+    let mut s = session();
+    s.add_check_box(
+        &NewCheckBox::new(0, "Agree", rect())
+            .declining_tooltip()
+            .with_background(MkColor::Gray(0.9)),
+    )
+    .unwrap();
+    s.edit_widget("Agree", 0, &WidgetEdit::new().without_background())
+        .unwrap();
+
+    assert_eq!(field_named(&s, "Agree").widgets[0].background, None);
+    assert!(
+        has_mk(&s, "Agree"),
+        "/MK survives, because /CA is still in it"
+    );
+    let g = s.graph();
+    let id = field_named(&s, "Agree").widgets[0].id;
+    let mk = g
+        .resolved(id)
+        .as_dict()
+        .and_then(|d| d.get(b"MK"))
+        .and_then(Object::as_dict)
+        .cloned()
+        .expect("an /MK");
+    assert!(mk.get(b"CA").is_some(), "the tick style is untouched");
+    assert!(mk.get(b"BG").is_none(), "and only /BG went");
+}
+
+#[test]
+fn removing_a_colour_that_was_never_there_changes_nothing() {
+    // Idempotent, and it must not invent an `/MK` on the way past.
+    let mut s = session();
+    s.add_text_field(&NewTextField::new(0, "Name", rect()).declining_tooltip())
+        .unwrap();
+    let before = ap_text(&s, "Name");
+
+    s.edit_widget(
+        "Name",
+        0,
+        &WidgetEdit::new()
+            .without_background()
+            .without_border_color(),
+    )
+    .unwrap();
+
+    assert!(!has_mk(&s, "Name"), "no /MK was conjured to hold nothing");
+    assert_eq!(ap_text(&s, "Name"), before, "and the artwork is unchanged");
+}
+
+#[test]
+fn the_three_mk_states_are_all_reachable_in_both_directions() {
+    // The table `G021` drew: every cell that said "no route" now has one.
+    let mut s = session();
+    s.add_push_button(&NewPushButton::new(0, "Go", rect(), "Submit").declining_tooltip())
+        .unwrap();
+
+    let states = |s: &EditSession| field_named(s, "Go").widgets[0].background;
+
+    // absent -> colour -> empty -> absent -> empty -> colour -> absent
+    assert_eq!(
+        states(&s),
+        Some(MkColor::Gray(0.85)),
+        "created WITH a plate"
+    );
+    s.edit_widget("Go", 0, &WidgetEdit::new().without_background())
+        .unwrap();
+    assert_eq!(states(&s), None);
+    s.edit_widget(
+        "Go",
+        0,
+        &WidgetEdit::new().with_background(MkColor::Rgb(0.0, 0.0, 1.0)),
+    )
+    .unwrap();
+    assert_eq!(states(&s), Some(MkColor::Rgb(0.0, 0.0, 1.0)));
+    s.edit_widget("Go", 0, &WidgetEdit::new().with_background(MkColor::None))
+        .unwrap();
+    assert_eq!(states(&s), Some(MkColor::None));
+    s.edit_widget("Go", 0, &WidgetEdit::new().without_background())
+        .unwrap();
+    assert_eq!(states(&s), None, "the transition that had no route");
+}
+
+#[test]
+fn the_edit_enum_resolves_a_removal_to_no_colour() {
+    // The one place the three states are named. `resolved()` is what both the
+    // regenerator and the dictionary writer read, so a drift here would show
+    // up as artwork and dictionary disagreeing — the `Pass 308.0` failure.
+    assert_eq!(
+        MkColorEdit::Set(MkColor::Gray(0.5)).resolved(),
+        Some(MkColor::Gray(0.5))
+    );
+    assert_eq!(MkColorEdit::Remove.resolved(), None);
 }

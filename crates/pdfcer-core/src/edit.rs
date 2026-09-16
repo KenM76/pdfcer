@@ -21620,7 +21620,11 @@ pub struct WidgetEdit {
     /// On a check box or radio button this is the fill behind the tick, which
     /// is the property an operator reaches for most often after the box
     /// itself.
-    pub background: Option<crate::forms::MkColor>,
+    ///
+    /// `None` means *this edit does not touch the key*;
+    /// [`MkColorEdit::Remove`] means *take it away* — see the enum for why
+    /// those had to become three states rather than two (`Pass 308.3`).
+    pub background: Option<MkColorEdit>,
     /// `/MK` `/BC` — the widget's **border colour** (Table 189).
     ///
     /// # ★★ Both of these existed on ONE side each until 2026-09-07
@@ -21637,18 +21641,24 @@ pub struct WidgetEdit {
     /// independently present, and a caller that conflates them draws the wrong
     /// box.
     ///
-    /// # The honest limit, unchanged and restated because it still applies
+    /// # ★ The "honest limit" that stood here is RETIRED
     ///
-    /// **pdfcer's own renderer does not paint `/MK` colours.** R43 makes
-    /// `/MK`-without-`/AP` the canonical named-not-painted case, and painting
-    /// them would mean changing the shared appearance builder that fill also
-    /// uses — every refilled field in every document would gain a border it
-    /// never had — or building a second generator, which `R92` forbids. So
-    /// this writes a value that conforming viewers honour and pdfcer itself
-    /// displays no differently. That was already true of the hard-coded black;
-    /// making it settable does not make it more true, and the alternative is a
-    /// file less complete than Acrobat's for no gain.
-    pub border_color: Option<crate::forms::MkColor>,
+    /// This paragraph said, at length, that **pdfcer's own renderer does not
+    /// paint `/MK` colours** — R43's named-not-painted case — and that
+    /// painting them would mean changing the shared appearance builder a fill
+    /// also uses, or building a second generator against `R92`.
+    ///
+    /// `Pass 308.0` did the first of those and it was neither: the builders
+    /// take the colour **per call site**, so a fill still passes
+    /// [`crate::annot_author::WidgetChrome::default`] and is untouched. Both
+    /// colours are baked into the `/AP` now, and a colour-only edit redraws.
+    ///
+    /// The struck reasoning is noted rather than deleted because it was
+    /// *correct about the constraint and wrong about the conclusion* — the
+    /// obstacle was real and was removable, and a reader who remembers the
+    /// limit needs to see that it moved rather than wonder whether they
+    /// misremembered it.
+    pub border_color: Option<MkColorEdit>,
     /// **How the resize treats things that are not the box** — the same three
     /// answers [`ResizeOptions`] carries, for the same reasons, spelled
     /// identically (`Pass 187.0`).
@@ -21899,6 +21909,65 @@ impl FieldEdit {
     }
 }
 
+/// What one [`WidgetEdit`] does to a single `/MK` colour entry (Table 189).
+///
+/// # Why a two-state `Option<MkColor>` could not say this
+///
+/// The key has **three** reachable states and the read model has always
+/// distinguished all three: absent, the empty array (*"no colour"*), and a
+/// colour. `WidgetEdit` wrapped its setters in one `Option` whose `None`
+/// already meant *this edit does not mention the key*, so
+/// `Some(MkColor::None)` was the empty array and **absent had no spelling at
+/// all**. Every transition INTO absent was unreachable: the state a widget
+/// starts in was a one-way door out of.
+///
+/// ★ **That is a different RENDERING, not a different byte, wherever a
+/// builder's default is not "nothing".** A push button with no `/BG` gets the
+/// plate grey; with `/BG []` it gets no plate. An operator who chose *no
+/// background* and changed their mind could not get the plate back, because
+/// "the plate" is what *absent* means.
+///
+/// It is currently only a byte for `/BC`, whose absent and empty states both
+/// resolve to black in [`crate::annot_author::WidgetChrome::stroke`] — and it
+/// stops being only a byte the moment any future default there is not black.
+/// Reported by `pdfcer-gui` as `G021`, which is also where that argument comes
+/// from.
+///
+/// R33 is the other half: a widget pdfcer never logically touched should come
+/// back byte-identical, and an operator undoing a colour **as an edit** — a
+/// later session, a different document — was leaving an `/MK` entry behind in
+/// a dictionary that had none.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
+pub enum MkColorEdit {
+    /// Write this colour. [`crate::forms::MkColor::None`] writes Table 189's
+    /// **empty array**, which states *no colour* — still a present key.
+    Set(crate::forms::MkColor),
+    /// REMOVE the key, returning the widget to *the file states nothing about
+    /// this* and the builder to its own default.
+    ///
+    /// When it empties `/MK`, the dictionary goes with it: `edit_widget`
+    /// already removes an `/MK` with nothing left in it, so a widget that
+    /// never had one is restored rather than left carrying an empty dict.
+    Remove,
+}
+
+impl MkColorEdit {
+    /// The colour this edit leaves the widget with: `None` for a removal —
+    /// the key is absent, and the builder's own default stands.
+    ///
+    /// Named rather than matched at each call site so the regenerator and the
+    /// dictionary writer cannot drift into reading it differently, which is
+    /// the argument [`EditSession::widget_chrome`] makes for the pair of keys.
+    #[must_use]
+    pub const fn resolved(self) -> Option<crate::forms::MkColor> {
+        match self {
+            Self::Set(c) => Some(c),
+            Self::Remove => None,
+        }
+    }
+}
+
 impl WidgetEdit {
     /// An edit that changes nothing. Chain `with_*` calls onto it.
     /// Same `#[non_exhaustive]` reasoning as [`FieldEdit::new`].
@@ -21941,8 +22010,20 @@ impl WidgetEdit {
     /// Pass [`crate::forms::MkColor::None`] to write Table 189's empty array,
     /// which states *no colour* and is not the same as the key being absent.
     #[must_use]
-    pub fn with_background(mut self, colour: crate::forms::MkColor) -> Self {
-        self.background = Some(colour);
+    pub const fn with_background(mut self, colour: crate::forms::MkColor) -> Self {
+        self.background = Some(MkColorEdit::Set(colour));
+        self
+    }
+
+    /// REMOVE `/MK` `/BG`, so the file states nothing about the background and
+    /// the builder's own default stands again.
+    ///
+    /// Not the same as [`Self::with_background`]`(MkColor::None)`, and on a
+    /// push button the difference is visible: the empty array means *no
+    /// plate*, an absent key means *the plate grey*. See [`MkColorEdit`].
+    #[must_use]
+    pub const fn without_background(mut self) -> Self {
+        self.background = Some(MkColorEdit::Remove);
         self
     }
 
@@ -21952,8 +22033,21 @@ impl WidgetEdit {
     /// (`/BS`, Table 166). The two are independent dictionaries and a widget
     /// may carry either without the other.
     #[must_use]
-    pub fn with_border_color(mut self, colour: crate::forms::MkColor) -> Self {
-        self.border_color = Some(colour);
+    pub const fn with_border_color(mut self, colour: crate::forms::MkColor) -> Self {
+        self.border_color = Some(MkColorEdit::Set(colour));
+        self
+    }
+
+    /// REMOVE `/MK` `/BC`, so the file states nothing about the border colour.
+    ///
+    /// Absent and empty both stroke black TODAY
+    /// ([`crate::annot_author::WidgetChrome::stroke`]), so this is currently a
+    /// byte-level difference rather than a visible one — and it is the byte
+    /// R33 is about, plus the one that stops being cosmetic the moment any
+    /// default here is not black.
+    #[must_use]
+    pub const fn without_border_color(mut self) -> Self {
+        self.border_color = Some(MkColorEdit::Remove);
         self
     }
 
@@ -25190,9 +25284,17 @@ impl EditSession {
         // than inside the `if` below because the regenerator needs it whether
         // or not `/MK` is being written at all — a resize must redraw in the
         // widget's existing colours, not in the builder's defaults.
+        //
+        // `Pass 308.3`: an edit that REMOVES a key resolves to `None`, which
+        // is the widget stating nothing — so the builder falls back to its own
+        // default and a push button gets its plate back. `map_or_else` rather
+        // than `or`, because `MkColorEdit::Remove` must beat the widget's
+        // stored colour instead of being absorbed by it.
         let chrome_after = annot_author::WidgetChrome::new(
-            edit.background.or(widget.background),
-            edit.border_color.or(widget.border_color),
+            edit.background
+                .map_or(widget.background, MkColorEdit::resolved),
+            edit.border_color
+                .map_or(widget.border_color, MkColorEdit::resolved),
         );
         if edit.caption.is_some() || edit.background.is_some() || edit.border_color.is_some() {
             let mut mk = updated
@@ -25214,12 +25316,20 @@ impl EditSession {
             // spelling of "no colour" -- and is deliberately not the same as
             // removing the key. `to_array` is the exact inverse of the
             // `from_array` the read model uses, so a value round-trips.
-            if let Some(bg) = edit.background {
-                mk.insert(Name::from(b"BG"), bg.to_array());
-            }
-            if let Some(bc) = edit.border_color {
-                mk.insert(Name::from(b"BC"), bc.to_array());
-            }
+            //
+            // `Pass 308.3`: `MkColorEdit::Remove` takes the key out instead,
+            // which is the third state and the one that had no spelling.
+            let apply = |mk: &mut Dict, key: &[u8], e: Option<MkColorEdit>| match e {
+                Some(MkColorEdit::Set(c)) => {
+                    mk.insert(Name::from(key), c.to_array());
+                }
+                Some(MkColorEdit::Remove) => {
+                    mk.remove(key);
+                }
+                None => {}
+            };
+            apply(&mut mk, b"BG", edit.background);
+            apply(&mut mk, b"BC", edit.border_color);
             if mk.is_empty() {
                 updated.remove(b"MK");
             } else {

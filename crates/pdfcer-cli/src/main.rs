@@ -6375,26 +6375,27 @@ enum Command {
         /// would leave the button showing its previous word.
         #[arg(long)]
         caption: Option<String>,
-        /// `/MK` `/BG` -- the widget's BACKGROUND (fill) colour. On a check
-        /// box or radio button this is the fill behind the tick.
+        /// `/MK` `/BG` -- the widget's BACKGROUND (fill) colour, painted into
+        /// the appearance. On a check box or radio button this is the fill
+        /// behind the tick.
         ///
-        /// Accepts `none` (Table 189's empty array, which STATES no colour and
-        /// is not the same as the key being absent), one number for
-        /// DeviceGray, three for DeviceRGB or four for DeviceCMYK, comma
-        /// separated, each 0-1. CMYK is written as CMYK, never converted.
+        /// Accepts one number for DeviceGray, three for DeviceRGB or four for
+        /// DeviceCMYK, comma separated, each 0-1 -- CMYK is written as CMYK
+        /// and never converted -- plus two words that are NOT the same thing:
         ///
-        /// NOTE: pdfcer's own renderer does not paint `/MK` colours -- R43
-        /// makes `/MK`-without-`/AP` the named-not-painted case. The value is
-        /// in the file for viewers that honour it.
-        #[arg(long, value_name = "none|G|R,G,B|C,M,Y,K")]
+        /// `none` writes Table 189's EMPTY ARRAY, which states *no colour*.
+        /// `unset` REMOVES the key, so the file states nothing and the
+        /// builder's own default stands. On a push button that difference is
+        /// visible: `none` means no plate, `unset` brings the plate grey back.
+        #[arg(long, value_name = "none|unset|G|R,G,B|C,M,Y,K")]
         background: Option<String>,
         /// `/MK` `/BC` -- the widget's BORDER COLOUR. Same spelling as
-        /// `--background`.
+        /// `--background`, `unset` included.
         ///
         /// Not `--border-style` or `--border-width`, which are `/BS`
         /// (Table 166) -- the border's style and width. Different
         /// dictionaries; a widget may carry either without the other.
-        #[arg(long, value_name = "none|G|R,G,B|C,M,Y,K")]
+        #[arg(long, value_name = "none|unset|G|R,G,B|C,M,Y,K")]
         border_color: Option<String>,
 
         /// Scale `/BS /W` with the geometry. Off by default -- a line weight
@@ -32794,6 +32795,26 @@ fn cmd_edit_field(args: &EditFieldArgs<'_>) -> u8 {
     finish_edit(args.input, &saved)
 }
 
+/// Parse an `edit-widget` `/MK` colour argument, which has one more state
+/// than a creation verb's (`Pass 308.3`).
+///
+/// `unset` is [`pdfcer_core::edit::MkColorEdit::Remove`]; everything else goes
+/// through [`parse_mk_colour`], so the two surfaces cannot drift on what a
+/// colour looks like.
+///
+/// ★ `none` and `unset` are one letter apart in meaning and worlds apart in
+/// effect, which is why both are words rather than, say, an empty string for
+/// one of them. `none` states *no colour* and leaves the key present; `unset`
+/// takes the key away and hands the builder back its own default. A creation
+/// verb has no `unset` because there is nothing yet to remove.
+fn parse_mk_colour_edit(raw: &str) -> Option<pdfcer_core::edit::MkColorEdit> {
+    use pdfcer_core::edit::MkColorEdit;
+    if raw.eq_ignore_ascii_case("unset") {
+        return Some(MkColorEdit::Remove);
+    }
+    parse_mk_colour(raw).map(MkColorEdit::Set)
+}
+
 /// One `/MK` colour as the CLI spells it on an output line.
 ///
 /// `-` for a key the widget does not carry, `none` for Table 189's empty
@@ -32995,16 +33016,19 @@ fn cmd_edit_widget(args: &EditWidgetArgs<'_>) -> u8 {
         (args.border_color, "--border-color"),
     ] {
         let Some(raw) = raw else { continue };
-        let Some(colour) = parse_mk_colour(raw) else {
+        let Some(colour) = parse_mk_colour_edit(raw) else {
             eprintln!(
-                "pdfcer: {which} {raw:?} -- expected `none` (Table 189's empty array, which STATES no colour), or 1 (gray), 3 (RGB) or 4 (CMYK) comma-separated components in 0-1"
+                "pdfcer: {which} {raw:?} -- expected `none` (Table 189's empty array, which STATES no colour), `unset` (REMOVE the key, so the builder's own default stands), or 1 (gray), 3 (RGB) or 4 (CMYK) comma-separated components in 0-1"
             );
             return exit::RUNTIME_ERROR;
         };
-        edit = if which == "--background" {
-            edit.with_background(colour)
-        } else {
-            edit.with_border_color(colour)
+        // `Pass 308.3`: the enum carries the removal, so the CLI does not need
+        // a second flag and the two spellings stay one argument.
+        edit = match (which, colour) {
+            ("--background", pdfcer_core::edit::MkColorEdit::Set(c)) => edit.with_background(c),
+            ("--background", _) => edit.without_background(),
+            (_, pdfcer_core::edit::MkColorEdit::Set(c)) => edit.with_border_color(c),
+            (_, _) => edit.without_border_color(),
         };
     }
     edit = edit.with_resize(args.resize);

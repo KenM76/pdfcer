@@ -197,3 +197,83 @@ fn a_multi_widget_field_gets_one_line_per_widget() {
         "the multi-widget fixture must produce more than one widget line:\n{text}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// `--background unset` / `--border-color unset` (`Pass 308.3`, request `G021`)
+// ---------------------------------------------------------------------------
+
+/// `none` and `unset` are different words because they are different states.
+///
+/// `none` is Table 189's empty array — the key is present and states *no
+/// colour*. `unset` removes the key, so the file states nothing and the
+/// builder's own default stands. `list-fields --widgets` has always told them
+/// apart (`none` vs `-`); until this Pass the CLI could only reach one of them.
+#[test]
+fn unset_removes_the_key_and_none_leaves_it_present_and_empty() {
+    let empty = write_widget(&["--background", "none"], "bg_none");
+    assert!(
+        first_widget_line(&empty).contains("background=none"),
+        "{}",
+        first_widget_line(&empty)
+    );
+
+    let removed = write_widget(&["--background", "unset"], "bg_unset");
+    assert!(
+        first_widget_line(&removed).contains("background=-"),
+        "unset takes the key away, which `-` is the spelling of: {}",
+        first_widget_line(&removed)
+    );
+
+    let _ = std::fs::remove_file(&empty);
+    let _ = std::fs::remove_file(&removed);
+}
+
+/// The round trip the request asked for: a colour set, then taken back off.
+#[test]
+fn a_colour_can_be_set_and_then_removed_again() {
+    let out = write_widget(&["--background", "0.2,0.4,0.9"], "bg_set");
+    assert!(first_widget_line(&out).contains("background=0.2,0.4,0.9"));
+
+    let back = temp_path("bg_back");
+    let r = run(&[
+        "edit-widget",
+        out.to_str().unwrap(),
+        "--name",
+        "FullName",
+        "--background",
+        "unset",
+        "--output",
+        back.to_str().unwrap(),
+    ]);
+    assert_eq!(r.status.code(), Some(0), "{}", stdout(&r));
+    assert!(
+        first_widget_line(&back).contains("background=-"),
+        "absent is no longer a one-way door: {}",
+        first_widget_line(&back)
+    );
+
+    let _ = std::fs::remove_file(&out);
+    let _ = std::fs::remove_file(&back);
+}
+
+/// `--border-color unset` is spelled identically, and both refuse the same way.
+#[test]
+fn an_unrecognised_colour_word_is_refused_and_names_both_special_words() {
+    let out = temp_path("bad_word");
+    let src = fixture("demo-form.pdf");
+    let r = run(&[
+        "edit-widget",
+        src.to_str().unwrap(),
+        "--name",
+        "FullName",
+        "--border-color",
+        "clear",
+        "--output",
+        out.to_str().unwrap(),
+    ]);
+    assert_ne!(r.status.code(), Some(0));
+    let err = String::from_utf8_lossy(&r.stderr).into_owned();
+    assert!(err.contains("--border-color"), "{err}");
+    assert!(err.contains("none") && err.contains("unset"), "{err}");
+    assert!(!out.exists(), "nothing was written");
+}
