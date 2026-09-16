@@ -3240,6 +3240,58 @@ number was in the operator-facing refusal text, so anyone chasing
 **CLI:** `edit-field --quadding 0|1|2` and `--clear-quadding`, both reporting
 `regenerated=1`.
 
+### ★ A `/Btn` rotation is BAKED now, and the staleness sentence named the wrong set (`Pass 308.5`, request `G023`)
+
+`rotate_widget` wrote `/MK` `/R` for every field kind and regenerated. The text
+path bakes the turn; the **button** path never read it.
+`regen_button_appearance` took the staged rect, the staged caption and the
+staged colours, and `build_button_states` had no angle parameter at all. So a
+check box, radio or push button **pdfcer had drawn** was recognised, redrawn
+from unchanged inputs, rewritten byte-identical, and reported success:
+`appearance_regenerated: true` ⇒ `appearance_stale: None` ⇒ the shell said
+*"Turned to 90°"* and nothing turned. Reported by an operator as *"the rotate
+buttons don't work for check boxes."*
+
+⇒ **A redraw that reads three of four staged inputs reports the same success as
+one that reads all four.** The boolean answers *"did I rewrite the stream"*,
+which was true; nothing could ask *"did the rewrite differ"*.
+
+`build_button_states` now takes the quarter turn, authors into an `h × w`
+`/BBox` for 90/270 and emits `quarter_turn_matrix` — the same construction
+`regen_field_appearance` uses, for the same §12.5.5 reason (step (b) maps the
+bounded box onto `/Rect` anisotropically, so an unswapped box would render the
+control turned **and** stretched). `annot_author`'s identity-matrix invariant is
+untouched: the builders still receive a plain box, and the turn is applied in
+the one function that defines what pdfcer draws for a button.
+
+**The ownership test reads the STORED angle, the redraw the STAGED one** — the
+precedence `Pass 308.0` established for the colours. Comparing against the
+angle being staged would declare pdfcer's own artwork foreign on every
+rotation, failing closed and silently.
+
+**⚠ Where the turn actually lives, because it is not where it looks.** The
+content stream is never drawn turned; it is drawn upright into a box and
+`/Matrix` turns the XObject. So the stream bytes change only when the authored
+box changes size — i.e. at 90°/270° **and** `w ≠ h`. At 180° every button is
+byte-identical and the whole turn is the `/Matrix`. Style symmetry does not
+enter into it: a `Check` box that is square is byte-identical at 90°, and a
+`Circle` box that is oblong is not.
+
+**A widget rotated by an EARLIER build now reads as foreign**, because its
+artwork was authored unswapped while `/MK` `/R` said 90. `rotate_widget`
+discloses rather than redrawing it — a disclosure, not damage, and the same
+consequence `Pass 308.0` carried for push-button colours. Rotating it again
+from a build that bakes puts it right.
+
+**The staleness sentence enumerated the wrong set, in both directions.** It
+opened *"the stream is a push button's caption artwork, a signature, or a form
+built elsewhere"* — naming a push button pdfcer drew, which takes the
+regenerated path and never sees the sentence, while telling a foreign **check
+box** it was one. `pdfcer-gui` built a capability inventory from it and
+recorded the wrong answer for check boxes and radios. It now names the
+**property** that decides — whether the artwork is pdfcer's own — rather than a
+list of kinds, because the list is what went stale and the property cannot.
+
 ### ⚡ `page_objects` — what it is worth, and the two things it does NOT fix
 
 Measured on a 5.6 MB / 129,758-object CAD drawing, release build

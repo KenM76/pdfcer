@@ -406,11 +406,19 @@ fn a_non_quarter_turn_is_refused_and_writes_nothing() {
 
 /// ★★ **Where pdfcer cannot redraw the appearance, it SAYS SO.**
 ///
-/// A check box's `/AP` is state-keyed artwork pdfcer's text generator does not
-/// produce, so `/MK /R` is written and the pixels do not move. That is the
-/// outcome most likely to be reported as a defect, because PDF Association
-/// erratum #56 (`ISO approved`) puts `MK` in §12.5.2's ignore-list — a
-/// conforming PDF 2.0 reader shows the field upright however `/R` reads.
+/// ⚠ **This doc comment used to describe the defect `G023` reported, as
+/// though it were the design.** It read: *"A check box's `/AP` is state-keyed
+/// artwork pdfcer's text generator does not produce, so `/MK /R` is written
+/// and the pixels do not move."* Since `Pass 308.5` a check box pdfcer DREW
+/// turns like any other control — `build_button_states` takes the quarter turn
+/// and authors into a swapped `/BBox` with a `/Matrix`.
+///
+/// What still reaches this disclosure is artwork pdfcer does **not** recognise
+/// as its own, which is what this fixture's hand-built check box is. That is
+/// the outcome most likely to be reported as a defect, because PDF
+/// Association erratum #56 (`ISO approved`) puts `MK` in §12.5.2's
+/// ignore-list — a conforming PDF 2.0 reader shows the field upright however
+/// `/R` reads.
 ///
 /// The disclosure is the whole difference between a command that worked in a
 /// way the operator did not expect and one that appears broken.
@@ -444,6 +452,27 @@ fn a_widget_pdfcer_cannot_redraw_is_rotated_and_disclosed() {
     assert!(
         stdout.contains("erratum #56") || stdout.contains("PDF 2.0 reader ignores /MK"),
         "including WHY it will still look upright: {stdout}"
+    );
+    // ★ AND THE SENTENCE NAMES THE RIGHT SET (`G023`, `Pass 308.5`). It used
+    // to open *"the stream is a push button's caption artwork, a signature, or
+    // a form built elsewhere"* — which named a push button pdfcer drew (a case
+    // that never reaches this sentence) and told THIS foreign check box it was
+    // one. `pdfcer-gui` built a capability inventory out of that list and
+    // recorded the wrong answer for check boxes and radios.
+    //
+    // ⇒ A refusal sentence is a disclosure, and a disclosure that enumerates
+    // the wrong set is a defect in whoever believes it. The replacement names
+    // the PROPERTY that decides — whether the artwork is pdfcer's own — rather
+    // than listing kinds, because the list is what went stale and the property
+    // cannot.
+    assert!(
+        !stdout.contains("push button"),
+        "a foreign CHECK BOX must not be described as push-button caption \
+         artwork: {stdout}"
+    );
+    assert!(
+        stdout.contains("not artwork pdfcer recognises as its own"),
+        "the sentence names the property, not a list of kinds: {stdout}"
     );
 }
 

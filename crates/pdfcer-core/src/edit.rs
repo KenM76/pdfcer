@@ -18550,6 +18550,41 @@ struct FormReach {
     pages: usize,
 }
 
+/// Everything one button widget's artwork is drawn FROM
+/// ([`EditSession::build_button_states`]).
+///
+/// # Why these five travel together
+///
+/// Each is read **as stored** by the ownership test and **as staged** by the
+/// redraw, and getting that split wrong on any one of them is the same bug
+/// with a different name:
+///
+/// * pass the staged value to the ownership test and it declares pdfcer's own
+///   artwork foreign, so the edit is the one that can never take;
+/// * pass the stored value to the redraw and it rewrites the stream
+///   byte-identical and reports success, so the edit silently does nothing.
+///
+/// `Pass 308.0` met the first shape on `chrome`; `Pass 308.5` met the second
+/// on `quarter`, after a rotation had been reporting success and moving
+/// nothing since `/MK` `/R` shipped. **Both were a property the redraw could
+/// read and did not** — so the properties are one value now, and adding a
+/// sixth means adding it to one struct rather than remembering two call sites.
+#[derive(Debug, Clone, Copy)]
+struct ButtonLook<'a> {
+    /// The widget's `/Rect` width.
+    w: f64,
+    /// The widget's `/Rect` height.
+    h: f64,
+    /// `/MK` `/CA` — the caption, and for a check box the glyph choice the
+    /// style is recovered from.
+    caption: &'a str,
+    /// `/MK` `/BG` and `/BC`.
+    chrome: annot_author::WidgetChrome,
+    /// `/MK` `/R` as a quarter turn, already reduced by
+    /// [`EditSession::quarter_of`].
+    quarter: i64,
+}
+
 /// One button widget's appearance-rebuild plan (`Pass 187.0`).
 ///
 /// Separate from the rebuild itself so that a field's widgets can ALL be
@@ -25065,13 +25100,33 @@ impl EditSession {
             None,
         )?;
         if !appearance_regenerated {
+            // ★ THE SENTENCE USED TO ENUMERATE THE WRONG SET, IN BOTH
+            // DIRECTIONS, AND `pdfcer-gui` BUILT AN INVENTORY OUT OF IT
+            // (`G023`, `Pass 308.5`). It read:
+            //
+            //   ~~"the stream is a push button's caption artwork, a
+            //     signature, or a form built elsewhere"~~
+            //
+            // A push button pdfcer DREW takes the regenerated path and never
+            // sees this sentence — yet the sentence named it first. A foreign
+            // CHECK BOX does reach it, and was told it was "a push button's
+            // caption artwork". The consuming shell recorded "NO for
+            // push-button caption artwork", which is wrong about check boxes
+            // and radios in a way the code says plainly and the sentence hid.
+            //
+            // ⇒ *A refusal sentence is a disclosure, and a disclosure that
+            // enumerates the wrong set is a defect in whoever believes it.*
+            // The replacement names the PROPERTY that decides — whether the
+            // artwork is pdfcer's own — rather than listing kinds, because the
+            // list was what went stale and the property cannot.
             appearance_stale = Some(
                 "pdfcer set this widget's /MK /R rotation but did NOT redraw its appearance -- \
-                 the stream is a push button's caption artwork, a signature, or a form built \
-                 elsewhere, and redrawing it would destroy work pdfcer did not do. A PDF 2.0 \
-                 reader ignores /MK when an appearance stream is present (erratum #56), so the \
-                 field will still LOOK upright there; a processor that regenerates appearances \
-                 will honour the rotation"
+                 the existing stream is not artwork pdfcer recognises as its own (a signature, a \
+                 form built elsewhere, or a control whose /AP has since been edited by another \
+                 tool), and redrawing it would destroy work pdfcer did not do. A PDF 2.0 reader \
+                 ignores /MK when an appearance stream is present (erratum #56), so the field \
+                 will still LOOK upright there; a processor that regenerates appearances will \
+                 honour the rotation"
                     .to_owned(),
             );
         }
@@ -38503,7 +38558,29 @@ impl EditSession {
             let chrome = pending
                 .chrome_for(widget.id)
                 .unwrap_or_else(|| Self::widget_chrome(widget));
-            let redrawn = self.build_button_states(field, kind, w, h, &caption, chrome)?;
+            // ★ AND THE STAGED ROTATION, WHICH WAS THE WHOLE OF `G023`
+            // (`Pass 308.5`). `rotate_widget` stages `/MK /R` and regenerates
+            // inside one command, and this function never read it — so it
+            // redrew the button from unchanged inputs, rewrote the streams
+            // BYTE-IDENTICAL, and returned `Ok(true)`. `rotate_widget` gates
+            // its disclosure on that boolean, so the operator was told the
+            // button had turned and nothing had.
+            //
+            // Same precedence as the three above, and for the same reason:
+            // the `field.widgets` snapshot was read before this command's
+            // `/MK` write, so it still carries the OLD angle.
+            let quarter = Self::quarter_of(pending.rotation_for(widget.id).or(widget.rotation));
+            let redrawn = self.build_button_states(
+                field,
+                kind,
+                &ButtonLook {
+                    w,
+                    h,
+                    caption: &caption,
+                    chrome,
+                    quarter,
+                },
+            )?;
             for (id, content) in plan.slots.iter().zip(redrawn) {
                 let before = self.state.get(id).cloned();
                 let span = self.stage_bytes(&content.content);
@@ -38540,13 +38617,25 @@ impl EditSession {
         w: f64,
         h: f64,
     ) -> Result<Option<ButtonApPlan>, EditError> {
-        // ★ The ownership test draws with the widget's colours **as stored**,
-        // never with the ones this command is staging. It is asking "are
-        // these bytes pdfcer's own artwork?", and a comparison against a
-        // colour nobody has written yet answers "no" for every button whose
-        // colour is being changed — which would make a colour change the one
-        // edit that can never take. `Pass 308.0`.
-        let chrome = Self::widget_chrome(widget);
+        // ★ The ownership test draws with the widget's properties **as
+        // stored**, never with the ones this command is staging. It is asking
+        // "are these bytes pdfcer's own artwork?", and a comparison against a
+        // value nobody has written yet answers "no" for every button whose
+        // value is being changed — which would make that edit the one that can
+        // never take. `Pass 308.0` for the colours; `Pass 308.5` adds the
+        // rotation on the same reasoning, and the requester flagged the trap
+        // before the code was written.
+        // The widget's properties AS STORED — never the ones this command is
+        // staging. See [`ButtonLook`] for what goes wrong in each direction.
+        fn stored<'a>(widget: &forms::Widget, w: f64, h: f64, caption: &'a str) -> ButtonLook<'a> {
+            ButtonLook {
+                w,
+                h,
+                caption,
+                chrome: EditSession::widget_chrome(widget),
+                quarter: EditSession::quarter_of(widget.rotation),
+            }
+        }
         let Some(Object::Dict(dict)) = self.value(widget.id) else {
             return Err(EditError::NotADictionary {
                 id: widget.id,
@@ -38573,7 +38662,8 @@ impl EditSession {
                 let Some(id) = n.as_reference() else {
                     return Ok(None);
                 };
-                let expected = self.build_button_states(field, kind, w, h, &caption, chrome)?;
+                let expected =
+                    self.build_button_states(field, kind, &stored(widget, w, h, &caption))?;
                 let Some(first) = expected.first() else {
                     return Ok(None);
                 };
@@ -38609,7 +38699,8 @@ impl EditSession {
                 else {
                     return Ok(None);
                 };
-                let expected = self.build_button_states(field, kind, w, h, &caption, chrome)?;
+                let expected =
+                    self.build_button_states(field, kind, &stored(widget, w, h, &caption))?;
                 let [off, on] = expected.as_slice() else {
                     return Ok(None);
                 };
@@ -38639,19 +38730,42 @@ impl EditSession {
         &self,
         field: &forms::Field,
         kind: forms::ButtonKind,
-        w: f64,
-        h: f64,
-        caption: &str,
-        // ★ The `/MK` colours to paint with, and WHICH ones depends on which
-        // pass is calling. `button_ap_plan`'s ownership test passes the
-        // widget's colours **as stored**, because it is asking "did pdfcer
-        // draw these bytes?" — a comparison against colours nobody has
-        // written yet would declare pdfcer's own artwork foreign. The redraw
-        // passes the colours the command is STAGING, for the same reason it
-        // passes the staged rect. `Pass 308.0`.
-        chrome: annot_author::WidgetChrome,
+        // ★ AS STORED for the ownership test, AS STAGED for the redraw — see
+        // [`ButtonLook`], which exists to make that split one decision rather
+        // than five.
+        look: &ButtonLook<'_>,
     ) -> Result<Vec<annot_author::CheckBoxStateAppearance>, EditError> {
-        Ok(match kind {
+        let &ButtonLook {
+            w,
+            h,
+            caption,
+            chrome,
+            quarter,
+        } = look;
+        // ★★ DRAWN IN THE ROTATED FRAME AND TURNED UPRIGHT BY `/Matrix`,
+        // which is the same construction `regen_field_appearance` uses for a
+        // text field and is correct for the same §12.5.5 reason.
+        //
+        // Step (a) takes the `/BBox` corners through `/Matrix` and bounds
+        // them; step (b) maps that box onto `/Rect` **anisotropically**. So
+        // drawing into `[0 0 w h]` and turning a quarter would present an
+        // `h x w` box to be squashed into a `w x h` rectangle — the tick would
+        // render rotated AND stretched. Swapping the authored box first makes
+        // step (b) an identity: an `h x w` BBox turned a quarter bounds to
+        // `w x h`, which is exactly `/Rect`.
+        //
+        // `annot_author`'s module invariant — every appearance authored with
+        // an identity `Matrix` and a `BBox` equal to `/Rect` — is kept: the
+        // builders still receive a plain box and know nothing about rotation.
+        // The turn is applied HERE, in the one function that defines what
+        // pdfcer draws for a button, so the ownership test and the redraw
+        // cannot disagree about it.
+        let (w, h) = if quarter == 90 || quarter == 270 {
+            (h, w)
+        } else {
+            (w, h)
+        };
+        let mut states = match kind {
             forms::ButtonKind::Check => {
                 // ★ The style is recovered from `/MK` `/CA`, which this
                 // function already receives — so RESIZING a star check box
@@ -38701,7 +38815,46 @@ impl EditSession {
                     content: built.content,
                 }]
             }
-        })
+        };
+
+        // `/Matrix` (§8.10.1 Table 95), written only for a real turn.
+        //
+        // Emitting the identity for `quarter == 0` would rewrite the
+        // appearance dictionary of every button pdfcer has ever authored for
+        // nothing (R34) — `quarter_turn_matrix` returns `None` there, which is
+        // the same guard the text path relies on.
+        //
+        // §8.3.4's counterclockwise rotation matrix at face value: `/MK /R` is
+        // counterclockwise too, so there is NO sign flip. The instinct to
+        // negate comes from the page's `/Rotate`, which is the clockwise
+        // outlier.
+        if let Some(m) = Self::quarter_turn_matrix(quarter) {
+            for state in &mut states {
+                state.ap_dict.insert(
+                    Name::from(b"Matrix"),
+                    Object::Array(m.iter().map(|v| Object::Real(*v)).collect()),
+                );
+            }
+        }
+        Ok(states)
+    }
+
+    /// A `/MK` `/R` value as the quarter turn the appearance is authored at.
+    ///
+    /// `None` and every non-multiple of 90 resolve to `0`: the verb refuses a
+    /// free angle, so reaching here with one means a FILE stated it, and
+    /// honouring it with an arbitrary matrix would distort the control rather
+    /// than report the file's non-conformance. `rem_euclid` so a negative
+    /// angle a producer wrote lands in `0..360` rather than failing the match.
+    ///
+    /// Named rather than inlined at its three call sites because two of them
+    /// are the ownership test and the redraw, and those must not drift — the
+    /// same argument [`Self::widget_chrome`] makes for the colour pair.
+    const fn quarter_of(rotation: Option<i64>) -> i64 {
+        match rotation {
+            Some(r) => r.rem_euclid(360),
+            None => 0,
+        }
     }
 
     /// One widget's `/MK` `/BG` and `/BC` as the file states them
