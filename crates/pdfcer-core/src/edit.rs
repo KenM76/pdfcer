@@ -19736,6 +19736,52 @@ pub fn choice_option_order(a: &ChoiceOption, b: &ChoiceOption) -> std::cmp::Orde
     a.display.cmp(&b.display)
 }
 
+/// The first export value repeated in an `/Opt` list, or `None` when every
+/// option exports something different (`Pass 308.9`, request `G027`).
+///
+/// # ★ Exported for the reason the ordering was, one request later
+///
+/// `Pass 308.8` made [`choice_option_order`] public so a shell could not hold
+/// a second opinion about it. The duplicate rule is the same shape and did not
+/// move with it: the refusal shipped on both writing verbs
+/// (`Pass 308.7`) and stayed private, so the shell that wanted to ASK before
+/// sending still had to spell the rule itself — a `BTreeSet` over `export`,
+/// independently written, agreeing by construction and not by contract.
+///
+/// # Why a shell asks at all, rather than letting the refusal do the work
+///
+/// Because an `EditError` reaching a generic funnel renders as a generic
+/// sentence, and `pdfcer-gui` put the cost of that plainly:
+///
+/// > *A refusal that names nothing is, to the person holding the mouse,
+/// > barely distinguishable from nothing happening.*
+///
+/// An operator looking at a thirty-row drop-down needs to know **which** export
+/// repeated. So the predicate returns the offending value rather than a
+/// `bool`: a caller can name it in its own words before committing, and
+/// [`EditSession::edit_field`] refuses with the same fact if the caller does
+/// not bother.
+///
+/// ⇒ *Exporting the PREDICATE closes this; exporting a prettier error would
+/// not.* A predicate cannot go stale in a translation, and it is the same
+/// rule rather than a second description of it.
+///
+/// # What counts as duplicate
+///
+/// Byte equality on `export`, and only on `export` — two options may share a
+/// display string, which is why the sort is stable. The export is what a fill
+/// resolves against and what the form submits; two options exporting the same
+/// value make the second permanently unselectable, because the fill verb
+/// resolves to the first match.
+#[must_use]
+pub fn duplicate_choice_export(options: &[ChoiceOption]) -> Option<&str> {
+    let mut seen = std::collections::BTreeSet::new();
+    options
+        .iter()
+        .find(|opt| !seen.insert(opt.export.as_str()))
+        .map(|opt| opt.export.as_str())
+}
+
 /// Sort an `/Opt` list into [`choice_option_order`].
 ///
 /// The convenience half of the export: a shell wanting to show the sorted
@@ -26339,15 +26385,16 @@ impl EditSession {
     /// operator fix it, rather than making a document it did not author
     /// uneditable. Checking the list in hand gives exactly that, for free.
     fn refuse_duplicate_exports(options: &[ChoiceOption]) -> Result<(), EditError> {
-        let mut seen = std::collections::BTreeSet::new();
-        for opt in options {
-            if !seen.insert(opt.export.as_str()) {
-                return Err(EditError::ChoiceOptionDuplicate {
-                    value: opt.export.clone(),
-                });
-            }
+        // `Pass 308.9`: the rule itself is [`duplicate_choice_export`], public
+        // so a shell can ask the same question before sending rather than
+        // writing its own copy. This is the refusal wearing it, and there is
+        // one rule rather than two that agree.
+        match duplicate_choice_export(options) {
+            Some(value) => Err(EditError::ChoiceOptionDuplicate {
+                value: value.to_owned(),
+            }),
+            None => Ok(()),
         }
-        Ok(())
     }
 
     /// Whether the field's STORED value still fits the field the edit is

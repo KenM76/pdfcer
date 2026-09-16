@@ -1487,3 +1487,75 @@ fn the_exported_sort_satisfies_the_engines_own_sorted_test() {
     );
     assert!(!out.sort_claim_unmet, "and the gate agrees it is sorted");
 }
+
+// ---------------------------------------------------------------------------
+// The duplicate rule is public too (`Pass 308.9`, request `G027`)
+// ---------------------------------------------------------------------------
+
+/// ★ THE PREDICATE AND THE REFUSAL ARE ONE RULE, not two that agree.
+///
+/// `Pass 308.8` exported the ordering so a shell could not hold a second
+/// opinion about it; the duplicate rule was the same shape and did not move
+/// with it, so the shell was still carrying its own `BTreeSet` over `export`.
+/// This pins the two together: whatever the predicate names, the verb refuses
+/// with, and a caller that pre-checks cannot disagree with the door.
+#[test]
+fn the_exported_predicate_names_what_the_verb_refuses() {
+    let list = vec![
+        ChoiceOption::new("CA", "Canada"),
+        ChoiceOption::new("MX", "Mexico"),
+        ChoiceOption::new("CA", "Canada (again)"),
+    ];
+    let named = pdfcer_core::edit::duplicate_choice_export(&list)
+        .expect("a duplicate")
+        .to_owned();
+    assert_eq!(named, "CA", "the FIRST repeat, so a shell can name it");
+
+    let mut s = session("dimension/plain-base.pdf");
+    let err = s
+        .add_choice_field(&NewChoiceField::new(0, "Country", rect(), list).declining_tooltip())
+        .expect_err("must refuse");
+    match err {
+        EditError::ChoiceOptionDuplicate { value } => assert_eq!(
+            value, named,
+            "the verb refuses with exactly what the predicate named"
+        ),
+        other => panic!("wrong refusal: {other}"),
+    }
+}
+
+/// A writable list answers `None`, so a pre-check is a cheap green light.
+#[test]
+fn a_list_with_no_repeat_passes_the_predicate_and_the_verb() {
+    let list = vec![
+        ChoiceOption::new("CA", "Canada"),
+        ChoiceOption::new("MX", "Mexico"),
+    ];
+    assert!(pdfcer_core::edit::duplicate_choice_export(&list).is_none());
+
+    let mut s = session("dimension/plain-base.pdf");
+    s.add_choice_field(&NewChoiceField::new(0, "Country", rect(), list).declining_tooltip())
+        .expect("and the verb agrees");
+}
+
+/// ★ Two options may share a DISPLAY string; only `export` is the identity.
+///
+/// The export is what a fill resolves against and what the form submits, so it
+/// is the one that must be unique. Sharing a label is legitimate — a form may
+/// well offer "Other" twice under different codes — and refusing it would be
+/// pdfcer inventing a constraint the standard does not have.
+#[test]
+fn a_repeated_display_string_is_not_a_duplicate() {
+    let list = vec![
+        ChoiceOption::new("OTH1", "Other"),
+        ChoiceOption::new("OTH2", "Other"),
+    ];
+    assert!(
+        pdfcer_core::edit::duplicate_choice_export(&list).is_none(),
+        "only the export is the identity"
+    );
+
+    let mut s = session("dimension/plain-base.pdf");
+    s.add_choice_field(&NewChoiceField::new(0, "Country", rect(), list).declining_tooltip())
+        .expect("two options may share a label");
+}
