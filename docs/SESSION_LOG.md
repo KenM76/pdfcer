@@ -4,6 +4,30 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-16 (564th and 565th filings, one commit) — `Pass 308.7` + `Pass 308.8` (`56351185`): one guard, one comparator, one meaning; `G025`/`G026` closed
+
+**Shipped:** `Pass 308.7` + `Pass 308.8` (`56351185`), new Passes minted this filing (family now `308.0`–`308.8`, next free family `309` unchanged). **One commit, two Pass IDs, deliberate** — the two fixes interleave inside `edit_field`; `check-passes-filed.py` treats a multi-claim commit as a note, not a failure. Two `pdfcer-gui` reports about the same verb, minutes apart, both about a rule that existed in one place and was needed in two.
+
+**`Pass 308.7` (`G025`):** `add_choice_field` refused a duplicate `/Opt` export; `edit_field` wrote one. The guard existed, was worded, was in `# Errors`, and was unreachable from the verb an operator actually drives — placement is reached once per field, editing every time anybody adjusts an existing one. Moved to a shared `refuse_duplicate_exports`, called by both.
+
+**`Pass 308.8` (`G026`):** `NewChoiceField::sorted(true)` sorted the array; `FieldEdit::with_sort(true)` set `/Ff` bit 20 and sorted nothing — same word, same crate, same field type, opposite meanings. Comparator exported (`choice_option_order`/`sort_choice_options`, public in `edit`); `edit_field` now sorts when `options` and `sort: Some(true)` arrive in the SAME edit; `with_sort`'s doc names its sibling. New `FieldEditOutcome::options_sorted`.
+
+**Decisions made this session:** none — a guard relocation, a comparator export, and a same-edit sort rule, not a crate-boundary/library/invariant call. No `ARCHITECTURE.md` §12 entry.
+
+**Findings + decisions:**
+- **`Pass 308.7`'s guard-placement finding.** The guard's own comment was the argument for moving it: *"a duplicate export is unselectable, because the fill verb resolves to the first match"* is a statement about the written FILE, not about how the field came to be written — wrong place from the start, not merely missing from one verb. The requester's own judgement call (offered, not guessed, and right): only the list being WRITTEN is checked, so a document arriving with a pre-existing duplicate stays editable — the same call the Table 230 gate makes for a nonconforming bit-19 file. ⇒ *pdfcer refuses to AUTHOR the defect and refuses to make a file carrying it unusable — different obligations, only the first is a refusal.*
+- **★★ `Pass 308.8`'s generalisable finding, escalated per the requester's own flag.** The shell had copied the private `sort_by` line rather than calling a public comparator, because none existed; `sort_claim_unmet`'s test (`is_sorted`) checks a CONSEQUENCE of the comparator, not its identity, so the two copies agreed only by being the same code — a future improvement to the ordering would desync them with nothing on either side able to catch it. ⇒ *Two independent implementations of one ordering agree until one of them is improved, and no test on either side can catch the drift because each stays internally consistent.* New file `D:\dev\rag\rust\a_private_comparator_copied_by_a_caller_is_a_second_implementation_that_can_only_diverge.md` — a sibling of `two_representations_of_one_fact_can_disagree_until_a_third_thing_derives_one_from_the_other.md` (a value written twice) and `a_conversion_reimplemented_on_a_second_code_path_diverges...md` (two paths inside one codebase); this instance crosses a crate boundary because the API gave the caller no other door.
+- `docs/ROADMAP.md`: new combined `Pass 308.7` + `Pass 308.8` Shipped entry added at top, above `Pass 308.6`'s.
+- `docs/FEATURES.md`: field-property row (line 312) updated — option-list editing now refuses duplicate exports from both doors, and honours a sort claim supplied with the full replacement list.
+- `D:\Dev\FeatureRequests\pdfce_FeatureRequests\INDEX.md` gained two rows, `G025` and `G026`, newest-first, above the `G024` row.
+- **Docs counts checked, found unchanged:** `docs/core-api/`'s verb count and `EditError` count needed no edit — `choice_option_order`/`sort_choice_options` are free functions in the `edit` module (confirmed by grep: not inside `impl EditSession`), and no new `EditError` variant was added.
+
+**Still in flight:** owed items unchanged from the 563rd filing below (the `/CO` indirect-array Backlog item, the widened `FieldEdit`/`WidgetEdit`-audit Backlog item).
+
+**For next session:** nothing new opened by this filing; both requests closed same-day.
+
+**Sourcing (hard rule 8).** No shell tool this filing. `.git/COMMIT_EDITMSG` (HEAD's full message) and `.git/refs/heads/main` read directly, confirming HEAD is `56351185...` with this exact title/body. **Independently confirmed via `Read`/`Grep` against live source at HEAD:** `fn choice_option_order`, `fn sort_choice_options`, `fn refuse_duplicate_exports`, `pub options_sorted: bool` on `FieldEditOutcome`, and both Passes' inline citations present in `crates/pdfcer-core/src/edit.rs`; both archived request/reply file pairs confirmed present.
+
 ## 2026-09-16 (563rd filing) — `Pass 308.6` (`d2fa7352`): the scripts pdfcer already classifies can now be WRITTEN; `AdvisoryHelper::Keystroke` refused as unemittable; `G024` closed
 
 **Shipped:** `Pass 308.6` (`d2fa7352`), a new Pass minted this filing (family now `308.0`–`308.6`, next free family `309` unchanged). Answers `pdfcer-gui`'s `G024`: *"the scripts you already classify cannot be written."* New module `form_script::emit` inverts `classify` over the same whitelist; three new `EditSession` verbs (`set_field_format`, `set_field_validation`, `set_field_calculation`, `Option<Helper>`, `None` clears), plus `FieldScriptChange`, `CalcOrderChange`, three new `EditError` variants, and CLI `set-field-script`. A format writes its `AF*_Keystroke` twin into `/AA /K` unasked; a calculation writes its `/CO` entry in the same undoable command — `Pass 308.4`/`308.5`'s shape a third time. Verb count 239 → 242, `EditError` 135 → 138.
