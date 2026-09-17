@@ -115,6 +115,38 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 309.0` (`46072a07`) + `Pass 309.1` (`3284d5b9`), 2026-09-17 — `pdfcer --help`'s stale Pass-0 claim fixed, then swept project-wide
+
+New Pass family, minted this filing. Two commits, one defect class, found during `v0.54.0`'s own packaging smoke test — **closes** the Backlog entry filed at the 567th filing (see Backlog).
+
+**`Pass 309.0`.** `Cli`'s `long_about` said *"Pass 0 implements `inspect`; the remaining subcommands are stubs"* — true at Pass 0, false since roughly Pass 5, published in `v0.54.0` as the lead sentence of `pdfcer --help`. Replaced with text that names what the shell covers and points at the printed subcommand list rather than restating a count in prose (a count is a second place to be wrong; `README.md`'s own count was itself wrong — 149, not 153 — until this Pass). New gate `tools/check-clap-help.py` derives working/stub counts from the `Command` enum itself and checks `README.md`'s prose against them. Measured: 156 variants, 3 stubs (`bates-stamp`, `to-pdfa`, `validate-pdfa`), 153 working.
+
+**`Pass 309.1`.** The same defect class, generalised: 99 of 156 subcommand summaries shipped literal `**bold**` Markdown asterisks — a `///` doc comment in clap-derive has two readers, `cargo doc` (renders Markdown) and a terminal (does not) — and 70 named an internal Pass ID, true inside this repo and meaningless outside it. Fixed at RUNTIME for `about`/`long_about`/arg help via a `scrub_help` walk over the whole `Command` tree (covers every future subcommand for free, and left the `**`-as-summary-marker convention `check-cli-help-leads.py` depends on intact in source). Fixed in SOURCE for 47 `ValueEnum`s' variant docs (clap 4 has no setter for `PossibleValue` help that preserves the typed `EnumValueParser`) and for 50 prose lines naming a Pass ID (reworded, not renumbered — the global no-history-in-comments rule). Spec clause citations (`§12.5.6`) are kept; they're true outside the repo. New test `cli_help_ships_no_internal_markup` renders every subcommand's rendered help and rejects `**`, a backtick, or a DOTTED Pass ID (undotted numbers like "Pass 0" are legitimate prose). `crates/pdfcer-cli/Cargo.toml`'s published `description` carried the same Pass-0 claim as `309.0`'s target; corrected too.
+
+**Verification, measured this filing.** `cargo test -p pdfcer-cli --bins`: 21 passed / 0 failed. `fmt --check` / `clippy -- -D warnings` clean. `tools/check-clap-help.py` and `tools/check-cli-help-leads.py` both rc=0. `tools/run-gates.sh`: 32/34 green — the two red (`check-commits-filed.py`, `check-passes-filed.py`) are this filing's own unfiled state, not a regression. No crate manifest outside `pdfcer-cli` touched; `pdfcer-core`/`pdfcer-render` dependency trees unaffected.
+
+**`docs/FEATURES.md`: no rows changed.** Operator-facing copy correctness on a capability the `cli` column already claims — no verb added, removed or widened. Said explicitly so this isn't read as a missed sweep.
+
+**No decision-log entry** — a bug fix plus a runtime-vs-source doc-comment technique, not a crate-boundary/library/invariant call.
+
+**Cross-project findings, `D:\dev\rag\rust\` (ecosystem-wide, not pdfcer-specific).** (a) A `///` doc comment in clap-derive is shipped UI, not just rustdoc source — detect by rendering `long_help()`/`render_long_help()` in a test and asserting on the string; a source-text scan misses markup that straddles clap's hard-wrap joins. (b) `about`/`long_about`/arg `help`/`long_help` are mutable at runtime via `Command::mut_args`/`mut_subcommand`; `ValueEnum` variant (`PossibleValue`) help is not — fix those in source. `mut_subcommand`'s closure takes the subcommand by value, so collect the subcommand-name list before iterating or the parent borrow blocks the walk.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Independently confirmed via `Grep`/`Read` against live source: `fn scrub_help` and `fn cli_help_ships_no_internal_markup` present in `crates/pdfcer-cli/src/main.rs`; `README.md` reads "153 working subcommands (plus three that announce themselves as not yet implemented)"; `crates/pdfcer-cli/Cargo.toml`'s `description` no longer names Pass 0; `tools/check-clap-help.py` exists on disk. Commit hashes, test counts and gate-sweep results are relayed from the dispatching engineer's report — no shell tool to independently re-run them this filing.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `308` (highest `.9`), next free `309` | **`Pass 309.0` + `Pass 309.1` SHIPPED (new family, minted this filing) — next free family `310`** |
+| Standing rules | `R257` used, next free `R258` | unchanged — no rule minted (two n=1 mechanisms sent to `D:\dev\rag\rust\` instead) |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `567` | **`568`** |
+| `docs/FEATURES.md` | — | **unchanged — copy correctness only, no capability change (said explicitly, not a missed sweep)** |
+| Backlog | stale `--help` `long_about` entry open (filed 567th filing) | **CLOSED — see Backlog entry below** |
+| `D:\dev\rag\rust\` | 379 finding files (381 total − 2 meta) | **381 finding files (383 total − 2 meta) — 2 new files this filing** |
+
+---
+
 ### `v0.54.0` — RELEASED (2026-09-17)
 
 Release filing, not a Pass — packages **129 commits already filed** since `v0.53.0` (`8a65e3f1`). Version-bump commit `8a2162ab` ("chore: v0.54.0") bumps `Cargo.toml` 0.53.0 → 0.54.0 plus both lockfiles (`Cargo.lock`, `fuzz/Cargo.lock`); tag `v0.54.0` and `main` both pushed to `origin` at the same commit. **Independently confirmed this filing:** `Cargo.toml`'s `version = "0.54.0"` (`Grep`, live source).
@@ -15111,7 +15143,9 @@ Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
 
-### Unscoped — `pdfcer --help`'s top-level `long_about` still claims most subcommands are stubs — filed 2026-09-17 (567th filing, found during the v0.54.0 packaging smoke test), no Pass ID
+### ~~Unscoped — `pdfcer --help`'s top-level `long_about` still claims most subcommands are stubs~~ — CLOSED 2026-09-17 (568th filing, `Pass 309.0` `46072a07` + `Pass 309.1` `3284d5b9`) — filed 2026-09-17 (567th filing, found during the v0.54.0 packaging smoke test), no Pass ID
+
+★ **CLOSED, scope wider than filed.** `Pass 309.0` rewrote the `long_about` and added `tools/check-clap-help.py`, which also caught `README.md`'s own count being four short (149, not 153). `Pass 309.1` then found the same defect CLASS was not limited to this one struct field: 99 of 156 subcommand summaries carried literal Markdown asterisks and 70 named an internal Pass ID, plus `Cargo.toml`'s published `description`. All fixed in the same session; see the `Pass 309.0`/`309.1` Shipped entry at the top of this file for the full account. Original text below kept legible, not deleted.
 
 `crates/pdfcer-cli/src/main.rs`'s `Cli` struct `long_about` reads: *"pdfcer is the command-line front end to the pdfcer PDF engine. Pass 0 implements `inspect`; the remaining subcommands are stubs whose real behaviour ships alongside each feature's own development Pass (see docs/ROADMAP.md)."* That is a false published claim in shipped user-facing copy as of `v0.54.0` — 149 subcommands work and three are stubs — and it is the first thing a new operator reads (`pdfcer --help`, no arguments). Claim-bearing copy under the global "Claim-bearing copy" rule; `README.md` was corrected for exactly this class of claim earlier in this same release's commit range (`17e35e55`), and this literal was not swept with it.
 

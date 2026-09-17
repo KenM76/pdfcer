@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-17 (568th filing) — `Pass 309.0` (`46072a07`) + `Pass 309.1` (`3284d5b9`): `pdfcer --help`'s stale Pass-0 claim fixed, then swept project-wide
+
+**Shipped:** `Pass 309.0` + `Pass 309.1`, new Pass family minted this filing, next free family `310`. Found during `v0.54.0`'s own packaging smoke test (see the 567th filing below), closes that filing's Backlog entry. `309.0`: `Cli`'s `long_about` said "Pass 0 implements `inspect`; the remaining subcommands are stubs" — true at Pass 0, false since roughly Pass 5, published in `v0.54.0` as the lead sentence of `pdfcer --help`. Rewritten to point at the printed subcommand list rather than restate a count; new gate `tools/check-clap-help.py` derives working/stub counts from the `Command` enum and checks `README.md`'s prose (itself wrong — 149, not 153 — until this Pass). `309.1`: the same defect class generalised — 99 of 156 subcommand summaries shipped literal `**bold**` Markdown asterisks and 70 named an internal Pass ID. Fixed at runtime (`scrub_help`, walks the whole `Command` tree) for `about`/`long_about`/arg help; fixed in source for 47 `ValueEnum`s' variant docs (no runtime setter preserves the typed `EnumValueParser`) and 50 Pass-ID-naming prose lines (reworded, not renumbered). New test `cli_help_ships_no_internal_markup`. `Cargo.toml`'s published `description` carried the same claim; corrected too.
+
+**Decisions made this session:** none — a bug fix plus a runtime-vs-source doc-comment technique, not a crate-boundary/library/invariant call. No `ARCHITECTURE.md` §12 entry.
+
+**Findings + decisions:**
+- **A `///` doc comment in clap-derive is shipped UI, not just rustdoc source.** Two incompatible readers — `cargo doc` renders Markdown, a terminal prints it verbatim. Detect by rendering `long_help()`/`render_long_help()` in a test and asserting on the string; a source-text scan misses markup straddling clap's hard-wrap joins. New file in `D:\dev\rag\rust\`.
+- **`about`/`long_about`/arg help are mutable at runtime; `ValueEnum` variant help is not.** `Command::mut_args`/`mut_subcommand` cover the whole tree (and every future subcommand) in one pass; `PossibleValue` help has no setter that preserves the typed `EnumValueParser`, so a `ValueEnum`'s docs must be fixed in source. Gotcha: `mut_subcommand`'s closure takes the subcommand by value — collect the name list before iterating. New file in `D:\dev\rag\rust\`.
+- `docs/FEATURES.md`: **no rows changed** — operator-facing copy correctness on a capability the `cli` column already claims, no verb added/removed/widened. Said explicitly so it isn't read as a missed sweep.
+- `docs/ROADMAP.md`: new `Pass 309.0` + `Pass 309.1` Shipped entry added at top (above `v0.54.0`'s release entry, which precedes it chronologically but was filed for older commits); the 567th filing's `--help` `long_about` Backlog entry closed in place, original text kept legible.
+
+**Still in flight:** unchanged from the 567th filing below — the `/CO` indirect-array Backlog item, the widened `FieldEdit`/`WidgetEdit`-audit Backlog item.
+
+**For next session:** confirm the tag/release/OneDrive state with a shell before relying on the 567th filing's release entry for more than a record — still unconfirmed as of this filing, no shell tool either session.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Independently confirmed via `Grep`/`Read` against live source: `fn scrub_help` and `fn cli_help_ships_no_internal_markup` present in `crates/pdfcer-cli/src/main.rs`; `README.md` reads "153 working subcommands (plus three that announce themselves as not yet implemented)"; `crates/pdfcer-cli/Cargo.toml`'s `description` no longer names Pass 0; `tools/check-clap-help.py` exists on disk. Commit hashes, test counts and gate-sweep results are relayed from the dispatching engineer's report, not independently re-run.
+
 ## 2026-09-17 (567th filing) — `v0.54.0` released (`8a2162ab`): 129 commits since `v0.53.0`, no new Pass
 
 **Shipped:** No new Pass — a release filing. `v0.54.0` cut from `8a2162ab` ("chore: v0.54.0"), tag + `main` both pushed to `origin` at the same commit, GitHub release published (not a draft, not a prerelease, marked latest) with zip + sha256, OneDrive slot `pdfcer1` updated (0.52.0 → 0.54.0; `pdfcer2` keeps 0.53.0 as rollback). `python tools/verify-release.py v0.54.0` clean, nine checks ok.

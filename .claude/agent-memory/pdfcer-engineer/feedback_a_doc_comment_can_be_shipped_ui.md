@@ -86,6 +86,44 @@ the **recipient** (an item left with two). Six of eight instances left a donor;
 two did not. **Ship the half that is exactly checkable and state the limit in
 the script's header** rather than shipping a fuzzy check for the whole class.
 
+## ★★ 2026-09-17 — the second half: PRESENT help text can still be wrong help text
+
+The rule above catches **absent** help. It cannot see **present-but-mis-rendered**
+help, which turns out to be the larger population.
+
+**A `///` serving two readers at once is the defect.** `cargo doc` renders
+Markdown; a terminal prints it verbatim. This project's house doc style was
+written for the first reader and shipped to the second: `pdfcer --help` printed
+literal `**Send pages to a printer.**` in **99 of 156** subcommand summaries,
+and **70** named an internal roadmap ID (`(Pass 155.0)`, `before Pass 258.3`) —
+true inside the repo, meaningless to an operator. **It shipped in a published
+release** and was found by my own out-the-door report, not by a gate.
+
+**Fix by REACHABILITY, not by one mechanism:**
+
+| surface | where it is fixable |
+|---|---|
+| `about`, `long_about`, arg `help`/`long_help` | **runtime** — `Command::mut_args` + `Command::mut_subcommand`, one walk at startup; covers every future subcommand for free |
+| `ValueEnum` variant docs → `PossibleValue` help | **source only** — clap 4 has no setter preserving the typed `EnumValueParser<T>`; a `PossibleValuesParser` yields `String` and breaks `from_arg_matches` downcasting |
+| an internal ID written into running prose | **source only** — rewriting a sentence is an authoring decision, not a transform |
+
+★ **Do NOT scrub the markup out of the source.** `check-cli-help-leads.py` uses
+a `///` line *starting* with `**` as its structural marker for "this is a
+summary" — the source scrub would blind an existing gate. Scrub the **rendered
+string**. My first instinct was the source scrub; reading the gate first is what
+stopped it. Generalise that: **before neutralising a pattern project-wide, grep
+for a gate that keys on it.**
+
+★ Spec citations are **kept** — `(Pass 6.1, §12.5.6)` → `(§12.5.6)`. A clause
+number is true outside the repo and lookup-able; an internal Pass ID is not.
+And match a Pass ID **dotted**: `--max-len` legitimately says *"Pass 0 to REMOVE
+the limit"*.
+
+★ The gate for this is a **test**, not a `tools/` script, because the defect is
+in the **rendered** string and only clap can produce it. A text scan of the
+source would have to model how clap joins hard-wrapped `///` lines into a
+paragraph — which half the markup straddles.
+
 Related: [[feedback_inserting_before_an_anchor_orphans_its_doc_comment]],
 [[feedback_a_gate_that_underreports_looks_green]],
 [[feedback_an_unticked_box_is_unfalsifiable]].
