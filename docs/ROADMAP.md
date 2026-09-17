@@ -115,6 +115,37 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.54.0` — RELEASED (2026-09-17)
+
+Release filing, not a Pass — packages **129 commits already filed** since `v0.53.0` (`8a65e3f1`). Version-bump commit `8a2162ab` ("chore: v0.54.0") bumps `Cargo.toml` 0.53.0 → 0.54.0 plus both lockfiles (`Cargo.lock`, `fuzz/Cargo.lock`); tag `v0.54.0` and `main` both pushed to `origin` at the same commit. **Independently confirmed this filing:** `Cargo.toml`'s `version = "0.54.0"` (`Grep`, live source).
+
+**What it carries** (individual Passes already filed under their own dates — not refiled here): the transparency-group compositing fix (783 s → 8 s at 4× on the operator's own street map, raster hash identical), viewport culling for images, the parser's per-stream token-density reservation, the `split-text-object`/`text-run-move` CAD title-block arc, eleven answered `pdfcer-gui` requests `G017`–`G027`, km/yd/mi units, and the off-page redaction residual fix (17 known-affected drawings → 7, 0 fully-off residuals).
+
+**Release mechanics, relayed from the dispatching engineer's report — no shell tool this filing, nothing here independently checked beyond the `Cargo.toml` grep above.** GitHub release published at `github.com/KenM76/pdfcer/releases/tag/v0.54.0` (not a draft, not a prerelease, marked latest), title *"v0.54.0 — thirteen minutes to eight seconds, and CAD text you can take apart"*; assets `pdfcer-v0.54.0-windows-x64.zip` (19,244,546 B) + its `.sha256` (`b4fc75388a648ff253e000e2a3b20d60fae4f43b66b25b32b98c3b22a8a39d42`). Portable folder `D:\builds\pdfcer-20260917-1410-8a2162a` (35,776,341 B; `pdfcer.exe` 23,228,416 B; `models/ocrs` staged), no `-dirty` suffix — binaries match the named commit. Gate sweep `bash tools/run-gates.sh` run BEFORE the push against the tree that was pushed: PASS, 34/34 commands, exit 0, including both filing gates (`cargo about generate` and `cargo test --workspace --all-features` deliberately skipped by the script; plain `cargo test --workspace` ran instead). Packaging smoke test: portable folder copied to a fresh path outside the repo, `pdfcer.exe --version` and `pdfcer.exe inspect fixtures/synthetic/hello.pdf` both correct from the copy. OneDrive: `python tools/deploy-onedrive.py` wrote 0.54.0 to slot `pdfcer1` (the older slot, previously 0.52.0); `pdfcer2` keeps 0.53.0 as the rollback (`R229`'s alternating scheme). `python tools/verify-release.py v0.54.0` — clean, all nine checks ok, including "CI is GREEN at the tagged commit".
+
+★ **Release build: `cargo build --release -p pdfcer-cli -j 2` finished in 13m 12s, exit 0 — CONTRADICTS `docs/NEXT_SESSION.md`'s standing "`pdfcer-cli` will not release-link on this machine" warning.** Amended in `docs/NEXT_SESSION.md` this filing, same shape as its existing 2026-09-14 `run-gates.sh` correction: struck, not deleted, and re-stated as a tendency rather than a certainty — four prior OOM kills were real, and so is this clean link.
+
+**`docs/FEATURES.md`: no rows changed — a release ships no new capability; every capability it carries was already ticked by its own Pass filing.** Said explicitly so a later reader does not read the silence as a missed sweep.
+
+**Also filed this session:** a new Backlog entry for `pdfcer --help`'s top-level `long_about`, found stale during the packaging smoke test (see Backlog).
+
+**Sourcing (hard rule 8).** No shell tool this filing. `Cargo.toml`'s `version = "0.54.0"` and `crates/pdfcer-cli/src/main.rs`'s `long_about` text confirmed directly by `Grep`/`Read` against live source. Every git/GitHub/OneDrive/build-timing figure above is relayed from the dispatching engineer's report, not independently checked — the next session with a shell should confirm `git describe --tags --abbrev=0`, `gh release view v0.54.0`, and the OneDrive slot contents directly before relying on this entry for anything more than a record.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Release | `v0.53.0` (`8a65e3f1`) | **`v0.54.0` (`8a2162ab`, 2026-09-17) — 129 commits since `v0.53.0`** |
+| Pass families | `308` (highest `.9`), next free `309` | unchanged — no new Pass this filing |
+| Standing rules | `R257` used, next free `R258` | unchanged |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `566` | **`567`** |
+| `docs/FEATURES.md` | — | **unchanged — a release ships no new capability** |
+| Backlog | no entry for the stale `--help` `long_about` claim | **new entry filed (see Backlog)** |
+| `docs/NEXT_SESSION.md` | STATE said workspace `0.53.0`/last release `v0.53.0`; release-link warning stated as unconditional | **STATE updated to `0.54.0`/`v0.54.0`; release-link warning amended to a tendency, struck not deleted** |
+
+---
+
 ### `Pass 308.9` (`22bdf80c`, 2026-09-16) — the duplicate rule is public too; `G027` closed
 
 New Pass, minted this filing — `308` now runs `.0`–`.9`; next free family still `309`. Answers `pdfcer-gui`'s `G027`, filed within two hours of `G026`'s delivery: *"this is `G026` with the nouns changed."* Request + reply archived as `2026-09-16-G027-opt-duplicate-rule-is-still-private-{request,reply}.md`; `INDEX.md` row added (see Ledger).
@@ -15079,6 +15110,14 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### Unscoped — `pdfcer --help`'s top-level `long_about` still claims most subcommands are stubs — filed 2026-09-17 (567th filing, found during the v0.54.0 packaging smoke test), no Pass ID
+
+`crates/pdfcer-cli/src/main.rs`'s `Cli` struct `long_about` reads: *"pdfcer is the command-line front end to the pdfcer PDF engine. Pass 0 implements `inspect`; the remaining subcommands are stubs whose real behaviour ships alongside each feature's own development Pass (see docs/ROADMAP.md)."* That is a false published claim in shipped user-facing copy as of `v0.54.0` — 149 subcommands work and three are stubs — and it is the first thing a new operator reads (`pdfcer --help`, no arguments). Claim-bearing copy under the global "Claim-bearing copy" rule; `README.md` was corrected for exactly this class of claim earlier in this same release's commit range (`17e35e55`), and this literal was not swept with it.
+
+**The gate gap, named so nobody re-derives it:** `tools/check-cli-help-leads.py` passes on this literal — it checks that each *subcommand's* doc-comment summary is the first line of its own doc block, not the *top-level* `long_about`. No gate covers the `Cli` struct's own long-form text.
+
+**Scope:** rewrite `long_about` to state current status without naming a Pass count or stub number that will drift again — point at `pdfcer --help`'s own subcommand list or `docs/FEATURES.md` rather than restating a count in prose. Consider whether `check-cli-help-leads.py` (or a new, narrowly-scoped gate) should also check the top-level `long_about` for the specific stale phrases ("Pass 0 implements", "remaining subcommands are stubs") so this class of drift is caught mechanically rather than by a smoke test.
 
 ### Unscoped — Audit every `FieldEdit`/`WidgetEdit` property: does its regeneration path actually READ it? — filed 2026-09-16 (562nd filing, `pdfcer-gui`'s own recommendation after `G022`/`G023`), no Pass ID
 

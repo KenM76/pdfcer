@@ -119,9 +119,10 @@ for a day. `grep -n 'exit' tools/run-gates.sh` costs nothing.
 
 ## STATE
 
-Workspace version `0.53.0`; the last release is **`v0.53.0`**. ★ Verify with
-`gh release list` before repeating it — a previous handoff carried a release
-number four versions stale for a day, and nothing in this file checks itself.
+Workspace version `0.54.0`; the last release is **`v0.54.0`** (`8a2162ab`,
+2026-09-17 — 129 commits since `v0.53.0`). ★ Verify with `gh release list`
+before repeating it — a previous handoff carried a release number four
+versions stale for a day, and nothing in this file checks itself.
 
 **`main` is pushed through the 530th filing** — ★ read CI's colour from
 GitHub yourself (`gh run list --branch main --limit 1`); this line records
@@ -761,13 +762,20 @@ Why it is gated, and every one of these is a reason on its own:
 
 ### ★ HOW TO BENCHMARK HERE, because the obvious way cannot run
 
-**`pdfcer-cli` will not release-link on this machine** — four builds
-OOM-killed, including at `-j 2`. Take timings through a throwaway release test
-in `pdfcer-render` instead (`cargo test -p pdfcer-render --release --test
-<name> -- --nocapture`); it builds in a couple of minutes and can call
-`render_page` directly. Hash `out.pixmap.data()` in the same test and you get
-the A/B and the byte-identity proof from one run. Delete the file before
-committing.
+~~**`pdfcer-cli` will not release-link on this machine** — four builds
+OOM-killed, including at `-j 2`.~~ **⚠ AMENDED 2026-09-17 (v0.54.0 release
+filing) — this is a TENDENCY, not a certainty, the same shape as the
+`run-gates.sh` correction above.** `cargo build --release -p pdfcer-cli -j 2`
+linked cleanly on this machine on 2026-09-17, exit 0, in 13m 12s. The four
+prior OOM kills were real; so is this clean link. Try the release build
+first — if it dies, fall back to the throwaway release test below rather
+than assuming it will always fail.
+
+Take timings through a throwaway release test in `pdfcer-render` instead
+(`cargo test -p pdfcer-render --release --test <name> -- --nocapture`); it
+builds in a couple of minutes and can call `render_page` directly. Hash
+`out.pixmap.data()` in the same test and you get the A/B and the
+byte-identity proof from one run. Delete the file before committing.
 
 ### ★★ TWO METHODOLOGY LESSONS FROM THIS ARC
 

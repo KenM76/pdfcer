@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-17 (567th filing) — `v0.54.0` released (`8a2162ab`): 129 commits since `v0.53.0`, no new Pass
+
+**Shipped:** No new Pass — a release filing. `v0.54.0` cut from `8a2162ab` ("chore: v0.54.0"), tag + `main` both pushed to `origin` at the same commit, GitHub release published (not a draft, not a prerelease, marked latest) with zip + sha256, OneDrive slot `pdfcer1` updated (0.52.0 → 0.54.0; `pdfcer2` keeps 0.53.0 as rollback). `python tools/verify-release.py v0.54.0` clean, nine checks ok.
+
+**What it carries:** the transparency-group compositing fix (783 s → 8 s at 4× on the operator's street map, raster hash identical), viewport culling for images, the parser's per-stream token-density reservation, the `split-text-object`/`text-run-move` CAD title-block arc, eleven answered `pdfcer-gui` requests `G017`–`G027`, km/yd/mi units, and the off-page redaction residual fix (17 known-affected drawings → 7, 0 fully-off residuals). Individual Passes already filed under their own dates; not refiled here.
+
+**Decisions made this session:** none — a release filing carries no architectural decision.
+
+**Findings + decisions:**
+- **Release build linked fine on this machine.** `cargo build --release -p pdfcer-cli -j 2` finished in 13m 12s, exit 0 — contradicts `docs/NEXT_SESSION.md`'s standing warning that `pdfcer-cli` will not release-link here. Amended in place (struck, not deleted) as a tendency rather than a certainty, matching the file's existing 2026-09-14 `run-gates.sh` correction.
+- **A stale claim found during the packaging smoke test, filed not fixed:** `pdfcer --help`'s top-level `long_about` still says most subcommands are stubs; 149 work and 3 are stubs. `tools/check-cli-help-leads.py` doesn't cover it — checks subcommand doc-comment leads, not the top-level struct text. New Backlog entry filed.
+- `docs/FEATURES.md`: **no rows changed** — a release ships no new capability. Said explicitly so this isn't read as a missed sweep.
+- `docs/NEXT_SESSION.md`: STATE section updated to workspace `0.54.0`/last release `v0.54.0`; release-link warning amended per above.
+
+**Still in flight:** unchanged from the 566th filing below — the `/CO` indirect-array Backlog item, the widened `FieldEdit`/`WidgetEdit`-audit Backlog item — plus this filing's new `--help` `long_about` item.
+
+**For next session:** confirm the tag/release/OneDrive state with a shell (`git describe --tags --abbrev=0`, `gh release view v0.54.0`) before relying on this entry for more than a record — no shell tool this filing.
+
+**Sourcing (hard rule 8).** No shell tool this filing. `Cargo.toml`'s `version = "0.54.0"` and the `long_about` literal confirmed directly by `Grep`/`Read` against live source. All git/GitHub/OneDrive/build-timing figures above are relayed from the dispatching engineer's report, not independently checked.
+
 ## 2026-09-16 (566th filing) — `Pass 308.9` (`22bdf80c`): the duplicate rule is public too; `G027` closed
 
 **Shipped:** `Pass 308.9` (`22bdf80c`), new Pass minted this filing (family now `308.0`–`308.9`, next free family `309` unchanged). Answers `pdfcer-gui`'s `G027`, filed within two hours of `G026`'s delivery: *"this is `G026` with the nouns changed."* `pub fn duplicate_choice_export(options: &[ChoiceOption]) -> Option<&str>` added to `edit`, beside `choice_option_order`/`sort_choice_options`; `Pass 308.7`'s private `refuse_duplicate_exports` is now a two-line wrapper over it. Returns the offending VALUE rather than a `bool`.
