@@ -68,3 +68,38 @@ reason a stale-but-well-formed hash was detectable at all.
 *write path* (its text lands in public documents), and now — a dispatch's facts
 can be **invalidated by what the engineer does afterwards**. All three are the
 engineer's to prevent; none is visible from the librarian's side.
+
+---
+
+## ★★ 2026-09-17 — AND A LIBRARIAN CANNOT TELL COMMITTED WORK FROM UNCOMMITTED WORK
+
+The fourth variant, and the first where the agent did everything right.
+
+I dispatched the `Pass 310.0`/`310.1` filing at `ce474dae` while `Pass 310.2`
+sat **uncommitted in the working tree**. The brief said 310.2 was still open.
+The librarian — correctly sceptical, per its own verification duty — checked
+that claim by reading `redact.rs`, found `text_match_ranges` and both its new
+tests right there, and concluded the dispatch was stale. It filed all three
+Passes under one commit, `ce474dae`.
+
+Everything it read was real. The attribution was not. 310.2 was `bb1bd994`,
+committed twenty minutes later.
+
+**A working tree shows what is on disk; only `git show <hash>` shows what a
+commit contains. Reading a file cannot tell you which commit introduced it** —
+and a shell-less agent has only the first of those.
+
+★ **`check-cited-commits-exist.py` cannot catch this class.** `ce474dae` is
+real and an ancestor of HEAD, so a wrong-but-existing hash passes clean. The
+gate answers *does this commit exist*, never *is it the right one*. What caught
+it was my own `git log` after the filing — the spot-check this memory already
+prescribes.
+
+**How to apply:** dispatch the filing **after** committing everything it
+describes. If that is impossible, say in the dispatch which files carry
+uncommitted work and that the tree is not the commit — otherwise the agent's
+own diligence is what produces the wrong answer.
+
+**The shape across all four variants:** placeholder hash, amended hash, stale
+figures, and now a tree read as a commit. Every one is invisible from the
+librarian's side and preventable only from mine.
