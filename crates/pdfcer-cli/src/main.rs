@@ -795,9 +795,9 @@ enum OnMalformedArg {
     KeepLast,
     /// Open the file, and keep the FIRST value for a duplicated key.
     KeepFirst,
-    /// Refuse the file, as pdfcer did before `Pass 283.0` — a duplicated key,
-    /// a missing `/Length` and a missing `endobj` are all fatal again. For a
-    /// caller whose job is to say whether a file is well-formed.
+    /// Refuse the file — a duplicated key, a missing /Length and a missing
+    /// endobj are all fatal. For a caller whose job is to say whether a file
+    /// is well-formed.
     Refuse,
 }
 
@@ -914,7 +914,7 @@ enum Command {
     /// Inspect a PDF: confirm the %PDF- header and print its declared version.
     ///
     /// With `--text-blocks`, instead recognise and dump the page's
-    /// **editable text-block** structure (ISO 32000-1 §14.8; Pass 14.0):
+    /// **editable text-block** structure (ISO 32000-1 §14.8):
     /// the derived Run→Line→Column→Block hierarchy, every inference counted
     /// and disclosed. Strictly READ-ONLY — nothing is written. Because an
     /// untagged content stream defines no word/line/paragraph/column/reading
@@ -924,7 +924,7 @@ enum Command {
         /// Path to the PDF file to inspect.
         file: PathBuf,
         /// Recognise and dump the editable text-block structure instead of
-        /// printing the version line (read-only; §14.8, Pass 14.0).
+        /// printing the version line (read-only; §14.8).
         #[arg(long)]
         text_blocks: bool,
         /// With `--text-blocks`: 1-based pages to analyse: `all`, `3`,
@@ -939,11 +939,11 @@ enum Command {
         #[arg(long)]
         json: bool,
         /// Compute and dump a READ-ONLY within-block reflow PREVIEW for one
-        /// recognised block (ISO 32000-1 §14.8; decision 015 / Pass 15.0):
+        /// recognised block (ISO 32000-1 §14.8; decision 015):
         /// the auto-detected alignment, the greedy re-wrap's new break
         /// points and per-line origins, the new block box, and every
         /// disclosure. Strictly READ-ONLY — nothing is written, no content
-        /// stream is mutated (that is Pass 15.1). Select the block with
+        /// stream is mutated (`reflow` does that). Select the block with
         /// `--block` (and the page via `--pages`, first page used); tune the
         /// preview with `--width`/`--align`/`--leading`.
         #[arg(long)]
@@ -993,8 +993,8 @@ enum Command {
     /// other PDFs in a folder, through a `/Launch` or `/GoToR` action
     /// (§12.6.4.5, §12.6.4.3). Merging destroys every one of those targets
     /// — the bookmark still says *open `chapter1.pdf`* and there is no
-    /// longer a `chapter1.pdf` — so before `Pass 258.3` all of them were
-    /// discarded and the operator's own bookmark titles went with them.
+    /// longer a `chapter1.pdf` — so a naive merge discards every one of
+    /// them, and the operator's own bookmark titles go with them.
     ///
     /// Matching is by file NAME, case-insensitively, ignoring directories.
     /// A bookmark naming a file that is NOT one of the inputs is still
@@ -1093,7 +1093,7 @@ enum Command {
     },
 
     /// **Place a custom stamp's artwork on a page** — the placing half of
-    /// `Pass 288.0`'s stamp collections (`Pass 293.0`, §12.5.6.12).
+    /// stamp collections (§12.5.6.12).
     ///
     /// The stamp's page is imported as a form XObject and becomes a
     /// `/Stamp` annotation's appearance, which is what Acrobat writes: the
@@ -1536,7 +1536,7 @@ enum Command {
         stamp_font_size: Option<f64>,
         /// What a stamp does when its label does not fit `--rect`:
         /// `grow` (default — widen the stamp), `shrink` (smaller text, same
-        /// box), `clip` (cut the label; the pre-`Pass 287.0` behaviour).
+        /// box), `clip` (cut the label).
         #[arg(long, value_enum, default_value_t = StampFitArg::Grow)]
         stamp_fit: StampFitArg,
         /// Stroke/mark colour as `RRGGBB` hex. Default is per-subtype
@@ -1579,8 +1579,7 @@ enum Command {
         /// (`4,2` = 4 on, 2 off; `3` = the Table 166 default).
         ///
         /// A dashed revision cloud and a dashed leader are ordinary AEC
-        /// markup. Omit for the solid border pdfcer authored exclusively
-        /// before `Pass 258.0`.
+        /// markup. Omit for a solid border.
         ///
         /// Has no effect on a text markup (highlight, underline,
         /// strike-out, squiggly), which draws no `/BS` border.
@@ -3362,8 +3361,8 @@ enum Command {
         /// measured direction is backwards.**
         ///
         /// `pdfce-gui` scored a real CAD sheet (130 ground-truth tokens,
-        /// against the page's own vector text) after the detection-model fix
-        /// of `Pass 129.0`:
+        /// against the page's own vector text) with the current detection
+        /// model:
         ///
         /// ```text
         ///   72 dpi  56.5 %     200 dpi  53.9 %
@@ -3539,10 +3538,9 @@ enum Command {
         /// silent — which, for most of these axes, is most of them.
         #[arg(long)]
         standard: Option<String>,
-        /// Override `overprint_zero_tint_scope` for this render only
-        /// (`Pass 143.0`): `device_cmyk_only` (default since `Pass 244.0`),
-        /// `grey_as_k_only` (the default up to v0.24.0) or
-        /// `all_process_spaces`.
+        /// Override `overprint_zero_tint_scope` for this render only:
+        /// `device_cmyk_only` (the default), `grey_as_k_only` (the default
+        /// up to v0.24.0) or `all_process_spaces`.
         ///
         /// # What this exposes, and it is a DIVERGENCE, not an ambiguity
         ///
@@ -3552,26 +3550,21 @@ enum Command {
         /// preserves its C, M and Y (`grey_as_k_only`: convert grey to K-only
         /// CMYK first, then apply the rule). A SPOT backdrop survives under
         /// every value: Table 149 puts any process space × spot colorant ×
-        /// `OP true` at `c_b`, and pdfcer has kept spot inks on their own
-        /// plane since `Pass 238.0`.
+        /// `OP true` at `c_b`, and pdfcer keeps spot inks on their own plane.
         ///
-        /// ★ The default MOVED on 2026-09-03. `grey_as_k_only` had been the
-        /// default while pdfcer flattened spots into C/M/Y — the literal reading
-        /// then knocked a spot backdrop out, and the divergence preserved it by
-        /// a compensating error. With the spot plane in place the literal
-        /// reading was re-measured on the whole print-conformance sweep:
-        /// 0 FAIL / 43 pass, against 2 FAIL under the old default, the two
-        /// being grey-over-process cells whose reference render the literal
-        /// reading matches exactly. Choose `grey_as_k_only` to reproduce a
-        /// pre-v0.25.0 render.
+        /// ★ The literal reading is the default because it measures better:
+        /// 0 FAIL / 43 pass over the whole print-conformance sweep, against
+        /// 2 FAIL under `grey_as_k_only`, the two being grey-over-process
+        /// cells whose reference render the literal reading matches exactly.
+        /// Choose `grey_as_k_only` to reproduce a pre-v0.25.0 render.
         ///
-        /// ★ This help said "the ambiguity this exposes" until `Pass 174.5`,
-        /// and under **ISO 32000-1** that is wrong: §8.6.7's next sentence
-        /// excludes *"conversions from some other colour space"* by name, and
-        /// Tables 148/149 tabulate *"any process colour space"* and give it
-        /// `OPM 0` behaviour. ISO 32000-**2** deletes both of those supports,
-        /// so the question really is open there — the edition matters. The
-        /// default is now ISO 32000-1 to the letter.
+        /// ★ CALLING THIS AN AMBIGUITY WOULD BE WRONG under **ISO 32000-1**:
+        /// §8.6.7's next sentence excludes *"conversions from some other
+        /// colour space"* by name, and Tables 148/149 tabulate *"any process
+        /// colour space"* and give it `OPM 0` behaviour. ISO 32000-**2**
+        /// deletes both of those supports, so the question really is open
+        /// there — the edition matters. The default is ISO 32000-1 to the
+        /// letter.
         ///
         /// Like `--standard`, this is applied OVER the saved settings and is
         /// **never written back**: one diagnostic render must not silently
@@ -3655,8 +3648,8 @@ enum Command {
         ///
         /// ⇒ `--region` will hand you a correctly-sized viewport far past
         /// the point where what is inside it stops being correctly placed.
-        /// `Pass 74.7` is the fix for the second half — the `f64` trick
-        /// above, carried through content-stream `cm` concatenation.
+        /// The second half is addressed by the `f64` trick above, carried
+        /// through content-stream `cm` concatenation.
         ///
         /// The older `examples/zoom_ceiling.rs` measurement — `f32`
         /// transform error against a bar 2,999.7373 pt from the origin,
@@ -3879,10 +3872,9 @@ enum Command {
         /// Selecting more than one page needs `--output-dir`.
         #[arg(long, default_value = "1")]
         pages: String,
-        /// Output format: `png`, `jpeg` (`jpg`), `svg` (vector,
-        /// `Pass 248.1`) or `emf` (Windows metafile, `Pass 248.4`);
-        /// `Pass 248.1` -- transparent by default, `--dpi` governs only
-        /// what must be embedded as raster inside it).
+        /// Output format: `png`, `jpeg` (`jpg`), `svg` (vector —
+        /// transparent by default, with `--dpi` governing only what must be
+        /// embedded as raster inside it) or `emf` (Windows metafile).
         #[arg(long, value_enum, default_value_t = ImageFormatArg::Png)]
         format: ImageFormatArg,
         /// Pixel density. The render scale is `dpi / 72`; the value is also
@@ -5213,9 +5205,9 @@ enum Command {
     ///
     /// THE VERB `set-markup-style` CANNOT REACH THESE SUBTYPES. That one
     /// reads through the geometric spec model, which has no `/Text` arm and
-    /// says so by name; before `Pass 259.1` the only route to a different
-    /// icon was to delete the note and place another, losing its `/M`, its
-    /// object identity and any reply hung off it.
+    /// says so by name. Without this verb the only route to a different
+    /// icon would be to delete the note and place another, losing its `/M`,
+    /// its object identity and any reply hung off it.
     ///
     /// The appearance is REGENERATED, because pdfcer paints from `/AP` or
     /// not at all — writing `/Name` alone would leave the note drawing its
@@ -5317,8 +5309,8 @@ enum Command {
     /// **Reply to a comment** — a `/Text` annotation carrying `/IRT` and
     /// `/RT /R` (ISO 32000-1 §12.5.6.2, Table 170).
     ///
-    /// A thread could be READ and not continued: `/IRT` and `/RT` have been
-    /// in the read model since `Pass 38.5` and nothing could write them.
+    /// A thread can be CONTINUED, not merely read: this verb is what writes
+    /// `/IRT` and `/RT`.
     ///
     /// The reply is placed at its parent's own rectangle, on its parent's
     /// page, and takes its parent's colour so a thread reads as one
@@ -5362,8 +5354,7 @@ enum Command {
     /// square's window state lives only on the companion, and a verb that
     /// wrote one of the two would leave them disagreeing.
     ///
-    /// pdfcer has WRITTEN this key since `Pass 6.2` and could not read it
-    /// back until `Pass 259.0`; `list-annotations` now prints it as
+    /// `list-annotations` prints this key as
     /// `open=1|0|none`, where `none` means the file carries no such key —
     /// a different fact from `0`, and the reason the reported value has
     /// three states.
@@ -5518,10 +5509,9 @@ enum Command {
         /// lengths (`4,2` = 4 on, 2 off; `3` = the Table 166 default), or
         /// `solid` to remove the dash.
         ///
-        /// OMITTING THIS PRESERVES AN EXISTING DASH. Before `Pass 258.0` a
-        /// restyle silently solidified a dashed border, because the
-        /// regenerated appearance had no dash to draw and `/AP` is what
-        /// gets painted (R43).
+        /// OMITTING THIS PRESERVES AN EXISTING DASH — a restyle that
+        /// regenerated the appearance without one would silently solidify a
+        /// dashed border, because `/AP` is what gets painted (R43).
         ///
         /// Refused by name on a text markup, which has no border to dash.
         #[arg(long, value_name = "ON,OFF,...|solid")]
@@ -5854,14 +5844,13 @@ enum Command {
     /// rotated shape is larger unless the angle is a multiple of 90°. The
     /// artwork does not grow; only the rectangle around it does.
     ///
-    /// ★★ **THAT WAS FALSE FROM THE SECOND ROTATION ONWARDS UNTIL
-    /// `Pass 155.1` (2026-09-07).** The rectangle used to be derived from
-    /// the previous rectangle, so each turn bounded an already-grown box
-    /// while the appearance's `/Matrix` only accumulated the angle — and
-    /// §12.5.5 then scaled the artwork **up** to fill the surplus. Four 15°
-    /// turns drew a square 1.93× wider than one 60° turn. It is now derived
-    /// from the artwork, and `rect_derived=` on the second output line says
-    /// from which of three sources.
+    /// ★★ **`/Rect` IS DERIVED FROM THE ARTWORK**, never from the previous
+    /// rectangle, and `rect_derived=` on the second output line says from
+    /// which of three sources. Deriving it from the previous rectangle
+    /// compounds: each turn bounds an already-grown box while the
+    /// appearance's `/Matrix` only accumulates the angle, and §12.5.5 then
+    /// scales the artwork **up** to fill the surplus — four 15° turns draw a
+    /// square 1.93× wider than one 60° turn.
     ///
     /// `/RD` is left alone and reported: at an angle that is not a quarter
     /// turn, no axis-aligned inset expresses the rotated result.
@@ -7116,9 +7105,9 @@ enum Command {
     /// Format a page's own text in place (Pass 14.2): size, colour, font family.
     ///
     /// Locates `--find` on `--page` — inside one show operator, or (`Pass 256.0`) across CONSECUTIVE show operators that share font resource, size and baseline, the shape a producer writes when it emits one glyph per operator and applies any
-    /// combination of three formatting changes to that run, reusing the Pass
-    /// 14.1 advance-preserving surgery (only the changed text-state operators
-    /// differ), then saves INCREMENTALLY (the prior state survives in history
+    /// combination of three formatting changes to that run, reusing
+    /// `edit-text`'s advance-preserving surgery (only the changed text-state
+    /// operators differ), then saves INCREMENTALLY (the prior state survives in history
     /// by design; to truly remove content use `redact-apply`):
     ///
     /// - `--set-size N` changes ONLY the `Tf` size operand (never the colour
@@ -7138,7 +7127,7 @@ enum Command {
     ///   embeds a font. An outlined/vector run has no font to swap and is
     ///   refused. `--font-dir` supplies non-embedded faces (decision 012).
     ///
-    /// Pass 19.1 adds three direct text-state controls, each emitted for the
+    /// Three direct text-state controls follow, each emitted for the
     /// matched run ONLY and explicitly restored to the run's ambient value
     /// immediately after it (text state persists for the whole content stream
     /// per ISO 32000-1 §9.3, and `q`/`Q` are illegal inside a text object per
@@ -7157,9 +7146,8 @@ enum Command {
     ///   pdfcer's OWN documented defaults, NOT a parity claim (Acrobat's are
     ///   undocumented), and are printed by value in the report.
     ///
-    /// Pass 19.4 completes the family with word spacing, which behaves
-    /// differently from every flag above in two ways worth knowing BEFORE
-    /// reaching for it:
+    /// Word spacing completes the family, and behaves differently from every
+    /// flag above in two ways worth knowing BEFORE reaching for it:
     ///
     /// - `--word-spacing V` sets word spacing `Tw` (§9.3.3), same
     ///   `pt`/`em` unit grammar as `--char-spacing`. It applies to EVERY
@@ -7425,11 +7413,11 @@ enum Command {
         output: PathBuf,
     },
 
-    /// Add NEW text as real page content (Pass 16.0/16.1 / FF-D).
+    /// Add NEW text as real page content (FF-D).
     ///
-    /// Two modes: **point** (`--at "x,y"`, 16.0) shows the whole `--text` as one
-    /// un-wrapped line; **boxed** (`--box "x,y,w,h"`, 16.1) wraps `--text` to the
-    /// box width via the shipped 15.x greedy breaker, laid out top-anchored from
+    /// Two modes: **point** (`--at "x,y"`) shows the whole `--text` as one
+    /// un-wrapped line; **boxed** (`--box "x,y,w,h"`) wraps `--text` to the
+    /// box width via the same greedy breaker `reflow` uses, laid out top-anchored from
     /// the box top with `--align` (left|center|right|justify). Exactly one of
     /// `--at`/`--box` is required. Either mode APPENDS a fresh `BT…ET` run
     /// (default user space, §9.4.4) as a new content stream in the page
@@ -7502,7 +7490,7 @@ enum Command {
         #[arg(long = "font-dir", value_name = "DIR")]
         font_dirs: Vec<PathBuf>,
         /// SUBSET AND EMBED this font file, so the saved PDF carries its own
-        /// glyphs for the added text (FF-C, decision 021 / Pass 21.0).
+        /// glyphs for the added text (FF-C, decision 021).
         ///
         /// Without this, `add-text` writes a Standard-14 face by name with no
         /// embedding (R79), which means the text is limited to that face's
@@ -7632,7 +7620,7 @@ enum Command {
         #[arg(long, value_enum, default_value_t = ProducerArg::Preserve)]
         producer: ProducerArg,
     },
-    /// Author a dimension (Pass 12.M2): a scaled measurement `/Line`
+    /// Author a dimension: a scaled measurement `/Line`
     /// `/IT /LineDimension` annotation with a baked appearance, on its group's
     /// optional-content layer, with the scale mirrored into a portable
     /// `/Measure` dict and the authoritative `/PieceInfo` sidecar updated.
@@ -7692,21 +7680,20 @@ enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
-    /// List the dimension groups and dimensions stored in a document
-    /// (Pass 12.M2) — reads the authoritative `/PieceInfo` sidecar.
+    /// List the dimension groups and dimensions stored in a document —
+    /// reads the authoritative `/PieceInfo` sidecar.
     DimensionList {
         /// Input PDF.
         input: PathBuf,
         /// Also print each group's style defaults and each ce dimension's
         /// RESOLVED style with the tier every property came from
-        /// (`factory` / `group` / `dimension`) - the Pass 69.0 inheritance
-        /// disclosure. Without it, each ce dimension still reports how many
-        /// properties it overrides.
+        /// (`factory` / `group` / `dimension`) - the inheritance disclosure.
+        /// Without it, each ce dimension still reports how many properties it
+        /// overrides.
         #[arg(long)]
         style: bool,
     },
-    /// **Rename a ce dimension group** (core verb since Pass 25.7; this
-    /// subcommand Pass 176.0).
+    /// **Rename a ce dimension group**.
     ///
     /// Metadata only — **no appearance is regenerated**, because a group's
     /// name is not drawn on the page. Nothing about what any member measures
@@ -7738,8 +7725,7 @@ enum Command {
         verify_undo: bool,
     },
     /// **Delete a ce dimension group**, answering the what-about-the-members
-    /// question explicitly (core verb since Pass 25.7; this subcommand
-    /// Pass 176.0).
+    /// question explicitly.
     ///
     /// `--members refuse` (the default) **refuses** a group that still has
     /// members and reports how many, so a script never destroys measurements
@@ -7777,8 +7763,8 @@ enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
-    /// **Move one placed ce dimension into another group — RE-MEASURING it**
-    /// (core verb since Pass 25.7; this subcommand Pass 176.0).
+    /// **Move one placed ce dimension into another group — RE-MEASURING
+    /// it**.
     ///
     /// ★ This is not a field assignment. A ce dimension's scale, unit,
     /// precision and drafting standard all live on its GROUP, so re-parenting
@@ -8418,7 +8404,7 @@ enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
-    /// Create a named dimension group (Pass 12.M2). Prints the new group id.
+    /// Create a named dimension group. Prints the new group id.
     GroupAdd {
         /// Input PDF.
         input: PathBuf,
@@ -8439,7 +8425,7 @@ enum Command {
         verify_undo: bool,
     },
     /// Set a dimension group's scale + units, regenerating every member's
-    /// baked appearance (Pass 12.M2).
+    /// baked appearance.
     GroupSetScale {
         /// Input PDF.
         input: PathBuf,
@@ -8482,7 +8468,7 @@ enum Command {
         verify_undo: bool,
     },
     /// Toggle a dimension group's optional-content layer visibility
-    /// (Pass 12.M2, §8.11 `/D` config).
+    /// (§8.11 `/D` config).
     LayerToggle {
         /// Input PDF.
         input: PathBuf,
@@ -8522,16 +8508,7 @@ enum Command {
     /// the GUI's object-edit tool calls, so the answer is authoritative for
     /// the GUI's behaviour rather than a second implementation of it.
     ///
-    /// ★★ THAT SENTENCE NAMED A DIFFERENT FUNCTION UNTIL `Pass 138.0`, AND
-    /// WAS FALSE IN THE INTERVAL. It said `hit_test_point`, which was correct
-    /// when written and stopped being correct the day the shell moved to the
-    /// deep query. Measured on a composite conformance page: `--hit` returned
-    /// two candidates, BOTH form XObjects, at a point where the shell selects
-    /// the path actually painted there. A diagnostic that disagrees with the
-    /// thing it diagnoses is worse than no diagnostic — it confirms defects
-    /// that are not there and fails to confirm the ones that are.
-    ///
-    /// ★ WHAT CHANGED FOR A SCRIPT: forms no longer appear as candidates. A
+    /// ★ FORMS ARE NOT CANDIDATES, which a script has to plan for. A
     /// form's `/BBox` is a clipping extent (ISO 32000-1 8.10.1), not ink, so
     /// a page-sized form is not a page-sized hit target — what is drawn
     /// INSIDE it is reported instead, on rows carrying `leaf=N
@@ -8541,8 +8518,8 @@ enum Command {
     /// leaf ordinal under that key would be a number that is in range and
     /// corrupts the page.
     ///
-    /// `--hit-scope page` restores the old shallow query if a script needs
-    /// it. It is not the GUI's behaviour and the `scope=` field on every
+    /// `--hit-scope page` gives a shallow, page-only query if a script needs
+    /// one. It is not the GUI's behaviour, and the `scope=` field on every
     /// `hit` line says which one you asked for.
     ///
     /// One difference from the GUI, deliberately: the GUI receives a
@@ -8597,12 +8574,11 @@ enum Command {
         all_hits: bool,
         /// How deep `--hit` looks: `deep` descends into form XObjects and
         /// never names a form itself (the GUI's behaviour, and the default);
-        /// `page` uses the old shallow query over the page's own object list
-        /// only.
+        /// `page` is a shallow query over the page's own object list only.
         ///
-        /// The default changed in `Pass 138.0`. Under `page` a page-sized
-        /// form wins every click at every point, which is what the operator
-        /// originally reported as "all I get is the page selected".
+        /// Under `page` a page-sized form wins every click at every point,
+        /// which is what the operator originally reported as "all I get is
+        /// the page selected".
         #[arg(long, value_enum, default_value_t = HitScope::Deep)]
         hit_scope: HitScope,
         /// Report which straight LINE a click at this page-space point would
@@ -8744,8 +8720,7 @@ enum Command {
         verify_undo: bool,
     },
 
-    /// **Copy** a selection of page objects to a clipboard file (Pass 120.0/
-    /// 120.1).
+    /// **Copy** a selection of page objects to a clipboard file.
     ///
     /// Writes a self-contained `.pdfceclip` payload carrying the copied bytes
     /// AND every resource they reference — the font, the image, the graphics
@@ -8796,10 +8771,10 @@ enum Command {
         pdf: Option<PathBuf>,
         /// Also remove what was copied, writing the result here — CUT.
         ///
-        /// Removes the annotations too, not only the objects. It used not to:
-        /// until `Pass 168.0` this flag deleted content objects and left
-        /// every `--annotations` entry on the page while still reporting
-        /// `cut=1`.
+        /// Removes the annotations too, not only the objects — a cut that
+        /// took the content objects and left every `--annotations` entry on
+        /// the page would still report `cut=1`, which is the shape of a
+        /// silent partial deletion.
         ///
         /// ONE undo entry, however many things were removed — so undoing a
         /// cut in a shell puts back exactly what one cut took.
@@ -9130,9 +9105,9 @@ enum Command {
     /// **Move ONE text run** — one show operator — inside a text object
     /// (`G017`, ISO 32000-1 §9.4).
     ///
-    /// The twin `text-run-delete` has implied since `Pass 32.0`, and the last
-    /// part kind in pdfcer to be missing one: a subpath and an anchor could
-    /// each already be moved and deleted, a text run could only be deleted.
+    /// The twin `text-run-delete` has long implied this verb, and a text run
+    /// was the last part kind in pdfcer to be missing one: a subpath and an
+    /// anchor could each already be moved and deleted.
     ///
     /// The operator's case: one `BT`...`ET` on a SolidWorks title block holds
     /// every string in it — the sibling case measures at 237 dimension labels
@@ -9643,7 +9618,7 @@ enum StreamDump {
     /// The bytes as stored, still encoded — what you want when the filter
     /// itself is under suspicion.
     Raw,
-    /// The bytes after every filter in `/Filter` has run.
+    /// The bytes after every filter in /Filter has run.
     Decoded,
 }
 
@@ -9662,8 +9637,8 @@ enum HitScope {
     /// Descend into form XObjects; never name a form itself. The GUI's
     /// behaviour, and the default.
     Deep,
-    /// The page's own object list only — the pre-`Pass 138.0` query, in which
-    /// a page-sized form wins every click.
+    /// The page's own object list only — a shallow query, in which a
+    /// page-sized form wins every click.
     Page,
 }
 
@@ -9673,7 +9648,7 @@ enum CompressionArg {
     Passthrough,
     /// Store the decoded samples with lossless compression.
     Lossless,
-    /// Re-encode as JPEG at `--quality` — lossy, on purpose, and a SECOND
+    /// Re-encode as JPEG at --quality — lossy, on purpose, and a SECOND
     /// lossy pass if the source was already a JPEG.
     Jpeg,
 }
@@ -9737,30 +9712,30 @@ enum DimKindArg {
     /// two are the other's. What gets authored depends on the geometry, which
     /// is the whole point of the mode:
     ///
-    /// - **parallel** (within the `parallel_epsilon_degrees` setting) → a
+    /// - parallel (within the parallel_epsilon_degrees setting) → a
     ///   LINEAR ce dimension of the perpendicular distance between them.
-    /// - **at an angle** → an ANGULAR ce dimension of the angle between them.
-    /// - **collinear** → refused by name, because a zero-distance dimension
+    /// - at an angle → an ANGULAR ce dimension of the angle between them.
+    /// - collinear → refused by name, because a zero-distance dimension
     ///   is not a drawing anyone wanted.
     ///
-    /// `--treat-as-parallel` forces the first reading regardless of the
+    /// --treat-as-parallel forces the first reading regardless of the
     /// measured angle — the CLI form of the checkbox the operator asked for,
     /// for a pair he knows is nominally parallel and that arrived a fraction
     /// off from an exporter's rounding.
     TwoLines,
-    /// A **closed perimeter** over every supplied point (`Pass 107.0`): the
-    /// sum of all its segments including the one from the last point back to
-    /// the first, printed as one number.
+    /// A closed perimeter over every supplied point: the sum of all its
+    /// segments including the one from the last point back to the first,
+    /// printed as one number.
     ///
-    /// Needs at least three points. Use `--offset`/`--text-along` to displace
+    /// Needs at least three points. Use --offset/--text-along to displace
     /// the label from the shape's vertex centroid, in page axes.
     Perimeter,
-    /// An **open path length** over every supplied point (`Pass 107.0`) — the
-    /// same measurement without the closing segment: a pipe run, a cable
+    /// An open path length over every supplied point — the same
+    /// measurement without the closing segment: a pipe run, a cable
     /// route, a kerb line that does not come back on itself.
     ///
     /// Needs at least two points. This is one kind with
-    /// [`DimKindArg::Perimeter`], not a different one; they differ by exactly
+    /// [DimKindArg::Perimeter], not a different one; they differ by exactly
     /// the closing segment, which is why they share every other option.
     Path,
 }
@@ -9824,9 +9799,9 @@ impl DisplayReading {
 enum ConstraintArg {
     /// Free Euclidean direction.
     Aligned,
-    /// Project onto the page X axis (measured length `|Δx|`).
+    /// Project onto the page X axis (measured length |Δx|).
     Horizontal,
-    /// Project onto the page Y axis (measured length `|Δy|`).
+    /// Project onto the page Y axis (measured length |Δy|).
     Vertical,
 }
 
@@ -9844,22 +9819,22 @@ impl ConstraintArg {
 /// Which save path `round-trip` exercises.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 enum RoundTripMode {
-    /// §7.5.6 incremental save with an **empty** dirty set. Promises
+    /// §7.5.6 incremental save with an empty dirty set. Promises
     /// whole-file byte identity: zero edits means zero bytes.
     Incremental,
     /// Full rewrite. Promises per-object-definition byte identity, a
     /// reloadable file, and an identical raster — never whole-file
     /// identity, because object offsets legitimately move.
     Full,
-    /// §7.5.6 incremental save that re-emits **every** object of the
-    /// base revision **unchanged**, exercising the real append writer.
+    /// §7.5.6 incremental save that re-emits every object of the
+    /// base revision unchanged, exercising the real append writer.
     ///
     /// This is a verification mode, not an editing feature: no object's
     /// value changes, so the result is semantically identical to the
-    /// input by construction. It exists because the `incremental` mode's
-    /// empty-dirty-set path is a `memcpy` — without this, the §7.5.6
+    /// input by construction. It exists because the incremental mode's
+    /// empty-dirty-set path is a memcpy — without this, the §7.5.6
     /// append machinery (object re-emission, update-section
-    /// construction, `/Prev` chaining, trailer copying) would ship with
+    /// construction, /Prev chaining, trailer copying) would ship with
     /// no corpus coverage at all.
     AppendIdentity,
 }
@@ -9877,18 +9852,18 @@ enum RoundTripMode {
 /// buried in an encoder that would happily flatten.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 enum ImageFormatArg {
-    /// PNG — lossless RGBA8; keeps transparency with `--transparent`.
+    /// PNG — lossless RGBA8; keeps transparency with --transparent.
     Png,
-    /// JPEG — lossy, always opaque. `jpg` is accepted as a spelling.
+    /// JPEG — lossy, always opaque. jpg is accepted as a spelling.
     #[value(alias = "jpg")]
     Jpeg,
     /// EMF — a Windows Enhanced Metafile for LibreOffice 24.x and legacy
-    /// Win32 consumers (`Pass 248.4`): vectors where EMF has them, alpha
-    /// bitmaps where it does not, every substitution counted.
+    /// Win32 consumers: vectors where EMF has them, alpha bitmaps where it
+    /// does not, every substitution counted.
     Emf,
-    /// SVG — vector, resolution-free, transparent unless `--background`
-    /// is given (`Pass 248.1`). `--dpi` governs only what has to be
-    /// embedded as raster inside it.
+    /// SVG — vector, resolution-free, transparent unless --background is
+    /// given. --dpi governs only what has to be embedded as raster inside
+    /// it.
     Svg,
 }
 
@@ -9924,9 +9899,9 @@ enum DxfUnitArg {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 enum ProducerArg {
-    /// Write `/Producer (pdfcer <version>)` into an existing `/Info`.
+    /// Write /Producer (pdfcer <version>) into an existing /Info.
     Set,
-    /// Leave `/Info` byte-untouched (R41's no-fingerprint posture).
+    /// Leave /Info byte-untouched (R41's no-fingerprint posture).
     Preserve,
 }
 
@@ -9939,11 +9914,11 @@ enum ProducerArg {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, clap::ValueEnum)]
 enum CommaArg {
     /// A comma makes the value non-numeric, so it counts as a disclosed
-    /// zero. The default: refusing to guess cannot turn `1,234` into `1.234`.
+    /// zero. The default: refusing to guess cannot turn 1,234 into 1.234.
     NotNumeric,
-    /// A comma is the decimal separator (`1,5` is 1.5).
+    /// A comma is the decimal separator (1,5 is 1.5).
     Decimal,
-    /// A comma is the thousands separator (`1,234` is 1234).
+    /// A comma is the thousands separator (1,234 is 1234).
     Grouping,
 }
 
@@ -9998,13 +9973,13 @@ impl From<BorderArg> for pdfcer_core::edit::BorderStyle {
 /// asked to print.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, clap::ValueEnum)]
 enum VisibilityArg {
-    /// On screen and printed (`/F 4`). The default.
+    /// On screen and printed (/F 4). The default.
     Visible,
-    /// On screen, never printed (`/F 0`).
+    /// On screen, never printed (/F 0).
     ScreenOnly,
-    /// Printed, not shown on screen (`/F 36`).
+    /// Printed, not shown on screen (/F 36).
     PrintOnly,
-    /// Suppressed everywhere (`/F 2`).
+    /// Suppressed everywhere (/F 2).
     Hidden,
 }
 
@@ -10032,7 +10007,7 @@ impl From<VisibilityArg> for pdfcer_core::edit::Visibility {
 enum SubmitFormatArg {
     /// Forms Data Format, by POST. The baseline, and what a zero flag word
     /// means. Carries this document's own path and identity fingerprint
-    /// unless `--exclude-document-path`.
+    /// unless --exclude-document-path.
     Fdf,
     /// HTML form encoding. The only format that may use GET or send click
     /// coordinates.
@@ -10052,11 +10027,11 @@ enum SubmitFormatArg {
 /// cropped page.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, clap::ValueEnum)]
 enum GotoViewArg {
-    /// Fit the whole page in the window (`/Fit`).
+    /// Fit the whole page in the window (/Fit).
     WholePage,
-    /// Fit the page's full width, top edge at the top (`/FitH`).
+    /// Fit the page's full width, top edge at the top (/FitH).
     FullWidth,
-    /// The page's top-left corner, current zoom retained (`/XYZ`).
+    /// The page's top-left corner, current zoom retained (/XYZ).
     TopLeft,
 }
 
@@ -10118,8 +10093,8 @@ enum SaveMode {
     /// signatures (§12.8.1 NOTE 1).
     Incremental,
     /// Rewrite the file as a single revision. Smaller output, and it
-    /// drops superseded revisions — but it **destroys every existing
-    /// signature**, and it is refused outright for a hybrid-reference
+    /// drops superseded revisions — but it destroys every existing
+    /// signature, and it is refused outright for a hybrid-reference
     /// file (§7.5.8.4).
     Full,
 }
@@ -10176,7 +10151,7 @@ enum DataFormat {
     Fdf,
     /// XML Forms Data Format — the XML companion format.
     Xfdf,
-    /// Two-column `name,value` CSV — the format a spreadsheet opens.
+    /// Two-column name,value CSV — the format a spreadsheet opens.
     ///
     /// Not a PDF-world format: FDF and XFDF interchange between PDF
     /// programs, and this one leaves that world. Values a spreadsheet would
@@ -10188,13 +10163,13 @@ enum DataFormat {
 /// A document-information field, as a CLI value for `--clear`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 enum InfoFieldArg {
-    /// `/Title`.
+    /// /Title.
     Title,
-    /// `/Author`.
+    /// /Author.
     Author,
-    /// `/Subject`.
+    /// /Subject.
     Subject,
-    /// `/Keywords`.
+    /// /Keywords.
     Keywords,
 }
 
@@ -10212,42 +10187,42 @@ impl From<InfoFieldArg> for pdfcer_core::edit::InfoField {
 /// The geometric-markup subtype selected by `pdfcer annotate --type`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 enum AnnotKindArg {
-    /// `/Square` — an axis-aligned rectangle (`--rect`).
+    /// /Square — an axis-aligned rectangle (--rect).
     Square,
-    /// `/Circle` — an ellipse inscribed in a rectangle (`--rect`).
+    /// /Circle — an ellipse inscribed in a rectangle (--rect).
     Circle,
-    /// `/Line` — a single segment, arrow-headed by default (`--line`).
+    /// /Line — a single segment, arrow-headed by default (--line).
     Line,
-    /// `/Ink` — freehand strokes (`--strokes`).
+    /// /Ink — freehand strokes (--strokes).
     Ink,
-    /// `/Polygon` — a closed multi-segment shape (`--points`).
+    /// /Polygon — a closed multi-segment shape (--points).
     Polygon,
-    /// `/PolyLine` — an open multi-segment path (`--points`).
+    /// /PolyLine — an open multi-segment path (--points).
     Polyline,
-    /// `/Highlight` — a translucent wash over quads (`--quads`/`--rect`).
+    /// /Highlight — a translucent wash over quads (--quads/--rect).
     Highlight,
-    /// `/Underline` — a baseline line over quads.
+    /// /Underline — a baseline line over quads.
     Underline,
-    /// `/StrikeOut` — a strike-through line over quads.
+    /// /StrikeOut — a strike-through line over quads.
     Strikeout,
-    /// `/Squiggly` — a wavy line over quads.
+    /// /Squiggly — a wavy line over quads.
     Squiggly,
-    /// `/FreeText` — text drawn on the page (`--text`, `--rect`).
+    /// /FreeText — text drawn on the page (--text, --rect).
     Freetext,
-    /// `/Text` — a sticky note whose body opens in a popup (`--text`).
+    /// /Text — a sticky note whose body opens in a popup (--text).
     Text,
-    /// `/Stamp` — a rubber stamp with a framed label (`--stamp-name`).
+    /// /Stamp — a rubber stamp with a framed label (--stamp-name).
     Stamp,
 }
 
 /// Justification for a FreeText annotation (`/Q`, §12.7.3.3).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 enum QuadArg {
-    /// `/Q 0` — left-justified.
+    /// /Q 0 — left-justified.
     Left,
-    /// `/Q 1` — centred.
+    /// /Q 1 — centred.
     Center,
-    /// `/Q 2` — right-justified.
+    /// /Q 2 — right-justified.
     Right,
 }
 
@@ -10265,19 +10240,19 @@ impl QuadArg {
 /// Sticky-note icon name (§12.5.6.4).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 enum IconArg {
-    /// `/Comment`.
+    /// /Comment.
     Comment,
-    /// `/Key`.
+    /// /Key.
     Key,
-    /// `/Note` (default).
+    /// /Note (default).
     Note,
-    /// `/Help`.
+    /// /Help.
     Help,
-    /// `/NewParagraph`.
+    /// /NewParagraph.
     NewParagraph,
-    /// `/Paragraph`.
+    /// /Paragraph.
     Paragraph,
-    /// `/Insert`.
+    /// /Insert.
     Insert,
 }
 
@@ -10299,33 +10274,33 @@ impl IconArg {
 /// Standard rubber-stamp name (§12.5.6.12).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 enum StampArg {
-    /// `/Approved`.
+    /// /Approved.
     Approved,
-    /// `/Experimental`.
+    /// /Experimental.
     Experimental,
-    /// `/NotApproved`.
+    /// /NotApproved.
     NotApproved,
-    /// `/AsIs`.
+    /// /AsIs.
     AsIs,
-    /// `/Expired`.
+    /// /Expired.
     Expired,
-    /// `/NotForPublicRelease`.
+    /// /NotForPublicRelease.
     NotForPublicRelease,
-    /// `/Confidential`.
+    /// /Confidential.
     Confidential,
-    /// `/Final`.
+    /// /Final.
     Final,
-    /// `/Sold`.
+    /// /Sold.
     Sold,
-    /// `/Departmental`.
+    /// /Departmental.
     Departmental,
-    /// `/ForComment`.
+    /// /ForComment.
     ForComment,
-    /// `/TopSecret`.
+    /// /TopSecret.
     TopSecret,
-    /// `/Draft` (default).
+    /// /Draft (default).
     Draft,
-    /// `/ForPublicRelease`.
+    /// /ForPublicRelease.
     ForPublicRelease,
 }
 
@@ -10337,8 +10312,8 @@ enum StampFitArg {
     Grow,
     /// Keep the drawn box and shrink the text into it.
     Shrink,
-    /// Keep both and let the label be cut — the pre-`Pass 287.0` behaviour,
-    /// kept reachable so an existing document's look can be reproduced.
+    /// Keep both and let the label be cut, so an existing document's look
+    /// can be reproduced.
     Clip,
 }
 
@@ -10394,8 +10369,167 @@ fn main() -> ExitCode {
     }
 }
 
+/// Strip source-only markup from one shipped `--help` string.
+///
+/// In `clap`-derive a `///` doc comment IS the operator-facing help text, so
+/// this crate's doc comments serve two readers at once: `cargo doc`, which
+/// renders Markdown, and a terminal, which does not. The house style writes
+/// for the first — a bold lead-in per subcommand, backticks around flags and
+/// PDF keys, and the originating Pass ID in a trailing parenthetical — and the
+/// second ships it verbatim: `**Send pages to a printer.**` with the asterisks
+/// visible, and `(Pass 155.0)` naming an internal identifier that means
+/// nothing outside this repository.
+///
+/// The transform is applied at startup rather than in the source because the
+/// bold lead-in is load-bearing: `tools/check-cli-help-leads.py` uses `**` at
+/// the start of a `///` line as its structural marker for "this is a summary",
+/// and that is how it catches a summary spliced into the preceding variant's
+/// doc block. Scrubbing the source would blind that gate; scrubbing the
+/// rendered string keeps both readers correct.
+///
+/// # What it removes
+///
+/// * `**` and `` ` `` — Markdown emphasis and code spans, which no terminal
+///   renders.
+/// * Pass IDs inside a parenthetical — `(Pass 5.4)` goes entirely,
+///   `(Pass 6.1, §12.5.6)` keeps the clause citation. Spec citations are kept
+///   deliberately: they are true outside this repository and a technical
+///   operator can look them up, which is the opposite of a Pass ID.
+///
+/// A Pass ID written into running prose rather than a parenthetical is left
+/// alone here and rejected by `cli_help_ships_no_internal_markup`, because
+/// rewriting a sentence is an authoring decision and a silent half-fix would
+/// read as a clean one.
+fn plain_help(s: &str) -> String {
+    let out = drop_pass_id_parentheticals(s);
+    out.replace("**", "").replace('`', "")
+}
+
+/// Whether one comma/semicolon-separated item inside a parenthetical is purely
+/// an internal Pass reference — `Pass 5.4`, `` `Pass 182.0/183.0` ``,
+/// `Pass 7`. Markup is stripped before the test so a backticked ID is not
+/// missed.
+fn is_pass_reference(item: &str) -> bool {
+    let t = item.replace("**", "").replace('`', "");
+    let t = t.trim();
+    let Some(rest) = t.strip_prefix("Pass ") else {
+        return false;
+    };
+    !rest.is_empty()
+        && rest
+            .chars()
+            .all(|c| c.is_ascii_digit() || c == '.' || c == '/')
+}
+
+/// Remove Pass references from every parenthetical in `s`, and remove the
+/// parenthetical itself when nothing else was in it.
+///
+/// Parentheticals are found by depth so a nested pair cannot truncate the
+/// scan early. The items inside are re-joined with `", "`, which normalises a
+/// doc comment's hard-wrapped whitespace at the same time — clap has already
+/// joined the source lines into one paragraph by the time this runs.
+fn drop_pass_id_parentheticals(s: &str) -> String {
+    let chars: Vec<char> = s.chars().collect();
+    let mut out = String::with_capacity(s.len());
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] != '(' {
+            out.push(chars[i]);
+            i += 1;
+            continue;
+        }
+        let mut depth = 0usize;
+        let mut end = None;
+        for (j, c) in chars.iter().enumerate().skip(i) {
+            match c {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = Some(j);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let Some(end) = end else {
+            // Unbalanced: copy the rest verbatim rather than guess.
+            out.extend(&chars[i..]);
+            break;
+        };
+        let inner: String = chars[i + 1..end].iter().collect();
+        let kept: Vec<&str> = inner
+            .split([',', ';'])
+            .map(str::trim)
+            .filter(|item| !item.is_empty() && !is_pass_reference(item))
+            .collect();
+        if kept.is_empty() {
+            // Nothing but Pass IDs: drop the parenthetical, and the single
+            // space that separated it from the preceding word, so the line
+            // does not end in " ." or a double space.
+            if out.ends_with(' ') {
+                out.pop();
+            }
+        } else {
+            out.push('(');
+            out.push_str(&kept.join(", "));
+            out.push(')');
+        }
+        i = end + 1;
+    }
+    out
+}
+
+/// Apply [`plain_help`] to a command's own help text, its arguments' help
+/// text, and — recursively — every subcommand.
+///
+/// `mut_subcommand` is driven from a pre-collected name list because the
+/// closure takes the subcommand by value, so the parent cannot be borrowed
+/// while the iteration runs.
+fn scrub_help(cmd: clap::Command) -> clap::Command {
+    let about = cmd.get_about().map(|s| plain_help(&s.to_string()));
+    let long_about = cmd.get_long_about().map(|s| plain_help(&s.to_string()));
+    let names: Vec<String> = cmd
+        .get_subcommands()
+        .map(|c| c.get_name().to_string())
+        .collect();
+
+    let mut cmd = cmd.mut_args(|arg| {
+        let help = arg.get_help().map(|s| plain_help(&s.to_string()));
+        let long_help = arg.get_long_help().map(|s| plain_help(&s.to_string()));
+        let mut arg = arg;
+        if let Some(h) = help {
+            arg = arg.help(h);
+        }
+        if let Some(h) = long_help {
+            arg = arg.long_help(h);
+        }
+        arg
+    });
+    if let Some(a) = about {
+        cmd = cmd.about(a);
+    }
+    if let Some(a) = long_about {
+        cmd = cmd.long_about(a);
+    }
+    for name in names {
+        cmd = cmd.mut_subcommand(name, scrub_help);
+    }
+    cmd
+}
+
 fn run() -> ExitCode {
-    let cli = Cli::parse();
+    // `Cli::parse()` would ship the doc comments verbatim; `scrub_help` takes
+    // the Markdown and the internal Pass IDs out first. See `plain_help`.
+    let cli = {
+        use clap::{CommandFactory as _, FromArgMatches as _};
+        let matches = scrub_help(Cli::command()).get_matches();
+        match Cli::from_arg_matches(&matches) {
+            Ok(cli) => cli,
+            Err(err) => err.exit(),
+        }
+    };
 
     // Resolve the password BEFORE any subcommand runs, so a bad
     // --password-file fails immediately and by name rather than surfacing
@@ -20087,7 +20221,7 @@ enum PrintScaleArg {
     /// 1 PDF point = 1/72 inch on paper, clipping if it must.
     Actual,
     /// Actual size, except reduce a page too big for the sheet. Never
-    /// enlarges — which is the whole difference from `fit`.
+    /// enlarges — which is the whole difference from fit.
     Shrink,
 }
 
@@ -30039,9 +30173,9 @@ fn fill_color_json(color: Option<&pdfcer_core::text_extract::TextColor>) -> Stri
 #[cfg(feature = "signing")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 enum SignFormatArg {
-    /// `/SubFilter /ETSI.CAdES.detached` — PAdES (ISO 32000-2 §12.8.3.4).
+    /// /SubFilter /ETSI.CAdES.detached — PAdES (ISO 32000-2 §12.8.3.4).
     Cades,
-    /// `/SubFilter /adbe.pkcs7.detached` — ISO 32000-1 §12.8.3.3.
+    /// /SubFilter /adbe.pkcs7.detached — ISO 32000-1 §12.8.3.3.
     Pkcs7,
 }
 
@@ -31147,7 +31281,7 @@ undo_verified={} undo_identical={}",
 enum StylePolicyArg {
     /// Decide and apply, silently. Reports which face was used afterwards.
     Auto,
-    /// As `auto`, but say so loudly when the weight or slant was FAKED
+    /// As auto, but say so loudly when the weight or slant was FAKED
     /// rather than real.
     Warn,
     /// Refuse an explicit fake-it request when a real face was available,
@@ -31169,7 +31303,7 @@ impl StylePolicyArg {
 enum GroupDeletionArg {
     /// Refuse if the group still has members, reporting how many.
     Refuse,
-    /// Move the members to the group named by `--to`, re-measuring them.
+    /// Move the members to the group named by --to, re-measuring them.
     Reassign,
 }
 
@@ -31498,11 +31632,11 @@ struct DimensionOffsetArgs<'a> {
 /// Which vertex edit `dimension-vertex` performs (`Pass 107.0`).
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
 enum VertexOpArg {
-    /// Move the vertex at `--index` by `--dx`/`--dy`. Re-measures.
+    /// Move the vertex at --index by --dx/--dy. Re-measures.
     Move,
-    /// Insert a new vertex at `--at`, immediately after `--index`.
+    /// Insert a new vertex at --at, immediately after --index.
     Insert,
-    /// Remove the vertex at `--index`.
+    /// Remove the vertex at --index.
     Remove,
 }
 
@@ -31754,17 +31888,17 @@ fn cmd_annotation_vertex(args: &AnnotationVertexArgs<'_>) -> u8 {
 /// verbs — the requesting project's own reasoning.
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
 enum InkOpArg {
-    /// Move `--point` of `--stroke` by `--dx`/`--dy`.
+    /// Move --point of --stroke by --dx/--dy.
     MovePoint,
-    /// Insert a point at `--at`, immediately after `--point`.
+    /// Insert a point at --at, immediately after --point.
     InsertPoint,
-    /// Remove `--point` from `--stroke`. Floor: two points per stroke.
+    /// Remove --point from --stroke. Floor: two points per stroke.
     RemovePoint,
-    /// Replace `--stroke`'s whole point list with `--points`.
+    /// Replace --stroke's whole point list with --points.
     ReplaceStroke,
-    /// Translate every point of `--stroke` by `--dx`/`--dy`.
+    /// Translate every point of --stroke by --dx/--dy.
     MoveStroke,
-    /// Remove `--stroke` from the `/InkList`.
+    /// Remove --stroke from the /InkList.
     RemoveStroke,
 }
 
@@ -37756,9 +37890,9 @@ enum StylePropArg {
     ArrowForm,
     /// Colour.
     Color,
-    /// Tolerance (Pass 69.1).
+    /// Tolerance.
     Tolerance,
-    /// Tolerance precision (Pass 69.1).
+    /// Tolerance precision.
     TolerancePlaces,
 }
 
@@ -37793,9 +37927,9 @@ impl ArrowFormArg {
 /// The decimal marker, mirrored from `pdfcer_core::dimension::DecimalMarker`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
 enum DecimalMarkerArg {
-    /// `1.5` - ANSI/ASME practice.
+    /// 1.5 - ANSI/ASME practice.
     Point,
-    /// `1,5` - mandated by ISO 129-1:2018 cl. 4.1.1.
+    /// 1,5 - mandated by ISO 129-1:2018 cl. 4.1.1.
     Comma,
 }
 
@@ -43042,6 +43176,102 @@ mod tests {
         on_large_stack(|| {
             use clap::CommandFactory as _;
             Cli::command().debug_assert();
+        });
+    }
+
+    /// Byte offset of the first `Pass <digit>` in `s`, if any.
+    fn pass_id_at(s: &str) -> Option<usize> {
+        let mut from = 0;
+        while let Some(rel) = s[from..].find("Pass ") {
+            let at = from + rel;
+            // A DOTTED number is required, so that ordinary English -- "Pass 0
+            // to REMOVE the limit", in `edit-field --max-len` -- is not read as
+            // a roadmap reference. Every internal ID this project mints has a
+            // minor part: `Pass 138.0`, `Pass 12.M2`.
+            let rest = &s[at + 5..];
+            let digits = rest.len() - rest.trim_start_matches(|c: char| c.is_ascii_digit()).len();
+            if digits > 0 && rest[digits..].starts_with('.') {
+                return Some(at);
+            }
+            from = at + 5;
+        }
+        None
+    }
+
+    /// A short, char-boundary-safe window around `at`, for a failure message
+    /// that names the sentence rather than only the command.
+    fn snippet(s: &str, at: usize) -> String {
+        let mut start = at.saturating_sub(40);
+        while start > 0 && !s.is_char_boundary(start) {
+            start -= 1;
+        }
+        let mut end = (at + 60).min(s.len());
+        while end < s.len() && !s.is_char_boundary(end) {
+            end += 1;
+        }
+        s[start..end].replace('\n', " ")
+    }
+
+    /// Nothing the operator reads may carry source-only markup.
+    ///
+    /// WHY THIS IS A TEST AND NOT A `tools/` SCRIPT: the defect is in the
+    /// RENDERED string, and only clap can produce that. A text scan of
+    /// `main.rs` would have to model how clap joins hard-wrapped `///` lines
+    /// into a paragraph, which half of the markup straddles, and it would
+    /// still miss the part `plain_help` legitimately rewrites at run time.
+    /// Rendering the help and reading it is the same thing the operator does.
+    ///
+    /// WHAT IT REJECTS, AND WHY EACH IS SHIPPED COPY:
+    ///
+    /// * `**` — Markdown emphasis. `cargo doc` renders it; a terminal prints
+    ///   the asterisks. `pdfcer --help` shipped 99 subcommand summaries this
+    ///   way through v0.54.0.
+    /// * `` ` `` — Markdown code spans, same split.
+    /// * `Pass <n>` — an internal roadmap identifier. True inside this
+    ///   repository, meaningless outside it, and 70 summaries named one.
+    ///
+    /// [`plain_help`] removes the first two everywhere and the third from
+    /// parentheticals. What this test therefore catches in practice is a Pass
+    /// ID written into running prose, and markup in the one place the scrub
+    /// cannot reach: a `ValueEnum` variant's doc comment, whose text becomes a
+    /// `PossibleValue` help string with no setter that preserves the typed
+    /// parser. Both are source fixes.
+    #[test]
+    fn cli_help_ships_no_internal_markup() {
+        on_large_stack(|| {
+            use clap::CommandFactory as _;
+            let mut offenders: Vec<String> = Vec::new();
+            let root = scrub_help(Cli::command());
+            let mut queue: Vec<(String, clap::Command)> =
+                vec![(String::from("pdfcer"), root.clone())];
+            while let Some((path, mut cmd)) = queue.pop() {
+                for sub in cmd.get_subcommands() {
+                    queue.push((format!("{path} {}", sub.get_name()), sub.clone()));
+                }
+                let rendered = cmd.render_long_help().to_string();
+                for (needle, what) in [("**", "Markdown bold"), ("`", "a Markdown code span")] {
+                    if let Some(at) = rendered.find(needle) {
+                        offenders.push(format!("{path}: {what}: {}", snippet(&rendered, at)));
+                    }
+                }
+                if let Some(at) = pass_id_at(&rendered) {
+                    offenders.push(format!(
+                        "{path}: an internal Pass ID: {}",
+                        snippet(&rendered, at)
+                    ));
+                }
+            }
+            assert!(
+                offenders.is_empty(),
+                "`--help` ships source-only markup in {} place(s):\n  {}\n\n\
+                 A `///` on a clap item IS the operator-facing help text. \
+                 `plain_help` strips Markdown everywhere and Pass IDs from \
+                 parentheticals; what reaches here is either a Pass ID written \
+                 into prose (reword the sentence) or a `ValueEnum` variant's \
+                 doc comment (the scrub cannot reach a PossibleValue's help).",
+                offenders.len(),
+                offenders.join("\n  ")
+            );
         });
     }
 

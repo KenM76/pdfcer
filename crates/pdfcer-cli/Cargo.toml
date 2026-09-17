@@ -1,6 +1,6 @@
 [package]
 name = "pdfcer-cli"
-description = "pdfcer command-line batch shell: scriptable merge/split/stamp/convert/sign/validate over pdfcer-core. Zero GUI dependencies (docs/ARCHITECTURE.md §7). Pass 0 scope: clap scaffold + `inspect`."
+description = "pdfcer command-line batch shell: scriptable page operations, text and vector editing, forms, annotations, signatures, encryption, redaction, OCR and rendering over pdfcer-core. Zero GUI dependencies (docs/ARCHITECTURE.md §7)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
