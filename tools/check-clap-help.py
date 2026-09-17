@@ -72,6 +72,33 @@ MAIN = Path(__file__).resolve().parent.parent / "crates" / "pdfcer-cli" / "src" 
 # body (eight spaces) can never match.
 VARIANT = re.compile(r"^    ([A-Z][A-Za-z0-9]*)\s*[{(,]")
 
+README = Path(__file__).resolve().parent.parent / "README.md"
+
+#: README's own sentence about the CLI's size. Deliberately tolerant of the
+#: line break between the two halves -- the file is hard-wrapped, so the digits
+#: and the stub word are routinely on different lines.
+README_CLAIM = re.compile(
+    r"(\d+)\s+working subcommands\s*\(plus\s+(\w+)\s+that announce themselves",
+    re.S,
+)
+
+#: The stub half is written as an English word, not a digit, because it reads
+#: as prose. Only the small numbers a stub list can plausibly reach are here;
+#: an unlisted word fails the comparison rather than passing silently.
+WORDS = {
+    "zero": 0,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+}
+
 
 def variants(lines: list[str], start: int) -> list[tuple[str, int, bool]]:
     """`(name, 1-based line, has_help)` for every variant of the enum at `start`.
@@ -125,6 +152,85 @@ def has_help(lines: list[str], at: int) -> bool:
     return False
 
 
+def doc_lines(lines: list[str], at: int) -> list[str]:
+    """The `///` block attached to the variant declared on line `at` (1-based).
+
+    Same backwards walk as `has_help`, which is why attributes and `//` notes
+    are skipped rather than treated as the end of the block.
+    """
+    out: list[str] = []
+    k = at - 2
+    while k >= 0:
+        s = lines[k].strip()
+        if s.startswith("///"):
+            out.append(s)
+            k -= 1
+            continue
+        if s.startswith("#[") or s.startswith("//"):
+            k -= 1
+            continue
+        break
+    return out
+
+
+def readme_count(lines: list[str], found: list[tuple[str, int, bool]]) -> int:
+    """README's subcommand tally must match the enum it describes.
+
+    WHY THIS IS PART OF THE HELP GATE AND NOT ITS OWN SCRIPT: it is the same
+    defect class. `--help` text and a README count are both operator-facing
+    copy derived from this one enum, and both go stale silently -- nothing
+    fails, nothing looks wrong in a diff. The count was found four short on
+    2026-09-17, in the same sweep that found the `--help` lead claiming only
+    `inspect` worked.
+
+    A subcommand counts as NOT YET IMPLEMENTED when its own help text says so,
+    which is exactly what the operator reads -- the gate and the operator are
+    therefore looking at the same evidence, rather than at a hand-kept list
+    that can disagree with the binary.
+    """
+    stubs = [n for n, ln, _ in found if any("not yet implemented" in d.lower() for d in doc_lines(lines, ln))]
+    working = len(found) - len(stubs)
+
+    if not README.is_file():
+        print(f"check-clap-help: cannot read {README}", file=sys.stderr)
+        return 2
+    text = README.read_text(encoding="utf-8")
+    m = README_CLAIM.search(text)
+    if not m:
+        print(
+            "check-clap-help: README.md no longer states a subcommand count in a\n"
+            "form this gate recognises (expected \"<N> working subcommands\" and\n"
+            f"\"{'{'}word{'}'} that announce themselves as not yet implemented\").\n"
+            "The claim was reworded or removed -- either restore the shape or\n"
+            "update README_CLAIM here, but do not leave the count unchecked.",
+            file=sys.stderr,
+        )
+        return 2
+
+    claimed_working = int(m.group(1))
+    claimed_stubs = WORDS.get(m.group(2).lower(), -1)
+    if claimed_working != working or claimed_stubs != len(stubs):
+        print(
+            "check-clap-help: README.md's subcommand count disagrees with the "
+            f"`Command` enum in {MAIN.name}:\n"
+            f"  README says : {claimed_working} working, {m.group(2)} not yet implemented\n"
+            f"  the enum has: {working} working, {len(stubs)} not yet implemented "
+            f"({', '.join(stubs) or 'none'})\n"
+            "\nThe README is published copy -- a stale count there is a false claim\n"
+            "about what the operator is downloading, and nothing else in the build\n"
+            "reads it.",
+            file=sys.stderr,
+        )
+        return 1
+    # Reported even on success: a gate that says nothing about a check it ran
+    # is indistinguishable from a gate that quietly stopped running it.
+    print(
+        f"check-clap-help: README's {working} working / {len(stubs)} "
+        "not-yet-implemented matches the enum."
+    )
+    return 0
+
+
 def main() -> int:
     if not MAIN.is_file():
         print(f"check-clap-help: cannot read {MAIN}", file=sys.stderr)
@@ -174,6 +280,10 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
+
+    rc = readme_count(lines, found)
+    if rc:
+        return rc
 
     print(f"check-clap-help: PASS — all {len(found)} subcommands carry help text.")
     return 0

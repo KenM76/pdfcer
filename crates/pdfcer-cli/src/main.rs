@@ -698,10 +698,15 @@ fn build_banner() -> &'static str {
     // `--version` is what a HUMAN reads and is where the provenance goes.
     long_version = build_banner(),
     about = "pdfcer command-line batch shell — scriptable PDF operations.",
+    // WHY THIS SENTENCE CARRIES NO COUNT: it drifts. The count lives in
+    // README.md, where `tools/check-clap-help.py` checks it against this
+    // enum's own variants. A number here would be a second place to be wrong.
     long_about = "pdfcer is the command-line front end to the pdfcer PDF \
-engine. Pass 0 implements `inspect`; the remaining subcommands are stubs \
-whose real behaviour ships alongside each feature's own development Pass \
-(see docs/ROADMAP.md)."
+engine: a scriptable shell over page operations, text and vector editing, \
+forms, annotations, signatures, encryption, redaction, OCR and rendering. \
+Every subcommand listed below works today except the few whose own \
+description says `[not yet implemented]`. Run `pdfcer <COMMAND> --help` for \
+one command's options."
 )]
 struct Cli {
     #[command(subcommand)]
