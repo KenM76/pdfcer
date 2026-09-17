@@ -115,6 +115,53 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.55.0` — RELEASED (2026-09-17)
+
+Release filing, not a Pass — the **second release of 2026-09-17**, cut roughly two and a half hours after `v0.54.0`, because the operator reported redaction destroying text he never marked and `Pass 310.0`–`310.2` fixed it. Version-bump commit `229e8635` ("chore: v0.55.0") bumps `Cargo.toml` 0.54.0 → 0.55.0 plus both lockfiles (`Cargo.lock`, `fuzz/Cargo.lock`; 3 files, +10/−10); tag `v0.55.0` and `main` both at that commit on `origin`.
+
+**Range: 9 commits in `v0.54.0..v0.55.0` = 5 Pass commits + 3 librarian filings + 1 version bump.** ★ The dispatch said *"seven commits"*; the measured count is **9**, and the difference is not an error on either side — the dispatch named the seven it considered payload, and the range additionally contains `67a9a8c3` (the 567th filing, `v0.54.0`'s own release record, committed *after* the `v0.54.0` tag) and `229e8635` (the bump itself). Both forms filed per hard rule 10(a): the total beside its per-item breakdown, with the denominator stated.
+
+**What it carries** (each Pass already filed under its own entry above — not refiled here):
+
+- `Pass 309.0` (`46072a07`) + `Pass 309.1` (`3284d5b9`) — `pdfcer --help`'s stale first sentence, then the same defect class swept project-wide: literal Markdown asterisks and internal Pass IDs shipping to the terminal.
+- `Pass 310.0` + `Pass 310.1` (`ce474dae`) — the residual sweep's two causes (no liveness test; a tokenised needle) and the new `--residual-scope` flag.
+- `Pass 310.2` (`bb1bd994`) — the detector/actor case mismatch, closed by the shared `text_match_ranges`.
+- Filings `75ecc7de`, `79750fde`, `7419fb2f` (568th, 569th, 570th).
+
+**Release mechanics — independently verified this filing (this filing HAS a shell; see *Sourcing*).** GitHub release at `github.com/KenM76/pdfcer/releases/tag/v0.55.0`, published 2026-09-17 20:46:51Z, **not a draft**, title *"v0.55.0 — redaction stops eating text you never marked"*. Assets: `pdfcer-v0.55.0-windows-x64.zip`, **19,253,484 B**, state `uploaded`, digest `sha256:08c72529fc523e4fd76ae284e892c7d7006fcc8ae11963a5f3868bf673832ecc`, plus its `.sha256` sidecar (96 B). Portable folder `D:\builds\pdfcer-20260917-1639-229e863` — **35,820,101 B** total over 7 entries; `pdfcer.exe` **23,285,248 B**; `models/` carries `text-detection.rten` (2,510,284 B), `text-rec-checkpoint.rten` (9,716,444 B) and `PROVENANCE.md` (8,518 B). `BUILD-INFO.txt` names commit `229e863` on `main`, no `-dirty` suffix. OneDrive: `tools/deploy-onedrive.py` wrote **slot `pdfcer2`** (the older slot, previously 0.53.0); **`pdfcer1` keeps 0.54.0 as the rollback** — `R229`'s alternating scheme, and its "a previous version survives beside the current one" clause is satisfied by 0.54.0, not by 0.53.0, which this release overwrote.
+
+**★ CI WAS NOT GREEN AT FILING TIME, AND THIS ENTRY DOES NOT CLAIM IT WAS.** `gh run list` run by this filing puts the CI run at `229e8635` in status **`in_progress`, conclusion empty** — and the run at `7419fb2f` one commit behind it likewise. `python tools/verify-release.py v0.55.0` re-run by this filing therefore reports **3 problems**, two of them CI: *"CI is finished at the tagged commit"* (FAIL — *"a run that has not failed yet is not a run that passed"*) and *"CI is GREEN at the tagged commit"* (FAIL). The other seven checks are ok: tag exists, tag at HEAD, tag pushed, `origin/main` contains it, release has assets, 0.55.0 on OneDrive (`pdfcer2`), a previous version (0.54.0) retained. **This is a release published ahead of its own CI result**, which rule 8 permits (releasing is standing-authorized, decision 121) but which the release gates explicitly do not call verified. The engineer is watching the run separately; **whoever reads this entry next owes a `gh run list --limit 3` before treating `v0.55.0` as CI-clean.**
+
+**The third `verify-release` FAIL is a false alarm and is recorded so nobody chases it.** *"working tree clean"* FAILs on 1 uncommitted path: `docs/NEXT_SESSION.md`, the engineer's own post-release handoff amendment, written **after** the tag. `git status --porcelain` run by this filing at its start returned **empty**; the same command minutes later returned ` M docs/NEXT_SESSION.md`. The release was built from a clean tree; the gate is comparing the tag against a tree that has since moved on in documentation only, not in source.
+
+**Verification, relayed from the dispatching engineer's report and NOT re-run here:** `tools/run-gates.sh` PASS — 34 commands, 2 filing gates, 420 `test result: ok` lines, zero failures, exit 0 (`cargo about generate` and `--all-features` skipped by the script's own default, both named in its output); `cargo clippy --workspace --all-targets -- -D warnings` clean; `cargo fmt --all` applied; the seven doc/filing gates re-run individually after the 570th filing's correction, all clean, including `check-cited-commits-exist.py` (88 documents), `check-ledger-numbers.py`, `check-commits-filed.py` (963 code commits) and `check-core-api-verbs.py`.
+
+★★ **The smoke test was a REAL one, and that is the part worth keeping.** The packaged build was copied to a path outside `D:\builds` and **the operator's own reported scenario re-run against that copy's `pdfcer.exe`** — `redact-mark --search "INVOICE 4412"` then `redact-apply` on the two-page fixture. Page 2 extracts as **`INVOICE summary`**, intact; the released **`v0.54.0`** binary on the same input produces **`XXXXXXX summary`**. `--version` reports `pdfcer 0.55.0`, revision `v0.55.0`, `iccce 0.3.0 (rev a4d9003b)`. A smoke test that runs `--version` and `inspect` (what `v0.54.0`'s did) proves the folder is not corrupt; one that reproduces the bug the release exists to fix, from the packaged artifact, proves the release ships the fix. **Different claims, and only the second one is what an operator is actually asking about.**
+
+**`docs/FEATURES.md`: no rows changed — a release ships no new capability.** The redaction residual-scope row (line 331, `[x]` core / `[x]` cli / `[ ]` gui) was written by the 570th filing and is already correct at this commit. Said explicitly so the silence is not read as a missed sweep.
+
+**Also filed this session:** a new Backlog entry for a `gh release` retry wrapper in `tools/` (see Backlog), and one new finding file in `D:\dev\rag\gh-cli\` — see the Ledger.
+
+**No decision-log entry** — a release carries no architectural decision. Highest decision record remains 158.
+
+**Sourcing (hard rule 8).** ★ **This filing HAS a shell, so the release mechanics above are CHECKED, not relayed** — the inverse of the 567th filing, which recorded `v0.54.0` entirely on trust and closed by asking a future session to confirm it. Commands run in `D:\Dev\pdfcer`: `git rev-list -n1 v0.55.0` and `git rev-parse HEAD` both `229e8635efd3cdbf98e02660ff82067515d4840e`; `git ls-remote --tags origin v0.55.0` returns the tag object `2d229131`; `git branch -r --contains 229e8635` lists `origin/main`; `git log --oneline v0.54.0..v0.55.0` plus `git rev-list --count` give the 9 commits itemised above, each re-confirmed by `git log -1 --format='%h %ad %s'`; `gh release view v0.55.0 --json …` gives the title, publish time, draft flag, asset names, byte counts and sha256 digests; `gh run list --limit 8 --json …` gives the CI status; `ls -la` / `du -sb` on `D:\builds\pdfcer-20260917-1639-229e863` give every byte count, and `cat BUILD-INFO.txt` its commit line; `python tools/verify-release.py v0.55.0` gives the nine-check result quoted above. **Still relayed, not re-run:** the gate-sweep totals, the clippy/fmt results, the individual doc-gate re-runs, and the smoke-test transcript — the binary comparison was not repeated by this filing.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Release | `v0.54.0` (`8a2162ab`, 2026-09-17) | **`v0.55.0` (`229e8635`, 2026-09-17) — 9 commits since `v0.54.0` (5 Pass + 3 filings + 1 bump), same day** |
+| Pass families | `310` (highest `310.2`), next free `311` | unchanged — no new Pass this filing |
+| Standing rules | next free `R251` (live ceiling, `check-ledger-numbers.py`) | unchanged — no rule minted; the `gh release` finding went to `D:\dev\rag\gh-cli\` plus a Backlog entry instead |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `570` | **`571`** |
+| `docs/FEATURES.md` | — | **unchanged — a release ships no new capability; the residual-scope row was already correct at this commit** |
+| CI at the tagged commit | `v0.54.0` verified GREEN | **`v0.55.0` NOT verified — `in_progress` at filing time, `verify-release.py` FAILs two CI checks. Watched, not green.** |
+| Backlog | no entry for release-tooling retry | **new entry filed (see Backlog) — `gh release create <tag> <assets>` is not atomic** |
+| `D:\dev\rag\gh-cli\` | 7 topic files plus `index.md` | **8 topic files — `release_create_with_assets_is_not_atomic.md` added, `index.md` row added** |
+
+---
+
 ### `Pass 310.0` + `Pass 310.1` (`ce474dae`) + `Pass 310.2` (`bb1bd994`), 2026-09-17 — redaction stops eating text the operator never marked; the detector/actor case mismatch shipped one commit later
 
 **Operator's request, verbatim (2026-09-17):** *"I noticed that when I use the redaction tool on some content, if other content matches I haven't selected also gets removed or replaced with X. I'd like the option to only redact the content I have actually selected."*
@@ -15202,6 +15249,18 @@ nothing gets forgotten, not as a commitment to build in this order.
 **The gate gap, named so nobody re-derives it:** `tools/check-cli-help-leads.py` passes on this literal — it checks that each *subcommand's* doc-comment summary is the first line of its own doc block, not the *top-level* `long_about`. No gate covers the `Cli` struct's own long-form text.
 
 **Scope:** rewrite `long_about` to state current status without naming a Pass count or stub number that will drift again — point at `pdfcer --help`'s own subcommand list or `docs/FEATURES.md` rather than restating a count in prose. Consider whether `check-cli-help-leads.py` (or a new, narrowly-scoped gate) should also check the top-level `long_about` for the specific stale phrases ("Pass 0 implements", "remaining subcommands are stubs") so this class of drift is caught mechanically rather than by a smoke test.
+
+### Unscoped — `tools/` should carry a `gh release` wrapper that creates the release EMPTY and uploads assets separately, with retry — filed 2026-09-17 (571st filing, from `v0.55.0`'s own publish), no Pass ID
+
+**What happened, measured during `v0.55.0`'s release.** `gh release create v0.55.0 <assets…>` failed **twice** with `HTTP 500: Error saving asset` and succeeded on the third attempt. The first failure **rolled the whole release back**: `gh` deleted the release it had just created, so `gh release view v0.55.0` answered *"release not found"* — while the error URL it printed contained a live release id. **A transient GitHub 500 during asset upload is therefore indistinguishable, from the CLI's own output, from the release never having been attempted.**
+
+**The shape that worked, and the reason it works:** create the release with **no** assets, then `gh release upload <tag> <assets…> --clobber`, retried on failure. Creation and upload become separate, independently-retryable acts; a failed upload leaves the release standing and `--clobber` makes the retry idempotent.
+
+**Why this is worth a wrapper rather than a note.** The failure mode is silent by construction — the recovery action ("re-run it") is the same keystroke as the action that just destroyed the release, and the diagnostic (`gh release view`) reports the state *after* the rollback, so a session that hits this a second time re-derives it from scratch. `v0.55.0` cost three attempts and a detour through the GitHub API to establish what had happened.
+
+**Scope.** A small `tools/gh-release.py` (or a function in whatever script cuts the release today): create empty → upload with `--clobber` → retry N times with backoff on 5xx → verify with `gh release view --json assets` that every named asset is `state: uploaded` before reporting success. It pairs naturally with `tools/verify-release.py`, which already knows how to ask GitHub what a release holds but runs *after* the fact rather than as part of publishing. Check first whether the release steps are scripted at all today or are a documented command sequence — the wrapper's shape depends on which.
+
+**Not a standing rule, deliberately.** `R229` and the `verify-release.py` gates cover *whether the release is correct*; this is about *how to get it published without losing it*, which is tooling, not an invariant. The generalisable half is filed outside this project at `D:\dev\rag\gh-cli\release_create_with_assets_is_not_atomic.md` — it is a `gh` CLI property, not a pdfcer one, and the next project to cut a release from this machine will meet it too.
 
 ### Unscoped — redacting a region backed by a resource SHARED across pages should decouple the shared object before editing, not mutate every page that references it — filed 2026-09-17 (569th filing, from the operator's 2026-09-17 redaction-scope report), no Pass ID
 
