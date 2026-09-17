@@ -262,6 +262,107 @@ pub enum RedactError {
     Reload(#[source] crate::document::DocError),
 }
 
+/// How far beyond the marked regions [`apply_redactions_with`] is permitted to
+/// act on text that matches what the operator redacted.
+///
+/// # What this setting is actually about
+///
+/// Applying a `/Redact` mark removes the content under its geometry. That part
+/// is not configurable and never will be. What *is* configurable is the
+/// **residual sweep** that runs afterwards: a pass over every object in the
+/// file looking for the same text surviving somewhere the surgery did not
+/// reach.
+///
+/// The sweep exists because §12.5.6.23 scopes the obligation by *outcome* over
+/// *"all content that can exist in a PDF document"*, not by position — a
+/// document-information entry, an XMP packet, or a superseded content stream
+/// can quote redacted text without being anywhere near the marked rectangle.
+/// But the same mechanism, pointed at live drawable content, edits pages the
+/// operator never marked, which is not what "redact this selection" means to
+/// anyone using it.
+///
+/// This enum splits the two. Every variant reports what it found; they differ
+/// only in what they are allowed to *change*.
+///
+/// # Nothing is ever swept silently
+///
+/// A match a narrower scope declines to act on is counted in
+/// [`RedactionReport::residual_matches_left`], recorded as
+/// [`CarrierAction::FoundNotScrubbed`], and named by object id in a report
+/// note. Narrowing the scope changes what pdfcer edits, never what it tells
+/// you.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum ResidualScope {
+    /// Act **only** on the marked regions; the residual sweep reports and
+    /// changes nothing.
+    ///
+    /// The literal reading of "redact what I selected". Use it when the
+    /// document's metadata is already known-clean, or when any edit outside
+    /// the selection is unacceptable. It leaves the weakest absence guarantee
+    /// of the three: a matching string in `/Info` or an XMP packet survives,
+    /// disclosed.
+    MarkedOnly,
+    /// **The default.** Act on the marked regions, and additionally scrub
+    /// carriers the operator cannot see — the document information dictionary,
+    /// XMP packets, and string entries in arbitrary dictionaries. Leave
+    /// drawable page content alone.
+    ///
+    /// The reasoning is that an invisible carrier cannot have been
+    /// deliberately kept: nobody selects `/Keywords`, and nobody notices when
+    /// it is scrubbed. Drawable content is the opposite — it is the document,
+    /// the operator can see it, and removing an unmarked occurrence of a
+    /// common word is destruction disguised as diligence.
+    #[default]
+    HiddenCarriers,
+    /// Act on every occurrence found anywhere, including text drawn on pages
+    /// the operator did not mark.
+    ///
+    /// The strongest absence guarantee and the most destructive. Appropriate
+    /// when the redacted phrase must not survive anywhere in the artifact and
+    /// the operator accepts that unmarked pages will be edited to achieve it.
+    WholeDocument,
+}
+
+impl ResidualScope {
+    /// Whether this scope may edit carriers the operator cannot see on the
+    /// page: `/Info`, XMP packets, and dictionary string entries.
+    #[must_use]
+    pub fn scrubs_hidden_carriers(self) -> bool {
+        matches!(self, Self::HiddenCarriers | Self::WholeDocument)
+    }
+
+    /// Whether this scope may blank matching text inside content streams —
+    /// that is, edit drawable content outside the marked regions.
+    #[must_use]
+    pub fn blanks_content_streams(self) -> bool {
+        matches!(self, Self::WholeDocument)
+    }
+}
+
+/// Behavioural options for [`apply_redactions_with`].
+///
+/// Separate from [`crate::writer::SaveOptions`] because these change *what
+/// redaction does*, while those change how the result is serialized. A struct
+/// rather than a bare [`ResidualScope`] argument so a later option does not
+/// break every caller's signature.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct RedactOptions {
+    /// How far beyond the marked regions the residual sweep may act.
+    pub residual_scope: ResidualScope,
+}
+
+impl RedactOptions {
+    /// Options with the given residual scope and defaults for everything else.
+    #[must_use]
+    pub fn with_residual_scope(scope: ResidualScope) -> Self {
+        Self {
+            residual_scope: scope,
+        }
+    }
+}
+
 /// What a carrier sweep found and did for one class of duplicated
 /// content. This is the executable form of §12.5.6.23's "diligent about
 /// all content that can exist" obligation.
@@ -293,6 +394,20 @@ pub enum CarrierAction {
     /// un-redacted residual to verify manually. The cardinal-rule-honest
     /// outcome for a carrier this build cannot fully redact.
     DisclosedNotScrubbed,
+    /// **Present, carrying redacted text, and deliberately left alone**
+    /// because the configured [`ResidualScope`] does not act on this carrier.
+    ///
+    /// Distinct from [`Self::DisclosedNotScrubbed`], which means pdfcer
+    /// *tried and could not*. This one means pdfcer *could and chose not to*,
+    /// on the operator's instruction, and the distinction is the whole point:
+    /// the first is a limit of the implementation and the second is a
+    /// setting. Collapsing them would make a deliberate scope look like a
+    /// failure, and a real failure look like a preference.
+    ///
+    /// It does NOT trip [`RedactionReport::has_disclosed_residuals`] -- see
+    /// that method's documentation for why the exit-code contract was left
+    /// alone.
+    FoundNotScrubbed,
     /// **Present, checked, and found to carry nothing redacted**
     /// (`Pass 282.0`).
     ///
@@ -316,6 +431,7 @@ impl CarrierAction {
             Self::Scrubbed => "scrubbed",
             Self::DroppedByRewrite => "dropped_by_rewrite",
             Self::DisclosedNotScrubbed => "DISCLOSED_NOT_SCRUBBED",
+            Self::FoundNotScrubbed => "found_not_scrubbed",
             Self::CheckedClean => "checked_clean",
         }
     }
@@ -373,6 +489,14 @@ pub struct RedactionReport {
     /// still pointed at it. A shell disclosing "pdfcer edited N objects"
     /// should be able to say how many of them were content.
     pub residual_content_streams_blanked: u64,
+    /// Objects found carrying redacted text that the configured
+    /// [`ResidualScope`] deliberately left unaltered.
+    ///
+    /// Under the default scope this counts the pages, appearance streams and
+    /// form XObjects that draw the redacted phrase somewhere the operator did
+    /// not mark. They are the operator's own document content: reported so the
+    /// choice is informed, not edited so the choice is made for him.
+    pub residual_matches_left: u64,
     /// Distinct fonts whose advance widths were estimated (no `/Widths`,
     /// not standard-14) — affects only advance-preservation cosmetics,
     /// never the removal itself. Disclosed.
@@ -466,11 +590,33 @@ impl RedactionReport {
     /// Whether any carrier was present but disclosed-not-scrubbed — i.e.
     /// the operator must verify a residual manually. A caller (CLI/GUI)
     /// surfaces this loudly.
+    ///
+    /// ★ [`CarrierAction::FoundNotScrubbed`] deliberately does NOT count here.
+    /// This method drives the CLI's non-zero exit and its
+    /// `--acknowledge-residuals` override, and that contract means *"pdfcer
+    /// could not finish the job"*. A carrier left alone because the operator
+    /// chose a narrower [`ResidualScope`] is the job finishing as instructed.
+    /// Folding the two together would make every ordinary redaction of a
+    /// phrase that also appears elsewhere exit non-zero — which is the
+    /// nagging that project rule 4 exists to prevent. Use
+    /// [`Self::has_unscrubbed_matches`] when the question is the other one.
     #[must_use]
     pub fn has_disclosed_residuals(&self) -> bool {
         self.carriers
             .iter()
             .any(|c| c.action == CarrierAction::DisclosedNotScrubbed)
+    }
+
+    /// Whether any carrier carried redacted text that the configured
+    /// [`ResidualScope`] left in place.
+    ///
+    /// A shell prints this; it is not a failure. See
+    /// [`Self::has_disclosed_residuals`] for the one that is.
+    #[must_use]
+    pub fn has_unscrubbed_matches(&self) -> bool {
+        self.carriers
+            .iter()
+            .any(|c| c.action == CarrierAction::FoundNotScrubbed)
     }
 }
 
@@ -1744,15 +1890,24 @@ struct PageRedaction {
 /// caller must therefore read `marks_retained` (or the `images` carrier)
 /// before presenting the output as redacted.
 ///
+/// ## How far the residual sweep reaches
+///
+/// Removing the marked content is unconditional. What happens to the *same
+/// text found elsewhere in the file* is governed by
+/// [`RedactOptions::residual_scope`] — read [`ResidualScope`] before assuming
+/// either the narrow or the wide behaviour. The default scrubs invisible
+/// carriers and leaves drawable page content alone.
+///
 /// # Errors
 ///
 /// [`RedactError::NothingToApply`] if there are no marks;
 /// [`RedactError::ImageUndestroyable`] if EVERY mark would be retained
 /// (nothing could be applied); [`RedactError::Content`] if a redacted page
 /// cannot be parsed; [`RedactError::Encrypted`]; [`RedactError::Write`].
-pub fn apply_redactions(
+pub fn apply_redactions_with(
     doc: &Document,
     options: &SaveOptions,
+    redact: &RedactOptions,
 ) -> Result<(Vec<u8>, RedactionReport), RedactError> {
     if doc.trailer().contains_key(b"Encrypt") {
         return Err(RedactError::Encrypted);
@@ -2156,10 +2311,12 @@ pub fn apply_redactions(
 
     // --- carrier sweep (the §12.5.6.23 diligence obligation) ---
     let redacted_text = report.redacted_text.clone();
-    carrier_info(doc, &redacted_text, &mut dirty, &mut report);
+    let scope = redact.residual_scope;
+    carrier_info(doc, &redacted_text, scope, &mut dirty, &mut report);
     carrier_xmp(
         doc,
         &redacted_text,
+        scope,
         &mut staging,
         base_len,
         &mut dirty,
@@ -2174,6 +2331,7 @@ pub fn apply_redactions(
     carrier_residual_sweep(
         doc,
         &redacted_text,
+        scope,
         &mut staging,
         base_len,
         &mut dirty,
@@ -2192,6 +2350,23 @@ pub fn apply_redactions(
     }
     let (bytes, _save) = save_full(doc, &dirty, options)?;
     Ok((bytes, report))
+}
+
+/// Apply every `/Redact` mark in `doc` with default [`RedactOptions`].
+///
+/// Equivalent to [`apply_redactions_with`] passing `RedactOptions::default()`,
+/// which is [`ResidualScope::HiddenCarriers`]: the marked content goes, the
+/// invisible carriers are scrubbed, and drawable content the operator did not
+/// mark is reported rather than edited.
+///
+/// # Errors
+///
+/// The same as [`apply_redactions_with`].
+pub fn apply_redactions(
+    doc: &Document,
+    options: &SaveOptions,
+) -> Result<(Vec<u8>, RedactionReport), RedactError> {
+    apply_redactions_with(doc, options, &RedactOptions::default())
 }
 
 /// Allocate the next object number, advancing the counter.
@@ -2739,6 +2914,38 @@ fn redaction_evidence(redacted: &[String]) -> Vec<String> {
     out
 }
 
+/// The redacted runs, **whole and untokenized**, long enough to be evidence.
+///
+/// # Why this exists alongside [`redaction_evidence`]
+///
+/// The two are used for different carriers because the cost of a false
+/// positive is different on each side, and conflating them was a real defect.
+///
+/// For a **dictionary string or an XMP packet**, a token match is worth
+/// acting on: the entry is invisible, dropping it costs a keyword nobody
+/// reads, and producers park matter IDs and client names in custom keys where
+/// only a fragment of the redacted phrase appears.
+///
+/// For a **content stream**, the same token match is destruction. Redacting
+/// `INVOICE 4412` makes `INVOICE` an independent needle, and every unmarked
+/// page drawing that word gets blanked. The operator sees text vanish from
+/// pages he never touched — which is exactly what was reported, and what
+/// keying this side on whole runs fixes.
+///
+/// A content stream carrying a *token* but not a *whole run* is therefore
+/// neither edited nor reported: one common word surviving is not evidence
+/// that redacted content did.
+fn redaction_runs(redacted: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for text in redacted {
+        let whole = text.trim();
+        if whole.chars().count() >= MIN_MATCH_LEN && !out.iter().any(|s| s == whole) {
+            out.push(whole.to_owned());
+        }
+    }
+    out
+}
+
 /// Carrier: `/Info` — remove any string entry that quotes redacted content
 /// (over-scrub: drop the whole entry). The scrub rides the forced full
 /// rewrite, so the old `/Info` object's bytes do not survive.
@@ -2763,6 +2970,7 @@ fn redaction_evidence(redacted: &[String]) -> Vec<String> {
 fn carrier_info(
     doc: &Document,
     redacted: &[String],
+    scope: ResidualScope,
     dirty: &mut crate::writer::DirtySet,
     report: &mut RedactionReport,
 ) {
@@ -2803,6 +3011,18 @@ fn carrier_info(
             changed += 1;
         }
     }
+    if changed > 0 && !scope.scrubs_hidden_carriers() {
+        // The operator asked for his selection and nothing else. The entries
+        // are named rather than dropped, and the count is not folded into
+        // `info_strings_scrubbed` — that field means "removed".
+        report.residual_matches_left += 1;
+        report.add_carrier("info", true, CarrierAction::FoundNotScrubbed);
+        report.note(format!(
+            "redaction: /Info has {changed} entrie(s) quoting redacted text, LEFT IN PLACE \
+             because the residual scope is marked-only; scrub them with a wider scope or by hand"
+        ));
+        return;
+    }
     if changed > 0 {
         report.info_strings_scrubbed = changed;
         dirty.replace(info_id, Object::Dict(updated));
@@ -2821,6 +3041,7 @@ fn carrier_info(
 fn carrier_xmp(
     doc: &Document,
     redacted: &[String],
+    scope: ResidualScope,
     staging: &mut Vec<u8>,
     base_len: usize,
     dirty: &mut crate::writer::DirtySet,
@@ -2861,6 +3082,16 @@ fn carrier_xmp(
     }
     if !changed {
         report.add_carrier("xmp", true, CarrierAction::Absent);
+        return;
+    }
+    if !scope.scrubs_hidden_carriers() {
+        report.residual_matches_left += 1;
+        report.add_carrier("xmp", true, CarrierAction::FoundNotScrubbed);
+        report.note(
+            "redaction: the XMP metadata packet quotes redacted text and was LEFT IN PLACE \
+             because the residual scope is marked-only; scrub it with a wider scope or by hand"
+                .to_owned(),
+        );
         return;
     }
     let mut dict = stream.dict.clone();
@@ -2958,6 +3189,7 @@ fn carrier_xmp(
 fn carrier_residual_sweep(
     doc: &Document,
     redacted: &[String],
+    scope: ResidualScope,
     staging: &mut Vec<u8>,
     base_len: usize,
     dirty: &mut crate::writer::DirtySet,
@@ -2996,10 +3228,18 @@ fn carrier_residual_sweep(
     // sweep must see each object's state as the earlier carriers left it.
     let ids: Vec<ObjId> = doc.objects().map(|io| io.id).collect();
 
+    // ★ TWO NEEDLE SETS, AND WHICH ONE A CARRIER GETS IS THE WHOLE POINT OF
+    // `ResidualScope`. `evidence` is tokenized and goes to invisible carriers;
+    // `runs` is whole phrases only and goes to drawable content. See
+    // [`redaction_runs`] for the measurement that separated them.
+    let runs = redaction_runs(redacted);
+
     let mut dicts_scrubbed = 0u64;
     let mut entries_scrubbed = 0u64;
     let mut metadata_scrubbed = 0u64;
     let mut content_streams_blanked = 0u64;
+    let mut matches_left = 0u64;
+    let mut left_objects: Vec<String> = Vec::new();
     let mut disclosed: Vec<String> = Vec::new();
 
     for id in ids {
@@ -3020,15 +3260,29 @@ fn carrier_residual_sweep(
                 let mut updated = dict.clone();
                 let removed = scrub_dict_strings(&dict, &mut updated, &evidence);
                 if removed > 0 {
-                    entries_scrubbed += removed;
-                    dicts_scrubbed += 1;
-                    dirty.replace(id, Object::Dict(updated));
+                    if scope.scrubs_hidden_carriers() {
+                        entries_scrubbed += removed;
+                        dicts_scrubbed += 1;
+                        dirty.replace(id, Object::Dict(updated));
+                    } else {
+                        matches_left += 1;
+                        left_objects.push(format!("{} {}", id.num, id.generation));
+                    }
                 }
             }
             Object::Stream(stream) => {
                 // The stream's own dictionary is a dictionary like any other.
                 let mut dict = stream.dict.clone();
-                let removed = scrub_dict_strings(&stream.dict, &mut dict, &evidence);
+                let mut removed = scrub_dict_strings(&stream.dict, &mut dict, &evidence);
+                if removed > 0 && !scope.scrubs_hidden_carriers() {
+                    // Report the match, discard the edit, and put the
+                    // untouched dictionary back so every branch below behaves
+                    // as though nothing was found there.
+                    matches_left += 1;
+                    left_objects.push(format!("{} {}", id.num, id.generation));
+                    dict = stream.dict.clone();
+                    removed = 0;
+                }
 
                 // ★ A STAGED SPAN DOES NOT INDEX THE BASE BUFFER. `stage`
                 // allocates at `base_len + staging.len()`, so a stream an
@@ -3080,14 +3334,41 @@ fn carrier_residual_sweep(
                     crate::filters::decode_stream(&stream.dict, raw)
                         .unwrap_or_else(|_| raw.to_vec())
                 };
-                let carries = evidence.iter().any(|t| bytes_contain_text(&decoded, t));
+                // Tokenized evidence for the invisible carrier; whole runs
+                // for anything drawable.
+                let carries_hidden = evidence.iter().any(|t| bytes_contain_text(&decoded, t));
+                let carries_drawn = runs.iter().any(|t| bytes_contain_text(&decoded, t));
 
                 let is_metadata = matches!(
                     stream.dict.get(b"Type"),
                     Some(Object::Name(n)) if n.as_bytes() == b"Metadata"
                 );
 
-                if carries && is_metadata {
+                if carries_hidden && is_metadata && !scope.scrubs_hidden_carriers() {
+                    matches_left += 1;
+                    left_objects.push(format!("{} {}", id.num, id.generation));
+                } else if carries_drawn && !is_metadata && !scope.blanks_content_streams() {
+                    // ★★ THE DEFECT THIS PASS EXISTS TO FIX.
+                    //
+                    // This branch is where an unmarked page used to lose its
+                    // text. The sweep has no liveness test — it cannot tell a
+                    // superseded stream from the page the operator is looking
+                    // at — so under any scope narrower than whole-document it
+                    // names the object instead of editing it.
+                    matches_left += 1;
+                    left_objects.push(format!("{} {}", id.num, id.generation));
+                    if removed > 0 {
+                        entries_scrubbed += removed;
+                        dicts_scrubbed += 1;
+                        dirty.replace(
+                            id,
+                            Object::Stream(Stream {
+                                dict,
+                                data_span: stream.data_span,
+                            }),
+                        );
+                    }
+                } else if carries_hidden && is_metadata {
                     // Same treatment `carrier_xmp` gives the catalog's packet,
                     // applied wherever the packet sits.
                     let mut scrubbed = decoded;
@@ -3113,14 +3394,14 @@ fn carrier_residual_sweep(
                     if removed > 0 {
                         entries_scrubbed += removed;
                     }
-                } else if carries {
+                } else if carries_drawn {
                     // Not a metadata packet. `Pass 285.0`: try to blank the
                     // evidence inside the string operands of text-showing
                     // operators. Parsing is the discriminator -- a font
                     // programme or an image does not parse as a content
                     // stream, so this cannot touch one, and the edit is
                     // length-preserving so the stream stays valid.
-                    if let Some(blanked) = blank_show_strings(&decoded, &evidence) {
+                    if let Some(blanked) = blank_show_strings(&decoded, &runs) {
                         dict.remove(b"Filter");
                         dict.remove(b"DecodeParms");
                         dict.insert(
@@ -3175,6 +3456,22 @@ fn carrier_residual_sweep(
     report.residual_sweep_objects_scrubbed =
         dicts_scrubbed + metadata_scrubbed + content_streams_blanked;
     report.residual_content_streams_blanked = content_streams_blanked;
+    report.residual_matches_left += matches_left;
+
+    if !left_objects.is_empty() {
+        report.note(format!(
+            "redaction: {} object(s) quote redacted text outside the marked regions and were \
+             LEFT UNCHANGED under the {} residual scope — object(s) {}; re-run with a wider \
+             scope to remove them, or review them by hand",
+            left_objects.len(),
+            match scope {
+                ResidualScope::MarkedOnly => "marked-only",
+                ResidualScope::HiddenCarriers => "hidden-carriers",
+                ResidualScope::WholeDocument => "whole-document",
+            },
+            left_objects.join(", ")
+        ));
+    }
 
     if !disclosed.is_empty() {
         report.add_carrier("residual_sweep", true, CarrierAction::DisclosedNotScrubbed);
@@ -3186,6 +3483,11 @@ fn carrier_residual_sweep(
             disclosed.len(),
             disclosed.join(", ")
         ));
+    } else if matches_left > 0 {
+        // Found and deliberately left. Ranked below `DisclosedNotScrubbed`
+        // because that one means pdfcer could not act; this one means it was
+        // told not to.
+        report.add_carrier("residual_sweep", true, CarrierAction::FoundNotScrubbed);
     } else if entries_scrubbed > 0 || metadata_scrubbed > 0 || content_streams_blanked > 0 {
         report.add_carrier("residual_sweep", true, CarrierAction::Scrubbed);
     } else {

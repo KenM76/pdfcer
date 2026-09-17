@@ -1896,10 +1896,19 @@ internally (`redact.rs:1220-1224`).
 `vector_paths_intersecting`, `marks_retained`** (all `Pass 245.0`),
 **`vector_paths_cut`, `vector_paths_dropped`, `vector_clips_kept`**
 (`Pass 246.0`), **`shadings_intersecting`** (`Pass 246.1`),
+**`residual_matches_left`** (`Pass 310.0`),
 `carriers: Vec<CarrierStatus>`, `redacted_text`, `notes`; plus
-`has_disclosed_residuals()` (`redact.rs:343`).
+`has_disclosed_residuals()` and **`has_unscrubbed_matches()`**.
+
+⚠️ **Those two predicates answer different questions and a shell must not
+collapse them.** `has_disclosed_residuals()` means pdfcer **could not** act —
+it drives the CLI's non-zero exit and its `--acknowledge-residuals` override.
+`has_unscrubbed_matches()` means pdfcer **was told not to** act, by the
+residual scope below. Every ordinary redaction of a phrase that also appears
+elsewhere would exit non-zero if the second were folded into the first.
 `CarrierStatus { carrier, present, action }` (`redact.rs:242`) with
-`CarrierAction::{Absent, Scrubbed, DroppedByRewrite, DisclosedNotScrubbed, CheckedClean}`
+`CarrierAction::{Absent, Scrubbed, DroppedByRewrite, DisclosedNotScrubbed,
+FoundNotScrubbed, CheckedClean}`
 (`redact.rs:256`) and `as_str()` (`:274`) yielding
 `"DISCLOSED_NOT_SCRUBBED"`. The fourteen carriers: `info`, `xmp`, **`images`**,
 `xfa`, `struct_tree`, `attachments`, `ocg`, `thumbnails`, `object_streams`,
@@ -1926,7 +1935,7 @@ exists), so it must see what the `/Info` and XMP passes already removed.
 |---|---|---|
 | any dictionary's string entry | **scrubbed** (entry removed) | §14.3.3: a key outside Table 317 *"shall be a text string"*, so a fixed key list is structurally incomplete |
 | a stream declaring `/Type /Metadata` | **scrubbed** (blanked, re-emitted raw) | §14.3.2 NOTE 3: an XMP packet is designed to be found *"by simple scanning rather than requiring the document file to be parsed"* — reachability is irrelevant to its exposure **by design** |
-| an abandoned **content stream** | **blanked** in the string operands of `Tj`/`TJ`/`'`/`"` only (`Pass 285.0`) | §9.4.3; parsing the buffer is also the discriminator — a font programme or an image does not parse as a content stream |
+| a **content stream** | under `ResidualScope::WholeDocument` only: **blanked** in the string operands of `Tj`/`TJ`/`'`/`"` (`Pass 285.0`), and matched on **whole redacted runs**, never on tokens. Under any narrower scope: **`FoundNotScrubbed`**, named by object id. | §9.4.3; parsing the buffer is also the discriminator — a font programme or an image does not parse as a content stream |
 | anything else carrying evidence | **`DisclosedNotScrubbed`, naming the object** | pdfcer can see the word but cannot prove it is drawn text; blanking on that basis would corrupt content on a coincidence |
 
 New counters: `residual_sweep_entries_scrubbed`, `residual_sweep_objects_scrubbed`,
@@ -1944,6 +1953,45 @@ a **thread information dictionary** (a thread's `/I`, whose contents
 Table 160 — live, reachable, and never examined by `carrier_info`), an XMP
 packet attached to a **component** rather than the catalog (§14.3.2 route B),
 and one inside a **marked-content property list** (route C).
+
+**★★ How far the sweep may act — `ResidualScope` (`Pass 310.0`).** The rows
+above describe what the sweep *can* do; what it *is permitted* to do is a
+session setting (`EditSession::set_residual_scope`, part 2 §1.15).
+
+| scope | hidden carriers (`/Info`, XMP, dictionary strings) | drawable content streams |
+|---|---|---|
+| `MarkedOnly` | reported, unchanged | reported, unchanged |
+| **`HiddenCarriers`** (default) | scrubbed | reported, unchanged |
+| `WholeDocument` | scrubbed | blanked |
+
+**The default changed at `Pass 310.0` and the reason is a defect report, not a
+preference.** Every record of this sweep calls its target an *"abandoned"*
+content stream, but the code has **no liveness test** — it cannot distinguish a
+superseded stream from the page the operator is looking at, so it blanked live
+page `/Contents`, annotation appearances, form XObjects, Type-3 CharProcs and
+tiling patterns. The operator saw text vanish from pages he never marked.
+
+The second half of the same defect was the needle: `redaction_evidence`
+expands each redacted run into the run **plus every whitespace-delimited token
+over four characters**, so redacting `INVOICE 4412` made `INVOICE` an
+independent needle. Token matching earns its keep on an invisible carrier,
+where an over-scrub costs a keyword nobody reads; on drawable content it is
+destruction. The sweep therefore carries **two needle sets** — tokens for
+hidden carriers, whole runs for anything drawable.
+
+**Narrowing is not silence.** Every declined match increments
+`residual_matches_left`, sets the carrier's action to `FoundNotScrubbed`, and
+is named by object id in a report note along with the scope that declined it.
+This is project rule 4's disclose-never-block, applied to an omission.
+
+★ **This does not violate `R249`** (a destructive sweep obliged by an
+outcome-shaped requirement is scoped by the evidence the requirement names,
+never by a computed reachability or liveness walk). No reachability or
+liveness is computed anywhere here. The gate is a **static classification of
+the carrier's kind** — is this a metadata packet or drawable content? — plus an
+**operator setting**, and every match the setting declines is reported. `R249`
+forbids pdfcer *deciding on its own* that an object is safe to skip; it does
+not forbid the operator saying which kinds to touch.
 
 ★★ **Why it sweeps by EVIDENCE and never computes reachability.** §12.5.6.23
 is an outcome test on the saved artifact — *"they shall remove all traces of

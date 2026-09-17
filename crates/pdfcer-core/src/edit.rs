@@ -8993,6 +8993,14 @@ pub struct EditSession {
     /// pdf.js emit and expect — so a caller that never sets it authors exactly
     /// what every previous pdfcer build authored.
     quad_point_order: QuadPointOrder,
+    /// How far beyond the marked regions this session's redaction may act on
+    /// text matching what was redacted.
+    ///
+    /// A session setting rather than an argument so the eager, deferred and
+    /// save-time redaction paths cannot disagree about it — three entry points
+    /// taking the scope separately is three chances to pass a different one.
+    /// Defaults to [`crate::redact::ResidualScope::HiddenCarriers`].
+    redact_options: crate::redact::RedactOptions,
     /// Which reading of `/Tabs /W`'s contested second pass
     /// [`EditSession::page_tab_sequence`] applies — spec ambiguity `TAB-A1`.
     ///
@@ -9148,6 +9156,7 @@ impl EditSession {
             undo: Vec::new(),
             redo: Vec::new(),
             quad_point_order: QuadPointOrder::default(),
+            redact_options: crate::redact::RedactOptions::default(),
             widget_tab_tail: WidgetTabTail::default(),
             tab_row_tolerance: crate::settings::DEFAULT_TAB_ROW_TOLERANCE,
             page_objects_cache: None,
@@ -9254,6 +9263,28 @@ impl EditSession {
     #[must_use]
     pub const fn quad_point_order(&self) -> QuadPointOrder {
         self.quad_point_order
+    }
+
+    /// Choose how far beyond the marked regions this session's redaction may
+    /// act on text matching what was redacted.
+    ///
+    /// Applies to all three redaction paths — [`Self::apply_redactions`],
+    /// [`Self::apply_redactions_deferred`] and
+    /// [`Self::save_applying_redaction`] — and survives the collapse
+    /// `apply_redactions` performs, so a second redaction in the same sitting
+    /// uses the scope the operator chose rather than silently reverting to the
+    /// default.
+    ///
+    /// Read [`crate::redact::ResidualScope`] before widening it: the widest
+    /// setting edits text on pages the operator never marked.
+    pub const fn set_residual_scope(&mut self, scope: crate::redact::ResidualScope) {
+        self.redact_options.residual_scope = scope;
+    }
+
+    /// How far beyond the marked regions this session's redaction may act.
+    #[must_use]
+    pub const fn residual_scope(&self) -> crate::redact::ResidualScope {
+        self.redact_options.residual_scope
     }
 
     /// The base document — the parse result, and the writer's source of
@@ -10492,8 +10523,10 @@ impl EditSession {
         // Collapse: reset onto the clean base, preserving the one operator
         // setting the session carries, and mark it finalized (undo cleared).
         let order = self.quad_point_order;
+        let redact_options = self.redact_options;
         *self = EditSession::new(new_base);
         self.quad_point_order = order;
+        self.redact_options = redact_options;
         self.redacted = true;
         Ok(report)
     }
@@ -10522,7 +10555,7 @@ impl EditSession {
         // 2. Reload so the marks are document state.
         let doc = Document::from_bytes(full).map_err(RedactError::Reload)?;
         // 3. Remove the marked content (a full rewrite internally).
-        crate::redact::apply_redactions(&doc, options)
+        crate::redact::apply_redactions_with(&doc, options, &self.redact_options)
     }
 
     /// Stage a **deferred** redaction: mark this session so that its content

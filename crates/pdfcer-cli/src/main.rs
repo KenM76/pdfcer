@@ -1210,6 +1210,10 @@ enum Command {
         /// PDFs and/or folders to clean.
         #[arg(required = true)]
         paths: Vec<PathBuf>,
+        /// How far beyond the marked bands the residual sweep may act. See
+        /// `redact-apply --help`; the same sweep runs here.
+        #[arg(long, value_enum, default_value_t = ResidualScopeArg::HiddenCarriers)]
+        residual_scope: ResidualScopeArg,
         /// Descend into subfolders.
         #[arg(long, short)]
         recursive: bool,
@@ -1902,12 +1906,24 @@ enum Command {
     /// unapplied, named in the report with its reason) while every other
     /// mark applies; only when no mark at all can be applied is the run
     /// refused.
+    ///
+    /// AFTER the surgery it runs a RESIDUAL SWEEP over every object in the
+    /// file, looking for the redacted text surviving somewhere the marks did
+    /// not cover -- a document-information entry, an XMP packet, a superseded
+    /// content stream. `--residual-scope` governs how far that sweep may ACT;
+    /// it never governs what it REPORTS. The default scrubs carriers you
+    /// cannot see and leaves drawn page content alone, because removing an
+    /// unmarked occurrence of a common word is destruction, not diligence.
     RedactApply {
         /// Input PDF carrying `/Redact` marks.
         input: PathBuf,
         /// Output path for the redacted document.
         #[arg(short, long)]
         output: PathBuf,
+        /// How far beyond the marked regions the residual sweep may act.
+        /// Every match a narrower scope declines is still counted and named.
+        #[arg(long, value_enum, default_value_t = ResidualScopeArg::HiddenCarriers)]
+        residual_scope: ResidualScopeArg,
         /// Acknowledge disclosed, un-scrubbed carrier residuals and exit 0
         /// anyway (the removal itself always happens; this only governs the
         /// exit code for the disclosed residuals).
@@ -9932,6 +9948,36 @@ impl From<CommaArg> for pdfcer_core::form_script::calc::CommaPolicy {
     }
 }
 
+/// `--residual-scope` on `redact-apply` and `redact-offpage`.
+///
+/// Mirrors [`pdfcer_core::redact::ResidualScope`]. Its own clap enum rather
+/// than a `ValueEnum` derive on the core type, so `pdfcer-core` gains no CLI
+/// dependency — the GUI-core separation applies to argument parsing too.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, clap::ValueEnum)]
+enum ResidualScopeArg {
+    /// Act only on the marked regions. The residual sweep reports what it
+    /// finds elsewhere and changes none of it.
+    MarkedOnly,
+    /// The default. Also scrub carriers the operator cannot see: /Info, XMP
+    /// packets and string entries in arbitrary dictionaries. Text drawn on
+    /// pages outside the marks is reported, not edited.
+    HiddenCarriers,
+    /// Also blank matching text wherever it is drawn, including on pages the
+    /// operator never marked. The strongest absence guarantee and the most
+    /// destructive.
+    WholeDocument,
+}
+
+impl From<ResidualScopeArg> for pdfcer_core::redact::ResidualScope {
+    fn from(arg: ResidualScopeArg) -> Self {
+        match arg {
+            ResidualScopeArg::MarkedOnly => Self::MarkedOnly,
+            ResidualScopeArg::HiddenCarriers => Self::HiddenCarriers,
+            ResidualScopeArg::WholeDocument => Self::WholeDocument,
+        }
+    }
+}
+
 /// `--border` on `add-text-field` (§12.5.4 Table 166).
 ///
 /// Its own clap enum rather than a `ValueEnum` derive on the core type, so
@@ -10645,6 +10691,7 @@ fn run() -> ExitCode {
         ),
         Command::RedactOffpage {
             paths,
+            residual_scope,
             recursive,
             output,
             out_dir,
@@ -10654,6 +10701,7 @@ fn run() -> ExitCode {
             dry_run,
         } => cmd_redact_offpage_batch(
             &paths,
+            residual_scope,
             recursive,
             output.as_deref(),
             out_dir.as_deref(),
@@ -13096,8 +13144,9 @@ fn run() -> ExitCode {
         Command::RedactApply {
             input,
             output,
+            residual_scope,
             acknowledge_residuals,
-        } => cmd_redact_apply(&input, &output, acknowledge_residuals),
+        } => cmd_redact_apply(&input, &output, residual_scope, acknowledge_residuals),
         Command::Encrypt {
             input,
             output,
@@ -27986,8 +28035,13 @@ fn cmd_trust_store_list(file: Option<&Path>, source: &str, identities: bool) -> 
     exit::SUCCESS
 }
 
-fn cmd_redact_apply(input: &Path, output: &Path, acknowledge_residuals: bool) -> u8 {
-    use pdfcer_core::redact::{self, RedactError};
+fn cmd_redact_apply(
+    input: &Path,
+    output: &Path,
+    residual_scope: ResidualScopeArg,
+    acknowledge_residuals: bool,
+) -> u8 {
+    use pdfcer_core::redact::{self, RedactError, RedactOptions};
     use pdfcer_core::writer::SaveOptions;
 
     let source = match std::fs::read(input) {
@@ -28005,19 +28059,21 @@ fn cmd_redact_apply(input: &Path, output: &Path, acknowledge_residuals: bool) ->
         }
     };
 
-    let (bytes, report) = match redact::apply_redactions(&doc, &SaveOptions::identity()) {
-        Ok(pair) => pair,
-        Err(err) => {
-            eprintln!("pdfcer: redaction refused: {err}");
-            return match err {
-                RedactError::ImageUndestroyable { .. }
-                | RedactError::NothingToApply
-                | RedactError::Encrypted => exit::EDIT_REFUSED,
-                RedactError::Write(_) => exit::SAVE_REFUSED,
-                _ => exit::RUNTIME_ERROR,
-            };
-        }
-    };
+    let redact_options = RedactOptions::with_residual_scope(residual_scope.into());
+    let (bytes, report) =
+        match redact::apply_redactions_with(&doc, &SaveOptions::identity(), &redact_options) {
+            Ok(pair) => pair,
+            Err(err) => {
+                eprintln!("pdfcer: redaction refused: {err}");
+                return match err {
+                    RedactError::ImageUndestroyable { .. }
+                    | RedactError::NothingToApply
+                    | RedactError::Encrypted => exit::EDIT_REFUSED,
+                    RedactError::Write(_) => exit::SAVE_REFUSED,
+                    _ => exit::RUNTIME_ERROR,
+                };
+            }
+        };
 
     if let Err(err) = std::fs::write(output, &bytes) {
         eprintln!("pdfcer: {}: {err}", output.display());
@@ -28077,6 +28133,29 @@ fn cmd_redact_apply(input: &Path, output: &Path, acknowledge_residuals: bool) ->
         report.vector_paths_intersecting,
         report.shadings_intersecting,
     );
+    // ★ THE RESIDUAL SWEEP'S OWN FIGURES. Computed since `Pass 284.0` and
+    // never printed by any shell until `Pass 310.1` -- exactly the R151 shape
+    // the comment above warns about, in the same function. Printed
+    // UNCONDITIONALLY, including the zeroes: "the sweep found nothing
+    // elsewhere" is the sentence an operator actually wants after a redaction,
+    // and a line that appears only on a non-zero count cannot say it.
+    //
+    // `matches_left` is the one to read after narrowing the scope: it counts
+    // what pdfcer FOUND and was TOLD NOT TO TOUCH. The notes below name the
+    // objects.
+    println!(
+        "  residual_sweep: scope={} entries_scrubbed={} objects_scrubbed={} \
+         content_streams_blanked={} matches_left={}",
+        match residual_scope {
+            ResidualScopeArg::MarkedOnly => "marked-only",
+            ResidualScopeArg::HiddenCarriers => "hidden-carriers",
+            ResidualScopeArg::WholeDocument => "whole-document",
+        },
+        report.residual_sweep_entries_scrubbed,
+        report.residual_sweep_objects_scrubbed,
+        report.residual_content_streams_blanked,
+        report.residual_matches_left,
+    );
     println!("  carriers (diligence sweep, ISO 32000-1 §12.5.6.23):");
     for c in &report.carriers {
         println!(
@@ -28100,6 +28179,17 @@ fn cmd_redact_apply(input: &Path, output: &Path, acknowledge_residuals: bool) ->
              an image whose samples pdfcer could not destroy (see the notes above). The output is \
              NOT fully redacted; the retained marks are still visible in it.",
             report.marks_retained
+        );
+    }
+    // ⚠️ SEPARATE FROM THE EXIT GATE BELOW, DELIBERATELY. "pdfcer could not
+    // scrub this" and "pdfcer was told not to" are different facts, and
+    // folding the second into the first would make every ordinary redaction
+    // of a phrase that also appears elsewhere exit non-zero.
+    if report.has_unscrubbed_matches() {
+        println!(
+            "  note: {} object(s) quote the redacted text outside the marked regions and were \
+             LEFT UNCHANGED under --residual-scope. Re-run with a wider scope to remove them.",
+            report.residual_matches_left
         );
     }
     if report.has_disclosed_residuals() && !acknowledge_residuals {
@@ -42350,6 +42440,7 @@ fn cmd_scan_offpage(
 #[allow(clippy::too_many_arguments)]
 fn cmd_redact_offpage_batch(
     paths: &[PathBuf],
+    residual_scope: ResidualScopeArg,
     recursive: bool,
     output: Option<&Path>,
     out_dir: Option<&Path>,
@@ -42376,7 +42467,7 @@ fn cmd_redact_offpage_batch(
             );
             return exit::EDIT_REFUSED;
         }
-        return cmd_redact_offpage(&files[0], out, tolerance, dry_run);
+        return cmd_redact_offpage(&files[0], out, residual_scope, tolerance, dry_run);
     }
 
     let Some(dir) = out_dir else {
@@ -42433,7 +42524,7 @@ fn cmd_redact_offpage_batch(
             continue;
         }
 
-        match cmd_redact_offpage(f, &target, tolerance, dry_run) {
+        match cmd_redact_offpage(f, &target, residual_scope, tolerance, dry_run) {
             code if code == exit::SUCCESS => {
                 // `cmd_redact_offpage` writes nothing when a file has no
                 // off-page content, and says so. Count the two apart: "126
@@ -42467,9 +42558,15 @@ fn cmd_redact_offpage_batch(
 /// separate verbs in this CLI for a good reason (a mark removes nothing), and
 /// they are fused here because "delete what is off the page" is one thing an
 /// operator asks for, not two.
-fn cmd_redact_offpage(input: &Path, output: &Path, tolerance: f64, dry_run: bool) -> u8 {
+fn cmd_redact_offpage(
+    input: &Path,
+    output: &Path,
+    residual_scope: ResidualScopeArg,
+    tolerance: f64,
+    dry_run: bool,
+) -> u8 {
     use pdfcer_core::annot_author::{Quad, RedactSpec};
-    use pdfcer_core::redact;
+    use pdfcer_core::redact::{self, RedactOptions};
     use pdfcer_core::vartext::Quadding;
     use pdfcer_core::writer::SaveOptions;
 
@@ -42575,13 +42672,16 @@ fn cmd_redact_offpage(input: &Path, output: &Path, tolerance: f64, dry_run: bool
             return exit_code_for_doc(&err);
         }
     };
-    let (bytes, report) = match redact::apply_redactions(&marked_doc, &SaveOptions::identity()) {
-        Ok(pair) => pair,
-        Err(err) => {
-            eprintln!("pdfcer: redaction refused: {err}");
-            return exit::EDIT_REFUSED;
-        }
-    };
+    let redact_options = RedactOptions::with_residual_scope(residual_scope.into());
+    let (bytes, report) =
+        match redact::apply_redactions_with(&marked_doc, &SaveOptions::identity(), &redact_options)
+        {
+            Ok(pair) => pair,
+            Err(err) => {
+                eprintln!("pdfcer: redaction refused: {err}");
+                return exit::EDIT_REFUSED;
+            }
+        };
     if let Err(err) = std::fs::write(output, &bytes) {
         eprintln!("pdfcer: {}: {err}", output.display());
         return exit::IO_ERROR;
@@ -42611,6 +42711,15 @@ fn cmd_redact_offpage(input: &Path, output: &Path, tolerance: f64, dry_run: bool
         report.images_cleared,
         report.images_removed,
         report.annotations_removed,
+    );
+    // The same sweep `redact-apply` runs, so the same figures, unconditionally.
+    println!(
+        "  residual_sweep: entries_scrubbed={} objects_scrubbed={} \
+         content_streams_blanked={} matches_left={}",
+        report.residual_sweep_entries_scrubbed,
+        report.residual_sweep_objects_scrubbed,
+        report.residual_content_streams_blanked,
+        report.residual_matches_left,
     );
     if report.has_disclosed_residuals() {
         eprintln!(
