@@ -5,7 +5,8 @@ detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
 **Written:** 2026-09-12, after `Pass 300.3` and the 530th filing.
-**Amended:** 2026-09-15 (again), after `Pass 307.0`, `Pass 308.0`/`308.2`, `Pass 308.1` — with which **`G020` is fully closed** — and `Pass 308.3` answering the new `G021`. Filings to the 560th. See **SINCE THE LAST HANDOFF** at the top of STATE —
+**Amended:** 2026-09-17, after `Pass 309.0`/`309.1` and `Pass 310.0`/`310.1`/`310.2`, filings to the 571st, **`v0.55.0` released**. See the newest **SINCE THE LAST HANDOFF** block at the top of STATE.
+**Previously amended:** 2026-09-15 (again), after `Pass 307.0`, `Pass 308.0`/`308.2`, `Pass 308.1` — with which **`G020` is fully closed** — and `Pass 308.3` answering the new `G021`. Filings to the 560th. See **SINCE THE LAST HANDOFF** at the top of STATE —
 everything below that block is carried forward unchanged and still true.
 
 ---
@@ -119,14 +120,18 @@ for a day. `grep -n 'exit' tools/run-gates.sh` costs nothing.
 
 ## STATE
 
-Workspace version `0.54.0`; the last release is **`v0.54.0`** (`8a2162ab`,
-2026-09-17 — 129 commits since `v0.53.0`). ★ Verify with `gh release list`
-before repeating it — a previous handoff carried a release number four
-versions stale for a day, and nothing in this file checks itself.
+Workspace version `0.55.0`; the last release is **`v0.55.0`** (`229e8635`,
+2026-09-17 — 9 commits since `v0.54.0`, which shipped the same day).
+★ Verify with `gh release list` before repeating it — a previous handoff
+carried a release number four versions stale for a day, and on 2026-09-17 this
+very line was left saying `0.54.0` while a new block three screens above it
+said `0.55.0`. **Nothing in this file checks itself**, and the stale half is
+always the one further from where you are editing.
 
-**`main` is pushed through the 530th filing** — ★ read CI's colour from
-GitHub yourself (`gh run list --branch main --limit 1`); this line records
-what was pushed, never what the server thought of it.
+**`main` is pushed through the 571st filing**, CI green at `229e8635` and
+`7419fb2f` — ★ read CI's colour from GitHub yourself
+(`gh run list --branch main --limit 1`); this line records what was pushed and
+what the server said at that moment, never what it says now.
 
 ### ★★★ `main` WAS RED FOR TEN HOURS AND TWO PUSHES LANDED ON IT
 
@@ -158,6 +163,66 @@ push, and the sweep would have caught it** — `run-gates.sh` reports this gate.
    intended direction is down. Both rows over cap on 2026-09-15 were trimmed
    by deleting reasoning that already lived in `ROADMAP.md` and the commit
    message — no fact was lost, which is the test for whether a trim is honest.
+
+### ★★★ SINCE THE LAST HANDOFF — 2026-09-17 (`Pass 309.x`, `310.x`, `v0.55.0`)
+
+Everything after this block is carried forward unchanged.
+
+**The operator reported redaction destroying content he never marked**, and he
+was right in a worse way than the report suggested. Marking `INVOICE 4412` on
+page 1 turned `INVOICE summary` on page 2 into `XXXXXXX summary`. Two
+independent causes, both in `redact::carrier_residual_sweep`:
+
+1. **No liveness test.** Every record of that sweep — decision records, doc
+   comments, `docs/core-api/` — calls its target an *abandoned* content
+   stream. Nothing in the code tested for that. The word lived only in prose,
+   never in a predicate, so the sweep blanked live page `/Contents`,
+   annotation `/AP /N`, form XObjects, Type-3 CharProcs and tiling patterns
+   with equal confidence. Filed as `R247`'s sixth instance.
+2. **A tokenised needle.** `redaction_evidence` expands each redacted run into
+   the whole run PLUS every whitespace-delimited token of four characters or
+   more, so redacting `INVOICE 4412` made the bare word `INVOICE` an
+   independent search term.
+
+Fixed by splitting the needle sets — tokens to invisible carriers, whole
+redacted runs only to anything drawable — and by gating the drawable half
+behind `redact::ResidualScope` (`MarkedOnly` / `HiddenCarriers` default /
+`WholeDocument`), carried on `RedactOptions` and set on the session.
+`Pass 310.2` then reconciled the sweep's detector with its actors: the detector
+was ASCII-case-insensitive, the two blankers were exact-byte, so a case variant
+was *found and not removed*. Both now share `text_match_ranges`. `R245`'s
+eleventh instance.
+
+### Three things from this session that will cost the next one if forgotten
+
+1. **`has_unscrubbed_matches()` must never be folded into
+   `has_disclosed_residuals()`.** They answer different questions. "pdfcer
+   could not act" drives the CLI's non-zero exit and `--acknowledge-residuals`;
+   "pdfcer was told not to act" must never fail a redaction, or every redaction
+   of a phrase appearing twice in a document exits non-zero. The temptation to
+   merge them is real — they are both "a match survived".
+2. **A librarian with no shell cannot tell committed work from uncommitted
+   work.** The 570th filing read `text_match_ranges` in the working tree,
+   concluded the dispatch's "310.2 still open" was stale, and filed all three
+   Passes under one commit. The source it read was real; the attribution was
+   not. `check-cited-commits-exist.py` cannot catch this — the wrong hash was
+   real and an ancestor of HEAD. Corrected as `R87`'s dated instance.
+   ⇒ **Dispatch a librarian AFTER committing, or tell it explicitly what is
+   uncommitted.**
+3. **`gh release create <tag> <assets...>` is not atomic.** A transient
+   `HTTP 500: Error saving asset` **rolled the whole release back** —
+   `gh release view` answered "release not found" while the error URL carried a
+   release id. Create the release bare, then `gh release upload --clobber` with
+   retries. Two failures before the third attempt stuck.
+
+**State:** `v0.55.0` tagged at `229e8635`, released, OneDrive slot `pdfcer2`
+written (`pdfcer1` keeps 0.54.0 as previous). Gate sweep green — 34 commands,
+420 `test result: ok`, zero failures. The packaged binary was smoke-tested from
+a fresh folder against the operator's own scenario, not only in unit tests.
+
+**Still open:** the GUI half. `pdfcer-gui` has not wired
+`EditSession::set_residual_scope`; the heads-up is `E001` in the request
+channel, and `FEATURES.md`'s redaction row is honestly `[ ] gui`.
 
 ### ★★★ SINCE THE LAST HANDOFF — 2026-09-15, later (`Pass 307.0`, `308.0`, `308.2`)
 
