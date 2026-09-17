@@ -85,6 +85,7 @@
 //!   surgery is built on.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::ops::Range;
 
 use crate::content::{ContentStream, ContentTokenKind};
 use crate::document::Document;
@@ -3071,12 +3072,8 @@ fn carrier_xmp(
     let mut scrubbed = decoded.clone();
     let mut changed = false;
     for t in redacted {
-        if replace_all_bytes(&mut scrubbed, t.as_bytes(), b'X') {
-            changed = true;
-        }
-        // Also the UTF-16BE encoding, in case the packet is UTF-16.
-        let u16be = utf16be(t);
-        if replace_all_bytes(&mut scrubbed, &u16be, b'X') {
+        // Both text-string encodings, in case the packet is UTF-16.
+        if blank_text_matches(&mut scrubbed, t, b'X') {
             changed = true;
         }
     }
@@ -3373,8 +3370,7 @@ fn carrier_residual_sweep(
                     // applied wherever the packet sits.
                     let mut scrubbed = decoded;
                     for t in &evidence {
-                        replace_all_bytes(&mut scrubbed, t.as_bytes(), b'X');
-                        replace_all_bytes(&mut scrubbed, &utf16be(t), b'X');
+                        blank_text_matches(&mut scrubbed, t, b'X');
                     }
                     dict.remove(b"Filter");
                     dict.remove(b"DecodeParms");
@@ -3548,7 +3544,7 @@ fn carrier_residual_sweep(
 /// would move every byte after the edit — which is precisely what the caller
 /// cannot afford, and is why this function is about syntax rather than
 /// values.
-fn blank_in_strings(operand: &mut [u8], needle: &[u8]) -> bool {
+fn blank_in_strings(operand: &mut [u8], needle: &str) -> bool {
     if needle.is_empty() {
         return false;
     }
@@ -3593,28 +3589,24 @@ fn blank_in_strings(operand: &mut [u8], needle: &[u8]) -> bool {
         }
     }
 
-    // Pass 2: replace only where every byte of the match is fillable.
+    // Pass 2: fill only where every byte of the match is fillable. The match
+    // itself comes from `text_match_ranges`, the same rule the detector used to
+    // decide this object carries evidence at all — so a capital letter cannot
+    // make a found residual unremovable.
     let mut changed = false;
-    if operand.len() < needle.len() {
-        return false;
-    }
-    let mut at = 0usize;
-    while at + needle.len() <= operand.len() {
-        let window = operand.get(at..at + needle.len());
+    for r in text_match_ranges(operand, needle) {
         let inside = fill
-            .get(at..at + needle.len())
+            .get(r.clone())
             .is_some_and(|f| f.iter().all(Option::is_some));
-        if inside && window == Some(needle) {
-            for k in at..at + needle.len() {
-                if let (Some(byte), Some(Some(f))) = (operand.get_mut(k), fill.get(k)) {
-                    *byte = *f;
-                }
-            }
-            changed = true;
-            at += needle.len();
-        } else {
-            at += 1;
+        if !inside {
+            continue;
         }
+        for k in r {
+            if let (Some(byte), Some(Some(f))) = (operand.get_mut(k), fill.get(k)) {
+                *byte = *f;
+            }
+        }
+        changed = true;
     }
     changed
 }
@@ -3671,10 +3663,7 @@ fn blank_show_strings(decoded: &[u8], evidence: &[String]) -> Option<Vec<u8>> {
             // page it is protecting is worse than no net, because the damage
             // arrives wearing the name of a precaution.
             for t in evidence {
-                if blank_in_strings(slice, t.as_bytes()) {
-                    changed = true;
-                }
-                if blank_in_strings(slice, &utf16be(t)) {
+                if blank_in_strings(slice, t) {
                     changed = true;
                 }
             }
@@ -3911,20 +3900,72 @@ fn decompose_containers(
     ));
 }
 
-/// Whether `value` (raw PDF string bytes) contains `needle` in either its
-/// ASCII/PDFDocEncoding form or its UTF-16BE form (§7.9.2's two text-string
-/// encodings). Case-insensitive on the ASCII form.
-fn bytes_contain_text(value: &[u8], needle: &str) -> bool {
+/// Every byte range of `value` carrying `needle` in either of §7.9.2's two
+/// text-string encodings — the ASCII/PDFDocEncoding form, matched
+/// ASCII-case-insensitively, or the UTF-16BE form, matched exactly.
+///
+/// Ranges are non-overlapping and ascending. A match in one encoding does not
+/// suppress a match in the other: a dictionary may legitimately carry both
+/// spellings of the same text.
+///
+/// # Why a range list rather than a `contains` predicate
+///
+/// The detector and the two functions that acted on its answer had drifted
+/// apart. The predicate was ASCII-case-insensitive; `blank_in_strings` and the
+/// byte-level replacer compared exact bytes. A carrier holding `Invoice 4412`
+/// against a redacted run of `INVOICE 4412` was therefore found and not
+/// removed, and the report called it `DisclosedNotScrubbed` — pdfcer
+/// disclosing a residual it could have taken out. `carrier_xmp` had the mirror
+/// image, where the actor *was* the detector, so the same carrier went
+/// unreported as `Absent`.
+///
+/// Returning the ranges makes "what counts as a match" one decision every
+/// caller inherits, instead of two spellings of one rule that agree only until
+/// one of them is improved (`R245`).
+fn text_match_ranges(value: &[u8], needle: &str) -> Vec<Range<usize>> {
+    let mut ranges: Vec<Range<usize>> = Vec::new();
     if needle.is_empty() {
-        return false;
+        return ranges;
     }
     let hay_lower: Vec<u8> = value.iter().map(u8::to_ascii_lowercase).collect();
     let need_lower: Vec<u8> = needle.bytes().map(|b| b.to_ascii_lowercase()).collect();
-    if contains_subslice(&hay_lower, &need_lower) {
-        return true;
+    push_matches(&hay_lower, &need_lower, &mut ranges);
+    push_matches(value, &utf16be(needle), &mut ranges);
+
+    ranges.sort_by_key(|r| r.start);
+    let mut deduped: Vec<Range<usize>> = Vec::new();
+    for r in ranges {
+        // The two encodings cannot legitimately overlap in one string, and a
+        // caller filling overlapping ranges would blank bytes twice for no
+        // gain — so the later of any overlapping pair is dropped.
+        if deduped.last().is_some_and(|prev| r.start < prev.end) {
+            continue;
+        }
+        deduped.push(r);
     }
-    let u16be = utf16be(needle);
-    contains_subslice(value, &u16be)
+    deduped
+}
+
+/// Append every non-overlapping occurrence of `needle` in `hay` to `out`.
+fn push_matches(hay: &[u8], needle: &[u8], out: &mut Vec<Range<usize>>) {
+    if needle.is_empty() || needle.len() > hay.len() {
+        return;
+    }
+    let mut i = 0usize;
+    while i + needle.len() <= hay.len() {
+        if hay.get(i..i + needle.len()) == Some(needle) {
+            out.push(i..i + needle.len());
+            i += needle.len();
+        } else {
+            i += 1;
+        }
+    }
+}
+
+/// Whether `value` (raw PDF string bytes) carries `needle` in either
+/// text-string encoding.
+fn bytes_contain_text(value: &[u8], needle: &str) -> bool {
+    !text_match_ranges(value, needle).is_empty()
 }
 
 /// UTF-16BE encoding of a string (no BOM).
@@ -3937,36 +3978,23 @@ fn utf16be(s: &str) -> Vec<u8> {
     out
 }
 
-/// Replace every occurrence of `needle` in `hay` with `fill`-repeated
-/// bytes of the same length. Returns whether anything changed.
-fn replace_all_bytes(hay: &mut [u8], needle: &[u8], fill: u8) -> bool {
-    if needle.is_empty() || needle.len() > hay.len() {
-        return false;
-    }
-    let mut changed = false;
-    let mut i = 0;
-    while i + needle.len() <= hay.len() {
-        if hay.get(i..i + needle.len()) == Some(needle) {
-            for j in i..i + needle.len() {
-                if let Some(slot) = hay.get_mut(j) {
-                    *slot = fill;
-                }
-            }
-            changed = true;
-            i += needle.len();
-        } else {
-            i += 1;
+/// Overwrite every occurrence of `needle` in `hay` — in either text-string
+/// encoding — with `fill`-repeated bytes of the same length. Returns whether
+/// anything changed.
+///
+/// Length-preserving by construction, which is what lets a caller edit a
+/// staged buffer whose spans it still holds. Shares [`text_match_ranges`] with
+/// the detector, so an object reported as carrying evidence is an object this
+/// can actually clear.
+fn blank_text_matches(hay: &mut [u8], needle: &str, fill: u8) -> bool {
+    let ranges = text_match_ranges(hay, needle);
+    let changed = !ranges.is_empty();
+    for r in ranges {
+        if let Some(slice) = hay.get_mut(r) {
+            slice.fill(fill);
         }
     }
     changed
-}
-
-/// First index of `needle` in `hay`, else `None`.
-fn contains_subslice(hay: &[u8], needle: &[u8]) -> bool {
-    if needle.is_empty() || needle.len() > hay.len() {
-        return false;
-    }
-    hay.windows(needle.len()).any(|w| w == needle)
 }
 
 /// One `/Redact` mark located in a document, as the review surfaces need

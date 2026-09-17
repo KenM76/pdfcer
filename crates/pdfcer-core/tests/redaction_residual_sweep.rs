@@ -609,6 +609,91 @@ fn blanking_a_matching_stream_does_not_take_its_other_words_with_it() {
     );
 }
 
+/// A drawable stream carrying the redacted run in a DIFFERENT CASE is blanked,
+/// not merely disclosed.
+///
+/// ★ This measures the detector and the actor against each other. The detector
+/// has always been ASCII-case-insensitive; the blanker compared exact bytes,
+/// so `Invoice 4412` against a redacted `INVOICE 4412` was FOUND, not removed,
+/// and fell through to `DisclosedNotScrubbed` — pdfcer reporting a residual it
+/// could have taken out. Both now share `text_match_ranges`, so the fixture
+/// asserts the stronger fact: the object is gone, and the sweep does not claim
+/// it failed.
+#[test]
+fn a_case_variant_of_the_run_is_blanked_rather_than_disclosed() {
+    let doc = Document::from_bytes(pdf_with_orphans_drawing("INVOICE 4412", &["Invoice 4412"]))
+        .expect("the fixture loads");
+    let mut session = pdfcer_core::edit::EditSession::new(doc);
+    session.set_residual_scope(ResidualScope::WholeDocument);
+    let marked = session
+        .mark_redactions_by_search("INVOICE 4412", false)
+        .expect("mark the region");
+    assert!(!marked.is_empty(), "the search found the drawn phrase");
+    let report = session.apply_redactions().expect("apply");
+    let (bytes, _) = session
+        .to_full_bytes(&SaveOptions::default())
+        .expect("a redacted session saves");
+
+    assert_eq!(
+        report.residual_content_streams_blanked, 1,
+        "the case variant is blanked, not disclosed; notes were {:?}",
+        report.notes
+    );
+    assert!(
+        !contains(&bytes, b"Invoice 4412"),
+        "and it is gone from the saved bytes"
+    );
+    assert_ne!(
+        carrier(&report, "residual_sweep"),
+        Some(CarrierAction::DisclosedNotScrubbed),
+        "the sweep must not report a failure it did not have"
+    );
+}
+
+/// An XMP packet quoting the redacted text in a DIFFERENT CASE is still
+/// scrubbed.
+///
+/// ★ The mirror image of the test above, and the worse half of the same
+/// defect. On the metadata path the actor WAS the detector — a byte-exact
+/// replace whose return value decided whether anything had been found — so a
+/// case-differing quote was not disclosed at all. Nothing was scrubbed and
+/// nothing was reported, which is the one outcome that tells a reader there is
+/// nothing to look at.
+///
+/// The packet in this fixture is unreferenced, so the catalog's `xmp` carrier
+/// is honestly `Absent` and the sweep's metadata branch is what handles it.
+/// That is the branch the assertion is about; asserting on the carrier line
+/// would be asserting about a different object.
+#[test]
+fn a_case_variant_in_an_xmp_packet_is_still_scrubbed() {
+    let doc = Document::from_bytes(pdf_with_orphans_drawing(
+        "Confidential",
+        &["Confidential stream orphan"],
+    ))
+    .expect("the fixture loads");
+    let mut session = pdfcer_core::edit::EditSession::new(doc);
+    let marked = session
+        .mark_redactions_by_search("Confidential", false)
+        .expect("mark the region");
+    assert!(!marked.is_empty(), "the search found the drawn phrase");
+    let report = session.apply_redactions().expect("apply");
+    let (bytes, _) = session
+        .to_full_bytes(&SaveOptions::default())
+        .expect("a redacted session saves");
+
+    assert!(
+        !contains(&bytes, b"CONFIDENTIAL xmp orphan"),
+        "the packet quotes CONFIDENTIAL against a redacted Confidential and \
+         must not survive a case difference; notes were {:?}",
+        report.notes
+    );
+    assert!(
+        report.residual_sweep_objects_scrubbed >= 1,
+        "and the sweep must say it acted; notes were {:?}",
+        report.notes
+    );
+}
+
 // ------------------------------------------------- 4. the counts and controls
 
 /// The sweep's counts are reported separately from `/Info`'s.
