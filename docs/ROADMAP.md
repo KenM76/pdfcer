@@ -6222,6 +6222,42 @@ closes out the *prior* filing's business rather than opening this one's.
 > **19 items removed 2026-09-10** because the Pass they describe had already shipped — see [`history/roadmap-nextup-already-shipped.md`](history/roadmap-nextup-already-shipped.md).
 > A queue that keeps finished work reads as longer than it is.
 
+### `Pass 310.0` — `ResidualScope`/`RedactOptions`: scope the redaction residual sweep by carrier visibility, default narrows off-selection content-stream matching — operator request 2026-09-17, filed 2026-09-17 (569th filing)
+
+**Operator's request, verbatim (2026-09-17):** *"I noticed that when I use the redaction tool on some content, if other content matches I haven't selected also gets removed or replaced with X. I'd like the option to only redact the content I have actually selected."*
+
+**Diagnosis.** `redact::carrier_residual_sweep`'s content-stream arm (`blank_show_strings`, `crates/pdfcer-core/src/redact.rs:3320`) blanks any text matching the redacted string in ANY content stream it scans, with no liveness test distinguishing a stream pdfcer's own surgery rewrote from one it never touched — live page `/Contents`, an annotation `/AP`, another page's stream entirely. **This corrects decision 146's "owed item 18" premise** (`ROADMAP.md` ~:4118-4126), which said blanking "needs no reachability walk (pdfcer already knows which content streams its own surgery rewrote)" — the shipped code carries no such restriction; the premise described intent, not the mechanism as built.
+
+**★ NOT an R249 violation — read this before touching the sweep.** `R249` (decision 146) forbids re-scoping a destructive sweep via a COMPUTED reachability/liveness walk, naming `redact::residual_sweep` as the checked mechanism. This Pass does not compute reachability. It changes WHAT THE SWEEP DOES with what it finds, keyed on carrier visibility (a static classification — is this carrier `/Info`/XMP-shaped, or a content stream — not a graph walk), and **every declined match is still reported** — nothing is silently unswept. `has_disclosed_residuals()`/`--acknowledge-residuals` still trip on a `HiddenCarriers` or `MarkedOnly` run that left content-stream matches in place. A future session reading "narrowed the residual sweep" should read this paragraph before assuming a collision.
+
+**API.** New `#[non_exhaustive]` enum `ResidualScope` (derives `Debug, Clone, Copy, PartialEq, Eq, Default`): `MarkedOnly` (no sweep action at all, report-only), `HiddenCarriers` (**new default** — scrubs invisible carriers only: `/Info`, XMP, and similar; leaves content-stream text untouched; reports what it left), `WholeDocument` (today's shipped behaviour, unchanged). New `RedactOptions` struct carrying the scope. `apply_redactions(doc, save_options)` **keeps its signature**, delegates to `RedactOptions::default()` — `pdfcer-gui` keeps building unchanged. New `apply_redactions_with(doc, save_options, redact_options)` takes the scope explicitly. The content-stream arm, when it does run (`WholeDocument`), must keep matching whole redacted runs only, never tokenized evidence (existing constraint, unchanged). New `CarrierAction::FoundNotScrubbed` variant + counter, populated by `MarkedOnly`/`HiddenCarriers` for every match they decline to act on. `docs/core-api/` updated same Pass.
+
+**Tests.** Re-point (strike-through convention, not delete) `an_abandoned_content_streams_drawn_text_is_blanked` (`crates/pdfcer-core/tests/redaction_residual_sweep.rs:293`, per the convention already at `:324-326`) to assert under an explicit `WholeDocument` scope — its assumption becomes an opt-in, not the default. New tests: one per scope's actual behaviour; one proving unmarked live-page text on another page survives `HiddenCarriers` and `MarkedOnly`; one proving `FoundNotScrubbed` fires and `has_disclosed_residuals()` still trips when a scope declines a real match.
+
+**Parity ground** (`pdfcer-acrobat-librarian`, relayed): Acrobat's redaction is selection-scoped by construction — it marks and removes only the regions the operator marked, and does not sweep unselected matching text elsewhere in the document. `WholeDocument` remains available for operators who want the stronger sweep; `HiddenCarriers` becomes the default because it sits closer to what the operator asked for without losing the invisible-carrier protection the sweep exists for.
+
+**FEATURES.md:** new *Planned* row, `core`/`cli` unticked; `gui` tracked separately via `pdfcer-gui`'s own feature-request channel.
+
+### `Pass 310.1` — CLI: `--residual-scope` on `redact-apply`/`redact-offpage`, and print the residual-sweep counts both commands already compute but never show — filed 2026-09-17 (569th filing), depends on `Pass 310.0`
+
+**Scope.** New flag `--residual-scope <marked-only|hidden-carriers|whole-document>` on `redact-apply` (`crates/pdfcer-cli/src/main.rs:1879`) and `redact-offpage` (`crates/pdfcer-cli/src/main.rs:1209`), default `hidden-carriers`, matching `Pass 310.0`'s core default.
+
+**Bug found in the same audit, fixed here (R151-shaped).** `cmd_redact_apply` computes `residual_sweep_entries_scrubbed`, `residual_sweep_objects_scrubbed`, `residual_content_streams_blanked` (`main.rs:28029-28080`) but prints NONE of them; `cmd_redact_offpage` has the identical gap (`main.rs:42615`). Rule 4 (fuzzy-never-sneaky) requires disclosing this in the CLI specifically because the invocation IS the commit — no session, no save-time disclosure to fall back on. Fix: print all three counts (plus `Pass 310.0`'s new `FoundNotScrubbed` count) on every invocation, unconditionally, not gated behind a verbosity flag.
+
+**Acceptance.** A `--residual-scope hidden-carriers` run against a fixture carrying unmarked matching text on another page prints `0` content streams blanked and a nonzero `FoundNotScrubbed` count; the same fixture under `--residual-scope whole-document` prints the same content-stream count the command always silently computed.
+
+**FEATURES.md:** same row as `Pass 310.0`; `cli` box ticks when this ships.
+
+### `Pass 310.2` — bug: the residual sweep's detector is case-insensitive/UTF-16BE-aware, its actors are case-sensitive exact-byte — false `DisclosedNotScrubbed` reports on case-differing matches — filed 2026-09-17 (569th filing), fix-on-discovery, depends on `Pass 310.0`
+
+**Diagnosis.** `bytes_contain_text` (`crates/pdfcer-core/src/redact.rs:3615`, the sweep's DETECTOR) is case-insensitive and UTF-16BE-aware; `blank_in_strings` (`redact.rs:3249`) and `replace_all_bytes` (`redact.rs:3640`) — the sweep's ACTORS — are case-sensitive exact-byte matchers. A case-differing occurrence trips the detector, the actor declines to touch it, and the sweep reports it as `DisclosedNotScrubbed` (`redact.rs:3140-3157`) as though it were a real carried residual, when it was never matched by the mechanism that would have acted on it.
+
+**Fix.** Unify the detector's and actors' matching rule — whichever direction is chosen, both sides must agree; do not silently narrow the detector to quiet the actor without disclosing the narrowing (fuzzy-never-sneaky). Found during this session's diagnosis of the operator's request; filed alongside `310.0`/`310.1` rather than deferred, per the project's fix-bugs-on-discovery standing directive.
+
+**Tests.** A case-differing occurrence is either acted on and NOT reported, or correctly left and reported — never both claimed-and-untouched in the same sweep result.
+
+**FEATURES.md:** no new row — this is a correctness fix inside the sweep `Pass 310.0` already adds a row for, not a new capability.
+
 ### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), ~~**NOT STARTED**~~ **SHIPPED `743830d` — see top of *Shipped***
 
 **★ Sourcing (hard rule 8).** Shell available. The request:
@@ -15152,6 +15188,16 @@ nothing gets forgotten, not as a commitment to build in this order.
 **The gate gap, named so nobody re-derives it:** `tools/check-cli-help-leads.py` passes on this literal — it checks that each *subcommand's* doc-comment summary is the first line of its own doc block, not the *top-level* `long_about`. No gate covers the `Cli` struct's own long-form text.
 
 **Scope:** rewrite `long_about` to state current status without naming a Pass count or stub number that will drift again — point at `pdfcer --help`'s own subcommand list or `docs/FEATURES.md` rather than restating a count in prose. Consider whether `check-cli-help-leads.py` (or a new, narrowly-scoped gate) should also check the top-level `long_about` for the specific stale phrases ("Pass 0 implements", "remaining subcommands are stubs") so this class of drift is caught mechanically rather than by a smoke test.
+
+### Unscoped — redacting a region backed by a resource SHARED across pages should decouple the shared object before editing, not mutate every page that references it — filed 2026-09-17 (569th filing, from the operator's 2026-09-17 redaction-scope report), no Pass ID
+
+**Parity ground** (`pdfcer-acrobat-librarian`, relayed): Acrobat does not decouple a shared resource before redacting through it — editing content backed by a resource referenced from multiple pages can damage every page that shares it, and Acrobat documents this as a known limitation rather than fixing it. A place pdfcer can exceed the parity reference (per the standing "exceed the parity reference when you can" directive) rather than merely match it.
+
+**Open question, not yet measured — do not assume an answer either way.** Whether pdfcer's existing redaction surgery already decouples a shared object (e.g. a Form XObject referenced from two pages' `/Contents`) before rewriting it, or currently mutates the shared object in place and so already carries this damage today. Needs a targeted fixture — one resource, two independent `/Contents` streams referencing it, redact through one — plus a round-trip check on the other, before this is scoped.
+
+**Scope, once measured.** If pdfcer already decouples: this closes as a `FEATURES.md`/doc note, no code change. If not: likely wants a shared-resource refcount check ahead of any in-place resource mutation; check whether `ARCHITECTURE.md` §5's round-trip/minimal-diff machinery already covers adjacent ground before assuming this is novel.
+
+**Relationship to `Pass 310.0`–`310.2`.** Independent of that work — this is about WHICH OBJECT gets edited, not what the residual sweep does with what it finds after editing. Both trace to the same operator report, at different layers: selection/decoupling precision here, sweep-behaviour scoping in family `310`.
 
 ### Unscoped — Audit every `FieldEdit`/`WidgetEdit` property: does its regeneration path actually READ it? — filed 2026-09-16 (562nd filing, `pdfcer-gui`'s own recommendation after `G022`/`G023`), no Pass ID
 
