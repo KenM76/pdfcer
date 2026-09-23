@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 249 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 250 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 249 public `EditSession` methods
+## 1. Verb index — all 250 public `EditSession` methods
 
-**Count: 249.** Established by brace-matched extraction of the six
+**Count: 250.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -83,7 +83,8 @@ and again at 232 when `Pass 306.0` added two (`split_text_object`,
 and again at 246 when `G030` added two (`move_text_runs`,
 `move_text_runs_in_form`), and again at 248 when `G036` added two
 (`find_ocr_layers`, `remove_ocr_layer`), and again at 249 when `G038`
-added `set_text_run_width`.
+added `set_text_run_width`, and again at 250 when `G035` added
+`merge_text_runs`.
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -1172,6 +1173,8 @@ said nothing about identity across edits — this section is that gap closed.*
 | Ask whether that move will be refused, and why | `vector::text_run_move_refusal(&TextObject, run_index) -> Option<VectorEditError>` | — |
 | **Fit one show operator to a page width** (through `Tz`, render mode kept, nothing after it moves) | `set_text_run_width(page_index, object_index, run_index, width_pts) -> Result<FormatReport, FormatError>` | — |
 | Ask whether that fit will be refused, and why | `vector::text_run_width_refusal(&TextObject, run_index) -> Option<VectorEditError>` | — |
+| **Merge consecutive show operators into one** (text joined with a separator, first run's state kept, scaled to span the originals by default) | `merge_text_runs(page_index, object_index, runs: &[usize], &MergeOptions) -> Result<MergeReport, FormatError>` | — |
+| Ask whether that merge will be refused on structure alone | `vector::text_merge_refusal(&TextObject, runs) -> Option<VectorEditError>` | — |
 | **Move several show operators as one edit** (a whole line) | `move_text_runs(page_index, object_index, runs: &[usize], dx, dy) -> Vec<String>` | — |
 | Ask whether that set move will be refused, and why | `vector::text_run_move_refusal_of_set(&TextObject, runs) -> Option<VectorEditError>` | — |
 | **Cut one text object into several** | `split_text_object(page_index, object_index, before_runs: &[usize])` | — |

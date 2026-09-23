@@ -14,8 +14,8 @@ index and ends with **Traps**.
 | file | covers | size |
 |---|---|---|
 | [`01-reading-and-model.md`](01-reading-and-model.md) | loading, the COS object model, pages, content streams, text extraction, fonts, vector picking/snapping, filters, colour, navigation, metadata | 3,133 lines · 170 clauses cited |
-| [`02-editing-and-saving.md`](02-editing-and-saving.md) | `EditSession` end to end — **all 249 public verbs**, the command/undo contract, the dirty set, the save path, the guard/refusal model, `EditError`'s 138 variants | 5,636 lines · 184 clauses cited |
-| [`03-capabilities.md`](03-capabilities.md) | ce dimensions, forms, markup, redaction, **off-canvas content**, OCR, print/imposition, rasterising, raster export — each with **★ what the UI must disclose** | 3,764 lines · 103 clauses cited |
+| [`02-editing-and-saving.md`](02-editing-and-saving.md) | `EditSession` end to end — **all 250 public verbs**, the command/undo contract, the dirty set, the save path, the guard/refusal model, `EditError`'s 138 variants | 5,639 lines · 184 clauses cited |
+| [`03-capabilities.md`](03-capabilities.md) | ce dimensions, forms, markup, redaction, **off-canvas content**, OCR, print/imposition, rasterising, raster export — each with **★ what the UI must disclose** | 3,793 lines · 103 clauses cited |
 
 > ### ★ Every figure above was stale, and the verb count caused an incident
 >

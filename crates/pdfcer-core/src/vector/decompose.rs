@@ -3391,6 +3391,9 @@ impl<'a> Decomposer<'a> {
                 _ => {}
             }
         }
+        // Once per operator, not per string: a `TJ` array is one run, so its
+        // box must include every string in it, not just the first.
+        self.close_text_run();
     }
 
     /// One show string: decode it into the preview AND lay it out into the
@@ -3399,7 +3402,6 @@ impl<'a> Decomposer<'a> {
     fn show_string(&mut self, bytes: &[u8]) {
         self.decode_show_string(bytes);
         self.advance_show_string(bytes);
-        self.close_text_run();
     }
 
     /// Fold the just-laid-out show operator's box into `runs`.
@@ -4637,6 +4639,20 @@ mod tests {
         // coordinate ⇒ a move to the RIGHT) opens a 10 pt gap before the
         // second glyph, so the run ends at 5 + 10 + 5 = 20.
         assert!((right_edge(b"BT /Widthy 10 Tf 0 0 Td [(A) -1000 (B)] TJ ET") - 20.0).abs() < 1e-6);
+    }
+
+    /// A `TJ` array is ONE run, so its box covers every string in it —
+    /// including the ones after the first, and after a leading empty string.
+    #[test]
+    fn a_tj_runs_box_covers_every_string_in_the_array() {
+        let run_right = |src: &[u8]| {
+            let m = model_with_fonts(src);
+            let t = texts(&m).remove(0);
+            assert_eq!(t.runs.len(), 1, "one TJ is one run");
+            t.runs[0].bounds.max.x
+        };
+        assert!((run_right(b"BT /Widthy 10 Tf 0 0 Td [(A) -1000 (B)] TJ ET") - 20.0).abs() < 1e-6);
+        assert!((run_right(b"BT /Widthy 10 Tf 0 0 Td [() -1000 (B)] TJ ET") - 15.0).abs() < 1e-6);
     }
 
     /// A scaling/translating `Tm` and a `cm` both reach the box, because

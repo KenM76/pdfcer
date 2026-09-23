@@ -1000,6 +1000,11 @@ pub enum CommandKind {
     /// act nor what Undo will take back. See
     /// [`EditSession::split_text_object`].
     SplitTextObject,
+    /// Several consecutive **text runs were merged into one** show operator
+    /// (`G035`). Its own kind because it removes runs: a history reading
+    /// "formatted text" would not say that Undo brings them back. See
+    /// [`EditSession::merge_text_runs`].
+    MergeTextRuns,
     /// ONE **anchor** was removed from a path object (Pass 36.1): the segment
     /// operator that produced it was excised (or, for a subpath's first
     /// anchor, its follower was promoted to the new `m`), joining its
@@ -15026,6 +15031,95 @@ impl EditSession {
             ));
         }
         Ok(report)
+    }
+
+    /// **Merge consecutive text runs** of one text object into a single show
+    /// operator (`G035`) — so a word an OCR engine or a producer split across
+    /// several operators (`Inv` + `oice`) becomes one run that edits, selects
+    /// and searches as one.
+    ///
+    /// The first run's operator is replaced by one carrying every run's
+    /// characters, with [`MergeOptions::separator`](crate::text_edit::MergeOptions::separator)
+    /// between each pair; the other runs' operators are removed. The
+    /// positioning and state operators between them stay, so nothing after
+    /// the merge moves. The merged run keeps the first run's state, including
+    /// its render mode (an OCR word stays invisible at `3 Tr`).
+    ///
+    /// Under [`MergeFit::Span`](crate::text_edit::MergeFit::Span), the default,
+    /// `Tz` is set so the merged run reaches from the first run's origin to the
+    /// last run's end; under [`MergeFit::Natural`](crate::text_edit::MergeFit::Natural)
+    /// it keeps the first run's `Tz`.
+    ///
+    /// `object_index` and `runs` use [`Self::move_text_run`]'s numbering;
+    /// `runs` must be consecutive and ascending. **Runs after the last merged
+    /// run renumber down by `runs.len() - 1`.** Page objects only. Pre-check
+    /// with [`text_merge_refusal`](crate::vector::text_merge_refusal). One
+    /// undo entry, `CommandKind::MergeTextRuns`.
+    ///
+    /// # Errors
+    ///
+    /// [`FormatError::TextRun`](crate::text_edit::FormatError::TextRun) for
+    /// the structural refusals (`MergeNeedsTwoRuns`, `TextRunOutOfRange`,
+    /// `MergeRunsNotContiguous`, `MergeWouldMoveNextRun`, an object out of
+    /// range or not text); `MergeStateDiffers`, `MergeLineShowOperator`,
+    /// `MergeCrossesMarkedContent`, `MergeCompositeFont`,
+    /// `MergeRunsOutOfOrder` and `MergePositionUnknown`;
+    /// [`FormatError::Refused`](crate::text_edit::FormatError::Refused) when
+    /// the font cannot show the separator. Every refusal happens before any
+    /// mutation.
+    pub fn merge_text_runs(
+        &mut self,
+        page_index: usize,
+        object_index: usize,
+        runs: &[usize],
+        opts: &crate::text_edit::MergeOptions,
+    ) -> Result<crate::text_edit::MergeReport, crate::text_edit::FormatError> {
+        use crate::text_edit::FormatError as FmtError;
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(FmtError::Encrypted);
+        }
+        let model = self.page_objects(page_index).map_err(|e| match e {
+            EditError::PageOutOfRange { index, .. } => FmtError::PageIndex(index),
+            EditError::DocumentEncrypted => FmtError::Encrypted,
+            EditError::VectorEditContent(c) => FmtError::Content(c),
+            EditError::PageTree(t) => FmtError::PageTree(t),
+            other => FmtError::Unsupported(other.to_string()),
+        })?;
+        let count = model.objects.len();
+        let obj = model.objects.get(object_index).ok_or(
+            crate::vector::VectorEditError::ObjectOutOfRange {
+                index: object_index,
+                count,
+            },
+        )?;
+        let text = vector_object_as_text(obj, object_index)?;
+        if let Some(refusal) = crate::vector::text_merge_refusal(text, runs) {
+            return Err(refusal.into());
+        }
+        let spans: Vec<crate::span::ByteSpan> = runs
+            .iter()
+            .filter_map(|&i| text.runs.get(i).map(|r| r.bytes))
+            .collect();
+        let pages = self.pages()?;
+        let page = pages
+            .get(page_index)
+            .ok_or(FmtError::PageIndex(page_index))?
+            .clone();
+        let target =
+            crate::text_edit::edit::EditPlanTarget::page(&page).map_err(FmtError::from_edit)?;
+        let stream = self
+            .current_page_content(&page)
+            .map_err(FmtError::Content)?;
+        let plan =
+            crate::text_edit::merge::plan_merge(&self.view(), &target, &stream, &spans, opts)?;
+        let command = self.text_edit_command(
+            CommandKind::MergeTextRuns,
+            target.content_id,
+            &page,
+            plan.new_content,
+        );
+        self.commit(command);
+        Ok(plan.report)
     }
 
     /// **Move a SET of text runs** inside one text object by one page-space

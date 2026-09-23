@@ -496,6 +496,37 @@ pub enum VectorEditError {
         /// The run whose width was refused.
         index: usize,
     },
+    /// A text-run merge named fewer than two runs (`G035`).
+    #[error("merging needs at least two runs (got {count})")]
+    MergeNeedsTwoRuns {
+        /// How many runs were named.
+        count: usize,
+    },
+    /// A text-run merge named runs that are not consecutive and in order
+    /// (`G035`). Only runs next to each other in the content can become one
+    /// show operator without reordering what is drawn.
+    #[error(
+        "run {next} does not directly follow run {after}; merge consecutive runs, listed in order"
+    )]
+    MergeRunsNotContiguous {
+        /// The earlier run of the pair.
+        after: usize,
+        /// The run that should have been `after + 1`.
+        next: usize,
+    },
+    /// Merging would move the run after the last merged run, which starts
+    /// where that run ends (`G035`).
+    ///
+    /// The merged show operator is placed where the first run was, and the
+    /// positioning operators between the runs are kept, so the pen does not
+    /// end where the last run ended. Include that run in the merge instead.
+    #[error(
+        "run {index} starts where the last merged run ends and would move; include it in the merge"
+    )]
+    MergeWouldMoveNextRun {
+        /// The run that would move.
+        index: usize,
+    },
     /// A **multi-node** drag named no nodes at all.
     ///
     /// Refused rather than treated as a successful no-op: an empty move
@@ -2606,6 +2637,61 @@ pub(crate) fn text_run_width_scale(
 #[must_use]
 pub fn text_run_width_refusal(obj: &TextObject, run_index: usize) -> Option<VectorEditError> {
     text_run_width_scale(obj, run_index).err()
+}
+
+/// Whether merging `runs` of a text object into one show operator would be
+/// refused by its structure — **the guard
+/// [`EditSession::merge_text_runs`](crate::edit::EditSession::merge_text_runs)
+/// runs first**, exported so a shell can grey the command before the gesture
+/// (`G035`).
+///
+/// Refuses fewer than two runs, a run out of range, runs that are not
+/// consecutive and in ascending order, and a merge the run after it inherits
+/// its position from.
+///
+/// `None` does not promise success. What depends on the text state and the
+/// font — a differing font or colour, a marked-content boundary between the
+/// runs, a `'`/`"` show — is found when the edit is planned, and named there.
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_core::content::ContentStream;
+/// use pdfcer_core::vector::{decompose, NoXObjects, Matrix, VectorObject};
+/// use pdfcer_core::vector::text_merge_refusal;
+///
+/// let src = b"BT /F1 10 Tf 1 0 0 1 10 700 Tm (A) Tj ET".to_vec();
+/// let cs = ContentStream::parse(src).unwrap();
+/// let model = decompose(&cs, Matrix::IDENTITY, &NoXObjects);
+/// # if let Some(VectorObject::Text(_)) = model.objects.first() {
+/// let VectorObject::Text(text) = &model.objects[0] else { unreachable!() };
+/// assert!(text_merge_refusal(text, &[0]).is_some()); // one run is not a merge
+/// # }
+/// ```
+#[must_use]
+pub fn text_merge_refusal(obj: &TextObject, runs: &[usize]) -> Option<VectorEditError> {
+    if runs.len() < 2 {
+        return Some(VectorEditError::MergeNeedsTwoRuns { count: runs.len() });
+    }
+    let count = obj.runs.len();
+    if let Some(&index) = runs.iter().find(|&&i| i >= count) {
+        return Some(VectorEditError::TextRunOutOfRange { index, count });
+    }
+    for pair in runs.windows(2) {
+        if let [after, next] = *pair
+            && next != after + 1
+        {
+            return Some(VectorEditError::MergeRunsNotContiguous { after, next });
+        }
+    }
+    let last = runs.last().copied().unwrap_or(0);
+    let following = last + 1;
+    match obj.runs.get(following) {
+        Some(r) if r.positioned_by == RunPositioning::Inherited => {
+            Some(VectorEditError::MergeWouldMoveNextRun { index: following })
+        }
+        _ => None,
+    }
 }
 
 /// Plan the move of **one show operator** inside a text object by a

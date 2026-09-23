@@ -1534,6 +1534,51 @@ pub enum FormatError {
     /// out of range, not a text object, or a singular matrix.
     #[error(transparent)]
     TextRun(#[from] crate::vector::VectorEditError),
+    /// A run to merge is shown in a different text state from the first run
+    /// (`G035`), so showing its codes in the first run's state would change
+    /// how they draw. `run` counts from 0 within the merge.
+    #[error(
+        "run {run} of the merge has a different {parameter} from the first run, so the runs cannot be shown as one"
+    )]
+    MergeStateDiffers {
+        /// Position of the differing run within the merge (0 = first).
+        run: usize,
+        /// The text-state parameter that differs.
+        parameter: &'static str,
+    },
+    /// A run to merge is shown with `'` or `"` (`G035`), which also starts a
+    /// new line.
+    #[error(
+        "run {run} of the merge is shown with a ' or \" operator, which also moves to a new line; merge only runs shown with Tj or TJ"
+    )]
+    MergeLineShowOperator {
+        /// Position of the run within the merge (0 = first).
+        run: usize,
+    },
+    /// A marked-content boundary (`BMC`/`BDC`/`EMC`) lies between the runs
+    /// (`G035`), so they belong to different tagged sequences.
+    #[error(
+        "a marked-content boundary lies between the runs, so they belong to different tagged content and cannot be merged"
+    )]
+    MergeCrossesMarkedContent,
+    /// The runs' font is composite (Type 0) (`G035`).
+    #[error("the runs use the composite font '{base_font}', which merging does not support yet")]
+    MergeCompositeFont {
+        /// The font's `/BaseFont`.
+        base_font: String,
+    },
+    /// The last run does not end to the right of where the first begins,
+    /// along the first run's baseline (`G035`), so there is no width to span.
+    #[error(
+        "the last run does not end after the first run begins along its baseline, so the merged run has no width to span; use the natural fit instead"
+    )]
+    MergeRunsOutOfOrder,
+    /// The runs' positions could not be determined (`G035`), so a spanning
+    /// width cannot be computed.
+    #[error(
+        "the runs' positions cannot be determined (a font earlier in the text object could not be measured), so the spanning width cannot be computed; use the natural fit instead"
+    )]
+    MergePositionUnknown,
     /// The page's content stream could not be parsed.
     #[error("content stream parse failed: {0}")]
     Content(#[from] ContentError),
@@ -1549,7 +1594,7 @@ impl FormatError {
     /// Map a reused 14.1 [`EditError`] (from the shared locate/match/classify/
     /// save helpers) onto the corresponding [`FormatError`], so a caller sees
     /// one error vocabulary.
-    fn from_edit(err: EditError) -> Self {
+    pub(crate) fn from_edit(err: EditError) -> Self {
         match err {
             EditError::Refused(r) => Self::Refused(r),
             EditError::PageIndex(i) => Self::PageIndex(i),

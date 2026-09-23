@@ -89,9 +89,9 @@ pub use edit::{
     plan_move_handle, plan_move_many, plan_move_node, plan_move_nodes, plan_move_objects,
     plan_move_subpath, plan_move_text_object, plan_move_text_run, plan_move_text_runs,
     plan_recolour, plan_split_text_object, plan_transform_many, remap_index_after_delete,
-    text_object_line_split_points, text_object_split_points, text_run_move_refusal,
-    text_run_move_refusal_of_set, text_run_width_refusal, text_runs_share_a_line,
-    text_split_refusal,
+    text_merge_refusal, text_object_line_split_points, text_object_split_points,
+    text_run_move_refusal, text_run_move_refusal_of_set, text_run_width_refusal,
+    text_runs_share_a_line, text_split_refusal,
 };
 pub use geometry::{Bounds, Matrix, Point, Rgb, cubic_from_v, cubic_from_y, rect_corners};
 pub use hit::{

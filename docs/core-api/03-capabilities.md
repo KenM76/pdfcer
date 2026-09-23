@@ -1563,6 +1563,35 @@ page transform). The free preflight `vector::text_run_width_refusal(&TextObject,
 run)` answers the structural refusals without a session. CLI: `pdfcer
 text-run-width --object N --run N --width PTS`.
 
+**Merge runs** (`G035`): `EditSession::merge_text_runs(page, object, runs,
+&MergeOptions)` joins two or more consecutive show operators of one text object
+into one. The first run's show is replaced by the joined strings (separator
+encoded through the font's inverse encoding) and the others are emptied; the
+positioning operators between them stay, so nothing outside the merged runs
+moves. `MergeOptions` carries `separator` (`MergeSeparator::None` default,
+`Space`, `Text(String)`) and `fit`: `MergeFit::Span` (default) sets `Tz` so the
+merged run runs from the first run's origin to the last run's end, mapped into
+the first run's text space, kerns included; `MergeFit::Natural` keeps the first
+run's `Tz`. Differing `Tz` between runs is allowed (the OCR case); every other
+text-state parameter must match. Returns `MergeReport { text, runs_merged,
+h_scale_change, disclosures }`. Runs after the merge renumber down by
+`runs.len() - 1`. Refusals, all before mutation: `FormatError::TextRun` wrapping
+`MergeNeedsTwoRuns { count }`, `MergeRunsNotContiguous { after, next }`,
+`MergeWouldMoveNextRun { index }` (a following run that inherits its position),
+`ObjectOutOfRange` or `TextRunOutOfRange`; `MergeStateDiffers { run, parameter }`
+(font, size, `Tc`, `Tw`, `Ts`, `Tr`, fill colour, stroke colour when stroked, or
+marked-content sequence); `MergeLineShowOperator { run }` (`'`/`"`);
+`MergeCrossesMarkedContent`; `MergeCompositeFont { base_font }`;
+`MergeRunsOutOfOrder` and `MergePositionUnknown` (span fit only — use
+`Natural`). The free preflight `vector::text_merge_refusal(&TextObject, runs)`
+answers the structural refusals without a session. CLI: `pdfcer text-run-merge
+--object N --run A,B[,C] [--separator none|space|TEXT] [--fit span|natural]`.
+
+A decomposer fix rides with it: a `TJ` array is now one run whose box covers
+every string in the array (it previously closed the run per string, so a
+multi-string `TJ`'s bounds stopped at the first string, and a leading empty
+string dropped the run).
+
 **New text** takes a rendering mode too: `AddTextRequest::with_render_mode(m)`
 (field `render_mode: u8`, default `0`). Every added run now also resets
 `Tc`/`Tw`/`Tz`/`Ts` to their initial values and sets `Tr` explicitly, so a page

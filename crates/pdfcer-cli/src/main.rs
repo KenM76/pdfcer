@@ -779,6 +779,16 @@ struct Cli {
 /// "no password supplied" and therefore cannot produce a wrong decryption —
 /// it can only produce a `PasswordRequired` the operator will understand.
 static CLI_PASSWORD: std::sync::OnceLock<Option<Vec<u8>>> = std::sync::OnceLock::new();
+/// `text-run-merge --fit`: how wide the merged run is (`G035`).
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+enum MergeFitArg {
+    /// Scale the merged run so it spans from the first run's start to the
+    /// last run's end.
+    Span,
+    /// Keep the first run's own horizontal scaling.
+    Natural,
+}
+
 /// What pdfcer does with a file that contradicts itself or omits something the
 /// standard requires (`Pass 283.0`).
 ///
@@ -9254,6 +9264,56 @@ enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// **Merge consecutive text runs into one** — join the show operators an
+    /// OCR engine or a producer split a word or line into, so it selects,
+    /// searches and edits as one run (`G035`, ISO 32000-1 §9.4.3).
+    ///
+    /// The first run keeps its origin, font, size and render mode (an
+    /// invisible OCR word stays invisible). The text of every listed run is
+    /// joined, with `--separator` between each pair, and the merged run is
+    /// scaled with `Tz` so it spans from the first run's start to the last
+    /// run's end (`--fit span`, the default). `--fit natural` keeps the first
+    /// run's own scaling instead, so the merged run may be shorter or longer
+    /// than the runs it replaces.
+    ///
+    /// Runs after the merge renumber down by one less than the number merged.
+    ///
+    /// REFUSED, before any mutation: fewer than two runs; runs that are not
+    /// consecutive and ascending; a run after the merge that inherits its
+    /// position (it would move); runs that differ in font, size, spacing,
+    /// rise, render mode or colour; a marked-content boundary between them; a
+    /// `'` or `"` show; and a composite (Type0) font.
+    TextRunMerge {
+        /// Input PDF.
+        input: PathBuf,
+        /// 0-based paint-order object index on the page.
+        #[arg(long)]
+        object: usize,
+        /// 1-based page number.
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        /// 0-based show-operator indices to merge, consecutive and ascending,
+        /// comma-separated or repeated — the numbering `object-list` reports
+        /// as `runs=`.
+        #[arg(long, required = true, num_args = 1.., value_delimiter = ',')]
+        run: Vec<usize>,
+        /// Text written between each pair of runs: `none` (the default),
+        /// `space`, or any other literal text.
+        #[arg(long, default_value = "none")]
+        separator: String,
+        /// How wide the merged run is.
+        #[arg(long, value_enum, default_value_t = MergeFitArg::Span)]
+        fit: MergeFitArg,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// **Cut one text object into several** so each line can be moved and
     /// styled on its own (`Pass 306.0`, ISO 32000-1 §9.4).
     ///
@@ -12969,6 +13029,27 @@ fn run() -> ExitCode {
             object,
             run,
             width,
+            output: &output,
+            mode,
+            verify_undo,
+        }),
+        Command::TextRunMerge {
+            input,
+            object,
+            page,
+            run,
+            separator,
+            fit,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_text_run_merge(&TextRunMergeArgs {
+            input: &input,
+            page,
+            object,
+            runs: &run,
+            separator: &separator,
+            fit,
             output: &output,
             mode,
             verify_undo,
@@ -41870,6 +41951,93 @@ fn cmd_text_run_move(args: &TextRunMoveArgs<'_>) -> u8 {
             .join(","),
         args.dx,
         args.dy,
+        args.mode.name(),
+        args.output.display(),
+        outcome.changed,
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+        u32::from(outcome.undo_verified),
+        u32::from(outcome.undo_identical),
+    );
+    finish_edit(args.input, &outcome)
+}
+
+/// Grouped arguments for `text-run-merge` (`G035`).
+struct TextRunMergeArgs<'a> {
+    input: &'a Path,
+    page: u32,
+    object: usize,
+    runs: &'a [usize],
+    separator: &'a str,
+    fit: MergeFitArg,
+    output: &'a Path,
+    mode: SaveMode,
+    verify_undo: bool,
+}
+
+/// `text-run-merge` — join consecutive show operators into one (`G035`).
+///
+/// One `text-run-merge …` line with the merged text, the scale written and
+/// the usual save-report fields, then the exit code from [`finish_edit`].
+/// Disclosures go to stderr. A refusal exits `EDIT_REFUSED` before anything
+/// is written.
+fn cmd_text_run_merge(args: &TextRunMergeArgs<'_>) -> u8 {
+    use pdfcer_core::text_edit::{FormatError, MergeFit, MergeOptions, MergeSeparator};
+    let page_index = (args.page.max(1) - 1) as usize;
+    let separator = match args.separator {
+        "none" => MergeSeparator::None,
+        "space" => MergeSeparator::Space,
+        other => MergeSeparator::Text(other.to_owned()),
+    };
+    let fit = match args.fit {
+        MergeFitArg::Span => MergeFit::Span,
+        MergeFitArg::Natural => MergeFit::Natural,
+    };
+    let opts = MergeOptions::default().separator(separator).fit(fit);
+    let (source, mut session) = match open_for_edit(args.input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let report = match session.merge_text_runs(page_index, args.object, args.runs, &opts) {
+        Ok(r) => r,
+        Err(err) => {
+            eprintln!(
+                "pdfcer: text-run-merge refused on {}: {err}",
+                args.input.display()
+            );
+            return match err {
+                FormatError::Write(_) => exit::SAVE_REFUSED,
+                FormatError::Content(_) | FormatError::PageTree(_) => exit::RUNTIME_ERROR,
+                _ => exit::EDIT_REFUSED,
+            };
+        }
+    };
+    report_disclosures(&report.disclosures);
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        args.output,
+        args.mode,
+        ProducerArg::Preserve,
+        args.verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let r = &outcome.report;
+    let runs: Vec<String> = args.runs.iter().map(ToString::to_string).collect();
+    println!(
+        "text-run-merge {} page {} object={} runs={} merged={} text={:?} h_scale={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        args.input.display(),
+        args.page.max(1),
+        args.object,
+        runs.join(","),
+        report.runs_merged,
+        report.text,
+        report
+            .h_scale_change
+            .map_or_else(|| "unchanged".to_owned(), |(_, pct)| format!("{pct:.4}")),
         args.mode.name(),
         args.output.display(),
         outcome.changed,

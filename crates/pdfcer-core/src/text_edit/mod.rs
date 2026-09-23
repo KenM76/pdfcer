@@ -65,6 +65,7 @@ pub mod edit;
 pub mod encoding;
 pub mod format;
 pub mod forms;
+pub mod merge;
 pub mod model;
 /// Pouring a plain-text file into as many NEW pages as it needs — the import
 /// half of `export_text`. Paginates around the shipped 16.1 boxed
@@ -106,6 +107,7 @@ pub use forms::{
     FormRef, FormScan, InvocationSet, InvocationSite, MAX_FORM_DEPTH, ResourceTier,
     form_objects_on_page, invocation_set, scan_page_forms,
 };
+pub use merge::{MergeFit, MergeOptions, MergeReport, MergeSeparator};
 pub use model::{
     Block, BlockDiagnostics, BlockKind, BlockRecognitionOptions, EditableTextModel, GlyphRef, Line,
     TextPosition,
