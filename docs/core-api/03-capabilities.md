@@ -2638,7 +2638,8 @@ pixmap per **sheet**:
 | `plan_n_up(printable_pt, &page_sizes, &NUpSpec)` | `644` | `Result<NUpLayout, ImpositionError>` |
 | `plan_booklet(printable_pt, &page_sizes, &BookletSpec)` | `1145` | `Result<BookletLayout, ImpositionError>` |
 | `booklet_pairing(page_count, Binding)` | `1025` | `Result<Vec<BookletSheet>, ImpositionError>` |
-| `plan_poster(printable_pt, page_pt, &PosterSpec)` | `1435` | `Result<PosterLayout, ImpositionError>` |
+| `plan_poster(printable_pt, page_pt, &PosterSpec)` | `1552` | `Result<PosterLayout, ImpositionError>` |
+| `poster_tile_label(row, column, rows, columns, document)` | `1369` | `String` |
 | `fit_into_cell(page, cell, auto_rotate)` | `269` | `CellFit { rect, scale, rotated }` |
 
 Specs: `NUpSpec { grid: NUpGrid, order: PageOrder, border, auto_rotate }`
@@ -2646,6 +2647,25 @@ Specs: `NUpSpec { grid: NUpGrid, order: PageOrder, border, auto_rotate }`
 `:911`; `PosterSpec { tile_scale, overlap_pt, cut_marks, labels, tile_only_large_pages, max_tiles }`
 `:1243`. Limits: `MAX_CELLS_PER_SHEET = 1024` `:132`,
 `DEFAULT_MAX_TILES = 400` `:142`, `MAX_BOOKLET_SHEETS = 100_000` `:150`.
+
+**Poster marks and labels.** When `cut_marks` or `labels` is set,
+`plan_poster` reserves a `POSTER_MARK_BAND_PT` (18 pt) band:
+
+- along the top when either flag is set;
+- along the left when `cut_marks` is set.
+
+Every tile's `sheet_pt` and `trim_pt` already starts inside the band, so do
+not shift them yourself. The band can cost extra sheets. A band that leaves
+no printable area returns `EmptySheet`.
+
+The engine gives geometry, and you draw it:
+
+- `PosterLayout::mark_band_pt()` returns the band depths.
+- `cut_mark_segments(&tile) -> Vec<MarkSegment>` gives one mark per leading
+  cut line. Each mark lies in the band and stops `POSTER_MARK_GAP_PT` (3 pt)
+  short of the drawing.
+- `label_rect(&tile) -> Option<Rect>` gives the label box in the top band.
+  Its height is the font size.
 
 ### 6.2 Minimal worked sequences
 
@@ -2882,6 +2902,19 @@ question rather than changing what is drawn), and **`with_backdrop`**
 (`Pass 248.0` — `backdrop: PageBackdrop`, `White` by default; `Transparent`
 keeps the page group's own alpha instead of compositing it onto paper. See
 **§7.7**; a canvas should never set it, an *export* is what it is for).
+
+`stroke_display: StrokeDisplay` sets line weights. It takes one of three
+values:
+
+- `Actual` is the default.
+- `Hairline` caps every stroke at one device pixel. It is for a canvas.
+- `Fixed { device_px }` sets every stroke to exactly `device_px` device
+  pixels, thinner and thicker alike. It is for print; convert millimetres
+  with `mm / 25.4 × dpi`.
+
+A non-finite or non-positive `device_px` renders as `Actual`. Each changed
+stroke is counted: `Hairline` counts into `Diagnostics::strokes_hairlined`,
+and `Fixed` into `strokes_width_fixed`. The enum is `#[non_exhaustive]`.
 
 `AnnotationScope` (`annot.rs:348`) is the comments-and-forms filter:
 
