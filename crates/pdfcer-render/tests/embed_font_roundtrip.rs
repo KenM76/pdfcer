@@ -169,3 +169,27 @@ fn embedded_add_allocates_at_least_six_new_objects() {
         "sanity: the page must have existed before the edit"
     );
 }
+
+/// Text added in an embedded face reads back as the text that was typed.
+///
+/// §9.10.3 requires `/ToUnicode` to be a stream. Written as a string it is
+/// present in the file, so a check for the key passes, yet every reader
+/// ignores it and the run extracts, searches and copies as nothing.
+#[test]
+fn text_added_in_an_embedded_face_extracts_as_typed() {
+    use pdfcer_core::page_tree;
+    use pdfcer_core::text_extract::{self, ExtractOptions};
+
+    let plan = plan_subset(&donor(), 0, &['A', 'B', 'C'], "pdfceSubsetDemo", "ABCDEF")
+        .expect("the donor covers A, B and C");
+    let doc = Document::from_bytes(base_page()).expect("fixture parses");
+    let req = AddTextRequest::new(0, (72.0, 700.0), "CAB").with_embedded_face(plan);
+    let out = addtext::add_text(&doc, &req).expect("embedded add-text succeeds");
+
+    let saved = Document::from_bytes(out.bytes).expect("saved file parses");
+    let pages = page_tree::pages(&saved).expect("page tree");
+    let text = text_extract::extract_page(&saved, &pages[0], 0, &ExtractOptions::default())
+        .expect("extracts")
+        .plain_text();
+    assert!(text.contains("CAB"), "added text did not extract:\n{text}");
+}

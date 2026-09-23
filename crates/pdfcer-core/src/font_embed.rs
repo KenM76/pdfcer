@@ -139,6 +139,13 @@ pub struct FontEmbedPlan {
 }
 
 impl FontEmbedPlan {
+    /// The `/ToUnicode` CMap's bytes (§9.10.3), for the caller to stage as
+    /// the stream [`build_objects`] takes.
+    #[must_use]
+    pub fn to_unicode_cmap(&self) -> Vec<u8> {
+        to_unicode_cmap(&self.glyphs)
+    }
+
     /// `SUBSET+FamilyName`, the `/BaseFont` and `/FontName` value.
     ///
     /// The single place the `+` is inserted. ISO 32000-1 §9.6.4 requires
@@ -265,6 +272,14 @@ impl EmbeddedFontObjects {
 ///
 /// # Errors
 ///
+/// `to_unicode_stream` is the stream the caller staged
+/// [`FontEmbedPlan::to_unicode_cmap`]'s bytes into, for the same reason: a
+/// stream's data lives in the staging buffer, which this module does not own.
+/// §9.10.3 requires `/ToUnicode` to be a stream; a string there is ignored by
+/// every reader, leaving the text unextractable.
+///
+/// # Errors
+///
 /// Propagates [`FontEmbedPlan::validate`], and returns
 /// [`FontEmbedError::ObjectNumbersExhausted`] if five consecutive numbers do
 /// not fit.
@@ -272,6 +287,7 @@ pub fn build_objects(
     plan: &FontEmbedPlan,
     first_number: u32,
     program_stream: Object,
+    to_unicode_stream: Object,
 ) -> Result<EmbeddedFontObjects, FontEmbedError> {
     plan.validate()?;
 
@@ -384,8 +400,6 @@ pub fn build_objects(
     // refused every other outline kind, so this is not a silent assumption.
     desc.insert(Name::from(b"FontFile2"), Object::Reference(file_id));
 
-    let tounicode = to_unicode_cmap(&plan.glyphs);
-
     Ok(EmbeddedFontObjects {
         font_dict_id: type0_id,
         objects: vec![
@@ -393,7 +407,7 @@ pub fn build_objects(
             (cid_id, Object::Dict(cid)),
             (desc_id, Object::Dict(desc)),
             (file_id, program_stream),
-            (tounicode_id, tounicode),
+            (tounicode_id, to_unicode_stream),
         ],
     })
 }
@@ -455,7 +469,7 @@ fn widths_array(glyphs: &[SubsetGlyph]) -> Vec<Object> {
 /// by construction (it is a subset), and one entry per glyph is trivially
 /// verifiable as injective, which standing rule R110 will require when
 /// composite runs become editable.
-fn to_unicode_cmap(glyphs: &[SubsetGlyph]) -> Object {
+fn to_unicode_cmap(glyphs: &[SubsetGlyph]) -> Vec<u8> {
     let mut s = String::from(
         "/CIDInit /ProcSet findresource begin\n\
          12 dict begin\n\
@@ -479,7 +493,7 @@ fn to_unicode_cmap(glyphs: &[SubsetGlyph]) -> Object {
         s.push_str("endbfchar\n");
     }
     s.push_str("endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend\n");
-    Object::String(s.into_bytes())
+    s.into_bytes()
 }
 
 #[cfg(test)]
@@ -538,7 +552,8 @@ mod tests {
         let pre_existing: Vec<ObjId> = (1u32..=9).map(|n| ObjId::new(n, 0)).collect();
         let first_free = 10u32;
 
-        let out = build_objects(&plan(), first_free, Object::Null).expect("plan is valid");
+        let out =
+            build_objects(&plan(), first_free, Object::Null, Object::Null).expect("plan is valid");
         let written = out.written_ids();
 
         for id in &written {
@@ -568,7 +583,7 @@ mod tests {
     fn cff_donors_are_refused_by_name_not_silently_mis_emitted() {
         let mut p = plan();
         p.outline_kind = OutlineKind::Cff;
-        let err = build_objects(&p, 10, Object::Null).unwrap_err();
+        let err = build_objects(&p, 10, Object::Null, Object::Null).unwrap_err();
         assert_eq!(
             err,
             FontEmbedError::OutlineKindUnsupported {
@@ -593,7 +608,7 @@ mod tests {
             let mut p = plan();
             p.subset_tag = bad.to_owned();
             assert!(
-                build_objects(&p, 10, Object::Null).is_err(),
+                build_objects(&p, 10, Object::Null, Object::Null).is_err(),
                 "subset tag {bad:?} should have been refused — §9.6.4 requires exactly six \
                  uppercase ASCII letters, and a malformed tag makes the font unrecognisable as \
                  a subset to every consumer, including pdfcer's own is_subset_tag"
@@ -601,7 +616,7 @@ mod tests {
         }
         // Positive control: the valid tag must still pass, or the test above
         // proves only that the function rejects everything.
-        assert!(build_objects(&plan(), 10, Object::Null).is_ok());
+        assert!(build_objects(&plan(), 10, Object::Null, Object::Null).is_ok());
     }
 
     #[test]
@@ -609,21 +624,21 @@ mod tests {
         let mut p = plan();
         p.glyphs.clear();
         assert_eq!(
-            build_objects(&p, 10, Object::Null).unwrap_err(),
+            build_objects(&p, 10, Object::Null, Object::Null).unwrap_err(),
             FontEmbedError::EmptySubset
         );
 
         let mut p = plan();
         p.program.clear();
         assert_eq!(
-            build_objects(&p, 10, Object::Null).unwrap_err(),
+            build_objects(&p, 10, Object::Null, Object::Null).unwrap_err(),
             FontEmbedError::EmptyProgram
         );
     }
 
     #[test]
     fn object_number_exhaustion_is_refused_rather_than_wrapping() {
-        let err = build_objects(&plan(), u32::MAX - 2, Object::Null).unwrap_err();
+        let err = build_objects(&plan(), u32::MAX - 2, Object::Null, Object::Null).unwrap_err();
         assert_eq!(err, FontEmbedError::ObjectNumbersExhausted);
     }
 
@@ -671,9 +686,7 @@ mod tests {
     /// claim and the check is evidence (R93).
     #[test]
     fn authored_to_unicode_is_injective() {
-        let Object::String(bytes) = to_unicode_cmap(&plan().glyphs) else {
-            panic!("expected a string object");
-        };
+        let bytes = to_unicode_cmap(&plan().glyphs);
         let text = String::from_utf8(bytes).expect("CMap is ASCII");
         assert!(text.contains("<0001> <0041>"), "CID 1 -> 'A':\n{text}");
         assert!(text.contains("<0002> <0042>"), "CID 2 -> 'B':\n{text}");
@@ -709,9 +722,7 @@ mod tests {
             width: 1000,
             unicode: '\u{20B9F}',
         }];
-        let Object::String(bytes) = to_unicode_cmap(&glyphs) else {
-            panic!("expected a string object");
-        };
+        let bytes = to_unicode_cmap(&glyphs);
         let text = String::from_utf8(bytes).expect("CMap is ASCII");
         assert!(
             text.contains("<0001> <D842DF9F>"),

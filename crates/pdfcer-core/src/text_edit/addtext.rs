@@ -705,9 +705,14 @@ pub fn add_text(doc: &Document, req: &AddTextRequest) -> Result<AddTextOutcome, 
             staging.extend_from_slice(&plan.program);
             let prog_span = ByteSpan::new(prog_start, plan.program.len());
             let program_stream = make_font_program_stream(prog_span, plan.program.len());
+            let cmap = plan.to_unicode_cmap();
+            let cmap_span = ByteSpan::new(base_len + staging.len(), cmap.len());
+            staging.extend_from_slice(&cmap);
+            let cmap_stream = make_raw_stream(cmap_span, cmap.len());
 
-            let objects = crate::font_embed::build_objects(plan, font_num, program_stream)
-                .map_err(AddTextError::Embed)?;
+            let objects =
+                crate::font_embed::build_objects(plan, font_num, program_stream, cmap_stream)
+                    .map_err(AddTextError::Embed)?;
             // The page's /Font entry must point at the /Type0 wrapper, not at
             // any of its parts. `build_objects` returns that id explicitly
             // rather than leaving the caller to assume it is the first —
