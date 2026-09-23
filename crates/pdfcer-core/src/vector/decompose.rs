@@ -60,18 +60,16 @@
 //!
 //! ### Bounded memory (the 50k-object page)
 //!
-//! [`PageObjects`] now carries owned `String`s, so the cost is capped **at
-//! decomposition**, not at display: a preview is cut at
+//! [`PageObjects`] carries owned `String`s, so the cost is capped **at
+//! decomposition**, not at display: each show operator's text is cut at
 //! [`MAX_TEXT_PREVIEW_CHARS`] characters and the decode loop *stops there*
-//! (a 10 kB show string is not decoded and then thrown away), and font
-//! names are cut at [`MAX_FONT_NAME_BYTES`]. Worst case per text object is
-//! therefore ~256 B of preview (64 chars × 4 bytes for astral code points)
-//! plus two ≤64 B names plus their `String` headers — under ~450 B. A
-//! hostile page of 50,000 text objects costs ≈22 MB of preview at the
-//! absolute worst and ≈5 MB for realistic Latin text, against the
-//! [`MAX_OBJECTS`] ceiling of 1,000,000 objects that already bounds the
-//! object list itself. Truncation is **disclosed**
-//! ([`TextPreview::Decoded::truncated`]), never silent.
+//! (a 10 kB show string is not decoded and then thrown away), one
+//! decomposition decodes at most [`MAX_TEXT_PREVIEW_PAGE_CHARS`] in total,
+//! and font names are cut at [`MAX_FONT_NAME_BYTES`]. The per-run cap is what
+//! lets a 237-operator CAD object report every operator's text; the page
+//! ceiling is the memory bound (≤ 4 MB of preview at four bytes per astral
+//! code point, however hostile the `/ToUnicode` expansion). Truncation is
+//! **disclosed** ([`TextPreview::Decoded::truncated`]), never silent.
 //!
 //! ## Agreement with the renderer (the Z2 risk, decision 011)
 //!
@@ -139,22 +137,21 @@ pub const MAX_NODES: usize = 4_000_000;
 /// `page_bbox`", which is merely imprecise.
 pub const MAX_TEXT_RUNS: usize = 4_096;
 
-/// How many decoded characters of a text object's shown string
-/// [`TextPreview::Decoded`] retains.
+/// How many decoded characters of **one show operator's** string
+/// [`TextPreview::Decoded`] retains — so [`TextObject::run_text`] can read
+/// every run of an object, not only the runs before a shared budget ran out.
 ///
-/// A *preview*, not the text: the consumer is a one-line object row and a
-/// one-line status readout, both of which elide well before this. The
-/// number is set here rather than at display time because it is the
-/// **memory bound** (module docs' "Bounded memory") — a page of 50,000 text
-/// objects must not be able to make the object model larger than the file
-/// it came from. Callers that want a page's actual text call
-/// [`crate::text_extract::extract_page`], which is the pipeline for that
-/// question and streams rather than retaining.
-///
-/// 64 is chosen to comfortably contain a caption, a dimension label or a
-/// short heading — the strings that make a row identifiable — while a
-/// paragraph-sized run is cut and **says** it was cut.
-pub const MAX_TEXT_PREVIEW_CHARS: usize = 64;
+/// 256 holds a CAD general-note line or a BOM description whole; a
+/// paragraph-sized show string is cut and **says** it was cut (the object's
+/// `truncated`). Callers that want a page's text with spacing and reading
+/// order call [`crate::text_extract::extract_page`].
+pub const MAX_TEXT_PREVIEW_CHARS: usize = 256;
+
+/// Total decoded characters one decomposition retains across every text
+/// object — the memory bound behind [`MAX_TEXT_PREVIEW_CHARS`] (module docs'
+/// "Bounded memory"). Real pages use a few thousand; past the ceiling a run's
+/// text is withheld (empty range) and its object reports `truncated`.
+pub const MAX_TEXT_PREVIEW_PAGE_CHARS: usize = 1 << 20;
 
 /// Byte ceiling on a retained font name ([`TextFont::resource`] and
 /// [`TextFont::base_font`]).
@@ -544,8 +541,9 @@ pub enum TextPreview {
     Unavailable,
     /// Decoding ran and produced characters.
     Decoded {
-        /// The decoded characters, at most [`MAX_TEXT_PREVIEW_CHARS`] of
-        /// them.
+        /// The decoded characters, at most [`MAX_TEXT_PREVIEW_CHARS`] per
+        /// run, concatenated in run order ([`TextRun::text_range`] indexes
+        /// each run's slice).
         ///
         /// Sourced characters only: the codes are mapped through the
         /// §9.10.2 ladder and concatenated **verbatim**, with none of
@@ -557,8 +555,8 @@ pub enum TextPreview {
         /// [`ExtractedText::sourced_text`](crate::text_extract::ExtractedText::sourced_text)
         /// treats them.
         text: String,
-        /// Whether the shown string ran past [`MAX_TEXT_PREVIEW_CHARS`] and
-        /// was cut. Disclosed so a display can mark the elision rather than
+        /// Whether any run's shown string ran past [`MAX_TEXT_PREVIEW_CHARS`],
+        /// or the page past [`MAX_TEXT_PREVIEW_PAGE_CHARS`], and was cut. Disclosed so a display can mark the elision rather than
         /// silently present a prefix as the whole string.
         truncated: bool,
         /// Whether **some** codes in the decoded prefix defeated the ladder
@@ -788,8 +786,10 @@ impl TextObject {
     ///
     /// `None` is returned when the index is out of range, when the preview
     /// is [`TextPreview::Unavailable`] / [`TextPreview::Undecodable`] /
-    /// [`TextPreview::Empty`], and when the run opened after the preview hit
-    /// [`MAX_TEXT_PREVIEW_CHARS`]. Callers that need to TELL those apart —
+    /// [`TextPreview::Empty`]. A run that opened after the page-wide
+    /// [`MAX_TEXT_PREVIEW_PAGE_CHARS`] ran out reads as `Some("")` with the
+    /// object's `truncated` set; no real page reaches it. Callers that need to
+    /// TELL those apart —
     /// a GUI readout wanting to say *"no font resolver"* rather than *"no
     /// text"* — read [`Self::preview`] directly, which is why every one of
     /// those distinctions is preserved there. What this accessor promises
@@ -2400,13 +2400,16 @@ struct TextAccum {
     max_font_size: f64,
     text_matrix: Matrix,
     line_matrix: Matrix,
-    /// Decoded characters so far, never longer than
+    /// Decoded characters so far: each run's contribution is at most
     /// [`MAX_TEXT_PREVIEW_CHARS`] characters.
     preview: String,
     /// Character count of `preview` (tracked rather than recounted, since
     /// `String::chars().count()` is O(n) and this is checked per code).
     preview_chars: usize,
-    /// Whether decoding stopped at the cap with codes still to come.
+    /// Characters the currently open run has contributed — reset when a show
+    /// operator opens a run, checked against [`MAX_TEXT_PREVIEW_CHARS`].
+    run_chars: usize,
+    /// Whether decoding stopped at a cap with codes still to come.
     truncated: bool,
     /// Codes in the decoded prefix that the §9.10.2 ladder mapped.
     decoded_codes: usize,
@@ -2447,6 +2450,7 @@ impl TextAccum {
             line_matrix: Matrix::IDENTITY,
             preview: String::new(),
             preview_chars: 0,
+            run_chars: 0,
             truncated: false,
             decoded_codes: 0,
             failed_codes: 0,
@@ -2513,6 +2517,9 @@ struct Decomposer<'a> {
     /// group in force for that section (`None` for non-`/OC`/unresolved). The
     /// innermost `Some` is the current layer.
     oc_stack: Vec<Option<ObjId>>,
+    /// Preview characters this decomposition may still retain
+    /// ([`MAX_TEXT_PREVIEW_PAGE_CHARS`]).
+    preview_budget: usize,
 }
 
 impl<'a> Decomposer<'a> {
@@ -2534,6 +2541,7 @@ impl<'a> Decomposer<'a> {
             diag: DecomposeDiagnostics::default(),
             total_nodes: 0,
             oc_stack: Vec::new(),
+            preview_budget: MAX_TEXT_PREVIEW_PAGE_CHARS,
         }
     }
 
@@ -2616,6 +2624,7 @@ impl<'a> Decomposer<'a> {
                 // characters are already in `preview` and the start offset
                 // is unrecoverable.
                 t.current_run_text_start = t.preview.len();
+                t.run_chars = 0;
             }
         }
 
@@ -3423,7 +3432,7 @@ impl<'a> Decomposer<'a> {
         let run_tokens = t.current_run_tokens.take();
         let run_matrix = t.current_run_matrix.take();
         // Clamped to the preview's current length so a run that opened
-        // AFTER the MAX_TEXT_PREVIEW_CHARS cap stopped appending yields an
+        // AFTER the page budget stopped appending yields an
         // empty range rather than a backwards one. `start > end` would
         // panic the slice in `run_text`, and on exactly the documents this
         // exists for — a CAD sheet whose labels run past the cap.
@@ -3571,7 +3580,8 @@ impl<'a> Decomposer<'a> {
     }
 
     /// Decode one show string's bytes into the in-progress preview through
-    /// the §9.10.2 ladder, stopping at [`MAX_TEXT_PREVIEW_CHARS`].
+    /// the §9.10.2 ladder, stopping at the run's [`MAX_TEXT_PREVIEW_CHARS`] or
+    /// the page's [`MAX_TEXT_PREVIEW_PAGE_CHARS`].
     ///
     /// **Stops decoding, not just appending.** The cap is a work bound as
     /// well as a memory bound: a hostile page can carry a megabyte of show
@@ -3595,7 +3605,7 @@ impl<'a> Decomposer<'a> {
             t.decode_attempted = true;
         }
         for code in font.codes(bytes) {
-            if t.preview_chars >= MAX_TEXT_PREVIEW_CHARS {
+            if t.run_chars >= MAX_TEXT_PREVIEW_CHARS || self.preview_budget == 0 {
                 t.truncated = true;
                 return;
             }
@@ -3611,7 +3621,7 @@ impl<'a> Decomposer<'a> {
                 t.decoded_codes += 1;
             }
             for ch in text.chars() {
-                if t.preview_chars >= MAX_TEXT_PREVIEW_CHARS {
+                if t.run_chars >= MAX_TEXT_PREVIEW_CHARS || self.preview_budget == 0 {
                     // One code can map to several characters (§9.10.3), so
                     // the cap can be reached mid-code; the rest of THIS
                     // code's characters are elided too, and disclosed.
@@ -3620,6 +3630,8 @@ impl<'a> Decomposer<'a> {
                 }
                 t.preview.push(ch);
                 t.preview_chars += 1;
+                t.run_chars += 1;
+                self.preview_budget -= 1;
             }
         }
     }
@@ -4750,7 +4762,7 @@ mod tests {
         );
     }
 
-    /// The memory bound, asserted rather than trusted: a long string is cut
+    /// The per-run cap, asserted rather than trusted: a long string is cut
     /// at `MAX_TEXT_PREVIEW_CHARS` and SAYS it was cut.
     #[test]
     fn a_long_string_is_truncated_at_the_documented_cap_and_discloses_it() {
@@ -4767,6 +4779,68 @@ mod tests {
             }
             other => panic!("expected a decoded preview, got {other:?}"),
         }
+    }
+
+    /// G031: the cap is per RUN. An early long run is cut, and every later
+    /// run still reads whole — on a CAD object of hundreds of operators a
+    /// shared budget left all but the first few empty.
+    #[test]
+    fn the_preview_cap_is_per_run_so_later_runs_stay_readable() {
+        let long = "L".repeat(MAX_TEXT_PREVIEW_CHARS + 10);
+        let mut src = format!("BT /F1 12 Tf 10 10 Td ({long}) Tj");
+        for i in 0..100 {
+            src.push_str(&format!(" 0 -14 Td (RUN{i:03}) Tj"));
+        }
+        src.push_str(" ET");
+        let m = model_with_fonts(src.as_bytes());
+        let t = texts(&m).remove(0);
+        assert_eq!(t.runs.len(), 101, "fixture shape");
+        let TextPreview::Decoded { truncated, .. } = &t.preview else {
+            panic!("expected a decoded preview, got {:?}", t.preview);
+        };
+        assert!(truncated, "the long run was cut and says so");
+        assert_eq!(
+            t.run_text(0).map(|s| s.chars().count()),
+            Some(MAX_TEXT_PREVIEW_CHARS)
+        );
+        assert_eq!(t.run_text(1), Some("RUN000"));
+        assert_eq!(t.run_text(100), Some("RUN099"));
+    }
+
+    /// The page ceiling holds across objects: once
+    /// `MAX_TEXT_PREVIEW_PAGE_CHARS` is spent, later runs are withheld and
+    /// their object says it was cut.
+    #[test]
+    fn the_page_ceiling_bounds_the_preview_across_objects() {
+        let run = format!("({}) Tj ", "W".repeat(MAX_TEXT_PREVIEW_CHARS));
+        let per_object = 1_000;
+        let objects = MAX_TEXT_PREVIEW_PAGE_CHARS / (per_object * MAX_TEXT_PREVIEW_CHARS) + 2;
+        let mut src = String::new();
+        for _ in 0..objects {
+            src.push_str("BT /F1 12 Tf 10 10 Td ");
+            src.push_str(&run.repeat(per_object));
+            src.push_str("ET\n");
+        }
+        let m = model_with_fonts(src.as_bytes());
+        let ts = texts(&m);
+        assert_eq!(ts.len(), objects, "fixture shape");
+        let total: usize = ts
+            .iter()
+            .map(|t| match &t.preview {
+                TextPreview::Decoded { text, .. } => text.chars().count(),
+                _ => 0,
+            })
+            .sum();
+        assert_eq!(total, MAX_TEXT_PREVIEW_PAGE_CHARS);
+        let last = ts.last().unwrap();
+        assert_eq!(last.run_text(0), Some(""));
+        assert!(matches!(
+            &last.preview,
+            TextPreview::Decoded {
+                truncated: true,
+                ..
+            }
+        ));
     }
 
     /// The font is the one in effect at the FIRST show operator, not the

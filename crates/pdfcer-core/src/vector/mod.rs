@@ -76,10 +76,10 @@ pub(crate) use decompose::collect_form_leaves;
 pub use decompose::{
     DecomposeDiagnostics, DevicePaintSpace, DocumentFonts, DocumentXObjects, FillRule,
     FontResolver, FormLeaf, ImageObject, ImageSource, MAX_FONT_NAME_BYTES, MAX_NODES, MAX_OBJECTS,
-    MAX_TEXT_PREVIEW_CHARS, NoFonts, NoXObjects, PageObjects, PaintStyle, PathObject, PathPaint,
-    RunPositioning, Segment, Subpath, TextBoundsBasis, TextFont, TextObject, TextPreview, TextRun,
-    TokenRange, VectorObject, XObjectResolver, XObjectShape, decompose, decompose_page,
-    decompose_with_fonts,
+    MAX_TEXT_PREVIEW_CHARS, MAX_TEXT_PREVIEW_PAGE_CHARS, NoFonts, NoXObjects, PageObjects,
+    PaintStyle, PathObject, PathPaint, RunPositioning, Segment, Subpath, TextBoundsBasis, TextFont,
+    TextObject, TextPreview, TextRun, TokenRange, VectorObject, XObjectResolver, XObjectShape,
+    decompose, decompose_page, decompose_with_fonts,
 };
 pub use edit::{
     Handle, LineSplitOptions, MixedSelection, PlannedEdit, SingularPolicy, SplitGranularity,
