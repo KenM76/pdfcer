@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-23 (584th filing) — `FEATURES.md`-only correction: eight stale `gui` boxes ticked, four missing symbols added
+
+**Shipped:** None — no Pass, no code changed. A `FEATURES.md` correction filing, source: `pdfcer-gui`'s
+`open/note_2026-09-20-eight-gui-boxes-in-your-features-table-are-stale-and-four-of-our-symbols-are-not-in-your-file.md`.
+
+**Decisions made this session:**
+- Engineer's ruling on the ticking bar: `FEATURES.md`'s own stated bar — "an operator can reach it in a real `pdfcer-gui` build" — is satisfied by all eight rows the note names, including the one the note itself flagged as ambiguous under a hardened *reached-and-driven* reading. All eight `gui` boxes ticked on **reach**, worded as reached-not-driven where the note said so, never rounded up to "driven."
+
+**Findings + decisions:**
+- Eight rows corrected: "Open a PDF that contradicts itself" (driven, `load_anomalies`), "Ask which characters a text run will accept" (reached, not driven), "Read and write a pop-up's `/Open` state" (reached both ways, write half not driven), "Author a comment reply" (reached, not driven), "Write a field's `/DA`" (reached, not driven), "Scope the residual sweep by carrier visibility" (driven on the bytes), "Signing hardening" (driven, `signing` family — the row's own "`pdfcer-gui` has not wired `sign`" sentence was stale and is replaced), and the Planned "Paint `/MK` `/BG`/`/BC`" row, which now has all three of core/cli/gui and per the Planned section's own header ("a `[x]` here means the model or verb exists and only the named shell is missing") no longer belongs there — moved to *Implemented → Forms (AcroForm)*, directly beside the existing (and already-correct, per the note's §4) baked-colour row, reworded to state reach without a driven claim.
+- Row 6's citation of `E001` as an open request was stale — `E001` closed 2026-09-17 (`archive/2026-09-17-E001-redaction-residual-scope-done.md`, `INDEX.md` CONSUMED) — fixed in place.
+- Four symbols cited in the note as absent from `FEATURES.md` (`with_duplicate_keys`/`DuplicateKeyPolicy`, `FieldEdit::with_appearance`/`FieldAppearance`, `set_residual_scope`, `WidgetEdit::with_border_color`) were each grepped against `crates/` and confirmed at HEAD before being added to the cell of the row that already covers the capability, alongside the CLI/other-symbol spelling already present: `LoadOptions::with_duplicate_keys`/`DuplicateKeyPolicy` (`document.rs:1819`/`parser.rs:285`), `FieldEdit::with_appearance(FieldAppearance)` (`edit.rs:22688`/`22092`), `EditSession::set_residual_scope` (`edit.rs:9289`), `WidgetEdit::with_border_color` (`edit.rs:22860`, between `struct WidgetEdit` at `22404` and `struct WidgetEditOutcome` at `23096`).
+- The note's §4 "not claiming" boundary held: the already-ticked Implemented `/MK` row (core/cli/gui all `[x]`) was left untouched, no claim made about its baking.
+
+**Still in flight:**
+- Two of this filing's corrections (`E001` closed, signing now driven) are the kind hard rule 11 asks to be swept for elsewhere the claim might be restated (`ROADMAP.md`, `ARCHITECTURE.md`). That broader sweep was out of scope for this dispatch (explicitly `FEATURES.md`-only) and is flagged as owed, not performed.
+- A `Grep` for lines over 1,200 characters in `FEATURES.md` turned up dozens of pre-existing rows already well past the per-row cap this agent's own SIZE RULE states — this predates this filing and both edited/moved rows here are no longer past that norm than their neighbours; flagged for the engineer, not corrected here (out of scope, and correcting it would be exactly the "fix files to a standard" commission the documentation-first rule warns against doing via fan-out).
+
+**For next session:** No new Pass filed. Next free Pass family remains **323** per the prior filing.
+
+**Sourcing (hard rule 8).** No shell/Bash tool available this filing, despite the environment block's prose claiming one — consistent with the 576th filing's note of the same mismatch; treated the actual tool list, not the prose, as authoritative. All four symbol locations above were confirmed by `Grep`/`Read` against live `crates/` source at the time of writing, not relayed. Both `docs/FEATURES.md` and this entry were left **uncommitted** — no `git commit -F` was run; the dispatching engineer holds the changed paths.
+
 ## 2026-09-23 (583rd filing) — `Pass 322.1` (`88bd4144`): EMF export can keep text as real text records, closing `G033`
 
 **Shipped:**
