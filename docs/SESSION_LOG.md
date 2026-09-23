@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-23 (585th filing) — `Pass 323.0` (`38e385b2`): SVG keep-text also keeps text drawn from bare-CFF fonts (`G033` follow-up)
+
+**Shipped:**
+- `Pass 323.0` — the Unscoped Backlog remainder `Pass 322.0` filed (582nd filing): SVG's `KeepText` refused any font program that wasn't already an sfnt, which caught not just exotic CAD-embedded CFF but the bundled Standard-14 substitutes themselves (also bare CFF), so plain Helvetica/Times/Courier text always outlined. New `webfont::wrap_cff` frames a bare CFF program as a minimal `OTTO` sfnt (advances/bounds evaluated from the charstrings), refusing by name on a non-1000 em, >65,535 glyphs, or an unevaluable glyph. `svg_text::plan_run` now gates on `is_embeddable_program` (sfnt or bare CFF) instead of sfnt alone.
+
+**Decisions made this session:** None — a font-subsetting mechanism extension, not a crate-boundary/library-choice/invariant call.
+
+**Findings + decisions:**
+- `SvgTextOutcome::fallback_not_sfnt` now counts Type 1 (`/FontFile`) only — same field name, doc comment updated, no API break. The CLI's `svg-text:` line is unchanged in shape.
+- Tests: unit tests on the framed face's advances/lsb/glyph-count and its refusals; integration tests on `hello.pdf` (bundled Standard-14) and an embedded-Type1C fixture now export `KeepText` with every glyph within 0.05px of the outline export; sabotage on the gate and the wrap each failed 4 integration tests plus the unit test. Headless Chrome, fallback family stripped, drew the Type1C page with the same ink bbox as the outline export.
+- No `Cargo.toml` change — `cargo tree` unaffected by construction. No writer change. `cargo test -p pdfcer-render`, `clippy -D warnings`, `fmt --check` all clean per the dispatching engineer's report.
+
+**Still in flight:**
+- Type 1 (`FontFile`) font programs still fall back to outlines in SVG keep-text — the Backlog entry is narrowed, not closed. EMF keep-text needs no such wrapping at all (never embeds a font program).
+
+**For next session:** Next free Pass family is **324**. `docs/FEATURES.md`'s SVG keep-text row and its sibling Planned row (now Type-1-only) were updated in this filing; `G033`'s `INDEX.md` row updated and a missing row added for the separate 2026-09-20 `pdfcer-gui` note (already answered, 584th filing, `515c8241`).
+
+**Sourcing (hard rule 8).** No shell tool this filing (no Bash in the function list — same mismatch the 576th/583rd/584th filings recorded). Confirmed via `Read`/`Grep` against live source: `wrap_cff`, `WebFontError::CffFrame`, `FontProgram::cff_metrics`, `is_embeddable_program` all exist in `crates/pdfcer-render/src/font/webfont.rs`/`svg_text.rs`/`font/program.rs`. **Relayed from the dispatching engineer's report, not independently reproduced:** exact test counts, the headless-Chrome measurement, and the clean gate results. `ROADMAP.md`, `docs/FEATURES.md`, this entry, and `pdfce_FeatureRequests/INDEX.md`/the reply addendum were all left as edited by this filing; no commit was made (`git commit -F` not run — no shell).
+
 ## 2026-09-23 (584th filing) — `FEATURES.md`-only correction: eight stale `gui` boxes ticked, four missing symbols added
 
 **Shipped:** None — no Pass, no code changed. A `FEATURES.md` correction filing, source: `pdfcer-gui`'s

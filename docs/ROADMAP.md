@@ -115,6 +115,43 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 323.0` (`38e385b2`), 2026-09-23 — SVG keep-text also keeps text drawn from bare-CFF fonts (`G033` follow-up)
+
+Answers the Unscoped Backlog entry filed alongside `Pass 322.0` (below): SVG keep-text (`Pass 322.0`) refused every donor whose font program was not an sfnt (`Fallback::NotSfnt`), which caught embedded `FontFile3` `/Type1C`/`/CIDFontType0C` programs AND every non-embedded Standard-14 font, because pdfcer's own bundled Foxit substitutes are bare CFF. Plain Helvetica/Times/Courier text was therefore always outlined, not just the CAD-exotic case.
+
+**The fix, `pdfcer-render::font::webfont`.** New `wrap_cff` frames a bare CFF program as an `OTTO` sfnt: `CFF ` verbatim plus synthesised `head`/`hhea`/`hmtx`/`maxp` tables. Advances and bounds come from evaluating the charstrings of glyph 0 and every used glyph; unused `hmtx` entries are 0. Refuses (new `WebFontError::CffFrame`, surfacing as the existing `fallback_font_build`) on an em other than 1000, more than 65,535 glyphs, or a used glyph that fails to evaluate. `build()` frames bare CFF first, then subsets as before. `FontProgram::cff_metrics` (`pub(crate)`) added. `svg_text::plan_run` now gates on `is_embeddable_program` (sfnt OR bare CFF) instead of sfnt alone.
+
+**Semantics change, no API break.** `SvgTextOutcome::fallback_not_sfnt` now counts Type 1 (`/FontFile`) only — the field name is unchanged, its doc comment updated. The CLI's `svg-text:` line still prints `not_sfnt=`.
+
+**Tests.** Unit: a framed Foxit Sans face carries the Helvetica AFM advances (H=722, i=222), an unused glyph advances 0, `lsb` equals the outline x-min, glyph count is full; a built web font keeps H at 722; unparseable CFF and out-of-range gids are refused; the embeddability gate accepts sfnt and bare CFF, rejects Type 1 and `ttcf`. Integration (`tests/export_svg_keep_text.rs`): `hello.pdf` (bundled Standard-14) and `textedit/embedded_full.pdf` (embedded Type1C) now export `KeepText` with an `opentype` `OTTO` font at 1000 upem, every glyph within 0.05px of the outline export; donor tests updated because `hello.pdf`'s own lines are now kept. Sabotage: reverting the gate or the wrap each failed 4 integration tests plus the unit test; zeroed advances/lsbs are caught only by the unit test (SVG gives each character an explicit `x`). Headless Chrome, fallback family stripped, drew the Type1C page with the same ink bbox as the outline export.
+
+**Gates.** No `Cargo.toml` change — no new dependency, `cargo tree` unaffected by construction. No writer change — export path only. `cargo test -p pdfcer-render` green (full crate run, per the dispatching engineer). `clippy -p pdfcer-render --all-targets -- -D warnings` and `cargo fmt --check` clean.
+
+**Invariants.** GUI-core separation unaffected (render-crate-only, no dependency change). Round-trip/minimal-diff unaffected (export path, not the writer).
+
+**`docs/FEATURES.md`.** SVG export keep-text row (*Export*) reworded: core/cli now keep Standard-14 and embedded Type1C/CIDFontType0C text; only Type 1 still outlines. `gui` box left exactly as it stood — not rounded up on this filing's evidence. Planned row for "wrap bare CFF/Type1 as OpenType" narrowed to Type 1 only, noting CFF shipped here.
+
+**No decision-log entry** — a font-subsetting mechanism extension, not a crate-boundary/library-choice/invariant call.
+
+**`C:\personal_rag\pdf\`.** No new lesson — pdfcer authoring its own SVG output, not an observation about a real-world producer's divergence from spec (same reasoning as `Pass 322.0`/`322.1`).
+
+**`D:\Dev\FeatureRequests\pdfce_FeatureRequests\`.** An addendum was appended to `open/reply_G033_svg_and_emf_export_can_keep_text_as_text_FIXED.md` (already on disk, confirmed by `Read` this filing — not written by the librarian). `INDEX.md`'s `G033` row updated to cite this Pass/commit; a new row added for the separate 2026-09-20 `pdfcer-gui` note on stale `FEATURES.md` boxes, answered by the 584th filing's `reply_2026-09-23_eight_gui_boxes_ticked_four_symbols_added_DONE.md` (`515c8241`) — that note had no `INDEX.md` row at all before this filing, checked by `Grep`, not assumed.
+
+**Sourcing (hard rule 8).** No shell tool this filing (function list has no Bash, consistent with the 576th/583rd/584th filings' note of the same mismatch). Confirmed via `Read`/`Grep` against live source at HEAD: `wrap_cff`, `WebFontError::CffFrame`, `FontProgram::cff_metrics`, `is_embeddable_program` all exist in `crates/pdfcer-render/src/font/webfont.rs`/`svg_text.rs`/`font/program.rs`; `fallback_not_sfnt` and its call site in `svg_text.rs` confirmed. **Relayed from the dispatching engineer's report, not independently reproduced:** the exact test pass/fail counts, the headless-Chrome measurement, and the `cargo test`/`clippy`/`fmt` clean results. The addendum text in the reply file and the reply/note filenames were independently confirmed by `Read`/`Glob`.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `322` (highest `.1`), next free `323` | **`Pass 323.0` SHIPPED in `38e385b2` — next free family `324`** |
+| Standing rules | `R258` next free | unchanged — no rule minted |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `584` | **`585`** |
+| `docs/FEATURES.md` | SVG keep-text row said all non-sfnt fonts fall back; Planned row covered CFF+Type1 | **row reworded (CFF/CIDFontType0C now kept); Planned row narrowed to Type 1 only** |
+| `pdfce_FeatureRequests/INDEX.md` | `G033` row silent on this follow-up; no row for the 2026-09-20 note | **`G033` row updated; new row added for the 2026-09-20 note, closed** |
+
+---
+
 ### `Pass 322.1` (`88bd4144`), 2026-09-23 — EMF export can keep text as real text records, closing `G033`
 
 Closes `G033` (`pdfcer-gui` request, operator O224) alongside `Pass 322.0` immediately below — SVG done there, EMF done here. Reply: `open/reply_G033_svg_and_emf_export_can_keep_text_as_text_FIXED.md` (the engineer renamed the reply from the `PARTIAL` file `Pass 322.0` shipped under — see the dated note appended to that entry, below).
@@ -15758,9 +15795,11 @@ nothing gets forgotten, not as a commitment to build in this order.
 
 **Acceptance criteria, once scoped:** parity with `Pass 322.0`'s SVG disclosure shape — a `EmfTextOutcome` counting kept vs. fallback-to-outline runs by reason, `--emf-text keep|outlines` on `export-image --format emf`, and a decision on whether a substituted system face is disclosed as a font-trust downgrade (rule 4) if pdfcer cannot embed the original program. **All met as shipped**, except the font-trust-downgrade disclosure question, which the shipped entry answers by omission — see `Pass 322.1`'s Shipped entry for the CLI note text actually used.
 
-### Unscoped — wrap bare CFF (`FontFile3`/Type1C) and Type 1 fonts as OpenType, so SVG (and eventually EMF) keep-text can embed them instead of falling back to outlines — filed 2026-09-23 (582nd filing, `Pass 322.0`'s own `fallback_not_sfnt` remainder), no Pass ID
+### ~~Unscoped — wrap bare CFF (`FontFile3`/Type1C) and Type 1 fonts as OpenType~~ — CFF HALF SHIPPED 2026-09-23 (585th filing, `Pass 323.0`, `38e385b2`); Type 1 remains open, filed 2026-09-23 (582nd filing, `Pass 322.0`'s own `fallback_not_sfnt` remainder), no Pass ID
 
-**Scope.** `Pass 322.0`'s `webfont.rs` only accepts a donor that is already an sfnt (TrueType/OpenType `glyf`/`CFF ` wrapped in an `sfnt` container); a bare CFF (`FontFile3` with `Subtype /Type1C`) or a Type 1 program (`FontFile`) falls to `fallback_not_sfnt` today, which is most of the Standard-14 substitution surface and any PDF shipping a raw Type 1/CFF program directly. Wrapping either as a minimal OpenType container (`OTTO` for CFF, a synthesised `glyf`/`loca` for Type 1) so they can be embedded the same way is a well-trodden font-tooling technique (see `D:\dev\rag\rust\` for prior OTS-sanitizer findings from `Pass 322.0`) but was out of scope for the first shipping cut.
+★ **NARROWED, not closed.** `Pass 323.0` shipped `wrap_cff` — bare CFF (`FontFile3 /Type1C`, `/CIDFontType0C`) and the Standard-14 substitutes (also bare CFF) are now framed as an `OTTO` sfnt and kept by SVG's `KeepText`. **Type 1 (`FontFile`) is the only remaining case** SVG's `fallback_not_sfnt` counts, and EMF keep-text still needs no wrapping at all (it never embeds a font program — see `Pass 322.1`). Original scope text kept legible below, not rewritten, per the append-only Backlog convention.
+
+**Scope (as originally filed; the CFF half above is now done).** `Pass 322.0`'s `webfont.rs` only accepted a donor that is already an sfnt (TrueType/OpenType `glyf`/`CFF ` wrapped in an `sfnt` container); a bare CFF (`FontFile3` with `Subtype /Type1C`) or a Type 1 program (`FontFile`) fell to `fallback_not_sfnt`, which was most of the Standard-14 substitution surface and any PDF shipping a raw Type 1/CFF program directly. Wrapping either as a minimal OpenType container (`OTTO` for CFF, a synthesised `glyf`/`loca` for Type 1) so they can be embedded the same way is a well-trodden font-tooling technique (see `D:\dev\rag\rust\` for prior OTS-sanitizer findings from `Pass 322.0`) — the CFF half shipped as `Pass 323.0`; the Type 1 half (synthesising `glyf`/`loca` from Type 1 charstrings, a different outline format) is still out of scope.
 
 ### ~~Unscoped — `pdfcer --help`'s top-level `long_about` still claims most subcommands are stubs~~ — CLOSED 2026-09-17 (568th filing, `Pass 309.0` `46072a07` + `Pass 309.1` `3284d5b9`) — filed 2026-09-17 (567th filing, found during the v0.54.0 packaging smoke test), no Pass ID
 
