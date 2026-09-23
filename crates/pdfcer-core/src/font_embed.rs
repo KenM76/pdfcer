@@ -270,8 +270,6 @@ impl EmbeddedFontObjects {
 /// own the page dictionary — the fewer things it touches, the sharper the
 /// R107 claim.
 ///
-/// # Errors
-///
 /// `to_unicode_stream` is the stream the caller staged
 /// [`FontEmbedPlan::to_unicode_cmap`]'s bytes into, for the same reason: a
 /// stream's data lives in the staging buffer, which this module does not own.
