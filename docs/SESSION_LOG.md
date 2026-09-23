@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-23 (587th filing) — `Pass 326.0`/`326.1` (`bb5a37a2`/`b44e6a03`): poster cut marks/labels get engine geometry (`G040`/`G041`), `StrokeDisplay::Fixed` (`G039`); `Pass 325.0`'s step-1 edge measurement filed to Backlog
+
+**Shipped:**
+- `Pass 326.0` (`bb5a37a2`) — `pdfcer_print::imposition::plan_poster` now reserves an 18 pt mark band itself (top when cut marks or labels, left when cut marks); new `mark_band_pt`/`cut_mark_segments`/`label_rect` hand back geometry only, the caller still draws. New free fn `poster_tile_label` (`G041`), `PosterLayout::tile_label` delegates to it. CLI still sets both flags false — output unchanged.
+- `Pass 326.1` (`b44e6a03`) — new `StrokeDisplay::Fixed { device_px: f32 }` sets every stroke's device width in both directions (Hairline only ever thins); same reach as `Hairline`; disclosed on its own counter (`strokes_width_fixed`, not `strokes_hairlined`). No CLI flag, same reasoning as `Hairline`.
+
+**Decisions made this session:** None architectural — both Passes are mechanism extensions (imposition geometry, a render option) answering direct channel requests (`G039`/`G040`/`G041`); no crate-boundary/library-choice/invariant call.
+
+**Findings + decisions:**
+- Gate status, recorded honestly per hard rule 8: `tools/run-gates.sh`'s full sweep was **NOT run** for either Pass — the operator said on 2026-09-23 the machine is short of memory for it. Per-crate `cargo test`/`clippy -D warnings` did run for `pdfcer-print` and `pdfcer-render` respectively (clean, per the dispatching engineer's report). Both commits are local and unpushed; pushing waits for a green gate run.
+- `Pass 325.0`'s (crate split, Backlog) step-1 dependency-edge measurement was appended: the model layer only doc-links `crate::edit`, no code edge; the only real edges into `edit`/`settings` are a handful of leaf enums and `forms.rs`'s border/visibility types; `text_edit`/`dimension`/`vector` are the modules most coupled to `edit` and form an `editing` crate ABOVE the model, not a leaf. Not started — measurement only.
+- `docs/FEATURES.md`: new *Printing* row for poster cut marks/labels (core `[x]`, cli `[ ]`, gui `[ ]`); the "Line weights off" hairline row (*Fonts & rendering*) gained a clause naming `Fixed` (core `[x]`, cli/gui unchanged — both already `—`/`[ ]` for the same reasoning `Fixed` shares with `Hairline`).
+
+**Still in flight:**
+- `Pass 325.0` remains **NOT STARTED** past its step-1 measurement — steps 2–7 (extract model crate, split leaf crates, facade, `main.rs` split, test-module moves, housekeeping) are still ahead.
+
+**For next session:** Next free Pass family is **327**. `pdfce_FeatureRequests/INDEX.md` gained three rows (`G039`, `G040`, `G041`), newest first.
+
+**Sourcing (hard rule 8).** No shell tool this filing (no Bash in the function list — same mismatch the 576th–586th filings recorded). Confirmed via `Read`/`Grep` against live source and docs: `Pass 325.0`'s Backlog entry, the existing Imposition and hairline `FEATURES.md` rows, the `G039`/`G040`/`G041` request+reply files in `pdfce_FeatureRequests/open/`. **Relayed from the dispatching engineer's report/the reply files, not independently reproduced:** exact test counts, sabotage detail, and the `fmt`/`clippy` clean claims for both Passes; the "machine short of memory" reason for skipping the full gate sweep. No commit was made this filing (`git commit -F` not run — no shell; the engineer commits).
+
 ## 2026-09-23 (586th filing) — `Pass 324.0`/`324.1` (`854773e2`/`b70eb431`): font collections render and SVG keep-text takes Type 1; 4 unfiled commits filed; 2 oversized `FEATURES.md` rows trimmed; `Pass 325.0` (crate split) filed to Backlog
 
 **Shipped:**

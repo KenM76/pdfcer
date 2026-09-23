@@ -115,6 +115,42 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 326.0` (`bb5a37a2`), 2026-09-23 — poster cut marks and labels get an engine-owned band and geometry (`G040`, `G041`)
+
+**The feature.** `pdfcer_print::imposition::plan_poster` now reserves `POSTER_MARK_BAND_PT` (18 pt) itself: along the top when `cut_marks || labels`, along the left when `cut_marks`; tiles are planned in what remains. `PosterTile::sheet_pt`/`trim_pt` already start inside the band — a band can cost an extra sheet, and one that leaves no printable area refuses (`ImpositionError::EmptySheet`). New `PosterLayout::mark_band_pt() -> (left, top)`; `cut_mark_segments(&tile) -> Vec<MarkSegment>` (one mark per leading cut line, collinear with it, `POSTER_MARK_GAP_PT` (3 pt) short of the drawing, wholly inside the band); `label_rect(&tile) -> Option<Rect>` (a box in the top band, height = font size). The engine gives geometry only — drawing the marks and the label text stays the caller's (`G040`). New free fn `poster_tile_label(row, column, rows, columns, document) -> String` (`G041`); `PosterLayout::tile_label` now delegates to it, so CLI and GUI print the same wording.
+
+**Scope.** The CLI still sets both flags false, so its poster output is unchanged this Pass.
+
+**Tests.** 3 new poster tests plus 2 updated for the band; 20/20 poster tests plus a doctest green. Sabotaged twice (band placement, mark-gap inset), both caught.
+
+**Gates.** `cargo test -p pdfcer-print`, `clippy -D warnings` clean per the dispatching engineer's report. **`tools/run-gates.sh` NOT run this session** — the operator reported the machine short of memory for the full sweep on 2026-09-23; per-crate test/clippy only.
+
+**Invariants.** No `Cargo.toml` change, `cargo tree` unaffected by construction. Round-trip/minimal-diff unaffected — print/imposition geometry, not a writer change.
+
+**`docs/FEATURES.md`.** New *Printing* row for poster cut marks and labels: core `[x]`, cli `[ ]` (flags unset), gui `[ ]`. The existing Imposition row (N-up/booklet/poster) is untouched — a separate capability.
+
+**No decision-log entry** — an imposition mechanism extension, not a crate-boundary/library-choice/invariant call.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Relayed from the dispatching engineer's report and `pdfce_FeatureRequests/open/reply_G040_poster_band_cut_marks_and_label_geometry_FIXED.md`/`reply_G041_poster_tile_label_free_function_FIXED.md`, not independently reproduced. **Both commits are local and unpushed, pending a green `tools/run-gates.sh` run.**
+
+### `Pass 326.1` (`b44e6a03`), 2026-09-23 — `StrokeDisplay::Fixed` sets every stroke to one device width (`G039`)
+
+**The feature.** New `pdfcer_render::StrokeDisplay::Fixed { device_px: f32 }`, sitting beside `Hairline`: it SETS every stroke's device width in both directions (thickens a thin stroke, thins a fat one), same reach as `Hairline` (path strokes, stroked text render modes 1/2/5/6, form XObjects, tiling patterns, Type 3, annotation appearances). A non-finite, zero or negative `device_px` renders as `Actual` and counts nothing. New `Diagnostics::strokes_width_fixed` counts strokes changed in either direction; `strokes_hairlined` stays 0 under `Fixed`, so a print summary reads one counter. `PartialEq`/`Eq`/`Hash` are now hand-written on the `f32` bits (`Copy` unchanged); the enum stays `#[non_exhaustive]`.
+
+**Scope.** No CLI flag, same reasoning as `Hairline` — every export path renders the document's real widths; this is an interactive-canvas-only setting.
+
+**Tests.** 5 new out-of-crate tests, `crates/pdfcer-render/tests/stroke_display_hairline.rs`, 18/18 green. Sabotaged three times (width-setting direction, the non-finite/non-positive guard, `Eq`/`Hash` on the bits), all caught.
+
+**Gates.** `cargo test -p pdfcer-render`, `clippy -D warnings` clean per the dispatching engineer's report. **`tools/run-gates.sh` NOT run this session** — same memory constraint as `Pass 326.0`.
+
+**Invariants.** No `Cargo.toml` change, `cargo tree` unaffected by construction. Round-trip/minimal-diff unaffected — a render option, not a writer change.
+
+**`docs/FEATURES.md`.** The "Line weights off" hairline-display row (*Fonts & rendering*) gained a clause naming `Fixed`; core `[x]`, cli/gui columns unchanged (already `—`/`[ ]`, same reasoning `Fixed` shares with `Hairline`).
+
+**No decision-log entry** — a render-option addition, not a crate-boundary/library-choice/invariant call.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Relayed from the dispatching engineer's report and `pdfce_FeatureRequests/open/reply_G039_stroke_display_fixed_width_FIXED.md`, not independently reproduced. **Commit is local and unpushed, pending a green `tools/run-gates.sh` run.**
+
 ### `Pass 324.0` (`854773e2`), 2026-09-23 — a supplied font COLLECTION (`.ttc`/`.otc`) now renders at all; SVG keep-text takes it too
 
 **The defect.** `FontProgram::parse` routed a `ttcf`-signature program straight to `skrifa::FontRef::new`, which refuses a collection outright (see `D:\dev\rag\rust\skrifa_fontref_new_refuses_font_collections_use_from_index.md`, filed this session) — so every glyph of a supplied `.ttc`/`.otc` donor counted `UnusableProgram`, even though the CLI's `--font-dir` has scanned and registered `.ttc`/`.otc` files as donors all along.
@@ -15862,6 +15898,8 @@ nothing gets forgotten, not as a commitment to build in this order.
 **Scope note.** Structural, not a feature Pass — no user-visible behaviour change, so `docs/FEATURES.md` gets no new row for this. `ARCHITECTURE.md` §3 needs a body update at each extraction step (crate list, dependency diagram); a §12 decision-log entry records the FINAL shape once chosen, not filed now — the shape depends on what step 1's dependency-edge measurement finds, and minting a decision ahead of that measurement would be recording a choice before it exists.
 
 **Risk, named rather than discovered mid-split.** `edit.rs` at 58,056 lines is more than a fifth of the crate by itself, and is exactly the module step 1 exists to map — do not attempt to give it its own crate before that map exists; it is very likely the thing every leaf crate needs a narrow slice of, not a leaf itself.
+
+**Step 1 edge measurement, 2026-09-23** (grep, `crates/pdfcer-core/src`): the model layer (`writer/`, `xref.rs`, `document.rs`, `page_tree.rs`) mentions `crate::edit` only in doc links — no code edge. Its real code edges all go into `settings`, and only for leaf enums: `XrefEntryEol`/`TrailingEol` (`writer`, `xref`), `CmykIntent` (`color`), `Settings` (`function.rs`) — step 1's own move is to relocate these to the model crate and re-export from `settings`. The only non-test `use crate::edit` outside the editing modules is `forms.rs` (`BorderSpec`, `BorderStyle`, `Visibility`) — those move down too. The other hits (`font_embed_missing`, `font_unembed`, `pageops`, `redact`) are all inside `#[cfg(test)]` modules, which step 6 already relocates to `tests/`. **Most coupled to `edit`:** `text_edit` (9 files), `dimension` (5), `vector` (4) — these form an `editing` crate ABOVE the model, not a leaf.
 
 ### ~~`Pass 322.1` — EMF export: write real text records instead of outline paths, the EMF half of `G033`~~ — SHIPPED 2026-09-23 (`88bd4144`) — see *Shipped*, top of this file — filed 2026-09-23 (582nd filing, `G033` reply, EMF half), scoped and shipped same day — family 322, after `Pass 322.0`
 
