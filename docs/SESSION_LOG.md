@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-23 (579th filing) — `Pass 319.0` (`4594e17c`): fit one text run to a page width through `Tz` (`G038`)
+
+**Shipped:**
+- `Pass 319.0` — new `EditSession::set_text_run_width(page, object, run, width_pts)` / `pdfcer text-run-width`. Runs the existing whole-operator `format_text` path with `FollowerDisposition::Pin` and a new `FormatRequest::fit_width`; the computed `Tz` is ABSOLUTE (replaces an existing `Tz` rather than compounding it; fitting twice is a fixed point). New refusals `BadTargetWidth`/`WidthFitKerned`/`NoAdvanceWidth`/`TextRunHasNoWidth`, none mutating anything; preflight `vector::text_run_width_refusal`. Disclosure: "fitted to W pt wide by setting its horizontal scaling to P%; nothing after it moved." Bug fixed on the way: `disclosure_h_scale` always claimed the rest of the line was relaid out, even under `Pin` — now takes a `pinned` flag.
+
+**Decisions made this session:** None — a new verb plus a disclosure-string bug fix, not a crate-boundary/library-choice/invariant call.
+
+**Findings + decisions:**
+- `docs/core-api` verb count 248 → 249 (already updated by the dispatching engineer at read time); two new table rows in `02-editing-and-saving.md`.
+- `docs/FEATURES.md`: new row, Text section, core `[x]` cli `[x]` gui `[ ]` (not consumed by `pdfcer-gui` yet).
+- No `personal_rag/pdf` lesson — internal API-completeness fix, not a producer-divergence finding.
+- **`pdfce_FeatureRequests/INDEX.md` discrepancy found and NOT repeated.** Grepped for `G034`/`G036`/`G037`/`G038` this session — none present, despite the three most recent Shipped entries each claiming (unverified, by their own Sourcing paragraphs) that a row was added or closed there. Flagged to the engineer as owed cleanup; no `G038` row added on the same unverified basis.
+
+**Still in flight:**
+- The `R251`/`R258` standing-rules ledger discrepancy flagged by prior filings is still unresolved — not re-verified this session either.
+- `pdfcer-gui` has not consumed `set_text_run_width`/`text_run_width_refusal` — `FEATURES.md` `gui [ ]`, not rounded up.
+- `pdfce_FeatureRequests/INDEX.md` is missing rows for `G034`, `G036`, `G037`, and now `G038` — owed to whoever maintains that file (not one of this role's five tiers).
+
+**For next session:** Next free Pass family: **320**. `INDEX.md` cleanup above is outstanding.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Independently confirmed via `Grep`/`Read` against live source: `set_text_run_width`, `fit_width`, `text_run_width_scale`, `BadTargetWidth`, `WidthFitKerned`, `NoAdvanceWidth`, `TextRunHasNoWidth`, `text_run_width_refusal` present in `crates/pdfcer-core/src/edit.rs`, `crates/pdfcer-core/src/vector/edit.rs`, `crates/pdfcer-core/src/text_edit/format.rs`, `crates/pdfcer-core/src/vector/mod.rs`; `text-run-width` wiring present in `crates/pdfcer-cli/src/main.rs`; `crates/pdfcer-core/tests/text_run_width.rs` holds exactly 11 `#[test]` functions; `docs/core-api/index.md` already states "all 249 public verbs"; `docs/core-api/02-editing-and-saving.md`/`03-capabilities.md` already carry the new rows/section; `README.md` already states "154 working subcommands"; `disclosure_h_scale` at `text_edit/format.rs:5701` takes a `pinned: bool` parameter; `pdfce_FeatureRequests/INDEX.md` independently Grepped this filing and confirmed to carry none of `G034`/`G036`/`G037`/`G038`. This session's own git-status context lists `4594e17c` at `HEAD`, subject *"text_edit: fit one text run to a page width through Tz (G038)"*, which corroborates the commit and its one-line description but is not a `git show`. The diffstat, the sabotage-mutation count, and the `tools/run-gates.sh` memory-kill detail are **relayed from the dispatching engineer's report, not independently re-run**.
+
 ## 2026-09-23 (578th filing) — `Pass 318.0` (`01c0c1ce`): the OCR sandwich layer now carries an identity, so a re-run replaces it instead of stacking a second one (`G036`)
 
 **Shipped:**

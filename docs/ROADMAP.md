@@ -115,6 +115,47 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 319.0` (`4594e17c`), 2026-09-23 — fit one text run to a page width through `Tz` (`G038`)
+
+New Pass family, minted this filing. Answers `G038` (`pdfcer-gui` request): the reply is at `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G038_text_run_width_verb_FIXED.md`.
+
+**The fix**, `EditSession::set_text_run_width(page, object, run, width_pts: f64) -> Result<FormatReport, FormatError>`. It runs the existing whole-operator `format_text` path with `FollowerDisposition::Pin` and a new `pub(crate) FormatRequest::fit_width`. The advance is linear in `Tz`, so `pct = 100 × target_textspace / natural(Tz=1)` — the computed scale is **ABSOLUTE**: an existing `Tz` (e.g. the OCR writer's) is replaced, never compounded, and fitting the same width twice is a fixed point. `width_pts` is measured in page points along the run's own baseline: `target_textspace = width_pts / |ctm.map_vector(Tm.map_vector((1,0)))|`, computed by the new `pub(crate) vector::edit::text_run_width_scale`. `Pin` holds a following run at its inherited origin; render mode is kept (an OCR word stays mode 3).
+
+**Refusals, none mutating anything.** New `FormatError` variants: `BadTargetWidth(f64)` (zero, negative, NaN or infinite), `WidthFitKerned` (a `TJ` run with kerning, checked before run matching), `NoAdvanceWidth { base_font }`, and `TextRun(#[from] VectorEditError)`. New `VectorEditError::TextRunHasNoWidth { index }` for a singular transform. Preflight: `pub vector::text_run_width_refusal(&TextObject, run) -> Option<VectorEditError>`, re-exported from `vector/mod.rs` — the structural refusals only; kerning and metrics are invisible to the vector model, so a full refusal check still needs the verb.
+
+**Disclosure (rule 4).** *"The text was fitted to W pt wide by setting its horizontal scaling to P%; nothing after it moved."* Fixed a related defect in the same commit: the existing h-scale disclosure always said "the rest of the line was relaid out," even under `Pin`; `disclosure_h_scale` now takes a `pinned` flag and states what actually happened to the follower.
+
+**CLI (rule 11).** `pdfcer text-run-width --object N --run N --width PTS [--page] [-o] [--mode] [--verify-undo]`; refusals exit `EDIT_REFUSED`. Demo passed with `undo_identical=1`.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md` (verb count 248 → 249, two new table rows for `set_text_run_width`/`text_run_width_refusal`), `03-capabilities.md` ("Fit a run to a width"), `index.md`. `README.md` now states 154 working subcommands.
+
+**Tests.** `crates/pdfcer-core/tests/text_run_width.rs`, 11 tests (confirmed by count): fitted width + origin kept; a 2× `Tm` gives `Tz 150` for a 75pt target; a rotated `Tm` gives `Tz 160` for a 40pt target; an existing `Tz 50` is replaced, not compounded; fitting twice is a fixed point; an inherited successor does not move; an OCR word stays invisible (census (7,7)); `BadTargetWidth` for 0/-1/NaN/inf with undo depth 0; out-of-range object/run (preflight agrees); a kerned `TJ` is refused; undo restores the natural width. Sabotage: 5/5 mutations caught.
+
+**Gates.** `cargo fmt`/`clippy` (core+cli, all-targets, all-features) clean. Every script gate passes, including `check-core-api-verbs` and `check-clap-help`. `cargo tree -p pdfcer-core`/`-p pdfcer-render`: no GUI deps — no `Cargo.toml` change, invariant unaffected by construction. `wasm32` check passed. **The full `tools/run-gates.sh` sweep was killed for memory partway through — not a failure**; committed per the operator's standing instruction ("if that fails due to memory just go ahead and commit"). Not run locally: `cargo test -p pdfcer-core --no-default-features` and the fuzz `cargo check --bins`; CI covers both. Round-trip/minimal-diff is unaffected — this is new content on an authored run, not a rewrite of an untouched object.
+
+**`docs/FEATURES.md`.** New row, *Text* section, immediately below the `Tr` render-mode row (`Pass 316.0`): core `[x]`, cli `[x]`, gui `[ ]` — `pdfcer-gui` has not consumed it. Acrobat column `?` (no `Acrobat_Features` entry checked this filing).
+
+**No decision-log entry** — a new verb plus a bug fix in an existing disclosure string, not a crate-boundary/library-choice/invariant call.
+
+**`C:\personal_rag\pdf\`.** No new lesson — an internal API-completeness fix on pdfcer's own writer, not an observation about a real-world producer's divergence from spec.
+
+**`D:\Dev\FeatureRequests\pdfce_FeatureRequests\INDEX.md`.** **NOT edited this filing, and flagged rather than claimed.** Grepped for `G034`/`G036`/`G037`/`G038` this session (no shell, `Grep` tool only): **none of the four are present in the file**, despite the three most recent Shipped entries (`Pass 316.0`/`317.0`/`318.0`) each recording in their own ledger that a row was "added"/"closed SHIPPED" there. Those claims were never independently confirmed at filing time (each said so in its own Sourcing paragraph) and are now verified **false** by direct Grep. This is not this filing's tier to fix — `INDEX.md` lives in `pdfce_FeatureRequests`, not one of the librarian's five storage tiers — so it is reported to the engineer as owed cleanup, not corrected here, and no `G038` row is added on the same unverified basis that produced the other three.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Independently confirmed via `Grep`/`Read` against live source: `set_text_run_width`, `fit_width`, `text_run_width_scale`, `BadTargetWidth`, `WidthFitKerned`, `NoAdvanceWidth`, `TextRunHasNoWidth`, `text_run_width_refusal` present across `crates/pdfcer-core/src/edit.rs`, `crates/pdfcer-core/src/vector/edit.rs`, `crates/pdfcer-core/src/text_edit/format.rs`, `crates/pdfcer-core/src/vector/mod.rs`; `text-run-width` CLI wiring present in `crates/pdfcer-cli/src/main.rs` (grouped-args doc comment, dispatch, and result-line format string); `crates/pdfcer-core/tests/text_run_width.rs` holds exactly 11 `#[test]` functions; `docs/core-api/index.md` already states "all 249 public verbs" at read time; `docs/core-api/02-editing-and-saving.md` already carries the two new table rows citing `set_text_run_width`/`text_run_width_refusal`; `docs/core-api/03-capabilities.md` already carries the "Fit a run to a width" (`G038`) section; `README.md` already states "154 working subcommands"; `disclosure_h_scale` at `crates/pdfcer-core/src/text_edit/format.rs:5701` takes a `pinned: bool` parameter. No prior `ROADMAP.md`/`SESSION_LOG.md` entry named `G038` or `Pass 319` before this filing. This session's own git-status context lists `4594e17c` at `HEAD`, subject *"text_edit: fit one text run to a page width through Tz (G038)"*, which corroborates the commit and its one-line description but is not a `git show`. The diffstat, the exact sabotage-mutation list, and the `tools/run-gates.sh` memory-kill detail are **relayed from the dispatching engineer's report, not independently re-run**. `pdfce_FeatureRequests/INDEX.md`'s absence of `G034`/`G036`/`G037`/`G038` rows **was** independently checked by `Grep` this filing (see above) — that specific negative finding is verified, not relayed.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `318` (highest `.0`), next free `319` | **`Pass 319.0` SHIPPED in `4594e17c` — next free family `320`** |
+| Standing rules | `R258` next free (unresolved `R251` discrepancy carried, not re-verified this filing) | unchanged — no rule minted |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `578` | **`579`** |
+| `docs/FEATURES.md` | no row for run-width fitting | **new row added, Text section: core `[x]` cli `[x]` gui `[ ]`** |
+| `pdfce_FeatureRequests/INDEX.md` | claimed (unverified) rows for `G034`/`G036`/`G037` | **Grepped: none of `G034`/`G036`/`G037`/`G038` present — prior claims false, flagged to engineer, not corrected here** |
+
+---
+
 ### `Pass 318.0` (`01c0c1ce`), 2026-09-23 — the OCR sandwich layer now carries an identity, so a re-run REPLACES it instead of stacking a second one (`G036`)
 
 Promoted from *In progress* this filing. Answers `G036` (`pdfcer-gui` request): the mode-3 sandwich layer had no identity, so `find_ocr_layers` had nothing to find and re-running OCR on an already-OCR'd page stacked a second invisible layer on top of the first.
