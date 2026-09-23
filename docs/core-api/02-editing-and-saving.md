@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 246 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 248 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 246 public `EditSession` methods
+## 1. Verb index — all 248 public `EditSession` methods
 
-**Count: 246.** Established by brace-matched extraction of the six
+**Count: 248.** Established by brace-matched extraction of the six
 `impl EditSession` blocks, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -81,7 +81,8 @@ and again at 232 when `Pass 306.0` added two (`split_text_object`,
 `text_object_split_plan`), and again at 239 when `G024` added three
 (`set_field_format`, `set_field_validation`, `set_field_calculation`),
 and again at 246 when `G030` added two (`move_text_runs`,
-`move_text_runs_in_form`).
+`move_text_runs_in_form`), and again at 248 when `G036` added two
+(`find_ocr_layers`, `remove_ocr_layer`).
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -399,7 +400,9 @@ need their own policy).
 | **Ask which characters this run will accept, before the first keystroke** | `run_repertoire(&self, page_index, find, pinned_span) -> Result<RunRepertoire, FormatError>` | edit.rs | **`Pass 280.0`**, pdfcer-gui request 2026-09-09. A character in `accepted` is one `edit_text` will not refuse for that run — decided by calling the accepting code, not by describing it (`R221`). Strict: an embedded subset is narrowed to the codes this page carries. A run with no usable encoding is an EMPTY answer with a `reason`, not an `Err`, so an editor can decline to open. **Not** `preview_font_resources_for` per keystroke — that walks the whole page content stream per call. CLI: `run-repertoire [--list]`. See below. |
 | Re-wrap a recognised paragraph | `reflow_block(&mut self, page_index, block_index, &ReflowRequest) -> Result<ReflowApplyReport, ReflowApplyError>` | 4297 | One undo entry. **Planned against the SESSION VIEW** since `Pass 257.0` — composes with an earlier `edit_text`/`format_text` on the same page and with structural page edits (T-14 records the refusals that stood before). Still refuses (not silently deletes) a page carrying a run appended this session (`Pass 251.0`): the plan re-emits the first content object only and the sweep would drop the extra. |
 | Add a new text run at coordinates | `add_text(&mut self, &AddTextRequest) -> Result<AddTextReport, AddTextError>` | 4365 | Appends a new content stream; originals stay byte-verbatim. |
-| Add an invisible OCR text layer to one or more pages | `add_ocr_layer(&mut self, &[OcrPageLayer<'_>], &OcrLayerOptions) -> Result<Vec<OcrLayerReport>, OcrLayerError>` | 7313 | **ONE undo entry for the whole run**, however many pages. Reads the SESSION graph, not the base. |
+| Add an invisible OCR text layer to one or more pages | `add_ocr_layer(&mut self, &[OcrPageLayer<'_>], &OcrLayerOptions) -> Result<Vec<OcrLayerReport>, OcrLayerError>` | 7313 | **ONE undo entry for the whole run**, however many pages. Reads the SESSION graph, not the base. A page already carrying a pdfcer layer is handled per `OcrLayerOptions::existing` (default `Replace`; the replaced layer comes off in the same undo entry). |
+| List the OCR layers pdfcer wrote | `find_ocr_layers(&self) -> Result<Vec<ocr::marker::OcrLayerRef>, PageTreeError>` | edit.rs | **`Pass 318.0`**, pdfcer-gui request G036. Pure query over the session state. Only layers carrying pdfcer's `/pdfc_OCR` marker are listed; invisible text other software wrote is never reported. |
+| Remove one OCR layer pdfcer wrote | `remove_ocr_layer(&mut self, &OcrLayerRef) -> Result<(), OcrLayerError>` | edit.rs | **`Pass 318.0`**. One undo entry, `CommandKind::RemoveOcrLayer`. The layer's stream leaves `/Contents`; its font leaves `/Font` unless the page's remaining content still selects that name; both objects are freed when no other page references them. A reference that no longer matches the page is refused (`LayerNotFound`), never applied to whatever sits there now. |
 | Give ONE page a private copy of a shared form XObject | `unshare_form(&mut self, page_index, form: ObjId) -> Result<UnshareFormReport, EditError>` | 7367 | Copy-on-write. Refuses a **nested** invocation by name. |
 
 #### ★ The FOUR entry points that take a `find` and a pin all resolve it the same way (`Pass 148.0`)
@@ -664,6 +667,17 @@ These five return `text_edit`'s own error types, **not** `EditError`;
    `/Contents`, and the second page-dictionary write would clobber the first:
    one layer written, one lost, and a report claiming both. Merge the word lists
    before calling if you want two sets of words on one page.
+
+4. **Re-running OCR on a page pdfcer already OCR'd replaces the old layer by
+   default** (`Pass 318.0`, G036). Each layer pdfcer writes is ONE content stream
+   wrapped in `/pdfc_OCR << /Producer (pdfcer) /Version 1 /Engine (…) >> BDC …
+   EMC`; a stream is a layer only if that tag, that producer entry, and a final
+   matching `EMC` are all present. `OcrLayerOptions::with_existing` picks
+   `Replace` (default), `Refuse` (`OcrLayerError::LayerPresent`, nothing
+   changes) or `Stack` (keep both). `OcrLayerReport::layers_replaced` counts
+   what came off, and `disclosures()` says so. The one-shot free function
+   applies the same policy but cannot free objects: the old stream stays in
+   the file, unreferenced.
 
 An empty slice is a **no-op that commits nothing** — no undo entry that would
 undo nothing. Every refusal happens before any object is allocated, so a

@@ -3453,6 +3453,13 @@ enum Command {
         /// conversion, not a re-render that might differ.
         #[arg(long)]
         dump_image: Option<PathBuf>,
+        /// What to do when the page already carries an OCR layer pdfcer wrote.
+        ///
+        /// Layers are recognised by the marked-content tag pdfcer wraps them
+        /// in. Invisible text written by other software carries no such tag
+        /// and is never touched by any of these.
+        #[arg(long, value_enum, default_value_t = ExistingOcrArg::Replace)]
+        existing: ExistingOcrArg,
     },
     /// **List the stamps in an Acrobat-compatible stamp collection**
     /// (`Pass 288.0`).
@@ -9669,6 +9676,27 @@ impl From<StreamDump> for pdfcer_core::structure::StreamMode {
     }
 }
 
+/// The shell mirror of `pdfcer_core::ocr::layer::ExistingLayers`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+enum ExistingOcrArg {
+    /// Take the earlier layer off and write the new one. The default.
+    Replace,
+    /// Leave the file alone and exit with an error.
+    Refuse,
+    /// Keep the earlier layer and add the new one beside it.
+    Stack,
+}
+
+impl From<ExistingOcrArg> for pdfcer_core::ocr::layer::ExistingLayers {
+    fn from(v: ExistingOcrArg) -> Self {
+        match v {
+            ExistingOcrArg::Replace => Self::Replace,
+            ExistingOcrArg::Refuse => Self::Refuse,
+            ExistingOcrArg::Stack => Self::Stack,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 enum HitScope {
     /// Descend into form XObjects; never name a form itself. The GUI's
@@ -11102,6 +11130,7 @@ fn run() -> ExitCode {
             model_dir,
             words,
             dump_image,
+            existing,
         } => cmd_ocr(
             &input,
             page,
@@ -11111,6 +11140,7 @@ fn run() -> ExitCode {
             model_dir.as_deref(),
             words,
             dump_image.as_deref(),
+            existing,
         ),
         Command::StampList { input } => cmd_stamp_list(&input),
         Command::StampPack {
@@ -14221,6 +14251,7 @@ fn cmd_ocr(
     model_dir: Option<&Path>,
     show_words: bool,
     dump_image: Option<&Path>,
+    existing: ExistingOcrArg,
 ) -> u8 {
     use pdfcer_core::ocr::{
         OcrEngine, OcrPage, PagePlacement, layer, models, words_to_page_space_on,
@@ -14445,13 +14476,18 @@ fn cmd_ocr(
     // The session route is the one a GUI holding an open document uses. Using
     // it here too is what stops the two shells drifting into producing
     // different files from the same input.
+    // The engine name goes into the layer's marker so a later run, or another
+    // tool, can tell which recogniser produced it.
+    let layer_opts = layer::OcrLayerOptions::new()
+        .with_engine("ocrs")
+        .with_existing(existing.into());
     let (bytes, report) = if in_place {
         let mut session = pdfcer_core::edit::EditSession::new(doc);
         let layers = [pdfcer_core::edit::OcrPageLayer {
             page_index: index,
             recognised: &ocr_page,
         }];
-        let reports = match session.add_ocr_layer(&layers, &layer::OcrLayerOptions::new()) {
+        let reports = match session.add_ocr_layer(&layers, &layer_opts) {
             Ok(r) => r,
             Err(err) => {
                 eprintln!("pdfcer: ocr: {err}");
@@ -14470,7 +14506,7 @@ fn cmd_ocr(
             }
         }
     } else {
-        match layer::add_ocr_layer(&doc, index, &ocr_page, &layer::OcrLayerOptions::new()) {
+        match layer::add_ocr_layer(&doc, index, &ocr_page, &layer_opts) {
             Ok(o) => (o.bytes, o.report),
             Err(err) => {
                 eprintln!("pdfcer: ocr: {err}");
@@ -14489,12 +14525,13 @@ fn cmd_ocr(
 
     println!(
         "ocr {} page={page_number} -> {} dpi={dpi} image={iw}x{ih} rotate={} \
-recognised={} written={} confidence={}",
+recognised={} written={} replaced={} confidence={}",
         input.display(),
         destination.display(),
         page.rotate,
         raw.len(),
         report.words_written,
+        report.layers_replaced,
         if confidence_available {
             "reported"
         } else {

@@ -61,6 +61,9 @@ pub mod models;
 /// text layer over page content that is left byte-identical.
 pub mod layer;
 
+/// Finding the layers [`layer`] wrote, by their marked-content tag.
+pub mod marker;
+
 /// The `ocrs` recogniser, behind the Cargo feature of the same name.
 ///
 /// The ONLY engine-aware module in the OCR subsystem. Everything else here is

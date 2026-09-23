@@ -748,6 +748,10 @@ pub enum CommandKind {
     /// every created object and restores every page dictionary
     /// byte-identically.
     AddOcrLayer,
+    /// One OCR layer pdfcer wrote was taken off its page by
+    /// [`EditSession::remove_ocr_layer`]: the page dictionary rewritten, the
+    /// layer's stream and font freed where nothing else references them.
+    RemoveOcrLayer,
     /// A shared form XObject was cloned and **this page's** reference(s)
     /// re-pointed at the copy, by [`EditSession::unshare_form`] — the
     /// "option" half of decision 076's edit-in-place default.
@@ -9404,6 +9408,13 @@ impl EditSession {
     pub fn dirty_set(&self) -> DirtySet {
         let mut dirty = DirtySet::empty();
         for (id, value) in &self.state {
+            // A deleted id keeps its last value in `state` (undo needs it),
+            // but `value()` reports it absent, and so must the save: an
+            // object created and then freed in one session would otherwise
+            // be written as an orphan.
+            if self.deleted.contains(id) {
+                continue;
+            }
             match self.base.get(*id) {
                 // Net-zero against the base: NOT dirty. The one line
                 // this whole module exists to make unavoidable.
@@ -12211,7 +12222,7 @@ impl EditSession {
         pages: &[OcrPageLayer<'_>],
         opts: &crate::ocr::layer::OcrLayerOptions,
     ) -> Result<Vec<crate::ocr::layer::OcrLayerReport>, crate::ocr::layer::OcrLayerError> {
-        use crate::ocr::layer::{OcrLayerError as OlError, plan_ocr_layer};
+        use crate::ocr::layer::{OcrLayerError as OlError, existing_layer_strip, plan_ocr_layer};
         use crate::text_edit::edit::make_raw_stream;
 
         if pages.is_empty() {
@@ -12252,18 +12263,31 @@ impl EditSession {
         // fourth page must not have already allocated three pages' object
         // numbers and staged three pages' bytes -- the numbers would be burnt
         // and the staging buffer would carry content no object references.
-        let preps = {
+        // The existing-layer policy is applied here too, per page, so a
+        // refusal on any page still happens before anything is allocated.
+        let (preps, strips) = {
             let page_list = self.pages().map_err(OlError::PageTree)?;
             let graph = self.graph();
+            let view = self.view();
             let mut preps = Vec::with_capacity(pages.len());
+            let mut strips = Vec::with_capacity(pages.len());
             for layer in pages {
                 let page = page_list
                     .get(layer.page_index)
                     .ok_or(OlError::PageIndex(layer.page_index))?;
-                preps.push(plan_ocr_layer(page, layer.recognised, opts, &graph)?);
+                let strip = existing_layer_strip(&view, page, layer.page_index, opts)?;
+                preps.push(plan_ocr_layer(
+                    page,
+                    layer.recognised,
+                    opts,
+                    &strip,
+                    &graph,
+                )?);
+                strips.push((layer.page_index, strip));
             }
-            preps
+            (preps, strips)
         };
+        let removals = self.ocr_strip_removals(&strips)?;
 
         // Now allocate and stage. Past this point nothing can fail except an
         // exhausted object-number space, which is checked per allocation.
@@ -12311,11 +12335,187 @@ impl EditSession {
         self.commit(Command {
             kind: CommandKind::AddOcrLayer,
             objects,
-            removals: Vec::new(),
+            removals,
             trailer: None,
         });
 
         Ok(reports)
+    }
+
+    /// Every OCR layer pdfcer wrote in the session's current state, page by
+    /// page ([`crate::ocr::marker`]). Layers other software wrote carry no
+    /// marker and are not listed.
+    ///
+    /// # Errors
+    ///
+    /// [`PageTreeError`](crate::page_tree::PageTreeError) if the page tree
+    /// cannot be walked.
+    pub fn find_ocr_layers(
+        &self,
+    ) -> Result<Vec<crate::ocr::marker::OcrLayerRef>, crate::page_tree::PageTreeError> {
+        crate::ocr::marker::find_ocr_layers(&self.view())
+    }
+
+    /// **Remove one OCR layer pdfcer wrote**, as one undoable edit.
+    ///
+    /// The layer's content stream leaves the page's `/Contents`, and its font
+    /// leaves the page's `/Font` resources unless the page's remaining content
+    /// still selects that name. The stream and font objects are freed when no
+    /// other page references them. Nothing else on the page changes.
+    ///
+    /// `layer` must come from [`Self::find_ocr_layers`] on the current state;
+    /// it is re-checked against the page, so a stale one is refused rather
+    /// than removing whatever now sits at that object number.
+    ///
+    /// # Errors
+    ///
+    /// [`OcrLayerError::LayerNotFound`](crate::ocr::layer::OcrLayerError::LayerNotFound)
+    /// if the page no longer carries that layer; otherwise the same guards as
+    /// [`Self::add_ocr_layer`] (encryption, certification, hidden objects).
+    /// Every refusal happens before anything is committed.
+    pub fn remove_ocr_layer(
+        &mut self,
+        layer: &crate::ocr::marker::OcrLayerRef,
+    ) -> Result<(), crate::ocr::layer::OcrLayerError> {
+        use crate::ocr::layer::OcrLayerError as OlError;
+        use crate::ocr::marker::{contents_without, page_ocr_layers, plan_strip};
+
+        if self.base.trailer().contains_key(b"Encrypt") {
+            return Err(OlError::Encrypted);
+        }
+        let census = crate::signature::census(&self.base);
+        if census.forbids_structural_change() {
+            return Err(OlError::CertificationForbidsChange {
+                permission: census.certification_permission.unwrap_or(2),
+            });
+        }
+        let suppressed = self.base.suppressed_object_count();
+        if suppressed > 0 {
+            return Err(OlError::HiddenObjects { count: suppressed });
+        }
+
+        let not_found = || OlError::LayerNotFound {
+            page_index: layer.page_index,
+            content: layer.content,
+        };
+        let (page_id, new_page, strip) = {
+            let page_list = self.pages().map_err(OlError::PageTree)?;
+            let page = page_list.get(layer.page_index).ok_or_else(not_found)?;
+            let view = self.view();
+            let current = page_ocr_layers(&view, page, layer.page_index);
+            let found = current
+                .into_iter()
+                .find(|l| l.content == layer.content)
+                .ok_or_else(not_found)?;
+            let strip = plan_strip(&view, page, std::slice::from_ref(&found));
+            let graph = self.graph();
+            let mut new_page = graph.resolved(page.id).as_dict().cloned().ok_or_else(|| {
+                OlError::Unsupported("the page object is not a dictionary".to_owned())
+            })?;
+            match contents_without(&graph, new_page.get(b"Contents"), &strip.contents) {
+                Some(c) => new_page.insert(crate::object::Name::from(b"Contents"), c),
+                None => {
+                    new_page.remove(b"Contents");
+                }
+            };
+            if !strip.font_names.is_empty() {
+                // Same §7.7.3.4 recipe as the add: the page's EFFECTIVE
+                // resources, written as its own, so an inherited dict is not
+                // edited for every sibling page.
+                let mut fonts = match page.resources.get(b"Font") {
+                    Some(o) => graph.resolve(o).as_dict().cloned().unwrap_or_default(),
+                    None => crate::object::Dict::new(),
+                };
+                for name in &strip.font_names {
+                    fonts.remove(name);
+                }
+                let mut resources = page.resources.clone();
+                resources.insert(crate::object::Name::from(b"Font"), Object::Dict(fonts));
+                new_page.insert(
+                    crate::object::Name::from(b"Resources"),
+                    Object::Dict(resources),
+                );
+            }
+            (page.id, new_page, strip)
+        };
+        let removals = self.ocr_strip_removals(&[(layer.page_index, strip)])?;
+        let before = self.value(page_id).cloned();
+        self.commit(Command {
+            kind: CommandKind::RemoveOcrLayer,
+            objects: vec![ObjectWrite {
+                id: page_id,
+                before,
+                after: Some(Object::Dict(new_page)),
+            }],
+            removals,
+            trailer: None,
+        });
+        Ok(())
+    }
+
+    /// The objects a set of layer strips leaves unreferenced: each stripped
+    /// content stream no *other* page draws, and each stripped font object no
+    /// other page's `/Font` names. Anything still referenced elsewhere is kept.
+    fn ocr_strip_removals(
+        &self,
+        strips: &[(usize, crate::ocr::marker::LayerStrip)],
+    ) -> Result<Vec<Removal>, crate::ocr::layer::OcrLayerError> {
+        use crate::ocr::layer::OcrLayerError as OlError;
+        if strips.iter().all(|(_, s)| s.is_empty()) {
+            return Ok(Vec::new());
+        }
+        let page_list = self.pages().map_err(OlError::PageTree)?;
+        let view = self.view();
+        let graph = self.graph();
+        let mut candidates: Vec<ObjId> = Vec::new();
+        for (page_index, strip) in strips {
+            candidates.extend(strip.contents.iter().copied());
+            if let Some(page) = page_list.get(*page_index) {
+                let fonts = page
+                    .resources
+                    .get(b"Font")
+                    .and_then(|o| graph.resolve(o).as_dict());
+                for name in &strip.font_names {
+                    if let Some(Object::Reference(id)) = fonts.and_then(|d| d.get(name)) {
+                        candidates.push(*id);
+                    }
+                }
+            }
+        }
+        candidates.sort_unstable();
+        candidates.dedup();
+        let mut in_use: std::collections::BTreeSet<ObjId> = std::collections::BTreeSet::new();
+        for (i, page) in page_list.iter().enumerate() {
+            // A stripped page still holds whatever the strip did not take.
+            let strip = strips.iter().find(|(p, _)| *p == i).map(|(_, s)| s);
+            in_use.extend(
+                crate::ocr::marker::content_stream_ids(&view, page)
+                    .into_iter()
+                    .filter(|id| strip.is_none_or(|s| !s.contents.contains(id))),
+            );
+            let fonts = page
+                .resources
+                .get(b"Font")
+                .and_then(|o| graph.resolve(o).as_dict());
+            if let Some(d) = fonts {
+                for (name, v) in d.iter() {
+                    if let Object::Reference(id) = v
+                        && strip.is_none_or(|s| !s.font_names.iter().any(|n| n == name.as_bytes()))
+                    {
+                        in_use.insert(*id);
+                    }
+                }
+            }
+        }
+        Ok(candidates
+            .into_iter()
+            .filter(|id| !in_use.contains(id))
+            .map(|id| Removal {
+                id,
+                was_deleted: self.deleted.contains(&id),
+                is_deleted: true,
+            })
+            .collect())
     }
 
     /// Add a NEW single-line text run at operator coordinates as one undo-able

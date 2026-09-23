@@ -142,6 +142,7 @@
 //! [`OcrLayerReport::words_substituted`] for how a caller detects that it has
 //! landed in that case rather than discovering it from a page of `?`.
 
+use super::marker::{LayerStrip, contents_without, page_ocr_layers, plan_strip};
 use crate::document::Document;
 use crate::fontdata::{self, BaseEncoding, Std14};
 use crate::graph::ObjectGraph;
@@ -222,12 +223,39 @@ pub struct OcrLayerOptions {
     /// because its widths are the closest of the fourteen to the proportional
     /// sans faces most scanned business documents are set in.
     pub font: Std14,
+    /// The `/Engine` recorded in the layer's marker ([`super::marker`]), so a
+    /// later [`super::marker::OcrLayerRef`] can say what wrote it.
+    pub engine: Option<String>,
+    /// What to do when the page already carries a pdfcer OCR layer.
+    pub existing: ExistingLayers,
+}
+
+/// What an OCR write does when the page already carries a layer pdfcer wrote
+/// (found by its marker, [`super::marker`]).
+///
+/// Layers written by other software carry no marker and are never found, so
+/// no policy here touches them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum ExistingLayers {
+    /// Remove the page's pdfcer layers in the same write, then add the new
+    /// one. The default: re-running OCR means *redo it*, and two stacked
+    /// layers double every extracted, searched and copied word. Disclosed as
+    /// [`OcrLayerReport::layers_replaced`].
+    #[default]
+    Replace,
+    /// Refuse with [`OcrLayerError::LayerPresent`].
+    Refuse,
+    /// Add the new layer beside the old ones.
+    Stack,
 }
 
 impl Default for OcrLayerOptions {
     fn default() -> Self {
         Self {
             font: Std14::Helvetica,
+            engine: None,
+            existing: ExistingLayers::Replace,
         }
     }
 }
@@ -243,6 +271,20 @@ impl OcrLayerOptions {
     #[must_use]
     pub fn with_font(mut self, font: Std14) -> Self {
         self.font = font;
+        self
+    }
+
+    /// Record `engine` in the layer's marker.
+    #[must_use]
+    pub fn with_engine(mut self, engine: impl Into<String>) -> Self {
+        self.engine = Some(engine.into());
+        self
+    }
+
+    /// Choose what happens to a layer pdfcer already wrote on the page.
+    #[must_use]
+    pub fn with_existing(mut self, existing: ExistingLayers) -> Self {
+        self.existing = existing;
         self
     }
 }
@@ -298,6 +340,9 @@ pub struct OcrLayerReport {
     pub content_object: u32,
     /// The object number of the created font dictionary, or 0 before saving.
     pub font_object: u32,
+    /// How many earlier pdfcer layers on the page this write removed
+    /// ([`ExistingLayers::Replace`]).
+    pub layers_replaced: usize,
 }
 
 impl OcrLayerReport {
@@ -332,6 +377,12 @@ impl OcrLayerReport {
                  score."
                     .to_owned(),
             );
+        }
+        if self.layers_replaced > 0 {
+            out.push(format!(
+                "Replaced {} earlier OCR layer(s) pdfcer wrote on this page.",
+                self.layers_replaced
+            ));
         }
         if self.words_substituted > 0 {
             out.push(format!(
@@ -433,6 +484,26 @@ pub enum OcrLayerError {
         /// The `/P` value from the DocMDP transform parameters (Table 254
         /// default 2 when absent).
         permission: u8,
+    },
+    /// The page already carries a pdfcer OCR layer and the options say
+    /// [`ExistingLayers::Refuse`].
+    #[error("page {page_index} already carries {count} OCR layer(s) written by pdfcer")]
+    LayerPresent {
+        /// The page index.
+        page_index: usize,
+        /// How many layers were found.
+        count: usize,
+    },
+    /// The layer to remove is not on that page (any more).
+    ///
+    /// An [`super::marker::OcrLayerRef`] names one revision; find again after
+    /// an edit rather than reuse an old one.
+    #[error("no pdfcer OCR layer in object {content} on page {page_index}")]
+    LayerNotFound {
+        /// The page index the reference named.
+        page_index: usize,
+        /// The content stream the reference named.
+        content: ObjId,
     },
     /// The incremental save failed.
     #[error(transparent)]
@@ -556,6 +627,7 @@ pub fn build_layer_content(
         confidence_available: page.confidence_available,
         content_object: 0,
         font_object: 0,
+        layers_replaced: 0,
     };
 
     let placed: Vec<PlacedWord> = page
@@ -576,7 +648,19 @@ pub fn build_layer_content(
 
     // `q` before `BT`: Tf/Tr/Tz are graphics state and MUST NOT leak into the
     // streams that follow this one in the /Contents array (§8.4.2).
-    out.extend_from_slice(b"\nq\nBT\n3 Tr\n");
+    // The marker (`super::marker`) is outermost, so the whole stream is one
+    // marked-content sequence: BDC > q > BT, properly nested (§14.6.1).
+    out.extend_from_slice(b"\n/");
+    out.extend_from_slice(super::marker::LAYER_TAG);
+    out.extend_from_slice(b" << /Producer ");
+    emit_literal_string(&mut out, super::marker::LAYER_PRODUCER);
+    out.extend_from_slice(b" /Version ");
+    out.extend_from_slice(super::marker::LAYER_VERSION.to_string().as_bytes());
+    if let Some(engine) = &opts.engine {
+        out.extend_from_slice(b" /Engine ");
+        emit_literal_string(&mut out, engine.as_bytes());
+    }
+    out.extend_from_slice(b" >> BDC\nq\nBT\n3 Tr\n");
 
     // Emitted per word rather than hoisted: two adjacent words almost never
     // share a size, so tracking "has it changed" would save a handful of bytes
@@ -606,7 +690,7 @@ pub fn build_layer_content(
         report.words_scale_clamped += usize::from(p.clamped);
     }
 
-    out.extend_from_slice(b"ET\nQ\n");
+    out.extend_from_slice(b"ET\nQ\nEMC\n");
     (out, report)
 }
 
@@ -692,6 +776,35 @@ impl OcrLayerPrep {
     }
 }
 
+/// Apply [`OcrLayerOptions::existing`] to one page: the layers to take off
+/// before writing, or the refusal.
+///
+/// # Errors
+///
+/// [`OcrLayerError::LayerPresent`] under [`ExistingLayers::Refuse`] when the
+/// page carries a pdfcer layer.
+pub(crate) fn existing_layer_strip(
+    view: &crate::view::DocumentView<'_>,
+    page: &crate::page_tree::Page,
+    page_index: usize,
+    opts: &OcrLayerOptions,
+) -> Result<LayerStrip, OcrLayerError> {
+    if opts.existing == ExistingLayers::Stack {
+        return Ok(LayerStrip::default());
+    }
+    let found = page_ocr_layers(view, page, page_index);
+    if found.is_empty() {
+        return Ok(LayerStrip::default());
+    }
+    if opts.existing == ExistingLayers::Refuse {
+        return Err(OcrLayerError::LayerPresent {
+            page_index,
+            count: found.len(),
+        });
+    }
+    Ok(plan_strip(view, page, &found))
+}
+
 /// Plan one page's OCR layer against `graph`, allocating nothing.
 ///
 /// `page` must come from the same graph the caller will write through — the
@@ -714,30 +827,39 @@ pub(crate) fn plan_ocr_layer<G: ObjectGraph + ?Sized>(
     page: &crate::page_tree::Page,
     ocr_page: &OcrPage,
     opts: &OcrLayerOptions,
+    strip: &LayerStrip,
     graph: &G,
 ) -> Result<OcrLayerPrep, OcrLayerError> {
     let page_dict = graph.resolved(page.id).as_dict().cloned().ok_or_else(|| {
         OcrLayerError::Unsupported("the page object is not a dictionary".to_owned())
     })?;
-    let contents_before = page_dict.get(b"Contents").cloned();
+    let contents_before = if strip.is_empty() {
+        page_dict.get(b"Contents").cloned()
+    } else {
+        contents_without(graph, page_dict.get(b"Contents"), &strip.contents)
+    };
 
     // The §7.7.3.4 inheritance-safe recipe, identical to add-text's: take the
     // page's EFFECTIVE resources (own-or-inherited, already resolved by the
     // page-tree walk), strip /Font, and re-add it merged. Writing an own
     // /Resources holding only the new font would shadow an inherited one and
     // silently break every other resource the page uses.
-    let font_subdict_base: Dict = match page.resources.get(b"Font") {
+    let mut font_subdict_base: Dict = match page.resources.get(b"Font") {
         Some(o) => graph.resolve(o).as_dict().cloned().unwrap_or_default(),
         None => Dict::new(),
     };
+    for name in &strip.font_names {
+        font_subdict_base.remove(name);
+    }
     let font_name = pick_font_name(&font_subdict_base);
     let mut resources_base = page.resources.clone();
     resources_base.remove(b"Font");
 
-    let (content_data, report) = build_layer_content(ocr_page, &font_name, opts);
+    let (content_data, mut report) = build_layer_content(ocr_page, &font_name, opts);
     if report.words_written == 0 {
         return Err(OcrLayerError::NothingToWrite);
     }
+    report.layers_replaced = strip.contents.len();
 
     Ok(OcrLayerPrep {
         page_id: page.id,
@@ -824,7 +946,8 @@ pub fn add_ocr_layer(
     // nothing -- see `plan_ocr_layer`. What differs between the two writers is
     // only where object numbers and staged bytes come from, and that fork
     // starts on the next line.
-    let prep = plan_ocr_layer(page, ocr_page, opts, doc)?;
+    let strip = existing_layer_strip(&doc.view(), page, page_index, opts)?;
+    let prep = plan_ocr_layer(page, ocr_page, opts, &strip, doc)?;
     let mut report = prep.report.clone();
 
     let content_num = doc
@@ -958,7 +1081,10 @@ mod tests {
             .pipe_build(b"OCR0", &OcrLayerOptions::new());
         let s = String::from_utf8_lossy(&bytes).to_string();
         assert!(s.contains("q\nBT\n3 Tr"), "must open q then BT then 3 Tr");
-        assert!(s.trim_end().ends_with("ET\nQ"), "must close ET then Q: {s}");
+        assert!(
+            s.trim_end().ends_with("ET\nQ\nEMC"),
+            "must close ET, Q, then the marker's EMC: {s}"
+        );
         assert_eq!(s.matches('q').count(), 1, "exactly one q");
         assert_eq!(s.matches('Q').count(), 1, "exactly one Q");
     }

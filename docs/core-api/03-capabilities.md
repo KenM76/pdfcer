@@ -2346,12 +2346,27 @@ an API gap.
 |---|---|
 | `add_ocr_layer(&doc, page_index, &OcrPage, &opts) -> Result<OcrLayerOutcome, OcrLayerError>` | `ocr/layer.rs:603` |
 | `build_layer_content(&OcrPage, font_name, &opts) -> (Vec<u8>, OcrLayerReport)` — **pure**, no `Document`, no I/O | `ocr/layer.rs:496` |
-| `OcrLayerOptions::new()` / `.with_font(Std14)` | `ocr/layer.rs:216`, `:238`, `:244` |
+| `OcrLayerOptions::new()` / `.with_font(Std14)` / `.with_engine(name)` / `.with_existing(ExistingLayers)` | `ocr/layer.rs` |
+| `ExistingLayers` (`Replace` default, `Refuse`, `Stack`) — what to do with a layer pdfcer already wrote on the page | `ocr/layer.rs` |
 | `OcrLayerReport` — see §5.4, every field is a disclosure | `ocr/layer.rs:259` |
 | `OcrLayerReport::disclosures() -> Vec<String>` — **ready-to-show lines** | `ocr/layer.rs:313` |
-| `OcrLayerError` (`PageIndex`, `Encrypted`, `NothingToWrite`, `Unsupported`, `PageTree`, `ObjectNumbersExhausted`, `Write`) | `ocr/layer.rs:365` |
+| `OcrLayerError` (`PageIndex`, `Encrypted`, `NothingToWrite`, `Unsupported`, `PageTree`, `ObjectNumbersExhausted`, `Write`, `LayerPresent { page_index, count }`, `LayerNotFound { page_index, content }`, …) | `ocr/layer.rs` |
+| `OcrLayerReport::layers_replaced` — earlier pdfcer layers taken off this page | `ocr/layer.rs` |
 | `OcrLayerOutcome { bytes, report }` | `ocr/layer.rs:397` |
 | `HELVETICA_ASCENT_FRAC` 0.718 · `HELVETICA_DESCENT_FRAC` 0.207 · `MIN_TZ` 1.0 · `MAX_TZ` 10 000.0 | `ocr/layer.rs:182`, `:190`, `:199`, `:207` |
+
+**Piece 2b — finding layers** (`crates/pdfcer-core/src/ocr/marker.rs`, `Pass 318.0`)
+
+| item | `file:line` |
+|---|---|
+| `LAYER_TAG` `b"pdfc_OCR"` · `LAYER_PRODUCER` `b"pdfcer"` · `LAYER_VERSION` 1 | `ocr/marker.rs` |
+| `find_ocr_layers(&DocumentView) -> Result<Vec<OcrLayerRef>, PageTreeError>` | `ocr/marker.rs` |
+| `page_ocr_layers(&DocumentView, &Page, page_index) -> Vec<OcrLayerRef>` | `ocr/marker.rs` |
+| `OcrLayerRef { page_index, content: ObjId, engine, version, font_names }` | `ocr/marker.rs` |
+
+The tag uses the ISO 32000-1 Annex E second-class name form; the `pdfc`
+prefix is not registered (open operator question `(ce)`). CLI: `pdfcer ocr
+--existing replace|refuse|stack`.
 
 **Piece 3 — the engine** (`crates/pdfcer-core/src/ocr/engine_ocrs.rs`, feature `ocrs`, **on by default**)
 
