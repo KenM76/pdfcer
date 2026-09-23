@@ -9200,7 +9200,9 @@ enum Command {
     ///
     /// - `--granularity run` — one new text object per show operator.
     /// - `--granularity line` — a new object wherever the baseline changes
-    ///   between consecutive show operators. This is an INFERENCE (the file
+    ///   between consecutive show operators, or clear space (or a jump
+    ///   backwards) separates them, so a table row splits into its cells.
+    ///   This is an INFERENCE (the file
     ///   does not record where its lines are, §14.8) and is disclosed on
     ///   stderr with the count.
     /// - `--before N` (repeatable) — cut before exactly these runs, 0-based in
@@ -10156,7 +10158,8 @@ enum SplitGranularityArg {
     /// One new text object per show operator.
     Run,
     /// A new text object wherever the baseline changes between consecutive
-    /// show operators. An inference (ISO 32000-1 §14.8), disclosed on stderr.
+    /// show operators, or clear space separates them (a table row splits into
+    /// its cells). An inference (ISO 32000-1 §14.8), disclosed on stderr.
     Line,
 }
 

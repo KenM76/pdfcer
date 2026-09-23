@@ -14575,9 +14575,11 @@ impl EditSession {
         if matches!(granularity, crate::vector::SplitGranularity::Line) {
             disclosures.push(format!(
                 "split: pdfcer inferred {} line break(s) among this text object's {} show \
-                 operator(s) by comparing baselines — the file does not record where its lines \
-                 are (ISO 32000-1 14.8). Consecutive operators on one baseline were kept in one \
-                 piece; every baseline change starts a new one.",
+                 operator(s) from baselines and spacing — the file does not record where its \
+                 lines are (ISO 32000-1 14.8). Consecutive operators on one baseline were kept \
+                 in one piece unless more than one line height of clear space, or a jump back \
+                 of more than half a line height, separated them; every baseline change starts \
+                 a new one.",
                 points.len(),
                 text.runs.len()
             ));

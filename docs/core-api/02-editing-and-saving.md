@@ -1194,7 +1194,14 @@ that sets those two equal (Table 108) — while `Tf`, `Tc`, `Tw`, `Tz`, `TL`,
 **Choosing the cuts.** `text_object_split_plan` returns them for
 `SplitGranularity::Run` (one object per show operator) or
 `SplitGranularity::Line` (a new object wherever the baseline changes between
-consecutive operators, in stream order). `Line` is an **inference** — an
+consecutive operators, in stream order, **or** clear space separates them —
+more than one line height of gap, or a jump back of more than half a line
+height, so a BOM row splits into its cells and zone letters split apart).
+For other thresholds, `vector::edit::text_object_line_split_points(obj,
+LineSplitOptions)` returns the same cuts with the caller's `max_gap` /
+`max_backward` (in line heights), and `text_runs_share_a_line(obj, i, opts)`
+answers for one pair. The gap test is skipped for `TextBoundsBasis::EmBox`
+objects. `Line` is an **inference** — an
 untagged stream does not record where its lines are (§14.8) — so the plan call
 returns the disclosure sentence with it. A shell with its own selection skips
 the plan and passes run indices straight to `split_text_object`.

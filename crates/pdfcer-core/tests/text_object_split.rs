@@ -66,10 +66,12 @@ use pdfcer_core::document::Document;
 use pdfcer_core::edit::EditSession;
 use pdfcer_core::page_tree;
 use pdfcer_core::vector::edit::{
-    plan_split_text_object, text_object_split_points, text_split_refusal,
+    LineSplitOptions, plan_split_text_object, text_object_line_split_points,
+    text_object_split_points, text_runs_share_a_line, text_split_refusal,
 };
 use pdfcer_core::vector::{
-    Matrix, SplitGranularity, TextObject, VectorEditError, VectorObject, decompose_page,
+    Matrix, SplitGranularity, TextBoundsBasis, TextObject, VectorEditError, VectorObject,
+    decompose_page,
 };
 use pdfcer_core::writer::SaveOptions;
 
@@ -196,11 +198,18 @@ fn cuts_are_deduplicated_and_ordered() {
 
 #[test]
 fn line_granularity_groups_by_baseline_in_stream_order() {
-    // Three runs advanced along ONE baseline by `40 0 Td`: one visual line,
-    // therefore no cut at all under `Line`…
+    // Three runs advanced along ONE baseline by `40 0 Td`. ALPHA ends 0.78
+    // line heights before BETA; BETA ends 1.50 before GAMMA — clear space,
+    // so the default cuts there and only there…
     let (_, chain) = fixture_text("runs-td-relative.pdf");
+    assert_eq!(
+        text_object_split_points(&chain, SplitGranularity::Line),
+        vec![2]
+    );
+    // …and a looser threshold keeps the whole baseline together.
     assert!(
-        text_object_split_points(&chain, SplitGranularity::Line).is_empty(),
+        text_object_line_split_points(&chain, LineSplitOptions::default().with_max_gap(2.0))
+            .is_empty(),
         "one visual line stays one object"
     );
     // …while `Run` cuts before every run but the first.
@@ -361,4 +370,124 @@ fn text_object_index(s: &mut EditSession) -> usize {
         .iter()
         .position(|o| matches!(o, VectorObject::Text(_)))
         .expect("a text object")
+}
+
+/// One page, Helvetica as `/F1`, `content` as its only stream — built byte by
+/// byte so the file carries no normalisation from the code under test.
+fn text_pdf(content: &str) -> Vec<u8> {
+    let bodies = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] \
+         /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>"
+            .to_string(),
+        format!(
+            "<< /Length {} >>\nstream\n{content}\nendstream",
+            content.len() + 1
+        ),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
+            .to_string(),
+    ];
+    let mut out = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in bodies.iter().enumerate() {
+        offsets.push(out.len());
+        out.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+    }
+    let startxref = out.len();
+    out.extend_from_slice(b"xref\n0 6\n0000000000 65535 f \n");
+    for off in &offsets {
+        out.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    out.extend_from_slice(b"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n");
+    out.extend_from_slice(format!("{startxref}\n%%EOF\n").as_bytes());
+    out
+}
+
+/// The first text object of [`text_pdf`]`(content)`, asserted to have glyph
+/// boxes — without them the gap test is skipped and every assertion below
+/// would pass for the wrong reason.
+fn text_of(content: &str) -> TextObject {
+    let doc = Document::from_bytes(text_pdf(content)).expect("parses");
+    let page = page_tree::pages(&doc).expect("pages")[0].clone();
+    let model = decompose_page(&doc.view(), &page, Matrix::IDENTITY).expect("decomposes");
+    let t = model
+        .objects
+        .iter()
+        .find_map(|o| match o {
+            VectorObject::Text(t) => Some(t.clone()),
+            _ => None,
+        })
+        .expect("a text object");
+    assert_eq!(
+        t.bounds_basis,
+        TextBoundsBasis::FontMetrics,
+        "fixture shape"
+    );
+    t
+}
+
+#[test]
+fn line_granularity_splits_a_table_row_into_its_cells() {
+    // G032: a BOM row is one baseline written left to right, cell by cell.
+    // Adjacent and co-linear, yet three different fields.
+    let row = text_of(
+        "BT /F1 10 Tf 1 0 0 1 72 700 Tm (QTY) Tj 1 0 0 1 200 700 Tm (PART NUMBER) Tj \
+         1 0 0 1 400 700 Tm (DESCRIPTION) Tj ET",
+    );
+    assert_eq!(row.runs.len(), 3, "fixture shape");
+    assert_eq!(
+        text_object_split_points(&row, SplitGranularity::Line),
+        vec![1, 2]
+    );
+    assert!(!text_runs_share_a_line(
+        &row,
+        1,
+        LineSplitOptions::default()
+    ));
+    // The threshold is the caller's: a loose enough one welds the row back.
+    assert!(
+        text_object_line_split_points(&row, LineSplitOptions::default().with_max_gap(100.0))
+            .is_empty()
+    );
+}
+
+#[test]
+fn line_granularity_splits_a_backward_jump() {
+    // Sheet-border zone letters: the pen returns across the sheet on one
+    // baseline. The second run starts far behind where the first one ended.
+    let zones = text_of("BT /F1 10 Tf 1 0 0 1 500 20 Tm (D) Tj 1 0 0 1 100 20 Tm (C) Tj ET");
+    assert_eq!(
+        text_object_split_points(&zones, SplitGranularity::Line),
+        vec![1]
+    );
+    let lax = LineSplitOptions::default()
+        .with_max_gap(100.0)
+        .with_max_backward(100.0);
+    assert!(text_runs_share_a_line(&zones, 1, lax));
+}
+
+#[test]
+fn line_granularity_keeps_abutting_pieces_of_one_phrase_together() {
+    // Two show operators, no repositioning: the second starts exactly where
+    // the first ended. One line, whatever the producer's reason for two runs.
+    let phrase = text_of("BT /F1 10 Tf 1 0 0 1 72 700 Tm (PROCESS) Tj ( LAYOUT) Tj ET");
+    assert_eq!(phrase.runs.len(), 2, "fixture shape");
+    assert!(text_object_split_points(&phrase, SplitGranularity::Line).is_empty());
+    assert!(text_runs_share_a_line(
+        &phrase,
+        1,
+        LineSplitOptions::default()
+    ));
+    // Run 0 continues nothing; an index past the end names no run.
+    assert!(!text_runs_share_a_line(
+        &phrase,
+        0,
+        LineSplitOptions::default()
+    ));
+    assert!(!text_runs_share_a_line(
+        &phrase,
+        9,
+        LineSplitOptions::default()
+    ));
 }

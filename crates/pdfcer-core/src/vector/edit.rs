@@ -107,7 +107,9 @@ use crate::content::{ContentStream, ContentToken, ContentTokenKind};
 use crate::text_edit::edit::splice;
 use crate::writer::content::emit_number;
 
-use super::decompose::{PathObject, RunPositioning, TextObject, VectorObject};
+use super::decompose::{
+    PathObject, RunPositioning, TextBoundsBasis, TextObject, TextRun, VectorObject,
+};
 use super::geometry::{Matrix, Point, Rgb, rect_corners};
 
 /// Why a vector-edit surgery could not be planned.
@@ -1621,7 +1623,12 @@ pub enum SplitGranularity {
     /// dozens of unrelated labels sharing a y-coordinate across the width of
     /// the sheet; grouping by baseline alone would weld them into one object
     /// and make them move together. Consecutive runs on one baseline are the
-    /// pieces a producer wrote as one line.
+    /// pieces a producer wrote as one line — **unless clear space separates
+    /// them**. CAD writes a table row by row and a sheet border zone by zone,
+    /// so adjacency plus a shared baseline is exactly where pieces are least
+    /// related: a gap wider than a line height, or a jump backwards, also
+    /// starts a new object. Thresholds: [`LineSplitOptions`]; to choose
+    /// others, [`text_object_line_split_points`].
     ///
     /// This is an **inference** (rule 4) — the file does not say where its
     /// lines are (§14.8) — so a split made this way is reported with the cut
@@ -1629,22 +1636,69 @@ pub enum SplitGranularity {
     Line,
 }
 
-/// Whether two runs sit on one line for [`SplitGranularity::Line`]'s purposes.
+/// Where [`SplitGranularity::Line`] separates "one line" from "two pieces on
+/// one baseline", in **line heights** of the earlier run (its box measured
+/// across the writing direction — roughly 1.1–1.2 em under
+/// [`TextBoundsBasis::FontMetrics`]).
 ///
-/// Orientation and scale are compared **exactly** and the baseline with a
-/// scaled tolerance — the same split, for the same reason, that
-/// `text_edit::edit::same_line` makes: a different scale or rotation is
-/// different text whatever the magnitude, while a baseline that differs in the
-/// fourth decimal is one line written by a producer with float round-trip
-/// noise in its `Td` verticals.
-fn runs_share_a_line(a: &Matrix, b: &Matrix) -> bool {
+/// Defaults come from the operator's 36-page SolidWorks drawing, where clear
+/// space between consecutive same-baseline runs is bimodal: pieces of one
+/// phrase sit under 0.1 line heights apart, nothing falls in 0.1–0.43, and
+/// table cells, zone letters and title-block fields sit wider. `max_backward`
+/// matches text extraction's backward-jump ratio.
+///
+/// Not applied when the object's `bounds_basis` is [`TextBoundsBasis::EmBox`]:
+/// those boxes are a hull of pen positions, not glyph extents, so only the
+/// baseline test runs.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
+pub struct LineSplitOptions {
+    /// Widest clear space, in line heights, from one run's end to the next
+    /// run's origin that still counts as one line. Default 1.0.
+    pub max_gap: f64,
+    /// Furthest, in line heights, the next run may start behind the previous
+    /// run's end and still count as one line. Default 0.5.
+    pub max_backward: f64,
+}
+
+impl Default for LineSplitOptions {
+    fn default() -> Self {
+        Self {
+            max_gap: 1.0,
+            max_backward: 0.5,
+        }
+    }
+}
+
+impl LineSplitOptions {
+    /// Set [`Self::max_gap`] (the out-of-crate constructor; the struct is
+    /// `#[non_exhaustive]`).
+    #[must_use]
+    pub const fn with_max_gap(mut self, line_heights: f64) -> Self {
+        self.max_gap = line_heights;
+        self
+    }
+
+    /// Set [`Self::max_backward`].
+    #[must_use]
+    pub const fn with_max_backward(mut self, line_heights: f64) -> Self {
+        self.max_backward = line_heights;
+        self
+    }
+}
+
+/// Whether two text matrices put their runs on one baseline.
+///
+/// Orientation and scale compare **exactly**, the baseline within a scaled
+/// tolerance — as `text_edit::edit::same_line` does: a different rotation is
+/// different text, while a fourth-decimal baseline difference is producer
+/// float noise in a `Td` vertical.
+fn matrices_share_a_baseline(a: &Matrix, b: &Matrix) -> bool {
     if !(a.a == b.a && a.b == b.b && a.c == b.c && a.d == b.d) {
         return false;
     }
-    // `hypot(c, d)` rather than `d` so rotated text — a title block's vertical
-    // annotation — keeps a meaningful scale instead of a near-zero one; a
-    // degenerate matrix falls back to 1.0 rather than collapsing the tolerance
-    // to nothing.
+    // `hypot(c, d)` keeps rotated text's scale meaningful; a degenerate matrix
+    // falls back to 1.0 rather than collapsing the tolerance to nothing.
     let y_scale = a.c.hypot(a.d);
     let scale = if y_scale.is_finite() && y_scale > f64::EPSILON {
         y_scale
@@ -1652,6 +1706,85 @@ fn runs_share_a_line(a: &Matrix, b: &Matrix) -> bool {
         1.0
     };
     (a.f - b.f).abs() <= SPLIT_LINE_DRIFT_TOLERANCE * scale
+}
+
+/// Signed clear space from `prev`'s end to `this`'s origin along the writing
+/// direction, and `prev`'s line height, in page units — `None` when the boxes
+/// cannot answer.
+///
+/// Boxes are axis-aligned, so for rotated text the projected end and height
+/// both overestimate: the gap shrinks and the height grows, erring towards
+/// keeping pieces together.
+fn clear_space(obj: &TextObject, prev: &TextRun, this: &TextRun) -> Option<(f64, f64)> {
+    if obj.bounds_basis == TextBoundsBasis::EmBox || prev.bounds.is_empty() {
+        return None;
+    }
+    let m = &this.text_matrix;
+    let dir = obj.ctm.map_vector(Point::new(m.a, m.b));
+    let len = dir.x.hypot(dir.y);
+    if !len.is_finite() || len <= f64::EPSILON {
+        return None;
+    }
+    let (ux, uy) = (dir.x / len, dir.y / len);
+    let along = |p: Point| p.x * ux + p.y * uy;
+    let across = |p: Point| p.y * ux - p.x * uy;
+    let b = &prev.bounds;
+    let corners = [
+        Point::new(b.min.x, b.min.y),
+        Point::new(b.max.x, b.min.y),
+        Point::new(b.min.x, b.max.y),
+        Point::new(b.max.x, b.max.y),
+    ];
+    let end = corners
+        .iter()
+        .map(|&c| along(c))
+        .fold(f64::NEG_INFINITY, f64::max);
+    let lo = corners
+        .iter()
+        .map(|&c| across(c))
+        .fold(f64::INFINITY, f64::min);
+    let hi = corners
+        .iter()
+        .map(|&c| across(c))
+        .fold(f64::NEG_INFINITY, f64::max);
+    let gap = along(obj.ctm.map_point(Point::new(m.e, m.f))) - end;
+    let height = hi - lo;
+    (gap.is_finite() && height.is_finite() && height > f64::EPSILON).then_some((gap, height))
+}
+
+/// Whether run `index` continues the line of run `index - 1` — the predicate
+/// [`SplitGranularity::Line`] cuts on, exported so a shell can explain one
+/// grouping without re-deriving it (R221).
+///
+/// True when both share a baseline and, where the boxes allow the
+/// measurement, the clear space between them is within `options`. `false`
+/// for index 0 or out of range.
+#[must_use]
+pub fn text_runs_share_a_line(obj: &TextObject, index: usize, options: LineSplitOptions) -> bool {
+    let (Some(prev), Some(this)) = (
+        index.checked_sub(1).and_then(|i| obj.runs.get(i)),
+        obj.runs.get(index),
+    ) else {
+        return false;
+    };
+    if !matrices_share_a_baseline(&prev.text_matrix, &this.text_matrix) {
+        return false;
+    }
+    match clear_space(obj, prev, this) {
+        Some((gap, height)) => {
+            gap <= options.max_gap * height && gap >= -options.max_backward * height
+        }
+        None => true,
+    }
+}
+
+/// [`text_object_split_points`] at [`SplitGranularity::Line`] with
+/// caller-chosen thresholds — for a shell that exposes them as a setting.
+#[must_use]
+pub fn text_object_line_split_points(obj: &TextObject, options: LineSplitOptions) -> Vec<usize> {
+    (1..obj.runs.len())
+        .filter(|&index| !text_runs_share_a_line(obj, index, options))
+        .collect()
 }
 
 /// The run indices a bulk split of `obj` would cut **before**, at the
@@ -1687,23 +1820,10 @@ fn runs_share_a_line(a: &Matrix, b: &Matrix) -> bool {
 /// ```
 #[must_use]
 pub fn text_object_split_points(obj: &TextObject, granularity: SplitGranularity) -> Vec<usize> {
-    let mut out = Vec::new();
-    for index in 1..obj.runs.len() {
-        let keep_together = match granularity {
-            SplitGranularity::Run => false,
-            SplitGranularity::Line => {
-                let (Some(prev), Some(this)) = (obj.runs.get(index - 1), obj.runs.get(index))
-                else {
-                    continue;
-                };
-                runs_share_a_line(&prev.text_matrix, &this.text_matrix)
-            }
-        };
-        if !keep_together {
-            out.push(index);
-        }
+    match granularity {
+        SplitGranularity::Run => (1..obj.runs.len()).collect(),
+        SplitGranularity::Line => text_object_line_split_points(obj, LineSplitOptions::default()),
     }
-    out
 }
 
 /// Why a split before run `index` would be refused, or `None` when it is
