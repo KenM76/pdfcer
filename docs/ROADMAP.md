@@ -115,6 +115,49 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 315.0` (`ca8f7c55`), 2026-09-23 — a set of text runs moves as one edit, not one at a time (`G030`)
+
+New Pass family, minted this filing. Answers `G030` (`pdfce_FeatureRequests`): `move_text_run`/`move_text_run_in_form` (`Pass 305.0`) had no set-taking twin, so the guard that refuses moving a run whose *successor* would be dragged along (`RunPositioning::Inherited`) refused a legal whole-line move whenever the caller tried to move every affected run one at a time — the first run's move displaced the second, which the guard then correctly refused to move again. `Pass 305.0`'s own "Not built" note named exactly this escape hatch and deferred it pending evidence the refusal was common on real files; `G030` is that evidence.
+
+**The fix**, `pdfcer_core::vector::plan_move_text_runs`: an operand rewrite over the whole listed set in one pass — every listed run's own `Tm`/`Td` (or an inserted `Td`, same three-way split as the single-run verb) gets the delta, and a run displaced only because an earlier LISTED run moved ahead of it is restored to its original position, so a run NOT in the caller's set never moves. A single-element set is byte-identical to `move_text_run`'s own output (asserted, not merely expected).
+
+**New pub surface.** `vector::text_run_move_refusal_of_set(&TextObject, runs: &[usize]) -> Option<VectorEditError>` — the same guard the verb itself runs (`R221`), refusing only when a dragged-along or orphaned neighbour is NOT among the listed runs; a set that already lists both sides of an inheritance is legal. New `VectorEditError::EmptyTextRunMove` for a zero-length set, rather than a silent no-op. `EditSession::move_text_runs(page_index, object_index, runs: &[usize], dx, dy)` and `move_text_runs_in_form(page_index, leaf_index, runs, dx, dy)` — one command, one undo entry, whatever the set size.
+
+**CLI (rule 11).** `pdfcer text-run-move --run` now takes a list — repeated `--run N` flags or a comma-separated value — over the same single flag `Pass 305.0` shipped; a one-element list is the old single-run call.
+
+**`docs/core-api/02-editing-and-saving.md` + `index.md`.** Both `move_text_runs`/`move_text_runs_in_form` rows added to the verb tables (page-level and in-form); `text_run_move_refusal_of_set` added as the pre-check row beside its single-run sibling. Verb count **244 → 246**. `tools/check-core-api-verbs.py`: PASS.
+
+**Tests.** `crates/pdfcer-core/tests/text_run_set_move.rs`, 6 tests, measured over every subset of a multi-run text object rather than one hand-picked set: every accepted set moves exactly its members; a line with an inherited fragment moves as a set; refusals name the specific run that would tear; moving every run in an object rewrites only the absolute placement (relative structure preserved); inserted operators are disclosed once per call, not once per run; a set move is one undo entry. Sabotage: 7 mutants (restore-on-displacement, refusal-of-set membership check, empty-set guard, single-element byte-identity, disclosure-per-call, undo-grouping, CTM-mapped delta) — all 7 caught.
+
+**Demo**, on the `SW41177.pdf` SolidWorks CAD drawing that motivated `Pass 305.0`/`306.0`/`311.0`/`312.0`/`313.0`/`314.0`: a whole-line set move reports `changed=8`, undo byte-identical to the pre-edit bytes.
+
+**Gates.** `tools/run-gates.sh` full sweep: PASS, 34 commands including both filing gates. No `Cargo.toml` change, so the `cargo tree -p pdfcer-core`/`-p pdfcer-render` GUI-dependency invariant is unaffected by construction. Not a writer/incremental-save change; round-trip/minimal-diff unaffected.
+
+**`docs/FEATURES.md`.** No new row — this extends an already-`[x]`-core/`[x]`-cli/`[ ]`-gui capability ("Move one text run independently of others"), not a new one. A short note appended naming the set-move verb and the Pass; re-checked against `tools/check-register-entry-size.py`'s 1,200-char cap after the edit (row does not appear in that file's own `^.{1200,}$` matches).
+
+**No decision-log entry** — a set-taking sibling of an existing verb plus one new error variant, not a crate-boundary/library-choice/invariant call.
+
+**Standing rules.** `R221` gains a 13th dated instance in its canonical ledger (`D:\dev\rag\rust\a_capability_predicate_that_restates_its_accepting_function_will_drift_ask_the_function_instead.md`, dated footer, no re-mint) — `text_run_move_refusal_of_set` is the verb's own guard, exported rather than restated, same shape as instance 12 one filing earlier on the sibling verb.
+
+**`C:\personal_rag\pdf\`.** No new lesson — an internal API-completeness fix (a missing set-taking verb, not a producer-divergence finding), same posture as `Pass 314.0`. The motivating file's 237-run text-object shape already has three 2026-09-22 lessons on record; grepped first, nothing new here.
+
+**`D:\Dev\FeatureRequests\pdfce_FeatureRequests\INDEX.md`.** New row for `G030`, outcome SHIPPED — engineer's own `reply_G030_move_text_runs_set_verb_FIXED.md` already on disk in `open/`, not written by this filing.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Independently confirmed via `Grep`/`Read` against live source: `plan_move_text_runs`, `text_run_move_refusal_of_set`, `EmptyTextRunMove`, `move_text_runs`, `move_text_runs_in_form` all present in `crates/pdfcer-core/src/vector/edit.rs`, `crates/pdfcer-core/src/edit.rs`, `crates/pdfcer-core/src/vector/mod.rs` and `crates/pdfcer-cli/src/main.rs`; `crates/pdfcer-core/tests/text_run_set_move.rs` holds exactly 6 `#[test]` functions; `docs/core-api/02-editing-and-saving.md` already carries the `move_text_runs`/`move_text_runs_in_form`/`text_run_move_refusal_of_set` rows and `docs/core-api/index.md` already states 246 verbs — both apparently updated by the dispatching engineer ahead of this filing, confirmed present rather than written by it; no prior `ROADMAP.md`/`SESSION_LOG.md` entry named `G030` or `Pass 315` before this filing (fresh family, not a promotion); the edited `docs/FEATURES.md` row re-checked against that file's own `^.{1200,}$` matches post-edit and does not appear in that list. This session's own git-status context lists `ca8f7c55` at `HEAD` with the subject line *"vector: move a set of text runs as one edit (G030)"*, which corroborates the commit and its one-line description but is not a `git show`. The full 40-char hash, the diffstat, and the gate-sweep results are **relayed from the dispatching engineer's report, not independently re-run**.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `314` (highest `.0`), next free `315` | **`Pass 315.0` SHIPPED in `ca8f7c55` — next free family `316`** |
+| Standing rules | `R258` next free (two corroborating ledgers; one intervening `v0.55.0` ledger row says `R251`, unresolved) | unchanged — no rule minted; `R221` gains a 13th dated instance (dated footer in its RAG ledger, no re-mint); the `R251`/`R258` discrepancy still not re-verified by this filing |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `575` | **`576`** |
+| `docs/FEATURES.md` | "Move one text run independently of others" row had no set-move note | **note appended, re-verified against the 1,200-char register cap** |
+| `pdfce_FeatureRequests/INDEX.md` | `G030` had no row | **row added, outcome SHIPPED** |
+
+---
+
 ### `Pass 314.0` (`c6ab2104`), 2026-09-23 — `move_objects`/`move_objects_in_form` now move TEXT objects by operand rewrite, not just paths (`G029`)
 
 New Pass family, minted this filing. Answers `G029` (`pdfce_FeatureRequests`): `EditSession::move_object`/`move_objects`/`move_objects_in_form` refused every text object with `NotAPath`, while `transform_objects` already accepted them via a `q…cm…Q` wrapper — the cheap, wrapper-free move the verb's own name promised did not exist. Motivating case: `SW41177.pdf` page 0, notes column, a 237-show-operator text object (`5871`); even after a `Line`-granularity split (`Pass 306.0`) put the operator's own reported line at object `5920`, `move_objects` still refused it.
