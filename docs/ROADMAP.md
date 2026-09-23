@@ -115,6 +115,82 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 317.0` (`53b939b2`), 2026-09-23 — an extracted glyph maps to its editable surgery run (`G037`)
+
+New Pass family, minted this filing. Answers `G037` (`pdfce_FeatureRequests`): `extract-text --spans` gives each glyph's show-operator provenance (`Pass` behind `docs/FEATURES.md`'s Text row 189), but nothing joined that provenance back to the editable `vector` model — a caller holding a clicked/searched glyph had no route to the run it could `move_text_run`/`edit_text` on.
+
+**The fix**, new `pdfcer_core::vector::text_locate`: `TextRunRef::Page { object_index, run_index }` / `TextRunRef::Form { leaf_index, run_index }`; `locate_text_run(&PageObjects, &GlyphProvenance) -> Option<TextRunRef>` and `locate_text_runs(&PageObjects, &text_extract::TextRun) -> Vec<TextRunRef>` (an extracted run can span several show operators, per `Pass 256.0`). Join key: extraction's `operator_span` (the show-operator keyword only) against decompose's `TextRun.bytes` (operands through keyword) on a shared END byte — the two models slice the stream differently and only their ends agree. A form invoked at more than one placement is disambiguated by CTM (ε 1e-3 relative); no leaf agreeing on either key → `None`, not a guess.
+
+**Preconditions, disclosed rather than silently wrong**: extraction must run with `ExtractOptions::with_provenance(true)`; both models must come from the same revision/view (a session edit between extraction and lookup invalidates the join).
+
+**`docs/core-api/02-editing-and-saving.md`** §1.10.0a added, already present at read time. `index.md`'s verb count unchanged (246) — a free `vector` function, not an `EditSession` verb.
+
+**Tests.** `crates/pdfcer-core/tests/text_run_locate.rs`, 4 tests (confirmed by count). Sabotage: 5/5 mutants caught.
+
+**Gates.** `tools/run-gates.sh`: PASS, 34 commands, relayed from the dispatching engineer — not independently re-run. No `Cargo.toml` change, so the GUI-dependency invariant is unaffected by construction; not a writer change, so round-trip/minimal-diff is unaffected.
+
+**`docs/FEATURES.md`.** New row, *Text* section: core `[x]`, cli `[ ]`, gui `[ ]` — the join exists in `pdfcer-core` with no CLI or GUI caller yet.
+
+**No decision-log entry** — a new query function joining two existing models on an existing key, not a crate-boundary/library-choice/invariant call.
+
+**`C:\personal_rag\pdf\`.** No new lesson — an internal API-completeness/join fix, not a producer-divergence finding.
+
+**`D:\Dev\FeatureRequests\pdfce_FeatureRequests\INDEX.md`.** New row for `G037`, outcome SHIPPED. The engineer's own reply artifact in `open/` was not independently confirmed — no shell this filing.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Independently confirmed via `Grep`/`Read` against live source: `text_locate`, `TextRunRef`, `locate_text_run`, `locate_text_runs` all present in `crates/pdfcer-core/src/vector/text_locate.rs` and re-exported from `vector/mod.rs`; `crates/pdfcer-core/tests/text_run_locate.rs` holds exactly 4 `#[test]` functions; `docs/core-api/02-editing-and-saving.md` already carries §1.10.0a at read time; no prior `ROADMAP.md`/`SESSION_LOG.md` entry named `G037` or `Pass 317` before this filing. This session's own git-status context lists `53b939b2` at `HEAD` with the subject line *"vector: map an extracted glyph to its surgery run (G037)"*, which corroborates the commit and its one-line description but is not a `git show`. The full 40-char hash, the diffstat, and the gate-sweep results are **relayed from the dispatching engineer's report, not independently re-run**.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `315` (highest `.0`), next free `316` | **`Pass 317.0` SHIPPED in `53b939b2` — next free family `318`** (`Pass 316.0` shipped in the same filing, immediately below; `Pass 318.0` already in progress — see *Next up*) |
+| Standing rules | `R258` next free (unresolved `R251` discrepancy carried, not re-verified this filing) | unchanged — no rule minted |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `576` | **`577`** (covers both `Pass 316.0` and `Pass 317.0`) |
+| `docs/FEATURES.md` | no row for the glyph→run join | **new row added, Text section** |
+| `pdfce_FeatureRequests/INDEX.md` | `G037` had no row | **row added, outcome SHIPPED** |
+
+---
+
+### `Pass 316.0` (`70d8ba00`), 2026-09-23 — text carries an explicit rendering mode end to end (`G034`)
+
+New Pass family, minted this filing. Answers `G034` (`pdfce_FeatureRequests`): neither formatted nor newly added text could set `Tr` (ISO 32000-1 §9.3.6 Table 106), so an operator-facing shell could not author invisible text (an OCR-style sandwich layer, a redaction placeholder) or a clip-mode run outside the OCR writer's own hard-coded `3 Tr`.
+
+**The fix.** `FormatRequest::render_mode(impl Into<u8>)` threads through the ambient graphics-state ladder; `FormatError::InvalidRenderMode { mode }` for a value above 7; `FormatError::ConflictingRenderMode` when a run also carries synthetic bold, which is itself mode 2 (§9.3.6, `Pass 179.0`) — real (non-synthetic) bold and an explicit `Tr` compose fine. `FormatReport::render_mode_change: Option<(ambient, emitted)>` discloses the change off-canvas (rule 4); modes 3 and 7 are named INVISIBLE in the disclosure, since neither fills nor strokes. `AddTextRequest::with_render_mode` / `AddTextError::InvalidRenderMode` give the same control to newly added text.
+
+**Defect fixed on the way**: added text previously inherited `Tc`/`Tw`/`Tz`/`Ts`/`Tr` from whatever the surrounding stream last set, so text added after a producer's own `3 Tr` (or a scaled/spaced run) could silently vanish or mis-space. `emit_state_prelude` now opens every added run with `0 Tc 0 Tw 100 Tz 0 Ts <mode> Tr` explicitly.
+
+**New pub surface.** `TextRenderMode` (`#[repr(u8)]`, `is_invisible()`, `From<TextRenderMode> for u8`, `TryFrom<u8>`).
+
+**CLI (rule 11).** `--render-mode` on both `format-text` and `add-text`.
+
+**Tests.** `crates/pdfcer-core/tests/text_render_mode.rs`, 10 tests (confirmed by count). Sabotage: 11/11 mutants caught.
+
+**Gates.** `tools/run-gates.sh`: PASS, 34 commands, relayed from the dispatching engineer — not independently re-run. No `Cargo.toml` change, so the GUI-dependency invariant is unaffected by construction; adding an explicit `Tr` is new content on an authored run, not a rewrite of an untouched object, so round-trip/minimal-diff is unaffected.
+
+**`docs/FEATURES.md`.** New row, *Text* section: core `[x]`, cli `[x]`, gui `[ ]`. Also a clarifying note appended to the existing "`Tr` 4–7 text-clipping render modes" row (*Planned*): WRITING any mode 0–7 is now possible (this Pass); PAINTING the actual clip effect of modes 4–7 is a different, still-unbuilt capability — the two do not imply each other and the row's box does not move.
+
+**No decision-log entry** — a builder/CLI surface plus a bug fix in an existing writer path, not a crate-boundary/library-choice/invariant call.
+
+**`C:\personal_rag\pdf\`.** No new lesson — pdfcer's own writer gaining a spec-governed control is not an observation about a real-world producer's divergence from spec.
+
+**`D:\Dev\FeatureRequests\pdfce_FeatureRequests\INDEX.md`.** New row for `G034`, outcome SHIPPED. The engineer's own reply artifact in `open/` was not independently confirmed — no shell this filing.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Independently confirmed via `Grep`/`Read` against live source: `render_mode`, `InvalidRenderMode`, `ConflictingRenderMode`, `render_mode_change`, `with_render_mode`, `TextRenderMode`, `emit_state_prelude` all present under `crates/pdfcer-core/src/text_edit/` and `text_state.rs`; `crates/pdfcer-core/tests/text_render_mode.rs` holds exactly 10 `#[test]` functions; `docs/core-api/03-capabilities.md` already documents the feature (rendering-mode row, `AddTextRequest::with_render_mode` paragraph) at read time; no prior `ROADMAP.md`/`SESSION_LOG.md` entry named `G034` or `Pass 316` before this filing. This session's own git-status context lists `70d8ba00` one commit behind `HEAD` with the subject line *"text_edit: set text rendering mode on format and add (G034)"*, which corroborates the commit and its one-line description but is not a `git show`. The full 40-char hash, the diffstat, and the gate-sweep results are **relayed from the dispatching engineer's report, not independently re-run**.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `315` (highest `.0`), next free `316` | **`Pass 316.0` SHIPPED in `70d8ba00` — next free family `317`** (immediately taken by `Pass 317.0` above, same filing) |
+| Standing rules | `R258` next free (unresolved `R251` discrepancy carried, not re-verified this filing) | unchanged — no rule minted |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `576` | **`577`** (covers both `Pass 316.0` and `Pass 317.0`) |
+| `docs/FEATURES.md` | no row for authored `Tr`; the `Tr` 4–7 Planned row did not distinguish write from paint | **new row added; Planned row's clarifying note appended** |
+| `pdfce_FeatureRequests/INDEX.md` | `G034` had no row | **row added, outcome SHIPPED** |
+
+---
+
 ### `Pass 315.0` (`ca8f7c55`), 2026-09-23 — a set of text runs moves as one edit, not one at a time (`G030`)
 
 New Pass family, minted this filing. Answers `G030` (`pdfce_FeatureRequests`): `move_text_run`/`move_text_run_in_form` (`Pass 305.0`) had no set-taking twin, so the guard that refuses moving a run whose *successor* would be dragged along (`RunPositioning::Inherited`) refused a legal whole-line move whenever the caller tried to move every affected run one at a time — the first run's move displaced the second, which the guard then correctly refused to move again. `Pass 305.0`'s own "Not built" note named exactly this escape hatch and deferred it pending evidence the refusal was common on real files; `G030` is that evidence.
@@ -6298,6 +6374,21 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> ★★★ **IN PROGRESS 2026-09-23 (577th filing) — `Pass 318.0`, AN OCR RE-RUN
+> STACKS A SECOND INVISIBLE LAYER INSTEAD OF REPLACING THE FIRST, from
+> `pdfcer-gui`'s `G036`.** The mode-3 sandwich layer (`Pass` behind
+> `docs/FEATURES.md`'s OCR rows) carries no identity, so `find_ocr_layers`
+> has nothing to find and a second OCR pass on an already-OCR'd page adds
+> text on top of text instead of correcting it. Design, not yet built: wrap
+> each layer in a marked-content sequence — `/pdfc_OCR << /Producer (pdfcer)
+> /Version 1 /Engine (…) >> BDC … EMC` — plus `find_ocr_layers`/
+> `page_ocr_layers` probes, `EditSession::find_ocr_layers` and
+> `remove_ocr_layer` (one undo entry), and an `OcrLayerOptions`
+> existing-layer policy (`Replace` default / `Refuse` → `LayerPresent` /
+> `Stack`). Open question on the tag name itself — see the new open operator
+> question below. `docs/FEATURES.md`: new unticked Planned row owed in the
+> same filing this ships, not this one (still in progress).
 
 > ★★★★ **ONE ITEM ADDED 2026-09-05 (439th filing) — `Pass 256.0`, EDIT TEXT
 > ACROSS SHOW OPERATORS, from the `pdfcer-gui` correction of the same
@@ -25089,6 +25180,23 @@ name and say NOT BUILT YET) must be updated in the same Pass —
 shape, not the schedule.** No Pass ID assigned.
 
 ## Open operator questions (as of 2026-08-02 — answer any, all default to the stated fallback if not answered)
+
+**★ NEW 2026-09-23 (577th filing) — ONE QUESTION, SURFACED BY `Pass 318.0`
+(*Next up*, in progress) BEFORE ANY CODE COMMITS THE TAG NAME. Operator-
+question ceiling moves `(cd)` → `(ce)`, next free `(cf)`:**
+
+- **(ce) `Pass 318.0`'s OCR-layer-identity fix needs a marked-content tag —
+  the design above uses `/pdfc_OCR` — and ISO 32000-1 Annex E says a
+  private tag prefix "shall be registered" (with Adobe's
+  `adobe/pdf-names-list` on GitHub, a public issue that would carry your
+  name/email), while ISO 32000-2 softens this to "should"
+  (`D:\Dev\Rag-Specialized\PDF_Spec\iso32000\iso32000__annex__e.md`, new
+  this session by the spec-librarian). Unregistered use works — nothing in
+  the format enforces the registry — and pdfcer already writes several
+  private-use structures without one. **Do you want `pdfc` filed on the
+  public names list before `Pass 318.0` ships?** *Default if unanswered:*
+  ship `/pdfc_OCR` unregistered; filing stays available as a later,
+  independent step that costs nothing to defer.
 
 **★★ NEW 2026-09-12 (531st filing) — ONE QUESTION, AND THE OPERATOR NAMED
 THE GATE HIMSELF BEFORE ANY CODE WAS WRITTEN. Operator-question ceiling
