@@ -9206,6 +9206,54 @@ enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// **Set a text run's width** — stretch or squeeze one show operator to
+    /// an exact width on the page by setting its horizontal scaling (`G038`,
+    /// ISO 32000-1 §9.3.4, `Tz`).
+    ///
+    /// The case this is for: an OCR word whose recognised box is wider or
+    /// narrower than the glyphs laid into it, so a selection highlight or a
+    /// search hit does not line up with the scanned word underneath.
+    ///
+    /// `--width` is in PAGE points, measured along the run's own baseline, so
+    /// a rotated or scaled run gets the width asked for on the page. The
+    /// scale is absolute: a run that already has a horizontal scaling gets
+    /// the same result as one that has none, and running this twice with the
+    /// same width changes nothing the second time.
+    ///
+    /// The run keeps its origin, its font, its size and its render mode (an
+    /// invisible OCR word stays invisible). Nothing after it moves: a run that
+    /// starts where this one ends is held in place.
+    ///
+    /// REFUSED, before any mutation: a width that is zero, negative or not a
+    /// number; a run whose `TJ` carries kerning; a run whose font has no
+    /// advance widths to measure; and a run whose text or page transform is
+    /// singular, so it has no baseline to measure along.
+    TextRunWidth {
+        /// Input PDF.
+        input: PathBuf,
+        /// 0-based paint-order object index on the page.
+        #[arg(long)]
+        object: usize,
+        /// 1-based page number.
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        /// 0-based show-operator index within that text object, content order,
+        /// the same numbering `object-list` reports as `runs=`.
+        #[arg(long)]
+        run: usize,
+        /// The width to fit the run to, in page points.
+        #[arg(long, allow_negative_numbers = true)]
+        width: f64,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// **Cut one text object into several** so each line can be moved and
     /// styled on its own (`Pass 306.0`, ISO 32000-1 §9.4).
     ///
@@ -12902,6 +12950,25 @@ fn run() -> ExitCode {
             run: &run,
             dx,
             dy,
+            output: &output,
+            mode,
+            verify_undo,
+        }),
+        Command::TextRunWidth {
+            input,
+            object,
+            page,
+            run,
+            width,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_text_run_width(&TextRunWidthArgs {
+            input: &input,
+            page,
+            object,
+            run,
+            width,
             output: &output,
             mode,
             verify_undo,
@@ -41803,6 +41870,81 @@ fn cmd_text_run_move(args: &TextRunMoveArgs<'_>) -> u8 {
             .join(","),
         args.dx,
         args.dy,
+        args.mode.name(),
+        args.output.display(),
+        outcome.changed,
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+        u32::from(outcome.undo_verified),
+        u32::from(outcome.undo_identical),
+    );
+    finish_edit(args.input, &outcome)
+}
+
+/// Grouped arguments for `text-run-width` (`G038`).
+struct TextRunWidthArgs<'a> {
+    input: &'a Path,
+    page: u32,
+    object: usize,
+    run: usize,
+    width: f64,
+    output: &'a Path,
+    mode: SaveMode,
+    verify_undo: bool,
+}
+
+/// `text-run-width` — fit one show operator to a page width through `Tz`
+/// (`G038`).
+///
+/// One `text-run-width …` line with the usual save-report fields and the
+/// scale that was written, then the exit code from [`finish_edit`]. The
+/// disclosure of the scale goes to stderr. A refusal exits
+/// `EDIT_REFUSED` before anything is written.
+fn cmd_text_run_width(args: &TextRunWidthArgs<'_>) -> u8 {
+    use pdfcer_core::text_edit::FormatError;
+    let page_index = (args.page.max(1) - 1) as usize;
+    let (source, mut session) = match open_for_edit(args.input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let report = match session.set_text_run_width(page_index, args.object, args.run, args.width) {
+        Ok(r) => r,
+        Err(err) => {
+            eprintln!(
+                "pdfcer: text-run-width refused on {}: {err}",
+                args.input.display()
+            );
+            return match err {
+                FormatError::Write(_) => exit::SAVE_REFUSED,
+                FormatError::Content(_) | FormatError::PageTree(_) => exit::RUNTIME_ERROR,
+                _ => exit::EDIT_REFUSED,
+            };
+        }
+    };
+    report_disclosures(&report.disclosures);
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        args.output,
+        args.mode,
+        ProducerArg::Preserve,
+        args.verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let r = &outcome.report;
+    println!(
+        "text-run-width {} page {} object={} run={} width={} h_scale={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        args.input.display(),
+        args.page.max(1),
+        args.object,
+        args.run,
+        args.width,
+        report
+            .h_scale_change
+            .map_or_else(|| "unchanged".to_owned(), |(_, pct)| format!("{pct:.4}")),
         args.mode.name(),
         args.output.display(),
         outcome.changed,

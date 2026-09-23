@@ -1545,6 +1545,24 @@ is reachable (`Pass 119.2`).
 
 CLI: `pdfcer format-text --set-size / --set-color / --set-font / …`.
 
+**Fit a run to a width** (`G038`): `EditSession::set_text_run_width(page,
+object, run, width_pts)` addresses the run by its vector-model indices and sets
+`Tz` so the run's advance on the page equals `width_pts`, measured along the
+run's own baseline (`Tm` × CTM, so a rotated or scaled run is converted). The
+scale is **absolute** — computed from the advance at `Tz 100` — so an existing
+`Tz` is replaced, never compounded, and a repeat call is a no-op. It runs as a
+whole-operator `format_text` with `FollowerDisposition::Pin`, so a run that
+inherits its origin from this one does not move, and the render mode rides the
+ambient restore (an OCR word stays `3 Tr`). Returns the ordinary
+`FormatReport`; `h_scale_change` carries the scale written. Refusals:
+`FormatError::BadTargetWidth(w)` (not finite, or ≤ 0), `WidthFitKerned` (a `TJ`
+with kerning), `NoAdvanceWidth { base_font }` (nothing to measure), and
+`FormatError::TextRun(VectorEditError)` wrapping `ObjectOutOfRange`,
+`TextRunOutOfRange` or the new `TextRunHasNoWidth { index }` (singular text or
+page transform). The free preflight `vector::text_run_width_refusal(&TextObject,
+run)` answers the structural refusals without a session. CLI: `pdfcer
+text-run-width --object N --run N --width PTS`.
+
 **New text** takes a rendering mode too: `AddTextRequest::with_render_mode(m)`
 (field `render_mode: u8`, default `0`). Every added run now also resets
 `Tc`/`Tw`/`Tz`/`Ts` to their initial values and sets `Tr` explicitly, so a page

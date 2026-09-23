@@ -727,6 +727,14 @@ pub struct FormatRequest {
     /// synthetic bold (which writes `2 Tr` itself) it is
     /// [`FormatError::ConflictingRenderMode`].
     pub set_render_mode: Option<u8>,
+    /// Fit the run's advance to this many **text-space** units by computing
+    /// `Tz` (`G038`). Crate-private: the public entry point is
+    /// [`EditSession::set_text_run_width`](crate::edit::EditSession::set_text_run_width),
+    /// which takes page points and owns the conversion through `Tm` and the
+    /// CTM. The advance is linear in `Th` (§9.4.4), so the percentage is
+    /// `100 × target / advance-at-Th-1`, measured with the font, size, `Tc`
+    /// and `Tw` that will be in force over the run.
+    pub(crate) fit_width: Option<f64>,
 }
 
 impl FormatRequest {
@@ -750,6 +758,7 @@ impl FormatRequest {
             set_synthetic: None,
             set_style: None,
             set_render_mode: None,
+            fit_width: None,
             target: EditTarget::Auto,
         }
     }
@@ -941,6 +950,7 @@ impl FormatRequest {
             && self.set_script.is_none()
             && self.set_rise.is_none()
             && self.set_render_mode.is_none()
+            && self.fit_width.is_none()
             // Spelled as a `match` rather than `is_none_or` because this
             // predicate is `const` (one definition, two callers — see the
             // doc comment) and `Option::is_none_or` is not yet const.
@@ -1498,6 +1508,32 @@ pub enum FormatError {
         "the document is encrypted; in-place text formatting of encrypted files is out of scope"
     )]
     Encrypted,
+    /// A target width that is zero, negative or not a number (`G038`).
+    #[error("a text run's width must be a finite number of points greater than 0 (got {0})")]
+    BadTargetWidth(f64),
+    /// The run's natural advance is zero, so no horizontal scaling can give
+    /// it a width (`G038`): the font supplies no advance widths for these
+    /// codes.
+    #[error(
+        "the run has no measurable width in '{base_font}' (the font gives these characters no \
+         advance widths), so there is nothing to scale to a new width"
+    )]
+    NoAdvanceWidth {
+        /// The run's `/BaseFont`.
+        base_font: String,
+    },
+    /// The run is a `TJ` carrying position adjustments (`G038`). They are
+    /// scaled by `Tz` only inside the fitted string, so no single `Tz` gives
+    /// the whole operator the requested width.
+    #[error(
+        "this run carries TJ position adjustments between its characters, so one horizontal \
+         scaling cannot give it an exact width; replace its text first to remove them"
+    )]
+    WidthFitKerned,
+    /// The run could not be addressed in the page's vector model (`G038`):
+    /// out of range, not a text object, or a singular matrix.
+    #[error(transparent)]
+    TextRun(#[from] crate::vector::VectorEditError),
     /// The page's content stream could not be parsed.
     #[error("content stream parse failed: {0}")]
     Content(#[from] ContentError),
@@ -1918,6 +1954,17 @@ pub(crate) fn plan_format_target(
     // that the code-range match, the font-coverage gate, the synthesis gate
     // and every disclosure count are all talking about the same characters.
     // Unpinned, an empty `find` is still refused.
+    // Checked before the match: a kerned `TJ` has several string elements, and
+    // the whole-operator match would otherwise fail with the generic
+    // cross-element refusal instead of this named one.
+    if req.fit_width.is_some()
+        && anchor
+            .elems
+            .iter()
+            .any(|e| matches!(e, ShowElem::Num(n) if n.abs() > STATE_EPS))
+    {
+        return Err(FormatError::WidthFitKerned);
+    }
     let find = effective_find(anchor, &req.find, req.pinned_span);
     let m = match_run(anchor, find).map_err(FormatError::from_edit)?;
 
@@ -2072,9 +2119,40 @@ pub(crate) fn plan_format_target(
     // (§9.3.7) and changes position, not advance.
     let eff_tc = new_tc.unwrap_or_else(|| anchor.tc());
     let eff_tw = new_tw.unwrap_or_else(|| anchor.tw());
-    let eff_th = req
-        .set_h_scale
-        .map_or_else(|| anchor.th(), |pct| pct / 100.0);
+
+    // --- `G038`: a target width becomes a `Tz` ---
+    //
+    // `tx = ((w0 − Tj/1000)·Tfs + Tc + Tw)·Th` is linear in `Th`, so the run's
+    // advance at `Th = 1` (with the font, size, `Tc` and `Tw` that will be in
+    // force) divides the target to give the scale. Computed from the codes
+    // that will be SHOWN, so a family or size change in the same request is
+    // measured correctly.
+    let h_scale: Option<f64> = match req.fit_width {
+        None => req.set_h_scale,
+        Some(target) => {
+            if req.set_h_scale.is_some() {
+                return Err(FormatError::Unsupported(
+                    "a target width and an explicit horizontal scaling both set Tz".to_owned(),
+                ));
+            }
+            if !(target.is_finite() && target > 0.0) {
+                return Err(FormatError::BadTargetWidth(target));
+            }
+            let natural: f64 = new_codes
+                .iter()
+                .map(|&c| {
+                    glyph_advance_with(advance_font, c, emitted_size, eff_tc, eff_tw, 1.0, true)
+                })
+                .sum();
+            if !(natural.is_finite() && natural > STATE_EPS) {
+                return Err(FormatError::NoAdvanceWidth {
+                    base_font: advance_font.base_font.clone(),
+                });
+            }
+            Some(100.0 * target / natural)
+        }
+    };
+    let eff_th = h_scale.map_or_else(|| anchor.th(), |pct| pct / 100.0);
     let a_old: f64 = m
         .old_codes
         .iter()
@@ -2165,7 +2243,7 @@ pub(crate) fn plan_format_target(
             &mut emitted_state,
         )?;
     }
-    if let Some(pct) = req.set_h_scale {
+    if let Some(pct) = h_scale {
         push_state_param(
             &mut set_ops,
             &mut restore_ops,
@@ -2355,7 +2433,7 @@ pub(crate) fn plan_format_target(
     // other is now stale.
     let justify_slack_invalidated = run_carries_tj_slack
         && delta != 0.0
-        && (req.set_h_scale.is_some()
+        && (h_scale.is_some()
             || req.set_char_spacing.is_some()
             || req.set_word_spacing.is_some()
             || script.is_some());
@@ -2518,8 +2596,12 @@ pub(crate) fn plan_format_target(
             eff_th,
         ));
     }
-    if let Some(pct) = req.set_h_scale {
-        disclosures.push(disclosure_h_scale(anchor.text_state.h_scale.value, pct));
+    if let Some(pct) = h_scale {
+        disclosures.push(disclosure_h_scale(
+            anchor.text_state.h_scale.value,
+            pct,
+            matches!(opts.disposition, FollowerDisposition::Pin),
+        ));
     }
     if let Some(mode) = req.set_render_mode {
         disclosures.push(disclosure_render_mode(
@@ -2564,7 +2646,7 @@ pub(crate) fn plan_format_target(
     }
     if justify_slack_invalidated {
         disclosures.push(disclosure_justify_invalidated(
-            req.set_h_scale.is_some(),
+            h_scale.is_some(),
             req.set_char_spacing.is_some() || script.is_some(),
             req.set_word_spacing.is_some(),
             delta,
@@ -2617,9 +2699,7 @@ pub(crate) fn plan_format_target(
         char_spacing_change: new_tc.map(|tc| (anchor.text_state.char_spacing.value, tc)),
         word_spacing_change: new_tw.map(|tw| (anchor.text_state.word_spacing.value, tw)),
         word_spacing_affected_codes: tw_affected,
-        h_scale_change: req
-            .set_h_scale
-            .map(|pct| (anchor.text_state.h_scale.value, pct)),
+        h_scale_change: h_scale.map(|pct| (anchor.text_state.h_scale.value, pct)),
         render_mode_change: req
             .set_render_mode
             .map(|m| (anchor.text_state.render_mode.value, m)),
@@ -5618,13 +5698,18 @@ fn disclosure_render_mode(ambient: f64, emitted: u8) -> String {
 /// Disclose a horizontal-scaling change and the two things §9.3.4 says it
 /// does that an operator may not expect (it reshapes glyphs, and it scales
 /// the spacing parameters as well).
-fn disclosure_h_scale(ambient: f64, emitted: f64) -> String {
+fn disclosure_h_scale(ambient: f64, emitted: f64, pinned: bool) -> String {
+    let after = if pinned {
+        "what follows it was held in place"
+    } else {
+        "the rest of the line was relaid out"
+    };
     format!(
         "horizontal scaling: Tz {ambient}% -> {emitted}% for the matched run only (§9.3.4, a \
          percentage of normal width; 100 = normal). Tz affects BOTH the glyph's shape and its \
          horizontal displacement — it is a stretch, not just a re-spacing — and it also scales \
          the character- and word-spacing parameters in force over the run. The run's width \
-         therefore changed and the rest of the line was relaid out."
+         therefore changed and {after}."
     )
 }
 

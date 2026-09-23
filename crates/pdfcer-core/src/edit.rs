@@ -14937,6 +14937,97 @@ impl EditSession {
         })
     }
 
+    /// **Set a text run's width** on the page, in points, by adjusting its
+    /// horizontal scaling (`Tz`, §9.3.4) — `G038`, box resize on an OCR word.
+    ///
+    /// The run's origin stays where it is, and nothing after it moves: the
+    /// change in advance is pinned with a compensating `TJ` number
+    /// ([`FollowerDisposition::Pin`](crate::text_edit::FollowerDisposition::Pin)),
+    /// so a successor that inherits its origin from this run's end is not
+    /// dragged along. Every other text-state value, **including the render
+    /// mode**, is left as it was, so an OCR word at `3 Tr` stays invisible.
+    ///
+    /// `object_index` / `run_index` are the numbering
+    /// [`Self::move_text_run`] uses. `width_pts` is measured along the run's
+    /// own baseline in page space — through its `Tm` and the object's CTM —
+    /// so a rotated run is sized along its rotation.
+    ///
+    /// The scale is absolute, not relative: it is computed from the run's
+    /// advance at `Tz 100` with its own font, size, `Tc` and `Tw`, so a `Tz`
+    /// already on the run is replaced, never compounded.
+    ///
+    /// Pre-check with
+    /// [`text_run_width_refusal`](crate::vector::text_run_width_refusal), the
+    /// guard this verb runs first. One undo entry, `CommandKind::FormatText`.
+    ///
+    /// # Errors
+    ///
+    /// [`FormatError::BadTargetWidth`](crate::text_edit::FormatError::BadTargetWidth)
+    /// for a width that is not a finite number above 0;
+    /// [`FormatError::TextRun`](crate::text_edit::FormatError::TextRun) for an
+    /// object or run out of range, a non-text object, or a run with no
+    /// baseline length;
+    /// [`FormatError::NoAdvanceWidth`](crate::text_edit::FormatError::NoAdvanceWidth)
+    /// when the font gives the run no width to scale;
+    /// [`FormatError::WidthFitKerned`](crate::text_edit::FormatError::WidthFitKerned)
+    /// for a `TJ` with position adjustments; plus what
+    /// [`Self::format_text`] raises. Every refusal happens before any
+    /// mutation.
+    ///
+    /// # Returns
+    ///
+    /// The format report: `h_scale_change` carries the old and new
+    /// percentages, and `disclosures` includes a sentence naming the width.
+    pub fn set_text_run_width(
+        &mut self,
+        page_index: usize,
+        object_index: usize,
+        run_index: usize,
+        width_pts: f64,
+    ) -> Result<crate::text_edit::FormatReport, crate::text_edit::FormatError> {
+        use crate::text_edit::FormatError as FmtError;
+        if !(width_pts.is_finite() && width_pts > 0.0) {
+            return Err(FmtError::BadTargetWidth(width_pts));
+        }
+        let model = self.page_objects(page_index).map_err(|e| match e {
+            EditError::PageOutOfRange { index, .. } => FmtError::PageIndex(index),
+            EditError::DocumentEncrypted => FmtError::Encrypted,
+            EditError::VectorEditContent(c) => FmtError::Content(c),
+            EditError::PageTree(t) => FmtError::PageTree(t),
+            other => FmtError::Unsupported(other.to_string()),
+        })?;
+        let count = model.objects.len();
+        let obj = model.objects.get(object_index).ok_or(
+            crate::vector::VectorEditError::ObjectOutOfRange {
+                index: object_index,
+                count,
+            },
+        )?;
+        let text = vector_object_as_text(obj, object_index)?;
+        let scale = crate::vector::edit::text_run_width_scale(text, run_index)?;
+        let span = text.runs.get(run_index).map(|r| r.bytes).ok_or(
+            crate::vector::VectorEditError::TextRunOutOfRange {
+                index: run_index,
+                count: text.runs.len(),
+            },
+        )?;
+        let mut req = crate::text_edit::FormatRequest::whole_operator(page_index, span)
+            .target(crate::text_edit::EditTarget::PageContents);
+        req.fit_width = Some(width_pts / scale);
+        let opts = crate::text_edit::FormatOptions {
+            disposition: crate::text_edit::FollowerDisposition::Pin,
+            ..crate::text_edit::FormatOptions::default()
+        };
+        let mut report = self.format_text(&req, &opts)?;
+        if let Some((_, pct)) = report.h_scale_change {
+            report.disclosures.push(format!(
+                "The text was fitted to {width_pts:.2} pt wide by setting its horizontal \
+                 scaling to {pct:.2}%; nothing after it moved."
+            ));
+        }
+        Ok(report)
+    }
+
     /// **Move a SET of text runs** inside one text object by one page-space
     /// `(dx, dy)`, as ONE undoable command (`G030`).
     ///

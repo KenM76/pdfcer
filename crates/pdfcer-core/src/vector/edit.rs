@@ -486,6 +486,16 @@ pub enum VectorEditError {
          mapped to its text space"
     )]
     DegenerateTextMatrix,
+    /// The run's baseline has zero or non-finite length on the page (a
+    /// singular `Tm` or CTM), so it has no width to set (`G038`).
+    #[error(
+        "run {index} has no measurable baseline on the page (its text or page transform is \
+         singular), so it has no width to set"
+    )]
+    TextRunHasNoWidth {
+        /// The run whose width was refused.
+        index: usize,
+    },
     /// A **multi-node** drag named no nodes at all.
     ///
     /// Refused rather than treated as a successful no-op: an empty move
@@ -2525,6 +2535,77 @@ pub fn text_run_move_refusal(obj: &TextObject, run_index: usize) -> Option<Vecto
         return Some(VectorEditError::MoveWouldMoveNextRun { index: run_index });
     }
     None
+}
+
+/// Page points per text-space unit along run `run_index`'s baseline — the
+/// factor [`EditSession::set_text_run_width`](crate::edit::EditSession::set_text_run_width)
+/// divides a page-point width by (`G038`).
+///
+/// A text-space advance `(tx, 0)` reaches page space through the run's
+/// [`text_matrix`](crate::vector::TextRun::text_matrix) and then the object's
+/// [`ctm`](TextObject::ctm) (§9.4.4); both are applied as linear maps, since a
+/// width has no origin. The length of the image of `(1, 0)` is the factor, so
+/// a rotated or sheared run is measured along its own baseline.
+pub(crate) fn text_run_width_scale(
+    obj: &TextObject,
+    run_index: usize,
+) -> Result<f64, VectorEditError> {
+    let count = obj.runs.len();
+    let run = obj
+        .runs
+        .get(run_index)
+        .ok_or(VectorEditError::TextRunOutOfRange {
+            index: run_index,
+            count,
+        })?;
+    let v = obj
+        .ctm
+        .map_vector(run.text_matrix.map_vector(Point::new(1.0, 0.0)));
+    let len = v.x.hypot(v.y);
+    if len.is_finite() && len > 1e-9 {
+        Ok(len)
+    } else {
+        Err(VectorEditError::TextRunHasNoWidth { index: run_index })
+    }
+}
+
+/// Whether setting run `run_index`'s width would be refused by its structure
+/// — **the guard
+/// [`EditSession::set_text_run_width`](crate::edit::EditSession::set_text_run_width)
+/// runs first**, exported so a shell can grey a resize handle before the
+/// gesture (`R221`: one function, so the two cannot disagree).
+///
+/// Refuses a run out of range and a run with no baseline length on the page.
+/// Neither the run's positioning nor its successor's is a reason to refuse:
+/// the verb pins what follows with a compensating `TJ`, so a run whose
+/// successor inherits its origin still leaves that successor where it was.
+///
+/// `None` does not promise success. What depends on the font and the
+/// operator — no advance widths, `TJ` adjustments, a `'`/`"` show — is found
+/// when the edit is planned, and named there.
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_core::content::ContentStream;
+/// use pdfcer_core::vector::{decompose, NoXObjects, Matrix, VectorObject};
+/// use pdfcer_core::vector::edit::text_run_width_refusal;
+///
+/// let src = b"BT /F1 10 Tf 1 0 0 1 10 700 Tm (A) Tj ET".to_vec();
+/// let cs = ContentStream::parse(src).unwrap();
+/// let model = decompose(&cs, Matrix::IDENTITY, &NoXObjects);
+/// # if let Some(VectorObject::Text(_)) = model.objects.first() {
+/// let VectorObject::Text(text) = &model.objects[0] else { unreachable!() };
+/// assert!(text_run_width_refusal(text, 5).is_some()); // out of range
+/// // A bare content stream has no font resource, so no run lays out; with a
+/// // real page's resources run 0 exists and is accepted.
+/// # if text.runs.len() == 1 {
+/// assert!(text_run_width_refusal(text, 0).is_none());
+/// # }}
+/// ```
+#[must_use]
+pub fn text_run_width_refusal(obj: &TextObject, run_index: usize) -> Option<VectorEditError> {
+    text_run_width_scale(obj, run_index).err()
 }
 
 /// Plan the move of **one show operator** inside a text object by a
