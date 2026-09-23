@@ -115,6 +115,49 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 320.0` (`2fca11bf`), 2026-09-23 — merge consecutive text runs into one (`G035`)
+
+New Pass family, minted this filing. Answers `G035` (`pdfcer-gui` request): the reply is at `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G035_text_runs_can_be_merged_FIXED.md`.
+
+**The fix**, `EditSession::merge_text_runs(page_index, object_index, runs: &[usize], &MergeOptions) -> Result<MergeReport, FormatError>` joins two or more consecutive show operators of one text object into one. The first run's show is replaced by the joined strings (separator via `MergeSeparator::None`(default)/`Space`/`Text(String)`, encoded through the font's inverse encoding, adjacent strings coalesced); the other runs' shows are spliced to empty; positioning operators between them are left intact, so nothing outside the merged runs moves. Runs after the merge renumber down by `runs.len()-1`. `MergeFit::Span` (default) sets `Tz = 100 × extent ÷ advance` so the merged run spans the first run's origin to the last run's end (mapped into the first run's text space, `TJ` kerns included); `Natural` keeps the first run's `Tz`. Differing `Tz` between runs is ALLOWED — the OCR case, every OCR word carries its own — all other text state must match. Render mode rides the first run, so OCR words stay mode 3.
+
+**Refusals, none mutating anything.** New `FormatError` variants: `MergeStateDiffers{run,parameter}`, `MergeLineShowOperator{run}`, `MergeCrossesMarkedContent`, `MergeCompositeFont{base_font}`, `MergeRunsOutOfOrder`, `MergePositionUnknown` (the last two refuse `Span` only). New `VectorEditError` variants: `MergeNeedsTwoRuns{count}`, `MergeRunsNotContiguous{after,next}`, `MergeWouldMoveNextRun{index}`; preflight `vector::text_merge_refusal(&TextObject, runs) -> Option<VectorEditError>`.
+
+**Fixed on discovery, same commit.** The vector decomposer closed a text run per STRING inside a `TJ` array instead of once per operator, so a multi-string `TJ`'s run box stopped at the first string (hit-testing and the run's end point were truncated) and a `TJ` opening with an empty string dropped the run entirely. Now closes once at the end of `show_text`. Unit test `a_tj_runs_box_covers_every_string_in_the_array`.
+
+**Also caught during the CLI demo, fixed before commit.** Eight wrapped string literals in the new `#[error]` messages carried 10-space gaps — the known "wrapped string literal loses its trailing backslash" defect (see `R243`'s dated-instance note below and `D:\dev\rag\rust\a_multiline_string_literal_that_loses_its_trailing_backslash_bakes_a_visible_gap_mid_sentence.md`). Only visible by running the CLI, not by reading the diff.
+
+**CLI (rule 11).** `pdfcer text-run-merge --object N --run A,B[,C] [--separator none|space|TEXT] [--fit span|natural] -o out.pdf`; refusals exit non-zero by name. `README.md` now states 155 working subcommands.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md`, `03-capabilities.md` ("Merge runs", `G035`), `index.md` (verb count 249 → 250).
+
+**Tests.** `crates/pdfcer-core/tests/text_run_merge.rs`, 13 tests (confirmed by count), plus 1 decomposer unit test. Sabotage: state-check disabled, span-`Tz`→`None`, inherited-next-run refusal disabled, marked-content check disabled, per-string close restored — all 5 caught.
+
+**Gates.** `cargo fmt`/`clippy` (workspace, all targets, `-D warnings`) clean. `tools/check-core-api-verbs.py` passes (250 verbs). No `Cargo.toml` change — `cargo tree` invariant unaffected by construction. **`tools/run-gates.sh` was killed for memory partway through its `cargo test -p pdfcer-core --no-default-features` leg**; the full default-feature workspace test + doctests completed first (269 result groups ok, 0 failed). Committed per the operator's standing instruction ("if that fails due to memory just go ahead and commit"); the no-default-features leg and the later gates did not run for this commit. Round-trip/minimal-diff unaffected — new content on an authored run via the existing `text_edit_command` path, not a rewrite of an untouched object; undo byte-identity verified in tests and in the CLI demo (`undo_identical=1`).
+
+**`docs/FEATURES.md`.** New row, *Text* section, immediately after `Pass 306.0`'s split-text-object row: core `[x]`, cli `[x]`, gui `[ ]` — `pdfcer-gui` has not consumed it. Acrobat column `?`. The decomposer fix is noted in this row's prose, not as a separate row — no existing row is titled "text-run hit-box accuracy."
+
+**No decision-log entry** — a new verb plus a decomposer bug fix, not a crate-boundary/library-choice/invariant call.
+
+**`C:\personal_rag\pdf\`.** No new lesson — an internal API-completeness fix and a decomposer bug fix on pdfcer's own model, not an observation about a real-world producer's divergence from spec.
+
+**`D:\Dev\FeatureRequests\pdfce_FeatureRequests\INDEX.md`.** **NOT edited this filing, and checked rather than assumed.** Grepped for `G035` this session (no shell, `Grep` tool only): **absent**, consistent with the prior four filings' finding that `G034`/`G036`/`G037`/`G038` are all missing despite their own Shipped entries recording rows "added." Reported as owed cleanup to the engineer, not corrected here; the reply file itself (`reply_G035_text_runs_can_be_merged_FIXED.md`) does exist in `open/`, confirmed by `Glob`.
+
+**Sourcing (hard rule 8).** No shell tool this filing (the environment's own shell claim did not match the function list actually made available — Bash was absent). Independently confirmed via `Grep`/`Read` against live source: `merge_text_runs` call site and signature, `MergeOptions`/`MergeSeparator`/`MergeFit`/`MergeReport` types, all nine new error variants (spread across `crates/pdfcer-core/src/text_edit/merge.rs`, `edit.rs`, `vector/edit.rs`, `text_edit/format.rs`), `text-run-merge` CLI wiring and its result line in `crates/pdfcer-cli/src/main.rs`; `crates/pdfcer-core/tests/text_run_merge.rs` holds exactly 13 `#[test]` functions; `a_tj_runs_box_covers_every_string_in_the_array` exists in `crates/pdfcer-core/src/vector/decompose.rs`; `docs/core-api/index.md` already states "all 250 public verbs"; `02-editing-and-saving.md`/`03-capabilities.md` already document the verb and CLI flag; `README.md` already states "155 working subcommands"; `pdfce_FeatureRequests/INDEX.md` lacks a `G035` row (checked, not assumed) while `open/reply_G035_text_runs_can_be_merged_FIXED.md` does exist (`Glob`-confirmed). **Relayed from the dispatching engineer's report, not independently reproduced:** the exact sabotage-mutation pass/fail count, the `tools/run-gates.sh` memory-kill detail, and the "269 result groups ok, 0 failed" test figure. This session's git-status context lists `2fca11bf` at `HEAD`, subject "text_edit: merge consecutive text runs into one (G035)," which corroborates the commit and its one-line description but is not a `git show`.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `319` (highest `.0`), next free `320` | **`Pass 320.0` SHIPPED in `2fca11bf` — next free family `321`** |
+| Standing rules | `R258` next free | unchanged — no rule minted, `R243` 5th dated instance appended |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `579` | **`580`** |
+| `docs/FEATURES.md` | no row for run merging | **new row added, Text section: core `[x]` cli `[x]` gui `[ ]`** |
+| `pdfce_FeatureRequests/INDEX.md` | no `G035` row (unverified until checked) | **Grepped: absent — consistent with the same finding for `G034`/`G036`/`G037`/`G038`, flagged to engineer, not corrected here** |
+
+---
+
 ### `Pass 319.0` (`4594e17c`), 2026-09-23 — fit one text run to a page width through `Tz` (`G038`)
 
 New Pass family, minted this filing. Answers `G038` (`pdfcer-gui` request): the reply is at `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G038_text_run_width_verb_FIXED.md`.
@@ -28256,6 +28299,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - **`R243` — DATED INSTANCE NOTE, 2026-09-10 (492nd filing): A WRITTEN WARNING FAILING TO PREVENT A REPEATED MANUAL ACTION IS THE SAME MECHANISM ONE LAYER OUT FROM TWO CALL SITES FAILING TO A…**
 - **`R243` — DATED INSTANCE NOTE, 2026-09-12 (522nd filing, `2f67b63`): A THIRD RECURRENCE OF THE SAME LINE-CONTINUATION-LOST-IN-A-PYTHON-HEREDOC DEFECT (511TH FILING'S `f16e266`+`5917ece`, ITSELF THE 492ND FILING'S SHAPE) WITH `tools/edit-source.py` ALREADY ON DISK AND STILL NOT REACHED FOR. NOT A NEW MECHANISM — RECORDED FOR THE RECURRENCE RATE, NOT A NEW FINDING.**
 - **`R243` — DATED INSTANCE NOTE, 2026-09-13 (535th filing, `3d8c160`): A FOURTH INSTANCE, ONE LEVEL UP FROM THE PRIOR THREE — THE DOCUMENTED OBLIGATION WAS `R242`'S OWN OWED-TOOL LINE, RESTATED AS OWED IN `docs/NEXT_SESSION.md` AND `docs/ROADMAP.md` FOR SEVEN DAYS (MINTED 2026-09-06 19:58, BUILT 2026-09-13) WHILE NOTHING BUT A WRITTEN REMINDER STOOD IN FOR THE CONTROL. `tools/check-requests-scoped.py` NOW IS THE CONTROL. SAME MECHANISM AS THE FOUNDING INSTANCE, APPLIED REFLEXIVELY TO A RULE ABOUT A RULE'S OWN ENFORCEMENT.**
+- **`R243` — DATED INSTANCE NOTE, 2026-09-23 (580th filing, `Pass 320.0`, `2fca11bf`): A FIFTH INSTANCE — EIGHT WRAPPED STRING LITERALS IN NEW `#[error]` MESSAGES CARRIED THE SAME TEN-SPACE GAP THE PRIOR FOUR INSTANCES NAMED, CAUGHT ONLY BY RUNNING THE CLI DEMO RATHER THAN BY READING THE DIFF.** The written warning (this rule, and `tools/edit-source.py`, already on disk) is still not the control for an agent editing the literal by hand rather than through the tool. Also the 12th cross-project occurrence of the same defect shape; see `D:\dev\rag\rust\a_multiline_string_literal_that_loses_its_trailing_backslash_bakes_a_visible_gap_mid_sentence.md`'s own 2026-09-23 entry. No re-mint; ceiling unchanged.
 - `R245` — A GUARD, KEY OR DISCLOSURE ADDED TO ONE MEMBER OF A FAMILY OF PARALLEL VERBS IS NOT SHIPPED UNTIL A TEST ITERATES THE WHOLE FAMILY.
 - **`R245` — DATED INSTANCE NOTE, 2026-09-11 (509th filing, `Pass 296.3`): THE LITERAL-SEARCH-VS-PATTERN-SEARCH REDACTION-DISCLOSURE PAIR PRODUCED THIS SHAPE A SECOND TIME — EIGHTH DATED INSTANCE.**
 - **`R245` — DATED INSTANCE NOTE, 2026-09-13 (540th filing, `Pass 302.1`, `919b0f0`): NINTH DATED INSTANCE — `RecoveryReport::objects_dropped` (`Pass 302.0`) WAS AN AFFORDANCE ON THE REPORT ENTRY POINT WITH NO CONSUMER ON THE CLI'S OWN PRINT FUNCTION, THE SAME SHAPE `Pass 283.1` NAMED FOR `load_with_options`'S TWO ENTRY POINTS. ★ THIS FOOTER WAS CLAIMED BY THE 539TH FILING'S OWN LEDGER AND NOT ACTUALLY WRITTEN UNTIL NOW — A CLAIM OUTLIVING THE EDIT THAT WAS SUPPOSED TO MAKE IT TRUE, ONE FILING DEEP.**

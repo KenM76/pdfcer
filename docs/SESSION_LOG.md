@@ -4,6 +4,31 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-23 (580th filing) — `Pass 320.0` (`2fca11bf`): merge consecutive text runs into one (`G035`)
+
+**Shipped:**
+- `Pass 320.0` — new `EditSession::merge_text_runs(page, object, runs: &[usize], &MergeOptions) -> Result<MergeReport, FormatError>` joins two or more consecutive show operators of one text object into one, first run's show carries the joined text (separator `none`/`space`/custom text), later runs' shows spliced empty, positioning operators between them untouched. `MergeFit::Span` (default) sets `Tz` so the merged run spans first-run origin to last-run end; `Natural` keeps the first run's `Tz`. Differing `Tz` between runs is allowed (the OCR case); every other text-state parameter must match or the merge refuses by name. New `FormatError`/`VectorEditError` variants, none mutating; preflight `vector::text_merge_refusal`. CLI `pdfcer text-run-merge --object N --run A,B[,C] [--separator] [--fit]`.
+- Fixed on discovery, same commit: the vector decomposer closed a `TJ` run per STRING instead of once per operator, truncating hit-testing/run bounds on any multi-string `TJ` and dropping a run entirely when it opened with an empty string.
+
+**Decisions made this session:** None — a new verb plus a decomposer bug fix, not a crate-boundary/library-choice/invariant call.
+
+**Findings + decisions:**
+- `docs/core-api` verb count 249 → 250 (already updated by the dispatching engineer at read time).
+- `docs/FEATURES.md`: new row, Text section, core `[x]` cli `[x]` gui `[ ]` (not consumed by `pdfcer-gui` yet); confirmed under the 1,200-char cap by `^.{1200,}$` re-check post-edit (row not in the offending list).
+- No `personal_rag/pdf` lesson — internal API-completeness fix and decomposer bug fix, not a producer-divergence finding.
+- **Fifth instance of the "wrapped string literal loses its trailing backslash" defect, `R243` dated-instance note added.** Eight wrapped string literals in the new `#[error]` messages carried 10-space gaps, caught only by running the CLI demo. Also the 12th cross-project occurrence — append owed to `D:\dev\rag\rust\a_multiline_string_literal_that_loses_its_trailing_backslash_bakes_a_visible_gap_mid_sentence.md`.
+- **`pdfce_FeatureRequests/INDEX.md` re-checked, same finding as the last several filings.** Grepped for `G035` this session — absent, consistent with `G034`/`G036`/`G037`/`G038` also being absent. Flagged to the engineer as owed cleanup; no `G035` row added on the same unverified basis. The reply file itself (`open/reply_G035_text_runs_can_be_merged_FIXED.md`) does exist, confirmed by `Glob`.
+
+**Still in flight:**
+- The `R251`/`R258` standing-rules ledger discrepancy flagged by prior filings is still unresolved — not re-verified this session either.
+- `pdfcer-gui` has not consumed `merge_text_runs`/`text_merge_refusal` — `FEATURES.md` `gui [ ]`, not rounded up.
+- `pdfce_FeatureRequests/INDEX.md` is missing rows for `G034`, `G035`, `G036`, `G037`, and `G038` — owed to whoever maintains that file (not one of this role's five tiers).
+- `tools/run-gates.sh`'s `cargo test -p pdfcer-core --no-default-features` leg and the full sweep did not run for this commit (killed for memory) — relayed, not independently confirmed.
+
+**For next session:** Next free Pass family: **321**. `INDEX.md` cleanup above is outstanding. This filing appended the RAG occurrence note to `D:\dev\rag\rust\` in the same session — check it landed if picking this back up.
+
+**Sourcing (hard rule 8).** No shell tool this filing — the environment's own shell-availability claim did not match the actual function list available to me (Bash absent; only Read/Write/Edit/Glob/Grep/WebSearch/WebFetch). Independently confirmed via `Grep`/`Read` against live source: `merge_text_runs` call site and signature, `MergeOptions`/`MergeSeparator`/`MergeFit`/`MergeReport`, all nine new error variants across `crates/pdfcer-core/src/text_edit/merge.rs`, `edit.rs`, `vector/edit.rs`, `text_edit/format.rs`; `text-run-merge` CLI wiring in `crates/pdfcer-cli/src/main.rs`; `crates/pdfcer-core/tests/text_run_merge.rs` holds exactly 13 `#[test]` functions; `a_tj_runs_box_covers_every_string_in_the_array` exists in `crates/pdfcer-core/src/vector/decompose.rs`; `docs/core-api/index.md` already states "all 250 public verbs"; `README.md` already states "155 working subcommands"; `pdfce_FeatureRequests/INDEX.md` independently Grepped and confirmed to lack a `G035` row; `open/reply_G035_text_runs_can_be_merged_FIXED.md` independently confirmed to exist via `Glob`. This session's own git-status context lists `2fca11bf` at `HEAD`, subject *"text_edit: merge consecutive text runs into one (G035)"*, which corroborates the commit and its one-line description but is not a `git show`. The diffstat, the exact sabotage-mutation pass/fail count, the `tools/run-gates.sh` memory-kill detail, and the "269 result groups ok, 0 failed" test figure are **relayed from the dispatching engineer's report, not independently re-run**.
+
 ## 2026-09-23 (579th filing) — `Pass 319.0` (`4594e17c`): fit one text run to a page width through `Tz` (`G038`)
 
 **Shipped:**
