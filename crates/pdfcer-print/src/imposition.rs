@@ -1256,11 +1256,13 @@ pub struct PosterSpec {
     /// pdfcer does not invent one either; [`Default`] leaves it at zero and
     /// the shell asks.
     pub overlap_pt: f64,
-    /// Emit trim geometry for cut marks. The marks themselves are drawn by
-    /// the caller at [`PosterTile::trim_pt`]'s boundary.
+    /// Cut marks: reserves a [`POSTER_MARK_BAND_PT`] band on the top and
+    /// left of each sheet, and [`PosterLayout::cut_mark_segments`] returns
+    /// the marks to stroke in it. The band can cost extra sheets.
     pub cut_marks: bool,
-    /// Emit assembly labels. The text comes from
-    /// [`PosterLayout::tile_label`]; the flag says whether to print it.
+    /// Assembly labels: reserves the top band, and
+    /// [`PosterLayout::label_rect`] / [`PosterLayout::tile_label`] give
+    /// where and what to print in it.
     pub labels: bool,
     /// Tile only pages that exceed the printable area; pages that already
     /// fit print normally, untiled, in the same job.
@@ -1328,6 +1330,56 @@ impl PosterSpec {
     }
 }
 
+/// Depth, in points, of the band [`plan_poster`] reserves for cut marks and
+/// labels: along the top edge when either flag is set, and along the left
+/// edge when [`PosterSpec::cut_marks`] is set.
+///
+/// The band belongs to the imposition, not to the caller, so the CLI and
+/// the GUI print the same poster from the same spec. 18 pt (a quarter
+/// inch) holds a 12 pt label line with a 3 pt gap on each side.
+pub const POSTER_MARK_BAND_PT: f64 = 18.0;
+
+/// Gap, in points, between a mark or label and the edge it must not
+/// touch, so a slightly misaligned cut never shows a sliver of ink.
+pub const POSTER_MARK_GAP_PT: f64 = 3.0;
+
+/// A straight mark on a sheet, in printable-area points (top-left origin,
+/// `+y` down). The caller strokes it; this crate holds no drawing opinion.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MarkSegment {
+    /// One end.
+    pub from: (f64, f64),
+    /// The other end.
+    pub to: (f64, f64),
+}
+
+/// The assembly label for the tile at `row`, `column` (both zero-based) of
+/// a `rows` × `columns` poster of `document`.
+///
+/// Row and column are reported 1-based and with their totals, because the
+/// label's whole job is to tell somebody holding a sheet where it goes in
+/// a pile of sheets, and "row 2" without "of 3" does not. A free function
+/// so a caller holding one tile needs no [`PosterLayout`].
+///
+/// ```
+/// use pdfcer_print::imposition::poster_tile_label;
+/// assert_eq!(poster_tile_label(1, 0, 3, 2, "plan.pdf"), "plan.pdf — row 2 of 3, column 1 of 2");
+/// ```
+#[must_use]
+pub fn poster_tile_label(
+    row: usize,
+    column: usize,
+    rows: usize,
+    columns: usize,
+    document: &str,
+) -> String {
+    format!(
+        "{document} — row {} of {rows}, column {} of {columns}",
+        row + 1,
+        column + 1
+    )
+}
+
 /// One sheet of a poster.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PosterTile {
@@ -1347,7 +1399,8 @@ pub struct PosterTile {
     pub source_pt: Rect,
     /// Where that content lands on this sheet, in printable-area points.
     ///
-    /// Anchored at the printable origin, NOT centred. A partial trailing
+    /// Anchored at the printable origin (inside the mark band, when one is
+    /// reserved — see [`PosterLayout::mark_band_pt`]), NOT centred. A partial trailing
     /// tile therefore has its content in the top-left corner and blank
     /// paper to the right and below. Centring it is the plausible
     /// alternative and is wrong for assembly: the tiles are taped together
@@ -1379,7 +1432,7 @@ pub struct PosterLayout {
     /// The overlap actually used, echoed so a caller drawing cut marks
     /// does not have to carry the spec alongside the layout.
     pub overlap_pt: f64,
-    /// Whether to draw cut marks at [`PosterTile::trim_pt`].
+    /// Whether to draw [`Self::cut_mark_segments`].
     pub cut_marks: bool,
     /// Whether to print [`Self::tile_label`] on each sheet.
     pub labels: bool,
@@ -1388,34 +1441,98 @@ pub struct PosterLayout {
 }
 
 impl PosterLayout {
-    /// The assembly label for one tile.
+    /// The assembly label for one tile; see [`poster_tile_label`].
     ///
     /// Sourced as "filename + tile position". The filename is the
     /// caller's — this crate has never seen a file — so it is a parameter
     /// rather than a field, which also keeps [`PosterSpec`] free of an
     /// owned `String` and therefore `Copy`.
-    ///
-    /// Row and column are reported 1-based and with their totals, because
-    /// the label's whole job is to tell somebody holding a sheet where it
-    /// goes in a pile of sheets, and "row 2" without "of 3" does not.
     #[must_use]
     pub fn tile_label(&self, tile: &PosterTile, document: &str) -> String {
-        format!(
-            "{document} — row {} of {}, column {} of {}",
-            tile.row + 1,
-            self.rows,
-            tile.column + 1,
-            self.columns
-        )
+        poster_tile_label(tile.row, tile.column, self.rows, self.columns, document)
     }
+
+    /// The band [`plan_poster`] reserved, as `(left, top)` in points:
+    /// [`POSTER_MARK_BAND_PT`] on the top when marks or labels are on, on
+    /// the left when cut marks are on, otherwise zero. Every tile's
+    /// [`PosterTile::sheet_pt`] already starts inside it.
+    #[must_use]
+    pub fn mark_band_pt(&self) -> (f64, f64) {
+        mark_band(self.cut_marks, self.labels)
+    }
+
+    /// The cut marks for one tile, empty when [`Self::cut_marks`] is off.
+    ///
+    /// One mark per cut line, collinear with it and lying wholly in the
+    /// reserved band, so no mark covers the drawing:
+    ///
+    /// - the TOP edge of [`PosterTile::trim_pt`], marked in the left band;
+    /// - the LEFT edge, marked in the top band.
+    ///
+    /// Only leading edges are cut: a tile's trailing overlap is covered by
+    /// the next tile, so its right and bottom edges are never cut. One mark
+    /// per line suffices because every cut line is parallel to a paper edge.
+    #[must_use]
+    pub fn cut_mark_segments(&self, tile: &PosterTile) -> Vec<MarkSegment> {
+        if !self.cut_marks {
+            return Vec::new();
+        }
+        let (left, top) = self.mark_band_pt();
+        let t = tile.trim_pt;
+        vec![
+            MarkSegment {
+                from: (0.0, t.y),
+                to: (left - POSTER_MARK_GAP_PT, t.y),
+            },
+            MarkSegment {
+                from: (t.x, 0.0),
+                to: (t.x, top - POSTER_MARK_GAP_PT),
+            },
+        ]
+    }
+
+    /// Where to print one tile's label, `None` when [`Self::labels`] is off.
+    ///
+    /// A box in the top band, [`POSTER_MARK_GAP_PT`] clear of the band's
+    /// edges and of the left cut mark, running to the right edge of the
+    /// tile's content. Its height (12 pt at the default band) is the label's
+    /// font size. The band continues to the printable area's right edge, so
+    /// a label wider than a narrow trailing tile may run past the box.
+    #[must_use]
+    pub fn label_rect(&self, tile: &PosterTile) -> Option<Rect> {
+        if !self.labels {
+            return None;
+        }
+        let (_, top) = self.mark_band_pt();
+        let x = tile.trim_pt.x + POSTER_MARK_GAP_PT;
+        Some(Rect::new(
+            x,
+            POSTER_MARK_GAP_PT,
+            (tile.sheet_pt.right() - x).max(0.0),
+            top - 2.0 * POSTER_MARK_GAP_PT,
+        ))
+    }
+}
+
+/// `(left, top)` band depths for the given flags; see
+/// [`PosterLayout::mark_band_pt`].
+fn mark_band(cut_marks: bool, labels: bool) -> (f64, f64) {
+    let left = if cut_marks { POSTER_MARK_BAND_PT } else { 0.0 };
+    let top = if cut_marks || labels {
+        POSTER_MARK_BAND_PT
+    } else {
+        0.0
+    };
+    (left, top)
 }
 
 /// Tile one page across sheets.
 ///
 /// # Errors
 ///
-/// - [`ImpositionError::EmptySheet`] when the printable area has no
-///   positive extent.
+/// - [`ImpositionError::EmptySheet`] when the printable area, less any
+///   mark band ([`PosterLayout::mark_band_pt`]), has no positive extent;
+///   the error reports the size left after the band.
 /// - [`ImpositionError::DegeneratePage`] when the page has none. Unlike
 ///   N-up, poster mode cannot degrade this gracefully — a zero-extent
 ///   poster has no tiles at all, and returning zero sheets for a page the
@@ -1437,7 +1554,9 @@ pub fn plan_poster(
     page_pt: (f64, f64),
     spec: &PosterSpec,
 ) -> Result<PosterLayout, ImpositionError> {
-    let (sheet_w, sheet_h) = printable_pt;
+    let (band_left, band_top) = mark_band(spec.cut_marks, spec.labels);
+    let sheet_w = printable_pt.0 - band_left;
+    let sheet_h = printable_pt.1 - band_top;
     if !Rect::new(0.0, 0.0, sheet_w, sheet_h).is_positive() {
         return Err(ImpositionError::EmptySheet {
             width_pt: sheet_w,
@@ -1511,8 +1630,13 @@ pub fn plan_poster(
                     w / spec.tile_scale,
                     h / spec.tile_scale,
                 ),
-                sheet_pt: Rect::new(0.0, 0.0, w, h),
-                trim_pt: Rect::new(lead_x, lead_y, (w - lead_x).max(0.0), (h - lead_y).max(0.0)),
+                sheet_pt: Rect::new(band_left, band_top, w, h),
+                trim_pt: Rect::new(
+                    band_left + lead_x,
+                    band_top + lead_y,
+                    (w - lead_x).max(0.0),
+                    (h - lead_y).max(0.0),
+                ),
             });
         }
     }
@@ -2421,8 +2545,8 @@ mod booklet_tests {
 )]
 mod poster_tests {
     use super::{
-        A4, DEFAULT_MAX_TILES, ImpositionError, LETTER_PRINTABLE, PosterSpec, approx_eq,
-        plan_poster,
+        A4, DEFAULT_MAX_TILES, ImpositionError, LETTER_PRINTABLE, POSTER_MARK_GAP_PT, PosterSpec,
+        approx_eq, plan_poster,
     };
 
     /// A page no larger than the sheet is one tile, not zero and not four.
@@ -2608,7 +2732,10 @@ mod poster_tests {
             .iter()
             .find(|t| t.row == 0 && t.column == 0)
             .unwrap();
-        assert_eq!((first.trim_pt.x, first.trim_pt.y), (0.0, 0.0));
+        assert_eq!(
+            (first.trim_pt.x, first.trim_pt.y),
+            (first.sheet_pt.x, first.sheet_pt.y)
+        );
         assert!(approx_eq(first.trim_pt.width, first.sheet_pt.width));
 
         let inner = layout
@@ -2616,8 +2743,8 @@ mod poster_tests {
             .iter()
             .find(|t| t.row == 1 && t.column == 1)
             .unwrap();
-        assert!(approx_eq(inner.trim_pt.x, 36.0));
-        assert!(approx_eq(inner.trim_pt.y, 36.0));
+        assert!(approx_eq(inner.trim_pt.x, inner.sheet_pt.x + 36.0));
+        assert!(approx_eq(inner.trim_pt.y, inner.sheet_pt.y + 36.0));
         assert!(approx_eq(inner.trim_pt.width, inner.sheet_pt.width - 36.0));
         assert!(layout.cut_marks, "the flag rides along with the geometry");
     }
@@ -2819,8 +2946,92 @@ mod poster_tests {
             .unwrap();
         assert_eq!(
             layout.tile_label(tile, "site-plan.pdf"),
-            "site-plan.pdf — row 1 of 2, column 2 of 2"
+            "site-plan.pdf — row 1 of 3, column 2 of 2",
+            "the label band takes 18 pt of height, so 1500 pt needs a third row"
         );
         assert!(layout.labels);
+    }
+
+    /// With marks and labels on, every tile sits inside the reserved band,
+    /// and every mark and label box lies in the band, clear of the kept
+    /// drawing and of each other.
+    #[test]
+    fn cut_marks_and_labels_live_in_the_reserved_band() {
+        let spec = PosterSpec {
+            cut_marks: true,
+            labels: true,
+            overlap_pt: 36.0,
+            ..PosterSpec::default()
+        };
+        let layout = plan_poster(LETTER_PRINTABLE, (1000.0, 1500.0), &spec).unwrap();
+        assert_eq!(layout.mark_band_pt(), (18.0, 18.0));
+        for tile in &layout.tiles {
+            let s = tile.sheet_pt;
+            assert!(s.x == 18.0 && s.y == 18.0, "tile starts inside the band");
+            assert!(s.right() <= LETTER_PRINTABLE.0 + 1e-9);
+            assert!(s.bottom() <= LETTER_PRINTABLE.1 + 1e-9);
+            let t = tile.trim_pt;
+            let marks = layout.cut_mark_segments(tile);
+            assert_eq!(marks.len(), 2);
+            // The top cut line's mark: collinear with it, in the left band.
+            assert_eq!(marks[0].from.1, t.y);
+            assert_eq!(marks[0].to.1, t.y);
+            assert!(marks[0].from.0 >= 0.0 && marks[0].to.0 <= 18.0 - POSTER_MARK_GAP_PT);
+            // The left cut line's mark: collinear with it, in the top band.
+            assert_eq!(marks[1].from.0, t.x);
+            assert_eq!(marks[1].to.0, t.x);
+            assert!(marks[1].from.1 >= 0.0 && marks[1].to.1 <= 18.0 - POSTER_MARK_GAP_PT);
+            let label = layout.label_rect(tile).unwrap();
+            assert!(label.y >= POSTER_MARK_GAP_PT && label.bottom() <= 18.0 - POSTER_MARK_GAP_PT);
+            assert!(
+                label.x >= t.x + POSTER_MARK_GAP_PT,
+                "label clears the left mark"
+            );
+            assert!(label.height > 0.0 && label.width > 0.0);
+        }
+    }
+
+    /// The band is only reserved for the flags that need it, and costs
+    /// sheets: a page that exactly fits the printable area takes one sheet
+    /// bare and two with cut marks.
+    #[test]
+    fn the_mark_band_follows_the_flags_and_can_cost_a_sheet() {
+        let bare = plan_poster(LETTER_PRINTABLE, LETTER_PRINTABLE, &PosterSpec::default()).unwrap();
+        assert_eq!(bare.mark_band_pt(), (0.0, 0.0));
+        assert_eq!(bare.tiles.len(), 1);
+        assert_eq!(bare.tiles[0].sheet_pt.x, 0.0);
+        assert!(bare.cut_mark_segments(&bare.tiles[0]).is_empty());
+        assert!(bare.label_rect(&bare.tiles[0]).is_none());
+
+        let labelled = PosterSpec {
+            labels: true,
+            ..PosterSpec::default()
+        };
+        let labelled = plan_poster(LETTER_PRINTABLE, (100.0, 100.0), &labelled).unwrap();
+        assert_eq!(
+            labelled.mark_band_pt(),
+            (0.0, 18.0),
+            "labels need no left band"
+        );
+
+        let marked = PosterSpec {
+            cut_marks: true,
+            ..PosterSpec::default()
+        };
+        let marked = plan_poster(LETTER_PRINTABLE, LETTER_PRINTABLE, &marked).unwrap();
+        assert_eq!((marked.rows, marked.columns), (2, 2));
+    }
+
+    /// A band deeper than the printable area leaves nothing to tile.
+    #[test]
+    fn a_band_that_eats_the_sheet_is_refused() {
+        let spec = PosterSpec {
+            cut_marks: true,
+            ..PosterSpec::default()
+        };
+        assert!(matches!(
+            plan_poster((18.0, 500.0), (100.0, 100.0), &spec),
+            Err(ImpositionError::EmptySheet { .. })
+        ));
     }
 }
