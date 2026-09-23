@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-23 (588th filing) — `Pass 326.2` (`2039521c`): the CLI surface for `G039`/`G040`/`G041` — `pdfcer print --line-width`, `--poster-cut-marks`, `--poster-labels`
+
+**Shipped:**
+- `Pass 326.2` (`2039521c`) — `pdfcer print --line-width MM` sets `StrokeDisplay::Fixed` at the job DPI for the whole print job (new `print_render_options`), disclosed on stderr. `--poster-cut-marks`/`--poster-labels` (require `--poster`) set `PosterSpec`'s flags; `draw_poster_marks` strokes `cut_mark_segments` and renders `poster_tile_label` into `label_rect` via a one-line Helvetica/WinAnsi synthetic-PDF rasteriser — a non-WinAnsi label character prints `?`, count disclosed on stderr.
+
+**Decisions made this session:** None architectural — a CLI-surface addition to two already-shipped engine capabilities (`Pass 326.0`/`326.1`), not a crate-boundary/library-choice/invariant call.
+
+**Findings + decisions:**
+- `docs/FEATURES.md`: new row (*Fonts & rendering*, directly below the hairline row) for `StrokeDisplay::Fixed` — core `[x]`, cli `[x]` (scoped to `pdfcer print --line-width` only), gui `[ ]`, Acrobat `?`. The hairline row's own cli stays `—`, unchanged — the Hairline mode itself still has no CLI route, only a short pointer to the new row was appended to its text. Poster cut-marks/labels row (*Printing*) cli moved `[ ]`→`[x]`. No new `tools/check-register-entry-size.py` finding: the new Fixed row is under the 1,200-char cap; the hairline row was already in `tools/register-entry-size-baseline.txt` as debt and its label prefix (the baseline key) is unchanged. **Amendment, same filing, before commit:** an earlier draft of this edit ticked the hairline row's cli box directly instead of adding the new row — caught and corrected before commit; no separate dated footer needed since nothing was yet pushed.
+- Gate status, recorded honestly per hard rule 8: `clippy -p pdfcer-cli --all-targets -D warnings`, `cargo check` (`x86_64-unknown-linux-gnu`), `check-clap-help`, `check-cli-help-leads`, `fmt` ran and are clean per the dispatching engineer's report. **Full `tools/run-gates.sh` sweep NOT yet run** for this commit — same memory constraint as `Pass 326.0`/`326.1`; will run before push. Commit is local and unpushed.
+
+**Still in flight:**
+- `Pass 325.0` (crate split) remains not started past its step-1 measurement (587th filing).
+- `pdfcer-gui` has not wired `--line-width`'s render option or the poster marks/labels geometry — both stay `gui [ ]`.
+
+**For next session:** Run the full `tools/run-gates.sh` sweep and push `bb5a37a2`/`b44e6a03`/`2039521c` (plus any commits between) together once green.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Confirmed by `Grep`/`Read` against live source: `print_render_options`, `--line-width`/`--poster-cut-marks`/`--poster-labels`, `draw_poster_marks`, `render_poster_label`, `winansi_bytes` all present in `crates/pdfcer-cli/src/main.rs`; `docs/ROADMAP.md` and `docs/FEATURES.md` premises (Pass 326.0/326.1 filed with core `[x]`/cli `[ ]` — true for the poster row, but the hairline row's cli cell was `—` not `[ ]`, corrected in this filing's own edit) verified before editing; `tools/check-register-entry-size.py` and its baseline file read directly to confirm no new cap finding. **Relayed from the dispatching engineer's report, not independently reproduced:** exact test count (8 new, 4 sabotages), the end-to-end "Microsoft Print to PDF" smoke test, and the gate-clean claims. No commit was made this filing (no shell; the engineer commits).
+
 ## 2026-09-23 (587th filing) — `Pass 326.0`/`326.1` (`bb5a37a2`/`b44e6a03`): poster cut marks/labels get engine geometry (`G040`/`G041`), `StrokeDisplay::Fixed` (`G039`); `Pass 325.0`'s step-1 edge measurement filed to Backlog
 
 **Shipped:**

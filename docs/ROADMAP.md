@@ -151,6 +151,24 @@ wherever it appears.*
 
 **Sourcing (hard rule 8).** No shell tool this filing. Relayed from the dispatching engineer's report and `pdfce_FeatureRequests/open/reply_G039_stroke_display_fixed_width_FIXED.md`, not independently reproduced. **Commit is local and unpushed, pending a green `tools/run-gates.sh` run.**
 
+### `Pass 326.2` (`2039521c`), 2026-09-23 — CLI surface for `G039`/`G040`/`G041`: `pdfcer print --line-width`, `--poster-cut-marks`, `--poster-labels`
+
+**The feature.** `pdfcer print --line-width MM` (>0, ≤25.4 mm) sets `StrokeDisplay::Fixed` at the job DPI via new `print_render_options`; every N-up/booklet/poster render in the job uses it, and stderr discloses the width. `--poster-cut-marks`/`--poster-labels` (require `--poster`) set `PosterSpec`'s flags; `draw_poster_marks` strokes `cut_mark_segments` and renders `poster_tile_label` into `label_rect`, rasterised by pdfcer's own renderer through a one-line Helvetica/WinAnsi synthetic PDF — a non-WinAnsi character in a label prints as `?` and the count is disclosed on stderr (rule 4).
+
+**Scope.** This is `pdfcer print`'s own CLI surface for the engine capabilities `Pass 326.0`/`326.1` shipped core-only. `render-page`/export paths are unchanged and stay real-widths-only, per that Pass's own note — `--line-width` only ever reaches a *print* job, never an export.
+
+**Tests.** 8 new in `pdfcer-cli` (arg parser bounds, marks confined to the band, label inside `label_rect`, WinAnsi mapping, option-build); 4 sabotages, each caught by its own test. End-to-end: a real `--send` to "Microsoft Print to PDF" `--to-file`, rendered back — marks, label and uniform stroke widths all visible.
+
+**Gates.** `clippy -p pdfcer-cli --all-targets -D warnings`, `cargo check` (`x86_64-unknown-linux-gnu`), `check-clap-help`, `check-cli-help-leads`, `fmt` — all clean per the dispatching engineer's report. **Full `tools/run-gates.sh` NOT yet run** — will run before push, same memory constraint as `Pass 326.0`/`326.1`. No `Cargo.toml` change, `cargo tree` unaffected by construction. Not pushed yet.
+
+**Invariants.** Round-trip/minimal-diff unaffected — a print-job render option and poster geometry, not a writer change.
+
+**`docs/FEATURES.md`.** New row (*Fonts & rendering*, directly below the hairline row) for `StrokeDisplay::Fixed` — core `[x]`, cli `[x]` (scoped to `pdfcer print --line-width` only), gui `[ ]`, Acrobat `?`. The hairline row itself is unchanged — cli stays `—`, its "do not complete this box" warning still applies (`render-page`/export paths still render real widths; `--line-width` only ever reaches a print job). The poster cut-marks/labels row (*Printing*) — cli moves from `[ ]` to `[x]`.
+
+**No decision-log entry** — a CLI-surface addition to two already-shipped engine capabilities, not a crate-boundary/library-choice/invariant call.
+
+**Sourcing (hard rule 8).** No shell tool this filing. `print_render_options`, `--line-width`/`--poster-cut-marks`/`--poster-labels`, `draw_poster_marks`, `render_poster_label` and `winansi_bytes` confirmed present in `crates/pdfcer-cli/src/main.rs` by `Grep`. Test count, sabotage detail, gate-clean claims and the end-to-end smoke test relayed from the dispatching engineer's report, not independently reproduced. **Commit is local and unpushed, pending a green `tools/run-gates.sh` run.**
+
 ### `Pass 324.0` (`854773e2`), 2026-09-23 — a supplied font COLLECTION (`.ttc`/`.otc`) now renders at all; SVG keep-text takes it too
 
 **The defect.** `FontProgram::parse` routed a `ttcf`-signature program straight to `skrifa::FontRef::new`, which refuses a collection outright (see `D:\dev\rag\rust\skrifa_fontref_new_refuses_font_collections_use_from_index.md`, filed this session) — so every glyph of a supplied `.ttc`/`.otc` donor counted `UnusableProgram`, even though the CLI's `--font-dir` has scanned and registered `.ttc`/`.otc` files as donors all along.
