@@ -5,7 +5,8 @@ detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
 **Written:** 2026-09-12, after `Pass 300.3` and the 530th filing.
-**Amended:** 2026-09-17, after `Pass 309.0`/`309.1` and `Pass 310.0`/`310.1`/`310.2`, filings to the 571st, **`v0.55.0` released**. See the newest **SINCE THE LAST HANDOFF** block at the top of STATE.
+**Amended:** 2026-09-23, after `Pass 326.2` and the 588th filing; **2 commits UNPUSHED** — see the 2026-09-23 **SINCE THE LAST HANDOFF** block at the top of STATE.
+**Earlier amendment:** 2026-09-17, after `Pass 309.0`/`309.1` and `Pass 310.0`/`310.1`/`310.2`, filings to the 571st, **`v0.55.0` released**. See the newest **SINCE THE LAST HANDOFF** block at the top of STATE.
 **Previously amended:** 2026-09-15 (again), after `Pass 307.0`, `Pass 308.0`/`308.2`, `Pass 308.1` — with which **`G020` is fully closed** — and `Pass 308.3` answering the new `G021`. Filings to the 560th. See **SINCE THE LAST HANDOFF** at the top of STATE —
 everything below that block is carried forward unchanged and still true.
 
@@ -128,7 +129,7 @@ very line was left saying `0.54.0` while a new block three screens above it
 said `0.55.0`. **Nothing in this file checks itself**, and the stale half is
 always the one further from where you are editing.
 
-**`main` is pushed through the 571st filing**, CI green at `229e8635` and
+**`main` is pushed through the 587th filing (`5a901336`, CI green); `2039521c` and `b82b7aba` are local only** (2026-09-23 — superseding the next sentence). Previously: **`main` is pushed through the 571st filing**, CI green at `229e8635` and
 `7419fb2f` — read CI's colour from GitHub yourself
 (`gh run list --branch main --limit 1`); this line records what was pushed and
 what the server said at that moment, never what it says now.
@@ -163,6 +164,51 @@ push, and the sweep would have caught it** — `run-gates.sh` reports this gate.
    intended direction is down. Both rows over cap on 2026-09-15 were trimmed
    by deleting reasoning that already lived in `ROADMAP.md` and the commit
    message — no fact was lost, which is the test for whether a trim is honest.
+
+### SINCE THE LAST HANDOFF — 2026-09-23 (`Pass 311.0`–`326.2`, 572nd–588th filings)
+
+**FIRST ACTION ON "continue": sweep, then push.** Two commits are local only:
+`2039521c` (cli: `pdfcer print --line-width`, `--poster-cut-marks`,
+`--poster-labels`) and `b82b7aba` (588th filing). `tools/run-gates.sh` was
+started and **killed by the harness for low memory** mid-`cargo test
+--workspace`; the one reported failure was `0xc0000142 STATUS_DLL_INIT_FAILED`
+compiling a test binary — starvation, not a defect. Already green on
+`2039521c`: `clippy -p pdfcer-cli --all-targets -D warnings`, `cargo test -p
+pdfcer-cli --all-features` (first 20 groups seen; rerun it whole),
+`cargo check --target x86_64-unknown-linux-gnu -p pdfcer-cli`,
+`check-clap-help`, `check-cli-help-leads`, fmt. Use the split fallback
+procedure at the top of this file if the sweep dies again. Then push and read
+CI's colour.
+
+**What shipped in this span** (all answering `pdfceGUI` requests G028–G041;
+every one has a `reply_*_FIXED.md` in `FeatureRequests/pdfce_FeatureRequests/open/`):
+- `Pass 311.0` G028 span-edit origin · `312.0` G032 line split on clear space ·
+  `313.0` G031 per-run preview cap · `314.0` G029 move_objects moves text ·
+  `315.0` G030 set-taking move_text_runs · `316.0`/`317.0` G034 writable text
+  render mode, G037 glyph→surgery-run map · `318.0` G036 OCR layer
+  find/replace/remove · `319.0` G038 run target width · `320.0` G035 merge runs.
+- G033 (SVG/EMF keep text as text): `321.0`, `322.0`, `322.1` EMF, `323.0`
+  bare CFF, `324.0` font collections (`.ttc`/`.otc` — also fixed a supplied TTC
+  never rendering: `skrifa::FontRef::from_index`), `324.1` Type 1.
+- `326.0` poster cut-mark band + label geometry (G040/G041), `326.1`
+  `StrokeDisplay::Fixed { device_px }` (G039), `326.2` their CLI flags
+  (unpushed). FEATURES: fixed stroke width has its OWN row (cli `[x]`, print
+  only); the hairline row's cli stays a deliberate `—` — do not tick it.
+- 584th filing corrected eight stale gui boxes per the 09-20 channel note;
+  both 09-11 and 09-20 notes have replies in `open/`.
+
+**Not started, next in line:**
+- `Pass 325.0` — split `pdfcer-core` into a model crate + narrow feature crates
+  behind a facade (Ken asked why it was ever one crate). Step 1 (dependency-edge
+  measurement) is recorded in its Backlog entry; steps 2–7 remain. Memory-heavy
+  builds make this machine a poor fit for big refactors — build per-crate.
+- Next free Pass family: **327**.
+- Check both FeatureRequests channels for anything newer than G041.
+
+**Session gotchas:** `SendMessage` is disabled this session type — re-dispatch
+a fresh librarian with full context instead of continuing one. The librarian
+has no shell; paste exact hashes. Low memory: `CARGO_BUILD_JOBS=1
+RUST_TEST_THREADS=2`, per-crate `-p`, long runs in background.
 
 ### SINCE THE LAST HANDOFF — 2026-09-17 (`Pass 309.x`, `310.x`, `v0.55.0`)
 
