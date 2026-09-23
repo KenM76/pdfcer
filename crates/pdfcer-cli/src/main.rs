@@ -3040,6 +3040,23 @@ enum Command {
         /// Print one face of each sheet, for a printer without duplex.
         #[arg(long, value_enum, default_value_t = BookletSubsetArg::BothSides)]
         booklet_subset: BookletSubsetArg,
+        /// Print every line at one width, in millimetres.
+        ///
+        /// Thin lines are thickened and thick lines thinned, so a drawing
+        /// prints with one pen. Fills and text are unchanged. Without this
+        /// flag every line prints at the width the file declares.
+        #[arg(long, value_name = "MM", value_parser = parse_line_width_mm)]
+        line_width: Option<f64>,
+        /// Draw cut marks on each poster sheet, in a strip along the top and
+        /// left edges.
+        ///
+        /// The strip costs printable area, so a poster can need more sheets.
+        #[arg(long, requires = "poster")]
+        poster_cut_marks: bool,
+        /// Print a label on each poster sheet naming the file and the
+        /// tile's row and column, in a strip along the top edge.
+        #[arg(long, requires = "poster")]
+        poster_labels: bool,
     },
 
     /// **Report what a print WOULD do**, without printing anything
@@ -11189,6 +11206,9 @@ fn run() -> ExitCode {
             poster_max_tiles,
             binding,
             booklet_subset,
+            line_width,
+            poster_cut_marks,
+            poster_labels,
         } => cmd_print(
             &input,
             printer.as_deref(),
@@ -11219,6 +11239,9 @@ fn run() -> ExitCode {
             poster_max_tiles,
             binding,
             booklet_subset,
+            line_width,
+            poster_cut_marks,
+            poster_labels,
         ),
         Command::PrintPreview {
             input,
@@ -20698,6 +20721,9 @@ fn cmd_print(
     poster_max_tiles: u32,
     binding: BindingArg,
     booklet_subset: BookletSubsetArg,
+    line_width_mm: Option<f64>,
+    poster_cut_marks: bool,
+    poster_labels: bool,
 ) -> u8 {
     let doc = match open_document(input) {
         Ok(doc) => doc,
@@ -20879,6 +20905,15 @@ fn cmd_print(
     let clipped = plans.iter().filter(|p| p.placement.clipped).count();
     let mut bitmaps: Vec<pdfcer_print::PageBitmap> = Vec::new();
 
+    // Every render in this job uses these options, so a line-width choice
+    // reaches N-up cells, booklet halves and poster tiles alike.
+    let print_options = print_render_options(comments, line_width_mm, dpi);
+    if let (Some(mm), pdfcer_render::StrokeDisplay::Fixed { device_px }) =
+        (line_width_mm, print_options.stroke_display)
+    {
+        eprintln!("pdfcer: every line prints {mm} mm wide ({device_px:.2} px at {dpi} dpi).");
+    }
+
     // ---- N-up: several source pages composited onto one sheet ----
     //
     // Handled as its own path rather than as another `ScaleMode`,
@@ -20929,8 +20964,7 @@ fn cmd_print(
                     continue;
                 };
                 let scale = (f64::from(resolution.dpi) / 72.0) * slot.fit.scale;
-                let options = pdfcer_render::RenderOptions::default()
-                    .with_annotation_scope(comments.to_scope());
+                let options = print_options.clone();
                 let rendered = match pdfcer_render::render_page_with_view(
                     &session.view(),
                     page,
@@ -20987,8 +21021,8 @@ fn cmd_print(
         let spec_p = pdfcer_print::imposition::PosterSpec {
             tile_scale: poster_scale,
             overlap_pt: poster_overlap,
-            cut_marks: false,
-            labels: false,
+            cut_marks: poster_cut_marks,
+            labels: poster_labels,
             tile_only_large_pages: poster_large_only,
             max_tiles: poster_max_tiles,
         };
@@ -20996,6 +21030,18 @@ fn cmd_print(
         // is where the sheets are actually composed. It used to be computed
         // here and threaded in, which is how a whole-page raster ended up
         // being the thing that scaled with magnification.
+        let label_name = input.file_name().map_or_else(
+            || input.display().to_string(),
+            |n| n.to_string_lossy().into_owned(),
+        );
+        if poster_labels {
+            let (_, replaced) = winansi_bytes(&label_name);
+            if replaced > 0 {
+                eprintln!(
+                    "pdfcer: {replaced} character(s) of the file name have no glyph in the                      label font and print as '?'."
+                );
+            }
+        }
         let mut sheets: Vec<pdfcer_print::PageBitmap> = Vec::new();
         let mut tiled_pages = 0usize;
         let mut untiled_pages = 0usize;
@@ -21014,8 +21060,7 @@ fn cmd_print(
                 // mixed document comes off the printer in reading order
                 // rather than with the small pages collected at the end.
                 let render_scale = f64::from(resolution.dpi) / 72.0;
-                let options = pdfcer_render::RenderOptions::default()
-                    .with_annotation_scope(comments.to_scope());
+                let options = print_options.clone();
                 let rendered = match pdfcer_render::render_page_with_view(
                     &session.view(),
                     page,
@@ -21051,8 +21096,7 @@ fn cmd_print(
                     }
                 };
             tiled_pages += 1;
-            let options =
-                pdfcer_render::RenderOptions::default().with_annotation_scope(comments.to_scope());
+            let options = print_options.clone();
             match poster_sheets_for_page(
                 &session.view(),
                 page,
@@ -21061,6 +21105,7 @@ fn cmd_print(
                 resolution.dpi,
                 device.printable_pt,
                 &options,
+                &label_name,
             ) {
                 Ok((tile_sheets, route)) => {
                     if matches!(route, PosterRoute::PerTile) {
@@ -21178,8 +21223,7 @@ untiled; {tiled_pages} page(s) were tiled."
                     continue;
                 };
                 let scale = (f64::from(resolution.dpi) / 72.0) * fit.scale;
-                let options = pdfcer_render::RenderOptions::default()
-                    .with_annotation_scope(comments.to_scope());
+                let options = print_options.clone();
                 let rendered = match pdfcer_render::render_page_with_view(
                     &session.view(),
                     page,
@@ -21252,8 +21296,7 @@ untiled; {tiled_pages} page(s) were tiled."
             // does NOT swap it (a 600x300 plotter must not be rendered
             // as 300x600).
             let render_scale = (f64::from(resolution.dpi) / 72.0) * placement.scale;
-            let options =
-                pdfcer_render::RenderOptions::default().with_annotation_scope(comments.to_scope());
+            let options = print_options.clone();
             let rendered = match pdfcer_render::render_page_with_view(
                 &session.view(),
                 page,
@@ -21458,6 +21501,7 @@ enum PosterRoute {
 /// A human-readable message when the page CTM is not invertible, a sheet
 /// cannot be allocated, or a tile fails to rasterise.
 #[cfg(windows)]
+#[allow(clippy::too_many_arguments)] // each is an independent job setting
 fn poster_sheets_for_page(
     view: &pdfcer_core::view::DocumentView<'_>,
     page: &pdfcer_core::page_tree::Page,
@@ -21466,6 +21510,7 @@ fn poster_sheets_for_page(
     dpi: u32,
     printable_pt: (f64, f64),
     options: &pdfcer_render::RenderOptions,
+    document: &str,
 ) -> Result<(Vec<pdfcer_print::PageBitmap>, PosterRoute), String> {
     let device_scale = f64::from(dpi) / 72.0;
     #[allow(clippy::cast_possible_truncation)]
@@ -21571,6 +21616,7 @@ fn poster_sheets_for_page(
             pdfcer_render::tiny_skia::Transform::identity(),
             None,
         );
+        draw_poster_marks(&mut sheet, layout, tile, device_scale, document)?;
         sheets.push(pdfcer_print::PageBitmap {
             width: sheet.width(),
             height: sheet.height(),
@@ -21585,6 +21631,206 @@ fn poster_sheets_for_page(
         });
     }
     Ok((sheets, route))
+}
+
+/// The render options every page of a print job uses: the comment scope, and
+/// with `--line-width` every stroke fixed at that many millimetres at `dpi`.
+#[cfg(windows)]
+fn print_render_options(
+    comments: CommentsArg,
+    line_width_mm: Option<f64>,
+    dpi: u32,
+) -> pdfcer_render::RenderOptions {
+    let mut options =
+        pdfcer_render::RenderOptions::default().with_annotation_scope(comments.to_scope());
+    if let Some(mm) = line_width_mm {
+        #[allow(clippy::cast_possible_truncation)]
+        let device_px = (mm / 25.4 * f64::from(dpi)) as f32;
+        options.stroke_display = pdfcer_render::StrokeDisplay::Fixed { device_px };
+    }
+    options
+}
+
+/// Clap parser for `--line-width`: millimetres, above 0 and at most 25.4.
+fn parse_line_width_mm(s: &str) -> Result<f64, String> {
+    let mm: f64 = s
+        .parse()
+        .map_err(|_| format!("`{s}` is not a width in millimetres"))?;
+    if mm.is_finite() && mm > 0.0 && mm <= 25.4 {
+        Ok(mm)
+    } else {
+        Err(format!(
+            "a line width must be above 0 and at most 25.4 mm, not {s}"
+        ))
+    }
+}
+
+/// Cut-mark stroke width, in points: thin enough to cut along, and never
+/// below one device pixel.
+#[cfg(windows)]
+const POSTER_CUT_MARK_WIDTH_PT: f64 = 0.5;
+
+/// Draw one tile's cut marks and label onto its sheet, at the geometry
+/// [`pdfcer_print::imposition::PosterLayout`] gives. Draws nothing when the
+/// layout's flags are off.
+///
+/// # Errors
+///
+/// A message when the label cannot be rasterised.
+#[cfg(windows)]
+fn draw_poster_marks(
+    sheet: &mut pdfcer_render::tiny_skia::Pixmap,
+    layout: &pdfcer_print::imposition::PosterLayout,
+    tile: &pdfcer_print::imposition::PosterTile,
+    device_scale: f64,
+    document: &str,
+) -> Result<(), String> {
+    use pdfcer_render::tiny_skia::{Paint, PathBuilder, PixmapPaint, Stroke, Transform};
+
+    #[allow(clippy::cast_possible_truncation)]
+    let dev = |pt: f64| (pt * device_scale) as f32;
+    let segments = layout.cut_mark_segments(tile);
+    let mut pb = PathBuilder::new();
+    for seg in &segments {
+        pb.move_to(dev(seg.from.0), dev(seg.from.1));
+        pb.line_to(dev(seg.to.0), dev(seg.to.1));
+    }
+    if let Some(path) = pb.finish() {
+        let mut paint = Paint::default();
+        paint.set_color_rgba8(0, 0, 0, 255);
+        let stroke = Stroke {
+            width: dev(POSTER_CUT_MARK_WIDTH_PT).max(1.0),
+            ..Stroke::default()
+        };
+        sheet.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+    }
+
+    if let Some(rect) = layout.label_rect(tile) {
+        if rect.width < 1.0 || rect.height < 1.0 {
+            return Ok(());
+        }
+        let text = pdfcer_print::imposition::poster_tile_label(
+            tile.row,
+            tile.column,
+            layout.rows,
+            layout.columns,
+            document,
+        );
+        let label = render_poster_label(&text, rect.width, rect.height, device_scale)?;
+        #[allow(clippy::cast_possible_truncation)]
+        sheet.draw_pixmap(
+            dev(rect.x).round() as i32,
+            dev(rect.y).round() as i32,
+            label.as_ref(),
+            &PixmapPaint::default(),
+            Transform::identity(),
+            None,
+        );
+    }
+    Ok(())
+}
+
+/// `text` as WinAnsi codes, and how many characters had no WinAnsi code and
+/// became `?`.
+#[cfg(windows)]
+fn winansi_bytes(text: &str) -> (Vec<u8>, usize) {
+    use pdfcer_core::fontdata::{BaseEncoding, encoding_glyph_name, glyph_name_to_unicode};
+    let mut replaced = 0;
+    let bytes = text
+        .chars()
+        .map(|ch| {
+            (0x20..=0xFF_u8)
+                .find(|&code| {
+                    encoding_glyph_name(BaseEncoding::WinAnsi, code).and_then(glyph_name_to_unicode)
+                        == Some(ch)
+                })
+                .unwrap_or_else(|| {
+                    replaced += 1;
+                    b'?'
+                })
+        })
+        .collect();
+    (bytes, replaced)
+}
+
+/// Rasterise a poster label: `text` in Helvetica at `height_pt`, on a
+/// transparent `width_pt` × `height_pt` box, at `device_scale` pixels per
+/// point.
+///
+/// The label goes through pdfcer's own renderer, as a one-line PDF, so the
+/// CLI needs no second text rasteriser. Text past the box is cut off.
+///
+/// # Errors
+///
+/// A message when the synthetic page fails to parse or render.
+#[cfg(windows)]
+fn render_poster_label(
+    text: &str,
+    width_pt: f64,
+    height_pt: f64,
+    device_scale: f64,
+) -> Result<pdfcer_render::tiny_skia::Pixmap, String> {
+    let (codes, _) = winansi_bytes(text);
+    let mut content =
+        format!("BT /F1 {height_pt:.3} Tf 0 {:.3} Td (", height_pt * 0.22).into_bytes();
+    for b in codes {
+        match b {
+            b'(' | b')' | b'\\' => content.extend([b'\\', b]),
+            0x20..=0x7E => content.push(b),
+            _ => content.extend(format!("\\{b:03o}").as_bytes()),
+        }
+    }
+    content.extend_from_slice(b") Tj ET");
+
+    let objects: [Vec<u8>; 5] = [
+        b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
+        format!(
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 {width_pt:.3} {height_pt:.3}] >>"
+        )
+        .into_bytes(),
+        b"<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>"
+            .to_vec(),
+        [
+            format!("<< /Length {} >>\nstream\n", content.len()).as_bytes(),
+            &content,
+            b"\nendstream",
+        ]
+        .concat(),
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
+            .to_vec(),
+    ];
+    let mut pdf = b"%PDF-1.4\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in objects.iter().enumerate() {
+        offsets.push(pdf.len());
+        pdf.extend(format!("{} 0 obj\n", i + 1).as_bytes());
+        pdf.extend_from_slice(body);
+        pdf.extend_from_slice(b"\nendobj\n");
+    }
+    let xref_at = pdf.len();
+    pdf.extend(format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1).as_bytes());
+    for off in offsets {
+        pdf.extend(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    pdf.extend(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n",
+            objects.len() + 1
+        )
+        .as_bytes(),
+    );
+
+    let doc = pdfcer_core::document::Document::from_bytes(pdf)
+        .map_err(|e| format!("poster label: {e}"))?;
+    let page = pdfcer_core::page_tree::pages(&doc)
+        .map_err(|e| format!("poster label: {e}"))?
+        .remove(0);
+    let options = pdfcer_render::RenderOptions::default()
+        .with_backdrop(pdfcer_render::PageBackdrop::Transparent);
+    #[allow(clippy::cast_possible_truncation)]
+    let rendered = pdfcer_render::render_page_with(&doc, &page, device_scale as f32, &options)
+        .map_err(|e| format!("poster label: {e}"))?;
+    Ok(rendered.pixmap)
 }
 
 /// The poster tiler's differential oracle.
@@ -21706,6 +21952,7 @@ mod poster_tiling_tests {
                 150,
                 printable_pt,
                 &options,
+                "",
             )
             .expect("tiles rasterise");
 
@@ -21839,6 +22086,7 @@ mod poster_tiling_tests {
             150,
             printable_pt,
             &options,
+            "",
         )
         .expect("tiles that no whole-page raster could hold must still rasterise");
         assert_eq!(route, PosterRoute::Recorded);
@@ -21846,6 +22094,136 @@ mod poster_tiling_tests {
         assert!(
             sheets.iter().any(|s| s.rgba.iter().any(|&b| b != 255)),
             "the tile covering the page ink must carry ink at 30x, or the region path is producing blank paper and the reachability claim is empty"
+        );
+    }
+}
+
+#[cfg(test)]
+mod print_line_width_arg_tests {
+    use super::parse_line_width_mm;
+
+    #[test]
+    fn accepts_a_positive_width_up_to_an_inch() {
+        assert_eq!(parse_line_width_mm("0.35"), Ok(0.35));
+        assert_eq!(parse_line_width_mm("25.4"), Ok(25.4));
+    }
+
+    #[test]
+    fn refuses_zero_negative_huge_and_non_numbers() {
+        for bad in ["0", "-1", "25.5", "NaN", "inf", "thin"] {
+            assert!(parse_line_width_mm(bad).is_err(), "{bad} was accepted");
+        }
+    }
+}
+
+#[cfg(all(test, windows))]
+mod poster_marks_tests {
+    use super::{
+        CommentsArg, draw_poster_marks, print_render_options, render_poster_label, winansi_bytes,
+    };
+    use pdfcer_print::imposition::{PosterLayout, PosterSpec, Rect, plan_poster};
+    use pdfcer_render::tiny_skia::{Color, Pixmap};
+
+    const SCALE: f64 = 150.0 / 72.0;
+
+    fn layout(cut_marks: bool, labels: bool) -> PosterLayout {
+        let spec = PosterSpec {
+            tile_scale: 1.0,
+            overlap_pt: 0.0,
+            cut_marks,
+            labels,
+            tile_only_large_pages: false,
+            max_tiles: 64,
+        };
+        plan_poster((612.0, 792.0), (1224.0, 1584.0), &spec).expect("poster plans")
+    }
+
+    /// Dark pixels inside `rect` (points), on a sheet drawn at [`SCALE`].
+    fn dark_in(sheet: &Pixmap, rect: Rect) -> usize {
+        let px = |pt: f64| (pt * SCALE).round() as u32;
+        let (x0, y0) = (px(rect.x), px(rect.y));
+        let (x1, y1) = (
+            px(rect.x + rect.width).min(sheet.width()),
+            px(rect.y + rect.height).min(sheet.height()),
+        );
+        (y0..y1)
+            .flat_map(|y| (x0..x1).map(move |x| (x, y)))
+            .filter(|&(x, y)| sheet.pixel(x, y).is_some_and(|p| p.red() < 128))
+            .count()
+    }
+
+    fn drawn(layout: &PosterLayout) -> Pixmap {
+        let px = |pt: f64| (pt * SCALE).round() as u32;
+        let mut sheet = Pixmap::new(px(612.0), px(792.0)).expect("sheet");
+        sheet.fill(Color::WHITE);
+        draw_poster_marks(&mut sheet, layout, &layout.tiles[0], SCALE, "plan.pdf")
+            .expect("marks draw");
+        sheet
+    }
+
+    #[test]
+    fn nothing_is_drawn_when_both_flags_are_off() {
+        let l = layout(false, false);
+        assert_eq!(dark_in(&drawn(&l), Rect::new(0.0, 0.0, 612.0, 792.0)), 0);
+    }
+
+    #[test]
+    fn cut_marks_land_in_the_band_and_nowhere_on_the_tile() {
+        let l = layout(true, false);
+        let sheet = drawn(&l);
+        let tile = l.tiles[0].sheet_pt;
+        assert!(dark_in(&sheet, Rect::new(0.0, 0.0, 612.0, tile.y)) > 0);
+        // One point of stroke antialiasing may touch the tile edge.
+        let inner = Rect::new(
+            tile.x + 1.0,
+            tile.y + 1.0,
+            tile.width - 2.0,
+            tile.height - 2.0,
+        );
+        assert_eq!(dark_in(&sheet, inner), 0);
+    }
+
+    #[test]
+    fn the_label_is_printed_inside_its_rectangle() {
+        let l = layout(false, true);
+        let rect = l
+            .label_rect(&l.tiles[0])
+            .expect("labels reserve a rectangle");
+        let sheet = drawn(&l);
+        assert!(dark_in(&sheet, rect) > 50, "no label text was drawn");
+        let tile = l.tiles[0].sheet_pt;
+        assert_eq!(
+            dark_in(&sheet, Rect::new(tile.x, tile.y, tile.width, tile.height)),
+            0
+        );
+    }
+
+    #[test]
+    fn an_empty_label_renders_fully_transparent() {
+        let label = render_poster_label("", 200.0, 12.0, SCALE).expect("renders");
+        assert!(label.pixels().iter().all(|p| p.alpha() == 0));
+        let label = render_poster_label("row 1", 200.0, 12.0, SCALE).expect("renders");
+        assert!(label.pixels().iter().any(|p| p.alpha() > 0));
+    }
+
+    #[test]
+    fn characters_outside_winansi_become_question_marks_and_are_counted() {
+        let (bytes, replaced) = winansi_bytes("a\u{2014}\u{e9}\u{20ac}\u{6f22}");
+        assert_eq!(bytes, vec![b'a', 0x97, 0xE9, 0x80, b'?']);
+        assert_eq!(replaced, 1);
+    }
+
+    #[test]
+    fn line_width_becomes_a_fixed_device_width_at_the_job_dpi() {
+        let options = print_render_options(CommentsArg::Document, Some(25.4), 300);
+        assert_eq!(
+            options.stroke_display,
+            pdfcer_render::StrokeDisplay::Fixed { device_px: 300.0 }
+        );
+        let options = print_render_options(CommentsArg::Document, None, 300);
+        assert_eq!(
+            options.stroke_display,
+            pdfcer_render::StrokeDisplay::default()
         );
     }
 }
@@ -22102,6 +22480,9 @@ fn cmd_print(
     _poster_max_tiles: u32,
     _binding: BindingArg,
     _booklet_subset: BookletSubsetArg,
+    _line_width_mm: Option<f64>,
+    _poster_cut_marks: bool,
+    _poster_labels: bool,
 ) -> u8 {
     eprintln!(
         "pdfcer: printing is available on Windows only in this build \
