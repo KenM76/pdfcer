@@ -9,7 +9,9 @@
 //! same outline the source program had.
 //!
 //! Fixtures: the synthetic donor face from `tools/gen-subset-font-fixtures.py`
-//! embedded by pdfcer's own add-text (`docs/LEGAL.md` §5).
+//! embedded by pdfcer's own add-text, `hello.pdf` (Standard-14 text drawn
+//! from a bundled bare-CFF face) and `textedit/embedded_full.pdf` (an
+//! embedded `/Type1C` program) (`docs/LEGAL.md` §5).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -102,6 +104,33 @@ fn base64_decode(s: &str) -> Vec<u8> {
     out
 }
 
+/// The `<text>` element whose content is `text`.
+fn text_element<'a>(svg: &'a str, text: &str) -> Option<&'a str> {
+    let mut rest = svg;
+    while let Some(start) = rest.find("<text ") {
+        let end = start + rest[start..].find("</text>").unwrap();
+        let element = &rest[start..end];
+        if element.ends_with(&format!(">{text}")) {
+            return Some(element);
+        }
+        rest = &rest[end..];
+    }
+    None
+}
+
+/// The web font an `@font-face` rule embeds for the family `element`
+/// names first, and the rule's `format()`.
+fn font_of<'a>(svg: &'a str, element: &str) -> (Vec<u8>, &'a str) {
+    let family = attr(element, "font-family").split(',').next().unwrap();
+    let rule = format!("@font-face{{font-family:'{family}';");
+    let face = svg.find(&rule).unwrap_or_else(|| panic!("no {rule}"));
+    let fmt_at = svg[face..].find("format('").unwrap() + face + "format('".len();
+    let fmt = &svg[fmt_at..fmt_at + svg[fmt_at..].find('\'').unwrap()];
+    let b64_at = svg[face..].find("base64,").unwrap() + face + "base64,".len();
+    let b64_len = svg[b64_at..].find(')').unwrap();
+    (base64_decode(&svg[b64_at..b64_at + b64_len]), fmt)
+}
+
 /// Every on- and off-curve point of a glyph, font units.
 #[derive(Default)]
 struct Points(Vec<(f32, f32)>);
@@ -145,8 +174,8 @@ fn bbox(points: impl IntoIterator<Item = (f32, f32)>) -> [f32; 4] {
     )
 }
 
-/// The device-space bounding box of each `<path>` the outline export wrote,
-/// in document order, skipping the fixture's own Standard-14 text.
+/// The device-space bounding box of each `<path>` an export wrote, in
+/// document order.
 fn outline_boxes(svg: &str) -> Vec<[f32; 4]> {
     svg.split("<path ")
         .skip(1)
@@ -165,21 +194,17 @@ fn kept_text_is_one_text_element_with_an_embedded_font_that_maps_each_character(
     let doc = page_with("ABCA", 0);
     let out = export(&doc, SvgText::KeepText);
     let t = out.outcome.text;
-    assert_eq!(t.runs_as_text, 1, "{t:?}");
-    assert_eq!(t.fonts_embedded, 1, "{t:?}");
+    // hello.pdf's own two Helvetica lines are kept too, in a second font.
+    assert_eq!(t.runs_as_text, 3, "{t:?}");
+    assert_eq!(t.fonts_embedded, 2, "{t:?}");
 
     let svg = &out.svg;
-    let start = svg.find("<text ").expect("a <text> element");
-    let element = &svg[start..start + svg[start..].find("</text>").unwrap()];
-    assert!(element.ends_with(">ABCA"), "{element}");
+    let element = text_element(svg, "ABCA").expect("a <text> element");
     assert_eq!(attr(element, "xml:space"), "preserve");
-    assert!(attr(element, "font-family").starts_with("pdfcer-f0, "));
+    assert!(attr(element, "font-family").starts_with("pdfcer-f"));
 
-    let face = svg.find("@font-face").expect("an @font-face rule");
-    assert!(svg[face..].contains("format('truetype')"));
-    let b64_at = svg.find("base64,").unwrap() + "base64,".len();
-    let b64_len = svg[b64_at..].find(')').unwrap();
-    let web = base64_decode(&svg[b64_at..b64_at + b64_len]);
+    let (web, format) = font_of(svg, element);
+    assert_eq!(format, "truetype");
     let web = FontRef::new(&web).expect("the embedded font parses");
     let donor_bytes = fixture("text/subset-donor.ttf");
     let donor = FontRef::new(&donor_bytes).unwrap();
@@ -196,16 +221,13 @@ fn each_kept_glyph_lands_where_the_outline_export_drew_it() {
     assert!(!outlines.svg.contains("<text "));
     assert_eq!(outlines.outcome.text, Default::default());
 
-    // The kept export's paths are the Standard-14 text the fixture already
-    // carried; the outline export has those plus one per donor glyph, last.
+    // The donor text is drawn last: its four glyphs are the outline
+    // export's last four paths.
     let all = outline_boxes(&outlines.svg);
-    let others = outline_boxes(&kept.svg).len();
-    let glyph_boxes = &all[others..];
-    assert_eq!(glyph_boxes.len(), 4, "one path per donor glyph");
+    let glyph_boxes = &all[all.len() - 4..];
 
     let svg = &kept.svg;
-    let start = svg.find("<text ").unwrap();
-    let element = &svg[start..start + svg[start..].find("</text>").unwrap()];
+    let element = text_element(svg, "ABCA").unwrap();
     let m = floats(attr(element, "transform"));
     let xs = floats(attr(element, "x"));
     let upem: f32 = attr(element, "font-size").parse().unwrap();
@@ -239,26 +261,80 @@ fn each_kept_glyph_lands_where_the_outline_export_drew_it() {
 fn stroked_text_stays_outlines_and_is_counted() {
     let doc = page_with("AB", 1);
     let out = export(&doc, SvgText::KeepText);
-    assert!(!out.svg.contains("<text "));
-    assert!(!out.svg.contains("@font-face"));
-    assert_eq!(out.outcome.text.runs_as_text, 0);
+    assert!(text_element(&out.svg, "AB").is_none());
+    // Only hello.pdf's own Helvetica lines are kept.
+    assert_eq!(out.outcome.text.runs_as_text, 2);
     assert_eq!(out.outcome.text.fallback_paint, 1, "{:?}", out.outcome.text);
-    assert_eq!(out.outcome.text.fonts_embedded, 0);
+    assert_eq!(out.outcome.text.fonts_embedded, 1);
+}
+
+/// Each kept run's characters placed from its own embedded font's
+/// outlines by the run's `transform` and `x`, one box per inked character,
+/// in document order.
+fn placed_boxes(svg: &str) -> Vec<[f32; 4]> {
+    let mut out = Vec::new();
+    let mut rest = svg;
+    while let Some(start) = rest.find("<text ") {
+        let end = start + rest[start..].find("</text>").unwrap();
+        let element = &rest[start..end];
+        let text = &element[element.rfind('>').unwrap() + 1..];
+        let (web, _) = font_of(svg, element);
+        let web = FontRef::new(&web).unwrap();
+        let m = floats(attr(element, "transform"));
+        let xs = floats(attr(element, "x"));
+        for (c, x) in text.chars().zip(&xs) {
+            let points = outline(&web, c);
+            if points.is_empty() {
+                continue;
+            }
+            out.push(bbox(points.into_iter().map(|(px, py)| {
+                let (u, v) = (x + px, -py);
+                (m[0] * u + m[2] * v + m[4], m[1] * u + m[3] * v + m[5])
+            })));
+        }
+        rest = &rest[end..];
+    }
+    out
+}
+
+/// A bare-CFF program must be kept: framed as OpenType, embedded with its
+/// own charstrings, and every glyph drawn where the outline export drew it.
+fn assert_cff_page_kept(doc: &Document) {
+    let kept = export(doc, SvgText::KeepText);
+    let t = kept.outcome.text;
+    assert_eq!(t.runs_as_outlines(), 0, "{t:?}");
+    assert!(t.runs_as_text >= 1, "{t:?}");
+    assert_eq!(t.fonts_embedded, 1, "{t:?}");
+
+    let element = &kept.svg[kept.svg.find("<text ").unwrap()..];
+    let (web, format) = font_of(&kept.svg, element);
+    assert_eq!(format, "opentype");
+    assert_eq!(&web[..4], b"OTTO");
+    let web = FontRef::new(&web).expect("the embedded font parses");
+    assert_eq!(web.head().unwrap().units_per_em(), 1000);
+
+    // The kept export's paths are the page's non-text paths; the outline
+    // export draws those same paths first, then one per inked glyph.
+    let outlines = export(doc, SvgText::Outlines);
+    let all = outline_boxes(&outlines.svg);
+    let want = &all[outline_boxes(&kept.svg).len()..];
+    let got = placed_boxes(&kept.svg);
+    assert_eq!(got.len(), want.len(), "one box per inked glyph");
+    for (g, w) in got.iter().zip(want) {
+        for (a, b) in g.iter().zip(w) {
+            assert!((a - b).abs() < 0.05, "kept {g:?} vs outlines {w:?}");
+        }
+    }
 }
 
 #[test]
-fn a_font_that_is_not_an_sfnt_stays_outlines_and_is_counted() {
-    // `hello.pdf` shows Standard-14 text, drawn from a bundled bare-CFF face.
-    let doc = Document::from_bytes(fixture("hello.pdf")).unwrap();
-    let out = export(&doc, SvgText::KeepText);
-    assert!(!out.svg.contains("<text "));
-    assert!(
-        out.outcome.text.fallback_not_sfnt >= 1,
-        "{:?}",
-        out.outcome.text
-    );
-    assert_eq!(
-        out.outcome.text.runs_as_outlines(),
-        out.outcome.text.fallback_not_sfnt
-    );
+fn bundled_standard_14_cff_text_is_kept() {
+    // `hello.pdf` names Helvetica without embedding it: its glyphs come from
+    // the bundled Standard-14 face, a bare CFF program.
+    assert_cff_page_kept(&Document::from_bytes(fixture("hello.pdf")).unwrap());
+}
+
+#[test]
+fn an_embedded_type1c_program_is_kept() {
+    assert_cff_page_kept(&Document::from_bytes(fixture("textedit/embedded_full.pdf")).unwrap());
 }

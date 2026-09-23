@@ -465,6 +465,26 @@ impl<'a> FontProgram<'a> {
     }
 }
 
+impl FontProgram<'_> {
+    /// A bare-CFF glyph's advance width and outline bounds, in font units.
+    ///
+    /// `None` for any other framing, or when the charstring does not
+    /// evaluate. Bounds are `None` for an empty glyph.
+    pub(crate) fn cff_metrics(&self, gid: u32) -> Option<(f32, Option<tiny_skia::Rect>)> {
+        let Self::Cff(cff) = self else {
+            return None;
+        };
+        let glyph = GlyphId::new(gid);
+        let subfont = cff
+            .subfont(cff.subfont_index(glyph).unwrap_or(0), &[])
+            .ok()?;
+        let mut pen = SkiaPen::default();
+        let advance = cff.draw(&subfont, glyph, &[], None, &mut pen).ok()?;
+        let bounds = pen.builder.finish().map(|p| p.bounds());
+        Some((advance.unwrap_or(0.0), bounds))
+    }
+}
+
 /// Select a cmap subtable by EXACT `(platform, encoding)` id.
 ///
 /// §9.6.6.4 names specific subtables and its Branch A/B chains differ

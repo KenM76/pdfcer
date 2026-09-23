@@ -22,6 +22,13 @@
 //! 5. rewrites the table directory, table checksums and
 //!    `head.checkSumAdjustment`.
 //!
+//! A bare CFF program (`FontFile3 /Type1C` or `/CIDFontType0C`, and the
+//! bundled Standard-14 substitutes) is first framed as a CFF-flavoured
+//! OpenType font by [`wrap_cff`]: the `CFF ` table verbatim plus `head`,
+//! `hhea`, `hmtx` and `maxp` 0.5, from the charstrings' own advances and
+//! bounds. Glyph ids are the charstring indices, so they are unchanged.
+//! A Type 1 program is not converted and stays outlines.
+//!
 //! A font whose `OS/2.fsType` sets the restricted-licence bit (0x0002) is
 //! refused: re-embedding it in another file is exactly what that bit
 //! forbids. Only BMP characters are mapped, which is all format 4 can carry;
@@ -42,6 +49,8 @@ pub(crate) enum WebFontError {
     MissingMetrics,
     /// More glyphs or characters than the formats written can carry.
     TooLarge,
+    /// A bare CFF program that could not be framed as OpenType.
+    CffFrame,
 }
 
 /// A built web font.
@@ -60,6 +69,13 @@ pub(crate) fn build(
     chars: &BTreeMap<char, u16>,
     family: &str,
 ) -> Result<WebFont, WebFontError> {
+    let framed;
+    let program = if program.starts_with(&[1, 0]) {
+        framed = wrap_cff(program, chars.values().copied()).ok_or(WebFontError::CffFrame)?;
+        framed.as_slice()
+    } else {
+        program
+    };
     let source = Directory::parse(program).ok_or(WebFontError::NotSfnt)?;
     let source_os2 = source.table(*b"OS/2");
     if let Some(os2) = source_os2
@@ -111,6 +127,108 @@ pub(crate) fn build(
         data: assemble(dir.flavor, tables),
         cff: dir.flavor == u32::from_be_bytes(*b"OTTO"),
     })
+}
+
+/// Frame a bare CFF program as an `OTTO` sfnt: `CFF ` verbatim, `head`,
+/// `hhea`, `hmtx` and `maxp` version 0.5.
+///
+/// Only glyph 0 and the glyphs in `used` get their advance; every other
+/// `hmtx` entry is zero, since [`build`] subsets to `used` straight after.
+/// `head` and `hhea` extents are those glyphs' bounds. `None` when the
+/// program does not parse as CFF, its em is not 1000 units (the `head`
+/// written here would then disagree with the CFF `FontMatrix`), it has more
+/// than 65,535 glyphs, or a used glyph does not evaluate.
+pub(crate) fn wrap_cff(cff: &[u8], used: impl IntoIterator<Item = u16>) -> Option<Vec<u8>> {
+    let program = crate::font::program::FontProgram::parse(cff).ok()?;
+    #[allow(clippy::float_cmp)] // `upem` is an integer carried as f32
+    if program.upem() != 1000.0 {
+        return None;
+    }
+    let count = u16::try_from(program.num_glyphs())
+        .ok()
+        .filter(|&n| n > 0)?;
+    let mut advances = vec![0u16; usize::from(count)];
+    let mut lsbs = vec![0i16; usize::from(count)];
+    let (mut x0, mut y0, mut x1, mut y1) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
+    let mut max_advance = 0u16;
+    for gid in std::iter::once(0).chain(used) {
+        if gid >= count {
+            return None;
+        }
+        let (advance, bounds) = program.cff_metrics(u32::from(gid))?;
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let advance = advance.round().clamp(0.0, 65535.0) as u16;
+        advances[usize::from(gid)] = advance;
+        max_advance = max_advance.max(advance);
+        if let Some(b) = bounds {
+            #[allow(clippy::cast_possible_truncation)]
+            {
+                lsbs[usize::from(gid)] = b.left().round().clamp(-32768.0, 32767.0) as i16;
+            }
+            x0 = x0.min(b.left());
+            y0 = y0.min(b.top());
+            x1 = x1.max(b.right());
+            y1 = y1.max(b.bottom());
+        }
+    }
+    if x0 > x1 {
+        (x0, y0, x1, y1) = (0.0, 0.0, 0.0, 0.0);
+    }
+    #[allow(clippy::cast_possible_truncation)]
+    let i16_of = |v: f32| v.round().clamp(-32768.0, 32767.0) as i16;
+    let (x_min, y_min, x_max, y_max) = (i16_of(x0), i16_of(y0), i16_of(x1), i16_of(y1));
+
+    let mut head = Vec::with_capacity(54);
+    head.extend_from_slice(&0x0001_0000u32.to_be_bytes()); // version
+    head.extend_from_slice(&0x0001_0000u32.to_be_bytes()); // fontRevision
+    head.extend_from_slice(&0u32.to_be_bytes()); // checkSumAdjustment
+    head.extend_from_slice(&0x5F0F_3CF5u32.to_be_bytes()); // magicNumber
+    head.extend_from_slice(&0x0003u16.to_be_bytes()); // flags: baseline y=0, lsb x=0
+    head.extend_from_slice(&1000u16.to_be_bytes()); // unitsPerEm
+    head.extend_from_slice(&[0; 16]); // created, modified
+    for v in [x_min, y_min, x_max, y_max] {
+        head.extend_from_slice(&v.to_be_bytes());
+    }
+    head.extend_from_slice(&0u16.to_be_bytes()); // macStyle
+    head.extend_from_slice(&3u16.to_be_bytes()); // lowestRecPPEM
+    head.extend_from_slice(&2i16.to_be_bytes()); // fontDirectionHint
+    head.extend_from_slice(&0i16.to_be_bytes()); // indexToLocFormat
+    head.extend_from_slice(&0i16.to_be_bytes()); // glyphDataFormat
+
+    let mut hhea = Vec::with_capacity(36);
+    hhea.extend_from_slice(&0x0001_0000u32.to_be_bytes());
+    hhea.extend_from_slice(&y_max.to_be_bytes()); // ascender
+    hhea.extend_from_slice(&y_min.to_be_bytes()); // descender
+    hhea.extend_from_slice(&0i16.to_be_bytes()); // lineGap
+    hhea.extend_from_slice(&max_advance.to_be_bytes());
+    hhea.extend_from_slice(&x_min.to_be_bytes()); // minLeftSideBearing
+    hhea.extend_from_slice(&0i16.to_be_bytes()); // minRightSideBearing
+    hhea.extend_from_slice(&x_max.to_be_bytes()); // xMaxExtent
+    hhea.extend_from_slice(&1i16.to_be_bytes()); // caretSlopeRise
+    hhea.extend_from_slice(&[0; 12]); // caretSlopeRun, caretOffset, reserved ×4
+    hhea.extend_from_slice(&0i16.to_be_bytes()); // metricDataFormat
+    hhea.extend_from_slice(&count.to_be_bytes()); // numberOfHMetrics
+
+    let mut hmtx = Vec::with_capacity(4 * usize::from(count));
+    for (a, l) in advances.iter().zip(&lsbs) {
+        hmtx.extend_from_slice(&a.to_be_bytes());
+        hmtx.extend_from_slice(&l.to_be_bytes());
+    }
+
+    let mut maxp = Vec::with_capacity(6);
+    maxp.extend_from_slice(&0x0000_5000u32.to_be_bytes());
+    maxp.extend_from_slice(&count.to_be_bytes());
+
+    Some(assemble(
+        u32::from_be_bytes(*b"OTTO"),
+        vec![
+            (*b"CFF ", cff.to_vec()),
+            (*b"head", head),
+            (*b"hhea", hhea),
+            (*b"hmtx", hmtx),
+            (*b"maxp", maxp),
+        ],
+    ))
 }
 
 /// An sfnt table directory over borrowed bytes.
@@ -396,6 +514,51 @@ fn post_v3(source: Option<&[u8]>) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const SANS: &[u8] = include_bytes!("../../assets/fonts/FoxitSans.cff");
+
+    #[test]
+    fn a_framed_cff_carries_the_standard_14_advances_of_the_glyphs_used() {
+        use skrifa::MetadataProvider as _;
+        use skrifa::raw::TableProvider as _;
+        let program = crate::font::program::FontProgram::parse(SANS).unwrap();
+        let gid = |name| u16::try_from(program.glyph_for_name(name).unwrap()).unwrap();
+        let (h, i, t) = (gid("H"), gid("i"), gid("T"));
+        let framed = wrap_cff(SANS, [h, i]).unwrap();
+        assert_eq!(&framed[..4], b"OTTO");
+        let font = skrifa::FontRef::new(&framed).unwrap();
+        let m = font.glyph_metrics(
+            skrifa::prelude::Size::unscaled(),
+            skrifa::prelude::LocationRef::default(),
+        );
+        // Helvetica widths (the Standard-14 AFM): H 722, i 222.
+        assert_eq!(m.advance_width(h.into()), Some(722.0));
+        assert_eq!(m.advance_width(i.into()), Some(222.0));
+        assert_eq!(m.advance_width(t.into()), Some(0.0), "unused");
+        let bounds = program.cff_metrics(u32::from(h)).unwrap().1.unwrap();
+        assert_eq!(m.left_side_bearing(h.into()), Some(bounds.left().round()));
+        assert_eq!(
+            usize::from(font.maxp().unwrap().num_glyphs()),
+            program.num_glyphs() as usize
+        );
+
+        let chars = BTreeMap::from([('H', h), ('i', i)]);
+        let web = build(SANS, &chars, "Sans").unwrap();
+        assert!(web.cff);
+        let web = skrifa::FontRef::new(&web.data).unwrap();
+        let wm = web.glyph_metrics(
+            skrifa::prelude::Size::unscaled(),
+            skrifa::prelude::LocationRef::default(),
+        );
+        let wh = web.charmap().map('H').unwrap();
+        assert_eq!(wm.advance_width(wh), Some(722.0));
+    }
+
+    #[test]
+    fn a_cff_that_does_not_parse_or_names_a_missing_glyph_is_not_framed() {
+        assert!(wrap_cff(&[1, 0, 4, 2, 0, 0], [3]).is_none());
+        assert!(wrap_cff(SANS, [u16::MAX]).is_none());
+    }
 
     #[test]
     fn cmap_groups_consecutive_runs_and_maps_every_character() {

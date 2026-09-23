@@ -9,7 +9,8 @@
 //!
 //! A run becomes `<text>` only when doing so renders the same picture:
 //!
-//! - the font program is an sfnt (TrueType or CFF-flavoured OpenType);
+//! - the font program is an sfnt (TrueType or CFF-flavoured OpenType) or
+//!   a bare CFF program, which the web-font builder frames as OpenType;
 //! - every paint in the run is a plain solid nonzero fill, with one colour,
 //!   blend mode and clip across the run;
 //! - every glyph maps to exactly one BMP, non-control character, and no
@@ -173,7 +174,7 @@ impl Planner {
     }
 
     fn plan_run(&mut self, run: &TextRunInfo, ops: &[Op]) -> Result<TextRunPlan, Fallback> {
-        if !is_sfnt(run.font.data.bytes()) {
+        if !is_embeddable_program(run.font.data.bytes()) {
             return Err(Fallback::NotSfnt);
         }
         let (rgba, blend, clip) = uniform_paint(ops).ok_or(Fallback::Paint)?;
@@ -243,6 +244,13 @@ impl Planner {
             clip,
         })
     }
+}
+
+/// Whether [`webfont::build`] can take this program: an sfnt, or bare CFF
+/// (header major 1, minor 0), which it frames as OpenType. A Type 1
+/// program cannot be converted.
+fn is_embeddable_program(data: &[u8]) -> bool {
+    is_sfnt(data) || data.starts_with(&[1, 0])
 }
 
 /// A plain sfnt, not a collection.
@@ -321,6 +329,16 @@ pub(crate) fn family_of(base_font: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sfnt_and_bare_cff_are_embeddable_and_type_1_is_not() {
+        assert!(is_embeddable_program(&[0, 1, 0, 0, 0, 9]));
+        assert!(is_embeddable_program(b"OTTO\0\x09"));
+        assert!(is_embeddable_program(&[1, 0, 4, 2]));
+        assert!(!is_embeddable_program(b"%!PS-AdobeFont-1.0: Demo"));
+        assert!(!is_embeddable_program(&[0x80, 0x01, 0, 0]));
+        assert!(!is_embeddable_program(b"ttcf"));
+    }
 
     #[test]
     fn subset_tags_are_stripped_and_names_made_css_safe() {
