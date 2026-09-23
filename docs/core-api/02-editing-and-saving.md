@@ -1169,6 +1169,35 @@ iterations because each call re-splices the content stream, and N calls are N
 undo entries. Use `move_objects` / `delete_objects` / `move_nodes`
 (`edit.rs:4600-4620`).
 
+#### 1.10.0a From a clicked glyph to a run index — `vector::locate_text_run` (`G037`)
+
+Extraction (`text_extract::PageText`) is what a shell hit-tests, selects and
+searches; decomposition (`vector::PageObjects`) is what every text verb above
+indexes. They share no index space. **Do not join them yourself** — use:
+
+| Function | Returns |
+|---|---|
+| `vector::locate_text_run(&PageObjects, &GlyphProvenance) -> Option<TextRunRef>` | the run that shows one glyph |
+| `vector::locate_text_runs(&PageObjects, &text_extract::TextRun) -> Vec<TextRunRef>` | the distinct runs behind one extracted run, in glyph order (an extracted run can span several show operators) |
+
+`TextRunRef::Page { object_index, run_index }` feeds `move_text_run`,
+`move_text_runs`, `delete_text_run`, `split_text_object`;
+`TextRunRef::Form { leaf_index, run_index }` feeds the `*_in_form` verbs.
+
+- **Extract with `ExtractOptions::default().with_provenance(true)`** — glyphs
+  carry no provenance otherwise, and every lookup is `None`.
+- **Precondition:** both models from the SAME revision — e.g. both from
+  `EditSession::view()`, re-read after every edit. Spans from two revisions
+  index two different buffers.
+- **A form drawn more than once** gives one leaf per `Do`; the glyph's CTM
+  picks the placement. If none agrees, `None` — never a guess.
+- **`None`** also for a glyph from a buffer the model does not describe (a
+  Type 3 glyph procedure, an unreached form) or a stale span. Treat it as
+  "not editable here", not as an error.
+- Pinned by `crates/pdfcer-core/tests/text_run_locate.rs`: every show operator
+  kind, `TJ`, marked content, an inline image between objects, a repeated form,
+  and a session view after an edit.
+
 #### ★ 1.10.0 `split_text_object` — when "move this line" names nothing (`Pass 306.0`)
 
 A CAD exporter may put every string on a sheet inside ONE `BT`…`ET`. The

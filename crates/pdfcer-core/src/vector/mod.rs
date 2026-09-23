@@ -60,6 +60,7 @@ pub mod hit;
 /// CAD-style "dimension between these two edges" workflow needs.
 pub mod linepick;
 pub mod snap;
+pub mod text_locate;
 
 // Re-export the primary surface at `crate::vector::…` so callers do not
 // reach through the submodule paths for the everyday types.
@@ -102,3 +103,4 @@ pub use snap::{
     SnapConfig, SnapKind, constrained_second_point, measured_length, polyline_length,
     snap_candidates,
 };
+pub use text_locate::{TextRunRef, locate_text_run, locate_text_runs};
