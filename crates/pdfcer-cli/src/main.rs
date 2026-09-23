@@ -3992,6 +3992,14 @@ enum Command {
         /// substitute font.
         #[arg(long, value_enum, default_value_t = SvgTextArg::Outlines)]
         svg_text: SvgTextArg,
+        /// EMF only: how text is written. `outlines` (default) draws every
+        /// glyph as a path. `keep` writes each line it can as real text in
+        /// the INSTALLED font of the same name, each character pinned to
+        /// its PDF position; an EMF cannot carry the font, so a machine
+        /// without it shows a substitute. Lines it cannot keep stay
+        /// outlines and are counted on an `emf-text:` line.
+        #[arg(long, value_enum, default_value_t = SvgTextArg::Outlines)]
+        emf_text: SvgTextArg,
     },
 
     /// Copy a page to the OS clipboard so it pastes as EDITABLE VECTORS into
@@ -10066,13 +10074,22 @@ impl ImageFormatArg {
     }
 }
 
-/// `export-image --svg-text`.
+/// `export-image --svg-text` and `--emf-text`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 enum SvgTextArg {
     /// Every glyph a filled path.
     Outlines,
     /// Real text in an embedded subset font where possible.
     Keep,
+}
+
+impl From<SvgTextArg> for pdfcer_render::emf::EmfText {
+    fn from(arg: SvgTextArg) -> Self {
+        match arg {
+            SvgTextArg::Outlines => Self::Outlines,
+            SvgTextArg::Keep => Self::KeepText,
+        }
+    }
 }
 
 impl From<SvgTextArg> for pdfcer_render::svg::SvgText {
@@ -11341,6 +11358,7 @@ fn run() -> ExitCode {
             hide_layers,
             print_state,
             svg_text,
+            emf_text,
         } => cmd_export_image(ExportImageArgs {
             input: &input,
             pages: &pages,
@@ -11362,6 +11380,7 @@ fn run() -> ExitCode {
             hide_layers: &hide_layers,
             print_state,
             svg_text,
+            emf_text,
         }),
         Command::CopyPage {
             input,
@@ -16024,7 +16043,7 @@ shadings_as_gradients={}",
         }
     }
     if let Some(o) = &emf_outcome {
-        print_emf_disclosure(o, page_number);
+        print_emf_disclosure(o, page_number, false);
     }
     eprintln!(
         "pdfcer: note: a paste takes the FIRST format the application knows: Word/PowerPoint/Excel and Inkscape take the SVG (vectors); LibreOffice 24.x and Paste Special take the EMF; Paint, GIMP, browsers take the PNG (pixels, with transparency)"
@@ -16042,7 +16061,11 @@ shadings_as_gradients={}",
 /// The `emf:` stable line and the per-page notes for a metafile export or
 /// copy (`Pass 248.4`) — one function, so `export-image` and `copy-page`
 /// disclose the same facts in the same words.
-fn print_emf_disclosure(o: &pdfcer_render::emf::EmfOutcome, page_number: impl std::fmt::Display) {
+fn print_emf_disclosure(
+    o: &pdfcer_render::emf::EmfOutcome,
+    page_number: impl std::fmt::Display,
+    keep_text: bool,
+) {
     println!(
         "emf: ops={} rasters={} alpha_rasterised={} blend_modes_dropped={} gradients_rasterised={} \
 images={} layers_rasterised={} dashed_pre_applied={} nonzero_multi_subpath={}",
@@ -16056,9 +16079,27 @@ images={} layers_rasterised={} dashed_pre_applied={} nonzero_multi_subpath={}",
         o.dashed_strokes_pre_applied,
         o.nonzero_fills_multi_subpath
     );
-    eprintln!(
-        "pdfcer: note: page {page_number}: the metafile carries text as glyph OUTLINES; it is the format for LibreOffice 24.x and legacy Win32 consumers -- Word, PowerPoint and Inkscape take the SVG instead"
-    );
+    if keep_text {
+        let k = &o.text;
+        println!(
+            "emf-text: kept={} outlines={} paint={} unmapped={} geometry={} symbol_face={}",
+            k.runs_as_text,
+            k.runs_as_outlines(),
+            k.fallback_paint,
+            k.fallback_unmapped,
+            k.fallback_geometry,
+            k.fallback_symbol_face
+        );
+        eprintln!(
+            "pdfcer: note: page {page_number}: {} text run(s) kept as text, each character at its PDF position; an EMF cannot carry a font, so each is drawn in the INSTALLED font of the recorded name, and a machine without it substitutes one. The characters come from the PDF's /ToUnicode and encoding. {} run(s) stay glyph OUTLINES",
+            k.runs_as_text,
+            k.runs_as_outlines()
+        );
+    } else {
+        eprintln!(
+            "pdfcer: note: page {page_number}: the metafile carries text as glyph OUTLINES; it is the format for LibreOffice 24.x and legacy Win32 consumers -- Word, PowerPoint and Inkscape take the SVG instead"
+        );
+    }
     if o.rasters_embedded > 0 {
         eprintln!(
             "pdfcer: note: page {page_number}: {} element(s) are embedded as alpha bitmaps because EMF cannot express them as vectors ({} for transparency, {} for blend modes, {} gradients, {} images, {} transparency groups); Inkscape's EMF import draws none of those",
@@ -16120,6 +16161,8 @@ struct ExportImageArgs<'a> {
     print_state: bool,
     /// Outlines or kept text (SVG only).
     svg_text: SvgTextArg,
+    /// Outlines or kept text (EMF only).
+    emf_text: SvgTextArg,
 }
 
 /// `export-image`: render each selected page and write it as a PNG or JPEG
@@ -16172,6 +16215,7 @@ fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
         hide_layers,
         print_state,
         svg_text,
+        emf_text,
     } = args;
 
     // ---- operator-mistake refusals, all before any I/O ----
@@ -16180,6 +16224,13 @@ fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
         // accepting the flag would look like it did something.
         eprintln!(
             "pdfcer: {}: --svg-text keep applies to --format svg only",
+            input.display()
+        );
+        return exit::RUNTIME_ERROR;
+    }
+    if emf_text == SvgTextArg::Keep && format != ImageFormatArg::Emf {
+        eprintln!(
+            "pdfcer: {}: --emf-text keep applies to --format emf only",
             input.display()
         );
         return exit::RUNTIME_ERROR;
@@ -16327,7 +16378,8 @@ fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
             // nothing was painted) and `--background` an opaque first fill.
             let emf_options = pdfcer_render::emf::EmfOptions::default()
                 .with_raster_dpi(dpi)
-                .with_background(if transparent { None } else { background });
+                .with_background(if transparent { None } else { background })
+                .with_text(emf_text.into());
             let export =
                 match pdfcer_render::emf::export_emf(&doc, page, &render_options, &emf_options) {
                     Ok(e) => e,
@@ -16355,7 +16407,7 @@ fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
                 background_token,
                 render_counters_line(&o.diagnostics, &doc, supplied_registered)
             );
-            print_emf_disclosure(o, page_number);
+            print_emf_disclosure(o, page_number, emf_text == SvgTextArg::Keep);
             report_diagnostics(
                 &o.diagnostics,
                 render_options.max_cmyk_buffer_bytes,

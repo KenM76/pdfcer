@@ -31,7 +31,8 @@
 //! | a solid op with alpha < 255, or a non-`Normal` blend, or a `Gradient`/`Image` brush | the op is REPLAYED into a transparent scratch, cropped, and written as `EMR_ALPHABLEND` (premultiplied BGRA, the GDI contract) | `rasters_embedded` + one of `ops_rasterised_for_alpha` / `blend_modes_dropped` / `gradients_rasterised` / `images_embedded` |
 //! | `Op::Layer` (group opacity, blend, soft mask) | the whole layer replayed, its mask and opacity applied, one `EMR_ALPHABLEND`; the layer's blend mode against the page is dropped to `Normal` | `layers_rasterised`, `blend_modes_dropped` |
 //! | a clip | `SAVEDC`, one path bracket + `SELECTCLIPPATH RGN_AND` per ancestor, `RESTOREDC` when the clip changes | — |
-//! | text | glyph outlines, like every other fill | — |
+//! | text, [`EmfText::Outlines`] (default) | glyph outlines, like every other fill | — |
+//! | text, [`EmfText::KeepText`] | `EXTCREATEFONTINDIRECTW` + `EXTTEXTOUTW` with a `Dx` array per run that fits (see `emf_text`); other runs as outlines | [`EmfTextOutcome`] |
 //!
 //! Every row of that table is a disclosure (rule 4); the CLI prints them.
 //!
@@ -97,6 +98,59 @@ pub struct EmfOptions {
     pub raster_dpi: f32,
     /// An opaque background rectangle under the page, or `None`.
     pub background: Option<Rgb>,
+    /// Whether text is written as glyph outlines or as EMF text records.
+    /// Outlines by default: EMF cannot embed a font, so text records draw
+    /// with whatever installed face has the recorded name.
+    pub text: EmfText,
+}
+
+/// How an EMF writes text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum EmfText {
+    /// Every glyph is a filled path. Looks the same everywhere; the text is
+    /// not editable or searchable.
+    #[default]
+    Outlines,
+    /// Each run that fits becomes one `EMR_EXTTEXTOUTW`: editable text in
+    /// the consumer's installed face of the same name, each character's
+    /// origin pinned by the `Dx` array (GDI, LibreOffice). Glyph shapes are
+    /// the consumer's; Inkscape ignores `Dx` and re-lays the line out. A run
+    /// that does not fit is written as outlines and counted in
+    /// [`EmfTextOutcome`].
+    KeepText,
+}
+
+/// What [`EmfText::KeepText`] did. All zero under [`EmfText::Outlines`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct EmfTextOutcome {
+    /// Runs written as `EMR_EXTTEXTOUTW`.
+    pub runs_as_text: usize,
+    /// Runs left as outlines: stroked, clipping, translucent, pattern,
+    /// shading or blended text, or colour/clip changing within the run.
+    pub fallback_paint: usize,
+    /// Runs left as outlines: a glyph with no single known BMP character.
+    pub fallback_unmapped: usize,
+    /// Runs left as outlines: skewed, mirrored or horizontally scaled text
+    /// (`Tz` ≠ 100), or glyphs off one baseline — EMF text is a uniform
+    /// size along one baseline.
+    pub fallback_geometry: usize,
+    /// Runs left as outlines: a symbol face (`Symbol`, `ZapfDingbats`,
+    /// Wingdings, Webdings), whose characters an installed face of the same
+    /// name draws differently.
+    pub fallback_symbol_face: usize,
+}
+
+impl EmfTextOutcome {
+    /// Runs left as outlines, every reason summed.
+    #[must_use]
+    pub fn runs_as_outlines(&self) -> usize {
+        self.fallback_paint
+            + self.fallback_unmapped
+            + self.fallback_geometry
+            + self.fallback_symbol_face
+    }
 }
 
 impl Default for EmfOptions {
@@ -104,6 +158,7 @@ impl Default for EmfOptions {
         Self {
             raster_dpi: 300.0,
             background: None,
+            text: EmfText::Outlines,
         }
     }
 }
@@ -120,6 +175,13 @@ impl EmfOptions {
     #[must_use]
     pub fn with_background(mut self, background: Option<Rgb>) -> Self {
         self.background = background;
+        self
+    }
+
+    /// Set how text is written.
+    #[must_use]
+    pub fn with_text(mut self, text: EmfText) -> Self {
+        self.text = text;
         self
     }
 }
@@ -153,6 +215,8 @@ pub struct EmfOutcome {
     /// Nonzero-rule fills with more than one subpath — the case LibreOffice
     /// 24.x (which ignores the fill mode) may render with holes.
     pub nonzero_fills_multi_subpath: usize,
+    /// What [`EmfText::KeepText`] did.
+    pub text: EmfTextOutcome,
     /// The export recording's own tally (what was rasterised or
     /// approximated BEFORE this writer saw it).
     pub tally: ExportTally,
@@ -201,7 +265,8 @@ pub fn export_emf_view(
         300.0
     };
     let scale = dpi / 72.0;
-    let recording = record_page_for_export(view, page, scale, render, false)?;
+    let keep_text = emf.text == EmfText::KeepText;
+    let recording = record_page_for_export(view, page, scale, render, keep_text)?;
     let (w_px, h_px) = recording.page_size;
 
     // Device pixel -> 0.01 mm. A page is at most 14 400 pt = 5 080 mm =
@@ -240,10 +305,13 @@ pub fn export_emf_view(
             layers_rasterised: 0,
             dashed_strokes_pre_applied: 0,
             nonzero_fills_multi_subpath: 0,
+            text: EmfTextOutcome::default(),
             tally: recording.tally,
             diagnostics: recording.diagnostics.clone(),
         },
         raster_prologue_done: false,
+        text_align_set: false,
+        text_colour: None,
     };
     #[allow(clippy::cast_precision_loss)]
     {
@@ -330,6 +398,10 @@ struct Writer<'a> {
     page_h: u32,
     outcome: EmfOutcome,
     raster_prologue_done: bool,
+    /// `EMR_SETTEXTALIGN` baseline-left written.
+    text_align_set: bool,
+    /// The text colour in force.
+    text_colour: Option<[u8; 3]>,
 }
 
 const FILL_MODE_ALTERNATE: u32 = 1;
@@ -340,6 +412,10 @@ const FILL_MODE_WINDING: u32 = 2;
 const IH: u32 = 1;
 const STOCK_NULL_BRUSH: u32 = 0x8000_0005;
 const STOCK_BLACK_PEN: u32 = 0x8000_0007;
+/// The object index a run's font is created at (brushes and pens use
+/// [`IH`]).
+const IH_FONT: u32 = 2;
+const STOCK_DEVICE_DEFAULT_FONT: u32 = 0x8000_000E;
 
 impl Writer<'_> {
     /// Append one record: `Type, Size` (multiple of 4, including the 8-byte
@@ -602,9 +678,25 @@ impl Writer<'_> {
                     self.ensure_clip(*clip);
                     self.stroke_solid(path, *rgba, stroke, *ctm);
                 }
-                // EMF writes no text records yet: a kept-text run is
-                // written as the outlines it wraps.
-                Op::Text { ops, .. } => self.write_ops(ops),
+                // Only an export keeping text records `Op::Text`.
+                Op::Text { run, ops } => match crate::emf_text::plan_run(run, ops) {
+                    Ok(text) => {
+                        self.outcome.text.runs_as_text += 1;
+                        self.ensure_clip(text.clip);
+                        self.text_run(&text);
+                    }
+                    Err(reason) => {
+                        use crate::emf_text::EmfFallback as F;
+                        let t = &mut self.outcome.text;
+                        match reason {
+                            F::Paint => t.fallback_paint += 1,
+                            F::Unmapped => t.fallback_unmapped += 1,
+                            F::Geometry => t.fallback_geometry += 1,
+                            F::SymbolFace => t.fallback_symbol_face += 1,
+                        }
+                        self.write_ops(ops);
+                    }
+                },
                 Op::Layer { paint, ops, mask } => {
                     self.outcome.layers_rasterised += 1;
                     if paint.blend != BlendMode::SourceOver || paint.nonseparable.is_some() {
@@ -614,6 +706,36 @@ impl Writer<'_> {
                 }
             }
         }
+    }
+
+    /// One kept run: font, alignment, colour, `EMR_EXTTEXTOUTW`, and the
+    /// font deleted. Field values: `D:\dev\rag\emf\text_records.md`,
+    /// "Writer recipe".
+    fn text_run(&mut self, run: &crate::emf_text::EmfTextRun) {
+        self.record(0x52, &logfont_record_body(run, self.unit));
+        self.max_handle = self.max_handle.max(IH_FONT);
+        self.record(0x25, &u32le(IH_FONT)); // SELECTOBJECT
+        if !self.text_align_set {
+            self.record(0x16, &u32le(0x18)); // SETTEXTALIGN TA_BASELINE|TA_LEFT
+            self.text_align_set = true;
+        }
+        if self.text_colour != Some(run.rgb) {
+            let [r, g, b] = run.rgb;
+            self.record(0x18, &[r, g, b, 0]); // SETTEXTCOLOR
+            self.text_colour = Some(run.rgb);
+        }
+        let reference = (self.lu(run.origin.0), self.lu(run.origin.1));
+        let dx = self.dx(run);
+        self.record(0x54, &exttextoutw_body(reference, &run.chars, &dx));
+        self.record(0x25, &u32le(STOCK_DEVICE_DEFAULT_FONT));
+        self.record(0x28, &u32le(IH_FONT)); // DELETEOBJECT
+    }
+
+    /// `Dx` in logical units from absolute positions, so rounding never
+    /// accumulates: `dx[i] = round(x[i+1]) − round(x[i])`.
+    fn dx(&self, run: &crate::emf_text::EmfTextRun) -> Vec<i32> {
+        let at: Vec<i32> = run.along.iter().map(|&a| self.lu(a)).collect();
+        at.windows(2).map(|w| w[1] - w[0]).collect()
     }
 
     fn fill_solid(&mut self, path: &Path, rgba: [u8; 4], rule: FillRule, ctm: Transform) {
@@ -862,6 +984,72 @@ impl Writer<'_> {
     }
 }
 
+/// `EMR_EXTCREATEFONTINDIRECTW` after the 8-byte head: `ihFonts`, then a
+/// `LogFontExDv` with no design axes (356 bytes; record Size 368, as in
+/// [MS-EMF] §3.2.8).
+fn logfont_record_body(run: &crate::emf_text::EmfTextRun, unit: f32) -> Vec<u8> {
+    let mut b = Vec::with_capacity(360);
+    b.extend_from_slice(&u32le(IH_FONT));
+    #[allow(clippy::cast_possible_truncation)]
+    let height = -((run.em * unit).round().clamp(1.0, 1.0e9) as i32);
+    #[allow(clippy::cast_possible_truncation)]
+    let tenths = ((run.angle * 10.0).round() as i32).rem_euclid(3600);
+    b.extend_from_slice(&i32le(height)); // Height: negative = em size
+    b.extend_from_slice(&i32le(0)); // Width
+    b.extend_from_slice(&i32le(tenths)); // Escapement
+    b.extend_from_slice(&i32le(tenths)); // Orientation
+    b.extend_from_slice(&i32le(run.weight));
+    b.push(u8::from(run.italic));
+    b.push(0); // Underline
+    b.push(0); // StrikeOut
+    b.push(1); // CharSet DEFAULT
+    b.push(4); // OutPrecision TT
+    b.push(0); // ClipPrecision
+    b.push(0); // Quality
+    b.push(0); // PitchAndFamily
+    let mut face = [0u8; 64];
+    for (i, u) in run.face.encode_utf16().take(31).enumerate() {
+        face[2 * i..2 * i + 2].copy_from_slice(&u.to_le_bytes());
+    }
+    b.extend_from_slice(&face);
+    b.extend_from_slice(&[0u8; 128 + 64 + 64]); // FullName, Style, Script
+    b.extend_from_slice(&u32le(0x0800_7664)); // DesignVector signature
+    b.extend_from_slice(&u32le(0)); // NumAxes
+    debug_assert_eq!(b.len(), 360);
+    b
+}
+
+/// `EMR_EXTTEXTOUTW` after the 8-byte head: Bounds (ignored), graphics
+/// mode 1, scales 1.0, then `EmrText` with the Rectangle written and
+/// Options 0 (LibreOffice reads the Rectangle unconditionally).
+fn exttextoutw_body(reference: (i32, i32), chars: &[u16], dx: &[i32]) -> Vec<u8> {
+    debug_assert_eq!(chars.len(), dx.len());
+    let n = chars.len();
+    let string_bytes = (2 * n).div_ceil(4) * 4;
+    let mut b = Vec::with_capacity(68 + string_bytes + 4 * n);
+    b.extend_from_slice(&rectl(0, 0, -1, -1)); // Bounds
+    b.extend_from_slice(&u32le(1)); // iGraphicsMode GM_COMPATIBLE
+    b.extend_from_slice(&1.0f32.to_le_bytes()); // exScale
+    b.extend_from_slice(&1.0f32.to_le_bytes()); // eyScale
+    b.extend_from_slice(&i32le(reference.0));
+    b.extend_from_slice(&i32le(reference.1));
+    #[allow(clippy::cast_possible_truncation)]
+    b.extend_from_slice(&u32le(n as u32)); // Chars
+    b.extend_from_slice(&u32le(76)); // offString
+    b.extend_from_slice(&u32le(0)); // Options
+    b.extend_from_slice(&rectl(0, 0, -1, -1)); // Rectangle
+    #[allow(clippy::cast_possible_truncation)]
+    b.extend_from_slice(&u32le((76 + string_bytes) as u32)); // offDx
+    for u in chars {
+        b.extend_from_slice(&u.to_le_bytes());
+    }
+    b.resize(68 + string_bytes, 0);
+    for d in dx {
+        b.extend_from_slice(&i32le(*d));
+    }
+    b
+}
+
 fn grow(b: &mut [i32; 4], x: i32, y: i32) {
     b[0] = b[0].min(x);
     b[1] = b[1].min(y);
@@ -958,15 +1146,60 @@ mod tests {
                 layers_rasterised: 0,
                 dashed_strokes_pre_applied: 0,
                 nonzero_fills_multi_subpath: 0,
+                text: EmfTextOutcome::default(),
                 tally: ExportTally::default(),
                 diagnostics: Diagnostics::default(),
             },
             raster_prologue_done: false,
+            text_align_set: false,
+            text_colour: None,
         };
         w.record(0x46, &[1, 2, 3]);
         assert_eq!(w.out.len(), 12);
         assert_eq!(&w.out[4..8], &12u32.to_le_bytes());
         assert_eq!(w.records, 1);
+    }
+
+    #[test]
+    fn a_text_record_matches_the_spec_layout() {
+        // [MS-EMF] §3.2.10: 14 chars -> offString 76, offDx 104, Size 160.
+        let chars: Vec<u16> = "Simple Sample\0".encode_utf16().collect();
+        let dx = [9, 3, 11, 7, 3, 7, 4, 9, 7, 11, 7, 3, 7, 9];
+        let body = exttextoutw_body((10, 20), &chars, &dx);
+        assert_eq!(body.len() + 8, 160);
+        let at = |o: usize| u32::from_le_bytes(body[o - 8..o - 4].try_into().unwrap());
+        assert_eq!(at(44), 14);
+        assert_eq!(at(48), 76);
+        assert_eq!(at(52), 0);
+        assert_eq!(at(72), 104);
+        assert_eq!(at(104), 9);
+        assert_eq!(at(156), 9);
+    }
+
+    #[test]
+    fn a_font_record_is_368_bytes_with_the_design_vector_signature() {
+        let run = crate::emf_text::EmfTextRun {
+            chars: vec![65],
+            origin: (0.0, 0.0),
+            along: vec![0.0, 10.0],
+            em: 13.0,
+            angle: -45.0,
+            rgb: [0, 0, 0],
+            clip: None,
+            face: "Arial".to_owned(),
+            weight: 700,
+            italic: true,
+        };
+        let body = logfont_record_body(&run, 1.0);
+        assert_eq!(body.len() + 8, 368);
+        let i32_at = |o: usize| i32::from_le_bytes(body[o - 8..o - 4].try_into().unwrap());
+        assert_eq!(i32_at(12), -13);
+        assert_eq!(i32_at(20), 3150, "-45 degrees is 315 in tenths");
+        assert_eq!(i32_at(24), 3150);
+        assert_eq!(i32_at(28), 700);
+        assert_eq!(body[32 - 8], 1);
+        assert_eq!(&body[40 - 8..50 - 8], b"A\0r\0i\0a\0l\0");
+        assert_eq!(&body[360 - 8..364 - 8], &[0x64, 0x76, 0x00, 0x08]);
     }
 
     #[test]

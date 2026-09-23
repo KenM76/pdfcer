@@ -352,6 +352,9 @@ pub(crate) struct TextRunInfo {
     pub upem: f32,
     /// One entry per character code shown, in order.
     pub glyphs: Vec<TextGlyph>,
+    /// Glyph space → device at the pen position after the last advance:
+    /// where a following string would start. EMF's last `Dx` entry.
+    pub end: Transform,
 }
 
 /// One character code of a [`TextRunInfo`].

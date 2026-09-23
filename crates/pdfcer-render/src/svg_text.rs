@@ -246,7 +246,7 @@ impl Planner {
 }
 
 /// A plain sfnt, not a collection.
-fn is_sfnt(data: &[u8]) -> bool {
+pub(crate) fn is_sfnt(data: &[u8]) -> bool {
     matches!(
         data.get(..4),
         Some([0x00, 0x01, 0x00, 0x00] | b"OTTO" | b"true")
@@ -255,7 +255,7 @@ fn is_sfnt(data: &[u8]) -> bool {
 
 /// The run's one colour, blend and clip, when every paint is a plain solid
 /// nonzero anti-aliased fill sharing them.
-fn uniform_paint(ops: &[Op]) -> Option<([u8; 4], BlendMode, Option<ClipId>)> {
+pub(crate) fn uniform_paint(ops: &[Op]) -> Option<([u8; 4], BlendMode, Option<ClipId>)> {
     let mut found: Option<([u8; 4], BlendMode, Option<ClipId>)> = None;
     for op in ops {
         let Op::Fill {
@@ -282,7 +282,7 @@ fn uniform_paint(ops: &[Op]) -> Option<([u8; 4], BlendMode, Option<ClipId>)> {
 
 /// Exactly one character a font `cmap` format 4 can carry and an SVG can
 /// hold as text.
-fn single_char(text: Option<&str>) -> Option<char> {
+pub(crate) fn single_char(text: Option<&str>) -> Option<char> {
     let mut it = text?.chars();
     let c = it.next()?;
     if it.next().is_some() {
@@ -295,7 +295,7 @@ fn single_char(text: Option<&str>) -> Option<char> {
 
 /// `/BaseFont` without its six-letter subset tag, reduced to characters
 /// that need no quoting in a CSS family name.
-fn family_of(base_font: &str) -> String {
+pub(crate) fn family_of(base_font: &str) -> String {
     let name = match base_font.split_once('+') {
         Some((tag, rest)) if tag.len() == 6 && tag.bytes().all(|b| b.is_ascii_uppercase()) => rest,
         _ => base_font,

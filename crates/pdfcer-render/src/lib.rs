@@ -67,6 +67,7 @@ pub mod color;
 pub mod compositor;
 pub mod display_list;
 pub mod emf;
+mod emf_text;
 pub mod export;
 pub mod font;
 pub mod gstate;

@@ -3442,6 +3442,8 @@ shape.
 | a page as EMF bytes | `pdfcer_render::emf::export_emf(&doc, &page, &RenderOptions, &EmfOptions) -> Result<EmfExport, RenderError>`; `export_emf_view` for a live `DocumentView` |
 | the raster resolution of anything EMF cannot hold as vectors | `EmfOptions::default().with_raster_dpi(300.0)` (also the grid coordinates are converted from) |
 | validate a metafile before handing it to GDI | `emf::walk_records(&bytes)` — `None` on the three things LibreOffice's reader aborts on |
+| keep text as text | `EmfOptions::default().with_text(EmfText::KeepText)` — each run that fits becomes one `EMR_EXTTEXTOUTW` in the **installed** face of the recorded name, `Dx` pinning every character to its PDF position; `EmfText::Outlines` is the default |
+| know what text stayed outlines | `EmfOutcome::text: EmfTextOutcome` — `runs_as_text`, `fallback_paint`, `fallback_unmapped`, `fallback_geometry` (skew, mirror, `Tz` ≠ 100, off-baseline), `fallback_symbol_face`, and `runs_as_outlines()` |
 | know what became a bitmap | `EmfExport::outcome: EmfOutcome` — `ops`, `rasters_embedded`, `ops_rasterised_for_alpha`, `blend_modes_dropped`, `gradients_rasterised`, `images_embedded`, `layers_rasterised`, `dashed_strokes_pre_applied`, `nonzero_fills_multi_subpath`, plus the recording's `tally` and `diagnostics` |
 
 **What EMF cannot hold, and what the writer does** (each is a counter): no
@@ -3452,7 +3454,7 @@ back (255,127,127), the spec's answer); no blend modes → same, drawn
 `Normal`; no general gradients → bitmap; images → bitmap; a transparency
 group → one bitmap of the whole group with its mask and opacity applied;
 dashes → pre-applied geometry (LibreOffice renders `PS_USERSTYLE` solid);
-text → outlines. Coordinates are 0.01 mm logical units, `MM_TEXT`, no world
+text → outlines unless `EmfText::KeepText`. Coordinates are 0.01 mm logical units, `MM_TEXT`, no world
 transform — the layout every consumer scales identically
 (`D:\dev\rag\emf\`, the writer's reference).
 
@@ -3460,7 +3462,11 @@ transform — the layout every consumer scales identically
 EMF importer draws **nothing** for `EMR_ALPHABLEND` (Inkscape takes the SVG
 from the same clipboard, so this only matters for a `.emf` file handed to
 it); that LibreOffice 24.x ignores the fill rule (`nonzero_fills_multi_subpath`
-may show holes there).
+may show holes there); and under `KeepText`, that an EMF **cannot carry a
+font** — kept text is drawn in whatever installed face has the recorded name
+(Standard-14 names map to Arial / Times New Roman / Courier New), so glyph
+shapes are the consumer's, and Inkscape ignores `Dx` and re-lays the line out.
+For the clipboard, outlines stay the right default.
 
 **Traps**
 

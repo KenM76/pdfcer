@@ -4162,10 +4162,15 @@ impl Interpreter<'_> {
             self.with_text_object(|t| t.advance(tx, 0.0));
         }
         if let Some((upem, _)) = capture {
+            let end = self.text.map_or(Transform::identity(), |tobj| {
+                let to_user = self.gs.current.text.glyph_to_user(tobj.tm, upem);
+                self.gs.current.ctm.pre_concat(to_user)
+            });
             canvas.end_text_run(crate::display_list::TextRunInfo {
                 font: Arc::clone(&font),
                 upem,
                 glyphs,
+                end,
             });
         }
     }
