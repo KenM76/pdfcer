@@ -1834,6 +1834,16 @@ pub(crate) fn plan_edit_target(
 
     // --- locate the anchor show operator ---
     let span = find_anchor_span(&recs, req)?;
+    // A span edit touches only the part of the match that actually changes,
+    // so the producer's own positioning of the unchanged glyphs survives.
+    let narrowed_req;
+    let (span, req, narrowed) = match narrow_span(&recs, span, req) {
+        Some((s, r)) => {
+            narrowed_req = r;
+            (s, &narrowed_req, true)
+        }
+        None => (span, req, false),
+    };
     let anchor_index = span.last;
     let OpRec {
         start: a_start,
@@ -1938,11 +1948,16 @@ pub(crate) fn plan_edit_target(
             // a caller error, not "not found" (route_enumeration pins it).
             return Err(EditError::Unsupported("empty find text".to_owned()));
         }
-        let pos = anchor
+        // `span.pos`, not a fresh `find`: a narrowed span names ONE
+        // occurrence, and the first occurrence in the operator may be another.
+        if !anchor
             .text
-            .find(find)
-            .ok_or_else(|| EditError::NoMatch(find.to_owned()))?;
-        match_range(anchor, pos, pos + find.len(), find)?
+            .get(span.pos..)
+            .is_some_and(|t| t.starts_with(find))
+        {
+            return Err(EditError::NoMatch(find.to_owned()));
+        }
+        match_range(anchor, span.pos, span.pos + find.len(), find)?
     } else {
         // In the last operator the match starts at character 0 (it began
         // in an earlier operator) and ends where the span says.
@@ -2114,28 +2129,47 @@ pub(crate) fn plan_edit_target(
         .iter()
         .map(|&c| glyph_advance(&font, c, anchor))
         .sum();
-    // Per-operator advance deltas, in record order: every leading operator
-    // only loses glyphs; the last one loses its part and gains the
-    // replacement.
-    let mut op_deltas: Vec<(usize, f64)> = leading_matches
-        .iter()
-        .map(|(k, s, mr)| {
-            let lost: f64 = mr
-                .old_codes
-                .iter()
-                .map(|&c| glyph_advance(&font, c, s))
-                .sum::<f64>()
-                + mr.kern_advance;
-            (*k, -lost)
-        })
-        .collect();
-    op_deltas.push((anchor_index, a_new - a_old_last));
-    let delta: f64 = op_deltas.iter().map(|(_, d)| d).sum();
-
-    let pin_num = match opts.disposition {
-        FollowerDisposition::Pin => compensating_tj(delta, anchor.tf_size, anchor.th()),
-        FollowerDisposition::Reflow => None,
+    // Per-operator shifts, in record order, in text-space units along the
+    // line. Each operator after the first is moved so its match starts where
+    // the WHOLE match started (`p0`) — measured from the operators' real
+    // origins, so the producer's inter-operator gaps are removed along with
+    // the glyphs, not left behind as a hole before the replacement.
+    let reference = anchor.text_matrix;
+    let mut lead_shift = 0.0f64; // how far the operator after the last leading one moves
+    let mut op_deltas: Vec<(usize, f64)> = Vec::with_capacity(leading_matches.len() + 1);
+    if let Some((_, s0, mr0)) = leading_matches.first() {
+        let p0 =
+            line_x(&reference, &s0.text_matrix) + advance_before(&font, s0, mr0.elem, mr0.b_lo);
+        let next_shifts = leading_matches
+            .iter()
+            .skip(1)
+            .map(|(_, s, mr)| (*s, mr.elem, mr.b_lo))
+            .chain(std::iter::once((&**anchor, m.elem, m.b_lo)))
+            // Snapped to the writer's 4-decimal precision: re-measuring the
+            // producer's own geometry leaves ~1e-6 of float noise where the
+            // true shift is zero, and a nonzero shift walks every follower.
+            .map(|(s, elem, byte)| {
+                round4(
+                    p0 - advance_before(&font, s, elem, byte) - line_x(&reference, &s.text_matrix),
+                )
+            });
+        for ((k, _, _), shift) in leading_matches.iter().zip(next_shifts) {
+            op_deltas.push((*k, shift - lead_shift));
+            lead_shift = shift;
+        }
+    }
+    let delta: f64 = round4(lead_shift + a_new - a_old_last);
+    // Reflow: everything after the anchor moves by the net change. Pin: the
+    // compensating number absorbs it inside the anchor, and the anchor's own
+    // move is undone for the operators after it.
+    let (anchor_walk, pin_num) = match opts.disposition {
+        FollowerDisposition::Pin => (
+            -lead_shift,
+            compensating_tj(delta, anchor.tf_size, anchor.th()),
+        ),
+        FollowerDisposition::Reflow => (a_new - a_old_last, None),
     };
+    op_deltas.push((anchor_index, anchor_walk));
     let new_op_bytes = emit_edited_operator(anchor, &m, &encoded.bytes, pin_num);
     let mut edits: Vec<(usize, usize, Vec<u8>)> = vec![(*a_start, *a_end, new_op_bytes)];
     let mut emptied = 0u64;
@@ -2149,7 +2183,11 @@ pub(crate) fn plan_edit_target(
         }
     }
 
-    let mut reflowed = if matches!(opts.disposition, FollowerDisposition::Reflow) && delta != 0.0 {
+    let walk_needed = match opts.disposition {
+        FollowerDisposition::Reflow => delta != 0.0 || lead_shift != 0.0,
+        FollowerDisposition::Pin => lead_shift != 0.0,
+    };
+    let mut reflowed = if walk_needed {
         reposition_followers(&recs, anchor, &op_deltas)
     } else {
         Reflowed::default()
@@ -2171,14 +2209,24 @@ pub(crate) fn plan_edit_target(
     let operators_spanned = leading_matches.len() as u64 + 1;
     if operators_spanned > 1 {
         disclosures.push(format!(
-            "span: the text was written across {operators_spanned} consecutive show operators (one glyph per operator is a common producer shape) and was edited as ONE run — the replacement went into the operator holding the match's end, the matched glyphs were removed from the {} earlier one(s){}, and the operators after it on the line were re-spaced by the net advance ({delta:.3} pt).",
+            "span: the text was written across {operators_spanned} consecutive show operators (one glyph per operator is a common producer shape) and was edited as ONE run — the replacement went into the operator holding the match's end and was moved back to where the match began, the matched glyphs were removed from the {} earlier one(s){}, and {}.",
             operators_spanned - 1,
             if emptied > 0 {
                 format!(" ({emptied} left as an empty `() Tj` so the producer's own positioning chain stays intact)")
             } else {
                 String::new()
+            },
+            match opts.disposition {
+                FollowerDisposition::Reflow => format!("the text after it on the line moved by the net change ({delta:.3} text-space units)"),
+                FollowerDisposition::Pin => "the text after it on the line kept its position".to_owned(),
             }
         ));
+    }
+    if narrowed {
+        disclosures.push(
+            "span: the start and end of the find text matched the replacement, so only the part that differs was rewritten — the unchanged glyphs keep the producer's own spacing."
+                .to_owned(),
+        );
     }
     if let Some(note) = td_note {
         disclosures.push(note);
@@ -2497,13 +2545,14 @@ fn re_anchors_before_anchor(recs: &[OpRec], index: usize, left_bound: f64) -> bo
 /// running quantities are kept: `cum`, the total change so far, and
 /// `absorbed`, how much of it the positioning chain has already realised.
 ///
-/// - An absolute **`Tm`** on the same row is rewritten with `e + cum`; that
+/// - An absolute **`Tm`** on the same row is rewritten with `e + cum·a`,
+///   `f + cum·b` (`cum` is along the line, in text-space units); that
 ///   realises everything, so `absorbed = cum`.
-/// - An x-only **`Td`** is RELATIVE to the line matrix it also replaces, so
+/// - An x-only **`Td`** (`|ty|` within [`SPAN_LINE_DRIFT_TOLERANCE`]) is RELATIVE to the line matrix it also replaces, so
 ///   shifting it by `cum − absorbed` moves that operator and every later
 ///   relative step with it — the cumulative effect falls out of the
 ///   operator's own semantics (§9.4.2), and `absorbed = cum`.
-/// - A **`Td` with `ty ≠ 0`** starts a new line, still relative to the
+/// - A **`Td` whose `|ty|` exceeds [`SPAN_LINE_DRIFT_TOLERANCE`]** starts a new line, still relative to the
 ///   shifted chain: it is rewritten with `tx − absorbed` so the next line
 ///   lands exactly where the producer put it, and the walk stops.
 /// - **`T*`**, `'`, `"` and `ET` stop the walk. `T*` cannot be compensated
@@ -2568,10 +2617,12 @@ fn reposition_followers(recs: &[OpRec], anchor: &ShowData, op_deltas: &[(usize, 
                 if m[4] < left_bound - FOLLOWER_ORIGIN_EPSILON {
                     break;
                 }
+                // `cum` is along the text line; a scaled or rotated `Tm`
+                // turns it into this much `e` and `f`.
                 edits.push((
                     r.start,
                     r.end,
-                    emit_tm([m[0], m[1], m[2], m[3], m[4] + cum, m[5]]),
+                    emit_tm([m[0], m[1], m[2], m[3], m[4] + cum * m[0], m[5] + cum * m[1]]),
                 ));
                 absorbed = cum;
                 followers += 1;
@@ -2582,31 +2633,17 @@ fn reposition_followers(recs: &[OpRec], anchor: &ShowData, op_deltas: &[(usize, 
                 // a line matrix this loop does not track, so the origin is read
                 // off the show operator the step positions — which the walk
                 // already resolved into an absolute `Tm`.
-                if re_anchors_before_anchor(recs, i, left_bound) {
-                    break;
-                }
                 let op: &[u8] = if *leading { b" TD" } else { b" Td" };
-                // Glyph widths arrive as f32, so a delta of "one 28.8 pt
-                // glyph" is 28.80000114…; rounding the rewritten operand
-                // to 1/10 000 pt (a 720 000th of an inch) keeps the
-                // producer's own numbers clean instead of smearing f32
-                // noise across the line. The absolute-`Tm` path is left
-                // as it always was (pre-256.0 bytes stay identical).
-                if *ty == 0.0 {
-                    let shift = round4(cum - absorbed);
-                    if shift != 0.0 {
-                        let mut out = Vec::new();
-                        emit_number(&mut out, round4(tx + shift));
-                        out.push(b' ');
-                        emit_number(&mut out, *ty);
-                        out.extend_from_slice(op);
-                        edits.push((r.start, r.end, out));
-                        followers += 1;
-                    }
-                    absorbed = cum;
-                } else {
-                    // A new line: undo the chain's x shift so it lands where
-                    // the producer put it, then stop.
+                // A new line (beyond the span search's drift tolerance —
+                // SolidWorks steps along ONE line with `tx ±0.00057 Td`), or
+                // a step back to text before the edit: either
+                // way the walk stops here. `Td` is RELATIVE, so the step
+                // still carries the chain's shift and must undo it, or the
+                // next line (which normally starts left of a mid-line edit)
+                // moves with the edited one.
+                if ty.abs() > SPAN_LINE_DRIFT_TOLERANCE
+                    || re_anchors_before_anchor(recs, i, left_bound)
+                {
                     if round4(absorbed) != 0.0 {
                         let mut out = Vec::new();
                         emit_number(&mut out, round4(tx - absorbed));
@@ -2617,6 +2654,23 @@ fn reposition_followers(recs: &[OpRec], anchor: &ShowData, op_deltas: &[(usize, 
                     }
                     break;
                 }
+                // Glyph widths arrive as f32, so a delta of "one 28.8 pt
+                // glyph" is 28.80000114…; rounding the rewritten operand
+                // to 1/10 000 pt (a 720 000th of an inch) keeps the
+                // producer's own numbers clean instead of smearing f32
+                // noise across the line. The absolute-`Tm` path is left
+                // as it always was (pre-256.0 bytes stay identical).
+                let shift = round4(cum - absorbed);
+                if shift != 0.0 {
+                    let mut out = Vec::new();
+                    emit_number(&mut out, round4(tx + shift));
+                    out.push(b' ');
+                    emit_number(&mut out, *ty);
+                    out.extend_from_slice(op);
+                    edits.push((r.start, r.end, out));
+                    followers += 1;
+                }
+                absorbed = cum;
             }
             Rec::Td { .. } => break,
             _ => {}
@@ -2647,6 +2701,113 @@ struct Reflowed {
 fn round4(v: f64) -> f64 {
     let r = (v * 10_000.0).round() / 10_000.0;
     if r == 0.0 { 0.0 } else { r }
+}
+
+/// Where `m`'s origin sits along `reference`'s text line, in text-space units
+/// — the unit `Td` operands and glyph advances share (§9.4.2, §9.4.4).
+fn line_x(reference: &[f64; 6], m: &[f64; 6]) -> f64 {
+    let (a, b) = (reference[0], reference[1]);
+    let norm = a * a + b * b;
+    if norm < f64::EPSILON {
+        return 0.0;
+    }
+    ((m[4] - reference[4]) * a + (m[5] - reference[5]) * b) / norm
+}
+
+/// The pen advance from `s`'s origin to the code at byte `byte` of element
+/// `elem`: every glyph and `TJ` number before it (§9.4.3, §9.4.4).
+fn advance_before(font: &ExtractFont, s: &ShowData, elem: usize, byte: usize) -> f64 {
+    let kerns: f64 = s
+        .elems
+        .iter()
+        .take(elem)
+        .map(|e| match e {
+            ShowElem::Num(n) => -n / 1000.0 * s.tf_size * s.th(),
+            ShowElem::Str(_) => 0.0,
+        })
+        .sum();
+    let glyphs: f64 = s
+        .slots
+        .iter()
+        .filter(|sl| sl.elem < elem || (sl.elem == elem && sl.byte_in_elem < byte))
+        .map(|sl| glyph_advance(font, sl.code, s))
+        .sum();
+    kerns + glyphs
+}
+
+/// Shrink a multi-operator match to the part of it the replacement changes.
+///
+/// The producer spaced the operators of a span itself (SolidWorks adds a
+/// gap between every word). Rewriting the whole match collapses that
+/// spacing; trimming the common prefix and suffix of find and replace keeps
+/// every unchanged glyph where the producer put it. At least one find
+/// character is kept, because an empty find is the whole-operator pin.
+///
+/// `None` when nothing trims or the match is in one operator — single
+/// operators are left exactly as they were edited before.
+fn narrow_span(recs: &[OpRec], span: Anchor, req: &EditRequest) -> Option<(Anchor, EditRequest)> {
+    if span.first == span.last || req.find.is_empty() {
+        return None;
+    }
+    let (f, r) = (req.find.as_str(), req.replace.as_str());
+    let mut pre: usize = f
+        .chars()
+        .zip(r.chars())
+        .take_while(|(a, b)| a == b)
+        .map(|(a, _)| a.len_utf8())
+        .sum();
+    let mut suf: usize = f[pre..]
+        .chars()
+        .rev()
+        .zip(r[pre..].chars().rev())
+        .take_while(|(a, b)| a == b)
+        .map(|(a, _)| a.len_utf8())
+        .sum();
+    if pre + suf == f.len() {
+        if let Some(c) = f[..pre].chars().next_back() {
+            pre -= c.len_utf8();
+        } else if let Some(c) = f[f.len() - suf..].chars().next() {
+            suf -= c.len_utf8();
+        }
+    }
+    if pre == 0 && suf == 0 {
+        return None;
+    }
+    let (lo, hi) = (span.pos + pre, span.end - suf);
+    // Re-derive which operators the narrowed range falls in.
+    let mut offset = 0usize;
+    let (mut first, mut first_offset, mut last) = (None, 0usize, None);
+    for k in span.first..=span.last {
+        let Some(OpRec {
+            rec: Rec::Show(s), ..
+        }) = recs.get(k)
+        else {
+            continue;
+        };
+        let len = s.text.len();
+        if first.is_none() && lo < offset + len {
+            first = Some(k);
+            first_offset = offset;
+        }
+        if first.is_some() && hi <= offset + len {
+            last = Some(k);
+            break;
+        }
+        offset += len;
+    }
+    let (first, last) = (first?, last?);
+    let mut narrowed = req.clone();
+    narrowed.find = f[pre..f.len() - suf].to_owned();
+    narrowed.replace = r[pre..r.len() - suf].to_owned();
+    Some((
+        Anchor {
+            first,
+            last,
+            pos: lo - first_offset,
+            end: hi - first_offset,
+        },
+        narrowed,
+    ))
 }
 
 /// Whether a following absolute `Tm` sits on the anchor's line (`Pass 121.1`).
@@ -4139,9 +4300,11 @@ mod tests {
     fn a_reference_split_across_wobbling_fragments_is_editable() {
         let doc = crate::document::Document::from_bytes(wobbling_note()).expect("loads");
         let mut s = crate::edit::EditSession::new(doc);
+        // The change must straddle the fragment boundary: `ITEM 14` ->
+        // `ITEM 16` narrows to the `4` alone, which sits in one operator.
         let report = s
             .edit_text(
-                &EditRequest::find_replace(0, "ITEM 14", "ITEM 16"),
+                &EditRequest::find_replace(0, "ITEM 14", "ITEMS 24"),
                 &EditOptions::default(),
             )
             .expect("a reference split across fragments must be editable");
@@ -4690,5 +4853,192 @@ mod tests {
         let recs = show_records("Q Q 0.5 Tc BT /F1 12 Tf 72 700 Td (hi) Tj ET\n");
         assert_eq!(recs.len(), 1);
         assert_eq!(recs[0].text_state.char_spacing.value, 0.5);
+    }
+    /// One visual line the way SolidWorks writes it: an operator per word,
+    /// each placed by `Td` with a producer gap on top of the space glyph and
+    /// a float-noise vertical of ±0.00057 (G028, measured on the operator's
+    /// drawing; synthetic per rule 7).
+    fn solidworks_line() -> Vec<u8> {
+        helvetica_pdf(concat!(
+            "BT /F1 1 Tf 10 0 0 10 100 700 Tm\n",
+            "100 Tz (USE ) Tj\n",
+            "100.03 Tz 3 -0.00057 Td (8) Tj\n",
+            "100.03 Tz 1.5 0.00057 Td ( ) Tj\n",
+            "100.03 Tz 1.2 -0.00057 Td (9) Tj\n",
+            "100.03 Tz 1.5 0.00057 Td ( IF.) Tj\n",
+            "100 Tz -7.2 -2.3 Td (NEXT) Tj\n",
+            "ET\n",
+        ))
+    }
+
+    /// Every glyph on page 1 as (char, origin x, advance), in content order.
+    fn glyph_xs(bytes: &[u8]) -> Vec<(char, f32, f32)> {
+        let doc = Document::from_bytes(bytes.to_vec()).unwrap();
+        let pages = page_tree::pages(&doc).unwrap();
+        let page =
+            crate::text_extract::extract_page(&doc, &pages[0], 0, &Default::default()).unwrap();
+        page.runs
+            .iter()
+            .flat_map(|r| {
+                r.glyphs.iter().filter_map(|g| {
+                    let s = g.text_start as usize;
+                    let c = r.text.get(s..s + g.text_len as usize)?.chars().next()?;
+                    Some((c, g.x, g.advance))
+                })
+            })
+            .collect()
+    }
+
+    /// The `n`th glyph (0-based) showing `c`.
+    fn nth(glyphs: &[(char, f32, f32)], c: char, n: usize) -> (f32, f32) {
+        let (_, x, adv) = glyphs
+            .iter()
+            .filter(|(g, _, _)| *g == c)
+            .nth(n)
+            .unwrap_or_else(|| panic!("no glyph #{n} {c:?} in {glyphs:?}"));
+        (*x, *adv)
+    }
+
+    fn assert_near(got: f32, want: f32, what: &str) {
+        assert!((got - want).abs() < 0.05, "{what}: got {got}, want {want}");
+    }
+
+    /// ★ G028: a SolidWorks drift `Td` is the same line, so a one-operator
+    /// edit re-spaces the words after it. It used to stop at the first
+    /// `-0.00057` and leave `8` sitting on top of the lengthened word.
+    #[test]
+    fn a_drift_td_is_the_same_line_for_reflow() {
+        let src = solidworks_line();
+        let before = glyph_xs(&src);
+        let out = edit_text(
+            &Document::from_bytes(src).unwrap(),
+            &EditRequest::find_replace(0, "USE", "USED"),
+            &EditOptions::default(),
+        )
+        .unwrap();
+        assert!(out.report.followers_repositioned >= 1, "{:?}", out.report);
+        let after = glyph_xs(&out.bytes);
+        let (d_x, d_adv) = nth(&after, 'D', 0);
+        let (e_x, _) = nth(&before, 'E', 0);
+        assert!(d_x > e_x);
+        assert_near(
+            nth(&after, '8', 0).0,
+            nth(&before, '8', 0).0 + d_adv,
+            "8 moves by D",
+        );
+        assert_near(
+            nth(&after, 'N', 0).0,
+            nth(&before, 'N', 0).0,
+            "next line holds",
+        );
+    }
+
+    /// ★ G028: a change spanning operators lands where the match began, and
+    /// the producer's gaps inside the match go with it. Before, the
+    /// replacement stayed in the last operator and the line kept a hole
+    /// the width of every removed gap.
+    #[test]
+    fn a_span_edit_lands_where_the_match_began() {
+        let src = solidworks_line();
+        let before = glyph_xs(&src);
+        let out = edit_text(
+            &Document::from_bytes(src).unwrap(),
+            &EditRequest::find_replace(0, "USE 8 9 IF.", "USE 7 IF."),
+            &EditOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(out.report.operators_spanned, 3, "{:?}", out.report);
+        let after = glyph_xs(&out.bytes);
+        let (x7, adv7) = nth(&after, '7', 0);
+        assert_near(x7, nth(&before, '8', 0).0, "7 lands on 8");
+        // The gap between the match's end and ` IF.` is the producer's, kept.
+        let (x9, adv9) = nth(&before, '9', 0);
+        let gap = nth(&before, 'I', 0).0 - (x9 + adv9);
+        assert_near(
+            nth(&after, 'I', 0).0 - (x7 + adv7),
+            gap,
+            "gap after the match",
+        );
+        assert_near(
+            nth(&after, 'U', 0).0,
+            nth(&before, 'U', 0).0,
+            "prefix holds",
+        );
+        assert_near(
+            nth(&after, 'N', 0).0,
+            nth(&before, 'N', 0).0,
+            "next line holds",
+        );
+    }
+
+    /// ★ G028, Pin: the replacement lands where the match began AND the
+    /// text after it does not move. Pin used to skip the walk entirely.
+    #[test]
+    fn a_pinned_span_edit_keeps_the_tail_and_lands_at_the_start() {
+        let src = solidworks_line();
+        let before = glyph_xs(&src);
+        let out = edit_text(
+            &Document::from_bytes(src).unwrap(),
+            &EditRequest::find_replace(0, "USE 8 9 IF.", "USE 7 IF."),
+            &EditOptions::default().with_disposition(FollowerDisposition::Pin),
+        )
+        .unwrap();
+        let after = glyph_xs(&out.bytes);
+        assert_near(
+            nth(&after, '7', 0).0,
+            nth(&before, '8', 0).0,
+            "7 lands on 8",
+        );
+        assert_near(nth(&after, 'I', 0).0, nth(&before, 'I', 0).0, "tail pinned");
+        assert_near(
+            nth(&after, 'N', 0).0,
+            nth(&before, 'N', 0).0,
+            "next line holds",
+        );
+    }
+
+    /// Narrowing keeps the unchanged words where the producer put them:
+    /// inserting one letter touches one operator, not the whole line.
+    #[test]
+    fn a_span_edit_rewrites_only_the_part_that_changes() {
+        let src = solidworks_line();
+        let before = glyph_xs(&src);
+        let out = edit_text(
+            &Document::from_bytes(src).unwrap(),
+            &EditRequest::find_replace(0, "USE 8 9 IF.", "USES 8 9 IF."),
+            &EditOptions::default().with_disposition(FollowerDisposition::Pin),
+        )
+        .unwrap();
+        assert_eq!(out.report.operators_spanned, 1, "{:?}", out.report);
+        let after = glyph_xs(&out.bytes);
+        for (c, n) in [('8', 0), ('9', 0), ('I', 0)] {
+            assert_near(
+                nth(&after, c, n).0,
+                nth(&before, c, n).0,
+                "untouched words hold",
+            );
+        }
+    }
+    /// A `Tm` follower under a scaled matrix moves by the change in USER
+    /// space: the text-space delta times `a`. It used to be added to `e`
+    /// raw, so with the size baked into `Tm` the follower barely moved.
+    #[test]
+    fn a_scaled_tm_follower_moves_in_user_space() {
+        let src = helvetica_pdf(
+            "BT /F1 1 Tf 10 0 0 10 100 700 Tm (Hello ) Tj 10 0 0 10 240 700 Tm (World) Tj ET\n",
+        );
+        let before = glyph_xs(&src);
+        let out = edit_text(
+            &Document::from_bytes(src).unwrap(),
+            &EditRequest::find_replace(0, "Hello", "Hi"),
+            &EditOptions::default(),
+        )
+        .unwrap();
+        let after = glyph_xs(&out.bytes);
+        let (x_i, adv_i) = nth(&after, 'i', 0);
+        let (x_o, adv_o) = nth(&before, 'o', 0);
+        // The gap from the edited word's end to `World` is the producer's.
+        let gap = nth(&before, 'W', 0).0 - (x_o + adv_o);
+        assert_near(nth(&after, 'W', 0).0 - (x_i + adv_i), gap, "gap to World");
     }
 }

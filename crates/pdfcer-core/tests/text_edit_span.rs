@@ -84,16 +84,16 @@ fn saved(s: &EditSession) -> (String, String) {
 #[test]
 fn a_find_across_three_operators_edits_as_one_run() {
     let mut s = session("composite-per-glyph.pdf");
-    let req = EditRequest::find_replace(0, "ABC", "ACB");
+    let req = EditRequest::find_replace(0, "ABC", "CBA");
     let r = s
         .edit_text(&req, &EditOptions::default())
         .expect("the span edits");
     assert_eq!(r.operators_spanned, 3, "A, B and C were three operators");
     assert_eq!(r.advance_delta, 0.0, "same glyph count, same advance");
-    assert_eq!(
-        r.followers_repositioned, 0,
-        "nothing moves when the advance is unchanged"
-    );
+    // The emptied operators' two steps collapse to zero so the replacement
+    // starts where A started, and the follower's step absorbs them: two
+    // zeroed steps plus one follower step.
+    assert_eq!(r.followers_repositioned, 3, "{:?}", r.disclosures);
     assert!(
         r.disclosures
             .iter()
@@ -102,20 +102,31 @@ fn a_find_across_three_operators_edits_as_one_run() {
         r.disclosures
     );
     let (text, content) = saved(&s);
-    assert!(text.contains("ACB"), "{text}");
+    assert!(text.contains("CBA"), "{text}");
     assert!(text.contains('B'), "line 2 untouched: {text}");
     // The two leading operators are emptied and kept; the last carries the run.
     assert_eq!(content.matches("() Tj").count(), 2, "{content}");
     // The last operator now carries all three codes (as a literal string).
     assert_eq!(content.matches(" Tj").count(), 5, "{content}");
-    // Their Td steps are untouched when the advance did not change.
-    assert_eq!(content.matches("28.8 0 Td").count(), 2, "{content}");
+    // The replacement lands where the match began (x = 72), not where the
+    // last operator stood 57.6 pt to the right of it.
+    assert_eq!(content.matches("0 0 Td").count(), 2, "{content}");
+    // Same advance, so the follower keeps its page position (72 + 86.4 +
+    // 28.8 gap = 187.2, as before) and line 2's Td is untouched.
+    assert!(
+        content.contains(
+            "
+115.2 0 Td"
+        ),
+        "{content}"
+    );
+    assert!(content.contains("-115.2 -60 Td"), "{content}");
 }
 
 #[test]
 fn a_growing_replacement_respaces_the_followers_and_keeps_the_next_line_put() {
     let mut s = session("composite-per-glyph.pdf");
-    let req = EditRequest::find_replace(0, "ABC", "ABCB");
+    let req = EditRequest::find_replace(0, "ABC", "CABA");
     let r = s
         .edit_text(&req, &EditOptions::default())
         .expect("the span edits");
@@ -129,7 +140,7 @@ fn a_growing_replacement_respaces_the_followers_and_keeps_the_next_line_put() {
     // follower's step, all rewritten.
     assert_eq!(r.followers_repositioned, 3, "{:?}", r.disclosures);
     let (text, content) = saved(&s);
-    assert!(text.contains("ABCB"), "{text}");
+    assert!(text.contains("CABA"), "{text}");
     // The emptied operators' Td steps collapse to zero: A and B contribute no
     // advance now, so the run "ABCB" starts where "A" started.
     assert_eq!(content.matches("0 0 Td").count(), 2, "{content}");
@@ -162,7 +173,7 @@ fn a_split_across_tj_elements_inside_one_operator_spans_one() {
 #[test]
 fn a_font_resource_change_mid_word_is_not_spanned() {
     let mut s = session("composite-font-change.pdf");
-    let req = EditRequest::find_replace(0, "ABC", "ACB");
+    let req = EditRequest::find_replace(0, "ABC", "CBA");
     let err = s
         .edit_text(&req, &EditOptions::default())
         .expect_err("Tf change breaks the span");
