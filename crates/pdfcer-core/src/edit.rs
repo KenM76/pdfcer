@@ -14737,6 +14737,65 @@ impl EditSession {
         })
     }
 
+    /// **Move a SET of text runs** inside one text object by one page-space
+    /// `(dx, dy)`, as ONE undoable command (`G030`).
+    ///
+    /// One visual line on a CAD sheet is several show operators, so moving a
+    /// line is a set. Calling [`Self::move_text_run`] per run refuses any run
+    /// whose successor inherits its position, even when that successor is in
+    /// the same line; this verb sees the whole set, so it refuses only what
+    /// would actually tear:
+    ///
+    /// - an `Inherited` run in the set is moved by the run before it, and is
+    ///   refused only if that run is NOT in the set
+    ///   ([`TextRunHasNoPositionOfItsOwn`](crate::vector::VectorEditError::TextRunHasNoPositionOfItsOwn));
+    /// - [`MoveWouldMoveNextRun`](crate::vector::VectorEditError::MoveWouldMoveNextRun)
+    ///   fires only when an `Inherited` successor is NOT in the set.
+    ///
+    /// `runs` are indices into
+    /// [`TextObject::runs`](crate::vector::TextObject::runs), in any order;
+    /// duplicates are ignored. Nothing renumbers. `dx`/`dy` are page-space.
+    /// Pre-check with
+    /// [`text_run_move_refusal_of_set`](crate::vector::text_run_move_refusal_of_set),
+    /// the guard this verb runs.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::move_text_run`], plus
+    /// [`EmptyTextRunMove`](crate::vector::VectorEditError::EmptyTextRunMove)
+    /// for an empty set and
+    /// [`MalformedOperand`](crate::vector::VectorEditError::MalformedOperand)
+    /// for a wrong-arity `Tm` the move depends on. Every refusal happens
+    /// before any mutation.
+    ///
+    /// # Returns
+    ///
+    /// The disclosures the surgery owes: empty when every adjusted run had an
+    /// operand to rewrite, otherwise ONE sentence however many positioning
+    /// operators were inserted.
+    pub fn move_text_runs(
+        &mut self,
+        page_index: usize,
+        object_index: usize,
+        runs: &[usize],
+        dx: f64,
+        dy: f64,
+    ) -> Result<Vec<String>, EditError> {
+        self.vector_surgery(CommandKind::MoveTextRun, page_index, |stream, model| {
+            let count = model.objects.len();
+            let obj = model.objects.get(object_index).ok_or(
+                crate::vector::VectorEditError::ObjectOutOfRange {
+                    index: object_index,
+                    count,
+                },
+            )?;
+            let text = vector_object_as_text(obj, object_index)?;
+            Ok(crate::vector::plan_move_text_runs(
+                stream, text, runs, dx, dy,
+            )?)
+        })
+    }
+
     /// **Drag** the anchor node `node_index` of the path object at paint-order
     /// `object_index` on page `page_index` to the page-space point `to`, as
     /// one undoable command (decision 011 §2.5 operation 3).
@@ -15546,6 +15605,34 @@ impl EditSession {
                 let text = Self::leaf_as_text(model, object_index)?;
                 Ok(crate::vector::plan_move_text_run(
                     stream, text, run_index, dx, dy,
+                )?)
+            },
+        )
+    }
+
+    /// [`Self::move_text_runs`] for a text object inside a form XObject — the
+    /// set twin of [`Self::move_text_run_in_form`], with the same shared-stream
+    /// reach reported in the outcome (`G030`).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::move_text_runs`] and [`Self::move_text_run_in_form`].
+    pub fn move_text_runs_in_form(
+        &mut self,
+        page_index: usize,
+        leaf_index: usize,
+        runs: &[usize],
+        dx: f64,
+        dy: f64,
+    ) -> Result<FormSurgeryOutcome, EditError> {
+        self.form_surgery_inner(
+            CommandKind::MoveTextRun,
+            page_index,
+            leaf_index,
+            |stream, model, object_index| {
+                let text = Self::leaf_as_text(model, object_index)?;
+                Ok(crate::vector::plan_move_text_runs(
+                    stream, text, runs, dx, dy,
                 )?)
             },
         )

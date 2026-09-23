@@ -9119,8 +9119,8 @@ enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
-    /// **Move ONE text run** — one show operator — inside a text object
-    /// (`G017`, ISO 32000-1 §9.4).
+    /// **Move a text run** — one show operator, or several as one edit —
+    /// inside a text object (`G017`, `G030`, ISO 32000-1 §9.4).
     ///
     /// The twin `text-run-delete` has long implied this verb, and a text run
     /// was the last part kind in pdfcer to be missing one: a subpath and an
@@ -9139,7 +9139,9 @@ enum Command {
     /// itself has no position of its own (it starts where the previous string
     /// left the pen, and that position is written nowhere in the file), and
     /// when the run AFTER it does not (moving this one would drag that one
-    /// along). Both name the same remedy: move the whole text object.
+    /// along). Both name the same remedies: list the neighbouring run too, or
+    /// move the whole text object. With several runs listed, only a run
+    /// whose neighbour is NOT listed is refused — so a whole line moves.
     ///
     /// Where the producer wrote no operand that could be adjusted — a `TD`,
     /// whose second operand IS the leading, or a bare `T*` — a positioning
@@ -9163,8 +9165,13 @@ enum Command {
         #[arg(long, default_value_t = 1)]
         page: u32,
         /// 0-based show-operator index within that text object, content order.
-        #[arg(long)]
-        run: usize,
+        ///
+        /// Repeat it, or separate indices with commas and no spaces, to move
+        /// several runs together as one edit — the way to move a whole line.
+        /// A run that inherits its position is then accepted when the run
+        /// before it is listed too.
+        #[arg(long, required = true, num_args = 1.., value_delimiter = ',')]
+        run: Vec<usize>,
         /// Page-space horizontal displacement, in points.
         #[arg(long, allow_negative_numbers = true)]
         dx: f64,
@@ -12847,7 +12854,7 @@ fn run() -> ExitCode {
             page,
             object,
             leaf,
-            run,
+            run: &run,
             dx,
             dy,
             output: &output,
@@ -41650,7 +41657,8 @@ struct TextRunMoveArgs<'a> {
     /// The index into this page's form leaves, when addressing a text object
     /// INSIDE a form XObject.
     leaf: Option<usize>,
-    run: usize,
+    /// One run uses `move_text_run`; several use the set verb (`G030`).
+    run: &'a [usize],
     dx: f64,
     dy: f64,
     output: &'a Path,
@@ -41658,8 +41666,8 @@ struct TextRunMoveArgs<'a> {
     verify_undo: bool,
 }
 
-/// `text-run-move` — translate ONE show operator inside a text object
-/// (`G017`).
+/// `text-run-move` — translate one show operator, or a set of them as one
+/// edit, inside a text object (`G017`, `G030`).
 ///
 /// ## Contract
 ///
@@ -41684,12 +41692,18 @@ fn cmd_text_run_move(args: &TextRunMoveArgs<'_>) -> u8 {
         Ok(pair) => pair,
         Err(code) => return code,
     };
-    let result = match target {
-        GeometryTarget::Page(object) => session
-            .move_text_run(page_index, object, args.run, args.dx, args.dy)
+    let result = match (target, args.run) {
+        (GeometryTarget::Page(object), &[run]) => session
+            .move_text_run(page_index, object, run, args.dx, args.dy)
             .map(|d| (d, None)),
-        GeometryTarget::Leaf(leaf) => session
-            .move_text_run_in_form(page_index, leaf, args.run, args.dx, args.dy)
+        (GeometryTarget::Page(object), runs) => session
+            .move_text_runs(page_index, object, runs, args.dx, args.dy)
+            .map(|d| (d, None)),
+        (GeometryTarget::Leaf(leaf), &[run]) => session
+            .move_text_run_in_form(page_index, leaf, run, args.dx, args.dy)
+            .map(|o| (o.disclosures.clone(), Some(o))),
+        (GeometryTarget::Leaf(leaf), runs) => session
+            .move_text_runs_in_form(page_index, leaf, runs, args.dx, args.dy)
             .map(|o| (o.disclosures.clone(), Some(o))),
     };
     match result {
@@ -41716,7 +41730,11 @@ fn cmd_text_run_move(args: &TextRunMoveArgs<'_>) -> u8 {
         args.input.display(),
         args.page.max(1),
         target_token(args.object, args.leaf),
-        args.run,
+        args.run
+            .iter()
+            .map(usize::to_string)
+            .collect::<Vec<_>>()
+            .join(","),
         args.dx,
         args.dy,
         args.mode.name(),

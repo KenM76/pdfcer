@@ -495,6 +495,11 @@ pub enum VectorEditError {
     /// empty.
     #[error("a multi-node move must name at least one node")]
     EmptyMove,
+    /// A **text-run set move** named no runs (`G030`). Refused for the same
+    /// reason as [`Self::EmptyMove`]: a successful no-op would push an undo
+    /// entry that undoes nothing.
+    #[error("a text-run move must name at least one run")]
+    EmptyTextRunMove,
     /// A **split** named no cut points at all.
     ///
     /// The twin of [`Self::EmptyMove`], refused for the same reason: a
@@ -2715,6 +2720,218 @@ pub fn plan_move_text_run(
         operators_touched: touched,
         disclosures,
     })
+}
+
+/// Whether moving the run SET `runs` of `obj` together would be refused, and
+/// with what — the guard [`plan_move_text_runs`] runs first (`G030`).
+///
+/// One visual line on a CAD sheet is several show operators, so "move this
+/// line" is a set. [`text_run_move_refusal`] cannot answer for a set: it
+/// refuses a run whose successor is [`RunPositioning::Inherited`], which is
+/// right for one run and wrong when that successor is in the set too.
+///
+/// The rule, walking the runs in content order: an `Inherited` run sits
+/// wherever the run before it ended, so it moves exactly when that run moved.
+/// If it is in the set and its predecessor is not, it has no position of its
+/// own to move; if its predecessor moves and it is not in the set, it would be
+/// dragged along. Every other run is placed by an operator the planner can
+/// adjust either way. Duplicates in `runs` are ignored.
+///
+/// `None` does not promise the plan succeeds — a singular `Tm` or CTM, or a
+/// malformed `Tm`, is found while planning.
+///
+/// # Errors (returned, not raised)
+///
+/// [`VectorEditError::EmptyTextRunMove`], [`VectorEditError::TextRunOutOfRange`]
+/// (the first out-of-range index), then the first of
+/// [`VectorEditError::TextRunHasNoPositionOfItsOwn`] or
+/// [`VectorEditError::MoveWouldMoveNextRun`] in content order.
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_core::content::ContentStream;
+/// use pdfcer_core::vector::{decompose, NoXObjects, Matrix, VectorObject};
+/// use pdfcer_core::vector::edit::text_run_move_refusal_of_set;
+///
+/// let src = b"BT /F1 10 Tf 1 0 0 1 10 700 Tm (A) Tj 1 0 0 1 10 680 Tm (B) Tj ET".to_vec();
+/// let cs = ContentStream::parse(src).unwrap();
+/// let model = decompose(&cs, Matrix::IDENTITY, &NoXObjects);
+/// # if let Some(VectorObject::Text(t)) = model.objects.first() {
+/// # if t.runs.len() == 2 {
+/// let VectorObject::Text(text) = &model.objects[0] else { unreachable!() };
+/// assert!(text_run_move_refusal_of_set(text, &[0, 1]).is_none());
+/// assert!(text_run_move_refusal_of_set(text, &[]).is_some());
+/// # }}
+/// ```
+#[must_use]
+pub fn text_run_move_refusal_of_set(obj: &TextObject, runs: &[usize]) -> Option<VectorEditError> {
+    if runs.is_empty() {
+        return Some(VectorEditError::EmptyTextRunMove);
+    }
+    let count = obj.runs.len();
+    if let Some(&index) = runs.iter().find(|&&i| i >= count) {
+        return Some(VectorEditError::TextRunOutOfRange { index, count });
+    }
+    let set: BTreeSet<usize> = runs.iter().copied().collect();
+    let mut carried = false;
+    for (i, run) in obj.runs.iter().enumerate() {
+        let moved = set.contains(&i);
+        if run.positioned_by == RunPositioning::Inherited {
+            if moved && !carried {
+                return Some(VectorEditError::TextRunHasNoPositionOfItsOwn { index: i });
+            }
+            if carried && !moved {
+                // `carried` is only ever true after a run, so `i >= 1`.
+                return Some(VectorEditError::MoveWouldMoveNextRun { index: i - 1 });
+            }
+        }
+        carried = moved;
+    }
+    None
+}
+
+/// Plan the move of a **set** of show operators inside one text object by
+/// one page-space `(dx, dy)`, as one edit (`G030`).
+///
+/// The set twin of [`plan_move_text_run`]; see [`text_run_move_refusal_of_set`]
+/// for which sets are refused and why.
+///
+/// # The mechanism
+///
+/// Each run's position is the line matrix at its show operator, and every
+/// `Td`/`TD`/`T*` is relative to the line matrix before it (§9.4.2). So the
+/// planner walks the runs in content order tracking one fact: whether the
+/// line matrix arriving at this run is already displaced by the delta. A `Tm`
+/// in the gap before the run resets that (it is absolute). Then for each run
+/// placed by its own operator:
+///
+/// - **`Tm`**: `e`/`f` take the user-space delta if the run is in the set.
+/// - **`Td`**: its operands take `+delta` if the run moves and arrives
+///   undisplaced, `-delta` if it stays and arrives displaced, and nothing
+///   otherwise.
+/// - **`TD`, `T*`, `'`, `"`, or nothing**: the same offset, as a `Td`
+///   INSERTED before the show operator — disclosed, once per call.
+///
+/// `Inherited` runs need nothing: the guard guarantees each one's membership
+/// matches its predecessor's. A run in the middle of a line with runs on both
+/// sides that also move costs no bytes at all.
+///
+/// # Errors
+///
+/// Everything [`text_run_move_refusal_of_set`] returns, plus
+/// [`VectorEditError::DegenerateCtm`],
+/// [`VectorEditError::DegenerateTextMatrix`], and
+/// [`VectorEditError::MalformedOperand`] for a `Tm` with the wrong operand
+/// count in front of a run whose position the move depends on.
+pub fn plan_move_text_runs(
+    content: &ContentStream,
+    obj: &TextObject,
+    runs: &[usize],
+    dx: f64,
+    dy: f64,
+) -> Result<PlannedEdit, VectorEditError> {
+    if let Some(refusal) = text_run_move_refusal_of_set(obj, runs) {
+        return Err(refusal);
+    }
+    let set: BTreeSet<usize> = runs.iter().copied().collect();
+    let inv = obj.ctm.inverse().ok_or(VectorEditError::DegenerateCtm)?;
+    let d_user = inv.map_vector(Point::new(dx, dy));
+    if !d_user.is_finite() {
+        return Err(VectorEditError::DegenerateCtm);
+    }
+
+    let mut edits: Vec<Splice> = Vec::new();
+    let mut inserted = false;
+    let mut touched = 0usize;
+    let mut carried = false;
+    for (i, run) in obj.runs.iter().enumerate() {
+        let moved = set.contains(&i);
+        if run.positioned_by == RunPositioning::Inherited {
+            // Guaranteed equal to `carried` by the guard above.
+            continue;
+        }
+        let (placement, reset) = run_placement_and_reset(content, obj, i)?;
+        let arriving = carried && !reset;
+        carried = moved;
+        let offset = f64::from(i8::from(moved) - i8::from(arriving));
+        match placement {
+            RunPlacement::Absolute(item, m) => {
+                if moved {
+                    let e = [m[0], m[1], m[2], m[3], m[4] + d_user.x, m[5] + d_user.y];
+                    edits.push((item.byte_start(), item.byte_end(), emit_op(&e, b"Tm")));
+                    touched += 1;
+                }
+            }
+            _ if offset == 0.0 => {}
+            RunPlacement::Relative(item, tx, ty) => {
+                let d = text_space_delta(run.text_matrix, d_user)?;
+                edits.push((
+                    item.byte_start(),
+                    item.byte_end(),
+                    emit_op(&[tx + offset * d.x, ty + offset * d.y], b"Td"),
+                ));
+                touched += 1;
+            }
+            RunPlacement::Opaque => {
+                let d = text_space_delta(run.text_matrix, d_user)?;
+                let mut bytes = emit_op(&[offset * d.x, offset * d.y], b"Td");
+                bytes.push(b' ');
+                edits.push((run.bytes.start, run.bytes.start, bytes));
+                inserted = true;
+                touched += 1;
+            }
+        }
+    }
+
+    Ok(PlannedEdit {
+        content: splice(&content.buf, &mut edits),
+        operators_touched: touched,
+        disclosures: if inserted {
+            vec![inserted_td_disclosure()]
+        } else {
+            Vec::new()
+        },
+    })
+}
+
+/// [`run_placement`], plus whether a `Tm` in the same gap comes BEFORE the
+/// placing operator — which makes that operator relative to the `Tm` rather
+/// than to whatever the previous run left behind.
+///
+/// A malformed `Tm` is refused here rather than read as opaque: whether it
+/// resets the line matrix decides the offset, and there is no good guess.
+fn run_placement_and_reset<'a>(
+    content: &'a ContentStream,
+    obj: &TextObject,
+    run_index: usize,
+) -> Result<(RunPlacement<'a>, bool), VectorEditError> {
+    let placement = run_placement(content, obj, run_index);
+    let Some(run) = obj.runs.get(run_index) else {
+        return Ok((placement, false));
+    };
+    let gap_start = match run_index.checked_sub(1).and_then(|p| obj.runs.get(p)) {
+        Some(prev) => prev.tokens.end,
+        None => obj.tokens.start,
+    };
+    let mut reset = false;
+    let mut last_is_tm = false;
+    for item in ops_in_range(content, gap_start, run.tokens.start) {
+        match item.keyword(&content.buf) {
+            Some(b"Tm") => {
+                if item.nums().len() != 6 {
+                    return Err(VectorEditError::MalformedOperand);
+                }
+                reset = true;
+                last_is_tm = true;
+            }
+            Some(b"Td" | b"TD" | b"T*") => last_is_tm = false,
+            _ => {}
+        }
+    }
+    // When the Tm is itself the placing operator the placement is Absolute
+    // and `reset` is not consulted; report it only when it precedes one.
+    Ok((placement, reset && !last_is_tm))
 }
 
 /// Advance `end` past any PDF white-space characters (§7.2.2 Table 1), never
