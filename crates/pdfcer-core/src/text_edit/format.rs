@@ -717,6 +717,16 @@ pub struct FormatRequest {
     /// styled face directly instead) or with an overlapping
     /// [`Self::set_synthetic`] axis.
     pub set_style: Option<StyleSynthesis>,
+    /// New text rendering mode `Tr` (§9.3.6 Table 106), `0..=7`, for the
+    /// matched run only (`G034`). `3` is invisible — what an OCR layer uses —
+    /// so a correction written through this path can stay invisible over the
+    /// scan. `None` leaves the run at its ambient mode. Restored after the run
+    /// through the same ambient ladder as every other text-state change.
+    ///
+    /// Out of range is [`FormatError::InvalidRenderMode`]; combined with
+    /// synthetic bold (which writes `2 Tr` itself) it is
+    /// [`FormatError::ConflictingRenderMode`].
+    pub set_render_mode: Option<u8>,
 }
 
 impl FormatRequest {
@@ -739,6 +749,7 @@ impl FormatRequest {
             set_rise: None,
             set_synthetic: None,
             set_style: None,
+            set_render_mode: None,
             target: EditTarget::Auto,
         }
     }
@@ -890,6 +901,24 @@ impl FormatRequest {
         self
     }
 
+    /// Set the run's text rendering mode `Tr` (`0..=7`, §9.3.6), returning
+    /// `self` (`G034`; see [`Self::set_render_mode`]).
+    ///
+    /// Takes a [`TextRenderMode`] or the raw operand.
+    ///
+    /// ```
+    /// use pdfcer_core::text_edit::{FormatRequest, TextRenderMode};
+    ///
+    /// // Keep an OCR correction invisible over the scan.
+    /// let req = FormatRequest::new(0, "INVOICE").render_mode(TextRenderMode::Invisible);
+    /// assert_eq!(req.set_render_mode, Some(3));
+    /// ```
+    #[must_use]
+    pub fn render_mode(mut self, mode: impl Into<u8>) -> Self {
+        self.set_render_mode = Some(mode.into());
+        self
+    }
+
     /// Whether any formatting operation was requested.
     ///
     /// `pub(crate)` rather than private because **two** entry points must
@@ -911,6 +940,7 @@ impl FormatRequest {
             && self.set_h_scale.is_none()
             && self.set_script.is_none()
             && self.set_rise.is_none()
+            && self.set_render_mode.is_none()
             // Spelled as a `match` rather than `is_none_or` because this
             // predicate is `const` (one definition, two callers — see the
             // doc comment) and `Option::is_none_or` is not yet const.
@@ -1143,6 +1173,9 @@ pub struct FormatReport {
     /// `(ambient operand, emitted operand)` for `Tz` (percentages) when
     /// horizontal scaling was requested.
     pub h_scale_change: Option<(f64, f64)>,
+    /// `(ambient mode, emitted mode)` for `Tr` when a rendering mode was
+    /// requested (`G034`).
+    pub render_mode_change: Option<(f64, u8)>,
     /// The baseline position applied, when the script toggle was used.
     pub script: Option<ScriptPosition>,
     /// `(base size, emitted reduced size)` when a super/subscript reduced
@@ -1285,6 +1318,22 @@ pub enum FormatError {
          exactly the number given and does not resize."
     )]
     ConflictingRise,
+    /// A text rendering mode outside `0..=7` (§9.3.6 Table 106 defines eight).
+    #[error(
+        "text rendering mode {mode} does not exist: §9.3.6 Table 106 defines modes 0 to 7 \
+         (0 fill, 1 stroke, 2 fill then stroke, 3 invisible, 4-7 the same plus clip)"
+    )]
+    InvalidRenderMode {
+        /// The mode requested.
+        mode: u8,
+    },
+    /// A rendering mode and synthetic bold were both requested. Synthetic
+    /// bold IS rendering mode 2, so one of them would silently lose.
+    #[error(
+        "a text rendering mode and synthetic bold were both requested, and synthetic bold is \
+         itself rendering mode 2 (fill then stroke, §9.3.6). Ask for one of them"
+    )]
+    ConflictingRenderMode,
     /// The automatic style ladder (`Pass 179.0`) found no real face to bind
     /// and the posture is `refuse`, which forbids synthesising on its own
     /// authority. Nothing was applied. `--bold-synthetic` /
@@ -1910,6 +1959,9 @@ pub(crate) fn plan_format_target(
     if req.set_rise.is_some() && req.set_script.is_some() {
         return Err(FormatError::ConflictingRise);
     }
+    if let Some(mode) = req.set_render_mode.filter(|m| *m > 7) {
+        return Err(FormatError::InvalidRenderMode { mode });
+    }
 
     // --- resolve the super/subscript toggle into its two derived operands
     //     (decision 019 §3.2, R89) ---
@@ -2136,6 +2188,20 @@ pub(crate) fn plan_format_target(
         )?;
     }
 
+    // `G034`: rendering mode, through the same ladder, so an ambient `3 Tr`
+    // an OCR layer set is what comes back after the run.
+    if let Some(mode) = req.set_render_mode {
+        push_state_param(
+            &mut set_ops,
+            &mut restore_ops,
+            &anchor.text_state,
+            TextStateParam::RenderMode,
+            f64::from(mode),
+            &mut restore_narrowed,
+            &mut emitted_state,
+        )?;
+    }
+
     // --- Pass 19.2: synthetic bold / italic (R90, decision 019 §3.6) ---
     //
     // The gate runs FIRST and is fallback-only: if a real Bold/Italic face
@@ -2148,6 +2214,9 @@ pub(crate) fn plan_format_target(
         explicit.bold() || ladder_synthesis.bold(),
         explicit.italic() || ladder_synthesis.italic(),
     );
+    if req.set_render_mode.is_some() && synthesis.bold() {
+        return Err(FormatError::ConflictingRenderMode);
+    }
     // Rung 4 under `refuse`: the ladder found nothing real and the posture
     // forbids faking a weight on pdfcer's own authority (decision 106's
     // second ruling keeps that stance reachable). The EXPLICIT override is
@@ -2452,6 +2521,12 @@ pub(crate) fn plan_format_target(
     if let Some(pct) = req.set_h_scale {
         disclosures.push(disclosure_h_scale(anchor.text_state.h_scale.value, pct));
     }
+    if let Some(mode) = req.set_render_mode {
+        disclosures.push(disclosure_render_mode(
+            anchor.text_state.render_mode.value,
+            mode,
+        ));
+    }
     if let Some(pos) = script {
         disclosures.push(disclosure_script(
             pos,
@@ -2545,6 +2620,9 @@ pub(crate) fn plan_format_target(
         h_scale_change: req
             .set_h_scale
             .map(|pct| (anchor.text_state.h_scale.value, pct)),
+        render_mode_change: req
+            .set_render_mode
+            .map(|m| (anchor.text_state.render_mode.value, m)),
         script,
         script_size: script_metrics.map(|_| (base_size, emitted_size)),
         rise_change: new_rise.map(|r| (anchor.text_state.rise.value, r)),
@@ -5450,6 +5528,90 @@ fn disclosure_word_spacing(
          an operator that would do nothing (R91).",
         spec.raw(),
         spec.unit_label()
+    )
+}
+
+/// Text rendering mode, the `Tr` operand (ISO 32000-1 §9.3.6 Table 106).
+///
+/// The request fields stay `u8` so an out-of-range operand can be reported
+/// by value; this names the eight that exist, so modes 3 and 7 are not
+/// transposed by hand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum TextRenderMode {
+    /// `0` — fill.
+    Fill = 0,
+    /// `1` — stroke.
+    Stroke = 1,
+    /// `2` — fill, then stroke.
+    FillStroke = 2,
+    /// `3` — neither: the OCR text-layer convention.
+    Invisible = 3,
+    /// `4` — fill, and add to the clipping path.
+    FillClip = 4,
+    /// `5` — stroke, and add to the clipping path.
+    StrokeClip = 5,
+    /// `6` — fill, stroke, and add to the clipping path.
+    FillStrokeClip = 6,
+    /// `7` — add to the clipping path only; not painted.
+    Clip = 7,
+}
+
+impl TextRenderMode {
+    /// Whether glyphs in this mode paint nothing (modes 3 and 7) — the same
+    /// test `ExtractedGlyph::invisible` applies.
+    ///
+    /// ```
+    /// use pdfcer_core::text_edit::TextRenderMode;
+    ///
+    /// assert!(TextRenderMode::Invisible.is_invisible());
+    /// assert!(!TextRenderMode::Fill.is_invisible());
+    /// ```
+    #[must_use]
+    pub const fn is_invisible(self) -> bool {
+        matches!(self, Self::Invisible | Self::Clip)
+    }
+}
+
+impl From<TextRenderMode> for u8 {
+    fn from(mode: TextRenderMode) -> Self {
+        mode as Self
+    }
+}
+
+impl TryFrom<u8> for TextRenderMode {
+    /// The operand that names no mode.
+    type Error = u8;
+
+    /// # Errors
+    ///
+    /// Returns the operand back when it is above 7.
+    fn try_from(v: u8) -> Result<Self, u8> {
+        Ok(match v {
+            0 => Self::Fill,
+            1 => Self::Stroke,
+            2 => Self::FillStroke,
+            3 => Self::Invisible,
+            4 => Self::FillClip,
+            5 => Self::StrokeClip,
+            6 => Self::FillStrokeClip,
+            7 => Self::Clip,
+            other => return Err(other),
+        })
+    }
+}
+
+/// The `Tr` disclosure. Mode 3 is named as invisible because it is the one
+/// change the operator cannot check by looking.
+fn disclosure_render_mode(ambient: f64, emitted: u8) -> String {
+    let visibility = if emitted == 3 || emitted == 7 {
+        "INVISIBLE: searchable and selectable, but not painted"
+    } else {
+        "painted"
+    };
+    format!(
+        "text rendering mode: Tr {ambient} -> {emitted} for the matched run only (§9.3.6 \
+         Table 106); the run is now {visibility}. The previous mode is restored after it"
     )
 }
 

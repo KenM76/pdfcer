@@ -132,6 +132,7 @@ impl RefusalClass for AddTextError {
             AddTextError::EmbeddedBoxedUnsupported
             | AddTextError::EmptyText
             | AddTextError::InvalidSize(_)
+            | AddTextError::InvalidRenderMode { .. }
             | AddTextError::InvalidBox(_, _)
             | AddTextError::NoWordsToWrap
             | AddTextError::ObjectNumbersExhausted

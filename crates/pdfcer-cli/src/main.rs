@@ -7265,6 +7265,12 @@ enum Command {
         /// percentage of normal glyph width. 100 is normal; must be > 0.
         #[arg(long = "h-scale", value_name = "PCT")]
         h_scale: Option<f64>,
+        /// Text rendering mode `Tr` (§9.3.6) for the matched run, 0 to 7:
+        /// 0 fill, 1 stroke, 2 fill then stroke, 3 invisible, 4 to 7 the
+        /// same plus clip. 3 keeps an OCR correction invisible over the
+        /// scan. Refused with --bold-synthetic, which is itself mode 2.
+        #[arg(long = "render-mode", value_name = "0-7")]
+        render_mode: Option<u8>,
         /// Raise the matched run to superscript (`Ts` rise + reduced size).
         #[arg(long, conflicts_with_all = ["subscript", "no_script"])]
         superscript: bool,
@@ -7501,6 +7507,11 @@ enum Command {
         /// Omitted = black.
         #[arg(long, value_name = "R,G,B")]
         color: Option<String>,
+        /// Text rendering mode `Tr` (§9.3.6), 0 to 7; default 0 (fill).
+        /// 3 writes the text INVISIBLE: searchable and selectable but not
+        /// painted, which is how a word the OCR missed joins an OCR layer.
+        #[arg(long = "render-mode", value_name = "0-7", default_value_t = 0)]
+        render_mode: u8,
         /// Operator-supplied font folder (decision 012): registering a face for
         /// the chosen `--font` name discloses provenance `Supplied`. Repeatable.
         #[arg(long = "font-dir", value_name = "DIR")]
@@ -12174,6 +12185,7 @@ fn run() -> ExitCode {
             char_spacing,
             word_spacing,
             h_scale,
+            render_mode,
             superscript,
             subscript,
             no_script,
@@ -12200,6 +12212,7 @@ fn run() -> ExitCode {
             char_spacing: char_spacing.as_deref(),
             word_spacing: word_spacing.as_deref(),
             h_scale,
+            render_mode,
             rise: rise.as_deref(),
             synthetic: pdfcer_core::text_edit::StyleSynthesis::new(
                 bold_synthetic,
@@ -12250,6 +12263,7 @@ fn run() -> ExitCode {
             font,
             size,
             color,
+            render_mode,
             font_dirs,
             embed_font,
             output,
@@ -12265,6 +12279,7 @@ fn run() -> ExitCode {
             font: &font,
             size,
             color: color.as_deref(),
+            render_mode,
             font_dirs: &font_dirs,
             embed_font: embed_font.as_deref(),
         }),
@@ -25618,6 +25633,8 @@ struct AddTextArgs<'a> {
     size: f64,
     /// `"r,g,b"` fill colour, or `None` for black.
     color: Option<&'a str>,
+    /// `--render-mode`, `0..=7` (G034).
+    render_mode: u8,
     font_dirs: &'a [PathBuf],
     /// Path to a donor font file to SUBSET AND EMBED (FF-C, decision 021).
     ///
@@ -25855,6 +25872,7 @@ fn cmd_add_text(args: &AddTextArgs<'_>) -> u8 {
             .with_leading(args.leading);
     }
 
+    req = req.with_render_mode(args.render_mode);
     let outcome = match add_text(&doc, &req) {
         Ok(o) => o,
         Err(err) => {
@@ -25863,6 +25881,7 @@ fn cmd_add_text(args: &AddTextArgs<'_>) -> u8 {
                 AddTextError::Refused(_)
                 | AddTextError::PageIndex(_)
                 | AddTextError::EmptyText
+                | AddTextError::InvalidRenderMode { .. }
                 | AddTextError::InvalidSize(_)
                 | AddTextError::InvalidBox(..)
                 | AddTextError::NoWordsToWrap
@@ -26495,6 +26514,8 @@ struct FormatTextArgs<'a> {
     word_spacing: Option<&'a str>,
     /// `--h-scale` percentage (100 = normal).
     h_scale: Option<f64>,
+    /// `--render-mode`, `0..=7` (G034).
+    render_mode: Option<u8>,
     /// The baseline toggle, already resolved from the three exclusive flags.
     script: Option<pdfcer_core::text_edit::ScriptPosition>,
     /// `--rise` as passed, e.g. `3.25`, `3.25pt`, `280em` (Pass 19.2).
@@ -26758,6 +26779,9 @@ fn cmd_format_text(args: &FormatTextArgs<'_>) -> u8 {
     if let Some(pct) = args.h_scale {
         req = req.h_scale(pct);
     }
+    if let Some(mode) = args.render_mode {
+        req = req.render_mode(mode);
+    }
     if let Some(pos) = args.script {
         req = req.script(pos);
     }
@@ -26814,6 +26838,8 @@ fn cmd_format_text(args: &FormatTextArgs<'_>) -> u8 {
                 | FormatError::BadHorizScale(_)
                 | FormatError::WordSpacingComposite { .. }
                 | FormatError::ConflictingRise
+                | FormatError::InvalidRenderMode { .. }
+                | FormatError::ConflictingRenderMode
                 | FormatError::RealFaceAvailable { .. }
                 | FormatError::SynthesisRefusedByPosture { .. }
                 | FormatError::ShearUnsupported(_)
@@ -26884,6 +26910,9 @@ fn cmd_format_text(args: &FormatTextArgs<'_>) -> u8 {
         },
     );
     println!("  char_spacing={tc_str} word_spacing={tw_str} h_scale={tz_str} script={script_str}");
+    if let Some((o, n)) = report.render_mode_change {
+        println!("  render_mode={o}->{n}");
+    }
     // Pass 19.2. `rise` is printed whenever the baseline moved — by the
     // free-form control OR by the toggle — because "where is the baseline
     // now" is one question, not two. `synthesis` prints the mechanism's own

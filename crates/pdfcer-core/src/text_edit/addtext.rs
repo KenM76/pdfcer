@@ -91,10 +91,12 @@
 //! 2. **Set every relied-on parameter explicitly** — `q`/`Q` copy/restore the
 //!    *inherited* state, they do NOT reset to Table-52 initials. So the run
 //!    emits `Tf` (mandatory, no default — §9.3.1), an explicit fill colour
-//!    (`0 g`/`r g b rg` — black is only the *page-initial* default, §8.6), and
-//!    an absolute `Tm` (REPLACES `Tm`/`Tlm`, §9.4.2). The origination sequence
-//!    (§9.4.2/§9.4.3): `q BT /pdfceF1 <size> Tf <colour> 1 0 0 1 <x> <y> Tm
-//!    (codes) Tj ET Q`, with one leading `\n` (0x0A) as the token separator so
+//!    (`0 g`/`r g b rg` — black is only the *page-initial* default, §8.6), the
+//!    text-state parameters `0 Tc 0 Tw 100 Tz 0 Ts <mode> Tr` (Table 104 — a
+//!    producer that leaves `3 Tr` in force, as OCR layers do, would otherwise
+//!    make the run invisible), and an absolute `Tm` (REPLACES `Tm`/`Tlm`,
+//!    §9.4.2). The origination sequence (§9.4.2/§9.4.3): `q BT /pdfceF1
+//!    <size> Tf <colour> <text state> 1 0 0 1 <x> <y> Tm (codes) Tj ET Q`, with one leading `\n` (0x0A) as the token separator so
 //!    no token spans the array-element boundary (§7.2).
 //!
 //! ## `/Resources` `/Font` add + the inheritance trap (§7.8.3, §7.7.3.4)
@@ -317,6 +319,11 @@ pub struct AddTextRequest {
     /// variant. `None` ⇒ the derived default `1.2·size` (disclosed). Ignored
     /// in point-text mode.
     pub leading: Option<f64>,
+    /// Text rendering mode `Tr` (§9.3.6 Table 106), `0..=7`; default `0`
+    /// (fill). `3` writes an invisible run — how a word the OCR missed is
+    /// inserted into an OCR layer without printing over the scan (`G034`).
+    /// Out of range is [`AddTextError::InvalidRenderMode`].
+    pub render_mode: u8,
 }
 
 impl AddTextRequest {
@@ -335,6 +342,7 @@ impl AddTextRequest {
             wrap_box: None,
             alignment: BlockAlignment::Left,
             leading: None,
+            render_mode: 0,
         }
     }
 
@@ -378,6 +386,23 @@ impl AddTextRequest {
     #[must_use]
     pub const fn with_leading(mut self, leading: Option<f64>) -> Self {
         self.leading = leading;
+        self
+    }
+
+    /// Set the text rendering mode (`0..=7`, §9.3.6; default `0`), as a
+    /// [`TextRenderMode`](crate::text_edit::TextRenderMode) or the raw operand.
+    ///
+    /// ```
+    /// use pdfcer_core::text_edit::{AddTextRequest, TextRenderMode};
+    ///
+    /// // A word the OCR missed, added invisibly to the text layer.
+    /// let req = AddTextRequest::new(0, (72.0, 700.0), "INVOICE")
+    ///     .with_render_mode(TextRenderMode::Invisible);
+    /// assert_eq!(req.render_mode, 3);
+    /// ```
+    #[must_use]
+    pub fn with_render_mode(mut self, mode: impl Into<u8>) -> Self {
+        self.render_mode = mode.into();
         self
     }
 
@@ -482,6 +507,15 @@ pub struct AddTextOutcome {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum AddTextError {
+    /// A text rendering mode outside `0..=7` (§9.3.6 Table 106).
+    #[error(
+        "text rendering mode {mode} does not exist: §9.3.6 Table 106 defines modes 0 to 7 \
+         (0 fill, 1 stroke, 2 fill then stroke, 3 invisible, 4-7 the same plus clip)"
+    )]
+    InvalidRenderMode {
+        /// The mode requested.
+        mode: u8,
+    },
     /// The chosen face cannot represent a character of the text (R71 /
     /// inverse-encoding gate), by name.
     #[error(transparent)]
@@ -898,6 +932,11 @@ pub(crate) fn plan_add_text<G: ObjectGraph + ?Sized>(
     // silent fallback to point text, because silently ignoring a wrap box
     // the operator drew is the rule-4 failure this project keeps refusing
     // to commit.
+    if req.render_mode > 7 {
+        return Err(AddTextError::InvalidRenderMode {
+            mode: req.render_mode,
+        });
+    }
     let embed_plan: Option<&FontEmbedPlan> = match &req.face {
         NewTextFace::Embedded(p) => Some(p.as_ref()),
         NewTextFace::Std14(_) => None,
@@ -913,7 +952,14 @@ pub(crate) fn plan_add_text<G: ObjectGraph + ?Sized>(
                 return Err(AddTextError::EmbeddedBoxedUnsupported);
             };
             let cids = cids_for(plan, &req.text)?;
-            let bytes = build_content_embedded(&font_name, req.size, req.color, req.origin, &cids);
+            let bytes = build_content_embedded(
+                &font_name,
+                req.size,
+                req.color,
+                req.render_mode,
+                req.origin,
+                &cids,
+            );
             // No extra disclosure here: the face disclosure below already
             // says this run is an embedded subset, with the same numbers.
             // Saying it twice made the CLI print two paragraphs that
@@ -924,7 +970,14 @@ pub(crate) fn plan_add_text<G: ObjectGraph + ?Sized>(
             let encoded = inv
                 .encode_str(&req.text, &BTreeSet::new())
                 .map_err(AddTextError::Refused)?;
-            let bytes = build_content(&font_name, req.size, req.color, req.origin, &encoded.codes);
+            let bytes = build_content(
+                &font_name,
+                req.size,
+                req.color,
+                req.render_mode,
+                req.origin,
+                &encoded.codes,
+            );
             (bytes, ExtraReport::point(encoded.disclosures))
         }
         Some(bx) => {
@@ -939,7 +992,8 @@ pub(crate) fn plan_add_text<G: ObjectGraph + ?Sized>(
                 bx,
                 page.crop_box,
             )?;
-            let bytes = build_content_boxed(&font_name, req.size, req.color, &layout);
+            let bytes =
+                build_content_boxed(&font_name, req.size, req.color, req.render_mode, &layout);
             let extra = ExtraReport::boxed(&layout);
             (bytes, extra)
         }
@@ -987,6 +1041,13 @@ pub(crate) fn plan_add_text<G: ObjectGraph + ?Sized>(
              not updated — no tag created (R73)"
                 .to_owned(),
         );
+    }
+    if req.render_mode == 3 || req.render_mode == 7 {
+        disclosures.push(format!(
+            "new run is INVISIBLE (text rendering mode {}, §9.3.6 Table 106): searchable and \
+             selectable, but not painted",
+            req.render_mode
+        ));
     }
     disclosures.extend(extra.disclosures.iter().cloned());
 
@@ -1054,6 +1115,30 @@ fn make_font_program_stream(span: ByteSpan, len: usize) -> Object {
 // produced an array nested inside an array (`Pass 111.0`). One answer, in
 // `page_tree`, beside the reader that decides the same question.
 
+/// The fill colour and the text-state reset every new run starts with.
+///
+/// The appended stream inherits whatever text state earlier content left
+/// (see "Graphics-state isolation" above), so every Table 104 parameter the
+/// layout assumes is set: `Tc`, `Tw`, `Tz`, `Ts` at their initial values and
+/// `Tr` at the requested mode. Without the `Tr`, a page whose producer left
+/// `3 Tr` in force — an unbalanced OCR layer — makes the added run invisible.
+fn emit_state_prelude(out: &mut Vec<u8>, color: NewTextColor, render_mode: u8) {
+    match color {
+        NewTextColor::Black => out.extend_from_slice(b"0 g\n"),
+        NewTextColor::Rgb(r, g, b) => {
+            emit_number(out, r.clamp(0.0, 1.0));
+            out.push(b' ');
+            emit_number(out, g.clamp(0.0, 1.0));
+            out.push(b' ');
+            emit_number(out, b.clamp(0.0, 1.0));
+            out.extend_from_slice(b" rg\n");
+        }
+    }
+    out.extend_from_slice(b"0 Tc 0 Tw 100 Tz 0 Ts ");
+    emit_number(out, f64::from(render_mode));
+    out.extend_from_slice(b" Tr\n");
+}
+
 /// Build the `q BT…ET Q` content bytes (§9.4.2/§9.4.3), leading `\n` included.
 ///
 /// The exact origination sequence from the spec grounding §5 — self-`q…Q`-
@@ -1063,6 +1148,7 @@ fn build_content(
     font_name: &[u8],
     size: f64,
     color: NewTextColor,
+    render_mode: u8,
     origin: (f64, f64),
     codes: &[u8],
 ) -> Vec<u8> {
@@ -1077,17 +1163,7 @@ fn build_content(
     out.push(b' ');
     emit_number(&mut out, size);
     out.extend_from_slice(b" Tf\n");
-    match color {
-        NewTextColor::Black => out.extend_from_slice(b"0 g\n"),
-        NewTextColor::Rgb(r, g, b) => {
-            emit_number(&mut out, r.clamp(0.0, 1.0));
-            out.push(b' ');
-            emit_number(&mut out, g.clamp(0.0, 1.0));
-            out.push(b' ');
-            emit_number(&mut out, b.clamp(0.0, 1.0));
-            out.extend_from_slice(b" rg\n");
-        }
-    }
+    emit_state_prelude(&mut out, color, render_mode);
     // Absolute placement: `1 0 0 1 x y Tm` REPLACES Tm/Tlm (§9.4.2).
     out.extend_from_slice(b"1 0 0 1 ");
     emit_number(&mut out, origin.0);
@@ -1138,6 +1214,7 @@ fn build_content_embedded(
     font_name: &[u8],
     size: f64,
     color: NewTextColor,
+    render_mode: u8,
     origin: (f64, f64),
     cids: &[u16],
 ) -> Vec<u8> {
@@ -1150,17 +1227,7 @@ fn build_content_embedded(
     out.push(b' ');
     emit_number(&mut out, size);
     out.extend_from_slice(b" Tf\n");
-    match color {
-        NewTextColor::Black => out.extend_from_slice(b"0 g\n"),
-        NewTextColor::Rgb(r, g, b) => {
-            emit_number(&mut out, r.clamp(0.0, 1.0));
-            out.push(b' ');
-            emit_number(&mut out, g.clamp(0.0, 1.0));
-            out.push(b' ');
-            emit_number(&mut out, b.clamp(0.0, 1.0));
-            out.extend_from_slice(b" rg\n");
-        }
-    }
+    emit_state_prelude(&mut out, color, render_mode);
     out.extend_from_slice(b"1 0 0 1 ");
     emit_number(&mut out, origin.0);
     out.push(b' ');
@@ -1767,6 +1834,7 @@ fn build_content_boxed(
     font_name: &[u8],
     size: f64,
     color: NewTextColor,
+    render_mode: u8,
     layout: &BoxedLayout,
 ) -> Vec<u8> {
     let mut out = Vec::new();
@@ -1779,17 +1847,7 @@ fn build_content_boxed(
     out.push(b' ');
     emit_number(&mut out, size);
     out.extend_from_slice(b" Tf\n");
-    match color {
-        NewTextColor::Black => out.extend_from_slice(b"0 g\n"),
-        NewTextColor::Rgb(r, g, b) => {
-            emit_number(&mut out, r.clamp(0.0, 1.0));
-            out.push(b' ');
-            emit_number(&mut out, g.clamp(0.0, 1.0));
-            out.push(b' ');
-            emit_number(&mut out, b.clamp(0.0, 1.0));
-            out.extend_from_slice(b" rg\n");
-        }
-    }
+    emit_state_prelude(&mut out, color, render_mode);
     for line in &layout.lines {
         if line.blank {
             continue;

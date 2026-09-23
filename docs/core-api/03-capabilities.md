@@ -1526,6 +1526,7 @@ That is a distinct failure and this section is the repair for it.
 | horizontal scale | `set_h_scale` (`Tz`, §9.3.4) | ✅ |
 | super/subscript | `set_script` | ✅ |
 | free-form baseline | `set_rise` (`Ts`, §9.3.7) | ✅ — an exceed over Acrobat, which dropped it |
+| rendering mode (visible / invisible) | `set_render_mode: Option<u8>` (`Tr`, §9.3.6), builder `render_mode(m)` | ✅ `0..=7`; `3` keeps an OCR correction invisible over the scan. The ambient mode is restored after the run. Refused: a mode above 7 (`InvalidRenderMode`), or together with *synthetic* bold, which is itself mode 2 (`ConflictingRenderMode`). `FormatReport::render_mode_change` = `(ambient, emitted)` |
 | **alignment, leading** | — | ❌ not a run-level property; those live on `reflow_block` |
 
 Targeting is by `find` text or by `pinned_span` — the same
@@ -1543,6 +1544,13 @@ does not translate that decision between the two verbs. Form XObject content
 is reachable (`Pass 119.2`).
 
 CLI: `pdfcer format-text --set-size / --set-color / --set-font / …`.
+
+**New text** takes a rendering mode too: `AddTextRequest::with_render_mode(m)`
+(field `render_mode: u8`, default `0`). Every added run now also resets
+`Tc`/`Tw`/`Tz`/`Ts` to their initial values and sets `Tr` explicitly, so a page
+whose producer left `3 Tr` in force no longer swallows added text. Mode 3 or 7
+adds an `INVISIBLE` disclosure. CLI: `--render-mode` on `format-text` and
+`add-text`.
 
 ### ★ The one remaining limit: a NON-standard face the page does not carry
 
