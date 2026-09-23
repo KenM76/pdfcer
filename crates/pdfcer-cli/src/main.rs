@@ -24736,7 +24736,7 @@ fn open_for_edit(input: &Path) -> Result<(Vec<u8>, pdfcer_core::edit::EditSessio
 /// deliberate rather than tidied up: the output file has already been
 /// written, and re-applying the history only to throw the session away
 /// would be motion without meaning.
-/// **With `verify_undo`, this leaves the session UNDONE.**
+/// With `verify_undo`, this leaves the session **UNDONE**.
 ///
 /// The verification is `while session.undo().is_some() {}` followed by a save
 /// of the emptied stack, and there is no redo afterwards — so on return the
