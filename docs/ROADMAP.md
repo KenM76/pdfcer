@@ -115,6 +115,76 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 312.0` (`d5b23d66`), 2026-09-22 — `SplitGranularity::Line` breaks on clear space, not only on a baseline change (`G032`)
+
+New Pass family, minted this filing. Answers `G032` (`pdfce_FeatureRequests`, opened 2026-09-19, same channel as `G028`): `runs_share_a_line` compared orientation and baseline only and never read horizontal position, so SolidWorks' row-major bill-of-materials cells and its sheet-border zone letters — both written one show operator per piece, sharing a baseline with unrelated neighbours — welded into single "lines." Measured on the reporter's 36-page drawing: **565 lines held more than one operator, the widest holding 709.4pt of blank paper** (two zone letters on one baseline, opposite ends of the sheet). Blocked GUI move, delete and redact on one BOM cell (`O215`/`O216`/`O217`).
+
+**The fix**, in `crates/pdfcer-core/src/vector/edit.rs`: a same-baseline pair of consecutive runs now also splits when either holds — clear space (earlier run's box end to the later run's origin, along the writing direction, in page space) exceeds `max_gap` line heights, or the later run starts more than `max_backward` line heights *behind* that end (the zone-letter case). Defaults `max_gap` **1.0**, `max_backward` **0.5**, both measured on the fixture: same-baseline gaps are bimodal — under 0.1 line heights for a genuine phrase, nothing between 0.1 and 0.43, wider for cells/zones — and no pair fell between −1 and 0. The gap test is skipped when `bounds_basis` is `TextBoundsBasis::EmBox` (pen-position hulls, not glyph extents).
+
+**Threshold as a setting**, per the fuzzy-never-sneaky/ambiguity-is-a-setting discipline: new public `#[non_exhaustive] LineSplitOptions` (`Default`, `with_max_gap`/`with_max_backward`), `text_object_line_split_points(obj, options)`, `text_runs_share_a_line(obj, index, options)`, all in `pdfcer_core::vector::edit`, re-exported from `vector`. `text_object_split_points(_, SplitGranularity::Line)` is the same function at the defaults. `text_object_split_plan`'s `Line` disclosure and the CLI `text-object-split` help now name spacing as part of the inference; `docs/core-api/02-editing-and-saving.md` updated.
+
+**Tests**: a new byte-built Helvetica fixture helper asserting the `FontMetrics` basis; 3 new tests (BOM row, backward jump, abutting phrase); one existing test's expectation corrected — it encoded the old defect (`runs-td-relative.pdf`'s BETA→GAMMA sit 1.50 line heights apart, so the default now cuts at `[2]`, where the unfixed rule did not). Ablated: nulling the gap test fails exactly those 3 tests and no others.
+
+**Gates**: `cargo test --workspace` 263 suites ok; `pdfcer-core --no-default-features` ok; `wasm32-unknown-unknown` check ok; `cargo clippy --workspace --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `tools/check-core-api-verbs.py` ok; the rest of the `tools/` Python/shell gate suite ok — the one failure this filing found was `check-register-entry-size.py`, on the FEATURES.md row this filing trims separately (see the Ledger). No `Cargo.toml` change, so no dependency changes and GUI-core separation is untouched; not a writer change, so round-trip/minimal-diff is unaffected.
+
+**`docs/FEATURES.md`.** A note is appended to the "Split one text object into several" row (line ~212) naming the fix and the settable threshold. `core [x]`/`cli [x]` unchanged (the `--granularity line` *behaviour* changed and its help text was updated, but the capability was already ticked). **`gui [ ]` NOT rounded up** — `pdfcer-gui` has not consumed this fix. Separately, this filing trimmed the "Edit text across show operators" row (line ~194), which had grown past the register-entry-size cap (1,676 chars against 1,200) with its own `G028` note — trimmed to a verdict plus a short paragraph citing `0c0145ac`; the detail stays in that commit's message.
+
+**No decision-log entry** — a splitting-criterion fix plus a new options struct, not a crate-boundary/library/invariant call.
+
+**`C:\personal_rag\pdf\`.** New lesson: SolidWorks writes a table row-major and a sheet border's zone letters one at a time, both on a shared baseline with unrelated neighbours, so "consecutive in stream + same baseline" is not "same line" — a horizontal clear-space/backward-jump test is needed on top of the baseline test. Includes the measured bimodal gap distribution. Distinct from the adjacent `G028`/`Pass 311.0` lesson (a repositioning-math defect, not a grouping-criterion one).
+
+**`D:\Dev\FeatureRequests\pdfce_FeatureRequests\INDEX.md`.** New row for `G032`, outcome SHIPPED — engineer's own `reply_G032_line_split_now_breaks_on_clear_space_FIXED.md` already on disk in `open/`, not written by this filing.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Independently confirmed via `Grep`/`Read` against live source: `LineSplitOptions`, `text_object_line_split_points` and `text_runs_share_a_line` all present in `crates/pdfcer-core/src/vector/edit.rs`, and no prior `ROADMAP.md` entry named `G032` or `Pass 312` before this filing (fresh family, not a promotion). This session's own git-status context lists `d5b23d66` at the tip of `main` with the subject line *"vector: Line split breaks on clear space, not only on a baseline change (G032)"*, which corroborates the commit and its one-line description but is not a `git show`. The full hash, the diffstat, the test count and the gate-sweep results are **relayed from the dispatching engineer's report, not independently re-run**.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `311` (highest `.0`), next free `312` | **`Pass 312.0` SHIPPED in `d5b23d66` — next free family `313`** |
+| Standing rules | `R258` next free (two corroborating ledgers; one intervening `v0.55.0` ledger row says `R251`, unresolved) | unchanged — no rule minted; the `R251`/`R258` discrepancy still not re-verified by this filing |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `572` | **`573`** |
+| `docs/FEATURES.md` | "Split one text object into several" row had no `G032` note; "Edit text across show operators" row was over the register-entry-size cap (1,676 chars) | **`G032` note appended to the split row; the show-operators row trimmed to a verdict + paragraph citing `0c0145ac`, well under the 1,200-char cap** |
+| `C:\personal_rag\pdf\` | no lesson on row-major-table/zone-letter same-baseline welding | **new lesson filed, both indexes updated** |
+| `pdfce_FeatureRequests/INDEX.md` | `G032` had no row | **row added, outcome SHIPPED** |
+
+---
+
+### `Pass 311.0` (`0c0145ac`), 2026-09-22 — a span edit lands where the match BEGAN, not where it ended (`G028`)
+
+New Pass family, minted this filing. Answers `G028` (`pdfce_FeatureRequests`, opened 2026-09-19): a multi-operator `edit_text` on a SolidWorks sheet (`SW41177.pdf`) moved a whole line **240.16pt right** — the replacement was written into the operator holding the match's **end**, the leading operators were emptied, but nothing repositioned the survivor back to where the match began. `followers_repositioned=0` on the real file even though a 24-operator synthetic fixture compensated correctly (`23`) — the request's own addendum built five synthetic shapes trying to reproduce it and could not, narrowing suspicion to `same_line`/stream-merge timing without landing it.
+
+**The fix**, in `text_edit::edit::plan_edit_target` plus three new private helpers: **`line_x`** and **`advance_before`** compute the anchor's real geometric origin and the pre-match advance from actual text-matrix data rather than from glyph-advance summation, so the leading-operator shift is now measured, not inferred; **`narrow_span`** trims a find/replace pair down to the part that actually differs when they share a prefix or suffix, so unchanged glyphs keep the producer's own spacing instead of being rewritten; and `reposition_followers` gained two independent corrections found while measuring the fixture — a drift-sized `Td` `ty` (≤0.01, matching SolidWorks' own ±0.00057 float noise) is now treated as the same line during reflow, and a `Tm`-positioned follower under a scaled matrix now moves the correct user-space distance rather than a text-space one. **`Reflow` and `Pin` now differ, as they should have all along** — previously byte-identical for a spanning edit, which was itself the tell the request's own §9 flagged before the cause was found.
+
+**Measured on the reporter's file.** `SPACERS → SPACERSS` now narrows to one operator, left edge holds at 474.16 (was 714.32). `8 9 10 11 → 7` spans seven operators and lands at the original start.
+
+**Verification, relayed from the dispatching engineer's report — see *Sourcing*.** Full workspace test run: 263 suites, no-default-features build, `cargo clippy --workspace --all-targets -- -D warnings` clean, `cargo fmt --all --check` clean, `wasm32-unknown-unknown` build, `cargo tree -p pdfcer-core`/`-p pdfcer-render` (no GUI dep), fuzz targets, full `tools/` Python gate suite. Five new unit tests in `edit.rs`; `tests/text_edit_span.rs` fixtures updated. No public API surface changed — `EditRequest`, `EditReport`, `FollowerDisposition` unchanged in shape.
+
+**`docs/FEATURES.md`.** No row added or moved — this is a correctness fix to an already-`[x]`-core/`[x]`-cli/`[ ]`-gui capability, not a new capability. A note appended to the "Edit text across show operators" row (line ~194) naming the fix and the 240pt symptom, in the same style as that row's existing `Pass 304.0` parenthetical. Boxes unchanged; **the `gui` `[ ]` was NOT rounded up** — `pdfcer-gui` still has not consumed `operators_spanned`/this fix.
+
+**No decision-log entry** — a positioning bug fix plus three new private helpers, not a crate-boundary/library/invariant call.
+
+**`C:\personal_rag\pdf\`.** New lesson: SolidWorks' per-operator layout leaves a producer gap on top of the space-glyph advance between show operators, so an edit that merges/deletes operators must remove that gap too, measured from real text-matrix origins rather than summed from glyph advances alone — distinct from the adjacent `Pass 304.0` lesson (same-line detection tolerance) and the per-glyph-operator matching lesson (defeats `find`, a different failure).
+
+**`D:\Dev\FeatureRequests\pdfce_FeatureRequests\INDEX.md`.** New row for `G028`, outcome SHIPPED — engineer's own `reply_G028_a_span_edit_now_lands_where_the_match_began_FIXED.md` already on disk in `open/`, not written by this filing.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Independently confirmed via `Grep` against live source: `plan_edit_target`, `reposition_followers`, `line_x`, `advance_before` and `narrow_span` all present in `crates/pdfcer-core/src/text_edit/edit.rs` at the line numbers this filing checked, and no prior ROADMAP.md entry names `G028` or `Pass 311` (fresh family, not a promotion). The commit hash `0c0145ac`, its full message, the test count, the gate-sweep results and the measured before/after edge positions are **relayed from the dispatching engineer's report, not independently re-run** — no `git show`/`git log` available to this filing to confirm the hash's parentage or diffstat.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `310` (highest `.2`), next free `311` | **`Pass 311.0` SHIPPED in `0c0145ac` — next free family `312`** |
+| Standing rules | `R258` next free (two corroborating ledgers; one intervening `v0.55.0` ledger row says `R251`, unresolved, flagged not fixed by this filing) | unchanged — no rule minted |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `571` | **`572`** |
+| `docs/FEATURES.md` | "Edit text across show operators" row had no G028 note | **note appended; boxes unchanged (`[x]`/`[x]`/`[ ]`/`[x]`)** |
+| `C:\personal_rag\pdf\` | no lesson on producer-gap/real-origin measurement | **new lesson filed, both indexes updated** |
+| `pdfce_FeatureRequests/INDEX.md` | `G028` had no row | **row added, outcome SHIPPED** |
+
+---
+
 ### `v0.55.0` — RELEASED (2026-09-17)
 
 Release filing, not a Pass — the **second release of 2026-09-17**, cut roughly two and a half hours after `v0.54.0`, because the operator reported redaction destroying text he never marked and `Pass 310.0`–`310.2` fixed it. Version-bump commit `229e8635` ("chore: v0.55.0") bumps `Cargo.toml` 0.54.0 → 0.55.0 plus both lockfiles (`Cargo.lock`, `fuzz/Cargo.lock`; 3 files, +10/−10); tag `v0.55.0` and `main` both at that commit on `origin`.
