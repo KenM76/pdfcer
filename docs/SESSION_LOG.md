@@ -4,6 +4,47 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-23 (582nd filing) — `Pass 322.0` (`5425d2be`): SVG export can keep text as real `<text>`, font embedded (`G033`, PARTIAL)
+
+**Shipped:**
+- `Pass 322.0` — `SvgOptions::text = SvgText::{Outlines, KeepText}`; when asked, the recorder wraps each shown string in a display-list `Op::Text` and the SVG writer embeds each run's font as an OTS-sanitizer-clean sfnt `@font-face` (new `svg_text.rs`, `font/webfont.rs`). Per-run fallback to outlines on any of seven named reasons, counted on `SvgExport.outcome.text: SvgTextOutcome`. `pdfcer export-image --format svg --svg-text keep|outlines`. New `pdfcer-core` read: `ExtractFont::unicode_for_code`. SVG only — EMF still outputs outlines, reserved as `Pass 322.1` (*Backlog*, NOT STARTED, scoping needed for MS-EMF text records).
+- Fixed on the way (same commit): three CLI doc comments welded onto `ImageFormatArg` since `Pass 309.1` — moved back onto `DxfUnitArg`/`ProducerArg`/a third. Sixth instance of this project's recurring doc-splice-on-insertion finding, filed as an `R197` dated instance.
+
+**Decisions made this session:** None — a new export mode plus a font-subsetting helper, not a crate-boundary/library-choice/invariant call.
+
+**Findings + decisions:**
+- `docs/FEATURES.md`: new *Export* row (core `[x]` cli `[x]` gui `[ ]`), two new *Planned* rows (EMF keep-text `Pass 322.1`; wrap bare CFF/Type1 as OpenType, Unscoped).
+- `pdfce_FeatureRequests/INDEX.md`: rows added for `G033`–`G038` this filing (all six had been missing since their own Shipped entries, per the prior five filings' own finding).
+- `D:\dev\rag\rust\doc_comments_concatenate_silently_so_a_moved_variant_orphans_two.md`: sixth dated instance appended (struct-field/clap-arg form).
+
+**Still in flight:**
+- `Pass 322.1` (EMF keep-text) NOT STARTED — needs an MS-EMF text-record scoping read; a background research dispatch on exactly that (task `ae13ea6e44486b60f`) was already in flight at filing time.
+- The bare-CFF/Type1-as-OpenType wrapping item is Unscoped, no Pass ID yet.
+- `pdfcer-gui` has not consumed `KeepText` — `FEATURES.md` `gui [ ]`, not rounded up.
+
+**For next session:** Next free Pass family: **323**. Check whether the MS-EMF background dispatch's findings landed anywhere before re-deriving them for `Pass 322.1`.
+
+**Sourcing (hard rule 8).** No shell tool this filing — Bash absent from the available function list despite the environment's own shell-availability claim. Confirmed via `Read`/`Grep` against live source: `SvgOptions`/`SvgText`/`SvgTextOutcome`, `svg_text.rs`, `font/webfont.rs`, `unicode_for_code`, the CLI flag, the three doc-comment moves. Relayed, not independently reproduced: the sabotage pass/fail detail and the headless-Chrome check.
+
+## 2026-09-23 (581st filing) — `Pass 321.0` (`9edcc9b9`): `/ToUnicode` written as a stream, so embedded add-text extracts
+
+**Shipped:**
+- `Pass 321.0` — `font_embed::build_objects` gains a 4th parameter, a staged `/ToUnicode` stream object; new `FontEmbedPlan::to_unicode_cmap()`. Add-text with an embedded donor face (`--embed-font`) now writes `/ToUnicode` as a STREAM (ISO 32000-1 §9.10.3), not a string — the string form was silently ignored by every conforming reader, including pdfcer's own extractor, so text added in an embedded face extracted as nothing.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Found while building `Pass 322.0` (`G033`, next entry, chronologically after this commit) — the kept-text SVG export read `unicode_for_code == None` for every embedded add-text glyph.
+- The prior test for this code path only checked the literal string `"/ToUnicode"` appeared in the output — vacuous, and it passed on the defective (string-form) code.
+- New `C:\personal_rag\pdf\` lesson filed: a `/ToUnicode` written as a string instead of a stream is silently dropped by conforming readers, no error surfaced.
+- `docs/FEATURES.md`: no box change — the add-text-with-embedded-font row never claimed extractability; this is a correctness fix under an existing gap, not a new capability.
+
+**Still in flight:** None specific to this Pass.
+
+**For next session:** Next free Pass family: **322** (superseded within this same session by `Pass 322.0` above — next free is now **323**).
+
+**Sourcing (hard rule 8).** No shell tool this filing. Confirmed via `Read`/`Grep`: `build_objects`'s 4th parameter, `to_unicode_cmap`, the new test and its sabotage description, the add-text call site. Not independently re-run.
+
 ## 2026-09-23 (580th filing) — `Pass 320.0` (`2fca11bf`): merge consecutive text runs into one (`G035`)
 
 **Shipped:**

@@ -7828,3 +7828,20 @@ re-verification appended to its §4.4). `index.md` touched 4 ways: build-log ent
 12.5.2 manifest row + its contents cell, three new trigger rows, four new search recipes
 (all run, all non-empty). Counts unchanged and recounted from disk first (193/107/32).
 **`docs/` corrections are REPORTED, not made** — they are `pdfcer-librarian`'s tree.
+
+## 81. A NON-PDF FORMAT SPEC dispatched "into PDF_Spec" (2026-09-23, G033 EMF text records)
+
+Shape: "source MS-EMF text records / font embedding into the PDF_Spec RAG, emf/ subfolder or existing structure".
+
+### 81a. Check for an EXISTING cross-project RAG before creating a family
+`D:\dev\rag\emf\` already held MS-EMF v18.0 (records, coordinates, consumers), and `emf.rs` cites it. Filing an `emf/` family in PDF_Spec would have split one format across two trees. So:
+- the new files went THERE: `text_records.md`, `font_embedding_verdict.md`, a `consumers.md` § "Text records" T1–T9;
+- PDF_Spec `index.md` got 3 pointer rows under the G033 trigger section + a Related-resources line;
+- the deviation was REPORTED.
+Match the host RAG's frontmatter (`tool/version/tags/last_verified`), not `_TEMPLATE.md`.
+
+### 81b. Consumer SOURCE beats the spec for writer design
+LibreOffice 24.8 reads EmrText's optional Rectangle UNCONDITIONALLY, so a spec-legal ETO_NO_RECT record misparses offDx. The spec's own example (§3.2.10) writes Options 0 + the Rectangle, so the safe form was also the canonical one. Read the consumer's parse loop line by line; a support-matrix "yes" hides this.
+
+### 81c. "Does format F embed fonts?" — the answer is per-CARRIER, per-CONSUMER
+MS-EMF does define a font carrier: EMR_COMMENT_EMFSPOOL (spool-only). EMF+ has none. The honest verdict was "defined, spool-scoped, unimplemented by every consumer read, GDI unsourced", not "no". MS-EMF's "TONE" is a typo for 0x544F4E46 = "TONF" — decode the hex yourself.

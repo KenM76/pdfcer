@@ -1,7 +1,7 @@
 # Memory index — pdfcer-spec-librarian
 
 - [Spec source extraction toolchain](reference_spec_source_extraction.md) — how to GET a spec and get text out of it: 21 routes (4a–4u), verified free URLs, paywall workarounds, errata recipes.
-- [PDF_Spec corpus conventions + dispatch-shape playbook](project_corpus_state.md) — 79 items, one per past dispatch. **Find the item matching your dispatch's SHAPE and read it before working.**
+- [PDF_Spec corpus conventions + dispatch-shape playbook](project_corpus_state.md) — 81 items, one per past dispatch. **Find the item matching your dispatch's SHAPE and read it before working.**
 - [Font + spec-data licensing patterns](project_embeddable_data_licensing.md) — what may cross into pdfcer's MIT tree; data-vs-document, availability ≠ redistribution licence.
 
 ## Routing — find your dispatch's shape, then READ THE NAMED ITEM (the detail is there, not here)
@@ -28,6 +28,7 @@
 | **"this ONE value is wrong — now check the whole column"** | corpus **73** |
 | **"is clause C advisory or mandatory?"** | corpus **65** |
 | **"verify a SHIPPED CITATION — a third party couldn't source our cited claim"** / an erratum's real number, text, status, date | corpus **80** + extraction **4v**/**4w** |
+| **a NON-PDF format (EMF, SVG, …) dispatched "into PDF_Spec"** / "does format F embed fonts?" | corpus **81** |
 | "close the exclusion banner" / "ingest C AND give me the step list" | corpus **70** + **58** |
 | "is the base standard silent on X?" and a later edition fixes it | corpus **70e** — check whether a PROFILE of the base edition also fixes it |
 | a PDF/UA or PDF/A conformance question | corpus **69e** (answer PER PART — a later part can WIDEN a rule) + **69f** (free-quotation route) |

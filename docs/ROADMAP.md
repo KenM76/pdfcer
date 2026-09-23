@@ -115,6 +115,78 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 322.0` (`5425d2be`), 2026-09-23 — SVG export can keep text as real `<text>`, its font embedded (`G033`, PARTIAL)
+
+Answers `G033` (`pdfcer-gui` request, operator O224): `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G033_svg_and_emf_export_have_no_option_to_keep_text_as_text.md`. Reply: `open\reply_G033_svg_export_can_keep_text_as_text_PARTIAL_svg_done_emf_open.md` — **SVG done, EMF open** (`Pass 322.1`, *Backlog*, below).
+
+**The feature.** `SvgOptions::text: SvgText { Outlines (default), KeepText }`, `.with_text()`. When `KeepText` is asked, the recorder wraps each shown string in the display-list `Op::Text` (glyph ids, resolved Unicode, per-glyph device transform) instead of decomposing straight to outlines; new `svg_text.rs` builds each run's placement plan and `font/webfont.rs` subsets the run's font into an OTS-sanitizer-clean sfnt (cmap format 4, `post` rewritten as v3, `OS/2` padded/synthesised to ≥78 bytes, `name` added if absent, checksums fixed), embedded as a `@font-face` data URI; CSS disables `liga`/`clig`/`calt`/`kern` since the subsetter already dropped GSUB/GPOS/kern. A run that can't be kept falls back to outlines per-run, counted by reason on `SvgExport.outcome.text: SvgTextOutcome` (`#[non_exhaustive]`): `fallback_not_sfnt` (bare CFF/Type1C, Type 1 — no wrapping yet, see the Unscoped Backlog entry below), `fallback_paint` (stroked text), `fallback_unmapped`, `fallback_conflict`, `fallback_geometry`, `fallback_font_build`, `fallback_restricted`.
+
+**New `pdfcer-core` read.** `ExtractFont::unicode_for_code(code) -> Option<String>` (`None` where the §9.10.2 ladder fails). `docs/core-api/01-reading-and-model.md` §9.2 updated; `tools/check-core-api-verbs.py` passes.
+
+**CLI (rule 11).** `pdfcer export-image --format svg --svg-text keep|outlines`; prints `svg-text: kept= outlines= fonts= not_sfnt= paint= unmapped= conflict= geometry= font_build= restricted=` plus a stderr note that kept characters come from the PDF's own `/ToUnicode`/encoding. `--svg-text keep` on a non-svg format is refused by name. `copy-page` deliberately stays outlines — Word's OOXML importer ignores `<style>`.
+
+**Also this commit, unrelated cleanup, filed as an `R197` dated instance.** Three CLI doc comments (`DxfUnitArg`, `ProducerArg` and a third) had welded onto `ImageFormatArg` since `Pass 309.1` inserted it as an anchor — moved back onto their own items. Sixth instance of this project's recurring doc-splice-on-insertion finding (see *Standing rules*); appended as a sixth dated instance to `D:\dev\rag\rust\doc_comments_concatenate_silently_so_a_moved_variant_orphans_two.md`, struct-field form (clap arg fields), same shape as the second and fifth instances there.
+
+**Tests.** `crates/pdfcer-render/tests/export_svg_keep_text.rs`, 4 tests: kept-glyph outline within 0.05px of the outlines-export path box; embedded font's per-character outlines equal the donor's; stroked text → `fallback_paint`; standard-14 (bare CFF) → `fallback_not_sfnt`. Sabotage: y-scale flip, zeroed x-positions, broken cmap `idDelta` — each caught. Headless-Chrome spot check: with the system-font fallback stripped from the SVG the embedded face still renders (OTS accepts it); a bogus family name falls to Times, confirming the fallback chain is real.
+
+**Gates.** No `Cargo.toml` change — no new deps, `cargo tree` unaffected by construction. `fmt`/`clippy -D warnings` clean workspace-wide. `pdfcer-render`/`pdfcer-cli` and the touched `pdfcer-core` tests green. Full `tools/run-gates.sh` not run this filing — no shell (see Sourcing).
+
+**`docs/FEATURES.md`.** New row, *Export* section, directly after the existing SVG-export row: core `[x]` cli `[x]` gui `[ ]` Acrobat `[ ]` (Acrobat has no SVG export at all). Two new *Planned* rows added: EMF keep-text-as-text (`Pass 322.1`), and wrapping bare CFF/Type1 as OpenType so they too can be kept (Unscoped).
+
+**No decision-log entry** — a new export mode plus a font-subsetting helper, not a crate-boundary/library-choice/invariant call.
+
+**`C:\personal_rag\pdf\`.** No new lesson — pdfcer authoring its own output, not an observation about a real-world producer's divergence from spec.
+
+**`D:\Dev\FeatureRequests\pdfce_FeatureRequests\INDEX.md`.** Rows added this filing for `G033`–`G038` (all six were missing, per the prior five filings' own finding) — see the Ledger below.
+
+**Sourcing (hard rule 8).** No shell tool this filing (the environment's own shell claim did not match the actual function list — Bash absent). Confirmed via `Read`/`Grep` against live source: `SvgOptions`/`SvgText`/`SvgTextOutcome` and their fields, `svg_text.rs`, `font/webfont.rs`, `unicode_for_code`, the CLI flag and its counter line, the three doc-comment moves in `crates/pdfcer-cli/src/main.rs`. **Relayed from the dispatching engineer's report, not independently reproduced:** the exact sabotage pass/fail detail and the headless-Chrome check.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `321` (highest `.0`, `Pass 321.0` below), next free `322` before this entry | **`Pass 322.0` SHIPPED in `5425d2be` — next free family `323`** |
+| Standing rules | `R258` next free | unchanged — no rule minted, `R197` gains a dated instance (sixth doc-splice occurrence) |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `581` | **`582`** |
+| `docs/FEATURES.md` | no row for SVG keep-text; no EMF/CFF-wrapping Planned rows | **new *Export* row added (core `[x]` cli `[x]` gui `[ ]`); two new *Planned* rows added** |
+| `pdfce_FeatureRequests/INDEX.md` | missing rows for `G033`–`G038` | **six rows added, this filing** |
+
+---
+
+### `Pass 321.0` (`9edcc9b9`), 2026-09-23 — `/ToUnicode` written as a stream, so embedded add-text extracts
+
+**The defect.** Add-text with an embedded donor face (`--embed-font` / `AddTextRequest::with_embedded_face`) wrote the new font's `/ToUnicode` as a STRING object. ISO 32000-1 §9.10.3 requires a stream; every reader that follows the spec — including pdfcer's own extractor — silently ignores a `/ToUnicode` that isn't one, so text added in an embedded face extracted as nothing: copy, search and accessibility all lost it, with no error anywhere.
+
+**Found while building `G033`** (next entry, chronologically after this one) — the kept-text SVG export read `unicode_for_code(code) == None` for every glyph of an embedded add-text run, and the trail led here.
+
+**The fix.** `pdfcer_core::font_embed::build_objects` takes a 4th parameter, a staged `/ToUnicode` stream object id, the same way the font program is already staged; new pub `FontEmbedPlan::to_unicode_cmap(&self) -> Vec<u8>` builds the CMap bytes. Add-text now stages and writes it as a stream, not a string.
+
+**Tests.** `crates/pdfcer-render/tests/embed_font_roundtrip.rs::text_added_in_an_embedded_face_extracts_as_typed` — adds "CAB" in an embedded face, extraction must return it. **The prior test only checked that the literal string `"/ToUnicode"` appeared in the output — vacuous, and it passed on the defective code.** Sabotage: reverting the stream to a string fails the new test.
+
+**Gates.** No `Cargo.toml` change. `fmt`/`clippy -D warnings` clean. `pdfcer-render` embed-font tests green. Full `tools/run-gates.sh` not run this filing — no shell (see Sourcing).
+
+**`docs/FEATURES.md`.** No box change — the add-text-with-embedded-font row (*Text* section, "Add non-Latin text via a subsetted, embedded donor font") never claimed extractability, so this is a correctness fix under an existing gap-row, not a new capability.
+
+**No decision-log entry.**
+
+**`C:\personal_rag\pdf\`.** New lesson filed: a `/ToUnicode` written as a string instead of a stream is silently ignored by conforming readers — no error, just unreadable text. See the Ledger below.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Confirmed via `Read`/`Grep`: `build_objects`'s 4th parameter, `to_unicode_cmap`, the new test and its sabotage description, the add-text call site staging the stream. Not independently re-run.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `320` (highest `.0`), next free `321` | **`Pass 321.0` SHIPPED in `9edcc9b9` — next free family `322`** |
+| Standing rules | `R258` next free | unchanged — no rule minted |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `580` | **`581`** |
+| `docs/FEATURES.md` | add-text embedded-font row unchanged | unchanged (fix does not claim a new capability) |
+| `C:\personal_rag\pdf\` | no lesson on `/ToUnicode`-as-string being silently ignored | **new lesson filed, both indexes updated** |
+
+---
+
 ### `Pass 320.0` (`2fca11bf`), 2026-09-23 — merge consecutive text runs into one (`G035`)
 
 New Pass family, minted this filing. Answers `G035` (`pdfcer-gui` request): the reply is at `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G035_text_runs_can_be_merged_FIXED.md`.
@@ -15630,6 +15702,18 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### `Pass 322.1` — EMF export: write real text records instead of outline paths, the EMF half of `G033` — filed 2026-09-23 (582nd filing, `G033` reply, EMF half), *Backlog*, **NOT STARTED** — family 322, after `Pass 322.0`
+
+**Scope.** `Pass 322.0` (*Shipped*, above) shipped `KeepText` for SVG export only; EMF export (`pdfcer_render::emf`) still writes the outlines a kept SVG run would keep as real `<text>`. `Pass 322.0`'s webfont-subsetting machinery does not directly transfer — MS-EMF text is `EMR_EXTTEXTOUTW` (Unicode code units, not glyph ids) plus a font-selection record (`EMR_EXTCREATEFONTINDIRECTW`, which names a font by LOGFONT, not by embedding a program), a different mechanism from SVG's `@font-face` data URI. Needs a scoping read of [MS-EMF]'s text-record family before any code: whether/how a font program can travel WITH the metafile (vs. relying on a system-installed face, which is not embeddable and not portable) is the open question that decides whether this is even a "keep text as text with the SAME font" feature or a "keep text editable, substitute a system face" one.
+
+**A background research dispatch on MS-EMF text-record import is already in flight as of this filing** (task id `ae13ea6e44486b60f`, spec-librarian territory) — check its output before starting, to avoid re-deriving the same ground.
+
+**Acceptance criteria, once scoped:** parity with `Pass 322.0`'s SVG disclosure shape — a `EmfTextOutcome` counting kept vs. fallback-to-outline runs by reason, `--emf-text keep|outlines` on `export-image --format emf`, and a decision on whether a substituted system face is disclosed as a font-trust downgrade (rule 4) if pdfcer cannot embed the original program.
+
+### Unscoped — wrap bare CFF (`FontFile3`/Type1C) and Type 1 fonts as OpenType, so SVG (and eventually EMF) keep-text can embed them instead of falling back to outlines — filed 2026-09-23 (582nd filing, `Pass 322.0`'s own `fallback_not_sfnt` remainder), no Pass ID
+
+**Scope.** `Pass 322.0`'s `webfont.rs` only accepts a donor that is already an sfnt (TrueType/OpenType `glyf`/`CFF ` wrapped in an `sfnt` container); a bare CFF (`FontFile3` with `Subtype /Type1C`) or a Type 1 program (`FontFile`) falls to `fallback_not_sfnt` today, which is most of the Standard-14 substitution surface and any PDF shipping a raw Type 1/CFF program directly. Wrapping either as a minimal OpenType container (`OTTO` for CFF, a synthesised `glyf`/`loca` for Type 1) so they can be embedded the same way is a well-trodden font-tooling technique (see `D:\dev\rag\rust\` for prior OTS-sanitizer findings from `Pass 322.0`) but was out of scope for the first shipping cut.
 
 ### ~~Unscoped — `pdfcer --help`'s top-level `long_about` still claims most subcommands are stubs~~ — CLOSED 2026-09-17 (568th filing, `Pass 309.0` `46072a07` + `Pass 309.1` `3284d5b9`) — filed 2026-09-17 (567th filing, found during the v0.54.0 packaging smoke test), no Pass ID
 
