@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-23 (586th filing) — `Pass 324.0`/`324.1` (`854773e2`/`b70eb431`): font collections render and SVG keep-text takes Type 1; 4 unfiled commits filed; 2 oversized `FEATURES.md` rows trimmed; `Pass 325.0` (crate split) filed to Backlog
+
+**Shipped:**
+- `Pass 324.0` (`854773e2`) — a supplied `.ttc`/`.otc` donor never rendered (`FontProgram::parse` routed `ttcf` to `skrifa::FontRef::new`, which refuses collections); fixed with `FontRef::from_index(data, 0)`. SVG keep-text takes the same collection donor now, via the existing sfnt route.
+- `Pass 324.1` (`b70eb431`) — SVG keep-text now also keeps Type 1 (embedded `/FontFile`, or a supplied `.pfb`/`.pfa`), re-encoded as bare CFF and embedded as OpenType; refuses on non-1000 em or non-identity `FontMatrix`. `fallback_not_sfnt` now counts nothing on ordinary documents.
+
+**Decisions made this session:**
+- None new-architectural — both Passes are font-pipeline mechanism extensions (rule: no decision-log entry warranted). `Pass 325.0` (below, Backlog) is filed as a plan, not yet a decision; its own entry states the final crate shape is deliberately left open pending step 1's measurement.
+
+**Findings + decisions:**
+- `skrifa::FontRef::new` refuses a `ttcf` collection outright rather than defaulting to a face — `FontRef::from_index(data, 0)` is the fix, and it's safe because a TTC's per-face table-directory offsets count from the file start, same as a plain sfnt's. New `D:\dev\rag\rust\skrifa_fontref_new_refuses_font_collections_use_from_index.md`, indexed.
+- Two `docs/FEATURES.md` rows were over `tools/check-register-entry-size.py`'s 1,200-char cap and NOT in the baseline (genuine new failures, confirmed by reading the baseline file): the malformed-PDF-recovery row (1,247 chars) and the redaction residual-scope row (1,374 chars). Both trimmed to a verdict + a pointer at the `ROADMAP.md` entry that already carries the full narrative (`Pass 283.0`/`283.1`, `Pass 310.0`–`310.2`) — no detail lost, both source entries confirmed still present and unabridged before trimming.
+- Four commits flagged unfiled by `tools/check-commits-filed.py` — `96867932` (doc-only, drops a duplicated "# Errors" heading), `28dacdd4` (307-file regex pass stripping star-decoration markers, no words removed), `cbefe6d5` (condenses `CLAUDE.md` + `pdfcer-engineer.md`, 549+574 → 210+263 lines), `aee67efd` (moves bold emphasis off a CLI help paragraph's first word) — are filed by this entry's own citation of their hashes; no `ROADMAP.md` Pass entry needed for any (all doc/chore-only, no feature). `3b52ff20` (spec-librarian memory) is explicitly out of this role's territory, not filed here.
+
+**Still in flight:**
+- `Pass 325.0` (Backlog, filed this session) — split `pdfcer-core` (253,653 `.rs` lines, `edit.rs` alone 58,056) into a model crate plus narrow feature crates behind a facade, per the operator's own question about why it was ever one crate. 7-step plan, **NOT STARTED**. `ARCHITECTURE.md` §3 confirmed (this session) to have specced the single-crate shape from Pass 0 — no broken promise, a default nobody revisited.
+
+**For next session:** Next free Pass family is **326** (`325.0` is filed but unbuilt). `docs/FEATURES.md`'s fonts row and SVG keep-text row both updated this filing (see the `Pass 324.0`/`324.1` Shipped entry's own table). A dated 2026-09-23 addendum covering both Passes was appended to `pdfce_FeatureRequests/open/reply_G033_..._FIXED.md`.
+
+**Sourcing (hard rule 8).** No shell tool this filing (no Bash in the function list — same mismatch the 576th/583rd/584th/585th filings recorded). Confirmed via `Read`/`Grep` against live source: `FontRef::from_index`, `type1_cff.rs`, `WebFontError::Type1Convert`, `is_embeddable_program`'s PFB/PFA/`ttcf` acceptance, all in `crates/pdfcer-render/src/font/`; `ARCHITECTURE.md` §3's Pass-0 single-crate workspace layout; the four unfiled-commit hashes and subjects against `git status`'s own recent-commit listing (relayed by the environment, not a `git show`); the two `docs/FEATURES.md` over-cap rows against `tools/check-register-entry-size.py`'s own baseline file (confirmed absent from it before trimming). **Relayed from the dispatching engineer's report, not independently reproduced:** the exact test counts and sabotage detail for both Passes, and the `fmt`/`clippy` clean claims. No commit was made this filing (`git commit -F` not run — no shell; the engineer commits).
+
 ## 2026-09-23 (585th filing) — `Pass 323.0` (`38e385b2`): SVG keep-text also keeps text drawn from bare-CFF fonts (`G033` follow-up)
 
 **Shipped:**

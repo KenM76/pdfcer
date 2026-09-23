@@ -115,6 +115,63 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 324.0` (`854773e2`), 2026-09-23 — a supplied font COLLECTION (`.ttc`/`.otc`) now renders at all; SVG keep-text takes it too
+
+**The defect.** `FontProgram::parse` routed a `ttcf`-signature program straight to `skrifa::FontRef::new`, which refuses a collection outright (see `D:\dev\rag\rust\skrifa_fontref_new_refuses_font_collections_use_from_index.md`, filed this session) — so every glyph of a supplied `.ttc`/`.otc` donor counted `UnusableProgram`, even though the CLI's `--font-dir` has scanned and registered `.ttc`/`.otc` files as donors all along.
+
+**The fix.** `FontRef::from_index(data, 0)` — face 0 of the collection, the same choice `webfont::Directory::parse` already made for SVG's own reader (a TTC's per-face table-directory offsets count from the FILE start, same as a plain sfnt's, so face 0 resolves identically once selected this way — spec-librarian consulted on the OpenType framing). `subsetter` then writes a plain (non-collection) sfnt from that face, and `svg_text::is_embeddable_program` accepts `ttcf` at the gate.
+
+**Tests.** Unit: builds a two-face collection from `subset-donor.ttf`, confirms face 0 is the one taken — a fixture with a RESTRICTED face first is refused, proving the choice isn't accidental. Integration: supplies the collection as the donor for a non-embedded `/Donor`-named font, requires every run kept, glyph outlines equal to the donor's own, within 0.05px of the outline export. Sabotage: each of the three fixes (parse routing, face-0 selection, the SVG gate) reverted in turn; the integration test failed each time.
+
+**Gates.** No `Cargo.toml` change — `cargo tree` unaffected by construction. `fmt`/`clippy -p pdfcer-render -D warnings` clean per the dispatching engineer's report.
+
+**Invariants.** GUI-core separation unaffected. Round-trip/minimal-diff unaffected — a rendering/embedding-source fix, not a writer change.
+
+**`docs/FEATURES.md`.** Fonts & rendering row ("Embed a font that's referenced but missing") gained a clause: a `--font-dir` face that is a collection now actually renders, where it previously counted every glyph unusable and embedded nothing. SVG keep-text row updated together with `Pass 324.1`, below.
+
+**No decision-log entry** — a parser-routing bug fix, not a crate-boundary/library-choice/invariant call.
+
+**`C:\personal_rag\pdf\`.** No new lesson — this is a `skrifa` crate-API gotcha (filed to `D:\dev\rag\rust\` above), not an observation about a real-world producer's divergence from spec.
+
+**Sourcing (hard rule 8).** No shell tool this filing (function list has no Bash). Confirmed via `Grep` against live source: `FontRef::from_index` appears in `crates/pdfcer-render/src/font/program.rs` and `subset.rs`; `webfont::Directory::parse` and `is_embeddable_program`'s `ttcf` acceptance confirmed in `webfont.rs`/`svg_text.rs`. **Relayed from the dispatching engineer's report, not independently reproduced:** the exact unit/integration test shapes, the sabotage-per-fix detail, and the `fmt`/`clippy` clean claim. **Ledger: see the combined table under `Pass 324.1`, immediately below.**
+
+### `Pass 324.1` (`b70eb431`), 2026-09-23 — SVG keep-text keeps Type 1 fonts too, closing the last `fallback_not_sfnt` case (`G033` follow-up)
+
+**The feature.** A Type 1 program — embedded `/FontFile`, or a supplied `.pfb`/`.pfa` donor — is re-encoded as bare CFF (new `crates/pdfcer-render/src/font/type1_cff.rs`: Type 2 charstrings, a format-0 charset, width as the first charstring operand) and embedded in the SVG as OpenType, the same route `Pass 323.0` built for bare CFF/CIDFontType0C. Refuses (new `WebFontError::Type1Convert`, surfacing as `fallback_font_build`) on an em unit other than 1000 or a non-identity `FontMatrix` scale — those stay outlines. `svg_text::is_embeddable_program` now also accepts PFB and PFA signatures at the gate.
+
+**Semantics.** `SvgTextOutcome::fallback_not_sfnt` — narrowed to Type 1 only by `Pass 323.0` — now counts nothing on ordinary documents; a non-1000-em or non-identity-matrix Type 1 program falls into `fallback_font_build` instead. Field names unchanged, no API break. `docs/FEATURES.md`'s SVG row's stale "`fallback_not_sfnt` now means Type 1 only" clause is removed this filing — it no longer does, now that Type 1 is kept.
+
+**Tests.** `crates/pdfcer-render/tests/export_svg_keep_text.rs`, 9/9: embedded `/FontFile` kept; a supplied PFB donor kept, its A/B/C outlines matching the donor's point-for-point, advance 600; a non-1000-em program stays on outlines and is counted under `fallback_font_build`. Sabotage: 4 independent breaks (charstring width handling, the format-0 charset, the em-unit refusal, the PFB/PFA signature gate) each caught by the suite.
+
+**Gates.** No `Cargo.toml` change — `cargo tree` unaffected by construction (Type 1 parsing already lived in the dependency tree via `skrifa::raw::ps::type1`, see `D:\dev\rag\rust\skrifa_raw_reexport_bare_type1_cff.md`). `fmt`/`clippy -p pdfcer-render -D warnings` clean per the dispatching engineer's report.
+
+**Invariants.** GUI-core separation unaffected. Round-trip/minimal-diff unaffected — export path only.
+
+**`docs/FEATURES.md`.** SVG export keep-text row (*Export*) gained a clause: font collections (`Pass 324.0`) and Type 1 (embedded or supplied, 1000-unit em) are kept too, naming the CFF re-encode route. The Planned row for "wrap a Type 1 (`FontFile`) font program as OpenType" is removed — shipped here.
+
+**No decision-log entry** — a font-conversion mechanism extension, not a crate-boundary/library-choice/invariant call.
+
+**`C:\personal_rag\pdf\`.** No new lesson — pdfcer authoring its own SVG output, not an observation about a real-world producer's divergence from spec (same reasoning as `Pass 322.0`–`323.0`).
+
+**`D:\Dev\FeatureRequests\pdfce_FeatureRequests\`.** A dated 2026-09-23 addendum was appended to `open/reply_G033_svg_and_emf_export_can_keep_text_as_text_FIXED.md` this filing, covering both `Pass 324.0` and `324.1` together.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Confirmed via `Grep` against live source: `type1_cff.rs`, `WebFontError::Type1Convert`, and `is_embeddable_program`'s PFB/PFA acceptance all exist in `crates/pdfcer-render/src/font/webfont.rs`/`svg_text.rs`/`program.rs`. **Relayed from the dispatching engineer's report, not independently reproduced:** the exact 9/9 test count, the point-for-point outline-match measurement, the 4-way sabotage detail, and the `fmt`/`clippy` clean claim.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `323` (`Pass 323.0` shipped in `38e385b2`), next free `324` | **`Pass 324.0` SHIPPED in `854773e2`, `Pass 324.1` SHIPPED in `b70eb431` — next free family `325`** |
+| Standing rules | `R258` next free | unchanged — no rule minted |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `585` | **`586`** |
+| `docs/FEATURES.md` | fonts row silent on collection donors; SVG keep-text row silent on collections/Type 1, carried a stale "`not_sfnt` means Type 1 only" clause; Planned Type-1-wrap row present | **fonts row gained a clause; SVG row gained a clause and dropped the stale one; Planned Type-1-wrap row removed** |
+| `pdfce_FeatureRequests` reply | addendum ended at `Pass 323.0`'s CFF note | **new 2026-09-23 addendum appended, covering `Pass 324.0`/`324.1`** |
+| unfiled commits (`tools/check-commits-filed.py`) | `96867932`, `28dacdd4`, `cbefe6d5`, `aee67efd` cited nowhere in the record | **all four cited in this filing's `SESSION_LOG.md` entry (586th)** |
+| `D:\dev\rag\rust\` | no finding on `FontRef::new` refusing collections | **new finding filed, index updated** |
+
+---
+
 ### `Pass 323.0` (`38e385b2`), 2026-09-23 — SVG keep-text also keeps text drawn from bare-CFF fonts (`G033` follow-up)
 
 Answers the Unscoped Backlog entry filed alongside `Pass 322.0` (below): SVG keep-text (`Pass 322.0`) refused every donor whose font program was not an sfnt (`Fallback::NotSfnt`), which caught embedded `FontFile3` `/Type1C`/`/CIDFontType0C` programs AND every non-embedded Standard-14 font, because pdfcer's own bundled Foxit substitutes are bare CFF. Plain Helvetica/Times/Courier text was therefore always outlined, not just the CAD-exotic case.
@@ -15784,6 +15841,27 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### `Pass 325.0` — split `pdfcer-core` into a model crate plus narrow feature crates, behind a facade — filed 2026-09-23 (586th filing), **NOT STARTED** — new family, 7-step plan, operator ask verbatim: *"Why was this ever done as one big crate when it goes against best practices?"*
+
+**Measured, 2026-09-23** (`.rs` line counts): `pdfcer-core` **253,653** total, of which `edit.rs` alone is **58,056**, `text_edit/` **25,986**, `vector/` **17,270**, `dimension/` **8,884**, `image_import/` **7,283**, `text_extract/` **7,274**, `crypto/` **6,996**, `image_codec/` **6,607**, `writer/` **6,319**, `form_script/` **6,273**, `settings/` **5,461**, `sign/` **3,539**, `ocr/` **3,042**. `pdfcer-render` **57,909**. `pdfcer-cli` **45,711**, one file (`main.rs`).
+
+**The honest why, so nobody re-derives a conspiracy where there was a default.** `ARCHITECTURE.md` §3's own workspace layout, written at Pass 0, already specced `pdfcer-core` as ONE crate holding the COS model, tokenizer, xref, filters, fonts, colour spaces, encryption/signature verification AND the content-stream interpreter — a deliberate single unit so the eventual WASM fork is a shell swap, not a promise of a finer split held back. No Pass ever scheduled a split; 325 Passes each added a module to the crate that already existed there by design, and the crate grew by accretion, not by anyone deciding against splitting it. §3 promised exactly the shape that exists today — this Pass is a NEW decision, not a correction of a broken one.
+
+**The plan, 7 steps, each its own commit:**
+1. Measure and break dependency edges FROM lower modules INTO `edit`/`settings` — grep `crate::edit`/`crate::settings` usage outside those modules, so the extraction order in step 3 is evidence-based, not guessed.
+2. Extract a **model crate** — COS objects, parser, xref (table + stream), object streams, filters, the incremental-update writer — the layer everything else depends on and that depends on nothing else in `pdfcer-core`.
+3. Split out **leaf feature crates** with narrow dependency footprints first — `sign`, `ocr`, `image_codec` — then `crypto`, `form_script`, `dimension`, `vector`, `text_edit` as step 1's edge map allows.
+4. Keep `pdfcer-core` as a **facade** re-exporting the old module paths, so `pdfcer-gui` and the CLI keep compiling unchanged — this is a public contract under `docs/core-api/` and must be held to the same discipline as any other `pdfcer-core` API surface (rule 10, `D:\dev\rag\rust\rust-style-guide-and-api-guidelines.md`).
+5. Split `pdfcer-cli`'s 45,711-line `main.rs` into nested subcommand modules.
+6. Move large in-source `#[cfg(test)]` modules into `tests/` where they only exercise the crate's public API — a mechanical move, not a rewrite.
+7. Housekeeping: prune the `target`/cache, dedupe the `sha2`/`digest` lockfile version split.
+
+**Acceptance criteria.** Each step green on `tools/run-gates.sh` before the next starts. `cargo tree -p` clean (no GUI/network dependency) for every engine crate after the split — same invariant as today (rule 2), checked per new crate, not just the old two. The no-network CI job still passes. `cargo check --target wasm32-unknown-unknown` still builds against the model crate. Incremental build time for a one-line edit in a leaf crate measured before and after — the plan's own justification (best practices, faster iteration) is unproven until this number exists.
+
+**Scope note.** Structural, not a feature Pass — no user-visible behaviour change, so `docs/FEATURES.md` gets no new row for this. `ARCHITECTURE.md` §3 needs a body update at each extraction step (crate list, dependency diagram); a §12 decision-log entry records the FINAL shape once chosen, not filed now — the shape depends on what step 1's dependency-edge measurement finds, and minting a decision ahead of that measurement would be recording a choice before it exists.
+
+**Risk, named rather than discovered mid-split.** `edit.rs` at 58,056 lines is more than a fifth of the crate by itself, and is exactly the module step 1 exists to map — do not attempt to give it its own crate before that map exists; it is very likely the thing every leaf crate needs a narrow slice of, not a leaf itself.
 
 ### ~~`Pass 322.1` — EMF export: write real text records instead of outline paths, the EMF half of `G033`~~ — SHIPPED 2026-09-23 (`88bd4144`) — see *Shipped*, top of this file — filed 2026-09-23 (582nd filing, `G033` reply, EMF half), scoped and shipped same day — family 322, after `Pass 322.0`
 
