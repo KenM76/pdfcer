@@ -23,6 +23,8 @@ pub mod select;
 /// Donor-face subsetting for FF-C (Pass 21.x, decision 021). Produces the
 /// plain-data `FontEmbedPlan` that `pdfcer-core::font_embed` emits from.
 pub mod subset;
+/// Web-loadable sfnt subsets for SVG `<text>` export (G033).
+pub(crate) mod webfont;
 
 // The annotation scope lives in `crate::annot` — beside the markup
 // classification it selects over and the walk that enforces it — rather

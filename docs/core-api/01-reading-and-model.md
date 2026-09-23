@@ -1544,6 +1544,7 @@ use pdfcer_core::text_extract::ExtractFont;
 let font = ExtractFont::resolve(&doc.view(), &font_dict);  // font.rs:381 — INFALLIBLE
 let composite = !font.is_simple();                          // font.rs:800
 if let Some(cmap) = font.to_unicode_cmap() { /* :369 */ }
+let text = font.unicode_for_code(code);                     // Option<String>: None when the ladder FAILS (no sentinel)
 ```
 
 Only `base_font: String` and `notes: Vec<FontNote>` are public fields

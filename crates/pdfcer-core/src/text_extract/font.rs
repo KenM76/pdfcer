@@ -401,6 +401,20 @@ impl ExtractFont {
     pub fn to_unicode_cmap(&self) -> Option<&ToUnicodeCMap> {
         self.to_unicode.as_ref()
     }
+
+    /// The Unicode text one character code maps to, or `None` when the
+    /// ISO 32000-1 §9.10.2 ladder has no answer for it.
+    ///
+    /// Unlike extraction, which must emit *something* for a failed code,
+    /// a caller writing the text into another format (an SVG `<text>`)
+    /// needs to know the mapping failed so it can fall back rather than
+    /// write a sentinel as if it were the character.
+    #[must_use]
+    pub fn unicode_for_code(&self, code: u32) -> Option<String> {
+        let (text, rung) = self.to_unicode(code, UnmappableCode::Omit);
+        (rung != LadderRung::Failed).then_some(text)
+    }
+
     /// Resolve a font dictionary for extraction.
     ///
     /// Infallible: unlike the rendering side there is no "this font is

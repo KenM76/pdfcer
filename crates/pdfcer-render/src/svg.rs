@@ -61,9 +61,20 @@
 //! | a clip | `<clipPath id clip-path="url(#parent)">` — intersection with the enclosing clip is expressed on the `<clipPath>` element itself, so a leaf reference carries the whole chain |
 //! | a kept soft mask | `<mask maskUnits="userSpaceOnUse" style="color-interpolation:sRGB"><image …grey PNG…>` — luminance from the coverage bytes, 1:1 |
 //!
-//! Text is glyph outlines. That is what "renders identically everywhere"
-//! costs, and what every PDF→SVG converter people trust does by default;
-//! the CLI says so once per export.
+//! Text is glyph outlines by default. That is what "renders identically
+//! everywhere" costs, and what every PDF→SVG converter people trust does by
+//! default; the CLI says so once per export.
+//!
+//! [`SvgText::KeepText`] writes each run it can as one `<text>` element
+//! (selectable, searchable) in a subset web font embedded as an
+//! `@font-face` data URI inside a `<style>` — see `svg_text` for which runs
+//! qualify and `font::webfont` for the font rebuild. Each character gets its
+//! own `x` from the PDF's own positions, and kerning, ligatures and
+//! contextual alternates are switched off in CSS, so the consumer's shaper
+//! cannot move a glyph. Runs that do not qualify stay outlines and are
+//! counted per reason in [`SvgTextOutcome`]. Consumers that ignore
+//! `<style>` (Word's importer) or data-URI fonts (Inkscape) show kept text
+//! in a substitute font; that is why outlines stay the default.
 //!
 //! ## 4. What Word's importer needs, and why the file is shaped this way
 //!
@@ -116,6 +127,68 @@ pub struct SvgOptions {
     /// transparent page — the default, because SVG carries transparency
     /// natively and painting paper into a vector file is a choice.
     pub background: Option<Rgb>,
+    /// Whether text is written as glyph outlines or as `<text>` with its
+    /// fonts embedded. Outlines by default: they render identically
+    /// everywhere, including Word's importer, which ignores `<style>`.
+    pub text: SvgText,
+}
+
+/// How an SVG writes text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum SvgText {
+    /// Every glyph is a filled path. Renders the same everywhere; the text
+    /// is not selectable or searchable.
+    #[default]
+    Outlines,
+    /// Each run that can be kept renders as one `<text>` element, its
+    /// font subset and embedded as an `@font-face` data URI. A run that
+    /// cannot be kept is written as outlines and counted in
+    /// [`SvgTextOutcome`].
+    KeepText,
+}
+
+/// What [`SvgText::KeepText`] did. All zero under [`SvgText::Outlines`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct SvgTextOutcome {
+    /// Runs written as `<text>`.
+    pub runs_as_text: usize,
+    /// Fonts embedded as `@font-face`.
+    pub fonts_embedded: usize,
+    /// Runs left as outlines: the font is Type 1 or bare CFF, not an sfnt.
+    pub fallback_not_sfnt: usize,
+    /// Runs left as outlines: stroked, clipping, pattern, shading or
+    /// soft-masked text, or colour/blend/clip changing within the run.
+    pub fallback_paint: usize,
+    /// Runs left as outlines: a glyph with no single known character (a
+    /// ligature, an unmapped code, a character outside the BMP).
+    pub fallback_unmapped: usize,
+    /// Runs left as outlines: a character already shown with a different
+    /// glyph of the same font.
+    pub fallback_conflict: usize,
+    /// Runs left as outlines: glyphs not on one baseline at one size (a
+    /// vertical font, per-glyph rotation, a rise change mid-run).
+    pub fallback_geometry: usize,
+    /// Runs left as outlines: the font could not be rebuilt for the web.
+    pub fallback_font_build: usize,
+    /// Runs left as outlines: the font's licence forbids embedding
+    /// (`OS/2.fsType` restricted).
+    pub fallback_restricted: usize,
+}
+
+impl SvgTextOutcome {
+    /// Runs left as outlines, every reason summed.
+    #[must_use]
+    pub fn runs_as_outlines(&self) -> usize {
+        self.fallback_not_sfnt
+            + self.fallback_paint
+            + self.fallback_unmapped
+            + self.fallback_conflict
+            + self.fallback_geometry
+            + self.fallback_font_build
+            + self.fallback_restricted
+    }
 }
 
 impl Default for SvgOptions {
@@ -123,6 +196,7 @@ impl Default for SvgOptions {
         Self {
             raster_dpi: 300.0,
             background: None,
+            text: SvgText::Outlines,
         }
     }
 }
@@ -139,6 +213,13 @@ impl SvgOptions {
     #[must_use]
     pub fn with_background(mut self, background: Option<Rgb>) -> Self {
         self.background = background;
+        self
+    }
+
+    /// Choose outlines or kept text.
+    #[must_use]
+    pub fn with_text(mut self, text: SvgText) -> Self {
+        self.text = text;
         self
     }
 }
@@ -170,6 +251,8 @@ pub struct SvgOutcome {
     /// The interpreter's honesty report for the walk that produced this
     /// file — the same counters a render returns.
     pub diagnostics: Diagnostics,
+    /// What [`SvgText::KeepText`] kept and what it left as outlines.
+    pub text: SvgTextOutcome,
 }
 
 /// An exported page.
@@ -235,8 +318,10 @@ pub fn export_svg_view(
     } else {
         300.0 / 72.0
     };
-    let recording = record_page_for_export(view, page, scale, render)?;
+    let keep_text = svg.text == SvgText::KeepText;
+    let recording = record_page_for_export(view, page, scale, render, keep_text)?;
     let (w, h) = recording.page_size;
+    let text_plan = keep_text.then(|| crate::svg_text::plan(&recording.ops));
 
     let mut writer = Writer {
         clips: &recording.clips,
@@ -251,7 +336,10 @@ pub fn export_svg_view(
         images: 0,
         dashed: 0,
         blends: 0,
+        text_plan: text_plan.as_ref(),
+        text_cursor: 0,
     };
+    writer.write_font_faces();
     if let Some(bg) = svg.background {
         let _ = writeln!(
             writer.body,
@@ -291,6 +379,10 @@ pub fn export_svg_view(
             blend_modes_used: writer.blends,
             tally: recording.tally,
             diagnostics: recording.diagnostics,
+            text: text_plan
+                .as_ref()
+                .map(crate::svg_text::TextPlan::outcome)
+                .unwrap_or_default(),
         },
     })
 }
@@ -314,6 +406,11 @@ struct Writer<'a> {
     images: usize,
     dashed: usize,
     blends: usize,
+    /// The kept-text plan, `None` under [`SvgText::Outlines`].
+    text_plan: Option<&'a crate::svg_text::TextPlan>,
+    /// The next [`Op::Text`]'s index into the plan; the plan was made in
+    /// this writer's traversal order.
+    text_cursor: usize,
 }
 
 impl Writer<'_> {
@@ -396,6 +493,15 @@ impl Writer<'_> {
                 } => self.write_stroke(path, brush, stroke, *ctm, *clip, depth),
                 Op::Layer { paint, ops, mask } => {
                     self.write_layer(*paint, ops, mask.as_ref(), depth);
+                }
+                Op::Text { ops, .. } => {
+                    let index = self.text_cursor;
+                    self.text_cursor += 1;
+                    let planned = self.text_plan.and_then(|p| p.resolved(index).ok());
+                    match planned {
+                        Some(run) => self.write_text(run, depth),
+                        None => self.write_ops(ops, depth),
+                    }
                 }
             }
         }
@@ -735,6 +841,81 @@ impl Writer<'_> {
         self.body.push_str("</g>\n");
     }
 
+    /// One `@font-face` per font some run is written with, in a `<style>`.
+    fn write_font_faces(&mut self) {
+        let Some(plan) = self.text_plan else {
+            return;
+        };
+        let mut used = vec![false; plan.fonts.len()];
+        for i in 0..plan.runs.len() {
+            if let Ok(run) = plan.resolved(i) {
+                used[run.font] = true;
+            }
+        }
+        let mut css = String::new();
+        for (font, _) in plan.fonts.iter().zip(&used).filter(|(_, u)| **u) {
+            let Ok(web) = &font.font else { continue };
+            let (mime, format) = if web.cff {
+                ("font/otf", "opentype")
+            } else {
+                ("font/ttf", "truetype")
+            };
+            let _ = writeln!(
+                css,
+                "@font-face{{font-family:'{}';src:url(data:{mime};base64,{}) format('{format}');}}",
+                font.css_name,
+                base64(&web.data)
+            );
+        }
+        if !css.is_empty() {
+            self.defs.push_str("<style>\n");
+            self.defs.push_str(&css);
+            self.defs.push_str("</style>\n");
+        }
+    }
+
+    /// One run as `<text>`: the first glyph's space flipped to y-down, the
+    /// font size one em in font units, each character at its own `x`.
+    fn write_text(&mut self, run: &crate::svg_text::TextRunPlan, depth: usize) {
+        let Some(plan) = self.text_plan else {
+            return;
+        };
+        self.ops += 1;
+        let font = &plan.fonts[run.font];
+        let clip_attr = self.clip_attr(run.clip);
+        let blend_attr = self.blend_attr(run.blend);
+        let wrapped = !clip_attr.is_empty() || !blend_attr.is_empty();
+        self.indent(depth);
+        if wrapped {
+            let _ = write!(self.body, "<g{clip_attr}{blend_attr}>");
+        }
+        let xs: Vec<String> = run.xs.iter().map(|x| num(*x)).collect();
+        let mut text = String::with_capacity(run.chars.len());
+        for c in &run.chars {
+            match c {
+                '&' => text.push_str("&amp;"),
+                '<' => text.push_str("&lt;"),
+                '>' => text.push_str("&gt;"),
+                c => text.push(*c),
+            }
+        }
+        let _ = write!(
+            self.body,
+            r#"<text xml:space="preserve" transform="{}" x="{}" y="0" font-family="{}, '{}'" font-size="{}" fill="{}"{} style="white-space:pre;font-kerning:none;font-variant-ligatures:none;font-feature-settings:'liga' 0,'clig' 0,'calt' 0,'kern' 0">{text}</text>"#,
+            matrix_precise(run.origin.pre_scale(1.0, -1.0)),
+            xs.join(" "),
+            font.css_name,
+            font.family,
+            num(run.upem),
+            rgb_css(&run.rgba),
+            opacity_attr("fill-opacity", run.rgba[3]),
+        );
+        if wrapped {
+            self.body.push_str("</g>");
+        }
+        self.body.push('\n');
+    }
+
     fn blend_attr(&mut self, blend: BlendMode) -> String {
         match blend_css(blend) {
             Some(m) => {
@@ -842,6 +1023,28 @@ fn matrix(t: Transform) -> String {
         num(t.sy),
         num(t.tx),
         num(t.ty)
+    )
+}
+
+/// [`matrix`] at full `f32` precision (shortest round-trip form): a text
+/// transform scales font units (thousands per em) down to pixels, so its
+/// linear part is small and three decimals would distort glyph size.
+fn matrix_precise(t: Transform) -> String {
+    let n = |v: f32| {
+        if v.is_finite() && v != 0.0 {
+            format!("{v}")
+        } else {
+            "0".to_owned()
+        }
+    };
+    format!(
+        "matrix({} {} {} {} {} {})",
+        n(t.sx),
+        n(t.ky),
+        n(t.kx),
+        n(t.sy),
+        n(t.tx),
+        n(t.ty)
     )
 }
 

@@ -3983,6 +3983,15 @@ enum Command {
         /// `render-page --print-state`.
         #[arg(long)]
         print_state: bool,
+        /// SVG only: how text is written. `outlines` (default) draws every
+        /// glyph as a path, which looks the same in every program. `keep`
+        /// writes each line it can as real, selectable text in a subset
+        /// copy of the PDF's own font embedded in the SVG; lines it cannot
+        /// keep stay outlines and are counted on an `svg-text:` line.
+        /// Browsers show kept text exactly; Word and Inkscape show it in a
+        /// substitute font.
+        #[arg(long, value_enum, default_value_t = SvgTextArg::Outlines)]
+        svg_text: SvgTextArg,
     },
 
     /// Copy a page to the OS clipboard so it pastes as EDITABLE VECTORS into
@@ -10012,11 +10021,6 @@ enum RoundTripMode {
     AppendIdentity,
 }
 
-/// `/Producer` policy, as a CLI value.
-/// `--units` for `export-dxf`, mapped to the DXF header's `$INSUNITS`.
-///
-/// Short names because they are typed: `--units mm` reads better than
-/// `--units millimetres` and is what a drawing office would say.
 /// Which image file `export-image` writes (`Pass 248.0`).
 ///
 /// Two formats, one transparency story: PNG carries alpha and JPEG
@@ -10062,6 +10066,28 @@ impl ImageFormatArg {
     }
 }
 
+/// `export-image --svg-text`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+enum SvgTextArg {
+    /// Every glyph a filled path.
+    Outlines,
+    /// Real text in an embedded subset font where possible.
+    Keep,
+}
+
+impl From<SvgTextArg> for pdfcer_render::svg::SvgText {
+    fn from(arg: SvgTextArg) -> Self {
+        match arg {
+            SvgTextArg::Outlines => Self::Outlines,
+            SvgTextArg::Keep => Self::KeepText,
+        }
+    }
+}
+
+/// `--units` for `export-dxf`, mapped to the DXF header's `$INSUNITS`.
+///
+/// Short names because they are typed: `--units mm` reads better than
+/// `--units millimetres` and is what a drawing office would say.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 enum DxfUnitArg {
     /// Inches ($INSUNITS 1).
@@ -10070,6 +10096,7 @@ enum DxfUnitArg {
     Mm,
 }
 
+/// `/Producer` policy, as a CLI value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 enum ProducerArg {
     /// Write /Producer (pdfcer <version>) into an existing /Info.
@@ -11313,6 +11340,7 @@ fn run() -> ExitCode {
             show_layers,
             hide_layers,
             print_state,
+            svg_text,
         } => cmd_export_image(ExportImageArgs {
             input: &input,
             pages: &pages,
@@ -11333,6 +11361,7 @@ fn run() -> ExitCode {
             show_layers: &show_layers,
             hide_layers: &hide_layers,
             print_state,
+            svg_text,
         }),
         Command::CopyPage {
             input,
@@ -16089,6 +16118,8 @@ struct ExportImageArgs<'a> {
     show_layers: &'a [String],
     hide_layers: &'a [String],
     print_state: bool,
+    /// Outlines or kept text (SVG only).
+    svg_text: SvgTextArg,
 }
 
 /// `export-image`: render each selected page and write it as a PNG or JPEG
@@ -16140,9 +16171,19 @@ fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
         show_layers,
         hide_layers,
         print_state,
+        svg_text,
     } = args;
 
     // ---- operator-mistake refusals, all before any I/O ----
+    if svg_text == SvgTextArg::Keep && format != ImageFormatArg::Svg {
+        // Refused by name: a raster or EMF has no text to keep, and
+        // accepting the flag would look like it did something.
+        eprintln!(
+            "pdfcer: {}: --svg-text keep applies to --format svg only",
+            input.display()
+        );
+        return exit::RUNTIME_ERROR;
+    }
     if transparent && format == ImageFormatArg::Jpeg {
         // Refused by name. JPEG has no alpha channel; flattening silently
         // would hand back a file that looks exactly like the flag working.
@@ -16331,7 +16372,8 @@ fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
             // state, so it is accepted and means "no --background".
             let svg_options = pdfcer_render::svg::SvgOptions::default()
                 .with_raster_dpi(dpi)
-                .with_background(if transparent { None } else { background });
+                .with_background(if transparent { None } else { background })
+                .with_text(svg_text.into());
             let export =
                 match pdfcer_render::svg::export_svg(&doc, page, &render_options, &svg_options) {
                     Ok(e) => e,
@@ -16387,9 +16429,32 @@ shadings_as_gradients={}",
             );
             // Rule 4 in prose, once per page: what is inferred or
             // approximated in the file, by name.
-            eprintln!(
-                "pdfcer: note: page {page_number}: text is exported as glyph OUTLINES (not editable as text); every raster inside the SVG is sampled at {dpi} dpi"
-            );
+            if svg_text == SvgTextArg::Keep {
+                let k = &o.text;
+                println!(
+                    "svg-text: kept={} outlines={} fonts={} not_sfnt={} paint={} unmapped={} conflict={} geometry={} font_build={} restricted={}",
+                    k.runs_as_text,
+                    k.runs_as_outlines(),
+                    k.fonts_embedded,
+                    k.fallback_not_sfnt,
+                    k.fallback_paint,
+                    k.fallback_unmapped,
+                    k.fallback_conflict,
+                    k.fallback_geometry,
+                    k.fallback_font_build,
+                    k.fallback_restricted
+                );
+                eprintln!(
+                    "pdfcer: note: page {page_number}: {} text run(s) kept as text in {} embedded font(s), each character at its PDF position; the characters come from the PDF's /ToUnicode and encoding, so text a PDF maps wrongly is written wrongly. {} run(s) stay glyph OUTLINES. Every raster inside the SVG is sampled at {dpi} dpi",
+                    k.runs_as_text,
+                    k.fonts_embedded,
+                    k.runs_as_outlines()
+                );
+            } else {
+                eprintln!(
+                    "pdfcer: note: page {page_number}: text is exported as glyph OUTLINES (not editable as text; --svg-text keep writes real text); every raster inside the SVG is sampled at {dpi} dpi"
+                );
+            }
             if t.shadings_rasterised > 0 {
                 eprintln!(
                     "pdfcer: note: page {page_number}: {} shading(s) are embedded as RASTER images (function-based, mesh, two-circle radial, or carrying /Background or /BBox); {} went out as native gradients",

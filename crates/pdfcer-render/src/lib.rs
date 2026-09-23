@@ -80,6 +80,7 @@ pub mod overprint;
 pub mod profile;
 pub mod shading;
 pub mod svg;
+mod svg_text;
 pub mod text;
 pub mod type3;
 

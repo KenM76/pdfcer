@@ -3691,7 +3691,7 @@ impl Interpreter<'_> {
                     self.gs.current.text.render_mode = u8::try_from(mode).unwrap_or(0);
                 }
             }
-            b"Tf" => self.select_font(op),
+            b"Tf" => self.select_font(op, canvas),
 
             // ---- text positioning (Table 108) ----
             // "The text-positioning operators shall only appear within
@@ -3923,7 +3923,7 @@ impl Interpreter<'_> {
     /// A name that resolves to no font resource leaves `Tf` unset:
     /// §9.3 gives the font no initial value, so the honest behavior is
     /// to skip the text and diagnose, never to quietly pick a face.
-    fn select_font(&mut self, op: &Operation<'_>) {
+    fn select_font(&mut self, op: &Operation<'_>, canvas: &mut Canvas<'_>) {
         let mut name: Option<Vec<u8>> = None;
         let mut size: Option<f32> = None;
         for tok in op.operands {
@@ -3944,6 +3944,24 @@ impl Interpreter<'_> {
         };
         self.gs.current.text.font_size = size;
         self.gs.current.text.font = self.load_font(&name);
+        // An export keeping text (G033) needs what each code MEANS, which
+        // is extraction's §9.10.2 ladder rather than anything rendering
+        // resolves. Registered once per loaded font.
+        if canvas.keeps_text()
+            && let Some(font) = self.gs.current.text.font.clone()
+            && canvas.text_font_unicode(&font).is_none()
+        {
+            let unicode = self
+                .resources
+                .get(b"Font")
+                .map(|o| self.doc.resolve(o))
+                .and_then(Object::as_dict)
+                .and_then(|fonts| fonts.get(&name[..]))
+                .map(|o| self.doc.resolve(o))
+                .and_then(Object::as_dict)
+                .map(|d| Arc::new(pdfcer_core::text_extract::ExtractFont::resolve(self.doc, d)));
+            canvas.register_text_font(&font, unicode);
+        }
     }
 
     /// Resolve a `/Font` resource name to a [`LoadedFont`], memoized
@@ -4085,6 +4103,22 @@ impl Interpreter<'_> {
                 .or_insert(0) += 1;
         }
 
+        // G033: an export keeping text wraps this string's paints with
+        // what the string said. Only a font with a program and a
+        // registered mapping can be captured; everything else is recorded
+        // exactly as without the option.
+        let capture = if canvas.keeps_text() {
+            program
+                .as_ref()
+                .map(FontProgram::upem)
+                .map(|upem| (upem, canvas.text_font_unicode(&font).flatten()))
+        } else {
+            None
+        };
+        let mut glyphs = Vec::new();
+        if capture.is_some() {
+            canvas.begin_text_run();
+        }
         for code in font.codes(string) {
             let gid = match font.gid(code.value, program.as_ref()) {
                 Some(g) => g,
@@ -4097,6 +4131,16 @@ impl Interpreter<'_> {
                     0
                 }
             };
+            if let (Some((upem, unicode)), Some(tobj)) = (&capture, self.text) {
+                let to_user = self.gs.current.text.glyph_to_user(tobj.tm, *upem);
+                glyphs.push(crate::display_list::TextGlyph {
+                    gid,
+                    unicode: unicode
+                        .as_ref()
+                        .and_then(|u| u.unicode_for_code(code.value)),
+                    to_device: self.gs.current.ctm.pre_concat(to_user),
+                });
+            }
             self.paint_glyph(&font, program.as_ref(), gid, canvas);
 
             // §9.4.4's advance, applied whether or not anything was
@@ -4116,6 +4160,13 @@ impl Interpreter<'_> {
                 .text
                 .advance_for(w0, 0.0, code.word_spacing_applies);
             self.with_text_object(|t| t.advance(tx, 0.0));
+        }
+        if let Some((upem, _)) = capture {
+            canvas.end_text_run(crate::display_list::TextRunInfo {
+                font: Arc::clone(&font),
+                upem,
+                glyphs,
+            });
         }
     }
 

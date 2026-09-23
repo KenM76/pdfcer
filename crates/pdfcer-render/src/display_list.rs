@@ -327,6 +327,42 @@ pub(crate) enum Op {
         /// valid and is carried — as an SVG `<mask>` — rather than dropped.
         mask: Option<Arc<Mask>>,
     },
+    /// The paints one shown string produced, kept together with what the
+    /// string SAID, so a writer can emit text instead of outlines (G033).
+    ///
+    /// Recorded ONLY by an export recorder asked to keep text. `ops` is
+    /// exactly what would have been recorded without the wrapper, so a
+    /// writer that does not want text recurses into it and produces
+    /// byte-identical output.
+    Text {
+        /// Font, glyph ids, Unicode and per-glyph placement.
+        run: Arc<TextRunInfo>,
+        /// The glyphs' outline paints.
+        ops: Vec<Op>,
+    },
+}
+
+/// What one shown string drew, for an export that keeps text (G033).
+#[derive(Debug)]
+pub(crate) struct TextRunInfo {
+    /// The font the glyphs came from; its program is what gets embedded.
+    pub font: Arc<crate::text::LoadedFont>,
+    /// The program's units per em, which [`TextGlyph::to_device`] expects
+    /// glyph coordinates in.
+    pub upem: f32,
+    /// One entry per character code shown, in order.
+    pub glyphs: Vec<TextGlyph>,
+}
+
+/// One character code of a [`TextRunInfo`].
+#[derive(Debug, Clone)]
+pub(crate) struct TextGlyph {
+    /// Glyph id in the font program.
+    pub gid: u32,
+    /// What the code means, per the §9.10.2 ladder; `None` when unknown.
+    pub unicode: Option<String>,
+    /// Glyph space (font units, y up) → page-device space.
+    pub to_device: Transform,
 }
 
 /// An axis-aligned device-space rectangle, as four `f32`s.
@@ -605,6 +641,7 @@ impl DisplayList {
                 .map(|op| match op {
                     Op::Fill { .. } | Op::Stroke { .. } => 1,
                     Op::Layer { ops, .. } => 1 + walk(ops),
+                    Op::Text { ops, .. } => walk(ops),
                 })
                 .sum()
         }
@@ -757,7 +794,7 @@ pub fn record_page(
     epoch: u64,
     options: &RenderOptions,
 ) -> Result<DisplayList, RenderError> {
-    let recorded = record_impl(doc, page, scale, options, false)?;
+    let recorded = record_impl(doc, page, scale, options, false, false)?;
     if let Some(reason) = recorded.poison {
         return Err(RenderError::PageNotRecordable { reason });
     }
@@ -810,8 +847,9 @@ pub(crate) fn record_page_for_export(
     page: &Page,
     scale: f32,
     options: &RenderOptions,
+    keep_text: bool,
 ) -> Result<ExportRecording, RenderError> {
-    let recorded = record_impl(doc, page, scale, options, true)?;
+    let recorded = record_impl(doc, page, scale, options, true, keep_text)?;
     Ok(ExportRecording {
         ops: recorded.ops,
         clips: recorded.clips,
@@ -842,6 +880,7 @@ fn record_impl(
     scale: f32,
     options: &RenderOptions,
     export: bool,
+    keep_text: bool,
 ) -> Result<Recorded, RenderError> {
     let (page_w, page_h, page_ctm) = crate::page_device_geometry(page, scale);
     // A recording allocates no raster, so the MAX_PIXMAP_EDGE ceiling does
@@ -880,10 +919,14 @@ fn record_impl(
     let mut recorder = if export {
         // A page-sized scratch is the export mode's whole mechanism; an
         // unallocatable one is the same refusal a render would make.
-        Recorder::new_for_export(page_w, page_h).ok_or(RenderError::BadRasterSize {
+        let mut r = Recorder::new_for_export(page_w, page_h).ok_or(RenderError::BadRasterSize {
             width: page_w,
             height: page_h,
-        })?
+        })?;
+        if let Some(e) = r.export.as_mut() {
+            e.keep_text = keep_text;
+        }
+        r
     } else {
         Recorder::new(page_w, page_h)
     };
@@ -1045,6 +1088,7 @@ pub(crate) fn replay_ops(
                     mask.as_deref(),
                 );
             }
+            Op::Text { ops, .. } => replay_ops(ops, pixmap, masks, region),
             Op::Layer { paint, ops, mask } => {
                 // Same size as the destination and TRANSPARENT to start —
                 // §11.4.7's isolated backdrop, and the same buffer
@@ -1181,7 +1225,7 @@ fn op_bytes(op: &Op) -> usize {
     std::mem::size_of::<Op>()
         + match op {
             Op::Fill { path, .. } | Op::Stroke { path, .. } => path_bytes(path),
-            Op::Layer { ops, .. } => ops.iter().map(op_bytes).sum(),
+            Op::Layer { ops, .. } | Op::Text { ops, .. } => ops.iter().map(op_bytes).sum(),
         }
 }
 
@@ -1321,6 +1365,15 @@ pub(crate) struct ExportState {
     /// a thousand glyphs under one mask share one `Arc` rather than
     /// each copying a page-sized buffer.
     pub mask_cache: Option<(*const Mask, Arc<Mask>)>,
+    /// Whether shown strings are wrapped in [`Op::Text`] (G033).
+    pub keep_text: bool,
+    /// Each font seen while keeping text, with its §9.10.2 Unicode
+    /// mapping. The `Arc` is held so its address cannot be reused by a
+    /// different font within the walk.
+    pub text_fonts: Vec<(
+        Arc<crate::text::LoadedFont>,
+        Option<Arc<pdfcer_core::text_extract::ExtractFont>>,
+    )>,
 }
 
 /// What an export recording could not express as geometry, counted
@@ -1396,6 +1449,8 @@ impl RecorderState {
             dirty: false,
             tally: ExportTally::default(),
             mask_cache: None,
+            keep_text: false,
+            text_fonts: Vec::new(),
         });
         Some(state)
     }
@@ -1655,6 +1710,60 @@ impl RecorderState {
         self.export
             .as_ref()
             .map_or_else(ExportTally::default, |e| e.tally)
+    }
+
+    /// Whether shown strings are to be wrapped in [`Op::Text`] (G033).
+    pub(crate) fn keeps_text(&self) -> bool {
+        self.export.as_ref().is_some_and(|e| e.keep_text)
+    }
+
+    /// The Unicode mapping registered for `font`: `None` if the font has
+    /// not been registered, `Some(None)` if it has and has no mapping.
+    pub(crate) fn text_font_unicode(
+        &self,
+        font: &Arc<crate::text::LoadedFont>,
+    ) -> Option<Option<Arc<pdfcer_core::text_extract::ExtractFont>>> {
+        let export = self.export.as_ref()?;
+        export
+            .text_fonts
+            .iter()
+            .find(|(f, _)| Arc::ptr_eq(f, font))
+            .map(|(_, u)| u.clone())
+    }
+
+    /// Register `font`'s Unicode mapping, once.
+    pub(crate) fn register_text_font(
+        &mut self,
+        font: &Arc<crate::text::LoadedFont>,
+        unicode: Option<Arc<pdfcer_core::text_extract::ExtractFont>>,
+    ) {
+        if self.text_font_unicode(font).is_some() {
+            return;
+        }
+        if let Some(export) = self.export.as_mut() {
+            export.text_fonts.push((Arc::clone(font), unicode));
+        }
+    }
+
+    /// Open a frame for one shown string's paints.
+    pub(crate) fn begin_text(&mut self) {
+        self.harvest();
+        self.frames.push(Vec::new());
+    }
+
+    /// Close the frame [`Self::begin_text`] opened, wrapping what it holds
+    /// in an [`Op::Text`]. A string that painted nothing (invisible
+    /// modes, a hidden layer, only spaces) records nothing.
+    pub(crate) fn end_text(&mut self, run: TextRunInfo) {
+        self.harvest();
+        let ops = self.frames.pop().unwrap_or_default();
+        if ops.is_empty() {
+            return;
+        }
+        self.push(Op::Text {
+            run: Arc::new(run),
+            ops,
+        });
     }
 }
 

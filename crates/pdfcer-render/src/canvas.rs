@@ -608,6 +608,52 @@ impl<'a> Canvas<'a> {
         matches!(self, Self::Record(r) if r.export.is_some())
     }
 
+    /// Whether shown strings are wrapped as text for an export (G033).
+    pub(crate) fn keeps_text(&self) -> bool {
+        matches!(self, Self::Record(r) if r.keeps_text())
+    }
+
+    /// The registered Unicode mapping for `font` — see
+    /// [`crate::display_list::RecorderState::text_font_unicode`].
+    pub(crate) fn text_font_unicode(
+        &self,
+        font: &Arc<crate::text::LoadedFont>,
+    ) -> Option<Option<Arc<pdfcer_core::text_extract::ExtractFont>>> {
+        match self {
+            Self::Record(r) => r.text_font_unicode(font),
+            _ => None,
+        }
+    }
+
+    /// Register `font`'s Unicode mapping for text capture.
+    pub(crate) fn register_text_font(
+        &mut self,
+        font: &Arc<crate::text::LoadedFont>,
+        unicode: Option<Arc<pdfcer_core::text_extract::ExtractFont>>,
+    ) {
+        if let Self::Record(r) = self {
+            r.register_text_font(font, unicode);
+        }
+    }
+
+    /// Open a text-run frame; no-op unless [`Self::keeps_text`].
+    pub(crate) fn begin_text_run(&mut self) {
+        if let Self::Record(r) = self
+            && r.keeps_text()
+        {
+            r.begin_text();
+        }
+    }
+
+    /// Close the frame [`Self::begin_text_run`] opened.
+    pub(crate) fn end_text_run(&mut self, run: crate::display_list::TextRunInfo) {
+        if let Self::Record(r) = self
+            && r.keeps_text()
+        {
+            r.end_text(run);
+        }
+    }
+
     /// Record a shading as a native gradient fill (`Pass 248.3`).
     ///
     /// Export recorder only: returns `false` on every other canvas, and

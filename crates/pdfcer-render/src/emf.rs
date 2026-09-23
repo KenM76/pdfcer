@@ -201,7 +201,7 @@ pub fn export_emf_view(
         300.0
     };
     let scale = dpi / 72.0;
-    let recording = record_page_for_export(view, page, scale, render)?;
+    let recording = record_page_for_export(view, page, scale, render, false)?;
     let (w_px, h_px) = recording.page_size;
 
     // Device pixel -> 0.01 mm. A page is at most 14 400 pt = 5 080 mm =
@@ -602,6 +602,9 @@ impl Writer<'_> {
                     self.ensure_clip(*clip);
                     self.stroke_solid(path, *rgba, stroke, *ctm);
                 }
+                // EMF writes no text records yet: a kept-text run is
+                // written as the outlines it wraps.
+                Op::Text { ops, .. } => self.write_ops(ops),
                 Op::Layer { paint, ops, mask } => {
                     self.outcome.layers_rasterised += 1;
                     if paint.blend != BlendMode::SourceOver || paint.nonseparable.is_some() {
