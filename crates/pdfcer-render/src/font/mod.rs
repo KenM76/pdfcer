@@ -525,8 +525,10 @@ pub struct RenderOptions {
     pub subpixel_culling: bool,
     /// How strokes are drawn relative to their declared width
     /// ([`StrokeDisplay`], `Pass 254.0`). `Actual` by default; `Hairline`
-    /// is the CAD "line weights off" display convention. A shell sets this
-    /// for its interactive canvas ONLY — exports keep real widths.
+    /// is the CAD "line weights off" display convention; `Fixed` is the
+    /// print "one width for every line" option. A shell sets these for its
+    /// canvas or a print job the operator configured; exports keep real
+    /// widths.
     ///
     /// # It is DISCLOSED, not silent (rule 4)
     ///
@@ -981,7 +983,7 @@ pub struct RenderPolicy<'a> {
 /// does not even contain the word *hairline*: measured zero hits in ISO
 /// 32000-1 and zero in ISO 32000-2, so it is an industry term used here for
 /// what it communicates, never cited as a spec concept.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+#[derive(Debug, Clone, Copy, Default)]
 #[non_exhaustive]
 pub enum StrokeDisplay {
     /// Draw every stroke at its declared width, mapped through the CTM (with
@@ -1018,6 +1020,49 @@ pub enum StrokeDisplay {
     /// streams. Dash patterns, caps, joins and the miter limit are untouched:
     /// a dashed centreline stays a dashed centreline, drawn thin.
     Hairline,
+    /// Every stroke drawn at exactly `device_px` DEVICE pixels, whatever
+    /// width the file declared, thinner and thicker alike: the print
+    /// "line weights off, one fixed width" option (G039).
+    ///
+    /// Device pixels because that is the space the stroke is resolved in; a
+    /// print shell converts millimetres or points with the job's resolution
+    /// (`mm / 25.4 × dpi`). Same reach as [`Hairline`](Self::Hairline):
+    /// path strokes, stroked text, forms, patterns, Type 3 procedures and
+    /// appearance streams; dashes, caps and joins untouched; fills untouched.
+    ///
+    /// Unlike `Hairline` this is a SET, so it can make a line thicker.
+    /// `Diagnostics::strokes_width_fixed` counts the strokes whose width it
+    /// changed in either direction. A non-finite or non-positive `device_px`
+    /// renders as [`Actual`](Self::Actual) and counts nothing.
+    Fixed {
+        /// The stroke width, in device pixels.
+        device_px: f32,
+    },
+}
+
+/// Bitwise on `device_px`, so equality is a true equivalence (reflexive even
+/// for NaN) and agrees with [`Hash`].
+impl PartialEq for StrokeDisplay {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Actual, Self::Actual) | (Self::Hairline, Self::Hairline) => true,
+            (Self::Fixed { device_px: a }, Self::Fixed { device_px: b }) => {
+                a.to_bits() == b.to_bits()
+            }
+            _ => false,
+        }
+    }
+}
+
+impl Eq for StrokeDisplay {}
+
+impl std::hash::Hash for StrokeDisplay {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::mem::discriminant(self).hash(state);
+        if let Self::Fixed { device_px } = self {
+            device_px.to_bits().hash(state);
+        }
+    }
 }
 
 impl Default for RenderOptions {

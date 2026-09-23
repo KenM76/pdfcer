@@ -636,3 +636,99 @@ fn actual_is_the_default_so_no_existing_caller_can_notice_this_exists() {
         ink(&r)
     );
 }
+
+// ---------------------------------------------------------------------------
+// 6. `Fixed` — every stroke at one device width (G039, print)
+// ---------------------------------------------------------------------------
+
+/// Inked rows in pixel column `x` — the rendered thickness of a horizontal
+/// stroke crossing that column.
+fn rows_inked_at(r: &RenderedPage, x: u32) -> u32 {
+    let pm = &r.pixmap;
+    (0..pm.height())
+        .filter(|&y| pm.pixel(x, y).is_some_and(|p| p.demultiply().red() < 128))
+        .count() as u32
+}
+
+const FIXED_4: StrokeDisplay = StrokeDisplay::Fixed { device_px: 4.0 };
+
+#[test]
+fn fixed_thickens_a_thin_stroke_and_thins_a_fat_one() {
+    // At scale 2, a 0.5-unit rule is 1 device px and a 12-unit rule is 24.
+    // `Fixed` sets both to 4 — a set, not a cap or a floor.
+    let thin = render(page_with("0 G 0.5 w 20 50 m 80 50 l S"), 2.0, FIXED_4);
+    let fat = render(page_with("0 G 12 w 20 50 m 80 50 l S"), 2.0, FIXED_4);
+    for (name, r) in [("thin", &thin), ("fat", &fat)] {
+        let rows = rows_inked_at(r, 100);
+        assert!(
+            (3..=5).contains(&rows),
+            "{name} rule rendered {rows} rows; `Fixed` 4 px must set it to about 4"
+        );
+        assert_eq!(
+            r.diagnostics.strokes_width_fixed, 1,
+            "{name}: one stroke changed"
+        );
+        assert_eq!(
+            r.diagnostics.strokes_hairlined, 0,
+            "{name}: `Fixed` must not report into the hairline counter"
+        );
+    }
+}
+
+#[test]
+fn fixed_does_not_count_a_stroke_already_at_the_width() {
+    // 2 units at scale 2 is exactly 4 device px: nothing changed.
+    let r = render(page_with("0 G 2 w 20 50 m 80 50 l S"), 2.0, FIXED_4);
+    assert_eq!(r.diagnostics.strokes_width_fixed, 0);
+    assert!((3..=5).contains(&rows_inked_at(&r, 100)));
+}
+
+#[test]
+fn fixed_reaches_into_a_form_xobject() {
+    let r = render(
+        page_with_form(
+            "0 G 12 w 20 30 m 80 30 l S /X1 Do",
+            "0 G 0.25 w 20 70 m 80 70 l S",
+        ),
+        2.0,
+        FIXED_4,
+    );
+    assert_eq!(
+        r.diagnostics.strokes_width_fixed, 2,
+        "the form's stroke must be set and counted too"
+    );
+}
+
+#[test]
+fn a_non_positive_or_non_finite_fixed_width_renders_as_actual() {
+    let content = "0 G 12 w 20 50 m 80 50 l S";
+    let actual = render(page_with(content), 1.0, StrokeDisplay::Actual);
+    for device_px in [0.0, -3.0, f32::NAN, f32::INFINITY] {
+        let r = render(page_with(content), 1.0, StrokeDisplay::Fixed { device_px });
+        assert_eq!(
+            ink(&r),
+            ink(&actual),
+            "device_px {device_px} must render the declared width"
+        );
+        assert_eq!(r.diagnostics.strokes_width_fixed, 0);
+    }
+}
+
+#[test]
+fn fixed_equality_and_hash_follow_the_width_bits() {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let h = |d: StrokeDisplay| {
+        let mut s = DefaultHasher::new();
+        d.hash(&mut s);
+        s.finish()
+    };
+    let a = StrokeDisplay::Fixed { device_px: 4.0 };
+    let b = StrokeDisplay::Fixed { device_px: 4.0 };
+    let c = StrokeDisplay::Fixed { device_px: 5.0 };
+    assert_eq!(a, b);
+    assert_eq!(h(a), h(b));
+    assert_ne!(a, c);
+    assert_ne!(a, StrokeDisplay::Hairline);
+    assert_ne!(h(a), h(c));
+}

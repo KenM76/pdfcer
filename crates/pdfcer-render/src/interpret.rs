@@ -1521,6 +1521,12 @@ pub struct Diagnostics {
     /// Type 3 glyph procedures and annotation appearance streams. Fills are
     /// never counted because fills never reach that function.
     pub strokes_hairlined: usize,
+    /// Strokes whose width [`StrokeDisplay::Fixed`] changed, thinner or
+    /// thicker (G039). The rule-4 disclosure for that mode, counted at the
+    /// same site and with the same scope as [`Self::strokes_hairlined`]; a
+    /// stroke the file already declared at the fixed width is not counted.
+    /// `0` in every other mode.
+    pub strokes_width_fixed: usize,
     /// `Do` invocations refused because they would have exceeded
     /// [`MAX_XOBJECT_DEPTH`] **or** re-entered a form already on the
     /// stack (a cycle). Their content is missing from the raster.
@@ -1936,6 +1942,7 @@ polarity unverifiable (decision 006 R30)",
         self.images_culled += other.images_culled;
         self.subpixel_culled += other.subpixel_culled;
         self.strokes_hairlined += other.strokes_hairlined;
+        self.strokes_width_fixed += other.strokes_width_fixed;
         self.xobject_depth_overflows += other.xobject_depth_overflows;
         self.type3_glyph_procs_run += other.type3_glyph_procs_run;
         self.type3_glyphs_missing += other.type3_glyphs_missing;
@@ -2648,7 +2655,7 @@ fn run_nested(
     // And the hairline ceiling's tally, for the same reason and by the same
     // route: `stroke_params` takes `&self` and cannot reach `diag` where the
     // capping happens. See `Interpreter::hairline_capped`.
-    interp.diag.strokes_hairlined += interp.hairline_capped.get();
+    interp.fold_stroke_tally();
     interp.diag
 }
 
@@ -2809,7 +2816,7 @@ pub(crate) fn run_form_at_on(
     // And the hairline ceiling's tally, for the same reason and by the same
     // route: `stroke_params` takes `&self` and cannot reach `diag` where the
     // capping happens. See `Interpreter::hairline_capped`.
-    interp.diag.strokes_hairlined += interp.hairline_capped.get();
+    interp.fold_stroke_tally();
     interp.diag
 }
 
@@ -2894,9 +2901,9 @@ struct Interpreter<'a> {
     /// agree or a paint would find one curve and deposit into a different
     /// plane.
     spot_luts: std::cell::RefCell<HashMap<Box<[u8]>, Arc<crate::cmyk_buffer::SpotLut>>>,
-    /// Strokes this stream thinned under [`StrokeDisplay::Hairline`],
-    /// pending the fold into [`Diagnostics::strokes_hairlined`]
-    /// (`Pass 254.1`).
+    /// Strokes this stream's [`StrokeDisplay`] changed, pending the fold
+    /// (`fold_stroke_tally`) into [`Diagnostics::strokes_hairlined`] or,
+    /// under `Fixed`, [`Diagnostics::strokes_width_fixed`].
     ///
     /// # Why a `Cell` rather than `&mut self`
     ///
@@ -3147,6 +3154,15 @@ struct Interpreter<'a> {
 }
 
 impl Interpreter<'_> {
+    /// Moves the stroke-display tally into the counter for the active mode.
+    fn fold_stroke_tally(&mut self) {
+        let changed = self.hairline_capped.take();
+        match self.stroke_display {
+            StrokeDisplay::Fixed { .. } => self.diag.strokes_width_fixed += changed,
+            _ => self.diag.strokes_hairlined += changed,
+        }
+    }
+
     /// Whether `name` is one of Table 74's colour-setting operators.
     ///
     /// Used for exactly one thing: Table 113's rule that inside a `d1`
@@ -9186,6 +9202,12 @@ impl Interpreter<'_> {
         // and would be a THIRD variant here, never a change to this arm.
         let width = match self.stroke_display {
             StrokeDisplay::Hairline => floored.min(min_user_width),
+            // G039 — a SET, not a cap: `device_px` device pixels in user space.
+            // Compared against `floored`, what `Actual` would draw, so the
+            // tally below counts exactly the strokes this mode changed.
+            StrokeDisplay::Fixed { device_px } if device_px.is_finite() && device_px > 0.0 => {
+                device_px * min_user_width
+            }
             // `Actual` and any future variant render at the declared (floored)
             // width; `#[non_exhaustive]` requires the wildcard.
             _ => floored,
@@ -9200,7 +9222,13 @@ impl Interpreter<'_> {
         // `Cell` rather than `&mut self.diag`: this function is `&self` and is
         // called inside expressions already borrowing `self`. See
         // `Interpreter::hairline_capped`.
-        if width < floored {
+        // `Fixed` counts a change in either direction; `Actual` never differs.
+        #[allow(clippy::float_cmp)] // exact: `width` is `floored` unless a mode replaced it
+        let changed = match self.stroke_display {
+            StrokeDisplay::Fixed { .. } => width != floored,
+            _ => width < floored,
+        };
+        if changed {
             self.hairline_capped.set(self.hairline_capped.get() + 1);
         }
         Stroke {
