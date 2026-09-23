@@ -249,9 +249,14 @@ impl Planner {
 
 /// Whether [`webfont::build`] can take this program: an sfnt, a collection
 /// (face 0 is taken), or bare CFF (header major 1, minor 0), which it frames
-/// as OpenType. A Type 1 program cannot be converted.
+/// as OpenType, or Type 1 (PFB, or PFA text after leading whitespace), which
+/// it re-encodes as CFF first.
 fn is_embeddable_program(data: &[u8]) -> bool {
-    is_sfnt(data) || data.starts_with(b"ttcf") || data.starts_with(&[1, 0])
+    is_sfnt(data)
+        || data.starts_with(b"ttcf")
+        || data.starts_with(&[1, 0])
+        || data.starts_with(&[0x80, 0x01])
+        || data.trim_ascii_start().starts_with(b"%!")
 }
 
 /// A plain sfnt, not a collection.
@@ -332,12 +337,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sfnt_collection_and_bare_cff_are_embeddable_and_type_1_is_not() {
+    fn sfnt_collection_bare_cff_and_type_1_are_embeddable() {
         assert!(is_embeddable_program(&[0, 1, 0, 0, 0, 9]));
         assert!(is_embeddable_program(b"OTTO\0\x09"));
         assert!(is_embeddable_program(&[1, 0, 4, 2]));
-        assert!(!is_embeddable_program(b"%!PS-AdobeFont-1.0: Demo"));
-        assert!(!is_embeddable_program(&[0x80, 0x01, 0, 0]));
+        assert!(is_embeddable_program(b"\n %!PS-AdobeFont-1.0: Demo"));
+        assert!(is_embeddable_program(&[0x80, 0x01, 0, 0]));
+        assert!(!is_embeddable_program(b"<svg/>"));
         assert!(is_embeddable_program(b"ttcf"));
     }
 

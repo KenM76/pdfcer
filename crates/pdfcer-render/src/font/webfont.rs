@@ -27,7 +27,8 @@
 //! OpenType font by [`wrap_cff`]: the `CFF ` table verbatim plus `head`,
 //! `hhea`, `hmtx` and `maxp` 0.5, from the charstrings' own advances and
 //! bounds. Glyph ids are the charstring indices, so they are unchanged.
-//! A Type 1 program is not converted and stays outlines.
+//! A Type 1 program (PFB or PFA) is first re-encoded as bare CFF by
+//! [`super::type1_cff`], then framed the same way.
 //!
 //! A font collection (`ttcf`, a `.ttc` or `.otc`) contributes face 0, the
 //! face the renderer draws with; `subsetter` writes it out as a plain sfnt.
@@ -38,6 +39,9 @@
 //! the caller already refuses anything else.
 
 use std::collections::BTreeMap;
+
+use super::program::FontProgram;
+use super::type1_cff;
 
 /// Why a font could not be turned into a web font.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,6 +58,9 @@ pub(crate) enum WebFontError {
     TooLarge,
     /// A bare CFF program that could not be framed as OpenType.
     CffFrame,
+    /// A Type 1 program that could not be re-encoded as CFF (an em other
+    /// than 1000 units, a skewed `FontMatrix`, or a glyph that fails).
+    Type1Convert,
 }
 
 /// A built web font.
@@ -72,6 +79,15 @@ pub(crate) fn build(
     chars: &BTreeMap<char, u16>,
     family: &str,
 ) -> Result<WebFont, WebFontError> {
+    let converted;
+    let program = match FontProgram::parse(program) {
+        Ok(FontProgram::Type1(font)) => {
+            converted = type1_cff::convert(&font, chars.values().copied())
+                .ok_or(WebFontError::Type1Convert)?;
+            converted.as_slice()
+        }
+        _ => program,
+    };
     let framed;
     let program = if program.starts_with(&[1, 0]) {
         framed = wrap_cff(program, chars.values().copied()).ok_or(WebFontError::CffFrame)?;

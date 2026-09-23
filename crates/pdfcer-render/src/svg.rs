@@ -156,8 +156,8 @@ pub struct SvgTextOutcome {
     pub runs_as_text: usize,
     /// Fonts embedded as `@font-face`.
     pub fonts_embedded: usize,
-    /// Runs left as outlines: the font is a Type 1 program, neither an sfnt
-    /// nor bare CFF.
+    /// Runs left as outlines: the font program is not one the export can
+    /// rebuild (neither an sfnt, bare CFF nor Type 1).
     pub fallback_not_sfnt: usize,
     /// Runs left as outlines: stroked, clipping, pattern, shading or
     /// soft-masked text, or colour/blend/clip changing within the run.

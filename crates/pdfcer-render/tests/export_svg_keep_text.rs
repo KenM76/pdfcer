@@ -26,6 +26,7 @@ use skrifa::outline::DrawSettings;
 use skrifa::outline::pen::OutlinePen;
 use skrifa::prelude::{LocationRef, Size};
 use skrifa::raw::TableProvider as _;
+use skrifa::raw::ps::type1::Type1Font;
 use skrifa::{FontRef, MetadataProvider};
 
 fn fixture(name: &str) -> Vec<u8> {
@@ -356,27 +357,40 @@ fn an_embedded_type1c_program_is_kept() {
 /// A one-page PDF showing `ABCA` in a non-embedded TrueType font named
 /// `Donor`, which only a supplied face can draw.
 fn page_naming_donor() -> Document {
+    page_showing_abca(
+        "<< /Type /Font /Subtype /TrueType /BaseFont /Donor \
+         /FirstChar 65 /LastChar 67 /Widths [600 600 600] \
+         /Encoding /WinAnsiEncoding >>",
+        &[],
+    )
+}
+
+/// A one-page PDF showing `ABCA` in the font dictionary `font` (object 4);
+/// `extra` are objects 6 onward.
+fn page_showing_abca(font: &str, extra: &[Vec<u8>]) -> Document {
     let content = "BT /F1 36 Tf 72 500 Td (ABCA) Tj ET";
-    let objects = [
+    let mut objects: Vec<Vec<u8>> = [
         "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
         "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] \
          /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>"
             .to_owned(),
-        "<< /Type /Font /Subtype /TrueType /BaseFont /Donor \
-         /FirstChar 65 /LastChar 67 /Widths [600 600 600] \
-         /Encoding /WinAnsiEncoding >>"
-            .to_owned(),
+        font.to_owned(),
         format!(
             "<< /Length {} >>\nstream\n{content}\nendstream",
             content.len()
         ),
-    ];
+    ]
+    .map(String::into_bytes)
+    .to_vec();
+    objects.extend_from_slice(extra);
     let mut pdf = b"%PDF-1.7\n".to_vec();
     let mut offsets = Vec::new();
     for (i, body) in objects.iter().enumerate() {
         offsets.push(pdf.len());
-        pdf.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+        pdf.extend_from_slice(format!("{} 0 obj\n", i + 1).as_bytes());
+        pdf.extend_from_slice(body);
+        pdf.extend_from_slice(b"\nendobj\n");
     }
     let xref = pdf.len();
     let size = objects.len() + 1;
@@ -431,4 +445,240 @@ fn a_supplied_font_collection_is_kept_from_its_first_face() {
     for c in ['A', 'B', 'C'] {
         assert_eq!(outline(&web, c), outline(&donor, c), "glyph for {c}");
     }
+}
+
+/// A Type 1 charstring number (Adobe Type 1 Font Format §6.2).
+fn t1_number(out: &mut Vec<u8>, v: i32) {
+    match v {
+        -107..=107 => out.push(u8::try_from(v + 139).unwrap()),
+        108..=1131 => {
+            let n = v - 108;
+            out.extend_from_slice(&[u8::try_from(n / 256 + 247).unwrap(), (n % 256) as u8]);
+        }
+        -1131..=-108 => {
+            let n = -v - 108;
+            out.extend_from_slice(&[u8::try_from(n / 256 + 251).unwrap(), (n % 256) as u8]);
+        }
+        _ => {
+            out.push(255);
+            out.extend_from_slice(&v.to_be_bytes());
+        }
+    }
+}
+
+/// Type 1 encryption (§7.1) with seed `r`, after `prefix` zero bytes.
+fn t1_encrypt(plain: &[u8], mut r: u16, prefix: usize) -> Vec<u8> {
+    let mut out = Vec::with_capacity(plain.len() + prefix);
+    for &p in std::iter::repeat_n(&0u8, prefix).chain(plain) {
+        let c = p ^ (r >> 8) as u8;
+        r = (u16::from(c).wrapping_add(r))
+            .wrapping_mul(52845)
+            .wrapping_add(22719);
+        out.push(c);
+    }
+    out
+}
+
+/// A synthetic Type 1 font named `Demo` with `.notdef`, a rectangle `A`, a
+/// triangle `B` and a curved `C`, each 600 units wide, in the standard
+/// encoding, with the given `FontMatrix`. Returns the cleartext part and the
+/// binary eexec part, which together are a `/FontFile` program.
+fn type1_parts_with_matrix(matrix: &str) -> (Vec<u8>, Vec<u8>) {
+    // (name, operands-and-operators); an operator is OP plus its code.
+    const OP: i32 = 10_000;
+    const HSBW: i32 = OP + 13;
+    const RLINETO: i32 = OP + 5;
+    const RRCURVETO: i32 = OP + 8;
+    const CLOSEPATH: i32 = OP + 9;
+    const ENDCHAR: i32 = OP + 14;
+    const RMOVETO: i32 = OP + 21;
+    let glyphs: [(&str, &[i32]); 4] = [
+        (".notdef", &[0, 500, HSBW, ENDCHAR]),
+        (
+            "A",
+            &[
+                0, 600, HSBW, 50, 0, RMOVETO, 500, 0, RLINETO, 0, 700, RLINETO, -500, 0, RLINETO,
+                CLOSEPATH, ENDCHAR,
+            ],
+        ),
+        (
+            "B",
+            &[
+                0, 600, HSBW, 100, 0, RMOVETO, 400, 0, RLINETO, -200, 600, RLINETO, CLOSEPATH,
+                ENDCHAR,
+            ],
+        ),
+        (
+            "C",
+            &[
+                0, 600, HSBW, 100, 100, RMOVETO, 0, 300, 200, 200, 200, 0, RRCURVETO, -200, -500,
+                RLINETO, CLOSEPATH, ENDCHAR,
+            ],
+        ),
+    ];
+    let clear = format!(
+        "%!PS-AdobeFont-1.0: Demo 001\n\
+        11 dict begin\n\
+        /FontName /Demo def\n\
+        /FontType 1 def\n\
+        /PaintType 0 def\n\
+        /FontMatrix [{matrix}] readonly def\n\
+        /FontBBox {{0 0 600 700}} readonly def\n\
+        /Encoding StandardEncoding def\n\
+        currentdict end\n\
+        currentfile eexec\n"
+    )
+    .into_bytes();
+    let mut private = b"dup /Private 8 dict dup begin\n\
+        /RD {string currentfile exch readstring pop} executeonly def\n\
+        /ND {noaccess def} executeonly def\n\
+        /NP {noaccess put} executeonly def\n\
+        /lenIV 4 def\n\
+        /BlueValues [] def\n\
+        /password 5839 def\n\
+        /MinFeature {16 16} def\n\
+        2 index /CharStrings 4 dict dup begin\n"
+        .to_vec();
+    for (name, program) in glyphs {
+        let mut plain = Vec::new();
+        for &v in program {
+            if v >= OP {
+                plain.push(u8::try_from(v - OP).unwrap());
+            } else {
+                t1_number(&mut plain, v);
+            }
+        }
+        let encrypted = t1_encrypt(&plain, 4330, 4);
+        private.extend_from_slice(format!("/{name} {} RD ", encrypted.len()).as_bytes());
+        private.extend_from_slice(&encrypted);
+        private.extend_from_slice(b" ND\n");
+    }
+    private.extend_from_slice(
+        b"end\nend\nreadonly put\nnoaccess put\n\
+        dup /FontName get exch definefont pop\n\
+        mark currentfile closefile\n",
+    );
+    (clear, t1_encrypt(&private, 55665, 4))
+}
+
+/// The Type 1 test font with the standard 1000-unit em.
+fn type1_parts() -> (Vec<u8>, Vec<u8>) {
+    type1_parts_with_matrix("0.001 0 0 0.001 0 0")
+}
+
+/// The trailer every Type 1 program ends with: 512 zeros and `cleartomark`.
+fn type1_trailer() -> Vec<u8> {
+    let mut t = Vec::new();
+    for _ in 0..8 {
+        t.extend_from_slice(&[b'0'; 64]);
+        t.push(b'\n');
+    }
+    t.extend_from_slice(b"cleartomark\n");
+    t
+}
+
+/// The font as a `.pfb` file: text, binary and trailer segments, then EOF.
+fn type1_pfb() -> Vec<u8> {
+    pfb(type1_parts())
+}
+
+/// `parts` framed as a `.pfb` file.
+fn pfb((clear, binary): (Vec<u8>, Vec<u8>)) -> Vec<u8> {
+    let mut out = Vec::new();
+    for (tag, data) in [(1u8, clear), (2, binary), (1, type1_trailer())] {
+        out.extend_from_slice(&[0x80, tag]);
+        out.extend_from_slice(&u32::try_from(data.len()).unwrap().to_le_bytes());
+        out.extend_from_slice(&data);
+    }
+    out.extend_from_slice(&[0x80, 3]);
+    out
+}
+
+/// What the Type 1 test font draws for `c`, point by point.
+fn type1_outline(c: char) -> Vec<(f32, f32)> {
+    let pfb = type1_pfb();
+    let font = Type1Font::new(&pfb).unwrap();
+    let name = c.to_string();
+    let (gid, _) = font.glyph_names().find(|(_, n)| *n == name).unwrap();
+    let mut pen = Points::default();
+    font.draw(gid, None, &mut pen).unwrap();
+    pen.0
+}
+
+/// A kept Type 1 page embeds an OpenType font whose glyphs are the Type 1
+/// glyphs.
+fn assert_type1_page_kept(doc: &Document, options: &RenderOptions) {
+    let web = assert_page_kept(doc, options, "opentype");
+    assert_eq!(&web[..4], b"OTTO");
+    let web = FontRef::new(&web).unwrap();
+    let metrics = web.glyph_metrics(Size::unscaled(), LocationRef::default());
+    for c in ['A', 'B', 'C'] {
+        assert_eq!(outline(&web, c), type1_outline(c), "glyph for {c}");
+        let gid = web.charmap().map(c).unwrap();
+        assert_eq!(metrics.advance_width(gid), Some(600.0), "advance of {c}");
+    }
+}
+
+#[test]
+fn an_embedded_type1_program_is_kept() {
+    let (clear, binary) = type1_parts();
+    let trailer = type1_trailer();
+    let mut program = clear.clone();
+    program.extend_from_slice(&binary);
+    program.extend_from_slice(&trailer);
+    let mut file = format!(
+        "<< /Length {} /Length1 {} /Length2 {} /Length3 {} >>\nstream\n",
+        program.len(),
+        clear.len(),
+        binary.len(),
+        trailer.len()
+    )
+    .into_bytes();
+    file.extend_from_slice(&program);
+    file.extend_from_slice(b"\nendstream");
+    let doc = page_showing_abca(
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Demo \
+         /FirstChar 65 /LastChar 67 /Widths [600 600 600] \
+         /Encoding /WinAnsiEncoding /FontDescriptor 6 0 R >>",
+        &[
+            b"<< /Type /FontDescriptor /FontName /Demo /Flags 32 \
+              /FontBBox [0 0 600 700] /ItalicAngle 0 /Ascent 700 /Descent 0 \
+              /CapHeight 700 /StemV 80 /FontFile 7 0 R >>"
+                .to_vec(),
+            file,
+        ],
+    );
+    assert_type1_page_kept(&doc, &RenderOptions::default());
+}
+
+/// `ABCA` in a non-embedded Type 1 font named `Demo`.
+fn page_naming_demo() -> Document {
+    page_showing_abca(
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Demo \
+         /FirstChar 65 /LastChar 67 /Widths [600 600 600] \
+         /Encoding /WinAnsiEncoding >>",
+        &[],
+    )
+}
+
+#[test]
+fn a_supplied_pfb_font_is_kept() {
+    let mut options = RenderOptions::default();
+    options
+        .fonts
+        .insert_named("Demo", FontData::new(type1_pfb()));
+    assert_type1_page_kept(&page_naming_demo(), &options);
+}
+
+#[test]
+fn a_type1_font_whose_em_is_not_1000_units_stays_outlines_and_is_counted() {
+    let mut options = RenderOptions::default();
+    let font = pfb(type1_parts_with_matrix("0.002 0 0 0.002 0 0"));
+    options.fonts.insert_named("Demo", FontData::new(font));
+    let t = export_with(&page_naming_demo(), SvgText::KeepText, &options)
+        .outcome
+        .text;
+    assert_eq!(t.runs_as_text, 0, "{t:?}");
+    assert_eq!(t.fallback_font_build, 1, "{t:?}");
+    assert_eq!(t.runs_as_outlines(), 1, "{t:?}");
 }
