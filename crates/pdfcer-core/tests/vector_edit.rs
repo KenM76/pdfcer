@@ -354,42 +354,45 @@ fn move_node_on_a_rectangle_corner_expands_it_and_undo_restores_the_re() {
 // Refusals (fuzzy-never-sneaky, rule 4)
 // ---------------------------------------------------------------------------
 
+/// `G029`: a whole text object moves — the remedy `move_text_run`'s
+/// "no position of its own" refusal points at — and undo restores the bytes.
 #[test]
-fn moving_a_text_object_is_refused_as_not_a_path() {
+fn moving_a_text_object_moves_its_page_bounds() {
     let base = std::fs::read(fixture("mixed.pdf")).unwrap();
     let model = decompose0(&Document::from_bytes(base.clone()).unwrap());
-    let text_idx = model
+    let (text_idx, before) = model
         .objects
         .iter()
-        .position(|o| matches!(o, VectorObject::Text(_)))
+        .enumerate()
+        .find_map(|(i, o)| match o {
+            VectorObject::Text(t) => Some((i, t.page_bbox)),
+            _ => None,
+        })
         .unwrap();
 
     let mut s = session(&base);
-    let err = s.move_object(0, text_idx, 5.0, 5.0).unwrap_err();
+    s.move_object(0, text_idx, 5.0, 7.0)
+        .expect("a whole text object moves");
+    let out = save(&s);
+    let after = match &decompose0(&Document::from_bytes(out).unwrap()).objects[text_idx] {
+        VectorObject::Text(t) => t.page_bbox,
+        other => panic!("expected text, got {other:?}"),
+    };
     assert!(
-        matches!(err, EditError::VectorEdit(VectorEditError::NotAPath { .. })),
-        "got {err:?}"
+        (after.min.x - before.min.x - 5.0).abs() < 1e-6,
+        "{before:?} -> {after:?}"
     );
-    assert!(!s.is_modified());
+    assert!(
+        (after.min.y - before.min.y - 7.0).abs() < 1e-6,
+        "{before:?} -> {after:?}"
+    );
+    s.undo();
+    assert_eq!(save(&s), base, "undo restores the byte-identical stream");
 }
 
-/// ★ The refusal NAMES THE OFFENDING OBJECT, on a MIXED selection.
-///
-/// `pdfcer-gui` reported (2026-08-20) that `move_objects`' `NotAPath` "currently
-/// names no object", so on a mixed selection the operator has to bisect their
-/// own selection by hand, and asked for the index to be added.
-///
-/// **The index was already there** — `vector_object_as_path(obj, i)` is called
-/// with the loop index and `NotAPath` has carried `index` and `kind` since it
-/// was minted. `EditError::VectorEdit` is `#[error(transparent)]`, so the
-/// message passes through intact.
-///
-/// This test exists because "it already works" is a claim, and the shell was
-/// looking at a real screen when it said otherwise. Pinning the rendered
-/// STRING — not just the variant — is what makes the answer checkable and
-/// stops a future `#[error]` rewrite from quietly making the report true.
+/// A path and a text object move together as one command (`G029`).
 #[test]
-fn a_mixed_selection_refusal_names_which_object_is_not_a_path() {
+fn a_mixed_path_and_text_selection_moves_as_one_command() {
     let base = std::fs::read(fixture("mixed.pdf")).unwrap();
     let model = decompose0(&Document::from_bytes(base.clone()).unwrap());
     let text_idx = model
@@ -404,21 +407,56 @@ fn a_mixed_selection_refusal_names_which_object_is_not_a_path() {
         .unwrap();
 
     let mut s = session(&base);
-    // A genuinely MIXED selection — a path and a text object together, which
-    // is the case the report was about.
+    s.move_objects(0, &[path_idx, text_idx], 5.0, 5.0)
+        .expect("paths and text move together");
+    assert!(s.is_modified());
+    s.undo();
+    assert!(!s.is_modified(), "one gesture, one undo entry");
+    assert_eq!(save(&s), base);
+}
+
+/// An image still refuses the whole move — and the refusal NAMES it.
+///
+/// `pdfcer-gui` reported (2026-08-20) that `NotAPath` "names no object" on a
+/// mixed selection; the index was there all along. Pinning the rendered
+/// STRING keeps a future `#[error]` rewrite from quietly making that true.
+#[test]
+fn a_mixed_selection_refusal_names_the_image() {
+    let base = std::fs::read(fixture("mixed.pdf")).unwrap();
+    let model = decompose0(&Document::from_bytes(base.clone()).unwrap());
+    let image_idx = model
+        .objects
+        .iter()
+        .position(|o| matches!(o, VectorObject::Image(_)))
+        .unwrap();
+    let path_idx = model
+        .objects
+        .iter()
+        .position(|o| matches!(o, VectorObject::Path(_)))
+        .unwrap();
+
+    let mut s = session(&base);
     let err = s
-        .move_objects(0, &[path_idx, text_idx], 5.0, 5.0)
+        .move_objects(0, &[path_idx, image_idx], 5.0, 5.0)
         .unwrap_err();
+    assert!(
+        matches!(
+            err,
+            EditError::VectorEdit(VectorEditError::NotAPath { kind: "image", .. })
+        ),
+        "got {err:?}"
+    );
     let rendered = err.to_string();
     assert!(
-        rendered.contains(&format!("object {text_idx}")),
+        rendered.contains(&format!("object {image_idx}")),
         "the refusal must name WHICH object, got: {rendered}"
     );
-    assert!(
-        rendered.contains("text"),
-        "and what kind it turned out to be, got: {rendered}"
-    );
     assert!(!s.is_modified(), "a refused move must change nothing");
+    let err = s.move_object(0, image_idx, 1.0, 1.0).unwrap_err();
+    assert!(
+        matches!(err, EditError::VectorEdit(VectorEditError::NotAPath { .. })),
+        "got {err:?}"
+    );
 }
 
 /// **Vector edits accumulate within one session.**

@@ -8642,12 +8642,13 @@ enum Command {
         #[arg(long, default_value_t = HIT_TOLERANCE_PT, allow_hyphen_values = true)]
         tolerance: f64,
     },
-    /// **Move** a vector object (Pass 9c-min, decision 011 §2.5): translate
-    /// all of an object's path-construction operands by a page-space
-    /// `(dx, dy)` via content-stream surgery. Only the edited content stream
-    /// changes; every other object stays byte-verbatim (the R46/§5.7 named
-    /// exception). `--object` is the object's 0-based paint-order index —
-    /// run `object-list` on the page to discover it.
+    /// **Move** a path or text object by a page-space `(dx, dy)` via
+    /// content-stream surgery: a path's construction operands are translated;
+    /// a text object's `Tm` and first `Td` are (a `Td` is added, and said so,
+    /// when the text has none to adjust). Only the edited content stream
+    /// changes; every other object stays byte-verbatim. Images are refused —
+    /// use `object-transform`. `--object` is the object's 0-based paint-order
+    /// index — run `object-list` on the page to discover it.
     ObjectMove {
         /// Input PDF.
         input: PathBuf,
@@ -8680,7 +8681,7 @@ enum Command {
     /// Works on ANY object kind — path, text, image XObject, form XObject,
     /// inline image — because wrapping never looks at an operand. That is what
     /// `object-move` cannot do: operand rewriting can express translation and
-    /// nothing else, which is why it refuses text and images outright.
+    /// nothing else, and an image has no operand to rewrite at all.
     ///
     /// The transform is built from `--scale`, `--rotate` and `--translate`,
     /// composed in that order, and applied about `--pivot` (default: the
@@ -39811,9 +39812,9 @@ struct ObjectMoveArgs<'a> {
     verify_undo: bool,
 }
 
-/// `object-move` — translate a vector object's construction operands by a
-/// page-space `(dx, dy)` via content-stream surgery (Pass 9c-min, decision
-/// 011 §2.5). Only the edited content stream changes (R46/§5.7).
+/// `object-move` — translate a path or text object by a page-space
+/// `(dx, dy)` via content-stream surgery ([`EditSession::move_object`]).
+/// Only the edited content stream changes (R46/§5.7).
 fn cmd_object_move(args: &ObjectMoveArgs<'_>) -> u8 {
     let page_index = (args.page.max(1) - 1) as usize;
     let (source, mut session) = match open_for_edit(args.input) {

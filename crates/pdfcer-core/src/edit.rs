@@ -12664,18 +12664,19 @@ impl EditSession {
     /// `page_index` by the page-space displacement `(dx, dy)`, as one
     /// undoable command (decision 011 §2.5 operation 1).
     ///
-    /// Content-stream surgery via [`crate::vector::plan_move`]: the object's
-    /// path-construction operands are translated (CTM-aware — the page-space
-    /// drag is mapped to the object's user space by its captured CTM's linear
-    /// inverse), and ONLY the edited content stream is re-emitted (R46/§5.7
-    /// named exception); every other object stays byte-verbatim. Lands as one
+    /// Content-stream surgery via [`crate::vector::plan_move_objects`]: a
+    /// path's construction operands, or a text object's `Tm`/first `Td`
+    /// (`G029`), are translated (CTM-aware — the page-space drag is mapped to
+    /// the object's user space by its captured CTM's linear inverse), and ONLY
+    /// the edited content stream is re-emitted (R46/§5.7 named exception);
+    /// every other object stays byte-verbatim. Lands as one
     /// [`CommandKind::MoveObject`]; undo restores the byte-identical pre-move
-    /// stream.
+    /// stream. An image is refused — [`Self::transform_objects`] moves it.
     ///
     /// # Errors
     ///
-    /// [`EditError::VectorEdit`] (out-of-range object, non-path target,
-    /// singular CTM, malformed operator — see
+    /// [`EditError::VectorEdit`] (out-of-range object, image target,
+    /// singular CTM, malformed operator, `cm` inside a text object — see
     /// [`crate::vector::VectorEditError`]), [`EditError::PageOutOfRange`],
     /// [`EditError::VectorEditNoContents`], [`EditError::VectorEditContent`]
     /// (undecodable page), [`EditError::DocumentEncrypted`],
@@ -12707,8 +12708,10 @@ impl EditSession {
                     count,
                 },
             )?;
-            let path = vector_object_as_path(obj, object_index)?;
-            Ok(crate::vector::plan_move(stream, path, dx, dy)?)
+            if let Some(refusal) = crate::vector::object_move_refusal(obj, object_index) {
+                return Err(refusal.into());
+            }
+            Ok(crate::vector::plan_move_objects(stream, &[obj], dx, dy)?)
         })
     }
 
@@ -12759,30 +12762,32 @@ impl EditSession {
         })
     }
 
-    /// Move **several path objects at once** by the same page-space delta, as
-    /// ONE undoable command (Pass 47.0, R168).
+    /// Move **several path and text objects at once** by the same page-space
+    /// delta, as ONE undoable command (Pass 47.0, R168; text since `G029`).
     ///
     /// The move counterpart of [`Self::delete_objects`], and it exists for the
     /// same reason: the GUI's drag handler read
     /// `canvas_selection.iter().next()` and moved **one of N** while the
     /// selection outline implied all of them were coming. See
-    /// [`crate::vector::plan_move_many`] for why the CTM inverse is taken per
-    /// object rather than once per gesture.
+    /// [`crate::vector::plan_move_objects`] for why the CTM inverse is taken
+    /// per object rather than once per gesture, and for which text operands
+    /// take the delta.
     ///
-    /// # A non-path in the selection refuses the WHOLE move
+    /// # An image in the selection refuses the WHOLE move
     ///
-    /// Operand translation is path-only. Moving the paths and leaving a
-    /// selected text object where it was would be a partial application that
-    /// looks like a rendering fault rather than a refusal — so
-    /// [`crate::vector::VectorEditError::NotAPath`] aborts the call and
-    /// nothing moves. The caller is expected to say which object refused; the
-    /// error carries its index and kind for exactly that.
+    /// Operand translation covers paths and text; an image has no operand to
+    /// rewrite. Moving the rest and leaving the image where it was would be a
+    /// partial application that looks like a rendering fault rather than a
+    /// refusal — so [`crate::vector::VectorEditError::NotAPath`] (kind
+    /// `"image"`, with the page index) aborts the call and nothing moves.
+    /// [`crate::vector::object_move_refusal`] is the same check, for greying a
+    /// drag before it starts; [`Self::transform_objects`] moves images.
     ///
     /// # Errors
     ///
     /// `ObjectOutOfRange`, `NotAPath`, `DegenerateCtm`, `MalformedOperand`,
-    /// `OverlappingObjectSpans`, plus every refusal
-    /// [`Self::move_object`] raises.
+    /// `TransformInsideTextObject`, `OverlappingObjectSpans`, plus every
+    /// refusal [`Self::move_object`] raises.
     pub fn move_objects(
         &mut self,
         page_index: usize,
@@ -12792,19 +12797,22 @@ impl EditSession {
     ) -> Result<Vec<String>, EditError> {
         self.vector_surgery(CommandKind::MoveObject, page_index, |stream, model| {
             let count = model.objects.len();
-            // Resolve and type-check EVERY index before planning, so a
-            // non-path or a stale index refuses the call rather than moving
-            // the prefix that happened to qualify.
-            let paths = object_indices
+            // Resolve and kind-check EVERY index before planning, so an
+            // image or a stale index refuses the call (under its page index)
+            // rather than moving the prefix that happened to qualify.
+            let objs = object_indices
                 .iter()
                 .map(|&i| {
                     let obj = model.objects.get(i).ok_or(
                         crate::vector::VectorEditError::ObjectOutOfRange { index: i, count },
                     )?;
-                    vector_object_as_path(obj, i)
+                    match crate::vector::object_move_refusal(obj, i) {
+                        Some(refusal) => Err(refusal),
+                        None => Ok(obj),
+                    }
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            Ok(crate::vector::plan_move_many(stream, &paths, dx, dy)?)
+            Ok(crate::vector::plan_move_objects(stream, &objs, dx, dy)?)
         })
     }
 
@@ -12818,8 +12826,9 @@ impl EditSession {
     /// `move_objects` rewrites numeric **operands**, which can express
     /// translation and nothing else — a rotated rectangle has no `re`
     /// spelling, `line_width` is a user-space scalar a coordinate scale leaves
-    /// behind, and neither text nor images have coordinate operands at all
-    /// (which is exactly why that verb refuses them with `NotAPath`). This
+    /// behind, and an image has no coordinate operand at all (which is why
+    /// that verb refuses it with `NotAPath`; text it translates through
+    /// `Tm`/`Td`, which cannot rotate or scale). This
     /// wraps each object's operator run in `q <cm> … Q` instead, which never
     /// looks at an operand and is therefore **kind-agnostic by construction**:
     /// a path, a text object, an image XObject, a form XObject and an inline
@@ -15674,16 +15683,19 @@ impl EditSession {
             first,
             |stream, model, _| {
                 let count = model.objects.len();
-                let paths = siblings
+                let objs = siblings
                     .iter()
                     .map(|&i| {
                         let obj = model.objects.get(i).ok_or(
                             crate::vector::VectorEditError::ObjectOutOfRange { index: i, count },
                         )?;
-                        vector_object_as_path(obj, i)
+                        match crate::vector::object_move_refusal(obj, i) {
+                            Some(refusal) => Err(refusal),
+                            None => Ok(obj),
+                        }
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                Ok(crate::vector::plan_move_many(stream, &paths, dx, dy)?)
+                Ok(crate::vector::plan_move_objects(stream, &objs, dx, dy)?)
             },
         )
     }

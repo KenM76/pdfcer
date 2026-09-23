@@ -130,13 +130,11 @@ pub enum VectorEditError {
         /// How many selectable objects the page actually has.
         count: usize,
     },
-    /// A move or node-drag was requested on an object that is not a
-    /// **path** (a text or image/form object). Text and image objects are
-    /// selectable-for-move/delete in the model, but node editing and
-    /// operand-translation are path-only in the beta (decision 011 §2.1:
-    /// text/image are "not node-editable"). Move of a text/image object is
-    /// a named fast-follow (it needs `Tm`/`cm`-operand surgery, a different
-    /// operator family); 9c-min moves **paths**.
+    /// A path-only verb (node or subpath editing) was pointed at a text or
+    /// image object, or a move at an **image** object. Whole-object moves
+    /// accept paths and text ([`plan_move_objects`]); an image is placed by
+    /// the `cm` in front of its `Do`, which operand moves do not rewrite —
+    /// `transform_objects` moves it.
     #[error(
         "object {index} is not a path object (it is {kind}), which 9c-min move/node editing does not cover"
     )]
@@ -153,6 +151,15 @@ pub enum VectorEditError {
         "the object's transform is singular (non-invertible), so a page-space drag cannot be mapped to its user space"
     )]
     DegenerateCtm,
+    /// A whole text object to be moved changes the transformation matrix
+    /// (`cm`) between its `BT` and `ET`. ISO 32000-1 §8.2 Figure 9 (and 2.0
+    /// Table 50) does not allow `cm` there; the runs either side of it sit in
+    /// different user spaces, so no one operand delta moves them all.
+    /// `transform_objects` still moves the object.
+    #[error(
+        "the text object changes its transformation part-way through, which the PDF standard does not allow, so its text cannot all be moved by the same amount"
+    )]
+    TransformInsideTextObject,
     /// A whole-object move hit a construction operator whose operand arity
     /// does not match the spec (Table 59), so the object cannot be moved
     /// **as a whole** without tearing it. Refused by name; the object is
@@ -748,17 +755,23 @@ pub fn plan_move_many(
             }
         }
     }
-    // Two objects cannot rewrite the same operator: each edit is keyed on an
-    // operator's own byte range, and an operator belongs to exactly one
-    // object's token run. A shared offset would mean the decomposition
-    // assigned one operator to two objects, which is the same torn-model
-    // condition `plan_delete_many` refuses — so it is checked, not assumed.
+    finish_many(content, edits, disclosures)
+}
+
+/// Sort, overlap-check and splice the edits of a multi-object plan.
+///
+/// Two objects cannot rewrite the same operator: each edit is keyed on an
+/// operator's own byte range, and an operator belongs to exactly one object's
+/// token run. A shared offset would mean the decomposition assigned one
+/// operator to two objects — the torn-model condition `plan_delete_many`
+/// refuses — so it is checked, not assumed. (A running scan, not
+/// `windows(2)` + indexing: the crate denies `clippy::indexing_slicing`.)
+fn finish_many(
+    content: &ContentStream,
+    mut edits: Vec<(usize, usize, Vec<u8>)>,
+    disclosures: Vec<String>,
+) -> Result<PlannedEdit, VectorEditError> {
     edits.sort_by_key(|e| e.0);
-    // A running scan rather than `windows(2)` + indexing: this crate DENIES
-    // `clippy::indexing_slicing` (lib.rs's panic-free policy — pdfcer-core
-    // parses untrusted input, so a reachable panic is a denial-of-service
-    // bug), and `w[0]`/`w[1]` are exactly the pattern it forbids even though
-    // `windows(2)` makes them provably in-bounds.
     let mut prev_end = 0usize;
     for (start, end, _) in &edits {
         if *start < prev_end {
@@ -775,6 +788,219 @@ pub fn plan_move_many(
         operators_touched: touched,
         disclosures,
     })
+}
+
+/// Whether a whole-object move of `obj` (at page index `index`) is refused on
+/// its kind — the guard [`plan_move_objects`] and the session's
+/// `move_objects` run, exported so a shell can grey a drag before it starts
+/// (`R221`: one function, so the check and the verb cannot disagree).
+///
+/// `None` for a path or a text object. [`VectorEditError::NotAPath`] with
+/// kind `"image"` for an image, which `transform_objects` moves instead.
+/// `None` does not promise the plan succeeds: a singular CTM, a malformed
+/// operand, or a `cm` inside a text object
+/// ([`VectorEditError::TransformInsideTextObject`]) is found while planning.
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_core::content::ContentStream;
+/// use pdfcer_core::vector::{decompose, NoXObjects, Matrix};
+/// use pdfcer_core::vector::edit::object_move_refusal;
+///
+/// let cs = ContentStream::parse(b"BT 10 700 Td (A) Tj ET 0 0 m 5 5 l S".to_vec()).unwrap();
+/// let model = decompose(&cs, Matrix::IDENTITY, &NoXObjects);
+/// assert!(model.objects.iter().enumerate().all(|(i, o)| object_move_refusal(o, i).is_none()));
+/// ```
+#[must_use]
+pub fn object_move_refusal(obj: &VectorObject, index: usize) -> Option<VectorEditError> {
+    match obj {
+        VectorObject::Path(_) | VectorObject::Text(_) => None,
+        VectorObject::Image(_) => Some(VectorEditError::NotAPath {
+            index,
+            kind: "image",
+        }),
+    }
+}
+
+/// The disclosure a whole-text-object move owes when it had to insert a
+/// positioning operator (rule 4) — [`inserted_td_disclosure`]'s wording for
+/// an object rather than a line.
+fn inserted_object_td_disclosure() -> String {
+    "This text had no position instruction that could be adjusted, so one has been added. \
+     The text is exactly where you put it; the file now records the position differently \
+     from the way the program that made it did."
+        .to_owned()
+}
+
+/// One byte-range replacement: `(start, end, replacement)`.
+type Splice = (usize, usize, Vec<u8>);
+
+/// The operand edits that translate a whole text object by the user-space
+/// delta `d`, and whether a positioning operator had to be inserted.
+///
+/// `BT` resets the text and line matrices to the identity (ISO 32000-1
+/// §9.4.1), so until the first `Tm` every `Td`/`TD`/`T*` is a pure
+/// translation in user space, and every one after the first is relative to
+/// the line before it. Hence:
+///
+/// - every `Tm` gets `d` added to `e`/`f` (it is absolute, §9.4.2 Table 108);
+/// - the first `Td` ahead of any `Tm` gets `d` added — it places everything
+///   up to the next `Tm`;
+/// - when a `TD`, `T*` or show operator comes first instead, `d Td` is
+///   inserted after `BT`. `TD` cannot take the delta: its `ty` also sets the
+///   leading, which later `T*` would inherit.
+///
+/// `q`/`Q` (legal here in PDF 2.0, Table 50) do not save the text matrices
+/// and are left alone. `cm` (illegal here in both editions) changes the user
+/// space mid-object and is refused.
+///
+/// # Errors
+///
+/// [`VectorEditError::TransformInsideTextObject`], or
+/// [`VectorEditError::MalformedOperand`] for a `Tm`/`Td` with the wrong
+/// operand count or a text object with no `BT`.
+fn text_move_edits(
+    content: &ContentStream,
+    obj: &TextObject,
+    d: Point,
+) -> Result<(Vec<Splice>, bool), VectorEditError> {
+    let mut edits: Vec<Splice> = Vec::new();
+    let mut inserted = false;
+    let mut placed = false;
+    let mut bt_end: Option<usize> = None;
+    for item in ops_in_range(content, obj.tokens.start, obj.tokens.end) {
+        let Some(keyword) = item.keyword(&content.buf) else {
+            continue;
+        };
+        match keyword {
+            b"BT" => {
+                bt_end.get_or_insert(item.byte_end());
+            }
+            b"cm" => return Err(VectorEditError::TransformInsideTextObject),
+            b"Tm" => {
+                let &[a, b, c, dd, e, f] = item.nums().as_slice() else {
+                    return Err(VectorEditError::MalformedOperand);
+                };
+                let moved = [a, b, c, dd, e + d.x, f + d.y];
+                edits.push((item.byte_start(), item.byte_end(), emit_op(&moved, b"Tm")));
+                placed = true;
+            }
+            b"Td" if !placed => {
+                let &[tx, ty] = item.nums().as_slice() else {
+                    return Err(VectorEditError::MalformedOperand);
+                };
+                edits.push((
+                    item.byte_start(),
+                    item.byte_end(),
+                    emit_op(&[tx + d.x, ty + d.y], b"Td"),
+                ));
+                placed = true;
+            }
+            b"TD" | b"T*" | b"Tj" | b"TJ" | b"'" | b"\"" if !placed => {
+                let at = bt_end.ok_or(VectorEditError::MalformedOperand)?;
+                let mut bytes = vec![b' '];
+                bytes.extend_from_slice(&emit_op(&[d.x, d.y], b"Td"));
+                edits.push((at, at, bytes));
+                inserted = true;
+                placed = true;
+            }
+            _ => {}
+        }
+    }
+    Ok((edits, inserted))
+}
+
+/// Plan a move of **one whole text object** by a page-space `(dx, dy)` by
+/// rewriting its positioning operands — no `q`/`cm`/`Q` wrapper, so a
+/// hundred nudges add nothing to the file (`G029`). See [`text_move_edits`]
+/// for which operands change; every other byte of the object is verbatim.
+///
+/// # Errors
+///
+/// [`VectorEditError::DegenerateCtm`],
+/// [`VectorEditError::TransformInsideTextObject`],
+/// [`VectorEditError::MalformedOperand`].
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_core::content::ContentStream;
+/// use pdfcer_core::vector::{decompose, NoXObjects, Matrix, VectorObject};
+/// use pdfcer_core::vector::edit::plan_move_text_object;
+///
+/// let src = b"BT /F1 10 Tf 10 700 Td (A) Tj 0 -12 Td (B) Tj ET".to_vec();
+/// let cs = ContentStream::parse(src).unwrap();
+/// let model = decompose(&cs, Matrix::IDENTITY, &NoXObjects);
+/// let VectorObject::Text(text) = &model.objects[0] else { unreachable!() };
+/// let plan = plan_move_text_object(&cs, text, 5.0, -3.0).unwrap();
+/// // The first placement took the delta; the second line is relative to it.
+/// assert_eq!(plan.content, b"BT /F1 10 Tf 15 697 Td (A) Tj 0 -12 Td (B) Tj ET");
+/// ```
+pub fn plan_move_text_object(
+    content: &ContentStream,
+    obj: &TextObject,
+    dx: f64,
+    dy: f64,
+) -> Result<PlannedEdit, VectorEditError> {
+    let obj = VectorObject::Text(obj.clone());
+    plan_move_objects(content, &[&obj], dx, dy)
+}
+
+/// Plan a move of **several path and text objects** by one page-space delta —
+/// one splice, one undoable command (`R168`, `G029`).
+///
+/// Paths move as in [`plan_move_many`]; text objects as in
+/// [`plan_move_text_object`]. The CTM inverse is taken per object. An image
+/// refuses the whole move (`R168`: no partial application) with
+/// [`VectorEditError::NotAPath`] whose `index` is its **position in `objs`**
+/// — the session verbs pre-check with [`object_move_refusal`] under the page
+/// index before this is reached.
+///
+/// # Errors
+///
+/// As [`plan_move_many`] and [`plan_move_text_object`], plus `NotAPath` for an
+/// image.
+pub fn plan_move_objects(
+    content: &ContentStream,
+    objs: &[&VectorObject],
+    dx_page: f64,
+    dy_page: f64,
+) -> Result<PlannedEdit, VectorEditError> {
+    let mut edits: Vec<(usize, usize, Vec<u8>)> = Vec::new();
+    let mut disclosures: Vec<String> = Vec::new();
+    for (position, obj) in objs.iter().enumerate() {
+        if let Some(refusal) = object_move_refusal(obj, position) {
+            return Err(refusal);
+        }
+        match obj {
+            VectorObject::Path(path) => {
+                let inv = path.ctm.inverse().ok_or(VectorEditError::DegenerateCtm)?;
+                let d = inv.map_vector(Point::new(dx_page, dy_page));
+                edits.extend(move_edits(content, path, d.x, d.y)?);
+                for note in clip_disclosure(content, path) {
+                    if !disclosures.contains(&note) {
+                        disclosures.push(note);
+                    }
+                }
+            }
+            VectorObject::Text(text) => {
+                let inv = text.ctm.inverse().ok_or(VectorEditError::DegenerateCtm)?;
+                let d = inv.map_vector(Point::new(dx_page, dy_page));
+                if !d.is_finite() {
+                    return Err(VectorEditError::DegenerateCtm);
+                }
+                let (text_edits, inserted) = text_move_edits(content, text, d)?;
+                edits.extend(text_edits);
+                let note = inserted_object_td_disclosure();
+                if inserted && !disclosures.contains(&note) {
+                    disclosures.push(note);
+                }
+            }
+            VectorObject::Image(_) => {}
+        }
+    }
+    finish_many(content, edits, disclosures)
 }
 
 /// Plan a **delete**: remove `obj`'s construction **and** painting
@@ -4392,5 +4618,89 @@ mod tests {
         // A huge, non-finite-ish drag: the surgery must produce bytes, not panic.
         let _ = plan_move(&cs, &path, 1e308, -1e308);
         let _ = plan_move_node(&cs, &path, 1, Point::new(f64::MAX, f64::MIN));
+    }
+
+    // ---- G029: whole text objects move by operand rewrite ---------------
+
+    /// Decompose `src` and move EVERY object by one page-space delta.
+    fn move_all(src: &[u8], dx: f64, dy: f64) -> Result<PlannedEdit, VectorEditError> {
+        let cs = ContentStream::parse(src.to_vec()).unwrap();
+        let model = decompose(&cs, Matrix::IDENTITY, &NoXObjects);
+        let objs: Vec<&VectorObject> = model.objects.iter().collect();
+        plan_move_objects(&cs, &objs, dx, dy)
+    }
+
+    /// Only the first `Td` places the object; later ones are relative to it
+    /// and must stay verbatim or the lines would spread apart.
+    #[test]
+    fn a_text_object_moves_by_its_first_td_only() {
+        let plan = move_all(b"BT 10 700 Td (A) Tj 0 -12 Td (B) Tj ET", 5.0, -3.0).unwrap();
+        assert_eq!(plan.content, b"BT 15 697 Td (A) Tj 0 -12 Td (B) Tj ET");
+        assert!(plan.disclosures.is_empty());
+    }
+
+    /// Every `Tm` is absolute, so every one takes the delta — and a `Td`
+    /// after a `Tm` is relative to it and stays put.
+    #[test]
+    fn every_tm_takes_the_delta_and_relative_lines_follow() {
+        let plan = move_all(
+            b"BT 10 700 Td (A) Tj 1 0 0 1 20 600 Tm (B) Tj 0 -12 Td (C) Tj ET",
+            5.0,
+            -3.0,
+        )
+        .unwrap();
+        assert_eq!(
+            plan.content,
+            b"BT 15 697 Td (A) Tj 1 0 0 1 25 597 Tm (B) Tj 0 -12 Td (C) Tj ET".as_slice()
+        );
+        assert_eq!(plan.operators_touched, 2);
+    }
+
+    /// A rotated `Tm` keeps its linear part; only `e`/`f` change.
+    #[test]
+    fn a_rotated_tm_keeps_its_linear_part() {
+        let plan = move_all(b"BT 0 1 -1 0 300 400 Tm (A) Tj ET", 5.0, -3.0).unwrap();
+        assert_eq!(plan.content, b"BT 0 1 -1 0 305 397 Tm (A) Tj ET");
+    }
+
+    /// No adjustable placement ahead of the first line: a `Td` is inserted
+    /// after `BT` and the insertion is disclosed (rule 4).
+    #[test]
+    fn a_text_object_with_no_leading_td_gets_one_and_says_so() {
+        let plan = move_all(b"BT 14 TL T* (A) Tj ET", 5.0, -3.0).unwrap();
+        assert_eq!(plan.content, b"BT 5 -3 Td 14 TL T* (A) Tj ET");
+        assert_eq!(plan.disclosures, vec![inserted_object_td_disclosure()]);
+    }
+
+    /// `TD` cannot take the delta — its `ty` also sets the leading.
+    #[test]
+    fn a_leading_td_capital_is_not_rewritten() {
+        let plan = move_all(b"BT 10 700 TD (A) Tj T* (B) Tj ET", 5.0, -3.0).unwrap();
+        assert_eq!(plan.content, b"BT 5 -3 Td 10 700 TD (A) Tj T* (B) Tj ET");
+    }
+
+    /// `cm` inside `BT` (illegal, §8.2 Figure 9) would make the delta wrong
+    /// for part of the text, so the move refuses rather than half-move.
+    #[test]
+    fn a_cm_inside_a_text_object_refuses_the_move() {
+        assert_eq!(
+            move_all(b"BT 10 10 Td (A) Tj 2 0 0 2 0 0 cm (B) Tj ET", 1.0, 1.0),
+            Err(VectorEditError::TransformInsideTextObject)
+        );
+    }
+
+    /// The delta is mapped through the object's own CTM: under a 2x scale a
+    /// page drag of (10, 0) is a user-space (5, 0).
+    #[test]
+    fn a_text_move_is_ctm_aware() {
+        let plan = move_all(b"2 0 0 2 0 0 cm BT 10 10 Td (A) Tj ET", 10.0, 0.0).unwrap();
+        assert_eq!(plan.content, b"2 0 0 2 0 0 cm BT 15 10 Td (A) Tj ET");
+    }
+
+    /// A path and a text object move together in one splice.
+    #[test]
+    fn a_mixed_path_and_text_selection_moves_together() {
+        let plan = move_all(b"0 0 m 10 0 l S BT 10 10 Td (A) Tj ET", 5.0, -3.0).unwrap();
+        assert_eq!(plan.content, b"5 -3 m 15 -3 l S BT 15 7 Td (A) Tj ET");
     }
 }

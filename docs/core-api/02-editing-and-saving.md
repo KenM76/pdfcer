@@ -747,8 +747,9 @@ The two exceptions are `transform_objects` / `transform_preview`
 >   what is drawn;
 > - **`line_width` is a user-space scalar**, so a scaled path would keep its
 >   original stroke weight;
-> - **text and images have no coordinate operands at all**, which is precisely
->   why `move_objects` refuses them with `NotAPath`.
+> - **an image has no coordinate operand at all**, which is why
+>   `move_objects` refuses it with `NotAPath`; text it can only *translate*
+>   (through `Tm`/`Td`, `G029`), never rotate or scale.
 >
 > So each object's operator run is wrapped in `q <cm> … Q`. That never looks at
 > an operand, and is therefore **kind-agnostic by construction** — your own
@@ -1143,7 +1144,7 @@ said nothing about identity across edits — this section is that gap closed.*
 |---|---|---|
 | Move one object | `move_object(page_index, object_index, dx, dy)` | 4483 |
 | Delete one object | `delete_object(page_index, object_index)` | 4533 |
-| Move a multi-object selection, ONE undo entry | `move_objects(page_index, object_indices: &[usize], dx, dy)` | 4574 |
+| Move a multi-object selection, ONE undo entry — paths **and text** (`G029`); an image refuses the whole call with `NotAPath { kind: "image", index }`, so grey it with `vector::object_move_refusal(obj, index)` | `move_objects(page_index, object_indices: &[usize], dx, dy)` | 4574 |
 | Delete a multi-object selection, ONE undo entry | `delete_objects(page_index, object_indices: &[usize])` | 4641 |
 | Delete one anchor node | `delete_node(page_index, object_index, node_index)` | 4751 |
 | Delete one subpath | `delete_subpath(page_index, object_index, subpath_index)` | 4770 |
