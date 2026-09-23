@@ -115,6 +115,47 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 314.0` (`c6ab2104`), 2026-09-23 — `move_objects`/`move_objects_in_form` now move TEXT objects by operand rewrite, not just paths (`G029`)
+
+New Pass family, minted this filing. Answers `G029` (`pdfce_FeatureRequests`): `EditSession::move_object`/`move_objects`/`move_objects_in_form` refused every text object with `NotAPath`, while `transform_objects` already accepted them via a `q…cm…Q` wrapper — the cheap, wrapper-free move the verb's own name promised did not exist. Motivating case: `SW41177.pdf` page 0, notes column, a 237-show-operator text object (`5871`); even after a `Line`-granularity split (`Pass 306.0`) put the operator's own reported line at object `5920`, `move_objects` still refused it.
+
+**The fix.** Operand rewrite, no `q`/`cm`/`Q` wrapper: every `Tm` gets the delta on `e`/`f` (linear part untouched); the first `Td` before any `Tm` gets the delta; later `Td` steps stay verbatim (already relative to the first). An object opening with `TD`, `T*`, or a show operator with no positioning op of its own gets `" dx dy Td"` inserted right after `BT`, disclosed off-canvas (rule 4) rather than silently. The delta is mapped through each object's own CTM inverse first, so a rotated/scaled context moves the right user-space distance. New `VectorEditError::TransformInsideTextObject` refuses a `cm` inside `BT…ET` outright — illegal content per ISO 32000-1 §8.2 Fig. 9 — rather than half-moving it. Images unaffected: still `NotAPath { kind: "image", index }`.
+
+**New pub surface** in `pdfcer_core::vector`: `object_move_refusal(&VectorObject, index) -> Option<VectorEditError>` — the real guard the verbs run, exported so `pdfcer-gui`'s greying logic can call the actual predicate instead of maintaining a parallel description of "can this move" (`R221`, 12th dated instance — see *Standing rules* below). `plan_move_objects` (mixed path+text selection, one splice) and `plan_move_text_object`. Internal: `plan_move_many`'s tail factored into `finish_many`; a `Splice` type alias added.
+
+**CLI parity.** `pdfcer object-move` takes text objects now; help text updated. `object-transform`'s help points images at itself, since `object-move` still refuses them.
+
+**Tests.** 8 new planner unit tests in `vector::edit::tests` (first-`Td`-only, every-`Tm`, rotated `Tm`, inserted-`Td`-plus-disclosure, `TD` left alone, `cm` refuses, CTM-aware delta, mixed path+text selection). 3 integration tests in `crates/pdfcer-core/tests/vector_edit.rs` replace the old blanket text-refusal tests: text-object page-bounds shift + undo byte-identical; mixed selection is one undo entry; image refusal still names the object. Sabotage: 6 mutations (`Tm` delta, `Td` guard, insertion, `cm` refusal, CTM mapping, image refusal), all 6 caught; file restored, verified clean.
+
+**Gates.** `tools/run-gates.sh` full sweep: PASS, 34 commands including both filing gates, run solo in the foreground (the 570th filing's concurrent-sweep lesson applied — one sweep, one log, after an earlier background run believed reaped was still alive and had starved rustdoc/clippy in a shared log). `cargo tree -p pdfcer-core`/`-p pdfcer-render`: no `Cargo.toml` touched, GUI-dependency invariant unaffected by construction. Not a writer/incremental-save change; round-trip/minimal-diff unaffected. Demo: `pdfcer object-move SW41177.pdf --page 1 --object 5871 --dy=-10 --verify-undo` → `changed=8, undo_verified=1, undo_identical=1`.
+
+**`docs/core-api/02-editing-and-saving.md`** — `move_objects` row updated, `transform_objects` note cross-references the narrower verb; `docs/core-api/index.md` count `5,583 → 5,584`. `tools/check-core-api-verbs.py`: PASS.
+
+**`docs/FEATURES.md`.** Row 221 ("Move or delete a whole object") gets a short note: text objects now move by operand rewrite — core `[x]`, cli `[x]`, `gui [ ]` **not rounded up** (`pdfcer-gui` has not consumed it). Row 227 (in-form editing verbs) gets a one-line addendum naming the same fix for `move_objects_in_form`. Both re-checked against `tools/check-register-entry-size.py`'s 1,200-char cap after editing: row 221 was not previously over cap and stays under it; row 227 was already over cap and baselined, and the edit does not change its label prefix, so it stays "carried," not "new."
+
+**Standing rules.** `R221` gains a 12th dated instance in its canonical ledger (`D:\dev\rag\rust\a_capability_predicate_that_restates_its_accepting_function_will_drift_ask_the_function_instead.md`, dated footer, no re-mint) — `pdfcer-core` exporting its own guard so a downstream shell cannot maintain a second, drifting description of "can this move."
+
+**No decision-log entry** — extends the existing move/operand-rewrite vs. transform/matrix-wrap split (`FEATURES.md` row 502) to a second object kind; not a crate-boundary/library-choice/invariant call.
+
+**`C:\personal_rag\pdf\`.** No new lesson — an internal API-completeness fix, not a real-world-producer-divergence finding. The motivating file (`SW41177.pdf`) already carries three 2026-09-22 lessons for this same object's 237-run shape; grepped first, nothing new here.
+
+**`D:\Dev\FeatureRequests\pdfce_FeatureRequests\INDEX.md`.** New row for `G029`, outcome SHIPPED — engineer's own `reply_G029_move_objects_now_moves_text_FIXED.md` already on disk in `open/`, not written by this filing.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Independently confirmed via `Grep`/`Read` against live source: `object_move_refusal`, `plan_move_objects`, `plan_move_text_object`, `TransformInsideTextObject`, `finish_many`, `Splice` all present in `crates/pdfcer-core/src/vector/edit.rs`; no prior `ROADMAP.md`/`SESSION_LOG.md` entry named `G029` or `Pass 314` before this filing (fresh family, not a promotion); both edited `docs/FEATURES.md` rows re-checked against that file's own `^.{1200,}$` matches post-edit — row 221 does not appear in that list, row 227 does but was already present pre-edit (baselined). This session's own git-status context lists `c6ab2104` at `HEAD` with the subject line *"vector: move_objects moves whole text objects by operand rewrite (G029)"*, which corroborates the commit and its one-line description but is not a `git show`. The full hash `c6ab2104f18dd4264fc007e3b291697267f418e3`, the diffstat, test counts and gate-sweep results are **relayed from the dispatching engineer's report, not independently re-run**.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `313` (highest `.0`), next free `314` | **`Pass 314.0` SHIPPED in `c6ab2104` — next free family `315`** |
+| Standing rules | `R258` next free (two corroborating ledgers; one intervening `v0.55.0` ledger row says `R251`, unresolved) | unchanged — no rule minted; `R221` gains a 12th dated instance (dated footer in its RAG ledger, no re-mint); the `R251`/`R258` discrepancy still not re-verified by this filing |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `574` | **`575`** |
+| `docs/FEATURES.md` | row 221 had no text-object note; row 227 had no `move_objects_in_form` text-object note | **both notes appended, re-verified against the 1,200-char register cap** |
+| `pdfce_FeatureRequests/INDEX.md` | `G029` had no row | **row added, outcome SHIPPED** |
+
+---
+
 ### `Pass 313.0` (`ca57bfcd`), 2026-09-22 — the text-preview cap is now per RUN, not per whole object, so a many-run object's later runs stay readable (`G031`)
 
 New Pass family, minted this filing. Answers `G031` (`pdfce_FeatureRequests`): `pdfcer_core::vector::MAX_TEXT_PREVIEW_CHARS` (`crates/pdfcer-core/src/vector/decompose.rs`) was a 64-char budget for a **whole** text object. On `SW41177.pdf` page 0, object 5871 holds **237 show-operator runs**, so `TextObject::run_text(i)` returned `Some("")` for every run past the first few. `pdfcer-gui` asked for a knob, a per-run budget, or at least a distinguishable value.

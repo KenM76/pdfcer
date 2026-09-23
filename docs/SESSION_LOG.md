@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-23 (575th filing) — `Pass 314.0` (`c6ab2104`): `move_objects`/`move_objects_in_form` now move TEXT objects by operand rewrite, not just paths (`G029`)
+
+**Shipped:** `Pass 314.0` — `EditSession::move_object`/`move_objects`/`move_objects_in_form` refused every text object with `NotAPath`, while `transform_objects` already accepted them via a `q…cm…Q` wrapper — the cheap, wrapper-free move the verb's own name promised did not exist. Fixed with operand rewrite, no wrapper: every `Tm` gets the delta on `e`/`f`; the first `Td` before any `Tm` gets it; later `Td` steps stay verbatim; an object opening with `TD`/`T*`/a show operator gets `" dx dy Td"` inserted after `BT`, disclosed (rule 4). Delta mapped through each object's own CTM inverse. New `VectorEditError::TransformInsideTextObject` refuses a `cm` inside `BT…ET` (illegal per §8.2 Fig. 9) rather than half-move. Images unaffected (`NotAPath { kind: "image", .. }`). New pub `object_move_refusal` (the real guard, exported so `pdfcer-gui`'s greying calls it instead of restating it — `R221`, 12th instance), `plan_move_objects`, `plan_move_text_object`. CLI: `pdfcer object-move` takes text now.
+
+**Decisions made this session:** None — extends the existing move/operand-rewrite vs. transform/matrix-wrap split to a second object kind; not a crate-boundary/library/invariant call.
+
+**Findings + decisions:**
+- `R221` gains a 12th dated instance in its RAG ledger (`D:\dev\rag\rust\a_capability_predicate_that_restates_its_accepting_function_will_drift_ask_the_function_instead.md`) — the export exists specifically so the GUI's own greying logic asks the real predicate instead of maintaining a parallel description of "can this move."
+- `docs/FEATURES.md`: no new row — row 221 ("Move or delete a whole object") and row 227 (in-form editing verbs) both got short notes; core/cli ticked, `gui [ ]` not rounded up (`pdfcer-gui` has not consumed the fix).
+- No `personal_rag/pdf` lesson — an internal API-completeness fix, not a producer-divergence finding; the motivating file (`SW41177.pdf`) already has three 2026-09-22 lessons on record for this same object's 237-run shape.
+
+**Still in flight:** Nothing new opened by this Pass. `pdfcer-gui` has not consumed `object_move_refusal`/text-object move (`FEATURES.md` `gui [ ]`). The `R251`/`R258` standing-rules ledger discrepancy flagged by prior filings is still unresolved — not re-verified this session either.
+
+**For next session:** `pdfce_FeatureRequests/INDEX.md` `G029` row closed SHIPPED; `open/reply_G029_move_objects_now_moves_text_FIXED.md` is the engineer's own artifact, not written by this filing.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Independently confirmed via `Grep`/`Read` against live source: `object_move_refusal`, `plan_move_objects`, `plan_move_text_object`, `TransformInsideTextObject` all present in `crates/pdfcer-core/src/vector/edit.rs`; no prior `ROADMAP.md`/`SESSION_LOG.md` entry named `G029` or `Pass 314` before this filing; both edited `docs/FEATURES.md` rows re-checked against that file's own `^.{1200,}$` matches post-edit — row 221 does not appear in that list, row 227 does but was already present pre-edit (baselined, label prefix unchanged by the edit). Commit hash `c6ab2104f18dd4264fc007e3b291697267f418e3`, its diffstat, test counts and gate-sweep results are relayed from the dispatching engineer's report, not independently re-run.
+
 ## 2026-09-22 (574th filing) — `Pass 313.0` (`ca57bfcd`): the text-preview cap is now per RUN, not per whole object (`G031`)
 
 **Shipped:** `Pass 313.0` — `pdfcer_core::vector::MAX_TEXT_PREVIEW_CHARS` (`crates/pdfcer-core/src/vector/decompose.rs`) was a 64-char budget for a **whole** text object; on `SW41177.pdf` page 0, object 5871's 237 show-operator runs, `TextObject::run_text(i)` returned `Some("")` for every run past the first few. Fixed: the cap is now per show operator (256 chars, reset at each run's own open), plus a new public `MAX_TEXT_PREVIEW_PAGE_CHARS: usize = 1 << 20` bounding the decomposition as a whole — the actual memory ceiling the old single number stood in for. Past the page ceiling a run reads `Some("")` and its object's `truncated` flag is set, so a cut run stays distinguishable from a genuinely-empty one. No struct shape changed (`TextObject`/`TextPreview` are not `#[non_exhaustive]`); no `Cargo.toml` change; not a writer change.
