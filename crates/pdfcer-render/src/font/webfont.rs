@@ -29,6 +29,9 @@
 //! bounds. Glyph ids are the charstring indices, so they are unchanged.
 //! A Type 1 program is not converted and stays outlines.
 //!
+//! A font collection (`ttcf`, a `.ttc` or `.otc`) contributes face 0, the
+//! face the renderer draws with; `subsetter` writes it out as a plain sfnt.
+//!
 //! A font whose `OS/2.fsType` sets the restricted-licence bit (0x0002) is
 //! refused: re-embedding it in another file is exactly what that bit
 //! forbids. Only BMP characters are mapped, which is all format 4 can carry;
@@ -238,15 +241,24 @@ struct Directory<'a> {
 }
 
 impl<'a> Directory<'a> {
+    /// A plain sfnt, or face 0 of a collection (`ttcf`). A collection's
+    /// table offsets count from the start of the whole file, so face 0's
+    /// tables are sliced from `data` as they are for a plain sfnt; face 0 is
+    /// the face the renderer draws with.
     fn parse(data: &'a [u8]) -> Option<Self> {
-        let flavor = read_u32(data, 0)?;
+        let base = if data.starts_with(b"ttcf") {
+            usize::try_from(read_u32(data, 12)?).ok()?
+        } else {
+            0
+        };
+        let flavor = read_u32(data, base)?;
         if !matches!(flavor, 0x0001_0000 | 0x7472_7565 | 0x4F54_544F) {
             return None;
         }
-        let count = usize::from(read_u16(data, 4)?);
+        let count = usize::from(read_u16(data, base + 4)?);
         let mut tables = Vec::with_capacity(count);
         for i in 0..count {
-            let rec = 12 + i * 16;
+            let rec = base + 12 + i * 16;
             let tag: [u8; 4] = data.get(rec..rec + 4)?.try_into().ok()?;
             let offset = usize::try_from(read_u32(data, rec + 8)?).ok()?;
             let length = usize::try_from(read_u32(data, rec + 12)?).ok()?;
@@ -610,6 +622,56 @@ mod tests {
             }
             assert_eq!(read_u32(&font, rec + 4), Some(checksum(&data)));
         }
+    }
+
+    /// A collection holding `faces`, each a plain sfnt: the `ttcf` header,
+    /// then each face with its table offsets moved to count from the start
+    /// of the collection.
+    fn collection(faces: &[&[u8]]) -> Vec<u8> {
+        let mut out = b"ttcf".to_vec();
+        out.extend_from_slice(&0x0001_0000u32.to_be_bytes());
+        out.extend_from_slice(&u32::try_from(faces.len()).unwrap().to_be_bytes());
+        let mut at = 12 + 4 * faces.len();
+        for face in faces {
+            out.extend_from_slice(&u32::try_from(at).unwrap().to_be_bytes());
+            at += face.len().next_multiple_of(4);
+        }
+        for face in faces {
+            let base = u32::try_from(out.len()).unwrap();
+            let mut face = face.to_vec();
+            let count = usize::from(read_u16(&face, 4).unwrap());
+            for i in 0..count {
+                let rec = 12 + i * 16 + 8;
+                let moved = read_u32(&face, rec).unwrap() + base;
+                face[rec..rec + 4].copy_from_slice(&moved.to_be_bytes());
+            }
+            out.extend_from_slice(&face);
+            out.resize(out.len().next_multiple_of(4), 0);
+        }
+        out
+    }
+
+    #[test]
+    fn a_collection_contributes_face_zero_as_a_plain_sfnt() {
+        const DONOR: &[u8] = include_bytes!("../../../../fixtures/synthetic/text/subset-donor.ttf");
+        let mut os2 = vec![0u8; 78];
+        os2[8..10].copy_from_slice(&2u16.to_be_bytes());
+        let restricted = assemble(0x0001_0000, vec![(*b"OS/2", os2)]);
+        let map: BTreeMap<char, u16> = [('A', 1u16), ('C', 3)].into_iter().collect();
+
+        let font = build(&collection(&[DONOR, &restricted]), &map, "X").unwrap();
+        assert_eq!(read_u32(&font.data, 0), Some(0x0001_0000));
+        assert!(!font.cff);
+        let dir = Directory::parse(&font.data).unwrap();
+        let maxp = dir.table(*b"maxp").unwrap();
+        assert_eq!(read_u16(maxp, 4), Some(3), ".notdef, A and C");
+
+        // Face 0 is the one taken: with the restricted face first, the
+        // collection is refused.
+        assert_eq!(
+            build(&collection(&[&restricted, DONOR]), &map, "X").unwrap_err(),
+            WebFontError::Restricted
+        );
     }
 
     #[test]

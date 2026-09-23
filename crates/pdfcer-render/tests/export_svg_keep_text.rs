@@ -19,6 +19,7 @@ use pdfcer_core::document::Document;
 use pdfcer_core::page_tree;
 use pdfcer_core::text_edit::addtext::{self, AddTextRequest};
 use pdfcer_render::RenderOptions;
+use pdfcer_render::font::FontData;
 use pdfcer_render::font::subset::plan_subset;
 use pdfcer_render::svg::{SvgExport, SvgOptions, SvgText, export_svg};
 use skrifa::outline::DrawSettings;
@@ -54,11 +55,15 @@ fn page_with(text: &str, render_mode: u8) -> Document {
 }
 
 fn export(doc: &Document, text: SvgText) -> SvgExport {
+    export_with(doc, text, &RenderOptions::default())
+}
+
+fn export_with(doc: &Document, text: SvgText, options: &RenderOptions) -> SvgExport {
     let page = page_tree::pages(doc).unwrap().remove(0);
     export_svg(
         doc,
         &page,
-        &RenderOptions::default(),
+        options,
         &SvgOptions::default().with_raster_dpi(144.0).with_text(text),
     )
     .unwrap()
@@ -300,22 +305,30 @@ fn placed_boxes(svg: &str) -> Vec<[f32; 4]> {
 /// A bare-CFF program must be kept: framed as OpenType, embedded with its
 /// own charstrings, and every glyph drawn where the outline export drew it.
 fn assert_cff_page_kept(doc: &Document) {
-    let kept = export(doc, SvgText::KeepText);
+    let web = assert_page_kept(doc, &RenderOptions::default(), "opentype");
+    assert_eq!(&web[..4], b"OTTO");
+    let web = FontRef::new(&web).unwrap();
+    assert_eq!(web.head().unwrap().units_per_em(), 1000);
+}
+
+/// Every run on the page is kept, in one embedded font of `format`, and
+/// every glyph is drawn where the outline export drew it. Returns the
+/// embedded font.
+fn assert_page_kept(doc: &Document, options: &RenderOptions, format: &str) -> Vec<u8> {
+    let kept = export_with(doc, SvgText::KeepText, options);
     let t = kept.outcome.text;
     assert_eq!(t.runs_as_outlines(), 0, "{t:?}");
     assert!(t.runs_as_text >= 1, "{t:?}");
     assert_eq!(t.fonts_embedded, 1, "{t:?}");
 
     let element = &kept.svg[kept.svg.find("<text ").unwrap()..];
-    let (web, format) = font_of(&kept.svg, element);
-    assert_eq!(format, "opentype");
-    assert_eq!(&web[..4], b"OTTO");
-    let web = FontRef::new(&web).expect("the embedded font parses");
-    assert_eq!(web.head().unwrap().units_per_em(), 1000);
+    let (web, got_format) = font_of(&kept.svg, element);
+    assert_eq!(got_format, format);
+    FontRef::new(&web).expect("the embedded font parses");
 
     // The kept export's paths are the page's non-text paths; the outline
     // export draws those same paths first, then one per inked glyph.
-    let outlines = export(doc, SvgText::Outlines);
+    let outlines = export_with(doc, SvgText::Outlines, options);
     let all = outline_boxes(&outlines.svg);
     let want = &all[outline_boxes(&kept.svg).len()..];
     let got = placed_boxes(&kept.svg);
@@ -325,6 +338,7 @@ fn assert_cff_page_kept(doc: &Document) {
             assert!((a - b).abs() < 0.05, "kept {g:?} vs outlines {w:?}");
         }
     }
+    web
 }
 
 #[test]
@@ -337,4 +351,84 @@ fn bundled_standard_14_cff_text_is_kept() {
 #[test]
 fn an_embedded_type1c_program_is_kept() {
     assert_cff_page_kept(&Document::from_bytes(fixture("textedit/embedded_full.pdf")).unwrap());
+}
+
+/// A one-page PDF showing `ABCA` in a non-embedded TrueType font named
+/// `Donor`, which only a supplied face can draw.
+fn page_naming_donor() -> Document {
+    let content = "BT /F1 36 Tf 72 500 Td (ABCA) Tj ET";
+    let objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] \
+         /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>"
+            .to_owned(),
+        "<< /Type /Font /Subtype /TrueType /BaseFont /Donor \
+         /FirstChar 65 /LastChar 67 /Widths [600 600 600] \
+         /Encoding /WinAnsiEncoding >>"
+            .to_owned(),
+        format!(
+            "<< /Length {} >>\nstream\n{content}\nendstream",
+            content.len()
+        ),
+    ];
+    let mut pdf = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in objects.iter().enumerate() {
+        offsets.push(pdf.len());
+        pdf.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref = pdf.len();
+    let size = objects.len() + 1;
+    pdf.extend_from_slice(format!("xref\n0 {size}\n0000000000 65535 f \n").as_bytes());
+    for o in offsets {
+        pdf.extend_from_slice(format!("{o:010} 00000 n \n").as_bytes());
+    }
+    pdf.extend_from_slice(
+        format!("trailer\n<< /Size {size} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n").as_bytes(),
+    );
+    Document::from_bytes(pdf).unwrap()
+}
+
+/// A collection of `faces`: the `ttcf` header, then each face with its
+/// table offsets moved to count from the start of the collection.
+fn collection(faces: &[&[u8]]) -> Vec<u8> {
+    let be32 = |d: &[u8], at: usize| u32::from_be_bytes(d[at..at + 4].try_into().unwrap());
+    let mut out = b"ttcf".to_vec();
+    out.extend_from_slice(&0x0001_0000u32.to_be_bytes());
+    out.extend_from_slice(&u32::try_from(faces.len()).unwrap().to_be_bytes());
+    let mut at = 12 + 4 * faces.len();
+    for face in faces {
+        out.extend_from_slice(&u32::try_from(at).unwrap().to_be_bytes());
+        at += face.len().next_multiple_of(4);
+    }
+    for face in faces {
+        let base = u32::try_from(out.len()).unwrap();
+        let mut face = face.to_vec();
+        let count = usize::from(u16::from_be_bytes([face[4], face[5]]));
+        for i in 0..count {
+            let rec = 12 + i * 16 + 8;
+            let moved = be32(&face, rec) + base;
+            face[rec..rec + 4].copy_from_slice(&moved.to_be_bytes());
+        }
+        out.extend_from_slice(&face);
+        out.resize(out.len().next_multiple_of(4), 0);
+    }
+    out
+}
+
+#[test]
+fn a_supplied_font_collection_is_kept_from_its_first_face() {
+    let donor = fixture("text/subset-donor.ttf");
+    let mut options = RenderOptions::default();
+    options.fonts.insert_named(
+        "Donor",
+        FontData::new(collection(&[&donor, &fixture("text/subset-donor.ttf")])),
+    );
+    let web = assert_page_kept(&page_naming_donor(), &options, "truetype");
+    let web = FontRef::new(&web).unwrap();
+    let donor = FontRef::new(&donor).unwrap();
+    for c in ['A', 'B', 'C'] {
+        assert_eq!(outline(&web, c), outline(&donor, c), "glyph for {c}");
+    }
 }

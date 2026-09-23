@@ -123,7 +123,9 @@ impl<'a> FontProgram<'a> {
             | [b'O', b'T', b'T', b'O', ..]
             | [b't', b'r', b'u', b'e', ..]
             | [b't', b't', b'c', b'f', ..] => {
-                return FontRef::new(data)
+                // `from_index` rather than `new`: `new` refuses a collection,
+                // and face 0 is the face a supplied `.ttc` / `.otc` draws with.
+                return FontRef::from_index(data, 0)
                     .map(Self::Sfnt)
                     .map_err(|e| ProgramError::Parse(e.to_string()));
             }
