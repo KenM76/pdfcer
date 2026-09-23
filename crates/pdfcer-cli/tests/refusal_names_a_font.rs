@@ -6,7 +6,7 @@
 //! can assert the message contains the word "Helvetica"; only an end-to-end
 //! run can show that doing what the message says gets the operator unstuck.
 //!
-//! ★ That is the whole defect being closed. The capability already existed —
+//! That is the whole defect being closed. The capability already existed —
 //! switch the run to a standard-14 face, then edit — and the refusal did not
 //! say so, which made it undiscoverable. A test that checked only the wording
 //! would leave the sentence true and the route unverified, which is the exact
@@ -61,7 +61,7 @@ fn stderr(out: &Output) -> String {
     String::from_utf8_lossy(&out.stderr).into_owned()
 }
 
-/// ★★★ The refusal names faces, and the first one it names unsticks the edit.
+/// The refusal names faces, and the first one it names unsticks the edit.
 #[test]
 fn the_named_font_actually_works() {
     let src = fixture();
@@ -86,7 +86,7 @@ fn the_named_font_actually_works() {
         stderr(&out)
     );
     let msg = stderr(&out);
-    // ★ EITHER member of the family. Two refusals produce this one operator
+    // EITHER member of the family. Two refusals produce this one operator
     // experience -- `InverseEncoding`'s "no glyph for" when the font has none
     // at all, and the "embedded-subset floor" when the subset does not carry
     // the code on this page. Asserting one wording pinned one member and let
@@ -154,7 +154,7 @@ fn the_named_font_actually_works() {
 
 /// A fixture whose font's subset stem IS a standard-14 name — `ABCDEF+Helvetica`.
 ///
-/// ★ This is the fixture the test above could not have used, and its absence is
+/// This is the fixture the test above could not have used, and its absence is
 /// why `Pass 279.0` existed. `symbolic-truetype-private-cmap.pdf`'s font is
 /// `AAAAAA+pdfcerSymbolicPrivate`, whose stem matches no standard-14 name, so
 /// the collision this file tests is **structurally impossible** there. The
@@ -164,7 +164,7 @@ fn shadowing_fixture() -> PathBuf {
         .join("../../fixtures/synthetic/textedit/subset_missing.pdf")
 }
 
-/// ★★★ THE NAMED FACE MUST NOT BE ONE THE PAGE ALREADY SHADOWS.
+/// THE NAMED FACE MUST NOT BE ONE THE PAGE ALREADY SHADOWS.
 ///
 /// `set_font` resolves a selector against the page's own resources **first**,
 /// matching a subset-stemmed `/BaseFont` — so on this page asking for
@@ -335,7 +335,7 @@ fn no_face_is_offered_when_none_would_help() {
     );
 }
 
-/// ★★★ The OTHER member of the family gets the same remedy.
+/// The OTHER member of the family gets the same remedy.
 ///
 /// Two refusals produce one operator experience:
 ///

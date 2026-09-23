@@ -188,7 +188,7 @@ fn assemble(bodies: &[String]) -> Vec<u8> {
 /// A form whose Reset button's `/Fields` is an **indirect reference** to an
 /// array object (object 7), rather than an inline array.
 ///
-/// ★ No pdfcer verb authors this shape, and real producers do. Table 236 types
+/// No pdfcer verb authors this shape, and real producers do. Table 236 types
 /// `/Fields` as an ordinary array value, and any ordinary value may be
 /// indirect — so a traversal that only looks inside the action dictionary
 /// finds nothing here and reports a clean repair over a broken form.
@@ -769,7 +769,7 @@ fn each_action_is_one_undoable_command() {
 
 /// **A button's `/GoTo` counts as dangling when its page is deleted.**
 ///
-/// ★ The census this Pass would otherwise have quietly broken.
+/// The census this Pass would otherwise have quietly broken.
 ///
 /// `census_dangling` walked **link** annotations only, and that was complete
 /// until a push button could carry a `/GoTo`. Adding the authoring half
@@ -998,7 +998,7 @@ fn authoring_a_hide_reaches_nothing() {
 /// **`Name` is not a prefix of `Nameless`, and one missing dot would make it
 /// one.**
 ///
-/// ★★ The separator is what makes a prefix match mean *descendant*.
+/// The separator is what makes a prefix match mean *descendant*.
 /// §12.7.3.2 joins segments with `.`, so `Name.` is an ancestor path and
 /// `Name` alone is a string that happens to start the same way. Matching
 /// without the dot would rename an action's target from `Nameless` to
@@ -1007,7 +1007,7 @@ fn authoring_a_hide_reaches_nothing() {
 /// The fixture carries both names for exactly this test; asserting it on a
 /// document without a same-prefix sibling would pass on the broken code.
 ///
-/// ★ It is also the property the first version of this disclosure could not
+/// It is also the property the first version of this disclosure could not
 /// express at all. It shipped as `actions_not_retargeted` — *every* action in
 /// the document, an upper bound — so here it would have said `1` where the
 /// true answer is `0`: the difference between a warning and a false alarm
@@ -1053,7 +1053,7 @@ fn a_same_prefix_sibling_is_not_a_descendant() {
 // copied between documents where an indirect reference does not. A RENAME is
 // the one operation that breaks that choice, and a DELETE orphans it.
 //
-// ★ Neither is visible to `census_dangling`. A name string leaves no dangling
+// Neither is visible to `census_dangling`. A name string leaves no dangling
 // object reference, so the graph census `Pass 183.0` widened from links to
 // every annotation subtype is structurally blind to this. That is why these
 // tests exist here rather than beside the page-ops ones.
@@ -1149,7 +1149,7 @@ fn a_rename_repoints_a_submit_target_too() {
 
 /// **A target list living in its own object is repaired too.**
 ///
-/// ★ The case the two-pass design exists for, and the one a single-pass
+/// The case the two-pass design exists for, and the one a single-pass
 /// implementation silently gets wrong. `/Fields` is an ordinary value, so a
 /// producer may write `21 0 R` pointing at an array object. The traversal
 /// deliberately does not follow references — that is what lets a per-object
@@ -1196,7 +1196,7 @@ fn a_delete_counts_orphaned_action_targets_and_repairs_nothing() {
     let deletion = s.delete_field("Name").expect("deletes");
     assert_eq!(deletion.action_targets_orphaned, 1);
 
-    // ★ Asserted on the TARGET LIST, not on the bare name. `saved` returns the
+    // Asserted on the TARGET LIST, not on the bare name. `saved` returns the
     // base bytes plus the update, and the base carries `/T (Name)` on the field
     // dictionary itself -- so `contains("(Name)")` passes whatever the sweep
     // did to the action, which makes it a test of nothing. Found by sabotage:
@@ -1230,7 +1230,7 @@ fn a_group_delete_counts_orphans_by_prefix() {
 
 /// **A JavaScript action naming the field is NOT rewritten.**
 ///
-/// ★ `R55` requires every JavaScript carrier to round-trip byte-identical, and
+/// `R55` requires every JavaScript carrier to round-trip byte-identical, and
 /// a script that mentions a field name is not a target list. Rewriting inside
 /// one is a corruption with good intentions, and it would be invisible until a
 /// form stopped calculating.
@@ -1246,7 +1246,7 @@ fn a_script_naming_the_field_is_left_byte_identical() {
         out.action_targets_retargeted, 0,
         "a script is not a target list"
     );
-    // ★ `saved` returns the BASE BYTES PLUS the appended update, so the script
+    // `saved` returns the BASE BYTES PLUS the appended update, so the script
     // is necessarily present once -- in the original revision, where it
     // belongs. The property under test is that it is not present TWICE: a
     // second copy would mean the object was re-emitted, which under an

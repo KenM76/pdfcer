@@ -155,7 +155,7 @@ fn only_and_except_differ_by_the_include_exclude_flag() {
     );
 }
 
-/// ★ **A reset target that does not exist is refused before anything is
+/// **A reset target that does not exist is refused before anything is
 /// written.**
 ///
 /// The same discipline `reset_form` uses. A button pointing at a field that
@@ -198,7 +198,7 @@ fn a_non_button_is_refused() {
     );
 }
 
-/// ★★ **Removing an action reports WHAT IT DESTROYED — including a script.**
+/// **Removing an action reports WHAT IT DESTROYED — including a script.**
 ///
 /// The reason `replaced` is a described name rather than an
 /// `Option<ButtonAction>`: pdfcer will not author JavaScript, but a form editor
@@ -250,7 +250,7 @@ fn setting_an_action_is_one_undoable_command() {
     );
 }
 
-/// ★★★ **The button pdfcer writes is one pdfcer reads back as an action.**
+/// **The button pdfcer writes is one pdfcer reads back as an action.**
 ///
 /// The end-to-end check. `list-fields` counts `annot_actions` by walking the
 /// same `/A` this verb writes, so a button that reads back as carrying no
@@ -324,7 +324,7 @@ fn form_with_javascript_button() -> Vec<u8> {
         .into_bytes()
 }
 
-/// ★ A button with no `/A` reads as `None` — and that is a MEASUREMENT, not a
+/// A button with no `/A` reads as `None` — and that is a MEASUREMENT, not a
 /// default.
 #[test]
 fn a_button_with_no_action_reads_as_none() {
@@ -332,7 +332,7 @@ fn a_button_with_no_action_reads_as_none() {
     assert_eq!(s.button_action("DoReset").unwrap(), ButtonActionState::None);
 }
 
-/// ★★★ THE ROUND TRIP. What the writer wrote, the reader reads back.
+/// THE ROUND TRIP. What the writer wrote, the reader reads back.
 ///
 /// Without this the two halves could drift silently: the writer's own
 /// `ButtonActionChange::replaced` would keep reporting correctly while the
@@ -392,7 +392,7 @@ fn clearing_the_action_reads_as_none_again() {
     assert_eq!(s.button_action("DoReset").unwrap(), ButtonActionState::None);
 }
 
-/// ★★ THE VARIANT THAT CARRIES THE VALUE. A JavaScript action must read as
+/// THE VARIANT THAT CARRIES THE VALUE. A JavaScript action must read as
 /// `Foreign`, naming its subtype.
 ///
 /// `None` and `Known` could both be synthesised by a shell that guessed;

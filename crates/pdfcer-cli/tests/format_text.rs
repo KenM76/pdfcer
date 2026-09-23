@@ -337,7 +337,7 @@ fn bad_color_spec_is_refused_before_io() {
 // `Pass 162.0` — a face the page does NOT carry
 // ---------------------------------------------------------------------------
 
-/// ★★ The CLI uses `text_edit::set_format`, a save path the `EditSession`
+/// The CLI uses `text_edit::set_format`, a save path the `EditSession`
 /// tests never touch.
 ///
 /// This Pass first wired the resource-creation into the two session paths

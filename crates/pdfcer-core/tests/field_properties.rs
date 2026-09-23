@@ -107,7 +107,7 @@ fn quadding_round_trips_for_all_three_table_233_values() {
     }
 }
 
-/// ★ Removing `/Q` is NOT the same as setting it to 0.
+/// Removing `/Q` is NOT the same as setting it to 0.
 ///
 /// Both render left-justified — Table 233's default is 0 — so a test that
 /// only checked the rendered result could not tell them apart. This checks
@@ -163,7 +163,7 @@ fn an_out_of_range_quadding_is_refused_and_changes_nothing() {
 // /DV — the default value a reset restores
 // ---------------------------------------------------------------------------
 
-/// ★★ The claim that matters: a form pdfcer authored can now be reset to a
+/// The claim that matters: a form pdfcer authored can now be reset to a
 /// default pdfcer authored.
 ///
 /// Before this, `/DV` was readable and unwritable, so `reset_form` could only

@@ -70,7 +70,7 @@ fn simple_variants() -> Vec<ReflowApplyError> {
     ]
 }
 
-/// ★★★ Claim 1, INVERTED (`G015`) — adding text and then reflowing the same
+/// Claim 1, INVERTED (`G015`) — adding text and then reflowing the same
 /// page now SUCCEEDS, and that is why the variant below has no construction
 /// site left.
 ///

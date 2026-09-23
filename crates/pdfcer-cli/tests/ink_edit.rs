@@ -3,7 +3,7 @@
 //! Black-box over the **real binary**, and every claim is checked against the
 //! *output file* or the binary's own output, never against a core-level call.
 //!
-//! ## ★ Why the core suite is not enough here
+//! ## Why the core suite is not enough here
 //!
 //! `crates/pdfcer-core/tests/ink_reshape.rs` calls `reshape_ink` directly, so
 //! it exercises every guard **whatever the CLI does with the flags**. A flag
@@ -142,7 +142,7 @@ fn last_ink_list(bytes: &[u8]) -> String {
 
 // --------------------------------------------------------------- the flags
 
-/// ★★★ `--stroke` reaches the engine.
+/// `--stroke` reaches the engine.
 ///
 /// The same point index in two different strokes must produce two different
 /// files. A `--stroke` that clap parses and the dispatch drops makes these
@@ -183,7 +183,7 @@ fn the_stroke_flag_is_wired() {
     );
 }
 
-/// ★★ `--point` reaches the engine, for the same reason.
+/// `--point` reaches the engine, for the same reason.
 #[test]
 fn the_point_flag_is_wired() {
     let a = edit(
@@ -419,7 +419,7 @@ fn dry_run_reports_and_writes_nothing() {
     );
 }
 
-/// ★ The provenance disclosure: this ink is pdfcer's own, so the report says
+/// The provenance disclosure: this ink is pdfcer's own, so the report says
 /// so and stderr stays quiet about replaced artwork.
 ///
 /// The complement — a foreign `/AP` producing the warning — is covered at core

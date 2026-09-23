@@ -87,7 +87,7 @@ fn build(bodies: &[&str]) -> Vec<u8> {
 
 // ------------------------------------------------------- 1. it is not fatal
 
-/// ★★★ THE OPERATOR'S FIRST OBLIGATION: the file opens.
+/// THE OPERATOR'S FIRST OBLIGATION: the file opens.
 #[test]
 fn a_duplicate_key_no_longer_costs_the_document() {
     let doc = Document::from_bytes(pdf_with_duplicate_page_mode())
@@ -98,7 +98,7 @@ fn a_duplicate_key_no_longer_costs_the_document() {
 /// The same obligation for a second, unrelated malformation — because a file
 /// that opens past the first defect and dies on the second has not been fixed.
 ///
-/// ★ This is not hypothetical symmetry: the operator's file did exactly that.
+/// This is not hypothetical symmetry: the operator's file did exactly that.
 /// The duplicate key was cleared, and the very next object — a `/Metadata`
 /// stream with no `/Length` — refused it again.
 #[test]
@@ -110,7 +110,7 @@ fn a_stream_with_no_length_no_longer_costs_the_document() {
 
 // -------------------------------------------- 2. the decision is recoverable
 
-/// ★★ THE INTERVENTION IS REAL: the record names what was chosen AND what was
+/// THE INTERVENTION IS REAL: the record names what was chosen AND what was
 /// chosen between.
 ///
 /// A count would satisfy "pdfcer disclosed something". Only the pair lets a
@@ -140,7 +140,7 @@ fn the_decision_records_both_values_not_just_a_count() {
     );
 }
 
-/// ★★ AND TAKING THE ALTERNATIVE WORKS. Without this the record would be a
+/// AND TAKING THE ALTERNATIVE WORKS. Without this the record would be a
 /// description of a choice nobody can actually make.
 #[test]
 fn re_loading_under_keep_first_takes_the_other_value() {
@@ -166,7 +166,7 @@ fn re_loading_under_keep_first_takes_the_other_value() {
 /// The `/Length` recovery is recorded too — even though there is no second
 /// reading to offer.
 ///
-/// ★ The record's purpose differs by kind, and saying so is the point: for a
+/// The record's purpose differs by kind, and saying so is the point: for a
 /// duplicate key it enables a choice, and here it tells the operator the file
 /// is damaged. A disclosure that only appeared when a choice existed would let
 /// the more serious defect pass unmentioned.
@@ -226,7 +226,7 @@ fn strict_options_still_refuse_both_malformations() {
     );
 }
 
-/// ★ The parser's OWN default is unchanged, and that is deliberate.
+/// The parser's OWN default is unchanged, and that is deliberate.
 ///
 /// `LoadOptions` is tolerant; `DuplicateKeyPolicy::default()` is `Refuse`. Every
 /// caller that constructs a `Parser` directly — fuzz targets, the recovery
@@ -239,7 +239,7 @@ fn the_parsers_own_default_is_still_strict() {
 
 // ------------------------- 4. "all defects where it is possible to continue"
 
-/// ★★★ ONE UNREADABLE OBJECT NO LONGER COSTS THE DOCUMENT.
+/// ONE UNREADABLE OBJECT NO LONGER COSTS THE DOCUMENT.
 ///
 /// The operator's second instruction: *"we should be doing this for all
 /// defects where it is possible to continue and open the file."*
@@ -277,7 +277,7 @@ fn one_unparseable_object_does_not_cost_the_document() {
 
 /// The reason is carried, not just the object number.
 ///
-/// ★ "Object 4 could not be read" is a fact; "object 4 could not be read
+/// "Object 4 could not be read" is a fact; "object 4 could not be read
 /// because …" is something an operator can act on — send the file back to its
 /// producer, or decide the loss does not matter. A count would have been
 /// neither.
@@ -319,7 +319,7 @@ fn strict_still_refuses_an_unreadable_object() {
     );
 }
 
-/// ★ THE LINE THAT IS STILL FATAL, and it is fatal for a reason that is not
+/// THE LINE THAT IS STILL FATAL, and it is fatal for a reason that is not
 /// strictness.
 ///
 /// A file with no `/Root` has no document to show. Continuing would mean
@@ -344,7 +344,7 @@ fn a_file_with_no_catalog_is_still_refused() {
 
 // ------------------------------ 5. the intervention is reachable BY PATH too
 
-/// ★★ THE INTERVENTION MUST BE REACHABLE THE WAY SHELLS ACTUALLY OPEN FILES.
+/// THE INTERVENTION MUST BE REACHABLE THE WAY SHELLS ACTUALLY OPEN FILES.
 ///
 /// `Pass 283.0` shipped the alternative reading on the **bytes** entry point
 /// only, and every shell opens a **path** — the GUI's open-file action, the

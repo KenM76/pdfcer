@@ -23,7 +23,7 @@
 //! | `/T`-less intermediate | `2` vs `1` | a wrong count |
 //! | terminal with no `/Parent` | `0` vs `1` | **writes a dangling `/Kids`** |
 //!
-//! ★ The lesson worth carrying is not about forms. **A `debug_assert` that
+//! The lesson worth carrying is not about forms. **A `debug_assert` that
 //! fires is evidence that two derivations disagree; it is not evidence about
 //! what the disagreement COSTS.** Sizing the defect from the assertion's
 //! compile-time behaviour answered a question about the guard, not about the
@@ -144,7 +144,7 @@ fn group_names(s: &EditSession) -> Vec<String> {
 // The invariant, on every shape
 // -------------------------------------------------------------------------
 
-/// ★ The outcome must be internally consistent — `nodes.len()` and
+/// The outcome must be internally consistent — `nodes.len()` and
 /// `nodes_removed` are two names for one quantity.
 ///
 /// They were spliced from two different derivations by a `..preview` struct
@@ -215,7 +215,7 @@ fn the_dry_run_and_the_real_run_agree() {
 // Shape by shape, on what RELEASE does
 // -------------------------------------------------------------------------
 
-/// ★★★ The dangling reference. This is the one that damages the file.
+/// The dangling reference. This is the one that damages the file.
 ///
 /// `A` -> `X`, where `X` has no `/Parent`. The cascade derives every node's
 /// container from `/Parent`, so `X` is deleted and `A`'s `/Kids` — which still
@@ -257,7 +257,7 @@ fn deleting_a_parentless_field_by_name_does_not_dangle_either() {
     );
 }
 
-/// ★★ A success that changes nothing is worse than a refusal.
+/// A success that changes nothing is worse than a refusal.
 ///
 /// `A`'s only terminal has no `/T`, so its fully qualified name *equals* `A`.
 /// `descendants_of` is a prefix match on `"A."`, which that name never

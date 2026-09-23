@@ -640,7 +640,7 @@ impl ToUnicodeCMap {
         // point lookup — so there is no way to answer this question without
         // materialising. The ceiling below is what keeps that safe.
         //
-        // ★★ THE CODE SET IS DEDUPLICATED, AND THAT IS A BUG FIX, NOT A
+        // THE CODE SET IS DEDUPLICATED, AND THAT IS A BUG FIX, NOT A
         // TIDY-UP (`Pass 121.0`). This loop used to push the singles into a
         // `Vec` and then push `lookup(code)` for every code of every range —
         // but `lookup` CONSULTS THE SINGLES FIRST (that is its documented
@@ -1005,7 +1005,7 @@ mod tests {
         }
     }
 
-    /// ★★ A CODE COVERED BY BOTH A `bfchar` AND A `bfrange` IS ONE CODE, NOT
+    /// A CODE COVERED BY BOTH A `bfchar` AND A `bfrange` IS ONE CODE, NOT
     /// A COLLISION (`Pass 121.0`).
     ///
     /// The materialising loop used to push the singles and then push
@@ -1074,7 +1074,7 @@ endbfrange
 "
         );
         let cmap = ToUnicodeCMap::parse(body.as_bytes());
-        // ★ Asserted as a POSITIVE, not as "no self-collision". The first
+        // Asserted as a POSITIVE, not as "no self-collision". The first
         // draft of this test was `if let Err(Collision) { assert_ne!(first,
         // second) }` — which passes vacuously whenever the call succeeds AND
         // whenever it fails for any other reason, and it duly passed against

@@ -22,7 +22,7 @@
 //!
 //! ## What is pinned
 //!
-//! 1. **★ A paste into a page whose `/F1` is a DIFFERENT font renders the
+//! 1. **A paste into a page whose `/F1` is a DIFFERENT font renders the
 //!    clip's font, not the destination's** — the whole point, and the one
 //!    failure a shell could not detect for itself.
 //! 2. **The clip owns its resources**, so copy → drop the source session →
@@ -107,10 +107,10 @@ fn close(a: f64, b: f64) -> bool {
 }
 
 // ---------------------------------------------------------------------------
-// ★ THE ONE THAT MATTERS: resource-name rebinding
+// THE ONE THAT MATTERS: resource-name rebinding
 // ---------------------------------------------------------------------------
 
-/// ★★ **A text run copied from a Helvetica document and pasted into a
+/// **A text run copied from a Helvetica document and pasted into a
 /// Courier one must still be Helvetica.**
 ///
 /// Both documents call their font `/F1`. Pasting the copied bytes verbatim
@@ -144,7 +144,7 @@ fn a_pasted_font_is_the_clips_font_not_the_destinations() {
         text.contains("/Helvetica"),
         "the clip's own font must have been imported: {text}"
     );
-    // ★ AN ABSENCE ASSERTION OVER `to_incremental_bytes`, AND ITS SOUNDNESS
+    // AN ABSENCE ASSERTION OVER `to_incremental_bytes`, AND ITS SOUNDNESS
     // IS A PROPERTY OF THE FIXTURE RATHER THAN OF THE CODE.
     //
     // `saved()` here is an INCREMENTAL save, so `text` is every revision of
@@ -205,7 +205,7 @@ fn the_rewritten_name_is_the_one_bound_in_the_pages_resources() {
         name.starts_with("pdfceP"),
         "a pasted binding gets a fresh pdfcer-prefixed name, got {name:?}"
     );
-    // ★ TWO occurrences, not one. `contains` alone was satisfied by the
+    // TWO occurrences, not one. `contains` alone was satisfied by the
     // CONTENT STREAM's own `/pdfcePF0 12 Tf` — so the first draft asserted
     // "the name I just found is present", which is a tautology, and passed
     // with the resource binding disabled. The second occurrence is the
@@ -243,7 +243,7 @@ fn an_image_invocation_is_rebound_as_well() {
         text.contains("pdfcePX0 Do"),
         "the pasted Do must name the freshly-bound XObject: {text}"
     );
-    // ★ AND the object it names must have ARRIVED. The first draft stopped at
+    // AND the object it names must have ARRIVED. The first draft stopped at
     // the line above and passed with the whole resource import disabled --
     // name rewriting alone satisfied it, so it tested half the mechanism while
     // reading as if it tested both.
@@ -273,7 +273,7 @@ fn a_plain_path_carries_no_resources() {
 // The clip owns what it needs
 // ---------------------------------------------------------------------------
 
-/// ★ **Copy, drop the source session, paste.**
+/// **Copy, drop the source session, paste.**
 ///
 /// The clip carries the transitive closure of its resources by value, with
 /// stream payloads owned as bytes rather than as spans into a document that
@@ -295,7 +295,7 @@ fn a_clip_outlives_the_document_it_came_from() {
     let outcome = session.paste_objects(0, &clip, Matrix::IDENTITY).unwrap();
     assert_eq!(outcome.objects_pasted, 2);
     let text = saved(&session);
-    // ★ `Times-BoldItalic`, not Helvetica. The first draft asserted the source
+    // `Times-BoldItalic`, not Helvetica. The first draft asserted the source
     // font was `/Helvetica` -- which the DESTINATION fixture also uses, so the
     // test passed with the entire resource import disabled. A distinctive font
     // is the difference between exercising the mechanism and covering it.
@@ -381,7 +381,7 @@ fn a_rotated_paste_reports_bounds_that_enclose_the_rotation() {
 // The preview
 // ---------------------------------------------------------------------------
 
-/// ★ The preview commits nothing and answers exactly what the paste would.
+/// The preview commits nothing and answers exactly what the paste would.
 ///
 /// Three cases, including two refusals, because agreement on the happy path is
 /// what a second implementation would also manage.
@@ -440,7 +440,7 @@ fn a_clip_from_a_newer_build_is_refused_by_name() {
 // Cut — Pass 120.3
 // ---------------------------------------------------------------------------
 
-/// ★ **Cut is ONE undo entry.**
+/// **Cut is ONE undo entry.**
 ///
 /// The requester's own framing: *"otherwise Ctrl+X then Ctrl+Z gives the
 /// operator their objects back but leaves the clipboard changed, or takes two
@@ -468,7 +468,7 @@ fn cut_is_one_undo_entry_and_returns_the_clip() {
     );
 }
 
-/// ★ **A cut whose COPY half refuses deletes nothing.**
+/// **A cut whose COPY half refuses deletes nothing.**
 ///
 /// The order matters and is not incidental: copy first, delete second. Reversed,
 /// a selection that cannot be copied would be gone with nothing on the
@@ -562,7 +562,7 @@ fn pasting_twice_binds_two_independent_sets() {
 // Serialisation — Pass 120.1
 // ---------------------------------------------------------------------------
 
-/// ★ **A serialised clip round-trips, and the round trip is what makes
+/// **A serialised clip round-trips, and the round trip is what makes
 /// cross-session paste free rather than a second feature.**
 ///
 /// The strong form: serialise, parse, and paste the PARSED clip into a
@@ -671,7 +671,7 @@ fn a_serialised_clip_from_a_newer_build_is_refused() {
 // Interchange — Pass 120.2
 // ---------------------------------------------------------------------------
 
-/// ★ **A clip exports as a standalone one-page PDF that pdfcer itself can
+/// **A clip exports as a standalone one-page PDF that pdfcer itself can
 /// reopen, and whose page IS the selection.**
 ///
 /// Reopening it with pdfcer is the strongest available check that the file is
@@ -742,7 +742,7 @@ fn exported_text_is_still_text() {
     );
 }
 
-/// ★ **A degenerate selection gets a minimum page size, and SAYS SO.**
+/// **A degenerate selection gets a minimum page size, and SAYS SO.**
 ///
 /// A zero-area `/MediaBox` is not merely ugly — a reader given one shows an
 /// empty window or refuses the file, and an operator who copied a zero-height
@@ -776,7 +776,7 @@ fn exporting_twice_is_byte_identical() {
     assert_eq!(clip.to_pdf().bytes, clip.to_pdf().bytes);
 }
 
-/// ★ The export and the private format are **not** interchangeable, and the
+/// The export and the private format are **not** interchangeable, and the
 /// asymmetry is the reason both exist.
 ///
 /// `from_bytes` refuses a PDF by name rather than half-parsing it. Pinned so
@@ -795,10 +795,10 @@ fn the_pdf_export_is_not_a_clip_payload_and_is_refused_as_one() {
 }
 
 // ---------------------------------------------------------------------------
-// ★★ The prelude — inherited graphics state (Pass 120.2's real-file finding)
+// The prelude — inherited graphics state (Pass 120.2's real-file finding)
 // ---------------------------------------------------------------------------
 
-/// ★★ **A text object whose `Tf` is OUTSIDE its own `BT`…`ET` still pastes
+/// **A text object whose `Tf` is OUTSIDE its own `BT`…`ET` still pastes
 /// with a font.**
 ///
 /// Text state is graphics state (§8.4.1 Table 52), so a producer may set
@@ -942,7 +942,7 @@ fn the_prelude_round_trips_through_serialisation() {
 // Annotations on the clipboard — Pass 120.4
 // ---------------------------------------------------------------------------
 
-/// ★ **A markup annotation copies and pastes, and it round-trips through
+/// **A markup annotation copies and pastes, and it round-trips through
 /// pdfcer's OWN MODEL rather than through the object graph.**
 ///
 /// A raw dictionary copy would be structurally right and semantically wrong:
@@ -1001,7 +1001,7 @@ fn a_markup_annotation_copies_and_pastes() {
     );
 }
 
-/// ★★ **A ce dimension keeps its GROUP and its scale across a paste into
+/// **A ce dimension keeps its GROUP and its scale across a paste into
 /// another document.**
 ///
 /// This is the reason a raw graph copy was never going to be enough. A ce
@@ -1067,7 +1067,7 @@ fn a_ce_dimension_carries_its_group_across_documents() {
 /// An unsupported annotation kind is **refused by name, with the reason**, and
 /// is not counted as pasted.
 ///
-/// ★ Note what changed for this to be possible at all: the original
+/// Note what changed for this to be possible at all: the original
 /// acceptance criteria said "refuse loudly", written before `120.0` shipped —
 /// and once copy addressed content objects by paint-order index, there was no
 /// index by which those verbs could even *name* an annotation to refuse it.
@@ -1140,13 +1140,13 @@ fn a_rotated_square_annotation_encloses_and_discloses() {
     );
 }
 
-/// ★ **`to_bytes` CARRIES annotations as of `Pass 169.0`**, and the clip
+/// **`to_bytes` CARRIES annotations as of `Pass 169.0`**, and the clip
 /// still says so.
 ///
 /// This test used to pin the opposite, and the old wording is worth keeping
 /// legible rather than silently rewritten. It read:
 ///
-/// > ★ **`to_bytes` does not carry annotations, and the clip SAYS SO**
+/// > **`to_bytes` does not carry annotations, and the clip SAYS SO**
 /// > rather than letting a caller discover it from a count that silently
 /// > drops. A shell writing a clip to disk can warn, or keep the in-process
 /// > copy.

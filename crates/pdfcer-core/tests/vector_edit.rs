@@ -802,7 +802,7 @@ fn editing_a_file_level_content_stream_leaves_the_objstm_siblings_verbatim() {
 /// A page with two filled rectangles: one in `DeviceRGB`, one in a
 /// `/Separation`.
 ///
-/// ★ The two are painted in that ORDER deliberately. The Separation path's
+/// The two are painted in that ORDER deliberately. The Separation path's
 /// stale colour — the defect `Pass 218.0` fixed — would be the red from the
 /// first rectangle, so a test built on this fixture fails loudly if the model
 /// ever regresses to inheriting it.
@@ -841,7 +841,7 @@ fn two_paths_one_spot() -> Vec<u8> {
     buf
 }
 
-/// ★★★ THE ONE THAT MATTERS. A spot-inked path is REFUSED BY NAME, and the
+/// THE ONE THAT MATTERS. A spot-inked path is REFUSED BY NAME, and the
 /// device path beside it is recoloured in the same call.
 ///
 /// Writing `DeviceRGB` over a named spot ink would look right on screen and

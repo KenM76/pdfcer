@@ -118,7 +118,7 @@ fn on_backdrop(page: &RenderedPage) -> (u8, u8, u8) {
 /// `(255, 255, 255)` written inline reads as a magic number.
 const PAPER: (u8, u8, u8) = (255, 255, 255);
 
-/// ★ THE LOAD-BEARING TEST. An overprinting image and an overprinting
+/// THE LOAD-BEARING TEST. An overprinting image and an overprinting
 /// rectangle of the same `/DeviceN [/Black]` colour must be the same pixels.
 ///
 /// On a page whose group colour space is `/DeviceCMYK`, so the composite
@@ -158,7 +158,7 @@ fn image_and_path_agree_under_overprint_on_a_subtractive_page() {
 /// The same equality on an **additive** page, where the composite takes
 /// `overprint::composite_varying` instead of the colorant buffer.
 ///
-/// ★ The colour here is NOT the cyan of the test above, and that is expected
+/// The colour here is NOT the cyan of the test above, and that is expected
 /// rather than a defect. An additive canvas has no colorant planes, so the
 /// backdrop's component split is reconstructed by `rgb_to_cmyk`, and
 /// `100C + 100K` reconstructs as `C = 1, M = 0.914, Y = 0, K = 0.863` — the
@@ -229,7 +229,7 @@ fn the_same_image_with_overprint_off_knocks_the_backdrop_out() {
 /// rule is `Source`. The render must therefore be indistinguishable from the
 /// same image with `/OP false`.
 ///
-/// ★ This is the assertion that stops the fix from over-applying. A renderer
+/// This is the assertion that stops the fix from over-applying. A renderer
 /// that preserved the backdrop for *any* `/DeviceN` image would pass the two
 /// equality tests above and fail this one.
 #[test]
@@ -249,7 +249,7 @@ fn a_devicen_naming_all_four_colorants_is_inert_under_overprint() {
 /// The disclosure, which is a separate obligation from the pixels
 /// (project rule 4).
 ///
-/// ★ `overprint_images_unsupported` CHANGED MEANING in `Pass 130.2` and now
+/// `overprint_images_unsupported` CHANGED MEANING in `Pass 130.2` and now
 /// counts a strictly smaller set — it used to count every image painted
 /// under `/OP` whether or not anything was owed. Zero here is therefore a
 /// *stronger* statement than zero would have been before: the composite was
@@ -283,7 +283,7 @@ fn the_counters_say_what_happened() {
     );
 }
 
-/// ★★★ A SPOT COLOUR MUST PUT INK ON THE SHEET ON BOTH KINDS OF PAGE.
+/// A SPOT COLOUR MUST PUT INK ON THE SHEET ON BOTH KINDS OF PAGE.
 ///
 /// `Pass 130.3`. This is not an overprint test at all — **both fixtures set
 /// `/OP false`** — and it lives in this file because the defect and its cause
@@ -314,7 +314,7 @@ fn the_counters_say_what_happened() {
 /// put down *the same kind* of ink (the tint transform is the same function),
 /// and neither is paper.
 ///
-/// ★ Measured consequence, recorded because it looks like a regression and is
+/// Measured consequence, recorded because it looks like a regression and is
 /// not: this fix moved two print-conformance patches CLOSER to Acrobat
 /// (mean absolute distance 24.8 → 19.9 and 41.4 → 28.5) while *raising* the
 /// suite's failure count. Both patches paint CMYK over a spot backdrop, and

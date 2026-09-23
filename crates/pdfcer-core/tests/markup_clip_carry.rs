@@ -16,7 +16,7 @@
 //! **Nothing disclosed any of it**, because from the paste's point of view it
 //! was authoring a fresh mark and there was nothing to report.
 //!
-//! ★ The dash is the sharpest of the four. `docs/FEATURES.md` enumerated the
+//! The dash is the sharpest of the four. `docs/FEATURES.md` enumerated the
 //! four appearance-regeneration routes that used to solidify a dash —
 //! *"restyle, resize, reshape, author"* — and read as though the class were
 //! closed. **Copy-paste was a fifth route and was not in the list**, which is
@@ -113,7 +113,7 @@ fn annots(s: &EditSession) -> Vec<Annotation> {
     page_annotations(&s.graph(), slots[0].id)
 }
 
-/// ★★ All four properties survive a copy and paste.
+/// All four properties survive a copy and paste.
 ///
 /// Asserted on the PASTED annotation read back out of the session, not on the
 /// clip — a clip that carries a value and a paste that drops it would pass

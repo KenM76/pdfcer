@@ -106,7 +106,7 @@ const ANCHOR: (f64, f64) = (100.0, 100.0);
 // 1. THE ORACLE-FREE CLAIM
 // ---------------------------------------------------------------------------
 
-/// ★ Four quarter turns are the identity. No reference render, no remembered
+/// Four quarter turns are the identity. No reference render, no remembered
 /// coordinate, no threshold — the program checks itself.
 ///
 /// This catches what a single rotation cannot show: a sign error in the
@@ -213,7 +213,7 @@ fn rect_grows_at_forty_five_degrees_and_not_at_ninety() {
 // 4. THE APPEARANCE IS COMPOSED, NOT REPLACED
 // ---------------------------------------------------------------------------
 
-/// ★ The claim that makes this verb work on artwork pdfcer did not draw.
+/// The claim that makes this verb work on artwork pdfcer did not draw.
 ///
 /// A rotation is written into the appearance's own `/Matrix` (§12.5.5 step a),
 /// **composed with whatever was already there** — so a producer's existing
@@ -305,7 +305,7 @@ fn rect_differences_are_left_alone_and_reported() {
     assert_eq!(nums(&after, &dict_of(&after, id), b"RD"), before);
 }
 
-/// ★★ The test that makes "composed" mean something, added after a sabotage
+/// The test that makes "composed" mean something, added after a sabotage
 /// survived without it.
 ///
 /// The test above uses an appearance whose `/Matrix` is the identity — where

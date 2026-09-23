@@ -359,7 +359,7 @@ fn an_empty_page_still_produces_a_loadable_file() {
 // The version, and the coherence between it and the entities emitted
 // ---------------------------------------------------------------------------
 
-/// **★ The regression guard for a mistake that shipped past ten green
+/// **The regression guard for a mistake that shipped past ten green
 /// tests.**
 ///
 /// The writer first declared `AC1009` (R12) — my own reasoning that R12

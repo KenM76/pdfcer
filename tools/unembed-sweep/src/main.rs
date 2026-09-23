@@ -44,9 +44,9 @@
 //! | `reclaim` | bytes a full rewrite drops, from the plan |
 //! | `applied` | `unembed_fonts` succeeded |
 //! | `saved` | `to_full_bytes` produced bytes |
-//! | `reopen` | ★ the written bytes parse as a `Document` |
-//! | `render` | ★ page 1 rasterises after the removal |
-//! | `still_embedded` | ★ programs still present after the operation — must be 0 for the targeted fonts |
+//! | `reopen` | the written bytes parse as a `Document` |
+//! | `render` | page 1 rasterises after the removal |
+//! | `still_embedded` | programs still present after the operation — must be 0 for the targeted fonts |
 //! | `delta` | output size minus input size; negative is a saving |
 //!
 //! The two starred reopen/render columns are the point. Everything else is
@@ -108,7 +108,7 @@ enum Outcome {
     ApplyRefused(String),
     /// The save failed.
     SaveFailed(String),
-    /// ★ The written bytes would not parse. The failure this sweep exists
+    /// The written bytes would not parse. The failure this sweep exists
     /// to detect.
     ReopenFailed(String),
     /// Reopened; the render is reported separately because a document can
@@ -123,7 +123,7 @@ enum Outcome {
         /// WHOLE document. Nonzero is legitimate — a blocked font keeps its
         /// program — so this is reported, not asserted.
         still_embedded: usize,
-        /// ★ How many of the fonts this operation TARGETED still carry an
+        /// How many of the fonts this operation TARGETED still carry an
         /// embedded program after the round trip. **Must be zero.**
         ///
         /// `still_embedded` counts the whole document and is legitimately
@@ -134,7 +134,7 @@ enum Outcome {
         /// `Ok(())` when page 1 rasterised, `Err(reason)` otherwise, `None`
         /// when the document has no pages.
         render: Option<Result<(), String>>,
-        /// ★ Whether page 1 rasterised **before** the operation.
+        /// Whether page 1 rasterised **before** the operation.
         ///
         /// Without this the `render` column measures the corpus, not the
         /// feature. The veraPDF corpus deliberately contains malformed
@@ -242,7 +242,7 @@ fn measure(path: &Path, out_dir: &Path, write_output: bool, rel: &str) -> Outcom
         Ok(d) => d,
         Err(e) => return Outcome::LoadFailed(e.to_string()),
     };
-    // ★ The BASELINE render, taken before anything changes. See
+    // The BASELINE render, taken before anything changes. See
     // `Outcome::Done::baseline_render` for why this is not optional.
     let baseline_render = match pages_in(&doc.view()) {
         Ok(pages) => pages.first().map(|first| {
@@ -272,7 +272,7 @@ fn measure(path: &Path, out_dir: &Path, write_output: bool, rel: &str) -> Outcom
     // meaningless under an incremental save (which appends and therefore
     // always grows the file).
     //
-    // ★ WITH ONE FALLBACK, and it is a measurement decision rather than a
+    // WITH ONE FALLBACK, and it is a measurement decision rather than a
     // convenience. A hybrid-reference file (§7.5.8.4) refuses a full rewrite
     // by design — pdfcer will not silently normalise a cross-reference
     // structure it did not author. That refusal is not a failure of THIS
@@ -294,7 +294,7 @@ fn measure(path: &Path, out_dir: &Path, write_output: bool, rel: &str) -> Outcom
         let _ = fs::write(out_dir.join(name), &written);
     }
 
-    // ★ The check the whole harness exists for: the produced bytes are
+    // The check the whole harness exists for: the produced bytes are
     // parsed by a FRESH `Document`, not inspected through the session that
     // made them. A session that can still answer questions about a file it
     // broke proves nothing.
@@ -304,7 +304,7 @@ fn measure(path: &Path, out_dir: &Path, write_output: bool, rel: &str) -> Outcom
     };
     let inv = fontinfo::inventory(&reopened.view());
     let still_embedded = inv.embedded_count();
-    // ★ Measured over the REOPENED bytes and keyed on the object ids the
+    // Measured over the REOPENED bytes and keyed on the object ids the
     // plan named, so it answers "did the program actually leave the file"
     // rather than "did the session think it removed something".
     let targets_still_embedded = inv
@@ -421,7 +421,7 @@ fn report(rows: &[Row]) {
                 targets_survived += targets_still_embedded;
                 match (render, baseline_render) {
                     (Some(Ok(())), _) => rendered_ok += 1,
-                    // ★ Failed after AND before: a property of the corpus
+                    // Failed after AND before: a property of the corpus
                     // file, not of the operation. Counted separately so the
                     // regression number means what it says.
                     (Some(Err(_)), Some(Err(_))) => already_broken += 1,
@@ -489,7 +489,7 @@ fn report(rows: &[Row]) {
         "  ★ TARGETED fonts still embedded after the round trip: {targets_survived} (must be 0)"
     );
     println!();
-    // ★ BOTH denominators, spelled out, because one of them was mislabelled
+    // BOTH denominators, spelled out, because one of them was mislabelled
     // once and the mislabelling reached a commit message and a librarian's
     // filing before anyone re-derived it. "Share of refusals" and "share of
     // embedded fonts" are different questions with different answers — 31.6%

@@ -95,7 +95,7 @@ fn copying_a_bookmark_carries_its_whole_subtree() {
     assert_eq!(titles(&s).len(), 3);
 }
 
-/// ★ The VIEW survives, not just the page.
+/// The VIEW survives, not just the page.
 ///
 /// A bookmark to a detail at 400% is copying the zoom as much as the page.
 /// Substituting `/Fit` would have been a silent, plausible loss — the
@@ -151,7 +151,7 @@ fn a_pasted_subtree_arrives_whole_in_another_document() {
     );
 }
 
-/// ★ A destination naming a page the destination document does not have is
+/// A destination naming a page the destination document does not have is
 /// DROPPED and counted — never clamped to the last page.
 #[test]
 fn a_destination_past_the_end_is_dropped_and_counted_not_clamped() {
@@ -203,7 +203,7 @@ fn a_destination_past_the_end_is_dropped_and_counted_not_clamped() {
     );
 }
 
-/// ★ Cut is one undo entry, and undoing it puts the whole subtree back.
+/// Cut is one undo entry, and undoing it puts the whole subtree back.
 #[test]
 fn cutting_a_bookmark_subtree_is_one_undo_entry() {
     let mut s = session("hello.pdf");

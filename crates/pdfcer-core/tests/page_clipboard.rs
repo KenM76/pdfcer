@@ -56,7 +56,7 @@ fn copying_pages_leaves_the_source_alone_and_yields_a_real_document() {
     );
     assert_eq!(page_count(&s), before, "a copy is not a move");
 
-    // ★ The clip IS a PDF. Anything can open it, including us.
+    // The clip IS a PDF. Anything can open it, including us.
     let reopened = Document::from_bytes(clip.bytes.clone()).expect("the clip is a real document");
     assert_eq!(
         pdfcer_core::page_tree::pages_in(&reopened)
@@ -99,7 +99,7 @@ fn a_page_clip_crosses_documents_through_its_bytes() {
     let clip = source.copy_pages(&[0]).expect("copy");
     // Through bytes and back, exactly as a shell writing it to disk would.
     //
-    // ★ `from_bytes` exists BECAUSE this test could not compile without it:
+    // `from_bytes` exists BECAUSE this test could not compile without it:
     // `PageClip` is `#[non_exhaustive]`, so nothing outside the crate can
     // build one with a struct literal, and a clip a shell can write and never
     // read is not a clipboard. An in-crate test would never have noticed.
@@ -115,7 +115,7 @@ fn a_page_clip_crosses_documents_through_its_bytes() {
     assert_eq!(page_count(&destination), before + 1);
 }
 
-/// ★ Cut is ONE undo entry, and undoing it puts the page back.
+/// Cut is ONE undo entry, and undoing it puts the page back.
 #[test]
 fn cutting_a_page_is_one_undo_entry_and_undo_restores_it() {
     let mut s = session("hello.pdf");
@@ -138,7 +138,7 @@ fn cutting_a_page_is_one_undo_entry_and_undo_restores_it() {
     assert_eq!(page_count(&s), 2, "and one press puts it back");
 }
 
-/// ★ Cutting every page is refused — a document with no pages is not a
+/// Cutting every page is refused — a document with no pages is not a
 /// document, and the failure would not be an error but a file that opens to
 /// nothing.
 #[test]
@@ -164,7 +164,7 @@ fn a_page_copy_reports_the_fields_it_could_not_carry() {
         "both fields are entirely on the copied page, so nothing was dropped",
     );
 
-    // ★ AND THE FIELDS ARRIVE AS ORPHANED WIDGETS, WHICH IS THE DOCUMENTED
+    // AND THE FIELDS ARRIVE AS ORPHANED WIDGETS, WHICH IS THE DOCUMENTED
     // BEHAVIOUR OF THE VERB UNDERNEATH AND IS WORTH PINNING HERE.
     //
     // A page's `/Annots` reaches its widgets, so the boxes come across — but

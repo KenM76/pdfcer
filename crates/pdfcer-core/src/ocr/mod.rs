@@ -211,7 +211,7 @@ pub trait OcrEngine {
 /// normally the full crop box for a scanned page, but not necessarily, which
 /// is why it is a parameter rather than assumed.
 ///
-/// # ★★ THIS FUNCTION ASSUMES THE PAGE IS NOT ROTATED
+/// # THIS FUNCTION ASSUMES THE PAGE IS NOT ROTATED
 ///
 /// It applies a scale and a y-flip and nothing else, which is correct for a
 /// page whose `/Rotate` is `0` (ISO 32000-1 Table 30) and **silently wrong for
@@ -360,7 +360,7 @@ impl PagePlacement {
 ///             y' = (urx-x)*s                  x = urx - y'/s
 /// ```
 ///
-/// ★ Note that at 90 and 270 the image's WIDTH spans the page's HEIGHT. The
+/// Note that at 90 and 270 the image's WIDTH spans the page's HEIGHT. The
 /// two scale factors are therefore derived from the axes the image actually
 /// covers, not from a single `sx`/`sy` pair assigned by position — assigning
 /// them by position is the transposition bug, and it produces a layer that is
@@ -452,7 +452,7 @@ mod tests {
         }
     }
 
-    /// ★ The y-flip, which is the defect this module exists to make impossible.
+    /// The y-flip, which is the defect this module exists to make impossible.
     ///
     /// A word at the TOP of the image (small y, because image rows count down)
     /// must land at the TOP of the page (large y, because PDF counts up). Get
@@ -613,7 +613,7 @@ mod tests {
         }
     }
 
-    /// ★ THE ROUND TRIP, which is the only assertion here that could not pass
+    /// THE ROUND TRIP, which is the only assertion here that could not pass
     /// for the wrong reason.
     ///
     /// A word is placed at a known spot in USER space. It is pushed forward

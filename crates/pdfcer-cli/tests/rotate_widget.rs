@@ -92,7 +92,7 @@ fn filled(name: &str) -> PathBuf {
 /// WROTE, and a reader that normalised on the way back could hide a wrong
 /// array behind a right model.
 ///
-/// ★ **It sees EVERY REVISION of an incrementally-saved file, not the current
+/// **It sees EVERY REVISION of an incrementally-saved file, not the current
 /// one.** So it answers *"did pdfcer ever write this array"* and cannot answer
 /// *"is this array in force"*. Use it for presence (`.any(...)`); never for
 /// absence, and never `.last()` — an earlier revision's `/Matrix` survives in
@@ -154,7 +154,7 @@ fn a_quarter_turn_swaps_the_bbox_and_leaves_the_rect_alone() {
         "a text field's appearance IS redrawn: {stdout}"
     );
 
-    // ★ COUNTERCLOCKWISE. §8.3.4's matrix `[cos, sin, -sin, cos, 0, 0]` at
+    // COUNTERCLOCKWISE. §8.3.4's matrix `[cos, sin, -sin, cos, 0, 0]` at
     // 90 degrees, UNNEGATED. The page's `/Rotate` is the clockwise outlier and
     // is the reason a future session might "fix" this sign.
     let matrices = arrays(&out, "Matrix");
@@ -171,7 +171,7 @@ fn a_quarter_turn_swaps_the_bbox_and_leaves_the_rect_alone() {
         "the authored /BBox must be SWAPPED, or step (b) squashes it: {bboxes:?}"
     );
 
-    // ★ And `/Rect` is untouched. Asserted against the literal the fixture
+    // And `/Rect` is untouched. Asserted against the literal the fixture
     // carries rather than against a re-derived number.
     let rects = arrays(&out, "Rect");
     assert!(
@@ -260,7 +260,7 @@ fn rotating_back_to_upright_removes_the_key_rather_than_writing_zero() {
         "and the new state is SILENT, not zero: {stdout}"
     );
 
-    // ★ Absence is asserted by RENDERING, not by scanning for a missing
+    // Absence is asserted by RENDERING, not by scanning for a missing
     // `/Matrix`.
     //
     // The first draft of this test scanned the bytes and took `.last()`, and
@@ -404,7 +404,7 @@ fn a_non_quarter_turn_is_refused_and_writes_nothing() {
     assert!(!out.exists(), "a refusal writes no output file");
 }
 
-/// ★★ **Where pdfcer cannot redraw the appearance, it SAYS SO.**
+/// **Where pdfcer cannot redraw the appearance, it SAYS SO.**
 ///
 /// ⚠ **This doc comment used to describe the defect `G023` reported, as
 /// though it were the design.** It read: *"A check box's `/AP` is state-keyed
@@ -453,7 +453,7 @@ fn a_widget_pdfcer_cannot_redraw_is_rotated_and_disclosed() {
         stdout.contains("erratum #56") || stdout.contains("PDF 2.0 reader ignores /MK"),
         "including WHY it will still look upright: {stdout}"
     );
-    // ★ AND THE SENTENCE NAMES THE RIGHT SET (`G023`, `Pass 308.5`). It used
+    // AND THE SENTENCE NAMES THE RIGHT SET (`G023`, `Pass 308.5`). It used
     // to open *"the stream is a push button's caption artwork, a signature, or
     // a form built elsewhere"* — which named a push button pdfcer drew (a case
     // that never reaches this sentence) and told THIS foreign check box it was

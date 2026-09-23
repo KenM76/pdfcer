@@ -23,7 +23,7 @@
 //! success as one that reads all four.* The boolean answers "did I rewrite
 //! the stream", which was true; nobody could ask "did the rewrite differ".
 //!
-//! ## ★ Why the renderer must not be where this is fixed
+//! ## Why the renderer must not be where this is fixed
 //!
 //! `pdfcer-render` implements §12.5.5 from `/BBox` + `/Matrix` only and reads
 //! no `/MK` at all. Per PDF-Association erratum #56 a conforming PDF 2.0
@@ -31,7 +31,7 @@
 //! present**, so teaching the renderer to honour `/MK` `/R` would be
 //! deliberate non-conformance. The turn has to be baked.
 //!
-//! ## ★★ WHERE THE ROTATION LIVES, which is not where either of us assumed
+//! ## WHERE THE ROTATION LIVES, which is not where either of us assumed
 //!
 //! The requester warned that `Circle`, `Square` and `Cross` are rotationally
 //! symmetric, so *"a test that rotates a `Circle` check box and asserts the
@@ -239,7 +239,7 @@ fn the_turned_states_carry_a_matrix_and_a_swapped_bbox() {
             "§8.3.4's counterclockwise quarter turn, no sign flip — /MK /R is \
              counterclockwise too"
         );
-        // ★ The swap is what makes §12.5.5 step (b) an identity rather than a
+        // The swap is what makes §12.5.5 step (b) an identity rather than a
         // squash: an `h x w` BBox turned a quarter bounds to `w x h`, which is
         // exactly `/Rect`. Without it the tick would render turned AND
         // stretched.
@@ -291,7 +291,7 @@ fn rotating_a_push_button_changes_its_plate() {
 
 #[test]
 fn a_half_turn_changes_the_matrix_and_not_one_byte_of_the_stream() {
-    // ★ 180° does not swap the box, so the drawing frame is unchanged and the
+    // 180° does not swap the box, so the drawing frame is unchanged and the
     // content is byte-identical. The ENTIRE turn is the `/Matrix`.
     //
     // This test was first written asserting the opposite — "the bytes must
@@ -330,7 +330,7 @@ fn a_half_turn_changes_the_matrix_and_not_one_byte_of_the_stream() {
 }
 
 // -------------------------------------------------------------------------
-// ★ The ownership test reads the STORED angle, never the staged one
+// The ownership test reads the STORED angle, never the staged one
 // -------------------------------------------------------------------------
 
 #[test]
@@ -397,7 +397,7 @@ fn turning_back_to_zero_restores_the_original_bytes() {
 }
 
 // -------------------------------------------------------------------------
-// ★★ The box, not the style, decides whether the bytes move
+// The box, not the style, decides whether the bytes move
 // -------------------------------------------------------------------------
 
 #[test]

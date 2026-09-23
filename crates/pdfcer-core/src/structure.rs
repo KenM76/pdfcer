@@ -157,7 +157,7 @@ impl Default for DumpOptions {
 /// Builders, because `#[non_exhaustive]` makes a struct expression impossible
 /// from outside this crate.
 ///
-/// ★ **This was found by a consumer, not by a test.** Every in-crate test could
+/// **This was found by a consumer, not by a test.** Every in-crate test could
 /// write `DumpOptions { max_depth: 2, ..Default::default() }` — an in-crate
 /// caller is exempt from `#[non_exhaustive]` — and `pdfcer` could not,
 /// because it is a different crate and feels the attribute the way `pdfcer-gui`
@@ -262,7 +262,7 @@ pub struct ObjectRecord {
     pub stream_bytes: Option<usize>,
     /// Every object that holds a reference to this one.
     ///
-    /// ★ **Parity-plus, and the expensive half of the inventory.** A forward
+    /// **Parity-plus, and the expensive half of the inventory.** A forward
     /// reference is free to read; the reverse direction requires scanning every
     /// object in the document. It is worth the scan because the questions an
     /// operator actually asks are reverse ones — *"what still points at this?"*,

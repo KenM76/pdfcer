@@ -349,7 +349,7 @@ fn up_is_a_quarter_turn_counter_clockwise_from_the_direction() {
 
 /// **Two abutting runs of different directions do not merge.**
 ///
-/// # ★ Why this fixture exists at all, and what it cost to find out
+/// # Why this fixture exists at all, and what it cost to find out
 ///
 /// `rotated-text.pdf` does **not cover** the direction-change rule, and a
 /// sabotage run is what proved it: deleting that rule from
@@ -419,7 +419,7 @@ fn abutting_runs_of_different_directions_do_not_merge() {
 /// **A vertical word gap and a vertical column break, both of which a
 /// page-axis reader gets quietly wrong.**
 ///
-/// # ★ Why a third fixture, and what sabotage found
+/// # Why a third fixture, and what sabotage found
 ///
 /// The other two fixtures cover the frame-aware **cursor** and the
 /// **direction-change** rule. Neither covers the two dot products in
@@ -437,7 +437,7 @@ fn abutting_runs_of_different_directions_do_not_merge() {
 /// | 3.332 pt gap **along** a vertical baseline | derived word space | `gap = Δx = 0` — **nothing**, the two words run together |
 /// | a second column 30 pt across, aligned so `Δy = 0` | derived line break (`perp = 30`) | `perp = 0`, then `gap = 30` — a **word space**, joining two columns |
 ///
-/// ★ **Both wrong answers are quiet.** Neither produces the
+/// **Both wrong answers are quiet.** Neither produces the
 /// one-letter-per-line fragmentation that made the original defect
 /// visible — a reader would have to know what the file said to notice. That
 /// is what makes this fixture worth authoring rather than trusting the two
@@ -636,7 +636,7 @@ fn caret_point_moves_along_a_rotated_line_where_caret_x_cannot() {
 
 /// **A rotated line is ONE line in the editable model, not one per letter.**
 ///
-/// # ★ The second copy of the same page-axis assumption
+/// # The second copy of the same page-axis assumption
 ///
 /// `Pass 139.1` fixed the *extraction*, so `PageText::runs` held one clean
 /// run per rotated block. `EditableTextModel`'s Stage-1 clustering then
@@ -645,7 +645,7 @@ fn caret_point_moves_along_a_rotated_line_where_caret_x_cannot() {
 /// advances a whole advance in `y`. Measured on this fixture before
 /// `Pass 139.2`: **16 lines for four lines of text.**
 ///
-/// ★ It was found by **sabotage, not by a failing test.** With the runs
+/// It was found by **sabotage, not by a failing test.** With the runs
 /// already correct upstream, the hit-test assertions below passed for the
 /// wrong reason — each glyph had become its own line, so every probe
 /// trivially found "its" line and resolved to the only slot in it. Reverting
@@ -677,7 +677,7 @@ fn the_editable_model_clusters_a_rotated_line_as_one_line() {
          90 and 270 degree blocks were split into one line per letter"
     );
 
-    // ★ And every line's box must CONTAIN every glyph cell in it.
+    // And every line's box must CONTAIN every glyph cell in it.
     //
     // Asserted here rather than left to `hit_test`, because sabotage showed
     // `hit_test` does not depend on it: when the box fails to contain the

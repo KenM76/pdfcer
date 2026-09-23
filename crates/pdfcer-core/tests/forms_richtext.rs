@@ -243,7 +243,7 @@ fn importing_into_a_rich_text_field_is_skipped_rather_than_fatal() {
     );
 }
 
-/// **★ A rich-text entry must not abandon an import half-applied.**
+/// **A rich-text entry must not abandon an import half-applied.**
 ///
 /// This is why skipping beats aborting. The loop writes each entry to the
 /// overlay as it goes, so a `?` on entry two leaves entry one already
@@ -293,7 +293,7 @@ fn fill_text_field_still_refuses_a_rich_text_field_directly() {
     );
 }
 
-/// **★ NO per-entry failure abandons the import half-applied — not just
+/// **NO per-entry failure abandons the import half-applied — not just
 /// rich text.**
 ///
 /// The rich-text case was merely the reachable instance. Every verb the

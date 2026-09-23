@@ -40,7 +40,7 @@
 //! | Appendix | `/Launch` | `/Win << /F >>` only (2.0-deprecated fallback) |
 //! | Chapter 3 | `/GoToR` | `/F` + `/D` page |
 //!
-//! ## ★ Reading is not running
+//! ## Reading is not running
 //!
 //! R13 is untouched by this. A `/Launch` target is a filename to **show**,
 //! and pdfcer resolves it precisely so an operator can see what a document
@@ -72,7 +72,7 @@ fn target_file(item: &pdfcer_core::outline::OutlineItem) -> Option<String> {
     }
 }
 
-/// ★ **THE ASK.** Title → filename, for every bookmark that opens a file.
+/// **THE ASK.** Title → filename, for every bookmark that opens a file.
 #[test]
 fn every_bookmark_reports_the_file_it_opens() {
     let items = items();

@@ -419,7 +419,7 @@ pub struct Annotation {
     /// `/C` — the annotation's colour, as the **raw component array**
     /// (§12.5.2, Table 164).
     ///
-    /// # ★ Why raw components and not a typed colour
+    /// # Why raw components and not a typed colour
     ///
     /// **The component COUNT is the colour space**, and Table 164 says so:
     /// 0 components means *no colour, transparent*; 1 is `DeviceGray`; 3 is
@@ -469,7 +469,7 @@ pub struct Annotation {
     /// `/State` — this annotation's review status (§12.5.6.3, Table 171;
     /// 2.0 Table 174), as the **decoded text string**.
     ///
-    /// # ★ The state is on a SEPARATE annotation, not on the one reviewed
+    /// # The state is on a SEPARATE annotation, not on the one reviewed
     ///
     /// §12.5.6.3 is explicit and says it with a `shall`: *"The state is not
     /// specified in the annotation itself but in a separate text annotation
@@ -514,7 +514,7 @@ pub struct Annotation {
     /// The **`/Matrix` of the selected appearance stream** (Table 95),
     /// raw, as `[a b c d e f]` (`Pass 155.2`).
     ///
-    /// # ★ Why the raw six numbers rather than a decomposed angle
+    /// # Why the raw six numbers rather than a decomposed angle
     ///
     /// `pdfcer-gui` asked for this and gave pdfcer's own argument back:
     /// [`Self::color`] is a raw component array because *"the component
@@ -676,7 +676,7 @@ pub struct Annotation {
     /// open** (§12.5.6.4 Table 172 on a `/Text`, §12.5.6.14 Table 183 on a
     /// `/Popup`).
     ///
-    /// # ★ pdfcer WROTE this key and could not read it back
+    /// # pdfcer WROTE this key and could not read it back
     ///
     /// `annot_author::sticky_note` has set `/Open` on both the note and its
     /// `/Popup` companion since `Pass 6.2`, and nothing in the crate ever
@@ -706,7 +706,7 @@ pub struct Annotation {
     /// too, each with its own `open`, so pairing is a lookup of
     /// [`Self::popup`] rather than a second dictionary read.
     ///
-    /// # ★ It is a GROUP ATTRIBUTE, which a consumer must not miss
+    /// # It is a GROUP ATTRIBUTE, which a consumer must not miss
     ///
     /// §12.5.6.2: in an `/IRT` + `/RT /Group` annotation group, `/Open` is
     /// one of the entries that *"shall apply to the group as a whole"*, and
@@ -749,7 +749,7 @@ pub struct Annotation {
     /// is, whether activating it performs more than the one action
     /// [`Self::action_type`] names.
     ///
-    /// # ★ Why one bool, and why it is not optional polish
+    /// # Why one bool, and why it is not optional polish
     ///
     /// Without it, `action_type` is a disclosure that can MISLEAD, which is
     /// worse than one that is absent. The worked case is in this project's
@@ -773,7 +773,7 @@ pub struct Annotation {
 /// `None` when it is not a rotation with an optional uniform scale
 /// (`Pass 155.2`).
 ///
-/// # ★ One function, two callers, on purpose
+/// # One function, two callers, on purpose
 ///
 /// [`Annotation::appearance_rotation_degrees`] (the read side) and
 /// [`crate::edit::EditSession::set_annotation_rotation`] (the write side)
@@ -801,7 +801,7 @@ pub struct Annotation {
 /// a confident wrong number here would be seeded into a field the operator
 /// is about to commit.
 ///
-/// # ★★ SIGNED, and pdfcer's OTHER rotation reader is NOT — read this
+/// # SIGNED, and pdfcer's OTHER rotation reader is NOT — read this
 ///
 /// This returns **`(−180, 180]`**. [`crate::edit::WidgetRotation`] reports
 /// `/MK /R` reduced into **`[0, 360)`**. Two rotation readers, one crate,
@@ -895,7 +895,7 @@ impl Annotation {
     /// caller that wants to show something anyway has the raw matrix and
     /// can say what it really is.
     ///
-    /// # ★ This is the EFFECTIVE angle, where the field is the RAW fact
+    /// # This is the EFFECTIVE angle, where the field is the RAW fact
     ///
     /// The two differ in one case and the difference is deliberate. An
     /// annotation that has an appearance stream but **no `/Matrix` key**
@@ -1007,7 +1007,7 @@ impl Annotation {
     /// **once per document** and hands in here. See that type for why it
     /// is a snapshot and when it must be rebuilt.
     ///
-    /// ## ★ It needs [`Self::id`], and one shape of file has none
+    /// ## It needs [`Self::id`], and one shape of file has none
     ///
     /// This re-reads the annotation's dictionary through `graph`, which
     /// requires the annotation to have been reached by an **indirect
@@ -1200,7 +1200,7 @@ pub struct PageLinks {
     /// never follow — a malformed annotation, usually the residue of an
     /// action stripped by a sanitiser.
     ///
-    /// ★ It is counted rather than silently skipped because **a caller
+    /// It is counted rather than silently skipped because **a caller
     /// that only sees [`Self::links`] cannot distinguish a page with no
     /// links from a page whose links are all broken**, and those call
     /// for opposite operator messages.
@@ -1578,7 +1578,7 @@ pub fn optional_content_default_off<G: ObjectGraph + ?Sized>(graph: &G) -> BTree
 
     // §8.11.2.3 INTENT — which groups participate in visibility at all.
     //
-    // ★ Not consulted until 2026-08-10, so a `Design`-only group hid
+    // Not consulted until 2026-08-10, so a `Design`-only group hid
     // content in a `View` render. `/Design` is the author's structural
     // organisation of artwork — scaffolding a consumer is not supposed
     // to be affected by — and pdfcer was letting it blank out content for
@@ -1871,7 +1871,7 @@ pub fn oc_is_hidden<G: ObjectGraph + ?Sized>(graph: &G, oc: ObjId, off: &BTreeSe
         }
         // Table 99 `/P` — the visibility POLICY, default `AnyOn`.
         //
-        // ★ This was not read at all until 2026-08-10, so every
+        // This was not read at all until 2026-08-10, so every
         // membership dictionary was evaluated as `AnyOn`. The divergence
         // is not a rounding error: under `/P /AllOff` with every member
         // group OFF the standard says the content is VISIBLE, and pdfcer
@@ -2052,7 +2052,7 @@ fn number<G: ObjectGraph + ?Sized>(graph: &G, obj: Option<&Object>) -> Option<f3
 /// Apply the `View`-event `/AS` usage applications on top of the
 /// `/D`-initial state (§8.11.4.4 and §8.11.4.5).
 ///
-/// # ★ This function must never be reachable from a print or export path
+/// # This function must never be reachable from a print or export path
 ///
 /// That is a `shall not`, not a preference. §8.11.4.5, of the
 /// `/D`-initial state: *"This state shall be the state used by printing
@@ -2976,7 +2976,7 @@ mod tests {
         oc_is_hidden(&graph, ObjId::new(4, 0), &off_set)
     }
 
-    /// ★ **`/P /AllOff` with every member off is VISIBLE.**
+    /// **`/P /AllOff` with every member off is VISIBLE.**
     ///
     /// The case that was inverted. Until `/P` was read, every OCMD was
     /// evaluated as `AnyOn`, so "show this when the layers are off" —
@@ -3093,7 +3093,7 @@ mod tests {
         optional_content_default_off(&doc.view()).len()
     }
 
-    /// ★ **A `Design`-only group does not hide content in a `View`
+    /// **A `Design`-only group does not hide content in a `View`
     /// render.**
     ///
     /// §8.11.2.3: `/Design` is the author's structural organisation of
@@ -3141,7 +3141,7 @@ mod tests {
         assert_eq!(design_intent_off_set("/Anything", "/All"), 1);
     }
 
-    /// ★ **An EMPTY configuration intent array makes everything visible.**
+    /// **An EMPTY configuration intent array makes everything visible.**
     ///
     /// The one case where fewer intents means MORE visible content.
     /// §8.11.2.3 states it outright, and it is exactly the shape a
@@ -3202,7 +3202,7 @@ mod tests {
         oc_is_hidden(&graph, ObjId::new(4, 0), &off_set)
     }
 
-    /// ★ **`/VE` overrides `/OCGs` + `/P`.**
+    /// **`/VE` overrides `/OCGs` + `/P`.**
     ///
     /// The fixture's `/P /AllOn` says "visible only when BOTH groups are
     /// on". The expression says `Or`, which is satisfied by one. With
@@ -3235,7 +3235,7 @@ mod tests {
         assert!(ocmd_ve_hidden(expr, true, true), "A off => hidden");
     }
 
-    /// ★ **An expression pdfcer cannot evaluate falls back to `/P`,
+    /// **An expression pdfcer cannot evaluate falls back to `/P`,
     /// rather than defaulting to visible or hidden.**
     ///
     /// §8.11.2.2 NOTE 2 tells authors to supply `/OCGs` + `/P` alongside
@@ -3364,7 +3364,7 @@ mod tests {
         );
     }
 
-    /// ★ **`Zoom` is half-open: `min` inclusive, `max` EXCLUSIVE.**
+    /// **`Zoom` is half-open: `min` inclusive, `max` EXCLUSIVE.**
     ///
     /// §8.11.4.4: *"If the current magnification level of the document
     /// is greater than or equal to `min` and less than `max`, the ON
@@ -3417,7 +3417,7 @@ mod tests {
         }
     }
 
-    /// ★ **A category the group does not carry yields NO recommendation
+    /// **A category the group does not carry yields NO recommendation
     /// — it does not vote `OFF`.**
     ///
     /// §8.11.4.4's aggregation sentence, read alone, makes a missing
@@ -3474,7 +3474,7 @@ mod tests {
         assert_eq!(notes.applications, 1, "the application was still examined");
     }
 
-    /// ★ **The conjunction is global and order-independent: `OFF`
+    /// **The conjunction is global and order-independent: `OFF`
     /// dominates.**
     ///
     /// §8.11.4.4: *"If a given optional content group appears in more
@@ -4023,7 +4023,7 @@ pub fn stamp_label_parameters_in<G: crate::graph::ObjectGraph + ?Sized>(
 
     // The size: `/DA` first (what `Pass 287.0` writes), else the baked `Tf`.
     //
-    // ★ The THREE outcomes are kept apart rather than collapsed into an
+    // The THREE outcomes are kept apart rather than collapsed into an
     // `Option`, because the consuming shell named the exact confusion: "the
     // author stated no size" and "the author stated a size we could not parse"
     // look identical through an `Option` and mean opposite things to a panel —

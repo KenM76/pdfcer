@@ -13,7 +13,7 @@
 //! *a crate that can classify a closed set of values and cannot construct one
 //! is a boundary drawn on the read side only.*
 //!
-//! ## ★ What keeps a script WRITER safe
+//! ## What keeps a script WRITER safe
 //!
 //! There is no `&str`-taking route into `/AA`. The input is a typed helper
 //! from the same whitelist `classify` recognises, so **arbitrary JavaScript
@@ -21,7 +21,7 @@
 //! cannot also read back and describe. That is the property, not a limitation
 //! to work around later.
 //!
-//! ## ★★ Three things are written that nobody asked for by name
+//! ## Three things are written that nobody asked for by name
 //!
 //! Each is something a conforming producer owes, and each would otherwise have
 //! been left to the caller to know:
@@ -131,7 +131,7 @@ fn co(s: &EditSession) -> Option<Vec<u32>> {
 }
 
 // -------------------------------------------------------------------------
-// ★ The acceptance criterion: what is written reads back as what was asked for
+// The acceptance criterion: what is written reads back as what was asked for
 // -------------------------------------------------------------------------
 
 #[test]
@@ -234,7 +234,7 @@ fn inventory_reports_the_script_that_was_written() {
 }
 
 // -------------------------------------------------------------------------
-// ★★ The keystroke twin, written because a conforming producer owes it
+// The keystroke twin, written because a conforming producer owes it
 // -------------------------------------------------------------------------
 
 #[test]
@@ -261,7 +261,7 @@ fn a_format_writes_its_keystroke_twin_and_says_so() {
 
 #[test]
 fn the_ex_twin_is_recognised_too() {
-    // ★ THE READ-SIDE HOLE THE EMITTER FOUND. `AFDate_FormatEx` pairs with
+    // THE READ-SIDE HOLE THE EMITTER FOUND. `AFDate_FormatEx` pairs with
     // `AFDate_KeystrokeEx`, and the classifier matched only `_Keystroke` — so
     // a real Acrobat-authored explicit-date field lost its `/K` disclosure,
     // and pdfcer's own twin was one its reader would not take back.
@@ -302,7 +302,7 @@ fn clearing_a_format_takes_the_twin_with_it_and_removes_an_emptied_aa() {
 }
 
 // -------------------------------------------------------------------------
-// ★★ `/CO`, which is part of the calculate verb and not a later request
+// `/CO`, which is part of the calculate verb and not a later request
 // -------------------------------------------------------------------------
 
 #[test]
@@ -409,7 +409,7 @@ fn setting_the_same_calculation_twice_does_not_double_the_co_entry() {
 
 #[test]
 fn a_list_box_is_refused_and_a_combo_box_is_not() {
-    // ★ THE ONE WORTH READING TWICE. Both are `/Ch`; Acrobat offers the combo
+    // THE ONE WORTH READING TWICE. Both are `/Ch`; Acrobat offers the combo
     // box all three tabs and the list box none. The guess everyone makes is
     // that they behave the same.
     let options = vec![pdfcer_core::edit::ChoiceOption::plain("One")];

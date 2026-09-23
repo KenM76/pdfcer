@@ -341,7 +341,7 @@ pub enum PermissionBit {
 impl PermissionBit {
     /// Every permission, in Table 22 order.
     ///
-    /// ★★ DELIBERATELY STILL `[Self; 8]`, while `Unit::all`,
+    /// DELIBERATELY STILL `[Self; 8]`, while `Unit::all`,
     /// `CheckStyle::all` and `DocInfoField::all` were all widened to slices in
     /// `Pass 301.0`/`301.1`. Recorded here because a future sweep will find
     /// this one and "finish the job".

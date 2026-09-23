@@ -40,7 +40,7 @@
 //! That is all four halves of what the operator asked for on 2026-08-18:
 //! *"the build revision, date, and time for the version of iccce used"*.
 //!
-//! ## ★★ This field said `not-linked-yet` for six days after that stopped
+//! ## This field said `not-linked-yet` for six days after that stopped
 //! being true
 //!
 //! The text here used to argue at length that the absence was **pending,
@@ -114,7 +114,7 @@ pub struct BuildInfo {
     /// Example: `0.3.0 (rev a4d9003b, committed 2026-09-01T08:54:36Z)` under
     /// a `rev` pin; `0.3.0 (tag v0.3.0, a4d9003b, committed …)` under a tag.
     ///
-    /// ## ★ It reports what the WORKSPACE links, not what `pdfcer-core` links
+    /// ## It reports what the WORKSPACE links, not what `pdfcer-core` links
     ///
     /// `iccce-profile` and `iccce-cmm` are dependencies of
     /// **`pdfcer-render`**, and this stamp is baked by `pdfcer-core`'s build
@@ -194,7 +194,7 @@ impl std::fmt::Display for BuildInfo {
             // of "there isn't one" has to say why -- otherwise it reads as a
             // defect in the stamp rather than as a fact about the build.
             //
-            // ★ This branch is now the OUT-OF-WORKSPACE case, not the
+            // This branch is now the OUT-OF-WORKSPACE case, not the
             // not-yet-integrated one. Inside the workspace every binary
             // links iccce and this never fires; it fires for a project
             // depending on `pdfcer-core` alone, where the absence is real

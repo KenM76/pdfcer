@@ -153,7 +153,7 @@ fn a_group_default_reaches_a_member_that_does_not_override_it() {
     assert_eq!(prop(&s, "arrow-length").2, "factory");
 }
 
-/// ★ The operator's actual request: a group default, with ONE member set
+/// The operator's actual request: a group default, with ONE member set
 /// differently, and the two states distinguishable afterwards.
 #[test]
 fn a_per_ce_dimension_override_beats_the_group_and_is_reported_as_such() {
@@ -289,7 +289,7 @@ fn setting_one_property_does_not_clear_the_others() {
     assert_eq!(prop(&s, "color").2, "group");
 }
 
-/// ★ The override reaches the BAKED APPEARANCE, not just the sidecar.
+/// The override reaches the BAKED APPEARANCE, not just the sidecar.
 ///
 /// Every other test here reads the model back through `dimension-list`, which
 /// reads the `/PieceInfo` sidecar. A build that stored the override faithfully
@@ -459,7 +459,7 @@ fn a_group_default_tolerance_reaches_its_members() {
     assert_eq!(prop(&s, "tolerance").2, "group");
     assert_eq!(prop(&s, "tolerance-places").1, "1");
 
-    // ★ WinAnsi, not UTF-8 — the `Pass 68.0` regression in its second costume.
+    // WinAnsi, not UTF-8 — the `Pass 68.0` regression in its second costume.
     // The label font is declared `/WinAnsiEncoding`, and `±` (U+00B1) is only
     // the SECOND non-ASCII character this writer has ever emitted; the first
     // (the degree sign) shipped broken. The assertion is therefore in the

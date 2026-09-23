@@ -27,7 +27,7 @@
 //! keeps this a peer of FDF — one document's data — rather than half of an
 //! unbuilt batch feature.
 //!
-//! # ★ The hazard: a CSV cell is not inert
+//! # The hazard: a CSV cell is not inert
 //!
 //! A spreadsheet treats a cell beginning `=`, `+`, `-` or `@` as a
 //! **formula**. Form values come from a PDF that pdfcer did not write and
@@ -374,7 +374,7 @@ mod tests {
         assert_eq!(back.fields[2].values.join("|"), "132.50");
     }
 
-    /// ★ **A value a spreadsheet would evaluate is neutralised, counted and
+    /// **A value a spreadsheet would evaluate is neutralised, counted and
     /// named — and the round trip removes the prefix again.**
     ///
     /// The hostile forms reach outside the spreadsheet: `=cmd|…` launches,
@@ -449,7 +449,7 @@ mod tests {
         assert_eq!(parsed.fields[0].name, "A");
     }
 
-    /// ★ **A row missing a column is an ERROR, not a best-effort skip.**
+    /// **A row missing a column is an ERROR, not a best-effort skip.**
     ///
     /// A spreadsheet that lost its value column would otherwise import as
     /// names with empty values and silently blank the whole form — a

@@ -67,7 +67,7 @@ use crate::lexer::{Lexer, Token, TokenKind};
 /// How deep a chain of form XObjects invoking form XObjects may go before a
 /// walker stops descending (ISO 32000-1 §8.10.1).
 ///
-/// # ★★ 64, AND THE NUMBER IS CORPUS-CORRECTED RATHER THAN CHOSEN
+/// # 64, AND THE NUMBER IS CORPUS-CORRECTED RATHER THAN CHOSEN
 ///
 /// Real documents nest two or three deep — a page invokes a template, which
 /// invokes a logo — which is exactly what makes a small value *look* safe. But
@@ -76,7 +76,7 @@ use crate::lexer::{Lexer, Token, TokenKind};
 /// reader that refuses it is wrong. 64 is 2× the deepest conformant structure
 /// anyone has measured, and Annex C sets no form-nesting limit at all.
 ///
-/// # ★ It is a backstop, NOT the real defence
+/// # It is a backstop, NOT the real defence
 ///
 /// The attack it would have to stop is unbounded *recursion*, and that is
 /// caught at any depth by a **cycle guard keyed on the form's object number**
@@ -85,7 +85,7 @@ use crate::lexer::{Lexer, Token, TokenKind};
 /// cycle entirely. What this value actually bounds is the linear memory a
 /// legitimate-but-absurd chain can pin.
 ///
-/// # ★★★ WHY IT LIVES HERE, WHICH IS THE POINT OF THIS CONSTANT EXISTING
+/// # WHY IT LIVES HERE, WHICH IS THE POINT OF THIS CONSTANT EXISTING
 ///
 /// It was written down **twice** independently — `pdfcer-render`'s
 /// `MAX_XOBJECT_DEPTH` and `text_extract`'s `ExtractOptions::max_form_depth`,
@@ -417,7 +417,7 @@ impl ContentStream {
 ///   sum of ALL forms' tokens         = 241.9 MB
 /// ```
 ///
-/// ★ Note which of those two numbers is the peak. The sum is 241.9 MB but
+/// Note which of those two numbers is the peak. The sum is 241.9 MB but
 /// every form is dropped as soon as it is interpreted, so only ONE is ever
 /// live — the 301.7 MB is `32.7 + 256.0 + the decoded buffer`, and it closes
 /// to within a megabyte. The peak was never token VOLUME, which is why the
@@ -455,7 +455,7 @@ impl ContentStream {
 ///    amortised cost of `push` stays constant even if the projection is
 ///    pathological.
 ///
-/// ★★ WHY THE MARGIN MATTERS MORE THAN IT LOOKS. A reallocation holds the
+/// WHY THE MARGIN MATTERS MORE THAN IT LOOKS. A reallocation holds the
 /// OLD buffer and the NEW one at the same time. Reallocating a 140 MB vector
 /// therefore costs ~310 MB transiently — worse than the slack being removed.
 /// So the projection is deliberately made EARLY, while the vector is still
@@ -474,7 +474,7 @@ impl TokenCapacity {
     const MIN_SAMPLE: usize = 4096;
     /// Floor for the first allocation.
     ///
-    /// ★ It is **4**, matching what `Vec` itself would have done, and the
+    /// It is **4**, matching what `Vec` itself would have done, and the
     /// first draft's 64 is why this constant has a comment. 64 was chosen to
     /// "save a series of small allocations" — reasoning with nothing behind
     /// it — and the corpus leg of the harness priced it: across the 372

@@ -14,7 +14,7 @@
 //! not parse back as `1234`, so a formatted string baked into `/V` destroys
 //! the value and every calculation that reads it.
 //!
-//! ## ★ The standard PERMITS what this invariant forbids
+//! ## The standard PERMITS what this invariant forbids
 //!
 //! Worth stating plainly, because the obvious assumption is the opposite.
 //! §12.6.3's Table 196 describes the `F` trigger as firing "before the field
@@ -369,7 +369,7 @@ fn percent(stored: &str, decimals: i64, sep_code: i64, policy: CommaPolicy) -> F
             code: sep_code,
         };
     };
-    // ★ MEASURED, and it falsified what pdfcer had implemented.
+    // MEASURED, and it falsified what pdfcer had implemented.
     //
     // The single available source — one independent reimplementation — has
     // an empty percent field display a bare `%`, and pdfcer reproduced that,
@@ -612,7 +612,7 @@ mod tests {
             (1, "1234.56"),
             (2, "1.234,56"),
             (3, "1234,56"),
-            // ★ Mode 4 was UNSOURCED and is now measured: a probe opened in
+            // Mode 4 was UNSOURCED and is now measured: a probe opened in
             // the installed Acrobat rendered `1'234.56` — an apostrophe
             // thousands separator with a period decimal, the Swiss
             // convention — beside a `sepStyle 0` control showing
@@ -624,7 +624,7 @@ mod tests {
         }
     }
 
-    /// ★ **`currStyle` is inert, and that is now measured rather than
+    /// **`currStyle` is inert, and that is now measured rather than
     /// assumed.**
     ///
     /// Every source describes it as reserved. The same probe rendered
@@ -650,7 +650,7 @@ mod tests {
         assert_eq!(text_of(&with_style(1)), "1,234.56");
     }
 
-    /// ★ **An unsourced style code declines rather than guessing.**
+    /// **An unsourced style code declines rather than guessing.**
     ///
     /// Mode 4 used to be the example here and is now MEASURED, so the
     /// test moved up to 5 — the first code nothing describes. That the
@@ -725,7 +725,7 @@ mod tests {
         );
     }
 
-    /// ★ **An empty or non-numeric value displays as nothing, not as 0.00.**
+    /// **An empty or non-numeric value displays as nothing, not as 0.00.**
     ///
     /// A blank box that renders `0.00` reports an unfilled form as filled.
     #[test]
@@ -740,7 +740,7 @@ mod tests {
         );
     }
 
-    /// ★ **A percentage multiplies the stored value by 100.**
+    /// **A percentage multiplies the stored value by 100.**
     ///
     /// The stored value is a fraction; the ×100 is display-only. Writing
     /// `8.5` into such a field would make it read `850%`.
@@ -759,7 +759,7 @@ mod tests {
         assert_eq!(text_of(&pct("0.085", 1)), "8.5%");
         assert_eq!(text_of(&pct("0.5", 0)), "50%");
         assert_eq!(text_of(&pct("1", 2)), "100.00%");
-        // ★ MEASURED, and it overturned what pdfcer had implemented. The one
+        // MEASURED, and it overturned what pdfcer had implemented. The one
         // available source has an empty percent field show a bare `%`; the
         // installed Acrobat showed `0.0%` for AFPercent_Format(1, 0) over an
         // empty value. Percent coerces an unreadable value to ZERO and
@@ -801,7 +801,7 @@ mod tests {
         );
     }
 
-    /// ★ **The phone mask ADAPTS to the digit count.**
+    /// **The phone mask ADAPTS to the digit count.**
     ///
     /// A fixed mask would mis-render every local number in the document.
     #[test]
@@ -856,7 +856,7 @@ mod tests {
         assert_eq!(text_of(&got), "(555) 123-4567");
     }
 
-    /// ★ **A date renders through its predefined format when the stored
+    /// **A date renders through its predefined format when the stored
     /// value is unambiguous.**
     ///
     /// The token grammar is fully sourced; what was missing until now was a
@@ -899,7 +899,7 @@ mod tests {
         );
     }
 
-    /// ★ **An ambiguous stored date declines, and says why.**
+    /// **An ambiguous stored date declines, and says why.**
     ///
     /// `03/04/2026` names different days in different countries and the
     /// stored value settles nothing. Rendering a guess would be a confident
@@ -959,7 +959,7 @@ mod tests {
         ));
     }
 
-    /// ★ **Nothing here produces a value a caller could store.**
+    /// **Nothing here produces a value a caller could store.**
     ///
     /// The structural guard behind the format/value separation: a rendered
     /// result carries a display attribute that `/V` cannot hold, so storing

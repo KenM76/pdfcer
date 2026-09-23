@@ -15,7 +15,7 @@
 //! number that cannot be acted on, and a write with no read gives a control
 //! that opens on a guess and silently overwrites whatever was there.
 //!
-//! # ★★★ And a live defect found on the way in
+//! # And a live defect found on the way in
 //!
 //! `set_text_annot_style` re-bakes the annotation's appearance from a spec
 //! read back out of the file — and `text_spec_from_dict` reports `label: None`
@@ -106,7 +106,7 @@ fn baked_size(session: &EditSession, annot_id: pdfcer_core::object::ObjId) -> f6
 
 // ------------------------------------------- 1. the defect found on the way
 
-/// ★★★ A COLOUR CHANGE MUST NOT REWRITE THE STAMP'S WORDS.
+/// A COLOUR CHANGE MUST NOT REWRITE THE STAMP'S WORDS.
 ///
 /// This is the regression test for a live defect: the re-bake read the
 /// annotation back through `text_spec_from_dict`, which reports `label: None`
@@ -167,7 +167,7 @@ fn a_new_label_size_is_written_and_reads_back() {
     assert_eq!(params.size_source, StampSizeSource::DeclaredInDa);
 }
 
-/// ★★ A size that no longer fits the box moves the BOX, and says so.
+/// A size that no longer fits the box moves the BOX, and says so.
 ///
 /// Writing `/DA` without touching `/Rect` would re-open the clipped-stamp trap
 /// `Pass 287.0` closed, through a route that Pass never covered — so the
@@ -293,7 +293,7 @@ fn a_placed_stamp_reports_its_label_and_size() {
     assert_eq!(params.size_source, StampSizeSource::DeclaredInDa);
 }
 
-/// ★★ THE THREE SIZE SOURCES ARE NOT INTERCHANGEABLE, and the shell said so
+/// THE THREE SIZE SOURCES ARE NOT INTERCHANGEABLE, and the shell said so
 /// first: *"What we must be able to distinguish … the author stated no size
 /// from the author stated a size we could not parse. Those look identical
 /// through an `Option` and they mean opposite things to a panel."*

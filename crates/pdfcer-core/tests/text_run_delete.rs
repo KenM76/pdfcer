@@ -212,7 +212,7 @@ fn session(name: &str) -> EditSession {
     EditSession::new(Document::from_bytes(bytes).expect("parses"))
 }
 
-/// **★ REGRESSION: the session's own decomposition must see text runs.**
+/// **REGRESSION: the session's own decomposition must see text runs.**
 ///
 /// `EditSession::vector_surgery` decomposed with an XObject resolver and
 /// **no font resolver**. That was invisible for as long as every verb

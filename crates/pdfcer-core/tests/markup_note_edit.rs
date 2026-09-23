@@ -114,7 +114,7 @@ fn a_note_can_be_written_onto_a_shape_that_already_exists() {
 // 2. FIXING A TYPO MUST NOT UN-SIGN THE COMMENT
 // ---------------------------------------------------------------------------
 
-/// ★ The one a shell would hit on its second day. "Correct a typo in a
+/// The one a shell would hit on its second day. "Correct a typo in a
 /// comment you wrote a minute ago" is one of the four acts this Pass exists
 /// for, and an implementation that wrote all three keys unconditionally would
 /// silently strip the author and date on every correction — leaving a review
@@ -156,7 +156,7 @@ fn a_note_without_an_author_leaves_the_existing_author_alone() {
 // 3. THE DISCLOSURE — the case the consuming project asked for by name
 // ---------------------------------------------------------------------------
 
-/// ★★ A note is content the operator **cannot recover from the canvas**.
+/// A note is content the operator **cannot recover from the canvas**.
 ///
 /// A restyled shape still shows its geometry, so `set_markup_style` can be
 /// checked by eye. Overwritten words leave *no trace on the page at all* —

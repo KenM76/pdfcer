@@ -20,7 +20,7 @@
 //! * **Exit codes**, which are the CLI's contract with a script.
 //! * **The report line**, which is what a script parses and an operator reads.
 //!
-//! ## ★★ The assertion that actually discriminates: WHICH WAY IS POSITIVE
+//! ## The assertion that actually discriminates: WHICH WAY IS POSITIVE
 //!
 //! Rotation here is **anticlockwise**. PDF user space has its origin at the
 //! bottom-left (§8.3.2.3), so a positive angle turns the way a mathematician
@@ -126,7 +126,7 @@ fn rotate(input: &Path, index: usize, degrees: &str, out_path: &Path) -> Output 
 // Geometry
 // ---------------------------------------------------------------------------
 
-/// ★★ +90° is ANTICLOCKWISE. See the module docs for the arithmetic — a
+/// +90° is ANTICLOCKWISE. See the module docs for the arithmetic — a
 /// clockwise implementation lands on `20,110,90,180` and fails here.
 #[test]
 fn a_positive_angle_turns_anticlockwise_about_the_anchor() {
@@ -173,7 +173,7 @@ fn a_negative_angle_is_accepted_and_turns_the_other_way() {
 /// inconsistently between the two halves of the transform drifts, and drift is
 /// invisible at any single angle.
 ///
-/// ★ **The identity is NOT exact, and that is stated rather than hidden.**
+/// **The identity is NOT exact, and that is stated rather than hidden.**
 /// Measured 2026-08-29: `[20 20 90 90]` about `(100,100)` comes back as
 /// `[19.999999999999975, 20.000000000000007, 90, 90.00000000000003]` — the
 /// `sin`/`cos` of 2π in `f64`. The residual is ~2.5e-14 pt, which is about
@@ -231,7 +231,7 @@ fn the_report_names_the_before_and_after_rectangles() {
     );
 }
 
-/// ★ `--index` selects, and selecting one annotation must not move another.
+/// `--index` selects, and selecting one annotation must not move another.
 ///
 /// The core cannot see this: the index→id mapping is the shell's. An
 /// off-by-one here rotates the wrong annotation and every core test still
@@ -260,10 +260,10 @@ fn index_selects_one_annotation_and_leaves_its_neighbours_alone() {
 // Refusals
 // ---------------------------------------------------------------------------
 
-/// ★★ A form widget is refused, and — since `Pass 163.0` — the message says
+/// A form widget is refused, and — since `Pass 163.0` — the message says
 /// the verb it names is **not built yet**.
 ///
-/// # ★ THIS TEST'S ASSERTION WAS INVERTED BY `Pass 177.0`, DELIBERATELY
+/// # THIS TEST'S ASSERTION WAS INVERTED BY `Pass 177.0`, DELIBERATELY
 ///
 /// It used to require the message to contain **"NOT BUILT YET"**. That was
 /// right when written: the sentence said *"use `rotate_widget` instead"* and

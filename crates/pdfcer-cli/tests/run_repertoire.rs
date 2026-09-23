@@ -68,7 +68,7 @@ fn field(line: &str, key: &str) -> String {
         .to_owned()
 }
 
-/// ★★★ THE SCRIPT'S LOOP: what the line says, the editor honours.
+/// THE SCRIPT'S LOOP: what the line says, the editor honours.
 #[test]
 fn a_character_the_line_names_edits_and_one_it_omits_does_not() {
     let out = repertoire(SUBSET, &["--list"]);
@@ -126,7 +126,7 @@ fn a_character_the_line_names_edits_and_one_it_omits_does_not() {
     );
 }
 
-/// ★ The listed set is CODE POINTS, and that is not cosmetic.
+/// The listed set is CODE POINTS, and that is not cosmetic.
 ///
 /// The first cut printed the characters themselves through `sanitize_token`,
 /// which maps a space to `_` — so a repertoire containing a space and one

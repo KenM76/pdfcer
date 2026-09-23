@@ -18,7 +18,7 @@
 //! 2. **The form's dictionary survives.** `/Subtype`, `/BBox`, `/Matrix` and
 //!    `/Resources` are the object's identity; a replacement stream built from
 //!    scratch would render as nothing at all, and would do so *silently*.
-//! 3. **★ Shared content is disclosed.** A form XObject may legally be painted
+//! 3. **Shared content is disclosed.** A form XObject may legally be painted
 //!    from several pages (ISO 32000-1 §8.10.1) and **no clause binds one to a
 //!    page** (`FX-N1`, a confirmed permanent negative result). So an in-place
 //!    edit changes every sheet the form appears on, and the operator is told
@@ -189,7 +189,7 @@ fn all_text(bytes: &[u8]) -> String {
 // The capability
 // ---------------------------------------------------------------------------
 
-/// ★ **THE PASS, IN ONE TEST.** Text that lives inside a form XObject is found
+/// **THE PASS, IN ONE TEST.** Text that lives inside a form XObject is found
 /// and replaced, and the change survives a save-and-reload.
 ///
 /// The reload is the half that matters: a splice that produced plausible bytes
@@ -295,7 +295,7 @@ fn the_form_dictionary_is_preserved_key_for_key() {
 // Shared invocation — the design question, made observable
 // ---------------------------------------------------------------------------
 
-/// ★ **THE DISCLOSURE THAT KEEPS A FORM EDIT HONEST.**
+/// **THE DISCLOSURE THAT KEEPS A FORM EDIT HONEST.**
 ///
 /// One form, two pages. There is no ownership rule anywhere in either ISO
 /// edition (`FX-N1`), and §8.10.1 states multi-invocation as the *purpose* of
@@ -501,7 +501,7 @@ fn the_session_edits_form_text_as_one_undoable_command() {
     assert!(all_text(&bytes).contains("SHEET"));
 }
 
-/// ★ **Edit → undo → save must produce a byte-identical file.**
+/// **Edit → undo → save must produce a byte-identical file.**
 ///
 /// `ARCHITECTURE.md` §11.1: the dirty set is a *diff against the base at save
 /// time*, never a log of what was touched. A form edit that registered the
@@ -573,7 +573,7 @@ fn sequential_edits_to_one_form_accumulate() {
 /// A form whose `/Resources` carries a `/Font` dictionary that does **not**
 /// contain the name its own text selects is **refused by name**, not edited.
 ///
-/// ★ **The refusal is a deliberate choice, and the reason is agreement between
+/// **The refusal is a deliberate choice, and the reason is agreement between
 /// pdfcer's own components rather than a rule in the standard.** Nothing
 /// sanctions filling a partially-declared form's `/Font` from the page, and
 /// `pdfcer-render`'s interpreter does not do it: its `Do` handler takes the
@@ -649,7 +649,7 @@ fn a_self_contained_form_reports_no_inheritance() {
 // `Pass 119.2` — format_text reaches the same text edit_text does
 // ---------------------------------------------------------------------------
 
-/// ★ **The asymmetry `Pass 119.0` shipped, closed.**
+/// **The asymmetry `Pass 119.0` shipped, closed.**
 ///
 /// `edit_text` reached form content and `format_text` did not, which an
 /// operator meets as *"I can change the words but not the size"* — the same

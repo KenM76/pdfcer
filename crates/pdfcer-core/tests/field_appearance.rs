@@ -167,7 +167,7 @@ fn the_da_string_names_the_font_size_and_colour() {
     assert!(got.contains("rg"), "must set an RGB fill colour: {got}");
 }
 
-/// ★★ The resource is AUTHORED, which is the half that makes the `/DA` mean
+/// The resource is AUTHORED, which is the half that makes the `/DA` mean
 /// anything.
 ///
 /// Without it the field names a key that resolves to nothing, the reader
@@ -198,7 +198,7 @@ fn a_standard_font_is_added_to_the_acroform_default_resources() {
     );
 }
 
-/// ★★ The appearance is REGENERATED, not just re-declared.
+/// The appearance is REGENERATED, not just re-declared.
 ///
 /// Writing `/DA` alone leaves the baked stream drawing the old face at the
 /// old size, so the field claims one appearance and shows another — the

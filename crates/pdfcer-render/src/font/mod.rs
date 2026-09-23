@@ -498,7 +498,7 @@ pub struct RenderOptions {
     /// |---|---|---|---|
     /// | whole page, 1.6x | 1 468 ms | **108 ms** | **0** of 1 242 640 |
     ///
-    /// ★ And the number that keeps this honest, because "zero" above
+    /// And the number that keeps this honest, because "zero" above
     /// would otherwise read as "free". The loss appears as the objects
     /// approach the threshold rather than sitting far below it — same
     /// page, a 1 pt window, ~339 forms dropped each time:
@@ -576,7 +576,7 @@ pub struct RenderOptions {
     /// Apply `View`-event `/AS` usage applications at this magnification
     /// (§8.11.4.4), or `None` to render the `/D`-initial state.
     ///
-    /// # ★ `None` is the PRINT answer, and it is the default for a reason
+    /// # `None` is the PRINT answer, and it is the default for a reason
     ///
     /// §8.11.4.5 says the `/D`-initial state *"shall be the state used by
     /// printing and aggregating application[s]. Such applications **shall
@@ -809,7 +809,7 @@ pub enum InkProbeSource {
 ///
 /// Emitted only when [`RenderOptions::ink_probe`] is set; absent otherwise,
 /// so a caller cannot read a probe that was never asked for.
-/// ★ `Copy` was dropped when [`Self::spots`] landed: a page's spot roster is
+/// `Copy` was dropped when [`Self::spots`] landed: a page's spot roster is
 /// variable-length, so this type owns a `Vec` and cannot be bit-copied. It
 /// stays `Clone`. Recorded rather than silently changed because dropping a
 /// `Copy` impl is a breaking change for any consumer that relied on implicit
@@ -835,7 +835,7 @@ pub struct InkProbe {
     /// This page's SPOT colorants at the probed pixel: the colorant name
     /// and its tint, in the buffer's plane order.
     ///
-    /// # ★★ Why the probe was incomplete without this, and what it cost
+    /// # Why the probe was incomplete without this, and what it cost
     ///
     /// [`Self::cmyk`] reports **four** channels. Once a page composites a
     /// `/Separation` or `/DeviceN` ink in its own plane, four numbers stop
@@ -971,7 +971,7 @@ pub struct RenderPolicy<'a> {
 /// sub-pixel stroke visible. Both are FLOORS, and pdfcer implements them in
 /// [`Actual`](Self::Actual) — see the floor in `Interpreter::stroke_params`.
 ///
-/// ★ **No clause authorises a ceiling.** Thinning a stroke the file declared
+/// **No clause authorises a ceiling.** Thinning a stroke the file declared
 /// wide has no basis in the standard and is not offered as one: it is a
 /// reading aid the operator switches on, applied at display time only, and it
 /// never reaches emitted bytes (`w`, `/LW` and `/SA` round-trip untouched
@@ -1247,7 +1247,7 @@ impl RenderOptions {
     /// the rule, so its zero C, M and Y leave the backdrop alone — a
     /// deliberate **divergence** from ISO 32000-1, not an ambiguity.
     ///
-    /// ★ This said *"Acrobat converts grey… Both readings are defensible"*.
+    /// This said *"Acrobat converts grey… Both readings are defensible"*.
     /// Wrong twice. `Pass 174.5` had already ruled it a divergence rather
     /// than a defensible pair, and `Pass 206.0` measured that the default
     /// matches Acrobat only over a SPOT backdrop — over process components

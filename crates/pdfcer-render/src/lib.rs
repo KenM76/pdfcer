@@ -141,7 +141,7 @@ pub use pdfcer_core::{PdfError, PdfVersion};
 /// **square** of the edge, so this is not a round number that could simply be
 /// raised.
 ///
-/// # ★ Its original justification was wrong, and how it was wrong is useful
+/// # Its original justification was wrong, and how it was wrong is useful
 ///
 /// This doc comment used to end: *"16,384 px covers a 14,400-unit (200-inch,
 /// Annex C max) page edge at 80+ DPI — **beyond any plausible viewing zoom at
@@ -193,7 +193,7 @@ pub const MAX_PIXMAP_EDGE: u32 = 16 * 1024;
 /// consuming shell asked to know the boundary *before* calling rather than
 /// discover it by crashing into it.
 ///
-/// # ★★ Why it is not the real boundary, and why it must not be presented as one
+/// # Why it is not the real boundary, and why it must not be presented as one
 ///
 /// The real boundary was measured — `examples/region_panic_ceiling.rs`
 /// bisects the first panicking scale for six page geometries — and it does not
@@ -215,7 +215,7 @@ pub const MAX_PIXMAP_EDGE: u32 = 16 * 1024;
 /// interacting with the particular geometry being painted, and it is
 /// therefore **content-dependent** as well.
 ///
-/// ★ A constant fitted to that table would be a guess wearing a
+/// A constant fitted to that table would be a guess wearing a
 /// measurement's clothes. This one is deliberately set **below the lowest
 /// value observed**, with margin, and claims only what that supports.
 ///
@@ -363,7 +363,7 @@ pub struct PageInk {
 /// dictionary answers. `page_blend_space` had the answer and was
 /// `pub(crate)`.
 ///
-/// # ★★ It is the SAME computation the renderer runs, not a second one
+/// # It is the SAME computation the renderer runs, not a second one
 ///
 /// This calls `interpret::page_blend_space` with the policy out of the
 /// `options` you pass, so the answer is the one a render with those same
@@ -375,7 +375,7 @@ pub struct PageInk {
 /// scope that paints no page content has no page group to have a blending
 /// space, and annotations composite in sRGB either way.
 ///
-/// # ★ This is the SPACE question, not the BUDGET question
+/// # This is the SPACE question, not the BUDGET question
 ///
 /// A page can declare `DeviceCMYK` and still be composited in sRGB, because
 /// the colorant buffer costs 20 bytes per pixel and a large page exceeds the
@@ -501,7 +501,7 @@ pub enum RenderError {
     /// range start index 442613758592 out of range for slice of length 1088737
     /// ```
     ///
-    /// # ★★ Why this is an ERROR and not a guard
+    /// # Why this is an ERROR and not a guard
     ///
     /// Because the boundary was **measured and found not to be a function of
     /// anything publishable.** `examples/region_panic_ceiling.rs` bisects it
@@ -524,7 +524,7 @@ pub enum RenderError {
     /// retrying the same call will fail the same way — change the scale.
     /// `panic_message` is carried for a log, never for a parser.
     ///
-    /// # ★★ The `Display` form deliberately OMITS `panic_message`
+    /// # The `Display` form deliberately OMITS `panic_message`
     ///
     /// It did not, for about an hour, and the consuming shell reported what
     /// that cost — as a workaround it had written rather than as a request,
@@ -546,7 +546,7 @@ pub enum RenderError {
     /// said, in the same breath, both "here it is in the message" and "do not
     /// match on it".
     ///
-    /// ★ The shape is the one `Object`'s `Display` was given a week's thought
+    /// The shape is the one `Object`'s `Display` was given a week's thought
     /// over, arriving from the other side: **the safe rendering must be the
     /// DEFAULT one.** A variant that is only safe for a consumer who writes a
     /// named arm is a variant that is unsafe for every consumer who has not
@@ -696,7 +696,7 @@ pub fn render_page_with_view(
 /// a region, memory is a function of **viewport area** and stops scaling with
 /// zoom altogether.
 ///
-/// # ★ The cost model, measured — read this before building tiles on it
+/// # The cost model, measured — read this before building tiles on it
 ///
 /// A region render still **interprets the whole content stream**. There is no
 /// display-list cache and no parse-once/fill-many seam; this function shares
@@ -751,7 +751,7 @@ fn render_impl(
     region: Option<pdfcer_core::page_tree::Rect>,
     options: &RenderOptions,
 ) -> Result<RenderedPage, RenderError> {
-    // ★★ The rasteriser's arithmetic is caught here, and this is the ONLY
+    // The rasteriser's arithmetic is caught here, and this is the ONLY
     // `catch_unwind` in the crate.
     //
     // A panic in a worker thread does not kill the process: the window stays
@@ -766,7 +766,7 @@ fn render_impl(
     // caller to observe. `doc` and `options` are shared references the
     // closure only reads.
     //
-    // ★ The default panic hook is NOT silenced. The panic still prints and
+    // The default panic hook is NOT silenced. The panic still prints and
     // still carries its backtrace under `RUST_BACKTRACE`; this converts the
     // OUTCOME into a refusal without deleting the diagnosis. A future reader
     // tempted to add a hook here should remember that the point is to stop
@@ -821,7 +821,7 @@ fn render_impl_rasterize(
     let (width, height, base_ctm, base_ctm64) = match region {
         None => (page_w, page_h, page_ctm, gstate::Mat64::from_f32(page_ctm)),
         Some(r) => {
-            // ★ `region_base_geometry`, not `region_device_geometry` +
+            // `region_base_geometry`, not `region_device_geometry` +
             // `post_translate`. The two agree exactly at ordinary
             // magnifications and diverge at deep zoom, where the old pair
             // did its arithmetic at the magnitude of the device coordinate
@@ -891,7 +891,7 @@ fn render_impl_rasterize(
     // §11.4.7 / §11.7.2 — THE PAGE'S BLENDING COLOUR SPACE, read BEFORE the
     // buffer is chosen, because it is what chooses the buffer.
     //
-    // ★ This read was already here one block below, feeding a counter. It
+    // This read was already here one block below, feeding a counter. It
     // is hoisted rather than duplicated: two reads of the same catalog
     // entry could disagree after a future change to `page_blend_space`, and
     // the one thing that must not happen is a page counted as subtractive
@@ -918,7 +918,7 @@ fn render_impl_rasterize(
         )
     };
 
-    // ★ THE SWITCH. A colorant buffer is engaged ONLY for a page whose
+    // THE SWITCH. A colorant buffer is engaged ONLY for a page whose
     // group declares a subtractive blending space -- 13 of 51 files in the
     // print-conformance suite, and 15 of 4,012 in `fixtures/external`, of
     // which every single one is a conformance fixture rather than an
@@ -963,7 +963,7 @@ fn render_impl_rasterize(
             // before anything is painted, because every element on the page
             // and every non-isolated group inside it composites in it.
             //
-            // ★ This is the number the suite transparency panels turn on:
+            // This is the number the suite transparency panels turn on:
             // all of them declare `/Group /CS /DeviceCMYK` here, including
             // the one whose own objects are `ICCBased` RGB, so §11.3.4's
             // complement governs every blend on those pages and pdfcer
@@ -1067,7 +1067,7 @@ fn render_impl_rasterize(
     // §11.4.7's second formula: composite the isolated page group over the
     // medium's nominally-white backdrop.
     //
-    // ★★ TWO IMPLEMENTATIONS OF ONE CLAUSE, AND THEY ARE NOT THE SAME
+    // TWO IMPLEMENTATIONS OF ONE CLAUSE, AND THEY ARE NOT THE SAME
     // ORDER OF OPERATIONS.
     //
     // For an sRGB buffer the group's colour is ALREADY in the device space,
@@ -1095,7 +1095,7 @@ fn render_impl_rasterize(
         // be a blank page. Keeping the (empty) pixmap and flattening it is
         // the same outcome the additive path would produce for a page that
         // painted nothing, which is at least a white sheet.
-        // ★ SAMPLED BEFORE THE COLLAPSE, WHICH IS THE ENTIRE POINT.
+        // SAMPLED BEFORE THE COLLAPSE, WHICH IS THE ENTIRE POINT.
         // `to_srgb_over_white` consumes the colorant state into sRGB and
         // the buffer is dropped immediately after; one line later there is
         // nothing left to ask. A probe taken after the collapse could only
@@ -1302,7 +1302,7 @@ fn flatten_page_group_over_white(pixmap: &mut Pixmap) {
 /// to a pixel on each edge. A tiled caller that lost a sub-pixel per tile
 /// would show seams along every tile boundary.
 ///
-/// # ★ Why this is a shared function and not two similar blocks
+/// # Why this is a shared function and not two similar blocks
 ///
 /// [`display_list::DisplayList::replay_region`] must land on **exactly**
 /// the same rectangle a fresh region render lands on, or "byte-identical to
@@ -1350,7 +1350,7 @@ pub fn region_device_geometry(
 /// The device pixmap size and base CTM for a **region** of a page, with
 /// every intermediate computed in `f64`.
 ///
-/// # ★ Why this exists rather than composing two `Transform`s
+/// # Why this exists rather than composing two `Transform`s
 ///
 /// [`region_device_geometry`] maps the region's corners through the page's
 /// `f32` `Transform` and the caller then `post_translate`s by the result.
@@ -1418,7 +1418,7 @@ pub struct RegionGeometry {
     pub height: u32,
     /// User space → **region-local** device space.
     ///
-    /// ★ This said "the translation is the distance from the region's own
+    /// This said "the translation is the distance from the region's own
     /// corner, so it stays small at any magnification". **It is not
     /// small.** For the usual case of a `CropBox` whose origin is `(0,0)`,
     /// the translation IS `-x0` — the region's device origin — which at a
@@ -1471,7 +1471,7 @@ pub fn region_base_geometry_of(
     scale: f32,
     region: pdfcer_core::page_tree::Rect,
 ) -> Option<RegionGeometry> {
-    // ★ NARROW TO `f32` FIRST, EXACTLY AS `page_device_geometry` DOES, then
+    // NARROW TO `f32` FIRST, EXACTLY AS `page_device_geometry` DOES, then
     // widen. This looks like a pointless round trip and is the difference
     // between a fix and a regression.
     //
@@ -1510,7 +1510,7 @@ pub fn region_base_geometry_of(
     // differs in the last bit, which floors to a different pixel often
     // enough to shift a tile.
     let map = |x: f64, y: f64| (sx * x + kx * y + tx, ky * x + sy * y + ty);
-    // ★ THE REGION'S CORNERS STAY `f64`, and this is the opposite of the
+    // THE REGION'S CORNERS STAY `f64`, and this is the opposite of the
     // treatment the PAGE BOX gets six lines above. The asymmetry is the
     // measurement:
     //
@@ -1555,7 +1555,7 @@ pub fn region_base_geometry_of(
     if w == 0 || h == 0 {
         return None;
     }
-    // ★ The subtraction happens HERE, in `f64`, and only its small result
+    // The subtraction happens HERE, in `f64`, and only its small result
     // is narrowed. Doing it the other way round -- narrowing `tx` and `x0`
     // and subtracting in `f32` -- is arithmetically identical and
     // numerically useless, because both operands are the large number.
@@ -1629,7 +1629,7 @@ pub fn page_device_geometry(page: &Page, scale: f32) -> (u32, u32, Transform) {
 
 // ---------------------------------------------------------------------------
 // Shared image-codec test fixtures — declared HERE, at file scope, and NOT
-// inside `mod tests` (see the paragraph marked ★)
+// inside `mod tests` (see the paragraph marked )
 // ---------------------------------------------------------------------------
 //
 // These three files live in `pdfcer-core` and are `#[cfg(test)]`-only there,
@@ -1639,7 +1639,7 @@ pub fn page_device_geometry(page: &Page, scale: f32) -> (u32, u32, Transform) {
 // because an inner attribute has to be lexically first in a block and a
 // macro expansion never is. That part of the original reasoning was right.
 //
-// ★ WHAT WAS WRONG WAS THE PLACEMENT: these sat INSIDE the inline
+// WHAT WAS WRONG WAS THE PLACEMENT: these sat INSIDE the inline
 // `mod tests` below, and that did not compile on Linux.
 //
 // `mod tests` is inline in `lib.rs`, so Rust resolves a `#[path]` written
@@ -1889,7 +1889,7 @@ mod tests {
         assert_eq!(pixel(&out.pixmap, 50, 50), (255, 255, 255));
     }
 
-    /// ★ A region of a ROTATED page is still the crop of the rotated page.
+    /// A region of a ROTATED page is still the crop of the rotated page.
     ///
     /// This test lives here, as a unit test over the in-memory
     /// [`doc_with_content`] helper, for a reason worth recording: **no fixture
@@ -2132,7 +2132,7 @@ mod tests {
     /// §9.6.6.3: a Type 3 font with an EMPTY encoding paints nothing —
     /// and is not thereby an unsupported font.
     ///
-    /// ★ This test asserted `fonts_unsupported == 1` until `Pass 126.0`,
+    /// This test asserted `fonts_unsupported == 1` until `Pass 126.0`,
     /// citing decision 004 §4.3's deferred list. That was correct for as
     /// long as Type 3 was deferred and became a claim about the renderer
     /// that the renderer contradicted — `R212`. It is rewritten rather
@@ -2542,7 +2542,7 @@ mod tests {
         // viewport -- and the region origin is another number of the same
         // size, so the cancellation is the whole game.
         //
-        // ★ THE SCALE IS 19 999 993, NOT 20 000 000, AND THAT IS NOT
+        // THE SCALE IS 19 999 993, NOT 20 000 000, AND THAT IS NOT
         // FUSSINESS. The first draft used round numbers and the test
         // passed against a deliberately sabotaged build -- because
         // `90 * 2e7 = 1.8e9` is exactly representable in `f32` (it is
@@ -2576,7 +2576,7 @@ mod tests {
             "the form must not be culled"
         );
 
-        // ★ MEASURE THE SQUARE'S EDGES, do not sample a few points.
+        // MEASURE THE SQUARE'S EDGES, do not sample a few points.
         //
         // The first version asserted "black at 45%, white at 5%" and
         // passed against a build with **half** the fix removed, because
@@ -2721,7 +2721,7 @@ mod tests {
 
     #[test]
     fn image_whose_unit_square_misses_the_canvas_is_culled_not_decoded() {
-        // ★★ `Pass 300.0` — the IMAGE half of the gate above, which
+        // `Pass 300.0` — the IMAGE half of the gate above, which
         // shipped missing for as long as the form half existed.
         //
         // Deliberately written as a near-copy of
@@ -2769,7 +2769,7 @@ mod tests {
             "culling must be invisible in the raster"
         );
 
-        // (3) ★ THE NEGATIVE HALF. An image ON the canvas must still be
+        // (3) THE NEGATIVE HALF. An image ON the canvas must still be
         // drawn — without this, `images_culled += 1; return;` on every
         // image would satisfy everything above while rendering a blank
         // page, which is the shape of the failure this gate could
@@ -3475,7 +3475,7 @@ mod tests {
     /// `#[cfg(test)]`-only inside `pdfcer-core`, so it is not reachable
     /// as a normal cross-crate path.
     ///
-    /// Declared at FILE scope (see the ★ note above `mod tests`) and
+    /// Declared at FILE scope (see the note above `mod tests`) and
     /// aliased here so every `jpeg::` call site below is unchanged. The
     /// declaration cannot live in this module: a `#[path]` inside an inline
     /// `mod tests` resolves through a phantom `src/tests/` directory, which
@@ -4514,7 +4514,7 @@ mod tests {
         assert_eq!(out.diagnostics.oc_sections_hidden, 1);
     }
 
-    /// ★ **The override REPLACES the document's configuration; it does
+    /// **The override REPLACES the document's configuration; it does
     /// not merge with it.**
     ///
     /// Two groups, one of which the document turns off. The override
@@ -4655,7 +4655,7 @@ mod tests {
         assert_eq!(out.diagnostics.oc_sections_hidden, 0);
     }
 
-    /// ★ **A hidden section's CLIP still applies to what follows.**
+    /// **A hidden section's CLIP still applies to what follows.**
     ///
     /// §8.11.3.1: hidden content "shall not be drawn", but the graphics
     /// state it establishes persists. Here the hidden section clips to
@@ -4782,7 +4782,7 @@ mod tests {
         assert!(out.diagnostics.tolerated >= 1, "and it is counted");
     }
 
-    /// ★ **An image XObject inside a hidden section is not drawn.**
+    /// **An image XObject inside a hidden section is not drawn.**
     ///
     /// This shipped BROKEN. The first cut of optional content gated the
     /// path blit and the glyph blit and nothing else, so an image inside

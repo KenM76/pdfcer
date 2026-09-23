@@ -61,7 +61,7 @@ pub enum Unit {
     FeetInches,
     /// Yards (`G013`, 2026-09-13).
     ///
-    /// ★ The operator asked for *"units (including km and miles)"*, and did
+    /// The operator asked for *"units (including km and miles)"*, and did
     /// not name the yard. It is here because **"including" opens a list
     /// rather than closing one**: the set with no hole in it for a site plan
     /// is mm/cm/m/km and in/ft/yd/mi, three rungs each, and the yard is the
@@ -98,7 +98,7 @@ impl Unit {
     /// separate, and two functions that could disagree would create the drift
     /// rather than prevent it.
     ///
-    /// ★★ AND THE DRIFT WOULD BE INVISIBLE. `/U` carries **no arithmetic** —
+    /// AND THE DRIFT WOULD BE INVISIBLE. `/U` carries **no arithmetic** —
     /// every conversion in §12.9 runs on `/C`. So a wrong `/U` is a correct
     /// number under a false label: no reader can detect it, no round trip
     /// disturbs it, and nothing in a test corpus goes red. That is the
@@ -145,7 +145,7 @@ impl Unit {
     /// effective scale ([`ScaleState::effective_scale`]) and to convert a
     /// ratio-path entry from its paper-unit basis.
     ///
-    /// ★ The three `G013` factors are written as the exact integer ratios
+    /// The three `G013` factors are written as the exact integer ratios
     /// they are, not as decimals, because each is an exact rational and a
     /// transcribed decimal is a place for a typo nothing would catch: the
     /// value feeds a *label*, and a wrong label over a right number is
@@ -1057,7 +1057,7 @@ mod tests {
         assert!(Unit::parse("furlong").is_none());
     }
 
-    /// ★★★ `all()` LISTS EVERY VARIANT — and this test fails to COMPILE if a
+    /// `all()` LISTS EVERY VARIANT — and this test fails to COMPILE if a
     /// future unit is added without being listed.
     ///
     /// The `match` below is exhaustive over `Unit`, so adding a variant is a
@@ -1104,7 +1104,7 @@ mod tests {
     /// The `G013` units convert the way the definitions say, checked against
     /// the metre rather than against a transcribed decimal.
     ///
-    /// ★ A label is not checkable by any reader (see `Unit::abbrev`), so the
+    /// A label is not checkable by any reader (see `Unit::abbrev`), so the
     /// FACTOR is the only half a test can defend. 1 km = 1000 m, 1 mi =
     /// 1609.344 m exactly (international mile), 1 yd = 0.9144 m exactly.
     #[test]

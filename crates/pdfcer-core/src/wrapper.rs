@@ -1,6 +1,6 @@
 //! Detect an **unencrypted wrapper document** — ISO 32000-2 §7.6.7.
 //!
-//! # ★ The guard this exists to stop failing open
+//! # The guard this exists to stop failing open
 //!
 //! pdfcer refuses an encrypted document by name: the parser sees `/Encrypt` in
 //! the trailer and stops with
@@ -182,7 +182,7 @@ mod tests {
         Document::from_bytes(build_pdf_bytes(&objects)).expect("fixture parses")
     }
 
-    /// ★ **A wrapper is detected even though it carries no `/Encrypt`.**
+    /// **A wrapper is detected even though it carries no `/Encrypt`.**
     ///
     /// This is the whole point. pdfcer's encryption refusal keys on
     /// `/Encrypt` in the trailer, and a wrapper has none — it is a plainly
@@ -236,7 +236,7 @@ mod tests {
         assert_eq!(detect(&doc), WrapperInfo::default());
     }
 
-    /// ★ **Detection does NOT require exactly one embedded file.**
+    /// **Detection does NOT require exactly one embedded file.**
     ///
     /// ISO 32000-2 as printed said it did; the sentence was deleted by
     /// erratum. A detector built on it would miss any wrapper that also

@@ -21,7 +21,7 @@
 //! consuming project's test cannot be re-run by the person changing the code
 //! that produces it.
 //!
-//! ## ★ RELEASE MODE OR THE NUMBERS ARE MEANINGLESS
+//! ## RELEASE MODE OR THE NUMBERS ARE MEANINGLESS
 //!
 //! `decompose` is a tight loop over content-stream operators. A debug build
 //! exaggerates it by roughly an order of magnitude, which would turn a real
@@ -192,7 +192,7 @@ a repeat lookup on unchanged content is {hit_ms:.1} ms"
         mv_ms, cached_mv_ms
     );
 
-    // ★ The assertion, not just the print. A benchmark that only prints can
+    // The assertion, not just the print. A benchmark that only prints can
     // regress silently; this fails if the cache stops paying. Deliberately
     // loose (half) rather than tight -- the point is "the verb no longer
     // parses", and a threshold tuned to this machine would fail on another.

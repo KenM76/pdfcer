@@ -223,7 +223,7 @@ impl DimensionStyle {
 /// existing `/C` stale. Owning it would mean the first recolouring feature
 /// silently loses its work the next time anything is regenerated, which is a
 /// bug that would be very hard to attribute.
-/// ★ `/L` and `/Vertices` are BOTH here, and only one of them is ever written
+/// `/L` and `/Vertices` are BOTH here, and only one of them is ever written
 /// for a given ce dimension (`Pass 107.0`). That is the point: the
 /// overwrite-or-remove rule then guarantees that authoring a perimeter REMOVES
 /// a stale `/L`, and authoring a linear ce dimension removes a stale
@@ -444,7 +444,7 @@ pub fn author_dimension_with_label(
     // Accumulate the drawn bbox as we build the appearance content.
     let mut bounds = BoundsAcc::new();
     let mut b = ContentBuilder::new();
-    // ★ Grey stays grey, and that is a compatibility decision rather than a
+    // Grey stays grey, and that is a compatibility decision rather than a
     // stylistic one. Before Pass 69.0 this emitted `0 g` / `0 G`
     // unconditionally; every ce dimension in every existing document was baked
     // that way. Emitting `0 0 0 rg` for the same black would repaint identical
@@ -614,7 +614,7 @@ pub fn author_dimension_with_label(
     b.begin_text();
     b.set_font(FONT_RESOURCE, label_size);
     b.set_text_matrix(ux, uy, -uy, ux, tx, ty);
-    // ★ WinAnsi, not raw UTF-8. The label font is declared
+    // WinAnsi, not raw UTF-8. The label font is declared
     // `/WinAnsiEncoding` (`standard14_font_dict`), so a multi-byte UTF-8
     // character is read as one byte per byte: a degree sign (U+00B0, UTF-8
     // `C2 B0`) drew as `Â°`. Harmless for as long as every label was ASCII,
@@ -648,7 +648,7 @@ pub fn author_dimension_with_label(
         ref points, closed, ..
     } = *kind
     {
-        // ★ `/Polygon` for a closed shape even though Acrobat's own AREA tool
+        // `/Polygon` for a closed shape even though Acrobat's own AREA tool
         // uses that subtype for its measurements, and `/IT /PolygonDimension`
         // with it. The subtype is a STRUCTURAL fact — the shape closes — while
         // `/IT` is explicitly *"a hint of intent"* a reader may ignore
@@ -675,7 +675,7 @@ pub fn author_dimension_with_label(
         // transform is involved. An array of `[x y]` pairs would be wrong: the
         // nested form belongs to PDF 2.0's `/Path` and to `/InkList`.
         //
-        // ★ For a `/Polygon` the closing segment is supplied BY THE READER and
+        // For a `/Polygon` the closing segment is supplied BY THE READER and
         // the first vertex is NOT repeated (§12.5.6.9: a polyline differs from
         // a polygon "except that the first and last vertex are not implicitly
         // connected"). Repeating it is not forbidden but is undefined, and the

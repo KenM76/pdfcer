@@ -6,7 +6,7 @@
 //! `DEVMODEW`. It is handed to `CreateDC` when the device context is
 //! opened, and to `ResetDC` when something must change mid-job.
 //!
-//! ## ★ Why this module exists at all: pdfcer used to SYNTHESISE one
+//! ## Why this module exists at all: pdfcer used to SYNTHESISE one
 //!
 //! Until 2026-08-18 `pdfcer-print` built its `DEVMODE` from
 //! `DEVMODEW::default()` — a zeroed structure — set `dmOrientation` and
@@ -106,7 +106,7 @@
 //! printer variant is the one above, and a printer `DEVMODE` never uses
 //! the other.
 //!
-//! ## ★ Two traps that produce a plausible wrong sheet
+//! ## Two traps that produce a plausible wrong sheet
 //!
 //! **`dmPaperSize` and `dmFormName` can disagree, and which one wins is
 //! not uniform across drivers.** A driver's own `DEVMODE` very often
@@ -745,7 +745,7 @@ impl PrinterConfiguration {
             PaperSelection::Form(id) => {
                 self.set_i16(offset::PAPER_SIZE, i16::try_from(id).unwrap_or(0));
                 fields |= field::PAPER_SIZE;
-                // ★ Exactly one of {form id, explicit size, form NAME} is
+                // Exactly one of {form id, explicit size, form NAME} is
                 // asserted at a time. See this module's "two traps".
                 fields &= !(field::PAPER_LENGTH | field::PAPER_WIDTH | field::FORM_NAME);
             }
@@ -1014,7 +1014,7 @@ mod tests {
         PrinterConfiguration::from_bytes(&bytes).expect("the fixture must be a valid DEVMODE")
     }
 
-    /// ★ The property the whole byte-buffer design exists for.
+    /// The property the whole byte-buffer design exists for.
     ///
     /// The driver's private tail — where stapling, media type and every
     /// vendor setting Win32 has no field for actually live — must come
@@ -1057,7 +1057,7 @@ mod tests {
         assert!(read_u32(c.as_bytes(), offset::FIELDS) & field::ORIENTATION != 0);
     }
 
-    /// ★ Request 1: `pick_tray_by_page_size` reaches the driver.
+    /// Request 1: `pick_tray_by_page_size` reaches the driver.
     ///
     /// It was declared, documented, plumbed through `spool` and read
     /// NOWHERE — `spool` returned `Ok` and the paper came out of the
@@ -1094,7 +1094,7 @@ mod tests {
         assert!(read_u32(c.as_bytes(), offset::FIELDS) & field::DEFAULT_SOURCE == 0);
     }
 
-    /// ★ Trap 1: a form id must clear `DM_FORMNAME`.
+    /// Trap 1: a form id must clear `DM_FORMNAME`.
     ///
     /// The driver's own base arrives with a form NAME asserted. Leaving
     /// it asserted while writing a form ID leaves two contradictory
@@ -1131,7 +1131,7 @@ mod tests {
         assert!((h - 841.88).abs() < 0.1, "height {h}");
     }
 
-    /// ★ `DM_DUPLEX` stays gated, and the gate is a parameter.
+    /// `DM_DUPLEX` stays gated, and the gate is a parameter.
     ///
     /// A `DEVMODE` naming `DMDUP_SIMPLEX` OVERRIDES a driver whose own
     /// default is duplex. The fixture's base is duplex; an
@@ -1245,7 +1245,7 @@ mod tests {
         assert!(PaperSelection::custom_from_points((f64::NAN, 100.0)).is_none());
     }
 
-    /// ★ The guard that keeps this hand-written ABI honest.
+    /// The guard that keeps this hand-written ABI honest.
     ///
     /// Every offset above is asserted against the real `DEVMODEW`. If
     /// the `windows` crate's layout ever moves, this fails here rather

@@ -16,7 +16,7 @@
 //! that can classify a closed set of values and cannot construct one is a
 //! boundary drawn on the read side only.* This is the other side.
 //!
-//! # ★ The acceptance criterion is a round trip, not a set of assertions
+//! # The acceptance criterion is a round trip, not a set of assertions
 //!
 //! For every variant of every helper, `classify(emit(x), trigger) == x`. That
 //! pins the emitter against the parser — including the case-sensitivity
@@ -24,7 +24,7 @@
 //! where `"Sum"` is not `"SUM"` — rather than against a second reading of
 //! Acrobat's behaviour that could drift from the first.
 //!
-//! # ★★ TWO THINGS DO NOT ROUND-TRIP, AND BOTH ARE REFUSALS RATHER THAN GAPS
+//! # TWO THINGS DO NOT ROUND-TRIP, AND BOTH ARE REFUSALS RATHER THAN GAPS
 //!
 //! [`ScriptClass::Custom`] is the obvious one: it holds no parameters, so
 //! there is nothing to emit. It is the safe default for *everything pdfcer
@@ -410,7 +410,7 @@ mod tests {
         ]
     }
 
-    /// ★ THE ACCEPTANCE CRITERION. `classify(emit(x)) == x`, for every
+    /// THE ACCEPTANCE CRITERION. `classify(emit(x)) == x`, for every
     /// emittable variant.
     ///
     /// This pins the emitter against the PARSER rather than against a second
@@ -489,7 +489,7 @@ mod tests {
         assert!(twin.starts_with(b"AFNumber_Keystroke("));
     }
 
-    /// ★★ The two refusals, which are the safety property rather than a gap.
+    /// The two refusals, which are the safety property rather than a gap.
     #[test]
     fn custom_and_keystroke_are_refused_by_name() {
         assert_eq!(emit(&ScriptClass::Custom), Err(NotEmittable::Custom));

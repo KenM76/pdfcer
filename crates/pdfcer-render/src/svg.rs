@@ -665,7 +665,7 @@ impl Writer<'_> {
                 self.indent(depth);
                 let _ = write!(
                     self.body,
-                    // ★ The clip goes on a WRAPPING group, never on the
+                    // The clip goes on a WRAPPING group, never on the
                     // `<image>` itself: `clip-path` on an element that also
                     // carries `transform` is evaluated in the element's
                     // post-transform user space, i.e. in texel coordinates,

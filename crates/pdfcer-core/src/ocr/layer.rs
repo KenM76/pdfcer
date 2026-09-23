@@ -164,7 +164,7 @@ use super::OcrPage;
 /// way). Paired with [`HELVETICA_DESCENT_FRAC`] this defines the glyph box the
 /// vertical fit solves against.
 ///
-/// # ★ Why the name carries the face, and is not just `ASCENT_FRAC`
+/// # Why the name carries the face, and is not just `ASCENT_FRAC`
 ///
 /// `pdfcer-core` already contains `ASCENT_FRAC` / `DESCENT_FRAC` — twice, in
 /// `text_edit::addtext` and `text_edit::reflow` — holding **0.75 / 0.25**.
@@ -430,7 +430,7 @@ pub enum OcrLayerError {
     NothingToWrite,
     /// Two entries in one session run named the same page.
     ///
-    /// # ★ Why this is a refusal and not a silent merge
+    /// # Why this is a refusal and not a silent merge
     ///
     /// [`crate::edit::EditSession::add_ocr_layer`] plans every page against
     /// the graph as it stands **before** the command is committed — that is
@@ -697,7 +697,7 @@ pub fn build_layer_content(
 /// Everything one page's OCR layer needs, resolved against a graph, with
 /// **nothing allocated and nothing written**.
 ///
-/// # ★★ WHY THE PLANNING IS SPLIT FROM THE WRITING
+/// # WHY THE PLANNING IS SPLIT FROM THE WRITING
 ///
 /// Because there are now two writers with genuinely different allocation
 /// models, and the *decisions* between them must not be made twice:
@@ -717,7 +717,7 @@ pub fn build_layer_content(
 /// and `AddTextPrep`, deliberately and structurally, because that pair solved
 /// the same problem for the same three-object append.
 ///
-/// ★ The prep holds **no object numbers**. That is the whole point: a plan
+/// The prep holds **no object numbers**. That is the whole point: a plan
 /// that had already allocated could not be reused by a caller with a different
 /// allocator, and a plan that allocated *per page* could not be collected into
 /// one command.
@@ -942,7 +942,7 @@ pub fn add_ocr_layer(
         .get(page_index)
         .ok_or(OcrLayerError::PageIndex(page_index))?;
 
-    // ★ The plan is shared with `EditSession::add_ocr_layer` and allocates
+    // The plan is shared with `EditSession::add_ocr_layer` and allocates
     // nothing -- see `plan_ocr_layer`. What differs between the two writers is
     // only where object numbers and staged bytes come from, and that fork
     // starts on the next line.
@@ -969,7 +969,7 @@ pub fn add_ocr_layer(
     // refusal is what makes this exemption honest, and it was MISSING when the
     // function shipped.
     //
-    // ★★★ THIS NOTE HAS BEEN WRONG ABOUT ITS OWN CALLERS THREE TIMES. The
+    // THIS NOTE HAS BEEN WRONG ABOUT ITS OWN CALLERS THREE TIMES. The
     // wording is deliberately plain now, and the history is kept because the
     // pattern is worth more than the fact.
     //
@@ -1051,7 +1051,7 @@ mod tests {
         }
     }
 
-    /// ★ The one thing this module exists to guarantee: the text is INVISIBLE.
+    /// The one thing this module exists to guarantee: the text is INVISIBLE.
     ///
     /// `3 Tr` must be present, and must come before any `Tj`. Without it the
     /// layer renders as visible garbage across the scan — the exact failure the
@@ -1068,7 +1068,7 @@ mod tests {
         assert!(tr < tj, "3 Tr must precede the first Tj, got {tr} vs {tj}");
     }
 
-    /// ★ The stream is balanced and isolated.
+    /// The stream is balanced and isolated.
     ///
     /// `Tf`/`Tr`/`Tz` are graphics state, and a `/Contents` array concatenates.
     /// An unwrapped layer would leave `3 Tr` set and make every later stream's
@@ -1182,7 +1182,7 @@ mod tests {
         assert!(place_word(&nan, Std14::Helvetica).is_none());
     }
 
-    /// ★ A non-WinAnsi character is substituted and DISCLOSED, not refused.
+    /// A non-WinAnsi character is substituted and DISCLOSED, not refused.
     ///
     /// This is the deliberate divergence from `add_text`'s R71 refusal, and the
     /// test pins both halves: the layer is still written (so one stray glyph

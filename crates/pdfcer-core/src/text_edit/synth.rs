@@ -285,7 +285,7 @@ pub struct SynthesisOffer {
 impl SynthesisOffer {
     /// The offer text.
     ///
-    /// # ★★ THIS SENTENCE USED TO CONTRADICT ITS OWN REPORT
+    /// # THIS SENTENCE USED TO CONTRADICT ITS OWN REPORT
     ///
     /// It asserted, unconditionally, *"no real Bold face resolves for X on
     /// this page, so pdfcer cannot make this change with a genuine typeface"*
@@ -299,7 +299,7 @@ impl SynthesisOffer {
     /// [`crate::settings::StylePolicy::Auto`] shipped as the default: it is a
     /// preference, it is global, and proceeding without asking is the point.
     ///
-    /// ★ Note the DIRECTION of the error, because it is the one nobody
+    /// Note the DIRECTION of the error, because it is the one nobody
     /// watches for: this disclosure **understated** pdfcer's reach. Rule 4 is
     /// usually invoked against a claim that flatters the software; a claim
     /// that a capability is absent when it is present sends an operator to a
@@ -462,7 +462,7 @@ pub fn shear_into(tm: [f64; 6]) -> [f64; 6] {
 /// is kept here, struck, rather than quietly replaced: the failure mode is
 /// worth more than the correction.
 ///
-/// ★★ **AND IT HAS NOW DRIFTED A SECOND TIME, BY THE SAME MECHANISM.** The
+/// **AND IT HAS NOW DRIFTED A SECOND TIME, BY THE SAME MECHANISM.** The
 /// correction above said the gate *"refuses `set_synthetic` when a real styled
 /// face is available"*. Decision 106 made that posture-dependent: the gate
 /// **answers**, and only [`crate::settings::StylePolicy::Refuse`] turns the
@@ -720,7 +720,7 @@ mod tests {
         assert!(edit.iter().all(|r| !r.is_empty()));
     }
 
-    /// ★★ **The disclosure must NOT claim a real face is absent when one was
+    /// **The disclosure must NOT claim a real face is absent when one was
     /// passed over.**
     ///
     /// Before decision 106 this sentence was unconditional: *"no real Bold
@@ -778,7 +778,7 @@ mod tests {
         assert!(d.contains("Calibri"), "{d}");
         assert!(d.contains("synthetic bold"), "{d}");
         assert!(d.contains("FALLBACK"), "{d}");
-        // ★ The old assertion here required the sentence to contain
+        // The old assertion here required the sentence to contain
         // "never applied silently". That was true of pdfcer and is not any
         // more: decision 106 made `StylePolicy::Auto` the default, and it IS
         // silent and IS a global preference. The claim was removed from the

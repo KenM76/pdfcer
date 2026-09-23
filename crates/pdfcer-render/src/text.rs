@@ -73,7 +73,7 @@
 //!   (a non-Identity CMap, `Identity-V`, a non-embedded composite). The
 //!   text was **skipped**, not approximated.
 //!
-//!   ★ **Type 3 was on that list until `Pass 126.0` and is not any
+//!   **Type 3 was on that list until `Pass 126.0` and is not any
 //!   more.** It renders — see [`crate::type3`] — and its bucket now
 //!   means only "Table 112's irreducible entries are missing", which is
 //!   a much narrower thing than it used to mean. A counter whose
@@ -473,7 +473,7 @@ impl LoadedFont {
     /// The advance for a code, **in text space** — the value §9.4.4's
     /// `w0` wants, with no further division.
     ///
-    /// # ★ Why this exists at all, rather than a `/1000` at the call site
+    /// # Why this exists at all, rather than a `/1000` at the call site
     ///
     /// Because for a Type 3 font that division is **wrong**, and it is
     /// wrong in a way that renders. Table 112: Type 3 widths "shall be
@@ -520,7 +520,7 @@ impl LoadedFont {
     /// Advance width for a code, in **glyph space** (1000 = one text
     /// space unit).
     ///
-    /// ★ Prefer [`Self::advance_text_space`]. This returns a raw number
+    /// Prefer [`Self::advance_text_space`]. This returns a raw number
     /// whose UNITS DEPEND ON THE FONT KIND — thousandths for a simple or
     /// composite font, `FontMatrix` units for a Type 3 — so dividing its
     /// result by 1000 is correct for two kinds and silently wrong for the
@@ -598,7 +598,7 @@ pub enum UnsupportedFont {
     /// `/Subtype /Type3` (§9.6.5) with Table 112's **irreducible**
     /// entries missing.
     ///
-    /// ★ This meant "pdfcer does not render Type 3 at all" until
+    /// This meant "pdfcer does not render Type 3 at all" until
     /// `Pass 126.0`, and its doc comment said so. It now means something
     /// much narrower, and the narrowing matters to whoever reads the
     /// counter: `/CharProcs` absent (there are no glyph descriptions to
@@ -695,7 +695,7 @@ pub fn load(
         b"Type3" => crate::type3::Type3Font::load(doc, font_dict)
             .map(|t3| LoadedFont {
                 base_font,
-                // ★ EMPTY, and it is not a placeholder. A Type 3 font
+                // EMPTY, and it is not a placeholder. A Type 3 font
                 // HAS no program — §9.6.5's whole point is that the font
                 // dictionary defines the glyphs rather than describing a
                 // program elsewhere. Every consumer of `data` is gated on
@@ -1134,7 +1134,7 @@ fn implicit_base(embedded: bool, flags: u32, std14: Option<Std14>) -> Option<Bas
 ///    the Type 1 font program, the `.notdef` glyph shall be
 ///    substituted").
 ///
-/// # ★★ Why rung 1 exists: Branch A silently returns the WRONG glyph
+/// # Why rung 1 exists: Branch A silently returns the WRONG glyph
 ///
 /// §9.6.6.4 says that when the `Symbolic` flag is set, **the `/Encoding`
 /// entry "is ignored"** and the code is looked up in the program's own
@@ -1206,7 +1206,7 @@ fn resolve_gids(
     // §9.6.6.4: with `Symbolic` set, the `/Encoding` entry is ignored and
     // the program's own cmap owns the code.
     //
-    // ★ THE `embedded` HALF IS UNPROVEN BY TEST, AND SAYS SO. Ablating it
+    // THE `embedded` HALF IS UNPROVEN BY TEST, AND SAYS SO. Ablating it
     // leaves `tests/symbolic_truetype_glyphs.rs` green, and the reason is
     // structural rather than a missing fixture: a failed Branch B costs
     // nothing here, because it falls straight through to the name chains

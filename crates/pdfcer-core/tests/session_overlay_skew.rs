@@ -17,7 +17,7 @@
 //!   himself: *"When I add a new image to a pdf I can't edit it unless I save
 //!   the document first."*
 //!
-//! - **★ The verbs addressed the wrong sheet, and returned `Ok`.** A page
+//! - **The verbs addressed the wrong sheet, and returned `Ok`.** A page
 //!   index is computed by a front end against the page set the operator is
 //!   looking at. `delete_pages`, `insert_pages`, `reorder_pages` and the merge
 //!   verbs all commit into the overlay. So after any structural edit, index N
@@ -25,7 +25,7 @@
 //!   `delete_objects` on the wrong page destroys real content with no refusal
 //!   and no disclosure.
 //!
-//! ## ★★ Why the entire existing suite was green on both halves
+//! ## Why the entire existing suite was green on both halves
 //!
 //! Worth stating plainly, because it is the reusable lesson. Every test in
 //! this crate that exercised a content-editing verb did so on a session whose
@@ -133,7 +133,7 @@ fn an_image_added_this_session_is_in_the_model_immediately() {
     );
 }
 
-/// ★ The memo is the half that could still fail after the page tree was
+/// The memo is the half that could still fail after the page tree was
 /// fixed, and it would fail silently. `add_image` touches neither the first
 /// content object nor its staged span, so the old cache key — which was
 /// exactly `(content_id, that span)` — could not see it, and served the
@@ -171,7 +171,7 @@ fn a_just_placed_image_can_be_transformed() {
     .expect("the image placed a moment ago must be transformable");
 }
 
-/// ★ The interaction the request named and asked to land in the same change.
+/// The interaction the request named and asked to land in the same change.
 ///
 /// A page's first text edit folds every later content stream into the first
 /// and empties them in place. On a base-read model the appended image was not
@@ -181,7 +181,7 @@ fn a_just_placed_image_can_be_transformed() {
 #[test]
 fn a_text_edit_does_not_erase_an_image_added_this_session() {
     let mut s = four_pages();
-    // ★ The baseline is taken BEFORE the image, and `with_image` is asserted
+    // The baseline is taken BEFORE the image, and `with_image` is asserted
     // against it rather than merely recorded. Without that assertion this test
     // is vacuous on a regression: if the image is invisible to the model, both
     // measurements are the base count and `after == with_image` holds happily
@@ -228,7 +228,7 @@ fn a_page_index_past_the_end_of_the_edited_document_is_refused() {
     );
 }
 
-/// ★★ THE DESTRUCTIVE STATEMENT, driven.
+/// THE DESTRUCTIVE STATEMENT, driven.
 ///
 /// After deleting page one, the sheet the operator calls page 0 is the one
 /// that says "Page Two". If the engine answers with "Page One" content it is
@@ -257,7 +257,7 @@ fn an_edit_after_a_page_delete_reaches_the_sheet_the_operator_sees() {
 /// The same skew asserted over the whole surviving range, and asserted on
 /// **which sheet each index names** rather than only on whether it resolves.
 ///
-/// ★ The identity assertion is what makes this bite. An earlier cut checked
+/// The identity assertion is what makes this bite. An earlier cut checked
 /// only `is_ok()`/`is_err()`, and sabotage showed it passing against the
 /// base-reading engine — because deleting the LAST page removes its content
 /// object from the overlay, so `page_objects(3)` failed for an unrelated

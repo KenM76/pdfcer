@@ -18,7 +18,7 @@
 //! | `PDFCER_ICCCE_PROVENANCE` | see "the second half" below |
 //!
 //!
-//! # ★ The second half of the request, and the six days it was answered wrongly
+//! # The second half of the request, and the six days it was answered wrongly
 //!
 //! pdfcer **does depend on `iccce`**, as of `Pass 199.2` (`3194f1b`):
 //! `iccce-profile` and `iccce-cmm`, git dependencies pinned to tag `v0.3.0`
@@ -34,7 +34,7 @@
 //! made it false, and it went on being printed for six days — in the one
 //! output surface whose entire purpose is to be believed without checking.
 //!
-//! ★★ **It did not self-correct, and the reason is the transferable part.**
+//! **It did not self-correct, and the reason is the transferable part.**
 //! The old `iccce_provenance` read `DEP_ICCCE_PROVENANCE`, an environment
 //! variable Cargo sets only for a dependency that declares a `links` key.
 //! `iccce` declares none. The function's own doc comment promised *"this
@@ -91,7 +91,7 @@
 //! that guesses is worse than one that admits it does not know, because a
 //! wrong revision is acted on and a missing one is questioned.
 //!
-//! ## ★ One operational consequence, so it is not discovered from a release
+//! ## One operational consequence, so it is not discovered from a release
 //!
 //! `actions/checkout@v4` defaults to a **depth-1** clone, which has no tags
 //! and no history — so a binary built by CI as things stand today would
@@ -229,7 +229,7 @@ fn locate_git_dir() -> Option<std::path::PathBuf> {
 /// The `iccce` build linked into this one, read from the workspace
 /// `Cargo.lock`.
 ///
-/// # ★★ Why `Cargo.lock`, when the doc this replaced forbade reading a
+/// # Why `Cargo.lock`, when the doc this replaced forbade reading a
 /// sibling checkout
 ///
 /// The previous version of this function returned the literal
@@ -242,7 +242,7 @@ fn locate_git_dir() -> Option<std::path::PathBuf> {
 /// this build. It answers the second question directly, which is why the
 /// old objection does not transfer.
 ///
-/// # ★ It reports what the WORKSPACE links, not what `pdfcer-core` links
+/// # It reports what the WORKSPACE links, not what `pdfcer-core` links
 ///
 /// This is the honesty caveat, and it is the reason the old mechanism
 /// could never have worked. `iccce-profile` and `iccce-cmm` are
@@ -415,7 +415,7 @@ fn describe_source(source: &str) -> String {
         .and_then(|(_, query)| query.split('#').next())
         .and_then(|query| query.split_once('='));
     match (pin, rev.is_empty()) {
-        // ★ A `rev` pin IS a revision, so printing it and then the resolved
+        // A `rev` pin IS a revision, so printing it and then the resolved
         // revision again is the same eight characters twice -- and before
         // this arm the full forty-character pin was printed ahead of them,
         // which is what the banner did from the day iccce moved from a tag
@@ -454,7 +454,7 @@ fn locate_lockfile() -> Option<std::path::PathBuf> {
 
 /// When the linked `iccce` revision was committed, RFC 3339 UTC.
 ///
-/// # ★ Why this is a fact about the BINARY and not about the machine
+/// # Why this is a fact about the BINARY and not about the machine
 ///
 /// The build script's other `iccce` doc block explains why reading the
 /// sibling checkout at `D:\Dev\iccce` would be dishonest: it answers

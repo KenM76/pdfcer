@@ -162,7 +162,7 @@ fn the_fixture_carries_both_widget_shapes_and_the_counts_agree() {
 /// An orphaned session built from a SYNTHETIC source, carrying both widget
 /// shapes — so the tests that exercise the VERB cannot decline to run.
 ///
-/// # ★★★ Why this replaces `orphaned_session()` for most of this file
+/// # Why this replaces `orphaned_session()` for most of this file
 ///
 /// `orphaned_session()` needs `fixtures/external/pdfbox/…`. Measured
 /// 2026-09-12: that corpus is not tracked in git, no CI step fetches it, and
@@ -175,7 +175,7 @@ fn the_fixture_carries_both_widget_shapes_and_the_counts_agree() {
 /// It was found when a `Pass 298.0` guard was sabotaged to prove its test
 /// could fail and the test **stayed green**.
 ///
-/// ★ The file header argues that a hand-built fixture "would have exercised
+/// The file header argues that a hand-built fixture "would have exercised
 /// whichever shape the author thought of". That caution is right and this file
 /// already contains its own rebuttal: `a_widget_with_ft_but_no_t_is_still_
 /// unrecoverable` exists precisely because the real corpus **could not**
@@ -183,7 +183,7 @@ fn the_fixture_carries_both_widget_shapes_and_the_counts_agree() {
 /// swapped key left the entire suite green. A corpus exercises the shapes it
 /// happens to contain; neither source is automatically the better one.
 ///
-/// ★★ What this fixture does NOT replace: the census tests
+/// What this fixture does NOT replace: the census tests
 /// (`the_fixture_carries_both_widget_shapes_and_the_counts_agree`, the three
 /// preview tests) assert against the real AcroForm's own composition. Those
 /// stay on `orphaned_session()` and stay declared as skippable — converting
@@ -983,7 +983,7 @@ this flag's subject"
 /// A one-page document carrying ONE widget that no `/AcroForm` registers —
 /// the exact state `adopt_widget` exists to resolve, built **synthetically**.
 ///
-/// # ★★ Why this exists beside `orphaned_session()`
+/// # Why this exists beside `orphaned_session()`
 ///
 /// `orphaned_session()` needs `fixtures/external/pdfbox/…`, which is an
 /// optional corpus. When it is absent every test in this file prints `SKIP`
@@ -1056,7 +1056,7 @@ fn synthetic_widget(session: &EditSession) -> ObjId {
         .expect("the synthetic fixture carries exactly one widget")
 }
 
-/// ★★ A dotted name authors a field NOBODY CAN ADDRESS, and the collision
+/// A dotted name authors a field NOBODY CAN ADDRESS, and the collision
 /// test this verb already runs cannot see it.
 ///
 /// `adopt_widget` registers at the `/Fields` root, so the name it is handed
@@ -1067,7 +1067,7 @@ fn synthetic_widget(session: &EditSession) -> ObjId {
 /// reached by `fill_text_field`, FDF/XFDF import, a `/CO` entry or a
 /// reset-form `/Fields` array.
 ///
-/// ★ **It is not data loss**, and the distinction is worth keeping: nothing is
+/// **It is not data loss**, and the distinction is worth keeping: nothing is
 /// appended to the existing field's `/Kids` and a pre-existing `Text` survives
 /// intact. The existing whole-FQN collision check passes a dotted name
 /// trivially, because nothing is named `Text.2` — which is exactly why this
@@ -1096,7 +1096,7 @@ fn a_dotted_name_is_refused_rather_than_authored() {
         "and the offending character, or the operator cannot act on it: {text}"
     );
 
-    // ★ The variant matters as much as the refusal. The consuming shell asked
+    // The variant matters as much as the refusal. The consuming shell asked
     // for `DottedPartialName` BY NAME so its error mapping needs no new arm;
     // giving these verbs a variant of their own later would silently drop that
     // shell back to a generic sentence. Asserted rather than trusted.

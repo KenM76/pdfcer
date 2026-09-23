@@ -39,7 +39,7 @@
 //! an `/F` source-file path. Pass 7.1 modelled **field values only** — the
 //! must-have data-round-trip capability.
 //!
-//! **★ RICH TEXT IS NO LONGER ON THIS LIST (Pass 37.3, 2026-08-10).** This
+//! **RICH TEXT IS NO LONGER ON THIS LIST (Pass 37.3, 2026-08-10).** This
 //! paragraph named `<value-richtext>` bodies among the non-goals, and that
 //! stopped being true the moment `FieldData::rich_value` landed. Corrected
 //! here by acting on the finding the same change produced: *when a

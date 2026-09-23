@@ -287,7 +287,7 @@ fn minification_smoothing_does_not_touch_a_magnified_image() {
 
 #[test]
 fn the_render_default_tracks_the_settings_default() {
-    // ★ THIS TEST WAS `the_default_minification_filter_renders_exactly_as_
+    // THIS TEST WAS `the_default_minification_filter_renders_exactly_as_
     // _before` and asserted the default was `PointSample` by name. That
     // pinned the wrong thing: the durable claim is not WHICH variant is
     // default, it is that `RenderOptions::default()` and
@@ -454,7 +454,7 @@ fn the_settings_file_describes_the_ceiling_the_renderer_actually_enforces() {
     let max_px = pdfcer_render::max_cmyk_composite_pixels(None) as f64;
     let a4_pt = 595.0 * 842.0;
     let zoom_percent = (max_px / a4_pt).sqrt() * 100.0;
-    // ★ A BAND OF FIVE POINTS, AND IT USED TO BE SIXTY. The wide band was
+    // A BAND OF FIVE POINTS, AND IT USED TO BE SIXTY. The wide band was
     // written to be robust and is the reason this assertion passed while the
     // sentence it guards was WRONG: every percentage in that paragraph had
     // been computed on a 596 x 791 pt page -- the size of the file the

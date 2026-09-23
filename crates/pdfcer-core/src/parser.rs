@@ -112,7 +112,7 @@ pub enum ParseErrorKind {
     /// a `should` inside a `Note:`; the PDF Association records the change as
     /// stylistic — the two *"have the same technical meaning"*.)
     ///
-    /// ★★ **It is a `shall not` and it binds the FILE, not the reader.** §2.1
+    /// **It is a `shall not` and it binds the FILE, not the reader.** §2.1
     /// makes conformance a property of files, §2.3 passes it to writers, and
     /// clause 1 excludes *"methods for validating the conformance of PDF files
     /// or readers"* outright. A duplicate-key file is not a conforming file,
@@ -301,7 +301,7 @@ pub enum DuplicateKeyPolicy {
     /// has duplicated key `<key>`; last occurrence overrides earlier ones"* —
     /// which is the same disclosure pdfcer now makes.
     ///
-    /// ★★ **CORRECTED BEFORE SHIPPING.** This paragraph first argued from
+    /// **CORRECTED BEFORE SHIPPING.** This paragraph first argued from
     /// §7.5.6 — *"every other override-by-repetition in PDF is last-wins; an
     /// incremental update's newer definition supersedes the older one"* — and
     /// that is an **analogy dressed as a citation**. §7.5.6 orders objects
@@ -316,7 +316,7 @@ pub enum DuplicateKeyPolicy {
     /// submission rejected first/last positional logic **by name**, for
     /// precisely that reason.
     ///
-    /// ★ The alternative is defensible and is not silently unavailable: a
+    /// The alternative is defensible and is not silently unavailable: a
     /// caller wanting the first value has [`Self::KeepFirst`], and every
     /// decision is recorded with BOTH values so a shell can offer the operator
     /// the swap. What is NOT on offer is pdfcer choosing quietly.
@@ -413,7 +413,7 @@ pub struct Parser<'a> {
     /// Every duplicate key this parser resolved rather than refused, with
     /// BOTH values.
     ///
-    /// ★ A list, not a count, and that is the operator ruling: *"if the user
+    /// A list, not a count, and that is the operator ruling: *"if the user
     /// can intervene in a decision that should always be an option"*. A count
     /// says pdfcer chose; only the pair says what it chose BETWEEN, which is
     /// what a shell needs to offer the swap.
@@ -715,7 +715,7 @@ impl<'a> Parser<'a> {
                     match existing
                         .filter(|_| self.duplicate_key_policy != DuplicateKeyPolicy::KeepFirst)
                     {
-                        // ★ REPLACED IN PLACE, not pushed and shadowed. `Dict`
+                        // REPLACED IN PLACE, not pushed and shadowed. `Dict`
                         // is an ordered Vec whose lookup takes the FIRST match,
                         // so appending a second entry would keep the earlier
                         // value winning while the later one sat in the file's

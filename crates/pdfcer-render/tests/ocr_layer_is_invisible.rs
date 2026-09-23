@@ -91,7 +91,7 @@ fn busy_page() -> OcrPage {
     }
 }
 
-/// ★ The whole feature, in one assertion: adding an OCR layer changes NOTHING
+/// The whole feature, in one assertion: adding an OCR layer changes NOTHING
 /// on screen.
 ///
 /// Rendered at a deliberately high scale (2.0) so a sub-pixel difference has
@@ -130,7 +130,7 @@ fn adding_an_ocr_layer_changes_not_one_pixel() {
     );
 }
 
-/// ★ The invisible mode does not leak into the page's EXISTING content.
+/// The invisible mode does not leak into the page's EXISTING content.
 ///
 /// `Tf`/`Tr`/`Tz` are graphics state and a `/Contents` array concatenates, so
 /// an unwrapped layer would set `3 Tr` and leave it set. The fixture's own

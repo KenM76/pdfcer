@@ -83,7 +83,7 @@ fn an_unmodified_page_returns_the_very_same_model() {
     );
 }
 
-/// ★ **After an edit the cache does NOT serve the pre-edit model.**
+/// **After an edit the cache does NOT serve the pre-edit model.**
 ///
 /// The case the whole design exists to get right.
 #[test]
@@ -106,7 +106,7 @@ fn an_edit_invalidates_the_cached_model() {
     );
 }
 
-/// ★★ **UNDO invalidates it too, and this is the case a cheaper key gets
+/// **UNDO invalidates it too, and this is the case a cheaper key gets
 /// wrong.**
 ///
 /// A monotonic generation counter — bumped on every commit — would be at a

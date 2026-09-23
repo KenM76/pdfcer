@@ -55,7 +55,7 @@
 //! guard written for one carrier is a claim about a class* — so the guard is
 //! written about the class rather than about the reproducer.
 //!
-//! ## ★ Three of these five tests are CONTROLS
+//! ## Three of these five tests are CONTROLS
 //!
 //! Cascade 3 exists to delete appearance streams, and a "fix" that simply stops
 //! deleting anything would pass both hostile fixtures while silently orphaning
@@ -132,7 +132,7 @@ fn resolves_to_stream(doc: &Document, id: ObjId) -> bool {
     matches!(doc.view().graph().value(id), Some(Object::Stream(_)))
 }
 
-/// ★★★ The headline, and the exact shape the fuzzer found.
+/// The headline, and the exact shape the fuzzer found.
 ///
 /// `/AP` `/N` names a `/Widget` dictionary whose `/P` is the page. Deleting the
 /// stamp must not take the page with it.
@@ -194,7 +194,7 @@ fn an_ap_entry_that_is_the_catalog_does_not_take_the_page_tree_with_it() {
     );
 }
 
-/// ★ CONTROL: a real, solely-owned appearance stream MUST still be deleted.
+/// CONTROL: a real, solely-owned appearance stream MUST still be deleted.
 ///
 /// Without this, the whole defect could be "fixed" by admitting nothing, and
 /// both tests above would still pass while every deletion orphaned a stream.
@@ -220,7 +220,7 @@ fn a_genuine_appearance_stream_is_still_deleted() {
     assert!(page_tree::pages_in(reloaded.view().graph()).is_ok());
 }
 
-/// ★ CONTROL for the branch that actually broke: `/N` is a **reference to** an
+/// CONTROL for the branch that actually broke: `/N` is a **reference to** an
 /// appearance-state subdictionary whose members really are streams.
 ///
 /// Same resolved type as the hostile fixture — a dictionary — and the opposite
@@ -248,7 +248,7 @@ fn a_state_subdictionary_reached_by_reference_still_deletes_its_streams() {
     assert!(page_tree::pages_in(reloaded.view().graph()).is_ok());
 }
 
-/// ★ CONTROL for the inline twin: `/N` written as a **direct** dictionary.
+/// CONTROL for the inline twin: `/N` written as a **direct** dictionary.
 ///
 /// A different code path from the test above — the direct-dictionary branch
 /// rather than the resolve-a-reference one. Kept separate because a guard

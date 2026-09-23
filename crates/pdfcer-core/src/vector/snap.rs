@@ -230,7 +230,7 @@ impl SnapKind {
     /// [`SnapKind::priority`] ranks, as data rather than as eight separate
     /// integer literals a reader has to reassemble.
     ///
-    /// ★ Added by `Pass 301.1` because the test that checks the priority
+    /// Added by `Pass 301.1` because the test that checks the priority
     /// ORDER carried **its own hand-written copy** of these eight variants.
     /// A ninth kind would have compiled (`priority` is an exhaustive match, so
     /// that much was enforced) and the ordering test would have passed green
@@ -1071,7 +1071,7 @@ mod tests {
 
     #[test]
     fn priority_ranks_follow_decision_011_high_to_low() {
-        // ★ Reads `SnapKind::all()` rather than a copy of it (`Pass 301.1`).
+        // Reads `SnapKind::all()` rather than a copy of it (`Pass 301.1`).
         // This list used to be written out here, which meant the test that
         // exists to check the ORDER could not see a kind that was not in its
         // own copy.
@@ -1087,7 +1087,7 @@ mod tests {
         assert!(!SnapKind::SegmentCenterline.is_derived());
     }
 
-    /// ★★★ `all()` LISTS EVERY KIND, and this fails to COMPILE if one is
+    /// `all()` LISTS EVERY KIND, and this fails to COMPILE if one is
     /// added without being listed.
     ///
     /// The exhaustive `match` is the guard; the assertions are what it
@@ -1113,7 +1113,7 @@ mod tests {
             );
         }
 
-        // ★ The assertion the old test could not make, and the one that
+        // The assertion the old test could not make, and the one that
         // matters most: ranks are UNIQUE and contiguous from 0. Two kinds
         // sharing a rank is not a cosmetic defect — `snap_candidates` sorts
         // by rank then by distance, so a duplicate makes the winner between

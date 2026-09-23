@@ -15,7 +15,7 @@
 //! this build does not recognise", so adding a variant here would quietly make
 //! every shell say that about it.
 //!
-//! # ★ The contract this pins
+//! # The contract this pins
 //!
 //! **Scalars exact, containers named rather than expanded.** The second half
 //! is the one a future change will be tempted to "improve": expanding a
@@ -77,7 +77,7 @@ fn containers_are_named_and_never_expanded() {
     d.0.push((name("Type"), Object::Name(name("Page"))));
     assert_eq!(Object::Dict(d).to_string(), "a dictionary of 1 entry");
 
-    // ★ The assertion that keeps the contract honest: a container's CONTENTS
+    // The assertion that keeps the contract honest: a container's CONTENTS
     // must not appear. Expand a container and this goes red even if the count
     // is still right.
     assert!(

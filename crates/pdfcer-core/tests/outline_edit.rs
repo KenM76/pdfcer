@@ -4,7 +4,7 @@
 //! reorder. Renaming one is the commonest bookmark edit there is, and it had
 //! no route at all.
 //!
-//! ## ★★ Why deleting one is not a `remove` call
+//! ## Why deleting one is not a `remove` call
 //!
 //! An outline is a doubly-linked sibling chain inside a tree (§12.3.3
 //! Tables 152–153). Removing one node touches at least five other
@@ -17,7 +17,7 @@
 //! failure these tests exist for**, and it is invisible to a test that only
 //! checks the deleted item is gone.
 //!
-//! ## ★ `/Count` is two quantities, and this is where that bites
+//! ## `/Count` is two quantities, and this is where that bites
 //!
 //! On an **item**, `/Count` counts visible *descendants*, excluding itself,
 //! and its **sign carries the open/closed state**. On the **root** it counts
@@ -143,7 +143,7 @@ fn undo_restores_the_previous_title() {
 // 2. DELETE — and the linkage nobody sees until a reader walks it
 // ---------------------------------------------------------------------------
 
-/// ★ The claim that matters. After deleting the first top-level item, the
+/// The claim that matters. After deleting the first top-level item, the
 /// tree must still be **walkable**: the reader follows `/First` then `/Next`,
 /// so a stale `/First` or a dangling `/Prev` shows up as a missing or
 /// repeated title — not as a parse error.
@@ -157,7 +157,7 @@ fn deleting_the_first_item_relinks_the_chain() {
     let removed = s.delete_outline_item(id).expect("delete must work");
     assert!(removed >= 1, "at least the item itself was removed");
 
-    // ★ EXACTLY this list, not merely a shorter one.
+    // EXACTLY this list, not merely a shorter one.
     //
     // "Fewer than before" is the assertion three separate sabotages walked
     // straight through — dropping the parent's `/First` update, skipping the
@@ -253,7 +253,7 @@ fn the_outline_root_is_refused_by_name() {
     }
 }
 
-/// ★★★ The `/Count` arithmetic, asserted as a NUMBER — added after two
+/// The `/Count` arithmetic, asserted as a NUMBER — added after two
 /// sabotages walked through every other test in this file.
 ///
 /// Nothing above can see `/Count`: `read_outline` reconstructs the tree from
@@ -277,7 +277,7 @@ fn the_outline_root_is_refused_by_name() {
 /// visible descendants — so the root must go 4 → 1. Chapter 2 stays closed
 /// and untouched at `-1`.
 ///
-/// ★ And this is where the two-quantities trap bites: had Chapter 1 been
+/// And this is where the two-quantities trap bites: had Chapter 1 been
 /// CLOSED it would contribute exactly **1**, not 3, however large its subtree.
 /// A delete that subtracted the subtree size would take the root to a wrong
 /// number — or negative, which Table 152 forbids outright.
@@ -326,7 +326,7 @@ fn deleting_an_open_subtree_subtracts_its_visible_items_and_no_more() {
     );
 }
 
-/// ★★ Deleting the CLOSED chapter — the case that discriminates "visible
+/// Deleting the CLOSED chapter — the case that discriminates "visible
 /// items" from "subtree size", and the one the test above cannot see.
 ///
 /// The test above deletes Chapter 1, which is **open**, where the two

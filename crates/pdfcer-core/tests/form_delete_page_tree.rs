@@ -108,7 +108,7 @@ fn deleting_a_field_that_is_a_page_never_produces_an_unreadable_file() {
 
 /// **The same shape reached through the grouping-node verb.**
 ///
-/// ★ Verified as its own case rather than assumed to follow: `delete_field`
+/// Verified as its own case rather than assumed to follow: `delete_field`
 /// and `delete_field_group` build their removal sets in different functions,
 /// and a guard added to one is exactly the kind of fix that leaves the other
 /// broken beside it.
@@ -130,7 +130,7 @@ fn deleting_a_group_that_is_a_page_never_produces_an_unreadable_file() {
 
 /// A document whose `/AcroForm /Fields` names the **catalog itself**.
 ///
-/// ★★ The second shape, and the one the first fix walked straight past.
+/// The second shape, and the one the first fix walked straight past.
 /// `page_slots`'s `ancestors` chain stops at the `/Pages` root and never
 /// includes the catalog that points at it, so a guard built from "the page
 /// tree" does not contain the object whose loss produces `NoPageTreeRoot`.

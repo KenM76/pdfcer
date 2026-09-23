@@ -352,7 +352,7 @@ pub struct PathObject {
     pub line_width: f64,
     /// Non-stroking (fill) colour at paint time.
     ///
-    /// ★ ONLY MEANINGFUL WHEN [`Self::fill_paint`] IS `Device` OR `Default`.
+    /// ONLY MEANINGFUL WHEN [`Self::fill_paint`] IS `Device` OR `Default`.
     /// For a `/Separation`, `/DeviceN`, `/ICCBased`, `/Indexed`, `/Lab` or
     /// pattern fill this holds pdfcer's best-effort screen value, which before
     /// `Pass 218.0` was a stale colour from an unrelated earlier operator.
@@ -437,7 +437,7 @@ pub struct ImageObject {
     /// object of its own) and for a `Do` whose resource entry was a direct
     /// stream rather than a reference.
     ///
-    /// # ★ What a caller does with it
+    /// # What a caller does with it
     ///
     /// For a **form**, this names the content stream that a token range from
     /// *inside* that form indexes — a different buffer from the page's. It is
@@ -719,7 +719,7 @@ pub struct TextObject {
     /// previous behaviour, which is the honest answer when nothing finer is
     /// known. Also empty past [`MAX_TEXT_RUNS`], where retaining more costs
     /// more than the precision is worth.
-    /// **★ `Pass 32.0` substrate:** each entry is now a [`TextRun`] rather
+    /// **`Pass 32.0` substrate:** each entry is now a [`TextRun`] rather
     /// than a bare `Bounds`. The geometry is unchanged and reachable as
     /// [`TextRun::bounds`] (or in bulk via [`Self::run_bounds`]); what is
     /// added is the run's own **byte span** and whether its position is
@@ -958,7 +958,7 @@ impl TextRun {
 /// operator had set: a **stale, silently wrong colour**, with no value meaning
 /// "I do not know".
 ///
-/// ★ That is exactly the shape [`crate::text_edit::FillState`] already solved
+/// That is exactly the shape [`crate::text_edit::FillState`] already solved
 /// for TEXT — `Default` / `Device` / `Other`, with the raw operator bytes kept
 /// so an undecodable colour can be restored verbatim. One half of this crate
 /// had the honest model and the other half had a lossy one, and nothing
@@ -1146,7 +1146,7 @@ pub struct DecomposeDiagnostics {
     /// does not decode — `/Separation`, `/DeviceN`, `/ICCBased`, `/Indexed`,
     /// `/Lab` or a pattern (`Pass 218.0`).
     ///
-    /// ★ THE DISCLOSURE HALF, AND IT WAS ENTIRELY ABSENT. Before this Pass the
+    /// THE DISCLOSURE HALF, AND IT WAS ENTIRELY ABSENT. Before this Pass the
     /// decomposer silently kept whatever colour the last DEVICE operator had
     /// set, so a spot-coloured path was reported with an unrelated colour and
     /// nothing anywhere counted it. This struct had twelve counters and not one
@@ -1159,7 +1159,7 @@ pub struct DecomposeDiagnostics {
     /// Paths that cannot be seen because an `/ExtGState` set their alpha to
     /// zero, yet are reported as ordinary painted objects (`Pass 220.0`).
     ///
-    /// ★ A wrong CLAIM rather than a wrong number, which is why it is counted
+    /// A wrong CLAIM rather than a wrong number, which is why it is counted
     /// and not corrected: the object genuinely is in the content stream and a
     /// shell may legitimately want to select it. What was missing was any way
     /// to KNOW -- an operator who clicks apparently empty space and selects
@@ -1168,7 +1168,7 @@ pub struct DecomposeDiagnostics {
     /// `sh` shading operators encountered, which this model produces NO
     /// object for (`Pass 221.0`).
     ///
-    /// ★ A MISSING OBJECT, not a wrong one — and that is why it is counted
+    /// A MISSING OBJECT, not a wrong one — and that is why it is counted
     /// rather than fixed. An operator who cannot select a visible gradient has
     /// no way to tell "pdfcer does not model this" from "I missed it", and the
     /// renderer paints it, so the canvas and the object list disagree with
@@ -1181,7 +1181,7 @@ pub struct DecomposeDiagnostics {
     /// Marked-content sections tagged `/OC` — optional content, i.e. LAYERS
     /// (`Pass 221.0`).
     ///
-    /// ★ The model does not resolve layer visibility, so content on a layer
+    /// The model does not resolve layer visibility, so content on a layer
     /// the document turns OFF is listed and selectable while the renderer
     /// correctly does not draw it. The two disagree, and before this counter
     /// nothing said so.
@@ -1204,7 +1204,7 @@ pub struct DecomposeDiagnostics {
 /// One object reached by **descending into a form XObject** — the unit a hit
 /// test answers with, and the thing a page-sized form was hiding.
 ///
-/// # ★★★ WHY THIS TYPE EXISTS
+/// # WHY THIS TYPE EXISTS
 ///
 /// [`decompose_page`] emits a form XObject as **one opaque object** bounded by
 /// its `/BBox`, and never enters it. On a page whose visible body is wrapped
@@ -1224,7 +1224,7 @@ pub struct DecomposeDiagnostics {
 /// it. Acrobat, on the same file, selects the individual path — its
 /// editable-item model cannot return a form wrapper at all.
 ///
-/// # ★★ WHY THESE ARE A SEPARATE LIST AND NOT MIXED INTO `objects`
+/// # WHY THESE ARE A SEPARATE LIST AND NOT MIXED INTO `objects`
 ///
 /// **Because a leaf's token range indexes a different buffer**, and eleven
 /// call sites in `edit.rs` resolve a paint-order index and apply surgery to
@@ -1257,7 +1257,7 @@ pub struct FormLeaf {
     /// object is inside — i.e. where on the page's own paint order this leaf
     /// was drawn.
     ///
-    /// # ★ Why a hit test cannot be correct without it
+    /// # Why a hit test cannot be correct without it
     ///
     /// Leaves and page-stream objects are two lists, but they are **one paint
     /// order**: a form's contents are painted exactly where its `Do` sits
@@ -1287,7 +1287,7 @@ pub struct FormLeaf {
     /// invisibly on the common case where a form is placed at the origin with
     /// no scale.
     ///
-    /// # ★ It is per INVOCATION, not per form
+    /// # It is per INVOCATION, not per form
     ///
     /// A form legally appears more than once on a page (§8.10.1 names CAD
     /// output as its own illustration), and each `Do` has its own CTM. Two
@@ -1333,7 +1333,7 @@ impl FormLeaf {
 
     /// Which content stream this leaf's [`VectorObject::tokens`] range indexes.
     ///
-    /// # ★ Read this before doing anything with `tokens()`
+    /// # Read this before doing anything with `tokens()`
     ///
     /// A form XObject's decoded bytes are **a different buffer** from the
     /// page's (§8.10.1 — it is its own content stream). A token range from
@@ -1377,7 +1377,7 @@ impl FormLeaf {
     /// `page_object_index().is_none()`, which is a structural stand-in for a
     /// question only you can answer."* Ask this one.
     ///
-    /// # ★ What `false` means now, and it is a different fact
+    /// # What `false` means now, and it is a different fact
     ///
     /// It no longer means *"nothing inside a form can be edited"*. It means
     /// **this particular leaf is not a path**, so there is no node, handle or
@@ -1423,7 +1423,7 @@ pub struct PageObjects {
     /// Objects reached by descending **into** the form XObjects in
     /// [`Self::objects`] — see [`FormLeaf`].
     ///
-    /// # ★ Empty unless the walk had a document to descend with
+    /// # Empty unless the walk had a document to descend with
     ///
     /// Populated by [`decompose_page`], which has a [`DocumentView`]. The
     /// resolver-only entry points ([`decompose`], [`decompose_with_fonts`])
@@ -1478,7 +1478,7 @@ pub enum XObjectShape {
         /// The form stream's identity, when the `Do` name resolved to an
         /// indirect reference.
         ///
-        /// # ★★ Why this is here, and why it is keyed on the OBJECT
+        /// # Why this is here, and why it is keyed on the OBJECT
         ///
         /// Two things need it and neither can be done from the resource name:
         ///
@@ -1741,7 +1741,7 @@ pub trait FontResolver {
     /// `decompose*` entry point and its ~50 call sites, to carry a lookup
     /// against a dictionary this one already has.
     ///
-    /// ★ DEFAULTED TO `None` deliberately. Every existing implementor —
+    /// DEFAULTED TO `None` deliberately. Every existing implementor —
     /// [`NoFonts`], and any a test or the fuzz target defines — keeps
     /// compiling and keeps answering "I resolve nothing", which is the honest
     /// answer for a resolver with no document behind it. Only
@@ -1764,7 +1764,7 @@ pub trait FontResolver {
 /// rest set state nothing here reads, and inventing fields for them would be
 /// modelling for its own sake.
 ///
-/// ★ `/D` (dash), `/BM` (blend), `/SMask`, `/LC`, `/LJ`, `/ML`, `/RI`, `/OP`,
+/// `/D` (dash), `/BM` (blend), `/SMask`, `/LC`, `/LJ`, `/ML`, `/RI`, `/OP`,
 /// `/op`, `/OPM` are deliberately absent. An unread gap is not a defect, and
 /// this file's clipboard sibling already states the principle: *"a fabricated
 /// dash is worse than an absent one, because it looks deliberate."*
@@ -1775,7 +1775,7 @@ pub struct ExtGStateParams {
     /// stroke-proximity hit test widens by; a stale one makes an operator
     /// click a visible line and select nothing.
     ///
-    /// ★ Measured at ZERO occurrences in a 300-file sample. Handled anyway
+    /// Measured at ZERO occurrences in a 300-file sample. Handled anyway
     /// because it is free once `gs` is parsed at all, and because "rare" is
     /// not "never" for a format this old — but the effort was spent on it
     /// only after measuring that `/Font` is where the exposure actually is.
@@ -1907,7 +1907,7 @@ impl FontResolver for DocumentFonts<'_> {
         // taken only when the array's first element happens to be a name,
         // which is not conformant but occurs.
         //
-        // ★ The size alone is the half that matters: a text object's bounds
+        // The size alone is the half that matters: a text object's bounds
         // come from font metrics scaled by it, so a stale size is a wrong
         // bounding box whether or not the face changed.
         let font = dict
@@ -1947,7 +1947,7 @@ impl FontResolver for DocumentFonts<'_> {
 ///
 /// * **Depth**, [`crate::content::MAX_FORM_DEPTH`] — a backstop against the
 ///   linear memory a legitimate-but-absurd chain pins.
-/// * **★ Cycle, keyed on the form's OBJECT NUMBER** — this is the real
+/// * **Cycle, keyed on the form's OBJECT NUMBER** — this is the real
 ///   defence. §8.10.1 does not forbid a form invoking itself, directly or
 ///   through a chain, and **the same stream is reachable under different
 ///   resource names in different resource dictionaries**, so a name-keyed
@@ -2130,7 +2130,7 @@ pub fn decompose_page(
     // memoizes, so the cost is one resolution per distinct font resource.
     let fonts = DocumentFonts::new(view, &page.resources);
     let mut model = decompose_with_fonts(&content, initial, &xobjects, &fonts);
-    // ★ The descent happens HERE and not inside the walk, because it needs the
+    // The descent happens HERE and not inside the walk, because it needs the
     // form's CONTENT STREAM and the walk only has the classification seam --
     // which is deliberate, and is what lets the fuzz target and the unit tests
     // drive the geometry with no document at all.
@@ -2684,7 +2684,7 @@ impl<'a> Decomposer<'a> {
 
             // ---- the graphics-state operator (§8.4.5) -- previously ABSENT.
             //
-            // ★★ `gs` had NO ARM AT ALL, so every entry it sets was ignored.
+            // `gs` had NO ARM AT ALL, so every entry it sets was ignored.
             // The consequence is the same shape as the missing colour-space
             // arms below: a value the model already exposes kept whatever an
             // unrelated earlier operator had set, with nothing recording that
@@ -2756,7 +2756,7 @@ impl<'a> Decomposer<'a> {
 
             // ---- colour SPACES (§8.6.8, Table 74) -- previously ABSENT.
             //
-            // ★★ THE WHOLE POINT OF THIS BLOCK. Without these six arms a path
+            // THE WHOLE POINT OF THIS BLOCK. Without these six arms a path
             // painted in a `/Separation`, `/DeviceN`, `/ICCBased`, `/Indexed`,
             // `/Lab` or `/Pattern` space kept whatever the last DEVICE
             // operator had set -- a stale colour from an unrelated earlier
@@ -4010,7 +4010,7 @@ mod tests {
 
     // -- colour spaces (Pass 218.0) -----------------------------------------
 
-    /// ★★★ A path painted in a `/Separation` must NOT report the last device
+    /// A path painted in a `/Separation` must NOT report the last device
     /// colour as its own.
     ///
     /// # The defect

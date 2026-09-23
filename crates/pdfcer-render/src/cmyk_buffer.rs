@@ -46,7 +46,7 @@
 //! prepress conformance, not a better-looking corpus, and the render
 //! parity buckets are expected **not** to move.
 //!
-//! # ★ The round trip this exists to delete, measured
+//! # The round trip this exists to delete, measured
 //!
 //! `DeviceCMYK 0 1 0 0` painted into the sRGB buffer and recovered from it
 //! comes back as `(0, 0.995, 0.409, 0.071)`. The `Y = 0.41` is not a
@@ -74,7 +74,7 @@
 //! here, and a runtime-`N` buffer wants a different storage layout again.
 //! Building `N` now would fuse two questions that fail independently.
 //!
-//! # ★★ Three traps this module is shaped around
+//! # Three traps this module is shaped around
 //!
 //! ## 1. The collapse order is convert-then-flatten, not flatten-then-convert
 //!
@@ -175,7 +175,7 @@ use crate::compositor::{
 ///   computed in any group that is subsequently used as an element of a
 ///   knockout group"*.
 ///
-/// # ★ Shape and alpha are not the same number, and an opaque fixture
+/// # Shape and alpha are not the same number, and an opaque fixture
 /// cannot tell
 ///
 /// `α = f × q`. They coincide exactly when opacity is 1 — which is most
@@ -251,7 +251,7 @@ pub(crate) type Chan = f32;
 /// 13.4 M pixels — a US-Letter page up to roughly 375 DPI, or A0 at 96 DPI
 /// — and refuses beyond that.
 ///
-/// # ★ Why it is a DEFAULT rather than a limit, since `Pass 132.0`
+/// # Why it is a DEFAULT rather than a limit, since `Pass 132.0`
 ///
 /// The clause above says *untrusted-input-sized*. A **page** is untrusted
 /// input; an **operator naming a number** is not, and the two were conflated
@@ -292,7 +292,7 @@ pub(crate) const BYTES_PER_PIXEL: usize = 5 * core::mem::size_of::<Chan>();
 
 /// One spot colorant's ink plane, plus the identity it is keyed on.
 ///
-/// # ★★ The identity is the decoded name BYTE STRING, and nothing else
+/// # The identity is the decoded name BYTE STRING, and nothing else
 ///
 /// §8.6.6.4's device test consults *only* the colorant name — *"shall
 /// determine whether the device has an available colorant corresponding to
@@ -313,7 +313,7 @@ pub(crate) const BYTES_PER_PIXEL: usize = 5 * core::mem::size_of::<Chan>();
 ///
 /// Lossy decoding remains correct for *showing* a name to an operator. It is
 /// never correct for deciding whether two names are the same.
-/// ★★ **INERT AS OF `Pass 225.0`, DELIBERATELY.** Nothing calls
+/// **INERT AS OF `Pass 225.0`, DELIBERATELY.** Nothing calls
 /// [`CmykBuffer::spot_index`] yet, so this whole chain is dead code and is
 /// marked as such rather than being wired half-way.
 ///
@@ -373,7 +373,7 @@ pub(crate) const SPOT_LUT_SIZE: usize = 256;
 
 /// A spot colorant's tint → sRGB curve, evaluated once per page.
 ///
-/// # ★★ Why a table and not a function call
+/// # Why a table and not a function call
 ///
 /// §8.6.6.4's tint transform is an arbitrary PDF function (§7.10) — a
 /// sampled stream, an exponential, a stitching function, or a PostScript
@@ -450,7 +450,7 @@ impl SpotLut {
     /// A LUT for a colorant whose appearance could not be determined:
     /// white at every tint, i.e. no visible contribution.
     ///
-    /// ★ **White, not black, and the choice is not arbitrary.** This value
+    /// **White, not black, and the choice is not arbitrary.** This value
     /// is multiplied into the page (§10.8.3 step (c)), and white is
     /// multiplication's identity — so an unrenderable colorant leaves the
     /// page exactly as it would have been. Black would paint a solid
@@ -570,7 +570,7 @@ pub(crate) struct CmykBuffer {
     /// colorants than that flattens the surplus and says so
     /// ([`Self::spots_flattened`]).
     ///
-    /// # ★★ Grown LAZILY, at first use, and that is a correctness argument
+    /// # Grown LAZILY, at first use, and that is a correctness argument
     /// rather than an optimisation
     ///
     /// A plane created part-way through a page is all zeros for everything
@@ -700,7 +700,7 @@ pub(crate) struct CmykBuffer {
     knockout: Option<Box<KnockoutPlanes>>,
     /// A page-sized coverage mask, **reused across every paint**.
     ///
-    /// ★ THIS FIELD IS A PERFORMANCE FIX FOR A REGRESSION THIS MODULE
+    /// THIS FIELD IS A PERFORMANCE FIX FOR A REGRESSION THIS MODULE
     /// SHIPPED, and the number is worth carrying because the mistake was
     /// documented-and-deferred rather than overlooked.
     ///
@@ -728,7 +728,7 @@ pub(crate) struct CmykBuffer {
     /// `(x0, y0, x1, y1)` with the upper bounds exclusive — or `None` when
     /// nothing has been written at all.
     ///
-    /// # ★ Why a group buffer needs this, with the number
+    /// # Why a group buffer needs this, with the number
     ///
     /// A transparency group gets a **page-sized** child buffer, because its
     /// contents are drawn under the same CTM as its parent and a smaller
@@ -754,7 +754,7 @@ pub(crate) struct CmykBuffer {
     dirty: Option<(u32, u32, u32, u32)>,
     /// One spare child buffer, kept for the next transparency group.
     ///
-    /// # ★ Why, with the measurement that forced it
+    /// # Why, with the measurement that forced it
     ///
     /// Every transparency group gets a page-sized child buffer, and at
     /// 1224×1584 that is five `f32` planes — **38.8 MB** — allocated,
@@ -804,7 +804,7 @@ impl CmykBuffer {
     /// documentation for why the caller falls back and discloses rather
     /// than failing the render.
     ///
-    /// # ★ The zero fill, and the one thing it must not be read as
+    /// # The zero fill, and the one thing it must not be read as
     ///
     /// Every plane starts at `0.0`, including alpha. That makes every
     /// pixel **transparent**, whose colour §11.3.2 declares undefined and
@@ -818,7 +818,7 @@ impl CmykBuffer {
     /// a luminosity soft mask built over it would be inverted. See the
     /// module documentation's trap 2.
     ///
-    /// # ★ `max_bytes`, and why refusing is a three-step ladder
+    /// # `max_bytes`, and why refusing is a three-step ladder
     ///
     /// `None` means [`DEFAULT_MAX_CMYK_BUFFER_BYTES`]; `Some` is the
     /// operator's own ceiling, uncapped (see that constant's docs for the
@@ -924,7 +924,7 @@ impl CmykBuffer {
     /// Record `n` pixels of a **solid paint** that reached this buffer through
     /// the sRGB bridge rather than as authored colorants (`Pass 165.0`).
     ///
-    /// # ★★ Why this exists: the counter was under-reporting its own subject
+    /// # Why this exists: the counter was under-reporting its own subject
     ///
     /// [`Self::bridged`] is documented as *"pixels whose colour reached this
     /// buffer through the sRGB bridge rather than as authored colorants"*, and
@@ -1035,7 +1035,7 @@ impl CmykBuffer {
     /// branch and two comparisons in the innermost loop of the renderer,
     /// to compute something the caller already knows as a rectangle.
     ///
-    /// # ★ This doc block used to open with a description of `set_pixel`
+    /// # This doc block used to open with a description of `set_pixel`
     ///
     /// Two doc blocks had fused into one -- `set_pixel`'s four paragraphs
     /// about clamping, then this function's, with no separation -- and
@@ -1116,7 +1116,7 @@ impl CmykBuffer {
     /// which is what pdfcer did for every spot colorant before planes
     /// existed.
     ///
-    /// # ★ `None` is COUNTED, and counted once per distinct colorant
+    /// # `None` is COUNTED, and counted once per distinct colorant
     ///
     /// [`Self::spots_flattened`] is incremented on the transition only, not
     /// on every paint, so the number answers *"how many of this page's inks
@@ -1262,11 +1262,11 @@ impl CmykBuffer {
         alpha: Chan,
         blend: Blend,
     ) -> u32 {
-        // ★ `R236` EXEMPTION — this and the SEVEN sibling `debug_assert`s in
+        // `R236` EXEMPTION — this and the SEVEN sibling `debug_assert`s in
         // this file are NOT untrusted-derived, so none of them owes a
         // `cargo-fuzz` target. Stated once here; the other sites point back.
         //
-        // ★ THE NUMBER IS EIGHT AND IT IS CHECKABLE BY COMMAND, because the
+        // THE NUMBER IS EIGHT AND IT IS CHECKABLE BY COMMAND, because the
         // first draft of this sentence said "eight siblings" — nine total —
         // and no reading of the file made that true. Caught by a reader, not
         // by a gate, and it was the THIRD figure to go wrong in `R236`'s first
@@ -1281,7 +1281,7 @@ impl CmykBuffer {
         // draft did quote one, and correcting the sentence above changed it,
         // which is the whole point stated as an accident.
         //
-        // ★ That is the joke `R236` keeps playing on itself. The audit that
+        // That is the joke `R236` keeps playing on itself. The audit that
         // graded this file called it "the clean case" for grep inflation, and
         // the commit saying so is what made it dirty: the exemption the rule
         // DEMANDS is prose about assertions, so **satisfying the rule inflates
@@ -1325,7 +1325,7 @@ impl CmykBuffer {
         // a leaf parser — `mesh_shading` calls `mesh::parse` and never paints.
         // Linking is not reaching.
         //
-        // ★ And both axes are checked now. Six of these guards compared WIDTH
+        // And both axes are checked now. Six of these guards compared WIDTH
         // ONLY while their message claimed a shared device grid, so a
         // same-width, short-height operand passed and then indexed off the end.
         // Corrected in the same audit.
@@ -1348,7 +1348,7 @@ impl CmykBuffer {
                 if c <= 0.0 {
                     continue;
                 }
-                // ★ COVERAGE IS SHAPE; COVERAGE TIMES OPACITY IS ALPHA.
+                // COVERAGE IS SHAPE; COVERAGE TIMES OPACITY IS ALPHA.
                 // §11.4's `α = f × q`, and the two are handed on
                 // separately because §11.4.8 reads `f_s` alone. Collapsing
                 // them here would make every knockout group behave as if
@@ -1376,7 +1376,7 @@ impl CmykBuffer {
     ///
     /// # Why a bridge exists at all
     ///
-    /// ★ Narrowed 2026-08-26. What follows was written at `Pass 97.1e`, when
+    /// Narrowed 2026-08-26. What follows was written at `Pass 97.1e`, when
     /// it was true of EVERY image; it is now true only of the ones with no
     /// ink to keep. A `DeviceCMYK` image — including one behind an
     /// `/Indexed` palette — goes through [`Self::composite_cmyk_image`]
@@ -1487,7 +1487,7 @@ impl CmykBuffer {
     /// and the return leg is not the inverse of the outbound one: out through
     /// a calibrated table, back through a naive formula.
     ///
-    /// ★★ AND NO BETTER INVERSE WOULD FIX IT. `CMYK → sRGB` is **many-to-one**
+    /// AND NO BETTER INVERSE WOULD FIX IT. `CMYK → sRGB` is **many-to-one**
     /// — a rich black and a flat K black can land on the same screen colour —
     /// so the mapping is not injective and has no inverse to improve. The
     /// only way to keep the ink is never to leave it.
@@ -1597,7 +1597,7 @@ impl CmykBuffer {
     /// **Table 149's `CompatibleOverprint`** — §11.7.4.3 — composited
     /// natively, with no colour-space round trip.
     ///
-    /// # ★ What this deletes, and it is the reason overprint was listed as
+    /// # What this deletes, and it is the reason overprint was listed as
     /// approximate for pdfcer's entire life
     ///
     /// [`crate::overprint::composite`] does the same job against an sRGB
@@ -1611,7 +1611,7 @@ impl CmykBuffer {
     /// code, transcribed from Table 149 cell by cell and tested; only their
     /// input improves.
     ///
-    /// # ★★ And a convention that becomes correct rather than merely tolerable
+    /// # And a convention that becomes correct rather than merely tolerable
     ///
     /// `overprint::composite` treats a fully transparent backdrop pixel as
     /// **white paper**, `(1, 1, 1)` — a deliberate deviation from the rest
@@ -1784,7 +1784,7 @@ impl CmykBuffer {
                 for i in 0..4 {
                     mixed[i] = t.mul_add(out[i] - before.c[i], before.c[i]);
                 }
-                // ★★ TABLE 149's SPOT RULE — and the DERIVATION below was wrong until
+                // TABLE 149's SPOT RULE — and the DERIVATION below was wrong until
                 // 2026-09-02, though the behaviour was right.
                 //
                 // **§11.7.3 is the governing sentence**, and it is stronger
@@ -1802,7 +1802,7 @@ impl CmykBuffer {
                 // overprint-mode columns, unconditionally — 1.7 Tables
                 // 148/149 and 2.0 Table 146 agree, with no edition delta.
                 //
-                // ★ *"not named in source space"* is the **`Separation` /
+                // *"not named in source space"* is the **`Separation` /
                 // `DeviceN` rows'** phrasing. Lifting it onto a process-source
                 // row reaches the right cell by a route the tables do not
                 // take, which is the kind of comment that survives a rewrite
@@ -1904,7 +1904,7 @@ impl CmykBuffer {
     /// Map every plane of `child`'s roster onto a plane of this buffer's,
     /// BY COLORANT NAME, allocating here on first sight (`Pass 239.0`).
     ///
-    /// # ★ Why a merge cannot copy spot planes by index
+    /// # Why a merge cannot copy spot planes by index
     ///
     /// A child buffer starts with the roster it was given — empty for an
     /// isolated group, the parent's at that moment for a knockout or
@@ -1938,7 +1938,7 @@ impl CmykBuffer {
     /// Composite a child buffer's **result** into this one as a single
     /// object — §11.4.5.
     ///
-    /// # ★ Why this exists rather than reusing the sRGB bridge
+    /// # Why this exists rather than reusing the sRGB bridge
     ///
     /// Because the bridge is a **round trip**, and a round trip through a
     /// group is what makes a group's contents a different colour from
@@ -1970,7 +1970,7 @@ impl CmykBuffer {
         debug_assert_eq!(child.height, self.height);
         let alpha = alpha.clamp(0.0, 1.0);
         let map = self.spot_map_from(child);
-        // ★ ONLY WHERE THE CHILD WAS ACTUALLY PAINTED. A group's result is
+        // ONLY WHERE THE CHILD WAS ACTUALLY PAINTED. A group's result is
         // transparent everywhere else by construction, and
         // `composite_element_cmyk` of a transparent source is the identity
         // -- so the rest of the page was being read, tested and skipped,
@@ -2031,7 +2031,7 @@ impl CmykBuffer {
     /// no round trip and better than no backdrop.* Every pixel it converts
     /// is counted as bridged, because that is what it is.
     ///
-    /// # ★★ WHICH CONVERSION, AND WHY IT IS NOT THE CALIBRATED ONE
+    /// # WHICH CONVERSION, AND WHY IT IS NOT THE CALIBRATED ONE
     ///
     /// pdfcer has **two** `DeviceCMYK` → sRGB transforms and they are for
     /// different jobs:
@@ -2048,7 +2048,7 @@ impl CmykBuffer {
     /// criterion, and accuracy is irrelevant because the value never
     /// reaches a screen in this form.
     ///
-    /// ★ Mixing them is not a small error, and it was measured: converting
+    /// Mixing them is not a small error, and it was measured: converting
     /// the backdrop with the calibrated lattice and converting the result
     /// back with max-GCR left suite `PCS1_161` at **10 traps** against a
     /// pre-Pass baseline of **2**, because the two transforms are not
@@ -2078,7 +2078,7 @@ impl CmykBuffer {
                 continue;
             }
             self.bridged += 1;
-            // ★★ THE NAIVE TRANSFORM, DELIBERATELY, AND NOT THE CALIBRATED
+            // THE NAIVE TRANSFORM, DELIBERATELY, AND NOT THE CALIBRATED
             // ONE. See this function's "Which conversion" section: this is
             // one leg of a ROUND TRIP and the return leg is
             // `overprint::rgb_to_cmyk`, of which this is the exact inverse.
@@ -2247,7 +2247,7 @@ impl CmykBuffer {
     /// * `alpha` — §11.4.5's constant alpha at the `Do`.
     /// * `mask` — the soft mask's data, or `None`.
     ///
-    /// # ★ The removal divides by the UNMASKED `α_gn`
+    /// # The removal divides by the UNMASKED `α_gn`
     ///
     /// The soft mask is not part of the group's own accumulation — §11.4.5
     /// applies it to the *finished* result — so masking before the removal
@@ -2426,7 +2426,7 @@ impl CmykBuffer {
     /// `None` if the extra planes cannot be allocated.
     pub(crate) fn into_knockout(mut self, initial: &Self) -> Option<Self> {
         let n = (self.width as usize).checked_mul(self.height as usize)?;
-        // ★★ A REAL CHECK, NOT A `debug_assert`, AND THIS IS THE ONE SITE IN
+        // A REAL CHECK, NOT A `debug_assert`, AND THIS IS THE ONE SITE IN
         // THIS FILE THAT EARNS THE DIFFERENCE.
         //
         // Every other dimension guard here fails LOUDLY when it is violated:
@@ -2467,7 +2467,7 @@ impl CmykBuffer {
         // each one.
         self.planes = initial.planes.clone();
         self.alpha = initial.alpha.clone();
-        // ★ And the backdrop's SPOT planes, roster and all (`Pass 239.0`).
+        // And the backdrop's SPOT planes, roster and all (`Pass 239.0`).
         // Until this the accumulator started with the backdrop's four
         // process planes and an EMPTY roster, so a spot beneath a knockout
         // group was gone before the group's first element — the "knockout
@@ -2640,7 +2640,7 @@ impl CmykBuffer {
     /// **§11.4.7's collapse**: convert to sRGB, then composite over the
     /// white medium — in that order.
     ///
-    /// # ★★ The order is the whole point of this function
+    /// # The order is the whole point of this function
     ///
     /// §11.4.7 requires the page group's result be converted to the
     /// device's native colour space **before being composited with the
@@ -2677,7 +2677,7 @@ impl CmykBuffer {
     /// implementation-dependent way, and its default is the lattice fitted
     /// against a reference renderer rather than a naive formula.
     ///
-    /// ★ **Do not read `CmykIntent` as an ICC rendering intent.** It names a
+    /// **Do not read `CmykIntent` as an ICC rendering intent.** It names a
     /// fitted lookup table (`calibrated` / `neutral_black`), not a
     /// colorimetric mapping, and pdfcer carries **no** PDF rendering intent at
     /// all — `/RI` in an `/ExtGState` is never read and the `ri` operator is
@@ -2697,7 +2697,7 @@ impl CmykBuffer {
         let dst = out.pixels_mut();
         for (idx, slot) in dst.iter_mut().enumerate() {
             let a = self.alpha[idx].clamp(0.0, 1.0);
-            // ★ Step one: convert the group's colour, in the group's
+            // Step one: convert the group's colour, in the group's
             // space, to the device's. This happens for EVERY pixel,
             // including fully transparent ones, because the media
             // composite below needs a device-space colour to interpolate
@@ -2711,14 +2711,14 @@ impl CmykBuffer {
                 self.planes[2][idx],
                 self.planes[3][idx],
             );
-            // ★ Step one-and-a-half: ISO 32000-2 §10.8.3's separation
+            // Step one-and-a-half: ISO 32000-2 §10.8.3's separation
             // simulation, folding this page's SPOT colorants in. See
             // `spot_simulated_srgb` -- it is a MULTIPLY, per step (c), and
             // it is the identity on the 98.6% of pages that name no spot
             // colorant, because the roster is then empty and the loop does
             // not run.
             let rgb = self.fold_spots_srgb(idx, rgb);
-            // ★ Step two, and ONLY now: §11.4.7's media composite, in the
+            // Step two, and ONLY now: §11.4.7's media composite, in the
             // DESTINATION space. White is 1.0 per channel here because
             // this is sRGB; in CMYK it would have been zero ink, and
             // performing this step there is the defect this ordering
@@ -2807,7 +2807,7 @@ impl CmykBuffer {
     /// | **c** | blend the separations into one result with a **multiply blend** | the `*` below |
     /// | **d** | convert the result to the actual device colour space | already done for the process planes by the caller |
     ///
-    /// # ★★ Two deviations, disclosed rather than buried
+    /// # Two deviations, disclosed rather than buried
     ///
     /// **1. The multiply happens in sRGB, not in "flat XYZ (no gamma)".**
     /// The phrase occurs **once in the entire standard** and is defined
@@ -2893,7 +2893,7 @@ mod tests {
         );
     }
 
-    /// ★★ The one dimension mismatch in this file whose consequence is
+    /// The one dimension mismatch in this file whose consequence is
     /// SILENT, so it is refused at runtime rather than merely asserted in
     /// debug (`R236` audit, 2026-08-31).
     ///
@@ -2926,7 +2926,7 @@ mod tests {
         assert!(big.into_knockout(&same).is_some());
     }
 
-    /// ★★ THE IDENTITY THE THREE-WAY TEST IN `Canvas::group` RESTS ON.
+    /// THE IDENTITY THE THREE-WAY TEST IN `Canvas::group` RESTS ON.
     ///
     /// `Pass 97.1g` skips the second content walk whenever the group's
     /// interior is backdrop-INdependent (§11.4.4 NOTE 2), on the claim that
@@ -3211,7 +3211,7 @@ mod tests {
         // the conversion is a fitted lattice with clamping and does not
         // commute with a linear interpolation.
         //
-        // ★ The fixture is deliberately NOT pure K. A first draft used
+        // The fixture is deliberately NOT pure K. A first draft used
         // `0 0 0 1` at half alpha and the two orders AGREED to the byte,
         // because the fitted lattice happens to be near-linear along the
         // K axis for the red channel. A test whose two branches coincide
@@ -3281,7 +3281,7 @@ mod tests {
         assert!((px.c[2] - 1.0).abs() < 1e-6);
     }
 
-    /// ★ THE FIXTURE THE COMPOSITOR RAG WARNS IS THE ONLY KIND THAT CAN
+    /// THE FIXTURE THE COMPOSITOR RAG WARNS IS THE ONLY KIND THAT CAN
     /// SEE THIS BUG — built with `/ca < 1` on purpose.
     ///
     /// Shape and alpha are equal when opacity is 1, so an all-opaque
@@ -3505,7 +3505,7 @@ mod tests {
 
     /// Would catch: colorant identity being compared as a lossy string.
     ///
-    /// ★ These two names are DIFFERENT byte strings that both decode to the
+    /// These two names are DIFFERENT byte strings that both decode to the
     /// same `String` under `from_utf8_lossy`, because every invalid
     /// sequence maps to one `U+FFFD`. §7.3.5 NOTE 4 makes them distinct
     /// names even if they rendered identically, and if they shared a plane
@@ -3579,7 +3579,7 @@ roster is full, because a refused colorant has no plane to be recognised by"
     /// Would catch: a lazily-created plane not reading back as zero for
     /// pixels painted before it existed.
     ///
-    /// ★ This is the property the whole no-pre-pass design rests on. If a
+    /// This is the property the whole no-pre-pass design rests on. If a
     /// plane created mid-page were anything but zero where nothing painted
     /// it, every mark laid down before the document first named that
     /// colorant would acquire ink it never had.
@@ -3602,7 +3602,7 @@ roster is full, because a refused colorant has no plane to be recognised by"
     /// Would catch: the collapse painting a spot colorant that has no ink,
     /// which would tint the whole page.
     ///
-    /// ★★ **The LUT here is DELIBERATELY MALFORMED: it returns solid red at
+    /// **The LUT here is DELIBERATELY MALFORMED: it returns solid red at
     /// tint zero.** A well-behaved tint transform gives white for "no ink",
     /// and a test built on one cannot fail -- multiplying by white is the
     /// identity whether or not the zero-tint early-out exists. That was
@@ -3733,7 +3733,7 @@ roster is full, because a refused colorant has no plane to be recognised by"
     /// so the arm is structurally CMYK-only — the spot planes must fall
     /// back to `Normal`, i.e. take the source tint outright.
     ///
-    /// ★★ **SABOTAGE-SURVIVING, DELIBERATELY, AND SAID SO.** Deleting
+    /// **SABOTAGE-SURVIVING, DELIBERATELY, AND SAID SO.** Deleting
     /// `blend_spots`'s `NonSeparable` guard leaves this test green, because
     /// `blend_separable`'s own final arm already answers `cs` for a
     /// non-separable mode — the same value `Normal` gives. The contract has
@@ -3808,7 +3808,7 @@ roster is full, because a refused colorant has no plane to be recognised by"
     /// shipping it on "the numbers did not move" would be shipping it
     /// untested.
     ///
-    /// ★ Before `Pass 229.0` a spot colorant under overprint could only be
+    /// Before `Pass 229.0` a spot colorant under overprint could only be
     /// PRESERVED, never painted: Table 149 puts every component of a
     /// spot-only source in the *not named in source space* column, which
     /// under `OP true` is the backdrop, so the paint marked nothing in the

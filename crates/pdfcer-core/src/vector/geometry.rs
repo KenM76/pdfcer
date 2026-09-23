@@ -535,7 +535,7 @@ impl Rgb {
     /// From DeviceCMYK components (`k`/`K`) — §8.6.4.4, under the **default**
     /// [`CmykIntent`](crate::settings::CmykIntent).
     ///
-    /// # ★ Why the default and not the raw table
+    /// # Why the default and not the raw table
     ///
     /// This called [`crate::color::cmyk_to_srgb`] directly, which is the
     /// **calibrated** table unconditionally — and the renderer does not. Every
@@ -552,7 +552,7 @@ impl Rgb {
     /// painted?" returned different answers for the commonest case in the
     /// corpus.
     ///
-    /// # ★ What this does NOT fix, stated so it is not read as complete
+    /// # What this does NOT fix, stated so it is not read as complete
     ///
     /// It closes the gap for the **default** intent, which is the shipped
     /// behaviour and the operator-visible case. A caller who has *changed*
@@ -835,7 +835,7 @@ mod tests {
         assert!(close(Matrix::rotate(2.0 * PI).map_point(x), x));
     }
 
-    /// ★ The defining property of `about`: the pivot does not move. It holds
+    /// The defining property of `about`: the pivot does not move. It holds
     /// for rotation, uniform scale, non-uniform scale and a composition of
     /// them, and it is the one assertion that catches a reversed
     /// `post_concat` order — which otherwise looks like a small drift.
@@ -896,7 +896,7 @@ mod tests {
         assert!((b.x - a.x - 40.0).abs() < 1e-9);
     }
 
-    /// ★ `is_invertible` answers the question a shell needs BEFORE it offers
+    /// `is_invertible` answers the question a shell needs BEFORE it offers
     /// a resize grip, and separately from "this object has no placement".
     /// The drag-through-zero case is the one the consuming shell named.
     #[test]

@@ -1,4 +1,4 @@
-//! ★ `Pass 126.0` — Type 3 fonts render, and this file is the end-to-end
+//! `Pass 126.0` — Type 3 fonts render, and this file is the end-to-end
 //! evidence that the four rules that are invisible in a casual render are
 //! honoured.
 //!
@@ -105,7 +105,7 @@ fn blue_runs(p: &RenderedPage, y_pt: f32) -> Vec<(f32, f32)> {
 // Table 113 — where a glyph's colour comes from
 // ===========================================================================
 
-/// ★ `d1` ignores the procedure's own colour; `d0` keeps it.
+/// `d1` ignores the procedure's own colour; `d0` keeps it.
 ///
 /// Table 113: a `d1` glyph description "should not execute any operators
 /// that set the colour … any use of such operators **shall be ignored**.
@@ -199,7 +199,7 @@ fn a_bitmap_glyph_paints_its_stencil_in_the_graphics_state_colour() {
     );
 }
 
-/// ★ `Pass 126.1` — a bitmap glyph is a STENCIL and is never smoothed,
+/// `Pass 126.1` — a bitmap glyph is a STENCIL and is never smoothed,
 /// at any zoom.
 ///
 /// The Acrobat-parity corpus records, at source tier, that Acrobat does
@@ -214,7 +214,7 @@ fn a_bitmap_glyph_paints_its_stencil_in_the_graphics_state_colour() {
 /// interpolation produces intermediates, and one intermediate pixel is
 /// enough to fail this.
 ///
-/// ★ THE SCALES ARE CHOSEN TO CROSS THE PREDICATE, not to be "a
+/// THE SCALES ARE CHOSEN TO CROSS THE PREDICATE, not to be "a
 /// reasonable range" (`R211` clause (e)). The mask is 8x8 samples in a
 /// 28 pt box, so its device size passes through its own sample count
 /// somewhere near scale 0.29: at 0.25 the image is being MINIFIED and at
@@ -264,7 +264,7 @@ fn a_bitmap_glyph_is_never_smoothed_at_any_zoom() {
 // Table 112 — the width rule, which no `Td`-positioned glyph can test
 // ===========================================================================
 
-/// ★ THE NUMBER-ONE TYPE 3 BUG, end to end.
+/// THE NUMBER-ONE TYPE 3 BUG, end to end.
 ///
 /// Table 112: Type 3 widths "shall be interpreted in glyph space as
 /// specified by `FontMatrix` (**unlike** the widths of a Type 1 font,
@@ -279,7 +279,7 @@ fn a_bitmap_glyph_is_never_smoothed_at_any_zoom() {
 /// all four glyphs into one box — which `blue_runs` reports as a single
 /// run, not four.
 ///
-/// ★ Rows A–D cannot catch this, and that is why row E exists: they
+/// Rows A–D cannot catch this, and that is why row E exists: they
 /// position every glyph with `Td`, so a renderer that ignored `/Widths`
 /// entirely would render them perfectly.
 #[test]
@@ -372,7 +372,7 @@ fn a_glyph_procedure_falls_back_to_the_pages_resources() {
 // ARCHITECTURE.md §10.1 — the recursion that the standard permits
 // ===========================================================================
 
-/// ★ A glyph procedure that shows its own font terminates.
+/// A glyph procedure that shows its own font terminates.
 ///
 /// §9.6.5 does not forbid a glyph description from showing text in the
 /// same Type 3 font, and Annex C sets no limit — so an unbounded reader

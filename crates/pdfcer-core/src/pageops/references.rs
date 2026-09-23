@@ -323,7 +323,7 @@ fn flatten_name_tree<G: ObjectGraph + ?Sized>(
 /// ignore" review flow would need, and it can be added when that flow
 /// exists rather than being carried unused now.
 ///
-/// # ★★ It does not cover field-name targets, and `is_empty()` will not say so
+/// # It does not cover field-name targets, and `is_empty()` will not say so
 ///
 /// `/ResetForm`, `/SubmitForm` and `/Hide` name their targets by
 /// fully-qualified **name string**. A name is not a reference, so removing
@@ -346,7 +346,7 @@ pub struct DanglingReport {
     /// **Non-link annotations** on surviving pages whose `/A` `/GoTo` names a
     /// removed page (`Pass 183.0`).
     ///
-    /// # ★ Why this is a separate field and not a widening of [`Self::links`]
+    /// # Why this is a separate field and not a widening of [`Self::links`]
     ///
     /// Until `Pass 183.0` this census walked link annotations **only**, and
     /// that was correct: a `/GoTo` could only reach a page from an outline
@@ -399,7 +399,7 @@ impl DanglingReport {
 /// are only interesting when they *stay* — see
 /// [`DanglingReport::links`].
 ///
-/// # ★★ WHAT THIS CENSUS CANNOT SEE, and the reader who most needs to know
+/// # WHAT THIS CENSUS CANNOT SEE, and the reader who most needs to know
 ///
 /// **A field-name STRING is not a reference, so nothing here counts one.**
 /// `/ResetForm` and `/SubmitForm` name their targets in `/Fields`, and

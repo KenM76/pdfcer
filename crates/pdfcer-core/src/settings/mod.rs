@@ -290,7 +290,7 @@ impl LoadReport {
 /// this the textbook case for R169: the standard is silent, so the choice
 /// is the operator's.
 ///
-/// # ★★ THE DEFAULT, AS DATA
+/// # THE DEFAULT, AS DATA
 ///
 /// ```text
 ///   shipped default : Calibrated       (operator ruling, 2026-08-28)
@@ -298,7 +298,7 @@ impl LoadReport {
 ///   they differ     : NO. They agree.
 /// ```
 ///
-/// # ★★★ THEY DID NOT ALWAYS AGREE, AND THE HISTORY IS LOAD-BEARING
+/// # THEY DID NOT ALWAYS AGREE, AND THE HISTORY IS LOAD-BEARING
 ///
 /// From 2026-08-08 to 2026-08-28 the shipped default was
 /// [`Self::NeutralBlack`], by Ken's explicit ruling ("flip it") once he saw
@@ -310,14 +310,14 @@ impl LoadReport {
 /// *"under the colour setting we are going to change our default to Match
 /// other PDF viewers."*
 ///
-/// ★ The reversal is recorded rather than erased for one specific reason:
+/// The reversal is recorded rather than erased for one specific reason:
 /// **`NeutralBlack`'s reasoning did not stop being true.** Pure-K line art
 /// still renders `#231F20` under the new default, and that is still not what
 /// a CAD operator expects. What changed is which of two good answers ships
 /// first. A future session finding a drawing's blacks "wrong" should reach
 /// for [`Self::NeutralBlack`], not treat it as a defect.
 ///
-/// # ★★ A NOTE THAT DIED WITH ITS DIVERGENCE, AND WHY THAT MATTERED
+/// # A NOTE THAT DIED WITH ITS DIVERGENCE, AND WHY THAT MATTERED
 ///
 /// This block previously carried a long argument that pdfcer's default
 /// *knowingly diverged* from Acrobat, written after `pdfce-gui` misread the
@@ -329,7 +329,7 @@ impl LoadReport {
 /// divergence ends, actively misinforms. `pdfcer-gui` made the same call on
 /// their side and deleted their divergence note rather than rewording it.
 ///
-/// ★ The generalisable half survives the deletion and is kept here because
+/// The generalisable half survives the deletion and is kept here because
 /// it outlived its example: **a doc comment that describes a default as a
 /// divergence invites being read as a divergence in VALUE.** State the
 /// shipped default and the best-evidenced answer as two lines of data. When
@@ -340,7 +340,7 @@ impl LoadReport {
 /// What pdfcer does when the operator asks for **bold or italic** and the
 /// ideal face may or may not be there (`Pass 179.0`, decision 106).
 ///
-/// # ★ The operator ruled this, twice, and the second half is why it is a
+/// # The operator ruled this, twice, and the second half is why it is a
 /// setting rather than a constant
 ///
 /// First (2026-08-30): *"bold font should be automatically used if available,
@@ -429,7 +429,7 @@ pub enum CmykIntent {
     /// Its visible consequence is that solid black ink (`0 0 0 1 k`) renders
     /// `#231F20` rather than `#000000`, and mid greys come out slightly cool.
     ///
-    /// ★ **`#231F20` IS ONE OF TWO ANSWERS, ONE COUNT APART, AND BOTH ARE
+    /// **`#231F20` IS ONE OF TWO ANSWERS, ONE COUNT APART, AND BOTH ARE
     /// CORRECT.** Measured 2026-08-29 with the ink probe (`Pass 174.0`) on one
     /// page rendered both ways:
     ///
@@ -453,7 +453,7 @@ pub enum CmykIntent {
     /// `grep` will find them, and a count stated here would be one more number
     /// nothing keeps true.
     ///
-    /// # ★★ THE SECOND HALF OF THAT SENTENCE WAS A CLAIM, AND IT HAS BEEN
+    /// # THE SECOND HALF OF THAT SENTENCE WAS A CLAIM, AND IT HAS BEEN
     /// MEASURED. It was wrong.
     ///
     /// This paragraph read, until `Pass 174.1`:
@@ -483,7 +483,7 @@ pub enum CmykIntent {
     /// So the cool cast is a divergence, not agreement, and the sentence that
     /// justified it was justifying the opposite of what it claimed.
     ///
-    /// ★ **The other half of the claim SURVIVES, and separating them is the
+    /// **The other half of the claim SURVIVES, and separating them is the
     /// point of stating both.** `Calibrated` tracks the reference's
     /// *lightness* closely — `99` against `98` at `K = 0.749` — where a naive
     /// `1 − K` formula would have given `64`, more than thirty counts out.
@@ -492,7 +492,7 @@ pub enum CmykIntent {
     /// to a naive conversion; it is an argument about **neutrality**, on the
     /// achromatic axis only.
     ///
-    /// ★★ **The aggregate number is the trap here, and it is recorded so the
+    /// **The aggregate number is the trap here, and it is recorded so the
     /// measurement is not re-run and re-misread.** Over the same corpus,
     /// **125 of 132** achromatic reference regions come out of pdfcer still
     /// achromatic — 95 %, which reads as a strong result and is one. Segment
@@ -502,7 +502,7 @@ pub enum CmykIntent {
     /// A fixture whose expected value equals what the code writes anyway
     /// cannot falsify anything, and 125 of those 132 were that fixture.
     ///
-    /// # ★★ A THIRD INDEPENDENT LINE ARRIVED, AND IT MOVES THE "THIN BASIS"
+    /// # A THIRD INDEPENDENT LINE ARRIVED, AND IT MOVES THE "THIN BASIS"
     /// SENTENCE BELOW
     ///
     /// The paragraph after this one says two grey levels is a thin basis for
@@ -532,7 +532,7 @@ pub enum CmykIntent {
     /// the operator ruled the default — but a future session weighing the
     /// evidence should weigh three lines, not two.
     ///
-    /// # ★★★ AND THE BLACK END IS A FALSE-DEFECT TRAP — pdfcer IS THE CLOSER
+    /// # AND THE BLACK END IS A FALSE-DEFECT TRAP — pdfcer IS THE CLOSER
     /// ANSWER THERE, WHICH THE TABLE DOES NOT SHOW
     ///
     /// The same 49-operand comparison disagrees far more at the dark end
@@ -562,7 +562,7 @@ pub enum CmykIntent {
     /// the `#231F20` this type documents for K-only black, i.e. pdfcer matches
     /// the reference here and `iccce` does not.
     ///
-    /// ★ **Recorded because the trap is asymmetric and invisible in the
+    /// **Recorded because the trap is asymmetric and invisible in the
     /// numbers.** The SAME comparison makes pdfcer look wrong on the grey axis
     /// (it is) and wrong on the black end (it is not), and nothing in the
     /// table distinguishes the two. A session that "fixes" the black end
@@ -571,7 +571,7 @@ pub enum CmykIntent {
     /// better"* is the wrong question — different regions, different answers,
     /// different causes.
     ///
-    /// ★ **Not a fitting target either way.** `iccce`'s own position, held to
+    /// **Not a fitting target either way.** `iccce`'s own position, held to
     /// symmetrically: *"you should not hand-tune toward these 49 numbers any
     /// more than I should tune toward the Acrobat capture."* 49 pixels bought
     /// at the cost of every other one is the trade decision 064 exists to
@@ -640,7 +640,7 @@ pub enum CmykIntent {
 /// [`Self::DeviceNative`] is **conforming but degenerate**, never
 /// "unspecified".
 ///
-/// ★ And the degeneracy is **structural, not approximate**. §11.7.4.3's
+/// And the degeneracy is **structural, not approximate**. §11.7.4.3's
 /// second bullet makes `B(c_b, c_s)` equal `c_s` for every component
 /// *"specified in the current colour space"*; in sRGB every source colour
 /// has already been converted to all three components, so every component
@@ -665,7 +665,7 @@ pub enum CmykIntent {
 /// (`Pass 143.0`) — turned into a setting per the standing practice rather
 /// than decided silently.
 ///
-/// # ★★★ WHAT THIS IS, CORRECTED 2026-08-29 (`Pass 174.5`): IT IS A
+/// # WHAT THIS IS, CORRECTED 2026-08-29 (`Pass 174.5`): IT IS A
 /// DIVERGENCE UNDER ISO 32000-1, NOT A TWO-READINGS SILENCE
 ///
 /// This block, and this type's own first line, said *"a genuine spec
@@ -688,7 +688,7 @@ pub enum CmykIntent {
 ///    point is the only one the previous wording had, and alone it does read
 ///    like a silence.)
 ///
-/// ★★ **ISO 32000-2 DELETES TWO OF THE THREE**, so the question is
+/// **ISO 32000-2 DELETES TWO OF THE THREE**, so the question is
 /// **edition-gated**: 2.0 replaces the computed-colour sentence with a bare
 /// *"images or shadings"*, and drops the opaque-model table entirely. Under
 /// 2.0 this is much closer to a real silence. Under 1.7 it is not.
@@ -696,7 +696,7 @@ pub enum CmykIntent {
 /// ⇒ **[`Self::GreyAsKOnly`], the shipped default, is a deliberate
 /// divergence from ISO 32000-1**, and it must be *described* as a divergence.
 ///
-/// ★ This sentence said "…divergence from ISO 32000-1 **toward Acrobat**, and
+/// This sentence said "…divergence from ISO 32000-1 **toward Acrobat**, and
 /// it is the right default". Both halves are now qualified. It diverges toward
 /// Acrobat *over a spot backdrop* and **away** from Acrobat over process
 /// components, measured 2026-09-01 — so "toward Acrobat" is not a property of
@@ -707,7 +707,7 @@ pub enum CmykIntent {
 /// and calling it an ambiguity was quietly discharging that obligation by
 /// misnaming it.
 ///
-/// # ★ AND A TEST-DESIGN CONSEQUENCE THAT ALREADY COST A MEASUREMENT
+/// # AND A TEST-DESIGN CONSEQUENCE THAT ALREADY COST A MEASUREMENT
 ///
 /// Tables 148/149 also say: *"Any process colour space"* × **spot colorant**
 /// × `OP true` = `c_b` — **"do not paint"** — in **both** the `OPM 0` and
@@ -733,7 +733,7 @@ pub enum CmykIntent {
 /// print-conformance suite, **over a SPOT backdrop**: 84,120,34 (Acrobat, and
 /// this setting's default) versus 127,127,127 (the literal reading).
 ///
-/// ★ The qualifier "over a spot backdrop" was added 2026-09-01 and changes
+/// The qualifier "over a spot backdrop" was added 2026-09-01 and changes
 /// what this measurement supports. It is a real measurement and it still
 /// holds — but it was being read as "the default matches Acrobat", full stop,
 /// and over PROCESS components the opposite is true (Acrobat 255,255,255,
@@ -741,7 +741,7 @@ pub enum CmykIntent {
 /// pdfcer flattens the spot into C/M/Y for want of a plane, and this reading's
 /// mis-assignment then happens to preserve exactly those channels.
 ///
-/// ★ **This example is about what PDFCER does, not about what the standard
+/// **This example is about what PDFCER does, not about what the standard
 /// requires**, and the difference is the section above. Tables 148/149 put
 /// *"any process colour space" × spot colorant × `OP true`* at `c_b` under
 /// **both** overprint modes — so a *conforming* engine preserves that spot
@@ -793,7 +793,7 @@ pub enum OverprintZeroTintScope {
     /// `DeviceCMYK` it converts to, so its zero C, M and Y preserve the
     /// backdrop.
     ///
-    /// ★★ **The shipped default from `Pass 143.0` to `Pass 243.0`; NOT the
+    /// **The shipped default from `Pass 143.0` to `Pass 243.0`; NOT the
     /// default since `Pass 244.0`** — see [`Self::DeviceCmykOnly`] for the
     /// measurement that moved it. Kept as a selectable value: it is what
     /// every pdfcer release up to v0.24.0 rendered, and the setting exists
@@ -806,7 +806,7 @@ pub enum OverprintZeroTintScope {
     /// default is determined by what the instrument is for, not by a
     /// preference."
     ///
-    /// # ★★ THE SENTENCE THAT USED TO END THAT PARAGRAPH IS FALSE
+    /// # THE SENTENCE THAT USED TO END THAT PARAGRAPH IS FALSE
     ///
     /// It read: *"Acrobat does this; the suite is scored against Acrobat."*
     /// It is quoted rather than deleted because it is the entire stated
@@ -868,7 +868,7 @@ pub enum OverprintZeroTintScope {
     /// practice — but *"changes little"* is a prediction, and the suite
     /// contains no patch that would falsify it.
     ///
-    /// ★ The specific hazard, stated so it is not discovered later: pdfcer's
+    /// The specific hazard, stated so it is not discovered later: pdfcer's
     /// RGB→CMYK is a **naive** conversion, so a pure red `(1, 0, 0)` becomes
     /// `C = 0` and would preserve a cyan backdrop under this setting. Whether
     /// Acrobat agrees is not known here and was not measurable with the
@@ -879,7 +879,7 @@ pub enum OverprintZeroTintScope {
 impl OverprintZeroTintScope {
     /// Parse a settings-file / command-line token, or `None` if unknown.
     ///
-    /// ★ ONE VOCABULARY, TWO READERS. The settings parser and
+    /// ONE VOCABULARY, TWO READERS. The settings parser and
     /// `pdfcer render-page --overprint-zero-tint-scope` both come here, so
     /// a token the file accepts and a token the flag accepts cannot diverge.
     /// The alternative — a `match` in each — is two spellings of one enum,
@@ -923,7 +923,7 @@ impl OverprintZeroTintScope {
 /// Which **output-device model** pdfcer renders a spot colorant against
 /// (`OP-A7`).
 ///
-/// # ★★ This is a real fork in the standard, not a quality knob
+/// # This is a real fork in the standard, not a quality knob
 ///
 /// ISO 32000-1 **§8.6.6.4** contains a `shall` that fires the moment a
 /// `Separation` colour space is *set*, long before any overprint rule is
@@ -958,13 +958,13 @@ impl OverprintZeroTintScope {
 /// yellow, overprinting) shows the two paths giving *"dramatically different
 /// colours"*, with the composite one wrong.
 ///
-/// ★ **Stated honestly, because the asymmetry is real:** the default has
+/// **Stated honestly, because the asymmetry is real:** the default has
 /// **no ISO 32000-1 basis whatsoever**. It is the recommended branch of an
 /// *optional* 2.0 feature. "On the recommended branch" is a weaker claim
 /// than "the conforming one", and an earlier decision record made the
 /// stronger one before this clause was found.
 ///
-/// # ★ The consequence for any test that uses another engine as an oracle
+/// # The consequence for any test that uses another engine as an oracle
 ///
 /// A viewer in composite mode ([`Self::AlternateSpaceSubstitution`]) and one
 /// simulating separations produce **different, both-correct** pixels for the
@@ -1225,7 +1225,7 @@ pub enum MaskResample {
 ///
 /// # Default: [`Self::Smooth`] — **EVIDENCE TIER (c)**, flipped 2026-08-25
 ///
-/// ★ **This default changed, and it changed because the condition written
+/// **This default changed, and it changed because the condition written
 /// into this very comment was met rather than because anybody argued for
 /// it.** The prior text read:
 ///
@@ -1240,7 +1240,7 @@ pub enum MaskResample {
 /// unprompted that image quality on ordinary pages was *"a little worse
 /// than it was, whereas before it was on par with Acrobat Reader"*.
 ///
-/// ★★ **The load-bearing detail is that he described the MECHANISM from
+/// **The load-bearing detail is that he described the MECHANISM from
 /// the symptom, without being told it existed** — *"an image quality
 /// setting to discard smaller details than the screen sees"* is
 /// [`Self::PointSample`], exactly. A report that names the mechanism
@@ -3303,7 +3303,7 @@ pub enum SaveError {
 /// write.
 #[must_use]
 pub fn resolve_store() -> StoreLocation {
-    // ★ RESOLVED ONCE PER PROCESS, and that is a correctness property rather
+    // RESOLVED ONCE PER PROCESS, and that is a correctness property rather
     // than a performance one.
     //
     // The `pdfcer-gui` session's report (2026-08-13) found the write probe's
@@ -3401,7 +3401,7 @@ fn directory_is_writable(dir: &Path) -> bool {
     if std::fs::create_dir_all(dir).is_err() {
         return false;
     }
-    // ★ THE PROBE NAME MUST BE UNIQUE PER CALL.
+    // THE PROBE NAME MUST BE UNIQUE PER CALL.
     //
     // Until 2026-08-13 this was the fixed name `.pdfcer-write-probe`, shared by
     // every caller in every thread and every process. One caller's
@@ -3456,7 +3456,7 @@ mod probe_race_tests {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    /// ★ Concurrent probes of ONE writable directory must all answer true.
+    /// Concurrent probes of ONE writable directory must all answer true.
     ///
     /// Reported by the `pdfcer-gui` session with a measured reproduction: the
     /// probe used a fixed filename, so one caller's `remove_file` raced
@@ -3521,7 +3521,7 @@ mod probe_race_tests {
         );
     }
 
-    /// ★ Every caller in a process gets the SAME store, by construction.
+    /// Every caller in a process gets the SAME store, by construction.
     ///
     /// The reported defect's sharpest symptom was two callers in one process
     /// disagreeing — the layout store resolving `Portable` while the recent
@@ -3632,7 +3632,7 @@ mod tests {
         // pinned to the variant the pre-settings code hard-coded.
         let d = Settings::default();
         assert_eq!(d.mask_resample, MaskResample::Nearest, "mask.rs was NN");
-        // ★ DELIBERATE EXCEPTION #2 — `image_minify`, 2026-08-25, and it is
+        // DELIBERATE EXCEPTION #2 — `image_minify`, 2026-08-25, and it is
         // an OPERATOR OBSERVATION, not a later session flipping a default on
         // its own authority.
         //
@@ -3649,7 +3649,7 @@ mod tests {
         // symptom, unprompted, which is the strongest form the observation
         // could take.
         //
-        // ★★ WHY THIS DOES NOT WEAKEN THE GUARANTEE THIS TEST EXISTS FOR.
+        // WHY THIS DOES NOT WEAKEN THE GUARANTEE THIS TEST EXISTS FOR.
         // The guarantee is that ADDING A KNOB changes nothing — that a
         // session cannot smuggle a behaviour change in behind a setting.
         // It is NOT that a default may never change afterwards on evidence:
@@ -3749,7 +3749,7 @@ mod tests {
         // matching the default on the way back in.
         let written = Settings {
             separations: SeparationPolicy::Discard,
-            // ★ Was `Calibrated`, WHICH IS THE DEFAULT -- so this one field
+            // Was `Calibrated`, WHICH IS THE DEFAULT -- so this one field
             // broke the discipline the comment above states, and if
             // `write_to_string` had forgotten `cmyk_intent` entirely this
             // test would have passed. Found 2026-08-30 while adding
@@ -4027,7 +4027,7 @@ mod tests {
 
     #[test]
     fn every_line_of_the_written_file_is_a_comment_a_setting_or_a_blank() {
-        // ★ WHY THIS EXISTS, AND IT IS NOT HYPOTHETICAL.
+        // WHY THIS EXISTS, AND IT IS NOT HYPOTHETICAL.
         //
         // The file's comment block is one enormous Rust string literal held
         // together by `\n\` line continuations. Lose one backslash and the

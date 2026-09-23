@@ -15,7 +15,7 @@
 //! operator can act on. **A remedy computed correctly and then made
 //! unreachable is the same as not computing it.**
 //!
-//! # ★★ The assertion that matters is the AGREEMENT
+//! # The assertion that matters is the AGREEMENT
 //!
 //! Not "the field is non-empty" — that would pass on a field populated from a
 //! second, independent computation that had drifted from the sentence. The
@@ -67,7 +67,7 @@ fn the_refusal_carries_the_faces_its_message_names() {
         refusal.message
     );
 
-    // ★ The agreement, rebuilt rather than parsed: take the FIELD, run it
+    // The agreement, rebuilt rather than parsed: take the FIELD, run it
     // through the one clause producer, and require the result to be present in
     // the message verbatim. Two computations that merely agree today would
     // pass a weaker test and drift tomorrow.
@@ -82,7 +82,7 @@ fn the_refusal_carries_the_faces_its_message_names() {
 
 #[test]
 fn the_remedy_is_page_aware_not_the_naive_coverage_list() {
-    // ★★ THE WHOLE POINT, and the reason `std14_faces_covering` now carries a
+    // THE WHOLE POINT, and the reason `std14_faces_covering` now carries a
     // warning. On THIS page the font is `ABCDEF+Helvetica`, so `set_font
     // Helvetica` resolves back into the very subset that refused and the
     // follow-up edit fails word for word (measured in `Pass 279.0`). The naive

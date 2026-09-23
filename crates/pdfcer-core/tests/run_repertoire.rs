@@ -49,7 +49,7 @@ fn session(rel: &str) -> EditSession {
 /// `subset_missing.pdf` — font `ABCDEF+Helvetica`, an embedded SUBSET whose
 /// carried codes are exactly the letters of "the cat".
 ///
-/// ★ The right fixture for this: a full font would accept nearly everything
+/// The right fixture for this: a full font would accept nearly everything
 /// and the two directions of the equivalence would be lopsided. Here the
 /// accepted set is small and its complement is enormous, so both halves have
 /// something to say.
@@ -69,7 +69,7 @@ fn edit_accepts(rel: &str, find: &str, replace: &str) -> bool {
     .is_ok()
 }
 
-/// ★★★ THE CONTRACT, MEASURED OVER THE WHOLE SET — accepted ⇒ not refused.
+/// THE CONTRACT, MEASURED OVER THE WHOLE SET — accepted ⇒ not refused.
 #[test]
 fn every_accepted_character_is_one_edit_text_accepts() {
     let s = session(SUBSET);
@@ -94,7 +94,7 @@ fn every_accepted_character_is_one_edit_text_accepts() {
     }
 }
 
-/// ★★ THE OTHER DIRECTION — rejected ⇒ actually refused.
+/// THE OTHER DIRECTION — rejected ⇒ actually refused.
 ///
 /// Without this, a repertoire that accepted every character in Unicode would
 /// pass the test above.
@@ -128,7 +128,7 @@ fn a_rejected_character_is_one_edit_text_refuses() {
     );
 }
 
-/// ★ The claim about `R-INV-5` I refused to promise without measuring.
+/// The claim about `R-INV-5` I refused to promise without measuring.
 ///
 /// A word made only of accepted characters must itself be accepted. The
 /// tie-break seed grows as a word is encoded, so per-character acceptance
@@ -230,7 +230,7 @@ fn a_full_embedded_font_accepts_more_than_a_subset_does() {
     assert!(!a.embedded_subset, "embedded_full.pdf is not a subset");
 }
 
-/// ★ The requester's second ask, by name: *"a run whose font has no usable
+/// The requester's second ask, by name: *"a run whose font has no usable
 /// encoding at all should answer 'nothing' rather than error, so the editor
 /// can decline to open rather than open and refuse every key."*
 #[test]
@@ -260,7 +260,7 @@ fn a_run_with_no_usable_encoding_answers_nothing_and_says_why() {
 /// A composite (Type 0 / CIDFont) run is answered too, and by the same
 /// contract.
 ///
-/// ★ Without this the whole file would measure only the simple-font branch,
+/// Without this the whole file would measure only the simple-font branch,
 /// and the composite one — a different encoder, a different floor test — would
 /// ship on the strength of the other's tests. That is this project's most
 /// frequently recorded defect shape.
@@ -281,7 +281,7 @@ fn a_composite_run_is_answered_by_the_same_contract() {
     }
 }
 
-/// ★★ THE COMPOSITE SUBSET FLOOR, on the one fixture that can see it.
+/// THE COMPOSITE SUBSET FLOOR, on the one fixture that can see it.
 ///
 /// Disabling the composite floor stayed **green** against every other test in
 /// this file: `composite-editable.pdf`'s font addresses exactly the three
@@ -312,7 +312,7 @@ fn the_composite_subset_floor_removes_a_character_the_font_addresses() {
     );
 }
 
-/// ★ An empty repertoire owes a REASON even when nothing errored.
+/// An empty repertoire owes a REASON even when nothing errored.
 ///
 /// `cidfonttype2-noninjective-tounicode.pdf`'s font addresses characters —
 /// every one of them by more than one code, so none can be edited
@@ -334,7 +334,7 @@ fn an_empty_repertoire_says_why_even_when_nothing_errored() {
     );
 }
 
-/// ★ The reported text is the RESOLVED run, not the caller's `find`.
+/// The reported text is the RESOLVED run, not the caller's `find`.
 ///
 /// A pinned request with an empty `find` means the whole show operator, and a
 /// caller that cannot read back which run was answered about is guessing. The

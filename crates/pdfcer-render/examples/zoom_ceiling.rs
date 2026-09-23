@@ -28,7 +28,7 @@
 //! which it exceeds one pixel — beyond that the operator is looking at a
 //! picture that no longer corresponds to the page.
 //!
-//! # ★ Both the position and the scale are deliberately NON-ROUND
+//! # Both the position and the scale are deliberately NON-ROUND
 //!
 //! The first version of this harness used `x = 3000.0` and scales that were
 //! exact powers of two. It reported **error 0.000 at every scale up to

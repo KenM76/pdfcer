@@ -445,7 +445,7 @@ fn the_paper_scale_warning_is_emitted_once_for_the_whole_run() {
     );
 }
 
-/// **★ An EXPLICIT `--scale 1` is not lectured at.**
+/// **An EXPLICIT `--scale 1` is not lectured at.**
 ///
 /// The defect this test was written after. The warning was gated on the
 /// pages being uncalibrated and the scale being 1, but not on who chose

@@ -19,7 +19,7 @@
 //! settles it, and it cannot be manufactured by more careful reasoning on
 //! their side. pdfcer has the corpus; they do not.
 //!
-//! ## ★ Why this tool does not violate the iccce boundary
+//! ## Why this tool does not violate the iccce boundary
 //!
 //! `ARCHITECTURE.md` §12 decision 064 gives `iccce` **all colour conversion**
 //! in this ecosystem, and pdfcer must never grow a CMM.
@@ -155,7 +155,7 @@ struct Profile {
     /// the header's colour-space signature (§7.2.10) rather than from the
     /// PDF's `/N` entry.
     ///
-    /// ★ Read from the profile, not from the PDF, **on purpose** — and this
+    /// Read from the profile, not from the PDF, **on purpose** — and this
     /// is what makes axis 7 possible at all. §8.6.5.5 requires the PDF's `/N`
     /// to agree with the profile; whether it does in the wild is the
     /// requester's third ask, and it cannot be answered by a tool that trusts
@@ -213,7 +213,7 @@ struct Profile {
     channel_disagreement: Option<(u8, u8)>,
     /// Whether a LUT tag existed to compare against at all.
     ///
-    /// ★ Split out from [`Self::channel_disagreement`] deliberately. The
+    /// Split out from [`Self::channel_disagreement`] deliberately. The
     /// first draft bucketed *"agree"* and *"there was nothing to compare"*
     /// together, and reported 100 % agreement across 2,494 embeddings — a
     /// number that looks like a strong negative result and would have been
@@ -246,7 +246,7 @@ enum TransformShape {
     MatrixPara,
     /// `kTRC` only, no matrix and no LUT: a monochrome profile (§8.3.3).
     ///
-    /// ★ The request called this shape out by name — *"one profile is 4 tags
+    /// The request called this shape out by name — *"one profile is 4 tags
     /// and `kTRC`-only […] structurally degenerate […] a shape a CMM will get
     /// wrong if it has only ever seen CLUT profiles"*.
     KTrcOnly,
@@ -288,7 +288,7 @@ enum Reference {
     IccBased,
     /// Found by signature and reachable by no path this tool recognises.
     ///
-    /// ★ **This bucket is itself a measurement**: it is how much of the
+    /// **This bucket is itself a measurement**: it is how much of the
     /// population a reference-following census would silently have dropped.
     Unclassified,
 }
@@ -692,7 +692,7 @@ struct Census {
     undecodable_streams: usize,
     /// fingerprint → (profile, how many embeddings, which references)
     distinct: HashMap<u64, (Profile, usize, BTreeMap<Reference, usize>)>,
-    /// ★ MEASURED PER EMBEDDING, not extrapolated from one sample per
+    /// MEASURED PER EMBEDDING, not extrapolated from one sample per
     /// distinct profile.
     ///
     /// The first draft of this tool weighted a distinct profile's

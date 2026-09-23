@@ -449,7 +449,7 @@ fn list_layers_matches_read_layers_on_a_real_file() {
     assert_eq!(list_layers(&doc), read_layers(&doc).layers);
 }
 
-/// ★ **A group in both `/ON` and `/OFF` resolves to the OPPOSITE
+/// **A group in both `/ON` and `/OFF` resolves to the OPPOSITE
 /// array's answer, and is disclosed** (decision 038).
 ///
 /// Table 101's `/ON` row says the array is *redundant* when
@@ -528,7 +528,7 @@ fn an_unrecognised_base_state_recovers_as_on_and_discloses_it() {
     assert!(!read.diagnostics.is_faithful());
 }
 
-/// ★ **Decision 037's open question, pinned at TODAY's answer.**
+/// **Decision 037's open question, pinned at TODAY's answer.**
 ///
 /// Under `/BaseState /OFF`, does "all the optional content groups in a
 /// document" (Table 101) mean every group in the file, or only those

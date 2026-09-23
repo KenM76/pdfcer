@@ -72,7 +72,7 @@
 //! justified by which way the damage runs: a missed style is a cosmetic
 //! difference the operator can see; a dropped run is text that vanishes.
 //!
-//! ## ★ Appearance generation is NOT specified, and that is load-bearing
+//! ## Appearance generation is NOT specified, and that is load-bearing
 //!
 //! §12.7.3.3 explicitly switches OFF its own appearance-generation
 //! conventions for rich-text fields and **puts nothing in their place** —

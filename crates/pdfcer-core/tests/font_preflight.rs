@@ -335,7 +335,7 @@ fn an_empty_find_with_a_pin_surveys_the_whole_operator_not_zero_characters() {
     // coverage against `"".chars()` — which yields nothing, so no character
     // could fail to encode and EVERY face came back accepted.
     //
-    // ★ The failure was SILENT and INVERTED: the list looked richer, not
+    // The failure was SILENT and INVERTED: the list looked richer, not
     // broken. A query written to stop a shell offering unusable faces became
     // an unconditional yes — strictly worse than the `fontinfo` name-join
     // superset it exists to replace.
@@ -395,7 +395,7 @@ fn the_preflight_and_format_text_agree_about_an_empty_find() {
 
 #[test]
 fn an_empty_find_with_no_pin_is_refused_by_the_same_name_the_commit_path_uses() {
-    // ★ THIS TEST CAUGHT A WRONG ASSUMPTION IN THE FIX ABOVE, and that is why
+    // THIS TEST CAUGHT A WRONG ASSUMPTION IN THE FIX ABOVE, and that is why
     // it is written as its own case rather than folded in.
     //
     // The first cut of `Pass 147.0` fixed the PINNED half and assumed the
@@ -441,7 +441,7 @@ fn presence_of(p: &FontPreflight, base_font: &str) -> Option<String> {
     None
 }
 
-/// ★★★ THE ANSWER TO A QUESTION THE REGISTER CARRIED AS OWED (`Pass 301.2`).
+/// THE ANSWER TO A QUESTION THE REGISTER CARRIED AS OWED (`Pass 301.2`).
 ///
 /// # The question
 ///
@@ -483,7 +483,7 @@ fn a_subset_of_a_standard_14_name_reports_on_page_not_would_add() {
          `would-add` promises an authoring step that does not happen"
     );
 
-    // ★ The fix must NARROW the label, not flatten it. A face genuinely
+    // The fix must NARROW the label, not flatten it. A face genuinely
     // absent from this page still reads as would-be-added.
     assert_eq!(
         presence_of(&p, "Helvetica-Bold"),

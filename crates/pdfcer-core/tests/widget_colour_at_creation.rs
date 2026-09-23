@@ -13,7 +13,7 @@
 //! reaches the `/MK` dictionary and the `/AP` artwork from **one place**, so
 //! they cannot be written out of step.
 //!
-//! ## ★ The phantom border, which is the interesting half
+//! ## The phantom border, which is the interesting half
 //!
 //! `add_text_field` and `add_choice_field` wrote `/MK` `/BC [0 0 0]` and
 //! handed the appearance builder nothing. The dictionary claimed a black
@@ -276,7 +276,7 @@ fn a_push_button_can_be_created_with_no_plate_at_all() {
 }
 
 // -------------------------------------------------------------------------
-// ★ The phantom `/BC [0 0 0]` is retired
+// The phantom `/BC [0 0 0]` is retired
 // -------------------------------------------------------------------------
 
 #[test]
@@ -535,7 +535,7 @@ fn a_second_widget_merged_into_one_field_carries_its_own_colour() {
 }
 
 // -------------------------------------------------------------------------
-// ★ Absent is no longer a one-way door (`Pass 308.3`, request `G021`)
+// Absent is no longer a one-way door (`Pass 308.3`, request `G021`)
 // -------------------------------------------------------------------------
 //
 // `WidgetEdit` wrapped its two colour setters in one `Option` whose `None`

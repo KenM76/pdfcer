@@ -232,7 +232,7 @@ pub enum ReflowApplyError {
     /// stream, and reflow re-emits the page's first content stream only —
     /// so committing would drop the added run (`Pass 251.0`'s guard).
     ///
-    /// # ★★ This is the ONLY reflow refusal the operator can act on
+    /// # This is the ONLY reflow refusal the operator can act on
     ///
     /// **Save the document and reopen it, then reflow — it works.** Every
     /// other reason reflow declines is a property of how the page was drawn
@@ -279,7 +279,7 @@ pub enum ReflowApplyError {
     /// ⇒ It is therefore still the variant [`ReflowApplyError::is_recoverable`]
     /// reports as recoverable, and nothing constructs it.
     ///
-    /// ★ **KEEPING IT IS A DECISION, NOT AN OMISSION** — `pdfcer-gui`'s, made
+    /// **KEEPING IT IS A DECISION, NOT AN OMISSION** — `pdfcer-gui`'s, made
     /// 2026-09-14 when asked directly whether it should go. Their reasons, so
     /// nobody re-derives them:
     ///
@@ -330,7 +330,7 @@ pub enum ReflowApplyError {
 /// them**, so the question the shell actually needs answered would still be
 /// unanswerable.
 ///
-/// ★★ **And `RefusalKind` could not simply grow a fifth variant**, because
+/// **And `RefusalKind` could not simply grow a fifth variant**, because
 /// the reply that shipped it made a written promise on the request channel:
 /// it is deliberately **not** `#[non_exhaustive]` so a consumer's `match` is
 /// compiler-proved complete, and *"growing the enum is a deliberate breaking

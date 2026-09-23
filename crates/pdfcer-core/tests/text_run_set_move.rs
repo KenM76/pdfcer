@@ -133,7 +133,7 @@ fn close(a: Bounds, b: Bounds, dx: f64, dy: f64) -> bool {
         && (a.max.y + dy - b.max.y).abs() <= EPS
 }
 
-/// ★★★ **The whole claim**, over every subset of every source.
+/// **The whole claim**, over every subset of every source.
 #[test]
 fn every_accepted_set_moves_exactly_its_members() {
     let (dx, dy) = (7.0, -30.0);

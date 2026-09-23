@@ -9,7 +9,7 @@
 //! a licence pdfcer would rather not *redistribute* inside an MIT portable
 //! folder.
 //!
-//! ★★ **THE WITHDRAWAL RECORDED HERE IS DEAD, AND THIS MODULE'S OWN TITLE
+//! **THE WITHDRAWAL RECORDED HERE IS DEAD, AND THIS MODULE'S OWN TITLE
 //! WAS WRONG FOR TWELVE DAYS.** Corrected 2026-08-25.
 //!
 //! This module header used to say *"and why pdfcer does not download them"*,
@@ -51,7 +51,7 @@
 //! found. Both remain true, and neither is a workaround for a prohibition
 //! that no longer exists.
 //!
-//! ★ **What decision 061 did NOT relax**, stated because an operator
+//! **What decision 061 did NOT relax**, stated because an operator
 //! narrowing one clause is not consent to widen its neighbour: no telemetry,
 //! no analytics, no crash reporting, no licence callback, and **no startup
 //! update check**. Every fetch is one an operator asked for at the moment it
@@ -72,7 +72,7 @@
 //! does nothing until they go and find a model. That would be a real cost and
 //! it is not the design.
 //!
-//! ★ **The arrangement this paragraph used to predict is not the one that
+//! **The arrangement this paragraph used to predict is not the one that
 //! shipped, and the difference is worth stating rather than quietly
 //! rewriting.** It said the multi-language engine's permissive weights would
 //! be bundled and only the CC-BY-SA-4.0 WASM-capable engine's would be
@@ -304,7 +304,7 @@ mod tests {
         assert_eq!(got, ModelSource::OperatorSupplied(explicit));
     }
 
-    /// ★ A named path that does NOT exist is an error, never a silent fallback.
+    /// A named path that does NOT exist is an error, never a silent fallback.
     ///
     /// Falling back to a bundled copy here would run a different model from
     /// the one the operator pointed at, while reporting success. They would
@@ -335,7 +335,7 @@ mod tests {
         assert_eq!(got, ModelSource::BesideExecutable(models));
     }
 
-    /// ★ When nothing is found, EVERY searched path is reported.
+    /// When nothing is found, EVERY searched path is reported.
     ///
     /// "Models not found" is unactionable. The list is what tells the operator
     /// where to put the files — and often reveals that they put them somewhere

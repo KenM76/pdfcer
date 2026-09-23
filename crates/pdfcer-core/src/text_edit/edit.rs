@@ -78,7 +78,7 @@
 //! editing (R-INV-4), NO add-new-text (FF-D). The `'`/`"` show operators are a
 //! named non-goal of this cut.
 //!
-//! ## ★ `Pass 119.0` — the target is no longer assumed to be the page
+//! ## `Pass 119.0` — the target is no longer assumed to be the page
 //!
 //! **Form-XObject content was a named non-goal of the 14.1 cut, and that
 //! sentence stood here until 2026-08-20.** It is now false, and the correction
@@ -372,7 +372,7 @@ pub struct EditRequest {
     /// a caller could only ask one of them at a time:
     ///
     /// - **`find` alone** says *what* to edit and lets pdfcer pick an
-    ///   occurrence. ★ And **not** "the first one": `find_anchor` tries a
+    ///   occurrence. And **not** "the first one": `find_anchor` tries a
     ///   single-operator match across the *whole page* before the spanning
     ///   search runs, so a single-operator occurrence anywhere beats a
     ///   spanning one above it — which makes a spanning run **unreachable**
@@ -385,7 +385,7 @@ pub struct EditRequest {
     /// knows which operator the operator touched; it just had no way to say
     /// *"start here, and keep going"*.
     ///
-    /// ★★ **THIS PASS HAS NO KNOWN FILE ON WHICH IT BITES, AND THAT IS
+    /// **THIS PASS HAS NO KNOWN FILE ON WHICH IT BITES, AND THAT IS
     /// RECORDED RATHER THAN QUIETLY DROPPED.**
     ///
     /// It was requested citing a bill-of-materials sheet an operator could not
@@ -438,7 +438,7 @@ impl EditRequest {
     /// (`Pass 152.0`) — the twin of
     /// [`FormatRequest::whole_operator`](crate::text_edit::FormatRequest::whole_operator).
     ///
-    /// # ★★ Why this exists when the behaviour already did
+    /// # Why this exists when the behaviour already did
     ///
     /// It is a **discoverability** fix, and the cost of not having it is
     /// measured rather than assumed. The mechanism — an empty `find` with a
@@ -455,7 +455,7 @@ impl EditRequest {
     /// They then listed three ways they had tried to *describe* an operator
     /// they had already *located*.
     ///
-    /// ★ A capability nobody can find is not shipped, and no gate in this
+    /// A capability nobody can find is not shipped, and no gate in this
     /// project can detect that: the code is correct, the test is green, the
     /// sentence is true. The only symptom is somebody asking for what they
     /// already have.
@@ -721,7 +721,7 @@ pub struct EditReport {
     /// The form XObject the edit went into, or `None` when the edit rewrote
     /// the page's own `/Contents` (`Pass 119.0`).
     pub form_object: Option<u32>,
-    /// ★ **How many places in the document paint the edited form** — the
+    /// **How many places in the document paint the edited form** — the
     /// fan-out of the edit, counted document-wide and transitively through
     /// nesting. `1` for the ordinary case; `0` when the edit was not in a form.
     ///
@@ -773,7 +773,7 @@ pub enum EditError {
     /// stream. A shell cannot word its own message without being able to tell
     /// them apart.
     ///
-    /// ★ **This message has now misled twice.**
+    /// **This message has now misled twice.**
     /// [`pin_names_operator`]'s own doc comment records the `Pass 19.3`
     /// incident with the identical symptom — a perfectly ordinary page
     /// refusing with "was not found" — and the consuming shell spent an
@@ -1910,7 +1910,7 @@ pub(crate) fn plan_edit_target(
     // establish the match before applying it. For a simple font nothing
     // changes — the same call, the same inputs, a few lines earlier.
     //
-    // ★ `target.resources`, not the page's (`Pass 119.0`). Inside a form
+    // `target.resources`, not the page's (`Pass 119.0`). Inside a form
     // XObject the SAME NAME `/F1` can mean a different font dictionary
     // (§8.10.1: the form executes with its own `/Resources`), so resolving a
     // form run's `Tf` against the page's dictionary would silently measure the
@@ -2042,7 +2042,7 @@ pub(crate) fn plan_edit_target(
         let carried = carried_codes(&recs, &anchor.font_name);
         for (u, &code) in req.replace.chars().zip(encoded.codes.iter()) {
             if !carried.contains(&code) {
-                // ★★ COMPUTED ONCE, spent TWICE (`Pass 296.1`). It used to be
+                // COMPUTED ONCE, spent TWICE (`Pass 296.1`). It used to be
                 // computed here and spent only on the sentence, which is how a
                 // page-aware remedy ended up reachable only by parsing prose.
                 // The structured field and the clause are now two renderings of
@@ -2060,7 +2060,7 @@ pub(crate) fn plan_edit_target(
                     character: Some(u),
                     base_font: font.base_font.clone(),
                     remedy_faces: reachable.iter().map(|&f| f.to_owned()).collect(),
-                    // ★ THE SAME REMEDY THE SIBLING REFUSAL NAMES, because an
+                    // THE SAME REMEDY THE SIBLING REFUSAL NAMES, because an
                     // operator experiences these two as one thing.
                     //
                     // This is the embedded-SUBSET floor; `InverseEncoding`'s
@@ -2084,7 +2084,7 @@ pub(crate) fn plan_edit_target(
                         u,
                         code,
                         font.base_font,
-                        // ★★ PAGE-AWARE SINCE `Pass 279.0`, and the naive
+                        // PAGE-AWARE SINCE `Pass 279.0`, and the naive
                         // list was WRONG IN ITS FIRST POSITION on the very
                         // fixture this refusal exists for.
                         //
@@ -2427,7 +2427,7 @@ pub(crate) fn edit_candidates(
 /// buffer", which is uninformative while other buffers remain untried. Only if
 /// every candidate is locational does the first one propagate.
 ///
-/// ★ This ordering is the whole reason the pre-119.0 failure was so
+/// This ordering is the whole reason the pre-119.0 failure was so
 /// misleading. A pinned edit into a form used to report *"text to edit was not
 /// found in an editable run on the page"* — naming the operator's text as the
 /// problem when the text was present and the surgery was looking at the wrong
@@ -2477,7 +2477,7 @@ const FOLLOWER_ORIGIN_EPSILON: f64 = 0.1;
 /// `left_bound` on the line — in which case it is not this line's tail, and
 /// the follower walk must stop rather than shift it.
 ///
-/// ★ `left_bound` is the origin of the **first** edited show operator, not the
+/// `left_bound` is the origin of the **first** edited show operator, not the
 /// anchor's. On a `Pass 256.0` span the anchor is the **last** operator of the
 /// run, so measuring from it puts the span's own interior `Td` steps "behind"
 /// the edit and stops the walk before it starts. Caught by
@@ -2817,7 +2817,7 @@ fn narrow_span(recs: &[OpRec], span: Anchor, req: &EditRequest) -> Option<(Ancho
 /// scale; same `f` means same baseline. A `Tm` that changes any of those is
 /// re-anchoring somewhere new, which ends the line.
 ///
-/// ★ **Same line is not the same question as "after this on the line"**, and
+/// **Same line is not the same question as "after this on the line"**, and
 /// reading it as the second was a shipped defect —
 /// [`re_anchors_before_anchor`] is the ordering half, and
 /// [`reposition_followers`] must ask both. This predicate is deliberately
@@ -2839,7 +2839,7 @@ fn same_line(anchor: &ShowData, follower: &[f64; 6]) -> bool {
         return false;
     }
     let a = &anchor.text_matrix;
-    // ★★ SCALE AND ROTATION STAY EXACT; THE BASELINE GETS A TOLERANCE.
+    // SCALE AND ROTATION STAY EXACT; THE BASELINE GETS A TOLERANCE.
     //
     // This whole comparison used to be exact, and the reasoning written here
     // was: *"both sides are the producer's own operands, parsed from the same
@@ -2869,7 +2869,7 @@ fn same_line(anchor: &ShowData, follower: &[f64; 6]) -> bool {
     // The tolerance is the same one the span walk uses for `Td` itself, for
     // the same reason and from the same measurement.
     a[0] == follower[0] && a[1] == follower[1] && a[2] == follower[2] && a[3] == follower[3] && {
-        // ★ THE TOLERANCE IS SCALED, AND GETTING THAT WRONG IS WHY THE
+        // THE TOLERANCE IS SCALED, AND GETTING THAT WRONG IS WHY THE
         // FIRST CUT FIXED ONE NOTE AND NOT THE ONE BESIDE IT.
         //
         // `SPAN_LINE_DRIFT_TOLERANCE` is in UNSCALED text units, the units
@@ -2964,7 +2964,7 @@ pub(crate) fn refuse_unsuitable_form(
 /// Every disclosure a form-XObject edit owes the operator (`Pass 119.0`,
 /// rule 4).
 ///
-/// ★ **The first one is the reason this whole Pass has a design question.**
+/// **The first one is the reason this whole Pass has a design question.**
 /// Nothing in either ISO edition binds a form XObject to a page (`FX-N1`), and
 /// §8.10.1 states multi-invocation as the *purpose* of the feature, so an
 /// in-place edit of a shared form changes content on pages the operator never
@@ -3138,7 +3138,7 @@ pub(crate) fn find_anchor_span(recs: &[OpRec], req: &EditRequest) -> Result<Anch
                 return Err(EditError::NoMatch(req.find.clone()));
             };
             let find = effective_find(s, &req.find, req.pinned_span);
-            // ★ THIS USED TO BE `.unwrap_or(0)`, AND THAT WAS A SILENT WRONG
+            // THIS USED TO BE `.unwrap_or(0)`, AND THAT WAS A SILENT WRONG
             // ANSWER (`Pass 272.0`).
             //
             // `find_anchor` returns `Ok(i)` for a resolvable pin WITHOUT ever
@@ -3261,7 +3261,7 @@ pub(crate) fn find_anchor(recs: &[OpRec], req: &EditRequest) -> Result<usize, Ed
             return Ok(i);
         }
     }
-    // ★ The two failures are told apart (`Pass 118.0`). A pinned request never
+    // The two failures are told apart (`Pass 118.0`). A pinned request never
     // reaches the text search above -- the `continue` skips it -- so reporting
     // `NoMatch(find)` here blamed the operator's own text for a pin that named
     // nothing. See `EditError::PinnedSpanNotFound` for why that sentence has
@@ -4284,7 +4284,7 @@ mod tests {
         ))
     }
 
-    /// ★★★ A BALLOON REFERENCE SPLIT ACROSS SHOW OPERATORS IS EDITABLE
+    /// A BALLOON REFERENCE SPLIT ACROSS SHOW OPERATORS IS EDITABLE
     /// (operator-reported, 2026-09-14).
     ///
     /// `ITEM 14` spans two fragments. Before this, NO route reached it — the
@@ -4315,7 +4315,7 @@ mod tests {
         );
     }
 
-    /// ★★ THE SCALING IS THE HALF THAT WAS GOT WRONG FIRST, so it is pinned
+    /// THE SCALING IS THE HALF THAT WAS GOT WRONG FIRST, so it is pinned
     /// separately.
     ///
     /// `SPAN_LINE_DRIFT_TOLERANCE` is in unscaled text units; `a[5]` carries
@@ -4344,7 +4344,7 @@ mod tests {
         .expect("the same wobble at a 1.0 text scale must span too");
     }
 
-    /// ★ AND THE TOLERANCE MUST NOT SWALLOW A REAL LINE BREAK — the assertion
+    /// AND THE TOLERANCE MUST NOT SWALLOW A REAL LINE BREAK — the assertion
     /// that stops the two above from being bought with a loosened guard.
     ///
     /// The same note's genuine leading is `0 -1.72646 Td`, three orders of
@@ -4475,7 +4475,7 @@ mod tests {
         assert!(text.contains("World"));
     }
 
-    /// ★★ A RE-ANCHOR **BACKWARDS** ON THE SAME BASELINE IS NOT THIS LINE'S
+    /// A RE-ANCHOR **BACKWARDS** ON THE SAME BASELINE IS NOT THIS LINE'S
     /// TAIL, AND MUST NOT SHIFT (`Pass 306.0`).
     ///
     /// `same_line` answers *"same baseline?"* and the follower walk was
@@ -4526,7 +4526,7 @@ mod tests {
         assert!(body.contains("60 -14 Td"), "next line unchanged");
     }
 
-    /// ★ The same guard must not suppress a REAL tail — the forward case still
+    /// The same guard must not suppress a REAL tail — the forward case still
     /// reflows, which is what stops the fix above from being an over-broad
     /// "never move a `Td` follower".
     #[test]
@@ -4545,7 +4545,7 @@ mod tests {
         );
     }
 
-    /// ★★ A `Tm` ON A DIFFERENT BASELINE IS A NEW LINE, AND MUST NOT SHIFT
+    /// A `Tm` ON A DIFFERENT BASELINE IS A NEW LINE, AND MUST NOT SHIFT
     /// (`Pass 121.1`).
     ///
     /// The reflow used to shift every following `Tm` until a
@@ -4693,7 +4693,7 @@ mod tests {
     /// have traded a refusal for the far worse failure of editing the wrong
     /// run.
     ///
-    /// # ★ THIS TEST ASSERTED THE DEFECT, and that is worth recording
+    /// # THIS TEST ASSERTED THE DEFECT, and that is worth recording
     ///
     /// It used to assert [`EditError::NoMatch`] — *"text to edit (`"cat"`) was
     /// not found in an editable run on the page"* — for a request whose text
@@ -4903,7 +4903,7 @@ mod tests {
         assert!((got - want).abs() < 0.05, "{what}: got {got}, want {want}");
     }
 
-    /// ★ G028: a SolidWorks drift `Td` is the same line, so a one-operator
+    /// G028: a SolidWorks drift `Td` is the same line, so a one-operator
     /// edit re-spaces the words after it. It used to stop at the first
     /// `-0.00057` and leave `8` sitting on top of the lengthened word.
     #[test]
@@ -4933,7 +4933,7 @@ mod tests {
         );
     }
 
-    /// ★ G028: a change spanning operators lands where the match began, and
+    /// G028: a change spanning operators lands where the match began, and
     /// the producer's gaps inside the match go with it. Before, the
     /// replacement stayed in the last operator and the line kept a hole
     /// the width of every removed gap.
@@ -4971,7 +4971,7 @@ mod tests {
         );
     }
 
-    /// ★ G028, Pin: the replacement lands where the match began AND the
+    /// G028, Pin: the replacement lands where the match began AND the
     /// text after it does not move. Pin used to skip the walk entirely.
     #[test]
     fn a_pinned_span_edit_keeps_the_tail_and_lands_at_the_start() {

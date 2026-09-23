@@ -55,7 +55,7 @@
 //! So: one crate, two shells, and `windows` confined to the only place
 //! in the workspace that talks to a spooler.
 //!
-//! # ★ Spooling is an irreversible outward-facing act
+//! # Spooling is an irreversible outward-facing act
 //!
 //! Printing consumes paper, occupies a device other people may share,
 //! and cannot be undone. Nothing in this crate starts a job as a side
@@ -507,7 +507,7 @@ pub fn printer_caps(name: &str) -> Result<PrinterCaps, PrintError> {
 
 /// A printer's capabilities **for the sheet a specific job will use**.
 ///
-/// # ★ Why selecting paper without this would be a new instance of an
+/// # Why selecting paper without this would be a new instance of an
 /// # old bug
 ///
 /// [`printer_caps`] opens an information device context with the
@@ -750,7 +750,7 @@ mod tests {
     /// margin all round.
     const LETTER_PRINTABLE: (f64, f64) = (612.0 - 36.0, 792.0 - 36.0);
 
-    /// ★ A `/Rotate 90` page is planned LANDSCAPE, because that is what
+    /// A `/Rotate 90` page is planned LANDSCAPE, because that is what
     /// the renderer produces.
     ///
     /// The two halves of the program disagreed about this until
@@ -947,7 +947,7 @@ mod tests {
         assert!(!uncapped.capped);
     }
 
-    /// ★ **An asymmetric device renders at its SMALLER axis.**
+    /// **An asymmetric device renders at its SMALLER axis.**
     ///
     /// 600×300 is real on plotters. Rendering at 600 for a device that
     /// can only place 300 dots vertically makes the driver resample —
@@ -1032,7 +1032,7 @@ mod tests {
         .sequence()
     }
 
-    /// ★ **Odd/even is by DOCUMENT page number, not position in the
+    /// **Odd/even is by DOCUMENT page number, not position in the
     /// range.**
     ///
     /// "Pages 2-9, odd" means the pages numbered 3, 5, 7, 9 — what is
@@ -1058,7 +1058,7 @@ mod tests {
         );
     }
 
-    /// ★ **Subset is applied BEFORE reverse.**
+    /// **Subset is applied BEFORE reverse.**
     ///
     /// "Even pages, reversed" is the even pages in reverse order.
     /// Reversing first and then taking every other entry yields a
@@ -1136,7 +1136,7 @@ mod tests {
     /// this read as a scaling preference rather than a defect.
     const SCALE_UNTURNED: f64 = 0.727_272_727_272_727_3;
 
-    /// ★ **The regression: a landscape page is planned against the
+    /// **The regression: a landscape page is planned against the
     /// TURNED sheet.**
     ///
     /// `Auto` on a landscape page resolves to landscape, the driver turns
@@ -1211,7 +1211,7 @@ mod tests {
         }
     }
 
-    /// ★ **Rotation is relative to the DEVICE's default, not to
+    /// **Rotation is relative to the DEVICE's default, not to
     /// portrait.**
     ///
     /// Landscape-default devices are real — wide-format plotters and
@@ -1245,7 +1245,7 @@ mod tests {
         assert_eq!(upright.physical_pt, (612.0, 792.0));
     }
 
-    /// ★ **An ASYMMETRIC margin turns with the sheet, and not by a plain
+    /// **An ASYMMETRIC margin turns with the sheet, and not by a plain
     /// swap.**
     ///
     /// The margins belong to the paper path, so they stay on the same
@@ -1319,7 +1319,7 @@ mod tests {
         assert_eq!(sheet_orientation((612.0, 792.0)), Orientation::Portrait);
     }
 
-    /// ★ **The orientation page is the first page SENT, not `pages[0]`.**
+    /// **The orientation page is the first page SENT, not `pages[0]`.**
     ///
     /// A reversed job sends its last page first. If the geometry rotation
     /// resolved `Auto` from `pages[0]` while the `DEVMODE` resolved it
@@ -1608,7 +1608,7 @@ impl JobResolution {
 /// the tests would still pass on Windows and simply stop existing
 /// elsewhere, which is the kind of coverage loss nothing reports.
 ///
-/// # ★ It carries the WHOLE sheet, not only the printable area
+/// # It carries the WHOLE sheet, not only the printable area
 ///
 /// `physical_pt` and `offset_pt` are here even though `plan_job` reads
 /// neither, and that is deliberate. They are what a preview needs to
@@ -1620,7 +1620,7 @@ impl JobResolution {
 /// second time by whoever holds the rest, which is exactly the drift
 /// this type exists to prevent.
 ///
-/// # ★ Orientation is not optional here, and that is the whole point
+/// # Orientation is not optional here, and that is the whole point
 ///
 /// This used to be reachable through an infallible
 /// `From<&PrinterCaps>`, which copied `printable_pt` verbatim. That
@@ -1709,7 +1709,7 @@ pub fn plan_job(
 /// **it is what [`spool_sheets`] does** — one `DEVMODE` per contiguous
 /// run of same-orientation sheets, applied with `ResetDC` between pages.
 ///
-/// ★ Until 2026-08-18 this heading made that claim and the code did not
+/// Until 2026-08-18 this heading made that claim and the code did not
 /// honour it. [`resolve_orientation`] is per-page-capable and was called
 /// twice, both times for the whole job, because a `DEVMODE` handed to
 /// `CreateDC` applies until something changes it and nothing did. A CAD
@@ -1815,7 +1815,7 @@ pub struct DeviceSettings {
 
 /// The size a page is DISPLAYED at, from its box and its `/Rotate`.
 ///
-/// # ★ Why the print path may not use the media box directly
+/// # Why the print path may not use the media box directly
 ///
 /// `/Rotate` (ISO 32000-1 Table 30) is a clockwise DISPLAY rotation: a
 /// 595 x 842 portrait page with `/Rotate 90` is shown, and printed, as
@@ -1945,7 +1945,7 @@ impl DeviceGeometry {
     /// This geometry as the DRIVER will present it for a job that
     /// requests `requested` and whose first page is `first_page_pt`.
     ///
-    /// # ★ The bug this exists to make unrepresentable
+    /// # The bug this exists to make unrepresentable
     ///
     /// Orientation reaches the device as `DEVMODE::dmOrientation`, which
     /// turns the SHEET. Everything pdfcer computes about where a page
@@ -1973,7 +1973,7 @@ impl DeviceGeometry {
     /// different one would put the preview and the driver back into
     /// disagreement, which is this bug again in a new place.
     ///
-    /// # ★ Why `offset_pt` rotates too, and not by a plain swap
+    /// # Why `offset_pt` rotates too, and not by a plain swap
     ///
     /// `offset_pt` is the top-left unprintable margin. The unprintable
     /// margins belong to the PAPER PATH — the gripper edge, the leading
@@ -2119,7 +2119,7 @@ pub struct DeviceFeatures {
 /// Whether a device offers `DMBIN_FORMSOURCE` — "choose the tray from
 /// the sheet size".
 ///
-/// # ★ Three states, because two would encode a claim that is false
+/// # Three states, because two would encode a claim that is false
 ///
 /// The natural design here is a `bool` mirroring
 /// [`DeviceFeatures::supports_duplex`], and it was written that way
@@ -2298,7 +2298,7 @@ fn device_capability_words(
 
 /// The paper sizes a device offers.
 ///
-/// # ★ Three parallel arrays related only by index
+/// # Three parallel arrays related only by index
 ///
 /// Win32 answers this in three separate calls — `DC_PAPERS` for the
 /// `dmPaperSize` ids, `DC_PAPERNAMES` for 64-character names, and
@@ -2499,7 +2499,7 @@ pub fn printer_configuration(printer: &str) -> Result<PrinterConfiguration, Prin
 
 /// Let the operator edit a device's settings in the DRIVER's own dialog.
 ///
-/// # ★ Why a UI call lives in a crate with no UI dependency
+/// # Why a UI call lives in a crate with no UI dependency
 ///
 /// It is arguable, so here is the reasoning rather than an assertion.
 ///
@@ -2578,7 +2578,7 @@ enum Prompt {
 ///    result (`IDOK` = 1, `IDCANCEL` = 2); without it, `IDOK` on success.
 ///    A negative return is failure.
 ///
-/// # ★ `DM_IN_PROMPT` and `DM_PAPERLENGTH` are the same number
+/// # `DM_IN_PROMPT` and `DM_PAPERLENGTH` are the same number
 ///
 /// Win32 has two unrelated families of `DM_*` constants — the `fMode`
 /// flags for this function, and the `dmFields` flags inside the
@@ -2834,7 +2834,7 @@ pub struct Sheet<'a> {
 
 /// Whether [`spool`] actually starts a print job.
 ///
-/// # ★ Not a testing convenience — the development mode
+/// # Not a testing convenience — the development mode
 ///
 /// [`DryRun::Yes`] performs every step except the four that reach the
 /// spooler (`StartDoc`, `StartPage`, `EndPage`, `EndDoc`) and the blit.
@@ -2921,7 +2921,7 @@ pub enum SettingsSource {
     /// A configuration the CALLER supplied — from
     /// [`edit_printer_configuration`] or a stored file — was amended.
     CallerSupplied,
-    /// ★ The driver would not report its settings, so pdfcer sent a
+    /// The driver would not report its settings, so pdfcer sent a
     /// SYNTHESISED `DEVMODE` carrying only what it sets itself.
     ///
     /// The job prints. What is lost is everything the driver holds that
@@ -3014,7 +3014,7 @@ pub fn spool_with_config(
 /// Send sheets that do not all print the same way up, or on the same
 /// paper.
 ///
-/// # ★ What this exists to fix: `Auto` was documented per-page and was
+/// # What this exists to fix: `Auto` was documented per-page and was
 /// # per-job
 ///
 /// [`Orientation`]'s own documentation said, under a heading that made
@@ -3091,7 +3091,7 @@ pub fn spool_sheets(
     let caps = printer_caps(printer)?;
     let wide: Vec<u16> = printer.encode_utf16().chain(std::iter::once(0)).collect();
 
-    // ★ `caps` is the UN-TURNED geometry, and that is exactly what is
+    // `caps` is the UN-TURNED geometry, and that is exactly what is
     // wanted here. The decision below needs to know which orientation
     // the device is in BY DEFAULT so it can tell whether a sheet needs
     // it turned; an already-rotated view would make every sheet look
@@ -3228,7 +3228,7 @@ pub fn spool_sheets(
         let mut current = resolved.first().copied();
         for (sheet, setup) in sheets.iter().zip(resolved.iter()) {
             if current != Some(*setup) {
-                // ★ BETWEEN pages, never inside one. `ResetDC` is the
+                // BETWEEN pages, never inside one. `ResetDC` is the
                 // documented mechanism for changing a device's settings
                 // mid-job, and the previous page's `EndPage` has already
                 // run, so no page is open here.
@@ -3326,7 +3326,7 @@ fn resolve_sheet_setups(sheets: &[Sheet<'_>]) -> Vec<SheetSetup> {
 
 /// Does this sheet need anything said to the driver at all?
 ///
-/// # ★ Why the test is not "did the operator change something"
+/// # Why the test is not "did the operator change something"
 ///
 /// It used to be, and that had a consequence nobody had traced.
 /// [`Orientation::Auto`] is the DEFAULT, so at default settings a
@@ -3371,7 +3371,7 @@ fn setup_is_explicit(settings: DeviceSettings, setup: SheetSetup) -> bool {
 
 /// Fetch the `DEVMODE` a job's sheets will be amended from, once.
 ///
-/// # ★ It starts from the DRIVER's own configuration — and until
+/// # It starts from the DRIVER's own configuration — and until
 /// # 2026-08-18 the doc comment here said so while the code did not
 ///
 /// The function this replaced carried the heading *"Why it starts from
@@ -3632,7 +3632,7 @@ mod windows_settings_tests {
         }
     }
 
-    /// ★ The property the `pdfcer-gui` shell reported as missing.
+    /// The property the `pdfcer-gui` shell reported as missing.
     ///
     /// A CAD export — an A4 portrait title sheet followed by A3
     /// landscape drawings — must resolve to BOTH orientations, in order.
@@ -3698,7 +3698,7 @@ mod windows_settings_tests {
         );
     }
 
-    /// ★ The regression guard for the defect written up as
+    /// The regression guard for the defect written up as
     /// `a_disturb_nothing_by_default_guard_can_silently_disable_the_default_behaviour_it_is_guarding.md`:
     /// at DEFAULT settings, a landscape sheet on a portrait-default
     /// device still needs a `DEVMODE`, because `Auto` resolving to

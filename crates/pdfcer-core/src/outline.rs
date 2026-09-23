@@ -393,7 +393,7 @@ impl OutlineItem {
 /// operator may need told about, which is why none of them is folded
 /// into a `None`.
 ///
-/// # ★★ ADDING A VARIANT IS A CONSUMER-VISIBLE EVENT — announce it
+/// # ADDING A VARIANT IS A CONSUMER-VISIBLE EVENT — announce it
 ///
 /// This is `#[non_exhaustive]`, so a downstream `match` **must** carry a
 /// catch-all, and that catch-all is a sentence describing whatever lands
@@ -507,7 +507,7 @@ pub enum Destination {
         /// The external file the action names, when it names one — today
         /// that means a `/Launch` (§12.6.4.5).
         ///
-        /// # ★ Why a non-navigation action carries a filename at all
+        /// # Why a non-navigation action carries a filename at all
         ///
         /// A operator asked, 2026-09-06, for the obvious thing: a
         /// table-of-contents PDF whose bookmarks open the other PDFs in a
@@ -538,7 +538,7 @@ pub enum Destination {
         /// and for a file specification in a shape this module does not
         /// read — see [`file_spec_bytes`].
         ///
-        /// ★ **Recognised and disclosed, never executed** (R13). This is
+        /// **Recognised and disclosed, never executed** (R13). This is
         /// a filename to SHOW an operator, not a path to open.
         file: Option<Vec<u8>>,
     },
@@ -1139,7 +1139,7 @@ fn check_counts(items: &[OutlineItem], disagreements: &mut usize) -> usize {
 #[must_use]
 /// A copied bookmark subtree (`Pass 172.0`).
 ///
-/// # ★ Acrobat cannot do this across documents at all
+/// # Acrobat cannot do this across documents at all
 ///
 /// Adobe's own documentation says so by name: *"Bookmarks can't be copied
 /// directly … from one file to another."* Acrobat offers cut and paste of a
@@ -1202,7 +1202,7 @@ pub struct OutlineClipItem {
 impl OutlineClip {
     /// An empty clip — nothing copied.
     ///
-    /// ★ Exists because [`OutlineClip`] is `#[non_exhaustive]`, so nothing
+    /// Exists because [`OutlineClip`] is `#[non_exhaustive]`, so nothing
     /// outside this crate can write `OutlineClip { items: vec![] }`. A shell
     /// needs the empty value to represent *"the clipboard holds no
     /// bookmarks"*, and without a constructor its only route was to copy
@@ -1536,7 +1536,7 @@ fn decode_view(obj: Option<&Object>) -> DestView {
 /// diagnostics exist so that it can be avoided without the caller
 /// re-deriving what happened.
 ///
-/// # ★ This function had NO doc comment until `Pass 224.0`
+/// # This function had NO doc comment until `Pass 224.0`
 ///
 /// It is cited by name in `docs/core-api/`, it is the module's headline
 /// entry point, and its explanation lived only in the module header where
@@ -3248,7 +3248,7 @@ mod tests {
     /// Would catch: a sixth [`Destination`] variant shipping without the
     /// consuming shells being told.
     ///
-    /// # ★★ This test asserts NOTHING about correctness, deliberately
+    /// # This test asserts NOTHING about correctness, deliberately
     ///
     /// It is a **tripwire**, not a check. The count it pins carries no
     /// meaning; changing it is not a failure and the fix is one line. What

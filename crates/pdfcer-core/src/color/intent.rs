@@ -16,14 +16,14 @@
 //!   current rendering intent in effect in the graphics state at the time of
 //!   the painting operation."*
 //!
-//! ★ **The sentence that makes it look optional has been struck.** The printed
+//! **The sentence that makes it look optional has been struck.** The printed
 //! NOTE says a device *"does not have to support all PDF rendering intents"* —
 //! and ISO-approved erratum `pdf-issues` #63 (closed 2021-04-16) removes it,
 //! its resolution reading *"NOTEs are informative only … the existing normative
 //! requirements to support all 4 rendering intents remains"*. A reader working
 //! from the printed page alone would conclude the opposite of the truth.
 //!
-//! # ★★ FOUR DIFFERENT DEFAULTS, AND MERGING THEM IS THE FAILURE MODE
+//! # FOUR DIFFERENT DEFAULTS, AND MERGING THEM IS THE FAILURE MODE
 //!
 //! They are separate rules with separate clauses, and a single
 //! `Default::default()` used for all four would be wrong three times:
@@ -35,14 +35,14 @@
 //! | **D3** | an image with no `/Intent` | **the graphics state's current intent**, NOT a constant | ISO 32000-1 Table 89's *Default value* |
 //! | **D4** | the page group → device conversion | `RelativeColorimetric` in ISO 32000-2 §11.4.7 (`shall`); ISO 32000-1 says *"the default rendering intent for the page"*, a term it uses once and never defines | — |
 //!
-//! ★★★ **D4 IS THE ONE THAT WOULD HAVE BEEN GOT WRONG.** A content stream
+//! **D4 IS THE ONE THAT WOULD HAVE BEEN GOT WRONG.** A content stream
 //! saying `ri /Saturation` does **not** govern the final page→device hop. The
 //! graphics-state intent governs *painting* (§11.7.5.3); the page group's
 //! conversion to the device is its own step with its own answer. Conflating
 //! them would apply a source-side intent to a destination-side conversion and
 //! be wrong in exactly the cases anyone would test.
 //!
-//! # ★ And a fifth rule that is NOT a default: `gs` does not reset it
+//! # And a fifth rule that is NOT a default: `gs` does not reset it
 //!
 //! An `/ExtGState` **without** `/RI` leaves the intent alone. §8.4.5: *"The
 //! results of `gs` **shall be cumulative** … parameter values … persist until
@@ -107,7 +107,7 @@ pub enum RenderingIntent {
 impl RenderingIntent {
     /// Resolve a `/RI`, `ri` or `/Intent` name.
     ///
-    /// # ★ An unrecognised name is not an error — it is `RelativeColorimetric`
+    /// # An unrecognised name is not an error — it is `RelativeColorimetric`
     ///
     /// §8.6.5.8, `shall`: *"If a conforming reader does not recognize the
     /// specified name, it shall use the `RelativeColorimetric` intent by
@@ -145,7 +145,7 @@ impl RenderingIntent {
             b"RelativeColorimetric" => Self::RelativeColorimetric,
             b"Saturation" => Self::Saturation,
             b"Perceptual" => Self::Perceptual,
-            // ★ ISO 32000-2 §8.6.5.9 writes `AbsColorimetric` once, a token
+            // ISO 32000-2 §8.6.5.9 writes `AbsColorimetric` once, a token
             // defined nowhere else in 1,023 pages and carrying no erratum.
             // Read as `AbsoluteColorimetric` -- recorded rather than
             // normalised, because guessing at a typo in a standard is a
@@ -207,14 +207,14 @@ impl RenderingIntent {
 ///   `unwrap_or_default()` here would be wrong on every page that sets an
 ///   intent at the top and then draws an image.
 ///
-/// ★ **`is_image_mask` suppresses it.** ISO 32000-2 adds *"ignored if
+/// **`is_image_mask` suppresses it.** ISO 32000-2 adds *"ignored if
 /// `ImageMask` is `true`"* to Table 87's `/Intent` row, and it follows from
 /// §8.9.6.2 anyway: a stencil mask carries no colour at all, so there is
 /// nothing for an intent to govern. Passed in rather than re-read here because
 /// the caller has already resolved it — and because re-reading a key the caller
 /// has decided about is how two answers to one question appear.
 ///
-/// # ★★ A soft-mask image's `/Intent` is IGNORED, and that is not this
+/// # A soft-mask image's `/Intent` is IGNORED, and that is not this
 /// # function's job
 ///
 /// ISO 32000-1 Table 145 / ISO 32000-2 Table 143 give the `/SMask` image

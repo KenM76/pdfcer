@@ -26,7 +26,7 @@
 //! question for the one site `191.0` fixed (it was case 3). This one asks it
 //! twelve more times, plus seven controls.
 //!
-//! # ★ Run BOTH profiles, and read the RELEASE one as the answer
+//! # Run BOTH profiles, and read the RELEASE one as the answer
 //!
 //! ```text
 //! cargo run -p pdfcer-core --example collateral_probe            # debug_assertions ON

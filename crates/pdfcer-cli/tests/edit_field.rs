@@ -214,7 +214,7 @@ fn field_to_edit(dir: &TempDir, value: &str) -> PathBuf {
     out
 }
 
-/// ★ The headline of `Pass 134.0`: a property set at placing time can be
+/// The headline of `Pass 134.0`: a property set at placing time can be
 /// changed afterwards, without deleting and re-placing the field.
 #[test]
 fn a_fields_properties_can_be_changed_after_it_is_placed() {
@@ -250,7 +250,7 @@ fn a_fields_properties_can_be_changed_after_it_is_placed() {
     );
 }
 
-/// ★ Rule 4, and the case Acrobat performs SILENTLY: shortening the length
+/// Rule 4, and the case Acrobat performs SILENTLY: shortening the length
 /// limit below the stored value leaves the field over its own limit. pdfcer
 /// does not truncate the operator's data, and says so.
 #[test]
@@ -376,7 +376,7 @@ fn a_text_property_on_a_check_box_is_refused_by_name() {
     );
 }
 
-/// ★ The geometry distinction the whole widget path turns on: replacing the
+/// The geometry distinction the whole widget path turns on: replacing the
 /// rectangle with the same extent is a MOVE (no rebuild), and with a
 /// different extent is a RESIZE (rebuild, because §12.5.5 would otherwise
 /// scale the old artwork into the new box).

@@ -19,7 +19,7 @@
 //! so a needle whose digits appeared inside a kerning number turned that
 //! number into `-53XXXX00221014025`.
 //!
-//! ★ Note which pass was at fault. The surgery that removes redacted glyphs
+//! Note which pass was at fault. The surgery that removes redacted glyphs
 //! was correct throughout. **The precaution corrupted the page it was
 //! protecting**, which is the worst shape a safety net can take: the damage
 //! arrives wearing the name of a safeguard, and every counter in the report
@@ -100,7 +100,7 @@ fn contains(hay: &[u8], needle: &[u8]) -> bool {
     hay.windows(needle.len()).any(|w| w == needle)
 }
 
-/// ★★★ The regression: redact `1234`, and the kerning number `-1234` must
+/// The regression: redact `1234`, and the kerning number `-1234` must
 /// come out intact while the string beside it is blanked.
 ///
 /// The two halves are asserted together on purpose. Without the first, the
@@ -130,7 +130,7 @@ fn a_kerning_number_carrying_the_needles_digits_is_not_blanked() {
          parsing (the defect that produced `[-53XXXX00221014025] TJ`)"
     );
 
-    // ★★ THE ASSERTION THE COUNTERS COULD NOT MAKE. The original defect left
+    // THE ASSERTION THE COUNTERS COULD NOT MAKE. The original defect left
     // every report field looking like success; only reading the page back
     // showed it. So the test reads the page back.
     let done = Document::from_bytes(out).expect("the output opens");

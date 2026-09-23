@@ -101,7 +101,7 @@ fn a_copied_attachment_pastes_into_another_document() {
     );
 }
 
-/// ★ Cut is one undo entry, and undoing it puts the file back — bytes and
+/// Cut is one undo entry, and undoing it puts the file back — bytes and
 /// all, not just the name-tree entry.
 #[test]
 fn cutting_an_attachment_is_one_undo_entry_and_undo_restores_the_bytes() {
@@ -130,7 +130,7 @@ fn cutting_an_attachment_is_one_undo_entry_and_undo_restores_the_bytes() {
     );
 }
 
-/// ★ A cut whose COPY half refuses detaches nothing.
+/// A cut whose COPY half refuses detaches nothing.
 ///
 /// The ordering matters more for attachments than for anything else on the
 /// clipboard: the embedded file is the only copy of that data in the

@@ -20,7 +20,7 @@
 //! change and dropping its `Copy` was a second one. `MarkupNote` is the other
 //! choice, and a field added to it later breaks nobody.
 //!
-//! ## ★ The decision these tests pin hardest
+//! ## The decision these tests pin hardest
 //!
 //! **pdfcer does not read a clock.** `/M` is the caller's string, written
 //! verbatim, and a malformed one is refused rather than written. Two reasons:

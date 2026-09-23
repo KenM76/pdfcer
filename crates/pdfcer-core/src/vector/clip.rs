@@ -5,7 +5,7 @@
 //! on another page. The session owns the object allocation, the staging buffer
 //! and the undo command; everything else is here.
 //!
-//! ## ★ What the requesting shell got right, and the half it did not see
+//! ## What the requesting shell got right, and the half it did not see
 //!
 //! `pdfcer-gui` asked for this on the reading that `EditSession::import_object`
 //! already does the hard part — a recursive cross-document object-graph copy
@@ -75,7 +75,7 @@ use super::geometry::{Bounds, Matrix};
 /// *will* copy in one and paste in the other. `Pass 120.1` (`to_bytes`) is
 /// what makes that reachable; the version is carried from the start so the
 /// refusal exists before the payload can travel.
-/// # ★ The version a clip is written at is CONTENT-DEPENDENT
+/// # The version a clip is written at is CONTENT-DEPENDENT
 ///
 /// `3` (`Pass 175.0`, the ce-dimension text override) is emitted only by a
 /// clip that actually carries an override; every other clip is still written
@@ -92,7 +92,7 @@ use super::geometry::{Bounds, Matrix};
 /// older build had written with one — desynchronising every following
 /// annotation in the clip, silently, because `decode_carry` cannot fail.
 ///
-/// ★ **Decision 105 was written to prevent precisely this and did not fire**,
+/// **Decision 105 was written to prevent precisely this and did not fire**,
 /// which is worth more than the fix. 105 reasons about *droppable dictionary
 /// keys*: a key a reader can miss without losing its place. A positional
 /// field has no such property — miss it and the parse is off by one object
@@ -149,7 +149,7 @@ pub struct ClipItem {
     /// Every `(category, name)` the bytes consume, paired with the clip-local
     /// object number carrying it. Sorted, so a clip is deterministic.
     pub bindings: Vec<ClipBinding>,
-    /// ★ **The graphics state this item DEPENDS ON but does not itself
+    /// **The graphics state this item DEPENDS ON but does not itself
     /// establish**, as content-stream operators, emitted inside the paste
     /// wrapper immediately before [`Self::bytes`] (`Pass 120.2`).
     ///
@@ -294,7 +294,7 @@ impl RawAnnotation {
 
 /// One annotation on the clipboard (`Pass 120.4`).
 ///
-/// # ★ Why annotations are a SEPARATE payload rather than more `items`
+/// # Why annotations are a SEPARATE payload rather than more `items`
 ///
 /// A `ClipItem` is a byte range in a content stream. An annotation is not
 /// content at all — it is a dictionary in the page's `/Annots`, with its own
@@ -326,7 +326,7 @@ pub enum ClipAnnotation {
     /// A markup pdfcer MODELS, carried as its spec **plus the properties
     /// that live beside the spec rather than inside it**.
     ///
-    /// # ★★ Why the second field exists
+    /// # Why the second field exists
     ///
     /// `MarkupSpec` describes the SHAPE. Four things an operator can see are
     /// deliberately not in it — the border **dash** (`/BS` `/S` + `/D`), the
@@ -339,7 +339,7 @@ pub enum ClipAnnotation {
     /// Nothing disclosed it, because from the paste's point of view it was
     /// authoring a fresh mark and there was nothing to report.
     ///
-    /// ★ The dash case is the sharpest: `docs/FEATURES.md` enumerated the
+    /// The dash case is the sharpest: `docs/FEATURES.md` enumerated the
     /// four regeneration routes that used to solidify a dash — *"restyle,
     /// resize, reshape, author"* — and read as though the class were closed.
     /// **Copy-paste was a fifth and was not in the list.**
@@ -370,7 +370,7 @@ pub enum ClipAnnotation {
         format: crate::dimension::NumberFormat,
         /// The source group's **scale** (`Pass 173.1`).
         ///
-        /// ★ This is the field whose absence made a pasted ce dimension
+        /// This is the field whose absence made a pasted ce dimension
         /// **read differently from the one it was copied from**. A ce
         /// dimension's label is DERIVED from its group's scale, so landing in
         /// a freshly created default-styled group changed the number on the
@@ -394,7 +394,7 @@ pub enum ClipAnnotation {
         /// The ce dimension's **operator text override**, or `None` when it
         /// prints its measurement (`Pass 175.0`, decision 097).
         ///
-        /// ★ Carried for the same reason
+        /// Carried for the same reason
         /// [`Self::Dimension::scale`](ClipAnnotation::Dimension) is, and the
         /// note there is the precedent rather than a coincidence: a field the
         /// caption is DERIVED from, left off the clip, makes a pasted ce
@@ -542,7 +542,7 @@ impl ObjectClip {
     /// instead of finding out on the paste.
     #[must_use]
     pub fn annotations_survive_serialisation(&self) -> bool {
-        // ★ ALWAYS TRUE since `Pass 169.0`, and kept rather than removed.
+        // ALWAYS TRUE since `Pass 169.0`, and kept rather than removed.
         //
         // It used to answer `self.annotations.is_empty()`, because
         // `to_bytes` dropped them. It does not any more: every
@@ -820,7 +820,7 @@ impl ObjectClip {
     /// byte-identical output through an older build, which is the property
     /// that makes the two folders keep working.
     ///
-    /// ★ The ordering is a **maximum, not a chain of alternatives**, and the
+    /// The ordering is a **maximum, not a chain of alternatives**, and the
     /// two features are independent — a clip can contain a dashed square and
     /// a dimension with an overridden label. Written as a max so that adding
     /// a third feature cannot accidentally make one of the first two
@@ -936,7 +936,7 @@ impl ObjectClip {
                     // The author-time properties, as a SECOND object rather
                     // than extra keys in the spec's -- see `MarkupCarry`.
                     //
-                    // ★ VERSION-GATED, and it was not when it shipped. An
+                    // VERSION-GATED, and it was not when it shipped. An
                     // unconditional second object is invisible to a writer
                     // and fatal to a reader: an older build wrote one object
                     // here, so a newer reader taking two walks off the end of
@@ -1295,7 +1295,7 @@ impl ObjectClip {
     /// translated so it sits at the origin — so a consumer that places the
     /// file gets the objects and no surrounding whitespace.
     ///
-    /// # ★ Why this is NOT [`Self::to_bytes`], and must not be merged with it
+    /// # Why this is NOT [`Self::to_bytes`], and must not be merged with it
     ///
     /// They serve different consumers and the difference is lossy in one
     /// direction only.
@@ -1754,7 +1754,7 @@ pub struct PastePlan {
 /// to avoid colliding with names already there. `at` is a **page-space**
 /// matrix, for the same reason `transform_objects` takes one.
 ///
-/// # ★ Why every binding gets a fresh name, even when the old one is free
+/// # Why every binding gets a fresh name, even when the old one is free
 ///
 /// A destination page that happens not to use `/F1` is not a page where `/F1`
 /// means what the clip means by it — and a *later* paste, or an unrelated
@@ -1966,7 +1966,7 @@ pub(crate) fn item_prelude(o: &VectorObject, own_bytes: &[u8]) -> Vec<u8> {
             // its RGB equivalent -- a real limitation, stated here rather than
             // discovered.
             //
-            // ★★ THIS COMMENT USED TO SAY "or a `Separation`" ALONGSIDE
+            // THIS COMMENT USED TO SAY "or a `Separation`" ALONGSIDE
             // DeviceCMYK, AND THAT WAS FALSE. The decomposer had no arm for
             // `cs`/`scn` at all, so a `/Separation` path did not arrive as
             // "its RGB equivalent" -- it arrived carrying a STALE colour from

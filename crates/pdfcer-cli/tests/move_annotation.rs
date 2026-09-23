@@ -12,7 +12,7 @@
 //! `/Vertices`, `/InkList`, `/QuadPoints`, `/CL` — hold absolute page
 //! coordinates and are what any **other** tool regenerates an appearance from.
 //!
-//! ★ Move only the first and the annotation looks right in pdfcer and is
+//! Move only the first and the annotation looks right in pdfcer and is
 //! reconstructed in the **old place** by the next viewer that rebuilds it. That
 //! is invisible here, invisible in a screenshot, and shows up in somebody
 //! else's product — which is why the report has a `geometry_keys_moved` field

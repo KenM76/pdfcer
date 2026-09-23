@@ -46,7 +46,7 @@ fn run(args: &[&str]) -> (String, String, i32) {
     )
 }
 
-/// ★★ A name list drives the pack, and its comments and blank lines are
+/// A name list drives the pack, and its comments and blank lines are
 /// skipped.
 ///
 /// `hello.pdf` has one page, so only the first name can be used — which also
@@ -73,7 +73,7 @@ fn a_name_list_file_drives_the_pack_and_skips_comments() {
     ]);
     assert_eq!(code, 0, "stdout={stdout} stderr={stderr}");
 
-    // ★ The comment and blank lines must not have become stamps: the fixture
+    // The comment and blank lines must not have become stamps: the fixture
     // has ONE page, so a parser that kept them would report a different
     // skipped set than the one asserted below.
     assert!(
@@ -103,7 +103,7 @@ fn a_name_list_file_drives_the_pack_and_skips_comments() {
     let _ = std::fs::remove_file(&out_pdf);
 }
 
-/// ★ THE CONTROL: `--stamp` still works, and the two flags conflict.
+/// THE CONTROL: `--stamp` still works, and the two flags conflict.
 ///
 /// Without this, a `--stamps-from` implementation that quietly ignored
 /// `--stamp` would pass the test above and break every existing invocation.
@@ -148,7 +148,7 @@ fn the_repeated_flag_still_works_and_the_two_conflict() {
     let _ = std::fs::remove_file(&out_pdf);
 }
 
-/// ★ An unreadable name list fails loudly and writes nothing.
+/// An unreadable name list fails loudly and writes nothing.
 #[test]
 fn a_missing_name_list_is_an_error_not_an_empty_collection() {
     let out_pdf = tmp("never-written.pdf");

@@ -1,4 +1,4 @@
-//! ★ `/BrotliDecode` is reachable **from a page**, not merely correct in
+//! `/BrotliDecode` is reachable **from a page**, not merely correct in
 //! isolation.
 //!
 //! # Why this file exists separately from the filter's own unit tests
@@ -22,7 +22,7 @@
 //! documents draw **identical** content — so a predictor that failed to
 //! round-trip would show as a content mismatch rather than as an error.
 //!
-//! ★ **pdf.js silently ignores `/DecodeParms` predictors on Brotli** while
+//! **pdf.js silently ignores `/DecodeParms` predictors on Brotli** while
 //! honouring them for Flate and LZW. That divergence is pdf.js's, and this
 //! test is the reason pdfcer will not acquire it by accident.
 //!
@@ -78,7 +78,7 @@ fn a_brotli_content_stream_decodes_to_its_operators() {
     );
 }
 
-/// ★ Brotli + PNG-Up predictor produces the SAME content as Brotli alone.
+/// Brotli + PNG-Up predictor produces the SAME content as Brotli alone.
 ///
 /// This is the assertion that would catch a Brotli-specific predictor
 /// regression — including the tempting "Brotli needs its own predictor

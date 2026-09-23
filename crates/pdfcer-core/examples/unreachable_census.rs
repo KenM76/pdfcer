@@ -57,7 +57,7 @@ fn refs_in_dict(d: &Dict, out: &mut Vec<ObjId>) {
 
 /// Every object id reachable from the trailer by following references.
 ///
-/// # ★ `UO-A1` — reachability is NOT "walk the references from `/Root`"
+/// # `UO-A1` — reachability is NOT "walk the references from `/Root`"
 ///
 /// Two object classes are unreferenced **by design**, and a walk that knows
 /// only indirect references miscounts every one of them as an orphan:
@@ -105,7 +105,7 @@ fn reachable(doc: &Document) -> BTreeSet<ObjId> {
 /// Whether an object could carry **drawn text** — the only kind of content a
 /// redaction is asked to remove from a page.
 ///
-/// ★ This is the decision-relevant metric, and it is deliberately narrower
+/// This is the decision-relevant metric, and it is deliberately narrower
 /// than [`carries_text`]. An abandoned content stream full of path operators
 /// has long printable runs and carries no words; a stream with a `Tj` may
 /// carry the very glyphs the operator redacted. Counting the first as a leak

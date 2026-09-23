@@ -7,7 +7,7 @@
 //!
 //! - **`find` alone** — pdfcer scans the page and edits one occurrence of its
 //!   own choosing. Fine when the text is unique; silently wrong when it is not.
-//!   ★ And the familiar description of *which* one — *"whichever comes first"*
+//!   And the familiar description of *which* one — *"whichever comes first"*
 //!   — is **wrong**, measured: `find_anchor` looks inside a single operator
 //!   first, so a **single-operator** occurrence anywhere on the page beats a
 //!   **spanning** one above it. Which means a spanning run is unreachable by
@@ -20,7 +20,7 @@
 //! A click-driven shell has exactly what the first lacks: it knows which
 //! operator was touched. It had no way to say so.
 //!
-//! ## ★★ There is no known file on which this bites, and that is deliberate
+//! ## There is no known file on which this bites, and that is deliberate
 //!
 //! Requested by `pdfcer-gui` citing a bill-of-materials sheet an operator could
 //! not edit. **They retracted that motivation the same day, before this
@@ -38,7 +38,7 @@
 //! retracted measurement left standing is what a later reader would cite as
 //! evidence.
 //!
-//! ## ★★ The reported location was one guard too late, and the truth is worse
+//! ## The reported location was one guard too late, and the truth is worse
 //!
 //! The report placed the fault at `find_anchor_span`'s
 //! `Err(e) if req.pinned_span.is_some()` arm. **That arm is unreachable for a
@@ -71,7 +71,7 @@
 //! | line 2, single operator | an implementation that **ignores the pin** and scans — with one occurrence it edits the right thing for the wrong reason |
 //! | line 3, spanning again | an implementation that turns the flag on but **scans from operator 0** — with only lines 1 and 2 the pinned operator is always the first spannable one, so restricting to it changes nothing |
 //!
-//! ★ All three sabotages are now caught. The third was green until line 3
+//! All three sabotages are now caught. The third was green until line 3
 //! existed, and green again after that until the assertions stopped asking
 //! *"does `(MNOP) Tj` appear somewhere"* and started asking **which line it
 //! appeared on** — the base revision is still in the file by design, and both
@@ -118,7 +118,7 @@ fn run(req: &EditRequest) -> Result<Vec<u8>, EditError> {
 /// The text of one line of the NEWEST revision, named by its positioning
 /// operator and running to the end of its text object.
 ///
-/// ★ Lines have to be told apart by position, because "did `(MNOP) Tj` appear
+/// Lines have to be told apart by position, because "did `(MNOP) Tj` appear
 /// somewhere" cannot distinguish *which* occurrence was edited — and a count
 /// of surviving operators cannot either, since each outcome replaces exactly
 /// one spanning pair with one operator. Both weaker forms were written first
@@ -153,7 +153,7 @@ fn shows(bytes: &[u8], token: &[u8]) -> bool {
     tail.windows(token.len()).any(|w| w == token)
 }
 
-/// ★★★ Pinning the SPANNING occurrence edits it, and leaves the other alone.
+/// Pinning the SPANNING occurrence edits it, and leaves the other alone.
 #[test]
 fn a_pinned_spanning_run_is_the_one_edited() {
     let req = EditRequest::spanning_from(0, span(SPANNING_LINE1), "ABCD", "WXYZ");
@@ -171,7 +171,7 @@ fn a_pinned_spanning_run_is_the_one_edited() {
     );
 }
 
-/// ★★★ Pinning the SINGLE-OPERATOR occurrence edits THAT one instead.
+/// Pinning the SINGLE-OPERATOR occurrence edits THAT one instead.
 ///
 /// The mirror, and the half that proves the pin is consulted at all. Same
 /// `find`, same page, same document; only the pin differs, and the outcome
@@ -191,7 +191,7 @@ fn pinning_the_other_occurrence_edits_the_other_one() {
     );
 }
 
-/// ★★★ Pinning the SECOND spanning occurrence edits *that* one — not the
+/// Pinning the SECOND spanning occurrence edits *that* one — not the
 /// first one the scan would reach.
 ///
 /// This is the test that proves the search **starts at the pin** rather than
@@ -208,7 +208,7 @@ fn the_search_starts_at_the_pin_rather_than_at_the_page() {
     let req = EditRequest::spanning_from(0, span(SPANNING_LINE3), "ABCD", "MNOP");
     let out = run(&req).expect("the third line's run is editable");
 
-    // ★ WHICH LINE it landed on is the whole question, so the assertion has
+    // WHICH LINE it landed on is the whole question, so the assertion has
     // to name the line. Asserting only that `(MNOP) Tj` exists somewhere, or
     // counting `(AB) Tj` over the whole file, is VACUOUS: the base revision is
     // still in the file by design, and either outcome replaces exactly one
@@ -241,7 +241,7 @@ fn the_search_starts_at_the_pin_rather_than_at_the_page() {
     );
 }
 
-/// ★★ Without the flag, a pinned spanning request is REFUSED BY NAME.
+/// Without the flag, a pinned spanning request is REFUSED BY NAME.
 ///
 /// This is the behaviour the consuming shell asked to keep: a plain pin still
 /// confines the match to one operator, so no existing caller's refusal changes
@@ -288,7 +288,7 @@ fn a_bogus_pin_is_reported_as_a_bad_pin_not_as_missing_text() {
 /// An unpinned request is completely unaffected — and what it does is **not**
 /// "the first occurrence".
 ///
-/// ★ MEASURED, AND IT CORRECTED THIS FILE'S OWN FIRST DRAFT. The page scan
+/// MEASURED, AND IT CORRECTED THIS FILE'S OWN FIRST DRAFT. The page scan
 /// edits the **single-operator** occurrence on line 2, not the spanning one on
 /// line 1 that comes before it. The reason is the ladder's order:
 /// `find_anchor` runs first and looks for `find` inside **one** operator's

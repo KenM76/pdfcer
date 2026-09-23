@@ -166,7 +166,7 @@ pub(crate) struct BrushSpec {
     /// channels this source actually named, with everything else zero —
     /// for use when [`Self::spots`] are deposited into their own planes.
     ///
-    /// # ★★ Why this is a THIRD colour field and not a refinement of `cmyk`
+    /// # Why this is a THIRD colour field and not a refinement of `cmyk`
     ///
     /// [`Self::cmyk`] is the colour **flattened**: for a `/Separation` over
     /// a `DeviceCMYK` alternate it is the tint transform's own output,
@@ -912,7 +912,7 @@ impl<'a> Canvas<'a> {
                 p.fill_path(path, &paint, FillRule::Winding, ctm, clip.mask);
             }
             Self::Cmyk(b) => {
-                // ★★ THIS USED TO BE "THE ONE PAINT KIND THAT CANNOT GO
+                // THIS USED TO BE "THE ONE PAINT KIND THAT CANNOT GO
                 // NATIVE", and the comment explaining why is worth keeping
                 // because it was exactly right about the cause:
                 //
@@ -933,7 +933,7 @@ impl<'a> Canvas<'a> {
                 // The bridge below still runs for every other image, where
                 // sRGB genuinely is all there is.
                 //
-                // ★★ THE SPOT ROUTE (`Pass 238.0`), taken before the ink
+                // THE SPOT ROUTE (`Pass 238.0`), taken before the ink
                 // route because it is the same information one level less
                 // flattened. `authored.tints` are the process tints the
                 // FILE stated — all zero for a pure spot — and each
@@ -1287,7 +1287,7 @@ impl<'a> Canvas<'a> {
         match self {
             Self::Paint(p) => Some(p),
             Self::Record(_) => None,
-            // ★ A DISCLOSED SHORTFALL, not an oversight. The three callers
+            // A DISCLOSED SHORTFALL, not an oversight. The three callers
             // here read the destination back — a shading, an overprint
             // composite, a non-separable per-paint blend — and there is no
             // formulation of "read what is already there" that also yields
@@ -1386,7 +1386,7 @@ impl<'a> Canvas<'a> {
                     f(&mut sub)
                 };
                 if let Some(mode) = paint.nonseparable {
-                    // ★ §11.4.5's composite, through Table 137, per pixel.
+                    // §11.4.5's composite, through Table 137, per pixel.
                     //
                     // `draw_pixmap` cannot carry these four — that is the
                     // whole of decision 066 — so the group's RESULT is
@@ -1530,7 +1530,7 @@ impl<'a> Canvas<'a> {
         // independent attributes"* — so knockout is dispatched first and
         // `isolated` is carried into it as the initial backdrop's identity
         // rather than as a second branch.
-        // ★ A SUBTRACTIVE CANVAS TAKES ITS OWN KNOCKOUT PATH, and the
+        // A SUBTRACTIVE CANVAS TAKES ITS OWN KNOCKOUT PATH, and the
         // history of this two-line dispatch is worth keeping.
         //
         // `Pass 97.1e` first sent `Cmyk` to the ordinary bridged arm below,
@@ -1551,7 +1551,7 @@ impl<'a> Canvas<'a> {
         if knockout && !matches!(self, Self::Record(_)) {
             return self.knockout_group(paint, isolated, mask, f);
         }
-        // ★ `bounds` is consumed by the `Paint` arm alone. The knockout and
+        // `bounds` is consumed by the `Paint` arm alone. The knockout and
         // subtractive paths composite through `crate::compositor` and
         // `CmykBuffer`, not through `draw_pixmap`, so the cost this bounds is
         // not on those routes -- and narrowing a path whose arithmetic has
@@ -1559,7 +1559,7 @@ impl<'a> Canvas<'a> {
         // making.
         match self {
             Self::Cmyk(b) => {
-                // ★★ THE SECOND CONTENT WALK, `Pass 97.1g`.
+                // THE SECOND CONTENT WALK, `Pass 97.1g`.
                 //
                 // This arm used to treat EVERY group here as isolated and
                 // say so: *"there is no way to hand one to the other
@@ -1626,7 +1626,7 @@ impl<'a> Canvas<'a> {
                 // below, so it still holds the frozen backdrop both the
                 // copy and the removal need.
                 //
-                // ★ ALLOCATION FAILURE FALLS BACK, IT DOES NOT DROP THE
+                // ALLOCATION FAILURE FALLS BACK, IT DOES NOT DROP THE
                 // GROUP. `child_from_backdrop` returns `None` on the same
                 // condition `take_child` does, and a page that cannot
                 // afford one more buffer should still get the isolated
@@ -1660,7 +1660,7 @@ impl<'a> Canvas<'a> {
                 // a buffer first: §11.4.4's removal divides by the UNMASKED
                 // `α_gn`. See `composite_non_isolated`.
                 b.composite_non_isolated(&iso, &nis, opacity, blend, mask.map(Mask::data));
-                // ★ ONE buffer is handed back, not two, and it is the
+                // ONE buffer is handed back, not two, and it is the
                 // cheaper one to clear. `give_back_child` keeps a SINGLE
                 // spare, so returning both would clear `nis` -- whose dirty
                 // rectangle spans the whole backdrop it was seeded from --
@@ -1681,7 +1681,7 @@ impl<'a> Canvas<'a> {
                     let mut sub = Canvas::Paint(&mut iso);
                     f(&mut sub)
                 };
-                // ★★★ THE CLAIM `bounds` MAKES, CHECKED RATHER THAN TRUSTED.
+                // THE CLAIM `bounds` MAKES, CHECKED RATHER THAN TRUSTED.
                 //
                 // Everything below relies on the group having painted
                 // nothing outside `bounds`. That is sound by §8.10.1 -- the
@@ -1708,7 +1708,7 @@ impl<'a> Canvas<'a> {
                 // isolated group's backdrop, so there is nothing to run
                 // twice and nothing to remove.
                 //
-                // ★ EVALUATED LAZILY (`Pass 300.1`), and the honest size of
+                // EVALUATED LAZILY (`Pass 300.1`), and the honest size of
                 // that is 4%, not the order of magnitude it looks like.
                 //
                 // It used to be bound to a `let` above this `if`, so the scan
@@ -1721,7 +1721,7 @@ impl<'a> Canvas<'a> {
                 // (`groups_special`), every one of which discarded the answer
                 // without reading it.
                 //
-                // ★★ MEASURED BEFORE IT WAS BELIEVED, and the number is the
+                // MEASURED BEFORE IT WAS BELIEVED, and the number is the
                 // reason this comment is worth its length. A/B on that file,
                 // same binary, same machine:
                 //
@@ -1776,7 +1776,7 @@ impl<'a> Canvas<'a> {
                 })
             }
             Self::Knockout(k) => {
-                // ★ §11.4.6 NOTE 6 / §11.6.6 — THE NESTING TRAP, and it is
+                // §11.4.6 NOTE 6 / §11.6.6 — THE NESTING TRAP, and it is
                 // the one an implementation reaches for the wrong buffer
                 // on: *"When a non-isolated group is nested within a
                 // knockout group, the initial backdrop of the inner group
@@ -1918,7 +1918,7 @@ impl Canvas<'_> {
                 // §11.4.6 NOTE 6: the inner group inherits the OUTER
                 // group's initial backdrop, not its accumulated result.
                 Self::Knockout(k) => k.initial.clone(),
-                // ★ A NON-ISOLATED knockout group on a subtractive page
+                // A NON-ISOLATED knockout group on a subtractive page
                 // gets the ISOLATED backdrop, and that is a named
                 // approximation rather than an oversight: the backdrop is
                 // ink and this buffer is screen colour, so there is
@@ -1928,7 +1928,7 @@ impl Canvas<'_> {
                 // always zero in a knockout group), so what is lost is
                 // confined to `C_b` and `α_b`.
                 Self::Record(_) => Pixmap::new(w, h)?,
-                // ★ THE ROUND TRIP THAT IS WORSE THAN NOT DOING ONE AND
+                // THE ROUND TRIP THAT IS WORSE THAN NOT DOING ONE AND
                 // BETTER THAN HAVING NO BACKDROP AT ALL, and the numbers
                 // are in `snapshot_srgb_backdrop`'s own docs: handing a
                 // subtractive page's knockout groups a TRANSPARENT initial
@@ -2077,7 +2077,7 @@ impl Canvas<'_> {
 /// | [`Self::group_alpha`] | `α_gi` | excludes the backdrop; `α_i` includes it, and `α_i > α_gi` whenever `α_0 > 0` |
 /// | [`Self::group_shape`] | `f_gi` | `f ≠ α` for any element with `q < 1`, and §11.4.6 makes computing it a `shall` for a group used inside another knockout group |
 ///
-/// # ★ Why the fixtures for this must set `/ca < 1`
+/// # Why the fixtures for this must set `/ca < 1`
 ///
 /// Knockout and non-knockout are **identical** when every element is
 /// opaque: `q_s = 1` gives `α_s = f_s`, and the two recurrences coincide
@@ -2590,7 +2590,7 @@ fn composite_group_result(
     mask: Option<&Mask>,
     bounds: Option<tiny_skia::IntRect>,
 ) {
-    // ★★★ THE 95%, AND IT IS THIS CALL (`Pass 300.2`).
+    // THE 95%, AND IT IS THIS CALL (`Pass 300.2`).
     //
     // `draw_pixmap` below blends the WHOLE page for every transparency
     // group. Probed on the operator's Toronto street map at 1x -- 6,174
@@ -2733,7 +2733,7 @@ fn composite_non_isolated_group(
         }
         let backdrop = Pixel::from_premultiplied(dest.pixels()[idx]);
         let over = Pixel::from_premultiplied(nis.pixels()[idx]);
-        // ★ The removal divides by the UNMASKED `α_gn`. The mask is not
+        // The removal divides by the UNMASKED `α_gn`. The mask is not
         // part of the group's own accumulation — §11.4.5 applies it to the
         // finished result — so masking before the removal would divide by
         // the wrong number and shift the colour, not just the alpha.

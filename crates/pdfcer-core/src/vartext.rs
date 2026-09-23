@@ -178,7 +178,7 @@ pub struct DefaultAppearance {
     /// The text colour, or `None` when the `/DA` sets none — in which case
     /// the text renders in the graphics-state default `0 g` black (VT2).
     ///
-    /// ★ `None` is AMBIGUOUS ON ITS OWN and must be read with
+    /// `None` is AMBIGUOUS ON ITS OWN and must be read with
     /// [`Self::color_unmodelled`]. See that field.
     pub color: Option<TextColor>,
     /// The `/DA` set a colour in a space this parser does not model —
@@ -192,7 +192,7 @@ pub struct DefaultAppearance {
     /// `apply_fill` could not emit would push the problem into the emitter,
     /// where the only options are inventing a colour or emitting none.
     ///
-    /// # ★★ The defect this closes
+    /// # The defect this closes
     ///
     /// This parser handled `g G rg RG k K` and swallowed everything else in a
     /// `_ => {}` arm, so a `/DA` of `/Sep1 cs 1 scn /Helv 12 Tf` yielded
@@ -287,7 +287,7 @@ pub struct VarTextAppearance {
     /// appearance was generated in the §8.6.8 default BLACK instead
     /// (`Pass 221.0`).
     ///
-    /// ★ The rule-4 disclosure for a colour NARROWING, and the reason the
+    /// The rule-4 disclosure for a colour NARROWING, and the reason the
     /// parser now distinguishes "no colour" from "a colour I cannot model":
     /// pdfcer is substituting a colour the file did not ask for, into a
     /// generated appearance that is written to the document. Silent would be
@@ -397,7 +397,7 @@ const AUTOFIT_PAD: f64 = 1.0;
 /// correctness — a long string must shrink rather than overflow — but it is
 /// *not* what Acrobat did in the file that motivated this. See the note.
 ///
-/// # ★★ WHAT ACROBAT DOES THAT THIS DOES NOT, MEASURED AND UNEXPLAINED
+/// # WHAT ACROBAT DOES THAT THIS DOES NOT, MEASURED AND UNEXPLAINED
 ///
 /// Acrobat writes **two** `Tf` operators per appearance, and the second is
 /// always about **1.165x smaller** than the first:
@@ -749,7 +749,7 @@ pub fn build_variable_text(
     let w = bbox.width();
     let h = bbox.height();
 
-    // ★★ LINE BREAKS ARE STRUCTURE, AND THEY ARE TAKEN OUT BEFORE THE
+    // LINE BREAKS ARE STRUCTURE, AND THEY ARE TAKEN OUT BEFORE THE
     // ENCODER EVER SEES THEM.
     //
     // `encode_winansi` maps a character with no WinAnsi code to `?` and counts
@@ -764,7 +764,7 @@ pub fn build_variable_text(
     // enter just has the items show up as one line with a `?` for each new
     // line instead."*
     //
-    // ★ BOTH BRANCHES WERE AFFECTED, which the report did not expect and the
+    // BOTH BRANCHES WERE AFFECTED, which the report did not expect and the
     // test measured. The single-line branch flattens `\n`/`\r` to spaces and
     // is correct *given real newline bytes* — it never received any either.
     //
@@ -809,7 +809,7 @@ pub fn build_variable_text(
 
     // VT1: size 0 ⇒ auto-size, disclosed.
     let (size, applied_autosize, applied_autosize_bound) = if parsed.font_size == 0.0 {
-        // ★ SINGLE-LINE ONLY, and the split is a correctness requirement
+        // SINGLE-LINE ONLY, and the split is a correctness requirement
         // rather than caution.
         //
         // `auto_fit` derives its candidate from the WHOLE box height, which is
@@ -1027,7 +1027,7 @@ fn wrap_lines(
     }
     let mut lines: Vec<Vec<u8>> = Vec::new();
     for para in paragraphs {
-        // ★ `\n` split and `\r` stripped UPSTREAM, before encoding. They used
+        // `\n` split and `\r` stripped UPSTREAM, before encoding. They used
         // to be handled here, which was too late: the encoder has no WinAnsi
         // code for either and had already turned them into `?`.
         let para: Vec<u8> = para.clone();
@@ -1243,7 +1243,7 @@ mod tests {
 
     // -- a /DA colour pdfcer cannot model (Pass 221.0) ------------------------
 
-    /// ★★★ A `/DA` colour in a space pdfcer cannot model must be DISTINGUISHABLE
+    /// A `/DA` colour in a space pdfcer cannot model must be DISTINGUISHABLE
     /// from a `/DA` that sets no colour at all.
     ///
     /// # The defect
@@ -1313,7 +1313,7 @@ mod tests {
 
     // -- auto-size (VT1) ------------------------------------------------
 
-    /// ★★ THIS TEST USED TO PIN THE DEFECT, and is rewritten rather than
+    /// THIS TEST USED TO PIN THE DEFECT, and is rewritten rather than
     /// deleted so the change is visible.
     ///
     /// It asserted that every auto-size lands in `[4, 12]` and that a huge box
@@ -1381,7 +1381,7 @@ mod tests {
         assert_eq!(a.applied_autosize_bound, Some(AutoFitBound::Width));
     }
 
-    /// ★ The floor is a THIRD outcome and is named separately, because it is
+    /// The floor is a THIRD outcome and is named separately, because it is
     /// the one case where the returned size does not satisfy the constraint
     /// that produced it — the text WILL overflow, and an operator is entitled
     /// to be told that rather than shown a fit that did not happen.

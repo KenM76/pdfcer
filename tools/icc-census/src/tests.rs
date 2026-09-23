@@ -160,7 +160,7 @@ fn a_monochrome_profile_reports_ktrc_only_and_no_grid() {
     assert_eq!(got.header_channels, Some(1));
 }
 
-/// ★ The requester's third ask — **all three outcomes**, not just the
+/// The requester's third ask — **all three outcomes**, not just the
 /// interesting one.
 ///
 /// Asserting only the disagreement would leave "100 % agree" as a result

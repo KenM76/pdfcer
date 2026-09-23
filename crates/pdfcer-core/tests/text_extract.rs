@@ -797,7 +797,7 @@ fn page_and_form_text_pdf() -> Vec<u8> {
     buf
 }
 
-/// ★ THE ASYMMETRY, PUBLISHED. Extraction recurses into a form XObject; the
+/// THE ASYMMETRY, PUBLISHED. Extraction recurses into a form XObject; the
 /// edit surgery does not. So a caret can land anywhere extraction can see and
 /// commit only where the surgery can reach, and until `Pass 118.0` the only
 /// way a shell could tell those regions apart was by matching on
@@ -845,7 +845,7 @@ fn is_editable_separates_page_text_from_form_xobject_text() {
     );
 }
 
-/// ★ THE PROMISE `Pass 118.0` MADE, KEPT BY `Pass 119.0`.
+/// THE PROMISE `Pass 118.0` MADE, KEPT BY `Pass 119.0`.
 ///
 /// That Pass published `editability()` instead of letting the shell match on
 /// `GlyphProvenance::content_stream` itself, with an explicit reason: *"when
@@ -876,7 +876,7 @@ fn no_run_reports_as_out_of_reach_now_that_forms_are_editable() {
     }
 }
 
-/// ★ THE TRAP THE `-> bool` WOULD HAVE WALKED INTO.
+/// THE TRAP THE `-> bool` WOULD HAVE WALKED INTO.
 ///
 /// [`ExtractOptions::capture_provenance`] defaults to **false**, so on a
 /// default extraction no glyph carries provenance at all. A boolean predicate
@@ -1032,7 +1032,7 @@ fn type3_with_to_unicode_extracts_as_sourced_text() {
 /// de-duplicated on that name, and every unnamed font on a page shared one
 /// slot.
 ///
-/// ★ **Measured on the pre-fix code, this fixture reported `0`, not `1`.**
+/// **Measured on the pre-fix code, this fixture reported `0`, not `1`.**
 /// `/TA` is resolved first, is also unnamed, and has a `/ToUnicode` — so it
 /// claims the empty key while emitting no note, and `/TB` and `/TC` are
 /// skipped before their notes are read. One clean unnamed font silences
@@ -1165,7 +1165,7 @@ fn a_search_reports_the_text_it_could_not_read() {
 /// with the thing in it that the operator asked to have removed, after being
 /// told the run succeeded.
 ///
-/// ★ The fixture's `/TA` run IS readable and `/TB`/`/TC` are not, so this
+/// The fixture's `/TA` run IS readable and `/TB`/`/TC` are not, so this
 /// exercises the case that actually ships: a **partial** result. That is the
 /// more dangerous one, not the safer one — "2 marks authored" reads as
 /// success, and nothing in the count hints that a third occurrence sat in a
@@ -1173,7 +1173,7 @@ fn a_search_reports_the_text_it_could_not_read() {
 /// `Pass 296.3` — the PATTERN route reports it too, and it is the route that
 /// needed it more.
 ///
-/// # ★★ Why this is its own test and not an extra assertion above
+/// # Why this is its own test and not an extra assertion above
 ///
 /// Because the defect being closed was **exactly** the shared assumption that
 /// two symmetric routes behave alike. `search_and_mark_redactions` grew this
@@ -1182,7 +1182,7 @@ fn a_search_reports_the_text_it_could_not_read() {
 /// one line short of the caller. A test that checked the literal route and
 /// assumed the pattern route followed is how it stayed that way for a fortnight.
 ///
-/// ★ And the pattern route is the MORE exposed of the two, which is
+/// And the pattern route is the MORE exposed of the two, which is
 /// counter-intuitive enough to write down: what an operator reaches for
 /// wildcards for is the structured confidential material — account numbers,
 /// part numbers, phone numbers, revision stamps.
@@ -1209,7 +1209,7 @@ fn a_pattern_driven_redaction_reports_the_text_it_could_not_read() {
     );
     assert!(marked.diagnostics.ladder_failures > 0);
 
-    // ★ The `Vec<ObjId>` sibling must still return exactly the same ids. It is
+    // The `Vec<ObjId>` sibling must still return exactly the same ids. It is
     // now a delegation, and the point of the delegation is that the two cannot
     // disagree about what was marked -- only about how much they tell you.
     let doc2 = Document::load(&type3_fixture("tounicode_gate.pdf")).expect("fixture loads");

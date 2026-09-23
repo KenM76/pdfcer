@@ -1,4 +1,4 @@
-//! ★ The differential that decision 066 asks for, pointed at pdfcer's own code.
+//! The differential that decision 066 asks for, pointed at pdfcer's own code.
 //!
 //! Decision 066 says pdfcer verifies a spec-governed computation against the
 //! standard *"on at least one case chosen to distinguish the correct
@@ -179,7 +179,7 @@ fn ts_mode(m: NonSeparableBlend) -> BlendMode {
     }
 }
 
-/// ★ WHERE THE DEPENDENCY IS CORRECT, pdfcer AGREES WITH IT.
+/// WHERE THE DEPENDENCY IS CORRECT, pdfcer AGREES WITH IT.
 ///
 /// This is the half that catches "wrong in a new way". If pdfcer had
 /// mis-transcribed `Lum`, `Sat`, `SetSat` or Table 137's argument order, it
@@ -235,7 +235,7 @@ fn pdfcer_agrees_with_tiny_skia_wherever_clip_color_cannot_fire() {
     );
 }
 
-/// ★ WHERE THE DEPENDENCY IS BROKEN, pdfcer DIFFERS FROM IT — and differs in
+/// WHERE THE DEPENDENCY IS BROKEN, pdfcer DIFFERS FROM IT — and differs in
 /// the direction the standard requires.
 ///
 /// Without this half the test above could be satisfied by simply calling
@@ -371,7 +371,7 @@ fn centre_pixel(bytes: Vec<u8>) -> (u8, u8, u8) {
     (px.red(), px.green(), px.blue())
 }
 
-/// ★★ THE CANONICAL CASE, AS PIXELS ON A PAGE.
+/// THE CANONICAL CASE, AS PIXELS ON A PAGE.
 ///
 /// A black square painted over a blue page with `/BM /Luminosity` must come
 /// out **black**: the result keeps the backdrop's hue and saturation but takes

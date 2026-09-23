@@ -38,7 +38,7 @@
 //! Each of these renders *something* when got wrong, which is why they
 //! are called out rather than left to the code to imply.
 //!
-//! 1. **★ WIDTHS ARE IN `FontMatrix` UNITS, NOT THOUSANDTHS.** Table
+//! 1. **WIDTHS ARE IN `FontMatrix` UNITS, NOT THOUSANDTHS.** Table
 //!    112: *"These widths shall be interpreted in glyph space as
 //!    specified by `FontMatrix` (**unlike** the widths of a Type 1 font,
 //!    which are in thousandths of a unit of text space)."* Every other
@@ -54,7 +54,7 @@
 //!    not execute any operators that set the colour … any use of such
 //!    operators **shall be ignored**."* `d0` is the opposite — it
 //!    *declares* that the procedure specifies its own colour.
-//!    ★ **Measured against Acrobat Reader on 2026-08-25 rather than
+//!    **Measured against Acrobat Reader on 2026-08-25 rather than
 //!    taken on trust**: a four-row probe with the page colour blue and a
 //!    red-setting operator inside the procedure rendered `d1` **blue**
 //!    and `d0` **red**. Acrobat honours the clause, so following the
@@ -115,7 +115,7 @@ pub struct Type3Font {
     /// `/FontMatrix` — the six numbers mapping **glyph space to text
     /// space** (§9.2.4). Required by Table 112.
     ///
-    /// ★ A **general** matrix, not a scale. Rotated and skewed Type 3
+    /// A **general** matrix, not a scale. Rotated and skewed Type 3
     /// fonts exist — they are the mechanism behind rotated stamp and
     /// watermark glyph sets — and Table 112 legislates the rotation case
     /// for widths explicitly. Shortcutting to `font_matrix[0]` as a
@@ -233,7 +233,7 @@ impl Type3Font {
 
     /// The advance for `code`, **in text space**.
     ///
-    /// ★ THIS FUNCTION IS THE WHOLE OF THE WIDTH RULE, and it exists as
+    /// THIS FUNCTION IS THE WHOLE OF THE WIDTH RULE, and it exists as
     /// a function so that no call site can apply the simple-font `/1000`
     /// by habit. Table 112:
     ///
@@ -352,7 +352,7 @@ fn load_widths(doc: &DocumentView<'_>, dict: &Dict) -> [f32; CODES] {
 /// `StandardEncoding`'s names are meaningless against arbitrary
 /// `CharProcs` keys.
 ///
-/// ★ Table 112 types `/Encoding` as "**name** or dictionary" while its
+/// Table 112 types `/Encoding` as "**name** or dictionary" while its
 /// own description and §9.6.6.3 both require a dictionary with a
 /// `Differences` array. The spec corpus flags that as a **genuine
 /// inconsistency in the standard**, not a reading error. A bare
@@ -423,7 +423,7 @@ fn numbers<const N: usize>(doc: &DocumentView<'_>, dict: &Dict, key: &[u8]) -> O
 mod tests {
     use super::*;
 
-    /// ★ The number-one Type 3 bug, pinned.
+    /// The number-one Type 3 bug, pinned.
     ///
     /// A width of 750 in a font with the conventional
     /// `[0.001 0 0 0.001 0 0]` matrix is **0.75 text-space units**. The

@@ -79,7 +79,7 @@
 //! denominator is `3,097 − 1,485 not-embedded − 49 Type 3 − 3 unreadable`:
 //! every font that actually carries a readable program.
 //!
-//! ★ **This differs from the smaller measurement the Pass brief carried**,
+//! **This differs from the smaller measurement the Pass brief carried**,
 //! and both are kept because they are different measurements rather than a
 //! correction. A 400-file sample recorded 466 fonts / 117 embedded and put
 //! `removable` at 48 % with `blocked-identity` at 34 %. Over ten times the
@@ -90,7 +90,7 @@
 //! way (refuse, and say why), but anyone sizing the *value* of a future
 //! re-encoding Pass should size it against `unknown-symbolic-builtin`.
 //!
-//! # ★ Two decisions this module makes, and Acrobat does not answer
+//! # Two decisions this module makes, and Acrobat does not answer
 //!
 //! ## 1. The subset tag is STRIPPED (default), and the descriptor follows
 //!
@@ -177,7 +177,7 @@
 //! | `/ToUnicode` | Text extraction and search are unaffected by unembedding and must stay that way. |
 //! | The content streams | Not touched at all. No glyph moves; no operator changes. |
 //!
-//! # ★ Appearance WILL change, and the disclosure says so as a fact
+//! # Appearance WILL change, and the disclosure says so as a fact
 //!
 //! `/Widths` are preserved, so each glyph occupies exactly the same advance
 //! it did. The **glyph itself** is drawn by whatever face the reader
@@ -826,7 +826,7 @@ impl UnembedPlan {
     /// Every freed program plus every freed `/CIDSet` stream. A shared
     /// program that stays behind contributes nothing.
     ///
-    /// # ★ An incremental save reclaims NONE of this
+    /// # An incremental save reclaims NONE of this
     ///
     /// §7.5.6's update section is *appended*: the deleted objects get free
     /// cross-reference entries in the new section, and their bytes remain

@@ -147,7 +147,7 @@ fn everything_that_is_not_the_cut_survives_byte_verbatim() {
     let plan = plan_split_text_object(&cs, &t, &[2]).expect("a Td-placed run splits");
     let out = String::from_utf8(plan.content).expect("ascii");
 
-    // ★ The strongest form of the claim: excise the ONE inserted prelude and
+    // The strongest form of the claim: excise the ONE inserted prelude and
     // what is left is the input, byte for byte. A re-spelled operand, a
     // normalised number or a re-emitted `Tf` all fail this and all pass a
     // looser "renders the same" check — which is precisely the class of defect
@@ -302,7 +302,7 @@ fn the_range_and_empty_refusals_produce_no_bytes() {
         plan_split_text_object(&cs, &t, &[]),
         Err(VectorEditError::EmptySplit)
     ));
-    // ★ One bad index refuses the WHOLE split, not the good half of it: a
+    // One bad index refuses the WHOLE split, not the good half of it: a
     // half-applied cut list is worse than none, because the operator cannot
     // tell which cuts landed without reading the bytes.
     assert!(matches!(

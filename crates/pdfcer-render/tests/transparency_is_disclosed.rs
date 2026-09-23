@@ -214,7 +214,7 @@ fn the_marks_are_still_painted_while_the_soft_mask_gap_is_disclosed() {
 /// **The blend actually changes pixels**, which no counter can tell you —
 /// and it blends against the RIGHT backdrop, which is the harder half.
 ///
-/// ★ The first version of this test asserted that `Screen` over the page
+/// The first version of this test asserted that `Screen` over the page
 /// came out WHITE, and it passed. It was asserting a BUG. §11.4.7 makes the
 /// page an *isolated* transparency group whose initial backdrop is fully
 /// TRANSPARENT — white is composited once at the end — and §11.4.5 says
@@ -461,7 +461,7 @@ fn the_outer_blend_mode_does_not_leak_into_the_groups_contents() {
 /// `knockout_approximated` is now **zero** for a knockout group pdfcer
 /// rendered exactly.
 ///
-/// # ★ THIS COUNTER CHANGED MEANING IN `Pass 97.0`, and the previous
+/// # THIS COUNTER CHANGED MEANING IN `Pass 97.0`, and the previous
 /// # expectation is kept here so the change reads as deliberate
 ///
 /// It used to be `1` for every `/K true` group, because the whole feature
@@ -496,7 +496,7 @@ fn isolated_and_knockout_groups_are_counted_separately() {
     }
 }
 
-/// ★ **§11.4.6, measured — and the fixture sets `/ca 0.5` for the reason
+/// **§11.4.6, measured — and the fixture sets `/ca 0.5` for the reason
 /// the clause itself gives.**
 ///
 /// Knockout and non-knockout are **identical** when every element is
@@ -571,7 +571,7 @@ fn knockout_erases_an_earlier_element_where_a_normal_group_layers() {
     );
 }
 
-/// ★ **§11.4.5, measured — a soft mask applies to the group's RESULT, once,
+/// **§11.4.5, measured — a soft mask applies to the group's RESULT, once,
 /// not to each object inside it.**
 ///
 /// # Why the fixture is two OVERLAPPING squares and not one
@@ -668,7 +668,7 @@ fn a_soft_mask_applies_to_the_group_result_not_to_each_object_inside_it() {
     );
 }
 
-/// ★ **§11.3.4 / Table 147 — the blending colour space is INHERITED by a
+/// **§11.3.4 / Table 147 — the blending colour space is INHERITED by a
 /// non-isolated group and CHOSEN by an isolated one, and the difference
 /// is what makes the whole suite transparency panel subtractive.**
 ///
@@ -1010,7 +1010,7 @@ fn a_group_that_is_not_a_transparency_group_is_not_counted() {
 /// The FOUR NON-SEPARABLE modes are APPLIED, and applied by **pdfcer's own**
 /// Table 137 rather than by the rasteriser.
 ///
-/// ★ THIS TEST USED TO ASSERT THE OPPOSITE, and the history is the point.
+/// THIS TEST USED TO ASSERT THE OPPOSITE, and the history is the point.
 /// It was `the_non_separable_modes_are_refused_not_silently_wrong`, and it
 /// pinned decision 066's refusal: `tiny_skia` HAS these four modes, mapping
 /// to them is one line, and they are wrong by up to 107/255 on 9.4–15.5 % of

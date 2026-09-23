@@ -156,7 +156,7 @@ pub struct Refusal {
     /// message's tail is absent: the field and the sentence are two renderings
     /// of one computation, never two computations.
     ///
-    /// # ★★ Why this is a field and not a caller's parse
+    /// # Why this is a field and not a caller's parse
     ///
     /// `Pass 274.0` made a coverage refusal end on a **working remedy**
     /// instead of on "choose a font that covers it", and `Pass 279.0` made
@@ -168,13 +168,13 @@ pub struct Refusal {
     /// `.` — a locator for this crate's message format living in a GUI,
     /// breaking silently the first time the clause is reworded.
     ///
-    /// ★ So it showed nothing. Not a workaround — **the feature was simply
+    /// So it showed nothing. Not a workaround — **the feature was simply
     /// not surfaced**, on the one refusal an operator can act on, because a
     /// shell disciplined about not re-deriving engine facts keeps quiet rather
     /// than guess. A remedy computed correctly and then made unreachable is
     /// the same as not computing it, from out there.
     ///
-    /// # ★ How good this list is depends on where the refusal came from, and
+    /// # How good this list is depends on where the refusal came from, and
     /// # that is stated rather than left to be discovered
     ///
     /// Raised from a refusal site that has the PAGE in hand
@@ -196,7 +196,7 @@ pub struct Refusal {
 impl Refusal {
     /// Build a refusal from its parts (`Pass 295.0`).
     ///
-    /// # ★★ Why this is public: a variant no consumer could construct
+    /// # Why this is public: a variant no consumer could construct
     ///
     /// `Refusal` is `#[non_exhaustive]`, which forbids the struct expression
     /// from outside this crate **whatever the field visibility** — and every
@@ -215,7 +215,7 @@ impl Refusal {
     /// `Times-Bold` whose `o` is remapped, which is the page that produced
     /// `Pass 144.0`.
     ///
-    /// ★ Publishing a constructor keeps `#[non_exhaustive]` doing its real
+    /// Publishing a constructor keeps `#[non_exhaustive]` doing its real
     /// job — reserving the right to add a fifth field — while removing the
     /// side effect nobody chose: making a public variant untestable. A type
     /// a consumer cannot build is a type a consumer cannot defend against.
@@ -423,7 +423,7 @@ impl CompositeEncoding {
             }
             let Some(&code) = self.reverse.get(&ch) else {
                 // Computed once and spent on both the sentence and the field
-                // (`Pass 296.1`). ★ This layer has NO page -- it is the pure
+                // (`Pass 296.1`). This layer has NO page -- it is the pure
                 // encoding inverse -- so this is the naive coverage list, and
                 // `Refusal::remedy_faces` says so rather than letting a caller
                 // assume the page-aware guarantee the editing layer gives.
@@ -437,7 +437,7 @@ impl CompositeEncoding {
                         "this font has no glyph for {ch:?}, and pdfcer cannot add one to a font \
                          that is already embedded. Keep this edit to characters the font \
                          already uses, or switch this run to a font that covers it{}",
-                        // ★ NAMING THE REMEDY, not just gesturing at it. The
+                        // NAMING THE REMEDY, not just gesturing at it. The
                         // sentence used to end "or choose a font that covers
                         // it" -- true, and unusable, because the operator
                         // cannot tell which font that would be and the whole
@@ -517,7 +517,7 @@ impl CompositeEncoding {
 /// is correct and, on its own, **unusable**: it names no font, and the whole
 /// difficulty is that the operator cannot tell which would work.
 ///
-/// ★ The gap is discoverability, not capability. The remedy already shipped —
+/// The gap is discoverability, not capability. The remedy already shipped —
 /// `format_text`'s `set_font` will **author** a standard-14 resource on a page
 /// that lacks one, which needs no embedding and no permission — but nothing
 /// connected the refusal to it. Measured on a real drawing: the two-command
@@ -545,7 +545,7 @@ impl CompositeEncoding {
 /// ordinary text without being special-cased — their built-in encodings simply
 /// do not map to it.
 ///
-/// # ★★ Warning — this list is NOT page-aware
+/// # Warning — this list is NOT page-aware
 ///
 /// A face named here can resolve straight back into the very subset that
 /// refused. `set_font` resolves a selector against the PAGE first, matching a
@@ -560,7 +560,7 @@ impl CompositeEncoding {
 /// computation: same candidates, each put through the acceptance test
 /// `set_font` itself uses on that page (`R221`).
 ///
-/// ★ A consumer reading a refusal should not call either of these. The answer
+/// A consumer reading a refusal should not call either of these. The answer
 /// is already on the refusal, page-verified where a page was available:
 /// [`Refusal::remedy_faces`]. This function remains public because the
 /// coverage question — *"which standard-14 faces contain this character at

@@ -121,7 +121,7 @@ fn coverage(
 ) -> Option<()> {
     let width = cov.width();
     let (x0, y0, x1, y1) = region;
-    // ★ CLEAR ONLY THE REGION WE ARE ABOUT TO USE. The mask is reused
+    // CLEAR ONLY THE REGION WE ARE ABOUT TO USE. The mask is reused
     // across every paint on the page, so it carries the previous paint's
     // coverage; `fill_path` accumulates rather than replacing. Clearing
     // the whole page here would reintroduce exactly the per-paint
@@ -137,7 +137,7 @@ fn coverage(
         cov.fill_path(&stroked, FillRule::Winding, anti_alias, ctm);
     }
     if let Some(old) = clip.mask {
-        // ★ AND MULTIPLY THE CLIP ONLY OVER THE REGION, reading the clip
+        // AND MULTIPLY THE CLIP ONLY OVER THE REGION, reading the clip
         // in place. The previous version did `old.data().to_vec()` — a
         // full page-sized COPY — and then multiplied across the whole
         // page, per paint. On a text-heavy page that is two more
@@ -259,12 +259,12 @@ pub(crate) fn paint_brush_coverage_into_cmyk(
     match &brush.brush {
         Brush::Solid { rgba } => {
             let alpha = f32::from(rgba[3]) / 255.0;
-            // ★ `Pass 165.0`: whether this paint was AUTHORED or RECONSTRUCTED
+            // `Pass 165.0`: whether this paint was AUTHORED or RECONSTRUCTED
             // is decided here and nowhere else, so it is recorded here. The
             // counter used to be incremented only on the image path, which made
             // this doc comment's own promise ("every such paint is counted")
             // false for every solid fill.
-            // ★★ SPOT PLANES ARE ALL-OR-NOTHING FOR ONE PAINT, and that is
+            // SPOT PLANES ARE ALL-OR-NOTHING FOR ONE PAINT, and that is
             // a correctness rule rather than a simplification.
             //
             // A spot colorant's ink can arrive by exactly one of two

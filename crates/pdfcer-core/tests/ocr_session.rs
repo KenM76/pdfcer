@@ -12,7 +12,7 @@
 //! request channel: *"Why do I have to save a copy instead of just go back
 //! into my pdf and save over it?"*
 //!
-//! ## ★★ The trap underneath it, which is the half a guard could not fix
+//! ## The trap underneath it, which is the half a guard could not fix
 //!
 //! The one-shot reads the document's **base** revision. Run after any edit, it
 //! would produce a recognised copy that **silently omitted that edit** — so
@@ -122,7 +122,7 @@ fn save(session: &EditSession) -> Vec<u8> {
         .0
 }
 
-/// ★ The headline: the layer is part of the session, and the session's own
+/// The headline: the layer is part of the session, and the session's own
 /// save writes it. No second file, no copy, no separate path.
 #[test]
 fn the_layer_is_in_the_session_and_saves_through_the_normal_path() {
@@ -148,7 +148,7 @@ fn the_layer_is_in_the_session_and_saves_through_the_normal_path() {
     );
 }
 
-/// ★★★ THE TEST THAT NO GUARD COULD HAVE SATISFIED.
+/// THE TEST THAT NO GUARD COULD HAVE SATISFIED.
 ///
 /// Make an ordinary edit, then run OCR, then check the edit is still there.
 /// The one-shot reads the document's BASE revision, so a session verb built on
@@ -163,7 +163,7 @@ fn session_ocr_sees_an_edit_made_earlier_in_the_session() {
     // An ordinary edit first. Any verb that changes page 0's content will do;
     // `add_text` is used because its output is extractable, so the assertion
     // below can see it rather than infer it.
-    // ★ `AddTextRequest::new`, not a struct literal: the type is
+    // `AddTextRequest::new`, not a struct literal: the type is
     // `#[non_exhaustive]`, so a literal does not compile out-of-crate. An
     // in-crate test would never have discovered that, which is exactly why
     // this file is an integration test.
@@ -197,7 +197,7 @@ fn session_ocr_sees_an_edit_made_earlier_in_the_session() {
     );
 }
 
-/// ★★ A multi-page run is ONE undo entry.
+/// A multi-page run is ONE undo entry.
 ///
 /// Recognising forty pages and then pressing undo forty times is not a
 /// feature. Asserted on a two-page document because two is enough to
@@ -277,7 +277,7 @@ fn undo_restores_the_document_to_what_it_was() {
     assert_eq!(page_text(&after, 1), page_text(&before, 1));
 }
 
-/// ★ One page named twice is refused.
+/// One page named twice is refused.
 ///
 /// Every page is planned against the graph as it stands *before* the commit —
 /// that is what makes a multi-page run one undo entry. Two entries for one
@@ -311,7 +311,7 @@ fn naming_one_page_twice_is_refused() {
     );
 }
 
-/// ★★ A refused run leaves NOTHING behind — not an object, not an undo entry.
+/// A refused run leaves NOTHING behind — not an object, not an undo entry.
 ///
 /// The verb plans every page before allocating anything, so a run that refuses
 /// on its second page has not already burnt the first page's object numbers or

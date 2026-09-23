@@ -11,7 +11,7 @@
 //! needing no font program at all, so it is now authored on demand. Anything
 //! else still refuses.
 //!
-//! ## ★★ What these tests are really guarding: THREE save paths, not one
+//! ## What these tests are really guarding: THREE save paths, not one
 //!
 //! A newly created font resource has to reach the file, and there are three
 //! independent routes that can produce one:
@@ -28,7 +28,7 @@
 //! anywhere in the document. So the assertions below read the **saved bytes**
 //! through both a session save and the one-shot save.
 //!
-//! ## ★★★ And the failure that would have been worse: INHERITED resources
+//! ## And the failure that would have been worse: INHERITED resources
 //!
 //! §7.8.3 — a page's own `/Resources` **replaces** the one it inherits from
 //! its `/Pages` ancestors; it does not merge with it. So on a page carrying no
@@ -200,7 +200,7 @@ fn the_session_path_writes_the_resource_too() {
     assert!(page_font_names(&saved).iter().any(|n| n == "Helvetica"));
 }
 
-/// ★ Undo must remove the font resource as well as the restyle.
+/// Undo must remove the font resource as well as the restyle.
 ///
 /// They are ONE command deliberately. If the resource were committed
 /// separately, undoing the restyle would leave an object the operator never
@@ -253,7 +253,7 @@ fn a_non_standard_14_face_is_still_refused_by_name() {
     );
 }
 
-/// ★★ The discriminator: `Symbol` IS standard-14, so the resource is
+/// The discriminator: `Symbol` IS standard-14, so the resource is
 /// synthesized — and then the run is refused because `Symbol`'s built-in
 /// encoding has no `h`.
 ///
@@ -303,7 +303,7 @@ fn a_face_already_on_the_page_adds_nothing() {
 }
 
 // ---------------------------------------------------------------------------
-// ★★★ INHERITED RESOURCES — §7.8.3
+// INHERITED RESOURCES — §7.8.3
 // ---------------------------------------------------------------------------
 
 /// Build a one-page document whose `/Resources` live on the `/Pages` NODE, not
@@ -313,10 +313,10 @@ fn inherited_resources_pdf() -> Vec<u8> {
     let content = "BT /F1 12 Tf 72 700 Td (hello world) Tj ET";
     let bodies = [
         "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
-        // ★ /Resources is HERE, on the Pages node.
+        // /Resources is HERE, on the Pages node.
         "<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << /Font << /F1 5 0 R >> >> >>"
             .to_owned(),
-        // ★ …and the page has NONE of its own.
+        // …and the page has NONE of its own.
         "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>".to_owned(),
         format!(
             "<< /Length {} >>\nstream\n{content}\nendstream",
@@ -344,7 +344,7 @@ fn inherited_resources_pdf() -> Vec<u8> {
     buf
 }
 
-/// ★★★ The page inherits its `/Resources`. Adding a font must NOT give the
+/// The page inherits its `/Resources`. Adding a font must NOT give the
 /// page a `/Resources` of its own, because that would REPLACE the inherited
 /// one and orphan `/F1` — the font the page's existing text already uses.
 ///

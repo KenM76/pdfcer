@@ -25,7 +25,7 @@
 //! was never reported as a defect**, and it is worth remembering as a shape:
 //! a capability gap that happens to miss the person most likely to notice it.
 //!
-//! ## ★★ The load-bearing property, and the fixture built to falsify it
+//! ## The load-bearing property, and the fixture built to falsify it
 //!
 //! A leaf's geometry is **page space**; its bytes are in the form's stream,
 //! which is **form space**. The planners convert a page-space target into
@@ -112,7 +112,7 @@ fn a_leaf_records_its_placement_and_its_in_form_index() {
     assert!(approx(leaf.placement.e, 40.0) && approx(leaf.placement.f, 30.0));
 }
 
-/// ★ A nested form's leaf carries the COMPOSED placement, not the inner `cm`
+/// A nested form's leaf carries the COMPOSED placement, not the inner `cm`
 /// alone. `nested-forms.pdf` puts Fm1 at (50, 50) inside Fm0 at the identity,
 /// and Fm1 draws `20 20 30 30 re` — so the leaf is at page (70, 70).
 #[test]
@@ -141,7 +141,7 @@ fn is_editable_now_answers_the_question_it_names() {
 }
 
 // -------------------------------------------------------------------------
-// ★★ The placement matrix is load-bearing
+// The placement matrix is load-bearing
 // -------------------------------------------------------------------------
 
 /// The assertion the scaled fixture exists for.
@@ -150,7 +150,7 @@ fn is_editable_now_answers_the_question_it_names() {
 /// page `[60, 50, 100, 90]`. The lower-left node is dragged **outside** the
 /// object's current box, to page `(40, 20)`.
 ///
-/// # ★ Why the target is outside the box, and the assertion that was wrong
+/// # Why the target is outside the box, and the assertion that was wrong
 ///
 /// The first cut of this test dragged the corner to `(70, 60)` — inward — and
 /// asserted the object's bounding box became `[70, 60, …]`. It failed, and the
@@ -253,7 +253,7 @@ fn moving_one_subpath_inside_a_form_leaves_its_sibling_alone() {
 }
 
 // -------------------------------------------------------------------------
-// ★★★ Decision 076's ruling, stated as a measurement
+// Decision 076's ruling, stated as a measurement
 // -------------------------------------------------------------------------
 
 /// A form invoked twice has one set of bytes. Editing through one invocation
@@ -275,7 +275,7 @@ fn an_edit_inside_a_shared_form_changes_every_invocation() {
 
     assert_eq!(out.invocations, 2, "the form is drawn twice");
     assert_eq!(out.pages, 1, "both on one page");
-    // ★ The reach is STRUCTURED DATA and deliberately not prose. An earlier
+    // The reach is STRUCTURED DATA and deliberately not prose. An earlier
     // cut pushed a sentence about it onto `disclosures` as well, and the CLI
     // then printed the reach twice — once from the sentence and once from its
     // own better-worded line naming `unshare-form` as the CLI spells it. Two
@@ -340,7 +340,7 @@ fn a_leaf_index_out_of_range_is_refused_by_name() {
     );
 }
 
-/// ★ A selection spanning two INVOCATIONS of one form is refused, and this is
+/// A selection spanning two INVOCATIONS of one form is refused, and this is
 /// the subtle half.
 ///
 /// The obvious guard is "same form object?", and it is not enough: two
@@ -423,7 +423,7 @@ fn deleting_inside_a_shared_form_empties_every_invocation() {
     );
 }
 
-/// ★★★ AN EDIT INSIDE A FORM MUST MOVE `page_content_generation`
+/// AN EDIT INSIDE A FORM MUST MOVE `page_content_generation`
 /// (`Pass 197.0`).
 ///
 /// # Reported, measured, by the consuming shell
@@ -481,7 +481,7 @@ fn an_edit_inside_a_form_moves_the_page_generation() {
     );
 }
 
-/// ★ The CONTROL: the generation must still hold still when nothing changed.
+/// The CONTROL: the generation must still hold still when nothing changed.
 ///
 /// Without this, "it moves after a form edit" is equally satisfied by a number
 /// that moves on every call -- which would be useless as an agreement check and
@@ -507,7 +507,7 @@ fn the_page_generation_still_holds_still_when_nothing_is_edited() {
 // **move and not delete**, while the same rungs on page content could do
 // both — and there was no text verb of either kind.
 //
-// ★ On a SolidWorks set the title block IS a form, drawn on every sheet, so
+// On a SolidWorks set the title block IS a form, drawn on every sheet, so
 // the container `G017` is about is exactly the one where the asymmetry bit.
 // `forms-xobject/title-block-form.pdf` is the only fixture here with text
 // inside a form, and it carries the block's rules as a two-subpath polyline
@@ -528,7 +528,7 @@ fn text_run_boxes(s: &mut EditSession, page_index: usize) -> Vec<Vec<Bounds>> {
         .collect()
 }
 
-/// ★★★ One line of a title block moves, on every sheet the block is drawn on,
+/// One line of a title block moves, on every sheet the block is drawn on,
 /// and the other two lines do not.
 ///
 /// Both halves matter and they pull in opposite directions. The form's stream
@@ -642,7 +642,7 @@ fn deleting_one_anchor_inside_a_form_shortens_its_subpath() {
     );
 }
 
-/// ★ And the text verbs refuse a PATH leaf by name rather than editing
+/// And the text verbs refuse a PATH leaf by name rather than editing
 /// whatever is at that index.
 ///
 /// The in-form verbs address leaves, and a leaf can be any object kind. A

@@ -410,7 +410,7 @@ fn a_justified_import_discloses_the_paragraphs_it_had_to_cut() {
 
 #[test]
 fn a_justified_line_is_actually_justified_in_the_content_stream() {
-    // ★ The test that pins the design, and the only one that does.
+    // The test that pins the design, and the only one that does.
     //
     // Each page is handed back the WORDS of its share and `add_text` re-derives
     // the line breaks. That works because greedy first-fit is prefix-stable —

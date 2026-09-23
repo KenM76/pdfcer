@@ -170,7 +170,7 @@ pub struct Line {
     /// The line's baseline y in default user space (§9.4.4) — the shared
     /// y-origin of its glyphs, taken from the first.
     ///
-    /// ★ **Meaningful as a *baseline* only when [`Self::direction`] is
+    /// **Meaningful as a *baseline* only when [`Self::direction`] is
     /// horizontal** (`Pass 139.2`). For a line stamped at 90° every glyph
     /// has a *different* `y` and this is merely the first one's — the line
     /// does not have a shared y at all. The recognition thresholds that
@@ -336,7 +336,7 @@ pub struct BlockRecognitionOptions {
     /// `ExtractOptions::line_gap_ratio` — this is the same rule 1, applied
     /// defensively so the model is correct on runs from any source.
     ///
-    /// ★ **Measured PERPENDICULAR TO THE LINE, not along the page's y
+    /// **Measured PERPENDICULAR TO THE LINE, not along the page's y
     /// axis** (`Pass 139.2`). "Baseline" here means the line's own
     /// baseline, wherever it points. Written in page axes this clause
     /// fired between every letter of a 90° line and shattered a
@@ -570,7 +570,7 @@ impl<'a> EditableTextModel<'a> {
                         // `rotated-text.pdf` before this change: 16 lines
                         // for four lines of text.
                         //
-                        // ★ That is worth noticing on its own: `Pass
+                        // That is worth noticing on its own: `Pass
                         // 139.1` had already stopped the EXTRACTION from
                         // fragmenting rotated text, so `page.runs` held
                         // one clean run per block — and this stage
@@ -1165,7 +1165,7 @@ impl<'a> EditableTextModel<'a> {
     /// exposed so vertical navigation can compute a "desired column" through
     /// the SAME glyph-boundary matching [`Self::hit_test`] / [`Self::line_range_at`]
     /// already encode, rather than the GUI re-deriving glyph x-positions.
-    /// ★ **A page-axis answer, and on a rotated line it is the wrong
+    /// **A page-axis answer, and on a rotated line it is the wrong
     /// question** (`Pass 139.2`). Every glyph of a 90° line shares one `x`,
     /// so this returns the same number for every caret slot on it. The
     /// signature is the limit — a scalar cannot name a point on a line
@@ -1223,7 +1223,7 @@ impl<'a> EditableTextModel<'a> {
     /// nearest-glyph matching in the GUI (§3). `None` for an out-of-range
     /// `line_index` or a line whose glyphs are all stale.
     ///
-    /// ★ **Page-axis, and it stays that way on purpose** (`Pass 139.2`).
+    /// **Page-axis, and it stays that way on purpose** (`Pass 139.2`).
     /// `x` alone cannot name a slot on a line that is not horizontal, so
     /// this delegates with the line's own `baseline_y` as the second
     /// coordinate — which is exact for horizontal text and, for a rotated

@@ -31,7 +31,7 @@
 //! reference image, nothing remembered between runs. This is exactly
 //! `shading_ink.rs`'s oracle applied one object type over.
 //!
-//! ★★ **And it found a second defect, which is the transferable part.** With
+//! **And it found a second defect, which is the transferable part.** With
 //! only the image half fixed, the fixtures reported the fill and the image
 //! **8.3 to 9.0 mean levels apart** — and the *additive control page*, which
 //! has no colorant buffer and never took the round trip, showed the image was
@@ -129,7 +129,7 @@ fn mean_abs(a: (f64, f64, f64), b: (f64, f64, f64)) -> f64 {
     ((a.0 - b.0).abs() + (a.1 - b.1).abs() + (a.2 - b.2).abs()) / 3.0
 }
 
-/// ★★★ THE ONE THAT MATTERS. A spot-colour image and a spot-colour fill of the
+/// THE ONE THAT MATTERS. A spot-colour image and a spot-colour fill of the
 /// same tint, on a page that composites in ink.
 ///
 /// Measured at **8.33** before `Pass 140.0`/`140.1`, and the fixture's colorant
@@ -151,7 +151,7 @@ fn a_separation_image_and_fill_of_one_tint_agree_on_a_subtractive_page() {
 
 /// The same, for a `/DeviceN` naming two **process** colorants.
 ///
-/// ★ This page is the one that discriminates the two questions. Its tint
+/// This page is the one that discriminates the two questions. Its tint
 /// transform maps `(t0, t1)` to `(0.9*t0, 0.8*t1, 0.1, 0.05)`, so the
 /// components the source *specified* — Table 149's question, `[t0, t1, 0, 0]`
 /// — and the components the transform *produces* are different numbers. A
@@ -188,7 +188,7 @@ fn a_duotone_image_and_fill_of_one_palette_entry_agree() {
     );
 }
 
-/// ★★ The MIXED duotone — `/Indexed` over `/DeviceN [/Black /SpotGreen]`
+/// The MIXED duotone — `/Indexed` over `/DeviceN [/Black /SpotGreen]`
 /// (`Pass 238.0`), the shape the print-conformance suite's duotones take.
 ///
 /// This is the test that found two fill-path bugs the single-colorant
@@ -278,7 +278,7 @@ fn an_overprinting_mixed_duotone_image_keeps_the_process_mark_beneath_it() {
 /// this stops a future change breaking the additive one behind a passing
 /// subtractive test.
 ///
-/// ★ It also pins the ANSWER, not just the agreement: this page's colour is
+/// It also pins the ANSWER, not just the agreement: this page's colour is
 /// what the document's tint transform produces, computed with no ink anywhere
 /// in the pipeline. The subtractive pages above must land on the same colour,
 /// which is asserted separately below.
@@ -293,7 +293,7 @@ fn a_separation_image_and_fill_agree_on_an_additive_page_too() {
     );
 }
 
-/// ★★ THE CROSS-PAGE ASSERTION, AND IT IS DELIBERATE WHERE `shading_ink.rs`
+/// THE CROSS-PAGE ASSERTION, AND IT IS DELIBERATE WHERE `shading_ink.rs`
 /// REFUSES THE EQUIVALENT.
 ///
 /// That file's third test exists to stop somebody pinning a subtractive page
@@ -333,7 +333,7 @@ fn the_subtractive_page_lands_on_the_additive_page_s_colour() {
     );
 }
 
-/// ★★★ `Pass 140.2` — AN IMAGE'S OWN COLOUR CONVERSIONS MUST BE REPORTED.
+/// `Pass 140.2` — AN IMAGE'S OWN COLOUR CONVERSIONS MUST BE REPORTED.
 ///
 /// `image::decode` counted its shortfalls into two local `ColorDiagnostics`
 /// and **dropped both at the end of the function**. So an image whose
@@ -345,7 +345,7 @@ fn the_subtractive_page_lands_on_the_additive_page_s_colour() {
 /// cannot see the substitution, because a plausible grey looks like a grey the
 /// file might have asked for.
 ///
-/// ★★ THE FIXTURES ARE IMAGE-ONLY, AND THAT IS THE WHOLE MEASUREMENT. Every
+/// THE FIXTURES ARE IMAGE-ONLY, AND THAT IS THE WHOLE MEASUREMENT. Every
 /// other page in this file carries a fill beside its image, and a fill's
 /// conversions ARE counted — so on those pages the counter reads a plausible
 /// non-zero number whether or not the image contributes. **A page with a
@@ -400,7 +400,7 @@ fn an_image_s_own_tint_transform_is_reported_whether_it_worked_or_not() {
     );
 }
 
-/// ★ The count is per DISTINCT SAMPLE TUPLE, not per texel, and that is a
+/// The count is per DISTINCT SAMPLE TUPLE, not per texel, and that is a
 /// contract rather than an implementation detail.
 ///
 /// `TintCache` exists so that one broken transform on an eight-megapixel image

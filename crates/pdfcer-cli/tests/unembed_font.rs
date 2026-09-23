@@ -14,7 +14,7 @@
 //!    silent — the command would look like it was working — and would take
 //!    a file's fonts away from someone who was only looking.
 //!
-//! 2. **★ Every refusal is printed by name, with its reason.** The one
+//! 2. **Every refusal is printed by name, with its reason.** The one
 //!    thing this command does that Acrobat does not: Acrobat refuses the
 //!    same fonts by omitting them from a list, with no reason shown
 //!    anywhere (`Acrobat_Features/optimize__font_unembedding.md`, sourced
@@ -107,7 +107,7 @@ fn apply_without_output_is_refused() {
     assert!(stderr.contains("--apply needs --output"), "{stderr}");
 }
 
-/// ★ The two byte figures, and the sentence that explains the difference.
+/// The two byte figures, and the sentence that explains the difference.
 /// Under the default incremental mode nothing is reclaimed, and the command
 /// says so rather than letting `reclaim_on_full` be read as a saving.
 #[test]
@@ -168,7 +168,7 @@ fn the_appearance_change_is_disclosed_as_a_certainty() {
     );
 }
 
-/// ★ The divergence from Acrobat. A font that cannot go is named, with its
+/// The divergence from Acrobat. A font that cannot go is named, with its
 /// object number, its size, its verdict token AND the sentence explaining
 /// the mechanism.
 #[test]
@@ -241,7 +241,7 @@ fn keep_subset_tag_leaves_the_name_alone() {
     );
 }
 
-/// ★ A PDF/A document is refused BEFORE anything is written, and the
+/// A PDF/A document is refused BEFORE anything is written, and the
 /// refusal names the flag that would permit it.
 #[test]
 fn a_pdfa_document_is_refused_until_acknowledged() {
@@ -277,7 +277,7 @@ fn a_pdfa_document_is_refused_until_acknowledged() {
     assert!(stderr.contains("breaks that conformance"), "{stderr}");
 }
 
-/// ★ A shared font program is reported as staying in the file, and no
+/// A shared font program is reported as staying in the file, and no
 /// saving is claimed for it. The naive implementation would free it and
 /// silently blank the font that still needs it.
 #[test]
@@ -293,7 +293,7 @@ fn a_shared_program_is_disclosed_as_not_reclaimed() {
     );
 }
 
-/// ★ A shared descriptor blocks the removable font outright, by name.
+/// A shared descriptor blocks the removable font outright, by name.
 #[test]
 fn a_shared_descriptor_is_refused_by_name() {
     let (code, stdout, _) = run(
@@ -370,7 +370,7 @@ fn the_result_still_opens_and_reports_the_new_name() {
     assert!(stdout.contains("embedded=0 bytes=0"), "stdout:\n{stdout}");
 }
 
-/// ★ An invocation that names NO fonts is REFUSED, not answered with a
+/// An invocation that names NO fonts is REFUSED, not answered with a
 /// report of zeros.
 ///
 /// The same defect `embed-font` carried, in its sibling and shipped in the

@@ -18,7 +18,7 @@
 //!   reachable; a Pass that quietly dropped it would satisfy ruling 1 and
 //!   break ruling 2.
 //! - **`auto` and `warn` proceed** — the edit happens, which is the change.
-//! - **★ Both of them still DISCLOSE.** *"Shouldn't have to intervene"*
+//! - **Both of them still DISCLOSE.** *"Shouldn't have to intervene"*
 //!   removed the **gate**, not the disclosure. `CLAUDE.md` rule 4's CLI half
 //!   is that the invocation is the commit, so the command prints what it did
 //!   on the way past. A posture that proceeded silently and said nothing

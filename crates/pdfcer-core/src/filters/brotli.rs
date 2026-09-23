@@ -1,6 +1,6 @@
 //! `/BrotliDecode` — Brotli decompression (EXTN-BROTLI-1 v1.3 §5).
 //!
-//! # ★ THIS FILTER IS NOT IN ISO 32000-2, AND THE FIRST THING A READER MEETS IS A FALSE CITATION
+//! # THIS FILTER IS NOT IN ISO 32000-2, AND THE FIRST THING A READER MEETS IS A FALSE CITATION
 //!
 //! Every web-search summary of this filter asserts it is *"specified in ISO
 //! 32000-2:2020 §7.4.11"*. **That clause does not exist.** The string `7.4.11`
@@ -42,7 +42,7 @@
 //! `kBrotliLargeMaxWbits` is 30 — and this module never wraps or unwraps a
 //! frame, which is BR-3 satisfied by construction rather than by a check.
 //!
-//! ★ **`FlateDecode`'s predictors apply VERBATIM**, and this is the rule that
+//! **`FlateDecode`'s predictors apply VERBATIM**, and this is the rule that
 //! makes the work small. The extension retitles Table 8 to include Brotli, so
 //! [`super::predictor`] is reused **unchanged** — there is no Brotli variant
 //! of a predictor and there must not be one.
@@ -205,7 +205,7 @@ mod tests {
 
     /// As [`compress`], at an explicit quality level.
     ///
-    /// ★ The ceiling test needs a stream that decodes to more than 256 MiB,
+    /// The ceiling test needs a stream that decodes to more than 256 MiB,
     /// and the encoder's DEFAULT quality is 11 — the slowest setting it has.
     /// Encoding a quarter-gigabyte at quality 11 took **88 seconds**, in a
     /// suite this project runs on every change. Quality 1 produces a stream
@@ -233,7 +233,7 @@ mod tests {
         assert_eq!(decoded, plain);
     }
 
-    /// ★ The assertion the `Read`-wrapper API would have failed.
+    /// The assertion the `Read`-wrapper API would have failed.
     ///
     /// A truncated stream must be an ERROR, never a short read. If this ever
     /// returns `Ok`, pdfcer is silently rendering a prefix of a content stream

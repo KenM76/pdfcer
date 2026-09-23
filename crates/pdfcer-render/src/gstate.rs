@@ -111,7 +111,7 @@ use tiny_skia::Transform;
 /// nearly-equal large numbers. The CTM handed alongside keeps its linear
 /// part and carries the origin's own mapped position.
 ///
-/// ★ The first attempt built the path in DEVICE space instead, with an
+/// The first attempt built the path in DEVICE space instead, with an
 /// identity transform. It was correct, and it was **three times slower**
 /// at extreme zoom on a stroke-heavy CAD sheet (93 s against 31 s),
 /// because `tiny_skia` flattens curves to a tolerance measured in the
@@ -466,13 +466,13 @@ pub struct GraphicsState {
     /// Initial value `RelativeColorimetric` (ISO 32000-1 Table 52's *Initial
     /// value*, made binding by §8.4.1, `shall`).
     ///
-    /// ★ **`gs` does not reset it.** An `/ExtGState` with no `/RI` leaves this
+    /// **`gs` does not reset it.** An `/ExtGState` with no `/RI` leaves this
     /// alone: §8.4.5 makes `gs` cumulative, and ISO 32000-2's uniquely-printed
     /// "The default value is: Default" for that entry was DELETED by
     /// ISO-approved erratum `pdf-issues` #360 for exactly that reason. It was
     /// re-raised in 2026 and closed as a duplicate, so it is a live trap.
     ///
-    /// ★★ **This governs PAINTING, not the page group's conversion to the
+    /// **This governs PAINTING, not the page group's conversion to the
     /// device.** §11.7.5.3 (`shall`) ties a painting operation to the intent in
     /// force at that moment; the page-group-to-device hop is a separate step
     /// with its own answer (`RelativeColorimetric` per ISO 32000-2 §11.4.7).
@@ -773,7 +773,7 @@ pub fn blend_mode_from_name(name: &[u8]) -> Option<tiny_skia::BlendMode> {
         b"SoftLight" => B::SoftLight,
         b"Difference" => B::Difference,
         b"Exclusion" => B::Exclusion,
-        // ★ THE FOUR NON-SEPARABLE MODES (Table 137) ARE ABSENT FROM THIS
+        // THE FOUR NON-SEPARABLE MODES (Table 137) ARE ABSENT FROM THIS
         // FUNCTION, and they are absent because they are IMPLEMENTED
         // ELSEWHERE — not because they are refused.
         //
@@ -795,7 +795,7 @@ pub fn blend_mode_from_name(name: &[u8]) -> Option<tiny_skia::BlendMode> {
         // of rescaled at constant luminosity. Keeping them out of this
         // function's return type makes that mistake unrepresentable.
         //
-        // ★★ CORRECTED 2026-08-19, and the previous wording is the reason
+        // CORRECTED 2026-08-19, and the previous wording is the reason
         // `R199` exists. It read:
         //
         //   "Returning `None` costs a correct rendering of four modes …
@@ -881,7 +881,7 @@ mod mat64_tests {
     /// the entire point, and is why the test above checks only the linear
     /// part for agreement.
     ///
-    /// ★ The first version of this test used round numbers — a form at
+    /// The first version of this test used round numbers — a form at
     /// `x = 540` and a device origin of exactly `540 * scale` — and the
     /// `f32` route produced **exactly 0**, i.e. the right answer. Two
     /// large numbers that are equal cancel perfectly in any precision;

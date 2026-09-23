@@ -412,7 +412,7 @@ fn a_pngs_alpha_becomes_an_smask() {
 
     // The disclosures the operator is owed.
     assert!(out.disclosures.soft_mask_written);
-    // ★ THIS ASSERTION WAS INVERTED WHEN THE RENDERER LEARNED TO COMPOSITE.
+    // THIS ASSERTION WAS INVERTED WHEN THE RENDERER LEARNED TO COMPOSITE.
     //
     // It read `assert!(out.disclosures.transparency_not_previewed)` with the
     // reason *"pdfcer-render does not composite /SMask yet, and an operator who
@@ -1062,7 +1062,7 @@ fn every_fixture_either_imports_or_refuses_by_name() {
     let mut seen = 0usize;
     for entry in std::fs::read_dir(&dir).expect("the fixture directory exists") {
         let path = entry.expect("dir entry").path();
-        // ★ A SUBDIRECTORY IS NOT A FIXTURE, AND WITHOUT THIS LINE IT KILLS
+        // A SUBDIRECTORY IS NOT A FIXTURE, AND WITHOUT THIS LINE IT KILLS
         // THIS TEST WITH A MESSAGE THAT NAMES THE WRONG PROBLEM.
         //
         // `std::fs::read` on a directory fails with `PermissionDenied` /
@@ -1946,7 +1946,7 @@ fn lossless_keeps_the_exif_orientation() {
 // The pure DPI preview (`pdfcer-gui` request, 2026-08-19)
 // ---------------------------------------------------------------------------
 
-/// ★★ THE PROPERTY THE REQUEST WAS ACTUALLY ABOUT: the preview and the
+/// THE PROPERTY THE REQUEST WAS ACTUALLY ABOUT: the preview and the
 /// outcome cannot disagree, because they are the same code.
 ///
 /// The requesting shell was explicit that the arithmetic was not the ask —

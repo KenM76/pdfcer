@@ -139,7 +139,7 @@ fn an_untouched_property_is_left_alone() {
 }
 
 // ---------------------------------------------------------------------
-// ★ The gates, checked against the RESULT.
+// The gates, checked against the RESULT.
 // ---------------------------------------------------------------------
 
 #[test]
@@ -266,7 +266,7 @@ fn a_choice_property_on_a_text_field_is_refused() {
 }
 
 // ---------------------------------------------------------------------
-// ★ Rule 4: a value that no longer fits is DISCLOSED.
+// Rule 4: a value that no longer fits is DISCLOSED.
 // ---------------------------------------------------------------------
 
 #[test]

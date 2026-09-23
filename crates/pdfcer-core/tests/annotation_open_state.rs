@@ -22,7 +22,7 @@
 //! window had been in his files the whole time — pdfcer authored it — and no
 //! shell had ever drawn it.
 //!
-//! ## ★ The state is a property of the PAIR, not of one object
+//! ## The state is a property of the PAIR, not of one object
 //!
 //! Table 170 gives geometric markup **no `/Open` of its own**. A `/Square`'s
 //! window state exists only on its companion; a `/Text` has one on itself and
@@ -95,7 +95,7 @@ fn by_id(list: &[pdfcer_core::annot::Annotation], id: ObjId) -> &pdfcer_core::an
 // The read half
 // ---------------------------------------------------------------------------
 
-/// ★ **THE DEFECT.** pdfcer authored `/Open` and could not read it back.
+/// **THE DEFECT.** pdfcer authored `/Open` and could not read it back.
 #[test]
 fn an_authored_open_state_reads_back() {
     for want in [true, false] {
@@ -134,7 +134,7 @@ fn the_popup_companion_carries_the_state_as_well() {
     );
 }
 
-/// ★ **Absent is not `false`.** The whole reason the field is `Option<bool>`.
+/// **Absent is not `false`.** The whole reason the field is `Option<bool>`.
 #[test]
 fn an_absent_key_reads_as_none_not_false() {
     let mut s = session();
@@ -191,7 +191,7 @@ trailer << /Size 5 /Root 1 0 R >>
 // The write half
 // ---------------------------------------------------------------------------
 
-/// ★ Both objects move, in ONE undo entry.
+/// Both objects move, in ONE undo entry.
 #[test]
 fn setting_open_writes_the_annotation_and_its_popup_as_one_command() {
     let mut s = session();
@@ -305,7 +305,7 @@ fn a_no_op_pushes_no_undo_entry() {
     assert_eq!(s.undo_depth(), depth);
 }
 
-/// ★ The state the verb writes is the state the reader reads. Stated as its
+/// The state the verb writes is the state the reader reads. Stated as its
 /// own test because the two halves shipped together and a divergence between
 /// them is exactly the defect this Pass closed, one level along.
 #[test]

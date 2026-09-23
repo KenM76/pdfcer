@@ -7,7 +7,7 @@
 //! `TextRun::editability` (`Pass 118.0`) published that boundary; this module
 //! is the machinery that moves it.
 //!
-//! ★ **Why this is not a niche case.** Measured on the operator's own
+//! **Why this is not a niche case.** Measured on the operator's own
 //! benchmark CAD drawing: the page content stream holds 3,007 single-character
 //! `Tj` operators spelling the producer's watermark, and **one form XObject
 //! holds 1,696 show operators** carrying every label, the title block and every
@@ -24,7 +24,7 @@
 //!    uses, keyed the same way, because one stream can be reached under two
 //!    resource names).
 //!
-//! 2. **★ How many places does editing one of them change?**
+//! 2. **How many places does editing one of them change?**
 //!    [`invocation_set`] — and this is the question that decides the whole
 //!    design. A form XObject may legally be painted *"multiple times — either
 //!    on several pages or at several locations on the same page"* (§8.10.1,
@@ -90,7 +90,7 @@ use crate::view::DocumentView;
 /// all; 2.0's own §8.10.2 example form XObject omits `/Resources` where 1.7's
 /// example carried one.
 ///
-/// ## ★ The part that surprises implementers
+/// ## The part that surprises implementers
 ///
 /// The clause says *"the page on which they are used"* — **the PAGE's resolved
 /// resources, not the enclosing form's.** For a nested `A → B` where only `A`
@@ -105,7 +105,7 @@ use crate::view::DocumentView;
 /// because a name that resolved through tier 3 resolved through a rule the
 /// standard does not contain.
 ///
-/// ## ★ THE FALLBACK IS WHOLE-DICTIONARY, and that was decided the hard way
+/// ## THE FALLBACK IS WHOLE-DICTIONARY, and that was decided the hard way
 ///
 /// The clause is worded for a form that omitted `/Resources` **entirely**, and
 /// this implements exactly that: **a form with its own non-empty `/Resources`
@@ -475,7 +475,7 @@ pub struct InvocationSite {
 
 /// Every place in the document a given form XObject is painted.
 ///
-/// ★ **This is the disclosure that keeps a form edit honest.** See the module
+/// **This is the disclosure that keeps a form edit honest.** See the module
 /// documentation: multi-invocation is explicitly sanctioned and there is no
 /// ownership rule, so `sites.len() > 1` means an in-place edit changes content
 /// the operator is not looking at.

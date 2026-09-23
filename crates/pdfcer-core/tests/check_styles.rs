@@ -13,7 +13,7 @@
 //! the Adobe Glyph List, cross-checked by a second independent method before
 //! being accepted — not from recall.
 //!
-//! ★★ **pdfcer writes the character AND draws the shape as vector artwork.**
+//! **pdfcer writes the character AND draws the shape as vector artwork.**
 //! Acrobat's own appearance selects a ZapfDingbats font and shows the glyph,
 //! so the tick depends on resolving that font at display time — and Acrobat
 //! and Reader have a long-standing, recurring bug failing exactly that,
@@ -136,7 +136,7 @@ fn authored(style: CheckStyle, rect: Rect) -> EditSession {
     s
 }
 
-/// ★★ All six styles draw DIFFERENT artwork.
+/// All six styles draw DIFFERENT artwork.
 #[test]
 fn every_style_draws_different_artwork() {
     let mut seen: HashMap<Vec<u8>, CheckStyle> = HashMap::new();
@@ -185,7 +185,7 @@ fn the_style_is_recorded_in_mk_ca_with_adobes_character() {
     }
 }
 
-/// ★★ The style SURVIVES A RESIZE.
+/// The style SURVIVES A RESIZE.
 ///
 /// The appearance is rebuilt from geometry on a resize and the style lives
 /// only in `/MK` `/CA`, so the rebuild has to go back to that key. If it does

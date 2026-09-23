@@ -20,7 +20,7 @@
 //! but modified Open RAIL-M *weights* with a $5M revenue cap, and a
 //! field-of-use restriction cannot be bundled in an MIT application.
 //!
-//! # ★ This engine reports NO confidence, and that is a fact about the world
+//! # This engine reports NO confidence, and that is a fact about the world
 //!
 //! `ocrs`'s output type is [`ocrs::TextChar`] — a `char` and a rectangle.
 //! There is no score on a character, a word, a line, or the page. So

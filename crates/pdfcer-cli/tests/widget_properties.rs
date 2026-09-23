@@ -84,7 +84,7 @@ fn write_widget(extra: &[&str], tag: &str) -> PathBuf {
 
 #[test]
 fn a_widget_whose_file_states_no_border_reads_a_dash_not_a_default() {
-    // ★ THE ONE THAT MATTERS. `demo-form.pdf` carries neither `/BS` nor
+    // THE ONE THAT MATTERS. `demo-form.pdf` carries neither `/BS` nor
     // `/Border` on either widget. If this ever prints `S/1.00`, a properties
     // control is about to write a border nobody authored.
     let line = first_widget_line(&fixture("demo-form.pdf"));

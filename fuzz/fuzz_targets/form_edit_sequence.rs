@@ -8,7 +8,7 @@
 //! looking for action dictionaries. That is untrusted-input parsing by any
 //! reading of `ARCHITECTURE.md` §10, and it shipped without a target.
 //!
-//! ★ **This target exists because of a gate I skip.** The standing rule is
+//! **This target exists because of a gate I skip.** The standing rule is
 //! *"a fixture-based test for every new parser branch, AND a `cargo-fuzz`
 //! target if the new code touches untrusted-input parsing"*, and the fuzz
 //! half is the one that gets forgotten — twice recorded, twice recurred.

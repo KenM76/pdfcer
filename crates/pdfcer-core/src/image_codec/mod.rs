@@ -633,7 +633,7 @@ pub fn decode_image_view_with(
     // structurally cannot see it. The two checks look alike and are asking
     // different questions.
     //
-    // ★ pdfium DECODES Brotli on inline images, which the extension forbids.
+    // pdfium DECODES Brotli on inline images, which the extension forbids.
     // That is pdfium's behaviour, not the specification, and following it
     // would mean pdfcer reads files no conformant writer produces. Refusing is
     // also the safer asymmetry: a file that should not exist gets a named
@@ -2188,7 +2188,7 @@ mod tests {
     /// dictionary, and that a palette-bearing file still decodes. It does
     /// NOT assert a resolved component count.
     ///
-    /// ★ That restraint is deliberate and was arrived at by measurement. The
+    /// That restraint is deliberate and was arrived at by measurement. The
     /// first draft asserted "1 channel in, 3 out" — reasoned from the `cmap`
     /// box's three entries — and this fixture returns **1**. The behaviour is
     /// pre-existing and untouched by the change under test, so asserting a
@@ -2213,7 +2213,7 @@ mod tests {
         assert!(!img.samples.is_empty(), "the file still decodes");
     }
 
-    /// ★★★ WITH a PDF `/Indexed` space, the palette is LEFT ALONE and the
+    /// WITH a PDF `/Indexed` space, the palette is LEFT ALONE and the
     /// samples stay indices — because applying both tables is the only way
     /// to be wrong.
     ///

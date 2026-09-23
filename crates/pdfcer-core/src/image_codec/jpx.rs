@@ -361,7 +361,7 @@ pub(super) fn decode(
     dict: &Dict,
     notes: &mut CodecNotes,
 ) -> Result<CodedImage, ImageCodecError> {
-    // ★★ A JP2 PALETTE AND A PDF `/Indexed` SPACE ARE THE SAME LOOKUP, AND
+    // A JP2 PALETTE AND A PDF `/Indexed` SPACE ARE THE SAME LOOKUP, AND
     // APPLYING BOTH PAINTS THE WRONG COLOUR.
     //
     // This was unconditionally `true`, on reasoning that was right for the
@@ -392,7 +392,7 @@ pub(super) fn decode(
     // codestream says what its samples MEAN — so the dictionary's space wins
     // and the samples must stay indices.
     //
-    // ★ THE DEFAULT IS UNCHANGED, DELIBERATELY. This disables resolution only
+    // THE DEFAULT IS UNCHANGED, DELIBERATELY. This disables resolution only
     // where an `/Indexed` array is actually VISIBLE from here. A `/ColorSpace`
     // naming a resource (`/CS0`) needs the page's resource dictionary, which
     // this function does not have, so it cannot be inspected — and there the

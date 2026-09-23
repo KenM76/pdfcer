@@ -4,7 +4,7 @@
 //! file* back through `list-annotations` rather than trusting what `annotate`
 //! printed about itself.
 //!
-//! ## ★ The decision these tests pin
+//! ## The decision these tests pin
 //!
 //! **pdfcer does not read a clock.** `--note-date` is the caller's PDF date
 //! string, written verbatim, and a malformed one is **refused by name** rather

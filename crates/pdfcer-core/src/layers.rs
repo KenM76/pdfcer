@@ -774,7 +774,7 @@ pub struct LayerDiagnostics {
     /// `/D /BaseState` is `OFF` **and** at least one unregistered group
     /// was found — the case decision 037 was claimed for.
     ///
-    /// # ★ MEASURED 2026-08-11: pdfcer's reading matches Acrobat
+    /// # MEASURED 2026-08-11: pdfcer's reading matches Acrobat
     ///
     /// The open question was whether `/BaseState /OFF`'s "all groups"
     /// means all groups **registered** in `/OCProperties /OCGs`, or
@@ -1648,7 +1648,7 @@ fn expand_oc<G: ObjectGraph + ?Sized>(
         for id in crate::annot::oc_refs(graph, dict.get(b"OCGs")) {
             note(id, source, found, seen);
         }
-        // ★ `/VE` IS A DISCOVERY SITE TOO, AND IT WAS BEING MISSED.
+        // `/VE` IS A DISCOVERY SITE TOO, AND IT WAS BEING MISSED.
         //
         // A visibility expression names groups that nothing else in the
         // document need mention. The renderer evaluates them correctly

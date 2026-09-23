@@ -26,7 +26,7 @@
 //! - Objects in ascending numeric order, one per line-group, so a `diff`
 //!   between two exports is meaningful.
 //!
-//! # ★★ WHAT THIS DOES THAT qpdf CANNOT: the incremental compile-back
+//! # WHAT THIS DOES THAT qpdf CANNOT: the incremental compile-back
 //!
 //! qpdf's own `TODO.md` lists *"Support incremental updates"* and *"Support
 //! digital signatures. This probably requires support for incremental updates"*
@@ -46,7 +46,7 @@
 //! breaks signatures because of *how it writes*; pdfcer breaks one only because
 //! of *what you changed*.
 //!
-//! # ★★★ THE HARD PART, AND IT IS NOT THE WRITING: comparing a decoded stream
+//! # THE HARD PART, AND IT IS NOT THE WRITING: comparing a decoded stream
 //! # against a compressed one
 //!
 //! The export decodes every stream. The original's streams are compressed. So a
@@ -345,7 +345,7 @@ pub fn import(original: &Document, edited: &Document) -> (DirtySet, ImportReport
     // caller -- `pdfcer`'s `import` subcommand -- is what performs the
     // save, under the same disclosure obligations as any other.
     //
-    // ★ The distinction the gate cannot see, stated so a reviewer can: the
+    // The distinction the gate cannot see, stated so a reviewer can: the
     // three sanctioned exceptions above are all code that WRITES. This one
     // never touches an output file. Routing it through `EditSession` would
     // mean inventing a session for a computation whose whole output IS the

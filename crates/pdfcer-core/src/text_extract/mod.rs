@@ -738,7 +738,7 @@ impl TextRun {
     /// and the edit surgery did not**, so a caret could land anywhere
     /// extraction could see and commit only where the surgery could reach.
     ///
-    /// ★ **`Pass 119.0` closed that gap**, and this method's answer moved with
+    /// **`Pass 119.0` closed that gap**, and this method's answer moved with
     /// it: a run inside a form XObject now reports [`Editability::Editable`],
     /// because [`crate::text_edit::edit_text`] resolves the target stream
     /// instead of assuming the page's. [`Editability::InsideForm`] is
@@ -750,7 +750,7 @@ impl TextRun {
     /// encoded the old limitation in its own caret guard would still be
     /// refusing today; every caller of this improved by recompiling.
     ///
-    /// ★ **On a CAD-exported sheet the stakes were not an edge case, they were
+    /// **On a CAD-exported sheet the stakes were not an edge case, they were
     /// the whole document.** Measured on the operator's own benchmark drawing:
     /// the page stream holds 3,007 single-character `Tj` operators spelling
     /// the producer's watermark, and the form XObject holds 1,696 show
@@ -771,7 +771,7 @@ impl TextRun {
     /// `reflow_block` and `add_text` were **not** retargeted (`format_text`
     /// was, by `Pass 119.2`), so for those two this answer is optimistic.
     ///
-    /// # ★ Why this is not the `-> bool` that was asked for
+    /// # Why this is not the `-> bool` that was asked for
     ///
     /// The consuming shell asked for `run_is_editable(run) -> bool`. **A bool
     /// cannot be written correctly here**, and finding out why is the reason
@@ -824,7 +824,7 @@ impl TextRun {
         }
         for g in &self.glyphs {
             match g.provenance.as_ref().map(|p| p.content_stream) {
-                // ★ `Pass 119.0` — a form XObject's own content stream is now
+                // `Pass 119.0` — a form XObject's own content stream is now
                 // an edit target like any other, so this arm answers
                 // `Editable` and no longer distinguishes the two buffers.
                 //
@@ -863,7 +863,7 @@ pub enum Editability {
     /// Every glyph came from the page's own `/Contents`. The surgery can
     /// anchor on it; offer the caret.
     Editable,
-    /// **★ NEVER RETURNED SINCE `Pass 119.0` — delete the arm that matches
+    /// **NEVER RETURNED SINCE `Pass 119.0` — delete the arm that matches
     /// it.** The run lives inside a form XObject; that used to mean the edit
     /// surgery could not reach it, and it no longer does.
     /// [`TextRun::editability`] answers [`Self::Editable`] for form content

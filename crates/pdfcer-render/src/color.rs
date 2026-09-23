@@ -185,7 +185,7 @@ pub enum Colorant {
     /// Any other colorant name. "Such colorant names are arbitrary, and
     /// there may be any number of them" (§8.6.6.4).
     ///
-    /// # ★★ Why BYTES and not `String`
+    /// # Why BYTES and not `String`
     ///
     /// This was `Named(String)`, built with `String::from_utf8_lossy`, and
     /// that is **not an identity-preserving conversion**: every distinct
@@ -207,7 +207,7 @@ pub enum Colorant {
     /// this module still use `from_utf8_lossy` deliberately, and that is the
     /// correct split rather than an oversight.
     ///
-    /// ★ This was HARMLESS when it was found, because nothing was keyed on a
+    /// This was HARMLESS when it was found, because nothing was keyed on a
     /// colorant name — and it stops being harmless the moment the
     /// per-spot-colorant plane lands, since two colliding names would then
     /// share one ink plane and silently composite as one colour. Fixed
@@ -299,7 +299,7 @@ pub enum ColorSpace {
     ///
     /// This module contains no ICC colour-management engine.
     ///
-    /// ★ That sentence used to read "pdfcer has no ICC colour-management
+    /// That sentence used to read "pdfcer has no ICC colour-management
     /// engine and this module does not contain one", and the first half
     /// stopped being true at `Pass 199.2`, when iccce was wired in. The
     /// SECOND half is still exactly true and is the load-bearing one: colour
@@ -326,7 +326,7 @@ pub enum ColorSpace {
     /// alternate's range ("the nearest values within the range of the
     /// alternate space shall be substituted").
     ///
-    /// ★ **This variant's own [`Self::to_rgb`] is that reinterpretation and
+    /// **This variant's own [`Self::to_rgb`] is that reinterpretation and
     /// nothing more** — but it is no longer the whole story, and this
     /// paragraph used to say it was ("pdfcer substitutes unconditionally").
     /// Since `Pass 199.2` a paint in this space on a subtractive page is
@@ -833,7 +833,7 @@ impl ColorSpace {
     /// c/d pair **includes** them at 0 %, and the patch's own ReadMe says
     /// the colorant LIST, not the tint values, decides the outcome.
     ///
-    /// ★ **`/Indexed` IS PRESENT IN FOUR OF THE SUITE'S OVERPRINT PATCHES
+    /// **`/Indexed` IS PRESENT IN FOUR OF THE SUITE'S OVERPRINT PATCHES
     /// AND IS NO LONGER INERT.** This paragraph carried a measured
     /// negative from 2026-08-21 — *"REACHABLE in none of them: every one of
     /// those spaces is an image colour space, `overprint::composite` has no
@@ -847,7 +847,7 @@ impl ColorSpace {
     /// *reachable by the renderer* are different claims, and the first reads
     /// as the second unless it says so.
     ///
-    /// ★★ **It was the THIRD copy of that claim and the last one
+    /// **It was the THIRD copy of that claim and the last one
     /// corrected**, which is worth more than either correction. The other
     /// two are in `crate::overprint` — the `classify` arm and its test. This
     /// one was missed because **the sweep's boundary was the file and the
@@ -946,7 +946,7 @@ impl ColorSpace {
 /// than being colour-managed" and "the spot colour's tint transform was not
 /// evaluated" lead to three different next actions (rule R27).
 ///
-/// ★ The middle phrase used to read "pdfcer has no ICC engine", which became
+/// The middle phrase used to read "pdfcer has no ICC engine", which became
 /// false at `Pass 199.2`. It is corrected rather than deleted because the
 /// DISTINCTION it was drawing survives: a space taking its `/Alternate` is
 /// still a different diagnosis from a space that failed to resolve, and the
@@ -1032,7 +1032,7 @@ pub struct ColorDiagnostics {
     /// `scn`/`SCN` operations that named a **pattern pdfcer did not
     /// paint** — the REMAINDER after shading patterns are painted.
     ///
-    /// ★ This read "which pdfcer does not paint (tiling and shading
+    /// This read "which pdfcer does not paint (tiling and shading
     /// patterns, §8.7, are later work)" long after `PatternType 2` shading
     /// patterns started painting. A comment ~300 lines below in this same
     /// file exists **specifically to refute that sentence** ("NOT 'pdfcer
@@ -1764,7 +1764,7 @@ fn resolve_icc_based(
     match alternate {
         Some(alternate) => {
             diag.icc_alternate_used += 1;
-            // ★ This note used to end "pdfcer has no ICC engine". That stopped
+            // This note used to end "pdfcer has no ICC engine". That stopped
             // being true when iccce was wired in: the profile is now carried
             // on the space and used for terminal conversions. The counter is
             // kept — the alternate IS still what paints in the additive path —
@@ -2506,7 +2506,7 @@ mod tests {
 
     use crate::{RenderOptions, RenderedPage, render_page_with};
 
-    /// ★★★ Two colorant names that differ only in INVALID UTF-8 bytes must not
+    /// Two colorant names that differ only in INVALID UTF-8 bytes must not
     /// compare equal.
     ///
     /// # The defect this pins
@@ -3186,7 +3186,7 @@ mod tests {
 
     // ---- Separation / DeviceN (§8.6.6.4–.5) ----------------------------
 
-    /// ★ **A `Separation` renders the document's own colour, through its
+    /// **A `Separation` renders the document's own colour, through its
     /// own tint transform.**
     ///
     /// The fixture's transform is a Type 2 exponential onto
@@ -3257,7 +3257,7 @@ mod tests {
             &[],
         );
         let (r, g, b) = pixel(&rendered, 50, 50);
-        // ★ NEUTRAL IN CMYK, NOT NEUTRAL IN sRGB — and the difference arrived
+        // NEUTRAL IN CMYK, NOT NEUTRAL IN sRGB — and the difference arrived
         // with `Pass 153.0`.
         //
         // The stand-in is built achromatic: equal C, M and Y with the tint in
@@ -3417,7 +3417,7 @@ mod tests {
         );
     }
 
-    /// ★ §8.6.6.3 — an `Indexed` operand is an INDEX, and
+    /// §8.6.6.3 — an `Indexed` operand is an INDEX, and
     /// [`ColorSpace::indexed_entry`] is what turns it into the colour the
     /// palette selects, in the base space.
     ///

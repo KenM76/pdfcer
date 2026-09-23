@@ -325,7 +325,7 @@ pub struct AssembleReport {
     /// Outline entries that pointed at **another file** and were re-pointed
     /// to that file's pages inside the assembled document.
     ///
-    /// # ★ What this counts, and why it is not folded into `kept`
+    /// # What this counts, and why it is not folded into `kept`
     ///
     /// A table-of-contents PDF's bookmarks open the other PDFs in a folder
     /// through `/Launch` or `/GoToR` (§12.6.4.5, §12.6.4.3). Merging those

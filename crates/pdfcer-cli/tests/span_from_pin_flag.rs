@@ -8,7 +8,7 @@
 //! the floor would pass every one of those — the flag would be declared,
 //! documented, present in `--help`, and inert.
 //!
-//! ★ That has happened in this project before, which is why the rule exists at
+//! That has happened in this project before, which is why the rule exists at
 //! all. Only an end-to-end run through `main` can refute it.
 //!
 //! ## What is pinned
@@ -97,7 +97,7 @@ fn edit(pin: &str, with_flag: bool, replace: &str, out_path: &Path) -> Output {
     run(&args.iter().map(String::as_str).collect::<Vec<_>>())
 }
 
-/// ★★★ The flag is what makes the difference. Same command otherwise.
+/// The flag is what makes the difference. Same command otherwise.
 #[test]
 fn the_flag_turns_a_refusal_into_an_edit() {
     let without = temp_path("without");
@@ -128,7 +128,7 @@ fn the_flag_turns_a_refusal_into_an_edit() {
     );
 }
 
-/// ★★★ It selects WHICH occurrence — the disambiguation the BOM case needs.
+/// It selects WHICH occurrence — the disambiguation the BOM case needs.
 #[test]
 fn two_pins_one_find_two_different_lines() {
     let a = temp_path("line1");

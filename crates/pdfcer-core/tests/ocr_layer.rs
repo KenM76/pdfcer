@@ -92,7 +92,7 @@ fn page0_text(bytes: &[u8]) -> String {
         .collect::<String>()
 }
 
-/// ★ A certified document that forbids change does not get an OCR layer.
+/// A certified document that forbids change does not get an OCR layer.
 ///
 /// Writing the layer creates a content stream and a font and rewrites the
 /// page dict's `/Contents` and `/Resources` — a structural page change.
@@ -126,7 +126,7 @@ fn a_certified_document_refuses_the_ocr_layer() {
     );
 }
 
-/// ★ The words go in and the words come out.
+/// The words go in and the words come out.
 ///
 /// If this fails, nothing else about the feature matters — the layer is
 /// invisible, so extraction is the only way anyone will ever observe it.
@@ -149,7 +149,7 @@ fn the_recognised_words_extract_from_the_saved_file() {
     }
 }
 
-/// ★ Round-trip / minimal diff (project rule 3): nothing that existed is
+/// Round-trip / minimal diff (project rule 3): nothing that existed is
 /// rewritten.
 ///
 /// The incremental save's contract for a non-empty dirty set is that the input
@@ -175,7 +175,7 @@ fn the_original_bytes_are_a_prefix_of_the_output() {
     assert!(out.bytes.len() > original.len(), "something was appended");
 }
 
-/// ★ The geometry survives the whole pipeline.
+/// The geometry survives the whole pipeline.
 ///
 /// The unit tests solve the fit arithmetically; this one proves the solved
 /// numbers actually reach the extractor through the emitted `Tm`/`Tf`/`Tz`. It
@@ -244,7 +244,7 @@ fn extracted_word_positions_land_on_the_reported_boxes() {
             bbox.lly
         );
 
-        // ★ The WIDTH is what tests the `Tz` fit, and the origin alone is not.
+        // The WIDTH is what tests the `Tz` fit, and the origin alone is not.
         //
         // The first version of this test asserted only on `llx`/`lly` and
         // claimed in its own message that a large `dx` meant a broken `Tz`. The

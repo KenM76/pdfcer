@@ -151,7 +151,7 @@ fn rect(doc: &Document, id: ObjId) -> Vec<f64> {
 
 // ---------------------------------------------------------------- the verbs
 
-/// ★★★ THE OPERATOR'S ASK: a node of a freehand stroke moves.
+/// THE OPERATOR'S ASK: a node of a freehand stroke moves.
 #[test]
 fn a_point_of_a_stroke_moves() {
     let (mut s, id) = with_ink();
@@ -177,7 +177,7 @@ fn a_point_of_a_stroke_moves() {
 /// The second index space is real: the same point index in a different stroke
 /// is a different point.
 ///
-/// ★ Without this, every assertion in this file could be satisfied by an
+/// Without this, every assertion in this file could be satisfied by an
 /// implementation that ignored the stroke index and always edited stroke 0.
 #[test]
 fn the_stroke_index_selects_which_stroke() {
@@ -266,7 +266,7 @@ fn a_whole_stroke_translates() {
     );
 }
 
-/// ★★ REMOVES STROKE **0**, DELIBERATELY, AND THE FIRST VERSION REMOVED
+/// REMOVES STROKE **0**, DELIBERATELY, AND THE FIRST VERSION REMOVED
 /// STROKE 1.
 ///
 /// With the LAST stroke removed, `next.get(stroke_index)` is `None` and the
@@ -309,7 +309,7 @@ fn a_stroke_index_past_the_end_is_refused_by_its_own_name() {
     assert_eq!((index, count), (7, 2));
 }
 
-/// ★ The two index spaces must be told apart. A single "index out of range"
+/// The two index spaces must be told apart. A single "index out of range"
 /// would send a caller to audit the wrong list.
 #[test]
 fn a_point_index_past_the_end_names_the_point_space_and_the_stroke() {
@@ -347,7 +347,7 @@ fn removing_the_second_of_two_points_is_refused_at_the_floor() {
     );
 }
 
-/// ★ The same remove, one stroke over, SUCCEEDS. Without this the floor test
+/// The same remove, one stroke over, SUCCEEDS. Without this the floor test
 /// would pass against an implementation that refused every point removal.
 #[test]
 fn the_same_remove_on_a_three_point_stroke_succeeds() {
@@ -376,7 +376,7 @@ fn removing_the_last_usable_stroke_is_refused() {
 /// A hand-written one-page PDF whose `/Ink` carries a drawable two-point
 /// stroke **and** a degenerate one-point stroke.
 ///
-/// ★ This fixture exists to make one comment in `apply_ink_edit` a
+/// This fixture exists to make one comment in `apply_ink_edit` a
 /// measurement rather than an assertion. `RemoveStroke` counts what would
 /// REMAIN and be drawable, not `strokes.len() > 1`; the two answers differ on
 /// exactly this file, which no verb of pdfcer's can author.
@@ -407,7 +407,7 @@ fn pdf_with_a_degenerate_ink_stroke() -> Vec<u8> {
     buf
 }
 
-/// ★★ `strokes.len() > 1` WOULD HAVE PASSED HERE, and left an `/Ink` that
+/// `strokes.len() > 1` WOULD HAVE PASSED HERE, and left an `/Ink` that
 /// draws nothing.
 ///
 /// Two strokes are present, so the naive count says "one will remain". Only
@@ -507,7 +507,7 @@ fn reshape_annotation_still_refuses_ink_and_names_the_new_verbs() {
 
 // ------------------------------------------------- the geometry consequences
 
-/// ★★ THE OBJECTION THAT TURNED OUT TO BE FALSE FOR pdfcer.
+/// THE OBJECTION THAT TURNED OUT TO BE FALSE FOR pdfcer.
 ///
 /// The requester expected the `/AP` to be a smoothed curve, so that moving one
 /// point would move "a length of curve on both sides of it" and a shell's
@@ -602,7 +602,7 @@ fn the_preview_refuses_what_the_verb_refuses() {
     );
 }
 
-/// ★ The disclosure a shell can act on BEFORE the drag: was this artwork ours?
+/// The disclosure a shell can act on BEFORE the drag: was this artwork ours?
 ///
 /// pdfcer authored this one, so re-baking is lossless and
 /// `appearance_was_pdfces` says so. On a stroke another producer drew — and

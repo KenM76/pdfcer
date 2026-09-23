@@ -19,7 +19,7 @@
 //!
 //! ## What these tests pin, hardest first
 //!
-//! 1. **★ The emitted matrix is not the one passed in.** `page_matrix` is in
+//! 1. **The emitted matrix is not the one passed in.** `page_matrix` is in
 //!    page space; `cm` composes into the CTM in force at that point in the
 //!    stream. Emitting the requested matrix directly is correct **only** when
 //!    the object's CTM is the identity — and silently wrong at every scale or
@@ -106,10 +106,10 @@ fn close(a: f64, b: f64) -> bool {
 }
 
 // ---------------------------------------------------------------------------
-// ★ THE ONE THAT MATTERS: page space vs local space
+// THE ONE THAT MATTERS: page space vs local space
 // ---------------------------------------------------------------------------
 
-/// ★★ **A page-space transform under a non-identity CTM must land in PAGE
+/// **A page-space transform under a non-identity CTM must land in PAGE
 /// space.**
 ///
 /// The rectangle below is drawn inside `q 2 0 0 2 0 0 cm`, so its user-space
@@ -178,7 +178,7 @@ fn an_identity_ctm_emits_the_requested_matrix_unchanged() {
 // The capability move_objects could not have
 // ---------------------------------------------------------------------------
 
-/// ★ **Rotation, which is the whole reason operand rewriting could not be
+/// **Rotation, which is the whole reason operand rewriting could not be
 /// extended.**
 ///
 /// A quarter-turn about the rectangle's own centre leaves a square's bbox
@@ -237,7 +237,7 @@ fn a_scale_about_a_pivot_leaves_the_pivot_where_it_was() {
 // Kind-agnosticism — the triggering complaint
 // ---------------------------------------------------------------------------
 
-/// ★ **A mixed selection transforms whole, by default.** This is the
+/// **A mixed selection transforms whole, by default.** This is the
 /// `NotAPath` complaint closed: a path, a text object and a placed image in
 /// one marquee, moved by one gesture, as one command.
 #[test]
@@ -306,7 +306,7 @@ fn a_singular_transform_is_refused_by_name_by_default() {
     );
 }
 
-/// ★ **A NEGATIVE scale is not singular.** A mirror is perfectly invertible,
+/// **A NEGATIVE scale is not singular.** A mirror is perfectly invertible,
 /// so dragging a resize grip through the *opposite* edge is an ordinary
 /// transform — only exactly zero is degenerate.
 ///
@@ -381,7 +381,7 @@ fn a_clamp_on_a_sheared_singular_matrix_is_refused_rather_than_invented() {
 // The preview — Pass 113.1
 // ---------------------------------------------------------------------------
 
-/// ★ **The preview and the verb share one body, so they cannot disagree.**
+/// **The preview and the verb share one body, so they cannot disagree.**
 ///
 /// Asserted over four cases — a good transform, a singular one, a stale index
 /// and a refused mixed selection — rather than over one, because "they agree

@@ -6,7 +6,7 @@
 //! cargo run --release -p pdfcer-render --example ocr_smoke -- <models-dir> <file.pdf> [scale]
 //! ```
 //!
-//! # ★ READ THE `recognised N words` LIST, NOT THE `EXTRACTED BACK` LINE
+//! # READ THE `recognised N words` LIST, NOT THE `EXTRACTED BACK` LINE
 //!
 //! This harness prints both, and they answer different questions. The
 //! extraction runs over the SAVED document, so on any PDF that already has a

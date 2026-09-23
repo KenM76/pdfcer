@@ -1445,7 +1445,7 @@ fn add_push_button_refuses_a_name_held_by_a_check_box() {
 // A field name containing a SPACE must survive discovery → write
 // ---------------------------------------------------------------------------
 
-/// **★ `list-fields` must report a name every write verb accepts.**
+/// **`list-fields` must report a name every write verb accepts.**
 ///
 /// A field's `/T` is a §7.9.2 **text string** and may contain spaces.
 /// Acrobat produces them constantly, because it derives field names from
@@ -1499,7 +1499,7 @@ fn a_field_name_containing_a_space_round_trips_from_list_fields_to_a_write_verb(
         "an underscore here means the mangling is back: {listed}"
     );
 
-    // 2. ★ The reported name is accepted by a WRITE verb. This is the
+    // 2. The reported name is accepted by a WRITE verb. This is the
     //    assertion the bug would have failed; the format check above would
     //    not have been enough on its own, because a differently-wrong
     //    encoding could still satisfy it.

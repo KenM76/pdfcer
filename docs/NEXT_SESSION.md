@@ -11,7 +11,7 @@ everything below that block is carried forward unchanged and still true.
 
 ---
 
-## ★★★ READ THIS PARAGRAPH FIRST — RUN THE GATE SWEEP BEFORE YOU PUSH
+## READ THIS PARAGRAPH FIRST — RUN THE GATE SWEEP BEFORE YOU PUSH
 
 `tools/run-gates.sh` was treated as a **release** gate. It is not; it is a
 **push** gate, and this session paid for the difference.
@@ -36,7 +36,7 @@ So: **sweep, then push, then read CI's colour from GitHub.** Rule 8 already
 says to read the colour; it does not yet say to sweep, and that is the gap this
 paragraph exists to close.
 
-★★ **AND SWEEP AFTER YOUR LAST EDIT, not merely before pushing** — added
+**AND SWEEP AFTER YOUR LAST EDIT, not merely before pushing** — added
 2026-09-12, after the distinction cost a red CI run. The first two string gaps
 were found by a sweep, fixed, and pushed. Then more code was written, the sweep
 was not re-run, and the third gap reached `origin` and turned CI red.
@@ -46,7 +46,7 @@ pushing.
 
 ### How to run it on this machine, because the obvious way gets killed
 
-★★ **`run-gates.sh` and `cargo test --workspace --all-features` are both
+**`run-gates.sh` and `cargo test --workspace --all-features` are both
 OOM-killed here**, repeatedly, including per-crate. Three watchers and two
 sweeps died on 2026-09-12.
 
@@ -75,7 +75,7 @@ The fallback procedure, when it is needed:
 3. **Do not hold `gh run watch` open** — it is what died most often. Poll
    `gh run list --branch main --limit 1` on a wakeup instead.
 
-★★ **THAT "IT BUFFERS" CLAIM WAS ALSO MINE, AND IT WAS ALSO FALSE.**
+**THAT "IT BUFFERS" CLAIM WAS ALSO MINE, AND IT WAS ALSO FALSE.**
 The sentence here said:
 
 > ~~"`run-gates.sh` **buffers**, so a redirected log sits empty until it
@@ -93,7 +93,7 @@ half of it. **Redirect to a file; do not pipe.** A pipeline changes both what
 you see and the status you read, and both failures look like a defect in the
 tool.
 
-★★ **THE SENTENCE THAT WAS HERE WAS FALSE, AND CORRECTING IT IS THE POINT.**
+**THE SENTENCE THAT WAS HERE WAS FALSE, AND CORRECTING IT IS THE POINT.**
 It said:
 
 > ~~"its final line reports failures **while exiting 0** — read the
@@ -109,7 +109,7 @@ read its own status, or redirect to a file and grep the file — never both pipe
 it and trust the code. The same mistake pushed a lint failure to `origin` an
 hour later (`4608f7e`), from `cargo clippy … | grep … | head`.
 
-★ Note the shape, because this project has met it before and it is the
+Note the shape, because this project has met it before and it is the
 expensive kind: **I attributed my own error to a defect in a tool, and wrote
 the false attribution into the document a session reads FIRST.** `CLAUDE.md`
 rule 8 records the same thing about "there is still no git remote configured" —
@@ -122,18 +122,18 @@ for a day. `grep -n 'exit' tools/run-gates.sh` costs nothing.
 
 Workspace version `0.55.0`; the last release is **`v0.55.0`** (`229e8635`,
 2026-09-17 — 9 commits since `v0.54.0`, which shipped the same day).
-★ Verify with `gh release list` before repeating it — a previous handoff
+Verify with `gh release list` before repeating it — a previous handoff
 carried a release number four versions stale for a day, and on 2026-09-17 this
 very line was left saying `0.54.0` while a new block three screens above it
 said `0.55.0`. **Nothing in this file checks itself**, and the stale half is
 always the one further from where you are editing.
 
 **`main` is pushed through the 571st filing**, CI green at `229e8635` and
-`7419fb2f` — ★ read CI's colour from GitHub yourself
+`7419fb2f` — read CI's colour from GitHub yourself
 (`gh run list --branch main --limit 1`); this line records what was pushed and
 what the server said at that moment, never what it says now.
 
-### ★★★ `main` WAS RED FOR TEN HOURS AND TWO PUSHES LANDED ON IT
+### `main` WAS RED FOR TEN HOURS AND TWO PUSHES LANDED ON IT
 
 Green again as of `96958657` (2026-09-15 04:14Z), and the whole of the fault
 is worth one paragraph because it is the exact failure the section at the top
@@ -164,7 +164,7 @@ push, and the sweep would have caught it** — `run-gates.sh` reports this gate.
    by deleting reasoning that already lived in `ROADMAP.md` and the commit
    message — no fact was lost, which is the test for whether a trim is honest.
 
-### ★★★ SINCE THE LAST HANDOFF — 2026-09-17 (`Pass 309.x`, `310.x`, `v0.55.0`)
+### SINCE THE LAST HANDOFF — 2026-09-17 (`Pass 309.x`, `310.x`, `v0.55.0`)
 
 Everything after this block is carried forward unchanged.
 
@@ -224,7 +224,7 @@ a fresh folder against the operator's own scenario, not only in unit tests.
 `EditSession::set_residual_scope`; the heads-up is `E001` in the request
 channel, and `FEATURES.md`'s redaction row is honestly `[ ] gui`.
 
-### ★★★ SINCE THE LAST HANDOFF — 2026-09-15, later (`Pass 307.0`, `308.0`, `308.2`)
+### SINCE THE LAST HANDOFF — 2026-09-15, later (`Pass 307.0`, `308.0`, `308.2`)
 
 Everything after this block is carried forward unchanged. Two requests arrived
 from `pdfcer-gui` within minutes of each other and both shipped the same
@@ -232,7 +232,7 @@ session: `G019` (no derived tab order) and `G020` (`/MK` colours round-trip and
 are painted by nothing). Replies are in the channel's `open/`; `308.1` is the
 one piece still owed.
 
-**★★★ AND THEN I TURNED IT RED MYSELF, AND THE MECHANISM IS WORTH MORE THAN
+**AND THEN I TURNED IT RED MYSELF, AND THE MECHANISM IS WORTH MORE THAN
 THE APOLOGY.** `bd8059f2` (`Pass 308.0`) failed CI on **`check-passes-filed.py`**
 — not for anything in it, but because `729cf6db` (`Pass 307.0`), one commit
 back, was still unfiled. Green again on the next commit, the filings.
@@ -254,12 +254,12 @@ commits back to back without the filing in between and the second one is
 3. The pre-push hook has the same deferral, so it will not stop you either — it
    refused my *third* push, correctly, and by then CI had already gone red.
 
-★ Same session, same file, one paragraph apart: the block below is about a
+Same session, same file, one paragraph apart: the block below is about a
 docs-only commit reddening `main` because nothing about it looked like a risk.
 This one is about a **code** commit reddening `main` for something that was not
 in it at all. **Neither is visible in the diff you are about to push.**
 
-**★★★ AND `main` WAS RED BEFORE THAT, FOR THE THIRD TIME IN EIGHT DAYS, THE SAME
+**AND `main` WAS RED BEFORE THAT, FOR THE THIRD TIME IN EIGHT DAYS, THE SAME
 WAY.** Red from `0b48b3e2` (the 555th filing, pushed 15:57Z) until `729cf6db`
 fixed it. The gate was `check-core-api-verbs.py`; the cause was
 `docs/core-api/index.md` still stating `03-capabilities.md`'s old line and
@@ -280,7 +280,7 @@ sequence rather than a guess. Plus `TabOrderBasis`, `TabExclusion`,
 `tab_row_tolerance`), the `pdfcer tab-order` subcommand, three synthetic
 fixtures, 23 core + 14 CLI tests. Decision **158**.
 
-★★ **THE REQUEST'S MEMBERSHIP RULE WAS HALF WRONG AND THE CORRECTION IS
+**THE REQUEST'S MEMBERSHIP RULE WAS HALF WRONG AND THE CORRECTION IS
 SOURCED.** `pdfcer-gui` asked for every annotation with the caller filtering,
 and argued it well: filtering before ordering changes which annotations fall
 into which row. Right about **subtypes**. Wrong about **flags** — §12.5.1 is
@@ -291,7 +291,7 @@ from where everybody was looking, and the commissioned spec-corpus file found
 it by being asked "what excludes them?" rather than "does §12.5.1 exclude
 them?".
 
-★ **Two settings, because two things are genuinely open**, per Ken's standing
+**Two settings, because two things are genuinely open**, per Ken's standing
 "make spec ambiguity a setting" rule: `widget_tab_tail` (`TAB-A1` — ISO 32000-2
 contradicts itself about `/W`'s tail, measured unreported across three errata
 channels with positive controls) and `tab_row_tolerance` (1.0 pt — the standard
@@ -304,7 +304,7 @@ paints the baked `/AP` and never reconstructs from `/MK`. `WidgetChrome`
 threaded through all four builders, `needs_regen` gains both colours, and
 `AppearanceOutcome` gives the three states one value.
 
-★★★ **A MISMATCH THAT HAD BEEN HARMLESS FOR MONTHS BECAME LOAD-BEARING THE
+**A MISMATCH THAT HAD BEEN HARMLESS FOR MONTHS BECAME LOAD-BEARING THE
 MOMENT SOMETHING READ IT.** Push-button creation wrote `/MK` `/BG` and `/BC` as
 **DeviceRGB triples** while the artwork painted **DeviceGray**. Same colour,
 different operator, completely inert — for as long as nothing derived one from
@@ -320,7 +320,7 @@ push button created by an earlier build now reports `RecordedNotPainted`
 instead of redrawing. A disclosure, not damage; re-setting either colour
 rebuilds it.
 
-★ **The defaults were the load-bearing half, and they pull opposite ways.** A
+**The defaults were the load-bearing half, and they pull opposite ways.** A
 text field draws no box at all (an absent `/BG` that produced a white rectangle
 would repaint every text field in every document pdfcer touches); a push
 button's default is **not** "nothing" but the plate grey (a default of nothing
@@ -329,7 +329,7 @@ sites, and the test file asserts the **unchanged** half as hard as the changed
 half. ⇒ *Threading a new parameter through an existing builder owes a test that
 the parameter's ABSENCE is byte-identical to before.*
 
-★ **A precision defect a test assertion found and review would not have.**
+**A precision defect a test assertion found and review would not have.**
 `MkColor` stores `f32`; `f64::from` widens the **binary** value, so `0.2` was
 about to be written into content streams as `0.20000000298023224`, once per
 component. Nothing renders differently. Fixed by round-tripping through `f32`'s
@@ -344,7 +344,7 @@ binaries — **`-j 1` is what made this one finish**, it was `LNK1102`-killed at
 the default `-j`); `test -p pdfcer-core --no-default-features` lib and doctests
 (187, `--test-threads=1`); wasm `check`; `fuzz check --bins`.
 
-★ **`LNK1102: out of memory` struck again and `-j 1` DID fix it this time** —
+**`LNK1102: out of memory` struck again and `-j 1` DID fix it this time** —
 which contradicts the 2026-09-12 note below saying `-j 1` did not help. Both
 observations are real; the difference is that the earlier one had a second
 cargo job live beside it. ⇒ *One cargo invocation at a time, and `-j 1` for the
@@ -357,7 +357,7 @@ fully closed.** All five `New*` specs carry `chrome: WidgetChrome` with
 dictionary and the artwork are written from ONE value, in the create branch and
 the merge branch alike.
 
-★★ **AND THE FIX WAS A KEY REMOVED, NOT A KEY ADDED, WHICH IS THE PART TO
+**AND THE FIX WAS A KEY REMOVED, NOT A KEY ADDED, WHICH IS THE PART TO
 CARRY.** `add_text_field` and `add_choice_field` had always written `/MK`
 `/BC [0 0 0]` while handing the appearance builder nothing — the dictionary
 claimed a black frame the `/AP` never drew. Inert for months. **`Pass 308.0`
@@ -387,13 +387,13 @@ field now reports `border_color: None` where it reported `Some(Rgb(0,0,0))`,
 and carries no `/MK` at all when no colour was asked for. Check box, radio
 button and push button are byte-identical in both halves.
 
-★ **A spliced doc block was found in `pdfcer-cli/src/main.rs`** —
+**A spliced doc block was found in `pdfcer-cli/src/main.rs`** —
 `EditWidgetArgs`'s comment welded onto `parse_mk_colour`'s, the exact failure
 `check-doc-block-spliced.py` exists for, **in a crate that gate does not
 scan.** Unspliced in the same commit. The gate's coverage is narrower than its
 name suggests; a CLI splice is found only by reading.
 
-### ★★★ AND `G021` ARRIVED MINUTES AFTER THAT NOTICE — `Pass 308.3`, `20bfb259`
+### AND `G021` ARRIVED MINUTES AFTER THAT NOTICE — `Pass 308.3`, `20bfb259`
 
 `pdfcer-gui`, wiring the swatches `308.0` unblocked: *"a `/MK` colour can be
 set and changed, but never removed."* Correct, and **the bug was in a TYPE.**
@@ -412,7 +412,7 @@ the **third** defect on these same two keys — `/BG` was readable-and-unwritabl
 and `/BC` writable-and-unreadable until `Pass 249.1`/`262.2` closed them. Those
 fixes closed the KEYS. Nobody checked the STATE SPACE.
 
-★ **On a push button it is a different RENDERING, not a different byte**:
+**On a push button it is a different RENDERING, not a different byte**:
 absent means the plate grey, `[]` means no plate, so an operator who chose *no
 background* could not get the plate back. `/BC` is currently only a byte
 (absent and empty both stroke black) and stops being one the moment any default
@@ -425,7 +425,7 @@ the single reader shared by the dictionary writer and the regenerator, so they
 cannot drift. CLI: `edit-widget --background unset`, deliberately a different
 word from `none`.
 
-★ **The requester's preferred option was DECLINED with reasons, and the reason
+**The requester's preferred option was DECLINED with reasons, and the reason
 generalises.** They asked for `with_background(Option<MkColor>)` on read/write
 symmetry. That makes the field `Option<Option<MkColor>>` — **the same mistake
 one layer deeper**, three states carried by two anonymous wrappers where the
@@ -434,7 +434,7 @@ a thin `with_background_state(Option<MkColor>)` wrapper **if** their
 copy-chrome pattern recurs; that is a conditional offer, not a commitment, so
 do not ship it unprompted.
 
-★★ **AND THE CHANNEL FINDING, which is worth more than the code one.** They
+**AND THE CHANNEL FINDING, which is worth more than the code one.** They
 had a working workaround — write `/MK` directly, around `EditSession` — and
 **refused it**, reporting the refusal per decision 058: it would have bypassed
 the undo stack, the appearance regenerator and the R33 minimal-diff writer.
@@ -448,7 +448,7 @@ much later as "undo behaves oddly on one property". **Second instance in two
 days** (`G017` was the first shape of it). When a shell reports a missing verb
 instead of routing around one, that report is worth answering the same day.
 
-★ **A stale claim retired, and its twin found by the librarian's sweep.**
+**A stale claim retired, and its twin found by the librarian's sweep.**
 `WidgetEdit::border_color`'s doc still carried the long "honest limit"
 paragraph — pdfcer does not paint `/MK`, painting it would need a second
 generator against R92 — which `Pass 308.0` had falsified that morning by doing
@@ -459,7 +459,7 @@ receipt, in the filing commit. ⇒ *A claim copied into two documents is retired
 from one of them; grep for the SENTENCE, not the file you remember writing it
 in.*
 
-★★ **AND THE SENTENCE I WROTE HERE AN HOUR LATER WAS WRONG, WHICH IS WHY IT
+**AND THE SENTENCE I WROTE HERE AN HOUR LATER WAS WRONG, WHICH IS WHY IT
 IS STRUCK RATHER THAN EDITED.** It said:
 
 > ~~"`run-gates.sh` ran all 34 commands to completion again, nothing
@@ -492,7 +492,7 @@ One `Pass 308.1` failure worth keeping: `cargo fmt --all --check`, on the new
 test file alone. The 24 non-cargo gates and fmt were re-run **after** the last
 edit, which is the discipline the top of this file asks for.
 
-### ★★★ SINCE THE LAST HANDOFF — 2026-09-15 (`Pass 306.0`)
+### SINCE THE LAST HANDOFF — 2026-09-15 (`Pass 306.0`)
 
 Everything after the 2026-09-14 block below is carried forward unchanged. Two
 things shipped in one session, both from one message the operator sent in
@@ -530,7 +530,7 @@ stayed exactly where the producer put it**. Fixed with
 reports `followers_repositioned = 0` and both `Td` operators are byte-identical
 to the input.
 
-★★ **THE COMPENSATION IS WHY IT SURVIVED, and that is the lesson to carry.**
+**THE COMPENSATION IS WHY IT SURVIVED, and that is the lesson to carry.**
 Because the walk put the next line back, the damage was confined to one glyph
 pair the operator had not selected. A render diff shows almost nothing; a
 geometry assertion on the block passes; the byte diff is small and plausible;
@@ -548,7 +548,7 @@ failed in the sweep and nowhere earlier. The reference is now the **first**
 edited operator. ⇒ *A guard added to a single-item code path needs asking what
 the multi-item path calls "the item".*
 
-★ Fixed in passing, same file: **`same_line`'s doc comment had been welded onto
+Fixed in passing, same file: **`same_line`'s doc comment had been welded onto
 `reposition_followers`**, and `same_line` itself had none. This is a second live
 instance of the exact failure this file records for `preview_style_resolution`,
 and it was invisible for the same reason — both functions read as documented.
@@ -563,7 +563,7 @@ its order and its paint position. `--granularity run|line`, or explicit
 recolour it, delete it, reflow it. Verified on his file through the CLI:
 `cuts=17 … undo_verified=1 undo_identical=1`.
 
-★★★ **THREE SITES IN THIS CRATE HAD RECORDED THE COST AS A BLOCKER AND NOBODY
+**THREE SITES IN THIS CRATE HAD RECORDED THE COST AS A BLOCKER AND NOBODY
 HAD PRICED IT.** `plan_move_text_run`'s docs, `text_edit/format.rs` and
 `text_edit/reflow_apply.rs` all say, in nearly the same words, *"`q`/`Q` are not
 admitted inside `BT`…`ET` (§8.2 Table 51), and splitting the `BT`…`ET` would
@@ -580,7 +580,7 @@ shares a `BT`…`ET` with other content, which on a SolidWorks sheet is every
 block. Split first and that refusal goes away — worth remembering before
 anyone re-scopes reflow as "deferred for interleaved blocks".
 
-★★★ **I WROTE A CLAIM INTO THE DOCUMENTATION AND THEN THE MEASUREMENT REFUTED
+**I WROTE A CLAIM INTO THE DOCUMENTATION AND THEN THE MEASUREMENT REFUTED
 IT.** The doc comment said *"the rendering is unchanged, and that is testable
 rather than asserted: split, render, compare — the rasters must hash equal."*
 Measured on `SW41177.pdf` page 1, splitting before ONE run of the 237-run label
@@ -623,7 +623,7 @@ corrected claim cannot tell it was ever in doubt.
 **Filing:** 554th, decision **157**, `FEATURES.md` row added. The librarian also
 found the *"next free `R257`"* ceiling had been carried **stale across roughly a
 dozen filings** — `R257` was minted at the 547th — and corrected it to `R258`.
-★ Note the shape: a counter nothing checks drifts silently, exactly like the
+Note the shape: a counter nothing checks drifts silently, exactly like the
 `docs/core-api/` verb count did before `check-core-api-verbs.py` existed.
 
 **Gate status at the end of this session: every gate run and green**, but
@@ -641,7 +641,7 @@ should copy:
 | `test -p pdfcer-render` | 753 tests |
 | `test -p pdfcer-cli` | 479 tests |
 
-★★ **THE OOM IS IN LINKING, NOT COMPILING, AND THAT CHANGES THE REMEDY.** The
+**THE OOM IS IN LINKING, NOT COMPILING, AND THAT CHANGES THE REMEDY.** The
 handoff's existing advice — fall back to the split procedure, drop to `-j 1` —
 did **not** help: `-j 1` was killed at the same phase as `-j 8`. What every
 killed run has in common is `link.exe` on many test binaries at once, and the
@@ -665,7 +665,7 @@ it also invalidates the whole dependency graph, so it starts a from-scratch
 rebuild of `iccce`, `skrifa` and everything else. Strictly worse than the
 problem. Reverted immediately; noted so nobody re-derives it.
 
-★ And the reason this section is long: the top of this file says a gate run
+And the reason this section is long: the top of this file says a gate run
 before your last edit is a gate that did not run, and **that discipline held
 here** — the full sweep caught a regression in
 `text_edit_span::a_growing_replacement_respaces_the_followers_and_keeps_the_next_line_put`
@@ -674,7 +674,7 @@ would not run again. Getting the coverage anyway took the table above. *A gate
 runner that cannot finish on the machine it runs on is not a green sweep, and
 saying "the sweep failed" would have been a lie in the other direction.*
 
-### ★★ SINCE THE LAST HANDOFF — 2026-09-14
+### SINCE THE LAST HANDOFF — 2026-09-14
 
 Everything after this block is from 2026-09-12 and is carried forward
 unchanged. Three things happened since, in order:
@@ -708,7 +708,7 @@ theirs to close with a `done_G017_…`.
 **3. `docs/core-api/` counts moved.** 227 → **232** public `EditSession`
 methods. `tools/check-core-api-verbs.py` caught it, as designed.
 
-★ **One defect worth carrying forward for its SHAPE**, found during `G017`:
+**One defect worth carrying forward for its SHAPE**, found during `G017`:
 a token-gap search used `prev.tokens.end + 1`, but `TextRun::tokens.end` is
 EXCLUSIVE. That made a `Td` read as one-operand-malformed and a `Tm` as five,
 so both were classified "nothing to rewrite" and both were then moved by an
@@ -718,7 +718,7 @@ assertions failed. ⇒ *A geometry-only test suite cannot see a correct edit
 written the wrong way* — and on this project's round-trip/minimal-diff rule,
 the wrong way is a defect. Assert the bytes as well as the pixels.
 
-### ★★★ THE TORONTO-MAP ARC IS CLOSED
+### THE TORONTO-MAP ARC IS CLOSED
 
 Three Passes, one evening, one request — the operator's *"Acrobat can read and
 zoom in on this pdf much much faster than we are capable of … the footprint in
@@ -732,7 +732,7 @@ without breaking the other things that our rendering engine does well"*.
 | `300.2` | a transparency group composites over its own `/BBox`, not the whole page | **783 s → 8 s at 4×**, 54.6 s → 2.45 s at 1×, rasters hash-identical |
 | `300.3` | the token vector sizes itself from each stream's own measured density instead of doubling | Toronto slack **176.8 MB → 32.7 MB**, parse ~0.40 s → ~0.23 s; seven real files improved, none regressed |
 
-★★ **READ `300.2`'s COMMIT (`6ff57ab`) BEFORE OPTIMISING ANYTHING IN THIS
+**READ `300.2`'s COMMIT (`6ff57ab`) BEFORE OPTIMISING ANYTHING IN THIS
 CRATE.** The slow path it fixed had been correctly *located* and wrongly
 *diagnosed* three times across a month, by three sessions, and fixed zero
 times. Every one of them named the per-group `Pixmap::new`. Timed:
@@ -750,9 +750,9 @@ object. The real fix moves no coordinates at all.
 
 The general form is in `D:\dev\rag\rust\a_plausible_explanation_that_predicts_the_right_order_of_magnitude_is_not_a_diagnosis.md`.
 
-### ★★ THE MEMORY HALF IS DONE TOO — `Pass 300.3` — AND IT NEEDED NO API BREAK
+### THE MEMORY HALF IS DONE TOO — `Pass 300.3` — AND IT NEEDED NO API BREAK
 
-★ **This section twice named a fix that turned out to be the wrong one, so
+**This section twice named a fix that turned out to be the wrong one, so
 read the correction before the conclusion.** It said, in order: the peak is
 image decoding (wrong — `extract-text` rasterises nothing and peaks the same);
 then ~~"the fix is **shrinking `ContentToken`**, in `pdfcer-core`. Unscoped, no
@@ -782,7 +782,7 @@ than doubling. Toronto's slack 176.8 MB → 32.7 MB, parse ~0.40 s → ~0.23 s,
 seven real files of different shapes all improved and none regressed, 372
 synthetic fixtures byte-for-byte unaffected.
 
-★★ **THE GUARD THAT CAUGHT THE DRAFT, and the reason the harness covered
+**THE GUARD THAT CAUGHT THE DRAFT, and the reason the harness covered
 small files at all.** The first version set the minimum capacity to 64 "to
 save a series of small allocations" — invented, unmeasured. The 372 synthetic
 fixtures are all small streams and priced it at once: reserved **0.7 MB →
@@ -791,7 +791,7 @@ A capacity heuristic is a claim about a POPULATION, and the population that
 matters is the one you did not tune on. General form in
 `D:\dev\rag\rust\a_heuristic_tuned_on_the_motivating_case_needs_a_counter_sample_before_it_ships.md`.
 
-### ★★★ SHRINKING `ContentToken` IS GATED ON KEN'S APPROVAL — DO NOT START IT
+### SHRINKING `ContentToken` IS GATED ON KEN'S APPROVAL — DO NOT START IT
 
 **Operator instruction, 2026-09-12, verbatim:** *"Put the shrinking token type
 the list you use for this sort of thing and note that I must approve it being
@@ -825,7 +825,7 @@ Why it is gated, and every one of these is a reason on its own:
 * **It is not required for the win it was proposed for.** `Pass 300.3` closed
   the memory problem without it.
 
-### ★ HOW TO BENCHMARK HERE, because the obvious way cannot run
+### HOW TO BENCHMARK HERE, because the obvious way cannot run
 
 ~~**`pdfcer-cli` will not release-link on this machine** — four builds
 OOM-killed, including at `-j 2`.~~ **⚠ AMENDED 2026-09-17 (v0.54.0 release
@@ -842,16 +842,16 @@ builds in a couple of minutes and can call `render_page` directly. Hash
 `out.pixmap.data()` in the same test and you get the A/B and the
 byte-identity proof from one run. Delete the file before committing.
 
-### ★★ TWO METHODOLOGY LESSONS FROM THIS ARC
+### TWO METHODOLOGY LESSONS FROM THIS ARC
 
-★ Two paragraphs that stood here were DELETED rather than struck, because they
+Two paragraphs that stood here were DELETED rather than struck, because they
 had become false: they described the group-buffer work as "unstarted" and
 named the per-group allocation as the time cost. `Pass 300.2` shipped the fix
 and measured the allocation at 1.8 s of 54.9 — see the table above. A handoff
 that contradicts itself is worse than one merely out of date, because the
 reader cannot tell which half is current.
 
-★★ **And the one that cost the most time in the arc:**
+**And the one that cost the most time in the arc:**
 the regression baseline built before touching the code rendered **114 fixtures
 and stopped at `fontinfo` alphabetically** — it did not contain `images`,
 `transparency`, `overprint` or `shading`, the four directories the change was
@@ -882,7 +882,7 @@ Filings 508–512. Decisions **151**, **152**, **153**; rules **R252**, **R253**
 
 ---
 
-## ★★★ THE INBOUND QUEUE IS EMPTY — AND THAT SENTENCE HAS BEEN WRONG TWICE
+## THE INBOUND QUEUE IS EMPTY — AND THAT SENTENCE HAS BEEN WRONG TWICE
 
 **Every `pdfcer-gui` request is answered, shipped and confirmed consumed**, and
 each consumption note is in the channel. Five `request_*` files remain in
@@ -890,13 +890,13 @@ each consumption note is in the channel. Five `request_*` files remain in
 exchanges within minutes and write the `INDEX.md` rows themselves. Do not
 archive on their behalf; you will duplicate work in flight.
 
-★★ **Two previous handoffs said "the queue is empty" and were stale within
+**Two previous handoffs said "the queue is empty" and were stale within
 hours.** `ls -lt` the inbound directory before believing any sentence in this
 file — including this one.
 
 `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`
 
-### ★★ The channel now has a TOPIC KEY — use it
+### The channel now has a TOPIC KEY — use it
 
 Adopted 2026-09-11, recorded in that folder's `README.md`. Every file in one
 exchange carries the same key as a filename prefix: `reply_G042_…`,
@@ -912,14 +912,14 @@ each.
 
 ---
 
-## ★★ WHAT THIS SESSION ESTABLISHED THAT OUTLIVES ITS PASSES
+## WHAT THIS SESSION ESTABLISHED THAT OUTLIVES ITS PASSES
 
 ### R254 / decision 153 — a value the crate already computes does not earn `pub` by DEMAND
 
 It earned it by existing. Keeping it `pub(crate)` "until someone asks" hands
 the discovery cost to **the one party who structurally cannot see the gap**.
 
-★ I read `R151` ("an uncalled API is a cost") as licensing that, and it does
+I read `R151` ("an uncalled API is a cost") as licensing that, and it does
 not: R151 audits whether a *published* capability gets *called*. The librarian
 declined both homes I proposed and minted a new rule; it also cut my claimed
 five instances to **three** on mechanism. **A shared symptom is not a shared
@@ -989,7 +989,7 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
   one band — measured before and after on the operator's own 17 affected
   drawings.
 
-  ★★★ **What remains is NOT a cut that leaves a sliver** — that was this file's
+  **What remains is NOT a cut that leaves a sliver** — that was this file's
   wording and it was wrong, corrected 2026-09-12 (`7a22c52`). The cut is
   COMPLETE: `covered_cells` snaps **outward**, so an image overhanging by 1 pt
   has its off-page sample columns cleared and the samples out there are blank.
@@ -1008,7 +1008,7 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
   ~~8~~ → **6**, four paydowns on 2026-09-12 (`f0d1dc7`, `e41892a`, `d291a03`,
   `05b3a80`).
 
-  ★★ **THE SIX ARE TWO DIFFERENT KINDS — do not read them as one pile:**
+  **THE SIX ARE TWO DIFFERENT KINDS — do not read them as one pile:**
   - **four** in `widget_adoption.rs` (the census and three preview tests) are
     **deliberate**: they assert the REAL AcroForm's own composition, so
     converting them would measure an invented fixture rather than the verb;
@@ -1018,7 +1018,7 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
     **can never run in CI on any machine**, which is a different problem from
     the corpus one and wants its own answer.
   `Pass 298.0`'s guard was sabotaged to prove its test could fail and the test
-  **stayed green**. ★★ **The only fix is a synthetic fixture, and that is a
+  **stayed green**. **The only fix is a synthetic fixture, and that is a
   constraint rather than a preference**: 13 of the 16 need
   `fixtures/external/pdfbox`, which `fixtures/README.md` marks *"NOT
   blanket-safe … never bulk-import"*, and `fetch-corpora.sh` deliberately omits
@@ -1027,50 +1027,50 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
   import a corpus `LEGAL.md` §5 rules out. `tools/check-skippable-tests-declared.py`
   keeps the count honest; `f0d1dc7` shows the pattern
   (`synthetic_orphaned_session()` in `widget_adoption.rs`, 14 skips → 4).
-  ★ Four of the remaining ten are deliberate: `widget_adoption.rs`'s census
+  Four of the remaining ten are deliberate: `widget_adoption.rs`'s census
   and preview tests assert the REAL AcroForm's composition, and converting
   them would measure an invented fixture rather than the verb. Do not "finish
   the job" on those.
 
-  ★★ **The criterion that decides convertibility**, from doing it twice: *are
+  **The criterion that decides convertibility**, from doing it twice: *are
   the numbers the SUBJECT or the SETTING?* `merge_document.rs`'s "12 fields
   over 13 widgets" is a property of the fixture — a synthetic source with the
   same composition tests the same thing, so all eight converted. The preview
   tests assert the corpus's own composition, which is the subject, so they
   cannot.
 
-  ★ **`clippy::dead_code` proves a conversion is complete**, better than a
+  **`clippy::dead_code` proves a conversion is complete**, better than a
   SKIP count: when the last test stops using it, the corpus path constant
   becomes unused and the compiler names it. `merge_document.rs`'s `ACROFORM`
   is gone for that reason.
 
-  ★★ ~~THE NEXT THREE ARE BLOCKED ON A FIXTURE NOBODY CAN GENERATE~~ —
+  ~~THE NEXT THREE ARE BLOCKED ON A FIXTURE NOBODY CAN GENERATE~~ —
   **RESOLVED the same day** (`d291a03`), by the operator asking whether a
   suitable PDF could be found online. It could: `LEGAL.md` §5 already names
   **veraPDF's open corpus** as approved source (b), so it was a documented
   decision rather than a search. `fixtures/verapdf/object-streams.pdf` is the
   smallest VALID file of the 78 in that corpus carrying an `/ObjStm`.
 
-  ★ **The analysis that said "blocked" was still right and is still worth
+  **The analysis that said "blocked" was still right and is still worth
   keeping**: pdfcer's writer only DEcompresses (`writer/save.rs:1018`), and no
   `fixtures/synthetic/**` file contains an `/ObjStm`. What changed was not the
   facts but the question — *generate one* is blocked; *use a cleared one* was
   never blocked and was already permitted.
 
-  ★★★ **`fixtures/verapdf/` is the first non-MIT file in this tree** — the
+  **`fixtures/verapdf/` is the first non-MIT file in this tree** — the
   corpus is **CC BY 4.0**, redistribution permitted with attribution, which
   `fixtures/verapdf/PROVENANCE.md` carries. **OWED, and it is the operator's
   call:** whether `LEGAL.md` should gain an explicit line recording that, the
   way §6.7 does for the CC-BY-SA-4.0 OCR weights. Flagged by the librarian,
   not edited — that file is operator-governed.
 
-  ★ **And one of those three never needed a corpus at all.** It needed *an
+  **And one of those three never needed a corpus at all.** It needed *an
   encrypted document*, and `fixtures/synthetic/encryption/` has held eight the
   whole time. ~~Before hunting any more fixtures, re-check the remaining 8~~ —
   **DONE the same hour** (`05b3a80`): two more converted, neither needing
   anything new.
 
-  ★★★ **And the re-check found a defect the note itself had created.**
+  **And the re-check found a defect the note itself had created.**
   `structure_inspect`'s object-stream test was **still skipping for want of the
   fixture added an hour earlier** — its path was repointed, but a SECOND guard
   clause further down (`if l.object_streams.is_empty() { SKIP }`) was the real
@@ -1090,7 +1090,7 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
   `ROADMAP.md` with no answer in its channel. Green at baseline (10 open,
   10 answered). In CI it announces `SKIPPED` per channel by name — they live
   outside the repo — rather than passing silently (`R255`).
-- ★★★ **NEW, AND READ IT BEFORE AUDITING ANYTHING IN `D:\Dev\FeatureRequests\`:
+- **NEW, AND READ IT BEFORE AUDITING ANYTHING IN `D:\Dev\FeatureRequests\`:
   pdfcer answers TWO channels, not one.**
   - `pdfce_FeatureRequests` — the `pdfcer-gui` shell (6 open requests);
   - `iccce_FeatureRequests` — the ICC colour-management partner (4 open).
@@ -1122,7 +1122,7 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
 - ~~**`check-public-fns-documented.py`'s denominator is `pub`** … staged fix~~
   — **MEASURED AND DECLINED 2026-09-11.** Widening it to private functions
   would mean a **1,837-row** baseline outside test modules, which is an
-  instrument nobody reads. ★ My first measurement said 381 and was wrong —
+  instrument nobody reads. My first measurement said 381 and was wrong —
   an artifact of cutting each file at its first `#[cfg(test)]` line — and I
   nearly shipped the widening on it. The answer instead is
   `tools/check-doc-block-spliced.py`, which detects the splice directly (one
@@ -1147,16 +1147,16 @@ cross-project lesson at `C:\personal_rag\claude_code\lesson_20260807_truncated_r
 
 ## BUILD ENVIRONMENT
 
-★★ **This machine runs out of memory on whole-workspace cargo work.** See the
+**This machine runs out of memory on whole-workspace cargo work.** See the
 procedure at the top; it is the single most time-costly thing about this
 session.
 
-★★ **`target/debug/deps` grows without bound** — cargo never garbage-collects
+**`target/debug/deps` grows without bound** — cargo never garbage-collects
 it. `du -sh target/debug/deps` every session; 36 GB at one recent measurement.
 Before any delete, both checks: `git ls-files target` returns 0 and
 `git check-ignore -q target` passes.
 
-★ **A stale `types.py` in the job temp directory shadowed the standard
+**A stale `types.py` in the job temp directory shadowed the standard
 library** and broke every `python` invocation whose script lived there, with a
 traceback naming `enum`, not the shadowing file. If `python` starts failing on
 `import pathlib`, look for a stdlib name in the working directory first.

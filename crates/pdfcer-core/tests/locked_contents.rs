@@ -90,7 +90,7 @@ fn contents(s: &EditSession, id: ObjId) -> Option<String> {
         .and_then(|a| a.contents)
 }
 
-/// ★★ `LockedContents` refuses a note edit — the gate that did not exist.
+/// `LockedContents` refuses a note edit — the gate that did not exist.
 #[test]
 fn locked_contents_refuses_a_note_edit() {
     let (mut s, id) = square_with_flags(AnnotFlags(AnnotFlags::LOCKED_CONTENTS));
@@ -126,7 +126,7 @@ fn locked_contents_refuses_clearing_the_note() {
     assert_eq!(contents(&s, id).as_deref(), Some("the original words"));
 }
 
-/// ★★ `LockedContents` does **not** restrict a restyle or a resize.
+/// `LockedContents` does **not** restrict a restyle or a resize.
 ///
 /// Table 165 says so in as many words. This is the half a one-directional
 /// test would miss: an implementation that treated bit 10 as a general
@@ -156,7 +156,7 @@ fn locked_contents_permits_property_changes() {
         .expect("nor deletion, which Table 165 names explicitly");
 }
 
-/// ★★ And the mirror: `Locked` **permits** the note edit it does not mention.
+/// And the mirror: `Locked` **permits** the note edit it does not mention.
 ///
 /// Bit 8 forbids deletion and *"properties (including position and size)"*.
 /// A comment is neither. Without this assertion, wiring the note gate to bit 8

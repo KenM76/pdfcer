@@ -99,7 +99,7 @@ fn two_abutting_red_tiles() -> Document {
     Document::from_bytes(bytes).expect("fixture must load")
 }
 
-/// ★ No pixel strictly inside the stacked pair may be lighter than the tile
+/// No pixel strictly inside the stacked pair may be lighter than the tile
 /// colour.
 ///
 /// The assertion is deliberately about **background bleed**, not about an

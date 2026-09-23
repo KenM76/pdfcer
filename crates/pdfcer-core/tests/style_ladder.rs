@@ -145,7 +145,7 @@ fn rung_1_binds_a_real_face_on_the_page_through_the_coverage_gate() {
     assert_eq!(l.rung, StyleRung::RealFaceOnPage);
     assert_eq!(l.bound.as_deref(), Some("Times-Bold"));
     assert_eq!(l.passed_over.len(), 1, "{:?}", l.passed_over);
-    // ★ Asserted on the FIELDS since `Pass 295.0`. The old form matched the
+    // Asserted on the FIELDS since `Pass 295.0`. The old form matched the
     // prefix of a joined `"<face> (<reason>)"` string -- the very shape the
     // consuming shell had to parse, and which this Pass replaced with a
     // struct. A test that reads the prose keeps the prose load-bearing.
@@ -328,7 +328,7 @@ fn the_ladder_refuses_to_be_combined_with_a_named_face_or_an_overlapping_overrid
 // ------------------------------------------------ `Pass 295.0` — the shell's
 // ------------------------------------------------ four requests against 0.53.0
 
-/// ★★★ The preview and the commit are two readings of ONE answer.
+/// The preview and the commit are two readings of ONE answer.
 ///
 /// `preview_style_resolution` previews the R90 gate, which since `Pass 179.0`
 /// answers a different question: it cannot see rung 2, because the standard-14
@@ -376,7 +376,7 @@ fn the_ladder_preview_stages_nothing() {
     assert_eq!(before, reopened(&s), "a preview staged something");
 }
 
-/// ★★ Under `Refuse`, the preview REFUSES — because that is what the commit
+/// Under `Refuse`, the preview REFUSES — because that is what the commit
 /// would do. A preview that promised rung 4 here would be predicting an event
 /// that never happens.
 #[test]
@@ -404,7 +404,7 @@ fn the_ladder_preview_refuses_where_the_commit_would_refuse() {
     );
 }
 
-/// ★★ `same_family` distinguishes the invisible change from the visible one.
+/// `same_family` distinguishes the invisible change from the visible one.
 ///
 /// `Helvetica` → `Helvetica-Bold` is invisible to a draughtsman;
 /// `Helvetica` → another family's bold changes the look of a title block, and
@@ -424,7 +424,7 @@ fn the_ladder_says_whether_the_bound_face_is_the_runs_own_family() {
     );
 }
 
-/// ★★★ THE HALF THE FIRST CUT OF THIS TEST COULD NOT FAIL.
+/// THE HALF THE FIRST CUT OF THIS TEST COULD NOT FAIL.
 ///
 /// The same-family assertion above passed a sabotage that hard-coded
 /// `same_family: Some(true)`, because its fixture only ever binds

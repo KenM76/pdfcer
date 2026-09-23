@@ -62,7 +62,7 @@
 //! 3. **Forward gap** along the writing direction larger than
 //!    `word_gap_ratio` × size ⇒ derived word space.
 //!
-//! ## ★ The frame those rules are measured in (`Pass 139.1`)
+//! ## The frame those rules are measured in (`Pass 139.1`)
 //!
 //! Rules 1–3 are measured **in the line's own frame**, not in the
 //! page's. Until `Pass 139.1` they were stated in page axes — `|Δy|`
@@ -307,7 +307,7 @@ impl Builder<'_> {
         // A baseline change across the replacement is still a real
         // baseline change; a word gap is not (module docs).
         //
-        // ★ This comparison stays in **page axes** (`Pass 139.1`), and
+        // This comparison stays in **page axes** (`Pass 139.1`), and
         // that is a limit rather than an oversight. An `/ActualText`
         // replacement publishes an axis-aligned box and nothing else —
         // §14.9.4 N4 forbids per-character correspondence, so there is

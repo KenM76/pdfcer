@@ -24,7 +24,7 @@
 //!    `/CL` hold *absolute page coordinates*, and they are what any **other**
 //!    tool regenerates an appearance from.
 //!
-//! ★ Move only (1) and the annotation renders in the new place and is
+//! Move only (1) and the annotation renders in the new place and is
 //! reconstructed in the **old** one by the next viewer that rebuilds it. That
 //! failure is invisible in pdfcer, invisible in a screenshot, and shows up in
 //! somebody else's product. It is the reason `geometry_keys_moved` is a

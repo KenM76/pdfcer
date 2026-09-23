@@ -112,7 +112,7 @@
 //!               `chained_actions=<n>` `page_trigger_actions=<n>`
 //!               `outline_actions=<n>` `js_actions_anywhere=<n>`
 //!               `actions_scanned=<n>` `action_scan_truncated=<0|1>`.
-//!               ★ Read the last one BEFORE the rest: a hazard count of zero
+//!               Read the last one BEFORE the rest: a hazard count of zero
 //!               from a truncated scan means pdfcer stopped looking, not that
 //!               the document is clean.
 //! list-annotations: …`action=<Type|Type+next|none>` — what the annotation
@@ -184,7 +184,7 @@
 //!               annots_icon_painted=<n> page_resources_defaulted=<0|1>
 //! ```
 //!
-//! ★ **`render-page` prints a SECOND line when `--probe-ink X,Y` is
+//! **`render-page` prints a SECOND line when `--probe-ink X,Y` is
 //! given, and only then** (`Pass 174.0`). It is deliberately not part of
 //! the template above, because the template is a contract about
 //! `key=<integer>` pairs in a fixed order and this is neither integers nor
@@ -201,7 +201,7 @@
 //! zero) cannot be confused. The metrics line always comes FIRST, so a
 //! script that reads one line off this command is unaffected.
 //!
-//! ★ **Every key is listed, and the placeholders are uniform.** Two
+//! **Every key is listed, and the placeholders are uniform.** Two
 //! things were wrong with the previous version of that block, and only the
 //! second was cosmetic.
 //!
@@ -244,7 +244,7 @@
 //!   keeps working. That is the guarantee that actually matters, and the
 //!   one this project makes.
 //!
-//!   ★ **What is NOT promised, corrected here: that a key never moves.**
+//!   **What is NOT promised, corrected here: that a key never moves.**
 //!   This paragraph used to say existing keys "never move", and `Pass
 //!   74.4` broke it by inserting `forms_culled` directly after `forms`
 //!   instead of at the end of the line. That was deliberate — "342 forms
@@ -296,7 +296,7 @@
 //! | `mattes_undone` | `mattes_undone` | "how many `/Matte` preblends were inverted?" (§11.6.5.3 — census, but the inversion amplifies quantisation error by `1/α`, so a near-transparent fringe that disagrees with another engine is expected rather than a bug) |
 //! | `mattes_not_undone` | `mattes_not_undone` | "how many `/Matte` preblends were NOT inverted, leaving colours shifted toward the matte colour?" (alpha still applied; the reason is in the image divergences) |
 //!
-//! ★ The rows below were absent until 2026-08-22. The table stopped
+//! The rows below were absent until 2026-08-22. The table stopped
 //! at `mattes_not_undone` and documented 44 of the 87 keys the line
 //! emits, so 43 of them -- every annotation, colour-space, shading,
 //! blend-mode, soft-mask, transparency-group, overprint and CMYK
@@ -366,31 +366,31 @@
 //! | `groups_flattened` | `transparency_groups_flattened` | "how many transparency groups were painted straight onto the page instead of composited as a UNIT?" (§11.4.7 Table 147 — DIVERGENCE that no blend-mode counter can express. A group is a compositing SCOPE: its contents render into a separate buffer and the group's RESULT is composited with the blend, alpha and soft mask in force at the `Do`. Flattening applies those to each object INSIDE instead — the same answer for a group holding one opaque object, a different answer for almost anything else) |
 //! | `groups_special` | `transparency_groups_special` | "how many of the flattened groups were the ones where flattening stops being a good approximation?" (`/I true` isolated or `/K true` knockout — Table 147, NOT Table 96 which is the COMMON group-attributes table, and note that clause-11 table numbers shift by −2 in ISO 32000-2. An isolated group blends against a transparent initial backdrop rather than the page; a knockout group composites each element against the group's INITIAL backdrop, so flattening reverses the intended occlusion) |
 //! | `groups_composited` | `transparency_groups_composited` | "how many groups were rendered into their own buffer and applied as a unit?" (§11.4.5 — the positive twin of `groups_flattened`, and NOT a clean census: a `tiny_skia::Pixmap` starts TRANSPARENT and a transparent initial backdrop IS isolated semantics (§11.4.7), so a non-isolated group under a `/BM` used to become an isolated one silently and count here as a success. Fixed on the additive path; it survives on a SUBTRACTIVE page, where the residue is counted as `cmyk_groups_approximated`) |
-//! | `groups_knockout_approx` | `transparency_groups_knockout_approximated` | "inside a knockout group, how many ELEMENTS could not be given §11.4.6 semantics?" (exactly three kinds — a shading, an overprint composite (§11.7.4.3), a per-paint non-separable blend (§11.3.5.3) — all for one reason: they read the destination back, and §11.4.8 needs the element's own shape in isolation because it scales the destination by `(1 − f_s)` rather than `(1 − α_s)`. They layer instead of knocking out, which is the answer a NON-knockout group would give and also the answer every element gives at `q_s = 1`, so the shortfall is bounded. ★ A ZERO DOES NOT MEAN THE PAGE HAD NO KNOCKOUT TO GET WRONG: only explicit `/K true` reaches this counter, while §9.3.8's `/TK` (initial value TRUE — every text object), §11.6.7's shading patterns and §11.7.4.4's `B`/`b` and text rendering modes 2 and 6 establish knockout with no `/K` key anywhere, and none of those is treated as knockout today) |
+//! | `groups_knockout_approx` | `transparency_groups_knockout_approximated` | "inside a knockout group, how many ELEMENTS could not be given §11.4.6 semantics?" (exactly three kinds — a shading, an overprint composite (§11.7.4.3), a per-paint non-separable blend (§11.3.5.3) — all for one reason: they read the destination back, and §11.4.8 needs the element's own shape in isolation because it scales the destination by `(1 − f_s)` rather than `(1 − α_s)`. They layer instead of knocking out, which is the answer a NON-knockout group would give and also the answer every element gives at `q_s = 1`, so the shortfall is bounded. A ZERO DOES NOT MEAN THE PAGE HAD NO KNOCKOUT TO GET WRONG: only explicit `/K true` reaches this counter, while §9.3.8's `/TK` (initial value TRUE — every text object), §11.6.7's shading patterns and §11.7.4.4's `B`/`b` and text rendering modes 2 and 6 establish knockout with no `/K` key anywhere, and none of those is treated as knockout today) |
 //! | `overprint_requested` | `overprint_requested` | "how many `gs` operators turned overprint ON?" (§8.6.7's `/OP` or `/op` — a CENSUS of demand that overstates the problem badly: producers set `/OP true` across whole documents as a default and most of those paints are no-ops. This is the denominator; `overprint_effective` is the honest measure) |
 //! | `overprint_opm1` | `overprint_mode1_requested` | "how many of those also selected overprint mode 1?" (`/OPM 1`, §8.6.7's nonzero overprint mode — separated because mode 1 is where overprint stops being a component-SET question and becomes a per-component VALUE one: a zero `DeviceCMYK` component leaves the backdrop unchanged. §8.6.7 also makes it inert off `DeviceCMYK`, so a non-zero count is the clearest signal that a document expects an ink model) |
 //! | `overprint_effective` | `overprint_effective` | "how many paints would actually LOOK different if overprint were honoured?" (the subset of `overprint_requested` that is a real visual difference: a source space specifying FEWER components than the backdrop has — a `Separation` or one-component `DeviceN` over CMYK — or mode 1 with a zero-valued component. §11.7.4.3's `CompatibleOverprint` picks the source component for every component the current space specifies and the backdrop's for the rest, so a `DeviceCMYK` fill over a `DeviceCMYK` backdrop at mode 0 is IDENTICAL to Normal) |
 //! | `overprint_composited` | `overprint_composited` | "how many paints actually went through `CompatibleOverprint` rather than a `Normal` blend?" (§11.7.4.3 Table 149. Should equal `overprint_effective` minus `overprint_refused` — kept as its own counter rather than derived, because a derived number cannot disagree with reality and therefore cannot report a bug. A disagreement across the three is the signal worth chasing) |
 //! | `overprint_refused` | `overprint_refused` | "how many paints fell back to a normal blend when overprint applied?" (DIVERGENCE, and the one to watch in this block: non-zero means the operator is looking at KNOCKED-OUT backdrops where a press would show overprinted ink, which is not detectable by looking at the page. Distinct from `overprint_images_unsupported` — this is "the composite was offered this paint and could not run it", that one is "the composite was never offered this object at all") |
 //! | `overprint_pixels` | `overprint_pixels` | "did the overprint composites MOVE anything?" (the measurement that separates "overprint ran and mattered" from "overprint ran and was a no-op on this geometry" — two facts a paint count alone conflates. Meaningless without `overprint_composited` beside it, and vice versa) |
-//! | `rendering_intents_set` | `rendering_intents_set` | "how many times did the document DECLARE a rendering intent?" (§8.6.5.8 — the `ri` operator or an `/ExtGState` `/RI`. ★ A CENSUS OF WHAT THE FILE ASKED FOR, NOT OF WHAT pdfcer DID: as of `Pass 199.0` the intent is carried in the graphics state where it was previously discarded outright, and as of `Pass 199.2` it IS consumed: it selects the ICC transform for an `ICCBased` paint on a subtractive page. A non-zero value here with `icc_managed_paints=0` means the file declared an intent that still changed nothing -- normally because it named no `/OutputIntent` to convert toward. Measured: a failing ICC-RGB conformance patch declares an intent **19 times**) |
-//! | `icc_managed_paints` | `icc_managed_paints` | "how many paints became ink via the COLOUR ENGINE rather than the fallback formula?" (`Pass 199.2`. Half of a pair — read it with `icc_unmanaged_paints` below. An `ICCBased` paint on a page that composites in ink is converted by iccce using the file's OWN embedded source profile and its `/OutputIntent` destination profile, at the intent the graphics state asked for. The fallback it replaces, `overprint::rgb_to_cmyk`, is an invertible round-trip transform that is correct for round trips and wrong as a terminal conversion — measured at **92 levels** maximum divergence on a conformance patch, moving the page closer to Acrobat when enabled. ★ COUNTS GRAPHICS-STATE PAINTS ONLY. An `ICCBased` IMAGE is never colour-managed at all -- `image::Space` collapses it to a device space by `/N` and discards the profile -- so an image can never appear here. Read this number with `icc_unmanaged_paints`, which since `Pass 207.0` DOES see images) |
-//! | `overprint_process_images_unsupported` | `overprint_process_images_unsupported` | "how many PROCESS-space images were painted under `/OP true` on a page that composites in ink?" (DIVERGENCE, `Pass 204.0`. ★★ ALWAYS ZERO SINCE `Pass 238.0` AND KEPT ON THE LINE FOR SCRIPT STABILITY: the image path now preserves the spot planes under `/OP true`, which is exactly the sub-row this counted the absence of, so nothing increments it any more; a non-zero value from an OLDER build meant the shape of the problem was present. The history below is kept because it explains what the number used to mean. §11.7.4.3 Table 149's row for *any process colour space* has TWO sub-rows: the process component reads `c_s` in all three columns, and **the spot colorant reads `c_b` under `OP true`**. Three source comments quoted the first, dropped the second, and concluded that painting such an image normally "IS the conforming result, not a shortfall" — while pdfcer's own Table 149 implementation had always returned `Backdrop` for that case. So the renderer's comments contradicted both the spec and the rest of the codebase. ★ THIS COUNTS THE SITUATION, NOT CONFIRMED DAMAGE, and the limit is real: the IMAGE path does not deposit into a spot plane, so a backdrop laid down by an image has already been flattened into the process channels before this one paints, and pdfcer cannot tell whether a spot was underneath. (Said 'with no spot plane' until 2026-09-02 — planes exist since `Pass 225.0`; it is the image path that still lacks one.) A non-zero value means the page contains the shape of the problem. Measured: an `/Indexed /DeviceCMYK` drop shadow over a spot-green backdrop renders a neutral grey ramp on white paper where a press shows the same ramp on green. Closing it needs the per-spot-colorant plane) |
-//! | `icc_unmanaged_paints` | `icc_unmanaged_paints` | "how many paints COULD have been colour-managed and were not?" (`Pass 199.2`. The other half, and the one that makes a zero interpretable: `icc_managed_paints=0` alone cannot distinguish "the engine ran and agreed" from "the branch was never reached". A non-zero value here means an `ICCBased` paint fell back to the approximate formula — and as of `Pass 207.0` also that an `ICCBased` IMAGE was drawn on such a page, which is now the MOST COMMON cause because images are never managed at all. The other causes: the document named no `/OutputIntent`, a profile would not parse, or the destination was not four-component. ★ This list is enumerated and therefore has an expiry date -- it was exhaustive when written and went stale one Pass later, which is the third time in 24 hours an exhaustive enumeration in this file has done so. Every listed item stays correct, so the list reads as verified. ★ This is the rule-4 disclosure for colour management: nothing on the page is drawn differently, and the fact that pdfcer approximated is reported off-canvas) |
-//! | `nonseparable_composited` | `nonseparable_composited` | "how many DIRECT PAINTS went through `Hue`/`Saturation`/`Color`/`Luminosity`?" (§11.3.5.3 Table 137 — a census of a SECOND code path: pdfcer computes these four per pixel rather than handing the mode to the rasteriser, whose implementations are measurably wrong (decision 066). ★★ **IT DOES NOT COUNT A TRANSPARENCY GROUP COMPOSITED WITH ONE OF THOSE MODES**, and that omission is measurable: a page carrying `/BM /Hue` and `/BM /Saturation` reports `blend_modes_applied=15` with this at **0**, because its blending happens when the group is composited rather than when a path is painted. A reader who takes 0 for "no non-separable mode ran" is reading it wrong — this is a count of PAINTS, not of composites, and the name over-promises. The group half is filed, not implemented) |
+//! | `rendering_intents_set` | `rendering_intents_set` | "how many times did the document DECLARE a rendering intent?" (§8.6.5.8 — the `ri` operator or an `/ExtGState` `/RI`. A CENSUS OF WHAT THE FILE ASKED FOR, NOT OF WHAT pdfcer DID: as of `Pass 199.0` the intent is carried in the graphics state where it was previously discarded outright, and as of `Pass 199.2` it IS consumed: it selects the ICC transform for an `ICCBased` paint on a subtractive page. A non-zero value here with `icc_managed_paints=0` means the file declared an intent that still changed nothing -- normally because it named no `/OutputIntent` to convert toward. Measured: a failing ICC-RGB conformance patch declares an intent **19 times**) |
+//! | `icc_managed_paints` | `icc_managed_paints` | "how many paints became ink via the COLOUR ENGINE rather than the fallback formula?" (`Pass 199.2`. Half of a pair — read it with `icc_unmanaged_paints` below. An `ICCBased` paint on a page that composites in ink is converted by iccce using the file's OWN embedded source profile and its `/OutputIntent` destination profile, at the intent the graphics state asked for. The fallback it replaces, `overprint::rgb_to_cmyk`, is an invertible round-trip transform that is correct for round trips and wrong as a terminal conversion — measured at **92 levels** maximum divergence on a conformance patch, moving the page closer to Acrobat when enabled. COUNTS GRAPHICS-STATE PAINTS ONLY. An `ICCBased` IMAGE is never colour-managed at all -- `image::Space` collapses it to a device space by `/N` and discards the profile -- so an image can never appear here. Read this number with `icc_unmanaged_paints`, which since `Pass 207.0` DOES see images) |
+//! | `overprint_process_images_unsupported` | `overprint_process_images_unsupported` | "how many PROCESS-space images were painted under `/OP true` on a page that composites in ink?" (DIVERGENCE, `Pass 204.0`. ALWAYS ZERO SINCE `Pass 238.0` AND KEPT ON THE LINE FOR SCRIPT STABILITY: the image path now preserves the spot planes under `/OP true`, which is exactly the sub-row this counted the absence of, so nothing increments it any more; a non-zero value from an OLDER build meant the shape of the problem was present. The history below is kept because it explains what the number used to mean. §11.7.4.3 Table 149's row for *any process colour space* has TWO sub-rows: the process component reads `c_s` in all three columns, and **the spot colorant reads `c_b` under `OP true`**. Three source comments quoted the first, dropped the second, and concluded that painting such an image normally "IS the conforming result, not a shortfall" — while pdfcer's own Table 149 implementation had always returned `Backdrop` for that case. So the renderer's comments contradicted both the spec and the rest of the codebase. THIS COUNTS THE SITUATION, NOT CONFIRMED DAMAGE, and the limit is real: the IMAGE path does not deposit into a spot plane, so a backdrop laid down by an image has already been flattened into the process channels before this one paints, and pdfcer cannot tell whether a spot was underneath. (Said 'with no spot plane' until 2026-09-02 — planes exist since `Pass 225.0`; it is the image path that still lacks one.) A non-zero value means the page contains the shape of the problem. Measured: an `/Indexed /DeviceCMYK` drop shadow over a spot-green backdrop renders a neutral grey ramp on white paper where a press shows the same ramp on green. Closing it needs the per-spot-colorant plane) |
+//! | `icc_unmanaged_paints` | `icc_unmanaged_paints` | "how many paints COULD have been colour-managed and were not?" (`Pass 199.2`. The other half, and the one that makes a zero interpretable: `icc_managed_paints=0` alone cannot distinguish "the engine ran and agreed" from "the branch was never reached". A non-zero value here means an `ICCBased` paint fell back to the approximate formula — and as of `Pass 207.0` also that an `ICCBased` IMAGE was drawn on such a page, which is now the MOST COMMON cause because images are never managed at all. The other causes: the document named no `/OutputIntent`, a profile would not parse, or the destination was not four-component. This list is enumerated and therefore has an expiry date -- it was exhaustive when written and went stale one Pass later, which is the third time in 24 hours an exhaustive enumeration in this file has done so. Every listed item stays correct, so the list reads as verified. This is the rule-4 disclosure for colour management: nothing on the page is drawn differently, and the fact that pdfcer approximated is reported off-canvas) |
+//! | `nonseparable_composited` | `nonseparable_composited` | "how many DIRECT PAINTS went through `Hue`/`Saturation`/`Color`/`Luminosity`?" (§11.3.5.3 Table 137 — a census of a SECOND code path: pdfcer computes these four per pixel rather than handing the mode to the rasteriser, whose implementations are measurably wrong (decision 066). **IT DOES NOT COUNT A TRANSPARENCY GROUP COMPOSITED WITH ONE OF THOSE MODES**, and that omission is measurable: a page carrying `/BM /Hue` and `/BM /Saturation` reports `blend_modes_applied=15` with this at **0**, because its blending happens when the group is composited rather than when a path is painted. A reader who takes 0 for "no non-separable mode ran" is reading it wrong — this is a count of PAINTS, not of composites, and the name over-promises. The group half is filed, not implemented) |
 //! | `nonseparable_pixels` | `nonseparable_pixels` | "did those composites move anything?" (the same companion relationship `overprint_pixels` has to `overprint_composited`: a composite that ran on zero pixels and one that repainted a whole swatch are both "1" on the count above, and only this distinguishes them) |
 //! | `groups_backdrop_reruns` | `transparency_groups_backdrop_reruns` | "why did this page take twice as long as its neighbour?" (§11.4.4 — a COST counter, not a shortfall, and the only one on this line that names something pdfcer DID: a non-isolated group whose content stream was walked a SECOND time over a copy of its own backdrop, so the element formula and backdrop removal could be computed against it. It is the only place in the renderer where a page's content is interpreted more than once. Zero is the normal reading and does NOT mean non-isolated groups were mishandled — §11.4.4 NOTE 5 makes the single walk exact whenever the group's interior composites `Normal` throughout) |
 //! | `soft_masks_on_group_result` | `soft_masks_on_group_result` | "were group soft masks applied ONCE to the composite, or once per object inside it?" (§11.4.5 — read against `soft_masks_applied`, which counts masks BUILT while this counts the ones that reached where the clause puts them. The difference is not a shortfall on its own: a mask on an ELEMENTARY object belongs in the clip, because §11.6.4.1 makes the mask value that object's `q_m` and a `q_m` multiplies coverage exactly as a clip does. What to look for is a document WITH transparency groups where this stays at zero while `soft_masks_reset_stale` climbs — that page's group masks are multiplying once per object, visible wherever two of them overlap) |
-//! | `overprint_images_unsupported` | `overprint_images_unsupported` | "how many IMAGES were OWED §11.7.4.3's composite and did not get it?" (DIVERGENCE. ★★ THIS COUNTER CHANGED MEANING IN `Pass 130.2` AND IT NOW COUNTS A STRICTLY SMALLER SET — a script comparing a number from an older release against one from this one is comparing two different questions. It used to answer "was the composite offered this object CLASS?", and the answer was no for every image, so it counted every image painted under `/OP` whether or not anything was owed. It now answers "was the composite owed HERE, and did it fail to run?". ★ WHY THE OLD SET WAS TOO BIG, and this half is unchanged from what that row always said: Table 149's first row is scoped `DeviceCMYK, specified directly, NOT IN A SAMPLED IMAGE`, so an image falls to the second row — "any process colour space (including other cases of `DeviceCMYK`)" — which is `c_s` in all three columns. For a PROCESS image, painting it normally IS the conforming behaviour and nothing was ever missing. Those images no longer appear here. ★ WHAT REMAINS, and both are real: a `Separation`/`DeviceN` image naming ONLY spot colorants WHOSE COLORANT COULD NOT BE GIVEN A PLANE — roster cap, byte ceiling, or the composite device model (with a plane, since `Pass 238.0`, the image deposits its spot and preserves the whole process backdrop, which is the press's answer and is no longer counted here), and an image on a destination that cannot be read back (a recording canvas). Both also raise `overprint_refused`, so the `composited = effective - refused` identity holds across paths and images alike)  |
-//! | `overprint_shadings_unsupported` | `overprint_shadings_unsupported` | "how many shadings were painted while overprint was in force and could not honour it?" (DIVERGENCE. ★★ **THE PROBLEM STATEMENT THAT USED TO SIT HERE DESCRIBED THE WHOLE CLASS AND NOW DESCRIBES ONLY PART OF IT.** It read: "a shading fails one step earlier than an image does — its colour ramp resolves to three-channel sRGB when the ramp is BUILT, so nothing downstream has colorants left to overprint WITH". That was true of EVERY shading until `Pass 122.6` gave the analytic ones a colorant ramp, then true only of meshes — and `Pass 137.1` closed that too, because `Shading::paint_cmyk` was already generic over the overprint rules, so giving a mesh its colorants gave it overprint in the same change. ★ WHAT STILL COUNTS HERE, so the number is readable rather than merely smaller: a shading with **no authored ink at all** (an additive space, or a parametric one whose ramp yields no colorants) painted under `/OP`; and an analytic shading in `DeviceCMYK` specified DIRECTLY under `/OPM 1`, which is refused deliberately rather than for want of colorants — Table 149's `OPM 1` row is VALUE-DEPENDENT, so which components are "specified" differs per pixel and cannot be decided once for a whole ramp. ★ The two halves of the mesh case are COUPLED: §11.7.4.3 makes `B(c_b, c_s)` equal `c_s` for every component 'specified in the current colour space', and a bridged sRGB scratch has specified all three, so an overprint composite alone would change nothing and native colorants alone would change nothing either. Visible on suite `PCS 1.0` cells e/j, where a `/DeviceN [/Cyan /Magenta]` shading over an orange ground should let the yellow beneath survive and read GREEN, and instead reads BLUE. ★★ A THIRD POPULATION WAS ADDED BY `Pass 202.0` AND THIS LIST DID NOT MENTION IT FOR ONE COMMIT: a **spot-only** `Separation`/`DeviceN` shading under `/OP true`, which Table 149 puts entirely in the backdrop column and which therefore paints NOTHING natively. It is now refused in favour of the flattening bridge, and the refusal increments this counter — where previously the bar rendered as bare white paper with this counter reading 0. Note the failure mode of the sentence you are reading: an EXHAUSTIVE enumeration is a promise that goes stale the moment a population is added, and nothing but a reader checks it) |
+//! | `overprint_images_unsupported` | `overprint_images_unsupported` | "how many IMAGES were OWED §11.7.4.3's composite and did not get it?" (DIVERGENCE. THIS COUNTER CHANGED MEANING IN `Pass 130.2` AND IT NOW COUNTS A STRICTLY SMALLER SET — a script comparing a number from an older release against one from this one is comparing two different questions. It used to answer "was the composite offered this object CLASS?", and the answer was no for every image, so it counted every image painted under `/OP` whether or not anything was owed. It now answers "was the composite owed HERE, and did it fail to run?". WHY THE OLD SET WAS TOO BIG, and this half is unchanged from what that row always said: Table 149's first row is scoped `DeviceCMYK, specified directly, NOT IN A SAMPLED IMAGE`, so an image falls to the second row — "any process colour space (including other cases of `DeviceCMYK`)" — which is `c_s` in all three columns. For a PROCESS image, painting it normally IS the conforming behaviour and nothing was ever missing. Those images no longer appear here. WHAT REMAINS, and both are real: a `Separation`/`DeviceN` image naming ONLY spot colorants WHOSE COLORANT COULD NOT BE GIVEN A PLANE — roster cap, byte ceiling, or the composite device model (with a plane, since `Pass 238.0`, the image deposits its spot and preserves the whole process backdrop, which is the press's answer and is no longer counted here), and an image on a destination that cannot be read back (a recording canvas). Both also raise `overprint_refused`, so the `composited = effective - refused` identity holds across paths and images alike)  |
+//! | `overprint_shadings_unsupported` | `overprint_shadings_unsupported` | "how many shadings were painted while overprint was in force and could not honour it?" (DIVERGENCE. **THE PROBLEM STATEMENT THAT USED TO SIT HERE DESCRIBED THE WHOLE CLASS AND NOW DESCRIBES ONLY PART OF IT.** It read: "a shading fails one step earlier than an image does — its colour ramp resolves to three-channel sRGB when the ramp is BUILT, so nothing downstream has colorants left to overprint WITH". That was true of EVERY shading until `Pass 122.6` gave the analytic ones a colorant ramp, then true only of meshes — and `Pass 137.1` closed that too, because `Shading::paint_cmyk` was already generic over the overprint rules, so giving a mesh its colorants gave it overprint in the same change. WHAT STILL COUNTS HERE, so the number is readable rather than merely smaller: a shading with **no authored ink at all** (an additive space, or a parametric one whose ramp yields no colorants) painted under `/OP`; and an analytic shading in `DeviceCMYK` specified DIRECTLY under `/OPM 1`, which is refused deliberately rather than for want of colorants — Table 149's `OPM 1` row is VALUE-DEPENDENT, so which components are "specified" differs per pixel and cannot be decided once for a whole ramp. The two halves of the mesh case are COUPLED: §11.7.4.3 makes `B(c_b, c_s)` equal `c_s` for every component 'specified in the current colour space', and a bridged sRGB scratch has specified all three, so an overprint composite alone would change nothing and native colorants alone would change nothing either. Visible on suite `PCS 1.0` cells e/j, where a `/DeviceN [/Cyan /Magenta]` shading over an orange ground should let the yellow beneath survive and read GREEN, and instead reads BLUE. A THIRD POPULATION WAS ADDED BY `Pass 202.0` AND THIS LIST DID NOT MENTION IT FOR ONE COMMIT: a **spot-only** `Separation`/`DeviceN` shading under `/OP true`, which Table 149 puts entirely in the backdrop column and which therefore paints NOTHING natively. It is now refused in favour of the flattening bridge, and the refusal increments this counter — where previously the bar rendered as bare white paper with this counter reading 0. Note the failure mode of the sentence you are reading: an EXHAUSTIVE enumeration is a promise that goes stale the moment a population is added, and nothing but a reader checks it) |
 //! | `blend_space_subtractive` | `blend_space_subtractive` | "is this page's compositing governed by §11.3.4 at all?" (the page itself and every transparency group whose blending colour space is `DeviceCMYK`, `Separation`, `DeviceN`, or a four-component `ICCBased` resolving to one. A CENSUS OF EXPOSURE, not a shortfall — a page can be entirely `DeviceCMYK` and entirely correct, because `Normal` is `c_s` on either side of the complement. Not a small class: every patch in the suite transparency panel declares `/Group /CS /DeviceCMYK` on the PAGE, including one whose own objects are `ICCBased` RGB, because a non-isolated group inherits its blending space (Table 147's `/CS` row). Whether §11.3.4 was HONOURED is `cmyk_buffer`; what it cost when it was not is `blends_in_wrong_space`. Three numbers, three questions, and reading any one alone gets a wrong answer) |
-//! | `blends_in_wrong_space` | `blends_in_wrong_space` | "how many blends were computed on the WRONG SIDE of §11.3.4's complement?" (DIVERGENCE, and the number that says a rendering is actually AFFECTED rather than merely exposed. The worked case is suite `PCS1_162`'s `Difference` cell: magenta under black gives `DeviceCMYK 1 0 1 0` — the green the patch is authored around — under §11.3.4, and `(237, 1, 140)` without it. ★ It now fires ONLY where the colorant buffer did not run, so a subtractive page that composited in ink reports zero here — read it with `cmyk_buffer`, never alone) |
+//! | `blends_in_wrong_space` | `blends_in_wrong_space` | "how many blends were computed on the WRONG SIDE of §11.3.4's complement?" (DIVERGENCE, and the number that says a rendering is actually AFFECTED rather than merely exposed. The worked case is suite `PCS1_162`'s `Difference` cell: magenta under black gives `DeviceCMYK 1 0 1 0` — the green the patch is authored around — under §11.3.4, and `(237, 1, 140)` without it. It now fires ONLY where the colorant buffer did not run, so a subtractive page that composited in ink reports zero here — read it with `cmyk_buffer`, never alone) |
 //! | `cmyk_buffer` | `cmyk_buffer_engaged` (a `bool`, printed `0`/`1`) | "did this page composite in INK, or in sRGB?" (THE KEY THAT CHANGES WHAT THE PREVIOUS ONE MEANS, and the only non-count on this half of the line — a parser treating every metrics key as a magnitude will misread it. At `1`, the blends `blends_in_wrong_space` counted were PERFORMED subtractively: that counter is fixed at `/BM`-selection time and measures exposure to §11.3.4, not failure. Read the pair, never the second alone) |
-//! | `blend_space_from_output_intent` | `blend_space_from_output_intent` | "did pdfcer INFER this page's blending space from the output intent?" (DISCLOSURE, and the only key here that is a word rather than a number. `page_group` — the page declared `/Group /CS`, Table 147, nothing inferred. `device_native` — ISO 32000-1 §11.4.7/§11.6.3's answer for a page that declared none, which for pdfcer is sRGB. `output_intent` — ★ **pdfcer INFERRED it from the document's output intent**, which ISO 32000-2's Annex P permits *informatively and without ranking it against the device*, so this is a choice the `page_blend_space_source` setting controls and not a fact about the file. Read it beside `blend_space_subtractive`: that one says a page composited in ink, this one says whether the FILE asked for that or pdfcer decided it. A blending space changes every colour on the page and draws nothing to say so, which is why it is disclosed here rather than left to be deduced) |
+//! | `blend_space_from_output_intent` | `blend_space_from_output_intent` | "did pdfcer INFER this page's blending space from the output intent?" (DISCLOSURE, and the only key here that is a word rather than a number. `page_group` — the page declared `/Group /CS`, Table 147, nothing inferred. `device_native` — ISO 32000-1 §11.4.7/§11.6.3's answer for a page that declared none, which for pdfcer is sRGB. `output_intent` — **pdfcer INFERRED it from the document's output intent**, which ISO 32000-2's Annex P permits *informatively and without ranking it against the device*, so this is a choice the `page_blend_space_source` setting controls and not a fact about the file. Read it beside `blend_space_subtractive`: that one says a page composited in ink, this one says whether the FILE asked for that or pdfcer decided it. A blending space changes every colour on the page and draws nothing to say so, which is why it is disclosed here rather than left to be deduced) |
 //! | `cmyk_buffer_refused` | `cmyk_buffer_refused` | "did the page ask for ink and not get it?" (DIVERGENCE with a named cause — the colorant buffer would not fit under `MAX_CMYK_BUFFER_BYTES`, a page-size ceiling. Non-zero means this render is the pre-colorant-buffer approximation and SAYS SO rather than failing, and it is the reason `cmyk_buffer=0` on a page whose `blend_space_subtractive` is non-zero) |
-//! | `cmyk_bridged_pixels` | `cmyk_bridged_pixels` | "how much of this ink page was never authored as ink?" (pixels that entered the colorant buffer through the sRGB BRIDGE. ★★ **THE POPULATION THIS COUNTS HAS SHRUNK TWICE AND THE ROW HAS BEEN WRONG AFTER EACH — a script comparing this number across either Pass is comparing two different questions.** It used to say "shadings, the results of transparency groups, and any image NOT authored in `DeviceCMYK`". Images left in `Pass 130.1`: a `DeviceCMYK` image, including one behind an `/Indexed` palette, carries its colorants forward and is counted in `cmyk_native_image_pixels` instead, so what remains of that class is an image with **no ink to keep**. ANALYTIC SHADINGS left in `Pass 137.0`: an axial, radial or function-based shading whose ramp carries colorants now composites natively whether or not overprint is in force. MESH SHADINGS left in `Pass 137.1`, ONE COMMIT after this row was rewritten to say they were what remained — `Shade::Ink` gave them the carrier they lacked. `Separation`/`DeviceN` IMAGES left in `Pass 140.0`, directly and behind an `/Indexed` palette: they convert to their `DeviceCMYK` alternate now rather than to sRGB. ★ WHAT IS LEFT: images and meshes with **no ink to keep** (an additive colour space, a `Separation`/`DeviceN` over a non-`DeviceCMYK` alternate, or a parametric mesh whose ramp carries no colorants), and the results of transparency groups. ★★ THIS ROW HAS NOW BEEN WRONG FOUR TIMES, each by standing still while the code moved, and each correction was written by somebody who had just read it and believed it — a description that enumerates a POPULATION is a claim that decays whenever the population changes, and nothing compiles it. ⇒ **A FALL HERE IS THE INTENDED OUTCOME, NOT A COUNTER GOING QUIET.** It measures ink identity LOST on the way to the compositor; when less is lost it reports less, and reading it as "how much shading work happened" turns four fixes into four apparent regressions) |
+//! | `cmyk_bridged_pixels` | `cmyk_bridged_pixels` | "how much of this ink page was never authored as ink?" (pixels that entered the colorant buffer through the sRGB BRIDGE. **THE POPULATION THIS COUNTS HAS SHRUNK TWICE AND THE ROW HAS BEEN WRONG AFTER EACH — a script comparing this number across either Pass is comparing two different questions.** It used to say "shadings, the results of transparency groups, and any image NOT authored in `DeviceCMYK`". Images left in `Pass 130.1`: a `DeviceCMYK` image, including one behind an `/Indexed` palette, carries its colorants forward and is counted in `cmyk_native_image_pixels` instead, so what remains of that class is an image with **no ink to keep**. ANALYTIC SHADINGS left in `Pass 137.0`: an axial, radial or function-based shading whose ramp carries colorants now composites natively whether or not overprint is in force. MESH SHADINGS left in `Pass 137.1`, ONE COMMIT after this row was rewritten to say they were what remained — `Shade::Ink` gave them the carrier they lacked. `Separation`/`DeviceN` IMAGES left in `Pass 140.0`, directly and behind an `/Indexed` palette: they convert to their `DeviceCMYK` alternate now rather than to sRGB. WHAT IS LEFT: images and meshes with **no ink to keep** (an additive colour space, a `Separation`/`DeviceN` over a non-`DeviceCMYK` alternate, or a parametric mesh whose ramp carries no colorants), and the results of transparency groups. THIS ROW HAS NOW BEEN WRONG FOUR TIMES, each by standing still while the code moved, and each correction was written by somebody who had just read it and believed it — a description that enumerates a POPULATION is a claim that decays whenever the population changes, and nothing compiles it. ⇒ **A FALL HERE IS THE INTENDED OUTCOME, NOT A COUNTER GOING QUIET.** It measures ink identity LOST on the way to the compositor; when less is lost it reports less, and reading it as "how much shading work happened" turns four fixes into four apparent regressions) |
 //! | `cmyk_native_image_pixels` | `cmyk_native_image_pixels` | "how much of this ink page KEPT its ink?" (pixels an image contributed with no conversion in either direction — a `DeviceCMYK` image, an `/Indexed` image over a `DeviceCMYK` base, a `Separation`/`DeviceN` image over a `DeviceCMYK` alternate, or an `/Indexed` image over such a base. This row said only the FIRST of those four until `Pass 140.0`. The complement of the row above, and not interchangeable with it: a bridged pixel has been through `CMYK → sRGB → CMYK`, and that first step is MANY-TO-ONE, so the ink that returns is not the ink that left) |
-//! | `cmyk_groups_approximated` | `cmyk_groups_approximated` | "how many groups on an ink page had their RESULT composited in ink and their INTERIOR not?" (DIVERGENCE. ★ **THIS KEY NARROWED IN `Pass 97.1g` and a reader comparing boards across that Pass must know it.** It used to count TWO populations: a KNOCKOUT group, whose §11.4.6 semantics are preserved but whose interior runs in sRGB — still counted — and EVERY NON-ISOLATED group, on the reasoning that all of them had §11.4.4's backdrop removal skipped. The second population is gone: a non-isolated group now gets its second content walk and its removal. What is left of it is the allocation-failure fallback alone, where the second buffer could not be had. ⇒ **A DROP IN THIS NUMBER ACROSS `97.1g` IS NOT ALL RENDERING IMPROVEMENT.** Measured on the print-conformance suite: 118 → 0, of which only 13 groups actually needed the walk; the other 105 were counted as approximations while rendering exactly right, because the old test asked "is this group non-isolated?" rather than §11.4.4 NOTE 2's "does its interior read the backdrop?". An ordinary isolated group is NOT counted — it gets a child colorant buffer and crosses no conversion at all) |
+//! | `cmyk_groups_approximated` | `cmyk_groups_approximated` | "how many groups on an ink page had their RESULT composited in ink and their INTERIOR not?" (DIVERGENCE. **THIS KEY NARROWED IN `Pass 97.1g` and a reader comparing boards across that Pass must know it.** It used to count TWO populations: a KNOCKOUT group, whose §11.4.6 semantics are preserved but whose interior runs in sRGB — still counted — and EVERY NON-ISOLATED group, on the reasoning that all of them had §11.4.4's backdrop removal skipped. The second population is gone: a non-isolated group now gets its second content walk and its removal. What is left of it is the allocation-failure fallback alone, where the second buffer could not be had. ⇒ **A DROP IN THIS NUMBER ACROSS `97.1g` IS NOT ALL RENDERING IMPROVEMENT.** Measured on the print-conformance suite: 118 → 0, of which only 13 groups actually needed the walk; the other 105 were counted as approximations while rendering exactly right, because the old test asked "is this group non-isolated?" rather than §11.4.4 NOTE 2's "does its interior read the backdrop?". An ordinary isolated group is NOT counted — it gets a child colorant buffer and crosses no conversion at all) |
 //! | `cmyk_unbridged_images` | `cmyk_unbridged_images` | "did an image reach a subtractive paint with no bridge and therefore not get painted AT ALL?" (should always be zero: the only route is a replayed display list, and a subtractive page is refused for recording outright. Counted rather than asserted because a claim of unreachability decays as the code around it changes, and a counter that stays zero costs one `u64` and one line of output. Non-zero here is a bug report, not a document property) |
 //!
 //! `images` and `forms` are *volume*, not shortfall — they are non-zero
@@ -417,7 +417,7 @@
 //!
 //! | token | reason | meaning |
 //! |---|---|---|
-//! | `unsupported_type3` | `Type3` | a Type 3 font (ISO 32000-1 9.6.5, content-stream glyphs) that pdfcer could not build a model for. ★ **This meant "Type 3 is deferred" until `Pass 126.0`, when Type 3 began rendering.** It now means only that Table 112's IRREDUCIBLE entries are missing -- `/CharProcs` (no glyph descriptions exist) or `/FontMatrix` (no mapping from glyph space to text space, and guessing the conventional `[0.001 ...]` would render a nonstandard font a thousand times too large). Everything else recovers; a font with no usable `/Encoding` in particular is NOT counted here, because 9.6.6.3 makes that a font whose every code resolves to no glyph -- a blank page by the standard rather than a feature pdfcer lacks. See `type3_glyphs` for the census of what DID render |
+//! | `unsupported_type3` | `Type3` | a Type 3 font (ISO 32000-1 9.6.5, content-stream glyphs) that pdfcer could not build a model for. **This meant "Type 3 is deferred" until `Pass 126.0`, when Type 3 began rendering.** It now means only that Table 112's IRREDUCIBLE entries are missing -- `/CharProcs` (no glyph descriptions exist) or `/FontMatrix` (no mapping from glyph space to text space, and guessing the conventional `[0.001 ...]` would render a nonstandard font a thousand times too large). Everything else recovers; a font with no usable `/Encoding` in particular is NOT counted here, because 9.6.6.3 makes that a font whose every code resolves to no glyph -- a blank page by the standard rather than a feature pdfcer lacks. See `type3_glyphs` for the census of what DID render |
 //! | `unsupported_noncmap` | `NonIdentityCmap` | `Type0` with a non-`Identity-H` CMap, deferred |
 //! | `unsupported_vertical` | `VerticalWriting` | `Identity-V` vertical writing, deferred |
 //! | `unsupported_composite_not_embedded` | `CompositeNotEmbedded` | `Identity-H` with no embedded program — supply the font |
@@ -656,7 +656,7 @@ mod exit {
 /// manifest asked for, the resolved git revision and when that revision was
 /// committed — all four halves of what the operator asked for on 2026-08-18.
 ///
-/// ★ **It said `not-linked-yet` from `Pass 199.2` to `Pass 223.0`, and that
+/// **It said `not-linked-yet` from `Pass 199.2` to `Pass 223.0`, and that
 /// was false for six days.** The dependency landed and the stamp went on
 /// announcing that it had not. Worth remembering as a shape rather than as
 /// an incident: the disclosure was accurate when written, was falsified by
@@ -792,7 +792,7 @@ enum MergeFitArg {
 /// What pdfcer does with a file that contradicts itself or omits something the
 /// standard requires (`Pass 283.0`).
 ///
-/// ★ NAMED FOR THE CLASS, NOT FOR ONE MEMBER. The first cut called this
+/// NAMED FOR THE CLASS, NOT FOR ONE MEMBER. The first cut called this
 /// `--duplicate-keys`, and `strict` also turned off two unrelated recoveries —
 /// a flag whose name understates what it governs, which is how an operator
 /// ends up surprised by a setting they thought they understood.
@@ -1355,7 +1355,7 @@ enum Command {
         relative: bool,
         /// Output path. The input is never modified.
         ///
-        /// ★ This said "Never the input path by default — see `--in-place`"
+        /// This said "Never the input path by default — see `--in-place`"
         /// until 2026-08-27, and **there was no `--in-place` flag on this
         /// subcommand or on any other**. Operator-facing `--help` text
         /// pointed at an option that had never existed. Corrected rather than
@@ -1411,7 +1411,7 @@ enum Command {
         height: Option<f64>,
         /// Output path. The input is never modified.
         ///
-        /// ★ This said "Never the input path by default — see `--in-place`"
+        /// This said "Never the input path by default — see `--in-place`"
         /// until 2026-08-27, and **there was no `--in-place` flag on this
         /// subcommand or on any other**. Operator-facing `--help` text
         /// pointed at an option that had never existed. Corrected rather than
@@ -1624,7 +1624,7 @@ enum Command {
         /// The note's modification date (`/M`), as a **PDF date string**
         /// (§7.9.4): `D:YYYYMMDDHHmmSS` with an optional `Z`/`+`/`-` offset.
         ///
-        /// ★ **pdfcer does not read a clock for you, and that is deliberate.**
+        /// **pdfcer does not read a clock for you, and that is deliberate.**
         /// A wall-clock timestamp would make every authored annotation
         /// unreproducible — byte-identical output for identical input is an
         /// acceptance criterion across this project — and it would be a value
@@ -1709,7 +1709,7 @@ enum Command {
     /// Table 126), leaving a font reference the reader satisfies by
     /// substitution, and frees the program's object.
     ///
-    /// ★ ONLY a font whose `list-fonts` verdict is `removable` may go.
+    /// ONLY a font whose `list-fonts` verdict is `removable` may go.
     /// Every other font is refused **by name, with its reason printed** —
     /// never silently, never merely missing from the output. That is a
     /// deliberate divergence from Acrobat, which refuses the same fonts by
@@ -1718,12 +1718,12 @@ enum Command {
     /// of 1,560 embedded fonts, 28.8 % removable, 53.6 % symbolic with a
     /// built-in encoding, 12.9 % glyph-index encoded, 4.4 % embedded CMap.
     ///
-    /// ★ APPEARANCE CHANGES. `/Widths` is preserved, so every glyph keeps
+    /// APPEARANCE CHANGES. `/Widths` is preserved, so every glyph keeps
     /// its exact advance, but the substituted face's own shapes and widths
     /// are not those numbers. Text sits in the same places and looks
     /// different. This is a certainty, not a risk.
     ///
-    /// ★ BYTES ARE RECLAIMED BY `--mode full`, NOT by the default
+    /// BYTES ARE RECLAIMED BY `--mode full`, NOT by the default
     /// incremental save. An incremental update appends a revision; the
     /// freed program's bytes stay in the prior revision and the file gets
     /// LARGER. Both numbers are printed so the difference cannot be missed.
@@ -1737,7 +1737,7 @@ enum Command {
     /// every part of ISO 19005 requires embedded fonts, so unembedding
     /// breaks the conformance the file claims about itself.
     ///
-    /// ★ WHICH FONTS IS REQUIRED — pass `--all-removable` to take every font
+    /// WHICH FONTS IS REQUIRED — pass `--all-removable` to take every font
     /// whose verdict is `removable`, or name them individually with
     /// `--font`. There is no default: pdfcer does not guess at the scope of
     /// an edit, least of all a destructive one.
@@ -1790,7 +1790,7 @@ enum Command {
     /// **Embed the programs for fonts the document ALREADY NAMES** — a DRY
     /// RUN unless `--apply`.
     ///
-    /// ★ **It does not add a new font to the document.** This fills in the
+    /// **It does not add a new font to the document.** This fills in the
     /// missing *program* for a face the PDF already references; it cannot
     /// introduce a typeface the file does not use. Nothing currently can —
     /// `format-text --set-font` selects only among the fonts a page already
@@ -1803,13 +1803,13 @@ enum Command {
     /// `not-embedded=N`; this drives that number down and prints what is
     /// left.
     ///
-    /// ★ THE SOURCE FONTS COME FROM `--font-dir`. pdfcer never goes looking
+    /// THE SOURCE FONTS COME FROM `--font-dir`. pdfcer never goes looking
     /// on its own. Point it at a folder holding the faces — on Windows,
     /// `--font-dir C:\Windows\Fonts` — and every face there is matched
     /// against the document's font names. A font nothing answers to is
     /// reported BY NAME, with what would satisfy it.
     ///
-    /// ★ CHARACTER POSITIONS DO NOT MOVE. A PDF spaces text from its own
+    /// CHARACTER POSITIONS DO NOT MOVE. A PDF spaces text from its own
     /// `/Widths` array, never from the font program (§9.6.2.1 Table 111),
     /// and this command either leaves that array untouched or writes it from
     /// the Adobe Core-14 metrics a reader was already applying. What changes
@@ -1817,7 +1817,7 @@ enum Command {
     /// layout is safe, and the shapes WILL differ where the face is not the
     /// original.
     ///
-    /// ★ EXACT vs SUBSTITUTE is printed per font. `exact` means the folder
+    /// EXACT vs SUBSTITUTE is printed per font. `exact` means the folder
     /// held the face the document names. `alias` means a metric-compatible
     /// stand-in was used (`Helvetica` → `Arial`). `bundled` means one of
     /// pdfcer's own substitute faces, which is off unless
@@ -1832,10 +1832,10 @@ enum Command {
     /// The file gets BIGGER. Programs are compressed on the way in, and both
     /// save modes keep them.
     ///
-    /// ★ WHICH FONTS IS REQUIRED — pass `--all-missing` to take every font
+    /// WHICH FONTS IS REQUIRED — pass `--all-missing` to take every font
     /// the document is missing, or name them individually with `--font`.
     /// There is no default: pdfcer does not guess at the scope of an edit.
-    // ★ `required(true)` IS LOAD-BEARING, not tidiness. `#[arg(group = "x")]`
+    // `required(true)` IS LOAD-BEARING, not tidiness. `#[arg(group = "x")]`
     // makes a group that enforces mutual exclusion but is NOT required by
     // default, so "exactly one of these" silently means "zero or one of
     // these". With neither flag the selection parsed as an empty NAME LIST,
@@ -2784,7 +2784,7 @@ enum Command {
     /// this since attachments were first read; there was simply no way to
     /// ask for it from a shell.
     ///
-    /// ★ THE OUTPUT PATH IS YOURS, NOT THE DOCUMENT'S. An attachment's name
+    /// THE OUTPUT PATH IS YOURS, NOT THE DOCUMENT'S. An attachment's name
     /// is attacker-controlled and unconstrained by ISO 32000-1: it may be
     /// `..\..\Windows\System32\evil.exe`, may contain a NUL, or may use a
     /// right-to-left override so `gnp.exe` renders as `exe.png`. This command
@@ -3316,7 +3316,7 @@ enum Command {
     /// it. This is the "sandwich" OCRmyPDF popularised and the one Acrobat
     /// produces.
     ///
-    /// ★ **So there is nothing to LOOK at afterwards, and that is success,
+    /// **So there is nothing to LOOK at afterwards, and that is success,
     /// not failure.** An OCR layer you can see is a defect. To check it
     /// worked, search the output rather than looking at it:
     /// `pdfcer find-text out.pdf --needle <a word on the page>`.
@@ -3362,7 +3362,7 @@ enum Command {
         /// shells cannot drift into producing different files from the same
         /// input.
         ///
-        /// ★ The write is **incremental** (`ARCHITECTURE.md` §5): every byte
+        /// The write is **incremental** (`ARCHITECTURE.md` §5): every byte
         /// of the original stays where it was and a new revision is appended,
         /// so the scan itself is not re-encoded and the original content is
         /// still in the file. That is round-trip fidelity, and it is **not**
@@ -3377,7 +3377,7 @@ enum Command {
         /// right one, because scanner output is described in DPI and
         /// recognisers are tuned against it.
         ///
-        /// # ★★ MORE RESOLUTION IS WORSE, WHICH IS THE OPPOSITE OF THE
+        /// # MORE RESOLUTION IS WORSE, WHICH IS THE OPPOSITE OF THE
         /// OBVIOUS EXPECTATION
         ///
         /// This defaulted to **300** on the reasoning quoted here until
@@ -3416,7 +3416,7 @@ enum Command {
         ///
         /// # What pdfcer's OWN corpus can and cannot say about this
         ///
-        /// ★ It **cannot** corroborate the cliff, and that is a limitation of
+        /// It **cannot** corroborate the cliff, and that is a limitation of
         /// the fixture rather than a disagreement. Swept over
         /// `fixtures/synthetic/ocr/scan.pdf` at 72/100/150/200/300/400 dpi,
         /// content recall is **100 % at every value up to 300** and 97.9 % at
@@ -3563,7 +3563,7 @@ enum Command {
         /// ones, for this invocation only. Nothing is written to your
         /// settings file.
         ///
-        /// ★ **It does not make the output conformant and does not check
+        /// **It does not make the output conformant and does not check
         /// whether the input is.** A control carrying an ISO number invites
         /// exactly that reading, so the preset says otherwise on stderr every
         /// time it is used, along with which of its values are sourced to the
@@ -3585,13 +3585,13 @@ enum Command {
         /// every value: Table 149 puts any process space × spot colorant ×
         /// `OP true` at `c_b`, and pdfcer keeps spot inks on their own plane.
         ///
-        /// ★ The literal reading is the default because it measures better:
+        /// The literal reading is the default because it measures better:
         /// 0 FAIL / 43 pass over the whole print-conformance sweep, against
         /// 2 FAIL under `grey_as_k_only`, the two being grey-over-process
         /// cells whose reference render the literal reading matches exactly.
         /// Choose `grey_as_k_only` to reproduce a pre-v0.25.0 render.
         ///
-        /// ★ CALLING THIS AN AMBIGUITY WOULD BE WRONG under **ISO 32000-1**:
+        /// CALLING THIS AN AMBIGUITY WOULD BE WRONG under **ISO 32000-1**:
         /// §8.6.7's next sentence excludes *"conversions from some other
         /// colour space"* by name, and Tables 148/149 tabulate *"any process
         /// colour space"* and give it `OPM 0` behaviour. ISO 32000-**2**
@@ -3649,7 +3649,7 @@ enum Command {
         ///
         /// # Where the real ceiling is, and WHICH ceiling
         ///
-        /// ★ There are **two**, they differ by four orders of magnitude,
+        /// There are **two**, they differ by four orders of magnitude,
         /// and this block used to name only the higher one. Standing rule
         /// `R213`: a magnitude claim is a claim about ONE quantity, and
         /// the quantity has to be in the sentence.
@@ -4282,7 +4282,7 @@ enum Command {
     /// §7.5.6 **incremental update**: the original bytes are left as an
     /// untouched prefix and only the objects you actually changed are appended.
     ///
-    /// ★ That is the half qpdf does not have — its own issue tracker lists
+    /// That is the half qpdf does not have — its own issue tracker lists
     /// incremental updates and digital-signature support as unimplemented, so
     /// every qpdf round trip rewrites the file and invalidates every signature
     /// in it. Here, a signature over a byte range you did not edit stays valid;
@@ -4735,7 +4735,7 @@ enum Command {
     /// **Paste whole pages** from a clipboard file into a document
     /// (`Pass 171.0`).
     ///
-    /// ★ READ THE COUNTERS. Two of them are invisible in the result.
+    /// READ THE COUNTERS. Two of them are invisible in the result.
     ///
     /// `orphaned_widgets` is the one that bites: a page's `/Annots` reaches
     /// its widgets, so form-field boxes ARRIVE even though the `/AcroForm`
@@ -4764,7 +4764,7 @@ enum Command {
     /// **Copy a bookmark and everything under it** to a clipboard file, and
     /// with `--cut` remove it too (`Pass 172.0`).
     ///
-    /// ★ ACROBAT CANNOT DO THIS BETWEEN TWO FILES AT ALL. Adobe's own
+    /// ACROBAT CANNOT DO THIS BETWEEN TWO FILES AT ALL. Adobe's own
     /// documentation says bookmarks "can't be copied directly … from one file
     /// to another"; it offers cut and paste within a document and nothing
     /// between two.
@@ -4794,7 +4794,7 @@ enum Command {
 
     /// **Paste a bookmark subtree** from a clipboard file (`Pass 172.0`).
     ///
-    /// ★ A DESTINATION NAMING A PAGE THIS DOCUMENT DOES NOT HAVE IS DROPPED,
+    /// A DESTINATION NAMING A PAGE THIS DOCUMENT DOES NOT HAVE IS DROPPED,
     /// not clamped to the last page. A bookmark that navigates confidently to
     /// the wrong place is worse than one that plainly does not navigate, and
     /// §12.3.3 permits an item with no destination. The count is printed.
@@ -5686,7 +5686,7 @@ enum Command {
     /// ONE of `--format-*`, `--validate-range` or `--calculate` per run, or
     /// `--clear` with `--trigger` to remove one.
     ///
-    /// ★ There is NO way to pass arbitrary JavaScript, and that is the point:
+    /// There is NO way to pass arbitrary JavaScript, and that is the point:
     /// pdfcer authors only the helper calls it can also read back and
     /// describe. A script it cannot classify is a script it will not write.
     ///
@@ -5723,7 +5723,7 @@ enum Command {
         format_special: Option<i64>,
         /// Validate against a numeric range: `MIN..MAX`, `MIN..` or `..MAX`.
         ///
-        /// ★ pdfcer DISCLOSES a range and never enforces it -- its fills are
+        /// pdfcer DISCLOSES a range and never enforces it -- its fills are
         /// operator-reviewed (decision 009 §6). Writing one authors a
         /// constraint for other readers, which is what building a form for
         /// distribution means; it is not a promise pdfcer starts keeping.
@@ -5894,7 +5894,7 @@ enum Command {
     /// rotated shape is larger unless the angle is a multiple of 90°. The
     /// artwork does not grow; only the rectangle around it does.
     ///
-    /// ★★ **`/Rect` IS DERIVED FROM THE ARTWORK**, never from the previous
+    /// **`/Rect` IS DERIVED FROM THE ARTWORK**, never from the previous
     /// rectangle, and `rect_derived=` on the second output line says from
     /// which of three sources. Deriving it from the previous rectangle
     /// compounds: each turn bounds an already-grown box while the
@@ -5970,7 +5970,7 @@ enum Command {
     /// not. It is also why `move-annotation` scales neither — a translation
     /// changes no length at all.
     ///
-    /// # ★ The appearance, which is where a resize stops resembling a move
+    /// # The appearance, which is where a resize stops resembling a move
     ///
     /// §12.5.5 maps the appearance's `BBox` onto `/Rect`, which under a
     /// translation is free and under a scale is a matrix applied AFTER
@@ -6277,7 +6277,7 @@ enum Command {
     /// A flag not passed is LEFT ALONE. There is no way to say "reset this
     /// to the default", because a default is not a thing a file records.
     ///
-    /// ★ The standard's gates are checked against the RESULT, not against
+    /// The standard's gates are checked against the RESULT, not against
     /// what you typed: clearing `--max-len` on a comb field is refused even
     /// though the request never mentions comb, because Table 228 permits
     /// Comb only when /MaxLen is present.
@@ -6462,7 +6462,7 @@ enum Command {
     /// and so does any field placed twice. This changes one of them and
     /// reports how many it left alone.
     ///
-    /// ★ `--rect` REPLACES the rectangle, so it both moves and resizes.
+    /// `--rect` REPLACES the rectangle, so it both moves and resizes.
     /// `move-widget` shifts by a delta and is the cheaper path when you only
     /// want to move: a translation keeps the baked appearance exact, whereas
     /// a changed width or height means the appearance must be rebuilt or a
@@ -7827,7 +7827,7 @@ enum Command {
     /// **Move one placed ce dimension into another group — RE-MEASURING
     /// it**.
     ///
-    /// ★ This is not a field assignment. A ce dimension's scale, unit,
+    /// This is not a field assignment. A ce dimension's scale, unit,
     /// precision and drafting standard all live on its GROUP, so re-parenting
     /// changes what the dimension **reads**, not merely which list it appears
     /// in. A 200 pt line reading `5.000 m` in a 1:50 group reads something
@@ -8569,7 +8569,7 @@ enum Command {
     /// the GUI's object-edit tool calls, so the answer is authoritative for
     /// the GUI's behaviour rather than a second implementation of it.
     ///
-    /// ★ FORMS ARE NOT CANDIDATES, which a script has to plan for. A
+    /// FORMS ARE NOT CANDIDATES, which a script has to plan for. A
     /// form's `/BBox` is a clipping extent (ISO 32000-1 8.10.1), not ink, so
     /// a page-sized form is not a page-sized hit target — what is drawn
     /// INSIDE it is reported instead, on rows carrying `leaf=N
@@ -8923,7 +8923,7 @@ enum Command {
     /// the same write — otherwise the re-point would leak onto every page that
     /// shares the dictionary, producing a "private" copy that is still shared.
     ///
-    /// # ★ Refused for a form invoked from INSIDE another form
+    /// # Refused for a form invoked from INSIDE another form
     ///
     /// Re-binding a nested invocation means editing the parent form, which may
     /// itself be shared, so the blast radius would depend on the document's
@@ -9373,7 +9373,7 @@ enum Command {
     /// object (§14.6 requires the two nest). The whole split is refused rather
     /// than part of it.
     ///
-    /// ★ Object indices after the split target SHIFT by the number of cuts.
+    /// Object indices after the split target SHIFT by the number of cuts.
     TextObjectSplit {
         /// Input PDF.
         input: PathBuf,
@@ -9763,7 +9763,7 @@ enum Command {
 /// separate flag while the core type carries it inside the variant.
 /// How deep `object-list --hit` looks.
 ///
-/// # ★ Two answers exist and both are shipped, per standing rule `R206`
+/// # Two answers exist and both are shipped, per standing rule `R206`
 ///
 /// The consuming shell asked for either a changed `--hit` or a separate
 /// `--hit-deep` and said it had no preference it could justify. Making it a
@@ -9896,7 +9896,7 @@ enum DimKindArg {
     Radius,
     /// A diameter dimension over a best-fit circle (2×radius).
     Diameter,
-    /// ★ TWO LINES — pdfcer decides which dimension they call for.
+    /// TWO LINES — pdfcer decides which dimension they call for.
     ///
     /// Takes FOUR points: the first two are one line's endpoints, the second
     /// two are the other's. What gets authored depends on the geometry, which
@@ -13517,7 +13517,7 @@ fn cmd_inspect(file: &Path) -> u8 {
             if let Some(doc) = full {
                 disclose_load_anomalies(file, doc);
             }
-            // ★ The header probe succeeding is NOT the same as the document
+            // The header probe succeeding is NOT the same as the document
             // being readable, and `inspect` used to say only the former.
             //
             // An encrypted PDF produced exactly the line above and exit 0 —
@@ -13604,7 +13604,7 @@ fn disclose_actions(file: &Path, doc: &pdfcer_core::document::Document) {
             js.doc_level_scripts,
         );
     }
-    // ★ SAID SEPARATELY, AND SAID EVEN WHEN NOTHING WAS FOUND, because these
+    // SAID SEPARATELY, AND SAID EVEN WHEN NOTHING WAS FOUND, because these
     // are not the same claim: "pdfcer found no hazard" and "pdfcer stopped
     // looking" produce the identical silence otherwise, and for a
     // security-shaped disclosure that is the one confusion that must not be
@@ -13698,7 +13698,7 @@ fn disclose_load_anomalies(file: &Path, doc: &pdfcer_core::document::Document) {
                 kept,
                 discarded,
             } => {
-                // ★ The advice names the policy NOT in force. The first cut
+                // The advice names the policy NOT in force. The first cut
                 // always said "first", which is wrong advice the moment the
                 // operator has already taken it — a remedy sentence is a claim
                 // about what to do next, and one that is false half the time
@@ -13810,7 +13810,7 @@ fn disclose_recovery(file: &Path, report: &pdfcer_core::recover::RecoveryReport)
         );
     }
 
-    // ★★★ THE LOSS ITSELF, NAMED (owed item 33; the disclosure `Pass 302.0`
+    // THE LOSS ITSELF, NAMED (owed item 33; the disclosure `Pass 302.0`
     // recorded and nothing printed).
     //
     // `Pass 302.0` gave `RecoveryReport` an `objects_dropped` list so recovery
@@ -13821,7 +13821,7 @@ fn disclose_recovery(file: &Path, report: &pdfcer_core::recover::RecoveryReport)
     // the CLI surfaces all of them and that "none is rounded away" -- a
     // sentence that was false for exactly one field, the newest.
     //
-    // ★ The two reasons are printed SEPARATELY rather than summed, because
+    // The two reasons are printed SEPARATELY rather than summed, because
     // they are different news. `IdMismatch` means a definition contradicted
     // the offset that found it -- always worth a human's attention. `Unparseable`
     // is overwhelmingly binary data inside a stream that happens to spell
@@ -14016,14 +14016,14 @@ fn has_font_extension(path: &Path) -> bool {
 /// ink-probe: x=99999 y=7 source=out-of-range c=- m=- y=- k=- alpha=- srgb=-
 /// ```
 ///
-/// ★ The first two lines are the SAME PAGE and the SAME OPERAND, rendered
+/// The first two lines are the SAME PAGE and the SAME OPERAND, rendered
 /// with and without a colorant buffer, and they differ by **one count of
 /// blue**. That is real and is a property of the compositing path, not of
 /// the conversion table — one path converts an 8-bit paint colour, the
 /// other converts `f32` colorants at the very end. Do not read a one-count
 /// blue between two probes as a disagreement.
 ///
-/// ★★ These example values were `srgb=24,140,108` on the buffer line until
+/// These example values were `srgb=24,140,108` on the buffer line until
 /// `Pass 174.5`, and that is worth a sentence rather than a silent edit:
 /// `(24,140,108)` is the **pre-`Pass 165.0` defect value**, so the example
 /// restated — in shipped operator-facing documentation — exactly the
@@ -14065,7 +14065,7 @@ fn format_ink_probe(probe: &pdfcer_render::InkProbe) -> String {
     let srgb = probe
         .srgb
         .map_or_else(|| "-".to_owned(), |c| format!("{},{},{}", c[0], c[1], c[2]));
-    // ★ SPOT PLANES, appended rather than interleaved, so the four process
+    // SPOT PLANES, appended rather than interleaved, so the four process
     // fields keep their exact positions and every script that parses this
     // line by `c=`/`m=`/`y=`/`k=` keeps working. Absent entirely on a page
     // with no spot roster -- 98.6 % of a 4,023-file corpus -- so the common
@@ -14197,7 +14197,7 @@ fn parse_region(spec: &str) -> Result<pdfcer_core::page_tree::Rect, String> {
 ///
 /// # The pins, and why the detection model's URL is not the obvious one
 ///
-/// ★ The two files come from **different channels**, and that is a measured
+/// The two files come from **different channels**, and that is a measured
 /// defect rather than an oversight. Hugging Face hosts a detection model that
 /// **does not work with `ocrs` 0.12.2** — on a clean render of a page of 12 pt
 /// text it returns fragments at the page margin and one "word" whose box is
@@ -14373,7 +14373,7 @@ fn cmd_list_standards(only: Option<&str>) -> u8 {
 /// keys) and an `Identity-H` font with no `/ToUnicode` (§9.10.2 excludes it
 /// from every ladder rung).
 ///
-/// ★ Printed whether or not anything matched, and that is deliberate. A
+/// Printed whether or not anything matched, and that is deliberate. A
 /// partial match is the more dangerous case, not the safer one: "3 marks
 /// authored" reads as success, and the operator has no reason to suspect a
 /// fourth occurrence sat in a font the scan could not read.
@@ -14425,7 +14425,7 @@ fn report_unsearchable_redaction(input: &Path, d: &pdfcer_core::text_extract::Te
 ///    geometry EXACTLY, including `/Rotate`.
 /// 5. **Write the layer** and save incrementally.
 ///
-/// ★ Step 4 is the one that fails silently. Steps 1-3 announce their own
+/// Step 4 is the one that fails silently. Steps 1-3 announce their own
 /// failures (a render error, a size mismatch, zero words); step 4 cannot,
 /// because a mis-mapped word is a perfectly well-formed word in the wrong
 /// place, and the page still looks right because the layer is invisible. That
@@ -14569,7 +14569,7 @@ fn cmd_ocr(
         }
     };
 
-    // ★ The pixmap's OWN dimensions, not `crop * scale` recomputed. The
+    // The pixmap's OWN dimensions, not `crop * scale` recomputed. The
     // rasteriser rounds up to whole pixels, so a recomputed size is a
     // fraction of a pixel out and every word inherits the discrepancy. The
     // measured value cannot disagree with what was actually drawn.
@@ -14634,7 +14634,7 @@ fn cmd_ocr(
         }
     };
 
-    // ★★ THE STEP THAT USED TO BE SILENTLY WRONG ON A ROTATED PAGE.
+    // THE STEP THAT USED TO BE SILENTLY WRONG ON A ROTATED PAGE.
     // `page.rotate` is read and passed; `words_to_page_space_on` inverts the
     // renderer's own four transforms. Using `words_to_page_space` here would
     // be correct on `/Rotate 0` and wrong on every scan a driver rotated.
@@ -14662,7 +14662,7 @@ fn cmd_ocr(
         }
     }
 
-    // ★ TWO WRITERS, ONE PLAN. `--in-place` goes through
+    // TWO WRITERS, ONE PLAN. `--in-place` goes through
     // `EditSession::add_ocr_layer` and `--output` through the one-shot, and
     // both call the SAME `plan_ocr_layer` underneath -- so the font name, the
     // §7.7.3.4 resources merge, the placeable-word pass and the emitted
@@ -14865,7 +14865,7 @@ fn resolve_render_options(
     // reason: one diagnostic render must not change how every later render
     // behaves.
     //
-    // ★ Parsed by handing the token to the SETTINGS PARSER rather than by
+    // Parsed by handing the token to the SETTINGS PARSER rather than by
     // matching the three strings here. `OverprintZeroTintScope::parse` is the
     // same function the settings FILE parser calls, so a token the file
     // accepts and a token this flag accepts cannot diverge. A `match` here
@@ -15007,7 +15007,7 @@ fn resolve_render_options(
         // `device_cmyk_only` is the conforming one. Edition-gated: 32000-2
         // deletes two of the three provisions that settle it in 1.7.
         //
-        // ★ SURVIVOR 7. This said "The 8.6.7 ambiguity" and was missed by the
+        // SURVIVOR 7. This said "The 8.6.7 ambiguity" and was missed by the
         // 330th filing's own sweep, which grepped `§8.6.7 ambiguity` — with
         // the section sign. This line has no `§`. A sweep for a CLAIM is only
         // as good as its spelling of the claim, which is the same failure the
@@ -15227,7 +15227,7 @@ numbered 1..={})",
         Err(code) => return code,
     };
 
-    // ★ THE REGION BRANCH, and it is the same engine call with a smaller
+    // THE REGION BRANCH, and it is the same engine call with a smaller
     // pixmap -- `render_page_region` and `render_page` share one
     // implementation in `pdfcer-render`, so nothing about annotation
     // z-order, cancellation, layer state or diagnostics can differ between
@@ -15278,7 +15278,7 @@ numbered 1..={})",
         rendered.pixmap.height(),
         render_counters_line(d, &doc, supplied_registered)
     );
-    // ★ A SECOND LINE, NOT MORE KEYS ON THE FIRST ONE.
+    // A SECOND LINE, NOT MORE KEYS ON THE FIRST ONE.
     //
     // The stable line is `key=<integer>` pairs in a fixed order and a
     // published contract (`tools/check-metrics-line-contract.py` holds all
@@ -15306,7 +15306,7 @@ numbered 1..={})",
 /// The `key=<integer>` half of the stable result line, shared by
 /// `render-page` and `export-image` (`Pass 248.0`).
 ///
-/// ★ ONE format string, not two. The counters are a PUBLISHED CONTRACT
+/// ONE format string, not two. The counters are a PUBLISHED CONTRACT
 /// (`R212`, `tools/check-metrics-line-contract.py`), and the moment a
 /// second verb printed its own copy there would be a fourth place for the
 /// list to drift — and the copy nobody tests is the one that goes stale.
@@ -15517,7 +15517,7 @@ overprint_process_images_unsupported={} annots_icon_painted={} page_resources_de
         // §11.3.5 blend modes and §11.6.5 soft masks. Appended after every
         // pre-existing key.
         //
-        // ★ SEVENTH copy of the stale-shortfall claim, corrected
+        // SEVENTH copy of the stale-shortfall claim, corrected
         // 2026-08-18. This read "Neither is implemented; before these
         // existed neither was COUNTED either" — the second half is still
         // true and worth keeping, the first half stopped being true when
@@ -15570,7 +15570,7 @@ overprint_process_images_unsupported={} annots_icon_painted={} page_resources_de
         // §11.4.5 group compositing. `composited` counts groups rendered
         // to their own buffer and applied as a unit.
         //
-        // ★ NOT a clean census, and this was measured on 2026-08-18 rather
+        // NOT a clean census, and this was measured on 2026-08-18 rather
         // than reasoned: a `tiny_skia::Pixmap` starts TRANSPARENT, and a
         // transparent initial backdrop IS isolated semantics (§11.4.7).
         // pdfcer allocates a buffer whenever the outer graphics state is
@@ -15583,7 +15583,7 @@ overprint_process_images_unsupported={} annots_icon_painted={} page_resources_de
         // a day afterwards. A non-isolated group now renders over its own
         // backdrop, so the over-report is gone on the additive path.
         //
-        // ★ AND IT IS GONE ON THE SUBTRACTIVE PATH TOO, as of
+        // AND IT IS GONE ON THE SUBTRACTIVE PATH TOO, as of
         // `Pass 97.1g`. This sentence read "it survives on a SUBTRACTIVE
         // page, where a non-isolated group is still composited as if
         // isolated" until 2026-08-24. A subtractive page now takes the
@@ -15612,7 +15612,7 @@ overprint_process_images_unsupported={} annots_icon_painted={} page_resources_de
         // CompatibleOverprint (§11.7.4.3, Table 149) — see
         // `overprint_composited` below for what actually ran.
         //
-        // ★ This comment used to read "Tracked and reported, not
+        // This comment used to read "Tracked and reported, not
         // simulated: pdfcer composites in additive RGB and there is no
         // per-colorant state for overprint to preserve." That was true
         // when written and false from `bf75351` onward, and it survived
@@ -15630,7 +15630,7 @@ overprint_process_images_unsupported={} annots_icon_painted={} page_resources_de
         // goes through its tint transform and cannot be left standing the
         // way a press leaves it.
         //
-        // ★ FOURTH occurrence of the stale-comment shape this block already
+        // FOURTH occurrence of the stale-comment shape this block already
         // names three of: said "a SPOT colorant has no plane of its own"
         // unconditionally until 2026-09-02, and survived that day's sweep of
         // six sibling sites because the grep matched a phrasing this one
@@ -15697,13 +15697,13 @@ overprint_process_images_unsupported={} annots_icon_painted={} page_resources_de
         // picture is plausible and wrong -- on suite PCS1_162's Difference
         // cell the two answers are green and magenta.
         //
-        // ★ SINCE Pass 97.1e THIS ONLY FIRES WHERE THE COLORANT BUFFER DID
+        // SINCE Pass 97.1e THIS ONLY FIRES WHERE THE COLORANT BUFFER DID
         // NOT RUN. A subtractive page composites in ink and reports zero
         // here; read it together with `cmyk_buffer` below, never alone.
         d.blend_space_subtractive,
         d.blend_space_from_output_intent,
         d.blends_in_wrong_space,
-        // ★ THE KEY THAT CHANGES WHAT THE PREVIOUS ONE MEANS. When
+        // THE KEY THAT CHANGES WHAT THE PREVIOUS ONE MEANS. When
         // `cmyk_buffer=1` the blends counted by `blends_in_wrong_space`
         // were PERFORMED subtractively -- that counter is fixed at
         // `/BM`-selection time and measures exposure to 11.3.4, not
@@ -15737,7 +15737,7 @@ overprint_process_images_unsupported={} annots_icon_painted={} page_resources_de
         d.icc_unmanaged_paints,
         // `Pass 204.0`. Appended per the stable-line append-never-insert rule.
         d.overprint_process_images_unsupported,
-        // ★ APPENDED, not inserted beside its `annots_*` relatives. The
+        // APPENDED, not inserted beside its `annots_*` relatives. The
         // module docs promise "keys are appended, never reordered", and a
         // contract test asserts the whole list — inserting this next to
         // `annots_no_ap`, where it reads better, broke that test and would
@@ -16456,7 +16456,7 @@ fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
                 background_token,
                 render_counters_line(&o.diagnostics, &doc, supplied_registered)
             );
-            // ★ A SECOND LINE, NOT MORE KEYS ON THE FIRST -- the SVG-only
+            // A SECOND LINE, NOT MORE KEYS ON THE FIRST -- the SVG-only
             // disclosure, prefixed so a parser can take or leave it whole
             // (the same shape as `render-page`'s ink-probe line). `exact=1`
             // means the whole page went out as geometry.
@@ -16792,7 +16792,7 @@ when comparing against another renderer",
             },
             d.overprint_composited,
             d.overprint_refused,
-            // ★ THE APPROXIMATION CLAUSE IS NOW CONDITIONAL, because as
+            // THE APPROXIMATION CLAUSE IS NOW CONDITIONAL, because as
             // of `Pass 97.1e` it is FALSE on a subtractive page. The
             // sentence it replaces -- "pdfcer composites in additive RGB
             // with CMYK reconstructed per pixel" -- was true of every
@@ -16998,7 +16998,7 @@ cyclic; their content is missing from the raster",
     }
     // --- Pass 6.0 annotation honesty (R43/R50/R27) -------------------
     if !d.annotations_without_ap.is_empty() {
-        // ★ `Pass 289.0` REWROTE THIS NOTE, and the old one is worth naming:
+        // `Pass 289.0` REWROTE THIS NOTE, and the old one is worth naming:
         // it said these were "NOT painted (pdfcer never synthesises a look)",
         // which became FALSE the moment the icon class started drawing. A
         // note that contradicts the line printed under it is worse than no
@@ -18449,7 +18449,7 @@ fn cmd_move_bookmark(
 
     let report = match session.move_outline_item(item_id, placement) {
         Ok(r) => r,
-        // ★ The cycle refusal is re-phrased rather than passed through.
+        // The cycle refusal is re-phrased rather than passed through.
         //
         // The core's message names OBJECT IDS, which is right for the core —
         // its caller passed object ids. But this command's operator never saw
@@ -18655,7 +18655,7 @@ fn cmd_adopt_widget(
         id
     };
 
-    // ★ `--dry-run` answers BEFORE the press, which is the whole point.
+    // `--dry-run` answers BEFORE the press, which is the whole point.
     //
     // `pdfcer-gui` asked for `adopt_preview` because a widget's two shapes are
     // indistinguishable from the outside: one adopts losslessly, the other
@@ -18805,7 +18805,7 @@ fn cmd_add_named_dest(
         return report_edit_error(input, &err);
     }
 
-    // ★ Read BEFORE the save, not after.
+    // Read BEFORE the save, not after.
     //
     // `save_edited` with `--verify-undo` runs `while session.undo().is_some()
     // {}` and never redoes, so the session it hands back holds the document as
@@ -19108,7 +19108,7 @@ fn cmd_list_outline(input: &Path, flat: bool, json: bool) -> u8 {
         for it in items {
             *n += 1;
             shown += 1;
-            // ★ `describe_destination`, NOT `{d:?}` (`Pass 258.2`). The
+            // `describe_destination`, NOT `{d:?}` (`Pass 258.2`). The
             // Rust `Debug` form printed a `/GoToR`'s filename as a decimal
             // BYTE ARRAY — `file: Some([84, 101, ...])` — which is the
             // right information rendered unusably, and an operator asking
@@ -19128,7 +19128,7 @@ fn cmd_list_outline(input: &Path, flat: bool, json: bool) -> u8 {
             } else {
                 "  ".repeat(it.level)
             };
-            // ★ `obj=` is the OBJECT NUMBER, added with `Pass 172.0`, and it
+            // `obj=` is the OBJECT NUMBER, added with `Pass 172.0`, and it
             // is not decoration: `bookmark-copy --item N` takes it, and `n=`
             // is a sequence counter that means nothing to any other verb.
             // Without it the bookmark clipboard was documented, correct and
@@ -19708,7 +19708,7 @@ fn cmd_list_layers(input: &Path) -> u8 {
 
 /// Render one font's `fsType` state as a single stable token.
 ///
-/// ★ The four states must never collapse into each other, and in particular
+/// The four states must never collapse into each other, and in particular
 /// none of them may look like `0`.
 ///
 /// `fsType == 0` genuinely **means** Installable — the most permissive value
@@ -19770,7 +19770,7 @@ fn format_fs_type(fs: &pdfcer_core::fontinfo::FsType) -> String {
 ///
 /// # Why the byte size is here and nowhere else
 ///
-/// ★ Acrobat exposes a per-font byte size **nowhere**: Document Properties →
+/// Acrobat exposes a per-font byte size **nowhere**: Document Properties →
 /// Fonts gives type, encoding and embedded status with no size at all, and
 /// Audit Space Usage gives one aggregate "Fonts" bucket for the whole
 /// document with no per-font attribution
@@ -19985,7 +19985,7 @@ not_walked={not_walked_token} {warnings}",
         inv.embedded_bytes(),
     );
 
-    // ★ The disclosure Acrobat does not make. One sentence per DISTINCT
+    // The disclosure Acrobat does not make. One sentence per DISTINCT
     // non-removable verdict present, on stderr so stdout stays a clean
     // machine-readable listing. Deduplicated because a document with forty
     // Identity-H fonts needs the mechanism explained once, not forty times —
@@ -20036,7 +20036,7 @@ listing. An empty or short list here is not a statement about the document's fon
 /// not have to know the distinction exists in order to get a complete
 /// answer, so it is one command and one list.
 ///
-/// # ★ The encryption warning is a REFUSAL condition, not a note
+/// # The encryption warning is a REFUSAL condition, not a note
 ///
 /// Since PDF 1.5 an otherwise-unencrypted document can carry ENCRYPTED
 /// embedded files via `/EFF` + `DefEmbeddedFile` (§7.6.5). The intuitive
@@ -20060,7 +20060,7 @@ listing. An empty or short list here is not a statement about the document's fon
 /// shell could ask for it — standing rule R151's exact shape, a core API with
 /// no caller.
 ///
-/// ★ The output path is REQUIRED and never derived from the attachment's own
+/// The output path is REQUIRED and never derived from the attachment's own
 /// name. That name is attacker-controlled and ISO 32000-1 constrains nothing
 /// about it: it may carry `..`, a NUL, a reserved device name like `CON`, or
 /// a right-to-left override making `gnp.exe` render as `exe.png`. A tool that
@@ -20633,7 +20633,7 @@ impl PrintScaleArg {
 
 /// `print` — send pages to a printer.
 ///
-/// # ★ It does a DRY RUN unless told otherwise
+/// # It does a DRY RUN unless told otherwise
 ///
 /// `--send` is required to start a job. Without it every step runs —
 /// device context, capability query, placement, rasterisation, the page
@@ -20736,7 +20736,7 @@ fn cmd_print(
         Ok(paper) => paper,
         Err(code) => return code,
     };
-    // ★ The geometry must be read for the sheet THIS JOB will use, not
+    // The geometry must be read for the sheet THIS JOB will use, not
     // the device's default one. Planning against the default while
     // printing on another is the same defect `for_orientation` exists to
     // prevent, in a second dimension: the two halves would describe
@@ -20822,7 +20822,7 @@ fn cmd_print(
             pdfcer_print::Collate::Collated
         },
     };
-    // ★ TURNED for this job before ANY layout is computed against it —
+    // TURNED for this job before ANY layout is computed against it —
     // and it must be built after `spec`, because the page that decides
     // `--orientation auto` is the first page the SEQUENCE sends, not
     // `pages[0]`.
@@ -21222,7 +21222,7 @@ untiled; {tiled_pages} page(s) were tiled."
         bitmaps = faces;
     }
 
-    // ★ PER-PAGE geometry in the plain path.
+    // PER-PAGE geometry in the plain path.
     //
     // `plans` above was computed against ONE `device`, turned for the
     // first page. That is right for the imposition paths, where a sheet
@@ -21409,7 +21409,7 @@ enum PosterRoute {
 
 /// Rasterise one tiled page into its poster sheets.
 ///
-/// # ★ Why this does NOT render the whole page and crop it
+/// # Why this does NOT render the whole page and crop it
 ///
 /// It used to, with a comment explaining that rendering per tile "would
 /// re-rasterise the whole page for every sheet — on a 4x5 poster, twenty
@@ -21533,7 +21533,7 @@ fn poster_sheets_for_page(
         // read from the SAME function the renderer uses to place it, never
         // recomputed here, so the two cannot disagree about the origin.
         //
-        // ★ AND THAT SENTENCE IS THE WHOLE TEST. When the renderer moved to
+        // AND THAT SENTENCE IS THE WHOLE TEST. When the renderer moved to
         // `region_base_geometry` for its `f64` deep-zoom arithmetic, this
         // call was left on `region_device_geometry` — two functions that
         // agree at ordinary scales to within a pixel and therefore produce
@@ -21651,7 +21651,7 @@ mod poster_tiling_tests {
             .join(rel)
     }
 
-    /// ★ Per-tile regions produce byte-identical sheets to cropping a
+    /// Per-tile regions produce byte-identical sheets to cropping a
     /// whole-page render.
     ///
     /// Run over several magnifications, because the tile grid changes shape
@@ -21941,7 +21941,7 @@ fn cmd_print_preview(
         }
     };
 
-    // ★ The sheet as the DRIVER will present it, not as it was reported.
+    // The sheet as the DRIVER will present it, not as it was reported.
     //
     // `printer_caps` reads the device's default `DEVMODE`, so a
     // portrait-default printer reports a portrait sheet even for a job
@@ -22389,7 +22389,7 @@ fn resolve_paper(
 
 /// Say so when the driver did not give the sheet that was asked for.
 ///
-/// # ★ Why this exists: a paper request can be ignored in silence
+/// # Why this exists: a paper request can be ignored in silence
 ///
 /// Measured on this machine, 2026-08-18, with `--paper-size 1000x1400`:
 ///
@@ -22894,7 +22894,7 @@ fn cmd_list_fields(input: &Path, fillable_only: bool, rich_text: bool, widgets: 
         // No form is not an error — report zero and exit clean, so a batch
         // sweep can tally form-bearing vs form-free files.
         //
-        // ★ BUT THE ACTIONS ARE STILL REPORTED, and that is the point of
+        // BUT THE ACTIONS ARE STILL REPORTED, and that is the point of
         // `Pass 133.0`. Actions are a DOCUMENT property, not a forms
         // property: a file whose only hazard is a `/Launch` on a bookmark or
         // a `/URI` on a link has no AcroForm at all, and this branch used to
@@ -22951,7 +22951,7 @@ outline_actions={} js_actions_anywhere={} actions_scanned={} action_scan_truncat
             Some(pdfcer_core::forms::ButtonKind::Radio) => "radio",
             None => "-",
         };
-        // ★ QUOTED, NOT WHITESPACE-MANGLED — and this was a real defect.
+        // QUOTED, NOT WHITESPACE-MANGLED — and this was a real defect.
         //
         // These three columns carry §7.9.2 TEXT STRINGS (`/T`, `/V`, `/MK`
         // `/CA`), and a text string may contain spaces. They used to run
@@ -23091,7 +23091,7 @@ widgets={} ap={} fillable={} readonly={} aa={} caption={caption} rich={rich}",
                 // apart by the read model, so kept apart here too — the same
                 // distinction `border` and `rotation` already make.
                 //
-                // ★ `background` had been readable since `Pass 249.1` and was
+                // `background` had been readable since `Pass 249.1` and was
                 // never printed, while `docs/FEATURES.md` claimed `cli [x]`
                 // for it. This line is what makes that tick true.
                 println!(
@@ -23821,7 +23821,7 @@ may still show the OLD value."
         );
     }
     if let Some(sz) = out.applied_autosize {
-        // ★ NAMES THE CONSTRAINT THAT BOUND, at a consuming shell's request:
+        // NAMES THE CONSTRAINT THAT BOUND, at a consuming shell's request:
         // an operator who thinks the text is too small wants to know whether
         // to widen the box or heighten it, and those are different answers.
         // The old wording — "a reviewable pdfcer heuristic" — was accurate when
@@ -23855,7 +23855,7 @@ which will overflow"
         eprintln!("pdfcer: field {name:?}: auto-sized to {sz:.3} pt ({why})");
     }
     if out.da_colour_unmodelled {
-        // ★ Rule 4: pdfcer substituted a colour the FILE DID NOT ASK FOR into
+        // Rule 4: pdfcer substituted a colour the FILE DID NOT ASK FOR into
         // an appearance it wrote into the document. The `/DA` named a
         // `/Separation`, `/DeviceN`, `/ICCBased`, `/Indexed` or `/Lab`
         // colour, none of which this generator can emit, so the text was
@@ -24736,7 +24736,7 @@ fn open_for_edit(input: &Path) -> Result<(Vec<u8>, pdfcer_core::edit::EditSessio
 /// deliberate rather than tidied up: the output file has already been
 /// written, and re-applying the history only to throw the session away
 /// would be motion without meaning.
-/// ★ **With `verify_undo`, this leaves the session UNDONE.**
+/// **With `verify_undo`, this leaves the session UNDONE.**
 ///
 /// The verification is `while session.undo().is_some() {}` followed by a save
 /// of the emptied stack, and there is no redo afterwards — so on return the
@@ -24888,7 +24888,7 @@ against the base revision, not the union of every command run).",
 /// from a broken file.
 fn report_edit_error(input: &Path, err: &pdfcer_core::edit::EditError) -> u8 {
     use pdfcer_core::edit::EditError;
-    // ★ Translate the ONE error whose text is in the engine's units rather
+    // Translate the ONE error whose text is in the engine's units rather
     // than the operator's.
     //
     // `pdfcer-core` is 0-based throughout and `EditError::PageOutOfRange`
@@ -25447,7 +25447,7 @@ fn cmd_annotate(args: &AnnotateArgs<'_>) -> u8 {
         note,
         dash,
     };
-    // ★ `Pass 291.0`: the reporting route, because the CLI's whole disclosure
+    // `Pass 291.0`: the reporting route, because the CLI's whole disclosure
     // mechanism is PRINTING (rule 11 -- the invocation is the commit, there is
     // no session to hold a status line). `add_text_annotation_with` discards
     // what the generator decided, and a stamp whose label was shrunk or
@@ -25606,7 +25606,7 @@ fn cmd_redact_mark(args: &RedactMarkArgs<'_>) -> u8 {
             Err(err) => return report_edit_error(args.input, &err),
         }
     } else if let Some(pattern) = args.pattern {
-        // ★ The same disclosure as `--search`, which this branch did NOT make
+        // The same disclosure as `--search`, which this branch did NOT make
         // until `Pass 296.3`. The diagnostics were computed on this path all
         // along and thrown away one `.map` short of the caller, so `pdfcer`
         // itself was silent about unreadable text on a pattern redaction --
@@ -26731,7 +26731,7 @@ fn cmd_reflow(
             // distinct class. The `_` arm keeps this exhaustive as
             // `ReflowApplyError` grows (it is `#[non_exhaustive]`).
             //
-            // ★ `PageEditedThisSession` is listed EXPLICITLY rather than left
+            // `PageEditedThisSession` is listed EXPLICITLY rather than left
             // to the `_` arm, which would have called it a RUNTIME_ERROR. It
             // is a refusal -- the cleanest, most recoverable one there is --
             // and a new variant silently inheriting the catch-all is how a
@@ -27099,7 +27099,7 @@ fn cmd_format_text(args: &FormatTextArgs<'_>) -> u8 {
     if !args.style.is_none() {
         req = req.style(args.style);
     }
-    // ★ The bold/italic fallback posture (`Pass 179.0`, decision 106).
+    // The bold/italic fallback posture (`Pass 179.0`, decision 106).
     //
     // Resolved HERE, in the shell, and handed to core as a value -- the
     // established convention for every ambiguity setting, and the thing that
@@ -27236,7 +27236,7 @@ fn cmd_format_text(args: &FormatTextArgs<'_>) -> u8 {
     };
     println!("  rise={rise_str} synthesis={synth_str}");
 
-    // ★ THE DISCLOSURE A NON-REFUSING POSTURE OWES (`Pass 179.0`, decision
+    // THE DISCLOSURE A NON-REFUSING POSTURE OWES (`Pass 179.0`, decision
     // 106).
     //
     // Under `refuse` this situation is the error and the command already
@@ -27441,7 +27441,7 @@ charset_removed={} cidset_removed={} pages={}{shared}",
             pdfcer_core::fontinfo::format_page_ranges(&t.pages),
         );
     }
-    // ★ The disclosure Acrobat does not make. Every refused font, by name,
+    // The disclosure Acrobat does not make. Every refused font, by name,
     // on stdout with the rest of the report — not hidden on stderr and not
     // omitted, because a font that is missing from both lists is the exact
     // silence this command exists to break.
@@ -27477,7 +27477,7 @@ reclaim_now={reclaim_now} pdfa={} mode={} applied={}",
         u32::from(args.apply),
     );
 
-    // ★ Appearance change, stated as a fact and not a risk, whether or not
+    // Appearance change, stated as a fact and not a risk, whether or not
     // this run writes anything. It is the consequence an operator is least
     // likely to have thought about and the one they cannot see in a report.
     if !plan.targets.is_empty() {
@@ -27830,7 +27830,7 @@ not_embedded_before={} not_embedded_after={} pdfa={} mode={} applied={}",
         u32::from(args.apply),
     );
 
-    // ★ The two disclosures rule 4 requires, stated as facts rather than
+    // The two disclosures rule 4 requires, stated as facts rather than
     // implied by the report's shape.
     if !plan.targets.is_empty() {
         eprintln!(
@@ -27857,7 +27857,7 @@ explicitly at the same time, so the text is unchanged.",
             args.input.display()
         );
     }
-    // ★ The "listed above" half of this is a CLAIM ABOUT THIS REPORT, and it
+    // The "listed above" half of this is a CLAIM ABOUT THIS REPORT, and it
     // is only true for the fonts that actually got a `refused` row. Under
     // `--font <name>` a font the operator did not name is neither embedded
     // nor refused — `plan` omits it on purpose — so it is counted here and
@@ -28475,7 +28475,7 @@ fn cmd_redact_apply(
         report.vector_paths_intersecting,
         report.shadings_intersecting,
     );
-    // ★ THE RESIDUAL SWEEP'S OWN FIGURES. Computed since `Pass 284.0` and
+    // THE RESIDUAL SWEEP'S OWN FIGURES. Computed since `Pass 284.0` and
     // never printed by any shell until `Pass 310.1` -- exactly the R151 shape
     // the comment above warns about, in the same function. Printed
     // UNCONDITIONALLY, including the zeroes: "the sweep found nothing
@@ -28777,7 +28777,7 @@ fn build_text_annot_spec(
                 name: args.stamp_name.to_stamp_name(),
                 label: args.text.map(str::to_owned),
                 color,
-                // ★ `--rect` is a POSITION AND A MINIMUM under the default
+                // `--rect` is a POSITION AND A MINIMUM under the default
                 // `grow` fit, not a cage: a label too long for it widens the
                 // stamp instead of being silently cut off.
                 style: pdfcer_core::annot_author::StampStyle::points(
@@ -29419,7 +29419,7 @@ fn cmd_run_repertoire(
     }
 
     let chars = if list {
-        // ★ CODE POINTS, NOT THE CHARACTERS THEMSELVES, and the first cut
+        // CODE POINTS, NOT THE CHARACTERS THEMSELVES, and the first cut
         // printed the characters. `sanitize_token` maps a space to `_`, so
         // the set {space} and the set {underscore} printed IDENTICALLY -- and
         // a set containing a comma, a quote or a newline is worse. A shell
@@ -29786,7 +29786,7 @@ fn json_escape(s: &str) -> String {
 /// diagnosis ("the pin is pointing at a different buffer") is unactionable
 /// without a way to enumerate the buffers.
 ///
-/// # ★ The column that matters most is `paints`
+/// # The column that matters most is `paints`
 ///
 /// A form XObject may legally be painted from several pages, and **no clause
 /// in either ISO edition binds one to a page** (`FX-N1`). So `paints=6` means
@@ -31084,7 +31084,7 @@ copied; {} were carried and repointed.",
             report.outline_items_kept
         );
     }
-    // ★ Rule 4: re-pointing a cross-file bookmark is pdfcer INFERRING that
+    // Rule 4: re-pointing a cross-file bookmark is pdfcer INFERRING that
     // `chapter1.pdf` in a /Launch means the `chapter1.pdf` in this merge.
     // That inference is almost always right and is never silent.
     if report.outline_items_relinked > 0 {
@@ -31493,7 +31493,7 @@ fn cmd_dimension_add(args: &DimensionAddArgs<'_>) -> u8 {
                 show_diameter: matches!(kind, DimKindArg::Diameter),
             }
         }
-        // ★ `Pass 107.0`. Two tokens for one kind, differing by the closing
+        // `Pass 107.0`. Two tokens for one kind, differing by the closing
         // segment — the same shape `radius`/`diameter` already has, and for
         // the same reason: a script filtering for fence runs and one filtering
         // for pipe runs are looking for different things.
@@ -31527,7 +31527,7 @@ fn cmd_dimension_add(args: &DimensionAddArgs<'_>) -> u8 {
                 text_along,
             }
         }
-        // ★ The two-line mode: pdfcer reads the geometry and decides.
+        // The two-line mode: pdfcer reads the geometry and decides.
         //
         // The reading AND the authoring both live in
         // `pdfcer_core::dimension::two_lines`, shared verbatim with the GUI
@@ -31926,7 +31926,7 @@ fn cmd_group_delete(args: &GroupDeleteArgs) -> u8 {
 ///
 /// - Emits one `dimension-group ...` line carrying the printed value BEFORE
 ///   and AFTER the move, then defers the exit code to [`finish_edit`].
-/// - ★ **Both values, because the re-measurement IS the operation.** Scale,
+/// - **Both values, because the re-measurement IS the operation.** Scale,
 ///   unit, precision and drafting standard all live on the group, so a
 ///   re-parented ce dimension reads differently -- `5.000 m` becomes
 ///   `2.500 m` moving from a 1:50 group to a 1:100 one. That is correct and
@@ -33288,7 +33288,7 @@ struct EditFieldArgs<'a> {
 ///
 /// 1. **How many widgets a field-scope change reached.** "I changed one
 ///    field" and "three things on screen look different" are the same event.
-/// 2. **★ Whether the stored value still fits.** Shortening `/MaxLen` below
+/// 2. **Whether the stored value still fits.** Shortening `/MaxLen` below
 ///    the current value, or removing a choice option that is selected, leaves
 ///    the file inconsistent — and Acrobat does both SILENTLY. pdfcer does not
 ///    truncate the operator's data and does not re-point their selection;
@@ -33488,7 +33488,7 @@ fn cmd_edit_field(args: &EditFieldArgs<'_>) -> u8 {
 /// through [`parse_mk_colour`], so the two surfaces cannot drift on what a
 /// colour looks like.
 ///
-/// ★ `none` and `unset` are one letter apart in meaning and worlds apart in
+/// `none` and `unset` are one letter apart in meaning and worlds apart in
 /// effect, which is why both are words rather than, say, an empty string for
 /// one of them. `none` states *no colour* and leaves the key present; `unset`
 /// takes the key away and hands the builder back its own default. A creation
@@ -34255,7 +34255,7 @@ impl SetButtonActionArgs<'_> {
     /// Build the `/SubmitForm` spec, refusing every option that belongs to a
     /// different format **by name**.
     ///
-    /// # ★ Why refuse rather than ignore
+    /// # Why refuse rather than ignore
     ///
     /// `pdfcer-core`'s `SubmitFormat` makes the standard's nine flag gates
     /// unrepresentable — `--submit-get` has nowhere to live in an FDF submit.
@@ -34978,7 +34978,7 @@ fn cmd_set_markup_note(
             None => "nothing".to_owned(),
         }
     );
-    // ★ Rule 11: the CLI PRINTS what the GUI would disclose off-canvas.
+    // Rule 11: the CLI PRINTS what the GUI would disclose off-canvas.
     // Whether the picture moved with the words is the whole point of
     // `Pass 258.1` and is invisible in the exit code.
     println!(
@@ -34991,7 +34991,7 @@ fn cmd_set_markup_note(
             "unchanged (this subtype does not paint its /Contents)"
         }
     );
-    // ★ Rule 11 again, and this one is a DROP the operator did not ask for.
+    // Rule 11 again, and this one is a DROP the operator did not ask for.
     // A stale `/RC` would have left the pop-up -- or, on a `/FreeText`, the
     // page itself -- showing the OLD comment while `/Contents` held the new
     // one. pdfcer cannot author rich text, so it removes the copy it can no
@@ -39152,7 +39152,7 @@ fn cmd_group_set_scale(args: &GroupSetScaleArgs<'_>) -> u8 {
         );
         return exit::EDIT_REFUSED;
     };
-    // ★ THE FORMAT IS BUILT AFTER THE SCALE BRANCH, NOT BEFORE IT
+    // THE FORMAT IS BUILT AFTER THE SCALE BRANCH, NOT BEFORE IT
     // (`Pass 176.0`), because `--real-length` can name a unit that `--unit`
     // did not.
     //
@@ -39281,7 +39281,7 @@ fn cmd_group_set_scale(args: &GroupSetScaleArgs<'_>) -> u8 {
 changed={} objects={} appended={} out_bytes={}",
         args.input.display(),
         args.group,
-        // ★ REPORTED (`Pass 176.0`), and its absence is part of why the unit
+        // REPORTED (`Pass 176.0`), and its absence is part of why the unit
         // bug survived: this line said what was set for every field except the
         // one that was wrong. A caller passing `--real-length '55 5/8"'` saw a
         // success line with no unit on it and had no reason to check.
@@ -39821,7 +39821,7 @@ numbered 1..={})",
         );
     }
 
-    // ★ THE OBJECTS INSIDE FORM XOBJECTS, which the rows above cannot show.
+    // THE OBJECTS INSIDE FORM XOBJECTS, which the rows above cannot show.
     //
     // A form is emitted above as ONE object bounded by its `/BBox`, so on a
     // page whose body is wrapped in a form -- a CAD sheet's orthographic view,
@@ -39888,7 +39888,7 @@ paint_order={} in_form_index={} placement={},{},{},{},{},{} editable={} {detail}
         // scan that CAN disagree is exactly the divergence decision 011 §Z2
         // names. `candidates=` on the `hit` line is therefore always
         // consistent with the `hit-candidate` lines below it.
-        // ★★★ DEEP BY DEFAULT SINCE `Pass 138.0`, AND THAT IS A BEHAVIOUR
+        // DEEP BY DEFAULT SINCE `Pass 138.0`, AND THAT IS A BEHAVIOUR
         // CHANGE THIS BLOCK OWES THE READER AN ACCOUNT OF.
         //
         // This flag's own help text promised the answer was "authoritative
@@ -39904,7 +39904,7 @@ paint_order={} in_form_index={} placement={},{},{},{},{},{} editable={} {detail}
         // fails to confirm ones that are. So the default follows the shell,
         // and `--hit-scope page` keeps the old query for whoever wants it.
         //
-        // ★ The visible consequence, which a script will meet first: FORMS
+        // The visible consequence, which a script will meet first: FORMS
         // DISAPPEAR FROM THE CANDIDATE LIST. A `/BBox` is a clipping extent
         // (ISO 32000-1 8.10.1), not ink, so a page-sized form is not a
         // page-sized hit target. What is inside it appears instead, as
@@ -39995,7 +39995,7 @@ paint_order={} in_form_index={} placement={},{},{},{},{},{} editable={} {detail}
         }
     }
 
-    // ★★ WHICH STRAIGHT LINE A CLICK WOULD RESOLVE TO, `Pass 138.0`.
+    // WHICH STRAIGHT LINE A CLICK WOULD RESOLVE TO, `Pass 138.0`.
     //
     // The headless twin of the two-line measure gesture. It exists for two
     // reasons and the second is the load-bearing one:
@@ -40005,7 +40005,7 @@ paint_order={} in_form_index={} placement={},{},{},{},{},{} editable={} {detail}
     //    1194 subpaths in a single object. "Which object" is not an answer to
     //    "which line did I click", and the measure tool needs the second.
     //
-    // 2. ★ Until now `pdfcer_core::vector::linepick::pick_line_in_page` had NO
+    // 2. Until now `pdfcer_core::vector::linepick::pick_line_in_page` had NO
     //    CLI caller at all, so the only way to observe it was to run the GUI
     //    and place a dimension. A core verb with no headless surface cannot
     //    be regression-tested by a script, cannot be diagnosed on an operator's
@@ -40553,7 +40553,7 @@ fn cmd_object_copy(args: &ObjectCopyArgs<'_>) -> u8 {
     // the objects away with nothing on the clipboard, which is the one outcome
     // the operator cannot recover from by pasting.
     //
-    // ★ THE CUT PATH GOES THROUGH `cut_selection`, and it did not used to.
+    // THE CUT PATH GOES THROUGH `cut_selection`, and it did not used to.
     // This handler called `copy_selection` and then `delete_objects` -- which
     // takes OBJECT indices only. `--annotations 0 --cut out.pdf` therefore
     // copied the annotation, left it on the page, and printed `cut=1`. The
@@ -40614,7 +40614,7 @@ fn cmd_object_copy(args: &ObjectCopyArgs<'_>) -> u8 {
     // that -- so if the answer ever becomes conditional again, a test fails
     // and leads here.
     //
-    // ★ The comment this replaces said "it no longer fires" and gave a
+    // The comment this replaces said "it no longer fires" and gave a
     // narrative reason. That was true, and it was the wrong SHAPE: a prose
     // claim about what a branch does is exactly the thing that quietly stops
     // being true when the code under it moves. Naming the test that holds the
@@ -41759,7 +41759,7 @@ fn cmd_export_dxf(args: ExportDxfArgs<'_>) -> u8 {
     //     pdfcer might not know the scale when it demonstrably does is the
     //     shape of disclosure that gets learned past and then ignored when
     //     it matters;
-    //   * ★ the 1 was DERIVED, not typed. This third clause was missing
+    //   * the 1 was DERIVED, not typed. This third clause was missing
     //     and it produced a genuinely absurd message: `--scale 1` on an
     //     uncalibrated drawing printed "pdfcer does not know what scale the
     //     drawing is at … pass --scale 2 for 1:2, and so on" — instructing
@@ -42503,7 +42503,7 @@ fn cmd_merge(inputs: &[PathBuf], output: &Path, bookmarks: bool) -> u8 {
 
 /// Implement `pdfcer insert-pages`.
 ///
-/// ★ **This calls `pageops::insert`, NOT `EditSession::insert_pages`**, and
+/// **This calls `pageops::insert`, NOT `EditSession::insert_pages`**, and
 /// the two differ in a way an operator can see: this one **merges**
 /// `/AcroForm`, outlines, named destinations and page labels and writes a
 /// new document; the session verb saves incrementally and merges none of
@@ -42594,7 +42594,7 @@ fn cmd_place_stamp(
         (None, None) => unreachable!("guarded above"),
     };
 
-    // ★ `--at` is Acrobat's click-to-place: the artwork arrives at the size
+    // `--at` is Acrobat's click-to-place: the artwork arrives at the size
     // its author drew it. The size comes from the SOURCE page's crop box --
     // the box a reader displays -- which is the same box the engine maps onto
     // `/Rect`, so a `--at` placement reports `distorted=0` by construction.
@@ -42922,7 +42922,7 @@ fn cmd_scan_offpage(
         }
     }
 
-    // ★ The exit code is a VERDICT ON THE WHOLE RUN, delivered here, after
+    // The exit code is a VERDICT ON THE WHOLE RUN, delivered here, after
     // every file has been scanned. It is not an early stop, and the operator
     // read it as one from the release notes -- which is a wording defect in
     // the notes, fixed, and a reason to say it in the help text too.
@@ -43741,7 +43741,7 @@ mod region_tests {
         assert!(parse_region(" 0 , 0 , 10 , 10 ").is_ok());
     }
 
-    /// ★ The error that matters most is the one an operator CANNOT see in
+    /// The error that matters most is the one an operator CANNOT see in
     /// the output: an origin-and-size quadruple parses as a rectangle and
     /// renders *something*, which is indistinguishable from a blank part
     /// of the page. So it is refused by name, and the message says which
@@ -45196,7 +45196,7 @@ fn cmd_stamp_list(input: &Path) -> u8 {
     let collection = pdfcer_core::stamp_file::read(&doc);
 
     if !collection.is_stamp_file() {
-        // ★ Not an error. "This PDF is not a stamp collection" is a fact about
+        // Not an error. "This PDF is not a stamp collection" is a fact about
         // the file, and a caller scripting over a folder should be able to ask
         // without handling a failure for every ordinary document.
         println!(
@@ -45212,7 +45212,7 @@ fn cmd_stamp_list(input: &Path) -> u8 {
         collection.category.as_deref().unwrap_or("(untitled)"),
         collection.stamps.len()
     );
-    // ★ `page=MISSING` is a claim about the STAMP, so it must not be printed
+    // `page=MISSING` is a claim about the STAMP, so it must not be printed
     // when the reason every index is absent is that the PAGE TREE would not
     // walk (`Pass 290.1`). Said wrongly, it tells an operator his signature
     // stamps are corrupt when the only damaged thing in the file is a page

@@ -99,7 +99,7 @@ fn render(name: &str, options: &RenderOptions) -> RenderedPage {
     pdfcer_render::render_page_with_view(&doc.view(), &pages[0], SCALE, options).expect("renders")
 }
 
-/// ★ THE ANSWER `iccce` ASKED FOR, as an assertion rather than a printout.
+/// THE ANSWER `iccce` ASKED FOR, as an assertion rather than a printout.
 ///
 /// The operand goes into the colorant buffer and comes out of it unchanged.
 /// The composite is therefore an identity here, and any residual difference

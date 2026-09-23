@@ -496,7 +496,7 @@ mod tests {
         }
     }
 
-    /// ★ **A blank operand is a participating ZERO, not an ignored one.**
+    /// **A blank operand is a participating ZERO, not an ignored one.**
     ///
     /// Rule 2, and the single most important behaviour in this module,
     /// because the intuitive reimplementation ("skip what isn't a number")
@@ -557,7 +557,7 @@ mod tests {
         );
     }
 
-    /// ★ **An operand naming a field that does not exist REFUSES.**
+    /// **An operand naming a field that does not exist REFUSES.**
     ///
     /// The sources disagree about Acrobat here, so pdfcer declines to pick.
     /// A refusal is visible; either wrong choice would produce a total that
@@ -591,7 +591,7 @@ mod tests {
         assert_eq!(apply(SimpleOp::Maximum, &[]), None);
     }
 
-    /// ★ **A comma is ambiguous, so by default it is not a number.**
+    /// **A comma is ambiguous, so by default it is not a number.**
     ///
     /// The alternative — `pdf.js`'s first-comma-to-decimal rewrite — turns
     /// an English-locale `1,234` into `1.234`, a thousand-fold error that

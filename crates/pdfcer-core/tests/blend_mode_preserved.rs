@@ -6,7 +6,7 @@
 //! state — is the blend mode a conformant reader uses when compositing that
 //! annotation's appearance onto the page. It changes pixels.
 //!
-//! ★ **ISO 32000-2 AS PRINTED says the opposite.** Its §12.5.2 paragraph
+//! **ISO 32000-2 AS PRINTED says the opposite.** Its §12.5.2 paragraph
 //! lists `BM` among the keys a reader *"shall ignore … when rendering the
 //! appearance dictionary"*, alongside `C`, `IC`, `Border`, `BS`, `CA` and the
 //! rest — company that makes it read as pure metadata. **The PDF Association
@@ -78,7 +78,7 @@ fn blend_mode(s: &EditSession, id: ObjId) -> Option<String> {
     Some(String::from_utf8_lossy(v.as_name()?.as_bytes()).into_owned())
 }
 
-/// ★ The fixture says what this test thinks it says.
+/// The fixture says what this test thinks it says.
 ///
 /// Cheap, and it is the assertion that stops every other assertion here from
 /// becoming vacuous if the generator is ever edited: a fixture that lost its
@@ -95,7 +95,7 @@ fn the_fixture_carries_a_blend_mode_pdfcer_cannot_author() {
     );
 }
 
-/// ★★ Restyling keeps it. This is the route that deleted it.
+/// Restyling keeps it. This is the route that deleted it.
 #[test]
 fn a_restyle_keeps_the_files_blend_mode() {
     let (mut s, id) = darken_square();
@@ -117,7 +117,7 @@ fn a_restyle_keeps_the_files_blend_mode() {
     );
 }
 
-/// ★★ Reshaping keeps it — the same regeneration body, reached by a different
+/// Reshaping keeps it — the same regeneration body, reached by a different
 /// verb, which is exactly how a family member gets missed.
 ///
 /// On the `/Polygon` fixture rather than the `/Square` one, because a square
@@ -170,7 +170,7 @@ fn a_resize_keeps_the_files_blend_mode() {
     assert_eq!(blend_mode(&s, id).as_deref(), Some("Darken"));
 }
 
-/// ★★★ A `/Highlight` that already had `/Darken` is **not retyped** to
+/// A `/Highlight` that already had `/Darken` is **not retyped** to
 /// pdfcer's `/Multiply`.
 ///
 /// This is the only test in this file that proves the *preservation rule* as
@@ -220,7 +220,7 @@ fn a_restyle_does_not_retype_a_highlights_own_blend_mode() {
     );
 }
 
-/// ★★★ And a **resize** does not retype it either.
+/// And a **resize** does not retype it either.
 ///
 /// The twin of the test above, through the other regeneration route, and it
 /// exists for exactly the same reason: sabotaging the resize route's

@@ -117,7 +117,7 @@ fn two_angled_lines_produce_an_angular_dimension() {
         listed.contains("kind=angular"),
         "the FILE must contain an angular ce dimension, got {listed:?}"
     );
-    // ★ And the VALUE must read as an angle, not as a length. An angle routed
+    // And the VALUE must read as an angle, not as a length. An angle routed
     // through the length formatter would be multiplied by the group scale and
     // come back as a plausible, wrong number with no unit.
     assert!(
@@ -126,7 +126,7 @@ fn two_angled_lines_produce_an_angular_dimension() {
     );
 }
 
-/// ★ The operator's checkbox: force the parallel reading, and still be told
+/// The operator's checkbox: force the parallel reading, and still be told
 /// what was overridden.
 ///
 /// A control that hid the number it overrides would be asking for a decision

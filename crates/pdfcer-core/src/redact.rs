@@ -467,7 +467,7 @@ pub struct RedactionReport {
     /// String entries the whole-file residual sweep removed, across every
     /// dictionary in the file (`Pass 284.0`).
     ///
-    /// ★ Counted separately from [`Self::info_strings_scrubbed`] rather than
+    /// Counted separately from [`Self::info_strings_scrubbed`] rather than
     /// folded into it, because they answer different questions. That field
     /// says what the **trailer's `/Info`** carried; this one says what the
     /// rest of the file carried — a superseded `/Info`-shaped dictionary, a
@@ -484,7 +484,7 @@ pub struct RedactionReport {
     /// Abandoned content streams whose text-showing operands were blanked
     /// (`Pass 285.0`).
     ///
-    /// ★ Counted apart from the total because it is the only member of the
+    /// Counted apart from the total because it is the only member of the
     /// sweep that **edits drawing instructions**. The others remove a
     /// metadata string; this one changes what a page would paint if anything
     /// still pointed at it. A shell disclosing "pdfcer edited N objects"
@@ -592,7 +592,7 @@ impl RedactionReport {
     /// the operator must verify a residual manually. A caller (CLI/GUI)
     /// surfaces this loudly.
     ///
-    /// ★ [`CarrierAction::FoundNotScrubbed`] deliberately does NOT count here.
+    /// [`CarrierAction::FoundNotScrubbed`] deliberately does NOT count here.
     /// This method drives the CLI's non-zero exit and its
     /// `--acknowledge-residuals` override, and that contract means *"pdfcer
     /// could not finish the job"*. A carrier left alone because the operator
@@ -652,7 +652,7 @@ struct Surgeon<'a> {
     edits: Vec<Edit>,
     /// Removed text accumulated per REGION index (`Pass 286.0`).
     ///
-    /// ★ This **replaced** a `removed_text: Vec<String>` that pushed one entry
+    /// This **replaced** a `removed_text: Vec<String>` that pushed one entry
     /// per rewritten show operator. That is the wrong unit on a producer which
     /// draws one glyph per `Tj`: the report then carried single characters,
     /// and a consumer grepping the output for them found the alphabet rather
@@ -1251,7 +1251,7 @@ impl<'a> Surgeon<'a> {
             trm.apply(w0, GLYPH_BOX_ASCENT),
         ];
         let (min_x, min_y, max_x, max_y) = aabb(&corners);
-        // ★ `Pass 286.0`: the INDEX of the first region this glyph lands in,
+        // `Pass 286.0`: the INDEX of the first region this glyph lands in,
         // not merely whether it lands in one. The index is what lets removed
         // text be grouped per MARK instead of per show operator -- see
         // `Surgeon::removed_by_region`. `position` rather than `any` is the
@@ -1408,7 +1408,7 @@ impl<'a> Surgeon<'a> {
                 // sentinel is fixed to the length-preserving, visible one
                 // so the record cannot understate the removal.
                 let (chars, _) = font.to_unicode(*code_val, UnmappableCode::ReplacementChar);
-                // ★ `Pass 286.0`: ALSO accumulate against the region this
+                // `Pass 286.0`: ALSO accumulate against the region this
                 // glyph landed in, so the report can carry the words a mark
                 // covered rather than one entry per show operator. A producer
                 // that draws one glyph per `Tj` -- GPL Ghostscript 8.15 does,
@@ -1969,7 +1969,7 @@ pub fn apply_redactions_with(
         }
         let mut retain: BTreeSet<ObjId> = BTreeSet::new();
         for hit in &hits {
-            // ★★ SKIP THE DECODABILITY TEST FOR A PLACEMENT THAT COVERS NO
+            // SKIP THE DECODABILITY TEST FOR A PLACEMENT THAT COVERS NO
             // SAMPLE CELL (`Pass 294.2`).
             //
             // `blocker` answers "can this image's samples be destroyed?" by
@@ -1985,7 +1985,7 @@ pub fn apply_redactions_with(
             // 59 s on the operator's own file; the placements were never
             // touched afterwards.
             //
-            // ★ Skipping the test cannot hide an undestroyable image: an image
+            // Skipping the test cannot hide an undestroyable image: an image
             // that covers no cell is not in the way of anything. `blocker`'s
             // purpose is to retain a mark whose content SURVIVES, and no
             // content survives here because none was going to be removed.
@@ -2128,7 +2128,7 @@ pub fn apply_redactions_with(
         estimated_fonts.extend(result.estimated_fonts);
         report.glyphs_removed += result.glyphs_removed;
         report.show_operators_edited += result.ops_edited;
-        // ★★ `Pass 286.0`: publish the text a MARK covered, not the text one
+        // `Pass 286.0`: publish the text a MARK covered, not the text one
         // show operator carried.
         //
         // `red.box_marks` maps region index -> the `/Redact` annotation that
@@ -2325,7 +2325,7 @@ pub fn apply_redactions_with(
     );
     carrier_detect_disclose(doc, form_intersect_any, images_seen, &mut report);
 
-    // ★ LAST of the scrubbing carriers, and the order is load-bearing: this
+    // LAST of the scrubbing carriers, and the order is load-bearing: this
     // one reads each object's EFFECTIVE value, so it must run after every
     // carrier that can replace one. Running it earlier would make it re-report
     // content the `/Info` and XMP passes were about to remove.
@@ -2951,7 +2951,7 @@ fn redaction_runs(redacted: &[String]) -> Vec<String> {
 /// (over-scrub: drop the whole entry). The scrub rides the forced full
 /// rewrite, so the old `/Info` object's bytes do not survive.
 ///
-/// # ★★ What "quotes redacted content" means, and why it was wrong
+/// # What "quotes redacted content" means, and why it was wrong
 ///
 /// It used to mean *"the entry's bytes contain a redacted run"*. That is
 /// one-directional and producer-dependent — see [`redaction_evidence`] for the
@@ -3128,7 +3128,7 @@ fn carrier_xmp(
 /// content stream, an `/Info`-shaped dictionary the trailer no longer names, a
 /// second XMP packet — all re-emitted intact while the report said `scrubbed`.
 ///
-/// # ★★ Why this sweep does NOT compute reachability
+/// # Why this sweep does NOT compute reachability
 ///
 /// It would be natural to define the gap as "objects the graph does not
 /// reach" and act on those. **This function deliberately does not**, for two
@@ -3157,7 +3157,7 @@ fn carrier_xmp(
 /// semantics** — an outline, a structure tree, or every compressed object in
 /// the document, gone, with nothing to notice.
 ///
-/// ★ That is not a theoretical risk. `examples/unreachable_census.rs` — this
+/// That is not a theoretical risk. `examples/unreachable_census.rs` — this
 /// project's own probe, written the same hour by the same engineer who had
 /// just read the clause — **made that exact error twice**, first counting
 /// every object stream as an orphan and then every cross-reference stream.
@@ -3174,7 +3174,7 @@ fn carrier_xmp(
 /// | a stream declaring `/Type /Metadata` | **scrubbed** (blanked, re-emitted raw) | §14.3.2 NOTE 3 says an XMP packet is designed to be found *"by simple scanning rather than requiring the document file to be parsed"* — reachability is irrelevant to its exposure **by design** |
 /// | any other stream carrying evidence | **disclosed, not scrubbed** | blanking bytes inside a font programme or an image would corrupt content on a coincidence; the honest answer is to name the object |
 ///
-/// ★ **Scrubbing every dictionary's strings also closes two carriers nobody
+/// **Scrubbing every dictionary's strings also closes two carriers nobody
 /// filed.** A **thread information dictionary** (a thread's `/I`) *"shall
 /// conform to the syntax for the document information dictionary"* (Table 160)
 /// — it is live, reachable, unambiguously metadata by the standard's own
@@ -3192,7 +3192,7 @@ fn carrier_residual_sweep(
     dirty: &mut crate::writer::DirtySet,
     report: &mut RedactionReport,
 ) {
-    // ★ TWO DIFFERENT EMPTY ANSWERS, and collapsing them was a real defect.
+    // TWO DIFFERENT EMPTY ANSWERS, and collapsing them was a real defect.
     //
     // `redacted` empty means NO TEXT WAS REDACTED AT ALL — an image-only or
     // vector-only redaction. There is nothing for a text sweep to look for,
@@ -3225,7 +3225,7 @@ fn carrier_residual_sweep(
     // sweep must see each object's state as the earlier carriers left it.
     let ids: Vec<ObjId> = doc.objects().map(|io| io.id).collect();
 
-    // ★ TWO NEEDLE SETS, AND WHICH ONE A CARRIER GETS IS THE WHOLE POINT OF
+    // TWO NEEDLE SETS, AND WHICH ONE A CARRIER GETS IS THE WHOLE POINT OF
     // `ResidualScope`. `evidence` is tokenized and goes to invisible carriers;
     // `runs` is whole phrases only and goes to drawable content. See
     // [`redaction_runs`] for the measurement that separated them.
@@ -3281,7 +3281,7 @@ fn carrier_residual_sweep(
                     removed = 0;
                 }
 
-                // ★ A STAGED SPAN DOES NOT INDEX THE BASE BUFFER. `stage`
+                // A STAGED SPAN DOES NOT INDEX THE BASE BUFFER. `stage`
                 // allocates at `base_len + staging.len()`, so a stream an
                 // earlier carrier already replaced — or that the content
                 // surgery rewrote — has a span past the end of `doc.bytes()`.
@@ -3298,7 +3298,7 @@ fn carrier_residual_sweep(
                 } else {
                     span.slice(doc.bytes()).unwrap_or(&[])
                 };
-                // ★★ AN IMAGE'S SAMPLES ARE NOT SWEPT, AND THE DECODE IS
+                // AN IMAGE'S SAMPLES ARE NOT SWEPT, AND THE DECODE IS
                 // SKIPPED WITH THEM (`Pass 294.2`).
                 //
                 // This sweep looks for a redacted STRING surviving somewhere
@@ -3316,7 +3316,7 @@ fn carrier_residual_sweep(
                 // nothing actionable. Measured on the operator's file while he
                 // waited for a batch.
                 //
-                // ★ Nothing is lost. Text that is PICTURED in an image was
+                // Nothing is lost. Text that is PICTURED in an image was
                 // never byte-matchable, and text stored as bytes among the
                 // samples is not recoverable text. The stream's DICTIONARY is
                 // still scrubbed above, which is where a string can legitimately
@@ -3345,7 +3345,7 @@ fn carrier_residual_sweep(
                     matches_left += 1;
                     left_objects.push(format!("{} {}", id.num, id.generation));
                 } else if carries_drawn && !is_metadata && !scope.blanks_content_streams() {
-                    // ★★ THE DEFECT THIS PASS EXISTS TO FIX.
+                    // THE DEFECT THIS PASS EXISTS TO FIX.
                     //
                     // This branch is where an unmarked page used to lose its
                     // text. The sweep has no liveness test — it cannot tell a
@@ -3631,7 +3631,7 @@ fn blank_show_strings(decoded: &[u8], evidence: &[String]) -> Option<Vec<u8>> {
             let Some(slice) = out.get_mut(span.start..end) else {
                 continue;
             };
-            // ★★★ ONLY THE STRING PARTS OF THE OPERAND MAY BE TOUCHED, AND
+            // ONLY THE STRING PARTS OF THE OPERAND MAY BE TOUCHED, AND
             // NOT KNOWING THAT PRODUCED FILES pdfcer COULD NOT READ.
             //
             // This loop used to fill matched bytes with `X` across the WHOLE
@@ -3656,7 +3656,7 @@ fn blank_show_strings(decoded: &[u8], evidence: &[String]) -> Option<Vec<u8>> {
             // `X` inside a literal `(…)`, `0` inside a hex `<…>`. Numbers,
             // brackets and whitespace are left exactly as they were.
             //
-            // ★ The bug it replaces was in the RESIDUAL sweep -- the
+            // The bug it replaces was in the RESIDUAL sweep -- the
             // belt-and-braces pass that blanks copies of already-removed text
             // surviving elsewhere. The surgery that removes the redacted
             // glyphs was correct throughout. A safety net that corrupts the
@@ -5116,7 +5116,7 @@ mod tests {
         );
     }
 
-    /// ★★★ A METADATA STRING SHORTER THAN THE REDACTED RUN. The old rule could
+    /// A METADATA STRING SHORTER THAN THE REDACTED RUN. The old rule could
     /// not see this, and reported `scrubbed` anyway (`Pass 282.0`).
     ///
     /// The page run is `PROJECT ORION BUDGET`; `/Keywords` is just `ORION`.
@@ -5147,7 +5147,7 @@ mod tests {
             ],
             "/Info 6 0 R",
         );
-        // ★★ MARKED BY RECTANGLE, NOT BY SEARCH, AND THAT IS THE WHOLE TEST.
+        // MARKED BY RECTANGLE, NOT BY SEARCH, AND THAT IS THE WHOLE TEST.
         //
         // The first version searched for "ORION", so the removed run WAS
         // "ORION" — which `/Keywords (ORION)` contains, so the old containment
@@ -5178,7 +5178,7 @@ mod tests {
         assert!(contains(&out, b"Nobody"));
     }
 
-    /// ★★ A ONE-CHARACTER REDACTION SCRUBS NOTHING, AND SAYS SO.
+    /// A ONE-CHARACTER REDACTION SCRUBS NOTHING, AND SAYS SO.
     ///
     /// With no floor, *"does `/Keywords` contain `X`?"* is true of almost every
     /// document, and the scrub empties the dictionary on a coincidence. That is
@@ -5243,7 +5243,7 @@ mod tests {
     /// A present, checked, genuinely clean `/Info` is `checked_clean` — not
     /// `absent`, which is what this branch reported before `Pass 282.0`.
     ///
-    /// ★ Three different facts, and the old code collapsed two of them: *there
+    /// Three different facts, and the old code collapsed two of them: *there
     /// is no such dictionary*, *there is one and it carries nothing redacted*,
     /// and *there is one and pdfcer removed something from it*. A shell that
     /// tells an operator "nothing to do" when the truth is "checked, clean"

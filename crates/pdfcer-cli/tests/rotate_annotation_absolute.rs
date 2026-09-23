@@ -120,7 +120,7 @@ fn rotate(input: &Path, index: usize, degrees: &str, absolute: bool, out_path: &
 /// so it has an orientation to read — which is what `--absolute` requires.
 const STAMP: usize = 0;
 
-/// ★★ The property the flag exists for, and the one a delta verb cannot
+/// The property the flag exists for, and the one a delta verb cannot
 /// have. If `--absolute` were parsed and dropped on the floor, the second
 /// run would apply another 45° and this would fail.
 #[test]

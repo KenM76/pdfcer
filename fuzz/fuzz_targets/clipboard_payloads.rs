@@ -68,7 +68,7 @@ fuzz_target!(|data: &[u8]| {
     // -- the object clipboard (Pass 120.1) --------------------------------
     if let Ok(clip) = ObjectClip::from_bytes(data) {
         let bytes = clip.to_bytes();
-        // ★ NOW COMPARED. Until `Pass 169.0` this was deliberately not
+        // NOW COMPARED. Until `Pass 169.0` this was deliberately not
         // checked, because `to_bytes` dropped the annotations payload and a
         // mismatch was the format's stated limit rather than a defect.
         // Version 2 carries them, so the format is TOTAL and a round trip

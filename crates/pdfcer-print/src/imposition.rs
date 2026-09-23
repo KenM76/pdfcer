@@ -16,7 +16,7 @@
 //! list of page sizes in points, and returns rectangles. It rasterises
 //! nothing, opens no device, and names no platform type.
 //!
-//! ## ★ Why there is not one `cfg(windows)` in this file
+//! ## Why there is not one `cfg(windows)` in this file
 //!
 //! The crate note above [`crate::place_page`] says the geometry half of
 //! this crate stays un-gated so it compiles **and its tests run** on the
@@ -777,7 +777,7 @@ fn resolve_grid(
 /// Which edge the finished booklet is bound on, and therefore how a sheet
 /// is split.
 ///
-/// # ★ What the source does and does not say
+/// # What the source does and does not say
 ///
 /// Sourced: the four values exist, `Left` is the documented default
 /// (book-style, for left-to-right reading text), and the "(Tall)" variants
@@ -989,7 +989,7 @@ pub struct BookletSheet {
 /// front `6 | 3`, back `4 | 5`. Fold the stack and the pages read 1
 /// through 8.
 ///
-/// # ★ Why the front and back put the outer page on opposite halves
+/// # Why the front and back put the outer page on opposite halves
 ///
 /// This is the part that gets written wrong. On the front side the outer
 /// page (`8`) is on the LEFT and the inner page (`1`) on the right. Turn
@@ -1858,7 +1858,7 @@ mod n_up_tests {
         assert!(layout.slots.iter().all(|s| s.border.is_none()));
     }
 
-    /// ★ A pages-per-sheet COUNT resolves to the factor pair that places
+    /// A pages-per-sheet COUNT resolves to the factor pair that places
     /// the page largest — which for 2-up on a portrait sheet is two
     /// stacked, turned pages.
     ///
@@ -2026,7 +2026,7 @@ mod booklet_tests {
             .collect()
     }
 
-    /// ★ Eight pages is the textbook imposition, and the case every other
+    /// Eight pages is the textbook imposition, and the case every other
     /// booklet test is a variation on.
     ///
     /// Front of sheet 1 is `8 | 1`; its back is `2 | 7`. **The outer page
@@ -2085,7 +2085,7 @@ mod booklet_tests {
         );
     }
 
-    /// ★ Five pages takes TWO sheets, and its three blanks are spread
+    /// Five pages takes TWO sheets, and its three blanks are spread
     /// across both — not grouped onto the last one.
     ///
     /// This is the non-multiple-of-four case that catches a padding bug
@@ -2128,7 +2128,7 @@ mod booklet_tests {
         );
     }
 
-    /// ★ Every source page appears exactly once, at every count from 1 to
+    /// Every source page appears exactly once, at every count from 1 to
     /// 40, under every binding.
     ///
     /// The invariant that makes the pairing arithmetic trustworthy beyond
@@ -2299,7 +2299,7 @@ mod booklet_tests {
         assert_eq!(both.slots.len(), front.slots.len() + back.slots.len());
     }
 
-    /// ★ The sheet range selects PHYSICAL SHEETS, not document pages.
+    /// The sheet range selects PHYSICAL SHEETS, not document pages.
     ///
     /// Sheets 1–1 of a 20-page booklet is the outermost sheet, carrying
     /// document pages 20, 1, 2 and 19 — the cover stock. Reading the range
@@ -2483,7 +2483,7 @@ mod poster_tests {
         );
     }
 
-    /// ★ Overlap shortens the stride, and a stride shorter than the sheet
+    /// Overlap shortens the stride, and a stride shorter than the sheet
     /// can need an extra tile.
     ///
     /// A poster exactly two sheets wide needs THREE tiles once the sheets
@@ -2548,7 +2548,7 @@ mod poster_tests {
         );
     }
 
-    /// ★ Tile scale multiplies the poster BEFORE tiling, and the source
+    /// Tile scale multiplies the poster BEFORE tiling, and the source
     /// rectangles are divided back through it.
     ///
     /// Two mistakes hide here. Applying the scale after computing the grid
@@ -2631,7 +2631,7 @@ mod poster_tests {
         assert!(layout.tiles.iter().all(|t| t.trim_pt == t.sheet_pt));
     }
 
-    /// ★ "Tile only large pages" is measured AFTER the tile scale.
+    /// "Tile only large pages" is measured AFTER the tile scale.
     ///
     /// A 200-point page at 800% is a 1600-point poster and must be tiled,
     /// even though its MediaBox is smaller than the paper. Testing the

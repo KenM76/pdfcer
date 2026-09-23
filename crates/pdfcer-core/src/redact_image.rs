@@ -198,7 +198,7 @@ fn placement_bbox(ctm: Mat) -> (f64, f64, f64, f64) {
 /// Is the whole placement covered by the regions — by ONE of them, or by
 /// their UNION?
 ///
-/// # ★★ The union half was missing, and it left content the scan still reports
+/// # The union half was missing, and it left content the scan still reports
 ///
 /// This tested `any()` against a single region until `Pass 297.0`, with a note
 /// saying a placement covered only by the union "is cleared cell by cell
@@ -225,7 +225,7 @@ fn placement_bbox(ctm: Mat) -> (f64, f64, f64, f64) {
 /// handful of axis-aligned regions this is a few dozen point tests, run once
 /// per placement on a path that is already about to decode an image.
 ///
-/// ★ The single-region case is kept as a fast path, not because it is faster
+/// The single-region case is kept as a fast path, not because it is faster
 /// in any way that matters, but because it is the case a reader checks first
 /// and it should be legible without following the compression.
 pub(crate) fn wholly_covered(ctm: Mat, regions: &[RegionBox]) -> bool {
@@ -1185,7 +1185,7 @@ pub(crate) fn plan_page(
                 }
                 // Partial: a clone with this placement's cells cleared.
                 //
-                // ★ The cell test comes FIRST (`Pass 294.2`): `cache.get`
+                // The cell test comes FIRST (`Pass 294.2`): `cache.get`
                 // decodes the whole image, and a placement that merely grazes
                 // a region covers no cell and needs no clone. With the
                 // off-page bands, which ring the page, this is the difference
@@ -1320,7 +1320,7 @@ fn dim_of(view: &DocumentView<'_>, dict: &Dict, key: &[u8]) -> u32 {
 /// Whether any region covers at least one SAMPLE CELL of an image with these
 /// declared dimensions — decided from the dictionary alone (`Pass 294.2`).
 ///
-/// # ★★ Why this exists: a decode that was always going to be thrown away
+/// # Why this exists: a decode that was always going to be thrown away
 ///
 /// [`plan_page`] decoded first and asked [`clear_regions`] second, and that
 /// function answers `None` for a placement which touches a region's bounding
@@ -1339,7 +1339,7 @@ fn dim_of(view: &DocumentView<'_>, dict: &Dict, key: &[u8]) -> u32 {
 /// `/Height`, all of which are in the dictionary. Nothing about the samples is
 /// consulted, so the check simply moves in front of the decode.
 ///
-/// ★ Conservative by construction: unreadable dimensions answer `true` and the
+/// Conservative by construction: unreadable dimensions answer `true` and the
 /// old path runs. A missing `/Width` must never become a reason to skip a
 /// redaction — this is an optimisation, and an optimisation that can decline
 /// to remove content is a correctness bug wearing a stopwatch.
@@ -1683,7 +1683,7 @@ mod tests {
         assert!(wholly_covered(ctm, &[region(0.0, 0.0, 2000.0, 2000.0)]));
         assert!(!wholly_covered(ctm, &[region(60.0, 110.0, 120.0, 140.0)]));
 
-        // ★★ TWO REGIONS THAT TOGETHER COVER IT NOW COUNT (`Pass 297.0`).
+        // TWO REGIONS THAT TOGETHER COVER IT NOW COUNT (`Pass 297.0`).
         //
         // This assertion used to read `!wholly_covered(..)`, with the comment
         // "Two regions that together cover it do not count." It was PINNING
@@ -1693,7 +1693,7 @@ mod tests {
         // operator was told the removal had not worked when the pixels were
         // gone. 17 of 174 of the operator's drawings, 23 objects.
         //
-        // ★ The tell that it was a defect and not a decision: the assertion
+        // The tell that it was a defect and not a decision: the assertion
         // and the doc comment agreed with each other and with the code, and
         // neither agreed with what a re-scan of the OUTPUT said. A test that
         // states the behaviour is not a test that states the behaviour is

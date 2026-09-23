@@ -32,7 +32,7 @@
 //! and `::reply_type` have modelled `/IRT` and `/RT` since `Pass 38.5` and
 //! nothing could write them.
 //!
-//! ## ★ The blocker was a READER, and it had already shipped
+//! ## The blocker was a READER, and it had already shipped
 //!
 //! `annot_author::text_spec_from_dict` landed earlier the same day in
 //! `Pass 258.1`, for the `/FreeText` note re-bake. That request predicted it
@@ -105,7 +105,7 @@ fn one(list: &[Annotation], id: ObjId) -> &Annotation {
 // The read half — ranked by the requester as the highest-value item
 // ---------------------------------------------------------------------------
 
-/// ★ `/C` reads back, as raw components, on every subtype.
+/// `/C` reads back, as raw components, on every subtype.
 #[test]
 fn the_colour_reads_back_as_raw_components() {
     let mut s = session();
@@ -230,7 +230,7 @@ fn sticky_icon_round_trips_through_its_own_names() {
 // The write half
 // ---------------------------------------------------------------------------
 
-/// ★ **THE DEFECT.** A placed note's icon changes, keeping its identity.
+/// **THE DEFECT.** A placed note's icon changes, keeping its identity.
 #[test]
 fn a_placed_notes_icon_can_be_changed() {
     let mut s = session();
@@ -334,7 +334,7 @@ fn an_icon_on_a_stamp_is_refused_by_name() {
 // Replies
 // ---------------------------------------------------------------------------
 
-/// ★ A thread can be continued: `/IRT` + `/RT /R`, authored.
+/// A thread can be continued: `/IRT` + `/RT /R`, authored.
 #[test]
 fn a_reply_can_be_authored() {
     let mut s = session();
@@ -382,7 +382,7 @@ fn a_reply_inherits_the_parents_colour() {
     );
 }
 
-/// ★ The pop-up disclosure the requester asked for by name.
+/// The pop-up disclosure the requester asked for by name.
 #[test]
 fn the_report_says_which_popups_exist() {
     let mut s = session();
@@ -461,7 +461,7 @@ fn replying_to_a_ce_dimension_is_refused() {
 // Review status — /State + /StateModel (§12.5.6.3)
 // ---------------------------------------------------------------------------
 
-/// ★ A status is a SEPARATE annotation pointing at the target, not a key on
+/// A status is a SEPARATE annotation pointing at the target, not a key on
 /// it — §12.5.6.3 says so with a `shall`.
 #[test]
 fn a_review_state_is_a_separate_annotation_referring_by_irt() {
@@ -489,7 +489,7 @@ fn a_review_state_is_a_separate_annotation_referring_by_irt() {
     assert_eq!(st.title.as_deref(), Some("Ken"));
 }
 
-/// ★ `/State` is a TEXT STRING, not a name. Writing `/Accepted` would be a
+/// `/State` is a TEXT STRING, not a name. Writing `/Accepted` would be a
 /// different object type and would not compare equal in any reader.
 #[test]
 fn the_state_keys_are_text_strings_not_names() {
@@ -540,7 +540,7 @@ fn the_state_model_is_derived_from_the_state() {
     );
 }
 
-/// ★★ A SECOND status by the same author chains onto their own previous
+/// A SECOND status by the same author chains onto their own previous
 /// one, not onto the target. §12.5.6.3's closing `shall`.
 #[test]
 fn a_second_status_by_the_same_author_chains_onto_the_first() {
@@ -686,7 +686,7 @@ fn painted(s: &EditSession, id: ObjId) -> String {
     .into_owned()
 }
 
-/// ★ **DEFECT 1.** Changing only the COLOUR of a wrapped text box must not
+/// **DEFECT 1.** Changing only the COLOUR of a wrapped text box must not
 /// un-wrap it.
 ///
 /// `text_spec_from_dict` always reports `multiline: false` — §12.5.6.6 gives
@@ -745,7 +745,7 @@ fn recolouring_a_single_line_free_text_keeps_it_single_line() {
     assert_eq!(painted(&s, id).matches("Tj").count(), 1);
 }
 
-/// ★ **DEFECT 2.** Changing only the COLOUR of a note whose icon pdfcer does
+/// **DEFECT 2.** Changing only the COLOUR of a note whose icon pdfcer does
 /// not model must not rewrite that icon to `/Note`.
 #[test]
 fn recolouring_a_note_preserves_an_icon_pdfcer_does_not_model() {

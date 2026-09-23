@@ -187,7 +187,7 @@ fn rect_size(doc: &Document, id: ObjId) -> (f64, f64) {
 // 1. THE OPERATOR'S BUG, MEASURED AT ITS MECHANISM
 // ---------------------------------------------------------------------------
 
-/// ★★ The appearance's drawn scale stays 1.0 however many times the verb
+/// The appearance's drawn scale stays 1.0 however many times the verb
 /// runs.
 ///
 /// 24 turns is included on purpose: the defect compounded multiplicatively,
@@ -224,7 +224,7 @@ fn the_artwork_is_never_scaled_however_many_times_it_turns() {
 /// it, in the direction and roughly the magnitude `pdfcer-gui` reported from
 /// pixels.
 ///
-/// ★ **The route assertion was added after a sabotage survived.** Disabling
+/// **The route assertion was added after a sabotage survived.** Disabling
 /// the artwork rule entirely left this test GREEN, because the triangle also
 /// carries `/Vertices` and quietly fell through to the geometry rule — which
 /// composes too, so the A/B still held. The test was measuring *"some rule
@@ -413,7 +413,7 @@ fn the_rotation_angle_can_be_read_back_from_the_annotation() {
 // 4. CLOCKWISE. Half the number line, and until now none of it was tested.
 // ---------------------------------------------------------------------------
 
-/// ★★ A clockwise rotation reports a NEGATIVE angle, and composes.
+/// A clockwise rotation reports a NEGATIVE angle, and composes.
 ///
 /// # Why this test exists, and it is not symmetry-for-its-own-sake
 ///

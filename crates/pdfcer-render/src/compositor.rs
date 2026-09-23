@@ -151,7 +151,7 @@ pub enum Blend {
 /// > applied** and the results of the function **shall then be
 /// > complemented back before being used**."
 ///
-/// # ★ The measurement that makes this the leading item of `Pass 97.1`
+/// # The measurement that makes this the leading item of `Pass 97.1`
 ///
 /// Getting it wrong is not a shade of difference. Worked by hand on suite
 /// `PCS1_162`'s `Difference` cell, whose two operands are printed in the
@@ -426,7 +426,7 @@ fn blend_separable(mode: Blend, cb: f32, cs: f32) -> f32 {
         // `blend_spots`, which screens `NonSeparable` out before this is
         // called (§11.7.4.2). See the Panics note.
         //
-        // ★ Answering `cs` rather than panicking makes this arm a SECOND,
+        // Answering `cs` rather than panicking makes this arm a SECOND,
         // accidental enforcement of §11.7.4.2 -- `cs` is exactly what
         // `Normal` would give. Established by sabotage, not by reading:
         // removing `blend_spots`'s guard leaves behaviour unchanged
@@ -525,7 +525,7 @@ impl Pixel {
 ///
 /// `backdrop` is `⟨C_(i−1), α_(i−1)⟩`, `source` is `⟨C_si, α_si⟩`.
 ///
-/// # ★ The bug this function exists to make unrepresentable
+/// # The bug this function exists to make unrepresentable
 ///
 /// Both hand-written composites `Pass 85.4b` shipped computed
 ///
@@ -617,7 +617,7 @@ pub struct PixelCmyk {
     /// (`Pass 217.0`). Unused entries are `0.0` — "no ink", which is the
     /// correct value for a colorant this page never names.
     ///
-    /// ★ A fixed array HERE and a `Vec` in the buffer, because they answer
+    /// A fixed array HERE and a `Vec` in the buffer, because they answer
     /// different questions. `PixelCmyk` is a TRANSIENT value — one pixel in
     /// flight — so a fixed array keeps it `Copy` and costs nothing that
     /// survives the call. The buffer is per-page STORAGE where an unused plane
@@ -637,7 +637,7 @@ pub struct PixelCmyk {
 /// not cover fall back to the flattening that predates this — disclosed, not
 /// silent.
 ///
-/// ★★ MEMORY is what sets the number, not the census. Each plane costs 4 bytes
+/// MEMORY is what sets the number, not the census. Each plane costs 4 bytes
 /// per pixel on top of the existing 20, and a 300 DPI US-Letter page with four
 /// spot planes needs **289 MiB** against the 256 MiB default buffer ceiling —
 /// so it would be REFUSED outright. That measurement is why planes are
@@ -648,7 +648,7 @@ pub const MAX_SPOTS: usize = 4;
 impl PixelCmyk {
     /// A fully transparent pixel.
     ///
-    /// ★ **Its colour is `[0,0,0,0]` — NO INK — and that is deliberately
+    /// **Its colour is `[0,0,0,0]` — NO INK — and that is deliberately
     /// NOT what a zeroed `DeviceCMYK` buffer should be initialised to.**
     /// §8.6.4.4 gives `DeviceCMYK` an initial colour of `[0 0 0 1]`, so a
     /// `memset(0)` over a CMYK buffer yields **white**, not black, and
@@ -715,7 +715,7 @@ pub fn composite_element_cmyk(backdrop: PixelCmyk, source: PixelCmyk, blend: Ble
 /// four process channels — `C_s' = (1 - α_b) × C_s + α_b × B(C_b, C_s)`,
 /// per §11.3.6 — with one substitution that is a `shall`, not a choice.
 ///
-/// # ★★ §11.7.4.2: a spot colorant takes SEPARABLE blend modes only
+/// # §11.7.4.2: a spot colorant takes SEPARABLE blend modes only
 ///
 /// The clause is normative and unambiguous: only **separable,
 /// white-preserving** blend modes may be applied to a spot colour. A
@@ -733,7 +733,7 @@ pub fn composite_element_cmyk(backdrop: PixelCmyk, source: PixelCmyk, blend: Ble
 /// be extended over spot planes even if the clause permitted it — the arm
 /// is structurally CMYK-only.
 ///
-/// ## ★ This guard is the SECOND enforcement, not the only one — measured
+/// ## This guard is the SECOND enforcement, not the only one — measured
 ///
 /// Deleting the `NonSeparable` arm from the test below changes **nothing
 /// observable**, and that was established by sabotage rather than assumed:
@@ -819,7 +819,7 @@ fn blend_spots(blend: Blend, backdrop: PixelCmyk, source: PixelCmyk, ab: f32) ->
 /// in any group that is subsequently used as an element of a knockout
 /// group."*
 ///
-/// ★ **And it is why a fixture of opaque fills proves nothing.** At
+/// **And it is why a fixture of opaque fills proves nothing.** At
 /// `q_s = 1` this function and [`composite_element`] agree exactly, so an
 /// all-opaque test passes under both the correct and the collapsed model.
 /// Any knockout test must set `/ca < 1`.
@@ -1068,7 +1068,7 @@ mod tests {
         assert!((union_(1.0, 0.3) - 1.0).abs() < EPS);
     }
 
-    /// ★ THE REGRESSION THIS MODULE WAS WRITTEN FOR.
+    /// THE REGRESSION THIS MODULE WAS WRITTEN FOR.
     ///
     /// Compositing **anything** onto a fully transparent backdrop must give
     /// back the source colour unchanged, for **every** blend mode. The
@@ -1308,7 +1308,7 @@ mod tests {
         assert!((blend_separable(Blend::Difference, 0.9, 0.2) - 0.7).abs() < EPS);
     }
 
-    /// ★★★ **THE CASE `Pass 97.1` EXISTS FOR, worked from a real file
+    /// **THE CASE `Pass 97.1` EXISTS FOR, worked from a real file
     /// rather than from a formula.**
     ///
     /// suite `PCS1_162`'s `Difference` cell prints both its operands: a
@@ -1346,7 +1346,7 @@ mod tests {
         );
     }
 
-    /// ★ `Multiply` and `Screen` **swap** under the complement, and so do
+    /// `Multiply` and `Screen` **swap** under the complement, and so do
     /// `Darken` and `Lighten`.
     ///
     /// `1 − Screen(1−cb, 1−cs) = 1 − [(1−cb) + (1−cs) − (1−cb)(1−cs)] =

@@ -173,7 +173,7 @@ pub fn build(
         return Ok(());
     }
 
-    // ★ RE-POINT CROSS-FILE BOOKMARKS FIRST, then prune. A table-of-
+    // RE-POINT CROSS-FILE BOOKMARKS FIRST, then prune. A table-of-
     // contents entry that opens `chapter1.pdf` has no page in its OWN
     // source, so pruning would discard it before anything had a chance to
     // notice that `chapter1.pdf` is sitting in this very merge. Order is
@@ -435,7 +435,7 @@ fn read_external_link<G: crate::graph::ObjectGraph + ?Sized>(
 /// Re-point every cross-file bookmark whose target file is **also one of
 /// the sources being merged**.
 ///
-/// # ★ Why this exists
+/// # Why this exists
 ///
 /// A table-of-contents PDF's bookmarks open the other PDFs in the folder.
 /// Merging those files into one document makes every one of those targets

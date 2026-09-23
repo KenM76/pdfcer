@@ -42,7 +42,7 @@
 //!   so is its error message.** Caught by reading the probe's output, not by
 //!   any assertion, and recorded on the variant itself.
 //!
-//! # ★ EIGHT of the twenty cases are CONTROLS — 12 hostile + 8 control
+//! # EIGHT of the twenty cases are CONTROLS — 12 hostile + 8 control
 //!
 //! Every one of these verbs has a legitimate success path, and a "fix" that
 //! refused everything would pass all twelve hostile cases. The controls are
@@ -51,7 +51,7 @@
 //! a *count* rather than on `Ok`, because a guard that silently skipped every
 //! target would otherwise look identical to one that worked.
 //!
-//! ★ That split is **measured, not asserted**: neutering the three guards
+//! That split is **measured, not asserted**: neutering the three guards
 //! reddens exactly the twelve and leaves the eight green
 //! (`cargo test --release -p pdfcer-core --test deletion_collateral_structural`
 //! under sabotage). Per `R239` the figure above is one a reader can re-derive —
@@ -169,7 +169,7 @@ fn delete_dimension_does_not_delete_a_sidecar_annot_that_is_structural() {
     assert_document_survived(&s, "delete_dimension /Annot");
 }
 
-/// ★ CONTROL: an ordinary ce dimension still deletes.
+/// CONTROL: an ordinary ce dimension still deletes.
 #[test]
 fn delete_dimension_control_still_works() {
     let mut s = session("dim-sidecar-control.pdf");
@@ -180,7 +180,7 @@ fn delete_dimension_control_still_works() {
 
 // ============ SITE 2 — regenerate_dimension_writes, via a LABEL EDIT ==========
 
-/// ★★★ THE HEADLINE OF THIS PASS. `set_dimension_label` is the least
+/// THE HEADLINE OF THIS PASS. `set_dimension_label` is the least
 /// destructive-looking verb in the whole set — it renames a caption — and it
 /// reaches `regenerate_dimension_writes`, which **overwrites** whatever object
 /// the sidecar's `/Ap` names. Measured before the fix: `Ok(changed=true)`, and
@@ -193,7 +193,7 @@ fn a_label_edit_cannot_overwrite_a_structural_object() {
     assert_document_survived(&s, "set_dimension_label /Ap");
 }
 
-/// ★ CONTROL: a label edit on a well-formed ce dimension still changes it.
+/// CONTROL: a label edit on a well-formed ce dimension still changes it.
 /// Asserted on `changed`, not merely on `Ok` — a verb that returned success
 /// while doing nothing would pass a bare `is_ok()`.
 #[test]
@@ -221,7 +221,7 @@ fn deleting_a_redaction_mark_does_not_free_a_non_stream_appearance() {
     assert_document_survived(&s, "delete_redaction_mark /AP /N");
 }
 
-/// ★ The TARGET arm, and it needed the guard **inside the verb** because this
+/// The TARGET arm, and it needed the guard **inside the verb** because this
 /// verb has two routes. `delete_annotation` runs `annotation_deletion_guards`
 /// before routing a `/Redact` here, so that path was safe — but the GUI calls
 /// this verb directly with an id taken from the review panel, and a page-tree
@@ -233,7 +233,7 @@ fn deleting_a_redaction_mark_that_is_structural_is_refused() {
     assert_document_survived(&s, "delete_redaction_mark annot_id");
 }
 
-/// ★ CONTROL: an ordinary unapplied mark still deletes.
+/// CONTROL: an ordinary unapplied mark still deletes.
 #[test]
 fn deleting_an_ordinary_redaction_mark_still_works() {
     let mut s = session("redact-control.pdf");
@@ -244,7 +244,7 @@ fn deleting_an_ordinary_redaction_mark_still_works() {
 
 // ======================== SITE 4 — flatten_fields ===========================
 
-/// ★★ `Pass 185.1`'s exact input against a verb that never received that fix.
+/// `Pass 185.1`'s exact input against a verb that never received that fix.
 /// `refuse_if_in_page_tree` was wired into `delete_field`, `delete_field_group`
 /// and `delete_widget` and not into `flatten_fields`, although it reads the
 /// same `/Fields` array and deletes what it names.
@@ -259,7 +259,7 @@ fn flattening_a_field_that_is_also_a_page_is_refused() {
     assert_document_survived(&s, "flatten_fields /Fields->/Page");
 }
 
-/// ★ CONTROL: an ordinary form still flattens, and actually flattens
+/// CONTROL: an ordinary form still flattens, and actually flattens
 /// something — asserted on the count, not on `Ok`.
 #[test]
 fn flattening_an_ordinary_form_still_works() {
@@ -296,7 +296,7 @@ fn deleting_an_outline_item_that_is_a_page_is_refused() {
     assert_document_survived(&s, "delete_outline_item(page)");
 }
 
-/// ★ CONTROL: an ordinary bookmark still deletes.
+/// CONTROL: an ordinary bookmark still deletes.
 #[test]
 fn deleting_an_ordinary_outline_item_still_works() {
     let mut s = session("outline-control.pdf");
@@ -321,7 +321,7 @@ fn a_popup_that_is_a_page_tree_node_is_not_deleted_as_collateral() {
     assert_document_survived(&s, "delete_annotation /Popup");
 }
 
-/// ★ CONTROL: a genuine `/Popup` companion is still removed with its parent.
+/// CONTROL: a genuine `/Popup` companion is still removed with its parent.
 /// Asserted on `popup_removed`, because the cascade doing nothing would
 /// otherwise look identical to the cascade working.
 #[test]
@@ -357,7 +357,7 @@ fn detaching_does_not_free_an_ef_entry_that_is_not_a_stream() {
     assert_document_survived(&s, "detach_file /EF /F");
 }
 
-/// ★ CONTROL: an ordinary attachment still detaches.
+/// CONTROL: an ordinary attachment still detaches.
 #[test]
 fn detaching_an_ordinary_attachment_still_works() {
     let mut s = session("attach-control.pdf");
@@ -379,7 +379,7 @@ fn unembedding_does_not_free_a_cidset_that_is_not_a_stream() {
     assert_document_survived(&s, "unembed_fonts /CIDSet");
 }
 
-/// ★ CONTROL: an ordinary embedded font still unembeds.
+/// CONTROL: an ordinary embedded font still unembeds.
 #[test]
 fn unembedding_an_ordinary_font_still_works() {
     let mut s = session("cidset-control.pdf");

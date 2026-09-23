@@ -150,7 +150,7 @@ impl Group {
 /// a *display-only* toggle on the same [`Self::Circular`] geometry (ui-spec
 /// §1.1) — never a separate fit.
 ///
-/// # ★ NOT `Copy`, since `Pass 107.0`, and that is deliberate
+/// # NOT `Copy`, since `Pass 107.0`, and that is deliberate
 ///
 /// Every variant up to `Pass 106.x` was fixed-arity, so the enum was `Copy`
 /// and roughly a hundred call sites across four crates dereferenced it with
@@ -250,7 +250,7 @@ pub enum DimensionKind {
     /// each arm pointing INTO the measured wedge. The angle is the one
     /// between those two rays, always, with no further interpretation.
     ///
-    /// # ★ An angle does NOT scale
+    /// # An angle does NOT scale
     ///
     /// This is the one place the ce-dimension value model genuinely differs.
     /// [`Self::measured_points`] returns a length that the group's scale
@@ -372,7 +372,7 @@ pub enum DimensionKind {
 impl DimensionKind {
     /// This dimension's displayed value under a group's scale and format.
     ///
-    /// # ★ The one place a ce dimension's value becomes text
+    /// # The one place a ce dimension's value becomes text
     ///
     /// [`DimensionModel::display`] and [`crate::dimension::author_dimension`]
     /// both need this. Until `Pass 68.0` they each computed it, and only the
@@ -557,14 +557,14 @@ impl DimensionKind {
     /// Rotate every stored point about `pivot` by `radians` anticlockwise
     /// (`Pass 159.0`) — the isometry sibling of [`Self::translated`].
     ///
-    /// # ★★★ The measured value does NOT change, and that is the whole point
+    /// # The measured value does NOT change, and that is the whole point
     ///
     /// A rotation preserves every distance and every angle. So the number a ce
     /// dimension displays is **identical before and after**, by construction
     /// rather than by pdfcer choosing to keep it — and that is what makes
     /// rotating one a legitimate drafting operation while *scaling* one is not.
     ///
-    /// ★ **Scaling a ce dimension is deliberately not offered.** It has no
+    /// **Scaling a ce dimension is deliberately not offered.** It has no
     /// honest reading. Either the value stays fixed while the geometry grows,
     /// so the dimension lies about the drawing; or both change, so nothing was
     /// measured and the operator has drawn a number rather than taken one. The
@@ -574,7 +574,7 @@ impl DimensionKind {
     /// ships. Rule 15's distinction is exactly this: a ce dimension's text IS
     /// its measurement.
     ///
-    /// # ★★ `dir_a` / `dir_b` are the one place this differs from a translate
+    /// # `dir_a` / `dir_b` are the one place this differs from a translate
     ///
     /// [`Self::translated`] leaves an `Angular`'s arm directions alone,
     /// because they are **unit vectors rather than points** and translating
@@ -753,7 +753,7 @@ impl DimensionKind {
                     fit.radius
                 }
             }
-            // ★ DEGREES, not points, and deliberately so. An angle is
+            // DEGREES, not points, and deliberately so. An angle is
             // invariant under uniform scaling, so there is no "length in page
             // points" that a group scale could legitimately multiply. Every
             // caller that formats a length must therefore ask
@@ -1351,7 +1351,7 @@ mod angular_tests {
         }
     }
 
-    /// ★ An angle must NOT be multiplied by the group's scale.
+    /// An angle must NOT be multiplied by the group's scale.
     ///
     /// This is the one place the ce-dimension value model genuinely differs
     /// from every other kind, and getting it wrong is not a visible crash: a

@@ -63,7 +63,7 @@ This role uses **five storage tiers**:
 
 ## What you own
 
-### ★★★ THE SIZE RULE — added 2026-09-10, and it OVERRIDES the older
+### THE SIZE RULE — added 2026-09-10, and it OVERRIDES the older
 ### instructions in this file wherever they conflict
 
 **A register entry is an INDEX INTO the record, not a second copy of it.**
@@ -101,7 +101,7 @@ comments in the source and the commit messages stay as thorough as they have
 ever been — they are the record. This rule is about the four files everyone
 has to read before starting.
 
-★ **History lives in `docs/history/`** — `roadmap-shipped-*`,
+**History lives in `docs/history/`** — `roadmap-shipped-*`,
 `session-log-before-*`, `standing-rules-full.md`. Verbatim, still
 citation-valid (the filing gates read it), never appended to. Search it; do
 not add to it.
@@ -522,7 +522,7 @@ has both a subject-index entry and a master-index entry, and that
     rustdoc, and `FEATURES.md` rows that name the counter or the capability.
     Report; do not edit `crates/` — that remains outside your remit.
 
-    **★ AMENDED 2026-08-23 by the engineer, again at your recommendation:
+    **AMENDED 2026-08-23 by the engineer, again at your recommendation:
     MINTING A RULE ABOUT A NUMBER IS ITSELF A MEANING-CHANGE EVENT, and
     the sweep it triggers must reach `tools/` and `docs/` alike.**
 
@@ -593,7 +593,7 @@ has both a subject-index entry and a master-index entry, and that
     at `main.rs:7057` was wrong — that span was already corrected — and
     **checking it is what turned up the real survivor at `main.rs:7027`.**
 
-    **★ CLAUSE (e), ADDED 2026-08-29 by the engineer, at your recommendation —
+    **CLAUSE (e), ADDED 2026-08-29 by the engineer, at your recommendation —
     A SWEEP FOR A CLAIM IS ONLY AS GOOD AS ITS SPELLING OF THE CLAIM. NARROW
     THE FILE SET AND WIDEN THE PATTERN, NOT THE REVERSE.** Grep
     case-insensitively for the claim's **bare keyword** over the handful of

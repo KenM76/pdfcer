@@ -110,7 +110,7 @@ pub const MAX_PASSWORD_LEN: usize = 127;
 
 /// The `/R` 5 hash: plain SHA-256 over the concatenated parts.
 ///
-/// ★ **This function is Algorithm 2.B's substitution point.** At `/R` 6 every
+/// **This function is Algorithm 2.B's substitution point.** At `/R` 6 every
 /// call site below uses 2.B in place of this, with identical inputs and an
 /// identical 32-byte output, and *nothing else* about `/R` 5 changes. The
 /// corpus is explicit about that (`iso32000__delta__pdf20_encryption.md` §6),
@@ -597,7 +597,7 @@ mod tests {
         ));
     }
 
-    /// ★ T26 as a falsification: hashing only `/U`'s 32-byte *hash* instead of
+    /// T26 as a falsification: hashing only `/U`'s 32-byte *hash* instead of
     /// the whole 48-byte string fails, and fails **only** on the owner path.
     ///
     /// Written as an inline recomputation rather than by breaking the real
@@ -626,7 +626,7 @@ mod tests {
         ));
     }
 
-    /// ★ Both branches of Algorithm 3.2a recover the **same** key. That
+    /// Both branches of Algorithm 3.2a recover the **same** key. That
     /// equality is the whole design of `/R` 5 — the key is generated
     /// independently of both passwords and wrapped twice.
     #[test]
@@ -639,7 +639,7 @@ mod tests {
         assert_eq!(from_owner, FILE_KEY);
     }
 
-    /// ★ Falsification: the two salts are **not** interchangeable.
+    /// Falsification: the two salts are **not** interchangeable.
     ///
     /// Deriving the unwrap key from the Validation Salt instead of the Key
     /// Salt gives a different key — and, crucially, authentication would still
@@ -727,7 +727,7 @@ mod tests {
         );
     }
 
-    /// ★ Falsification: `/Perms` is **ECB**, and giving it CBC's treatment
+    /// Falsification: `/Perms` is **ECB**, and giving it CBC's treatment
     /// destroys it.
     ///
     /// `unwrap_key_cbc_256` is CBC with a zero IV — the closest neighbouring
@@ -757,7 +757,7 @@ mod tests {
         assert_eq!(&decrypt_ecb_256_block(&FILE_KEY, &PERMS)[9..12], b"adb");
     }
 
-    /// ★ **A published cross-implementation test vector.**
+    /// **A published cross-implementation test vector.**
     ///
     /// Everything above checks pdfcer against a fixture pdfcer can also read, so
     /// a consistent misreading would agree with itself. This checks it against

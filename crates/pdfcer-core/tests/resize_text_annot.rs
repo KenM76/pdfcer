@@ -5,7 +5,7 @@
 //! > *"Also when will being able to drag on the canvas be able to resize the
 //! > Text Box and Stamp."*
 //!
-//! ## ★★★ The measurement, with the control that makes it a report
+//! ## The measurement, with the control that makes it a report
 //!
 //! One fresh session per attempt; every annotation authored by pdfcer in that
 //! same session, seconds before the resize:
@@ -18,7 +18,7 @@
 //!
 //! …with the refusal *"pdfcer did not draw it, so pdfcer will not redraw it"*.
 //!
-//! ★ The `/Square` row is why this is a defect and not a limitation. Without
+//! The `/Square` row is why this is a defect and not a limitation. Without
 //! it the finding reads *"text boxes cannot be resized"* — a confident
 //! sentence about the wrong subject. With it, two pdfcer-authored annotations
 //! differ, and the only difference is **which verb authored them**.
@@ -36,7 +36,7 @@
 //! different builder. The comparison therefore cannot reproduce it, concludes
 //! *"foreign"*, and refuses — **about pdfcer's own work**.
 //!
-//! ★★ The same shape this project keeps finding: a check written for one
+//! The same shape this project keeps finding: a check written for one
 //! member of a family and not the other, where the guarded member looks
 //! correct and the unguarded one fails in a way that blames the document.
 //! Here it is sharper than usual, because the refusal makes a **false factual
@@ -110,7 +110,7 @@ fn author_square(s: &mut EditSession) -> ObjId {
     .expect("author a square")
 }
 
-/// ★ THE CONTROL. If this ever fails the rest of the file is testing the
+/// THE CONTROL. If this ever fails the rest of the file is testing the
 /// wrong thing — a blanket resize breakage would make every assertion below
 /// pass for the wrong reason.
 #[test]
@@ -121,7 +121,7 @@ fn a_pdfcer_authored_square_resizes() {
         .expect("pdfcer drew it and pdfcer can redraw it");
 }
 
-/// ★★★ THE DEFECT: pdfcer drew this one too.
+/// THE DEFECT: pdfcer drew this one too.
 #[test]
 fn a_pdfcer_authored_text_box_resizes() {
     let mut s = session();
@@ -201,7 +201,7 @@ fn appearance(s: &EditSession, id: ObjId) -> String {
 
 /// A MULTILINE text box stays wrapped across a resize.
 ///
-/// ★ This test exists because a sabotage survived without it. `/FreeText` has
+/// This test exists because a sabotage survived without it. `/FreeText` has
 /// no multiline key -- 12.5.6.6 gives it none, and `/Ff` is a form-field entry
 /// -- so a rebuild that ignored the measured layout produced a perfectly valid
 /// SINGLE-line box, and every other test here stayed green because their

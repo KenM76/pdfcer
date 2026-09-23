@@ -65,7 +65,7 @@ fn doc(name: &str) -> Document {
 
 /// Ask for synthetic bold on `find`, and return the refusal if there was one.
 ///
-/// # ★ Under `StylePolicy::Refuse`, deliberately
+/// # Under `StylePolicy::Refuse`, deliberately
 ///
 /// This whole file is about the CONTENT of the refusal — that it names a face
 /// `set_font` will actually accept — and decision 106 did not change that

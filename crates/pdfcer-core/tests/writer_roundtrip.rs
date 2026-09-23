@@ -720,7 +720,7 @@ fn hybrid_append_is_form_a_and_carries_xrefstm_forward() {
     assert!(back.get(ObjId::new(4, 0)).is_some());
 }
 
-/// ★ The loader now RETAINS which objects the `/XRefStm` hides (`Pass 281.0`).
+/// The loader now RETAINS which objects the `/XRefStm` hides (`Pass 281.0`).
 ///
 /// Object 4 (the outline tree) exists only in the cross-reference stream; the
 /// main classic table marks it free with generation 65535, which is §7.5.8.4's
@@ -757,7 +757,7 @@ fn a_non_hybrid_file_has_an_empty_reproducible_partition() {
     assert!(!doc.is_hybrid());
 }
 
-/// ★★★ A HYBRID FILE IS REWRITTEN, NOT REFUSED (`Pass 281.0`).
+/// A HYBRID FILE IS REWRITTEN, NOT REFUSED (`Pass 281.0`).
 ///
 /// This test replaces `hybrid_full_rewrite_is_refused_by_name_not_normalized`,
 /// which asserted the opposite and was **right for its time**: the refusal it
@@ -795,7 +795,7 @@ fn a_hybrid_full_rewrite_stays_hybrid_and_hides_the_same_objects() {
     assert!(back.get(ObjId::new(2, 0)).is_some());
 }
 
-/// ★★ THE PRE-1.5 VIEW, asserted on the BYTES rather than through pdfcer.
+/// THE PRE-1.5 VIEW, asserted on the BYTES rather than through pdfcer.
 ///
 /// The whole point of §7.5.8.4 is what an *old* reader sees, and pdfcer is not
 /// an old reader — asking it to load the file cannot measure this. So the main
@@ -851,12 +851,12 @@ fn the_main_table_conceals_the_hidden_object_from_a_pre_1_5_reader() {
 /// main cross-reference section but only in an update cross-reference
 /// section."
 ///
-/// ★ This is the clause that makes a single-section hybrid **impossible**, and
+/// This is the clause that makes a single-section hybrid **impossible**, and
 /// therefore the real reason a full rewrite of a hybrid file has to emit two
 /// sections rather than one. The old refusal's stated reason — that rebuilding
 /// the unit was future work — was true but secondary.
 ///
-/// ★★ HONEST NOTE: the `/XRefStm` half of this does **not** currently
+/// HONEST NOTE: the `/XRefStm` half of this does **not** currently
 /// discriminate. `save_full` strips that key from the trailer before
 /// `write_hybrid_tail` sees it, so sabotaging the strip inside that function
 /// leaves this test green — a guarantee enforced elsewhere. The assertion is
@@ -893,7 +893,7 @@ fn the_main_trailer_carries_no_xrefstm_and_the_update_trailer_does() {
     );
 }
 
-/// ★★★ THE REASON THIS PASS EXISTS: redaction is reachable on a hybrid file.
+/// THE REASON THIS PASS EXISTS: redaction is reachable on a hybrid file.
 ///
 /// `R35` forces a redaction to a full rewrite — an incremental save leaves the
 /// un-redacted bytes in a prior revision — so a refused full rewrite made
@@ -922,7 +922,7 @@ fn a_hybrid_file_can_now_be_fully_rewritten_which_is_what_redaction_needs() {
 /// a guess, and a wrong guess produces a file that opens with an outline or a
 /// structure tree silently missing.
 ///
-/// ★ The fixture corrupts the stream's `/Length` so the stream is unreadable
+/// The fixture corrupts the stream's `/Length` so the stream is unreadable
 /// while the offset still points at an object header — the loader's own
 /// "broken /XRefStm is not fatal" path, which is exactly the state that must
 /// now be fatal to a REWRITE.
@@ -932,7 +932,7 @@ fn a_hybrid_whose_stream_cannot_be_read_is_still_refused_by_name() {
     // Break the stream by widening its `/W` row to 27 bytes over 7 bytes of
     // data, so no whole row can be read.
     //
-    // ★ The corruption is EXACTLY THE SAME LENGTH as what it replaces, and
+    // The corruption is EXACTLY THE SAME LENGTH as what it replaces, and
     // that is not fastidiousness: every offset in this file — `startxref`,
     // `/XRefStm`, `/Prev` — is a byte position. A one-byte shift makes the
     // whole chain unparseable, the loader falls back to rebuild-by-scan, and

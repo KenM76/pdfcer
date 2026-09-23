@@ -1200,7 +1200,7 @@ fn tabs_declared_on_an_ancestor_still_counts() {
 // The fifth outcome — a path that descends THROUGH a terminal (`Pass 174.8`)
 // ---------------------------------------------------------------------------
 
-/// ★★ A dotted path may not nest under an existing **terminal** field.
+/// A dotted path may not nest under an existing **terminal** field.
 ///
 /// **The mirror of `a_grouping_node_cannot_become_a_terminal_field` above, and
 /// the destructive direction.** That one guards *"you asked for a terminal and
@@ -1215,7 +1215,7 @@ fn tabs_declared_on_an_ancestor_still_counts() {
 /// widget still drawn on the page and listed under nothing, and the command
 /// reporting success with `changed=4` and no disclosure.
 ///
-/// ★ The resolver had always handed this case back correctly —
+/// The resolver had always handed this case back correctly —
 /// `resolve_field_path`'s own comment says the caller *"can refuse or create
 /// beneath it as its own rules require"*. **No caller refused.** A hole
 /// documented at the point that hands it over is still a hole.
@@ -1229,7 +1229,7 @@ fn a_dotted_path_may_not_nest_under_an_existing_terminal_field() {
         .expect_err("nesting under a terminal stops it being a field");
     match err {
         EditError::FieldAuthoring(FormAuthorError::FieldPathCrossesTerminal { fqn, terminal }) => {
-            // ★ `fqn` is what the OPERATOR TYPED, not the unmatched tail. The
+            // `fqn` is what the OPERATOR TYPED, not the unmatched tail. The
             // first draft of the guard reported "cannot create `2`", because
             // `remaining` carries only the segments that did not match — a
             // name the operator never wrote and cannot search for.
@@ -1294,7 +1294,7 @@ fn a_dotted_path_into_vacant_space_still_creates_its_group() {
     assert_eq!(names, ["Addr.City", "Addr.Zip"]);
 }
 
-/// ★★★ The two name refusals are reachable from the inputs their names claim,
+/// The two name refusals are reachable from the inputs their names claim,
 /// and NOT from each other's (`2026-09-12`).
 ///
 /// `PeriodInPartialName` was named and documented for the DOTTED rule while
@@ -1342,7 +1342,7 @@ fn each_name_refusal_is_reached_only_by_its_own_rule() {
     );
 }
 
-/// ★★★ The askable rule and the enforced rule are ONE rule (`Pass 299.0`).
+/// The askable rule and the enforced rule are ONE rule (`Pass 299.0`).
 ///
 /// `validate_partial_name` exists so a shell can grey a button while the
 /// operator types, instead of keeping its own copy of this rule. That is only
@@ -1354,7 +1354,7 @@ fn each_name_refusal_is_reached_only_by_its_own_rule() {
 /// So this drives the SAME strings through both and requires them to agree,
 /// rather than asserting the validator's behaviour on its own.
 ///
-/// ★★ IT IS PAIRED WITH `rename_field`, NOT `add_text_field`, AND THE FIRST
+/// IT IS PAIRED WITH `rename_field`, NOT `add_text_field`, AND THE FIRST
 /// DRAFT GOT THAT WRONG — which is the distinction this whole exchange is
 /// about, arriving as a test failure.
 ///

@@ -81,7 +81,7 @@ fn mean_green(doc: &Document) -> f64 {
     total as f64 / count as f64
 }
 
-/// ★ Half opacity must render lighter than full opacity.
+/// Half opacity must render lighter than full opacity.
 ///
 /// The defect: both rendered identically, because `/CA` was never read.
 #[test]

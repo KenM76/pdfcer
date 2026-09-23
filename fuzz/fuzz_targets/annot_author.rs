@@ -104,7 +104,7 @@ impl<'a> Cursor<'a> {
 
 /// Derive one markup spec from the cursor.
 ///
-/// ★ **THE MODULO IS A COVERAGE CLAIM, and it went stale.** It read `% 8`
+/// **THE MODULO IS A COVERAGE CLAIM, and it went stale.** It read `% 8`
 /// against an eight-variant enum while one arm was spent on a second
 /// `TextMarkup` kind — so `MarkupSpec::Cloud`, which bakes a scalloped
 /// appearance from a free-form vertex list and takes a **continuous**
@@ -302,7 +302,7 @@ fn text_spec(c: &mut Cursor<'_>, data: &[u8]) -> TextAnnotSpec {
                 None
             },
             color,
-            // ★ Driven by the fuzz input rather than pinned to the default:
+            // Driven by the fuzz input rather than pinned to the default:
             // `Pass 287.0` added three fit policies and an arbitrary font
             // size, and a target that always passed `default()` would leave
             // the two new branches — and every degenerate size — unexercised.

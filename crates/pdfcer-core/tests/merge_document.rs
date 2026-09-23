@@ -1,7 +1,7 @@
 //! `EditSession::merge_document` (`Pass 106.0`) — a merge that preserves the
 //! undo log, and carries the field tree `insert_pages` must leave behind.
 //!
-//! ★ **Commit `9f663f9` calls this "Pass 104.0" and is wrong.** `104.0` was
+//! **Commit `9f663f9` calls this "Pass 104.0" and is wrong.** `104.0` was
 //! already taken by the ce-dimension group verbs, shipped the same day. The
 //! ID was asserted from memory rather than grepped against the ledger, and
 //! the collision was caught at filing time. The commit subject cannot be
@@ -32,7 +32,7 @@ use pdfcer_core::object::{ObjId, Object};
 use pdfcer_core::pageops::InsertPosition;
 use pdfcer_core::writer::SaveOptions;
 
-// ★★ `ACROFORM` -- the pdfbox corpus path -- was here until 2026-09-12. It is
+// `ACROFORM` -- the pdfbox corpus path -- was here until 2026-09-12. It is
 // gone because nothing in this file needs it any more: all eight tests that
 // sourced from it now use `synthetic_acroform()`. `clippy::dead_code` naming
 // it unused is the proof the conversion is complete, and is a better signal
@@ -51,7 +51,7 @@ fn doc(path: &str) -> Option<Document> {
 /// `/NeedAppearances` and `/SigFlags` so the tests that read them are not
 /// vacuous.
 ///
-/// # ★★★ Why this replaces the pdfbox corpus for every test in this file
+/// # Why this replaces the pdfbox corpus for every test in this file
 ///
 /// They all sourced from `fixtures/external/pdfbox/…`, which is **not tracked
 /// in git**, is **not fetched by `fixtures/fetch-corpora.sh`**, and which
@@ -60,7 +60,7 @@ fn doc(path: &str) -> Option<Document> {
 /// which these eight tests could run — here, in CI, or on a new machine. They
 /// printed `SKIP` and **passed**, since they were written.
 ///
-/// ★ The numbers they assert — 12 fields, 13 widgets, `GroupOption` with two —
+/// The numbers they assert — 12 fields, 13 widgets, `GroupOption` with two —
 /// are a property of the FIXTURE, not of the corpus. A synthetic source with
 /// the same composition tests the same thing and states the shape outright
 /// instead of inheriting it from a file nobody here can open. That is the
@@ -90,7 +90,7 @@ fn synthetic_acroform() -> Document {
         objects.push((
             num,
             format!(
-                // ★ The first is `TextField` because
+                // The first is `TextField` because
                 // `merging_a_document_into_itself_renames_every_collision`
                 // asserts that name and its `_2` suffix by hand. Naming the
                 // fixture to suit the test, rather than rewriting the test to
@@ -674,7 +674,7 @@ arriving fields render from appearances their producer called stale"
 /// contains the union of both inputs' fields — so it must declare the union
 /// of both flags. Carried as a bitwise OR.
 ///
-/// ★ It claims structure, not validity. A signature covers a byte range and
+/// It claims structure, not validity. A signature covers a byte range and
 /// the merge renumbers and re-emits every object, so any signature VALUE that
 /// came across is already broken by arithmetic. The flag says the document
 /// HAS signature fields, which is true.
@@ -805,7 +805,7 @@ point at the TARGET's pages"
 /// Would catch: a colliding destination key being silently merged, or being
 /// renamed **without** the carried bookmarks following it.
 ///
-/// ## ★ The first version of this test could not fail
+/// ## The first version of this test could not fail
 ///
 /// It used `basic-tree.pdf`, whose bookmarks carry **explicit** `/Dest`
 /// arrays — so the source defined no named destinations, nothing collided,
@@ -873,7 +873,7 @@ test cannot fail"
     let merged = Document::from_bytes(bytes).expect("reparse");
     let outline = pdfcer_core::outline::read_outline(&merged);
 
-    // ★ The property. Both merges' bookmarks must still resolve to a page.
+    // The property. Both merges' bookmarks must still resolve to a page.
     let resolved = outline
         .items
         .iter()

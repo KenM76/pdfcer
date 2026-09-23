@@ -11,7 +11,7 @@
 //! `set_annotation_open`, `set_markup_style`, `reshape_annotation`,
 //! `add_text_annotation_inner` and the deletion guards all enforced it.
 //!
-//! ★ One of those five doc comments was written **the same day the audit
+//! One of those five doc comments was written **the same day the audit
 //! found it**, by the session that then audited it. A promise in a `# Errors`
 //! list is not a control — the same shape as `R243`, one level up: the
 //! documentation and the code had to agree about a guard, and the agreement
@@ -87,7 +87,7 @@ fn current_flags(s: &EditSession, id: ObjId) -> AnnotFlags {
 
 /// Set Table 165 bit 8 (`Locked`, value 128) through pdfcer's own new verb.
 ///
-/// ★ This helper is itself a regression test for the other half of the audit:
+/// This helper is itself a regression test for the other half of the audit:
 /// until 2026-09-07 there was **no way to set `/F` at all** — eight read
 /// accessors on `AnnotFlags` and no writer — so pdfcer's own Locked gate was
 /// unreachable from pdfcer. `set_annotation_flags` closed that, and the fact
@@ -116,7 +116,7 @@ fn set_locked(s: &mut EditSession, id: ObjId) {
 // 1. THE LOCKED FLAG, across the whole transform family
 // ---------------------------------------------------------------------------
 
-/// ★★ Every transform verb refuses a Locked annotation.
+/// Every transform verb refuses a Locked annotation.
 ///
 /// Iterating the family rather than testing one verb is the point: a sixth
 /// transform added without the guard fails here. That is the failure mode
@@ -210,7 +210,7 @@ fn locked_contents_does_not_stop_a_transform() {
 // 2. THE ENCRYPTION GATE, across the family that documented it
 // ---------------------------------------------------------------------------
 
-/// ★★ Every verb whose `# Errors` promises `DocumentEncrypted` delivers it.
+/// Every verb whose `# Errors` promises `DocumentEncrypted` delivers it.
 ///
 /// The promise was in five doc comments and in none of the five code paths.
 /// This asserts the promise, so the documentation and the guard can no longer

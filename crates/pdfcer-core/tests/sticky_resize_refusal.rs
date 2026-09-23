@@ -28,7 +28,7 @@
 //! reader therefore reads `/Rect` as an anchor, not as a size — so there is
 //! nothing for a scale factor to act on.
 //!
-//! ## ★ Why the wrong sentence cost more than a wrong sentence
+//! ## Why the wrong sentence cost more than a wrong sentence
 //!
 //! The reporting shell had offered **eight resize grips** on a sticky for the
 //! life of the feature. Nobody questioned them, because the refusal read as a
@@ -104,7 +104,7 @@ fn author_square(s: &mut EditSession) -> ObjId {
     .expect("author a square")
 }
 
-/// ★ THE CONTROL. A blanket resize breakage would make every refusal
+/// THE CONTROL. A blanket resize breakage would make every refusal
 /// assertion in this file pass for the wrong reason.
 #[test]
 fn a_square_without_nozoom_still_resizes() {
@@ -114,7 +114,7 @@ fn a_square_without_nozoom_still_resizes() {
         .expect("an ordinary markup still resizes");
 }
 
-/// ★ THE SECOND CONTROL: `00ddbb1`'s fix must survive this one.
+/// THE SECOND CONTROL: `00ddbb1`'s fix must survive this one.
 ///
 /// `/FreeText` is the sibling subtype from the same authoring verb, and it is
 /// **not** fixed-size — it has no `NoZoom` rule and its box genuinely is its
@@ -143,7 +143,7 @@ fn a_free_text_still_resizes() {
         .expect("a /FreeText is not a fixed-size marker");
 }
 
-/// ★★★ THE DEFECT: the refusal is right, and it must say why.
+/// THE DEFECT: the refusal is right, and it must say why.
 #[test]
 fn a_sticky_refuses_as_a_fixed_size_marker() {
     let mut s = session();
@@ -167,7 +167,7 @@ fn a_sticky_refuses_as_a_fixed_size_marker() {
     );
 }
 
-/// ★★ THE FALSE CLAIM, pinned by its own words.
+/// THE FALSE CLAIM, pinned by its own words.
 ///
 /// This is the assertion the report was actually about. The refusal must no
 /// longer say pdfcer did not draw an appearance pdfcer drew seconds ago — and
@@ -235,7 +235,7 @@ fn a_nozoom_square_refuses_for_the_flag_reason() {
 
 /// The same annotation resizes once the flag is cleared.
 ///
-/// ★ This is what makes the previous test a measurement of the flag rather
+/// This is what makes the previous test a measurement of the flag rather
 /// than of the fixture. Without it, a guard that refused every `/Square`
 /// would pass both.
 #[test]
@@ -257,7 +257,7 @@ fn clearing_nozoom_makes_the_same_square_resizable_again() {
 
 /// A refusal writes nothing — measured on the case where that is not free.
 ///
-/// ★★ THE FIRST VERSION OF THIS TEST WAS VACUOUS, AND THE SABOTAGE IS WHAT
+/// THE FIRST VERSION OF THIS TEST WAS VACUOUS, AND THE SABOTAGE IS WHAT
 /// SAID SO. It used the **sticky**, and stayed green with the guard moved to
 /// after the write: a sticky never reaches the write anyway, because the
 /// provenance refusal it used to get also returns early. The test was

@@ -332,7 +332,7 @@ fn model_of(bytes: &[u8]) -> PageObjects {
     model(&doc).0
 }
 
-/// ★★★ A line width set by `gs` must reach the model.
+/// A line width set by `gs` must reach the model.
 ///
 /// # The defect
 ///

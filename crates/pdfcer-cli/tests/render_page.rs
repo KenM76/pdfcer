@@ -873,7 +873,7 @@ fn capability_gap_refusal_is_honest_and_distinguishable_from_corruption() {
     // this *yet*", not "your file is broken" — the same honesty the GUI
     // owes on its error surface.
     //
-    // ★ The case pinned here has CHANGED, and the change is the interesting
+    // The case pinned here has CHANGED, and the change is the interesting
     // part. This test used to pin *any* encrypted document (§7.6), because
     // pdfcer had no security handler at all and refused the lot. It now has
     // one: RC4 documents open, so "encrypted" is no longer the gap.
@@ -885,12 +885,12 @@ fn capability_gap_refusal_is_honest_and_distinguishable_from_corruption() {
     // it guards is unchanged: a refusal must read as a pdfcer limitation, not
     // as a broken file.
     //
-    // ★ AND IT HAS MOVED AGAIN, for exactly the same reason: increment 2
+    // AND IT HAS MOVED AGAIN, for exactly the same reason: increment 2
     // implemented AES-128, so `enc-aes-128.pdf` now RENDERS, and pinning it
     // here would assert a refusal that no longer happens. The slot moved to
     // AES-256 at `/R` 5.
     //
-    // ★ AND AGAIN. Increment 3 implemented `/R` 5, so the slot moves to
+    // AND AGAIN. Increment 3 implemented `/R` 5, so the slot moves to
     // `/R` 6 — and the nature of the refusal changes with it, which is the
     // part worth reading. Every earlier occupant of this slot was "pdfcer has
     // not written this yet". `/R` 6 is not that: its Algorithm 2.B is not in
@@ -934,7 +934,7 @@ fn capability_gap_refusal_is_honest_and_distinguishable_from_corruption() {
     );
     assert_eq!(stdout(&out), "");
 
-    // ★ The same /R 6 file RENDERS with the owner password — Pass 5.4 made /R 6
+    // The same /R 6 file RENDERS with the owner password — Pass 5.4 made /R 6
     // a supported revision in both directions, so the refusal above is about a
     // missing PASSWORD, not a missing algorithm.
     let ok_r6 = run(&[
@@ -952,7 +952,7 @@ fn capability_gap_refusal_is_honest_and_distinguishable_from_corruption() {
         stderr(&ok_r6)
     );
 
-    // ★ And the /R 5 sibling, same cipher, differing only in the hash, renders
+    // And the /R 5 sibling, same cipher, differing only in the hash, renders
     // too — the two AES-256 revisions are on the same footing now.
     let ok = run(&[
         "--open-password",
@@ -965,7 +965,7 @@ fn capability_gap_refusal_is_honest_and_distinguishable_from_corruption() {
     assert_eq!(code(&ok), 0, "/R 5 must render too: {}", stderr(&ok));
 }
 
-/// ★ Decryption produces the RIGHT plaintext, not merely parseable bytes.
+/// Decryption produces the RIGHT plaintext, not merely parseable bytes.
 ///
 /// Every other test in this increment proves a document *loads*. None of them
 /// proves it loads **correctly** — and a wrong-but-self-consistent decryption
@@ -985,7 +985,7 @@ fn capability_gap_refusal_is_honest_and_distinguishable_from_corruption() {
 /// under **AES-128**, and **AES-256 at `/R` 5 with each of its two passwords**
 /// — seven key/cipher combinations, one image.
 ///
-/// ★ The AES rows carry a second job the RC4 rows cannot. RC4 preserves
+/// The AES rows carry a second job the RC4 rows cannot. RC4 preserves
 /// length, so increment 1 could write plaintext back over ciphertext in the
 /// retained buffer and every `ByteSpan` stayed true. AES output is IV +
 /// padding, so the plaintext is **strictly shorter** and `data_span.len` has
@@ -996,7 +996,7 @@ fn capability_gap_refusal_is_honest_and_distinguishable_from_corruption() {
 /// This byte-comparison is the only thing standing between that bug and a
 /// release.
 ///
-/// ★ The two `/R` 5 rows carry a third job, and it is the reason both
+/// The two `/R` 5 rows carry a third job, and it is the reason both
 /// passwords appear here rather than only one. At `/R` 5 the file encryption
 /// key is **wrapped twice** — once under a key derived from the user password
 /// (`/UE`), once under a key derived from the owner password plus the whole
@@ -1107,7 +1107,7 @@ fn decrypting_reproduces_the_plaintext_document_exactly() {
 
 #[test]
 fn password_reaches_every_load_path_and_bad_input_fails_by_name() {
-    // ★ The affordance half of the capability. `pdfcer-core` can decrypt RC4
+    // The affordance half of the capability. `pdfcer-core` can decrypt RC4
     // documents; a core capability no shell can reach is not a feature yet.
     //
     // This test exists because the sweep that wired `--open-password` through
@@ -1552,7 +1552,7 @@ initial colour and once for `scn`: {line:?}"
 fn three_shadings_pdf() -> Vec<u8> {
     // The ShadingType 7 patch data is two bytes, which cannot hold one
     // complete patch record (the smallest legal one is 24 coordinate fields
-    // plus four colours plus a flag). ★★ THAT USED TO BE INCIDENTAL AND IS
+    // plus four colours plus a flag). THAT USED TO BE INCIDENTAL AND IS
     // NOW THE POINT. Until `Pass 125.0` no mesh was decoded at all, so this
     // fixture asserted "classified as a mesh and declined by name" and any
     // bytes would have done. Meshes are decoded now, so the same two bytes
@@ -1674,7 +1674,7 @@ fn shadings_are_inventoried_by_type_and_reported_as_unpainted() {
         "three well-formed shadings must not be refused: {line:?}"
     );
 
-    // ★ This assertion was `shadings_painted=0` for exactly one commit,
+    // This assertion was `shadings_painted=0` for exactly one commit,
     // and it DID its job: when the axial and radial painters landed, this
     // is the line that went red, which is how the feature announced its
     // own arrival instead of being asserted into existence. It is updated
@@ -1915,7 +1915,7 @@ fn cmyk_group_pdf(content: &str) -> Vec<u8> {
     ])
 }
 
-/// ★ THE ANSWER THE SIBLING `iccce` PROJECT ASKED FOR, THROUGH THE BINARY.
+/// THE ANSWER THE SIBLING `iccce` PROJECT ASKED FOR, THROUGH THE BINARY.
 ///
 /// A single opaque `0.75 0 1 0 k` fill on a page composited in ink reaches
 /// the exit conversion with its operand intact. The composite is an identity
@@ -2037,7 +2037,7 @@ fn probe_ink_outside_the_raster_still_renders_the_page() {
 /// A malformed coordinate IS refused, because it is decidable from the string
 /// alone and nothing about the document could make it valid.
 ///
-/// ★ `-4,2` is deliberately NOT in this list, and its absence is the finding.
+/// `-4,2` is deliberately NOT in this list, and its absence is the finding.
 /// A value beginning with `-` is eaten by `clap` as a flag name before this
 /// parser sees it, so it exits `2` (usage) with `clap`'s message rather than
 /// `1` with ours. `--region` carries `allow_hyphen_values` to defeat exactly

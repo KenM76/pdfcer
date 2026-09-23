@@ -34,7 +34,7 @@ fn build() -> Vec<u8> {
             5,
             "<< /Title (Live info) /Keywords (CONFIDENTIAL live) >>".to_string(),
         ),
-        // ★ THE ORPHAN: same shape, listed in the xref, named by nothing.
+        // THE ORPHAN: same shape, listed in the xref, named by nothing.
         (
             6,
             "<< /Title (Superseded info) /Keywords (CONFIDENTIAL orphan) >>".to_string(),

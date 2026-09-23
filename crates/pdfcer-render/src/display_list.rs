@@ -48,7 +48,7 @@
 //! exactly the relationship `render_page_region` already has to
 //! `render_page` (§4).
 //!
-//! ## 2.1 ★ The list is keyed on SCALE as well as `(page, epoch)`, and that
+//! ## 2.1 The list is keyed on SCALE as well as `(page, epoch)`, and that
 //! is a deliberate narrowing of what the consumer asked for
 //!
 //! The requesting shell asked for `(page, epoch)`. This implementation adds
@@ -93,7 +93,7 @@
 //! recording pass is *cheaper* than a render rather than an extra cost on
 //! top of one.
 //!
-//! # 3. ★ Where the recorder REFUSES, and why refusing is the feature
+//! # 3. Where the recorder REFUSES, and why refusing is the feature
 //!
 //! Some operators cannot be recorded faithfully, and every one of them has
 //! the same shape: **it reads the destination back**.
@@ -177,7 +177,7 @@ use crate::{RenderError, RenderedPage};
 /// | | ops | held |
 /// |---|---:|---:|
 /// | reference A3 CAD sheet | 127,267 | 29.5 MiB |
-/// | ★ `veraPDF … 6.1.12 … t03-fail-c.pdf` | — | **41.9 MiB** |
+/// | `veraPDF … 6.1.12 … t03-fail-c.pdf` | — | **41.9 MiB** |
 ///
 /// So the real headroom against the largest **observed** input is **6×**,
 /// not 8.5×. The ceiling did not move; the claim about it did.
@@ -455,7 +455,7 @@ pub enum PoisonReason {
     /// to substitute for is the module's own stated nightmare: *"a display
     /// list that is subtly wrong is strictly worse than no display list"*.
     ///
-    /// ★ **The threshold is [`Mat64::needs_precise_paths`] — the SAME one
+    /// **The threshold is [`Mat64::needs_precise_paths`] — the SAME one
     /// the direct path uses to decide whether it needs its precise
     /// route.** That is what makes this a boundary rather than a
     /// compromise: below it both paths do identical `f32` arithmetic and
@@ -592,7 +592,7 @@ pub struct DisplayList {
     /// a region's device geometry from the SAME `f64` arithmetic a fresh
     /// render uses.
     ///
-    /// ★ Not redundant with [`Self::page_ctm`], and the difference is the
+    /// Not redundant with [`Self::page_ctm`], and the difference is the
     /// point: that transform is `f32`, so recovering the page box from it
     /// at a scale of two million recovers it to the nearest ~128 device
     /// pixels. A recorded list outlives its `Page`, so the box has to be
@@ -723,7 +723,7 @@ impl DisplayList {
         // second place for the `/Rotate` axis swap to be got wrong, and
         // "byte-identical to a fresh region render" would then be a claim
         // about two different rectangles.
-        // ★ `region_base_geometry_of`, in `f64`, which is what a fresh
+        // `region_base_geometry_of`, in `f64`, which is what a fresh
         // region render now calls. The comment above is a claim about the
         // two paths agreeing, and it stopped being true the moment the
         // direct path moved to `f64` -- so this call is what keeps it a
@@ -896,7 +896,7 @@ fn record_impl(
             height: page_h,
         });
     }
-    // ★ AND THE PRECISION CEILING, which is the other half of "recording at
+    // AND THE PRECISION CEILING, which is the other half of "recording at
     // a deep zoom" and was missing until `Pass 74.7` gave the direct path a
     // precision this one does not have.
     //
@@ -937,7 +937,7 @@ fn record_impl(
     // Resolved ONCE, and used for two things that must not disagree: what
     // the interpreter is told the blending space is, and whether this page
     // is recordable at all.
-    // ★ THE SAME PREDICATE THE DIRECT RENDER USES, including the same
+    // THE SAME PREDICATE THE DIRECT RENDER USES, including the same
     // `page_blend_space_source` setting -- decision 084's rule that two
     // paths which must agree share the predicate deciding when they can,
     // rather than each computing its own. A recording that judged the
@@ -958,7 +958,7 @@ fn record_impl(
     };
     let diagnostics = {
         let mut canvas = Canvas::record(&mut recorder);
-        // ★ REFUSED BEFORE A SINGLE OPERATOR IS WALKED. A direct render of
+        // REFUSED BEFORE A SINGLE OPERATOR IS WALKED. A direct render of
         // a subtractive page composites it in a colorant buffer; a replay
         // cannot, because a replay's destination is a `Pixmap`. Recording
         // it anyway would hand the caller a cache entry that renders a
@@ -1487,7 +1487,7 @@ impl RecorderState {
     /// Record a clipping path and return its id, **reusing an existing
     /// definition** when this one is identical.
     ///
-    /// # ★ Why deduplication here is correctness-shaped, not tidiness
+    /// # Why deduplication here is correctness-shaped, not tidiness
     ///
     /// Because the replay builds one mask per *distinct id*, and a page
     /// applies vastly more clips than it defines. On the reference CAD sheet
@@ -1829,7 +1829,7 @@ mod tests {
         }
     }
 
-    /// ★ The §10 ceiling actually fires, and does so **by name**.
+    /// The §10 ceiling actually fires, and does so **by name**.
     ///
     /// Driven against a deliberately tiny limit — see `RecorderState::max_bytes`
     /// for why the limit is a field.

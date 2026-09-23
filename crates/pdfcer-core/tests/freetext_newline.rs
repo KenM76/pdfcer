@@ -6,7 +6,7 @@
 //! > enter just has the items show up as one line with a `?` for each new line
 //! > instead."*
 //!
-//! ## ★★ Two correct functions, composed in the wrong order
+//! ## Two correct functions, composed in the wrong order
 //!
 //! `vartext::wrap_lines` handles `\n` exactly right — it splits paragraphs on
 //! it. `vartext::encode_winansi` is also right on its own terms — a character
@@ -27,7 +27,7 @@
 //! path was unreachable for any text an operator typed a newline into** —
 //! which is every text box with more than one line.
 //!
-//! ## ★ And a disclosure that fired and misled
+//! ## And a disclosure that fired and misled
 //!
 //! `miss` counted the newline as a substituted character, so the report said
 //! *"N characters had no WinAnsi code and were substituted"*. True, and it
@@ -42,7 +42,7 @@
 //! isolation — the same shape as the `unwrap_or(0)` found the same day: the
 //! defect is one call earlier than the symptom.
 //!
-//! ★ Reported with a measurement worth keeping: `add_text` — the *page
+//! Reported with a measurement worth keeping: `add_text` — the *page
 //! content* route — handles the same string perfectly. Only the annotation
 //! route was affected, so a probe aimed at the wrong verb reports "cannot
 //! reproduce" with total confidence.
@@ -120,7 +120,7 @@ fn shown_lines(ap: &str) -> usize {
     ap.matches(") Tj").count()
 }
 
-/// ★★★ The report: two lines typed, two lines drawn, no `?`.
+/// The report: two lines typed, two lines drawn, no `?`.
 #[test]
 fn a_newline_in_a_multiline_text_box_makes_a_line() {
     let mut s = session();
@@ -145,7 +145,7 @@ fn a_newline_in_a_multiline_text_box_makes_a_line() {
     );
 }
 
-/// ★★ `\r\n` gets the same treatment.
+/// `\r\n` gets the same treatment.
 ///
 /// Called out by the report, and it is the half a fix can easily miss: the
 /// multiline branch filtered `\r` *per paragraph*, so moving the split
@@ -165,7 +165,7 @@ fn a_windows_line_ending_makes_a_line_too() {
     assert_eq!(shown_lines(&ap), 2, "{ap}");
 }
 
-/// ★★ A single-line box still FLATTENS newlines to spaces.
+/// A single-line box still FLATTENS newlines to spaces.
 ///
 /// The report flagged this as behaviour to keep, and it is right: a field that
 /// cannot wrap has nowhere to put a second line, so a space is the honest
@@ -225,7 +225,7 @@ fn two_newlines_make_a_blank_line() {
 
     let ap = appearance(&s, id);
     assert!(!ap.contains('?'), "{ap}");
-    // ★ THREE, not two — and this test was written expecting two.
+    // THREE, not two — and this test was written expecting two.
     //
     // The blank paragraph emits an EMPTY `() Tj` and its own `Td` advance,
     // which is the honest way to occupy a line: the baseline moves whether or

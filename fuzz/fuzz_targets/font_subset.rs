@@ -101,7 +101,7 @@ fuzz_target!(|data: &[u8]| {
     // would test the harness rather than the code.
     let _ = plan_subset(font_bytes, face_index, &chars, "FuzzDonor", "ABCDEF");
 
-    // ★ The SECOND `fsType` reader, on the same bytes (Pass 67.0 phase A).
+    // The SECOND `fsType` reader, on the same bytes (Pass 67.0 phase A).
     //
     // `pdfcer_core::fontinfo::read_fs_type` walks an sfnt table directory by
     // hand — magic, `numTables`, 16-byte records, then a `uint16` at offset 8

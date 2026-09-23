@@ -194,7 +194,7 @@ pub enum HitTarget {
 /// Every target a page-space `point` hits, **topmost first**, descending into
 /// form XObjects and **excluding the forms themselves**.
 ///
-/// # ★★★ WHY A FORM IS NOT A CANDIDATE
+/// # WHY A FORM IS NOT A CANDIDATE
 ///
 /// [`hit_test_point`] treats an image/form object as its bounding box inflated
 /// by the tolerance. That is right for a **raster image**, whose quad genuinely
@@ -213,7 +213,7 @@ pub enum HitTarget {
 /// so a shell can offer "select the container" as a deliberate second act,
 /// which is a different thing from having it win by default.
 ///
-/// # ★★ The ordering, which is the part that is easy to get wrong
+/// # The ordering, which is the part that is easy to get wrong
 ///
 /// Leaves and page objects are **two lists and one paint order**: a form's
 /// contents are painted exactly where its `Do` sits among the page's other
@@ -263,7 +263,7 @@ pub fn hit_test_point_deep(model: &PageObjects, point: Point, tolerance: f64) ->
     let mut hits: Vec<(usize, usize, HitTarget)> = Vec::new();
 
     for (i, obj) in model.objects.iter().enumerate() {
-        // ★ The exclusion. A form's bbox is an extent declaration, not ink.
+        // The exclusion. A form's bbox is an extent declaration, not ink.
         if matches!(obj, VectorObject::Image(img) if img.source == ImageSource::Form) {
             continue;
         }
@@ -309,7 +309,7 @@ pub fn hit_test_rect(model: &PageObjects, rect: Bounds, mode: MarqueeMode) -> Ve
 
 /// Whether a deep marquee may select a **form XObject itself**.
 ///
-/// # ★★★ WHY THIS IS A CHOICE FOR A RECT WHEN IT IS NOT ONE FOR A POINT
+/// # WHY THIS IS A CHOICE FOR A RECT WHEN IT IS NOT ONE FOR A POINT
 ///
 /// [`hit_test_point_deep`] excludes forms outright and needs no policy,
 /// because the argument against them is airtight: a `/BBox` is a *clipping
@@ -338,7 +338,7 @@ pub fn hit_test_rect(model: &PageObjects, rect: Bounds, mode: MarqueeMode) -> Ve
 /// container gesture — and it is a deliberate act at the call site rather
 /// than a surprise.
 ///
-/// # ★ `Include` is not the same as the old shallow behaviour
+/// # `Include` is not the same as the old shallow behaviour
 ///
 /// Under `Include` the form **and** its leaves are both candidates, so a
 /// marquee enclosing a form returns the container and everything in it.
@@ -361,7 +361,7 @@ pub enum FormMarquee {
 /// The rect twin of [`hit_test_point_deep`], and it exists because the two
 /// gestures disagreeing is a defect an operator meets in the first minute.
 ///
-/// # ★★ Why this needed to exist rather than be composed at the call site
+/// # Why this needed to exist rather than be composed at the call site
 ///
 /// It was composed at a call site, once, and that is why it is here. The
 /// consuming shell shipped `hit_test_rect(…)` plus its own loop over
@@ -604,7 +604,7 @@ pub fn hit_test_subpaths(
 
 /// [`hit_test_subpaths`] against a path this caller already has in hand.
 ///
-/// # ★ Why this exists, rather than every caller taking an index
+/// # Why this exists, rather than every caller taking an index
 ///
 /// An index into [`PageObjects::objects`] cannot name an object drawn inside
 /// a form XObject — those live in [`PageObjects::leaves`], a second list — so

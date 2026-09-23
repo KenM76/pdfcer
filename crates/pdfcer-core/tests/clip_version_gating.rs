@@ -14,7 +14,7 @@
 //! A guard that cannot report going wrong is a guard that must not be reached
 //! by accident.
 //!
-//! ## ★ Why the rule that exists for this did not fire
+//! ## Why the rule that exists for this did not fire
 //!
 //! Decision 105 says a format field cannot be wired into the writer without
 //! wiring the decider that says whether to read it. It was written about
@@ -128,7 +128,7 @@ fn clip_of_squares(n: usize, rich: bool) -> ObjectClip {
     s.copy_annotations(0, &idx).expect("copy")
 }
 
-/// ★ A clip with nothing to carry is still written at version 2.
+/// A clip with nothing to carry is still written at version 2.
 ///
 /// This is the two-folders property, and it is the reason the fix is a
 /// version *gate* rather than a blanket bump. A bump would have been simpler
@@ -150,7 +150,7 @@ fn a_carrying_markup_clip_declares_the_new_version() {
     assert_eq!(c.version, CLIP_VERSION);
 }
 
-/// ★★★ THE REGRESSION. An old-format payload, read by the new reader.
+/// THE REGRESSION. An old-format payload, read by the new reader.
 ///
 /// The payload is not hand-assembled and not reasoned about: it is produced by
 /// **this build's own writer**, driven at version 2 — which is byte-for-byte
@@ -195,7 +195,7 @@ fn a_version_two_payload_with_two_markups_reads_back_intact() {
     }
 }
 
-/// ★★ And the forward direction: a version-4 payload round-trips its carry.
+/// And the forward direction: a version-4 payload round-trips its carry.
 ///
 /// Without this the fix could pass every backward-compatibility assertion by
 /// simply never writing the carry at all — which would silently re-open the
@@ -214,7 +214,7 @@ fn a_version_four_payload_round_trips_the_carry() {
     };
     assert_eq!(**first, rich_carry(), "every carried property survives");
 
-    // ★ The second annotation carries NOTHING, in a clip written at version 4.
+    // The second annotation carries NOTHING, in a clip written at version 4.
     // Both objects are present for both annotations at this version -- the
     // gate is per-CLIP, not per-annotation -- so this pins that the empty
     // carry is written and read as empty rather than the writer skipping it

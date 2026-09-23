@@ -9,7 +9,7 @@
 //! A shell that mapped the new error onto exit 0, or printed it to stdout as
 //! though it were a result, would satisfy every core test.
 //!
-//! ## ★ The `--help` text was true before the code was
+//! ## The `--help` text was true before the code was
 //!
 //! `set-annotation-flags --help` has said, since the subcommand shipped:
 //!
@@ -118,7 +118,7 @@ fn note_of(path: &Path) -> String {
         .to_string()
 }
 
-/// ★★ The refusal reaches the operator: non-zero exit, named flag, on stderr.
+/// The refusal reaches the operator: non-zero exit, named flag, on stderr.
 #[test]
 fn a_note_edit_on_locked_contents_is_refused_by_the_binary() {
     let locked = locked_contents_file("refuse");
@@ -181,7 +181,7 @@ fn clearing_the_note_is_refused_too() {
     assert!(note_of(&locked).contains("the original words"));
 }
 
-/// ★★ And the other half of the shipped `--help` sentence: *"it does not stop
+/// And the other half of the shipped `--help` sentence: *"it does not stop
 /// a move."*
 ///
 /// Without this, a fix that treated bit 10 as a general write-lock would pass

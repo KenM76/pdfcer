@@ -13,7 +13,7 @@
 //! The operator reported the visible half: *"Form shape outlines of checkboxes
 //! and such scale when I drag them larger."*
 //!
-//! ## ★ Three routes were broken, and only one had been reported
+//! ## Three routes were broken, and only one had been reported
 //!
 //! `pdfcer-gui`'s request named the `/Btn` route
 //! (`request_resizing_a_check_box_stretches_its_appearance`, 2026-08-31) and
@@ -22,7 +22,7 @@
 //! all. Scoping it turned up two more of the same shape:
 //!
 //! 1. **`/Btn` was not rebuilt** — the reported one.
-//! 2. **★★ Text and Choice WERE rebuilt, at the OLD size.** The regenerator
+//! 2. **Text and Choice WERE rebuilt, at the OLD size.** The regenerator
 //!    reads `field.widgets[i].rect`, and that snapshot is taken *before* the
 //!    caller stages its `/Rect` write. Measured: a text field dragged from
 //!    100×24 to 300×100 came back with `/AP` `/BBox [0 0 100 24]` — a rebuild
@@ -255,7 +255,7 @@ fn a_resized_push_button_is_redrawn_at_the_new_size() {
 // Route 2 — the unreported one: text and choice were rebuilt at the OLD size
 // -------------------------------------------------------------------------
 
-/// ★★ The regeneration existed and was a no-op with respect to size. This is
+/// The regeneration existed and was a no-op with respect to size. This is
 /// the assertion that would have caught it, and it is on the `/BBox` rather
 /// than on `appearance_regenerated` — which was `true` the whole time.
 #[test]
@@ -355,7 +355,7 @@ fn ap_bytes(s: &EditSession, name: &str) -> Vec<u8> {
 // Route 4 — the one found by reading: a Shape-B resize was DISCARDED
 // -------------------------------------------------------------------------
 
-/// ★★★ The worst of the family, and the only one nobody reported.
+/// The worst of the family, and the only one nobody reported.
 ///
 /// A field's widget can be the field dictionary itself (**Shape A**, the
 /// one-widget case every test uses) or a separate dictionary under a `/Kids`
@@ -430,7 +430,7 @@ fn a_shape_b_widget_keeps_the_resize_that_triggered_its_rebuild() {
 // The ownership boundary — pdfcer redraws only what pdfcer drew
 // -------------------------------------------------------------------------
 
-/// ★ The load-bearing refusal. A check box whose artwork somebody else drew
+/// The load-bearing refusal. A check box whose artwork somebody else drew
 /// must NOT come back as pdfcer's two-line vector tick as a side effect of a
 /// drag.
 ///

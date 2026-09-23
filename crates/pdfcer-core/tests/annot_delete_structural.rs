@@ -21,7 +21,7 @@
 //! from the same site was `BadKid` — the same bug with a page-tree node in
 //! `/Annots` instead of the catalog.
 //!
-//! ## ★★ This is `Pass 185.1`/`185.2` in a second carrier, and that is the
+//! ## This is `Pass 185.1`/`185.2` in a second carrier, and that is the
 //! ## part worth keeping
 //!
 //! There, an `/AcroForm` `/Fields` named an object that was also a `/Page`.
@@ -85,7 +85,7 @@ fn annots_of_page(s: &EditSession, page_index: usize) -> Vec<ObjId> {
         .collect()
 }
 
-/// ★★★ The headline. Deleting the catalog must be refused, by name.
+/// The headline. Deleting the catalog must be refused, by name.
 ///
 /// Asserted on the **page tree still walking afterwards**, not only on the
 /// error — because the error is the mechanism and the walkable document is the
@@ -140,7 +140,7 @@ fn an_annots_entry_that_is_a_page_tree_node_is_refused_not_deleted() {
     assert!(page_tree::pages_in(&s.graph()).is_ok());
 }
 
-/// ★ The guard must not refuse a REAL annotation. Without this the whole
+/// The guard must not refuse a REAL annotation. Without this the whole
 /// feature could be "fixed" by refusing everything, and the two tests above
 /// would still pass.
 #[test]

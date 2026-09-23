@@ -213,7 +213,7 @@ fn bookmarks(bytes: &[u8]) -> Vec<(String, Option<usize>)> {
     out
 }
 
-/// ★ **THE HEADLINE.** The operator's own bookmark titles survive the
+/// **THE HEADLINE.** The operator's own bookmark titles survive the
 /// merge, pointing at pages inside the merged document.
 #[test]
 fn cross_file_bookmarks_are_repointed_instead_of_dropped() {

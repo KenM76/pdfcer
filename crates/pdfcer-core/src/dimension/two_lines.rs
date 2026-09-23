@@ -14,7 +14,7 @@
 //! way the linear dimension's second point is signed, what arc radius an
 //! angular dimension defaults to, and which relations are refused outright.
 //!
-//! # ★ Why this lives in core rather than in each shell
+//! # Why this lives in core rather than in each shell
 //!
 //! It was written twice-shaped and shipped once: `pdfcer`'s
 //! `dimension-add --kind two-lines` carried the whole mapping inline. When the
@@ -354,7 +354,7 @@ mod tests {
         ParallelPolicy::from_setting(0.5)
     }
 
-    /// ★ The parallel case, pinned against the exact numbers the shipped CLI
+    /// The parallel case, pinned against the exact numbers the shipped CLI
     /// prints for these inputs (`distance=40.0000`).
     #[test]
     fn parallel_lines_author_a_linear_ce_dimension_of_the_perpendicular_distance() {
@@ -379,7 +379,7 @@ mod tests {
         }
     }
 
-    /// ★ The sign convention. With line B *below* line A the ce dimension must
+    /// The sign convention. With line B *below* line A the ce dimension must
     /// still span the gap, not point away from it — the failure this guards is
     /// a dimension drawn on the wrong side of the edge with the right number
     /// on it, which looks like a rendering bug rather than a sign bug.
@@ -404,7 +404,7 @@ mod tests {
         }
     }
 
-    /// ★ The angular case, pinned against the CLI's printed `degrees=30.029`
+    /// The angular case, pinned against the CLI's printed `degrees=30.029`
     /// for the same four coordinates.
     #[test]
     fn angled_lines_author_an_angular_ce_dimension() {
@@ -457,7 +457,7 @@ mod tests {
         assert_eq!(err, TwoLineRefusal::Degenerate);
     }
 
-    /// ★ The override authors a LINEAR ce dimension **and still reports the
+    /// The override authors a LINEAR ce dimension **and still reports the
     /// angle it overrode**. A shell cannot disclose what it is not given, so
     /// this is the field that makes the checkbox honest.
     #[test]
@@ -516,7 +516,7 @@ mod tests {
         assert_eq!(authored.apex_is_real(), None);
     }
 
-    /// ★ The pick point still selects which of the four angles is authored,
+    /// The pick point still selects which of the four angles is authored,
     /// through this layer. The whole reason `PickedLine::pick` exists would be
     /// lost if the authoring step collapsed to the smallest angle.
     #[test]

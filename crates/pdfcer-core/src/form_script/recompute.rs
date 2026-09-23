@@ -651,7 +651,7 @@ mod tests {
         assert!(!p.is_empty());
     }
 
-    /// ★ **`/CO` wins, even when its order is arguably wrong.**
+    /// **`/CO` wins, even when its order is arguably wrong.**
     ///
     /// Grand is listed before Sub, so Grand is computed from Sub's *stale*
     /// stored value — which is exactly what a JavaScript-running reader does
@@ -688,7 +688,7 @@ mod tests {
         assert_eq!(p.order_source, OrderSource::CalculationOrder);
     }
 
-    /// ★ **With no `/CO`, pdfcer derives a dependency order — and says it
+    /// **With no `/CO`, pdfcer derives a dependency order — and says it
     /// did.**
     ///
     /// The file is non-conforming (`/CO` is Required once any field carries a
@@ -719,7 +719,7 @@ mod tests {
         assert_eq!(p.unlisted_calculations, 2);
     }
 
-    /// ★ **A dependency cycle with no stated order is detected and every
+    /// **A dependency cycle with no stated order is detected and every
     /// field in it is skipped by name**, rather than iterated to an arbitrary
     /// fixed point.
     #[test]
@@ -863,7 +863,7 @@ mod tests {
         assert!(plan_for(&bytes).is_empty());
     }
 
-    /// ★ **A calculation on a button field is skipped, not written.**
+    /// **A calculation on a button field is skipped, not written.**
     ///
     /// §12.6.3 NOTE 2 puts these triggers outside the model for a button, and
     /// §12.7.4.2.2 forbids a pushbutton a `/V` — so writing one would create

@@ -304,7 +304,7 @@ pub(crate) fn composite(
             // ONE formula, in `crate::compositor` — §11.4.4's element
             // composite, with the backdrop's own alpha carried explicitly.
             //
-            // ★ This used to substitute a WHITE backdrop wherever the
+            // This used to substitute a WHITE backdrop wherever the
             // destination was transparent, and lerp from white by `t`. That
             // is the specialisation of §11.4.4 to `α_b = 1`, and it is
             // wrong in exactly the place the page group makes common:
@@ -394,7 +394,7 @@ mod tests {
         (0..3).all(|i| (a[i] - b[i]).abs() < 1e-4)
     }
 
-    /// ★ THE CANONICAL CASE, and the reason this module exists.
+    /// THE CANONICAL CASE, and the reason this module exists.
     ///
     /// `Luminosity` of a BLACK source over a pure BLUE backdrop must be
     /// black: the result takes the backdrop's hue and saturation but the
@@ -517,7 +517,7 @@ mod tests {
         }
     }
 
-    /// ★ Hue and Saturation both take luminosity from the BACKDROP (trap 9).
+    /// Hue and Saturation both take luminosity from the BACKDROP (trap 9).
     ///
     /// The easy error is giving `Saturation` the source's luminosity, which
     /// looks plausible and is wrong. This pins both.

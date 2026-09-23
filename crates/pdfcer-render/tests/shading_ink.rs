@@ -9,7 +9,7 @@
 //! one — a calibrated table out, a naive formula back. The ink that arrived was
 //! not the ink that left.
 //!
-//! ## ★★ Why it stayed invisible for so long, which is the transferable part
+//! ## Why it stayed invisible for so long, which is the transferable part
 //!
 //! **Everything on the page took the same round trip**, so everything was
 //! consistently slightly wrong *together* and nothing looked out of place.
@@ -45,7 +45,7 @@
 //! **Mesh shadings** (types 4–7) — and the reader who fixes them should look
 //! next door rather than here.
 //!
-//! ★ This section said *"a mesh still bridges through sRGB and still disagrees
+//! This section said *"a mesh still bridges through sRGB and still disagrees
 //! with an image of the same colour… Named here so a reader who fixes the mesh
 //! case knows this file is where its test belongs."* The first half stopped
 //! being true in `Pass 137.1`, the very next Pass. The second half was a
@@ -117,7 +117,7 @@ fn mean_abs(a: (f64, f64, f64), b: (f64, f64, f64)) -> f64 {
     ((a.0 - b.0).abs() + (a.1 - b.1).abs() + (a.2 - b.2).abs()) / 3.0
 }
 
-/// ★★ A SPOT shading and a spot fill of one tint agree on an ink page
+/// A SPOT shading and a spot fill of one tint agree on an ink page
 /// (`Pass 239.0`). The fill has deposited its colorant into a plane of its
 /// own since `Pass 228.0`; the shading flattened it through the tint
 /// transform until this Pass, and the two collapsed to sRGB by different
@@ -135,7 +135,7 @@ fn a_spot_shading_and_a_spot_fill_of_one_tint_agree_on_a_subtractive_page() {
     );
 }
 
-/// ★★★ THE DISCRIMINATING PAIR. On white paper the two tests above cannot
+/// THE DISCRIMINATING PAIR. On white paper the two tests above cannot
 /// tell a deposited spot from a flattened one: the plane's curve is sampled
 /// through the very conversion the flattened route takes, so both land on
 /// the same sRGB by construction — a sabotage that refused every shading its
@@ -197,7 +197,7 @@ fn a_spot_shading_pattern_and_a_spot_fill_of_one_tint_agree_on_a_subtractive_pag
     );
 }
 
-/// ★★★ THE ONE THAT MATTERS. On a page that composites in ink, a shading and a
+/// THE ONE THAT MATTERS. On a page that composites in ink, a shading and a
 /// fill of the same authored `DeviceCMYK` colour must be the same colour.
 #[test]
 fn a_shading_and_a_fill_of_one_ink_agree_on_a_subtractive_page() {
@@ -230,7 +230,7 @@ fn a_shading_and_a_fill_of_one_ink_agree_on_an_additive_page_too() {
     );
 }
 
-/// ★ The two pages are allowed to differ from EACH OTHER, and pinning that they
+/// The two pages are allowed to differ from EACH OTHER, and pinning that they
 /// do not would be wrong.
 ///
 /// A subtractive page converts its result out of ink at the end; an additive
@@ -347,7 +347,7 @@ fn the_overprinting_shading_actually_paints_and_ramps() {
         "the shading must RAMP across the band; identical ends mean its function \
          was not evaluated and this fixture asserts nothing"
     );
-    // ★ `Pass 239.0` moved this from the BLUE channel to the RED one. The
+    // `Pass 239.0` moved this from the BLUE channel to the RED one. The
     // shading names Cyan (`Source`) and its spot; with the spot on a plane
     // of its own the backdrop's Y and K are preserved at BOTH ends, so the
     // channel that ramps is the one the shading actually writes: cyan
@@ -363,7 +363,7 @@ fn the_overprinting_shading_actually_paints_and_ramps() {
 // Pass 202.0 -- a SPOT-ONLY /DeviceN shading under overprint must still paint.
 // ---------------------------------------------------------------------------
 
-/// ★★★ A shading that names no process colorant must not render as blank paper.
+/// A shading that names no process colorant must not render as blank paper.
 ///
 /// # The defect
 ///
@@ -376,7 +376,7 @@ fn the_overprinting_shading_actually_paints_and_ramps() {
 /// native-ink route and let the bridge paint the flattened tint instead — a
 /// disclosed approximation, and enormously better than nothing.
 ///
-/// # ★★ Why this test exists at all, which is the transferable part
+/// # Why this test exists at all, which is the transferable part
 ///
 /// The refusal was **documented and not implemented**. `interpret.rs` carried a
 /// long block headed "THE SPOT-ONLY REFUSAL" that named the conformance patch,

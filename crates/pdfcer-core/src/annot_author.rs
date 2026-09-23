@@ -138,7 +138,7 @@ impl Color {
 /// here, at construction — and [`Self::new`] returning `None` is what makes
 /// a malformed dash in a foreign file **unreadable rather than infectious**.
 ///
-/// # ★ There is no phase, and that is the standard's doing, not an omission
+/// # There is no phase, and that is the standard's doing, not an omission
 ///
 /// The content-stream `d` operator takes an array **and a phase**
 /// (§8.4.3.6), and [`crate::writer::content::ContentBuilder::set_dash`]
@@ -340,7 +340,7 @@ pub enum MarkupSpec {
         /// [`Self::Cloud`]'s `intensity` for why that is a range and not
         /// the enumeration it is often assumed to be.
         ///
-        /// ★ **This is the half of revision-cloud support that carries the
+        /// **This is the half of revision-cloud support that carries the
         /// value.** *Drag a box, make it cloudy* is the gesture reviewers
         /// actually perform; a cloud from a free-form vertex list is the
         /// rarer case. One optional key on a subtype pdfcer already authors
@@ -405,7 +405,7 @@ pub enum MarkupSpec {
     /// /Polygon` and differs from [`Self::Polygon`] only by `/BE` and by
     /// the baked appearance.
     ///
-    /// # ★ `intensity` is a CONTINUOUS range, and this is worth stating
+    /// # `intensity` is a CONTINUOUS range, and this is worth stating
     ///
     /// Table 167's `I` row is typed **`number`** and constrains it *"in
     /// the range 0 to 2"* — **character-for-character identical in ISO
@@ -584,7 +584,7 @@ pub fn spec_from_dict<G: ObjectGraph + ?Sized>(
                     border,
                     interior,
                     border_width: width,
-                    // ★ READ BACK as of `Pass 98.0`. This used to be a hard
+                    // READ BACK as of `Pass 98.0`. This used to be a hard
                     // `None` with a comment calling a foreign `/BE` "a
                     // separate concern from authoring one" — and the
                     // consequence was that an Acrobat-authored cloudy
@@ -642,7 +642,7 @@ pub fn spec_from_dict<G: ObjectGraph + ?Sized>(
                 return Err(SpecReadError::BadGeometry { key: "Vertices" });
             }
             Ok(if subtype == b"Polygon" {
-                // ★ A CLOUDY POLYGON RECONSTRUCTS AS A CLOUD, not as a
+                // A CLOUDY POLYGON RECONSTRUCTS AS A CLOUD, not as a
                 // polygon that happens to have lost its border effect
                 // (`Pass 98.0`).
                 //
@@ -875,7 +875,7 @@ pub(crate) fn read_border_dash<G: ObjectGraph + ?Sized>(
 /// inverse of [`build_text_annotation`], as [`spec_from_dict`] is the
 /// inverse of [`build_appearance`].
 ///
-/// # ★ Why this exists: three surfaces were blocked on one missing reader
+/// # Why this exists: three surfaces were blocked on one missing reader
 ///
 /// `pdfcer-gui` filed it as the single blocker under three separate
 /// symptoms, and it was right:
@@ -894,7 +894,7 @@ pub(crate) fn read_border_dash<G: ObjectGraph + ?Sized>(
 ///
 /// One reader, three surfaces.
 ///
-/// # ★★ `multiline` is NOT recoverable, and that is the standard's doing
+/// # `multiline` is NOT recoverable, and that is the standard's doing
 ///
 /// [`free_text`] writes `/DA`, `/Contents`, `/Q`, `/C` and `/BS` — and
 /// **nothing that records whether the text was laid out as one line or
@@ -963,7 +963,7 @@ pub fn text_spec_from_dict<G: ObjectGraph + ?Sized>(
         }
         b"Text" => Ok(TextAnnotSpec::Sticky {
             rect,
-            // ★ NOT normalised. `unwrap_or(StickyIcon::Note)` here is what
+            // NOT normalised. `unwrap_or(StickyIcon::Note)` here is what
             // made `set_text_annot_style` rewrite a producer's own icon to
             // `/Note` when an operator changed the colour -- the reader was
             // right to model the seven, and the WRITER was wrong to bake the
@@ -984,14 +984,14 @@ pub fn text_spec_from_dict<G: ObjectGraph + ?Sized>(
                 .as_deref()
                 .and_then(stamp_name_from_name)
                 .unwrap_or(StampName::Draft),
-            // ★ A stamp's `/Contents` is a comment ABOUT the stamp, not the
+            // A stamp's `/Contents` is a comment ABOUT the stamp, not the
             // stamp's words — `stamp()` never writes it. Reading it as the
             // label would make a note drive the stamp's face, which is the
             // one thing `pdfcer-gui` explicitly asked NOT to happen: of the
             // three subtypes the stamp is the one already correct.
             label: None,
             color: read_color(graph, annot, b"C").unwrap_or(Color::Gray(0.0)),
-            // ★★ `Pass 287.0`: recover the label size the stamp was authored
+            // `Pass 287.0`: recover the label size the stamp was authored
             // with, so a re-bake KEEPS it instead of re-deriving it from the
             // new box — which is the whole defect.
             //
@@ -1032,7 +1032,7 @@ pub fn text_spec_from_dict<G: ObjectGraph + ?Sized>(
 /// caller back to the derived-from-height formula — the honest answer when the
 /// file genuinely does not say.
 ///
-/// # ★★ Why source 2 is not optional
+/// # Why source 2 is not optional
 ///
 /// Every stamp already in every document was authored without a `/DA`. If
 /// recovery read only `/DA`, the first re-bake of an existing stamp would fall
@@ -1052,7 +1052,7 @@ fn recover_stamp_font_size<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict) -> 
         return Some(size);
     }
 
-    // ★ Source 2 — the baked `/AP` — CANNOT run here, and the reason is
+    // Source 2 — the baked `/AP` — CANNOT run here, and the reason is
     // structural rather than an omission. `ObjectGraph` exposes `value`,
     // `trailer_entry` and `resolve` and deliberately nothing else: it is the
     // read-only view a spec reader gets, and stream BYTES are not part of it.
@@ -1071,7 +1071,7 @@ fn recover_stamp_font_size<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict) -> 
 /// and a stamp's appearance contains exactly one `Tf`, so "first" is "the
 /// one".
 ///
-/// ★ Crate-visible and single. `edit.rs` needs the same answer when it
+/// Crate-visible and single. `edit.rs` needs the same answer when it
 /// recovers a stamp's parameters from its appearance, and two copies of a
 /// token scan is two chances to disagree about what a file says — the
 /// duplication shape this project keeps recording.
@@ -1346,7 +1346,7 @@ pub fn decode_carry(obj: &Object) -> MarkupCarry {
 
 /// The clipboard's exact COS encoding of a [`MarkupSpec`].
 ///
-/// # ★ Why this is not `build_appearance(spec).annot`, which was tried first
+/// # Why this is not `build_appearance(spec).annot`, which was tried first
 ///
 /// The obvious route — carry the *annotation dictionary* the spec describes,
 /// and read it back with [`spec_from_dict`] — would have cost no new code at
@@ -2103,7 +2103,7 @@ fn rectangle_like(
     dash: Option<&BorderDash>,
 ) -> AuthoredAppearance {
     let shape = positive_rect(rect);
-    // ★ /Rect must CONTAIN the cloud, which bulges outside the square the
+    // /Rect must CONTAIN the cloud, which bulges outside the square the
     // caller drew. Table 180's own /RD row names exactly this situation:
     // "Such a difference may occur in situations where a border effect
     // (described by BE) causes the size of the Rect to increase beyond
@@ -2419,7 +2419,7 @@ const KAPPA_90: f64 = 0.552_284_749_830_793_4;
 
 /// pdfcer's scallop radius for a given `/BE /I` intensity, in points.
 ///
-/// # ★ THIS FUNCTION IS pdfcer'S INVENTION, NOT THE STANDARD'S (`BE-A1`)
+/// # THIS FUNCTION IS pdfcer'S INVENTION, NOT THE STANDARD'S (`BE-A1`)
 ///
 /// Everything ISO 32000 says about what a cloud *looks like*: the border
 /// *"**should** appear 'cloudy'"* (1.7), *"a series of convex curved line
@@ -2579,7 +2579,7 @@ fn polygon_like(
     cloud: Option<f64>,
     dash: Option<&BorderDash>,
 ) -> AuthoredAppearance {
-    // ★ The cloud bulges OUTSIDE the vertex hull, so the bounding box has
+    // The cloud bulges OUTSIDE the vertex hull, so the bounding box has
     // to grow by the scallop radius or the appearance stream would be
     // clipped by its own /BBox — the classic way a baked cloud renders
     // with its bumps sliced flat.
@@ -2963,7 +2963,7 @@ const TEXT_FONT_RESOURCE: &[u8] = b"Helv";
 
 /// A Text-annotation icon name (§12.5.6.4, Table 172). Default `Note`.
 ///
-/// # ★ The set is OPEN, and [`Self::Other`] is what holds the rest
+/// # The set is OPEN, and [`Self::Other`] is what holds the rest
 ///
 /// §12.5.6.4 lists seven names and then says *"Additional names may be
 /// supported as well"*, so a producer's own icon is **conforming**. Before
@@ -3065,7 +3065,7 @@ impl StickyIcon {
     /// The icon a `/Name` value denotes, or `None` for one pdfcer does not
     /// draw.
     ///
-    /// # ★ `None` is not an error, and a caller must not treat it as one
+    /// # `None` is not an error, and a caller must not treat it as one
     ///
     /// §12.5.6.4's seven names are a **standard set, not a closed one** —
     /// *"Additional names may be supported as well"* — so a producer's own
@@ -3220,7 +3220,7 @@ pub enum TextAnnotSpec {
     Sticky {
         /// The annotation rectangle.
         ///
-        /// ★ **CORRECTED — this doc comment named the wrong corner, and said
+        /// **CORRECTED — this doc comment named the wrong corner, and said
         /// two things that cannot both be true.** It read: *"the marker is
         /// fixed-size — NoZoom/NoRotate — so only its lower-left corner
         /// matters in practice; the width/height give the marker its size"*.
@@ -3295,7 +3295,7 @@ pub enum TextAnnotSpec {
 /// Either alone is an annoyance. Together the first mistake is unfixable,
 /// which is why this is a `StampStyle` and not a bug fix.
 ///
-/// # ★★ There is nothing to copy: Acrobat has no answer either
+/// # There is nothing to copy: Acrobat has no answer either
 ///
 /// Sourced before choosing (`pdfcer-acrobat-librarian`,
 /// `Acrobat_Features/markup__stamp_text_size_and_resize_behavior.md`):
@@ -3315,7 +3315,7 @@ pub struct StampStyle {
     /// The label's font size in points, or `None` to derive it from the box
     /// height as builds before `Pass 287.0` did.
     ///
-    /// ★ **`None` is not "unset", it is a named legacy behaviour**, and it is
+    /// **`None` is not "unset", it is a named legacy behaviour**, and it is
     /// kept reachable so a caller reproducing an older document's appearance
     /// can ask for it by name instead of by accident.
     pub font_size: Option<f64>,
@@ -3326,7 +3326,7 @@ pub struct StampStyle {
 impl StampStyle {
     /// A style with an explicit label size, growing the box to fit it.
     ///
-    /// ★ Constructors exist because [`StampStyle`] is `#[non_exhaustive]` and
+    /// Constructors exist because [`StampStyle`] is `#[non_exhaustive]` and
     /// therefore cannot be built by struct literal outside this crate — the
     /// consuming shell has to be able to say what it wants without waiting for
     /// a field to be added. A `#[non_exhaustive]` type with no way to
@@ -3371,7 +3371,7 @@ impl StampStyle {
 impl Default for StampStyle {
     /// The default is **an explicit 12 pt label that grows the box to fit**.
     ///
-    /// ★ Deliberately NOT the derived size. A default that derives from the
+    /// Deliberately NOT the derived size. A default that derives from the
     /// box reproduces the trap for every caller who does not know to opt out,
     /// and the operator's report is what a trap looks like from outside. A
     /// caller wanting the old behaviour asks for `font_size: None`.
@@ -3414,7 +3414,7 @@ pub enum StampFit {
     ShrinkToBox,
     /// Keep both the size and the box, and let the `/BBox` clip the overflow.
     ///
-    /// ★ **This is the pre-`Pass 287.0` behaviour, kept reachable and named
+    /// **This is the pre-`Pass 287.0` behaviour, kept reachable and named
     /// honestly.** It is the one the operator reported, so it is not the
     /// default and never will be — but a caller reproducing an existing
     /// document's appearance byte-for-byte needs it, and a behaviour that can
@@ -3452,7 +3452,7 @@ pub enum StampLabelFit {
     /// The box was **widened** to hold the label
     /// ([`StampFit::GrowToText`]).
     ///
-    /// ★ This one is disclosed by the canvas itself — the operator drew a
+    /// This one is disclosed by the canvas itself — the operator drew a
     /// rectangle and got a wider one, which is visible as itself and cannot
     /// be quietly wrong. It is reported anyway because a caller that wants
     /// to say so in a status line should not have to diff two rectangles to
@@ -3557,7 +3557,7 @@ pub struct AuthoredTextAnnot {
     /// What [`StampFit`] did to this stamp's label, when this is a stamp
     /// (`Pass 291.0`). `None` on every other annotation family.
     ///
-    /// # ★★ Why this is NOT `applied_autosize`
+    /// # Why this is NOT `applied_autosize`
     ///
     /// `applied_autosize` is the **variable-text** auto-size (VT1) and is
     /// `None` whenever `/DA` names an explicit size. A stamp's fitted size
@@ -3756,7 +3756,7 @@ pub struct MarkupCarry {
 /// | [`Self::Square`] | `n` | `a73` | U+25A0 black square |
 /// | [`Self::Diamond`] | `u` | `a78` | U+25C6 black diamond |
 ///
-/// ★★ **pdfcer writes that character AND draws the shape as vector
+/// **pdfcer writes that character AND draws the shape as vector
 /// artwork.** Acrobat's own appearance streams `Tf` a ZapfDingbats font and
 /// show the glyph, which makes the tick depend on resolving that font at
 /// display time — and Acrobat and Reader have a real, recurring bug failing
@@ -4299,7 +4299,7 @@ pub fn build_radio_button_appearances(
         b.curve_to(cx + k, cy - r, cx + r, cy - k, cx + r, cy);
     }
 
-    // ★ A radio button's background is a DISC, not a rectangle. Filling the
+    // A radio button's background is a DISC, not a rectangle. Filling the
     // BBox would put a coloured square behind a round control, which is not
     // what an operator choosing a background for a radio button is asking
     // for and is not what any reader draws. The disc is filled to the ring's
@@ -4453,7 +4453,7 @@ pub fn build_push_button_appearance(
     // a stroke straddles its path, so one drawn at the edge loses half its
     // width to the form XObject's clip.
     //
-    // ★ This is the ONE builder whose default background is not "nothing".
+    // This is the ONE builder whose default background is not "nothing".
     // The plate grey is what a push button has always been drawn on, and
     // `add_push_button` writes that same constant into `/MK` `/BG` at
     // creation — so the dictionary and the artwork agreed BY CONSTRUCTION
@@ -4599,7 +4599,7 @@ pub fn build_field_text_appearance(
     };
     let va = vartext::build_variable_text(bbox, text, da, quad, multiline, resources)?;
 
-    // ★ A TEXT FIELD DRAWS NO BOX BY DEFAULT, AND THAT MUST NOT CHANGE.
+    // A TEXT FIELD DRAWS NO BOX BY DEFAULT, AND THAT MUST NOT CHANGE.
     // This builder has never painted a background or a frame; the box an
     // operator sees around a text field in most forms is the reader's own
     // form-field highlight, not content. So an absent `/BG` and an absent
@@ -4849,7 +4849,7 @@ fn fit_stamp_label(
     let w = rect.width();
     let h = rect.height();
 
-    // ★ The size is a PROPERTY, not a function of the box. It was
+    // The size is a PROPERTY, not a function of the box. It was
     // `(h * 0.42).clamp(8.0, 28.0)` — derived from the box height and stored
     // nowhere — which is why widening a stamp to reveal clipped text enlarged
     // the text by the same act. `None` still asks for that formula BY NAME,
@@ -4865,7 +4865,7 @@ fn fit_stamp_label(
     let inner_w = (w - 2.0 * frame_w - STAMP_LABEL_PADDING).max(0.0);
 
     if label_w <= inner_w {
-        // ★ The label fits at the size asked for, so NOTHING was decided for
+        // The label fits at the size asked for, so NOTHING was decided for
         // the caller and nothing is owed. This is the branch that has to stay
         // distinguishable from the others (`Pass 291.0`): a disclosure that
         // fires here would be pdfcer reporting the operator's own choice back
@@ -4978,7 +4978,7 @@ fn stamp(
 
     let frame_w = (h * 0.06).max(1.5);
 
-    // ★★ `Pass 287.0`: SIZE AND BOX ARE DECIDED BEFORE ANYTHING IS DRAWN.
+    // `Pass 287.0`: SIZE AND BOX ARE DECIDED BEFORE ANYTHING IS DRAWN.
     //
     // The frame used to be stroked first, from the drawn `w`. Growing the box
     // afterwards would have left the frame at the old width — the fit policy
@@ -5033,7 +5033,7 @@ fn stamp(
         Object::Name(Name(name.name().to_vec())),
     );
 
-    // ★★★ `Pass 287.0`: THE LABEL SIZE IS STORED, and `/DA` is where.
+    // `Pass 287.0`: THE LABEL SIZE IS STORED, and `/DA` is where.
     //
     // §12.5.6.12's `/Stamp` table defines exactly one subtype key, `/Name`.
     // There is no font entry, no `/DA`, nothing — sourced before choosing
@@ -5048,7 +5048,7 @@ fn stamp(
     // is one line, human-inspectable in a text editor, and a reader that does
     // not expect it on a `/Stamp` ignores an unknown key harmlessly.
     //
-    // ★ `/PieceInfo` (§14.5) was the considered alternative and was REJECTED.
+    // `/PieceInfo` (§14.5) was the considered alternative and was REJECTED.
     // It is the correct home for *private* data, and Acrobat does use it for
     // watermarks — but a font size is not private, it is the answer to "how
     // big is this text", and burying a legible answer in an application-keyed
@@ -5064,7 +5064,7 @@ fn stamp(
         flags: AnnotFlags::PRINT,
         popup: None,
         applied_autosize: va.applied_autosize,
-        // ★ The fitted size, carried out instead of dropped (`Pass 291.0`).
+        // The fitted size, carried out instead of dropped (`Pass 291.0`).
         // `va.applied_autosize` is `None` here BY CONSTRUCTION — the layout
         // was handed an explicit size, the one `fit_stamp_label` computed
         // above — so without this field a shrunk or clipped label reached
@@ -5082,7 +5082,7 @@ fn stamp(
 /// Returns the moved spec and whether a **rectangle had to be enclosed rather
 /// than rotated**.
 ///
-/// # ★ The one thing a markup annotation cannot express
+/// # The one thing a markup annotation cannot express
 ///
 /// `Square` and `Circle` are `/Rect`-based (§12.5.2: `/Rect` is an
 /// axis-aligned rectangle in default user space), so a rotated one **has no

@@ -13,7 +13,7 @@
 //!    changes name breaks every script reading it, and the value of a
 //!    corpus sweep depends on those tokens staying put.
 //!
-//! 2. **The disclosure.** ★ The one thing this feature does that Acrobat
+//! 2. **The disclosure.** The one thing this feature does that Acrobat
 //!    does not: when a font's program cannot safely be removed, pdfcer says
 //!    **why**. Acrobat reaches the same refusal and communicates it by
 //!    omitting the font from a list, with no reason shown anywhere
@@ -75,7 +75,7 @@ fn run(rel: &str, args: &[&str]) -> (String, String) {
     )
 }
 
-/// ★ The headline case. An `Identity-H` composite font over an embedded
+/// The headline case. An `Identity-H` composite font over an embedded
 /// `CIDFontType2` is reported, its verdict is `blocked-identity`, and the
 /// **reason names the mechanism** — that the character codes are glyph
 /// indices into that specific program.
@@ -115,7 +115,7 @@ fn the_reasons_flag_interleaves_the_sentence_with_the_rows() {
     );
 }
 
-/// ★ The exceed-Acrobat number. Acrobat exposes a per-font byte size
+/// The exceed-Acrobat number. Acrobat exposes a per-font byte size
 /// nowhere — not Document Properties → Fonts, not Audit Space Usage, which
 /// gives one aggregate bucket for the whole document. Both the per-font
 /// figure and a document total are printed, and the total is the sum of the
@@ -153,7 +153,7 @@ fn the_embedded_program_size_is_reported_per_font_and_in_total() {
     assert!(summary.contains("removable=1"), "{summary}");
 }
 
-/// ★ The coverage declaration. The summary names the surfaces that were
+/// The coverage declaration. The summary names the surfaces that were
 /// searched and the one that was not, and stderr states the omission in
 /// words. Neither is conditional on anything being wrong: an operator
 /// deciding what to delete needs the shape of the evidence.
@@ -293,7 +293,7 @@ fn by_size_sorts_largest_first() {
 /// Without the flag, "this document has no fonts" and "pdfcer could not
 /// look" print identically, which is confident-but-blind reporting.
 ///
-/// ★ The fixture moved in `Pass 290.0`, from `minimal.pdf` to a page tree
+/// The fixture moved in `Pass 290.0`, from `minimal.pdf` to a page tree
 /// that names ITSELF in `/Kids`. `minimal.pdf` was unwalkable only because
 /// its page has no `/Resources`, and that refusal was the defect the Pass
 /// removed — so this test had been reaching a correct assertion through a
@@ -336,7 +336,7 @@ fn listing_fonts_does_not_touch_the_input() {
 /// An encrypted document's font sizes are the plaintext's, not the
 /// ciphertext's.
 ///
-/// ★ The `data_span`-vs-`/Length` hazard, end to end through the real
+/// The `data_span`-vs-`/Length` hazard, end to end through the real
 /// binary. The decryption walk shortens `data_span` and leaves `/Length` at
 /// the ciphertext length by design; an `/AESV2` stream carries a 16-byte IV
 /// plus padding, so a size read from `/Length` overstates by at least 17

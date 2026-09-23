@@ -667,7 +667,7 @@ mod tests {
         assert_eq!(call.arg(5).and_then(Literal::as_bool), Some(true));
     }
 
-    /// ★ **Everything that is not exactly one literal call is refused.**
+    /// **Everything that is not exactly one literal call is refused.**
     ///
     /// This is the module's whole safety argument, so it is asserted as a
     /// table rather than scattered across cases: each entry is a script that
@@ -787,7 +787,7 @@ mod tests {
         );
     }
 
-    /// ★ **No coercion.** JavaScript would equate several of these; this
+    /// **No coercion.** JavaScript would equate several of these; this
     /// module does not, because a type mismatch against the canonical call
     /// means the script was edited, and an edited script is `Custom`.
     #[test]

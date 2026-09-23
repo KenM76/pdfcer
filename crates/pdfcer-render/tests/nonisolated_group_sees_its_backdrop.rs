@@ -1,4 +1,4 @@
-//! ★ `Pass 97.1g` — a non-isolated group on a subtractive page must see the
+//! `Pass 97.1g` — a non-isolated group on a subtractive page must see the
 //! backdrop, and this file is the only end-to-end evidence that it does.
 //!
 //! # Why this file exists rather than more unit tests
@@ -142,7 +142,7 @@ fn the_difference_is_in_the_direction_multiply_requires() {
     );
 }
 
-/// ★ §11.4.4 NOTE 2's exactness, end to end.
+/// §11.4.4 NOTE 2's exactness, end to end.
 ///
 /// A group whose interior never reads its backdrop renders the same isolated
 /// or not. `Canvas::group` relies on this to skip the second walk, and

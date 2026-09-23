@@ -114,7 +114,7 @@ impl fmt::Display for Name {
     /// carry the slash — and the consuming shell was, in its own words,
     /// guessing it.
     ///
-    /// # ★ Same bytes as `Debug`, deliberately
+    /// # Same bytes as `Debug`, deliberately
     ///
     /// `Debug` for [`Name`] already produced exactly this, so `Display`
     /// delegates rather than defining a second spelling. Two renderings of one
@@ -142,7 +142,7 @@ impl fmt::Display for Object {
     /// | `Stream` | `a stream of 14 entries` |
     /// | `Reference` | `12 0 R` |
     ///
-    /// # ★★ Why containers are NAMED and not expanded
+    /// # Why containers are NAMED and not expanded
     ///
     /// The request this answers put it better than a restatement would: the
     /// pair being shown is `kept` versus `discarded` and the operator's

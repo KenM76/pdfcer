@@ -145,7 +145,7 @@ pub enum FetchError {
         /// The status code.
         status: u16,
     },
-    /// ★ The downloaded bytes do not match the pinned hash.
+    /// The downloaded bytes do not match the pinned hash.
     ///
     /// **Nothing was written.** This is a supply-chain refusal: a truncated
     /// transfer and a substituted file look identical here, so both are
@@ -310,7 +310,7 @@ pub fn fetch_verified(artifact: &PinnedArtifact, dir: &Path) -> Result<PathBuf, 
                 }
             })?;
 
-        // ★ Verify BEFORE writing. See the note above on why the order is the
+        // Verify BEFORE writing. See the note above on why the order is the
         // property rather than an implementation detail.
         verify_bytes(artifact, &bytes)?;
 
@@ -351,7 +351,7 @@ mod tests {
         );
     }
 
-    /// ★ A mismatch is refused, and the message carries BOTH digests.
+    /// A mismatch is refused, and the message carries BOTH digests.
     ///
     /// Both, because the operator's next question is always "is my pin stale or
     /// is my download bad?", and one digest cannot answer it.
@@ -390,7 +390,7 @@ mod tests {
         assert!(verify_bytes(&art, b"").is_ok());
     }
 
-    /// ★ With the feature stripped, the entry point REFUSES BY NAME.
+    /// With the feature stripped, the entry point REFUSES BY NAME.
     ///
     /// Rule 2 of the strippable-capability convention. Compiled only in that
     /// configuration, so it is the `--no-default-features` CI job that runs it.
@@ -408,7 +408,7 @@ mod tests {
         );
     }
 
-    /// ★ A non-HTTPS URL is refused before any request is made.
+    /// A non-HTTPS URL is refused before any request is made.
     ///
     /// Compiled only WITH the feature, since the stripped build refuses
     /// earlier for a different (also correct) reason.

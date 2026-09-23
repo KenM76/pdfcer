@@ -120,7 +120,7 @@ fn an_oversized_bbox_is_scaled_down_onto_the_rect() {
     }
 }
 
-/// ★ The whole point of the function: a rotating `/Matrix` produces a
+/// The whole point of the function: a rotating `/Matrix` produces a
 /// **quadrilateral of arbitrary orientation**, not a rectangle.
 ///
 /// `placement-matrix-rotate.pdf` carries a rotating `/Matrix`, so:
@@ -133,7 +133,7 @@ fn an_oversized_bbox_is_scaled_down_onto_the_rect() {
 ///   actually depends on;
 /// * its upright bound is `/Rect` exactly, because step (c) fits it there.
 ///
-/// ★ An earlier draft asserted instead that *"at least one edge is genuinely
+/// An earlier draft asserted instead that *"at least one edge is genuinely
 /// off-axis"*, and it failed — **because the expectation was wrong, not the
 /// code.** This fixture's `/Matrix` is a **quarter** turn, and a quarter turn
 /// is axis-aligned by definition. The bearing check below is what that

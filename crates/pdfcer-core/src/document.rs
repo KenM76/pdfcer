@@ -631,7 +631,7 @@ impl Document {
         // rejected on re-parse and cost the whole document (the exact
         // failure this policy exists to close). Free entries resolve to
         // null, not to bytes; type-2 entries wait for phase 2 (module docs).
-        // ★★ THE CLEAN PATH IS LENIENT TOO SINCE `Pass 283.0`, and the
+        // THE CLEAN PATH IS LENIENT TOO SINCE `Pass 283.0`, and the
         // comment above used to say the opposite.
         //
         // `RecoverFromEndstream` re-derives an extent ONLY when the stored
@@ -676,7 +676,7 @@ impl Document {
                         offset,
                         length_policy,
                         terminator_policy,
-                        // ★ THE LOADER OPTS IN; the parser's own default stays
+                        // THE LOADER OPTS IN; the parser's own default stays
                         // strict. A duplicate key is a malformed ENTRY in an
                         // otherwise sound file, and refusing the object cost an
                         // operator a whole 46 KB drawing every other reader
@@ -684,7 +684,7 @@ impl Document {
                         // (`LoadOptions`), and either way it is recorded.
                         options.duplicate_keys,
                     );
-                    // ★★ ONE UNREADABLE OBJECT NO LONGER COSTS THE DOCUMENT.
+                    // ONE UNREADABLE OBJECT NO LONGER COSTS THE DOCUMENT.
                     //
                     // §7.3.10 already says what a reference to an object that
                     // is not there means: it "shall be treated as a reference
@@ -1084,7 +1084,7 @@ impl Document {
     ) -> Result<(), DocError> {
         let mut cache: HashMap<u32, ObjectStream> = HashMap::new();
 
-        // ★★ A COMPRESSED OBJECT THAT CANNOT BE READ IS UNDEFINED, NOT FATAL
+        // A COMPRESSED OBJECT THAT CANNOT BE READ IS UNDEFINED, NOT FATAL
         // — the same §7.3.10 reading the file-level loop applies, and for the
         // same reason: five of this function's refusals were "one object is
         // broken, so you get no document."
@@ -1550,10 +1550,10 @@ impl Document {
     /// 3. the trailer's `/Size`, so a *stale, oversized* `/Size` cannot
     ///    hand out a number that a `/Prev` revision defines and this
     ///    merged view dropped.
-    /// 4. **★ the newest cross-reference STREAM's own object number**, when
+    /// 4. **the newest cross-reference STREAM's own object number**, when
     ///    the file has one ([`Document::section_shape`]).
     ///
-    /// ## ★ Why source 4 exists, and the bug it closes
+    /// ## Why source 4 exists, and the bug it closes
     ///
     /// A cross-reference stream is an indirect object, and the writer
     /// **reuses its number** for the update section it emits (`R33`: match
@@ -1776,7 +1776,7 @@ pub enum UnreadableObjectPolicy {
 }
 
 impl Default for LoadOptions {
-    /// ★ NOT the derived default. `DuplicateKeyPolicy`'s own `Default` is
+    /// NOT the derived default. `DuplicateKeyPolicy`'s own `Default` is
     /// `Refuse`, which is right for a parser and wrong for a loader: deriving
     /// here would make `LoadOptions::default()` refuse the very files this
     /// Pass exists to open, and the two types would silently disagree about
@@ -1852,7 +1852,7 @@ pub enum LoadAnomaly {
     /// One dictionary named the same key twice (§7.3.7) and pdfcer kept one of
     /// the values.
     ///
-    /// ★ Both values are carried, not just the winner. A count would say *that*
+    /// Both values are carried, not just the winner. A count would say *that*
     /// pdfcer chose; a shell offering the operator the choice needs to show
     /// **what it chose between**, and a report that cannot answer "what was the
     /// other one?" makes the intervention theoretical.
@@ -1879,7 +1879,7 @@ pub enum LoadAnomaly {
     /// that ends the data is right there in the file. Refusing costs the whole
     /// document to preserve a number the file itself contradicts.
     ///
-    /// ★ There is no operator choice to offer here, and that is not an
+    /// There is no operator choice to offer here, and that is not an
     /// oversight: the alternative to the scanned extent is **no object at
     /// all**. The record exists so the operator learns the file is damaged,
     /// not so a decision can be re-taken.
@@ -1900,7 +1900,7 @@ pub enum LoadAnomaly {
     /// One object could not be loaded at all, and the document was loaded
     /// **without it**.
     ///
-    /// # ★★ Why this is continuing rather than guessing
+    /// # Why this is continuing rather than guessing
     ///
     /// §7.3.10 already defines what a reference to an object that is not
     /// there means: *"An indirect reference to an undefined object shall not
@@ -1920,7 +1920,7 @@ pub enum LoadAnomaly {
     /// used to cost the whole document. They survive as errors under
     /// [`LoadOptions::strict`].
     ///
-    /// ★ There is no alternative to offer here either. The choice is between
+    /// There is no alternative to offer here either. The choice is between
     /// this object and no document, and `reason` is carried so the operator
     /// can see WHICH object and WHY rather than being told a count.
     ObjectUnreadable {
@@ -2133,7 +2133,7 @@ mod tests {
         assert_eq!(doc.version().to_string(), "1.6");
     }
 
-    /// ★★ AMENDED BY `Pass 283.0`, and the old assertion is kept as the second
+    /// AMENDED BY `Pass 283.0`, and the old assertion is kept as the second
     /// half rather than deleted.
     ///
     /// This test was right for its time: it asserted that a cross-reference

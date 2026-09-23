@@ -21,7 +21,7 @@
 //! question. `MAX_PIXMAP_EDGE` cannot catch it: that constant guards the
 //! allocation, and the allocation was fine.
 //!
-//! ★ The same report contains the reason a number cannot simply be guessed:
+//! The same report contains the reason a number cannot simply be guessed:
 //! the shell's own check renders CORRECTLY at 3,099,514 % (≈ 30,995×) and only
 //! fails somewhere past ≈ 509,703×. Any ceiling picked as a round number lands
 //! either inside working territory — breaking deep zoom that demonstrably
@@ -38,7 +38,7 @@
 //!
 //! Then bisect the first failing decade to find the boundary.
 //!
-//! # ★★ What it found, and why the answer was a refusal rather than a constant
+//! # What it found, and why the answer was a refusal rather than a constant
 //!
 //! Six geometries, bisected (2026-09-11, before the guard existed):
 //!

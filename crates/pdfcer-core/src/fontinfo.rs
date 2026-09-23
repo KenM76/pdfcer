@@ -56,7 +56,7 @@
 //!    §9.6.4 subset tag, `/Subtype` (and the descendant's for a `Type0`),
 //!    `/Encoding`, whether `/ToUnicode` is present.
 //! 2. **What do they cost?** [`EmbeddedProgram::stored_bytes`] — the
-//!    embedded font program's size **in this file**. ★ Acrobat exposes this
+//!    embedded font program's size **in this file**. Acrobat exposes this
 //!    nowhere: not Document Properties → Fonts (which gives type/encoding/
 //!    embedded status and no size at all), and not Audit Space Usage (which
 //!    gives one *aggregate* "Fonts" bucket for the whole document, with no
@@ -67,7 +67,7 @@
 //!    reason, not a boolean. The later unembedding Pass consumes exactly
 //!    this value, so the report and the action cannot disagree.
 //!
-//! # ★ Coverage is part of the answer, not a footnote
+//! # Coverage is part of the answer, not a footnote
 //!
 //! Fonts are reachable from more than one place, and a font inventory that
 //! quietly misses one and then prints a confident list is this project's
@@ -467,7 +467,7 @@ pub struct EmbeddedProgram {
     /// **The bytes this program occupies in the file**, as stored — after
     /// decryption, before filter decoding.
     ///
-    /// ★ This is the exceed-Acrobat number, and it is deliberately the
+    /// This is the exceed-Acrobat number, and it is deliberately the
     /// *stored* size rather than the decoded size, because it answers the
     /// question an operator optimising a file is asking: *how much smaller
     /// does the file get if this program goes away.* The decoded size (see
@@ -1521,7 +1521,7 @@ impl FontInventory {
     /// Total stored bytes of every embedded program, counted **once per
     /// distinct font object**.
     ///
-    /// ★ The document-level figure Acrobat's Audit Space Usage gives as one
+    /// The document-level figure Acrobat's Audit Space Usage gives as one
     /// aggregate bucket, computed here from the same per-font numbers the
     /// listing shows — so the total and the rows cannot disagree.
     #[must_use]
@@ -2056,7 +2056,7 @@ impl Sweep<'_, '_> {
 
     /// Measure one font-program stream.
     fn measure(&self, key: ProgramKey, stream: &Stream) -> Program {
-        // ★ `data_span`, never `/Length`. On a decrypted document the two
+        // `data_span`, never `/Length`. On a decrypted document the two
         // disagree by design — see the module docs.
         let Some(raw) = self.view.slice(stream.data_span) else {
             return Program::Unreadable {
@@ -2602,7 +2602,7 @@ mod tests {
         assert!(f.removability.is_removable());
     }
 
-    /// ★ The case the whole report exists for. `Identity-H` over an embedded
+    /// The case the whole report exists for. `Identity-H` over an embedded
     /// `CIDFontType2` with no `/ToUnicode`: the codes are glyph indices into
     /// this program, and nothing else in the file says what they mean.
     #[test]
@@ -2805,7 +2805,7 @@ mod tests {
         assert!(!f.removability.is_removable());
     }
 
-    /// ★ The coverage claim's falsifier. A font reachable ONLY through a form
+    /// The coverage claim's falsifier. A font reachable ONLY through a form
     /// XObject nested inside an annotation appearance stream — two hops a
     /// naive page-resources sweep misses. Without this file the coverage
     /// declaration would be a marker confirming itself (R186).
@@ -2922,7 +2922,7 @@ mod tests {
         assert!(inv.fonts.iter().all(|f| !f.pages.is_empty()));
     }
 
-    /// ★ The `data_span` hazard, with a fixture that actually reaches it.
+    /// The `data_span` hazard, with a fixture that actually reaches it.
     ///
     /// On an encrypted document the decryption walk writes the plaintext back
     /// at `data_span.start` and **shortens the span**, leaving the
@@ -3053,7 +3053,7 @@ mod tests {
         assert!(inv.diagnostics.is_clean(), "{:?}", inv.diagnostics);
     }
 
-    /// ★ An empty list and an unsearchable document must not look alike.
+    /// An empty list and an unsearchable document must not look alike.
     ///
     /// The inventory still returns when the page tree cannot be walked —
     /// refusing the report over one damaged page tree would cost the
@@ -3063,7 +3063,7 @@ mod tests {
     /// confident-but-blind reporting this module's coverage discipline
     /// exists to prevent.
     ///
-    /// ★★ THE FIXTURE CHANGED IN `Pass 290.0`, AND WHY IS THE INTERESTING
+    /// THE FIXTURE CHANGED IN `Pass 290.0`, AND WHY IS THE INTERESTING
     /// PART. This test used to open `fixtures/synthetic/minimal.pdf`,
     /// because that file's page has no `/Resources` and the walk refused
     /// the whole document over it. That refusal was the defect `Pass 290.0`

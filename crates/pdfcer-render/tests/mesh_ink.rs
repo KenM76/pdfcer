@@ -15,7 +15,7 @@
 //! authored ink, so `Pass 137.0`'s widened analytic route — correct, and
 //! measurably so for types 2 and 3 — **could not reach a mesh at all**.
 //!
-//! ★ The gate in front of it read `ramp.is_some_and(has_colorants)`, which
+//! The gate in front of it read `ramp.is_some_and(has_colorants)`, which
 //! is `false` for a fully ink-bearing `DeviceCMYK` mesh. A predicate about
 //! the wrong carrier is indistinguishable, at the call site, from a
 //! predicate about the right one.
@@ -105,7 +105,7 @@ fn mean_abs(a: (f64, f64, f64), b: (f64, f64, f64)) -> f64 {
     ((a.0 - b.0).abs() + (a.1 - b.1).abs() + (a.2 - b.2).abs()) / 3.0
 }
 
-/// ★★★ THE ONE THAT MATTERS.
+/// THE ONE THAT MATTERS.
 #[test]
 fn a_mesh_and_a_fill_of_one_ink_agree_on_a_subtractive_page() {
     let page = render("mesh-vs-fill-cmyk.pdf");
@@ -148,7 +148,7 @@ fn a_mesh_and_a_fill_of_one_ink_agree_on_an_additive_page_too() {
     );
 }
 
-/// ★ The two mesh types must agree with EACH OTHER, not merely each with the
+/// The two mesh types must agree with EACH OTHER, not merely each with the
 /// fill.
 ///
 /// Strictly implied by the test above under exact arithmetic, and asserted
@@ -173,7 +173,7 @@ fn the_two_mesh_types_agree_with_each_other() {
 
 /// The mesh actually covers the area being sampled.
 ///
-/// ★ Without this, every assertion above could pass on **bare white paper**:
+/// Without this, every assertion above could pass on **bare white paper**:
 /// if the mesh painted nothing, `t4` and `t6` would both be white, they would
 /// agree with each other perfectly, and only the comparison against the fill
 /// would catch it — through a difference that reads as a colour error rather

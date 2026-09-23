@@ -147,7 +147,7 @@ fn edit_text_gets_the_same_affordance() {
     );
 }
 
-/// ★★ The named spelling on the EDIT verb (`Pass 152.0`), and the reason it
+/// The named spelling on the EDIT verb (`Pass 152.0`), and the reason it
 /// was added when the behaviour above already worked.
 ///
 /// The test directly above proves the affordance. This one proves the
@@ -161,7 +161,7 @@ fn edit_text_gets_the_same_affordance() {
 /// example and no symbol to grep for. They then described three ways they had
 /// tried to reconstruct a `find` for an operator they had already located.
 ///
-/// ★ No gate in this project can catch that. The code was correct, this
+/// No gate in this project can catch that. The code was correct, this
 /// file's tests were green, and the sentence was true. **The only symptom of
 /// an undiscoverable capability is somebody asking for what they already
 /// have** — which is why the remedy is a symbol, not a longer sentence.

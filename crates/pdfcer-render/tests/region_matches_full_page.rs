@@ -41,10 +41,10 @@
 //!
 //! | test | the failure it catches |
 //! |---|---|
-//! | `a_replayed_region_is_byte_identical_to_a_fresh_one` | ★ criterion 3 — any drift between the recorded ops and what the interpreter would have painted |
+//! | `a_replayed_region_is_byte_identical_to_a_fresh_one` | criterion 3 — any drift between the recorded ops and what the interpreter would have painted |
 //! | `a_replayed_region_survives_a_clip_and_a_layer` | clips recorded as device masks (invalid after a pan) and layers composited in the wrong order |
 //! | `culling_never_drops_a_mark` | a bounds computation that is too tight — the one cull failure that is invisible until a stroke goes missing at a viewport edge |
-//! | `a_stale_epoch_is_refused_by_name` | ★ criterion 2 — a display list serving a document's PREVIOUS state while reporting success |
+//! | `a_stale_epoch_is_refused_by_name` | criterion 2 — a display list serving a document's PREVIOUS state while reporting success |
 //! | `a_different_scale_is_refused_by_name` | the scale narrowing being silently ignored rather than enforced |
 //! | `an_unrecordable_page_refuses_by_name` | a page with a shading yielding a list that renders NEARLY right |
 
@@ -83,7 +83,7 @@ fn crop(pixmap: &pdfcer_render::tiny_skia::Pixmap, x0: u32, y0: u32, w: u32, h: 
     out
 }
 
-/// ★ The contract: a region is the crop.
+/// The contract: a region is the crop.
 #[test]
 fn a_region_matches_the_same_crop_of_the_full_page() {
     let doc = Document::load(&fixture("addtext/plain.pdf")).expect("fixture loads");
@@ -130,7 +130,7 @@ fn a_region_matches_the_same_crop_of_the_full_page() {
     );
 }
 
-/// ★ Four tiles reassemble into the whole page, with no seam and no overlap.
+/// Four tiles reassemble into the whole page, with no seam and no overlap.
 ///
 /// This is the test a tiled viewer actually depends on. The floor/ceil policy
 /// on the region's device bounds is chosen so a requested region is fully
@@ -210,7 +210,7 @@ fn four_tiles_reassemble_into_the_whole_page() {
 // because "no fixture exercises page rotation" is a corpus gap that outlives
 // this feature.
 
-/// ★ The feature itself: the guard now bounds the REGION, not the page.
+/// The feature itself: the guard now bounds the REGION, not the page.
 ///
 /// This is what makes deep zoom reachable. At a scale that would make the
 /// whole page exceed `MAX_PIXMAP_EDGE` — and therefore fail outright — a
@@ -361,7 +361,7 @@ fn assert_replay_matches(
     );
 }
 
-/// ★ Criterion 3, on real fixtures: the replay IS the render.
+/// Criterion 3, on real fixtures: the replay IS the render.
 #[test]
 fn a_replayed_region_is_byte_identical_to_a_fresh_one() {
     // Text, vector geometry and an annotated page — the three shapes of
@@ -445,7 +445,7 @@ fn a_replayed_region_survives_a_clip_and_a_layer() {
     }
 }
 
-/// ★ The cull must never drop a mark.
+/// The cull must never drop a mark.
 ///
 /// A bounds computation that is too generous costs a paint that would have
 /// been skipped; one that is too tight **loses content**, and only at a
@@ -474,7 +474,7 @@ fn culling_never_drops_a_mark() {
     }
 }
 
-/// ★ Criterion 2: a stale handle refuses rather than serving old pixels.
+/// Criterion 2: a stale handle refuses rather than serving old pixels.
 #[test]
 fn a_stale_epoch_is_refused_by_name() {
     let doc = Document::load(&fixture("addtext/plain.pdf")).expect("fixture loads");
@@ -525,7 +525,7 @@ fn a_different_scale_is_refused_by_name() {
     );
 }
 
-/// ★ A page that cannot be recorded says so, rather than recording something
+/// A page that cannot be recorded says so, rather than recording something
 /// that renders NEARLY right.
 #[test]
 fn an_unrecordable_page_refuses_by_name() {
@@ -619,7 +619,7 @@ fn a_key_survives_a_hash_map_round_trip() {
 /// A recording scale past `f32`'s usable range is refused BY NAME, and one
 /// below it still records.
 ///
-/// ★ This is a `R211` boundary test, not a resource-limit test, and the
+/// This is a `R211` boundary test, not a resource-limit test, and the
 /// second half is the load-bearing one. `Pass 74.7` gave the DIRECT render
 /// path an `f64` CTM; a display list is still `f32` throughout. If both
 /// were allowed to operate above the point where that difference shows,

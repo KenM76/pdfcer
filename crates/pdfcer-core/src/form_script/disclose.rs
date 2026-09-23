@@ -293,7 +293,7 @@ mod tests {
         classify(js.as_bytes(), Trigger::Calculate)
     }
 
-    /// ★ **Every disclosure states that pdfcer did not run the script.**
+    /// **Every disclosure states that pdfcer did not run the script.**
     ///
     /// Asserted as a property over all three reproducibility states rather
     /// than per-case, because the failure this guards against is one branch
@@ -374,7 +374,7 @@ mod tests {
         );
     }
 
-    /// ★ **A format disclosure says "display", never "value".**
+    /// **A format disclosure says "display", never "value".**
     ///
     /// The whole format/value separation is invisible to an operator unless
     /// the words carry it.

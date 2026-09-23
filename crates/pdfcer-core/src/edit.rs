@@ -241,7 +241,7 @@ impl InfoField {
     /// them. Provided so a front end enumerates the real list instead of
     /// hard-coding one that drifts when a field is added.
     ///
-    /// ★ Returns a **slice**, not `[Self; 4]` (`Pass 301.1`), and the doc
+    /// Returns a **slice**, not `[Self; 4]` (`Pass 301.1`), and the doc
     /// sentence above is why it had to change: this accessor's whole purpose
     /// is that a front end not hard-code a list that drifts — and
     /// `-> [Self; 4]` put the cardinality **into the signature**, so the
@@ -286,7 +286,7 @@ pub enum CommandKind {
     AdoptWidget,
     /// An entire document was merged into this one (`Pass 106.0`).
     ///
-    /// ★ Filed as `106.0`, though commit `9f663f9`'s subject line says
+    /// Filed as `106.0`, though commit `9f663f9`'s subject line says
     /// "Pass 104.0" and cannot be changed. `104.0` was already the
     /// ce-dimension group verbs (`ad960f2`), shipped earlier the same day —
     /// the engineer asserted a Pass ID from memory instead of grepping the
@@ -742,7 +742,7 @@ pub enum CommandKind {
     /// [`EditSession::add_ocr_layer`]: a content stream and a Standard-14 font
     /// per page, plus each page's rewritten dictionary.
     ///
-    /// ★ **One command for the whole run, however many pages.** Recognising
+    /// **One command for the whole run, however many pages.** Recognising
     /// forty pages and then pressing undo forty times is not a feature, so the
     /// verb accumulates every page's writes and commits once. Undo removes
     /// every created object and restores every page dictionary
@@ -776,7 +776,7 @@ pub enum CommandKind {
     /// geometry. ONE undoable command per edit, so a corner drag is one
     /// Ctrl+Z.
     ///
-    /// ★ The **first** ce-dimension command that changes what a ce dimension
+    /// The **first** ce-dimension command that changes what a ce dimension
     /// MEASURES. [`Self::MoveDimension`] is a rigid motion and
     /// [`Self::PlaceDimension`] writes only fields the value function does not
     /// read; both are value-preserving by construction. This one is not, and
@@ -1151,7 +1151,7 @@ struct ObjectWrite {
 /// Add one visible item to `d`'s `/Count`, returning **whether `d` is open**
 /// afterwards — which is what tells the caller whether to keep walking up.
 ///
-/// # ★ One function for two quantities, and why that is not the trap
+/// # One function for two quantities, and why that is not the trap
 ///
 /// [`EditSession::add_outline_item`] opens by warning that a root's `/Count`
 /// and an item's count **different things**. It would follow that they need
@@ -1182,7 +1182,7 @@ fn bump_outline_count(d: &mut Dict) -> bool {
 /// Adjust an outline node's `/Count` by `delta` **visible items**, preserving
 /// the sign convention, and report whether the node is OPEN (`Pass 156.0`).
 ///
-/// # ★ `/Count` is two different quantities, and this handles the item one
+/// # `/Count` is two different quantities, and this handles the item one
 ///
 /// §12.3.3 Table 153: on an ITEM, `/Count` counts visible **descendants**,
 /// excluding the item itself, and its **sign carries the open/closed state** —
@@ -1908,7 +1908,7 @@ pub struct FieldAuthorDisclosures {
     /// shape rule 4 exists for — pdfcer did something the operator did not ask
     /// for (nothing) and would otherwise discover by clicking.
     ///
-    /// # ★ This flag is about CREATION, and that distinction became load-bearing
+    /// # This flag is about CREATION, and that distinction became load-bearing
     ///
     /// This doc block used to say *"there is no state in which a
     /// pdfcer-authored push button HAS an action"*, and that was true when it
@@ -2395,7 +2395,7 @@ pub struct NewRadioButton {
     /// Which glyph the button draws when it is ON
     /// ([`crate::annot_author::CheckStyle`], `Pass 261.0`).
     ///
-    /// Defaults to [`CheckStyle::Check`]. ★ pdfcer does **not** force
+    /// Defaults to [`CheckStyle::Check`]. pdfcer does **not** force
     /// [`CheckStyle::Circle`] here even though a filled circle is the
     /// conventional radio glyph — Acrobat does not force it either, and
     /// silently overriding a caller's explicit choice is the substitution
@@ -3503,7 +3503,7 @@ fn apply_text_annot_style(
             name,
             label,
             color: style.color.unwrap_or(color),
-            // ★ The stamp's own sizing survives a colour restyle untouched —
+            // The stamp's own sizing survives a colour restyle untouched —
             // a restyle that quietly resized the label would be the same
             // class of surprise `Pass 287.0` exists to remove. `Pass 292.0`
             // adds the OTHER half: when the caller asks for a size, it is
@@ -3700,7 +3700,7 @@ fn apply_markup_style(
 /// TARGET  fields=None   annots=13   widgets=13
 /// ```
 ///
-/// ★ **The result is not "the form fields did not come across".** It is
+/// **The result is not "the form fields did not come across".** It is
 /// **boxes that draw exactly like form fields, that an operator will click
 /// on, and that nothing can fill, because no field claims them.** That is
 /// worse than absence, and worse in a way this project already has a name
@@ -3726,7 +3726,7 @@ pub struct InsertOutcome {
     /// naming the count — rather than warning unconditionally that "form
     /// fields may not have come across", which is both vaguer and wrong.
     ///
-    /// # ★ This count is PERMANENT, not an interim measure
+    /// # This count is PERMANENT, not an interim measure
     ///
     /// The obvious next step is to carry the field definitions across for
     /// fields whose widgets are all on inserted pages (`Pass 102.1`), and it
@@ -3743,7 +3743,7 @@ pub struct InsertOutcome {
     /// field they belonged to, and so cannot be adopted back into one
     /// without re-reading the source document.
     ///
-    /// # ★ Two orphans that look identical and are not
+    /// # Two orphans that look identical and are not
     ///
     /// Measured, not assumed — `examples/orphan_probe.rs` against a real
     /// AcroForm (12 fields over 13 widgets, pdfbox corpus). Of the 13
@@ -3803,7 +3803,7 @@ pub struct InsertOutcome {
     /// Whether the SOURCE carried a `/PageLabels` number tree (§12.4.2)
     /// whose labels did **not** come across with the pages.
     ///
-    /// # ★ pdfcer deliberately does NOT match Acrobat here
+    /// # pdfcer deliberately does NOT match Acrobat here
     ///
     /// This is a measured divergence, not an omission.
     /// `Acrobat_Features/core_ops__page_labels_and_bates_interaction.md`
@@ -4595,7 +4595,7 @@ pub enum GroupDeletion {
     /// group without changing what it reads would be showing a measurement
     /// its own group does not agree with.
     Reassign(crate::dimension::GroupId),
-    // ★ `DeleteMembers` IS DELIBERATELY ABSENT, and its absence is a scoping
+    // `DeleteMembers` IS DELIBERATELY ABSENT, and its absence is a scoping
     // decision rather than an oversight.
     //
     // Deleting a dimension is not "drop the record": `delete_dimension` also
@@ -4688,7 +4688,7 @@ fn apply_ink_edit(
         index,
         count,
     };
-    // ★ THE STROKE BOUNDS CHECK LIVES HERE, not only in the caller, and
+    // THE STROKE BOUNDS CHECK LIVES HERE, not only in the caller, and
     // clippy's `indexing_slicing` is what said so. `ink_plan` checks it too
     // (it needs the before-counts anyway), and the first draft of this
     // function LEANED on that — three `strokes[stroke_index]` indexings whose
@@ -4770,7 +4770,7 @@ fn apply_ink_edit(
             }
         }
         InkEdit::RemoveStroke { .. } => {
-            // ★ Counted on what would REMAIN, not on `strokes.len() > 1`. A
+            // Counted on what would REMAIN, not on `strokes.len() > 1`. A
             // list holding one drawable stroke beside a malformed one-point
             // stroke would pass the naive test and leave an /Ink that draws
             // nothing — the exact state this refusal exists to prevent,
@@ -4866,7 +4866,7 @@ fn reshape_spec(
             };
         }
         MarkupSpec::Ink { .. } => {
-            // ★ THIS REFUSAL USED TO BE THE ANSWER; IT IS NOW A SIGNPOST. It
+            // THIS REFUSAL USED TO BE THE ANSWER; IT IS NOW A SIGNPOST. It
             // read: "per-point ink editing is refused by name: an /InkList
             // stroke is a recorded pen trace, and Acrobat has never offered
             // per-point ink editing at any version -- move, resize or delete
@@ -5015,7 +5015,7 @@ fn dropped_properties<G: ObjectGraph + ?Sized>(
 ) -> Vec<DroppedProperty> {
     let mut out = Vec::new();
 
-    // ★ `/BE` IS NO LONGER ALWAYS A LOSS (`Pass 98.0`). A cloudy border on
+    // `/BE` IS NO LONGER ALWAYS A LOSS (`Pass 98.0`). A cloudy border on
     // a `/Square` or a `/Polygon` is now read back into the spec and
     // re-baked, so disclosing it as dropped would be a FALSE disclosure —
     // and rule 4 cuts both ways: a report of a loss that did not happen
@@ -5042,7 +5042,7 @@ fn dropped_properties<G: ObjectGraph + ?Sized>(
         out.push(DroppedProperty::RectDifferences);
     }
     if let Some(Object::Dict(bs)) = annot.get(b"BS").map(|o| graph.resolve(o)) {
-        // ★ A DASH IS NO LONGER ALWAYS A LOSS (`Pass 258.0`) — the same
+        // A DASH IS NO LONGER ALWAYS A LOSS (`Pass 258.0`) — the same
         // shape as the `/BE` narrowing above, and for the same reason: a
         // report of a loss that did not happen trains the operator to
         // discount the ones that did. `dash_preserved` says the
@@ -5197,7 +5197,7 @@ pub struct MarkupStyle {
     /// `/LE` — the line-ending styles (§12.5.6.7, Table 176). `Line`
     /// only.
     ///
-    /// ★ **`Clear` REMOVES the key; it does not write `[/None /None]`**
+    /// **`Clear` REMOVES the key; it does not write `[/None /None]`**
     /// (`Pass 258.0`, `pdfcer-gui` request 2026-09-06). This field was a
     /// bare `Option<(LineEnding, LineEnding)>` until then, which made
     /// *"draw no arrowheads"* expressible and *"have no `/LE` at all"*
@@ -5220,7 +5220,7 @@ pub struct MarkupStyle {
     /// **including a dash pdfcer did not author** — which is the whole
     /// point of the field's existence.
     ///
-    /// # ★ Why this field exists, and what shipped before it
+    /// # Why this field exists, and what shipped before it
     ///
     /// Before `Pass 258.0` a dashed mark in the operator's file was
     /// **silently converted to a solid one the first time its colour was
@@ -5248,7 +5248,7 @@ pub struct MarkupStyle {
 
 /// Which [`MarkupStyle`] properties a given `/Subtype` can actually take.
 ///
-/// # ★ Why this exists rather than a shell matching on `MarkupSpec`
+/// # Why this exists rather than a shell matching on `MarkupSpec`
 ///
 /// Before `Pass 258.0`, `set_markup_style` accepted a `width` for a
 /// `/Highlight` and **silently discarded it**: `MarkupSpec::TextMarkup` has
@@ -5360,7 +5360,7 @@ impl MarkupStyle {
 /// comment — and pdfcer's own `list-annotations` prints `author=none` beside
 /// it. Offering the text without the other two would ship exactly that.
 ///
-/// # ★ pdfcer does NOT invent the timestamp, and that is a decision
+/// # pdfcer does NOT invent the timestamp, and that is a decision
 ///
 /// [`Self::modified`] is the PDF date string **the caller supplies**, written
 /// verbatim. pdfcer never reads a wall clock here. Two reasons, and the second
@@ -5549,7 +5549,7 @@ impl MarkupNote {
 /// change; that is the honest price of a struct callers build, and it is
 /// paid here rather than pushed onto every consumer as an
 /// unconstructable type.
-/// ★ **`Copy` WAS DROPPED BY `Pass 150.0`, and that is a breaking change.**
+/// **`Copy` WAS DROPPED BY `Pass 150.0`, and that is a breaking change.**
 ///
 /// This type carried `Copy` while every field was a scalar. `note` holds a
 /// `String`, so it cannot. The alternative was to keep `Copy` by putting the
@@ -5665,7 +5665,7 @@ pub enum DroppedProperty {
     /// `/BE` — a border effect (§12.5.4, Table 167): the "cloudy"
     /// hand-drawn outline Acrobat offers.
     ///
-    /// **★ NARROWED 2026-08-18 by `Pass 82.0`.** This read *"pdfcer authors
+    /// **NARROWED 2026-08-18 by `Pass 82.0`.** This read *"pdfcer authors
     /// straight edges only, so a regenerated appearance is a plain
     /// outline."* The first clause is now false — pdfcer authors cloudy
     /// borders, via [`MarkupSpec::Cloud`] and `Square { border_effect }`.
@@ -5680,7 +5680,7 @@ pub enum DroppedProperty {
     /// unaffected, because its intensity is in the spec it was built
     /// from.
     ///
-    /// ★ **NARROWED BY `Pass 98.0` (2026-08-19) — this is no longer
+    /// **NARROWED BY `Pass 98.0` (2026-08-19) — this is no longer
     /// reported for the case it was written about.**
     ///
     /// A cloudy `/BE << /S /C >>` on a `/Square` or a `/Polygon` is now
@@ -5709,7 +5709,7 @@ pub enum DroppedProperty {
     /// `/BS` `/S` named a border style pdfcer does not author — `/B`
     /// beveled, `/I` inset or `/U` underline (§12.5.4, Table 166).
     ///
-    /// ★ **NARROWED BY `Pass 258.0`, exactly as [`Self::BorderEffect`] was
+    /// **NARROWED BY `Pass 258.0`, exactly as [`Self::BorderEffect`] was
     /// by `Pass 98.0`.** `/S /D` (dashed) has left that list: a dashed
     /// border is now read back and re-authored, so reporting it here would
     /// be a FALSE disclosure — and rule 4 cuts both ways. The superseded
@@ -5718,7 +5718,7 @@ pub enum DroppedProperty {
     BorderStyle,
     /// `/BS` `/D` — an explicit dash array that could **not** be carried.
     ///
-    /// ★ **ALSO NARROWED BY `Pass 258.0`.** It used to fire for every dash,
+    /// **ALSO NARROWED BY `Pass 258.0`.** It used to fire for every dash,
     /// on the reasoning that the array was *"carried by the dictionary, not
     /// by the regenerated appearance"* — which described the DEFECT rather
     /// than a property of the format, and the defect was that a dashed mark
@@ -5919,7 +5919,7 @@ pub struct AnnotationReshape {
 /// [`Self::appearance_was_pdfces`], answered by the **preview** so a front end
 /// can say it before the drag rather than after.
 ///
-/// ★ **pdfcer draws an `/InkList` as a polyline, not as a smoothed curve.**
+/// **pdfcer draws an `/InkList` as a polyline, not as a smoothed curve.**
 /// §12.5.6.13 says the points "shall be connected by straight lines or curves
 /// in an implementation-dependent way", so both readings conform, and pdfcer
 /// takes the straight-line one — which means a point drag moves exactly the
@@ -6253,7 +6253,7 @@ pub enum EditError {
     /// size. An option whose name describes an outcome that will not happen is
     /// worse than no option.
     ///
-    /// # ★ pdfcer's own renderer currently disagrees, and says so
+    /// # pdfcer's own renderer currently disagrees, and says so
     ///
     /// `pdfcer_render::annot` defers the `NoZoom`/`NoRotate` placement
     /// adjustment (a documented Pass 6.0 deferral, reported as a render note)
@@ -6370,7 +6370,7 @@ pub enum EditError {
     /// The object named in a page's `/Annots` is a **structural object**, not
     /// an annotation (`Pass 190.1`).
     ///
-    /// # ★ The same defect as `FieldObjectIsInPageTree`, in a second carrier
+    /// # The same defect as `FieldObjectIsInPageTree`, in a second carrier
     ///
     /// A page's `/Annots` array can name anything. `annot::page_annotations`
     /// accepts any entry that resolves to a dictionary — correct for a reader
@@ -6399,7 +6399,7 @@ pub enum EditError {
     /// is not one, and a verb was about to delete or overwrite it
     /// (`Pass 191.1`).
     ///
-    /// # ★ The categorical form of `AnnotationObjectIsStructural`
+    /// # The categorical form of `AnnotationObjectIsStructural`
     ///
     /// That variant refuses a named list of structural objects — the catalog,
     /// a `/Pages` node, a `/Page`. This one refuses **everything that is not
@@ -6681,7 +6681,7 @@ pub enum EditError {
     /// A field kind Acrobat does not offer this script tab for
     /// (`Pass 308.6`, request `G024`).
     ///
-    /// # ★ pdfcer is AUTHORING this rule, not restating one
+    /// # pdfcer is AUTHORING this rule, not restating one
     ///
     /// ISO 32000-1 constrains neither: §12.7.4 gives every field type an
     /// `/AA`, and the standard has nothing to say about which *helper* may sit
@@ -6746,7 +6746,7 @@ pub enum EditError {
     /// A `/SubmitForm` or `/URI` destination pdfcer will not author
     /// (`Pass 183.0`).
     ///
-    /// # ★ Every case here is an AMBIGUOUS destination, not a disliked one
+    /// # Every case here is an AMBIGUOUS destination, not a disliked one
     ///
     /// The operator's ruling on destination policy is **open** — *"we'll allow
     /// a submit to send filled data wherever the document's author said"* — so
@@ -6794,7 +6794,7 @@ pub enum EditError {
     /// A `/Hide` action was asked to target a **non-terminal** (grouping)
     /// field (`Pass 183.1`).
     ///
-    /// # ★ Refused because the standard is silent HERE and explicit NEXT DOOR
+    /// # Refused because the standard is silent HERE and explicit NEXT DOOR
     ///
     /// `/ResetForm` and `/SubmitForm` both state descendant expansion in
     /// their flag rows — *"all descendants of the specified fields in the
@@ -6832,7 +6832,7 @@ pub enum EditError {
     /// things, and choosing which one it "really" is would be an inference
     /// about a malformed document made silently on a destructive verb.
     ///
-    /// # ★★ THE MESSAGE USED TO NAME A FORM FIELD, AND IN SEVEN CARRIERS THAT
+    /// # THE MESSAGE USED TO NAME A FORM FIELD, AND IN SEVEN CARRIERS THAT
     /// # WAS A LIE (`Pass 191.1`)
     ///
     /// It read *"The file says that object is BOTH a form field and a page"*,
@@ -6880,7 +6880,7 @@ pub enum EditError {
     /// on. That rule is not new — [`crate::dimension::DimensionModel::set_group_visible`]
     /// has enforced it since `Pass 12.M2`.
     ///
-    /// # ★ What is new is SAYING SO
+    /// # What is new is SAYING SO
     ///
     /// The model enforced it by returning `true` — "still visible" — and
     /// [`EditSession::toggle_dimension_layer`] passed that back as `Ok(true)`,
@@ -6915,7 +6915,7 @@ pub enum EditError {
     /// The **default** ce-dimension group was named for deletion
     /// (`Pass 176.0`).
     ///
-    /// # ★ Why this is a refusal and not a permission the model could grant
+    /// # Why this is a refusal and not a permission the model could grant
     ///
     /// The default group is the one every ce dimension falls back to and the
     /// one [`crate::dimension::DimensionModel::new`] guarantees exists. The
@@ -6991,7 +6991,7 @@ pub enum EditError {
     /// rather than ignored, so a caller learns its assumption was wrong
     /// instead of watching a drag do nothing.
     ///
-    /// # ★ This refusal silently widened, and had to be narrowed back
+    /// # This refusal silently widened, and had to be narrowed back
     ///
     /// It was written when [`DimensionKind`] had exactly two variants, so
     /// "not linear" and "circular" were the same statement — the name says
@@ -7887,7 +7887,7 @@ pub enum EditError {
     /// A cloudy border effect `/BE /I` was given an intensity outside the
     /// range the standard defines.
     ///
-    /// # ★ The range is CONTINUOUS, and this is the field's whole story
+    /// # The range is CONTINUOUS, and this is the field's whole story
     ///
     /// ISO 32000-1 §12.5.4 Table 167 (Table 169 in ISO 32000-2 — renumbered,
     /// text **character-for-character identical**) types `/I` as **`number`**
@@ -8197,7 +8197,7 @@ pub enum EditError {
     ///   itself ships: [`EditSession::reshape_ink`] and its six named
     ///   wrappers, which this refusal names.
     ///
-    ///   ★ It used to say something else, and the something else was
+    ///   It used to say something else, and the something else was
     ///   *"Acrobat has never offered per-point ink editing at any version
     ///   … pdfcer matches that model on purpose"*. True, and superseded:
     ///   **parity with Acrobat is this project's floor, not its ceiling**,
@@ -8594,7 +8594,7 @@ pub enum EditError {
     /// property — a `width` or a `dash` on a text markup, an `endings` on
     /// anything but a `/Line`.
     ///
-    /// # ★ Why this is a refusal and not a `DroppedProperty`
+    /// # Why this is a refusal and not a `DroppedProperty`
     ///
     /// It was a **silent no-op** until `Pass 258.0`: the value was
     /// discarded, `Ok` was returned, and `dropped` was empty. This project
@@ -9036,7 +9036,7 @@ pub struct EditSession {
     /// content stream is parsed twice for one drag — reported by `pdfcer-gui`
     /// as a boundary finding, and reproduced here before being believed.
     ///
-    /// # ★★ THE KEY IS A SPAN BECAUSE A DIGEST DEFEATED ITSELF
+    /// # THE KEY IS A SPAN BECAUSE A DIGEST DEFEATED ITSELF
     ///
     /// The first design hashed the decoded content bytes. It was provably
     /// correct and it was nearly worthless, which the instrument showed and
@@ -9066,7 +9066,7 @@ pub struct EditSession {
     /// leave the decode to be repeated. One slot matches the access pattern
     /// (an operator edits one page repeatedly) and cannot grow unbounded.
     ///
-    /// ★ A plain field behind `&mut self`, NOT a `RefCell`: interior
+    /// A plain field behind `&mut self`, NOT a `RefCell`: interior
     /// mutability reachable through `&self` would make `EditSession` no
     /// longer `Sync`, and `Send + Sync` is exactly what lets a shell move the
     /// session to a worker thread and keep this cost off the UI thread.
@@ -9105,7 +9105,7 @@ struct PageSplice {
     scratch: BTreeMap<ObjId, Object>,
     /// Source id → new id for everything copied so far.
     ///
-    /// ★ The load-bearing field for `merge_document`. Importing a field
+    /// The load-bearing field for `merge_document`. Importing a field
     /// dictionary AFTER the pages reuses this table, so the field's
     /// `/Kids` resolve to the widgets the pages already brought across
     /// rather than to fresh duplicates. Copying the field first, or with a
@@ -9596,7 +9596,7 @@ impl EditSession {
     /// [`EditError::DocumentEncrypted`] on an encrypted document;
     /// [`EditError::NotADictionary`] if the catalog is missing or malformed.
     ///
-    /// # ★ What it preserves, and why that matters here specifically
+    /// # What it preserves, and why that matters here specifically
     ///
     /// A `/Names` dictionary that already exists keeps its other trees.
     /// Acrobat's own `Dynamic.pdf` carries a `/Names` dictionary holding
@@ -11132,7 +11132,7 @@ impl EditSession {
     /// **inside** it (because its `/Resources`, or that dictionary's `/Font`,
     /// is a direct value rather than a reference).
     ///
-    /// # ★★ Why a shared `/Resources` is PATCHED IN PLACE and not cloned
+    /// # Why a shared `/Resources` is PATCHED IN PLACE and not cloned
     ///
     /// A page's `/Resources` is very often an indirect object shared by every
     /// page a producer emitted, and the same is true of the `/Font`
@@ -11170,7 +11170,7 @@ impl EditSession {
         font: Dict,
     ) -> Result<(Vec<ObjectWrite>, bool), EditError> {
         let font_id = ObjId::new(self.alloc_number()?, 0);
-        // ★ `self.graph()`, not `self.base`: the resource dictionary may
+        // `self.graph()`, not `self.base`: the resource dictionary may
         // already have been edited earlier in this session, and binding
         // against the base revision would drop those edits when this write
         // replaces the object.
@@ -11412,7 +11412,7 @@ impl EditSession {
             );
             for (id, value) in objects {
                 if id == form_id {
-                    // ★★ The binder returned the FORM'S OWN dictionary,
+                    // The binder returned the FORM'S OWN dictionary,
                     // patched — which happens whenever the form's
                     // `/Resources` is a direct value. It must NOT be written
                     // as a plain dictionary: a form XObject is a STREAM, and
@@ -11515,7 +11515,7 @@ impl EditSession {
     /// walks this page's content once and runs the same planner
     /// [`Self::format_text`] runs. Nothing is staged, committed or cached.
     ///
-    /// # ★★ Why this is not [`Self::preview_style_resolution`]
+    /// # Why this is not [`Self::preview_style_resolution`]
     ///
     /// That one previews the **R90 gate**, whose answer
     /// (`StyleOutcome::WouldSynthesize`) means exactly *"no real face on this
@@ -11808,7 +11808,7 @@ impl EditSession {
     /// and with structural page edits in the same session. Before 257.0 it
     /// planned against the base document and refused both cases by name.
     ///
-    /// ★ **A page carrying extra content streams is no longer refused**
+    /// **A page carrying extra content streams is no longer refused**
     /// (`G015`, 2026-09-14). This paragraph used to say *"One refusal remains:
     /// a page carrying a non-empty content stream APPENDED this session"* —
     /// true of `Pass 251.0`, when the plan read the base document and could
@@ -11863,7 +11863,7 @@ impl EditSession {
         // content already edited) are gone; their tests now assert the reflow
         // composes.
 
-        // ★★★ THE `PageEditedThisSession` GUARD WAS REMOVED HERE (`G015`), and
+        // THE `PageEditedThisSession` GUARD WAS REMOVED HERE (`G015`), and
         // the sentence it replaced is worth keeping because it was TRUE when
         // written and stopped being true without anyone noticing.
         //
@@ -11895,7 +11895,7 @@ impl EditSession {
         // deferred), which is a true sentence about the font instead of a false
         // one about what the operator did.
         //
-        // ★ WHAT THIS COSTS, STATED SO IT IS NOT REDISCOVERED AS A REGRESSION:
+        // WHAT THIS COSTS, STATED SO IT IS NOT REDISCOVERED AS A REGRESSION:
         // the protection is not weakened, because the thing it protected
         // against cannot happen on this path any more. If a future change makes
         // the planner read anything narrower than the session's whole page
@@ -11916,7 +11916,7 @@ impl EditSession {
     /// **Give this page its own private copy of a shared form XObject**, so a
     /// later edit to it changes this page and no other.
     ///
-    /// # ★★★ THIS IS THE "OPTION" HALF OF DECISION 076, AND IT WAS MISSING
+    /// # THIS IS THE "OPTION" HALF OF DECISION 076, AND IT WAS MISSING
     ///
     /// Decision 076 ruled that editing content inside a shared form XObject is
     /// **edit-in-place, disclosed** — a form may legally be invoked from more
@@ -11953,7 +11953,7 @@ impl EditSession {
     ///    **direct** dictionary on this page's own `/Resources`, so the
     ///    re-point lands on a dictionary nobody else reads.
     ///
-    /// # ★★ Refusals, and why the nested one is not laziness
+    /// # Refusals, and why the nested one is not laziness
     ///
     /// - **[`EditError::FormNestedInAnotherForm`]** — the form is reached only
     ///   from *inside another form*, not from this page's own resources.
@@ -12089,7 +12089,7 @@ impl EditSession {
         self.commit(Command {
             kind: CommandKind::UnshareForm,
             objects: vec![
-                // ★ The copy carries the ORIGINAL's value verbatim, span and
+                // The copy carries the ORIGINAL's value verbatim, span and
                 // all. Two objects naming one byte range is fine because the
                 // writer only READS it to emit, and it means unsharing costs
                 // no duplicated stream bytes until the copy is actually
@@ -12148,7 +12148,7 @@ impl EditSession {
     /// **Add an invisible OCR text layer to one or more pages, as ONE
     /// undoable edit** (ISO 32000-1 §9.3.6 Table 106 rendering mode 3).
     ///
-    /// # ★★★ WHY THIS EXISTS BESIDE THE ONE-SHOT, WHICH IS THE WHOLE POINT
+    /// # WHY THIS EXISTS BESIDE THE ONE-SHOT, WHICH IS THE WHOLE POINT
     ///
     /// [`crate::ocr::layer::add_ocr_layer`] takes an immutable [`Document`]
     /// and returns **a whole new PDF**. That makes recognition the one
@@ -12164,7 +12164,7 @@ impl EditSession {
     /// Six OCR tools were surveyed and **zero of six** force a Save-As on the
     /// open-document path.
     ///
-    /// # ★★ AND IT CLOSES A TRAP AT THE ROOT RATHER THAN AT THE GUARD
+    /// # AND IT CLOSES A TRAP AT THE ROOT RATHER THAN AT THE GUARD
     ///
     /// The one-shot reads the document's **base** revision. A shell that ran
     /// it after any edit would get a recognised copy that **silently omitted
@@ -12189,7 +12189,7 @@ impl EditSession {
     /// once, after it (`R179`/`R49`, and `tools/check-one-commit-per-command.py`
     /// is the gate that says so).
     ///
-    /// # ★ Duplicate page indices are REFUSED, and the reason is not tidiness
+    /// # Duplicate page indices are REFUSED, and the reason is not tidiness
     ///
     /// Every page is planned against the graph as it stands **before** the
     /// command is committed. Two entries naming the same page would therefore
@@ -12816,9 +12816,9 @@ impl EditSession {
             // blank lines; the import's does not). Every member of that family
             // — the wrap recap, the estimated space, the overlong words, the
             // box and page overflow — is already reported document-level, with
-            // correct totals, by `plan` and by the ★ self-check below.
+            // correct totals, by `plan` and by the self-check below.
             //
-            // ★ The risk this takes, stated rather than hidden: a `"boxed
+            // The risk this takes, stated rather than hidden: a `"boxed
             // add: "` disclosure added to `addtext` LATER, describing
             // something this report does not cover, would be swallowed here.
             // The guard is `place_text_covers_everything_the_boxed_add_would_say`
@@ -12839,7 +12839,7 @@ impl EditSession {
             self.coalesce_last(commands, CommandKind::PlaceText { pages: page_count });
         report.undo_entries = if report.coalesced { 1 } else { commands };
 
-        // ★ The self-check, surfaced rather than trusted. The pagination exists
+        // The self-check, surfaced rather than trusted. The pagination exists
         // to make this impossible; if it ever fires, this module's line-fitting
         // arithmetic and the boxed placement's have diverged, and the operator
         // is the first to find out rather than the last.
@@ -13123,7 +13123,7 @@ impl EditSession {
     /// refusal after the operator has dragged is a worse version of the same
     /// information.
     ///
-    /// ★ **It shares ONE body with the verb**, in the shape
+    /// **It shares ONE body with the verb**, in the shape
     /// [`Self::vertex_edit_preview`] established, so `preview(..).is_ok()`
     /// **is** the predicate rather than a second implementation that agrees
     /// with it until somebody changes one. A preview that says yes and a call
@@ -13165,7 +13165,7 @@ impl EditSession {
     /// same-document paste, and `Pass 120.1`'s `to_bytes` becomes a
     /// serialisation problem rather than a design problem.
     ///
-    /// # ★ What the requesting shell believed, and the half it did not see
+    /// # What the requesting shell believed, and the half it did not see
     ///
     /// They asked for this on the reading that [`Self::import_object`] already
     /// does the hard part — a recursive object-graph copy with reference
@@ -13245,7 +13245,7 @@ impl EditSession {
     ) -> Result<crate::vector::ObjectClip, EditError> {
         use crate::vector::clip;
 
-        // ★ THE PAGE ID COMES FROM THE PAGE TREE, NOT FROM A DECOMPOSITION.
+        // THE PAGE ID COMES FROM THE PAGE TREE, NOT FROM A DECOMPOSITION.
         //
         // This whole function used to open with `decompose_for_read`, which
         // refuses a page with no content stream
@@ -13717,7 +13717,7 @@ impl EditSession {
                             annotation.label()
                         ));
                     }
-                    // ★ The carried properties, applied through the SAME
+                    // The carried properties, applied through the SAME
                     // options type authoring uses -- so a pasted mark and a
                     // freshly-authored one go through one code path and
                     // cannot disagree about how a dash or an opacity is
@@ -13755,7 +13755,7 @@ impl EditSession {
                     let (group, adopted) = self.find_or_create_dimension_group_with(
                         group_name, format, *scale, *standard,
                     )?;
-                    // ★ THE DESTINATION'S OWN GROUP WINS, and the difference
+                    // THE DESTINATION'S OWN GROUP WINS, and the difference
                     // is disclosed. Silently re-scaling an existing group to
                     // match an incoming clip would change the label of every
                     // ce dimension already in it -- a change nobody asked for,
@@ -14092,7 +14092,7 @@ impl EditSession {
     /// The cut twin of [`Self::copy_selection`], and the body
     /// [`Self::cut_annotations`] wraps. One undo entry, however many targets.
     ///
-    /// # ★ It refuses what the clipboard cannot hold, and that is the point
+    /// # It refuses what the clipboard cannot hold, and that is the point
     ///
     /// A **copy** of an annotation pdfcer does not model puts a
     /// [`ClipAnnotation::Unsupported`](crate::vector::ClipAnnotation) marker
@@ -14217,7 +14217,7 @@ impl EditSession {
 
         // 5. DELETE, then fold.
         //
-        // ★ THE FOLD COUNT IS MEASURED, NOT COUNTED. An earlier version of
+        // THE FOLD COUNT IS MEASURED, NOT COUNTED. An earlier version of
         // the outline paste one class up incremented a counter per INTENDED
         // command, and a verb that returned early without committing made the
         // count exceed the commands that actually reached the stack --
@@ -14259,7 +14259,7 @@ impl EditSession {
     /// reports which objects it would have refused, so a shell can drive the
     /// control's enabled state without making an edit.
     ///
-    /// # ★★ What it REFUSES, and why refusing beats converting
+    /// # What it REFUSES, and why refusing beats converting
     ///
     /// An object whose paint is in a space pdfcer does not decode — a
     /// `/Separation`, `/DeviceN`, `/ICCBased`, `/Indexed` or `/Lab` — is left
@@ -14669,7 +14669,7 @@ impl EditSession {
     /// discard `Tm`" as a reason not to, is on
     /// [`plan_split_text_object`](crate::vector::plan_split_text_object).
     ///
-    /// # ★ Indices after this object SHIFT
+    /// # Indices after this object SHIFT
     ///
     /// A split at `n` points leaves the original at `object_index`, puts the
     /// new pieces at `object_index + 1 ..= object_index + n`, and renumbers
@@ -15397,7 +15397,7 @@ impl EditSession {
         }
         self.check_certification()?;
 
-        // ★ AN ANNOTATION-ONLY CLIP NEEDS NO PAGE RESOURCES.
+        // AN ANNOTATION-ONLY CLIP NEEDS NO PAGE RESOURCES.
         //
         // The full path reads the page through `pages_in`, which treats
         // `/Resources` as required (§7.7.3.3 says "Required; inheritable")
@@ -15830,7 +15830,7 @@ impl EditSession {
     /// page verb — the conversion into the form's own coordinate space happens
     /// inside, from the leaf's recorded placement matrix.
     ///
-    /// # ★ Read [`FormSurgeryOutcome::invocations`] before showing success
+    /// # Read [`FormSurgeryOutcome::invocations`] before showing success
     ///
     /// A form is one set of bytes and may be drawn many times. This edit
     /// changed all of them, and the outcome says how many. That is the
@@ -15957,7 +15957,7 @@ impl EditSession {
     /// **Move one text run inside a form XObject** — the form-scoped twin of
     /// [`Self::move_text_run`] (`G017`).
     ///
-    /// ★ **On a SolidWorks set the title block IS a form**, drawn on every
+    /// **On a SolidWorks set the title block IS a form**, drawn on every
     /// sheet, so the container the whole request is about is precisely the one
     /// where a page-only verb would not reach. A page-scoped
     /// [`Self::move_text_run`] alone would have answered the request
@@ -16175,7 +16175,7 @@ impl EditSession {
     /// **Delete objects inside a form XObject** — the form-scoped twin of
     /// [`Self::delete_objects`] (`Pass 188.0`).
     ///
-    /// # ★ This is the one to put a disclosure in front of
+    /// # This is the one to put a disclosure in front of
     ///
     /// Deleting inside a shared form removes the object from **every place
     /// that form is drawn**. A move is at least visible everywhere it
@@ -16219,7 +16219,7 @@ impl EditSession {
     /// refusing a selection that spans more than one form or more than one
     /// invocation of the same form.
     ///
-    /// # ★★ Why the INVOCATION has to match, not just the form
+    /// # Why the INVOCATION has to match, not just the form
     ///
     /// The obvious check is "are these leaves in the same form object?", and
     /// it is not sufficient. A form drawn twice on a page produces two sets of
@@ -16330,7 +16330,7 @@ impl EditSession {
     /// asymmetry is why this had never been reported as a defect: the
     /// operator's own drawings happen to be the good case.
     ///
-    /// # ★★ THE THREE THINGS THAT MAKE THIS CORRECT
+    /// # THE THREE THINGS THAT MAKE THIS CORRECT
     ///
     /// **1. The decomposition starts from the leaf's `placement`, not from
     /// the identity.** The planners take page-space targets and convert them
@@ -16352,7 +16352,7 @@ impl EditSession {
     /// children with the nested one's in the leaf list, and those belong to a
     /// different stream.
     ///
-    /// # ★★★ THE WRITE SEMANTICS — decision 076 governs, and it already did
+    /// # THE WRITE SEMANTICS — decision 076 governs, and it already did
     ///
     /// Writing into a form's buffer changes **every invocation of that form,
     /// on every page**. `pdfcer-gui` asked which of two contracts pdfcer wanted —
@@ -16465,13 +16465,13 @@ impl EditSession {
                 resources: &resources,
             };
             let fonts = crate::vector::DocumentFonts::new(&view, &resources);
-            // ★ `leaf.placement`, NOT `Matrix::IDENTITY`. See the doc block.
+            // `leaf.placement`, NOT `Matrix::IDENTITY`. See the doc block.
             let form_model =
                 crate::vector::decompose_with_fonts(&stream, leaf.placement, &resolver, &fonts);
             plan(&stream, &form_model, leaf.form_object_index)?
         };
 
-        // ★ THE REACH IS STRUCTURED DATA, NOT PROSE, and it deliberately
+        // THE REACH IS STRUCTURED DATA, NOT PROSE, and it deliberately
         // does NOT go into `disclosures`.
         //
         // The first cut pushed a sentence about it onto that list *as well as*
@@ -16649,7 +16649,7 @@ impl EditSession {
     /// caching — the edit changed the content, so the post-edit model is one
     /// nobody has yet.
     ///
-    /// # ★ Why `&mut self` on a read-shaped method
+    /// # Why `&mut self` on a read-shaped method
     ///
     /// Populating a cache is a mutation. The alternative — interior
     /// mutability behind `&self` — would make `EditSession` no longer `Sync`,
@@ -16748,7 +16748,7 @@ impl EditSession {
     /// its staged span, and the page's effective `/Resources` — **plus the
     /// descended-form set that key cannot contain**.
     ///
-    /// ★ This paragraph used to end *"because it is literally the cache key"*,
+    /// This paragraph used to end *"because it is literally the cache key"*,
     /// and that sentence was the defect stated as a reassurance. The cache
     /// compares the key AND then re-reads the form spans separately, because
     /// which forms a page reaches is an output of the walk rather than an input
@@ -16756,7 +16756,7 @@ impl EditSession {
     /// WEAKER than the crate's own staleness test, and an edit inside a form
     /// XObject left it unchanged (`Pass 197.0`).
     ///
-    /// # ★ What it does NOT promise, and this matters to a caller
+    /// # What it does NOT promise, and this matters to a caller
     ///
     /// - **It is not a content digest.** Two *different* pages can collide,
     ///   as any 64-bit hash can. It answers "has this page's model changed
@@ -16790,7 +16790,7 @@ impl EditSession {
             })?
             .clone();
 
-        // ★ Run the (memoised) decomposition so the DESCENDED-FORM set exists.
+        // Run the (memoised) decomposition so the DESCENDED-FORM set exists.
         // Which forms a page reaches is an output of the walk, so there is no
         // way to fold them into the digest without having walked -- `R237`'s
         // own remedy, "where the inputs cannot name a dependency, take the key
@@ -16879,7 +16879,7 @@ impl EditSession {
                 &resolver,
                 &fonts,
             );
-            // ★★ THE DESCENT, which this path did not do (`Pass 188.0`).
+            // THE DESCENT, which this path did not do (`Pass 188.0`).
             //
             // `decompose_with_fonts` leaves `leaves` empty and says so —
             // descending needs a form's CONTENT STREAM and that entry point
@@ -16991,7 +16991,7 @@ impl EditSession {
         // for `content_id`, and `text_edit_command`'s `first_edit` gate
         // already distinguishes the first rewrite from later ones.
         let new_content = {
-            // ★ ONE CALL FOR BOTH HALVES (`Pass 181.0`), and it used to be
+            // ONE CALL FOR BOTH HALVES (`Pass 181.0`), and it used to be
             // three separate pieces of work here: decode the content stream,
             // build the XObject and font resolvers, decompose.
             //
@@ -17021,7 +17021,7 @@ impl EditSession {
     /// UI spec §2.1's post-edit rebuild): a second edit composes on top of
     /// the first rather than re-splicing the base.
     ///
-    /// # ★ Why this is one branch and not two (`Pass 186.0`)
+    /// # Why this is one branch and not two (`Pass 186.0`)
     ///
     /// It used to be two. A content object already rewritten this session was
     /// read **directly** out of the staging buffer, and every other page fell
@@ -17070,7 +17070,7 @@ impl EditSession {
     /// every non-empty extra (`contents[1..]`) was folded into it and MUST be
     /// emptied, or the folded run renders twice.
     ///
-    /// # ★ The sweep runs on EVERY surgery, not only the first (`Pass 251.0`)
+    /// # The sweep runs on EVERY surgery, not only the first (`Pass 251.0`)
     ///
     /// The prior implementation swept the extras only on the FIRST edit to
     /// `contents[0]` (`if first_edit`), on the premise that a subsequent edit
@@ -17159,7 +17159,7 @@ impl EditSession {
     ///
     /// So instead: call the per-target verb N times, then fold.
     ///
-    /// # ★ THE COLLAPSE IS NOT OPTIONAL, and it is why this is not a
+    /// # THE COLLAPSE IS NOT OPTIONAL, and it is why this is not a
     /// # three-line concatenation
     ///
     /// [`Self::undo`] walks a command's `objects` **forward**, applying each
@@ -17202,7 +17202,7 @@ impl EditSession {
     /// targets is a legitimate empty selection, and one target is already one
     /// entry.
     ///
-    /// # ★ Public as of `Pass 212.0`, at a consuming shell's request
+    /// # Public as of `Pass 212.0`, at a consuming shell's request
     ///
     /// This was private, and that was the crate boundary drawn one notch too
     /// tight. `pdfcer-gui` reported the symptom rather than absorbing it: placing
@@ -17366,7 +17366,7 @@ impl EditSession {
     /// operator gains nothing from paying for it. CI runs the test suite in
     /// debug, so the guard is live where it earns its cost.
     ///
-    /// # ★ It asserts "this COMMAND broke it", not "this document is broken"
+    /// # It asserts "this COMMAND broke it", not "this document is broken"
     ///
     /// The first draft asserted only the post-state, and it fired immediately
     /// on three existing tests whose fixtures have a page with **no
@@ -17391,7 +17391,7 @@ impl EditSession {
     /// ([`page_tree::Page::contents_flattened`]), so those walk and are held
     /// to the guard like anything else.
     ///
-    /// # ★ What it would and would NOT have caught, stated honestly
+    /// # What it would and would NOT have caught, stated honestly
     ///
     /// **Before the read-side healing existed, this guard would have caught
     /// the `/Contents` corruption at the first test that placed an image.**
@@ -17507,7 +17507,7 @@ const fn normalize_rotation(degrees: i64) -> u16 {
 ///   order mark**, which §7.9.2 defines as the escape hatch for text
 ///   outside PDFDocEncoding and which every reader implements.
 ///
-/// ## ★ PDFDocEncoding IS used for the middle ground now, and this heading
+/// ## PDFDocEncoding IS used for the middle ground now, and this heading
 /// ## used to say the opposite
 ///
 /// The previous text, kept legible because the shape matters more than the
@@ -17564,7 +17564,7 @@ pub fn encode_text_string(text: &str) -> Vec<u8> {
 /// - Otherwise the bytes are **PDFDocEncoding** (Annex D.3), decoded through
 ///   [`crate::textstring::decode_text_string`].
 ///
-/// # ★ THIS USED TO BE ASCII-ONLY, AND THE REASON IT GAVE HAD EXPIRED
+/// # THIS USED TO BE ASCII-ONLY, AND THE REASON IT GAVE HAD EXPIRED
 ///
 /// The previous wording, kept legible because the shape matters more than the
 /// correction:
@@ -17608,7 +17608,7 @@ pub fn encode_text_string(text: &str) -> Vec<u8> {
 /// // QUOTATION MARK (U+201A) in Annex D.3, a control character in
 /// // Latin-1. That disagreement is why the old code refused to guess.
 /// //
-/// // ★ The first draft of this example asserted U+2018 — guessed from
+/// // The first draft of this example asserted U+2018 — guessed from
 /// // memory, in a comment celebrating the arrival of the table, which is
 /// // the exact failure the text it replaced warned about. The doctest
 /// // caught it. 0x8F is U+2018; 0x91 is U+201A.
@@ -17892,7 +17892,7 @@ pub struct PaintOutcome {
     pub changed: Vec<usize>,
     /// Objects left alone, each with the reason — see [`PaintRefusal`].
     ///
-    /// ★ A SEPARATE LIST, not a count, because the consuming shell asked for
+    /// A SEPARATE LIST, not a count, because the consuming shell asked for
     /// exactly this: *"a selection of twelve strokes where three are in a
     /// colour space pdfcer will not rewrite needs to say 'nine changed', not
     /// 'done'."*
@@ -17919,7 +17919,7 @@ pub enum PaintRefusalReason {
     /// The object's paint is in a colour space pdfcer does not decode —
     /// `/Separation`, `/DeviceN`, `/ICCBased`, `/Indexed`, `/Lab`.
     ///
-    /// ★★ THE REFUSAL THAT MATTERS. A CAD sheet's strokes are frequently named
+    /// THE REFUSAL THAT MATTERS. A CAD sheet's strokes are frequently named
     /// spot inks, and writing `DeviceRGB` over one would look right on screen
     /// and **destroy the plate**. Refused rather than converted, and named
     /// rather than counted, so an operator learns which lines and why.
@@ -17962,7 +17962,7 @@ pub struct FillOutcome {
     /// How many characters of the filled text had no `WinAnsi` code and were
     /// substituted with `?` (the named Base-14-Latin limit, disclosed).
     pub unencodable_chars: usize,
-    /// ★ **The document also carries an XFA packet, so this fill may not be
+    /// **The document also carries an XFA packet, so this fill may not be
     /// the value an XFA-aware viewer shows.**
     ///
     /// # The fail-open this closes
@@ -18018,7 +18018,7 @@ pub struct TextAnnotOutcome {
     /// What the stamp fit policy did to the label, for a `/Stamp`; `None`
     /// for every other subtype.
     ///
-    /// ★ Read [`crate::annot_author::StampLabelFit::is_inference`] rather
+    /// Read [`crate::annot_author::StampLabelFit::is_inference`] rather
     /// than the presence of the option: a `Some(AsRequested { .. })` means
     /// the label fitted at the size that was asked for, and disclosing THAT
     /// would be reporting the operator's own instruction back at them.
@@ -18175,7 +18175,7 @@ pub enum AnnotationDeletionRoute {
 /// > *"default should be what it said, but there should be an option that they
 /// > do scale with resize. Inkscape has options for this and I want the same."*
 ///
-/// ★ The general form, worth keeping: **convergence among reference
+/// The general form, worth keeping: **convergence among reference
 /// implementations argues for a DEFAULT, not against an OPTION.** Inkscape puts
 /// four of these on the selector tool's control bar; Illustrator ships *Scale
 /// Strokes & Effects* **off** — which means Illustrator *has* the toggle. The
@@ -18193,7 +18193,7 @@ pub enum AnnotationDeletionRoute {
 ///
 /// The same test explains why [`EditSession::move_annotation`] scales neither:
 /// a translation changes no length at all.
-/// # ★ Why this carries builders as well as public fields
+/// # Why this carries builders as well as public fields
 ///
 /// `#[non_exhaustive]` means a consumer **cannot** write
 /// `ResizeOptions { scale_stroke_width: true, ..Default::default() }` — the
@@ -18227,7 +18227,7 @@ pub struct ResizeOptions {
     /// artwork will be **distorted** by §12.5.5's placement matrix. Default
     /// `false` — such a resize is **refused by name** instead.
     ///
-    /// # ★ The trap this exists for, and why pdfcer refuses where Inkscape does not
+    /// # The trap this exists for, and why pdfcer refuses where Inkscape does not
     ///
     /// An annotation's artwork is placed through §12.5.5's matrix **A**, which
     /// a resize makes a scale. That is a matrix applied *after* stroking, so
@@ -18246,7 +18246,7 @@ pub struct ResizeOptions {
     /// rebuilding would replace somebody else's artwork with pdfcer's rendering
     /// of it, so it is not attempted.
     ///
-    /// # ★ What this flag is NOT needed for
+    /// # What this flag is NOT needed for
     ///
     /// A **uniform** scale with [`Self::scale_stroke_width`] **on** is
     /// satisfied exactly by carrying the foreign appearance — the matrix
@@ -18340,7 +18340,7 @@ pub enum ResizedAppearance {
     /// §12.5.5's placement matrix will scale it — artwork and drawn stroke
     /// alike, by the same factor.
     ///
-    /// # ★ This is not always a compromise
+    /// # This is not always a compromise
     ///
     /// Reached two ways, and they are not equally good:
     ///
@@ -18433,7 +18433,7 @@ pub struct AnnotationRotate {
     /// rotated shape's upright bounding box grows, and §12.5.2 requires
     /// `/Rect` to be upright. The artwork does not grow.
     ///
-    /// ★★ **THAT LAST SENTENCE WAS FALSE FROM THE SECOND ROTATION ONWARDS
+    /// **THAT LAST SENTENCE WAS FALSE FROM THE SECOND ROTATION ONWARDS
     /// UNTIL `Pass 155.1` (2026-09-07), AND IT IS PRESERVED HERE RATHER
     /// THAN QUIETLY REPLACED** (R216). It read *"The artwork does not
     /// grow; only the rectangle that bounds it does"* and it was correct
@@ -18519,7 +18519,7 @@ pub enum RectDerivation {
     /// **From the previous `/Rect`** — the upright bound of its four rotated
     /// corners.
     ///
-    /// ★ **This one does NOT compose, and it is reported so a caller can
+    /// **This one does NOT compose, and it is reported so a caller can
     /// stop.** It is used only when the annotation has neither a usable
     /// appearance stream nor any rotated geometry — a `/Square` or
     /// `/Circle` with no `/AP`, whose artwork *is* the rectangle. There is
@@ -18623,7 +18623,7 @@ pub struct TextAnnotStyle {
 /// A review status a state annotation can carry (§12.5.6.3, Table 171;
 /// ISO 32000-2 Table 174 — renumbered, word-identical).
 ///
-/// # ★ One enum for two vocabularies, so the pairing cannot be got wrong
+/// # One enum for two vocabularies, so the pairing cannot be got wrong
 ///
 /// The standard defines **two state models with disjoint value sets**, and
 /// Table 171 makes `/StateModel` *"Required if `State` is present"*. Keeping
@@ -18712,7 +18712,7 @@ pub struct ReviewStateAdded {
     pub target_id: ObjId,
     /// What this state annotation's `/IRT` actually points at.
     ///
-    /// # ★ Not always `target_id`, and that is the standard's doing
+    /// # Not always `target_id`, and that is the standard's doing
     ///
     /// §12.5.6.3, a `shall`: *"Additional state changes shall be made by
     /// adding text annotations **in reply to the previous reply** for a
@@ -18743,7 +18743,7 @@ pub struct ReplyAdded {
     pub page_index: usize,
     /// Whether the PARENT already had a `/Popup` before this call.
     ///
-    /// # ★ Asked for by name, and the reason is worth keeping
+    /// # Asked for by name, and the reason is worth keeping
     ///
     /// §12.5.6.14 makes a pop-up structural, and `pdfcer-gui` now **draws**
     /// them. Their words: *"a reply that quietly acquired a second window at
@@ -18775,7 +18775,7 @@ pub struct TextAnnotStyleChange {
     pub font_size_written: bool,
     /// The `/Rect` **after** the re-bake.
     ///
-    /// ★ Not always the rectangle the annotation had. A stamp whose label was
+    /// Not always the rectangle the annotation had. A stamp whose label was
     /// enlarged past its box widens under
     /// [`crate::annot_author::StampFit::GrowToText`] (the default), so a
     /// caller that keeps its own copy of the geometry must take this one.
@@ -18797,7 +18797,7 @@ pub struct TextAnnotStyleChange {
     /// The `/FreeText`'s previous appearance was **not one pdfcer would
     /// have drawn**, and re-baking replaced it.
     ///
-    /// # ★ Measured, and it is the same measurement as `multiline`
+    /// # Measured, and it is the same measurement as `multiline`
     ///
     /// A `/FreeText`'s layout is not in the file (§12.5.6.6 has no
     /// multiline key), so it is recovered by baking the annotation's own
@@ -18812,7 +18812,7 @@ pub struct TextAnnotStyleChange {
     /// asked to change the colour and R43 means the change is invisible
     /// unless `/AP` moves. So it proceeds and says so.
     ///
-    /// ★★ **Also `true` for a `/Stamp` whose appearance pdfcer could not
+    /// **Also `true` for a `/Stamp` whose appearance pdfcer could not
     /// read back (`Pass 292.0`).** The measurement is different but the fact
     /// is the same one: a stamp whose label cannot be recovered from its own
     /// appearance is a stamp pdfcer did not draw — Acrobat's custom stamps
@@ -18860,7 +18860,7 @@ pub struct PlacedArtwork {
     pub scale_y: f64,
     /// The two factors differ, so the artwork is **squashed or stretched**.
     ///
-    /// ★ The disclosure that matters most here. The operator dragged a
+    /// The disclosure that matters most here. The operator dragged a
     /// rectangle; the stamp page is whatever size its author drew. Nothing
     /// warns them that the aspect ratios disagreed, and a signature stamped
     /// 30 % wider than it was drawn is a signature that does not look like
@@ -18968,7 +18968,7 @@ pub struct AnnotationOpenChange {
     /// deliberately does not manufacture one, because choosing its `/Rect`
     /// would be authoring rather than a state change.
     ///
-    /// ★ When BOTH are `false` the call was a no-op and **no undo entry was
+    /// When BOTH are `false` the call was a no-op and **no undo entry was
     /// pushed** — the state was not refused, there was simply nowhere to put
     /// it. A shell offering this over a mixed selection can send everything
     /// and read this pair, rather than filtering by subtype and keeping its
@@ -18988,7 +18988,7 @@ pub struct AnnotationOpenChange {
 /// on the page at all. Rule 4's disclosure obligation therefore bites here in
 /// a way it does not there.
 ///
-/// ★ **`/FreeText` IS THE EXCEPTION, and the word "usually" is carrying it
+/// **`/FreeText` IS THE EXCEPTION, and the word "usually" is carrying it
 /// (`Pass 258.1`).** For that one subtype the note IS on the canvas — it is
 /// the string the appearance is baked from — and this sentence read as flatly
 /// backwards there for as long as the appearance went stale. It no longer
@@ -19026,7 +19026,7 @@ pub struct AnnotationOpenChange {
 ///   nothing would fail if a caller later staged its `/Rect` through a
 ///   different write.
 ///
-/// # ★ Why it grew from a tuple to a struct
+/// # Why it grew from a tuple to a struct
 ///
 /// It carried the rotation alone and needed the rect and the caption too, and
 /// three parallel `Option<(ObjId, T)>` parameters on a function that already
@@ -19092,7 +19092,7 @@ impl PendingWidgetEdit {
 /// What an edit **inside a form XObject** did, and the one thing about it the
 /// operator must be told (`Pass 188.0`).
 ///
-/// # ★★ `invocations` is the whole point of this type
+/// # `invocations` is the whole point of this type
 ///
 /// A form XObject has **one set of bytes**, and §8.10.1 explicitly allows it
 /// to be drawn many times — naming CAD output as its own illustration. So an
@@ -19203,7 +19203,7 @@ struct PageObjectsCache {
     /// Everything the PAGE-level decomposition depends on. See
     /// [`PageModelKey`].
     key: PageModelKey,
-    /// ★ Every form XObject the model descended into, with its staged span at
+    /// Every form XObject the model descended into, with its staged span at
     /// fill time (`Pass 188.0`).
     ///
     /// Kept beside the key rather than inside it because it cannot be computed
@@ -19309,7 +19309,7 @@ impl PageModelKey {
     /// handles that by comparing the key and then re-reading the form spans
     /// separately.
     ///
-    /// # ★ And why the PUBLISHED number has to fold them in anyway
+    /// # And why the PUBLISHED number has to fold them in anyway
     ///
     /// Because a caller has only the number. `Pass 188.0` gave the memo its
     /// form check and left `page_content_generation` publishing the key alone,
@@ -19387,7 +19387,7 @@ pub enum ResetScope {
 /// Which fields a [`ButtonAction::SubmitForm`] sends
 /// (ISO 32000-1 §12.7.5.2, Table 236 `/Fields` + Table 237 bit 1).
 ///
-/// # ★ Why this is NOT [`ResetScope`], despite the identical shape
+/// # Why this is NOT [`ResetScope`], despite the identical shape
 ///
 /// The two `/Fields` arrays have the same *grammar* — indirect references or
 /// PDF-1.3 fully-qualified-name strings, mixed — and genuinely different
@@ -19453,7 +19453,7 @@ pub struct FdfOptions {
     /// Bit 7 `IncludeAppendSaves` — ship `/Differences`, *"the contents of all
     /// incremental updates to the underlying PDF document"*.
     ///
-    /// # ★ This turns a submit into a SAVE
+    /// # This turns a submit into a SAVE
     ///
     /// Nothing in the word "submit" says so.
     ///
@@ -19495,7 +19495,7 @@ pub struct FdfOptions {
 /// Which of the four submission formats a [`ButtonAction::SubmitForm`] selects
 /// (ISO 32000-1 §12.7.5.2, Table 237 bits 3, 4, 5, 6, 9).
 ///
-/// # ★ An enum, because format selection is a precedence chain
+/// # An enum, because format selection is a precedence chain
 ///
 /// It is not a set of independent bits, and modelling it as one is the error.
 ///
@@ -19541,7 +19541,7 @@ pub enum SubmitFormat {
     /// **The entire document file**, MIME `application/pdf`. Bit 9
     /// `SubmitPDF` set.
     ///
-    /// # ★ `/Fields` is DEAD under this flag, and the disclosure is categorical
+    /// # `/Fields` is DEAD under this flag, and the disclosure is categorical
     ///
     /// Bit 9 says all other flags *shall be ignored*, `Include/Exclude`
     /// among them. **There is no such thing as a partial PDF submission** —
@@ -19587,7 +19587,7 @@ pub enum SubmitFormat {
 pub struct SubmitSpec {
     /// The destination, written as `/F << /Type /Filespec /FS /URL /F (…) >>`.
     ///
-    /// # ★ Never a bare string, whatever real files do
+    /// # Never a bare string, whatever real files do
     ///
     /// Table 236 types `/F` as a *file specification* and only constrains it
     /// to a URL in prose. §7.11.1 lets a file specification be a bare string —
@@ -19674,7 +19674,7 @@ impl NamedAction {
 /// How a [`ButtonAction::GoToPage`] positions the page it lands on
 /// (ISO 32000-1 §12.3.2.2, Table 151).
 ///
-/// # ★ Three variants, and every coordinate is COMPUTED rather than supplied
+/// # Three variants, and every coordinate is COMPUTED rather than supplied
 ///
 /// Table 151's parameterised forms take user-space coordinates, and a caller
 /// who supplies them has to know the target page's box — which pdfcer knows and
@@ -19723,7 +19723,7 @@ pub enum ButtonActionState {
     /// or a malformed one. The `String` is the `/S` name, empty if `/S` was
     /// absent.
     ///
-    /// ★ Distinct from [`Self::Foreign`] on purpose: a control may offer to
+    /// Distinct from [`Self::Foreign`] on purpose: a control may offer to
     /// REPLACE this, because pdfcer can write that subtype. It must not claim
     /// to be showing it.
     Unmodelled(String),
@@ -19731,7 +19731,7 @@ pub enum ButtonActionState {
     /// `"Launch"`, `"GoToR"`, `"Movie"`, and anything else outside the set
     /// [`ButtonAction`] covers. The `String` is the `/S` name.
     ///
-    /// ★★ This is the variant that carries the value. `None` and `Known` could
+    /// This is the variant that carries the value. `None` and `Known` could
     /// both be synthesised by a shell that guessed; `Foreign` cannot, and it is
     /// what lets a control say *"this button runs a script — pdfcer will not
     /// change it and will not write one back"* instead of silently offering to
@@ -19815,7 +19815,7 @@ fn read_button_action<G: ObjectGraph + ?Sized>(
 
 /// What a push button does when clicked (`Pass 182.0`, extended `Pass 183.0`).
 ///
-/// # ★ The boundary this moves, and how far
+/// # The boundary this moves, and how far
 ///
 /// `/A` reaches launch actions, network submits, embedded-file opens and
 /// JavaScript. Authoring that surface is a security decision, and pdfcer's
@@ -19832,7 +19832,7 @@ fn read_button_action<G: ObjectGraph + ?Sized>(
 ///   [`ButtonActionChange::submit`] plus the refusals listed on
 ///   [`EditSession::set_button_action`].
 ///
-/// # ★ TWO PREDICATES, NOT ONE — and collapsing them is how this list stops
+/// # TWO PREDICATES, NOT ONE — and collapsing them is how this list stops
 /// making sense
 ///
 /// The operator's words were *"the … options that don't need javascript"*.
@@ -19930,7 +19930,7 @@ pub enum ButtonAction {
     Named(NamedAction),
     /// §12.6.4.10. Hide or show the widgets of named fields (`Pass 183.1`).
     ///
-    /// # ★ An ASSIGNMENT, not a toggle, and the standard chose that
+    /// # An ASSIGNMENT, not a toggle, and the standard chose that
     /// deliberately
     ///
     /// Table 210: the action works *"by setting or clearing their `Hidden`
@@ -19978,7 +19978,7 @@ pub enum ButtonAction {
         targets: Vec<String>,
         /// `/H` — `true` hides, `false` shows.
         ///
-        /// ★ **Written explicitly in every case, because the default is
+        /// **Written explicitly in every case, because the default is
         /// `true`.** Table 210's own row: *"A flag indicating whether to hide
         /// the annotation (true) or show it (false). **Default value:
         /// true.**"* An implementation that omits the key for the `false`
@@ -20008,7 +20008,7 @@ pub enum ButtonAction {
 /// **What a `/SubmitForm` button would send, computed when it is authored**
 /// (`Pass 183.0`, ISO 32000-1 §12.7.5.2).
 ///
-/// # ★ This is the safeguard. It is the whole safeguard available at authoring
+/// # This is the safeguard. It is the whole safeguard available at authoring
 /// time, and it is where pdfcer exceeds Acrobat.
 ///
 /// Measured against the Acrobat Reader on this machine, 2026-08-26: its submit
@@ -20031,7 +20031,7 @@ pub enum ButtonAction {
 /// | [`Self::includes_incremental_updates`] | the submit performs a **save** first and ships every byte since open, signatures included |
 /// | [`Self::whole_document`] | `SubmitPDF` ignores `/Fields` entirely; there is no partial-PDF submission |
 ///
-/// # ★ And every one of these controls is pdfcer's, not the standard's
+/// # And every one of these controls is pdfcer's, not the standard's
 ///
 /// The spec ingestion recorded sixteen explicit negatives: **no consent rule,
 /// no privacy rule, no TLS rule, no redirect rule, no timeout, no size limit,
@@ -20220,7 +20220,7 @@ pub struct HideDisclosure {
 /// put an `/Opt` list into when asked to sort it (`Pass 308.8`, request
 /// `G026`).
 ///
-/// # ★ Exported because a shell had copied it
+/// # Exported because a shell had copied it
 ///
 /// The comparator was a private `sort_by` inside `add_choice_field`, and
 /// `edit_field`'s `sort_claim_unmet` gate tested the result with
@@ -20258,7 +20258,7 @@ pub fn choice_option_order(a: &ChoiceOption, b: &ChoiceOption) -> std::cmp::Orde
 /// The first export value repeated in an `/Opt` list, or `None` when every
 /// option exports something different (`Pass 308.9`, request `G027`).
 ///
-/// # ★ Exported for the reason the ordering was, one request later
+/// # Exported for the reason the ordering was, one request later
 ///
 /// `Pass 308.8` made [`choice_option_order`] public so a shell could not hold
 /// a second opinion about it. The duplicate rule is the same shape and did not
@@ -20331,7 +20331,7 @@ pub struct FieldScriptChange {
     pub trigger: &'static str,
     /// What was there before, classified — `None` when the entry was absent.
     ///
-    /// ★ **The disclosure that matters most.** A field whose `/F` is
+    /// **The disclosure that matters most.** A field whose `/F` is
     /// [`ScriptClass::Custom`](crate::form_script::ScriptClass::Custom) is
     /// carrying a script pdfcer cannot describe, and an operator who opened a
     /// dialog to change the decimal places has not asked to delete somebody
@@ -20382,7 +20382,7 @@ pub struct CalcOrderChange {
     /// document that never had the array should not keep an empty one it
     /// gained and lost.
     pub array_removed: bool,
-    /// ★ **The order is APPEND, and Acrobat's own is not reproducible.**
+    /// **The order is APPEND, and Acrobat's own is not reproducible.**
     ///
     /// `Acrobat_Features/forms__calculation_validation_javascript.md` records
     /// that Acrobat silently reorders `/CO` on edit and advises re-checking
@@ -20511,7 +20511,7 @@ pub struct MarkupNoteChange {
     /// Whether the annotation's `/AP` `/N` was **re-baked** from the new
     /// words, so the page paints what `/Contents` now says.
     ///
-    /// # ★ True for exactly one subtype, and false is not a failure
+    /// # True for exactly one subtype, and false is not a failure
     ///
     /// A `/FreeText`'s `/Contents` *is* the input its appearance is drawn
     /// from, so an edit that did not reach the appearance would leave the
@@ -20533,7 +20533,7 @@ pub struct MarkupNoteChange {
     /// The **rich-text** keys this edit had to drop: `RC`, and on a
     /// `/FreeText` also `DS` (`Pass 273.0`). Empty is the ordinary case.
     ///
-    /// # ★★ Why dropping them is better than keeping them
+    /// # Why dropping them is better than keeping them
     ///
     /// PDF stores a comment twice over. `/Contents` is the plain string;
     /// **`/RC` is a rich-text version of the same comment** (§12.7.3.4, the
@@ -20615,7 +20615,7 @@ pub enum PageTabs {
     ArrayOrder,
     /// `/W` — widget order (PDF 2.0): widgets first, in `/Annots` order.
     ///
-    /// ★ What follows them is **contested inside ISO 32000-2 itself**
+    /// What follows them is **contested inside ISO 32000-2 itself**
     /// (`TAB-A1` in the spec corpus): Table 31 says the other annotations
     /// follow *"in the same array ordering"*, §12.5.1 says *"in row order"*.
     /// Both are body text; no erratum exists. pdfcer reads Table 31 — the
@@ -21191,7 +21191,7 @@ pub struct FieldDeletion {
     /// deletion did not repair them, so each one is a button that will do
     /// less than it says when pressed.
     ///
-    /// # ★ Counted and NOT repaired, and that asymmetry is the point
+    /// # Counted and NOT repaired, and that asymmetry is the point
     ///
     /// [`FieldRename::action_targets_retargeted`] uses the same traversal and
     /// **does** repair, because a rename supplies the new name and the
@@ -21201,7 +21201,7 @@ pub struct FieldDeletion {
     /// remaining fields. pdfcer reports and leaves it, which is the same
     /// posture [`DeleteOutcome::dangling`] takes for bookmarks and links.
     ///
-    /// # ★★ And `census_dangling` CANNOT SEE THIS
+    /// # And `census_dangling` CANNOT SEE THIS
     ///
     /// A name string leaves **no dangling object reference**, so the graph
     /// census — which `Pass 183.0` widened from link annotations to every
@@ -21313,7 +21313,7 @@ pub struct TextSearch {
 /// The return type of [`EditSession::search_and_mark_redactions`], and the
 /// redaction twin of [`TextSearch`].
 ///
-/// # ★★ WHY THIS MATTERS MORE HERE THAN IT DOES FOR A SEARCH
+/// # WHY THIS MATTERS MORE HERE THAN IT DOES FOR A SEARCH
 ///
 /// A search that finds nothing is a question answered badly. A **redaction**
 /// that marks nothing is a *safety* failure, and it fails in the direction
@@ -21758,7 +21758,7 @@ pub struct TextSearchOptions {
     /// ASCII digit, `?` matches any single character. Default `false`,
     /// i.e. a literal search.
     ///
-    /// # ★ Why the default is `false` when the old behaviour was `true`
+    /// # Why the default is `false` when the old behaviour was `true`
     ///
     /// [`EditSession::find_text`] has always routed through the pattern
     /// engine, so a GUI Find bar built on it treated `?` as "any
@@ -22120,7 +22120,7 @@ impl FieldAppearance {
     /// ⚠️ Refused with [`EditError::FieldFontNotInResources`] if the key is
     /// not there — see [`FieldFont::Resource`].
     ///
-    /// # ★ Why this constructor exists at all
+    /// # Why this constructor exists at all
     ///
     /// [`FieldAppearance`] is `#[non_exhaustive]`, so a caller **outside this
     /// crate cannot build one with a struct literal** — and this variant had
@@ -22151,7 +22151,7 @@ impl FieldAppearance {
 /// the default", and is the distinction that makes an edit composable with
 /// what is already in the file.
 ///
-/// # ★ FIELD-SCOPE ONLY, and the split is not pdfcer's invention
+/// # FIELD-SCOPE ONLY, and the split is not pdfcer's invention
 ///
 /// Everything here lives on the **field** dictionary and is therefore shared
 /// by every widget the field owns. Acrobat's own scripting model states it:
@@ -22231,7 +22231,7 @@ pub struct FieldEdit {
     pub multi_select: Option<bool>,
     /// `/Ff` bit 20 (`/Ch` only) — records that the WRITER sorted `/Opt`.
     ///
-    /// ★ **Unlike [`NewChoiceField::sorted`], which SORTS THE ARRAY.** Same
+    /// **Unlike [`NewChoiceField::sorted`], which SORTS THE ARRAY.** Same
     /// word, two builders, and until `Pass 308.8` two different meanings —
     /// which cost a consuming shell an hour and produced request `G026`. They
     /// agree now in the case that matters: setting this **together with
@@ -22283,7 +22283,7 @@ pub struct FieldEdit {
     /// field was centred and offer no way to left-align it. Acrobat exposes
     /// this on every text and choice field.
     ///
-    /// ★ Values outside `0..=2` are **refused by name**
+    /// Values outside `0..=2` are **refused by name**
     /// ([`EditError::QuaddingInvalid`]) rather than clamped: Table 222
     /// defines exactly three, a fourth is not a justification pdfcer can
     /// name, and clamping 7 to 2 would silently right-align a field the
@@ -22320,7 +22320,7 @@ pub struct FieldEdit {
     /// ReadOnly and Required, which pdfcer has had since field editing
     /// shipped.
     ///
-    /// ★ It changes what a **submit** sends, not what the operator sees, so
+    /// It changes what a **submit** sends, not what the operator sees, so
     /// it is exactly the kind of property a form author sets once and cannot
     /// verify by looking at the page. `list-fields` prints the whole `Ff`
     /// word, which is where it becomes checkable.
@@ -22366,7 +22366,7 @@ pub struct FieldEdit {
     /// `Some(None)` removes it, so the export reverts to the field's own
     /// name. Read-without-write until now.
     ///
-    /// ★ It is what an export actually keys on, so a form whose field names
+    /// It is what an export actually keys on, so a form whose field names
     /// are structural (`section2.row[3].qty`) can present stable, meaningful
     /// keys to whatever consumes the data — and changing it changes the
     /// exported payload without changing anything visible on the page.
@@ -22449,7 +22449,7 @@ pub struct WidgetEdit {
     pub background: Option<MkColorEdit>,
     /// `/MK` `/BC` — the widget's **border colour** (Table 189).
     ///
-    /// # ★★ Both of these existed on ONE side each until 2026-09-07
+    /// # Both of these existed on ONE side each until 2026-09-07
     ///
     /// pdfcer **wrote** `/BC` at field creation — hard-coded black — and never
     /// read it; it **read** `/BG` and never wrote it. Read and write sat on
@@ -22458,12 +22458,12 @@ pub struct WidgetEdit {
     /// Neither key round-tripped. These two fields and
     /// [`crate::forms::Widget::border_color`] close it in both directions.
     ///
-    /// ★ **Not `/BS`.** [`Self::border`] is the border's *style and width*
+    /// **Not `/BS`.** [`Self::border`] is the border's *style and width*
     /// (Table 166); this is its *colour* (Table 189). Different dictionaries,
     /// independently present, and a caller that conflates them draws the wrong
     /// box.
     ///
-    /// # ★ The "honest limit" that stood here is RETIRED
+    /// # The "honest limit" that stood here is RETIRED
     ///
     /// This paragraph said, at length, that **pdfcer's own renderer does not
     /// paint `/MK` colours** — R43's named-not-painted case — and that
@@ -22485,7 +22485,7 @@ pub struct WidgetEdit {
     /// answers [`ResizeOptions`] carries, for the same reasons, spelled
     /// identically (`Pass 187.0`).
     ///
-    /// # ★ Why this is a whole `ResizeOptions` and not three new fields
+    /// # Why this is a whole `ResizeOptions` and not three new fields
     ///
     /// `pdfcer-gui` shipped the operator's own Inkscape-style switches — *Scale
     /// line weight*, *Keep the inner margins the same size*, *Allow the
@@ -22745,7 +22745,7 @@ impl FieldEdit {
 /// all**. Every transition INTO absent was unreachable: the state a widget
 /// starts in was a one-way door out of.
 ///
-/// ★ **That is a different RENDERING, not a different byte, wherever a
+/// **That is a different RENDERING, not a different byte, wherever a
 /// builder's default is not "nothing".** A push button with no `/BG` gets the
 /// plate grey; with `/BG []` it gets no plate. An operator who chose *no
 /// background* and changed their mind could not get the plate back, because
@@ -22914,7 +22914,7 @@ pub struct FieldEditOutcome {
     pub widgets_affected: usize,
     /// Whether the appearance streams were rebuilt.
     pub appearance_regenerated: bool,
-    /// ★ **The stored value no longer fits the field**, and pdfcer did not
+    /// **The stored value no longer fits the field**, and pdfcer did not
     /// change it.
     ///
     /// # Why this is disclosed rather than repaired, and rather than refused
@@ -22990,7 +22990,7 @@ pub struct WidgetRotation {
     /// 90" — so this reports a **pdfcer product rule**, not a correction of the
     /// caller. A shell echoing the angle back should echo [`Self::now`].
     ///
-    /// ★★ **[`Self::was`] and [`Self::now`] are `[0, 360)`; pdfcer's OTHER
+    /// **[`Self::was`] and [`Self::now`] are `[0, 360)`; pdfcer's OTHER
     /// rotation reader is SIGNED.**
     /// [`crate::annot::rotation_degrees`] and
     /// [`crate::annot::Annotation::appearance_rotation_degrees`] return
@@ -23070,7 +23070,7 @@ pub enum AppearanceOutcome {
     /// **could not redraw it**. The value is written to the file and what
     /// the operator sees has not changed.
     ///
-    /// ★ **This is the state that owes a disclosure**, and the one the two
+    /// **This is the state that owes a disclosure**, and the one the two
     /// older fields could not name. The string is the same sentence
     /// [`WidgetEditOutcome::appearance_stale`] carries — it says which of
     /// the three reasons applies (a signature field, artwork another
@@ -23111,7 +23111,7 @@ pub struct WidgetEditOutcome {
     pub appearance: AppearanceOutcome,
     /// Whether the appearance stream was rebuilt.
     ///
-    /// ★ **Key your "the contents were redrawn" message off THIS, never off
+    /// **Key your "the contents were redrawn" message off THIS, never off
     /// [`Self::resized`].** They answered different questions the whole time
     /// and `pdfcer-gui` shipped the wrong one — telling the operator the artwork
     /// had been rebuilt when the outcome said it had not. Since `Pass 187.0`
@@ -23146,7 +23146,7 @@ pub struct WidgetEditOutcome {
     /// changing one border while leaving two is a partial result that reads
     /// as a bug later unless it is said out loud.
     pub siblings_untouched: usize,
-    /// ★ The widget was resized and its appearance could NOT be rebuilt, so
+    /// The widget was resized and its appearance could NOT be rebuilt, so
     /// the old stream is still there and §12.5.5 will STRETCH it to the new
     /// rectangle.
     ///
@@ -23196,7 +23196,7 @@ pub struct FieldRename {
     /// **How many action target names this rename REPAIRED**
     /// (`Pass 184.0`).
     ///
-    /// # ★ This field replaced a categorical one, six hours old, and the
+    /// # This field replaced a categorical one, six hours old, and the
     /// supersession is recorded rather than silently applied
     ///
     /// It shipped that morning as `actions_not_retargeted`: *every* action in
@@ -23517,7 +23517,7 @@ impl EditSession {
         // Checked BEFORE the preflight, so a refusal costs nothing and
         // nothing partial is staged.
         //
-        // ★ NARROWED 2026-09-11: that sentence is true of THIS check and was
+        // NARROWED 2026-09-11: that sentence is true of THIS check and was
         // being read as a property of the whole verb. The consuming shell
         // measured the difference: by the time the later
         // `place_new_field_deferred` guard refuses, `alloc_number` has already
@@ -23927,7 +23927,7 @@ impl EditSession {
     /// accessibility gap, so it is disclosed separately from
     /// [`Self::document_is_tagged`].
     ///
-    /// # ★ `/Tabs` is NOT inheritable, and this walks ancestors anyway
+    /// # `/Tabs` is NOT inheritable, and this walks ancestors anyway
     ///
     /// This comment previously read *"`/Tabs` is inheritable through the page
     /// tree (Table 30)"*. **That is false.** ISO 32000 Table 30's preamble:
@@ -24366,7 +24366,7 @@ impl EditSession {
             return Err(EditError::FieldNameEmpty);
         };
 
-        // ★★ THE PATH MUST NOT DESCEND THROUGH AN EXISTING TERMINAL FIELD
+        // THE PATH MUST NOT DESCEND THROUGH AN EXISTING TERMINAL FIELD
         // (`Pass 174.8`).
         //
         // `resolve_field_path` returns `Vacant { deepest, remaining }` for
@@ -24382,12 +24382,12 @@ impl EditSession {
         // its box still drawn on the page and belonging to nothing
         // addressable, and the command reporting success with `changed=4`.
         //
-        // ★ NOT "the value is deleted" -- see `FieldPathCrossesTerminal`'s own
+        // NOT "the value is deleted" -- see `FieldPathCrossesTerminal`'s own
         // docs for the object graph. The `/V` survives in the bytes; what it
         // stops being is a FIELD's. The distinction matters to anyone
         // diagnosing it, because an orphaned-widget census reports nothing.
         //
-        // ★ The test is "has no field kids", not a heuristic about `/FT` or
+        // The test is "has no field kids", not a heuristic about `/FT` or
         // `/V`, because that IS §12.7.3.1's definition of terminal: *"a field
         // that does not have kids that are fields"*. An empty grouping node
         // is a terminal by the standard's own words, so refusing there is
@@ -24398,7 +24398,7 @@ impl EditSession {
         // and the sibling guard this mirrors (`NameIsGroupingNode`) is spread
         // across five call sites and had to be written five times.
         //
-        // ★ `fqn` IS REBUILT FROM THE TERMINAL'S OWN NAME PLUS THE TAIL, NOT
+        // `fqn` IS REBUILT FROM THE TERMINAL'S OWN NAME PLUS THE TAIL, NOT
         // TAKEN FROM `remaining`. `remaining` is only the UNMATCHED tail — for
         // `Text.2` over an existing `Text` it is just `["2"]`, and the first
         // draft of this guard duly told the operator *"cannot create `2`"*,
@@ -24674,7 +24674,7 @@ impl EditSession {
         // the `/AP` above, which is what makes it render without resolving a
         // font (see `CheckStyle`).
         //
-        // ★ It is written for INTEROPERABILITY and for pdfcer's own resize.
+        // It is written for INTEROPERABILITY and for pdfcer's own resize.
         // Without it the operator's choice would be invisible to every other
         // editor's style picker, and `build_button_states` — which recovers
         // the style from exactly this key — would redraw a tick the first
@@ -25080,7 +25080,7 @@ impl EditSession {
         let mut objects = objects;
         objects.extend(form_writes);
 
-        // ★ REFUSE before committing if any object about to be removed is a
+        // REFUSE before committing if any object about to be removed is a
         // page-tree node. See `refuse_if_in_page_tree`: a fuzzer found a form
         // whose `/Fields` named a `/Page`, and the release build has no
         // postcondition to catch it.
@@ -25214,7 +25214,7 @@ impl EditSession {
         let (form_writes, emptied) = self.remove_fields_from_form(&field_ids)?;
         objects.extend(form_writes);
 
-        // ★ Same guard as `delete_field`, at its own removal set rather than
+        // Same guard as `delete_field`, at its own removal set rather than
         // borrowed from it. The two build their sets in different functions,
         // and a guard added to one is exactly the kind of fix that leaves the
         // other broken beside it.
@@ -25273,14 +25273,14 @@ impl EditSession {
             &|name: &str| name == fqn || name.starts_with(&group_prefix),
             None,
         );
-        // ★★ ONE DERIVATION IN, ONE DERIVATION OUT (`Pass 190.0`).
+        // ONE DERIVATION IN, ONE DERIVATION OUT (`Pass 190.0`).
         //
         // This used to be `nodes_removed: emptied.len(), ..preview` — the
         // COUNT from the cascade and the LIST from the prediction, spliced
         // into one struct by a struct-update. Two names for one quantity,
         // filled from two different walks.
         //
-        // ★ And the two shells read different ones. `pdfcer` prints
+        // And the two shells read different ones. `pdfcer` prints
         // `nodes_removed`; `pdfcer-gui` prints `nodes.len() - 1`, with a comment
         // saying it reads the list "so the number and the keys just purged
         // cannot disagree" — reasoning that was exactly right about the hazard
@@ -25343,7 +25343,7 @@ impl EditSession {
         // verb on a document that is fine; "no such name" is a wrong name.
         // Collapsing them told an operator their visible field did not
         // exist.
-        // ★★ EVERY NODE BEARING THIS NAME, BY ID — not "the one node called
+        // EVERY NODE BEARING THIS NAME, BY ID — not "the one node called
         // this" (`Pass 190.0`).
         //
         // Two grouping nodes share one fully qualified name more easily than
@@ -25376,7 +25376,7 @@ impl EditSession {
         }
         let named_ids: BTreeSet<ObjId> = named.iter().map(|g| g.id).collect();
 
-        // ★★★ THE SUBTREE IS SELECTED STRUCTURALLY, NOT BY NAME PREFIX.
+        // THE SUBTREE IS SELECTED STRUCTURALLY, NOT BY NAME PREFIX.
         //
         // `descendants_of` is a **string prefix match** on `"{fqn}."`. A
         // `/T`-less descendant contributes no segment, so its FQN *equals* its
@@ -25530,7 +25530,7 @@ impl EditSession {
             }
         }
 
-        // ★ Third route, guarded on its own terms. A widget annotation that is
+        // Third route, guarded on its own terms. A widget annotation that is
         // ALSO a page is the same collision one level down, and `delete_widget`
         // reaches it without going through either verb above.
         if !widget.merged {
@@ -25596,7 +25596,7 @@ impl EditSession {
         flags: forms::FieldFlags,
         objects: &mut Vec<ObjectWrite>,
         pending: &PendingWidgetEdit,
-        // ★ The `/DA` the CALLER is writing in this same command, when it is
+        // The `/DA` the CALLER is writing in this same command, when it is
         // writing one. The `field` snapshot was read before that write, so
         // without this the regenerator redraws from the OLD appearance and
         // the field ends up claiming one face while drawing another -- the
@@ -25619,7 +25619,7 @@ impl EditSession {
                 choice_display_text(field).unwrap_or_default(),
                 !flags.has(forms::FieldFlags::COMBO),
             ),
-            // ★ A BUTTON'S ARTWORK IS NOT TEXT, and until `Pass 187.0` that
+            // A BUTTON'S ARTWORK IS NOT TEXT, and until `Pass 187.0` that
             // meant it was not rebuilt at all — `_ => return Ok(false)` swept
             // up `/Btn` alongside `/Sig`.
             //
@@ -25630,7 +25630,7 @@ impl EditSession {
             // sized to the ORIGINAL box — into the new `/Rect`. Drag a 12 pt
             // box to 40 pt and its 1 pt border draws at ~3.3 pt.
             //
-            // ★★ And that is the case `resize_annotation` REFUSES BY NAME for
+            // And that is the case `resize_annotation` REFUSES BY NAME for
             // a foreign appearance — *"a foreign appearance cannot be rebuilt
             // without replacing somebody else's artwork with pdfcer's rendering
             // of it"*. The widget path took the same unsatisfiable operation
@@ -25672,7 +25672,7 @@ impl EditSession {
             ),
         };
         let default_da = crate::vartext::default_appearance_string(&da_key, da_size, da_colour);
-        // ★ BOTH keys, and the second one is not belt-and-braces.
+        // BOTH keys, and the second one is not belt-and-braces.
         //
         // `regen_field_appearance` resolves the font named by the /DA it is
         // actually drawing, and that /DA may be the FIELD'S OWN -- every field
@@ -25735,7 +25735,7 @@ impl EditSession {
     /// [`Self::rotate_annotation`], which refuses widgets by name and points
     /// here; a ce dimension goes to [`Self::rotate_dimension`].
     ///
-    /// # ★ COUNTERCLOCKWISE — the page's `/Rotate` is the clockwise one
+    /// # COUNTERCLOCKWISE — the page's `/Rotate` is the clockwise one
     ///
     /// ISO 32000-1 §12.5.6.19 Table 189 (= ISO 32000-2 Table 192): *"The
     /// number of degrees by which the widget annotation shall be rotated
@@ -25764,7 +25764,7 @@ impl EditSession {
     /// squashed back into `w x h` — rotated *and* stretched. Swapping the
     /// authored box first makes that fit a 1:1 identity.
     ///
-    /// # ★★ Why the appearance MUST be redrawn, and what happens when it can't
+    /// # Why the appearance MUST be redrawn, and what happens when it can't
     ///
     /// Writing `/MK /R` alone is **not enough, and under PDF 2.0 it is a
     /// no-op.** PDF Association erratum #56 (closed, `ISO approved`; TWG
@@ -25891,7 +25891,7 @@ impl EditSession {
             None,
         )?;
         if !appearance_regenerated {
-            // ★ THE SENTENCE USED TO ENUMERATE THE WRONG SET, IN BOTH
+            // THE SENTENCE USED TO ENUMERATE THE WRONG SET, IN BOTH
             // DIRECTIONS, AND `pdfcer-gui` BUILT AN INVENTORY OUT OF IT
             // (`G023`, `Pass 308.5`). It read:
             //
@@ -25950,7 +25950,7 @@ impl EditSession {
     /// the same addressing [`Self::delete_widget`] and [`Self::move_widget`]
     /// use.
     ///
-    /// # ★ WHY THIS EXISTS BESIDE `move_widget` RATHER THAN REPLACING IT
+    /// # WHY THIS EXISTS BESIDE `move_widget` RATHER THAN REPLACING IT
     ///
     /// [`Self::move_widget`] takes a **delta** and deliberately regenerates
     /// nothing: §12.5.5 step b derives its matrix **A** from the appearance
@@ -26209,7 +26209,7 @@ impl EditSession {
             chrome: Some(chrome_after),
         };
 
-        // ★ THREE THINGS INVALIDATE THE BAKED APPEARANCE, and the third was
+        // THREE THINGS INVALIDATE THE BAKED APPEARANCE, and the third was
         // missing until `Pass 187.0`:
         //
         //   * a RESIZE — §12.5.5 would scale the old artwork into the new box;
@@ -26299,7 +26299,7 @@ impl EditSession {
     /// and for what is deliberately absent (there is no type change, no
     /// rename and no value).
     ///
-    /// # ★ THE GATES ARE CHECKED AGAINST THE RESULT, NOT AGAINST THE REQUEST
+    /// # THE GATES ARE CHECKED AGAINST THE RESULT, NOT AGAINST THE REQUEST
     ///
     /// This is the one thing an edit verb must do that a creation verb does
     /// not, and getting it wrong is silent. At creation the whole field is in
@@ -26538,7 +26538,7 @@ impl EditSession {
 
         // ---- the /Opt list this edit will write ------------------------
         let mut options_after = edit.options.clone();
-        // ★★ SORT WHEN THE LIST AND THE CLAIM ARRIVE IN THE SAME EDIT
+        // SORT WHEN THE LIST AND THE CLAIM ARRIVE IN THE SAME EDIT
         // (`Pass 308.8`, request `G026`).
         //
         // `FieldEdit::sort` has always been, correctly, a provenance claim
@@ -26729,7 +26729,7 @@ impl EditSession {
             // drawing another -- the same disagreement `/MK /R` had before
             // `Pass 177.0` made rotation write-plus-regenerate.
             || edit.appearance.is_some()
-            // ★ `/Q` (`Pass 308.4`, request `G022`). Justification is drawn
+            // `/Q` (`Pass 308.4`, request `G022`). Justification is drawn
             // INTO the stream -- `vartext::align_x` places each line by its
             // AFM width -- and pdfcer paints the baked `/AP` rather than
             // re-deriving alignment at view time (R43). So a `/Q` written
@@ -26744,7 +26744,7 @@ impl EditSession {
             || edit.quadding.is_some()
             || options_after.is_some();
         let appearance_regenerated = if layout_changed {
-            // ★ The snapshot is made TRUTHFUL rather than overridden.
+            // The snapshot is made TRUTHFUL rather than overridden.
             //
             // `field` was read before this command's writes, so its
             // `default_appearance` still holds the OLD /DA -- and the
@@ -26763,7 +26763,7 @@ impl EditSession {
                     key, app.size, app.color,
                 ));
             }
-            // ★★ THE SAME REPAIR FOR `/Q`, AND THE THIRD INSTANCE OF ONE
+            // THE SAME REPAIR FOR `/Q`, AND THE THIRD INSTANCE OF ONE
             // PATTERN (`Pass 308.4`). `/Rect` needed it (`Pass 187.0`), `/DA`
             // needed it above, and `regen_field_appearance` reads
             // `field.quadding` off this snapshot exactly as it reads the
@@ -26879,7 +26879,7 @@ impl EditSession {
     /// Refuse an `/Opt` list in which two options share an export value
     /// (`Pass 308.7`, request `G025`).
     ///
-    /// # ★ This lives HERE because it is a property of `/Opt`, not of a verb
+    /// # This lives HERE because it is a property of `/Opt`, not of a verb
     ///
     /// It was eight lines inside `add_choice_field`, and its own comment made
     /// the argument for moving it: *"a duplicate export is unselectable,
@@ -27011,7 +27011,7 @@ impl EditSession {
         // the depth rule cannot drift between create and rename — and a
         // caller who passes a dotted name here gets the period refusal rather
         // than a silently re-parented field.
-        // ★★ ONE PREDICATE (`Pass 299.0`). This destructured
+        // ONE PREDICATE (`Pass 299.0`). This destructured
         // `split_field_path`'s result itself, which was correct and was a
         // SECOND reading of "exactly one segment" -- the other two being
         // `reject_dotted_partial` and, now, the public
@@ -27072,7 +27072,7 @@ impl EditSession {
             .map(|form| form.descendants_of(fqn).count())
             .unwrap_or(0);
 
-        // ★ REPAIR the actions that name this field, in the SAME command as
+        // REPAIR the actions that name this field, in the SAME command as
         // the rename itself. Two properties depend on it being one command:
         // undo restores the name and the buttons together, and a save can
         // never contain one without the other.
@@ -27640,7 +27640,7 @@ impl EditSession {
             Name::from(b"CA"),
             Object::String(encode_text_string(&spec.caption)),
         );
-        // ★ ONE component, not three, and the change is deliberate
+        // ONE component, not three, and the change is deliberate
         // (`Pass 308.0`). These two arrays used to be written as DeviceRGB
         // triples while the artwork below painted DeviceGray -- `0.85 g` and
         // `0.85 0.85 0.85 rg` are the same colour to look at and are NOT the
@@ -28214,7 +28214,7 @@ impl EditSession {
     /// not touch the `/AcroForm` at all — it edits one field dictionary — so
     /// a `/DA` naming a face nobody had authored would resolve to nothing.
     ///
-    /// ★ Returns `None` for "already present" rather than an empty write, so
+    /// Returns `None` for "already present" rather than an empty write, so
     /// setting `/DA` twice does not put the `/AcroForm` in the dirty set the
     /// second time. The incremental save is a diff against the base
     /// (`ARCHITECTURE.md` §11.1), and an object rewritten to its own bytes
@@ -28435,7 +28435,7 @@ impl EditSession {
                 )),
             );
         }
-        // ★ Any ADDITIONAL standard-14 face a `/DA` now names. Added here
+        // Any ADDITIONAL standard-14 face a `/DA` now names. Added here
         // rather than at the write site so there is ONE place that decides
         // what `/DR` `/Font` contains -- two would eventually disagree about
         // whether a key was already present, and the loser writes a `/DA`
@@ -29039,7 +29039,7 @@ impl EditSession {
         // would be inventing a change.
         let mut doomed: Vec<ObjId> = Vec::new();
         if let Object::Reference(spec_id) = victim {
-            // ★ THE NAME-TREE VALUE IS NOT NECESSARILY A FILE SPECIFICATION
+            // THE NAME-TREE VALUE IS NOT NECESSARILY A FILE SPECIFICATION
             // (`Pass 191.1`). §7.11.3 says `/Names /EmbeddedFiles` maps a name
             // to a file-specification DICTIONARY, and nothing enforced that
             // here -- a name tree naming the catalog or a page had it freed.
@@ -29306,7 +29306,7 @@ impl EditSession {
             .ok_or(EditError::NotARedactionMark { id: annot_id })?
             .id;
 
-        // ★ THE TARGET'S OWN STRUCTURAL GUARD (`Pass 191.1`), and it is here
+        // THE TARGET'S OWN STRUCTURAL GUARD (`Pass 191.1`), and it is here
         // rather than in the caller because THIS VERB HAS TWO ROUTES.
         // `delete_annotation` runs `annotation_deletion_guards` before routing
         // a `/Redact` here, so that path was already covered -- but the GUI
@@ -29386,7 +29386,7 @@ impl EditSession {
     /// (`Pass 155.0`) — the third of the transform trio, after
     /// [`Self::move_annotation`] and [`Self::resize_annotation`].
     ///
-    /// # ★★★ Why this one does NOT have resize's appearance problem
+    /// # Why this one does NOT have resize's appearance problem
     ///
     /// §12.5.5's placement matrix **A** *"scales and translates"* — it cannot
     /// rotate, and `/Rect` is required to be upright (§12.5.2). So a rotation
@@ -29399,7 +29399,7 @@ impl EditSession {
     /// **A**. **The rotation belongs in `/Matrix`**, which the standard
     /// provides for explicitly.
     ///
-    /// ★ That makes rotation strictly better behaved than resize:
+    /// That makes rotation strictly better behaved than resize:
     ///
     /// * **A foreign appearance rotates correctly** — pdfcer composes a
     ///   rotation into the existing `/Matrix` rather than redrawing, so no
@@ -29417,7 +29417,7 @@ impl EditSession {
     /// becomes that larger box — [`AnnotationRotate::to`] reports it. **The
     /// artwork does not grow**; only the rectangle that bounds it does.
     ///
-    /// ★★ **THAT WAS TRUE OF THE FIRST ROTATION AND FALSE OF EVERY ONE
+    /// **THAT WAS TRUE OF THE FIRST ROTATION AND FALSE OF EVERY ONE
     /// AFTER IT, FROM `Pass 155.0` UNTIL `Pass 155.1` (2026-09-07).** The
     /// operator reported it himself — *"the rotate bug in the review objects
     /// where the object gets larger with each enactment of the tool"* — and
@@ -29474,7 +29474,7 @@ impl EditSession {
 
         let (target, _all) = self.locate_annotation(annot_id)?;
         let subtype = target.subtype_label();
-        // ★ Guard 1 (X10): ENCRYPTION, checked FIRST — before any subtype
+        // Guard 1 (X10): ENCRYPTION, checked FIRST — before any subtype
         // routing — because it is a DOCUMENT-level fact. On an encrypted file
         // nothing can be edited, so answering a widget with "use rotate_widget
         // instead" would send the operator to a verb that fails the same way.
@@ -29488,7 +29488,7 @@ impl EditSession {
         if self.base.trailer().contains_key(b"Encrypt") {
             return Err(EditError::DocumentEncrypted);
         }
-        // ★ §12.5.3 Table 165 bit 8, and this verb is squarely inside the
+        // §12.5.3 Table 165 bit 8, and this verb is squarely inside the
         // clause's own words: *"do not allow the annotation to be deleted or
         // its properties (INCLUDING POSITION AND SIZE) to be modified"*.
         // Position and size are exactly what the transform verbs change, and
@@ -29514,7 +29514,7 @@ impl EditSession {
             });
         }
         if target.subtype == b"Widget" {
-            // ★ `rotate_widget` EXISTS as of `Pass 177.0`, and this message
+            // `rotate_widget` EXISTS as of `Pass 177.0`, and this message
             // had TWO factual errors besides the phantom, both found by the
             // spec lookup that preceded building it:
             //
@@ -29798,7 +29798,7 @@ impl EditSession {
     /// against, because both go through
     /// [`crate::annot::rotation_degrees`].
     ///
-    /// # ★★ Why this is not a convenience wrapper
+    /// # Why this is not a convenience wrapper
     ///
     /// `pdfcer-gui` asked for it and gave the argument: **a properties field
     /// is inherently absolute.** The operator sees `30°` and types `45°`.
@@ -29854,7 +29854,7 @@ impl EditSession {
     ) -> Result<AnnotationRotate, EditError> {
         let (target, _all) = self.locate_annotation(annot_id)?;
         let subtype = target.subtype_label();
-        // ★ §12.5.3 Table 165 bit 8, and this verb is squarely inside the
+        // §12.5.3 Table 165 bit 8, and this verb is squarely inside the
         // clause's own words: *"do not allow the annotation to be deleted or
         // its properties (INCLUDING POSITION AND SIZE) to be modified"*.
         // Position and size are exactly what the transform verbs change, and
@@ -29869,7 +29869,7 @@ impl EditSession {
             });
         }
 
-        // ★ Guard 1 (X10): ENCRYPTION, checked FIRST — before any subtype
+        // Guard 1 (X10): ENCRYPTION, checked FIRST — before any subtype
         // routing — because it is a DOCUMENT-level fact. On an encrypted file
         // nothing can be edited, so answering a widget with "use rotate_widget
         // instead" would send the operator to a verb that fails the same way.
@@ -29943,7 +29943,7 @@ impl EditSession {
     /// space being transformed?** An inset is; a line weight is a drafting
     /// convention.
     ///
-    /// # ★★ The appearance, which is where a resize stops resembling a move
+    /// # The appearance, which is where a resize stops resembling a move
     ///
     /// [`Self::move_annotation`] carries the `/AP` untouched, and that is
     /// exactly right: §12.5.5 makes the placement matrix a pure translation and
@@ -29992,7 +29992,7 @@ impl EditSession {
     ) -> Result<AnnotationResize, EditError> {
         let (target, _all) = self.locate_annotation(annot_id)?;
         let subtype = target.subtype_label();
-        // ★ Guard 1 (X10): ENCRYPTION, checked FIRST — before any subtype
+        // Guard 1 (X10): ENCRYPTION, checked FIRST — before any subtype
         // routing — because it is a DOCUMENT-level fact. On an encrypted file
         // nothing can be edited, so answering a widget with "use rotate_widget
         // instead" would send the operator to a verb that fails the same way.
@@ -30006,7 +30006,7 @@ impl EditSession {
         if self.base.trailer().contains_key(b"Encrypt") {
             return Err(EditError::DocumentEncrypted);
         }
-        // ★ §12.5.3 Table 165 bit 8, and this verb is squarely inside the
+        // §12.5.3 Table 165 bit 8, and this verb is squarely inside the
         // clause's own words: *"do not allow the annotation to be deleted or
         // its properties (INCLUDING POSITION AND SIZE) to be modified"*.
         // Position and size are exactly what the transform verbs change, and
@@ -30041,7 +30041,7 @@ impl EditSession {
             });
         }
 
-        // ★★ A FIXED-SIZE MARKER HAS NO SIZE TO SCALE, and until this guard
+        // A FIXED-SIZE MARKER HAS NO SIZE TO SCALE, and until this guard
         // existed it was told so in a sentence that was FALSE.
         //
         // A `/Text` sticky reached the appearance test below, failed it (its
@@ -30111,7 +30111,7 @@ impl EditSession {
         };
         let mut updated = dict.clone();
 
-        // ★ ABSOLUTE values, and the difference is not cosmetic. A MIRROR
+        // ABSOLUTE values, and the difference is not cosmetic. A MIRROR
         // — `sx = -1, sy = 1` — has a signed difference of 2 and would be
         // classified non-uniform by the obvious test, which would then refuse
         // a foreign appearance that the mirror does not distort at all. A
@@ -30127,7 +30127,7 @@ impl EditSession {
         // ---- the appearance decision, made BEFORE anything is written so a
         // refusal leaves the session byte-identical.
         //
-        // ★ "Can pdfcer re-author this?" is NOT `spec_from_dict(..).is_ok()`.
+        // "Can pdfcer re-author this?" is NOT `spec_from_dict(..).is_ok()`.
         // That question is "can pdfcer PARSE a spec out of this dictionary",
         // which succeeds for an Acrobat-drawn `/Square` too — its `/Rect`,
         // `/C`, `/IC` and `/BS` all read fine. Rebuilding on that answer would
@@ -30149,7 +30149,7 @@ impl EditSession {
         // is the defect `Pass 258.0` closed in `set_markup_style` and which
         // would simply have moved here.
         let resize_dash = annot_author::read_border_dash(&self.graph(), dict);
-        // ★★ TWO AUTHORING FAMILIES, AND THIS TEST KNEW ONE OF THEM.
+        // TWO AUTHORING FAMILIES, AND THIS TEST KNEW ONE OF THEM.
         //
         // `spec_from_dict` reads the MARKUP family -- `/Square`, `/Circle`,
         // `/Line`, `/Polygon`, `/Ink`, text markup. A `/FreeText` is authored
@@ -30163,7 +30163,7 @@ impl EditSession {
         // session resizes fine. Two pdfcer-authored annotations differing only
         // in which verb drew them.
         //
-        // ★ `measure_free_text_multiline` is the right test and it already
+        // `measure_free_text_multiline` is the right test and it already
         // existed -- its own documentation says so: *"A third re-baker that
         // calls this cannot repeat it; one that does not call it will fail the
         // same way."* `resize_annotation` is that third re-baker. It bakes the
@@ -30178,7 +30178,7 @@ impl EditSession {
         let free_text_multiline = annot_author::text_spec_from_dict(&self.graph(), dict)
             .ok()
             .and_then(|spec| self.measure_free_text_multiline(dict, &spec));
-        // ★★ `Pass 287.0`: THE THIRD AUTHORSHIP ARM, and its absence is why a
+        // `Pass 287.0`: THE THIRD AUTHORSHIP ARM, and its absence is why a
         // pdfcer-drawn stamp was refused as foreign.
         //
         // The test below knew two families: `/FreeText` (via
@@ -30188,7 +30188,7 @@ impl EditSession {
         // then failed to recognise its own work. `R245`'s shape once more: a
         // capability present on two routes of a family of three.
         //
-        // ★ The recovered label and size are fed BACK IN before the
+        // The recovered label and size are fed BACK IN before the
         // comparison. Without that the rebuild uses the stamp name's default
         // label and the derived size, and a custom-labelled stamp compares
         // unequal to itself — the authorship test would be correct while the
@@ -30223,7 +30223,7 @@ impl EditSession {
                     )
                 }));
 
-        // ★★ Carrying a foreign appearance is not automatically a distortion —
+        // Carrying a foreign appearance is not automatically a distortion —
         // it is a distortion only when the placement matrix would CONTRADICT
         // what the caller asked for. Three cases, and the middle one is the
         // reason this is not a two-branch `if`:
@@ -30387,7 +30387,7 @@ impl EditSession {
         // the placement matrix happens to produce.
         let mut objects = Vec::new();
         if matches!(appearance, ResizedAppearance::Rebuilt) {
-            // ★ Re-author through the SAME family that drew it. `updated`
+            // Re-author through the SAME family that drew it. `updated`
             // already carries the scaled `/Rect`, so both builders lay the
             // content out at the new size rather than scaling a picture.
             //
@@ -30409,7 +30409,7 @@ impl EditSession {
                     let a = annot_author::build_text_annotation(&spec)?;
                     (a.annot, a.ap_dict, a.ap_content)
                 }
-                // ★★★ A pdfcer-drawn `/Stamp` re-bakes at the size it was
+                // A pdfcer-drawn `/Stamp` re-bakes at the size it was
                 // AUTHORED with, in the box it now has.
                 //
                 // `updated` carries the new `/Rect` and the ORIGINAL `/DA`,
@@ -30463,7 +30463,7 @@ impl EditSession {
                     ObjId::new(self.alloc_number()?, 0)
                 }
             };
-            // ★ UNPROVEN BY TEST, AND SAID SO ON PURPOSE. This is the
+            // UNPROVEN BY TEST, AND SAID SO ON PURPOSE. This is the
             // `ResizedAppearance::Rebuilt` branch — reached only when the
             // appearance on disk is one pdfcer itself drew. The only subtype
             // whose authored dictionary carries `/BM` is `/Highlight`, and a
@@ -30572,7 +30572,7 @@ impl EditSession {
     ///    modes anchors there (*"tabs from the upper left field"*), and the
     ///    upper-left corner of `/Rect` is the **only** reference point
     ///    either edition ever designates for an annotation's position
-    ///    (§12.5.3). ★ That designation is **scoped to `NoZoom`/`NoRotate`**
+    ///    (§12.5.3). That designation is **scoped to `NoZoom`/`NoRotate`**
     ///    in all three places it appears, so it is a precedent and not a
     ///    general rule — do not cite it as one.
     /// 2. **Two annotations share a row when their top edges are within
@@ -30607,7 +30607,7 @@ impl EditSession {
     /// and its strength, because two of the four are read off a clause and
     /// two are pdfcer's reading. They take no part in forming rows either.
     ///
-    /// ★ **A caller building focus navigation owes one more step this verb
+    /// **A caller building focus navigation owes one more step this verb
     /// cannot take for it:** the widgets of one radio group are several
     /// annotations and **one** tab stop — Acrobat moves between them with
     /// the arrow keys and past the whole group with Tab. That is a grouping
@@ -30868,7 +30868,7 @@ impl EditSession {
     ///
     /// `/Rotate` is one of §7.7.3.3's four inheritable page attributes, so
     /// the page's own entry wins and an ancestor's is used when it has none.
-    /// ★ *"A multiple of 90"* is **not** the set `{0, 90, 180, 270}`:
+    /// *"A multiple of 90"* is **not** the set `{0, 90, 180, 270}`:
     /// `-90` and `450` are conforming values, and a reader that matches on
     /// the four literals silently treats them as unrotated. Hence the
     /// `% 90` test and the `rem_euclid`, in that order.
@@ -31224,7 +31224,7 @@ impl EditSession {
     /// [`AnnotsReorder::pinned`], because a list that "did not fully take"
     /// must say so rather than be discovered by tabbing.
     ///
-    /// # ★ The three `shall`s a permutation can break, and what is done
+    /// # The three `shall`s a permutation can break, and what is done
     ///
     /// None of them lives in the annotation clause, and all three fail
     /// silently — §7.3.10 turns the damage into `null`, never an error.
@@ -31823,7 +31823,7 @@ impl EditSession {
         // established and for the same reason.
         let (target, _all) = self.locate_annotation(annot_id)?;
         let subtype = target.subtype_label();
-        // ★ §12.5.3 Table 165 bit 8, and this verb is squarely inside the
+        // §12.5.3 Table 165 bit 8, and this verb is squarely inside the
         // clause's own words: *"do not allow the annotation to be deleted or
         // its properties (INCLUDING POSITION AND SIZE) to be modified"*.
         // Position and size are exactly what the transform verbs change, and
@@ -31836,7 +31836,7 @@ impl EditSession {
                 subtype: String::from_utf8_lossy(&target.subtype).into_owned(),
             });
         }
-        // ★ Guard 1 (X10): ENCRYPTION, checked FIRST — before any subtype
+        // Guard 1 (X10): ENCRYPTION, checked FIRST — before any subtype
         // routing — because it is a DOCUMENT-level fact. On an encrypted file
         // nothing can be edited, so answering a widget with "use rotate_widget
         // instead" would send the operator to a verb that fails the same way.
@@ -31850,7 +31850,7 @@ impl EditSession {
         if self.base.trailer().contains_key(b"Encrypt") {
             return Err(EditError::DocumentEncrypted);
         }
-        // ★ §12.5.3 Table 165 bit 8, and this verb is squarely inside the
+        // §12.5.3 Table 165 bit 8, and this verb is squarely inside the
         // clause's own words: *"do not allow the annotation to be deleted or
         // its properties (INCLUDING POSITION AND SIZE) to be modified"*.
         // Position and size are exactly what the transform verbs change, and
@@ -32221,7 +32221,7 @@ impl EditSession {
             group_members,
         } = plan;
 
-        // ★ THE GUARDS RAN ON THE TARGET; THE COMMAND DELETES A SET
+        // THE GUARDS RAN ON THE TARGET; THE COMMAND DELETES A SET
         // (`Pass 191.1`). `annotation_deletion_guards` was applied to
         // `annot_id` far above, and cascade 1 then adds the `/Popup` this
         // annotation names -- so an id nobody guarded reaches `removals`.
@@ -32370,7 +32370,7 @@ impl EditSession {
     /// The counterpart of [`Self::set_markup_style`], which does this shape
     /// for `/C`, `/IC`, `/BS` and `/CA`.
     ///
-    /// # ★★★ Why this exists, and why it is not a convenience
+    /// # Why this exists, and why it is not a convenience
     ///
     /// [`MarkupOptions`] is an **author-time** structure: it reaches
     /// [`Self::add_markup_with`] and [`Self::add_text_annotation_with`] and
@@ -32394,7 +32394,7 @@ impl EditSession {
     /// yields a new object id, a second undo entry, and breaks any reply
     /// threading pointing at the old one.
     ///
-    /// ★ What they actually shipped was the fourth option: **their Comments
+    /// What they actually shipped was the fourth option: **their Comments
     /// panel is read-only.** It lists comments and cannot write one, which is
     /// a reviewer's main surface reduced to a viewer. *"Draw a cloud round a
     /// mistake and say what is wrong with it"*, *"add a comment to a highlight
@@ -32415,14 +32415,14 @@ impl EditSession {
     /// implemented the caller side and asserts `MarkupNote::validate` accepts
     /// what it writes.
     ///
-    /// # ★ The disclosure this owes
+    /// # The disclosure this owes
     ///
     /// A note is content the operator **usually cannot recover from the
     /// canvas**. A restyled shape still shows its geometry; overwritten words
     /// leave no trace on the page. [`MarkupNoteChange::replaced`] carries the
     /// previous text — the text, not a count — so a shell can offer it back.
     ///
-    /// ★ **Except on a `/FreeText`**, whose `/Contents` is exactly what its
+    /// **Except on a `/FreeText`**, whose `/Contents` is exactly what its
     /// appearance paints. There the words ARE on the canvas, this verb
     /// re-bakes the appearance so the page follows them, and
     /// [`MarkupNoteChange::appearance_rebaked`] reports whether it could
@@ -32477,14 +32477,14 @@ impl EditSession {
     /// `StateModel` appeared nowhere in `pdfcer-core` — not read, not
     /// written, not modelled.
     ///
-    /// # ★★ THE STATUS IS NOT WRITTEN ONTO THE ANNOTATION IT DESCRIBES
+    /// # THE STATUS IS NOT WRITTEN ONTO THE ANNOTATION IT DESCRIBES
     ///
     /// §12.5.6.3 puts it on a **separate** `/Text` annotation that points at
     /// the reviewed one through `/IRT`, and says so with a `shall`. That is
     /// why this verb returns a new [`ObjId`] rather than mutating the
     /// target, and why nothing about the target changes.
     ///
-    /// # ★★ AND A SECOND STATUS CHAINS ONTO THE FIRST, PER AUTHOR
+    /// # AND A SECOND STATUS CHAINS ONTO THE FIRST, PER AUTHOR
     ///
     /// The clause's last sentence is also a `shall`: *"Additional state
     /// changes shall be made by adding text annotations **in reply to the
@@ -32820,7 +32820,7 @@ impl EditSession {
     /// icon and colour, a stamp's or free text's colour — keeping its object
     /// identity.
     ///
-    /// # ★ The gap this closes, and why it needed `Pass 258.1` first
+    /// # The gap this closes, and why it needed `Pass 258.1` first
     ///
     /// `pdfcer-gui`, 2026-09-05, after the operator asked that *"these are
     /// fully editable"*: a sticky note's icon and colour were **write-once**.
@@ -32878,7 +32878,7 @@ impl EditSession {
                 property: "a sticky-note icon",
             });
         }
-        // ★ The mirror refusal (`Pass 292.0`). A `/Text` draws an ICON: there
+        // The mirror refusal (`Pass 292.0`). A `/Text` draws an ICON: there
         // is no label to size, so a font size is as inapplicable here as an
         // icon is on a stamp. Refused by name rather than swallowed, which is
         // the whole posture `Pass 258.0` established — a control that appears
@@ -32901,7 +32901,7 @@ impl EditSession {
 
         let mut original = annot_author::text_spec_from_dict(&self.graph(), &current)?;
 
-        // ★★★ THE STAMP'S OWN WORDS, RECOVERED BEFORE THE RE-BAKE
+        // THE STAMP'S OWN WORDS, RECOVERED BEFORE THE RE-BAKE
         // (`Pass 292.0`) — and the defect this fixes was live, not
         // theoretical.
         //
@@ -32913,7 +32913,7 @@ impl EditSession {
         // `APPROVED FOR CONSTRUCTION` got one reading `DRAFT` — measured on a
         // real file, from a control captioned "colour".
         //
-        // ★ `R245` again, and it is the exact shape: the recovery EXISTS and
+        // `R245` again, and it is the exact shape: the recovery EXISTS and
         // the resize route already calls it (`resize_annotation`, via
         // `recover_stamp_parameters` + `apply_stamp_parameters`). This verb
         // re-bakes the same annotation family and did not. A capability
@@ -32935,7 +32935,7 @@ impl EditSession {
         let stamp_appearance_was_foreign =
             target.subtype == b"Stamp" && stamp_recovered.is_none() && current.contains_key(b"AP");
 
-        // ★ MEASURE `multiline` BEFORE RE-BAKING. The reader cannot report
+        // MEASURE `multiline` BEFORE RE-BAKING. The reader cannot report
         // it (§12.5.6.6 gives the subtype no such key) and always says
         // `false`, so baking that value back UN-WRAPS a wrapped text box --
         // silently, from a control whose caption says "colour". That is the
@@ -32991,7 +32991,7 @@ impl EditSession {
     /// Set an annotation's **`/F` display flags** (ISO 32000-1 §12.5.3
     /// Table 165) — the write half of [`crate::annot::AnnotFlags`].
     ///
-    /// # ★★ Why this exists: eight read accessors and no writer
+    /// # Why this exists: eight read accessors and no writer
     ///
     /// `AnnotFlags` has modelled `hidden`, `no_view`, `print`, `invisible`,
     /// `no_zoom`, `no_rotate`, `locked` and `locked_contents` since the read
@@ -33026,7 +33026,7 @@ impl EditSession {
     /// vocabularies is how a form field ends up in a state its own editor
     /// cannot describe.
     ///
-    /// ★ **A Locked annotation may still have its flags changed, including to
+    /// **A Locked annotation may still have its flags changed, including to
     /// clear Locked itself.** That is deliberate and it is the only escape
     /// hatch: Table 165's bit 8 restricts *"the annotation"*, and a lock that
     /// could not be undone through the same API that set it would make the
@@ -33089,7 +33089,7 @@ impl EditSession {
     /// Open or close an annotation's pop-up window — `/Open` on the
     /// annotation **and on its `/Popup` companion**, as one undo entry.
     ///
-    /// # ★ pdfcer wrote this key from `Pass 6.2` and could read neither copy
+    /// # pdfcer wrote this key from `Pass 6.2` and could read neither copy
     ///
     /// `annot_author::sticky_note` sets `/Open` on the note and again on the
     /// pop-up it creates. Nothing read either back, so a round trip through
@@ -33246,7 +33246,7 @@ impl EditSession {
         let (target, _all) = self.locate_annotation(annot_id)?;
         let subtype = target.subtype_label();
 
-        // ★ Guard 1 (X10): ENCRYPTION, checked FIRST — before any subtype
+        // Guard 1 (X10): ENCRYPTION, checked FIRST — before any subtype
         // routing — because it is a DOCUMENT-level fact. On an encrypted file
         // nothing can be edited, so answering a widget with "use rotate_widget
         // instead" would send the operator to a verb that fails the same way.
@@ -33271,7 +33271,7 @@ impl EditSession {
             return Err(EditError::AnnotationMoveWrongVerb {
                 subtype: "ce dimension".to_owned(),
                 use_instead: "set_dimension_label",
-                // ★ NO LONGER A PHANTOM (`Pass 175.0`). This citation was
+                // NO LONGER A PHANTOM (`Pass 175.0`). This citation was
                 // written by `Pass 163.0` naming a verb that did not exist,
                 // and `tools/check-cited-verbs-exist.py` found it on its first
                 // run. Decision 097 then specified the verb and this Pass
@@ -33294,7 +33294,7 @@ impl EditSession {
             });
         }
 
-        // ★ Table 165 bit 10, `LockedContents`: *"do not allow the contents
+        // Table 165 bit 10, `LockedContents`: *"do not allow the contents
         // of the annotation to be modified."* This verb writes `/Contents`
         // and `/T` — it IS the contents edit the clause names, and it is the
         // only verb in the crate that is.
@@ -33360,7 +33360,7 @@ impl EditSession {
             }
         }
 
-        // ★★ THE RICH-TEXT TWIN, WHICH USED TO BE LEFT SAYING THE OLD WORDS.
+        // THE RICH-TEXT TWIN, WHICH USED TO BE LEFT SAYING THE OLD WORDS.
         //
         // `/RC` is a rich-text version of THIS SAME COMMENT (§12.7.3.4), and
         // §12.5.6.2 pairs the two in as many words: "Contents (or RC and DS)".
@@ -33397,7 +33397,7 @@ impl EditSession {
             }
         }
 
-        // ★ A `/FreeText`'s `/Contents` IS its painted words, so the
+        // A `/FreeText`'s `/Contents` IS its painted words, so the
         // dictionary edit above is only half the act. Re-bake the
         // appearance from the new text — in the SAME command, so the two
         // halves share one undo entry and can never be undone apart.
@@ -33405,7 +33405,7 @@ impl EditSession {
         // Every other subtype falls straight through: a sticky note's and a
         // stamp's `/Contents` are not painted, so there is nothing stale to
         // refresh and rewriting their appearance would be damage.
-        // ★ This subtype test is a FAST PATH, not the guarantee. The real
+        // This subtype test is a FAST PATH, not the guarantee. The real
         // protection is structural and one level down: the helper reads a
         // `TextAnnotSpec` and destructures it as `FreeText`, so a sticky
         // note or a stamp returns `None` there whatever this line says.
@@ -33589,7 +33589,7 @@ impl EditSession {
             return Err(EditError::AnnotationIsCeDimension { id: annot_id });
         }
 
-        // ★ Refuse a property this subtype does not have, BEFORE anything
+        // Refuse a property this subtype does not have, BEFORE anything
         // is regenerated, so the file is untouched when the answer is no.
         // Until `Pass 258.0` these were silently discarded — see
         // `EditError::StylePropertyNotApplicable` for why that is treated
@@ -33630,7 +33630,7 @@ impl EditSession {
         // Read the current geometry + style back out.
         let original = annot_author::spec_from_dict(&self.graph(), &current)?;
 
-        // ★ The dash lives BESIDE the spec, not in it (see
+        // The dash lives BESIDE the spec, not in it (see
         // `annot_author::AppearanceOptions`), so it is read separately and
         // travels through both bakes below. Reading it here — from the
         // dictionary, before anything is regenerated — is what makes a
@@ -33964,7 +33964,7 @@ impl EditSession {
     /// [`InkForecast::appearance_was_pdfces`] is `false` and
     /// [`InkReshape::dropped`] names what was not reproduced.
     ///
-    /// ★ pdfcer draws an `/InkList` as a **polyline**. §12.5.6.13 leaves the
+    /// pdfcer draws an `/InkList` as a **polyline**. §12.5.6.13 leaves the
     /// join "implementation-dependent" — "straight lines or curves" — so a
     /// point drag moves exactly the two segments either side of it and a front
     /// end's polyline preview is exact. A producer that smoothed its curve
@@ -34270,7 +34270,7 @@ impl EditSession {
             strokes_before,
             strokes_after: next.len(),
             stroke_points_before,
-            // ★ NOT `next[stroke_index].len()`. After a stroke removal that
+            // NOT `next[stroke_index].len()`. After a stroke removal that
             // index addresses the stroke that MOVED DOWN into the slot, so the
             // report would name a length belonging to a stroke the operator
             // did not touch — a plausible number about the wrong subject.
@@ -34407,7 +34407,7 @@ impl EditSession {
         // file has (so every key this verb does not own survives), then
         // overwrite exactly the keys `build_appearance` owns.
         //
-        // ★ `/BM` IS NOT ON THE REMOVAL LIST, and it used to be. See
+        // `/BM` IS NOT ON THE REMOVAL LIST, and it used to be. See
         // `preserve_blend_mode` for why deleting it was a silent rendering
         // change rather than the harmless normalisation it looked like.
         let mut updated = current.clone();
@@ -34468,7 +34468,7 @@ impl EditSession {
 
     /// Measure a `/FreeText`'s `multiline`, which is **not in the file**.
     ///
-    /// # ★ Why this is a measurement and not a field
+    /// # Why this is a measurement and not a field
     ///
     /// §12.5.6.6 gives `/FreeText` no multiline key — `/Ff` is a form-field
     /// entry and a `/FreeText` is not a field — so
@@ -34480,7 +34480,7 @@ impl EditSession {
     /// **both ways** and compare each against the appearance already on
     /// disk. A match names the layout that produced it.
     ///
-    /// # ★★ ONE helper, called by BOTH re-bakers, and that is the fix
+    /// # ONE helper, called by BOTH re-bakers, and that is the fix
     ///
     /// `set_markup_note` measured this correctly from the day it shipped;
     /// `set_text_annot_style` shipped hours later and did not, and the
@@ -34537,7 +34537,7 @@ impl EditSession {
     /// `/Contents`, when — and only when — the appearance on disk is one
     /// pdfcer would have drawn.
     ///
-    /// # ★ Why this exists at all
+    /// # Why this exists at all
     ///
     /// `pdfcer-gui`, 2026-09-06: *"`set_markup_note` on a `/FreeText`
     /// changes the dictionary and leaves the page painting the old words.
@@ -34551,7 +34551,7 @@ impl EditSession {
     /// correct, and "fixing" the stamp would break the one of the three
     /// that was right — the requester asked for that in as many words.
     ///
-    /// # ★★ The byte comparison answers TWO questions at once
+    /// # The byte comparison answers TWO questions at once
     ///
     /// `TextAnnotSpec::FreeText::multiline` is **not recoverable** from the
     /// dictionary (see [`annot_author::text_spec_from_dict`] — §12.5.6.6
@@ -34579,7 +34579,7 @@ impl EditSession {
         after: &Dict,
         new_text: &str,
     ) -> Option<RegeneratedMarkup> {
-        // ★ TWO dictionaries, and the split is load-bearing. The spec and
+        // TWO dictionaries, and the split is load-bearing. The spec and
         // the appearance comparison must both read `before` — the state the
         // file is actually in — because the whole measurement is "does the
         // stream on disk match a bake of the words that were there when it
@@ -34695,7 +34695,7 @@ impl EditSession {
     /// means "not a stamp pdfcer can re-author" and sends the caller to the
     /// carry-or-refuse paths.
     ///
-    /// # ★★ Why BOTH values have to come from the appearance
+    /// # Why BOTH values have to come from the appearance
     ///
     /// A stamp stores **neither** in a way `text_spec_from_dict` can see:
     ///
@@ -34707,7 +34707,7 @@ impl EditSession {
     ///   So `text_spec_from_dict` returns `label: None`, which rebuilds as the
     ///   stamp name's DEFAULT label.
     ///
-    /// ★ That second gap is why a custom-labelled stamp was refused as
+    /// That second gap is why a custom-labelled stamp was refused as
     /// foreign: pdfcer rebuilt it as `DRAFT`, compared the bytes against
     /// `APPROVED FOR CONSTRUCTION`, and concluded it had not drawn it. **The
     /// authorship test was correct; the spec it tested against was lossy.**
@@ -34949,7 +34949,7 @@ impl EditSession {
         // constrains this verb directly. Its message names the flag,
         // because `LockedContents` (bit 10) looks identical from a menu and
         // explicitly "does not restrict deletion".
-        // ★★★ IS THIS OBJECT ACTUALLY AN ANNOTATION? (`Pass 190.1`)
+        // IS THIS OBJECT ACTUALLY AN ANNOTATION? (`Pass 190.1`)
         //
         // Nothing above this line asked. The guards test `/F` bit 8, `/TrapNet`
         // and `/Widget` — all questions about *what kind of annotation* it is,
@@ -34969,7 +34969,7 @@ impl EditSession {
         // build operators run. A second signature from the same site was
         // `BadKid`: the same bug with a page-tree node in `/Annots` instead.
         //
-        // ★ THIS IS `Pass 185.1`/`185.2` IN A SECOND CARRIER, and the
+        // THIS IS `Pass 185.1`/`185.2` IN A SECOND CARRIER, and the
         // repetition is the point. There, an `/AcroForm` `/Fields` named an
         // object that was also a `/Page`; here, a page's `/Annots` does. The
         // general fact is that **an entry in a structural array is not
@@ -35331,7 +35331,7 @@ impl EditSession {
     /// corpus emits. **If that changes, this is the function to fix**, and
     /// the fix is a reference census, not a special case here.
     ///
-    /// # ★★★ EVERY COLLECTED OBJECT MUST BE A STREAM (`Pass 191.0`)
+    /// # EVERY COLLECTED OBJECT MUST BE A STREAM (`Pass 191.0`)
     ///
     /// §12.5.5 is unambiguous and it is the whole guard: *"Each appearance
     /// stream **is a form XObject**"*, and where Table 168's `/N`, `/R` or
@@ -35407,7 +35407,7 @@ impl EditSession {
                     // sub-dictionary reached through a reference; its own
                     // object is not a stream to delete, but its members are.
                     //
-                    // ★ A dictionary here is only an appearance-state
+                    // A dictionary here is only an appearance-state
                     // subdictionary if §12.5.5 says it is — "the
                     // subdictionary shall define multiple appearance
                     // streams". A dictionary whose members are NOT streams
@@ -35631,7 +35631,7 @@ impl EditSession {
     /// could not read** — the annotations created and the extraction
     /// diagnostics together, in one [`RedactionMarking`].
     ///
-    /// # ★★ USE THIS ONE FOR ANY OPERATOR-FACING REDACTION
+    /// # USE THIS ONE FOR ANY OPERATOR-FACING REDACTION
     ///
     /// The sibling verbs return `Vec<ObjId>`, and an empty one has two causes
     /// with a single appearance: **the term is not in the document**, or
@@ -35654,7 +35654,7 @@ impl EditSession {
     ///
     /// # What this does NOT protect against, stated so it is not over-read
     ///
-    /// ★ Redaction covers **what the search found**, which is not
+    /// Redaction covers **what the search found**, which is not
     /// necessarily what a reader can see. A scanned page is an image; only
     /// its OCR layer is searchable, and an OCR layer is a *guess* about the
     /// ink. A term the recogniser misread is a term this verb cannot mark,
@@ -35780,7 +35780,7 @@ impl EditSession {
     /// could not read** — the annotations created and the extraction
     /// diagnostics together, in one [`RedactionMarking`] (`Pass 296.3`).
     ///
-    /// # ★★ USE THIS ONE FOR ANY OPERATOR-FACING PATTERN REDACTION
+    /// # USE THIS ONE FOR ANY OPERATOR-FACING PATTERN REDACTION
     ///
     /// The whole of
     /// [`EditSession::search_and_mark_redactions`]'s argument applies here and
@@ -35791,7 +35791,7 @@ impl EditSession {
     /// numbers, part numbers, phone numbers, revision stamps. That is the
     /// population you least want to miss.
     ///
-    /// # ★ How this was missing, because the shape recurs
+    /// # How this was missing, because the shape recurs
     ///
     /// The diagnostics were computed inside the call the whole time.
     /// `mark_redactions_by_pattern_styled` ended `.map(|m| m.created)`, and
@@ -35801,7 +35801,7 @@ impl EditSession {
     /// gained a safety disclosure and the other did not — `R245`'s shape, and
     /// the second time it has been found on this pair.
     ///
-    /// ★★ The consequence a shell reported, which is worse than silence: its
+    /// The consequence a shell reported, which is worse than silence: its
     /// "unreadable fonts" count is a `usize`, so an absent diagnostic became
     /// **zero**, and zero means *none* rather than *unknown*. A pattern
     /// redaction over a document full of Identity-encoded fonts with no
@@ -35933,7 +35933,7 @@ impl EditSession {
         // glyph-span-to-quad geometry would drift, and the way they would
         // drift is the worst possible: a redaction covering a slightly
         // different box than the search that found it.
-        // ★ `Pass 127.1`: the diagnostics are no longer dropped here.
+        // `Pass 127.1`: the diagnostics are no longer dropped here.
         //
         // The comment this replaces said the drop was deliberate and that
         // wiring it through was "a separate, operator-facing change". It was
@@ -36022,7 +36022,7 @@ impl EditSession {
     /// the full [`TextSearchOptions`], and is where **whole-word**
     /// matching lives.
     ///
-    /// ## ★ `needle` is a PATTERN, not a literal — and its sibling is not
+    /// ## `needle` is a PATTERN, not a literal — and its sibling is not
     ///
     /// This verb matches through the same simple-pattern engine
     /// [`EditSession::mark_redactions_by_pattern`] uses: **`#` matches any
@@ -36035,7 +36035,7 @@ impl EditSession {
     /// containing `#` or `?`: the search highlights hits the redaction
     /// then declines to mark.
     ///
-    /// # ★ The divergence was real, and the FRONT END is where it was fixed
+    /// # The divergence was real, and the FRONT END is where it was fixed
     ///
     /// That mismatch was found and reported the same day this option set
     /// was added, and it was not hypothetical: pdfcer's own Find bar ran
@@ -36415,7 +36415,7 @@ impl EditSession {
     /// [`Self::add_text_annotation_with`] — it returns a
     /// [`TextAnnotOutcome`] instead of only the new object's id.
     ///
-    /// # ★★ Why a third entry point rather than changing the other two
+    /// # Why a third entry point rather than changing the other two
     ///
     /// `add_text_annotation` returning an `ObjId` is the shape forty call
     /// sites already use, and widening it would be a breaking change for
@@ -36530,7 +36530,7 @@ impl EditSession {
     /// aspect ratio is an inference about what the operator wanted, and
     /// project rule 4 makes it disclosable rather than silent.
     ///
-    /// ★ **The stretching itself is the STANDARD's behaviour, not pdfcer's
+    /// **The stretching itself is the STANDARD's behaviour, not pdfcer's
     /// shortcut**, and that is worth stating because it looks like a defect:
     /// §12.5.5's algorithm maps the transformed `/BBox` onto `/Rect` with
     /// **independent** horizontal and vertical factors, so a non-matching
@@ -36695,7 +36695,7 @@ impl EditSession {
             Object::Integer(i64::from(crate::annot::AnnotFlags::PRINT)),
         );
 
-        // ★ NO `/Name`. §12.5.6.12 makes `/Name` one of a closed vocabulary
+        // NO `/Name`. §12.5.6.12 makes `/Name` one of a closed vocabulary
         // of STANDARD stamp names, and this annotation's face is imported
         // artwork that matches none of them. Writing `/Draft` because the key
         // looks required would make a reader that cannot find the `/AP` draw
@@ -36790,7 +36790,7 @@ impl EditSession {
         }
         self.check_certification_for_annotation()?;
 
-        // ★ THE LOADED GUN ON TWO ARGUMENTS THAT LOOK INDEPENDENT AND ARE
+        // THE LOADED GUN ON TWO ARGUMENTS THAT LOOK INDEPENDENT AND ARE
         // NOT (`pdfcer-gui`, 2026-09-06, second finding).
         //
         // For a `/FreeText` — and only a `/FreeText` — `/Contents` IS the
@@ -36831,7 +36831,7 @@ impl EditSession {
 
         // Generate the appearance + annotation dictionary (§12.7.3.3).
         let authored = annot_author::build_text_annotation(spec)?;
-        // ★ Captured BEFORE `authored` is taken apart below (`Pass 291.0`).
+        // Captured BEFORE `authored` is taken apart below (`Pass 291.0`).
         // These four facts are the whole disclosure this verb owes, and each
         // one is a field the appearance generator decided rather than the
         // caller: the post-fit rectangle, what the stamp fit policy did, an
@@ -36876,7 +36876,7 @@ impl EditSession {
         // dictionary and never inside the appearance stream — see
         // `add_markup_with` for why the two must not compound.
         //
-        // ★ Applied to the PARENT annotation only, never to the `/Popup`
+        // Applied to the PARENT annotation only, never to the `/Popup`
         // below. A popup is not itself a markup annotation (§12.5.6.14
         // gives it no `/CA`), it is chrome the viewer draws for one, and a
         // half-transparent note window is not what "author this note at
@@ -37026,7 +37026,7 @@ impl EditSession {
     /// }
     /// # }
     /// ```
-    /// # ★ Why this delegates to [`Self::fill_guards`] rather than repeating it
+    /// # Why this delegates to [`Self::fill_guards`] rather than repeating it
     ///
     /// Until 2026-08-13 this asked only `check_certification_for_fill()`, while
     /// `fill_guards` — the preamble every fill actually runs — asked **three**
@@ -37726,7 +37726,7 @@ impl EditSession {
     /// ⇒ **A capability a shell can invoke but not display is one the operator
     /// can only use blind.**
     ///
-    /// # ★★ Four states, not the three that were asked for
+    /// # Four states, not the three that were asked for
     ///
     /// The request proposed `None` / `Known` / `Foreign`. That shape cannot
     /// stay honest as `Known` coverage grows: a `/SubmitForm` this reader
@@ -37816,7 +37816,7 @@ impl EditSession {
     /// property rather than a limitation: an operator cannot ask pdfcer for a
     /// script pdfcer cannot also read back and describe.
     ///
-    /// # ★ The pair is written here, not left to the caller
+    /// # The pair is written here, not left to the caller
     ///
     /// Acrobat's Format tab emits two scripts — the display formatter into
     /// `/F` and an input filter of the same family into `/K`, carrying the
@@ -37826,7 +37826,7 @@ impl EditSession {
     /// owes, not a choice a shell should have to know about, so it lives here.
     /// [`FieldScriptChange::keystroke_paired`] says it happened.
     ///
-    /// # ★★ A format NEVER touches `/V`
+    /// # A format NEVER touches `/V`
     ///
     /// `AFNumber_Format` makes `1234.56` read as `$1,234.56`; the stored value
     /// is still `1234.56`. [`form_script::format`](crate::form_script::format)
@@ -37857,7 +37857,7 @@ impl EditSession {
     /// The only authorable validation is
     /// [`AdvisoryHelper::RangeValidate`](crate::form_script::AdvisoryHelper::RangeValidate).
     ///
-    /// # ★ pdfcer writes a constraint it will not ENFORCE, deliberately
+    /// # pdfcer writes a constraint it will not ENFORCE, deliberately
     ///
     /// Decision 009 §6 classifies validation as advisory: pdfcer's fills are
     /// operator-reviewed, so a range is **disclosed**, never used to reject
@@ -37889,7 +37889,7 @@ impl EditSession {
     /// Set or clear a field's **calculate** script — `/AA` `/C`, **and its
     /// entry in the AcroForm `/CO` calculation order** (`Pass 308.6`).
     ///
-    /// # ★ `/CO` is part of this verb, not a later one
+    /// # `/CO` is part of this verb, not a later one
     ///
     /// A calculate action absent from `/CO` is a calculation Acrobat will not
     /// run, or will run in the wrong order. Writing `/AA` `/C` alone would
@@ -37968,7 +37968,7 @@ impl EditSession {
             });
         };
 
-        // ★ The KIND gate. pdfcer is authoring this rule rather than restating
+        // The KIND gate. pdfcer is authoring this rule rather than restating
         // one -- ISO 32000-1 gives every field type an `/AA` and says nothing
         // about which helper may sit on which kind. The constraint is
         // Acrobat's, sourced to
@@ -38225,7 +38225,7 @@ impl EditSession {
                 if field.flags.has(forms::FieldFlags::COMBO) {
                     None
                 } else {
-                    // ★ Not a guess, and the guess everyone makes is the
+                    // Not a guess, and the guess everyone makes is the
                     // opposite: a list box is a `/Ch` exactly as a combo box
                     // is, and Acrobat offers it none of the three.
                     Some(("a", "list box"))
@@ -38244,7 +38244,7 @@ impl EditSession {
     /// **Give a push button an action, or take one away** — as one undoable
     /// command (`Pass 182.0`; the non-JavaScript action set, `Pass 183.0`).
     ///
-    /// # ★ This moves a deliberate boundary, on two operator rulings
+    /// # This moves a deliberate boundary, on two operator rulings
     ///
     /// `add_push_button` has always authored a button that does nothing, and
     /// `push_button_inert` says so on every creation. That was decision 009
@@ -38552,7 +38552,7 @@ impl EditSession {
                     many => Self::fqn_array(many),
                 };
                 a.insert(Name::from(b"T"), t);
-                // ★ `/H` WRITTEN IN BOTH CASES. Its default is TRUE (hide),
+                // `/H` WRITTEN IN BOTH CASES. Its default is TRUE (hide),
                 // so omitting it for the `false` case -- the "absent means
                 // off" reflex -- would author a button that does the OPPOSITE
                 // of its caption.
@@ -38901,7 +38901,7 @@ impl EditSession {
     /// and the count alone comes back, which is the delete case: pdfcer can
     /// say what a deletion orphaned but has nothing to repoint it at.
     ///
-    /// # ★ Two passes, because a target list may live in its own object
+    /// # Two passes, because a target list may live in its own object
     ///
     /// `/Fields` and `/Hide`'s `/T` are ordinary values, so a producer may
     /// write `5 0 R` instead of an inline array.
@@ -38991,7 +38991,7 @@ impl EditSession {
     /// page's `ancestors`, so it is the reachable tree exactly as the reader
     /// walks it rather than a second traversal that could disagree with it.
     ///
-    /// # ★ The catalog is here because leaving it out did not fix the bug
+    /// # The catalog is here because leaving it out did not fix the bug
     ///
     /// The first cut of this function was pages-and-ancestors only, and it
     /// closed the reproducer. The fuzzer then hit **the same postcondition,
@@ -39023,7 +39023,7 @@ impl EditSession {
     /// **Refuse to delete a form object that is also a page-tree node**
     /// (`Pass 185.1`).
     ///
-    /// # ★ Found by a fuzzer two minutes after the target first existed
+    /// # Found by a fuzzer two minutes after the target first existed
     ///
     /// `fuzz/fuzz_targets/form_edit_sequence.rs` drove `delete_field` over
     /// mutated documents and hit `debug_assert_page_tree_still_walks`. The
@@ -39070,7 +39070,7 @@ impl EditSession {
     /// something else, and a verb is about to delete or overwrite it**
     /// (`Pass 191.1`).
     ///
-    /// # ★ Why this is the categorical guard and `refuse_if_in_page_tree` is
+    /// # Why this is the categorical guard and `refuse_if_in_page_tree` is
     /// # the narrow one
     ///
     /// Its sibling above refuses an enumerated set — pages, page-tree nodes,
@@ -39104,7 +39104,7 @@ impl EditSession {
     /// "there is nothing there" and "there is a stream there" are different
     /// enough to be worth saying out loud.
     ///
-    /// # ★★ SKIP FOR COLLATERAL, REFUSE FOR A TARGET — the rule this guard and
+    /// # SKIP FOR COLLATERAL, REFUSE FOR A TARGET — the rule this guard and
     /// # [`Self::resolves_to_stream`] divide between them
     ///
     /// Both answer the same question and they are used in opposite ways, so
@@ -39140,7 +39140,7 @@ impl EditSession {
         id: ObjId,
     ) -> Result<(), EditError> {
         let what = match self.value(id) {
-            // ★ ABSENCE IS NOT A VIOLATION, and getting this backwards would
+            // ABSENCE IS NOT A VIOLATION, and getting this backwards would
             // have broken ce-dimension authoring. An id whose object does not
             // exist yet is exactly what an appearance the verb is ABOUT TO
             // WRITE looks like, and §7.3.10 makes a dangling reference resolve
@@ -39485,7 +39485,7 @@ impl EditSession {
         let quad = field.quadding;
         let mut merged_ap: Option<ObjId> = None;
         for widget in &field.widgets {
-            // ★★ THE STAGED RECT, NOT THE SNAPSHOT'S (`Pass 187.0`).
+            // THE STAGED RECT, NOT THE SNAPSHOT'S (`Pass 187.0`).
             //
             // `field.widgets` was read BEFORE the caller staged its `/Rect`
             // write, so `widget.rect` is the box the operator dragged AWAY
@@ -39494,7 +39494,7 @@ impl EditSession {
             // stretching the very artwork the rebuild existed to keep
             // undistorted.
             //
-            // ★ This was silent and it was the general case, not a corner:
+            // This was silent and it was the general case, not a corner:
             // measured on a text field dragged from 100x24 to 300x100, the
             // regenerated `/AP` came back `/BBox [0 0 100 24]`. `edit_widget`'s
             // own documentation asserted the opposite -- "this verb rebuilds
@@ -39512,7 +39512,7 @@ impl EditSession {
                 .or(widget.rect)
                 .map_or((0.0, 0.0), |r| (r.width(), r.height()));
 
-            // ★ THE WIDGET'S ROTATION IS PART OF WHAT "REGENERATE THIS
+            // THE WIDGET'S ROTATION IS PART OF WHAT "REGENERATE THIS
             // APPEARANCE" MEANS (`Pass 177.0`), and threading it through HERE
             // rather than into a second builder is deliberate.
             //
@@ -39614,7 +39614,7 @@ impl EditSession {
                     _ => None,
                 })
             {
-                // ★★★ PATCH THE WRITE THIS COMMAND HAS ALREADY STAGED, never
+                // PATCH THE WRITE THIS COMMAND HAS ALREADY STAGED, never
                 // add a second one (`Pass 187.0`).
                 //
                 // `set_widget_ap` builds a whole-dictionary write from
@@ -39625,7 +39625,7 @@ impl EditSession {
                 // DISCARDED the caller's own `/Rect` or `/MK` write, which is
                 // the very thing the regeneration was triggered by.
                 //
-                // ★ Measured on `forms/multi-widget-form.pdf`: resizing widget
+                // Measured on `forms/multi-widget-form.pdf`: resizing widget
                 // 0 of a three-widget text field from 140x22 to 380x100 left
                 // `/Rect` at 140x22 and rebuilt the appearance at `/BBox`
                 // 380x100 — a widget whose artwork §12.5.5 then squashes, from
@@ -39662,7 +39662,7 @@ impl EditSession {
     /// `Ok(Some(msg))` is a disclosure and the edit proceeds; `Err` refuses
     /// and the session is left untouched (the caller has staged nothing yet).
     ///
-    /// # ★★ THIS RESOLVES AN ASYMMETRY `pdfcer-gui` NAMED, AND IT CHANGES BEHAVIOUR
+    /// # THIS RESOLVES AN ASYMMETRY `pdfcer-gui` NAMED, AND IT CHANGES BEHAVIOUR
     ///
     /// Two verbs, one situation, opposite stances, in their words:
     ///
@@ -39763,7 +39763,7 @@ impl EditSession {
     /// nothing was (so the caller's stale-appearance disclosure or refusal
     /// fires). Never rebuilds *some*: see the all-or-nothing note below.
     ///
-    /// # ★ The ownership test, and why parsing is not it
+    /// # The ownership test, and why parsing is not it
     ///
     /// A rebuild replaces the artwork in the file with pdfcer's rendering of
     /// the same field. That is correct exactly when the artwork already IS
@@ -39862,7 +39862,7 @@ impl EditSession {
             let chrome = pending
                 .chrome_for(widget.id)
                 .unwrap_or_else(|| Self::widget_chrome(widget));
-            // ★ AND THE STAGED ROTATION, WHICH WAS THE WHOLE OF `G023`
+            // AND THE STAGED ROTATION, WHICH WAS THE WHOLE OF `G023`
             // (`Pass 308.5`). `rotate_widget` stages `/MK /R` and regenerates
             // inside one command, and this function never read it — so it
             // redrew the button from unchanged inputs, rewrote the streams
@@ -39921,7 +39921,7 @@ impl EditSession {
         w: f64,
         h: f64,
     ) -> Result<Option<ButtonApPlan>, EditError> {
-        // ★ The ownership test draws with the widget's properties **as
+        // The ownership test draws with the widget's properties **as
         // stored**, never with the ones this command is staging. It is asking
         // "are these bytes pdfcer's own artwork?", and a comparison against a
         // value nobody has written yet answers "no" for every button whose
@@ -40034,7 +40034,7 @@ impl EditSession {
         &self,
         field: &forms::Field,
         kind: forms::ButtonKind,
-        // ★ AS STORED for the ownership test, AS STAGED for the redraw — see
+        // AS STORED for the ownership test, AS STAGED for the redraw — see
         // [`ButtonLook`], which exists to make that split one decision rather
         // than five.
         look: &ButtonLook<'_>,
@@ -40046,7 +40046,7 @@ impl EditSession {
             chrome,
             quarter,
         } = look;
-        // ★★ DRAWN IN THE ROTATED FRAME AND TURNED UPRIGHT BY `/Matrix`,
+        // DRAWN IN THE ROTATED FRAME AND TURNED UPRIGHT BY `/Matrix`,
         // which is the same construction `regen_field_appearance` uses for a
         // text field and is correct for the same §12.5.5 reason.
         //
@@ -40071,7 +40071,7 @@ impl EditSession {
         };
         let mut states = match kind {
             forms::ButtonKind::Check => {
-                // ★ The style is recovered from `/MK` `/CA`, which this
+                // The style is recovered from `/MK` `/CA`, which this
                 // function already receives — so RESIZING a star check box
                 // redraws a star, not a tick. Without this the operator's
                 // choice would survive in the file (Table 189 is advisory, so
@@ -40616,7 +40616,7 @@ impl EditSession {
         if forms::parse_acroform(&self.graph()).is_none() {
             return Err(EditError::NoInteractiveForm);
         }
-        // ★ THE DOCUMENT-WIDE GATE IS ASKED ONCE, UP FRONT.
+        // THE DOCUMENT-WIDE GATE IS ASKED ONCE, UP FRONT.
         //
         // A certification signature that forbids filling forbids it for
         // EVERY entry, so discovering that on entry seventeen — after
@@ -40645,7 +40645,7 @@ impl EditSession {
                 skipped += 1;
                 continue;
             };
-            // ★ A PER-ENTRY FAILURE SKIPS; IT DOES NOT ABANDON THE IMPORT.
+            // A PER-ENTRY FAILURE SKIPS; IT DOES NOT ABANDON THE IMPORT.
             //
             // Every verb below COMMITS — `set_button_state`,
             // `set_choice_value` and `fill_text_field` all push their own
@@ -40672,7 +40672,7 @@ impl EditSession {
                     self.set_choice_value(&entry.name, &sel).map(|_| ())
                 }
                 Some(FieldType::Text) => {
-                    // ★ A RICH-TEXT FIELD IS SKIPPED, NOT FATAL.
+                    // A RICH-TEXT FIELD IS SKIPPED, NOT FATAL.
                     //
                     // `fill_text_field` refuses one, and correctly:
                     // §12.7.3.4 makes `/DS` + `/RV` the inputs to appearance
@@ -41060,7 +41060,7 @@ impl EditSession {
         // owns nothing — see `remove_fields_from_form`'s cascade.
         let delete_ids: Vec<ObjId> = delete_ids.into_iter().chain(emptied_parents).collect();
 
-        // ★★ `Pass 185.1`'S EXACT INPUT, AGAINST A VERB THAT NEVER GOT THE FIX
+        // `Pass 185.1`'S EXACT INPUT, AGAINST A VERB THAT NEVER GOT THE FIX
         // (`Pass 191.1`). There, an `/AcroForm` `/Fields` naming an object that
         // is ALSO a `/Page` made `delete_field` delete the page and return
         // `Ok`. `refuse_if_in_page_tree` was written for that verb and wired
@@ -41196,7 +41196,7 @@ impl EditSession {
     /// resulting defect. Taking `&mut Dict` makes the three **compose** and
     /// makes it structurally impossible to reintroduce: there is nothing
     /// left to overwrite.
-    /// # ★ This used to hold its own copy of the shape logic, and it was wrong
+    /// # This used to hold its own copy of the shape logic, and it was wrong
     ///
     /// It matched on the RAW value and wrapped an `Object::Reference` into
     /// `[ref, overlay]` without resolving it. When the reference pointed at an
@@ -41383,7 +41383,7 @@ impl EditSession {
     /// **Which object's `/Kids` holds each field**, derived by walking DOWN
     /// from `/AcroForm` `/Fields` (`Pass 190.0`).
     ///
-    /// # ★★ Why this exists, and why `/Parent` was the wrong source
+    /// # Why this exists, and why `/Parent` was the wrong source
     ///
     /// §12.7.3.1 makes `/Parent` a required entry on every non-root field, so
     /// reading a node's container from it looks safe and was, for a year. It is
@@ -41493,7 +41493,7 @@ impl EditSession {
         // The fixed point is computed BEFORE any write, so the patches below
         // see the final removal set and no container is patched to keep a kid
         // that a later round decided to remove.
-        // ★ THE OWNER MAP IS DERIVED FROM `/Kids`, NOT FROM `/Parent`
+        // THE OWNER MAP IS DERIVED FROM `/Kids`, NOT FROM `/Parent`
         // (`Pass 190.0`). Both uses below take it. See `field_owner_index`
         // for what a `/Parent`-derived map could not see, and for the dangling
         // reference that cost.
@@ -41650,7 +41650,7 @@ impl EditSession {
                     .filter(|o| o.as_reference().is_none_or(|id| !root_drop.contains(&id)))
                     .collect();
 
-                // ★ /CO — THE CALCULATION ORDER, pruned here (`Pass 168.0`).
+                // /CO — THE CALCULATION ORDER, pruned here (`Pass 168.0`).
                 //
                 // §12.7.2 Table 218: `/CO` is "an array of INDIRECT
                 // REFERENCES TO FIELD DICTIONARIES with calculation actions".
@@ -42476,7 +42476,7 @@ impl EditSession {
     /// went **down**. A capability marked present on a crate nobody used had
     /// been hiding a real API-shape gap on this side.
     ///
-    /// # ★★ Why a WHOLE-document merge is strictly easier than a page subset
+    /// # Why a WHOLE-document merge is strictly easier than a page subset
     ///
     /// This is the observation the verb is built on, and it is not obvious.
     ///
@@ -42560,7 +42560,7 @@ impl EditSession {
         let pages_merged = new_page_ids.len();
 
         let form = self.merge_acroform(source, &mut mapping, &mut scratch)?;
-        // ★ Destinations BEFORE outlines. A carried bookmark may point at a
+        // Destinations BEFORE outlines. A carried bookmark may point at a
         // named destination whose key had to be suffixed, and only the map
         // this returns can rewrite it — run the other way round and the
         // bookmark keeps a key that no longer exists.
@@ -42598,7 +42598,7 @@ impl EditSession {
     /// The catalog as this operation has it — **preferring `scratch`** over
     /// the committed session.
     ///
-    /// # ★ Why this exists, and the bug it fixes
+    /// # Why this exists, and the bug it fixes
     ///
     /// A merge writes the catalog from **three** places: `/AcroForm`,
     /// `/Names` → `/Dests`, and `/Outlines`. Each read `self.value(catalog_id)`
@@ -43108,7 +43108,7 @@ impl EditSession {
         // viewer would not have offered its signing UI for a document that
         // does contain a `/Sig` field.
         //
-        // ★ What this does NOT claim. Carrying the flag says the merged
+        // What this does NOT claim. Carrying the flag says the merged
         // document HAS signature fields; it says nothing about their
         // validity. A signature covers a byte range, and the merge renumbers
         // and re-emits the source's objects — so any signature VALUE that
@@ -43313,7 +43313,7 @@ impl EditSession {
     /// A follow-up Pass can add the document-level halves one at a time,
     /// each with its own name in the undo log.
     ///
-    /// # ★★ TWO VERBS ARE CALLED "INSERT PAGES" AND THEY BEHAVE DIFFERENTLY
+    /// # TWO VERBS ARE CALLED "INSERT PAGES" AND THEY BEHAVE DIFFERENTLY
     ///
     /// This is the one thing to read before choosing between them, and the
     /// names do not help.
@@ -43351,7 +43351,7 @@ impl EditSession {
     /// point of that file's `—` versus `[ ]` distinction is to tell them
     /// apart.
     ///
-    /// # ★ THE WIDGETS DO ARRIVE. Only their FIELDS do not — and the
+    /// # THE WIDGETS DO ARRIVE. Only their FIELDS do not — and the
     /// paragraph above was read as saying the opposite
     ///
     /// This matters more than the omission it qualifies, and it is written
@@ -43420,7 +43420,7 @@ impl EditSession {
         let _ = &mapping;
         let added = new_page_ids.len();
 
-        // ★ COUNT THE ORPHANS (`Pass 102.0`).
+        // COUNT THE ORPHANS (`Pass 102.0`).
         //
         // Every widget on an inserted page is orphaned, and that is not a
         // conservative estimate — it is exact. `/AcroForm` is document-level
@@ -43698,7 +43698,7 @@ impl EditSession {
     ) -> Result<Dict, EditError> {
         let mut out = Dict::new();
         for (key, item) in dict.iter() {
-            // ★ `/Parent` is dropped from EVERY dictionary, and the reason
+            // `/Parent` is dropped from EVERY dictionary, and the reason
             // is only half about pages.
             //
             // On a **page** it points up the source's page tree; following
@@ -43879,7 +43879,7 @@ impl EditSession {
 /// geometry; the list-driven ones (Ink/Polygon/PolyLine/Cloud/text markup)
 /// can be handed point lists too short to be the shape they name.
 ///
-/// # ★ Why `Polygon` and `PolyLine` do NOT share an arm (`Pass 82.1`)
+/// # Why `Polygon` and `PolyLine` do NOT share an arm (`Pass 82.1`)
 ///
 /// They did, with a single `vertices.len() < 2`, and **`< 2` is right for
 /// exactly one of them.** A two-point `/PolyLine` is a line segment and
@@ -44179,7 +44179,7 @@ impl EditSession {
         self.check_dimension_sidecar()?;
         let mut model = self.read_dimension_model();
 
-        // ★ THE NAMED GROUP MUST EXIST (`Pass 178.1`), refused before
+        // THE NAMED GROUP MUST EXIST (`Pass 178.1`), refused before
         // anything is written.
         //
         // `DimensionModel::add_dimension` FALLS BACK to the default group for
@@ -44371,7 +44371,7 @@ impl EditSession {
     /// it, and this verb writes **no new geometry, appearance or value** —
     /// only the registration, and `/T` when you rename.
     ///
-    /// # ★ The other kind of orphan cannot be adopted, and is refused
+    /// # The other kind of orphan cannot be adopted, and is refused
     ///
     /// A widget that is a **kid** of a field — how a radio group is
     /// represented, one field with several widgets — carries *no* field
@@ -44480,7 +44480,7 @@ impl EditSession {
     /// inspection, so a preview that says "this will work" and a call that
     /// then refuses is not a state this code can reach.
     ///
-    /// # ★★ A CONSEQUENCE WORTH KNOWING BEFORE YOU PLACE A GUARD
+    /// # A CONSEQUENCE WORTH KNOWING BEFORE YOU PLACE A GUARD
     ///
     /// **Every refusal added to [`Self::adopt_plan`] becomes a BEFORE-THE-PRESS
     /// signal for free**, because this is that function with the writes
@@ -44490,7 +44490,7 @@ impl EditSession {
     /// plan arrives in a hover before a click, and the same refusal outside it
     /// arrives in a status bar after one.
     ///
-    /// ★ Recorded because it crossed the boundary unnoticed, in both
+    /// Recorded because it crossed the boundary unnoticed, in both
     /// directions, on 2026-09-12. `Pass 298.0` put `reject_dotted_partial`
     /// inside `adopt_plan` for reasons entirely internal to this crate. The
     /// consuming shell's tab-order name box **had been greying on a dotted
@@ -44564,7 +44564,7 @@ impl EditSession {
             (None, _) => return Err(EditError::WidgetHasNoFieldIdentity { id: widget.num }),
         };
 
-        // ★★ A PERIOD HERE WOULD AUTHOR A FIELD NOBODY CAN ADDRESS
+        // A PERIOD HERE WOULD AUTHOR A FIELD NOBODY CAN ADDRESS
         // (`Pass 298.0`). This verb registers at the `/Fields` root, so the
         // name it is handed becomes a TOP-LEVEL `/T` verbatim -- and
         // §12.7.3.2 then makes the field's fully-qualified name that same
@@ -44574,7 +44574,7 @@ impl EditSession {
         // inside a group named `Text`, finding the real terminal `Text`, and
         // stopping. The field renders and accepts a click and cannot be named.
         //
-        // ★ The collision test immediately below does NOT catch it: it
+        // The collision test immediately below does NOT catch it: it
         // compares whole FQNs, and no existing field is called `Text.2`, so a
         // dotted name passes it trivially. That is why this guard is its own
         // check and not a tightening of that one.
@@ -44889,7 +44889,7 @@ impl EditSession {
 
     /// Delete an outline item **and everything under it** (`Pass 156.0`).
     ///
-    /// # ★★ Why the subtree goes too, rather than being promoted
+    /// # Why the subtree goes too, rather than being promoted
     ///
     /// Acrobat deletes the subtree, and the alternative is worse than it
     /// sounds: promoting orphaned children to the deleted item's parent
@@ -44941,7 +44941,7 @@ impl EditSession {
         // is unlinked, because the walk uses the links being removed.
         let subtree = self.outline_subtree(item_id);
 
-        // ★ `/First` AND `/Next` ARE OUTLINE-ITEM POINTERS, AND THE WALK
+        // `/First` AND `/Next` ARE OUTLINE-ITEM POINTERS, AND THE WALK
         // BELIEVED THEM (`Pass 191.1`). §12.3.3 Tables 152-153 define both as
         // naming outline item dictionaries; `outline_subtree` accepted any
         // dictionary it reached and pushed every one onto the removal list. So
@@ -45140,7 +45140,7 @@ impl EditSession {
     /// How many items the subtree at `item_id` contributes to an ancestor's
     /// `/Count` — the item itself plus its VISIBLE descendants.
     ///
-    /// ★ Not the same as the subtree size. A closed item contributes exactly
+    /// Not the same as the subtree size. A closed item contributes exactly
     /// **1**: its descendants are not visible, which is what the negative
     /// `/Count` means. Counting the whole subtree here would subtract items
     /// from an ancestor that were never in its total.
@@ -45171,7 +45171,7 @@ impl EditSession {
     /// source's outline and derive the page mapping itself, and had nowhere
     /// to put the result.
     ///
-    /// # ★★ `/Count` IS TWO DIFFERENT QUANTITIES
+    /// # `/Count` IS TWO DIFFERENT QUANTITIES
     ///
     /// The spec digest opens with this because it is the single easiest
     /// thing here to get wrong:
@@ -45252,7 +45252,7 @@ impl EditSession {
                     .map_err(|kind| EditError::UnsupportedDestination { kind })?;
                 Some(Object::Array(array))
             }
-            // ★ A named destination is written as the KEY, not resolved to
+            // A named destination is written as the KEY, not resolved to
             // the page it currently points at.
             //
             // Resolving here would defeat the entire purpose of the
@@ -45429,7 +45429,7 @@ impl EditSession {
     /// Whether `candidate` is genuinely an outline item — that is, whether
     /// its `/Parent` chain reaches `root_id`.
     ///
-    /// # ★ Why reachability, and not a key-presence check
+    /// # Why reachability, and not a key-presence check
     ///
     /// The obvious test is structural: §12.3.3 Table 153 gives outline items
     /// **no `/Type` key at all**, so there is nothing to match on, and both
@@ -45500,7 +45500,7 @@ impl EditSession {
     /// must adjust — the parent, then every ancestor up to and including the
     /// **first closed one** (`Pass 161.0`).
     ///
-    /// # ★ Why the walk stops at a closed node rather than at the root
+    /// # Why the walk stops at a closed node rather than at the root
     ///
     /// §12.3.3 Table 153: an item's `/Count` counts its **visible**
     /// descendants, and a closed item's count is negative — the magnitude
@@ -45533,7 +45533,7 @@ impl EditSession {
     /// written at all. Applying each walk as it is computed cannot express
     /// that.
     ///
-    /// ★ There is deliberately no "treat this node as open" override, and an
+    /// There is deliberately no "treat this node as open" override, and an
     /// earlier version of this function had one — added for
     /// [`Self::set_outline_open`], on the reasoning that a node being expanded
     /// is still closed on disk while the chain above it is computed. That
@@ -45894,7 +45894,7 @@ impl EditSession {
         // Asked UPWARD -- "does the destination's `/Parent` chain reach the
         // item I am moving?" -- and bounded by `MAX_OUTLINE_DEPTH` (32).
         //
-        // ★★ THE DOWNWARD FORM IS NOT SAFE HERE, and this comment used to
+        // THE DOWNWARD FORM IS NOT SAFE HERE, and this comment used to
         // argue that it was. The first version called `outline_subtree` and
         // tested membership, justified on the grounds that only a downward
         // walk is "bounded by the thing being moved" so a pre-existing cycle
@@ -46099,7 +46099,7 @@ impl EditSession {
 
         // --- commit only what actually differs -----------------------------
         //
-        // ★ THIS IS NOT THE MINIMAL-DIFF GUARD, and an earlier version of this
+        // THIS IS NOT THE MINIMAL-DIFF GUARD, and an earlier version of this
         // comment said it was. `dirty_set` is (§11.1): it diffs `state`
         // against the BASE revision at save time, so an object written here
         // with a value equal to its base value is skipped there regardless of
@@ -46246,7 +46246,7 @@ impl EditSession {
         }
         self.check_certification()?;
         self.check_dimension_sidecar()?;
-        // ★ The default group is undeletable, refused BEFORE anything is
+        // The default group is undeletable, refused BEFORE anything is
         // touched (rule 4). See `EditError::DimensionGroupIsDefault` for what
         // deleting it costs -- the sidecar it produces is well-formed and the
         // READER rejects it as incoherent, so the whole measurement model is
@@ -46333,7 +46333,7 @@ impl EditSession {
     ///
     /// Returns `Ok(())`. One undo entry.
     ///
-    /// # ★ This is not a field assignment, and that is the whole of it
+    /// # This is not a field assignment, and that is the whole of it
     ///
     /// A ce dimension's *appearance* is derived from its group: the scale it
     /// is measured at, the precision and unit it is formatted with, and the
@@ -46410,7 +46410,7 @@ impl EditSession {
         self.check_dimension_sidecar()?;
         let mut model = self.read_dimension_model();
 
-        // ★ R235 instance 4 (`Pass 178.2`). `DimensionModel::set_group_scale`
+        // R235 instance 4 (`Pass 178.2`). `DimensionModel::set_group_scale`
         // is documented "No-op for an unknown group" -- a pure-model setter
         // returning `()`, so it cannot refuse -- and this verb called it
         // without checking. Measured: `group-set-scale --group 99` printed a
@@ -46458,7 +46458,7 @@ impl EditSession {
     /// (§8.11 `/D` config `/OFF`, Pass 12.M2). Returns the resulting
     /// visibility. One undo entry.
     ///
-    /// # ★ The default group is UN-HIDEABLE, and asking is now a REFUSAL
+    /// # The default group is UN-HIDEABLE, and asking is now a REFUSAL
     ///
     /// Every ce dimension falls back to the default group, so a document whose
     /// default layer is off could carry measurements nothing in a layer list
@@ -46498,7 +46498,7 @@ impl EditSession {
         self.check_dimension_sidecar()?;
         let mut model = self.read_dimension_model();
 
-        // ★ TWO REFUSALS THIS VERB DID NOT HAVE (`Pass 178.0`), both before
+        // TWO REFUSALS THIS VERB DID NOT HAVE (`Pass 178.0`), both before
         // anything is written (rule 4).
         //
         // `DimensionModel::set_group_visible` answers `true` for BOTH of these
@@ -47178,7 +47178,7 @@ impl EditSession {
     /// measurement; `None` clears the override and restores the measured
     /// caption **exactly, with no re-measurement**.
     ///
-    /// # ★ The measurement is SHADOWED, never replaced — this is the point
+    /// # The measurement is SHADOWED, never replaced — this is the point
     ///
     /// The operator's own words for this feature (2026-08-29): *"dimension
     /// text override should be an option if it can be selected to be
@@ -47404,7 +47404,7 @@ impl EditSession {
         let annot_id = record
             .annot
             .ok_or(EditError::DimensionNotFound { id: dimension.0 })?;
-        // ★ THE SIDECAR IS ATTACKER-WRITABLE (`Pass 191.1`). `/PieceInfo` is
+        // THE SIDECAR IS ATTACKER-WRITABLE (`Pass 191.1`). `/PieceInfo` is
         // ordinary PDF content under the catalog, and `check_dimension_sidecar`
         // compares a VERSION INTEGER and nothing else -- so `/Ap` and `/Annot`
         // arrive here as unvalidated object ids that a hostile file chose.
@@ -47521,7 +47521,7 @@ impl EditSession {
     ///
     /// A **pure query**, safe to call every frame (R83).
     ///
-    /// # ★ PDF/A is deliberately NOT here
+    /// # PDF/A is deliberately NOT here
     ///
     /// A PDF/A-identified document is not refused by the core. Unembedding
     /// genuinely breaks that conformance — every part of ISO 19005 requires
@@ -47565,7 +47565,7 @@ impl EditSession {
     /// fonts restored, four not — is a document state the operator never
     /// asked for and could not describe.
     ///
-    /// # ★ Bytes are reclaimed by a FULL REWRITE, not by this call
+    /// # Bytes are reclaimed by a FULL REWRITE, not by this call
     ///
     /// [`UnembedPlan::bytes_reclaimable`] is what a full rewrite drops. An
     /// incremental save (the default) *appends* an update section, so the
@@ -47688,7 +47688,7 @@ impl EditSession {
             // key comes out of this descriptor either way, but the bytes
             // stay, because freeing them would blank that font.
             //
-            // ★ `/CIDSet` GETS THE TYPE TEST ITS SIBLING ALREADY HAD
+            // `/CIDSet` GETS THE TYPE TEST ITS SIBLING ALREADY HAD
             // (`Pass 191.1`). §9.7.4.2 Table 117 defines `/CIDSet` as a
             // STREAM, and this path took it as a bare reference. The
             // `/FontFile*` half ten lines upstream has always been guarded --
@@ -47787,7 +47787,7 @@ impl EditSession {
     ///
     /// A **pure query**, safe to call every frame (R83).
     ///
-    /// # ★ PDF/A is deliberately NOT here, for the opposite reason
+    /// # PDF/A is deliberately NOT here, for the opposite reason
     ///
     /// [`Self::unembed_refusal`] leaves PDF/A out because unembedding breaks
     /// a conformance claim and that is the operator's to accept. Embedding
@@ -47832,7 +47832,7 @@ impl EditSession {
     /// asked for and could not describe. A front end that needs finer
     /// control offers the per-font operation instead of splitting this one.
     ///
-    /// # ★ The file gets BIGGER, and that is the point
+    /// # The file gets BIGGER, and that is the point
     ///
     /// The exact mirror of [`Self::unembed_fonts`]'s counter-intuitive note.
     /// Embedding adds font programs; [`EmbedPlan::bytes_added_uncompressed`]
@@ -48059,7 +48059,7 @@ impl EditSession {
     /// Rotate a whole ce dimension about `pivot` by `degrees` anticlockwise
     /// (`Pass 159.0`).
     ///
-    /// # ★★★ The measured value is UNCHANGED, by construction
+    /// # The measured value is UNCHANGED, by construction
     ///
     /// A rotation preserves every distance and angle, so the number stays
     /// identical — not because pdfcer decided to hold it, but because there is
@@ -48067,7 +48067,7 @@ impl EditSession {
     /// operation, and it is why the outcome reports the label rather than a
     /// before/after pair: there is no "after".
     ///
-    /// ★ **Scaling a ce dimension is deliberately NOT offered**, and this is
+    /// **Scaling a ce dimension is deliberately NOT offered**, and this is
     /// the decision worth reading before someone adds it. It has no honest
     /// reading: either the value stays fixed while the geometry grows, so the
     /// dimension lies about the drawing, or both change, so nothing was
@@ -48448,7 +48448,7 @@ impl EditSession {
             let group = model
                 .group(record.group)
                 .ok_or(EditError::DimensionGroupNotFound { id: record.group.0 })?;
-            // ★ The FULL cascade, not `From<&Group>` (Pass 69.0). This is the
+            // The FULL cascade, not `From<&Group>` (Pass 69.0). This is the
             // only place a ce dimension's appearance is rebuilt after
             // authoring, so it is the only place a per-ce-dimension override
             // can be honoured — and the only place one can be silently
@@ -48475,7 +48475,7 @@ impl EditSession {
                 Name::from(b"Length"),
                 Object::Integer(i64::try_from(authored.ap_content.len()).unwrap_or(i64::MAX)),
             );
-            // ★ THIS WRITE IS A WHOLESALE OVERWRITE OF `ap_id` (`Pass 191.1`),
+            // THIS WRITE IS A WHOLESALE OVERWRITE OF `ap_id` (`Pass 191.1`),
             // and `ap_id` came out of the `/PieceInfo` sidecar, which is
             // ordinary attacker-writable PDF content -- `check_dimension_sidecar`
             // compares a version integer and nothing else.
@@ -48786,7 +48786,7 @@ impl<'a> NewImage<'a> {
     /// *"re-deriving the arithmetic in the GUI is how a preview and a result
     /// drift apart."*
     ///
-    /// ★ **So the important property is not the arithmetic — it is that
+    /// **So the important property is not the arithmetic — it is that
     /// [`ImageAuthorDisclosures`] is now computed BY CALLING THIS**, not by
     /// repeating it. A pure preview that a shell trusts and an outcome that
     /// disagrees with it would be the same defect one layer down, and worse
@@ -49475,7 +49475,7 @@ impl EditSession {
         let notes = img.notes;
         let (pw, ph) = (placed.urx - placed.llx, placed.ury - placed.lly);
         let (px_w, px_h) = img.display_size_px();
-        // ★ COMPUTED BY CALLING THE PURE PREVIEW, never re-derived here.
+        // COMPUTED BY CALLING THE PURE PREVIEW, never re-derived here.
         //
         // This block used to hold its own copy of `pixels / (points / 72)`.
         // `NewImage::effective_dpi` is the same arithmetic, and the whole
@@ -49736,7 +49736,7 @@ impl EditSession {
 
     /// **Copy a bookmark and everything under it** (`Pass 172.0`).
     ///
-    /// ★ Acrobat cannot do this between two documents at all — Adobe's own
+    /// Acrobat cannot do this between two documents at all — Adobe's own
     /// documentation says *"Bookmarks can't be copied directly … from one file
     /// to another."* This is an exceed over the parity reference, not a catch-up.
     ///
@@ -49786,7 +49786,7 @@ impl EditSession {
     ///
     /// ONE undo entry, however many bookmarks arrive.
     ///
-    /// # ★ A destination naming a page this document does not have is DROPPED
+    /// # A destination naming a page this document does not have is DROPPED
     ///
     /// Not clamped to the last page. Clamping would produce a bookmark that
     /// navigates confidently to the wrong place; §12.3.3 permits an item with
@@ -49821,7 +49821,7 @@ impl EditSession {
         }
         let pages = self.page_slots()?.len();
         let mut outcome = OutlinePasteOutcome::default();
-        // ★ MEASURED, NOT COUNTED. The first cut of this incremented a
+        // MEASURED, NOT COUNTED. The first cut of this incremented a
         // counter per intended command -- and `set_outline_open` does not
         // always commit (it returns early when the state already matches), so
         // the count could exceed the commands that actually reached the undo
@@ -50126,7 +50126,7 @@ impl EditSession {
     /// this inherits that verb's entire contract, including its five
     /// disclosure counters and its ONE-undo-entry guarantee.
     ///
-    /// # ★ Read the outcome. Two of its fields are invisible in the result.
+    /// # Read the outcome. Two of its fields are invisible in the result.
     ///
     /// `orphaned_widgets` is the one that bites: a page's `/Annots` reaches
     /// its widgets, so form-field boxes ARRIVE even when the `/AcroForm` that
@@ -50756,7 +50756,7 @@ type FieldPlacement = (Vec<ObjectWrite>, Option<ObjId>, String, Option<ObjId>);
 
 /// Why a particular annotation `/Subtype` was not pasted (`Pass 168.0`).
 ///
-/// # ★ This exists because the message used to be wrong for everything but one
+/// # This exists because the message used to be wrong for everything but one
 /// # subtype, in two places at once
 ///
 /// Both paste sites — the verb and its preview — carried the SAME hardcoded
@@ -51033,7 +51033,7 @@ impl EditSession {
                         .ok_or_else(|| SignApplyError::FieldNameTaken { name: n.clone() })?;
                     reuse = Some(self.reusable_sig_field(id, n, request)?);
                 } else {
-                    // ★★ ONLY ON THE CREATE PATH, and the distinction is the
+                    // ONLY ON THE CREATE PATH, and the distinction is the
                     // whole reason this is not one guard at the top of the
                     // verb (`Pass 298.0`).
                     //
@@ -51606,7 +51606,7 @@ mod tests {
         .with_tooltip("t")
     }
 
-    /// ★ **EVERY field type carries the widget properties, not just text.**
+    /// **EVERY field type carries the widget properties, not just text.**
     ///
     /// Border style and visibility are properties of a widget annotation
     /// (Table 165, Table 166), so a check box has a border for the same
@@ -51678,7 +51678,7 @@ mod tests {
         assert_eq!(checked, 3, "every constructed type was checked");
     }
 
-    /// ★ **Every border style reaches `/BS /S`, and the width reaches `/W`.**
+    /// **Every border style reaches `/BS /S`, and the width reaches `/W`.**
     ///
     /// Before this existed pdfcer wrote no `/BS` at all — which is not the
     /// same as writing nothing, because Table 166 defaults `/S` to `S` and
@@ -51720,7 +51720,7 @@ mod tests {
         assert_eq!(bs.get(b"W").and_then(Object::as_number), Some(0.0));
     }
 
-    /// ★ **`Hidden` and `PrintOnly` are different flag words, and the
+    /// **`Hidden` and `PrintOnly` are different flag words, and the
     /// difference is the whole point of offering both.**
     ///
     /// Table 165: `Hidden` suppresses screen AND print "regardless of its
@@ -51776,7 +51776,7 @@ mod tests {
         assert_eq!(ff & i64::from(forms::FieldFlags::PASSWORD), 8192);
     }
 
-    /// ★ **A comb field that breaks Table 228 bit 25 is REFUSED, and the
+    /// **A comb field that breaks Table 228 bit 25 is REFUSED, and the
     /// refusal names which precondition failed.**
     ///
     /// The ambiguity register records this as one of four producer gates
@@ -51870,7 +51870,7 @@ mod tests {
         ])
     }
 
-    /// ★ **Filling a hybrid-XFA form succeeds AND says the two halves may
+    /// **Filling a hybrid-XFA form succeeds AND says the two halves may
     /// now disagree.**
     ///
     /// The fail-open this closes: pdfcer writes the AcroForm half, which most
@@ -51905,7 +51905,7 @@ mod tests {
         assert!(!out.xfa_may_disagree);
     }
 
-    /// ★ **The preview agrees with the act it previews.**
+    /// **The preview agrees with the act it previews.**
     ///
     /// This is the whole reason `reset_preview` exists in the core rather
     /// than once per shell: a preview that disagreed with `reset_form` would
@@ -51953,7 +51953,7 @@ mod tests {
         assert_eq!(reason("Keep"), None);
     }
 
-    /// ★ **A field already holding its reset value is `would_change: false`,
+    /// **A field already holding its reset value is `would_change: false`,
     /// and a field with no default whose value is EMPTY still counts as a
     /// change** — because there is a key to remove even though nothing
     /// visible would move.
@@ -52008,7 +52008,7 @@ mod tests {
         assert_eq!(session.reset_preview(Some(&only)).len(), 1);
     }
 
-    /// ★ **Both `shall` branches: a default is restored, and a field with
+    /// **Both `shall` branches: a default is restored, and a field with
     /// none has its `/V` REMOVED rather than blanked.**
     ///
     /// The removal is the half a plausible implementation gets wrong. An
@@ -52043,7 +52043,7 @@ mod tests {
         assert_eq!(out.values_removed, 1, "Drop");
     }
 
-    /// ★ **An inherited `/DV` is found, so a child with a parent's default
+    /// **An inherited `/DV` is found, so a child with a parent's default
     /// does not take the removal branch.**
     ///
     /// `/DV` is inheritable (Table 220). Testing the field's own dictionary
@@ -52089,7 +52089,7 @@ mod tests {
         );
     }
 
-    /// ★ **A name that matches nothing refuses BEFORE anything is written**,
+    /// **A name that matches nothing refuses BEFORE anything is written**,
     /// so a typo cannot half-reset a form.
     #[test]
     fn an_unknown_field_name_refuses_without_writing_anything() {
@@ -53095,7 +53095,7 @@ mod tests {
 
     #[test]
     fn latin_text_uses_the_pdfdoc_table_and_only_the_untabled_takes_the_bom() {
-        // ★ THIS TEST ASSERTED THE OPPOSITE UNTIL `Pass 150.0`, and it was
+        // THIS TEST ASSERTED THE OPPOSITE UNTIL `Pass 150.0`, and it was
         // right to: it characterised a DEFERRAL, not a design. Its previous
         // body was
         //
@@ -53115,7 +53115,7 @@ mod tests {
 
     #[test]
     fn the_byte_where_pdfdoc_and_latin1_disagree_now_decodes_from_the_table() {
-        // ★ REWRITTEN BY `Pass 150.0`. It read:
+        // REWRITTEN BY `Pass 150.0`. It read:
         //
         //   "0x91 is where PDFDocEncoding and Latin-1 disagree, and the
         //    PDFDocEncoding table is a recorded spec-RAG gap. Guessing would
@@ -53126,7 +53126,7 @@ mod tests {
         // discarded: guessing Latin-1 for 0x91 would be silently wrong. The
         // answer was never to guess — it was to use the real table, which
         // `textstring` now has, and which decodes this byte exactly.
-        // ★ The VALUE is asserted, not just "no replacement character". The
+        // The VALUE is asserted, not just "no replacement character". The
         // doctest on `decode_text_string` first claimed 0x91 was U+2018 —
         // guessed from memory while writing about the table's arrival, which
         // is precisely the failure the old text warned against. It is U+201A
@@ -53410,7 +53410,7 @@ mod tests {
         assert!(matches!(err, EditError::AnnotationIsCeDimension { .. }));
     }
 
-    /// ★ The `/IT` half of `is_ce_dimension`, ISOLATED from the sidecar half.
+    /// The `/IT` half of `is_ce_dimension`, ISOLATED from the sidecar half.
     ///
     /// The sibling above pokes `/IT /LineDimension` onto a plain markup
     /// annotation precisely so the sidecar cannot be what catches it — the
@@ -53469,7 +53469,7 @@ mod tests {
         }
     }
 
-    /// ★ The SIDECAR half of `is_ce_dimension`, isolated the other way.
+    /// The SIDECAR half of `is_ce_dimension`, isolated the other way.
     ///
     /// A REAL perimeter ce dimension with its `/IT` removed — the case where a
     /// third product rewrote or dropped the intent hint (§12.5.6.9 calls `/IT`
@@ -53525,7 +53525,7 @@ mod tests {
         );
     }
 
-    /// ★ R83: a setting is a promise. `quad_point_order` was parsed,
+    /// R83: a setting is a promise. `quad_point_order` was parsed,
     /// validated and written back for its whole life, and READ BY NOTHING —
     /// an operator who chose `counterclockwise` got reading order anyway.
     ///
@@ -53799,7 +53799,7 @@ endstream",
                 change.dropped
             );
         }
-        // ★ THREE properties have LEFT that list, in two Passes, and each
+        // THREE properties have LEFT that list, in two Passes, and each
         // departure is a fix rather than a regression. The list this test
         // began with was `BorderEffect`, `RectDifferences`, `BorderStyle`,
         // `DashPattern`, `ForeignAppearance`.
@@ -53882,10 +53882,10 @@ endstream",
         }
     }
 
-    /// ★ THE ROUND TRIP the Pass was scoped on: a foreign revision cloud,
+    /// THE ROUND TRIP the Pass was scoped on: a foreign revision cloud,
     /// restyled, still LOOKS like a cloud.
     ///
-    /// # ★★ THIS TEST ASSERTED THE WRONG THING FIRST, and a sabotage run is
+    /// # THIS TEST ASSERTED THE WRONG THING FIRST, and a sabotage run is
     /// what caught it
     ///
     /// The Pass's own acceptance sketch said *"verify `/BE` survives"*, and
@@ -55922,7 +55922,7 @@ endstream",
         };
 
         let mut s = session(pdf_without_info());
-        // ★ The refusal NAMES the constraint. `EmptyGeometry` here would be
+        // The refusal NAMES the constraint. `EmptyGeometry` here would be
         // a true-ish statement that sends the caller looking for a missing
         // list rather than a short one (R27).
         assert!(matches!(
@@ -55960,7 +55960,7 @@ endstream",
             })
         ));
 
-        // ★ THE REGRESSION THIS PAIR EXISTS FOR. A two-point PolyLine is a
+        // THE REGRESSION THIS PAIR EXISTS FOR. A two-point PolyLine is a
         // line segment and MUST stay legal — the obvious "fix" for the
         // polygon defect is to raise the shared threshold to 3, which
         // would silently delete the most ordinary PolyLine there is.
@@ -56050,7 +56050,7 @@ endstream",
         ));
     }
 
-    /// ★ The cloud must actually BULGE, and its `/Rect` must contain the
+    /// The cloud must actually BULGE, and its `/Rect` must contain the
     /// bulge.
     ///
     /// Asserting only that the appearance contains `c` operators would
@@ -56851,7 +56851,7 @@ endstream",
         assert_eq!(cat_session().find_text("cat", false).len(), 7);
     }
 
-    /// ★ **`?` searches for `?` unless wildcards are asked for.**
+    /// **`?` searches for `?` unless wildcards are asked for.**
     ///
     /// The defect this pins was live in the shipped Find bar: it ran
     /// through [`EditSession::find_text`], which is a *pattern* search, so
@@ -57774,7 +57774,7 @@ fn read_text_string_entry<G: crate::graph::ObjectGraph + ?Sized>(
 /// Odd-length and non-numeric elements are copied through unchanged: pdfcer
 /// does not repair a producer's geometry as a side effect of rotating it.
 ///
-/// # ★ Why the two output vectors, rather than a `flat_points` sibling
+/// # Why the two output vectors, rather than a `flat_points` sibling
 ///
 /// `Pass 155.1` needs the **bound of the rotated geometry** to derive a
 /// `/Rect` from the artwork instead of from the previous `/Rect`, and the
@@ -58020,7 +58020,7 @@ fn apply_stamp_parameters(spec: &mut annot_author::TextAnnotSpec, label: &str, s
 /// has enforced it since `Pass 145.0`, and
 /// [`EditSession::adopt_widget`] and [`EditSession::sign`] join it here.
 ///
-/// # ★★ Why these two needed their own guard rather than the existing choke point
+/// # Why these two needed their own guard rather than the existing choke point
 ///
 /// The `add_*` and `paste_field` family all reach
 /// `place_new_field_deferred`, which splits the path and refuses there. These
@@ -58048,7 +58048,7 @@ fn apply_stamp_parameters(spec: &mut annot_author::TextAnnotSpec, label: &str, s
 /// shell asked for that by name, and it is why the variant's own message was
 /// generalised to describe the FIELD rather than a rename.
 fn reject_dotted_partial(partial: &str) -> Result<(), EditError> {
-    // ★ Delegates since `Pass 299.0`. It used to test `contains('.')` itself,
+    // Delegates since `Pass 299.0`. It used to test `contains('.')` itself,
     // which was the period rule and only the period rule -- so `adopt_widget`
     // and `sign` accepted `"a..b"` where `rename_field` refused it. One
     // predicate, three enforcement sites, and now an askable one too.

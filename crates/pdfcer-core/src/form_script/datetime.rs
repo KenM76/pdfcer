@@ -21,7 +21,7 @@
 //! date is worse than one that renders none: a wrong date is plausible,
 //! silent, and indistinguishable from a right one.
 //!
-//! # ★ The grammar is case-sensitive, and that IS the grammar
+//! # The grammar is case-sensitive, and that IS the grammar
 //!
 //! | Lower | Upper |
 //! |---|---|
@@ -428,7 +428,7 @@ mod tests {
         }
     }
 
-    /// ★ **Case decides month-versus-minutes and 12-versus-24 hour.**
+    /// **Case decides month-versus-minutes and 12-versus-24 hour.**
     ///
     /// The single most important property in the grammar. A case-insensitive
     /// tokeniser would render the minutes where the month belongs in every
@@ -524,7 +524,7 @@ mod tests {
         );
     }
 
-    /// ★ **An ambiguous stored value is REFUSED, not guessed at.**
+    /// **An ambiguous stored value is REFUSED, not guessed at.**
     ///
     /// `03/04/2026` is 3 April to most of the world and 4 March in the
     /// United States. The stored value carries nothing that decides which,

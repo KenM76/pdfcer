@@ -255,7 +255,7 @@ fn apply_one(
         b"FlateDecode" | b"Fl" => flate::decode(data, parms),
         // EXTN-BROTLI-1 §5.2. NO ABBREVIATION: the extension defines none,
         // and Table 92's abbreviations exist for inline images, which this
-        // filter `SHALL NOT` be used for. ★ MuPDF accepts a `/Br` alias that
+        // filter `SHALL NOT` be used for. MuPDF accepts a `/Br` alias that
         // does not exist in the extension -- that is MuPDF's behaviour, not
         // the specification, and pdfcer does not follow it. Accepting `/Br`
         // would make pdfcer read files no conformant writer produces and no
@@ -371,7 +371,7 @@ mod tests {
         assert_eq!(e, FilterError::UnsupportedFilter("Crypt".into()));
     }
 
-    /// ★ `/Br` IS NOT A FILTER NAME, and pdfcer refuses it on purpose.
+    /// `/Br` IS NOT A FILTER NAME, and pdfcer refuses it on purpose.
     ///
     /// **MuPDF accepts `/Br` as an alias for `/BrotliDecode`** — its
     /// `pdf-stream.c` tests `pdf_name_eq(f, PDF_NAME(BrotliDecode)) ||

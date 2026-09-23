@@ -17,13 +17,13 @@
 //!    invocation would make "show me what you would pick" and "pick it" the
 //!    same act (project rule 4).
 //!
-//! 2. **★ `match=` is on every embedded row.** `exact` means the folder held
+//! 2. **`match=` is on every embedded row.** `exact` means the folder held
 //!    the face the document names; `alias` means a metric-compatible stand-in;
 //!    `bundled` means one of pdfcer's own faces. That is the disclosure rule 4
 //!    governs, and it is asserted directly — a report that said only "3 fonts
 //!    embedded" would look correct and would have lost the point.
 //!
-//! 3. **★ `not_embedded_after` is on the summary line.** The number the
+//! 3. **`not_embedded_after` is on the summary line.** The number the
 //!    operator is actually trying to drive to zero, and the one a report that
 //!    showed only pdfcer's successes would omit. A file where three of seven
 //!    fonts were embedded is a file a print service will still reject.
@@ -136,7 +136,7 @@ fn the_default_is_a_dry_run() {
     assert!(stdout.contains("embed name=\"Helvetica\""), "{stdout}");
 }
 
-/// ★ The exact-vs-substitute disclosure is on the row, and the stand-in
+/// The exact-vs-substitute disclosure is on the row, and the stand-in
 /// warning is on stderr. Rule 4: pdfcer is choosing a font the document did
 /// not carry, and the operator sees WHICH before it becomes document state.
 #[test]
@@ -152,7 +152,7 @@ fn the_match_quality_is_disclosed_per_font() {
         stderr.contains("STAND-IN face"),
         "a substitute must be called one, in words:\n{stderr}"
     );
-    // ★ And the fear this feature has to defuse, stated as the certainty it
+    // And the fear this feature has to defuse, stated as the certainty it
     // is: the text cannot move.
     assert!(
         stderr.contains("POSITIONS do not change"),
@@ -160,7 +160,7 @@ fn the_match_quality_is_disclosed_per_font() {
     );
 }
 
-/// ★ `not_embedded_after` reaches 0, and `list-fonts` on the OUTPUT agrees.
+/// `not_embedded_after` reaches 0, and `list-fonts` on the OUTPUT agrees.
 ///
 /// The end-to-end proof that the operator's actual problem is solved: the
 /// report's own claim is checked against a fresh parse by a different
@@ -211,13 +211,13 @@ fn partial_success_names_every_font_and_states_what_is_left() {
     assert!(stdout.contains("reason=composite"), "{stdout}");
     assert!(stdout.contains("reason=type3"), "{stdout}");
     assert!(stdout.contains("reason=already-embedded"), "{stdout}");
-    // ★ The reason SENTENCE, not just the token — it is what tells the
+    // The reason SENTENCE, not just the token — it is what tells the
     // operator that no other font file could ever satisfy a CID font.
     assert!(
         stdout.contains("would draw the wrong characters"),
         "the composite refusal must explain itself:\n{stdout}"
     );
-    // ★ And what is still unsolved, on the summary line and on stderr.
+    // And what is still unsolved, on the summary line and on stderr.
     assert!(stdout.contains("not_embedded_after=3"), "{stdout}");
     assert!(
         stderr.contains("will STILL have no embedded program"),
@@ -325,7 +325,7 @@ stderr:
     assert_eq!(std::fs::read(&input).unwrap(), before);
 }
 
-/// ★ §9.9's opening paragraph at the CLI boundary: a donor whose own
+/// §9.9's opening paragraph at the CLI boundary: a donor whose own
 /// `fsType` says it may not be embedded is refused BY NAME.
 ///
 /// Paired with the permissive donor over the same fixture in the test above,
@@ -351,7 +351,7 @@ fn a_donor_whose_licence_forbids_embedding_is_refused() {
     );
 }
 
-/// ★ Two differently-named fonts through one `/FontDescriptor` block BOTH —
+/// Two differently-named fonts through one `/FontDescriptor` block BOTH —
 /// where unembedding the same shape is idempotent and does not. The
 /// divergence from the mirror module, asserted where an operator would meet
 /// it.
@@ -427,7 +427,7 @@ fn the_dry_run_and_the_apply_report_the_same_plan() {
 // Selecting nothing, and describing what was not selected
 // ---------------------------------------------------------------------------
 //
-// ★ WHY THESE TWO TESTS EXIST, AND WHY EVERY TEST ABOVE MISSED WHAT THEY
+// WHY THESE TWO TESTS EXIST, AND WHY EVERY TEST ABOVE MISSED WHAT THEY
 // CATCH. Every case above passes `--all-missing`. That is the mode the sweep
 // harness runs and the mode the feature was developed in, and under it both
 // bugs below are invisible: the selection is never empty, and
@@ -448,7 +448,7 @@ fn the_dry_run_and_the_apply_report_the_same_plan() {
 /// `EDIT_REFUSED` is.
 const USAGE_ERROR: i32 = 2;
 
-/// ★ An invocation that names NO fonts is REFUSED, not answered with a
+/// An invocation that names NO fonts is REFUSED, not answered with a
 /// report of zeros.
 ///
 /// The regression this pins: `--font` and `--all-missing` share a `clap`
@@ -483,7 +483,7 @@ fn naming_no_fonts_is_refused_rather_than_reported_as_zero() {
     );
 }
 
-/// ★ The report never claims a reason it did not print.
+/// The report never claims a reason it did not print.
 ///
 /// With `--font` naming one of three missing fonts, two remain missing and
 /// this run says nothing about either — correctly, because they were not part

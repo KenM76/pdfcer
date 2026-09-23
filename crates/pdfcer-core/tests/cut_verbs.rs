@@ -156,7 +156,7 @@ fn cutting_an_annotation_the_clipboard_cannot_carry_is_refused_with_nothing_dele
     // pop-up is not an independent annotation (§12.5.6.14), it belongs to the
     // comment that opens it and travels with it.
     //
-    // ★ This test used to use index 0, a /Stamp. `Pass 170.0` made stamps
+    // This test used to use index 0, a /Stamp. `Pass 170.0` made stamps
     // carryable (they travel as their own dictionary), so the example had to
     // change — which is the point of the Pass, not a weakening of the test.
     let err = s.cut_annotations(0, &[3]).expect_err("must refuse");
@@ -404,7 +404,7 @@ fn removing_a_calculated_field_prunes_the_calculation_order() {
 /// different object, it was duplicated verbatim in two sites, and it was
 /// well-formed enough that nothing could notice.
 ///
-/// ★ Uses a `/Popup`, and used to use a `/Stamp`. `Pass 170.0` made stamps
+/// Uses a `/Popup`, and used to use a `/Stamp`. `Pass 170.0` made stamps
 /// carryable, so the example had to move to something still refused — which
 /// is the Pass working, not the test weakening.
 #[test]

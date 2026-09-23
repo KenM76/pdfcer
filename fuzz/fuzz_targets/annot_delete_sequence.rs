@@ -101,7 +101,7 @@
 //!    `delete_annotation` share `plan_annotation_deletion` precisely so a
 //!    shell's warning cannot disagree with the act; over arbitrary
 //!    documents that sharing is checkable and here it is checked.
-//! 4. **★ The postcondition's OBSERVABLE consequence.** After a successful
+//! 4. **The postcondition's OBSERVABLE consequence.** After a successful
 //!    general-route deletion the target is no longer listed on any page.
 //!    This is the same claim `edit.rs`'s `debug_assert` makes — *some page
 //!    was patched* — restated in terms a caller can see, so it holds in a
@@ -135,7 +135,7 @@
 //! - **That any particular annotation was deletable.** Over arbitrary
 //!   bytes there is no oracle for that; the counts are unit-test claims.
 //!
-//! ## ★ What it found on its first run (2026-08-31), unfixed here
+//! ## What it found on its first run (2026-08-31), unfixed here
 //!
 //! At roughly 2,450 executions — about ten seconds past `INITED` — a
 //! **different** postcondition fired, `edit.rs`'s
@@ -193,7 +193,7 @@ thread_local! {
 
 static HOOK: Once = Once::new();
 
-/// ★ **Emit the crashing input ourselves, because on Windows nothing else
+/// **Emit the crashing input ourselves, because on Windows nothing else
 /// will.**
 ///
 /// Rust's abort path exits the process with `0xC0000409`

@@ -31,7 +31,7 @@ substantive.
 
 ## Read first
 
-★★★ **The read list is `docs/NEXT_SESSION.md` FIRST, then only what the task
+**The read list is `docs/NEXT_SESSION.md` FIRST, then only what the task
 needs.** Amended 2026-09-10, after the operator said the project *"has slowed
 to a crawl"* and the cause measured out as these files: `ROADMAP.md` at
 168,036 lines, `SESSION_LOG.md` at 99,597, **372,011 lines of docs against
@@ -155,7 +155,7 @@ The complaint was placement, not the confirm step. The narrowing keeps
 the obligation exactly where it was meant to be — on things pdfcer
 GUESSED — and takes it off things the operator did.
 
-**★★ NARROWED AGAIN 2026-08-13** (decision **059**, `ARCHITECTURE.md`
+**NARROWED AGAIN 2026-08-13** (decision **059**, `ARCHITECTURE.md`
 §12). The first narrowing took the burden off things the operator *did*;
 this one takes it off the **rendering** of things pdfcer *guessed*. The
 prior wording is kept legible rather than silently rewritten — **the head
@@ -190,7 +190,7 @@ marking on the page; (3) **disclosure moves off-canvas and stays there**;
 (4) **no accept/reject gate in front of anything** — already true for
 direct manipulations since 024 §4.4, now true for inferences too.
 
-**★ This is a CORRECTNESS rule, not only a usability preference**, and
+**This is a CORRECTNESS rule, not only a usability preference**, and
 that is the half a future session will be tempted to trade away. His last
 sentence is the argument: **every provisional-state marking is a SECOND
 RENDERING PATH for the same content, and two paths drift.** Content drawn
@@ -249,7 +249,7 @@ wrong since 2026-08-01, when the operator chose **MIT** (`LEGAL.md` §1,
 permissive — zero copyleft, verified against the generated
 `THIRD_PARTY_LICENSES.md`.
 
-**★★ AMENDED 2026-08-27 (decision 090).** The bullet immediately below
+**AMENDED 2026-08-27 (decision 090).** The bullet immediately below
 this note used to read, unqualified:
 
 > ~~"**Do not push or cut a release** without an explicit, current
@@ -274,14 +274,14 @@ What holds now, replacing the struck bullet:
   go-ahead each time:
   - ~~**cutting a tag or a release** — a release is a claim that a state is
     fit to use, a different act from making commits visible;~~
-    **★★ SUPERSEDED 2026-09-02 — decision 121. Releasing is now
+    **SUPERSEDED 2026-09-02 — decision 121. Releasing is now
     STANDING-AUTHORIZED.** The operator, verbatim, given directly after
     being told that `main` was pushed but fifteen commits sat unreleased
     and OneDrive still carried the previous version: **"always go ahead
     and push the latest one."**
     So: cut the tag, package, smoke-test, deploy to OneDrive, no
     per-release go-ahead.
-    ★ **Read narrowly, and the narrowing is part of the ruling** — the
+    **Read narrowly, and the narrowing is part of the ruling** — the
     same discipline decision 090 applied to "always push". It covers the
     RELEASE act. It does **not** cover `--force`, rewriting published
     history, non-`main` branches, or remote tags other than the release
@@ -306,7 +306,7 @@ What holds now, replacing the struck bullet:
   publishes (`LEGAL.md` §1.1) — and read CI's colour from GitHub itself
   rather than carry forward a sentence that assumed one. That habit
   matters *more*, not less, now that pushing no longer stops to ask.
-- **★ THE PROJECT IS ALREADY PUBLIC. This bullet said "there is still no
+- **THE PROJECT IS ALREADY PUBLIC. This bullet said "there is still no
   git remote configured" and that was FALSE** —
   `github.com/KenM76/pdfce` (the pre-release repository, now archived;
   the project continues at `github.com/KenM76/pdfcer`, created 2026-09-03)
@@ -485,7 +485,7 @@ become a ce dimension because pdfcer can see it.
     can write the AcroForm half of a hybrid but not the XFA half, and a
     one-sided add would make an XFA-aware viewer and a plain viewer
     show different field counts for the same document.
-  - **★ ANSWERED 2026-08-11, and by a stronger fact than the one being
+  - **ANSWERED 2026-08-11, and by a stronger fact than the one being
     sought.** This bullet read "what is still genuinely unverified:
     Acrobat's exact version-level deprecation date (only third-party
     approximate timing found, no Adobe-primary source)". The spec
@@ -508,7 +508,7 @@ become a ce dimension because pdfcer can see it.
   to accept that narrowing, or retire the item outright, is question
   (p) for Ken. See `ROADMAP.md`'s XFA backlog entry for the full
   amendment chain.
-- OCR engine binding — **★ THE ENGINE HALF IS ANSWERED 2026-08-12; THE
+- OCR engine binding — **THE ENGINE HALF IS ANSWERED 2026-08-12; THE
   LICENCE HALF IS NOT, AND THE TWO MUST NOT BE COLLAPSED.** This bullet
   read *"not yet decided"* and that is now half wrong, which is the more
   dangerous state for an item like this — a reader who sees "undecided"

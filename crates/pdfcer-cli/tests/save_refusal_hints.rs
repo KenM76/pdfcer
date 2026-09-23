@@ -124,7 +124,7 @@ fn a_recovered_base_refusal_names_the_flag_not_the_api_function() {
     }
 }
 
-/// ★ The load-bearing one: the advice is FOLLOWED, and must work.
+/// The load-bearing one: the advice is FOLLOWED, and must work.
 ///
 /// A hint naming a flag that does not actually resolve the situation is worse
 /// than no hint — it spends the operator's trust and their time. So this

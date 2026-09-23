@@ -214,7 +214,7 @@ fn an_unpinned_empty_find_is_refused_on_every_route() {
 /// `effective_find(`. That is exact, has no tuning parameter, and says what it
 /// means — *this code path locates an anchor and never resolves the text*.
 ///
-/// ★ Worth recording that the first cut was **loudly** wrong rather than
+/// Worth recording that the first cut was **loudly** wrong rather than
 /// quietly green. A source scan written to be strict fails visibly when its
 /// heuristic is bad; one written to be lenient passes forever and is
 /// indistinguishable from a working gate.

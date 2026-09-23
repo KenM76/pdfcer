@@ -1,6 +1,6 @@
 //! # The `DeviceCMYK` conversion knob is real, not a stored preference
 //!
-//! ★ **`CmykIntent` is NOT an ICC rendering intent, and this file used to be
+//! **`CmykIntent` is NOT an ICC rendering intent, and this file used to be
 //! titled as though it were.** It selects *which fitted lookup table* pdfcer's
 //! interim `DeviceCMYK`→sRGB conversion uses, and it is per-invocation. The
 //! PDF rendering intent — `/RI` in an `/ExtGState`, or the `ri` operator
@@ -136,7 +136,7 @@ fn the_shipped_default_renders_solid_black_ink_as_a_warm_near_black() {
     // this catches — a silent revert to the naive additive formula — would
     // sail past an assertion that merely said "dark".
     //
-    // ★★ THIS TEST'S NAME WAS A LIE FOR TWENTY DAYS, AND NOTHING NOTICED.
+    // THIS TEST'S NAME WAS A LIE FOR TWENTY DAYS, AND NOTHING NOTICED.
     //
     // It says *the shipped default*, and from 2026-08-08 to 2026-08-28 the
     // shipped default was `NeutralBlack`, which renders `#000000` — the exact
@@ -289,7 +289,7 @@ fn the_default_render_options_carry_the_default_intent() {
     );
 }
 
-/// ★ WHICH variant ships, pinned as an operator ruling rather than left to
+/// WHICH variant ships, pinned as an operator ruling rather than left to
 /// a `#[default]` attribute nothing asserts.
 ///
 /// The test directly above is deliberately variant-AGNOSTIC — it survives any

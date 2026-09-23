@@ -19,7 +19,7 @@
 //! of a gray is `c = m = y = 0`, `k = 1 − gray`, and `1 − 0.25 = 0.75`. The suite
 //! authored the patch on the device-space rule.
 //!
-//! ★ **Earlier iccce documents circulated 50 % / 0-0-0-50 for these panels
+//! **Earlier iccce documents circulated 50 % / 0-0-0-50 for these panels
 //! and those figures are WRONG** — corrected at source before they could
 //! become a fixture here. The values above were read two independent ways:
 //! from the patch's own decompressed content stream, and from the readme.

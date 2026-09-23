@@ -9,7 +9,7 @@
 //! sound, and a full render to ask a question the page's own dictionary
 //! answers. `page_blend_space` had the answer and was `pub(crate)`.
 //!
-//! # ★★ The assertion that matters is the AGREEMENT
+//! # The assertion that matters is the AGREEMENT
 //!
 //! Not "the accessor returns true on the CMYK fixture" — that would pass on a
 //! second, independent implementation that had drifted. Each fixture is asked
@@ -56,7 +56,7 @@ fn the_pre_flight_answer_matches_what_the_render_does() {
         let rendered = render_page_with_view(&doc.view(), &pages[0], SCALE, &options)
             .expect("the fixture renders");
 
-        // ★ The union, which is what "this page wanted ink" means: engaged is
+        // The union, which is what "this page wanted ink" means: engaged is
         // the buffer running, refused is the buffer being declined on budget.
         // A page that wanted ink and was refused still WANTED it, and the
         // pre-flight is about the space, not the budget.
@@ -73,12 +73,12 @@ fn the_pre_flight_answer_matches_what_the_render_does() {
 
 #[test]
 fn the_provenance_has_one_machine_spelling_and_it_is_reachable() {
-    // ★★ `Pass 296.8`. `token()` was `pub(crate)` for an hour, and in that hour
+    // `Pass 296.8`. `token()` was `pub(crate)` for an hour, and in that hour
     // the consuming shell's trace took the `Debug` derive and wrote `PageGroup`
     // where the metrics line writes `page_group` — two stable spellings of one
     // fact, across a boundary whose purpose is that both sides agree.
     //
-    // ★ This asserts the tokens are what they are, because publishing them made
+    // This asserts the tokens are what they are, because publishing them made
     // them a CONTRACT: a variant may be added, an existing spelling may not
     // change without that being a breaking change. A log comparison is worth
     // nothing if yesterday's log stops parsing.

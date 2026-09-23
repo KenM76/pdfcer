@@ -137,7 +137,7 @@ fn a_bold_claim_that_cannot_cover_the_run_routes_to_synthesis_not_to_that_face()
         text.contains("no real bold face of this run's family is a resource ON THIS PAGE"),
         "{text}"
     );
-    // ★ The old assertion here required "--bold-synthetic is the route".
+    // The old assertion here required "--bold-synthetic is the route".
     //
     // That sentence was FALSE and had been since `Pass 162.0`: on this same
     // page `--set-font Helvetica-Bold` succeeds and embeds nothing, so

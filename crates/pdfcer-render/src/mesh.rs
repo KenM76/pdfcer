@@ -84,7 +84,7 @@
 //!
 //! ## What is deliberately NOT done here, and where it is disclosed
 //!
-//! ★★ THIS SECTION LISTED THREE THINGS AND `Pass 137.1` DELIVERED TWO OF
+//! THIS SECTION LISTED THREE THINGS AND `Pass 137.1` DELIVERED TWO OF
 //! THEM. The old text is kept legible rather than silently replaced, because
 //! *what it said* is part of why the defect survived as long as it did — a
 //! reader who checked this list came away believing the gap was known and
@@ -115,7 +115,7 @@
 //!   (see [`fill_triangle`]); it is only the *outer* silhouette that is
 //!   hard-edged. **Still true.**
 //!
-//! ★ What still bridges, so this list stays honest: a mesh whose colour
+//! What still bridges, so this list stays honest: a mesh whose colour
 //! space is **additive** ([`MeshColorants::None`]), and a **parametric** mesh
 //! whose ramp carries no colorants. Neither has authored ink to preserve, so
 //! the conversion is the honest route rather than a shortfall — and both are
@@ -282,7 +282,7 @@ pub enum Shade {
     /// The same, but the space **was** subtractive, so the authored ink is
     /// carried alongside the converted value.
     ///
-    /// # ★★ Why both, rather than the ink alone
+    /// # Why both, rather than the ink alone
     ///
     /// The two are needed at different times and neither can be recovered
     /// from the other. `rgb` is what an additive page composites with, and
@@ -296,7 +296,7 @@ pub enum Shade {
     /// was before this variant existed, which is the property that let this
     /// ship without re-blessing every mesh test.
     ///
-    /// # ★ Interpolation happens in BOTH, independently
+    /// # Interpolation happens in BOTH, independently
     ///
     /// [`lerp`](Shade::lerp) moves `rgb` and `cmyk` separately and linearly,
     /// so a triangle's interior is *not* the conversion of the interpolated
@@ -377,7 +377,7 @@ impl Shade {
 
     /// Resolve to **authored colorants**, the ink twin of [`Self::resolve`].
     ///
-    /// # ★ `None` here must never be answered by converting
+    /// # `None` here must never be answered by converting
     ///
     /// A caller that gets `None` has to paint through [`Self::resolve`] and
     /// let the sRGB bridge do its work — it must **not** convert the sRGB
@@ -698,7 +698,7 @@ impl Params {
         let rgb = bridges
             .to_rgb(space, comps, intent, diag)
             .unwrap_or(Rgb::BLACK);
-        // ★ Both answers come out of the SAME `comps`, in the same call, for
+        // Both answers come out of the SAME `comps`, in the same call, for
         // the same reason `ColorRamp::new` builds its two vectors in one
         // loop: a `/Separation` or `/DeviceN` space converts through a
         // `/tintTransform` that is allowed to be arbitrary PostScript, and
@@ -1632,7 +1632,7 @@ pub(crate) fn paint_cmyk(
     );
     let dst_w = buf.width() as usize;
 
-    // ★ Everything `composite` does — /BBox, the clip, the alpha — is done
+    // Everything `composite` does — /BBox, the clip, the alpha — is done
     // HERE, per pixel, inside the closure `composite_overprint_varying`
     // drives. The two composites are therefore the same three tests in the
     // same order against the same scratch; only the arithmetic that lands
@@ -1701,7 +1701,7 @@ fn rasterise(
     let x_hi = x_hi.min(dst.0);
     let y_hi = y_hi.min(dst.1);
     if x_hi <= ox || y_hi <= oy {
-        // ★ Flagged rather than signalled by a zero-sized pixmap, because
+        // Flagged rather than signalled by a zero-sized pixmap, because
         // `tiny_skia::Pixmap::new(0, 0)` returns `None` and would be
         // indistinguishable from an allocation failure — "the clip left
         // nothing to draw" and "the machine is out of memory" are opposite
@@ -1972,7 +1972,7 @@ fn fill_triangle(
                 tiny_skia::PremultipliedColorU8::from_rgba(to8(rgb.r), to8(rgb.g), to8(rgb.b), 255)
             {
                 scratch.rgba.pixels_mut()[idx] = c;
-                // ★ The ink plane is written INSIDE the same `if`, keyed on
+                // The ink plane is written INSIDE the same `if`, keyed on
                 // the same `idx`, so a pixel is never marked painted in one
                 // plane and not the other. `alpha != 0` in `rgba` is the
                 // single authority on coverage for BOTH composites -- the

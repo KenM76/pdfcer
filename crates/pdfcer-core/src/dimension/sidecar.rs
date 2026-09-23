@@ -75,7 +75,7 @@ use crate::vector::Rgb;
 ///   `angular`/`perimeter` severity class arrived at through a defaultable
 ///   key rather than an unknown kind token.
 ///
-/// # ★ Version 4 is emitted PER DOCUMENT, not per build
+/// # Version 4 is emitted PER DOCUMENT, not per build
 ///
 /// [`serialize_model`] writes `4` only when some ce dimension actually
 /// carries an override, and `3` otherwise — see `model_sidecar_version`.
@@ -529,7 +529,7 @@ fn serialize_dimension(dim: &DimensionRecord) -> Object {
             radius,
             text_along,
         } => {
-            // ★ THIS key is why SIDECAR_VERSION went to 2, unlike /Offset and
+            // THIS key is why SIDECAR_VERSION went to 2, unlike /Offset and
             // /TextAlong which were optional-with-default and needed no bump.
             //
             // A new KIND is not a defaultable key. A build that does not know
@@ -558,7 +558,7 @@ fn serialize_dimension(dim: &DimensionRecord) -> Object {
             offset,
             text_along,
         } => {
-            // ★ THIS key is why SIDECAR_VERSION went to 3 — see the constant's
+            // THIS key is why SIDECAR_VERSION went to 3 — see the constant's
             // own history note. Same argument as `angular`: an unknown kind
             // token drops the record, and a dropped record is permanent loss
             // the moment the older build saves.
@@ -1260,7 +1260,7 @@ mod angular_sidecar_tests {
         assert_eq!(d.kind, wedge(), "the geometry must round-trip exactly");
     }
 
-    /// ★ The version bump is REAL, and this is why it had to happen.
+    /// The version bump is REAL, and this is why it had to happen.
     ///
     /// A new kind is not a defaultable key. An older build hits the
     /// `_ => return None` arm for the unknown token and drops the record —
@@ -1352,7 +1352,7 @@ mod style_sidecar_tests {
         m
     }
 
-    /// ★ The compatibility claim, asserted on BYTES rather than on behaviour.
+    /// The compatibility claim, asserted on BYTES rather than on behaviour.
     ///
     /// A model whose groups and ce dimensions carry no style must serialise to
     /// exactly what it serialised to before the style keys existed. Asserting

@@ -18,7 +18,7 @@
 //!    that will still be rejected.
 //! 2. **Does the file still open and render?** A file that embeds and then
 //!    fails to load is the failure an operator finds rather than a test.
-//! 3. **★ Does the page still look the SAME?**
+//! 3. **Does the page still look the SAME?**
 //!
 //! ## Why question 3 is answerable here and was not for the mirror sweep
 //!
@@ -67,10 +67,10 @@
 //! | `refused` | fonts refused, each with a stated reason |
 //! | `added` | uncompressed donor bytes the plan would add |
 //! | `applied` / `saved` | the operation and the save succeeded |
-//! | `reopen` | ★ the written bytes parse as a `Document` |
-//! | `missing_after` | ★ fonts with no program in the OUTPUT, re-measured from a fresh parse |
-//! | `render` | ★ page 1 rasterises after the operation |
-//! | `identical` | ★ the raster is byte-identical to the baseline |
+//! | `reopen` | the written bytes parse as a `Document` |
+//! | `missing_after` | fonts with no program in the OUTPUT, re-measured from a fresh parse |
+//! | `render` | page 1 rasterises after the operation |
+//! | `identical` | the raster is byte-identical to the baseline |
 //!
 //! `missing_after` is re-measured from the reopened document rather than
 //! taken from the plan, because the plan states an intention and this
@@ -130,7 +130,7 @@ enum Outcome {
     },
     ApplyRefused(String),
     SaveFailed(String),
-    /// ★ The written bytes would not parse.
+    /// The written bytes would not parse.
     ReopenFailed(String),
     Done {
         missing_before: usize,
@@ -141,7 +141,7 @@ enum Outcome {
         added: u64,
         in_bytes: usize,
         out_bytes: usize,
-        /// ★ Re-measured from the REOPENED document, never from the plan.
+        /// Re-measured from the REOPENED document, never from the plan.
         missing_after: usize,
         /// `Ok(())` when page 1 rasterised, `None` when there are no pages.
         render: Option<Result<(), String>>,
@@ -150,7 +150,7 @@ enum Outcome {
         /// veraPDF corpus deliberately contains malformed files that fail
         /// identically either way.
         baseline_render: Option<Result<(), String>>,
-        /// ★ The pixel oracle: `Some(true)` when the raster is
+        /// The pixel oracle: `Some(true)` when the raster is
         /// byte-identical to the baseline. `None` when it does not apply —
         /// either a render failed, or at least one donor was NOT bundled
         /// (in which case a different face is drawing and a difference is
@@ -324,7 +324,7 @@ fn measure(
         return Outcome::NothingMissing;
     }
 
-    // ★ The baseline raster, taken before anything changes and with the SAME
+    // The baseline raster, taken before anything changes and with the SAME
     // font environment the "after" render will use. Rendering the two with
     // different environments would make every comparison meaningless.
     // `RenderOptions` is `#[non_exhaustive]`, so it is built through
@@ -407,7 +407,7 @@ fn measure(
     // mode, and an incremental save is both the shipped default and the
     // stronger claim: the input revision has to survive byte-identical.
     //
-    // ★ WITH ONE FALLBACK, and it is a measurement decision rather than a
+    // WITH ONE FALLBACK, and it is a measurement decision rather than a
     // convenience — the mirror of the one `unembed-sweep` makes in the other
     // direction. A document pdfcer RECOVERED (its base cross-reference was
     // invalid) refuses an incremental save by design: appending an update
@@ -428,7 +428,7 @@ fn measure(
         let _ = fs::write(out_dir.join(name), &written);
     }
 
-    // ★ Parsed by a FRESH `Document`. A session that can still answer
+    // Parsed by a FRESH `Document`. A session that can still answer
     // questions about a file it broke proves nothing.
     let reopened = match Document::from_bytes(written) {
         Ok(d) => d,

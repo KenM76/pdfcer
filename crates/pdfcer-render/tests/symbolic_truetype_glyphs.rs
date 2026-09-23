@@ -26,7 +26,7 @@
 //! So the Mac-code lookup does not miss. It returns a perfectly valid GID for
 //! an unrelated glyph, and the page paints confident nonsense.
 //!
-//! ★ Found 2026-09-08 on a real 2013 SolidWorks drawing. `59 3/4"` painted as
+//! Found 2026-09-08 on a real 2013 SolidWorks drawing. `59 3/4"` painted as
 //! `@ U / M@`-shaped garbage — code 3 `/three` → Mac code 51 → GID 56 `U`,
 //! code 4 `/four` → Mac 52 → GID 57 `V`, code 8 `/one` → Mac 49 → GID 48 `M`
 //! — while **text extraction was perfectly correct**, because extraction reads
@@ -35,7 +35,7 @@
 //! signature, and the two halves disagreeing points at the glyph ladder rather
 //! than at the encoding.
 //!
-//! ## ★★ Why the fixture is built the way it is
+//! ## Why the fixture is built the way it is
 //!
 //! The obvious fixture — a symbolic font with private codes and nothing else —
 //! **does not catch this**. Under the defect, Branch A's chains would simply
@@ -107,7 +107,7 @@ const PAGE: f32 = 300.0;
 const LOW: (f32, f32) = (100.0, 135.0);
 const HIGH: (f32, f32) = (150.0, 185.0);
 
-/// ★★★ The regression: the symbolic font's own cmap owns the code.
+/// The regression: the symbolic font's own cmap owns the code.
 ///
 /// Ink must land in the LOW band, which only Branch B can reach. Ink in the
 /// HIGH band means Branch A's Mac-OS-Roman chain won, which is the shipped
@@ -166,7 +166,7 @@ fn ink_total(r: &RenderedPage) -> u32 {
     n
 }
 
-/// ★★ The `embedded` half of the gate: with NO embedded program, a symbolic
+/// The `embedded` half of the gate: with NO embedded program, a symbolic
 /// font must still take the name chains.
 ///
 /// The rule is *"symbolic **and embedded** → the program's own cmap first"*,
@@ -208,7 +208,7 @@ fn a_non_embedded_symbolic_font_still_uses_its_differences() {
     );
 }
 
-/// ★★★ The MIRROR: the same font program, `/Flags 32`, and the correct answer
+/// The MIRROR: the same font program, `/Flags 32`, and the correct answer
 /// INVERTS.
 ///
 /// This is what makes the `Symbolic` test *provable* rather than merely

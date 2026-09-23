@@ -16,7 +16,7 @@
 //! for this one subtype its documentation — *"a note is content the operator
 //! cannot recover from the canvas"* — is **backwards**.
 //!
-//! ## ★ It is `/FreeText` only, and the family is deliberately not uniform
+//! ## It is `/FreeText` only, and the family is deliberately not uniform
 //!
 //! | `/Subtype` | is `/Contents` painted? | `set_markup_note` before | after |
 //! |---|---|---|---|
@@ -37,7 +37,7 @@
 //! and blocked the clipboard's `FreeText | Text | Stamp` arm. One reader,
 //! three surfaces.
 //!
-//! ## ★★ `multiline` is not in the file, so it is MEASURED
+//! ## `multiline` is not in the file, so it is MEASURED
 //!
 //! §12.5.6.6 gives `/FreeText` no multiline flag — `/Ff` is a form-field key
 //! and a `/FreeText` is not a field. So the re-bake bakes the ORIGINAL text
@@ -131,7 +131,7 @@ fn contents(s: &EditSession, id: ObjId) -> String {
 // The headline
 // ---------------------------------------------------------------------------
 
-/// ★ **THE DEFECT.** Edit a placed text box's note; the page must read the
+/// **THE DEFECT.** Edit a placed text box's note; the page must read the
 /// new words.
 #[test]
 fn editing_a_free_texts_note_repaints_the_box() {
@@ -290,7 +290,7 @@ fn a_sticky_notes_appearance_is_not_rebaked() {
     );
 }
 
-/// ★ A stamp's `/Contents` is a comment ABOUT the stamp. The requester asked
+/// A stamp's `/Contents` is a comment ABOUT the stamp. The requester asked
 /// by name for this not to become a "fix".
 #[test]
 fn a_stamps_note_does_not_become_its_label() {
@@ -400,7 +400,7 @@ fn a_foreign_appearance_is_left_alone_and_disclosed() {
          declined to redraw it"
     );
 
-    // ★ THE CONTROL, and the test is worth little without it. "Not
+    // THE CONTROL, and the test is worth little without it. "Not
     // re-baked" is equally true of a re-bake that is DISABLED, so this
     // assertion measured nothing until the same edit was shown to re-bake
     // when the appearance is left alone. Verified by sabotage: with the

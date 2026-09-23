@@ -46,7 +46,7 @@ fn damaged() -> PathBuf {
     p
 }
 
-/// ★★★ THE OPERATOR IS TOLD WHICH OBJECT WENT, AND WHY.
+/// THE OPERATOR IS TOLD WHICH OBJECT WENT, AND WHY.
 ///
 /// Asserting on the NUMBER, not just on the count. The complaint owed item 18
 /// came from was never that a tally was wrong — it was that a human holding a
@@ -76,7 +76,7 @@ fn the_cli_names_the_dropped_object_on_stderr() {
     );
 }
 
-/// ★ AND A CLEAN RECOVERY SAYS NOTHING — so the note above is a signal rather
+/// AND A CLEAN RECOVERY SAYS NOTHING — so the note above is a signal rather
 /// than boilerplate every recovered file carries.
 ///
 /// A disclosure printed on every recovery trains its reader to skip it, which

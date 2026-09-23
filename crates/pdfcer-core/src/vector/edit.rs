@@ -181,7 +181,7 @@ pub enum VectorEditError {
     /// — because the two produce different UI: one means do not offer a
     /// handle, this one means offer the handle and refuse on release.
     ///
-    /// ★ **A negative scale is NOT this.** `scale(-1.0, 1.0)` is a mirror and
+    /// **A negative scale is NOT this.** `scale(-1.0, 1.0)` is a mirror and
     /// is perfectly invertible, so dragging a resize grip through the opposite
     /// edge is an ordinary transform. Only *exactly* zero area is degenerate,
     /// which a commit-on-release gesture makes nearly unreachable — the
@@ -1245,7 +1245,7 @@ impl TransformOptions {
 /// `q <cm> … Q`, so the whole selection is scaled, rotated, sheared or moved
 /// by one page-space matrix (`Pass 113.0`).
 ///
-/// # ★ Why this is not `plan_move_many` with a matrix
+/// # Why this is not `plan_move_many` with a matrix
 ///
 /// The requesting shell assumed it would be, and it cannot be. `plan_move_many`
 /// **rewrites numeric operands in place**, and operand rewriting can express
@@ -1271,7 +1271,7 @@ impl TransformOptions {
 /// that *"a placed image and a placed text run are the same shape"*, granted
 /// by the mechanism rather than by a match arm per kind.
 ///
-/// # ★★ The matrix that gets emitted is NOT the one that was asked for
+/// # The matrix that gets emitted is NOT the one that was asked for
 ///
 /// `page_matrix` is in **page space**, because that is the space the operator
 /// gestures in. The `cm` operator composes into the CTM *at that point in the
@@ -1457,7 +1457,7 @@ fn resolve_singular(
 /// invertible and keeps every other byte on the page verbatim (the
 /// minimal-diff invariant, `ARCHITECTURE.md` §5).
 ///
-/// ★ The wrap is safe against the object's own bytes overriding it because a
+/// The wrap is safe against the object's own bytes overriding it because a
 /// `PathObject`'s span begins at its first CONSTRUCTION operator — colour
 /// operators are outside it by construction. If that ever changes, this
 /// becomes a silent no-op, which is why the caller counts what it touched.
@@ -1890,7 +1890,7 @@ pub enum SplitGranularity {
     /// A new text object wherever the baseline changes between one run and
     /// the next **in stream order**.
     ///
-    /// ★ Stream order, not a global grouping by baseline, and the difference
+    /// Stream order, not a global grouping by baseline, and the difference
     /// is the whole reason this variant is usable on CAD output. A drawing has
     /// dozens of unrelated labels sharing a y-coordinate across the width of
     /// the sheet; grouping by baseline alone would weld them into one object
@@ -2253,7 +2253,7 @@ pub fn text_split_refusal(
 /// * **Paint order is unchanged.** Every operator stays at its own byte offset
 ///   in its own order; the only additions are the three-operator preludes.
 ///   Nothing is relocated, so nothing can be re-stacked.
-/// * **★ The rendering is unchanged to within sub-pixel antialiasing, NOT
+/// * **The rendering is unchanged to within sub-pixel antialiasing, NOT
 ///   always bit-identical**, and the difference is measured rather than
 ///   waved at — see the section below, because the first draft of this
 ///   documentation claimed bit-identity and the measurement refuted it.
@@ -2267,7 +2267,7 @@ pub fn text_split_refusal(
 ///   Minimal-diff (rule 3) governs objects the operator did not touch; this is
 ///   one they did.
 ///
-/// # ★★ The sub-pixel drift, measured — and why it is a FEATURE of the fix
+/// # The sub-pixel drift, measured — and why it is a FEATURE of the fix
 ///
 /// The claim "the rendering is unchanged" was written here first and then
 /// tested, and the test said otherwise. On the operator's SolidWorks sheet
@@ -2281,7 +2281,7 @@ pub fn text_split_refusal(
 ///   4x         301              64 / 255       scattered over the whole sheet
 /// ```
 ///
-/// ★ **Scattered over the whole sheet is the diagnostic.** Had the cut been
+/// **Scattered over the whole sheet is the diagnostic.** Had the cut been
 /// structurally wrong the differing pixels would sit AT the cut, and they do
 /// not — the bounding box of the difference is the bounding box of the object.
 /// Nor is it a moved glyph: the count tracks the rendered AREA (it grows with
@@ -3577,7 +3577,7 @@ fn push_edit(
 /// `a_single_element_batch_matches_the_single_node_verb`, which compares
 /// the disclosure text and not just the bytes.
 ///
-/// # ★ The wording is deliberately COUNT-AGNOSTIC — do not re-add a number
+/// # The wording is deliberately COUNT-AGNOSTIC — do not re-add a number
 ///
 /// It read *"Moving **one corner** on its own"* until a multi-node drag was
 /// driven in the running application and moved **two** corners of one

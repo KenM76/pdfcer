@@ -10,7 +10,7 @@
 //! §11.7.5.3 says the intent used *"shall be the current rendering intent in
 //! effect in the graphics state at the time of the painting operation"*.
 //!
-//! ★ **The sentence that reads as permission has been struck.** The printed
+//! **The sentence that reads as permission has been struck.** The printed
 //! NOTE — *"a particular device does not have to support all PDF rendering
 //! intents"* — was removed by ISO-approved erratum `pdf-issues` #63, whose
 //! resolution reads *"NOTEs are informative only … the existing normative
@@ -26,7 +26,7 @@
 //! asserting a colour here would be asserting something the standard does not
 //! constrain anyway.
 //!
-//! ★★ **That last point is load-bearing.** ISO 32000 gives the two
+//! **That last point is load-bearing.** ISO 32000 gives the two
 //! *colorimetric* intents a testable rule (*"in-gamut colours shall be
 //! reproduced exactly"*) and gives `Saturation` and `Perceptual` none —
 //! reproduction *"may or may not be colourimetrically accurate"*. ISO 32000-2
@@ -90,7 +90,7 @@ fn intents_set(content: &str) -> usize {
         .rendering_intents_set
 }
 
-/// ★★★ THE HEADLINE: `ri` is no longer discarded.
+/// THE HEADLINE: `ri` is no longer discarded.
 ///
 /// Before this Pass the operator was a recognised no-op and this counter did
 /// not exist. A page that names an intent must be observed to have named one.
@@ -113,7 +113,7 @@ fn ri_in_an_ext_gstate_is_read() {
     );
 }
 
-/// ★★ AN `/ExtGState` WITHOUT `/RI` MUST NOT RESET THE INTENT.
+/// AN `/ExtGState` WITHOUT `/RI` MUST NOT RESET THE INTENT.
 ///
 /// §8.4.5: *"The results of `gs` shall be cumulative … parameter values …
 /// persist until explicitly overridden."*
@@ -137,7 +137,7 @@ fn an_ext_gstate_without_ri_does_not_reset_the_intent() {
     );
 }
 
-/// ★ AN UNRECOGNISED NAME IS NOT AN ERROR, AND NOT A NO-OP.
+/// AN UNRECOGNISED NAME IS NOT AN ERROR, AND NOT A NO-OP.
 ///
 /// §8.6.5.8, `shall`: it *"shall use the `RelativeColorimetric` intent by
 /// default"*. So it still SETS the intent — to `RelativeColorimetric` — which
@@ -188,14 +188,14 @@ fn the_four_names_resolve_and_an_unknown_one_falls_back() {
     assert_eq!(R::from_name(b"Nonsense"), R::RelativeColorimetric);
     // Table 52's *Initial value*, made binding by §8.4.1.
     assert_eq!(R::default(), R::RelativeColorimetric);
-    // ★ Only the two colorimetric intents have a testable output rule; the
+    // Only the two colorimetric intents have a testable output rule; the
     // other two are "vendor specific" per ICC.1:2010 clause 0.4. Asserted so a
     // future author reaches for this instead of inventing a colour expectation.
     assert!(R::RelativeColorimetric.output_is_constrained());
     assert!(!R::Saturation.output_is_constrained());
 }
 
-/// ★★ D3 — an image's own `/Intent` overrides the graphics state, FOR THAT
+/// D3 — an image's own `/Intent` overrides the graphics state, FOR THAT
 /// IMAGE ONLY (ISO 32000-1 Table 89) (`Pass 199.1`).
 ///
 /// # The trap this pins
@@ -206,7 +206,7 @@ fn the_four_names_resolve_and_an_unknown_one_falls_back() {
 /// `unwrap_or_default()` would be wrong on every page that sets an intent at
 /// the top and then draws an image.
 ///
-/// ★ It was DOCUMENTED before it was implemented. `Pass 199.0` wrote D3 into
+/// It was DOCUMENTED before it was implemented. `Pass 199.0` wrote D3 into
 /// the module docs as a rule and wired only `ri` and `/RI`; an outbound reply
 /// to a sibling project noticed that the two `b"Intent"` hits in the tree were
 /// the annotation and optional-content keys — different keys with the same
@@ -230,7 +230,7 @@ fn an_image_intent_overrides_the_graphics_state() {
         image_intent(gs, Some(b"Nonsense"), false),
         R::RelativeColorimetric
     );
-    // ★ An image MASK has no colour, so the entry is ignored (ISO 32000-2's
+    // An image MASK has no colour, so the entry is ignored (ISO 32000-2's
     // Table 87 says so outright, and §8.9.6.2 implies it).
     assert_eq!(
         image_intent(gs, Some(b"Perceptual"), true),

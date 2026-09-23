@@ -238,7 +238,7 @@ impl PaintRoute {
 ///
 /// # Why the variants carry no evaluator yet
 ///
-/// # ★ The table numbers, because they are off-by-one from the obvious guess
+/// # The table numbers, because they are off-by-one from the obvious guess
 ///
 /// ISO 32000-1 numbers this family **78 common / 79 type 1 / 80 type 2 /
 /// 81 type 3**, with the meshes at 82–84. The intuitive reading — "axial
@@ -483,7 +483,7 @@ impl ColorRamp {
         diag: &mut ColorDiagnostics,
     ) -> Self {
         let mut samples = Vec::with_capacity(RAMP_SAMPLES);
-        // ★ Built in the SAME loop as `samples`, from the SAME `comps`, so
+        // Built in the SAME loop as `samples`, from the SAME `comps`, so
         // the two answers cannot describe different points of the ramp. A
         // second pass would be a second evaluation of a `/tintTransform`
         // that is allowed to be arbitrary PostScript, and nothing would
@@ -655,7 +655,7 @@ impl ColorRamp {
     /// resulting loss by widening a mixed source to `[Source; 4]` -- which
     /// writes the source's value into channels the source never claimed.
     ///
-    /// ★★ THAT TRADE WAS DOCUMENTED AS SAFE AND WAS NOT. `Pass 195.0`'s own
+    /// THAT TRADE WAS DOCUMENTED AS SAFE AND WAS NOT. `Pass 195.0`'s own
     /// comment reads *"it writes the source's M and K, which are 0 for this
     /// shading, so it knocks out backdrop magenta and black that the spot
     /// never claimed. No patch in the conformance corpus detects that"*. One
@@ -697,7 +697,7 @@ impl ColorRamp {
     /// Map a parametric `t` onto a sample index, clamping out-of-domain to
     /// the nearest end.
     ///
-    /// ★ Shared by [`Self::at`] and [`Self::at_cmyk`] rather than written
+    /// Shared by [`Self::at`] and [`Self::at_cmyk`] rather than written
     /// twice, and that is a correctness property rather than tidiness: the
     /// two lookups describe the SAME point of the same ramp, and two copies
     /// of a rounding expression are two things that can drift. This is
@@ -959,7 +959,7 @@ impl Shading {
             return None;
         }
 
-        // ★ The page's colour bridges for this space, resolved ONCE per
+        // The page's colour bridges for this space, resolved ONCE per
         // shading (`Pass 243.0`). Until this Pass a shading's colour was the
         // one route left that never saw the bridge cache: an `ICCBased` RGB
         // gradient was Table 66's reinterpretation beside a fill that went
@@ -1688,7 +1688,7 @@ fn axial_param(coords: [f32; 4], domain: [f32; 2], extend: [bool; 2], x: f32, y:
 ///  r(s) = r0 + s × (r1 − r0)
 /// ```
 ///
-/// # ★ The quadratic below is pdfcer's derivation, NOT the standard's (AMB-2)
+/// # The quadratic below is pdfcer's derivation, NOT the standard's (AMB-2)
 ///
 /// A whole-document search for "quadratic" and "discriminant" returns
 /// **zero hits in both ISO 32000-1 and ISO 32000-2.** The standard never
@@ -1841,7 +1841,7 @@ fn radial_param(coords: [f32; 6], domain: [f32; 2], extend: [bool; 2], x: f32, y
 /// shading's `/BBox`, has a parametric coordinate, and is not fully clipped
 /// away; `None` when it should be skipped.
 ///
-/// # ★ Why this is a function rather than two copies of six lines
+/// # Why this is a function rather than two copies of six lines
 ///
 /// Because `paint_region` (sRGB) and `paint_region_cmyk` (ink) must agree
 /// about **which pixels a shading covers**, exactly and always. Two copies of
@@ -2014,7 +2014,7 @@ impl Shading {
     ///
     /// Whether [`Self::paint_cmyk`] has any authored ink to paint with.
     ///
-    /// # ★ Why callers must ask THIS and not `self.ramp.has_colorants()`
+    /// # Why callers must ask THIS and not `self.ramp.has_colorants()`
     ///
     /// Because a **mesh keeps its ink somewhere else**. A non-parametric
     /// mesh has no `ColorRamp` at all — its colour is per-vertex, decided
@@ -2050,7 +2050,7 @@ impl Shading {
     /// [`Shading::paint`] uses, so the two routes cover exactly the same
     /// pixels.
     ///
-    /// # ★ A mesh takes the first branch and shares nothing below it
+    /// # A mesh takes the first branch and shares nothing below it
     ///
     /// `Pass 137.1` added the mesh route, and it dispatches on `self.mesh`
     /// **before** the analytic checks, exactly as [`Shading::paint`] does.
@@ -2364,7 +2364,7 @@ mod tests {
 
     #[test]
     fn radial_uses_the_circumference_model_so_the_centre_is_t0() {
-        // ★ The test that decides AMB-3, and the one most worth reading.
+        // The test that decides AMB-3, and the one most worth reading.
         //
         // ISO 32000-1 says a point lying "WITHIN more than one blend circle"
         // takes the colour of the greatest enclosing s; ISO 32000-2 changes
@@ -2459,7 +2459,7 @@ mod tests {
 
     #[test]
     fn radial_picks_the_greatest_s_when_two_blend_circles_both_pass_through_the_point() {
-        // ★★ THE SELECTION-RULE TEST, and it exists because the first
+        // THE SELECTION-RULE TEST, and it exists because the first
         // version of this suite COULD NOT SEE the rule inverted.
         //
         // Sabotage check, 2026-08-17: swapping the greatest-root branch for

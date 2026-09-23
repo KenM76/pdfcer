@@ -1,4 +1,4 @@
-//! ★ `Pass 125.0` — the four mesh shading types render, and this file is the
+//! `Pass 125.0` — the four mesh shading types render, and this file is the
 //! only end-to-end evidence for three of them.
 //!
 //! # Why this file exists rather than more unit tests
@@ -228,7 +228,7 @@ fn the_type_4_flag_machine_and_the_type_5_lattice_agree() {
 /// forward. A sign or an inversion lost on the way renders a mesh in the
 /// wrong place, at the wrong size, or nowhere.
 ///
-/// ★ This test exists because the first eleven tests in this file all
+/// This test exists because the first eleven tests in this file all
 /// reach the mesh by `sh`. Verifying one instance of a two-instance class
 /// and reporting the class as covered is a mistake this project has already
 /// made once, on a different feature, and shipped a defect beside a
@@ -340,7 +340,7 @@ fn the_four_corner_colours_land_on_the_four_corners() {
 /// function. Asserting the direction as well as the value is what makes this
 /// a test of the ORDER rather than of one number.
 ///
-/// ★ THE FIRST DRAFT OF THIS TEST EXPECTED 85 AND 117, AND WOULD HAVE
+/// THE FIRST DRAFT OF THIS TEST EXPECTED 85 AND 117, AND WOULD HAVE
 /// FAILED A CORRECT RENDERER. It applied an sRGB transfer curve to the
 /// function's output, which is wrong twice over: a `DeviceRGB` component in
 /// a PDF **is** the device value (§8.6.4.3), not a linear-light quantity
@@ -383,7 +383,7 @@ fn a_parametric_mesh_applies_its_function_after_interpolating() {
 /// mis-oriented inherited edge twists the second patch into a bowtie and
 /// leaves most of its half of the square unpainted.
 ///
-/// ★ That is not a hypothetical failure mode. It is what the first draft of
+/// That is not a hypothetical failure mode. It is what the first draft of
 /// the fixture generator produced, because flags 2 and 3 hand the continued
 /// patch its `u = 0` edge **reversed** and the generator authored the second
 /// patch as if it arrived forward. The picture was a pair of lens shapes

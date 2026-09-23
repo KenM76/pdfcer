@@ -1,4 +1,4 @@
-//! ★ `Pass 122.5` — where a page's blending colour space comes from when the
+//! `Pass 122.5` — where a page's blending colour space comes from when the
 //! page group declares none, and the disclosure that says which.
 //!
 //! # The claim under test, and why it is a setting rather than a fix
@@ -138,7 +138,7 @@ fn a_cmyk_output_intent_supplies_the_space_by_default() {
     );
 }
 
-/// ★ The other half of the pair. `DeviceNative` is ISO 32000-1 to the letter,
+/// The other half of the pair. `DeviceNative` is ISO 32000-1 to the letter,
 /// and must produce the *opposite* answer on the same file — otherwise the
 /// setting is decorative and the test above proves nothing about it.
 #[test]
@@ -214,7 +214,7 @@ fn the_provenance_is_always_reported() {
     );
 }
 
-/// ★ A `DeviceN` shading under overprint is painted in ink and honours it.
+/// A `DeviceN` shading under overprint is painted in ink and honours it.
 ///
 /// Found 2026-08-25 when the operator read `PCS 1.0` cells `e` and `j` and
 /// said they carry no trap X but are *"the wrong colour … always have been"*.

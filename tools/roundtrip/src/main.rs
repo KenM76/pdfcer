@@ -950,7 +950,7 @@ fn first_object_not_verbatim(before: &Document, after: &Document) -> Option<ObjI
 /// Whether `id` is the object that *is* this file's cross-reference section,
 /// and therefore legitimately differs after a save.
 ///
-/// ★★ **A HYBRID FILE HAS ONE TOO, and this function did not know it**
+/// **A HYBRID FILE HAS ONE TOO, and this function did not know it**
 /// (`Pass 281.0`). It matched only `SectionShape::Stream`, which was complete
 /// while a full rewrite of a hybrid file was refused outright — the case could
 /// not arise. The moment that refusal was narrowed, all twelve hybrid files in

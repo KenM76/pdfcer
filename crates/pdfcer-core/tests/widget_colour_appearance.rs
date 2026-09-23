@@ -31,7 +31,7 @@
 //! that did not follow. `R159`: a defect that lives in the bytes is asserted
 //! in the bytes.
 //!
-//! ## ★ The half that must NOT change is asserted too
+//! ## The half that must NOT change is asserted too
 //!
 //! Every builder's default has to stay byte-identical, and two of them are
 //! traps in opposite directions:
@@ -230,7 +230,7 @@ fn a_radio_buttons_dot_takes_the_border_colour_not_the_background() {
 
 #[test]
 fn a_text_field_still_draws_no_box_when_it_states_no_colour() {
-    // ★ The trap in the "give the builders a colour" direction. This builder
+    // The trap in the "give the builders a colour" direction. This builder
     // has NEVER painted a background or a frame, and an absent /BG that
     // produced a white rectangle would repaint every text field in every
     // document pdfcer touches.
@@ -272,7 +272,7 @@ fn a_text_field_gains_a_box_only_when_it_asks_for_one() {
 
 #[test]
 fn a_push_buttons_default_plate_is_the_grey_it_has_always_been() {
-    // ★ The trap in the other direction. This is the ONE builder whose
+    // The trap in the other direction. This is the ONE builder whose
     // default background is not "nothing", and `add_push_button` writes that
     // same constant into `/MK` `/BG`. A default of "nothing" would erase
     // every plate pdfcer has ever drawn.

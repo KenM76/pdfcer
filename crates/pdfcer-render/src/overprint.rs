@@ -23,7 +23,7 @@
 //! (`iso32000__ref__spot_colour_overprint.md`) records two sourced facts
 //! that between them make overprint simulation entirely optional:
 //!
-//! - **`OP-N1` (a negative result, not a gap) — ★ EDITION-SCOPED, corrected
+//! - **`OP-N1` (a negative result, not a gap) — EDITION-SCOPED, corrected
 //!   2026-08-19:** **ISO 32000-1** never describes overprint preview or
 //!   simulation on a non-separating device. Confirmed by measurement rather
 //!   than by absence of memory: `simulat*` returns **7 hits in all 756
@@ -41,7 +41,7 @@
 //!   has a standard name, a standard algorithm and a standard capability
 //!   flag. See `iso32000__s__10.8.md`.
 //!
-//!   ★ **What survives, and what does not.** The *conclusion* survives — §10.8.3
+//!   **What survives, and what does not.** The *conclusion* survives — §10.8.3
 //!   is a `should`, so a compositor without it is still conformant, and this
 //!   module is still a policy choice. What does not survive is the reason
 //!   given: "the standard is silent" was load-bearing for the claim that
@@ -238,7 +238,7 @@ pub enum SourceKind {
     /// `DeviceCMYK` for Table 149 Row 1's purposes -- today, an `ICCBased`
     /// with `/N 4` whose `/Alternate` resolves to `DeviceCMYK` (`Pass 165.0`).
     ///
-    /// # ★★ Why this is a separate variant rather than either neighbour
+    /// # Why this is a separate variant rather than either neighbour
     ///
     /// The two questions [`SourceKind`] is asked look like one and are not:
     ///
@@ -594,7 +594,7 @@ pub fn compatible_overprint_cmyk(
 ///   operands "shall" be interpreted in names-array order). Where a
 ///   colorant *is* a process colorant, that operand *is* the process tint.
 ///
-///   ★ Deriving this from the flattened RGB instead — which pdfcer did
+///   Deriving this from the flattened RGB instead — which pdfcer did
 ///   first — is wrong for a space naming a spot ALONGSIDE a process
 ///   colorant: the flattened RGB carries the spot's contribution, and
 ///   reconstructing CMYK from it smears the spot into the process
@@ -635,7 +635,7 @@ pub fn authored_tints(kind: &SourceKind, comps: &[f32]) -> Option<[f32; 4]> {
                     crate::color::Colorant::All => t = [*v; 4],
                     crate::color::Colorant::None => {}
                     crate::color::Colorant::Named(name) => {
-                        // ★ This was a VERBATIM INLINE COPY of
+                        // This was a VERBATIM INLINE COPY of
                         // `process_channel`, four arms and all. Two copies of
                         // one mapping are two things that can drift, and this
                         // one had already drifted in type -- it took a `&str`
@@ -664,7 +664,7 @@ pub fn authored_tints(kind: &SourceKind, comps: &[f32]) -> Option<[f32; 4]> {
 /// The SPOT colorants a source states, with their tints — the half
 /// [`authored_tints`] deliberately drops.
 ///
-/// # ★★ What this is for, and why it is a separate function
+/// # What this is for, and why it is a separate function
 ///
 /// [`authored_tints`] answers Table 149's question: *"which of the four
 /// PROCESS channels did this source state a tint into?"* A spot colorant
@@ -708,7 +708,7 @@ pub fn authored_tints(kind: &SourceKind, comps: &[f32]) -> Option<[f32; 4]> {
 /// Empty for every process space, which is the 98.6 % case in a 4,023-file
 /// corpus — so the allocation is skipped entirely there.
 ///
-/// ★ **The component index is returned rather than recoverable by name**,
+/// **The component index is returned rather than recoverable by name**,
 /// and that is not a convenience. A caller that needs it — to sample this
 /// colorant's tint curve with every OTHER component pinned at zero, per
 /// ISO 32000-2 §10.8.3 step (b) — would otherwise search the name list,
@@ -784,7 +784,7 @@ pub fn classify(
     // Does `scope` let a non-CMYK process space be treated as the CMYK it
     // converts to?
     //
-    // ★ `!in_image_sample` is not a copied guard, it is the SAME rule the
+    // `!in_image_sample` is not a copied guard, it is the SAME rule the
     // `DeviceCmyk` arm below applies for the same reason. Table 149 gives
     // `DeviceCmykDirect` the qualifier "and not in a sampled image", and a
     // CMYK IMAGE falls to `OtherProcess` where `OPM 0` and `OPM 1` are
@@ -796,7 +796,7 @@ pub fn classify(
             OverprintZeroTintScope::DeviceCmykOnly => false,
             OverprintZeroTintScope::GreyAsKOnly => matches!(space, ColorSpace::DeviceGray),
             OverprintZeroTintScope::AllProcessSpaces => true,
-            // ★ `#[non_exhaustive]` makes this arm compulsory, and the
+            // `#[non_exhaustive]` makes this arm compulsory, and the
             // compulsory-looking choice is the wrong one. `_ => true` would
             // make an unrecognised future scope silently WIDEN what overprint
             // preserves — the paint would stop writing components it used to
@@ -816,7 +816,7 @@ pub fn classify(
         } else {
             SourceKind::DeviceCmykDirect
         }),
-        // ★ `Pass 143.0` — a DIVERGENCE from ISO 32000-1, offered as a
+        // `Pass 143.0` — a DIVERGENCE from ISO 32000-1, offered as a
         // SETTING. (It said "toward Acrobat" until `Pass 206.0`. It diverges
         // toward Acrobat over a SPOT backdrop and AWAY from Acrobat over
         // process components, so the direction is a property of the geometry
@@ -855,14 +855,14 @@ pub fn classify(
         ColorSpace::DeviceN { names, .. } => Some(SourceKind::SeparationOrDeviceN {
             names: names.to_vec(),
         }),
-        // ★ §8.6.6.3 — AN `Indexed` SPACE'S COLOUR VALUES ARE IN ITS BASE.
+        // §8.6.6.3 — AN `Indexed` SPACE'S COLOUR VALUES ARE IN ITS BASE.
         //
         // Without this arm an `/Indexed [/DeviceN [/Cyan] /DeviceCMYK …]`
         // space fell to the catch-all below and Table 149 decided what
         // survives from a colorant list it never read. `PCS1_190` is
         // authored on exactly that discriminator.
         //
-        // ★ THIS ARM WAS INERT FOR FIVE DAYS AND IS NOT ANY MORE.
+        // THIS ARM WAS INERT FOR FIVE DAYS AND IS NOT ANY MORE.
         // Measured 2026-08-21: `/Indexed` is PRESENT in four of the suite's
         // overprint patches and was REACHABLE IN NONE OF THEM, because every
         // one of those spaces is an IMAGE colour space and `composite` had
@@ -874,7 +874,7 @@ pub fn classify(
         // reachable-by-the-renderer are different claims**, and the first
         // reads as the second unless it says so.
         //
-        // ★★ AND THE CALLER OWES THE OTHER HALF. This arm fixes the ROW;
+        // AND THE CALLER OWES THE OTHER HALF. This arm fixes the ROW;
         // the TINTS handed to `cmyk_group_rules` must independently be the
         // palette-looked-up base components rather than the raw index, via
         // `ColorSpace::indexed_entry`. Classifying from the base while
@@ -883,7 +883,7 @@ pub fn classify(
         // which is why the obligation is stated here, where somebody
         // adding a call to `classify` will read it.
         ColorSpace::Indexed { base, .. } => classify(base, in_image_sample, scope),
-        // ★★ `Pass 165.0` -- an `ICCBased` `/N 4` over `DeviceCMYK` states real
+        // `Pass 165.0` -- an `ICCBased` `/N 4` over `DeviceCMYK` states real
         // CMYK tints, and they were being thrown away and re-derived from the
         // flattened paint colour.
         //
@@ -989,7 +989,7 @@ fn process_channel(name: &[u8]) -> Option<usize> {
     // an identity and a lossy decode makes distinct names compare equal. See
     // that variant's documentation.
     //
-    // ★ The ASCII case-insensitivity is a pdfcer CHOICE, not a spec rule --
+    // The ASCII case-insensitivity is a pdfcer CHOICE, not a spec rule --
     // ISO 32000 defines no case-folding for colorant names, and the corpus
     // note `SEP-A1` records that explicitly. It is kept because real files
     // spell these names inconsistently, and it is ASCII-only so it cannot
@@ -1134,7 +1134,7 @@ pub fn cmyk_group_rules_with_planes(
         // in all three columns. Overprint is inert, which is why a
         // DeviceRGB or DeviceGray paint with /OP true changes nothing.
         //
-        // ★ `ProcessCmykIndirect` belongs HERE, not in the arm above. Its
+        // `ProcessCmykIndirect` belongs HERE, not in the arm above. Its
         // tints are readable (that is what `authored_tints` is for) but it is
         // not a `DeviceCMYK` source, and §8.6.7 scopes `OPM 1`'s zero-tint
         // rule to one. Putting it in the `DeviceCmykDirect` arm would trade a
@@ -1170,7 +1170,7 @@ pub fn cmyk_group_rules_with_planes(
                 }
             }
 
-            // ★★★ THE MIXED CASE: a source naming BOTH a process colorant and
+            // THE MIXED CASE: a source naming BOTH a process colorant and
             // a spot pdfcer cannot plate (`Pass 195.0`).
             //
             // The rules above are computed from colorant NAMES; the colour
@@ -1189,13 +1189,13 @@ pub fn cmyk_group_rules_with_planes(
             // is what the operator reported as "missing an entire colour in
             // the colour band".
             //
-            // ★ Why this is NOT the existing spot-only refusal. The guard that
+            // Why this is NOT the existing spot-only refusal. The guard that
             // catches a spot-only source asks whether the source names a
             // process colorant; here `/Cyan` DOES, so the refusal never fired.
             // A guard written for one shape is a claim about a class -- the
             // mixed shape fell through the middle.
             //
-            // ★★★ WHY THIS IS `[Source; 4]` AND NOT THE PER-CHANNEL VERSION,
+            // WHY THIS IS `[Source; 4]` AND NOT THE PER-CHANNEL VERSION,
             // WHICH WAS TRIED FIRST AND MEASURED TO DO NOTHING.
             //
             // The obviously better fix is to mark `Source` only on the channels
@@ -1221,13 +1221,13 @@ pub fn cmyk_group_rules_with_planes(
             // detects that, and the per-channel version belongs with the
             // per-spot-colorant plane, where the paint colour is in scope.
             //
-            // ★★ AND WHY A SPOT-ONLY SOURCE IS DELIBERATELY LEFT ALONE: the
+            // AND WHY A SPOT-ONLY SOURCE IS DELIBERATELY LEFT ALONE: the
             // unconditional widening was measured and REGRESSES two patches
             // (page mean |diff| 20.25 -> 22.02 and 20.60 -> 23.77). Preserving
             // the backdrop for a spot-only paint is the decided behaviour this
             // module documents at length; this widening is scoped to the mixed
             // case that behaviour was never written for.
-            // ★ And with a plane, the spot is no longer unplatable — see
+            // And with a plane, the spot is no longer unplatable — see
             // `cmyk_group_rules_with_planes`. The widening was the reachable
             // answer for a four-plane buffer; the table's own answer is
             // reachable now.
@@ -1351,7 +1351,7 @@ pub fn composite(
 /// space trivially counts. A `Separation`/`DeviceN` counts only if one of its
 /// declared colorant names matches `Cyan`, `Magenta`, `Yellow` or `Black`.
 ///
-/// # ★★ WHY THIS EXISTS: `authored_tints` ANSWERS A QUESTION THAT IS NOT
+/// # WHY THIS EXISTS: `authored_tints` ANSWERS A QUESTION THAT IS NOT
 /// "WHAT COLOUR IS THIS PAINT"
 ///
 /// [`authored_tints`] reads the operands the file wrote and reports them as
@@ -1413,7 +1413,7 @@ pub fn changes_anything(rules: [ComponentRule; 4]) -> bool {
 /// Whether Table 149 leaves **every** component to the backdrop — the
 /// spot-only case, where compositing natively would **erase the paint**.
 ///
-/// # ★★ WHY THIS IS A REFUSAL AND NOT A RESULT
+/// # WHY THIS IS A REFUSAL AND NOT A RESULT
 ///
 /// A `Separation`/`DeviceN` source that names no *process* colorant at all —
 /// `/Separation /PANTONE 185 C`, or `/DeviceN [/PANTONE 265 C /Suite Green]`
@@ -1438,7 +1438,7 @@ pub fn changes_anything(rules: [ComponentRule; 4]) -> bool {
 /// which made the page look like a rendering that had merely lost a
 /// background rather than one that had followed a rule off a cliff.
 ///
-/// # ★★★ AND YET THE ANSWER IS TO COMPOSITE IT ANYWAY. DO NOT "FIX" THIS.
+/// # AND YET THE ANSWER IS TO COMPOSITE IT ANYWAY. DO NOT "FIX" THIS.
 ///
 /// The obvious repairs are to paint the flattened tint normally, or to
 /// composite an ink union (`max(c_b, c_s)`) so that nothing is ever knocked
@@ -1464,7 +1464,7 @@ pub fn changes_anything(rules: [ComponentRule; 4]) -> bool {
 /// cannot see. The real fix is the per-colorant buffer, which is filed and is
 /// not reachable from any of these call sites.
 ///
-/// ★ What IS a defect in this area, and is fixed, is a different function
+/// What IS a defect in this area, and is fixed, is a different function
 /// being asked this one's question: [`authored_tints`] reports a spot-only
 /// source as `[0, 0, 0, 0]` — correct for *"which process tints did the file
 /// state?"* and blank paper when used as a **paint colour**. That made a spot
@@ -1587,7 +1587,7 @@ mod tests {
         Component::Spot(name.to_owned())
     }
 
-    /// ★ §8.6.6.3 — an `Indexed` space classifies as its BASE.
+    /// §8.6.6.3 — an `Indexed` space classifies as its BASE.
     ///
     /// Without this, `/Indexed [/DeviceN [/Cyan] /DeviceCMYK …]` fell to
     /// `OtherProcess` and Table 149 decided what survives from a colorant
@@ -1595,7 +1595,7 @@ mod tests {
     /// discriminator: its a/b pair's `DeviceN` omits the backdrop's
     /// colorants and its c/d pair includes them at 0 %.
     ///
-    /// ★ **This test guarded a correct rule that no suite pixel exercised,
+    /// **This test guarded a correct rule that no suite pixel exercised,
     /// for five days, and that was the reason to KEEP it rather than to
     /// discount it.** Measured 2026-08-21: `/Indexed` is present in four of
     /// the suite's overprint patches and was reachable in none of them,
@@ -1641,7 +1641,7 @@ mod tests {
         }
     }
 
-    /// ★★ `Pass 165.0` — an `ICCBased` `/N 4` states real CMYK tints, and they
+    /// `Pass 165.0` — an `ICCBased` `/N 4` states real CMYK tints, and they
     /// must be READABLE without becoming a `DeviceCMYK` source.
     ///
     /// Before this, the space classified as [`SourceKind::OtherProcess`],
@@ -1672,7 +1672,7 @@ mod tests {
         );
     }
 
-    /// ★★★ …and it must **not** become a `DeviceCMYK` source, because that is
+    /// …and it must **not** become a `DeviceCMYK` source, because that is
     /// the one Table 149 row where `OPM 1` differs from `OPM 0`.
     ///
     /// This is the test that stops the tempting one-line fix. Reclassifying
@@ -1785,7 +1785,7 @@ mod tests {
         }
     }
 
-    /// ★ Table 149, transcribed cell by cell.
+    /// Table 149, transcribed cell by cell.
     ///
     /// The whole point of this module is to be Table 149 and nothing else,
     /// so the test IS the table: every row, every one of the three columns.
@@ -1899,7 +1899,7 @@ mod tests {
         }
     }
 
-    /// ★ The one value-dependent cell: DeviceCMYK direct, CMYK component,
+    /// The one value-dependent cell: DeviceCMYK direct, CMYK component,
     /// OP true, OPM 1 — `c_s` if `c_s` ≠ 0, else `c_b`.
     ///
     /// This is the cell that makes `0 0 0 1 k` overprinting black text work,
@@ -2001,7 +2001,7 @@ mod tests {
         );
     }
 
-    /// ★ The round trip is EXACT, which is the property the whole
+    /// The round trip is EXACT, which is the property the whole
     /// compositing approach rests on.
     ///
     /// pdfcer has no separated CMYK buffer, so an overprint paint must
@@ -2050,7 +2050,7 @@ mod tests {
         assert!(r.abs() < 1e-6 && g.abs() < 1e-6 && b.abs() < 1e-6);
     }
 
-    /// ★ The behaviour the whole feature exists for: cyan, then magenta
+    /// The behaviour the whole feature exists for: cyan, then magenta
     /// overprinted, gives blue rather than magenta.
     ///
     /// This is the one-sentence description of overprint, so it is worth
@@ -2199,7 +2199,7 @@ mod tests {
     /// Would catch: a mixed `DeviceN` handing its process component to the
     /// spot path or its spot component to the process path.
     ///
-    /// ★ This is the exact shape of the backdrop in the patch this work
+    /// This is the exact shape of the backdrop in the patch this work
     /// targets: `/DeviceN [/Black <spot>] /DeviceCMYK` filled `0.5 1 scn`.
     /// Black is a process channel and must go to `authored_tints`; the
     /// spot has no channel and must come out here. Getting the split wrong

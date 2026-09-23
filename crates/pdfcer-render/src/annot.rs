@@ -113,7 +113,7 @@ const MIN_BOX_EXTENT: f32 = 1e-6;
 /// `/Widget` *is* not (Table 169 `Markup` = No). They are broken out here
 /// only because two of the four scopes name them individually.
 ///
-/// # ★ Table 169, NOT §12.5.6.2's prose — the prose is wrong (erratum T169-E1)
+/// # Table 169, NOT §12.5.6.2's prose — the prose is wrong (erratum T169-E1)
 ///
 /// §12.5.6.2 also states the split in words, and its parenthetical names
 /// **five** non-markup subtypes: "*For all other annotation types (`Link`,
@@ -604,7 +604,7 @@ pub(crate) fn survey_page_annotations(
                     );
                 }
             }
-            // ★★ `Pass 289.0`: an annotation that NAMES A STANDARD ICON is
+            // `Pass 289.0`: an annotation that NAMES A STANDARD ICON is
             // now drawn from pdfcer's own artwork, because §12.5.6.4 Table
             // 172 and §12.5.6.12 Table 181 put that duty on the READER with
             // a `shall`. Everything else stays `R43` named-not-painted.
@@ -641,7 +641,7 @@ pub(crate) fn survey_page_annotations(
 ///
 /// Returns `true` when something was painted.
 ///
-/// # ★★★ Why this is not a violation of `R43`, but a correction to its scope
+/// # Why this is not a violation of `R43`, but a correction to its scope
 ///
 /// `R43` says an annotation is rendered from its `/AP` or not at all, and
 /// nothing here synthesises an appearance. That rule is right for a `/Square`
@@ -668,11 +668,11 @@ pub(crate) fn survey_page_annotations(
 /// circle annotations shall display…"). `R43` survives untouched for the
 /// second class.
 ///
-/// ★ **The obligation is on PIXELS, not on objects.** No clause asks a reader
+/// **The obligation is on PIXELS, not on objects.** No clause asks a reader
 /// to materialise an `/AP` into the file, so this changes no bytes: rule 3's
 /// round-trip invariant and `R44` are not in play.
 ///
-/// ★ **What Acrobat exceeds is the ARTWORK, not the obligation.** The standard
+/// **What Acrobat exceeds is the ARTWORK, not the obligation.** The standard
 /// defines no geometry, size or colour for any of the 27 standard names — the
 /// duty is *"provide an appearance for this name"*, never *"provide THAT
 /// appearance"*. pdfcer draws its own (`LEGAL.md` §4), which discharges it
@@ -773,7 +773,7 @@ fn paint_named_icon(
     );
     diag.merge(sub);
 
-    // ★ Rule 4: pdfcer drew artwork the FILE DOES NOT CONTAIN. That is an
+    // Rule 4: pdfcer drew artwork the FILE DOES NOT CONTAIN. That is an
     // inference — a correct and obligatory one (§12.5.6.4/§12.5.6.12 put the
     // duty on the reader), but the operator must not have to deduce it from a
     // counter. The note names the subtype and the icon so the disclosure is
@@ -848,7 +848,7 @@ fn paint_appearance(
     let placement = a.post_concat(base_ctm);
     let initial = GraphicsState::default_with_ctm(placement);
 
-    // ★ §12.5.2 /CA -- the annotation's CONSTANT OPACITY, applied to the
+    // §12.5.2 /CA -- the annotation's CONSTANT OPACITY, applied to the
     // annotation AS COMPOSITED onto the page.
     //
     // Until 2026-08-14 this was ignored entirely, and the consequence was not
@@ -939,7 +939,7 @@ fn paint_appearance(
 /// four corners of its `/BBox` after ISO 32000-1 §12.5.5's full placement
 /// algorithm, in default user space (`Pass 155.2`).
 ///
-/// # ★★ Why a renderer exports this, when it looks like a paint internal
+/// # Why a renderer exports this, when it looks like a paint internal
 ///
 /// It is not a paint internal — it is the answer to *"where is this
 /// object?"*, and three things a **shell** draws depend on it: a selection

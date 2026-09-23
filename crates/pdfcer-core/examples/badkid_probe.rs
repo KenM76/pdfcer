@@ -51,7 +51,7 @@
 //! cargo run -p pdfcer-core --release --example badkid_probe  # the shipping build
 //! ```
 //!
-//! # ★★★ WHAT IT MEASURED (2026-08-31) — case 3, the urgent one
+//! # WHAT IT MEASURED (2026-08-31) — case 3, the urgent one
 //!
 //! `cut_selection` returned **`Ok`**, and `to_full_bytes` wrote a **904-byte
 //! file that reloads with `PageTreeError::BadKid`** — a saved PDF with no
@@ -159,7 +159,7 @@ fn observe(session: &EditSession, label: &str) {
         },
         Err(e) => format!("refused ({e})"),
     };
-    // ★ The full rewrite is measured too, and it is the half that matters
+    // The full rewrite is measured too, and it is the half that matters
     // here. This input is a RECOVERED document (its base xref is invalid), so
     // the incremental path refuses it by policy — which would hide the
     // corruption behind an unrelated safety net and let the route be sized as

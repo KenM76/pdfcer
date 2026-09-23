@@ -21,7 +21,7 @@
 //! `add_image` returned `Ok`, the save returned `Ok`, and the result was a
 //! document pdfcer itself refuses to open.
 //!
-//! ★ **It was reachable from three verbs through TWO independent helpers.**
+//! **It was reachable from three verbs through TWO independent helpers.**
 //! `EditSession::append_page_content` served `add_image` and `flatten_fields`;
 //! `text_edit::addtext::append_contents` served `add_text` and the OCR text
 //! layer. Both were written from the same wrong assumption, separately. That is
@@ -93,7 +93,7 @@ fn pdf_with_page_and_array(page_body: &str, array_body: &str) -> Vec<u8> {
     buf
 }
 
-/// ★ The shape that corrupted: `/Contents` is an indirect reference to an
+/// The shape that corrupted: `/Contents` is an indirect reference to an
 /// ARRAY. Qt-based exporters and every CAD sheet the operator works on.
 fn indirect_array_page() -> Vec<u8> {
     pdf_with_page(
@@ -207,7 +207,7 @@ fn tiny_image() -> pdfcer_core::image_import::ImportedImage {
 // add_image — the verb the defect was reported through
 // ---------------------------------------------------------------------------
 
-/// ★ THE REGRESSION. Placing an image on a page whose `/Contents` is an
+/// THE REGRESSION. Placing an image on a page whose `/Contents` is an
 /// indirect reference to an array must leave a page the reader still accepts.
 #[test]
 fn add_image_survives_an_indirect_array_contents() {
@@ -288,7 +288,7 @@ fn add_image_survives_every_other_contents_shape() {
 // add_text — the SECOND helper, which had the identical defect
 // ---------------------------------------------------------------------------
 
-/// ★ `append_contents` in `text_edit::addtext` is a completely separate
+/// `append_contents` in `text_edit::addtext` is a completely separate
 /// implementation of the same append, and it was wrong the same way. This test
 /// exists because the reporting shell asked *"if the wrapping is written per
 /// verb, the others have it too"* — and they did.
@@ -370,7 +370,7 @@ fn two_appends_in_one_session_stay_flat() {
 // Reading back a file a SHIPPED pdfcer already damaged
 // ---------------------------------------------------------------------------
 
-/// ★ Documents corrupted by builds older than `Pass 111.0` are already on the
+/// Documents corrupted by builds older than `Pass 111.0` are already on the
 /// operator's disk, and some of them no longer have an undamaged original.
 /// Refusing to open them would cost him work pdfcer itself destroyed.
 ///
@@ -398,7 +398,7 @@ fn a_page_damaged_by_an_older_build_still_opens_and_is_disclosed() {
         "the streams must come back in concatenation order, nesting removed"
     );
 
-    // ★ And it is DISCLOSED, not silently healed. Rule 4: pdfcer repaired
+    // And it is DISCLOSED, not silently healed. Rule 4: pdfcer repaired
     // something, so pdfcer says so.
     assert_eq!(
         page.contents_flattened, 1,

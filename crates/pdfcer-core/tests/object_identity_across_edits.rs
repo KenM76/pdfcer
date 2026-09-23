@@ -90,7 +90,7 @@ fn object_fingerprints(session: &EditSession) -> Vec<String> {
         .collect()
 }
 
-/// ★ A MOVE DOES NOT RENUMBER. The requesting session may build move/resize
+/// A MOVE DOES NOT RENUMBER. The requesting session may build move/resize
 /// against paint-order indices.
 ///
 /// The object count is unchanged and every object except the moved one keeps
@@ -144,7 +144,7 @@ fn moving_an_object_does_not_renumber_the_page() {
     );
 }
 
-/// ★ A DELETE DOES RENUMBER, and this pins the exact shape of it.
+/// A DELETE DOES RENUMBER, and this pins the exact shape of it.
 ///
 /// After deleting object 0, what was object 1 is object 0. A selection naming
 /// index 1 now names what used to be index 2 — the silent retarget the request
@@ -174,7 +174,7 @@ fn deleting_an_object_renumbers_everything_after_it() {
     );
 }
 
-/// ★ The remap FORMULA agrees with the actual RENUMBERING.
+/// The remap FORMULA agrees with the actual RENUMBERING.
 ///
 /// `remap_index_after_delete` is arithmetic; `delete_objects` is a content-
 /// stream splice. Nothing makes them agree except this test. A formula that

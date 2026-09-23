@@ -1,7 +1,7 @@
 //! # A `DeviceGray` fill overprinting a spot backdrop — a DIVERGENCE from
 //! ISO 32000-1 toward Acrobat (`Pass 143.0`), offered as a setting
 //!
-//! ## ★★ THIS HEADER SAID "the §8.6.7 ambiguity" AND "both defensible
+//! ## THIS HEADER SAID "the §8.6.7 ambiguity" AND "both defensible
 //! readings" UNTIL `Pass 174.6`, AND THAT WAS WRONG FOR ISO 32000-1
 //!
 //! Struck rather than rewritten, because the mistake is the transferable
@@ -23,7 +23,7 @@
 //!    one the old header had**, and alone it does read like a silence, which
 //!    is how the error was made.
 //!
-//! ★ **ISO 32000-2 DELETES the first two**, so the question really is open
+//! **ISO 32000-2 DELETES the first two**, so the question really is open
 //! there. The behaviour is **edition-gated**, and a test file about it has to
 //! say which edition it is talking about.
 //!
@@ -37,7 +37,7 @@
 //! the operator can reverse with `device_cmyk_only`, and it owes them a
 //! disclosure that an ambiguity would not.
 //!
-//! ★★★ **AND THESE FIXTURES CANNOT DISCRIMINATE THE SETTING IF THE BACKDROP
+//! **AND THESE FIXTURES CANNOT DISCRIMINATE THE SETTING IF THE BACKDROP
 //! IS A SPOT.** Tables 148/149 put *"any process colour space"* × **spot**
 //! colorant × `OP true` at `c_b` — *do not paint* — in **both** overprint-mode
 //! columns, so a conforming engine preserves that backdrop whichever way the
@@ -48,7 +48,7 @@
 //! buffer lands** — at which point these assertions are expected to move and
 //! should be re-derived rather than patched.
 //!
-//! ## ★★★ Why these tests exist rather than a conformance-suite run
+//! ## Why these tests exist rather than a conformance-suite run
 //!
 //! Because the licensed corpus **cannot score the case**, though it is
 //! touched by it. Measured 2026-08-28 on `4094e49` by rendering all 51 of its
@@ -61,7 +61,7 @@
 //! and **unexercised by any test in the repository** (`R151`) — the corpus
 //! would move under it and report nothing.
 //!
-//! ### ★★ This paragraph first said the corpus was BLIND, and that was wrong
+//! ### This paragraph first said the corpus was BLIND, and that was wrong
 //!
 //! It read: *"zero paint a `DeviceGray` source through Table 149; the patch
 //! whose name promises that authors its greys as `DeviceCMYK [0 0 0 k]`."*
@@ -83,7 +83,7 @@
 //! `grey_matches_the_cmyk_k_only_reference_exactly` makes below; the suite
 //! made it first, and pdfcer could not see it.
 //!
-//! ## ★★ And the route the filed diagnosis named contributed 0 %
+//! ## And the route the filed diagnosis named contributed 0 %
 //!
 //! `Pass 143.0` was filed against `overprint::classify` mapping `DeviceGray`
 //! to `SourceKind::OtherProcess`, whose Table 149 row is `[Source; 4]`.
@@ -155,7 +155,7 @@ fn is_greenish(c: (u8, u8, u8)) -> bool {
 /// The "knocked out" signature: the grey covered the spot, so what is left is
 /// *achromatic ink* — equal C, M and Y.
 ///
-/// # ★ Why this is a tolerance and not an equality
+/// # Why this is a tolerance and not an equality
 ///
 /// It was `(r - g).abs() <= 1`, and that held until `Pass 153.0` moved the
 /// shipped `CmykIntent` from `NeutralBlack` to `Calibrated` on the operator's
@@ -181,7 +181,7 @@ fn is_neutral(c: (u8, u8, u8)) -> bool {
 // 1. THE ORACLE-FREE CLAIM — the strongest assertion in this file
 // ---------------------------------------------------------------------------
 
-/// ★ Needs no reference render, no remembered colour and no threshold.
+/// Needs no reference render, no remembered colour and no threshold.
 ///
 /// `grey_op_over_spot.pdf` and `cmyk_k_op_over_spot.pdf` differ in exactly one
 /// way: one says `0.5 g`, the other says `0 0 0 0.5 k`. They are the same ink
@@ -215,7 +215,7 @@ fn grey_matches_the_cmyk_k_only_reference_exactly() {
 // 2. THE SETTING MOVES THE PIXEL, IN THE DIRECTION EACH READING PREDICTS
 // ---------------------------------------------------------------------------
 
-/// ★★ THIS TEST WAS `the_literal_reading_knocks_the_spot_out`, AND THAT
+/// THIS TEST WAS `the_literal_reading_knocks_the_spot_out`, AND THAT
 /// EXPECTATION WAS PDFCER'S REPRESENTATION, NOT THE STANDARD'S (`Pass 238.0`).
 ///
 /// `OverprintZeroTintScope`'s own docs said so before the change: *"a
@@ -265,7 +265,7 @@ fn the_default_reading_preserves_the_spot() {
 /// flipping the `#[default]` attribute fails here rather than silently
 /// changing what every consumer renders.
 ///
-/// # ★★ THIS TEST WAS CALLED `the_shipped_default_is_the_acrobat_reading`,
+/// # THIS TEST WAS CALLED `the_shipped_default_is_the_acrobat_reading`,
 /// AND IT COULD NOT CHECK THAT
 ///
 /// The body is unchanged. Only the name and this comment are, because the
@@ -294,7 +294,7 @@ fn the_default_reading_preserves_the_spot() {
 /// to preserve exactly those planes). The honest fix was the literal row
 /// assignment **together with** the per-spot-colorant plane.
 ///
-/// # ★★★ FLIPPED in `Pass 244.0` (2026-09-03)
+/// # FLIPPED in `Pass 244.0` (2026-09-03)
 ///
 /// The plane landed (`Pass 238.0`/`239.0`) and the literal reading was
 /// re-measured on the whole sweep: 0 FAIL / 43 pass, against 2 FAIL / 41
@@ -332,7 +332,7 @@ fn the_shipped_default_is_device_cmyk_only() {
     );
 }
 
-/// ★★★ THE DISCRIMINATING CASE: grey over a PROCESS backdrop.
+/// THE DISCRIMINATING CASE: grey over a PROCESS backdrop.
 ///
 /// This is the geometry `OP-N3` named as the one that can tell the two
 /// readings apart *against a reference*, and which did not exist until now.
@@ -427,7 +427,7 @@ fn overprint_off_is_untouched_by_every_scope() {
 /// a CMYK image already falls to the process row where `OPM 0` and `OPM 1`
 /// are identical, and a grey image is that case's analogue.
 ///
-/// # ★★ WHAT THIS TEST DOES **NOT** PIN, established by sabotage
+/// # WHAT THIS TEST DOES **NOT** PIN, established by sabotage
 ///
 /// Its first version claimed to pin the `!in_image_sample` guard in
 /// `overprint::classify` — *"if that guard is ever removed, this test fails
@@ -442,7 +442,7 @@ fn overprint_off_is_untouched_by_every_scope() {
 /// useful END-TO-END property (a grey image does not move) while pinning
 /// **none** of the individual mechanisms it names.
 ///
-/// ★ That distinction is the point of writing it down rather than deleting
+/// That distinction is the point of writing it down rather than deleting
 /// the test. A surviving sabotage does not always mean the test is weak; here
 /// it meant the **comment's claim about coverage** was wrong. The test stays,
 /// with an honest description of its own reach.
@@ -467,7 +467,7 @@ fn a_grey_image_is_never_upgraded_whatever_the_scope() {
         "and neither must AllProcessSpaces — the guard is on the image, not \
          on the space"
     );
-    // ★ `Pass 238.0`: this asserted `is_neutral` — "the grey image covers
+    // `Pass 238.0`: this asserted `is_neutral` — "the grey image covers
     // the spot under every scope" — and that was the missing spot plane on
     // the image path, counted for a Pass as
     // `overprint_process_images_unsupported` and then fixed. A grey IMAGE
@@ -487,7 +487,7 @@ fn a_grey_image_is_never_upgraded_whatever_the_scope() {
 // 4. THE SCOPES ARE DISTINGUISHABLE — without this, three names for one thing
 // ---------------------------------------------------------------------------
 
-/// ★★ The test that makes `AllProcessSpaces` a real value rather than a
+/// The test that makes `AllProcessSpaces` a real value rather than a
 /// synonym.
 ///
 /// Found by sabotage: widening `GreyAsKOnly` to match **every** space left
@@ -499,7 +499,7 @@ fn a_grey_image_is_never_upgraded_whatever_the_scope() {
 /// Pure red converts to `C=0, M=1, Y=1, K=0`, so exactly one component is
 /// zero and the backdrop's **cyan** is what is at stake. Under
 /// `AllProcessSpaces` it survives; under the other two it does not.
-/// ★ `Pass 238.0` moved this test from `rgb_op_over_spot.pdf` to
+/// `Pass 238.0` moved this test from `rgb_op_over_spot.pdf` to
 /// `rgb_op_over_cmyk.pdf`. Over a SPOT backdrop the three scopes now render
 /// identically — correctly: the spot lives in its own plane and is preserved
 /// under every scope, and a pure spot states no process ink, so there is no

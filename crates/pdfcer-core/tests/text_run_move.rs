@@ -153,7 +153,7 @@ fn assert_shifted(label: &str, before: Bounds, after: Bounds, dx: f64, dy: f64) 
 // The three placement shapes
 // ===========================================================================
 
-/// ★★★ **The whole claim.** The run the operator grabbed moves by exactly
+/// **The whole claim.** The run the operator grabbed moves by exactly
 /// what was asked, and **every other run in the same `BT`…`ET` stays exactly
 /// where it was**.
 ///
@@ -234,7 +234,7 @@ fn a_relative_run_is_rewritten_and_its_successor_is_put_back() {
     );
 }
 
-/// ★★ **`TD`'s `ty` is the leading, and must never be nudged.**
+/// **`TD`'s `ty` is the leading, and must never be nudged.**
 ///
 /// Table 108: `TD` sets `TL` to `−ty` *and then* translates. A move that
 /// treated it as an ordinary relative pair would re-space **every later `T*`
@@ -285,7 +285,7 @@ fn an_inserted_positioning_operator_moves_exactly_one_run() {
 // Both transforms, not one
 // ===========================================================================
 
-/// ★★ **A page-space drag is not a text-space drag.**
+/// **A page-space drag is not a text-space drag.**
 ///
 /// Under `0 1 -1 0 300 300 Tm` the run's own x axis points up the page. A
 /// nudge of `(5, 0)` in page space is `(0, −5)` in that run's text space, so
@@ -366,7 +366,7 @@ fn moving_a_run_whose_successor_inherits_is_refused_separately_from_delete() {
     );
 }
 
-/// ★★ **The pre-check IS the guard** (`R221`/`R243`).
+/// **The pre-check IS the guard** (`R221`/`R243`).
 ///
 /// `text_run_move_refusal` exists so a shell can put the remedy in front of
 /// the gesture. If it were a second implementation of the same rule it would
@@ -454,7 +454,7 @@ fn an_out_of_range_run_is_refused_with_the_count() {
     );
 }
 
-/// ★★ **A move renumbers nothing** — not the page's objects, not the object's
+/// **A move renumbers nothing** — not the page's objects, not the object's
 /// runs.
 ///
 /// `docs/core-api/02-editing-and-saving.md` puts the whole move family in the

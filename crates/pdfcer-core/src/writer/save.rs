@@ -590,7 +590,7 @@ pub fn save_full(
     // staging`. `base` alone (zero-copy) when nothing was authored.
     let combined = dirty.combined_source(base);
 
-    // ★★ A HYBRID FILE IS NOW REWRITTEN, NOT REFUSED (`Pass 281.0`). The
+    // A HYBRID FILE IS NOW REWRITTEN, NOT REFUSED (`Pass 281.0`). The
     // refusal here used to be unconditional, with the reasoning that
     // "rebuilding the three-part unit from a merged view is Pass 3.2 work".
     // The merged view is not the obstacle it was taken to be — the LOADER now
@@ -602,7 +602,7 @@ pub fn save_full(
     // pdfcer could not parse. There the partition is unknown rather than
     // absent, and either half would be a guess.
     //
-    // ★ Why this mattered beyond tidiness: redaction is forced to a full
+    // Why this mattered beyond tidiness: redaction is forced to a full
     // rewrite by `R35` — an incremental save leaves the un-redacted bytes in a
     // prior revision — so this refusal made REDACTION UNREACHABLE on every
     // hybrid file, and the refusal's own advice ("use incremental save") was
@@ -653,7 +653,7 @@ pub fn save_full(
     // the base file uses that form. Its old definition is NOT re-emitted
     // as a body object — it *is* the section.
     //
-    // ★ A HYBRID FILE HAS ONE TOO (`Pass 281.0`), and it is found the same way
+    // A HYBRID FILE HAS ONE TOO (`Pass 281.0`), and it is found the same way
     // a reader finds it: the object whose entry gives the offset the trailer's
     // `/XRefStm` names. Reusing that number rather than allocating a fresh one
     // keeps the rewritten file's object numbering as close to the input's as
@@ -1414,7 +1414,7 @@ fn write_hybrid_tail(out: &mut Vec<u8>, plan: &HybridTail<'_>) -> Result<(), Wri
         // The main section names neither companion: `/XRefStm` is forbidden
         // here by §7.5.8.4, and there is no earlier section for `/Prev`.
         //
-        // ★ MEASURED REDUNDANT FOR `/XRefStm`, AND KEPT. The caller already
+        // MEASURED REDUNDANT FOR `/XRefStm`, AND KEPT. The caller already
         // strips that key before building this trailer ("a single section has
         // no predecessor and no hybrid companion"), so a sabotage that removes
         // it here stays GREEN — a guarantee enforced elsewhere, which is one of

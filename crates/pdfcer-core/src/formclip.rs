@@ -804,7 +804,7 @@ pub(crate) fn build_field_clip(
             // and this half is about to be only the widget. Its field keys
             // are carried above; its identity keys are the paste's to supply.
             //
-            // ★ `/DA` and `/T` are the two that BIT, and both bit the same
+            // `/DA` and `/T` are the two that BIT, and both bit the same
             // way: the paste writes the field half first and then folds the
             // widget half over it, so anything left here that also belongs on
             // the field SILENTLY WINS. A leftover `/T` made every paste come

@@ -10,7 +10,7 @@
 //! The request that matters most did not ask for a feature. It reported a
 //! loss of the operator's existing work:
 //!
-//! > ★ *"A dashed mark that already exists in the operator's file is
+//! > *"A dashed mark that already exists in the operator's file is
 //! > silently converted to a solid one the first time he changes its
 //! > colour."*
 //!
@@ -30,7 +30,7 @@
 //! back on the way IN, so a regeneration re-authors it — rather than growing
 //! `MarkupStyle` a field and calling the loss disclosed.
 //!
-//! ### ★ FOUR routes regenerate an appearance, not one
+//! ### FOUR routes regenerate an appearance, not one
 //!
 //! `set_markup_style` is the one the request named. It is not the only one
 //! that would have solidified a dash: `resize_annotation`,
@@ -187,7 +187,7 @@ fn appearance_has_dash(s: &EditSession, id: ObjId) -> bool {
 // 1. Preservation — the reported defect
 // ---------------------------------------------------------------------------
 
-/// ★ **THE HEADLINE.** Author a dashed square, change ONLY its colour, and
+/// **THE HEADLINE.** Author a dashed square, change ONLY its colour, and
 /// the dash must still be there — in the dictionary *and* in the appearance.
 ///
 /// Before this Pass the appearance came back solid while `/BS /D` stayed in
@@ -417,7 +417,7 @@ fn has_le(s: &EditSession, id: ObjId) -> bool {
     matches!(graph.value(id), Some(Object::Dict(d)) if d.contains_key(b"LE"))
 }
 
-/// ★ `Clear` **removes** `/LE`; it does not write `[/None /None]`.
+/// `Clear` **removes** `/LE`; it does not write `[/None /None]`.
 ///
 /// The distinction is the request's whole point: an operator who turns an
 /// arrow's heads off and changes their mind must get back the document they
@@ -474,7 +474,7 @@ fn setting_none_none_still_writes_the_key() {
 // 3. Properties a subtype does not have are refused BY NAME
 // ---------------------------------------------------------------------------
 
-/// ★ A `width` on a text markup is refused, not swallowed.
+/// A `width` on a text markup is refused, not swallowed.
 #[test]
 fn a_width_on_a_text_markup_is_refused_by_name() {
     let mut s = session();
@@ -598,7 +598,7 @@ fn the_support_matrix_answers_in_advance() {
     assert!(!unknown.takes_endings);
 }
 
-/// ★ The predicate and the refusal must agree. If they ever drift, the
+/// The predicate and the refusal must agree. If they ever drift, the
 /// shell's "ask first" contract silently becomes wrong — so the agreement is
 /// asserted rather than assumed.
 #[test]

@@ -21,7 +21,7 @@
 //!
 //! Either alone is an annoyance. Together, the first mistake is unfixable.
 //!
-//! # ★★ There was nothing to copy
+//! # There was nothing to copy
 //!
 //! §12.5.6.12's `/Stamp` table defines exactly one subtype key, `/Name` — no
 //! `/DA`, no font entry. Acrobat has no answer either, and (having no
@@ -70,7 +70,7 @@ fn baked_size(content: &[u8]) -> f64 {
 
 // ------------------------------------------- 1. the box follows the text
 
-/// ★★★ THE TRAP IS GONE: a box too small for the label is WIDENED, not
+/// THE TRAP IS GONE: a box too small for the label is WIDENED, not
 /// clipped.
 ///
 /// The drawn rectangle becomes a position and a minimum size rather than a
@@ -99,7 +99,7 @@ fn a_box_too_narrow_for_the_label_grows_to_fit_it() {
     assert_eq!(a.rect.lly, drawn.lly, "and the baseline does not move");
 }
 
-/// ★ The box is only ever GROWN, never shrunk.
+/// The box is only ever GROWN, never shrunk.
 ///
 /// Without this, "fit the box to the text" would silently shrink a stamp the
 /// operator deliberately drew large — trading his trap for a different one.
@@ -121,7 +121,7 @@ fn a_box_larger_than_its_label_is_left_alone() {
 
 // --------------------------------------- 2. the size is a property, stored
 
-/// ★★ THE SIZE SURVIVES INTO THE FILE, in `/DA`.
+/// THE SIZE SURVIVES INTO THE FILE, in `/DA`.
 ///
 /// Without storage there is no re-bake that can keep it, and the repair path
 /// cannot exist at all.
@@ -141,7 +141,7 @@ fn the_label_size_is_written_to_da() {
     );
 }
 
-/// ★★★ THE SIZE NO LONGER FOLLOWS THE BOX — the defect, stated as a
+/// THE SIZE NO LONGER FOLLOWS THE BOX — the defect, stated as a
 /// comparison.
 ///
 /// Two boxes of very different heights, same label, same style: the baked
@@ -173,7 +173,7 @@ fn two_boxes_of_different_heights_bake_the_same_text_size() {
     );
 }
 
-/// ★ THE CONTROL: the old derived behaviour is still reachable BY NAME.
+/// THE CONTROL: the old derived behaviour is still reachable BY NAME.
 ///
 /// `font_size: None` asks for `(h * 0.42).clamp(8.0, 28.0)` deliberately, so
 /// an older document's appearance stays reproducible. Without this test the
@@ -249,7 +249,7 @@ fn clip_to_box_keeps_both_and_is_the_reported_behaviour() {
 
 // ------------------------- 4. the repair path, end to end (the operator's own)
 
-/// ★★★ THE WHOLE REPORT, AS ONE TEST: place a stamp, then stretch the box —
+/// THE WHOLE REPORT, AS ONE TEST: place a stamp, then stretch the box —
 /// and the text does NOT stretch with it.
 ///
 /// > *"if I stretch the box out the text stretches with it."*
@@ -258,7 +258,7 @@ fn clip_to_box_keeps_both_and_is_the_reported_behaviour() {
 /// verb. Its baked `Tf` must be the size it was authored with, not a size
 /// derived from the new box.
 ///
-/// ★ Two things had to be true for this to work, and either one missing makes
+/// Two things had to be true for this to work, and either one missing makes
 /// it fail:
 ///
 /// 1. the size is **stored** (`/DA`) and **recovered** on the way back in;
@@ -296,7 +296,7 @@ fn stretching_a_stamp_keeps_its_text_size() {
 
     // Now stretch it, the repair he could not make before.
     //
-    // ★★ BOTH AXES, and the vertical one is the half that matters. The old
+    // BOTH AXES, and the vertical one is the half that matters. The old
     // size formula was `(rect_height * 0.42)`, so a purely HORIZONTAL stretch
     // left it unchanged and this test passed with or without the fix. A
     // sabotage that reverted the size to the derived formula stayed green
@@ -323,7 +323,7 @@ fn stretching_a_stamp_keeps_its_text_size() {
 /// The `Tf` size baked into the document's one `/Stamp` appearance, read back
 /// through a SAVE AND REOPEN.
 ///
-/// ★ Deliberately not read out of the live session. Going through the file is
+/// Deliberately not read out of the live session. Going through the file is
 /// what proves the size survives serialization — a size that were correct in
 /// memory and lost on save would satisfy an in-memory assertion and fail the
 /// operator.
@@ -364,7 +364,7 @@ fn stamp_tf_size(session: &pdfcer_core::edit::EditSession) -> f64 {
 
 // ------------- 5. `Pass 291.0` — the fit is REPORTED, not merely performed
 
-/// ★★★ A shrunk label says so. This is the disclosure that made two of the
+/// A shrunk label says so. This is the disclosure that made two of the
 /// three policies offerable at all.
 ///
 /// `applied_autosize` is `None` here and always will be — the stamp path
@@ -406,7 +406,7 @@ fn a_shrunk_label_reports_the_size_it_was_shrunk_to() {
     );
 }
 
-/// ★★ And a label that FITS says nothing. This is the half that makes the
+/// And a label that FITS says nothing. This is the half that makes the
 /// disclosure usable: `Some(_)` on its own means "a stamp", not "an
 /// inference", and a caller that reported every `Some` would tell the
 /// operator their own instruction back at them.

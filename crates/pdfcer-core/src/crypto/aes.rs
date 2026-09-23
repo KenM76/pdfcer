@@ -78,7 +78,7 @@
 //! (`invalid_padding_keeps_every_byte`, `valid_padding_is_stripped`) so it
 //! cannot decay into an accident.
 //!
-//! # ★ AES-256 uses THREE DIFFERENT MODES, and mixing them is silent (TRAP T25)
+//! # AES-256 uses THREE DIFFERENT MODES, and mixing them is silent (TRAP T25)
 //!
 //! At `/V` 5 the same 32-byte file encryption key is fed to AES in three
 //! different configurations, in three different places, within one document
@@ -899,7 +899,7 @@ mod tests {
         }
     }
 
-    /// ★ The two key lengths are **not** interchangeable, in either direction.
+    /// The two key lengths are **not** interchangeable, in either direction.
     ///
     /// A 16-byte key handed to [`decrypt_cbc_256`] and a 32-byte key handed to
     /// [`decrypt_cbc_128`] are both refused outright rather than padded,
@@ -929,7 +929,7 @@ mod tests {
         assert_eq!(decrypt_cbc_128(&[0x11u8; 16], &ct128), b"some plaintext");
     }
 
-    /// ★ T25, direction one: the `/UE`/`/OE` unwrap must **not** strip
+    /// T25, direction one: the `/UE`/`/OE` unwrap must **not** strip
     /// padding, and must **not** take an IV from the data.
     ///
     /// A wrapped key is 32 uniformly random bytes. Feeding it to
@@ -959,7 +959,7 @@ mod tests {
         );
     }
 
-    /// ★ T25, direction two: the unwrap IV is **zero**, and a non-zero one
+    /// T25, direction two: the unwrap IV is **zero**, and a non-zero one
     /// corrupts exactly the first block.
     ///
     /// That is the shape that makes the mistake survive testing: 16 of the 32
@@ -990,7 +990,7 @@ mod tests {
         );
     }
 
-    /// ★ T25, direction three: the unwrap must **not strip PKCS#7**, even
+    /// T25, direction three: the unwrap must **not strip PKCS#7**, even
     /// when the recovered key happens to end in bytes that look exactly like
     /// valid padding.
     ///

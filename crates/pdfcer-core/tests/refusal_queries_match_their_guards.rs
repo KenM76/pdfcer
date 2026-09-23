@@ -45,7 +45,7 @@ fn fixture(rel: &str) -> PathBuf {
         .join(rel)
 }
 
-/// ★ THE REPORTED DEFECT: an encrypted document must be reported by
+/// THE REPORTED DEFECT: an encrypted document must be reported by
 /// `fill_refusal`, not discovered when the operator types.
 ///
 /// The fixture is the **empty-user-password** one deliberately. A
@@ -67,7 +67,7 @@ fn fill_refusal_reports_encryption_rather_than_letting_the_fill_discover_it() {
     );
 }
 
-/// ★ AND THE PROPERTY, not just the instance: whatever the guard refuses, the
+/// AND THE PROPERTY, not just the instance: whatever the guard refuses, the
 /// query reports — checked by running both against the same document.
 ///
 /// This is what makes a future third guard safe. If someone adds a check to
@@ -117,7 +117,7 @@ fn fill_refusal_and_the_fill_itself_agree_on_every_fixture() {
     }
 }
 
-/// ★ `flatten_refusal` exists and reports the suppression guard that
+/// `flatten_refusal` exists and reports the suppression guard that
 /// `deletion_refusal` correctly does not.
 ///
 /// The requesting session had been gating its Flatten control on
@@ -182,7 +182,7 @@ fn deletion_refusal_matches_deletion_and_must_not_gain_the_flatten_guard() {
     }
 }
 
-/// ★ `Widget::has_off_appearance` answers a question `on_states` cannot.
+/// `Widget::has_off_appearance` answers a question `on_states` cannot.
 ///
 /// `on_states` excludes `Off` by §12.7.4.2.3 and must keep doing so, so there
 /// was no way to ask *"will unticking this checkbox leave a blank widget?"*.
@@ -290,7 +290,7 @@ startxref
     Document::from_bytes(buf).expect("synthetic form parses")
 }
 
-/// ★★ THE TEST THAT ACTUALLY BITES: a widget with no `/P` is still found.
+/// THE TEST THAT ACTUALLY BITES: a widget with no `/P` is still found.
 ///
 /// The first version of this asserted the `/P` point against `demo-form.pdf`
 /// and **the sabotage passed** — because every fixture in the corpus writes
@@ -309,7 +309,7 @@ fn a_widget_without_a_p_entry_is_still_found() {
     assert_eq!(rects[0].1, [10.0, 20.0, 110.0, 60.0]);
 }
 
-/// ★ `widget_rects` finds widgets by walking `/Annots`, NOT by filtering on `/P`.
+/// `widget_rects` finds widgets by walking `/Annots`, NOT by filtering on `/P`.
 ///
 /// Requested by the `pdfcer-gui` session (2026-08-14), which was deriving the
 /// same data by parsing the whole `/AcroForm` per hit-test.

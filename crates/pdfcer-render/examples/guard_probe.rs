@@ -52,7 +52,7 @@
 //! reporting, rather than letting a clean run read as a stronger claim than
 //! it is.
 //!
-//! # ★ THIS FILE'S OWN FIRST RUN FALSIFIED THIS FILE
+//! # THIS FILE'S OWN FIRST RUN FALSIFIED THIS FILE
 //!
 //! The paragraph above used to continue: *"the largest sheet this project
 //! has measured holds ~29.5 MiB, which is 8.5× under the ceiling, so a suite

@@ -125,7 +125,7 @@ pub enum Integrity {
 /// [`NotChecked`](Trust::NotChecked) is the default: no trust anchors were
 /// supplied. When anchors ARE supplied (`Pass 10.3`, an opt-in read of an
 /// installed Acrobat's trust store), the other variants report whether the
-/// signer chains, BY SIGNATURE, to one of them. ★ A [`Trusted`](Trust::Trusted)
+/// signer chains, BY SIGNATURE, to one of them. A [`Trusted`](Trust::Trusted)
 /// verdict checks signature linkage, RFC 5280 CA/key-usage constraints, and —
 /// when a signing-time clock is available — certificate validity dates
 /// (`Pass 10.5`); it does NOT check revocation (CRL/OCSP), which needs the

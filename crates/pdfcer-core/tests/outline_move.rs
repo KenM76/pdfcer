@@ -20,7 +20,7 @@
 //! in the cycle case — never terminates. None of that is visible to a test
 //! that only checks the moved bookmark ended up in the right place.
 //!
-//! ## ★★ Why the flattened title list is NOT the assertion here
+//! ## Why the flattened title list is NOT the assertion here
 //!
 //! `outline_edit.rs` asserts on titles in reading order, and for a move that
 //! is a **coincident oracle** — `R225`, a fixture whose two candidate answers
@@ -159,7 +159,7 @@ fn shape(doc: &Document) -> Vec<(String, Vec<String>)> {
         .collect()
 }
 
-/// ★ The cross-implementation check, run after every structural move.
+/// The cross-implementation check, run after every structural move.
 ///
 /// The root's `/Count` is written by the edit session's propagation walk; the
 /// expected value is computed by the reader's own Annex H.6 formula over the
@@ -237,7 +237,7 @@ fn assert_chain_is_sound(doc: &Document) {
 /// Chapter 1 moved behind Chapter 2. The two chapters swap; nothing else in
 /// the document is touched.
 ///
-/// ★ The `/Count` assertions are the point. A reorder moves **no item between
+/// The `/Count` assertions are the point. A reorder moves **no item between
 /// branches**, so every count in the file — the root's and both chapters' —
 /// must be exactly what it was. An implementation that ran its subtract and
 /// add walks unconditionally would still land on the right numbers here (they
@@ -277,7 +277,7 @@ fn a_bookmark_can_be_moved_behind_its_sibling() {
     );
 }
 
-/// ★★ A reorder must not rewrite a single `/Count`-bearing object it did not
+/// A reorder must not rewrite a single `/Count`-bearing object it did not
 /// need to.
 ///
 /// This is the assertion the value checks above cannot make. Both the correct
@@ -309,7 +309,7 @@ fn a_reorder_writes_no_count_bearing_object_that_did_not_change() {
 // 2. RE-PARENT — and the ancestor whose two deltas cancel
 // ---------------------------------------------------------------------------
 
-/// ★★★ Section 1.1 nested under its own next sibling — the case where the
+/// Section 1.1 nested under its own next sibling — the case where the
 /// **root is correct either way** and only the dirty set can tell a right
 /// answer from a lucky one.
 ///
@@ -334,7 +334,7 @@ fn a_reorder_writes_no_count_bearing_object_that_did_not_change() {
 /// leaves the root holding a value that differs from the base revision, and
 /// `dirty_set` — which diffs against the base, §11.1 — then reports it.
 ///
-/// ★ What it does **not** discriminate, established by sabotage rather than
+/// What it does **not** discriminate, established by sabotage rather than
 /// assumed: whether the two deltas were merged and applied **once** or applied
 /// as two independent walks. Both land on 4, `dirty_set` compares values and
 /// not write counts, and deleting the verb's own "skip unchanged" filter left
@@ -447,7 +447,7 @@ fn a_bookmark_can_be_nested_under_its_sibling() {
     );
 }
 
-/// ★★ A section moved into the **closed** chapter — the case that discriminates
+/// A section moved into the **closed** chapter — the case that discriminates
 /// "propagate to the root" from "stop at the first closed node".
 ///
 /// Section 1.1 is visible today (Chapter 1 is open) and invisible afterwards
@@ -523,7 +523,7 @@ fn a_leaf_that_gains_a_child_is_left_open() {
     assert_eq!(count_of(&after, ROOT), Some(3));
 }
 
-/// ★★ Promoting the only child of a collapsed chapter: the branch where an
+/// Promoting the only child of a collapsed chapter: the branch where an
 /// ancestor's magnitude reaches **zero** and `/Count` must be removed
 /// entirely.
 ///
@@ -839,7 +839,7 @@ fn the_root_has_no_expansion_state() {
 //    not guarantee
 // ---------------------------------------------------------------------------
 
-/// ★★ A cycle must be refused for a destination **anywhere** under the item,
+/// A cycle must be refused for a destination **anywhere** under the item,
 /// not just a shallow one.
 ///
 /// This exists because the first implementation asked the question

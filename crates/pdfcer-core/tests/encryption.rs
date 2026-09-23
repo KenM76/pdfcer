@@ -130,7 +130,7 @@ fn owner_password_opens_both_revisions() {
     }
 }
 
-/// ★ The empty user password — the single most operator-visible behaviour in
+/// The empty user password — the single most operator-visible behaviour in
 /// clause 7.6, and the one that decides whether pdfcer looks broken.
 ///
 /// §7.6.3.1 requires a reader to try the empty user password **first and
@@ -401,7 +401,7 @@ fn aes_256_r5_decrypts_strings_not_only_stream_data() {
     assert_eq!(names(&enc), expected);
 }
 
-/// ★ `/Perms` — the only integrity check in PDF encryption — is actually run,
+/// `/Perms` — the only integrity check in PDF encryption — is actually run,
 /// and it passes on an untampered document.
 ///
 /// Worth its own assertion because the check is entirely invisible otherwise:
@@ -436,7 +436,7 @@ fn perms_is_validated_at_r5_and_not_applicable_below_it() {
     }
 }
 
-/// ★ A tampered `/P` is **reported and not acted on** (**T27**).
+/// A tampered `/P` is **reported and not acted on** (**T27**).
 ///
 /// # What is being simulated
 ///
@@ -546,7 +546,7 @@ fn a_wrong_ascii_password_at_r5_is_an_ordinary_password_failure() {
     );
 }
 
-/// ★ A **non-ASCII** password that fails is reported differently, because the
+/// A **non-ASCII** password that fails is reported differently, because the
 /// failure is genuinely ambiguous.
 ///
 /// `/R` 5's password preprocessing is SASLprep (RFC 4013) → UTF-8 → truncate
@@ -590,7 +590,7 @@ fn a_failed_non_ascii_password_discloses_the_missing_normalisation() {
     );
 }
 
-/// ★ Saving a decrypted document is **refused**, in both modes.
+/// Saving a decrypted document is **refused**, in both modes.
 ///
 /// This is the sharp edge of a read-only increment, and it has to be a
 /// refusal rather than a best effort. After decryption the buffer and the
@@ -657,7 +657,7 @@ fn plain_documents_report_no_encryption() {
     assert!(doc.encryption().is_none());
 }
 
-/// ★ AES-128 **on a document whose objects live in object streams** — the
+/// AES-128 **on a document whose objects live in object streams** — the
 /// combination every committed fixture misses, and the one that is normal in
 /// the wild.
 ///
@@ -737,7 +737,7 @@ fn aes_128_decrypts_a_document_whose_objects_live_in_object_streams() {
     );
 }
 
-/// ★ AES-256 at `/R` 5 **on a document whose objects live in object streams**
+/// AES-256 at `/R` 5 **on a document whose objects live in object streams**
 /// — the shape every committed fixture misses, and the normal one in the wild.
 ///
 /// # Why this needed its own test, again
@@ -875,7 +875,7 @@ fn aes_256_r5_with_an_empty_user_password_needs_no_password() {
     );
 }
 
-/// ★ The `/R` 5 fixture still holds the exact bytes `crypto::r5`'s unit tests
+/// The `/R` 5 fixture still holds the exact bytes `crypto::r5`'s unit tests
 /// were written against.
 ///
 /// # Why this guard exists

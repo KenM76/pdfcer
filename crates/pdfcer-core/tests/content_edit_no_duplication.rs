@@ -105,7 +105,7 @@ fn each_further_edit_does_not_add_another_copy() {
     );
 }
 
-/// ★★★ TEXT ADDED THIS SESSION SURVIVES A REFLOW — which is what this test
+/// TEXT ADDED THIS SESSION SURVIVES A REFLOW — which is what this test
 /// was always about, and it can now assert it directly.
 ///
 /// # What this replaced, and why the replacement is stronger
@@ -131,7 +131,7 @@ fn each_further_edit_does_not_add_another_copy() {
 /// offered ("save and reopen") could not work, because the streams are in the
 /// file (`G015`).
 ///
-/// ★ THE NAME IS THE POINT. The old test was called
+/// THE NAME IS THE POINT. The old test was called
 /// `reflow_refuses_after_text_was_added_rather_than_deleting_it` — the refusal
 /// was never the goal, it was the means, and the clause after "rather than" is
 /// what actually mattered. Asserting the end instead of the means also makes

@@ -91,7 +91,7 @@ fn rect(x: f64, y: f64, w: f64, h: f64) -> Rect {
 
 // ------------------------------------------------- 1. the placement itself
 
-/// ★★★ The artwork lands as a form XObject behind a `/Stamp`, and the PAGE'S
+/// The artwork lands as a form XObject behind a `/Stamp`, and the PAGE'S
 /// OWN CONTENT STREAM IS UNTOUCHED (R47).
 ///
 /// The second half is the one an operator's drawing depends on: a stamp must
@@ -101,7 +101,7 @@ fn the_artwork_becomes_a_form_xobject_behind_a_stamp() {
     let source = stamp_source();
     let mut session = target();
     let content_before = page_content(&session);
-    // ★ The fixture-can-fail check (`R225`): a comparison of two EMPTY byte
+    // The fixture-can-fail check (`R225`): a comparison of two EMPTY byte
     // vectors passes whatever the verb does to the page. Assert the page has
     // content before asserting that the content did not change.
     assert!(
@@ -144,7 +144,7 @@ fn the_artwork_becomes_a_form_xobject_behind_a_stamp() {
         "a form XObject without a /BBox cannot be mapped to a /Rect (§12.5.5)"
     );
 
-    // ★ And nothing was written to the page's content stream.
+    // And nothing was written to the page's content stream.
     assert_eq!(
         page_content(&session),
         content_before,
@@ -176,7 +176,7 @@ fn the_placement_is_one_undo_entry() {
 
 // ------------------------------------------------------- 2. the disclosures
 
-/// ★★ A rectangle of the wrong proportions SQUASHES the artwork, and the
+/// A rectangle of the wrong proportions SQUASHES the artwork, and the
 /// operator is told.
 ///
 /// Nothing on the page says a signature is 30 % wider than it was drawn.
@@ -282,7 +282,7 @@ fn the_forms_resources_are_its_own_so_nothing_is_renamed() {
 
 // ------------------------------------------------------------ 3. refusals
 
-/// ★ A source page out of range gets its OWN error, not the target's.
+/// A source page out of range gets its OWN error, not the target's.
 ///
 /// "You asked for page 9 of a 3-page stamp file" and "you asked for page 9 of
 /// a 3-page drawing" are different mistakes, and a shell shows them in

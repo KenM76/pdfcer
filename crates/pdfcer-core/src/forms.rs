@@ -545,7 +545,7 @@ pub struct Widget {
     /// key is absent, `Some(MkColor::None)` is an empty array explicitly
     /// stating *no colour*, and DeviceCMYK is never pre-converted.
     ///
-    /// # ★ Read only from 2026-09-07, and the gap it closes is instructive
+    /// # Read only from 2026-09-07, and the gap it closes is instructive
     ///
     /// pdfcer had **written** this key since field authoring shipped — a
     /// hard-coded black — and never read it. It had **read** `/BG` and never
@@ -554,7 +554,7 @@ pub struct Widget {
     /// border colour it was looking at, and could not change the background
     /// colour it could see.
     ///
-    /// ★★ **This is NOT the same as [`Self::border`]**, which is `/BS` —
+    /// **This is NOT the same as [`Self::border`]**, which is `/BS` —
     /// the border's *style and width*. A widget can carry a border colour and
     /// no border style, or the reverse; Table 189 and Table 166 are different
     /// dictionaries and a caller that conflates them will draw the wrong box.
@@ -564,7 +564,7 @@ pub struct Widget {
     /// Table 192), **as the file states it**. `None` when the file is silent
     /// (`Pass 177.0`).
     ///
-    /// # ★ COUNTERCLOCKWISE — and the page's `/Rotate` is CLOCKWISE
+    /// # COUNTERCLOCKWISE — and the page's `/Rotate` is CLOCKWISE
     ///
     /// The two entries are otherwise word-for-word parallel — *"the number of
     /// degrees by which … shall be rotated … The value shall be a multiple of
@@ -610,7 +610,7 @@ pub struct Widget {
     /// widget's border **as the file states it**, or `None` when the file
     /// states none (`Pass 146.0`).
     ///
-    /// # ★ `None` means the FILE IS SILENT, and it is not `BorderSpec::default()`
+    /// # `None` means the FILE IS SILENT, and it is not `BorderSpec::default()`
     ///
     /// This is the whole reason the field is an `Option` and the single most
     /// important thing about it. `BorderSpec::default()` is *solid, one point*
@@ -962,7 +962,7 @@ impl XfaPresence {
 /// handles it (`FieldPath::Grouping`) — so the capability existed while the
 /// name of the thing to address was unreachable from a reader.
 ///
-/// # ★ Why a shell must NOT derive this by splitting a terminal's FQN
+/// # Why a shell must NOT derive this by splitting a terminal's FQN
 ///
 /// It is tempting: `Personal.Address.Zip` looks like it yields `Personal`
 /// and `Personal.Address` for free. It does not, and the failure is silent.
@@ -1479,7 +1479,7 @@ fn walk_field<G: ObjectGraph + ?Sized>(
     // presence and no type of its own (Table 220), so it contributes nothing
     // to a projection of terminal fields. Stop here.
     if !child_fields.is_empty() && widget_kids.is_empty() {
-        // ★ Recorded on the way past. Everything needed is in hand here and
+        // Recorded on the way past. Everything needed is in hand here and
         // nowhere else: `this_fqn` is the joined, decoded path and
         // `partial_name` is the node's own `/T` read from the object. A
         // caller that wanted these later would have to rebuild them by
@@ -2009,7 +2009,7 @@ fn string_bytes(obj: &Object) -> Option<Vec<u8>> {
 /// `/SubmitForm`, or `/ImportData` (network) or `/Launch` (process); pdfcer
 /// recognizes and counts them but has **no JS/action dispatcher** to run them.
 ///
-/// # ★★★ IT USED TO SCAN `/AA` ONLY, AND THAT MADE IT LIE
+/// # IT USED TO SCAN `/AA` ONLY, AND THAT MADE IT LIE
 ///
 /// Until `Pass 133.0` every field on this struct was documented as counting
 /// *"`/AA` actions"*, and the scan behind it walked the field tree's `/AA`
@@ -2035,7 +2035,7 @@ fn string_bytes(obj: &Object) -> Option<Vec<u8>> {
 /// | page `/AA` | §12.6.3 Table 195 | `/O` and `/C` — an action that fires on page open |
 /// | outline item `/A` | §12.3.3 Table 153 | a bookmark that launches or submits |
 ///
-/// ★ **And `/Next` chaining, which is the one that makes a naive scan
+/// **And `/Next` chaining, which is the one that makes a naive scan
 /// unsafe.** §12.6.1: an action dictionary may carry `/Next`, one action or
 /// an array of them, performed after it — and those may chain further. A
 /// document can therefore put a benign `/S /GoTo` where a scanner looks and
@@ -2081,7 +2081,7 @@ pub struct FormJavaScript {
     /// Actions reached only by following an action's **`/Next`** chain
     /// (§12.6.1) — actions that do not appear on any carrier directly.
     ///
-    /// ★ **A non-zero value here is the interesting case**, and it is why the
+    /// **A non-zero value here is the interesting case**, and it is why the
     /// counter exists rather than the chain being silently folded into the
     /// totals: it means the document performs something that is not visible
     /// at any of the places a reader (human or otherwise) would look. That is
@@ -2102,7 +2102,7 @@ pub struct FormJavaScript {
     /// Whether the scan hit its own traversal ceiling and therefore may have
     /// stopped early.
     ///
-    /// ★ **This is the honesty bit, and it is the one a caller must not
+    /// **This is the honesty bit, and it is the one a caller must not
     /// ignore.** Every other field here is a count, and a count of zero from
     /// a truncated scan means *"nothing found so far"*, not *"nothing is
     /// there" —* which for a security-shaped disclosure is the difference
@@ -2225,7 +2225,7 @@ pub fn scan_javascript<G: ObjectGraph + ?Sized>(graph: &G) -> FormJavaScript {
     // /Names /JavaScript document-level name tree.
     js.doc_level_scripts = count_name_tree_scripts(graph, &catalog);
 
-    // ★ EVERY PAGE'S ANNOTATIONS AND ITS OWN /AA.
+    // EVERY PAGE'S ANNOTATIONS AND ITS OWN /AA.
     //
     // Walked from the PAGE TREE rather than from `/AcroForm /Fields`, and
     // that is the whole repair. The field tree reaches only widgets that are
@@ -2257,13 +2257,13 @@ pub fn scan_javascript<G: ObjectGraph + ?Sized>(graph: &G) -> FormJavaScript {
                     classify_action(graph, action, &mut js);
                 }
             }
-            // ★ SUB-PAGE NAVIGATION NODES (§12.4.4.2, PDF 1.5), reached from
+            // SUB-PAGE NAVIGATION NODES (§12.4.4.2, PDF 1.5), reached from
             // the page's `/PresSteps`. Table 163: `/NA` and `/PA` are each
             // *"an action (WHICH MAY BE THE FIRST IN A SEQUENCE OF ACTIONS)
             // that shall be executed when a user navigates forward /
             // backward"*.
             //
-            // ★★ AND A NODE'S `/Dur` FIRES THEM WITH NO USER INPUT — this is
+            // AND A NODE'S `/Dur` FIRES THEM WITH NO USER INPUT — this is
             // the only carrier in the standard that runs on a TIMER. A
             // document can therefore reach the network without the operator
             // clicking anything and without turning a page.
@@ -2292,7 +2292,7 @@ pub fn scan_javascript<G: ObjectGraph + ?Sized>(graph: &G) -> FormJavaScript {
                     .and_then(Object::as_name)
                     .map(|n| n.as_bytes().to_vec())
                     .unwrap_or_default();
-                // ★ THE TYPE TRAP. On a `/Movie` annotation (Table 186) `/A`
+                // THE TYPE TRAP. On a `/Movie` annotation (Table 186) `/A`
                 // is *"a BOOLEAN OR DICTIONARY specifying whether and how to
                 // play the movie"* — a movie ACTIVATION dictionary, not an
                 // action dictionary, and `/A true` is a legal value. Every
@@ -2317,7 +2317,7 @@ pub fn scan_javascript<G: ObjectGraph + ?Sized>(graph: &G) -> FormJavaScript {
                     js.annotation_actions += 1;
                     classify_action(graph, action, &mut js);
                 }
-                // ★ `/PA` ON A LINK — a live URI action parked under a key
+                // `/PA` ON A LINK — a live URI action parked under a key
                 // nobody looks for. Table 173: *"A URI action FORMERLY
                 // associated with this annotation. When Web Capture changes
                 // an annotation from a URI to a go-to action, it uses this
@@ -2352,7 +2352,7 @@ pub fn scan_javascript<G: ObjectGraph + ?Sized>(graph: &G) -> FormJavaScript {
         }
     }
 
-    // ★ THE OUTLINE TREE. Table 153 makes `/A` and `/Dest` mutually
+    // THE OUTLINE TREE. Table 153 makes `/A` and `/Dest` mutually
     // exclusive, so an outline item with an `/A` is by construction NOT a
     // plain navigation bookmark — it is a bookmark that does something else,
     // and "something else" includes `/Launch`.
@@ -2407,7 +2407,7 @@ fn scan_nav_node_actions<G: ObjectGraph + ?Sized>(
             classify_action(graph, action, js);
         }
     }
-    // ★ THE TRAVERSAL HAZARD, named because the key is the same word in two
+    // THE TRAVERSAL HAZARD, named because the key is the same word in two
     // unrelated dictionaries and the wrong reading is silent.
     //
     // A navigation node's `/Next` is **the next NAVIGATION NODE**. An
@@ -2548,7 +2548,7 @@ pub struct DeferredTargetList {
 /// leaves it alone — so one function both counts (always answer `None`, and
 /// tally) and repairs (answer with the new name).
 ///
-/// # ★ Why this walks OBJECTS where [`scan_javascript`] walks CARRIERS
+/// # Why this walks OBJECTS where [`scan_javascript`] walks CARRIERS
 ///
 /// `scan_javascript` walks the seventeen places the standard says an action
 /// can be reached from, because its question is *"what would a reader
@@ -2794,7 +2794,7 @@ fn classify_action_chain<G: ObjectGraph + ?Sized>(
     // `/Next` is one action or an ARRAY of them (§12.6.1), and both spellings
     // are ordinary.
     //
-    // ★★ THE RAW VALUE IS PASSED DOWN, NEVER THE RESOLVED ONE, AND THAT IS
+    // THE RAW VALUE IS PASSED DOWN, NEVER THE RESOLVED ONE, AND THAT IS
     // THE WHOLE CYCLE GUARD.
     //
     // The first cut here did `dict.get(b"Next").map(|o| graph.resolve(o))`
@@ -2853,7 +2853,7 @@ fn classify_action<G: ObjectGraph + ?Sized>(graph: &G, action: &Object, js: &mut
 /// Split from the chain walk so that the hazard vocabulary lives in exactly
 /// one place: every carrier, and every link of every chain, is classified by
 /// this function and no other.
-/// ★ THE REACH TABLE, and it is DERIVED, not quoted.
+/// THE REACH TABLE, and it is DERIVED, not quoted.
 ///
 /// ISO 32000-1 Table 198 (2.0 Table 201) defines the action types and says
 /// what each one *does*; **it does not classify them by what they reach**.
@@ -2910,14 +2910,14 @@ fn classify_action_hazard_dict<G: ObjectGraph + ?Sized>(
         b"Launch" => js.launch_action_count += 1,
         _ => {}
     }
-    // ★ A SCRIPT ON AN ACTION WHOSE TYPE IS NOT `JavaScript`.
+    // A SCRIPT ON AN ACTION WHOSE TYPE IS NOT `JavaScript`.
     //
     // The rendition action's `/JS` (Table 214) is *"a text string or stream
     // containing a JavaScript script that shall be executed when the action
     // is triggered"*. A scan keyed on `/S /JavaScript` alone misses it —
     // which is the same shape as keying on `/AA` alone, one level down, and
     // is why this is checked on every action rather than on that one type.
-    // ★ COUNTED ONCE, not once per spelling. An `/S /JavaScript` action
+    // COUNTED ONCE, not once per spelling. An `/S /JavaScript` action
     // always carries `/JS`, so testing the two separately double-counted the
     // ordinary case — found by writing the second test rather than by
     // reading the first.
@@ -2925,7 +2925,7 @@ fn classify_action_hazard_dict<G: ObjectGraph + ?Sized>(
     let is_script = s.as_bytes() == b"JavaScript" || script.is_some();
     if is_script {
         js.javascript_actions += 1;
-        // ★ AND A SCRIPT WHOSE BODY IS ELSEWHERE REACHES THE NETWORK, even
+        // AND A SCRIPT WHOSE BODY IS ELSEWHERE REACHES THE NETWORK, even
         // though its `/S` says only `JavaScript`. See below.
         if script_body_is_external(graph, script) {
             js.network_action_count += 1;
@@ -3182,7 +3182,7 @@ mod tests {
 
     #[test]
     fn a_widget_with_no_border_key_reads_none_not_a_default() {
-        // ★ THE LOAD-BEARING ONE. `BorderSpec::default()` is solid/1pt, which
+        // THE LOAD-BEARING ONE. `BorderSpec::default()` is solid/1pt, which
         // is correct for the WRITER (it reproduces the bytes pdfcer has always
         // authored) and a lie from a READER. `None` here is a fact to display,
         // never a value to substitute.
@@ -3825,7 +3825,7 @@ mod tests {
     // -----------------------------------------------------------------
     // `Pass 133.0` — the action scan, and every carrier it used to miss.
     //
-    // ★ ONE TEST PER CARRIER, DELIBERATELY, rather than one fixture
+    // ONE TEST PER CARRIER, DELIBERATELY, rather than one fixture
     // exercising all of them. A single omnibus fixture proves the totals
     // add up and cannot say WHICH branch produced them — so a repair that
     // fixed one carrier and broke another would still pass it. These are
@@ -3872,7 +3872,7 @@ mod tests {
         assert!(js.reaches_outside());
     }
 
-    /// ★ The chain. §12.6.2 NOTE 1 makes `/Next` recursive and a TREE, so a
+    /// The chain. §12.6.2 NOTE 1 makes `/Next` recursive and a TREE, so a
     /// benign `/GoTo` can front a `/SubmitForm` — and a scanner that stops
     /// at the head reports the document clean. This is the case that makes
     /// a per-carrier scan unsafe rather than merely incomplete.
@@ -4041,7 +4041,7 @@ mod tests {
         );
     }
 
-    /// ★ A link's `/PA` — Table 173's *"URI action FORMERLY associated with
+    /// A link's `/PA` — Table 173's *"URI action FORMERLY associated with
     /// this annotation"*. "Formerly" describes its provenance, not its
     /// potency: it is a complete, live URI action under a key that ISO
     /// 32000-2's own enumeration of action carriers does not name.
@@ -4072,7 +4072,7 @@ mod tests {
         );
     }
 
-    /// ★★ A navigation node's `/NA` (Table 163, via the page's
+    /// A navigation node's `/NA` (Table 163, via the page's
     /// `/PresSteps`) — the ONLY carrier in the standard that can fire on a
     /// TIMER, through the node's `/Dur`, with no user input and no page
     /// turn.
@@ -4103,7 +4103,7 @@ mod tests {
         );
     }
 
-    /// ★ THE TYPE TRAP. On a `/Movie` annotation `/A` is *"a BOOLEAN or
+    /// THE TYPE TRAP. On a `/Movie` annotation `/A` is *"a BOOLEAN or
     /// dictionary specifying whether and how to play the movie"* — a movie
     /// ACTIVATION dictionary, not an action. `/A true` is legal.
     #[test]
@@ -4232,7 +4232,7 @@ mod tests {
         }
     }
 
-    /// ★ A script whose BODY IS NOT IN THE FILE. `/JS` is *"a text string or
+    /// A script whose BODY IS NOT IN THE FILE. `/JS` is *"a text string or
     /// stream"*, and Table 5 puts `/F` on any stream — so a document can
     /// carry a JavaScript action whose script is a URL and whose body is
     /// empty. The action's `/S` says only `JavaScript`; the reach is in how
@@ -4288,7 +4288,7 @@ mod tests {
         assert_eq!(js.network_action_count, 0);
     }
 
-    /// ★ THE TRAVERSAL HAZARD. `/Next` means *the next navigation node* in a
+    /// THE TRAVERSAL HAZARD. `/Next` means *the next navigation node* in a
     /// nav node and *the next action* in an action, `/Type` is optional on
     /// both, and the discriminator is the Required `/S`. A file that hangs an
     /// ACTION off a node's `/Next` must still have it classified.

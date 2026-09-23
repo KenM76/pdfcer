@@ -896,7 +896,7 @@ fn a_node_is_not_its_own_descendant() {
     );
 }
 
-/// **★ A name that merely SHARES A PREFIX is not a descendant.**
+/// **A name that merely SHARES A PREFIX is not a descendant.**
 ///
 /// The assertion the separator exists for, and the one a correct-looking
 /// `starts_with(fqn)` fails. `Address.` matches `Address.City`; a bare

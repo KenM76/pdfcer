@@ -1,6 +1,6 @@
 //! # `unshare_form` — giving one page a private copy of a shared form XObject
 //!
-//! # ★★★ WHY THIS TEST FILE EXISTS AT ALL
+//! # WHY THIS TEST FILE EXISTS AT ALL
 //!
 //! `ARCHITECTURE.md` §12 decision 076 ruled that editing content inside a
 //! shared form XObject is **edit-in-place, disclosed**, and argued its `R206`
@@ -36,7 +36,7 @@
 //! | a nested invocation is refused **by name**, not silently mishandled | `a_form_reached_only_through_another_form_is_refused` |
 //! | a form that is not on the page is a different refusal | `a_form_that_is_not_on_the_page_is_refused_differently` |
 //!
-//! ## ★★ The inheritance test is the one that would fail a naive implementation
+//! ## The inheritance test is the one that would fail a naive implementation
 //!
 //! A page with no `/Resources` of its own uses an ancestor's (§7.7.3.4). Re-
 //! pointing the `/XObject` name *in place* there would re-point it for **every
@@ -85,7 +85,7 @@ fn fm0_of(session: &EditSession, page_index: usize) -> ObjId {
         .expect("/Fm0 is an indirect reference")
 }
 
-/// ★ THE ACCEPTANCE CRITERION. One page moves; the other does not.
+/// THE ACCEPTANCE CRITERION. One page moves; the other does not.
 #[test]
 fn unsharing_re_points_only_the_named_page() {
     let mut s = session("shared-across-two-pages.pdf");
@@ -120,7 +120,7 @@ fn unsharing_re_points_only_the_named_page() {
     );
 }
 
-/// ★★ An INHERITED `/Resources` is privatised before the re-point.
+/// An INHERITED `/Resources` is privatised before the re-point.
 ///
 /// Neither page in this fixture carries `/Resources`; the `Pages` node does.
 /// Re-pointing the name in place would re-point it for both pages — a "private"
@@ -178,7 +178,7 @@ fn undo_restores_the_sharing() {
     );
 }
 
-/// ★★ A form reached only from INSIDE another form is refused, by name.
+/// A form reached only from INSIDE another form is refused, by name.
 ///
 /// Re-binding a nested invocation means editing the **parent** form, which may
 /// itself be shared — so the blast radius would depend on the document's

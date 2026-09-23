@@ -318,7 +318,7 @@ mod tests {
         assert_eq!(inv.reproducible().count(), 1);
     }
 
-    /// ★ **A `/JS` carried as a STREAM is classified, not silently missed.**
+    /// **A `/JS` carried as a STREAM is classified, not silently missed.**
     ///
     /// The dangerous direction of this error is understating: a form whose
     /// scripts all live in streams would otherwise be reported script-free,

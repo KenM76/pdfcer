@@ -11,7 +11,7 @@
 //! 273.0`, editing a note left the two **disagreeing**: `/Contents` held the
 //! new words and `/RC` still held the old ones.
 //!
-//! ★★ **That is worse than the losses fixed alongside it.** Those lost
+//! **That is worse than the losses fixed alongside it.** Those lost
 //! content; this produces **wrong** content, stated confidently, and *which*
 //! an operator sees depends on their reader:
 //!
@@ -34,7 +34,7 @@
 //! Table 170 has no `/DS` row at all. Touching one elsewhere would assert a
 //! key the standard does not define for that subtype.
 //!
-//! ★ The forms side already did exactly this — replacing a rich `/RV` with a
+//! The forms side already did exactly this — replacing a rich `/RV` with a
 //! plain `/V` removes `/RV` **and** `/DS`, with the reasoning written at that
 //! site. The guard existed for fields and not for annotations, which is the
 //! shape `R245` names.
@@ -73,7 +73,7 @@ fn has_key(s: &EditSession, id: ObjId, key: &[u8]) -> bool {
     d.get(key).is_some()
 }
 
-/// ★ The fixtures say what these tests think they say.
+/// The fixtures say what these tests think they say.
 ///
 /// Without this, every assertion below is unfalsifiable: "the stale key is
 /// gone" passes trivially against a fixture that never had one.
@@ -95,7 +95,7 @@ fn the_fixtures_start_with_rich_text() {
     );
 }
 
-/// ★★★ Editing the note drops the stale rich text, and says so.
+/// Editing the note drops the stale rich text, and says so.
 #[test]
 fn editing_a_note_drops_the_stale_rich_text() {
     let (mut s, id) = session("annot/rich-text-square.pdf");
@@ -116,7 +116,7 @@ fn editing_a_note_drops_the_stale_rich_text() {
     );
 }
 
-/// ★★★ On a `/FreeText`, `/DS` goes with it — and that subtype is the one
+/// On a `/FreeText`, `/DS` goes with it — and that subtype is the one
 /// where a stale `/RC` can reach the printed page.
 #[test]
 fn a_free_text_drops_the_default_style_string_too() {
@@ -137,7 +137,7 @@ fn a_free_text_drops_the_default_style_string_too() {
     );
 }
 
-/// ★★ A `/Square` must NOT gain a `/DS` removal it never had.
+/// A `/Square` must NOT gain a `/DS` removal it never had.
 ///
 /// The mirror of the test above, and the half that a one-directional test
 /// would miss: an implementation that removed `/DS` unconditionally would
@@ -156,7 +156,7 @@ fn a_square_never_reports_dropping_a_key_it_had_no_business_having() {
     );
 }
 
-/// ★★★ A stray `/DS` on a `/Square` is LEFT ALONE — it is not pdfcer's key.
+/// A stray `/DS` on a `/Square` is LEFT ALONE — it is not pdfcer's key.
 ///
 /// Real producers emit keys the standard does not define for a subtype.
 /// Table 170 has no `/DS` row and §12.7.3.4 NOTE 1 says this subtype does not

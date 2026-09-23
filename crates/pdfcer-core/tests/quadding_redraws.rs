@@ -15,7 +15,7 @@
 //! re-deriving alignment at view time. So writing the key alone changes a
 //! number and no pixels.
 //!
-//! ## ★ Why every existing test missed it, which is the reusable part
+//! ## Why every existing test missed it, which is the reusable part
 //!
 //! The capability was built and tested. `vartext`'s own
 //! `quadding_places_lines_by_afm_width` drives all three arms **through the
@@ -27,7 +27,7 @@
 //! ⇒ *A property tested at both ends is not a property tested end to end.*
 //! These tests drive `edit_field` and read the **stream**.
 //!
-//! ## ★★ And a relative assertion could not see the subtler half either
+//! ## And a relative assertion could not see the subtler half either
 //!
 //! `the_redraw_uses_the_quadding_being_written_not_the_snapshots` was first
 //! written as *"the second edit sits further right than the first"*. It
@@ -41,7 +41,7 @@
 //! and a known box — assert the number. The sabotage run is what found this;
 //! the test had looked entirely reasonable.
 //!
-//! ## ★★ The half a one-line fix gets wrong, twice over
+//! ## The half a one-line fix gets wrong, twice over
 //!
 //! Adding `|| edit.quadding.is_some()` to the gate is not sufficient, and the
 //! failure mode is that it looks fixed. `regen_field_appearance` reads
@@ -50,7 +50,7 @@
 //! carried the new one — a rebuild that changes no pixels and reports
 //! `appearance_regenerated: true` while doing it. The requester found that;
 //! it is the third instance of the pattern `/Rect` (`Pass 187.0`) and `/DA`
-//! already carry ★ comments about.
+//! already carry comments about.
 //!
 //! The second trap is one nobody flagged: **`/Q` is inheritable**
 //! (§12.7.3.2, resolved own → ancestors → `/AcroForm` → 0), so CLEARING it
@@ -264,7 +264,7 @@ fn offsets_for_each_quadding() -> [f64; 3] {
 
 #[test]
 fn the_redraw_uses_the_quadding_being_written_not_the_snapshots() {
-    // ★ THE TRAP THE ONE-LINE FIX FALLS INTO. `regen_field_appearance` reads
+    // THE TRAP THE ONE-LINE FIX FALLS INTO. `regen_field_appearance` reads
     // `field.quadding` from a snapshot taken before this command staged its
     // writes. Gating on `edit.quadding` without repairing that snapshot
     // re-bakes the OLD justification and reports success — a rebuild that
@@ -288,7 +288,7 @@ fn the_redraw_uses_the_quadding_being_written_not_the_snapshots() {
 
 #[test]
 fn the_three_offsets_satisfy_the_geometry_and_not_merely_the_order() {
-    // ★★ WIDTH-FREE AND STILL ABSOLUTE, which is the trick worth keeping.
+    // WIDTH-FREE AND STILL ABSOLUTE, which is the trick worth keeping.
     //
     // For a string of width `w` in a box of width `W`, the generator places
     // left at `PAD`, right at `W - PAD - w`, centre at `(W - w)/2`. Subtract
@@ -321,7 +321,7 @@ fn the_three_offsets_satisfy_the_geometry_and_not_merely_the_order() {
 }
 
 // -------------------------------------------------------------------------
-// ★ Clearing means INHERIT, which is not the same as left
+// Clearing means INHERIT, which is not the same as left
 // -------------------------------------------------------------------------
 
 #[test]
@@ -346,7 +346,7 @@ fn clearing_the_quadding_with_nothing_above_it_gives_left() {
 
 #[test]
 fn inheriting_a_parents_quadding_is_not_left() {
-    // ★★ THE SECOND TRAP, AND NOBODY FLAGGED IT. `/Q` is inheritable
+    // THE SECOND TRAP, AND NOBODY FLAGGED IT. `/Q` is inheritable
     // (§12.7.3.2). A field under a parent carrying `/Q 2` that CLEARS its own
     // `/Q` must come back RIGHT-justified. Resolving a removal to
     // `Quadding::default()` would left-align it — the same "dictionary says

@@ -419,7 +419,7 @@ fn a_pdfcer_authored_appearance_is_rebuilt() {
     assert_eq!(out.appearance, ResizedAppearance::Rebuilt);
 }
 
-/// ★ The test that stops the verb from quietly replacing another producer's
+/// The test that stops the verb from quietly replacing another producer's
 /// artwork. The gate is a BYTE comparison against a rebuild of the unmodified
 /// spec — not `spec_from_dict(..).is_ok()`, which succeeds for an
 /// Acrobat-drawn square too and would have made this whole refusal
@@ -449,7 +449,7 @@ fn a_foreign_appearance_is_not_redrawn_and_the_refusal_says_why() {
     }
 }
 
-/// ★★ And the case that must NOT refuse, which is the whole reason the gate is
+/// And the case that must NOT refuse, which is the whole reason the gate is
 /// three branches rather than two. A uniform scale with `scale_stroke_width`
 /// on is satisfied **exactly** by §12.5.5's matrix — it scales the drawn
 /// stroke by precisely the requested factor. Refusing here would refuse a

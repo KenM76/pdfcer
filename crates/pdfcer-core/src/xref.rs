@@ -580,7 +580,7 @@ pub fn load_xref_chain(buf: &[u8]) -> Result<LoadedXref, XrefError> {
             visited.push(stm_offset);
             match parse_xref_stream_section(buf, stm_offset, table.entries.len()) {
                 Ok(hidden) => {
-                    // ★ WHICH numbers this stream ESTABLISHED, not which it
+                    // WHICH numbers this stream ESTABLISHED, not which it
                     // mentioned. `merge_first_wins` is first-wins, so a number
                     // a newer classic table already defined is not hidden even
                     // though the stream names it — and the writer needs the

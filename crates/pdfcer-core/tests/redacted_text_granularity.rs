@@ -17,7 +17,7 @@
 //! in it"*. **The proof was not finding leaked text; it was finding the
 //! alphabet.**
 //!
-//! # ★★ Three consumers, and why joining is safe for all of them
+//! # Three consumers, and why joining is safe for all of them
 //!
 //! `redacted_text` is not read by one caller:
 //!
@@ -47,7 +47,7 @@ use pdfcer_core::edit::EditSession;
 /// A one-page PDF that draws `3.5 TYP` **one glyph per `Tj`**, the way GPL
 /// Ghostscript 8.15 does.
 ///
-/// ★ The fixture is the finding. A file that draws the run in a single `Tj`
+/// The fixture is the finding. A file that draws the run in a single `Tj`
 /// cannot distinguish the old behaviour from the new one — both report
 /// `["3.5 TYP"]` — so a test written on an ordinary producer would have been
 /// green before this Pass and green after it, measuring nothing.
@@ -127,7 +127,7 @@ fn redact_whole_run() -> pdfcer_core::redact::RedactionReport {
     session.apply_redactions().expect("apply")
 }
 
-/// ★★★ THE DEFECT: one entry, carrying the words, not seven carrying letters.
+/// THE DEFECT: one entry, carrying the words, not seven carrying letters.
 #[test]
 fn a_per_glyph_producer_yields_one_entry_per_mark() {
     let report = redact_whole_run();
@@ -144,7 +144,7 @@ fn a_per_glyph_producer_yields_one_entry_per_mark() {
     );
 }
 
-/// ★★ THE CONSEQUENCE THAT MOTIVATED THE REPORT: the entry is long enough to
+/// THE CONSEQUENCE THAT MOTIVATED THE REPORT: the entry is long enough to
 /// verify against.
 ///
 /// The consuming shell's proof, and pdfcer's own `redaction_evidence`, both
@@ -164,7 +164,7 @@ fn the_entry_clears_the_four_character_verification_floor() {
     );
 }
 
-/// ★ THE CONTROL: the glyphs really were removed.
+/// THE CONTROL: the glyphs really were removed.
 ///
 /// Without it, an implementation that reported a tidy joined string while
 /// removing nothing — or removing the wrong glyphs — would satisfy both
@@ -202,7 +202,7 @@ fn the_joined_entry_describes_a_removal_that_actually_happened() {
     );
 }
 
-/// ★★ TWO marks produce TWO entries, each with its own words.
+/// TWO marks produce TWO entries, each with its own words.
 ///
 /// This is what makes the grouping *per mark* rather than *per page*. A
 /// single-mark fixture cannot tell the two apart: joining everything on the

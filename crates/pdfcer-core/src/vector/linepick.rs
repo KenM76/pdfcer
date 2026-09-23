@@ -48,7 +48,7 @@ use super::hit::{HitTarget, hit_test_subpaths_of};
 pub struct PickedLine {
     /// **Which list, and which entry in it**, the picked line came from.
     ///
-    /// # ★★★ THIS WAS A BARE `object_index: usize` AND THAT WAS THE BUG
+    /// # THIS WAS A BARE `object_index: usize` AND THAT WAS THE BUG
     ///
     /// A `usize` can only name an entry in [`PageObjects::objects`], so the
     /// type itself made it impossible to answer a question about a line drawn
@@ -307,7 +307,7 @@ pub fn pick_line(
 /// [`pick_line`] against a path this caller already has in hand, told which
 /// list it came from.
 ///
-/// # ★ Why the caller supplies `target` rather than this deriving it
+/// # Why the caller supplies `target` rather than this deriving it
 ///
 /// Because it cannot be derived. A [`PathObject`] carries no record of which
 /// list holds it — a page object and a form leaf are the *same type*, and
@@ -403,7 +403,7 @@ pub fn pick_line_of(
 /// Returns `None` when nothing straight is within `tolerance`, including when
 /// the nearest thing is a curve ([`pick_line`] skips those deliberately).
 ///
-/// # ★★★ FORM CONTENTS ARE SEARCHED, AND THEY DID NOT USED TO BE
+/// # FORM CONTENTS ARE SEARCHED, AND THEY DID NOT USED TO BE
 ///
 /// Both [`PageObjects::objects`] and [`PageObjects::leaves`] are offered, so
 /// a line drawn inside a form XObject is pickable. The result's
@@ -420,7 +420,7 @@ pub fn pick_line_of(
 /// | a CAD drawing | 129,758 | 1 | **10,256** |
 /// | a flat export | 5,903 | 0 | 0 |
 ///
-/// ★ **This was never a regression** — it was true from the day the tool
+/// **This was never a regression** — it was true from the day the tool
 /// shipped, and it was *invisible* because selection was equally blind, so
 /// an operator met the page-sized form long before they met the measure
 /// tool. Fixing the click in `Pass 136.0` is what made this the next wall,
@@ -456,7 +456,7 @@ pub fn pick_line_in_page(model: &PageObjects, point: Point, tolerance: f64) -> O
     };
 
     for (index, obj) in model.objects.iter().enumerate() {
-        // ★ A form is skipped here for free rather than by a rule: only a
+        // A form is skipped here for free rather than by a rule: only a
         // `Path` reaches `pick_line_of` at all, and a form is an `Image`. The
         // exclusion `hit_test_point_deep` has to state explicitly is
         // structural in this function, which is why there is no `FormMarquee`
@@ -683,7 +683,7 @@ mod tests {
         }
     }
 
-    /// ★ The behaviour the whole pick model exists for.
+    /// The behaviour the whole pick model exists for.
     ///
     /// Two lines crossing at the origin bound four angles. Clicking the two
     /// arms that form the 60-degree wedge must give 60; clicking one arm and
@@ -824,7 +824,7 @@ mod page_pick_tests {
         );
     }
 
-    /// ★ The nearest line wins even when a farther object is drawn first —
+    /// The nearest line wins even when a farther object is drawn first —
     /// the failure this guards is a pick that resolves by content-stream order
     /// and therefore looks random to the operator.
     #[test]
@@ -848,7 +848,7 @@ mod page_pick_tests {
         assert!(pick_line_in_page(&m, Point { x: 100.0, y: 400.0 }, 5.0).is_none());
     }
 
-    /// ★ A curve is not a line, and clicking one picks nothing rather than its
+    /// A curve is not a line, and clicking one picks nothing rather than its
     /// chord. Dimensioning "the line" of a Bézier would measure something the
     /// drawing does not contain.
     #[test]
@@ -874,7 +874,7 @@ mod page_pick_tests {
         assert!((top.start.y - 150.0).abs() < 1e-9 && (top.end.y - 150.0).abs() < 1e-9);
     }
 
-    /// ★ End-to-end: two edges of one rectangle, picked by clicking, classify
+    /// End-to-end: two edges of one rectangle, picked by clicking, classify
     /// the way the operator expects — the opposite edges are parallel and the
     /// adjacent ones meet at a right angle. This is the whole feature in
     /// miniature, driven only by click coordinates.
@@ -927,7 +927,7 @@ mod override_tests {
         }
     }
 
-    /// ★ The operator's checkbox beats the measurement, by a wide margin.
+    /// The operator's checkbox beats the measurement, by a wide margin.
     ///
     /// Two lines 30 degrees apart are unambiguously angled by every automatic
     /// reading. Ticking "treat as parallel" must still produce a parallel

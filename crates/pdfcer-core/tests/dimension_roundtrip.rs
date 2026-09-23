@@ -1184,7 +1184,7 @@ fn setting_the_display_of_a_linear_ce_dimension_is_refused_by_name() {
     );
 }
 
-/// ★★ The label BAKED INTO THE PAGE for an angular ce dimension reads in
+/// The label BAKED INTO THE PAGE for an angular ce dimension reads in
 /// DEGREES, not points (`Pass 68.0`).
 ///
 /// `DimensionModel::display` had the angular branch; `author_dimension` did
@@ -1222,7 +1222,7 @@ fn an_angular_ce_dimensions_baked_label_is_in_degrees_not_points() {
     );
 }
 
-/// ★★ The degree sign is written as ONE `WinAnsi` byte in the appearance
+/// The degree sign is written as ONE `WinAnsi` byte in the appearance
 /// stream, not as two UTF-8 bytes (`Pass 68.0`).
 ///
 /// The label font is declared `/WinAnsiEncoding`, and the baker wrote
@@ -1268,7 +1268,7 @@ fn the_degree_sign_is_one_winansi_byte_in_the_appearance_stream() {
     );
 }
 
-/// ★ The pane and the page agree, by construction rather than by care.
+/// The pane and the page agree, by construction rather than by care.
 ///
 /// The two used to be computed separately. This pins that the model's own
 /// displayed value is exactly the string baked into the annotation — if a
@@ -1298,7 +1298,7 @@ fn the_displayed_value_and_the_baked_label_are_the_same_string() {
     );
 }
 
-/// ★ An ANGULAR ce dimension is placeable (`Pass 68.0`).
+/// An ANGULAR ce dimension is placeable (`Pass 68.0`).
 ///
 /// It was refused until this Pass — not by decision, but because
 /// `place_dimension`'s guard asked "is this `Linear`" back when the only other
@@ -1343,7 +1343,7 @@ fn placing_an_angular_ce_dimension_moves_its_arc_not_its_value() {
     );
 }
 
-/// ★ Dragging an arc inward past its own vertex clamps rather than collapsing
+/// Dragging an arc inward past its own vertex clamps rather than collapsing
 /// it. A zero-radius arc sits on the apex, unreadable and with no handle left
 /// to drag it back out — the mark would be present and unrecoverable.
 #[test]
@@ -1564,7 +1564,7 @@ fn reassigning_to_an_unknown_group_is_refused_and_changes_nothing() {
     );
 }
 
-/// ★ Moving a dimension between groups RE-MEASURES it.
+/// Moving a dimension between groups RE-MEASURES it.
 ///
 /// # The assertion that makes this verb more than a field write
 ///
@@ -1573,7 +1573,7 @@ fn reassigning_to_an_unknown_group_is_refused_and_changes_nothing() {
 /// deliberately different ones — 1:1 in millimetres, and 1 cm per point in
 /// metres — and the same geometry must therefore READ differently in each.
 ///
-/// ★★ The first version of this test asserted only that `d.group` changed
+/// The first version of this test asserted only that `d.group` changed
 /// and that undo put it back. **That passes against an implementation that
 /// does nothing but write the field**, which is precisely the wrong version
 /// of this verb — a dimension displaying a measurement its own group
@@ -1703,7 +1703,7 @@ fn read_sidecar(doc: &Document) -> Object {
     view.resolve(pdfcer.get(b"Private").unwrap()).clone()
 }
 
-/// ★ The headline clause: ONE number, the sum of every segment — and the
+/// The headline clause: ONE number, the sum of every segment — and the
 /// closing segment is the entire difference between the two readings.
 #[test]
 fn a_perimeter_sums_its_segments_and_closure_adds_exactly_one() {
@@ -1801,7 +1801,7 @@ fn a_perimeter_round_trips_through_the_sidecar() {
     }
 }
 
-/// ★ "edit the endpoints of the lines to adjust the shape" — and this verb is
+/// "edit the endpoints of the lines to adjust the shape" — and this verb is
 /// the first ce-dimension operation that deliberately RE-MEASURES. The
 /// before/after labels are the rule-4 disclosure, carried on the outcome
 /// because the shell cannot reconstruct the old value afterwards.
@@ -1948,7 +1948,7 @@ fn removing_a_vertex_refuses_below_the_minimum_for_the_shape() {
     );
 }
 
-/// ★ The preflight the shell asked for, and the property that makes it worth
+/// The preflight the shell asked for, and the property that makes it worth
 /// having: it answers the same question the verb would, WITHOUT mutating.
 /// A greyed menu item derived from a preview that could disagree with the
 /// verb is worse than no preview.
@@ -2012,7 +2012,7 @@ fn a_fit_derived_ce_dimension_has_no_vertices_to_edit() {
     assert!(matches!(err, EditError::DimensionHasNoVertices { .. }));
 }
 
-/// ★ The addition that was NOT requested: a linear ce dimension's two picked
+/// The addition that was NOT requested: a linear ce dimension's two picked
 /// points have been un-editable since `Pass 12.M2`, so a mis-picked end meant
 /// deleting and redrawing. Moving one re-measures; the axis constraint is a
 /// decision the operator already made and a drag does not revoke it.
@@ -2132,7 +2132,7 @@ fn placing_a_perimeter_moves_its_label_and_not_its_value() {
     assert!((anchor.y - (c.y + 30.0)).abs() < 1e-9, "offset is page +y");
 }
 
-/// ★ The label follows the shape rather than teleporting. This is the property
+/// The label follows the shape rather than teleporting. This is the property
 /// that decided the centroid convention over the CAD-conventional
 /// longest-segment one: under longest-segment, dragging a corner can change
 /// WHICH segment is longest and the label jumps across the shape for a reason
@@ -2185,7 +2185,7 @@ fn moving_a_whole_perimeter_preserves_its_value() {
     );
 }
 
-/// ★ The annotation half, against the standard rather than against a habit.
+/// The annotation half, against the standard rather than against a habit.
 ///
 /// ISO 32000-1 §12.5.6.9 Table 178: a closed shape is a `/Polygon`, an open one
 /// a `/PolyLine`, the geometry key is a FLAT `/Vertices` array of alternating
@@ -2222,7 +2222,7 @@ fn a_perimeter_authors_a_polygon_and_an_open_path_a_polyline() {
             "a polygon/polyline must not carry the /Line geometry key"
         );
         let verts = annot.get(b"Vertices").unwrap().as_array().unwrap();
-        // ★ FOUR vertices, not five. The closing segment of a `/Polygon` is
+        // FOUR vertices, not five. The closing segment of a `/Polygon` is
         // supplied by the READER; repeating the first vertex is undefined, and
         // the spec corpus names failing-to-close and over-closing as the two
         // real hazards. pdfcer closes the ring in its own measurement
@@ -2238,7 +2238,7 @@ fn a_perimeter_authors_a_polygon_and_an_open_path_a_polyline() {
     }
 }
 
-/// ★ `/Rect` must equal the `/AP` `/BBox`, and this is the single
+/// `/Rect` must equal the `/AP` `/BBox`, and this is the single
 /// highest-risk authoring bug for a ce dimension — it is invisible in an
 /// object dump.
 ///
@@ -2332,7 +2332,7 @@ fn a_vertex_edit_rewrites_the_vertices_and_preserves_foreign_keys() {
     );
 }
 
-/// ★ WIDENING THE WORLD PAST A REFUSAL IS THE SAME ACT AS REMOVING IT.
+/// WIDENING THE WORLD PAST A REFUSAL IS THE SAME ACT AS REMOVING IT.
 ///
 /// `set_markup_style` refuses a ce dimension by name, because regenerating one
 /// as plain markup drops its measured label and its witness lines silently.

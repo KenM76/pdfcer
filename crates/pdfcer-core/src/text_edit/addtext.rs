@@ -839,7 +839,7 @@ impl AddTextPrep {
     ) -> Dict {
         let mut new_page = self.page_dict.clone();
 
-        // ★ `page_tree::append_content_stream`, not a local helper. This used
+        // `page_tree::append_content_stream`, not a local helper. This used
         // to call `append_contents`, a SECOND implementation of the same
         // append that lived in this file -- and it was wrong the same way the
         // first one was: it matched on the RAW `/Contents` value and wrapped a
@@ -2062,7 +2062,7 @@ pub(crate) fn pick_font_name(existing: &Dict) -> Vec<u8> {
 /// produce different file bytes for the same request and only one is covered by
 /// unit tests.
 ///
-/// # ★★ Inheritance first, because getting it wrong breaks the page
+/// # Inheritance first, because getting it wrong breaks the page
 ///
 /// §7.8.3: a page's own `/Resources` **replaces** the one it would inherit from
 /// its `/Pages` ancestors — it does not merge. On a page with no `/Resources`
@@ -2077,7 +2077,7 @@ pub(crate) fn pick_font_name(existing: &Dict) -> Vec<u8> {
 /// from. Depth-guarded per `ARCHITECTURE.md` §10: `/Parent` in a damaged or
 /// hostile file can cycle.
 ///
-/// # ★★ Why a shared `/Resources` is PATCHED IN PLACE and not cloned
+/// # Why a shared `/Resources` is PATCHED IN PLACE and not cloned
 ///
 /// A page's `/Resources`, and the `/Font` sub-dictionary inside it, are very
 /// often indirect objects shared by every page a producer emitted. There are

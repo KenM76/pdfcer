@@ -354,7 +354,7 @@ fn dimension_groups_on_page_reports_only_that_pages_groups() {
     );
 }
 
-/// **★ THE DEFECT. An uncalibrated page must not inherit another page's
+/// **THE DEFECT. An uncalibrated page must not inherit another page's
 /// scale.**
 ///
 /// Document-wide, page 0 has exactly one calibrated group in the model —

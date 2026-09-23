@@ -342,7 +342,7 @@ fn reassigning_on_delete_moves_the_members_and_re_measures_them() {
     );
 }
 
-/// ★★ **The DEFAULT group cannot be deleted, and that refusal was missing
+/// **The DEFAULT group cannot be deleted, and that refusal was missing
 /// until this Pass.**
 ///
 /// # What this pins, and why it is the most important test in the file
@@ -571,7 +571,7 @@ fn re_parenting_into_an_unknown_group_is_refused() {
 // group-set-scale -- the unit named in --real-length
 // ---------------------------------------------------------------------------
 
-/// ★★ **A unit named in `--real-length` sets the GROUP'S unit, which is what
+/// **A unit named in `--real-length` sets the GROUP'S unit, which is what
 /// this command's own `--help` has always promised and what it did not do.**
 ///
 /// # The defect, measured on the release binary before the fix
@@ -684,7 +684,7 @@ fn a_unit_named_in_real_length_reaches_the_label_and_not_only_the_scale() {
 // layer-toggle -- two refusals it did not have (Pass 178.0)
 // ---------------------------------------------------------------------------
 
-/// ★★ **Hiding the DEFAULT group is refused, and an UNKNOWN group is refused
+/// **Hiding the DEFAULT group is refused, and an UNKNOWN group is refused
 /// — this verb reported success for both.**
 ///
 /// # What it did before, measured on the release binary
@@ -744,7 +744,7 @@ fn hiding_the_default_group_and_naming_an_unknown_one_are_both_refused() {
         );
     }
 
-    // ★ The contrast case, and it is what keeps the two above from being a
+    // The contrast case, and it is what keeps the two above from being a
     // verb that simply stopped working: a NON-default group still hides.
     let out = temp_out("layer-ok.pdf");
     let (code, stdout, err) = run(&[
@@ -784,7 +784,7 @@ fn hiding_the_default_group_and_naming_an_unknown_one_are_both_refused() {
     );
 }
 
-/// ★★ **Authoring into a group that does not exist is refused — it used to
+/// **Authoring into a group that does not exist is refused — it used to
 /// report the group it did NOT use.**
 ///
 /// # What it did before, measured on the release binary
@@ -841,7 +841,7 @@ fn authoring_into_an_unknown_group_is_refused_rather_than_silently_redirected() 
     assert!(!out.exists(), "a refusal writes no output file");
     assert_eq!(list(&src), before, "and the input document is untouched");
 
-    // ★ The contrast case: a REAL non-default group still works, and the ce
+    // The contrast case: a REAL non-default group still works, and the ce
     // dimension is measured at ITS scale. Without this the refusal above
     // would be indistinguishable from a verb that stopped accepting a
     // `--group` argument at all.
@@ -873,7 +873,7 @@ fn authoring_into_an_unknown_group_is_refused_rather_than_silently_redirected() 
     );
 }
 
-/// ★ **`group-set-scale` was the LAST group verb accepting an unknown id**,
+/// **`group-set-scale` was the LAST group verb accepting an unknown id**,
 /// and it was found by probing all eight rather than by reading them.
 ///
 /// # The sweep, and why it beat the reading

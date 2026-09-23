@@ -14,7 +14,7 @@
 //! the round trip would still "work", every test that only checked
 //! openability would still pass, and the feature's whole point would be gone.
 //!
-//! ★ `assert_eq!(report.modified.len(), 0)` on an untouched export is therefore
+//! `assert_eq!(report.modified.len(), 0)` on an untouched export is therefore
 //! not a smoke test. It is the feature.
 //!
 //! # Why an incremental save is asserted on, specifically
@@ -69,7 +69,7 @@ fn an_export_is_a_valid_pdf_with_the_same_objects() {
     );
 }
 
-/// ★ Object streams are EXPANDED, which is the readability win the feature is
+/// Object streams are EXPANDED, which is the readability win the feature is
 /// for: on a real file most interesting dictionaries are compressed inside
 /// `/ObjStm` containers where no text search can reach them.
 ///
@@ -134,7 +134,7 @@ fn an_export_decodes_streams_and_drops_the_filter() {
     );
 }
 
-/// ★★★ THE FEATURE. An UNEDITED export compiles back to ZERO changes.
+/// THE FEATURE. An UNEDITED export compiles back to ZERO changes.
 ///
 /// This is the assertion a naive implementation fails while still appearing to
 /// work: comparing a decoded stream against its compressed original byte-for-byte
@@ -157,7 +157,7 @@ fn an_unedited_export_compiles_back_to_no_change_at_all() {
     assert_eq!(report.removed, Vec::<ObjId>::new());
     assert!(dirty.is_empty(), "the dirty set must be empty");
 
-    // ★ And the proof that the stream comparison did real work rather than
+    // And the proof that the stream comparison did real work rather than
     // getting lucky: at least one stream had to be matched AFTER decoding.
     assert!(
         report.streams_matched_after_decode > 0,
@@ -174,7 +174,7 @@ fn an_unedited_export_compiles_back_to_no_change_at_all() {
     assert_eq!(out, doc.bytes(), "the file must be byte-identical");
 }
 
-/// ★★ A ONE-OBJECT EDIT re-emits ONE object, and the original bytes survive as
+/// A ONE-OBJECT EDIT re-emits ONE object, and the original bytes survive as
 /// an untouched prefix.
 ///
 /// The prefix assertion is the signature-preservation claim made checkable: a
@@ -249,7 +249,7 @@ fn a_one_object_edit_appends_only_that_object() {
 /// Skipped when the fixture is absent rather than asserted vacuously.
 #[test]
 fn an_encrypted_document_is_refused_rather_than_decrypted() {
-    // ★ An IN-REPO synthetic encrypted fixture since 2026-09-12. This sourced
+    // An IN-REPO synthetic encrypted fixture since 2026-09-12. This sourced
     // from `external/qpdf/.../c-decrypt-with-user.pdf` and carried TWO skip
     // arms -- corpus absent, and "did not load as encrypted" -- so it printed
     // `SKIP` and PASSED from the day it was written. Nothing here needed a

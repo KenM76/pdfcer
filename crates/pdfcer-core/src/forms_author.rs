@@ -178,7 +178,7 @@ pub enum FormAuthorError {
     /// non-terminal has no type of its own (Table 220) — so `Text`'s own
     /// `/FT`, `/V` and widget stop belonging to any field.
     ///
-    /// # ★★★ WHAT THE BYTES ACTUALLY DO, because the obvious description is
+    /// # WHAT THE BYTES ACTUALLY DO, because the obvious description is
     /// wrong and it was written here first
     ///
     /// This paragraph read *"the value is destroyed and the widget is orphaned
@@ -208,7 +208,7 @@ pub enum FormAuthorError {
     /// *"orphaned"* are not, and a shell hunting for this with an
     /// orphaned-widget accessor would find nothing.
     ///
-    /// # ★★ THE MIRROR OF [`Self::NameIsGroupingNode`], AND THE DESTRUCTIVE ONE
+    /// # THE MIRROR OF [`Self::NameIsGroupingNode`], AND THE DESTRUCTIVE ONE
     ///
     /// That variant guards *"you asked for a terminal and the name is a
     /// group"*, and has since the choke point was written. This guards *"you
@@ -219,7 +219,7 @@ pub enum FormAuthorError {
     /// reproduction; `add-text-field` returned success, `changed=4`, and no
     /// disclosure.
     ///
-    /// ★ The resolver has always handed this case back correctly —
+    /// The resolver has always handed this case back correctly —
     /// [`resolve_field_path`]'s own comment says *"the caller will find
     /// `deepest` is a terminal and can refuse or create beneath it as its own
     /// rules require"*. **No caller refused.** A hole documented at the place
@@ -242,7 +242,7 @@ pub enum FormAuthorError {
     /// calculation order, FDF import and external mapping that refers to it.
     /// That verb is not built and was not asked for.
     ///
-    /// # ★★★ THE MESSAGE BELOW IS SHIPPED UI, AND IT SURVIVED THE CORRECTION
+    /// # THE MESSAGE BELOW IS SHIPPED UI, AND IT SURVIVED THE CORRECTION
     /// THREE LINES ABOVE IT
     ///
     /// [`crate::edit::EditError::FieldAuthoring`] is `#[error(transparent)]`,
@@ -303,7 +303,7 @@ pub enum FormAuthorError {
     /// dotted name here would silently re-parent the field, which is a
     /// different operation and one this verb does not offer.
     ///
-    /// # ★★ Raised by THREE verbs since `Pass 298.0`, and the wording had to
+    /// # Raised by THREE verbs since `Pass 298.0`, and the wording had to
     /// # stop naming one of them
     ///
     /// This message opened *"a rename sets the ONE segment…"* while only
@@ -319,7 +319,7 @@ pub enum FormAuthorError {
     /// wording now describes the FIELD rather than the verb, which is what was
     /// actually true all along.
     ///
-    /// ★ What the refusal prevents is not data loss — none of the three verbs
+    /// What the refusal prevents is not data loss — none of the three verbs
     /// touches an existing field's `/Kids`, and a pre-existing `Text` survives
     /// an adopt of `Text.2` intact. It is a field **nobody can address**:
     /// §12.7.3.2 makes its FQN that same dotted string, but every resolver
@@ -341,7 +341,7 @@ pub enum FormAuthorError {
     /// level with no name: there is nothing for it to denote and nothing an
     /// FQN could be built from.
     ///
-    /// # ★★ RENAMED 2026-09-12, and the old name is why
+    /// # RENAMED 2026-09-12, and the old name is why
     ///
     /// It was `PeriodInPartialName`, and **its name and doc comment stated the
     /// rule a DIFFERENT variant enforces**:
@@ -357,7 +357,7 @@ pub enum FormAuthorError {
     /// can**, because `split_field_path` returns two perfectly good segments
     /// for it.
     ///
-    /// ★★★ The cost was not hypothetical. `EditSession::rename_field`'s
+    /// The cost was not hypothetical. `EditSession::rename_field`'s
     /// `# Errors` promised THIS variant for a dotted name while the verb
     /// forty lines below raised `DottedPartialName`. A consumer implementing
     /// the documented error set would have matched this arm, missed **every
@@ -366,7 +366,7 @@ pub enum FormAuthorError {
     /// shell avoided it only by reading the source instead of the docs, and
     /// reported it rather than working around it.
     ///
-    /// ★ Renamed rather than re-documented because the doc was the third
+    /// Renamed rather than re-documented because the doc was the third
     /// thing to fix and the name would still have lied. It is a public
     /// variant, so this is a breaking change — taken now because it is free
     /// today (zero matches in `pdfcer-gui`, zero in `pdfcer-cli`, one test
@@ -404,7 +404,7 @@ pub enum FormAuthorError {
 /// `EditSession`, no graph, and nothing staged — so a shell can decide whether
 /// to enable a button **while the operator types**.
 ///
-/// # ★★ Why this is public, and why it buys something on this side too
+/// # Why this is public, and why it buys something on this side too
 ///
 /// The rule was *enforced* at three call sites and *askable* at none:
 /// `reject_dotted_partial` for [`crate::edit::EditSession::adopt_widget`] and
@@ -421,13 +421,13 @@ pub enum FormAuthorError {
 /// a new clause would leave it greying the old set while the refusal arrives
 /// after the commit instead of on hover before it.
 ///
-/// ★ That is not hypothetical for them. They had just deleted a different
+/// That is not hypothetical for them. They had just deleted a different
 /// shim — `group_is_a_field` — which had drifted into refusing where this
 /// crate allows, "with a sentence claiming a field would be destroyed when
 /// none would be". Their conclusion, and it generalises: *a second model is
 /// wrong silently.*
 ///
-/// ★★ And the internal half, which is the honest reason rather than the polite
+/// And the internal half, which is the honest reason rather than the polite
 /// one: **three enforcement sites and one predicate means the three cannot
 /// drift from each other either.** That is the argument `rename_field`'s own
 /// comment already makes about routing itself through [`split_field_path`];

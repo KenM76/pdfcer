@@ -234,7 +234,7 @@ pub fn rgb_to_srgb(r: f32, g: f32, b: f32) -> [f32; 3] {
 /// thing exists for an untagged device colour, and §5 for the measured
 /// agreement with pdfium.
 ///
-/// # ★★ LOSSY AND ONE-WAY — do not feed the result to a control an operator
+/// # LOSSY AND ONE-WAY — do not feed the result to a control an operator
 /// # can read back
 ///
 /// Four ink concentrations become three display channels. The mapping is
@@ -257,7 +257,7 @@ pub fn rgb_to_srgb(r: f32, g: f32, b: f32) -> [f32; 3] {
 ///   or disable the control, but do not let a converted value become the
 ///   value.
 ///
-/// ★ Recorded because the sections above **reassure a reader into exactly the
+/// Recorded because the sections above **reassure a reader into exactly the
 /// wrong conclusion**: they document calibration, clamping and measured
 /// agreement with pdfium — all of which are about ACCURACY, and none about
 /// DIRECTION. A reader who checks the accuracy and is satisfied has checked

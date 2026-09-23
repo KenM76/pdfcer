@@ -141,7 +141,7 @@ fn page_count(session: &EditSession) -> usize {
     session.page_slots().expect("page tree walks").len()
 }
 
-/// ★ THE PROPERTY THE REPORT WAS ABOUT.
+/// THE PROPERTY THE REPORT WAS ABOUT.
 ///
 /// Insert, then undo, and the document is back where it started — and,
 /// crucially, an edit made *before* the insert is still undoable after it.
@@ -174,7 +174,7 @@ fn inserting_pages_leaves_earlier_history_undoable() {
     assert!(session.undo().is_some(), "the insert must be undoable");
     assert_eq!(page_count(&session), 2, "the inserted page is gone");
 
-    // ★ And the PRIOR command is still on the stack. If `insert_pages` had
+    // And the PRIOR command is still on the stack. If `insert_pages` had
     // replaced the session the way `pageops::insert` forces a caller to,
     // this is the assertion that would fail.
     assert!(
@@ -307,7 +307,7 @@ fn inserting_no_pages_records_no_command() {
     );
 }
 
-/// ★ END TO END: the saved FILE has the inserted page, and it reloads.
+/// END TO END: the saved FILE has the inserted page, and it reloads.
 ///
 /// Every assertion above is about session state. This one is about bytes,
 /// because "the in-memory tree says three pages" and "the file a viewer
@@ -340,7 +340,7 @@ fn the_saved_file_carries_the_inserted_page_and_reloads() {
     );
 }
 
-/// ★ `Pass 102.0` — inserting a page of form fields reports the widgets that
+/// `Pass 102.0` — inserting a page of form fields reports the widgets that
 /// arrived without them.
 ///
 /// # The defect this number exists to let a shell describe
@@ -365,13 +365,13 @@ fn the_saved_file_carries_the_inserted_page_and_reloads() {
 /// reachable the way this code assumes.
 #[test]
 fn inserting_a_form_page_reports_its_orphaned_widgets() {
-    // ★★ Synthetic since 2026-09-12. This sourced from
+    // Synthetic since 2026-09-12. This sourced from
     // `fixtures/external/pdfbox/.../acroform.pdf` -- untracked, unfetched, and
     // marked in `fixtures/README.md` as "NOT blanket-safe ... never
     // bulk-import" -- so it printed `SKIP` and PASSED from the day it was
     // written.
     //
-    // ★ Nothing here needed a corpus. Read the assertions: a source with an
+    // Nothing here needed a corpus. Read the assertions: a source with an
     // AcroForm carrying at least one field, and widgets on the page it
     // inserts. That is three objects. The stated dependency was on a FILE; the
     // real dependency was on a PROPERTY, and the gap between those two is what

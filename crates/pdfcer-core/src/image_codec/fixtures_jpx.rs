@@ -328,7 +328,7 @@ pub const JPX_CMYK_8_JP2: &[u8] = &[
 /// table makes almost every index out of range and the decoder refuses the
 /// file outright (`failed to resolve palette indices`).
 ///
-/// ★ That refusal is CORRECT and was hit while writing this fixture. It is
+/// That refusal is CORRECT and was hit while writing this fixture. It is
 /// recorded because it looks like the bug under test: "palette not applied"
 /// is both the fix's intended behaviour and this failure's symptom, and the
 /// two are told apart only by the error. A full table keeps the fixture
@@ -369,7 +369,7 @@ pub fn jpx_gray_8_jp2_with_palette() -> Vec<u8> {
 
     let src = JPX_GRAY_8_JP2;
 
-    // ★ TOTAL, NOT PANICKING, and that is this crate's lint policy rather
+    // TOTAL, NOT PANICKING, and that is this crate's lint policy rather
     // than defensiveness for its own sake: `fixtures_jpx` is a `pub` module
     // compiled into the library, so `expect` and raw slicing are denied here
     // exactly as they are in the parser. A fixture builder that can panic is

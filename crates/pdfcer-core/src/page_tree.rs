@@ -291,7 +291,7 @@ pub enum PageTreeError {
     /// the root (§7.7.3.4: "a value shall be supplied in an ancestor
     /// node").
     ///
-    /// ★ **`MediaBox` only, since `Pass 290.0`.** `Resources` used to
+    /// **`MediaBox` only, since `Pass 290.0`.** `Resources` used to
     /// produce this too, and it was the wrong severity for the wrong
     /// attribute: an absent resource dictionary means "no named resource is
     /// available", which is a statement the empty dictionary makes exactly,
@@ -727,7 +727,7 @@ fn resolve_page<G: ObjectGraph + ?Sized>(
     // automatically here: a page with `/Resources << >>` has an OWN entry
     // (empty dict), which wins over any ancestor value.
     //
-    // ★★ ABSENT EVERYWHERE IS THE EMPTY RESOURCE DICTIONARY, NOT A REFUSAL.
+    // ABSENT EVERYWHERE IS THE EMPTY RESOURCE DICTIONARY, NOT A REFUSAL.
     //
     // This used to be `.ok_or(MissingRequired("Resources"))?` — and the `?`
     // is on a walk that returns `Result<Vec<Page>, _>` for the WHOLE
@@ -746,7 +746,7 @@ fn resolve_page<G: ObjectGraph + ?Sized>(
     //     pastes — a guard a caller has to route around is the defect, not
     //     the caller.
     //
-    // ★ THE FILE IS CERTAINLY NON-CONFORMING, AND THAT STRENGTHENS THE CASE
+    // THE FILE IS CERTAINLY NON-CONFORMING, AND THAT STRENGTHENS THE CASE
     // RATHER THAN WEAKENING IT. ISO considered conditioning `/Resources` on
     // `/Contents` and decided AGAINST it: `pdf-issues` #81 ("Are Page node
     // Resources required even if Contents is not present?", ISO approved,
@@ -931,7 +931,7 @@ fn contents_from_array<G: ObjectGraph + ?Sized>(
             // the file, so it is skipped WITHOUT counting — the count is
             // reserved for content that should have been there and wasn't.
             (None, Object::Null) => {}
-            // ★ A NESTED ARRAY. Not legal, and specifically the damage a
+            // A NESTED ARRAY. Not legal, and specifically the damage a
             // pdfcer build older than `Pass 111.0` wrote into any page whose
             // `/Contents` was an indirect reference to an array (see
             // `Page::contents_flattened`). Flattened rather than refused,
@@ -974,7 +974,7 @@ fn contents_from_array<G: ObjectGraph + ?Sized>(
 /// and returned `Ok` for. **The two halves of this crate disagreed with each
 /// other rather than with the spec.**
 ///
-/// ★ **It was written TWICE, and both copies were wrong the same way.**
+/// **It was written TWICE, and both copies were wrong the same way.**
 /// `EditSession::append_page_content` served `add_image` and `flatten_fields`;
 /// `text_edit::addtext::append_contents` served `add_text` and the OCR text
 /// layer. Neither resolved. That is R92's failure mode — one question answered
@@ -1194,7 +1194,7 @@ mod tests {
     /// ones — in a real file (`%APPDATA%\Adobe\Acrobat\DC\Stamps\…`, his
     /// signature stamps) that every other reader opens.
     ///
-    /// ★ The assertions are deliberately three: that the walk SUCCEEDS,
+    /// The assertions are deliberately three: that the walk SUCCEEDS,
     /// that the two good pages keep the resources the file gave them, and
     /// that the flag is `true` on exactly the page that lacked the
     /// attribute. Testing only the first would pass on a build that

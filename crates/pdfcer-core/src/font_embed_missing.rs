@@ -20,7 +20,7 @@
 //! the operator to see the consequences first, and a preview that ran
 //! different code from the commit would be a disclosure that could lie.
 //!
-//! # ★ Why this exists, and why the original request was backwards
+//! # Why this exists, and why the original request was backwards
 //!
 //! The Pass began as *"someone needs embedded fonts removed."* It was the
 //! wrong way round. The end user was uploading a book to **Barnes & Noble
@@ -32,7 +32,7 @@
 //! drive to zero is the **count of non-embedded fonts in the output**, not
 //! the number of fonts pdfcer found something to do with.
 //!
-//! # ★ The crate boundary: the shell resolves a NAME, core takes BYTES
+//! # The crate boundary: the shell resolves a NAME, core takes BYTES
 //!
 //! `pdfcer-render::FontEnvironment` — which knows what faces exist on disk —
 //! lives in `pdfcer-render`, and `pdfcer-core` must never depend on it
@@ -51,7 +51,7 @@
 //! table walk [`crate::fontinfo::read_fs_type`] already performs, so no font
 //! parser enters `pdfcer-core` (R21).
 //!
-//! # ★ Layout CANNOT shift. Only the shapes change.
+//! # Layout CANNOT shift. Only the shapes change.
 //!
 //! This is the fact that makes the whole operation safe, and it is the
 //! opposite of the intuition ("a near-match font will reflow my book").
@@ -129,7 +129,7 @@
 //! through different tables, a document could be searched for text that is
 //! not what was painted.
 //!
-//! ### ★ Why `/Encoding` is pinned, and why that is the honest move
+//! ### Why `/Encoding` is pinned, and why that is the honest move
 //!
 //! When a standard-14 dictionary carries no `/Encoding`, §9.6.6.2 sends the
 //! reader to *the font program's own built-in encoding* — and there is no
@@ -152,7 +152,7 @@
 //! (`0o47` is `quoteright` under Standard and `quotesingle` under WinAnsi),
 //! so the verbose form is the only correct one.
 //!
-//! ### ★ Re-declaring `/Subtype` — the one shape-changing move, and its guard
+//! ### Re-declaring `/Subtype` — the one shape-changing move, and its guard
 //!
 //! §9.9 Table 126 binds the `/FontFile*` key to the **font dictionary's
 //! subtype**, not to the operator's preference:
@@ -189,7 +189,7 @@
 //! of this arises: `/FontFile3 /Type1C` is admissible under the existing
 //! `/Type1` dictionary and the subtype is left alone.
 //!
-//! # ★ What is REFUSED, and why each refusal is principled rather than lazy
+//! # What is REFUSED, and why each refusal is principled rather than lazy
 //!
 //! ## Composite (`Type0` / CIDFont) — refused
 //!
@@ -988,7 +988,7 @@ pub struct EmbedPlan {
     /// How many fonts in the whole document have no program, counted from
     /// the inventory rather than from this plan.
     ///
-    /// ★ **The number the operator is actually trying to drive to zero.** It
+    /// **The number the operator is actually trying to drive to zero.** It
     /// is deliberately independent of the selection: a plan that embeds
     /// three of seven has done real work and still leaves a file a
     /// print-on-demand service will reject, and a report that showed only
@@ -1039,7 +1039,7 @@ impl EmbedPlan {
     /// How many of [`Self::missing_after`]'s fonts this plan says **nothing**
     /// about.
     ///
-    /// # ★ Why this exists, and what it is guarding against
+    /// # Why this exists, and what it is guarding against
     ///
     /// A report that prints `missing_after` and then asserts *"every one is
     /// listed above with its reason"* is making a claim it cannot keep under
@@ -1330,7 +1330,7 @@ pub fn plan(
     }
 
     // ---- 4. descriptor sharing ------------------------------------------
-    // ★ ANY other font reaching the descriptor blocks the target — not only
+    // ANY other font reaching the descriptor blocks the target — not only
     // one outside the operation, which is where this diverges from
     // [`crate::font_unembed`]'s otherwise identical census.
     //
@@ -1524,7 +1524,7 @@ fn classify(
         }
     };
 
-    // -- ★ the symbolic guard, and why it is HERE rather than earlier -----
+    // -- the symbolic guard, and why it is HERE rather than earlier -----
     //
     // The hazard a symbolic font poses is not "the letters look different".
     // It is that under §9.6.6.4 Branch B the character codes are looked up in
@@ -2280,7 +2280,7 @@ mod tests {
         );
     }
 
-    /// ★ The widths follow the dictionary's OWN encoding, not the
+    /// The widths follow the dictionary's OWN encoding, not the
     /// standard-14 built-in one.
     ///
     /// The two fixtures differ in exactly one entry — `/Encoding
@@ -2326,7 +2326,7 @@ mod tests {
             panic!("no /Widths");
         };
 
-        // ★ Every entry checked against the AFM table under WinAnsi — not a
+        // Every entry checked against the AFM table under WinAnsi — not a
         // single hand-picked code. A spot check would be hostage to whichever
         // code the author happened to remember, and the two encodings differ
         // in more than a dozen places.
@@ -2382,7 +2382,7 @@ mod tests {
             report.objects_written, 2,
             "the descriptor and the new program stream — nothing else"
         );
-        // ★ The round-trip claim, checked over the BYTES rather than over
+        // The round-trip claim, checked over the BYTES rather than over
         // the object model: an incremental save appends, so every byte of
         // the input must still be there, in place, unaltered.
         assert!(
@@ -2426,7 +2426,7 @@ mod tests {
         );
     }
 
-    /// ★ The commonest headless outcome. Every missing font is named, with a
+    /// The commonest headless outcome. Every missing font is named, with a
     /// reason that says what would satisfy it.
     #[test]
     fn with_no_donor_every_font_is_refused_by_name() {
@@ -2499,7 +2499,7 @@ mod tests {
         );
     }
 
-    /// ★ The divergence from the mirror module. Two differently-named fonts
+    /// The divergence from the mirror module. Two differently-named fonts
     /// through one descriptor block BOTH — unlike unembedding, where the
     /// same shape is idempotent.
     #[test]
@@ -2525,7 +2525,7 @@ mod tests {
         );
     }
 
-    /// ★ The symbolic guard, in BOTH directions, over two fixtures that
+    /// The symbolic guard, in BOTH directions, over two fixtures that
     /// differ in how their codes are mapped.
     ///
     /// A rule that refused every symbolic font would pass a
@@ -2602,7 +2602,7 @@ mod tests {
         );
     }
 
-    /// ★ §9.9's opening paragraph, enforced. A donor whose own `fsType`
+    /// §9.9's opening paragraph, enforced. A donor whose own `fsType`
     /// says it may not be embedded is refused by name.
     ///
     /// Paired with a permissive donor over the SAME fixture, so the test
@@ -2792,7 +2792,7 @@ mod tests {
         );
     }
 
-    /// ★ REGRESSION: a created object must not land on the object number the
+    /// REGRESSION: a created object must not land on the object number the
     /// writer reuses for its own cross-reference stream.
     ///
     /// The fixture's xref stream is object 6 while its `/Size` is 6 and its
@@ -2856,7 +2856,7 @@ mod tests {
         assert_eq!(plan.unmatched, vec!["NoSuchFont".to_owned()]);
     }
 
-    /// ★ A font left missing by an explicit selection is counted and
+    /// A font left missing by an explicit selection is counted and
     /// **not** explained, and the plan says which of the two it is.
     ///
     /// `missing_after()` counts the whole document; `blocked` lists only what

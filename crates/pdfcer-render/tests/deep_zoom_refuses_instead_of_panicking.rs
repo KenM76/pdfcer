@@ -21,7 +21,7 @@
 //! `MAX_PIXMAP_EDGE` could never have caught it, because the allocation was
 //! never the problem.
 //!
-//! # ★ Why this test asserts a REFUSAL and not a ceiling
+//! # Why this test asserts a REFUSAL and not a ceiling
 //!
 //! `examples/region_panic_ceiling.rs` bisected the first failing scale across
 //! six page geometries and got three values that order with nothing — the
@@ -29,7 +29,7 @@
 //! only the contract: whatever the rasteriser does, the caller gets a
 //! `Result`.
 //!
-//! # ★★ How this test fails if the guard is removed
+//! # How this test fails if the guard is removed
 //!
 //! It panics, and the test harness reports the panic. That is deliberate and
 //! is the reason the assertion is written against a scale *known* to cross the
@@ -116,7 +116,7 @@ fn a_region_render_past_the_rasterizer_limit_returns_an_error() {
                 "the refusal must name the scale it was asked for, got {scale}"
             );
 
-            // ★★ The panic text must be REACHABLE and must NOT be in the
+            // The panic text must be REACHABLE and must NOT be in the
             // message (`Pass 296.5`). A consuming shell routes an error's
             // `Display` onto the page on purpose, because a structured
             // diagnostic beats "an error occurred" -- so a third party's panic

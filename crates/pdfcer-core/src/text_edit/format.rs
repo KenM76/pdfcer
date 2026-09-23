@@ -684,7 +684,7 @@ pub struct FormatRequest {
     /// resolve on the page, the request is **refused** by name and pointed
     /// at that face ([`FormatError::RealFaceAvailable`]).
     ///
-    /// ★ Since `Pass 179.0` this is the **explicit override** — the operator
+    /// Since `Pass 179.0` this is the **explicit override** — the operator
     /// asking for the stroke *despite* whatever real face exists. The
     /// automatic route is [`Self::set_style`]. Under the `auto`/`warn`
     /// postures an override with a real face available is applied and the
@@ -1013,7 +1013,7 @@ pub struct StyleLadder {
     /// (nothing to compare) — which is not the same as `Some(false)` and must
     /// not be flattened into it.
     ///
-    /// # ★★ Why this is a field and not a caller's comparison
+    /// # Why this is a field and not a caller's comparison
     ///
     /// **To a draughtsman these are different events.** Taking the same
     /// family's bold face is invisible; taking another family's changes the
@@ -1033,14 +1033,14 @@ pub struct StyleLadder {
     /// Real faces that CLAIMED the style but could not show the run's
     /// characters, in the order tried — the reason rung 1 did not bind.
     ///
-    /// ★ Typed since `Pass 295.0`. It used to be `Vec<String>` holding
+    /// Typed since `Pass 295.0`. It used to be `Vec<String>` holding
     /// `"<BaseFont> (<reason>)"`, and the consuming shell reported what that
     /// cost: to say *"pdfcer tried `Times-Bold` and it has no `o`"* in its own
     /// voice it would have had to split on `" ("` and strip a `")"` — a
     /// locator for this crate's message format, living in a GUI, breaking
     /// silently the first time a reason sentence gained a parenthesis.
     ///
-    /// ★★ **It did not cost a workaround; it cost a feature.** A shell
+    /// **It did not cost a workaround; it cost a feature.** A shell
     /// disciplined about not re-deriving engine facts keeps quiet rather than
     /// guess, so the sentence naming the passed-over face was never written
     /// at all — the operator was told which rung bound, never which faces
@@ -1130,7 +1130,7 @@ pub struct FormatReport {
     /// The form XObject this format edit went into, or `None` when it
     /// rewrote the page's own `/Contents` (`Pass 119.2`).
     pub form_object: Option<u32>,
-    /// ★ **How many places in the document paint the formatted form** — the
+    /// **How many places in the document paint the formatted form** — the
     /// fan-out. `1` for the ordinary case; `0` when the edit was not in a form.
     /// Greater than `1` means this restyle is visible on pages the operator
     /// was not looking at, which the standard explicitly permits and gives no
@@ -1361,7 +1361,7 @@ pub enum FormatError {
         /// The complete rung-1 clause — *"rung 1: no page face claims it"*, or
         /// *"rung 1: page faces X, Y could not show the run"*.
         ///
-        /// # ★ Why a whole clause and not the face list (`Pass 295.0`)
+        /// # Why a whole clause and not the face list (`Pass 295.0`)
         ///
         /// This field used to be `passed`, a fragment interpolated directly
         /// after the words `page faces`, and it was wrong twice over. With a
@@ -1369,7 +1369,7 @@ pub enum FormatError {
         /// reported by the consuming shell; with none it produced
         /// `page faces;`, which is not a sentence either.
         ///
-        /// ★★ The missing space was the smaller half. `page faces X` reads as
+        /// The missing space was the smaller half. `page faces X` reads as
         /// *"X was used"*, and what it means is *"X was TRIED AND REJECTED"* —
         /// the opposite. A message about a refusal that implies success is
         /// worse than a message with a typo, and no amount of spacing fixes
@@ -1387,7 +1387,7 @@ pub enum FormatError {
     /// style resolves on the page — and, since `Pass 144.0`, one that
     /// `set_font` would actually **accept for this run**.
     ///
-    /// # ★★ THIS ERROR ONLY REACHES A CALLER UNDER ONE POSTURE
+    /// # THIS ERROR ONLY REACHES A CALLER UNDER ONE POSTURE
     ///
     /// It used to say *"pdfcer refuses and names the real face to use instead.
     /// Nothing was applied."* — unconditionally true until decision 106.
@@ -1647,7 +1647,7 @@ pub fn set_format(
     // the form XObject's own. The plan's report already carries the correct
     // content_object / extra_objects_emptied, so the page write's returned
     // identity is discarded.
-    // ★★ `Pass 162.0`: the THIRD save path, and the one the CLI actually uses.
+    // `Pass 162.0`: the THIRD save path, and the one the CLI actually uses.
     //
     // `EditSession::format_text` and its form twin bind a newly created font
     // resource into their own command. This one-shot entry point builds a
@@ -1826,7 +1826,7 @@ pub(crate) struct FormatPlan {
     /// already names this key and the document is INCOMPLETE until the
     /// resource exists.
     ///
-    /// ★ The caller owns the write because only the caller can allocate an
+    /// The caller owns the write because only the caller can allocate an
     /// object number: planning runs against an immutable `&Document`. Nothing
     /// here is optional to act on — dropping it produces a content stream
     /// naming a resource that does not exist, which §7.8.3 leaves undefined
@@ -1876,7 +1876,7 @@ pub(crate) fn plan_format(
 /// page-derived values (the stream object, its resource dictionary, the
 /// sibling-collapse count) are named instead of assumed.
 ///
-/// ★ **One thing this verb does that `edit_text` does not, and why it is still
+/// **One thing this verb does that `edit_text` does not, and why it is still
 /// safe here.** A family change (`set_font`) must find the target face in a
 /// resource dictionary — and it is **read-only** about that: a face that does
 /// not resolve is [`FormatError::TargetFontMissing`], never an insertion. So
@@ -2015,7 +2015,7 @@ pub(crate) fn plan_format_target(
 
     // --- resolve the family-change target, if any, and re-encode the run ---
     //
-    // ★ `Pass 179.0` — the automatic style ladder runs FIRST when the caller
+    // `Pass 179.0` — the automatic style ladder runs FIRST when the caller
     // asked for bold/italic without naming a face (`set_style`): each rung
     // is a `set_font`-shaped plan through the ONE coverage gate (`R221`), so
     // a face that binds here is exactly a face `--set-font` would bind.
@@ -2349,7 +2349,7 @@ pub(crate) fn plan_format_target(
         // the only place that knows whether any page face was tried, and
         // `thiserror`'s format string cannot ask.
         //
-        // ★ "could not show the run" rather than "could not show these
+        // "could not show the run" rather than "could not show these
         // characters": the ladder rejects a face for not covering the run's
         // text, and naming the run is what tells the operator which text to
         // go and look at.
@@ -2395,7 +2395,7 @@ pub(crate) fn plan_format_target(
         let effective_font = font_plan
             .as_ref()
             .map_or(&orig_font.base_font, |p| &p.font.base_font);
-        // ★ THE POSTURE IS APPLIED HERE, AND ONLY HERE (`Pass 179.0`).
+        // THE POSTURE IS APPLIED HERE, AND ONLY HERE (`Pass 179.0`).
         //
         // `gate_synthesis` answers one question -- "could a real face have
         // done this instead?" -- and until this Pass its answer was always a
@@ -3051,7 +3051,7 @@ fn plan_style_ladder(
             && ((style.bold() && c.claims_bold) || (style.italic() && c.claims_italic))
     }) {
         if let Err(e) = &c.accepted {
-            // ★ The survey's error is a `FormatError`, and when it IS a
+            // The survey's error is a `FormatError`, and when it IS a
             // coverage refusal the `Refusal` is right there inside it --
             // carry it rather than flattening it to its own `Display`.
             //
@@ -3248,7 +3248,7 @@ fn plan_font(
     };
     // Locate an existing font resource by key, then by /BaseFont.
     //
-    // ★★ `Pass 162.0`: a miss is no longer the end. Until now this verb was
+    // `Pass 162.0`: a miss is no longer the end. Until now this verb was
     // strictly READ-ONLY about resources — a face the page did not already
     // carry was `TargetFontMissing`, and an operator asking for Helvetica on a
     // page built from Times got a refusal naming a deferral code (FF-C).
@@ -3278,7 +3278,7 @@ fn plan_font(
                     // that return type cannot panic a caller.
                     return Err(FormatError::TargetFontMissing(sel.selector.clone()));
                 };
-                // ★ The resource NAME is chosen against the dictionary this
+                // The resource NAME is chosen against the dictionary this
                 // edit actually resolves against — which is the FORM's when the
                 // run lives inside a form XObject, not the page's. §7.8.3: the
                 // name is local to the stream, so `/F1` inside a form is a
@@ -3301,7 +3301,7 @@ fn plan_font(
     // differ, and coverage must be checked against the characters actually
     // being re-encoded (`Pass 145.0`).
     //
-    // ★ Run against the SYNTHESIZED dictionary too, unchanged. The dictionary
+    // Run against the SYNTHESIZED dictionary too, unchanged. The dictionary
     // is complete and all-direct before this point, so the coverage gate an
     // operator previews (`preview_font_resources`) and the gate this commit
     // path enforces are the same code on the same bytes (`R221`). A synthesized
@@ -3377,7 +3377,7 @@ fn family_stem(base_font: &str) -> String {
 /// available on this page — where *available* means `set_font` would actually
 /// **accept** it for this run's text.
 ///
-/// # ★★ IT ANSWERS; IT NO LONGER DECIDES
+/// # IT ANSWERS; IT NO LONGER DECIDES
 ///
 /// This said *"**refuse** synthesis when …"* until decision 106, and naming a
 /// function's job wrongly is worse than a stale example — a reader trusts the
@@ -3509,7 +3509,7 @@ pub enum StyleOutcome {
     /// A real face covering everything asked for resolves **as a resource on
     /// this page**.
     ///
-    /// # ★★ WHAT SUBMITTING WOULD DO IS NOW POSTURE-DEPENDENT
+    /// # WHAT SUBMITTING WOULD DO IS NOW POSTURE-DEPENDENT
     ///
     /// This doc used to say a `set_synthetic(…)` submitted now *"would be
     /// **refused**"*, full stop. Since decision 106 that is true only under
@@ -3519,7 +3519,7 @@ pub enum StyleOutcome {
     /// [`FormatReport::real_face_passed_over`](crate::text_edit::FormatReport::real_face_passed_over)
     /// instead.
     ///
-    /// ★ **This type's own contract is why that mattered enough to fix.**
+    /// **This type's own contract is why that mattered enough to fix.**
     /// The note below says *"inventing a third state here would let a preview
     /// promise something the commit path cannot honour"* — and for a while
     /// this variant did exactly that, promising a refusal the commit path
@@ -3695,7 +3695,7 @@ fn probe_synthesis(
 /// Ask which RUNG the automatic style ladder would take for one run, and
 /// which face it would bind — without doing it (`Pass 295.0`).
 ///
-/// # ★★ Why this exists beside [`preview_style_resolution`]
+/// # Why this exists beside [`preview_style_resolution`]
 ///
 /// That function previews the **R90 gate**, and since `Pass 179.0` the gate is
 /// no longer the same question as *"what will pressing Bold do?"*.
@@ -3710,7 +3710,7 @@ fn probe_synthesis(
 /// narrowed the tooltip to what the gate had actually measured — correct, and
 /// a worse tooltip.
 ///
-/// ★ The alternatives it rejected are the reason this is a new entry point
+/// The alternatives it rejected are the reason this is a new entry point
 /// rather than advice. `preview_font_resources` walks every operation on the
 /// page (129,758 objects on the operator's benchmark sheet) — a fine answer
 /// for a dialog and not a hover instrument. Calling `format_text` and
@@ -3923,12 +3923,12 @@ pub(crate) fn preview_style_resolution(
     // the one face that cannot show the run, which is precisely the defect
     // `Pass 144.0` was filed for, reached through a different door.
     //
-    // ★ A shell routing its Bold button from that answer calls
+    // A shell routing its Bold button from that answer calls
     // `set_font("Times-Bold")`, which refuses. No bold by either route. That
     // is strictly worse than the pre-flight's version of the same bug, where a
     // wrong entry is one row in a list the operator can look past.
     //
-    // ★★ Found by the librarian's rule-11 sweep asking "what ELSE decides from
+    // Found by the librarian's rule-11 sweep asking "what ELSE decides from
     // the caller's string?" — not by fixing `preview_font_resources`, four
     // hours earlier, in the same file. Enumerating routes from the FUNCTION
     // being fixed enumerates the instance, not the class. `find_anchor` has
@@ -4059,7 +4059,7 @@ fn survey_standard_14(
         .iter()
         .map(|&face| {
             let name = crate::fontdata::std14_base_font_name(face);
-            // ★★★ THROUGH `subset_stem`, BECAUSE `set_font` RESOLVES THROUGH
+            // THROUGH `subset_stem`, BECAUSE `set_font` RESOLVES THROUGH
             // IT (`Pass 301.2`). This line used to test `c.base_font`
             // directly, which is an EXACT match -- so a page carrying
             // `ABCDEF+Helvetica` reported `Helvetica` as `WouldBeAdded` while
@@ -4078,7 +4078,7 @@ fn survey_standard_14(
             // the verb would do, in one report that also printed
             // `selector="Helvetica"` for that very resource two lines above.
             //
-            // ★ This function's own doc comment asserts that "the answer here
+            // This function's own doc comment asserts that "the answer here
             // and the outcome of the later `set_font` cannot disagree". That
             // sentence was FALSE for every page carrying a subset of a
             // standard-14 name, and a doc comment stating an invariant its
@@ -4367,7 +4367,7 @@ pub struct RunRepertoire {
     /// can read back exactly which run was answered about rather than assume.
     /// Same field, same reason, as [`FontPreflight::text`].
     ///
-    /// ★ This field exists because a gate demanded it and the gate was right.
+    /// This field exists because a gate demanded it and the gate was right.
     /// `route_enumeration.rs` enumerates every function that locates an anchor
     /// and requires it to resolve the find through `effective_find` — *"an
     /// empty one reaches whatever they do with it, which is how three separate
@@ -4716,18 +4716,18 @@ pub(crate) fn preview_font_resources_for(
     // `"".chars()` yields nothing, no character can fail to encode, and EVERY
     // face on the page came back `Accepted`.
     //
-    // ★ That failure is silent and inverted: the list looks RICHER, not
+    // That failure is silent and inverted: the list looks RICHER, not
     // broken, and the query written to stop a shell offering unusable faces
     // becomes an unconditional yes. Reported by `pdfcer-gui` after they consumed
     // `145.0` and took the obvious next step.
     //
-    // ★★ It is also `R221` from the other side. `142.1`'s whole fix was to
+    // It is also `R221` from the other side. `142.1`'s whole fix was to
     // stop `gate_synthesis` DESCRIBING when `set_font` succeeds and make it
     // CALL the accepting code; the same shape was left in this parameter list,
     // asking the caller to supply text the resolution step can produce itself.
     let find = effective_find(anchor, find, pinned_span);
 
-    // ★★ AND THE UNPINNED HALF, which the first cut of this fix assumed was
+    // AND THE UNPINNED HALF, which the first cut of this fix assumed was
     // already an error and which a test proved was not.
     //
     // `find_anchor` with no pin runs `s.text.contains(find)`, and **every
@@ -6058,7 +6058,7 @@ pub(crate) fn run_repertoire(
     let font = ExtractFont::resolve(doc, orig_dict);
     let base_font = font.base_font.clone();
     let resource = String::from_utf8_lossy(&anchor.font_name).into_owned();
-    // ★ RESOLVED, not the caller's string: an empty `find` on a pinned
+    // RESOLVED, not the caller's string: an empty `find` on a pinned
     // request means the whole pinned operator. `route_enumeration.rs` requires
     // every anchor-locating function to go through this, and it caught this
     // one within an hour of it being written.
@@ -6100,7 +6100,7 @@ pub(crate) fn run_repertoire(
             return Ok(empty("the run's font has no invertible encoding"));
         };
         let inverse = InverseEncoding::build(&font.base_font, glyph_names);
-        // ★ THE SAME SEED THE EDIT PATH USES. `prefer` is the R-INV-5
+        // THE SAME SEED THE EDIT PATH USES. `prefer` is the R-INV-5
         // tie-break (codes already shown in this run); it decides WHICH code a
         // character gets, never WHETHER it is accepted — which is why a
         // per-character answer is sound for a whole word, and why a test drives
@@ -6110,7 +6110,7 @@ pub(crate) fn run_repertoire(
             .iter()
             .filter_map(|s| u8::try_from(s.code).ok())
             .collect();
-        // ★★ HONEST LIMIT, MEASURED BY A SABOTAGE THAT SURVIVED: on the simple
+        // HONEST LIMIT, MEASURED BY A SABOTAGE THAT SURVIVED: on the simple
         // path this call is **not currently discriminating**. Every candidate
         // comes from `reverse.keys()`, and for such a character `encode_char`
         // can only refuse under R-INV-8 (a scalar above the BMP, which no
@@ -6169,7 +6169,7 @@ pub(crate) fn run_repertoire(
     }
 
     let mut reason: Option<String> = None;
-    // ★ AN EMPTY ANSWER STILL OWES A REASON, and this branch is why.
+    // AN EMPTY ANSWER STILL OWES A REASON, and this branch is why.
     //
     // `cidfonttype2-noninjective-tounicode.pdf` returned an empty repertoire
     // with `reason: None` — behaviourally right (`is_editable()` was already
@@ -7265,7 +7265,7 @@ mod tests {
         let err = set_format(
             &doc,
             &FormatRequest::new(0, "hello").synthetic(StyleSynthesis::Bold),
-            // ★ `Refuse`, not `default()`. The refusal is no longer
+            // `Refuse`, not `default()`. The refusal is no longer
             // unconditional -- decision 106 made it a POSTURE, and the
             // operator asked for it to stay available rather than to stay
             // mandatory. Asserting it under `default()` would now be
@@ -7656,7 +7656,7 @@ mod tests {
         let err = set_format(
             &doc,
             &FormatRequest::new(0, "hello").synthetic(StyleSynthesis::Bold),
-            // ★ `Refuse`, not `default()`. The refusal is no longer
+            // `Refuse`, not `default()`. The refusal is no longer
             // unconditional -- decision 106 made it a POSTURE, and the
             // operator asked for it to stay available rather than to stay
             // mandatory. Asserting it under `default()` would now be
@@ -7992,7 +7992,7 @@ mod tests {
         let err = set_format(
             &doc,
             &FormatRequest::new(0, "hello").synthetic(StyleSynthesis::Bold),
-            // ★ `Refuse`, not `default()`. The refusal is no longer
+            // `Refuse`, not `default()`. The refusal is no longer
             // unconditional -- decision 106 made it a POSTURE, and the
             // operator asked for it to stay available rather than to stay
             // mandatory. Asserting it under `default()` would now be

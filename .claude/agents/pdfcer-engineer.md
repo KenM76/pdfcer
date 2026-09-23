@@ -251,7 +251,7 @@ ecosystem's own norms is a debt every future consumer pays.
    already learned once. **(`personal_rag\pdf` exists and is in active
    use — created 2026-08-04.)**
 
-   **★ AND BEFORE DRIVING THE GUI HARNESS, NOT ONLY BEFORE WRITING CODE
+   **AND BEFORE DRIVING THE GUI HARNESS, NOT ONLY BEFORE WRITING CODE
    (R172, minted 2026-08-09 after this step was skipped TWICE IN ONE
    SESSION).** *(The harness scripts named below left this repository with
    the in-repo GUI crate in `Pass 247.0`, 2026-09-03; the lesson — a
@@ -484,7 +484,7 @@ captured, then let compaction proceed.
   a network to parse or render, and the same crates must cross into the
   wasm32/web fork where no native HTTP stack exists, so this half is
   justified twice over. Enforced fail-closed by the `no-network` CI job.
-  **★ NARROWED 2026-08-13 (decision 061) — this line used to read "do not
+  **NARROWED 2026-08-13 (decision 061) — this line used to read "do not
   add ANY network call… don't decide solo even if it seems harmless", and
   the operator corrected that scope as too broad.** The shells
   (`pdfcer`, `pdfce-gui`, `tools/`) **may** carry a network client for

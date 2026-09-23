@@ -1,6 +1,6 @@
 //! # Rotating a ce dimension (`Pass 159.0`)
 //!
-//! ## ★★★ The claim that defines this verb: the value cannot change
+//! ## The claim that defines this verb: the value cannot change
 //!
 //! A rotation preserves every distance and every angle, so the number a ce
 //! dimension displays is **identical either side of it** — not because pdfcer
@@ -73,7 +73,7 @@ fn value_of(s: &EditSession, id: pdfcer_core::dimension::DimensionId) -> String 
 // 1. THE ISOMETRY CLAIM
 // ---------------------------------------------------------------------------
 
-/// ★ Needs no oracle and no remembered number: whatever the fixture measures,
+/// Needs no oracle and no remembered number: whatever the fixture measures,
 /// it must measure the same thing afterwards.
 ///
 /// Asserted at several angles including awkward ones, because a bug that
@@ -178,7 +178,7 @@ fn undo_restores_the_previous_orientation() {
 // 4. THE GEOMETRY ITSELF — added after two sabotages survived section 1
 // ---------------------------------------------------------------------------
 
-/// ★★★ The measured VALUE is not a sufficient witness, and this is `R225`
+/// The measured VALUE is not a sufficient witness, and this is `R225`
 /// arriving twice in one verb.
 ///
 /// Section 1 asserts the displayed number is unchanged. A sabotage replacing
@@ -208,7 +208,7 @@ fn a_quarter_turn_puts_the_points_where_the_arithmetic_says() {
     let DimensionKind::Linear { a, b, .. } = turned else {
         panic!("a rotated Linear must stay Linear");
     };
-    // ★ BOTH points sit OFF the x-axis, and that is not decoration.
+    // BOTH points sit OFF the x-axis, and that is not decoration.
     // With y = 0 the corrupted `y·sin` term is zero and the wrong map
     // agrees with the right one exactly -- which is how the first version
     // of this very test let the sabotage through. `R225`, third time in
@@ -227,7 +227,7 @@ fn a_quarter_turn_puts_the_points_where_the_arithmetic_says() {
     );
 }
 
-/// ★★ An `Angular` dimension's arms are **unit direction vectors, not
+/// An `Angular` dimension's arms are **unit direction vectors, not
 /// points**, so they must turn about the ORIGIN even when the apex turns
 /// about a distant pivot. Mapping them through the pivot flings them across
 /// the page while the apex moves correctly.

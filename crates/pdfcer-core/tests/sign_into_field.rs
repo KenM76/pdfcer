@@ -258,7 +258,7 @@ fn the_forms_fixture_with_an_approval_placeholder_signs_into_it() {
 // `Pass 298.0` — a dotted name that does NOT exist is refused
 // ===================================================================
 
-/// ★★ `sign` authors a TOP-LEVEL field when the name it is given matches
+/// `sign` authors a TOP-LEVEL field when the name it is given matches
 /// nothing, so a period in that name makes the field unaddressable.
 ///
 /// §12.7.3.2 makes the field's fully-qualified name that same dotted string,
@@ -269,7 +269,7 @@ fn the_forms_fixture_with_an_approval_placeholder_signs_into_it() {
 /// this verb did not, because it never passed the name through
 /// `split_field_path`.
 ///
-/// ★ Reported by the consuming shell, which reaches this with a string the
+/// Reported by the consuming shell, which reaches this with a string the
 /// operator typed.
 #[test]
 fn a_dotted_name_for_a_field_that_does_not_exist_is_refused() {
@@ -287,7 +287,7 @@ fn a_dotted_name_for_a_field_that_does_not_exist_is_refused() {
     );
 }
 
-/// ★★★ THE OTHER HALF, AND IT IS THE ONE THAT WOULD HAVE BROKEN SIGNING.
+/// THE OTHER HALF, AND IT IS THE ONE THAT WOULD HAVE BROKEN SIGNING.
 ///
 /// The guard fires **only on the create path**. When the name matches an
 /// existing field, `field_name` is a **fully-qualified** name — and a nested

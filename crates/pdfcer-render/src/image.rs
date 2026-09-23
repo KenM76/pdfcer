@@ -269,7 +269,7 @@ impl MaskApplied {
 /// different: an error means "this image is missing from the page", a
 /// note means "this image is on the page but is not exactly what the
 /// document specifies."
-// ★ `Copy` and `Eq` were DROPPED in `Pass 140.2`, when `color` was added.
+// `Copy` and `Eq` were DROPPED in `Pass 140.2`, when `color` was added.
 //
 // `ColorDiagnostics` carries a dedup-and-capped `Vec<String>` of notes, so it
 // is neither. Keeping the derives would have meant either leaving the field
@@ -348,7 +348,7 @@ pub struct ImageNotes {
     /// reason: a picture that is correctly absent is otherwise
     /// indistinguishable from one that failed to decode.
     ///
-    /// ★ Measured 2026-08-17: **pdfium paints this BLACK.** pdfcer is
+    /// Measured 2026-08-17: **pdfium paints this BLACK.** pdfcer is
     /// deliberately right and the reference renderer is wrong, which is a
     /// finding rather than a failure — but it means any pixel-parity run
     /// containing a `/None` image will show a maximal divergence that is
@@ -422,7 +422,7 @@ pub struct ImageNotes {
     /// stream with no `ClearCode`, or one that ended with no
     /// `EndOfInformation`. Both recovered, both non-conformant.
     pub lzw_framing_anomalies: usize,
-    /// ★★★ THE COLOUR-CONVERSION DIAGNOSTICS OF THIS IMAGE'S OWN TEXELS,
+    /// THE COLOUR-CONVERSION DIAGNOSTICS OF THIS IMAGE'S OWN TEXELS,
     /// AND THEY REACHED NOTHING AT ALL UNTIL `Pass 140.2`.
     ///
     /// [`decode`] converts every texel through [`crate::color`], which
@@ -451,7 +451,7 @@ pub struct ImageNotes {
     /// difference, because a plausible grey looks like a grey the file
     /// might have asked for.
     ///
-    /// ★★ It also made a CENSUS counter lie by omission, which is how it
+    /// It also made a CENSUS counter lie by omission, which is how it
     /// was caught. `tint_applied` reads as "how many tint transforms did
     /// this page run", and it counted only paths and shadings — so a page
     /// whose only spot content is an image reported `0` while running one
@@ -466,13 +466,13 @@ pub struct ImageNotes {
     /// `note_image_divergence`, on the same terms as every other field
     /// here.
     ///
-    /// ★ Why the counts are per DISTINCT SAMPLE TUPLE and not per texel:
+    /// Why the counts are per DISTINCT SAMPLE TUPLE and not per texel:
     /// [`TintCache`] owns one of the two sources precisely so that a single
     /// broken transform reports once per distinct colour rather than eight
     /// million times. That was always the design; only the delivery was
     /// missing.
     ///
-    /// ★ NOT included, and deliberately: an `/Indexed` palette's own
+    /// NOT included, and deliberately: an `/Indexed` palette's own
     /// conversions ([`resolve_indexed`]'s `palette_diag`). A palette is
     /// built once, bounded by `hival + 1`, and its shortfall is already
     /// visible as a wrong entry count rather than a counter — that
@@ -490,7 +490,7 @@ pub struct DecodedImage {
     /// The image's **authored ink**, texel for texel, when its colour space
     /// is `DeviceCMYK` — `None` for every other space.
     ///
-    /// # ★★ WHY A SECOND COPY OF THE SAME PICTURE EXISTS
+    /// # WHY A SECOND COPY OF THE SAME PICTURE EXISTS
     ///
     /// [`Self::pixmap`] has already been through `CMYK → sRGB`, and **that
     /// conversion is many-to-one**: different ink mixes produce identical
@@ -514,7 +514,7 @@ pub struct DecodedImage {
     /// difference vanish, which is what identified the round trip as the
     /// cause rather than the decode.
     ///
-    /// ★ **That recipe is no longer runnable.** `CmykIntent::Naive` was
+    /// **That recipe is no longer runnable.** `CmykIntent::Naive` was
     /// deleted by operator ruling in `Pass 153.0`, so the conversion has no
     /// exactly-invertible setting left. The **finding stands** — it was
     /// measured, and decision 087 rests on it — but anyone re-deriving it
@@ -548,7 +548,7 @@ pub struct DecodedImage {
     /// in a way this structure can express, so only it needs anything carried
     /// here.
     ///
-    /// ★★★ THE JUSTIFICATION THAT USED TO SIT HERE WAS FALSE, and is quoted
+    /// THE JUSTIFICATION THAT USED TO SIT HERE WAS FALSE, and is quoted
     /// rather than deleted because the same sentence was written in three
     /// places and believed for many Passes:
     ///
@@ -573,7 +573,7 @@ pub struct DecodedImage {
     /// per-texel to carry; the whole of its spot behaviour is one policy. The
     /// counter is kept on the metrics line, at zero, for script stability.
     ///
-    /// # ★ Why this is a SECOND set of planes rather than [`Self::ink`]
+    /// # Why this is a SECOND set of planes rather than [`Self::ink`]
     ///
     /// The two answer different questions and disagree on exactly the case
     /// that matters. [`Self::ink`] is *"what ink does this texel put on the
@@ -593,7 +593,7 @@ pub struct DecodedImage {
     /// Whether this image's samples were **colour-managed** through its
     /// embedded ICC profile (`Pass 214.0`).
     ///
-    /// ★ It exists so the disclosure counters can tell the two cases apart.
+    /// It exists so the disclosure counters can tell the two cases apart.
     /// `Pass 207.0` added `icc_unmanaged_paints` and counted every `ICCBased`
     /// image on a subtractive page, because at that point none of them COULD
     /// be managed. Now some are — and a counter that kept reporting them as
@@ -1357,7 +1357,7 @@ fn decode_sampled(
         Space::Special { cs, .. } => match crate::overprint::classify(
             cs,
             true,
-            // ★ NOT a policy read, deliberately, and this is the one place
+            // NOT a policy read, deliberately, and this is the one place
             // in the codebase where passing a literal is MORE honest than
             // threading the operator's setting through.
             //
@@ -1484,7 +1484,7 @@ fn decode_sampled(
     // arithmetic and wants no cache at all. `tinting` is the loop-invariant
     // branch, in the same spirit as `keying` above it.
     //
-    // ★★ `Icc` and `IccRgb` are on this route for CORRECTNESS, not only for
+    // `Icc` and `IccRgb` are on this route for CORRECTNESS, not only for
     // cost, and the omission of `Icc` was a shipped defect. The ink arm of
     // the texel loop reads its colorants from `texel_cmyk` when `tinting`
     // holds and from `last_comps` -- the RAW components -- when it does not.
@@ -1538,7 +1538,7 @@ fn decode_sampled(
     // through a tint transform whose output is already the alternate's, and
     // in both cases the sRGB texels lose nothing a subtractive page wanted.
     //
-    // ★ Allocated unconditionally for CMYK rather than only when the page
+    // Allocated unconditionally for CMYK rather than only when the page
     // turns out to be subtractive, because THAT IS NOT KNOWN HERE — the
     // blending space is a page-level decision made after the image is
     // decoded, and an image is cached across pages. Two texel-sized pixmaps
@@ -1610,7 +1610,7 @@ fn decode_sampled(
     }
     let spots_carried = !spot_colorants.is_empty() && spot_planes.len() == spot_colorants.len();
     let mut out_of_range = false;
-    // ★ ALL-OR-NOTHING, and it is the safety net under `Space::yields_cmyk`'s
+    // ALL-OR-NOTHING, and it is the safety net under `Space::yields_cmyk`'s
     // probe. Set the moment a texel's `to_cmyk` answers `None` on an image
     // whose space claimed it would not; the planes are then dropped for the
     // WHOLE image after the loop and it bridges uniformly.
@@ -1694,7 +1694,7 @@ fn decode_sampled(
                     }
                 }
                 None => {
-                    // ★ The OUTER buffer, not a fresh local. The ink write
+                    // The OUTER buffer, not a fresh local. The ink write
                     // below needs this tuple, and it is only valid here: by
                     // the next statement the colour has been converted and
                     // `comps` would be the previous texel's if it were not
@@ -1784,7 +1784,7 @@ fn decode_sampled(
                 //   * `DeviceCMYK`: the texel's own components, which ARE
                 //     the colorants.
                 //
-                // ★ `tinting` is what separates the last two, and it must:
+                // `tinting` is what separates the last two, and it must:
                 // a `Separation`'s `last_comps` holds TINTS, not process
                 // components. Falling through to the third arm would write a
                 // five-colorant `DeviceN`'s first four tints as if they were
@@ -1851,9 +1851,9 @@ fn decode_sampled(
     if ink_incomplete {
         ink = None;
     }
-    // ★ `Pass 140.2`: hand the colour work's own account to the caller.
+    // `Pass 140.2`: hand the colour work's own account to the caller.
     //
-    // ★★ THE TWO SOURCES ARE NOT SYMMETRIC, AND THE FIRST DRAFT OF THIS
+    // THE TWO SOURCES ARE NOT SYMMETRIC, AND THE FIRST DRAFT OF THIS
     // COMMENT CLAIMED THEY WERE. It said merging only the cache "would leave
     // every non-`Special` image silent". That is **false**, and a sabotage
     // proved it: deleting the `scratch_diag` merge changes no test, because
@@ -1944,7 +1944,7 @@ fn write_tint(plane: &mut Pixmap, at: usize, tint: f32, alpha: u8) {
 /// rasterises premultiplied and the compositor un-premultiplies by the alpha
 /// it reads back — the identical dance `composite_srgb` already performs.
 ///
-/// ★ `K` is replicated across all three channels rather than parked in one.
+/// `K` is replicated across all three channels rather than parked in one.
 /// A single channel would work and would also make a silent failure possible:
 /// if the packing and the unpacking ever disagreed about WHICH channel, two
 /// out of three reads would return zero — a plausible-looking lighter image
@@ -2135,7 +2135,7 @@ struct TintCache {
     /// the sRGB the screen path paints, and the `DeviceCMYK` colorants a
     /// subtractive page composites in, when the space has any.
     ///
-    /// ★ Both, from one entry, for the reason [`crate::shading::ColorRamp`]
+    /// Both, from one entry, for the reason [`crate::shading::ColorRamp`]
     /// and [`crate::mesh`]'s vertex reader both state: a `/tintTransform`
     /// may be arbitrary PostScript, and **nothing forces two evaluations of
     /// it to agree**. Caching them separately, or computing one here and
@@ -2267,7 +2267,7 @@ pub(crate) enum Space {
     /// `/Indexed`: the resolved palette, plus the base's **authored ink**
     /// when that base is `DeviceCMYK`.
     ///
-    /// ★ The second table exists for the same reason
+    /// The second table exists for the same reason
     /// [`DecodedImage::ink`] does, one level further in. A palette entry is
     /// resolved to `Rgb` when the table is BUILT, so by the time a texel
     /// looks one up the colorants are already gone — and `CMYK -> sRGB` is
@@ -2283,7 +2283,7 @@ pub(crate) enum Space {
         /// Whether the BASE space was colour-managed when the palette was
         /// built (`Pass 214.0`).
         ///
-        /// ★ Recorded here because it cannot be recovered later. This variant
+        /// Recorded here because it cannot be recovered later. This variant
         /// keeps resolved TABLES, not the base space, so by the time anything
         /// asks "was this image managed?" the base is gone — and an
         /// `/Indexed` over `ICCBased` is exactly the shape the conformance
@@ -2335,7 +2335,7 @@ pub(crate) enum Space {
         /// output device (`Pass 242.0`). `None` for every other delegated
         /// space, and for a CIE space on a document with no intent.
         ///
-        /// ★ Resolved at construction rather than looked up per texel for
+        /// Resolved at construction rather than looked up per texel for
         /// the same reason `Icc`'s bridge is: the cache lives on the
         /// interpreter and a `Space` outlives the decode call. With it, a
         /// `Lab` image and a `Lab` fill of one colour separate through ONE
@@ -2357,7 +2357,7 @@ pub(crate) enum Space {
     /// that only arises when a bridge could be built; a separate variant
     /// leaves all of them exactly as they were.
     ///
-    /// ★ IT IS ONLY CONSTRUCTED WHEN A BRIDGE EXISTS. No output intent, an
+    /// IT IS ONLY CONSTRUCTED WHEN A BRIDGE EXISTS. No output intent, an
     /// unparseable profile, or a destination that is not four-component, and
     /// resolution falls back to the device space by `/N` — today's behaviour,
     /// bit for bit. So this variant cannot regress a file it does not apply
@@ -2393,7 +2393,7 @@ pub(crate) enum Space {
     /// fill and an image of one colour land on one pixel value, and is the
     /// conformance patch's exact pass criterion.
     ///
-    /// ★★ ON THE "MEASURED NEGATIVE" THAT SAID NOT TO DO THIS. The 2026-09-02
+    /// ON THE "MEASURED NEGATIVE" THAT SAID NOT TO DO THIS. The 2026-09-02
     /// hand-off (`docs/NEXT_SESSION.md` §D item 1) recorded routing an `N 3`
     /// image onto the ink path as **3× worse**, and that number is real —
     /// but it measured a DEFECT, not the route. Until this Pass a direct
@@ -2481,7 +2481,7 @@ impl Space {
     fn default_decode(&self, max_sample: f32) -> Vec<(f32, f32)> {
         match self {
             Self::Indexed { .. } => vec![(0.0, max_sample)],
-            // ★ NOT `[0 1]` per component. Table 90's default is the
+            // NOT `[0 1]` per component. Table 90's default is the
             // space's own component RANGE, and `Lab` is the case where
             // that is not 0–1: its L runs 0–100 and its a/b run over the
             // `/Range` array's values, which are routinely negative.
@@ -2551,7 +2551,7 @@ impl Space {
             // of the "same" CMYK agree on screen by construction rather
             // than by two formulas being kept in step (gstate.rs docs).
             Self::Cmyk => Rgb::from_cmyk(intent, c(0), c(1), c(2), c(3)),
-            // ★ THE sRGB PATH DELIBERATELY DOES NOT MOVE. An `Icc` space
+            // THE sRGB PATH DELIBERATELY DOES NOT MOVE. An `Icc` space
             // renders on screen exactly as the device space its `/N` implies,
             // which is what it did before this variant existed.
             //
@@ -2567,7 +2567,7 @@ impl Space {
                 4 => Rgb::from_cmyk(intent, c(0), c(1), c(2), c(3)),
                 _ => Rgb::from_rgb(c(0), c(1), c(2)),
             },
-            // ★ THE DISPLAY ROUTE (`Pass 240.0`): the profile's own answer
+            // THE DISPLAY ROUTE (`Pass 240.0`): the profile's own answer
             // for what these three numbers look like on an sRGB screen. The
             // fallback is Table 66's reinterpretation, reached only if the
             // bridge refuses the width -- which `resolve_space_array` made
@@ -2596,7 +2596,7 @@ impl Space {
     /// colorants; this method is what lets a `Separation`/`DeviceN` image
     /// keep its own (`Pass 140.0`).
     ///
-    /// ★★ It is **not** Table 149's question and must never be confused
+    /// It is **not** Table 149's question and must never be confused
     /// with it. [`crate::overprint::authored_tints`] answers *"which
     /// components did the source SPECIFY"* — a question about the operands
     /// — and returns `None` for a spot-only `DeviceN`, because a spot
@@ -2643,7 +2643,7 @@ impl Space {
                 let bridge = pcs.as_ref()?;
                 bridge.to_ink(cs.to_pcs_xyz(comps)?)
             }),
-            // ★★★ THE COLOUR-MANAGED ROUTE, `Pass 214.0`.
+            // THE COLOUR-MANAGED ROUTE, `Pass 214.0`.
             //
             // This one arm is the whole image fix, and it is one arm because
             // BOTH image routes come through here: a direct `ICCBased` image
@@ -2672,7 +2672,7 @@ impl Space {
     /// Whether this space can produce colorants **at all** — the
     /// allocation gate for [`DecodedImage::ink`]'s two texel-sized planes.
     ///
-    /// # ★ Why this is a PROBE and not a structural predicate
+    /// # Why this is a PROBE and not a structural predicate
     ///
     /// The obvious implementation is a `matches!` over the space's shape:
     /// *"`Cmyk`, or a `Separation`/`DeviceN` with a `DeviceCMYK`
@@ -2763,7 +2763,7 @@ fn icc_rgb_bridges(
 fn codestream_space(coded: &CodedImage, icc: IccContext<'_>) -> Result<Space, ImageError> {
     match coded.color_model {
         CodecColorModel::Gray => Ok(Space::Gray),
-        // ★ A three-channel codestream that carries its OWN ICC profile is
+        // A three-channel codestream that carries its OWN ICC profile is
         // §7.4.9's higher rung, not the `DeviceRGB` terminal one: "the colour
         // space specifications in the JPEG2000 data shall be used", and an
         // embedded profile IS such a specification. Managed to the screen
@@ -2771,7 +2771,7 @@ fn codestream_space(coded: &CodedImage, icc: IccContext<'_>) -> Result<Space, Im
         // when the profile will not model, or the caller declined
         // management, the terminal rung below runs as before.
         //
-        // ★ Deliberately unmeasured against the conformance suite: every
+        // Deliberately unmeasured against the conformance suite: every
         // JPX patch there names a `/ColorSpace`, which Table 89 makes win
         // over the codestream, so this rung is reached by none of them.
         // It is here because the rule is the same rule, not because a
@@ -2957,7 +2957,7 @@ fn resolve_space_array(
                 .and_then(|d| d.get(b"N"))
                 .map(|o| doc.resolve(o))
                 .and_then(Object::as_int);
-            // ★★★ COLOUR-MANAGE IT WHEN BOTH ENDS EXIST, `Pass 214.0`.
+            // COLOUR-MANAGE IT WHEN BOTH ENDS EXIST, `Pass 214.0`.
             //
             // Before this, an `ICCBased` image was collapsed to a device space
             // by `/N` and its profile discarded -- so every ICC image in the
@@ -2985,7 +2985,7 @@ fn resolve_space_array(
                     bridge,
                 });
             }
-            // ★★★ AND THE DISPLAY ROUTE FOR `N 3`, `Pass 240.0`.
+            // AND THE DISPLAY ROUTE FOR `N 3`, `Pass 240.0`.
             //
             // A three-component profile goes to the SCREEN, not to the output
             // intent -- `Space::IccRgb`'s docs carry the measurement that
@@ -3103,7 +3103,7 @@ fn resolve_space_array(
 /// the whole image. The caller already reports a short table by stopping the
 /// palette early.
 ///
-/// # ★ The range is the BASE's, not `0..1` (`Pass 242.0`)
+/// # The range is the BASE's, not `0..1` (`Pass 242.0`)
 ///
 /// §8.6.6.3: each byte "shall be scaled to the range of the corresponding
 /// colour component in the base colour space". This function divided by 255
@@ -3223,7 +3223,7 @@ fn resolve_indexed(
     // same loop as the sRGB entries, so the two tables cannot come to
     // disagree about which index means what.
     //
-    // ★★ THIS READ `matches!(base, Space::Cmyk)` UNTIL `Pass 140.0`, and the
+    // THIS READ `matches!(base, Space::Cmyk)` UNTIL `Pass 140.0`, and the
     // omission was the fourth route of the same defect: a DUOTONE — an
     // `/Indexed` over a `[/DeviceN [...] /DeviceCMYK <tint>]` — has
     // colorants behind every palette entry and lost all of them on the way
@@ -3246,7 +3246,7 @@ fn resolve_indexed(
     // Only the `Separation`/`DeviceN` row is kept, because it is the only one
     // whose shortfall this structure can express.
     //
-    // ★ This comment used to justify that with "every other row paints `c_s`
+    // This comment used to justify that with "every other row paints `c_s`
     // in all three columns, so an overprinting image in it is already rendered
     // correctly by an ordinary paint and has nothing to carry". That is a
     // correct reading of the process-component sub-row and drops the
@@ -3259,7 +3259,7 @@ fn resolve_indexed(
         Space::Special { cs, .. } => match crate::overprint::classify(
             cs,
             true,
-            // ★ NOT a policy read, deliberately, and this is the one place
+            // NOT a policy read, deliberately, and this is the one place
             // in the codebase where passing a literal is MORE honest than
             // threading the operator's setting through.
             //
@@ -3310,7 +3310,7 @@ fn resolve_indexed(
     };
     let mut spot_table: Vec<Vec<f32>> =
         Vec::with_capacity(if spot_slots.is_empty() { 0 } else { hival + 1 });
-    // ★ EXACTLY `m` COMPONENTS, AND THE BUFFER IS SIZED FROM `m`.
+    // EXACTLY `m` COMPONENTS, AND THE BUFFER IS SIZED FROM `m`.
     //
     // This was a fixed `[0.0f32; 4]` passed whole to `to_rgb`, and it was
     // wrong in two independent ways that both produced a PLAUSIBLE picture
@@ -3344,7 +3344,7 @@ fn resolve_indexed(
             break;
         };
         let comps = palette_entry(entry, &base_ranges);
-        // ★ `comps` is the entry in the BASE space, so the base is what is
+        // `comps` is the entry in the BASE space, so the base is what is
         // asked — a `DeviceCMYK` base returns the components themselves, a
         // `Separation`/`DeviceN` base runs its tint transform, and an
         // additive base answers `None` and takes the whole table with it.
@@ -3355,7 +3355,7 @@ fn resolve_indexed(
                 None => ink_incomplete = true,
             }
         }
-        // ★ `comps` is the entry in the BASE space — one operand per declared
+        // `comps` is the entry in the BASE space — one operand per declared
         // colorant, in `names` order — which is precisely what
         // `authored_tints` is written to read. Read here, at the one point
         // where the operands still exist; one line later the entry is an
@@ -3405,7 +3405,7 @@ fn resolve_indexed(
 mod tests {
     use super::*;
 
-    /// ★ THE REGRESSION GUARD FOR A BUG AN OPERATOR FOUND AND NO GATE DID.
+    /// THE REGRESSION GUARD FOR A BUG AN OPERATOR FOUND AND NO GATE DID.
     ///
     /// A palette entry must be exactly as wide as its base space, because
     /// `Space::Special` hands the slice straight to a tint transform whose
@@ -3536,7 +3536,7 @@ mod tests {
         assert_eq!(decode_pairs(&d), Some(vec![(1.0, 0.0)]));
     }
 
-    /// ★ THE ARMS THE FIXTURES CANNOT REACH, AND WHY THEY ARE ASSERTED HERE.
+    /// THE ARMS THE FIXTURES CANNOT REACH, AND WHY THEY ARE ASSERTED HERE.
     ///
     /// `tests/devicen_image_ink.rs` exercises the two spaces that DO carry ink
     /// through whole rendered pages, which is the right level for those. It
@@ -3606,7 +3606,7 @@ mod tests {
     /// §8.6.6.3: an `/Indexed` operand is an **index**, not a colour, so the
     /// space itself must refuse the colorant question outright.
     ///
-    /// ★ Answering it would be worse than merely wrong. `Space::to_cmyk` takes
+    /// Answering it would be worse than merely wrong. `Space::to_cmyk` takes
     /// raw components, so a permissive arm would read the index `3` as a cyan
     /// value of 3.0, clamp it to full ink, and paint the whole image solid.
     /// The palette's colorants live in `Space::Indexed::ink`, built by

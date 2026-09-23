@@ -200,7 +200,7 @@ fn every_variant() -> Vec<(&'static str, MarkupSpec)> {
     ]
 }
 
-/// ★ Every variant survives `spec → annotation dictionary → spec` exactly.
+/// Every variant survives `spec → annotation dictionary → spec` exactly.
 ///
 /// This is the property the whole serialisation design rests on: the clip
 /// does not invent an encoding, it carries the COS object pdfcer already
@@ -248,7 +248,7 @@ fn every_markup_variant_round_trips_through_cos_syntax() {
     }
 }
 
-/// ★ THE MEASUREMENT THAT REJECTED THE FREE ROUTE, kept as a test.
+/// THE MEASUREMENT THAT REJECTED THE FREE ROUTE, kept as a test.
 ///
 /// Carrying the *annotation dictionary* would have cost no new code: both
 /// `build_appearance` and `spec_from_dict` already ship. This is why it was
@@ -324,7 +324,7 @@ fn a_revision_cloud_does_not_come_back_as_a_plain_polygon() {
 // The clip file itself
 // ---------------------------------------------------------------------------
 
-/// ★ An annotation copied to a clip **file** pastes into another document.
+/// An annotation copied to a clip **file** pastes into another document.
 ///
 /// This is the capability the whole Pass exists for. Until it landed,
 /// `ObjectClip::to_bytes` dropped every annotation and `from_bytes` restored
@@ -455,7 +455,7 @@ fn a_ce_dimension_survives_the_clip_file() {
         }) => {
             assert_eq!(group_name, "Plan");
             assert_eq!(format.unit, Unit::Millimeter);
-            // ★ `Pass 173.1`: the SCALE travels. Without it a pasted ce
+            // `Pass 173.1`: the SCALE travels. Without it a pasted ce
             // dimension landed in a freshly created default-styled group and
             // its label -- which is DERIVED from the scale -- read a
             // different number, with nothing erroring.
@@ -469,7 +469,7 @@ fn a_ce_dimension_survives_the_clip_file() {
 // The raw carrier (`Pass 170.0`)
 // ---------------------------------------------------------------------------
 
-/// ★ A **sticky note** copies and pastes — the single most-copied comment in
+/// A **sticky note** copies and pastes — the single most-copied comment in
 /// a review workflow, and until `Pass 170.0` the clipboard refused it.
 ///
 /// pdfcer could always *author* one (`TextAnnotSpec::Sticky`); it had no
@@ -662,7 +662,7 @@ fn a_popup_is_refused_because_it_is_not_an_independent_annotation() {
     );
 }
 
-/// ★★ A pasted ce dimension shows THE SAME NUMBER as the one it was copied
+/// A pasted ce dimension shows THE SAME NUMBER as the one it was copied
 /// from (`Pass 173.1`).
 ///
 /// This is the acceptance criterion `Pass 120.5` stated in 2026-08-21 and
@@ -750,7 +750,7 @@ fn a_pasted_ce_dimension_reads_the_same_number_it_was_copied_from() {
     assert_eq!(landed.unit(), Unit::Millimeter);
 }
 
-/// ★ When the destination ALREADY has a group of that name, **its** scale
+/// When the destination ALREADY has a group of that name, **its** scale
 /// wins — and the paste says so.
 ///
 /// The alternative would be to re-scale the operator's existing group to

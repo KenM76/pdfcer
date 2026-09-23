@@ -84,7 +84,7 @@ pub enum ChainVerdict {
     /// [`PathChecks`] recording which validity/constraint checks ran, all for
     /// disclosure.
     ///
-    /// ★ Read `checks` before presenting this: revocation is never checked
+    /// Read `checks` before presenting this: revocation is never checked
     /// here, and validity is checked only when a clock was supplied.
     Trusted {
         /// The trusted anchor's subject the chain terminated at.

@@ -3,7 +3,7 @@
 //! Covers `list-outline`, `rename-bookmark`, `delete-bookmark` (`Pass 157.0`)
 //! and `move-bookmark` / `set-bookmark-open` (`Pass 161.0`).
 //!
-//! ## ★★ Why the older two are tested here, in a later Pass
+//! ## Why the older two are tested here, in a later Pass
 //!
 //! `Pass 157.0` shipped `rename-bookmark` and `delete-bookmark` with **no CLI
 //! tests at all** — the core was covered by `outline_edit.rs` and the binary
@@ -133,7 +133,7 @@ fn levels(path: &Path) -> Vec<u32> {
 // list-outline — the numbering every other command depends on
 // ---------------------------------------------------------------------------
 
-/// ★ The `n=` numbering is depth-first over **every** level, not top-level
+/// The `n=` numbering is depth-first over **every** level, not top-level
 /// only, and it is 1-based. Every other command in this file indexes with it,
 /// so an error here is an error in all of them — which is exactly why it is
 /// asserted on its own rather than assumed by the tests that use it.
@@ -252,7 +252,7 @@ fn rename_bookmark_refuses_a_number_the_document_does_not_have() {
 // delete-bookmark — owed from `Pass 157.0`
 // ---------------------------------------------------------------------------
 
-/// ★★ Deleting a chapter takes its sections, and the command **says so**.
+/// Deleting a chapter takes its sections, and the command **says so**.
 ///
 /// The operator named one bookmark and three went. In `pdfcer` the
 /// invocation is the commit — there is no session and no undo — so the count
@@ -478,7 +478,7 @@ fn move_bookmark_promotes_to_top_level() {
     assert_eq!(levels(&out_path), [0, 0, 1, 1, 0]);
 }
 
-/// ★ A cycle is refused, and the message speaks in `n=` — the identifiers the
+/// A cycle is refused, and the message speaks in `n=` — the identifiers the
 /// operator typed and `list-outline` prints — not in the object ids the core
 /// uses internally.
 #[test]
@@ -539,7 +539,7 @@ fn move_bookmark_refuses_an_incoherent_invocation() {
     }
 }
 
-/// ★★ A redundant move is not an error, writes nothing, and **says** it wrote
+/// A redundant move is not an error, writes nothing, and **says** it wrote
 /// nothing.
 ///
 /// The byte comparison is the real assertion. `moved=0` in the report is what
@@ -630,7 +630,7 @@ fn set_bookmark_open_on_a_leaf_changes_nothing_and_says_so() {
     );
 }
 
-/// ★ The two Passes compose: a move preserves the destination's collapsed
+/// The two Passes compose: a move preserves the destination's collapsed
 /// state, and `set-bookmark-open` is the other answer. This is the
 /// reveal-on-move workflow, and it is a test because the split into two verbs
 /// is only defensible if composing them actually works.

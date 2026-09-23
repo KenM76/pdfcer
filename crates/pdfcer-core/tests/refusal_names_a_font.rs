@@ -7,7 +7,7 @@
 //! own **unusable**: it names no font, and the operator is there precisely
 //! because they cannot tell which font would work.
 //!
-//! ★ The remedy already shipped. `format_text`'s `set_font` **authors** a
+//! The remedy already shipped. `format_text`'s `set_font` **authors** a
 //! standard-14 resource on a page that lacks one — no embedding, no `fsType`
 //! question, no licensing question (§9.6.2.2). Measured on a real 36-sheet
 //! SolidWorks drawing: the two-command sequence works **today**, and nothing
@@ -34,7 +34,7 @@
 //! | four of them | 72/95 | exactly `h j l q z` and `Z` |
 //! | two of them | 38/95, 24/95 | all lowercase |
 //!
-//! ★★ Those are precisely the letters the drawing never used. **A subset can
+//! Those are precisely the letters the drawing never used. **A subset can
 //! draw exactly what the document already contains**, so the failing edits are
 //! the ones introducing a NOVEL character — which is why it presents as
 //! working sometimes and not others.
@@ -43,7 +43,7 @@
 
 use pdfcer_core::text_edit::encoding::std14_faces_covering;
 
-/// ★★ An ordinary letter is covered by the twelve TEXT faces, and by neither
+/// An ordinary letter is covered by the twelve TEXT faces, and by neither
 /// symbol face.
 ///
 /// The two exclusions are the assertion that matters. They are not
@@ -69,7 +69,7 @@ fn an_ordinary_letter_names_the_text_faces_and_not_the_symbol_ones() {
     );
 }
 
-/// ★★ A character NO standard-14 face can show returns nothing.
+/// A character NO standard-14 face can show returns nothing.
 ///
 /// The honest-empty case, and the one that stops the list from being
 /// decoration. If this returned a face for CJK the refusal would send an
@@ -85,7 +85,7 @@ fn a_character_outside_every_standard_face_names_nothing() {
     }
 }
 
-/// ★ Greek is covered — by `Symbol` alone — and this test exists because I
+/// Greek is covered — by `Symbol` alone — and this test exists because I
 /// expected the opposite.
 ///
 /// `'ω'` was written into the empty-case list above on the assumption that

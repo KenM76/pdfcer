@@ -8,7 +8,7 @@
 //! `/Text` (`/Note`, `/Help`) and one `/Stamp` (`/TopSecret`). **Acrobat draws
 //! all three; pdfcer rendered a blank page.**
 //!
-//! # ★★★ Why `R43` was being applied outside its territory
+//! # Why `R43` was being applied outside its territory
 //!
 //! `R43` says an annotation is rendered from its `/AP` or not at all, and
 //! nothing in `pdfcer-render` synthesises an appearance. Right for a `/Square`
@@ -32,7 +32,7 @@
 //! square/circle clause addresses *the annotation*. `R43` is untouched for the
 //! second class, and these tests assert both halves.
 //!
-//! ★ The obligation is on **pixels, not objects** — no clause asks a reader to
+//! The obligation is on **pixels, not objects** — no clause asks a reader to
 //! materialise an `/AP` into the file — so this changes no bytes and neither
 //! rule 3 nor `R44` is in play.
 
@@ -109,7 +109,7 @@ fn ink(page: &pdfcer_render::RenderedPage) -> usize {
 
 // ------------------------------------------------- 1. the reported defect
 
-/// ★★★ A `/Text` naming `/Note` with no `/AP` is DRAWN.
+/// A `/Text` naming `/Note` with no `/AP` is DRAWN.
 #[test]
 fn a_text_annotation_naming_an_icon_is_drawn() {
     let out = render(no_ap_pdf(
@@ -125,7 +125,7 @@ fn a_text_annotation_naming_an_icon_is_drawn() {
     assert!(ink(&out) > 0, "and the page is no longer blank");
 }
 
-/// ★★ A `/Stamp` naming `/TopSecret` with no `/AP` is DRAWN — the operator's
+/// A `/Stamp` naming `/TopSecret` with no `/AP` is DRAWN — the operator's
 /// own third annotation.
 #[test]
 fn a_stamp_annotation_naming_an_icon_is_drawn() {
@@ -142,7 +142,7 @@ fn a_stamp_annotation_naming_an_icon_is_drawn() {
 
 // ------------------------------------- 2. R43 survives for the other class
 
-/// ★★★ THE CONTROL THAT KEEPS `R43` INTACT: a `/Square` with no `/AP` is still
+/// THE CONTROL THAT KEEPS `R43` INTACT: a `/Square` with no `/AP` is still
 /// NOT drawn.
 ///
 /// This is the whole reason the change is a narrowing of `R43`'s scope rather
@@ -173,7 +173,7 @@ fn a_square_with_no_ap_is_still_not_drawn() {
 
 // ------------------------------------------------- 3. the disclosure
 
-/// ★★ BOTH counters are reported, and they answer DIFFERENT questions.
+/// BOTH counters are reported, and they answer DIFFERENT questions.
 ///
 /// `annotations_without_ap` is a fact about the **file**; `annotations_icon_painted`
 /// is what the operator **saw**. Folding them together would make one of the
@@ -196,7 +196,7 @@ fn the_file_fact_and_the_painted_fact_are_counted_separately() {
     );
 }
 
-/// ★ An annotation that already HAS an `/AP` is untouched by this path.
+/// An annotation that already HAS an `/AP` is untouched by this path.
 ///
 /// Without this, a change that drew the icon unconditionally would override
 /// the file's own artwork — the opposite defect, and a far worse one, since
@@ -214,7 +214,7 @@ fn an_annotation_with_an_ap_is_not_second_guessed() {
     );
 }
 
-/// ★★★ THE CONTROL THAT ACTUALLY MEASURES THE SUBTYPE RESTRICTION, and it
+/// THE CONTROL THAT ACTUALLY MEASURES THE SUBTYPE RESTRICTION, and it
 /// exists because a sabotage survived without it.
 ///
 /// Deleting the `subtype != "Text" && subtype != "Stamp"` guard left all five

@@ -22,7 +22,7 @@
 //! §10.2 asks to be driven. None of it is reachable from `vector_edit`, whose
 //! whole input is one already-parsed content stream.
 //!
-//! ## ★ The specific shapes this is built to survive
+//! ## The specific shapes this is built to survive
 //!
 //! A mutated document can produce a leaf whose form is:
 //!

@@ -19,7 +19,7 @@
 //! fire is indistinguishable, from outside, from a condition that has not
 //! occurred.
 //!
-//! ## ★★ Why this test lives HERE, in `pdfcer-render`
+//! ## Why this test lives HERE, in `pdfcer-render`
 //!
 //! Because this is the only crate where **the compiler proves the
 //! premise.**
@@ -67,7 +67,7 @@ use pdfcer_core::build::BuildInfo;
 /// indistinguishable from inside the build script.
 #[test]
 fn the_build_banner_does_not_deny_the_iccce_this_crate_links() {
-    // ★ The premise, enforced by the compiler rather than assumed: this
+    // The premise, enforced by the compiler rather than assumed: this
     // line does not typecheck unless `iccce` is a dependency of this crate.
     // Parsing four bytes of nonsense is expected to fail; the VALUE is
     // irrelevant and deliberately unused. What matters is that the symbol

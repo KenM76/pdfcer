@@ -25,7 +25,7 @@
 //!                        /Names [ (#DApproved=Approved) 29 0 R … ]
 //! ```
 //!
-//! ★ **A compatibility feature built on secondary sourcing is how a shipped
+//! **A compatibility feature built on secondary sourcing is how a shipped
 //! feature silently fails to interoperate.** These tests therefore assert the
 //! *structure Adobe writes*, not merely that pdfcer can re-read itself — a
 //! reader that only ever sees its own writer's output proves nothing.
@@ -102,7 +102,7 @@ fn authored_collection() -> Vec<u8> {
 
 // ------------------------------------------------- 1. reading Adobe's files
 
-/// ★★★ pdfcer READS ADOBE'S OWN STAMP FILES.
+/// pdfcer READS ADOBE'S OWN STAMP FILES.
 ///
 /// Skipped when Acrobat is not installed, because a test that silently passes
 /// on a machine without the files would be worse than no test — but on a
@@ -137,7 +137,7 @@ fn adobes_own_stamp_files_are_read_correctly() {
     assert!(!approved.dynamic, "a Standard Business stamp is static");
 }
 
-/// ★★ The `#` prefix marks a dynamic stamp — Adobe's own convention, in
+/// The `#` prefix marks a dynamic stamp — Adobe's own convention, in
 /// Adobe's own file.
 #[test]
 fn adobes_dynamic_stamps_are_recognised_as_dynamic() {
@@ -160,7 +160,7 @@ fn adobes_dynamic_stamps_are_recognised_as_dynamic() {
     );
 }
 
-/// ★ THE CONTROL: an ordinary PDF is not a stamp file.
+/// THE CONTROL: an ordinary PDF is not a stamp file.
 ///
 /// Without it, a reader that returned a stamp for every document would satisfy
 /// both assertions above and make `is_stamp_file` worthless.
@@ -178,7 +178,7 @@ fn an_ordinary_pdf_is_not_a_stamp_collection() {
 
 // ------------------------------------------------- 2. writing the format
 
-/// ★★★ A COLLECTION PDFCER WROTE HAS THE STRUCTURE ADOBE WRITES.
+/// A COLLECTION PDFCER WROTE HAS THE STRUCTURE ADOBE WRITES.
 ///
 /// Asserted against the raw bytes, not by re-reading with pdfcer's own reader:
 /// the point is the file's shape, and a writer and reader that agree with each
@@ -225,7 +225,7 @@ fn an_authored_collection_round_trips() {
     );
 }
 
-/// ★★ THE NAME TREE IS SORTED BY NAME, which §7.9.6 requires.
+/// THE NAME TREE IS SORTED BY NAME, which §7.9.6 requires.
 ///
 /// Adobe's own file proves page order is NOT tree order — `SBApproved` names
 /// page 0 and `SBCompleted` names page 4 — so a writer that emitted page order
@@ -264,7 +264,7 @@ fn the_name_tree_is_written_in_lexicographic_order() {
     );
 }
 
-/// ★ A stamp naming a page that does not exist is SKIPPED and REPORTED, not
+/// A stamp naming a page that does not exist is SKIPPED and REPORTED, not
 /// written.
 ///
 /// A name tree pointing at nothing is a stamp that appears in a picker and
@@ -289,7 +289,7 @@ fn naming_more_stamps_than_pages_reports_the_overflow() {
     );
 }
 
-/// ★★ Writing the name tree PRESERVES a `/Names` dictionary that already
+/// Writing the name tree PRESERVES a `/Names` dictionary that already
 /// exists.
 ///
 /// Acrobat's `Dynamic.pdf` carries `/Names << /JavaScript … /Pages … >>`.
@@ -327,7 +327,7 @@ fn an_existing_names_dictionary_keeps_its_other_trees() {
 
 // ------------------------------- 4. an unreadable page tree is not a stamp fact
 
-/// ★★ A PAGE-TREE failure must not be reported as "every stamp points at
+/// A PAGE-TREE failure must not be reported as "every stamp points at
 /// nothing" (`Pass 290.1`).
 ///
 /// `StampEntry::page_index` is `None` for a defined reason — *the named page

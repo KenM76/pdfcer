@@ -9,7 +9,7 @@
 //! one drag, so Ctrl+Z leaves half the selection moved. That is the reason,
 //! together with owing the same disclosure N times.
 //!
-//! ## ★ A stronger argument was drafted, tested, and turned out to be FALSE
+//! ## A stronger argument was drafted, tested, and turned out to be FALSE
 //!
 //! It is very tempting to add a *correctness* reason: all four corners of
 //! an `x y w h re` are described by the same four operands of one operator

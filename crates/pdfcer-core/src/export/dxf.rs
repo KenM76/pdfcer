@@ -32,7 +32,7 @@
 //! `HEADER`, `TABLES` (`LTYPE` + `LAYER`) and `ENTITIES`, using
 //! `LWPOLYLINE`, `CIRCLE`, `ARC` and `SPLINE`.
 //!
-//! ### ★ The version was wrong first, and the RAG had already said so
+//! ### The version was wrong first, and the RAG had already said so
 //!
 //! This declared `AC1009` (R12) on my own reasoning that R12 is "one step
 //! more conservative than R2000 and therefore reaches further" — while

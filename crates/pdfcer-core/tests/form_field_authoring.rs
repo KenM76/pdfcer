@@ -751,7 +751,7 @@ fn a_duplicate_export_value_is_refused() {
     assert!(matches!(err, EditError::ChoiceOptionDuplicate { .. }));
 }
 
-/// ★ AND THE SAME REFUSAL FROM THE OTHER DOOR (`Pass 308.7`, request `G025`).
+/// AND THE SAME REFUSAL FROM THE OTHER DOOR (`Pass 308.7`, request `G025`).
 ///
 /// The guard lived inside `add_choice_field` alone, and its own comment was
 /// the argument against that: *"a duplicate export is unselectable, because
@@ -797,7 +797,7 @@ fn a_duplicate_export_value_is_refused_by_edit_field_too() {
 
 /// A duplicate ALREADY in the file does not make the field uneditable.
 ///
-/// ★ The judgement `pdfcer-gui` handed over, and their guess was right. This
+/// The judgement `pdfcer-gui` handed over, and their guess was right. This
 /// is the same call `ChoiceSortClaimUnmet`'s Table 230 gate makes for a
 /// nonconforming bit-19 file: pdfcer reports what it found and lets the
 /// operator fix it, rather than making a document it did not author
@@ -1222,7 +1222,7 @@ fn a_missing_template_is_refused() {
 /// leave off the paper, and the operator would not find out until they
 /// printed.
 ///
-/// # ★ This test exists because a reported defect turned out not to be one
+/// # This test exists because a reported defect turned out not to be one
 ///
 /// An Acrobat-parity audit reported that `add_radio_button`,
 /// `add_push_button` and `add_choice_field` never set `/F`, while
@@ -1324,7 +1324,7 @@ fn every_authored_field_type_is_marked_printable() {
 // `sort` means the same thing on both builders (`Pass 308.8`, request `G026`)
 // ---------------------------------------------------------------------------
 
-/// ★ THE ASYMMETRY THAT PRODUCED THE REQUEST. `NewChoiceField::sorted(true)`
+/// THE ASYMMETRY THAT PRODUCED THE REQUEST. `NewChoiceField::sorted(true)`
 /// sorted the array; `FieldEdit::with_sort(true)` set a flag and sorted
 /// nothing. Same word, same crate, same field type, opposite meanings — and
 /// both were defensible on their own terms, which is why it took a consuming
@@ -1445,7 +1445,7 @@ fn an_already_sorted_list_is_not_reported_as_reordered() {
     assert!(!out.sort_claim_unmet);
 }
 
-/// ★ The exported comparator IS the one the gate checks against.
+/// The exported comparator IS the one the gate checks against.
 ///
 /// The whole point of exporting it: a caller that sorts with
 /// `sort_choice_options` cannot disagree with `sort_claim_unmet`, because the
@@ -1492,7 +1492,7 @@ fn the_exported_sort_satisfies_the_engines_own_sorted_test() {
 // The duplicate rule is public too (`Pass 308.9`, request `G027`)
 // ---------------------------------------------------------------------------
 
-/// ★ THE PREDICATE AND THE REFUSAL ARE ONE RULE, not two that agree.
+/// THE PREDICATE AND THE REFUSAL ARE ONE RULE, not two that agree.
 ///
 /// `Pass 308.8` exported the ordering so a shell could not hold a second
 /// opinion about it; the duplicate rule was the same shape and did not move
@@ -1538,7 +1538,7 @@ fn a_list_with_no_repeat_passes_the_predicate_and_the_verb() {
         .expect("and the verb agrees");
 }
 
-/// ★ Two options may share a DISPLAY string; only `export` is the identity.
+/// Two options may share a DISPLAY string; only `export` is the identity.
 ///
 /// The export is what a fill resolves against and what the form submits, so it
 /// is the one that must be unique. Sharing a label is legitimate — a form may

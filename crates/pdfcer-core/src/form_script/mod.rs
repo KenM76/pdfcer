@@ -485,7 +485,7 @@ fn classify_advisory(call: &Call, trigger: Trigger) -> ScriptClass {
     // wrong value — only a slightly over-broad disclosure, which is the
     // harmless direction.
     //
-    // ★ `_KeystrokeEx` IS PART OF THE FAMILY AND WAS MISSING (`Pass 308.6`).
+    // `_KeystrokeEx` IS PART OF THE FAMILY AND WAS MISSING (`Pass 308.6`).
     // Acrobat pairs `AFDate_FormatEx(cFormat)` with
     // `AFDate_KeystrokeEx(cFormat)`, and `ends_with("_Keystroke")` does not
     // match it — so a real Acrobat-authored explicit-date field classified
@@ -609,7 +609,7 @@ mod tests {
         );
     }
 
-    /// ★ **A helper on the wrong trigger does not classify.**
+    /// **A helper on the wrong trigger does not classify.**
     ///
     /// The pairing check exists for one case above all: a format helper
     /// must never be reachable through a path that writes `/V`. Acrobat

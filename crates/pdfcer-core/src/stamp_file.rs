@@ -15,7 +15,7 @@
 //! "Exporting" a stamp is, at the file-format level, indistinguishable from
 //! handing someone that PDF. There is no interchange format to implement.
 //!
-//! # ★★ Every claim above is MEASURED, not sourced from the internet
+//! # Every claim above is MEASURED, not sourced from the internet
 //!
 //! The feature-parity research reached this shape from convergent community
 //! sources and flagged two gaps by name: **where the category name is stored**
@@ -72,7 +72,7 @@ pub struct StampEntry {
     /// Acrobat recomputes at placement time from AcroForm calculation
     /// scripts.
     ///
-    /// ★ pdfcer **reports** this and does not author it. A dynamic stamp
+    /// pdfcer **reports** this and does not author it. A dynamic stamp
     /// placed by pdfcer would carry whatever its page already draws, which is
     /// the design-time text — correct as a picture, wrong as a promise.
     pub dynamic: bool,
@@ -95,7 +95,7 @@ pub struct StampCollection {
     /// Why the document's page tree could not be walked, when it could not
     /// (`Pass 290.1`).
     ///
-    /// # ★★ The bit that used to be thrown away, and what it cost
+    /// # The bit that used to be thrown away, and what it cost
     ///
     /// [`read`] resolves each stamp's named page to a page INDEX by matching
     /// the name-tree target against the document's own page list. When
@@ -176,7 +176,7 @@ pub fn read(doc: &Document) -> StampCollection {
             .map(|o| doc.resolve(o))
             .and_then(Object::as_dict)
     {
-        // ★ The error is KEPT, not swallowed (`Pass 290.1`). An empty
+        // The error is KEPT, not swallowed (`Pass 290.1`). An empty
         // `page_ids` makes every `position(…)` return `None`, and `None`
         // already means "this name points outside the document" — so the
         // old `unwrap_or_default()` wrote a stamp-shaped claim onto a
@@ -285,7 +285,7 @@ pub fn stamp_name_string(internal: &str, display: &str) -> String {
 ///
 /// [`crate::edit::EditError`] as [`crate::edit::EditSession::set_named_pages`].
 ///
-/// # ★ Why this does not draw the stamps
+/// # Why this does not draw the stamps
 ///
 /// A stamp's artwork **is a page**, and pdfcer already has every verb for
 /// authoring pages. A function that also drew the artwork would be a second,
@@ -313,7 +313,7 @@ pub fn name_stamp_pages(
         }
     }
 
-    // ★ §7.9.6: a name tree's entries "shall be ordered lexicographically by
+    // §7.9.6: a name tree's entries "shall be ordered lexicographically by
     // name". Acrobat's own files obey it — `StandardBusiness.pdf` lists
     // SBApproved (page 0) then SBCompleted (page 4) — so page order is NOT
     // tree order, and emitting page order would produce a tree a conforming

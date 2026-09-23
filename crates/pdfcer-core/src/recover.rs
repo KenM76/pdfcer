@@ -285,7 +285,7 @@ pub struct RecoveryReport {
     /// of rule 4 — an inference pdfcer made (this candidate is not usable) is
     /// disclosed, never silent.
     ///
-    /// ★ A COUNT would not have been enough, and that is why this carries the
+    /// A COUNT would not have been enough, and that is why this carries the
     /// object number and the reason. The complaint that produced this item was
     /// not "the number was wrong" — it was that a human holding a file with a
     /// missing page could not find out WHICH object went or WHY. A bare
@@ -1105,7 +1105,7 @@ mod tests {
         );
     }
 
-    /// ★★★ A SCANNED OBJECT THAT CANNOT BE KEPT IS NAMED (owed item 18).
+    /// A SCANNED OBJECT THAT CANNOT BE KEPT IS NAMED (owed item 18).
     ///
     /// `decision 145` obliges pdfcer to disclose what it dropped. It closed
     /// that at the LOADER; recovery had the same gap, measured on a real
@@ -1117,7 +1117,7 @@ mod tests {
     /// matches and the parser cannot finish, which is the `Unparseable` arm.
     /// The document still loads on objects 1 and 2.
     ///
-    /// ★ The assertion is on the NUMBER and the REASON, not on a count. The
+    /// The assertion is on the NUMBER and the REASON, not on a count. The
     /// complaint this item came from was not that a tally was wrong — it was
     /// that a human holding a file with a missing page could not find out
     /// WHICH object went or WHY, and `dropped: 1` answers neither.

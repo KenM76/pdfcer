@@ -562,7 +562,7 @@ fn container_disagreeing_with_the_xref_is_refused() {
     // name both, rather than trusting one silently.
     let container = objstm_body(&[(9, "(mislabelled)")], "");
     let err = {
-        // ★ AMENDED BY `Pass 283.0`: the default now OPENS the file and
+        // AMENDED BY `Pass 283.0`: the default now OPENS the file and
         // records the loss, because one unreadable object is one UNDEFINED
         // object (§7.3.10) rather than an unreadable file. The strict
         // refusal below is this test's original assertion, unchanged.
@@ -604,7 +604,7 @@ fn container_disagreeing_with_the_xref_is_refused() {
 #[test]
 fn type2_entry_naming_a_missing_container_is_refused() {
     let err = {
-        // ★ AMENDED BY `Pass 283.0`: the default now OPENS the file and
+        // AMENDED BY `Pass 283.0`: the default now OPENS the file and
         // records the loss, because one unreadable object is one UNDEFINED
         // object (§7.3.10) rather than an unreadable file. The strict
         // refusal below is this test's original assertion, unchanged.
@@ -640,7 +640,7 @@ fn type2_entry_naming_a_missing_container_is_refused() {
 fn out_of_range_index_into_a_container_is_refused() {
     let container = objstm_body(&[(4, "(only one)")], "");
     let err = {
-        // ★ AMENDED BY `Pass 283.0`: the default now OPENS the file and
+        // AMENDED BY `Pass 283.0`: the default now OPENS the file and
         // records the loss, because one unreadable object is one UNDEFINED
         // object (§7.3.10) rather than an unreadable file. The strict
         // refusal below is this test's original assertion, unchanged.

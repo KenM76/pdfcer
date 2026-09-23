@@ -266,13 +266,13 @@ pub struct Diagnostics {
     /// `gs` operators that selected a **non-Normal blend mode** (`/BM`,
     /// ISO 32000-1 §11.3.5) which pdfcer APPLIED.
     ///
-    /// **★ "Applied" is not "applied correctly", and this doc said "A
+    /// **"Applied" is not "applied correctly", and this doc said "A
     /// census, not a shortfall" until 2026-08-18.** **§11.3.4** requires
     /// blending in the **group's colour space**, with subtractive
     /// components complemented before and after
     /// (`blend_subtractive(cb, cs) = 1 − B(1 − cb, 1 − cs)`).
     ///
-    /// ★ **Corrected 2026-08-21 (`Pass 97.1e`/`97.1f`): this said "pdfcer
+    /// **Corrected 2026-08-21 (`Pass 97.1e`/`97.1f`): this said "pdfcer
     /// blends in device sRGB, so a CMYK group's blends are computed in the
     /// wrong space. `Pass 97.1` is the fix", in the future tense, and it
     /// is now the past.** A page whose group declares a subtractive
@@ -293,7 +293,7 @@ pub struct Diagnostics {
     /// `/BBox` into device space against the governing `/ExtGState`, not
     /// by cell-pitch arithmetic.
     ///
-    /// **★ CORRECTION, 2026-08-18.** An earlier revision of this doc also
+    /// **CORRECTION, 2026-08-18.** An earlier revision of this doc also
     /// blamed §11.3.5.3 here and cited `PCS1_160`'s `Hue`/`Saturation`/
     /// `Color` failures as proof. Those did not reach this counter: at the
     /// time [`crate::gstate::blend_mode_from_name`] returned `None` for all
@@ -303,7 +303,7 @@ pub struct Diagnostics {
     /// which is the harder error to notice: a citation makes a claim look
     /// checked.
     ///
-    /// **★★ AND THAT CORRECTION IS ITSELF SUPERSEDED, 2026-08-19.** It said
+    /// **AND THAT CORRECTION IS ITSELF SUPERSEDED, 2026-08-19.** It said
     /// *"**Those cannot reach this counter**"* in the present tense, and
     /// they can now: the four nonseparable modes ship
     /// ([`crate::blend_nonsep`]), `blend_mode_from_name` is no longer the
@@ -334,7 +334,7 @@ pub struct Diagnostics {
     /// `Pass 199.x`, so this counter says "the document asked for something"
     /// and NOT "pdfcer did it".
     ///
-    /// ★ Non-zero with a non-default intent means the operator is being shown a
+    /// Non-zero with a non-default intent means the operator is being shown a
     /// render that ignores a choice the file made — which is worth knowing
     /// before comparing pdfcer against another engine, because that engine may
     /// well honour it.
@@ -347,7 +347,7 @@ pub struct Diagnostics {
     /// rather than by Table 66's reinterpretation or the fallback `rgb_to_cmyk`
     /// reconstruction.
     ///
-    /// ★ This exists to make a NULL RESULT INTERPRETABLE, which is the whole
+    /// This exists to make a NULL RESULT INTERPRETABLE, which is the whole
     /// reason it was written before the fix was measured rather than after.
     /// A colour-management change that appears to do nothing has two
     /// completely different explanations -- the transform ran and the output
@@ -360,7 +360,7 @@ pub struct Diagnostics {
     /// profile: an `N 4` or `N 1` source on a page with no `/OutputIntent`, or
     /// any source whose profile failed to parse or model.
     ///
-    /// ★ Until `Pass 240.0` an `N 3` fill on an ordinary page landed here on
+    /// Until `Pass 240.0` an `N 3` fill on an ordinary page landed here on
     /// every paint, because the only bridge ended at the output intent. It
     /// now has a display bridge and counts as managed.
     ///
@@ -372,7 +372,7 @@ pub struct Diagnostics {
     /// subtractive buffer, where Table 149's SPOT sub-row could not be
     /// honoured.
     ///
-    /// ★★ **ALWAYS ZERO SINCE `Pass 238.0`, and kept on the metrics line
+    /// **ALWAYS ZERO SINCE `Pass 238.0`, and kept on the metrics line
     /// for script stability.** The image path now preserves the spot
     /// planes under `/OP true` (`SpotSource::Preserve`), which is exactly
     /// the sub-row this counted the absence of. Under the composite device
@@ -381,11 +381,11 @@ pub struct Diagnostics {
     /// from an older build meant the shape of the problem was present; from
     /// this build on the number answers a question that no longer arises.
     ///
-    /// ★ Said "because pdfcer has no spot plane" until 2026-09-02. Planes
+    /// Said "because pdfcer has no spot plane" until 2026-09-02. Planes
     /// landed in `Pass 225.0` and a path FILL uses them; the image path
     /// followed in `Pass 238.0`.
     ///
-    /// ★ THE COUNTER EXISTS BECAUSE THREE SOURCE COMMENTS CLAIMED NOTHING WAS
+    /// THE COUNTER EXISTS BECAUSE THREE SOURCE COMMENTS CLAIMED NOTHING WAS
     /// OWED HERE, and that claim was false. §11.7.4.3 Table 149's row for
     /// "any process colour space (including other cases of `DeviceCMYK`)" has
     /// TWO sub-rows: the *process component* one reads `c_s` in all three
@@ -401,7 +401,7 @@ pub struct Diagnostics {
     /// at all. An operator comparing pdfcer against another engine is entitled
     /// to know the count is non-zero.
     ///
-    /// ★ It counts the SITUATION, not confirmed damage, and that limit is
+    /// It counts the SITUATION, not confirmed damage, and that limit is
     /// stated rather than implied: a backdrop laid down by an IMAGE has
     /// already been flattened into process ink by the time another image
     /// paints over it, so pdfcer genuinely cannot tell whether a spot was
@@ -423,7 +423,7 @@ pub struct Diagnostics {
     /// missing image leaves a hole somebody notices; a wrong compositing
     /// rule just looks like a different document.
     ///
-    /// # ★ THIS COUNTER USED TO MEAN TWO THINGS, and the second is gone
+    /// # THIS COUNTER USED TO MEAN TWO THINGS, and the second is gone
     ///
     /// Until 2026-08-19 it also counted the four **non-separable** modes of
     /// Table 137 (`Hue`, `Saturation`, `Color`, `Luminosity`), which pdfcer
@@ -437,7 +437,7 @@ pub struct Diagnostics {
     /// [`Self::nonseparable_composited`]. **A non-zero value here no longer
     /// implicates them.**
     ///
-    /// # ★★ AND THIS BLOCK NAMED A BLOCKER THAT SHIPPING FALSIFIED
+    /// # AND THIS BLOCK NAMED A BLOCKER THAT SHIPPING FALSIFIED
     ///
     /// It closed: *"Implementing them needs Table 137's formulas **and**
     /// §11.3.5.3's CMYK detour, in which K is selected by mode rather than
@@ -488,14 +488,14 @@ pub struct Diagnostics {
     pub transparency_groups_flattened: usize,
     /// `gs` operators that turned OVERPRINT on (`/OP` or `/op`, §8.6.7).
     ///
-    /// ★ This sentence ended "**while pdfcer does not simulate it**" while
+    /// This sentence ended "**while pdfcer does not simulate it**" while
     /// the section immediately below it corrected that at length. A head
     /// sentence is what a hover tooltip and a doc-search snippet show, so
     /// the correction was invisible exactly where the claim was loudest.
     ///
     /// # Why this is counted, and what it does NOT mean
     ///
-    /// **★ This heading used to read "Why this is counted and not applied",
+    /// **This heading used to read "Why this is counted and not applied",
     /// and the section under it argued that pdfcer "composites in additive
     /// RGB — so on the shipped path there is no per-colorant state for
     /// overprint to preserve". `bf75351` made that false and did not
@@ -528,13 +528,13 @@ pub struct Diagnostics {
     /// flattens through its tint transform and cannot be. That corner is
     /// owed.
     ///
-    /// ★ Said "a SPOT colorant has no plane of its own" unconditionally
+    /// Said "a SPOT colorant has no plane of its own" unconditionally
     /// until 2026-09-02, and survived the sweep that narrowed six sibling
     /// sites the same day — found by `pdfcer-librarian` reading live source
     /// rather than by the grep, which matched on a phrasing this site does
     /// not use. A sweep is only as good as its spelling.
     ///
-    /// ★ **This paragraph has now been wrong about images TWICE, in
+    /// **This paragraph has now been wrong about images TWICE, in
     /// opposite directions, and the second is worth more than the first.**
     /// It originally said image XObjects were not even *counted*; `Pass
     /// 97.1b` counted them and corrected it to *"Image XObjects do not reach
@@ -544,7 +544,7 @@ pub struct Diagnostics {
     /// image now composites per sample, and a process image was never owed
     /// anything (Table 149 row 1 excludes a sampled image by name).
     ///
-    /// ★★★ **AND THAT IS NOW WRONG ABOUT IMAGES A THIRD TIME**, which the
+    /// **AND THAT IS NOW WRONG ABOUT IMAGES A THIRD TIME**, which the
     /// paragraph above had already warned was the pattern here without
     /// stopping it. "A process image was never owed anything" is false: Table
     /// 149's "any process colour space" row has a **spot-colorant sub-row**
@@ -558,7 +558,7 @@ pub struct Diagnostics {
     /// confidently phrased. The common factor is that every one of them quoted
     /// a row of Table 149 accurately and stopped before its second sub-row.
     ///
-    /// ★ Note how the FIRST stale half survived a sweep, because the
+    /// Note how the FIRST stale half survived a sweep, because the
     /// mechanism is general: it named `overprint_refused` in order to say
     /// the situation did **not** reach it, so a grep for the *new* counter
     /// could not find it and a grep for the old one found a sentence that
@@ -627,7 +627,7 @@ pub struct Diagnostics {
     /// 066). A single counter would hide which of the two paths a page
     /// actually exercised, and they can fail independently.
     ///
-    /// # ★★ WHAT IT DOES NOT COUNT, and the number this makes misleading
+    /// # WHAT IT DOES NOT COUNT, and the number this makes misleading
     ///
     /// **A transparency GROUP composited with one of those four modes.** That
     /// blend is resolved in `canvas.rs`'s `layer_blend`, which has no
@@ -667,7 +667,7 @@ pub struct Diagnostics {
     pub overprint_refused: usize,
     /// **Images that were OWED §11.7.4.3's composite and did not get it.**
     ///
-    /// # ★★ THIS COUNTER CHANGED MEANING IN `Pass 130.2`
+    /// # THIS COUNTER CHANGED MEANING IN `Pass 130.2`
     ///
     /// It now counts a **strictly smaller set**, so a number from an older
     /// release and a number from this one are answers to different
@@ -737,7 +737,7 @@ pub struct Diagnostics {
     /// than exists**, which this project has already paid for once in the
     /// glyph painter (`bf75351`).
     ///
-    /// ★ And it is what finally made the `/Indexed` classification fix
+    /// And it is what finally made the `/Indexed` classification fix
     /// measurable. `PCS1_190`, `PCS1_191`, `PCS1_192` and `PCS2_020` all
     /// carry `/Indexed [/DeviceN …]` spaces used **only** for an image, so
     /// `ColorSpace::indexed_entry` and `overprint::classify`'s `Indexed` arm
@@ -756,7 +756,7 @@ pub struct Diagnostics {
     /// so by the time anything composites there are no colorants left to
     /// overprint *with*.
     ///
-    /// ★ **The two halves are COUPLED and neither fixes this alone.**
+    /// **The two halves are COUPLED and neither fixes this alone.**
     /// §11.7.4.3's second bullet makes `B(c_b, c_s)` equal `c_s` for every
     /// component *"specified in the current colour space"*, and a bridged
     /// sRGB scratch has specified all three — so routing the existing
@@ -783,7 +783,7 @@ pub struct Diagnostics {
     ///
     /// # Why this is counted at all, now that it IS honoured
     ///
-    /// ★ **This section was headed "Why this is counted before it is
+    /// **This section was headed "Why this is counted before it is
     /// honoured" and was itself the stale claim it warned about.** Until
     /// `Pass 97.1e` pdfcer blended in device sRGB throughout, so every
     /// blend inside one of these groups was computed on the wrong side of
@@ -864,7 +864,7 @@ pub struct Diagnostics {
     /// under black gives `DeviceCMYK 1 0 1 0` — the green the patch is
     /// authored around — under §11.3.4, and `(237, 1, 140)` without it.
     ///
-    /// # ★ NARROWED BY `Pass 97.1e`, AND THE NARROWING IS THE POINT
+    /// # NARROWED BY `Pass 97.1e`, AND THE NARROWING IS THE POINT
     ///
     /// This used to increment whenever the blending space was subtractive,
     /// full stop, because pdfcer had no way to honour §11.3.4 and every such
@@ -910,7 +910,7 @@ pub struct Diagnostics {
     /// composited in ink" cannot be read as "every colour on this page was
     /// authored ink".
     ///
-    /// ## ★ WHAT IS STILL COUNTED HERE HAS SHRUNK TWICE, AND A COMPARISON
+    /// ## WHAT IS STILL COUNTED HERE HAS SHRUNK TWICE, AND A COMPARISON
     /// ACROSS EITHER PASS IS A COMPARISON OF TWO DIFFERENT QUESTIONS
     ///
     /// This said "images, shadings, and the results of transparency groups",
@@ -942,7 +942,7 @@ pub struct Diagnostics {
     /// alternate, or a parametric mesh whose ramp carries no colorants — and
     /// the results of transparency groups.
     ///
-    /// ★★★ AND THE FOURTH CORRECTION IS THE INTERESTING ONE, BECAUSE THE
+    /// AND THE FOURTH CORRECTION IS THE INTERESTING ONE, BECAUSE THE
     /// SENTENCE ABOVE WENT WRONG AND THEN BACK TO BEING RIGHT WITHOUT ANYONE
     /// TOUCHING IT.
     ///
@@ -964,7 +964,7 @@ pub struct Diagnostics {
     /// it as "how much shading work happened" will misread every one of
     /// those changes as a regression.
     ///
-    /// ★ Note that this comment has now been wrong FOUR times, each time by
+    /// Note that this comment has now been wrong FOUR times, each time by
     /// staying still while the code moved — and each correction was written
     /// by someone who had just read it and believed it. A doc comment that
     /// enumerates a POPULATION is a claim that decays every time the
@@ -973,7 +973,7 @@ pub struct Diagnostics {
     /// Pixels an image contributed **as authored ink**, with no conversion in
     /// either direction.
     ///
-    /// ★ This said "a `DeviceCMYK` image" until `Pass 140.0`, and had been
+    /// This said "a `DeviceCMYK` image" until `Pass 140.0`, and had been
     /// wrong for exactly as long as [`Self::cmyk_bridged_pixels`]' list above
     /// — the same change moves both, in opposite directions, so a correction
     /// to one that does not touch the other is incomplete by construction.
@@ -1018,7 +1018,7 @@ pub struct Diagnostics {
     /// Transparency groups rendered into their own buffer and composited
     /// as a UNIT — the §11.4.5 behaviour.
     ///
-    /// **★ NOT a clean census, despite what this doc said until 2026-08-18
+    /// **NOT a clean census, despite what this doc said until 2026-08-18
     /// ("A census, not a shortfall.").** A [`tiny_skia::Pixmap`] starts
     /// TRANSPARENT, and a transparent initial backdrop **is** isolated
     /// semantics (§11.4.7). A buffer is allocated whenever the outer
@@ -1044,7 +1044,7 @@ pub struct Diagnostics {
     /// could not be given §11.4.6 semantics, because they read the
     /// destination back.
     ///
-    /// # ★ THIS COUNTER CHANGED MEANING IN `Pass 97.0`, and the old
+    /// # THIS COUNTER CHANGED MEANING IN `Pass 97.0`, and the old
     /// # wording is quoted rather than deleted
     ///
     /// It used to read: *"Groups carrying `/K true` that were composited
@@ -1141,7 +1141,7 @@ pub struct Diagnostics {
     /// **knockout** (`/K true`) — Table 147. Counted at every such group,
     /// whether or not it was flattened.
     ///
-    /// ★ This opened "**Of those**, the ones that are..." — a back
+    /// This opened "**Of those**, the ones that are..." — a back
     /// reference to whichever field happened to precede it. Two things
     /// were wrong with that and only one is obvious. The obvious one:
     /// `soft_masks_on_group_result` was later declared in between, so the
@@ -1181,7 +1181,7 @@ pub struct Diagnostics {
     pub soft_masks_ignored: usize,
     /// Soft masks BUILT and applied (§11.6.5).
     ///
-    /// **★ "Applied" used to overstate it, and no longer does.** This doc
+    /// **"Applied" used to overstate it, and no longer does.** This doc
     /// said, until `Pass 97.0`: *"Application is not [right]: §11.4.5
     /// applies the mask to a transparency group's RESULT, whereas pdfcer
     /// folds it into the clip, which applies it to each element inside the
@@ -1448,14 +1448,14 @@ pub struct Diagnostics {
     /// `[0,1] × [0,1]` in image space, so an image whose unit square misses
     /// the viewport cannot contribute a pixel.
     ///
-    /// ★★ Counted — and counted SEPARATELY from the forms — because the gap
+    /// Counted — and counted SEPARATELY from the forms — because the gap
     /// between the two numbers is what found this. On the operator's Toronto
     /// street map, a 400 × 200 px region culled **6,145 of 6,174 forms** and
     /// **1 of 1,183 images**: the form gate was working and images had no
     /// gate at all. A single combined counter would have averaged that
     /// signal away.
     ///
-    /// ★ It is the decode that this saves, not the blit. The gate sits before
+    /// It is the decode that this saves, not the blit. The gate sits before
     /// the sample bytes are touched, so a culled image costs no decode, no
     /// colour-space resolution and no mask work — which is why peak memory
     /// used to be identical for a viewport-sized region and the whole page.
@@ -1504,7 +1504,7 @@ pub struct Diagnostics {
     /// this drawing am I seeing at a lie of a width?") instead of a question
     /// they did not ask.
     ///
-    /// ★ It is also the machine-readable statement that the mode is a
+    /// It is also the machine-readable statement that the mode is a
     /// **CEILING, not a set**: a stroke already at or under one device pixel
     /// is left exactly as [`StrokeDisplay::Actual`] would have drawn it, so
     /// it is not counted here. A page of hairlines rendered in `Hairline`
@@ -1540,7 +1540,7 @@ pub struct Diagnostics {
     /// glyph name is not a key in `/CharProcs` (step b, "no glyph shall
     /// be painted").
     ///
-    /// ★ **The advance still happened.** The clause says nothing about
+    /// **The advance still happened.** The clause says nothing about
     /// the width, `/Widths` supplies it independently, and a reader that
     /// skipped it would mis-position every later glyph on the line — so
     /// this counts glyphs that are absent, never text that has moved.
@@ -1596,7 +1596,7 @@ pub struct Diagnostics {
     /// Annotations with no `/AP` that pdfcer nevertheless drew, from its own
     /// artwork for the standard icon their `/Name` selects (`Pass 289.0`).
     ///
-    /// ★ Counted ALONGSIDE `annotations_without_ap`, not instead of it. That
+    /// Counted ALONGSIDE `annotations_without_ap`, not instead of it. That
     /// map measures a fact about the **file** — these annotations really do
     /// carry no appearance — and is the demand signal for the remaining
     /// generation work. This counter measures what the **operator saw**.
@@ -1824,7 +1824,7 @@ polarity unverifiable (decision 006 R30)",
             self.lzw_framing_anomalies += notes.lzw_framing_anomalies;
             self.note_image("LZW stream missing its ClearCode or EndOfInformation");
         }
-        // ★★★ `Pass 140.2` — THE IMAGE'S OWN COLOUR CONVERSIONS, WHICH
+        // `Pass 140.2` — THE IMAGE'S OWN COLOUR CONVERSIONS, WHICH
         // REACHED NOTHING BEFORE THIS LINE.
         //
         // `image::decode` counted its shortfalls into locals and dropped
@@ -1840,7 +1840,7 @@ polarity unverifiable (decision 006 R30)",
         // way) and a second summation site is a second place for the two to
         // disagree about which counter means what.
         //
-        // ★ No `note_image` beside it, deliberately. `ColorDiagnostics`
+        // No `note_image` beside it, deliberately. `ColorDiagnostics`
         // carries its own dedup-and-capped notes list and the shell already
         // prints it; adding a second sentence here would report one broken
         // transform twice, in two different voices.
@@ -2098,7 +2098,7 @@ pub(crate) fn page_blend_space(
                 Some(BlendSpace::Subtractive) => {
                     (BlendSpace::Subtractive, BlendSpaceFrom::OutputIntent)
                 }
-                // ★ An additive output intent is NOT reported as
+                // An additive output intent is NOT reported as
                 // `OutputIntent` provenance, because under this setting it
                 // did not decide anything -- the answer is the device's
                 // native space either way, and claiming the intent supplied
@@ -2154,7 +2154,7 @@ impl BlendSpaceFrom {
     /// place, so a log written by the CLI and a log written by a consuming
     /// shell compare directly.
     ///
-    /// # ★★ It was `pub(crate)` until something asked, and that was the wrong
+    /// # It was `pub(crate)` until something asked, and that was the wrong
     /// # default
     ///
     /// `Pass 296.4` made [`BlendSpaceFrom`] public and deliberately kept this
@@ -2165,7 +2165,7 @@ impl BlendSpaceFrom {
     /// one fact, across a boundary whose whole purpose is that both sides
     /// agree about it.**
     ///
-    /// ★ It did not write its own `PageGroup => "page_group"` mapping, and was
+    /// It did not write its own `PageGroup => "page_group"` mapping, and was
     /// right not to: a hand-copied table in another crate is exactly the drift
     /// this function exists to prevent, and it goes stale silently the day a
     /// fourth variant arrives (`R74`).
@@ -2924,7 +2924,7 @@ struct Interpreter<'a> {
     /// interpreter whose diagnostics are discarded by design, so it has no
     /// drain and needs none.
     ///
-    /// # ★ Which of the two drains actually carries a value — MEASURED
+    /// # Which of the two drains actually carries a value — MEASURED
     ///
     /// **`run_nested`'s does; `run_form_at_on`'s is always zero today**, and
     /// that is worth stating because it is not visible from either call site.
@@ -3040,7 +3040,7 @@ struct Interpreter<'a> {
     ///   the opposite and flips this to
     ///   [`GlyphColorSource::ShapeAndColor`].
     ///
-    /// ★ It starts at `ShapeOnly` and a `d0` raises it, rather than the
+    /// It starts at `ShapeOnly` and a `d0` raises it, rather than the
     /// reverse, because the declaration arrives INSIDE the stream: the
     /// caller cannot know which it is until the first operator runs. The
     /// default therefore has to be the safe one, and shape-only is safe —
@@ -3152,7 +3152,7 @@ impl Interpreter<'_> {
     /// Used for exactly one thing: Table 113's rule that inside a `d1`
     /// glyph procedure "any use of such operators shall be ignored".
     ///
-    /// ★ `gs` is deliberately NOT in this set, and the judgement is
+    /// `gs` is deliberately NOT in this set, and the judgement is
     /// worth recording because the clause's parenthesis — "(or other
     /// colour-related parameters)" — could be read as covering it. An
     /// `/ExtGState` carries alpha, blend mode and soft mask alongside
@@ -3216,7 +3216,7 @@ impl Interpreter<'_> {
             })
             .collect();
 
-        // ★ TABLE 113'S COLOUR PROHIBITION, applied once for all twelve
+        // TABLE 113'S COLOUR PROHIBITION, applied once for all twelve
         // colour operators.
         //
         // "A glyph description that begins with the d1 operator should not
@@ -3261,7 +3261,7 @@ impl Interpreter<'_> {
                 }
             }
             b"cm" => {
-                // ★ Composed in `f64`, from the operands' OWN `f64` values
+                // Composed in `f64`, from the operands' OWN `f64` values
                 // rather than from the `f32` copies in `nums`.
                 //
                 // Both halves matter and the second is easy to miss. A
@@ -3315,7 +3315,7 @@ impl Interpreter<'_> {
             // Flatness tolerance (§10.6.2) is a rendering hint with no effect
             // on pdfcer's output; still a recognised no-op.
             b"i" => {}
-            // ★ `ri` -- the rendering intent (§8.6.5.8). NO LONGER A NO-OP
+            // `ri` -- the rendering intent (§8.6.5.8). NO LONGER A NO-OP
             // (`Pass 199.0`). §8.6.5.8 says the four names "shall be
             // recognized" and that an unrecognised one "shall use the
             // RelativeColorimetric intent by default"; §11.7.5.3 says the
@@ -3368,7 +3368,7 @@ impl Interpreter<'_> {
                     self.type3_glyph = Some(crate::type3::GlyphColorSource::ShapeAndColor);
                 }
                 // `d1` needs no assignment: shape-only is where the stream
-                // started. ★ Measured against Acrobat Reader 2026-08-25 —
+                // started. Measured against Acrobat Reader 2026-08-25 —
                 // a `d1` procedure setting red on a blue page renders BLUE,
                 // and the `d0` twin renders RED. Acrobat honours Table
                 // 113's ignore, so the clause and parity agree here.
@@ -3378,7 +3378,7 @@ impl Interpreter<'_> {
 
             // ---- device colours (Table 74, §8.6.4) ----
             //
-            // ★ EVERY ARM FROM HERE TO `SCN` IS GATED, at the top of
+            // EVERY ARM FROM HERE TO `SCN` IS GATED, at the top of
             // `execute`, on Table 113's colour prohibition inside a `d1`
             // glyph procedure. The gate is there rather than repeated
             // here because "ignore the colour operators" is one rule over
@@ -3477,7 +3477,7 @@ impl Interpreter<'_> {
                     &mut self.diag.color,
                 );
                 if let Some(rgb) = set {
-                    // ★ The display route (`Pass 240.0`): an `ICCBased` RGB
+                    // The display route (`Pass 240.0`): an `ICCBased` RGB
                     // colour's SCREEN answer comes from its own profile, not
                     // from Table 66's reinterpretation. See
                     // `display_managed_rgb` for why this sits here and not in
@@ -3868,7 +3868,7 @@ impl Interpreter<'_> {
     /// `None` means "no display bridge applies" and the caller keeps the
     /// space's own answer; it is not a failure.
     ///
-    /// ★ Nothing is COUNTED here, deliberately. `icc_managed_paints` counts
+    /// Nothing is COUNTED here, deliberately. `icc_managed_paints` counts
     /// paints, and this runs at `sc` time — a colour set and never painted
     /// would tick it. The tally is taken at paint time by
     /// [`Self::authored_cmyk`], which asks the same question again through
@@ -4076,7 +4076,7 @@ impl Interpreter<'_> {
             return;
         }
 
-        // ★ TYPE 3 LEAVES HERE, BEFORE THE PROGRAM PARSE, and the
+        // TYPE 3 LEAVES HERE, BEFORE THE PROGRAM PARSE, and the
         // position is load-bearing rather than tidy: a Type 3 font's
         // `data` is EMPTY because §9.6.5 gives it no program to hold, so
         // falling through would parse zero bytes, fail, and report
@@ -4147,7 +4147,7 @@ impl Interpreter<'_> {
             // painted — mode 3 (invisible) and a missing glyph both
             // still move the pen.
             //
-            // ★ `advance_text_space`, not `width(..) / 1000.0`. The
+            // `advance_text_space`, not `width(..) / 1000.0`. The
             // divisor is right for a simple or composite font and WRONG
             // for a Type 3, whose widths are in `FontMatrix` units
             // (Table 112). The conversion moved into `LoadedFont` so the
@@ -4269,7 +4269,7 @@ impl Interpreter<'_> {
 
         // --- recursion guard (ARCHITECTURE.md §10.1) ---
         //
-        // ★ A glyph procedure may show text, in any font, INCLUDING THE
+        // A glyph procedure may show text, in any font, INCLUDING THE
         // ONE IT BELONGS TO. §9.6.5 does not forbid it and Annex C sets
         // no limit, so an unbounded reader has a guaranteed
         // stack-overflow input sitting in the standard. The counter is
@@ -4361,7 +4361,7 @@ impl Interpreter<'_> {
             self.policy,
             self.oc_hidden(),
             self.blend_space,
-            // ★ SHAPE-ONLY UNTIL THE STREAM SAYS OTHERWISE. Table 113's
+            // SHAPE-ONLY UNTIL THE STREAM SAYS OTHERWISE. Table 113's
             // `d1` is the common case and the safe default; a `d0` inside
             // the procedure raises it. The declaration cannot be known
             // before the stream runs, which is why this is a starting
@@ -4771,7 +4771,7 @@ impl Interpreter<'_> {
                 _ => None,
             };
             if let Some(name) = first {
-                // ★ THE FOUR NON-SEPARABLE MODES ARE RESOLVED FIRST, and
+                // THE FOUR NON-SEPARABLE MODES ARE RESOLVED FIRST, and
                 // they never reach `blend_mode_from_name` — which cannot
                 // express them, by design (decision 066). pdfcer computes
                 // these itself in `crate::blend_nonsep` because the
@@ -4871,7 +4871,7 @@ impl Interpreter<'_> {
                         // this is the operation, not an approximation of
                         // it — §8.5.4 NOTE 2 guarantees a clip only ever
                         // shrinks, and a mask only ever shrinks too.
-                        // ★★★ A NEW /SMask REPLACES THE ONE IN FORCE. IT DOES
+                        // A NEW /SMask REPLACES THE ONE IN FORCE. IT DOES
                         // NOT INTERSECT WITH IT (`Pass 192.0`).
                         //
                         // ISO 32000-1 Table 58, the `/SMask` row, verbatim:
@@ -4892,7 +4892,7 @@ impl Interpreter<'_> {
                         // `gs /SMask` with no intervening `q`/`Q` never lifted
                         // the first mask out -- the clip became `mask1 x mask2`.
                         //
-                        // ★ THE SHAPE THAT MAKES THIS COSTLY: a bevel is a
+                        // THE SHAPE THAT MAKES THIS COSTLY: a bevel is a
                         // highlight and a shadow whose masks are COMPLEMENTARY
                         // gradients. Their product is approximately zero, so
                         // the second layer paints under no coverage at all and
@@ -5008,7 +5008,7 @@ impl Interpreter<'_> {
         }
         // `/RI` -- ISO 32000-1 Table 58, PDF 1.3 (`Pass 199.0`).
         //
-        // ★★ THE ABSENCE OF `/RI` MUST NOT RESET THE INTENT, which is why this
+        // THE ABSENCE OF `/RI` MUST NOT RESET THE INTENT, which is why this
         // is an `if let` over the key rather than an unconditional assignment
         // with a default. §8.4.5: "The results of `gs` shall be cumulative …
         // parameter values … persist until explicitly overridden."
@@ -5331,7 +5331,7 @@ impl Interpreter<'_> {
             }
         }
         canvas.refuse(PoisonReason::Shading);
-        // ★ BRIDGED, NOT NATIVE, AND THE REASON IS UPSTREAM OF THIS CALL.
+        // BRIDGED, NOT NATIVE, AND THE REASON IS UPSTREAM OF THIS CALL.
         // `ColorRamp::at` resolves a shading's colour to three-channel
         // sRGB when the ramp is BUILT, so by the time the pixel loop runs
         // there are no colorants left to composite. Evaluating the ramp in
@@ -5348,7 +5348,7 @@ impl Interpreter<'_> {
                 self.diag.shading.refused += 1;
                 return;
             };
-            // ★★ THE NATIVE INK ROUTE, `Pass 122.6`. Taken only when
+            // THE NATIVE INK ROUTE, `Pass 122.6`. Taken only when
             // overprint is actually in force AND the ramp kept its authored
             // colorants AND the source space is a `Separation`/`DeviceN`;
             // everything else still bridges, so this Pass moves exactly the
@@ -5367,7 +5367,7 @@ impl Interpreter<'_> {
                 self.policy.overprint_zero_tint_scope,
             );
             let mut painted_natively = false;
-            // ★★ THE SPOT PLANES (`Pass 239.0`). Resolve every spot colorant
+            // THE SPOT PLANES (`Pass 239.0`). Resolve every spot colorant
             // the ramp names to a plane, all or nothing, under the
             // separation-simulation model only -- the same gate the fill and
             // image paths apply. Empty means "paint the flattened ink as
@@ -5386,7 +5386,7 @@ impl Interpreter<'_> {
             let spots_plated = shading.ramp.as_ref().is_some_and(|r| {
                 !r.spot_colorants().is_empty() && spot_planes.len() == r.spot_colorants().len()
             });
-            // ★ ONLY a Separation/DeviceN source may take this route, and the
+            // ONLY a Separation/DeviceN source may take this route, and the
             // exclusion is a correctness guard rather than caution. Table
             // 149's `DeviceCmykDirect` row under `/OPM 1` is the one
             // VALUE-DEPENDENT cell in the table -- a zero tint selects the
@@ -5414,7 +5414,7 @@ impl Interpreter<'_> {
                     spots_plated,
                 );
 
-                // ★★★ NARROW A MIXED SOURCE TO THE CHANNELS THIS SHADING
+                // NARROW A MIXED SOURCE TO THE CHANNELS THIS SHADING
                 // ACTUALLY WRITES (`Pass 201.0`).
                 //
                 // `Pass 195.0` fixed a real loss -- a mixed `/DeviceN` had its
@@ -5423,7 +5423,7 @@ impl Interpreter<'_> {
                 // the source never claimed, and its own comment said so while
                 // adding "no patch in the conformance corpus detects that".
                 //
-                // ★★ ONE DOES, ON SIXTEEN MARKS. A `1 0 1 .5 k` check mark
+                // ONE DOES, ON SIXTEEN MARKS. A `1 0 1 .5 k` check mark
                 // under an overprinting `/DeviceN [<spot>, /Cyan]` shading lost
                 // its `K = 0.5` to the shading's `K = 0` and vanished. K is a
                 // plane pdfcer HAS -- so this was not the missing spot plane, it
@@ -5435,7 +5435,7 @@ impl Interpreter<'_> {
                 // placeholder colour. A ramp is the whole set of colours this
                 // shading can produce and is already built.
                 //
-                // ★ SCOPED TO THIS ROUTE DELIBERATELY. The same narrowing
+                // SCOPED TO THIS ROUTE DELIBERATELY. The same narrowing
                 // applied inside `cmyk_group_rules` for every caller was
                 // MEASURED to regress a duotone image badly (region mean |diff|
                 // 15.91 -> 53.95): at `[Source; 4]` that image is
@@ -5444,7 +5444,7 @@ impl Interpreter<'_> {
                 // comes out greyscale. Image callers keep the old behaviour
                 // until the per-spot plane lands.
                 //
-                // ★★★ AND THE OBVIOUS REFINEMENT WAS TRIED AND MEASURED AND IT
+                // AND THE OBVIOUS REFINEMENT WAS TRIED AND MEASURED AND IT
                 // DOES NOT WORK. `Pass 203.0`, reverted.
                 //
                 // The reasoning that motivated it is genuinely appealing, so
@@ -5480,7 +5480,7 @@ impl Interpreter<'_> {
                 // The marks on that patch need the per-spot-colorant plane,
                 // as the paragraph above said. This note exists so the next
                 // reader spends the ablation on something else.
-                // ★ With planes there is nothing to narrow: the rules above
+                // With planes there is nothing to narrow: the rules above
                 // are the table's own, and the spot's ink is not in the
                 // ramp's process channels at all (`Pass 239.0`).
                 if !spots_plated && crate::overprint::names_unplatable_spot(&kind) {
@@ -5499,7 +5499,7 @@ impl Interpreter<'_> {
                         }
                     }
                 }
-                // ★★ THE SPOT-ONLY REFUSAL, `Pass 130.3`. WITHOUT IT THIS
+                // THE SPOT-ONLY REFUSAL, `Pass 130.3`. WITHOUT IT THIS
                 // ROUTE ERASES THE SHADING AND EVERY COUNTER READS GREEN.
                 //
                 // A `/DeviceN` naming only SPOT colorants puts all four of
@@ -5527,7 +5527,7 @@ impl Interpreter<'_> {
                 // carried from the start, and a far better answer than
                 // nothing. The real fix is the per-colorant buffer.
                 //
-                // ★★★ AND THE GUARD THAT COMMENT PROMISED WAS NEVER WRITTEN.
+                // AND THE GUARD THAT COMMENT PROMISED WAS NEVER WRITTEN.
                 //
                 // Everything above this line has been in the file since
                 // `Pass 130.3`, describing this patch by name and by pixel
@@ -5553,7 +5553,7 @@ impl Interpreter<'_> {
                 // (135,125,178) -> (144,194,74), against Acrobat's
                 // (127,124,162) -> (134,195,52). Page mean |diff| 38.75 ->
                 // 34.14.
-                // ★ `Pass 239.0`: the refusal stays for the PLANE-LESS case
+                // `Pass 239.0`: the refusal stays for the PLANE-LESS case
                 // only. With a plane, a spot-only shading preserving all four
                 // process channels while writing its own plane is exactly
                 // what a press does -- the bar this comment describes now
@@ -5574,7 +5574,7 @@ impl Interpreter<'_> {
                     painted_natively = true;
                 }
             }
-            // ★★★ THE SECOND NATIVE ROUTE: AUTHORED INK WITH NO OVERPRINT
+            // THE SECOND NATIVE ROUTE: AUTHORED INK WITH NO OVERPRINT
             // INVOLVED, `Pass 137.0`.
             //
             // The block above takes the native route only when overprint is in
@@ -5596,7 +5596,7 @@ impl Interpreter<'_> {
             // carries NO trap cross, so nothing automated could see it; it was
             // found by the operator looking at the page.
             //
-            // ★ THE `DeviceCmykDirect` EXCLUSION ABOVE DOES NOT APPLY HERE,
+            // THE `DeviceCmykDirect` EXCLUSION ABOVE DOES NOT APPLY HERE,
             // and that is the whole reason this can be a plain widening rather
             // than a rework. That exclusion exists because Table 149's
             // `OPM 1` row is VALUE-DEPENDENT and its rules therefore cannot be
@@ -5604,7 +5604,7 @@ impl Interpreter<'_> {
             // there is no Table 149 at all: every component is `Source`, which
             // is exactly `Blend::Normal` painted in ink instead of in sRGB.
             //
-            // ★★ `cmyk_bridged_pixels` FALLS as a result, and that is the
+            // `cmyk_bridged_pixels` FALLS as a result, and that is the
             // point rather than a side effect -- it counts pixels that lost
             // their ink identity on the way to the compositor, and these no
             // longer do. The older comment worried that widening this route
@@ -5612,7 +5612,7 @@ impl Interpreter<'_> {
             // because the shortfall it measures is smaller, which is the
             // outcome that counter exists to report.
             //
-            // ★★★ MEASURED AFTERWARDS, AND THE FIRST NUMBERS WERE MISLABELLED
+            // MEASURED AFTERWARDS, AND THE FIRST NUMBERS WERE MISLABELLED
             // ------------------------------------------------------------
             // The commit that shipped this carried a four-row table headed
             // "the four shading pairs of the sheet". **The sheet has TWO
@@ -5645,7 +5645,7 @@ impl Interpreter<'_> {
             // put colorants, which is why the route above cannot reach them
             // and why the fix for them is a carrier, not a wider gate.
             //
-            // ★ The lesson is the one this project keeps relearning: a crop
+            // The lesson is the one this project keeps relearning: a crop
             // rectangle chosen by eye is a MEASUREMENT INSTRUMENT, and an
             // unverified one reports edge misalignment as colour error in
             // both directions -- it hid a real defect's identity and
@@ -5800,11 +5800,11 @@ impl Interpreter<'_> {
         let (space, comps) = resolved
             .as_ref()
             .map_or((space, comps), |(b, c)| (*b, c.as_slice()));
-        // ★★★ A SPOT PLANE MAKES "OVERPRINT CHANGES NOTHING" FALSE, whatever
+        // A SPOT PLANE MAKES "OVERPRINT CHANGES NOTHING" FALSE, whatever
         // the source space says, and this is the second time a shortcut
         // written for four channels has been falsified by a fifth.
         //
-        // ★ The DERIVATION in this comment was corrected 2026-09-02. It read
+        // The DERIVATION in this comment was corrected 2026-09-02. It read
         // *"a `DeviceCMYK` source does not NAME the page's spot colorant, and
         // Table 149 puts an unnamed colorant at the backdrop"* — which
         // reaches the right conclusion by the wrong route. §11.7.3: every
@@ -5838,7 +5838,7 @@ impl Interpreter<'_> {
         // that name no spot colorant reach the identical decision they
         // always did.
         //
-        // ★★ AND GATED ON THE SOURCE BEING ONE OVERPRINT APPLIES TO UNDER THE
+        // AND GATED ON THE SOURCE BEING ONE OVERPRINT APPLIES TO UNDER THE
         // CONFIGURED SCOPE, which the first cut of this was not — it returned
         // `true` for every overprinting paint on a page with a plane, and
         // that made `overprint_zero_tint_scope` DO NOTHING: three of
@@ -5855,7 +5855,7 @@ impl Interpreter<'_> {
         // "overprint does not reach this source" answer, so a spot plane
         // does not rescue it.
         //
-        // ★★★ AND `OtherProcess` IS NO LONGER EXCLUDED (`Pass 238.0`). The
+        // AND `OtherProcess` IS NO LONGER EXCLUDED (`Pass 238.0`). The
         // paragraph above said *"`OtherProcess` is the 'overprint does not
         // reach this source' answer, so a spot plane does not rescue it"* --
         // and that was the FLATTENED representation talking. With a spot
@@ -5897,7 +5897,7 @@ impl Interpreter<'_> {
             // does not name must survive from the backdrop.
             crate::color::ColorSpace::Separation { .. } => true,
             crate::color::ColorSpace::DeviceN { names, .. } => names.len() < 4,
-            // ★★ `Pass 143.0` — THE GATE, and it is the one the filed
+            // `Pass 143.0` — THE GATE, and it is the one the filed
             // diagnosis did not name.
             //
             // This arm used to read `_ => false` unconditionally, with a
@@ -5908,7 +5908,7 @@ impl Interpreter<'_> {
             // reached `cmyk_group_rules`, and was painted normally — knocking
             // a spot backdrop out.
             //
-            // ★ That matters for how this Pass was scoped. The filed cause
+            // That matters for how this Pass was scoped. The filed cause
             // named `classify` mapping `DeviceGray` to `OtherProcess`, whose
             // Table 149 row is `[Source; 4]`. Changing `classify` alone moved
             // ZERO PIXELS, on the fixture and on all 51 corpus patches,
@@ -5918,7 +5918,7 @@ impl Interpreter<'_> {
             // apart — the classification change looked correct, compiled,
             // and was reached.
             crate::color::ColorSpace::DeviceGray | crate::color::ColorSpace::DeviceRgb
-                // ★★ ASK `classify`, DO NOT RE-DECIDE. The first cut of this
+                // ASK `classify`, DO NOT RE-DECIDE. The first cut of this
                 // arm had its own `overprint_scope_covers` helper applying the
                 // same scope rule a second time — and a sabotage that widened
                 // that copy left the whole suite GREEN, because `classify`'s
@@ -6060,7 +6060,7 @@ impl Interpreter<'_> {
         let bytes = filters::decode_stream(&g_dict, raw).ok()?;
         let content = ContentStream::parse(bytes).ok()?;
 
-        // ★★★ THE BACKDROP IS COMPOSITED UNDER THE RESULT, NOT PRE-FILLED
+        // THE BACKDROP IS COMPOSITED UNDER THE RESULT, NOT PRE-FILLED
         // INTO THE OBJECTS' BACKDROP (`Pass 192.0`).
         //
         // This buffer used to start FILLED with `/BC`, which is the
@@ -6364,7 +6364,7 @@ impl Interpreter<'_> {
         let (space, comps) = resolved
             .as_ref()
             .map_or((space, comps), |(b, c)| (*b, c.as_slice()));
-        // ★★★ THE DOCUMENT'S OWN ANSWER FIRST, `Pass 140.1`. WITHOUT THIS A
+        // THE DOCUMENT'S OWN ANSWER FIRST, `Pass 140.1`. WITHOUT THIS A
         // SPOT FILL AND A SPOT IMAGE OF THE SAME COLOUR RENDER DIFFERENTLY.
         //
         // `ColorSpace::to_cmyk` returns `Some` exactly when the space HAS a
@@ -6399,13 +6399,13 @@ impl Interpreter<'_> {
         // over. Fixing one half converts a silent shared error into a visible
         // disagreement, and the disagreement is the information.
         //
-        // ★ The diagnostics are SCRATCH and discarded deliberately. Whatever
+        // The diagnostics are SCRATCH and discarded deliberately. Whatever
         // this conversion has to report — a missing or malformed
         // `/tintTransform` — was already counted when the same operands were
         // resolved to the paint colour, and counting it twice would report one
         // broken transform as two.
         //
-        // ★★ `None` falls through to everything below UNCHANGED. A
+        // `None` falls through to everything below UNCHANGED. A
         // `Separation` over a `DeviceRGB` alternate, a `DeviceGray` fill, a
         // `Lab` fill: none of them has a `DeviceCMYK` answer to give, so none
         // of them reaches this early return and none of their behaviour moves.
@@ -6413,7 +6413,7 @@ impl Interpreter<'_> {
         if let Some(cmyk) = space.to_cmyk(comps, &mut scratch) {
             return Some(cmyk);
         }
-        // ★★★ COLOUR-MANAGED CONVERSION, when the document supplied BOTH ends.
+        // COLOUR-MANAGED CONVERSION, when the document supplied BOTH ends.
         //
         // Placed exactly here, and the position is the whole design:
         //
@@ -6441,7 +6441,7 @@ impl Interpreter<'_> {
         // The document had embedded the profile that says what its numbers
         // mean, and pdfcer was parsing it for `/N` and throwing it away.
         //
-        // ★ The intent comes from the GRAPHICS STATE, not the profile
+        // The intent comes from the GRAPHICS STATE, not the profile
         // (§8.6.5.8): `ri` and `/RI` override the profile's default, and
         // reading the profile's would make the operator's `ri` a no-op.
         if let crate::color::ColorSpace::IccBased {
@@ -6462,7 +6462,7 @@ impl Interpreter<'_> {
         // destination -- the operator's question is "was my colour
         // managed?", not "which of four internal reasons stopped it".
         //
-        // ★ EXCEPT when the DISPLAY route managed it (`Pass 240.0`). An
+        // EXCEPT when the DISPLAY route managed it (`Pass 240.0`). An
         // `ICCBased` `N 3` fill whose profile models was converted through
         // that profile to sRGB at `sc` time (`display_managed_rgb`), and on
         // an additive page that IS the colour management the operator is
@@ -6477,7 +6477,7 @@ impl Interpreter<'_> {
                 self.icc.note_unmanaged();
             }
         }
-        // ★★★ THE PCS ROUTE FOR A CIE COLOUR, `Pass 242.0`.
+        // THE PCS ROUTE FOR A CIE COLOUR, `Pass 242.0`.
         //
         // `Lab`, `CalRGB` and `CalGray` have colorimetry and nothing else: no
         // colorants, no embedded profile. Until this Pass they reached a
@@ -6510,7 +6510,7 @@ impl Interpreter<'_> {
             }
         }
         let kind = crate::overprint::classify(space, false, self.policy.overprint_zero_tint_scope)?;
-        // ★★ THE SPOT-ONLY FALL-THROUGH, AND WITHOUT IT A SPOT COLOUR PAINTS
+        // THE SPOT-ONLY FALL-THROUGH, AND WITHOUT IT A SPOT COLOUR PAINTS
         // NOTHING AT ALL ON A SUBTRACTIVE PAGE.
         //
         // `authored_tints` answers "which PROCESS tints did this source
@@ -6535,7 +6535,7 @@ impl Interpreter<'_> {
         // disclosed approximation this project has always carried. Absent is
         // not an approximation of anything.
         //
-        // ★ Deliberately NOT extended to a MIXED source (`/DeviceN
+        // Deliberately NOT extended to a MIXED source (`/DeviceN
         // [/Black /PANTONE 265 C]`). There the authored read is right for the
         // channel it names and merely incomplete for the spot, and falling
         // back to the flattened sRGB would smear the spot's contribution
@@ -6641,7 +6641,7 @@ impl Interpreter<'_> {
     /// back white (see [`crate::cmyk_buffer::SpotLut::transparent`]), not
     /// by inflating a count.
     fn authored_spot_inks(&self, stroking: bool) -> Vec<crate::canvas::SpotInk> {
-        // ★★ `OP-A7`: under the COMPOSITE device model there are no spot
+        // `OP-A7`: under the COMPOSITE device model there are no spot
         // planes at all, because ISO 32000-1 §8.6.6.4 requires the alternate
         // space to be substituted at the moment the `Separation` space is
         // SET — before any paint, and long before overprint is consulted.
@@ -6666,7 +6666,7 @@ impl Interpreter<'_> {
         // to the palette entry in the base space BEFORE anything reads it as
         // a colorant value -- the same step `paint_overprint` takes.
         //
-        // ★ Found by `Pass 238.0`'s image route, not by a fill test. An
+        // Found by `Pass 238.0`'s image route, not by a fill test. An
         // `/Indexed` fill over a `Separation` base deposited the INDEX (1.0)
         // as the spot's tint and built the colorant's curve from the Indexed
         // space, whose domain is indices -- so the plane's LUT mapped
@@ -6853,7 +6853,7 @@ impl Interpreter<'_> {
         // `rgb_to_cmyk`/`cmyk_to_rgb` (see their docs), and which CHANNELS
         // that source is entitled to paint is decided from the colorant
         // names by `cmyk_group_rules`, not from these numbers.
-        // ★ `names_a_process_colorant` gates the authored read for the same
+        // `names_a_process_colorant` gates the authored read for the same
         // reason `authored_cmyk` does: for a SPOT-ONLY source `authored_tints`
         // truthfully answers "no process tints were stated" as `[0, 0, 0, 0]`,
         // and that is zero ink -- blank paper -- when used as a paint colour.
@@ -6888,7 +6888,7 @@ impl Interpreter<'_> {
             // is mode 0 -- the conservative reading, pinned by a test.
             u8::from(self.gs.current.overprint_mode == 1),
         );
-        // ★★★ THE SPOT-ONLY REFUSAL. WITHOUT IT A SPOT MARK UNDER `/OP true`
+        // THE SPOT-ONLY REFUSAL. WITHOUT IT A SPOT MARK UNDER `/OP true`
         // IS INVISIBLE, ON EVERY PAGE, AND NOTHING SAYS SO.
         //
         // A source naming no PROCESS colorant puts all four of the group's
@@ -6896,7 +6896,7 @@ impl Interpreter<'_> {
         // under `OP true` is `c_b`. Composited literally, the paint preserves
         // the entire backdrop and marks nothing.
         //
-        // ★ THAT IS NOT "THE STANDARD'S LITERAL ANSWER", and reading it that
+        // THAT IS NOT "THE STANDARD'S LITERAL ANSWER", and reading it that
         // way is what let it survive. Table 149's rule presupposes the spot
         // has a PLATE OF ITS OWN to be marked on -- the backdrop's four
         // process components are preserved precisely BECAUSE the ink is going
@@ -6904,7 +6904,7 @@ impl Interpreter<'_> {
         // preservation half without the plate half is half a model, and the
         // half that is missing is the one that puts ink on paper.
         //
-        // ★★ The incoherence is what settles it, not a preference. Measured:
+        // The incoherence is what settles it, not a preference. Measured:
         // a `/Separation /SpotInk /DeviceCMYK` square over WHITE PAPER --
         // nothing beneath it to overprint at all -- rendered as its flattened
         // tint with `/OP false` and as NOTHING with `/OP true`. On a press
@@ -6916,7 +6916,7 @@ impl Interpreter<'_> {
         // count it. `overprint_refused` is exactly the counter for "the
         // composite was offered this paint and could not run it". The real
         // fix is the per-colorant buffer, filed and not reachable from here.
-        // ★★★ A SPOT-ONLY SOURCE PRESERVES THE WHOLE BACKDROP, AND THAT IS
+        // A SPOT-ONLY SOURCE PRESERVES THE WHOLE BACKDROP, AND THAT IS
         // CORRECT. Two "obvious fixes" were built here and both are REFUTED.
         //
         // Table 149 puts every component of a source that names no process
@@ -6938,7 +6938,7 @@ impl Interpreter<'_> {
         // merely lower-scoring, and neither should be re-attempted without an
         // oracle stronger than this one.
         //
-        // ★ What IS a defect, and was fixed beside this: `authored_tints`
+        // What IS a defect, and was fixed beside this: `authored_tints`
         // answers Table 149's question ("which process tints did the source
         // state?") and was being used as the PAINT COLOUR, where a spot-only
         // source's honest `[0, 0, 0, 0]` means blank paper. See the gate above
@@ -6983,20 +6983,20 @@ impl Interpreter<'_> {
         // caller's documented response is to paint normally AND disclose —
         // never to paint nothing.
         canvas.refuse(PoisonReason::Overprint);
-        // ★ THE SUBTRACTIVE PATH IS THE ONE THIS OPERATOR WAS ALWAYS
+        // THE SUBTRACTIVE PATH IS THE ONE THIS OPERATOR WAS ALWAYS
         // WRITTEN FOR. Table 149 selects per COLORANT, and until the
         // colorant buffer existed the backdrop's colorants had to be
         // reconstructed from an sRGB composite on every pixel. Here they
         // are simply read. Same rules, same coverage, same rasteriser --
         // only the backdrop stops being a guess.
-        // ★★★ THE SPOT HALF, `Pass 229.0`. Until this existed, a spot
+        // THE SPOT HALF, `Pass 229.0`. Until this existed, a spot
         // colorant under overprint could only be PRESERVED, never PAINTED —
         // Table 149 puts every component of a spot-only source in the "not
         // named in source space" column, which under `OP true` is `c_b`, so
         // the paint marked nothing in the four process planes and the mark
         // simply was not there.
         //
-        // ★ That phrasing is correct HERE and only here: this is the
+        // That phrasing is correct HERE and only here: this is the
         // `Separation`/`DeviceN` row, which is the one the standard actually
         // words that way. The same words were wrongly lifted onto a
         // process-source row elsewhere in this file and were corrected
@@ -7027,7 +7027,7 @@ impl Interpreter<'_> {
                     planed += 1;
                 }
             }
-            // ★ With every named spot on a plane of its own, Table 149's
+            // With every named spot on a plane of its own, Table 149's
             // process rules are applied as written rather than widened to
             // carry the spot's flattened ink -- see
             // `cmyk_group_rules_with_planes` (`Pass 238.0`). A spot refused a
@@ -7179,7 +7179,7 @@ impl Interpreter<'_> {
                 &coverage,
                 region,
                 source,
-                // ★ A non-separable blend does not carry spot ink, and
+                // A non-separable blend does not carry spot ink, and
                 // that is §11.7.4.2 rather than an omission: only
                 // SEPARABLE, white-preserving modes may be applied to a
                 // spot colour. `blend_spots` degrades this mode to Normal
@@ -7381,7 +7381,7 @@ impl Interpreter<'_> {
         };
         if let Some(buf) = canvas.cmyk_mut() {
             let (w, h) = (buf.width(), buf.height());
-            // ★★ THE NATIVE INK ROUTE FOR A SHADING PATTERN (`Pass 239.0`).
+            // THE NATIVE INK ROUTE FOR A SHADING PATTERN (`Pass 239.0`).
             // A pattern fill bridged through sRGB for pdfcer's whole life --
             // `sh` gained its native routes in `Pass 122.6` and `137.0` and
             // this site, which shares the painter, never did. The print-
@@ -7682,7 +7682,7 @@ impl Interpreter<'_> {
         // a pixel too eager costs a seam at a tile edge — the signature
         // artefact of a culling bug, and among the hardest to attribute
         // months later.
-        // ★ The SAME rectangle the cull below computes is also what the
+        // The SAME rectangle the cull below computes is also what the
         // group composite is narrowed to (`Pass 300.2`), so it is hoisted
         // out rather than recomputed: two derivations of one rectangle can
         // disagree, and the failure mode of the composite's copy being the
@@ -7944,7 +7944,7 @@ impl Interpreter<'_> {
                 )
             })
         };
-        // `/K` (knockout, Table 147). ★ IMPLEMENTED SINCE `Pass 97.0` —
+        // `/K` (knockout, Table 147). IMPLEMENTED SINCE `Pass 97.0` —
         // `crate::canvas::KnockoutTarget` — and this comment used to open
         // "is NOT implemented", with three sentences explaining that
         // compositing a knockout group as an ordinary one "gets its outer
@@ -7957,7 +7957,7 @@ impl Interpreter<'_> {
         // still honours only the EXPLICIT `/K` slice, and the second
         // because it is the trap any test of this feature falls into.
         //
-        // ★ IT IS NOT A CORNER CASE, and the explicit `/K` groups pdfcer
+        // IT IS NOT A CORNER CASE, and the explicit `/K` groups pdfcer
         // now renders correctly are the SMALLEST of the four populations.
         // FOUR clauses establish a knockout group
         // with no `/K` key anywhere in the file: §9.3.8's `/TK`, whose
@@ -7971,7 +7971,7 @@ impl Interpreter<'_> {
         // implements is the rarest, and `transparency_groups_knockout_
         // approximated` reading zero says nothing about the other three.
         //
-        // ★ AND THE FIXTURE WARNING, because it is the degenerate-fixture
+        // AND THE FIXTURE WARNING, because it is the degenerate-fixture
         // trap again: knockout and non-knockout are IDENTICAL when every
         // element is opaque (`q_s = 1` implies `α_s = f_s`). A fixture of
         // opaque fills cannot tell a correct implementation from a wrong
@@ -7997,7 +7997,7 @@ impl Interpreter<'_> {
         // only), and would be an excessive number of conversions where it
         // is.
         //
-        // ★ Which is why every suite transparency patch blends in
+        // Which is why every suite transparency patch blends in
         // `DeviceCMYK` even though one of them draws in `ICCBased` RGB:
         // the declaration is on the PAGE group, and the cell groups either
         // inherit it or restate it.
@@ -8053,7 +8053,7 @@ impl Interpreter<'_> {
         // page backdrop — precisely what painting inline does. Buffering
         // unconditionally gets those wrong in the opposite direction from
         // flattening, and costs a page-sized allocation to do it.
-        // ★ `nonseparable` MUST be part of this test. It was not when the
+        // `nonseparable` MUST be part of this test. It was not when the
         // field was added, and the consequence was silent: a non-separable
         // outer mode parks `blend_mode` at `SourceOver` (see the field docs),
         // so a group under `/BM /Hue` LOOKED neutral, skipped its buffer, and
@@ -8064,7 +8064,7 @@ impl Interpreter<'_> {
         // arrives twice: a new graphics-state field has to be added to every
         // predicate that asks "is the state still default?", and nothing
         // makes those sites findable from the field.
-        // ★ AND THE SOFT MASK, which is the SAME BUG A THIRD TIME and the
+        // AND THE SOFT MASK, which is the SAME BUG A THIRD TIME and the
         // comment above predicted it: "a new graphics-state field has to be
         // added to every predicate that asks 'is the state still default?',
         // and nothing makes those sites findable from the field."
@@ -8114,7 +8114,7 @@ impl Interpreter<'_> {
             group_state.blend_mode = tiny_skia::BlendMode::SourceOver;
             group_state.fill_alpha = 1.0;
             group_state.stroke_alpha = 1.0;
-            // ★ AND THE NON-SEPARABLE MODE, for the same §11.4.5 reason as
+            // AND THE NON-SEPARABLE MODE, for the same §11.4.5 reason as
             // the three above — a bug the moment `nonseparable` was added,
             // because the reset list is the kind of thing a new field is
             // silently absent from. Contents that inherited it would blend
@@ -8274,7 +8274,7 @@ impl Interpreter<'_> {
         canvas: &mut Canvas<'_>,
         origin: ImageOrigin,
     ) {
-        // ★ THE IMAGE GATE, WHICH SHIPPED MISSING.
+        // THE IMAGE GATE, WHICH SHIPPED MISSING.
         //
         // §8.11.3.1's "shall not be drawn" is not media-typed, but the
         // first cut of optional content gated only the PATH blit and the
@@ -8300,7 +8300,7 @@ impl Interpreter<'_> {
             return;
         }
 
-        // ★★★ THE SECOND GATE, AND IT SHIPPED MISSING TOO (`Pass 300.0`).
+        // THE SECOND GATE, AND IT SHIPPED MISSING TOO (`Pass 300.0`).
         //
         // The gate above asks *is this hidden?* and returns before the
         // decode for exactly the right reason — "an image that is not drawn
@@ -8376,7 +8376,7 @@ impl Interpreter<'_> {
             Some(Object::Boolean(true))
         );
 
-        // ★ D3 -- Table 89's `/Intent` overrides the graphics state FOR THIS
+        // D3 -- Table 89's `/Intent` overrides the graphics state FOR THIS
         // IMAGE ONLY (`Pass 199.1`). Resolved through the shared rule rather
         // than re-derived here, so the "absent means INHERIT, not default"
         // trap is answered in one place: three of this module's four defaults
@@ -8387,7 +8387,7 @@ impl Interpreter<'_> {
         // §8.9.6.2 anyway -- a stencil carries no colour for an intent to
         // govern.
         //
-        // ★ CONSUMED since `Pass 240.0`. This comment used to say "counted,
+        // CONSUMED since `Pass 240.0`. This comment used to say "counted,
         // not yet consumed: nothing converts colour by intent yet". The image
         // decode's ICC bridges are keyed on the intent, so the resolved value
         // is now what an `ICCBased` image is actually converted under -- an
@@ -8415,7 +8415,7 @@ impl Interpreter<'_> {
             fill,
             origin,
             self.policy,
-            // ★ ALWAYS managed, since `Pass 240.0`. This read "only
+            // ALWAYS managed, since `Pass 240.0`. This read "only
             // colour-manage on a page that composites in ink: on an additive
             // page an image's authored colorants are never read", and that
             // was true while the only bridge ended at the output intent. The
@@ -8447,14 +8447,14 @@ impl Interpreter<'_> {
                 );
                 // §11.7.4.3 — `CompatibleOverprint` for a SAMPLED image.
                 //
-                // ★ NOT every image under `/OP true` is owed this, and
+                // NOT every image under `/OP true` is owed this, and
                 // reading it as if it were is what made the shortfall
                 // counter over-report for its whole life. Only the
                 // `Separation`/`DeviceN` row asks for a component the source
                 // did not name to be taken from the backdrop, and
                 // `DecodedImage::overprint` is `Some` for exactly that row.
                 //
-                // ★★★ BUT THIS COMMENT USED TO GO ON TO SAY SOMETHING FALSE,
+                // BUT THIS COMMENT USED TO GO ON TO SAY SOMETHING FALSE,
                 // and it is quoted rather than quietly deleted because it was
                 // believed for many Passes and repeated in three places:
                 //
@@ -8493,7 +8493,7 @@ impl Interpreter<'_> {
                 // pdfcer cannot fix this without the per-spot-colorant plane.
                 // What it can do, and now does, is STOP CLAIMING THE OUTPUT IS
                 // CONFORMING and count the situation.
-                // ★★★ THE DISCLOSURE COUNTER I SHIPPED THIS MORNING WAS
+                // THE DISCLOSURE COUNTER I SHIPPED THIS MORNING WAS
                 // UNDER-REPORTING, which is worse than not having shipped it.
                 //
                 // `icc_managed_paints` / `icc_unmanaged_paints` are both
@@ -8520,7 +8520,7 @@ impl Interpreter<'_> {
                 // variant that can carry a profile — so the render is
                 // unchanged here. What changes is that the number stops
                 // claiming otherwise.
-                // ★ On EVERY page since `Pass 240.0`, not only a subtractive
+                // On EVERY page since `Pass 240.0`, not only a subtractive
                 // one: the display route manages an `N 3` image on an additive
                 // page, and a counter gated on the blend space would report
                 // that page as having no ICC images at all -- the same
@@ -8533,7 +8533,7 @@ impl Interpreter<'_> {
                 // fixture: three managed paints reported for four managed
                 // objects until this read the decoder's own answer.
                 if decoded.icc_managed || image_source_is_iccbased(doc, dict, resources) {
-                    // ★ `Pass 214.0` split this in two. It used to increment
+                    // `Pass 214.0` split this in two. It used to increment
                     // `unmanaged` unconditionally, which was right when NO
                     // image could be managed and became wrong in the opposite
                     // direction the moment one could. The decoder now reports
@@ -8544,7 +8544,7 @@ impl Interpreter<'_> {
                         self.diag.icc_unmanaged_paints += 1;
                     }
                 }
-                // ★★ TABLE 149's SPOT SUB-ROW FOR A PROCESS-SPACE IMAGE
+                // TABLE 149's SPOT SUB-ROW FOR A PROCESS-SPACE IMAGE
                 // (`Pass 238.0`). A `DeviceGray`/`DeviceRGB`/`DeviceCMYK`
                 // image under `/OP true` takes `c_s` for every PROCESS
                 // component -- an ordinary paint already is that -- and
@@ -8570,7 +8570,7 @@ impl Interpreter<'_> {
                 } else {
                     crate::cmyk_buffer::SpotSource::Paint
                 };
-                // ★★ A STENCIL MASK ON AN INK PAGE IS A FILL WITH AN IMAGE'S
+                // A STENCIL MASK ON AN INK PAGE IS A FILL WITH AN IMAGE'S
                 // SHAPE (`Pass 238.0`). §8.9.6.2 makes it "a region of the
                 // page to be painted with the current colour", and the
                 // current colour is the graphics state's -- with its authored
@@ -8869,7 +8869,7 @@ impl Interpreter<'_> {
     /// user-space transform, the sampling filter and whether the edge is
     /// anti-aliased.
     ///
-    /// # ★ Why this is a function and not four lines repeated twice
+    /// # Why this is a function and not four lines repeated twice
     ///
     /// Because two paints of the same image must land on **exactly** the
     /// same device pixels. [`Self::paint_image`] draws its sRGB texels;
@@ -8895,7 +8895,7 @@ impl Interpreter<'_> {
         // for smoothing gets it in both directions, whatever this is set
         // to, because that request IS spec-governed.
         //
-        // ★★ AND NOT INSIDE A TYPE 3 GLYPH PROCEDURE, which is a
+        // AND NOT INSIDE A TYPE 3 GLYPH PROCEDURE, which is a
         // MEASURED exclusion rather than a cautious one.
         //
         // `Pass 126.1` rendered a `d1` + inline `/ImageMask` glyph in Acrobat
@@ -8909,7 +8909,7 @@ impl Interpreter<'_> {
         // the file defined as a hard boundary, and at 0.25x it turned a
         // two-colour stencil into eight colours.
         //
-        // ★ SCOPED TO EXACTLY WHAT WAS MEASURED, deliberately. The same
+        // SCOPED TO EXACTLY WHAT WAS MEASURED, deliberately. The same
         // argument would extend to every `/ImageMask` drawn as page content,
         // and that extension is NOT made here: Acrobat's behaviour on a
         // page-content image mask has not been measured, and widening a rule
@@ -8928,7 +8928,7 @@ impl Interpreter<'_> {
         } else {
             FilterQuality::Nearest
         };
-        // ★ NOT unconditionally true — see `image_edge_needs_antialiasing`.
+        // NOT unconditionally true — see `image_edge_needs_antialiasing`.
         // An image's edge is a SAMPLING boundary, not a shape edge, and
         // antialiasing it is what bands abutting tiles.
         let anti_alias = image_edge_needs_antialiasing(self.gs.current.ctm);
@@ -8987,7 +8987,7 @@ impl Interpreter<'_> {
         let Some(op) = decoded.overprint.as_ref() else {
             return false;
         };
-        // ★★ THE SPOT HALF (`Pass 238.0`). Resolve every spot the image
+        // THE SPOT HALF (`Pass 238.0`). Resolve every spot the image
         // names to a plane, all or nothing -- the same rule the fill path
         // and `Canvas::fill_image` apply, for the same double-ink reason.
         // With planes, the source's spot tints land in them per sample and
@@ -9021,7 +9021,7 @@ impl Interpreter<'_> {
         // read only by the `DeviceCmykDirect` arm, which `classify` cannot
         // return for a sampled image (Table 149's row 1 excludes one by
         // name).
-        // ★ `spots_deposited` is known by now, and it is exactly what the
+        // `spots_deposited` is known by now, and it is exactly what the
         // rule table needs to be told (`Pass 238.0`): with the spot on its
         // own plane the mixed-source widening is off, and a
         // `[/DeviceN [/Black <spot>]]` image writes K, leaves C/M/Y to the
@@ -9174,7 +9174,7 @@ impl Interpreter<'_> {
         // which is exactly the convention. FILLS never reach here, so a filled
         // region keeps its geometry (only `S`/`s`/`B`/`B*` strokes change).
         //
-        // ★ A CEILING, NOT A SET, and the two are only distinguishable on a
+        // A CEILING, NOT A SET, and the two are only distinguishable on a
         // stroke that is ALREADY sub-pixel. `floored` is `max(declared,
         // min_user_width)` — the §8.4.3.2 / §10.6.4 floor above — so for such a
         // stroke `floored == min_user_width` and `min` returns it unchanged:
@@ -9369,7 +9369,7 @@ impl Interpreter<'_> {
         // and the pending clip below is applied exactly as if it had
         // been painted (§8.11.3.1).
         let skip_paint = crate::profile::skip_paint() || self.oc_hidden();
-        // ★ A NON-SEPARABLE BLEND MODE REPLACES the ordinary paint, exactly
+        // A NON-SEPARABLE BLEND MODE REPLACES the ordinary paint, exactly
         // as overprint does — it is a different compositing rule, not a
         // post-pass over a normal one. Painting normally first would knock
         // out the backdrop the blend function needs to read.
@@ -10059,7 +10059,7 @@ mod image_edge_antialiasing_tests {
         assert!(!image_edge_needs_antialiasing(ctm));
     }
 
-    /// ★ Rotation KEEPS antialiasing. The outline is a genuine diagonal
+    /// Rotation KEEPS antialiasing. The outline is a genuine diagonal
     /// across the pixel grid there, and a hard edge would stair-step on
     /// every rotated image — a visible cost paid on common content to cure
     /// an artefact that needs abutting ROTATED tiles to appear at all.
@@ -10076,7 +10076,7 @@ mod image_edge_antialiasing_tests {
         assert!(image_edge_needs_antialiasing(ctm));
     }
 
-    /// ★ THE GUARD THAT STOPS A SILENT DISAPPEARANCE. Without
+    /// THE GUARD THAT STOPS A SILENT DISAPPEARANCE. Without
     /// antialiasing, a shape covering no pixel centre paints NOTHING, so a
     /// sub-pixel image would vanish outright rather than render faintly.
     /// That is a worse failure than the seam, and a silent one.

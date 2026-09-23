@@ -104,7 +104,7 @@ fn a_case_insensitive_hit_reports_the_documents_own_spelling() {
     );
 }
 
-/// ★ `find-text` and `redact-mark --search` produce the SAME box.
+/// `find-text` and `redact-mark --search` produce the SAME box.
 ///
 /// Both come from one scan in core. This asserts it from outside, against
 /// the bytes `redact-mark` actually wrote, so the sharing is observable
@@ -375,7 +375,7 @@ fn a_search_driven_redaction_warns_about_unreadable_text() {
 /// `Pass 296.3` — `redact-mark --pattern` warns too, and until this Pass it
 /// did not.
 ///
-/// # ★★ pdfcer's own shell was the one being silent
+/// # pdfcer's own shell was the one being silent
 ///
 /// The request that produced this Pass was about a missing verb on the crate
 /// boundary. Wiring it exposed that `--pattern` here had the identical blind
@@ -386,7 +386,7 @@ fn a_search_driven_redaction_warns_about_unreadable_text() {
 /// an operator reaches for wildcards to clean structured confidential
 /// material.
 ///
-/// ★ Nothing could have caught it. Both branches compile, both exit 0, both
+/// Nothing could have caught it. Both branches compile, both exit 0, both
 /// author the right marks. The only difference is a sentence one of them does
 /// not say.
 #[test]

@@ -20,7 +20,7 @@
 //!    rectangles that surround the page box, ready to become `/Redact` marks
 //!    for [`crate::redact::apply_redactions`].
 //!
-//! ## ★★ Why the removal half is FOUR RECTANGLES and not new code
+//! ## Why the removal half is FOUR RECTANGLES and not new code
 //!
 //! The hard part of "delete what is off the page, keep what is on it" is the
 //! *partial* object: a line that starts on the sheet and ends past its edge, a
@@ -99,7 +99,7 @@ pub enum OffPage {
     Partial,
 }
 
-/// ★★★ A `Partial` IMAGE SURVIVES A CLEAN BY DESIGN, AND THIS SCAN STILL
+/// A `Partial` IMAGE SURVIVES A CLEAN BY DESIGN, AND THIS SCAN STILL
 /// REPORTS IT — measured 2026-09-12, recorded rather than fixed.
 ///
 /// After `redact-offpage`, 12 objects across 7 of the operator's 174 drawings
@@ -116,7 +116,7 @@ pub enum OffPage {
 /// counting runs that paint nothing; the analogous rule here is to stop
 /// counting an image whose off-page cells carry no ink.
 ///
-/// ★ That fix is deliberately NOT taken here, because it needs the samples,
+/// That fix is deliberately NOT taken here, because it needs the samples,
 /// and decoding every image during a scan is precisely what made the first
 /// `redact-offpage` take ten minutes on one file (`Pass 294.1`). It wants a
 /// measurement — how many placements, how much decode — not a guess at
@@ -136,7 +136,7 @@ pub struct OffPageObject {
     /// The text the object shows, when it is a text object and the text could
     /// be recovered.
     ///
-    /// ★ Carried because it is the disclosure that changes an operator's mind:
+    /// Carried because it is the disclosure that changes an operator's mind:
     /// *"there are 4 off-page objects"* invites a shrug, and *"one of them
     /// reads `SUPERSEDED — DO NOT BUILD`"* does not. Text drawn off the sheet
     /// is still extractable and still searchable.
@@ -231,7 +231,7 @@ pub fn scan_model(model: &PageObjects, page: &Page, page_index: usize, tolerance
             continue;
         }
         if !paints_anything(obj) {
-            // ★ An object that DRAWS NOTHING is not "content drawn outside the
+            // An object that DRAWS NOTHING is not "content drawn outside the
             // page", whatever its bounding box says (`Pass 294.2`).
             //
             // A text object's bbox comes from the text matrix, not from glyph
@@ -331,7 +331,7 @@ pub fn offpage_bands(scan: &PageScan, tolerance: f64) -> Vec<Rect> {
     if scan.objects.is_empty() || !is_finite(&scan.drawn) {
         return Vec::new();
     }
-    // ★★ THE BANDS CARRY THE SAME TOLERANCE THE SCAN DOES, and leaving them
+    // THE BANDS CARRY THE SAME TOLERANCE THE SCAN DOES, and leaving them
     // out was both a CORRECTNESS bug and the feature's whole performance
     // problem.
     //
@@ -493,7 +493,7 @@ mod tests {
         assert!(!contained(&p, &bounds(10.0, 10.0, 120.0, 20.0)));
     }
 
-    /// ★ The bands must not overlap: the corners belong to TOP and BOTTOM,
+    /// The bands must not overlap: the corners belong to TOP and BOTTOM,
     /// and LEFT/RIGHT stop at the page box's own vertical span. Overlapping
     /// marks would redact the same area twice.
     #[test]

@@ -4,7 +4,7 @@
 //! *output file* or the binary's own `--help`, never against the report the
 //! command printed about itself.
 //!
-//! ## ★ Why a core-level test suite is not enough here
+//! ## Why a core-level test suite is not enough here
 //!
 //! `crates/pdfcer-core/tests/annot_resize.rs` calls `resize_annotation`
 //! directly, so it exercises `ResizeOptions` **whatever the CLI does with the
@@ -202,7 +202,7 @@ fn it_says_out_loud_that_the_border_width_did_not_follow() {
 // 2. EACH FLAG IS WIRED — proved by a difference in the SAVED BYTES
 // ---------------------------------------------------------------------------
 
-/// ★ The test that catches a parsed-but-unused flag. Same command twice; the
+/// The test that catches a parsed-but-unused flag. Same command twice; the
 /// only difference is the flag, and the saved `/BS /W` must differ.
 #[test]
 fn scale_stroke_width_reaches_the_saved_bytes() {
@@ -344,7 +344,7 @@ fn a_zero_factor_is_refused_by_name() {
 /// than reading `-1` as an unknown flag. That is what `allow_negative_numbers`
 /// is for, and it is easy to omit on one argument out of four.
 ///
-/// ★ This test also pins a correctness claim it was not written for. A mirror
+/// This test also pins a correctness claim it was not written for. A mirror
 /// is an ISOMETRY: `sx = -1, sy = 1` preserves every length, including the
 /// drawn stroke width, so it must NOT be classified as a non-uniform scale and
 /// must NOT trip the foreign-appearance refusal. The first cut of the core

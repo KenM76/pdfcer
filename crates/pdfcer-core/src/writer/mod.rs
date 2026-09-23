@@ -699,7 +699,7 @@ pub enum WriteError {
     /// A full rewrite was requested for a **hybrid-reference** file
     /// (§7.5.8.4) whose `/XRefStm` pdfcer could not parse (`Pass 281.0`).
     ///
-    /// # ★★ NARROWED. This used to fire for EVERY hybrid file.
+    /// # NARROWED. This used to fire for EVERY hybrid file.
     ///
     /// The original reasoning is kept verbatim, because it is instructive about
     /// how a refusal outlives its cause:

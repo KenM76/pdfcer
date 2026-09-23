@@ -24,7 +24,7 @@
 //! measured on a conformance patch at **~92 levels** of error against
 //! Acrobat's output, where a real CMM lands within **~3**.
 //!
-//! ⇒ ★ **The bug was never in the arithmetic; it was in which function was
+//! ⇒ **The bug was never in the arithmetic; it was in which function was
 //! called.** Three hypotheses about pdfcer's blend maths were raised and each
 //! was refuted by ablation before the real cause was found. Recorded because
 //! the shape recurs: a correct function used for the wrong job produces
@@ -48,7 +48,7 @@
 //! | **destination** | the document catalog's `/OutputIntents` → `/DestOutputProfile` | none — no bridge is built |
 //! | **destination (display)** | iccce's **constructed sRGB** (`iccce_cmm::builtin::srgb`, `Destination::None`) — the screen itself | none needed; see below |
 //!
-//! ### ★ The second destination, and why it is not the asymmetry being broken
+//! ### The second destination, and why it is not the asymmetry being broken
 //!
 //! The paragraph below this one says pdfcer must never invent a **source**
 //! characterisation. It says nothing against a built-in **destination**, and
@@ -60,7 +60,7 @@
 //! known by construction. [`IccBridge::build_to_srgb`] is that route, and
 //! [`IccBridgeCache::get_srgb`] hands it out.
 //!
-//! ★★ It is a DIFFERENT route from the ink one, and the difference was
+//! It is a DIFFERENT route from the ink one, and the difference was
 //! measured before this was written (`docs/NEXT_SESSION.md` §D item 1,
 //! 2026-09-02): routing an `ICCBased /N 3` image through source →
 //! `/OutputIntent` CMYK → the terminal CMYK→sRGB conversion landed **3×
@@ -77,7 +77,7 @@
 //! what device it targets, and guessing would be exactly the "sneaky"
 //! behaviour `CLAUDE.md` rule 4 forbids.
 //!
-//! ### ★ Why there is no built-in-sRGB source fallback
+//! ### Why there is no built-in-sRGB source fallback
 //!
 //! It would be easy to write "if the source has no profile, assume sRGB", and
 //! it would be wrong twice over. iccce deliberately exposes a built-in sRGB as
@@ -95,7 +95,7 @@
 //! that per *paint* would be absurd. [`IccBridge`] is therefore built once and
 //! shared behind an `Arc`.
 //!
-//! ★ The cache key is **(source profile bytes, destination profile bytes,
+//! The cache key is **(source profile bytes, destination profile bytes,
 //! rendering intent)** — all three. This project has already shipped a defect
 //! (standing rule R237) where a memo's key omitted one of its dependencies, so
 //! every verb computed over it silently addressed the wrong object. The intent
@@ -495,7 +495,7 @@ pub(crate) struct IccBridgeCache {
 
 /// Which destination a cached bridge was built to.
 ///
-/// ★ Part of the cache KEY, and it must be: the same source profile at the
+/// Part of the cache KEY, and it must be: the same source profile at the
 /// same intent builds two genuinely different transforms depending on whether
 /// it is headed for the output device or the screen, and a cache that could
 /// not tell them apart would hand an ink transform to a display lookup. That
@@ -510,7 +510,7 @@ enum BridgeDest {
 }
 
 struct CacheEntry {
-    /// ★ Held as an owned `Arc`, not a raw pointer, and that is a
+    /// Held as an owned `Arc`, not a raw pointer, and that is a
     /// CORRECTNESS requirement rather than convenience. Lookup tries
     /// `Arc::ptr_eq` first (see [`same_profile`]), so if the cache did not
     /// keep the allocation alive a freed profile's address could be recycled

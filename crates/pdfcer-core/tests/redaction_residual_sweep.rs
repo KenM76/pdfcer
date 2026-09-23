@@ -10,12 +10,12 @@
 //! file, having never been offered to a carrier — while the report said
 //! `info action=scrubbed`.
 //!
-//! ★ **The worst combination**: no report line was false, and the content was
+//! **The worst combination**: no report line was false, and the content was
 //! still there. `prior_revisions action=dropped_by_rewrite` is true — it is
 //! about superseded *byte ranges*, not about objects the cross-reference table
 //! still names.
 //!
-//! # ★★ Why the fix sweeps by EVIDENCE and never computes reachability
+//! # Why the fix sweeps by EVIDENCE and never computes reachability
 //!
 //! §12.5.6.23 is an outcome test on the saved artifact — *"they shall remove
 //! all traces of the specified content"* — and scopes carriers by *"all
@@ -40,7 +40,7 @@
 //! (§9.4.3).** Parsing is also the discriminator — a font or an image does not
 //! parse as a content stream — and the edit is length-preserving.
 //!
-//! ★★ **A sabotage survived the first cut of these tests and is why the
+//! **A sabotage survived the first cut of these tests and is why the
 //! fixture looks the way it does.** Replacing the operand span with the whole
 //! buffer left all eight green, because the fixture put the redacted word only
 //! inside a string. The orphan stream now also carries it in a **resource
@@ -77,7 +77,7 @@ fn pdf_with_orphans() -> Vec<u8> {
 /// starting with the same word.
 fn pdf_with_orphans_drawing(page_text: &str, orphan_texts: &[&str]) -> Vec<u8> {
     let content = format!("BT /F1 24 Tf 40 200 Td ({page_text}) Tj ET");
-    // ★ The resource name carries the redacted word TOO, deliberately. It is
+    // The resource name carries the redacted word TOO, deliberately. It is
     // what makes a whole-buffer blank distinguishable from a span-scoped one:
     // a sweep that overwrote every occurrence would rewrite this name into
     // one that resolves to nothing, silently stopping an image from drawing.
@@ -217,7 +217,7 @@ fn redact_orphan_fixture() -> (Vec<u8>, RedactionReport) {
 
 /// [`redact_orphan_fixture`] under an explicitly chosen [`ResidualScope`].
 ///
-/// ★ `Pass 310.0`: the scope is now the variable these tests turn. A test that
+/// `Pass 310.0`: the scope is now the variable these tests turn. A test that
 /// asserts drawable content OUTSIDE the marked region was edited must say
 /// `WholeDocument` out loud, because that is no longer what a caller gets by
 /// default — and a test that asserts it was LEFT must say which narrower scope
@@ -251,7 +251,7 @@ fn carrier(report: &RedactionReport, name: &str) -> Option<CarrierAction> {
 
 // ------------------------------------------------- 1. the reported defect
 
-/// ★★★ THE DEFECT: an `/Info`-shaped dictionary the trailer does not name
+/// THE DEFECT: an `/Info`-shaped dictionary the trailer does not name
 /// survived a redaction with the redacted word intact.
 #[test]
 fn a_superseded_info_dictionary_is_scrubbed_even_though_nothing_points_at_it() {
@@ -277,7 +277,7 @@ fn the_trailers_own_info_is_still_scrubbed() {
 
 /// An XMP packet attached to nothing is scrubbed wherever it sits.
 ///
-/// ★ §14.3.2 NOTE 3 is why this one cannot be left as a disclosure: an XMP
+/// §14.3.2 NOTE 3 is why this one cannot be left as a disclosure: an XMP
 /// packet is designed to be found *"by simple scanning rather than requiring
 /// the document file to be parsed"*. Reachability is irrelevant to its
 /// exposure **by design**, so "no reader will read it" is not available as an
@@ -293,7 +293,7 @@ fn an_orphaned_xmp_packet_is_scrubbed_wherever_it_is_attached() {
 
 // -------------------------------- 2. the abandoned content stream (`Pass 285.0`)
 
-/// ★★★ An abandoned content stream's drawn text is **blanked**, not merely
+/// An abandoned content stream's drawn text is **blanked**, not merely
 /// named.
 ///
 /// # This test was AMENDED, not replaced, and the old assertion is below
@@ -310,14 +310,14 @@ fn an_orphaned_xmp_packet_is_scrubbed_wherever_it_is_attached() {
 /// `a_stream_that_cannot_be_blanked_is_still_named` pins that the old
 /// behaviour survives exactly where it is still correct.
 ///
-/// ★ **The discriminator is parsing itself.** A font programme or an image
+/// **The discriminator is parsing itself.** A font programme or an image
 /// does not parse as a content stream, so the same call that locates the
 /// strings proves the object is one — no `/Subtype` sniffing and no list of
 /// types to keep in step with reality. And only the spans of operands
 /// belonging to `Tj`/`TJ`/`'`/`"` are touched, so a resource name such as
 /// `/CONFIDENTIAL Do` is never rewritten into one that resolves to nothing.
 ///
-/// ★★ `Pass 310.0` RE-POINTED THIS TEST, and the re-pointing is the finding.
+/// `Pass 310.0` RE-POINTED THIS TEST, and the re-pointing is the finding.
 ///
 /// It used to call `redact_orphan_fixture()` — the DEFAULT — and that is how
 /// blanking unmarked drawable content came to look like settled behaviour. It
@@ -343,7 +343,7 @@ fn an_abandoned_content_streams_drawn_text_is_blanked() {
         "and the edit is counted apart from the metadata scrubs"
     );
 
-    // ★★ THE ASSERTION THAT MAKES SPAN-SCOPING MEASURABLE, and it exists
+    // THE ASSERTION THAT MAKES SPAN-SCOPING MEASURABLE, and it exists
     // because a sabotage survived without it.
     //
     // Replacing the operand span with the WHOLE BUFFER — blanking every
@@ -366,7 +366,7 @@ fn an_abandoned_content_streams_drawn_text_is_blanked() {
     // ~~          Some(CarrierAction::DisclosedNotScrubbed));~~
 }
 
-/// ★ THE CONTROL FOR THE BLANKING: a stream carrying the redacted word that
+/// THE CONTROL FOR THE BLANKING: a stream carrying the redacted word that
 /// **cannot** be blanked safely is still named.
 ///
 /// Without this, a `blank_show_strings` that gave up silently — returning
@@ -404,7 +404,7 @@ fn a_stream_that_cannot_be_blanked_is_still_named() {
 
 // ------------------------------------------------- 3. `Pass 310.0` — scope
 
-/// ★★★ THE OPERATOR'S REPORT: redacting one region blanked matching text he
+/// THE OPERATOR'S REPORT: redacting one region blanked matching text he
 /// never selected. Under the DEFAULT scope it must not.
 ///
 /// The orphan stream draws `CONFIDENTIAL stream orphan` — the redacted word,
@@ -440,7 +440,7 @@ fn the_default_scope_leaves_drawable_text_outside_the_marks_alone() {
     );
 }
 
-/// ★ THE OTHER HALF, and without it the fix above would be indistinguishable
+/// THE OTHER HALF, and without it the fix above would be indistinguishable
 /// from switching the sweep off.
 ///
 /// The default scope still scrubs what the operator cannot see: the orphaned
@@ -495,7 +495,7 @@ fn marked_only_leaves_every_carrier_alone_and_reports_each() {
     );
 }
 
-/// ★★ THE BLAST-RADIUS TEST: redacting `INVOICE 4412` must not blank the word
+/// THE BLAST-RADIUS TEST: redacting `INVOICE 4412` must not blank the word
 /// `INVOICE` somewhere else, in ANY scope.
 ///
 /// This is the second of the two independent causes behind the operator's
@@ -541,7 +541,7 @@ fn a_shared_word_does_not_blank_an_unmarked_stream_even_whole_document() {
 /// flag drives the CLI's non-zero exit and its `--acknowledge-residuals`
 /// override.
 ///
-/// ★ The two facts are different and collapsing them would be the nagging that
+/// The two facts are different and collapsing them would be the nagging that
 /// project rule 4 exists to prevent: `DisclosedNotScrubbed` means pdfcer could
 /// not finish the job, `FoundNotScrubbed` means it was told not to. Every
 /// ordinary redaction of a phrase that also appears elsewhere would exit
@@ -567,7 +567,7 @@ fn found_not_scrubbed_is_reported_without_failing_the_redaction() {
 /// Blanking a stream that DOES carry a whole redacted run must still take only
 /// that run, not every word of it.
 ///
-/// ★ This is the only fixture shape that measures the needle handed to
+/// This is the only fixture shape that measures the needle handed to
 /// [`blank_show_strings`]. Its sibling above asserts a stream carrying no whole
 /// run is untouched, which the DETECTION split alone satisfies — swapping the
 /// blanker's whole-run needles back for tokenized evidence leaves that test
@@ -612,7 +612,7 @@ fn blanking_a_matching_stream_does_not_take_its_other_words_with_it() {
 /// A drawable stream carrying the redacted run in a DIFFERENT CASE is blanked,
 /// not merely disclosed.
 ///
-/// ★ This measures the detector and the actor against each other. The detector
+/// This measures the detector and the actor against each other. The detector
 /// has always been ASCII-case-insensitive; the blanker compared exact bytes,
 /// so `Invoice 4412` against a redacted `INVOICE 4412` was FOUND, not removed,
 /// and fell through to `DisclosedNotScrubbed` — pdfcer reporting a residual it
@@ -653,7 +653,7 @@ fn a_case_variant_of_the_run_is_blanked_rather_than_disclosed() {
 /// An XMP packet quoting the redacted text in a DIFFERENT CASE is still
 /// scrubbed.
 ///
-/// ★ The mirror image of the test above, and the worse half of the same
+/// The mirror image of the test above, and the worse half of the same
 /// defect. On the metadata path the actor WAS the detector — a byte-exact
 /// replace whose return value decided whether anything had been found — so a
 /// case-differing quote was not disclosed at all. Nothing was scrubbed and
@@ -698,7 +698,7 @@ fn a_case_variant_in_an_xmp_packet_is_still_scrubbed() {
 
 /// The sweep's counts are reported separately from `/Info`'s.
 ///
-/// ★ A single total would hide the fact that the second number is the one
+/// A single total would hide the fact that the second number is the one
 /// nobody expected to be non-zero.
 #[test]
 fn the_sweep_reports_its_own_counts() {
@@ -713,7 +713,7 @@ fn the_sweep_reports_its_own_counts() {
     );
 }
 
-/// ★ THE CONTROL: a clean file reports the sweep as having found nothing.
+/// THE CONTROL: a clean file reports the sweep as having found nothing.
 ///
 /// Without it, an implementation that disclosed a residual for every document
 /// would satisfy every assertion above and make the disclosure worthless —
@@ -741,7 +741,7 @@ fn a_file_with_no_orphans_reports_the_sweep_clean() {
     assert_eq!(report.residual_sweep_entries_scrubbed, 0);
 }
 
-/// ★ A redaction that removes NO TEXT reports the sweep as not applicable —
+/// A redaction that removes NO TEXT reports the sweep as not applicable —
 /// not as a residual.
 ///
 /// `redacted` empty and `evidence` empty are different facts: the first means

@@ -735,7 +735,7 @@ impl Walk<'_> {
     /// `/BaseFont` is missing or malformed. Keyed on that empty string,
     /// every unnamed font on a page shared one slot.
     ///
-    /// ★ **A/B'd rather than reasoned about, and the measurement was worse
+    /// **A/B'd rather than reasoned about, and the measurement was worse
     /// than the prediction.** The expectation written first was that N
     /// unnamed dead ends would report as `1`. Measured against
     /// `tounicode_gate.pdf` on the pre-fix code, the counter reported

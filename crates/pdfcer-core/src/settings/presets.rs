@@ -12,7 +12,7 @@
 //! What it claims is narrower and checkable: *for this standard, these are the
 //! values, and here is where each one comes from.*
 //!
-//! # ★★ WHY EVERY ENTRY CARRIES ITS OWN EVIDENCE TIER
+//! # WHY EVERY ENTRY CARRIES ITS OWN EVIDENCE TIER
 //!
 //! `pdfce-gui` asked for this and refused to guess at it, in terms worth
 //! repeating because they are the whole design constraint:
@@ -30,7 +30,7 @@
 //! [`RenderPreset::disclosures`] says so out loud, so a shell can put the
 //! honest sentence next to the honest button.
 //!
-//! # ★★★ THE THREE FINDINGS THAT SHAPED THIS MODULE
+//! # THE THREE FINDINGS THAT SHAPED THIS MODULE
 //!
 //! All three came from sourcing the standards rather than from designing the
 //! API, and each one changed the design.
@@ -78,7 +78,7 @@
 //!
 //! # Scope, stated so it is not over-read
 //!
-//! ★ These presets govern **how pdfcer renders a file**. They do not govern
+//! These presets govern **how pdfcer renders a file**. They do not govern
 //! how pdfcer *writes* one, and applying one to a document does not move it
 //! toward conformance in any respect. `to-pdfa` and `validate-pdfa` remain
 //! unimplemented (`ROADMAP.md`), and nothing here is a step toward them.
@@ -121,7 +121,7 @@ pub enum RenderStandard {
     /// colour, and permits a device space only where the output intent's
     /// profile is that same space. Transparency still forbidden.
     ///
-    /// # ★ THIS PRODUCES AN IDENTICAL VECTOR TO [`Self::PdfX1a`], ON PURPOSE
+    /// # THIS PRODUCES AN IDENTICAL VECTOR TO [`Self::PdfX1a`], ON PURPOSE
     ///
     /// Reported by `pdfce-gui` 2026-08-25: applying X-3 leaves settings its
     /// matcher then reports as X-1a. That is **correct, and not a bug to
@@ -154,7 +154,7 @@ pub enum RenderStandard {
     PdfX5g,
     /// **PDF/X-6 and PDF/X-6p** — ISO 15930-9:2020, the PDF 2.0-based part.
     ///
-    /// ★ Note one real difference from X-4 that must NOT be attached to
+    /// Note one real difference from X-4 that must NOT be attached to
     /// [`CmykIntent`]: X-4 §6.23 restricted `/RI` to the four ICC rendering
     /// intents and **X-6 dropped that restriction**. That is the ICC
     /// rendering intent, which pdfcer does not carry at all.
@@ -173,7 +173,7 @@ pub enum RenderStandard {
     PdfA4,
     /// **PDF/UA-1 and PDF/UA-2** — ISO 14289-1, ISO 14289-2.
     ///
-    /// ★★ **This variant exists to return an EMPTY preset, and that is the
+    /// **This variant exists to return an EMPTY preset, and that is the
     /// sourced answer rather than an unfinished one.**
     ///
     /// PDF/UA is a structure and accessibility standard. ISO 14289-1 §6.3
@@ -331,7 +331,7 @@ impl PresetAction {
     /// a new variant is a **compile error in this file**, which is where
     /// somebody who just added one is already looking.
     ///
-    /// ★ `"-"` rather than an empty string or a repeated default for the
+    /// `"-"` rather than an empty string or a repeated default for the
     /// leave-alone case. A blank column reads as missing data and a repeated
     /// default reads as *"this is the value"* — which is the one thing a
     /// not-applicable cell must never say.
@@ -500,7 +500,7 @@ impl RenderPreset {
     /// * an entry **left alone** gets its `why`, because "the standard does
     ///   not reach this axis" is itself a claim about the standard.
     ///
-    /// ★ Until `Pass 241.0` the first bullet was missing: set entries had
+    /// Until `Pass 241.0` the first bullet was missing: set entries had
     /// their `why` discarded whatever their evidence, and it did not show
     /// because until `Pass 237.0` every set entry was `BestEffort`. The
     /// spot-colorant device model is `Implied`, and its `why` is the only
@@ -546,7 +546,7 @@ impl RenderPreset {
             ));
         }
 
-        // ★ The standard's own admission, quoted because it is the most
+        // The standard's own admission, quoted because it is the most
         // useful sentence in the whole exercise and a preset that hid it
         // would be overselling itself.
         if self.standard.is_pdf_x() {
@@ -569,7 +569,7 @@ impl RenderPreset {
         }
 
         if self.standard.output_intent_is_colorimetric() {
-            // ★ Narrowed twice. This said "pdfcer does not apply it" outright;
+            // Narrowed twice. This said "pdfcer does not apply it" outright;
             // since `Pass 199.2` the destination profile IS applied to an
             // `ICCBased` paint on an ink-compositing page, since `Pass 214.0`
             // to `ICCBased` images, and since `Pass 240.0` to `ICCBased` RGB
@@ -827,7 +827,7 @@ fn entries_for(standard: RenderStandard) -> Vec<PresetEntry> {
 
     // --- 4. image minification ----------------------------------------------
     //
-    // ★ THE ONE AXIS WHERE A PRESET ACTUALLY DIVERGES FROM THE SHIPPED
+    // THE ONE AXIS WHERE A PRESET ACTUALLY DIVERGES FROM THE SHIPPED
     // DEFAULT, as of 2026-08-25. `MinifyFilter::default()` moved to `Smooth`
     // on the operator's Acrobat comparison — the right answer for looking at
     // a page. For conformance output the spec-literal reading is the safer
@@ -855,7 +855,7 @@ fn entries_for(standard: RenderStandard) -> Vec<PresetEntry> {
 
     // --- 6. separations ------------------------------------------------------
     //
-    // ★ `separations` is `SeparationPolicy` — the §14.11.4 preseparated-page-
+    // `separations` is `SeparationPolicy` — the §14.11.4 preseparated-page-
     // set policy — and NOT spot-colorant handling. The distinction matters:
     // the brief that commissioned this grid had it wrong, and the corrected
     // question turned out to have a sharper answer.
@@ -884,7 +884,7 @@ fn entries_for(standard: RenderStandard) -> Vec<PresetEntry> {
 
     // --- 7. the spot-colorant device model -----------------------------------
     //
-    // ★★ THE ONE AXIS PINNED WITHOUT A CLAUSE THAT REACHES IT, and the
+    // THE ONE AXIS PINNED WITHOUT A CLAUSE THAT REACHES IT, and the
     // exception has to be argued rather than assumed (`Pass 237.0`, asked by
     // `pdfcer-gui` 2026-09-02; sourced in the spec corpus
     // `pdfx__ref__conformance_and_rendering_axes.md` Axis 7, `PXC-15`..`PXC-21`).
@@ -920,7 +920,7 @@ fn entries_for(standard: RenderStandard) -> Vec<PresetEntry> {
     // pin moves no pixels for an operator who never overrode it; its value is
     // documentation plus protection against a stale global override.
     //
-    // ★ The counter-argument is recorded, not dismissed: `Alternate-
+    // The counter-argument is recorded, not dismissed: `Alternate-
     // SpaceSubstitution` is the only value with an ISO 32000-1 basis, and an
     // explicitly edition-scoped "ISO 32000-1 strict" preset — if one is ever
     // shipped — should pin THAT. A PDF/X preset optimises for predicting the
@@ -995,7 +995,7 @@ mod tests {
         }
     }
 
-    /// ★★ THE TEST THAT GUARDS AGAINST OVERCLAIMING, which is the one risk
+    /// THE TEST THAT GUARDS AGAINST OVERCLAIMING, which is the one risk
     /// this whole module exists to manage.
     ///
     /// An entry may only be labelled `Sourced` or `Implied` — i.e. may only
@@ -1192,7 +1192,7 @@ mod tests {
         }
     }
 
-    /// ★ The preset actually diverges from the shipped defaults somewhere.
+    /// The preset actually diverges from the shipped defaults somewhere.
     ///
     /// The whole exercise would be theatre if every preset were a no-op on a
     /// fresh `Settings` — the operator would click a button labelled

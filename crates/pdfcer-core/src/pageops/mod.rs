@@ -38,7 +38,7 @@
 //! and no half-rendered pages. Recorded as a deviation with its reason, as
 //! the spec's own preamble requires.
 //!
-//! ## ★ THE BLOCKER ABOVE WAS SOLVED DIFFERENTLY — corrected 2026-08-18
+//! ## THE BLOCKER ABOVE WAS SOLVED DIFFERENTLY — corrected 2026-08-18
 //!
 //! This section used to end *"The GUI's in-place Insert waits for the
 //! overlay-aware render path."* **That is no longer true, and the wait was
@@ -323,7 +323,7 @@ pub struct PageClip {
 impl PageClip {
     /// How many pages the clip holds.
     ///
-    /// ★ This used to return BYTES while [`Self::is_empty`] answered about
+    /// This used to return BYTES while [`Self::is_empty`] answered about
     /// PAGES, which is exactly the mismatch the Rust API Guidelines' `len`/
     /// `is_empty` pairing exists to prevent — `len() == 0` and `is_empty()`
     /// must mean the same thing, and here they could not. Clippy's `len_zero`
@@ -356,7 +356,7 @@ impl PageClip {
 
     /// Rebuild a clip from bytes a shell wrote out earlier.
     ///
-    /// # ★ Why this exists, and how its absence was found
+    /// # Why this exists, and how its absence was found
     ///
     /// [`PageClip`] is `#[non_exhaustive]`, so **nothing outside this crate
     /// can construct one with a struct literal** — which is correct (the

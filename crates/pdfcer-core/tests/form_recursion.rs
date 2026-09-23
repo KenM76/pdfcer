@@ -18,7 +18,7 @@
 //! forms, one per blend-mode cell, each swallowing every click aimed at the
 //! swatch inside it.
 //!
-//! ## ★ Why nothing caught it
+//! ## Why nothing caught it
 //!
 //! **No committed fixture had a form XObject at all.** Every vector fixture in
 //! this repository draws straight onto the page, so the entire form branch of
@@ -37,7 +37,7 @@
 //! | the flat list does **not** move | `the_flat_object_list_is_unchanged_by_recursion` |
 //! | a leaf names the form's stream, and `is_editable` answers about the OBJECT | `a_leaf_names_its_own_stream_and_reports_its_editability` |
 //!
-//! ## ★★ The last two are the load-bearing ones, and not for obvious reasons
+//! ## The last two are the load-bearing ones, and not for obvious reasons
 //!
 //! `the_flat_object_list_is_unchanged_by_recursion` guards a **safety**
 //! property, not a compatibility one. Eleven call sites in `edit.rs` resolve a
@@ -51,7 +51,7 @@
 //! `a_leaf_names_its_own_stream_and_reports_its_editability` is the same fact
 //! from the caller's side, in the vocabulary the shell already uses for text.
 //!
-//! ## ★ `is_editable` changed meaning in `Pass 188.0`, and the change is narrow
+//! ## `is_editable` changed meaning in `Pass 188.0`, and the change is narrow
 //!
 //! It used to be a hard `false` — *"editing through the recursion is not
 //! built"*. It is built: the geometry verbs have form-scoped twins addressed by
@@ -103,7 +103,7 @@ fn form_count(m: &PageObjects) -> usize {
         .count()
 }
 
-/// ★ THE HEADLINE. One page-sized form, three squares inside it.
+/// THE HEADLINE. One page-sized form, three squares inside it.
 ///
 /// Before the recursion the page offered exactly one selectable thing — the
 /// wrapper — and it covered the whole sheet.
@@ -173,7 +173,7 @@ fn a_nested_form_reports_its_whole_containment_path() {
     assert_eq!((b.min.x.round() as i64, b.min.y.round() as i64), (70, 70));
 }
 
-/// ★★ A form that invokes ITSELF terminates, and the walk says it did.
+/// A form that invokes ITSELF terminates, and the walk says it did.
 ///
 /// ISO 32000-1 §8.10.1 does not forbid this and nothing makes the file
 /// invalid — it is simply unbounded to a naive walker. A decomposer that hangs
@@ -204,7 +204,7 @@ fn a_self_referential_form_terminates_and_is_counted() {
 /// A form invoked twice contributes its contents twice, in two places, naming
 /// the same form both times.
 ///
-/// ★ Worth pinning because it looks like a bug and is not: it is what the page
+/// Worth pinning because it looks like a bug and is not: it is what the page
 /// actually draws. It is also exactly the situation that makes editing a leaf
 /// inside a shared form change **every** invocation — `ARCHITECTURE.md` §12
 /// decision 076, which rules that edit-in-place is the default and that
@@ -237,7 +237,7 @@ fn a_form_invoked_twice_contributes_its_contents_twice() {
     );
 }
 
-/// ★★★ THE SAFETY PROPERTY. Recursion must not put leaves into `objects`.
+/// THE SAFETY PROPERTY. Recursion must not put leaves into `objects`.
 ///
 /// Eleven call sites in `edit.rs` resolve a paint-order index and apply
 /// content-stream surgery **to the page's stream**. A leaf's token range
@@ -274,7 +274,7 @@ fn the_flat_object_list_is_unchanged_by_recursion() {
 /// themselves identically. A shell reconciles both in one selection; two
 /// vocabularies for one fact would be its problem and our fault.
 ///
-/// # ★ What each half now asserts, because they came apart in `Pass 188.0`
+/// # What each half now asserts, because they came apart in `Pass 188.0`
 ///
 /// - **`stream()` is a fact about the BUFFER** and has not changed: the leaf's
 ///   token range indexes the form's bytes, not the page's. That is the safety
@@ -310,7 +310,7 @@ fn a_leaf_names_its_own_stream_and_reports_its_editability() {
     );
 }
 
-/// ★★★ THE OPERATOR'S CLICK. Before: the wrapper. After: the square.
+/// THE OPERATOR'S CLICK. Before: the wrapper. After: the square.
 ///
 /// This is the whole feature in one assertion. `hit_test_point` treats a form
 /// as its bounding box, so on a page-sized form it answers with the form no
@@ -342,7 +342,7 @@ fn a_click_inside_a_page_sized_form_now_finds_the_object_not_the_wrapper() {
         "the square the click was actually on"
     );
 
-    // ★ And the form itself is NOT in the candidate list at all. Its `/BBox` is
+    // And the form itself is NOT in the candidate list at all. Its `/BBox` is
     // an extent declaration (§8.10.1), not a statement about coverage.
     assert!(
         !deep.iter().any(|t| matches!(t, HitTarget::Object(_))),
@@ -410,14 +410,14 @@ fn a_leaf_is_found_under_its_own_invocation() {
 // the click fix — which is why they are noted here rather than only in a
 // commit message.
 //
-// ★ Neither was a regression. Both were blind from the day they shipped, and
+// Neither was a regression. Both were blind from the day they shipped, and
 // both were INVISIBLE while selection was equally blind, because an operator
 // meets the page-sized form long before they meet the marquee or the measure
 // tool. Fixing one gesture is what promoted the others from "not reached yet"
 // to "the next wall", and this project has now produced that shape three times
 // in three days (images/shadings, analytic/mesh, click/marquee+pick).
 
-/// ★★★ A MARQUEE MUST SELECT WHAT A CLICK SELECTS.
+/// A MARQUEE MUST SELECT WHAT A CLICK SELECTS.
 ///
 /// Two gestures that both mean "select this", disagreeing about what is
 /// selectable, is an inconsistency an operator meets in the first minute. The
@@ -452,7 +452,7 @@ fn a_marquee_reaches_inside_a_form() {
 /// that fully encloses a form's box has arguably named the form on purpose…
 /// We think that is right and we are not sure."*
 ///
-/// ★ The tie-breaker is not which reading is more principled. It is that a
+/// The tie-breaker is not which reading is more principled. It is that a
 /// click can NEVER yield a form, so if a marquee can, the operator acquires by
 /// one gesture — and not the other — a selection every edit verb then refuses.
 /// A capability reachable only by accident is a trap, not a feature.
@@ -511,7 +511,7 @@ fn the_marquee_returns_paint_order_and_the_point_query_returns_its_reverse() {
     assert_eq!(deep.first(), Some(&HitTarget::Leaf(2)));
 }
 
-/// ★★★ THE MEASURE TOOL WAS INERT, NOT DEGRADED, ON A WRAPPED DRAWING.
+/// THE MEASURE TOOL WAS INERT, NOT DEGRADED, ON A WRAPPED DRAWING.
 ///
 /// `pick_line_in_page` offered only `PageObjects::objects` to the picker, and
 /// a form is not a line, so a page whose drawing lives inside a form had

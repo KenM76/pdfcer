@@ -11,7 +11,7 @@
 //! `null`. A dump that quietly stopped early would be worse than no dump at
 //! all — the operator would read completeness into it.
 //!
-//! ★ The bounds are the security surface, not a display preference
+//! The bounds are the security surface, not a display preference
 //! (`ARCHITECTURE.md` §10): this module decodes untrusted streams *and* walks an
 //! untrusted graph, so `max_stream_bytes`, `max_objects` and the cycle guard are
 //! each a real defence, and each is tested by *reaching* it rather than by
@@ -59,7 +59,7 @@ fn the_catalog_renders_with_its_keys() {
     assert!(out.contains("/Pages"), "actual output:\n{out}");
 }
 
-/// ★ A reference beyond `max_depth` prints as `N G R` and is NOT followed.
+/// A reference beyond `max_depth` prints as `N G R` and is NOT followed.
 ///
 /// Depth is the bound an operator reaches for first, so it must be exact:
 /// at depth 0 the catalog shows `/Pages 2 0 R` and nothing about the page-tree
@@ -92,7 +92,7 @@ fn depth_zero_prints_a_reference_and_depth_one_expands_it() {
     );
 }
 
-/// ★★ A CYCLE IS MARKED, NOT FOLLOWED — and on a page tree the cycle is the
+/// A CYCLE IS MARKED, NOT FOLLOWED — and on a page tree the cycle is the
 /// NORMAL case, not a malformed one.
 ///
 /// Every page's `/Parent` points back at its `/Pages` node, so a walk from the
@@ -150,7 +150,7 @@ fn a_stream_can_be_decoded_and_shows_its_operators() {
     );
 }
 
-/// ★ TRUNCATION IS DISCLOSED, and the ceiling is genuinely applied.
+/// TRUNCATION IS DISCLOSED, and the ceiling is genuinely applied.
 ///
 /// Reached rather than reasoned about: the limit is set below the stream's real
 /// length so the truncation branch actually runs. A ceiling that is only
@@ -178,7 +178,7 @@ fn a_stream_beyond_the_ceiling_is_truncated_and_says_so() {
 
 /// A reference to an object that does not exist is marked UNRESOLVABLE.
 ///
-/// ★ §7.3.10 makes a dangling reference resolve to `null` for a **reader**, and
+/// §7.3.10 makes a dangling reference resolve to `null` for a **reader**, and
 /// that is right for rendering. For someone inspecting structure, "there is
 /// nothing there" and "there is an explicit null there" are different facts
 /// about how damaged the file is, and printing the first as the second would
@@ -293,7 +293,7 @@ fn the_layout_reports_the_physical_shape() {
     );
 }
 
-/// ★★ THE CASE THE WHOLE FEATURE EXISTS FOR: an object compressed inside an
+/// THE CASE THE WHOLE FEATURE EXISTS FOR: an object compressed inside an
 /// object stream is reachable, and its storage says where it really is.
 ///
 /// This is the gap that made the `Pass 192.0` bevel defect undiagnosable — the
@@ -317,7 +317,7 @@ fn an_object_inside_an_object_stream_is_reachable_and_located() {
     let path = fixture("verapdf/object-streams.pdf");
     let doc = Document::load(&path).expect("the object-stream fixture is in-repo");
     let l = structure::layout(&doc);
-    // ★ Was a SKIP arm, which is why this test stayed on the baseline even
+    // Was a SKIP arm, which is why this test stayed on the baseline even
     // after its fixture was replaced: the file is now chosen FOR this property
     // and carries five object streams, so "none present" is a fixture defect
     // rather than a reason to decline. Asserted, so it cannot go quiet again.

@@ -21,7 +21,7 @@
 //! intervening `q`/`Q` used not to lift the first one out, so the clip became
 //! `mask₁ × mask₂`.
 //!
-//! ★ **Why that is expensive rather than merely wrong.** A bevel-and-emboss
+//! **Why that is expensive rather than merely wrong.** A bevel-and-emboss
 //! effect is a highlight and a shadow whose masks are **complementary**
 //! gradients. Their product is ≈ 0, so the second layer paints under no
 //! coverage at all and vanishes entirely — while the first, painted while only
@@ -42,7 +42,7 @@
 //! `left × right = 0` everywhere. An assertion that cannot be argued with is
 //! worth more here than one that resembles the original document.
 //!
-//! # ★ The control is not optional
+//! # The control is not optional
 //!
 //! `smask-single-layer-control.pdf` has ONE masked layer and must render
 //! identically. Without it, "the second layer now paints" is equally consistent
@@ -83,7 +83,7 @@ fn rgb(px: &(Vec<u8>, usize), x: usize, y: usize) -> (u8, u8, u8) {
     (data[i], data[i + 1], data[i + 2])
 }
 
-/// ★★★ THE ASSERTION. Two soft-masked fills in one q-level: BOTH must paint,
+/// THE ASSERTION. Two soft-masked fills in one q-level: BOTH must paint,
 /// each under its OWN mask.
 ///
 /// The second layer is the one that vanished. Its half is asserted first,
@@ -111,7 +111,7 @@ fn a_second_soft_mask_replaces_the_first_rather_than_multiplying_with_it() {
     );
 }
 
-/// ★ Each mask must apply to its OWN layer only.
+/// Each mask must apply to its OWN layer only.
 ///
 /// Separate from the test above because "both halves are painted" is also
 /// satisfied by an implementation that dropped masking entirely and painted
@@ -131,7 +131,7 @@ fn each_layer_is_confined_to_its_own_mask() {
     );
 }
 
-/// ★ THE CONTROL. One masked layer must be unaffected.
+/// THE CONTROL. One masked layer must be unaffected.
 ///
 /// The fix changes the code path every single-mask document uses, and this is
 /// the assertion that says so out loud rather than assuming it.

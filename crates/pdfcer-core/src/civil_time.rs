@@ -103,15 +103,15 @@ mod civil_time_tests {
         for (secs, want) in [
             // The epoch itself.
             (0_i64, "1970-01-01T00:00:00Z"),
-            // ★ A leap day. The whole reason for the March-shifted algorithm.
+            // A leap day. The whole reason for the March-shifted algorithm.
             (1_709_208_000, "2024-02-29T12:00:00Z"),
             // The day after it, where an off-by-one in the leap handling
             // lands instead of on the leap day itself.
             (1_709_251_200, "2024-03-01T00:00:00Z"),
-            // ★ 2000 IS a leap year -- divisible by 400. A naive
+            // 2000 IS a leap year -- divisible by 400. A naive
             // "divisible by 100 is not a leap year" rule fails here.
             (951_868_799, "2000-02-29T23:59:59Z"),
-            // ★ 2100 is NOT a leap year -- divisible by 100, not by 400.
+            // 2100 is NOT a leap year -- divisible by 100, not by 400.
             // A naive "divisible by 4" rule fails here, and this is the
             // case that will not reproduce for seventy-four years.
             (4_107_542_400, "2100-03-01T00:00:00Z"),
