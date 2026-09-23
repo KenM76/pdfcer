@@ -115,6 +115,49 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 318.0` (`01c0c1ce`), 2026-09-23 — the OCR sandwich layer now carries an identity, so a re-run REPLACES it instead of stacking a second one (`G036`)
+
+Promoted from *In progress* this filing. Answers `G036` (`pdfcer-gui` request): the mode-3 sandwich layer had no identity, so `find_ocr_layers` had nothing to find and re-running OCR on an already-OCR'd page stacked a second invisible layer on top of the first.
+
+**The fix**, new `pdfcer_core::ocr::marker`: `LAYER_TAG` (`b"pdfc_OCR"`), `LAYER_PRODUCER` (`b"pdfcer"`), `LAYER_VERSION` (`1`). Each OCR layer stream is wrapped `/pdfc_OCR << /Producer (pdfcer) /Version 1 [/Engine (…)] >> BDC q BT 3 Tr … ET Q EMC`. Identity = the whole stream in `/Contents` whose first operator is that exact `BDC` (tag + `/Producer`) and whose last is the matching `EMC` — unmarked third-party mode-3 text is never touched. `find_ocr_layers(&DocumentView)`/`page_ocr_layers` probes; `OcrLayerRef { page_index, content: ObjId, engine, version, font_names }` (`#[non_exhaustive]`).
+
+`OcrLayerOptions::with_engine`/`::with_existing(ExistingLayers)` — `Replace` (default) / `Refuse` (→ `OcrLayerError::LayerPresent { page_index, count }`) / `Stack` (old behaviour, opt-in). `OcrLayerReport.layers_replaced` plus a disclosure line (rule 4). `EditSession::find_ocr_layers`/`remove_ocr_layer` (`CommandKind::RemoveOcrLayer`, one undo entry; a stale `OcrLayerRef` is refused via `OcrLayerError::LayerNotFound`). The session frees the stripped stream and its font objects when no other page references them — the pre-existing one-shot free function has no such route and cannot free, so a layer it wrote stays unreferenced after a manual removal outside a session.
+
+**Defect fixed on the way**: `EditSession::dirty_set` was counting an object created then freed within the same session as an orphan; it now skips deleted ids.
+
+**CLI (rule 11).** `pdfcer ocr --existing replace|refuse|stack`; the layer record names engine `"ocrs"`; the summary line prints `replaced=N`.
+
+**`docs/core-api/02-editing-and-saving.md`/`03-capabilities.md`/`index.md`** updated (verb count 246 → 248: `find_ocr_layers`, `remove_ocr_layer`); `tools/check-core-api-verbs.py` PASS.
+
+**Tests.** `crates/pdfcer-core/tests/ocr_layer_marker.rs`, 10 tests (confirmed by count). Sabotage: 7/7 mutants caught; one — a reader checking only `/Producer` and ignoring the tag name — survived on the first pass and earned its own dedicated test, `a_different_tag_is_not_a_layer`. Also passing: `ocr_session.rs` (7), the `ocr` lib suite (29), the `edit` lib suite (411). `cargo fmt --check` + `cargo clippy -- -D warnings` clean.
+
+**Gates.** `tools/run-gates.sh` was killed by the harness for low memory mid-run; the partial log showed every suite at 0 failed except core doctests, where 193 failed with the `0xc0000142` signature — the known memory-starvation pattern, not real failures. Committed per the operator's standing instruction ("If that fails due to memory just go ahead and commit the code"), recorded honestly rather than as a clean gate run. No `Cargo.toml` change, so the GUI-dependency invariant is unaffected by construction; the writer change is new marked-content wrapping on content pdfcer itself authored (the OCR layer), not a rewrite of an untouched object, so round-trip/minimal-diff is unaffected.
+
+**`docs/FEATURES.md`.** The Planned row added last filing (line 485, *"Give the OCR sandwich layer an identity…"*) moved to *Implemented* / OCR: core `[x]`, cli `[x]` (`--existing`; no CLI list/remove verb of its own yet — `find_ocr_layers`/`remove_ocr_layer` are reached only via `EditSession`), gui `[ ]`.
+
+**No decision-log entry** — a marked-content identity scheme plus a query/removal verb pair and a bug fix in an existing dirty-set walk, not a crate-boundary/library-choice/invariant call.
+
+**`C:\personal_rag\pdf\`.** No new lesson — an internal API-completeness/identity fix on pdfcer's own writer output, not an observation about a real-world producer's divergence from spec.
+
+**`D:\Dev\FeatureRequests\pdfce_FeatureRequests\INDEX.md`.** `G036` row closed SHIPPED. The engineer's own reply artifact in `open/`/`done/` was not independently confirmed — no shell this filing.
+
+**Open operator question `(ce)` still open** (whether to register the `pdfc` tag prefix on Adobe's public names list) — this Pass shipped `/pdfc_OCR` unregistered, per the stated default.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Independently confirmed via `Grep`/`Read` against live source: `LAYER_TAG`, `LAYER_PRODUCER`, `LAYER_VERSION`, `find_ocr_layers`, `page_ocr_layers`, `OcrLayerRef` present in `crates/pdfcer-core/src/ocr/marker.rs`; `OcrLayerOptions`/`ExistingLayers` present in `crates/pdfcer-core/src/ocr/layer.rs`; `EditSession::find_ocr_layers`, `EditSession::remove_ocr_layer`, `CommandKind::RemoveOcrLayer` present in `crates/pdfcer-core/src/edit.rs`; `layers_replaced` present in `crates/pdfcer-cli/src/main.rs`; `crates/pdfcer-core/tests/ocr_layer_marker.rs` holds exactly 10 `#[test]` functions; `docs/core-api/02-editing-and-saving.md` already carries the `find_ocr_layers`/`remove_ocr_layer` rows (§ table, lines 404–405) at read time, citing `Pass 318.0` by name; no prior `ROADMAP.md`/`SESSION_LOG.md` entry recorded `Pass 318.0` as SHIPPED before this filing. This session's own git-status context lists `01c0c1ce` at `HEAD`, subject *"ocr: mark the layers pdfcer writes, and replace them on a re-run (G036)"*, which corroborates the commit and its one-line description but is not a `git show`. The full diffstat, the 7/7 and 11/7-shape sabotage detail, and the `tools/run-gates.sh` memory-kill detail are **relayed from the dispatching engineer's report, not independently re-run**.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `317` (highest `.0`), next free `318` | `Pass 318.0` SHIPPED in `01c0c1ce` — next free family **319** (unchanged from the 577th filing's ledger; `318` was already reserved for this Pass) |
+| Standing rules | `R258` next free (unresolved `R251` discrepancy carried, not re-verified this filing) | unchanged — no rule minted |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `577` | **`578`** |
+| `docs/FEATURES.md` | Planned row for `Pass 318.0`/`G036`, all boxes unticked | **moved to Implemented, core `[x]` cli `[x]` gui `[ ]`** |
+| `pdfce_FeatureRequests/INDEX.md` | `G036` open (`Pass 318.0` in progress) | **row closed, outcome SHIPPED** |
+
+---
+
 ### `Pass 317.0` (`53b939b2`), 2026-09-23 — an extracted glyph maps to its editable surgery run (`G037`)
 
 New Pass family, minted this filing. Answers `G037` (`pdfce_FeatureRequests`): `extract-text --spans` gives each glyph's show-operator provenance (`Pass` behind `docs/FEATURES.md`'s Text row 189), but nothing joined that provenance back to the editable `vector` model — a caller holding a clicked/searched glyph had no route to the run it could `move_text_run`/`edit_text` on.
@@ -6374,21 +6417,6 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
-
-> ★★★ **IN PROGRESS 2026-09-23 (577th filing) — `Pass 318.0`, AN OCR RE-RUN
-> STACKS A SECOND INVISIBLE LAYER INSTEAD OF REPLACING THE FIRST, from
-> `pdfcer-gui`'s `G036`.** The mode-3 sandwich layer (`Pass` behind
-> `docs/FEATURES.md`'s OCR rows) carries no identity, so `find_ocr_layers`
-> has nothing to find and a second OCR pass on an already-OCR'd page adds
-> text on top of text instead of correcting it. Design, not yet built: wrap
-> each layer in a marked-content sequence — `/pdfc_OCR << /Producer (pdfcer)
-> /Version 1 /Engine (…) >> BDC … EMC` — plus `find_ocr_layers`/
-> `page_ocr_layers` probes, `EditSession::find_ocr_layers` and
-> `remove_ocr_layer` (one undo entry), and an `OcrLayerOptions`
-> existing-layer policy (`Replace` default / `Refuse` → `LayerPresent` /
-> `Stack`). Open question on the tag name itself — see the new open operator
-> question below. `docs/FEATURES.md`: new unticked Planned row owed in the
-> same filing this ships, not this one (still in progress).
 
 > ★★★★ **ONE ITEM ADDED 2026-09-05 (439th filing) — `Pass 256.0`, EDIT TEXT
 > ACROSS SHOW OPERATORS, from the `pdfcer-gui` correction of the same

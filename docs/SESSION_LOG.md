@@ -4,6 +4,29 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-23 (578th filing) — `Pass 318.0` (`01c0c1ce`): the OCR sandwich layer now carries an identity, so a re-run replaces it instead of stacking a second one (`G036`)
+
+**Shipped:**
+- `Pass 318.0` — new `pdfcer_core::ocr::marker` wraps each OCR sandwich layer in `/pdfc_OCR << /Producer (pdfcer) /Version 1 /Engine (…) >> BDC … EMC`; identity is the whole `/Contents` stream bounded by that exact `BDC`/`EMC` pair, so unmarked third-party mode-3 text is never touched. `find_ocr_layers`/`page_ocr_layers` probes; `EditSession::find_ocr_layers`/`remove_ocr_layer` (one undo entry, frees the stripped stream+font objects when unreferenced); `OcrLayerOptions::with_existing(Replace default / Refuse / Stack)`. CLI: `pdfcer ocr --existing replace|refuse|stack`. Bug fixed on the way: `EditSession::dirty_set` mis-flagged a create-then-free-within-session object as an orphan.
+
+**Decisions made this session:** None — a marked-content identity scheme plus a query/removal verb pair and a dirty-set bug fix, not a crate-boundary/library-choice/invariant call.
+
+**Findings + decisions:**
+- The pre-existing one-shot (non-session) OCR free function has no route to free an old layer's objects on removal — a core-only limitation, not built out this Pass; the session-based writer is the only one that can clean up after itself.
+- `docs/core-api` verb count 246 → 248 (`find_ocr_layers`, `remove_ocr_layer`); `tools/check-core-api-verbs.py` PASS.
+- `docs/FEATURES.md`: the Planned row from the 577th filing moved to *Implemented* under OCR — core `[x]`, cli `[x]`, gui `[ ]` (no list/remove UI yet). Re-checked against the file's own `^.{1200,}$` matches post-edit — the new row does not appear in that list.
+- No `personal_rag/pdf` lesson — an internal identity/API-completeness fix on pdfcer's own writer output, not a producer-divergence finding.
+- Open operator question `(ce)` (register `pdfc` on Adobe's public tag list?) is still open; this Pass shipped `/pdfc_OCR` unregistered, per the stated default.
+
+**Still in flight:**
+- Open operator question `(ce)` unresolved (default taken, filing stays available as a later independent step).
+- The `R251`/`R258` standing-rules ledger discrepancy flagged by prior filings is still unresolved — not re-verified this session either.
+- `pdfcer-gui` has not consumed `find_ocr_layers`/`remove_ocr_layer` — no list/remove UI (`FEATURES.md` `gui [ ]`, not rounded up).
+
+**For next session:** `pdfce_FeatureRequests/INDEX.md` `G036` row closed SHIPPED — the engineer's own reply/done artifacts in `open/`/`done/` were not independently confirmed, no shell this filing. Next free Pass family: **319**.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Independently confirmed via `Grep`/`Read` against live source: `LAYER_TAG`, `LAYER_PRODUCER`, `LAYER_VERSION`, `find_ocr_layers`, `page_ocr_layers`, `OcrLayerRef` in `crates/pdfcer-core/src/ocr/marker.rs`; `OcrLayerOptions`/`ExistingLayers` in `crates/pdfcer-core/src/ocr/layer.rs`; `EditSession::find_ocr_layers`, `EditSession::remove_ocr_layer`, `CommandKind::RemoveOcrLayer` in `crates/pdfcer-core/src/edit.rs`; `layers_replaced` in `crates/pdfcer-cli/src/main.rs`; `crates/pdfcer-core/tests/ocr_layer_marker.rs` holds exactly 10 `#[test]` functions; `docs/core-api/02-editing-and-saving.md` already carried the `find_ocr_layers`/`remove_ocr_layer` rows citing `Pass 318.0` at read time; no prior `ROADMAP.md`/`SESSION_LOG.md` entry recorded `Pass 318.0` as SHIPPED before this filing. This session's own git-status context lists `01c0c1ce` at `HEAD`, subject *"ocr: mark the layers pdfcer writes, and replace them on a re-run (G036)"*, which corroborates the commit and its one-line description but is not a `git show`. The full diffstat, the 7/7 sabotage detail, and the `tools/run-gates.sh` memory-kill detail are **relayed from the dispatching engineer's report, not independently re-run**.
+
 ## 2026-09-23 (577th filing) — `Pass 317.0` (`53b939b2`) + `Pass 316.0` (`70d8ba00`): a glyph now maps to its surgery run, and text carries an explicit rendering mode end to end (`G037` + `G034`)
 
 **Shipped:**
