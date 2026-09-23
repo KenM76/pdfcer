@@ -115,9 +115,54 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 322.1` (`88bd4144`), 2026-09-23 — EMF export can keep text as real text records, closing `G033`
+
+Closes `G033` (`pdfcer-gui` request, operator O224) alongside `Pass 322.0` immediately below — SVG done there, EMF done here. Reply: `open/reply_G033_svg_and_emf_export_can_keep_text_as_text_FIXED.md` (the engineer renamed the reply from the `PARTIAL` file `Pass 322.0` shipped under — see the dated note appended to that entry, below).
+
+**The feature.** `EmfOptions::text: EmfText { Outlines (default), KeepText }`, `.with_text()`, both `#[non_exhaustive]`. A `KeepText` run that fits writes `EMR_EXTCREATEFONTINDIRECTW` (a 368-byte `LogFontExDv`, no variable-font axes) selecting the face, then `EMR_EXTTEXTOUTW` carrying a per-character `Dx` array pinning each glyph to its own PDF-derived position along the baseline. Face name is the embedded sfnt's own typographic/family name where the PDF embeds one, else derived from `/BaseFont` (Standard-14 maps to Arial/Times New Roman/Courier New). **MS-EMF has no mechanism to carry a font program** — the scoping question the Backlog entry opened with is answered: this is "keep text editable, substitute the INSTALLED system face of that name," not "keep the same font," for every EMF consumer. A run that can't be kept falls back to the existing outline path, counted by reason on `EmfExport.outcome.text: EmfTextOutcome` (`#[non_exhaustive]`: `runs_as_text`, `fallback_paint`, `fallback_unmapped`, `fallback_geometry`, `fallback_symbol_face`, `runs_as_outlines()`).
+
+**Render internals.** `TextRunInfo` (the `pdfcer-render` display list) gains an `end` field — the pen position after the run's last advance — needed to close out the last `Dx` entry.
+
+**CLI (rule 11).** `pdfcer export-image --format emf --emf-text keep|outlines` prints `emf-text: kept= outlines= paint= unmapped= geometry= symbol_face=` plus a stderr note that a kept run draws in whatever face is installed under the recorded name, not the PDF's own font program. `--emf-text keep` against a non-EMF format is refused by name. `copy-page` is untouched — still outlines, same reasoning as SVG's `Pass 322.0`.
+
+**Verification.** Real GDI (`PlayEnhMetaFile` onto a `CreateDIBSection` DC), not `System.Drawing.Imaging.Metafile` — same oracle choice as `Pass 248.4`'s `EMR_ALPHABLEND` finding, for the same reason. Kept text overlays the outline-export path to within ~1px; positive `Escapement` renders counterclockwise, confirmed against playback rather than assumed. `D:\dev\rag\emf\text_records.md`'s prior "NEEDS VERIFICATION" flag on that sign convention is now resolved VERIFIED — already updated on disk by the engineer, no librarian action owed there.
+
+**Tests.** `crates/pdfcer-render/tests/export_emf_keep_text.rs`, 7 tests, oracle = the source PDF's own glyph origins/sizes/advances converted to 0.01 mm EMF logical units; plus 2 record-layout unit tests (checked against [MS-EMF]'s own worked examples) and 3 more in `emf_text.rs`. Sabotage: wrong `Escapement` sign, a similarity-transform check, the `Dx` array, and the symbol-face check each independently failed a test when broken.
+
+**Gates.** No `Cargo.toml` change, no new dependency — `cargo tree` unaffected by construction. `cargo fmt` clean; `cargo clippy -p pdfcer-render -p pdfcer-cli --all-targets -- -D warnings` clean; `tools/check-core-api-verbs.py` passes. **Full `tools/run-gates.sh` was NOT re-run this Pass** — the prior sweep was killed by low memory; committed anyway on the operator's own instruction. Recorded as a gap in what was checked, not as a claim that it passed.
+
+**Invariants.** Export path only — no writer/PDF-model change, no new dependency.
+
+**`docs/core-api/03-capabilities.md`** §7.10 updated in `88bd4144` (also fixed `index.md`'s own line counts).
+
+**`docs/FEATURES.md`.** New *Export* row directly below the SVG keep-text row: core `[x]` cli `[x]` gui `[ ]` — not rounded up, `pdfcer-gui` has not wired either keep-text mode. The `Planned` row this Backlog entry occupied is removed, not left duplicated.
+
+**Still open (Backlog, unchanged).** Wrapping bare CFF/Type1C and Type 1 font programs as OpenType so both SVG and EMF keep-text can embed them instead of falling back — the Unscoped Backlog entry filed alongside `Pass 322.0` already covers both shells; no new entry needed.
+
+**No decision-log entry** — an export-mode addition, not a crate-boundary/library-choice/invariant call.
+
+**`C:\personal_rag\pdf\`.** No new lesson — pdfcer authoring its own output, not an observation about a real-world producer's divergence from spec (same reasoning as `Pass 322.0`).
+
+**Sourcing (hard rule 8).** No shell tool this filing. Confirmed via `Read`/`Grep` against live source: `EmfText`/`EmfTextOutcome`/`with_text` and the `EXTCREATEFONTINDIRECTW`/`EXTTEXTOUTW` record writers exist in `crates/pdfcer-render/src/emf.rs` and `emf_text.rs`, and the `--emf-text` CLI flag exists in `crates/pdfcer-cli/src/main.rs`. **Relayed from the dispatching engineer's report, not independently reproduced:** the GDI-playback verification numbers, the sabotage pass/fail detail, and the `tools/run-gates.sh` low-memory-kill circumstance.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `322` (`Pass 322.0` shipped, next free family `323`) | unchanged — `322.1` is the same family, next free family still `323` |
+| Standing rules | `R258` next free | unchanged — no rule minted |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `582` | **`583`** |
+| `docs/FEATURES.md` | EMF keep-text listed under *Planned* (`Pass 322.1`) | **moved to *Implemented* → *Export*, core `[x]` cli `[x]` gui `[ ]`; Planned row removed** |
+| `G033` (`pdfce_FeatureRequests`) | `Pass 322.0` shipped SVG only, reply marked `PARTIAL` | **fully closed — reply renamed to `..._FIXED.md`, `INDEX.md` row already updated by the engineer at filing time, confirmed on read, no further action owed** |
+
+---
+
 ### `Pass 322.0` (`5425d2be`), 2026-09-23 — SVG export can keep text as real `<text>`, its font embedded (`G033`, PARTIAL)
 
-Answers `G033` (`pdfcer-gui` request, operator O224): `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G033_svg_and_emf_export_have_no_option_to_keep_text_as_text.md`. Reply: `open\reply_G033_svg_export_can_keep_text_as_text_PARTIAL_svg_done_emf_open.md` — **SVG done, EMF open** (`Pass 322.1`, *Backlog*, below).
+★ **CLOSED 2026-09-23 by `Pass 322.1` immediately above** — the EMF half shipped same day; `G033` is fully answered, and the reply this entry cites below was renamed from `..._PARTIAL_svg_done_emf_open.md` to `..._FIXED.md`. Original text kept legible rather than rewritten, per the append-only Shipped-history rule.
+
+Answers `G033` (`pdfcer-gui` request, operator O224): `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G033_svg_and_emf_export_have_no_option_to_keep_text_as_text.md`. Reply: ~~`open\reply_G033_svg_export_can_keep_text_as_text_PARTIAL_svg_done_emf_open.md`~~ (renamed, see the note above) — **SVG done, EMF open** (~~`Pass 322.1`, *Backlog*, below~~ — shipped same day, see `Pass 322.1` above).
 
 **The feature.** `SvgOptions::text: SvgText { Outlines (default), KeepText }`, `.with_text()`. When `KeepText` is asked, the recorder wraps each shown string in the display-list `Op::Text` (glyph ids, resolved Unicode, per-glyph device transform) instead of decomposing straight to outlines; new `svg_text.rs` builds each run's placement plan and `font/webfont.rs` subsets the run's font into an OTS-sanitizer-clean sfnt (cmap format 4, `post` rewritten as v3, `OS/2` padded/synthesised to ≥78 bytes, `name` added if absent, checksums fixed), embedded as a `@font-face` data URI; CSS disables `liga`/`clig`/`calt`/`kern` since the subsetter already dropped GSUB/GPOS/kern. A run that can't be kept falls back to outlines per-run, counted by reason on `SvgExport.outcome.text: SvgTextOutcome` (`#[non_exhaustive]`): `fallback_not_sfnt` (bare CFF/Type1C, Type 1 — no wrapping yet, see the Unscoped Backlog entry below), `fallback_paint` (stroked text), `fallback_unmapped`, `fallback_conflict`, `fallback_geometry`, `fallback_font_build`, `fallback_restricted`.
 
@@ -15703,13 +15748,15 @@ Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
 
-### `Pass 322.1` — EMF export: write real text records instead of outline paths, the EMF half of `G033` — filed 2026-09-23 (582nd filing, `G033` reply, EMF half), *Backlog*, **NOT STARTED** — family 322, after `Pass 322.0`
+### ~~`Pass 322.1` — EMF export: write real text records instead of outline paths, the EMF half of `G033`~~ — SHIPPED 2026-09-23 (`88bd4144`) — see *Shipped*, top of this file — filed 2026-09-23 (582nd filing, `G033` reply, EMF half), scoped and shipped same day — family 322, after `Pass 322.0`
+
+★ **CLOSED same day it was filed.** The scoping question this entry opened with — whether an EMF font program can travel with the metafile — is answered in the Shipped entry: it cannot; `KeepText` substitutes the installed system face of the recorded name. Original scoping text kept legible below, not deleted, per the append-only Backlog/Shipped convention.
 
 **Scope.** `Pass 322.0` (*Shipped*, above) shipped `KeepText` for SVG export only; EMF export (`pdfcer_render::emf`) still writes the outlines a kept SVG run would keep as real `<text>`. `Pass 322.0`'s webfont-subsetting machinery does not directly transfer — MS-EMF text is `EMR_EXTTEXTOUTW` (Unicode code units, not glyph ids) plus a font-selection record (`EMR_EXTCREATEFONTINDIRECTW`, which names a font by LOGFONT, not by embedding a program), a different mechanism from SVG's `@font-face` data URI. Needs a scoping read of [MS-EMF]'s text-record family before any code: whether/how a font program can travel WITH the metafile (vs. relying on a system-installed face, which is not embeddable and not portable) is the open question that decides whether this is even a "keep text as text with the SAME font" feature or a "keep text editable, substitute a system face" one.
 
-**A background research dispatch on MS-EMF text-record import is already in flight as of this filing** (task id `ae13ea6e44486b60f`, spec-librarian territory) — check its output before starting, to avoid re-deriving the same ground.
+**A background research dispatch on MS-EMF text-record import was in flight as of this filing** (task id `ae13ea6e44486b60f`, spec-librarian territory) — its findings fed directly into the shipped entry above.
 
-**Acceptance criteria, once scoped:** parity with `Pass 322.0`'s SVG disclosure shape — a `EmfTextOutcome` counting kept vs. fallback-to-outline runs by reason, `--emf-text keep|outlines` on `export-image --format emf`, and a decision on whether a substituted system face is disclosed as a font-trust downgrade (rule 4) if pdfcer cannot embed the original program.
+**Acceptance criteria, once scoped:** parity with `Pass 322.0`'s SVG disclosure shape — a `EmfTextOutcome` counting kept vs. fallback-to-outline runs by reason, `--emf-text keep|outlines` on `export-image --format emf`, and a decision on whether a substituted system face is disclosed as a font-trust downgrade (rule 4) if pdfcer cannot embed the original program. **All met as shipped**, except the font-trust-downgrade disclosure question, which the shipped entry answers by omission — see `Pass 322.1`'s Shipped entry for the CLI note text actually used.
 
 ### Unscoped — wrap bare CFF (`FontFile3`/Type1C) and Type 1 fonts as OpenType, so SVG (and eventually EMF) keep-text can embed them instead of falling back to outlines — filed 2026-09-23 (582nd filing, `Pass 322.0`'s own `fallback_not_sfnt` remainder), no Pass ID
 
