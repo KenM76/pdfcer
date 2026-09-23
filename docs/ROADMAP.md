@@ -115,6 +115,40 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 313.0` (`ca57bfcd`), 2026-09-22 — the text-preview cap is now per RUN, not per whole object, so a many-run object's later runs stay readable (`G031`)
+
+New Pass family, minted this filing. Answers `G031` (`pdfce_FeatureRequests`): `pdfcer_core::vector::MAX_TEXT_PREVIEW_CHARS` (`crates/pdfcer-core/src/vector/decompose.rs`) was a 64-char budget for a **whole** text object. On `SW41177.pdf` page 0, object 5871 holds **237 show-operator runs**, so `TextObject::run_text(i)` returned `Some("")` for every run past the first few. `pdfcer-gui` asked for a knob, a per-run budget, or at least a distinguishable value.
+
+**The fix.** The cap is now per show operator — 256 chars, reset at each run's own open — plus a new public `MAX_TEXT_PREVIEW_PAGE_CHARS: usize = 1 << 20` bounding the decomposition as a whole (the actual memory ceiling the old single number stood in for). Past the page ceiling a run reads `Some("")` and its object's `TextPreview::Decoded::truncated` is set — the existing `truncated` field now covers "any run cut, or the page ceiling reached," documented as such. No struct shape changed: neither `TextObject` nor `TextPreview` is `#[non_exhaustive]`, and `pdfcer-cli`'s `TextPreview` match stays exhaustive. Both constants re-exported from `vector`. The module's "Bounded memory" doc section was rewritten to describe the two-tier budget. `docs/core-api` does not document the preview cap (rustdoc-only surface), so it has no change owed.
+
+**Tests**, both new unit tests in `decompose.rs`: `the_preview_cap_is_per_run_so_later_runs_stay_readable` and `the_page_ceiling_bounds_the_preview_across_objects`. Ablated: removing the per-run reset fails the first; removing the budget decrement fails the second. The pre-existing long-single-run truncation test still passes unmodified.
+
+**Gates**, relayed from the dispatching engineer's report — see *Sourcing*: `cargo fmt --check` clean; `cargo clippy --workspace --all-targets -- -D warnings` clean; `cargo test -p pdfcer-core` exit 0, 157 suites ok. No `Cargo.toml` change, so the `cargo tree` GUI-dependency invariant is untouched by construction; not a writer change, so round-trip/minimal-diff is unaffected.
+
+**`docs/FEATURES.md`.** No new row and no box change — this is a correctness fix to an already-`[x]`-core/`[x]`-cli/`[ ]`-gui capability (per-run addressability of a many-run text object), not a new one. A note appended to the "Split one text object into several" row (line ~212), the closest existing row to the per-page object/run model this fix touches, naming the fix and the 64→256-per-run/page-ceiling shape. **`gui` `[ ]` NOT rounded up** — `pdfcer-gui` has not consumed this fix. Row re-checked against `tools/check-register-entry-size.py`'s 1,200-char cap after the edit (still under it).
+
+**No decision-log entry** — a budget-scoping fix plus one new public constant, not a crate-boundary/library/invariant call.
+
+**`C:\personal_rag\pdf\`.** New lesson: SolidWorks packs a whole drawing sheet's worth of labels into one `BT`…`ET` (the same structural fact as the 2026-08-04 hit-testing lesson, a different consequence here — a per-object preview budget starves every run past the first few). Checked first against that 2026-08-04 lesson and the two other 2026-09-22 lessons (`G028`/`Pass 311.0`, `G032`/`Pass 312.0`) and confirmed distinct, not a duplicate — both indexes updated.
+
+**`D:\Dev\FeatureRequests\pdfce_FeatureRequests\INDEX.md`.** New row for `G031`, outcome SHIPPED — engineer's own `reply_G031_text_preview_cap_is_now_per_run_FIXED.md` already on disk in `open/`, not written by this filing.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Independently confirmed via `Grep`/`Read` against live source: `MAX_TEXT_PREVIEW_CHARS`, `MAX_TEXT_PREVIEW_PAGE_CHARS`, `TextPreview::Decoded::truncated` and `TextObject::run_text` all present in `crates/pdfcer-core/src/vector/decompose.rs`; no prior `ROADMAP.md`/`SESSION_LOG.md` entry named `G031` or `Pass 313` before this filing (fresh family, not a promotion); the edited `docs/FEATURES.md` row re-checked against that file's own `^.{1200,}$` matches post-edit and does not appear in that list. This session's own git-status context lists `ca57bfcd` at `HEAD~1` with the subject line *"vector: the text preview cap is per run, so every run's text is readable (G031)"*, which corroborates the commit and its one-line description but is not a `git show`. The full 40-char hash, the diffstat, test counts and gate-sweep results are **relayed from the dispatching engineer's report, not independently re-run**.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `312` (highest `.0`), next free `313` | **`Pass 313.0` SHIPPED in `ca57bfcd` — next free family `314`** |
+| Standing rules | `R258` next free (two corroborating ledgers; one intervening `v0.55.0` ledger row says `R251`, unresolved) | unchanged — no rule minted; the `R251`/`R258` discrepancy still not re-verified by this filing |
+| Decision records | `158` | unchanged |
+| `SESSION_LOG` filings | `573` | **`574`** |
+| `docs/FEATURES.md` | "Split one text object into several" row had no `G031` note | **note appended, re-verified under the 1,200-char register cap** |
+| `C:\personal_rag\pdf\` | no lesson on per-object preview-budget starvation | **new lesson filed, both indexes updated** |
+| `pdfce_FeatureRequests/INDEX.md` | `G031` had no row | **row added, outcome SHIPPED** |
+
+---
+
 ### `Pass 312.0` (`d5b23d66`), 2026-09-22 — `SplitGranularity::Line` breaks on clear space, not only on a baseline change (`G032`)
 
 New Pass family, minted this filing. Answers `G032` (`pdfce_FeatureRequests`, opened 2026-09-19, same channel as `G028`): `runs_share_a_line` compared orientation and baseline only and never read horizontal position, so SolidWorks' row-major bill-of-materials cells and its sheet-border zone letters — both written one show operator per piece, sharing a baseline with unrelated neighbours — welded into single "lines." Measured on the reporter's 36-page drawing: **565 lines held more than one operator, the widest holding 709.4pt of blank paper** (two zone letters on one baseline, opposite ends of the sheet). Blocked GUI move, delete and redact on one BOM cell (`O215`/`O216`/`O217`).

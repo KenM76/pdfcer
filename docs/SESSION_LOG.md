@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-22 (574th filing) — `Pass 313.0` (`ca57bfcd`): the text-preview cap is now per RUN, not per whole object (`G031`)
+
+**Shipped:** `Pass 313.0` — `pdfcer_core::vector::MAX_TEXT_PREVIEW_CHARS` (`crates/pdfcer-core/src/vector/decompose.rs`) was a 64-char budget for a **whole** text object; on `SW41177.pdf` page 0, object 5871's 237 show-operator runs, `TextObject::run_text(i)` returned `Some("")` for every run past the first few. Fixed: the cap is now per show operator (256 chars, reset at each run's own open), plus a new public `MAX_TEXT_PREVIEW_PAGE_CHARS: usize = 1 << 20` bounding the decomposition as a whole — the actual memory ceiling the old single number stood in for. Past the page ceiling a run reads `Some("")` and its object's `truncated` flag is set, so a cut run stays distinguishable from a genuinely-empty one. No struct shape changed (`TextObject`/`TextPreview` are not `#[non_exhaustive]`); no `Cargo.toml` change; not a writer change.
+
+**Decisions made this session:** None — a budget-scoping fix plus one new public constant, not a crate-boundary/library/invariant call. No decision-log entry.
+
+**Findings + decisions:**
+- New `personal_rag/pdf` lesson: the same 237-run SolidWorks `BT`…`ET` already on record for breaking hit-testing (2026-08-04 lesson) also breaks a per-object preview-character budget — same structural cause, a different consequence. Checked first against that lesson and the two other 2026-09-22 `SW41177.pdf` lessons and confirmed distinct, not a duplicate.
+- `docs/FEATURES.md`: no new row and no box change — this corrects an already-`[x]`-core/`[x]`-cli/`[ ]`-gui capability, not a new one. A short note appended to the "Split one text object into several" row naming the fix; re-checked against the 1,200-char register cap after the edit.
+
+**Still in flight:** Nothing new opened by this Pass. `pdfcer-gui` still has not consumed this fix (`FEATURES.md` `gui [ ]`, not rounded up). The `R251`/`R258` standing-rules ledger discrepancy flagged by prior filings is still unresolved — not re-verified this session either.
+
+**For next session:** `pdfce_FeatureRequests/INDEX.md` `G031` row closed SHIPPED; `open/reply_G031_text_preview_cap_is_now_per_run_FIXED.md` is the engineer's own artifact, not written by this filing.
+
+**Sourcing (hard rule 8).** No shell tool this filing. Independently confirmed via `Grep`/`Read` against live source: `MAX_TEXT_PREVIEW_CHARS`, `MAX_TEXT_PREVIEW_PAGE_CHARS`, `TextPreview::Decoded::truncated` and `TextObject::run_text` all present in `crates/pdfcer-core/src/vector/decompose.rs`; no prior `ROADMAP.md`/`SESSION_LOG.md` entry named `G031` or `Pass 313` before this filing; the edited `docs/FEATURES.md` row re-checked against that file's own `^.{1200,}$` matches post-edit and does not appear in that list. Commit hash `ca57bfcd`, its full 40-char form, the diffstat, test counts and gate-sweep results are relayed from the dispatching engineer's report, not independently re-run.
+
 ## 2026-09-22 (573rd filing) — `Pass 312.0` (`d5b23d66`): `SplitGranularity::Line` breaks on clear space, not only on a baseline change (`G032`); also closed a register-entry-size overage left by the 572nd filing
 
 **Shipped:** `Pass 312.0` — `runs_share_a_line` compared only orientation and baseline, so a SolidWorks bill-of-materials table (row-major, one show operator per cell) and a sheet border's zone letters (one operator each), both sharing a baseline with unrelated neighbours, welded into single "lines": 565 across a 36-page drawing, widest holding 709.4pt of blank paper, blocking GUI move/delete/redact on one BOM cell. Fixed with a horizontal clear-space/backward-jump test layered on the baseline test, thresholds exposed as new public `LineSplitOptions` (`max_gap`/`max_backward`, defaults 1.0/0.5 line heights, set from the fixture's own bimodal gap measurement), skipped under `TextBoundsBasis::EmBox`. No `Cargo.toml` change; not a writer change.
