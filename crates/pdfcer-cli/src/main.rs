@@ -14512,13 +14512,6 @@ impl LoadedOcrEngine {
     }
 }
 
-/// OCRcer's single model file, looked for in `models/ocrcer` or `--model-dir`.
-///
-/// Defined here rather than in `pdfcer_core::ocr::engine_ocrcer` because that
-/// file is OCRcer's adapter applied unmodified, and it carries no filename
-/// constant (`engine_ocrs::MODEL_DIR` is the precedent it should follow).
-const OCRCER_MODEL_FILE: &str = "ocrcer.ocrw";
-
 /// Resolve the selected engine's models and load it, printing any failure.
 ///
 /// Resolution names the engine's files, so a directory that exists but is
@@ -14571,9 +14564,11 @@ fn load_ocr_engine(
         }
         #[cfg(feature = "ocrcer")]
         OcrEngineArg::Ocrcer => {
-            use pdfcer_core::ocr::engine_ocrcer::OcrcerEngine;
+            use pdfcer_core::ocr::engine_ocrcer::{
+                MODEL_DIR, MODEL_FILE as OCRCER_MODEL_FILE, OcrcerEngine,
+            };
             let source = match models::resolve_model_dir_with(
-                choice.name(),
+                MODEL_DIR,
                 model_dir,
                 exe_dir.as_deref(),
                 None,
@@ -14616,7 +14611,7 @@ fn load_ocr_engine(
                 "pdfcer: ocr: --ocr-engine ocrcer: this build was compiled without the `ocrcer` \
                  feature, so the OCRcer engine is not in it. Rebuild with \
                  `cargo build -p pdfcer-cli --features ocrcer`, or use --ocr-engine ocrs \
-                 (the model file it would need is `{OCRCER_MODEL_FILE}`)."
+                 (the model file it would need is `ocrcer.ocrw`)."
             );
             Err(exit::UNIMPLEMENTED)
         }
