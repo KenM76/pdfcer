@@ -810,6 +810,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "ocrcer-core"
+version = "0.1.0"
+
+[[package]]
 name = "ocrs"
 version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -903,6 +907,7 @@ dependencies = [
  "hayro-jpeg2000",
  "hmac",
  "jpeg-encoder",
+ "ocrcer-core",
  "ocrs",
  "p256",
  "p384",

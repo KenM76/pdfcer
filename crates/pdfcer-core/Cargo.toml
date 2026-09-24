@@ -114,6 +114,20 @@ jpx = ["dep:hayro-jpeg2000"]
 # `ocr::models::resolve_model_dir`. This is what keeps ARCHITECTURE §1.1's
 # privacy posture true without a denylist having to catch it.
 ocrs = ["dep:ocrs", "dep:rten"]
+
+# The OCRcer text-recognition engine (`Pass 327.0`),
+# `ocr/engine_ocrcer.rs`. OPT-IN, and the one exception to rule 1 above:
+# rule 1 protects a capability already relied on, and OCRcer has not yet been
+# shown to match `ocrs` (the operator's 2026-09-24 directive: integrate as an
+# opt-in engine now, let the head-to-head decide the default). `ocrs` stays the
+# default engine; off, the CLI refuses `--ocr-engine ocrcer` by name (rule 2).
+#
+# Gated: `ocr::engine_ocrcer` alone, exactly as `ocrs` gates `engine_ocrs`.
+#
+# LICENCE: MIT, zero dependencies outside core/alloc/std, no unsafe, no I/O —
+# no network structurally (model bytes are handed in by the caller). Compiles
+# for wasm32-unknown-unknown.
+ocrcer = ["dep:ocrcer-core"]
 # NOTE: there is deliberately no `rten` feature. `cargo add --optional` writes
 # one automatically, and it was removed: `rten` alone compiles the inference
 # runtime and nothing that uses it, so it would be a public feature that adds
@@ -431,6 +445,13 @@ ocrs = { version = "0.12.2", optional = true }
 # naming this crate. Gated by the same `ocrs` feature; it has no independent
 # use here. License: MIT OR Apache-2.0.
 rten = { version = "0.24", optional = true }
+# ocrcer-core: the OCRcer recogniser (`ocrcer` feature, opt-in). MIT, zero
+# dependencies. LOCAL PATH dependency by operator decision (2026-09-24) until
+# OCRcer is published; then a pinned git dependency. While it is a path
+# dependency, a checkout without `../OCRcer` beside this repository cannot
+# resolve the workspace at all, optional or not (Cargo reads every path
+# dependency's manifest to build the lockfile).
+ocrcer-core = { path = "../../../OCRcer/crates/ocrcer-core", optional = true }
 
 # getrandom: the CSPRNG for encryption AUTHORING (`Pass 5.4`) — salts, IVs and
 # the 256-bit file encryption key of Algorithms 8/9, which the standard

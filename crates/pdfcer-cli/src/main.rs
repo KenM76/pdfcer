@@ -3449,12 +3449,26 @@ enum Command {
         /// cheap to try — the flag exists because no single value is right.
         #[arg(long, default_value_t = 150.0)]
         dpi: f32,
-        /// Directory holding the engine's model files.
+        /// Which recogniser reads the page: `ocrs` (the default) or `ocrcer`.
         ///
-        /// When omitted, `models/ocrs` beside this executable is used. A
-        /// path given here that does not exist is REPORTED, never quietly
-        /// replaced by the bundled copy — running a different model from
-        /// the one you named is the sneaky half of rule 4.
+        /// `ocrcer` is the OCRcer engine (MIT, pure Rust). It is OPT-IN: it
+        /// exists only in a build compiled with the `ocrcer` feature
+        /// (`cargo build -p pdfcer-cli --features ocrcer`), and any other
+        /// build refuses it by name. It reports a per-word confidence;
+        /// `ocrs` reports none. Its model is one file, `ocrcer.ocrw`, which
+        /// pdfcer does not ship or download: build or copy it from the
+        /// OCRcer project (`model/out/ocrcer.ocrw`) into `models/ocrcer`
+        /// beside this executable, or name its folder with `--model-dir`.
+        #[arg(long, value_enum, default_value_t = OcrEngineArg::Ocrs)]
+        ocr_engine: OcrEngineArg,
+        /// Directory holding the selected engine's model files.
+        ///
+        /// When omitted, `models/<engine>` beside this executable is used —
+        /// `models/ocrs` (two `.rten` files, shipped in the portable
+        /// package) or `models/ocrcer` (`ocrcer.ocrw`, not shipped). A
+        /// path given here that lacks the engine's files is REPORTED,
+        /// never quietly replaced by the bundled copy — running a different
+        /// model from the one you named is the sneaky half of rule 4.
         #[arg(long)]
         model_dir: Option<PathBuf>,
         /// Print each recognised word and its page-space rectangle.
@@ -9839,6 +9853,27 @@ impl From<ExistingOcrArg> for pdfcer_core::ocr::layer::ExistingLayers {
     }
 }
 
+/// `ocr --ocr-engine`. Both variants exist in every build, so a build
+/// without the `ocrcer` feature refuses the choice by name instead of
+/// rejecting an unknown value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+enum OcrEngineArg {
+    /// The ocrs engine. The default; its models ship in the portable package.
+    Ocrs,
+    /// The OCRcer engine. Needs a build with the ocrcer feature and the model file ocrcer.ocrw.
+    Ocrcer,
+}
+
+impl OcrEngineArg {
+    /// The engine's name: its `models/<name>` folder and the layer marker.
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Ocrs => "ocrs",
+            Self::Ocrcer => "ocrcer",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 enum HitScope {
     /// Descend into form XObjects; never name a form itself. The GUI's
@@ -11302,6 +11337,7 @@ fn run() -> ExitCode {
             output,
             in_place,
             dpi,
+            ocr_engine,
             model_dir,
             words,
             dump_image,
@@ -11312,6 +11348,7 @@ fn run() -> ExitCode {
             output.as_deref(),
             in_place,
             dpi,
+            ocr_engine,
             model_dir.as_deref(),
             words,
             dump_image.as_deref(),
@@ -14436,6 +14473,157 @@ fn report_unsearchable_redaction(input: &Path, d: &pdfcer_core::text_extract::Te
     );
 }
 
+/// A loaded recogniser, whichever `--ocr-engine` chose.
+///
+/// An enum rather than `dyn OcrEngine` because the trait's associated error
+/// type differs per engine; errors are flattened to their message here, the
+/// only place the CLI needs them.
+enum LoadedOcrEngine {
+    Ocrs(pdfcer_core::ocr::engine_ocrs::OcrsEngine),
+    #[cfg(feature = "ocrcer")]
+    Ocrcer(Box<pdfcer_core::ocr::engine_ocrcer::OcrcerEngine>),
+}
+
+impl LoadedOcrEngine {
+    fn recognize(
+        &self,
+        width: u32,
+        height: u32,
+        pixels: &[u8],
+    ) -> Result<Vec<pdfcer_core::ocr::RecognizedWord>, String> {
+        use pdfcer_core::ocr::OcrEngine;
+        match self {
+            Self::Ocrs(e) => e
+                .recognize(width, height, pixels)
+                .map_err(|e| e.to_string()),
+            #[cfg(feature = "ocrcer")]
+            Self::Ocrcer(e) => e
+                .recognize(width, height, pixels)
+                .map_err(|e| e.to_string()),
+        }
+    }
+
+    fn reports_confidence(&self) -> bool {
+        use pdfcer_core::ocr::OcrEngine;
+        match self {
+            Self::Ocrs(e) => e.reports_confidence(),
+            #[cfg(feature = "ocrcer")]
+            Self::Ocrcer(e) => e.reports_confidence(),
+        }
+    }
+}
+
+/// OCRcer's single model file, looked for in `models/ocrcer` or `--model-dir`.
+///
+/// Defined here rather than in `pdfcer_core::ocr::engine_ocrcer` because that
+/// file is OCRcer's adapter applied unmodified, and it carries no filename
+/// constant (`engine_ocrs::MODEL_DIR` is the precedent it should follow).
+const OCRCER_MODEL_FILE: &str = "ocrcer.ocrw";
+
+/// Resolve the selected engine's models and load it, printing any failure.
+///
+/// Resolution names the engine's files, so a directory that exists but is
+/// empty does not resolve and shadow a good one further down the search
+/// order; on failure every path tried is reported — the difference between
+/// "OCR is broken" and "put the models here".
+fn load_ocr_engine(
+    choice: OcrEngineArg,
+    model_dir: Option<&Path>,
+) -> Result<(LoadedOcrEngine, pdfcer_core::ocr::models::ModelSource), u8> {
+    use pdfcer_core::ocr::models;
+
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(std::path::Path::to_path_buf));
+
+    match choice {
+        OcrEngineArg::Ocrs => {
+            use pdfcer_core::ocr::engine_ocrs::{
+                DETECTION_MODEL, MODEL_DIR, OcrsEngine, RECOGNITION_MODEL,
+            };
+            let source = match models::resolve_model_dir_with(
+                MODEL_DIR,
+                model_dir,
+                exe_dir.as_deref(),
+                None,
+                &[DETECTION_MODEL, RECOGNITION_MODEL],
+            ) {
+                Ok(src) => src,
+                Err(err) => {
+                    eprintln!("pdfcer: ocr: {err}");
+                    eprintln!(
+                        "pdfcer: ocr: the model files are not bundled inside the executable — \
+                         they are two files (`text-detection.rten`, `text-rec-checkpoint.rten`) \
+                         that live in a `models/ocrs` folder, which the portable package ships. \
+                         Pass --model-dir to point at them, or, in a build compiled with the \
+                         `download` feature, run `pdfcer fetch-ocr-models` to fetch the pinned \
+                         copies."
+                    );
+                    return Err(exit::RUNTIME_ERROR);
+                }
+            };
+            match OcrsEngine::from_model_dir(source.path()) {
+                Ok(e) => Ok((LoadedOcrEngine::Ocrs(e), source)),
+                Err(err) => {
+                    eprintln!("pdfcer: ocr: {err}");
+                    Err(exit::RUNTIME_ERROR)
+                }
+            }
+        }
+        #[cfg(feature = "ocrcer")]
+        OcrEngineArg::Ocrcer => {
+            use pdfcer_core::ocr::engine_ocrcer::OcrcerEngine;
+            let source = match models::resolve_model_dir_with(
+                choice.name(),
+                model_dir,
+                exe_dir.as_deref(),
+                None,
+                &[OCRCER_MODEL_FILE],
+            ) {
+                Ok(src) => src,
+                Err(err) => {
+                    eprintln!("pdfcer: ocr: {err}");
+                    eprintln!(
+                        "pdfcer: ocr: the OCRcer model is one file, `{OCRCER_MODEL_FILE}`, which \
+                         pdfcer neither ships nor downloads. Build or copy it from the OCRcer \
+                         project (`model/out/{OCRCER_MODEL_FILE}`) into a `models/ocrcer` \
+                         folder beside this executable, or pass --model-dir <its folder>."
+                    );
+                    return Err(exit::RUNTIME_ERROR);
+                }
+            };
+            let path = source.path().join(OCRCER_MODEL_FILE);
+            let bytes = match std::fs::read(&path) {
+                Ok(b) => b,
+                Err(err) => {
+                    eprintln!("pdfcer: {}: {err}", path.display());
+                    return Err(exit::IO_ERROR);
+                }
+            };
+            match OcrcerEngine::from_bytes(&bytes) {
+                Ok(e) => Ok((LoadedOcrEngine::Ocrcer(Box::new(e)), source)),
+                Err(err) => {
+                    eprintln!(
+                        "pdfcer: ocr: {}: not a usable OCRcer model: {err}",
+                        path.display()
+                    );
+                    Err(exit::RUNTIME_ERROR)
+                }
+            }
+        }
+        #[cfg(not(feature = "ocrcer"))]
+        OcrEngineArg::Ocrcer => {
+            eprintln!(
+                "pdfcer: ocr: --ocr-engine ocrcer: this build was compiled without the `ocrcer` \
+                 feature, so the OCRcer engine is not in it. Rebuild with \
+                 `cargo build -p pdfcer-cli --features ocrcer`, or use --ocr-engine ocrs \
+                 (the model file it would need is `{OCRCER_MODEL_FILE}`)."
+            );
+            Err(exit::UNIMPLEMENTED)
+        }
+    }
+}
+
 /// `ocr` — recognise a scanned page and add an invisible text layer.
 ///
 /// # The pipeline, and where each step can go wrong
@@ -14467,14 +14655,13 @@ fn cmd_ocr(
     output: Option<&Path>,
     in_place: bool,
     dpi: f32,
+    engine_choice: OcrEngineArg,
     model_dir: Option<&Path>,
     show_words: bool,
     dump_image: Option<&Path>,
     existing: ExistingOcrArg,
 ) -> u8 {
-    use pdfcer_core::ocr::{
-        OcrEngine, OcrPage, PagePlacement, layer, models, words_to_page_space_on,
-    };
+    use pdfcer_core::ocr::{OcrPage, PagePlacement, layer, models, words_to_page_space_on};
 
     // Exactly one destination. `conflicts_with` already refuses BOTH, so the
     // only case left is NEITHER -- and that has to be a refusal rather than a
@@ -14531,46 +14718,9 @@ fn cmd_ocr(
     };
     let page = &pages[index];
 
-    // The models, resolved before any expensive work. `resolve_model_dir`
-    // reports EVERY path it tried, which is the difference between "OCR is
-    // broken" and "put the models here".
-    let exe_dir = std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(std::path::Path::to_path_buf));
-    // `_with`, naming the two files: a directory that exists but is EMPTY
-    // must not resolve, or it shadows a good one further down the search
-    // order and the failure arrives later wearing the engine's vocabulary
-    // instead of the resolver's.
-    let source = match models::resolve_model_dir_with(
-        pdfcer_core::ocr::engine_ocrs::MODEL_DIR,
-        model_dir,
-        exe_dir.as_deref(),
-        None,
-        &[
-            pdfcer_core::ocr::engine_ocrs::DETECTION_MODEL,
-            pdfcer_core::ocr::engine_ocrs::RECOGNITION_MODEL,
-        ],
-    ) {
-        Ok(src) => src,
-        Err(err) => {
-            eprintln!("pdfcer: ocr: {err}");
-            eprintln!(
-                "pdfcer: ocr: the model files are not bundled inside the executable — they \
-                 are two files (`text-detection.rten`, `text-rec-checkpoint.rten`) that live in \
-                 a `models/ocrs` folder, which the portable package ships. Pass \
-                 --model-dir to point at them, or, in a build compiled with the `download` \
-                 feature, run `pdfcer fetch-ocr-models` to fetch the pinned copies."
-            );
-            return exit::RUNTIME_ERROR;
-        }
-    };
-
-    let engine = match pdfcer_core::ocr::engine_ocrs::OcrsEngine::from_model_dir(source.path()) {
-        Ok(e) => e,
-        Err(err) => {
-            eprintln!("pdfcer: ocr: {err}");
-            return exit::RUNTIME_ERROR;
-        }
+    let (engine, source) = match load_ocr_engine(engine_choice, model_dir) {
+        Ok(loaded) => loaded,
+        Err(code) => return code,
     };
 
     // Rasterise. `scale` is the engine's own unit; DPI is the operator's.
@@ -14698,7 +14848,7 @@ fn cmd_ocr(
     // The engine name goes into the layer's marker so a later run, or another
     // tool, can tell which recogniser produced it.
     let layer_opts = layer::OcrLayerOptions::new()
-        .with_engine("ocrs")
+        .with_engine(engine_choice.name())
         .with_existing(existing.into());
     let (bytes, report) = if in_place {
         let mut session = pdfcer_core::edit::EditSession::new(doc);
@@ -14743,10 +14893,11 @@ fn cmd_ocr(
     }
 
     println!(
-        "ocr {} page={page_number} -> {} dpi={dpi} image={iw}x{ih} rotate={} \
+        "ocr {} page={page_number} -> {} engine={} dpi={dpi} image={iw}x{ih} rotate={} \
 recognised={} written={} replaced={} confidence={}",
         input.display(),
         destination.display(),
+        engine_choice.name(),
         page.rotate,
         raw.len(),
         report.words_written,

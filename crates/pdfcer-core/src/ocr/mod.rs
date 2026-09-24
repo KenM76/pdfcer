@@ -73,6 +73,14 @@ pub mod marker;
 #[cfg(feature = "ocrs")]
 pub mod engine_ocrs;
 
+/// The OCRcer recogniser, behind the opt-in Cargo feature of the same name.
+///
+/// A second engine beside [`engine_ocrs`]; which one runs is the shell's
+/// choice. The file is OCRcer's `integration/pdfcer/ocrcer_engine.rs`,
+/// applied unmodified.
+#[cfg(feature = "ocrcer")]
+pub mod engine_ocrcer;
+
 use crate::page_tree::Rect;
 
 /// One recognised word, positioned in PDF default user space.

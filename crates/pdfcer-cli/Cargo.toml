@@ -20,6 +20,9 @@ default = ["jpx", "ocrs", "signing"]
 jpx = ["pdfcer-core/jpx", "pdfcer-render/jpx"]
 # The `ocrs` text-recognition engine (`Pass 71.0` slice 3).
 ocrs = ["pdfcer-core/ocrs", "pdfcer-render/ocrs"]
+# The OCRcer engine (`Pass 327.0`), selected with `ocr --ocr-engine ocrcer`.
+# OPT-IN: without it that selection refuses by name.
+ocrcer = ["pdfcer-core/ocrcer", "pdfcer-render/ocrcer"]
 # Digital signing (`sign` subcommand) — the private-key crates live behind
 # pdfcer-core's `signing` feature; a CLI built without it has no `sign`.
 signing = ["pdfcer-core/signing"]

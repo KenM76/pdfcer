@@ -165,6 +165,18 @@ push, and the sweep would have caught it** — `run-gates.sh` reports this gate.
    by deleting reasoning that already lived in `ROADMAP.md` and the commit
    message — no fact was lost, which is the test for whether a trim is honest.
 
+### ON BRANCH `ocrcer-engine` — 2026-09-24 (`Pass 327.0`, NOT on `main`, NOT pushed)
+
+OCRcer wired in as an opt-in second OCR engine (`ocrcer` feature, default
+OFF; `pdfcer ocr --ocr-engine ocrcer`; model `models/ocrcer/ocrcer.ocrw`, not
+shipped). **Do not merge or push this branch as it stands:** `ocrcer-core` is
+a LOCAL PATH dependency (`../OCRcer`, operator decision), and Cargo reads
+every path dependency's manifest even when optional — so on GitHub CI, or any
+clone without `D:\Dev\OCRcer` beside it, the whole workspace fails to
+resolve, default build included. Merge only once OCRcer is published and the
+dependency is a pinned git one. `pdfcer-gui` engine choice untouched — owed
+there separately.
+
 ### SINCE THE LAST HANDOFF — 2026-09-23 (`Pass 311.0`–`326.2`, 572nd–588th filings)
 
 **FIRST ACTION ON "continue": sweep, then push.** Two commits are local only:
