@@ -21188,7 +21188,7 @@ fn cmd_print(
             let (_, replaced) = winansi_bytes(&label_name);
             if replaced > 0 {
                 eprintln!(
-                    "pdfcer: {replaced} character(s) of the file name have no glyph in the                      label font and print as '?'."
+                    "pdfcer: {replaced} character(s) of the file name have no glyph in the label font and print as '?'."
                 );
             }
         }

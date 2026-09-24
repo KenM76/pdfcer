@@ -101,6 +101,9 @@ def expected_files(source: Path, rev: str) -> dict[str, bytes]:
         source, "log", "-1", "--format=%H", rev, "--",
         CRATE_SRC, "LICENSE", "Cargo.toml", ADAPTER_SRC,
     ).decode().strip()
+    # `cargo fmt --all` reaches path dependencies; OCRcer formats its own code
+    # and this copy must stay byte-identical to it.
+    files["rustfmt.toml"] = b"disable_all_formatting = true\n"
     files["VENDORED"] = (
         f"source = https://github.com/KenM76/ocrcer (local checkout)\n"
         f"commit = {last}\n"
