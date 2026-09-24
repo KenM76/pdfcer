@@ -232,6 +232,17 @@ def main() -> int:
         print(f"package-portable: {out} already exists and is not empty.")
         return 2
 
+    # A release carries the newest LOCAL OCRcer (decision 160); refuse a stale
+    # vendored copy rather than ship an old recogniser silently.
+    rc = subprocess.run(
+        [sys.executable, str(REPO / "tools" / "check-ocrcer-vendored.py")],
+        cwd=REPO,
+        check=False,
+    ).returncode
+    if rc != 0:
+        print("package-portable: vendored OCRcer is stale; run tools/sync-ocrcer.py, commit, retry.")
+        return 1
+
     # --- build --------------------------------------------------------------
     if not args.no_build:
         print("package-portable: cargo build --release ...")

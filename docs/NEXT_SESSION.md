@@ -165,17 +165,25 @@ push, and the sweep would have caught it** — `run-gates.sh` reports this gate.
    by deleting reasoning that already lived in `ROADMAP.md` and the commit
    message — no fact was lost, which is the test for whether a trim is honest.
 
-### ON BRANCH `ocrcer-engine` — 2026-09-24 (`Pass 327.0`, NOT on `main`, NOT pushed)
+### OCRcer — 2026-09-24 (`Pass 327.0` + `327.1`, merged to `main`)
 
-OCRcer wired in as an opt-in second OCR engine (`ocrcer` feature, default
-OFF; `pdfcer ocr --ocr-engine ocrcer`; model `models/ocrcer/ocrcer.ocrw`, not
-shipped). **Do not merge or push this branch as it stands:** `ocrcer-core` is
-a LOCAL PATH dependency (`../OCRcer`, operator decision), and Cargo reads
-every path dependency's manifest even when optional — so on GitHub CI, or any
-clone without `D:\Dev\OCRcer` beside it, the whole workspace fails to
-resolve, default build included. Merge only once OCRcer is published and the
-dependency is a pinned git one. `pdfcer-gui` engine choice untouched — owed
-there separately.
+OCRcer is a second OCR engine in every default build (`pdfcer ocr
+--ocr-engine ocrcer`; `ocrs` stays the default engine; model
+`models/ocrcer/ocrcer.ocrw`, not shipped). **Operator rule (decision 160):
+always the newest LOCAL OCRcer** — GitHub lags. It is vendored at
+`vendor/ocrcer-core` + the adapter `ocr/engine_ocrcer.rs`:
+
+- **When `check-ocrcer-vendored.py` fails, run `python tools/sync-ocrcer.py`**,
+  build, re-run the OCR tests, commit. OCRcer's own session commits often; a
+  doc-only OCRcer commit does not trip the gate, a code change does.
+- Never edit `vendor/` or the adapter by hand — change OCRcer and re-sync.
+- **Before every release:** sync first, so the released CLI carries the
+  newest recogniser.
+- `pdfcer-gui` engine choice: notice posted in the FeatureRequests channel
+  (`notice_2026-09-24_second_ocr_engine_ocrcer_available.md`), no reply owed.
+- **LLM rescoring add-on: Backlog `Pass 327.2`, BLOCKED on OCRcer chunk 16b.**
+  Check `D:\Dev\OCRcer\docs\PLAN.md` and `integration/pdfcer/` each session;
+  when an LLM adapter appears there, that is the unblock.
 
 ### SINCE THE LAST HANDOFF — 2026-09-23 (`Pass 311.0`–`326.2`, 572nd–588th filings)
 
