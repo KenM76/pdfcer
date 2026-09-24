@@ -2424,6 +2424,24 @@ prefix is not registered (open operator question `(ce)`). CLI: `pdfcer ocr
 | `MODEL_DIR` `"ocrs"` · `DETECTION_MODEL` · `RECOGNITION_MODEL` | `engine_ocrs.rs:86`, `:89`, `:97` |
 | `OcrsEngineError` (`ModelMissing`, `ModelLoad`, `ImageSize`, `Image`, `Recognition`) | `engine_ocrs.rs:108` |
 
+**Piece 3b — the second engine, OCRcer** (`crates/pdfcer-core/src/ocr/engine_ocrcer.rs`, feature `ocrcer`, **on by default**; `ocrs` stays the default engine)
+
+Same `OcrEngine` trait, so pieces 1, 2 and 4 are shared. Differences a caller
+sees: it **reports per-word confidence** (`reports_confidence() == true`), and
+its model is one file handed in as bytes — the caller reads it, the engine does
+no I/O. The file is OCRcer's own adapter, vendored from the newest local
+OCRcer by `tools/sync-ocrcer.py`; do not edit it here.
+
+| item | `file:line` |
+|---|---|
+| `OcrcerEngine::from_bytes(&[u8]) -> Result<Self, ocrcer_core::Error>` — a malformed or non-`.ocrw` file is an `Err` | `engine_ocrcer.rs:84` |
+| `MODEL_DIR` `"ocrcer"` · `MODEL_FILE` `"ocrcer.ocrw"` — resolve the folder with piece 4, then read `MODEL_FILE` inside it | `engine_ocrcer.rs:53`, `:56` |
+
+To offer an engine choice: pass `"ocrs"` or `"ocrcer"` to
+`OcrLayerOptions::with_engine` so the text-layer marker names what recognised
+it (the CLI does this). The CLI's `pdfcer ocr --ocr-engine ocrcer` is the
+reference caller.
+
 **Piece 4 — finding the weights on disk** (`crates/pdfcer-core/src/ocr/models.rs`)
 
 | item | `file:line` |
