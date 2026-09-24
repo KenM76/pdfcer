@@ -63,3 +63,8 @@
 *.ttf binary
 *.otf binary
 *.pfb binary
+
+# Vendored OCRcer (tools/sync-ocrcer.py): byte-exact copies of OCRcer HEAD,
+# compared byte-for-byte by tools/check-ocrcer-vendored.py -- never convert.
+vendor/** -text
+crates/pdfcer-core/src/ocr/engine_ocrcer.rs -text

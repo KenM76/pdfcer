@@ -3451,10 +3451,9 @@ enum Command {
         dpi: f32,
         /// Which recogniser reads the page: `ocrs` (the default) or `ocrcer`.
         ///
-        /// `ocrcer` is the OCRcer engine (MIT, pure Rust). It is OPT-IN: it
-        /// exists only in a build compiled with the `ocrcer` feature
-        /// (`cargo build -p pdfcer-cli --features ocrcer`), and any other
-        /// build refuses it by name. It reports a per-word confidence;
+        /// `ocrcer` is the OCRcer engine (MIT, pure Rust), in every standard
+        /// build; one compiled with `--no-default-features` and without the
+        /// `ocrcer` feature refuses it by name. It reports a per-word confidence;
         /// `ocrs` reports none. Its model is one file, `ocrcer.ocrw`, which
         /// pdfcer does not ship or download: build or copy it from the
         /// OCRcer project (`model/out/ocrcer.ocrw`) into `models/ocrcer`

@@ -55,6 +55,9 @@ members = [
 # the SHIPPING dependency graph or in THIRD_PARTY_LICENSES.md. It has its own
 # [workspace] table and is built only via `cargo +nightly fuzz`.
 exclude = [
+    # Vendored OCRcer (tools/sync-ocrcer.py): a byte copy of another project,
+    # linted and tested there, not here.
+    "vendor/ocrcer-core",
     "tools/difftest",
     "tools/corpus-report",
     "tools/roundtrip",

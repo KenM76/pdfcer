@@ -32,13 +32,13 @@ profile = []
 # forward. A crate that forgets silently defeats stripping for the entire
 # workspace, and the symptom is a flag that appears to work and changes
 # nothing.
-default = ["jpx", "ocrs"]
+default = ["jpx", "ocrs", "ocrcer"]
 jpx = ["pdfcer-core/jpx"]
 # The `ocrs` text-recognition engine. Forwarded even though `pdfcer-render`
 # never calls it: the CLI reaches core THROUGH this crate, so a missing rung
 # here would strip OCR from the CLI with no diagnostic anywhere.
 ocrs = ["pdfcer-core/ocrs"]
-# The opt-in OCRcer engine (`Pass 327.0`), forwarded for the same reason.
+# The OCRcer engine (`Pass 327.0`), forwarded for the same reason.
 ocrcer = ["pdfcer-core/ocrcer"]
 
 [dependencies]

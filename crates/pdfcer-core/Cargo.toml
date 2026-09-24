@@ -36,7 +36,7 @@ license.workspace = true
 # 4. CI builds `--no-default-features` (see .github/workflows/ci.yml), which
 #    is what stops a `cfg` from rotting into something that no longer
 #    compiles when switched off.
-default = ["jpx", "ocrs", "signing"]
+default = ["jpx", "ocrs", "ocrcer", "signing"]
 
 # Digital SIGNING — the private-key side (PAdES B-B first; `sign` module).
 #
@@ -116,11 +116,10 @@ jpx = ["dep:hayro-jpeg2000"]
 ocrs = ["dep:ocrs", "dep:rten"]
 
 # The OCRcer text-recognition engine (`Pass 327.0`),
-# `ocr/engine_ocrcer.rs`. OPT-IN, and the one exception to rule 1 above:
-# rule 1 protects a capability already relied on, and OCRcer has not yet been
-# shown to match `ocrs` (the operator's 2026-09-24 directive: integrate as an
-# opt-in engine now, let the head-to-head decide the default). `ocrs` stays the
-# default engine; off, the CLI refuses `--ocr-engine ocrcer` by name (rule 2).
+# `ocr/engine_ocrcer.rs`. Default ON like every capability (rule 1), so the
+# shipped CLI can select it; `ocrs` stays the default ENGINE (decision 160)
+# until the head-to-head says otherwise. Off, the CLI refuses
+# `--ocr-engine ocrcer` by name (rule 2).
 #
 # Gated: `ocr::engine_ocrcer` alone, exactly as `ocrs` gates `engine_ocrs`.
 #
@@ -445,13 +444,14 @@ ocrs = { version = "0.12.2", optional = true }
 # naming this crate. Gated by the same `ocrs` feature; it has no independent
 # use here. License: MIT OR Apache-2.0.
 rten = { version = "0.24", optional = true }
-# ocrcer-core: the OCRcer recogniser (`ocrcer` feature, opt-in). MIT, zero
-# dependencies. LOCAL PATH dependency by operator decision (2026-09-24) until
-# OCRcer is published; then a pinned git dependency. While it is a path
-# dependency, a checkout without `../OCRcer` beside this repository cannot
-# resolve the workspace at all, optional or not (Cargo reads every path
-# dependency's manifest to build the lockfile).
-ocrcer-core = { path = "../../../OCRcer/crates/ocrcer-core", optional = true }
+# ocrcer-core: the OCRcer recogniser (`ocrcer` feature). MIT, zero
+# dependencies. VENDORED at `vendor/ocrcer-core`, copied from the newest local
+# OCRcer commit by `tools/sync-ocrcer.py` (operator rule: always the newest
+# local version, which runs ahead of GitHub — decision 160); a stale copy
+# fails `tools/check-ocrcer-vendored.py`. Never a path into `../OCRcer`: Cargo
+# reads every path dependency's manifest, so a clone without it (CI) would not
+# resolve.
+ocrcer-core = { path = "../../vendor/ocrcer-core", optional = true }
 
 # getrandom: the CSPRNG for encryption AUTHORING (`Pass 5.4`) — salts, IVs and
 # the 256-bit file encryption key of Algorithms 8/9, which the standard

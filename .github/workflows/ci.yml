@@ -315,7 +315,7 @@ jobs:
   # and the COUNT is the part that decays, so the count is the part a gate
   # can falsify.
   audits:
-    name: repository audits (24 checks)
+    name: repository audits (25 checks)
     runs-on: ubuntu-latest
     steps:
       # ★ FULL HISTORY REQUIRED, and its absence was SILENT.
@@ -504,6 +504,12 @@ jobs:
       # the mechanical inverse of the written rule: it makes the mistake fail.
       - name: check no prose or source file carries a stray control byte
         run: python tools/check-control-bytes.py
+
+      # pdfcer builds the newest LOCAL OCRcer (decision 160), vendored by
+      # tools/sync-ocrcer.py. Here there is no OCRcer checkout, so this
+      # passes; it is listed so the local sweep (run-gates.sh) runs it.
+      - name: check the vendored OCRcer is OCRcer's local HEAD
+        run: python tools/check-ocrcer-vendored.py
 
       # In clap-derive a `///` doc comment IS the shipped `--help` text, and
       # only its FIRST line becomes the short summary. A doc block whose real

@@ -49,6 +49,12 @@ use crate::ocr::{OcrEngine, RecognizedWord};
 #[cfg(feature = "ocrcer")]
 use crate::page_tree::Rect;
 
+/// Subdirectory of the model root that holds OCRcer's model.
+pub const MODEL_DIR: &str = "ocrcer";
+
+/// OCRcer's single model file, inside [`MODEL_DIR`].
+pub const MODEL_FILE: &str = "ocrcer.ocrw";
+
 /// The OCRcer text-recognition engine, bound to [`OcrEngine`].
 ///
 /// Construct with [`OcrcerEngine::from_bytes`]; a fresh instance holds one

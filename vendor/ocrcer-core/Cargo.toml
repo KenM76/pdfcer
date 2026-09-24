@@ -1,0 +1,13 @@
+# VENDORED from OCRcer by tools/sync-ocrcer.py -- do not edit here;
+# edit in OCRcer and re-sync. Source commit: vendor/ocrcer-core/VENDORED.
+[package]
+name = "ocrcer-core"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+rust-version = "1.97"
+
+[dependencies]
+
+[features]
+parallel = []
