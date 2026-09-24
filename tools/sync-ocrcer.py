@@ -95,9 +95,15 @@ def expected_files(source: Path, rev: str) -> dict[str, bytes]:
             data = rewrite_manifest(data.decode(), ws).encode()
         files[rel] = data
     files["LICENSE"] = show(source, rev, "LICENSE")
+    # The last commit that changed anything vendored -- not HEAD, which moves
+    # on every OCRcer doc commit and would make the gate fail on no change.
+    last = git(
+        source, "log", "-1", "--format=%H", rev, "--",
+        CRATE_SRC, "LICENSE", "Cargo.toml", ADAPTER_SRC,
+    ).decode().strip()
     files["VENDORED"] = (
         f"source = https://github.com/KenM76/ocrcer (local checkout)\n"
-        f"commit = {rev}\n"
+        f"commit = {last}\n"
         f"synced-by = tools/sync-ocrcer.py\n"
     ).encode()
     return files
