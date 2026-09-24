@@ -4776,16 +4776,22 @@ no MAC verify, pins `cms =0.3.0-pre.1`), `pkcs5`/`pkcs8[encryption]` (no
 PBES1), `x509-cert` (certificates pass through raw), `p12-keystore`/`p12`
 (wasm32 fail; stale generation), `ring` (unchanged).
 
-**Seventh dependency: `ocrcer-core`, the first strippable capability that is
-default OFF (2026-09-24; §12 decision 159; `Pass 327.0`, branch
-`ocrcer-engine`).** MIT, zero dependencies, no `unsafe`, no I/O, wasm32-clean;
-behind `pdfcer-core`'s new feature `ocrcer`, forwarded by `pdfcer-render` and
-`pdfcer-cli`. The convention's default-ON rule protects a capability already
-relied on; OCRcer is not yet shown to match `ocrs`, so by operator directive it
-is opt-in and `ocrs` stays the default engine. `THIRD_PARTY_LICENSES.md` is
-unchanged because the shipping graph is. **While it is a local path
-dependency the branch cannot merge** — Cargo resolves optional path manifests
-too, so no checkout without `../OCRcer` resolves the workspace.
+**Seventh dependency: `ocrcer-core`** (2026-09-24; §12 decisions 159/160;
+`Pass 327.0`/`327.1`). MIT, zero dependencies, no `unsafe`, no I/O,
+wasm32-clean; behind `pdfcer-core`'s feature `ocrcer`, forwarded by
+`pdfcer-render` and `pdfcer-cli`. **The feature is DEFAULT ON** (decision
+160, `Pass 327.1`, 2026-09-24) — decision 159's default-OFF exception to the
+strippable-capability convention is withdrawn; the convention's "no default
+slot for a capability not yet shown to match" reasoning now applies only to
+the OCR **engine** default (`--ocr-engine` still defaults to `ocrs` until a
+head-to-head decides otherwise), not to whether the code ships in the
+default build. `ocrcer-core` is VENDORED at `vendor/ocrcer-core`
+(`tools/sync-ocrcer.py`, copied from OCRcer's own committed HEAD, gated by
+`tools/check-ocrcer-vendored.py`) rather than a path dependency, because a
+committed path dependency breaks every clone and CI lacking a sibling
+`../OCRcer` checkout. `THIRD_PARTY_LICENSES.md` gained the `ocrcer-core` MIT
+entry (`Pass 327.1`). `ocrcer-engine` is fast-forwarded into `main` locally;
+push follows a green `tools/run-gates.sh` sweep.
 
 ## 10. Adversarial input hardening & fuzzing
 
@@ -11130,3 +11136,19 @@ per the operator's own ordered plan in `docs/NEXT_SESSION.md`).
 **Sourcing (hard rule 8).** `git show 7c520945` read; the directive and gate results are relayed from the dispatching engineer, not reproduced.
 
 **Decision ceiling: `158` → `159`**, next free `160`. **Pass ceiling: `Pass 327.0`**, next free family `328`.
+
+★ **AMENDED 2026-09-24 (590th filing, decision 160) — the merge condition and the default-OFF exception below are both superseded; see decision 160.** Old entry stays for the record.
+
+### 2026-09-24 (590th filing, `Pass 327.1`, `748d268c`/`998adb96`) — decision 160: OCRCER IS VENDORED, NOT PATH- OR GIT-PINNED, AND ITS FEATURE FLIPS TO DEFAULT ON — AMENDS DECISION 159
+
+**Status: DECIDED (operator directive, Ken, 2026-09-24, two sentences).** *"add ocrcer as an ocr option... always use the latest version of ocrcer available in d:\dev\ocrcer . github might be a few versions behind."* Supersedes decision 159's stated path — "local path dependency now, pinned git dependency later" — with vendoring from the local checkout: GitHub can lag the local machine, and a pinned git dependency would still resolve to a stale tag rather than the newest local commit.
+
+**What was decided.** (a) `ocrcer-core` is copied — committed content only, never OCRcer's working tree — into `vendor/ocrcer-core` by new `tools/sync-ocrcer.py`, which also syncs the adapter (`ocr/engine_ocrcer.rs` from OCRcer's `integration/pdfcer/ocrcer_engine.rs`) and rewrites the vendored manifest's edition/license/rust-version to concrete values. New gate `tools/check-ocrcer-vendored.py` (CI's `audits` job, also run by `run-gates.sh`) fails when vendored content diverges from OCRcer's own HEAD, and passes with a note when no OCRcer checkout is present (true in CI). This replaces the local-path-dependency approach that made `Pass 327.0` unmergeable — every clone and CI now resolve the workspace, default build included — satisfying decision 159's merge condition by vendoring rather than by a git pin. (b) Feature `ocrcer` moves from default OFF to **default ON** in `pdfcer-core`/`pdfcer-render`/`pdfcer-cli` — decision 159's default-OFF exception to the strippable-capability convention is withdrawn; that convention's "no default slot for a capability not yet shown to match" reasoning now applies to the OCR **engine default** only (`--ocr-engine` stays `ocrs` until a head-to-head decides otherwise), not to whether the code ships in the default build. (c) Decision 159's merge condition ("published and pinned via git") is satisfied by vendoring instead.
+
+**Body-section effects.** §9's `ocrcer-core` paragraph rewritten to state vendoring and default-ON (this filing). `docs/PRIOR_ART.md`'s `ocrcer-core` row and *OCR engines* intro corrected; `docs/DEPENDENCIES.md` row already correct from `748d268c`. `docs/ROADMAP.md`'s `Pass 327.0` Shipped entry gets a dated RESOLVED note rather than a rewrite (Shipped entries are not rewritten); `docs/FEATURES.md`'s "Choose the OCR engine" row loses its branch-only wording.
+
+**Note, for the record.** The engineer briefly pinned a git rev (`c9cd2313`) between decision 159 and this one, before the operator's second sentence — "always use the latest... github might be a few versions behind" — made vendoring-from-local the right mechanism instead; the git pin never shipped and is superseded here, not itself a decision.
+
+**Sourcing (hard rule 8).** No shell this filing. Taken from the dispatching engineer's own report of `748d268c`/`998adb96`; not independently re-verified against live source or commit contents.
+
+**Decision ceiling: `159` → `160`**, next free `161`. **Pass ceiling: `Pass 327.1`**, next free family `328`.

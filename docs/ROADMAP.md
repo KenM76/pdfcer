@@ -115,9 +115,57 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
-### `Pass 327.0` (`7c520945`), 2026-09-24 — OCRcer as an opt-in second OCR engine: `pdfcer ocr --ocr-engine ocrs|ocrcer`, Cargo feature `ocrcer` — ★ ON BRANCH `ocrcer-engine`, NOT ON `main`
+### `Pass 327.1` (`748d268c`/`998adb96`), 2026-09-24 — `ocrcer-core` vendored and built by default; `ocrcer-engine` fast-forwarded into `main` (local, push pending)
 
-★ **BLOCKER — DO NOT MERGE TO `main` WHILE `ocrcer-core` IS A LOCAL PATH DEPENDENCY.** Cargo reads every path dependency's manifest to build the lockfile, optional or not, so any checkout without `../OCRcer` beside it — **GitHub CI included** — cannot resolve the workspace at all, default build too. **Unblocks when** OCRcer is published and the dependency is pinned via git (owed follow-up (a) below). Branch is local and unpushed.
+**Operator directive (Ken, 2026-09-24), verbatim.** *"add ocrcer as an ocr option. It is also working on LLM support which should be its own add-in option too when it is available."* And separately: *"always use the latest version of ocrcer available in d:\dev\ocrcer . github might be a few versions behind."* Decision `160` (`ARCHITECTURE.md` §12), amending decision `159`.
+
+**The feature.** `ocrcer-core` is now VENDORED at `vendor/ocrcer-core` — copied from OCRcer's local committed HEAD, never OCRcer's working tree, by new `tools/sync-ocrcer.py` — replacing the local path dependency that made `Pass 327.0` unresolvable outside a sibling `../OCRcer` checkout, GitHub CI included. The vendored manifest is rewritten to concrete edition/license/rust-version. Vendored content = OCRcer commit `4862a3d7815429ce3b2c5616578bfbafd60e43b4` (the last commit to touch the vendored paths; OCRcer's own HEAD at sync time was `c30b2277`). The adapter `crates/pdfcer-core/src/ocr/engine_ocrcer.rs` is synced from OCRcer's `integration/pdfcer/ocrcer_engine.rs` by the same script, and now carries `pub` `MODEL_DIR`/`MODEL_FILE` constants — closing `Pass 327.0`'s owed follow-up (c) on the OCRcer side. New gate `tools/check-ocrcer-vendored.py`, in CI's `audits` job (now 25 checks) and run locally by `tools/run-gates.sh`: fails when vendored content diverges from OCRcer's HEAD; passes with a note when no OCRcer checkout exists (true in CI). Feature `ocrcer` is now **DEFAULT ON** in `pdfcer-core`/`pdfcer-render`/`pdfcer-cli`, so the released CLI can select it; `ocrs` stays the default **engine** (`--ocr-engine` unchanged). `vendor/ocrcer-core` is added to the workspace `exclude`; `.gitattributes` marks `vendor/**` and the adapter `-text` so the byte comparison in the new gate survives autocrlf.
+
+**Tests.** `cargo test -p pdfcer-cli --features ocrcer --test ocr_engine`: 2 passed. Full `tools/run-gates.sh` sweep was in progress at filing time, ahead of a push — recorded as "sweep run before push," not reported green or red this filing.
+
+**Invariants.** `cargo tree -p pdfcer-core`: `ocrcer-core` is a dependency-free leaf; no GUI/windowing crate added.
+
+**Smoke reading — NOT a benchmark.** Default-build CLI. `pdfcer ocr fixtures/synthetic/ocr/scan_clean.pdf --ocr-engine ocrcer`: 49/49 words, only errors lowercase `s` read as `S`. `scan.pdf`: 49 words, mean confidence 69.8%, a few `e`→`a` errors. Model `ocrcer.ocrw` still neither shipped nor downloaded.
+
+**Attribution.** `THIRD_PARTY_LICENSES.md` regenerated (`ocrcer-core` MIT added). `docs/DEPENDENCIES.md` row rewritten in `748d268c`, not touched by this librarian filing.
+
+**`docs/FEATURES.md`.** "Choose the OCR engine" row (*Text*): branch-only wording removed; core `[x]`, cli `[x]`, gui `[ ]` (`pdfcer-gui` has no engine choice — owed there), Acrobat `?` unchanged.
+
+**`docs/PRIOR_ART.md`.** `ocrcer-core` row corrected: default ON, vendored, no longer branch-only; new decision-log bullet superseding the `Pass 327.0` one.
+
+**`ARCHITECTURE.md`.** §9's `ocrcer-core` paragraph rewritten for vendoring + default ON; §12 gains decision `160`, amending `159`.
+
+**Owed follow-ups, carried from `Pass 327.0`.** (b) `pdfcer-gui` engine selection — still not done. (d) The pre-existing `tools/check-string-gaps.sh` failure from `2039521c` — DISCHARGED by `2161a9cd` below. (a) and (c) are DISCHARGED by this Pass — see the corrected entry below.
+
+**Follow-on commits, same session and same Pass.**
+- `303287d55c4cf1aa3dc3a0b356e436536416d0ee` — core-api: documents `OcrcerEngine::from_bytes`, `MODEL_DIR`/`MODEL_FILE`, per-word confidence, and `with_engine("ocrcer")` as the layer marker, in `docs/core-api/03-capabilities.md`; `index.md` line count updated.
+- `68eb534181e8f6116f57753c6808a906ece89429` — a release must carry the newest local OCRcer (decision `160`): `tools/package-portable.py` now runs `tools/check-ocrcer-vendored.py` before building and refuses a stale vendored copy. `docs/NEXT_SESSION.md` gained the sync procedure and `Pass 327.2`'s unblock condition.
+- `2161a9cd1b3bd9eb5e25bf94a9903ed0e9ca2347` — `tools/sync-ocrcer.py` now writes `vendor/ocrcer-core/rustfmt.toml` (`disable_all_formatting = true`), because `cargo fmt --all` reaches path dependencies and the vendored copy must stay byte-identical to OCRcer's own; `tools/check-ci-parity.py` classifies `check-ocrcer-vendored.py` as LOCAL (no OCRcer checkout in CI). Also fixes the 22-space string gap in the CLI's poster-label glyph warning that `2039521c` introduced (that commit was never pushed) — this **discharges owed item (d)** above.
+- `e91d1095f3dba3d1123ae4d82e3a58b33d63aeb5` — **resolves, with certainty, what `Pass 327.0`'s own entry below still called "LIKELY DISCHARGED … not confirmed"**: `pdfcer-cli`'s `main.rs` did duplicate the `ocrcer.ocrw` constant; it now imports `pdfcer_core::ocr::engine_ocrcer::{MODEL_DIR, MODEL_FILE}` instead, and the local duplicate is gone.
+
+**New Backlog item filed this session.** `Pass 327.2` — OCRcer LLM rescoring as its own opt-in add-on, BLOCKED on OCRcer's own gates. See *Backlog*.
+
+**`docs/FEATURES.md`.** No row changes from the four follow-on commits above — row 220 ("Choose the OCR engine") already read core `[x]` / cli `[x]` / gui `[ ]` and none of the four touches that reach.
+
+**Sourcing (hard rule 8).** No shell this filing. Taken from the dispatching engineer's own report of `748d268c`/`998adb96`/`303287d5`/`68eb5341`/`2161a9cd`/`e91d1095`; none of the six independently re-verified against live source, commit contents, or gate output.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `327` (highest `.0`, branch `ocrcer-engine` only) | **`Pass 327.1` SHIPPED in `748d268c`/`998adb96`, branch fast-forwarded into `main` locally (push pending); `Pass 327.2` filed to *Backlog*, BLOCKED — next free family unchanged, `328`** |
+| Decision records | `159` | **`160`** |
+| `SESSION_LOG` filings | `589` | **`590`** |
+| `docs/FEATURES.md` | "Choose the OCR engine" row, branch-only, gui `[ ]` | **branch-only wording removed; new *Planned* row for LLM-assisted OCR rescoring (`Pass 327.2`), all boxes unticked** |
+| `docs/PRIOR_ART.md` | `ocrcer-core` row: default OFF, branch-only | **default ON, vendored, no longer branch-only; superseding decision-log bullet added** |
+
+---
+
+### `Pass 327.0` (`7c520945`), 2026-09-24 — OCRcer as an opt-in second OCR engine: `pdfcer ocr --ocr-engine ocrs|ocrcer`, Cargo feature `ocrcer` — ~~★ ON BRANCH `ocrcer-engine`, NOT ON `main`~~ **MERGED TO `main` BY `Pass 327.1` BELOW (2026-09-24, 590th filing)**
+
+~~★ **BLOCKER — DO NOT MERGE TO `main` WHILE `ocrcer-core` IS A LOCAL PATH DEPENDENCY.** Cargo reads every path dependency's manifest to build the lockfile, optional or not, so any checkout without `../OCRcer` beside it — **GitHub CI included** — cannot resolve the workspace at all, default build too. **Unblocks when** OCRcer is published and the dependency is pinned via git (owed follow-up (a) below). Branch is local and unpushed.~~
+
+★ **RESOLVED 2026-09-24 (590th filing, `Pass 327.1`, `748d268c`/`998adb96`).** `ocrcer-core` is now VENDORED at `vendor/ocrcer-core` (copied from OCRcer's own committed HEAD by new `tools/sync-ocrcer.py`, gated by `tools/check-ocrcer-vendored.py`) instead of a path dependency — every clone and CI now resolve the workspace, default build included. `ocrcer-engine` has been fast-forwarded into `main` locally; push follows a green `tools/run-gates.sh` sweep. Decision `160` amends decision `159`; see `Pass 327.1`'s own entry above this one.
 
 **Operator directive (Ken, 2026-09-24).** Integrate OCRcer (`D:\Dev\OCRcer`: MIT, pure safe Rust, zero dependencies, no I/O, wasm32) as an **opt-in** engine beside `ocrs`. `ocrs` stays the default. Accuracy work comes later. Local path dependency now, pinned git dependency later. Decision `159` (`ARCHITECTURE.md` §12).
 
@@ -131,7 +179,7 @@ wherever it appears.*
 
 **Smoke reading — NOT a benchmark.** Debug build, `fixtures/synthetic/ocr/scan.pdf` page 1 at 150 dpi. **`ocrcer`:** 31.3 s wall, 49 words, confidence reported (mean 69.8%), `tools/ocr-accuracy.py` content **89.4% (42/47)**, median offset 2.91 pt. **`ocrs`:** 34.5 s, confidence none, content **100% (47/47)**, median offset 2.60 pt. `ocrcer` loses on content on this one page.
 
-**Owed follow-ups.** (a) Switch `ocrcer-core` to a pinned git dependency, then merge. (b) `pdfcer-gui` engine selection — not done. (c) Adapter nit: `engine_ocrcer` carries no `MODEL_DIR`/`MODEL_FILE` constants as `engine_ocrs` does, so the CLI defines `OCRCER_MODEL_FILE` locally — reported to OCRcer. (d) The pre-existing `check-string-gaps.sh` failure from `2039521c`.
+**Owed follow-ups.** ~~(a) Switch `ocrcer-core` to a pinned git dependency, then merge.~~ **(a) DISCHARGED by `Pass 327.1` — vendored instead of git-pinned (decision 160).** (b) `pdfcer-gui` engine selection — not done. ~~(c) Adapter nit: `engine_ocrcer` carries no `MODEL_DIR`/`MODEL_FILE` constants as `engine_ocrs` does, so the CLI defines `OCRCER_MODEL_FILE` locally — reported to OCRcer.~~ **(c) DISCHARGED by `Pass 327.1`'s `e91d1095f3dba3d1123ae4d82e3a58b33d63aeb5` — confirmed: the synced adapter carries `MODEL_DIR`/`MODEL_FILE`, and `main.rs` now imports them instead of defining `OCRCER_MODEL_FILE` locally.** ~~(d) The pre-existing `check-string-gaps.sh` failure from `2039521c`.~~ **(d) DISCHARGED by `Pass 327.1`'s `2161a9cd1b3bd9eb5e25bf94a9903ed0e9ca2347`.**
 
 **`docs/FEATURES.md`.** New *Text* row, "Choose the OCR engine": core `[x]`, cli `[x]`, gui `[ ]`, marked branch-only / not on `main`.
 
@@ -15932,6 +15980,24 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### `Pass 327.2` — OCRcer LLM rescoring as its own opt-in add-on — filed 2026-09-24 (590th filing), **BLOCKED on OCRcer**, family `327` after `Pass 327.1`
+
+**Operator directive (Ken, 2026-09-24), verbatim.** *"It is also working on LLM support which should be its own add-in option too when it is available."*
+
+**What OCRcer's own `docs/PLAN.md` says (chunks 16, 16c–e) — relayed, not independently verified this filing.** A planned `ocrcer-llm` crate (pure safe Rust, std only, in-process) reading a one-file `.ocrl` add-on (weights + tokenizer + licence) to n-best-rescore low-confidence OCR lines; later a Qwen3.5-0.8B text path, its vision encoder for image-conditioned rescoring, and an optional wgpu GPU backend. OCRcer status as relayed: step 16a accepted for correctness; a speed step is required before 16b, the rescoring gate (must beat controls on OCRcer's own benchmark, identifier preservation passing).
+
+**Scope for pdfcer, once unblocked.** A SEPARATE Cargo feature, `ocrcer-llm`, distinct from `ocrcer` — vendored by the same `tools/sync-ocrcer.py`, extended to cover the new paths. The `.ocrl` file resolves the same way today's model does (`models/ocrcer-llm` beside the exe, or an explicit flag) — **never shipped or downloaded by default**. Rule 4 disclosure: the CLI reports which lines the LLM rescored and what changed, off-canvas, the same shape as the existing OCR confidence/engine disclosure.
+
+**Unblocks when** OCRcer's own 16b gates pass (beats controls, identifier preservation passes) and `integration/pdfcer/` grows an LLM adapter — mirroring how `engine_ocrcer.rs` unblocked `Pass 327.0`.
+
+**Open items for the operator, not decided here.** (i) The `.ocrl` weights licence (Qwen-derived) must be classified before any shipping or download route is offered — same discipline as `ocrs`'s CC-BY-SA-4.0 weights and Surya's rejected Open RAIL-M (`docs/PRIOR_ART.md`, *OCR engines*). (ii) A wgpu GPU backend, if OCRcer ships one, must stay compute-only — no window surface — to hold invariant 1 (GUI-core separation), and must itself be a further opt-in feature that the wasm32/no-network gates still pass with it off.
+
+**Not gated by R13.** An `.ocrl` file is DATA read by compiled-in pdfcer/OCRcer code, not executable code fetched and run — R13 ("never execute anything fetched") does not apply to it, the same way `ocrcer.ocrw`/`ocrs`'s weight files are not gated by it today. Stated here so a future filing does not misapply R13 to a model file.
+
+**`docs/FEATURES.md`.** New *Text* row, "LLM-assisted OCR rescoring": core `[ ]`, cli `[ ]`, gui `[ ]`, pointing at this Pass.
+
+---
 
 ### `Pass 325.0` — split `pdfcer-core` into a model crate plus narrow feature crates, behind a facade — filed 2026-09-23 (586th filing), **NOT STARTED** — new family, 7-step plan, operator ask verbatim: *"Why was this ever done as one big crate when it goes against best practices?"*
 
