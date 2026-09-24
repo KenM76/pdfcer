@@ -4,6 +4,30 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-24 (589th filing) — `Pass 327.0` (`7c520945`, branch `ocrcer-engine`, NOT on `main`): OCRcer as an opt-in second OCR engine, `pdfcer ocr --ocr-engine ocrs|ocrcer`, feature `ocrcer`
+
+**Shipped (on a branch):**
+- `Pass 327.0` (`7c520945`) — `pdfcer-core` `ocr::engine_ocrcer` (OCRcer's `integration/pdfcer/ocrcer_engine.rs`, applied unmodified) behind the non-default feature `ocrcer`, forwarded by `pdfcer-render`/`pdfcer-cli`. `pdfcer ocr --ocr-engine ocrs|ocrcer`, default `ocrs`; model `ocrcer.ocrw` from `models/ocrcer` beside the exe or `--model-dir`, neither shipped nor downloaded. No feature → refused by name, exit 64; missing/malformed model → exit 1 naming the file. Engine name recorded in the text-layer marker and summary line. New `crates/pdfcer-cli/tests/ocr_engine.rs`.
+
+**★ Blocker:** the branch must NOT merge to `main` while `ocrcer-core` is a local path dependency — Cargo reads optional path manifests, so any checkout without `../OCRcer` (GitHub CI included) cannot resolve the workspace. Unblocks when OCRcer is published and the dependency is pinned via git.
+
+**Decisions made this session:**
+- Decision `159` (`ARCHITECTURE.md` §12): OCRcer adopted opt-in by operator directive (Ken, 2026-09-24) — the one exception to the default-ON strippable-capability convention; `ocrs` stays the default; accuracy work later; path dependency now, pinned git later. §9 body paragraph added.
+
+**Findings + decisions:**
+- Gates per the engineer: `fmt`; `clippy -D warnings` (default and `--all-features`); `pdfcer-core` no-default ± `ocrcer` 4,207/0; `pdfcer-cli --features ocrcer` 519/0; wasm32 check both ways; `THIRD_PARTY_LICENSES.md` identical; `ocrcer-core` a `cargo tree` leaf. **Not run:** full workspace `--all-features` test / `tools/run-gates.sh` (memory, as `Pass 326.x`).
+- Smoke reading, NOT a benchmark (debug, `scan.pdf` p1, 150 dpi): `ocrcer` 31.3 s, 49 words, mean confidence 69.8%, content 89.4% (42/47), median offset 2.91 pt; `ocrs` 34.5 s, no confidence, 100% (47/47), 2.60 pt.
+- `docs/FEATURES.md`: new *Text* row "Choose the OCR engine", core `[x]` cli `[x]` gui `[ ]` Acrobat `?`, marked branch-only. `docs/PRIOR_ART.md`: `ocrcer-core` row (MIT; no font data in the model — feature vectors from rendered OFL-1.1/Apache-2.0/MIT faces listed in the model's `meta`, per OCRcer `NOTICE`) plus a decision-log bullet.
+- Sweep: the carried `R251`/`R258` standing-rules discrepancy — `tools/check-ledger-numbers.py` says next free `R251`, and a grep of `ROADMAP.md` and `history/standing-rules-full.md` finds no `R251`–`R257` defined, so `R251` looks right. Not changed this filing; the next rule mint should confirm it first. `check-ledger-numbers`, `check-register-entry-size`, `check-passes-filed`, `check-commits-filed` all clean after this filing.
+
+**Still in flight / owed:**
+- (a) Switch `ocrcer-core` to a pinned git dependency, then merge. (b) `pdfcer-gui` engine selection. (c) OCRcer adapter nit: `engine_ocrcer` has no `MODEL_DIR`/`MODEL_FILE` constants (`engine_ocrs` has), so the CLI defines `OCRCER_MODEL_FILE` locally — reported to OCRcer. (d) Pre-existing `tools/check-string-gaps.sh` failure at `pdfcer-cli` `main.rs` ~21192, from `Pass 326.2`'s `2039521c`.
+- Unchanged from the 588th filing: sweep then push `bb5a37a2`/`b44e6a03`/`2039521c` on `main`.
+
+**For next session:** Do not merge or push `ocrcer-engine`. Fix (d) on `main` before the push sweep.
+
+**Sourcing (hard rule 8).** `git show 7c520945` read; CLI symbols and test names confirmed by grep. Test counts, gate results and the smoke reading relayed from the engineer, not reproduced. This filing committed on `ocrcer-engine`.
+
 ## 2026-09-23 (588th filing) — `Pass 326.2` (`2039521c`): the CLI surface for `G039`/`G040`/`G041` — `pdfcer print --line-width`, `--poster-cut-marks`, `--poster-labels`
 
 **Shipped:**

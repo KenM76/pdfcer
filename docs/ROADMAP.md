@@ -115,6 +115,43 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 327.0` (`7c520945`), 2026-09-24 — OCRcer as an opt-in second OCR engine: `pdfcer ocr --ocr-engine ocrs|ocrcer`, Cargo feature `ocrcer` — ★ ON BRANCH `ocrcer-engine`, NOT ON `main`
+
+★ **BLOCKER — DO NOT MERGE TO `main` WHILE `ocrcer-core` IS A LOCAL PATH DEPENDENCY.** Cargo reads every path dependency's manifest to build the lockfile, optional or not, so any checkout without `../OCRcer` beside it — **GitHub CI included** — cannot resolve the workspace at all, default build too. **Unblocks when** OCRcer is published and the dependency is pinned via git (owed follow-up (a) below). Branch is local and unpushed.
+
+**Operator directive (Ken, 2026-09-24).** Integrate OCRcer (`D:\Dev\OCRcer`: MIT, pure safe Rust, zero dependencies, no I/O, wasm32) as an **opt-in** engine beside `ocrs`. `ocrs` stays the default. Accuracy work comes later. Local path dependency now, pinned git dependency later. Decision `159` (`ARCHITECTURE.md` §12).
+
+**The feature.** `pdfcer-core` `ocr::engine_ocrcer` is OCRcer's `integration/pdfcer/ocrcer_engine.rs`, applied unmodified, behind the new **non-default** feature `ocrcer` — a documented exception to the default-ON strippable-capability convention, by operator directive. `pdfcer-render` and `pdfcer-cli` forward the feature. CLI: `pdfcer ocr --ocr-engine ocrs|ocrcer` (default `ocrs`); the model `ocrcer.ocrw` resolves from `models/ocrcer` beside the exe or from `--model-dir`, and is **neither shipped nor downloaded**. A build without the feature refuses `ocrcer` by name, exit 64 (UNIMPLEMENTED); a missing or malformed model exits 1 naming the file. The engine name is recorded in the text-layer marker and the summary line. `docs/DEPENDENCIES.md` gained a row; `docs/NEXT_SESSION.md` a branch note.
+
+**Tests.** New `crates/pdfcer-cli/tests/ocr_engine.rs` (refusal without the feature; missing model; non-`.ocrw` file). `pdfcer-core --no-default-features` plus `--no-default-features --features ocrcer`: **4,207 passed, 0 failed**. `pdfcer-core --features ocrcer` OCR lib tests pass. `pdfcer-cli --features ocrcer`: **519 passed, 0 failed**. Default-build `ocr_engine` test passes.
+
+**Gates.** `fmt` clean. `clippy -D warnings` clean, workspace default and `--all-features`. wasm32 `cargo check -p pdfcer-core -p pdfcer-render --target wasm32-unknown-unknown` passes with and without `pdfcer-core/ocrcer`. `cargo about` output unchanged — `THIRD_PARTY_LICENSES.md` identical, because `ocrcer` is non-default. **NOT run:** full `cargo test --workspace --all-features` / `tools/run-gates.sh` — memory constraint, same as `Pass 326.x`. **Pre-existing failure, not this Pass:** `tools/check-string-gaps.sh` fails at `pdfcer-cli` `main.rs` ~line 21192, from `Pass 326.2`'s `2039521c`.
+
+**Invariants.** `cargo tree -p pdfcer-core --features ocrcer`: `ocrcer-core` is a leaf, no transitive deps. GUI-core separation unaffected (no windowing dependency). Round-trip unaffected — same `ocr::layer` writer as `ocrs`.
+
+**Smoke reading — NOT a benchmark.** Debug build, `fixtures/synthetic/ocr/scan.pdf` page 1 at 150 dpi. **`ocrcer`:** 31.3 s wall, 49 words, confidence reported (mean 69.8%), `tools/ocr-accuracy.py` content **89.4% (42/47)**, median offset 2.91 pt. **`ocrs`:** 34.5 s, confidence none, content **100% (47/47)**, median offset 2.60 pt. `ocrcer` loses on content on this one page.
+
+**Owed follow-ups.** (a) Switch `ocrcer-core` to a pinned git dependency, then merge. (b) `pdfcer-gui` engine selection — not done. (c) Adapter nit: `engine_ocrcer` carries no `MODEL_DIR`/`MODEL_FILE` constants as `engine_ocrs` does, so the CLI defines `OCRCER_MODEL_FILE` locally — reported to OCRcer. (d) The pre-existing `check-string-gaps.sh` failure from `2039521c`.
+
+**`docs/FEATURES.md`.** New *Text* row, "Choose the OCR engine": core `[x]`, cli `[x]`, gui `[ ]`, marked branch-only / not on `main`.
+
+**`docs/PRIOR_ART.md`.** `ocrcer-core` row added to *OCR engines* as ADOPTED (opt-in), plus a decision-log bullet.
+
+**Sourcing (hard rule 8).** `git show 7c520945` read: commit message, `Cargo.toml` feature/dependency lines, `DEPENDENCIES.md` row and `NEXT_SESSION.md` note confirmed. `OcrEngineArg`, `--ocr-engine`, `OCRCER_MODEL_FILE`, the three tests in `ocr_engine.rs`, and `engine_ocrs::MODEL_DIR` with no counterpart in `engine_ocrcer.rs` confirmed by grep. **Relayed from the engineer, not reproduced:** every test count, gate result, `cargo tree`/`cargo about` result and the smoke reading.
+
+### Ledger
+
+| ledger | before | after |
+|---|---|---|
+| Pass families | `326` (highest `.2`), next free `327` | **`Pass 327.0` SHIPPED ON BRANCH `ocrcer-engine` in `7c520945` — next free family `328`** |
+| Standing rules | `R258` next free per prior ledgers; `check-ledger-numbers.py` says `R251`, and grep finds no `R251`–`R257` defined | unchanged — no rule minted; known discrepancy still open, now leaning `R251` |
+| Decision records | `158` | **`159`** |
+| `SESSION_LOG` filings | `588` | **`589`** |
+| `docs/FEATURES.md` | no OCR-engine-choice row | **new *Text* row: core `[x]` cli `[x]` gui `[ ]`, branch-only** |
+| `docs/PRIOR_ART.md` | `ocrs` the only adopted OCR engine | **`ocrcer-core` row added (opt-in); decision-log bullet** |
+
+---
+
 ### `Pass 326.0` (`bb5a37a2`), 2026-09-23 — poster cut marks and labels get an engine-owned band and geometry (`G040`, `G041`)
 
 **The feature.** `pdfcer_print::imposition::plan_poster` now reserves `POSTER_MARK_BAND_PT` (18 pt) itself: along the top when `cut_marks || labels`, along the left when `cut_marks`; tiles are planned in what remains. `PosterTile::sheet_pt`/`trim_pt` already start inside the band — a band can cost an extra sheet, and one that leaves no printable area refuses (`ImpositionError::EmptySheet`). New `PosterLayout::mark_band_pt() -> (left, top)`; `cut_mark_segments(&tile) -> Vec<MarkSegment>` (one mark per leading cut line, collinear with it, `POSTER_MARK_GAP_PT` (3 pt) short of the drawing, wholly inside the band); `label_rect(&tile) -> Option<Rect>` (a box in the top band, height = font size). The engine gives geometry only — drawing the marks and the label text stays the caller's (`G040`). New free fn `poster_tile_label(row, column, rows, columns, document) -> String` (`G041`); `PosterLayout::tile_label` now delegates to it, so CLI and GUI print the same wording.

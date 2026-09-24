@@ -142,11 +142,13 @@ Full survey with measurements: `docs/ocr-engine-survey.md` (2026-08-12). The
 operator's decision (2026-08-12) was *"use whichever one is best for everyone
 including other languages, or heck, just build for both"* → **both, behind
 Cargo features**, ranked on multi-language coverage. `ocrs` is the first,
-adopted 2026-08-13 (`Pass 71.0` slice 3).
+adopted 2026-08-13 (`Pass 71.0` slice 3). `ocrcer-core` is the second,
+adopted opt-in 2026-09-24 (`Pass 327.0`, branch `ocrcer-engine`, not on `main`).
 
 | Crate | License | Verdict | Why |
 |---|---|---|---|
 | **`ocrs`** + the `rten` runtime (11 crates) | MIT OR Apache-2.0 throughout; `flatbuffers` beneath is Apache-2.0-only | **ADOPTED 2026-08-13**, feature `ocrs`, default ON | **The only surveyed engine that passes pdfcer's wasm32 CI gate** — verified empirically at adoption, not taken from the survey (`cargo check -p pdfcer-core -p pdfcer-render --target wasm32-unknown-unknown`, clean with the feature in the default set). Every alternative would have made OCR the first capability that cannot cross into the web fork. Adds 20 crates to the attribution file, **zero copyleft**, no new licence category. **No network is structural, not promised**: the model downloader lives in the separate `ocrs-cli` binary crate, so nothing linkable from `pdfcer-core` can fetch. **Reports NO per-word confidence** (`TextChar` is a char and a rect) — carried honestly through `reports_confidence() == false` rather than papered over. **Its WEIGHTS are CC-BY-SA-4.0 and are a separate question from the code**: not a Cargo dependency, therefore structurally invisible to `cargo-about`; `tools/check-shipped-assets.py` is what covers them. |
+| **`ocrcer-core`** (OCRcer, `D:\Dev\OCRcer`, same operator's project) | MIT | **ADOPTED 2026-09-24, OPT-IN** — feature `ocrcer`, default OFF (`Pass 327.0`, decision 159); **branch `ocrcer-engine` only, not on `main`** | Pure safe Rust, zero dependencies (`cargo tree`: a leaf), no I/O, wasm32-clean — so it passes the same wasm32 gate `ocrs` does. Reports per-word confidence, which `ocrs` does not. `THIRD_PARTY_LICENSES.md` unchanged (non-default). **Its model `ocrcer.ocrw` is a separate question from the code**, as with `ocrs`'s weights: not shipped, not downloaded. **No font data ships in the model file** — its prototype feature vectors derive from rendered OFL-1.1, Apache-2.0 and MIT faces, each listed in the model's `meta` (OCRcer `NOTICE`). **Blocker:** a LOCAL PATH dependency until OCRcer is published; no checkout without `../OCRcer` (incl. CI) resolves the workspace, so the branch must not merge until the dependency is pinned via git. |
 | **`ocr-rs`** (PaddleOCR) | Apache-2.0 | **not yet adopted** — the natural second engine | 50+ languages, materially better multi-language coverage than `ocrs`, which is the operator's stated ranking criterion. **No WASM**, so it cannot be the only engine; it is a strong candidate for the second, where the wasm32 build simply omits it. |
 | **Surya** | Apache-2.0 **code**, modified **Open RAIL-M weights** | **REJECTED — do not re-evaluate on accuracy** | The weights carry a **$5M revenue cap and field-of-use restrictions**, which cannot be bundled in an MIT application at any accuracy. Recorded by name because its benchmark numbers are attractive enough to invite a second look, and the disqualifier is not in them. |
 | **Tesseract** (via any binding) | Apache-2.0 upstream, **but the default Windows build ships LGPL binaries** | reference/precedent only | `PRIOR_ART`'s KillerPDF row cites it as a working bundled-OCR precedent; the LGPL binary detail means it is **not** the free default it appears to be. Native-only, so same wasm32 disqualification as PaddleOCR. |
@@ -653,3 +655,10 @@ the same way, in minutes, whenever they next matter.
   survey were all UNCOMMITTED at this filing (`git status --short`); the
   engineer commits them after this record. `x509-parser` row untouched —
   still the verification-side candidate it was, still not taken.
+- **2026-09-24 (`Pass 327.0`, 589th filing, decision 159)** — `ocrcer-core` (MIT, OCRcer
+  project by the same operator) adopted as an **opt-in** second OCR engine,
+  feature `ocrcer`, default OFF, by operator directive — an exception to the
+  default-ON strippable-capability convention. Zero transitive dependencies;
+  rule 13 did not fire; `THIRD_PARTY_LICENSES.md` unchanged. Local path
+  dependency on branch `ocrcer-engine` — must become a pinned git dependency
+  before it can merge to `main`.

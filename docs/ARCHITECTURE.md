@@ -4776,6 +4776,17 @@ no MAC verify, pins `cms =0.3.0-pre.1`), `pkcs5`/`pkcs8[encryption]` (no
 PBES1), `x509-cert` (certificates pass through raw), `p12-keystore`/`p12`
 (wasm32 fail; stale generation), `ring` (unchanged).
 
+**Seventh dependency: `ocrcer-core`, the first strippable capability that is
+default OFF (2026-09-24; §12 decision 159; `Pass 327.0`, branch
+`ocrcer-engine`).** MIT, zero dependencies, no `unsafe`, no I/O, wasm32-clean;
+behind `pdfcer-core`'s new feature `ocrcer`, forwarded by `pdfcer-render` and
+`pdfcer-cli`. The convention's default-ON rule protects a capability already
+relied on; OCRcer is not yet shown to match `ocrs`, so by operator directive it
+is opt-in and `ocrs` stays the default engine. `THIRD_PARTY_LICENSES.md` is
+unchanged because the shipping graph is. **While it is a local path
+dependency the branch cannot merge** — Cargo resolves optional path manifests
+too, so no checkout without `../OCRcer` resolves the workspace.
+
 ## 10. Adversarial input hardening & fuzzing
 
 `pdfcer-core` parses files from the public internet by design — every
@@ -11105,3 +11116,17 @@ per the operator's own ordered plan in `docs/NEXT_SESSION.md`).
 **Sourcing (hard rule 8) — no shell this filing.** Taken from the requesting engineer's own report of `Pass 307.0`'s shipped work. Not independently re-verified against live `crates/pdfcer-core/` source, commit contents, or the cited spec RAG file — no shell available to this filing; a session with one should confirm `729cf6db` before treating the code-level claims above as ground truth.
 
 **Decision ceiling: `157` → `158`**, next free `159`. **Standing rules ceiling: `R257` used, next free `R258`** — `R197` gains a dated instance this filing (see `ROADMAP.md` *Standing rules*), no new mint. **Pass ceiling: `Pass 306.0` → `Pass 307.0`**, next free family `309` (family `308` remains claimed, unshipped).
+
+### 2026-09-24 (589th filing, `Pass 327.0`, `7c520945`) — decision 159: OCRCER IS ADOPTED AS AN OPT-IN SECOND OCR ENGINE — A NON-DEFAULT FEATURE BY OPERATOR DIRECTIVE, THE ONE EXCEPTION TO THE DEFAULT-ON STRIPPABLE-CAPABILITY CONVENTION; `ocrs` STAYS THE DEFAULT; THE BRANCH DOES NOT MERGE WHILE THE DEPENDENCY IS A LOCAL PATH
+
+**Status: DECIDED (operator directive, Ken, 2026-09-24).** Integrate OCRcer (`D:\Dev\OCRcer`: MIT, pure safe Rust, zero dependencies, no I/O, wasm32) beside `ocrs` as an opt-in engine. `ocrs` stays the default; accuracy work comes later; local path dependency now, pinned git dependency later.
+
+**What was decided.** New `pdfcer-core` feature `ocrcer` (default OFF) gating `ocr::engine_ocrcer` — OCRcer's own `integration/pdfcer/ocrcer_engine.rs`, applied unmodified — forwarded by `pdfcer-render` and `pdfcer-cli`; `pdfcer ocr --ocr-engine ocrs|ocrcer`, default `ocrs`, refused by name (exit 64) in a build without the feature. The default-ON convention exists to protect a capability already relied on; an engine not yet shown to match the default earns no default slot. The head-to-head decides whether that changes.
+
+**Merge condition.** Cargo reads every path dependency's manifest when building the lockfile, optional or not, so a checkout without `../OCRcer` — GitHub CI included — cannot resolve the workspace at all. The branch `ocrcer-engine` does not merge to `main` until OCRcer is published and `ocrcer-core` is a pinned git dependency.
+
+**Body-section effects.** §9 gains a paragraph naming `ocrcer-core` as the first default-OFF strippable capability. `docs/PRIOR_ART.md` *OCR engines* gains the adopted row; `docs/DEPENDENCIES.md` gained its row in `7c520945`. Open operator question `(bl)` (whether `ocrs`'s CC-BY-SA-4.0 weights may ship) is untouched — OCRcer's model is not shipped either.
+
+**Sourcing (hard rule 8).** `git show 7c520945` read; the directive and gate results are relayed from the dispatching engineer, not reproduced.
+
+**Decision ceiling: `158` → `159`**, next free `160`. **Pass ceiling: `Pass 327.0`**, next free family `328`.
