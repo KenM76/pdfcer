@@ -7,6 +7,9 @@ rust-version.workspace = true
 authors.workspace = true
 publish.workspace = true
 license.workspace = true
+# One integration-test binary per crate (tests/all.rs); see
+# tools/check-tests-harnessed.py.
+autotests = false
 
 [features]
 # Render instrumentation for `tools/render-profile`. OFF by default and
@@ -171,6 +174,10 @@ png = "0.17"
 # this consumer. License: (MIT OR Apache-2.0) AND IJG — the IJG clause is
 # already carried in THIRD_PARTY_LICENSES.md for core's use.
 jpeg-encoder = { version = "0.7", default-features = false, features = ["std"] }
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
 
 [dev-dependencies]
 # flate2: TEST-ONLY. The image tests need a genuinely Flate-encoded

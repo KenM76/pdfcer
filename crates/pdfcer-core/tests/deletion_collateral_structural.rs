@@ -53,7 +53,7 @@
 //!
 //! That split is **measured, not asserted**: neutering the three guards
 //! reddens exactly the twelve and leaves the eight green
-//! (`cargo test --release -p pdfcer-core --test deletion_collateral_structural`
+//! (`cargo test --release -p pdfcer-core --test all deletion_collateral_structural::`
 //! under sabotage). Per `R239` the figure above is one a reader can re-derive —
 //! count the tests naming a `*-control.pdf` fixture — rather than one they have
 //! to trust. **It was wrong when first written** (it said "seven of the

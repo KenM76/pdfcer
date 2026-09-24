@@ -131,3 +131,12 @@ pdfcer-print = { path = "crates/pdfcer-print" }
 # here like the others, so each shell re-enables `download` through its own
 # [features] block -- the forwarding the convention requires.
 pdfcer-fetch = { path = "crates/pdfcer-fetch", default-features = false }
+
+# `cargo test` debuginfo: file:line in panics and backtraces, no variable
+# info. Full debuginfo on ~600 linked test and example targets exhausted this
+# machine's memory at link time (Pass 328.0). Debugger builds use `dev`.
+[profile.test]
+debug = "line-tables-only"
+
+[profile.test.package."*"]
+debug = false

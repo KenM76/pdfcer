@@ -903,7 +903,7 @@ first — if it dies, fall back to the throwaway release test below rather
 than assuming it will always fail.
 
 Take timings through a throwaway release test in `pdfcer-render` instead
-(`cargo test -p pdfcer-render --release --test <name> -- --nocapture`); it
+(`cargo test -p pdfcer-render --release --test all <file>:: -- --nocapture`); it
 builds in a couple of minutes and can call `render_page` directly. Hash
 `out.pixmap.data()` in the same test and you get the A/B and the
 byte-identity proof from one run. Delete the file before committing.

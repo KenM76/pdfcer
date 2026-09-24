@@ -879,7 +879,7 @@ fn producers_never_modify_the_source_document() {
 ///
 /// ```text
 /// PDFCER_CORPUS="fixtures/external/veraPDF-corpus" \
-///   cargo test -p pdfcer-core --test page_ops -- --ignored --nocapture
+///   cargo test -p pdfcer-core --test all page_ops:: -- --ignored --nocapture
 /// ```
 ///
 /// It reports rather than asserts a threshold: the number that matters

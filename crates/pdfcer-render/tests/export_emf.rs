@@ -498,6 +498,7 @@ fn inkscape_imports_the_vector_metafile_like_pdfcer_when_installed() {
         println!("export_emf: Inkscape not installed here; the import oracle did not run");
         return;
     };
+    let _inkscape = crate::external_tools::inkscape_lock();
     let dir = scratch_dir("inkscape");
     for (name, resources, content, vector_only) in oracle_fixtures() {
         if !vector_only {

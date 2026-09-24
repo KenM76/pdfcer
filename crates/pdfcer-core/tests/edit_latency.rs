@@ -5,7 +5,7 @@
 //! is a real-world CAD export that `docs/LEGAL.md` §5 forbids checking in.
 //!
 //! ```text
-//! cargo test -p pdfcer-core --release --test edit_latency -- --ignored --nocapture
+//! cargo test -p pdfcer-core --release --test all edit_latency:: -- --ignored --nocapture
 //! ```
 //!
 //! ## Why this exists in `pdfcer` and not only in the shell

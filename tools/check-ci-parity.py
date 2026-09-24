@@ -123,6 +123,7 @@ LOCAL = {
     "tools/check-suite-name-absent.py": "python tools/check-suite-name-absent.py",
     "tools/check-control-bytes.py": "python tools/check-control-bytes.py",
     "tools/check-ocrcer-vendored.py": "python tools/check-ocrcer-vendored.py",
+    "tools/check-tests-harnessed.py": "python tools/check-tests-harnessed.py",
     "tools/check-string-gaps.sh": "bash tools/check-string-gaps.sh",
     "tools/check-public-fns-documented.py": "python tools/check-public-fns-documented.py",
     "tools/check-cited-commits-exist.py": "python tools/check-cited-commits-exist.py",

@@ -513,6 +513,7 @@ fn inkscape_renders_the_export_like_pdfcer_when_it_is_installed() {
         println!("export_svg: Inkscape not installed here; the end-to-end oracle did not run");
         return;
     };
+    let _inkscape = crate::external_tools::inkscape_lock();
     let dir = std::env::temp_dir().join(format!("pdfcer-svg-oracle-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     for (name, bytes) in [
