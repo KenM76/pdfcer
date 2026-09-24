@@ -115,6 +115,18 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 328.0` (`cc6cd70c`), 2026-09-24 — one test binary per crate, reduced test debuginfo, gate against a dropped test file
+
+**Verdict: SHIPPED.** Fixes the `cargo test --workspace` OOM (`LNK1102`, `rustc` exit `0xc0000409`) that forced a `--jobs 2` workaround, by collapsing 263 separately-linked integration-test binaries to 3 (one per crate — `pdfcer-core`, `pdfcer-render`, `pdfcer-cli`) and dropping test-binary debuginfo to line-tables-only.
+
+**How.** `autotests = false` + a single `[[test]] name = "all"` per crate, whose `tests/all.rs` declares every existing `tests/*.rs` as a `mod` — files stay in place. `[profile.test] debug = "line-tables-only"`, `[profile.test.package."*"] debug = false` (`[profile.dev]` unchanged). New gate `tools/check-tests-harnessed.py` (`--write` regenerates `all.rs`; refuses a `tests/*.rs` file `autotests = false` would otherwise drop silently) in CI's `audits` job (now 26 checks) and `run-gates.sh`; registered in `check-ci-parity.py`.
+
+**Found by the change.** Merging the binaries turned separate-process test files into concurrent threads of one process; `tests/external_tools.rs`'s SVG/EMF Inkscape oracles collided on Inkscape's single-instance D-Bus registration (`Gio::DBus::Error`) — serialized with a `Mutex`.
+
+**Results.** `cargo test --workspace`: 5,684 passed / 2 ignored, identical to baseline `1d7654aa`, in 166 s at default parallelism (previously needed `--jobs 2` to finish at all). Link-step count 263 → 3; `target/debug` test-executable footprint roughly 1.29 GB → 64 MB. `run-gates.sh` 35/36 green, the one red being this filing's own oversized Next-up entry, closed by this filing. No `cargo tree` change (no dependency added). `docs/FEATURES.md`: no rows (tooling, not a feature — same reasoning as `Pass 325.0`). No core-api change.
+
+Full reasoning and the three RAG findings (module merging, cross-thread concurrency hazard, `[profile.test]` scope) are in commit `cc6cd70c90b836e3b367e3b95d18e76dfd2787c3` and `D:\dev\rag\rust\`.
+
 ### `Pass 327.1` (`748d268c`/`998adb96`), 2026-09-24 — `ocrcer-core` vendored and built by default; `ocrcer-engine` fast-forwarded into `main` (local, push pending)
 
 **Operator directive (Ken, 2026-09-24), verbatim.** *"add ocrcer as an ocr option. It is also working on LLM support which should be its own add-in option too when it is available."* And separately: *"always use the latest version of ocrcer available in d:\dev\ocrcer . github might be a few versions behind."* Decision `160` (`ARCHITECTURE.md` §12), amending decision `159`.

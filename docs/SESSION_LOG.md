@@ -4,6 +4,42 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-24 (592nd filing) — `Pass 328.0` SHIPPED (`cc6cd70c`): one test binary per crate + reduced test debuginfo + `check-tests-harnessed.py`, fixing the `cargo test --workspace` OOM
+
+**Shipped:**
+- `Pass 328.0` (`cc6cd70c`) — 263 linked integration-test binaries collapsed to 3 (one per crate) via `autotests = false` + `tests/all.rs`; `[profile.test]` debuginfo to line-tables-only; new gate `tools/check-tests-harnessed.py` (CI `audits`, now 26 checks; `run-gates.sh`; `check-ci-parity.py`).
+
+**Decisions made this session:** none new.
+
+**Findings + decisions:**
+- `cargo test --workspace`: 5,684 passed / 2 ignored — identical to baseline `1d7654aa` — in 166 s at default parallelism (previously needed `--jobs 2`). Link steps 263 → 3; test-executable footprint ~1.29 GB → 64 MB. `run-gates.sh` 35/36 green (the one red was the prior filing's oversized Next-up entry, closed by this filing).
+- Merging the binaries turned separate-process test files into concurrent threads of one process; `tests/external_tools.rs`'s Inkscape oracles collided on Inkscape's own single-instance D-Bus registration, fixed with a `Mutex`.
+- Three findings graduated to `D:\dev\rag\rust\` (each its own file, `index.md` updated): the `autotests = false` + `tests/all.rs` merge pattern and its silent-drop trap; the same-process concurrency hazard it exposes; `[profile.test]` scoping over the whole build graph including dependencies.
+
+**Still in flight:** none named this filing.
+
+**For next session:** nothing owed from this Pass.
+
+**Sourcing (hard rule 8).** No shell this filing — commit hash, test counts, gate results and the three findings are relayed from the dispatching engineer's report of commit `cc6cd70c`, not independently reproduced here.
+
+## 2026-09-24 (591st filing) — `Pass 328.0` filed (*Next up*): one test binary per crate + reduced test debuginfo + an unlisted-test gate, fixing the `cargo test --workspace` OOM
+
+**Shipped:** none — filing only.
+
+**Decisions made this session:** none new; scopes the engineer's own diagnosis into a Pass.
+
+**Findings + decisions:**
+- Operator (Ken, 2026-09-24) asked whether best-practice cleanup would make the gates easier to run on this machine. Engineer's answer: the real fix is fewer test binaries and lighter test debuginfo, not general cleanup — operator said yes to building that as the next Pass.
+- Measured at `1d7654aa`: `crates/pdfcer-core/tests/` 161 files, `pdfcer-render/tests/` 53, `pdfcer-cli/tests/` 49 — 263 separately linked test binaries for one `cargo test --workspace` run, each statically linking `pdfcer-core` with full debuginfo. Observed OOM failures: `LNK1102` on an example, `rustc` exiting `0xc0000409` on `pdfcer-render`'s tests. Current workaround: `-j 2`.
+
+**Still in flight:**
+- `Pass 328.0` — NOT STARTED. Plan: one `tests/all.rs` per crate via `#[path] mod` inclusion + `autotests = false`; `[profile.test]` debuginfo to line-tables-only; a new gate refusing a `tests/*.rs` file absent from its crate's `all.rs`.
+
+**For next session:**
+- Build `Pass 328.0`. Acceptance: same passing count as `1d7654aa` (5,684, default features); `--all-features` and `-p pdfcer-core --no-default-features` still pass; `tools/run-gates.sh` green; new gate wired into CI + `check-ci-parity.py`; link-step count and `target/debug` size recorded before/after in the Shipped entry.
+
+**Sourcing (hard rule 8).** No shell this filing — file counts, OOM symptoms and the passing-test count are relayed from the dispatching engineer's report of measurements at `1d7654aa`, not independently reproduced here.
+
 ## 2026-09-24 (590th filing) — `Pass 327.1` (`748d268c`/`998adb96` + 4 follow-on commits): `ocrcer-core` vendored + default ON, `ocrcer-engine` fast-forwarded into `main` locally (push pending); `Pass 327.2` filed (OCRcer LLM rescoring, BLOCKED)
 
 **Shipped:**
