@@ -718,6 +718,16 @@ Three observations that change the shape of the decision:
   `wldap32`, `ws2_32`) ships with Windows, so nothing else is needed on the
   target machine and §2.4's "no system-wide runtime" holds.
 
+**Measured 2026-09-25 — the projection above is superseded.** A vcpkg static
+MSVC build (`x64-windows-static-release`, static CRT) of Tesseract 5.5.2 with
+`DISABLE_CURL`, `DISABLE_ARCHIVE` and `GRAPHICS_DISABLED` is **one 5.37 MB
+`tesseract.exe` with no DLLs**, importing only `KERNEL32.dll`. With `eng`
+from tessdata_fast (4.1 MB) and the licence files the whole folder is 9.7 MB,
+with no VC++ redistributable. `GRAPHICS_DISABLED` is a third option §4.3 did
+not list: without it the ScrollView debug viewer's socket code makes the exe
+import `WS2_32.dll`. The GCC-runtime-exception question is moot, because no
+MinGW runtime is involved. Build recipe: `tools/tesseract/README.md`.
+
 **Verdict on the single-folder constraint: Tesseract passes**, by measurement
 rather than by hope. It is not disqualified here. It is simply expensive —
 call it **~28 MB (MSVC, projected) to ~54 MB (MinGW, measured)** added to

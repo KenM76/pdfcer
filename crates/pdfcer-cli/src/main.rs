@@ -530,6 +530,9 @@ use pdfcer_core::outline::{DestView, Destination, DestinationReader, RemoteTarge
 use pdfcer_core::pageops::{DocumentView, InsertPosition, PageOpError, SplitCriterion};
 use pdfcer_core::signature::{SaveMode as CoreSaveMode, SignatureImpact};
 
+mod clipboard;
+mod tesseract;
+
 /// Exit-code assignments for pdfcer's scriptable contract.
 ///
 /// These are stable, documented values — changing one is a
@@ -537,8 +540,6 @@ use pdfcer_core::signature::{SaveMode as CoreSaveMode, SignatureImpact};
 /// code, so treat them the way the public API surface is treated. New
 /// failure modes get new codes rather than reusing an existing one with a
 /// broadened meaning.
-mod clipboard;
-
 mod exit {
     /// Everything succeeded.
     pub const SUCCESS: u8 = 0;
@@ -3449,7 +3450,8 @@ enum Command {
         /// cheap to try — the flag exists because no single value is right.
         #[arg(long, default_value_t = 150.0)]
         dpi: f32,
-        /// Which recogniser reads the page: `ocrs` (the default) or `ocrcer`.
+        /// Which recogniser reads the page: `ocrs` (the default), `ocrcer`
+        /// or `tesseract`.
         ///
         /// `ocrcer` is the OCRcer engine (MIT, pure Rust), in every standard
         /// build; one compiled with `--no-default-features` and without the
@@ -3458,18 +3460,34 @@ enum Command {
         /// pdfcer does not ship or download: build or copy it from the
         /// OCRcer project (`model/out/ocrcer.ocrw`) into `models/ocrcer`
         /// beside this executable, or name its folder with `--model-dir`.
+        ///
+        /// `tesseract` runs the Tesseract program (Apache-2.0) in
+        /// `models/tesseract`, which holds `tesseract.exe` and a `tessdata`
+        /// folder of language files. It reads 100+ languages (see
+        /// `--ocr-lang`) and reports a per-word confidence. A stock
+        /// Tesseract install has the same layout, so `--model-dir` can name
+        /// its folder directly.
         #[arg(long, value_enum, default_value_t = OcrEngineArg::Ocrs)]
         ocr_engine: OcrEngineArg,
         /// Directory holding the selected engine's model files.
         ///
         /// When omitted, `models/<engine>` beside this executable is used —
         /// `models/ocrs` (two `.rten` files, shipped in the portable
-        /// package) or `models/ocrcer` (`ocrcer.ocrw`, not shipped). A
+        /// package), `models/ocrcer` (`ocrcer.ocrw`, not shipped) or
+        /// `models/tesseract` (`tesseract.exe` plus `tessdata`). A
         /// path given here that lacks the engine's files is REPORTED,
         /// never quietly replaced by the bundled copy — running a different
         /// model from the one you named is the sneaky half of rule 4.
         #[arg(long)]
         model_dir: Option<PathBuf>,
+        /// Languages for `--ocr-engine tesseract`, joined by `+`: `eng`,
+        /// `deu`, `eng+fra`, `jpn`.
+        ///
+        /// Each needs `<code>.traineddata` in the engine's `tessdata` folder;
+        /// a missing one is refused by name. Ignored by the other engines,
+        /// which have no language choice.
+        #[arg(long, default_value = "eng")]
+        ocr_lang: String,
         /// Print each recognised word and its page-space rectangle.
         ///
         /// The way to check POSITION rather than content: a layer can be
@@ -9861,6 +9879,8 @@ enum OcrEngineArg {
     Ocrs,
     /// The OCRcer engine. Needs a build with the ocrcer feature and the model file ocrcer.ocrw.
     Ocrcer,
+    /// The Tesseract program in models/tesseract. Choose languages with --ocr-lang.
+    Tesseract,
 }
 
 impl OcrEngineArg {
@@ -9869,6 +9889,7 @@ impl OcrEngineArg {
         match self {
             Self::Ocrs => "ocrs",
             Self::Ocrcer => "ocrcer",
+            Self::Tesseract => tesseract::MODEL_DIR,
         }
     }
 }
@@ -11338,6 +11359,7 @@ fn run() -> ExitCode {
             dpi,
             ocr_engine,
             model_dir,
+            ocr_lang,
             words,
             dump_image,
             existing,
@@ -11349,6 +11371,7 @@ fn run() -> ExitCode {
             dpi,
             ocr_engine,
             model_dir.as_deref(),
+            &ocr_lang,
             words,
             dump_image.as_deref(),
             existing,
@@ -14481,6 +14504,7 @@ enum LoadedOcrEngine {
     Ocrs(pdfcer_core::ocr::engine_ocrs::OcrsEngine),
     #[cfg(feature = "ocrcer")]
     Ocrcer(Box<pdfcer_core::ocr::engine_ocrcer::OcrcerEngine>),
+    Tesseract(tesseract::TesseractEngine),
 }
 
 impl LoadedOcrEngine {
@@ -14499,6 +14523,7 @@ impl LoadedOcrEngine {
             Self::Ocrcer(e) => e
                 .recognize(width, height, pixels)
                 .map_err(|e| e.to_string()),
+            Self::Tesseract(e) => e.recognize(width, height, pixels),
         }
     }
 
@@ -14508,6 +14533,8 @@ impl LoadedOcrEngine {
             Self::Ocrs(e) => e.reports_confidence(),
             #[cfg(feature = "ocrcer")]
             Self::Ocrcer(e) => e.reports_confidence(),
+            // Tesseract's TSV carries a `conf` column on every word row.
+            Self::Tesseract(_) => true,
         }
     }
 }
@@ -14521,6 +14548,8 @@ impl LoadedOcrEngine {
 fn load_ocr_engine(
     choice: OcrEngineArg,
     model_dir: Option<&Path>,
+    ocr_lang: &str,
+    dpi: f32,
 ) -> Result<(LoadedOcrEngine, pdfcer_core::ocr::models::ModelSource), u8> {
     use pdfcer_core::ocr::models;
 
@@ -14615,6 +14644,39 @@ fn load_ocr_engine(
             );
             Err(exit::UNIMPLEMENTED)
         }
+        OcrEngineArg::Tesseract => {
+            let source = match models::resolve_model_dir_with(
+                tesseract::MODEL_DIR,
+                model_dir,
+                exe_dir.as_deref(),
+                None,
+                &[tesseract::EXE_FILE],
+            ) {
+                Ok(src) => src,
+                Err(err) => {
+                    eprintln!("pdfcer: ocr: {err}");
+                    eprintln!(
+                        "pdfcer: ocr: Tesseract is a folder holding `{}` and a `{}` folder of \
+                         language files. The portable package ships it as `models/tesseract`; \
+                         otherwise pass --model-dir <folder>, which may be a stock Tesseract \
+                         install.",
+                        tesseract::EXE_FILE,
+                        tesseract::TESSDATA_DIR
+                    );
+                    return Err(exit::RUNTIME_ERROR);
+                }
+            };
+            match tesseract::TesseractEngine::from_dir(source.path(), ocr_lang, dpi) {
+                Ok(e) => {
+                    eprintln!("pdfcer: ocr: running {} (-l {ocr_lang})", e.exe().display());
+                    Ok((LoadedOcrEngine::Tesseract(e), source))
+                }
+                Err(err) => {
+                    eprintln!("pdfcer: ocr: {err}");
+                    Err(exit::RUNTIME_ERROR)
+                }
+            }
+        }
     }
 }
 
@@ -14651,6 +14713,7 @@ fn cmd_ocr(
     dpi: f32,
     engine_choice: OcrEngineArg,
     model_dir: Option<&Path>,
+    ocr_lang: &str,
     show_words: bool,
     dump_image: Option<&Path>,
     existing: ExistingOcrArg,
@@ -14712,7 +14775,7 @@ fn cmd_ocr(
     };
     let page = &pages[index];
 
-    let (engine, source) = match load_ocr_engine(engine_choice, model_dir) {
+    let (engine, source) = match load_ocr_engine(engine_choice, model_dir, ocr_lang, dpi) {
         Ok(loaded) => loaded,
         Err(code) => return code,
     };

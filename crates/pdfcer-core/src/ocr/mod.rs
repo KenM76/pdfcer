@@ -80,6 +80,9 @@ pub mod engine_ocrs;
 /// applied unmodified.
 #[cfg(feature = "ocrcer")]
 pub mod engine_ocrcer;
+/// Reader for Tesseract's TSV output. Parsing only: the shell runs
+/// `tesseract.exe`, so this crate never spawns a process.
+pub mod tesseract_tsv;
 
 use crate::page_tree::Rect;
 

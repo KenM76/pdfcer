@@ -315,6 +315,21 @@ def main() -> int:
     if copied_assets:
         print(f"package-portable: staged {len(copied_assets)} model file(s)")
 
+    # Tesseract is built, not committed: `tools/tesseract/build-tesseract.py`
+    # leaves a self-contained folder (exe, tessdata, LICENSES, PROVENANCE.md)
+    # that ships whole as `models/tesseract`.
+    tess_src = REPO / "target" / "tesseract-bundle"
+    if (tess_src / "tesseract.exe").is_file() and (tess_src / "PROVENANCE.md").is_file():
+        shutil.copytree(tess_src, out / "models" / "tesseract")
+        n = sum(1 for f in tess_src.rglob("*") if f.is_file())
+        print(f"package-portable: staged models/tesseract ({n} files)")
+    else:
+        print(
+            "package-portable: WARNING — no Tesseract bundle at target/tesseract-bundle; "
+            "`--ocr-engine tesseract` will need --model-dir. "
+            "Run tools/tesseract/build-tesseract.py to include it."
+        )
+
     # --- what changed since the last build ----------------------------------
     prev = previous_build_commit(args.dest)
     if prev:

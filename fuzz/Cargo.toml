@@ -522,3 +522,10 @@ bench = false
 name = "trust_store"
 path = "fuzz_targets/trust_store.rs"
 test = false
+
+[[bin]]
+name = "tesseract_tsv"
+path = "fuzz_targets/tesseract_tsv.rs"
+test = false
+doc = false
+bench = false

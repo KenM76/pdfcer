@@ -211,6 +211,22 @@ resulting model under CC-BY-SA-4.0 or a compatible licence.
 The human-readable licence deed is linked above; the full legal code is at
 <https://creativecommons.org/licenses/by-sa/4.0/legalcode>.
 
+### Bundled Tesseract OCR program (Apache-2.0)
+
+`models/tesseract/tesseract.exe` is [Tesseract](https://github.com/tesseract-ocr/tesseract)
+(Apache-2.0), built unmodified by `tools/tesseract/build-tesseract.py` as
+one static executable. It runs as a separate program; pdfcer does not link
+it. The libraries compiled into it (Leptonica, libjpeg-turbo, libpng,
+libtiff, libwebp, OpenJPEG, giflib, zlib, liblzma and others) are all
+permissively licensed; their licence texts ship beside it in
+`models/tesseract/LICENSES/`, one file per library. curl and libarchive are
+excluded from the build, so no LGPL code is included.
+
+The language data in `models/tesseract/tessdata/` is from
+[tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast) tag 4.1.0,
+Apache-2.0, unmodified; SHA-256 hashes are in
+`models/tesseract/PROVENANCE.md`.
+
 ### Bundled Foxit substitute faces (BSD-3-Clause, via pdfium)
 
 The 14 CFF font files in `crates/pdfcer-render/assets/fonts/`

@@ -2437,7 +2437,25 @@ OCRcer by `tools/sync-ocrcer.py`; do not edit it here.
 | `OcrcerEngine::from_bytes(&[u8]) -> Result<Self, ocrcer_core::Error>` — a malformed or non-`.ocrw` file is an `Err` | `engine_ocrcer.rs:84` |
 | `MODEL_DIR` `"ocrcer"` · `MODEL_FILE` `"ocrcer.ocrw"` — resolve the folder with piece 4, then read `MODEL_FILE` inside it | `engine_ocrcer.rs:53`, `:56` |
 
-To offer an engine choice: pass `"ocrs"` or `"ocrcer"` to
+**Piece 3c — Tesseract, parse only** (`crates/pdfcer-core/src/ocr/tesseract_tsv.rs`, always compiled)
+
+Tesseract is a separate program, and core never spawns processes (wasm32), so
+core only **parses its output**. The shell runs `tesseract <img> stdout -l
+<langs> --dpi <n> -c tessedit_create_tsv=1 -c tessedit_create_txt=0` and hands
+stdout to the parser. Use the `-c` switches, not the `tsv` config name: that
+name needs a `tessdata/configs` file the bundle does not ship. The CLI's
+`pdfcer-cli/src/tesseract.rs` is the reference caller. The portable package
+ships `models/tesseract/{tesseract.exe, tessdata/}`; a stock install has the
+same layout.
+
+| item | `file:line` |
+|---|---|
+| `parse_tsv(&str) -> Result<Vec<RecognizedWord>, TsvError>` — word rows (level 5) only; rects are **image pixels, y-down**, like every engine; conf −1 → `None`, else conf/100 | `tesseract_tsv.rs:72` |
+| `TsvError` (`MissingHeader`, `BadRow { line, reason }`), `#[non_exhaustive]` | `tesseract_tsv.rs:30` |
+
+Tesseract reports confidence, so pass `confidence_available: true`.
+
+To offer an engine choice: pass `"ocrs"`, `"ocrcer"` or `"tesseract"` to
 `OcrLayerOptions::with_engine` so the text-layer marker names what recognised
 it (the CLI does this). The CLI's `pdfcer ocr --ocr-engine ocrcer` is the
 reference caller.
