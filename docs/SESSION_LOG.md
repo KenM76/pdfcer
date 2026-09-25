@@ -4,6 +4,33 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-25 (593rd filing) — `Pass 329.0` SHIPPED (`3691999f`/`21af5926`): Tesseract as a third OCR engine, run as a subprocess, with a clean bundled static-MSVC build
+
+**Shipped:**
+- `Pass 329.0` (`3691999f`, `.gitattributes` fix `21af5926`) — `pdfcer ocr --ocr-engine tesseract [--ocr-lang eng+deu]`. Core parses TSV only (`ocr::tesseract_tsv::parse_tsv`, no process-spawning, wasm32-clean); CLI spawns `models/tesseract/tesseract.exe` (or `--model-dir`), PGM stdin / TSV stdout, per-word confidence. New `tools/tesseract/build-tesseract.py`: vcpkg overlay port, static MSVC triplet, `DISABLE_CURL`/`DISABLE_ARCHIVE`/`GRAPHICS_DISABLED` — 5.37 MB exe, imports only `KERNEL32.dll`, avoiding the LGPL DLLs the UB-Mannheim/MinGW builds carry. Not a Cargo dependency.
+
+**Decisions made this session:**
+- Decision `161` (`ARCHITECTURE.md` §12) — subprocess architecture, static-MSVC build rationale (GPL/LGPL avoidance), default bundled language `eng` only pending a new operator question `(cf)`.
+
+**Findings + decisions:**
+- The Tesseract `tsv` config-file name fails without a `tessdata/configs/` directory a minimal bundle omits; use `-c tessedit_create_tsv=1` instead.
+- `GRAPHICS_DISABLED` also removes a `WS2_32.dll` (sockets) import pulled in by Tesseract's debug `ScrollView` feature.
+- vcpkg caches an install even after an overlay port's files change (`vcpkg remove` first); `bootstrap-vcpkg.bat` fails via `cmd //c` from Git Bash (call `scripts/bootstrap.ps1`); overlay `.patch` files need `eol=lf`. All three written to `D:\dev\rag\rust\`.
+- Measured on `fixtures/synthetic/ocr/scan.pdf`: 47/47 words, mean confidence 96.7%, median offset 2.04 pt (vs `ocrs` 2.60 pt) — fixture saturates, shows the pipeline works rather than ranking engines.
+- Fixed in passing: `crates/pdfcer-cli/src/main.rs` had `exit`'s doc comment mis-spliced onto `mod clipboard;`.
+- Routine, no Pass: `c3fed5bd` — OCRcer re-synced to local HEAD `4533f798d245` per decision 160's standing rule.
+
+**Still in flight:**
+- `main` has 3 unpushed local commits (`3691999f`, `21af5926`, `c3fed5bd`) plus this filing's own commit, pending push after `tools/run-gates.sh` green.
+- A release is optional — needs `build-tesseract.py` run on the packaging machine first (the exe is built, not vendored as a binary).
+
+**For next session:**
+- Push `main`.
+- Operator question `(cf)`: which languages beyond `eng` to bundle by default.
+- `target-case/` (untracked, repo root, unknown origin, 2026-09-24) — left alone, not investigated this session.
+
+**Sourcing (hard rule 8).** No shell this filing. All commits, measurements, gate/test results and RAG-lesson content above relayed from the dispatching engineer's report; not independently reproduced.
+
 ## 2026-09-24 (592nd filing) — `Pass 328.0` SHIPPED (`cc6cd70c`): one test binary per crate + reduced test debuginfo + `check-tests-harnessed.py`, fixing the `cargo test --workspace` OOM
 
 **Shipped:**

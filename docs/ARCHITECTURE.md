@@ -4367,6 +4367,17 @@ debug afterthought. Design points:
   decision (the wide, one-row-per-document shape for batch-filling
   many copies of one form is a distinct, unbuilt feature — see
   `docs/ROADMAP.md` *Backlog*).
+- **`pdfcer ocr --ocr-engine tesseract [--ocr-lang eng+deu]` — a third OCR
+  engine, run as a SUBPROCESS, not linked** (`Pass 329.0`, 2026-09-25; §12
+  decision 161). The page is piped to `models/tesseract/tesseract.exe` (or
+  `--model-dir`) as PGM on stdin; TSV comes back on stdout, via
+  `-c tessedit_create_tsv=1` rather than the `tsv` config-file name, which
+  the minimal bundle has no `tessdata/configs/` to satisfy. `pdfcer-core`
+  never spawns a process — it only parses the TSV
+  (`ocr::tesseract_tsv::parse_tsv`), keeping the crate wasm32-clean (§10;
+  rule 2) exactly like the `ocrs`/`ocrcer` engines' core halves. Per-word
+  confidence is reported, matching `ocrcer`; stdout is capped at 64 MB and
+  the subprocess window is suppressed.
 - **Exit codes matter.** Since this is meant to be genuinely scriptable
   (unlike Acrobat, which has no real CLI), follow normal Unix
   conventions: `0` success, non-zero on any failure, with a specific,
@@ -4792,6 +4803,24 @@ committed path dependency breaks every clone and CI lacking a sibling
 `../OCRcer` checkout. `THIRD_PARTY_LICENSES.md` gained the `ocrcer-core` MIT
 entry (`Pass 327.1`). `ocrcer-engine` is fast-forwarded into `main` locally;
 push follows a green `tools/run-gates.sh` sweep.
+
+**Eighth, NOT a Cargo dependency: Tesseract** (2026-09-25; §12 decision
+161; `Pass 329.0`). A standalone `tesseract.exe`, spawned as a subprocess
+by `pdfcer-cli` (see §7), never linked — `pdfcer-core` only parses its TSV
+output. pdfcer builds its own **static-MSVC** `tesseract.exe`/`leptonica`
+from a vcpkg overlay port (`tools/tesseract/build-tesseract.py`,
+`x64-windows-static-release`, `DISABLE_CURL`/`DISABLE_ARCHIVE`/
+`GRAPHICS_DISABLED`) rather than shipping the UB-Mannheim or official
+MinGW builds, both of which carry LGPL runtime DLLs
+(`libunistring`/`libiconv`/`libintl` via curl) and GCC-runtime-exception
+binaries — measured result: 5.37 MB, importing only `KERNEL32.dll`.
+`tessdata_fast` 4.1.0 `eng` is SHA-256 pinned; bundle is 9.7 MB with a
+`LICENSES/` folder, all permissive; attribution generated into `about.hbs`
+alongside the `jpeg-encoder`/IJG entry above. `tools/package-portable.py`
+stages it as `models/tesseract`. Precedent: NAPS2 ships a comparable
+static-MSVC subprocess `tesseract.exe` but still links curl and libarchive;
+pdfcer's build disables both. Default bundled language is `eng` only —
+open operator question `(cf)`, `docs/ROADMAP.md`.
 
 ## 10. Adversarial input hardening & fuzzing
 
@@ -11152,3 +11181,48 @@ per the operator's own ordered plan in `docs/NEXT_SESSION.md`).
 **Sourcing (hard rule 8).** No shell this filing. Taken from the dispatching engineer's own report of `748d268c`/`998adb96`; not independently re-verified against live source or commit contents.
 
 **Decision ceiling: `159` → `160`**, next free `161`. **Pass ceiling: `Pass 327.1`**, next free family `328`.
+
+### 2026-09-25 (593rd filing, `Pass 329.0`, `3691999f`/`21af5926`) — decision 161: TESSERACT SHIPS AS A SUBPROCESS, BUILT STATIC-MSVC FROM A VCPKG OVERLAY PORT, NOT LINKED AND NOT A CARGO DEPENDENCY
+
+**Status: DECIDED (operator directive, Ken, 2026-09-25 — "How can we supply
+tesseract as an ocr option?" then "Let's work on bundling a clean copy.").**
+
+**What was decided.** (a) Tesseract is a third `--ocr-engine`, spawned by
+`pdfcer-cli` as a SUBPROCESS (`models/tesseract/tesseract.exe` or
+`--model-dir`), never linked as a library — `pdfcer-core` only parses its
+TSV output (`ocr::tesseract_tsv::parse_tsv`), so core stays free of
+process-spawning and wasm32-clean, matching the `ocrs`/`ocrcer` split. (b)
+pdfcer builds its own **static-MSVC** exe via a vcpkg overlay port
+(`tools/tesseract/build-tesseract.py`, `x64-windows-static-release`,
+`DISABLE_CURL`/`DISABLE_ARCHIVE`/`GRAPHICS_DISABLED`) rather than adopting
+an existing distribution, because the UB-Mannheim and official MinGW builds
+both carry LGPL runtime DLLs (`libunistring`/`libiconv`/`libintl`, pulled
+in via curl) and GCC-runtime-exception binaries — categorically excluded
+alongside GPL/AGPL per `LEGAL.md` §6.1's spirit even though LGPL itself is
+not blanket-refused, because these are static-linkable-avoidable and the
+project already disables optional network code (`ARCHITECTURE.md` §1.1) and
+carries no socket code elsewhere. Precedent: NAPS2 ships a comparable
+static-MSVC subprocess `tesseract.exe` but still links curl and libarchive;
+pdfcer's build disables both, going further. (c) Default bundled language
+set is **`eng` only** (4 MB) until the operator says otherwise — this is
+OPEN, recorded as a new lettered operator question, **`(cf)`**, in
+`docs/ROADMAP.md`'s *Open operator questions* section (ceiling `(ce)` →
+`(cf)`).
+
+**Body-section effects.** §7 gains a dated bullet for
+`pdfcer ocr --ocr-engine tesseract`. §9 gains an eighth paragraph, marked
+explicitly NOT a Cargo dependency (no `THIRD_PARTY_LICENSES.md` change).
+`docs/core-api/03-capabilities.md` "Piece 3c", `docs/PRIOR_ART.md`'s
+Tesseract row and `docs/ocr-engine-survey.md` §4.4 were already updated by
+the engineer in `3691999f`. `docs/FEATURES.md`'s "Choose the OCR engine"
+row replaced (not appended) to add `tesseract`.
+
+**Sourcing (hard rule 8).** No shell this filing. Taken from the
+dispatching engineer's own report of `3691999f`/`21af5926` (Pass 329.0
+code + a `.gitattributes` fix for the vendored overlay port's `.patch`
+files) and of the measured build/test/fuzz results quoted in
+`docs/ROADMAP.md`'s Pass 329.0 entry; not independently re-verified against
+live source or commit contents.
+
+**Decision ceiling: `160` → `161`**, next free `162`. **Pass ceiling: `Pass
+329.0`**, next free family `330`.

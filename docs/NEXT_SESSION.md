@@ -5,7 +5,8 @@ detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
 **Written:** 2026-09-12, after `Pass 300.3` and the 530th filing.
-**Amended:** 2026-09-23, after `Pass 326.2` and the 588th filing; **2 commits UNPUSHED** — see the 2026-09-23 **SINCE THE LAST HANDOFF** block at the top of STATE.
+**Amended:** 2026-09-25, after `Pass 329.0` and the 593rd filing (Tesseract OCR engine); **at least 3 commits UNPUSHED** (`3691999f`, `21af5926`, `c3fed5bd`) plus this filing's own — see the 2026-09-25 **SINCE THE LAST HANDOFF** block, right after the OCRcer section in STATE. Full reconciliation against `origin/main` not checked this filing (no shell) — run `git log origin/main..HEAD --oneline` on resume before trusting any push-status line in this file.
+**Earlier amendment:** 2026-09-23, after `Pass 326.2` and the 588th filing; **2 commits UNPUSHED** — see the 2026-09-23 **SINCE THE LAST HANDOFF** block at the top of STATE.
 **Earlier amendment:** 2026-09-17, after `Pass 309.0`/`309.1` and `Pass 310.0`/`310.1`/`310.2`, filings to the 571st, **`v0.55.0` released**. See the newest **SINCE THE LAST HANDOFF** block at the top of STATE.
 **Previously amended:** 2026-09-15 (again), after `Pass 307.0`, `Pass 308.0`/`308.2`, `Pass 308.1` — with which **`G020` is fully closed** — and `Pass 308.3` answering the new `G021`. Filings to the 560th. See **SINCE THE LAST HANDOFF** at the top of STATE —
 everything below that block is carried forward unchanged and still true.
@@ -184,6 +185,25 @@ always the newest LOCAL OCRcer** — GitHub lags. It is vendored at
 - **LLM rescoring add-on: Backlog `Pass 327.2`, BLOCKED on OCRcer chunk 16b.**
   Check `D:\Dev\OCRcer\docs\PLAN.md` and `integration/pdfcer/` each session;
   when an LLM adapter appears there, that is the unblock.
+
+### SINCE THE LAST HANDOFF — 2026-09-25 (`Pass 328.0`, `Pass 329.0`, 592nd–593rd filings)
+
+**FIRST ACTION ON "continue": sweep (`tools/run-gates.sh`), then push.**
+`Pass 328.0` collapsed the workspace's integration-test binaries to one per
+crate (fixed the `cargo test --workspace` OOM). `Pass 329.0` added Tesseract
+as a third `--ocr-engine` (subprocess, static-MSVC build via a vcpkg overlay
+port — `tools/tesseract/build-tesseract.py`); see `ARCHITECTURE.md` §12
+decision 161 and this session's `ROADMAP.md`/`SESSION_LOG.md` entries for
+the full technical detail. Commits reported unpushed as of this filing:
+`3691999f`, `21af5926` (Pass 329.0), `c3fed5bd` (routine OCRcer re-sync, no
+Pass). **Owed:** push `main` after a green sweep. A release is optional —
+run `build-tesseract.py` on the packaging machine first, since the exe is
+built locally, not vendored as a binary. **Open:** operator question `(cf)`
+— which languages beyond `eng` to bundle by default in `models/tesseract`.
+
+**`target-case/`** — an untracked directory at the repo root (`git status`
+shows `?? target-case/`), first seen 2026-09-24, origin unknown. Left
+alone this session; not investigated.
 
 ### SINCE THE LAST HANDOFF — 2026-09-23 (`Pass 311.0`–`326.2`, 572nd–588th filings)
 

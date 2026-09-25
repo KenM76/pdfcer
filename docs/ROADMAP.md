@@ -115,6 +115,32 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 329.0` (`3691999f`/`21af5926`), 2026-09-25 — Tesseract as a third OCR engine, run as a subprocess, with a clean bundled build
+
+**Verdict: SHIPPED.** Operator request, 2026-09-25: *"How can we supply
+tesseract as an ocr option?"* then *"Let's work on bundling a clean copy."*
+Decision `161` (`ARCHITECTURE.md` §12).
+
+**Core.** `pdfcer_core::ocr::tesseract_tsv::parse_tsv(&str) -> Result<Vec<RecognizedWord>, TsvError>` — parsing only, no process-spawning, wasm32-clean. `TsvError` `#[non_exhaustive]` (`MissingHeader`, `BadRow{line,reason}`). 8 unit tests + 1 doctest; new fuzz target `tesseract_tsv` (677,779 runs, 61 s, 0 crashes).
+
+**CLI.** `pdfcer ocr --ocr-engine tesseract [--ocr-lang eng+deu]` (`crates/pdfcer-cli/src/tesseract.rs`). Spawns `models/tesseract/tesseract.exe` (or `--model-dir`); page piped in as PGM on stdin, TSV read from stdout via `-c tessedit_create_tsv=1` (the `tsv` config-file name fails — the minimal bundle has no `tessdata/configs/`). stdout capped 64 MB, console window suppressed, `--ocr-lang` validated, per-word confidence reported. 4 new CLI tests. An end-to-end test runs only when `target/tesseract-bundle` exists or `PDFCER_TEST_TESSERACT_DIR` is set, else skips with a message.
+
+**Build tooling.** `tools/tesseract/build-tesseract.py` + README — vcpkg overlay port (Tesseract 5.5.2, Leptonica 1.87.0), `DISABLE_CURL`/`DISABLE_ARCHIVE`/`GRAPHICS_DISABLED`, triplet `x64-windows-static-release` (static MSVC CRT). Result: **5.37 MB `tesseract.exe` importing only `KERNEL32.dll`** — avoids the LGPL runtime DLLs and GCC-runtime-exception binaries the UB-Mannheim/MinGW builds carry. `tessdata_fast` 4.1.0 `eng` SHA-256 pinned; bundle **9.7 MB**, `LICENSES/` all permissive. `tools/package-portable.py` stages `target/tesseract-bundle` as `models/tesseract`; `about.hbs` gained an attribution section. **Not a Cargo dependency** — `THIRD_PARTY_LICENSES.md` unchanged.
+
+**Measured** on `fixtures/synthetic/ocr/scan.pdf`: 47/47 truth words, mean confidence 96.7%, median offset 2.04 pt (vs `ocrs`'s 2.60 pt on the same fixture) — the fixture saturates, so this shows the pipeline works, not a ranking.
+
+**Fixed in passing.** `crates/pdfcer-cli/src/main.rs`: `exit` module's doc comment had been mis-spliced onto `mod clipboard;`.
+
+**Gates.** `tools/run-gates.sh` green (was red only on `check-commits-filed`, resolved by this filing). Tests: core 2117/2076 (two feature configs), cli 494, render 1949/1916, all passing. `cargo tree -p pdfcer-core` unchanged (no manifest touched — Tesseract isn't linked).
+
+**FEATURES.md.** "Choose the OCR engine" row replaced (not appended) — `tesseract` added to the engine list, core `[x]` (parser only) / cli `[x]` / gui `[ ]`.
+
+**Open.** Default bundled language set (`eng` only for now) — new operator question `(cf)`, below.
+
+**GUI channel.** Notice posted: `notice_2026-09-25_tesseract_ocr_engine_available.md`.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above (commits, measurements, gate/test results) relayed from the dispatching engineer's report, not independently reproduced. Also landed this session, routine, no Pass: `c3fed5bd` — OCRcer re-sync to local HEAD `4533f798d245` (decision 160's standing rule; see `SESSION_LOG.md`).
+
 ### `Pass 328.0` (`cc6cd70c`), 2026-09-24 — one test binary per crate, reduced test debuginfo, gate against a dropped test file
 
 **Verdict: SHIPPED.** Fixes the `cargo test --workspace` OOM (`LNK1102`, `rustc` exit `0xc0000409`) that forced a `--jobs 2` workaround, by collapsing 263 separately-linked integration-test binaries to 3 (one per crate — `pdfcer-core`, `pdfcer-render`, `pdfcer-cli`) and dropping test-binary debuginfo to line-tables-only.
@@ -25711,6 +25737,18 @@ name and say NOT BUILT YET) must be updated in the same Pass —
 shape, not the schedule.** No Pass ID assigned.
 
 ## Open operator questions (as of 2026-08-02 — answer any, all default to the stated fallback if not answered)
+
+**★ NEW 2026-09-25 (593rd filing) — ONE QUESTION, SURFACED BY `Pass 329.0`
+(*Shipped*, above). Operator-question ceiling moves `(ce)` → `(cf)`, next
+free `(cg)`:**
+
+- **(cf) `Pass 329.0` bundles Tesseract with only the `eng` (English)
+  `tessdata_fast` model (4 MB) — what other languages should ship in the
+  default portable folder?** More languages are added by copying
+  `.traineddata` files into `models/tesseract/tessdata`; each is roughly
+  4–15 MB depending on script complexity. *Default if unanswered:* ship
+  `eng` only; the bundle is scriptable per-deployment by copying files in,
+  so nothing is lost by deferring this.
 
 **★ NEW 2026-09-23 (577th filing) — ONE QUESTION, SURFACED BY `Pass 318.0`
 (*Next up*, in progress) BEFORE ANY CODE COMMITS THE TAG NAME. Operator-
