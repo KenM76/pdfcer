@@ -68,3 +68,6 @@
 # compared byte-for-byte by tools/check-ocrcer-vendored.py -- never convert.
 vendor/** -text
 crates/pdfcer-core/src/ocr/engine_ocrcer.rs -text
+
+# vcpkg applies these to LF sources; a CRLF checkout would make the patches fail.
+tools/tesseract/overlay-ports/** text eol=lf
