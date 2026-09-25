@@ -122,6 +122,36 @@ pub fn nearest(model: &Model, raw: &[f32; FEATURE_DIMS], k: usize, italic_ok: bo
     // gets back the control wall time exactly (`ARCHITECTURE.md` section 11).
     let skip_italic = model.params.layout.italic_gating != 0 && !italic_ok;
 
+    // A second, cross-class ceiling alongside the per-class one below. The
+    // per-class ceiling only tightens within one class's own prototypes; with
+    // a bank of hundreds of classes and `k` far smaller, most classes never
+    // enter the reported top-k, and starting their ceiling at infinity gives
+    // them no early pressure at all. `m` is the number of finite per-class
+    // bests the answer needs to be exact about: `k` for `best`, at least 2 so
+    // `d2` (the best *other* class) is always exact too.
+    //
+    // `global_ceiling` is the current m-th smallest finite value in `best_d`.
+    // `best_d` entries only ever fall, so this is non-increasing over the
+    // scan and is always >= its own final value. A prototype's partial sum
+    // can never exceed its true (fully summed) distance, since every
+    // per-dimension term is non-negative; so a prototype whose true distance
+    // is <= the *final* global ceiling can never be wrongly cut by a
+    // snapshot of it taken earlier, when the snapshot can only be looser.
+    // That is what makes pruning against it exact for every class that ends
+    // up in the top-m, which is the only thing the caller ever reads
+    // (`docs/measurements/2026-09-24_dense_page_speed.md` has the full
+    // argument). The per-class acceptance test below is untouched by this —
+    // it still records a class's true best whenever one is found, top-m or
+    // not, so this is pruning only, never a change to what gets recorded.
+    let m = k.max(2);
+    let mut global_ceiling = f64::INFINITY;
+    let mut finite_count = 0usize;
+    let mut scratch: Vec<f64> = Vec::with_capacity(model.classes.len());
+
+    // Profiling only: `prof_on` is read once per call, not once per
+    // prototype, so the hot loop below pays one bool check either way.
+    let prof_on = crate::prof::enabled();
+
     for p in 0..model.n_prototypes() {
         let class = model.prototype_class[p] as usize;
         if !allowed[class] {
@@ -130,25 +160,46 @@ pub fn nearest(model: &Model, raw: &[f32; FEATURE_DIMS], k: usize, italic_ok: bo
         if skip_italic && model.prototype_italic.get(p).copied().unwrap_or(false) {
             continue;
         }
+        if prof_on {
+            crate::prof::add(&crate::prof::COUNTERS.prototypes_visited, 1);
+        }
         let ceiling = best_d[class];
+        let checkpoint_ceiling = ceiling.min(global_ceiling);
         let row = &model.prototypes[p * FEATURE_DIMS..(p + 1) * FEATURE_DIMS];
-        // Early abandon against *this class's* current best, not against a
-        // global one: the answer is the best prototype per class, so a
-        // prototype that cannot improve its own class cannot change anything.
+        // Early abandon against *this class's* current best, or the current
+        // cross-class one, whichever is tighter. The final acceptance test
+        // below stays against `ceiling` alone (see the comment above): this
+        // only decides how early a losing prototype can stop being summed.
         // Checked every 16 dimensions so the branch costs little.
         let mut acc = 0.0f64;
         let mut abandoned = false;
         for (i, &r) in row.iter().enumerate() {
             let d = qd[i] - f64::from(r);
             acc += w[i] * d * d;
-            if i % 16 == 15 && acc >= ceiling {
+            if i % 16 == 15 && acc >= checkpoint_ceiling {
                 abandoned = true;
                 break;
             }
         }
+        if abandoned && prof_on {
+            crate::prof::add(&crate::prof::COUNTERS.prototypes_abandoned, 1);
+        }
         if !abandoned && acc < ceiling {
+            let was_finite = best_d[class].is_finite();
             best_d[class] = acc;
             best_p[class] = p;
+            if !was_finite {
+                finite_count += 1;
+            }
+            if finite_count >= m {
+                scratch.clear();
+                scratch.extend(best_d.iter().copied().filter(|d| d.is_finite()));
+                let idx = m - 1;
+                if scratch.len() > idx {
+                    scratch.select_nth_unstable_by(idx, |a, b| a.partial_cmp(b).unwrap());
+                    global_ceiling = scratch[idx];
+                }
+            }
         }
     }
 
@@ -290,6 +341,52 @@ mod tests {
             }
             brute.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap().then(a.1.cmp(&b.1)));
             assert_eq!(r.top().unwrap().class, brute[0].1, "step {step}");
+        }
+    }
+
+    /// The cross-class ceiling only activates once `m = max(k, 2)` classes
+    /// have a finite best, which needs more classes than `k` to exercise —
+    /// unlike the test above, this bank has far more classes than `top_k`,
+    /// so most classes never enter `best` and are exactly where the new
+    /// ceiling is supposed to prune harder than the per-class one alone.
+    #[test]
+    fn the_cross_class_ceiling_gives_the_same_answer_as_a_full_scan() {
+        let rows: Vec<(u16, f32, u8)> =
+            (0..400u16).map(|i| (i, f32::from(i % 97) * 0.13, 0)).collect();
+        let m = bank(&rows);
+        for step in 0..25 {
+            let q = query(step as f32 * 0.7, 0);
+            let r = nearest(&m, &q, 3, true).unwrap();
+            let mut brute: Vec<(f64, u16)> = rows
+                .iter()
+                .map(|&(class, v, _)| (f64::from(q[0] - v) * f64::from(q[0] - v), class))
+                .collect();
+            brute.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap().then(a.1.cmp(&b.1)));
+            // One entry per class, ascending, matching the brute force's
+            // per-class best in the same order `nearest` would report it.
+            let mut brute_best: Vec<(u16, f64)> = Vec::new();
+            for &(d, class) in &brute {
+                if !brute_best.iter().any(|&(c, _)| c == class) {
+                    brute_best.push((class, d));
+                }
+            }
+            brute_best.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap().then(a.0.cmp(&b.0)));
+
+            assert!(
+                (f64::from(r.d1) - brute_best[0].1.sqrt()).abs() < 1e-9,
+                "step {step} d1: got {} want {}",
+                r.d1,
+                brute_best[0].1.sqrt()
+            );
+            assert!(
+                (f64::from(r.d2) - brute_best[1].1.sqrt()).abs() < 1e-9,
+                "step {step} d2: got {} want {}",
+                r.d2,
+                brute_best[1].1.sqrt()
+            );
+            let got: Vec<u16> = r.best.iter().map(|c| c.class).collect();
+            let want: Vec<u16> = brute_best.iter().take(3).map(|&(c, _)| c).collect();
+            assert_eq!(got, want, "step {step}");
         }
     }
 

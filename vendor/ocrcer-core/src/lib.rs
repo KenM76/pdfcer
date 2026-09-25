@@ -14,6 +14,7 @@ pub mod r#match;
 pub mod ocrw;
 pub mod params;
 pub mod pipeline;
+pub mod prof;
 
 pub use image::Gray;
 pub use pipeline::{CharBox, Engine, Line, Rect, Word};

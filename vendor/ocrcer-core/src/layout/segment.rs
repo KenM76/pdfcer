@@ -545,6 +545,7 @@ mod tests {
         // That is an artefact of the fixture's scale, not a claim about
         // printed text -- and a test of edge cropping must not be steerable
         // by a word-splitting sweep.
+        // Below, max_merge_x_heights is pinned for the same reason: a two-stroke merge is already 4px, over the shipped ratio at this x-height.
         let ws = words::split_with(
             &line,
             &comps,
@@ -555,7 +556,14 @@ mod tests {
             },
         );
         assert_eq!(ws.len(), 1, "fixture must be one word");
-        let lat = build(&ws[0], &comps, &labels, w, &line);
+        let lat = build_with(
+            &ws[0],
+            &comps,
+            &labels,
+            w,
+            &line,
+            &Params { max_merge_x_heights: 1.5, ..Params::default() },
+        );
         (lat, labels, w, line)
     }
 

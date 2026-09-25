@@ -21,7 +21,7 @@
 //!
 //! They have to be in Rust or the engine cannot run without a file, and they
 //! have to be in the TSV or there is nowhere to record that
-//! `segment.valley_fraction` is a guess and `lines.x_height_per_cap` is a
+//! `lines.min_area` is a guess and `lines.x_height_per_cap` is a
 //! measurement. `ocrcer-build`'s `params` test fails the day the two
 //! disagree, which is what `CLAUDE.md` rule 4 actually asks for — not that a
 //! number may never appear twice, but that nothing may silently diverge.
@@ -387,7 +387,10 @@ impl Params {
             min_valley_x_heights: 0.3,
             pitch_min_glyphs: 6,
             pitch_agreement: 0.8,
-            pitch_tolerance: 0.15,
+            // Fitted, `ARCHITECTURE.md` section 11, 2026-09-25 ("How chunk
+            // 12b's vector is chosen"). `model/params.tsv` carries the full
+            // provenance note; `tools/fit12b` is the script.
+            pitch_tolerance: 0.22,
             pitch_cell_merge: 1,
             // Bounded fallback, `ARCHITECTURE.md` section 11's third
             // amendment ("the grid vote failed too"): the fitted-grid
@@ -415,26 +418,37 @@ impl Params {
         },
         segment: Segment {
             max_merge: 3,
-            max_merge_x_heights: 1.8,
+            // Fitted, `ARCHITECTURE.md` section 11, 2026-09-25 ("How chunk
+            // 12b's vector is chosen"). `model/params.tsv` carries the full
+            // provenance note; `tools/fit12b` is the script.
+            max_merge_x_heights: 1.05,
             // Measured, `ARCHITECTURE.md` section 11, 2026-09-23 ("split gate").
             split_min_x_heights: 1.09,
             max_splits: 3,
-            valley_fraction: 0.5,
-            min_piece_x_heights: 0.2,
+            // Fitted, `ARCHITECTURE.md` section 11, 2026-09-25 ("How chunk
+            // 12b's vector is chosen"). `model/params.tsv` carries the full
+            // provenance note; `tools/fit12b` is the script.
+            valley_fraction: 0.65,
+            min_piece_x_heights: 0.28,
             // Measured, `ARCHITECTURE.md` section 11, 2026-09-23
             // ("Atom merge by overlap fraction: 0.4").
             merge_overlap_frac: 0.4,
         },
-        // `slant_min_deg`/`slant_margin` are still guesses, `ARCHITECTURE.md`
-        // section 11, 2026-09-24: the research addendum's shear-and-score
-        // recipe gives the mechanism, not these two numbers, and they were
-        // not swept. `italic_gating` is measured:
+        // `slant_min_deg` is still a guess, `ARCHITECTURE.md` section 11,
+        // 2026-09-24: the research addendum's shear-and-score recipe gives
+        // the mechanism, not this number, and it was not swept.
+        // `slant_margin` is fitted, `ARCHITECTURE.md` section 11, 2026-09-25
+        // ("How chunk 12b's vector is chosen"); `model/params.tsv` carries
+        // the full provenance note. `italic_gating` is measured:
         // `docs/measurements/2026-09-24_italic_gating.txt` ran the detector
         // against real italic and drawing pages and the gated 69-face bank
         // against pages-cov and finfilings, and every gate passed, so
         // gating ships on.
-        layout: Layout { slant_min_deg: 6.0, slant_margin: 1.15, italic_gating: 1 },
-        matching: Matching { top_k: 5 },
+        layout: Layout { slant_min_deg: 6.0, slant_margin: 1.08, italic_gating: 1 },
+        // Fitted, `ARCHITECTURE.md` section 11, 2026-09-25 ("How chunk 12b's
+        // vector is chosen"). `model/params.tsv` carries the full provenance
+        // note; `tools/fit12b` is the script.
+        matching: Matching { top_k: 3 },
         confidence: Confidence { lm_floor: 0.8 },
         decode: Decode {
             w_match: 1.0,
@@ -442,17 +456,22 @@ impl Params {
             char_bonus_slanted: 3.44,
             w_bigram: 0.1,
             w_lex: 0.6,
-            w_seg: 0.25,
+            // The following five decode.* fields are fitted, `ARCHITECTURE.md`
+            // section 11, 2026-09-25 ("How chunk 12b's vector is chosen" and
+            // the tie-revert amendment -- `seg_split_penalty` stays at its
+            // guess value, reverted on a tie). `model/params.tsv` carries the
+            // full provenance note; `tools/fit12b` is the script.
+            w_seg: 0.55,
             lex_bonus: [1.0, 0.85, 0.7, 0.55, 0.4],
             identifier_digit_fraction: 0.2,
             identifier_min_length: 2,
-            seg_ideal_aspect: 0.6,
-            seg_aspect_tolerance: 0.55,
-            seg_merge_penalty: 0.5,
+            seg_ideal_aspect: 0.45,
+            seg_aspect_tolerance: 0.35,
+            seg_merge_penalty: 0.7,
             seg_split_penalty: 0.75,
             w_confusion: 1.0,
             case_shape_penalty: 3.44,
-            beam_width: 24,
+            beam_width: 14,
         },
     };
 
