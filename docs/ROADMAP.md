@@ -187,6 +187,8 @@ Full reasoning and the three RAG findings (module merging, cross-thread concurre
 
 **Sourcing (hard rule 8).** No shell this filing. Taken from the dispatching engineer's own report of `748d268c`/`998adb96`/`303287d5`/`68eb5341`/`2161a9cd`/`e91d1095`; none of the six independently re-verified against live source, commit contents, or gate output.
 
+**Another routine re-sync, 2026-09-25 (594th filing), no new commits above.** `ccf8daecb0788eaefc161bb3d4d721574bc08c6b` — `ocrcer-core` re-synced to local HEAD `926e315e51ab` (decision 160's standing rule). Upstream added `feature::extract_with_grid`, additive — no pdfcer caller changed. Relayed, not independently reproduced (hard rule 8).
+
 ### Ledger
 
 | ledger | before | after |
@@ -16037,7 +16039,7 @@ nothing gets forgotten, not as a commitment to build in this order.
 
 ---
 
-### `Pass 325.0` — split `pdfcer-core` into a model crate plus narrow feature crates, behind a facade — filed 2026-09-23 (586th filing), **NOT STARTED** — new family, 7-step plan, operator ask verbatim: *"Why was this ever done as one big crate when it goes against best practices?"*
+### `Pass 325.0` — split `pdfcer-core` into a model crate plus narrow feature crates, behind a facade — filed 2026-09-23 (586th filing), **IN PROGRESS — step 5 of 7 SHIPPED** (`0fe973a2`, 2026-09-25, 594th filing) — new family, 7-step plan, operator ask verbatim: *"Why was this ever done as one big crate when it goes against best practices?"*
 
 **Measured, 2026-09-23** (`.rs` line counts): `pdfcer-core` **253,653** total, of which `edit.rs` alone is **58,056**, `text_edit/` **25,986**, `vector/` **17,270**, `dimension/` **8,884**, `image_import/` **7,283**, `text_extract/` **7,274**, `crypto/` **6,996**, `image_codec/` **6,607**, `writer/` **6,319**, `form_script/` **6,273**, `settings/` **5,461**, `sign/` **3,539**, `ocr/` **3,042**. `pdfcer-render` **57,909**. `pdfcer-cli` **45,711**, one file (`main.rs`).
 
@@ -16059,6 +16061,16 @@ nothing gets forgotten, not as a commitment to build in this order.
 **Risk, named rather than discovered mid-split.** `edit.rs` at 58,056 lines is more than a fifth of the crate by itself, and is exactly the module step 1 exists to map — do not attempt to give it its own crate before that map exists; it is very likely the thing every leaf crate needs a narrow slice of, not a leaf itself.
 
 **Step 1 edge measurement, 2026-09-23** (grep, `crates/pdfcer-core/src`): the model layer (`writer/`, `xref.rs`, `document.rs`, `page_tree.rs`) mentions `crate::edit` only in doc links — no code edge. Its real code edges all go into `settings`, and only for leaf enums: `XrefEntryEol`/`TrailingEol` (`writer`, `xref`), `CmykIntent` (`color`), `Settings` (`function.rs`) — step 1's own move is to relocate these to the model crate and re-export from `settings`. The only non-test `use crate::edit` outside the editing modules is `forms.rs` (`BorderSpec`, `BorderStyle`, `Visibility`) — those move down too. The other hits (`font_embed_missing`, `font_unembed`, `pageops`, `redact`) are all inside `#[cfg(test)]` modules, which step 6 already relocates to `tests/`. **Most coupled to `edit`:** `text_edit` (9 files), `dimension` (5), `vector` (4) — these form an `editing` crate ABOVE the model, not a leaf.
+
+**Step 5 SHIPPED 2026-09-25 (594th filing), `0fe973a267ed`.** `crates/pdfcer-cli/src/main.rs` cut from ~46,000 to 917 lines (module docs, `main`, `mod exit`, `build_banner`, `plain_help`, scrub helpers only); 28 new modules under `crates/pdfcer-cli/src/` (`cli.rs` — the `Cli`/`Command` clap surface, 9,112 lines, the one module that stayed large by construction — plus `dispatch.rs` and 26 feature modules, each `use super::*;`, moved items `pub(crate)`). All 320 `--help` pages byte-identical to pre-split; `clippy`/Linux cross-target clean. Gates repointed to the new module set (`check-clap-help.py`, `check-cli-help-leads.py`, `check-metrics-line-contract.py`, `tests/font_licence_notice.rs`).
+
+**A pre-existing defect the split exposed, fixed in the same commit.** `check-bypass-paths.sh` truncated each file at its first `#[cfg(test)]` — in the old `main.rs` that sat roughly halfway down, so the gate never read the CLI's second half. `import-structure` (now `structure.rs`) wrote through `save_full`/`save_incremental` with no DocMDP certification check. Fixed: it now honours `EditSession`'s certification refusal (exit 9, ISO 32000-1 12.8.4) on a non-empty import against a certified document; the remaining object-level write carries a `// bypass-exempt:` note (qpdf-QDF-parity compile-back, one-shot, prints every changed object id per rule 4). New test `crates/pdfcer-cli/tests/import_structure_certified.rs` (2 tests). `check-public-fns-documented.py` also had a false positive (a bare `//` line detaching a doc comment from its item) fixed in the same commit; 16 pre-existing welded doc blocks the split exposed were returned to their own items. Generalisable finding written to `D:\dev\rag\rust\a_gate_scoped_by_a_fixed_marker_or_file_size_stops_covering_the_file_as_it_grows.md` — dated instance of `R227`, below.
+
+**Gates.** `tools/run-gates.sh` 35/36 green (the one red, `check-commits-filed.py`, is this filing's own unfiled state, closed by this filing). ~9,888 tests passed across the workspace (all binaries + doctests). `cargo tree -p pdfcer-core`/`-p pdfcer-render` unchanged — no manifest touched. `docs/core-api/01`–`03`'s `main.rs:NNNN` pointers replaced by symbol names + new module (already committed in `0fe973a2`). `docs/FEATURES.md`: no row change — tooling, no `import-structure` row exists to annotate.
+
+**Steps 1–4 and 6–7 remain open.** Full per-module line-count table and reasoning in `0fe973a2`'s own commit message, per the size rule.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, line counts, module list, test/gate results and the defect account are relayed from the dispatching engineer's report of `0fe973a2`, not independently reproduced here.
 
 ### ~~`Pass 322.1` — EMF export: write real text records instead of outline paths, the EMF half of `G033`~~ — SHIPPED 2026-09-23 (`88bd4144`) — see *Shipped*, top of this file — filed 2026-09-23 (582nd filing, `G033` reply, EMF half), scoped and shipped same day — family 322, after `Pass 322.0`
 
@@ -28734,6 +28746,7 @@ The marks are derived, not maintained: a rule is marked when its own full text n
 - `R225` — BEFORE TRUSTING A GREEN SABOTAGE RUN, ASK WHAT THE *FIXTURE* WOULD HAVE SHOWN.  **[gate: gen-annot-fixtures.py]**
 - `R226` — A DEFERRED GATE MUST BE RE-RUN WITH THE FLAG THAT RESOLVES THE DEFERRAL BEFORE THE SESSION ENDS, OR THE DEFERRAL NEVER RESOLVES.  **[gate: check-passes-filed.py]**
 - `R227` — A SOURCE-SCANNING CHECK MUST READ TO A SYNTACTIC BOUNDARY, NEVER A FIXED WINDOW OR A BARE-ADJACENCY ASSUMPTION.  **[gate: check-cited-verbs-exist.py]**
+- **`R227` — DATED INSTANCE NOTE, TWO GATES AT ONCE, SURFACED BY A FILE SPLIT (2026-09-25, 594th filing, `Pass 325.0` step 5, `0fe973a2`).** `check-bypass-paths.sh` truncated each file at its FIRST `#[cfg(test)]` — a fixed-marker assumption that the old 46,000-line `main.rs` sat astride, so the gate never read the CLI's second half, where `import-structure` wrote through the writer with no DocMDP certification check. `check-public-fns-documented.py`, independently, treated a bare `//` comment line as detaching a doc comment from its item (a bare-adjacency assumption), missing 16 pre-existing welds. Splitting the file into 28 modules put every module's content inside both gates' assumed boundaries, so both fired on code that had been unread/misread for as long as the file stayed one piece — **a large-file split is itself an audit of every scanning gate that reads the file.** Full derivation: `D:\dev\rag\rust\a_gate_scoped_by_a_fixed_marker_or_file_size_stops_covering_the_file_as_it_grows.md`.  **[gate: check-bypass-paths.sh, check-public-fns-documented.py]**
 - `R228` — A CHARACTERIZATION OF A DOCUMENT'S CONTENTS IS ITSELF AN UNVERIFIED CLAIM, AND MUST BE CHECKED BY OPENING THE DOCUMENT BEFORE IT IS REPEATED.
 - `R229` — EVERY RELEASE PUBLISHES THE CLI TO ONEDRIVE, ALTERNATING TWO SLOTS, AND A RELEASE IS NOT VERIFIED UNTIL A *PREVIOUS* VERSION SURVIVES BESIDE THE CURRENT ONE.  **[gate: deploy-onedrive.py, verify-release.py]**
 - `R230` — IN A `clap`-DERIVE COMMAND ENUM A `///` DOC COMMENT IS SHIPPED USER INTERFACE, AND ONLY ITS FIRST LINE IS THE SUMMARY.  **[gate: check-ci-parity.py, check-cli-help-leads.py]**

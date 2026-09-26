@@ -2299,7 +2299,24 @@ D:\Dev\pdfcer\
                                    The rename script's "`pdfce-cli` means the tool"
                                    rule had turned this directory name into `pdfcer\`;
                                    `ls crates/` says `pdfcer-cli`, restored by hand in
-                                   the 400th filing. Subcommand parsing
+                                   the 400th filing.
+                                   **`src/` layout (`Pass 325.0` step 5, 2026-09-25,
+                                   `0fe973a2`):** `main.rs` holds only module docs,
+                                   `main`, `mod exit`, `build_banner`, `plain_help`
+                                   and scrub helpers (917 lines, from ~46,000).
+                                   `cli.rs` carries the clap `Cli`/`Command` surface;
+                                   `dispatch.rs` carries `run()`; the remaining 26
+                                   files are one subcommand group each (`annot_edit`,
+                                   `annot_parse`, `arg_types`, `dimension`, `edit_common`,
+                                   `extract`, `field_edit`, `fields`, `fonts`, `image`,
+                                   `inspect`, `listing`, `navigation`, `objects`,
+                                   `ocr_cmd`, `offpage`, `page_edit`, `pages`, `print`,
+                                   `render_export`, `security`, `sign`, `stamp`,
+                                   `structure`, `tests`, `text_edit`), each opening
+                                   `use super::*;`. Steps 1–4/6–7 of the same Pass
+                                   still act on `pdfcer-core`/`pdfcer-render` and on
+                                   in-source `#[cfg(test)]` modules — see
+                                   `docs/ROADMAP.md`. Subcommand parsing
                                    (clap crate), one subcommand per batch operation
                                    (merge/split/rotate/extract, Bates stamp, convert
                                    to PDF/A, sign, validate PDF/A or PDF/UA conformance
@@ -3400,7 +3417,7 @@ scrub Pass to remember**."* Measured against the working tree at
 | it is "not left to each scrub Pass to remember" | read `crates/pdfcer-core/src/redact.rs:1219–1224` | `apply_redactions` **remembers**: it calls `save_full(doc, &dirty, options)?` itself, under a comment naming R35. It is structural only in that the function returns finished bytes, so its own callers cannot override it — that binds `apply_redactions`, nothing else |
 | the writer refuses incremental save for scrubs | read `crates/pdfcer-core/src/writer/save.rs:305–312` | the **only** refusal is `doc.loaded_via_recovery()` → `WriteError::RecoveredBaseForbidsIncremental`. Its own comment calls it *"Sibling of R35 / R58"* — a sibling, i.e. **R67 (§5.10)**, not an implementation of R58 |
 | obligation 2's decomposition is general | `grep -rn "decompose_containers" crates/` | **2 hits, both in `redact.rs`** (`:1215` call, `:1670` private definition). Redaction-local |
-| a verb's save mode is decided in core | `grep -rn "save_full\|save_incremental" crates/pdfcer-cli/src/` | `main.rs:10733/10735/10743` — the **shell** picks via `RoundTripMode`. No `EditSession` verb constrains it |
+| a verb's save mode is decided in core | `grep -rn "save_full\|save_incremental" crates/pdfcer-cli/src/` | `save_edited` (`crates/pdfcer-cli/src/edit_common.rs`) and `cmd_import_structure` (`crates/pdfcer-cli/src/structure.rs`, the bypass-exempt one — see §12, `Pass 325.0` step 5) — the **shell** picks via `RoundTripMode`. No `EditSession` verb constrains it. (Repointed from `main.rs:10733/10735/10743` after `Pass 325.0` step 5's module split, `0fe973a2`, 2026-09-25; this is a live invariant citation, not a historical decision-log record, so it is kept current rather than left as filed.) |
 
 **Why this is worse than the scope staleness, and why it is a Pass.**
 The scope problem produces named exceptions that a reader can see. The

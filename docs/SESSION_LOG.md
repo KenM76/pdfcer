@@ -4,6 +4,33 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-25 (594th filing) — `Pass 325.0` step 5 SHIPPED (`0fe973a2`): the 46k-line `pdfcer-cli` `main.rs` split into 28 subcommand modules; a certification-check gap the split exposed is fixed
+
+**Shipped:**
+- `Pass 325.0` step 5 (`0fe973a267ed02e811ef305e5c81b57706722ace`) — `crates/pdfcer-cli/src/main.rs` cut from ~46,000 to 917 lines; 28 new modules (`cli.rs`, `dispatch.rs` + 26 feature modules). All 320 `--help` pages byte-identical to pre-split; clippy and the Linux cross-target check clean. `Pass 325.0` stays **IN PROGRESS** — steps 1–4 and 6–7 (the model-crate extraction, leaf feature crates, the `pdfcer-core` facade, the `#[cfg(test)]`-to-`tests/` move, housekeeping) remain open. Also landed, routine, no Pass: `ccf8daecb0788eaefc161bb3d4d721574bc08c6b` — OCRcer re-synced to local HEAD `926e315e51ab` (decision 160's standing rule; upstream added `feature::extract_with_grid`, additive).
+
+**Decisions made this session:** none new — the split executes the plan `Pass 325.0` already scoped at the 586th filing; no new crate-boundary or invariant decision was made this step.
+
+**Findings + decisions:**
+- The split exposed a real defect predating it: `check-bypass-paths.sh` truncated each file at its first `#[cfg(test)]`, so it never read the second half of the old `main.rs` — `import-structure` wrote through `save_full`/`save_incremental` with no DocMDP certification check. Fixed in the same commit: `cmd_import_structure` (now `structure.rs`) honours `EditSession`'s certification refusal (exit 9, ISO 32000-1 12.8.4) on a non-empty import against a certified document; the remaining object-level write is `// bypass-exempt:`-flagged (qpdf QDF parity, one-shot, prints every changed object id). New test `crates/pdfcer-cli/tests/import_structure_certified.rs` (2 tests).
+- `check-public-fns-documented.py` had an independent false-positive: a bare `//` line (an `#[allow]` justification) between a doc comment and its item detached the doc, reported as undocumented. Fixed; 16 pre-existing welded doc blocks the split exposed were returned to their own items; 6 stale baseline rows deleted.
+- Generalisable finding: a gate scoped by a fixed marker or "read the whole file" stops covering the file once the file outgrows the assumption that made that scoping look complete — a large-file split is itself an audit of every scanning gate that reads it. Written to `D:\dev\rag\rust\a_gate_scoped_by_a_fixed_marker_or_file_size_stops_covering_the_file_as_it_grows.md` and filed as a dated instance of standing rule `R227` (two gates, not a new rule number — R227's own wording already covers both).
+- Gates repointed to the new module layout: `check-clap-help.py`, `check-cli-help-leads.py`, `check-metrics-line-contract.py`, `tests/font_licence_notice.rs`.
+- `tools/run-gates.sh`: 35/36 green — the one red, `check-commits-filed.py`, is this filing's own unfiled state, closed by this filing. ~9,888 tests passed across the workspace (all binaries + doctests). `cargo tree -p pdfcer-core`/`-p pdfcer-render` unchanged — no manifest touched.
+- `docs/core-api/01`–`03`'s `main.rs:NNNN` pointers replaced by symbol names + module (already committed in `0fe973a2`, engineer-owned). `ARCHITECTURE.md` §3 gained a body note on the new module layout; §12's live invariant-table row (verb save-mode citation) repointed from `main.rs:10733/10735/10743` to `save_edited`/`cmd_import_structure` by their new module paths — historical decision-log `main.rs:NNNN` citations were left untouched, per convention.
+- `docs/FEATURES.md`: no row change. The split is tooling, and no `import-structure`/QDF row exists in `FEATURES.md` to annotate with the new certification-refusal behaviour.
+- This role's own agent file (`.claude/agents/pdfcer-librarian.md` ~line 611) also cites a now-stale `main.rs:10677` — left untouched, as it records a past incident (survivor 7, hard rule 11), not a live pointer.
+
+**Still in flight:**
+- `Pass 325.0` steps 1, 2, 3, 4, 6, 7 — all NOT STARTED.
+- Two local, unpushed commits (`0fe973a2`, `ccf8daec`) plus this filing's own commit, pending push after the operator's own `tools/run-gates.sh` confirmation.
+
+**For next session:**
+- Push `main` (operator's own action, per this filing's request).
+- Continue `Pass 325.0` at step 1 (dependency-edge measurement already done 2026-09-23) → step 2 (model-crate extraction).
+
+**Sourcing (hard rule 8).** No shell this filing. All commits, line counts, module names, test/gate results and the defect account above are relayed from the requesting engineer's own report; not independently reproduced here.
+
 ## 2026-09-25 (593rd filing) — `Pass 329.0` SHIPPED (`3691999f`/`21af5926`): Tesseract as a third OCR engine, run as a subprocess, with a clean bundled static-MSVC build
 
 **Shipped:**
