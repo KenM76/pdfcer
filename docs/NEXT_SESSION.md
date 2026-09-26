@@ -396,8 +396,9 @@ eleventh instance.
 3. **`gh release create <tag> <assets...>` is not atomic.** A transient
    `HTTP 500: Error saving asset` **rolled the whole release back** —
    `gh release view` answered "release not found" while the error URL carried a
-   release id. Create the release bare, then `gh release upload --clobber` with
-   retries. Two failures before the third attempt stuck.
+   release id. **Publish with `python tools/gh-release.py <tag> --title T
+   --notes-file F <assets>`**: it creates the release bare, uploads with
+   `--clobber` and retries, then checks every asset's state and byte size.
 
 **State:** `v0.55.0` tagged at `229e8635`, released, OneDrive slot `pdfcer2`
 written (`pdfcer1` keeps 0.54.0 as previous). Gate sweep green — 34 commands,

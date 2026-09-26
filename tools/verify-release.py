@@ -218,7 +218,7 @@ def main(tag: str) -> int:
                 f"`gh release view {tag}` failed: "
                 f"{(gh.stderr or gh.stdout).strip() or 'no output'} -- decision "
                 "127: every release is published to GitHub with the portable zip; "
-                "`gh release create` it, or fix `gh auth status`",
+                "publish it with `python tools/gh-release.py`, or fix `gh auth status`",
             )
         else:
             count = gh.stdout.strip()
