@@ -186,6 +186,29 @@ always the newest LOCAL OCRcer** — GitHub lags. It is vendored at
   Check `D:\Dev\OCRcer\docs\PLAN.md` and `integration/pdfcer/` each session;
   when an LLM adapter appears there, that is the unblock.
 
+### SINCE THE LAST HANDOFF — 2026-09-26, later (`Pass 325.0` step 3 leaves + G042)
+
+**Step 3 has five leaves, each re-exported from core at its old path:**
+`pdfcer-image-codec`, `pdfcer-fonts`, `pdfcer-pkix` (asn/cms/signature_verify),
+`pdfcer-color` (zero dependencies) and `pdfcer-text` (text_extract/text_state).
+- **Settings were inverted for the split.** `CmykIntent` now lives in color.
+  `UnmappableCode` and `ActualTextPrecedence` live in text_extract, and
+  `settings` re-exports them.
+- **`#[non_exhaustive]` was dropped** on `UnmappableCode`, `ActualTextPrecedence`,
+  `TextOrigin`, `ContentStreamRef`, `ExtractedGlyph` and `TextRun`. Core
+  matches or builds them exhaustively. The GUI was told its `_` arms will go
+  unreachable on the next rev bump.
+- `ExtractFont` accessors, `advance_tx` and `Code` are `#[doc(hidden)] pub`
+  (workspace-internal).
+- Rebuild after an edit: text 11.9 s, colour 13.3 s (CLI).
+- **Still to survey for leaf status:** `crypto`, `form_script`, `dimension`,
+  `vector`, `text_edit`. After that come steps 4, 6 and 7, then the §12
+  decision.
+- **G042 answered.** VENDORED records the accepted OCRcer model versions, and
+  the local OCRcer build tree is the model source. The outbound ask to OCRcer
+  for a versioned model home is OPEN. Check `OCRcer_FeatureRequests` for its
+  answer.
+
 ### SINCE THE LAST HANDOFF — 2026-09-26 (`Pass 325.0` step 2)
 
 The COS model layer is its own crate, `crates/pdfcer-model` (`0fbf6cbb`): 16
