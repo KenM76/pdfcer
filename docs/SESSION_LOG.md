@@ -4,6 +4,30 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (601st filing) — `Pass 325.0` step 3 continues (`47d9c50a`): fifth leaf crate `pdfcer-text` extracted
+
+**Shipped:**
+- `Pass 325.0` step 3, fifth leaf (`47d9c50a`) — new crate `pdfcer-text` (text extraction and text-state tracking: `text_extract/` — `mod.rs`, `cmap.rs`, `font.rs`, `layout.rs`, `page.rs` — plus `text_state.rs`), `git mv`'d out of `pdfcer-core`, depending on `pdfcer-model` + `pdfcer-fonts` + `thiserror`. Unblocked by the 600th filing's `settings` inversion. `pdfcer-core` re-exports both modules at their old paths. Structural Pass: no `FEATURES.md` row change. `Pass 325.0` stays **IN PROGRESS**: leaf crates done are image-codec, fonts, pkix, color, text; steps 4 (rest), 6, 7 remain open.
+
+**Decisions made this session:** none new. `ARCHITECTURE.md` §3 got a body update (new `pdfcer-text` entry, with a forward-note that `text_state.rs`'s Pass 19.x/decision-019 history below stays written against its old `pdfcer-core` location; `pdfcer-core`'s dependency note extended).
+
+**Findings + decisions:**
+- Six types lost `#[non_exhaustive]` across the new crate boundary: `ExtractedGlyph`/`TextRun` — struct-literal construction from `text_edit` (E0639), a failure mode for the attribute this Pass had not hit before (every prior leaf only tripped the exhaustive-match E0004 case) — and `TextOrigin`/`ContentStreamRef`/`UnmappableCode`/`ActualTextPrecedence` — exhaustive matches (E0004), same mechanism as every other moved enum this Pass. RAG lesson `D:\dev\rag\rust\splitting_a_crate_turns_an_in_crate_non_exhaustive_match_into_a_cross_crate_e0004.md` appended with an E0639 addendum rather than duplicated.
+- `ExtractFont`'s `pub(crate)` methods/free fn/struct (`codes`, `to_unicode`, `width`, `ascent`, `descent`, `vertical_is_nominal`, `bytes_per_code`, `width_estimated`, `base_font_name`, `glyph_names`, `advance_tx`, `Code`) went `#[doc(hidden)] pub`, workspace-internal; callers are `redact`, `text_edit`, `vector::decompose`, `font_embed_missing`.
+- The CLI's `content_stream_str` lost its now-`unreachable_patterns` `_` arm on one of the four moved enums, making it exhaustive again — the second-order bug the RAG lesson already documents, a fourth confirmation.
+- Public-contract consequence flagged to `pdfcer-gui` (FeatureRequests channel, not filed as a decision): a consumer's `_ =>` arm on the four affected enums is now `unreachable_patterns` (error under `-D warnings`), and a new field/variant on any of the six types is a compile error for its constructors/matches rather than silent.
+- `tools/run-gates.sh` PASS, 9,200 passed / 0 failed (previous run 9,274; the −74 reconciles as `pdfcer-text`'s 62 unit tests + 12 doctests leaving core's `--no-default-features` rerun as duplicates — no test lost, same shape as the 598th/599th/600th filings).
+- `docs/core-api/01-reading-and-model.md` §8's source note and two already-stale line refs (`extract_page` → `mod.rs:1562`, `ExtractFont::resolve` → `font.rs:429`) were corrected in the code commit itself; `index.md` line count 3,144.
+- Rebuild after a one-line `pdfcer-text` edit: CLI build 11.9 s.
+
+**Still in flight:**
+- `Pass 325.0` step 3 (remaining: `ocr` is not a leaf — `layer.rs` uses `text_edit`/`vartext`; `sign` needs `edit::EditError`; `crypto`, `form_script`, `dimension`, `vector`, `text_edit` not yet surveyed), step 4 (facade — done for model/codec/fonts/pkix/color/text, open for the rest), 6, 7 — all open.
+
+**For next session:**
+- Continue `Pass 325.0` step 3 by surveying `crypto`, `form_script`, `dimension`, `vector`, `text_edit` for leaf status, or move to step 4 for the crates already cut.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, moved-module list, gate/test counts and rebuild-time measurement are relayed from the dispatching engineer's own report of `47d9c50a`; not independently reproduced here.
+
 ## 2026-09-26 (600th filing) — `Pass 325.0` step 3 continues (`c07d560a`): fourth leaf crate `pdfcer-color` extracted
 
 **Shipped:**

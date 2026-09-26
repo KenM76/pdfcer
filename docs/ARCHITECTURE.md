@@ -381,6 +381,40 @@ D:\Dev\pdfcer\
                                    `pdfcer-fonts`/`pdfcer-pkix` (rule 2), its
                                    own `cargo tree -p pdfcer-color` CI step,
                                    wasm32-clean.
+    pdfcer-text\                 <- (`Pass 325.0` step 3, fifth leaf, 2026-09-26,
+                                   `47d9c50a`) text extraction and text-state
+                                   tracking — `text_extract/` (`mod.rs`,
+                                   `cmap.rs`, `font.rs`, `layout.rs`,
+                                   `page.rs`) and `text_state.rs` —
+                                   `git mv`'d out of `pdfcer-core`. Depends on
+                                   `pdfcer-model` and `pdfcer-fonts` (plus
+                                   `thiserror`); `pdfcer-core` depends on it,
+                                   never the reverse. Unblocked by the 600th
+                                   filing's `settings` inversion
+                                   (`UnmappableCode`/`ActualTextPrecedence`
+                                   were already resident in
+                                   `text_extract/mod.rs`). `ExtractedGlyph`/
+                                   `TextRun` (struct-literal construction
+                                   from `text_edit`, E0639) and `TextOrigin`/
+                                   `ContentStreamRef`/`UnmappableCode`/
+                                   `ActualTextPrecedence` (exhaustive
+                                   matches, E0004) all lost
+                                   `#[non_exhaustive]` across the new crate
+                                   boundary — see the RAG lesson's E0639
+                                   addendum. Same zero-GUI/network invariant
+                                   as `pdfcer-model`/`pdfcer-image-codec`/
+                                   `pdfcer-fonts`/`pdfcer-pkix`/
+                                   `pdfcer-color` (rule 2), its own `cargo
+                                   tree -p pdfcer-text` CI step,
+                                   wasm32-clean. `pdfcer-core` re-exports
+                                   both modules at their old pre-split
+                                   paths. **`text_state.rs`'s Pass 19.x
+                                   history below (decision 019 and its
+                                   Amendments) was written against its
+                                   `pdfcer-core` location; the module now
+                                   lives in `pdfcer-text`, re-exported
+                                   unchanged — the history paragraphs are
+                                   kept as written, not relocated.**
     pdfcer-core\                <- COS object model, tokenizer, xref (table + stream),
                                    object streams, incremental-update writer, filters,
                                    fonts, color spaces, encryption/decryption, digital
@@ -396,10 +430,13 @@ D:\Dev\pdfcer\
                                    leaf, 2026-09-26) for fonts and text
                                    encoding, `pdfcer-pkix` (step 3,
                                    third leaf, 2026-09-26) for DER/CMS/X.509
-                                   and chain validation, and `pdfcer-color`
+                                   and chain validation, `pdfcer-color`
                                    (step 3, fourth leaf, 2026-09-26) for
                                    device colour conversion and rendering
-                                   intent — see each crate's own entry.
+                                   intent, and `pdfcer-text` (step 3,
+                                   fifth leaf, 2026-09-26) for text
+                                   extraction and text-state tracking —
+                                   see each crate's own entry.
                                    This paragraph now describes the surface
                                    `pdfcer-core` keeps directly: the PDF
                                    colour-SPACE objects (`/DeviceRGB`,
