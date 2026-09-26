@@ -16,7 +16,8 @@ So the newest local commit is copied in:
 * ``integration/pdfcer/ocrcer_engine.rs`` -> ``crates/pdfcer-core/src/ocr/engine_ocrcer.rs``,
   unmodified -- the adapter is OCRcer's to write;
 * ``LICENSE`` -> ``vendor/ocrcer-core/LICENSE``;
-* ``vendor/ocrcer-core/VENDORED`` records the source commit.
+* ``vendor/ocrcer-core/VENDORED`` records the source commit and the model
+  format versions the vendored reader accepts.
 
 It copies COMMITTED content (``git show HEAD:<path>``), never the working
 tree: OCRcer's own session may be mid-edit, and a half-written file must not
@@ -83,6 +84,30 @@ def rewrite_manifest(manifest: str, ws: dict[str, str]) -> str:
     return header + out
 
 
+# The `.ocrw` model is not vendored (OCRcer does not commit it), so a model
+# file and this reader can drift apart. These are the versions the vendored
+# reader accepts; a packager compares a model against them before shipping it.
+# The container version is the little-endian u16 at byte offset 4, right after
+# the `OCRW` magic (OCRcer ARCHITECTURE.md section 7).
+MODEL_FORMAT_CONSTS = (
+    ("model-container-version", "src/ocrw.rs", "SUPPORTED_VERSION"),
+    ("model-kind-recogniser", "src/ocrw.rs", "KIND_RECOGNISER"),
+    ("model-feature-version", "src/feature.rs", "FEATURE_VERSION"),
+    ("model-nn-version", "src/nn.rs", "SUPPORTED_NN_VERSION"),
+)
+
+
+def model_formats(files: dict[str, bytes]) -> str:
+    """`key = value` lines for the model versions the vendored reader accepts."""
+    out = []
+    for key, rel, const in MODEL_FORMAT_CONSTS:
+        m = re.search(rf"pub const {const}: \w+ = (\d+);", files[rel].decode())
+        if m is None:
+            raise SystemExit(f"sync-ocrcer: {rel} no longer declares {const}")
+        out.append(f"{key} = {m.group(1)}\n")
+    return "".join(out)
+
+
 def expected_files(source: Path, rev: str) -> dict[str, bytes]:
     """Relative path under vendor/ocrcer-core -> bytes, for the given rev."""
     names = git(source, "ls-tree", "-r", "--name-only", rev, CRATE_SRC).decode().split()
@@ -108,6 +133,7 @@ def expected_files(source: Path, rev: str) -> dict[str, bytes]:
         f"source = https://github.com/KenM76/ocrcer (local checkout)\n"
         f"commit = {last}\n"
         f"synced-by = tools/sync-ocrcer.py\n"
+        + model_formats(files)
     ).encode()
     return files
 
