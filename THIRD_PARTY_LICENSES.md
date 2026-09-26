@@ -61,8 +61,8 @@ alongside the other licenses harvested from `Cargo.lock`.
 
 ## License overview
 
-- **Apache License 2.0** — used by 142 crate(s)
-- **MIT License** — used by 10 crate(s)
+- **Apache License 2.0** — used by 137 crate(s)
+- **MIT License** — used by 9 crate(s)
 - **BSD 3-Clause &quot;New&quot; or &quot;Revised&quot; License** — used by 7 crate(s)
 - **ISC License** — used by 3 crate(s)
 - **Boost Software License 1.0** — used by 2 crate(s)
@@ -2886,20 +2886,16 @@ Used by:
 - [aes 0.9.2](https://github.com/RustCrypto/block-ciphers)
 - [base16ct 1.0.0](https://github.com/RustCrypto/formats)
 - [base64ct 1.8.3](https://github.com/RustCrypto/formats)
-- [block-buffer 0.10.4](https://github.com/RustCrypto/utils)
 - [block-buffer 0.12.1](https://github.com/RustCrypto/utils)
 - [block-padding 0.4.2](https://github.com/RustCrypto/utils)
 - [cbc 0.2.1](https://github.com/RustCrypto/block-modes)
 - [cipher 0.5.2](https://github.com/RustCrypto/traits)
 - [const-oid 0.10.2](https://github.com/RustCrypto/formats)
 - [cpubits 0.1.1](https://github.com/RustCrypto/utils)
-- [cpufeatures 0.2.17](https://github.com/RustCrypto/utils)
 - [cpufeatures 0.3.0](https://github.com/RustCrypto/utils)
 - [crypto-bigint 0.7.5](https://github.com/RustCrypto/crypto-bigint)
-- [crypto-common 0.1.7](https://github.com/RustCrypto/traits)
 - [crypto-common 0.2.2](https://github.com/RustCrypto/traits)
 - [der 0.8.2](https://github.com/RustCrypto/formats)
-- [digest 0.10.7](https://github.com/RustCrypto/traits)
 - [digest 0.11.3](https://github.com/RustCrypto/traits)
 - [elliptic-curve 0.14.1](https://github.com/RustCrypto/traits)
 - [hmac 0.13.0](https://github.com/RustCrypto/MACs)
@@ -2915,7 +2911,6 @@ Used by:
 - [primeorder 0.14.0](https://github.com/RustCrypto/elliptic-curves)
 - [sec1 0.8.1](https://github.com/RustCrypto/formats)
 - [sha1 0.11.0](https://github.com/RustCrypto/hashes)
-- [sha2 0.10.9](https://github.com/RustCrypto/hashes)
 - [sha2 0.11.0](https://github.com/RustCrypto/hashes)
 - [signature 3.0.0](https://github.com/RustCrypto/traits)
 - [spki 0.8.0](https://github.com/RustCrypto/formats)
@@ -4605,35 +4600,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-```
-
-### MIT License
-
-Used by:
-- [generic-array 0.14.7](https://github.com/fizyk20/generic-array.git)
-
-```
-The MIT License (MIT)
-
-Copyright (c) 2015 Bartłomiej Kamiński
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the &quot;Software&quot;), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 ```
 
 ### Unicode License v3

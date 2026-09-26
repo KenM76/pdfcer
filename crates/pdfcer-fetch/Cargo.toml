@@ -58,7 +58,7 @@ thiserror = "2"
 # against the same manifest), and a verifier that disappears with the fetcher
 # would make the stripped build weaker than it needs to be.
 # License: MIT OR Apache-2.0.
-sha2 = "0.10"
+sha2 = { version = "0.11.0", default-features = false }
 
 # ureq: blocking HTTPS client. Chosen over `reqwest` because this crate makes
 # ONE kind of request — GET a pinned URL to a file — and `reqwest` would bring
