@@ -283,6 +283,23 @@ D:\Dev\pdfcer\
                                    types). Steps 3 (leaf feature crates below
                                    `pdfcer-model`) and 7 (housekeeping) of the same
                                    Pass are still open; see `docs/ROADMAP.md`.
+    pdfcer-image-codec\          <- (`Pass 325.0` step 3, first leaf, 2026-09-26,
+                                   `bda11bd9`) the four terminal image codecs —
+                                   DCTDecode, CCITTFaxDecode, JBIG2Decode,
+                                   JPXDecode (§7.4.6–§7.4.9) — `git mv`'d out of
+                                   `pdfcer-core`. Depends on `pdfcer-model` ONLY
+                                   (plus external codec crates); `pdfcer-core`
+                                   depends on it, never the reverse. Same
+                                   zero-GUI/network invariant as `pdfcer-model`
+                                   (rule 2), its own `cargo tree -p
+                                   pdfcer-image-codec` CI step, wasm32-clean.
+                                   `pdfcer-core` re-exports it at its pre-split
+                                   path (`pub use pdfcer_image_codec as
+                                   image_codec;`). `settings::CmykJpegPolarity`
+                                   (DCT-A1, R169) moved here from `settings`
+                                   and is re-exported back, losing
+                                   `#[non_exhaustive]` for the same reason as
+                                   `pdfcer-model`'s COS types above.
     pdfcer-core\                <- COS object model, tokenizer, xref (table + stream),
                                    object streams, incremental-update writer, filters,
                                    fonts, color spaces, encryption/decryption, digital
@@ -291,12 +308,16 @@ D:\Dev\pdfcer\
                                    ZERO windowing/GUI/rendering-backend dependencies.
                                    THIS is the crate that forks to WASM later.
                                    **Depends on `pdfcer-model` (`Pass 325.0` step 2,
-                                   2026-09-26) for the COS layer above — see that
-                                   crate's own entry. This paragraph now describes
-                                   the surface `pdfcer-core` keeps directly: fonts,
-                                   color spaces, encryption/signature verification,
-                                   the content-stream interpreter, and everything
-                                   `edit`/`settings` and the feature modules below.**
+                                   2026-09-26) for the COS layer above, and on
+                                   `pdfcer-image-codec` (step 3, first leaf,
+                                   2026-09-26) for the four terminal image
+                                   codecs — see each crate's own entry. This
+                                   paragraph now describes the surface
+                                   `pdfcer-core` keeps directly: fonts, color
+                                   spaces, encryption/signature verification,
+                                   the content-stream interpreter, and
+                                   everything `edit`/`settings` and the
+                                   remaining feature modules below.**
                                    **`font_embed.rs` (Pass 21.0, FF-C, decision 021,
                                    commit `48c6b77`; body-section sync 2026-08-04
                                    continuation 77):** plain-data contract

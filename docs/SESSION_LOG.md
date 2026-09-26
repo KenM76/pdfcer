@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (597th filing) — `Pass 325.0` step 3 STARTED (`bda11bd9`): first leaf crate `pdfcer-image-codec` extracted
+
+**Shipped:**
+- `Pass 325.0` step 3, first leaf (`bda11bd9`) — new crate `pdfcer-image-codec` (DCTDecode, CCITTFaxDecode, JBIG2Decode, JPXDecode; ISO 32000-1 §7.4.6–§7.4.9), 6,607 lines `git mv`'d out of `pdfcer-core`, depending only on `pdfcer-model`. `pdfcer-core` re-exports it unchanged (`pub use pdfcer_image_codec as image_codec;`). `settings::CmykJpegPolarity` (DCT-A1, R169) moved into the codec and is re-exported back, losing `#[non_exhaustive]` for the same reason step 2's model types did. `Pass 325.0` stays **IN PROGRESS**: step 3 continues (sign, crypto, form_script, dimension, vector, text_edit not yet cut); steps 4 (rest), 6, 7 remain open.
+
+**Decisions made this session:** none new. `ARCHITECTURE.md` §3 got a body update (new `pdfcer-image-codec` entry, `pdfcer-core`'s dependency note extended).
+
+**Findings + decisions:**
+- A new `cargo test -p pdfcer-image-codec --no-default-features` gate step was needed: without it, the codec's 70 non-JPX tests — previously covered inside core's own `--no-default-features` run — would have silently dropped out of both CI and the local sweep, with no test failing. Found by diffing per-binary `test result` totals between gate runs. RAG finding written (below).
+- Leaf map extended: `ocr` is NOT a leaf (`ocr/layer.rs` uses `text_edit::addtext::pick_font_name`, `text_edit::edit::make_raw_stream`, `vartext`); `sign` depends on `asn`/`cms`/`signature_verify`/`fontdata`/`textstring`/`edit::EditError`. Planned next: extract `asn`/`cms`/`signature_verify` as a signature-crypto crate, keep `sign::apply` in core.
+- `tools/run-gates.sh` 36/36. `#[test]` count unchanged workspace-wide at 5,481 (core lib 1,691 → 1,597 + codec lib 94; core lite 1,650 → 1,580 + codec lite 70; core doctests 172 → 171 + codec doctest 1). `cargo tree -p pdfcer-image-codec` (Windows): only `hayro-ccitt`/`hayro-jbig2`/`hayro-jpeg2000`/`zune-jpeg`/`thiserror`/`pdfcer-model`.
+- Rebuild-time measurement: codec lib tests `--no-run` 1.4 s (was ~8 s inside core); CLI build 12.3 s. But core lib tests `--no-run` after a codec edit rose to 36.4 s, because the codec is now upstream of core — recorded honestly rather than citing only the favourable number.
+
+**Still in flight:**
+- `Pass 325.0` step 3 (remaining leaves: sign, crypto, form_script, dimension, vector, text_edit), step 4 (facade — done for model + codec, open for the rest), 6, 7 — all open.
+
+**For next session:**
+- Continue `Pass 325.0` step 3 with the signature-crypto crate (`asn`/`cms`/`signature_verify`).
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, line/dependency/test counts, gate results and rebuild-time measurements are relayed from the dispatching engineer's own report of `bda11bd9`; not independently reproduced here.
+
 ## 2026-09-26 (596th filing) — `Pass 325.0` step 2 SHIPPED (`0fbf6cbb`): the COS model layer extracted into `pdfcer-model`
 
 **Shipped:**
