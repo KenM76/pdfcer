@@ -71,9 +71,10 @@ Run:  python tools/check-cli-help-leads.py
 import pathlib
 import sys
 
-TARGETS = [
-    "crates/pdfcer-cli/src/main.rs",
-]
+TARGETS = sorted(
+    str(f.as_posix())
+    for f in pathlib.Path("crates/pdfcer-cli/src").glob("*.rs")
+)
 
 
 def offenders(path: pathlib.Path):

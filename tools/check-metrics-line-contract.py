@@ -97,7 +97,8 @@ import re
 import sys
 from pathlib import Path
 
-MAIN_RS = Path(__file__).resolve().parent.parent / "crates" / "pdfcer-cli" / "src" / "main.rs"
+CLI_SRC = Path(__file__).resolve().parent.parent / "crates" / "pdfcer-cli" / "src"
+MAIN_RS = CLI_SRC / "main.rs"
 
 # The template lives inside a fenced block in the module docs; every one of
 # its lines starts with `//!` and the block opens on the line beginning
@@ -205,7 +206,8 @@ def undocumented_keys(src: str, emitted: list[str]) -> list[str]:
 
 
 def main() -> int:
-    src = MAIN_RS.read_text(encoding="utf-8")
+    # The template lives in main.rs's module docs; the println! in a submodule.
+    src = "\n".join(f.read_text(encoding="utf-8") for f in sorted(CLI_SRC.glob("*.rs")))
     doc = template_keys(src)
     code = println_keys(src)
     unrowed = undocumented_keys(src, code)

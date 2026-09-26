@@ -65,7 +65,7 @@ import re
 import sys
 from pathlib import Path
 
-MAIN = Path(__file__).resolve().parent.parent / "crates" / "pdfcer-cli" / "src" / "main.rs"
+MAIN = Path(__file__).resolve().parent.parent / "crates" / "pdfcer-cli" / "src" / "cli.rs"
 
 # A variant declaration at the enum's own indentation: `    Name {`, `    Name(`
 # or `    Name,`. Anchored at exactly four spaces so a field inside a variant
@@ -236,7 +236,7 @@ def main() -> int:
         print(f"check-clap-help: cannot read {MAIN}", file=sys.stderr)
         return 2
     lines = MAIN.read_text(encoding="utf-8").split("\n")
-    starts = [i for i, l in enumerate(lines) if l.startswith("enum Command {")]
+    starts = [i for i, l in enumerate(lines) if l.startswith("pub(crate) enum Command {")]
     if len(starts) != 1:
         print(
             "check-clap-help: expected exactly one `enum Command {` in "

@@ -102,8 +102,8 @@ fn the_provenance_record_still_carries_the_licence() {
 /// a substring check over the source proves the shipped bytes contain it.
 #[test]
 fn the_attached_notice_reproduces_every_operative_clause() {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/main.rs");
-    let src = normalise(&std::fs::read_to_string(&path).expect("read main.rs"));
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/fonts.rs");
+    let src = normalise(&std::fs::read_to_string(&path).expect("read fonts.rs"));
     for needle in REQUIRED {
         assert!(
             src.contains(&normalise(needle)),
@@ -124,8 +124,8 @@ fn the_attached_notice_reproduces_every_operative_clause() {
 /// discharges nothing.
 #[test]
 fn the_notice_says_why_it_is_in_the_document() {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/main.rs");
-    let src = std::fs::read_to_string(&path).expect("read main.rs");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/fonts.rs");
+    let src = std::fs::read_to_string(&path).expect("read fonts.rs");
     assert!(
         src.contains("If you redistribute this PDF, keep this attachment."),
         "the notice must tell the reader what to DO with it"

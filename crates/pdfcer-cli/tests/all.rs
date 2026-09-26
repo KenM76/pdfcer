@@ -21,6 +21,7 @@ mod find_text;
 mod font_licence_notice;
 mod font_preflight;
 mod format_text;
+mod import_structure_certified;
 mod ink_edit;
 mod inspect_reflow_preview;
 mod inspect_text_blocks;

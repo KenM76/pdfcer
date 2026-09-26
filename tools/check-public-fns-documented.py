@@ -156,6 +156,11 @@ def is_documented(lines: list[str], index: int) -> bool:
         if stripped.startswith("#[") or stripped.startswith("#!"):
             j -= 1
             continue
+        # A plain `//` line (an `#[allow]` justification) between the doc
+        # comment and the item does not detach the doc; rustdoc skips it.
+        if stripped.startswith("//") and not stripped.startswith("///"):
+            j -= 1
+            continue
         if stripped.endswith(")]") or stripped.endswith("}]"):
             depth = 1
             j -= 1

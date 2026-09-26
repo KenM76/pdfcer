@@ -23,24 +23,18 @@
 #
 # Sorted; one per line; `#` comments and blank lines ignored.
 crates/pdfcer-core/src/attachments.rs::list_attachments
-crates/pdfcer-core/src/civil_time.rs::format_rfc3339_utc
 crates/pdfcer-core/src/dimension/group.rs::delete_group
 crates/pdfcer-core/src/dimension/sidecar.rs::deserialize_model
 crates/pdfcer-core/src/formclip.rs::new
 crates/pdfcer-core/src/pageops/mod.rs::extract
 crates/pdfcer-core/src/text_edit/edit.rs::new
-crates/pdfcer-core/src/text_edit/reflow.rs::reflow_recognition_options
 crates/pdfcer-core/src/vector/clip.rs::to_bytes
-crates/pdfcer-print/src/devmode.rs::apply
-crates/pdfcer-print/src/devmode.rs::apply_paper
 crates/pdfcer-render/src/clip_cache.rs::new
 crates/pdfcer-render/src/cmyk_buffer.rs::composite_overprint
 crates/pdfcer-render/src/color.rs::to_rgb
 crates/pdfcer-render/src/display_list.rs::new
 crates/pdfcer-render/src/font/mod.rs::with_missing_as
 crates/pdfcer-render/src/icc.rs::new
-crates/pdfcer-render/src/image.rs::decode
-crates/pdfcer-render/src/interpret.rs::run
 crates/pdfcer-render/src/overprint.rs::cmyk_group_rules
 crates/pdfcer-render/src/profile.rs::ablation
 crates/pdfcer-render/src/profile.rs::note_full_identity

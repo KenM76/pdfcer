@@ -820,7 +820,7 @@ let out = session.flatten_fields(Some(&["Personal.Address.Zip", "Personal.Addres
 
 **(c) Script recompute — plan, show, then apply.** The borrow shape is
 load-bearing; copied from `pdfce@cce414e:crates/pdfce-gui/src/main.rs:8014-8021` and
-`crates/pdfcer-cli/src/main.rs:9712-9715`.
+`cmd_recompute` in `crates/pdfcer-cli/src/fields.rs`.
 
 ```rust
 use pdfcer_core::form_script::{calc::CommaPolicy, recompute};
@@ -2155,8 +2155,8 @@ let _ = out;
 ```
 
 The `pdfcer` consumer path is a clean non-GUI reference:
-`crates/pdfcer-cli/src/main.rs:13470` `cmd_redact_apply` → `apply_redactions`
-(`:13491`) → per-carrier report (`:13527-13534`) → the acknowledgement gate
+`cmd_redact_apply` in `crates/pdfcer-cli/src/security.rs` → `apply_redactions`
+→ per-carrier report → the acknowledgement gate
 (`:13544-13552`) → exit code `exit::REDACTION_RESIDUALS` (`:13553`).
 
 ### 4.4 ★ What the UI must disclose
@@ -2629,7 +2629,7 @@ implementation."*
 
 **This is the largest greenfield opportunity in the document.**
 `grep -rn "imposition::" crates/` finds hits **only** in
-`crates/pdfcer-cli/src/main.rs`. The planners are built, tested and unused by
+`crates/pdfcer-cli/src/print.rs`. The planners are built, tested and unused by
 any GUI.
 
 **Crate posture:** *"core rasterises, the shell spools"* (`lib.rs:16`).
@@ -2741,7 +2741,7 @@ let _ = (features, res, report.clipped_pages);
 ```
 
 **(b) N-up imposition — the `gui [ ]` opportunity.** From
-`crates/pdfcer-cli/src/main.rs:8612-8660`.
+`cmd_print` in `crates/pdfcer-cli/src/print.rs`.
 
 ```rust
 use pdfcer_print::imposition::{NUpGrid, NUpSpec, PageOrder, plan_n_up};
@@ -2809,7 +2809,7 @@ for sheet_index in 0..layout.sheets {
 ### 6.4 Traps
 
 - **★ Imposition modes are mutually exclusive, and the guard is CLI-local.**
-  `crates/pdfcer-cli/src/main.rs:8565-8596`: *"N-up, booklet and poster each
+  `cmd_print` in `crates/pdfcer-cli/src/print.rs`: *"N-up, booklet and poster each
   REMAP the job rather than scale it, and no two of them compose. Before this
   guard existed the three branches ran in sequence and the last one to fire
   silently overwrote the others' work: `--poster --booklet` composed nine

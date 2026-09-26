@@ -202,7 +202,7 @@ back into `hit_test_point` will miss.
 
 Core is **0-based** everywhere (`PageText::page_index`, `TextMatch::page_index`,
 the index into `page_tree::pages()`'s `Vec`). Humans are 1-based, and
-`pdfcer` converts at the print boundary (`crates/pdfcer-cli/src/main.rs:9360-9361`:
+`pdfcer` converts at the print boundary (`cmd_find_text` in `crates/pdfcer-cli/src/fields.rs`:
 *"1-based page, matching every other page-addressing surface in this CLI.
 The extraction is 0-based and the operator is not."*). Do the same, once, at
 your presentation layer.

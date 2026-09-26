@@ -4495,7 +4495,7 @@ that wires "Save" to "clear undo" is inventing a restriction the core does not
 impose.
 
 The same contract is exposed to operators as `pdfcer --verify-undo`
-(`crates/pdfcer-cli/src/main.rs:11192-11202`): undo everything, save, byte-compare
+(`save_edited` in `crates/pdfcer-cli/src/edit_common.rs`): undo everything, save, byte-compare
 against the source. A new shell can offer the same self-check cheaply.
 
 ---
@@ -4523,7 +4523,7 @@ The mode is expressed by **which method you call** — there is no mode paramete
 `FullRewrite`) exists **only** for the signature-impact query.
 
 ★ **The two modes are given different `SaveOptions` in the shipped CLI, and the
-asymmetry is deliberate.** `crates/pdfcer-cli/src/main.rs:11177-11180`:
+asymmetry is deliberate.** `save_edited` in `crates/pdfcer-cli/src/edit_common.rs`:
 
 ```rust
 let saved = match mode {
@@ -4604,7 +4604,7 @@ recoverable, and **only the shell can prevent it**:
 **Reference behaviour in the shipped shells:** `pdfcer` exposes
 `--full-rewrite` and, when it is absent after a flatten, prints to stderr
 *"flatten saved incrementally — the pre-flatten field values remain recoverable
-in the prior revision"* (`crates/pdfcer-cli/src/main.rs:10344-10356`).
+in the prior revision"* (`cmd_flatten` in `crates/pdfcer-cli/src/fields.rs`).
 `pdfce-gui`'s save dialog **always** calls `to_incremental_bytes`
 (`pdfce@cce414e:crates/pdfce-gui/src/main.rs:5095-5097`); its only full-rewrite path is
 redaction-apply (`pdfce@cce414e:crates/pdfce-gui/src/redact_apply.rs:279-284`, module doc:
