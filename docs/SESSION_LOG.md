@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (598th filing) — `Pass 325.0` step 3 continues (`01ad7b16`): second leaf crate `pdfcer-fonts` extracted
+
+**Shipped:**
+- `Pass 325.0` step 3, second leaf (`01ad7b16`) — new crate `pdfcer-fonts` (fonts and text encoding: `fontdata/`, `fontinfo.rs`, `font_embed.rs`, `textstring.rs`, `vartext.rs`, `linebreak.rs`), `git mv`'d out of `pdfcer-core`, depending only on `pdfcer-model` + `thiserror`. `font_unembed.rs` stays in core (needs `EditSession`). `pdfcer-core` re-exports all six unchanged. Structural Pass: no `FEATURES.md` row change. `Pass 325.0` stays **IN PROGRESS**: step 3 continues (sign, crypto, form_script, dimension, vector, text_edit not yet cut); steps 4 (rest), 6, 7 remain open.
+
+**Decisions made this session:** none new. `ARCHITECTURE.md` §3 got a body update (new `pdfcer-fonts` entry; `pdfcer-core`'s dependency note extended; a forward-note added ahead of the font_embed.rs/fontinfo.rs history paragraphs pointing at the new crate).
+
+**Findings + decisions:**
+- Refinement of the 597th filing's RAG lesson: the lost-coverage risk (a moved module's tests silently dropping out of the parent's `--no-default-features` sweep) applies only when the EXTRACTED crate is itself feature-gated. `pdfcer-fonts` has no Cargo features, so its tests compile identically in core's existing lite rerun — no new lite test step was needed; confirmed by per-binary diff. Note appended to `D:\dev\rag\rust\extracting_a_feature_gated_module_into_its_own_crate_drops_its_tests_from_the_parents_no_default_features_run.md`.
+- `tools/run-gates.sh` PASS, 37 commands, 9,299 passed / 0 failed (previous run 9,366; the −67 reconciles per binary: core-lite lib −110 and core-lite doc −29 dropped as duplicates, fonts +109 unit +29 doc appear in the workspace run, core lib −110, core `tests/all.rs` +1).
+- `cargo tree -p pdfcer-fonts`: `pdfcer-model` + `thiserror` only. Workspace clippy/fmt/wasm32/fuzz all clean.
+- Rebuild after a one-line `pdfcer-fonts` edit: fonts tests `--no-run` 1.6 s; CLI build 11.3 s warm (a first cold-after-change build was 62.5 s — not the steady-state figure).
+
+**Still in flight:**
+- `Pass 325.0` step 3 (remaining leaves: `sign`, `crypto`, `form_script`, `dimension`, `vector`, `text_edit` — a `pkix` crate needs `signature_verify::pss_params` moved down first; `settings` inversion needed to unblock `color`/`text_extract`), step 4 (facade — done for model/codec/fonts, open for the rest), 6, 7 — all open.
+
+**For next session:**
+- Continue `Pass 325.0` step 3 with the signature-crypto/`pkix` crate.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, moved-module list, gate/test counts and rebuild-time measurements are relayed from the dispatching engineer's own report of `01ad7b16`; not independently reproduced here.
+
 ## 2026-09-26 (597th filing) — `Pass 325.0` step 3 STARTED (`bda11bd9`): first leaf crate `pdfcer-image-codec` extracted
 
 **Shipped:**

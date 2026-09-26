@@ -300,6 +300,24 @@ D:\Dev\pdfcer\
                                    and is re-exported back, losing
                                    `#[non_exhaustive]` for the same reason as
                                    `pdfcer-model`'s COS types above.
+    pdfcer-fonts\                <- (`Pass 325.0` step 3, second leaf, 2026-09-26,
+                                   `01ad7b16`) fonts and text encoding —
+                                   `fontdata/` (metrics tables), `fontinfo.rs`
+                                   (inventory), `font_embed.rs` (embedding
+                                   plan/build, Pass 21.0), `textstring.rs`,
+                                   `vartext.rs`, `linebreak.rs` —
+                                   `git mv`'d out of `pdfcer-core`. Depends on
+                                   `pdfcer-model` ONLY (plus `thiserror`);
+                                   `pdfcer-core` depends on it, never the
+                                   reverse. `font_unembed.rs` stays in core —
+                                   it calls into `EditSession`, which this
+                                   crate does not depend on. Same zero-GUI/
+                                   network invariant as `pdfcer-model`/
+                                   `pdfcer-image-codec` (rule 2), its own
+                                   `cargo tree -p pdfcer-fonts` CI step,
+                                   wasm32-clean. `pdfcer-core` re-exports
+                                   every moved item at its pre-split path
+                                   (`pub use pdfcer_fonts::{...}`).
     pdfcer-core\                <- COS object model, tokenizer, xref (table + stream),
                                    object streams, incremental-update writer, filters,
                                    fonts, color spaces, encryption/decryption, digital
@@ -308,16 +326,25 @@ D:\Dev\pdfcer\
                                    ZERO windowing/GUI/rendering-backend dependencies.
                                    THIS is the crate that forks to WASM later.
                                    **Depends on `pdfcer-model` (`Pass 325.0` step 2,
-                                   2026-09-26) for the COS layer above, and on
+                                   2026-09-26) for the COS layer above,
                                    `pdfcer-image-codec` (step 3, first leaf,
                                    2026-09-26) for the four terminal image
-                                   codecs — see each crate's own entry. This
+                                   codecs, and `pdfcer-fonts` (step 3, second
+                                   leaf, 2026-09-26) for fonts and text
+                                   encoding — see each crate's own entry. This
                                    paragraph now describes the surface
-                                   `pdfcer-core` keeps directly: fonts, color
+                                   `pdfcer-core` keeps directly: color
                                    spaces, encryption/signature verification,
                                    the content-stream interpreter, and
                                    everything `edit`/`settings` and the
                                    remaining feature modules below.**
+                                   **`font_embed.rs`/`fontinfo.rs`/
+                                   `fontdata/`/`textstring.rs`/`vartext.rs`/
+                                   `linebreak.rs` now live in `pdfcer-fonts`
+                                   (`Pass 325.0` step 3, second leaf,
+                                   2026-09-26), re-exported from `pdfcer-core`
+                                   unchanged — the module histories below are
+                                   kept as written, not relocated.**
                                    **`font_embed.rs` (Pass 21.0, FF-C, decision 021,
                                    commit `48c6b77`; body-section sync 2026-08-04
                                    continuation 77):** plain-data contract
