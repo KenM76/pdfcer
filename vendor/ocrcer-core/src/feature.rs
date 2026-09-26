@@ -114,6 +114,29 @@ const ZONE_SIZE: usize = GRID / ZONES_PER_AXIS;
 /// This is a contract violation, not a degenerate-but-valid input, so it is
 /// not defined away.
 pub fn extract(input: &GlyphInput<'_>) -> [f32; FEATURE_DIMS] {
+    extract_inner(input).0
+}
+
+/// Same contract as [`extract`], but also returns the normalised 32x32 grid
+/// `G` the vector was built from.
+///
+/// This exists for tooling that needs the grid alongside the vector (for
+/// example a probe that feeds both into a network head) without a second
+/// implementation of the extractor computing it independently — see
+/// `CLAUDE.md` rule 4. Not on the hot path: `extract` does not pay for this
+/// grid's extra copy out to `f32`.
+pub fn extract_with_grid(input: &GlyphInput<'_>) -> ([f32; FEATURE_DIMS], [[f32; GRID]; GRID]) {
+    let (out, grid) = extract_inner(input);
+    let mut g32 = [[0.0f32; GRID]; GRID];
+    for (row_out, row_in) in g32.iter_mut().zip(grid.iter()) {
+        for (v_out, &v_in) in row_out.iter_mut().zip(row_in.iter()) {
+            *v_out = v_in as f32;
+        }
+    }
+    (out, g32)
+}
+
+fn extract_inner(input: &GlyphInput<'_>) -> ([f32; FEATURE_DIMS], [[f64; GRID]; GRID]) {
     assert_eq!(
         input.ink.len(),
         input.width as usize * input.height as usize,
@@ -164,7 +187,7 @@ pub fn extract(input: &GlyphInput<'_>) -> [f32; FEATURE_DIMS] {
     out[GEOMETRY.start + 2] = above as f32;
     out[GEOMETRY.start + 3] = below as f32;
 
-    out
+    (out, grid)
 }
 
 /// Ink centroid in source bitmap coordinates, and the ink pixel count.
