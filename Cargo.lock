@@ -910,6 +910,7 @@ dependencies = [
  "pdfcer-fonts",
  "pdfcer-image-codec",
  "pdfcer-model",
+ "pdfcer-pkix",
  "rand_core",
  "rc2",
  "rsa",
@@ -962,6 +963,14 @@ dependencies = [
  "sha2 0.11.0",
  "thiserror",
  "weezl",
+]
+
+[[package]]
+name = "pdfcer-pkix"
+version = "0.55.0"
+dependencies = [
+ "pdfcer-model",
+ "thiserror",
 ]
 
 [[package]]

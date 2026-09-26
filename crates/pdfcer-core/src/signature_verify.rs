@@ -79,7 +79,7 @@
 //! identically. A signature dictionary reachable only from `/Perms` (no
 //! field) is not listed; the certification census covers it.
 
-use crate::cms::{self, PublicKey, oid};
+use crate::cms::{self, PublicKey, hash_for, oid, pss_params};
 use crate::crypto::ecdsa::{Curve, EcPublicKey};
 use crate::crypto::rsa::{Hash, RsaPublicKey};
 use crate::crypto::{bignum::Uint, sha1::sha1};
@@ -689,19 +689,6 @@ fn coverage_len(ranges: &[(u64, u64)]) -> usize {
         .sum()
 }
 
-/// The digest a `digestAlgorithm` OID names, or `None` for one pdfcer does
-/// not verify (MD5 is deliberately absent: PAdES forbids it and ISO 32000-2
-/// deprecates it, so a verdict over it would be `Unverifiable` by name).
-pub(crate) fn hash_for(oid_str: &str) -> Option<Hash> {
-    match oid_str {
-        oid::SHA1 => Some(Hash::Sha1),
-        oid::SHA256 => Some(Hash::Sha256),
-        oid::SHA384 => Some(Hash::Sha384),
-        oid::SHA512 => Some(Hash::Sha512),
-        _ => None,
-    }
-}
-
 /// Verify `signature` over `attrs_digest` with `key` under `alg`.
 /// `Ok((verified, algorithm name))`, or `Err(reason)` when the combination
 /// is one pdfcer does not implement.
@@ -810,60 +797,4 @@ pub(crate) fn check_signature(
             "the signature algorithm {other} is not one pdfcer verifies"
         )),
     }
-}
-
-/// `RSASSA-PSS-params` (RFC 4055 §3.1): `(hash, mgf1 hash, salt length)`,
-/// with the RFC's defaults for absent fields.
-pub(crate) fn pss_params(alg: &cms::AlgId<'_>) -> Result<(Hash, Hash, usize), String> {
-    let mut hash = Hash::Sha1;
-    let mut mgf = Hash::Sha1;
-    let mut salt = 20usize;
-    let Some(params) = alg.params.filter(|p| p.tag == crate::asn1::SEQUENCE) else {
-        return Ok((hash, mgf, salt));
-    };
-    for field in crate::asn1::children(params).unwrap_or_default() {
-        match field.tag {
-            0xA0 => {
-                let (h, _) = crate::asn1::read(field.content).ok_or("bad PSS hashAlgorithm")?;
-                let oid_s = crate::asn1::children(h)
-                    .and_then(|k| k.first().copied())
-                    .and_then(|t| crate::asn1::oid_to_string(t.content))
-                    .ok_or("bad PSS hashAlgorithm")?;
-                hash = hash_for(&oid_s).ok_or_else(|| format!("PSS hash {oid_s} unsupported"))?;
-            }
-            0xA1 => {
-                let (m, _) = crate::asn1::read(field.content).ok_or("bad PSS maskGenAlgorithm")?;
-                let kids = crate::asn1::children(m).ok_or("bad PSS maskGenAlgorithm")?;
-                let mgf_oid = kids
-                    .first()
-                    .and_then(|t| crate::asn1::oid_to_string(t.content))
-                    .ok_or("bad PSS maskGenAlgorithm")?;
-                if mgf_oid != oid::MGF1 {
-                    return Err(format!(
-                        "PSS mask generation function {mgf_oid} is not MGF1"
-                    ));
-                }
-                let inner = kids.get(1).copied().ok_or("bad PSS MGF1 parameters")?;
-                let oid_s = crate::asn1::children(inner)
-                    .and_then(|k| k.first().copied())
-                    .and_then(|t| crate::asn1::oid_to_string(t.content))
-                    .ok_or("bad PSS MGF1 hash")?;
-                mgf =
-                    hash_for(&oid_s).ok_or_else(|| format!("PSS MGF1 hash {oid_s} unsupported"))?;
-            }
-            0xA2 => {
-                let (i, _) = crate::asn1::read(field.content).ok_or("bad PSS saltLength")?;
-                let b = crate::asn1::integer_bytes(i).ok_or("bad PSS saltLength")?;
-                salt = b.iter().fold(0usize, |acc, &x| (acc << 8) | usize::from(x));
-            }
-            0xA3 => {
-                let (i, _) = crate::asn1::read(field.content).ok_or("bad PSS trailerField")?;
-                if crate::asn1::integer_bytes(i) != Some(&[1]) {
-                    return Err("PSS trailerField is not 1 (0xBC)".into());
-                }
-            }
-            _ => {}
-        }
-    }
-    Ok((hash, mgf, salt))
 }

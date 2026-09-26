@@ -385,6 +385,7 @@ dependencies = [
  "pdfcer-fonts",
  "pdfcer-image-codec",
  "pdfcer-model",
+ "pdfcer-pkix",
  "sha2",
  "thiserror",
  "weezl",
@@ -431,6 +432,14 @@ dependencies = [
  "sha2",
  "thiserror",
  "weezl",
+]
+
+[[package]]
+name = "pdfcer-pkix"
+version = "0.55.0"
+dependencies = [
+ "pdfcer-model",
+ "thiserror",
 ]
 
 [[package]]

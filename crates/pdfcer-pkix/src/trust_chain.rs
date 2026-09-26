@@ -51,10 +51,10 @@ use std::collections::HashMap;
 
 use crate::asn1;
 use crate::cms::{self, Certificate, PublicKey, oid};
-use crate::crypto::bignum::Uint;
-use crate::crypto::ecdsa::{Curve, EcPublicKey};
-use crate::crypto::rsa::{Hash, RsaPublicKey};
 use crate::trust_store::TrustAnchorSet;
+use pdfcer_model::crypto::bignum::Uint;
+use pdfcer_model::crypto::ecdsa::{Curve, EcPublicKey};
+use pdfcer_model::crypto::rsa::{Hash, RsaPublicKey};
 
 /// Maximum chain length walked before giving up (RFC 5280 chains are short; a
 /// long one is hostile or malformed).
@@ -295,7 +295,7 @@ fn verify_cert_signature(cert: &Certificate<'_>, issuer_key: &PublicKey<'_>) -> 
         let PublicKey::Rsa { n, e } = issuer_key else {
             return false;
         };
-        let Ok((hash, mgf_hash, salt_len)) = crate::signature_verify::pss_params(sig_alg) else {
+        let Ok((hash, mgf_hash, salt_len)) = crate::cms::pss_params(sig_alg) else {
             return false;
         };
         let digest = hash.digest(cert.tbs_der);

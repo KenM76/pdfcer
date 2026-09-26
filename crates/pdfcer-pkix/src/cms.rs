@@ -33,10 +33,11 @@
 //! never *valid*, for anything it could not fully read.
 
 use crate::asn1::{self, Tlv};
+use pdfcer_model::crypto::rsa::Hash;
 
 /// OIDs this module matches by name. Dotted-decimal, from RFC 5652 §11,
 /// RFC 5754, RFC 8017/4055, RFC 5480 (`SI-C4`).
-pub(crate) mod oid {
+pub mod oid {
     pub const SIGNED_DATA: &str = "1.2.840.113549.1.7.2";
     pub const DATA: &str = "1.2.840.113549.1.7.1";
     pub const CONTENT_TYPE: &str = "1.2.840.113549.1.9.3";
@@ -68,7 +69,7 @@ pub(crate) mod oid {
 
 /// An `AlgorithmIdentifier`: the OID and its raw parameters element.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct AlgId<'a> {
+pub struct AlgId<'a> {
     pub oid: String,
     /// The parameters TLV as it appeared (absent → `None`).
     pub params: Option<Tlv<'a>>,
@@ -91,7 +92,7 @@ fn alg_id(tlv: Tlv<'_>) -> Option<AlgId<'_>> {
 
 /// How a `SignerInfo` names its certificate (RFC 5652 §5.3 `sid`).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum SignerId<'a> {
+pub enum SignerId<'a> {
     /// `issuerAndSerialNumber`: the issuer `Name`'s raw DER and the serial.
     IssuerSerial {
         issuer_der: &'a [u8],
@@ -103,7 +104,7 @@ pub(crate) enum SignerId<'a> {
 
 /// The first `SignerInfo` of a `SignedData`.
 #[derive(Debug, Clone)]
-pub(crate) struct SignerInfo<'a> {
+pub struct SignerInfo<'a> {
     pub version: u64,
     pub sid: SignerId<'a>,
     pub digest_alg: AlgId<'a>,
@@ -120,7 +121,7 @@ pub(crate) struct SignerInfo<'a> {
 
 /// A `SignedData`, as much of it as verification reads.
 #[derive(Debug, Clone)]
-pub(crate) struct SignedData<'a> {
+pub struct SignedData<'a> {
     pub version: u64,
     pub content_type: String,
     /// `eContent`, when encapsulated (`adbe.pkcs7.sha1` carries the SHA-1 of
@@ -133,7 +134,7 @@ pub(crate) struct SignedData<'a> {
 }
 
 /// Parse the outer `ContentInfo` and its `SignedData`.
-pub(crate) fn parse_signed_data(der: &[u8]) -> Option<SignedData<'_>> {
+pub fn parse_signed_data(der: &[u8]) -> Option<SignedData<'_>> {
     // ContentInfo ::= SEQUENCE { contentType OID, content [0] EXPLICIT ANY }
     let (ci, _trailing) = asn1::expect(der, asn1::SEQUENCE)?;
     let ci_kids = asn1::children(ci)?;
@@ -267,7 +268,7 @@ fn parse_signer_info(tlv: Tlv<'_>) -> Option<SignerInfo<'_>> {
 
 /// The public key inside a certificate.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum PublicKey<'a> {
+pub enum PublicKey<'a> {
     /// `rsaEncryption`: the `RSAPublicKey` SEQUENCE's modulus and exponent.
     Rsa { n: &'a [u8], e: &'a [u8] },
     /// `id-ecPublicKey`: the named-curve OID and the SEC1 point.
@@ -278,7 +279,7 @@ pub(crate) enum PublicKey<'a> {
 
 /// What a certificate says about itself — reported, never trusted.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Certificate<'a> {
+pub struct Certificate<'a> {
     pub subject: String,
     pub issuer: String,
     pub issuer_der: &'a [u8],
@@ -318,7 +319,7 @@ pub(crate) struct Certificate<'a> {
 }
 
 /// Parse an X.509 v3 certificate (RFC 5280 §4.1).
-pub(crate) fn parse_certificate(der: &[u8]) -> Option<Certificate<'_>> {
+pub fn parse_certificate(der: &[u8]) -> Option<Certificate<'_>> {
     let (cert, _) = asn1::expect(der, asn1::SEQUENCE)?;
     let kids = asn1::children(cert)?;
     let tbs = kids.first().filter(|t| t.tag == asn1::SEQUENCE)?;
@@ -471,7 +472,7 @@ fn name_to_string(name: Tlv<'_>) -> String {
 impl<'a> SignedData<'a> {
     /// The RAW DER of the signer's certificate (the one [`signer_certificate`]
     /// parses) — the starting point for chain building (`Pass 10.3`).
-    pub(crate) fn signer_certificate_der(&self) -> Option<&'a [u8]> {
+    pub fn signer_certificate_der(&self) -> Option<&'a [u8]> {
         let signer = self.signer.as_ref()?;
         self.certificates.iter().copied().find(|der| {
             parse_certificate(der).is_some_and(|c| match &signer.sid {
@@ -484,7 +485,7 @@ impl<'a> SignedData<'a> {
     }
 
     /// The certificate the first signer's `sid` names, parsed.
-    pub(crate) fn signer_certificate(&self) -> Option<Certificate<'_>> {
+    pub fn signer_certificate(&self) -> Option<Certificate<'_>> {
         let signer = self.signer.as_ref()?;
         self.certificates
             .iter()
@@ -496,4 +497,73 @@ impl<'a> SignedData<'a> {
                 SignerId::SubjectKeyId(id) => c.subject_key_id == Some(*id),
             })
     }
+}
+
+/// The digest a `digestAlgorithm` OID names, or `None` for one pdfcer does
+/// not verify (MD5 is deliberately absent: PAdES forbids it and ISO 32000-2
+/// deprecates it, so a verdict over it would be `Unverifiable` by name).
+pub fn hash_for(oid_str: &str) -> Option<Hash> {
+    match oid_str {
+        oid::SHA1 => Some(Hash::Sha1),
+        oid::SHA256 => Some(Hash::Sha256),
+        oid::SHA384 => Some(Hash::Sha384),
+        oid::SHA512 => Some(Hash::Sha512),
+        _ => None,
+    }
+}
+
+/// `RSASSA-PSS-params` (RFC 4055 §3.1): `(hash, mgf1 hash, salt length)`,
+/// with the RFC's defaults for absent fields.
+pub fn pss_params(alg: &AlgId<'_>) -> Result<(Hash, Hash, usize), String> {
+    let mut hash = Hash::Sha1;
+    let mut mgf = Hash::Sha1;
+    let mut salt = 20usize;
+    let Some(params) = alg.params.filter(|p| p.tag == crate::asn1::SEQUENCE) else {
+        return Ok((hash, mgf, salt));
+    };
+    for field in crate::asn1::children(params).unwrap_or_default() {
+        match field.tag {
+            0xA0 => {
+                let (h, _) = crate::asn1::read(field.content).ok_or("bad PSS hashAlgorithm")?;
+                let oid_s = crate::asn1::children(h)
+                    .and_then(|k| k.first().copied())
+                    .and_then(|t| crate::asn1::oid_to_string(t.content))
+                    .ok_or("bad PSS hashAlgorithm")?;
+                hash = hash_for(&oid_s).ok_or_else(|| format!("PSS hash {oid_s} unsupported"))?;
+            }
+            0xA1 => {
+                let (m, _) = crate::asn1::read(field.content).ok_or("bad PSS maskGenAlgorithm")?;
+                let kids = crate::asn1::children(m).ok_or("bad PSS maskGenAlgorithm")?;
+                let mgf_oid = kids
+                    .first()
+                    .and_then(|t| crate::asn1::oid_to_string(t.content))
+                    .ok_or("bad PSS maskGenAlgorithm")?;
+                if mgf_oid != oid::MGF1 {
+                    return Err(format!(
+                        "PSS mask generation function {mgf_oid} is not MGF1"
+                    ));
+                }
+                let inner = kids.get(1).copied().ok_or("bad PSS MGF1 parameters")?;
+                let oid_s = crate::asn1::children(inner)
+                    .and_then(|k| k.first().copied())
+                    .and_then(|t| crate::asn1::oid_to_string(t.content))
+                    .ok_or("bad PSS MGF1 hash")?;
+                mgf =
+                    hash_for(&oid_s).ok_or_else(|| format!("PSS MGF1 hash {oid_s} unsupported"))?;
+            }
+            0xA2 => {
+                let (i, _) = crate::asn1::read(field.content).ok_or("bad PSS saltLength")?;
+                let b = crate::asn1::integer_bytes(i).ok_or("bad PSS saltLength")?;
+                salt = b.iter().fold(0usize, |acc, &x| (acc << 8) | usize::from(x));
+            }
+            0xA3 => {
+                let (i, _) = crate::asn1::read(field.content).ok_or("bad PSS trailerField")?;
+                if crate::asn1::integer_bytes(i) != Some(&[1]) {
+                    return Err("PSS trailerField is not 1 (0xBC)".into());
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok((hash, mgf, salt))
 }

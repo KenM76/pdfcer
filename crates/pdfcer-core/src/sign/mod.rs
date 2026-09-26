@@ -470,7 +470,7 @@ pub fn verify_raw_signature(
             .unwrap_or_default(),
         params: parts.get(1).copied(),
     };
-    let hash = crate::signature_verify::hash_for(algorithm.digest_oid())
+    let hash = crate::cms::hash_for(algorithm.digest_oid())
         .ok_or_else(|| "internal: unknown digest".to_owned())?;
     let digest = algorithm.digest(message);
     let mut notes = Vec::new();

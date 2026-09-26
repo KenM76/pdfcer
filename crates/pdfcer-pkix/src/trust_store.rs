@@ -4,7 +4,7 @@
 //! # What this is, and why it exists
 //!
 //! pdfcer's signature verification (`Pass 10.1`) proves a signed byte range is
-//! intact but reports [`Trust::NotChecked`](crate::signature_verify::Trust) —
+//! intact but reports `pdfcer_core::signature_verify::Trust::NotChecked` —
 //! it has no set of trusted anchors to chain a signer to. The Adobe Approved
 //! Trust List (AATL) and the EU Trusted Lists (EUTL) are the anchor sets a
 //! signature reader needs, and AATL in particular is a **superset of the
@@ -46,8 +46,8 @@
 use std::path::Path;
 
 use crate::cms;
-use crate::document::{DocError, Document};
-use crate::object::Object;
+use pdfcer_model::document::{DocError, Document};
+use pdfcer_model::object::Object;
 
 /// The accepted header markers for a trust-store COS file. `%PPKLITE-` is the
 /// address book; `%FDF-` is the sibling `directories.acrodata` (directory

@@ -146,6 +146,9 @@ pdfcer-image-codec = { path = "../pdfcer-image-codec", default-features = false 
 # pdfcer-fonts: font data, inventory, embedding, text strings and variable
 # text, split out and re-exported at the old paths (Pass 325.0 step 3).
 pdfcer-fonts = { path = "../pdfcer-fonts" }
+# pdfcer-pkix: DER, CMS/X.509 parsing, chain validation and the trust store,
+# split out and re-exported at the old paths (Pass 325.0 step 3).
+pdfcer-pkix = { path = "../pdfcer-pkix" }
 
 # thiserror: the ecosystem-standard derive for well-behaved error types
 # (Rust API Guidelines C-GOOD-ERR — errors implement std::error::Error and

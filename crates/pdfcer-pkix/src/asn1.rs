@@ -28,7 +28,7 @@
 
 /// One decoded TLV: the raw tag byte, the header length, and the content.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Tlv<'a> {
+pub struct Tlv<'a> {
     /// The identifier octet (class, constructed bit, tag number).
     pub tag: u8,
     /// The content octets.
@@ -39,22 +39,22 @@ pub(crate) struct Tlv<'a> {
     pub raw: &'a [u8],
 }
 
-pub(crate) const SEQUENCE: u8 = 0x30;
-pub(crate) const SET: u8 = 0x31;
-pub(crate) const INTEGER: u8 = 0x02;
-pub(crate) const BOOLEAN: u8 = 0x01;
-pub(crate) const BIT_STRING: u8 = 0x03;
-pub(crate) const OCTET_STRING: u8 = 0x04;
-pub(crate) const OID: u8 = 0x06;
-pub(crate) const UTF8_STRING: u8 = 0x0C;
-pub(crate) const PRINTABLE_STRING: u8 = 0x13;
-pub(crate) const IA5_STRING: u8 = 0x16;
-pub(crate) const UTC_TIME: u8 = 0x17;
-pub(crate) const GENERALIZED_TIME: u8 = 0x18;
-pub(crate) const BMP_STRING: u8 = 0x1E;
+pub const SEQUENCE: u8 = 0x30;
+pub const SET: u8 = 0x31;
+pub const INTEGER: u8 = 0x02;
+pub const BOOLEAN: u8 = 0x01;
+pub const BIT_STRING: u8 = 0x03;
+pub const OCTET_STRING: u8 = 0x04;
+pub const OID: u8 = 0x06;
+pub const UTF8_STRING: u8 = 0x0C;
+pub const PRINTABLE_STRING: u8 = 0x13;
+pub const IA5_STRING: u8 = 0x16;
+pub const UTC_TIME: u8 = 0x17;
+pub const GENERALIZED_TIME: u8 = 0x18;
+pub const BMP_STRING: u8 = 0x1E;
 
 /// Context-specific constructed `[n]`.
-pub(crate) const fn context(n: u8) -> u8 {
+pub const fn context(n: u8) -> u8 {
     0xA0 | n
 }
 
@@ -63,7 +63,7 @@ pub(crate) const fn context(n: u8) -> u8 {
 /// The one slice (`after_first[..n]`) is guarded by the `after_first.len() < n`
 /// check on the line before it.
 #[allow(clippy::indexing_slicing)]
-pub(crate) fn read(buf: &[u8]) -> Option<(Tlv<'_>, &[u8])> {
+pub fn read(buf: &[u8]) -> Option<(Tlv<'_>, &[u8])> {
     let (&tag, after_tag) = buf.split_first()?;
     if tag & 0x1F == 0x1F {
         return None; // multi-byte tag: nothing in CMS/X.509 uses one
@@ -91,13 +91,13 @@ pub(crate) fn read(buf: &[u8]) -> Option<(Tlv<'_>, &[u8])> {
 }
 
 /// Read one TLV and require its tag.
-pub(crate) fn expect(buf: &[u8], tag: u8) -> Option<(Tlv<'_>, &[u8])> {
+pub fn expect(buf: &[u8], tag: u8) -> Option<(Tlv<'_>, &[u8])> {
     let (tlv, rest) = read(buf)?;
     (tlv.tag == tag).then_some((tlv, rest))
 }
 
 /// All the TLVs inside a constructed element, in order.
-pub(crate) fn children(tlv: Tlv<'_>) -> Option<Vec<Tlv<'_>>> {
+pub fn children(tlv: Tlv<'_>) -> Option<Vec<Tlv<'_>>> {
     let mut out = Vec::new();
     let mut rest = tlv.content;
     while !rest.is_empty() {
@@ -109,7 +109,7 @@ pub(crate) fn children(tlv: Tlv<'_>) -> Option<Vec<Tlv<'_>>> {
 }
 
 /// An OBJECT IDENTIFIER's content as dotted decimal (`1.2.840.113549.1.7.2`).
-pub(crate) fn oid_to_string(content: &[u8]) -> Option<String> {
+pub fn oid_to_string(content: &[u8]) -> Option<String> {
     let (&first, rest) = content.split_first()?;
     let mut parts = vec![u64::from(first / 40), u64::from(first % 40)];
     if first >= 80 {
@@ -144,7 +144,7 @@ pub(crate) fn oid_to_string(content: &[u8]) -> Option<String> {
 /// `c[i]` is read only while `i + 1 < c.len()`, and `c[i..]` with `i` under
 /// that bound.
 #[allow(clippy::indexing_slicing)]
-pub(crate) fn integer_bytes(tlv: Tlv<'_>) -> Option<&[u8]> {
+pub fn integer_bytes(tlv: Tlv<'_>) -> Option<&[u8]> {
     if tlv.tag != INTEGER {
         return None;
     }
@@ -162,7 +162,7 @@ pub(crate) fn integer_bytes(tlv: Tlv<'_>) -> Option<&[u8]> {
 
 /// A BIT STRING's bytes, requiring zero unused bits (the case for every
 /// key and signature value here).
-pub(crate) fn bit_string_bytes(tlv: Tlv<'_>) -> Option<&[u8]> {
+pub fn bit_string_bytes(tlv: Tlv<'_>) -> Option<&[u8]> {
     if tlv.tag != BIT_STRING {
         return None;
     }
@@ -175,7 +175,7 @@ pub(crate) fn bit_string_bytes(tlv: Tlv<'_>) -> Option<&[u8]> {
 ///
 /// `c[0]`/`c[1]` index a `chunks_exact(2)` chunk, which is exactly two long.
 #[allow(clippy::indexing_slicing)]
-pub(crate) fn string_value(tlv: Tlv<'_>) -> Option<String> {
+pub fn string_value(tlv: Tlv<'_>) -> Option<String> {
     match tlv.tag {
         UTF8_STRING | PRINTABLE_STRING | IA5_STRING | 0x14 | 0x1C => {
             Some(String::from_utf8_lossy(tlv.content).into_owned())
@@ -195,7 +195,7 @@ pub(crate) fn string_value(tlv: Tlv<'_>) -> Option<String> {
 /// A UTCTime (`YYMMDDHHMMSSZ`) or GeneralizedTime (`YYYYMMDDHHMMSSZ`) as an
 /// ISO-8601 string `YYYY-MM-DDTHH:MM:SSZ`. RFC 5280 §4.1.2.5: UTCTime years
 /// 50–99 are 1950–1999, 00–49 are 2000–2049.
-pub(crate) fn time_value(tlv: Tlv<'_>) -> Option<String> {
+pub fn time_value(tlv: Tlv<'_>) -> Option<String> {
     let s = std::str::from_utf8(tlv.content).ok()?;
     let (year, rest) = match tlv.tag {
         UTC_TIME => {

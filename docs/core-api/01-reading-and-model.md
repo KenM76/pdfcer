@@ -2727,8 +2727,8 @@ Implemented: `adbe.pkcs7.detached`, `ETSI.CAdES.detached`, `adbe.pkcs7.sha1`
 (the double hash — the inner SHA-1 is pinned by the subfilter); RSA PKCS#1
 v1.5 and RSASSA-PSS, ECDSA P-256/P-384; SHA-1/256/384/512.
 `adbe.x509.rsa_sha1`, `ETSI.RFC3161`, P-521, Brainpool → `Unverifiable` by
-name. All in-crate (`asn1.rs`, `cms.rs`, `crypto::{bignum,rsa,ecdsa,sha1}`),
-no new dependency; verified against pyHanko-signed fixtures whose expected
+name. All workspace code (`asn1`, `cms` in `crates/pdfcer-pkix/src/`;
+`crypto::{bignum,rsa,ecdsa,sha1}` in `pdfcer-model`), no third-party dependency; verified against pyHanko-signed fixtures whose expected
 verdicts were recorded from pyHanko's own validator first
 (`fixtures/synthetic/signature-verify/PROVENANCE.md`).
 
@@ -2742,7 +2742,8 @@ The CLI is `verify-signatures`: exit 0 all verified, **12** any failed,
 ### 12.5a Trust anchors from an installed Acrobat (`Pass 10.2`, `trust_store`)
 
 Until `Pass 10.3`, the `trust` axis was always `NotChecked` for lack of a trust anchor set.
-`pdfcer_core::trust_store` supplies one by reading the AATL + EU-Trusted-List
+`pdfcer_core::trust_store` (source: `crates/pdfcer-pkix/src/`, re-exported with
+`trust_chain`) supplies one by reading the AATL + EU-Trusted-List
 certificates an installed **Acrobat/Reader** has already downloaded into
 `addressbook.acrodata` — a `%PPKLITE-` COS file the existing tokenizer opens
 (via `Document::from_cos_bytes`) and whose embedded certs the Pass-10.1 X.509
