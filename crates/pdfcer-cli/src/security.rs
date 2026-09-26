@@ -378,12 +378,13 @@ pub(crate) fn cmd_redact_apply(
     // and the notes below name it and say why.
     println!(
         "  images_cleared={} images_removed={} images_cloned_shared={} images_overcovered={} \
-         marks_retained={}",
+         marks_retained={} content_streams_decoupled={}",
         report.images_cleared,
         report.images_removed,
         report.images_cloned_shared,
         report.images_overcovered,
         report.marks_retained,
+        report.content_streams_decoupled,
     );
     // Vector paths (§8.5): `vector_paths_intersecting` is the residual — a
     // path that crossed a region and could NOT be cut; it must read zero

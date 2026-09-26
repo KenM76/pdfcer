@@ -524,6 +524,10 @@ pub struct RedactionReport {
     /// page) and therefore received a copy-on-write clone; the original's
     /// samples survive for those other placements, and a note says so.
     pub images_cloned_shared: u64,
+    /// Redacted pages whose content stream another page also drew. The
+    /// redacted page got a fresh stream, so the other page still renders
+    /// its own content; a note names the count.
+    pub content_streams_decoupled: u64,
     /// Placements whose rotated or skewed matrix made the cleared cells a
     /// bounding-box over-cover — more destroyed than marked, never less.
     pub images_overcovered: u64,
@@ -1933,6 +1937,20 @@ pub fn apply_redactions_with(
     let base_len = doc.bytes().len();
     let mut next_num = doc.next_object_number().unwrap_or(1);
     let mut form_intersect_any = false;
+
+    // A content stream may be drawn by several pages (duplicated pages, a
+    // shared header). Rewriting it in place would redact, or blank, every
+    // page that draws it, so only a stream this page alone draws is
+    // rewritten in place.
+    let mut draws: BTreeMap<ObjId, usize> = BTreeMap::new();
+    for page in &pages {
+        for id in &page.contents {
+            *draws.entry(*id).or_default() += 1;
+        }
+    }
+    let exclusive = |id: &ObjId| draws.get(id) == Some(&1);
+    // Draws of each shared stream dropped by a page rewrite below.
+    let mut dropped: BTreeMap<ObjId, usize> = BTreeMap::new();
     let mut images_seen = false;
     let mut estimated_fonts: BTreeSet<String> = BTreeSet::new();
     let mut overlay_totals = OverlayOutcome::default();
@@ -2163,7 +2181,15 @@ pub fn apply_redactions_with(
         // bytes never reach the output. Emptying-in-place avoids the delete/
         // sharing traps.)
         let content_id = match contents.first() {
-            Some(id) => *id,
+            Some(id) if exclusive(id) => *id,
+            Some(_) => {
+                let id = ObjId::new(alloc(&mut next_num), 0);
+                let span = stage(&mut staging, base_len, &result.content);
+                dirty.replace(id, make_raw_stream(span, result.content.len()));
+                report.content_streams_rewritten += 1;
+                report.content_streams_decoupled += 1;
+                id
+            }
             None => {
                 // No content: create a stream just for the overlay.
                 let id = ObjId::new(alloc(&mut next_num), 0);
@@ -2174,14 +2200,19 @@ pub fn apply_redactions_with(
                 id
             }
         };
-        if !contents.is_empty() {
+        if contents.first().is_some_and(exclusive) {
             let span = stage(&mut staging, base_len, &result.content);
             dirty.replace(content_id, make_raw_stream(span, result.content.len()));
             report.content_streams_rewritten += 1;
-            for extra in contents.iter().skip(1) {
-                let empty = stage(&mut staging, base_len, &[]);
-                dirty.replace(*extra, make_raw_stream(empty, 0));
-            }
+        }
+        // The page now draws only `content_id`. A shared stream it drew is
+        // left for its other pages (emptied below if they are all redacted).
+        for extra in contents.iter().skip(1).filter(|id| exclusive(id)) {
+            let empty = stage(&mut staging, base_len, &[]);
+            dirty.replace(*extra, make_raw_stream(empty, 0));
+        }
+        for id in contents.iter().filter(|id| !exclusive(id)) {
+            *dropped.entry(*id).or_default() += 1;
         }
 
         // Delete the redaction marks + overlapping annotations (and their
@@ -2307,6 +2338,22 @@ pub fn apply_redactions_with(
         report.note(format!(
             "redaction: overlay text could NOT be laid out and was not drawn ({failure}); \
              the region carries only its /IC fill, if any"
+        ));
+    }
+
+    // A shared stream no page draws any more still holds the unredacted
+    // bytes; empty it so a full rewrite does not carry them.
+    for (id, n) in &dropped {
+        if draws.get(id) == Some(n) {
+            let empty = stage(&mut staging, base_len, &[]);
+            dirty.replace(*id, make_raw_stream(empty, 0));
+        }
+    }
+    if report.content_streams_decoupled > 0 {
+        report.note(format!(
+            "redaction: {} redacted page(s) shared a content stream with another page; each \
+             got its own copy, so pages without a mark render unchanged",
+            report.content_streams_decoupled
         ));
     }
 
@@ -5721,6 +5768,104 @@ mod tests {
         assert!(
             !contains(&content, b"\x00N"),
             "the raw UTF-16 code units must not reach the page"
+        );
+    }
+
+    // -- content streams shared between pages ------------------------------
+
+    fn text_stream(content: &str) -> String {
+        format!(
+            "<< /Length {} >>\nstream\n{content}\nendstream",
+            content.len()
+        )
+    }
+
+    /// Two pages over shared content streams, a `/Redact` mark over
+    /// "SECRET" on the pages listed in `marked` (1-based).
+    fn shared_contents_pdf(page1: &str, page2: &str, marked: &[usize]) -> Vec<u8> {
+        let annots = |n: usize| {
+            if marked.contains(&n) {
+                format!("/Annots [{} 0 R]", 7 + n)
+            } else {
+                String::new()
+            }
+        };
+        let page = |n: usize, contents: &str| {
+            format!(
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 200] \
+                 /Resources << /Font << /F1 5 0 R >> >> /Contents {contents} {} >>",
+                annots(n)
+            )
+        };
+        let mark = "<< /Type /Annot /Subtype /Redact /Rect [15 90 115 125] >>";
+        assemble(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R 7 0 R] /Count 2 >>",
+                &page(1, page1),
+                &text_stream("BT /F1 24 Tf 20 100 Td (SECRET PUBLIC) Tj ET"),
+                "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+                &text_stream("BT /F1 12 Tf 20 20 Td (HEADER) Tj ET"),
+                &page(2, page2),
+                mark,
+                mark,
+            ],
+            "",
+        )
+    }
+
+    fn page_content(doc: &Document, index: usize) -> Vec<u8> {
+        let pages = page_tree::pages(doc).unwrap();
+        ContentStream::from_page(&doc.view(), &pages[index])
+            .unwrap()
+            .buf
+    }
+
+    #[test]
+    fn redacting_one_page_leaves_a_page_sharing_its_content_stream_alone() {
+        let pdf = shared_contents_pdf("4 0 R", "4 0 R", &[1]);
+        let doc = Document::from_bytes(pdf).unwrap();
+        let (out, report) = apply_redactions(&doc, &SaveOptions::identity()).unwrap();
+        let out = Document::from_bytes(out).unwrap();
+        let p1 = page_content(&out, 0);
+        let p2 = page_content(&out, 1);
+        assert!(
+            !contains(&p1, b"SECRET"),
+            "{}",
+            String::from_utf8_lossy(&p1)
+        );
+        assert!(
+            contains(&p2, b"(SECRET PUBLIC)"),
+            "{}",
+            String::from_utf8_lossy(&p2)
+        );
+        assert_eq!(report.content_streams_decoupled, 1);
+    }
+
+    #[test]
+    fn a_shared_trailing_stream_is_not_emptied_under_the_other_page() {
+        let pdf = shared_contents_pdf("[4 0 R 6 0 R]", "6 0 R", &[1]);
+        let doc = Document::from_bytes(pdf).unwrap();
+        let (out, _) = apply_redactions(&doc, &SaveOptions::identity()).unwrap();
+        let out = Document::from_bytes(out).unwrap();
+        let p1 = page_content(&out, 0);
+        assert!(!contains(&p1, b"SECRET") && contains(&p1, b"HEADER"));
+        assert!(contains(&page_content(&out, 1), b"(HEADER)"));
+    }
+
+    #[test]
+    fn a_stream_shared_only_by_redacted_pages_leaves_no_copy_of_the_text() {
+        let pdf = shared_contents_pdf("4 0 R", "4 0 R", &[1, 2]);
+        let doc = Document::from_bytes(pdf).unwrap();
+        let (bytes, _) = apply_redactions(&doc, &SaveOptions::identity()).unwrap();
+        let out = Document::from_bytes(bytes.clone()).unwrap();
+        for i in 0..2 {
+            let c = page_content(&out, i);
+            assert!(!contains(&c, b"SECRET") && contains(&c, b"PUBLIC"));
+        }
+        assert!(
+            !contains(&bytes, b"SECRET"),
+            "no orphaned original survives"
         );
     }
 }

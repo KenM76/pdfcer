@@ -1951,7 +1951,7 @@ internally (`redact.rs:1220-1224`).
 `vector_paths_intersecting`, `marks_retained`** (all `Pass 245.0`),
 **`vector_paths_cut`, `vector_paths_dropped`, `vector_clips_kept`**
 (`Pass 246.0`), **`shadings_intersecting`** (`Pass 246.1`),
-**`residual_matches_left`** (`Pass 310.0`),
+**`residual_matches_left`** (`Pass 310.0`), **`content_streams_decoupled`**,
 `carriers: Vec<CarrierStatus>`, `redacted_text`, `notes`; plus
 `has_disclosed_residuals()` and **`has_unscrubbed_matches()`**.
 
@@ -2088,6 +2088,12 @@ a `SHARED` note say so. When every use of the original was marked, the
 original object is **tombstoned** in place (a 1×1 paper-sample image under the
 same object number, so no resource dictionary dangles). Every placement gets
 one note naming its page, position, size and fate.
+
+A **content stream** drawn by more than one page is never rewritten in place:
+the redacted page gets a fresh stream (`content_streams_decoupled`, plus a
+note), and a page with no mark keeps rendering the original. A shared stream
+that every drawing page redacted is emptied, so no unredacted copy survives
+the rewrite.
 
 **A mark can be RETAINED.** When an image's samples cannot be decoded (a
 codec feature pdfcer lacks, a corrupt codestream, a bit depth Flate cannot
