@@ -115,6 +115,39 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 331.0` (`5d48365d`), 2026-09-26 — A session add-text with a supplied face now embeds it, not a Standard-14 stand-in
+
+**Verdict: SHIPPED, bug fix found while scoping `Pass 142.0`.**
+`EditSession::add_text`'s `AddTextRequest::with_embedded_face` wrote the
+embedded path's content — a hex string of 2-byte Identity-H CIDs — but bound
+it to the Standard-14 WinAnsi font dict, so the saved file drew wrong glyphs
+while reporting success. Only the one-shot `addtext::add_text` built the
+five embedded objects (`/Type0`, `/CIDFontType2`, `/FontDescriptor`,
+`FontFile2`, `/ToUnicode`).
+
+**Fix.** The five-object build is now one `pub(crate)` helper,
+`embedded_font_objects` (`crates/pdfcer-core/src/text_edit/addtext.rs`),
+shared by the one-shot and the session; the session allocates four extra
+consecutive object numbers and commits all five in the same `AddText`
+command, so one undo removes them.
+
+**Blast radius.** None shipped — `pdfcer-gui` does not call
+`with_embedded_face`; the CLI's `add-text` uses the one-shot. No pub API
+change, no `core-api` change, no dependency change.
+
+**Tests.** `pdfcer-render/tests/embed_font_roundtrip.rs::the_session_add_
+text_embeds_the_donor_too` — failed before the fix at the `/Type0`
+assertion, passes after; `embed_font_roundtrip.rs` now 4 tests. Core
+`add_text` tests: 20 pass. `cargo clippy` clean workspace-wide.
+
+**`FEATURES.md`:** the *"Add non-Latin text via a subsetted, embedded donor
+font"* row already ticks core `[x]`; that claim is now true for the session
+verb too. No gui box moved — `pdfcer-gui` doesn't call this path.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed
+from the dispatching engineer's own verified report of `5d48365d`, not
+independently reproduced.
+
 ### `Pass 330.2` (`89eb180b`), 2026-09-26 — Vector edits on a shared page stream get their own fixture
 
 **Verdict: SHIPPED, test-only.** Closes `Pass 330.1`'s stated residual:
@@ -18772,6 +18805,16 @@ standing rule):
    `CLAUDE.md` rule 4 as amended by decision 059; `pdfce-cli` prints it
    (rule 11).
 4. Embedded-donor creation is a **separate slice** if it lands at all.
+
+> **Note added 2026-09-26 (613th filing), by `Pass 331.0`.** The five-object
+> embedded-donor build (`/Type0`, `/CIDFontType2`, `/FontDescriptor`,
+> `FontFile2`, `/ToUnicode`) already exists and is shared, as
+> `embedded_font_objects` (`crates/pdfcer-core/src/text_edit/addtext.rs`) —
+> this Pass's design reuses it, not a second implementation. But the
+> subsetter strips `cmap`, so a donor must be embedded as `/Type0`
+> Identity-H — a **composite** (two-byte) target — and `format_text` today
+> refuses composite targets outright. So `142.0` needs a composite re-encode
+> path in `format_text` before criterion 4 above is reachable.
 
 **Open question, and it is the requester's, not the engineer's.**
 `pdfceGUI` filed `request_restyle_an_existing_text_run.md` (2026-08-25)

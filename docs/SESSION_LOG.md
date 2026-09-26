@@ -4,6 +4,42 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (613th filing) — `5d48365d`: `Pass 331.0` SHIPPED — a session add-text with a supplied face now embeds it, not a Standard-14 stand-in
+
+**Shipped:**
+- `Pass 331.0` — bug fix found while scoping `Pass 142.0` (embedded-donor
+  `format-text --set-font`). `EditSession::add_text`'s `with_embedded_face`
+  wrote embedded-path content bound to the Standard-14 font dict instead of
+  the real `/Type0` one; fixed by sharing one `embedded_font_objects` helper
+  between the one-shot and the session.
+
+**Decisions made this session:** none.
+
+**Findings + decisions:**
+- Only the one-shot `addtext::add_text` built the five embedded objects
+  (`/Type0`, `/CIDFontType2`, `/FontDescriptor`, `FontFile2`, `/ToUnicode`);
+  the session path never did. No shell caller reached the defect —
+  `pdfcer-gui` doesn't call `with_embedded_face`, the CLI's `add-text` uses
+  the one-shot — so nothing shipped was affected.
+- `embed_font_roundtrip.rs`: new test `the_session_add_text_embeds_the_
+  donor_too`, failed at the `/Type0` assertion before the fix, passes
+  after; file now 4 tests. Core `add_text` tests: 20 pass. Clippy clean
+  workspace-wide.
+- `docs/FEATURES.md`: no row change needed — the embedded-donor row already
+  ticked core `[x]`; that claim is now actually true for the session verb,
+  not just the one-shot.
+
+**Still in flight:** `Pass 142.0` (embedded-donor `format-text --set-font`)
+itself — scoping continues; see the Backlog note added this filing about
+reusing `embedded_font_objects` and the composite-target gap in
+`format_text`.
+
+**For next session:** none specific.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed
+from the dispatching engineer's own verified report of `5d48365d`, not
+independently reproduced.
+
 ## 2026-09-26 (612th filing) — `89eb180b`: `Pass 330.2` SHIPPED — vector edits on a shared page stream get their own fixture
 
 **Shipped:**
