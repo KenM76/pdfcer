@@ -115,6 +115,60 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 330.1` (`ffc76e7b`), 2026-09-26 — A decoupled edit's report names the stream it actually wrote
+
+**Verdict: SHIPPED.** Closes one of `Pass 330.0`'s two residuals, but the
+defect was larger than that residual's own description: after a decoupled
+edit, the edit/format/reflow reports' `content_object` still named the OLD
+shared stream, not the fresh object the edit actually went into, and
+`extra_objects_emptied` was counted from `page.contents` rather than from
+what the write actually emptied. Measured on the smoke fixture: the released
+`v0.56.0` CLI printed `content_object=4` for an edit written to object 7.
+
+**What shipped.** Both write paths now surface the id/count of the write
+they actually performed, not the id/count of the page they started from:
+one-shot (`text_edit/edit.rs`) — `write_incremental(_with)`'s returned id
+and count are no longer discarded by `edit_text`, `set_format`,
+`apply_reflow`; session (`edit.rs`) — the private `text_edit_command` now
+returns `(Command, Option<DecoupledContent>)`, a new private struct, and
+`edit_text`/`format_text`/`reflow_block` patch their reports from it. Only a
+decoupled write overrides the field; the ordinary unshared path is
+unchanged. Merge and vector-surgery reports carry no such fields and are
+unaffected.
+
+**Tests.** `tests/shared_page_content_edit.rs`: 6 → 7. New:
+`a_reflow_reports_the_stream_it_wrote` (one-shot and session). Report
+assertions added to the edit, trailing-stream, session and format tests.
+Sabotage: reverting the source fails 4 tests; reverting only the one-shot
+reflow fix fails just the reflow test.
+
+**Gates (relayed).** `bash tools/run-gates.sh` PASS, 39 commands including 2
+filing gates. Clippy clean. `check-core-api-verbs` PASS.
+
+**Docs.** `docs/core-api/02-editing-and-saving.md` gains one sentence in the
+"A shared PAGE content stream" paragraph (5,647 → 5,650 lines); `index.md`
+line count updated in the same commit.
+
+**Still open from `Pass 330.0`.** Its other residual stands: vector verbs
+other than `delete_object` share the decoupling path but have no dedicated
+shared-stream fixture.
+
+**Disclosure to the GUI side.** An unprompted engine→GUI `FeatureRequests`
+notice was posted this session:
+`open/notice_2026-09-26_editing_one_page_no_longer_changes_a_page_sharing_its_content_stream.md`,
+with an `INDEX.md` row — records the `v0.56.0` behaviour change and this
+defect together.
+
+**FEATURES.md.** No rows changed — this is a report-accuracy fix on
+capabilities the existing rows (194, 200, 209, 216, 227) already describe as
+decoupled and disclosed; no core/cli/gui box moves.
+
+**No cargo manifest touched, no new decision.**
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed
+from the dispatching engineer's own report of `ffc76e7b`, not independently
+reproduced.
+
 ### `v0.56.0` — RELEASED (2026-09-26)
 
 Release filing, not a Pass — packages **108 commits already filed** since

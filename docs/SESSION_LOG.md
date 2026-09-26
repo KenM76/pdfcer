@@ -4,6 +4,55 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (611th filing) — `ffc76e7b`: `Pass 330.1` SHIPPED — a decoupled edit's report names the stream it actually wrote
+
+**Shipped:**
+- `Pass 330.1` — closes one of `Pass 330.0`'s two residuals; the underlying
+  defect was larger than that residual's own description. After a decoupled
+  edit, the edit/format/reflow reports' `content_object` named the OLD
+  shared stream, not the fresh object the edit went into, and
+  `extra_objects_emptied` was counted from `page.contents` rather than from
+  what was actually emptied. Released `v0.56.0` printed `content_object=4`
+  for an edit written to object 7 (measured on the smoke fixture). Both
+  write paths fixed: one-shot `write_incremental(_with)` in
+  `text_edit/edit.rs` no longer discards its returned id/count (`edit_text`,
+  `set_format`, `apply_reflow`); session `text_edit_command` in `edit.rs`
+  now returns `(Command, Option<DecoupledContent>)`, patched into
+  `edit_text`/`format_text`/`reflow_block`'s reports. Only a decoupled write
+  overrides; the unshared path is unchanged; merge and vector-surgery
+  reports carry no such fields.
+
+**Decisions made this session:** none.
+
+**Findings + decisions:**
+- `tests/shared_page_content_edit.rs`: 6 → 7. New
+  `a_reflow_reports_the_stream_it_wrote` (one-shot and session); report
+  assertions added to the edit, trailing-stream, session and format tests.
+  Sabotage: reverting the source fails 4 tests; reverting only the one-shot
+  reflow fix fails just the reflow test.
+- Gates (relayed): `bash tools/run-gates.sh` PASS, 39 commands including 2
+  filing gates; clippy clean; `check-core-api-verbs` PASS.
+- `docs/core-api/02-editing-and-saving.md` gains one sentence in the "A
+  shared PAGE content stream" paragraph (5,647 → 5,650 lines); `index.md`
+  line count updated in the same commit.
+- An unprompted engine→GUI `FeatureRequests` notice was posted:
+  `open/notice_2026-09-26_editing_one_page_no_longer_changes_a_page_sharing_its_content_stream.md`,
+  with an `INDEX.md` row.
+- `docs/FEATURES.md`: no rows changed — report-accuracy fix on capabilities
+  the existing rows (194, 200, 209, 216, 227) already describe as decoupled
+  and disclosed.
+
+**Still in flight:** `Pass 330.0`'s other residual stands — vector verbs
+other than `delete_object` share the decoupling path but have no dedicated
+shared-stream fixture.
+
+**For next session:** none specific.
+
+**Sourcing (hard rule 8).** No shell this filing. All facts above relayed
+from the dispatching engineer's own report of `ffc76e7b`, not independently
+reproduced. The `ROADMAP.md` `Pass 330.1` entry (new, top of *Shipped*) was
+filed by this same pass.
+
 ## 2026-09-26 (610th filing) — `941e6718`: `v0.56.0` RELEASED
 
 **Shipped:**
