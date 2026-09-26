@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (599th filing) — `Pass 325.0` step 3 continues (`47ca4d68`): third leaf crate `pdfcer-pkix` extracted
+
+**Shipped:**
+- `Pass 325.0` step 3, third leaf (`47ca4d68`) — new crate `pdfcer-pkix` (DER, CMS/X.509 and certificate-chain validation: `asn1.rs`, `cms.rs`, `trust_chain.rs`, `trust_store.rs`), `git mv`'d out of `pdfcer-core`, depending only on `pdfcer-model` + `thiserror`. `trust_chain`/`trust_store` re-exported at their old `pdfcer_core` paths; `asn1`/`cms` were private core modules and stay off the public surface (`#[doc(hidden)] pub`, workspace-internal, re-imported into core via a private `use pdfcer_pkix::{asn1, cms};` so `crate::asn1`/`crate::cms` paths inside core resolve unchanged). The cluster's one upward edge (`trust_chain` → `signature_verify::pss_params`) was broken by moving `pss_params` (RFC 4055 §3.1) and `hash_for` into `cms.rs`; `signature_verify`/`sign` import them from there instead. Structural Pass: no `FEATURES.md` row change. `Pass 325.0` stays **IN PROGRESS**: step 3 continues (`settings` inversion needed to unblock `color`/`text_extract`; `ocr` and `sign` are not leaves); steps 4 (rest), 6, 7 remain open.
+
+**Decisions made this session:** none new. `ARCHITECTURE.md` §3 got a body update (new `pdfcer-pkix` entry; `pdfcer-core`'s dependency note extended; a forward-note added ahead of the `signature_verify.rs`/`asn1.rs`/`cms.rs` history paragraph pointing at the new crate).
+
+**Findings + decisions:**
+- A pattern worth naming: a PRIVATE module can cross a crate boundary without joining the new crate's own public surface — mark it `#[doc(hidden)] pub`, workspace-internal, and re-import it privately at its old in-crate path (`use pdfcer_pkix::{asn1, cms};`) so every `crate::asn1`/`crate::cms` reference inside the consuming crate resolves unchanged.
+- `tools/run-gates.sh` PASS, 37 commands, 9,286 passed / 0 failed (previous run 9,299; the −13 reconciles as the 13 moved unit tests leaving core's `--no-default-features` rerun as duplicates — same shape as the 598th filing's `pdfcer-fonts` finding, since `pdfcer-pkix` also carries no Cargo features; in the workspace run core lib −13, pkix +13).
+- `cargo tree -p pdfcer-pkix`: `pdfcer-model` + `thiserror` only. Workspace clippy/fmt/wasm32/fuzz all clean.
+- Rebuild after a one-line `pdfcer-pkix` edit: pkix tests `--no-run` 1.0 s; CLI build 12.6 s warm.
+
+**Still in flight:**
+- `Pass 325.0` step 3 (remaining: invert `settings` — move its leaf enums to their owning modules, re-export from `settings` — to unblock `color`/`text_extract`; `ocr` is not a leaf, `layer.rs` uses `text_edit`/`vartext`; `sign` needs `edit::EditError`), step 4 (facade — done for model/codec/fonts/pkix, open for the rest), 6, 7 — all open.
+
+**For next session:**
+- Continue `Pass 325.0` step 3 with the `settings` inversion to unblock `color`/`text_extract`.
+
+**Sourcing (hard rule 8).** No shell this filing. Commit hash, moved-module list, gate/test counts and rebuild-time measurements are relayed from the dispatching engineer's own report of `47ca4d68`; not independently reproduced here.
+
 ## 2026-09-26 (598th filing) — `Pass 325.0` step 3 continues (`01ad7b16`): second leaf crate `pdfcer-fonts` extracted
 
 **Shipped:**

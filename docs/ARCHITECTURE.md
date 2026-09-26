@@ -318,6 +318,37 @@ D:\Dev\pdfcer\
                                    wasm32-clean. `pdfcer-core` re-exports
                                    every moved item at its pre-split path
                                    (`pub use pdfcer_fonts::{...}`).
+    pdfcer-pkix\                 <- (`Pass 325.0` step 3, third leaf, 2026-09-26,
+                                   `47ca4d68`) DER, CMS/X.509 and
+                                   certificate-chain validation (RFC 5652
+                                   SignedData, RFC 5280 X.509, RFC 4055
+                                   RSASSA-PSS-params) — `asn1.rs`, `cms.rs`,
+                                   `trust_chain.rs`, `trust_store.rs` —
+                                   `git mv`'d out of `pdfcer-core`. Depends
+                                   on `pdfcer-model` ONLY (plus
+                                   `thiserror`); `pdfcer-core` depends on
+                                   it, never the reverse. `asn1` and `cms`
+                                   were PRIVATE core modules and stay off
+                                   the public surface: `#[doc(hidden)] pub`
+                                   modules, workspace-internal, imported
+                                   back into core with a private `use
+                                   pdfcer_pkix::{asn1, cms};` so
+                                   `crate::asn1`/`crate::cms` paths inside
+                                   core resolve unchanged — a private
+                                   module can cross a crate boundary
+                                   without joining the public API this way.
+                                   `trust_chain`/`trust_store` re-exported
+                                   at their old pre-split paths, same as
+                                   every other leaf.
+                                   `signature_verify::pss_params`/
+                                   `hash_for` moved into `cms.rs` to break
+                                   the cluster's one upward edge into core;
+                                   `signature_verify` and `sign` import
+                                   them from there instead. Same zero-GUI/
+                                   network invariant as `pdfcer-model`/
+                                   `pdfcer-image-codec`/`pdfcer-fonts`
+                                   (rule 2), its own `cargo tree -p
+                                   pdfcer-pkix` CI step, wasm32-clean.
     pdfcer-core\                <- COS object model, tokenizer, xref (table + stream),
                                    object streams, incremental-update writer, filters,
                                    fonts, color spaces, encryption/decryption, digital
@@ -329,12 +360,15 @@ D:\Dev\pdfcer\
                                    2026-09-26) for the COS layer above,
                                    `pdfcer-image-codec` (step 3, first leaf,
                                    2026-09-26) for the four terminal image
-                                   codecs, and `pdfcer-fonts` (step 3, second
+                                   codecs, `pdfcer-fonts` (step 3, second
                                    leaf, 2026-09-26) for fonts and text
-                                   encoding — see each crate's own entry. This
-                                   paragraph now describes the surface
-                                   `pdfcer-core` keeps directly: color
-                                   spaces, encryption/signature verification,
+                                   encoding, and `pdfcer-pkix` (step 3,
+                                   third leaf, 2026-09-26) for DER/CMS/X.509
+                                   and chain validation — see each crate's
+                                   own entry. This paragraph now describes
+                                   the surface `pdfcer-core` keeps directly:
+                                   color spaces, the session side of
+                                   signature verification (`sign::apply`),
                                    the content-stream interpreter, and
                                    everything `edit`/`settings` and the
                                    remaining feature modules below.**
@@ -584,6 +618,12 @@ D:\Dev\pdfcer\
                                    `Pass 10.0` Shipped entry (seventy-
                                    sixth filing) for the fixture design
                                    and the two-warning-branch correction.
+                                   **`asn1.rs`/`cms.rs` now live in
+                                   `pdfcer-pkix` (`Pass 325.0` step 3, third
+                                   leaf, 2026-09-26, `47ca4d68`),
+                                   re-exported from `pdfcer-core` unchanged
+                                   — the paragraph below is kept as
+                                   written, not relocated.**
                                    **★ `Pass 10.1` (`22421b6`, 2026-09-03;
                                    §12 decision 129): the cryptographic
                                    half now exists beside it.**
