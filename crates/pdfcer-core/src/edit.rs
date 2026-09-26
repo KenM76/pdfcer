@@ -12613,6 +12613,8 @@ impl EditSession {
 
         // Plan against the SESSION overlay (session-aware page dict + resources),
         // then drop the immutable graph borrow before mutating.
+        let retagged = crate::text_edit::addtext::with_file_unique_tag(req, &self.view());
+        let req = retagged.as_ref().unwrap_or(req);
         let prep = {
             let pages = self.pages()?;
             let page = pages

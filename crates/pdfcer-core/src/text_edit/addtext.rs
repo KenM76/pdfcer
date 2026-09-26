@@ -670,6 +670,8 @@ pub fn add_text(doc: &Document, req: &AddTextRequest) -> Result<AddTextOutcome, 
         .get(req.page_index)
         .ok_or(AddTextError::PageIndex(req.page_index))?;
 
+    let retagged = with_file_unique_tag(req, &doc.view());
+    let req = retagged.as_ref().unwrap_or(req);
     let prep = plan_add_text(req, page, doc)?;
 
     // Two fresh object numbers: content stream then font dict. Consecutive so
@@ -1079,6 +1081,62 @@ pub(crate) fn plan_add_text<G: ObjectGraph + ?Sized>(
         },
         report,
     })
+}
+
+/// `req` with its embedded subset re-tagged if the tag is already used by a
+/// font in `view`; `None` when no change is needed.
+///
+/// ISO 32000-1 §9.6.4: different subsets in one file shall have different
+/// tags. The donor-derived tag is deterministic, so two runs from the same
+/// donor would otherwise collide. The replacement is deterministic too.
+pub(crate) fn with_file_unique_tag(
+    req: &AddTextRequest,
+    view: &crate::view::DocumentView<'_>,
+) -> Option<AddTextRequest> {
+    let NewTextFace::Embedded(plan) = &req.face else {
+        return None;
+    };
+    let taken: BTreeSet<String> = crate::fontinfo::inventory(view)
+        .fonts
+        .into_iter()
+        .filter_map(|f| f.subset_tag)
+        .collect();
+    if !taken.contains(&plan.subset_tag) {
+        return None;
+    }
+    let tag = unique_subset_tag(&plan.subset_tag, &taken);
+    let mut plan = plan.clone();
+    plan.subset_tag = tag;
+    let mut req = req.clone();
+    req.face = NewTextFace::Embedded(plan);
+    Some(req)
+}
+
+/// The first of FNV-1a(`tag`, n) for n = 1, 2, ... not in `taken`.
+fn unique_subset_tag(tag: &str, taken: &BTreeSet<String>) -> String {
+    let mut candidate = tag.to_owned();
+    // `taken` is finite, so a free tag turns up long before this bound.
+    for n in 1u32..=1 << 20 {
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        for b in tag.bytes().chain(n.to_le_bytes()) {
+            h ^= u64::from(b);
+            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        candidate = (0..6)
+            .map(|i| {
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    reason = "the modulo keeps this inside the 26-letter alphabet"
+                )]
+                let k = ((h >> (i * 8)) % 26) as u8;
+                char::from(b'A' + k)
+            })
+            .collect();
+        if !taken.contains(&candidate) {
+            break;
+        }
+    }
+    candidate
 }
 
 /// The five objects of an embedded subset (`/Type0` first, at `font_id`),

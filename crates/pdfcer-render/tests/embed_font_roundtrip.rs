@@ -222,3 +222,61 @@ fn the_session_add_text_embeds_the_donor_too() {
     let page: String = text.pages[0].runs.iter().map(|r| r.text.as_str()).collect();
     assert!(page.contains("AB"), "{page:?}");
 }
+
+/// Tags of every `/BaseFont /XXXXXX+pdfceSubsetDemo` in `saved`.
+fn demo_subset_tags(saved: &str) -> Vec<String> {
+    saved
+        .match_indices("+pdfceSubsetDemo")
+        .filter_map(|(i, _)| saved.get(i.checked_sub(6)?..i).map(str::to_owned))
+        .collect()
+}
+
+// ISO 32000-1 §9.6.4: different subsets in one file take different tags.
+#[test]
+fn a_second_subset_of_the_same_donor_gets_a_new_tag() {
+    let first = plan_subset(&donor(), 0, &['A'], "pdfceSubsetDemo", "ABCDEF").expect("A");
+    let second = plan_subset(&donor(), 0, &['B', 'C'], "pdfceSubsetDemo", "ABCDEF").expect("BC");
+    let doc = Document::from_bytes(base_page()).expect("fixture parses");
+    let mut session = pdfcer_core::edit::EditSession::new(doc);
+    session
+        .add_text(&AddTextRequest::new(0, (72.0, 700.0), "A").with_embedded_face(first))
+        .expect("first run");
+    session
+        .add_text(&AddTextRequest::new(0, (72.0, 650.0), "BC").with_embedded_face(second))
+        .expect("second run");
+    let (bytes, _) = session
+        .to_incremental_bytes(&pdfcer_core::writer::SaveOptions::identity())
+        .expect("the session saves");
+    let saved = String::from_utf8_lossy(&bytes);
+    let mut tags = demo_subset_tags(&saved);
+    tags.sort();
+    tags.dedup();
+    assert_eq!(tags.len(), 2, "one tag per subset: {tags:?}");
+    assert!(
+        tags.iter().any(|t| t == "ABCDEF"),
+        "first keeps its tag: {tags:?}"
+    );
+}
+
+#[test]
+fn the_one_shot_add_text_also_retags_a_colliding_subset() {
+    let first = plan_subset(&donor(), 0, &['A'], "pdfceSubsetDemo", "ABCDEF").expect("A");
+    let doc = Document::from_bytes(base_page()).expect("fixture parses");
+    let once = addtext::add_text(
+        &doc,
+        &AddTextRequest::new(0, (72.0, 700.0), "A").with_embedded_face(first),
+    )
+    .expect("first run");
+    let second = plan_subset(&donor(), 0, &['B'], "pdfceSubsetDemo", "ABCDEF").expect("B");
+    let doc = Document::from_bytes(once.bytes).expect("output re-parses");
+    let twice = addtext::add_text(
+        &doc,
+        &AddTextRequest::new(0, (72.0, 650.0), "B").with_embedded_face(second),
+    )
+    .expect("second run");
+    assert_ne!(twice.report.base_font, "ABCDEF+pdfceSubsetDemo");
+    let mut tags = demo_subset_tags(&String::from_utf8_lossy(&twice.bytes));
+    tags.sort();
+    tags.dedup();
+    assert_eq!(tags.len(), 2, "{tags:?}");
+}
