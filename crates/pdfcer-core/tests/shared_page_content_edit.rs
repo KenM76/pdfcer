@@ -86,6 +86,25 @@ fn editing_one_page_leaves_a_page_sharing_its_stream_unchanged() {
         "{:?}",
         out.report.disclosures
     );
+    assert_eq!(
+        out.report.content_object,
+        page_contents(&out.bytes, 0),
+        "the report names the stream the edit went into, not the shared one"
+    );
+    assert_ne!(out.report.content_object, 4);
+}
+
+/// The single `/Contents` reference of page `index` in `bytes`.
+fn page_contents(bytes: &[u8], index: usize) -> u32 {
+    let doc = Document::from_bytes(bytes.to_vec()).expect("reloads");
+    let pages = pdfcer_core::page_tree::pages(&doc).expect("page tree walks");
+    assert_eq!(
+        pages[index].contents.len(),
+        1,
+        "{:?}",
+        pages[index].contents
+    );
+    pages[index].contents[0].num
 }
 
 #[test]
@@ -103,6 +122,10 @@ fn a_shared_trailing_stream_is_not_emptied_under_the_other_page() {
         "{p1:?}"
     );
     assert!(page_text(&out.bytes, 1).contains("HEADER"));
+    // Object 4 is page 1's alone, so it is reused; 6 is shared, so nothing is
+    // emptied.
+    assert_eq!(out.report.content_object, 4);
+    assert_eq!(out.report.extra_objects_emptied, 0);
 }
 
 #[test]
@@ -135,6 +158,8 @@ fn the_session_edit_decouples_and_undoes_cleanly() {
             .to_incremental_bytes(&SaveOptions::identity())
             .expect("the session saves");
         assert!(page_text(&bytes, 0).contains("LEAF"), "{p1}");
+        assert_eq!(report.content_object, page_contents(&bytes, 0), "{p1}");
+        assert_eq!(report.extra_objects_emptied, 0, "{p1}");
         let other = page_text(&bytes, 1);
         assert!(
             other.contains(if p2 == "4 0 R" { "BODY TEXT" } else { "HEADER" }),
@@ -158,12 +183,20 @@ fn a_format_adding_a_font_keeps_both_page_changes() {
     let req = FormatRequest::new(0, "BODY").font(FontSelector::new("Courier"));
     let one_shot = set_format(&doc, &req, &FormatOptions::default()).expect("format succeeds");
     let mut session = EditSession::new(doc);
-    session
+    let session_report = session
         .format_text(&req, &FormatOptions::default())
         .expect("session format succeeds");
     let (session_bytes, _) = session
         .to_incremental_bytes(&SaveOptions::identity())
         .expect("the session saves");
+    assert_eq!(
+        one_shot.report.content_object,
+        page_contents(&one_shot.bytes, 0)
+    );
+    assert_eq!(
+        session_report.content_object,
+        page_contents(&session_bytes, 0)
+    );
     for bytes in [&one_shot.bytes, &session_bytes] {
         let reloaded = Document::from_bytes(bytes.to_vec()).expect("reloads");
         let pages = text_extract::extract_document(&reloaded, &ExtractOptions::default())
@@ -202,4 +235,34 @@ fn a_vector_delete_leaves_the_other_page_drawing_the_object() {
         .expect("the session saves");
     assert!(!page_text(&bytes, 0).contains("BODY"));
     assert!(page_text(&bytes, 1).contains("BODY TEXT"));
+}
+
+#[test]
+fn a_reflow_reports_the_stream_it_wrote() {
+    let doc = Document::from_bytes(two_pages("4 0 R", "4 0 R")).expect("fixture loads");
+    let req = pdfcer_core::text_edit::ReflowRequest::new().with_wrap_width(60.0);
+    let one_shot =
+        pdfcer_core::text_edit::apply_reflow(&doc, 0, 0, &req).expect("the reflow succeeds");
+    let mut session = EditSession::new(doc);
+    let report = session
+        .reflow_block(0, 0, &req)
+        .expect("session reflow succeeds");
+    let (session_bytes, _) = session
+        .to_incremental_bytes(&SaveOptions::identity())
+        .expect("the session saves");
+    for (bytes, reported, disclosures) in [
+        (
+            &one_shot.bytes,
+            one_shot.report.content_object,
+            &one_shot.report.disclosures,
+        ),
+        (&session_bytes, report.content_object, &report.disclosures),
+    ] {
+        assert!(
+            disclosures.iter().any(|d| d.contains(SHARED)),
+            "{disclosures:?}"
+        );
+        assert_eq!(reported, page_contents(bytes, 0));
+        assert!(page_text(bytes, 1).contains("BODY TEXT"));
+    }
 }

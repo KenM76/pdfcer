@@ -1680,12 +1680,14 @@ pub fn edit_text(
     // and both leave every other byte of the file verbatim.
     let bytes = match target.form.as_ref() {
         Some(form) => write_incremental_form(doc, form.id, &form.dict, &plan.new_content)?,
-        // The report's content_object / extra_objects_emptied are already
-        // correct (the plan derives them from `page.contents`), so the
-        // returned identity is discarded here.
+        // The plan derives content_object / extra_objects_emptied from
+        // `page.contents`; a decoupled write went elsewhere, so it overrides.
         None => {
-            let (bytes, _, _, decoupled) = write_incremental(doc, page, &plan.new_content)?;
+            let (bytes, content_object, emptied, decoupled) =
+                write_incremental(doc, page, &plan.new_content)?;
             if decoupled {
+                plan.report.content_object = content_object;
+                plan.report.extra_objects_emptied = emptied;
                 plan.report
                     .disclosures
                     .push(SHARED_CONTENT_DISCLOSURE.to_owned());

@@ -1644,9 +1644,9 @@ pub fn set_format(
     let (mut plan, target) = plan_format_anywhere(&doc.view(), page, req, opts)?;
     // Incremental save (R34/R70), exactly as 14.1 — and, since `Pass 119.2`,
     // to whichever stream held the run: the page's first content object, or
-    // the form XObject's own. The plan's report already carries the correct
-    // content_object / extra_objects_emptied, so the page write's returned
-    // identity is discarded.
+    // the form XObject's own. The plan's report derives content_object /
+    // extra_objects_emptied from `page.contents`; a decoupled page write
+    // (shared stream) went elsewhere, so its returned identity overrides.
     // `Pass 162.0`: the THIRD save path, and the one the CLI actually uses.
     //
     // `EditSession::format_text` and its form twin bind a newly created font
@@ -1725,10 +1725,12 @@ pub fn set_format(
             .map_err(FormatError::from_edit)?
         }
         None => {
-            let (bytes, _, _, decoupled) =
+            let (bytes, content_object, emptied, decoupled) =
                 write_incremental_with(doc, page, &plan.new_content, &extra_objects)
                     .map_err(FormatError::from_edit)?;
             if decoupled {
+                plan.report.content_object = content_object;
+                plan.report.extra_objects_emptied = emptied;
                 plan.report
                     .disclosures
                     .push(crate::text_edit::edit::SHARED_CONTENT_DISCLOSURE.to_owned());

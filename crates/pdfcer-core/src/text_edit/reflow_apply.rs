@@ -469,9 +469,11 @@ pub fn apply_reflow(
     let page = pages
         .get(page_index)
         .ok_or(ReflowApplyError::PageIndex(page_index))?;
-    let (bytes, _content_object, _extra, decoupled) =
+    let (bytes, content_object, emptied, decoupled) =
         write_incremental(doc, page, &plan.new_content)?;
     if decoupled {
+        plan.report.content_object = content_object;
+        plan.report.extra_objects_emptied = emptied;
         plan.report
             .disclosures
             .push(crate::text_edit::edit::SHARED_CONTENT_DISCLOSURE.to_owned());

@@ -316,7 +316,10 @@ need their own policy).
 > draws, the edited page gets its own stream and every other page renders
 > byte-identically. Shared streams are never rewritten or emptied. The report's
 > `disclosures` gets one line containing `"shared a content stream"`; undo
-> restores the page's original `/Contents`.
+> restores the page's original `/Contents`. The edit, format and reflow reports'
+> `content_object` names the stream actually written (it may be a new object),
+> and `extra_objects_emptied` counts only streams really emptied — re-read
+> `content_object` after an edit rather than caching it.
 >
 > ### Limits, so you do not find them by pressing
 >

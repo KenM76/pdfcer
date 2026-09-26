@@ -10971,7 +10971,7 @@ impl EditSession {
                     let stream = self.current_page_content(&page).map_err(TeError::Content)?;
                     match plan_edit(&self.view(), &page, &stream, req, opts) {
                         Ok(mut plan) => {
-                            let command = self
+                            let (command, decoupled) = self
                                 .text_edit_command(
                                     CommandKind::EditText,
                                     content_id,
@@ -10981,6 +10981,10 @@ impl EditSession {
                                     &mut plan.report.disclosures,
                                 )
                                 .map_err(|e| TeError::Unsupported(e.to_string()))?;
+                            if let Some(d) = decoupled {
+                                plan.report.content_object = d.content_object;
+                                plan.report.extra_objects_emptied = d.emptied;
+                            }
                             self.commit(command);
                             return Ok(plan.report);
                         }
@@ -11295,7 +11299,7 @@ impl EditSession {
                                     );
                                 }
                             }
-                            let command = self
+                            let (command, decoupled) = self
                                 .text_edit_command(
                                     CommandKind::FormatText,
                                     content_id,
@@ -11305,6 +11309,10 @@ impl EditSession {
                                     &mut report.disclosures,
                                 )
                                 .map_err(|e| FmtError::Unsupported(e.to_string()))?;
+                            if let Some(d) = decoupled {
+                                report.content_object = d.content_object;
+                                report.extra_objects_emptied = d.emptied;
+                            }
                             self.commit(command);
                             return Ok(report);
                         }
@@ -11917,7 +11925,7 @@ impl EditSession {
             lines_before: plan.report.lines_before,
             lines_after: plan.report.lines_after,
         };
-        let command = self
+        let (command, decoupled) = self
             .text_edit_command(
                 kind,
                 content_id,
@@ -11927,6 +11935,10 @@ impl EditSession {
                 &mut plan.report.disclosures,
             )
             .map_err(|e| crate::text_edit::ReflowApplyError::Unsupported(e.to_string()))?;
+        if let Some(d) = decoupled {
+            plan.report.content_object = d.content_object;
+            plan.report.extra_objects_emptied = d.emptied;
+        }
         self.commit(command);
         Ok(plan.report)
     }
@@ -15131,7 +15143,7 @@ impl EditSession {
         let plan =
             crate::text_edit::merge::plan_merge(&self.view(), &target, &stream, &spans, opts)?;
         let mut plan = plan;
-        let command = self
+        let (command, _) = self
             .text_edit_command(
                 CommandKind::MergeTextRuns,
                 target.content_id,
@@ -17030,7 +17042,7 @@ impl EditSession {
 
         if let Some(kind) = kind {
             let mut disclosures = std::mem::take(&mut new_content.disclosures);
-            let command = self.text_edit_command(
+            let (command, _) = self.text_edit_command(
                 kind,
                 content_id,
                 page,
@@ -17123,7 +17135,7 @@ impl EditSession {
         new_content: Vec<u8>,
         mut prior: Vec<ObjectWrite>,
         disclosures: &mut Vec<String>,
-    ) -> Result<Command, EditError> {
+    ) -> Result<(Command, Option<DecoupledContent>), EditError> {
         use crate::text_edit::edit::make_raw_stream;
         let is_page_stream = page.contents.first() == Some(&content_id);
         let shared = if is_page_stream {
@@ -17132,7 +17144,7 @@ impl EditSession {
             BTreeSet::new()
         };
         if !shared.is_empty() {
-            let command = self.decoupled_text_edit_command(
+            let decoupled = self.decoupled_text_edit_command(
                 kind,
                 content_id,
                 page,
@@ -17141,7 +17153,7 @@ impl EditSession {
                 prior,
             )?;
             disclosures.push(crate::text_edit::edit::SHARED_CONTENT_DISCLOSURE.to_owned());
-            return Ok(command);
+            return Ok(decoupled);
         }
         let content_before = self.state.get(&content_id).cloned();
 
@@ -17178,12 +17190,15 @@ impl EditSession {
             }
         }
 
-        Ok(Command {
-            kind,
-            objects,
-            removals: Vec::new(),
-            trailer: None,
-        })
+        Ok((
+            Command {
+                kind,
+                objects,
+                removals: Vec::new(),
+                trailer: None,
+            },
+            None,
+        ))
     }
 
     /// The streams in `page`'s `/Contents` that at least one OTHER page also
@@ -17218,7 +17233,7 @@ impl EditSession {
         new_content: &[u8],
         shared: &BTreeSet<ObjId>,
         mut prior: Vec<ObjectWrite>,
-    ) -> Result<Command, EditError> {
+    ) -> Result<(Command, Option<DecoupledContent>), EditError> {
         use crate::text_edit::edit::make_raw_stream;
         let target = if shared.contains(&content_id) {
             ObjId::new(self.alloc_number()?, 0)
@@ -17231,6 +17246,7 @@ impl EditSession {
             before: self.state.get(&target).cloned(),
             after: Some(make_raw_stream(span, new_content.len())),
         }];
+        let mut emptied = 0u64;
         for id in page.contents.iter().collect::<BTreeSet<_>>() {
             if *id == target || shared.contains(id) {
                 continue;
@@ -17244,6 +17260,7 @@ impl EditSession {
                     before: self.state.get(id).cloned(),
                     after: Some(make_raw_stream(empty, 0)),
                 });
+                emptied += 1;
             }
         }
         let page_write = match prior.iter().position(|w| w.id == page.id) {
@@ -17267,12 +17284,18 @@ impl EditSession {
             after: Some(Object::Dict(dict)),
         });
         objects.append(&mut prior);
-        Ok(Command {
-            kind,
-            objects,
-            removals: Vec::new(),
-            trailer: None,
-        })
+        Ok((
+            Command {
+                kind,
+                objects,
+                removals: Vec::new(),
+                trailer: None,
+            },
+            Some(DecoupledContent {
+                content_object: target.num,
+                emptied,
+            }),
+        ))
     }
 
     // -- internals ------------------------------------------------------
@@ -58197,4 +58220,11 @@ fn reject_dotted_partial(partial: &str) -> Result<(), EditError> {
     // and `sign` accepted `"a..b"` where `rename_field` refused it. One
     // predicate, three enforcement sites, and now an askable one too.
     forms_author::validate_partial_name(partial).map_err(Into::into)
+}
+
+/// Where a decoupled page-content edit actually wrote, so the verb's report
+/// names that stream rather than the shared one it left alone.
+struct DecoupledContent {
+    content_object: u32,
+    emptied: u64,
 }
