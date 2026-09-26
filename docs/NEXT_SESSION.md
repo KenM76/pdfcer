@@ -208,9 +208,10 @@ Pushed through `96129f96`; filings 608 (`1c79da9f`) and 609.
   `tools/gh-release.py` and `tools/check-ci-crate-lists.py` (the 4 hand-kept
   crate lists in `ci.yml` are now gated).
 - **Backlog:** EMF output nondeterminism item filed.
-- **Next:** release `v0.56.0` (last release 9 days old) once CI on
-  `96129f96` is green — sync OCRcer, package, fresh-folder smoke,
-  `gh-release.py`, `verify-release.py`, alternate OneDrive CLI slot.
+- **`v0.56.0` RELEASED** (`941e6718`, tag pushed, GitHub release with zip +
+  sha256, OneDrive `pdfcer1`; `pdfcer2` keeps 0.55.0). `gh-release.py` passed
+  first try. `verify-release.py`'s one FAIL is the untracked `target-case/`
+  (not ours; leave it). The next release writes `pdfcer2`.
 
 ### SINCE THE LAST HANDOFF — 2026-09-26, earlier (`Pass 325.0` CLOSED)
 
