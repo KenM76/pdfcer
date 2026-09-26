@@ -257,6 +257,32 @@ since reversing it later means rewriting the entire GUI crate.
 D:\Dev\pdfcer\
   Cargo.toml                  <- workspace root, [workspace] members below
   crates\
+    pdfcer-model\                <- (`Pass 325.0` step 2, 2026-09-26, `0fbf6cbb`) the COS
+                                   layer, extracted out of `pdfcer-core`: object model
+                                   (`Object`), tokenizer/parser, xref (table + stream),
+                                   object streams, filters, the incremental-update
+                                   writer, and the document/linearization/view/graph
+                                   layers. Depends on NOTHING ELSE IN THE WORKSPACE —
+                                   `pdfcer-core` depends on it, never the reverse. ZERO
+                                   windowing/GUI/rendering-backend/network dependencies,
+                                   same invariant as `pdfcer-core` (rule 2), checked by
+                                   its own `cargo tree -p pdfcer-model` CI step; builds
+                                   clean under `--target wasm32-unknown-unknown`.
+                                   `pdfcer-core` re-exports every module and root item
+                                   (`pub use pdfcer_model::{...}`) at its pre-split
+                                   path, so this is a facade split (step 4 of the same
+                                   Pass): every existing caller in core, the CLI,
+                                   render, fuzz and `pdfcer-gui` resolves unchanged.
+                                   `Object`/`SectionShape`/`XrefEntryEol`/`TrailingEol`
+                                   lost `#[non_exhaustive]` at this split — all four
+                                   are closed by spec (§7.3.1, §7.5.4, §7.5.5, §7.5.8)
+                                   and core's own exhaustive matches over them would
+                                   otherwise have needed a wildcard purely because the
+                                   crate boundary moved. `XrefEntry` keeps
+                                   `#[non_exhaustive]` (§7.5.8.3 reserves future entry
+                                   types). Steps 3 (leaf feature crates below
+                                   `pdfcer-model`) and 7 (housekeeping) of the same
+                                   Pass are still open; see `docs/ROADMAP.md`.
     pdfcer-core\                <- COS object model, tokenizer, xref (table + stream),
                                    object streams, incremental-update writer, filters,
                                    fonts, color spaces, encryption/decryption, digital
@@ -264,6 +290,13 @@ D:\Dev\pdfcer\
                                    (produces a display-list / draw-op stream, NOT pixels).
                                    ZERO windowing/GUI/rendering-backend dependencies.
                                    THIS is the crate that forks to WASM later.
+                                   **Depends on `pdfcer-model` (`Pass 325.0` step 2,
+                                   2026-09-26) for the COS layer above — see that
+                                   crate's own entry. This paragraph now describes
+                                   the surface `pdfcer-core` keeps directly: fonts,
+                                   color spaces, encryption/signature verification,
+                                   the content-stream interpreter, and everything
+                                   `edit`/`settings` and the feature modules below.**
                                    **`font_embed.rs` (Pass 21.0, FF-C, decision 021,
                                    commit `48c6b77`; body-section sync 2026-08-04
                                    continuation 77):** plain-data contract

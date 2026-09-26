@@ -4,6 +4,31 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-09-26 (596th filing) — `Pass 325.0` step 2 SHIPPED (`0fbf6cbb`): the COS model layer extracted into `pdfcer-model`
+
+**Shipped:**
+- `Pass 325.0` step 2 (`0fbf6cbb`) — new crate `pdfcer-model` (16 modules: span, object, lexer, parser, filters, xref, objstm, recover, document, linearization, view, graph, writer, crypto, content, page_tree, plus `lib.rs` root items), `git mv`'d out of `pdfcer-core`. Depends on nothing else in the workspace. `pdfcer-core` re-exports every old path via `pub use pdfcer_model::{...}` — every caller (core, CLI, render, fuzz, `pdfcer-gui`) resolves unchanged. `Pass 325.0` stays **IN PROGRESS**: steps 3, 4 (partial), 6, 7 remain open.
+- Also landed same push, routine, no Pass: `022c3640` (regenerate `THIRD_PARTY_LICENSES.md`, filed against `Pass 329.0`) and `9425ff22` (OCRcer re-sync to `dacdb7ef7d70`, filed against `Pass 327.1`).
+
+**Decisions made this session:** none new. `ARCHITECTURE.md` §3 got a body update (workspace layout, `pdfcer-model` entry + dependency direction); the Pass's own scope note says the final-shape §12 decision is filed once the shape is final, not per step.
+
+**Findings + decisions:**
+- Step 1's edge map (2026-09-23) was confirmed exactly on extraction: the model layer's only upward edge into core was `settings::{XrefEntryEol, TrailingEol}`.
+- `#[non_exhaustive]` was removed from `Object`, `SectionShape`, `XrefEntryEol`, `TrailingEol` — all four are spec-closed, and the crate split would otherwise have forced a wildcard onto core's own exhaustive matches over them, losing the "new variant is a compile error" guarantee those matches exist for. `XrefEntry` keeps the attribute (§7.5.8.3 reserves future entry types). Two RAG findings written to `D:\dev\rag\rust\` (below).
+- `DocumentView::clone_view` moved into model `view.rs` — an inherent impl cannot live outside its type's defining crate.
+- Nine `pub(crate)` model helpers core calls became `#[doc(hidden)] pub`. Upward intra-doc links from moved modules into core became plain code text (rustdoc's `broken_intra_doc_links` only warns, and only under `cargo doc` — a second RAG finding).
+- `cargo tree -p pdfcer-model` (Windows): only `aes`/`brotli`/`cbc`/`flate2`/`getrandom`/`sha2`/`thiserror`/`weezl`, no GUI/network crate. wasm32 `cargo check` green across all three crates. fmt/clippy `-D warnings` clean. `tools/run-gates.sh` 35/36 (the one red, `check-ocrcer-vendored`, closed by `9425ff22`). `#[test]` count unchanged workspace-wide at 5,483 (core lib 2,117 → 1,691 + model lib 426 + 25 model doctests). Round-trip suite (1,949 tests) passes.
+- Rebuild-time measurement (the Pass's own acceptance criterion): CLI build after a model edit 15.2 s → 13.1 s; after a core-leaf edit 13.3 s → 12.6 s; `cargo test -p pdfcer-core --lib --no-run` after a leaf edit 13 s → 8 s; model-lib tests after a model edit 13 s → 3 s.
+
+**Still in flight:**
+- `Pass 325.0` steps 3 (leaf feature crates: sign, ocr, image_codec, then crypto/form_script/dimension/vector/text_edit), 4 (facade — done for the model layer, open for leaf crates), 6 (`#[cfg(test)]`-to-`tests/` move), 7 (housekeeping) — all open.
+- Local, unpushed commits pending push after `tools/run-gates.sh` confirmation, per usual.
+
+**For next session:**
+- Continue `Pass 325.0` at step 3.
+
+**Sourcing (hard rule 8).** No shell this filing. All commits, module lists, line/test counts, gate results and rebuild-time measurements are relayed from the dispatching engineer's own report of `0fbf6cbb`/`022c3640`/`9425ff22`; not independently reproduced here.
+
 ## 2026-09-25 (594th filing) — `Pass 325.0` step 5 SHIPPED (`0fe973a2`): the 46k-line `pdfcer-cli` `main.rs` split into 28 subcommand modules; a certification-check gap the split exposed is fixed
 
 **Shipped:**
